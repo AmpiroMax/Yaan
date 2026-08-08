@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 00:06:00
+# Last updated: 09:08:2026 - 00:40:00
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -19,6 +19,8 @@
 # - 09:08:2026 - 00:06:00: Ported from Quicky Engine; skip lists adapted to the
 #                          Daggerfall N layout (games/daggerfall_n assets, model
 #                          weights, compiled shaders, voice manifests).
+# - 09:08:2026 - 00:40:00: Skip any build*/ directory (per-agent build dirs) and
+#                          _deps (FetchContent checkouts) by prefix, not exact name.
 
 from __future__ import annotations
 
@@ -38,9 +40,19 @@ UPD_ENTRY_RE = re.compile(
 # - Build/tooling output (.git, build*, ...).
 # - third_party: vendored dependencies — never hand-edited.
 # - __pycache__/.venv: Python artifacts.
-SKIP_DIRS = {".git", "build", "build_debug", "target", "node_modules", "dist",
-             ".vite", ".cursor", ".claude", "third_party", "__pycache__", ".venv",
-             ".build_mac", ".build_win"}
+SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
+             ".claude", "third_party", "__pycache__", ".venv", "_deps",
+             "screenshots"}
+# Any path part starting with one of these prefixes is skipped (covers the
+# per-agent build dirs: build_lead/, build_core/, build_render/, build_sim/...).
+SKIP_DIR_PREFIXES = ("build", ".build")
+
+
+def _skip_parts(parts: tuple[str, ...]) -> bool:
+    for p in parts:
+        if p in SKIP_DIRS or p.startswith(SKIP_DIR_PREFIXES):
+            return True
+    return False
 # Regexes (posix, relative to root) marking generated/runtime data — not source code.
 SKIP_PATH_RES = (
     re.compile(r"^games/[^/]+/(assets|save|logs|screenshots)/"),
@@ -121,7 +133,7 @@ def scan_directory(root: Path) -> list[tuple[Path, list[str]]]:
         if not path.is_file():
             continue
         rel = path.relative_to(root)
-        if set(rel.parts) & SKIP_DIRS:
+        if _skip_parts(rel.parts):
             continue
         rel_posix = rel.as_posix()
         if any(rx.match(rel_posix) for rx in SKIP_PATH_RES):
