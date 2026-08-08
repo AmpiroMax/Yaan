@@ -1,10 +1,13 @@
 <!--
 Created: 08:08:2026 - 21:35:00
-Last updated: 08:08:2026 - 21:35:00
+Last updated: 09:08:2026 - 00:29:27
 -->
 <!--
 UPD:
 - 08:08:2026 - 21:35:00: Initial constants registry from grill session decisions (Q32, Q41, Q45-Q48, Q63).
+- 09:08:2026 - 00:15:56: Added provisional camera and internal-resolution constants requested by render agent; pending user approval at the stage-1 sync.
+- 09:08:2026 - 00:26:00: Added provisional player capsule/controller constants requested by sim agent; tunable at the future movement grill.
+- 09:08:2026 - 00:29:27: Stage-1 sync: added SIM_MAX_CATCHUP_STEPS, chunk streaming radii, NPC/interaction defaults, camera pitch limit (all provisional).
 -->
 
 # NUMBERS.md — реестр констант проекта
@@ -22,6 +25,7 @@ UPD:
 |---|---|---|---|
 | `SIM_TICK_RATE` | 60 | Гц | Q32 |
 | `SIM_DT` | 1/60 | с | Q32 |
+| `SIM_MAX_CATCHUP_STEPS` | 5 | шагов | синк этапа 1 (предложение core): потолок догоняющих шагов после фриза, дальше время отбрасывается |
 
 ## Движение
 
@@ -40,6 +44,8 @@ UPD:
 | `HEIGHT_FORMAT` | uint16 + масштаб/смещение на чанк | — | Q48 |
 | `CHUNK_HEIGHTMAP_BYTES` | ~33 | КБ | Q48 |
 | `WORLD_BYTE_ORDER` | little-endian, явно | — | Q49 |
+| `CHUNK_LOAD_RADIUS` | 2 | чанков | синк этапа 1, предварительно; гистерезис с UNLOAD |
+| `CHUNK_UNLOAD_RADIUS` | 3 | чанков | синк этапа 1, предварительно |
 
 ## Плотность мира — ДВА разных контракта (Q46)
 
@@ -78,6 +84,32 @@ UPD:
 | `LLM_VRAM_BUDGET` | ~2 | ГБ | Q63 |
 | `LLM_FALLBACK_MODEL` | 0.5B | параметров | Q63 |
 | Инференс запрещён | бой, загрузка чанков | — | Q64 |
+
+## Контроллер игрока — ПРЕДВАРИТЕЛЬНО (стандартные FPS-значения, тюнить на гриллинге движения)
+
+Запрошено агентом sim; контроллер ссылается на имена, не на значения.
+
+| Константа | Значение | Единица | Примечание |
+|---|---|---|---|
+| `PLAYER_CAPSULE_RADIUS` | 0.35 | м | |
+| `PLAYER_CAPSULE_HEIGHT` | 1.8 | м | полная высота капсулы |
+| `PLAYER_EYE_HEIGHT` | 1.7 | м | смещение глаз от низа капсулы |
+| `PLAYER_STEP_HEIGHT` | 0.35 | м | максимальная ступенька |
+| `PLAYER_MAX_SLOPE` | 0.87 (~50°) | рад | максимальный проходимый уклон |
+| `NPC_ARRIVE_RADIUS` | 0.5 | м | радиус принятия MoveTo (запрос sim, синк этапа 1) |
+| `INTERACT_DISTANCE` | 3.0 | м | дальность взаимодействия/подсветки (Q11) |
+
+## Камера и рендер — ПРЕДВАРИТЕЛЬНО (утвердить на синке этапа 1)
+
+Запрошено агентом render; значения выставлены лидом как рабочая точка, а не решение.
+
+| Константа | Значение | Единица | Примечание |
+|---|---|---|---|
+| `CAMERA_FOV_Y` | 1.309 (~75°) | рад | вертикальный FOV; градусы только на границе UI (Rule 14) |
+| `CAMERA_NEAR` | 0.1 | м | |
+| `CAMERA_FAR` | 1000.0 | м | связана с будущим LOD/дальностью прорисовки |
+| `CAMERA_PITCH_LIMIT` | 1.55 (~89°) | рад | предел наклона взгляда вверх/вниз |
+| `INTERNAL_RES` | 640×360 | пикс | низкое разрешение рендера (Q9); целочисленный апскейл в 720p/1080p. Альтернатива для более крупного пикселя: 320×180 — **выбор за пользователем** |
 
 ## Код и процесс
 

@@ -1,0 +1,17 @@
+# Created: 09:08:2026 - 00:29:27
+# Last updated: 09:08:2026 - 00:29:27
+# File: .clangd
+#
+# Responsibility:
+# - clangd IDE configuration: repo-root include path and language standard, so
+#   diagnostics are sane before the CMake build (and compile_commands.json) exist.
+#   glm remains unresolved until stage-2 FetchContent runs — expected.
+#
+# AI Agents Notice:
+# - Follow docs/ARCHITECTURE.md strictly.
+#
+# UPD:
+# - 09:08:2026 - 00:29:27: Created (stage-1 headers predate the build system).
+
+CompileFlags:
+  Add: [-std=c++20, -I., -Wall, -Wextra]
