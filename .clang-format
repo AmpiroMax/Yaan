@@ -1,0 +1,27 @@
+#
+# Created: 09:08:2026 - 00:06:00
+# Last updated: 09:08:2026 - 00:06:00
+# File: .clang-format
+#
+# Responsibility:
+# - C++ code formatting rules for the project.
+#
+# AI Agents Notice:
+# - Follow docs/ARCHITECTURE.md strictly.
+#
+# UPD:
+# - 09:08:2026 - 00:06:00: Ported from Quicky Engine; ColumnLimit raised to 100.
+
+BasedOnStyle: LLVM
+UseTab: Never
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: 0
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Attach
+NamespaceIndentation: None
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup

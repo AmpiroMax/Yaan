@@ -1,3 +1,13 @@
+<!--
+Created: 08:08:2026 - 18:00:00
+Last updated: 09:08:2026 - 00:06:00
+-->
+<!--
+UPD:
+- 08:08:2026 - 18:00:00: Session started; rounds recorded incrementally through the evening.
+- 09:08:2026 - 00:06:00: Session closed at 81 questions / 11 rounds; added header block to satisfy the header/UPD contract.
+-->
+
 # Grill session: initial planning
 
 **Дата:** 2026-08-08
