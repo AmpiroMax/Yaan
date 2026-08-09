@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 16:47:51
+# Last updated: 09:08:2026 - 23:49:27
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -23,10 +23,12 @@
 # - 09:08:2026 - 13:28:27: P1 anisotropy touch: WorldgenWater.cpp added (query side split from WorldgenHydrology.cpp).
 # - 09:08:2026 - 16:30:44: Representation swap: VoxelVolume.cpp and VoxelMesh.cpp.
 # - 09:08:2026 - 16:47:51: P7: WorldgenCarve.cpp.
+# - 09:08:2026 - 23:49:27: LOD streaming half: CoarseTerrain.cpp.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
+    sources/CoarseTerrain.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
     sources/Worldgen.cpp

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 09:08:2026 - 23:49:27
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -22,6 +22,9 @@ AI Agents Notice (must follow):
   before its entity group is destroyed — consumers release meshes/bodies in the
   handler while heightfield(coord) is still valid. Keep that order.
 - Batch ECS ops only on the streaming paths (Rule 11).
+- A delivered coarse node is freed ONLY by release_coarse_node(). Adding an
+  eviction policy here (age, count, distance) breaks the agreement with render,
+  which drops its GPU mesh first and then calls release.
 */
 /*
 UPD:
@@ -36,16 +39,20 @@ UPD:
 - 09:08:2026 - 17:36:42: §6.2: honour ground_y when spawning site entities.
 - 09:08:2026 - 18:19:09: Streaming LOAD BUDGET: at most CHUNK_LOAD_BUDGET chunks admitted per update, nearest-to-focus first with a deterministic tie-break, remainder deferred to following updates. Unbounded admission was the multi-second freeze (a cold ring is ~2 s of synchronous work at ~83 ms/chunk including sim's collision build). Nearest-first is what makes deferral safe: the ground under the player is distance 0, so it is always next and the queue cannot reorder into a hole beneath them.
 - 09:08:2026 - 21:37:57: NEW darkness_at(world) — the §6.3 authored-darkness query wrapped at the ChunkManager level (lead's call) so the app holds only its one world handle and never the layout, the worldgen context or a GroundSampler; HOW darkness is computed stays in this zone and the sampler is guaranteed to be the one the carve mouths were derived with.
+- 09:08:2026 - 22:10:12: water_surface_at(vec2) implemented over the analytic water_at, for sim's swim test.
+- 09:08:2026 - 23:49:27: LOD STREAMING HALF. Coarse node residency (requested -> the one active build -> held until release_coarse_node), nearest-to-focus first, advanced only in updates that admitted NO chunk so two budgets never land in one frame. world_bounds_xz reports the extent the generator was OPENED with. Nothing leaves the held set on its own -- an eviction render did not ask for pulls the ground out from under a mesh it is still drawing.
 */
 
 #include "engine/world/sources/ChunkManager.h"
 
 #include "engine/world/sources/WorldgenCarve.h"
+#include "engine/world/sources/WorldgenMacro.h"
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/SiteComponents.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
@@ -63,6 +70,77 @@ struct ChunkManager::Impl {
     std::vector<math::LakePlane> lakes;           // water_bodies() storage
     std::unordered_map<uint64_t, Chunk> resident; // key = chunk_group(coord)
     std::vector<ChunkCoord> loaded_coords;        // cache for loaded_chunks()
+
+    // --- Coarse LOD nodes ----------------------------------------------------
+    // Three states, and the split is the contract with render: `requested` is
+    // asked for but untouched, `active` is the ONE node under construction, and
+    // `coarse` holds finished nodes until release_coarse_node. Nothing moves out
+    // of `coarse` on its own — an eviction render did not ask for would pull the
+    // ground out from under a mesh it is still drawing.
+    std::vector<CoarseNode> requested;
+    std::optional<CoarseNodeData> active;
+    std::unordered_map<uint64_t, CoarseNodeData> coarse;
+
+    /// Shortest distance from the focus to the node's footprint on xz (0 when
+    /// the focus is inside it) — the same measure render selects nodes with.
+    [[nodiscard]] static float coarse_distance(const CoarseNode& n, glm::vec2 focus) {
+        const glm::vec2 o = coarse_node_origin_m(n);
+        const float s = coarse_node_size_m(n.level);
+        const float dx = std::max({o.x - focus.x, 0.0f, focus.x - (o.x + s)});
+        const float dz = std::max({o.y - focus.y, 0.0f, focus.y - (o.y + s)});
+        return std::sqrt(dx * dx + dz * dz);
+    }
+
+    /// Advances the ONE node under construction, starting the nearest requested
+    /// node when there is none. Nearest-first for the same reason the chunk
+    /// queue is nearest-first: what the player is looking at should arrive
+    /// before what is behind them, and the order must not depend on the
+    /// enumeration order of a hash map.
+    void advance_coarse(glm::vec2 focus) {
+        if (!active) {
+            if (requested.empty()) {
+                return;
+            }
+            auto best = requested.begin();
+            float best_d = coarse_distance(*best, focus);
+            for (auto it = requested.begin() + 1; it != requested.end(); ++it) {
+                const float d = coarse_distance(*it, focus);
+                // Deterministic tie-break: a coarser level first (it covers more
+                // ground for the same cost), then node coords.
+                bool better = d < best_d;
+                if (!better && d == best_d) {
+                    if (it->level != best->level) {
+                        better = it->level > best->level;
+                    } else if (it->x != best->x) {
+                        better = it->x < best->x;
+                    } else {
+                        better = it->z < best->z;
+                    }
+                }
+                if (better) {
+                    best = it;
+                    best_d = d;
+                }
+            }
+            active = begin_coarse_node(*best);
+            requested.erase(best);
+        }
+        build_coarse_rows(gen_ctx, *active, COARSE_NODE_ROW_BUDGET);
+        if (active->complete()) {
+            coarse.insert_or_assign(coarse_node_key(active->node), std::move(*active));
+            active.reset();
+        }
+    }
+
+    [[nodiscard]] bool coarse_known(const CoarseNode& n) const {
+        if (coarse.contains(coarse_node_key(n))) {
+            return true;
+        }
+        if (active && active->node == n) {
+            return true;
+        }
+        return std::find(requested.begin(), requested.end(), n) != requested.end();
+    }
 
     [[nodiscard]] bool in_extent(ChunkCoord c) const {
         return c.x >= gen_params.min_chunk.x && c.x <= gen_params.max_chunk.x
@@ -106,6 +184,11 @@ void ChunkManager::open_generated(const WorldGenParams& gen_params,
     impl_->delta = nullptr;
     impl_->resident.clear();
     impl_->loaded_coords.clear();
+    // A new world invalidates every coarse node: the ids are on a fixed world
+    // grid, but what the field says at those coordinates is not the same world.
+    impl_->requested.clear();
+    impl_->active.reset();
+    impl_->coarse.clear();
     // World-level passes once per open (deterministic; chunks stay independent).
     impl_->gen_ctx = build_world_context(gen_params);
     // Drawable water bodies: the lake plus every surviving pond, so no
@@ -237,6 +320,19 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
         }
     }
 
+    // --- Coarse LOD pass: far terrain is built with the update's LEFTOVER ----
+    //
+    // Only when no chunk was admitted. Two budgets spent in one update is two
+    // budgets' worth of hitch, and the ground under the player outranks the
+    // ground on the horizon by definition: a chunk admission costs ~83 ms
+    // including sim's collision build, which is already the whole frame. Chunk
+    // admissions are bursty (a ring fills over a handful of updates and then
+    // nothing), so this starves only while the player is crossing into new
+    // ground, which is measured in frames.
+    if (pending.empty()) {
+        impl_->advance_coarse({focus_position.x, focus_position.z});
+    }
+
     if (changed) {
         impl_->rebuild_coord_cache();
     }
@@ -313,6 +409,94 @@ std::optional<float> ChunkManager::height_at(glm::vec2 world_xz) const {
         return std::nullopt;
     }
     return it->second.heightmap.sample_world(coord, world_xz);
+}
+
+// --- Coarse terrain (far LOD) --------------------------------------------------
+
+glm::vec4 ChunkManager::world_bounds_xz() const {
+    if (!impl_->opened) {
+        return glm::vec4{0.0f};
+    }
+    // THE GENERATED extent, derived from the params the generator was opened
+    // with — not from configured constants, which describe an intent that has
+    // already diverged from what exists once this stage. max_chunk is
+    // INCLUSIVE, so the far edge is (max_chunk + 1) * CHUNK_SIZE.
+    const float size = static_cast<float>(config::CHUNK_SIZE);
+    const WorldGenParams& p = impl_->gen_params;
+    return glm::vec4{static_cast<float>(p.min_chunk.x) * size,
+                     static_cast<float>(p.min_chunk.z) * size,
+                     static_cast<float>(p.max_chunk.x + 1) * size,
+                     static_cast<float>(p.max_chunk.z + 1) * size};
+}
+
+void ChunkManager::request_coarse_nodes(std::span<const CoarseNode> nodes) {
+    if (!impl_->opened) {
+        return;
+    }
+    for (const CoarseNode& node : nodes) {
+        // Idempotent: render may pass the same standing set every frame, and a
+        // duplicate request must not rebuild a node that is already delivered
+        // (which would hand render a new view while it draws the old one).
+        if (!impl_->coarse_known(node)) {
+            impl_->requested.push_back(node);
+        }
+    }
+}
+
+std::optional<math::HeightFieldView>
+ChunkManager::coarse_heightfield(const CoarseNode& node) const {
+    const auto it = impl_->coarse.find(coarse_node_key(node));
+    if (it == impl_->coarse.end()) {
+        return std::nullopt; // never requested, or still being built
+    }
+    return it->second.height_view();
+}
+
+std::optional<math::SurfaceFieldView>
+ChunkManager::coarse_surfacefield(const CoarseNode& node) const {
+    const auto it = impl_->coarse.find(coarse_node_key(node));
+    if (it == impl_->coarse.end()) {
+        return std::nullopt;
+    }
+    return it->second.surface_view();
+}
+
+void ChunkManager::release_coarse_node(const CoarseNode& node) {
+    if (impl_->coarse.erase(coarse_node_key(node)) > 0) {
+        return;
+    }
+    // Cancelling something not yet delivered: the node under construction, or
+    // one still queued. Render deselects nodes it never received (it moved on),
+    // and without these two branches the work would be finished for nobody.
+    if (impl_->active && impl_->active->node == node) {
+        impl_->active.reset();
+        return;
+    }
+    const auto it = std::find(impl_->requested.begin(), impl_->requested.end(), node);
+    if (it != impl_->requested.end()) {
+        impl_->requested.erase(it);
+    }
+}
+
+std::size_t ChunkManager::coarse_resident_count() const {
+    return impl_->coarse.size();
+}
+
+std::size_t ChunkManager::coarse_pending_count() const {
+    return impl_->requested.size() + (impl_->active ? 1u : 0u);
+}
+
+std::optional<float> ChunkManager::water_surface_at(glm::vec2 world_xz) const {
+    const WorldGenContext& ctx = impl_->gen_ctx;
+    // Macro height first: water_at needs the pre-carve terrain at this column,
+    // and it must be the same value the height pipeline uses or the carve and
+    // the water surface disagree at the shoreline.
+    const float h = macro_height(ctx.params.seed, ctx.params.layout, world_xz);
+    const WaterSample s = water_at(ctx.hydrology, ctx.params.layout, world_xz, h);
+    if (s.water_surface <= math::NO_WATER) {
+        return std::nullopt;
+    }
+    return s.water_surface;
 }
 
 float ChunkManager::darkness_at(glm::vec3 world) const {

@@ -224,6 +224,40 @@ float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
     return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
 }
 
+float terrain_slope(const WorldGenContext& ctx, glm::vec2 world) {
+    // Central differences of the FINAL height field (position-based — identical
+    // on shared chunk edges even though neighbors lie outside the chunk being
+    // generated, and identical at every LOD level for the same reason).
+    const float hx = terrain_height(ctx, {world.x + STEP_M, world.y})
+                   - terrain_height(ctx, {world.x - STEP_M, world.y});
+    const float hz = terrain_height(ctx, {world.x, world.y + STEP_M})
+                   - terrain_height(ctx, {world.x, world.y - STEP_M});
+    return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
+}
+
+math::SurfaceClass classify_surface(const TestbedLayout& layout, glm::vec2 world,
+                                    float height, const WaterSample& water,
+                                    float slope_rad) {
+    // Priority rules per LANDSCAPE §4 (first match wins).
+    const bool covered = water.water_surface != math::NO_WATER && height < water.water_surface;
+    if (covered) {
+        return math::SurfaceClass::WaterBed;
+    }
+    if (water.dist_to_water <= SAND_DIST && water.near_level != math::NO_WATER
+        && height - water.near_level <= SAND_HEIGHT) {
+        return math::SurfaceClass::Sand;
+    }
+    if (slope_rad >= SLOPE_ROCK
+        || (crag_distance(layout, world) < layout.crag.radius
+            && height >= layout.crag.rockline)) {
+        return math::SurfaceClass::Rock;
+    }
+    if (slope_rad >= SLOPE_GRASS) {
+        return math::SurfaceClass::GrassRockBlend;
+    }
+    return math::SurfaceClass::Grass;
+}
+
 SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world) {
     const TestbedLayout& layout = ctx.params.layout;
     const float macro = macro_height(ctx.params.seed, layout, world);
@@ -237,31 +271,7 @@ SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world) {
     out.dist_to_water = water.dist_to_water;
     const bool covered = water.water_surface != math::NO_WATER && h < water.water_surface;
     out.water_surface = covered ? water.water_surface : math::NO_WATER;
-
-    // Slope from central differences of the FINAL height field (position-based
-    // — identical on shared chunk edges even though neighbors lie outside the
-    // chunk being generated).
-    const float hx = terrain_height(ctx, {world.x + STEP_M, world.y})
-                   - terrain_height(ctx, {world.x - STEP_M, world.y});
-    const float hz = terrain_height(ctx, {world.x, world.y + STEP_M})
-                   - terrain_height(ctx, {world.x, world.y - STEP_M});
-    const float slope = std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
-
-    // Priority rules per LANDSCAPE §4 (first match wins).
-    if (covered) {
-        out.surface_class = math::SurfaceClass::WaterBed;
-    } else if (water.dist_to_water <= SAND_DIST && water.near_level != math::NO_WATER
-               && h - water.near_level <= SAND_HEIGHT) {
-        out.surface_class = math::SurfaceClass::Sand;
-    } else if (slope >= SLOPE_ROCK
-               || (crag_distance(layout, world) < layout.crag.radius
-                   && h >= layout.crag.rockline)) {
-        out.surface_class = math::SurfaceClass::Rock;
-    } else if (slope >= SLOPE_GRASS) {
-        out.surface_class = math::SurfaceClass::GrassRockBlend;
-    } else {
-        out.surface_class = math::SurfaceClass::Grass;
-    }
+    out.surface_class = classify_surface(layout, world, h, water, terrain_slope(ctx, world));
     return out;
 }
 
@@ -272,8 +282,11 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     chunk.coord = coord;
 
     Heightmap& hm = chunk.heightmap;
-    hm.height_offset = 0.0f;
-    hm.height_scale = MAX_HEIGHT_M / 65535.0f; // shared by all chunks (edge equality)
+    // The SHARED quantization (Chunk.h): every chunk and every coarse LOD node
+    // decode with the same offset/scale, which is what makes a sample two grids
+    // share bit-identical rather than merely close.
+    hm.height_offset = HEIGHT_QUANT_OFFSET;
+    hm.height_scale = HEIGHT_QUANT_SCALE;
     const std::size_t sample_count = static_cast<std::size_t>(RESOLUTION) * RESOLUTION;
     hm.samples.resize(sample_count);
     chunk.surface.dist_to_water.resize(sample_count);
@@ -314,8 +327,7 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             const glm::vec2 world = world_at(x, z);
             const std::size_t i = static_cast<std::size_t>(z) * RESOLUTION + x;
             const float h = final_h[i];
-            const float raw = std::round(h / MAX_HEIGHT_M * 65535.0f);
-            hm.samples[i] = static_cast<uint16_t>(std::clamp(raw, 0.0f, 65535.0f));
+            hm.samples[i] = quantize_height(h);
 
             const auto h_at = [&](int32_t nx, int32_t nz) {
                 if (nx >= 0 && nz >= 0 && nx < static_cast<int32_t>(RESOLUTION)
@@ -337,20 +349,8 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             chunk.surface.dist_to_water[i] = w.dist_to_water;
             chunk.surface.water_surface[i] = covered ? w.water_surface : math::NO_WATER;
 
-            math::SurfaceClass cls = math::SurfaceClass::Grass;
-            if (covered) {
-                cls = math::SurfaceClass::WaterBed;
-            } else if (w.dist_to_water <= SAND_DIST && w.near_level != math::NO_WATER
-                       && h - w.near_level <= SAND_HEIGHT) {
-                cls = math::SurfaceClass::Sand;
-            } else if (slope >= SLOPE_ROCK
-                       || (crag_distance(layout, world) < layout.crag.radius
-                           && h >= layout.crag.rockline)) {
-                cls = math::SurfaceClass::Rock;
-            } else if (slope >= SLOPE_GRASS) {
-                cls = math::SurfaceClass::GrassRockBlend;
-            }
-            chunk.surface.surface_class[i] = static_cast<uint8_t>(cls);
+            chunk.surface.surface_class[i] =
+                static_cast<uint8_t>(classify_surface(layout, world, h, w, slope));
         }
     }
 

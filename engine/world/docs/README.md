@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 23:49:27
 -->
 <!--
 UPD:
@@ -14,6 +14,7 @@ UPD:
 - 09:08:2026 - 14:49:01: Scatter-in-water fix: per-cell pond planes (bbox planes over-covered dry ground) + ScatterCtx::dry_enough water gate on every scatter pass including the forced watchpoint cluster; no-scatter-in-water invariant added.
 - 09:08:2026 - 16:30:44: 3D terrain stage 1 — VoxelVolume + VoxelMesh (surface nets) built from each chunk's heightmap; Chunk carries the extracted VoxelSurface; ChunkManager::voxel_mesh() hands it to render/physics; HeightFieldView unchanged.
 - 09:08:2026 - 15:18:34: Castle (§6.1): WorldgenCastle module (terrace + access ramp + hall-castle mass + occlusion), castle site types on mesh ids 8..11, hierarchy/access validation; C1 re-verified with the castle in the occlusion field.
+- 09:08:2026 - 23:49:27: LOD STREAMING HALF — CoarseTerrain module (coarse quadtree node identity on a fixed world grid, the 1/4/8/16/32/64 m ladder, incremental node builder) and the five ChunkManager calls the app ferries to render: world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node. Heights and surface classes are produced by the SAME quantize_height() and classify_surface() the chunk builder uses, so a coarse sample equals a chunk sample exactly where the lattices coincide (measured: 9828 shared points, 0 mismatches, both counterfactual builders rejected). Suites tests/core/{CoarseLodTests,LodSeamTests}.cpp.
 -->
 
 # engine/world
@@ -36,6 +37,16 @@ deltas (Q56).
 - `ChunkManager`, `ChunkLoaded`/`ChunkUnloaded`, `ChunkStreamingParams`
   (`sources/ChunkManager.h`) — residency around the focus position; batch
   spawn/destroy per chunk; synchronous events (unload fires before free).
+  Also the far-terrain half: `world_bounds_xz()` (the GENERATED extent),
+  `request_coarse_nodes()` (async, per-update row budget, nearest-to-focus
+  first), `coarse_heightfield()` / `coarse_surfacefield()`,
+  `release_coarse_node()` (the ONLY thing that frees a delivered node).
+- `CoarseNode`, `CoarseNodeData`, `build_coarse_rows`
+  (`sources/CoarseTerrain.h`) — a coarse LOD node IS a `math::HeightFieldView`:
+  129 samples with the shared edge row, step = the level's voxel size
+  (1/4/8/16/32/64 m), 128 voxels per node at every level, world origin =
+  node coord * node size on a grid rooted at world zero so growing the world
+  renumbers nothing. Nodes are built a few rows per update, not all at once.
 - `generate_world`/`generate_chunk`, `WorldGenParams` (now carrying the
   `TestbedLayout`), `WorldGenContext`/`build_world_context`,
   `terrain_height`/`surface_point`, `WorldGenRng` (`sources/Worldgen.h`) —

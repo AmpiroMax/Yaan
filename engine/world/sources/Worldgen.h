@@ -81,6 +81,26 @@ struct WorldGenContext {
 /// (P2) + building pads (P4). The continuous field the heightmaps sample.
 [[nodiscard]] float terrain_height(const WorldGenContext& ctx, glm::vec2 world);
 
+/// Terrain slope (radians) at a world position: central differences of the
+/// FINAL height field at +-HEIGHTMAP_STEP.
+///
+/// The step is HEIGHTMAP_STEP and not "whatever grid the caller is on", which
+/// makes the slope — and therefore the surface CLASS derived from it — a pure
+/// function of world position. That is a requirement, not a tidiness: a coarse
+/// LOD node measuring slope at its own 8 m or 32 m spacing would classify the
+/// same ground differently at every level, so render's cross-fade between two
+/// levels would swap the material as well as the geometry.
+[[nodiscard]] float terrain_slope(const WorldGenContext& ctx, glm::vec2 world);
+
+/// The LANDSCAPE §4 surface classification, first match wins. One definition,
+/// called by surface_point(), by the chunk builder and by the coarse LOD node
+/// builder — three copies of a priority chain is three chances to drift, and a
+/// drift here shows up as a material seam rather than as a failing test.
+[[nodiscard]] math::SurfaceClass classify_surface(const TestbedLayout& layout,
+                                                  glm::vec2 world, float height,
+                                                  const WaterSample& water,
+                                                  float slope_rad);
+
 /// Full per-position surface sample (P3 outputs + final height).
 struct SurfacePoint {
     float height = 0.0f;

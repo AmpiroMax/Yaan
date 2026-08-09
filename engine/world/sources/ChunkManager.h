@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 09:08:2026 - 23:49:27
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -14,7 +14,7 @@ Key items:
 - ChunkLoaded / ChunkUnloaded: events published on the core EventBus.
 - ChunkStreamingParams: radii (values from generated constants; entries pending
   in NUMBERS.md).
-- ChunkManager: open/update/queries/height sampling.
+- ChunkManager: open/update/queries/height sampling, coarse LOD node streaming.
 
 Dependencies:
 - Uses: Chunk.h, WorldFormat.h, SaveDelta.h, engine/core/{ecs,events,math,config}.
@@ -42,6 +42,8 @@ UPD:
   LocalBounds/SiteMarker to P4 site entities via batch ops.
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh(coord) — the 3D geometry handoff, same lifetime as heightfield().
 - 09:08:2026 - 21:37:57: NEW darkness_at(world) — §6.3 authored darkness (0 open daylight .. 1 pitch black) as a one-position query; keeps worldgen internals out of the app's frame loop.
+- 09:08:2026 - 22:10:12: NEW water_surface_at(vec2) for sim's swimming — resolves against the analytic water field, NOT the drawable primitives (whose coverage guarantee runs field->primitive only, so they can extend past real water) and NOT the sampled grid (quantised at the shoreline).
+- 09:08:2026 - 23:49:27: LOD STREAMING HALF (the agreed seam with render): world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node, plus the two residency counters. Coarse nodes are built incrementally under a per-update row budget inside update(), nearest-to-focus first, and are freed ONLY by release_coarse_node — render drops its mesh before it calls it.
 */
 
 #pragma once
@@ -51,12 +53,14 @@ UPD:
 #include "engine/core/math/sources/HeightField.h"
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/world/sources/Chunk.h"
+#include "engine/world/sources/CoarseTerrain.h"
 #include "engine/world/sources/SaveDelta.h"
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/Worldgen.h"
 
 #include <filesystem>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 #include <memory>
 #include <optional>
 #include <span>
@@ -179,6 +183,79 @@ public:
     /// this zone, and the sampler is guaranteed to be the same one the carve
     /// mouths were derived with. Ask it per frame for the player's position.
     [[nodiscard]] float darkness_at(glm::vec3 world) const;
+
+    // --- Coarse terrain (far LOD) ---------------------------------------------
+    //
+    // THE OTHER HALF OF THE LOD CONTRACT WITH RENDER. Chunk streaming reaches
+    // CHUNK_LOAD_RADIUS chunks from the player and stops; everything past it
+    // simply does not exist, which is why half the map is missing at any
+    // moment. These five calls stream the rest as coarse quadtree nodes.
+    //
+    // Agreed with render (Rule 26), and every clause of it is load-bearing:
+    // - A COARSE NODE IS A HeightFieldView. 129 samples with the shared edge
+    //   row, step = the level's voxel size (1/4/8/16/32/64 m), 128 voxels per
+    //   node at every level. No second mesh format exists.
+    // - NODE IDS SIT ON A FIXED WORLD GRID (world origin = coord * node size),
+    //   so growing the world from 2x2 km to 10x10 km renumbers nothing.
+    // - REQUESTS ARE ASYNC. coarse_heightfield() returns nullopt for several
+    //   updates after a request: nodes are built under the same per-update
+    //   budget discipline that fixed the streaming freezes. Render retries
+    //   against its pending set, not against its one-shot to_load list.
+    // - NOTHING IS EVICTED BEHIND RENDER'S BACK. A delivered node stays valid
+    //   until release_coarse_node; render drops its mesh first.
+
+    /// The extent of the GENERATED world on xz, metres: (min_x, min_z, max_x,
+    /// max_z). Render's LOD descent needs it to know where the world ends.
+    ///
+    /// It comes from here rather than from generated config because config
+    /// describes the CONFIGURED extent while this describes what the generator
+    /// was actually opened with, and those two have already diverged once this
+    /// stage. Zero-extent (all four components 0) when nothing is open.
+    [[nodiscard]] glm::vec4 world_bounds_xz() const;
+
+    /// Asks for these nodes to be built. Returns immediately: the work happens
+    /// inside following update() calls, nearest-to-focus first, under a
+    /// per-update budget. Requesting a node that is already resident or already
+    /// queued is a no-op, so render may pass the same list every frame.
+    void request_coarse_nodes(std::span<const CoarseNode> nodes);
+
+    /// The node's heightfield, or nullopt while it is still being built (or was
+    /// never requested). Valid until release_coarse_node(node).
+    [[nodiscard]] std::optional<math::HeightFieldView>
+    coarse_heightfield(const CoarseNode& node) const;
+
+    /// The node's surface field (splat classes, water), same grid and lifetime
+    /// as coarse_heightfield. nullopt exactly when that is nullopt.
+    ///
+    /// It ships WITH the geometry rather than after it: without it the
+    /// cross-fade between two levels changes the MATERIAL as well as the shape,
+    /// which moves popping off the silhouette and onto the colour.
+    [[nodiscard]] std::optional<math::SurfaceFieldView>
+    coarse_surfacefield(const CoarseNode& node) const;
+
+    /// Frees the node (or cancels its pending build). Render calls its own
+    /// drop_lod_node first — this side never frees anything render still holds.
+    void release_coarse_node(const CoarseNode& node);
+
+    /// Nodes fully built and held. Diagnostics for the app and tests.
+    [[nodiscard]] std::size_t coarse_resident_count() const;
+    /// Nodes requested and not yet delivered.
+    [[nodiscard]] std::size_t coarse_pending_count() const;
+
+    /// Height of the water surface covering `world_xz`, or nullopt where there
+    /// is no water. THE FIELD IS THE TRUTH: this resolves against the analytic
+    /// hydrology query, not against the LakePlane/RiverStation primitives and
+    /// not against the sampled heightmap grid.
+    ///
+    /// That distinction is the whole reason this exists. The drawable
+    /// primitives are DERIVED from the field, and the invariant that pins them
+    /// runs one way only -- every WaterBed sample is covered by a primitive,
+    /// with nothing guaranteeing the reverse -- so a primitive may extend past
+    /// real water. A point-in-ellipse test would let a swimmer swim on grass,
+    /// which is the pond bounding-box bug (1.7-6x over-cover) with a player in
+    /// it instead of a tree. Being analytic rather than grid-sampled, it is
+    /// also exact at the shoreline instead of quantised to the sample spacing.
+    [[nodiscard]] std::optional<float> water_surface_at(glm::vec2 world_xz) const;
 
 private:
     struct Impl; // reader, delta overlay, resident map, scratch batch buffers

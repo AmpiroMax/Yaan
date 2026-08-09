@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 23:49:27
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -38,6 +38,7 @@ UPD:
   instances added to Chunk. Additive; heightmap contract unchanged.
 - 09:08:2026 - 16:30:44: Representation swap: Chunk carries the extracted VoxelSurface (the volume is transient — the world is not destructible, so only geometry stays resident).
 - 09:08:2026 - 17:36:42: §6.2: GeneratedEntityRecord::ground_y — a carved entrance stands on a floor cut below the surface, which the heightfield cannot report.
+- 09:08:2026 - 23:49:27: LOD streaming: quantize_height/dequantize_height + HEIGHT_QUANT_SCALE/OFFSET extracted here as the SINGLE quantization every height-sample producer calls (chunk builder and coarse-node builder). The seam between a chunk and a coarse node is exact by construction rather than by two files agreeing (Rule 32).
 */
 
 #pragma once
@@ -48,6 +49,8 @@ UPD:
 #include "engine/core/math/sources/SurfaceField.h"
 #include "engine/core/math/sources/VoxelField.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -84,6 +87,44 @@ struct ChunkCoord {
 
 /// The chunk containing world-space position (x, z) in meters.
 [[nodiscard]] ChunkCoord chunk_at_position(glm::vec2 world_xz);
+
+/// The SHARED height quantization: offset 0, scale WORLDGEN_MAX_HEIGHT/65535,
+/// identical for every chunk AND every coarse LOD node in the world.
+///
+/// It is shared rather than per-chunk because that is what makes a sample
+/// EXACTLY equal wherever two grids meet. A per-chunk min/max range would
+/// decode the same shared edge sample to two slightly different floats and
+/// every chunk border would be a hairline crack; the same argument one level
+/// up is why a coarse LOD node quantizes here too, since a node's lattice
+/// coincides with the chunk lattice at every sample from level 1 upward.
+inline constexpr float HEIGHT_QUANT_OFFSET = 0.0f;
+inline constexpr float HEIGHT_QUANT_SCALE =
+    static_cast<float>(config::WORLDGEN_MAX_HEIGHT) / 65535.0f;
+
+/// Quantizes a terrain height in meters into a raw heightmap sample.
+///
+/// EVERY producer of height samples calls THIS — the chunk builder and the
+/// coarse-node builder both — so "the two agree" is a property of the code
+/// rather than a promise two files have to keep. Rule 32: the mechanism, not
+/// the instance. Heights above the range clamp rather than wrap.
+///
+/// The expression is `h / MAX * 65535` and NOT `h / HEIGHT_QUANT_SCALE`, which
+/// are different in the last bit because HEIGHT_QUANT_SCALE is itself a rounded
+/// float. The two round differently for a handful of samples out of 65535, i.e.
+/// by one raw unit = 6 mm, and this form is the one every chunk in the tree was
+/// generated with. Landing a feature is not an excuse to move unrelated output
+/// bits; if the round-trip is ever retuned it is its own change with its own
+/// measurement.
+[[nodiscard]] inline uint16_t quantize_height(float meters) {
+    const float raw = std::round((meters - HEIGHT_QUANT_OFFSET)
+                                 / static_cast<float>(config::WORLDGEN_MAX_HEIGHT) * 65535.0f);
+    return static_cast<uint16_t>(std::clamp(raw, 0.0f, 65535.0f));
+}
+
+/// Inverse of quantize_height (the HeightFieldView decode formula).
+[[nodiscard]] inline float dequantize_height(uint16_t raw) {
+    return HEIGHT_QUANT_OFFSET + static_cast<float>(raw) * HEIGHT_QUANT_SCALE;
+}
 
 /// Owned height data of one chunk (HEIGHT_FORMAT, Q48): raw uint16 samples plus
 /// per-chunk decode scale/offset. ~33 KB per chunk. Layout and decode formula

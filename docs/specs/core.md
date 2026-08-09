@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 09:08:2026 - 23:49:27
 -->
 <!--
 UPD:
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 19:41:55: L0_RELIEF 115 adopted. Castle hierarchy green (R4 0.285 vs 0.6, crown clear, C1 0.90). Cascade handled: rockline/treeline now scale with the summit; the switchback ascent is lifted and pushed out 1.30x so its mouth clears the taller cone (94 of 106 stations under rock, both portals, 19.7% grade); the ward chain's waterline floor now outranks its step-down and the chain truncates where the spur meets water. OPEN, needs design: the Backbarrow site is SWALLOWED by the taller crag — its passage sits 81-105 m from the crag centre where terrain rose from ~21 m to 40-64 m, so the entrance is buried under 20-44 m of mountain. Clearing it needs ~130 m from centre, which puts it 20 m from the castle and breaks CASTLE_BARROW_DIST 40-80: the castle+barrow pair needs re-siting against a 115 m Ravenscar.
 - 09:08:2026 - 19:55:17: DIRT STRIPES FIXED (user-visible every daylight second): surface vertices took their material from the nearest solid CORNER, whose depth was measured against a different column's surface — on a slope an uphill corner reads as deep soil, painting contour-following dirt bands across meadow. Material now derives from the vertex's own depth below the interpolated local surface: dry open ground away from water is down to 19 Dirt vertices in 1.08M (0.002%), all river-bed-class. BARROW re-siting implemented per design (couloir bearing swing, rigid rotation of site+passage+chamber) but BLOCKED: Ravenscar has no couloirs to find — measured identical lobe ratio at every height, i.e. a self-similar cone — and the high-shoulder fallback was measured and rejected because it breaks story's not-visible-from-Vaelmere constraint (26/39 standpoints) and drives the barrow chamber through the crag tunnel.
 - 09:08:2026 - 21:37:57: LANDSCAPE §2.8 banded contour massif implemented (massif_height replaces crag_height): per-bearing concave profile exponent p>1, per-bearing radial lobing, non-uniform contour bands, per-bearing cliff/ramp risers, bearing fields sampled on a CIRCLE in the lattice so they are periodic with no branch cut at +-pi. Seed 1: I1 15.0 deg (need 12), I3 16.5% surface over 55 deg (need 12), I4 fullest bin 24.2% (max 30), I5 100% of radials (need 70), I6 CV 0.518 (need 0.35); I2 awaits the summit tor, I7/I8 await angular lobes. NEW spec section "Reading a constant is not reading the rule" — all four implementation bugs shared one shape (a plausible rule invented from a constant's NAME, implemented in place of the spec's), all invisible until measured, three of four caught by I4. TWO MEASUREMENT QUESTIONS ESCALATED to design rather than resolved in my own favour: footprint vs true surface area for I3/I4 (6.0% fail vs 16.5% pass), and re-stamping the §2.8 baseline after the polyline rule moved the same terrain 0.80 -> 1.27. Voxel-vs-heightfield assertion restated per vertex against local within-cell relief with carve surfaces exempt (strictly stronger than the old global-max bound: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained).
+- 09:08:2026 - 23:49:27: LOD STREAMING HALF (the critical path: the world is 1024 m and the ring reaches 512 m, so half the map is missing at any moment). NEW module CoarseTerrain (coarse node identity on a fixed world grid rooted at world zero, the 1/4/8/16/32/64 m ladder agreed with render, incremental row-wise builder) + five additive ChunkManager calls the app ferries: world_bounds_xz (the GENERATED extent, not the configured one), request_coarse_nodes (async, nearest-to-focus, COARSE_NODE_ROW_BUDGET rows per update, and only in updates that admitted no chunk so two budgets never land in one frame), coarse_heightfield, coarse_surfacefield (ships WITH the geometry — without it the cross-fade changes material as well as shape), release_coarse_node (the ONLY thing that frees a delivered node). THE SEAM IS EXACT BY CONSTRUCTION, not by agreement: quantize_height() and classify_surface() were extracted to one place each and BOTH builders call them, so a coarse sample equals a chunk sample bit for bit wherever the lattices coincide (measured 9828 shared points, 0 mismatches; both counterfactual builders — continuous field, per-node quantization range — rejected with 9828 and 9497 mismatches). Inter-level disagreement table measured for render's skirt: gap/step 0.36-0.67 across all five level pairs, worst 20.06 m at L0/L1, every pair covered by render's provisional skirt with 6-10x margin. TWO FINDINGS REPORTED, NOT PATCHED: the summit of Ravenscar is a flat 18 m mesa with 30 m vertical walls (it dominates every entry of the table), and render's resident-rectangle straddle rule forces ~40 level-0 nodes per frame onto ground 500-700 m away, which is the ladder's own rule inverted. NUMBERS rows requested (Rule 35): LOD_LEVEL_COUNT / LOD_NODE_VOXELS / LOD_VOXEL_SIZE_L0..L5 / COARSE_NODE_ROW_BUDGET; interim guard is tests/core/LodSeamTests.cpp, which links dfn_render and asserts the two ladders are element-wise equal.
 -->
 
 # Spec: `core` (engine/core + engine/world)
@@ -187,6 +188,20 @@ doc comments; template/method bodies land in stage 2 without changing signatures
   WorldGenContext once; site entities get Transform/PreviousTransform/
   RenderMesh (placeholder ids)/LocalBounds/SiteMarker via one add_batch per
   component type (Rule 11).
+- `sources/CoarseTerrain.h` — **the LOD streaming contract with render**
+  (agreed session 09:08:2026, recorded in both specs). `CoarseNode {level, x,
+  z}` on a FIXED WORLD GRID (origin = coord * node size, rooted at world zero,
+  so growing the world renumbers nothing already cached); the ladder
+  `COARSE_VOXEL_SIZE_M` = 1/4/8/16/32/64 m with `COARSE_NODE_VOXELS` 128 at
+  every level, i.e. `COARSE_NODE_RESOLUTION` 129 samples with the shared edge
+  row; `CoarseNodeData` (owned samples + `height_view()`/`surface_view()`);
+  `begin_coarse_node`/`build_coarse_rows`/`build_coarse_node`. **A COARSE NODE
+  IS A `HeightFieldView`** — no second mesh format exists, and render's splat,
+  atlas and shader are the chunk path's. ChunkManager adds `world_bounds_xz()`,
+  `request_coarse_nodes()`, `coarse_heightfield()`, `coarse_surfacefield()`,
+  `release_coarse_node()`. The ladder numbers are a Rule 35 request pending in
+  NUMBERS.md; until they land `tests/core/LodSeamTests.cpp` links `dfn_render`
+  and pins the two tables equal.
 - `sources/Worldgen.h` — `WorldGenParams {seed, min/max chunk, TestbedLayout
   layout}` (layout added stage 3b, additive — lead-approved; serialized into
   WorldInfo when .dfw IO lands); `WorldGenContext {params, hydrology, sites}`
