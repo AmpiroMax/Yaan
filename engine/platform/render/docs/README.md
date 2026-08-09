@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 20:50:00
+Last updated: 09:08:2026 - 21:08:00
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain + fs_prop); terrain fragment v3 (splat-weight vertex channels + ordered dither).
 - 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0 (views renumbered), depth-only "shadow" program, dfn_shadow.sh sampling in terrain/prop; terrain fragment v4 (surface-class-only splat — legacy height-sand and dirt dryness removed per design ruling).
 - 09:08:2026 - 20:50:00: Interior lighting: CUBE SHADOWS for carried lights (12 face views into one distance atlas, "point_shadow" program, dfn_pointshadow.sh), caster culling from mesh bounds measured at create_mesh, and the touch-order rule that empty draws must precede every setUniform of the frame.
+- 09:08:2026 - 21:08:00: DrawParams sync (lead-authored): submit takes per-draw params; both backends implement the five-argument form, bgfx forwards fade/highlight into u_params.yz and dfn_screen_door dissolves by an ordered 4x4 pattern.
 -->
 
 # engine/platform/render
@@ -120,6 +121,21 @@ Stage-3 additions in the bgfx backend:
   (`Impl::touch_point_shadow_views`). Touching after `apply_environment` made
   the whole world render with the DEFAULT (daylit) environment the moment a
   torch was lit.
+
+- **Per-draw parameters (DrawParams sync)**: `submit` now carries a
+  `DrawParams{fade, highlight, aux0, aux1}`. The backend forwards them into
+  `u_params.yzw` (x stays "texture bound"), and `dfn_screen_door` in
+  `dfn_env.sh` DISSOLVES a fragment by an ordered 4x4 pattern when fade < 1 —
+  terrain, prop and foliage call it. Dissolve rather than alpha because the
+  LOD cross-fade draws the SAME ground at two levels at once: blending would
+  need sorting and would double-darken, and under the 64-colour post a
+  half-transparent surface would be dithered anyway. `highlight` is wired
+  through and currently unused — it is sim's interaction hover, waiting for a
+  visual treatment.
+  Note for shader authors: `dfn_screen_door` takes the pixel coordinate as a
+  PARAMETER. `dfn_env.sh` is included by vertex shaders (wind), where
+  `gl_FragCoord` does not exist; naming it inside the function broke every
+  vertex shader in the tree.
 
 ### Logical program name -> render state (backend convention)
 

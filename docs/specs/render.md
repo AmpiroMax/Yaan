@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 20:55:00
+Last updated: 09:08:2026 - 21:08:00
 -->
 <!--
 UPD:
@@ -67,6 +67,9 @@ UPD:
   from components::CarriedLight, cube shadow maps for MAX_SHADOW_POINT_LIGHTS
   (one distance ATLAS, not a cube texture), caster culling from bounds
   measured at create_mesh, and the named EMPTY DRAWS EAT UNIFORMS rule.
+- 09:08:2026 - 21:08:00: LOD render half (TerrainLod: derived ladder, quadtree
+  selection, two-level fade window) + the DrawParams contract sync (lead
+  authored; both backends implement it, fade drives an ordered dissolve).
 -->
 
 # Spec — render agent
@@ -621,6 +624,51 @@ rendering with the RenderEnvironment struct's default values, because the
 night environment had been recorded into a touch that was never applied. If a
 render bug ever looks like "the environment reverted to defaults", look for a
 new empty draw before suspecting the environment code.
+
+Terrain LOD, render half (`TerrainLod.{h,cpp}`, pure and GPU-free):
+1. The LADDER is core's contract: voxel 1/4/8/16/32/64 m for levels 0..5, node
+   = 128 VOXELS a side at every level, which is what makes the triangle budget
+   per node constant (~33k, inside the agreed 30-40k). In metres a node is
+   128 at level 0 and 8192 at level 5.
+2. SELECTION IS DERIVED. A node is good enough when the eye is at least
+   110 * (its voxel size) metres away, and 110 is the whole pixel budget in one
+   number: 275 px per radian at 640x360, 2.5 px per triangle edge, so the
+   useful edge at distance d is d/110. Level 0 must reach 440 m — not because
+   440 looks right, but because the ladder's first jump is 1 -> 4 m and level 1
+   is not competent until 440.
+3. NODE IDS ROOT ON A FIXED WORLD GRID, not on the world rectangle. When the
+   world grows from 2x2 to 10x10 km nothing is renumbered and nothing core
+   cached is invalidated. Free today, unaffordable later; a test pins it.
+4. MEASURED (inherit these instead of re-deriving): 2x2 km world, eye at the
+   centre -> 76 nodes, 64 at level 0. 10x10 km -> 184 nodes, 128 at level 0.
+   25x the AREA costs 2.4x the draw list. At ~33k triangles a node that is
+   ~2.1M triangles of terrain BEFORE frustum culling, which is the next lever
+   and is not built (a 75-degree frustum keeps roughly a third).
+5. NO POPPING, structurally: a node cannot begin fading in before its mesh
+   exists, and is released only when it is BOTH deselected AND fully faded. A
+   pending request therefore cannot become a hole in the ground. This only
+   works because core confirmed a node may be resident at two levels at once
+   with an explicit render-called release_node.
+6. The fade is a SCREEN-DOOR dissolve (dfn_screen_door), not alpha: the two
+   levels are the same ground, blending would need sorting and would
+   double-darken, and under the 64-colour post a half-transparent surface gets
+   dithered anyway — so we dither deliberately, on the internal-pixel grid.
+   It needed the per-draw channel that did not exist, which produced the
+   DrawParams sync below. Explicitly NOT requested from core: morph targets /
+   geomorphing — the dissolve needs no extra vertex data.
+
+Contract sync — DrawParams (Rule 26, lead-authored 09:08:2026 21:02):
+`submit` gained `const DrawParams&` (fade, highlight, aux0, aux1); the
+four-argument form stays as a non-virtual convenience so no call site changed.
+Argued for and granted on the ground that it is NOT a LOD field: three known
+consumers already exist — the cross-fade, sim's interaction highlight
+(components::HoverTarget names the hovered entity and render had no way to draw
+it differently), and later damage flashes, magic glow, wetness. One named
+struct beats three incompatible special cases invented months apart.
+The lead rejected the alternative `set_draw_params(vec4)`-applies-to-the-next-
+submit for a reason worth keeping: sticky per-draw state is a bug generator —
+set a fade, hit an early-out that skips the submit, and an unrelated draw
+inherits it. Passing params WITH the draw makes that unrepresentable.
 
 Cross-zone agreements made in this stage (recorded so a successor inherits the
 reasoning, not just the result):

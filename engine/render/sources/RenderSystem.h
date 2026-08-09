@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 20:44:00
+Last updated: 09:08:2026 - 21:14:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -72,10 +72,15 @@ UPD:
   CarriedLight + Transform into the frame's point-light array (hand offset
   rotated by the carrier's interpolated rotation, first two lights flagged for
   cube shadows), plus the DFN_TORCH / DFN_DARK verification hooks.
+- 09:08:2026 - 21:14:00: Frustum culling: per-chunk world bounds measured at
+  upload (TerrainRes / ChunkScatterRes::bounds) and visible_or_casting, which
+  keeps off-screen shadow casters alive.
 */
 
 #pragma once
 
+#include "engine/core/math/sources/Aabb.h"
+#include "engine/core/math/sources/Frustum.h"
 #include "engine/core/math/sources/SurfaceField.h"
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
@@ -213,6 +218,15 @@ private:
     void draw_overlay(platform::IRenderer& renderer, const PixelCanvas& canvas,
                       const FirstPersonCamera& camera, float alpha);
 
+    // A resident chunk mesh plus the world AABB it occupies. The bounds are
+    // measured at upload (the mesher's vertices are right there) and exist for
+    // frustum culling — recomputing them per frame from the GPU is impossible
+    // and storing them is 24 bytes.
+    struct TerrainRes {
+        uint32_t mesh_id = 0;
+        math::Aabb bounds{};
+    };
+
     // One micro-scatter tile resident on the GPU (culling data + mesh).
     struct MicroTileRes {
         glm::vec2 center_xz{0.0f};
@@ -222,11 +236,22 @@ private:
     struct ChunkScatterRes {
         uint32_t trees_mesh_id = 0;   // 0 = no trees in this chunk
         uint32_t foliage_mesh_id = 0; // alpha-cutout leaf cards ("foliage")
+        math::Aabb bounds{};          // trees + cards, for frustum culling
         std::vector<MicroTileRes> micro;
     };
 
+    // True if the box should be drawn: inside the frustum, OR close enough to
+    // the eye that it is still a SUN SHADOW CASTER. The second half is not an
+    // optimization detail — the backend double-submits every opaque draw into
+    // the shadow map, so a box culled here loses its shadow too, and a tree
+    // just off the left edge of the screen would stop shading the ground the
+    // player is looking at.
+    [[nodiscard]] static bool visible_or_casting(const math::Frustum& frustum,
+                                                 const math::Aabb& box,
+                                                 const glm::vec3& eye);
+
     // Resource bookkeeping only — never game state (Rule 10).
-    std::unordered_map<glm::ivec2, uint32_t, ChunkKeyHash> terrain_meshes_; // coord -> MeshHandle.id
+    std::unordered_map<glm::ivec2, TerrainRes, ChunkKeyHash> terrain_meshes_;
     std::unordered_map<glm::ivec2, ChunkScatterRes, ChunkKeyHash> scatter_meshes_;
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id

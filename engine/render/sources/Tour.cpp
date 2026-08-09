@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 19:32:00
+Last updated: 09:08:2026 - 21:20:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -40,6 +40,9 @@ UPD:
   acceptance vantage for thin-caster shadows (trunks + §6.2 standing stones).
 - 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE) — one sky-heavy
   vantage; the hour comes from DFN_TIME so day/dusk/night reuse it.
+- 09:08:2026 - 21:20:00: massif_probe_steps(which) (DFN_MASSIF_PROBE=1|2) —
+  design's §7.1b far VERDICT and near RHYTHM vantages, one frame per run
+  because each needs its own hour.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -259,6 +262,30 @@ std::vector<TourStep> Tour::sky_probe_steps() {
     return {{"sky", {pos.x, 70.0f, pos.y}, yaw, pitch, 90, true}};
 }
 
+std::vector<TourStep> Tour::massif_probe_steps(int which) {
+    // Coordinates and intent are DESIGN's (§7.1b), not render's — recorded here
+    // so the shoot is reproducible from the repo rather than from a message.
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    if (which >= 2) {
+        // FRAME 2 — RHYTHM. 287 m out on the ~280 deg bearing, which avoids the
+        // castle sector (~208 deg) where §6.1.1 lets the castle fill the view:
+        // a frame taken through it would be testing the castle, not the
+        // mountain. Front-lit and low (DFN_TIME 0.72) so the near-vertical
+        // risers take the light head-on while the benches graze it — that
+        // value separation IS the band rhythm.
+        const glm::vec2 pos{545.0f, 165.0f};
+        return {{"massif_rhythm", {pos.x, eye, pos.y}, aim_yaw(pos, {830.0f, 200.0f}),
+                 0.10f, 90, true}};
+    }
+    // FRAME 1 — VERDICT. 717 m out, the range the valley actually looks at the
+    // massif from, backlit (DFN_TIME 0.30) because the complaint being answered
+    // was a SILHOUETTE word: a landmark reads by value against sky (§1.5), so a
+    // dark ribbed mass against a bright sky is the purest form of the test.
+    const glm::vec2 pos{120.0f, 300.0f};
+    return {{"massif_verdict", {pos.x, eye, pos.y}, aim_yaw(pos, {830.0f, 200.0f}),
+             0.09f, 90, true}};
+}
+
 std::vector<TourStep> Tour::testbed_steps() {
     // Verification hooks (Rule 27, user instruction "one variant, no
     // near-identical frames"): each of these collapses the tour to the single
@@ -271,6 +298,9 @@ std::vector<TourStep> Tour::testbed_steps() {
     }
     if (env_or_null("DFN_SKY_PROBE") != nullptr) {
         return sky_probe_steps();
+    }
+    if (const char* menv = env_or_null("DFN_MASSIF_PROBE")) {
+        return massif_probe_steps(std::atoi(menv));
     }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative

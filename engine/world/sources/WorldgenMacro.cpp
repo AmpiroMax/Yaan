@@ -199,8 +199,11 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
     // hard (1.36 -> 1.53, turning 1% of headroom into 13%) but collapses the
     // RISE clause (0.14 -> 0.09), because a couloir that keeps its depth all
     // the way up puts as much re-entrant perimeter on the high slices as the
-    // low ones. The two I8 clauses want opposite couloir treatments; this
-    // picks the one that serves the clause design ruled load-bearing.
+    // low ones. Both readings were the SAME EXPERIMENT: each varied how fast
+    // the couloir faded while holding its depth as a FRACTION OF LOCAL RADIUS,
+    // and a quantity held as a fraction of local radius is SELF-SIMILAR BY
+    // CONSTRUCTION -- which is exactly what the rise clause exists to detect.
+    // The fix is a change of UNIT, not of value (design's ruling): see below.
     float notch = 0.0f;
     const float half_w = TAU / static_cast<float>(n) * 0.15f; // quarter of a facet's span
     for (int i = 0; i < n; ++i) {
@@ -211,13 +214,38 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
         while (dth > TAU * 0.5f) { dth -= TAU; }
         while (dth < -TAU * 0.5f) { dth += TAU; }
         if (std::fabs(dth) < half_w) {
-            // Depth is drawn PER COULOIR; the cosine is only its cross-section,
-            // deepest on the axis and running out to nothing at the walls.
+            // Depth is drawn PER COULOIR and is ABSOLUTE (metres), scaled off
+            // the massif's BASE radius rather than the local one. That single
+            // unit choice is what earns the rise clause: R shrinks toward the
+            // summit, so a constant absolute inset is a GROWING fraction of a
+            // shrinking radius. The mountain grows more articulated near the
+            // top not because its features grow, but because the mountain gets
+            // smaller around them -- which is what real massifs do.
+            //
+            // Precedent, so this reads as consistent rather than novel:
+            // MASSIF_ARETE_TURN_ARC_MAX is already absolute on purpose -- a
+            // crest that turns over 60 m is a shoulder whatever mountain it
+            // belongs to. Same reasoning, applied to the couloir.
+            //
+            // The angular WIDTH stays relative (half_w is a fraction of the
+            // facet). Absolute width would make the couloir an ever-larger
+            // slice of an ever-smaller circumference, curve the facets and
+            // kill I7.
+            // The absolute scale is a FEATURE size, not the massif's. Taking
+            // MASSIF_RADIAL_LOBE_AMP off the 180 m base radius gives 32-63 m
+            // insets -- wider than the whole upper mountain -- so the clamp
+            // binds at every height and silently restores the fraction-of-
+            // local-radius behaviour the unit change exists to remove
+            // (measured: levels 1.50/1.50/1.60 but rise 0.10, and I7 gone).
+            //
+            // A couloir is a gully INCISING THE CLIFF BANDS, so the band height
+            // is its natural absolute scale: same units, same landform, and an
+            // existing constant rather than a new one.
             const float depth =
-                static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN)
+                static_cast<float>(config::MASSIF_CLIFF_BAND_MIN)
                 + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
-                      * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX
-                                           - config::MASSIF_RADIAL_LOBE_AMP_MIN);
+                      * static_cast<float>(config::MASSIF_CLIFF_BAND_MAX
+                                           - config::MASSIF_CLIFF_BAND_MIN);
             // SQUARED cross-section, and the exponent is load-bearing: a
             // linear taper spreads each couloir across its whole facet and
             // curves it, and I7 wants FLAT facets meeting at a line. Measured
@@ -394,7 +422,13 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         // rise clause.
         const float floor_k = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN
                                                  / config::MASSIF_RADIAL_LOBE_AMP_MAX);
-        R_solved = (crag.radius + (r_poly - crag.radius) * k) * (1.0f - notch * (1.0f - k));
+        const float r_blend = crag.radius + (r_poly - crag.radius) * k;
+        // Absolute inset, clamped so it cannot exceed MASSIF_RADIAL_LOBE_AMP_MAX
+        // of the LOCAL radius. The clamp engages only inside the summit region,
+        // where the tor owns the silhouette anyway. No new constant.
+        const float cut = std::min(
+            notch, r_blend * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX));
+        R_solved = r_blend - cut;
         const float t = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
         return H * std::pow(1.0f - t, p);
     };

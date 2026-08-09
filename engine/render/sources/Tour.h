@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 19:32:00
+Last updated: 09:08:2026 - 21:20:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -62,6 +62,8 @@ UPD:
   evidence route; testbed_steps() returns it when DFN_MAP is set.
 - 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE).
 - 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE, hour via DFN_TIME).
+- 09:08:2026 - 21:20:00: massif_probe_steps() (DFN_MASSIF_PROBE=1|2) — design's
+  §7.1b verdict/rhythm vantages.
 */
 
 #pragma once
@@ -161,6 +163,16 @@ public:
     // valley. Selected by DFN_SKY_PROBE; the HOUR comes from DFN_TIME and the
     // moon phase from DFN_MOON, so one route covers every time of day.
     [[nodiscard]] static std::vector<TourStep> sky_probe_steps();
+
+    // Massif shape evidence shoot (design's §7.1b, Rule 27): the two vantages
+    // that judge the §2.8 mountain. ONE frame per run — DFN_MASSIF_PROBE=1 is
+    // the far VERDICT frame (does it read as a ribbed concave mass rather than
+    // a dome, backlit against sky), =2 is the near RHYTHM frame (does the flank
+    // alternate cliff and bench at irregular spacing, front-lit and low).
+    // They are separate runs because each needs its own HOUR: design chose the
+    // light per frame to expose that frame's failure mode, and the other
+    // frame's light would hide it. Pass the matching DFN_TIME.
+    [[nodiscard]] static std::vector<TourStep> massif_probe_steps(int which);
 
 private:
     // Step position with ground_relative y resolved via ground_at_ (absolute

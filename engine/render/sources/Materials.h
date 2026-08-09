@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 21:12:00
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -41,6 +41,8 @@ UPD:
 - 09:08:2026 - 14:11:37: Sun lowered to afternoon height for readable dynamic
   shadows (в1). The app's day/night cycle (в2) overrides all of sun/ambient/
   fog/sky per frame via RenderSystem::environment(); these remain the defaults.
+- 09:08:2026 - 21:12:00: LOOKDEV_SHADOW_CASTER_KEEP_M — the radius that keeps
+  off-screen shadow casters alive once frustum culling exists.
 */
 
 #pragma once
@@ -87,6 +89,15 @@ inline const float LOOKDEV_ROCK_SLOPE_START =
     1.0f - std::cos(static_cast<float>(config::SLOPE_GRASS_MAX));
 inline const float LOOKDEV_ROCK_SLOPE_END =
     1.0f - std::cos(static_cast<float>(config::SLOPE_ROCK_MIN));
+// Radius around the eye inside which an off-screen mesh is STILL submitted,
+// because the backend double-submits every opaque draw into the sun shadow map
+// and a caster culled from the camera would take its shadow with it. It mirrors
+// the backend's SHADOW_HALF_EXTENT_M: past that distance the shadow volume does
+// not cover the caster anyway, so dropping it is free. THESE TWO NUMBERS MUST
+// MATCH — both are on the NUMBERS.md migration list, which is where the
+// duplication goes away.
+inline constexpr float LOOKDEV_SHADOW_CASTER_KEEP_M = 320.0f;
+
 inline constexpr float LOOKDEV_SAND_BLEND_M = 1.5f;
 inline constexpr float LOOKDEV_TERRAIN_TILES_PER_CHUNK = 32.0f; // 8 m per repeat
 

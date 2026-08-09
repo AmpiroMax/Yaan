@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 20:46:00
+Last updated: 09:08:2026 - 21:14:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -50,6 +50,11 @@ UPD:
 - 09:08:2026 - 20:46:00: collect_point_lights — CarriedLight + Transform become
   the frame's point lights (interpolated, hand offset rotated by body yaw,
   first two flagged for cube shadows), plus DFN_TORCH / DFN_DARK hooks.
+- 09:08:2026 - 21:14:00: FRUSTUM CULLING for terrain and scatter, with the
+  shadow-caster exemption (visible_or_casting): chunk bounds are measured at
+  upload, and an off-screen mesh within LOOKDEV_SHADOW_CASTER_KEEP_M is still
+  submitted because the backend double-submits opaques into the sun map — a
+  naive cull would delete shadows along with the geometry.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -98,7 +103,32 @@ glm::mat4 interpolated_transform(const components::PreviousTransform& prev,
     return glm::scale(m, scale);
 }
 
+math::Aabb bounds_of(const std::vector<platform::Vertex>& vertices) {
+    math::Aabb box;
+    for (const platform::Vertex& v : vertices) {
+        box.expand(v.position);
+    }
+    return box;
+}
+
 } // namespace
+
+bool RenderSystem::visible_or_casting(const math::Frustum& frustum,
+                                      const math::Aabb& box, const glm::vec3& eye) {
+    if (!box.valid()) {
+        return true; // no bounds measured: never cull blind
+    }
+    if (frustum.visible(box)) {
+        return true;
+    }
+    // Off screen, but still a sun caster? The backend renders every opaque
+    // submit into the shadow map, so culling here would delete the shadow with
+    // the mesh. Cheap conservative test: sphere around the box centre.
+    const glm::vec3 d = box.center() - eye;
+    const float reach = LOOKDEV_SHADOW_CASTER_KEEP_M
+                      + glm::length(box.half_extents());
+    return glm::dot(d, d) <= reach * reach;
+}
 
 size_t RenderSystem::ChunkKeyHash::operator()(const glm::ivec2& v) const {
     // 2D grid hash: large odd multipliers, good spread for small coords.
@@ -284,8 +314,8 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
         renderer.destroy_texture(platform::TextureHandle{overlay_texture_});
         overlay_texture_ = 0;
     }
-    for (const auto& [coord, mesh_id] : terrain_meshes_) {
-        renderer.destroy_mesh(platform::MeshHandle{mesh_id});
+    for (const auto& [coord, res] : terrain_meshes_) {
+        renderer.destroy_mesh(platform::MeshHandle{res.mesh_id});
     }
     terrain_meshes_.clear();
     for (auto& [coord, scatter] : scatter_meshes_) {
@@ -345,6 +375,13 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     collect_point_lights(world, camera, alpha);
     renderer.set_environment(environment_);
 
+    // Frustum culling (core's math). Culling is NOT free of consequences here:
+    // see visible_or_casting — off-screen meshes near the eye are kept because
+    // they still cast into the sun shadow map.
+    const math::Frustum frustum =
+        math::Frustum::from_view_proj(camera.proj() * camera.view(alpha));
+    const glm::vec3 cull_eye = camera.interpolated_pose(alpha).position;
+
     // Terrain: world-space meshes, identity transform, splat atlas bound.
     const glm::mat4 identity(1.0f);
     const platform::ProgramHandle terrain{terrain_program_};
@@ -353,8 +390,11 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         it != texture_cache_.end()) {
         atlas.id = it->second;
     }
-    for (const auto& [coord, mesh_id] : terrain_meshes_) {
-        renderer.submit(platform::MeshHandle{mesh_id}, terrain, identity, atlas);
+    for (const auto& [coord, res] : terrain_meshes_) {
+        if (!visible_or_casting(frustum, res.bounds, cull_eye)) {
+            continue;
+        }
+        renderer.submit(platform::MeshHandle{res.mesh_id}, terrain, identity, atlas);
     }
 
     // Scatter batches (stage 3b): trees always; bush/stone micro tiles only
@@ -369,7 +409,9 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         leaf_atlas.id = it->second;
     }
     for (const auto& [coord, scatter] : scatter_meshes_) {
-        if (scatter.trees_mesh_id != 0) {
+        const bool chunk_visible =
+            visible_or_casting(frustum, scatter.bounds, cull_eye);
+        if (chunk_visible && scatter.trees_mesh_id != 0) {
             renderer.submit(platform::MeshHandle{scatter.trees_mesh_id}, prop,
                             identity);
         }
@@ -377,11 +419,14 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         // translucency) and their own texture, which the backend also binds on
         // the shadow-cutout caster so the canopy punches its holes through the
         // depth map instead of casting solid rectangles.
-        if (scatter.foliage_mesh_id != 0 && foliage_program_ != 0) {
+        if (chunk_visible && scatter.foliage_mesh_id != 0 && foliage_program_ != 0) {
             renderer.submit(platform::MeshHandle{scatter.foliage_mesh_id}, foliage,
                             identity, leaf_atlas);
         }
         for (const MicroTileRes& tile : scatter.micro) {
+            if (!chunk_visible) {
+                break; // the whole chunk is behind us
+            }
             const glm::vec2 d = tile.center_xz - glm::vec2{eye.x, eye.z};
             const float max_dist = micro_range + tile.radius_m;
             if (glm::dot(d, d) <= max_dist * max_dist) {
@@ -630,12 +675,13 @@ void RenderSystem::upload_terrain(platform::IRenderer& renderer,
         return;
     }
     // Idempotent per coord: replace (and free) any previous upload.
+    const TerrainRes res{handle.id, bounds_of(data.vertices)};
     const auto it = terrain_meshes_.find(field.chunk_coord);
     if (it != terrain_meshes_.end()) {
-        renderer.destroy_mesh(platform::MeshHandle{it->second});
-        it->second = handle.id;
+        renderer.destroy_mesh(platform::MeshHandle{it->second.mesh_id});
+        it->second = res;
     } else {
-        terrain_meshes_.emplace(field.chunk_coord, handle.id);
+        terrain_meshes_.emplace(field.chunk_coord, res);
     }
 }
 
@@ -651,19 +697,20 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
     }
     // Same key as the heightfield upload: whichever source ran last owns the
     // chunk, so switching the ferry over never draws both.
+    const TerrainRes res{handle.id, bounds_of(data.vertices)};
     const auto it = terrain_meshes_.find(mesh.chunk_coord);
     if (it != terrain_meshes_.end()) {
-        renderer.destroy_mesh(platform::MeshHandle{it->second});
-        it->second = handle.id;
+        renderer.destroy_mesh(platform::MeshHandle{it->second.mesh_id});
+        it->second = res;
     } else {
-        terrain_meshes_.emplace(mesh.chunk_coord, handle.id);
+        terrain_meshes_.emplace(mesh.chunk_coord, res);
     }
 }
 
 void RenderSystem::drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord) {
     const auto it = terrain_meshes_.find(chunk_coord);
     if (it != terrain_meshes_.end()) {
-        renderer.destroy_mesh(platform::MeshHandle{it->second});
+        renderer.destroy_mesh(platform::MeshHandle{it->second.mesh_id});
         terrain_meshes_.erase(it);
     }
 }
@@ -681,6 +728,8 @@ void RenderSystem::upload_scatter(platform::IRenderer& renderer,
     ScatterBatches batches = build_scatter_batches(instances, origin, chunk_size);
 
     ChunkScatterRes res;
+    res.bounds.expand(bounds_of(batches.trees.vertices));
+    res.bounds.expand(bounds_of(batches.foliage.vertices));
     if (!batches.trees.vertices.empty()) {
         const platform::MeshHandle handle =
             renderer.create_mesh(batches.trees.vertices, batches.trees.indices);
