@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 10:29:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -22,6 +22,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 09:08:2026 - 10:29:00: default_steps takes ground_height (terrain height at
+  the chunk center): the old absolute eye heights put vantages 00-02 well
+  under the generated surface (~24 m at the center, seed 1), rendering the
+  terrain underside above the horizon — mistaken for a vertically flipped
+  image. See Tour.h UPD for the full root cause.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -137,20 +142,21 @@ bool Tour::post_frame(platform::IRenderer& renderer) {
     return false;
 }
 
-std::vector<TourStep> Tour::default_steps() {
-    // The stage-2 acceptance route (Q51): 4 vantages over the flat test chunk
+std::vector<TourStep> Tour::default_steps(float ground_height) {
+    // The stage-2 acceptance route (Q51): 4 vantages over the test chunk
     // (chunk (0,0) spans 0..CHUNK_SIZE on x/z). Positions derive from
-    // NUMBERS.md constants; eye height assumes ground near y=0 on the test
-    // chunk (the app may substitute terrain-aware steps).
+    // NUMBERS.md constants; `ground_height` is the terrain height at the
+    // chunk center, supplied by the app (the tour has no world access) so
+    // eye-level vantages sit above the generated surface, not under it.
     const float size = static_cast<float>(config::CHUNK_SIZE);
     const float mid = size * 0.5f;
-    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const float eye = ground_height + static_cast<float>(config::PLAYER_EYE_HEIGHT);
     return {
         {"center_north", {mid, eye, mid}, 0.0f, 0.0f, 30},
         {"center_east_down", {mid, eye + 2.0f, mid}, 1.5708f, -0.15f, 10},
         {"corner_diagonal", {size * 0.125f, eye + 8.0f, size * 0.125f},
          2.3562f, -0.2f, 10},
-        {"overview", {mid, 60.0f, mid}, 0.7854f, -0.9f, 10},
+        {"overview", {mid, ground_height + 60.0f, mid}, 0.7854f, -0.9f, 10},
     };
 }
 

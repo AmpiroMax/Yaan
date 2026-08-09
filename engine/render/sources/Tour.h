@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 10:29:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -45,6 +45,14 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — added internal_res_from_env (DFN_INTERNAL_RES
   override for the 640x360 vs 320x180 user decision) and screenshot flush
   phase state (bgfx captures asynchronously into the following frame).
+- 09:08:2026 - 10:29:00: default_steps(ground_height = 0.0f) — vantages are now
+  offset by the terrain height at the chunk center. Root cause of the
+  "vertically flipped image" report: the old absolute eye heights (ground
+  assumed at y=0) sat 14-22 m UNDER the generated surface (~24 m at the
+  center, seed 1), so frames showed the terrain underside above the horizon —
+  terrain on top, sky below. Render orientation itself was correct (frame 03
+  from y=60 proved it). Defaulted parameter, source-compatible; lead sync per
+  Rule 26 recorded via team channel 09:08:2026.
 */
 
 #pragma once
@@ -97,11 +105,15 @@ public:
     // IWindow::request_close.
     [[nodiscard]] bool post_frame(platform::IRenderer& renderer);
 
-    // The default stage-2 acceptance route (Q51): 4 vantages over the flat test
+    // The default stage-2 acceptance route (Q51): 4 vantages over the test
     // chunk — ground + horizon in every frame. Definitions live in the stage-2
     // .cpp, positions derived from NUMBERS.md chunk constants, not hardcoded ad
-    // hoc values.
-    [[nodiscard]] static std::vector<TourStep> default_steps();
+    // hoc values. `ground_height` is the terrain height (meters) at the chunk
+    // center; every vantage's y is offset by it so eye-level steps sit ABOVE
+    // the generated surface (the tour has no world access by design — the app,
+    // which knows the terrain, passes the reference height). The default 0.0f
+    // keeps the historical flat-ground assumption.
+    [[nodiscard]] static std::vector<TourStep> default_steps(float ground_height = 0.0f);
 
 private:
     std::vector<TourStep> steps_;

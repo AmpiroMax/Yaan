@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 00:50:00
+Last updated: 09:08:2026 - 10:32:00
 -->
 <!--
 UPD:
@@ -8,6 +8,14 @@ UPD:
 - 09:08:2026 - 00:50:00: Stage 2 implementation: backend factories, embedded
   shader decision (--bin2c), exact dependency pins, TerrainMesher header,
   DFN_INTERNAL_RES override, test suite.
+- 09:08:2026 - 10:32:00: "Flipped image" investigation: render orientation was
+  correct end to end (Metal caps.originBottomLeft=false, identity upscale UVs,
+  yflip=false passthrough verified against the pinned bgfx source). Real cause:
+  Tour::default_steps assumed ground at y=0 while worldgen ground at the chunk
+  center is ~24 m (seed 1) — vantages 00-02 were underground, showing the
+  terrain underside. Fix: default_steps(ground_height = 0.0f), app passes the
+  terrain height at the chunk center (App.cpp one-liner, lead). Defaulted
+  parameter addition to the frozen Tour.h agreed with the lead (Rule 26).
 -->
 
 # Spec — render agent

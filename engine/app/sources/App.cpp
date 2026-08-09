@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:20:00
+Last updated: 09:08:2026 - 10:32:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -34,6 +34,8 @@ UPD:
 - 09:08:2026 - 10:16:00: ChunkCoord uses x/z (not x/y) — ferry fixed.
 - 09:08:2026 - 10:20:00: Switched to core's open_generated() (open(file) is
                          stage 3) — the actual init failure after reboot.
+- 09:08:2026 - 10:32:00: Tour vantages offset by spawn ground height (render's
+                         underground-camera diagnosis; Rule 26 ack recorded).
 */
 
 #include "engine/app/sources/App.h"
@@ -204,7 +206,7 @@ bool App::init(const AppConfig& config) {
 
     if (render::Tour::enabled_by_env()) {
         const char* dir = std::getenv("DFN_TOUR_DIR");
-        tour_.begin(render::Tour::default_steps(), dir ? dir : "screenshots");
+        tour_.begin(render::Tour::default_steps(ground), dir ? dir : "screenshots");
     } else {
         input_->set_cursor_captured(true);
     }

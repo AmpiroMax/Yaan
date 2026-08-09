@@ -1,11 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:50:00
+Last updated: 09:08:2026 - 10:31:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: public headers only (camera, render system, tour, debug draw).
 - 09:08:2026 - 00:50:00: Stage 2 — implementations + TerrainMesher; tests.
+- 09:08:2026 - 10:31:00: Tour::default_steps(ground_height) — vantages offset by the app-supplied terrain height at the chunk center (old absolute heights sat under the generated surface and showed the terrain underside, mistaken for a flipped image).
 -->
 
 # engine/render
@@ -59,5 +60,6 @@ UVs, height/slope ground tint, crack-free shared edges), RenderSystem
 (terrain + interpolated ECS submissions; ECS mesh path inert until the
 stage-3 asset pipeline fills the caches), Tour (DFN_TOUR / DFN_TOUR_DIR /
 DFN_INTERNAL_RES; schedules screenshots then renders flush frames for async
-backends; `default_steps()` = the 4-frame Q51 route), DebugDraw. Tests:
-`tests/render.cmake` (mesher, camera, tour headless, null backends).
+backends; `default_steps(ground_height)` = the 4-frame Q51 route, vantages
+offset by the app-supplied terrain height at the chunk center), DebugDraw.
+Tests: `tests/render.cmake` (mesher, camera, tour headless, null backends).
