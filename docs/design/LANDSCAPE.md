@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 23:23:29
+Last updated: 10:08:2026 - 00:00:28
 -->
 <!--
 UPD:
@@ -51,6 +51,7 @@ UPD:
 - 09:08:2026 - 22:55:05: Three corrections from the lead, two of them to me, plus the sequencing worked through. §1.6 F6 — SATISFIED, and the lead settled it by CHECKING rather than routing it: settings.cfg carries internal_resolution=640x360, tools/run_tour.sh shoots at DFN_INTERNAL_RES=640x360, and the PNGs are 2560x1440 = exactly 4x in both axes, an integer framebuffer upscale, so THE FILES CONTAIN NO DETAIL THE PLAYER DOES NOT HAVE — a one-pixel band lip is four file pixels, magnified rather than invented. The frames stand, the sweep is not re-run, the condition stays because it would have caught a native capture. MY «CUTS TOWARD FLATTERY» READING IS WITHDRAWN AND THE WAY I GOT IT WRONG IS WORTH MORE THAN THE CLAIM WAS: I correctly refused to assert the premise — I wrote that the capture path was render's to state and that I had not read it — AND THEN BUILT A CONCLUSION ON IT IN THE SAME BREATH. Flagging a premise as unchecked does not make it checked. Rule 34 in its subtlest costume: not reasoning from a premise I believed, but from one I had explicitly labelled unknown, as though labelling discharged it. The rule is CHECK IT OR DRAW NOTHING FROM IT. What survives is a different and better point: the band lips are ~1 internal pixel, far under SILHOUETTE_MIN_PX 8, so they are genuinely VISIBLE AS VALUE TEXTURE ON THE BODY and are NOT READABLE STRUCTURE — exactly the distinction §2.8.7 drew about ribs reading as value rather than silhouette. VISIBLE IS NOT READABLE, and only the second satisfies a criterion. §1.3b — MY «THE SHIPPED LOOK IS WORSE» FRAMING WAS WRONG (lead's correction): settings.cfg ships palette=0 and that is the default the game writes on first run, so THE FRAMES ARE NOT OPTIMISTIC RELATIVE TO WHAT SHIPS — THEY ARE WHAT SHIPS TODAY. What is actually unresolved is whether the quantiser is meant to ship on at all, which nobody has ever decided and which is now a user call. DESIGN'S POSITION ON THE RECORD FOR THAT DECISION: it should ship ON, because §1.5's entire readability doctrine («with the limited palette, tiers separate by value») is WRITTEN ASSUMING A LIMITED PALETTE, so with the quantiser off that doctrine has no premise and several rules here lose their basis — BUT THE CONIFER RAMP IS A PRECONDITION, NOT A FOLLOW-UP, since turning it on today would make the pine/rock merge WORSE because pine has no ramp of its own to quantise into. Order: ramp, then quantiser. And the separation threshold is made independent of that pending decision: THE TEST RUNS WITH THE PALETTE ON AND THAT CERTIFIES BOTH CONFIGURATIONS, because the quantiser can only ever MERGE neighbouring colours and never split them, so separation measured with it on is a LOWER BOUND on separation with it off. §1.5 — AND THE LIMITED PALETTE ARGUES FOR HUE, NOT AGAINST IT, a correction to this document's own «value contrast over hue» from reading what the palette actually is: the 64-colour post is 8 RAMPS x 8 SHADES, so it quantises HUE into eight large well-separated families and VALUE into eight fine steps within each. A RAMP CHANGE IS THEREFORE THE COARSEST AND MOST ROBUST SIGNAL THE PALETTE CAN CARRY AND A STEP CHANGE IS THE FINEST AND MOST FRAGILE. «Value contrast over hue» is sound as general low-res art direction and BACKWARDS FOR THIS PALETTE: under quantisation two things on different ramps can never merge, while two things on the same ramp merge as soon as they land within a step. That is the whole argument for the conifer ramp — a ramp is the strongest separation available and the single most common dark mass in the world does not have one. §5.12 — THE APRON IS NOT BARE BY CONSTRUCTION, IT IS A HEIGHT RULE AND NOT A CLEARING, so it does NOT have to wait for §5.10. Sequencing was raised on the reasonable fear that an apron shipped early would be the bare ring I warned against; the arithmetic does not support the fear. C1-B requires the silhouette exposed above MASSIF_CLIFFLINE_FRAC, so a tree is illegal only if ITS CANOPY TOP SUBTENDS MORE THAN THE CLIFFLINE DOES from an acceptance standpoint — a real constraint rather than a formality, because a near tree sits much closer to the eye than the mountain behind it. Worked at d_accept as illustration and NOT as a tabled number: cliffline 0.33 x 115 = 38 m, subtending 38/360 = 0.106 rad from 360 m; a tree on the near hem (~162 m from centre) stands ~198 m from the eye; legal canopy top 0.106 x 198 = ~21 m. PINE IS 28-38 m AND IS EXCLUDED; EVERYTHING UNDER ~21 m IS ADMITTED — big bushes, scrub, stunted and young pines, stone. So the apron is populated in its very first version and §5.10 ENRICHES it rather than being its precondition, and blocking the one fix that addresses the user's complaint behind an entirely unbuilt feature set would be the wrong trade. Revised order: tree heights fixed in the occlusion model -> apron (interim, with the classes that already exist) -> §5.10 floor classes enriching it -> conifer ramp -> quantiser decision. ONE REQUIREMENT ON CORE, stated because I checked and it is not free: Bush and Stone are BOTH currently barred from inside a forest mass and the apron band lies inside the pine annulus, so THE APRON IS A DISTINCT GROUND-COVER CLASS, NOT AN ABSENCE OF FOREST, and bush and stone placement must be admitted there — whether that is a small change is core's to say, not mine. The interim apron is honest rather than a stopgap: a hem of scrub, stone and young pine under a cleared skyline IS what a talus apron looks like, and nothing about it has to be undone when snags and deadfall arrive.
 - 09:08:2026 - 23:14:47: NEW §2.9 PALE SPIRES — flora's white-rock reuse ACCEPTED as a landform class, REJECTED as proposed on two counts. The world genuinely lacks a spire and pale rock is the one value role nothing else in the palette occupies, so the class is right. NOT ON RAVENSCAR'S TALUS APRON: talus is loose, angular, actively-moving debris and nothing tall and thin stands in it — a spire is IN-SITU bedrock left by differential erosion, i.e. the survivor, and talus is the pile of what it survived. Deeper objection is procedural: I ruled for the apron in §5.12 because it is right INDEPENDENTLY OF ANY INVARIANT, so putting hoodoos in it because they happen to be available and happen to solve a contrast measurement would be the exact thing I spent this stage arguing against — placing a feature because it answers a number. The apron gets scree, stone, scrub and stunted pine. NOT AT 16-22 m ON A 0.4-0.9 m BASE: that is ~25:1, which §1.5 already forbids (nothing structural thinner than ~0.5 m matters beyond 100 m; sub-pixel verticals shimmer), and a 0.8 m spire subtends 0.008 rad at 100 m against a 3.3 m readable size — FOUR TIMES UNDER THRESHOLD while being the brightest value in the scene, the worst possible thing to alias. The user's own word was «острые пики»; a real hoodoo is nearer 5:1. THE GEOMETRY CANNOT BE SCALED INTO READABILITY BECAUSE THE DEFECT IS THE RATIO, NOT THE SIZE. THE RULE THAT SETTLES BOTH OF FLORA'S CONSTRAINTS AT ONCE, computed from the palette before anything is placed: pale spire luminance 0.869 against bright sky 0.790 is 1.10x and UNUSABLE, against mid rock 0.371 is 2.3x, against PINE_DARK 0.197 is 4.4x and maximal. RULING — a pale spire is sited only where it reads against ROCK or CANOPY and MAY NEVER BREAK THE SKYLINE. It is the exact inverse of the crag: Ravenscar reads against sky at 3-4x and merges into dark foreground, the spire reads against dark foreground at 4.4x and vanishes against sky at 1.10x — two objects, two opposite backdrops, one rule each, and §1.5's «every landmark brief states its value contrast against its usual backdrop» finally earns its keep. This makes flora's constraint 2 AUTOMATIC (something that may never break the skyline can never out-angle the L0 crown — no new test, no new constant) and bounds the rarity problem STRUCTURALLY rather than by budget, since a spire in front of dark canopy is a local guide exactly where the forest has none and it is IMPOSSIBLE to site it as a false weenie, a weenie being a thing that breaks the horizon. THE CLASS: name «pale spires», always a GROUP and a single spire is never generated (my own character-not-existence rule); tier L1 minor; SPIRE_HEIGHT_MIN/MAX 8-14 m; SPIRE_GROUP_SPAN_MIN/MAX 10-16 m; SPIRE_COUNT_MIN 3; quantises to the neutrals ramp, alone among landforms. THE GROUP IS THE READABLE UNIT AND IT IS THE GROUP THAT IS SIZED AGAINST THE DISTANCE — Rule 33's third instance after the summit tor and the crest structure — so individual spires may stay thin, exactly as a stand of trees reads as a mass while every trunk is sub-readable, but the GROUP's span must clear SILHOUETTE_MIN_PX; 10-16 m is readable to ~300-480 m, squarely in §1.3's L1 band. Everything else flora measured is KEPT: concave taper 0.70, pentagonal faceting, 0.18 rad per-stem sweep, x1.6 flare, and especially the 1 m SELF-BURIAL, since a rock that plants itself into a slope is precisely right and is a property a tree only barely needed; the stepped lead-stem ratio 0.74-0.96 is what makes a group read as a group rather than a fence and is the best thing in the proposal. Siting derived and never tabled: candidates drawn where the backdrop test passes — inside and at the edges of forest masses, at the foot of the lakeshore bluff, along the river's cut banks; never on a ridgeline, never on the apron, never inside an L0 sight wedge. IT IS STONE, and three properties must not follow it across — no wind (a swaying rock is a bug that will ship), no seasonal palette (§5.11's foliage contract must never reach it), and not placed by the vegetation scatter pass, since its siting predicate is the backdrop test and no tree has one. Flora keeps the generator as the cheapest home; if those three are easier to guarantee in render's rock family, hand the parameters over — the requirement is the separation, not the owner. TWO FLAGS: story hears about it BEFORE it lands per the §2.8.7 precedent, since a distinctive pale formation acquires a name and then acquires canon; and the user may have meant «белые скалы» LITERALLY — white CLIFFS, not spires, since «скала» carries both — so a PALE ROCK BAND IN THE SPLAT PALETTE is recorded as a different, cheaper, complementary idea answering the same sentence, a §4 item and not a mesh.
 - 09:08:2026 - 23:23:29: User answered both open calls. «БЕЛЫЕ СКАЛЫ» MEANS BOTH — spire groups AND a pale rock surface — so the §4 item I recorded rather than resolved in my own favour is now authorised work, and NEW §4.1 THE PALE ROCK STRATUM is written. IT IS NOT DECORATION, IT IS THE MISSING MATERIAL HALF OF §2.8: the user's original brief was «высоту надо задавать линиями уровня», §2.8.2 answered it in GEOMETRY, and the frame that refuted the suite complained of «ONE material band, not a rhythm» — which §4 has never had an answer to, because rock has been a single grey since it was written. A pale stratum makes the contour lines visible as MATERIAL, the layer the complaint was actually about. RULE: pale rock is a STRATUM, exposed where terrain cuts through its elevation, selected by slope >= SLOPE_ROCK_MIN AND height inside a band — no new shader input, height is already there. STRATA ARE DEFINED IN ABSOLUTE WORLD HEIGHT, GLOBALLY, NEVER AS A FRACTION OF EACH LANDFORM: the same layer must appear at the same elevation on the crag, the lakeshore bluff and the river's cut banks, because A BAND AT A FIXED HEIGHT EVERYWHERE READS AS GEOLOGY AND A BAND AT A FRACTION OF EACH LANDFORM READS AS PAINT. Third instance of absolute-versus-relative after the couloir scale and the summit tor. It is a MODULATION OF THE ROCK MATERIAL, not a fifth splat layer, so §4's four-material budget is untouched. It survives quantisation BY CONSTRUCTION — grey rock on the rock-greys ramp, pale rock on neutrals, so a stratum boundary is a RAMP CHANGE, the strongest separation the palette carries and one that two things on the same ramp could never have. Sized by Rule 33: at d_accept 360 m readable is 12 m so a stratum thinner than ~12 m is stripe noise; Ravenscar's banded zone is 77 m, two to three pale bands give rhythm without corduroy, hence ROCK_STRATUM_PERIOD 28-36 m and ROCK_STRATUM_PALE_FRAC 0.35-0.45, SEEDED AND NON-UNIFORM with the same CV discipline as MASSIF_BAND_SPACING_CV_MIN because a fixed period would rebuild the wedding cake in paint. ROCK_PALE sits between grey rock (~0.37) and spire white (~0.87) and at least one palette step below the spire, since THE SPIRES MUST REMAIN THE BRIGHTEST VALUE IN THE WORLD or a cliff face of spire-white drowns the L1 formation the brightness was doing work for — C4's hierarchy argument applied to the palette instead of to height. NEW §4.2 THE RAMP BUDGET, answering render: NEITHER ANSWER THEY OFFERED IS THE FIRST THING TO TRY. THE BUDGET IS 64 ENTRIES, NOT EIGHT FAMILIES OF EIGHT — ramp depth should follow the lighting range a family carries and the screen area it covers, which are wildly unequal; grass, rock, neutrals and sky need their depth, sand serves a shore mask and water a 90x140 m lake, so reclaiming two shades each from the small families funds a conifer ramp WITHOUT DELETING ANYTHING. Follows directly from §1.5's correction: if a ramp change is the coarsest signal and a shade step the finest, TRADING SHADES FOR RAMPS IS FAVOURABLE BY DEFAULT and the uniform 8x8 grid is the one thing in the palette nobody has justified. IF uniform depth is structural in the shader the sacrifice is DRY OLIVE, and the reason is not aesthetics: §4's material list has no dry or upland grass, so DRY OLIVE IS A RAMP RESERVED FOR A BIOME THAT DOES NOT EXIST — capacity held for an unbuilt thing while a built thing goes without, the LR's mistake in colour space. Render's own argument (its dark end sits 0.046 from grass dark, the closest cross-ramp pair) is correct and I verified it, but «serves nothing that exists» is the stronger reason. Biome objection answered in advance: biomes will need several new families and the palette is re-derived wholesale, so holding one ramp today does not prepay that. ALL RAMPS CONVERGE AT THE DARK END AND THAT IS A DOCTRINE, NOT A DEFECT — checked arithmetically against the actual failing case before ruling: with a conifer ramp PINE_DARK quantises to a conifer entry 0.027 away rather than a rock entry 0.090 away, so the class of merge IS genuinely fixed and separation against lit and mid-tone rock goes from zero to ~3.1 shade steps; BUT against rock in shadow it is ~0.9 steps and still merges, because every ramp runs toward black and the darks are crowded by construction. THE CONIFER RAMP WILL NOT FIX THE BACKLIT VERDICT FRAME AND NOTHING IN THE PALETTE CAN — which confirms §5.12's ranking from an independent direction: the apron is the fix, the ramp is the hardening, and a colour cannot un-hide a mountain whose base has trees in front of it. General rule: VALUE AND HUE SEPARATION BOTH VANISH AS LUMINANCE GOES TO ZERO, SO IN DEEP SHADOW THE ONLY THING THAT SEPARATES TWO SHAPES IS SILHOUETTE — which is why §1.5's skyline rule exists and why a landmark's read must never depend on its foreground being a different colour, only on there being no foreground. §1.3b — SEPARATION CRITERION TIGHTENED and render's question is what exposed the hole: «2 steps OR 1 step across a ramp change» treats a ramp change as a guarantee when it is only a heuristic, since ADJACENT RAMPS TOUCH AT THEIR DARK ENDS (dry olive sits 0.046 from grass green there, less than a single shade step), so «different ramp» can be a label rather than a distance. Restated as the distance between the two QUANTISED ENTRIES in mean shade steps, >= 2 — same constant, same value, correct basis, the identical act as I1's re-spec from surface mean to envelope. §1.5 — MEASURE WITH THE QUANTISER ON, CERTIFY BOTH, now the general rule after the user made the 64-colour post a MENU SETTING: the player may select either configuration so every readability rule is written for the worse of the two, which is always the quantised one because THE QUANTISER CAN ONLY MERGE AND NEVER SPLIT, so one measurement in the conservative configuration certifies both. This repairs a claim I made too strongly — I wrote that with the quantiser off the doctrine «has no premise»; with a SETTING the premise is CONDITIONAL RATHER THAN ABSENT and, because the rules are written for the worse case, THEY HOLD UNCONDITIONALLY. The doctrine is stronger as an option than it would have been as a default, which is not what I expected. The conifer ramp stops being a precondition for a decision and becomes simply REQUIRED, since some players will turn the quantiser on. §1.3b — C1 RE-MEASURED ON HONEST TREE HEIGHTS: 0.751 -> 0.6429 against a floor of 0.60, with three readings and the third must travel with it. (1) THE FIX LANDED — the number moved DOWN, the predicted direction once every occluder doubled in modelled height, and a figure that moves as predicted is evidence while one that does not is a second bug. (2) It passes by 0.043, a 7% margin, which is MARGINAL by this document's own standard — «a marginal pass on one seed is not compliance» — so the min/median/max across the twelve seeds is REQUESTED as §2.8.3 requires of every other invariant; if the median sits near the bound the forest moves, not the threshold, and the apron should raise it clear regardless. (3) IT IS STILL AN OCCLUSION NUMBER AND MUST NOT BE RELAYED AS «THE LANDMARK READS» — it is now an honest measurement of what it always measured, the legibility question is untouched and stays UNSHOT, AND THE FRAME THAT STARTED ALL OF THIS HAD C1 PASSING COMFORTABLY. NEW §1.6.5 — two conduct rules in transmissible form, since «I caught it in myself» does not transmit. A HEDGE IS A DEBT, NOT A LICENCE: naming a premise unverified obliges one to verify it or drop every conclusion resting on it, and A MESSAGE CONTAINING BOTH «I HAVE NOT CHECKED X» AND A CONCLUSION DEPENDING ON X IS SELF-REFUTING — mechanically detectable in one's own draft before sending. It cost this document one wrong finding which the lead settled in about a minute by reading the file I had declined to read. A CITATION IS A CLAIM ABOUT A DOCUMENT AT A MOMENT AND IT GOES STALE IN SILENCE: the stale tree heights carried CORRECT citations of a superseded ruling — the code said «§5.1: 8-12 m» and §5.1 had said exactly that before §5.7 moved it — so the code documented its provenance faithfully and was wrong anyway, and THE CITATION MADE IT HARDER TO SPOT, because a bare literal invites suspicion while a cited literal buys trust it has not earned. Design's share: a ruling that supersedes a numeric range says so explicitly and names the section it replaces, so a grep for the old section number finds the correction; and a number in this document is never the source of truth for code, so a reader who finds one in code has found a shadow, not a reference.
+- 10:08:2026 - 00:00:28: RENDER MEASURED AND THREE OF MY CLAIMS DID NOT SURVIVE, INCLUDING THE PREMISE THE CONIFER FAMILY WAS ORDERED ON. They built a CPU mirror of the actual shader quantiser and re-ran every claim against both palettes; I REPRODUCED THEIR NUMBERS INDEPENDENTLY BEFORE ACCEPTING THEM and got the same figures to two decimals (2.18 lit / 0.74 shadow on the old palette, PINE_DARK -> water). (1) «PINE_DARK must quantise into grass greens» — FALSE, it lands on WATER TEALS, and it does so under the weighted AND the unweighted metric, so this was never a subtlety I missed but A CLAIM I NEVER COMPUTED AT ALL: I took it from a search report and made it load-bearing, which is the exact debt §1.6.5 names, incurred in the same document that names it. (2) «the three needle tones are merged» — FALSE, they land on three ADJACENT water entries, cleanly resolved. (3) «separation goes 0 -> 3.1 shade steps» — FALSE, it is 2.18 -> 2.24 lit and 0.74 -> 0.66 shadowed; the 3.1 used EUCLIDEAN RGB while the quantiser weights R/G/B at 0.30/0.59/0.11, and the «0» was the SHADOWED case relabelled as the general case, when lit rock already cleared the floor of 2 before any change. SO THE CONCLUSION I DREW — «nothing in the palette can fix the backlit frame» — IS CONFIRMED AND BOTH NUMBERS I USED TO REACH IT WERE WRONG; getting the right answer for the wrong reasons is not being right, and the only reason it cost nothing is that the ruling it supported (apron first) was load-bearing on other grounds. §1.5 + §4.2 — RENDER'S AMENDMENT ADOPTED: A SEPARATOR MUST MOVE RED OR GREEN, because hue that lives in BLUE is invisible to the quantiser at 0.11 weight — 0.2 of blue is 0.9 shade steps against §1.3b's floor of 2, while 0.2 of green is 2.1; green is 5.4x more effective per unit than blue and red 2.7x. THIS IS WHY NEEDLES AND WATER COLLIDED: blue-green water and green needles sit at nearly the same point in the (r,g) plane and their separation is almost entirely in blue, which the metric discards — TWO COLOURS THAT LOOK COMPLETELY DIFFERENT CAN BE IDENTICAL TO THE QUANTISER. It AMENDS §1.5 rather than contradicting it: «a ramp change is the coarsest signal the palette can carry» is a claim about THE EYE and it stands, but the quantiser decides which entry a colour reaches, it runs FIRST, and it does not use the eye's metric — so a separator must pass two tests, will the eye see it (favours hue) and will the quantiser preserve it (favours R/G), and a blue-only difference passes the first and fails the second. General transferable rule: THE PIPELINE'S OWN METRIC IS PART OF THE DESIGN VOCABULARY AND BELONGS IN THIS DOCUMENT, not discovered per-feature by whoever implements next. Checked in consequence: §4.1's pale-vs-grey rock is a VALUE change across near-neutral families, moving R and G together, so it holds up under the metric; same for the §2.9 spires. ALL FAMILIES CONVERGE AT THE DARK END — pine vs shadowed rock is ~0.7 steps on BOTH palettes, so NOTHING IN THE PALETTE CAN FIX THE BACKLIT VERDICT FRAME, now confirmed by measurement rather than argued, and render has PINNED IT AS AN ASSERTION that the shadowed case is BELOW 2 so the limit is recorded rather than quietly hoped away and the next agent does not spend a night in colour space. Value and hue separation both vanish as luminance goes to zero, so in deep shadow the ONLY separator is silhouette. AND THE LIT CASE IS ITSELF MARGINAL at 2.18 against a floor of 2 — 9% headroom by this document's own standard — so if pine/rock separation ever needs improving THE LEVER IS PINE_DARK'S OWN R/G POSITION, NOT THE PALETTE, and flora rebuilding conifers now is the cheap moment to move it. RULING — THE CONIFER FAMILY STAYS AND THE REASON IS ENTIRELY DIFFERENT. It was ordered to fix the pine/rock merge; it does not, and that merge was never as broken as I said. Still worth six entries, on a ground that survives measurement: AUTHORSHIP OF APPEARANCE — any element covering a significant fraction of the screen has its palette family chosen DELIBERATELY, because a family arrived at by nearest-colour accident is not a decision, moves whenever anything near it moves, and couples two unrelated materials so that changing one drags the other. THE FOREST WAS SHARING A FAMILY WITH WATER: a water look-dev change would have restyled every conifer in the world and nobody would have known why, and it is not hypothetical here since the river's source sits ~122 m from the crag centre and its trace runs out through the pine foothills, making pine-against-water a PRESENT frame case in this testbed. What it does NOT buy, stated so it is not re-claimed later: conifer and broadleaf already separated (oak -> grass greens on both palettes) and the three needle tones already resolved cleanly. DEPTH ALLOCATION — one measured amendment offered, render's to take or leave: their split is sand 8->5 and water 8->5, but WATER IS THE WORST PLACE TO SPEND IT, being the largest smooth gradient in the world where banding is most visible, while sand is a thin dithered shore strip and dry olive serves only bright-grass highlights on already-dithered ground. Measured per-shade spacing on the water family (smaller is smoother) — sand5/water5 gives 0.105 with pine/lit-rock 2.19; sand4/water6 gives 0.084 and 2.14; DRY OLIVE 5 / SAND 6 / WATER 7 gives 0.070 and 2.22, better on both axes at the same 64 entries. Banding visibility is a readability question and therefore mine; ramp construction is render's craft. AND I WITHDRAW THE REASON I GAVE FOR PICKING DRY OLIVE: I wrote that it «serves nothing that exists», and measurement shows BRIGHT GRASS AND DRY GRASS BOTH LAND ON IT — no material targets it, but the quantiser runs on the final image and pixels reach it, so it functions as the lit-grass extension. Third unverified claim in one section, which is why the amendment proposes REDUCING dry olive rather than deleting it. Render also declined my offer to steepen the pow(t,1.25) dark-end weighting, correctly: it changes every family at once and would invalidate every frame read tonight for a gain I myself called small.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -694,6 +695,15 @@ horizontal ≈ 1.87 rad):
   they land within a step. **This is the whole argument for the conifer ramp
   (§5.12): a ramp is the strongest separation available, and the single most
   common dark mass in the world does not have one.**
+  - **PRECONDITION, and without it the sentence above is a trap (render's
+    amendment, measured, §4.2): A SEPARATOR MUST MOVE RED OR GREEN.** The
+    quantiser weights R/G/B at **0.30 / 0.59 / 0.11**, so a hue difference
+    living in blue moves almost nothing — 0.2 of blue is 0.9 shade steps, 0.2
+    of green is 2.1. **A ramp change is the strongest signal to the EYE; it is
+    only a signal at all to the QUANTISER if it moves R or G, and the quantiser
+    runs first.** Two colours that look utterly different can be identical
+    after the post. Every separation claim in this document is checked against
+    the metric, not against the hue wheel.
 - **MEASURE WITH THE QUANTISER ON, CERTIFY BOTH — the general rule (user
   decision, stage-4: the 64-colour post is a MENU SETTING, neither on nor off
   by fiat).** The player may select either configuration, so **every
@@ -3212,27 +3222,132 @@ all 64 entries. Render asked which family gives up a slot for the conifer ramp
   need several new families and the palette is re-derived wholesale. Holding
   one ramp today does not meaningfully prepay that.
 
-##### ALL RAMPS CONVERGE AT THE DARK END, AND THAT IS A DOCTRINE, NOT A DEFECT
+##### ⚠ THREE OF MY CLAIMS DID NOT SURVIVE MEASUREMENT — render measured, I reproduced
 
-Checked arithmetically against the actual failing case before ruling. With a
-conifer ramp, `PINE_DARK` quantises to a conifer entry (0.027 away) rather than
-a rock one (0.090 away), so the class of merge is genuinely fixed — **against
-lit and mid-tone rock, separation goes from zero to ≈ 3.1 shade steps.**
+Render built a CPU mirror of the actual shader quantiser and re-ran every claim
+against both palettes. **I reproduced their numbers independently before
+accepting them and got the same figures to two decimals.** Recorded in full,
+because the premise the whole change was ordered on is one of them.
 
-**But against rock in shadow it is ≈ 0.9 steps and still merges**, because
-every ramp in the palette runs toward black and the darks are crowded by
-construction. Two consequences:
+| Claim of mine | Reality |
+|---|---|
+| «`PINE_DARK` must quantise into grass greens» | **It lands on WATER TEALS** — under the weighted *and* the unweighted metric |
+| «the three needle tones are merged» | They land on **three adjacent water entries, cleanly resolved** |
+| «separation goes from 0 → 3.1 shade steps» | **2.18 → 2.24** lit; **0.74 → 0.66** shadowed |
 
-- **THE CONIFER RAMP WILL NOT FIX THE BACKLIT VERDICT FRAME, AND NOTHING IN THE
-  PALETTE CAN.** This confirms §5.12's ranking from a direction independent of
-  the one that produced it: **the apron is the fix and the ramp is the
-  hardening.** A colour cannot un-hide a mountain whose base has trees in front
-  of it.
-- **General rule: value separation and hue separation both vanish as luminance
-  → 0. In deep shadow the ONLY thing that separates two shapes is silhouette.**
-  Which is why §1.5's skyline rule exists, and why a landmark's read must never
-  depend on its foreground being a different colour — it must depend on there
-  being no foreground.
+**Each failed for a different reason, and only the second is subtle.**
+
+1. **The grass-greens claim I never computed at all.** I took it from a search
+   report and made it load-bearing. It is wrong under *any* metric, so I cannot
+   even plead the weighting. **This is the exact debt §1.6.5 names, incurred in
+   the same document that names it.**
+2. **The 3.1 figure used the wrong metric**, and that one is instructive: I
+   measured Euclidean distance in RGB, and **the quantiser weights R/G/B at
+   0.30 / 0.59 / 0.11.**
+3. **The «0» was the shadowed case relabelled as the general case.** Lit rock
+   already cleared the floor of 2 before any change.
+
+**So the conclusion I drew — «nothing in the palette can fix the backlit
+frame» — is CONFIRMED, and both numbers I used to reach it were wrong. Getting
+the right answer for the wrong reasons is not being right**, and the only
+reason it did not cost a build is that the ruling it supported (the apron
+first) was load-bearing on other grounds.
+
+##### THE METRIC IS A CONSTRAINT ON THE DESIGN VOCABULARY (render's amendment, ADOPTED)
+
+**A separator must move RED or GREEN. Hue that lives in BLUE is invisible to
+the quantiser.** At weights 0.30 / 0.59 / 0.11, a 0.2 difference in blue is
+**0.9 shade steps** — under §1.3b's floor — while the same 0.2 in green is
+**2.1 steps**. Green is 5.4× more effective per unit than blue, red 2.7×.
+
+- **This is why needles and water collided**: blue-green water and green
+  needles sit at nearly the same point in the (r, g) plane. Their measured
+  separation is almost entirely in blue, which the metric all but discards.
+  **Two colours that look completely different can be identical to the
+  quantiser.**
+- **It amends §1.5 rather than contradicting it.** «A ramp change is the
+  coarsest signal the palette can carry» is a claim about **the eye**, and it
+  stands. But **the quantiser decides which entry a colour reaches, and it runs
+  first, and it does not use the eye's metric.** So a separator must pass two
+  tests: *will the eye see it* (favours hue) and *will the quantiser preserve
+  it* (favours R/G). **A blue-only difference passes the first and fails the
+  second.**
+- **General rule, and it is the transferable part: THE PIPELINE'S OWN METRIC IS
+  PART OF THE DESIGN VOCABULARY AND BELONGS IN THIS DOCUMENT**, not discovered
+  per-feature by whoever happens to implement next. Render's amendment is
+  checkable arithmetic and it would have caught both of our proposals before
+  either was written.
+- **Consequence for §4.1, checked: pale rock vs grey rock is a VALUE change
+  across near-neutral families, i.e. it moves R and G together.** It holds up
+  under the metric. Same for the §2.9 spires.
+
+##### ALL FAMILIES CONVERGE AT THE DARK END — doctrine, not defect
+
+**Against rock in shadow, pine sits at ≈ 0.7 steps and still merges**, on both
+palettes, because every family runs toward black and the darks are crowded by
+construction.
+
+- **NOTHING IN THE PALETTE CAN FIX THE BACKLIT VERDICT FRAME.** Confirmed by
+  measurement rather than argued. **The apron is the fix; the palette is the
+  hardening.** Nobody should spend a night in colour space on this — render has
+  pinned it as an assertion that the shadowed case is *below* 2, so the limit is
+  recorded rather than quietly hoped away.
+- **Value and hue separation both vanish as luminance → 0. In deep shadow the
+  ONLY thing that separates two shapes is silhouette.** Which is why §1.5's
+  skyline rule exists, and why a landmark's read must never depend on its
+  foreground being a different colour — it must depend on there being no
+  foreground.
+- **And the lit case is itself marginal: 2.18 steps against a floor of 2.** By
+  this document's own standard that is a pass with 9 % of headroom. **If pine /
+  rock separation ever needs to improve, the lever is `PINE_DARK`'s own R/G
+  position, not the palette** — flora is rebuilding conifers now, which is the
+  cheap moment to move it.
+
+##### RULING — THE CONIFER FAMILY STAYS, AND THE REASON IS ENTIRELY DIFFERENT
+
+It was ordered to fix the pine/rock merge. **It does not, and that merge was
+never as broken as I said.** Asked whether it is still worth six entries:
+**yes**, on a ground that survives measurement.
+
+> **AUTHORSHIP OF APPEARANCE. Any element covering a significant fraction of
+> the screen has its palette family chosen DELIBERATELY. A family arrived at by
+> nearest-colour accident is not a decision: it moves whenever anything near it
+> moves, and it couples two unrelated materials so that changing one drags the
+> other.**
+
+- **The forest was sharing a family with WATER.** A water look-dev change would
+  have restyled every conifer in the world and nobody would have known why.
+  That is a structural coupling defect, and it is not hypothetical here: **the
+  river's source sits ≈ 122 m from the crag centre and the trace runs out
+  through the pine foothills**, so pine against water is a present frame case in
+  this testbed, not a future one.
+- **The forest's colour was decided by an accident of the metric rather than by
+  anyone.** That alone justifies the entries.
+- **What it does NOT buy, stated so it is not re-claimed later:** conifer and
+  broadleaf already separated (oak → grass greens on both palettes), and the
+  three needle tones already resolved cleanly. Those are not gains.
+- **DEPTH ALLOCATION — one measured amendment, render's call to take or leave.**
+  Their split is sand 8→5, water 8→5. **Water is the worst place to spend it:
+  it is the largest smooth gradient in the world, where banding is most
+  visible, while sand is a thin dithered shore strip and dry olive serves only
+  bright-grass highlights on already-dithered ground.** Measured per-shade
+  spacing on the water family — smaller is smoother:
+
+  | allocation | water step | pine vs lit rock |
+  |---|---|---|
+  | sand 5 / water 5 (as landed) | 0.105 | 2.19 |
+  | sand 4 / water 6 | 0.084 | 2.14 |
+  | **dry olive 5 / sand 6 / water 7** | **0.070** | **2.22** |
+
+  The third is better on both axes at the same 64 entries. **Offered, not
+  mandated** — banding visibility is a readability question and therefore mine,
+  but ramp construction is render's craft.
+- **AND I MUST WITHDRAW THE REASON I GAVE FOR PICKING DRY OLIVE.** I wrote that
+  it «serves nothing that exists». **Measured: bright grass and dry grass both
+  land on it.** No material *targets* it, but the quantiser is applied to the
+  final image and pixels reach it — so it is functioning as the lit-grass
+  extension. **That is my third unverified claim in one section**, and it is
+  why the table above proposes *reducing* dry olive rather than deleting it.
 
 Design rationale, binding for render:
 
@@ -3850,18 +3965,23 @@ saturation 0.45, every rock tone is neutral at 0.05. The lever is therefore not
   both surfaces are lit by ambient alone, and at those levels the hue
   difference that exists on paper is not available to the eye. **Lever 3 is
   weakest exactly where the problem is.**
-- **The 64-colour palette has no conifer ramp.** Its eight ramps are grass
-  greens, dry olive, dirt browns, rock greys, sand tans, sky blues, water teals
-  and neutrals. `PINE_DARK` (0.12, 0.22, 0.19) must quantise into *grass
-  greens*, whose dark end is a yellow-green with B = 0.04 against pine's 0.19.
-  **The single most common dark mass in the world has no shade of its own, and
-  the palette destroys the one axis that separates it from rock.** Design
-  requirement handed to render: **the shipped palette carries a conifer ramp**,
-  and §1.3b's separation test is run with the palette ON.
+- **The 64-colour palette has no conifer ramp.** Design requirement handed to
+  render: **the shipped palette carries a conifer family**, and §1.3b's
+  separation test is run with the palette ON.
+
+  > **⚠ MY STATED CAUSE WAS FALSE AND THE MEASUREMENT IS IN §4.2.** I wrote
+  > that `PINE_DARK` «must quantise into *grass greens*, whose dark end is a
+  > yellow-green». **It quantises into WATER TEALS**, and it does so under both
+  > the weighted and the unweighted metric — so this was never a subtlety I
+  > missed, it was **a claim I never computed at all.** I took it from a search
+  > report and made it load-bearing. The conifer family is still right; the
+  > reason it is right changed completely (§4.2).
 
 **Ranked, so implementation order is not a judgement call: (1) the apron, which
-restores the mountain; (2) the conifer ramp, which stops the merge and is cheap;
-(3) nothing further on density.**
+restores the mountain; (2) the conifer family, for the reason in §4.2 — which is
+NOT that it fixes the pine/rock merge, because measurement shows that merge was
+never as broken as I claimed and the family does not move it; (3) nothing
+further on density.**
 
 ##### THE APRON IS NOT BARE BY CONSTRUCTION — it is a HEIGHT rule, not a clearing
 
