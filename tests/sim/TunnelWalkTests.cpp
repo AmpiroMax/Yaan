@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:51:22
-Last updated: 09:08:2026 - 17:08:40
+Last updated: 09:08:2026 - 18:21:53
 Module: tests
 File: tests/sim/TunnelWalkTests.cpp
 
@@ -33,6 +33,10 @@ UPD:
                          tunnelling detector against tunnel walls and the
                          castle curtain wall, plus a streaming fall-through
                          run across chunk boundaries.
+- 09:08:2026 - 18:21:53: Follow core's CHUNK_LOAD_BUDGET (one chunk per
+                         update): drive streaming to SETTLED before walking
+                         instead of assuming a ring loads in one update.
+                         Assertions unchanged.
 */
 
 #include <doctest/doctest.h>
@@ -81,28 +85,28 @@ struct TunnelRig {
         REQUIRE(physics->init());
         chunks.open_generated(world::WorldGenParams{1, {0, 0}, {3, 3}},
                               world::ChunkStreamingParams{2, 3});
-        chunks.update(focus, ecs, bus);
+        settle(focus);
+        REQUIRE(chunk_bodies > 0);
+    }
 
-        // One static mesh body per resident chunk — the ferry the app performs.
+    /// Streaming is rate-limited to CHUNK_LOAD_BUDGET chunks per update (core's
+    /// fix for multi-second load freezes), so a ring fills over many updates.
+    /// Tests that walk on the terrain need the SETTLED world: drive updates —
+    /// each building collision for whatever became resident — until residency
+    /// stops changing. Same pattern as core's Fixture::settle.
+    void settle(const glm::vec3& focus) {
         const auto start = std::chrono::steady_clock::now();
-        for (const world::ChunkCoord coord : chunks.loaded_chunks()) {
-            const auto mesh = chunks.voxel_mesh(coord);
-            if (!mesh.has_value()) {
-                continue;
-            }
-            total_triangles += mesh->triangle_count();
-            const auto body = dfn::physics::create_terrain_mesh_body(
-                *physics, *mesh, static_cast<uint64_t>(chunks.is_loaded(coord)));
-            if (body.valid()) {
-                terrain_bodies.push_back(body);
-                ++chunk_bodies;
+        for (int i = 0; i < 256; ++i) {
+            const std::size_t before = chunks.loaded_chunks().size();
+            restream(focus);
+            if (chunks.loaded_chunks().size() == before) {
+                shape_build_ms = std::chrono::duration<double, std::milli>(
+                                     std::chrono::steady_clock::now() - start)
+                                     .count();
+                return;
             }
         }
-        shape_build_ms =
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
-                                                      start)
-                .count();
-        REQUIRE(chunk_bodies > 0);
+        FAIL("streaming never settled");
     }
 
     // Re-streams around `focus` exactly as the app ferry does: update the

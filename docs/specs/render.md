@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 18:10:00
+Last updated: 09:08:2026 - 18:50:00
 -->
 <!--
 UPD:
@@ -46,6 +46,11 @@ UPD:
   IRenderer change) + toggle_map/set_internal_resolution + DFN_MAP=1 and
   Tour::map_probe_steps for the one-frame evidence shoot. App wiring (Key::M
   -> toggle_map, set_internal_resolution) requested from the lead.
+- 09:08:2026 - 18:50:00: THIN CASTERS CAST NOTHING (user bug: tree shadows
+  showed the canopy but no trunk). Cause was shadow-map texel density, NOT a
+  submit path: SHADOW_MAP_SIZE 2048 -> 4096 and SHADOW_HALF_EXTENT_M 640 ->
+  320 (0.625 -> 0.156 m per texel). New acceptance vantage
+  Tour::thin_shadow_probe_steps (DFN_SHADOW_PROBE) with a before/after pair.
 -->
 
 # Spec — render agent
@@ -449,6 +454,40 @@ Decisions and measured findings of this batch (for whoever continues):
   by silhouette alone), no map-specific input beyond the toggle, no
   compass/quest markers.
 
+Thin-caster shadow fix (user bug, after the map batch):
+1. **Diagnosis — it was NOT a missed submit path.** A tree's trunk and crown
+   are the same vertices in the same `MeshData` (ProcMesh oak/pine/birch), and
+   ScatterBatcher merges whole trees into ONE per-chunk batch submitted with a
+   single `submit(..., "prop", ...)`. `BgfxRenderer::submit` double-submits
+   every opaque draw into the shadow view, so trunk and crown are physically
+   the same draw call in the same vertex buffer — the shadow pass has no way
+   to take one and drop the other. The same holds for the §6.2 standing stones
+   (ScatterSpecies::Stone instances inside the same micro-tile batches).
+2. **Real cause — shadow-map texel density.** The map was 2048 texels over a
+   640 m half extent = 0.625 m per texel. A caster narrower than a texel only
+   darkens it when it happens to cover the texel center, so it drops out
+   entirely. Measured against the actual meshes: oak trunk 1.1 m = 1.8 texels
+   (dashed at best), pine 0.6 m = 0.96, birch 0.28-0.44 m = 0.45-0.7 — while
+   the 8 m oak crown covered 12.8 texels and shadowed solidly. That is exactly
+   "canopy only, no trunk". The receiver normal offset made it worse: defined
+   as 1 texel, it pushed every receiving sample 0.625 m along its normal —
+   wider than a birch trunk's entire shadow.
+3. **Fix**: SHADOW_MAP_SIZE 2048 -> 4096, SHADOW_HALF_EXTENT_M 640 -> 320 m
+   => 0.156 m per texel (and the normal offset, being in texels, drops with
+   it). Thinnest trunk ~1.8 texels, 2 m standing stones ~13. Cost: the shadow
+   volume no longer covers the whole loaded chunk ring; it ends at 320 m,
+   where fog (start = 300 m) begins hiding the difference. Covering near
+   detail AND the full ring at once needs a second cascade — a feature, not a
+   constant. Depth texture is 4096^2 D16 (~33 MB, D32F fallback ~67 MB).
+4. **THE RULE FOR EVERYTHING THIN ADDED LATER** (fences, railings, standing
+   stones, castle detail, ladders): a caster only shadows if it is at least
+   ~2 x SHADOW_TEXEL_M wide, i.e. ~0.31 m today. Anything thinner needs either
+   a denser map or geometry that is honestly wider. Check the number before
+   assuming a shadow bug is a pipeline bug.
+5. Verification: `Tour::thin_shadow_probe_steps()` (DFN_SHADOW_PROBE=1) — one
+   vantage at a dungeon entrance with trunks and standing stones on open
+   ground, sun behind the camera.
+
 Stage 4 (next): skinned meshes (contract sync), frustum culling with core's
 math types, LOD/skirts, grass cards (P6 micro, §5.6), flower patches,
 sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk,
@@ -458,6 +497,16 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Thin-caster shadow acceptance (Rule 27, A/B read 09:08:2026):**
+  `DFN_TOUR=1 DFN_SHADOW_PROBE=1 DFN_TOUR_DIR=screenshots/shadow
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 <build>/engine/app/dfn_app` ->
+  `screenshots/shadow/00_thin_caster_shadows.png`. Shot twice (old constants
+  vs new) and compared on a 2x crop of the trunk contact area: BEFORE, the
+  foreground birch trunk and both foreground stones cast nothing at all —
+  only the broad crown shadow existed; AFTER, the trunk lays a hard shadow
+  band from its base, the mid-ground trunks show their own streaks, and every
+  stone has a contact shadow. That A/B is the proof that the cause was texel
+  density and not the submit path.
 - **Map screen acceptance (Rule 27, frame read 09:08:2026):**
   `DFN_TOUR=1 DFN_MAP=1 DFN_TOUR_DIR=screenshots/map DFN_INTERNAL_RES=640x360
   DFN_PALETTE=0 <build>/engine/app/dfn_app` -> `screenshots/map/
