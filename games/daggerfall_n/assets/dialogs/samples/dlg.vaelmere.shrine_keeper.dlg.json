@@ -1,0 +1,63 @@
+{
+  "id": "dlg.vaelmere.shrine_keeper",
+  "speaker_role": "role.shrinekeeper",
+  "start": "n_greet",
+  "nodes": {
+    "n_greet": {
+      "line": "dlg.vaelmere.shrine_keeper.greet",
+      "choices": [
+        {
+          "text_key": "dlg.vaelmere.shrine_keeper.c_ask_rites",
+          "to": "n_rites",
+          "if": [
+            { "flag": "flag.vaelmere.rust_seen", "op": "==", "value": true }
+          ]
+        },
+        {
+          "text_key": "dlg.vaelmere.shrine_keeper.c_ask_children",
+          "to": "n_children",
+          "if": [
+            { "flag": "flag.act1.barrow_opened", "op": "==", "value": true },
+            { "quest_state": "quest.vaelmere.cave_children", "state": "s_rumor" }
+          ]
+        },
+        {
+          "text_key": "dlg.vaelmere.shrine_keeper.c_report_marks",
+          "to": "n_offer_rite",
+          "if": [
+            { "has_item": "item.quest.childrens_marks", "op": ">=", "value": 1 }
+          ]
+        },
+        { "text_key": "dlg.common.farewell", "to": "x_bye" }
+      ]
+    },
+    "n_rites": {
+      "line": "dlg.vaelmere.shrine_keeper.rites",
+      "next": "n_greet"
+    },
+    "n_children": {
+      "line": "dlg.vaelmere.shrine_keeper.children",
+      "choices": [
+        { "text_key": "dlg.vaelmere.shrine_keeper.c_accept", "to": "x_accept" },
+        { "text_key": "dlg.vaelmere.shrine_keeper.c_not_now", "to": "x_bye" }
+      ]
+    },
+    "n_offer_rite": {
+      "line": "dlg.vaelmere.shrine_keeper.offer_rite",
+      "choices": [
+        {
+          "text_key": "dlg.vaelmere.shrine_keeper.c_begin",
+          "to": "x_begin_rite",
+          "if": [
+            { "quest_state": "quest.vaelmere.cave_children", "state": "s_return_to_shrine" }
+          ]
+        },
+        { "text_key": "dlg.common.farewell", "to": "x_bye" }
+      ]
+    },
+    "x_accept": { "exit": true },
+    "x_begin_rite": { "exit": true },
+    "x_rite_complete": { "exit": true },
+    "x_bye": { "exit": true }
+  }
+}

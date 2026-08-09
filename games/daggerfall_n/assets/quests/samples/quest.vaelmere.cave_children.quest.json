@@ -1,0 +1,130 @@
+{
+  "id": "quest.vaelmere.cave_children",
+  "category": "main",
+  "name_key": "quest.vaelmere.cave_children.name",
+  "vars": { "names_recovered": 0, "warden_told": false },
+  "start": "s_rumor",
+  "states": {
+    "s_rumor": {
+      "journal_key": "quest.vaelmere.cave_children.journal.010",
+      "on_enter": [
+        { "set_flag": "flag.vaelmere.rust_seen", "value": true }
+      ],
+      "transitions": [
+        {
+          "to": "s_seek_cave",
+          "when": {
+            "all_of": [
+              { "flag": "flag.act1.barrow_opened", "op": "==", "value": true }
+            ],
+            "any_of": [
+              { "dialog_exit": "dlg.vaelmere.shrine_keeper.x_accept" },
+              { "dialog_exit": "dlg.vaelmere.ferryman.x_tells_of_bluff" }
+            ]
+          }
+        }
+      ]
+    },
+    "s_seek_cave": {
+      "journal_key": "quest.vaelmere.cave_children.journal.020",
+      "transitions": [
+        {
+          "to": "s_read_marks",
+          "when": {
+            "all_of": [
+              { "flag": "flag.vaelmere.cave_visited", "op": "==", "value": true }
+            ]
+          }
+        }
+      ]
+    },
+    "s_read_marks": {
+      "journal_key": "quest.vaelmere.cave_children.journal.030",
+      "on_enter": [
+        { "give_item": "item.quest.childrens_marks", "count": 1 },
+        { "set_var": "names_recovered", "op": "=", "value": 3 }
+      ],
+      "transitions": [
+        {
+          "to": "s_return_to_shrine",
+          "when": {
+            "all_of": [
+              { "var": "names_recovered", "op": ">=", "value": 3 },
+              { "has_item": "item.quest.childrens_marks", "op": ">=", "value": 1 }
+            ]
+          }
+        },
+        {
+          "to": "s_marks_lost",
+          "when": {
+            "all_of": [
+              { "has_item": "item.quest.childrens_marks", "op": "==", "value": 0 },
+              { "var": "names_recovered", "op": ">=", "value": 3 }
+            ]
+          }
+        }
+      ]
+    },
+    "s_return_to_shrine": {
+      "journal_key": "quest.vaelmere.cave_children.journal.040",
+      "transitions": [
+        {
+          "to": "s_rite",
+          "when": {
+            "all_of": [
+              { "quest_state": "quest.vaelmere.cave_children", "state": "s_return_to_shrine" },
+              { "dialog_exit": "dlg.vaelmere.shrine_keeper.x_begin_rite" }
+            ],
+            "any_of": [
+              { "flag": "flag.vaelmere.names_laid", "op": ">=", "value": 0 }
+            ]
+          }
+        }
+      ]
+    },
+    "s_rite": {
+      "journal_key": "quest.vaelmere.cave_children.journal.050",
+      "on_enter": [
+        { "take_item": "item.quest.childrens_marks", "count": 1 },
+        { "npc_action": {
+            "npc": "npc.vaelmere.shrine_keeper",
+            "action": "Say",
+            "line": "dlg.vaelmere.shrine_keeper.rite_opening"
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "to": "s_done",
+          "when": {
+            "all_of": [
+              { "dialog_exit": "dlg.vaelmere.shrine_keeper.x_rite_complete" }
+            ]
+          }
+        }
+      ]
+    },
+    "s_marks_lost": {
+      "journal_key": "quest.vaelmere.cave_children.journal.060",
+      "transitions": [
+        {
+          "to": "s_read_marks",
+          "when": {
+            "all_of": [
+              { "has_item": "item.quest.childrens_marks", "op": ">=", "value": 1 }
+            ]
+          }
+        }
+      ]
+    },
+    "s_done": {
+      "terminal": "completed",
+      "journal_key": "quest.vaelmere.cave_children.journal.100",
+      "on_enter": [
+        { "set_flag": "flag.act1.first_naming_done", "value": true },
+        { "set_flag": "flag.vaelmere.names_laid", "op": "+", "value": 3 },
+        { "set_topic": { "npc": "npc.vaelmere.shrine_keeper", "topic": "topic.vaelmere.the_unnamed", "enabled": true } }
+      ]
+    }
+  }
+}

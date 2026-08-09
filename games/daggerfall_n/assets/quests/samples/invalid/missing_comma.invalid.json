@@ -1,0 +1,9 @@
+{
+  "id": "quest.vaelmere.broken_comma",
+  "category": "side",
+  "name_key": "quest.vaelmere.broken_comma.name"
+  "start": "s_one",
+  "states": {
+    "s_one": { "terminal": "completed" }
+  }
+}

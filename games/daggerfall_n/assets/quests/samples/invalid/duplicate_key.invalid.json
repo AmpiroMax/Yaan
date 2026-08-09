@@ -1,0 +1,11 @@
+{
+  "flags": [
+    {
+      "id": "flag.vaelmere.rust_seen",
+      "type": "bool",
+      "default": false,
+      "type": "int",
+      "comment": "DEFECT: duplicate key 'type' in one object (line 4 vs line 6). Expected: error naming the key and both line/column positions. This is the silent-eater bug in world_flags.json."
+    }
+  ]
+}

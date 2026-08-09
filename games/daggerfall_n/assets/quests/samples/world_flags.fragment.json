@@ -1,0 +1,46 @@
+{
+  "flags": [
+    {
+      "id": "flag.act1.barrow_opened",
+      "type": "bool",
+      "default": false,
+      "comment": "The seal in the crag's south face has broken. Set by quest.act1.the_shoring stage 20; read by escalation, cards, cave_children."
+    },
+    {
+      "id": "flag.act1.first_naming_done",
+      "type": "bool",
+      "default": false,
+      "comment": "The naming rite has been performed once. Set by quest.vaelmere.cave_children s_done; read by act 3."
+    },
+    {
+      "id": "flag.vaelmere.cave_visited",
+      "type": "bool",
+      "default": false,
+      "comment": "Level state for the Hiding. Set on first entry; cards read this, never the edge-triggered entered_location atom."
+    },
+    {
+      "id": "flag.vaelmere.names_laid",
+      "type": "int",
+      "default": 0,
+      "comment": "Counter of murdered names restored at the shrine. The arc's core progress measure."
+    },
+    {
+      "id": "flag.vaelmere.feud_killing",
+      "type": "int",
+      "default": 0,
+      "comment": "Revenge killings done in the valley. Every increment is a payment into the Reckoning."
+    },
+    {
+      "id": "flag.vaelmere.rust_seen",
+      "type": "bool",
+      "default": false,
+      "comment": "Player has examined a rust-marked household. Opens rust talk hamlet-wide."
+    },
+    {
+      "id": "flag.corvane.refused_confession",
+      "type": "bool",
+      "default": false,
+      "comment": "Lord Rhys buried the evidence. Set by the act-1 refusal beat; read by his acts 2-3 arc."
+    }
+  ]
+}
