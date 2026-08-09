@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -27,6 +27,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 16:45:00: Created — carve SDF for the crag tunnel and barrow.
 - 09:08:2026 - 16:47:51: Created — carve distance fields and column ranges.
+- 09:08:2026 - 17:36:42: §6.2: mouth walk (first station whose ceiling is under terrain) and derived-corridor overloads.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -165,6 +166,32 @@ std::optional<CarveMouth> site_carve_mouth(const TestbedLayout& layout, int site
         return carve_mouth(layout.carves.lakeshore_adit, ground);
     }
     return std::nullopt;
+}
+
+float carve_distance(const TestbedLayout& layout, std::span<const CarveCorridor> extra,
+                     glm::vec3 world) {
+    float d = carve_distance(layout, world);
+    for (const CarveCorridor& c : extra) {
+        d = std::min(d, corridor_distance(c, world));
+    }
+    return d;
+}
+
+std::pair<float, float> carve_column_range(const TestbedLayout& layout,
+                                           std::span<const CarveCorridor> extra,
+                                           glm::vec2 world_xz) {
+    auto [lo, hi] = carve_column_range(layout, world_xz);
+    for (const CarveCorridor& c : extra) {
+        const auto [elo, ehi] = corridor_column_range(c, world_xz);
+        if (elo <= ehi) {
+            lo = lo > hi ? elo : std::min(lo, elo);
+            hi = hi < lo ? ehi : std::max(hi, ehi);
+        }
+    }
+    if (lo > hi) {
+        return {1.0f, -1.0f};
+    }
+    return {lo, hi};
 }
 
 std::pair<float, float> carve_column_range(const TestbedLayout& layout,

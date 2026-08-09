@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/VoxelVolume.h
 
@@ -36,6 +36,7 @@ UPD:
 - 09:08:2026 - 16:00:00: Created — voxel volume for the 3D terrain stage.
 - 09:08:2026 - 16:30:44: Representation swap: VoxelVolume (quantized SDF + material, slab-limited, y-contiguous layout, per-column active band) and the seam-cell contract.
 - 09:08:2026 - 16:47:51: P7: build_voxel_volume takes the layout and subtracts its carves.
+- 09:08:2026 - 17:36:42: §6.2: build_voxel_volume takes derived carve corridors.
 */
 
 #pragma once
@@ -46,6 +47,7 @@ UPD:
 
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <vector>
 
 namespace dfn::world {
@@ -111,8 +113,11 @@ using BorderHeightSampler = std::function<float(glm::vec2)>;
 /// overlap. `border_height` supplies the heights for that extra column.
 /// `layout` supplies the P7 carves subtracted from the terrain (pass a layout
 /// with no carves to get bare terrain).
+/// `extra_carves` are DERIVED corridors (the §6.2 entrance adits), which do
+/// not live in the layout because they are generated from measured relief.
 [[nodiscard]] VoxelVolume build_voxel_volume(const Chunk& chunk,
                                              const BorderHeightSampler& border_height,
-                                             const TestbedLayout& layout);
+                                             const TestbedLayout& layout,
+                                             std::span<const CarveCorridor> extra_carves = {});
 
 } // namespace dfn::world

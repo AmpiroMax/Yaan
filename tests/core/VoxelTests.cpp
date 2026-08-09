@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:45:08
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -24,6 +24,8 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 16:00:00: Created — representation-swap suite.
 - 09:08:2026 - 16:47:51: P7 acceptance: tunnel enclosed/walkable/climbing, voxel field holds overhangs and ceiling geometry a heightfield cannot, Backbarrow is a buried reachable room.
+- 09:08:2026 - 17:36:42: §6.2: carved dungeon entrances are derived from their mouth, facing out, standing on the carved floor.
+- 09:08:2026 - 17:45:08: §6.2: standing stones present and within their height band at every entrance; no vegetation inside the exclusion ring.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -287,4 +289,98 @@ TEST_CASE("P7 carves: the Backbarrow is a room, not a dent") {
         if (p.y + passage.height >= world::terrain_height(ctx, {p.x, p.z})) has_mouth = true;
     }
     CHECK(has_mouth);
+}
+
+TEST_CASE("carved dungeon entrances are DERIVED from their mouth, facing out") {
+    // The pad scorer knows slope and dryness but nothing about "a mouth needs a
+    // hillside to face out of" — it left the Backbarrow marker 10 m outside its
+    // own passage, standing in the approach cutting. A carved entrance is now
+    // derived from the carve, never scored, exactly as fords are derived from
+    // the generated trace.
+    const auto& ctx = testbed();
+    const auto& layout = ctx.params.layout;
+    const auto ground = [&ctx](glm::vec2 p) { return world::terrain_height(ctx, p); };
+
+    int carved_entrances = 0;
+    for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
+        if (ctx.sites.types[i] != world::SiteType::DungeonEntrance) continue;
+        // Find which layout site this record came from by position proximity is
+        // fragile; instead check every site index that HAS a carve.
+        (void)i;
+    }
+    for (int si = 0; si < static_cast<int>(std::size(layout.sites)); ++si) {
+        const auto mouth = world::site_carve_mouth(layout, si, ground);
+        if (!mouth) continue;
+        ++carved_entrances;
+        // Some placed entrance must stand at this mouth, just outside it.
+        bool matched = false;
+        for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
+            if (ctx.sites.types[i] != world::SiteType::DungeonEntrance) continue;
+            const glm::vec2 p = ctx.sites.entities[i].position_xz;
+            const glm::vec2 m{mouth->position.x, mouth->position.z};
+            if (glm::length(p - m) > 3.0f) continue;
+            matched = true;
+            // Faces OUT of the hill: yaw 0 looks toward -Z, positive turns right.
+            const float expected = std::atan2(mouth->outward.x, -mouth->outward.y);
+            float delta = ctx.sites.entities[i].yaw - expected;
+            while (delta > 3.14159265f) delta -= 6.28318531f;
+            while (delta < -3.14159265f) delta += 6.28318531f;
+            CHECK(std::fabs(delta) < 0.01f);
+            // Stands on the CARVED floor, not on the heightfield above it.
+            CHECK(ctx.sites.entities[i].ground_y != world::NO_GROUND_Y);
+            CHECK(std::fabs(ctx.sites.entities[i].ground_y - mouth->position.y) < 0.5f);
+            // And is genuinely lower than the untouched surface there, which is
+            // the whole reason the heightfield could not place it.
+            CHECK(ctx.sites.entities[i].ground_y < world::terrain_height(ctx, p) - 0.5f);
+        }
+        CHECK(matched);
+    }
+    CHECK(carved_entrances >= 1);
+}
+
+TEST_CASE("§6.2 findability: standing stones flank each entrance, nothing grows on it") {
+    const auto& ctx = testbed();
+    const auto& sites = ctx.sites;
+
+    // Gather every scatter instance across the testbed once.
+    std::vector<math::ScatterInstance> all;
+    for (int32_t cz = 0; cz <= 3; ++cz) {
+        for (int32_t cx = 0; cx <= 3; ++cx) {
+            const auto chunk = world::generate_chunk(ctx, ChunkCoord{cx, cz});
+            all.insert(all.end(), chunk.scatter.begin(), chunk.scatter.end());
+        }
+    }
+    REQUIRE(all.size() > 1000);
+
+    const float margin = static_cast<float>(config::ENTRANCE_SCATTER_EXCLUSION_MARGIN);
+    for (const world::EntranceWorks& w : sites.entrances) {
+        if (!w.valid) continue;
+        // Standing stones: present, paired along the approach, and tall enough
+        // to read as intentional rather than as boulders.
+        int markers = 0;
+        for (const auto& inst : all) {
+            if (inst.species != math::ScatterSpecies::Stone) continue;
+            const glm::vec2 p{inst.position.x, inst.position.z};
+            if (glm::length(p - w.portal) > w.forecourt_length + margin + 8.0f) continue;
+            if (inst.scale < static_cast<float>(config::STANDING_STONE_HEIGHT_MIN) - 0.01f) {
+                continue;
+            }
+            ++markers;
+            CHECK(inst.scale
+                  <= static_cast<float>(config::STANDING_STONE_HEIGHT_MAX) + 0.01f);
+        }
+        CHECK(markers >= static_cast<int>(config::STANDING_STONE_COUNT_MIN));
+
+        // Exclusion ring: no vegetation on the mound or its forecourt. The
+        // mound exists to create a silhouette; a stand of oaks on top erases it.
+        for (const auto& inst : all) {
+            const bool vegetation = inst.species == math::ScatterSpecies::OakTree
+                                 || inst.species == math::ScatterSpecies::PineTree
+                                 || inst.species == math::ScatterSpecies::BirchTree
+                                 || inst.species == math::ScatterSpecies::Bush;
+            if (!vegetation) continue;
+            const glm::vec2 p{inst.position.x, inst.position.z};
+            CHECK(glm::length(p - w.center) >= w.mound_radius + margin - 0.01f);
+        }
+    }
 }

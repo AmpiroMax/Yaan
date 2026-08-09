@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -41,6 +41,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: grid-pass generate_chunk (water/heights once per node, slope from the grid, analytic border) — bit-identical to surface_point, ~5x fewer field evals; equality pinned by test.
 - 09:08:2026 - 16:30:44: Representation swap: generate_chunk builds the voxel volume from the heightmap it just wrote, extracts the surface, and drops the volume.
 - 09:08:2026 - 16:47:51: P7: carves passed to the volume build.
+- 09:08:2026 - 17:36:42: §6.2: entrance works applied between hydrology and pads; derived adits passed to the voxel build.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -121,7 +122,8 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
 float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
     const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
     const float carved = carve_height(ctx.hydrology, ctx.params.layout, world, macro);
-    const float padded = pads_height(ctx.sites, world, carved);
+    const float worked = entrance_works_height(ctx.sites, world, carved);
+    const float padded = pads_height(ctx.sites, world, worked);
     return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
 }
 
@@ -129,7 +131,9 @@ SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world) {
     const TestbedLayout& layout = ctx.params.layout;
     const float macro = macro_height(ctx.params.seed, layout, world);
     const WaterSample water = water_at(ctx.hydrology, layout, world, macro);
-    const float h = std::clamp(pads_height(ctx.sites, world, water.height), 0.0f, MAX_HEIGHT_M);
+    const float h = std::clamp(
+        pads_height(ctx.sites, world, entrance_works_height(ctx.sites, world, water.height)),
+        0.0f, MAX_HEIGHT_M);
 
     SurfacePoint out;
     out.height = h;
@@ -199,8 +203,10 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             const std::size_t i = static_cast<std::size_t>(z) * RESOLUTION + x;
             water[i] = water_at(ctx.hydrology, layout, world,
                                 macro_height(ctx.params.seed, layout, world));
-            final_h[i] = std::clamp(pads_height(ctx.sites, world, water[i].height), 0.0f,
-                                    MAX_HEIGHT_M);
+            final_h[i] = std::clamp(
+                pads_height(ctx.sites, world,
+                            entrance_works_height(ctx.sites, world, water[i].height)),
+                0.0f, MAX_HEIGHT_M);
         }
     }
     // pass B: quantize + classify. Slope uses the grid where the +-STEP
@@ -269,9 +275,15 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     // extract its surface and DROP the volume — the world is not destructible,
     // so only the geometry stays resident.
     {
+        std::vector<CarveCorridor> derived;
+        for (const EntranceWorks& w : ctx.sites.entrances) {
+            if (w.valid && w.adit.point_count > 1) {
+                derived.push_back(w.adit);
+            }
+        }
         const VoxelVolume volume = build_voxel_volume(
             chunk, [&ctx](glm::vec2 p) { return terrain_height(ctx, p); },
-            ctx.params.layout);
+            ctx.params.layout, derived);
         VoxelMeshData mesh = extract_surface_nets(volume);
         chunk.voxels.positions = std::move(mesh.positions);
         chunk.voxels.normals = std::move(mesh.normals);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -37,6 +37,7 @@ UPD:
   view() -> math::SurfaceFieldView per the render agreement) and scatter
   instances added to Chunk. Additive; heightmap contract unchanged.
 - 09:08:2026 - 16:30:44: Representation swap: Chunk carries the extracted VoxelSurface (the volume is transient — the world is not destructible, so only geometry stays resident).
+- 09:08:2026 - 17:36:42: §6.2: GeneratedEntityRecord::ground_y — a carved entrance stands on a floor cut below the surface, which the heightfield cannot report.
 */
 
 #pragma once

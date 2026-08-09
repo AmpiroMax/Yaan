@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/VoxelVolume.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 09:08:2026 - 16:00:00: Created — volume construction for the 3D stage.
 - 09:08:2026 - 16:30:44: Representation swap: volume built from the chunk's own heightmap; border nodes emulate the NEIGHBOUR's heightmap (quantized 2 m lattice + bilinear) rather than sampling the continuous field, which disagreed by up to 0.30 m mid-cell and showed as a seam.
 - 09:08:2026 - 16:47:51: P7: slab extended to reach carved volumes (they sit below the surface band), per-column band widened over carves, CSG subtraction d = max(terrain, -carve).
+- 09:08:2026 - 17:36:42: §6.2: derived corridors included in the band widening and the CSG subtraction.
 */
 
 #include "engine/world/sources/VoxelVolume.h"
@@ -128,7 +129,8 @@ math::VoxelMaterial surface_material(const SurfaceData& surface, int32_t vx, int
 } // namespace
 
 VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& border_height,
-                               const TestbedLayout& layout) {
+                               const TestbedLayout& layout,
+                               std::span<const CarveCorridor> extra_carves) {
     VoxelVolume v;
     v.voxel = VOXEL;
     v.band = BAND;
@@ -168,13 +170,14 @@ VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& bo
     float slab_hi = hmax + BAND + VOXEL;
     // Carved volumes live BELOW the surface band; the slab has to reach them
     // or the tunnel simply would not exist in the field.
-    const bool carving = has_carves(layout);
+    const bool carving = has_carves(layout) || !extra_carves.empty();
     if (carving) {
         for (int32_t z = 0; z < v.nz; ++z) {
             for (int32_t x = 0; x < v.nx; ++x) {
                 const auto [clo, chi] = carve_column_range(
-                    layout, v.origin + glm::vec2{static_cast<float>(x) * VOXEL,
-                                                 static_cast<float>(z) * VOXEL});
+                    layout, extra_carves,
+                    v.origin + glm::vec2{static_cast<float>(x) * VOXEL,
+                                         static_cast<float>(z) * VOXEL});
                 if (clo > chi) {
                     continue;
                 }
@@ -215,7 +218,7 @@ VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& bo
                                      static_cast<float>(z) * VOXEL};
             bool carved_column = false;
             if (carving) {
-                const auto [clo, chi] = carve_column_range(layout, column_xz);
+                const auto [clo, chi] = carve_column_range(layout, extra_carves, column_xz);
                 if (clo <= chi) {
                     carved_column = true;
                     lo = std::min(lo, std::clamp(static_cast<int32_t>(
@@ -241,7 +244,8 @@ VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& bo
                 float d = wy - surface; // negative below the surface
                 if (carved_column) {
                     // CSG subtraction: air wins over rock.
-                    d = std::max(d, -carve_distance(layout, {column_xz.x, wy, column_xz.y}));
+                    d = std::max(d, -carve_distance(layout, extra_carves,
+                                                    {column_xz.x, wy, column_xz.y}));
                 }
                 const std::size_t i = v.index(x, y, z);
                 v.sdf[i] = static_cast<int8_t>(

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -33,6 +33,7 @@ UPD:
   add_batch (Rule 11 — one pool visit per component type).
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes now carries the lake plus one plane per surviving pond (additive, lead-blessed; render iterates the same span).
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh accessor.
+- 09:08:2026 - 17:36:42: §6.2: honour ground_y when spawning site entities.
 */
 
 #include "engine/world/sources/ChunkManager.h"

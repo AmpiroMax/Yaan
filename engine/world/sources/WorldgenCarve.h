@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -35,6 +35,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 16:45:00: Created — P7 carve pass for the 3D terrain stage.
 - 09:08:2026 - 16:47:51: Created — P7 carve SDF: box cross-section corridors (flat floor, real headroom) and chambers, plus the per-column range the voxel builder needs to widen its band.
+- 09:08:2026 - 17:36:42: §6.2: carve_mouth / site_carve_mouth (entrance markers derived from the mouth, never scored) and carve overloads taking derived corridors.
 */
 
 #pragma once
@@ -44,6 +45,7 @@ UPD:
 #include <functional>
 #include <glm/vec3.hpp>
 #include <optional>
+#include <span>
 #include <utility>
 
 namespace dfn::world {
@@ -52,11 +54,18 @@ namespace dfn::world {
 /// (negative = inside carved air). Returns a large positive value far away.
 [[nodiscard]] float carve_distance(const TestbedLayout& layout, glm::vec3 world);
 
+/// Same, including DERIVED corridors (the §6.2 entrance adits).
+[[nodiscard]] float carve_distance(const TestbedLayout& layout,
+                                   std::span<const CarveCorridor> extra, glm::vec3 world);
+
 /// The vertical span carved volumes occupy in the column at `world_xz`, as
 /// (lo, hi) in meters. Returns (1, -1) — an empty range — when the column
 /// touches no carve. Used to widen the voxel band; a carve outside the band
 /// would simply not exist.
 [[nodiscard]] std::pair<float, float> carve_column_range(const TestbedLayout& layout,
+                                                         glm::vec2 world_xz);
+[[nodiscard]] std::pair<float, float> carve_column_range(const TestbedLayout& layout,
+                                                         std::span<const CarveCorridor> extra,
                                                          glm::vec2 world_xz);
 
 /// True if any carve exists in this layout (lets the builder skip the work).

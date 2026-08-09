@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:03:23
+Last updated: 09:08:2026 - 17:45:08
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -31,6 +31,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: L0_AIM_ABOVE_PEAK shared by C1 validation and P5 sight wedges.
 - 09:08:2026 - 13:28:27: P1 anisotropy retune: STREAM_HILL_AXIS for the landform-anisotropy axis field (§2.1).
 - 09:08:2026 - 14:03:23: Micro-relief batch: path_groove_depth exposed (corridor trails carved 15 cm, ford-safe by pipeline order); STREAM_SCATTER_CURB.
+- 09:08:2026 - 17:45:08: §6.2: STREAM_SCATTER_MARKER for entrance standing stones.
 */
 
 #pragma once
@@ -54,6 +55,7 @@ enum WorldgenStream : uint32_t {
     STREAM_SCATTER_CLEARING = 48,
     STREAM_SCATTER_OUTCROP = 52,
     STREAM_SCATTER_CURB = 56, // corridor-margin curb stones (micro-relief batch)
+    STREAM_SCATTER_MARKER = 60, // entrance standing stones (§6.2 findability)
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters

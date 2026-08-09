@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 16:47:51
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -38,6 +38,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments (design 12:44:58): fords removed from RiverLayout (derived in P2 per §7.1a); pine annulus -> radial ridge strips with count/duty knobs (§1.3 C1, tuned seed 1); crag treeline knob; corridor_distance moved here (shared layout geometry).
 - 09:08:2026 - 15:18:34: Castle (§6.1): CastleLayout — Harrowward's stamp target on the crag SW foot, §6.1.3 footprints, approach-corridor index (gate is valley-facing, pad never rotated).
 - 09:08:2026 - 16:47:51: P7 carves: CarveCorridor/CarveChamber/CarveLayout — the crag switchback tunnel (8 waypoints, 4 legs, 3 landings, starts and ends in open air so the portals form where the path meets rock) and the Backbarrow passage + chamber.
+- 09:08:2026 - 17:36:42: §6.2: dungeon->carve site mapping for derived entrance markers; lakeshore held at the design position with the measured reason (bluff base sits below the lake plane).
 */
 
 #pragma once
@@ -232,7 +233,13 @@ struct TestbedLayout {
         {{560.0f, 620.0f}, SiteKind::Shrine},          // shrine knoll (§7.1)
         {{780.0f, 290.0f}, SiteKind::DungeonEntrance}, // dungeon 1: barrow (§7.1)
         {{620.0f, 850.0f}, SiteKind::DungeonEntrance}, // dungeon 2: forest ruin (§7.1)
-        {{180.0f, 350.0f}, SiteKind::DungeonEntrance}, // dungeon 3: lakeshore cave (§7.1)
+        // Dungeon 3: lakeshore cave. HELD at the design position pending a
+        // ruling: the blessed "move to the bluff foot" is unsatisfiable as the
+        // bluff stands today — its base sits at ~12-14 m, BELOW the 15 m lake
+        // plane, so a foot-level mouth breaks the ">= 2 m above the lake"
+        // condition (measured, reported to design). Left here it generates a
+        // valid sunken-barrow entrance rather than a flooded one.
+        {{180.0f, 350.0f}, SiteKind::DungeonEntrance},
         {{830.0f, 200.0f}, SiteKind::TowerRuin},       // watchtower ruin on the crag (§7.1)
     };
 

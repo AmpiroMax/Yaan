@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:49:01
+Last updated: 09:08:2026 - 17:45:08
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -27,6 +27,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: pine ring -> radial ridge strips (§5.2/§1.3); L0 sight wedges reject over-angling trees near POI sightlines (LANDMARK_CLEARANCE_FACTOR); crag treeless band via treeline; canopy_height_at.
 - 09:08:2026 - 14:03:23: Micro-relief batch: curb stones along corridor margins (PATH_CURB_SPACING/DENSITY, margin band between groove edge and corridor edge, 0.25-0.55 m Stones, deterministic per corridor step).
 - 09:08:2026 - 14:49:01: Scatter-in-water fix (part 2): ScatterCtx::dry_enough(p, margin) is now THE water gate for every pass — trees/bushes/stones/curbs and the forced watchpoint cluster (which sits on a ford by design and previously bypassed all gates: a pine and boulders stood in the channel). Margins TREE/BUSH/STONE_WATER_MARGIN keep trunks clear of the drawn plane edge.
+- 09:08:2026 - 17:45:08: §6.2: standing stones flanking each entrance approach (paired avenue, placed by rule — they must read as INTENTIONAL, which scatter cannot do) + the exclusion ring keeping trees, bushes and loose stones off the mound and forecourt so the silhouette survives.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -199,6 +200,24 @@ struct ScatterCtx {
         const float hz = ground({p.x, p.y + d}) - ground({p.x, p.y - d});
         return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d));
     }
+    /// §6.2 exclusion ring: nothing natural grows over an entrance. The mound
+    /// exists to make a silhouette a hole in flat ground cannot have, and a
+    /// stand of oaks on top of it destroys exactly that.
+    [[nodiscard]] bool near_entrance(glm::vec2 p) const {
+        const float margin = static_cast<float>(config::ENTRANCE_SCATTER_EXCLUSION_MARGIN);
+        for (const EntranceWorks& w : sites.entrances) {
+            if (!w.valid) continue;
+            if (glm::length(p - w.center) < w.mound_radius + margin) return true;
+            if (glm::length(p - w.portal) < w.forecourt_length + margin) return true;
+        }
+        // Hand-authored entrances have no works; keep their approach clear too.
+        for (std::size_t i = 0; i < sites.entities.size(); ++i) {
+            if (sites.types[i] != SiteType::DungeonEntrance) continue;
+            if (glm::length(p - sites.entities[i].position_xz) < margin + 4.0f) return true;
+        }
+        return false;
+    }
+
     [[nodiscard]] bool on_pad(glm::vec2 p) const {
         for (const BuildingPad& pad : sites.pads) {
             if (glm::length(p - pad.center) < pad.radius + pad.blend + 2.0f) return true;
@@ -220,7 +239,7 @@ struct ScatterCtx {
     /// §1.3 sight wedges — `species_max_h` is the §5 species max height).
     [[nodiscard]] bool tree_ok(glm::vec2 p, float min_water_dist, float species_max_h) const {
         if (corridor_distance(layout, p) < CORRIDOR_HALF + 2.0f) return false;
-        if (on_pad(p)) return false;
+        if (on_pad(p) || near_entrance(p)) return false;
         if (!dry_enough(p, min_water_dist)) return false;
         const float h = ground(p);
         if (on_crag_treeless(p, h)) return false;
@@ -305,7 +324,7 @@ void scatter_bushes(ScatterCtx& ctx) {
             + rng.next_float01() * static_cast<float>(config::BUSH_EDGE_DENSITY_MAX
                                                       - config::BUSH_EDGE_DENSITY_MIN);
         if (rng.next_float01() > density * cell * cell) return;
-        if (ctx.on_pad(p) || !ctx.dry_enough(p, BUSH_WATER_MARGIN)
+        if (ctx.on_pad(p) || ctx.near_entrance(p) || !ctx.dry_enough(p, BUSH_WATER_MARGIN)
             || corridor_distance(ctx.layout, p) < CORRIDOR_HALF) {
             return;
         }
@@ -330,7 +349,7 @@ void scatter_stones(ScatterCtx& ctx) {
         const float d_water = ctx.dist_to_water(p);
         const float mult = d_water <= static_cast<float>(config::SHORE_SAND_DIST) ? 2.0f : 1.0f;
         if (rng.next_float01() > density * mult * cell * cell) return;
-        if (ctx.on_pad(p) || !ctx.dry_enough(p, STONE_WATER_MARGIN)
+        if (ctx.on_pad(p) || ctx.near_entrance(p) || !ctx.dry_enough(p, STONE_WATER_MARGIN)
             || corridor_distance(ctx.layout, p) < CORRIDOR_HALF) {
             return;
         }
@@ -351,7 +370,8 @@ void scatter_stones(ScatterCtx& ctx) {
             const float rad = rng.next_float01() * 8.0f;
             const glm::vec2 p = center + glm::vec2{std::cos(ang), std::sin(ang)} * rad;
             const float scale = 1.0f + rng.next_float01() * 2.0f; // 1-3 m boulders
-            if (!ctx.inside_chunk(p) || ctx.on_pad(p) || !ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
+            if (!ctx.inside_chunk(p) || ctx.on_pad(p) || ctx.near_entrance(p)
+                || !ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
             if (corridor_distance(ctx.layout, p) < CORRIDOR_HALF + scale) continue;
             if (ctx.slope(p) > TREE_SLOPE) continue;
             ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, scale);
@@ -416,6 +436,38 @@ void scatter_stones(ScatterCtx& ctx) {
     }
 }
 
+/// §6.2 findability: standing stones flanking the approach. They read as
+/// INTENTIONAL at distance, which nothing natural does — that is the whole
+/// job, so they are placed by rule (paired, on the approach axis), not
+/// scattered. They are exempt from the exclusion ring they stand inside.
+void scatter_entrance_markers(ScatterCtx& ctx) {
+    for (std::size_t si = 0; si < ctx.sites.entrances.size(); ++si) {
+        const EntranceWorks& w = ctx.sites.entrances[si];
+        if (!w.valid) continue;
+        WorldGenRng rng =
+            cell_rng(ctx.seed, STREAM_SCATTER_MARKER, static_cast<int64_t>(si), 0);
+        const uint32_t count = rng.next_range(
+            static_cast<uint32_t>(config::STANDING_STONE_COUNT_MIN),
+            static_cast<uint32_t>(config::STANDING_STONE_COUNT_MAX));
+        const glm::vec2 side{-w.outward.y, w.outward.x};
+        const float lateral = w.forecourt_half_width + 2.0f;
+        for (uint32_t i = 0; i < count; ++i) {
+            // Alternate sides, walking outward from the portal: a pair, then a
+            // second pair further out — an avenue, not a ring.
+            const float along = 4.0f + static_cast<float>(i / 2) * 5.0f;
+            const float sign = (i % 2 == 0) ? 1.0f : -1.0f;
+            const glm::vec2 p = w.portal + w.outward * along + side * (sign * lateral);
+            if (!ctx.inside_chunk(p)) continue;
+            const float height =
+                static_cast<float>(config::STANDING_STONE_HEIGHT_MIN)
+                + rng.next_float01()
+                      * static_cast<float>(config::STANDING_STONE_HEIGHT_MAX
+                                           - config::STANDING_STONE_HEIGHT_MIN);
+            ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, height);
+        }
+    }
+}
+
 } // namespace
 
 bool in_forest_mass(const TestbedLayout& layout, glm::vec2 world) {
@@ -472,6 +524,7 @@ std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLay
     scatter_trees(ctx);
     scatter_bushes(ctx);
     scatter_stones(ctx);
+    scatter_entrance_markers(ctx);
     return out;
 }
 

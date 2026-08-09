@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 17:36:42
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -27,6 +27,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P4 implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h; placer fallback scores dry-over-flat-over-wet and shies from banks.
 - 09:08:2026 - 15:18:34: Castle: solved first (its terrace outranks ordinary pads), elements appended to the shared record list keeping WorldEntityIds sequential; pads_height applies the terrace + ramp.
+- 09:08:2026 - 17:36:42: §6.2: entrances no longer use the pad scorer at all — relief within 25 m selects adit vs sunken barrow, the generator stamps the mound/forecourt it needs on flat ground, and the marker is derived from the mouth with an explicit floor height. Hand-authored carves outrank generated stubs.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
@@ -130,6 +131,76 @@ struct Placer {
     }
 };
 
+/// §6.2 selection rule: the relief available within 25 m decides the archetype.
+/// Returns (best rise, direction of the DOWNhill side, i.e. where a portal
+/// would face out).
+std::pair<float, glm::vec2> local_relief(uint64_t seed, const TestbedLayout& layout,
+                                         const HydrologyData& hydro, glm::vec2 c) {
+    const float h0 = ground_height(seed, layout, hydro, c);
+    float best_rise = 0.0f;
+    glm::vec2 uphill{1.0f, 0.0f};
+    for (int i = 0; i < 8; ++i) {
+        const float ang = static_cast<float>(i) * (TAU / 8.0f);
+        const glm::vec2 d{std::cos(ang), std::sin(ang)};
+        const float rise = ground_height(seed, layout, hydro, c + d * 25.0f) - h0;
+        if (rise > best_rise) {
+            best_rise = rise;
+            uphill = d;
+        }
+    }
+    return {best_rise, uphill};
+}
+
+EntranceWorks build_entrance_works(uint64_t seed, const TestbedLayout& layout,
+                                   const HydrologyData& hydro, glm::vec2 site) {
+    constexpr float MIN_RELIEF = static_cast<float>(config::DUNGEON_ENTRANCE_MIN_RELIEF);
+    constexpr float MOUND_R = static_cast<float>(config::BARROW_MOUND_RADIUS);
+    constexpr float MOUND_H = static_cast<float>(config::BARROW_MOUND_HEIGHT);
+    constexpr float FC_LEN = static_cast<float>(config::BARROW_FORECOURT_LENGTH);
+    constexpr float FC_HALF = static_cast<float>(config::BARROW_FORECOURT_WIDTH) * 0.5f;
+    constexpr float FC_DEPTH = static_cast<float>(config::BARROW_FORECOURT_DEPTH);
+
+    EntranceWorks w;
+    w.valid = true;
+    w.center = site;
+    const auto [rise, uphill] = local_relief(seed, layout, hydro, site);
+    // The portal faces DOWNhill — out of the slope, toward the approach.
+    w.outward = -uphill;
+    w.mound_radius = MOUND_R;
+    w.forecourt_length = FC_LEN;
+    w.forecourt_half_width = FC_HALF;
+
+    const float grade = ground_height(seed, layout, hydro, site);
+    if (rise >= MIN_RELIEF) {
+        // Natural hillside: cut the adit straight into the slope, mouth on the
+        // slope normal. No mound — the relief is already there.
+        w.mounded = false;
+        w.mound_height = 0.0f;
+        // Step out to where the ground has dropped, and put the portal there.
+        w.portal = site + w.outward * 10.0f;
+        w.portal_floor = ground_height(seed, layout, hydro, w.portal) - 0.6f;
+    } else {
+        // Flat ground: BUILD the relief (§6.2). A mound gives the silhouette a
+        // hole in flat ground can never have, and a cut forecourt walks the
+        // player down to a lintel in its flank.
+        w.mounded = true;
+        w.mound_height = MOUND_H;
+        w.portal = site + w.outward * (MOUND_R * 0.45f);
+        w.portal_floor = grade - FC_DEPTH;
+    }
+    // The adit: from just outside the portal, in under the mound/hillside.
+    const glm::vec3 mouth_outer{w.portal.x + w.outward.x * 2.0f, w.portal_floor,
+                                w.portal.y + w.outward.y * 2.0f};
+    const glm::vec3 inner{w.portal.x - w.outward.x * 18.0f, w.portal_floor,
+                          w.portal.y - w.outward.y * 18.0f};
+    w.adit.points[0] = mouth_outer;
+    w.adit.points[1] = inner;
+    w.adit.point_count = 2;
+    w.adit.half_width = 1.5f;
+    w.adit.height = 2.6f;
+    return w;
+}
+
 } // namespace
 
 SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const HydrologyData& hydro) {
@@ -139,6 +210,23 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
     out.castle = solve_castle(seed, layout, hydro);
     Placer placer{seed, layout, hydro, out};
     WorldGenRng rng = WorldGenRng::for_chunk(seed, ChunkCoord{0, 0}, STREAM_SITES);
+
+    // §6.2 entrance works first: the mound is terrain, and the marker and adit
+    // are derived from it.
+    out.entrances.assign(std::size(layout.sites), EntranceWorks{});
+    for (std::size_t si = 0; si < std::size(layout.sites); ++si) {
+        if (layout.sites[si].kind != SiteKind::DungeonEntrance) {
+            continue;
+        }
+        const auto hand_carved = site_carve_mouth(
+            layout, static_cast<int>(si),
+            [&](glm::vec2 p) { return ground_height(seed, layout, hydro, p); });
+        if (hand_carved) {
+            continue; // designed route; no generated works
+        }
+        out.entrances[si] =
+            build_entrance_works(seed, layout, hydro, layout.sites[si].position);
+    }
 
     for (uint8_t si = 0; si < static_cast<uint8_t>(std::size(layout.sites)); ++si) {
         const SiteLayout& site = layout.sites[si];
@@ -213,16 +301,23 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
             const auto ground = [&](glm::vec2 p) {
                 return ground_height(seed, layout, hydro, p);
             };
+            // §6.2: entrances never use the pad scorer. Prefer the works adit
+            // (which exists for every dungeon), then any hand-authored carve.
+            // A hand-authored carve (the Backbarrow passage) is a DESIGNED
+            // route and always wins over a generated stub.
             if (const auto mouth = site_carve_mouth(layout, si, ground)) {
-                // Stand just outside the opening so the frame reads against
-                // the rock face instead of being buried in it.
                 const glm::vec2 pos =
                     glm::vec2{mouth->position.x, mouth->position.z} + mouth->outward * 1.5f;
-                // No pad: the carve already provides the floor, and flattening
-                // a disc here would cut away the rock above the opening.
                 placer.emit(SiteType::DungeonEntrance, pos,
                             std::atan2(mouth->outward.x, -mouth->outward.y), false,
                             mouth->position.y);
+                break;
+            }
+            const EntranceWorks& works = out.entrances[si];
+            if (works.valid) {
+                placer.emit(SiteType::DungeonEntrance, works.portal,
+                            std::atan2(works.outward.x, -works.outward.y), false,
+                            works.portal_floor);
                 break;
             }
             const glm::vec2 pos = placer.place(rng, site.position, 10.0f);
@@ -253,6 +348,36 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
         out.types.push_back(out.castle.types[i]);
     }
     return out;
+}
+
+float entrance_works_height(const SitesData& sites, glm::vec2 world, float h) {
+    for (const EntranceWorks& w : sites.entrances) {
+        if (!w.valid) {
+            continue;
+        }
+        if (w.mounded) {
+            // Radial mound: smooth crest, so it reads as a built barrow rather
+            // than a cone, and its flank gives the portal a face.
+            const float d = glm::length(world - w.center);
+            if (d < w.mound_radius) {
+                const float t = 1.0f - d / w.mound_radius;
+                h += w.mound_height * noise::smoothstep01(t);
+            }
+        }
+        // Cut forecourt: a trench running out from the portal, deepest at the
+        // lintel and ramping up to grade at its outer end, so the player walks
+        // DOWN into it and never falls in.
+        const glm::vec2 rel = world - w.portal;
+        const float along = glm::dot(rel, w.outward);
+        const float across = std::fabs(rel.x * w.outward.y - rel.y * w.outward.x);
+        if (along >= -2.0f && along <= w.forecourt_length
+            && across <= w.forecourt_half_width) {
+            const float t = std::clamp(along / w.forecourt_length, 0.0f, 1.0f);
+            const float floor_h = w.portal_floor + (h - w.portal_floor) * t;
+            h = std::min(h, floor_h);
+        }
+    }
+    return h;
 }
 
 float pads_height(const SitesData& sites, glm::vec2 world, float h) {

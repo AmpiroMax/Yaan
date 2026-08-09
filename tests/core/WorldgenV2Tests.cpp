@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:36:59
+Last updated: 09:08:2026 - 17:45:08
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -30,6 +30,7 @@ UPD:
 - 09:08:2026 - 15:18:34: Castle suite: terrace cut/pad-surface slope, R3, horizontal-dominant mass order, ford command + barrow band, access ramp (slope/step), Backbarrow sightline, R2/R4, and the C2 castle-contribution check; P4 roster updated (castle elements share one terrace, so pads + castle entities == entities).
 - 09:08:2026 - 15:31:04: Rule C2-testbed check on the castle's contribution (the seed-1 layout forms a castle-free crowd at (304,304): hamlet + shrine + lakeshore cave), with all three measures reported in the INFO.
 - 09:08:2026 - 15:36:59: Rule C2-testbed now gates the absolute bound (3) plus the large-mass guard (2), keeping the mandatory raw/unexempted disclosure and the castle-contribution check.
+- 09:08:2026 - 17:45:08: §6.2: pad accounting restated as the NEW invariant — entities == pads + castle elements + derived entrances — with each entrance checked to carry an explicit carve floor. The old assertion encoded the rule this change replaced.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -305,9 +306,27 @@ TEST_CASE("P4: full site roster on pads — flat, dry, above flood margin") {
     const auto& ctx = testbed();
     const auto& sites = ctx.sites;
     REQUIRE(sites.entities.size() == sites.types.size());
-    // Every ordinary site stands on its own BuildingPad; the castle's elements
-    // share ONE terrace instead (§6.1), so they are excluded from the count.
-    REQUIRE(sites.entities.size() == sites.pads.size() + sites.castle.entities.size());
+    // Pad accounting, stated exactly (§6.1, §6.2). Every ordinary building
+    // stands on its own BuildingPad. TWO kinds of site do not:
+    //  - the castle's elements share ONE terrace (§6.1);
+    //  - dungeon entrances are DERIVED from their carve mouth and never
+    //    scored onto a pad at all — a cave mouth cannot exist on the flat dry
+    //    ground the pad scorer looks for, which is precisely how one marker
+    //    ended up 10 m from its own passage and another on the crown of the
+    //    bluff it should sit under.
+    std::size_t derived_entrances = 0;
+    for (const world::SiteType type : sites.types) {
+        if (type == world::SiteType::DungeonEntrance) ++derived_entrances;
+    }
+    CHECK(derived_entrances == static_cast<std::size_t>(config::TESTBED_DUNGEONS));
+    REQUIRE(sites.entities.size()
+            == sites.pads.size() + sites.castle.entities.size() + derived_entrances);
+    // ...and each really is derived: its floor comes from the carve, not from
+    // the heightfield, which cannot report a floor cut below the surface.
+    for (std::size_t i = 0; i < sites.entities.size(); ++i) {
+        if (sites.types[i] != world::SiteType::DungeonEntrance) continue;
+        CHECK(sites.entities[i].ground_y != world::NO_GROUND_Y);
+    }
 
     // Roster: 1 tavern + 1 trader + dwellings/barns within HAMLET_SIZE, one
     // shrine, TESTBED_DUNGEONS entrances, one tower ruin, plus the castle mass.
