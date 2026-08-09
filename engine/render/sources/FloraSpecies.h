@@ -66,8 +66,21 @@ enum class FloraSpecies : uint8_t {
     /// across the two — asserted in the suite — because that is what "the same
     /// asset got two materials" means; only the values differ.
     SnagPale = 9,
+    /// §5.12 talus apron: a wind-formed dwarf conifer for the scree band under
+    /// the cliffline. Same whorl generator as HighlandPine, krummholz numbers.
+    StuntedPine = 10,
+    // --- The RICH EDGE SET (в8/в19в): what lives on path margins, water
+    // --- margins and among the talus. Flower palette roles are design's
+    // --- ruling (10.08.2026): carpet / warm accent / rare jewel / pale umbel.
+    MossPatch = 11,     ///< ground moss; also the shade-side dress on stones
+    FlowerCarpet = 12,  ///< (a) common carpet — cool blue-violet, hue vs grass
+    FlowerAccent = 13,  ///< (b) common warm accent — white/yellow, VALUE carrier
+    FlowerJewel = 14,   ///< (c) RARE JEWEL — deep red; NEVER in common scatter
+    FlowerUmbel = 15,   ///< (d) pale umbel — water margins, birch's ground echo
+    Mushroom = 16,      ///< caps; placement rings/clumps via mushroom_ring_offsets
+    PebbleCluster = 17, ///< small stones; path borders and scree texture
 };
-inline constexpr uint8_t FLORA_SPECIES_COUNT = 10;
+inline constexpr uint8_t FLORA_SPECIES_COUNT = 18;
 
 /// The silhouette intent. Branch target lengths are clipped to this envelope so
 /// the species read at SILHOUETTE_MIN_PX is GUARANTEED rather than emergent —
@@ -86,6 +99,19 @@ enum class FoliageShape : uint8_t {
     Blob,      ///< faceted ellipsoid cluster (solid: bushes, and Silhouette LOD)
     ConeShell, ///< tier skirt (conifer)
     None,
+};
+
+/// Ground-cover build recipe. A patch species is a FORM plus numbers — the
+/// same doctrine as trees (a species is a table row, never bespoke code), one
+/// level down. All solid geometry: design ruled only TREE foliage is cards,
+/// and at 0.1-0.8 m a card would be one shimmering pixel anyway (Rule 33).
+enum class GroundForm : uint8_t {
+    None = 0,
+    MossDome,  ///< overlapping flattened domes hugging the ground
+    HeadsTuft, ///< a green tuft carrying flower heads ON it (low flowers)
+    HeadsStem, ///< visible stems with heads on top (tall flowers)
+    Caps,      ///< mushroom: stem + flattened cap per element
+    Stones,    ///< part-buried pebbles
 };
 
 /// One species. Everything the generator needs; nothing it does not.
@@ -158,6 +184,17 @@ struct SpeciesParams {
     float phototropism = 0.35f;      ///< +Y component of eq. (3)'s tropism vector
     float droop = 0.10f;             ///< -Y component; high = willow, conifer sag
     float min_branch_diameter = 0.35f; ///< SHADOW FLOOR — see docs/specs/flora.md §3.5
+
+    // --- ground cover (the §5.10/в19в patch classes) ------------------------
+    // A patch is a FORM plus numbers. `height_min/max` doubles as the patch's
+    // vertical size; the fields below carry the rest.
+    GroundForm ground_form = GroundForm::None;
+    uint8_t ground_elements = 0;   ///< heads / caps / stones per patch
+    float element_radius = 0.06f;  ///< m, one head/cap/stone
+    float element_aspect = 1.1f;   ///< head height / radius (0.35 = flat plate)
+    float patch_radius = 0.5f;     ///< m, footprint the elements scatter over
+    glm::vec3 accent_color{0.5f};   ///< head/cap/stone colour
+    glm::vec3 accent_color_b{0.5f}; ///< its variation tone
 
     // --- dead wood (snags and fallen logs) ----------------------------------
     // A snag is NOT a tree with zero leaves and a log is NOT a floating

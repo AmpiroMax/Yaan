@@ -400,6 +400,149 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     snag_pale.twig_color = SNAG_BONE * 0.88f;
     snag_pale.foliage_color = SNAG_BONE;
 
+    // --- StuntedPine: the §5.12 talus apron's tree --------------------------
+    // Krummholz: the same whorl generator as the HighlandPine — a stunted pine
+    // is not a new mechanism, it is the same species written by wind and thin
+    // soil — with dwarf numbers: squat, wide for its height, hard-swept,
+    // foliage nearly to the ground (an obstacle you walk around, not canopy,
+    // so it is exempt from CANOPY_CLEARANCE_MIN by classification).
+    SpeciesParams& kp = t[static_cast<size_t>(FloraSpecies::StuntedPine)];
+    kp = pine;
+    kp.name = "StuntedPine";
+    kp.height_min = 3.5f;
+    kp.height_max = 7.0f;
+    kp.trunk_radius_frac = 0.030f; // squat: thick for its height
+    kp.trunk_sweep = 0.34f;        // wind-written lean, THE krummholz signal
+    kp.trunk_segments = 4;
+    kp.crown_base_frac = 0.10f;    // foliage nearly to the ground
+    // 0.55 was the first value and the frame refused it: at 5 m tall and
+    // 2.4 m wide the dwarf read as a SAPLING — the one thing a talus tree
+    // must never read as (saplings are «очень редкие» by user ruling, and a
+    // scree full of them would be a nursery). Squat is the krummholz read.
+    kp.crown_width_frac = 0.78f;
+    kp.whorl_count = 5;
+    kp.whorl_branches_min = 3;
+    kp.whorl_branches_max = 5;
+    kp.whorl_miss_bottom = 0.10f;  // open ground: little self-pruning
+    kp.whorl_stubs = 2;
+    kp.stub_band_frac = 0.10f;
+    kp.droop = 0.22f;
+    kp.cluster_count = 12;
+    kp.cluster_radius_frac = 0.52f; // dense mats, not sparse sprays
+    kp.cards_per_cluster = 3;
+
+    // --- The RICH EDGE SET (в8/в19в) + moss ---------------------------------
+    // Flower palette roles are design's ruling (10.08.2026): (a) carpet reads
+    // against grass by HUE at low value cost; (b) accent is the VALUE carrier
+    // («margin reads lit»); (c) jewel is a PLACEMENT BUDGET, never common
+    // scatter; (d) umbel echoes the birch's bank line at ground level. All
+    // solid geometry — только листва деревьев картами (design §5).
+    auto patch = [](SpeciesParams& p, const char* name, GroundForm form) {
+        p = SpeciesParams{};
+        p.name = name;
+        p.envelope = CrownEnvelope::None;
+        p.foliage = FoliageShape::None;
+        p.has_skeleton = false;
+        p.ground_form = form;
+        p.crown_base_frac = 0.0f;
+        p.crown_width_frac = 0.0f;
+        p.cluster_count = 0;
+        p.shyness = 0.0f;
+        p.lean_response = 0.0f;
+    };
+
+    SpeciesParams& moss = t[static_cast<size_t>(FloraSpecies::MossPatch)];
+    patch(moss, "MossPatch", GroundForm::MossDome);
+    moss.height_min = 0.07f;
+    moss.height_max = 0.13f;
+    moss.patch_radius = 0.8f;
+    moss.ground_elements = 3;
+    moss.foliage_color = LOG_MOSS;
+    moss.accent_color = LOG_MOSS;
+    moss.accent_color_b = LOG_MOSS * 1.30f;
+
+    SpeciesParams& carpet = t[static_cast<size_t>(FloraSpecies::FlowerCarpet)];
+    patch(carpet, "FlowerCarpet", GroundForm::HeadsTuft);
+    carpet.height_min = 0.16f;
+    carpet.height_max = 0.30f;
+    carpet.patch_radius = 0.55f;
+    carpet.ground_elements = 7;
+    carpet.element_radius = 0.05f;
+    carpet.foliage_color = {0.24f, 0.36f, 0.16f};
+    // Cool blue-violet, luminance ~0.40: reads against green grass by hue and
+    // stays off the sky ramp's distance band (design's constraint).
+    carpet.accent_color = {0.36f, 0.33f, 0.74f};
+    carpet.accent_color_b = {0.46f, 0.42f, 0.80f};
+
+    SpeciesParams& accentf = t[static_cast<size_t>(FloraSpecies::FlowerAccent)];
+    patch(accentf, "FlowerAccent", GroundForm::HeadsTuft);
+    accentf.height_min = 0.20f;
+    accentf.height_max = 0.36f;
+    accentf.patch_radius = 0.50f;
+    accentf.ground_elements = 6;
+    accentf.element_radius = 0.06f;
+    accentf.foliage_color = {0.26f, 0.38f, 0.17f};
+    // White with yellow variation: the highest VALUE contrast on the margin —
+    // this is what makes a path edge read "lit" at 640x360 (§1.5: value
+    // first, hue second).
+    accentf.accent_color = {0.93f, 0.92f, 0.83f};
+    accentf.accent_color_b = {0.88f, 0.75f, 0.24f};
+
+    SpeciesParams& jewel = t[static_cast<size_t>(FloraSpecies::FlowerJewel)];
+    patch(jewel, "FlowerJewel", GroundForm::HeadsStem);
+    jewel.height_min = 0.45f;
+    jewel.height_max = 0.65f;
+    jewel.patch_radius = 0.30f;
+    jewel.ground_elements = 2;
+    jewel.element_radius = 0.09f;
+    jewel.foliage_color = {0.24f, 0.36f, 0.16f};
+    jewel.trunk_color = {0.28f, 0.38f, 0.19f}; // stem green
+    // Saturated deep red: THE RARE JEWEL. Never in common scatter — rarity is
+    // a placement budget (FloraEdgeRules marks it), sited as/near finds.
+    jewel.accent_color = {0.60f, 0.09f, 0.11f};
+    jewel.accent_color_b = {0.48f, 0.07f, 0.24f};
+
+    SpeciesParams& umbel = t[static_cast<size_t>(FloraSpecies::FlowerUmbel)];
+    patch(umbel, "FlowerUmbel", GroundForm::HeadsStem);
+    umbel.height_min = 0.55f;
+    umbel.height_max = 0.85f;
+    umbel.patch_radius = 0.40f;
+    umbel.ground_elements = 3;
+    umbel.element_radius = 0.11f;
+    umbel.element_aspect = 0.35f; // a flat plate is the umbel silhouette
+    umbel.foliage_color = {0.26f, 0.38f, 0.17f};
+    umbel.trunk_color = {0.30f, 0.40f, 0.20f};
+    // Pale GREENISH cream: the birch bank-line's ground echo at water margins.
+    // Deliberately pulled toward green and away from the accent daisy's warm
+    // white — the two pale species must be separable from EACH OTHER at 10 m
+    // (design's acceptance), and the first draft sat 0.14 apart in RGB, which
+    // is one species in two habitats, not two species.
+    umbel.accent_color = {0.74f, 0.79f, 0.62f};
+    umbel.accent_color_b = {0.68f, 0.74f, 0.58f};
+
+    SpeciesParams& shroom = t[static_cast<size_t>(FloraSpecies::Mushroom)];
+    patch(shroom, "Mushroom", GroundForm::Caps);
+    shroom.height_min = 0.10f;
+    shroom.height_max = 0.22f;
+    shroom.patch_radius = 0.50f;
+    shroom.ground_elements = 5;
+    shroom.element_radius = 0.10f;
+    shroom.trunk_color = {0.72f, 0.68f, 0.58f}; // stems pale
+    shroom.accent_color = {0.55f, 0.28f, 0.12f}; // cap warm brown-red
+    shroom.accent_color_b = {0.74f, 0.66f, 0.50f}; // cap cream
+    shroom.foliage_color = shroom.accent_color;
+
+    SpeciesParams& pebbles = t[static_cast<size_t>(FloraSpecies::PebbleCluster)];
+    patch(pebbles, "PebbleCluster", GroundForm::Stones);
+    pebbles.height_min = 0.10f;
+    pebbles.height_max = 0.18f;
+    pebbles.patch_radius = 0.50f;
+    pebbles.ground_elements = 6;
+    pebbles.element_radius = 0.12f;
+    pebbles.accent_color = {0.47f, 0.46f, 0.44f};
+    pebbles.accent_color_b = {0.54f, 0.50f, 0.44f};
+    pebbles.foliage_color = pebbles.accent_color;
+
     // --- Bush: ground texture ----------------------------------------------
     SpeciesParams& bush = t[static_cast<size_t>(FloraSpecies::Bush)];
     bush.name = "Bush";

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:16:00
-Last updated: 10:08:2026 - 02:16:00
+Last updated: 10:08:2026 - 02:34:52
 Module: engine/render
 File: engine/render/sources/FloraField.h
 
@@ -54,9 +54,15 @@ UPD:
   as the authorship, rank-equalized raw noise (Rule 31), the edge-floor
   composition (design amendment 2), and the mushroom ring second stage
   (parent-child under the field, not more noise).
+- 10:08:2026 - 02:34:52: The authored values became registry rows (lead landed
+  CLUMP_* with design's signature); literals replaced by Constants.h names
+  (Rule 14). Ring/cluster parity moved onto the PARENT SEED itself so the
+  contract "even parents ring" is legible to core's find promotion.
 */
 
 #pragma once
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <glm/vec2.hpp>
 
@@ -165,15 +171,27 @@ inline float cdf_u(float n) {
 
 } // namespace clump_detail
 
-/// Design-signed proposals (10.08.2026) pending their NUMBERS.md rows —
-/// CLUMP_WAVELENGTH/COVERAGE/CONTRAST_<CLASS>. Cite the names once they land.
+/// The authored values are REGISTRY ROWS (landed by the lead 10.08.2026,
+/// design-signed): CLUMP_WAVELENGTH/COVERAGE/CONTRAST_<CLASS>.
 [[nodiscard]] inline ClumpParams clump_params(ClumpClass c) {
+    auto f = [](double v) { return static_cast<float>(v); };
     switch (c) {
-    case ClumpClass::Flowers:    return {24.0f, 0.18f, 0.75f};
-    case ClumpClass::Mushrooms:  return {11.0f, 0.10f, 0.85f};
-    case ClumpClass::Moss:       return {13.0f, 0.22f, 0.55f};
-    case ClumpClass::GrassTufts: return {32.0f, 0.55f, 0.35f};
-    case ClumpClass::Pebbles:    return {16.0f, 0.15f, 0.65f};
+    case ClumpClass::Flowers:
+        return {f(config::CLUMP_WAVELENGTH_FLOWERS), f(config::CLUMP_COVERAGE_FLOWERS),
+                f(config::CLUMP_CONTRAST_FLOWERS)};
+    case ClumpClass::Mushrooms:
+        return {f(config::CLUMP_WAVELENGTH_MUSHROOMS),
+                f(config::CLUMP_COVERAGE_MUSHROOMS), f(config::CLUMP_CONTRAST_MUSHROOMS)};
+    case ClumpClass::Moss:
+        return {f(config::CLUMP_WAVELENGTH_MOSS), f(config::CLUMP_COVERAGE_MOSS),
+                f(config::CLUMP_CONTRAST_MOSS)};
+    case ClumpClass::GrassTufts:
+        return {f(config::CLUMP_WAVELENGTH_GRASSTUFTS),
+                f(config::CLUMP_COVERAGE_GRASSTUFTS),
+                f(config::CLUMP_CONTRAST_GRASSTUFTS)};
+    case ClumpClass::Pebbles:
+        return {f(config::CLUMP_WAVELENGTH_PEBBLES), f(config::CLUMP_COVERAGE_PEBBLES),
+                f(config::CLUMP_CONTRAST_PEBBLES)};
     }
     return {};
 }

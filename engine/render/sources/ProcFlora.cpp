@@ -460,6 +460,142 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
     return p;
 }
 
+// --- Ground cover: the §5.10 patch classes and the rich edge set ------------
+
+/// A faceted octahedron: the cheapest solid that reads from every bearing —
+/// flower heads, mushroom caps, pebbles. 8 triangles.
+void diamond(MeshData& m, glm::vec3 c, float r_xz, float r_y, uint32_t color,
+             float az0) {
+    glm::vec3 e[4];
+    for (int k = 0; k < 4; ++k) {
+        const float az = az0 + TAU * static_cast<float>(k) / 4.0f;
+        e[k] = c + glm::vec3{std::cos(az) * r_xz, 0.0f, std::sin(az) * r_xz};
+    }
+    const glm::vec3 top = c + glm::vec3{0.0f, r_y, 0.0f};
+    const glm::vec3 bot = c - glm::vec3{0.0f, r_y, 0.0f};
+    for (int k = 0; k < 4; ++k) {
+        tri(m, e[k], top, e[(k + 1) % 4], color);
+        tri(m, e[(k + 1) % 4], bot, e[k], color);
+    }
+}
+
+/// One ground-cover patch: moss, flowers, mushrooms, pebbles. A patch species
+/// is a GroundForm plus numbers (FloraSpecies.h). Everything here CONTACTS the
+/// ground — domes and stones sink, heads sit on tufts or stems — because the
+/// one complaint this zone exists to answer is geometry hanging where nothing
+/// supports it, and it applies at 0.2 m exactly as it did at 20 m.
+void build_ground_patch(MeshData& m, Tree& t, Rng& rng) {
+    const SpeciesParams& sp = t.sp;
+    const float h = t.height; // patch height, from the species band
+    const float pr = sp.patch_radius;
+    const int elements = (t.lod == FloraLod::Full)
+        ? sp.ground_elements
+        : std::max<int>(2, sp.ground_elements * 3 / 5);
+    const uint32_t tone_a = pack(sp.accent_color);
+    const uint32_t tone_b = pack(sp.accent_color_b);
+    const uint32_t green = pack(sp.foliage_color);
+    const uint32_t stem = t.wood;
+
+    switch (sp.ground_form) {
+    case GroundForm::MossDome: {
+        // Overlapping flattened domes, sunk so the rim never hovers. The moss
+        // that dresses a stone's shade side is THIS mesh placed against the
+        // stone by core's associative rule — one asset, two habitats.
+        const int domes = (t.lod == FloraLod::Silhouette) ? 1 : elements;
+        for (int i = 0; i < domes; ++i) {
+            const float az = rng.unit() * TAU;
+            const float d = rng.unit() * pr * 0.55f;
+            const float r = pr * (0.45f + rng.unit() * 0.45f);
+            blob_cluster(m, {std::cos(az) * d, -0.35f * h, std::sin(az) * d},
+                         {r, h * (0.9f + rng.unit() * 0.4f), r}, 5, 2,
+                         ((i & 1) != 0) ? tone_b : tone_a);
+        }
+        return;
+    }
+    case GroundForm::HeadsTuft: {
+        // A green tuft with the heads ON it: low flowers live in their own
+        // foliage. The tuft dome is sunk; a head's centre sits at most one
+        // element radius above the tuft surface, so its lower half is inside
+        // the green — attached by construction.
+        const float tuft_r = pr * 0.85f;
+        const float tuft_h = h * 0.55f;
+        blob_cluster(m, {0.0f, -tuft_h * 0.35f, 0.0f}, {tuft_r, tuft_h, tuft_r}, 5,
+                     2, green);
+        if (t.lod == FloraLod::Silhouette) return;
+        for (int i = 0; i < elements; ++i) {
+            const float az = GOLDEN_ANGLE * static_cast<float>(i) + rng.unit() * 0.4f;
+            const float d = tuft_r * (0.15f + 0.75f * rng.unit());
+            // Tuft surface height at distance d (ellipse), minus the sink.
+            const float surf =
+                tuft_h * std::sqrt(std::max(0.0f, 1.0f - (d / tuft_r) * (d / tuft_r)))
+                    - tuft_h * 0.35f;
+            const float er = sp.element_radius * (0.8f + rng.unit() * 0.5f);
+            diamond(m, {std::cos(az) * d, std::max(surf, 0.02f) + er * 0.4f,
+                        std::sin(az) * d},
+                    er, er * 1.15f, (rng.unit() < 0.72f) ? tone_a : tone_b,
+                    rng.unit() * TAU);
+        }
+        return;
+    }
+    case GroundForm::HeadsStem: {
+        // Tall flowers: a small basal tuft, then visible stems each carrying
+        // one head at its top — the head touches its stem by construction.
+        const float tuft_r = pr * 0.7f;
+        blob_cluster(m, {0.0f, -h * 0.10f, 0.0f}, {tuft_r, h * 0.22f, tuft_r}, 4, 2,
+                     green);
+        if (t.lod == FloraLod::Silhouette) return;
+        for (int i = 0; i < elements; ++i) {
+            const float az = rng.unit() * TAU;
+            const float d = rng.unit() * pr * 0.6f;
+            const glm::vec3 base{std::cos(az) * d, 0.0f, std::sin(az) * d};
+            const float sh = h * (0.75f + rng.unit() * 0.35f);
+            const glm::vec3 lean{rng.sym() * 0.12f, 1.0f, rng.sym() * 0.12f};
+            const glm::vec3 dir = safe_normalize(lean, {0.0f, 1.0f, 0.0f});
+            const glm::vec3 top_p = base + dir * sh;
+            tube_segment(m, base, top_p, dir, 0.020f, 0.014f, 3, stem);
+            const float er = sp.element_radius * (0.85f + rng.unit() * 0.4f);
+            // The umbel's plate is FLAT, a jewel's head is full — one number.
+            const float ry = er * sp.element_aspect;
+            diamond(m, top_p + glm::vec3{0.0f, ry * 0.5f, 0.0f}, er, ry,
+                    (rng.unit() < 0.7f) ? tone_a : tone_b, rng.unit() * TAU);
+        }
+        return;
+    }
+    case GroundForm::Caps: {
+        for (int i = 0; i < elements; ++i) {
+            const float az = GOLDEN_ANGLE * static_cast<float>(i) + rng.unit() * 0.5f;
+            const float d = pr * (0.2f + 0.75f * rng.unit());
+            const glm::vec3 base{std::cos(az) * d, 0.0f, std::sin(az) * d};
+            const float sh = h * (0.5f + rng.unit() * 0.5f);
+            const float cap_r = sp.element_radius * (0.7f + rng.unit() * 0.6f);
+            tube_segment(m, base - glm::vec3{0.0f, 0.02f, 0.0f},
+                         base + glm::vec3{0.0f, sh, 0.0f}, {0.0f, 1.0f, 0.0f},
+                         cap_r * 0.32f, cap_r * 0.26f, 3, stem);
+            diamond(m, base + glm::vec3{0.0f, sh + cap_r * 0.18f, 0.0f}, cap_r,
+                    cap_r * 0.55f, (rng.unit() < 0.65f) ? tone_a : tone_b,
+                    rng.unit() * TAU);
+            if (t.lod == FloraLod::Silhouette && i >= 1) return;
+        }
+        return;
+    }
+    case GroundForm::Stones: {
+        for (int i = 0; i < elements; ++i) {
+            const float az = GOLDEN_ANGLE * static_cast<float>(i) + rng.unit() * 0.6f;
+            const float d = pr * (0.15f + 0.8f * rng.unit());
+            const float er = sp.element_radius * (0.6f + rng.unit() * 0.8f);
+            // Part-buried: centre near the ground so the lower half sinks.
+            blob_cluster(m, {std::cos(az) * d, er * 0.25f, std::sin(az) * d},
+                         {er, er * 0.72f, er * (0.75f + rng.unit() * 0.4f)}, 3, 2,
+                         ((i % 3) == 0) ? tone_b : tone_a);
+            if (t.lod == FloraLod::Silhouette && i >= 2) return;
+        }
+        return;
+    }
+    case GroundForm::None:
+        return;
+    }
+}
+
 // --- Dead wood: the §5.10 forest-floor classes ------------------------------
 
 /// A SNAPPED dead limb: one tapered tube ending in a short splinter cone. The
@@ -700,16 +836,30 @@ float flora_maturity_for(glm::vec2 world_xz) {
     const float mature = static_cast<float>(config::TREE_MATURITY_MATURE_PCT) / 100.0f;
     const float sub = static_cast<float>(config::TREE_MATURITY_SUBMATURE_PCT) / 100.0f;
 
-    // Tier multiplier bands are ASSET GEOMETRY (same standing as taper or crown
-    // fractions), derived from design's own figures: a giant is "maturity > 1"
-    // capped at the 1.5 the FloraShape contract already declares; a sub-mature
-    // tree is design's 14-20 m of a 28 m nominal (0.50-0.70); a sapling is
-    // their "genuinely small" 0.40-0.60. Mature fills the gap so the tiers
-    // TILE the multiplier axis without a hole at 0.70-0.85.
-    if (u < giant) return 1.15f + w * 0.35f;
-    if (u < giant + mature) return 0.85f + w * 0.30f;
-    if (u < giant + mature + sub) return 0.50f + w * 0.20f;
-    return 0.40f + w * 0.20f;
+    // Tier multiplier bands are REGISTRY ROWS (lead's Rule 35 ruling,
+    // 10.08.2026): the moment core's canopy occlusion must know the real crown
+    // ceiling the multipliers gained a second consumer — a 1.5x giant oak is
+    // 48 m against a cited 32, which is the "model half the world's height"
+    // defect caught before it was built. The occlusion envelope is defined as
+    // SPECIES_HEIGHT_MAX x TREE_MATURITY_GIANT_MULT_MAX and both zones read
+    // the same rows.
+    auto band = [w](double lo, double hi) {
+        return static_cast<float>(lo) + w * static_cast<float>(hi - lo);
+    };
+    if (u < giant) {
+        return band(config::TREE_MATURITY_GIANT_MULT_MIN,
+                    config::TREE_MATURITY_GIANT_MULT_MAX);
+    }
+    if (u < giant + mature) {
+        return band(config::TREE_MATURITY_MATURE_MULT_MIN,
+                    config::TREE_MATURITY_MATURE_MULT_MAX);
+    }
+    if (u < giant + mature + sub) {
+        return band(config::TREE_MATURITY_SUBMATURE_MULT_MIN,
+                    config::TREE_MATURITY_SUBMATURE_MULT_MAX);
+    }
+    return band(config::TREE_MATURITY_SAPLING_MULT_MIN,
+                config::TREE_MATURITY_SAPLING_MULT_MAX);
 }
 
 FloraSpecies flora_species_of(math::ScatterSpecies species) {
@@ -789,7 +939,8 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
 
     const bool is_snag =
         species == FloraSpecies::Snag || species == FloraSpecies::SnagPale;
-    const bool woody_tree = is_canopy_tree(species) || is_snag;
+    const bool woody_tree = is_canopy_tree(species) || is_snag
+        || species == FloraSpecies::StuntedPine;
     Tree t{sp,
            shape,
            height,
@@ -819,9 +970,12 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
     t.phase = shape.wind_phase;
 
     // HARD FLOOR (§3.5): canopy species keep CANOPY_CLEARANCE_MIN of clear
-    // trunk. Enforced by construction, never by inspection.
-    if (is_canopy_tree(species) && t.crown_base < CLEARANCE_MIN) {
-        t.crown_base = CLEARANCE_MIN;
+    // trunk. Enforced by construction, never by inspection. Non-canopy card
+    // species (krummholz) are exempt BY CLASSIFICATION, like bushes: their
+    // foliage-to-the-ground is the point, and t.clearance_floor stays 0.
+    if (is_canopy_tree(species)) {
+        t.clearance_floor = CLEARANCE_MIN;
+        if (t.crown_base < CLEARANCE_MIN) t.crown_base = CLEARANCE_MIN;
     }
 
     if (species == FloraSpecies::FallenLog || species == FloraSpecies::Deadfall) {
@@ -830,6 +984,15 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
         // Placement lays it ACROSS the fall line (design's binding doctrine);
         // the yaw for that is the batcher's, not ours.
         build_fallen_log(m, t, rng);
+        return parts;
+    }
+
+    if (sp.ground_form != GroundForm::None) {
+        // Ground cover (moss, flowers, mushrooms, pebbles): a patch has no
+        // trunk and never goes near the tree pipeline — a flower on a bole
+        // would merely be absurd, but a trunk under a moss dome would be a
+        // bug that ships.
+        build_ground_patch(m, t, t.rng);
         return parts;
     }
 

@@ -45,10 +45,6 @@ UPD:
 
 namespace dfn::render {
 
-namespace {
-constexpr float CLEARANCE_MIN = static_cast<float>(config::CANOPY_CLEARANCE_MIN);
-} // namespace
-
 uint64_t mix64(uint64_t x) {
     x += 0x9E3779B97F4A7C15ull;
     x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
@@ -250,7 +246,9 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // Remedy order matters and it is the §3.7.5 lesson: RAISE the cluster, and
     // only shrink it when raising would push it out of the envelope. Sacrificing
     // the arrangement to preserve a declared size is what stacked the birch.
-    const float floor_y = std::max(t.crown_base, CLEARANCE_MIN);
+    // The floor is the TREE'S, not the constant: a non-canopy card species
+    // (krummholz) legally carries foliage to the ground.
+    const float floor_y = std::max(t.crown_base, t.clearance_floor);
     if (at.y - vertical_reach() < floor_y) {
         const float raised = floor_y + vertical_reach();
         if (raised + vertical_reach() <= t.crown_top) {

@@ -100,6 +100,16 @@ struct Tree {
     float flare_depth = FLARE_DEPTH;
     /// Null when the species has no card foliage, or winter has stripped it.
     MeshData* cards = nullptr;
+    /// The walkability floor THIS tree's foliage obeys. CANOPY_CLEARANCE_MIN
+    /// for canopy species, 0 for everything else — a krummholz pine and a bush
+    /// carry foliage to the ground BY DESIGN (obstacles you walk around, §3.5
+    /// exempts them). This used to be hard-wired to the canopy constant inside
+    /// emit_card_cluster, which was a canopy rule applied by a shared helper
+    /// to every card species — invisible until the first non-canopy card
+    /// species existed, then three symptoms from one mechanism (cards shoved
+    /// to 2.2 m, cards shrunk against the reduced span, cards torn off their
+    /// anchors in gap units).
+    float clearance_floor = 0.0f;
     glm::vec3 stem_off{0.0f}; ///< the stem this geometry belongs to (clumps)
     /// The point a foliage cluster's sway weight is measured FROM (vertex RED is
     /// 0 here and 1 at the free edge). Under the old envelope-scattered crown
