@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 22:23:29-->
+Last updated: 10:08:2026 - 00:00:47-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -81,6 +81,16 @@ UPD:
   LR is a NUMBERS row and a design section with no code path, and the testbed's
   only real landform is the crag, whose equivalent acceptance range is 253 m —
   inside streaming all along. See "How it is verified" for what the frames say.
+- 10:08:2026 - 00:00:47: THE BITMAP FONT (the project's first glyphs, and the
+  thing four finished features in three zones were blocked on) + the HUD layer
+  that carries text over the world. Plus two things the font work ran into:
+  (a) THE SEGFAULT ON EXIT the user reported — 17336 lake planes at one GPU
+  mesh each spent bgfx's whole 4096-handle pool at startup, after which every
+  terrain, scatter and site mesh silently failed to create and the stored
+  invalid handles killed the process at shutdown; (b) THE CONIFER PALETTE
+  FAMILY, whose ordering premise did not survive measurement — needles were
+  quantising into WATER TEALS, not into grass greens, because the quantiser's
+  metric weights blue 0.11 and cannot see a blue-green/green distinction.
 -->
 
 # Spec — render agent
@@ -714,6 +724,26 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Font acceptance (Rule 27, ONE frame read 10:08:2026 - 00:00:47):**
+  `DFN_TOUR=1 DFN_FONT_PROBE=1 DFN_TOUR_DIR=screenshots/font
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 <build>/engine/app/dfn_app` ->
+  `screenshots/font/00_font_specimen.png`. The vantage is the hamlet approach,
+  chosen for the READABILITY case and not for the chart: sky, lit grass, a dark
+  pine mass and a building wall are all in the lower half. A chart on a black
+  screen proves the glyphs exist and proves nothing about whether they can be
+  read. What the frame shows: all 95 printable ASCII on three rows, all 33
+  Cyrillic capitals and all 33 lowercase on two more, « » — on the sixth, then
+  FOUR SOLID BLOCKS where Greek alpha, a CJK character, an accented Latin e and
+  a stray 0x80 byte were asked for — the font saying "no" in the same frame as
+  the letters. Below, unplated over grass with the 1 px shadow, a Russian
+  interaction prompt and a mixed Latin/Cyrillic item name, both legible.
+  Re-shot with `DFN_PALETTE=1` (`screenshots/palette_conifer/`): every glyph
+  survives the 64-colour quantiser, which matters because the quantiser is now
+  a user-facing setting.
+- **GPU buffer budget (measured, not asserted, 10:08:2026 - 00:00:47):** the same
+  route with `DFN_MESH_STATS=1` prints live/peak/created/destroyed mesh handles.
+  Healthy today: peak 606 of 4096, 682 created / 682 destroyed, 0 live at exit.
+  A leak shows as created != destroyed; exhaustion warns at 3072.
 - **Crag shape acceptance (Rule 27, 8 frames read 09:08:2026 - 22:23:29):**
   `DFN_TOUR=1 DFN_CRAG_PROBE=1 DFN_TIME=0.30 DFN_TOUR_DIR=screenshots/crag
   DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 <build>/engine/app/dfn_app`.
@@ -845,6 +875,124 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
   edge detection semantics on the null backend.
 - `python3 tools/header_check.py --all` passes; zero warnings with
   `-Wall -Wextra -Wpedantic` on both toolchains (build gates).
+
+## The bitmap font (`BitmapFont.{h,cpp}`)
+
+There were no glyphs anywhere in the engine, and four FINISHED, TESTED features
+in three zones could not draw a pixel without them: every interaction prompt,
+every item name in the inventory, every label on the map, and the whole start
+menu. The font is deliberately small.
+
+1. **A fixed-cell atlas, and the cell IS the advance.** 6x9 px cells (5x8 ink,
+   the remaining column and row are the gaps), 16x11 = 176 slots, baked once at
+   first use into one coverage mask. No caller ever adds spacing.
+2. **Printable ASCII + the entire Cyrillic alphabet + « » —** (166 codepoints).
+   The user writes Russian and Rule 5 puts every user-facing string in a
+   localization file, so a Latin-only font would have shipped a placeholder.
+3. **Cyrillic letters whose shape IS the Latin letter (А В Е К М Н О Р С Т Х,
+   а е о р с у х) are ALIASES, not second drawings.** Two drawings of one shape
+   drift; one drawing cannot.
+4. **A MISSING GLYPH DRAWS A SOLID BLOCK.** Nothing else in the font fills its
+   cell, so an unmapped codepoint, malformed UTF-8 or an authoring hole is
+   impossible to read as a letter or as a space. The bake starts by filling
+   EVERY slot with the block and then overwrites with real art, so a codepoint
+   the mapping can reach but nobody drew ships visibly broken. A newline is not
+   handled on purpose — it draws the block, because passing a multi-line string
+   to a single-line drawer is a caller bug that should be in the frame.
+5. **UTF-8 decoding reports malformed input rather than skipping it**: a bad
+   byte advances exactly one byte and returns the replacement codepoint, which
+   maps to the block. A test walks all 256 single-byte inputs to prove the
+   decoder always terminates.
+6. **There is NO layout engine.** No wrapping, no kerning, no bidi. `draw_text`
+   and `text_width_px` are the whole surface; callers draw line by line.
+7. **The 1 px drop shadow is not decoration.** At five pixels tall, unshadowed
+   text vanishes over grass. The acceptance frame is what established that, and
+   a full 8-way halo (which the map's markers use) closes the counters of a, e
+   and о and turns a string to mush at this size.
+8. **No user-facing string exists in `engine/render`.** Every entry point takes
+   UTF-8 the caller already resolved. The glyph chart under `DFN_FONT_PROBE` is
+   a verification hook in the same family as `DFN_TORCH`, not shipped text.
+
+**The HUD layer** that carries a prompt over the world: `PixelCanvas` gained
+`clear_transparent()`, the backend gained an `"overlay"` logical program (the
+unlit shaders with an alpha blend — the name->state convention, no new shader
+and no `IRenderer` change), and `RenderSystem::hud()` hands the caller a canvas
+sized to the internal target which is composited over the world and under the
+map. **The caller draws into it, not render** — the prompt's text is a
+localization string resolved from `Highlightable::prompt_key`, so render owns
+the surface and the blit and never the words.
+
+STILL MISSING, AND IT IS NOT RENDER'S: a key-hash -> string table. Requested
+from the lead with the exact shape (uint64 keys, a visibly-wrong placeholder on
+a miss, one log line per missing key).
+
+## The crash the user hit — ONE MESH PER PUDDLE
+
+`set_water_bodies` uploaded one GPU mesh per water body. Core's hydrology emits
+a `LakePlane` per pond and the 2x2 km testbed has **17,336** of them. bgfx hands
+out 4096 vertex-buffer handles, so the water spent the entire pool AT STARTUP:
+
+    pre-fix:  4078 water meshes, peak 4091 of 4096, 13903 creates FAILED,
+              uploads: terrain 0, voxel 0, scatter 34 chunks -> 0 meshes
+    post-fix: 26 bucket meshes, peak 606 of 4096, 0 failed, 682 created /
+              682 destroyed, 0 still live
+
+Three separate lessons, and the crash is the least of them.
+
+1. **A HANDLE WRAPPER THAT VALIDATES ITS OWN BOOKKEEPING IS NOT A VALIDITY
+   CHECK.** `MeshHandle::valid()` means "our id != 0", and the id is ours, not
+   bgfx's. `create_mesh` stored `BGFX_INVALID_HANDLE` (idx 0xFFFF) and returned
+   a "valid" handle for it; `bgfx::destroy` only asserts in debug, so in release
+   the shutdown sweep indexed `m_vertexBufferRef[0xFFFF]` and walked off the
+   array. Now: a failed create is refused and reported, every destroy is guarded
+   by `bgfx::isValid`, and live/peak/created/destroyed are counted with a
+   warning at three quarters of the budget so the cliff is reported BEFORE it is
+   walked off (`DFN_MESH_STATS=1` prints the summary unconditionally).
+2. **THE SILENT HALF WAS WORSE THAN THE CRASH.** The user was walking around a
+   world drawing almost nothing that came after the water, and the process
+   reported success. `upload_terrain` used to `return;` on a failed create. It
+   now reports the first failure of the run with the per-path counts.
+3. **COST MUST SCALE WITH SCREEN AREA, NOT WORLD AREA.** Water bodies are now
+   merged into buckets on a `CHUNK_SIZE` world grid, each with an AABB, and
+   frustum-culled: 64 buckets at 2x2 km, 1600 at 10x10 km, regardless of how
+   many puddles there are. It also deleted 4078 draw calls a frame that nobody
+   had profiled. The lake COUNT is core's and is not being called wrong.
+
+## The conifer palette family — and the premise that did not survive it
+
+Design ruled (LANDSCAPE §4.2) that the budget is **64 ENTRIES, not eight
+families of eight**: ramp depth follows the lighting range a family carries and
+the screen area it covers. Sand 8->5 and water 8->5 funded a 6-shade conifer
+family with nothing deleted. `BgfxPalette` also gained the CPU mirror of the
+shader's quantiser (`palette_quantise`, `palette_mean_shade_step`,
+`palette_separation_steps`) so separation is MEASURED in design's unit rather
+than argued about.
+
+**Measurement corrected two things, and both corrections matter more than the
+ramp:**
+
+1. **Needles never quantised into grass greens. They quantised into WATER
+   TEALS — on the old palette too, and cleanly resolved across three adjacent
+   entries.** The stated cause of the whole change was false.
+2. **THE QUANTISER'S METRIC WEIGHTS BLUE 0.11.** (0.30 R / 0.59 G / 0.11 B,
+   the `fs_upscale.sc` contract.) So a hue change that lives in blue moves
+   almost nothing, and "blue-green water" versus "green needles" is a
+   distinction this quantiser essentially cannot see. The first conifer
+   endpoints were picked by hue, looked obviously distinct to a human, and
+   FAILED: the needle tones still landed on water. The family had to be
+   re-derived along the ray through flora's measured needle albedo
+   {0.12, 0.22, 0.19}, 0.17x to 1.66x. **A separator must move RED or GREEN.**
+
+Measured gains, stated honestly: pine vs LIT rock 2.18 -> 2.24 steps (it already
+cleared the floor of 2); pine vs SHADOWED rock 0.74 -> 0.66 and still merged,
+which agrees with design's own conclusion that in deep shadow only silhouette
+separates — the test ASSERTS that case stays under 2 so the limit is recorded
+rather than re-attacked. What the family really buys is that the most common
+dark mass in the world no longer shares a family with the water, and that its
+colours are now derived from what flora draws instead of chosen by an accident
+of the metric. flora's requirement is pinned: the three baked form tones land on
+three ADJACENT conifer entries (60, 61, 62), so the whorls keep reading as
+separate branch layers.
 
 ## Named rule — PALETTE SIGNAL STRENGTH (applies to every shading decision)
 
