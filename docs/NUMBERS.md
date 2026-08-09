@@ -1,6 +1,6 @@
 <!--
 Created: 08:08:2026 - 21:35:00
-Last updated: 09:08:2026 - 00:48:00
+Last updated: 09:08:2026 - 10:40:00
 -->
 <!--
 UPD:
@@ -9,6 +9,7 @@ UPD:
 - 09:08:2026 - 00:26:00: Added provisional player capsule/controller constants requested by sim agent; tunable at the future movement grill.
 - 09:08:2026 - 00:29:27: Stage-1 sync: added SIM_MAX_CATCHUP_STEPS, chunk streaming radii, NPC/interaction defaults, camera pitch limit (all provisional).
 - 09:08:2026 - 00:48:00: Added GRAVITY and MOUSE_SENSITIVITY (sim stage-2 request, Rule 14).
+- 09:08:2026 - 10:40:00: INTERNAL_RES: пользователь отложил выбор до текстур (этап 3); 640×360 — рабочий дефолт.
 -->
 
 # NUMBERS.md — реестр констант проекта
@@ -112,7 +113,7 @@ UPD:
 | `CAMERA_NEAR` | 0.1 | м | |
 | `CAMERA_FAR` | 1000.0 | м | связана с будущим LOD/дальностью прорисовки |
 | `CAMERA_PITCH_LIMIT` | 1.55 (~89°) | рад | предел наклона взгляда вверх/вниз |
-| `INTERNAL_RES` | 640×360 | пикс | низкое разрешение рендера (Q9); целочисленный апскейл в 720p/1080p. Альтернатива для более крупного пикселя: 320×180 — **выбор за пользователем** |
+| `INTERNAL_RES` | 640×360 | пикс | низкое разрешение рендера (Q9); целочисленный апскейл в 720p/1080p. Альтернатива для более крупного пикселя: 320×180 — **выбор пользователь отложил до текстур этапа 3** (синк №2); 640×360 — рабочий дефолт |
 
 ## Код и процесс
 
