@@ -1,12 +1,16 @@
 <!--
 Created: 09:08:2026 - 14:01:56
-Last updated: 09:08:2026 - 14:01:56
+Last updated: 09:08:2026 - 14:19:25
 -->
 <!--
 UPD:
 - 09:08:2026 - 14:01:56: Initial story-zone spec: mission, zone, contracts with
   sim/design/lead, team structure, deliverable plan (research, three pitches,
   quest data format proposal), verification, non-goals.
+- 09:08:2026 - 14:19:25: Stage deliverables done: RESEARCH.md (N1–N58),
+  PITCHES.md (three pitches + Russian summaries, awaiting в16 choice),
+  QUEST_FORMAT.md contract-frozen with sim (Condition.h/Dialogue.h/Ids.h
+  landed). Plan step 2 marked DONE; content gate holds.
 -->
 
 # Spec — story (`docs/specs/story.md`)
@@ -133,9 +137,12 @@ craft (в17); main quest v1 scope (в18).
 
 1. **DONE** — zone created; mandatory reading (AGENTS.md, ARCHITECTURE.md,
    DECISIONS.md, feature-requests-1.md, LANDSCAPE.md, sim spec).
-2. **This stage:** RESEARCH.md (subagent) → PITCHES.md (three distinct
-   pitches + Russian summaries) → QUEST_FORMAT.md (proposal) → send format to
-   sim and report to main. **HARD GATE: no quest content beyond pitch level
+2. **DONE (this stage):** RESEARCH.md (58 rules N1–N58, research subagent);
+   PITCHES.md (three distinct pitches — The Debt of Harrowmere / The Kindly
+   Dark / The Unwriting — with Russian summaries, awaiting the user's в16
+   choice); QUEST_FORMAT.md negotiated with sim and **CONTRACT-FROZEN** (sim
+   landed Condition.h/Dialogue.h/Ids.h per its §9 record; lead batches the
+   sync record). **HARD GATE holds: no quest content beyond pitch level
    until the user picks a pitch.**
 3. After pitch choice: BIBLE.md (world truth for the chosen pitch), act-1
    quest outline on the valley testbed, named characters of Vaelmere
