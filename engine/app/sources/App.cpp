@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 23:50:20
+Last updated: 10:08:2026 - 00:04:04
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -75,9 +75,12 @@ UPD:
 - 09:08:2026 - 22:49:12: Мир встаёт на паузу с открытым инвентарём (как в TES). Три системы продолжают работать — иначе из меню не выйти. Накопитель шагов сбрасывается, чтобы на выходе не выстрелить пачкой догоняющих тиков.
 - 09:08:2026 - 23:30:34: Мир стал 2×2 км (WORLD_EXTENT_CHUNKS 8) — прямая просьба пользователя. Размер мира перестал быть голым числом в исходнике.
 - 09:08:2026 - 23:50:20: Ферри дальней детализации: границы мира от core, прямоугольник по сетке чанков, обновление по КАДРОВОМУ времени, сбор по ожидающим узлам, меш уничтожается раньше поля.
+- 10:08:2026 - 00:04:04: Подсказки взаимодействия рисуются на экране. Первый настоящий текст в игре: таблица строк грузится из данных, промах даёт заметную заглушку, а не пустоту.
 */
 
 #include "engine/app/sources/App.h"
+
+#include "engine/app/sources/Localization.h"
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/CoarseTerrain.h"
@@ -95,6 +98,7 @@ UPD:
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
 #include "engine/gameplay/sources/PropCollision.h"
 #include "engine/gameplay/sources/ViewModel.h"
+#include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/SkyModel.h"
 #include "engine/render/sources/TerrainLod.h"
 #include "engine/platform/input/interfaces/IInput.h"
@@ -439,6 +443,11 @@ bool App::init(const AppConfig& config) {
         render_system_.set_lod_enabled(!(no_lod != nullptr && *no_lod == '1'));
     }
 
+    // Rule 5: every user-facing string comes from here and nowhere else.
+    // A missing file is loud and the game still runs, with every string drawn
+    // as a visible placeholder rather than as nothing.
+    (void)load_localization("games/daggerfall_n/assets/localization/ru.txt");
+
     if (render::Tour::enabled_by_env()) {
         const char* dir = std::getenv("DFN_TOUR_DIR");
         tour_.begin(render::Tour::testbed_steps(), dir ? dir : "screenshots",
@@ -649,6 +658,44 @@ int App::run() {
                                                    sf ? &*sf : nullptr);
                 }
             }
+        }
+
+        // INTERACTION PROMPT. The cheapest visible thing in the project: the
+        // hover path, the verbs and the keys have all existed for hours and
+        // could not draw a pixel without glyphs. Shadow is not decoration --
+        // at five pixels tall, unshadowed text vanishes over grass.
+        {
+            render::PixelCanvas& hud = render_system_.hud();
+            hud.clear_transparent();
+            bool any = false;
+            if (world_.has_resource<components::HoverTarget>()) {
+                const auto& hover = world_.resource<components::HoverTarget>();
+                if (hover.prompt_key != 0) {
+                    const std::string_view text = localized(hover.prompt_key);
+                    const int w = static_cast<int>(hud.width());
+                    const int h = static_cast<int>(hud.height());
+                    render::draw_text(hud, (w - render::text_width_px(text)) / 2,
+                                      h - 40, text, render::Color{232, 228, 214},
+                                      /*shadow=*/true);
+                    any = true;
+                }
+            }
+            // VERIFICATION HOOK (Rule 27, gated): draws a real prompt and a
+            // deliberate MISS side by side, so the placeholder is proved to be
+            // unmistakable rather than assumed to be.
+            if (const char* probe = std::getenv("DFN_HUD_PROBE");
+                probe != nullptr && *probe == '1') {
+                const int w = static_cast<int>(hud.width());
+                const int h = static_cast<int>(hud.height());
+                const std::string_view hit = localized(serialization::fnv1a64("prompt.take"));
+                const std::string_view miss = localized(serialization::fnv1a64("prompt.nonexistent"));
+                render::draw_text(hud, (w - render::text_width_px(hit)) / 2, h - 40,
+                                  hit, render::Color{232, 228, 214}, true);
+                render::draw_text(hud, (w - render::text_width_px(miss)) / 2, h - 24,
+                                  miss, render::Color{232, 228, 214}, true);
+                any = true;
+            }
+            render_system_.set_hud_visible(any);
         }
 
         render_system_.render(world_, *renderer_, camera_, alpha);
