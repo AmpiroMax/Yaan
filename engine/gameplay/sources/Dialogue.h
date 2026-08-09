@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 14:12:02
 Module: engine/gameplay
 File: engine/gameplay/sources/Dialogue.h
 
@@ -12,8 +12,8 @@ Responsibility:
 
 Key items:
 - DialogueSegment: text + tone + volume + speed + optional paralinguistic tag.
-- DialogueCondition / DialogueLine: conditions gate availability; lines do NOT
-  know who speaks them (Q71 — hard requirement).
+- DialogueLine: ConditionAtom conditions (Condition.h, shared with quests)
+  gate availability; lines do NOT know who speaks them (Q71 — hard requirement).
 - segment_content_hash(): hash(text + markup + voice) -> names the audio file.
 
 Dependencies:
@@ -53,6 +53,11 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:18:26: Initial stage-1 contract (line/segment model,
                          conditions, per-segment content hash).
+- 09:08:2026 - 14:12:02: Quest-grill sync (lead-blessed, story-ACKed):
+                         placeholder DialogueCondition/DialogueConditionOp
+                         replaced by the closed ConditionAtom set from
+                         Condition.h; segments and segment_content_hash
+                         untouched (audio naming stays frozen).
 */
 
 #pragma once
@@ -61,6 +66,7 @@ UPD:
 #include <string>
 #include <vector>
 
+#include "engine/gameplay/sources/Condition.h"
 #include "engine/gameplay/sources/Ids.h"
 
 namespace dfn::gameplay {
@@ -75,31 +81,13 @@ struct DialogueSegment {
     std::string tag;     // optional paralinguistic token ("sigh", "laugh"); empty = none
 };
 
-enum class DialogueConditionOp : uint8_t {
-    Equals,
-    NotEquals,
-    Less,
-    LessEqual,
-    Greater,
-    GreaterEqual,
-    HasFlag,
-    NotHasFlag,
-};
-
-// One availability requirement, evaluated by the dialogue system against its
-// fact context (quest flags, stats, world state). Keys/values are content
-// strings; the shape is deliberately schema-free until the quest grill.
-struct DialogueCondition {
-    std::string key;
-    DialogueConditionOp op = DialogueConditionOp::Equals;
-    std::string value;
-};
-
 // A line: stable id + conditions + segments. A line does NOT know who speaks
-// it or when (Q71) — the speaker brings the voice (Q80).
+// it or when (Q71) — the speaker brings the voice (Q80). Conditions use the
+// closed atom vocabulary shared with the quest system (Condition.h,
+// QUEST_FORMAT.md §2.1); a flat vector is a conjunction (AND).
 struct DialogueLine {
     DialogueLineId id{};
-    std::vector<DialogueCondition> conditions;
+    std::vector<ConditionAtom> conditions;
     std::vector<DialogueSegment> segments;
 };
 

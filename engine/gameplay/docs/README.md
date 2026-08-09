@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 01:02:15
+Last updated: 09:08:2026 - 14:12:02
 -->
 <!--
 UPD:
@@ -9,6 +9,10 @@ UPD:
 - 09:08:2026 - 01:02:15: Stage 2 — implemented player movement
   (PlayerMovement.h/.cpp + World wrappers) and the dice RNG (Dice.cpp);
   NpcAction/stats/dialogue remain headers-only by stage scope.
+- 09:08:2026 - 14:12:02: Quest-grill sync — new Condition.h (closed
+  ConditionAtom vocabulary shared by dialogue + quests, QUEST_FORMAT.md §2.1);
+  Dialogue.h conditions swapped to it; Ids.h gained QuestId/FlagId/TopicId/
+  NpcCardId. Segment hashing untouched.
 -->
 
 # engine/gameplay
@@ -34,7 +38,11 @@ passed into systems.
   `segment_content_hash()` (names audio files, frozen).
 - `sources/NpcComponents.h` — `VoiceTimbre` (Q80), `ScheduleState` (Q44).
 - `sources/Interaction.h` — `Highlightable`, `Openable`, `Lootable` (Q11).
-- `sources/Ids.h` — typed stable content ids.
+- `sources/Ids.h` — typed stable content ids (incl. QuestId/FlagId/TopicId/
+  NpcCardId from the quest-grill sync).
+- `sources/Condition.h` — closed ConditionAtom/ConditionGroup vocabulary, one
+  evaluator for dialogue lines, graph choices and quest transitions
+  (QUEST_FORMAT.md §2.1; semantics record in the header notes).
 - `sources/PlayerMovement.h` (implemented, stage 2) — `PlayerState` component;
   ref-based core `accumulate_input`/`player_pre_step`/`player_post_step`
   (unit-testable without a World) plus World-facing `spawn_player` +

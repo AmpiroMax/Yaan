@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 14:12:02
 Module: engine/gameplay
 File: engine/gameplay/sources/Ids.h
 
@@ -31,6 +31,8 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:18:26: Initial stage-1 id set (dialogue, voice, item,
                          schedule, loot table).
+- 09:08:2026 - 14:12:02: Quest-grill sync: appended QuestId, FlagId, TopicId,
+                         NpcCardId (QUEST_FORMAT.md contract, story-ACKed).
 */
 
 #pragma once
@@ -66,6 +68,30 @@ struct ScheduleId {
 
 // Identifies a loot table definition in content files (Q11 lootables).
 struct LootTableId {
+    uint64_t value = 0;
+    [[nodiscard]] bool valid() const { return value != 0; }
+};
+
+// Identifies a quest definition (*.quest.json, QUEST_FORMAT.md §2).
+struct QuestId {
+    uint64_t value = 0;
+    [[nodiscard]] bool valid() const { return value != 0; }
+};
+
+// Identifies a declared world flag (world_flags.json, QUEST_FORMAT.md §3).
+struct FlagId {
+    uint64_t value = 0;
+    [[nodiscard]] bool valid() const { return value != 0; }
+};
+
+// Identifies a dialogue topic graph (*.dlg.json, QUEST_FORMAT.md §4).
+struct TopicId {
+    uint64_t value = 0;
+    [[nodiscard]] bool valid() const { return value != 0; }
+};
+
+// Identifies an LLM character card (*.card.json, QUEST_FORMAT.md §6).
+struct NpcCardId {
     uint64_t value = 0;
     [[nodiscard]] bool valid() const { return value != 0; }
 };

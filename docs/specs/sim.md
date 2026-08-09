@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:25:29
-Last updated: 09:08:2026 - 01:02:15
+Last updated: 09:08:2026 - 14:12:02
 -->
 <!--
 UPD:
@@ -14,6 +14,10 @@ UPD:
   the lead. Jolt terrain uses a MeshShape (HeightFieldShape block-size
   constraint vs 129x129 chunks) — flagged for a later sync. GRAVITY and
   MOUSE_SENSITIVITY added to NUMBERS on sim request.
+- 09:08:2026 - 14:12:02: Quest-grill sync applied: Condition.h closed atom set
+  created; Dialogue.h conditions swapped to ConditionAtom (segments/hash
+  frozen untouched); Ids.h + QuestId/FlagId/TopicId/NpcCardId; open question 4
+  resolved (QUEST_FORMAT.md contract, story ACK on record).
 -->
 
 # Spec — sim (`docs/specs/sim.md`)
@@ -275,8 +279,12 @@ with the owning agent:
    shapes frozen regardless.
 3. llama.cpp pin `b5013` to be validated on both toolchains at stage-2
    configure (heaviest dependency; fallback pin decision is the lead's).
-4. Dialogue `conditions` schema is deliberately minimal (key/op/value) until
-   the quest grill.
+4. RESOLVED (quest-grill sync, 09:08:2026, lead-blessed + story-ACKed):
+   `DialogueLine.conditions` now uses the closed `ConditionAtom` vocabulary
+   (`Condition.h`) shared with the quest state machine per
+   `docs/story/QUEST_FORMAT.md` §2.1; `Ids.h` gained QuestId/FlagId/TopicId/
+   NpcCardId. Semantics record (edge-triggered atoms, tick ordering, cascade
+   bound) lives in Condition.h notes and QUEST_FORMAT.md §9.
 
 ## Step-by-step plan
 

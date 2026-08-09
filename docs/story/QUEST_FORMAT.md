@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:03:29
-Last updated: 09:08:2026 - 14:03:29
+Last updated: 09:08:2026 - 14:15:17
 -->
 <!--
 UPD:
@@ -9,11 +9,29 @@ UPD:
   and localization key conventions, dialogue graph nodes over sim's
   DialogueLine, settlement-craft template quest concept, LLM character card
   schema. Sent to sim for contract negotiation.
+- 09:08:2026 - 14:10:06: Sim ACKed all sections; recorded sim's pinned runtime
+  semantics in §9 (tick ordering, cascade bound, edge-triggered dialog_exit,
+  sticky npc_dead, instantiator = sim runtime, card->prompt split, journal
+  entry shape). Status raised to ACKED, contract-freeze pending the group
+  sync that lands sim's Dialogue.h condition-atom diff.
+- 09:08:2026 - 14:12:35: Freeze ACK recorded in §9: lead blessed the header
+  change gated on story's explicit ACK; story ACKed sim's nine counters
+  (incl. op set = six comparisons, HasFlag/NotHasFlag subsumed). §2.1/§4
+  contract-frozen for the stage on sim's header change landing.
+- 09:08:2026 - 14:15:17: Status raised to CONTRACT-FROZEN: sim's
+  Condition.h/Dialogue.h/Ids.h change landed (ConditionAtom closed set,
+  ConditionGroup{all_of,any_of} on quest transitions, new id types), build
+  clean, tests green; lead batches the commit with the sync record.
 -->
 
 # QUEST_FORMAT.md — Quest & Dialogue Data Format (PROPOSAL)
 
-Status: **PROPOSAL — not a contract until sim ACKs** (Rule 26 discipline).
+Status: **CONTRACT-FROZEN for the stage (Rule 26).** Sim ACKed all sections
+(§9); sim's `Condition.h`/`Dialogue.h`/`Ids.h` change landed 09:08:2026
+(build clean, tests green): `ConditionAtom` closed vocabulary with the pinned
+semantics, lines take `vector<ConditionAtom>` (flat = AND), quest transitions
+take `ConditionGroup{all_of, any_of}`, new id types in `Ids.h`. Changes from
+here go through a group sync.
 Owner: `story`. Runtime owner: `sim` (`engine/gameplay`). Grounded in the
 feature-requests grill (в8, в11, в12), DECISIONS §5 (Q65–Q67, Q70–Q71) and
 sim's shipped stage-1 headers (`Dialogue.h`, `NpcAction.h`, `Ids.h`, `ILlm.h`).
@@ -270,6 +288,12 @@ A schema/reference checker must exist before the first real quest lands
 3. Graph checks: unreachable states/nodes, stall nodes, terminal
    reachability, effect-on-revisitable-node lint.
 4. Determinism lint: no condition atom outside the closed set.
+5. Sim-requested lints (§9): warn on unguarded `give_item` in re-enterable
+   states (on_enter re-runs on loop re-entry); mark `has_item`/`give_item`/
+   `take_item` "declared, runtime pending" until inventory lands; reject
+   `clock` atoms until the day cycle lands; warn when a `dialog_exit` atom
+   listens in a quest that may not be started when the exit can fire
+   (edge-triggered events are lost — gate on a flag instead).
 
 ## 8. Open questions for sim (the ask)
 
@@ -289,3 +313,70 @@ A schema/reference checker must exist before the first real quest lands
 
 Nothing here requires new `NpcAction` variants for act 1 as drafted; if a
 chosen pitch does, that goes through the group sync (Rule 15/26).
+
+## 9. Negotiation record — sim ACK (09:08:2026)
+
+Sim ACKed all sections; the following runtime semantics are **pinned** (sim's
+wording, recorded here as the durable source):
+
+- **Tick ordering (§2):** within a fixed tick — dialogue runner commits →
+  quest transitions evaluate → effects of entered states run, in author
+  order, synchronously.
+- **Cascade bound (§2):** effects may change state other quests' conditions
+  read; those quests react on the NEXT tick, never within the same tick.
+  Bounded and deterministic; no transition storms.
+- **Re-entry (§2):** `on_enter` runs exactly once per state entry —
+  re-entering via a loop transition re-runs it. Once-ever effects must be
+  guarded with a flag (validator lint, §7.5).
+- **`dialog_exit` is edge-triggered:** the dialogue runner publishes exit
+  events on the EventBus; the quest system latches them into a per-tick fact
+  set; the atom is true only on the tick the exit fired, and is not save
+  state (the transition it causes fires the same tick). A quest not yet
+  started when the exit fires misses it — start quests before their
+  listening states, or gate on a flag set by the same dialog choice.
+- **`entered_location`:** sim owns it — a gameplay `TriggerVolume` component
+  (sphere for act 1), fixed-tick containment check, POI-bound volumes spawn
+  with chunk entities (placement data boundary with core — sim's follow-up).
+  Edge semantics ("entered this tick"); a level-triggered `inside_location`
+  is a one-line group-sync addition if ever needed.
+- **`has_item` / `give_item` / `take_item`:** shape ACKed now; runtime lands
+  with inventory (sim stage 2.5+). Validator marks "declared, runtime
+  pending", not an error.
+- **`npc_dead`:** realized as a sticky auto-flag set by the death path
+  (NPCs are chunk-resident and despawn — corpses are not queryable);
+  persists via save delta; once true, true forever.
+- **`clock`:** reserved; validator-rejected until the day cycle lands.
+- **Dialogue.h change (§4):** sim's placeholder key/op/value
+  `DialogueCondition` will be REPLACED by the §2.1 typed atom set — a
+  frozen-header change sim brings to the next group sync (Rule 26). This doc
+  is the source; contract freeze follows that sync.
+- **Template instantiator (§5): sim runtime** (`engine/gameplay`), not an
+  offline tool — slot constraints (active-instance exclusion, cooldowns,
+  distance bands) need live world state. It emits an ordinary quest instance
+  into the same save-delta path; one runtime path holds. Story owns template
+  schema + slot vocabulary + craft fiction; POI-graph slot queries need
+  core's POI data (sim raises that boundary when the instantiator lands).
+- **Cards (§6):** story guarantees persona/knowledge/ignorance/taboos +
+  ≥ 1 `fallback_lines`; sim owns card → `CompletionRequest` assembly
+  (stage 4): documented field order into the prompt,
+  `fallback_lines[0]`'s active-language text becomes `fallback_text` (Q67),
+  knowledge/ignorance/taboos rendered as hard prompt constraints. Prompt
+  language (English prompt + output-language instruction is sim's working
+  position) is the lead's localization call — flagged, not blocking.
+- **Journal (§8.5):** append-only component of (quest id, journal key,
+  sim_tick), save-delta; sim additionally stores the state id hash per entry
+  (replay/debug; invisible to the data format).
+- **New id types** (`QuestId`, `FlagId`, `TopicId`, `NpcCardId`) enter sim's
+  `Ids.h` at the same sync as the Dialogue.h change.
+
+Follow-ups: sim — Dialogue.h diff at group sync, TriggerVolume placement
+boundary with core; lead — prompt language ruling.
+
+**Freeze ACK (09:08:2026, second exchange):** the lead blessed the
+`Condition.h`/`Dialogue.h`/`Ids.h` change as a Rule 26 sync record gated on
+story's explicit ACK; story ACKed sim's nine counters in full (edge-triggered
+events, tick order, re-entry effects, sticky npc_dead, shape-frozen
+has_item/clock, **op set = exactly the six comparisons — HasFlag/NotHasFlag
+subsumed by ==/!= with bool 0/1**, sim-runtime instantiator, journal shape,
+new id types). §2.1 and §4 are contract-frozen for the stage as of sim's
+header change landing.
