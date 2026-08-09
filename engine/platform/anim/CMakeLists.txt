@@ -1,12 +1,13 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 00:45:08
+# Last updated: 10:08:2026 - 02:18:52
 # File: engine/platform/anim/CMakeLists.txt
 #
 # Responsibility:
 # - dfn_platform_anim static library: IAnim backends. Stage 2 ships the null
-#   backend only; the ozz backend (FetchContent, pinned 0.16.0) is stage 3 and
-#   will be added HERE. Zone-owned by sim (Rule 25 / Q34).
+#   backend only; the ozz backend (FetchContent, pinned 0.16.0) is a later
+#   stage and will be added HERE. Zone-owned by character (Rule 25; carved
+#   from sim 10:08:2026).
 #
 # Dependencies:
 # - Uses: dfn_headers.
@@ -18,6 +19,7 @@
 #
 # UPD:
 # - 09:08:2026 - 00:45:08: Stage 2 — null backend only.
+# - 10:08:2026 - 02:18:52: Zone handover: sim -> character (Rule 25).
 
 add_library(dfn_platform_anim STATIC
     sources/null/NullAnim.cpp)

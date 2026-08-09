@@ -1,15 +1,19 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 01:02:15
+Last updated: 10:08:2026 - 02:18:52
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:18:26: Stage-1 state: interface only, no backends yet.
 - 09:08:2026 - 01:02:15: Stage 2 — null backend implemented
   (CreateNullAnim.h); ozz backend remains stage 3.
+- 10:08:2026 - 02:18:52: Zone handover: sim -> character (Rule 25, user
+  approved). Contract unchanged; skinning consumers will live in engine/anim.
 -->
 
 # engine/platform/anim
+
+Zone: `character` (Rule 25, carved from sim 10:08:2026).
 
 ## Responsibility
 
