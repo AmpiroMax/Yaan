@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 23:55:22
+Last updated: 10:08:2026 - 00:05:41
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 22:12:38: Rule 30 gained corollaries 30a (a test needs a case that CAN pass it) and 30b (for a diagnosis, the counterfactual is the control).
 - 09:08:2026 - 22:43:02: Rule 35 — a number stops belonging to a zone when a second zone must agree with it; the trigger is a thing gaining a dimension.
 - 09:08:2026 - 23:55:22: Rule 16 — read the clock per batch, never compute forward. Три зоны сделали эту ошибку за один вечер.
+- 10:08:2026 - 00:05:41: Rule 36 — exclusions by cause, not by magnitude; and the pipeline's own metric belongs in the design vocabulary.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -401,6 +402,25 @@ be the same number. So the trigger to watch for is not "two zones are arguing", 
 The same reasoning applies to STATE, not only to constants: the composition root must
 never reconstruct bookkeeping a subsystem already holds. Two copies drift whether they
 are numbers or sets.
+
+### Rule 36 — A measurement's exclusions are chosen by cause, never by magnitude
+Filtering a sample set by size makes the filter the result. A skirt-depth measure
+excluded tunnel geometry as "anything more than 1 m below the surface" and reported
+a maximum of 0.9937 m — **the cutoff was the answer**, and it looked like a
+measurement right up to the moment a constant was about to be set from it.
+Reclassifying the same samples by their CAUSE (was this vertex carved?) gave
+1.1111 m, which is 0.11 m more than the constant would have allowed.
+
+Sibling of Rule 31: there the field's shape decided the answer, here the filter's
+threshold does. Both produce a number that survives review because nothing about it
+looks wrong.
+
+And the general form, which cost a full evening in another guise: **the pipeline's
+own metric is part of the design vocabulary.** Colour separation was reasoned about
+in Euclidean RGB while the quantiser weights the channels 0.30/0.59/0.11, so a
+difference that lives in blue is nearly invisible to it. A rule about what the EYE
+reads and a rule about what the PIPELINE preserves are different rules, and a
+design must pass both.
 
 ---
 
