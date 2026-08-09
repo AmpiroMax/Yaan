@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:49:01
+Last updated: 10:08:2026 - 00:10:41
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.cpp
 
@@ -31,6 +31,7 @@ UPD:
 - 09:08:2026 - 13:28:27: Split: per-sample query side (water_sample_impl/water_at/carve_height) moved to WorldgenWater.cpp (file was at 780/800 lines); build side stays here.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix (ROOT CAUSE): fill_level no longer doubles as the Dijkstra seed set — river trace cells seed a LOCAL set instead, so trace cells stop flooding their whole 16 m coarse cell in water_at's pond branch (67 station-only cells -> 0; WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%). Pond primitives built from cell FOOTPRINTS (water_at floods whole cells).
 - 09:08:2026 - 14:49:01: Scatter-in-water fix (part 1): pond primitives are now ONE PLANE PER CELL, not a per-pond bounding box — pond cell sets are diagonal strings along the trace, so the bbox over-covered 1.7-6x and painted water over dry ground carrying birches/stones. Per-cell squares match the water_at coverage truth exactly and tile seamlessly at a shared level.
+- 10:08:2026 - 00:10:41: POND CELL OWNERSHIP (correctness, found via render's crash report). The trace revisits ground it has already flooded -- a pond that spills raises eff, so the next local minimum downstream floods a region containing the previous pond's cells -- and every revisit APPENDED the cell to another pond carrying its own stale level. Measured at 2x2 km: 17335 cell entries over 1042 distinct cells (x16.6), one cell claimed by 36 ponds, 94.5% of cells claimed at MORE THAN ONE level, 17336 drawable planes summing to 106% of the world area against 7.01% real water. Cells are now TRANSFERRED to the rising pond, not duplicated, with one ownership index shared across both traces. Additionally pond_planes are emitted from fill_level -- the coverage truth water_at answers from -- instead of from the pond objects, so the drawn level and the swum level stop being two copies of one fact. After: x1.0 duplication, 0 cells at two levels, 1042 planes, plane area 6.66% against 7.01% real water. fill_level itself is UNCHANGED (1042 wet cells before and after): the water did not move, only the bookkeeping. Both invariants re-verified green (monotonic water; every WaterBed sample covered, worst gap 0 m).
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -126,9 +127,20 @@ constexpr uint32_t INVALID = std::numeric_limits<uint32_t>::max();
 /// Greedy descent with pond-and-spill (§3.1 step 2). Returns the cell path;
 /// fills ponds into `grid.eff` / `fill_level` / `ponds`. `avoid_lake` keeps
 /// the outlet trace from falling back into the lake basin.
+///
+/// `cell_owner` is the SINGLE-OWNERSHIP index (cell -> pond, INVALID = dry):
+/// a cell belongs to exactly one pond at exactly one level. The trace revisits
+/// ground it has already flooded — a pond that spills raises `eff`, so the next
+/// local minimum downstream floods a region that can include the previous
+/// pond's cells — and without transferring ownership each visit APPENDED the
+/// cell to another pond carrying its own now-stale level. Measured before this
+/// existed: 17335 cell entries over 1042 distinct cells at 2x2 km, one cell
+/// claimed by 36 ponds, 94.5% of cells claimed at more than one level.
 std::vector<uint32_t> trace_descent(Grid& grid, uint32_t start, const LakeStamp& lake,
                                     bool avoid_lake, std::vector<float>& fill_level,
-                                    std::vector<Pond>& ponds, bool& reached_lake, bool& ok) {
+                                    std::vector<Pond>& ponds,
+                                    std::vector<uint32_t>& cell_owner, bool& reached_lake,
+                                    bool& ok) {
     std::vector<uint32_t> path{start};
     reached_lake = false;
     uint32_t cur = start;
@@ -209,6 +221,19 @@ std::vector<uint32_t> trace_descent(Grid& grid, uint32_t start, const LakeStamp&
         }
         if (!pond.cells.empty()) {
             std::sort(pond.cells.begin(), pond.cells.end());
+            // TRANSFER, never duplicate. Water that rises over an older pond
+            // has MERGED with it: the ground is one body at the new level, not
+            // two bodies at two levels. Handing the cell to the new pond and
+            // taking it off the old one is what makes that true in the data.
+            // The old pond keeps whatever cells the new level did not reach,
+            // and if that is none it is dropped by the compaction below.
+            const auto owner = static_cast<uint32_t>(ponds.size());
+            for (const uint32_t c : pond.cells) {
+                if (cell_owner[c] != INVALID) {
+                    std::erase(ponds[cell_owner[c]].cells, c);
+                }
+                cell_owner[c] = owner;
+            }
             ponds.push_back(std::move(pond));
         }
         path.push_back(spill);
@@ -348,9 +373,14 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
     }
 
     // --- Descent traces (source -> lake, lake outlet -> edge) -------------------
+    // One ownership index across BOTH traces: the outlet trace floods ground
+    // the source trace already ponded, so a per-call index would let the two
+    // passes duplicate exactly what the single-pass fix prevents.
+    std::vector<uint32_t> cell_owner(cells, INVALID);
     bool reached_lake = false;
-    const std::vector<uint32_t> path1 = trace_descent(
-        grid, source, layout.lake, false, hydro.fill_level, hydro.ponds, reached_lake, hydro.ok);
+    const std::vector<uint32_t> path1 =
+        trace_descent(grid, source, layout.lake, false, hydro.fill_level, hydro.ponds,
+                      cell_owner, reached_lake, hydro.ok);
 
     std::vector<uint32_t> path2;
     if (hydro.ok && reached_lake) {
@@ -372,7 +402,7 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
         if (outlet != INVALID) {
             bool dummy = false;
             path2 = trace_descent(grid, outlet, layout.lake, true, hydro.fill_level,
-                                  hydro.ponds, dummy, hydro.ok);
+                                  hydro.ponds, cell_owner, dummy, hydro.ok);
         }
     }
 
@@ -634,19 +664,37 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
         });
     }
 
+    // Ponds emptied by OWNERSHIP TRANSFER go now, unconditionally. The mud-cap
+    // compaction above only runs when there are stations, and a pond can be
+    // emptied by a downstream pond swallowing every one of its cells whether or
+    // not a trace survived.
+    std::erase_if(hydro.ponds, [](const Pond& p) { return p.cells.empty(); });
+
     // --- Pond primitives (drawable bodies for the surviving ponds) --------------
-    // ONE PLANE PER CELL, not one per pond: water_at floods a pond cell by
-    // cell, and pond cell sets are diagonal strings along the trace, so a
-    // per-pond bounding box over-covers by 1.7-6x and paints water over dry
-    // ground (trees then read as flooded). A per-cell square is exactly the
-    // coverage truth; adjacent cells share a level and tile seamlessly.
-    for (const Pond& pond : hydro.ponds) {
-        for (const uint32_t c : pond.cells) {
-            const glm::vec2 p = grid.pos(c);
-            hydro.pond_planes.push_back(
-                math::LakePlane{p + glm::vec2{CELL * 0.5f, CELL * 0.5f},
-                                glm::vec2{CELL * 0.5f, CELL * 0.5f}, pond.level});
+    // ONE PLANE PER WET CELL, READ FROM fill_level — the coverage truth that
+    // water_at answers from — and never from the pond objects.
+    //
+    // Two separate reasons, and the second is the expensive one:
+    //  * per-pond BOUNDING BOXES over-covered by 1.7-6x and painted water over
+    //    dry ground (birches and stones then stood in it). A per-cell square is
+    //    exactly the coverage truth and adjacent cells tile seamlessly.
+    //  * iterating the POND OBJECTS meant the drawn level came from
+    //    `pond.level` while the swum level came from `fill_level`, i.e. one
+    //    fact with two copies. When they disagreed the player swam at one
+    //    height and saw water at another. Reading the same array both answers
+    //    come from is what makes that unrepresentable rather than merely fixed.
+    // Lake cells are excluded: the lake ships as its own primitive.
+    for (uint32_t c = 0; c < cells; ++c) {
+        if (hydro.fill_level[c] == math::NO_WATER) {
+            continue;
         }
+        const glm::vec2 p = grid.pos(c);
+        if (lake_norm_radius(layout.lake, p) < 1.0f) {
+            continue;
+        }
+        hydro.pond_planes.push_back(
+            math::LakePlane{p + glm::vec2{CELL * 0.5f, CELL * 0.5f},
+                            glm::vec2{CELL * 0.5f, CELL * 0.5f}, hydro.fill_level[c]});
     }
 
     // (Station spatial bins were built right after the widths pass — they

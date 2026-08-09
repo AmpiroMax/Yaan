@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 19:33:58
+Last updated: 10:08:2026 - 00:10:41
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -32,6 +32,7 @@ UPD:
 - 09:08:2026 - 15:36:59: Rule C2-testbed now gates the absolute bound (3) plus the large-mass guard (2), keeping the mandatory raw/unexempted disclosure and the castle-contribution check.
 - 09:08:2026 - 17:45:08: §6.2: pad accounting restated as the NEW invariant — entities == pads + castle elements + derived entrances — with each entrance checked to carry an explicit carve floor. The old assertion encoded the rule this change replaced.
 - 09:08:2026 - 19:33:58: Fortress revision: terrace flatness is measured PER WARD (one box across the chain measures the steps between wards, which are supposed to exist) plus a new check that the chain steps down toward the approach.
+- 10:08:2026 - 00:10:41: NEW invariant "one patch of ground carries exactly one water surface" (no cell in two ponds, no cell at two levels, pond_planes == wet non-lake cells with no stacked centres) plus its Rule 30 control, a hand-built pond pair sharing a cell that the same checkers must flag -- including a same-level variant proving the two checkers are not one measurement twice.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -44,6 +45,8 @@ UPD:
 
 #include <algorithm>
 #include <doctest/doctest.h>
+#include <map>
+#include <set>
 #include <glm/geometric.hpp>
 #include <vector>
 
@@ -695,4 +698,102 @@ TEST_CASE("P3 surface: classes obey the priority rules on a sample sweep") {
             }
         }
     }
+}
+
+namespace {
+
+/// Cells claimed by more than one pond. A cell belongs to exactly one body of
+/// water; anything else means the pond fill duplicated it rather than handing
+/// it over when the water rose.
+[[nodiscard]] std::size_t cells_in_two_ponds(const world::HydrologyData& h) {
+    std::map<uint32_t, int> owners;
+    for (const world::Pond& p : h.ponds) {
+        for (const uint32_t c : p.cells) ++owners[c];
+    }
+    return static_cast<std::size_t>(
+        std::count_if(owners.begin(), owners.end(), [](const auto& kv) { return kv.second > 1; }));
+}
+
+/// Cells claimed at more than one water LEVEL. This is the half that reaches
+/// the player: two coplanar planes at different heights over one patch of
+/// ground means the drawn surface depends on draw order and can disagree with
+/// the height the swimmer floats at.
+[[nodiscard]] std::size_t cells_at_two_levels(const world::HydrologyData& h) {
+    std::map<uint32_t, std::set<int>> levels;
+    for (const world::Pond& p : h.ponds) {
+        for (const uint32_t c : p.cells) levels[c].insert(static_cast<int>(std::lround(p.level * 100.0f)));
+    }
+    return static_cast<std::size_t>(std::count_if(
+        levels.begin(), levels.end(), [](const auto& kv) { return kv.second.size() > 1; }));
+}
+
+} // namespace
+
+TEST_CASE("one patch of ground carries exactly one water surface") {
+    // THE DEFECT THIS PINS: the trace revisits ground it has already flooded,
+    // and every revisit used to APPEND the cell to another pond carrying its
+    // own stale level. Measured before the fix on the 2x2 km world: 17335 cell
+    // entries over 1042 distinct cells, one cell claimed by 36 ponds, 94.5% of
+    // cells claimed at more than one level, and 17336 drawable planes summing
+    // to 106% of the world's area against 7.01% real water. It exhausted every
+    // GPU buffer handle at startup, which is how it was found -- but the
+    // expensive half was that the drawn water level and the swum water level
+    // were two copies of one fact, free to disagree.
+    for (const int side : {4, 8}) {
+        CAPTURE(side);
+        const world::WorldGenContext ctx = world::build_world_context(
+            WorldGenParams{1, {0, 0}, {side - 1, side - 1}, world::TestbedLayout{}});
+        const world::HydrologyData& h = ctx.hydrology;
+
+        CHECK(cells_in_two_ponds(h) == 0);
+        CHECK(cells_at_two_levels(h) == 0);
+
+        // The drawable primitives ARE the coverage truth, not a parallel copy:
+        // one plane per wet non-lake cell, each carrying that cell's fill level
+        // exactly. This is the assertion that would have caught 17336.
+        std::size_t wet_cells = 0;
+        for (uint32_t c = 0; c < h.fill_level.size(); ++c) {
+            if (h.fill_level[c] == math::NO_WATER) continue;
+            const glm::vec2 p = h.grid_origin
+                              + glm::vec2{static_cast<float>(c % h.grid_w),
+                                          static_cast<float>(c / h.grid_w)}
+                                    * static_cast<float>(config::WORLDGEN_HYDRO_GRID_STEP);
+            if (world::lake_norm_radius(ctx.params.layout.lake, p) < 1.0f) continue;
+            ++wet_cells;
+        }
+        CHECK(h.pond_planes.size() == wet_cells);
+
+        std::set<std::pair<int, int>> centres;
+        for (const math::LakePlane& L : h.pond_planes) {
+            centres.insert({static_cast<int>(std::lround(L.center.x)),
+                            static_cast<int>(std::lround(L.center.y))});
+        }
+        CHECK(centres.size() == h.pond_planes.size()); // no stacking
+    }
+}
+
+TEST_CASE("the water-surface uniqueness checks reject a world that violates them") {
+    // Rule 30: the case the test above exists to REJECT, run against the same
+    // checkers, which must FAIL it. Without this the two CHECKs above are a
+    // description of whatever the generator happens to emit -- and they would
+    // have read green on a generator with no ponds at all.
+    world::HydrologyData bad;
+    world::Pond a;
+    a.level = 10.0f;
+    a.cells = {7, 8, 9};
+    world::Pond b;
+    b.level = 14.0f;  // the same ground, claimed again at a higher level
+    b.cells = {9, 10};
+    bad.ponds = {a, b};
+
+    CHECK(cells_in_two_ponds(bad) == 1);
+    CHECK(cells_at_two_levels(bad) == 1);
+
+    // And the same-level variant: duplicated ownership WITHOUT a level
+    // conflict is still a duplicate plane, so the two checkers are not
+    // measuring one thing twice.
+    world::HydrologyData same_level = bad;
+    same_level.ponds[1].level = 10.0f;
+    CHECK(cells_in_two_ponds(same_level) == 1);
+    CHECK(cells_at_two_levels(same_level) == 0);
 }
