@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 00:06:00
+Last updated: 09:08:2026 - 10:42:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:06:00: Created engine architecture hard contract, adapted from Quicky Engine with amendments approved in the initial-planning grill session (Q23, Q25, Q27, Q30, Q31, Q54, Q61, Q70, Q73).
+- 09:08:2026 - 10:42:00: Stage 3 — added the `design` zone (landscape/world design docs) to Rule 25.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -293,6 +294,7 @@ clone must configure and build with one documented command.
 | `core`   | `engine/core`, `engine/world` |
 | `render` | `engine/platform/{window,input,render}`, `engine/render` |
 | `sim`    | `engine/platform/{physics,anim,audio,llm}`, `engine/physics`, `engine/anim`, `engine/gameplay` |
+| `design` | `docs/design` (landscape/world design bible, asset briefs, placement rules) |
 | lead     | `engine/app`, `engine/editor`, `engine/core/components`, root CMake, `docs/`, `rules/`, `tools/` |
 
 An agent never edits a foreign zone. Needing a change there → message the owner.

@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 00:06:00
+Last updated: 09:08:2026 - 10:42:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:06:00: Created agent entry point (adapted from Quicky Engine).
+- 09:08:2026 - 10:42:00: Added the design (landscape) agent to the team table.
 -->
 
 # AI Agent Instructions — Daggerfall N
@@ -30,6 +31,7 @@ Before starting ANY work in this repository, read and follow these documents, in
 | `core`   | `engine/core`, `engine/world` | `docs/specs/core.md` |
 | `render` | `engine/platform/{window,input,render}`, `engine/render` | `docs/specs/render.md` |
 | `sim`    | `engine/platform/{physics,anim,audio,llm}`, `engine/physics`, `engine/anim`, `engine/gameplay` | `docs/specs/sim.md` |
+| `design` | `docs/design` — landscape/world design bible, asset briefs, placement rules | `docs/design/LANDSCAPE.md` |
 | lead     | `engine/app`, `engine/editor`, shared components, CMake root, `docs/`, `tools/` | — |
 
 ## Key constraints (summary — the contract has the full list)
