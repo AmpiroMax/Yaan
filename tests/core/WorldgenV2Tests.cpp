@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:31:04
+Last updated: 09:08:2026 - 15:36:59
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 14:49:01: Scatter-in-water fix: NEW invariant — no scatter instance sits in water per water_at, nor under any drawn pond plane (twin of the WaterBed-coverage invariant, from the placement side).
 - 09:08:2026 - 15:18:34: Castle suite: terrace cut/pad-surface slope, R3, horizontal-dominant mass order, ford command + barrow band, access ramp (slope/step), Backbarrow sightline, R2/R4, and the C2 castle-contribution check; P4 roster updated (castle elements share one terrace, so pads + castle entities == entities).
 - 09:08:2026 - 15:31:04: Rule C2-testbed check on the castle's contribution (the seed-1 layout forms a castle-free crowd at (304,304): hamlet + shrine + lakeshore cave), with all three measures reported in the INFO.
+- 09:08:2026 - 15:36:59: Rule C2-testbed now gates the absolute bound (3) plus the large-mass guard (2), keeping the mandatory raw/unexempted disclosure and the castle-contribution check.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -453,10 +454,16 @@ TEST_CASE("castle: hierarchy — the crag stays L0 (§6.1.1)") {
     // around (304,304) — the castle is R1-exempt there, reading against the
     // crag). So the castle pass gates on its own CONTRIBUTION and the absolute
     // number is reported to design.
+    CHECK(h.max_coequal_visible <= static_cast<uint32_t>(config::POI_COEQUAL_VISIBLE_MAX));
+    // LARGE-MASS GUARD: the limit tightens to 2 when every member of the group
+    // is a mass (>= COEQUAL_LARGE_PX), not a mark at the readability floor.
+    CHECK(h.max_coequal_large <= 2);
+    // The castle must still not be the one that creates a crowd.
     CHECK(h.max_coequal_visible == h.max_coequal_visible_without_castle);
     INFO("coequal crowd: " << h.max_coequal_visible << " (raw, no R1 exemption: "
                            << h.max_coequal_visible_raw << "; without castle: "
-                           << h.max_coequal_visible_without_castle << "), bound "
+                           << h.max_coequal_visible_without_castle << "; large-mass group: "
+                           << h.max_coequal_large << "), bound "
                            << config::POI_COEQUAL_VISIBLE_MAX);
 }
 

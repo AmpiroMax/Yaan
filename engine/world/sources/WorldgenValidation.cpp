@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:31:04
+Last updated: 09:08:2026 - 15:36:59
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: C1 raycast against terrain + canopy with LANDMARK_CLEARANCE_FACTOR (tangent comparison); max_corridor_water_depth.
 - 09:08:2026 - 15:18:34: Castle validation: the castle mass enters the C1 occlusion heightfield like canopy and its footprint is excluded from standpoints; hierarchy + access invariants implemented on the same raycast machinery.
 - 09:08:2026 - 15:31:04: Rule C2-testbed implemented on the R4 subtended-angle machinery: apparent SIZE (object height / distance, not the elevation angle of its top — that conflated size with ground elevation, and R4 now uses the corrected measure too), §1.5 readability gate (sub-8 px specks cannot crowd), R1 body-backing exemption, L0 exempt, composite POIs once; widest-coequal-group via a sorted sliding window.
+- 09:08:2026 - 15:36:59: Large-mass guard implemented over the same grouping (filter to large members, then widest coequal window); PX_PER_RAD factored out of the readability threshold.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -52,9 +53,13 @@ constexpr float COEQUAL_RATIO = static_cast<float>(config::COEQUAL_ANGLE_RATIO);
 // §1.5 readability: a silhouette needs SILHOUETTE_MIN_PX to read as a shape,
 // so an attractor only competes for attention when its apparent size clears
 // that. Vertical angular resolution = INTERNAL_RES_H / CAMERA_FOV_Y.
+constexpr float PX_PER_RAD =
+    static_cast<float>(config::INTERNAL_RES_H) / static_cast<float>(config::CAMERA_FOV_Y);
 constexpr float READABLE_MIN_APPARENT =
-    static_cast<float>(config::SILHOUETTE_MIN_PX)
-    / (static_cast<float>(config::INTERNAL_RES_H) / static_cast<float>(config::CAMERA_FOV_Y));
+    static_cast<float>(config::SILHOUETTE_MIN_PX) / PX_PER_RAD;
+// Large-mass guard: above this apparent size an attractor is a mass, not a
+// mark on the horizon, and three of them crowd even though three marks do not.
+constexpr float LARGE_MIN_APPARENT = static_cast<float>(config::COEQUAL_LARGE_PX) / PX_PER_RAD;
 constexpr float STANDPOINT_GRID_M = 32.0f; // coarse but deterministic sampling
 constexpr float RAY_STEP_M = 4.0f;
 } // namespace
@@ -337,6 +342,14 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             out.max_coequal_visible_without_castle =
                 std::max(out.max_coequal_visible_without_castle,
                          widest_coequal_group(subtended_no_castle));
+            // Guard: same grouping over the large members only, so every
+            // member of a counted group is >= COEQUAL_LARGE_PX by filtering.
+            std::vector<float> large;
+            for (const float s : subtended) {
+                if (s >= LARGE_MIN_APPARENT) large.push_back(s);
+            }
+            out.max_coequal_large =
+                std::max(out.max_coequal_large, widest_coequal_group(large));
             out.max_attractors = std::max(out.max_attractors, count);
             out.max_attractors_without_castle =
                 std::max(out.max_attractors_without_castle, count_no_castle);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:31:04
+Last updated: 09:08:2026 - 15:36:59
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.h
 
@@ -30,6 +30,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: canopy-aware clearance semantics documented; max_corridor_water_depth (C3 vs generated water).
 - 09:08:2026 - 15:18:34: Castle validation: CastleHierarchy (R3 top/ceiling, R4 ratio, R2 crown, C2 attractors with and without the castle) and CastleAccess (ramp slope/step, Backbarrow sightline from yard and gate).
 - 09:08:2026 - 15:31:04: Rule C2-testbed: max_coequal_visible (+ raw and without-castle variants) replacing the absolute bound on the testbed path; POI_VISIBLE_COUNT_MAX renamed to POI_VISIBLE_COUNT_MAX_REGION (region-scale only, design ruling).
+- 09:08:2026 - 15:36:59: Large-mass guard: max_coequal_large — the widest coequal group whose every member subtends >= COEQUAL_LARGE_PX, held to 2 while POI_COEQUAL_VISIBLE_MAX (now 3) governs threshold-scale groups.
 */
 
 #pragma once
@@ -92,6 +93,11 @@ struct CastleHierarchy {
     /// the attractor count, the castle's CONTRIBUTION is what the castle pass
     /// can be held to; a crowd that exists without it is a layout finding.
     uint32_t max_coequal_visible_without_castle = 0;
+    /// LARGE-MASS GUARD: the widest coequal group in which EVERY member
+    /// subtends at least COEQUAL_LARGE_PX. Three marks at the readability
+    /// floor are a vista; three big masses are competing choices, so this one
+    /// is held to 2 rather than POI_COEQUAL_VISIBLE_MAX.
+    uint32_t max_coequal_large = 0;
 };
 [[nodiscard]] CastleHierarchy castle_hierarchy(const WorldGenContext& ctx);
 
