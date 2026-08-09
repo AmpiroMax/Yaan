@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 18:55:22
+Last updated: 09:08:2026 - 19:01:50
 -->
 <!--
 UPD:
@@ -18,6 +18,7 @@ UPD:
 - 09:08:2026 - 15:33:48: C2-testbed limit raised 2 -> 3 on measured evidence (seed-1 crowd is three threshold-scale marks at 8-11 px), with a tightening to 2 for large crowds (COEQUAL_LARGE_PX 24 px). Blessed core's three measurement definitions into the doc: apparent size = height/distance (not top elevation angle, one definition shared by C2/C4/R4), only >=SILHOUETTE_MIN_PX attractors compete, body-backed attractors exempt per standpoint with the raw count still reported.
 - 09:08:2026 - 17:28:51: New §6.2 — dungeon entrance archetypes after a live player read a mis-sited entrance as a bug: relief-selected adit vs sunken barrow; flat-ground answer is a stamped mound + cut forecourt + lintel (generator makes the relief it needs) with four findability layers; marker/facing derived from the carve mouth (derived-only rule extended to carve-adjacent placements); attractor status ruled (assembly counts, hole never does, short-range L1 only).
 - 09:08:2026 - 18:55:22: Stage-4, five user decisions ruled. §1.3a — world to 2x2 km: testbed and region contracts coexist SPATIALLY (home valley / transition band / open region), new top landmark tier LR, LANDMARK_VISIBILITY_MIN measured over each landmark's own domain, LR and L0 separated by atmospheric depth rather than angular size. §2.5 — temple mountain: 280 m relief, massif ratio, ridged noise + irregular buttress ridges + cliff bands + asymmetry, checkable anti-dome invariant (lobed slice + 60% rock slope), mandatory validated ascent. §2.6 — border mountains replace invisible walls: varied crest, lobed spurs, impassable by slope AND a traversability flood-fill, never counted as attractors. §2.7 — micro-relief octave everywhere + one plain sited to frame the LR reveal. §5.7 — tall trees worked through: oak 24-32 m, birch 16-22 m, pine 28-38 m (declines literal x4, would overtop Ravenscar), L0_RELIEF 52 -> 110-120 m proposed, sight wedges become tree-free, crown base 35-45%, TREE_SPACING_FOREST 12-18 m (~80% density cut), tri budget 700 + mandatory LOD.
+- 09:08:2026 - 19:01:50: Flora's findings ruled. §1.3 — canopy occlusion is now a BAND (crown_base, crown_top) with transparent trunks up to CANOPY_TRUNK_PATH_MAX 250 m; the old solid-column model was pessimistic and was failing sightlines that exist. §1.3 C4 — recorded a boundary on the "raising the peak is a dead end" finding: dead for stamp-scaled flanks, live for fixed-height canopy occluders; one measurement requested. §5.7 — sight-wedge ban narrowed to the tall three in the NEAR half only (flora's bald-lane pushback accepted, their near/far reasoning corrected: near trees steal dominance, far trees steal sight). §5.8 — maturity tiers 15/60/25 with Elder Oak folded in as the giant tier. §5.9 — standing snag (only flora allowed at full height in a wedge) and riparian willow approved, with birch=moving water / willow=still water as the readable split.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -58,9 +59,29 @@ on the testbed the same rule holds with the tighter spacing of §1.2.
 Verification: a worldgen validation pass samples a coarse grid of standpoints
 and raycasts against the **occlusion heightfield** + landmark bounding shapes;
 any standpoint with zero visible attractors fails the seed. The occlusion
-heightfield is terrain **plus canopy**: every sample inside a forest mask or
-under a placed tree adds that species' max height (render's stage-3b probes
-proved terrain-only raycasts pass seeds where a pine wall buries the L0).
+field is terrain **plus canopy** — terrain-only raycasts pass seeds where a
+pine wall buries the L0 (render's stage-3b probes).
+
+**Canopy is a BAND, not a column (stage-4 correction, flora's finding).**
+Modelling canopy as solid ground-to-treetop was correct only while crowns
+started at 2.7 m. With crown base at 35–45 % of height (§5.7) the canopy is a
+**slab** from ≈ 9–13 m to ≈ 24–38 m with open trunk space beneath it, and a
+ray from a 1.7 m eye rises with distance: through forest 30 m out the ray sits
+at ≈ 6 m and passes cleanly *under* the crowns. The column model blocked that
+ray and was **pessimistic** — it was failing sightlines that exist. Rules:
+
+- The occlusion query returns a band `(crown_base, crown_top)` per sample; a
+  ray is blocked only where it lies **inside** the band.
+- **Trunks are transparent** to landmark visibility. At 44 trees/ha with 1.4 m
+  trunks a ray crossing 150 m of forest expects ≈ 0.92 trunk hits — a dappled
+  partial occluder, and parallax while walking reveals the landmark
+  continuously. A binary raycast must not treat that as a wall.
+- **But not infinitely transparent:** accumulate forest traversal at trunk
+  level and call the ray blocked past `CANOPY_TRUNK_PATH_MAX` = 250 m
+  **(предложение — утвердить)** — roughly 1.5 expected hits. Deep inside a
+  large wood you genuinely cannot orient. If the accumulator proves awkward,
+  pure transparency is an acceptable fallback; the band model is the win.
+
 This is computable, not editorial.
 
 **Rule C2 — never show everything.** The complement of C1. Breath of the
@@ -182,9 +203,22 @@ out-angling the 52 m crag from every western/southern ground vantage):
   too much: widen the L0 stamp's treeless rockline band, or reshape the
   landmark-facing forest — core's choice per seed, the invariant is the
   clearance factor. Two knobs proved to be **dead ends** in the stage-3b
-  implementation (do not retry): raising the peak *lowers* clearance (its own
-  flank occluders grow at a 1.2× disadvantage), and the treeline is useless
-  here (foothill terrain sits below any sane treeline). The effective lever
+  implementation: raising the peak *lowers* clearance (its own flank occluders
+  grow at a 1.2× disadvantage), and the treeline is useless here (foothill
+  terrain sits below any sane treeline).
+
+  **Boundary on the first dead end (stage-4, flora's finding — read before
+  citing it).** "Raising the peak lowers clearance" was measured when canopy
+  was 12–18 m and the crag's own flanks dominated the occluder set. It holds
+  for occluders that are **part of the L0 stamp**, because they scale with it.
+  It does **not** automatically hold for **canopy** occluders, which are now
+  pinned at 24–38 m independent of the stamp: raising the peak raises the L0's
+  subtended angle while foothill crowns stay put. The regime changed, so the
+  finding's scope changed with it — the lever is dead for stamp-internal
+  flanks and **live** for canopy. This is not a licence to raise peaks
+  casually; it is a request for one measurement before we treat the lever as
+  gone, and it independently supports the `L0_RELIEF` raise proposed in §5.7
+  (flora's worst case wants a peak above ≈ 84 m; the proposal is 110–120 m). The effective lever
   is forest *shape*: a closed canopy annulus around an L0 can never pass
   canopy-C1 from valley ground — landmark-skirting forest must be broken
   into radial/ridge strips with gaps (see §7.1).
@@ -767,11 +801,65 @@ summit. Two consequences, both binding:
   heart that its own trees overtop is not a landmark. All castle rules are
   ratios to the peak (`CASTLE_SKYLINE_MARGIN` etc.) and re-derive
   automatically — story's ~55 m castle/barrow geometry is unaffected.
-- **L0 sight wedges become tree-free corridors.** The old rule rejected trees
-  that would out-angle the L0; at 35 m the honest rule is simpler and
-  stricter: **no trees at all inside an L0 or LR sight wedge.** The wedges
-  are narrow, the cost is small, and it removes an entire class of
-  near-miss failures.
+- **L0/LR sight wedges — revised (flora's pushback accepted, with its
+  reasoning corrected).** My first draft banned *all* trees in a wedge. Flora
+  is right that at 12–18 m spacing this carves mown lanes radiating from every
+  POI — authored-looking, the exact effect standing stones exist to create
+  deliberately. The rule instead:
+  - **Only the tall three are excluded.** Bushes, saplings and anything under
+    ≈ 8 m stay, so the wedge keeps ground texture and reads as young growth
+    under an old canopy, not as a clearing.
+  - **The ban is the NEAR half of the wedge; the far half is governed by the
+    band-model occlusion test** (§1.3). Note this is the *opposite* half from
+    flora's proposal, because two different tests are in play: a near tall
+    tree subtends hugely and steals **dominance** (C4), while it is *far*
+    trees that sit at ray height and steal **sight** (C1) — and the band model
+    now handles that case correctly on its own. Ban where the maths says ban.
+  - **Giants and elder oaks are excluded from wedges entirely** (§5.8) — a
+    1.5× oak is a 48 m occluder and belongs nowhere near a landmark sightline.
+
+### 5.8 Maturity tiers — restoring fullness without restoring canopy
+
+Approved (flora's proposal): every instance carries a maturity scalar rather
+than standing at species nominal size, because 44 stems/ha all identical reads
+as a **plantation**, and a plantation is a different failure from an empty
+field but a failure all the same.
+
+| Tier | Share | Size | Placement |
+|---|---|---|---|
+| Giant / **Elder** | 15 % | ×1.5 nominal | 1–2 per forest mass; an L2 guide (§1.3) — a forest with an internal hierarchy is legible from inside |
+| Mature | 60 % | nominal | the main lattice |
+| Young | 25 % | ×0.5–0.7 | allowed on a **half-spacing sub-lattice** — their crowns do not compete, so they cost no canopy closure |
+
+Shares предложение — утвердить. This is the cheapest available answer to
+«пустота — наш враг» at the new density: the stand fills back in at eye level
+while the canopy stays open. **The "Elder Oak" proposed as a separate species
+IS this giant tier** — one system, not two: it is a maturity scalar on the
+existing parameter set, not a catalog row.
+
+### 5.9 Additional species (approved from flora's proposals)
+
+**Standing snag (dead trunk).** Approved, and the sharpest idea in the batch:
+a barkless broken column with no crown is **the only flora that may legally
+stand at full height inside a sight wedge** — nothing to out-angle with.
+30–60 tris, the cheapest asset in the project. Pale grey-white dead wood is
+the highest flora value in the scene, so it reads as a stark vertical at
+distance — which means it must be placed *sparsely* or it becomes a false L2
+guide: `SNAG_DENSITY` = 1 per 2–4 ha **(предложение — утвердить)**, preferring
+older stands, forest edges, clearing rims, and the ground near barrows and
+ruins where the atmosphere pays double.
+
+**Vale willow / alder (riparian).** Approved, and it fixes a real flaw I had
+left: *every* water body in the world is currently flagged by pale birch, so
+all water reads the same. Two riparian species let water say two things —
+ruling on the split: **birch marks moving, clear water** (river banks, fords),
+**willow marks still or slow water** (lake shores, pond rims, slack bends).
+Dark low mass, the value opposite of birch, 10–14 m, within
+`RIPARIAN_WATER_DIST` (reuse the birch 20 m band). A player who learns that
+dark drooping mass means still water has learned to read the landscape, which
+is the whole point of a palette this small.
+
+**Elder oak** — folded into §5.8's giant tier, not a separate species.
 
 **Collision 2 — under-canopy walkability.** `CANOPY_CLEARANCE_MIN` = 2.2 m is
 a floor, satisfied ~4× over by a crown base at 35–45 % of height. Stated
