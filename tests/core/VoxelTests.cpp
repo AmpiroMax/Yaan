@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 10:08:2026 - 02:18:26
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 18:58:01: Regression: every entrance walks out without the ground ahead rising above head height; mounds fall from their crown (dome, not plateau); no scatter instance floats or sinks by more than 0.3 m anywhere in the testbed.
 - 09:08:2026 - 19:41:55: Tolerances re-derived for a 115 m crag: worst voxel deviation bounded by the cell diagonal on near-vertical faces (2.5x voxel, mean still ~2 cm), and the tunnel's standable allowance widened because the ascent now climbs 41 m instead of 18 in a similar footprint so its legs stack closer.
 - 09:08:2026 - 21:37:57: Heightfield-vs-voxel check restated for §2.8 cliffs: every vertex must lie on the heightfield within the terrain's own relief across one voxel cell, UNLESS it is a carve surface (a tunnel wall is not describable as a height per column). Checked per vertex rather than on the global max, which is strictly stronger — the old flat 2.5 m bound let one cliff vertex mask every other error. Measured: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained.
+- 10:08:2026 - 02:18:26: Barrow mouth split into its own EXPECTED-FAIL case (design ruling §7.0a; trigger-expiry = the §2.8.2 couloir work, owner design; should_fail announces the day it opens). The room/burial assertions stay guarding in the plain case.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -330,7 +331,29 @@ TEST_CASE("P7 carves: the Backbarrow is a room, not a dent") {
     // Buried: the chamber ceiling sits under real rock.
     const float surface = world::terrain_height(ctx, {ch.center.x, ch.center.z});
     CHECK(surface - (ch.center.y + ch.half_extent.y) > 2.0f);
-    // Reachable: its passage breaks the surface somewhere (the entrance).
+    // The mouth (reachability) is a SEPARATE, expected-fail case below —
+    // design ruling §7.0a. Splitting keeps these room/burial assertions
+    // guarding: folded into one xfail case they would stop meaning anything
+    // (any breakage would read as the expected failure).
+}
+
+// EXPECTED-FAIL, design ruling §7.0a (tech-debt wave, 10:08:2026): the
+// Backbarrow's mouth is buried under the 115 m Ravenscar — the passage sits
+// 81-105 m from the crag centre, where L0_RELIEF raised terrain over its
+// portal. NO GREEN PLACEMENT EXISTS TODAY: the couloir re-site is impossible
+// (measured — Ravenscar is a self-similar cone with no couloirs at any
+// height) and the high-shoulder fallback is ILLEGAL (breaks story's
+// not-visible-from-Vaelmere constraint). The xfail's expiry is a TRIGGER,
+// not a date, and its owner is design: when the §2.8.2 absolute-couloir-depth
+// work lands, the §7.0a couloir search (bearings 180-240 deg, r 90-110 m,
+// terrain <= ~28 m, nearest 209 deg) runs as part of that change. should_fail
+// is the announcement mechanism — the day the couloir exists and the mouth
+// opens, this case PASSES and doctest flags the surprise, which is design's
+// signal to flip the registration back to a plain test.
+TEST_CASE("P7 carves: the Backbarrow mouth breaks the surface"
+          " (XFAIL per design §7.0a — buried under the 115 m crag)"
+          * doctest::should_fail(true)) {
+    const auto& ctx = testbed();
     const auto& passage = ctx.params.layout.carves.barrow_passage;
     REQUIRE(passage.point_count >= 2);
     bool has_mouth = false;
