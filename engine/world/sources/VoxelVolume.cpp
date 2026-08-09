@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 19:55:17
 Module: engine/world
 File: engine/world/sources/VoxelVolume.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 16:30:44: Representation swap: volume built from the chunk's own heightmap; border nodes emulate the NEIGHBOUR's heightmap (quantized 2 m lattice + bilinear) rather than sampling the continuous field, which disagreed by up to 0.30 m mid-cell and showed as a seam.
 - 09:08:2026 - 16:47:51: P7: slab extended to reach carved volumes (they sit below the surface band), per-column band widened over carves, CSG subtraction d = max(terrain, -carve).
 - 09:08:2026 - 17:36:42: §6.2: derived corridors included in the band widening and the CSG subtraction.
+- 09:08:2026 - 19:55:17: Stripes fix: column_surface/column_skin populated during the band pass.
 */
 
 #include "engine/world/sources/VoxelVolume.h"

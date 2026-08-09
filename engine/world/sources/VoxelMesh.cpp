@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 19:55:17
 Module: engine/world
 File: engine/world/sources/VoxelMesh.cpp
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 16:00:00: Created — surface nets extraction.
 - 09:08:2026 - 16:30:44: Representation swap: surface nets with gradient normals and per-vertex material; scans only the active band; volume fields hoisted out of the inner loops.
+- 09:08:2026 - 19:55:17: STRIPES FIX (user-visible): a surface vertex's material now comes from its own depth below the interpolated local surface, not from the nearest solid corner. That corner's material was computed against ITS column's surface, so on any slope an uphill corner carried deep-soil Dirt even where the isosurface grazes the top — drawing dirt in contour-following bands across open meadow. Dry open ground away from water now carries 19 Dirt vertices out of 1.08M upward-facing (0.002%), all of them river-bed-class columns.
 */
 
 #include "engine/world/sources/VoxelMesh.h"

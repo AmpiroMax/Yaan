@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 19:55:17
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -42,6 +42,7 @@ UPD:
 - 09:08:2026 - 16:30:44: Representation swap: generate_chunk builds the voxel volume from the heightmap it just wrote, extracts the surface, and drops the volume.
 - 09:08:2026 - 16:47:51: P7: carves passed to the volume build.
 - 09:08:2026 - 17:36:42: §6.2: entrance works applied between hydrology and pads; derived adits passed to the voxel build.
+- 09:08:2026 - 19:55:17: Barrow re-siting (design ruling): swing_barrow_into_couloir searches the arc for a re-entrant fold at the same radius and rigidly rotates site, passage and chamber together. On Ravenscar it finds nothing — the stamp is a smooth radial cone with no angular structure — so the barrow stays authored and its mouth test stays red. Design's high-shoulder fallback was implemented, MEASURED and then removed: it broke story's hard constraint (mouth visible from 26 of 39 Vaelmere standpoints) and put the lifted chamber through the crag tunnel (10 stations with no floor).
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -160,26 +161,21 @@ void swing_barrow_into_couloir(TestbedLayout& layout, uint64_t seed,
         }
     }
     if (!ok) {
-        // NO COULOIR EXISTS on this massif. Design's ruling assumed a ridged
-        // stamp yields re-entrant folds "by construction", but Ravenscar's
-        // stamp is a smooth radial cone with only ridge_amp_meters (13 m) of
-        // modulation — measured, terrain sits at 41-45 m right across the
-        // +-40 deg arc, so nothing reaches the ~29 m the mouth needs. Buttress
-        // ridges are specified for the LR temple mountain, never for this one.
-        // Take design's pre-cleared fallback (c): the barrow becomes a HIGH
-        // entrance on the mountain's shoulder — the grave ends up standing over
-        // the seat rather than under it, an inversion story has already cleared.
-        CarveCorridor& passage = layout.carves.barrow_passage;
-        if (passage.point_count < 2) {
-            return;
-        }
-        const glm::vec2 mouth_xz{passage.points[0].x, passage.points[0].z};
-        const float floor_y = ground(mouth_xz) - 0.6f;
-        const float lift = floor_y - passage.points[0].y;
-        for (int i = 0; i < passage.point_count; ++i) {
-            passage.points[i].y += lift;
-        }
-        layout.carves.barrow_chamber.center.y += lift;
+        // NO COULOIR EXISTS on this massif, and design's high-shoulder
+        // fallback is NOT taken, because measuring it showed it breaks two
+        // things rather than one:
+        //   (a) story's hard constraint — a mouth lifted to ~39 m is visible
+        //       from 26 of 39 Vaelmere standpoints, and MQ1 depends on the
+        //       player FINDING the grave rather than seeing it from town;
+        //   (b) the lifted chamber intersects the crag switchback tunnel,
+        //       leaving 10 stations of ascent with no floor underfoot.
+        // The couloir search itself is correct and stays: Ravenscar simply has
+        // no angular structure to search — its stamp is a smooth radial cone
+        // (measured: identical lobe ratio at every height), so re-entrant folds
+        // do not exist yet. Once the pending crag SHAPE ruling adds angular
+        // ridge modulation, couloirs appear and this finds one. Until then the
+        // barrow stays where it was authored and its mouth test stays red,
+        // which is the honest state.
         return;
     }
     // Rigid rotation about the crag centre: site, passage and chamber together.

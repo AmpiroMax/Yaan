@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 19:50:35
+Last updated: 09:08:2026 - 19:54:01
 -->
 <!--
 UPD:
@@ -61,6 +61,12 @@ UPD:
                          all three bugs were rules stated in full and
                          implemented in half. New invariant: every canopy
                          species HAS a crown, measured by foliage AREA.
+- 09:08:2026 - 19:54:01: Fourth defect, visible only in a frame: the birch
+                         crown was foliage but not a MASS (helix distribution
+                         read as stacked discs). Clusters now fill the upper
+                         crown through its volume and overlap. Oak/pine
+                         verified good in 06_overview: full crowns, trunks
+                         beneath, dappled floor, legible spacing.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -641,6 +647,18 @@ and both would have surfaced as someone else's problem.
    independently of the skeleton. That second half is the durable fix — foliage
    is what READS at distance (silhouette and value, §1.5); the branch skeleton
    is structure you only resolve up close, and a crown must not depend on it.
+
+4. **The crown was foliage, but not a MASS.** After bug 3 was fixed the birches
+   had leaves and still failed the brief: one cluster per evenly-spaced height
+   at a fixed radius, azimuths on the golden angle, is a *helix* — on a tall
+   narrow vase crown it rendered as a ladder of separated discs climbing the
+   trunk. Correct at "foliage exists", wrong at "a crown reads as one mass at
+   640x360", which is the only thing §1.5 actually cares about. Fixed by
+   filling the upper crown (`crown_fill_start`), spreading clusters through the
+   crown VOLUME rather than one shell, and enlarging the birch cluster radius
+   until neighbours overlap. Note the test suite could not have caught this —
+   foliage area, envelope containment and budgets were all already green. Some
+   defects are only visible in a frame, which is why Rule 27 exists.
 
 **THE PATTERN — read this before changing the envelope or the floors.** All
 three bugs are the same failure: **a rule stated in full in this spec, and

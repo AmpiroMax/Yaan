@@ -149,8 +149,8 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     birch.radius_ratio[0] = 0.34f;
     birch.phototropism = 0.45f;
     birch.droop = 0.16f;
-    birch.cluster_count = 10;
-    birch.cluster_radius_frac = 0.38f;
+    birch.cluster_count = 5;           // few and large: many small = a stack
+    birch.cluster_radius_frac = 0.85f; // clusters must OVERLAP into one mass
     birch.trunk_color = BIRCH_TRUNK;
     birch.foliage_color = BIRCH_CROWN;
     birch.shyness = 0.20f;

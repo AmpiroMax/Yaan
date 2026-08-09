@@ -238,7 +238,7 @@ glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
     return p;
 }
 
-void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) {
+void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) { // NOLINT
     if (radius <= 0.05f) return;
     // Foliage may not push the silhouette outside the species envelope.
     at = clip_to_envelope(t, at);
@@ -246,14 +246,36 @@ void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) {
     const glm::vec2 rxz{at.x, at.z};
     const float env = envelope_radius(t.sp, at.y, t.crown_base, t.crown_top, t.crown_r);
     const float len = glm::length(rxz);
-    if (env > 0.0f && len + radius > env && len > 1e-5f) {
-        const glm::vec2 c = rxz * (std::max(env - radius, 0.0f) / len);
-        at.x = c.x;
-        at.z = c.y;
+    if (env > 0.0f && len + radius > env) {
+        // Shrink the cluster to fit rather than sliding its centre inward.
+        // Sliding collapsed every over-sized cluster onto the trunk axis, which
+        // on a narrow vase crown stacked them into a drill-bit of discs — the
+        // second incarnation of the same "not a mass" defect.
+        radius = std::min(radius, env);
+        if (len + radius > env && len > 1e-5f) {
+            const glm::vec2 c = rxz * (std::max(env - radius, 0.0f) / len);
+            at.x = c.x;
+            at.z = c.y;
+        }
     }
     const int slices = t.sp.cluster_slices;
     const int bands = t.sp.cluster_bands;
     cluster(m, at, glm::vec3{radius, radius * 0.85f, radius}, slices, bands, t.leaf);
+}
+
+/// Where in the crown span the foliage starts filling. A vase/column crown is
+/// tall and narrow, so spreading clusters over its whole span leaves visible
+/// gaps between them; concentrating them up top gives the "small loose crown on
+/// a slim pale trunk" the birch brief asks for (LANDSCAPE §5.3).
+float crown_fill_start(CrownEnvelope e) {
+    switch (e) {
+    case CrownEnvelope::Vase:
+        return 0.35f;
+    case CrownEnvelope::Weeping:
+        return 0.10f;
+    default:
+        return 0.0f;
+    }
 }
 
 /// Distributes the species' foliage clusters over the crown envelope. The
@@ -266,12 +288,21 @@ void scatter_envelope_clusters(MeshData& m, Tree& t, glm::vec3 off, float radial
     const float span = t.crown_top - t.crown_base;
     if (span <= 0.0f) return;
     for (int i = 0; i < sp.cluster_count; ++i) {
-        const float u = (static_cast<float>(i) + 0.5f) / static_cast<float>(sp.cluster_count);
+        const float u_raw = (static_cast<float>(i) + 0.5f) / static_cast<float>(sp.cluster_count);
+        // Fill the UPPER crown and vary the radius per cluster. One cluster per
+        // evenly-spaced height at a fixed radius produces a helix of separated
+        // blobs — which rendered as a ladder of floating discs up the birch
+        // trunk, not a crown. A crown must read as ONE MASS at 640x360.
+        const float u = crown_fill_start(sp.envelope)
+            + (1.0f - crown_fill_start(sp.envelope)) * std::pow(u_raw, 0.8f);
         const float y = t.crown_base + span * u;
         const float env = envelope_radius(sp, y, t.crown_base, t.crown_top, t.crown_r);
+        // Deterministic per-index radial spread so clusters occupy the crown
+        // VOLUME instead of one shell, and overlap into a continuous mass.
+        const float wobble = std::fabs(std::sin(GOLDEN_ANGLE * static_cast<float>(i) * 1.7f));
+        const float rf = radial_frac * (0.30f + 0.70f * wobble);
         const float az = GOLDEN_ANGLE * static_cast<float>(i);
-        const glm::vec3 at{std::cos(az) * env * radial_frac, y,
-                           std::sin(az) * env * radial_frac};
+        const glm::vec3 at{std::cos(az) * env * rf, y, std::sin(az) * env * rf};
         emit_cluster(m, t, at + off,
                      t.crown_r * sp.cluster_radius_frac * shy_scale(t, at));
     }
