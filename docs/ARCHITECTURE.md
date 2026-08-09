@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 00:14:34
+Last updated: 10:08:2026 - 00:18:40
 -->
 <!--
 UPD:
@@ -13,6 +13,7 @@ UPD:
 - 10:08:2026 - 00:05:41: Rule 36 — exclusions by cause, not by magnitude; and the pipeline's own metric belongs in the design vocabulary.
 - 10:08:2026 - 00:13:43: Rule 36 — добавлена дешёвая стоячая проверка: сравнить максимум с отсечкой, и если они рядом, отвечал фильтр.
 - 10:08:2026 - 00:14:34: Rule 30 — когда есть настоящий отвергнутый образец, контролем служит ОН, и порог обязан стоять выше него.
+- 10:08:2026 - 00:18:40: Rule 29 — до включения веток каждый коммит перечисляет файлы явно; общий индекс делает голый git commit ловушкой.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -332,6 +333,17 @@ was tried. A fourth silent attempt is a violation.
 ### Rule 29 — Branch per agent (Q61)
 Each agent works on its own branch once implementation starts; merges to `main` only
 on a green build. Whoever breaks the merge fixes it immediately.
+
+**Until that is actually enforced, every commit names its files explicitly:
+`git commit -- <paths>`, never a bare `git commit`.** Agents share one working tree
+and therefore one index, and `git add` is global state: a bare commit sweeps up
+whatever any other agent has staged in the seconds since. It has already happened —
+a docs commit silently absorbed twelve files of another zone's work, including the
+fix for the only crash a user hit that day, so the most valuable change of the night
+is recorded under a message about a documentation rule and a bisect will point at the
+wrong commit. Nothing was lost and history was correctly NOT rewritten, because
+rewriting shared `main` under four agents is worse than a misleading message.
+The failure is silent, it will recur, and the next collision may not compile.
 
 ### Rule 30 — Every test ships with a control
 A test is published together with the case it exists to REJECT, and that case must
