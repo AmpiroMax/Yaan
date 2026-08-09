@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 21:01:17
+Last updated: 10:08:2026 - 02:56:25
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -59,6 +59,7 @@ UPD:
                          convenience so no existing call site changes.
                          and cloth — one wind for the world. Render's diff,
                          lead-authored per Rule 26.
+- 10:08:2026 - 02:56:25: Weather cloud slice: six additive RenderEnvironment fields (render's diff, Rule 26 sync). Defaults = the scattered state; cloud_offset_m is the ONE drift both sky and ground shadow read.
 */
 
 #pragma once
@@ -211,6 +212,21 @@ struct RenderEnvironment {
     // authored half — the app sets it from the darkness zone and lerps across
     // the boundary, so it is deliberately NOT per-vertex.
     float ambient_darkness = 0.0f;
+
+    // Weather state tuple, cloud slice (W1/W4 of WEATHER.md; render's diff,
+    // lead-authored). Defaults are the "scattered" state so the sky is alive
+    // before core's schedule function exists; the app will later write these
+    // from the schedule without any render change.
+    float cloud_cover = 0.45f;      // 0..1 layered-sheet coverage (W1 cloud_layer_cover)
+    float cloud_cumulus = 0.5f;     // 0..1 horizon cumulus density (W1 cloud_cumulus)
+    float cloud_shadow = 0.65f;     // 0..1 ground-shadow darkening strength (W1 cloud_shadow_cover)
+    float weather_wind_mult = 1.0f; // W1 wind_strength: state multiplier on the SHARED wind (W3)
+    glm::vec2 cloud_offset_m{0.0f, 0.0f}; // world-space drift of the ONE coverage field, meters.
+                                    // Written per frame by render (CloudModel) from the shared
+                                    // wind; BOTH the sky sheet and the ground shadow read THIS
+                                    // value, which is what makes two drifting copies impossible
+                                    // (W4's named reject).
+    float cloud_wavelength_m = 600.0f; // coverage feature size (NUMBERS WIND_FIELD_WAVELENGTH)
 };
 
 class IRenderer {
