@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:32:00
+Last updated: 09:08:2026 - 10:48:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -36,6 +36,8 @@ UPD:
                          stage 3) — the actual init failure after reboot.
 - 09:08:2026 - 10:32:00: Tour vantages offset by spawn ground height (render's
                          underground-camera diagnosis; Rule 26 ack recorded).
+- 09:08:2026 - 10:48:00: DFN_PALETTE=1 wired to RendererInitParams.palette_post
+                         (stage-3 render batch, Rule 26).
 */
 
 #include "engine/app/sources/App.h"
@@ -99,6 +101,9 @@ AppConfig AppConfig::from_env() {
     if (const char* np = std::getenv("DFN_NULL_PHYSICS"); np && np[0] == '1') {
         cfg.use_null_physics = true;
     }
+    if (const char* pal = std::getenv("DFN_PALETTE"); pal && pal[0] == '1') {
+        cfg.palette_post = true;
+    }
     return cfg;
 }
 
@@ -127,6 +132,7 @@ bool App::init(const AppConfig& config) {
     rp.framebuffer_height = window_->framebuffer_size().y;
     rp.internal_width = config.internal_width;
     rp.internal_height = config.internal_height;
+    rp.palette_post = config.palette_post;
     if (!renderer_ || !renderer_->init(rp)) {
         return false;
     }

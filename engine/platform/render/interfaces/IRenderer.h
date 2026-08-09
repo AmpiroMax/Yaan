@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 00:06:00
+Last updated: 09:08:2026 - 10:48:00
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -37,6 +37,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:06:00: Initial frozen contract for stage 2 (skeleton walk).
+- 09:08:2026 - 10:48:00: Stage-3 sync (Rule 26, render's batch approved):
+                         RenderEnvironment + set_environment (atmosphere, splat,
+                         water params as uniforms); palette_post init flag (Q9b).
 */
 
 #pragma once
@@ -86,6 +89,33 @@ struct RendererInitParams {
     uint32_t internal_width = 0;          // low-res internal target (Q9); the
     uint32_t internal_height = 0;         // backend integer-upscales to the framebuffer
     bool vsync = true;
+    bool palette_post = false;            // Q9b: quantize the final image to a fixed
+                                          // palette inside the upscale pass
+};
+
+// Per-frame environment + shared material parameters (atmosphere, splat
+// thresholds, water). Values come from engine/render (look-dev constants now,
+// design-doc-driven later); the backend maps them to shader uniforms, so they
+// are adjustable without recompiling shaders.
+struct RenderEnvironment {
+    glm::vec3 sun_direction{0.35f, 0.8f, 0.45f}; // TOWARD the sun, normalized
+    glm::vec3 sun_color{1.0f};
+    glm::vec3 ambient_color{0.35f};
+    glm::vec3 fog_color{0.63f, 0.71f, 0.80f};    // == sky horizon for seamless blend
+    float fog_start_m = 300.0f;
+    float fog_end_m = 850.0f;
+    glm::vec3 sky_zenith_color{0.25f, 0.42f, 0.66f};
+    glm::vec3 sky_horizon_color{0.63f, 0.71f, 0.80f};
+    // Terrain splat (slope = 1 - normal.y):
+    float sand_height_m = 0.0f;   // full sand below this height
+    float sand_blend_m = 2.0f;    // sand->grass fade band
+    float rock_slope_start = 0.45f;
+    float rock_slope_end = 0.75f;
+    float terrain_tiles_per_chunk = 32.0f; // texture repeats per CHUNK_SIZE
+    // Water:
+    glm::vec4 water_color{0.16f, 0.30f, 0.34f, 0.62f}; // rgba, a = opacity
+    glm::vec2 water_scroll_uv{0.02f, 0.013f};          // uv units / second
+    float time_seconds = 0.0f;    // render-side visual time (not sim time)
 };
 
 class IRenderer {
@@ -102,6 +132,10 @@ public:
     // simulation is fixed-step; interpolation happens in engine/render, not here).
     virtual void begin_frame(const glm::mat4& view, const glm::mat4& proj) = 0;
     virtual void end_frame() = 0;
+
+    // Sets the frame environment; applies to subsequent submits until changed.
+    // Null backend: accepted and ignored.
+    virtual void set_environment(const RenderEnvironment& env) = 0;
 
     // Resources ----------------------------------------------------------------
     [[nodiscard]] virtual MeshHandle create_mesh(std::span<const Vertex> vertices,

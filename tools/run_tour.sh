@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Created: 09:08:2026 - 00:52:00
-# Last updated: 09:08:2026 - 00:52:00
+# Last updated: 09:08:2026 - 10:48:00
 # File: tools/run_tour.sh
 #
 # Responsibility:
@@ -17,6 +17,7 @@
 #
 # UPD:
 # - 09:08:2026 - 00:52:00: Created for the stage-2 acceptance shoot.
+# - 09:08:2026 - 10:48:00: Stage 3 — 4-way matrix: both resolutions x palette on/off.
 
 set -euo pipefail
 
@@ -25,9 +26,13 @@ app="$build_dir/engine/app/dfn_app"
 [[ -x "$app" ]] || { echo "no dfn_app in $build_dir — build first" >&2; exit 1; }
 
 for res in 640x360 320x180; do
-    out="screenshots/$res"
-    mkdir -p "$out"
-    echo "=== tour @ $res -> $out"
-    DFN_TOUR=1 DFN_TOUR_DIR="$out" DFN_INTERNAL_RES="$res" "$app"
-    ls -la "$out"
+    for pal in 0 1; do
+        suffix=""
+        [[ "$pal" == "1" ]] && suffix="_palette"
+        out="screenshots/${res}${suffix}"
+        mkdir -p "$out"
+        echo "=== tour @ $res palette=$pal -> $out"
+        DFN_TOUR=1 DFN_TOUR_DIR="$out" DFN_INTERNAL_RES="$res" DFN_PALETTE="$pal" "$app"
+        ls "$out"
+    done
 done

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:48:00
+Last updated: 09:08:2026 - 10:48:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -31,6 +31,7 @@ UPD:
 - 09:08:2026 - 00:45:00: Created for stage 2 integration.
 - 09:08:2026 - 00:48:00: Adopted sim's free-function movement API (Rule 9) —
                          player entity id held here, no system object.
+- 09:08:2026 - 10:48:00: palette_post config flag (Q9b, stage-3 render batch).
 */
 
 #pragma once
@@ -63,6 +64,7 @@ struct AppConfig {
     uint32_t internal_height = 0; // 0 = take dfn::config INTERNAL_RES_H
     bool use_null_renderer = false;
     bool use_null_physics = false;
+    bool palette_post = false; // Q9b palette quantization (DFN_PALETTE=1)
     std::string title_key = "app.title"; // localization key (Rule 5)
 
     // Populates the fields above from DFN_* environment variables
