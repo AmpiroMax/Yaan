@@ -230,10 +230,22 @@ TEST_CASE("flora: sizes stay inside the design bands") {
             CHECK(highest_y(m) <= b.hi * 1.02f);
             CHECK(highest_y(m) >= b.lo * 0.80f);
         }
-        // Crown base fraction inside design's CROWN_BASE_FRACTION band.
+        // Crown base fraction against design's revised rule. CROWN_BASE_FRACTION_MIN
+        // is a WALKABILITY FLOOR — more clear trunk is never worse for walking
+        // under a canopy — and _MAX stopped being a binding cap when the birch
+        // showed that the same number was silently doing a second job (setting
+        // the crown's ASPECT, purely because it is a fraction of height). The
+        // base is now DERIVED per species; the birch has its own landed band.
         const float frac = species_crown_base(b.s) / species_nominal_height(b.s);
         CHECK(frac >= doctest::Approx(config::CROWN_BASE_FRACTION_MIN).epsilon(0.02));
-        CHECK(frac <= doctest::Approx(config::CROWN_BASE_FRACTION_MAX).epsilon(0.02));
+        if (b.s == FloraSpecies::RiverBirch) {
+            CHECK(frac >= doctest::Approx(config::BIRCH_CROWN_BASE_FRACTION_MIN)
+                              .epsilon(0.02));
+            CHECK(frac <= doctest::Approx(config::BIRCH_CROWN_BASE_FRACTION_MAX)
+                              .epsilon(0.02));
+        } else {
+            CHECK(frac <= doctest::Approx(config::CROWN_BASE_FRACTION_MAX).epsilon(0.02));
+        }
     }
 }
 
