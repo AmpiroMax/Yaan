@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:28:27
+Last updated: 09:08:2026 - 14:03:23
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2; octave constants now consumed
   from dfn::config (WORLDGEN_OCTAVE*), local constexprs removed.
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1, gated on HILL_ANISOTROPY): mid octave input-stretched along a drifting per-valley axis field via bilinear blending of fixed-frame samples (position-varying rotation rejected — |world|*grad(theta) distortion; cross-axis rhythm pinned at the 128 m contract by construction).
+- 09:08:2026 - 14:03:23: Micro-relief batch: path groove applied in macro_height before the river carve (channel clamp overrides in-water; constant along-path depth keeps CORRIDOR_SLOPE_MAX untouched; ~6 deg edge slopes stay under the blend threshold).
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -251,11 +252,22 @@ float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) 
     h += bump_height(layout.knoll, world);
     h += bump_height(layout.bluff, world);
     h = lake_stamp(layout.lake, h, world);
+    h -= path_groove_depth(layout, world);
     return std::clamp(h, 0.0f, MAX_HEIGHT_M);
 }
 
 float crag_distance(const TestbedLayout& layout, glm::vec2 world) {
     return glm::length(world - layout.crag.center);
+}
+
+float path_groove_depth(const TestbedLayout& layout, glm::vec2 world) {
+    constexpr float HALF_W = static_cast<float>(config::PATH_GROOVE_HALF_WIDTH);
+    const float d = corridor_distance(layout, world);
+    if (d >= HALF_W) {
+        return 0.0f;
+    }
+    return static_cast<float>(config::PATH_GROOVE_DEPTH)
+         * (1.0f - smoothstep01(d / HALF_W));
 }
 
 } // namespace dfn::world

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 14:03:23
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -25,6 +25,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P5 implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: pine ring -> radial ridge strips (§5.2/§1.3); L0 sight wedges reject over-angling trees near POI sightlines (LANDMARK_CLEARANCE_FACTOR); crag treeless band via treeline; canopy_height_at.
+- 09:08:2026 - 14:03:23: Micro-relief batch: curb stones along corridor margins (PATH_CURB_SPACING/DENSITY, margin band between groove edge and corridor edge, 0.25-0.55 m Stones, deterministic per corridor step).
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -339,6 +340,43 @@ void scatter_stones(ScatterCtx& ctx) {
             ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, scale);
         }
     });
+    // Curb stones along corridor margins (micro-relief batch): sparse small
+    // stones in the band between the path groove edge and the corridor edge —
+    // the trail reads as tended without blocking it (corridor mask stays
+    // clear of anything > 1 m by §2.4; curbs are 0.25-0.55 m). Deterministic
+    // per (corridor, segment, step) — chunk-independent like all scatter.
+    const float curb_spacing = static_cast<float>(config::PATH_CURB_SPACING);
+    const float groove_hw = static_cast<float>(config::PATH_GROOVE_HALF_WIDTH);
+    for (int c = 0; c < static_cast<int>(std::size(ctx.layout.corridors)); ++c) {
+        const CorridorLayout& cor = ctx.layout.corridors[c];
+        for (int s = 0; s + 1 < cor.point_count; ++s) {
+            const glm::vec2 a = cor.points[s];
+            const glm::vec2 b = cor.points[s + 1];
+            const float len = glm::length(b - a);
+            if (len < 1.0f) continue;
+            const glm::vec2 dir = (b - a) / len;
+            const glm::vec2 perp{-dir.y, dir.x};
+            const int steps = static_cast<int>(len / curb_spacing);
+            for (int k = 0; k <= steps; ++k) {
+                WorldGenRng rng =
+                    cell_rng(ctx.seed, STREAM_SCATTER_CURB, c * 64 + s, k);
+                if (rng.next_float01() > static_cast<float>(config::PATH_CURB_DENSITY)) {
+                    continue;
+                }
+                const float along = std::min(
+                    (static_cast<float>(k) + rng.next_float01() * 0.7f) * curb_spacing,
+                    len);
+                const float side = rng.next_float01() < 0.5f ? -1.0f : 1.0f;
+                const float lateral = groove_hw + 0.4f + rng.next_float01() * 1.4f;
+                const glm::vec2 p = a + dir * along + perp * (side * lateral);
+                if (!ctx.inside_chunk(p) || ctx.on_pad(p)) continue;
+                if (ctx.dist_to_water(p) < 1.5f) continue;
+                ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU,
+                        0.25f + rng.next_float01() * 0.3f);
+            }
+        }
+    }
+
     // Watchpoint (§7.1): outcrop cluster + lone skyline pine, deterministic.
     const glm::vec2 wp = ctx.layout.watchpoint;
     if (ctx.inside_chunk(wp)) {

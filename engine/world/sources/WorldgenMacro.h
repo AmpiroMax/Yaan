@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:28:27
+Last updated: 09:08:2026 - 14:03:23
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -30,6 +30,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2 (fBm + redistribution + stamps).
 - 09:08:2026 - 13:12:19: Stage 3b amendments: L0_AIM_ABOVE_PEAK shared by C1 validation and P5 sight wedges.
 - 09:08:2026 - 13:28:27: P1 anisotropy retune: STREAM_HILL_AXIS for the landform-anisotropy axis field (§2.1).
+- 09:08:2026 - 14:03:23: Micro-relief batch: path_groove_depth exposed (corridor trails carved 15 cm, ford-safe by pipeline order); STREAM_SCATTER_CURB.
 */
 
 #pragma once
@@ -52,6 +53,7 @@ enum WorldgenStream : uint32_t {
     STREAM_SCATTER_TREE = 40, // 40..44: per-species scatter lattices
     STREAM_SCATTER_CLEARING = 48,
     STREAM_SCATTER_OUTCROP = 52,
+    STREAM_SCATTER_CURB = 56, // corridor-margin curb stones (micro-relief batch)
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters
@@ -65,5 +67,13 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// Distance from `world` to the crag stamp center (meters). The stamp
 /// footprint is d < layout.crag.radius (classification: rock above rockline).
 [[nodiscard]] float crag_distance(const TestbedLayout& layout, glm::vec2 world);
+
+/// Path-groove carve depth (meters, >= 0) at `world` (micro-relief batch):
+/// PATH_GROOVE_DEPTH on the corridor centerline, smooth fade to 0 at
+/// PATH_GROOVE_HALF_WIDTH. Applied inside macro_height BEFORE the river carve
+/// (the channel clamp overrides it in-water, so ford shallowness is
+/// untouchable); constant along the path, so corridor slopes are unaffected.
+/// Exposed for the groove test.
+[[nodiscard]] float path_groove_depth(const TestbedLayout& layout, glm::vec2 world);
 
 } // namespace dfn::world

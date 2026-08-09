@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 13:28:27
+Last updated: 09:08:2026 - 14:03:23
 -->
 <!--
 UPD:
@@ -9,6 +9,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 per LANDSCAPE.md: pass modules (Macro/Hydrology/Sites/Scatter/Validation + TestbedLayout + SiteComponents), WORLDGEN_MAX_HEIGHT quantization, Chunk gained SurfaceData + scatter, ChunkManager gained surfacefield/scatter/water_bodies and site-entity component attachment; suite tests/core/WorldgenV2Tests.cpp.
 - 09:08:2026 - 13:12:19: Stage 3b design amendments: derived fords (HydrologyData::ford_stations), §3.3 mud cap + ford bed raise, canopy-aware C1 with clearance factor + sight wedges, pine ridge strips, dist_to_water saturation at DIST_TO_WATER_RANGE, grid-pass chunk generation + binned hydrology (large-domain contexts 11x faster).
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1): mid octave input-stretched along the drifting axis field (fixed-frame blending); WorldgenWater.cpp split from WorldgenHydrology.cpp (query vs build).
+- 09:08:2026 - 14:03:23: Micro-relief batch: corridor path groove (macro stage, ford-safe) + curb-stone scatter along corridor margins.
 -->
 
 # engine/world

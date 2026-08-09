@@ -1,11 +1,14 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 10:42:00
+Last updated: 09:08:2026 - 13:48:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:06:00: Created agent entry point (adapted from Quicky Engine).
 - 09:08:2026 - 10:42:00: Added the design (landscape) agent to the team table.
+- 09:08:2026 - 13:48:00: Added the story (narrative) team lead per the
+                         feature-requests grill (в7-в10): content + quest data
+                         zone; quest runtime code stays with sim.
 -->
 
 # AI Agent Instructions — Daggerfall N
@@ -32,6 +35,7 @@ Before starting ANY work in this repository, read and follow these documents, in
 | `render` | `engine/platform/{window,input,render}`, `engine/render` | `docs/specs/render.md` |
 | `sim`    | `engine/platform/{physics,anim,audio,llm}`, `engine/physics`, `engine/anim`, `engine/gameplay` | `docs/specs/sim.md` |
 | `design` | `docs/design` — landscape/world design bible, asset briefs, placement rules | `docs/design/LANDSCAPE.md` |
+| `story`  | `docs/story` — narrative bible, pitches, characters, quest/dialog authoring; `games/daggerfall_n/data/quests` (data only — quest RUNTIME code belongs to sim) | `docs/specs/story.md` |
 | lead     | `engine/app`, `engine/editor`, shared components, CMake root, `docs/`, `tools/` | — |
 
 ## Key constraints (summary — the contract has the full list)

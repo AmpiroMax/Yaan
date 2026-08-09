@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:28:27
+Last updated: 09:08:2026 - 14:03:23
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — initial v2 contract suite.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: derived-ford suite (crossings wade-shallow, FORD_SPACING gaps), §3.3 mud-cap band + coverage tripwire + dist saturation, grid-vs-analytic equality, canopy-aware C1 kept at LANDMARK_VISIBILITY_MIN.
 - 09:08:2026 - 13:28:27: P1 anisotropy retune: structure-tensor elongation invariant (seed-1 median ratio ~3.9, floor 2.5; isotropic sits near 2).
+- 09:08:2026 - 14:03:23: Micro-relief batch: groove field + carved-trail-vs-shoulders test (ford/slope contracts re-asserted), curb-stone margin-band test.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -313,6 +314,77 @@ TEST_CASE("grid-pass chunk generation matches the analytic surface_point") {
                   == doctest::Approx(sp.height).epsilon(0.001));
         }
     }
+}
+
+TEST_CASE("path groove: trails carve in without touching ford or slope contracts") {
+    const auto& ctx = testbed();
+    const auto& layout = ctx.params.layout;
+    // The groove field itself: full depth on the centerline, zero outside.
+    const glm::vec2 mid{590.0f, 735.0f}; // shrine->ruin corridor interior
+    float best_d = 1e9f;
+    glm::vec2 on_path = mid;
+    for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
+        const glm::vec2 p = layout.corridors[3].points[0]
+                          + (layout.corridors[3].points[1] - layout.corridors[3].points[0]) * t;
+        if (glm::length(p - mid) < best_d) {
+            best_d = glm::length(p - mid);
+            on_path = p;
+        }
+    }
+    CHECK(world::path_groove_depth(layout, on_path)
+          == doctest::Approx(static_cast<float>(config::PATH_GROOVE_DEPTH)));
+    CHECK(world::path_groove_depth(
+              layout, on_path + glm::vec2{static_cast<float>(config::PATH_GROOVE_HALF_WIDTH)
+                                              + 1.0f,
+                                          0.0f})
+          == 0.0f);
+    // The carved trail reads as volume: averaged over corridor samples, the
+    // centerline sits below its shoulders by about the groove depth.
+    float on_sum = 0.0f, off_sum = 0.0f;
+    int n = 0;
+    for (float t = 0.1f; t < 0.95f; t += 0.05f) {
+        const glm::vec2 a = layout.corridors[3].points[0];
+        const glm::vec2 b = layout.corridors[3].points[1];
+        const glm::vec2 p = a + (b - a) * t;
+        const glm::vec2 dir = glm::normalize(b - a);
+        const glm::vec2 perp{-dir.y, dir.x};
+        const auto sp = world::surface_point(ctx, p);
+        if (sp.dist_to_water < 10.0f) continue; // skip the water crossing
+        on_sum += world::terrain_height(ctx, p);
+        off_sum += 0.5f
+                 * (world::terrain_height(ctx, p + perp * 6.0f)
+                    + world::terrain_height(ctx, p - perp * 6.0f));
+        ++n;
+    }
+    REQUIRE(n >= 8);
+    const float carve = (off_sum - on_sum) / static_cast<float>(n);
+    CHECK(carve > static_cast<float>(config::PATH_GROOVE_DEPTH) * 0.5f);
+    CHECK(carve < static_cast<float>(config::PATH_GROOVE_DEPTH) * 2.5f);
+    // Contracts stay green (also covered by their own cases): fords shallow,
+    // corridor slopes in limit.
+    CHECK(world::max_corridor_water_depth(ctx)
+          <= static_cast<float>(config::FORD_DEPTH_MAX) + 1e-2f);
+    CHECK(world::max_corridor_avg_slope(ctx)
+          <= static_cast<float>(config::CORRIDOR_SLOPE_MAX));
+}
+
+TEST_CASE("curb stones: sparse, in the margin band, never in the groove") {
+    const auto& ctx = testbed();
+    // Chunk (2,2) carries the shrine->ruin corridor interior.
+    const auto chunk = world::generate_chunk(ctx, ChunkCoord{2, 2});
+    int curbs = 0;
+    for (const auto& inst : chunk.scatter) {
+        if (inst.species != math::ScatterSpecies::Stone) continue;
+        const glm::vec2 p{inst.position.x, inst.position.z};
+        const float d = world::corridor_distance(ctx.params.layout, p);
+        if (d < static_cast<float>(config::CORRIDOR_WIDTH) * 0.5f + 1.0f
+            && inst.scale <= 0.56f) {
+            ++curbs;
+            // Margin band only: outside the groove, inside the corridor edge.
+            CHECK(d >= static_cast<float>(config::PATH_GROOVE_HALF_WIDTH) + 0.3f);
+        }
+    }
+    CHECK(curbs >= 2); // sparse but present along the through-corridor
 }
 
 TEST_CASE("§2.1 landform anisotropy: meadow ridgelets share a local long axis") {
