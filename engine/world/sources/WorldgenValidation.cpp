@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 15:31:04
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: C1 raycast against terrain + canopy with LANDMARK_CLEARANCE_FACTOR (tangent comparison); max_corridor_water_depth.
 - 09:08:2026 - 15:18:34: Castle validation: the castle mass enters the C1 occlusion heightfield like canopy and its footprint is excluded from standpoints; hierarchy + access invariants implemented on the same raycast machinery.
+- 09:08:2026 - 15:31:04: Rule C2-testbed implemented on the R4 subtended-angle machinery: apparent SIZE (object height / distance, not the elevation angle of its top — that conflated size with ground elevation, and R4 now uses the corrected measure too), §1.5 readability gate (sub-8 px specks cannot crowd), R1 body-backing exemption, L0 exempt, composite POIs once; widest-coequal-group via a sorted sliding window.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -264,7 +265,9 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             bool seat_counted_nc = false;
             // Subtended heights of the visible non-L0 attractors, for the
             // Rule C2-testbed pairwise test (same tangent measure as R4).
-            std::vector<float> subtended;
+            std::vector<float> subtended;      // R1-adjusted (the gate)
+            std::vector<float> subtended_raw;   // every readable attractor
+            std::vector<float> subtended_no_castle; // R1-adjusted, castle removed
             for (const Attractor& a : attractors) {
                 if (visible(p, eye_y, a.pos, a.top, true)) {
                     if (!a.is_seat || !seat_counted) {
@@ -275,7 +278,31 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
                             // each other (§1.5) — a 4 px speck on the horizon
                             // is not competing with anything.
                             const float size = apparent(a, p);
-                            if (size >= READABLE_MIN_APPARENT) subtended.push_back(size);
+                            if (size >= READABLE_MIN_APPARENT) {
+                                subtended_raw.push_back(size);
+                                // R1: an attractor standing inside the L0's
+                                // angular footprint, nearer than the peak,
+                                // reads against the crag's body and cannot
+                                // steal the skyline — it is part of the L0's
+                                // composition, not a coequal rival.
+                                const glm::vec2 to_peak = peak_xz - p;
+                                const float peak_dist = glm::length(to_peak);
+                                bool backed_by_l0 = false;
+                                if (peak_dist > 1.0f) {
+                                    const glm::vec2 u = to_peak / peak_dist;
+                                    const glm::vec2 rel = a.pos - p;
+                                    const float along = glm::dot(rel, u);
+                                    const float lateral =
+                                        std::fabs(rel.x * u.y - rel.y * u.x);
+                                    backed_by_l0 =
+                                        along > 0.0f && along < peak_dist
+                                        && lateral < layout.crag.radius;
+                                }
+                                if (!backed_by_l0) {
+                                    subtended.push_back(size);
+                                    if (!a.is_castle) subtended_no_castle.push_back(size);
+                                }
+                            }
                         }
                     }
                 }
@@ -291,16 +318,25 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             // an interval property once sorted (a,b comparable iff
             // max/min <= ratio), so the largest such group is the widest
             // sliding window satisfying back/front <= ratio.
-            std::sort(subtended.begin(), subtended.end());
-            std::size_t lo = 0;
-            for (std::size_t hi_i = 0; hi_i < subtended.size(); ++hi_i) {
-                while (subtended[lo] > 0.0f
-                       && subtended[hi_i] / subtended[lo] > COEQUAL_RATIO) {
-                    ++lo;
+            const auto widest_coequal_group = [](std::vector<float>& sizes) {
+                std::sort(sizes.begin(), sizes.end());
+                std::size_t lo = 0;
+                uint32_t best = 0;
+                for (std::size_t hi_i = 0; hi_i < sizes.size(); ++hi_i) {
+                    while (sizes[lo] > 0.0f && sizes[hi_i] / sizes[lo] > COEQUAL_RATIO) {
+                        ++lo;
+                    }
+                    best = std::max(best, static_cast<uint32_t>(hi_i - lo + 1));
                 }
-                out.max_coequal_visible = std::max(
-                    out.max_coequal_visible, static_cast<uint32_t>(hi_i - lo + 1));
-            }
+                return best;
+            };
+            out.max_coequal_visible =
+                std::max(out.max_coequal_visible, widest_coequal_group(subtended));
+            out.max_coequal_visible_raw =
+                std::max(out.max_coequal_visible_raw, widest_coequal_group(subtended_raw));
+            out.max_coequal_visible_without_castle =
+                std::max(out.max_coequal_visible_without_castle,
+                         widest_coequal_group(subtended_no_castle));
             out.max_attractors = std::max(out.max_attractors, count);
             out.max_attractors_without_castle =
                 std::max(out.max_attractors_without_castle, count_no_castle);

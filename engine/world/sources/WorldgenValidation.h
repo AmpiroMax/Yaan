@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 15:31:04
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.h
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — validation passes for tests.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: canopy-aware clearance semantics documented; max_corridor_water_depth (C3 vs generated water).
 - 09:08:2026 - 15:18:34: Castle validation: CastleHierarchy (R3 top/ceiling, R4 ratio, R2 crown, C2 attractors with and without the castle) and CastleAccess (ramp slope/step, Backbarrow sightline from yard and gate).
+- 09:08:2026 - 15:31:04: Rule C2-testbed: max_coequal_visible (+ raw and without-castle variants) replacing the absolute bound on the testbed path; POI_VISIBLE_COUNT_MAX renamed to POI_VISIBLE_COUNT_MAX_REGION (region-scale only, design ruling).
 */
 
 #pragma once
@@ -79,8 +80,18 @@ struct CastleHierarchy {
     /// apparent size visible from one standpoint — comparable meaning their
     /// subtended heights lie within COEQUAL_ANGLE_RATIO of each other. The L0
     /// is EXEMPT (C1 mandates its ubiquity) and composite POIs count once.
-    /// Must stay <= POI_COEQUAL_VISIBLE_MAX.
+    /// Must stay <= POI_COEQUAL_VISIBLE_MAX. Attractors that read against the
+    /// L0's BODY rather than against sky are not counted: that is R1's own
+    /// mechanism (§6.1.1 — "a silhouette that cannot reach the horizon cannot
+    /// steal it"), applied per standpoint. `max_coequal_visible_raw` below is
+    /// the same measure WITHOUT that exemption, so the raw crowd stays
+    /// visible to design rather than being silently absorbed.
     uint32_t max_coequal_visible = 0;
+    uint32_t max_coequal_visible_raw = 0;
+    /// The same R1-adjusted measure with the castle removed entirely. As with
+    /// the attractor count, the castle's CONTRIBUTION is what the castle pass
+    /// can be held to; a crowd that exists without it is a layout finding.
+    uint32_t max_coequal_visible_without_castle = 0;
 };
 [[nodiscard]] CastleHierarchy castle_hierarchy(const WorldGenContext& ctx);
 

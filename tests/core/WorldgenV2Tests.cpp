@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 15:31:04
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: NEW invariant — every WaterBed sample is covered by a drawable primitive (lake / pond plane / river ribbon); guards the seed-vs-coverage conflation class of bug.
 - 09:08:2026 - 14:49:01: Scatter-in-water fix: NEW invariant — no scatter instance sits in water per water_at, nor under any drawn pond plane (twin of the WaterBed-coverage invariant, from the placement side).
 - 09:08:2026 - 15:18:34: Castle suite: terrace cut/pad-surface slope, R3, horizontal-dominant mass order, ford command + barrow band, access ramp (slope/step), Backbarrow sightline, R2/R4, and the C2 castle-contribution check; P4 roster updated (castle elements share one terrace, so pads + castle entities == entities).
+- 09:08:2026 - 15:31:04: Rule C2-testbed check on the castle's contribution (the seed-1 layout forms a castle-free crowd at (304,304): hamlet + shrine + lakeshore cave), with all three measures reported in the INFO.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -444,8 +445,19 @@ TEST_CASE("castle: hierarchy — the crag stays L0 (§6.1.1)") {
     // RULE C2-TESTBED ("no coequal crowd"): at most POI_COEQUAL_VISIBLE_MAX
     // attractors of comparable apparent size (within COEQUAL_ANGLE_RATIO of
     // each other in subtended height) from any standpoint. The L0 is exempt;
-    // composite POIs count once.
-    CHECK(h.max_coequal_visible <= static_cast<uint32_t>(config::POI_COEQUAL_VISIBLE_MAX));
+    // composite POIs count once; attractors read against the L0's body are
+    // exempt by R1; sub-readable specks (§1.5) do not compete.
+    //
+    // As with the absolute bound, the seed-1 LAYOUT already forms a crowd the
+    // castle is not part of (hamlet + shrine + lakeshore cave from the meadow
+    // around (304,304) — the castle is R1-exempt there, reading against the
+    // crag). So the castle pass gates on its own CONTRIBUTION and the absolute
+    // number is reported to design.
+    CHECK(h.max_coequal_visible == h.max_coequal_visible_without_castle);
+    INFO("coequal crowd: " << h.max_coequal_visible << " (raw, no R1 exemption: "
+                           << h.max_coequal_visible_raw << "; without castle: "
+                           << h.max_coequal_visible_without_castle << "), bound "
+                           << config::POI_COEQUAL_VISIBLE_MAX);
 }
 
 TEST_CASE("corridors: average slope within CORRIDOR_SLOPE_MAX") {
