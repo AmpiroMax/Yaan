@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:29:52
+Last updated: 09:08:2026 - 22:36:47
 Module: tests
 File: tests/render/ProcMeshTests.cpp
 
@@ -24,6 +24,8 @@ UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial tests.
 - 09:08:2026 - 22:29:52: Castle mass ids 8..12 — envelope fit, hollow ward
   with a real gate opening, determinism, and the thin-caster merlon width.
+- 09:08:2026 - 22:36:47: the blessed-id range and build_site_mesh's switch
+  can no longer drift apart silently.
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -281,4 +283,25 @@ TEST_CASE("castle meshes are deterministic and every merlon can cast a shadow") 
     // exactly the width that would cast nothing. If this ever stops failing,
     // the shadow map changed and the rule needs re-deriving, not ignoring.
     CHECK_FALSE(0.25f >= 2.0f * SHADOW_TEXEL_M);
+}
+
+TEST_CASE("every blessed site id has geometry — the range cannot outrun the switch") {
+    // THE STRUCTURAL FIX for the bug that hid Harrowward. The failure was not
+    // that someone forgot a mesh; it was that SITE_MESH_ID_LAST and the switch
+    // in build_site_mesh are two lists that can silently disagree, and every
+    // consumer of the disagreement treats "empty" as "nothing to do".
+    // RenderSystem now SAYS so at runtime; this makes it impossible to reach a
+    // build where it would have to.
+    for (uint32_t id = dfn::render::SITE_MESH_ID_FIRST;
+         id <= dfn::render::SITE_MESH_ID_LAST; ++id) {
+        CAPTURE(id);
+        const MeshData m = build_site_mesh(id);
+        CHECK_FALSE(m.vertices.empty());
+        CHECK_FALSE(m.indices.empty());
+    }
+    // CONTROL: the assertion above is only worth anything if an id WITHOUT
+    // geometry is reachable by it. One past the end must be empty — otherwise
+    // build_site_mesh returns something for everything and the loop proves
+    // nothing at all.
+    CHECK(build_site_mesh(dfn::render::SITE_MESH_ID_LAST + 1).vertices.empty());
 }

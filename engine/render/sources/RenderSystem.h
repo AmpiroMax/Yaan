@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:33:00
+Last updated: 09:08:2026 - 22:36:47
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -83,6 +83,7 @@ UPD:
   resource/screen half of this class moved to RenderSystemResources.cpp, which
   is the same class split for the 800-line limit (Rule 21).
 - 09:08:2026 - 22:33:00: DFN_NO_SCATTER verification hook (scatter_off_).
+- 09:08:2026 - 22:36:47: warned_missing_meshes_ — the once-per-id missing-asset warning.
 */
 
 #pragma once
@@ -101,6 +102,7 @@ UPD:
 #include <glm/vec2.hpp>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace dfn::ecs {
@@ -342,6 +344,9 @@ private:
     // DFN_DARK=<0..1> pins ambient_darkness (the app drives it in play).
     // DFN_NO_SCATTER=1 drops every scatter batch at upload (see upload_scatter):
     // the trees-off half of a landmark-silhouette A/B, and nothing else.
+    // Asset ids already reported missing, so the warning fires once rather
+    // than 60 times a second (see the ECS pass).
+    std::unordered_set<uint32_t> warned_missing_meshes_;
     bool scatter_off_ = false;
     bool dark_frozen_ = false;
     float frozen_darkness_ = 0.0f;

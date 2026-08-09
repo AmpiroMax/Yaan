@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:33:38
+Last updated: 09:08:2026 - 22:38:03
 Module: engine/render
 File: engine/render/sources/ProcMesh.h
 
@@ -51,6 +51,9 @@ UPD:
   building prop collision from these same triangles, which means the castle
   also had no collision: you walked through it. Ids 8..12 mirror
   SiteComponents' envelopes exactly.
+- 09:08:2026 - 22:38:03: the RenderMesh id map is written down (site 1..12, world's growth
+  room 13..31, view model 32/33, items 64..127) — agreed with sim, because two
+  zones picking the same number is a bug nobody finds until it draws.
 */
 
 #pragma once
@@ -100,7 +103,26 @@ void append_transformed(MeshData& dst, const MeshData& src, glm::vec3 translatio
 [[nodiscard]] MeshData build_site_mesh(uint32_t mesh_id);
 
 /// Blessed placeholder mesh-id range (see SiteComponents.h on the world side).
+/// EVERY id in [FIRST, LAST] MUST build non-empty geometry — a gap here is a
+/// site that is invisible AND (since sim builds collision from these same
+/// triangles) intangible, which is how the castle went missing for a stage.
+/// RenderSystem says so loudly at init and a test makes it unshippable.
 inline constexpr uint32_t SITE_MESH_ID_FIRST = 1;
 inline constexpr uint32_t SITE_MESH_ID_LAST = 12;
+
+/// THE RENDERMESH ID MAP, so that two zones never pick the same number. Ids
+/// are allocated here because this is the one place that turns an id into
+/// geometry; the ranges are agreements, not implementation details.
+///   1..12    site placeholders (above) — world's SiteComponents attaches them
+///   13..31   RESERVED for world's site table to grow into (it has grown twice)
+///   32..33   first-person view model: 32 = hand, 33 = torch (sim's request)
+///   64..127  RESERVED for item meshes (sim; ids live in content ItemDef, so
+///            the range is reserved rather than enumerated here). The torch is
+///            both a held item and the view-model item and reuses 33 rather
+///            than taking a second id for the same mesh.
+inline constexpr uint32_t VIEWMODEL_MESH_ID_HAND = 32;
+inline constexpr uint32_t VIEWMODEL_MESH_ID_TORCH = 33;
+inline constexpr uint32_t ITEM_MESH_ID_FIRST = 64;
+inline constexpr uint32_t ITEM_MESH_ID_LAST = 127;
 
 } // namespace dfn::render

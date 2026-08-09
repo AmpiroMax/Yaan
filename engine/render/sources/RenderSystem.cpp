@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:33:00
+Last updated: 09:08:2026 - 22:36:47
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -58,6 +58,10 @@ UPD:
 - 09:08:2026 - 22:33:00: DFN_NO_SCATTER=1 — the trees-off half of a silhouette
   A/B. A landmark verdict taken with the forest in frame is a verdict on the
   forest.
+- 09:08:2026 - 22:36:47: A MISSING MESH IS LOUD (lead's instruction). Both
+  silent paths that hid the invisible castle now print: a blessed site id with
+  no geometry at init, and an unregistered asset id in the ECS pass (once per
+  id, not per frame).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -166,18 +170,38 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     prop_program_ = renderer.load_program("prop").id;
     foliage_program_ = renderer.load_program("foliage").id;
 
-    // Placeholder site meshes under the lead-blessed RenderMesh ids 1..7
-    // (dwelling..tower_ruin) — chunk streaming attaches exactly these ids to
-    // site entities, so they render with no further wiring.
+    // Placeholder site meshes under the lead-blessed RenderMesh ids (1..12:
+    // dwelling..tower_ruin, then the castle mass) — chunk streaming attaches
+    // exactly these ids to site entities, so they render with no further
+    // wiring.
+    //
+    // A GAP IN THIS RANGE IS LOUD NOW, AND THAT IS THE POINT. It used to
+    // `continue`: build_site_mesh returned an empty mesh for every id above 7,
+    // the loop skipped it without a word, and the ECS pass below swallowed the
+    // resulting cache miss just as quietly — so Harrowward was invisible in the
+    // world for an entire stage, and (because sim builds collision from these
+    // same triangles) intangible with it. Nothing anywhere said so, because
+    // "no mesh" and "nothing to draw" were the same code path. Absence
+    // presenting as a neutral state is this project's most expensive recurring
+    // bug; a blessed id with no geometry must never again be a silent skip.
     for (uint32_t id = SITE_MESH_ID_FIRST; id <= SITE_MESH_ID_LAST; ++id) {
         const MeshData data = build_site_mesh(id);
         if (data.vertices.empty()) {
+            std::fprintf(stderr,
+                         "[render] BLESSED SITE MESH ID %u HAS NO GEOMETRY — "
+                         "worldgen attaches this id to entities that will be "
+                         "invisible AND uncollidable. Add it to "
+                         "build_site_mesh or shrink SITE_MESH_ID_LAST.\n",
+                         id);
             continue;
         }
         const platform::MeshHandle handle =
             renderer.create_mesh(data.vertices, data.indices);
         if (handle.valid()) {
             mesh_cache_.emplace(id, handle.id);
+        } else {
+            std::fprintf(stderr,
+                         "[render] site mesh id %u failed to upload\n", id);
         }
     }
 
@@ -457,12 +481,22 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         .each([&](ecs::EntityId, components::Transform& curr,
                   components::PreviousTransform& prev, components::RenderMesh& rm) {
             // Map discovery: a site is remembered as soon as its chunk is
-            // resident, BEFORE the mesh lookup — the castle parts (ids 8..11)
-            // have no placeholder mesh yet but must still appear on the map.
+            // resident, BEFORE the mesh lookup, so a site with no mesh is
+            // still discoverable on the map rather than doubly absent.
             map_.note_site(rm.mesh_asset, curr.position);
             const auto mesh_it = mesh_cache_.find(rm.mesh_asset);
             if (mesh_it == mesh_cache_.end()) {
-                return; // asset not resident — nothing to draw
+                // ONCE per id, never per frame: a per-frame warning at 60 fps
+                // is noise nobody reads, which is the same silence with extra
+                // steps. Once is enough to make an unregistered asset id
+                // impossible to ship unnoticed.
+                if (warned_missing_meshes_.insert(rm.mesh_asset).second) {
+                    std::fprintf(stderr,
+                                 "[render] entity wants mesh asset %u, which is "
+                                 "not registered — it draws as NOTHING\n",
+                                 rm.mesh_asset);
+                }
+                return;
             }
             platform::TextureHandle texture{};
             const auto tex_it = texture_cache_.find(rm.texture_asset);
