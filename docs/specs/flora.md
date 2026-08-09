@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 21:40:17
+Last updated: 10:08:2026 - 00:03:11
 -->
 <!--
 UPD:
@@ -174,9 +174,37 @@ UPD:
                          binding constraint for any species, so no tree moved.
                          Lesson kept: when prose and NUMBERS.md disagree, the
                          registry wins and costs one grep to check.
+- 10:08:2026 - 00:03:11: THE USER REJECTED ALL THREE TREES AND THE GENERATOR WAS
+                         REPLACED. Full record in the new `docs/specs/
+                         flora_algorithms.md` (flora-owned): literature review
+                         with citations, the algorithm choice and why, the
+                         measured diagnosis, what changed, and the invariants.
+                         In one line each — oaks: the crown was distributed over
+                         the envelope *"independently of the skeleton"* and the
+                         average leaf card floated 2.60 m from any wood (worst
+                         6.91); conifers: the crown was 2-3 solid cones swept on
+                         the trunk axis, which is what a skirt IS; birch: 2-3
+                         bare pale poles with a tuft, which is what a palm IS.
+                         Crowns are now grown by SPACE COLONIZATION (Runions,
+                         Lane & Prusinkiewicz 2007) into the species envelope, so
+                         detached foliage is unrepresentable rather than merely
+                         forbidden; conifers get an explicit WHORL generator,
+                         because a conifer is monopodial and rhythmic rather than
+                         competitive. Branch radii come from the PIPE MODEL.
+                         §3.1 stage B/C and §3.6's triangle table are superseded
+                         by flora_algorithms.md §4-§5; §3.8a's card contracts,
+                         §3.10's photograph measurements and §3.11's seasons are
+                         all UNCHANGED and still current.
 -->
 
 # Flora — tree and plant geometry (agent spec)
+
+> **READ `docs/specs/flora_algorithms.md` FIRST if you are here about tree
+> SHAPE.** It supersedes §3.1 stages B-D and §3.6 as of 10.08.2026. This file
+> remains current for the zone boundary (§1), the public interface (§2),
+> neighbour interaction (§3.3), the forest floor (§3.4), the two hard floors
+> (§3.5), the leaf-card contracts (§3.8a), the reference-photo measurements
+> (§3.10) and seasons (§3.11).
 
 Seven sections per the agent-spec contract (Q35). This document is the durable
 knowledge of the zone: **agent sessions die, specs do not.** A successor with
@@ -202,7 +230,11 @@ change there → message the owner"); the agreement is recorded in §4.
 | `engine/render/sources/FloraSpecies.h` | `SpeciesParams` struct, `FloraSpecies` enum, envelope/foliage enums |
 | `engine/render/sources/FloraSpecies.cpp` | the per-species parameter tables (§3.2) |
 | `engine/render/sources/ProcFlora.h` | public builder API (§2) |
-| `engine/render/sources/ProcFlora.cpp` | skeleton growth + mesh emission (§3.1) |
+| `engine/render/sources/ProcFlora.cpp` | assembly: trunk, crown, LOD, logs |
+| `engine/render/sources/FloraSkeleton.{h,cpp}` | the GROWERS: space colonization, whorls, pipe model |
+| `engine/render/sources/FloraBuild.{h,cpp}` | Tree state + the geometry primitives and containment |
+| `engine/render/sources/FloraNeighbours.cpp` | `analyse_neighbourhood` |
+| `engine/render/sources/FloraCards.{h,cpp}` | the leaf mask atlas + card emitter |
 | `tests/render/ProcFloraTests.cpp` | the invariant suite (§6) |
 
 **Not owned, must not be edited without the owner's ack:** `ProcMesh.{h,cpp}`,

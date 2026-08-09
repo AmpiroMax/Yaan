@@ -77,8 +77,6 @@ enum class FoliageShape : uint8_t {
     None,
 };
 
-inline constexpr int FLORA_MAX_GENERATIONS = 2;
-
 /// One species. Everything the generator needs; nothing it does not.
 struct SpeciesParams {
     // --- identity -----------------------------------------------------------
@@ -102,16 +100,52 @@ struct SpeciesParams {
     float crown_base_frac = 0.40f;   ///< foliage starts here (CROWN_BASE_FRACTION_*)
     float crown_width_frac = 0.45f;  ///< crown DIAMETER / height
 
-    // --- branching ----------------------------------------------------------
-    uint8_t generations = 2;
-    bool whorled = false;            ///< conifers branch in whorls, not spirals
-    uint8_t branch_count[FLORA_MAX_GENERATIONS] = {5, 3};
-    float branch_angle[FLORA_MAX_GENERATIONS] = {1.05f, 0.85f};      ///< rad from parent
-    float branch_start_frac[FLORA_MAX_GENERATIONS] = {0.42f, 0.35f}; ///< along parent
-    float length_decay[FLORA_MAX_GENERATIONS] = {0.42f, 0.55f};
-    float radius_ratio[FLORA_MAX_GENERATIONS] = {0.38f, 0.45f};
-    float phototropism = 0.35f;      ///< per unit length, blend toward +Y / light
-    float droop = 0.10f;             ///< negative = conifer upsweep, high = willow
+    /// False for bushes: they have no branch skeleton worth growing, they ARE
+    /// their foliage. Everything else grows a crown.
+    bool has_skeleton = true;
+
+    // --- branching: SPACE COLONIZATION (broadleaves) -------------------------
+    // Runions, Lane & Prusinkiewicz 2007. See docs/specs/flora_algorithms.md §1.
+    // The paper expresses di and dk as multiples of D, and so do we, because
+    // that is the form in which its published values transfer between species of
+    // different size.
+    uint16_t attractors = 300;      ///< N. SMALL N gives IRREGULAR branches — wanted
+    float colonize_step_frac = 0.16f; ///< D as a fraction of crown radius
+    float influence_d = 9.0f;       ///< di/D. Paper: 8 for trees, 17 for shrubs
+    float kill_d = 2.2f;            ///< dk/D. Paper: 2 (fine) .. 20 (smooth, sparse)
+    /// 0 = attractors uniform through the crown, 1 = on its SHELL only. The
+    /// paper's fig. 7 gives an open branch system with twigs limited to the
+    /// crown surface, which is independently what flora.md §3.10 measured in the
+    /// user's photographs: porosity is a RIM effect over a near-opaque core.
+    float surface_bias = 0.55f;
+    float pipe_exponent = 2.5f;     ///< n in r^n = sum(r_child^n); literature 2..3
+    float fork_softening = 0.35f;   ///< the paper's post-process (e)
+    /// Where the lowest BRANCH may leave the trunk, as a fraction of height.
+    /// Deliberately BELOW crown_base_frac: a real bole sheds ascending limbs
+    /// well under the foliage line, and a crown that begins exactly where the
+    /// branches begin is the palm silhouette. Foliage still obeys crown_base.
+    float branch_base_frac = 0.34f;
+
+    // --- branching: WHORLS (conifers) ---------------------------------------
+    // A WHORL IS A YEAR (flora_algorithms.md §3.2). Spacing is the year's height
+    // increment, branch count tracks the same vigour, and the lower whorls are
+    // self-pruned. None of that is expressible as a stack of cone shells.
+    uint8_t whorl_count = 8;
+    uint8_t whorl_branches_min = 3;   ///< a "complete" whorl is >= 3
+    uint8_t whorl_branches_max = 6;   ///< an average whorl carries 2-7
+    float whorl_miss_bottom = 0.42f;  ///< self-pruning: the old whorls lose most
+    float whorl_miss_top = 0.06f;
+    float whorl_angle_top = 1.00f;    ///< rad above horizontal, near the leader
+    float whorl_angle_bottom = -0.24f;///< the oldest branches sag past horizontal
+    uint8_t whorl_shoots = 2;         ///< pendulous second-order shoots per branch
+    /// Where the dead-stub band starts, as a fraction of the bare bole. Below it
+    /// the stem is clean; between it and the crown base a conifer carries dead
+    /// stubs. It is the difference between a trunk and a pole.
+    float stub_band_frac = 0.55f;
+    uint8_t whorl_stubs = 5;
+
+    float phototropism = 0.35f;      ///< +Y component of eq. (3)'s tropism vector
+    float droop = 0.10f;             ///< -Y component; high = willow, conifer sag
     float min_branch_diameter = 0.35f; ///< SHADOW FLOOR — see docs/specs/flora.md §3.5
 
     // --- foliage ------------------------------------------------------------

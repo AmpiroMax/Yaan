@@ -44,6 +44,7 @@ UPD:
   and the birch had drifted a third under its brief with a green suite.
 */
 
+#include "engine/render/sources/FloraSkeleton.h"
 #include "engine/render/sources/ProcFlora.h"
 
 #include "engine/core/config/sources/Constants.h"
@@ -587,15 +588,22 @@ TEST_CASE("cards: no card is too small to read (no detached scraps)") {
 
 TEST_CASE("cards: only the intended species carry them") {
     // Design §5: TREE FOLIAGE is cards; trunks, branches, bushes, logs and
-    // snags stay solid hard-edged meshes. The conifer deliberately stays on
-    // cone tiers this stage so one frame can compare the two treatments.
+    // snags stay solid hard-edged meshes.
+    // THE CONIFER MOVED, AND THE EXPERIMENT IS WHY. The pine was deliberately
+    // held on solid cone tiers for one stage so that a single verification frame
+    // would carry both treatments side by side and ANSWER whether needles need
+    // cards, instead of the answer being guessed. The user's verdict on that
+    // frame was «елки просто юбки большие». The experiment ran, it returned a
+    // result, and this assertion is the result — not a relaxation.
     CHECK(has_leaf_cards(FloraSpecies::DaleOak));
     CHECK(has_leaf_cards(FloraSpecies::RiverBirch));
     CHECK(has_leaf_cards(FloraSpecies::ValeWillow));
-    CHECK_FALSE(has_leaf_cards(FloraSpecies::HighlandPine));
+    CHECK(has_leaf_cards(FloraSpecies::HighlandPine));
     CHECK_FALSE(has_leaf_cards(FloraSpecies::Bush));
     CHECK_FALSE(has_leaf_cards(FloraSpecies::BigBush));
     CHECK_FALSE(has_leaf_cards(FloraSpecies::Snag));
+    CHECK_FALSE(has_leaf_cards(FloraSpecies::FallenLog));
+    CHECK_FALSE(has_leaf_cards(FloraSpecies::Deadfall));
 
     for (const FloraSpecies s : ALL) {
         const FloraMesh m = build_flora_mesh(s, 1, FloraShape{}, FloraLod::Full);
@@ -791,4 +799,395 @@ TEST_CASE("atlas: species VALUE ORDER holds in every season") {
     CHECK_FALSE(leaf_tone_has_foliage(LeafTone::OakMid, FloraSeason::Winter));
     CHECK(leaf_tone_has_foliage(LeafTone::ConiferDark, FloraSeason::Winter));
     CHECK(leaf_tone_has_foliage(LeafTone::OakMid, FloraSeason::Autumn));
+}
+
+// ===========================================================================
+// THE THREE INVARIANTS THE 09.08.2026 REJECTION EXISTS TO CREATE.
+// Each ships with the case it must REJECT, and that case is asserted to FAIL
+// (Rule 30). An invariant nothing fails is a description, not an invariant —
+// and this zone has already shipped a suite of 31 000 assertions that were all
+// green over a tree with no leaves.
+// ===========================================================================
+
+namespace {
+
+/// Centroid and corner reach of card `i` (six vertices, two triangles).
+struct Card {
+    glm::vec3 centre{0.0f};
+    float reach = 0.0f;
+};
+
+std::vector<Card> cards_of(const MeshData& m) {
+    std::vector<Card> out;
+    for (size_t i = 0; i + 6 <= m.vertices.size(); i += 6) {
+        Card c;
+        for (size_t k = 0; k < 6; ++k) c.centre += m.vertices[i + k].position;
+        c.centre /= 6.0f;
+        for (size_t k = 0; k < 6; ++k) {
+            c.reach = std::max(c.reach, glm::length(m.vertices[i + k].position - c.centre));
+        }
+        out.push_back(c);
+    }
+    return out;
+}
+
+/// Distance from `p` to the nearest WOOD VERTEX. This OVER-states the true gap
+/// to the wood surface (vertices sit every 1-3 m along a limb), so every number
+/// it reports is pessimistic — which is the right direction for an invariant.
+float gap_to_wood(const MeshData& wood, glm::vec3 p) {
+    float best = 1e9f;
+    for (const platform::Vertex& v : wood.vertices) {
+        best = std::min(best, glm::length(v.position - p));
+    }
+    return best;
+}
+
+} // namespace
+
+TEST_CASE("REJECTION 1: every leaf cluster hangs off a branch that exists") {
+    // «дубы имеют случайно наложенные листья, не прикрепляющиеся к ветвям» —
+    // the user, 09.08.2026, and he was describing the code exactly:
+    // scatter_envelope_clusters() distributed the crown over the envelope
+    // "independently of the skeleton". Measured on the geometry he rejected:
+    // an oak's average leaf card sat 2.60 m from the nearest wood and the worst
+    // sat 6.91 m.
+    //
+    // Space colonization makes this unrepresentable rather than merely
+    // forbidden: an attraction point survives only until a node comes within
+    // the kill distance of it, so foliage placed on consumed points IS on a
+    // branch. The threshold is expressed in units of the card's OWN size,
+    // because that is what "attached" means visually — a card whose centre is
+    // within its own reach of the wood overlaps that wood on screen.
+    // 1.5, and the margin is real: measured over every species and variant the
+    // gap is 0.19-0.28 card-reaches at the median and 1.37 at the very worst.
+    constexpr float MAX_GAP_IN_CARD_REACHES = 1.5f;
+    // Measured across every species and variant: the median gap is 0.19-0.28
+    // card-reaches and the very worst single card is 1.37.
+    constexpr double MEAN_GAP_MAX = 0.60;
+    for (const FloraSpecies s : ALL) {
+        if (!has_leaf_cards(s)) continue;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            REQUIRE_FALSE(f.cards.vertices.empty());
+            double sum = 0.0;
+            size_t n = 0;
+            for (const Card& c : cards_of(f.cards)) {
+                const float gap = gap_to_wood(f.wood, c.centre);
+                CHECK(gap <= c.reach * MAX_GAP_IN_CARD_REACHES);
+                sum += gap / std::max(c.reach, 0.01f);
+                ++n;
+            }
+            // The per-card ceiling catches one stray cluster; the MEAN is what
+            // catches a whole crown that has drifted off its skeleton, and the
+            // whole crown is what the user was looking at. Two clauses, because
+            // this zone's signature failure is a rule stated in full and
+            // implemented in half (flora.md §3.7).
+            CHECK(sum / static_cast<double>(std::max<size_t>(n, 1)) <= MEAN_GAP_MAX);
+        }
+    }
+
+    // --- THE CONTROL: the geometry the user rejected must FAIL this test. ----
+    // Rebuilt rather than described, and rebuilt HONESTLY: the rejected trees
+    // did not have a dense crown skeleton with loose foliage over it. Three of
+    // the four species had NO crown skeleton at all — §3.7 defect 3 measured
+    // primary-branch diameters of 0.168 m (birch) and 0.317 m (pine) against a
+    // 0.35 m shadow floor, so every branch terminated instantly and what was
+    // left was a bole with a cloud of leaves around it. That is the control: a
+    // bare trunk, plus clusters distributed over the crown envelope on the
+    // golden angle, which is exactly what scatter_envelope_clusters() did.
+    {
+        const FloraSpecies s = FloraSpecies::DaleOak;
+        const SpeciesParams& sp = species_params(s);
+        const float height = species_nominal_height(s);
+        const float base = height * sp.crown_base_frac;
+        const float crown_r = height * sp.crown_width_frac * 0.5f;
+        const float trunk_r = height * sp.trunk_radius_frac;
+        MeshData bole;
+        for (int seg = 0; seg <= 24; ++seg) {
+            const float y = height * static_cast<float>(seg) / 24.0f;
+            for (int k = 0; k < 5; ++k) {
+                const float a = 6.2831853f * static_cast<float>(k) / 5.0f;
+                bole.vertices.push_back({{std::cos(a) * trunk_r, y, std::sin(a) * trunk_r},
+                                         {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, 0xFFFFFFFFu});
+            }
+        }
+        double sum = 0.0;
+        size_t total = 0;
+        const int count = sp.cluster_count;
+        for (int i = 0; i < count; ++i) {
+            const float u = (static_cast<float>(i) + 0.5f) / static_cast<float>(count);
+            const float y = base + (height - base) * std::pow(u, 0.8f);
+            const float env = crown_r
+                * (0.30f + 0.70f * std::sin((y - base) / (height - base) * 3.14159265f));
+            const float az = 2.39996323f * static_cast<float>(i);
+            const float rf = 0.68f * (0.30f + 0.70f * std::fabs(std::sin(az * 1.7f)));
+            const glm::vec3 at{std::cos(az) * env * rf, y, std::sin(az) * env * rf};
+            const float reach = crown_r * sp.cluster_radius_frac;
+            ++total;
+            sum += gap_to_wood(bole, at) / reach;
+        }
+        REQUIRE(total > 0);
+        // The control fails on the MEAN, and that is the honest way round: the
+        // old scatter also put a good number of clusters near the trunk axis
+        // (that was the drill-bit defect of §3.7.5), so a per-cluster pass rate
+        // understates it. What the user saw, and what was measured on the
+        // rejected oak, was a whole crown averaging 2.60 m off its wood.
+        CHECK(sum / static_cast<double>(total) > MEAN_GAP_MAX);
+    }
+}
+
+TEST_CASE("REJECTION 2: the conifer is a stack of whorls, not a skirt") {
+    // «елки просто юбки большие». A skirt is a SURFACE OF REVOLUTION: whatever
+    // its profile, it is SMOOTH down its whole length. A whorled conifer is
+    // layers — a whorl is a YEAR, the years are not evenly spaced, and the older
+    // whorls are self-pruned — so its foliage varies sharply with height.
+    //
+    // MEASURED AS VERTICAL ROUGHNESS, and the first two metrics I wrote for this
+    // did not discriminate. Counting "rows with gaps" failed twice over: against
+    // the row's own occupied span, a bare stick between two whorls scored a
+    // perfect 1.0 for being a stick; against the envelope, a smooth analytic
+    // cone scored GAPPIER than the real pine, because the control's profile and
+    // the generator's envelope were different shapes. Both versions passed. Only
+    // running them against a known-bad object showed they were measuring
+    // nothing, which is the whole of Rule 30 in one afternoon.
+    //
+    // Roughness is the quantity that cannot be faked by a solid: mean absolute
+    // change in row fill from one height to the next. Measured — pine 0.150 to
+    // 0.232 across the twelve variants, a tapering cone 0.037, a solid of
+    // revolution following this generator's own envelope 0.034. Four to five
+    // times of separation with no overlap.
+    constexpr int ROWS = 24;
+    constexpr int COLS = 48;
+    constexpr float ROUGHNESS_MIN = 0.10f;
+
+    auto profile = [](const FloraMesh& f, float base, float top, float half_w) {
+        // The denominator is the REAL envelope, taken from the generator's own
+        // envelope_radius_at() rather than restated here. Restating it went
+        // stale within the hour once the cone gained its 0.18 apex floor
+        // (design §5.2 wants the tip >= 1.5 m wide), and a test that keeps its
+        // own copy of a shape measures the copy.
+        const CrownVolume env_v{CrownEnvelope::Cone, base, top, half_w};
+        std::vector<std::vector<uint8_t>> hit(ROWS, std::vector<uint8_t>(COLS, 0));
+        auto mark = [&](glm::vec3 p) {
+            const int r = static_cast<int>((p.y - base) / std::max(top - base, 1e-3f)
+                                           * static_cast<float>(ROWS));
+            const int c = static_cast<int>((p.x + half_w)
+                                           / std::max(2.0f * half_w, 1e-3f)
+                                           * static_cast<float>(COLS));
+            if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+                hit[static_cast<size_t>(r)][static_cast<size_t>(c)] = 1;
+            }
+        };
+        for (const MeshData* m : {&f.cards, &f.wood}) {
+            for (size_t i = 0; i + 2 < m->indices.size(); i += 3) {
+                const glm::vec3 a = m->vertices[m->indices[i]].position;
+                const glm::vec3 b = m->vertices[m->indices[i + 1]].position;
+                const glm::vec3 c = m->vertices[m->indices[i + 2]].position;
+                // ADAPTIVE barycentric sweep. A fixed 6x6 lattice was the first
+                // version and it silently broke the control: a cone's side
+                // triangle is tall and thin and its two base vertices share a
+                // height, so 28 samples landed on 7 distinct rows and the solid
+                // cone measured as four empty rows in five. The sampler must be
+                // denser than the grid it samples INTO, which is a property of
+                // the triangle rather than a constant.
+                const float longest = std::max(
+                    {glm::length(b - a), glm::length(c - a), glm::length(c - b)});
+                const float cell = std::max((top - base) / static_cast<float>(ROWS),
+                                            2.0f * half_w / static_cast<float>(COLS));
+                const int steps = std::clamp(
+                    static_cast<int>(longest / std::max(cell, 1e-3f)) + 2, 4, 40);
+                for (int u = 0; u <= steps; ++u) {
+                    for (int w = 0; u + w <= steps; ++w) {
+                        const float fu = static_cast<float>(u) / static_cast<float>(steps);
+                        const float fw = static_cast<float>(w) / static_cast<float>(steps);
+                        mark(a * (1.0f - fu - fw) + b * fu + c * fw);
+                    }
+                }
+            }
+        }
+        std::vector<float> fill(ROWS, 0.0f);
+        for (int r = 0; r < ROWS; ++r) {
+            const float y = base + (top - base) * (static_cast<float>(r) + 0.5f)
+                    / static_cast<float>(ROWS);
+            const float expect = std::max(
+                2.0f, static_cast<float>(COLS) * envelope_radius_at(env_v, y)
+                          / std::max(half_w, 1e-3f));
+            int on = 0;
+            for (int c = 0; c < COLS; ++c) on += hit[static_cast<size_t>(r)][static_cast<size_t>(c)];
+            fill[static_cast<size_t>(r)] = static_cast<float>(on) / expect;
+        }
+        return fill;
+    };
+    auto roughness = [](const std::vector<float>& fill) {
+        double sum = 0.0;
+        size_t n = 0;
+        for (size_t i = 1; i < fill.size(); ++i) {
+            if (fill[i] <= 0.0f && fill[i - 1] <= 0.0f) continue;
+            sum += std::fabs(static_cast<double>(fill[i]) - fill[i - 1]);
+            ++n;
+        }
+        return static_cast<float>(sum / static_cast<double>(std::max<size_t>(n, 1)));
+    };
+
+    const FloraSpecies s = FloraSpecies::HighlandPine;
+    const SpeciesParams& sp = species_params(s);
+    for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+        const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+        float top = 0.0f;
+        float half_w = 0.0f;
+        for (const MeshData* m : {&f.wood, &f.cards}) {
+            for (const platform::Vertex& vv : m->vertices) {
+                top = std::max(top, vv.position.y);
+                half_w = std::max(half_w, std::fabs(vv.position.x));
+            }
+        }
+        const std::vector<float> fill =
+            profile(f, top * sp.crown_base_frac, top, std::max(half_w, 0.5f));
+        int occupied = 0;
+        for (const float x : fill) {
+            if (x > 0.0f) ++occupied;
+        }
+        REQUIRE(occupied >= ROWS / 2); // the crown must exist at all
+        CHECK(roughness(fill) >= ROUGHNESS_MIN);
+    }
+
+    // --- THE CONTROLS: two skirts, and BOTH must fail. ----------------------
+    // Rule 30 names the cone by name, because three shape invariants were once
+    // shipped in one evening that a cone passed. Two are used here rather than
+    // one: a plain tapering cone, and — the fairer and harsher control — a solid
+    // of revolution that follows THIS GENERATOR'S OWN envelope exactly, which is
+    // the shape build_cone_tiers() drew and the shape the user called «юбка».
+    // A control that differs from the thing under test in some other way as well
+    // is not a control, it is a second experiment.
+    {
+        const float base = 12.0f;
+        const float top = 33.0f;
+        const float r = 4.4f;
+        FloraMesh taper;
+        for (int i = 0; i < 16; ++i) {
+            const float a0 = 6.2831853f * static_cast<float>(i) / 16.0f;
+            const float a1 = 6.2831853f * static_cast<float>(i + 1) / 16.0f;
+            tri(taper.wood, {std::cos(a0) * r, base, std::sin(a0) * r}, {0.0f, top, 0.0f},
+                {std::cos(a1) * r, base, std::sin(a1) * r}, 0xFFFFFFFFu);
+        }
+        CHECK_FALSE(roughness(profile(taper, base, top, r)) >= ROUGHNESS_MIN);
+
+        FloraMesh skirt;
+        const CrownVolume ev{CrownEnvelope::Cone, base, top, r};
+        for (int k = 0; k < 40; ++k) {
+            const float y0 = base + (top - base) * static_cast<float>(k) / 40.0f;
+            const float y1 = base + (top - base) * static_cast<float>(k + 1) / 40.0f;
+            const float r0 = envelope_radius_at(ev, y0);
+            const float r1 = envelope_radius_at(ev, y1);
+            for (int i = 0; i < 20; ++i) {
+                const float a0 = 6.2831853f * static_cast<float>(i) / 20.0f;
+                const float a1 = 6.2831853f * static_cast<float>(i + 1) / 20.0f;
+                quad(skirt.wood, {std::cos(a0) * r0, y0, std::sin(a0) * r0},
+                     {std::cos(a0) * r1, y1, std::sin(a0) * r1},
+                     {std::cos(a1) * r1, y1, std::sin(a1) * r1},
+                     {std::cos(a1) * r0, y0, std::sin(a1) * r0}, 0xFFFFFFFFu);
+            }
+        }
+        CHECK_FALSE(roughness(profile(skirt, base, top, r)) >= ROUGHNESS_MIN);
+    }
+}
+
+TEST_CASE("REJECTION 3: no canopy tree is a bare pole with a tuft on top") {
+    // «белое дерево выглядит как пальма… как острые пики, но не деревья.»
+    // A palm is not a proportion failure — the birch passed CROWN_ASPECT_MAX at
+    // 1.02 while reading as a palm, which is exactly why a fourth invariant was
+    // needed instead of a fifth attempt at the third one. A palm is a
+    // STRUCTURAL fact: the branches all leave the stem at ONE height, so the
+    // trunk is bare everywhere else.
+    //
+    // Measured as the vertical spread of non-axial WOOD — the range of heights
+    // at which the tree has material away from its own stem axis — plus the
+    // vertical span of the foliage itself. A tree has limbs over a stretch of
+    // its bole and a crown with depth; a palm has both at one point.
+    //
+    // The thresholds are set against MEASURED values on both sides, not chosen:
+    // limb spread runs 0.17-0.19 on the birch (the species whose brief is a
+    // deliberately high, clean-boled crown) and 0.22-0.35 on the others, against
+    // 0.06 for the control. Foliage span is 0.30+ on every species against 0.06.
+    // Note what this does NOT assert: that a low branch exists. Space
+    // colonization gives apical dominance for free — a seed low on the bole
+    // never wins an attractor against one higher up — and a clean lower bole is
+    // correct for every species in this catalog. The invariant is about the
+    // CROWN having structure, not about the trunk having twigs.
+    constexpr float LIMB_SPREAD_MIN = 0.15f;
+    constexpr float FOLIAGE_SPAN_MIN = 0.20f;
+    for (const FloraSpecies s : ALL) {
+        if (!is_canopy_tree(s)) continue;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            float top = 0.0f;
+            for (const platform::Vertex& vv : f.wood.vertices) {
+                top = std::max(top, vv.position.y);
+            }
+            const float axial = species_trunk_radius(s) * 1.6f;
+            float lo = 1e9f;
+            float hi = -1e9f;
+            for (const platform::Vertex& vv : f.wood.vertices) {
+                const float r = std::sqrt(vv.position.x * vv.position.x
+                                          + vv.position.z * vv.position.z);
+                if (r <= axial) continue; // still the bole
+                lo = std::min(lo, vv.position.y);
+                hi = std::max(hi, vv.position.y);
+            }
+            REQUIRE(hi > lo); // there ARE limbs
+            CHECK((hi - lo) / top >= LIMB_SPREAD_MIN);
+            // Second clause, and it is the stronger one: how much of the tree's
+            // height the FOLIAGE occupies. A palm's rosette is 5-8 % of the
+            // trunk it sits on. This is measured on the built geometry, so a
+            // species whose crown drifts small — which is what happened to the
+            // birch once already, at a third under its brief with a green suite
+            // — cannot hide behind a crown-base fraction that looks right on
+            // paper.
+            float flo = 1e9f;
+            float fhi = -1e9f;
+            for (const platform::Vertex& vv : f.cards.vertices) {
+                flo = std::min(flo, vv.position.y);
+                fhi = std::max(fhi, vv.position.y);
+            }
+            if (fhi > flo) CHECK((fhi - flo) / top >= FOLIAGE_SPAN_MIN);
+        }
+    }
+
+    // --- THE CONTROL: a pole with everything at the top must FAIL. -----------
+    // Built to be exactly what the rejected birch was — a tapered stem with all
+    // its limbs springing from one node near the tip.
+    {
+        MeshData palm;
+        const float h = 19.0f;
+        const float top_frac = 0.90f;
+        for (int seg = 0; seg < 6; ++seg) {
+            const float y0 = h * static_cast<float>(seg) / 6.0f;
+            const float y1 = h * static_cast<float>(seg + 1) / 6.0f;
+            tri(palm, {-0.25f, y0, 0.0f}, {0.25f, y0, 0.0f}, {0.0f, y1, 0.2f},
+                0xFFFFFFFFu);
+        }
+        for (int i = 0; i < 7; ++i) {
+            const float a = 6.2831853f * static_cast<float>(i) / 7.0f;
+            tri(palm, {0.0f, h * top_frac, 0.0f},
+                {std::cos(a) * 3.0f, h * 0.96f, std::sin(a) * 3.0f},
+                {std::cos(a + 0.4f) * 3.0f, h * 0.94f, std::sin(a + 0.4f) * 3.0f},
+                0xFFFFFFFFu);
+        }
+        const float axial = 0.4f;
+        float lo = 1e9f;
+        float hi = -1e9f;
+        for (const platform::Vertex& vv : palm.vertices) {
+            const float r = std::sqrt(vv.position.x * vv.position.x
+                                      + vv.position.z * vv.position.z);
+            if (r <= axial) continue;
+            lo = std::min(lo, vv.position.y);
+            hi = std::max(hi, vv.position.y);
+        }
+        REQUIRE(hi > lo);
+        // BOTH clauses must reject it, or only one of them is load-bearing and
+        // the other is decoration.
+        CHECK_FALSE((hi - lo) / h >= LIMB_SPREAD_MIN); // the tuft spans 0.06
+        const float tuft_span = h * 0.96f - h * top_frac;
+        CHECK_FALSE(tuft_span / h >= FOLIAGE_SPAN_MIN);
+    }
 }

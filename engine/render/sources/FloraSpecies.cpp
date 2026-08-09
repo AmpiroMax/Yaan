@@ -91,26 +91,33 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // lands inside it. Width is load-bearing: design derived
     // TREE_SPACING_FOREST FROM the crown width.
     oak.crown_width_frac = 0.48f;
-    oak.generations = 2;
-    oak.branch_count[0] = 5;
-    oak.branch_count[1] = 2;
-    oak.branch_angle[0] = 1.02f;
-    oak.branch_angle[1] = 0.80f;
-    oak.branch_start_frac[0] = 0.40f;
-    oak.branch_start_frac[1] = 0.35f;
-    oak.length_decay[0] = 0.46f;
-    oak.length_decay[1] = 0.55f;
-    oak.radius_ratio[0] = 0.38f;
-    oak.radius_ratio[1] = 0.46f;
-    oak.phototropism = 0.30f;
-    oak.droop = 0.12f;
+    // SPACE COLONIZATION. A Quercus crown is the paper's DECURRENT case: no
+    // single dominant axis above the fork, heavy sinuous limbs that ramify, and
+    // — from the botany — "just a few large branches bearing relatively sparse
+    // foliage", grouped densely at the ENDS of the twigs with real air between
+    // the masses. All of that is emergent here from a wide envelope plus a
+    // surface-weighted attractor cloud; none of it had to be authored.
+    // The paper's own sparseness lever, applied for the triangle budget as much
+    // as for the look: "Decreasing N and increasing dk yields crowns that are
+    // increasingly sparse", and large dk also gives "smoothly curved branches"
+    // because no single attractor can swing a tip. Both are what an oak wants.
+    oak.attractors = 240;
+    oak.colonize_step_frac = 0.21f;
+    oak.influence_d = 8.0f;   // the paper's own value for trees
+    oak.kill_d = 2.3f;
+    oak.surface_bias = 0.58f; // foliage on the crown shell, limbs in the dark
+    oak.pipe_exponent = 2.5f;
+    oak.fork_softening = 0.38f;
+    oak.branch_base_frac = 0.30f; // limbs leave the bole below the foliage line
+    oak.phototropism = 0.26f;
+    oak.droop = 0.14f;
     // Card foliage: FEW and LARGE. The user asked for «большими плоскими
     // наборами листочков», and the arithmetic agrees — a crown reads as one
     // mass only when its elements are a sizeable fraction of it (the lesson
     // that finally cured the birch, §3.7.5), and every extra card is pure
     // overdraw, which is the currency alpha-cutout foliage actually spends.
-    oak.cluster_count = 12;
-    oak.cluster_radius_frac = 0.40f;
+    oak.cluster_count = 22;
+    oak.cluster_radius_frac = 0.46f;
     oak.tone_first = LeafTone::OakMid;
     oak.tone_count = 3; // mid / deep / sunlit — one crown carries all three
     oak.card_shape_a = LeafShape::RoundLobed;
@@ -135,23 +142,68 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     pine.trunk_sweep = 0.04f; // conifers stand straight
     pine.trunk_sides = 5;
     pine.trunk_segments = 7;
-    pine.crown_base_frac = 0.38f;
-    pine.crown_width_frac = 0.22f; // 6-8 m base
-    pine.generations = 1;          // whorl branches; the tiers carry the mass
-    pine.whorled = true;
-    pine.branch_count[0] = 6;
-    pine.branch_angle[0] = 1.32f; // near-horizontal whorls
-    pine.branch_start_frac[0] = 0.38f;
-    pine.length_decay[0] = 0.30f;
-    pine.radius_ratio[0] = 0.30f;
+    // CROWN RATIO IS THE HEADLINE NUMBER AND IT WAS THE BUG. A forest-grown
+    // Scots pine carries live foliage on only ~0.30 of its height and a forest
+    // Norway spruce on ~0.44-0.49 (Austrian NFI, measured); the open-grown
+    // figures are 0.86-0.94, and 0.86-0.94 IS «юбка». The old 0.38 crown base
+    // gave a crown over the top 62 % — an open-grown paddock spruce standing in
+    // a wood. Our stand is thinned (TREE_SPACING_FOREST 12-18 m), so it sits
+    // between forest and open: crown ratio 0.48, i.e. base at 0.52.
+    // NOTE this is ABOVE design's CROWN_BASE_FRACTION_MAX 0.45, which their §5
+    // ruling explicitly demoted from a binding cap to "documentation of the
+    // typical outcome for broad crowns". The floor (0.35, walkability) is what
+    // binds, and 0.52 clears it with room.
+    // 0.45 is design's CROWN_BASE_FRACTION_MAX and this species sits ON it.
+    // The forestry evidence would support MORE (a forest-grown Norway spruce
+    // measures crown ratio 0.44-0.49, i.e. a base of 0.51-0.56, and a forest
+    // Scots pine 0.30 -> 0.70), and design's §5 ruling explicitly demoted _MAX
+    // from a binding cap to "documentation of the typical outcome". But a
+    // per-species crown base is a REGISTRY row — that is the precedent
+    // BIRCH_CROWN_BASE_FRACTION_MIN set — so the derivation has gone to the lead
+    // and this ships at the value that needs no new constant. Do not quietly
+    // raise it here; ask.
+    pine.crown_base_frac = 0.45f;
+    // CALIBRATED AGAINST THE BUILT TREE, like every other width in this table.
+    // At 0.24 the ENVELOPE was 6.7-9.0 m and looked right on paper, but the
+    // built crown measured 4.6-6.6 m — the smallest variants a quarter under
+    // design's 6-9 m brief, with a green suite, because only the ceiling of the
+    // band was ever asserted. That is design's own «a range is two assertions»
+    // defect, and this is its fifth appearance. Built width is 0.69 of the
+    // envelope (foliage never reaches the envelope's widest point), so 6 m of
+    // built crown needs 8.7 m of envelope: 0.31 of height.
+    pine.crown_width_frac = 0.33f;
+    // WHORLS, not tiers. A whorl is a YEAR: the leader puts on one internode and
+    // flushes one ring of laterals at the top of it. Spacing is therefore that
+    // year's height increment (short at the apex, long through the vigorous
+    // middle years, short again at the base), the branch count tracks the same
+    // vigour, and the older whorls are self-pruned. A solid cone can express
+    // none of that, which is exactly why it reads as a skirt.
+    pine.whorl_count = 11;
+    pine.whorl_branches_min = 3; // forestry: a "complete" whorl is >= 3
+    pine.whorl_branches_max = 6; // an average whorl carries 2-7
+    pine.whorl_miss_bottom = 0.30f;
+    pine.whorl_miss_top = 0.05f;
+    // Measured spruce insertion angles run 40-70 deg from the stem, left-skewed,
+    // and the ascent-to-horizontal transition happens FAST in the upper crown.
+    pine.whorl_angle_top = 1.02f;    // ~58 deg above horizontal at the leader
+    pine.whorl_angle_bottom = -0.26f;// the oldest branches sag below horizontal
+    pine.whorl_shoots = 3;
+    pine.whorl_stubs = 5;
+    pine.stub_band_frac = 0.52f;
     pine.phototropism = 0.10f;
-    pine.droop = -0.18f; // upsweep
-    pine.cluster_count = 3;
-    pine.cluster_radius_frac = 1.0f;
-    // The conifer DELIBERATELY stays on solid cone tiers this stage, so the
-    // verification frame carries both treatments side by side and answers
-    // whether needles need cards — rather than the answer being guessed.
-    // Column 3 of the atlas (NeedleFan) and this tone are already generated.
+    pine.droop = 0.34f; // the primary sags toward its tip under its own weight
+    pine.pipe_exponent = 2.6f;
+    pine.cluster_count = 46;
+    pine.cluster_radius_frac = 0.40f;
+    // NEEDLES ARE CARDS NOW, and the frame answered the question the last stage
+    // deliberately left open. The pine was kept on solid cone tiers so that one
+    // verification frame would carry both treatments side by side rather than
+    // the answer being guessed; the user's verdict on that frame was «елки
+    // просто юбки большие». The experiment ran and it returned a result.
+    pine.foliage = FoliageShape::Card;
+    pine.card_width_frac = 1.30f;
+    pine.card_aspect = 0.62f; // a needle spray is wider than it is deep
+    pine.cards_per_cluster = 1;
     pine.tone_first = LeafTone::ConiferDark;
     pine.tone_count = 1;
     pine.card_shape_a = LeafShape::NeedleFan;
@@ -171,9 +223,15 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     birch.trunk_radius_frac = 0.013f;
     birch.taper_exp = 0.70f;
     birch.trunk_sweep = 0.18f;
-    birch.trunk_count_min = 2; // classic multi-stem river birch
-    birch.trunk_count_max = 3;
-    birch.trunk_spread = 0.55f;
+    // ONE STEM. A river birch really is multi-stemmed, and this is where the
+    // field guide loses to §1.5: two or three bare pale poles from a single
+    // root, crowned by a tuft, is the PALM silhouette the user rejected —
+    // «выглядит как пальма… как острые пики». The clump was half of what
+    // produced it and the other half was the tuft. A single slender white bole
+    // with branches along its upper length is what reads as a birch at 640x360.
+    birch.trunk_count_min = 1;
+    birch.trunk_count_max = 1;
+    birch.trunk_spread = 0.0f;
     birch.trunk_sides = 5;
     birch.trunk_segments = 5;
     // THE BIRCH EXCEPTION (NUMBERS.md BIRCH_CROWN_BASE_FRACTION_MIN/MAX, landed
@@ -190,22 +248,30 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // Same calibration, and the birch needed it most: 0.30 built a 3.6-4.5 m
     // crown against design's 5-7 m band — the accent tree was a third narrower
     // than its brief, which is the other half of why it read as a column.
-    birch.crown_width_frac = 0.52f;
-    birch.generations = 1;
-    birch.branch_count[0] = 4;
-    birch.branch_angle[0] = 0.72f;
-    birch.branch_start_frac[0] = 0.55f;
-    birch.length_decay[0] = 0.40f;
-    birch.radius_ratio[0] = 0.34f;
-    birch.phototropism = 0.45f;
-    birch.droop = 0.16f;
+    birch.crown_width_frac = 0.34f;
+    // Betula pendula's two-part branch rule, and it is the whole silhouette:
+    // the MAIN branches ascend while the outer branchlets are thin, drooping and
+    // flexible — "a fine hanging haze of twigs". So: strong phototropism to lift
+    // the primaries, and a droop that the pipe model lets bite only on the thin
+    // outer wood. Branches start at 0.40 of height, WELL below the 0.58 foliage
+    // line, so the upper bole carries ascending limbs instead of being a pole.
+    birch.attractors = 200;
+    birch.colonize_step_frac = 0.24f;
+    birch.influence_d = 10.0f;
+    birch.kill_d = 2.4f;
+    birch.surface_bias = 0.42f; // a birch crown is airy THROUGHOUT, not shelled
+    birch.pipe_exponent = 2.2f; // slender: less thickening per tip
+    birch.fork_softening = 0.42f;
+    birch.branch_base_frac = 0.28f;
+    birch.phototropism = 0.46f;
+    birch.droop = 0.30f;
     // The birch is the species that twice read as STACKED PLATES (§3.7.4/5).
     // Both cures were the same one: elements about as wide as the crown, and
     // never allowed to slide onto the axis. Cards inherit that discipline —
     // seven cluster centres, each carrying cards nearly as wide as the whole
     // crown, so no arrangement of them can look like a pile of discs.
-    birch.cluster_count = 7;
-    birch.cluster_radius_frac = 0.80f; // clusters must OVERLAP into one mass
+    birch.cluster_count = 20;
+    birch.cluster_radius_frac = 0.40f;
     birch.tone_first = LeafTone::BirchLight;
     birch.tone_count = 2;
     birch.card_shape_a = LeafShape::OvalSpray;
@@ -227,13 +293,22 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     willow.height_max = 20.0f;
     willow.trunk_radius_frac = 0.026f;
     willow.trunk_sweep = 0.22f;
-    willow.crown_base_frac = 0.34f;
-    willow.crown_width_frac = 0.62f; // wide shoulder
-    willow.branch_angle[0] = 1.15f;
-    willow.phototropism = 0.10f;
-    willow.droop = 0.85f; // the falling skirt
-    willow.cluster_count = 14;
-    willow.cluster_radius_frac = 0.34f;
+    willow.crown_base_frac = 0.30f;
+    willow.crown_width_frac = 0.72f; // wide shoulder
+    willow.phototropism = 0.06f;
+    // The paper is explicit that it could NOT generate strongly pendulous forms
+    // with the growth bias alone, so the droop stays an explicit force rather
+    // than something we chase with the tropism vector (flora_algorithms.md
+    // §1.3.5). Recorded because a successor will otherwise try.
+    willow.droop = 0.40f;
+    willow.attractors = 230;
+    willow.colonize_step_frac = 0.20f;
+    willow.influence_d = 7.0f;
+    willow.kill_d = 2.3f;
+    willow.surface_bias = 0.50f;
+    willow.branch_base_frac = 0.26f;
+    willow.cluster_count = 20;
+    willow.cluster_radius_frac = 0.42f;
     willow.tone_first = LeafTone::WillowDark;
     willow.tone_count = 2;
     willow.card_shape_a = LeafShape::OvalSpray;
@@ -258,12 +333,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     snag.trunk_segments = 5;
     snag.crown_base_frac = 1.0f;
     snag.crown_width_frac = 0.0f;
-    snag.generations = 1;
-    snag.branch_count[0] = 2; // a couple of broken stubs
-    snag.branch_angle[0] = 1.15f;
-    snag.branch_start_frac[0] = 0.55f;
-    snag.length_decay[0] = 0.18f;
-    snag.radius_ratio[0] = 0.40f;
+    snag.has_skeleton = false; // no crown to grow; the trunk IS the asset
     snag.phototropism = 0.0f;
     snag.droop = 0.0f;
     snag.cluster_count = 0;
@@ -283,7 +353,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     bush.trunk_segments = 2;
     bush.crown_base_frac = 0.12f; // NOT a canopy tree: exempt from the 2.2 m rule
     bush.crown_width_frac = 1.30f;
-    bush.generations = 0;
+    bush.has_skeleton = false;
     bush.cluster_count = 4;
     bush.cluster_radius_frac = 0.60f;
     bush.cluster_slices = 6;
@@ -317,7 +387,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     log.trunk_segments = 4;
     log.crown_base_frac = 1.0f;
     log.crown_width_frac = 0.0f;
-    log.generations = 0;
+    log.has_skeleton = false;
     log.cluster_count = 0;
     log.trunk_color = DEADWOOD;
     log.foliage_color = DEADWOOD;
