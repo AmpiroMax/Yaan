@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 11:05:22
+# Last updated: 09:08:2026 - 13:28:27
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -20,6 +20,7 @@
 #                          SaveDelta deferred to stage 3).
 # - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 pass sources (macro,
 #                          hydrology, sites, scatter, validation).
+# - 09:08:2026 - 13:28:27: P1 anisotropy touch: WorldgenWater.cpp added (query side split from WorldgenHydrology.cpp).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -29,6 +30,7 @@ add_library(dfn_world STATIC
     sources/WorldgenMacro.cpp
     sources/WorldgenScatter.cpp
     sources/WorldgenSites.cpp
-    sources/WorldgenValidation.cpp)
+    sources/WorldgenValidation.cpp
+    sources/WorldgenWater.cpp)
 
 target_link_libraries(dfn_world PUBLIC dfn_core)

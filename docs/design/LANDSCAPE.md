@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 13:19:34
+Last updated: 09:08:2026 - 13:22:17
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 13:17:06: §2.1 landform anisotropy rule from user feedback (feature_requests.md Запрос 1): mid-scale hills must be elongated direction-coherent ridgelets, not round bumps; HILL_ANISOTROPY 2.0-3.0 proposed.
 - 09:08:2026 - 13:18:17: §2.1 anisotropy sharpened per core's implementation intent (agreed at sync): mid octave only, drifting per-valley axis field (no global corduroy), recorded cautions — river trace will shift (safe under the §7.1a derived-only rule) and work is gated on HILL_ANISOTROPY landing in NUMBERS.md + lead scheduling.
 - 09:08:2026 - 13:19:34: §2.1 technique decided (core + design): anisotropic input-stretch chosen over domain-warp — elongation along the axis, cross-axis rhythm pinned at 128 m (what corridors/C1 grid feel); domain-warp rejected (wiggles crests, dilutes the shared-axis read); ping-first threshold at ~100 m cross-axis compression.
+- 09:08:2026 - 13:22:17: HILL_ANISOTROPY approved at 2.5 in NUMBERS.md (stage-3 close, sync №3) — §2.1 proposal marker removed, gates recorded as cleared, P1 retune scheduled with §2.1 as the contract.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -214,8 +215,8 @@ sampled against them.
   («холмики-сиськи» are explicitly rejected by the user). Implementable
   without hand sculpting: stretch **the mid-frequency octave only**
   (currently the 128 m / 6 m layer — it is what makes round bumps at hill
-  scale) 2–3× along a per-valley axis field **(предложение — утвердить:
-  `HILL_ANISOTROPY` = 2.0–3.0)**; the macro-roll and fine-texture octaves
+  scale) by `HILL_ANISOTROPY` (**approved in NUMBERS.md: 2.5**, stage-3
+  close) along a per-valley axis field; the macro-roll and fine-texture octaves
   stay isotropic, and the ridged transform on the L0 stamp already covers
   crag flanks. **Technique decided (plan of record, core + design sync):
   anisotropic input-stretch, not domain-warp.** Input-stretch lengthens
@@ -227,13 +228,14 @@ sampled against them.
   Ping-first threshold: if axis-field drift locally compresses the
   cross-axis rhythm below ~100 m, core pings design before it lands. The axis field is a slowly-varying seeded angle: ridgelets
   share a long axis *locally* while the axis drifts across the map — a
-  single global direction would read as corduroy. Two recorded cautions
-  (core, stage-3b sync): (a) warping the hill octave shifts drainage
+  single global direction would read as corduroy. Recorded caution
+  (core, stage-3b sync): warping the hill octave shifts drainage
   micro-shape — the seed-1 river trace WILL move; this is safe *only*
   because of the derived-only rule (§7.1a), which is exactly the case that
-  rule exists for; (b) implementation waits for `HILL_ANISOTROPY` in
-  NUMBERS.md (Rule 14) and the lead scheduling the P1 retune — canopy-aware
-  C1 re-validation is already automatic in the suite. Acceptance: tour
+  rule exists for. Gates cleared at stage-3 close (sync №3):
+  `HILL_ANISOTROPY` = 2.5 landed in NUMBERS.md and the P1 retune is
+  scheduled — canopy-aware C1 re-validation is automatic in the suite,
+  and a compliance pass over the retune tour frames follows. Acceptance: tour
   frames of open meadow show hills with an obvious long axis roughly
   agreeing with their neighbors.
 - **Quantization warning (core contract):** all chunks share one quantization

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 13:28:27
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -23,10 +23,12 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — initial v2 contract suite.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: derived-ford suite (crossings wade-shallow, FORD_SPACING gaps), §3.3 mud-cap band + coverage tripwire + dist saturation, grid-vs-analytic equality, canopy-aware C1 kept at LANDMARK_VISIBILITY_MIN.
+- 09:08:2026 - 13:28:27: P1 anisotropy retune: structure-tensor elongation invariant (seed-1 median ratio ~3.9, floor 2.5; isotropic sits near 2).
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/Worldgen.h"
+#include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenScatter.h"
 #include "engine/world/sources/WorldgenSites.h"
 #include "engine/world/sources/WorldgenValidation.h"
@@ -311,6 +313,46 @@ TEST_CASE("grid-pass chunk generation matches the analytic surface_point") {
                   == doctest::Approx(sp.height).epsilon(0.001));
         }
     }
+}
+
+TEST_CASE("§2.1 landform anisotropy: meadow ridgelets share a local long axis") {
+    // Structure-tensor eigenvalue ratio over open-meadow windows (7x7
+    // gradients, 12 m spacing). The HILL_ANISOTROPY input-stretch of the mid
+    // octave pushes the seed-1 median to ~3.9; an isotropic field sits near
+    // ~2 — the 2.5 floor trips if the stretch ever regresses.
+    const auto& ctx = testbed();
+    std::vector<float> ratios;
+    for (float wz = 100.0f; wz < 950.0f; wz += 110.0f) {
+        for (float wx = 60.0f; wx < 700.0f; wx += 110.0f) {
+            if (world::crag_distance(ctx.params.layout, {wx, wz})
+                < ctx.params.layout.crag.radius + 60.0f) {
+                continue;
+            }
+            if (world::lake_norm_radius(ctx.params.layout.lake, {wx, wz}) < 2.0f) continue;
+            if (world::surface_point(ctx, {wx, wz}).dist_to_water < 40.0f) continue;
+            float jxx = 0.0f, jzz = 0.0f, jxz = 0.0f;
+            for (int iz = -3; iz <= 3; ++iz) {
+                for (int ix = -3; ix <= 3; ++ix) {
+                    const glm::vec2 p{wx + ix * 12.0f, wz + iz * 12.0f};
+                    const float gx = world::terrain_height(ctx, {p.x + 6.0f, p.y})
+                                   - world::terrain_height(ctx, {p.x - 6.0f, p.y});
+                    const float gz = world::terrain_height(ctx, {p.x, p.y + 6.0f})
+                                   - world::terrain_height(ctx, {p.x, p.y - 6.0f});
+                    jxx += gx * gx;
+                    jzz += gz * gz;
+                    jxz += gx * gz;
+                }
+            }
+            const float tr = jxx + jzz;
+            const float disc =
+                std::sqrt(std::max(0.0f, tr * tr - 4.0f * (jxx * jzz - jxz * jxz)));
+            ratios.push_back(((tr + disc) * 0.5f)
+                             / std::max((tr - disc) * 0.5f, 1e-6f));
+        }
+    }
+    REQUIRE(ratios.size() >= 10);
+    std::sort(ratios.begin(), ratios.end());
+    CHECK(ratios[ratios.size() / 2] >= 2.5f);
 }
 
 TEST_CASE("P3 surface: classes obey the priority rules on a sample sweep") {

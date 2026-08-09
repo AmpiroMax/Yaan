@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 13:28:27
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -29,6 +29,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2 (fBm + redistribution + stamps).
 - 09:08:2026 - 13:12:19: Stage 3b amendments: L0_AIM_ABOVE_PEAK shared by C1 validation and P5 sight wedges.
+- 09:08:2026 - 13:28:27: P1 anisotropy retune: STREAM_HILL_AXIS for the landform-anisotropy axis field (§2.1).
 */
 
 #pragma once
@@ -44,6 +45,7 @@ namespace dfn::world {
 /// tags). Base fBm octaves are streams 0..2 (stage-2 compatible values).
 enum WorldgenStream : uint32_t {
     STREAM_OCTAVE_BASE = 0,   // 0..2: base fBm octaves
+    STREAM_HILL_AXIS = 8,     // landform-anisotropy axis field (§2.1)
     STREAM_CRAG_RIDGED = 16,  // 16..17: crag ridged noise
     STREAM_RIVER_JITTER = 24, // sinuosity displacement
     STREAM_SITES = 32,        // P4 site placement rng

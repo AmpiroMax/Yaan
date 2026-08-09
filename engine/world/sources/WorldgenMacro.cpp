@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:28:27
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2; octave constants now consumed
   from dfn::config (WORLDGEN_OCTAVE*), local constexprs removed.
+- 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1, gated on HILL_ANISOTROPY): mid octave input-stretched along a drifting per-valley axis field via bilinear blending of fixed-frame samples (position-varying rotation rejected — |world|*grad(theta) distortion; cross-axis rhythm pinned at the 128 m contract by construction).
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -65,16 +66,56 @@ float valley_curve(float n) {
     }
 }
 
-/// Base gentle-hills fBm in meters (stage-2 field, unchanged hashes: octave
-/// streams 0..2), then valley redistribution.
+/// Landform anisotropy (LANDSCAPE §2.1): the MID octave (the round-bump
+/// layer) input-stretched by HILL_ANISOTROPY along a drifting per-valley
+/// axis field. Implemented as bilinear blending of four FIXED-FRAME samples:
+/// each axis-lattice cell (WORLDGEN_OCTAVE1_CELL — "per-valley" is the
+/// octave-1 wavelength) carries one axis angle in [0, pi); within a frame the
+/// rotation is constant, so the along-axis input is compressed exactly
+/// 1/HILL_ANISOTROPY and the cross-axis input stays 1:1 — the ~128 m
+/// cross-axis rhythm the corridors and the C1 grid feel is pinned by
+/// construction (design contract; domain-warp rejected in §2.1, and a
+/// POSITION-VARYING rotation is rejected here too: its |world|*grad(theta)
+/// distortion term shreds the octave far from the origin). Frames with equal
+/// angles produce identical fields (seamless); drifting angles crossfade.
+float aniso_mid_octave(uint64_t seed, glm::vec2 world) {
+    const float axis_cell = static_cast<float>(config::WORLDGEN_OCTAVE1_CELL);
+    const float cx = world.x / axis_cell;
+    const float cz = world.y / axis_cell;
+    const int64_t gx = static_cast<int64_t>(std::floor(cx));
+    const int64_t gz = static_cast<int64_t>(std::floor(cz));
+    const float tx = smoothstep01(cx - static_cast<float>(gx));
+    const float tz = smoothstep01(cz - static_cast<float>(gz));
+
+    float vals[2][2];
+    for (int dz = 0; dz <= 1; ++dz) {
+        for (int dx = 0; dx <= 1; ++dx) {
+            const float theta =
+                noise::lattice_value(seed, STREAM_HILL_AXIS, gx + dx, gz + dz)
+                * 3.14159265358979f;
+            const glm::vec2 axis{std::cos(theta), std::sin(theta)};
+            const glm::vec2 stretched{
+                glm::dot(world, axis) / static_cast<float>(config::HILL_ANISOTROPY),
+                world.y * axis.x - world.x * axis.y}; // dot(world, across)
+            vals[dz][dx] =
+                value_noise(seed, STREAM_OCTAVE_BASE + 1,
+                            static_cast<float>(config::WORLDGEN_OCTAVE2_CELL), stretched);
+        }
+    }
+    const float v0 = vals[0][0] + (vals[0][1] - vals[0][0]) * tx;
+    const float v1 = vals[1][0] + (vals[1][1] - vals[1][0]) * tx;
+    return v0 + (v1 - v0) * tz;
+}
+
+/// Base gentle-hills fBm in meters, then valley redistribution. Octaves 1
+/// (macro rolls) and 3 (fine texture) are isotropic; octave 2 is the
+/// anisotropic ridgelet layer above.
 float base_height(uint64_t seed, glm::vec2 world) {
     float h = 0.0f;
     h += value_noise(seed, STREAM_OCTAVE_BASE + 0,
                      static_cast<float>(config::WORLDGEN_OCTAVE1_CELL), world)
          * static_cast<float>(config::WORLDGEN_OCTAVE1_AMP);
-    h += value_noise(seed, STREAM_OCTAVE_BASE + 1,
-                     static_cast<float>(config::WORLDGEN_OCTAVE2_CELL), world)
-         * static_cast<float>(config::WORLDGEN_OCTAVE2_AMP);
+    h += aniso_mid_octave(seed, world) * static_cast<float>(config::WORLDGEN_OCTAVE2_AMP);
     h += value_noise(seed, STREAM_OCTAVE_BASE + 2,
                      static_cast<float>(config::WORLDGEN_OCTAVE3_CELL), world)
          * static_cast<float>(config::WORLDGEN_OCTAVE3_AMP);
