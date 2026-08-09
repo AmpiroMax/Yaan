@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:05:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -30,6 +30,11 @@ UPD:
 - 09:08:2026 - 11:05:00: Stage 3 — Tour v2 route: six vantages targeting the
   stage-3 checklist (texture tiling, fog/horizon, slope splat, water valley,
   overview, sky+sun).
+- 09:08:2026 - 11:57:20: Stage 3b — Tour v3: lazy ground resolution
+  (ground_relative steps + begin ground_at callback), focus_position() for
+  tour-driven streaming, testbed_steps() aimed at the LANDSCAPE §7.1 layout
+  (crag money shot, river ford, lake bluff, hamlet approach, forest species,
+  overview).
 */
 
 #include "engine/render/sources/Tour.h"
@@ -37,6 +42,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -76,13 +82,15 @@ glm::uvec2 Tour::internal_res_from_env(glm::uvec2 fallback) {
     return fallback;
 }
 
-void Tour::begin(std::vector<TourStep> steps, std::string output_dir) {
+void Tour::begin(std::vector<TourStep> steps, std::string output_dir,
+                 std::function<float(glm::vec2)> ground_at) {
     steps_ = std::move(steps);
     if (output_dir.empty()) {
         const char* dir = env_or_null("DFN_TOUR_DIR");
         output_dir = dir != nullptr ? dir : "screenshots";
     }
     output_dir_ = std::move(output_dir);
+    ground_at_ = std::move(ground_at);
     std::error_code ec;
     std::filesystem::create_directories(output_dir_, ec); // best effort
     step_ = 0;
@@ -99,12 +107,31 @@ uint32_t Tour::current_step() const {
     return step_;
 }
 
+glm::vec3 Tour::focus_position() const {
+    if (!active_) {
+        return {0.0f, 0.0f, 0.0f};
+    }
+    return resolved_position(steps_[step_]);
+}
+
+glm::vec3 Tour::resolved_position(const TourStep& step) const {
+    if (!step.ground_relative || !ground_at_) {
+        return step.position;
+    }
+    // Lazy ground resolution: chunks around a far vantage are only resident
+    // once the app streams around focus_position(), so the height is
+    // re-queried every frame and settles before the shot is taken.
+    return {step.position.x,
+            ground_at_({step.position.x, step.position.z}) + step.position.y,
+            step.position.z};
+}
+
 void Tour::apply(FirstPersonCamera& camera) const {
     if (!active_) {
         return;
     }
     const TourStep& step = steps_[step_];
-    const CameraPose pose{step.position, step.yaw, step.pitch};
+    const CameraPose pose{resolved_position(step), step.yaw, step.pitch};
     camera.set_poses(pose, pose); // static vantage: interpolation is a no-op
 }
 
@@ -160,13 +187,80 @@ std::vector<TourStep> Tour::default_steps(float ground_height) {
     // corner that is yaw ~1.6..2.9): outward aims put the unloaded world edge
     // inside the fog-free range and break the horizon (seen in look-dev).
     return {
-        {"eye_texture", {mid, eye, mid}, 2.0f, -0.5f, 30},
-        {"eye_horizon", {mid, eye, mid}, 2.3562f, -0.02f, 10},
-        {"slope_splat", {size * 0.7f, eye + 18.0f, size * 0.7f}, 2.3562f, -0.35f, 10},
-        {"water_valley", {mid, ground_height + 30.0f, mid}, 2.3562f, -0.5f, 10},
-        {"overview", {mid, ground_height + 60.0f, mid}, 2.3562f, -0.9f, 10},
-        {"sky_sun", {mid, eye, mid}, 2.48f, 0.45f, 10},
+        {"eye_texture", {mid, eye, mid}, 2.0f, -0.5f, 30, false},
+        {"eye_horizon", {mid, eye, mid}, 2.3562f, -0.02f, 10, false},
+        {"slope_splat", {size * 0.7f, eye + 18.0f, size * 0.7f}, 2.3562f, -0.35f, 10,
+         false},
+        {"water_valley", {mid, ground_height + 30.0f, mid}, 2.3562f, -0.5f, 10, false},
+        {"overview", {mid, ground_height + 60.0f, mid}, 2.3562f, -0.9f, 10, false},
+        {"sky_sun", {mid, eye, mid}, 2.48f, 0.45f, 10, false},
     };
+}
+
+namespace {
+
+// Yaw that aims from `from` to `to` (world x/z) under the frozen camera
+// convention: yaw 0 -> -Z (north), positive yaw turns toward +X (east).
+float aim_yaw(glm::vec2 from, glm::vec2 to) {
+    const glm::vec2 d = to - from;
+    return std::atan2(d.x, -d.y);
+}
+
+} // namespace
+
+std::vector<TourStep> Tour::testbed_steps() {
+    // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
+    // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative
+    // (y = offset above terrain, resolved through the begin() callback while
+    // the app streams around focus_position()). Wait frames cover streaming +
+    // mesh upload for each refocus.
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    constexpr uint32_t WAIT = 45;
+
+    // Vantages aim at the GENERATED seed-1 world, probed 09:08:2026 (the §7.1
+    // plan table drifted in hydrology: the real river runs (730,320) ->
+    // (560,500) into a flooded bend at (320..480, ~560); the lake spans
+    // x 188..274 / z 460..700; the outflow leaves south at x ~300..335).
+    const glm::vec2 crag{830.0f, 200.0f};
+
+    std::vector<TourStep> steps;
+    // (a) Ravenscar Crag from Vaelmere ground level. Look-dev finding (shots
+    // 1-3): from town the foothill pine strips out-angle the 52 m peak — only
+    // the tower tip breaks the skyline (C4 violation reported to design/core).
+    // The frame documents the current state honestly.
+    const glm::vec2 a_pos{320.0f, 480.0f};
+    steps.push_back({"crag_from_vaelmere", {a_pos.x, eye, a_pos.y},
+                     aim_yaw(a_pos, crag), 0.02f, WAIT, true});
+    // (a2) The working L0 money shot: the tree-free §2.4 corridor
+    // watchpoint -> barrow opens the only ground-level sightline to the rock.
+    const glm::vec2 a2_pos{700.0f, 382.0f};
+    steps.push_back({"crag_final_approach", {a2_pos.x, eye, a2_pos.y},
+                     aim_yaw(a2_pos, {795.0f, 270.0f}), 0.08f, WAIT, true});
+    // (b) The south outflow river, shot upstream so the descending surface
+    // reads; banks + shore sand in frame.
+    const glm::vec2 b_pos{330.0f, 905.0f};
+    steps.push_back({"river_ford", {b_pos.x, eye + 2.0f, b_pos.y},
+                     aim_yaw(b_pos, {305.0f, 810.0f}), -0.10f, WAIT, true});
+    // (c) Lakeshore: standing on the east beach at the waterline (the lake
+    // sits in its basin — from the meadow rim the surface hides).
+    const glm::vec2 c_pos{278.0f, 638.0f};
+    steps.push_back({"lake_bluff", {c_pos.x, eye, c_pos.y},
+                     aim_yaw(c_pos, {195.0f, 505.0f}), -0.05f, WAIT, true});
+    // (d) Hamlet buildings from the east corridor rise (the closest grass
+    // standpoint — south of the ring lies the flooded river bend).
+    const glm::vec2 d_pos{425.0f, 515.0f};
+    steps.push_back({"hamlet_approach", {d_pos.x, eye + 0.5f, d_pos.y},
+                     aim_yaw(d_pos, {372.0f, 500.0f}), -0.03f, WAIT, true});
+    // (e) Species read from the foothill watchpoint: oak crowns, pine tiers,
+    // birch river line, bush + stones in one frame (canopy-free standpoint).
+    const glm::vec2 e_pos{655.0f, 430.0f};
+    steps.push_back({"forest_species", {e_pos.x, eye, e_pos.y},
+                     aim_yaw(e_pos, {790.0f, 275.0f}), 0.06f, WAIT, true});
+    // (f) Overview: the whole valley composition from the south, looking north.
+    const glm::vec2 f_pos{512.0f, 800.0f};
+    steps.push_back({"overview", {f_pos.x, 85.0f, f_pos.y},
+                     aim_yaw(f_pos, {500.0f, 380.0f}), -0.32f, WAIT, true});
+    return steps;
 }
 
 } // namespace dfn::render

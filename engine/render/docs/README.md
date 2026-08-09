@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:25:00
+Last updated: 09:08:2026 - 11:57:20
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 09:08:2026 - 00:50:00: Stage 2 — implementations + TerrainMesher; tests.
 - 09:08:2026 - 10:31:00: Tour::default_steps(ground_height) — vantages offset by the app-supplied terrain height at the chunk center (old absolute heights sat under the generated surface and showed the terrain underside, mistaken for a flipped image).
 - 09:08:2026 - 11:25:00: Stage 3 «Картинка» — ProcTexture module, Materials.h look-dev environment, RenderSystem v2 (splat atlas, water plane, RenderEnvironment), Tour v2 six-vantage route, mesher dryness alpha.
+- 09:08:2026 - 11:57:20: Stage 3b — surface-truth splat (SurfaceFieldView), per-body water (WaterMesher), scatter batching (ProcMesh + ScatterBatcher), site placeholder meshes ids 1..7, Tour v3 §7.1 route with lazy ground resolution.
 -->
 
 # engine/render
@@ -85,9 +86,43 @@ scheduling, DebugDraw) plus the stage-3 visual foundation:
   (two-octave world-space value noise — continuous across chunk borders);
   rgb tint kept for the untextured fallback and large-scale variation.
 - Tests: `tests/render.cmake` — mesher, camera, tour headless, null backends,
-  proc textures, palette, render system (water/env) — 7 suites.
+  proc textures, palette, render system (water/env), proc meshes, scatter
+  batcher, water mesher — 10 suites.
 
-Look-dev findings recorded for the design phase: the stage-2 worldgen is a
-near-flat plain (slope p99 = 0.005), so the rock splat band is set to
-0.0025-0.0060 to catch its steepest ~5%; realistic values after worldgen v2
-will be ~0.07-0.18. All in Materials.h.
+Stage 3b («make the generated valley visible», lead-approved batch):
+
+- **Surface-truth splat**: `upload_terrain(renderer, heightfield, surface)`
+  overload takes core's `math::SurfaceFieldView` (spec Dependencies item 8);
+  TerrainMesher bakes vertex-color WEIGHTS (R sand / G rock / B water-bed /
+  A dryness) from `surface_class`; fs_terrain v3 augments rock by slope
+  (thresholds derived from SLOPE_GRASS_MAX/SLOPE_ROCK_MIN via 1-cos) and
+  dithers transitions with an ordered 4x4 Bayer in internal-pixel space
+  (LANDSCAPE §4). The stage-2/3 two-arg upload stays (slope-only fallback).
+- **Per-body water**: `set_water_bodies(renderer, lakes, stations, offsets)`
+  builds one ellipse plane per `math::LakePlane` and one ribbon per river
+  segment from `math::RiverStation` polylines (width per station, surface
+  descending source -> mouth; WaterMesher, pure + unit-tested). Bodies extend
+  LOOKDEV_WATER_EDGE_MARGIN_M past the banks; overlap hides under terrain via
+  depth test. `set_water`/DFN_WATER stays as the debug fallback only.
+- **Scatter drawing**: `upload_scatter(renderer, coord, instances)` /
+  `drop_scatter` — P5 data (never entities) baked into per-chunk batches
+  (ScatterBatcher): one tree batch (oak/pine/birch per the §5 silhouettes,
+  ProcMesh) always drawn; bush/stone micro tiles (4x4 per chunk) culled by
+  GRASS_VIEW_DISTANCE from the eye. Batching keeps the frozen IRenderer
+  contract (instancing only via a future contract sync if profiling demands).
+- **Site placeholders**: ProcMesh builds §6 silhouette-coded structures
+  (gable dwelling, porch trader, two-storey L tavern, tall-roof barn, spired
+  shrine, dark portal, broken tower) registered at init under the
+  lead-blessed RenderMesh ids 1..7 — chunk-streamed site entities render with
+  zero extra wiring. ECS submissions moved from "unlit" to the lit+fogged
+  "prop" program.
+- **Tour v3**: `testbed_steps()` — the LANDSCAPE §7.1 route (crag-from-hamlet
+  money shot, river ford, lake bluff, hamlet approach, forest species,
+  overview); steps are ground_relative, resolved per frame through the
+  `begin(steps, dir, ground_at)` callback while the app streams around
+  `focus_position()` (far vantages' chunks are not resident at arm time).
+
+Look-dev note: the flat-worldgen rock band (0.0025-0.0060) is gone; slope
+thresholds now derive from the design constants in NUMBERS.md. Placeholder
+mesh dimensions/colors cite LANDSCAPE §5/§6 and move to data files with the
+content pipeline (Rule 5).

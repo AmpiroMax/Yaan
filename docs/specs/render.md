@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 11:28:00
+Last updated: 09:08:2026 - 11:57:20
 -->
 <!--
 UPD:
@@ -21,6 +21,14 @@ UPD:
   post flag (Q9б), Tour v2 six-vantage route + 4-way res/palette matrix.
   Contract sync 10:48 (RenderEnvironment/set_environment, palette_post).
   Boundary agreement with core for stage 3b (SurfaceFieldView, scatter).
+- 09:08:2026 - 11:57:20: Stage 3b «Долина видима» (lead-approved batch):
+  surface-truth splat from core's SurfaceFieldView (vertex weight channels +
+  fs_terrain v3 ordered dither, slope band from SLOPE_GRASS_MAX/SLOPE_ROCK_MIN),
+  per-body water (WaterMesher: lake planes + river ribbons from
+  ChunkManager::water_bodies), scatter batching (ProcMesh §5 species +
+  ScatterBatcher, GRASS_VIEW_DISTANCE micro tiles), §6 site placeholder meshes
+  under blessed ids 1..7, "prop" program (backend), Tour v3 §7.1 route with
+  lazy ground resolution + tour-driven streaming focus (app wiring by lead).
 -->
 
 # Spec — render agent
@@ -309,14 +317,49 @@ Stage 3 «Картинка» (done in this changeset):
    (p99 = 0.005) -> rock band 0.0025-0.0060 documented as flat-worldgen
    placeholder; fog span 0.25-0.70 of CAMERA_FAR hides the streaming edge.
 
-Stage 3b/4 (next): rebake splat weights from core's SurfaceFieldView (real
-beaches/design-truth mask), water body primitives (lake/river), scatter
-drawing (trees/bushes/stones), placeholder prisms for POI markers, skinned
-meshes (contract sync), frustum culling with core's math types, LOD/skirts,
-sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk.
+Stage 3b (done in this changeset — «make the generated valley visible»):
+1. TerrainMesher v3: vertex color re-purposed to splat weights (R sand /
+   G rock / B water-bed / A dryness) from SurfaceFieldView.surface_class;
+   upload_terrain 3-arg overload (2-arg = slope-only fallback).
+2. fs_terrain v3: weight+slope splat, ordered 4x4 Bayer transitions in
+   internal-pixel space (§4 "dither, not gradients"); slope thresholds derive
+   from config SLOPE_GRASS_MAX / SLOPE_ROCK_MIN via 1 - cos (Materials.h).
+3. WaterMesher (pure): lake ellipse fans + river ribbon strips (per-station
+   width, descending surface); RenderSystem::set_water_bodies/clear_water_
+   bodies over ChunkManager::water_bodies() (app ferry, lead). set_water +
+   DFN_WATER demoted to debug fallback.
+4. ProcMesh (pure): §5 species (oak ball-on-stump / pine cones / pale leaning
+   birch / bush / stone) + §6 silhouette-coded structures, blessed RenderMesh
+   ids 1..7 registered at init (site entities render via the ECS path, now on
+   the lit+fogged "prop" program — backend pairs vs_terrain + fs_prop).
+5. ScatterBatcher (pure): world-space baked per-chunk batches — trees always,
+   bush/stone in 4x4 micro tiles culled by GRASS_VIEW_DISTANCE; RenderSystem
+   upload_scatter/drop_scatter mirror the terrain pair (app ferry, lead).
+6. Tour v3: testbed_steps() at the §7.1 layout coords (crag money shot, river
+   ford, lake bluff, hamlet approach, forest species, overview); additive
+   TourStep::ground_relative + begin(..., ground_at) lazy resolution +
+   focus_position() so the app streams around the tour camera (far vantages
+   are not resident at arm time — the single-height lesson, generalized).
+7. Tests: 10 render suites (added proc mesh budgets/bounds/determinism,
+   scatter batching, water meshing, splat weight channels, tour v3 shape).
+
+Stage 4 (next): skinned meshes (contract sync), frustum culling with core's
+math types, LOD/skirts, grass cards (P6 micro, §5.6), flower patches,
+sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk,
+instancing sync if scatter profiling demands.
 
 ## How it is verified
 
+- **Stage-3b acceptance (Rule 27):** `bash tools/run_tour.sh <build>` shoots
+  the 4-way matrix (640x360 / 320x180 x palette on/off) over the Tour v3
+  route (7 frames: crag-from-hamlet, crag final approach, river, lake shore,
+  hamlet approach, forest species, overview) — 28 frames, all read in the
+  09:08:2026 look-dev loop (6 iterations, vantages corrected against the
+  GENERATED world probed via scratch tools, not the §7.1 plan table).
+  Findings recorded in the DONE report: pine strips out-angle the L0 from
+  town ground (C4 violation -> design/core); hydrology drifted from the §7.1
+  coordinates (fords/lake); WaterBed mud margins are 2.7% of the world and
+  read very wide near bends.
 - **Stage-3 acceptance (Rule 27):** `DFN_WATER=15 bash tools/run_tour.sh
   <build>` shoots the 4-way matrix (640x360 / 320x180 x palette on/off), six
   frames each. Checklist per frame: textures tile without obvious repetition

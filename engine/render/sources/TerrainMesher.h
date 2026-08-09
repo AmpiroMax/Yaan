@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -17,9 +17,12 @@ Dependencies:
 - Used by: RenderSystem::upload_terrain, tests (deterministic, GPU-free).
 
 Notes:
-- Ground tint: per-vertex color from height band (grass -> dry brown) and
-  slope (steep -> rock grey); the terrain shader applies directional lambert
-  on top. Pure function of the input view — deterministic, unit-tested.
+- Vertex color carries SPLAT WEIGHTS since stage 3b (contract with
+  fs_terrain.sc): R = sand, G = rock, B = water-bed, A = grass<->dirt dryness.
+  With a SurfaceFieldView the weights come from core's design-truth data
+  (surface_class + dist_to_water per LANDSCAPE §3.3/§4); without one they fall
+  back to slope-only rock. Pure function of the inputs — deterministic,
+  unit-tested.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -28,11 +31,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial contract + implementation.
+- 09:08:2026 - 11:57:20: Stage 3b — SurfaceFieldView overload; vertex color
+  re-purposed from tint to splat weights (shader contract updated in step).
 */
 
 #pragma once
 
 #include "engine/core/math/sources/HeightField.h"
+#include "engine/core/math/sources/SurfaceField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 
 #include <vector>
@@ -47,8 +53,14 @@ struct TerrainMeshData {
 
 /// Triangulates `field` (world-space positions from origin/step, heights via
 /// the agreed decode formula). Normals by central differences; UVs span 0..1
-/// across the chunk; vertex colors encode the ground tint. Neighbor chunks
-/// share edge samples by contract, so their meshes stitch without cracks.
+/// across the chunk; vertex colors encode the splat weights (see Notes).
+/// Neighbor chunks share edge samples by contract, so meshes stitch without
+/// cracks. `surface` (same chunk's SurfaceFieldView, may be nullptr) supplies
+/// design-truth sand/rock/water-bed weights; nullptr keeps slope-only rock.
+[[nodiscard]] TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
+                                                 const math::SurfaceFieldView* surface);
+
+/// Stage-2 compatible form: slope-only splat weights (no surface data).
 [[nodiscard]] TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field);
 
 } // namespace dfn::render

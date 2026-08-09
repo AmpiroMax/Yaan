@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 11:14:00
+# Last updated: 09:08:2026 - 11:57:20
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -18,8 +18,12 @@
 # - 09:08:2026 - 00:45:00: Stage 2 — mesher, camera, tour, null backend tests.
 # - 09:08:2026 - 11:14:00: Stage 3 — proc texture, palette, render system
 #   (water/env) tests.
+# - 09:08:2026 - 11:57:20: Stage 3b — proc mesh, scatter batcher, water mesher.
 
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
+add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
+add_dfn_test(render_scatter_batcher render/ScatterBatcherTests.cpp dfn_render)
+add_dfn_test(render_water_mesher render/WaterMesherTests.cpp dfn_render)
 add_dfn_test(render_camera render/CameraTests.cpp dfn_render)
 add_dfn_test(render_tour render/TourTests.cpp dfn_render dfn_platform_render)
 add_dfn_test(render_null_backends render/NullBackendTests.cpp

@@ -1,12 +1,13 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:26:00
+Last updated: 09:08:2026 - 11:57:20
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: lead-authored frozen interface, no backends yet.
 - 09:08:2026 - 00:50:00: Stage 2 — bgfx + null backends, shaderc build step.
 - 09:08:2026 - 11:26:00: Stage 3 — RenderEnvironment/set_environment + palette_post (contract sync 10:48), sky pass, water state, palette post, point-sampled textures.
+- 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain + fs_prop); terrain fragment v3 (splat-weight vertex channels + ordered dither).
 -->
 
 # engine/platform/render
@@ -84,12 +85,15 @@ Stage-3 additions in the bgfx backend:
 
 | Name | State |
 |---|---|
-| `terrain`, `unlit` (and any unlisted name) | opaque: RGB+A+Z write, depth test LESS |
+| `terrain`, `unlit`, `prop` (and any unlisted name) | opaque: RGB+A+Z write, depth test LESS |
 | `water` | transparent: RGB+A write, depth test LESS, NO depth write, alpha blend; callers submit transparents after opaques (scene view is sequential) |
 | `debug`, `sky`, `upscale` | backend-internal (lines / background / post) |
 
-Shaders: `sources/bgfx/shaders/*.sc` — terrain v2 (2x2 atlas splat by
-slope/height/dryness + lambert + distance fog), unlit, debug lines, sky,
-water (dual scrolled samples, fog-aware alpha), upscale (+palette),
-`dfn_env.sh` (environment uniform layout — change only together with
-`BgfxRenderer.cpp::apply_environment`).
+Shaders: `sources/bgfx/shaders/*.sc` — terrain v3 (2x2 atlas splat driven by
+per-vertex weights R=sand/G=rock/B=water-bed/A=dryness baked from core's
+SurfaceFieldView, slope rock augmentation from env uniforms, ordered 4x4
+dither transitions in internal-pixel space + lambert + distance fog), prop
+(vertex-color albedo, lambert + fog — placeholder scatter/site meshes; shares
+vs_terrain), unlit, debug lines, sky, water (dual scrolled samples, fog-aware
+alpha), upscale (+palette), `dfn_env.sh` (environment uniform layout — change
+only together with `BgfxRenderer.cpp::apply_environment`).

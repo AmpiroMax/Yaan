@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:56:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -33,6 +33,9 @@ UPD:
   backend sky pass (sequential scene view), palette post in the upscale pass
   (Q9b, RendererInitParams::palette_post), "water" logical name -> alpha-blend
   state, point-sampled material textures.
+- 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain +
+  fs_prop: vertex-color albedo, lambert + fog) for placeholder scatter/site
+  meshes.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -67,6 +70,7 @@ UPD:
 #include <fs_sky_mtl.h>
 #include <vs_water_mtl.h>
 #include <fs_water_mtl.h>
+#include <fs_prop_mtl.h>
 #endif
 
 namespace dfn::platform {
@@ -104,13 +108,17 @@ const ProgramSource PROGRAM_TABLE[] = {
                 {fs_sky_mtl, sizeof(fs_sky_mtl)}},
     {"water",   {vs_water_mtl, sizeof(vs_water_mtl)},
                 {fs_water_mtl, sizeof(fs_water_mtl)}},
+    // "prop" shares the terrain vertex stage (world pos + normal + color
+    // pass-through); only the fragment differs (vertex-color albedo).
+    {"prop",    {vs_terrain_mtl, sizeof(vs_terrain_mtl)},
+                {fs_prop_mtl, sizeof(fs_prop_mtl)}},
 };
 #else
 // Non-Apple platforms compile clean but ship no embedded shaders this stage
 // (macOS focus per the stage-2 brief); load_program returns invalid handles.
 const ProgramSource PROGRAM_TABLE[] = {
     {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}},
-    {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}},
+    {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
 };
 #endif
 

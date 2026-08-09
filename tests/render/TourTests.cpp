@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 11:57:20
 Module: tests
 File: tests/render/TourTests.cpp
 
@@ -21,6 +21,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial tests.
+- 09:08:2026 - 11:57:20: Stage 3b — ground-relative resolution, focus
+  position, testbed_steps route shape.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -114,4 +116,43 @@ TEST_CASE("default steps satisfy the stage-3 acceptance shape") {
         CHECK_FALSE(step.label.empty());
         CHECK(step.position.y > 0.0f); // above the flat test chunk's ground
     }
+}
+
+TEST_CASE("ground-relative steps resolve through the begin callback") {
+    Tour tour;
+    // Ground function: a tilted plane so each vantage sees a distinct height.
+    tour.begin({{"rel", {100.0f, 1.7f, 200.0f}, 0.0f, 0.0f, 5, true}}, TMP_DIR,
+               [](glm::vec2 p) { return p.x * 0.1f; });
+
+    CHECK(tour.focus_position().y == doctest::Approx(100.0f * 0.1f + 1.7f));
+    dfn::render::FirstPersonCamera camera;
+    tour.apply(camera);
+    CHECK(camera.interpolated_pose(0.0f).position.y
+          == doctest::Approx(100.0f * 0.1f + 1.7f));
+    std::filesystem::remove_all(TMP_DIR);
+}
+
+TEST_CASE("ground-relative steps without a callback fall back to absolute y") {
+    Tour tour;
+    tour.begin({{"rel", {10.0f, 3.0f, 10.0f}, 0.0f, 0.0f, 5, true}}, TMP_DIR);
+    CHECK(tour.focus_position().y == doctest::Approx(3.0f));
+    std::filesystem::remove_all(TMP_DIR);
+}
+
+TEST_CASE("testbed steps cover the §7.1 must-have frames inside the testbed") {
+    const auto steps = Tour::testbed_steps();
+    REQUIRE(steps.size() == 7); // crag from hamlet, crag final approach,
+                                // river ford, lake bluff, hamlet, forest
+                                // species, overview
+    for (const auto& step : steps) {
+        CHECK_FALSE(step.label.empty());
+        CHECK(step.ground_relative); // heights resolve against real terrain
+        CHECK(step.wait_frames >= 30); // streaming refocus must settle
+        // Inside the 1024 m testbed (LANDSCAPE §7 canvas).
+        CHECK(step.position.x > 0.0f);
+        CHECK(step.position.x < 1024.0f);
+        CHECK(step.position.z > 0.0f);
+        CHECK(step.position.z < 1024.0f);
+    }
+    CHECK(steps.front().label == "crag_from_vaelmere"); // the L0 money shot
 }

@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 10:45:06
+Last updated: 09:08:2026 - 12:44:58
 -->
 <!--
 UPD:
 - 09:08:2026 - 10:45:06: Created the landscape design bible (stage 3): composition principles, detail layers with worldgen pass order, water rules, terrain palette, flora and structure catalogs, testbed v2 plan, sources. All new numeric values are proposals pending NUMBERS.md approval.
+- 09:08:2026 - 12:44:58: Amendments from render's stage-3b look-dev probes: C1/C4 visibility validation is now canopy-aware with a clearance factor and L0 sight wedges (pine wall buried the crag from town); riverbed/mud splat band capped (WaterBed 2.74% vs ~1% water was over-wide); dist_to_water field range requirement; §7.1 fords are now derived from the generated trace (fixed coords removed), seed-1 generated hydrology actuals recorded, hamlet flood-margin re-score flagged.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -43,8 +44,12 @@ dominant landmark, a secondary landmark, or a local guide (§1.3). On the
 region this is the `POI_VISIBLE_COUNT` contract (1–3 simultaneously visible);
 on the testbed the same rule holds with the tighter spacing of §1.2.
 Verification: a worldgen validation pass samples a coarse grid of standpoints
-and raycasts against the heightfield + landmark bounding shapes; any standpoint
-with zero visible attractors fails the seed. This is computable, not editorial.
+and raycasts against the **occlusion heightfield** + landmark bounding shapes;
+any standpoint with zero visible attractors fails the seed. The occlusion
+heightfield is terrain **plus canopy**: every sample inside a forest mask or
+under a placed tree adds that species' max height (render's stage-3b probes
+proved terrain-only raycasts pass seeds where a pine wall buries the L0).
+This is computable, not editorial.
 
 **Rule C2 — never show everything.** The complement of C1: at most ~3
 attractors visible at once (`POI_VISIBLE_COUNT` upper bound). Breath of the
@@ -95,7 +100,22 @@ navigation. Adapted to our scales:
 *unambiguous* at a glance. Enforce by silhouette height: L0 ≥ 25 m above local
 terrain; L1 = 5–15 m; L2 ≤ 5 m **(предложение — утвердить, encoded in the
 feature stamps of worldgen v2)**. Nothing that is not the L0 may exceed L0's
-apparent height from the main travel corridors.
+apparent height from the main travel corridors — *including canopy*.
+
+Enforcement (added after render's stage-3b probes showed 15 m foothill pines
+out-angling the 52 m crag from every western/southern ground vantage):
+
+- **Clearance factor:** from every validation standpoint that C1 credits with
+  seeing the L0, the L0's subtended angle must exceed every intervening
+  occluder (terrain + canopy) by ≥ 20 %
+  **(предложение — утвердить: `LANDMARK_CLEARANCE_FACTOR` = 1.2)**.
+- **L0 sight wedges:** P5 precomputes 2D wedges from each L1/POI standpoint to
+  the L0 footprint edges. Inside a wedge, any candidate tree whose canopy top
+  would subtend ≥ `L0 angle / LANDMARK_CLEARANCE_FACTOR` from that wedge's
+  standpoint is rejected (cheap: only trees inside wedges are tested,
+  deterministic). Terrain-side tuning knobs if wedge filtering thins a forest
+  too much: widen the L0 stamp's treeless rockline band, or raise the peak —
+  core's choice per seed, the invariant is the clearance factor.
 
 ### 1.4 Draw-the-player rules
 
@@ -205,10 +225,10 @@ sampled against them.
     cell 90 m in meadows (`MEADOW_CLUSTER_CELL` = 90 m, 40 % skip).
   - River bends: hydrology path smoothing keeps sinuosity ≥ 1.15 (path length
     / straight distance) so banks create pockets and reveal beats.
-- **Must never:** block the POI-chain corridors (§2.4); put an outcrop or
-  cluster where it occludes > 50 % of the L0's silhouette from a corridor
-  standpoint (checked by the same raycast validation as C1); float above or
-  intersect water.
+- **Must never:** block the POI-chain corridors (§2.4); violate the L0 sight
+  wedges / clearance factor of C4 (checked by the canopy-aware raycast
+  validation of C1 — terrain-only checks are insufficient, see C4); float
+  above or intersect water.
 
 ### 2.3 Micro (grass, flowers, bushes, stones, sand patches)
 
@@ -384,7 +404,10 @@ corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
   the *dark mass* tool for composition backdrops.
 - **Placement:** slopes 10–35°, higher terrain, crag foothills and northern
   ridges; spacing 4–7 m; follows ridgelines in strips 20–60 m wide (great for
-  leading lines toward the L0).
+  leading lines toward the L0). Pines are the main C4 hazard: 12–18 m of
+  canopy on foothills out-angles the L0 from valley standpoints — pine strips
+  on landmark-facing shoulders are subject to the L0 sight-wedge filter (§1.3)
+  before anything else.
 - **Clustering:** strips and wedges, not blobs; a lone skyline pine is a
   legitimate L2 guide.
 

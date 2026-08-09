@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:08:00
+Last updated: 09:08:2026 - 11:57:20
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -24,6 +24,8 @@ UPD:
 - 09:08:2026 - 11:08:00: Stage 3 — vertex alpha now carries the grass/dirt
   dryness (world-continuous), no longer forced opaque; test updated to check
   determinism + cross-chunk alpha continuity instead.
+- 09:08:2026 - 11:57:20: Stage 3b — surface-field splat weight channels
+  (R sand / G rock / B bed) + mismatched-grid fallback.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -153,6 +155,50 @@ TEST_CASE("terrain mesh is deterministic (colors incl. dryness alpha)") {
         // be a pure function of the input (deterministic across rebuilds).
         CHECK(m1.vertices[i].color_rgba == m2.vertices[i].color_rgba);
     }
+}
+
+TEST_CASE("surface field drives the splat weight channels") {
+    const FieldData f = make_field(0, [](uint32_t, uint32_t) { return uint16_t{100}; });
+
+    // Surface data: sample 0 sand, 1 rock, 2 blend, 3 water bed, rest grass.
+    std::vector<uint8_t> classes(RES * RES,
+                                 static_cast<uint8_t>(dfn::math::SurfaceClass::Grass));
+    classes[0] = static_cast<uint8_t>(dfn::math::SurfaceClass::Sand);
+    classes[1] = static_cast<uint8_t>(dfn::math::SurfaceClass::Rock);
+    classes[2] = static_cast<uint8_t>(dfn::math::SurfaceClass::GrassRockBlend);
+    classes[3] = static_cast<uint8_t>(dfn::math::SurfaceClass::WaterBed);
+    std::vector<float> dist(RES * RES, 100.0f);
+    std::vector<float> water(RES * RES, dfn::math::NO_WATER);
+
+    dfn::math::SurfaceFieldView surface;
+    surface.chunk_coord = f.view.chunk_coord;
+    surface.origin = f.view.origin;
+    surface.resolution = RES;
+    surface.step = STEP;
+    surface.dist_to_water = dist;
+    surface.water_surface = water;
+    surface.surface_class = classes;
+
+    const TerrainMeshData mesh = build_terrain_mesh(f.view, &surface);
+    REQUIRE(mesh.vertices.size() == RES * RES);
+    // Channel contract (fs_terrain): R = sand, G = rock, B = water bed.
+    const auto red = [](uint32_t c) { return c & 0xFFu; };
+    const auto green = [](uint32_t c) { return (c >> 8) & 0xFFu; };
+    const auto blue = [](uint32_t c) { return (c >> 16) & 0xFFu; };
+    CHECK(red(mesh.vertices[0].color_rgba) == 255);
+    CHECK(green(mesh.vertices[0].color_rgba) == 0);
+    CHECK(green(mesh.vertices[1].color_rgba) == 255);
+    CHECK(green(mesh.vertices[2].color_rgba) == 128); // blend class = mid rock
+    CHECK(blue(mesh.vertices[3].color_rgba) == 255);
+    CHECK(red(mesh.vertices[4].color_rgba) == 0); // grass: no sand/rock/bed
+    CHECK(green(mesh.vertices[4].color_rgba) == 0);
+    CHECK(blue(mesh.vertices[4].color_rgba) == 0);
+
+    // A mismatched surface grid is ignored (falls back to slope-only).
+    surface.resolution = RES - 1;
+    const TerrainMeshData fallback = build_terrain_mesh(f.view, &surface);
+    CHECK(red(fallback.vertices[0].color_rgba) == 0);
+    CHECK(green(fallback.vertices[1].color_rgba) == 0);
 }
 
 TEST_CASE("malformed heightfield views yield an empty mesh, never UB") {

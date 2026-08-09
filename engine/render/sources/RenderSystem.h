@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:02:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -47,17 +47,26 @@ UPD:
   frame (Materials.h defaults, environment() accessor for tuning), water
   plane capability (set_water/clear_water + DFN_WATER=<height_m> debug env),
   render-side visual clock for water animation.
+- 09:08:2026 - 11:57:20: Stage 3b (lead-approved batch): upload_terrain
+  overload with SurfaceFieldView (surface-truth splat), upload_scatter/
+  drop_scatter (batched P5 scatter with GRASS_VIEW_DISTANCE micro culling),
+  set_water_bodies/clear_water_bodies (lake planes + river ribbons),
+  placeholder site meshes registered under the blessed RenderMesh ids 1..7,
+  ECS submissions moved to the lit+fogged "prop" program.
 */
 
 #pragma once
 
+#include "engine/core/math/sources/SurfaceField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 
 #include <chrono>
 #include <cstdint>
 #include <glm/vec2.hpp>
+#include <span>
 #include <unordered_map>
+#include <vector>
 
 namespace dfn::ecs {
 class World; // engine/core/ecs/sources/World.h (core zone)
@@ -86,9 +95,33 @@ public:
     // Triangulates the heightfield (TerrainMesher, stage 2) and uploads the chunk
     // mesh. Idempotent per chunk_coord: re-upload replaces the previous mesh.
     void upload_terrain(platform::IRenderer& renderer, const math::HeightFieldView& field);
+    // Stage 3b: same, with the chunk's SurfaceFieldView (core boundary, spec
+    // Dependencies item 8) baking design-truth splat weights (sand by shore,
+    // rock by surface class, water-bed darkening). surface may be nullptr.
+    void upload_terrain(platform::IRenderer& renderer, const math::HeightFieldView& field,
+                        const math::SurfaceFieldView* surface);
     // Destroys the chunk's mesh. Must run before core frees the heightmap
     // (ChunkUnloaded fires before the data is freed — agreed lifetime).
     void drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord);
+
+    // Scatter (stage 3b, data-only P5 instances — never entities) --------------
+    // Bakes the chunk's scatter span into batched meshes (ScatterBatcher):
+    // trees always drawn; bush/stone micro tiles culled by GRASS_VIEW_DISTANCE
+    // from the eye. Idempotent per chunk_coord, mirrors upload_terrain.
+    void upload_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord,
+                        std::span<const math::ScatterInstance> instances);
+    void drop_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord);
+
+    // Water bodies (stage 3b) --------------------------------------------------
+    // Builds one mesh per lake (ellipse plane) and per river segment (ribbon
+    // along stations, width per station, surface descending source -> mouth;
+    // segment i = stations [offsets[i], offsets[i+1])). Replaces any previous
+    // bodies. The global set_water debug plane remains a separate fallback.
+    void set_water_bodies(platform::IRenderer& renderer,
+                          std::span<const math::LakePlane> lakes,
+                          std::span<const math::RiverStation> river_stations,
+                          std::span<const uint32_t> river_segment_offsets);
+    void clear_water_bodies(platform::IRenderer& renderer);
 
     // Environment (stage 3) ----------------------------------------------------
     // The frame environment sent to IRenderer::set_environment each render.
@@ -118,18 +151,32 @@ private:
                                       uint32_t width, uint32_t height,
                                       const uint8_t* pixels);
 
+    // One micro-scatter tile resident on the GPU (culling data + mesh).
+    struct MicroTileRes {
+        glm::vec2 center_xz{0.0f};
+        float radius_m = 0.0f;
+        uint32_t mesh_id = 0; // MeshHandle.id
+    };
+    struct ChunkScatterRes {
+        uint32_t trees_mesh_id = 0; // 0 = no trees in this chunk
+        std::vector<MicroTileRes> micro;
+    };
+
     // Resource bookkeeping only — never game state (Rule 10).
     std::unordered_map<glm::ivec2, uint32_t, ChunkKeyHash> terrain_meshes_; // coord -> MeshHandle.id
+    std::unordered_map<glm::ivec2, ChunkScatterRes, ChunkKeyHash> scatter_meshes_;
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id
     std::unordered_map<uint64_t, uint32_t> proc_texture_ids_; // params key -> asset id
+    std::vector<uint32_t> water_body_meshes_; // MeshHandle.ids (lakes + river segments)
     uint32_t next_texture_asset_ = 1; // dense id allocator (0 = none)
     uint32_t terrain_program_ = 0; // ProgramHandle.id
     uint32_t unlit_program_ = 0;   // ProgramHandle.id
     uint32_t water_program_ = 0;   // ProgramHandle.id
+    uint32_t prop_program_ = 0;    // ProgramHandle.id (lit+fog vertex color)
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
     uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
-    uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no water
+    uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no debug water plane
     platform::RenderEnvironment environment_{};
     std::chrono::steady_clock::time_point clock_start_{}; // visual time origin
 };

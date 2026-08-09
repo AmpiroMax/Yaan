@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 10:29:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -53,6 +53,11 @@ UPD:
   terrain on top, sky below. Render orientation itself was correct (frame 03
   from y=60 proved it). Defaulted parameter, source-compatible; lead sync per
   Rule 26 recorded via team channel 09:08:2026.
+- 09:08:2026 - 11:57:20: Stage 3b Tour v3 (lead-approved batch): additive
+  TourStep::ground_relative, begin(..., ground_at) lazy ground resolution
+  (far vantages' chunks are not resident at arm time), focus_position() so
+  the app can stream around the tour camera, testbed_steps() — the
+  LANDSCAPE §7.1 route (crag/river/lake/hamlet/forest/overview).
 */
 
 #pragma once
@@ -60,6 +65,7 @@ UPD:
 #include "engine/render/sources/FirstPersonCamera.h"
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -77,6 +83,10 @@ struct TourStep {
     float yaw = 0.0f;                     // radians, same convention as CameraPose
     float pitch = 0.0f;
     uint32_t wait_frames = 0;             // frames rendered before the shot
+    // Stage 3b: when true, position.y is an offset above the terrain at
+    // position.xz, resolved each frame through the begin() ground callback
+    // (heights become exact once the vantage's chunk streams in).
+    bool ground_relative = false;
 };
 
 class Tour {
@@ -91,10 +101,19 @@ public:
     [[nodiscard]] static glm::uvec2 internal_res_from_env(glm::uvec2 fallback);
 
     // Arms the tour. `output_dir` empty = DFN_TOUR_DIR or the default dir.
-    void begin(std::vector<TourStep> steps, std::string output_dir);
+    // `ground_at` (stage 3b, optional) returns the terrain height (m) at a
+    // world x/z — used every frame to resolve ground_relative steps; without
+    // it those steps treat position.y as absolute.
+    void begin(std::vector<TourStep> steps, std::string output_dir,
+               std::function<float(glm::vec2)> ground_at = {});
 
     [[nodiscard]] bool active() const;
     [[nodiscard]] uint32_t current_step() const;
+
+    // The current vantage position (ground-resolved when possible) — the app
+    // streams chunks around this while the tour runs, so every vantage gets
+    // resident terrain regardless of where the player is parked.
+    [[nodiscard]] glm::vec3 focus_position() const;
 
     // Frame start: force the camera to the current step's pose (both snapshots
     // set equal — a tour frame is deliberately static, interpolation is a no-op).
@@ -115,9 +134,20 @@ public:
     // keeps the historical flat-ground assumption.
     [[nodiscard]] static std::vector<TourStep> default_steps(float ground_height = 0.0f);
 
+    // Tour v3 (stage 3b): the LANDSCAPE.md §7.1 acceptance route — vantages at
+    // the testbed layout coordinates (crag from the hamlet, river ford, lake
+    // shore with the bluff, hamlet approach, forest species, overview). All
+    // steps are ground_relative; pass a ground_at callback to begin().
+    [[nodiscard]] static std::vector<TourStep> testbed_steps();
+
 private:
+    // Step position with ground_relative y resolved via ground_at_ (absolute
+    // passthrough otherwise).
+    [[nodiscard]] glm::vec3 resolved_position(const TourStep& step) const;
+
     std::vector<TourStep> steps_;
     std::string output_dir_;
+    std::function<float(glm::vec2)> ground_at_;
     uint32_t step_ = 0;
     uint32_t frames_waited_ = 0;
     uint32_t flush_left_ = 0; // frames rendered after scheduling a screenshot

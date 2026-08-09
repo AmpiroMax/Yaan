@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 10:57:00
+# Last updated: 09:08:2026 - 11:57:20
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -27,6 +27,8 @@
 #   gate: third-party headers must not trip -Wpedantic in our TUs).
 # - 09:08:2026 - 10:57:00: Stage 3 — sky/water shader pairs, dfn_env.sh shared
 #   include (shader dir added to shaderc -i), BgfxPalette.cpp.
+# - 09:08:2026 - 11:57:20: Stage 3b — fs_prop fragment shader ("prop" program
+#   for placeholder scatter/site meshes; shares vs_terrain).
 
 include(FetchContent)
 
@@ -73,7 +75,7 @@ if(APPLE)
     foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
-    foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water)
+    foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()

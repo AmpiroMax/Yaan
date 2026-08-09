@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:48:00
+Last updated: 09:08:2026 - 12:05:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -38,6 +38,10 @@ UPD:
                          underground-camera diagnosis; Rule 26 ack recorded).
 - 09:08:2026 - 10:48:00: DFN_PALETTE=1 wired to RendererInitParams.palette_post
                          (stage-3 render batch, Rule 26).
+- 09:08:2026 - 12:05:00: Stage-3b ferry: surface-aware terrain upload, scatter
+                         upload/drop, per-body water; Tour v3 (testbed steps,
+                         per-frame ground resolution, tour-driven streaming
+                         focus, frozen player during tour).
 */
 
 #include "engine/app/sources/App.h"
@@ -158,6 +162,9 @@ bool App::init(const AppConfig& config) {
     gp.min_chunk = {0, 0};
     gp.max_chunk = {3, 3};
     chunks_.open_generated(gp, sp);
+    const auto wb = chunks_.water_bodies();
+    render_system_.set_water_bodies(*renderer_, wb.lakes, wb.river_stations,
+                                    wb.river_segment_offsets);
 
     // Subscribe the ferry BEFORE the first update so initial loads are seen.
     bus_.subscribe<world::ChunkLoaded>([this](const world::ChunkLoaded& e) {
@@ -165,7 +172,10 @@ bool App::init(const AppConfig& config) {
         if (!view) {
             return;
         }
-        render_system_.upload_terrain(*renderer_, *view);
+        auto sf = chunks_.surfacefield(e.coord);
+        render_system_.upload_terrain(*renderer_, *view, sf ? &*sf : nullptr);
+        render_system_.upload_scatter(*renderer_, {e.coord.x, e.coord.z},
+                                      chunks_.scatter(e.coord));
 
         ChunkPhysics cp;
         const uint32_t n = view->resolution;
@@ -186,6 +196,7 @@ bool App::init(const AppConfig& config) {
     });
     bus_.subscribe<world::ChunkUnloaded>([this](const world::ChunkUnloaded& e) {
         render_system_.drop_terrain(*renderer_, {e.coord.x, e.coord.z});
+        render_system_.drop_scatter(*renderer_, {e.coord.x, e.coord.z});
         auto it = g_chunk_physics.find(pack_coord({e.coord.x, e.coord.z}));
         if (it != g_chunk_physics.end()) {
             physics_->destroy_body(it->second.body);
@@ -212,7 +223,8 @@ bool App::init(const AppConfig& config) {
 
     if (render::Tour::enabled_by_env()) {
         const char* dir = std::getenv("DFN_TOUR_DIR");
-        tour_.begin(render::Tour::default_steps(ground), dir ? dir : "screenshots");
+        tour_.begin(render::Tour::testbed_steps(), dir ? dir : "screenshots",
+                    [this](glm::vec2 p) { return chunks_.height_at(p).value_or(0.0f); });
     } else {
         input_->set_cursor_captured(true);
     }
@@ -243,12 +255,18 @@ int App::run() {
 
         const uint32_t steps = timestep_.accumulate(frame_dt);
         for (uint32_t i = 0; i < steps; ++i) {
-            gameplay::player_pre_step(world_, *physics_);
-            physics_->step(static_cast<float>(timestep_.step_dt()));
-            gameplay::player_post_step(world_, *physics_);
-            if (const auto* t = world_.get<components::Transform>(player_)) {
-                chunks_.update(t->position, world_, bus_);
+            if (!tour_.active()) { // frozen player during the tour: deterministic frames
+                gameplay::player_pre_step(world_, *physics_);
+                physics_->step(static_cast<float>(timestep_.step_dt()));
+                gameplay::player_post_step(world_, *physics_);
             }
+            glm::vec3 focus{0.0f};
+            if (tour_.active()) {
+                focus = tour_.focus_position();
+            } else if (const auto* t = world_.get<components::Transform>(player_)) {
+                focus = t->position;
+            }
+            chunks_.update(focus, world_, bus_);
             bus_.pump();
         }
 

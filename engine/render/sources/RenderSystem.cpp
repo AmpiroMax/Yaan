@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:03:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -34,6 +34,10 @@ UPD:
   ProcTexture (dense asset ids, cached by params), frame RenderEnvironment
   (Materials.h), water plane (set_water/clear_water, DFN_WATER debug env),
   visual clock for water scroll.
+- 09:08:2026 - 11:57:20: Stage 3b — surface-truth terrain upload, scatter
+  batches (trees + GRASS_VIEW_DISTANCE micro tiles), per-body water (lake
+  planes + river ribbons), site placeholder meshes under blessed ids 1..7,
+  ECS submissions on the "prop" program.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -42,8 +46,11 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/render/sources/Materials.h"
+#include "engine/render/sources/ProcMesh.h"
 #include "engine/render/sources/ProcTexture.h"
+#include "engine/render/sources/ScatterBatcher.h"
 #include "engine/render/sources/TerrainMesher.h"
+#include "engine/render/sources/WaterMesher.h"
 
 #include <array>
 #include <cstdlib>
@@ -104,6 +111,22 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     terrain_program_ = renderer.load_program("terrain").id;
     unlit_program_ = renderer.load_program("unlit").id;
     water_program_ = renderer.load_program("water").id;
+    prop_program_ = renderer.load_program("prop").id;
+
+    // Placeholder site meshes under the lead-blessed RenderMesh ids 1..7
+    // (dwelling..tower_ruin) — chunk streaming attaches exactly these ids to
+    // site entities, so they render with no further wiring.
+    for (uint32_t id = SITE_MESH_ID_FIRST; id <= SITE_MESH_ID_LAST; ++id) {
+        const MeshData data = build_site_mesh(id);
+        if (data.vertices.empty()) {
+            continue;
+        }
+        const platform::MeshHandle handle =
+            renderer.create_mesh(data.vertices, data.indices);
+        if (handle.valid()) {
+            mesh_cache_.emplace(id, handle.id);
+        }
+    }
 
     // Procedural textures (Q4в): generated in code, uploaded once, cached.
     {
@@ -142,15 +165,26 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
         }
     }
 
-    return terrain_program_ != 0 && unlit_program_ != 0 && water_program_ != 0;
+    return terrain_program_ != 0 && unlit_program_ != 0 && water_program_ != 0
+        && prop_program_ != 0;
 }
 
 void RenderSystem::shutdown(platform::IRenderer& renderer) {
     clear_water(renderer);
+    clear_water_bodies(renderer);
     for (const auto& [coord, mesh_id] : terrain_meshes_) {
         renderer.destroy_mesh(platform::MeshHandle{mesh_id});
     }
     terrain_meshes_.clear();
+    for (auto& [coord, scatter] : scatter_meshes_) {
+        if (scatter.trees_mesh_id != 0) {
+            renderer.destroy_mesh(platform::MeshHandle{scatter.trees_mesh_id});
+        }
+        for (const MicroTileRes& tile : scatter.micro) {
+            renderer.destroy_mesh(platform::MeshHandle{tile.mesh_id});
+        }
+    }
+    scatter_meshes_.clear();
     for (const auto& [asset, mesh_id] : mesh_cache_) {
         renderer.destroy_mesh(platform::MeshHandle{mesh_id});
     }
@@ -166,9 +200,11 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     renderer.destroy_program(platform::ProgramHandle{terrain_program_});
     renderer.destroy_program(platform::ProgramHandle{unlit_program_});
     renderer.destroy_program(platform::ProgramHandle{water_program_});
+    renderer.destroy_program(platform::ProgramHandle{prop_program_});
     terrain_program_ = 0;
     unlit_program_ = 0;
     water_program_ = 0;
+    prop_program_ = 0;
 }
 
 void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
@@ -193,9 +229,28 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         renderer.submit(platform::MeshHandle{mesh_id}, terrain, identity, atlas);
     }
 
-    // ECS renderables: interpolated fixed-step transforms (Rule 12). Inert
-    // until the asset pipeline fills mesh_cache_ (stage 3) — see header notes.
-    const platform::ProgramHandle unlit{unlit_program_};
+    // Scatter batches (stage 3b): trees always; bush/stone micro tiles only
+    // within GRASS_VIEW_DISTANCE of the eye (LANDSCAPE §2.3 micro contract).
+    const platform::ProgramHandle prop{prop_program_};
+    const glm::vec3 eye = camera.interpolated_pose(alpha).position;
+    const auto micro_range = static_cast<float>(config::GRASS_VIEW_DISTANCE);
+    for (const auto& [coord, scatter] : scatter_meshes_) {
+        if (scatter.trees_mesh_id != 0) {
+            renderer.submit(platform::MeshHandle{scatter.trees_mesh_id}, prop,
+                            identity);
+        }
+        for (const MicroTileRes& tile : scatter.micro) {
+            const glm::vec2 d = tile.center_xz - glm::vec2{eye.x, eye.z};
+            const float max_dist = micro_range + tile.radius_m;
+            if (glm::dot(d, d) <= max_dist * max_dist) {
+                renderer.submit(platform::MeshHandle{tile.mesh_id}, prop, identity);
+            }
+        }
+    }
+
+    // ECS renderables: interpolated fixed-step transforms (Rule 12). Site
+    // entities carry the blessed placeholder mesh ids 1..7 (registered at
+    // init); drawn lit+fogged via "prop".
     world.view<components::Transform, components::PreviousTransform,
                components::RenderMesh>()
         .each([&](ecs::EntityId, components::Transform& curr,
@@ -209,20 +264,24 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             if (tex_it != texture_cache_.end()) {
                 texture.id = tex_it->second;
             }
-            renderer.submit(platform::MeshHandle{mesh_it->second}, unlit,
+            renderer.submit(platform::MeshHandle{mesh_it->second}, prop,
                             interpolated_transform(prev, curr, alpha), texture);
         });
 
     // Water: transparent, so submitted after all opaques (the backend renders
     // the scene view sequentially and gives "water" a no-depth-write blend).
-    if (water_mesh_ != 0) {
-        platform::TextureHandle water_tex{};
-        if (const auto it = texture_cache_.find(water_texture_asset_);
-            it != texture_cache_.end()) {
-            water_tex.id = it->second;
-        }
-        renderer.submit(platform::MeshHandle{water_mesh_},
-                        platform::ProgramHandle{water_program_}, identity, water_tex);
+    platform::TextureHandle water_tex{};
+    if (const auto it = texture_cache_.find(water_texture_asset_);
+        it != texture_cache_.end()) {
+        water_tex.id = it->second;
+    }
+    const platform::ProgramHandle water{water_program_};
+    for (const uint32_t mesh_id : water_body_meshes_) {
+        renderer.submit(platform::MeshHandle{mesh_id}, water, identity, water_tex);
+    }
+    if (water_mesh_ != 0) { // debug fallback plane (set_water / DFN_WATER)
+        renderer.submit(platform::MeshHandle{water_mesh_}, water, identity,
+                        water_tex);
     }
 
     renderer.end_frame();
@@ -265,7 +324,13 @@ void RenderSystem::clear_water(platform::IRenderer& renderer) {
 
 void RenderSystem::upload_terrain(platform::IRenderer& renderer,
                                   const math::HeightFieldView& field) {
-    const TerrainMeshData data = build_terrain_mesh(field);
+    upload_terrain(renderer, field, nullptr);
+}
+
+void RenderSystem::upload_terrain(platform::IRenderer& renderer,
+                                  const math::HeightFieldView& field,
+                                  const math::SurfaceFieldView* surface) {
+    const TerrainMeshData data = build_terrain_mesh(field, surface);
     if (data.vertices.empty()) {
         return;
     }
@@ -289,6 +354,95 @@ void RenderSystem::drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_
         renderer.destroy_mesh(platform::MeshHandle{it->second});
         terrain_meshes_.erase(it);
     }
+}
+
+void RenderSystem::upload_scatter(platform::IRenderer& renderer,
+                                  glm::ivec2 chunk_coord,
+                                  std::span<const math::ScatterInstance> instances) {
+    drop_scatter(renderer, chunk_coord); // idempotent per coord
+    if (instances.empty()) {
+        return;
+    }
+    const auto chunk_size = static_cast<float>(config::CHUNK_SIZE);
+    const glm::vec2 origin{static_cast<float>(chunk_coord.x) * chunk_size,
+                           static_cast<float>(chunk_coord.y) * chunk_size};
+    ScatterBatches batches = build_scatter_batches(instances, origin, chunk_size);
+
+    ChunkScatterRes res;
+    if (!batches.trees.vertices.empty()) {
+        const platform::MeshHandle handle =
+            renderer.create_mesh(batches.trees.vertices, batches.trees.indices);
+        res.trees_mesh_id = handle.id;
+    }
+    for (const MicroTile& tile : batches.micro) {
+        const platform::MeshHandle handle =
+            renderer.create_mesh(tile.mesh.vertices, tile.mesh.indices);
+        if (handle.valid()) {
+            res.micro.push_back({tile.center_xz, tile.radius_m, handle.id});
+        }
+    }
+    if (res.trees_mesh_id != 0 || !res.micro.empty()) {
+        scatter_meshes_.emplace(chunk_coord, std::move(res));
+    }
+}
+
+void RenderSystem::drop_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord) {
+    const auto it = scatter_meshes_.find(chunk_coord);
+    if (it == scatter_meshes_.end()) {
+        return;
+    }
+    if (it->second.trees_mesh_id != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{it->second.trees_mesh_id});
+    }
+    for (const MicroTileRes& tile : it->second.micro) {
+        renderer.destroy_mesh(platform::MeshHandle{tile.mesh_id});
+    }
+    scatter_meshes_.erase(it);
+}
+
+void RenderSystem::set_water_bodies(platform::IRenderer& renderer,
+                                    std::span<const math::LakePlane> lakes,
+                                    std::span<const math::RiverStation> river_stations,
+                                    std::span<const uint32_t> river_segment_offsets) {
+    clear_water_bodies(renderer);
+
+    const auto upload = [&](const MeshData& data) {
+        if (data.vertices.empty()) {
+            return;
+        }
+        const platform::MeshHandle handle =
+            renderer.create_mesh(data.vertices, data.indices);
+        if (handle.valid()) {
+            water_body_meshes_.push_back(handle.id);
+        }
+    };
+
+    for (const math::LakePlane& lake : lakes) {
+        upload(build_lake_mesh(lake, LOOKDEV_WATER_UV_TILE_M,
+                               LOOKDEV_WATER_EDGE_MARGIN_M));
+    }
+    // Segment i = stations [offsets[i], offsets[i+1]); a trailing offset equal
+    // to the station count is tolerated but not required.
+    const size_t station_count = river_stations.size();
+    for (size_t i = 0; i < river_segment_offsets.size(); ++i) {
+        const size_t begin = river_segment_offsets[i];
+        const size_t end = i + 1 < river_segment_offsets.size()
+                               ? river_segment_offsets[i + 1]
+                               : station_count;
+        if (begin >= end || end > station_count) {
+            continue;
+        }
+        upload(build_river_mesh(river_stations.subspan(begin, end - begin),
+                                LOOKDEV_WATER_UV_TILE_M,
+                                LOOKDEV_WATER_EDGE_MARGIN_M));
+    }
+}
+
+void RenderSystem::clear_water_bodies(platform::IRenderer& renderer) {
+    for (const uint32_t mesh_id : water_body_meshes_) {
+        renderer.destroy_mesh(platform::MeshHandle{mesh_id});
+    }
+    water_body_meshes_.clear();
 }
 
 } // namespace dfn::render

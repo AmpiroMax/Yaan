@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 09:08:2026 - 11:00:00
+Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -34,6 +34,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:00:00: Stage 3 — initial look-dev environment.
+- 09:08:2026 - 11:57:20: Stage 3b — rock slope band now derived from the
+  design constants SLOPE_GRASS_MAX/SLOPE_ROCK_MIN (1 - cos conversion; the
+  flat-worldgen placeholder band is gone); water edge margin for per-body
+  water meshes.
 */
 
 #pragma once
@@ -41,6 +45,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 
+#include <cmath>
 #include <glm/geometric.hpp>
 
 namespace dfn::render {
@@ -56,19 +61,24 @@ inline constexpr glm::vec3 LOOKDEV_AMBIENT_COLOR{0.34f, 0.36f, 0.40f}; // cool s
 inline constexpr glm::vec3 LOOKDEV_SKY_ZENITH{0.25f, 0.42f, 0.66f};
 inline constexpr glm::vec3 LOOKDEV_SKY_HORIZON{0.63f, 0.71f, 0.80f}; // == fog color
 
-// Fog span as fractions of CAMERA_FAR: fully fogged well before the far plane
-// (also hides the streaming edge: the loaded box ends ~640 m from eye level).
-inline constexpr float LOOKDEV_FOG_START_FRAC = 0.25f;
-inline constexpr float LOOKDEV_FOG_END_FRAC = 0.70f;
+// Fog span as fractions of CAMERA_FAR. Stage 3b: widened (0.25/0.70 ->
+// 0.30/0.85) so the L0 crag reads from the hamlet ~570 m away (C1 /
+// LANDMARK_VISIBILITY_MIN — at the old span the landmark dissolved into the
+// sky). The testbed edge sits ~800+ m from the tour vantages: >= 0.9 fogged.
+inline constexpr float LOOKDEV_FOG_START_FRAC = 0.30f;
+inline constexpr float LOOKDEV_FOG_END_FRAC = 0.85f;
 
 // Terrain splat (slope = 1 - normal.y; heights in meters, world space).
-// Measured on the seed-1 testbed (probe over all 16 chunks): slope p50 0.0007,
-// p95 0.0031, p99 0.0049, max 0.0101 — the stage-2 worldgen is a near-flat
-// plain, so the band below catches only its steepest ~2%. These are uniforms:
-// when core's worldgen v2 (crags/valleys) lands, design retunes here without
-// touching shaders; realistic mountain values will be ~0.07-0.18.
-inline constexpr float LOOKDEV_ROCK_SLOPE_START = 0.0025f;
-inline constexpr float LOOKDEV_ROCK_SLOPE_END = 0.0060f;
+// Stage 3b: worldgen v2 has real crags, so the slope band derives from the
+// DESIGN constants (LANDSCAPE §4 / NUMBERS.md): grass ends at SLOPE_GRASS_MAX
+// (0.52 rad) and hard rock starts at SLOPE_ROCK_MIN (0.70 rad), converted from
+// slope angle to the shader's 1 - cos(angle) measure. The in-shader slope rock
+// AUGMENTS the surface-class weights baked from core's SurfaceFieldView (the
+// design truth); the flat-worldgen placeholder band (0.0025-0.0060) is gone.
+inline const float LOOKDEV_ROCK_SLOPE_START =
+    1.0f - std::cos(static_cast<float>(config::SLOPE_GRASS_MAX));
+inline const float LOOKDEV_ROCK_SLOPE_END =
+    1.0f - std::cos(static_cast<float>(config::SLOPE_ROCK_MIN));
 inline constexpr float LOOKDEV_SAND_BLEND_M = 1.5f;
 inline constexpr float LOOKDEV_TERRAIN_TILES_PER_CHUNK = 32.0f; // 8 m per repeat
 
@@ -76,6 +86,9 @@ inline constexpr float LOOKDEV_TERRAIN_TILES_PER_CHUNK = 32.0f; // 8 m per repea
 inline constexpr glm::vec4 LOOKDEV_WATER_COLOR{0.16f, 0.30f, 0.34f, 0.62f};
 inline constexpr glm::vec2 LOOKDEV_WATER_SCROLL_UV{0.020f, 0.013f};
 inline constexpr float LOOKDEV_WATER_UV_TILE_M = 24.0f; // meters per texture repeat
+// Per-body water meshes extend past the carved banks by this margin; the
+// overlap hides under terrain via the depth test, so shorelines never gap.
+inline constexpr float LOOKDEV_WATER_EDGE_MARGIN_M = 2.0f;
 
 // Procedural texture assets.
 inline constexpr uint32_t LOOKDEV_ATLAS_CELL_PX = 128;
