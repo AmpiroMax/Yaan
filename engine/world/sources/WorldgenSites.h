@@ -38,6 +38,7 @@ UPD:
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/SiteComponents.h"
 #include "engine/world/sources/TestbedLayout.h"
+#include "engine/world/sources/WorldgenCastle.h"
 #include "engine/world/sources/WorldgenHydrology.h"
 
 #include <vector>
@@ -59,6 +60,9 @@ struct SitesData {
     std::vector<BuildingPad> pads;
     std::vector<GeneratedEntityRecord> entities;
     std::vector<SiteType> types;
+    /// The castle (§6.1): its terrace is a separate square stamp with its own
+    /// cut allowance, and its elements are appended to `entities`/`types`.
+    CastleBuild castle;
 };
 
 /// Places all layout sites. Heights are sampled from macro + hydrology carve

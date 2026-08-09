@@ -129,6 +129,9 @@ struct Placer {
 
 SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const HydrologyData& hydro) {
     SitesData out;
+    // The castle terrace is solved FIRST: its pad is large and its elements
+    // must not be shoved around by ordinary building placement (§6.1).
+    out.castle = solve_castle(seed, layout, hydro);
     Placer placer{seed, layout, hydro, out};
     WorldGenRng rng = WorldGenRng::for_chunk(seed, ChunkCoord{0, 0}, STREAM_SITES);
 

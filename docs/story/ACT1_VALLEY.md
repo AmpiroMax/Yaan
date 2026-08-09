@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 15:00:07
+Last updated: 09:08:2026 - 15:05:56
 -->
 <!--
 UPD:
@@ -9,6 +9,11 @@ UPD:
   secondaries, fishing/farming template concepts, the Harrowward castle
   beats, escalation and hope-spot placement, act-gate release, world flags,
   and the minimum buildable scope for core/design.
+- 09:08:2026 - 15:05:56: Folded in design's castle ruling (LANDSCAPE §6.1):
+  location row updated, two new §4 beats keyed to the ruled terrain (the
+  castle+barrow one-frame composition; the solar that faces away from the
+  grave visible from its own yard), §7 split into design-owned exterior vs
+  story-requested interior set, open item 1 closed.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -39,7 +44,7 @@ he is, and release him outward (N4).
 |---|---|
 | **Vaelmere** (hamlet, lake shore) | home, work, the rust's human cost, the cast |
 | **The Mere** (lake) + river Vael, fords | the craft economy: nets, catch, ferry, flooded fields |
-| **Harrowward — the Ward** (castle, siting per design) | state power, petitions, testimony, the muniment room, the Refusal beat |
+| **Harrowward — the Ward** (castle, sited at the crag's foot ~55 m from the barrow, gate facing the valley/ford — LANDSCAPE §6.1) | state power, petitions, testimony, the muniment room, the Refusal beat |
 | **Shrine knoll** | the naming rite; the shrinewarden; where the dead are laid down |
 | **The Hiding** (NW lakeshore cave) | the three children who fled the Feast and starved: the first repayable debt |
 | **Harrowmere Hall** (SE forest ruin) | the feast-hall itself, tables still set: what actually happened |
@@ -184,8 +189,23 @@ opening danger.
 
 ## 4. The Ward (castle) in act 1 — beats and access
 
-Fiction per `BIBLE.md` §5.1; geography per design's ruling. Act-1 beats that
-**live in the castle**:
+Fiction per `BIBLE.md` §5.1; geography ruled by design (LANDSCAPE §6.1) and
+folded in: the Ward sits at the crag's foot, reads as a pale-grey notch
+against the crag's body (never against sky — the tower keeps the skyline),
+its gate faces the valley and the ford, and **its yard and gate have clear
+line of sight to the Backbarrow entrance ~55 m away**.
+
+Two beats now key off that terrain truth:
+
+- **The frame** (MQ1 aftermath, free): walking up to the castle to report or
+  petition, the player has the barrow mouth and the castle in one view. No
+  dialog needed — the composition says who profits from that grave.
+- **The turned back** (MQ4, Refusal): the solar looks out over the valley and
+  the ford, not over the barrow. Rhys buries the truth in a room deliberately
+  facing away from it, while the thing itself is visible from his own yard
+  fifty paces off. Write the scene to use that.
+
+Act-1 beats that **live in the castle**:
 
 - **Petition day** (MQ2 spoke; secondaries 1 and 3): the public hall — the
   player brings a grievance and watches the lord's justice work honestly and
@@ -271,10 +291,13 @@ What act 1 **cannot** ship without, in priority order:
 6. **Ravenscar ward-tower** — climbable to a top room holding the
    beacon-log (act-1 climax; already the L0's crown).
 7. **Harrowward castle** — REQUIRED for MQ2's petition spoke, secondary 3,
-   and MQ4's muniment room + Refusal beat. Minimum interior set: **hall
-   (public), yard/tithe-yard, muniment room, solar**. Gatehouse and chapel
-   are desirable, not blocking. Without the castle, MQ4's Refusal beat has
-   nowhere to happen and act 1 loses both its state-power face and its
+   and MQ4's muniment room + Refusal beat. Exterior mass, pad and access are
+   design's (LANDSCAPE §6.1: curtain wall + gatehouse + hall + solar around
+   an open yard, 60 m pad, graded walkable ramp to the gate). Minimum
+   **interior** set, which is story's ask of whoever builds interiors:
+   **hall (public), yard/tithe-yard, muniment room, solar**. Gatehouse and
+   chapel are desirable, not blocking. Without the castle, MQ4's Refusal beat
+   has nowhere to happen and act 1 loses both its state-power face and its
    intrigue; the beats that require it are listed in §4.
 
 Everything else in act 1 (fords, forest, meadows, POI chain) already exists
@@ -282,9 +305,11 @@ in the built testbed.
 
 ## 8. Open items
 
-1. **Design's ruling** on castle siting and the L0/skyline hierarchy
-   (Ravenscar vs the Ward) — binding on this document; the fiction above is
-   written to survive either.
+1. ~~Design's ruling on castle siting and the L0/skyline hierarchy~~ —
+   **RESOLVED** (LANDSCAPE §6.1, folded in): crag keeps L0 and the skyline,
+   the Ward reads against the crag's body as a pale-grey L1 mass, gate
+   valley-facing, yard-to-barrow sightline guaranteed. Nothing in the fiction
+   had to bend.
 2. Player-voice question (BIBLE §10.1) affects how MQ4's Refusal beat is
    staged.
 3. в19 combat grill gates every fight in MQ1/MQ3 and the barrow's deeper

@@ -54,6 +54,11 @@ enum class SiteType : uint8_t {
     Shrine = 4,
     DungeonEntrance = 5,
     TowerRuin = 6,
+    // Castle mass (LANDSCAPE §6.1.3), mesh ids 8..11 blessed by the lead.
+    CastleKeep = 7,
+    CastleWall = 8,       ///< curtain enclosure — render draws it hollow
+    CastleGatehouse = 9,
+    CastleTower = 10,
 };
 
 /// ECS component attached to every P4 site entity at chunk spawn. Derived
@@ -84,6 +89,17 @@ struct SiteArchetype {
         {SiteType::DungeonEntrance, "site.dungeon_entrance", 6, {-2.0f, 0.0f, -2.0f},
          {2.0f, 4.0f, 2.0f}},
         {SiteType::TowerRuin, "site.tower_ruin", 7, {-2.0f, 0.0f, -2.0f}, {2.0f, 12.0f, 2.0f}},
+        // Castle mass (§6.1.3). Heights are the design MAX values; the actual
+        // built heights are solved against R3 in WorldgenCastle and written
+        // into each record — these bounds are the placeholder envelope.
+        {SiteType::CastleKeep, "site.castle_keep", 8, {-7.0f, 0.0f, -7.0f},
+         {7.0f, 15.0f, 7.0f}},
+        {SiteType::CastleWall, "site.castle_wall", 9, {-20.0f, 0.0f, -20.0f},
+         {20.0f, 8.0f, 20.0f}},
+        {SiteType::CastleGatehouse, "site.castle_gatehouse", 10, {-5.0f, 0.0f, -3.0f},
+         {5.0f, 11.0f, 3.0f}},
+        {SiteType::CastleTower, "site.castle_tower", 11, {-3.0f, 0.0f, -3.0f},
+         {3.0f, 12.0f, 3.0f}},
     };
     return TABLE[static_cast<uint8_t>(type)];
 }

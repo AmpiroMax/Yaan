@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 15:00:07
+Last updated: 09:08:2026 - 15:05:56
 -->
 <!--
 UPD:
@@ -15,6 +15,14 @@ UPD:
   Hand's documentary (not military) grip, four access routes keeping it a
   hub rather than a fortress, act-1 player verbs, and why it earns its build
   cost. Siting and the L0/skyline question are design's binding ruling.
+- 09:08:2026 - 15:05:56: Folded in design's binding ruling (LANDSCAPE §6.1):
+  crag keeps L0/skyline by siting the Ward inside its angular footprint;
+  pale-grey stone value (not height) carries the state-power read and merges
+  castle+crag into one composition; horizontal hall-castle mass on a 60 m
+  pad; graded-ramp access invariant binding on terrain; Ward-to-Backbarrow
+  sightline a checkable rule (~55 m apart, one frame). Story answered
+  design's open question: keep the gate VALLEY-facing — the house watches
+  the crossing it owns and turns its back on the grave it profits from.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -246,14 +254,56 @@ tenants' livelihoods with it. His silence is exactly the lie the rust reads.
 User requirement (relayed by the lead): the world has a **seat of state
 power, present in the minimal version**. Under this arc the native answer is
 House Corvane's castle **in the valley**; the crown's capital is referenced
-from act 1 and reached later, never built now. **Geography — siting and the
-landmark-hierarchy question (castle vs Ravenscar Crag as the L0 skyline
-owner) is design's ruling and binding on this document; the fiction below is
-written to survive either outcome.**
+from act 1 and reached later, never built now.
+
+**Geography — design's ruling (LANDSCAPE.md §6.1, binding, folded in
+09:08:2026):**
+
+- **Ravenscar Crag and its ward-tower keep L0 and the skyline; the Ward is
+  L1-max** — enforced by *siting*, not a height cap: the castle sits inside
+  the crag's angular footprint as seen from the valley's main standpoints, so
+  it always reads against the crag's **body**, never against sky. From
+  Vaelmere it is a dark notch on the crag's flank. The black signal on the
+  tower remains the only thing that breaks that horizon line — the story's
+  central image is structurally protected.
+- **Value, not height, carries the state-power read** (now doctrine): the
+  Ward is the valley's only large **pale-grey built mass** — stone against
+  meadow green and against Vaelmere's timber and thatch. Because it shares
+  the crag's rock value, castle and crag read as **one composition**:
+  fortress at the foot, mountain above. Fiction should describe it that way —
+  the Corvanes did not build beside the crag, they built *into* it.
+- **Hall-castle, not fortress:** horizontal-dominant mass — a long hall block
+  with one modest solar vertical, no tall keep. Minimal build = curtain wall,
+  gatehouse, hall and solar block around an open yard, inside a 60 m pad;
+  chapel, granary and outer works are elaboration on the same pad.
+- **Access invariant is binding on terrain:** the approach side carries a
+  graded ramp within the walkable-corridor limits, corridor to gate
+  threshold; a pad whose only approach is a scarp is a failed placement, not
+  a later fix. Other pad edges stay steep for the fortification read. The
+  unarmoured nobody walks in on petition day, by contract.
+- **The Backbarrow sightline is a checkable rule:** clear line of sight from
+  the Ward's yard and gate to the barrow entrance, un-occluded by the
+  terrace's own cut and fill. Sited ~55 m apart — castle and grave sit in one
+  frame from the approach. *The beneficiary lives within sight of the
+  evidence* is now terrain truth, not a mood note.
+- **The gate faces the valley and the ford** (story's answer to design's
+  one question — keep it): the house watches the crossing it owns and turns
+  its **back** on the grave it profits from, while the grave stays visible
+  from its own yard. Grave-facing would have made the Corvanes penitent
+  wardens; valley-facing makes them landlords with a corpse behind the
+  house — which is the truth of them, and the exact self-deception the rust
+  reads. It also serves the access invariant.
+- Act-3 muster works geometrically: the yard is the only enclosed open ground
+  up-valley, and the corridor from the watchpoint ford is the natural line
+  for people walking up from Vaelmere.
 
 **What it is.** **Harrowward**, called simply **the Ward** — a small stone
-hall-castle: curtain wall, gatehouse, hall, solar, chapel, muniment room,
-kennels, a granary and a tithe-yard. Not a royal fortress; a gentry seat.
+hall-castle built against the crag's foot: curtain wall, gatehouse, a long
+hall block, a modest solar, chapel, muniment room, kennels, a granary and a
+tithe-yard around an open yard. Not a royal fortress; a gentry seat. From the
+hamlet it is a pale-grey notch on Ravenscar's dark flank — the only stone
+mass in a valley of timber and thatch, and it never breaks the skyline: the
+crag owns that, and the tower on top of it owns the story.
 It was raised **by the first Corvane lord with the crown's grant, in the
 years right after the Feast**, and its charter says it exists "to ward the
 barrow and keep the peace of Harrowmere". Both halves are true and neither

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:01:56
-Last updated: 09:08:2026 - 14:21:12
+Last updated: 09:08:2026 - 15:03:05
 -->
 <!--
 UPD:
@@ -15,6 +15,12 @@ UPD:
   games/daggerfall_n/assets/quests/ (AGENTS.md corrected by lead); LLM
   prompt language = English + output-language instruction. PITCHES.md
   committed (e6f62c5) and before the user with в16-в18.
+- 09:08:2026 - 15:03:05: CONTENT GATE OPEN — user picked Pitch A (The Debt
+  of Harrowmere). BIBLE.md (canon incl. §5.1 Harrowward castle per the
+  user's seat-of-state-power requirement), ACT1_VALLEY.md (4 main quests,
+  3 secondaries, template families, minimum buildable scope) and the
+  Vaelmere cast authored. в17/в18 lead defaults adopted; castle geography
+  deferred to design's binding ruling.
 -->
 
 # Spec — story (`docs/specs/story.md`)
@@ -76,7 +82,9 @@ What other zones and the user consume from this zone:
 | `docs/story/PITCHES.md` — three distinct main-arc pitches + Russian summaries | user (picks one) | this stage |
 | `docs/story/RESEARCH.md` — actionable narrative-design rules (cited as N1, N2, ...) | story team, lead | this stage |
 | `docs/story/QUEST_FORMAT.md` — quest state-machine schema, settlement-craft template concept, character card schema | sim (contract negotiation), lead | this stage, PROPOSAL until sim ACKs |
-| `docs/story/BIBLE.md` — the narrative bible (world truth, factions, timeline, naming) | all zones | after pitch choice |
+| `docs/story/BIBLE.md` — the narrative bible (world truth, factions, castle, timeline, naming, banned strings) | all zones | CANON (Pitch A) |
+| `docs/story/ACT1_VALLEY.md` — act-1 quests, castle beats, flags, minimum buildable scope | design, core, render, sim | current |
+| `docs/story/CHARACTERS_VAELMERE.md` — hamlet cast + character cards | sim (cards), lead | current |
 | Quest/dialog/character-card data files | sim runtime | after pitch choice + format ACK |
 | Localization keys for every user-facing string (Rules 5–6, Q59) | lead (localization files), render (UI) | with first data files |
 

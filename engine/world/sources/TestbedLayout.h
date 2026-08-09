@@ -135,6 +135,24 @@ struct CorridorLayout {
     int point_count = 0;
 };
 
+/// Castle layout (LANDSCAPE §6.1 ruling): House Corvane's seat on the crag's
+/// SW foot spur. Position is a stamp target (§6.1.4) — core solves the exact
+/// pad against the C1 re-validation; the §6.1.1 invariants are the contract.
+/// Element footprints from the §6.1.3 table; heights come from dfn::config
+/// and are SUBORDINATE to R3 (pad + tallest element <= peak - margin).
+struct CastleLayout {
+    glm::vec2 center{760.0f, 330.0f}; ///< §6.1.4 candidate, +-20 m
+    float wall_side = 40.0f;          ///< curtain enclosure, m
+    float keep_side = 14.0f;
+    float gate_width = 10.0f;
+    float gate_depth = 6.0f;
+    float tower_side = 6.0f;
+    /// Corridor whose direction the gate faces (§6.1.2: the watchpoint ->
+    /// barrow corridor becomes the castle approach). Index into
+    /// TestbedLayout::corridors.
+    int approach_corridor = 2;
+};
+
 /// Forest mass regions (§7.1 "Forest masses"): oak = S + SE bands as axis
 /// rects; pine = crag-foothill RIDGE STRIPS (§5.2: strips 20-60 m wide
 /// following ridgelines, never a solid ring — a closed pine ring around the
@@ -200,6 +218,8 @@ struct TestbedLayout {
 
     /// Foothill watchpoint minor POI (§7.1): forced outcrop cluster + lone pine.
     glm::vec2 watchpoint{660.0f, 430.0f};
+
+    CastleLayout castle{}; ///< §6.1 — the seat of state power (CASTLE_COUNT_TESTBED)
 
     ForestRegions forests{};
 };

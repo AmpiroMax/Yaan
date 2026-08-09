@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 15:00:23
+Last updated: 09:08:2026 - 15:05:00
 -->
 <!--
 UPD:
@@ -12,6 +12,7 @@ UPD:
 - 09:08:2026 - 13:19:34: §2.1 technique decided (core + design): anisotropic input-stretch chosen over domain-warp — elongation along the axis, cross-axis rhythm pinned at 128 m (what corridors/C1 grid feel); domain-warp rejected (wiggles crests, dilutes the shared-axis read); ping-first threshold at ~100 m cross-axis compression.
 - 09:08:2026 - 13:22:17: HILL_ANISOTROPY approved at 2.5 in NUMBERS.md (stage-3 close, sync №3) — §2.1 proposal marker removed, gates recorded as cleared, P1 retune scheduled with §2.1 as the contract.
 - 09:08:2026 - 15:00:23: New §6.1 — castle (House Corvane's seat, story pitch A) ruled as L1-max staged inside the L0's angular footprint: crag keeps the skyline, castle reads against its body, flank occlusion allowed / crown occlusion forbidden, scored in C1 both as occluder and as attractor, binding fix order on C1 failure. Siting (spur pad, ford command, barrow proximity, composite POI), minimal-version mass table, mid-range readability ruling, testbed pad at (760,330); castle row added to §7.1.
+- 09:08:2026 - 15:05:00: §6.1 folded in story's constraints for "Harrowward": gentry hall-castle mass program (horizontal hall + single solar vertical replaces the tall keep — also buys C1 clearance headroom), value-not-height doctrine tying the Ward to the crag's rock value, binding access invariant (graded ramp on the approach side within §2.4 corridor limits — a scarp-only pad is a failed placement), and a checkable Ward→Backbarrow sightline. CASTLE_KEEP_HEIGHT retired in favour of CASTLE_HALL_HEIGHT/CASTLE_SOLAR_HEIGHT/CASTLE_GATE_HEIGHT.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -637,23 +638,52 @@ the pad further around the crag's south flank, away from the town sightlines;
 - **Corridors:** a castle implies an approach. The existing watchpoint→barrow
   corridor becomes the castle approach; the gate faces it. **FUTURE:** an
   actual road along that corridor when roads exist.
+- **Access invariant (story-mandated, binding on terrain):** the Ward must be
+  enterable by an unarmoured commoner on foot, on ordinary business, in
+  daylight. Therefore the terrace's **approach side carries a graded ramp that
+  satisfies the §2.4 corridor rules end to end** — average slope ≤ 25°, no
+  step > `PLAYER_STEP_HEIGHT` — from the corridor up to the gate threshold. A
+  spur pad whose only approach is a scarp is a **failed placement**, not a
+  detail to fix later: cut the ramp in the same terrace stamp. The remaining
+  pad edges may stay steep (that is the fortification read).
+- **Barrow sightline (story asset):** the line of sight from the Ward's yard
+  and gate to the Backbarrow entrance must be **clear** — the terrace's own
+  cut/fill may not occlude it. The beneficiary lives within sight of the
+  evidence; that is a checkable raycast, not a mood note.
 
 #### 6.1.3 Footprint, mass, readability
 
-Minimal version = **keep + curtain wall + gatehouse + 2 corner towers**.
-Everything else (outer bailey, barbican, chapel, moat) is later elaboration
-and must fit inside the same pad. Blocks, not filigree — §1.5 forbids
-sub-pixel detail at range.
+**It is a gentry hall-castle, not a royal fortress** (story: "Harrowward",
+House Corvane's small stone hall). That is a mass ruling, not just flavour:
+the silhouette is **horizontal-dominant** — a long hall block with one modest
+vertical — not a tall square keep. This *helps* every constraint above (lower
+top elevation = more C1 clearance headroom) and it distinguishes the Ward from
+the crag's ward-tower, which owns the valley's tall vertical.
+
+Minimal version = **curtain wall + gatehouse + hall + solar block**, enclosing
+an open yard. Chapel, granary and outer works are later elaboration and must
+fit inside the same pad. Blocks, not filigree — §1.5 forbids sub-pixel detail
+at range.
 
 | Element | Footprint | Height | Tris | Reads as |
 |---|---|---|---|---|
 | Curtain wall | 40×40 m enclosure | `CASTLE_WALL_HEIGHT` 6–8 m | 300–500 | the horizontal base band |
-| Keep | 14×14 m | `CASTLE_KEEP_HEIGHT` 12–15 m | 400–700 | the solid vertical mass |
-| Gatehouse | 10×6 m | 9–11 m | 200–350 | the notch in the base band |
-| Corner towers ×2 | 6×6 m | `CASTLE_TOWER_HEIGHT` 10–12 m | 150–250 ea. | the two verticals framing the keep |
+| Hall | 10×22 m, inside the wall | `CASTLE_HALL_HEIGHT` 7–9 m | 400–700 | the long roof mass above the band |
+| Solar block | 8×8 m, on the hall's end | `CASTLE_SOLAR_HEIGHT` 10–12 m | 250–400 | the single vertical — the Ward's "head" |
+| Gatehouse | 10×6 m | `CASTLE_GATE_HEIGHT` 9–11 m | 200–350 | the notch + entry marker in the base band |
+| Yard / tithe-yard | ≈ 20×20 m open | — | — | the dark interior gap read through the gate |
 
-All heights предложение — утвердить, and all are subordinate to R3 (the sum
-pad + tallest element is the binding constraint, not the table).
+All heights предложение — утвердить, and all are subordinate to R3 (pad
+elevation + tallest element is the binding constraint, not the table). The
+envelope must accommodate story's act-1 interior set (public hall, yard,
+muniment room, solar) — interiors are **not** designed here, only the footprint
+that leaves room for them.
+
+**Value, not height** (story's ask, and already §1.5 doctrine): the Ward is the
+valley's only large pale-grey built mass. Stone against the meadow greens is
+what makes it state power beside Vaelmere's timber-and-thatch hamlet — and
+because it shares the crag's rock value, the two read as **one composition**
+rather than two competing objects, which is exactly R1's intent.
 
 Readability per §1.5 (`≥ distance / 30` at 640×360): the castle is a
 **mid-range landmark**, designed to read from its approach corridor at

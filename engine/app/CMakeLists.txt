@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 09:08:2026 - 00:50:00
+# Last updated: 09:08:2026 - 15:07:13
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -16,11 +16,14 @@
 # UPD:
 # - 09:08:2026 - 00:50:00: Created for stage 2 integration; guarded so partial
 #                          trees (agents mid-stage) still configure and build.
+# - 09:08:2026 - 15:07:13: Link dfn_physics (terrain collision helper) — the ferry now
+#                          uses it instead of hand-filling TerrainDesc.
 
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
     dfn_render
+    dfn_physics
     dfn_gameplay
     dfn_platform_window
     dfn_platform_input

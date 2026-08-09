@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 12:49:12
+Last updated: 09:08:2026 - 15:07:13
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -45,6 +45,12 @@ UPD:
 - 09:08:2026 - 12:49:12: settings.cfg (graphics settings — user decision, sync #3):
                          internal_resolution + palette read from file,
                          auto-generated on first run; env overrides intact.
+- 09:08:2026 - 15:07:13: CRITICAL fix (user report: fell through the world on
+                         launch): terrain bodies were built here with
+                         TerrainDesc::layer left at 0 — colliding with nothing.
+                         Ferry now uses physics::create_terrain_body (owns the
+                         decode and LAYER_STATIC). Also: pump the chunk events
+                         before spawning, and stream before stepping.
 */
 
 #include "engine/app/sources/App.h"
@@ -52,6 +58,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/core/config/sources/Constants.h"
+#include "engine/physics/sources/TerrainCollision.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/input/sources/glfw/CreateGlfwInput.h"
@@ -228,21 +235,12 @@ bool App::init(const AppConfig& config) {
         render_system_.upload_scatter(*renderer_, {e.coord.x, e.coord.z},
                                       chunks_.scatter(e.coord));
 
+        // Use sim's helper rather than filling TerrainDesc here: it owns the
+        // uint16 decode AND sets LAYER_STATIC. Hand-rolling this left `layer`
+        // at 0 — a terrain body that collides with nothing, so the player fell
+        // through the world on spawn.
         ChunkPhysics cp;
-        const uint32_t n = view->resolution;
-        cp.heights.resize(static_cast<size_t>(n) * n);
-        for (uint32_t z = 0; z < n; ++z) {
-            for (uint32_t x = 0; x < n; ++x) {
-                cp.heights[static_cast<size_t>(z) * n + x] = view->height_at(x, z);
-            }
-        }
-        platform::TerrainDesc td;
-        td.origin = {view->origin.x, 0.0f, view->origin.y};
-        td.sample_count_x = n;
-        td.sample_count_z = n;
-        td.sample_spacing = view->step;
-        td.heights = cp.heights;
-        cp.body = physics_->create_terrain(td);
+        cp.body = physics::create_terrain_body(*physics_, *view, 0, cp.heights);
         g_chunk_physics[pack_coord({e.coord.x, e.coord.z})] = std::move(cp);
     });
     bus_.subscribe<world::ChunkUnloaded>([this](const world::ChunkUnloaded& e) {
@@ -255,9 +253,13 @@ bool App::init(const AppConfig& config) {
         }
     });
 
-    // Spawn at the center of chunk (0,0), on the ground.
+    // Spawn at the center of chunk (0,0), on the ground. The chunk events are
+    // QUEUED (post/pump), so the pump here is load-bearing: without it the
+    // terrain collision bodies would not exist yet and the player would spawn
+    // into empty space and fall through the world.
     const float mid = static_cast<float>(config::CHUNK_SIZE) * 0.5f;
     chunks_.update({mid, 0.0f, mid}, world_, bus_);
+    bus_.pump();
     const float ground = chunks_.height_at({mid, mid}).value_or(0.0f);
     const glm::vec3 spawn{mid, ground + 0.2f, mid};
 
@@ -306,11 +308,9 @@ int App::run() {
 
         const uint32_t steps = timestep_.accumulate(frame_dt);
         for (uint32_t i = 0; i < steps; ++i) {
-            if (!tour_.active()) { // frozen player during the tour: deterministic frames
-                gameplay::player_pre_step(world_, *physics_);
-                physics_->step(static_cast<float>(timestep_.step_dt()));
-                gameplay::player_post_step(world_, *physics_);
-            }
+            // Streaming runs BEFORE the physics step: a step must never execute
+            // against a world whose collision bodies are one tick stale, or the
+            // player falls through terrain that has not been created yet.
             glm::vec3 focus{0.0f};
             if (tour_.active()) {
                 focus = tour_.focus_position();
@@ -319,6 +319,12 @@ int App::run() {
             }
             chunks_.update(focus, world_, bus_);
             bus_.pump();
+
+            if (!tour_.active()) { // frozen player during the tour: deterministic frames
+                gameplay::player_pre_step(world_, *physics_);
+                physics_->step(static_cast<float>(timestep_.step_dt()));
+                gameplay::player_post_step(world_, *physics_);
+            }
         }
 
         const float alpha = static_cast<float>(timestep_.alpha());
