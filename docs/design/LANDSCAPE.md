@@ -736,6 +736,30 @@ billiard-table read at eye level. Micro-relief is **suppressed inside
 building pads and the castle terrace** (they are cut flat on purpose) and
 **retained everywhere else, including the plain**.
 
+**Implementation status and the water constraint (core, stage-4 — this octave
+had never actually been built anywhere).** It went in first on the massif's
+benches, where §2.8.2 requires it. Core's attempt to apply it *globally* at
+the same time was correctly backed out on a measurement: ±0.3–0.6 m on the
+shoreline dropped bank dips below the water surface, and they rendered as
+WaterBed past the §3.3 cap. That is a real finding and it produces the missing
+rule rather than a reason to stay scoped:
+
+- **Micro-relief AMPLITUDE TAPERS TO ZERO ACROSS THE SHORE BAND**, driven by
+  the `dist_to_water` field that §4 and §5 already consume. No new data, no
+  new constant — the taper simply reuses the shore mask.
+- **This is physically right, not a workaround.** Ground beside water is flat
+  *because water flattens it*: floodplains, banks and lake margins are
+  deposited surfaces. A river running through a field of 0.5 m bumps is the
+  artefact; the flat bank is the truth. So the rule improves the world at the
+  same time as it fixes the bug, which is the shape a good constraint usually
+  has.
+- **The massif-only scoping is INTERIM and must not settle.** A micro octave
+  that exists above the cliffline and nowhere else makes the cliffline a
+  character seam — precisely the failure the "general, not forest-specific"
+  ruling below exists to prevent, relocated from the forest edge to the
+  mountain's hem. The general pass is its own scheduled item, gated on the
+  shore taper plus a check against corridors, fords and building pads.
+
 **Meso relief — the missing middle band (stage-4).** Between the hill octave
 (128 m / 6 m, §2.1) and the micro octave above there was a gap, and it is
 exactly the scale at which walking through a forest felt like a flat traverse.
@@ -828,7 +852,7 @@ Measured on the built crag, seed 1:
 | Surface above mid-height over 40° | 45.9 % | passes the old 60 %-ish intent only partly, and pointlessly |
 | Surface over 55° | **0.0 %** | there is no cliff anywhere on this mountain |
 | Surface over 70° | **0.0 %** | |
-| Slope histogram, whole crag | 0–10°: 45.4 %, 30–40°: 12.4 %, **40–50°: 33.2 %**, 50–60°: 0.8 % | two spikes: flat ground, and **one uniform ≈45° flank** |
+| Slope histogram, whole crag | **FOOTPRINT-WEIGHTED — SUPERSEDED** (was: 0–10°: 45.4 %, 30–40°: 12.4 %, **40–50°: 33.2 %**, 50–60°: 0.8 %) | the reading stands — two spikes, flat ground plus **one uniform ≈45° flank** — but the *figures* are in the weighting §2.8.3 replaced, and are not reconstructed. See the box below |
 | Field max slope vs mesh | field 68.7° max; mesh's 40–50° bin *higher* than the field's | **surface nets is not losing slope** |
 | Raw contour spacing (5 m), CV | mean 6.9 m, σ 6.5 m, **CV 0.935** | base fBm bleeding through; the *stamp* is perfectly regular |
 
@@ -1034,6 +1058,57 @@ the invariant that follows them around. All four were caught by measuring the
 invariant, not by looking at the mountain — which is the whole argument for
 having written the invariants down before building the shape.
 
+**The cross-section is a FACETED POLYGON WITH RE-ENTRANT COULOIRS, and the
+couloirs are load-bearing rather than decorative (core's construction, ruled
+in).** `R_k(θ)` is built as an irregular rounded polygon by support function,
+`r(θ) = min_i d_i / cos(θ − α_i)` — a boundary of **flat facets meeting at
+corners**, which is this document's own definition of an arête («плоские
+грани, сходящиеся по линии») rather than a proxy for it. Three consequences
+worth having in the doc, because they constrain any future massif and not just
+this one:
+
+- **A support function is convex by construction, and a near-regular convex
+  cross-section is CAPPED at `n·tan(π/n)/π`** — 1.65 for 3 facets, **1.27 for
+  4, 1.16 for 5**. Against `MASSIF_LOBE_RATIO` = 1.35 that means **a convex
+  massif with 4 or 5 arêtes cannot pass I8 at any amplitude**, and rounding
+  the corners only lowers it further. Since `L0_ARETE_COUNT` is 3–5 and the
+  LR's is 4–7, **couloirs are what make I8 satisfiable at most of the arête
+  counts this document allows.** §2.8.2 asked for outward lobes *and* inward
+  folds; this is the proof it needed both.
+- **The convex escape route exists and is the wrong one — record it so nobody
+  takes it.** The cap above is for a *near-regular* polygon; an **elongated**
+  convex cross-section beats it easily (a 4:1 rectangle scores 1.99). So a
+  future implementation could pass I8 convexly by stretching the massif. It
+  must not: an elongated L0 is a **ridge, not a peak**, it breaks §1.5's
+  skyline read and C4's "one unmistakable mass with a summit", and it would
+  satisfy the invariant while destroying the thing the invariant protects.
+  **Elongation is a landform choice (border ranges, §2.6, are legitimately
+  elongated), never a knob for making a lobe test pass.**
+- **I7 and I8 pull in opposite directions, and the resolution is that couloirs
+  FADE TOWARD THE SUMMIT.** Measured by core: deepening and widening couloirs
+  raised I8 and dropped persistent arêtes **4 → 0**, because a couloir spread
+  across a facet *curves* that facet and I7 requires it flat. The fix is
+  structural, not a tuning compromise: **couloirs are flank features that
+  merge into the arêtes as they rise.** Summit contours stay clean facets (I7
+  reads them); flanks keep re-entrant perimeter (I8 reads that). This is also
+  what erosion actually does — a couloir is cut by what runs down it, and
+  nothing runs down a crest. Second, independent reason it is correct: an
+  angularly-constant couloir shrinks to ≈ 1 m of arc at summit radius, far
+  under `MASSIF_ARETE_TURN_ARC_MAX` = 15 m, so near the top it could only ever
+  be **noise to the arête detector**.
+
+**A structural feature the invariants depend on is NEVER a per-instance coin
+flip (ruled, from a near miss).** Core's first variant made couloir *presence*
+a seeded per-facet draw; on seed 1 all three facets missed and the massif came
+out a bare convex polygon with zero couloirs — a shape that *looks* reshaped
+and satisfies nothing. Rule: **the seed varies a feature's character — depth,
+asymmetry, bearing, spacing — never its existence.** Anything an invariant is
+counting must be guaranteed by construction, because a seeded absence produces
+a world that fails silently and plausibly, which is the most expensive kind of
+failure we have. Same rule already applies to arêtes, cliff bands and benches;
+it is written down here because a coin flip is such a natural way to author
+variety.
+
 **Both per-bearing fields must be PERIODIC in θ (core's catch, binding).**
 `R_k(θ)`, `p(θ)` and the riser-class sector index all wrap: sampling noise on
 the *angle value* puts a branch cut at ±π and produces **a vertical seam from
@@ -1167,6 +1242,28 @@ four elevations is what stops a single noise lump from scoring as a rib.
 
 **I1 and I4 are the two that would have caught this a session earlier**, and
 neither is expensive. If only two are implemented first, implement those.
+
+**Fourth rule, added when the invariants started passing: A MARGINAL PASS ON
+ONE SEED IS NOT COMPLIANCE.** I8 first passed at **1.36 against 1.35, with the
+rise at exactly 0.15 against 0.15** — zero headroom on the clause §2.8.1
+identifies as the load-bearing one. A shape parameterisation that lands *on*
+its bound on seed 1 will land under it on roughly half of every other seed,
+and every massif in the world (LR, border inner faces, future valley L0s) is
+generated from the same rules with a different seed. So:
+
+- **Invariants are reported as a distribution across seeds, not a verdict on
+  seed 1.** Generate the massif under a handful of seeds and report min /
+  median / max per invariant. This is cheap — headless generation plus the
+  measurement code that already exists — and it is the only way to tell a
+  parameterisation that is *right* from one that is *lucky*.
+- **When the median sits at the bound, the SHAPE PARAMETERS move, not the
+  threshold.** Widening a threshold to admit a marginal shape is the
+  accommodation this document has refused twice already (§1.3's unspent
+  physics-correction budget is the precedent).
+- **Reason this is a design rule and not core's implementation detail:** it is
+  the same failure class as §7.0a's — a coordinate stamped against one terrain
+  state, mistaken for a property of the world. An invariant validated on one
+  seed is a stamp against one terrain state.
 
 #### 2.8.4 «Кубы на кубах» — the tor ruling, and what voxels can honestly do
 
@@ -2394,25 +2491,39 @@ frames outrank the numbers, because the numbers exist to predict the frames.
 eight currently applicable invariants pass** (core, stage-4; I9 is not
 applicable until the placed-rock asset class exists):
 
-| Invariant | Before | Now | Bound |
-|---|---|---|---|
-| I1 concave profile | −7.1° | **+15.0°** | ≥ 12° |
-| I3 near-vertical rock | 0.0 % | **16.5 %** (surface area, §2.8.3) | ≥ 12 % |
-| I4 no constant gradient | 33.2 % | **24.2 %** | ≤ 30 % |
-| I5 riser/bench alternation | 0 | **100 %** of radials | ≥ 70 % |
-| I6 band-spacing CV | n/a | **0.518** | ≥ 0.35 |
-| **I2** sharp summit | fails | **fails** | scheduled step |
-| **I7** arêtes | fails | **fails** | scheduled step |
-| **I8** lobing | 1.27 (re-stamped) | **1.01, flat** | ≥ 1.35 **and** rising |
+| Invariant | Original crag | Step 1 (bands) | Step 2 (facets + couloirs) | Bound |
+|---|---|---|---|---|
+| I1 concave profile | −7.1° | +15.0° | **13.9°** | ≥ 12° |
+| I3 near-vertical rock | 0.0 % | 16.5 % | **27.1 %** surface / 13.1 % footprint | ≥ 12 % |
+| I4 no constant gradient | (footprint, superseded) | 24.2 % | **18.1 %** fullest bin | ≤ 30 % |
+| I5 riser/bench alternation | 0 | 100 % | **83 %** of radials | ≥ 70 % |
+| I6 band-spacing CV | n/a | 0.518 | **0.451** | ≥ 0.35 |
+| I7 arêtes | fails | fails | **4 persistent** | ≥ 3 |
+| I8 lobing | 1.27 (re-stamped) | 1.01, flat | **1.37 / 1.36 / 1.52**, rise 0.15 | ≥ 1.35 each **and** rise ≥ 0.15 |
+| **I2** sharp summit | fails | fails | **fails** | the summit tor, next step |
 
-I1 is the headline: the profile went from *convex* to concave, which is the
-anti-dome fix itself and not a proxy for it. **I8 is now worse than before the
-reshape** once its baseline is corrected (§2.8.1) — the bands erased the fBm
-crenulation they replaced — so **I7/I8 is real work, not a tuning pass**, and
-that is the honest reading rather than the 0.80 → 1.01 "progress" the
-contaminated baseline would have shown. The acceptance test does not move: it
-is still the tour frames from the valley floor and the western meadows, and
-the frames outrank the table above.
+**Seven of the eight applicable invariants pass; only I2 remains** (I9 waits on
+the placed-rock asset class). I1 is the headline and always was: the profile
+went from *convex* to concave, which is the anti-dome fix itself rather than a
+proxy for it.
+
+**Two cautions attached to this table, so it is not read as "done".**
+
+1. **I8 passes on measurement, not comfortably** — 1.36 at the middle level
+   against 1.35, and the rise at exactly 0.15 against 0.15. Per §2.8.3's
+   marginal-pass rule this is not yet compliance: it needs the multi-seed
+   distribution before anyone treats I8 as satisfied, and if the median sits
+   at the bound the shape parameters move rather than the threshold.
+2. **I3's figure is currently the field-side reading** (cell footprint ÷ cos
+   slope). §2.8.3 makes mesh triangle area the binding one; it is queued. At
+   27.1 % against a 12 % floor the verdict does not turn on it, but the
+   binding reading is the one that should appear here once wired.
+
+The acceptance test does not move and does not become easier for the table
+being green: it is still the tour frames from the valley floor and the western
+meadows, and **the frames outrank the numbers**, because the numbers exist to
+predict the frames. Seven of eight invariants and a summit that still reads as
+a dome would mean the invariants are wrong, not that the mountain is right.
 
 **Ravenscar's ascent is a required invariant too (gap exposed by story's
 near-miss).** Act 1's climax is the climb to the ward-tower, and I had
