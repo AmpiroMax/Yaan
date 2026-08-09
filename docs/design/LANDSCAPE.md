@@ -1059,6 +1059,35 @@ Between bands the surface is a **bench** (`MASSIF_BENCH_SLOPE_MAX`, width
 `MASSIF_BENCH_WIDTH_MIN…MAX`). Riser heights come from
 `MASSIF_CLIFF_BAND_MIN…MAX`.
 
+**CLIFF RISERS ARE PLANAR BUT NOT IDENTICAL — THE ANGLE VARIES BETWEEN BANDS
+(ruling, stage-4; this is my own I3 fix colliding with my own I4 rule).** After
+the aspect cascade, I4 fails on eight seeds of twelve: a genuinely steep massif
+concentrates surface in the 60–70° bin. The cause is not the steepening, it is
+**planarity plus a single cliff angle.** I ruled risers planar so they would
+stop spending their width on sub-cliff slope (I3) — and a planar face puts
+*all* of its area at *one* angle, so if every cliff riser uses the same angle,
+every riser's surface lands in the same 10° bin. My two rulings were fighting,
+and I4 is the invariant that noticed.
+
+**Fix, and it moves no threshold: the CLIFF class is a BAND OF ANGLES, not an
+angle.** Each riser stays planar and stays above `MASSIF_CLIFF_SLOPE_MIN`, but
+draws its angle from a seeded spread across the steep range. I3 is unaffected —
+every riser is still a cliff — while the surface spreads across several bins
+and I4 is satisfied by *variety* rather than by *shallowness*. This is also the
+truer landform: a real banded scarp has faces at 55°, 70° and overhanging in
+the same massif, not one repeated angle. It is the bench rule from below,
+applied above: **`MASSIF_CLIFF_SLOPE_MIN` is a floor, and a floor was never a
+target** — precisely what I said about `MASSIF_BENCH_SLOPE_MAX` being a ceiling.
+
+**I4 is sound and is not the thing to relax.** Core asked whether I4 might now
+be a texture rule being asked to constrain a legitimately uniform form. It is
+not: «перепады не должны быть постоянными» is *exactly* the complaint that a
+uniformly 65° massif re-creates at a steeper angle. A constant gradient is a
+constant gradient whatever its value — which is the same conclusion §2.8.2
+reached when dead-flat benches and ceiling-pinned benches each put most of the
+mountain in one bin. **This is the third variant of that identical failure, and
+each time the fix was variety rather than a different constant.**
+
 **A CLIFF riser is a PLANAR face, and a bench is neither dead flat nor pinned
 at its ceiling (core, found by measuring — four bugs with one lesson under
 them).** Each of these is written down as a rule because each produced a
@@ -1822,6 +1851,30 @@ wrong.
   at least three **tangent breaks** in it, each subtending at least
   `SILHOUETTE_MIN_PX`. This is the only invariant in the suite computed from a
   camera, and it is the one that would have failed on day one.
+  - **I11 AS I FIRST WROTE IT WAS VACUOUS, AND I WROTE IT ONE MESSAGE AFTER
+    DIAGNOSING THIS EXACT DEFECT TWICE (core's control, ruled).** A smooth
+    analytic cone scores **exactly 3** at every standpoint and every distance —
+    apex plus the two hem junctions — so `MASSIF_SILHOUETTE_BREAKS_MIN` = 3 was
+    **satisfied by the dome the invariant exists to reject.** I had just
+    finished withdrawing contour-CV and footprint-I3 for precisely this, and
+    then built a third one. That is why the control rule above is now standing
+    procedure rather than advice.
+  - **RULING — count breaks on the INTERIOR of the horizon only**, excluding
+    the apex and the two hem junctions: crest lines that meet sky *between* the
+    outline's endpoints, which is what §7.1's "three readable crest lines"
+    always meant. Under this reading the cone scores **0** and the reshaped
+    massif scores **4–11** by standpoint. The reject case now fails at every
+    threshold, which is the property the first version lacked.
+  - **RULING — a break counts at ≥ 20° of tangent turn**, and the bracket is
+    reasoned rather than picked off core's curve. Above: `MASSIF_ARETE_TURN_MIN`
+    is 50° for a plan-view *aspect* turn, and a rib of given aspect turn always
+    projects to a *smaller* tangent break in silhouette, so the silhouette
+    threshold must sit below 50°. Below: core measured the noise floor around
+    10–15°, where counts stop responding to the threshold. That brackets
+    20–30°, and 20° takes the wider margin — 6 breaks against a floor of 3 at
+    400 m, rather than 4 against 3 at 30°, which would violate the
+    never-equal-the-floor spacing this document just adopted. **Provisional and
+    the frames outrank it**, exactly as with `CROWN_ASPECT_MAX`.
   - **Why plan-view aspect turn (I7) does not imply a visible rib.** I7 finds
     four arêtes and the eye finds none, and both are correct. With only 3–5
     arêtes, a rib lies near the **limb** for a minority of bearings; from most
