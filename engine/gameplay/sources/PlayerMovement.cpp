@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:29:52
+Last updated: 09:08:2026 - 22:40:04
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -33,6 +33,7 @@ UPD:
                          derived from the eye height — neither is a second
                          NUMBERS row that could drift from the first.
 - 09:08:2026 - 22:29:52: Latch the interact / light / inventory keys.
+- 09:08:2026 - 22:40:04: Latch inventory navigation (arrows, wheel, Enter).
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -138,6 +139,20 @@ void accumulate_input(const platform::IInput& input, PlayerState& state) {
         state.toggle_light_pressed || input.was_pressed(platform::Key::F);
     state.toggle_inventory_pressed =
         state.toggle_inventory_pressed || input.was_pressed(platform::Key::I);
+
+    // Inventory navigation. Latched like the rest, and sampled unconditionally:
+    // whether the screen is open is World state, which this ref-based core
+    // deliberately cannot see. The latches are simply ignored when it is shut.
+    if (input.was_pressed(platform::Key::DOWN)) {
+        ++state.pending_selection_delta;
+    }
+    if (input.was_pressed(platform::Key::UP)) {
+        --state.pending_selection_delta;
+    }
+    // Wheel up moves UP the list, which is the direction the wheel points.
+    state.pending_selection_delta -=
+        static_cast<int32_t>(std::lround(input.scroll_delta().y));
+    state.equip_pressed = state.equip_pressed || input.was_pressed(platform::Key::ENTER);
 }
 
 void player_pre_step(PlayerState& state, platform::IPhysics& physics, float water_depth,

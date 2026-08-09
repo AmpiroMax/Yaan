@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 09:08:2026 - 22:21:30
+Last updated: 09:08:2026 - 22:40:04
 Module: engine/gameplay
 File: engine/gameplay/sources/ViewModel.cpp
 
@@ -24,6 +24,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:21:30: Created — visible hands.
+- 09:08:2026 - 22:40:04: The flame moves to the torch HEAD via the shared
+                         TORCH_FLAME_ABOVE_GRIP row (was burning at the grip).
 */
 
 #include "engine/gameplay/sources/ViewModel.h"
@@ -46,6 +48,9 @@ namespace {
 constexpr float OFFSET_RIGHT = static_cast<float>(config::TORCH_HAND_OFFSET_RIGHT);
 constexpr float OFFSET_BELOW_EYE = static_cast<float>(config::TORCH_HAND_OFFSET_BELOW_EYE);
 constexpr float OFFSET_FORWARD = static_cast<float>(config::HAND_OFFSET_FORWARD);
+// The flame sits at the HEAD of the torch, not at the fist holding it. Render
+// builds the stick this long from the same row, so wood and fire cannot drift.
+constexpr float FLAME_ABOVE_GRIP = static_cast<float>(config::TORCH_FLAME_ABOVE_GRIP);
 
 struct Anchor {
     glm::vec3 position{0.0f};
@@ -141,19 +146,23 @@ void update_view_model(ecs::World& world) {
             lit_carriers.push_back(part.carrier);
         }
         // The light rides the ITEM, not the carrier, so the flame sits exactly
-        // where the wood is drawn even when looking straight up or down. The
-        // offset is zero because the anchor has already placed us at the grip.
+        // where the wood is drawn even when looking straight up or down.
+        // The offset runs up the torch from the grip: render applies the
+        // entity's FULL rotation to it (checked, not assumed), and this entity
+        // carries the view rotation, so local +Y is along the stick whichever
+        // way the player is looking. A zero offset would burn at the wrist.
+        const glm::vec3 flame{0.0f, FLAME_ABOVE_GRIP, 0.0f};
         auto* light = world.get<components::CarriedLight>(id);
         if (light == nullptr) {
             if (lit) {
                 world.add(id, components::CarriedLight{.active = true,
                                                        .radius_m = 0.0f,
                                                        .color_rgb = 0,
-                                                       .offset = glm::vec3{0.0f}});
+                                                       .offset = flame});
             }
         } else {
             light->active = lit;
-            light->offset = glm::vec3{0.0f};
+            light->offset = flame;
         }
     }
 

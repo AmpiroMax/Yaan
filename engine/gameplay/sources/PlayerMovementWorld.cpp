@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:18:17
+Last updated: 09:08:2026 - 22:40:04
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovementWorld.cpp
 
@@ -29,6 +29,8 @@ UPD:
 - 09:08:2026 - 22:18:17: player_pre_step takes a water-surface callback,
                          bound to world::ChunkManager::water_surface_at by
                          the app; an unbound callback means a dry world.
+- 09:08:2026 - 22:40:04: Mouse turns the previewed item while the inventory
+                         screen is open.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -37,6 +39,7 @@ UPD:
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/gameplay/sources/InventoryScreen.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
 namespace dfn::gameplay {
@@ -82,10 +85,28 @@ void player_accumulate_input(ecs::World& world, const platform::IInput& input) {
 
 void player_pre_step(ecs::World& world, platform::IPhysics& physics,
                      const WaterSurfaceFn& water_surface_at) {
+    // With the inventory open the mouse TURNS THE ITEM instead of the head.
+    // This is not a free design choice: the user asked for a rotatable preview,
+    // and the mouse is the only rotation input there is. Walking is left alone
+    // — whether the world pauses behind the screen is a decision nobody has
+    // made, and stopping WASD here would quietly make it.
+    auto* screen =
+        world.has_resource<InventoryScreen>() ? &world.resource<InventoryScreen>() : nullptr;
+    const bool screen_open = screen != nullptr && screen->open;
+
     for (auto [id, state, transform, prev_transform, camera, prev_camera] :
          world.view<PlayerState, components::Transform, components::PreviousTransform,
                     components::CameraPose, components::PreviousCameraPose>()) {
         (void)id;
+        if (screen_open) {
+            // Same radians-per-pixel as looking: it is the same hand doing the
+            // same gesture, and a second sensitivity row would be a second
+            // thing to tune to match the first.
+            const float sens = static_cast<float>(config::MOUSE_SENSITIVITY);
+            rotate_preview(*screen, state.pending_look.x * sens,
+                           -state.pending_look.y * sens);
+            state.pending_look = glm::vec2{0.0f};
+        }
         // Depth is measured from the FEET (Transform.position is the capsule
         // bottom) against the surface engine/world reports. No callback bound
         // means a world without water — dry, not broken.

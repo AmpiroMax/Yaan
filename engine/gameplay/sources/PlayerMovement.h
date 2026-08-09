@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:29:52
+Last updated: 09:08:2026 - 22:40:04
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -53,6 +53,7 @@ UPD:
                          engine/world (core's ruling).
 - 09:08:2026 - 22:29:52: Action latches (interact / light / inventory) —
                          edge events survive a fast render loop.
+- 09:08:2026 - 22:40:04: Inventory navigation latches (selection, equip).
 */
 
 #pragma once
@@ -118,6 +119,9 @@ struct PlayerState {
     bool interact_pressed = false;
     bool toggle_light_pressed = false;
     bool toggle_inventory_pressed = false;
+    // Inventory navigation, meaningful only while the screen is open.
+    int32_t pending_selection_delta = 0; // + moves down the list
+    bool equip_pressed = false;          // put the selected item in the hand
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------

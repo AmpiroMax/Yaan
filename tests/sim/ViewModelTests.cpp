@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:34:38
-Last updated: 09:08:2026 - 22:34:38
+Last updated: 09:08:2026 - 22:40:04
 Module: tests
 File: tests/sim/ViewModelTests.cpp
 
@@ -24,6 +24,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:34:38: Created with the visible hands and inventory screen.
+- 09:08:2026 - 22:40:04: Flame at the torch head, not the grip.
 */
 
 #include <doctest/doctest.h>
@@ -40,7 +41,10 @@ UPD:
 #include "engine/gameplay/sources/Inventory.h"
 #include "engine/gameplay/sources/InventoryScreen.h"
 #include "engine/gameplay/sources/Item.h"
+#include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/ViewModel.h"
+#include "engine/physics/sources/CollisionLayers.h"
+#include "engine/platform/physics/sources/null/CreateNullPhysics.h"
 
 namespace {
 
@@ -154,11 +158,15 @@ TEST_CASE("view model: the item slot shows what is held, and carries its light")
         saw_mesh = mesh->mesh_asset == torch.mesh_id;
         const auto* light = world.get<components::CarriedLight>(id);
         saw_light = light != nullptr && light->active;
-        // The light rides the item itself, so it needs no offset of its own —
-        // the anchor already put it at the grip. A non-zero offset here would
-        // be the flame drifting off the stick again.
+        // The flame belongs at the HEAD of the torch. CONTROL: a zero offset
+        // (the obvious implementation, and what this shipped as at first)
+        // burns at the wrist, and render's shadows then look detached from the
+        // stick they are supposedly cast by.
         if (light != nullptr) {
-            CHECK(glm::length(light->offset) == doctest::Approx(0.0f));
+            CHECK(light->offset.y ==
+                  doctest::Approx(static_cast<float>(config::TORCH_FLAME_ABOVE_GRIP)));
+            CHECK(light->offset.x == doctest::Approx(0.0f));
+            CHECK(light->offset.z == doctest::Approx(0.0f));
         }
     }
     CHECK(saw_mesh);
@@ -297,6 +305,48 @@ TEST_CASE("inventory screen: selection clamps and the preview pitch is limited")
     CHECK(screen.preview_yaw == doctest::Approx(100.0f));
     CHECK(screen.preview_pitch ==
           doctest::Approx(static_cast<float>(config::CAMERA_PITCH_LIMIT)));
+}
+
+
+TEST_CASE("inventory screen: the mouse turns the item only while it is open") {
+    World world;
+    gameplay::ItemDatabase items;
+    const EntityId owner = make_owner_with_items(world, items, {"item.a.one"});
+    world.add_resource(std::move(items));
+    world.add(owner, gameplay::PlayerState{});
+    world.add(owner, components::Transform{});
+    world.add(owner, components::PreviousTransform{});
+    world.add(owner, components::CameraPose{});
+    world.add(owner, components::PreviousCameraPose{});
+    gameplay::refresh_inventory_screen(world, owner);
+
+    auto physics = dfn::platform::create_null_physics();
+    REQUIRE(physics->init());
+    dfn::platform::CharacterDesc desc;
+    desc.radius = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
+    desc.height = static_cast<float>(config::PLAYER_CAPSULE_HEIGHT);
+    desc.layer = dfn::physics::LAYER_CHARACTER;
+    desc.collides_with = dfn::physics::LAYER_STATIC;
+    world.get<gameplay::PlayerState>(owner)->character = physics->create_character(desc);
+
+    auto& screen = world.resource<gameplay::InventoryScreen>();
+
+    // CLOSED: the mouse turns the HEAD and the preview does not move.
+    screen.open = false;
+    world.get<gameplay::PlayerState>(owner)->pending_look = {40.0f, 0.0f};
+    gameplay::player_pre_step(world, *physics);
+    CHECK(screen.preview_yaw == doctest::Approx(0.0f));
+    CHECK(world.get<gameplay::PlayerState>(owner)->yaw != doctest::Approx(0.0f));
+
+    // OPEN: the same motion turns the ITEM and leaves the head alone. Without
+    // this diversion the preview is not rotatable at all, since the mouse is
+    // the only rotation input there is.
+    screen.open = true;
+    const float yaw_before = world.get<gameplay::PlayerState>(owner)->yaw;
+    world.get<gameplay::PlayerState>(owner)->pending_look = {40.0f, 0.0f};
+    gameplay::player_pre_step(world, *physics);
+    CHECK(screen.preview_yaw != doctest::Approx(0.0f));
+    CHECK(world.get<gameplay::PlayerState>(owner)->yaw == doctest::Approx(yaw_before));
 }
 
 } // namespace

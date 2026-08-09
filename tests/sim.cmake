@@ -50,7 +50,8 @@ add_dfn_test(sim_movement_solid sim/MovementSolidTests.cpp
     dfn_gameplay dfn_physics dfn_platform_physics)
 
 # The visible hand and the inventory screen state.
-add_dfn_test(sim_view_model sim/ViewModelTests.cpp dfn_gameplay dfn_core)
+add_dfn_test(sim_view_model sim/ViewModelTests.cpp
+    dfn_gameplay dfn_core dfn_platform_physics)
 
 # Buildings and boulders are solid, built from the triangles render draws.
 add_dfn_test(sim_prop_collision sim/PropCollisionTests.cpp
