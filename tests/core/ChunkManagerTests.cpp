@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 09:08:2026 - 18:19:09
 Module: tests
 File: tests/core/ChunkManagerTests.cpp
 
@@ -23,6 +23,7 @@ UPD:
   captured before streaming; new cases for site component attachment,
   surfacefield/scatter/water_bodies accessors.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes is now lake + pond planes (was exactly 1); all planes checked for positive extent.
+- 09:08:2026 - 18:19:09: Streaming budget: residency cases now drive updates to settled via Fixture::settle (a ring no longer fills in one update); new case pins the per-update cap, the focus chunk being admitted first (including after a teleport), and that nothing starves.
 */
 
 #include "engine/core/components/sources/Components.h"
@@ -66,12 +67,26 @@ struct Fixture {
         });
         chunks.open_generated(gen, ChunkStreamingParams{1, 2});
     }
+
+    /// Streaming is rate-limited to CHUNK_LOAD_BUDGET chunks per update, so a
+    /// ring now fills over several updates instead of one. Tests that care
+    /// about the SETTLED residency drive updates until it stops changing.
+    void settle(const glm::vec3& focus) {
+        for (int i = 0; i < 256; ++i) {
+            const std::size_t before = chunks.loaded_chunks().size();
+            chunks.update(focus, ecs, bus);
+            if (chunks.loaded_chunks().size() == before) {
+                return;
+            }
+        }
+        FAIL("streaming never settled");
+    }
 };
 } // namespace
 
 TEST_CASE("update at origin loads a 3x3 ring with valid heightfields") {
     Fixture f;
-    f.chunks.update({0.0f, 0.0f, 0.0f}, f.ecs, f.bus);
+    f.settle({0.0f, 0.0f, 0.0f});
 
     CHECK(f.loaded_events.size() == 9);
     CHECK(f.chunks.loaded_chunks().size() == 9);
@@ -88,20 +103,20 @@ TEST_CASE("update at origin loads a 3x3 ring with valid heightfields") {
     CHECK(view->heights.size() == static_cast<std::size_t>(view->resolution) * view->resolution);
     CHECK(view->height_scale > 0.0f);
 
-    // Idempotent: a second update at the same focus changes nothing.
-    f.chunks.update({1.0f, 0.0f, 1.0f}, f.ecs, f.bus);
+    // Idempotent: further updates at the same focus change nothing.
+    f.settle({1.0f, 0.0f, 1.0f});
     CHECK(f.loaded_events.size() == 9);
     CHECK(f.unloaded_events.empty());
 }
 
 TEST_CASE("moving the focus streams with hysteresis; far teleport swaps the ring") {
     Fixture f;
-    f.chunks.update({0.0f, 0.0f, 0.0f}, f.ecs, f.bus);
+    f.settle({0.0f, 0.0f, 0.0f});
     REQUIRE(f.chunks.loaded_chunks().size() == 9);
 
     // One chunk east: 3 new columns load; the old west column stays within
     // unload_radius 2 (hysteresis), so nothing unloads.
-    f.chunks.update({1.5f * CHUNK_SIZE_M, 0.0f, 0.0f}, f.ecs, f.bus);
+    f.settle({1.5f * CHUNK_SIZE_M, 0.0f, 0.0f});
     CHECK(f.chunks.loaded_chunks().size() == 12);
     CHECK(f.unloaded_events.empty());
     CHECK(f.chunks.is_loaded(ChunkCoord{-1, 0}));
@@ -109,7 +124,7 @@ TEST_CASE("moving the focus streams with hysteresis; far teleport swaps the ring
     // Far teleport: everything old is beyond radius 2 and unloads; a fresh
     // 3x3 ring appears around the new focus.
     f.loaded_events.clear();
-    f.chunks.update({8.5f * CHUNK_SIZE_M, 0.0f, 8.5f * CHUNK_SIZE_M}, f.ecs, f.bus);
+    f.settle({8.5f * CHUNK_SIZE_M, 0.0f, 8.5f * CHUNK_SIZE_M});
     CHECK(f.unloaded_events.size() == 12);
     CHECK(f.loaded_events.size() == 9);
     CHECK(f.chunks.loaded_chunks().size() == 9);
@@ -120,7 +135,7 @@ TEST_CASE("moving the focus streams with hysteresis; far teleport swaps the ring
 
 TEST_CASE("streaming is clipped to the world extent") {
     Fixture f{WorldGenParams{5, {0, 0}, {0, 0}}}; // single-chunk world
-    f.chunks.update({0.0f, 0.0f, 0.0f}, f.ecs, f.bus);
+    f.settle({0.0f, 0.0f, 0.0f});
     CHECK(f.chunks.loaded_chunks().size() == 1);
     CHECK(f.chunks.is_loaded(ChunkCoord{0, 0}));
     CHECK_FALSE(f.chunks.is_loaded(ChunkCoord{1, 0}));
@@ -128,7 +143,7 @@ TEST_CASE("streaming is clipped to the world extent") {
 
 TEST_CASE("height_at answers inside loaded chunks, declines outside") {
     Fixture f;
-    f.chunks.update({0.0f, 0.0f, 0.0f}, f.ecs, f.bus);
+    f.settle({0.0f, 0.0f, 0.0f});
 
     const auto h = f.chunks.height_at({10.0f, 20.0f});
     REQUIRE(h.has_value());
@@ -148,8 +163,8 @@ TEST_CASE("height_at answers inside loaded chunks, declines outside") {
 TEST_CASE("determinism across managers: same seed serves identical heights") {
     Fixture a{WorldGenParams{777, {-2, -2}, {2, 2}}};
     Fixture b{WorldGenParams{777, {-2, -2}, {2, 2}}};
-    a.chunks.update({0.0f, 0.0f, 0.0f}, a.ecs, a.bus);
-    b.chunks.update({0.0f, 0.0f, 0.0f}, b.ecs, b.bus);
+    a.settle({0.0f, 0.0f, 0.0f});
+    b.settle({0.0f, 0.0f, 0.0f});
     const auto va = a.chunks.heightfield(ChunkCoord{1, -1});
     const auto vb = b.chunks.heightfield(ChunkCoord{1, -1});
     REQUIRE(va.has_value());
@@ -162,7 +177,7 @@ TEST_CASE("determinism across managers: same seed serves identical heights") {
 TEST_CASE("unload_all releases everything with the event protocol") {
     Fixture f;
     const std::size_t baseline = f.ecs.entity_count(); // before any streaming
-    f.chunks.update({0.0f, 0.0f, 0.0f}, f.ecs, f.bus);
+    f.settle({0.0f, 0.0f, 0.0f});
     REQUIRE(f.chunks.loaded_chunks().size() == 9);
 
     f.chunks.unload_all(f.ecs, f.bus);
@@ -177,7 +192,7 @@ TEST_CASE("unload_all releases everything with the event protocol") {
 TEST_CASE("site entities spawn with components; surface/scatter views serve") {
     // Testbed layout: the hamlet (360, 500) lives in chunk (1, 1) — stream it.
     Fixture f{WorldGenParams{1, {0, 0}, {3, 3}}};
-    f.chunks.update({384.0f, 0.0f, 384.0f}, f.ecs, f.bus); // focus chunk (1, 1)
+    f.settle({384.0f, 0.0f, 384.0f}); // focus chunk (1, 1)
     REQUIRE(f.chunks.is_loaded(ChunkCoord{1, 1}));
 
     // The hamlet's entities carry the full component set (Rule 11 batches).
@@ -213,4 +228,34 @@ TEST_CASE("site entities spawn with components; surface/scatter views serve") {
     REQUIRE(water.river_segment_offsets.size() >= 2);
     CHECK(water.river_segment_offsets.front() == 0);
     CHECK(water.river_segment_offsets.back() == water.river_stations.size());
+}
+
+TEST_CASE("streaming is rate-limited and always fills the ground underfoot first") {
+    // Unbounded loading was the multi-second freeze: a chunk costs ~14.5 ms
+    // here plus sim's ~68 ms collision build, so a cold ring was ~2 s inside
+    // one frame. The budget spreads that over updates.
+    Fixture f;
+    const glm::vec3 focus{384.0f, 0.0f, 384.0f}; // chunk (1, 1)
+
+    // Each update admits at most the budget...
+    for (int i = 0; i < 5; ++i) {
+        const std::size_t before = f.chunks.loaded_chunks().size();
+        f.chunks.update(focus, f.ecs, f.bus);
+        const std::size_t admitted = f.chunks.loaded_chunks().size() - before;
+        CHECK(admitted <= static_cast<std::size_t>(dfn::config::CHUNK_LOAD_BUDGET));
+    }
+    // ...and the very first chunk admitted is the one under the player, so the
+    // deferred queue can never leave a hole beneath them.
+    REQUIRE_FALSE(f.loaded_events.empty());
+    CHECK(f.loaded_events.front() == ChunkCoord{1, 1});
+
+    // Nothing starves: the ring still completes.
+    f.settle(focus);
+    CHECK(f.chunks.loaded_chunks().size() == 9);
+
+    // After a teleport the ground underfoot is again the first thing admitted.
+    f.loaded_events.clear();
+    f.chunks.update({8.5f * CHUNK_SIZE_M, 0.0f, 8.5f * CHUNK_SIZE_M}, f.ecs, f.bus);
+    REQUIRE_FALSE(f.loaded_events.empty());
+    CHECK(f.loaded_events.front() == ChunkCoord{8, 8});
 }

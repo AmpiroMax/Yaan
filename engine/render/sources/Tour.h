@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 17:33:00
+Last updated: 09:08:2026 - 18:44:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -60,6 +60,7 @@ UPD:
   LANDSCAPE §7.1 route (crag/river/lake/hamlet/forest/overview).
 - 09:08:2026 - 17:33:00: map_probe_steps() — the single-frame map screen
   evidence route; testbed_steps() returns it when DFN_MAP is set.
+- 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE).
 */
 
 #pragma once
@@ -147,6 +148,13 @@ public:
     // DFN_MAP=1 and testbed_steps() returns this route under the same variable
     // — one frame, not seven copies of the same overlay.
     [[nodiscard]] static std::vector<TourStep> map_probe_steps();
+
+    // Thin-caster shadow evidence shoot (Rule 27): a SINGLE vantage at a
+    // dungeon entrance where tree trunks and the §6.2 standing stones stand on
+    // open ground with the sun behind the camera. Selected by DFN_SHADOW_PROBE.
+    // Thin vertical objects are the class a coarse shadow map drops silently,
+    // so they get their own acceptance frame.
+    [[nodiscard]] static std::vector<TourStep> thin_shadow_probe_steps();
 
 private:
     // Step position with ground_relative y resolved via ground_at_ (absolute

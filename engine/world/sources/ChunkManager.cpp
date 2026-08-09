@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 18:19:09
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -34,6 +34,7 @@ UPD:
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes now carries the lake plus one plane per surviving pond (additive, lead-blessed; render iterates the same span).
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh accessor.
 - 09:08:2026 - 17:36:42: §6.2: honour ground_y when spawning site entities.
+- 09:08:2026 - 18:19:09: Streaming LOAD BUDGET: at most CHUNK_LOAD_BUDGET chunks admitted per update, nearest-to-focus first with a deterministic tie-break, remainder deferred to following updates. Unbounded admission was the multi-second freeze (a cold ring is ~2 s of synchronous work at ~83 ms/chunk including sim's collision build). Nearest-first is what makes deferral safe: the ground under the player is distance 0, so it is always next and the queue cannot reorder into a hole beneath them.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -41,6 +42,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/SiteComponents.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
@@ -134,15 +136,51 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
         changed = true;
     }
 
-    // --- Load pass: missing chunks within the load radius, clipped to extent. -
+    // --- Load pass: missing chunks within the load radius, clipped to extent,
+    // NEAREST FIRST and rate-limited to CHUNK_LOAD_BUDGET per update.
+    //
+    // Admitting every missing chunk in one update is what produced the
+    // multi-second freezes: a chunk costs ~14.5 ms here plus sim's ~68 ms
+    // collision build, so a cold 5x5 ring was ~2 s of synchronous work inside
+    // a single frame. Deferring the remainder spreads that over following
+    // updates. Nearest-to-focus ordering is what makes deferral safe: the
+    // ground under the player is by definition distance 0, so it is always the
+    // next chunk admitted and the queue can never reorder into a hole beneath
+    // them. Every update admits at least one chunk, so nothing starves.
     const int32_t r = static_cast<int32_t>(impl_->params.load_radius);
+    struct Pending {
+        ChunkCoord coord;
+        int32_t ring;    ///< Chebyshev distance: the streaming ring it sits in
+        int64_t dist_sq; ///< tie-break within a ring: true distance
+    };
+    std::vector<Pending> pending;
     for (int32_t dz = -r; dz <= r; ++dz) {
         for (int32_t dx = -r; dx <= r; ++dx) {
             const ChunkCoord coord{focus.x + dx, focus.z + dz};
-            const uint64_t key = chunk_group(coord);
-            if (!impl_->in_extent(coord) || impl_->resident.contains(key)) {
+            if (!impl_->in_extent(coord) || impl_->resident.contains(chunk_group(coord))) {
                 continue;
             }
+            pending.push_back({coord, static_cast<int32_t>(chebyshev(coord, focus)),
+                               static_cast<int64_t>(dx) * dx + static_cast<int64_t>(dz) * dz});
+        }
+    }
+    std::sort(pending.begin(), pending.end(), [](const Pending& a, const Pending& b) {
+        if (a.ring != b.ring) return a.ring < b.ring;
+        if (a.dist_sq != b.dist_sq) return a.dist_sq < b.dist_sq;
+        // Deterministic final tie-break so load order never depends on the
+        // enumeration order of the resident map.
+        if (a.coord.x != b.coord.x) return a.coord.x < b.coord.x;
+        return a.coord.z < b.coord.z;
+    });
+    const std::size_t budget = static_cast<std::size_t>(config::CHUNK_LOAD_BUDGET);
+    if (pending.size() > budget) {
+        pending.resize(budget);
+    }
+
+    for (const Pending& entry : pending) {
+        {
+            const ChunkCoord coord = entry.coord;
+            const uint64_t key = chunk_group(coord);
             Chunk chunk = generate_chunk(impl_->gen_ctx, coord);
             // Stage 3: apply impl_->delta overlay here before spawning (Q56).
 

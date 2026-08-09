@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 18:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -42,6 +42,13 @@ UPD:
   it with the internal "shadow" program; terrain/prop sample it with one hard
   compare tap (dfn_shadow.sh). Shadows follow the app-animated sun (в2) and
   switch off below SHADOW_MIN_SUN_ELEVATION (night: ambient only).
+- 09:08:2026 - 18:40:00: Thin casters cast nothing (user bug: tree trunks had
+  no shadow, only the canopy). Root cause was shadow-map TEXEL DENSITY, not a
+  missed submit path — trunk and crown are the same vertices in the same
+  batched draw, so the shadow pass never had a way to skip one. 0.625 m per
+  texel could not represent a 0.28-1.1 m trunk. Shadow map 2048 -> 4096 and
+  half extent 640 -> 320 m => 0.156 m per texel (and the normal offset, which
+  is defined in texels, shrinks with it). Covers the §6.2 standing stones too.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -97,14 +104,32 @@ constexpr uint32_t SKY_COLOR_RGBA = 0x87b5e0ff;
 
 // Sun shadow map (user decision в1). Backend look-dev constants like
 // SKY_COLOR_RGBA — flagged on the NUMBERS.md migration list (Rule 14).
-// One 2048 map over the loaded chunk ring: half extent = (CHUNK_LOAD_RADIUS
-// 2 + 0.5) x CHUNK_SIZE 256 m, eye-centered ortho along the sun direction.
-constexpr uint16_t SHADOW_MAP_SIZE = 2048;
-constexpr float SHADOW_HALF_EXTENT_M = 640.0f;
+// Eye-centered ortho along the sun direction, texel-snapped.
+//
+// TEXEL DENSITY IS THE THIN-OBJECT CONTRACT (user bug 09:08:2026: "тени у
+// деревьев только крона без тени ствола"). A caster narrower than one shadow
+// texel only darkens a texel when it happens to cover its center, so it
+// flickers out entirely. The first version (2048 over a 640 m half extent =
+// 0.625 m per texel) could not represent ANY trunk: oak 1.1 m = 1.8 texels
+// (dashed), pine 0.6 m = 0.96, birch 0.28-0.44 m = 0.45-0.7 — while the 8 m
+// oak crown covered 13 texels and shadowed solidly. Hence "canopy only".
+// 4096 over 320 m = 0.156 m per texel puts the THINNEST trunk at ~1.8 texels
+// and the 2 m standing stones (§6.2 entrance markers) at ~13.
+// The rule for anything added later (fences, castle detail, railings):
+//   shadow needs width >= ~2 x SHADOW_TEXEL_M, i.e. >= ~0.31 m today.
+// The price is range: the volume shrinks from the loaded chunk ring to 320 m,
+// which is where fog (LOOKDEV_FOG_START_FRAC x CAMERA_FAR = 300 m) starts
+// hiding the difference anyway. Covering both near detail and the full ring
+// needs a second cascade — a feature, not a constant (flagged in the spec).
+constexpr uint16_t SHADOW_MAP_SIZE = 4096;
+constexpr float SHADOW_HALF_EXTENT_M = 320.0f;
 constexpr float SHADOW_DEPTH_HALF_M = 700.0f;  // along-light half range
 constexpr float SHADOW_MIN_SUN_ELEVATION = 0.05f; // sun_dir.y below -> off
 constexpr float SHADOW_TEXEL_M = 2.0f * SHADOW_HALF_EXTENT_M
                                  / static_cast<float>(SHADOW_MAP_SIZE);
+// Receiver push-off, in TEXELS: it scales with the map, so the finer map also
+// stops the offset from eroding thin shadows (it was 0.625 m — wider than a
+// birch trunk's whole shadow — and is now 0.156 m).
 constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
 constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
 

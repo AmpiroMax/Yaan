@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 17:33:00
+Last updated: 09:08:2026 - 18:44:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -36,6 +36,8 @@ UPD:
   (crag money shot, river ford, lake bluff, hamlet approach, forest species,
   overview).
 - 09:08:2026 - 17:33:00: map_probe_steps() + DFN_MAP gate in testbed_steps.
+- 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE) — the
+  acceptance vantage for thin-caster shadows (trunks + §6.2 standing stones).
 */
 
 #include "engine/render/sources/Tour.h"
@@ -219,12 +221,29 @@ std::vector<TourStep> Tour::map_probe_steps() {
     return {{"map_screen", {mid, eye, mid}, 2.36f, 0.0f, 90, true}};
 }
 
+std::vector<TourStep> Tour::thin_shadow_probe_steps() {
+    // ONE frame at a dungeon entrance: the §6.2 standing stones and nearby
+    // tree trunks in the same shot, from the south-east so the afternoon
+    // southern sun throws their shadows AWAY from the camera across open
+    // ground. This is the acceptance vantage for thin-caster shadows — the
+    // class of object (trunks, standing stones, later fences and railings)
+    // that a coarse shadow map silently drops.
+    const glm::vec2 entrance{774.0f, 275.0f}; // NE entrance, probed from the map
+    const glm::vec2 pos = entrance + glm::vec2{26.0f, 26.0f};
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    return {{"thin_caster_shadows", {pos.x, eye, pos.y}, aim_yaw(pos, entrance),
+             -0.12f, 90, true}};
+}
+
 std::vector<TourStep> Tour::testbed_steps() {
-    // Verification hook (Rule 27, user instruction "one variant, no
-    // near-identical frames"): with DFN_MAP=1 the tour collapses to the single
-    // map frame instead of shooting the same overlay seven times.
+    // Verification hooks (Rule 27, user instruction "one variant, no
+    // near-identical frames"): each of these collapses the tour to the single
+    // frame that proves one thing, instead of re-shooting the whole route.
     if (env_or_null("DFN_MAP") != nullptr) {
         return map_probe_steps();
+    }
+    if (env_or_null("DFN_SHADOW_PROBE") != nullptr) {
+        return thin_shadow_probe_steps();
     }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative
