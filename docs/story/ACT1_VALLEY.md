@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 19:36:28
+Last updated: 09:08:2026 - 21:27:32
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 19:28:46: MQ4's trespass route given a body from design's geometry — the unbuilt NNE stretch of ward C, reachable off-corridor past the barrow — and the act-1/act-3 rhyme recorded: the player breaks in by the same path the dead will later take, under the tower that has watched the grave through that gap for four generations.
 - 09:08:2026 - 19:32:18: Recorded that the trespass route is now a VALIDATED worldgen invariant (continuous, deliberately non-corridor-grade, forced within 40 m of the barrow entrance) and that ward C's completion fraction has two dependents - the act-1 trespass route and the act-3 muster gap.
 - 09:08:2026 - 19:36:28: MQ4's ascent of Ravenscar is now a validated worldgen invariant (continuous walkable route to the tower ruin, <=25 deg, checked every run) - design added it after story's near-miss exposed that act 1 climaxed on a summit with no guaranteed route. Specified as an unbuilt worn watchmen's path, visually distinct from act 2's built stair.
+- 09:08:2026 - 21:27:32: Answered design's pre-clearance on reshaping Ravenscar (steeper, narrower base, four ribs): nothing in the arc needs a broad-shouldered crag — steeper suits act 1 — but recorded two escalation conditions in §2: the ward-tower ascent must stay an UNBUILT walkable path (a built stair here would collapse the two-different-climbs distinction with act 2's Seven Thousand Steps), and the narrowed base must be re-checked so the castle still reads against rock rather than sky, since that siting is what protects the tower's skyline monopoly.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -148,7 +149,23 @@ had been climaxing on a summit nobody had guaranteed was climbable. It is an
 **unbuilt worn path**, not a stair: the line four generations of watchmen
 wore into the spur. At 110–120 m of relief this is a real climb, and it must
 stay visually distinct from act 2's built temple stair (BIBLE §2, "two
-different climbs"). Getting the
+different climbs").
+
+**Shape dependency (flagged to design 09:08:2026, while cheap).** Nothing in
+this arc needs Ravenscar broad-shouldered — steeper and narrower is *closer*
+to what act 1 has always implied, and a harder climb is a better climax. Two
+things must survive the reshape, and both are escalations rather than
+preferences:
+1. **The ascent must stay an unbuilt walkable worn path.** If steepening ever
+   forces a *built* stair up Ravenscar, the "two different climbs"
+   distinction collapses — both mountains would then be stairs, and act 2's
+   Seven Thousand Steps stop being singular. Escalate to story before
+   building steps here; the answer is a longer traverse, not masonry.
+2. **The castle must keep reading against rock, never sky.** The mechanism
+   protecting the tower's skyline monopoly (and so the black-signal image) is
+   siting the Ward *inside the crag's angular footprint*. Narrowing the base
+   radius shrinks that envelope, so the against-rock read needs re-checking
+   from the valley standpoints after the reshape. Getting the
 grant is intrigue at the castle (§4). Putting the two together gives the
 hero the sentence that ends act 1: *the man who lit the signal was my
 family, and my family changed its name twice to survive it.* The Fen kin

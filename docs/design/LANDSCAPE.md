@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 21:26:00
+Last updated: 09:08:2026 - 21:36:00
 -->
 <!--
 UPD:
@@ -40,6 +40,7 @@ UPD:
 - 09:08:2026 - 21:12:00: Three agents unblocked in one pass — core's summit tor, flora's birch, render's acceptance frames. §2.8.3 — RULING: I2's «mean slope» is SURFACE-AREA weighted, so I2 PASSES at 52.9 deg (footprint reads 32.5 and would fail). Core was right to refuse to extend my I3 ruling by analogy — I3/I4 say «of the surface» and I2 says only «mean slope» — and the ambiguity was MINE for stating a convention as a gloss on two rows instead of as a section rule. Restated section-level: every slope, area and coverage statistic in §2.8.3 is surface-area weighted (I2, I3, I4, I9), and I8 is the SOLE plan-view measure because a slice outline is a 2D curve. The decisive argument for I2 is not the analogy but that a plan-weighted I2 would REJECT THE LANDFORM §2.8.4 MANDATES — a tor is flat tops and vertical sides, so plan weighting scores a textbook tor as flat, and core measured the ideal registering as a regression (32.7 -> 32.5 when the tor was added). When a test contradicts a design ruling, the ruling says what the mountain IS and the test only says whether we got there; the test yields. Not vacuous: a dome has slope -> 0 at the apex where the two weightings agree, so it still fails. §2.8.2 — RULING on I8's two clauses fighting: COULOIR DEPTH IS ABSOLUTE (metres), COULOIR ANGULAR WIDTH IS RELATIVE (fixed fraction of its facet). Core mapped the space and found every axis traded level against rise, but all their variants were the same experiment — each varied how fast the couloir fades while leaving depth expressed as a FRACTION OF LOCAL RADIUS, which is self-similar by construction and self-similarity is exactly what the rise clause exists to detect. Hold depth in metres and the rise appears free: R shrinks toward the summit so eps = depth/R(h) grows on its own, i.e. the mountain becomes more articulated near the top not because features grow but BECAUSE THE MOUNTAIN GETS SMALLER AROUND THEM, which is what real massifs do. Angular width stays relative because absolute width would curve the facets and kill I7 again; core's own arc check confirms ~1 m of arc at summit radius, far under MASSIF_ARETE_TURN_ARC_MAX 15 m. Precedent cited so it reads as recognisable rather than novel: MASSIF_ARETE_TURN_ARC_MAX is already absolute on purpose. Clamp against existing MASSIF_RADIAL_LOBE_AMP_MAX, no new constant. Core's alternative (arete count varying with elevation) ruled NOT the first lever — geologically true but it fights I7's persistence check by construction. §2.8.4 — two tor rules from core's bugs: «the tor REPLACES the top» must not be built as «TRUNCATE the top» (capping the cone outside the slabs builds a MESA and cost 3.6 deg of summit slope — the feature meant to fix I2 made I2 worse), and L0_RELIEF IS A CONTRACT — anything stamped on a summit is measured INTO the landmark's relief, never added on top, because CASTLE_SKYLINE_MARGIN, R3, R4, C1 and the whole hierarchy are ratios and margins to the peak, so a summit feature that quietly raises it edits all of them from a zone that does not own them (core's tor drifted 115.0 -> 116.1 by reading one bound of a range as the range; now exactly 115.0). §5 NEW — CROWN ASPECT CEILING invariant, from flora's Rule 28 stop on the River Birch after four failed attempts across two sessions. THE DEFECT WAS IN MY NUMBERS: crown width 5-7 m and CROWN_BASE_FRACTION_MAX 0.45 of a 16-22 m height give a container 1.8:1 before a single cluster, and the generated foliage box measures 2.65:1 — a column, not a mass (oak 1.65 and willow 1.51 read fine, pine 4.88 is correct because a cone is meant to be narrow). Three previous fixes all changed what goes in the box while THE BOX WAS THE DEFECT — the same diagnosis §2.8.1 reached about the mountain, twice in one stage, now recorded as a cross-cutting lesson. Rule: a broadleaf crown's GENERATED foliage bounding box may not exceed CROWN_ASPECT_MAX 1.8 (предложение), measured on built geometry never on the authored container (the container passes and the tree fails — same discipline as the polyline perimeter: measure the artefact, not the intention); cone/spire species exempt by their written brief; 1.8 flagged PROVISIONAL because the band 1.8-2.65 is untested and the frame outranks the number. The structural half: CROWN_BASE_FRACTION stops being a universal cap and becomes a FLOOR plus a derivation, which dissolves flora's per-species-vs-principle question rather than answering it — the 0.35-0.45 band was carrying two unrelated jobs (clear-trunk walkability, which §1.3 measured as visibility-insensitive, and by accident of being a fraction of height, the crown's ASPECT), so MIN 0.35 stays as the walkability floor and each species' crown base is DERIVED as the smallest value above it satisfying the aspect ceiling. Oak and willow unchanged; birch lands at ~0.58-0.62, which is flora's remedy reached by principle instead of by exception, and costs nothing I value (width band untouched so TREE_SPACING_FOREST does not move, accent role strengthened, clear trunk 8.5 -> ~11 m per §5.7's own goal). §5.3 updated. Invariant lives in §5, mechanism in flora's spec — design owns the test, the zone owns the mechanism. NEW §7.1b — the two acceptance vantages, stamped so the test is reproducible: frame 1 (120,300) aimed at (830,200,y=95), ~717 m, backlit low morning sun, proves the silhouette is not a dome; frame 2 (545,165) aimed at (830,200,y=70), ~287 m, front-lit raking evening sun, proves the flank alternates cliff and bench at irregular spacing. My own acceptance text had named two standpoints that test the SAME thing; render challenged it and their far/near split is better, because the two failure modes are invisible to each other's distance. Recorded: why each frame's light differs (frame 1 tests an outline and §1.5 says landmarks read by value against sky; frame 2 tests a surface and a low sun behind camera maximises riser/bench separation — the same light would ruin the other frame); why there is no foot-of-cliff frame (from beneath a riser you see one riser, and I4/I5/I6 are about RHYTHM, which needs several bands stacked); band pairs subtend ~11 px at 717 m and ~27 px at 287 m, surviving to ~960 m before dropping under SILHOUETTE_MIN_PX; frame 2's bearing avoids the castle sector because inside 300 m §6.1.1 lets the castle fill the view and the frame would be testing the castle; Ravenscar must read SOLID not hazy at 287-717 m, well inside LANDMARK_HAZE_ONSET 800 m, and haze on it is a bug per §1.3a; the hard splat edge at band lips is INTENDED and must not be smoothed, with the real check being whether the snap TRACKS THE LIP rather than wandering across a bench on a slope-threshold contour. §7.1 status table rebuilt: 7 of 8 pass, only I8's rise clause fails, three cautions attached (the 0.01 miss and core's correct refusal to close it against one seed; the whole table is still ONE SEED with I1 at 12.7 vs 12 the next-thinnest margin; I2/I3 still print the field-side reading). One new constant requested this round: CROWN_ASPECT_MAX.
 - 09:08:2026 - 21:21:00: THE FRAME REFUTED THE SUITE. I opened screenshots/massif/02_massif_verdict_400m_diagnostic.png myself and confirm render's and the lead's verdict independently: a low smooth convex arc with a grey cap and a green shoulder, ZERO crest lines against the three §7.1 requires, ONE material band instead of a rhythm. §7.1 — "7 of 8" WITHDRAWN as a description of the mountain (it stays true as a description of the tests, which is the problem); honest status is «still a dome, better instrumented», and the table now carries a box forbidding its relay as progress without §2.8.7. Recorded that my FIRST hypothesis was a lighting confound — that a backlit frame flattens internal structure into one dark mass — and THE FRAME KILLED IT: there is ample illumination and clear grey-on-green separation, the geometry is simply a smooth hump. Had I ruled from prose instead of opening the image I would have sent back a lighting question and cost another round; the measure-the-artefact rule I applied to perimeter digitisers and foliage bounding boxes applies to me. NEW §2.8.7 — THE SYSTEMATIC DEFECT: all nine invariants measure the OBJECT (contours, slope histograms, aspect turns, radial profiles, perimeter ratios, all computed on the heightfield from above or around it) and NOT ONE is evaluated from a camera at PLAYER_EYE_HEIGHT, while §7.1's acceptance criterion has always been a frame. The suite and the acceptance test were written IN DIFFERENT SPACES, which is how every row can be green while the criterion fails — not a bad threshold anywhere, a missing dimension everywhere. Two new invariants. I10 MASSIF ASPECT: every existing invariant is SCALE-FREE (ratios, angles, distributions, normalised perimeters) and all nine are satisfiable on a pancake — Ravenscar IS a pancake, 115 m of relief over a 180 m base radius, mean envelope slope ~33 deg. Rule: above MASSIF_CLIFFLINE_FRAC the mean envelope slope must reach SLOPE_ROCK_MIN, derived rather than invented — §4 paints rock at >=40 deg and grass below, so a massif under that threshold WILL BE PAINTED A GRASSY HILL BY THE MATERIAL SYSTEM whatever its geometry does, which is exactly the green shoulder with one grey cap in the frame; the shape rule and the splat rule must agree or the mountain loses the argument to the shader. Base radius must come in from 180 m, cascading onto barrow/castle spur/pine strips/ascent length and re-validated per §7.0a. THE LR IS WORSE AND IS THE CHEAP FIX: 280 m over 600-700 m is a ~23 deg envelope, flatter than Ravenscar, and it does not exist yet — building it first would have produced this same session a third time. I11 SILHOUETTE BREAKS: §7.1 has demanded "at least three crest lines readable at 640x360" since it was written and that criterion WAS NEVER IMPLEMENTED, sitting in prose while nine others ran in code; now executable as tangent breaks in the massif's horizon polyline against sky, each >= SILHOUETTE_MIN_PX, from standpoints on a ring at acceptance distance — the only invariant in the suite computed from a camera, and the one that would have failed on day one. Explained why I7 finding four aretes and the eye finding none are BOTH correct: with 3-5 aretes a rib lies near the limb for a minority of bearings, so from most viewpoints the outline is traced by a FACET whose profile is the smooth curve, and ribs therefore read as VALUE STRUCTURE ON THE BODY rather than as silhouette. Suspected second cause flagged for measurement before any tuning: §1.5 puts readable feature size at ~distance/30, so an arete must stand ~13 m proud at 400 m and ~24 m at 717 m, and NOBODY HAS MEASURED THE RAW RADIAL EXCURSION IN METRES — a lobe ratio of 1.36 says nothing about whether the lobes are visible. Owned plainly: I wrote nine invariants, ruled their weightings twice, corrected their baseline and added a marginal-pass rule, and none of it was worth as much as one screenshot; they were a proxy for a judgement and I let the proxy accumulate authority it had not earned, to the point where "7 of 8" was being relayed upward as the state of the world. §1.3a NEW BOX — LOD IS THE PRECONDITION FOR THE ENTIRE LANDMARK DOCTRINE (render's finding): CHUNK_LOAD_RADIUS 2 chunks ~512 m means the world stops existing at half a kilometre, so the 717 m verdict frame came back WITH NO MOUNTAIN IN IT (verified by walking the same bearing in until it appeared). LANDMARK_MAX_DISTANCE 4 km and CAMERA_FAR 8000 are currently fiction; a landmark at 1.4-1.6 km is not hazy but ABSENT; §1.3a's depth-separation doctrine cannot be observed in the engine today; and C1 has never been confirmed by a camera — computed analytically, which is legitimate, but every "the landmark reads from the valley floor" claim is a claim about a frame nobody can take, which is the §2.8.7 defect in a different costume. Explicitly did NOT ask for a bigger CHUNK_LOAD_RADIUS: core measured ~72 ms per chunk and CHUNK_LOAD_BUDGET is 1 because of a user freeze complaint, so a wider ring buys one screenshot and costs seconds of hitching. The frame waits for LOD. §7.1b — three corrections after the shoot, two mine: frame 1 unshootable pending LOD (the 400 m shot is a DIAGNOSTIC and render labelled it so, correctly); ACCEPTANCE VANTAGES ARE DERIVED, NEVER TABLED — I tabled (545,165) by geometry without checking it against the generated forest and a pine stand owns the frame, which is §7.1a's own trap for the third time, so a vantage is now derived as the nearest standpoint on the required bearing that C1 already credits (LANDMARK_VISIBILITY_MIN 0.6 explicitly allows 40% of ground not to see the landmark, so picking blind draws from that 40% two times in five); and the frame-2 hour was wrong because my premise about the sun's azimuth was wrong, so render publishes the DFN_TIME->azimuth table, it is recorded in the doc, and future frame requests pick their hour from it rather than from anyone's mental model — the requirement restated in geometry instead of clock time (sun roughly perpendicular to the view axis and low). Two new constants implied: MASSIF_ASPECT_MIN (derived from SLOPE_ROCK_MIN) and MASSIF_SILHOUETTE_BREAKS_MIN.
 - 09:08:2026 - 21:26:00: Flora's self-correction and implementation. §5 — the aspect table I ruled on was inflated ~15% because twelve size variants were pooled into one bounding box, so the VARIANT SPREAD (birches are 16-22 m tall) was measured as if it were one crown's shape; corrected per variant, oak 1.65->1.53, willow 1.51->1.37, birch 2.65->2.30, pine 4.88->4.23. Diagnosis untouched — the birch was still a column, oak and willow still read, and the true band «1.53 reads, 2.30 does not» still brackets the ceiling. «Measure per variant, never pooled» recorded beside «measure the artefact, not the intention»: flora got the second right and the first wrong in the same table, which is how closely related the two failures are. CROWN_ASPECT_MAX landed at 2.0 rather than the 1.8 I wrote, and I ACCEPT 2.0 rather than re-litigate — the ceiling binds no species (every built tree now measures <=1.28), the entire 1.8-2.0 difference lies inside the band my own note already flagged as untested, and reopening a landed constant to move a non-binding guard rail by 0.2 costs more churn than it buys; flora implementing against the landed value rather than my prose is correct under Rule 14 and is the behaviour I want. Tightening trigger recorded so it needs no argument later: if any species lands between 1.8 and 2.0 and reads as a column, the ceiling moves to 1.8 on that evidence alone. NEW GENERAL RULE — A RANGE IS TWO ASSERTIONS, AND A SUITE THAT TESTS ONE BOUND IS GREEN WHILE THE WORLD DRIFTS OUT THE OTHER SIDE: the birch's crown had drifted to 3.6-4.5 m against this document's 5-7 m brief, a third narrower than specified, with a fully green suite, because only the width band's CEILING was ever asserted — the rule was not wrong, it was HALF-IMPLEMENTED, and that was the other half of why the tree read as a column. Fourth appearance of a range-handling failure this stage (core's tor derived its base from _MIN while drawing heights across _MIN.._MAX, plus four earlier instances they report in their own zone), so it is written as a family: every _MIN/_MAX pair in this document is two separate claims about the world. Also accepted: widths calibrated against the BUILT tree rather than the envelope (achieved width is ~0.7-0.9 of nominal because containment holds a card's CORNER inside and the widest ring sits where a card would overshoot the crown top — the same discipline one level down); and the ceiling asserted at NOMINAL size only, deliberately, because §5.8's maturity tiers scale trees x0.4-1.5 and a per-instance width band would be a rule forbidding this document's own tiers (the aspect RATIO is scale-invariant and stays meaningful per instance, the width BAND is not). Implemented result: oak 1.53->1.28, willow 1.37->1.25, birch 2.30->1.02, pine exempt; the birch reads as §5.3's brief for the first time since the species existed. Flora's two self-found bugs both came from my «measure the artefact» instruction and neither would have been found by measuring the spec — vertical card clamps used the card's HALF-HEIGHT when a tilted, rolled card reaches with its CORNER, hanging cards below the crown base and pushing the built box outside its container.
+- 09:08:2026 - 21:36:00: Core's 12-seed distribution and the I7 retraction. §2.8.3 — I7 RETRACTED as ever having passed: every "4 persistent aretes" is withdrawn, including the row in my §7.1 table; the probe counted qualifying bearing SAMPLES rather than ridges and anchored persistence on the lowest slice, and corrected it FAILS ON ALL 12 SEEDS (max 2 against a floor of 3). Core validated the detector against a couloir-free faceted polygon before believing the failure. Sharpest lesson of the stage recorded: 42 aretes was absurd on its face and was caught instantly, 4 WAS NOT ABSURD AND SURVIVED THREE ROUNDS OF RULINGS — a wrong number in the plausible range buys itself unlimited time, third instance this session after the C1 self-occlusion figure and my own lobing mechanism, all three directionally reasonable. Then the failure turned out partly MINE: raw detections rise with height (2/3/5/5) because §2.8.2's eps increases with elevation, so THE MECHANISM SATISFYING I8's RISE IS THE MECHANISM PREVENTING I7's PERSISTENCE, and two of I7's four levels sit in the smooth apron below MASSIF_CLIFFLINE_FRAC that §2.8.2 explicitly describes as unbanded. RULING: I7's persistence is measured over four levels spanning the BANDED ZONE only, cliffline to summit, never the apron — not a relaxation invented to green a red test, since eps-increasing-with-elevation predates the conflict and ribs dying into a talus apron is the mirror of the couloir-fade ruling nobody objected to. GUARD MAKING IT LEGITIMATE: conditional on I11 existing, because a test whose sampling elevations I may choose is a test I can always make pass, and I11 is measured from a camera and cannot be gamed by slice elevation — if I11 is not implemented, I7 keeps its original levels and stays red. A proxy may only be loosened once the thing it proxies for is measured directly. §2.8.6 — RULING: Ravenscar's arete count is FOUR and L0_ARETE_COUNT 3-5 is retired as a range. Measured across 12 seeds: 3 fails I8 level on 3 seeds and rise on 2; 4 fails level on 1 and rise on NONE; 5 FAILS ALL TWELVE, which is the convex cap n*tan(pi/n)/pi = 1.16 for a pentagon appearing as a measurement rather than as algebra — first empirical test of that cap, and it means the authored range contained a value that CAN NEVER PASS, so a per-seed draw across it (which my own character-not-existence rule would otherwise invite) would ship guaranteed-failing worlds. Three failed for a structural reason that is not about shape: THE GENERATOR INPUT AND THE INVARIANT FLOOR WERE THE SAME NUMBER (3 corners against I7's >=3), so a single missed detection fails by construction — new general rule, a generator input must never equal the floor of the invariant that checks it, because that is a coincidence rather than a margin and every measurement error lands on the failing side. Sixth instance of the range family (arete_count pinned at L0_ARETE_COUNT_MIN, exactly as the tor derived its base from SUMMIT_TOR_HEIGHT_MIN). §2.8.2 — THE ABSOLUTE SCALE IS BAND HEIGHT, NOT MASSIF RADIUS (core's correction, repairing a hole I put in my own ruling): taking MASSIF_RADIAL_LOBE_AMP off the 180 m base radius gives 32-63 m insets, wider than the upper mountain, so MY CLAMP BOUND AT EVERY HEIGHT AND SILENTLY RESTORED the fraction-of-local-radius behaviour the unit change exists to remove (measured in that state: levels 1.50/1.50/1.60 but rise 0.10 and I7 gone). My clamp was not a safety net, it was a RE-ENTRY POINT FOR THE BUG IT GUARDED, and is withdrawn as written; scale is MASSIF_CLIFF_BAND_MIN..MAX because a couloir is a gully incising the cliff bands — same landform, same scale, same units. A feature's size comes from the feature it cuts, never from the mountain it sits on. Any surviving apex clamp must report whether and where it bound, because that failure is silent (levels keep passing while the rise dies). Added core's elongation sentence under the bar: an elongated support polygon puts its corners on the long axis so arete bearings CLUSTER, and I7's persistence would keep passing while the mountain became a ridge — the bar must be a design rule precisely because the suite is blind to it. §7.1 — single-seed table superseded by the 12-seed distribution; SEED 1 WAS ONE OF OUR BEST WORLDS, not a typical one (8/8 on seed 1 is 5/8 on seed 2), so every number this stage was measured on our luckiest draw and the marginal-pass rule earned itself within the hour. I2/I3/I4/I5 robust on every seed and called genuinely done — noted that they are, not coincidentally, the four describing LOCAL SURFACE CHARACTER rather than GLOBAL FORM: the suite is strong exactly where the frame agreed with it and weak exactly where it did not. I1 fails 2 seeds, I6 fails 1, I8 level 3 and rise 2 at the shipped 3-arete config.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1117,7 +1118,12 @@ this one:
   skyline read and C4's "one unmistakable mass with a summit", and it would
   satisfy the invariant while destroying the thing the invariant protects.
   **Elongation is a landform choice (border ranges, §2.6, are legitimately
-  elongated), never a knob for making a lobe test pass.**
+  elongated), never a knob for making a lobe test pass.** Core's addition, and
+  it is the part worth having written down: **no invariant we have would
+  notice.** An elongated support polygon puts its corners on the long axis, so
+  arête bearings *cluster* — and I7's persistence check would keep passing
+  while the mountain became a ridge. The bar must be a design rule precisely
+  because the suite is blind to it.
 - **I7 and I8 pull in opposite directions, and the resolution is that couloirs
   FADE TOWARD THE SUMMIT.** Measured by core: deepening and widening couloirs
   raised I8 and dropped persistent arêtes **4 → 0**, because a couloir spread
@@ -1164,10 +1170,26 @@ expressed as a fraction of local radius. That is the actual defect:
   `MASSIF_ARETE_TURN_ARC_MAX` is already absolute on purpose — «гребень,
   который поворачивает 60 м, — это плечо, какой бы горы он ни был». Same
   reasoning, applied to the couloir instead of the crest.
-- **The one clamp it needs, and it costs no constant:** absolute depth must
-  not exceed the local radius near the apex. Clamp it against the existing
-  `MASSIF_RADIAL_LOBE_AMP_MAX`; the clamp engages only inside the summit
-  region, where the tor takes over the silhouette anyway.
+- **THE ABSOLUTE SCALE IS THE BAND HEIGHT, NOT THE MASSIF'S RADIUS (core's
+  correction, and it repairs a hole I put in my own ruling).** "Absolute"
+  needs a unit, and the obvious choice is wrong: taking
+  `MASSIF_RADIAL_LOBE_AMP` off the 180 m base radius gives 32–63 m insets —
+  wider than the entire upper mountain — so the clamp below binds at *every*
+  height and **silently restores the fraction-of-local-radius behaviour the
+  unit change exists to remove.** Measured in that state: levels
+  1.50/1.50/1.60 but rise 0.10 and I7 gone. My clamp was not a safety net, it
+  was **a re-entry point for the bug it was guarding against**, and it is
+  withdrawn as written. The scale is `MASSIF_CLIFF_BAND_MIN…MAX` (8–15 m), on
+  core's reasoning and it is the right reasoning: **a couloir is a gully
+  incising the cliff bands, so it is the same landform at the same scale and
+  it should carry the same units.** A feature's size comes from the feature it
+  cuts, never from the mountain it sits on — which is the same principle as
+  `MASSIF_ARETE_TURN_ARC_MAX` being absolute.
+- **A clamp against the apex is still needed but must not be able to bind
+  below the summit region.** If it engages at ordinary heights it is
+  re-introducing self-similarity, and that failure is silent — the invariants
+  keep passing at the level while the rise quietly dies. Any implementation
+  must report whether the clamp bound, and where.
 
 **Varying arête COUNT with elevation is the other candidate and it is NOT the
 first lever** (core raised it; ruled). Ribs merging as they rise is
@@ -1318,6 +1340,40 @@ the world.**
 16.5 %** against `MASSIF_STEEP_FRACTION_MIN` = 0.12. The 6.0 % footprint
 reading is retained as a **diagnostic** — the ratio between the two readings is
 a free measure of how much of the massif is steep — and is never a verdict.
+
+**I7 IS RETRACTED AS EVER HAVING PASSED, AND ITS SAMPLING RANGE IS CORRECTED
+(core, stage-4).** Every "4 persistent arêtes" reported to this document is
+withdrawn, including the row in §7.1: the probe counted qualifying bearing
+*samples* rather than ridges, and anchored its persistence scan on the lowest
+slice. Corrected, **I7 fails on all 12 seeds** (max 2 against a floor of 3),
+and core validated the detector against a couloir-free faceted polygon whose
+corners exist by construction before believing the failure. **The lesson is
+the sharpest one this stage: 42 arêtes was absurd on its face and was caught
+instantly; 4 was not absurd and survived three rounds of rulings.** A wrong
+number in the plausible range buys itself unlimited time — this is the third
+instance this session, after the C1 self-occlusion figure and my own lobing
+mechanism, and all three were *directionally reasonable*.
+
+**Then the failure turned out to be partly mine: I7 was sampling where the
+model never promised arêtes.** Raw detections rise with height — 2/3/5/5 at
+0.4/0.55/0.7/0.85 — because §2.8.2's `ε` increases with elevation, which is
+the mechanism that earns I8's rise clause. So **the mechanism satisfying I8's
+rise is the mechanism preventing I7's persistence**, and two of I7's four
+levels sit in the smooth apron below `MASSIF_CLIFFLINE_FRAC` that §2.8.2
+explicitly describes as unbanded. **RULING: I7's persistence is measured over
+four levels spanning the BANDED ZONE only — from the cliffline to the summit,
+never the apron.** This is not a relaxation invented to make a red test green:
+`ε` increasing with elevation was written before the conflict appeared, and
+ribs dying into a talus apron is what real massifs do — it is the mirror of
+the couloir-fade ruling above, which nobody objected to.
+
+> **The guard that makes this legitimate rather than a loophole: I11.** A test
+> whose sampling elevations I am free to choose is a test I can always make
+> pass. I11 (§2.8.7) is measured from a camera against the sky and **cannot be
+> gamed by choosing slice elevations at all.** This relaxation of I7 is
+> therefore conditional on I11 existing — if I11 is not implemented, I7 keeps
+> its original levels and stays red, because a proxy may only be loosened once
+> the thing it was proxying for is being measured directly.
 
 **I5 is measured on radials that carry no validated route (core's catch,
 ruled).** A route breaches the cliff bands it crosses (§2.8.5), which locally
@@ -1600,6 +1656,34 @@ Nothing evaluates them today, so the rename is free; scoping a shape rule to
 one landmark is exactly the failure that produced this session.
 `LR_RIDGE_COUNT_MIN/MAX` (4–7) stays as the LR's generator input and is now
 understood as its **arête count**; Ravenscar gets `L0_ARETE_COUNT` = 3–5.
+
+**RULING (stage-4): Ravenscar's arête count is FOUR, and `L0_ARETE_COUNT` = 3–5
+is retired as a range.** Core measured all three values across 12 seeds:
+
+| Arêtes | I8 level | I8 rise | Reading |
+|---|---|---|---|
+| 3 | fails 3 seeds | fails 2 seeds | and the count *equals* the invariant floor |
+| **4** | fails 1 seed | **fails none** | the only workable value |
+| 5 | **fails all twelve** | — | the convex cap, measured |
+
+- **Five is not a choice, it is arithmetically excluded.** `n·tan(π/n)/π` =
+  1.16 for a pentagon against a 1.35 threshold, and couloirs cannot rescue it.
+  The algebra in §2.8.2 predicted this and the measurement confirmed it, which
+  is the first time that cap has been tested rather than derived. **So the
+  authored range 3–5 contained a value that can never pass**, and a per-seed
+  draw across it — which my own character-not-existence rule would otherwise
+  invite — would ship guaranteed-failing worlds. The range narrows.
+- **Three fails for a structural reason that is not about shape at all: THE
+  GENERATOR INPUT AND THE INVARIANT FLOOR WERE THE SAME NUMBER.** The massif
+  had exactly 3 corners and I7 requires ≥ 3 detected, so a single missed
+  detection fails by construction. **General rule: a generator input must
+  never equal the floor of the invariant that checks it** — that is not a
+  margin, it is a coincidence, and every measurement error lands on the
+  failing side of it.
+- **Sixth instance of the range family.** `arete_count` was pinned at
+  `L0_ARETE_COUNT_MIN` — one bound of a range read as the range, exactly as
+  the tor derived its base from `SUMMIT_TOR_HEIGHT_MIN`. See §5's "a range is
+  two assertions".
 
 All values **предложение — утвердить**. Full table with units and
 justifications is handed to the lead with this ruling.
@@ -2843,6 +2927,28 @@ applicable until the placed-rock asset class exists):
 > be green while the acceptance criterion fails. I10 (massif aspect) and I11
 > (silhouette breaks) are the answer; until they run, the honest status of
 > Ravenscar is **"still a dome, better instrumented".**
+>
+> **Superseded by a 12-seed distribution, and SEED 1 WAS ONE OF OUR BEST
+> WORLDS rather than a typical one — 8 of 8 on seed 1 is 5 of 8 on seed 2.**
+> Every number this stage was measured on our luckiest draw. **I7 is retracted
+> entirely and never passed on any seed** (§2.8.3).
+>
+> | Invariant | min | median | max | bound | failing seeds |
+> |---|---|---|---|---|---|
+> | I1 concave | 5.44° | 19.41° | 22.45° | ≥ 12° | 2 of 12 |
+> | I2 summit | 53.0° | 56.4° | 60.3° | ≥ 40° | none |
+> | I3 steep | 25.2 % | 44.5 % | 54.8 % | ≥ 12 % | none |
+> | I4 fullest bin | 17.4 % | 21.6 % | 29.3 % | ≤ 30 % | none |
+> | I5 radials | 93.8 % | 100 % | 100 % | ≥ 70 % | none |
+> | I6 band CV | 0.22 | 0.48 | 0.80 | ≥ 0.35 | 1 of 12 |
+> | **I7 arêtes** | 0 | 1 | 2 | ≥ 3 | **all twelve** |
+> | I8 level | 1.24 | 1.42 | 1.99 | ≥ 1.35 | 3 of 12 |
+> | I8 rise | 0.07 | 0.34 | 0.85 | ≥ 0.15 | 2 of 12 |
+>
+> **I2, I3, I4 and I5 are robust on every seed and I am calling those
+> genuinely done.** They are also — not coincidentally — the four that describe
+> *local surface character* rather than *global form*: the suite is strong
+> exactly where the frame agreed with it and weak exactly where it did not.
 
 **Three cautions attached to this table, so it is not read as "done".**
 
