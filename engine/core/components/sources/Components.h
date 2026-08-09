@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:15:56
-Last updated: 09:08:2026 - 19:19:01
+Last updated: 10:08:2026 - 01:52:38
 Module: engine/core/components
 File: engine/core/components/sources/Components.h
 
@@ -51,6 +51,7 @@ UPD:
                          sync: CameraPose ACKed by sim; LocalBounds stays raw
                          min/max; RenderMesh ids settled as registry-assigned
                          dense ids, not truncated hashes.
+- 10:08:2026 - 01:52:38: CameraPose/PreviousCameraPose gain fov_scale (sim request, speed-coupled FOV; default 1.0 keeps behaviour).
 */
 
 #pragma once
@@ -84,12 +85,17 @@ struct CameraPose {
     glm::vec3 position{0.0f}; // eye point, meters
     float yaw = 0.0f;
     float pitch = 0.0f;
+    // FOV multiplier written by sim at fixed tick (speed coupling, Rule 35's
+    // predictive form: FOV gained a simulation dimension). 1.0 = no change, so
+    // nothing moves until the app applies it to the projection.
+    float fov_scale = 1.0f;
 };
 
 struct PreviousCameraPose {
     glm::vec3 position{0.0f};
     float yaw = 0.0f;
     float pitch = 0.0f;
+    float fov_scale = 1.0f;
 };
 
 // Renderable reference by engine-level asset id. engine/render resolves ids to

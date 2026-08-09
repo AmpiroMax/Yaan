@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 09:08:2026 - 00:55:00
+# Last updated: 10:08:2026 - 01:52:48
 # File: tests/CMakeLists.txt
 #
 # Responsibility:
@@ -21,6 +21,7 @@
 # - 09:08:2026 - 00:55:00: doctest include marked SYSTEM (silences __COUNTER__
 #                          pedantic warnings in every zone's test TUs — core's
 #                          report, note 2); enable_testing moved to root.
+# - 10:08:2026 - 01:52:48: character zone added to the test loop (new Rule 25 zone).
 
 add_library(dfn_doctest_main STATIC DoctestMain.cpp)
 target_include_directories(dfn_doctest_main SYSTEM PUBLIC
@@ -34,7 +35,7 @@ function(add_dfn_test name source)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-foreach(zone core render sim)
+foreach(zone core render sim character)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${zone}.cmake")
         include(${zone}.cmake)
     endif()
