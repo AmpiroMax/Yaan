@@ -219,9 +219,14 @@ float shy_scale(const Tree& t, glm::vec3 dir_xz) {
 /// width, which then breaks the spacing that was derived FROM that width.
 glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
     p.y = std::min(p.y, t.crown_top);
+    if (t.sp.envelope == CrownEnvelope::None) return p; // snags/logs have no crown
     const float env = envelope_radius(t.sp, p.y, t.crown_base, t.crown_top, t.crown_r);
     // Below the crown the trunk owns the space; above the base the envelope does.
-    if (p.y <= t.crown_base || env <= 0.0f) return p;
+    // NOTE: env == 0 must still CLAMP, not skip. A cone's envelope goes to zero
+    // at the apex, and an "env <= 0 -> return unclipped" early-out disabled the
+    // clip exactly at the tip — which let a whorl branch stick 7.6 m out of the
+    // top of a pine whose whole crown is meant to be 4 m in radius.
+    if (p.y <= t.crown_base) return p;
     const glm::vec2 r{p.x, p.z};
     const float len = glm::length(r);
     const float limit = env * shy_scale_xz(t, r);

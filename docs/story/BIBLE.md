@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 19:28:46
+Last updated: 09:08:2026 - 19:32:18
 -->
 <!--
 UPD:
@@ -64,6 +64,13 @@ UPD:
   specified alone: the barrow-facing tower watches the grave THROUGH the
   unbuilt gap, its sightline guaranteed by absence. Reachability ruled
   off-corridor (back way, never a second front door).
+- 09:08:2026 - 19:32:18: Added the High Temple and the Seven Thousand Steps
+  to world truth (design's LR temple mountain, LANDSCAPE 2.5): canon makes
+  it the shrinewardens' mother-house where names enter a record no king can
+  strike, so carrying the Maddren roll up the stair is an act-2 destination
+  and each landing is a station where a name is spoken. Recorded the user's
+  binding naming rule (a name, not a count). NOTE: the Steps are on the
+  TEMPLE MOUNTAIN, not Ravenscar - act 1's climax climb is still the crag.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -139,6 +146,31 @@ the lake is **the Mere**. Locals call the crag Ravenscar; the barrow is
 called **the Backbarrow** by those who will name it at all; **Harrowmere
 Hall** stands swallowed by the SE oak forest; the NW lakeshore cave is
 **the Hiding**.
+
+**The High Temple and the Seven Thousand Steps** (design's regional landmark,
+LANDSCAPE §2.5 — the temple mountain, one per world, visible from almost
+everywhere). Canon: it is the **mother-house of the shrinewardens' order**,
+where the naming rites are kept and where a name, once entered in the great
+record, is beyond any king's power to strike out. The **Seven Thousand
+Steps** are its pilgrim stair — a staged climb of 5–7 landings, ~8 minutes
+up.
+
+Why this matters to the arc rather than being scenery: the Backward Rite
+stripped the murdered of standing precisely so they could never testify
+(Reckoning law 4). The High Temple is the one place in Ealdmarch where that
+can be undone at the level of the realm rather than one grave at a time —
+which makes carrying Clan Maddren's memorized roll up those steps an act-2
+destination and a set-piece the terrain already supports: **each landing is a
+station where a pilgrim speaks a name**, so the hero climbs reciting the
+dead. The crown has kept the order poor and the stair unrepaired for four
+generations; nobody ever forbade the climb, which would have been an
+admission.
+
+**Naming rule (binding):** "the Seven Thousand Steps" is a **name, not a
+count** (user decision). No NPC counts them, no journal line says how many
+remain, and no text derives the number from the geometry. Numeral form
+("the 7000 Steps") is acceptable in casual speech; the prose form is
+preferred in authored text.
 
 **Ninety-six years of quiet.** The wards held because the shrinewardens kept
 tending them, the crown kept the record buried, and nobody said the word

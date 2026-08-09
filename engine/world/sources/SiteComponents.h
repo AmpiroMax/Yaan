@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 19:33:58
 Module: engine/world
 File: engine/world/sources/SiteComponents.h
 
@@ -33,6 +33,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — SiteMarker component + placeholder
   archetype table (§6 silhouettes, provisional mesh ids).
 - 09:08:2026 - 15:18:34: Castle (§6.1.3 hall-castle): SiteTypes CastleHall/Wall/Gatehouse/Solar with lead-blessed mesh ids 8..11; archetype lookup bound extended to the new types.
+- 09:08:2026 - 19:33:58: Fortress revision: SiteType::CastleTower reinstated (mesh id 12); solar envelope raised to 20 m.
 */
 
 #pragma once

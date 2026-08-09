@@ -171,6 +171,47 @@ TEST_CASE("flora: sizes stay inside the design bands") {
     }
 }
 
+TEST_CASE("flora: crown width stays inside the envelope") {
+    // Added after a real bug: the envelope's VERTICAL clip was implemented and
+    // its RADIAL clip was not, so oaks came out 24.5 m wide against a 10-16 m
+    // brief and pines 24.9 m against 6-9 m. Width is not cosmetic — design
+    // derived TREE_SPACING_FOREST (12-18 m) FROM the crown width, so a crown
+    // twice its spec silently turns a thinned forest back into a closed one.
+    struct Band { FloraSpecies s; float max_diameter; };
+    const Band bands[] = {
+        {FloraSpecies::DaleOak, 16.0f},
+        {FloraSpecies::HighlandPine, 9.0f},
+        {FloraSpecies::RiverBirch, 7.0f},
+        {FloraSpecies::ValeWillow, 16.0f},
+    };
+    for (const Band& b : bands) {
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const MeshData m = build_flora_mesh(b.s, v, FloraShape{}, FloraLod::Full);
+            float widest = 0.0f;
+            for (const platform::Vertex& vx : m.vertices) {
+                widest = std::max(widest, std::sqrt(vx.position.x * vx.position.x
+                                                    + vx.position.z * vx.position.z));
+            }
+            CHECK(widest * 2.0f <= b.max_diameter);
+        }
+    }
+}
+
+TEST_CASE("flora: crown shyness actually narrows the crown") {
+    FloraShape shy;
+    shy.shyness = 0.5f;
+    shy.shy_dir = {1.0f, 0.0f};
+    const MeshData plain =
+        build_flora_mesh(FloraSpecies::DaleOak, 1, FloraShape{}, FloraLod::Full);
+    const MeshData pulled = build_flora_mesh(FloraSpecies::DaleOak, 1, shy, FloraLod::Full);
+    auto reach_plus_x = [](const MeshData& m) {
+        float r = 0.0f;
+        for (const platform::Vertex& v : m.vertices) r = std::max(r, v.position.x);
+        return r;
+    };
+    CHECK(reach_plus_x(pulled) < reach_plus_x(plain));
+}
+
 TEST_CASE("flora: meshes are well-formed") {
     for (const FloraSpecies s : ALL) {
         const MeshData m = build_flora_mesh(s, 5, FloraShape{}, FloraLod::Full);

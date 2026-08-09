@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 19:28:46
+Last updated: 09:08:2026 - 19:32:18
 -->
 <!--
 UPD:
@@ -24,6 +24,10 @@ UPD:
   the barrow — and the act-1/act-3 rhyme recorded: the player breaks in by
   the same path the dead will later take, under the tower that has watched
   the grave through that gap for four generations.
+- 09:08:2026 - 19:32:18: Recorded that the trespass route is now a VALIDATED
+  worldgen invariant (continuous, deliberately non-corridor-grade, forced
+  within 40 m of the barrow entrance) and that ward C's completion fraction
+  has two dependents - the act-1 trespass route and the act-3 muster gap.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -246,7 +250,13 @@ Act-1 beats that **live in the castle**:
   plus a disgrace flag paid back in act 2 (N39, N36) — never a dead end.
 - **The gap as the trespass route (act-1/act-3 rhyme — use it).** Design's
   geometry gives the third route a body: the unbuilt NNE stretch of ward C
-  is reachable off-corridor up the steep spur, past the barrow. So the
+  is reachable off-corridor up the steep spur, past the barrow. This is a
+  **validated worldgen invariant** (LANDSCAPE §6.1.3), not a hope: the route
+  is checked every run, deliberately kept non-corridor-grade (30–45°, no
+  width guarantee — the difficulty is the point), and forced to pass within
+  40 m of the barrow entrance, so the rhyme is geometric rather than lucky.
+  Ward C's completion fraction now has **two dependents** (this route and the
+  act-3 muster gap) — nobody tunes it for one without checking the other. So the
   player who breaks into Harrowward climbs in **by the same path the dead
   will take in act 3**, through the hole the Corvanes could not bring
   themselves to close, under the tower that has watched the grave through

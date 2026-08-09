@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 17:45:08
+Last updated: 09:08:2026 - 19:33:58
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -31,6 +31,7 @@ UPD:
 - 09:08:2026 - 15:31:04: Rule C2-testbed check on the castle's contribution (the seed-1 layout forms a castle-free crowd at (304,304): hamlet + shrine + lakeshore cave), with all three measures reported in the INFO.
 - 09:08:2026 - 15:36:59: Rule C2-testbed now gates the absolute bound (3) plus the large-mass guard (2), keeping the mandatory raw/unexempted disclosure and the castle-contribution check.
 - 09:08:2026 - 17:45:08: §6.2: pad accounting restated as the NEW invariant — entities == pads + castle elements + derived entrances — with each entrance checked to carry an explicit carve floor. The old assertion encoded the rule this change replaced.
+- 09:08:2026 - 19:33:58: Fortress revision: terrace flatness is measured PER WARD (one box across the chain measures the steps between wards, which are supposed to exist) plus a new check that the chain steps down toward the approach.
 */
 
 #include "engine/core/config/sources/Constants.h"

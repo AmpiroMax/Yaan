@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 19:13:01
+Last updated: 09:08:2026 - 19:33:58
 -->
 <!--
 UPD:
@@ -22,6 +22,7 @@ UPD:
 - 09:08:2026 - 18:19:09: STREAMING LOAD BUDGET (user bug: multi-second freezes while moving). ChunkManager::update admits at most CHUNK_LOAD_BUDGET chunks per call, nearest-to-focus first with a deterministic tie-break; the rest defer to following updates. Measured: cold ring 232 ms in one update BEFORE, 20 ms worst update AFTER (core-only; ~88 ms with sim's collision build, versus ~2 s before). Ordering guarantees the chunk under the player is always the next admitted, so deferral cannot open a hole underfoot. No threading — async loading remains a later stage.
 - 09:08:2026 - 18:58:01: Three live-play defects fixed at the barrows. PORTAL FACED INTO ROCK (correctness): the forecourt ran a fixed BARROW_FORECOURT_LENGTH from the lintel and so ended while still on the mound — the rim blocked the exit. It now runs (mound_radius - portal_offset) + the ruled length, reaching natural grade beyond the rim; both testbed barrows walk out to open ground (steepest 28% and 8%). BOXY MOUND: smoothstep gave a flat top and a standing rim; now a paraboloid dome, and the cut flares outward. SUNK/FLOATING PROPS: scatter resolved against the field BEFORE the mound stamp and was buried by the mound's local rise (up to 2.4 m) — it now uses the final ground including works and pads; 0 floating and 0 sunk across the testbed. All three pinned by regression tests.
 - 09:08:2026 - 19:13:01: C1 VALIDATION BUG FOUND AND FIXED — the measure counted the landmark's own body as an occluder of itself. Above a ~60 m peak it returned 0.000 for every standpoint regardless of the world; below that it biased every number down. Seed 1 C1: 0.621 measured -> 0.776 true; with §5.7 tall canopy 0.584 -> 0.751 (the taller trees never broke the floor). Clearance RISES with peak height (52->0.751, 115->0.865, 200->0.915), so the recorded 'raising the peak lowers clearance' doctrine is RETRACTED — it was this artifact, not a property of landmarks. Ravenscar at the approved 110-120 m improves C1. Also added CragStamp::ridge_amp_meters (absolute flank relief, defaulted to reproduce today's crag) so a taller summit no longer inflates its own flank occluders — flora's catch, kept on its merits though it was not the bug.
+- 09:08:2026 - 19:33:58: FORTRESS REVISION — the castle is now a chain of TERRACED WARDS stepping down the spur (design's ruling) instead of one 120 m pad. Worst cut 9.92 m -> 1.64 m against the 6 m budget, and the terrace no longer swallows the Backbarrow carve 54 m away (that interaction was the cause of the barrow's lost cover, lost mouth and short tunnel). Mass distributed across wards: hall + solar on the oldest uphill ward nearest the barrow, curtain + reinstated corner towers on the bailey, gatehouse on the outer works. BLOCKED, not failing by accident: R4 dominance ratio 0.640 and crown occlusion still fail against a 52 m Ravenscar, and both clear the moment L0_RELIEF lands — measured 110 m gives ratio 0.299, crown clear, C1 0.901.
 -->
 
 # Spec: `core` (engine/core + engine/world)

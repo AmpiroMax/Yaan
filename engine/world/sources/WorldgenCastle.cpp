@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 15:20:00
-Last updated: 09:08:2026 - 15:20:00
+Last updated: 09:08:2026 - 19:33:58
 Module: engine/world
 File: engine/world/sources/WorldgenCastle.cpp
 
@@ -33,6 +33,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 15:20:00: Created — castle solve/stamp/occlusion for the
   hall-castle revision (hall + solar + wall + gatehouse, access ramp).
+- 09:08:2026 - 19:33:58: Fortress revision (§6.1, 120 m fortress): terraced wards replace the single pad — cut 9.92 m -> 1.64 m against a 6 m budget, and the terrace no longer swallows the Backbarrow carve 54 m away. Mass distributed: hall+solar on the oldest uphill ward, curtain and REINSTATED corner towers on the bailey, gatehouse on the outer works. Four defects found and fixed while landing it: wards sized by CHEBYSHEV separation (axis-aligned squares stepping on a diagonal axis overlapped, so a step fell inside a level terrace); overlaps resolved by nearest centre rather than array order; a ward may never terrace below the waterline (one ward cut its floor under a pond and drowned a corridor ford); the approach ramp is checked on its own length rather than inside the much shorter skirt band, which had left the outer half of the ramp falling through to natural terrain.
 */
 
 #include "engine/world/sources/WorldgenCastle.h"
@@ -314,6 +315,34 @@ float castle_pad_height(const CastleBuild& castle, glm::vec2 world, float h) {
     if (owner >= 0) {
         return castle.wards[owner].height;
     }
+    // The approach RAMP is checked before the skirts and on its own length.
+    // It runs ramp_length (15 m) while a ward skirt is only blend (~7 m) wide,
+    // so folding it into the skirt search left the outer half of the ramp
+    // falling through to natural terrain — a hole that read as a step on the
+    // one path the access invariant walks.
+    {
+        const CastleWard& outer = castle.wards[std::max(0, castle.ward_count - 1)];
+        const float cheb = std::max(std::fabs(world.x - outer.center.x),
+                                    std::fabs(world.y - outer.center.y));
+        const float beyond = cheb - outer.half_size;
+        const glm::vec2 local = to_local(castle, world);
+        constexpr float LATERAL_FADE = 2.0f;
+        if (beyond > 0.0f && beyond <= castle.ramp_length && local.y > 0.0f
+            && std::fabs(local.x) <= castle.ramp_half_width + LATERAL_FADE) {
+            const float ramp =
+                outer.height + (h - outer.height) * (beyond / castle.ramp_length);
+            const float skirt =
+                beyond <= outer.blend
+                    ? outer.height
+                          + (h - outer.height) * noise::smoothstep01(beyond / outer.blend)
+                    : h;
+            const float wgt = std::clamp(
+                (castle.ramp_half_width + LATERAL_FADE - std::fabs(local.x)) / LATERAL_FADE,
+                0.0f, 1.0f);
+            return skirt + (ramp - skirt) * wgt;
+        }
+    }
+
     // Outside every ward floor: take the NEAREST ward's skirt, so the blend
     // belongs to the terrace it actually descends from.
     int best = -1;
@@ -332,23 +361,6 @@ float castle_pad_height(const CastleBuild& castle, glm::vec2 world, float h) {
         const CastleWard& w = castle.wards[best];
         const float skirt =
             w.height + (h - w.height) * noise::smoothstep01(best_beyond / w.blend);
-        // The approach ramp descends from the OUTER ward on the gate side.
-        if (best == castle.ward_count - 1) {
-            const glm::vec2 local = to_local(castle, world);
-            constexpr float LATERAL_FADE = 2.0f;
-            if (local.y > 0.0f
-                && std::fabs(local.x) <= castle.ramp_half_width + LATERAL_FADE) {
-                const float ramp =
-                    best_beyond >= castle.ramp_length
-                        ? h
-                        : w.height + (h - w.height) * (best_beyond / castle.ramp_length);
-                const float wgt = std::clamp(
-                    (castle.ramp_half_width + LATERAL_FADE - std::fabs(local.x))
-                        / LATERAL_FADE,
-                    0.0f, 1.0f);
-                return skirt + (ramp - skirt) * wgt;
-            }
-        }
         return skirt;
     }
     return h;
