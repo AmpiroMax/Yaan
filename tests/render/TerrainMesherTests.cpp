@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -26,6 +26,8 @@ UPD:
   determinism + cross-chunk alpha continuity instead.
 - 09:08:2026 - 11:57:20: Stage 3b — surface-field splat weight channels
   (R sand / G rock / B bed) + mismatched-grid fallback.
+- 09:08:2026 - 14:11:37: Dryness channel removed (design ruling): alpha is
+  reserved-opaque, checked in the determinism case.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -142,7 +144,7 @@ TEST_CASE("normals: flat field points up, constant slope tilts against it") {
     CHECK(v.normal.z == doctest::Approx(0.0f));
 }
 
-TEST_CASE("terrain mesh is deterministic (colors incl. dryness alpha)") {
+TEST_CASE("terrain mesh is deterministic and alpha is reserved-opaque") {
     const auto raw = [](uint32_t x, uint32_t z) {
         return static_cast<uint16_t>(53 * x * x + 7 * z);
     };
@@ -151,9 +153,10 @@ TEST_CASE("terrain mesh is deterministic (colors incl. dryness alpha)") {
     const TerrainMeshData m2 = build_terrain_mesh(f.view);
     REQUIRE(m1.vertices.size() == m2.vertices.size());
     for (size_t i = 0; i < m1.vertices.size(); ++i) {
-        // Stage 3: alpha is the grass<->dirt dryness — any value, but it must
-        // be a pure function of the input (deterministic across rebuilds).
         CHECK(m1.vertices[i].color_rgba == m2.vertices[i].color_rgba);
+        // The dryness/dirt channel is gone (design ruling: splat keys off
+        // core's surface_class only); alpha is reserved at 255.
+        CHECK((m1.vertices[i].color_rgba >> 24) == 0xFFu);
     }
 }
 

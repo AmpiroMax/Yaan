@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:01:56
-Last updated: 09:08:2026 - 14:19:25
+Last updated: 09:08:2026 - 14:21:12
 -->
 <!--
 UPD:
@@ -11,6 +11,10 @@ UPD:
   PITCHES.md (three pitches + Russian summaries, awaiting в16 choice),
   QUEST_FORMAT.md contract-frozen with sim (Condition.h/Dialogue.h/Ids.h
   landed). Plan step 2 marked DONE; content gate holds.
+- 09:08:2026 - 14:21:12: Lead rulings recorded: quest content path =
+  games/daggerfall_n/assets/quests/ (AGENTS.md corrected by lead); LLM
+  prompt language = English + output-language instruction. PITCHES.md
+  committed (e6f62c5) and before the user with в16-в18.
 -->
 
 # Spec — story (`docs/specs/story.md`)
@@ -29,11 +33,10 @@ Per Rule 25 (AGENTS.md team table):
 
 - `docs/story/` — narrative bible, main-arc pitches, characters, quest and
   dialog authoring docs, research. Created this stage.
-- `games/daggerfall_n/data/quests/` — quest DATA files only (JSON/TOML per
-  Rules 5–6). **Path note:** AGENTS.md says `data/quests`; the ARCHITECTURE.md
-  repo layout puts JSON/TOML content under `games/daggerfall_n/assets/`.
-  Flagged to the lead; until ruled, no data files exist (nothing is blocked —
-  content authoring is gated on the user's pitch choice anyway).
+- `games/daggerfall_n/assets/quests/` — quest DATA files only (JSON/TOML per
+  Rules 5–6). Path RULED by the lead 09:08:2026: `assets/` per the
+  ARCHITECTURE layout; AGENTS.md row corrected and committed. No data files
+  exist yet (content authoring is gated on the user's pitch choice).
 - Quest RUNTIME code belongs to **sim** (`engine/gameplay`). Story authors
   data and contracts; sim executes. Format changes are negotiated with sim by
   message, never by editing `engine/` (foreign zone).
@@ -127,8 +130,9 @@ derived-only rule for water-adjacent placements (quests must not table
 coordinates that hydrology can move; reference POIs/stamps, not raw coords).
 
 **On the lead:** pitch selection relayed from the user; localization file
-conventions; the `data/quests` vs `assets/` path ruling; any NUMBERS constants
-narrative needs (e.g. journal limits) — proposed, never invented in data.
+conventions; any NUMBERS constants narrative needs (e.g. journal limits) —
+proposed, never invented in data. Ruled 09:08:2026: content path =
+`assets/`; LLM prompts = English + output-language instruction.
 
 **On the user:** the pitch choice (grill в16, round 2 pending); Vaelmere's
 craft (в17); main quest v1 scope (в18).

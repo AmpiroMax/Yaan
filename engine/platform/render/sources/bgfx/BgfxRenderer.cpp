@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -36,6 +36,12 @@ UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain +
   fs_prop: vertex-color albedo, lambert + fog) for placeholder scatter/site
   meshes.
+- 09:08:2026 - 14:11:37: Dynamic sun shadows (user decision в1): depth-only
+  shadow view (2048 map over the loaded chunk ring, eye-centered ortho from
+  environment.sun_direction, texel-snapped), opaque submits also render into
+  it with the internal "shadow" program; terrain/prop sample it with one hard
+  compare tap (dfn_shadow.sh). Shadows follow the app-animated sun (в2) and
+  switch off below SHADOW_MIN_SUN_ELEVATION (night: ambient only).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -45,10 +51,12 @@ UPD:
 #include "engine/platform/render/sources/bgfx/CreateBgfxRenderer.h"
 
 #include <bgfx/bgfx.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -71,18 +79,34 @@ UPD:
 #include <vs_water_mtl.h>
 #include <fs_water_mtl.h>
 #include <fs_prop_mtl.h>
+#include <vs_shadow_mtl.h>
+#include <fs_shadow_mtl.h>
 #endif
 
 namespace dfn::platform {
 
 namespace {
 
-constexpr bgfx::ViewId VIEW_SCENE = 0;         // -> internal low-res target
-constexpr bgfx::ViewId VIEW_BACKBUFFER = 1;    // clear (letterbox black)
-constexpr bgfx::ViewId VIEW_UPSCALE = 2;       // integer-scaled quad
+constexpr bgfx::ViewId VIEW_SHADOW = 0;        // -> sun shadow map (depth only)
+constexpr bgfx::ViewId VIEW_SCENE = 1;         // -> internal low-res target
+constexpr bgfx::ViewId VIEW_BACKBUFFER = 2;    // clear (letterbox black)
+constexpr bgfx::ViewId VIEW_UPSCALE = 3;       // integer-scaled quad
 
 // Look-dev clear color (sky), not a gameplay constant: light steppe-sky blue.
 constexpr uint32_t SKY_COLOR_RGBA = 0x87b5e0ff;
+
+// Sun shadow map (user decision в1). Backend look-dev constants like
+// SKY_COLOR_RGBA — flagged on the NUMBERS.md migration list (Rule 14).
+// One 2048 map over the loaded chunk ring: half extent = (CHUNK_LOAD_RADIUS
+// 2 + 0.5) x CHUNK_SIZE 256 m, eye-centered ortho along the sun direction.
+constexpr uint16_t SHADOW_MAP_SIZE = 2048;
+constexpr float SHADOW_HALF_EXTENT_M = 640.0f;
+constexpr float SHADOW_DEPTH_HALF_M = 700.0f;  // along-light half range
+constexpr float SHADOW_MIN_SUN_ELEVATION = 0.05f; // sun_dir.y below -> off
+constexpr float SHADOW_TEXEL_M = 2.0f * SHADOW_HALF_EXTENT_M
+                                 / static_cast<float>(SHADOW_MAP_SIZE);
+constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
+constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
 
 struct ShaderBlob {
     const uint8_t* data = nullptr;
@@ -112,6 +136,9 @@ const ProgramSource PROGRAM_TABLE[] = {
     // pass-through); only the fragment differs (vertex-color albedo).
     {"prop",    {vs_terrain_mtl, sizeof(vs_terrain_mtl)},
                 {fs_prop_mtl, sizeof(fs_prop_mtl)}},
+    // Backend-internal depth-only pass for the sun shadow map.
+    {"shadow",  {vs_shadow_mtl, sizeof(vs_shadow_mtl)},
+                {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
 };
 #else
 // Non-Apple platforms compile clean but ship no embedded shaders this stage
@@ -119,6 +146,7 @@ const ProgramSource PROGRAM_TABLE[] = {
 const ProgramSource PROGRAM_TABLE[] = {
     {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}},
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
+    {"shadow", {}, {}},
 };
 #endif
 
@@ -177,6 +205,16 @@ struct BgfxRenderer::Impl {
     bgfx::ProgramHandle debug_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle sky_program = BGFX_INVALID_HANDLE;
 
+    // Sun shadow map (в1): depth-only target + internal program + uniforms.
+    bgfx::TextureHandle shadow_map = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle shadow_fb = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle shadow_program = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle s_shadow_map = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_shadow_params = BGFX_INVALID_HANDLE;
+    bool shadow_active = false;   // this frame: sun above threshold + resources ok
+    glm::vec3 frame_eye{0.0f};    // camera position, from begin_frame's view
+
     RenderEnvironment environment;                 // last set_environment (defaults valid)
     std::array<glm::vec4, 64> palette{};           // fixed palette (Q9b)
     bool palette_post = false;
@@ -228,6 +266,64 @@ struct BgfxRenderer::Impl {
             {e.water_scroll_uv, 0.0f, 0.0f},
         };
         bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
+    }
+
+    // Recomputes the sun-light matrices from the cached environment + frame
+    // eye and uploads u_lightMtx / u_shadowParams. Called from begin_frame and
+    // from a mid-frame set_environment (uniform values are captured per
+    // submit, so the app's day/night set_environment right after begin_frame
+    // applies to every draw of the frame; view transforms resolve at frame
+    // render, last call wins).
+    void update_shadow() {
+        shadow_active = false;
+        float enabled = 0.0f;
+        glm::mat4 light_mtx(1.0f);
+        glm::vec3 dir = environment.sun_direction;
+        const float len = glm::length(dir);
+        if (bgfx::isValid(shadow_fb) && bgfx::isValid(shadow_program)
+            && len > 1e-5f) {
+            dir /= len;
+            if (dir.y > SHADOW_MIN_SUN_ELEVATION) {
+                shadow_active = true;
+                enabled = 1.0f;
+                constexpr float H = SHADOW_HALF_EXTENT_M;
+                constexpr float D = SHADOW_DEPTH_HALF_M;
+                // Orientation-only light view; the volume center (the camera
+                // eye) is snapped to the shadow texel grid in light space so
+                // edges do not crawl as the camera moves.
+                const glm::vec3 up = std::fabs(dir.y) > 0.99f
+                                         ? glm::vec3(0.0f, 0.0f, 1.0f)
+                                         : glm::vec3(0.0f, 1.0f, 0.0f);
+                const glm::mat4 rot = glm::lookAtRH(dir, glm::vec3(0.0f), up);
+                glm::vec3 c = glm::vec3(rot * glm::vec4(frame_eye, 1.0f));
+                c.x = std::floor(c.x / SHADOW_TEXEL_M) * SHADOW_TEXEL_M;
+                c.y = std::floor(c.y / SHADOW_TEXEL_M) * SHADOW_TEXEL_M;
+                const glm::mat4 view =
+                    glm::translate(glm::mat4(1.0f), -c) * rot;
+                const bgfx::Caps& caps = *bgfx::getCaps();
+                // near = -D / far = +D brackets the eye plane along the light.
+                const glm::mat4 proj =
+                    caps.homogeneousDepth
+                        ? glm::orthoRH_NO(-H, H, -H, H, -D, D)
+                        : glm::orthoRH_ZO(-H, H, -H, H, -D, D);
+                bgfx::setViewTransform(VIEW_SHADOW, glm::value_ptr(view),
+                                       glm::value_ptr(proj));
+                // NDC -> shadow-map uv/depth crop (API-dependent y flip and
+                // depth range), premultiplied for the fragment shaders.
+                glm::mat4 crop(1.0f);
+                crop[0][0] = 0.5f;
+                crop[1][1] = caps.originBottomLeft ? 0.5f : -0.5f;
+                crop[2][2] = caps.homogeneousDepth ? 0.5f : 1.0f;
+                crop[3] = glm::vec4(0.5f, 0.5f,
+                                    caps.homogeneousDepth ? 0.5f : 0.0f, 1.0f);
+                light_mtx = crop * proj * view;
+            }
+        }
+        const float params[4] = {enabled, SHADOW_NORMAL_OFFSET_M,
+                                 SHADOW_DEPTH_BIAS_M / (2.0f * SHADOW_DEPTH_HALF_M),
+                                 0.0f};
+        bgfx::setUniform(u_shadow_params, params);
+        bgfx::setUniform(u_light_mtx, glm::value_ptr(light_mtx));
     }
 
     // Largest integer factor of the internal target fitting the framebuffer,
@@ -333,6 +429,34 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
     im.debug_program = im.make_program("debug");
     im.sky_program = im.make_program("sky");
 
+    // Sun shadow map (в1): depth-only target with a hardware compare sampler
+    // (one hard tap — the pixelated edge fits the art style). D16 preferred,
+    // D32F fallback; if neither works, shadows stay off (shadow_active false)
+    // and rendering is stage-3b lighting — never a crash (Rule 3 spirit).
+    {
+        constexpr uint64_t depth_flags = BGFX_TEXTURE_RT
+                                       | BGFX_SAMPLER_COMPARE_LEQUAL
+                                       | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+        bgfx::TextureFormat::Enum depth_fmt = bgfx::TextureFormat::D16;
+        if (!bgfx::isTextureValid(0, false, 1, depth_fmt, depth_flags)) {
+            depth_fmt = bgfx::TextureFormat::D32F;
+        }
+        if (bgfx::isTextureValid(0, false, 1, depth_fmt, depth_flags)) {
+            im.shadow_map = bgfx::createTexture2D(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE,
+                                                  false, 1, depth_fmt, depth_flags);
+            im.shadow_fb = bgfx::createFrameBuffer(1, &im.shadow_map, false);
+        } else {
+            std::fprintf(stderr, "[render] no depth format for the shadow map; "
+                                 "sun shadows disabled\n");
+        }
+        im.shadow_program = im.make_program("shadow");
+        im.s_shadow_map =
+            bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
+        im.u_light_mtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
+        im.u_shadow_params =
+            bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
+    }
+
     // Sequential scene view (stage 3): sky first (backend), then the caller's
     // opaque submits, then transparents (RenderSystem orders them), then debug
     // lines in end_frame. Depth testing still resolves opaque occlusion.
@@ -366,6 +490,12 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.upscale_program)) bgfx::destroy(im.upscale_program);
     if (bgfx::isValid(im.debug_program)) bgfx::destroy(im.debug_program);
     if (bgfx::isValid(im.sky_program)) bgfx::destroy(im.sky_program);
+    if (bgfx::isValid(im.shadow_program)) bgfx::destroy(im.shadow_program);
+    if (bgfx::isValid(im.shadow_fb)) bgfx::destroy(im.shadow_fb);
+    if (bgfx::isValid(im.shadow_map)) bgfx::destroy(im.shadow_map);
+    if (bgfx::isValid(im.s_shadow_map)) bgfx::destroy(im.s_shadow_map);
+    if (bgfx::isValid(im.u_light_mtx)) bgfx::destroy(im.u_light_mtx);
+    if (bgfx::isValid(im.u_shadow_params)) bgfx::destroy(im.u_shadow_params);
     if (bgfx::isValid(im.quad_ib)) bgfx::destroy(im.quad_ib);
     if (bgfx::isValid(im.quad_vb)) bgfx::destroy(im.quad_vb);
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);
@@ -405,6 +535,16 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
     bgfx::setViewTransform(VIEW_SCENE, glm::value_ptr(view), glm::value_ptr(proj));
     bgfx::touch(VIEW_SCENE); // clear even on an empty frame
 
+    // Shadow view: renders (view id order) before the scene consumes the map.
+    im.frame_eye = glm::vec3(glm::inverse(view)[3]);
+    if (bgfx::isValid(im.shadow_fb)) {
+        bgfx::setViewFrameBuffer(VIEW_SHADOW, im.shadow_fb);
+        bgfx::setViewRect(VIEW_SHADOW, 0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+        bgfx::setViewClear(VIEW_SHADOW, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+        bgfx::touch(VIEW_SHADOW);
+    }
+    im.update_shadow();
+
     // Frame environment (cached; struct defaults are valid pre-first-set).
     im.apply_environment();
 
@@ -421,9 +561,12 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
 void BgfxRenderer::set_environment(const RenderEnvironment& env) {
     impl_->environment = env;
     // Uniforms are (re)applied at the next begin_frame; if we are mid-frame,
-    // update them now so this frame's remaining submits see the new values.
+    // update them now so this frame's remaining submits see the new values —
+    // including the shadow matrices, so the app-animated sun (day/night, в2)
+    // moves the shadows in the same frame it moves the light.
     if (impl_->initialized && impl_->in_frame) {
         impl_->apply_environment();
+        impl_->update_shadow();
     }
 }
 
@@ -591,6 +734,19 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     if (mesh_it == im.meshes.end() || prog_it == im.programs.end()) {
         return;
     }
+    const bool is_transparent = im.transparent.contains(program.id);
+
+    // Shadow caster pass (в1): every opaque submit also renders depth into the
+    // sun's shadow view — terrain, trees, houses, scatter all cast. Skipped
+    // when the sun is below the shadow threshold (night) or resources failed.
+    if (im.shadow_active && !is_transparent) {
+        bgfx::setTransform(glm::value_ptr(transform));
+        bgfx::setVertexBuffer(0, mesh_it->second.vb);
+        bgfx::setIndexBuffer(mesh_it->second.ib);
+        bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+        bgfx::submit(VIEW_SHADOW, im.shadow_program);
+    }
+
     bgfx::setTransform(glm::value_ptr(transform));
     bgfx::setVertexBuffer(0, mesh_it->second.vb);
     bgfx::setIndexBuffer(mesh_it->second.ib);
@@ -606,11 +762,15 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         params[0] = 1.0f;
     }
     bgfx::setUniform(im.u_params, params);
+    if (bgfx::isValid(im.shadow_map)) {
+        // Compare-sampler flags come from the texture creation; stage 1 is the
+        // dfn_shadow.sh contract (unused by shaders that do not sample it).
+        bgfx::setTexture(1, im.s_shadow_map, im.shadow_map);
+    }
 
     // Culling deliberately off this stage (see header notice). Transparent
     // programs ("water"): alpha blend, depth read-only, drawn after opaques
     // by the caller (sequential view).
-    const bool is_transparent = im.transparent.contains(program.id);
     const uint64_t state =
         is_transparent
             ? (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A

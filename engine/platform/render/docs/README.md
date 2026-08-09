@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 09:08:2026 - 00:50:00: Stage 2 — bgfx + null backends, shaderc build step.
 - 09:08:2026 - 11:26:00: Stage 3 — RenderEnvironment/set_environment + palette_post (contract sync 10:48), sky pass, water state, palette post, point-sampled textures.
 - 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain + fs_prop); terrain fragment v3 (splat-weight vertex channels + ordered dither).
+- 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0 (views renumbered), depth-only "shadow" program, dfn_shadow.sh sampling in terrain/prop; terrain fragment v4 (surface-class-only splat — legacy height-sand and dirt dryness removed per design ruling).
 -->
 
 # engine/platform/render
@@ -51,10 +52,11 @@ renderer.end_frame();
 - Used by: `engine/render` (primary consumer), `engine/editor`, `engine/app`,
   tests (null backend), the screenshot tour.
 
-## Current state (stage 3)
+## Current state (stage 3 + shadows batch)
 
 Implemented: `sources/bgfx/` — BgfxRenderer (Metal on macOS, single-threaded
-bgfx; view 0 scene -> low-res internal target, view 1 letterbox clear, view 2
+bgfx; view 0 sun shadow map (depth only), view 1 scene -> low-res internal
+target, view 2 letterbox clear, view 3
 integer-scaled point-sampled upscale; screenshots via a custom bgfx callback
 writing PNG through bimg; embedded shaders compiled by shaderc custom
 commands with --bin2c; reload_shaders is a documented debug no-op this
@@ -80,20 +82,38 @@ Stage-3 additions in the bgfx backend:
   pure/testable, 8 ramps x 8 shades). OFF = exact stage-2 passthrough.
 - **Point sampling**: all textures bound via `submit` are point-sampled
   (Daggerfall crunch; also prevents bleed across terrain-atlas cells).
+- **Dynamic sun shadows (в1, feature-requests batch)**: 2048 depth-only map
+  (D16, hardware compare LEQUAL) over the loaded chunk ring — eye-centered
+  ortho (half extent 640 m, texel-snapped) built each frame from
+  `environment.sun_direction`, so the app-animated day/night sun (в2) moves
+  the shadows with no further wiring. Every opaque `submit` renders into the
+  shadow view with the internal "shadow" program (terrain, trees, houses,
+  scatter all cast; water/debug/sky do not); `shaders/dfn_shadow.sh` samples
+  one hard compare tap (PCF off — pixelated edges fit the art style) with
+  normal-offset + depth bias against acne (`u_lightMtx`/`u_shadowParams`
+  packing is a contract with `BgfxRenderer.cpp::update_shadow`). Sun below
+  0.05 elevation -> shadows off (night is ambient-lit; ndotl is 0 anyway).
+  Shadow constants are backend look-dev values flagged for the NUMBERS.md
+  migration.
 
 ### Logical program name -> render state (backend convention)
 
 | Name | State |
 |---|---|
 | `terrain`, `unlit`, `prop` (and any unlisted name) | opaque: RGB+A+Z write, depth test LESS |
-| `water` | transparent: RGB+A write, depth test LESS, NO depth write, alpha blend; callers submit transparents after opaques (scene view is sequential) |
-| `debug`, `sky`, `upscale` | backend-internal (lines / background / post) |
+| `water` | transparent: RGB+A write, depth test LESS, NO depth write, alpha blend; callers submit transparents after opaques (scene view is sequential); transparents do NOT cast shadows |
+| `debug`, `sky`, `upscale`, `shadow` | backend-internal (lines / background / post / caster depth) |
 
-Shaders: `sources/bgfx/shaders/*.sc` — terrain v3 (2x2 atlas splat driven by
-per-vertex weights R=sand/G=rock/B=water-bed/A=dryness baked from core's
-SurfaceFieldView, slope rock augmentation from env uniforms, ordered 4x4
-dither transitions in internal-pixel space + lambert + distance fog), prop
-(vertex-color albedo, lambert + fog — placeholder scatter/site meshes; shares
-vs_terrain), unlit, debug lines, sky, water (dual scrolled samples, fog-aware
+Shaders: `sources/bgfx/shaders/*.sc` — terrain v4 (2x2 atlas splat driven by
+per-vertex weights R=sand/G=rock/B=water-bed baked from core's
+SurfaceFieldView surface_class ONLY — design ruling: render never re-derives
+material bands from raw dist/height fields; slope rock augmentation from env
+uniforms gives the §4 grass<->rock dither band, ordered 4x4
+dither transitions in internal-pixel space + lambert x shadow + distance
+fog), prop (vertex-color albedo, lambert x shadow + fog — placeholder
+scatter/site meshes; shares vs_terrain), shadow (depth-only caster pass),
+unlit, debug lines, sky, water (dual scrolled samples, fog-aware
 alpha), upscale (+palette), `dfn_env.sh` (environment uniform layout — change
-only together with `BgfxRenderer.cpp::apply_environment`).
+only together with `BgfxRenderer.cpp::apply_environment`), `dfn_shadow.sh`
+(shadow sampling — change only together with
+`BgfxRenderer.cpp::update_shadow`).

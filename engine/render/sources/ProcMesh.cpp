@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 Module: engine/render
 File: engine/render/sources/ProcMesh.cpp
 
@@ -25,6 +25,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial placeholder mesh catalog.
+- 09:08:2026 - 14:11:37: Micro-relief (user decision в3): stone rebuilt as a
+  ~0.9 m chunky faceted boulder (position-hash crush, re-derived flat normals)
+  — the crushed 0.42 m box read as a flat speck.
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -214,22 +217,43 @@ MeshData bush() {
 }
 
 MeshData stone() {
-    // Loose boulder, 0.5 m nominal: box with fixed asymmetric corner crush.
+    // Chunky boulder, ~0.9 m nominal (user decision в3: the old 0.42 m crushed
+    // box read as a flat speck at eye level — stones now carry mass and a
+    // proud silhouette). Low-poly faceted lump, deformed by a deterministic
+    // position-keyed crush so the shape is asymmetric: per-instance yaw from
+    // the batcher then gives each placement a different outline.
     MeshData m;
-    box(m, {-0.32f, 0.0f, -0.26f}, {0.30f, 0.42f, 0.28f}, pack(STONE_GREY));
-    constexpr glm::vec3 CRUSH[8] = {
-        {0.06f, -0.02f, 0.03f},  {-0.04f, -0.08f, 0.05f},
-        {0.02f, -0.12f, -0.06f}, {-0.07f, -0.03f, -0.02f},
-        {0.05f, -0.10f, 0.04f},  {-0.03f, -0.05f, -0.07f},
-        {0.04f, -0.14f, 0.02f},  {-0.06f, -0.06f, 0.06f},
-    };
-    for (size_t i = 0; i < m.vertices.size(); ++i) {
-        glm::vec3& p = m.vertices[i].position;
-        const size_t corner = (p.x > 0.0f ? 1u : 0u) | (p.y > 0.2f ? 2u : 0u)
-                            | (p.z > 0.0f ? 4u : 0u);
-        if (p.y > 0.2f) { // crush the top corners only; keep the base grounded
-            p += CRUSH[corner];
+    blob(m, {0.0f, 0.35f, 0.0f}, {0.62f, 0.50f, 0.48f}, 6, 3, pack(STONE_GREY),
+         -0.8f);
+    for (platform::Vertex& v : m.vertices) {
+        glm::vec3& p = v.position;
+        // Hash the quantized position: flat-shaded duplicates share the key,
+        // so faces stay welded while corners crush independently.
+        const auto xi = static_cast<uint32_t>(std::lround(p.x * 41.0f) + 512);
+        const auto yi = static_cast<uint32_t>(std::lround(p.y * 41.0f) + 512);
+        const auto zi = static_cast<uint32_t>(std::lround(p.z * 41.0f) + 512);
+        uint32_t h = xi * 73856093u ^ yi * 19349663u ^ zi * 83492791u;
+        h = (h ^ (h >> 13)) * 0x5bd1e995u;
+        const float r = static_cast<float>(h % 1024u) / 1023.0f; // [0,1)
+        const float squash = 0.78f + 0.40f * r;
+        p.x = p.x * squash + 0.10f * (r - 0.5f);
+        p.z = p.z * squash - 0.08f * (r - 0.5f);
+        if (p.y > 0.15f) { // uneven crown; base ring stays grounded
+            p.y *= 0.82f + 0.34f * r;
         }
+    }
+    // Re-derive flat normals after the crush (each face owns its vertices).
+    for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
+        platform::Vertex& a = m.vertices[m.indices[i]];
+        platform::Vertex& b = m.vertices[m.indices[i + 1]];
+        platform::Vertex& c = m.vertices[m.indices[i + 2]];
+        const glm::vec3 cross =
+            glm::cross(b.position - a.position, c.position - a.position);
+        const float len = glm::length(cross);
+        const glm::vec3 n = len > 1e-8f ? cross / len : glm::vec3{0.0f, 1.0f, 0.0f};
+        a.normal = n;
+        b.normal = n;
+        c.normal = n;
     }
     return m;
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -29,11 +29,15 @@ UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — vertex RGB re-purposed to splat weights
   (R sand / G rock / B water-bed) from core's SurfaceFieldView; the old
   height-band tint is gone (fs_terrain owns the palette now).
+- 09:08:2026 - 14:11:37: Splat fix (design ruling, feature-requests batch): the
+  render-side "dryness" dirt mottling is REMOVED — it painted large red-brown
+  washes over ground core classifies as Grass (04_hamlet_approach probe:
+  whole sightline Grass, yet the frame read as a 60+ m brown flat). LANDSCAPE
+  §4 has no dirt material (dirt/path is a FUTURE road pass); the splat now
+  keys off core's surface_class ONLY. Vertex alpha is reserved (255).
 */
 
 #include "engine/render/sources/TerrainMesher.h"
-
-#include "engine/render/sources/ProcTexture.h"
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
@@ -45,20 +49,15 @@ namespace dfn::render {
 
 namespace {
 
-// Dryness mottling: world-space patch scale and seed (visual, not worldgen).
-constexpr float DRY_PATCH_SCALE = 1.0f / 37.0f; // patches ~ tens of meters
-constexpr uint32_t DRY_NOISE_SEED = 0x7E22u;
-
 // Splat weight of the GrassRockBlend class (§4 priority 3): mid value so the
 // shader's dither band straddles it between grass and rock.
 constexpr float BLEND_CLASS_ROCK_W = 0.5f;
 
-uint32_t pack_weights(float sand, float rock, float bed, float dry) {
+uint32_t pack_weights(float sand, float rock, float bed) {
     const auto r = static_cast<uint32_t>(glm::clamp(sand, 0.0f, 1.0f) * 255.0f + 0.5f);
     const auto g = static_cast<uint32_t>(glm::clamp(rock, 0.0f, 1.0f) * 255.0f + 0.5f);
     const auto b = static_cast<uint32_t>(glm::clamp(bed, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto a = static_cast<uint32_t>(glm::clamp(dry, 0.0f, 1.0f) * 255.0f + 0.5f);
-    return (a << 24) | (b << 16) | (g << 8) | r; // 0xAABBGGRR (frozen Vertex)
+    return 0xFF000000u | (b << 16) | (g << 8) | r; // 0xAABBGGRR; A reserved
 }
 
 } // namespace
@@ -124,22 +123,12 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
                 }
             }
 
-            // Grass<->dirt mottling for the shader splat: two-octave world-space
-            // value noise, remapped so mid-values stay grass (alpha = dryness).
-            const glm::vec2 dry_p{wpos.x * DRY_PATCH_SCALE, wpos.z * DRY_PATCH_SCALE};
-            const float dry_noise =
-                0.65f * value_noise01(dry_p, DRY_NOISE_SEED)
-                + 0.35f * value_noise01(dry_p * 2.7f, DRY_NOISE_SEED ^ 0x5Au);
-            // Threshold raised at stage 3b: from above, 0.55 painted ~1/3 of
-            // the meadows brown (tour overview read) — dirt is an accent.
-            const float dryness = glm::smoothstep(0.63f, 0.80f, dry_noise);
-
             platform::Vertex& v = mesh.vertices[static_cast<size_t>(z) * res + x];
             v.position = wpos;
             v.normal = normal;
             v.uv = {static_cast<float>(x) * field.step * inv_span,
                     static_cast<float>(z) * field.step * inv_span};
-            v.color_rgba = pack_weights(sand_w, rock_w, bed_w, dryness);
+            v.color_rgba = pack_weights(sand_w, rock_w, bed_w);
         }
     }
 

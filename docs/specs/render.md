@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 -->
 <!--
 UPD:
@@ -29,6 +29,14 @@ UPD:
   ScatterBatcher, GRASS_VIEW_DISTANCE micro tiles), §6 site placeholder meshes
   under blessed ids 1..7, "prop" program (backend), Tour v3 §7.1 route with
   lazy ground resolution + tour-driven streaming focus (app wiring by lead).
+- 09:08:2026 - 14:11:37: Feature-requests batch (user decisions в1-в3 + design
+  splat rulings): dynamic sun shadow map (backend view 0, dfn_shadow.sh, one
+  hard tap; follows the app-animated sun incl. low angles, off below 0.05
+  elevation), splat keyed off core's surface_class ONLY (dryness/dirt band and
+  legacy height-sand REMOVED — they, not core's fields, painted the 60 m
+  shore/brown washes), GrassRockBlend = ordered grass<->rock dither, chunky
+  ~0.9 m stone boulder, afternoon southern look-dev sun. RenderEnvironment
+  verified sufficient for the app day/night cycle — no contract change needed.
 -->
 
 # Spec — render agent
@@ -343,13 +351,64 @@ Stage 3b (done in this changeset — «make the generated valley visible»):
 7. Tests: 10 render suites (added proc mesh budgets/bounds/determinism,
    scatter batching, water meshing, splat weight channels, tour v3 shape).
 
+Feature-requests batch (done in this changeset, after stage 3b):
+1. Splat v4 (design ruling, binding): weights bake from core's
+   `surface_class` ONLY (TerrainMesher). The render-side "dryness" dirt
+   mottling and the shader's legacy height-based sand band are REMOVED — the
+   04 probe showed the whole "brown wash" sightline classified Grass by core;
+   the wash was render-invented. Do not re-derive material bands from raw
+   dist/height fields — that bug class is now structurally impossible.
+   GrassRockBlend renders as an ordered grass<->rock dither (class weight 0.5
+   + per-pixel slope smoothstep between the same design thresholds).
+   Vertex alpha is reserved (255).
+2. Dynamic sun shadows (в1, backend-internal — NO contract change): view 0
+   depth-only 2048 map (D16 compare LEQUAL, D32F fallback, off-if-neither),
+   eye-centered texel-snapped ortho from environment.sun_direction (half
+   extent 640 m = loaded chunk ring, depth half 700 m), every opaque submit
+   double-submitted with the internal "shadow" program, one hard compare tap
+   in dfn_shadow.sh (PCF off — user chose hard pixel edges) with normal
+   offset 1 texel + 0.25 m depth bias. Below 0.05 sun elevation shadows
+   switch off (night = ambient only; ndotl already 0). Matrices rebuilt in
+   begin_frame AND mid-frame set_environment, so the app's day/night cycle
+   (в2) moves shadows the same frame. u_lightMtx/u_shadowParams packing is a
+   dfn_shadow.sh <-> update_shadow contract.
+3. Day/night support (в2): verified RenderEnvironment already carries
+   everything the app-driven cycle needs (sun dir/color, ambient, fog, sky);
+   app animates via RenderSystem::environment(). Moon light / stars / shadow
+   settings would need a contract sync — flagged, not built (open user
+   questions on night visuals).
+4. Micro-relief (в3): stone rebuilt as a ~0.9 m chunky asymmetric boulder
+   (position-hash crush + re-derived flat normals; yaw varies silhouettes).
+   Look-dev sun lowered/rotated south (Materials.h) so shadows are long
+   enough to ground objects in the tour frames. Advanced material techniques
+   (normal maps etc.) stay future TOGGLEABLE graphics settings — the
+   name->state program convention and per-frame env uniforms leave room; no
+   contract obstacle identified.
+
 Stage 4 (next): skinned meshes (contract sync), frustum culling with core's
 math types, LOD/skirts, grass cards (P6 micro, §5.6), flower patches,
 sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk,
-instancing sync if scatter profiling demands.
+instancing sync if scatter profiling demands, NUMBERS.md migration of
+Materials.h + backend shadow look-dev constants (messaged to lead, Rule 14),
+ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Verification cadence (user instruction via lead, 09:08:2026):**
+  `bash tools/run_tour.sh build_render` shoots ONE variant (640x360, palette
+  off); the 4-way matrix runs only behind `run_tour.sh build_render matrix`
+  for actual look decisions. Read the 2-3 frames that prove the change, not
+  all seven.
+- **Feature-requests batch acceptance (Rule 27, frames read 09:08:2026):**
+  04_hamlet_approach — brown wash gone, grass to the pads, thin §3.3 sand at
+  the river; 00_crag_from_vaelmere — no red-brown midground mottling, tavern
+  casts a readable shadow; 02/03/05 — canopy/birch/pine shadows ground the
+  trees, chunky stones sit with shadow contact; 06 — per-crown shadows across
+  the forest, no shadow-range cutoff line. Shadow mechanism verified with a
+  temporary red-tint debug shoot (not shipped). Known core-side finding: wide
+  dark WaterBed flats along the river bends (dirt*0.68) are core's classifier
+  band (§3.3 cap is core's), render draws it faithfully — for design's
+  close-out.
 - **Stage-3b acceptance (Rule 27):** `bash tools/run_tour.sh <build>` shoots
   the 4-way matrix (640x360 / 320x180 x palette on/off) over the Tour v3
   route (7 frames: crag-from-hamlet, crag final approach, river, lake shore,

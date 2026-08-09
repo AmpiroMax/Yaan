@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:03:29
-Last updated: 09:08:2026 - 14:15:17
+Last updated: 09:08:2026 - 14:21:12
 -->
 <!--
 UPD:
@@ -22,6 +22,10 @@ UPD:
   Condition.h/Dialogue.h/Ids.h change landed (ConditionAtom closed set,
   ConditionGroup{all_of,any_of} on quest transitions, new id types), build
   clean, tests green; lead batches the commit with the sync record.
+- 09:08:2026 - 14:21:12: Lead rulings recorded: content path is
+  games/daggerfall_n/assets/... (ARCHITECTURE layout wins, AGENTS.md
+  corrected); LLM prompts are English + explicit output-language
+  instruction. Both open items closed.
 -->
 
 # QUEST_FORMAT.md — Quest & Dialogue Data Format (PROPOSAL)
@@ -51,15 +55,16 @@ Design premises, fixed by prior decisions:
   build; we author a *graph*, not a language.
 
 File format: **JSON** (core's serialization module lists JSON/TOML for
-content; JSON nests graphs better). Proposed layout (path pending the lead's
-`data/` vs `assets/` ruling — see specs/story.md):
+content; JSON nests graphs better). Layout (path RULED by the lead,
+09:08:2026: `assets/` per the ARCHITECTURE layout, Rules 5–6; AGENTS.md row
+corrected):
 
 ```
-games/daggerfall_n/data/quests/          # one file per quest: <quest_id>.quest.json
-games/daggerfall_n/data/quests/templates/# craft-keyed quest templates
-games/daggerfall_n/data/dialogs/         # dialogue graphs: <topic_id>.dlg.json
-games/daggerfall_n/data/npcs/cards/      # LLM character cards: <npc_id>.card.json
-games/daggerfall_n/data/world_flags.json # THE flag registry (single file)
+games/daggerfall_n/assets/quests/          # one file per quest: <quest_id>.quest.json
+games/daggerfall_n/assets/quests/templates/# craft-keyed quest templates
+games/daggerfall_n/assets/dialogs/         # dialogue graphs: <topic_id>.dlg.json
+games/daggerfall_n/assets/npcs/cards/      # LLM character cards: <npc_id>.card.json
+games/daggerfall_n/assets/world_flags.json # THE flag registry (single file)
 ```
 
 ---
@@ -361,16 +366,18 @@ wording, recorded here as the durable source):
   (stage 4): documented field order into the prompt,
   `fallback_lines[0]`'s active-language text becomes `fallback_text` (Q67),
   knowledge/ignorance/taboos rendered as hard prompt constraints. Prompt
-  language (English prompt + output-language instruction is sim's working
-  position) is the lead's localization call — flagged, not blocking.
+  language RULED by the lead (09:08:2026): **English prompts + explicit
+  output-language instruction** (model quality; player-visible fixed strings
+  stay in localization files regardless).
 - **Journal (§8.5):** append-only component of (quest id, journal key,
   sim_tick), save-delta; sim additionally stores the state id hash per entry
   (replay/debug; invisible to the data format).
 - **New id types** (`QuestId`, `FlagId`, `TopicId`, `NpcCardId`) enter sim's
   `Ids.h` at the same sync as the Dialogue.h change.
 
-Follow-ups: sim — Dialogue.h diff at group sync, TriggerVolume placement
-boundary with core; lead — prompt language ruling.
+Follow-ups: sim — Dialogue.h diff at group sync (landed), TriggerVolume
+placement boundary with core; lead — prompt language ruling (ruled: English
+prompts + output-language instruction, 09:08:2026).
 
 **Freeze ACK (09:08:2026, second exchange):** the lead blessed the
 `Condition.h`/`Dialogue.h`/`Ids.h` change as a Rule 26 sync record gated on

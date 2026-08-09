@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:58:00
+Last updated: 09:08:2026 - 14:11:37
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -20,8 +20,9 @@ Dependencies:
 Notes:
 - Single-threaded bgfx (renderFrame before init): the whole engine loop is one
   thread this stage.
-- View layout: 0 = scene into the internal target, 1 = backbuffer clear
-  (letterbox black), 2 = point-sampled integer-upscale quad.
+- View layout: 0 = sun shadow map (depth only, opaque casters), 1 = scene into
+  the internal target, 2 = backbuffer clear (letterbox black), 3 =
+  point-sampled integer-upscale quad.
 - save_screenshot schedules the capture into the NEXT end_frame (bgfx captures
   during frame processing); the PNG lands on disk during that frame. The Tour
   renders flush frames after scheduling, so callers need no extra handling.
@@ -31,6 +32,8 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 09:08:2026 - 10:58:00: Stage 3 — set_environment (contract sync 10:48), sky
   pass, palette post (Q9b), water transparency, point-sampled textures.
+- 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0, view layout
+  renumbered.
 */
 
 #pragma once

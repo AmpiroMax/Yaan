@@ -1,18 +1,22 @@
 $input v_color0, v_normal, v_texcoord0, v_wpos
 
-// Terrain fragment v3 (stage 3b): surface-truth splat over the procedural 2x2
-// atlas (grass|rock / sand|dirt — ProcTexture.h layout contract). Vertex color
+// Terrain fragment v4: surface-truth splat over the procedural 2x2 atlas
+// (grass|rock / sand|dirt — ProcTexture.h layout contract). Vertex color
 // carries splat weights baked by TerrainMesher from core's SurfaceFieldView:
-//   r = sand (shore mask), g = rock (surface class), b = water bed,
-//   a = grass<->dirt dryness.
-// Slope-driven rock (env uniforms) augments the class weight; the legacy
-// height-based sand band (u_sandHeight) still powers the set_water debug
-// fallback. Material transitions are ordered-dithered in internal-pixel space
-// (LANDSCAPE §4: dither, not soft gradients). u_params.x < 0.5 -> flat-color
-// fallback (no atlas resident).
+//   r = sand (shore mask), g = rock, b = water bed, a = reserved.
+// Design ruling (feature-requests batch): material bands come from core's
+// surface_class ONLY — the legacy height-based sand band and the render-side
+// dirt "dryness" mottling are gone (they painted 60 m brown washes core never
+// classified). In-shader slope rock still augments the class weight with the
+// SAME design thresholds (§4 rules 2-3, visual == gameplay truth), giving the
+// GrassRockBlend band its ordered grass<->rock dither. Transitions are
+// ordered-dithered in internal-pixel space (§4: dither, not gradients).
+// Dynamic sun shadows (в1): one hard tap, dfn_shadow.sh.
+// u_params.x < 0.5 -> flat-color fallback (no atlas resident).
 
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
+#include "dfn_shadow.sh"
 
 SAMPLER2D(s_texColor, 0);
 uniform vec4 u_params;
@@ -42,11 +46,8 @@ void main()
     float slope = 1.0 - n.y;
     float rock_w = max(v_color0.g,
                        smoothstep(u_rockSlopeStart, u_rockSlopeEnd, slope));
-    float sand_w = max(v_color0.r,
-                       1.0 - smoothstep(u_sandHeight, u_sandHeight + u_sandBlend,
-                                        v_wpos.y));
+    float sand_w = v_color0.r; // shore mask from core's surface_class only
     float bed_w = v_color0.b;
-    float dry = v_color0.a;
 
     // Ordered 4x4 Bayer threshold; the scene view renders at INTERNAL_RES, so
     // gl_FragCoord is already in internal pixels (blocks stay square).
@@ -55,9 +56,10 @@ void main()
     vec2 f2 = mod(floor(ip * 0.5), 2.0);
     float bayer = (bayer2(f1) * 4.0 + bayer2(f2) + 0.5) / 16.0; // (0,1)
 
-    // §4 priority via paint order (later mix wins): grass/dirt -> bed -> rock
-    // -> sand on top.
-    vec3 albedo = mix(grass, dirt, step(bayer, dry));
+    // §4 priority via paint order (later mix wins): grass -> bed -> rock ->
+    // sand on top. The blend band is a two-material dither: grass and rock
+    // texels only, never a third color (§4 rule 3).
+    vec3 albedo = grass;
     albedo = mix(albedo, dirt * 0.68, step(bayer, bed_w)); // dark wet bed
     albedo = mix(albedo, rock, step(bayer, rock_w));
     albedo = mix(albedo, sand, step(bayer, sand_w));
@@ -69,7 +71,8 @@ void main()
     albedo = mix(flat_albedo, albedo, step(0.5, u_params.x));
 
     float ndotl = max(dot(n, u_sunDir), 0.0);
-    vec3 lit = albedo * (u_ambientColor + u_sunColor * ndotl);
+    float vis = dfn_shadow_factor(v_wpos, n);
+    vec3 lit = albedo * (u_ambientColor + u_sunColor * (ndotl * vis));
 
     float fog = dfn_fog_factor(v_wpos);
     gl_FragColor = vec4(mix(lit, u_fogColor, fog), 1.0);

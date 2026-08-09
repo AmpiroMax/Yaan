@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -18,11 +18,13 @@ Dependencies:
 
 Notes:
 - Vertex color carries SPLAT WEIGHTS since stage 3b (contract with
-  fs_terrain.sc): R = sand, G = rock, B = water-bed, A = grass<->dirt dryness.
-  With a SurfaceFieldView the weights come from core's design-truth data
-  (surface_class + dist_to_water per LANDSCAPE §3.3/§4); without one they fall
-  back to slope-only rock. Pure function of the inputs — deterministic,
-  unit-tested.
+  fs_terrain.sc): R = sand, G = rock, B = water-bed, A = reserved (255).
+  With a SurfaceFieldView the weights come from core's surface_class ONLY —
+  the design truth (LANDSCAPE §3.3/§4); render never re-derives material
+  bands from raw dist/height fields (design ruling, feature-requests batch —
+  the removed dryness/dirt band painted 60 m brown washes over Grass).
+  Without a surface view weights fall back to slope-only rock. Pure function
+  of the inputs — deterministic, unit-tested.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -33,6 +35,8 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial contract + implementation.
 - 09:08:2026 - 11:57:20: Stage 3b — SurfaceFieldView overload; vertex color
   re-purposed from tint to splat weights (shader contract updated in step).
+- 09:08:2026 - 14:11:37: Dryness/dirt channel removed (design ruling): splat
+  keys off core's surface_class only; alpha reserved.
 */
 
 #pragma once

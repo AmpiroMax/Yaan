@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 11:57:20
+# Last updated: 09:08:2026 - 14:11:37
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -29,6 +29,8 @@
 #   include (shader dir added to shaderc -i), BgfxPalette.cpp.
 # - 09:08:2026 - 11:57:20: Stage 3b — fs_prop fragment shader ("prop" program
 #   for placeholder scatter/site meshes; shares vs_terrain).
+# - 09:08:2026 - 14:11:37: Dynamic sun shadows — vs_shadow/fs_shadow pair,
+#   dfn_shadow.sh shared include added to the shaderc dependency list.
 
 include(FetchContent)
 
@@ -66,16 +68,18 @@ function(dfn_compile_shader name type profile platform suffix)
                 "${DFN_SHADER_SRC_DIR}/${name}.sc"
                 "${DFN_SHADER_SRC_DIR}/varying.def.sc"
                 "${DFN_SHADER_SRC_DIR}/dfn_env.sh"
+                "${DFN_SHADER_SRC_DIR}/dfn_shadow.sh"
         COMMENT "shaderc ${name} (${profile})"
         VERBATIM)
     set_property(GLOBAL APPEND PROPERTY DFN_SHADER_OUTPUTS "${out}")
 endfunction()
 
 if(APPLE)
-    foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water)
+    foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
-    foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop)
+    foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop
+                   fs_shadow)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()

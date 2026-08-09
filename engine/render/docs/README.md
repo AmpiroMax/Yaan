@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 -->
 <!--
 UPD:
@@ -9,6 +9,7 @@ UPD:
 - 09:08:2026 - 10:31:00: Tour::default_steps(ground_height) — vantages offset by the app-supplied terrain height at the chunk center (old absolute heights sat under the generated surface and showed the terrain underside, mistaken for a flipped image).
 - 09:08:2026 - 11:25:00: Stage 3 «Картинка» — ProcTexture module, Materials.h look-dev environment, RenderSystem v2 (splat atlas, water plane, RenderEnvironment), Tour v2 six-vantage route, mesher dryness alpha.
 - 09:08:2026 - 11:57:20: Stage 3b — surface-truth splat (SurfaceFieldView), per-body water (WaterMesher), scatter batching (ProcMesh + ScatterBatcher), site placeholder meshes ids 1..7, Tour v3 §7.1 route with lazy ground resolution.
+- 09:08:2026 - 14:11:37: Feature-requests batch — splat fixes (dryness/dirt band REMOVED per design ruling: weights come from core's surface_class only; the band painted 60 m brown washes over Grass), chunky stone boulder (в3), afternoon southern sun for readable dynamic shadows (в1; shadows themselves live in the bgfx backend).
 -->
 
 # engine/render

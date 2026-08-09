@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 14:11:37
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -38,6 +38,9 @@ UPD:
   design constants SLOPE_GRASS_MAX/SLOPE_ROCK_MIN (1 - cos conversion; the
   flat-worldgen placeholder band is gone); water edge margin for per-body
   water meshes.
+- 09:08:2026 - 14:11:37: Sun lowered to afternoon height for readable dynamic
+  shadows (в1). The app's day/night cycle (в2) overrides all of sun/ambient/
+  fog/sky per frame via RenderSystem::environment(); these remain the defaults.
 */
 
 #pragma once
@@ -52,9 +55,14 @@ namespace dfn::render {
 
 // --- Look-dev constants (see header note: temporary until the design doc) ---
 
-// Sun from the south-east, fairly high — long readable slopes, warm light.
+// Sun from the south (slightly east), afternoon height. Retuned when dynamic
+// shadows landed (в1): the old near-noon ESE sun cast stubby shadows that hid
+// behind their objects from the tour vantages. At ~42 deg elevation with a
+// southern azimuth an oak throws a ~11 m shadow to the north and objects
+// visibly sit on the ground (the quality bar of the batch) in the
+// west/north-facing frames.
 inline const glm::vec3 LOOKDEV_SUN_DIRECTION =
-    glm::normalize(glm::vec3(0.35f, 0.80f, 0.45f));
+    glm::normalize(glm::vec3(0.30f, 0.62f, 0.62f));
 inline constexpr glm::vec3 LOOKDEV_SUN_COLOR{1.00f, 0.96f, 0.88f};
 inline constexpr glm::vec3 LOOKDEV_AMBIENT_COLOR{0.34f, 0.36f, 0.40f}; // cool skylight
 
