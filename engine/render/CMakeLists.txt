@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 11:57:20
+# Last updated: 09:08:2026 - 17:32:10
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -19,10 +19,14 @@
 # - 09:08:2026 - 00:45:00: Stage 2 — implementation sources.
 # - 09:08:2026 - 11:05:00: Stage 3 — ProcTexture.cpp (procedural textures).
 # - 09:08:2026 - 11:57:20: Stage 3b — ProcMesh, ScatterBatcher, WaterMesher.
+# - 09:08:2026 - 17:32:10: Map screen — PixelCanvas (first UI primitive) and
+#   MapScreen (explored top-down map).
 
 add_library(dfn_render STATIC
     sources/DebugDraw.cpp
     sources/FirstPersonCamera.cpp
+    sources/MapScreen.cpp
+    sources/PixelCanvas.cpp
     sources/ProcMesh.cpp
     sources/ProcTexture.cpp
     sources/RenderSystem.cpp

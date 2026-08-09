@@ -115,14 +115,24 @@ struct Heightmap {
 /// 0 = invalid. Runtime-spawned dynamic entities have no WorldEntityId.
 using WorldEntityId = uint64_t;
 
+/// Sentinel for GeneratedEntityRecord::ground_y: take the height from the
+/// chunk heightfield.
+inline constexpr float NO_GROUND_Y = -1.0e9f;
+
 /// One generated entity record inside a chunk (a tree, an NPC spawn, a chest...).
 /// `archetype` names a content-defined archetype (fnv1a64 of its data-file id);
 /// gameplay systems instantiate components from the archetype at chunk load.
 struct GeneratedEntityRecord {
     WorldEntityId world_id = 0;
     uint64_t archetype = 0;        ///< content id hash (serialization::fnv1a64).
-    glm::vec2 position_xz{0.0f};   ///< meters, world space; y from terrain.
+    glm::vec2 position_xz{0.0f};   ///< meters, world space.
     float yaw = 0.0f;              ///< radians.
+    /// Explicit ground height (meters). NO_GROUND_Y means "sample the
+    /// heightfield", which is right for everything standing on open terrain.
+    /// A carved entrance CANNOT use that: it stands on a floor cut below the
+    /// surface, and the heightfield does not know carves exist (the documented
+    /// limit of the derived heightfield under 3D geometry).
+    float ground_y = NO_GROUND_Y;
 };
 
 /// Owned per-sample surface data of one chunk (worldgen P3 outputs), same

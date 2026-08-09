@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 17:33:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -53,6 +53,11 @@ UPD:
   set_water_bodies/clear_water_bodies (lake planes + river ribbons),
   placeholder site meshes registered under the blessed RenderMesh ids 1..7,
   ECS submissions moved to the lit+fogged "prop" program.
+- 09:08:2026 - 17:33:00: Map screen (user request "миникарта как в скайриме"):
+  toggle_map/set_map_open/map_open + set_internal_resolution, a MapScreen
+  member fed by upload_terrain (explored chunks) and the ECS pass (site
+  markers), and the generic draw_overlay path that blits a PixelCanvas over
+  the frame as an unlit screen-filling quad (no IRenderer change, Rule 26).
 */
 
 #pragma once
@@ -60,6 +65,7 @@ UPD:
 #include "engine/core/math/sources/SurfaceField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
+#include "engine/render/sources/MapScreen.h"
 
 #include <chrono>
 #include <cstdint>
@@ -140,6 +146,21 @@ public:
     void clear_water(platform::IRenderer& renderer);
     [[nodiscard]] bool water_enabled() const { return water_mesh_ != 0; }
 
+    // Map screen (user request: a Skyrim-style map on a key) -------------------
+    // The map fills the frame as an opaque overlay while open; the world keeps
+    // rendering behind it (no app-loop change, and reopening costs nothing).
+    // The app owns the key binding — it calls toggle_map() on Key::M.
+    // Debug/verification: DFN_MAP=1 opens the map at init (tour evidence).
+    void toggle_map() { map_.toggle(); }
+    void set_map_open(bool open) { map_.set_open(open); }
+    [[nodiscard]] bool map_open() const { return map_.open(); }
+    // The internal (low-res) target size the overlay canvas is drawn at, so
+    // one canvas pixel is one screen pixel. Defaults to INTERNAL_RES /
+    // DFN_INTERNAL_RES; the app should pass the value it actually gave
+    // RendererInitParams (settings.cfg may override both).
+    void set_internal_resolution(uint32_t width, uint32_t height);
+    [[nodiscard]] const MapScreen& map() const { return map_; }
+
 private:
     struct ChunkKeyHash {
         size_t operator()(const glm::ivec2& v) const;
@@ -150,6 +171,13 @@ private:
     uint32_t procedural_texture_asset(platform::IRenderer& renderer, uint64_t key,
                                       uint32_t width, uint32_t height,
                                       const uint8_t* pixels);
+
+    // Blits a CPU screen canvas over the frame: uploads it as one RGBA8
+    // texture and draws the unlit quad that exactly fills the frustum just
+    // past the near plane. Generic on purpose — the future menu screen draws
+    // through the same path (no IRenderer contract change, Rule 26).
+    void draw_overlay(platform::IRenderer& renderer, const PixelCanvas& canvas,
+                      const FirstPersonCamera& camera, float alpha);
 
     // One micro-scatter tile resident on the GPU (culling data + mesh).
     struct MicroTileRes {
@@ -177,6 +205,10 @@ private:
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
     uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
     uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no debug water plane
+    uint32_t overlay_mesh_ = 0;        // MeshHandle.id, screen-filling quad
+    uint32_t overlay_texture_ = 0;     // TextureHandle.id, re-uploaded per frame
+    glm::uvec2 internal_res_{0, 0};    // overlay canvas size (internal pixels)
+    MapScreen map_;
     platform::RenderEnvironment environment_{};
     std::chrono::steady_clock::time_point clock_start_{}; // visual time origin
 };

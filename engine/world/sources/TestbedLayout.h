@@ -160,6 +160,13 @@ struct CarveLayout {
     CarveCorridor crag_tunnel{};
     CarveCorridor barrow_passage{};
     CarveChamber barrow_chamber{};
+    /// Which TestbedLayout::sites entry each carved entrance belongs to, so P4
+    /// can DERIVE that marker from the carve mouth instead of scoring a pad for
+    /// it. -1 = this site has no carve yet and falls back to the scorer.
+    /// (Derived-only now covers carve-adjacent placement, not just water.)
+    int barrow_site_index = 2;
+    int lakeshore_site_index = -1; ///< pending design's bluff-face ruling
+    CarveCorridor lakeshore_adit{};
 };
 
 /// Castle layout (LANDSCAPE §6.1 ruling): House Corvane's seat on the crag's

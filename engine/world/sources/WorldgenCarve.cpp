@@ -131,6 +131,42 @@ float carve_distance(const TestbedLayout& layout, glm::vec3 world) {
     return d;
 }
 
+std::optional<CarveMouth> carve_mouth(const CarveCorridor& corridor,
+                                      const GroundSampler& ground) {
+    // Walk from the outer end inward at fine steps; the mouth is the first
+    // station whose CEILING is under the terrain. Everything before it is the
+    // open approach cutting, which is why placing a marker at the polyline's
+    // start puts it metres short of the actual opening.
+    for (int i = 0; i + 1 < corridor.point_count; ++i) {
+        const glm::vec3 a = corridor.points[i];
+        const glm::vec3 b = corridor.points[i + 1];
+        const float len = glm::length(b - a);
+        const int steps = std::max(1, static_cast<int>(len / 0.5f));
+        for (int s = 0; s <= steps; ++s) {
+            const glm::vec3 p = a + (b - a) * (static_cast<float>(s) / steps);
+            if (p.y + corridor.height < ground({p.x, p.z})) {
+                const glm::vec2 heading = glm::normalize(glm::vec2{b.x - a.x, b.z - a.z});
+                return CarveMouth{p, -heading}; // face back out of the hill
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<CarveMouth> site_carve_mouth(const TestbedLayout& layout, int site_index,
+                                           const GroundSampler& ground) {
+    if (site_index < 0) {
+        return std::nullopt;
+    }
+    if (site_index == layout.carves.barrow_site_index) {
+        return carve_mouth(layout.carves.barrow_passage, ground);
+    }
+    if (site_index == layout.carves.lakeshore_site_index) {
+        return carve_mouth(layout.carves.lakeshore_adit, ground);
+    }
+    return std::nullopt;
+}
+
 std::pair<float, float> carve_column_range(const TestbedLayout& layout,
                                            glm::vec2 world_xz) {
     auto [lo, hi] = corridor_column_range(layout.carves.crag_tunnel, world_xz);

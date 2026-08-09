@@ -62,15 +62,16 @@ namespace dfn::render {
 
 // --- Map layout constants (look-dev; NUMBERS.md migration requested) --------
 
-/// Baked map pixels per chunk side. 256 m / 64 px = 4 m per map pixel, so the
-/// 1024 m testbed is a 256x256 px map inside the 640x360 internal target.
-inline constexpr uint32_t MAP_TILE_PX = 64;
+/// Baked map pixels per chunk side. 256 m / 80 px = 3.2 m per map pixel, so
+/// the 1024 m testbed is a 320x320 px plate — the largest square that fits the
+/// 640x360 internal target with a margin, and exactly half of it at 320x180.
+inline constexpr uint32_t MAP_TILE_PX = 80;
 /// Border between the map plate and the screen edge, internal pixels.
 inline constexpr int MAP_MARGIN_PX = 6;
 /// Site silhouette box (the stamps below are drawn inside it).
 inline constexpr int MAP_MARKER_PX = 7;
 /// Player arrow length along the facing direction, internal pixels.
-inline constexpr int MAP_PLAYER_ARROW_PX = 9;
+inline constexpr int MAP_PLAYER_ARROW_PX = 11;
 /// Position quantization for marker de-duplication (meters): buildings of one
 /// hamlet stay separate dots, the multi-part castle collapses into one mark.
 inline constexpr float MAP_MARKER_MERGE_M = 6.0f;
@@ -124,8 +125,15 @@ public:
                                              glm::vec3 eye, float yaw);
 
 private:
+    /// A baked chunk: per map pixel the averaged height, the hill-shade term
+    /// and a water flag. Colors are resolved at compose() time because the
+    /// elevation ramp is stretched over the range actually EXPLORED — keyed to
+    /// the 0..WORLDGEN_MAX_HEIGHT quantization range the whole valley
+    /// collapsed into a single green band.
     struct Tile {
-        std::vector<uint8_t> rgb; // MAP_TILE_PX^2 * 3, row 0 = north edge
+        std::vector<float> height;  // meters, MAP_TILE_PX^2
+        std::vector<uint8_t> shade; // lambert * 255
+        std::vector<uint8_t> water; // 0/1
     };
     struct Marker {
         glm::vec2 position{0.0f};
@@ -135,6 +143,8 @@ private:
     std::unordered_map<uint64_t, Tile> tiles_; // packed chunk coord -> tile
     glm::ivec2 min_chunk_{0, 0};
     glm::ivec2 max_chunk_{0, 0};
+    float min_height_ = 0.0f; // explored elevation span -> ramp normalization
+    float max_height_ = 0.0f;
     std::vector<Marker> markers_;
     std::unordered_set<uint64_t> marker_keys_;
     PixelCanvas canvas_;

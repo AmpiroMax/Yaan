@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 17:33:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -38,6 +38,10 @@ UPD:
   batches (trees + GRASS_VIEW_DISTANCE micro tiles), per-body water (lake
   planes + river ribbons), site placeholder meshes under blessed ids 1..7,
   ECS submissions on the "prop" program.
+- 09:08:2026 - 17:33:00: Map screen: overlay quad + per-frame canvas texture
+  (draw_overlay), map_.note_chunk on terrain upload, map_.note_site in the ECS
+  pass (before the mesh lookup, so the mesh-less castle ids 8..11 still map),
+  DFN_MAP=1 opens the map at init for the tour evidence shot.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -50,13 +54,16 @@ UPD:
 #include "engine/render/sources/ProcTexture.h"
 #include "engine/render/sources/ScatterBatcher.h"
 #include "engine/render/sources/TerrainMesher.h"
+#include "engine/render/sources/Tour.h"
 #include "engine/render/sources/WaterMesher.h"
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/matrix.hpp>
 
 namespace dfn::render {
 
@@ -149,6 +156,32 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             LOOKDEV_WATER_TEX_PX, LOOKDEV_WATER_TEX_PX, water.data());
     }
 
+    // Screen overlay quad (map screen now, menus later): a unit quad in model
+    // space, placed in front of the camera per frame by draw_overlay. Row 0 of
+    // a canvas is the TOP of the screen, hence v = 0 on the +y corners.
+    {
+        const glm::vec3 face{0.0f, 0.0f, 1.0f};
+        const std::array<platform::Vertex, 4> vertices{{
+            {{-1.0f, 1.0f, 0.0f}, face, {0.0f, 0.0f}, 0xFFFFFFFFu},
+            {{1.0f, 1.0f, 0.0f}, face, {1.0f, 0.0f}, 0xFFFFFFFFu},
+            {{1.0f, -1.0f, 0.0f}, face, {1.0f, 1.0f}, 0xFFFFFFFFu},
+            {{-1.0f, -1.0f, 0.0f}, face, {0.0f, 1.0f}, 0xFFFFFFFFu},
+        }};
+        const std::array<uint32_t, 6> indices{0, 1, 2, 0, 2, 3};
+        overlay_mesh_ = renderer.create_mesh(vertices, indices).id;
+    }
+    // Canvas size = the internal target, so one canvas pixel is one screen
+    // pixel. The app should confirm it via set_internal_resolution (settings.cfg
+    // can override both the constant and the env var).
+    internal_res_ = Tour::internal_res_from_env(
+        {static_cast<uint32_t>(config::INTERNAL_RES_W),
+         static_cast<uint32_t>(config::INTERNAL_RES_H)});
+    // Verification hook (Rule 27): the screenshot tour cannot press M, so
+    // DFN_MAP=1 opens the map from the first frame.
+    if (const char* menv = std::getenv("DFN_MAP"); menv != nullptr && menv[0] == '1') {
+        map_.set_open(true);
+    }
+
     environment_ = make_default_environment();
     clock_start_ = std::chrono::steady_clock::now();
 
@@ -172,6 +205,14 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
 void RenderSystem::shutdown(platform::IRenderer& renderer) {
     clear_water(renderer);
     clear_water_bodies(renderer);
+    if (overlay_mesh_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{overlay_mesh_});
+        overlay_mesh_ = 0;
+    }
+    if (overlay_texture_ != 0) {
+        renderer.destroy_texture(platform::TextureHandle{overlay_texture_});
+        overlay_texture_ = 0;
+    }
     for (const auto& [coord, mesh_id] : terrain_meshes_) {
         renderer.destroy_mesh(platform::MeshHandle{mesh_id});
     }
@@ -255,6 +296,10 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                components::RenderMesh>()
         .each([&](ecs::EntityId, components::Transform& curr,
                   components::PreviousTransform& prev, components::RenderMesh& rm) {
+            // Map discovery: a site is remembered as soon as its chunk is
+            // resident, BEFORE the mesh lookup — the castle parts (ids 8..11)
+            // have no placeholder mesh yet but must still appear on the map.
+            map_.note_site(rm.mesh_asset, curr.position);
             const auto mesh_it = mesh_cache_.find(rm.mesh_asset);
             if (mesh_it == mesh_cache_.end()) {
                 return; // asset not resident — nothing to draw
@@ -284,7 +329,59 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                         water_tex);
     }
 
+    // Map screen: last submit of the frame, opaque, covering everything. The
+    // world behind it is still drawn (a few hundred microseconds at these
+    // budgets) so toggling the map is instant and needs no app-loop change.
+    if (map_.open()) {
+        const CameraPose pose = camera.interpolated_pose(alpha);
+        draw_overlay(renderer,
+                     map_.compose(internal_res_.x, internal_res_.y, pose.position,
+                                  pose.yaw),
+                     camera, alpha);
+    }
+
     renderer.end_frame();
+}
+
+void RenderSystem::set_internal_resolution(uint32_t width, uint32_t height) {
+    if (width > 0 && height > 0) {
+        internal_res_ = {width, height};
+    }
+}
+
+void RenderSystem::draw_overlay(platform::IRenderer& renderer, const PixelCanvas& canvas,
+                                const FirstPersonCamera& camera, float alpha) {
+    if (overlay_mesh_ == 0 || unlit_program_ == 0 || canvas.width() == 0) {
+        return;
+    }
+    // One upload per frame: IRenderer has no texture update (frozen contract),
+    // so the canvas texture is recreated. At 640x360 that is 900 KB — cheap,
+    // and only while a screen is open.
+    if (overlay_texture_ != 0) {
+        renderer.destroy_texture(platform::TextureHandle{overlay_texture_});
+        overlay_texture_ = 0;
+    }
+    const platform::TextureHandle texture =
+        renderer.create_texture(canvas.width(), canvas.height(),
+                                platform::TextureFormat::RGBA8, canvas.pixels());
+    if (!texture.valid()) {
+        return;
+    }
+    overlay_texture_ = texture.id;
+
+    // Quad placed just past the near plane, sized to EXACTLY fill the frustum
+    // there (half height = d * tan(fov/2)), so one canvas pixel lands on one
+    // internal pixel and the point sampler stays crisp (an overscan factor
+    // duplicated pixel columns and softened the map). Depth test LESS lets it
+    // cover every earlier submit.
+    const float depth = std::max(camera.near_plane(), 0.01f) * 1.5f;
+    const float half_h = depth * std::tan(camera.fov_y() * 0.5f);
+    const float half_w = half_h * camera.aspect_ratio();
+    const glm::mat4 model = glm::inverse(camera.view(alpha))
+                          * glm::translate(glm::mat4(1.0f), {0.0f, 0.0f, -depth})
+                          * glm::scale(glm::mat4(1.0f), {half_w, half_h, 1.0f});
+    renderer.submit(platform::MeshHandle{overlay_mesh_},
+                    platform::ProgramHandle{unlit_program_}, model, texture);
 }
 
 void RenderSystem::set_water(platform::IRenderer& renderer, float height_m,
@@ -330,6 +427,9 @@ void RenderSystem::upload_terrain(platform::IRenderer& renderer,
 void RenderSystem::upload_terrain(platform::IRenderer& renderer,
                                   const math::HeightFieldView& field,
                                   const math::SurfaceFieldView* surface) {
+    // Explored map: the chunk is baked into the map the moment it streams in,
+    // and stays there after unload (drop_terrain frees the GPU mesh only).
+    map_.note_chunk(field, surface);
     const TerrainMeshData data = build_terrain_mesh(field, surface);
     if (data.vertices.empty()) {
         return;

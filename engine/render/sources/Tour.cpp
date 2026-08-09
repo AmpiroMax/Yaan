@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 17:33:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -35,6 +35,7 @@ UPD:
   tour-driven streaming, testbed_steps() aimed at the LANDSCAPE §7.1 layout
   (crag money shot, river ford, lake bluff, hamlet approach, forest species,
   overview).
+- 09:08:2026 - 17:33:00: map_probe_steps() + DFN_MAP gate in testbed_steps.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -208,7 +209,23 @@ float aim_yaw(glm::vec2 from, glm::vec2 to) {
 
 } // namespace
 
+std::vector<TourStep> Tour::map_probe_steps() {
+    // ONE frame, and it is the map screen (RenderSystem opens it on DFN_MAP=1).
+    // Parked at the middle of the testbed so the streaming radius reveals the
+    // whole valley, and yawed south-east so the arrow's facing is unambiguous
+    // (a north-up arrow could be read as "the marker just points up").
+    const float mid = static_cast<float>(config::TESTBED_SIZE) * 0.5f;
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    return {{"map_screen", {mid, eye, mid}, 2.36f, 0.0f, 90, true}};
+}
+
 std::vector<TourStep> Tour::testbed_steps() {
+    // Verification hook (Rule 27, user instruction "one variant, no
+    // near-identical frames"): with DFN_MAP=1 the tour collapses to the single
+    // map frame instead of shooting the same overlay seven times.
+    if (env_or_null("DFN_MAP") != nullptr) {
+        return map_probe_steps();
+    }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative
     // (y = offset above terrain, resolved through the begin() callback while

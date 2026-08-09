@@ -33,6 +33,7 @@ UPD:
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/serialization/sources/ContentHash.h"
+#include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenNoise.h"
 #include "engine/world/sources/Worldgen.h"
@@ -81,13 +82,16 @@ struct Placer {
     SitesData& out;
     WorldEntityId next_id = 1;
 
-    void emit(SiteType type, glm::vec2 pos, float yaw) {
+    void emit(SiteType type, glm::vec2 pos, float yaw, bool with_pad = true,
+              float ground_y = NO_GROUND_Y) {
         const SiteArchetype& a = site_archetype(type);
-        const float r = pad_radius(a);
-        const float h = ground_height(seed, layout, hydro, pos);
-        out.pads.push_back(BuildingPad{pos, r, r * 0.5f, h});
+        if (with_pad) {
+            const float r = pad_radius(a);
+            const float h = ground_height(seed, layout, hydro, pos);
+            out.pads.push_back(BuildingPad{pos, r, r * 0.5f, h});
+        }
         out.entities.push_back(GeneratedEntityRecord{
-            next_id++, serialization::fnv1a64(a.content_id), pos, yaw});
+            next_id++, serialization::fnv1a64(a.content_id), pos, yaw, ground_y});
         out.types.push_back(type);
     }
 
@@ -200,6 +204,27 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
             break;
         }
         case SiteKind::DungeonEntrance: {
+            // DERIVED, NOT SCORED: if this entrance has a carve, its marker
+            // belongs at the carve's mouth facing out — the pad scorer knows
+            // about slope and dryness but nothing about "a mouth needs a
+            // hillside to face out of", and left one marker 10 m outside its
+            // own passage and another on the crown of the bluff it should sit
+            // under. Same rule as fords being derived from the generated trace.
+            const auto ground = [&](glm::vec2 p) {
+                return ground_height(seed, layout, hydro, p);
+            };
+            if (const auto mouth = site_carve_mouth(layout, si, ground)) {
+                // Stand just outside the opening so the frame reads against
+                // the rock face instead of being buried in it.
+                const glm::vec2 pos =
+                    glm::vec2{mouth->position.x, mouth->position.z} + mouth->outward * 1.5f;
+                // No pad: the carve already provides the floor, and flattening
+                // a disc here would cut away the rock above the opening.
+                placer.emit(SiteType::DungeonEntrance, pos,
+                            std::atan2(mouth->outward.x, -mouth->outward.y), false,
+                            mouth->position.y);
+                break;
+            }
             const glm::vec2 pos = placer.place(rng, site.position, 10.0f);
             // Face away from the crag (barrow: south face) or toward the town.
             const glm::vec2 away = pos - layout.crag.center;

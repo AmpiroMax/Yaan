@@ -161,8 +161,9 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
                 std::vector<SiteMarker> markers(n);
                 for (std::size_t i = 0; i < n; ++i) {
                     const GeneratedEntityRecord& rec = chunk.entities[i];
-                    const float y =
-                        chunk.heightmap.sample_world(coord, rec.position_xz);
+                    const float y = rec.ground_y != NO_GROUND_Y
+                                      ? rec.ground_y
+                                      : chunk.heightmap.sample_world(coord, rec.position_xz);
                     transforms[i].position = {rec.position_xz.x, y, rec.position_xz.y};
                     transforms[i].rotation =
                         glm::angleAxis(rec.yaw, glm::vec3{0.0f, 1.0f, 0.0f});

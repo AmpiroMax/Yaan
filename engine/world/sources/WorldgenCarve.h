@@ -41,7 +41,9 @@ UPD:
 
 #include "engine/world/sources/TestbedLayout.h"
 
+#include <functional>
 #include <glm/vec3.hpp>
+#include <optional>
 #include <utility>
 
 namespace dfn::world {
@@ -59,5 +61,28 @@ namespace dfn::world {
 
 /// True if any carve exists in this layout (lets the builder skip the work).
 [[nodiscard]] bool has_carves(const TestbedLayout& layout);
+
+/// Terrain height sampler (macro + carve, WITHOUT pads — pads are what P4 is
+/// still deciding when this is called).
+using GroundSampler = std::function<float(glm::vec2)>;
+
+/// Where a corridor stops being open to the sky and rock closes overhead: the
+/// real entrance. `outward` points back out of the hill, i.e. the direction an
+/// arriving player faces the opening from.
+struct CarveMouth {
+    glm::vec3 position{0.0f};
+    glm::vec2 outward{0.0f, 1.0f};
+};
+
+/// Finds the mouth of `corridor`, or nullopt when the corridor never goes
+/// under rock at all (a carve entirely in the open is not an entrance).
+[[nodiscard]] std::optional<CarveMouth> carve_mouth(const CarveCorridor& corridor,
+                                                    const GroundSampler& ground);
+
+/// The mouth belonging to site `site_index`, or nullopt when that site has no
+/// carve. THIS is what P4 uses: a carved entrance is derived, never scored.
+[[nodiscard]] std::optional<CarveMouth> site_carve_mouth(const TestbedLayout& layout,
+                                                         int site_index,
+                                                         const GroundSampler& ground);
 
 } // namespace dfn::world

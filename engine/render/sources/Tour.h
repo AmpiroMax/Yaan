@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 17:33:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -58,6 +58,8 @@ UPD:
   (far vantages' chunks are not resident at arm time), focus_position() so
   the app can stream around the tour camera, testbed_steps() — the
   LANDSCAPE §7.1 route (crag/river/lake/hamlet/forest/overview).
+- 09:08:2026 - 17:33:00: map_probe_steps() — the single-frame map screen
+  evidence route; testbed_steps() returns it when DFN_MAP is set.
 */
 
 #pragma once
@@ -139,6 +141,12 @@ public:
     // shore with the bluff, hamlet approach, forest species, overview). All
     // steps are ground_relative; pass a ground_at callback to begin().
     [[nodiscard]] static std::vector<TourStep> testbed_steps();
+
+    // Map screen evidence shoot (Rule 27): a SINGLE vantage at the middle of
+    // the testbed. The tour cannot press M, so RenderSystem opens the map on
+    // DFN_MAP=1 and testbed_steps() returns this route under the same variable
+    // — one frame, not seven copies of the same overlay.
+    [[nodiscard]] static std::vector<TourStep> map_probe_steps();
 
 private:
     // Step position with ground_relative y resolved via ground_at_ (absolute

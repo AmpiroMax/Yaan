@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 15:33:48
+Last updated: 09:08:2026 - 17:28:51
 -->
 <!--
 UPD:
@@ -16,6 +16,7 @@ UPD:
 - 09:08:2026 - 15:08:24: §6.1.2 — gate orientation settled as valley-facing (story canon, BIBLE §5.1), and the two new castle invariants (approach ramp, yard/gate->barrow sightline) explicitly joined to the C1-guarded set: re-validated by the same canopy-aware raycast on every worldgen run, not once at authoring time (raised by story: a later pine retune could occlude either).
 - 09:08:2026 - 15:22:13: C2 scope corrected (my error): POI_VISIBLE_COUNT is region-only per NUMBERS.md/Q46 and is unsatisfiable at testbed density alongside LANDMARK_VISIBILITY_MIN — general-bound citation withdrawn. Added Rule C2-testbed (no coequal crowd): max 2 attractors within a 2.0 subtended-size ratio, L0 exempt, composite POIs count once; occlude-and-reveal remains the real guarantee. Region bound unchanged.
 - 09:08:2026 - 15:33:48: C2-testbed limit raised 2 -> 3 on measured evidence (seed-1 crowd is three threshold-scale marks at 8-11 px), with a tightening to 2 for large crowds (COEQUAL_LARGE_PX 24 px). Blessed core's three measurement definitions into the doc: apparent size = height/distance (not top elevation angle, one definition shared by C2/C4/R4), only >=SILHOUETTE_MIN_PX attractors compete, body-backed attractors exempt per standpoint with the raw count still reported.
+- 09:08:2026 - 17:28:51: New §6.2 — dungeon entrance archetypes after a live player read a mis-sited entrance as a bug: relief-selected adit vs sunken barrow; flat-ground answer is a stamped mound + cut forecourt + lintel (generator makes the relief it needs) with four findability layers; marker/facing derived from the carve mouth (derived-only rule extended to carve-adjacent placements); attractor status ruled (assembly counts, hole never does, short-range L1 only).
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -777,6 +778,75 @@ ground target ≈ 24 m so R3 holds with a 15 m keep. Core solves the exact
 position against the C1 re-validation; the invariants above are the contract,
 the coordinates are a starting stamp.
 
+### 6.2 Dungeon entrances — archetypes (ruling, stage-3)
+
+An entrance is a **terrain feature first and a prop second**. The generic
+building-pad scorer (flat + dry) is the wrong tool: a cave mouth needs a
+hillside to face out of, and flat dry ground is precisely where it cannot
+exist. Two archetypes, selected by measured relief.
+
+**Selection rule.** Measure relief within 25 m of the candidate site. Relief
+≥ `DUNGEON_ENTRANCE_MIN_RELIEF` = 6 m → **adit** (horizontal). Below that →
+**sunken barrow** (descending). **(предложение — утвердить)**
+
+**Marker and facing are DERIVED, never tabled** — from the carve mouth
+position and its outward normal. This is the §7.1a derived-only rule, which
+now explicitly covers **carve-adjacent** placements as well as water-adjacent
+ones: any prop whose meaning depends on generated geometry is derived from
+that geometry. A marker 10 m from its mouth is not a cosmetic defect, it is
+the same class of bug as a ford that isn't on the river.
+
+#### 6.2.1 Adit (sloped ground, ≥ 6 m relief)
+
+Mouth cut into the hillside, facing out along the slope normal; stub passage
+15–20 m. Frame the mouth with a dark lintel and a 2–4 m rubble apron. The
+hill itself supplies the silhouette, so no extra marking is required beyond
+the scatter exclusion below.
+
+#### 6.2.2 Sunken barrow (flat ground) — the flat-ground answer
+
+Do **not** place a bare hole. A hole in flat ground has no silhouette, cannot
+be found, and reads as a bug — which is exactly what happened. Instead, the
+generator **makes** the relief it needs, in the shape the fiction already
+wants: a **mound with a cut forecourt leading to a lintel in its flank**.
+This is a real chambered-barrow form (mound + forecourt + portal), it is one
+radial stamp plus one linear trench stamp, and it solves geometry and
+readability with the same gesture:
+
+| Element | Value (предложение — утвердить) | Purpose |
+|---|---|---|
+| Mound | `BARROW_MOUND_HEIGHT` 3.0 m, `BARROW_MOUND_RADIUS` 15 m | the silhouette — restores the "hillside to face out of" |
+| Forecourt trench | `BARROW_FORECOURT_LENGTH` 8 m, `BARROW_FORECOURT_WIDTH` 3 m, descending to `BARROW_FORECOURT_DEPTH` 2.5 m at the portal | the descent, walkable |
+| Trench slope | ≤ `BARROW_FORECOURT_SLOPE` 0.35 rad (20°) | under `PLAYER_MAX_SLOPE` with margin; no step > `PLAYER_STEP_HEIGHT` |
+| Standing stones | `STANDING_STONE_COUNT` 2–4, `STANDING_STONE_HEIGHT` 2.0–2.5 m | vertical accents flanking the approach — a leading line pointing in |
+
+Mound crest to trench floor gives ≈ 5.5 m of working relief — enough for a
+portal at human scale. It is walked down, never fallen into.
+
+**Findability layers** (a descending entrance must be *earned* by the
+approach, §1.4): (1) the mound's silhouette; (2) standing stones as the
+directional cue — they read as *intentional* at distance, which nothing
+natural does; (3) a scatter exclusion ring, `ENTRANCE_SCATTER_EXCLUSION` =
+mound radius + 5 m, with no trees or bushes and shortened grass — in a forest
+clearing a bald ring reads as made ground; (4) value: the trench interior is
+the darkest value in the frame, and the eye goes to the dark hole. At the
+forest-ruin site this stacks with the ruin walls §7.1 already specifies —
+ruin above ground, barrow beneath it, one coherent site.
+
+#### 6.2.3 Attractor status (C1/C2)
+
+- **The assembly counts, the hole never does.** Mound + stones + ruin are the
+  attractor; the forecourt and portal contribute no silhouette and are never
+  counted.
+- It credits C1 **only within its readable range** — a 3 m mound at 15 m
+  radius clears `SILHOUETTE_MIN_PX` out to roughly 90–110 m at 640×360, so it
+  is a short-range L1. Beyond that the clearing's approach rests on the forest
+  edge and corridor guides, not on the barrow.
+- It counts **once** as a composite POI (§6.1.2), and being threshold-scale it
+  will rarely join a coequal crowd (§1.1 C2-testbed).
+- Trivially compliant with C4 at 3 m; a sunken barrow can never contest the
+  L0.
+
 ## 7. Testbed application (worldgen v2, что core реализует первым)
 
 Canvas: 4×4 chunks, world XZ = 0…1024 m both axes, seed 1, current surface
@@ -796,8 +866,8 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 | **Shrine knoll** | (560, 620) | knoll +6 m local bump stamp; shrine spire breaks skyline from town and from ford (430, 620) |
 | **Dungeon 1: barrow in the crag** (TESTBED_DUNGEONS 1/3) | entrance (780, 290), south face of the crag | entrance pad + dark portal frame; visible from foothill watchpoint, not from town (occlude-and-reveal) |
 | **Castle: House Corvane's seat** (§6.1) | pad center (760, 330) ± 20 m, crag SW foot spur, ground ≈ 24 m | terraced 60 m pad; keep ≤ 15 m (R3); composite POI with the barrow; commands the watchpoint ford; scored in C1 as occluder AND attractor |
-| **Dungeon 2: forest ruin** | (620, 850), inside SE oak forest | in a clearing (r = 25 m); ruin walls = L2 from clearing edge |
-| **Dungeon 3: lakeshore cave** | (180, 350), NW lake shore under a 10 m bluff stamp | reachable along the sand shore; visible across the water from town (water gap = curiosity) |
+| **Dungeon 2: forest ruin** | (620, 850), inside SE oak forest | in a clearing (r = 25 m); ruin walls = L2 from clearing edge; ground is flat here, so the entrance is the **sunken barrow** archetype (§6.2.2) — stamped mound + forecourt under the ruin |
+| **Dungeon 3: lakeshore cave** | (180, 350), NW lake shore — mouth at the **foot** of the 10 m bluff, never its crown | adit (§6.2.1), 15–20 m stub; mouth ≥ 2 m above the lake plane; reachable along the sand shore; visible across the water from town (water gap = curiosity) |
 | **Foothill watchpoint (minor POI)** | (660, 430) | rock outcrop cluster + lone skyline pine + ford; bridges the town↔barrow gap in the POI chain |
 | **Forest masses** | oak: S+SE band (roughly z > 700 plus x > 500, z > 600); pine: **radial ridge strips** on the crag foothills (4 sectors, duty 0.25 — layout knobs `pine_strip_count`/`pine_strip_duty`; a closed annulus can never pass canopy-C1, see §1.3) + N ridge strips | total coverage ≈ 0.30 of land; clearings per §2.2; birch lines along river and lake banks (derived from `dist_to_water`, never tabled) |
 | **Meadows** | center and west | flower patches, outcrops, meadow clusters per §2.2–2.3 |
