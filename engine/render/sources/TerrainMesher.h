@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:01:04
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -45,6 +45,10 @@ UPD:
   equality rather than asserting it in prose. (2) TerrainMeshOptions::
   skirt_depth_m appends a vertical apron to the four borders, which is what
   hides the T-junction crack between two adjacent LOD levels.
+- 10:08:2026 - 01:47:53: TerrainMeshOptions::clip_min/clip_max — the mesh half
+  of the straddle-ring fix (see TerrainLod.cpp UPD of the same date): cells
+  wholly inside the chunk-streamed rectangle are not emitted and skirts hang
+  along the cut boundary. Empty clip keeps the emission path bit-identical.
 */
 
 #pragma once
@@ -85,6 +89,21 @@ struct TerrainMeshOptions {
     /// Derive it with lod_skirt_depth_m(); chunks share a sample lattice with
     /// their neighbours by contract and need none.
     float skirt_depth_m = 0.0f;
+
+    /// World-space xz rectangle to EXCLUDE from the mesh (empty when
+    /// clip_max <= clip_min on either axis = no clip, the default). Cells
+    /// whose footprint lies WHOLLY inside are not emitted; cells cut by the
+    /// rectangle are kept whole (the safe direction — at most one cell of
+    /// overlap, and zero for the real caller: every LOD voxel size divides
+    /// the 256 m chunk grid, so a chunk-aligned rectangle lands exactly on
+    /// cell boundaries at every level). This is the straddle-ring fix's
+    /// mesh half: a LOD node overlapping the chunk-streamed rectangle is
+    /// SELECTED whole at its distance-correct level and clipped here, instead
+    /// of being force-split to level 0. Skirts (skirt_depth_m) hang along the
+    /// cut boundary exactly as along the outer border — the cut is a seam
+    /// against differently-latticed chunk meshes and cracks the same way.
+    glm::vec2 clip_min{0.0f};
+    glm::vec2 clip_max{0.0f};
 };
 
 /// Full form. Skirt vertices are appended AFTER the resolution^2 grid vertices,

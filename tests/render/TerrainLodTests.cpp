@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:58:00
-Last updated: 09:08:2026 - 22:12:57
+Last updated: 10:08:2026 - 01:47:53
 Module: tests
 File: tests/render/TerrainLodTests.cpp
 
@@ -32,6 +32,10 @@ UPD:
   origin. The reason it matters is not tidiness: UPD stamps are the only
   cross-zone ordering record this project has, and a stamp half an hour early
   reorders history while looking exactly like a correct one.
+- 10:08:2026 - 01:47:53: Straddle-ring fix: the carve-out cases now assert the
+  NEW contract (no node wholly inside; straddlers accepted at ladder level and
+  clipped by the mesher) plus the zero-level-0 ring case the old force-split
+  rule fails.
 */
 
 #include "engine/render/sources/TerrainLod.h"
@@ -292,9 +296,6 @@ NodeRect rect_of(const LodNode& n) {
     const float z0 = static_cast<float>(n.z) * s;
     return {x0, z0, x0 + s, z0 + s};
 }
-bool overlaps(const NodeRect& a, const dfn::render::LodRect& b) {
-    return a.x0 < b.max.x && a.x1 > b.min.x && a.z0 < b.max.y && a.z1 > b.min.y;
-}
 bool covers(const LodNode& n, float x, float z) {
     const NodeRect r = rect_of(n);
     return x >= r.x0 && x < r.x1 && z >= r.z0 && z < r.z1;
@@ -327,9 +328,16 @@ TEST_CASE("the streamed rectangle is carved out of the selection") {
     CHECK(contains(blind, *under));
     CHECK_FALSE(contains(carved, *under));
 
-    // No selected node overlaps the rectangle AT ALL — not merely "mostly".
+    // No selected node lies WHOLLY inside the rectangle. A straddling node MAY
+    // be selected — the mesher removes its inside cells (clip_*), so what is
+    // forbidden is a node whose entire footprint is chunk ground.
+    const auto wholly_inside = [&](const LodNode& n) {
+        const NodeRect r = rect_of(n);
+        return r.x0 >= resident.min.x && r.z0 >= resident.min.y
+            && r.x1 <= resident.max.x && r.z1 <= resident.max.y;
+    };
     for (const LodNode& n : carved) {
-        CHECK_FALSE(overlaps(rect_of(n), resident));
+        CHECK_FALSE(wholly_inside(n));
     }
 
     // And nothing outside the rectangle is lost in the process: every sample
@@ -353,10 +361,53 @@ TEST_CASE("the streamed rectangle is carved out of the selection") {
     }
 }
 
-TEST_CASE("a node straddling the streamed border splits instead of overlapping") {
-    // The rectangle sits in the world corner and the eye is 2 km away, so the
-    // screen-error rule alone would put a single COARSE node over that whole
-    // corner — and that node would redraw ground the chunk ring already owns.
+TEST_CASE("the streaming ring never demands level 0 — the straddle-ring defect") {
+    // THE DEFECT THIS REJECTS (core's measurement, 09:08:2026): with the real
+    // chunk-aligned rectangle — CHUNK_LOAD_RADIUS 2, i.e. 5 x 256 m around the
+    // eye's chunk — the old "straddling -> force split" rule selected 44 of 51
+    // nodes at LEVEL 0 on ground 500-700 m away, where the ladder itself says
+    // level 1 is competent past 440 m. A 1280 m rectangle always cuts the
+    // 512 m level-1 grid at odd 256 m multiples on two of its four edges, so
+    // this happened EVERY frame, not in a corner case. The old code FAILS this
+    // case; that failure is what makes the zero-level-0 assertion below a test
+    // rather than a description (Rule 30).
+    const glm::vec2 lo{0.0f, 0.0f};
+    const glm::vec2 hi{2048.0f, 2048.0f};
+    const glm::vec3 eye{1024.0f, 20.0f, 1024.0f};
+    // Eye is in chunk (4,4): resident = chunks (2..6)^2 = 512..1792 m.
+    const dfn::render::LodRect resident{{512.0f, 512.0f}, {1792.0f, 1792.0f}};
+
+    const auto carved = dfn::render::select_lod_nodes(eye, lo, hi, resident);
+    REQUIRE_FALSE(carved.empty());
+
+    // Everything the LOD draws lies outside (or straddles) a rectangle whose
+    // border is at least 512 m from the eye, and level 1 is competent from
+    // 440 m — so the ladder never needs level 0 here, whatever the eye's
+    // position inside its chunk.
+    for (const LodNode& n : carved) {
+        CHECK(n.level >= 1);
+    }
+
+    // The selection still covers the ring: the max edge at 1792 is an odd
+    // 256 m multiple, so nodes cross it — ground just outside it (1800 m)
+    // belongs to exactly one selected (straddling) node.
+    int ring_hits = 0;
+    for (const LodNode& n : carved) {
+        if (covers(n, 1800.0f, 1024.0f)) {
+            ++ring_hits;
+        }
+    }
+    CHECK(ring_hits == 1);
+}
+
+TEST_CASE("a straddling node is accepted at its ladder level and owes a clip") {
+    // The rectangle sits in the world corner and the eye is 2 km away. The
+    // screen-error rule puts a single COARSE node over that corner; the old
+    // rule force-split it to sixteen level-0 nodes to make inside/outside
+    // exact. Now the coarse node is ACCEPTED — its distance says its level is
+    // right for every metre of ground it contributes — and the overlap with
+    // the rectangle is the MESHER'S to remove (TerrainMeshOptions::clip_*,
+    // covered by the mesher's own tests).
     const glm::vec2 lo{0.0f, 0.0f};
     const glm::vec2 hi{2048.0f, 2048.0f};
     const glm::vec3 eye{2000.0f, 20.0f, 2000.0f};
@@ -365,24 +416,30 @@ TEST_CASE("a node straddling the streamed border splits instead of overlapping")
     const auto blind = dfn::render::select_lod_nodes(eye, lo, hi);
     const auto carved = dfn::render::select_lod_nodes(eye, lo, hi, resident);
 
-    // CONTROL: without the rectangle the corner is one coarse node...
+    // Without the rectangle the corner is one coarse node...
     const auto coarse_corner =
         std::find_if(blind.begin(), blind.end(), [](const LodNode& n) {
             return n.level > 0 && covers(n, 10.0f, 10.0f);
         });
     REQUIRE(coarse_corner != blind.end());
-    // ...and with it, that node is gone: it straddled the border, so it was
-    // split rather than accepted. Accepting it is the failure this rejects.
-    CHECK_FALSE(contains(carved, *coarse_corner));
+    // ...and WITH it, the same node is still selected: the rectangle changes
+    // what the node's mesh contains, not which node carries the ground.
+    CHECK(contains(carved, *coarse_corner));
 
-    // The split runs all the way to level 0, which is the level at which
-    // inside/outside is exact (128 m nodes against a 256 m chunk grid).
-    // 256..384 m is outside the rectangle and must be a level-0 node.
-    CHECK(contains(carved, LodNode{0, 2, 0}));
-    // 0..128 m is inside it and must not exist at any level.
+    // CONTROL (the old behaviour this rejects): the forced split put a
+    // level-0 node at 256..384 m. It must be gone — sixteen level-0 builds
+    // for one straddling coarse node was the whole defect.
+    CHECK_FALSE(contains(carved, LodNode{0, 2, 0}));
+
+    // The selection as a whole is not allowed to redraw the corner twice:
+    // the corner sample is covered by exactly the one straddling node.
+    int hits = 0;
     for (const LodNode& n : carved) {
-        CHECK_FALSE(covers(n, 64.0f, 64.0f));
+        if (covers(n, 64.0f, 64.0f)) {
+            ++hits;
+        }
     }
+    CHECK(hits == 1);
 }
 
 TEST_CASE("skirt depth is measured from the ground, not picked") {

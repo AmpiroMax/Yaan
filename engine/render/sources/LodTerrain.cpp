@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:39:28
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -24,12 +24,17 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 22:12:57: Created with the LOD drawing half.
 - 09:08:2026 - 22:39:28: pending() forwarded.
+- 10:08:2026 - 01:47:53: Straddle-ring fix — upload clips the mesh against the
+  resident rectangle, update() re-ships stale clips through pending(), and
+  node bounds are measured over INDEXED vertices only (a clipped mesh keeps
+  its full vertex grid but must not cull as if it drew all of it).
 */
 
 #include "engine/render/sources/LodTerrain.h"
 
 #include "engine/render/sources/TerrainMesher.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace dfn::render {
@@ -52,7 +57,24 @@ void LodTerrain::set_resident_rect(glm::vec2 min_xz, glm::vec2 max_xz) {
     resident_.max = max_xz;
 }
 
+LodRect LodTerrain::clip_region_of(const LodNode& node, const LodRect& rect) {
+    if (rect.empty()) {
+        return LodRect{};
+    }
+    const float size = lod_node_size_m(node.level);
+    const float x0 = static_cast<float>(node.x) * size;
+    const float z0 = static_cast<float>(node.z) * size;
+    LodRect r;
+    r.min = {std::max(x0, rect.min.x), std::max(z0, rect.min.y)};
+    r.max = {std::min(x0 + size, rect.max.x), std::min(z0 + size, rect.max.y)};
+    if (r.empty()) {
+        return LodRect{}; // normalize every empty intersection to one value
+    }
+    return r;
+}
+
 void LodTerrain::update(const glm::vec3& eye, float dt_seconds) {
+    pending_with_stale_.clear();
     if (!enabled_ || world_max_.x <= world_min_.x || world_max_.y <= world_min_.y) {
         // Disabled: run the residency with an EMPTY selection rather than
         // skipping it, so everything already resident fades out and is offered
@@ -65,6 +87,26 @@ void LodTerrain::update(const glm::vec3& eye, float dt_seconds) {
         select_lod_nodes(eye, world_min_, world_max_, resident_);
     selected_count_ = selection.size();
     residency_.update(selection, dt_seconds);
+
+    // pending() = residency's undelivered nodes + STALE CLIPS: a resident,
+    // still-selected node whose mesh was clipped for a rectangle that has
+    // since moved. It keeps drawing the old mesh (never a hole) while the
+    // ferry re-uploads it — core holds the field until release, so the
+    // re-ship needs no new request. Deselected nodes are left alone: they are
+    // fading out over ground the incoming selection already covers.
+    pending_with_stale_.assign(residency_.pending().begin(),
+                               residency_.pending().end());
+    for (const LodNode& node : selection) {
+        const auto it = meshes_.find(key_of(node));
+        if (it == meshes_.end()) {
+            continue; // not resident: already in pending via residency
+        }
+        const LodRect want = clip_region_of(node, resident_);
+        const LodRect& have = it->second.clipped;
+        if (want.min != have.min || want.max != have.max) {
+            pending_with_stale_.push_back(node);
+        }
+    }
 }
 
 std::span<const LodNode> LodTerrain::to_load() const {
@@ -76,7 +118,7 @@ std::span<const LodNode> LodTerrain::to_release() const {
 }
 
 std::span<const LodNode> LodTerrain::pending() const {
-    return residency_.pending();
+    return pending_with_stale_;
 }
 
 std::span<const LodDraw> LodTerrain::residency_draws() const {
@@ -92,6 +134,15 @@ void LodTerrain::upload(platform::IRenderer& renderer, const LodNode& node,
     TerrainMeshOptions options;
     options.skirt_depth_m =
         lod_skirt_depth_m(node.level, terrain_border_max_step_m(field));
+    // Straddle clip: the part of this node inside the resident rectangle is
+    // chunk ground and is not meshed (see select_lod_nodes — the selection
+    // accepts straddling nodes at their distance-correct level on the promise
+    // that the overlap is removed HERE).
+    const LodRect clipped = clip_region_of(node, resident_);
+    if (!clipped.empty()) {
+        options.clip_min = resident_.min;
+        options.clip_max = resident_.max;
+    }
 
     const TerrainMeshData mesh = build_terrain_mesh(field, surface, options);
     if (mesh.vertices.empty() || mesh.indices.empty()) {
@@ -104,8 +155,13 @@ void LodTerrain::upload(platform::IRenderer& renderer, const LodNode& node,
 
     NodeRes res;
     res.mesh_id = handle.id;
-    for (const platform::Vertex& v : mesh.vertices) {
-        res.bounds.expand(v.position);
+    res.clipped = clipped;
+    // Bounds over INDEXED vertices only: a clipped mesh keeps its full vertex
+    // grid (grid indexing is part of the mesher's contract) but draws only
+    // the emitted cells, and a cull box inflated by never-drawn vertices
+    // would keep off-screen nodes alive.
+    for (const uint32_t idx : mesh.indices) {
+        res.bounds.expand(mesh.vertices[idx].position);
     }
 
     const uint64_t key = key_of(node);

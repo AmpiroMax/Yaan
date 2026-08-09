@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:39:28
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -41,6 +41,13 @@ UPD:
   node mesh residency, skirted coarse meshes, frustum culling and the
   screen-door cross-fade through DrawParams::fade.
 - 09:08:2026 - 22:39:28: pending() forwarded for the app ferry.
+- 10:08:2026 - 01:47:53: Straddle-ring fix, drawing half. A node overlapping
+  the resident rectangle is meshed WITHOUT the overlapped cells
+  (TerrainMeshOptions::clip_*), and the clip a mesh was built with is
+  remembered: when the rectangle moves, every resident node whose clipped
+  region changed re-enters pending() while its old mesh keeps drawing, so the
+  ferry re-ships it through the ordinary upload path (core keeps node fields
+  until release) and the swap keeps the fade — no hole, no pop, no app change.
 */
 
 #pragma once
@@ -88,10 +95,13 @@ public:
     [[nodiscard]] std::span<const LodNode> to_load() const;
     /// Nodes whose mesh core may free: deselected AND fully faded out.
     [[nodiscard]] std::span<const LodNode> to_release() const;
-    /// Selected but not yet delivered. The ferry retries core's
+    /// Selected but not yet delivered — PLUS resident nodes whose mesh was
+    /// clipped for a rectangle that has since moved (they keep drawing their
+    /// old mesh while the ferry re-ships them). The ferry retries core's
     /// `coarse_heightfield` against THIS every frame, not against to_load():
     /// core admits nodes under a budget, so a node is announced once and
-    /// arrives several frames later.
+    /// arrives several frames later; and a re-clip needs no announcement at
+    /// all because core still holds the field.
     [[nodiscard]] std::span<const LodNode> pending() const;
 
     /// Meshes the node and hands it to the GPU. Idempotent per node: a
@@ -135,13 +145,23 @@ private:
     struct NodeRes {
         uint32_t mesh_id = 0;
         math::Aabb bounds{};
+        /// The clipped region this mesh was built with: intersection of the
+        /// node footprint and the resident rectangle AT UPLOAD TIME (empty =
+        /// unclipped). Compared against the current rectangle each update to
+        /// decide whether the mesh is stale and must be re-shipped.
+        LodRect clipped{};
     };
 
     /// Node id -> 64-bit key. Exact integer identity, never a float compare.
     [[nodiscard]] static uint64_t key_of(const LodNode& node);
 
+    /// Intersection of a node's footprint with `rect`, empty-normalized.
+    [[nodiscard]] static LodRect clip_region_of(const LodNode& node,
+                                                const LodRect& rect);
+
     LodResidency residency_;
     std::unordered_map<uint64_t, NodeRes> meshes_;
+    std::vector<LodNode> pending_with_stale_;
     glm::vec2 world_min_{0.0f};
     glm::vec2 world_max_{0.0f};
     LodRect resident_{};

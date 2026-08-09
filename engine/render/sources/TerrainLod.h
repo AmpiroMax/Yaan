@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 09:08:2026 - 22:39:28
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/TerrainLod.h
 
@@ -45,6 +45,10 @@ UPD:
   — the apron that hides T-junction cracks between adjacent levels.
 - 09:08:2026 - 22:39:28: LodResidency::pending() — the standing set of selected-but-
   not-yet-delivered nodes, which is what the app ferry must retry against.
+- 10:08:2026 - 01:47:53: Straddle-ring fix (core's finding): straddling nodes
+  are no longer force-split to level 0; they are judged by the distance to
+  their ground OUTSIDE the rectangle and clipped by the mesher instead. See
+  select_lod_nodes' doc for the contract and the measurement.
 */
 
 #pragma once
@@ -151,13 +155,21 @@ struct LodRect {
 /// not an optimisation: a level-0 node is 1 m voxels where a chunk heightfield
 /// is 2 m, so without it the two systems draw the same ground twice, at
 /// slightly different heights, and the overlap band interleaves per pixel.
-/// The descent therefore (a) DROPS a node that lies entirely inside the
-/// rectangle and (b) SPLITS a node that straddles its border instead of
-/// accepting it. (b) is what makes (a) exact rather than approximate: at
-/// level 0 a node is 128 m and the chunk grid is 256 m, so a level-0 node is
-/// always either wholly inside a chunk or wholly outside the resident set —
-/// there is no level at which a partial overlap has to be tolerated. Pass an
-/// empty rectangle when nothing is streamed (the pure-LOD case).
+/// The descent (a) DROPS a node that lies entirely inside the rectangle, and
+/// (b) judges a node that STRADDLES its border by the distance to the ground
+/// the node actually contributes — max(footprint distance, the eye's
+/// clearance to the rectangle border) — because everything inside the
+/// rectangle is removed at MESH time (TerrainMeshOptions::clip_*), never
+/// drawn. THE CALLER OWES THE CLIP: a consumer that draws a returned
+/// straddling node whole redraws chunk ground (LodTerrain::upload passes the
+/// rectangle through; a pure caller with no resident rect owes nothing).
+/// History: (b) used to force-split every straddler to level 0 to make the
+/// inside/outside decision exact, which inverted the ladder — a chunk-aligned
+/// 1280 m rectangle cuts the 512 m level-1 grid at odd 256 m multiples on two
+/// edges EVERY frame, so ~80% of a frame's selection was level-0 nodes on
+/// ground 500-700 m away (44 of 51, core's measurement), each the most
+/// expensive thing core builds. Pass an empty rectangle when nothing is
+/// streamed (the pure-LOD case).
 [[nodiscard]] std::vector<LodNode> select_lod_nodes(const glm::vec3& eye,
                                                     glm::vec2 world_min,
                                                     glm::vec2 world_max,

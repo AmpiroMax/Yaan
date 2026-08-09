@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 09:08:2026 - 22:39:28
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/TerrainLod.cpp
 
@@ -26,6 +26,17 @@ UPD:
 - 09:08:2026 - 22:01:04: Resident-rectangle exclusion in the descent (coarse
   nodes stop where core's chunk streaming begins) + lod_skirt_depth_m.
 - 09:08:2026 - 22:39:28: pending() rebuilt each update.
+- 10:08:2026 - 01:47:53: THE STRADDLE-RING FIX (core's measurement: the old
+  "straddling -> force split" rule pushed ~80% of a frame's selection to
+  level 0 — 44 of 51 nodes at 500-700 m — because a chunk-aligned 1280 m
+  rectangle always cuts the 512 m level-1 grid at odd 256 m multiples, and a
+  level-0 node is the most expensive thing core builds at 11.3 ms). A
+  straddling node is now judged by the distance to the ground it would
+  actually contribute — the part OUTSIDE the rectangle — and accepted at its
+  own level when that is far enough; the overlap is removed by the MESHER
+  (TerrainMeshOptions::clip_*), not by refining the selection. Split is still
+  taken when the outside part is genuinely close (eye outside the rect), and
+  level 0 remains the exact terminal.
 */
 
 #include "engine/render/sources/TerrainLod.h"
@@ -37,13 +48,29 @@ namespace dfn::render {
 
 namespace {
 
+// Distance from the eye to the NEAREST GROUND OUTSIDE the resident rectangle,
+// zero when the eye itself is outside it. This is the lower bound on how close
+// any ground a straddling node CONTRIBUTES can be: the part of its footprint
+// inside the rectangle is chunk ground, never drawn by LOD (the mesher clips
+// it), so judging the node's level by a footprint distance that includes that
+// part is what forced the old selection to level 0 across the whole ring.
+float resident_clearance_m(const glm::vec3& eye, const LodRect& resident) {
+    if (resident.empty() || eye.x < resident.min.x || eye.x > resident.max.x
+        || eye.z < resident.min.y || eye.z > resident.max.y) {
+        return 0.0f;
+    }
+    return std::min(std::min(eye.x - resident.min.x, resident.max.x - eye.x),
+                    std::min(eye.z - resident.min.y, resident.max.y - eye.z));
+}
+
 // Descends from `node`, appending the nodes that are good enough. A node is
 // good enough when the eye is farther than its split distance; otherwise its
 // four children are considered. Level 0 is always accepted (nothing finer
 // exists), which is what terminates the recursion.
+// `clearance` = resident_clearance_m(eye, resident), hoisted by the caller.
 void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
-             glm::vec2 world_max, const LodRect& resident, size_t max_nodes,
-             std::vector<LodNode>& out) {
+             glm::vec2 world_max, const LodRect& resident, float clearance,
+             size_t max_nodes, std::vector<LodNode>& out) {
     if (out.size() >= max_nodes) {
         return;
     }
@@ -58,9 +85,16 @@ void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
     }
     // The resident rectangle: ground core already draws at full chunk detail.
     // Wholly inside -> this node must not exist (it would draw the same ground
-    // a second time). Straddling -> descend rather than accept, so that the
-    // inside/outside decision is only ever taken on nodes small enough for it
-    // to be exact. See the header for why level 0 makes that terminate.
+    // a second time). STRADDLING -> the node is judged by the distance to the
+    // ground it would actually contribute: everything inside the rectangle is
+    // clipped away at mesh time (LodTerrain::upload passes the rectangle to
+    // the mesher), so the nearest drawn ground is no closer than
+    // max(distance to the footprint, clearance to the rectangle's border).
+    // The old rule — force-split every straddler to level 0 — inverted the
+    // ladder: a chunk-aligned 1280 m rect cuts the 512 m level-1 grid at odd
+    // 256 m multiples on two of its four edges EVERY frame, so ~80% of the
+    // selection was level 0 on ground 500-700 m away (core's measurement),
+    // where the ladder itself says level 1 is competent past 440 m.
     bool straddles_resident = false;
     if (!resident.empty()) {
         const bool outside = x0 >= resident.max.x || z0 >= resident.max.y
@@ -77,14 +111,18 @@ void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
         }
     }
     if (node.level == 0) {
-        // Nothing finer exists. A level-0 node that still straddles the
-        // rectangle means the rectangle is not aligned to the 128 m node grid;
-        // drawing it is the safe direction (an overlap band, not a hole).
+        // Nothing finer exists. A straddling level-0 node is accepted and the
+        // mesher clips the overlap exactly (every voxel size divides the 256 m
+        // chunk grid); a rectangle not even cell-aligned leaves at most one
+        // cell of overlap band, which is the safe direction (never a hole).
         out.push_back(node);
         return;
     }
-    if (!straddles_resident
-        && lod_node_distance_m(node, eye) >= lod_split_distance_m(node.level)) {
+    float effective_distance = lod_node_distance_m(node, eye);
+    if (straddles_resident) {
+        effective_distance = std::max(effective_distance, clearance);
+    }
+    if (effective_distance >= lod_split_distance_m(node.level)) {
         out.push_back(node);
         return;
     }
@@ -98,7 +136,7 @@ void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
     for (int32_t dz = 0; dz < stride; ++dz) {
         for (int32_t dx = 0; dx < stride; ++dx) {
             descend({child_level, node.x * stride + dx, node.z * stride + dz}, eye,
-                    world_min, world_max, resident, max_nodes, out);
+                    world_min, world_max, resident, clearance, max_nodes, out);
         }
     }
 }
@@ -160,10 +198,11 @@ std::vector<LodNode> select_lod_nodes(const glm::vec3& eye, glm::vec2 world_min,
     const auto iz0 = static_cast<int32_t>(std::floor(world_min.y / root_size));
     const auto ix1 = static_cast<int32_t>(std::ceil(world_max.x / root_size));
     const auto iz1 = static_cast<int32_t>(std::ceil(world_max.y / root_size));
+    const float clearance = resident_clearance_m(eye, resident);
     for (int32_t iz = iz0; iz < iz1; ++iz) {
         for (int32_t ix = ix0; ix < ix1; ++ix) {
             descend({root_level, ix, iz}, eye, world_min, world_max, resident,
-                    max_nodes, out);
+                    clearance, max_nodes, out);
         }
     }
     return out;

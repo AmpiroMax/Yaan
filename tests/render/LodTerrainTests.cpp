@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:39:28
+Last updated: 10:08:2026 - 01:47:53
 Module: tests
 File: tests/render/LodTerrainTests.cpp
 
@@ -24,6 +24,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 22:12:57: Created with the LOD drawing half.
 - 09:08:2026 - 22:39:28: pending() vs to_load(), with the ferry bug as its control.
+- 10:08:2026 - 01:47:53: Stale-clip re-ship case (straddle-ring fix): a moved
+  rectangle re-ships only the nodes whose clip changed, and the old mesh
+  draws until the replacement lands.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -33,6 +36,7 @@ UPD:
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -293,6 +297,75 @@ TEST_CASE("pending() is the standing set the ferry retries, not a one-shot diff"
     for (const LodNode& n : lod.pending()) {
         CHECK_FALSE(n == first);
     }
+
+    lod.destroy_all(*renderer);
+    renderer->shutdown();
+}
+
+TEST_CASE("a moved rectangle re-ships stale clips without ever dropping the draw") {
+    // The straddle-ring fix's residency half. A node overlapping the resident
+    // rectangle is meshed WITHOUT the overlapped cells; when the player
+    // crosses a chunk boundary the rectangle moves, the old clip is wrong,
+    // and the node must be re-uploaded — but its old mesh must keep drawing
+    // until the replacement lands, because a frame with neither mesh is a
+    // hole in the ground at 500 m.
+    auto renderer = dfn::platform::create_null_renderer();
+    REQUIRE(renderer->init({}));
+
+    LodTerrain lod;
+    lod.set_world_bounds({0.0f, 0.0f}, {2048.0f, 2048.0f});
+    lod.set_enabled(true);
+    const glm::vec3 eye{1024.0f, 20.0f, 1024.0f};
+    // The real streaming rectangle: 5 chunks of 256 m around the eye's chunk.
+    lod.set_resident_rect({512.0f, 512.0f}, {1792.0f, 1792.0f});
+
+    lod.update(eye, 0.0f);
+    // {1,3,1} spans x 1536..2048, z 512..1024: straddles the max-x edge at
+    // 1792 (a 1280 m rect always cuts the 512 m level-1 grid somewhere).
+    // {1,0,0} spans 0..512 on both axes: wholly outside, clip empty.
+    const LodNode straddler{1, 3, 1};
+    const LodNode outsider{1, 0, 0};
+    REQUIRE(std::find(lod.pending().begin(), lod.pending().end(), straddler)
+            != lod.pending().end());
+    REQUIRE(std::find(lod.pending().begin(), lod.pending().end(), outsider)
+            != lod.pending().end());
+
+    const NodeField sf = make_node_field(straddler);
+    const NodeField of = make_node_field(outsider);
+    lod.upload(*renderer, straddler, sf.view, nullptr);
+    lod.upload(*renderer, outsider, of.view, nullptr);
+    lod.update(eye, 0.016f);
+    const auto in_pending = [&](const LodNode& n) {
+        return std::find(lod.pending().begin(), lod.pending().end(), n)
+               != lod.pending().end();
+    };
+    CHECK_FALSE(in_pending(straddler));
+    CHECK_FALSE(in_pending(outsider));
+
+    // The player crosses a chunk boundary: the rectangle moves one chunk east.
+    lod.set_resident_rect({768.0f, 768.0f}, {2048.0f, 2048.0f});
+    lod.update(eye, 0.016f);
+
+    // The straddler's clipped region changed -> re-shipped via pending().
+    CHECK(in_pending(straddler));
+    // CONTROL: the outsider's clip is empty under both rectangles — a re-ship
+    // list that names it would rebuild every node on every chunk crossing,
+    // which is the churn this mechanism exists to avoid.
+    CHECK_FALSE(in_pending(outsider));
+
+    // NEVER A HOLE: while stale, the straddler still draws its old mesh.
+    bool drawn = false;
+    for (const auto& d : lod.residency_draws()) {
+        if (d.node == straddler) {
+            drawn = true;
+        }
+    }
+    CHECK(drawn);
+
+    // Re-upload (the ferry's next iteration) clears the staleness.
+    lod.upload(*renderer, straddler, sf.view, nullptr);
+    lod.update(eye, 0.016f);
+    CHECK_FALSE(in_pending(straddler));
 
     lod.destroy_all(*renderer);
     renderer->shutdown();

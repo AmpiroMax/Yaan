@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 10:08:2026 - 01:47:53
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -28,6 +28,9 @@ UPD:
   (R sand / G rock / B bed) + mismatched-grid fallback.
 - 09:08:2026 - 14:11:37: Dryness channel removed (design ruling): alpha is
   reserved-opaque, checked in the determinism case.
+- 10:08:2026 - 01:47:53: Clip rectangle cases (straddle-ring fix): cell removal
+  with the unclipped mesh as the Rule 30 control, cut-line skirts, and the
+  no-op guarantee for a rectangle that misses the field.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -388,4 +391,105 @@ TEST_CASE("a skirt hangs down from the border and leaves the surface alone") {
     for (const uint32_t index : skirted.indices) {
         CHECK(index < skirted.vertices.size());
     }
+}
+
+TEST_CASE("a clip rectangle removes exactly the chunk-owned cells") {
+    // 5x5 field at step 2 spans 8x8 m from the origin. The clip covers the
+    // left half, aligned to cell boundaries the way the real caller's
+    // chunk-aligned rectangle always is (every LOD voxel divides 256 m).
+    const FieldData f =
+        make_field(0, [](uint32_t x, uint32_t z) {
+            return static_cast<uint16_t>((x * 7 + z * 13) % 200);
+        });
+    dfn::render::TerrainMeshOptions options;
+    options.clip_min = {0.0f, 0.0f};
+    options.clip_max = {4.0f, 8.0f}; // left two cell columns, full z
+    const TerrainMeshData clipped = build_terrain_mesh(f.view, nullptr, options);
+    const TerrainMeshData whole = build_terrain_mesh(f.view, nullptr, {});
+
+    // The grid vertex block is untouched (grid indexing is part of the
+    // contract) — only the emission changes.
+    REQUIRE(clipped.vertices.size() == RES * RES);
+    CHECK(clipped.indices.size() == (RES - 1) * (RES - 1 - 2) * 6);
+
+    // No emitted triangle lies wholly inside the clip rectangle...
+    const auto tri_inside = [&](const TerrainMeshData& m, size_t t) {
+        for (size_t k = 0; k < 3; ++k) {
+            const glm::vec3 p = m.vertices[m.indices[t * 3 + k]].position;
+            if (p.x < options.clip_min.x - 1e-3f || p.x > options.clip_max.x + 1e-3f
+                || p.z < options.clip_min.y - 1e-3f
+                || p.z > options.clip_max.y + 1e-3f) {
+                return false;
+            }
+        }
+        return true;
+    };
+    for (size_t t = 0; t < clipped.indices.size() / 3; ++t) {
+        CHECK_FALSE(tri_inside(clipped, t));
+    }
+    // ...and the CONTROL (Rule 30): the unclipped mesh HAS such triangles —
+    // a check the old always-emit behaviour fails, so the assertion above is
+    // discriminating rather than vacuous.
+    size_t whole_inside = 0;
+    for (size_t t = 0; t < whole.indices.size() / 3; ++t) {
+        if (tri_inside(whole, t)) {
+            ++whole_inside;
+        }
+    }
+    CHECK(whole_inside == (RES - 1) * 2 * 2); // two columns of cells, 2 tris each
+
+    // A clip rectangle that misses the field entirely changes nothing at all.
+    dfn::render::TerrainMeshOptions far_clip;
+    far_clip.clip_min = {1000.0f, 1000.0f};
+    far_clip.clip_max = {2000.0f, 2000.0f};
+    const TerrainMeshData untouched = build_terrain_mesh(f.view, nullptr, far_clip);
+    REQUIRE(untouched.indices.size() == whole.indices.size());
+    CHECK(untouched.indices == whole.indices);
+}
+
+TEST_CASE("the cut line gets a skirt exactly like an outer border") {
+    // The cut against differently-latticed chunk ground is a seam; without an
+    // apron it is a one-pixel line of sky. Clip the left half and demand
+    // skirt geometry hanging under the cut line x = 4.
+    const FieldData f =
+        make_field(0, [](uint32_t x, uint32_t z) {
+            return static_cast<uint16_t>(300 + x * 11 + z * 5);
+        });
+    dfn::render::TerrainMeshOptions options;
+    options.clip_min = {0.0f, 0.0f};
+    options.clip_max = {4.0f, 8.0f};
+    options.skirt_depth_m = 3.0f;
+    const TerrainMeshData mesh = build_terrain_mesh(f.view, nullptr, options);
+
+    // Surface heights along the cut column (x = 4 is grid column 2).
+    // Skirt vertices there sit exactly skirt_depth below a surface vertex.
+    size_t cut_skirt_verts = 0;
+    for (size_t i = RES * RES; i < mesh.vertices.size(); ++i) {
+        const glm::vec3 p = mesh.vertices[i].position;
+        if (std::fabs(p.x - 4.0f) > 1e-3f) {
+            continue;
+        }
+        bool under_surface = false;
+        for (uint32_t z = 0; z < RES; ++z) {
+            const glm::vec3 q = mesh.vertices[static_cast<size_t>(z) * RES + 2].position;
+            if (std::fabs(q.z - p.z) < 1e-3f
+                && std::fabs((q.y - options.skirt_depth_m) - p.y) < 1e-3f) {
+                under_surface = true;
+                break;
+            }
+        }
+        CHECK(under_surface);
+        ++cut_skirt_verts;
+    }
+    // One boundary edge per row of emitted cells along the cut, two skirt
+    // vertices each (RES-1 = 4 rows), plus one x=4 endpoint from each of the
+    // two outer-border edges of the cut-adjacent cells (top and bottom).
+    CHECK(cut_skirt_verts == (RES - 1) * 2 + 2);
+
+    // CONTROL: with the skirt off, nothing hangs under the cut — the skirt
+    // assertions above cannot pass by construction of the surface itself.
+    dfn::render::TerrainMeshOptions no_skirt = options;
+    no_skirt.skirt_depth_m = 0.0f;
+    const TerrainMeshData bare = build_terrain_mesh(f.view, nullptr, no_skirt);
+    CHECK(bare.vertices.size() == RES * RES);
 }

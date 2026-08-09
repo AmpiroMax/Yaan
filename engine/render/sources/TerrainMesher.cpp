@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:01:04
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -36,6 +36,9 @@ UPD:
   §4 has no dirt material (dirt/path is a FUTURE road pass); the splat now
   keys off core's surface_class ONLY. Vertex alpha is reserved (255).
 - 09:08:2026 - 22:01:04: World-referenced UVs + border skirts (LOD).
+- 10:08:2026 - 01:47:53: Clip rectangle (options.clip_*): cells wholly inside
+  the chunk-streamed rect are skipped and skirts follow the emitted region's
+  whole boundary. The no-clip path is untouched and bit-identical.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -167,9 +170,28 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
         }
     }
 
+    // Clip rectangle (straddle-ring fix): cells wholly inside the rect belong
+    // to chunk-streamed ground and are not emitted. `cell_emitted` is only
+    // materialized when a clip is active, so the ordinary path allocates and
+    // emits exactly what it always did.
+    const bool clip_active = options.clip_max.x > options.clip_min.x
+                          && options.clip_max.y > options.clip_min.y;
+    const auto cell_clipped = [&](uint32_t x, uint32_t z) {
+        if (!clip_active) {
+            return false;
+        }
+        const float cx0 = field.origin.x + static_cast<float>(x) * field.step;
+        const float cz0 = field.origin.y + static_cast<float>(z) * field.step;
+        return cx0 >= options.clip_min.x && cx0 + field.step <= options.clip_max.x
+            && cz0 >= options.clip_min.y && cz0 + field.step <= options.clip_max.y;
+    };
+
     mesh.indices.reserve(static_cast<size_t>(res - 1) * (res - 1) * 6);
     for (uint32_t z = 0; z + 1 < res; ++z) {
         for (uint32_t x = 0; x + 1 < res; ++x) {
+            if (cell_clipped(x, z)) {
+                continue;
+            }
             const uint32_t i00 = z * res + x;
             const uint32_t i10 = i00 + 1;
             const uint32_t i01 = i00 + res;
@@ -186,7 +208,46 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
     // vertices copy their parent's normal, colour and uv, so a skirt that IS
     // momentarily visible at a crack shades like the ground it stands in
     // rather than as a black band.
-    if (options.skirt_depth_m > 0.0f) {
+    //
+    // With a clip active the skirt follows the EMITTED REGION'S boundary
+    // instead of the four grid borders: every edge between an emitted cell and
+    // a missing one (clipped or off-grid) gets an apron, because the cut line
+    // against chunk ground is a lattice seam exactly like the outer border.
+    if (clip_active && options.skirt_depth_m > 0.0f) {
+        const auto add_edge_skirt = [&](uint32_t p0, uint32_t p1) {
+            const auto s0 = static_cast<uint32_t>(mesh.vertices.size());
+            platform::Vertex v0 = mesh.vertices[p0];
+            platform::Vertex v1 = mesh.vertices[p1];
+            v0.position.y -= options.skirt_depth_m;
+            v1.position.y -= options.skirt_depth_m;
+            mesh.vertices.push_back(v0);
+            mesh.vertices.push_back(v1);
+            mesh.indices.insert(mesh.indices.end(),
+                                {p0, s0, s0 + 1, p0, s0 + 1, p1});
+        };
+        for (uint32_t z = 0; z + 1 < res; ++z) {
+            for (uint32_t x = 0; x + 1 < res; ++x) {
+                if (cell_clipped(x, z)) {
+                    continue;
+                }
+                const uint32_t i00 = z * res + x;
+                // Neighbour missing (off-grid or clipped) -> this edge is a
+                // boundary and hangs an apron.
+                if (z == 0 || cell_clipped(x, z - 1)) {
+                    add_edge_skirt(i00, i00 + 1);
+                }
+                if (z + 2 >= res || cell_clipped(x, z + 1)) {
+                    add_edge_skirt(i00 + res, i00 + res + 1);
+                }
+                if (x == 0 || cell_clipped(x - 1, z)) {
+                    add_edge_skirt(i00, i00 + res);
+                }
+                if (x + 2 >= res || cell_clipped(x + 1, z)) {
+                    add_edge_skirt(i00 + 1, i00 + res + 1);
+                }
+            }
+        }
+    } else if (options.skirt_depth_m > 0.0f) {
         const auto grid_count = static_cast<uint32_t>(mesh.vertices.size());
         mesh.vertices.reserve(mesh.vertices.size() + static_cast<size_t>(res) * 4);
         mesh.indices.reserve(mesh.indices.size() + static_cast<size_t>(res - 1) * 4 * 6);
