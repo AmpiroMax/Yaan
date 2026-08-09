@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 09:08:2026 - 22:27:17
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -33,9 +33,14 @@ UPD:
   (opaque wood + alpha-cutout leaf cards). EDITED BY THE FLORA AGENT under an
   explicit lead-granted Rule 25 exception while render's zone was unowned;
   wiring only, no material or shader change.
+- 09:08:2026 - 22:27:17: GROUND_SINK_FRAC now reads config::SCATTER_GROUND_SINK_FRAC
+  (lead landed the row on sim's request): render draws the sink and sim builds
+  collision from the same triangles, so the two cannot hold separate copies.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
 #include "engine/render/sources/ProcFlora.h"
@@ -53,7 +58,13 @@ namespace {
 // the model origin, which covers far more ground drop than this ever did, and
 // sinking a tree only makes it shorter — the opposite of the point of the 4x
 // height stage. Kept for bushes and stones, which have no flare.
-constexpr float GROUND_SINK_FRAC = 0.12f;
+//
+// THE VALUE IS NOT RENDER'S ANY MORE. It was a literal here while it was
+// cosmetic; it stopped being cosmetic when sim began building boulder
+// collision from THESE triangles. Sink on one side and not the other and every
+// rock's solid surface sits 12 cm above its visible one, with the player
+// standing in the air. One number, two zones (Rule 14).
+constexpr float GROUND_SINK_FRAC = static_cast<float>(config::SCATTER_GROUND_SINK_FRAC);
 
 // Conservative horizontal footprint radius (m) of each species' nominal mesh,
 // used for micro tile bounding circles. Values from the flora agent's measured
