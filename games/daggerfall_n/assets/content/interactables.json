@@ -1,0 +1,68 @@
+{
+  "_comment": "The proving set of interactable props for the four verbs: loose items (TAKE), a door and a chest (OPEN/CLOSE), a lever (USE). Positions are world-space meters near the testbed spawn. prompt_key values are localization keys, never text (Rule 5).",
+  "props": [
+    {
+      "kind": "pickup",
+      "id": "prop.testbed.torch",
+      "position": [664.0, 21.0, 434.0],
+      "half_extents": [0.15, 0.3, 0.15],
+      "prompt_key": "interact.take",
+      "item": "item.tool.torch",
+      "count": 1
+    },
+    {
+      "kind": "pickup",
+      "id": "prop.testbed.apple",
+      "position": [666.0, 21.0, 433.0],
+      "half_extents": [0.1, 0.1, 0.1],
+      "prompt_key": "interact.take",
+      "item": "item.food.apple",
+      "count": 2
+    },
+    {
+      "kind": "pickup",
+      "id": "prop.testbed.coins",
+      "position": [665.0, 21.0, 436.0],
+      "half_extents": [0.12, 0.06, 0.12],
+      "prompt_key": "interact.take",
+      "item": "item.coin.septim",
+      "count": 17
+    },
+    {
+      "kind": "pickup",
+      "id": "prop.testbed.dagger",
+      "position": [663.0, 21.0, 436.5],
+      "half_extents": [0.2, 0.05, 0.06],
+      "prompt_key": "interact.take",
+      "item": "item.weapon.dagger",
+      "count": 1
+    },
+    {
+      "kind": "openable",
+      "id": "prop.testbed.chest",
+      "position": [668.0, 21.0, 435.0],
+      "half_extents": [0.5, 0.35, 0.35],
+      "prompt_key": "interact.open",
+      "starts_open": false,
+      "locked": false
+    },
+    {
+      "kind": "openable",
+      "id": "prop.testbed.door",
+      "position": [670.0, 22.0, 430.0],
+      "half_extents": [0.6, 1.0, 0.1],
+      "prompt_key": "interact.open",
+      "starts_open": false,
+      "locked": true
+    },
+    {
+      "kind": "usable",
+      "id": "prop.testbed.lever",
+      "position": [662.0, 21.5, 431.0],
+      "half_extents": [0.12, 0.4, 0.12],
+      "prompt_key": "interact.use",
+      "action": "use.testbed.lever",
+      "repeatable": true
+    }
+  ]
+}

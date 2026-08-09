@@ -1,0 +1,18 @@
+{
+  "_purpose": "Pins requirement 4 (integers stay integers). Every value below is compared under the six frozen comparison operators of QUEST_FORMAT.md 2.1; an int silently becoming a double is a whole class of quest bug.",
+  "int_zero": 0,
+  "int_small": 3,
+  "int_negative": -7,
+  "int_large": 9007199254740993,
+  "int_uint32_max": 4294967295,
+  "bool_true": true,
+  "bool_false": false,
+  "null_value": null,
+  "double_only_if_you_want_it": 1.5,
+  "string_that_looks_numeric": "3",
+  "expected": {
+    "int_small": "parses as integer 3, not 3.0; equality against integer 3 must hold",
+    "int_large": "exceeds double's exact integer range - must survive as int64, not round to 9007199254740992",
+    "string_that_looks_numeric": "stays a string; never coerced to a number"
+  }
+}

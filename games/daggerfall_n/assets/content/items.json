@@ -1,0 +1,45 @@
+{
+  "_comment": "Item definitions. Ids: item.<category>.<name> (story's convention), hashed to ItemId at load. All user-facing text is a localization key, never literal text (Rule 5). quest_item items can be held and moved by quest effects but never dropped or sold.",
+  "items": [
+    {
+      "id": "item.tool.torch",
+      "display_name_key": "item.tool.torch.name",
+      "description_key": "item.tool.torch.desc",
+      "max_stack": 1,
+      "weight_kg": 1.0,
+      "quest_item": false
+    },
+    {
+      "id": "item.drink.bottle",
+      "display_name_key": "item.drink.bottle.name",
+      "description_key": "item.drink.bottle.desc",
+      "max_stack": 4,
+      "weight_kg": 0.6,
+      "quest_item": false
+    },
+    {
+      "id": "item.coin.septim",
+      "display_name_key": "item.coin.septim.name",
+      "description_key": "item.coin.septim.desc",
+      "max_stack": 999,
+      "weight_kg": 0.01,
+      "quest_item": false
+    },
+    {
+      "id": "item.weapon.dagger",
+      "display_name_key": "item.weapon.dagger.name",
+      "description_key": "item.weapon.dagger.desc",
+      "max_stack": 1,
+      "weight_kg": 1.2,
+      "quest_item": false
+    },
+    {
+      "id": "item.food.apple",
+      "display_name_key": "item.food.apple.name",
+      "description_key": "item.food.apple.desc",
+      "max_stack": 8,
+      "weight_kg": 0.15,
+      "quest_item": false
+    }
+  ]
+}

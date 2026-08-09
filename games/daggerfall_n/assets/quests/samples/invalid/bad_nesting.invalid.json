@@ -1,0 +1,19 @@
+{
+  "id": "quest.vaelmere.broken_nesting",
+  "start": "s_one",
+  "states": {
+    "s_one": {
+      "journal_key": "quest.vaelmere.broken_nesting.journal.010",
+      "transitions": [
+        {
+          "to": "s_two",
+          "when": {
+            "all_of": [
+              { "flag": "flag.act1.barrow_opened", "op": "==", "value": true }
+            ]
+          }
+      ]
+    },
+    "s_two": { "terminal": "completed" }
+  }
+}
