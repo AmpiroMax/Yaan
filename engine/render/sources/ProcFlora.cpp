@@ -102,8 +102,13 @@ void emit_skeleton(MeshData& m, Tree& t, const Skeleton& sk) {
         const float r0 = parent.radius;
         const float r1 = child.radius;
         const int sides = (r0 > t.trunk_r * 0.45f) ? 5 : (r0 > t.trunk_r * 0.20f ? 4 : 3);
+        // Thin wood takes the TWIG value, not the bole's. §3.10's measurement is
+        // that the tracery reads by value contrast against the foliage, so a
+        // pale-boled species whose twigs are also pale has no tracery — it has
+        // scaffolding.
+        const uint32_t col = (r0 > t.trunk_r * t.sp.twig_radius_frac) ? t.wood : t.twig;
         tube_segment(m, a, b, safe_normalize(b - a, glm::vec3{0.0f, 1.0f, 0.0f}), r0,
-                     r1, sides, t.wood);
+                     r1, sides, col);
     }
 }
 
@@ -537,6 +542,7 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
            height * crown_width_frac * 0.5f,
            height * sp.trunk_radius_frac,
            pack(sp.trunk_color),
+           pack(sp.twig_color),
            pack(sp.foliage_color),
            lod,
            rng,

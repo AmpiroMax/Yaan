@@ -831,13 +831,30 @@ std::vector<Card> cards_of(const MeshData& m) {
     return out;
 }
 
-/// Distance from `p` to the nearest WOOD VERTEX. This OVER-states the true gap
-/// to the wood surface (vertices sit every 1-3 m along a limb), so every number
-/// it reports is pessimistic — which is the right direction for an invariant.
+/// Distance from `p` to the nearest point ON the wood SURFACE, approximated by
+/// each triangle's vertices, edge midpoints and centroid.
+///
+/// The first version measured to the nearest wood VERTEX, which is simpler and
+/// which I documented as pessimistic — and it duly produced a false failure: one
+/// conifer spray sitting ON the leader at 94 % of tree height measured 1.73 m
+/// away, because the trunk is built from 7 segments over 31 m and its vertex
+/// rings are 4.4 m apart. The card was touching wood; the ruler had no marks
+/// there. Sampling the surface rather than its corners costs one loop and
+/// removes a whole class of false positive. THE THRESHOLD DID NOT MOVE — this
+/// is a better instrument, not a relaxed rule.
 float gap_to_wood(const MeshData& wood, glm::vec3 p) {
     float best = 1e9f;
     for (const platform::Vertex& v : wood.vertices) {
         best = std::min(best, glm::length(v.position - p));
+    }
+    for (size_t i = 0; i + 2 < wood.indices.size(); i += 3) {
+        const glm::vec3 a = wood.vertices[wood.indices[i]].position;
+        const glm::vec3 b = wood.vertices[wood.indices[i + 1]].position;
+        const glm::vec3 c = wood.vertices[wood.indices[i + 2]].position;
+        best = std::min(best, glm::length((a + b + c) / 3.0f - p));
+        best = std::min(best, glm::length((a + b) * 0.5f - p));
+        best = std::min(best, glm::length((b + c) * 0.5f - p));
+        best = std::min(best, glm::length((a + c) * 0.5f - p));
     }
     return best;
 }
@@ -1105,17 +1122,40 @@ TEST_CASE("REJECTION 3: no canopy tree is a bare pole with a tuft on top") {
     // vertical span of the foliage itself. A tree has limbs over a stretch of
     // its bole and a crown with depth; a palm has both at one point.
     //
-    // The thresholds are set against MEASURED values on both sides, not chosen:
-    // limb spread runs 0.17-0.19 on the birch (the species whose brief is a
-    // deliberately high, clean-boled crown) and 0.22-0.35 on the others, against
-    // 0.06 for the control. Foliage span is 0.30+ on every species against 0.06.
+    // THE FLOOR SITS ABOVE THE ARTEFACT THAT WAS ACTUALLY REJECTED, not just
+    // above a synthetic worst case. Design's sharpening of Rule 30, and it is
+    // right: a synthetic control is the EASY reject, and a floor placed below
+    // every real failure is a description rather than a test. The first version
+    // of this invariant shipped with a synthetic palm at 0.06 against a 0.15
+    // floor — and it would have PASSED the birch the user rejected, which
+    // measured 0.17-0.19.
+    //
+    // Applying it took a measurement rather than a threshold bump, and the
+    // measurement said something useful: **it cannot be applied to the limb-
+    // spread clause.** Repaired, the birch measures 0.399-0.442 — but the OAK's
+    // smallest variant sits at **0.166**, BELOW the rejected birch. A compact
+    // crown on a short tree and a tuft on a tall pole produce the same number
+    // from different objects, so no limb-spread floor separates accepted from
+    // rejected without failing an accepted species.
+    //
+    // FOLIAGE SPAN DOES SEPARATE THEM, and by construction rather than by luck.
+    // The rejected birch had its crown base at 0.58 of height, so its foliage
+    // could not span more than 0.42 of the tree whatever went in it; every
+    // accepted species measures 0.49-0.76. A floor at 0.45 therefore rejects the
+    // whole CLASS the rejected birch belonged to — any tree whose crown starts
+    // above ~0.55 — rather than one instance of it.
+    //
+    // Measured, this build: limb spread — oak 0.166-0.341, pine 0.240-0.353,
+    // birch 0.399-0.442, willow 0.586-0.679, synthetic palm 0.06. Foliage span —
+    // pine 0.493-0.505, oak 0.549-0.602, birch 0.555-0.595, willow 0.711-0.758,
+    // rejected birch < 0.42 by construction, synthetic palm 0.06.
     // Note what this does NOT assert: that a low branch exists. Space
     // colonization gives apical dominance for free — a seed low on the bole
     // never wins an attractor against one higher up — and a clean lower bole is
     // correct for every species in this catalog. The invariant is about the
     // CROWN having structure, not about the trunk having twigs.
     constexpr float LIMB_SPREAD_MIN = 0.15f;
-    constexpr float FOLIAGE_SPAN_MIN = 0.20f;
+    constexpr float FOLIAGE_SPAN_MIN = 0.45f;
     for (const FloraSpecies s : ALL) {
         if (!is_canopy_tree(s)) continue;
         for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {

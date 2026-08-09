@@ -126,6 +126,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     oak.card_width_frac = 1.10f;
     oak.card_aspect = 0.80f;
     oak.trunk_color = OAK_TRUNK;
+    oak.twig_color = OAK_TRUNK * 0.82f;
     oak.foliage_color = OAK_CROWN;
     oak.shyness = 0.28f;
     oak.lean_response = 0.10f;
@@ -171,7 +172,12 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // defect, and this is its fifth appearance. Built width is 0.69 of the
     // envelope (foliage never reaches the envelope's widest point), so 6 m of
     // built crown needs 8.7 m of envelope: 0.31 of height.
-    pine.crown_width_frac = 0.33f;
+    // NOTE the coupling before changing either of these: the GROWTH envelope is
+    // inset from the silhouette envelope by the cluster reach, so lowering
+    // cluster_radius_frac lets the branches grow FURTHER and the tree comes out
+    // WIDER. The two move together and tuning one alone is how the pine went to
+    // 11 m against a 6-9 m brief.
+    pine.crown_width_frac = 0.25f;
     // WHORLS, not tiers. A whorl is a YEAR: the leader puts on one internode and
     // flushes one ring of laterals at the top of it. Spacing is therefore that
     // year's height increment (short at the apex, long through the vigorous
@@ -193,8 +199,8 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     pine.phototropism = 0.10f;
     pine.droop = 0.34f; // the primary sags toward its tip under its own weight
     pine.pipe_exponent = 2.6f;
-    pine.cluster_count = 46;
-    pine.cluster_radius_frac = 0.40f;
+    pine.cluster_count = 34;
+    pine.cluster_radius_frac = 0.34f;
     // NEEDLES ARE CARDS NOW, and the frame answered the question the last stage
     // deliberately left open. The pine was kept on solid cone tiers so that one
     // verification frame would carry both treatments side by side rather than
@@ -203,12 +209,13 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     pine.foliage = FoliageShape::Card;
     pine.card_width_frac = 1.30f;
     pine.card_aspect = 0.62f; // a needle spray is wider than it is deep
-    pine.cards_per_cluster = 1;
+    pine.cards_per_cluster = 2; // same edge-on exposure as the birch had
     pine.tone_first = LeafTone::ConiferDark;
     pine.tone_count = 1;
     pine.card_shape_a = LeafShape::NeedleFan;
     pine.card_shape_b = LeafShape::NeedleFan;
     pine.trunk_color = PINE_TRUNK;
+    pine.twig_color = PINE_TRUNK * 0.62f;
     pine.foliage_color = PINE_DARK;
     pine.shyness = 0.18f;
     pine.lean_response = 0.06f;
@@ -271,15 +278,26 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // seven cluster centres, each carrying cards nearly as wide as the whole
     // crown, so no arrangement of them can look like a pile of discs.
     birch.cluster_count = 20;
-    birch.cluster_radius_frac = 0.40f;
+    birch.cluster_radius_frac = 0.42f;
     birch.tone_first = LeafTone::BirchLight;
     birch.tone_count = 2;
     birch.card_shape_a = LeafShape::OvalSpray;
     birch.card_shape_b = LeafShape::RaggedTip;
-    birch.cards_per_cluster = 2; // a narrow crown does not need a third plane
+    // THREE PLANES, AND THE NOTE THAT USED TO BE HERE — "a narrow crown does not
+    // need a third plane" — WAS WRONG, caught by a tour frame and invisible to
+    // every isolated render. Cards are fixed-orientation by design (a billboard
+    // shimmers at 640x360 and casts a rotating shadow), so a cluster of TWO
+    // crossed planes has azimuths where both present nearly edge-on and the
+    // cluster all but disappears. The oak and willow never showed it because
+    // three planes cannot all be edge-on at once. The birch showed it as a line
+    // of bare white poles with a few flecks — «острые пики» surviving a rewrite
+    // that had genuinely fixed the shape, purely as a viewing-angle artefact.
+    birch.cards_per_cluster = 3;
     birch.card_width_frac = 1.05f;
-    birch.card_aspect = 0.95f;
+    birch.card_aspect = 0.76f; // wider than tall: three planes stack vertically
     birch.trunk_color = BIRCH_TRUNK;
+    birch.twig_color = glm::vec3{0.24f, 0.19f, 0.16f};
+    birch.twig_radius_frac = 0.80f; // white bole, dark limbs — the real thing
     birch.foliage_color = BIRCH_CROWN;
     birch.shyness = 0.20f;
     birch.lean_response = 0.14f;
@@ -317,6 +335,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     willow.card_width_frac = 1.00f;
     willow.card_aspect = 1.35f; // taller than wide: the cards HANG
     willow.trunk_color = WILLOW_TRUNK;
+    willow.twig_color = WILLOW_TRUNK * 0.80f;
     willow.foliage_color = WILLOW_CROWN;
 
     // --- Snag: no crown; the only flora legal at full height in a wedge -----
@@ -338,6 +357,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     snag.droop = 0.0f;
     snag.cluster_count = 0;
     snag.trunk_color = SNAG_WEATHERED; // in-forest value; open-ground is paler
+    snag.twig_color = SNAG_WEATHERED * 0.85f;
     snag.foliage_color = SNAG_WEATHERED;
     snag.shyness = 0.0f;
     snag.lean_response = 0.0f;

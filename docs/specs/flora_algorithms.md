@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 23:05:26
-Last updated: 09:08:2026 - 23:59:54
+Last updated: 10:08:2026 - 00:21:48
 -->
 <!--
 UPD:
@@ -16,6 +16,10 @@ UPD:
                          they were run against a known-bad object), §7 (the
                          birch, escalated with evidence rather than attempted a
                          fifth time).
+- 10:08:2026 - 00:21:48: TOUR FRAME READ (Rule 27 discharged — the world builds
+                         again). Three defects that ONLY a real frame showed,
+                         all in §8. Birch crown base landed at 0.40 by the lead
+                         and design; measurements re-derived against it.
 -->
 
 # Flora — tree generation algorithms (literature review and selection)
@@ -390,10 +394,10 @@ Max across 12 variants, `Full` LOD, nominal maturity.
 
 | Species | tris F / R / S | height (m) | width (m) | crown aspect | gap mean | gap max |
 |---|---|---|---|---|---|---|
-| DaleOak | 360 / 308 / 54 | 23.1-30.8 | 10.2-13.8 | 1.27 | 0.23 | 0.68 |
-| HighlandPine | 622 / 584 / 36 | 28.0-37.6 | 6.1-8.8 | 2.18 (exempt) | 0.21 | 0.67 |
-| RiverBirch | 264 / 248 / 54 | 17.0-21.3 | 5.7-7.0 | 1.27 | 0.26 | 1.47 |
-| ValeWillow | 388 / 338 / 54 | 13.9-19.4 | 9.1-12.1 | 1.12 | 0.33 | 1.11 |
+| DaleOak | 360 / 308 / 54 | 23.1-30.8 | 10.2-13.8 | 1.27 | 0.22 | 0.68 |
+| HighlandPine | 632 / 552 / 36 | 28.0-37.6 | 6.1-8.5 | 2.28 (exempt) | 0.17 | 1.07 |
+| RiverBirch | 300 / 266 / 54 | 17.0-21.3 | 5.5-6.9 | 1.78 | 0.24 | 0.85 |
+| ValeWillow | 388 / 338 / 54 | 13.9-19.4 | 9.1-12.1 | 1.12 | 0.32 | 1.11 |
 | Snag | 60 / 60 / 30 | 10.2-19.1 | — | — | — | — |
 | Bush / BigBush | 78 / 114 | 1.0-1.5 / 2.8-3.9 | — | — | — | — |
 | FallenLog / Deadfall | 48 / 30 | ⌀0.6-1.0 / 0.2-0.3 | 8.4-13.7 / 2.0-3.7 long | — | — | — |
@@ -484,3 +488,88 @@ floor) and leaves ~7.6 m of clear trunk on a 19 m birch.
 was derived by design to fix a crown ASPECT problem, and it did — aspect is 1.27
 against a ceiling of 1.8. It then created a silhouette problem one level down.
 Escalated with the two frames; design and the lead rule.
+
+
+---
+
+## 8. What only the tour frame showed (Rule 27, discharged 10.08.2026)
+
+The world came back (render's 4096-handle exhaustion: 17 336 lake planes ate the
+pool at startup, so every terrain mesh after the water silently failed to
+upload — water and a castle drawn, no ground). Three defects were then visible
+in one frame that **no isolated render and no invariant had caught**, and all
+three are the same kind: a property that is only wrong from certain viewpoints
+or against certain neighbours.
+
+1. **TWO CROSSED CARDS HAVE AN EDGE-ON AZIMUTH.** Cards are fixed-orientation by
+   design (a billboard shimmers at 640x360 and casts a rotating shadow). The
+   birch carried `cards_per_cluster = 2` with a comment saying "a narrow crown
+   does not need a third plane". **It does.** Two planes have azimuths where
+   both present nearly edge-on and the cluster all but vanishes; three cannot.
+   Oak and willow never showed it because they had three. In the frame the
+   birches were a line of bare white poles with a few flecks — the rejected
+   silhouette surviving a rewrite that had genuinely fixed the shape, purely as
+   a viewing-angle artefact. The pine had the same exposure at one card per
+   spray and survived only statistically, on 46 sprays; it now has two.
+2. **A PALE TREE NEEDS DARK TWIGS OR IT IS A WIRE FRAME.** §3.10 measured that
+   the tracery in the reference photographs reads by VALUE CONTRAST — branch 50,
+   leaf 135, a 2.54x ratio — and not by transparency. Every species drew all its
+   wood in one colour, so the birch's near-white limbs sat at the same value as
+   its foliage and the crown read as white scaffolding with leaves stuck on it.
+   `twig_color` plus a per-species `twig_radius_frac` fixes it, and it is what a
+   real birch is: white bole, dark limbs. **The measurement was already in this
+   spec; it had simply never been applied to wood.**
+3. **THE ATTACHMENT METRIC WAS OVER-STATING AND FINALLY PRODUCED A FALSE
+   FAILURE.** `gap_to_wood` measured to the nearest wood VERTEX, documented here
+   as pessimistic. A conifer spray sitting ON the leader at 94 % of tree height
+   measured 1.73 m away, because the trunk is 7 segments over 31 m and its
+   vertex rings are 4.4 m apart. The card was touching wood; the ruler had no
+   marks there. Now sampled over the triangle surface. **The threshold did not
+   move** — a better instrument, not a relaxed rule.
+
+### 8.1 Design's sharpening of Rule 30, and why it landed on a different clause
+
+Design's rule: *a synthetic control is the easy reject; when a real rejected
+artefact exists, IT is the control, and the floor must sit above it.* My
+limb-spread floor was 0.15 with a synthetic palm at 0.06 — and the **rejected
+birch measured 0.17-0.19**, so the invariant would have passed the tree the user
+turned down.
+
+Applying it took a measurement, and the measurement refused the obvious move:
+
+| species | limb spread | foliage span |
+|---|---|---|
+| DaleOak | **0.166**-0.341 | 0.549-0.602 |
+| HighlandPine | 0.240-0.353 | 0.493-0.505 |
+| RiverBirch (repaired) | 0.399-0.442 | 0.555-0.595 |
+| ValeWillow | 0.586-0.679 | 0.711-0.758 |
+| *rejected birch* | *0.17-0.19* | *< 0.42 by construction* |
+| *synthetic palm* | *0.06* | *0.06* |
+
+**The oak's smallest variant sits at 0.166 — below the rejected birch.** A
+compact crown on a short tree and a tuft on a tall pole produce the same
+limb-spread number from different objects, so no floor on that clause separates
+accepted from rejected without failing an accepted species.
+
+**Foliage span does separate them, and by construction.** The rejected birch had
+its crown base at 0.58, so its foliage could not span more than 0.42 of the tree
+*whatever went in it*; every accepted species measures 0.49-0.76. The floor moved
+0.20 -> **0.45**, which rejects the whole CLASS — any tree whose crown starts
+above ~0.55 — rather than one instance of it.
+
+Design's rule is right and it is now satisfied. The lesson underneath is that
+*which* clause a floor belongs on is itself a measurement.
+
+### 8.2 The birch's remaining margin, stated rather than hidden
+
+At the landed 0.40 base the birch measures **aspect 1.78 against a ceiling of
+1.8** — about one per cent of margin, and only after `card_aspect` went 0.95 ->
+0.76 to spend vertical reach on width. The lever both the lead and design named
+is crown WIDTH, and it is genuinely the right one — a crown starting lower has
+longer lower limbs. **But the width band is 5-7 m and the built crown is already
+5.5-6.9 m, so there is nothing left to spend.** The aspect is now a structural
+consequence of two design bands multiplying: at 16-22 m height with a 0.40-0.44
+base and a 5-7 m width, aspect lands at 1.65-1.78 and cannot go lower.
+
+Reported to design rather than resolved here. My own sentence applies to me now:
+**the margin is where the palm lives**, and one per cent is not margin.

@@ -415,7 +415,12 @@ void whorl_skeleton(Skeleton& sk, const WhorlParams& p, uint64_t seed) {
                 const glm::vec3 along = sk.nodes[static_cast<size_t>(parent)].pos;
                 const glm::vec3 root_p = sk.nodes[static_cast<size_t>(whorl_node[k])].pos;
                 const glm::vec3 at = root_p + (along - root_p) * f
-                    + glm::vec3{0.0f, -len * (0.16f + rng.unit() * 0.22f), 0.0f};
+                    // The hang is bounded so the spray still OVERLAPS the
+                    // branch it grows on. A pendulous shoot that falls further
+                    // than its own card is wide reads as detached foliage, which
+                    // is the defect this whole rewrite exists to remove — and
+                    // the attachment invariant caught it at 1.63 card-reaches.
+                    + glm::vec3{0.0f, -len * (0.10f + rng.unit() * 0.14f), 0.0f};
                 sk.leaf_sites.push_back(at);
                 sk.leaf_anchor.push_back(parent);
             }

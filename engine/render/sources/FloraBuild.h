@@ -92,6 +92,7 @@ struct Tree {
     float crown_r;
     float trunk_r;
     uint32_t wood;
+    uint32_t twig; ///< thin-branch value; see SpeciesParams::twig_color
     uint32_t leaf;
     FloraLod lod;
     Rng rng;

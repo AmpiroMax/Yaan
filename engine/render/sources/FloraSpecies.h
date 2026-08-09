@@ -170,6 +170,22 @@ struct SpeciesParams {
 
     // --- value (LANDSCAPE §5 palette roles) ---------------------------------
     glm::vec3 trunk_color{0.14f, 0.11f, 0.08f};
+    /// Colour of the THIN wood — anything under about a third of the trunk
+    /// radius. Not a detail: §3.10 measured that the tracery in the user's
+    /// reference photographs reads by VALUE CONTRAST (branch 50, leaf 135, a
+    /// 2.54x ratio), not by transparency. A species whose limbs share its bole's
+    /// value has no tracery at all — the birch's near-white branches read as a
+    /// white wire frame with leaves stuck on it, which is the one thing left of
+    /// the palm after the shape was fixed. Real birches do this too: the bole is
+    /// white and the twigs are dark brown.
+    glm::vec3 twig_color{0.10f, 0.08f, 0.06f};
+    /// Wood thinner than this fraction of the trunk radius takes `twig_color`.
+    /// Per species because the boundary is a real botanical one and it sits in a
+    /// different place on each: an oak's bark runs out onto its limbs, a birch's
+    /// white bark stops at the bole and everything above it is dark brown. At
+    /// 640x360 a birch whose limbs keep the bole's value reads as a white wire
+    /// frame with leaves stuck on it.
+    float twig_radius_frac = 0.34f;
     glm::vec3 foliage_color{0.30f, 0.42f, 0.18f};
 
     // --- neighbour response (docs/specs/flora.md §3.3) ----------------------
