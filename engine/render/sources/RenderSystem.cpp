@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:44:28
+Last updated: 10:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -65,6 +65,15 @@ UPD:
 - 09:08:2026 - 22:44:28: MAP REGRESSION FIX — upload_terrain_voxel records the
   explored chunk. Since the ferry moved to the voxel path the map had been
   recording only chunks WITHOUT a voxel mesh, i.e. almost none.
+- 09:08:2026 - 23:50:06: HUD layer (transparent overlay + DFN_FONT_PROBE specimen),
+  water bodies merged into world-grid buckets and frustum-culled, per-path
+  upload accounting, and a LOUD first-failure report — a terrain chunk that
+  fails to upload used to `return;` in silence, which is the same "absence
+  looks neutral" family as the invisible castle.
+- 10:08:2026 - 00:20:00: The font probe forces the HUD layer on instead of riding on
+  hud_visible_. The app now owns that flag (it wires the real interaction
+  prompt) and the first frame after it landed came back EMPTY, with nothing
+  saying the hook had been switched off.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -72,6 +81,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/FloraCards.h"
 #include "engine/render/sources/Materials.h"
 #include "engine/render/sources/ProcMesh.h"
@@ -172,6 +182,7 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     water_program_ = renderer.load_program("water").id;
     prop_program_ = renderer.load_program("prop").id;
     foliage_program_ = renderer.load_program("foliage").id;
+    overlay_program_ = renderer.load_program("overlay").id;
 
     // Placeholder site meshes under the lead-blessed RenderMesh ids (1..12:
     // dwelling..tower_ruin, then the castle mass) — chunk streaming attaches
@@ -262,10 +273,22 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     internal_res_ = Tour::internal_res_from_env(
         {static_cast<uint32_t>(config::INTERNAL_RES_W),
          static_cast<uint32_t>(config::INTERNAL_RES_H)});
+    hud_.resize(internal_res_.x, internal_res_.y);
     // Verification hook (Rule 27): the screenshot tour cannot press M, so
     // DFN_MAP=1 opens the map from the first frame.
     if (const char* menv = std::getenv("DFN_MAP"); menv != nullptr && menv[0] == '1') {
         map_.set_open(true);
+    }
+    // Verification hook (Rule 27): DFN_FONT_PROBE=1 draws the font specimen
+    // into the HUD every frame. It is the ONLY thing in engine/ that puts text
+    // on screen without a caller, and it exists because the font's acceptance
+    // frame must show every glyph plus the missing-glyph block plus unplated
+    // text over real terrain. It stands down the instant the app draws a real
+    // prompt, exactly like DFN_TORCH did.
+    if (const char* fenv = std::getenv("DFN_FONT_PROBE");
+        fenv != nullptr && fenv[0] == '1') {
+        font_probe_ = true;
+        hud_visible_ = true;
     }
 
     environment_ = make_default_environment();
@@ -336,7 +359,36 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
         && prop_program_ != 0;
 }
 
+void RenderSystem::report_upload_failure(const char* what) {
+    // ONE line per run, not one per failure: the tour produced 13903 of these
+    // and the useful information is the first one plus the totals.
+    if (upload_failure_reported_) {
+        return;
+    }
+    upload_failure_reported_ = true;
+    std::fprintf(stderr,
+                 "[render] A %s FAILED TO UPLOAD and will not be drawn. The GPU "
+                 "buffer budget is spent; everything created after this point is "
+                 "missing from the world, silently. Counts so far: terrain %llu, "
+                 "voxel %llu, scatter chunks %llu, scatter meshes %llu.\n",
+                 what,
+                 static_cast<unsigned long long>(uploads_.terrain),
+                 static_cast<unsigned long long>(uploads_.voxel),
+                 static_cast<unsigned long long>(uploads_.scatter_chunks),
+                 static_cast<unsigned long long>(uploads_.scatter_meshes));
+}
+
 void RenderSystem::shutdown(platform::IRenderer& renderer) {
+    if (uploads_.failed > 0 || std::getenv("DFN_MESH_STATS") != nullptr) {
+        std::fprintf(stderr,
+                     "[render] uploads: terrain %llu, voxel %llu, scatter chunks "
+                     "%llu (%llu meshes), FAILED %llu.\n",
+                     static_cast<unsigned long long>(uploads_.terrain),
+                     static_cast<unsigned long long>(uploads_.voxel),
+                     static_cast<unsigned long long>(uploads_.scatter_chunks),
+                     static_cast<unsigned long long>(uploads_.scatter_meshes),
+                     static_cast<unsigned long long>(uploads_.failed));
+    }
     clear_water(renderer);
     clear_water_bodies(renderer);
     if (overlay_mesh_ != 0) {
@@ -518,12 +570,38 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         water_tex.id = it->second;
     }
     const platform::ProgramHandle water{water_program_};
-    for (const uint32_t mesh_id : water_body_meshes_) {
-        renderer.submit(platform::MeshHandle{mesh_id}, water, identity, water_tex);
+    for (const WaterBucket& bucket : water_body_meshes_) {
+        // Water never casts a sun shadow (transparent programs skip the depth
+        // pass), so this is a plain frustum test with no caster exemption.
+        if (!frustum.visible(bucket.bounds)) {
+            continue;
+        }
+        renderer.submit(platform::MeshHandle{bucket.mesh_id}, water, identity,
+                        water_tex);
     }
     if (water_mesh_ != 0) { // debug fallback plane (set_water / DFN_WATER)
         renderer.submit(platform::MeshHandle{water_mesh_}, water, identity,
                         water_tex);
+    }
+
+    // HUD: transparent, over the world, UNDER any full-screen screen. The
+    // caller draws into hud() each frame; the probe hook is the only in-engine
+    // author (see init()).
+    // The probe forces the layer ON rather than riding on hud_visible_. The app
+    // legitimately owns that flag — it sets it false when there is nothing to
+    // prompt — and the first time it did, the font's acceptance frame came back
+    // EMPTY with nothing anywhere saying the hook had been switched off. A
+    // verification hook a peer's correct change can silently disable is a hook
+    // that will lie to the next agent who trusts it.
+    const bool show_hud = (hud_visible_ || font_probe_)
+                          && hud_.width() == internal_res_.x
+                          && hud_.height() == internal_res_.y;
+    if (show_hud) {
+        if (font_probe_) {
+            hud_.clear_transparent();
+            draw_font_specimen(hud_);
+        }
+        draw_overlay(renderer, hud_, camera, alpha, true);
     }
 
     // Map screen: last submit of the frame, opaque, covering everything. The
@@ -580,8 +658,11 @@ void RenderSystem::upload_terrain(platform::IRenderer& renderer,
     }
     const platform::MeshHandle handle = renderer.create_mesh(data.vertices, data.indices);
     if (!handle.valid()) {
+        ++uploads_.failed;
+        report_upload_failure("terrain chunk");
         return;
     }
+    ++uploads_.terrain;
     // Idempotent per coord: replace (and free) any previous upload.
     const TerrainRes res{handle.id, bounds_of(data.vertices)};
     const auto it = terrain_meshes_.find(field.chunk_coord);
@@ -610,8 +691,11 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
     }
     const platform::MeshHandle handle = renderer.create_mesh(data.vertices, data.indices);
     if (!handle.valid()) {
+        ++uploads_.failed;
+        report_upload_failure("voxel chunk");
         return;
     }
+    ++uploads_.voxel;
     // Same key as the heightfield upload: whichever source ran last owns the
     // chunk, so switching the ferry over never draws both.
     const TerrainRes res{handle.id, bounds_of(data.vertices)};
@@ -655,21 +739,28 @@ void RenderSystem::upload_scatter(platform::IRenderer& renderer,
     ChunkScatterRes res;
     res.bounds.expand(bounds_of(batches.trees.vertices));
     res.bounds.expand(bounds_of(batches.foliage.vertices));
-    if (!batches.trees.vertices.empty()) {
+    ++uploads_.scatter_chunks;
+    const auto upload_batch = [&](const MeshData& mesh) -> uint32_t {
         const platform::MeshHandle handle =
-            renderer.create_mesh(batches.trees.vertices, batches.trees.indices);
-        res.trees_mesh_id = handle.id;
+            renderer.create_mesh(mesh.vertices, mesh.indices);
+        if (!handle.valid()) {
+            ++uploads_.failed;
+            report_upload_failure("scatter batch");
+            return 0;
+        }
+        ++uploads_.scatter_meshes;
+        return handle.id;
+    };
+    if (!batches.trees.vertices.empty()) {
+        res.trees_mesh_id = upload_batch(batches.trees);
     }
     if (!batches.foliage.vertices.empty()) {
-        const platform::MeshHandle handle =
-            renderer.create_mesh(batches.foliage.vertices, batches.foliage.indices);
-        res.foliage_mesh_id = handle.id;
+        res.foliage_mesh_id = upload_batch(batches.foliage);
     }
     for (const MicroTile& tile : batches.micro) {
-        const platform::MeshHandle handle =
-            renderer.create_mesh(tile.mesh.vertices, tile.mesh.indices);
-        if (handle.valid()) {
-            res.micro.push_back({tile.center_xz, tile.radius_m, handle.id});
+        const uint32_t id = upload_batch(tile.mesh);
+        if (id != 0) {
+            res.micro.push_back({tile.center_xz, tile.radius_m, id});
         }
     }
     if (res.trees_mesh_id != 0 || res.foliage_mesh_id != 0 || !res.micro.empty()) {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 17:16:40
-Last updated: 09:08:2026 - 17:16:40
+Last updated: 09:08:2026 - 23:32:07
 Module: engine/render
 File: engine/render/sources/PixelCanvas.cpp
 
@@ -9,7 +9,8 @@ Responsibility:
   UI screens need (rects, frames, 1-bit stamps, triangles).
 
 Key items:
-- PixelCanvas::resize/clear/put/fill_rect/frame_rect/draw_stamp/fill_triangle.
+- PixelCanvas::resize/clear/clear_transparent/put/fill_rect/frame_rect/
+  draw_stamp/fill_triangle.
 
 Dependencies:
 - Uses: PixelCanvas.h, C++ stdlib, glm.
@@ -22,6 +23,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 17:16:40: Created together with the map screen.
+- 09:08:2026 - 23:32:07: clear_transparent() for the HUD layer.
 */
 
 #include "engine/render/sources/PixelCanvas.h"
@@ -61,6 +63,10 @@ void PixelCanvas::clear(Color color) {
         pixels_[i + 2] = color.b;
         pixels_[i + 3] = 255;
     }
+}
+
+void PixelCanvas::clear_transparent() {
+    std::fill(pixels_.begin(), pixels_.end(), static_cast<uint8_t>(0));
 }
 
 void PixelCanvas::put(int x, int y, Color color) {

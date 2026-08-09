@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:19:03
+Last updated: 09:08:2026 - 23:32:07
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -47,6 +47,8 @@ UPD:
   be the 512 m streaming radius rather than a bad aim (walk the same bearing
   in, the mountain appears).
 - 09:08:2026 - 22:19:03: crag_acceptance_steps() (DFN_CRAG_PROBE=1).
+- 09:08:2026 - 23:32:07: font_probe_steps() (DFN_FONT_PROBE=1) — the font's
+  acceptance vantage, aimed at a MIXED background rather than at a chart.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -230,6 +232,20 @@ std::vector<TourStep> Tour::map_probe_steps() {
     return {{"map_screen", {mid, eye, mid}, 2.36f, 0.0f, 90, true}};
 }
 
+std::vector<TourStep> Tour::font_probe_steps() {
+    // ONE frame, and it is the FONT (RenderSystem draws the specimen into the
+    // HUD on DFN_FONT_PROBE=1). Vantage chosen for the readability case, not
+    // for the chart: the hamlet approach puts sky, lit grass, dark pine mass
+    // and a building wall in the lower half, so the unplated prompt line at
+    // the bottom crosses several background values in one shot. A chart on a
+    // black screen proves the glyphs exist and proves nothing about whether
+    // they can be read.
+    const glm::vec2 pos{425.0f, 515.0f};
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    return {{"font_specimen", {pos.x, eye + 0.5f, pos.y}, aim_yaw(pos, {372.0f, 500.0f}),
+             -0.03f, 45, true}};
+}
+
 std::vector<TourStep> Tour::thin_shadow_probe_steps() {
     // ONE frame at a dungeon entrance: the §6.2 standing stones and nearby
     // tree trunks in the same shot, from the south-east so the afternoon
@@ -352,6 +368,9 @@ std::vector<TourStep> Tour::testbed_steps() {
     // frame that proves one thing, instead of re-shooting the whole route.
     if (env_or_null("DFN_MAP") != nullptr) {
         return map_probe_steps();
+    }
+    if (env_or_null("DFN_FONT_PROBE") != nullptr) {
+        return font_probe_steps();
     }
     if (env_or_null("DFN_SHADOW_PROBE") != nullptr) {
         return thin_shadow_probe_steps();

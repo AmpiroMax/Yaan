@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 22:12:57
+# Last updated: 09:08:2026 - 23:32:07
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -36,11 +36,22 @@
 #   lead-granted Rule 25 exception (render's session had ended and the leaf-card
 #   stage could not wait); bounded to registration only — no shader, material,
 #   wind or backend change. Not a precedent.
+# - 09:08:2026 - 23:27:10: Registered the flora agent's three new translation
+#   units (FloraSkeleton / FloraBuild / FloraNeighbours) at its request. The
+#   last two are Rule 21 splits of ProcFlora.cpp (931 lines, over the hard
+#   limit) rather than new features, and ProcFlora.h is unchanged, so nothing
+#   crosses the render/flora seam. Registered by render, not by flora — the
+#   file is render's under Rule 25 and the earlier exception said so itself.
+# - 09:08:2026 - 23:32:07: BitmapFont.cpp — the project's first font.
 
 add_library(dfn_render STATIC
+    sources/BitmapFont.cpp
     sources/DebugDraw.cpp
     sources/FirstPersonCamera.cpp
+    sources/FloraBuild.cpp
     sources/FloraCards.cpp
+    sources/FloraNeighbours.cpp
+    sources/FloraSkeleton.cpp
     sources/FloraSpecies.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp

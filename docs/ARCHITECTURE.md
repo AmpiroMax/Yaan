@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 00:05:41
+Last updated: 10:08:2026 - 00:13:43
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 22:43:02: Rule 35 — a number stops belonging to a zone when a second zone must agree with it; the trigger is a thing gaining a dimension.
 - 09:08:2026 - 23:55:22: Rule 16 — read the clock per batch, never compute forward. Три зоны сделали эту ошибку за один вечер.
 - 10:08:2026 - 00:05:41: Rule 36 — exclusions by cause, not by magnitude; and the pipeline's own metric belongs in the design vocabulary.
+- 10:08:2026 - 00:13:43: Rule 36 — добавлена дешёвая стоячая проверка: сравнить максимум с отсечкой, и если они рядом, отвечал фильтр.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -410,6 +411,11 @@ a maximum of 0.9937 m — **the cutoff was the answer**, and it looked like a
 measurement right up to the moment a constant was about to be set from it.
 Reclassifying the same samples by their CAUSE (was this vertex carved?) gave
 1.1111 m, which is 0.11 m more than the constant would have allowed.
+
+**The standing check, which costs nothing: after any filtered measurement, compare
+the reported extreme against the cutoff. If they are within a few percent, the
+filter is the result.** 0.9937 against a 1 m cutoff should have been read that way
+on sight.
 
 Sibling of Rule 31: there the field's shape decided the answer, here the filter's
 threshold does. Both produce a number that survives review because nothing about it

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 17:15:10
-Last updated: 09:08:2026 - 17:15:10
+Last updated: 09:08:2026 - 23:32:07
 Module: engine/render
 File: engine/render/sources/PixelCanvas.h
 
@@ -26,8 +26,9 @@ Notes:
 - Everything is clipped: out-of-bounds coordinates are dropped, never asserted.
   Screens are laid out from the internal resolution at runtime and must not
   crash when it changes (320x180 is a shipping preset).
-- No text: there is no font system yet, so screens communicate with shapes and
-  value only. A bitmap font would slot in here as another Stamp source.
+- Text lives in BitmapFont.h (draw_text / text_width_px), NOT here: this stays
+  a raster surface. Shapes and value still carry meaning on their own — at
+  640x360 a 5 px letter is a last resort, not the first one.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -38,6 +39,10 @@ UPD:
 - 09:08:2026 - 17:15:10: Created for the map screen (user request "миникарта
   как в скайриме"): the project's first UI drawing surface, kept general so a
   menu screen can reuse it.
+- 09:08:2026 - 23:32:07: clear_transparent() — the HUD layer (interaction
+  prompts) composites over the world, unlike the opaque map screen. Text
+  itself arrives as BitmapFont.h free functions rather than as a member, so
+  this stays a raster surface and does not grow a text engine.
 */
 
 #pragma once
@@ -81,6 +86,10 @@ public:
     [[nodiscard]] uint32_t height() const { return height_; }
 
     void clear(Color color);
+    /// Clears to fully TRANSPARENT (alpha 0). Every primitive writes alpha
+    /// 255, so a canvas cleared this way composites as "only what I drew" —
+    /// which is what a HUD is, as opposed to a full-screen screen like the map.
+    void clear_transparent();
     void put(int x, int y, Color color);
     void fill_rect(int x, int y, int w, int h, Color color);
     /// 1-pixel outline on the rect boundary (inclusive of x..x+w-1).

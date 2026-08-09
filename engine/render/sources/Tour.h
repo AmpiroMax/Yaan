@@ -61,6 +61,7 @@ UPD:
 - 09:08:2026 - 17:33:00: map_probe_steps() — the single-frame map screen
   evidence route; testbed_steps() returns it when DFN_MAP is set.
 - 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE).
+- 09:08:2026 - 23:32:07: font_probe_steps() (DFN_FONT_PROBE).
 - 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE, hour via DFN_TIME).
 - 09:08:2026 - 21:20:00: massif_probe_steps() (DFN_MASSIF_PROBE=1|2) — design's
   §7.1b verdict/rhythm vantages.
@@ -162,6 +163,11 @@ public:
     // open ground with the sun behind the camera. Selected by DFN_SHADOW_PROBE.
     // Thin vertical objects are the class a coarse shadow map drops silently,
     // so they get their own acceptance frame.
+    /// DFN_FONT_PROBE=1: one vantage with the glyph specimen on the HUD.
+    /// Aimed at a background of several values, because the question the font
+    /// has to answer is legibility over the world, not "do glyphs exist".
+    [[nodiscard]] static std::vector<TourStep> font_probe_steps();
+
     [[nodiscard]] static std::vector<TourStep> thin_shadow_probe_steps();
 
     // Sky/day-night evidence shoot (Rule 27): one sky-heavy vantage over the

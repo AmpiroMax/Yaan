@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:23:29
+Last updated: 09:08:2026 - 23:50:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -86,6 +86,16 @@ UPD:
   rejected draws cast — changes all three, so "identical" is not vacuous.
   The world-space bounding sphere is now computed once and shared with the
   point-light face cull, which was recomputing it.
+- 09:08:2026 - 23:50:06: CRASH FIX (user report: segfault on exit). create_mesh
+  never validated bgfx's handles: on pool exhaustion createVertexBuffer returns
+  BGFX_INVALID_HANDLE (idx 0xFFFF), that was stored in the mesh record and
+  handed back as a VALID engine handle (MeshHandle validity is "our id != 0"),
+  and shutdown then called bgfx::destroy on it — which in a release build skips
+  its assert and indexes m_vertexBufferRef[0xFFFF], the reported stack exactly.
+  Now: a failed create is refused and reported, every destroy is guarded, and
+  live/peak/created/destroyed mesh handles are counted so the budget cliff is
+  reported BEFORE it is walked off. Added the "overlay" program (unlit shaders,
+  alpha blend) for the HUD layer.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -102,6 +112,7 @@ UPD:
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <unordered_map>
@@ -253,6 +264,12 @@ const ProgramSource PROGRAM_TABLE[] = {
     // pass-through); only the fragment differs (vertex-color albedo).
     {"prop",    {vs_terrain_mtl, sizeof(vs_terrain_mtl)},
                 {fs_prop_mtl, sizeof(fs_prop_mtl)}},
+    // "overlay" is "unlit" with an alpha blend: the screen-space layer the HUD
+    // (interaction prompts, later the crosshair) composites over the world.
+    // Same shaders on purpose — the difference is render state, which is what
+    // the logical-name -> state convention is for.
+    {"overlay", {vs_unlit_mtl, sizeof(vs_unlit_mtl)},
+                {fs_unlit_mtl, sizeof(fs_unlit_mtl)}},
     // Backend-internal depth-only pass for the sun shadow map.
     {"shadow",  {vs_shadow_mtl, sizeof(vs_shadow_mtl)},
                 {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
@@ -268,16 +285,24 @@ const ProgramSource PROGRAM_TABLE[] = {
     {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}},
     {"foliage", {}, {}}, {"shadow_cutout", {}, {}},
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
-    {"shadow", {}, {}}, {"point_shadow", {}, {}},
+    {"overlay", {}, {}}, {"shadow", {}, {}}, {"point_shadow", {}, {}},
 };
 #endif
 
 // Logical program names rendered with alpha blend + read-only depth (the
 // name -> render-state convention acknowledged at the stage-3 sync).
-constexpr const char* TRANSPARENT_PROGRAMS[] = {"water"};
+constexpr const char* TRANSPARENT_PROGRAMS[] = {"water", "overlay"};
 // Alpha-CUTOUT programs: opaque state (depth write, no sorting) but their
 // shadow depth must come from the mask, not from the card's rectangle.
 constexpr const char* CUTOUT_PROGRAMS[] = {"foliage"};
+
+// bgfx's handle pools for vertex and index buffers. MIRRORED, not included:
+// the value lives in bgfx's PRIVATE src/config.h (BGFX_MESH_HANDLE_BUDGET
+// / BGFX_CONFIG_MAX_INDEX_BUFFERS, both 4<<10 in the pinned v1.153.9398-566)
+// and bgfx's src/ is not on our include path. It is used for DIAGNOSTICS ONLY —
+// nothing branches on it — so a drift misreports a number in an error message
+// and cannot change behaviour. The real guard is bgfx::isValid on every handle.
+constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
 constexpr uint16_t ENV_PARAM_VEC4S = 33; // layout contract with dfn_env.sh
 constexpr uint16_t PALETTE_SIZE = 64;
@@ -376,6 +401,15 @@ struct BgfxRenderer::Impl {
         float radius = 0.0f;
     };
     std::unordered_map<uint32_t, MeshRes> meshes;
+    // GPU BUFFER BUDGET. bgfx hands out at most BGFX_MESH_HANDLE_BUDGET
+    // (4096) vertex-buffer handles and the same number of index buffers; past
+    // that createVertexBuffer returns BGFX_INVALID_HANDLE. Counted here because
+    // the failure is otherwise INVISIBLE until it kills the process at
+    // shutdown, in a stack that names none of the code that caused it.
+    uint32_t peak_meshes = 0;
+    uint64_t meshes_created = 0;
+    uint64_t meshes_destroyed = 0;
+    bool mesh_budget_warned = false;
     std::unordered_map<uint32_t, bgfx::TextureHandle> textures;
     std::unordered_map<uint32_t, bgfx::ProgramHandle> programs;
     std::unordered_map<uint32_t, bool> transparent; // program id -> water-style state
@@ -818,9 +852,23 @@ void BgfxRenderer::shutdown() {
     if (!im.initialized) {
         return;
     }
+    if (!im.meshes.empty() || std::getenv("DFN_MESH_STATS") != nullptr) {
+        // A count that does not return to zero is a leak; a peak near the limit
+        // is the next crash. Both are invisible without this line.
+        std::fprintf(stderr,
+                     "[render] mesh handles at shutdown: %zu still live, peak %u "
+                     "of %d, %llu created / %llu destroyed.\n",
+                     im.meshes.size(), im.peak_meshes, BGFX_MESH_HANDLE_BUDGET,
+                     static_cast<unsigned long long>(im.meshes_created),
+                     static_cast<unsigned long long>(im.meshes_destroyed));
+    }
     for (auto& [id, mesh] : im.meshes) {
-        bgfx::destroy(mesh.vb);
-        bgfx::destroy(mesh.ib);
+        if (bgfx::isValid(mesh.vb)) {
+            bgfx::destroy(mesh.vb);
+        }
+        if (bgfx::isValid(mesh.ib)) {
+            bgfx::destroy(mesh.ib);
+        }
     }
     im.meshes.clear();
     for (auto& [id, tex] : im.textures) {
@@ -1043,8 +1091,50 @@ MeshHandle BgfxRenderer::create_mesh(std::span<const Vertex> vertices,
         res.center = (lo + hi) * 0.5f;
         res.radius = glm::length(hi - res.center);
     }
+    // NEVER STORE THE RESULT OF A FAILED CREATE. bgfx returns
+    // BGFX_INVALID_HANDLE (idx 0xFFFF) when its handle pool is exhausted; that
+    // value used to be stored in the mesh record and handed back as a VALID
+    // engine handle, because MeshHandle's validity is "id != 0" and the id is
+    // ours, not bgfx's. The consequence was a SEGFAULT AT EXIT inside
+    // bgfx::freeAllHandles -> VertexLayoutRef::release, which indexes
+    // m_vertexBufferRef[0xFFFF] and walks off the array. Nothing between the
+    // failed create and the crash mentioned either.
+    if (!bgfx::isValid(res.vb) || !bgfx::isValid(res.ib)) {
+        if (bgfx::isValid(res.vb)) {
+            bgfx::destroy(res.vb);
+        }
+        if (bgfx::isValid(res.ib)) {
+            bgfx::destroy(res.ib);
+        }
+        std::fprintf(stderr,
+                     "[render] GPU BUFFER CREATE FAILED — bgfx handle pool "
+                     "exhausted (limit %d vertex / %d index buffers). Live "
+                     "meshes %zu, peak %u, created %llu, destroyed %llu. This "
+                     "mesh DRAWS NOTHING; the caller must treat the invalid "
+                     "handle as a failure, not as an empty mesh.\n",
+                     BGFX_MESH_HANDLE_BUDGET, BGFX_MESH_HANDLE_BUDGET,
+                     im.meshes.size(), im.peak_meshes,
+                     static_cast<unsigned long long>(im.meshes_created),
+                     static_cast<unsigned long long>(im.meshes_destroyed));
+        return {};
+    }
     const uint32_t id = im.next_id++;
     im.meshes.emplace(id, res);
+    ++im.meshes_created;
+    im.peak_meshes = std::max(im.peak_meshes,
+                              static_cast<uint32_t>(im.meshes.size()));
+    // One warning at three quarters of the budget, so the cliff is reported
+    // BEFORE it is walked off rather than after.
+    if (!im.mesh_budget_warned
+        && im.meshes.size() > static_cast<size_t>(BGFX_MESH_HANDLE_BUDGET) * 3 / 4) {
+        im.mesh_budget_warned = true;
+        std::fprintf(stderr,
+                     "[render] GPU BUFFER BUDGET WARNING: %zu live meshes of %d. "
+                     "Past the limit every further create fails silently and the "
+                     "world stops drawing. Cost must scale with SCREEN area, not "
+                     "world area.\n",
+                     im.meshes.size(), BGFX_MESH_HANDLE_BUDGET);
+    }
     return MeshHandle{id};
 }
 
@@ -1052,9 +1142,18 @@ void BgfxRenderer::destroy_mesh(MeshHandle mesh) {
     Impl& im = *impl_;
     const auto it = im.meshes.find(mesh.id);
     if (it != im.meshes.end()) {
-        bgfx::destroy(it->second.vb);
-        bgfx::destroy(it->second.ib);
+        // Validity checked even though create_mesh now refuses to store an
+        // invalid handle: bgfx's own destroy() only asserts in debug builds, so
+        // in release an invalid handle here is a crash three call frames later
+        // with nothing on the stack to say where it came from.
+        if (bgfx::isValid(it->second.vb)) {
+            bgfx::destroy(it->second.vb);
+        }
+        if (bgfx::isValid(it->second.ib)) {
+            bgfx::destroy(it->second.ib);
+        }
         im.meshes.erase(it);
+        ++im.meshes_destroyed;
     }
 }
 

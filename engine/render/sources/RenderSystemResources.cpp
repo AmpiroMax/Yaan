@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:12:57
+Last updated: 09:08:2026 - 23:50:06
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -27,18 +27,28 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:12:57: Split out of RenderSystem.cpp (Rule 21).
+- 09:08:2026 - 23:50:06: set_water_bodies merges bodies into CHUNK_SIZE buckets.
+  17336 LakePlanes on the 2x2 km testbed became 17336 buffer creates and 4078
+  draw calls a frame, exhausting bgfx's 4096-handle pool AT STARTUP so that no
+  terrain, scatter or site mesh could upload at all. 26 bucket meshes now.
+  draw_overlay gained the blended path for the HUD.
 */
 
 #include "engine/render/sources/RenderSystem.h"
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/Materials.h"
 #include "engine/render/sources/SkyModel.h" // TORCH_COLOR / TORCH_RADIUS_M
 #include "engine/render/sources/WaterMesher.h"
 
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <map>
+#include <utility>
 #include <cstdint>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -139,12 +149,24 @@ void RenderSystem::collect_point_lights(ecs::World& world,
 void RenderSystem::set_internal_resolution(uint32_t width, uint32_t height) {
     if (width > 0 && height > 0) {
         internal_res_ = {width, height};
+        // The HUD is in screen pixels, so it follows the internal target. Its
+        // contents are the caller's and are undefined after a resize; the
+        // caller redraws it every frame anyway.
+        hud_.resize(width, height);
+        hud_.clear_transparent();
     }
 }
 
 void RenderSystem::draw_overlay(platform::IRenderer& renderer, const PixelCanvas& canvas,
-                                const FirstPersonCamera& camera, float alpha) {
-    if (overlay_mesh_ == 0 || unlit_program_ == 0 || canvas.width() == 0) {
+                                const FirstPersonCamera& camera, float alpha,
+                                bool blended) {
+    // The blended path falls back to the opaque program rather than dropping
+    // the draw: a HUD that silently disappears because one program failed to
+    // load is exactly the "absence looks neutral" failure this project keeps
+    // paying for. An opaque HUD is wrong and VISIBLE.
+    const uint32_t program = blended && overlay_program_ != 0 ? overlay_program_
+                                                              : unlit_program_;
+    if (overlay_mesh_ == 0 || program == 0 || canvas.width() == 0) {
         return;
     }
     // One upload per frame: IRenderer has no texture update (frozen contract),
@@ -174,7 +196,7 @@ void RenderSystem::draw_overlay(platform::IRenderer& renderer, const PixelCanvas
                           * glm::translate(glm::mat4(1.0f), {0.0f, 0.0f, -depth})
                           * glm::scale(glm::mat4(1.0f), {half_w, half_h, 1.0f});
     renderer.submit(platform::MeshHandle{overlay_mesh_},
-                    platform::ProgramHandle{unlit_program_}, model, texture);
+                    platform::ProgramHandle{program}, model, texture);
 }
 
 void RenderSystem::set_water(platform::IRenderer& renderer, float height_m,
@@ -217,20 +239,47 @@ void RenderSystem::set_water_bodies(platform::IRenderer& renderer,
                                     std::span<const uint32_t> river_segment_offsets) {
     clear_water_bodies(renderer);
 
-    const auto upload = [&](const MeshData& data) {
-        if (data.vertices.empty()) {
+    // ONE GPU MESH PER WATER BODY WAS THE BUG. Core's hydrology emits a
+    // LakePlane per pond, and the 2x2 km testbed has 17336 of them. bgfx hands
+    // out 4096 vertex-buffer handles; the lakes alone consumed every one of
+    // them AT STARTUP, so every terrain chunk, every scatter batch and every
+    // site mesh afterwards failed to create — and the failed handles, stored as
+    // if they were real, killed the process on exit. The count of bodies is
+    // core's business and it is not wrong; spending a draw call and a buffer on
+    // each of them was mine.
+    //
+    // Bodies are therefore MERGED into buckets on a CHUNK_SIZE world grid.
+    // Cost becomes proportional to world area / chunk area (64 buckets at
+    // 2x2 km, 1600 at 10x10 km) instead of to the number of puddles, and each
+    // bucket carries an AABB so the frustum can drop the ones behind the eye.
+    const auto cell = static_cast<double>(config::CHUNK_SIZE);
+    std::map<std::pair<int, int>, MeshData> buckets;
+    const auto bucket_for = [&](glm::vec2 xz) -> MeshData& {
+        return buckets[{static_cast<int>(std::floor(static_cast<double>(xz.x) / cell)),
+                        static_cast<int>(std::floor(static_cast<double>(xz.y) / cell))}];
+    };
+    // Appending shifts the source indices by the vertices already in the bucket.
+    const auto append = [](MeshData& dst, const MeshData& src) {
+        if (src.vertices.empty() || src.indices.empty()) {
             return;
         }
-        const platform::MeshHandle handle =
-            renderer.create_mesh(data.vertices, data.indices);
-        if (handle.valid()) {
-            water_body_meshes_.push_back(handle.id);
+        const auto base = static_cast<uint32_t>(dst.vertices.size());
+        dst.vertices.insert(dst.vertices.end(), src.vertices.begin(), src.vertices.end());
+        dst.indices.reserve(dst.indices.size() + src.indices.size());
+        for (const uint32_t i : src.indices) {
+            dst.indices.push_back(base + i);
         }
     };
 
     for (const math::LakePlane& lake : lakes) {
-        upload(build_lake_mesh(lake, LOOKDEV_WATER_UV_TILE_M,
-                               LOOKDEV_WATER_EDGE_MARGIN_M));
+        const MeshData mesh = build_lake_mesh(lake, LOOKDEV_WATER_UV_TILE_M,
+                                              LOOKDEV_WATER_EDGE_MARGIN_M);
+        if (mesh.vertices.empty()) {
+            continue;
+        }
+        append(bucket_for({mesh.vertices.front().position.x,
+                           mesh.vertices.front().position.z}),
+               mesh);
     }
     // Segment i = stations [offsets[i], offsets[i+1]); a trailing offset equal
     // to the station count is tolerated but not required.
@@ -243,15 +292,51 @@ void RenderSystem::set_water_bodies(platform::IRenderer& renderer,
         if (begin >= end || end > station_count) {
             continue;
         }
-        upload(build_river_mesh(river_stations.subspan(begin, end - begin),
-                                LOOKDEV_WATER_UV_TILE_M,
-                                LOOKDEV_WATER_EDGE_MARGIN_M));
+        const MeshData mesh =
+            build_river_mesh(river_stations.subspan(begin, end - begin),
+                             LOOKDEV_WATER_UV_TILE_M, LOOKDEV_WATER_EDGE_MARGIN_M);
+        if (mesh.vertices.empty()) {
+            continue;
+        }
+        // A river segment spans many cells; it goes in the bucket of its first
+        // station and its AABB stretches to cover it. One long ribbon is a
+        // handful of segments, not thousands, so this costs nothing.
+        append(bucket_for({mesh.vertices.front().position.x,
+                           mesh.vertices.front().position.z}),
+               mesh);
+    }
+
+    size_t merged = 0;
+    for (const auto& [key, mesh] : buckets) {
+        if (mesh.vertices.empty()) {
+            continue;
+        }
+        const platform::MeshHandle handle =
+            renderer.create_mesh(mesh.vertices, mesh.indices);
+        if (!handle.valid()) {
+            std::fprintf(stderr,
+                         "[render] WATER BUCKET (%d,%d) FAILED TO UPLOAD — that "
+                         "water is missing from the world.\n", key.first, key.second);
+            continue;
+        }
+        math::Aabb bounds{};
+        for (const platform::Vertex& v : mesh.vertices) {
+            bounds.expand(v.position);
+        }
+        water_body_meshes_.push_back({handle.id, bounds});
+        ++merged;
+    }
+    if (std::getenv("DFN_MESH_STATS") != nullptr) {
+        std::fprintf(stderr,
+                     "[render] water bodies: %zu lakes + %zu river segments -> "
+                     "%zu bucket meshes.\n",
+                     lakes.size(), river_segment_offsets.size(), merged);
     }
 }
 
 void RenderSystem::clear_water_bodies(platform::IRenderer& renderer) {
-    for (const uint32_t mesh_id : water_body_meshes_) {
-        renderer.destroy_mesh(platform::MeshHandle{mesh_id});
+    for (const WaterBucket& bucket : water_body_meshes_) {
+        renderer.destroy_mesh(platform::MeshHandle{bucket.mesh_id});
     }
     water_body_meshes_.clear();
 }

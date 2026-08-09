@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:44:28
+Last updated: 09:08:2026 - 23:50:06
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -88,6 +88,10 @@ UPD:
 - 09:08:2026 - 22:44:28: upload_terrain_voxel takes the heightfield for the MAP
   (defaulted, source-compatible). Regression fix: the map recorded nothing at
   all once the ferry moved to the voxel path.
+- 09:08:2026 - 23:50:06: hud()/set_hud_visible (the caller draws the interaction
+  prompt; render owns the surface and the blit, never the string — Rule 5),
+  overlay_program_, WaterBucket (bodies merged per CHUNK_SIZE cell with an AABB
+  for culling), upload counters.
 */
 
 #pragma once
@@ -264,6 +268,23 @@ public:
     void set_internal_resolution(uint32_t width, uint32_t height);
     [[nodiscard]] const MapScreen& map() const { return map_; }
 
+    // HUD layer (the interaction prompt, and later the crosshair / status) ----
+    // A TRANSPARENT screen-space canvas the game draws into every frame, blitted
+    // over the world through the same overlay path as the map but with an alpha
+    // blend. The caller owns its contents: clear it, draw into it with
+    // BitmapFont.h's draw_text, and render() composites it.
+    //
+    // WHY THE CALLER DRAWS AND NOT render: the prompt's TEXT is a localization
+    // string resolved from components::Highlightable::prompt_key (Rule 5).
+    // render must never contain a user-facing string, so it cannot own the
+    // content — only the surface and the blit.
+    //
+    // The canvas is sized to the internal resolution (one canvas pixel = one
+    // screen pixel) by init() and set_internal_resolution(); do not resize it.
+    [[nodiscard]] PixelCanvas& hud() { return hud_; }
+    void set_hud_visible(bool visible) { hud_visible_ = visible; }
+    [[nodiscard]] bool hud_visible() const { return hud_visible_; }
+
 private:
     struct ChunkKeyHash {
         size_t operator()(const glm::ivec2& v) const;
@@ -288,8 +309,11 @@ private:
     // texture and draws the unlit quad that exactly fills the frustum just
     // past the near plane. Generic on purpose — the future menu screen draws
     // through the same path (no IRenderer contract change, Rule 26).
+    // `blended` picks the alpha-blended "overlay" program (HUD) over the opaque
+    // "unlit" one (full-screen screens like the map).
     void draw_overlay(platform::IRenderer& renderer, const PixelCanvas& canvas,
-                      const FirstPersonCamera& camera, float alpha);
+                      const FirstPersonCamera& camera, float alpha,
+                      bool blended = false);
 
     // A resident chunk mesh plus the world AABB it occupies. The bounds are
     // measured at upload (the mesher's vertices are right there) and exist for
@@ -329,13 +353,25 @@ private:
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id
     std::unordered_map<uint64_t, uint32_t> proc_texture_ids_; // params key -> asset id
-    std::vector<uint32_t> water_body_meshes_; // MeshHandle.ids (lakes + river segments)
+    // Water bodies are MERGED INTO WORLD-GRID BUCKETS, not uploaded one mesh
+    // per body. Core's hydrology emits a LakePlane per pond: 17336 of them on
+    // the 2x2 km testbed, which spent every one of bgfx's 4096 vertex-buffer
+    // handles before a single chunk of terrain could upload, and cost 4078 draw
+    // calls a frame besides. One bucket per CHUNK_SIZE cell keeps the count
+    // proportional to world area / chunk area and gives the frustum something
+    // to cull.
+    struct WaterBucket {
+        uint32_t mesh_id = 0;
+        math::Aabb bounds{};
+    };
+    std::vector<WaterBucket> water_body_meshes_;
     uint32_t next_texture_asset_ = 1; // dense id allocator (0 = none)
     uint32_t terrain_program_ = 0; // ProgramHandle.id
     uint32_t unlit_program_ = 0;   // ProgramHandle.id
     uint32_t water_program_ = 0;   // ProgramHandle.id
     uint32_t prop_program_ = 0;    // ProgramHandle.id (lit+fog vertex color)
     uint32_t foliage_program_ = 0; // ProgramHandle.id (alpha-cutout leaf cards)
+    uint32_t overlay_program_ = 0; // ProgramHandle.id ("unlit" + alpha blend)
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
     uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
     uint32_t leaf_texture_asset_ = 0;  // leaf mask atlas (engine asset id)
@@ -372,6 +408,26 @@ private:
     bool dark_frozen_ = false;
     float frozen_darkness_ = 0.0f;
     MapScreen map_;
+    PixelCanvas hud_;              // transparent HUD layer, drawn by the caller
+    bool hud_visible_ = false;
+    bool font_probe_ = false;      // DFN_FONT_PROBE: draw the glyph specimen
+
+    // Upload accounting. GPU buffer handles are a HARD, SMALL budget (bgfx
+    // hands out 4096) and every path below spends them; when the budget ran out
+    // the only symptom was a crash at exit. Counted per entry point so the next
+    // report says WHICH path is spending, not just that spending happened.
+    struct UploadCounts {
+        uint64_t terrain = 0;
+        uint64_t voxel = 0;
+        uint64_t scatter_chunks = 0;
+        uint64_t scatter_meshes = 0;
+        uint64_t failed = 0;
+    } uploads_;
+    bool upload_failure_reported_ = false;
+
+    // Prints the FIRST upload failure of the run with the counts that caused
+    // it. Silent afterwards.
+    void report_upload_failure(const char* what);
     LodTerrain lod_; // coarse terrain beyond the streamed chunk ring
     platform::RenderEnvironment environment_{};
     std::chrono::steady_clock::time_point clock_start_{}; // visual time origin
