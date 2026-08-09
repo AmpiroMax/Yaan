@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 16:30:44
 Module: engine/world
 File: engine/world/sources/Chunk.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — implementation.
 - 09:08:2026 - 11:05:22: Stage 3b — SurfaceData::view (SurfaceFieldView per
   the render agreement).
+- 09:08:2026 - 16:30:44: Representation swap: VoxelSurface::view.
 */
 
 #include "engine/world/sources/Chunk.h"
@@ -68,6 +69,16 @@ math::SurfaceFieldView SurfaceData::view(ChunkCoord coord) const {
     v.dist_to_water = std::span<const float>{dist_to_water.data(), dist_to_water.size()};
     v.water_surface = std::span<const float>{water_surface.data(), water_surface.size()};
     v.surface_class = std::span<const uint8_t>{surface_class.data(), surface_class.size()};
+    return v;
+}
+
+math::VoxelMeshView VoxelSurface::view(ChunkCoord coord) const {
+    math::VoxelMeshView v;
+    v.chunk_coord = glm::ivec2{coord.x, coord.z};
+    v.positions = positions;
+    v.normals = normals;
+    v.materials = materials;
+    v.indices = indices;
     return v;
 }
 

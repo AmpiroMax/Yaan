@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 09:08:2026 - 00:55:00
+# Last updated: 09:08:2026 - 16:32:08
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -26,9 +26,21 @@
 # UPD:
 # - 09:08:2026 - 00:35:09: Created for stage 2 (skeleton walk).
 # - 09:08:2026 - 00:55:00: include(CTest) at root so ctest works from the build
+# - 09:08:2026 - 16:32:08: Default CMAKE_BUILD_TYPE=RelWithDebInfo when unset —
+#                          an unset type compiles with no optimization at all.
 #                          root (core's report, note 3).
 
 cmake_minimum_required(VERSION 3.28)
+
+# An unset CMAKE_BUILD_TYPE means NO optimization flag at all — every timing
+# measured in such a tree is ~30x pessimistic (found by core while chasing a
+# 30x gap between identical algorithms in two trees). Performance decisions
+# were nearly made on those numbers, so the default is explicit here.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+    message(STATUS "CMAKE_BUILD_TYPE not set — defaulting to RelWithDebInfo")
+endif()
+
 project(daggerfall_n CXX)
 
 set(CMAKE_CXX_STANDARD 23)              # Rule 19: clang 22 primary; AppleClang 15

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 16:30:44
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -39,6 +39,7 @@ UPD:
   (octaves from dfn::config, local table deleted), P2 hydrology, P3 surface
   arrays, P4 site records, P5 scatter; WORLDGEN_MAX_HEIGHT quantization.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: grid-pass generate_chunk (water/heights once per node, slope from the grid, analytic border) — bit-identical to surface_point, ~5x fewer field evals; equality pinned by test.
+- 09:08:2026 - 16:30:44: Representation swap: generate_chunk builds the voxel volume from the heightmap it just wrote, extracts the surface, and drops the volume.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -46,6 +47,8 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenNoise.h"
+#include "engine/world/sources/VoxelMesh.h"
+#include "engine/world/sources/VoxelVolume.h"
 #include "engine/world/sources/WorldgenScatter.h"
 
 #include <algorithm>
@@ -260,6 +263,20 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     // P5 scatter instances for this chunk.
     chunk.scatter = build_scatter(ctx.params.seed, ctx.params.layout, ctx.hydrology,
                                   ctx.sites, origin, chunk_max);
+
+    // 3D terrain: build the voxel volume from the heightmap just written, then
+    // extract its surface and DROP the volume — the world is not destructible,
+    // so only the geometry stays resident.
+    {
+        const VoxelVolume volume = build_voxel_volume(chunk, [&ctx](glm::vec2 p) {
+            return terrain_height(ctx, p);
+        });
+        VoxelMeshData mesh = extract_surface_nets(volume);
+        chunk.voxels.positions = std::move(mesh.positions);
+        chunk.voxels.normals = std::move(mesh.normals);
+        chunk.voxels.materials = std::move(mesh.materials);
+        chunk.voxels.indices = std::move(mesh.indices);
+    }
     return chunk;
 }
 

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 13:28:27
+# Last updated: 09:08:2026 - 16:30:44
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -21,10 +21,13 @@
 # - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 pass sources (macro,
 #                          hydrology, sites, scatter, validation).
 # - 09:08:2026 - 13:28:27: P1 anisotropy touch: WorldgenWater.cpp added (query side split from WorldgenHydrology.cpp).
+# - 09:08:2026 - 16:30:44: Representation swap: VoxelVolume.cpp and VoxelMesh.cpp.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
+    sources/VoxelMesh.cpp
+    sources/VoxelVolume.cpp
     sources/Worldgen.cpp
     sources/WorldgenCastle.cpp
     sources/WorldgenHydrology.cpp

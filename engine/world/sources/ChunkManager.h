@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 16:30:44
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -40,6 +40,7 @@ UPD:
   resident chunk + water_bodies() (render handoff agreement); open_generated
   builds the WorldGenContext once; chunk load attaches Transform/RenderMesh/
   LocalBounds/SiteMarker to P4 site entities via batch ops.
+- 09:08:2026 - 16:30:44: Representation swap: voxel_mesh(coord) — the 3D geometry handoff, same lifetime as heightfield().
 */
 
 #pragma once
@@ -47,6 +48,7 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/math/sources/HeightField.h"
+#include "engine/core/math/sources/VoxelField.h"
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/SaveDelta.h"
 #include "engine/world/sources/WorldFormat.h"
@@ -136,6 +138,12 @@ public:
     /// agreed with render). Same lifetime as heightfield(). nullopt if not
     /// resident.
     [[nodiscard]] std::optional<math::SurfaceFieldView> surfacefield(ChunkCoord coord) const;
+
+    /// The extracted 3D terrain surface of a resident chunk (render draws it,
+    /// physics builds its static collision from it). Same lifetime as
+    /// heightfield(); nullopt if not resident. HeightFieldView remains valid
+    /// alongside it as the ground-height query.
+    [[nodiscard]] std::optional<math::VoxelMeshView> voxel_mesh(ChunkCoord coord) const;
 
     /// P5 scatter instances of a resident chunk (render decides drawing).
     /// Empty span if not resident. Same lifetime as heightfield().

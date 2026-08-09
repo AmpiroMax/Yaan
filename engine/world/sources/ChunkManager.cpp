@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 09:08:2026 - 16:30:44
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -32,6 +32,7 @@ UPD:
   Transform/PreviousTransform/RenderMesh/LocalBounds/SiteMarker prototypes via
   add_batch (Rule 11 — one pool visit per component type).
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes now carries the lake plus one plane per surviving pond (additive, lead-blessed; render iterates the same span).
+- 09:08:2026 - 16:30:44: Representation swap: voxel_mesh accessor.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -231,6 +232,14 @@ std::optional<math::SurfaceFieldView> ChunkManager::surfacefield(ChunkCoord coor
         return std::nullopt;
     }
     return it->second.surface.view(coord);
+}
+
+std::optional<math::VoxelMeshView> ChunkManager::voxel_mesh(ChunkCoord coord) const {
+    const auto it = impl_->resident.find(chunk_group(coord));
+    if (it == impl_->resident.end()) {
+        return std::nullopt;
+    }
+    return it->second.voxels.view(coord);
 }
 
 std::span<const math::ScatterInstance> ChunkManager::scatter(ChunkCoord coord) const {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 16:30:44
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -36,6 +36,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — SurfaceData (per-sample splat/water inputs,
   view() -> math::SurfaceFieldView per the render agreement) and scatter
   instances added to Chunk. Additive; heightmap contract unchanged.
+- 09:08:2026 - 16:30:44: Representation swap: Chunk carries the extracted VoxelSurface (the volume is transient — the world is not destructible, so only geometry stays resident).
 */
 
 #pragma once
@@ -44,9 +45,11 @@ UPD:
 #include "engine/core/ecs/sources/EntityId.h"
 #include "engine/core/math/sources/HeightField.h"
 #include "engine/core/math/sources/SurfaceField.h"
+#include "engine/core/math/sources/VoxelField.h"
 
 #include <cstdint>
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <vector>
 
 namespace dfn::world {
@@ -135,12 +138,27 @@ struct SurfaceData {
     [[nodiscard]] math::SurfaceFieldView view(ChunkCoord coord) const;
 };
 
+/// Extracted voxel surface of one chunk (3D terrain stage). Owned here; the
+/// VoxelVolume it came from is discarded after extraction because the world is
+/// not destructible, so only the geometry is kept resident.
+struct VoxelSurface {
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec3> normals;
+    std::vector<uint8_t> materials;
+    std::vector<uint32_t> indices;
+
+    /// The cross-zone handoff view (render draws it, physics collides it).
+    [[nodiscard]] math::VoxelMeshView view(ChunkCoord coord) const;
+    [[nodiscard]] bool empty() const { return indices.empty(); }
+};
+
 /// One loaded chunk: pure data, produced by the world file reader (plus the
 /// save-delta overlay) and owned by ChunkManager.
 struct Chunk {
     ChunkCoord coord;
     Heightmap heightmap;
     SurfaceData surface;                          ///< P3 splat/water inputs
+    VoxelSurface voxels;                          ///< 3D terrain geometry
     std::vector<GeneratedEntityRecord> entities;  ///< P4 sites (ECS-spawned)
     std::vector<math::ScatterInstance> scatter;   ///< P5 vegetation/stones (data-only)
 };
