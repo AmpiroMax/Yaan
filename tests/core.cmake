@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 23:49:27
+# Last updated: 10:08:2026 - 01:58:00
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -26,8 +26,10 @@
 #                          which links dfn_render as well because it checks the
 #                          two zones AGREE (ladder equality + the inter-level
 #                          disagreement table against render's skirt).
+# - 10:08:2026 - 01:58:00: test_json (strict JSON reader, tech-debt task 3).
 
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
+add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
 add_dfn_test(test_events core/EventBusTests.cpp dfn_core)
 add_dfn_test(test_math core/MathTests.cpp dfn_core)

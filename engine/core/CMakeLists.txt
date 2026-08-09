@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 00:42:03
+# Last updated: 10:08:2026 - 01:58:00
 # File: engine/core/CMakeLists.txt
 #
 # Responsibility:
@@ -19,6 +19,7 @@
 # - 09:08:2026 - 00:42:03: Stage 2 — created dfn_core with ECS/time/events/math
 #                          implementations (serialization IO deferred;
 #                          ContentHash built for the determinism test).
+# - 10:08:2026 - 01:58:00: JSON reader (serialization/Json) — tech-debt task 3.
 
 add_library(dfn_core STATIC
     ecs/sources/World.cpp
@@ -28,6 +29,7 @@ add_library(dfn_core STATIC
     math/sources/Intersect.cpp
     math/sources/Ray.cpp
     serialization/sources/ContentHash.cpp
+    serialization/sources/Json.cpp
     time/sources/Clock.cpp
     time/sources/FixedTimestep.cpp
     types/sources/TypeId.cpp)
