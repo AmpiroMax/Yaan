@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 00:31:03
+Last updated: 10:08:2026 - 00:35:07
 -->
 <!--
 UPD:
@@ -15,6 +15,7 @@ UPD:
 - 10:08:2026 - 00:14:34: Rule 30 — когда есть настоящий отвергнутый образец, контролем служит ОН, и порог обязан стоять выше него.
 - 10:08:2026 - 00:18:40: Rule 29 — до включения веток каждый коммит перечисляет файлы явно; общий индекс делает голый git commit ловушкой.
 - 10:08:2026 - 00:31:03: Rule 27 — точка съёмки, неспособная провалиться, не является доказательством.
+- 10:08:2026 - 00:35:07: Rule 30 — на какой ВЕЛИЧИНЕ стоит порог, тоже является измерением; и вилка — это два утверждения.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -365,7 +366,20 @@ before being trusted. Controls are cheap — a cone, a sphere, a plane, a flat f
 one is worth reporting.
 
 **When a real rejected instance exists, IT is the control, and the threshold must
-sit above it.** A synthetic worst case is the easy reject: a limb-spread test shipped
+sit above it. And WHICH QUANTITY a threshold belongs on is itself a measurement:
+if no value on a quantity separates the accepted cases from the rejected ones, the
+QUANTITY is wrong, not the threshold.** That is the mechanical form of this
+project's central failure — nine invariants measured the mountain and none measured
+the view, and the way to have caught it in an afternoon was to ask of each one
+whether ANY threshold on it would separate the mountain the user rejected from one
+he would accept. For most of them the answer was no, and that is computable rather
+than a matter of judgement.
+
+**A range is two assertions, not one.** Both ends get derived and both get measured.
+Six defects tonight came from an unexamined end: a crown-width band whose maximum
+was arithmetically too small to satisfy the aspect ceiling it shared a species with,
+and which passed only because the generator never happened to land in the corner the
+band permitted. A synthetic worst case is the easy reject: a limb-spread test shipped
 with a synthetic palm at 0.06 against a floor of 0.15, passed it correctly, and still
 passed the tree the user had rejected in words, which measured 0.17-0.19. A threshold
 placed below every real failure is a description, not a test.
