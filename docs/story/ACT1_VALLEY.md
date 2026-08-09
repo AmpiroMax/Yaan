@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 21:33:24
+Last updated: 09:08:2026 - 21:36:48
 -->
 <!--
 UPD:
@@ -12,6 +12,7 @@ UPD:
 - 09:08:2026 - 19:36:28: MQ4's ascent of Ravenscar is now a validated worldgen invariant (continuous walkable route to the tower ruin, <=25 deg, checked every run) - design added it after story's near-miss exposed that act 1 climaxed on a summit with no guaranteed route. Specified as an unbuilt worn watchmen's path, visually distinct from act 2's built stair.
 - 09:08:2026 - 21:27:32: Answered design's pre-clearance on reshaping Ravenscar (steeper, narrower base, four ribs): nothing in the arc needs a broad-shouldered crag — steeper suits act 1 — but recorded two escalation conditions in §2: the ward-tower ascent must stay an UNBUILT walkable path (a built stair here would collapse the two-different-climbs distinction with act 2's Seven Thousand Steps), and the narrowed base must be re-checked so the castle still reads against rock rather than sky, since that siting is what protects the tower's skyline monopoly.
 - 09:08:2026 - 21:33:24: Design accepted both conditions as binding in LANDSCAPE (incl. closing the graded-ramp-is-masonry loophole). Recorded the reshape's gift — on a steep banded massif the walkable line must wrap, so ledges are traverses and cliff-band breaks are risers, making the unbuilt worn path true by construction — and the escalated castle risk: the Ward may end up freestanding if the hem contracts far enough, with design committed to moving it or stopping the contraction; if it moves, story must be consulted since barrow proximity, the yard sightline and the trespass route are all keyed to its position.
+- 09:08:2026 - 21:36:48: Recorded design's binding order of preference for the castle-spur risk (flare the apron, then stop the contraction, then move the castle with story's consult) — the consult trigger is now binding on terrain and read by core's re-siting pass.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -169,8 +170,12 @@ preferences:
    from the valley standpoints after the reshape. **Escalated risk (design,
    09:08:2026):** the Ward sits ~148 m from the crag centre, so a far enough
    contraction leaves it freestanding on flat ground beside the massif rather
-   than on a spur of it. Design has committed that the castle moves or the
-   contraction stops rather than letting it end up freestanding. **If moving
+   than on a spur of it. Design's **binding order of preference**, no improvising:
+   (1) flare the apron so the Ward's spur survives (the aspect rule
+   constrains only the body above the cliff line, so the hem is free — a
+   grassy apron around a rocky crag is what real mountains look like);
+   (2) stop the contraction; (3) move the castle, which requires story's
+   consult **before** it lands. **If moving
    the castle is ever the answer, story must be consulted:** the ~55 m
    barrow proximity, the yard/gate sightline and the act-1 trespass route
    are load-bearing and all keyed to where the Ward stands.

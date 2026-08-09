@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 22:30:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -28,7 +28,7 @@ UPD:
 - 09:08:2026 - 16:45:00: Created — carve SDF for the crag tunnel and barrow.
 - 09:08:2026 - 16:47:51: Created — carve distance fields and column ranges.
 - 09:08:2026 - 17:36:42: §6.2: mouth walk (first station whose ceiling is under terrain) and derived-corridor overloads.
-- 09:08:2026 - 22:30:00: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
+- 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"

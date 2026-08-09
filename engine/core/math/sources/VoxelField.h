@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 21:40:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/core/math
 File: engine/core/math/sources/VoxelField.h
 
@@ -35,7 +35,7 @@ UPD:
 - 09:08:2026 - 16:00:00: Created — voxel surface handoff for the 3D terrain
   stage (representation swap).
 - 09:08:2026 - 16:30:44: Representation swap: VoxelMeshView + VoxelMaterial — the additive cross-zone geometry handoff (HeightFieldView untouched, still the ground-height query).
-- 09:08:2026 - 21:40:00: ADDITIVE: VoxelMeshView::sky_visibility (per-vertex, 255=open sky, 0=sealed) at render's request; an empty span means unknown and render falls back to 255, so the field lands before it is filled. No existing field moved.
+- 09:08:2026 - 21:37:57: ADDITIVE: VoxelMeshView::sky_visibility (per-vertex, 255=open sky, 0=sealed) at render's request; an empty span means unknown and render falls back to 255, so the field lands before it is filled. No existing field moved.
 */
 
 #pragma once

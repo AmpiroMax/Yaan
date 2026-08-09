@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 23:30:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/core/ecs
 File: engine/core/ecs/sources/World.h
 
@@ -33,7 +33,7 @@ UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — implemented. Private section: stage-1 pimpl
   replaced by concrete members (template methods need member access in-header);
   public surface unchanged.
-- 09:08:2026 - 23:30:00: add() documents the value categories it accepts (sim's report); the lvalue path is fixed in ComponentPool via a const-lvalue overload.
+- 09:08:2026 - 21:37:57: add() documents the value categories it accepts (sim's report); the lvalue path is fixed in ComponentPool via a const-lvalue overload.
 */
 
 #pragma once

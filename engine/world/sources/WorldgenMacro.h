@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 23:55:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -32,8 +32,8 @@ UPD:
 - 09:08:2026 - 13:28:27: P1 anisotropy retune: STREAM_HILL_AXIS for the landform-anisotropy axis field (§2.1).
 - 09:08:2026 - 14:03:23: Micro-relief batch: path_groove_depth exposed (corridor trails carved 15 cm, ford-safe by pipeline order); STREAM_SCATTER_CURB.
 - 09:08:2026 - 17:45:08: §6.2: STREAM_SCATTER_MARKER for entrance standing stones.
-- 09:08:2026 - 21:40:00: Banded massif streams: STREAM_MASSIF_PROFILE/LOBE/BAND/RISER; bearing_field/bearing_ridged gain a band index that decorrelates successive contour bands within one stream.
-- 09:08:2026 - 23:55:00: STREAM_MASSIF_MICRO / STREAM_MASSIF_MICRO_AMP for bench micro-relief; polygon_radius replaces the circle-sampled lobe field.
+- 09:08:2026 - 21:37:57: Banded massif streams: STREAM_MASSIF_PROFILE/LOBE/BAND/RISER; bearing_field/bearing_ridged gain a band index that decorrelates successive contour bands within one stream.
+- 09:08:2026 - 21:37:57: STREAM_MASSIF_MICRO / STREAM_MASSIF_MICRO_AMP for bench micro-relief; polygon_radius replaces the circle-sampled lobe field.
 */
 
 #pragma once

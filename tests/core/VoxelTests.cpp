@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 21:40:00
+Last updated: 09:08:2026 - 21:37:57
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -28,7 +28,7 @@ UPD:
 - 09:08:2026 - 17:45:08: §6.2: standing stones present and within their height band at every entrance; no vegetation inside the exclusion ring.
 - 09:08:2026 - 18:58:01: Regression: every entrance walks out without the ground ahead rising above head height; mounds fall from their crown (dome, not plateau); no scatter instance floats or sinks by more than 0.3 m anywhere in the testbed.
 - 09:08:2026 - 19:41:55: Tolerances re-derived for a 115 m crag: worst voxel deviation bounded by the cell diagonal on near-vertical faces (2.5x voxel, mean still ~2 cm), and the tunnel's standable allowance widened because the ascent now climbs 41 m instead of 18 in a similar footprint so its legs stack closer.
-- 09:08:2026 - 21:40:00: Heightfield-vs-voxel check restated for §2.8 cliffs: every vertex must lie on the heightfield within the terrain's own relief across one voxel cell, UNLESS it is a carve surface (a tunnel wall is not describable as a height per column). Checked per vertex rather than on the global max, which is strictly stronger — the old flat 2.5 m bound let one cliff vertex mask every other error. Measured: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained.
+- 09:08:2026 - 21:37:57: Heightfield-vs-voxel check restated for §2.8 cliffs: every vertex must lie on the heightfield within the terrain's own relief across one voxel cell, UNLESS it is a carve surface (a tunnel wall is not describable as a height per column). Checked per vertex rather than on the global max, which is strictly stronger — the old flat 2.5 m bound let one cliff vertex mask every other error. Measured: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained.
 */
 
 #include "engine/core/config/sources/Constants.h"

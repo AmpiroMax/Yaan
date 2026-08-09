@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 22:45:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -35,7 +35,7 @@ UPD:
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh accessor.
 - 09:08:2026 - 17:36:42: §6.2: honour ground_y when spawning site entities.
 - 09:08:2026 - 18:19:09: Streaming LOAD BUDGET: at most CHUNK_LOAD_BUDGET chunks admitted per update, nearest-to-focus first with a deterministic tie-break, remainder deferred to following updates. Unbounded admission was the multi-second freeze (a cold ring is ~2 s of synchronous work at ~83 ms/chunk including sim's collision build). Nearest-first is what makes deferral safe: the ground under the player is distance 0, so it is always next and the queue cannot reorder into a hole beneath them.
-- 09:08:2026 - 22:45:00: NEW darkness_at(world) — the §6.3 authored-darkness query wrapped at the ChunkManager level (lead's call) so the app holds only its one world handle and never the layout, the worldgen context or a GroundSampler; HOW darkness is computed stays in this zone and the sampler is guaranteed to be the one the carve mouths were derived with.
+- 09:08:2026 - 21:37:57: NEW darkness_at(world) — the §6.3 authored-darkness query wrapped at the ChunkManager level (lead's call) so the app holds only its one world handle and never the layout, the worldgen context or a GroundSampler; HOW darkness is computed stays in this zone and the sampler is guaranteed to be the one the carve mouths were derived with.
 */
 
 #include "engine/world/sources/ChunkManager.h"

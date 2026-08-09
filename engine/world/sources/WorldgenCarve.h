@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 22:30:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -36,7 +36,7 @@ UPD:
 - 09:08:2026 - 16:45:00: Created — P7 carve pass for the 3D terrain stage.
 - 09:08:2026 - 16:47:51: Created — P7 carve SDF: box cross-section corridors (flat floor, real headroom) and chambers, plus the per-column range the voxel builder needs to widen its band.
 - 09:08:2026 - 17:36:42: §6.2: carve_mouth / site_carve_mouth (entrance markers derived from the mouth, never scored) and carve overloads taking derived corridors.
-- 09:08:2026 - 22:30:00: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
+- 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 */
 
 #pragma once

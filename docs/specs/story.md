@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:01:56
-Last updated: 09:08:2026 - 15:03:05
+Last updated: 09:08:2026 - 21:36:48
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 09:08:2026 - 14:19:25: Stage deliverables done: RESEARCH.md (N1–N58), PITCHES.md (three pitches + Russian summaries, awaiting в16 choice), QUEST_FORMAT.md contract-frozen with sim (Condition.h/Dialogue.h/Ids.h landed). Plan step 2 marked DONE; content gate holds.
 - 09:08:2026 - 14:21:12: Lead rulings recorded: quest content path = games/daggerfall_n/assets/quests/ (AGENTS.md corrected by lead); LLM prompt language = English + output-language instruction. PITCHES.md committed (e6f62c5) and before the user with в16-в18.
 - 09:08:2026 - 15:03:05: CONTENT GATE OPEN — user picked Pitch A (The Debt of Harrowmere). BIBLE.md (canon incl. §5.1 Harrowward castle per the user's seat-of-state-power requirement), ACT1_VALLEY.md (4 main quests, 3 secondaries, template families, minimum buildable scope) and the Vaelmere cast authored. в17/в18 lead defaults adopted; castle geography deferred to design's binding ruling.
+- 09:08:2026 - 21:36:48: Added story's player-position criterion to verification: every load-bearing canon claim must name a standpoint the player can verify it from, and that check outranks the prose (adopted from the cross-zone lesson that a suite can pass while the thing it protects fails, because it measures the artifact and never the view).
 -->
 
 # Spec — story (`docs/specs/story.md`)
@@ -181,6 +182,29 @@ craft (в17); main quest v1 scope (в18).
   location, NpcAction variant exists.
 - Narrative rules are checkable: pitches must cite which RESEARCH.md rules
   they satisfy; act-1 content must map to real LANDSCAPE.md POIs.
+
+**Story's player-position criterion (outranks every other check in this
+zone).** Adopted 09:08:2026 from the cross-zone lesson: every zone needs at
+least one criterion evaluated from where the *player* stands, and it outranks
+the rest of the suite, because a document can be true in nine ways and still
+describe something nobody can see. For terrain that is a silhouette shot from
+a camera. **For story it is this: every load-bearing canon claim about the
+world must name a standpoint from which the player can verify it, and the
+standpoint check beats the prose.**
+
+- "The beneficiary lives within sight of the evidence" → checkable from the
+  Ward's yard and gate (raycast to the barrow entrance).
+- "The tower has watched the grave for four generations" → checkable from
+  the tower top, through the unfinished gap.
+- "The crime is buried and unspoken" → checkable as a *negative*: the barrow
+  mouth must NOT read from Vaelmere (this is why that condition is a refusal,
+  not a preference).
+- The same discipline applies past terrain: a journal line that asserts a
+  world fact must be verifiable in the world, and a character card's rumor
+  must point at content that exists.
+
+A canon claim with no standpoint is prose, not design, and must either get a
+standpoint or be cut.
 
 ## What this zone does NOT do
 

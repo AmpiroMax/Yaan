@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 22:45:00
+Last updated: 09:08:2026 - 21:37:57
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -41,7 +41,7 @@ UPD:
   builds the WorldGenContext once; chunk load attaches Transform/RenderMesh/
   LocalBounds/SiteMarker to P4 site entities via batch ops.
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh(coord) — the 3D geometry handoff, same lifetime as heightfield().
-- 09:08:2026 - 22:45:00: NEW darkness_at(world) — §6.3 authored darkness (0 open daylight .. 1 pitch black) as a one-position query; keeps worldgen internals out of the app's frame loop.
+- 09:08:2026 - 21:37:57: NEW darkness_at(world) — §6.3 authored darkness (0 open daylight .. 1 pitch black) as a one-position query; keeps worldgen internals out of the app's frame loop.
 */
 
 #pragma once
