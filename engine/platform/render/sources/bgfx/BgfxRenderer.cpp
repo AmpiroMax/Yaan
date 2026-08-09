@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 18:40:00
+Last updated: 09:08:2026 - 19:26:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -49,6 +49,10 @@ UPD:
   texel could not represent a 0.28-1.1 m trunk. Shadow map 2048 -> 4096 and
   half extent 640 -> 320 m => 0.156 m per texel (and the normal offset, which
   is defined in texels, shrinks with it). Covers the §6.2 standing stones too.
+- 09:08:2026 - 19:26:00: Day/night (в1/в2): env uniform block 11 -> 15 vec4s
+  carrying moon direction/phase/colour/light, star intensity and the carried
+  point light; sky shader gains stars and a phased moon disc; terrain and
+  props light through the shared dfn_surface_light().
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -179,7 +183,7 @@ const ProgramSource PROGRAM_TABLE[] = {
 // name -> render-state convention acknowledged at the stage-3 sync).
 constexpr const char* TRANSPARENT_PROGRAMS[] = {"water"};
 
-constexpr uint16_t ENV_PARAM_VEC4S = 11; // layout contract with dfn_env.sh
+constexpr uint16_t ENV_PARAM_VEC4S = 15; // layout contract with dfn_env.sh
 constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {
@@ -289,6 +293,10 @@ struct BgfxRenderer::Impl {
             {e.terrain_tiles_per_chunk, 0.0f, 0.0f, 0.0f},
             e.water_color,
             {e.water_scroll_uv, 0.0f, 0.0f},
+            {e.moon_direction, e.moon_phase},
+            {e.moon_color, e.moon_light},
+            {e.point_light_position, e.point_light_radius_m},
+            {e.point_light_color, e.star_intensity},
         };
         bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
     }

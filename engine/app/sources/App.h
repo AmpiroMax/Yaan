@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 17:16:27
+Last updated: 09:08:2026 - 19:12:24
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -36,6 +36,7 @@ UPD:
                          read at startup, auto-generated on first run; env
                          overrides file for tooling.
 - 09:08:2026 - 17:16:27: world_edge_: static walls at the generated extent.
+- 09:08:2026 - 19:12:24: game clock (day/night cycle) held here.
 */
 
 #pragma once
@@ -109,6 +110,7 @@ private:
     render::FirstPersonCamera camera_;
     render::Tour tour_;
     ecs::EntityId player_{};
+    double game_seconds_ = 0.0; // in-game clock; DAY_LENGTH_SECONDS per day
     std::array<platform::PhysicsBodyHandle, 4> world_edge_{}; // extent walls
 };
 

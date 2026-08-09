@@ -70,9 +70,11 @@ void main()
     flat_albedo = mix(flat_albedo, vec3(0.72, 0.65, 0.44), step(bayer, sand_w));
     albedo = mix(flat_albedo, albedo, step(0.5, u_params.x));
 
-    float ndotl = max(dot(n, u_sunDir), 0.0);
     float vis = dfn_shadow_factor(v_wpos, n);
-    vec3 lit = albedo * (u_ambientColor + u_sunColor * (ndotl * vis));
+    // Vertex alpha carries sky visibility on voxel meshes (0 = sealed cave),
+    // and is the reserved 1.0 on heightfield terrain — so this is a no-op
+    // above ground and the interior falloff the moment core writes it.
+    vec3 lit = albedo * dfn_surface_light(v_wpos, n, vis, v_color0.a);
 
     float fog = dfn_fog_factor(v_wpos);
     gl_FragColor = vec4(mix(lit, u_fogColor, fog), 1.0);

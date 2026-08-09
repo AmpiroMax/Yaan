@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 18:44:00
+Last updated: 09:08:2026 - 19:32:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -38,6 +38,8 @@ UPD:
 - 09:08:2026 - 17:33:00: map_probe_steps() + DFN_MAP gate in testbed_steps.
 - 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE) — the
   acceptance vantage for thin-caster shadows (trunks + §6.2 standing stones).
+- 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE) — one sky-heavy
+  vantage; the hour comes from DFN_TIME so day/dusk/night reuse it.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -235,6 +237,28 @@ std::vector<TourStep> Tour::thin_shadow_probe_steps() {
              -0.12f, 90, true}};
 }
 
+std::vector<TourStep> Tour::sky_probe_steps() {
+    // ONE frame with a lot of sky and a lit horizon: the valley overview from
+    // the south, raised, aimed north over the whole composition. The hour and
+    // the moon phase come from DFN_TIME / DFN_MOON (RenderSystem::init), so
+    // the same vantage shoots dawn, noon, dusk and night without new routes.
+    // DFN_SKY_YAW (radians) re-aims it without a new route: the sun and moon
+    // ride an east->south->west arc, so the default northward valley shot can
+    // never contain them — proving the moon needs a different heading, not a
+    // different place.
+    const glm::vec2 pos{512.0f, 820.0f};
+    float yaw = aim_yaw(pos, {500.0f, 380.0f});
+    float pitch = 0.06f;
+    if (const char* yenv = env_or_null("DFN_SKY_YAW")) {
+        float parsed = 0.0f;
+        if (std::sscanf(yenv, "%f", &parsed) == 1) {
+            yaw = parsed;
+            pitch = 0.16f; // celestial shots want a little sky headroom
+        }
+    }
+    return {{"sky", {pos.x, 70.0f, pos.y}, yaw, pitch, 90, true}};
+}
+
 std::vector<TourStep> Tour::testbed_steps() {
     // Verification hooks (Rule 27, user instruction "one variant, no
     // near-identical frames"): each of these collapses the tour to the single
@@ -244,6 +268,9 @@ std::vector<TourStep> Tour::testbed_steps() {
     }
     if (env_or_null("DFN_SHADOW_PROBE") != nullptr) {
         return thin_shadow_probe_steps();
+    }
+    if (env_or_null("DFN_SKY_PROBE") != nullptr) {
+        return sky_probe_steps();
     }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative

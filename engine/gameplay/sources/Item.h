@@ -59,6 +59,10 @@ struct ItemDef {
     // Quest-critical: may be held and given by quest effects, but never
     // dropped or sold by the player (story's integrity requirement).
     bool quest_item = false;
+    // Content declares which items can be lit in the hand (torch, lantern,
+    // candle). Gameplay refuses to light anything else, so a content mistake
+    // surfaces instead of producing a torch-shaped rock that glows.
+    bool light_source = false;
 };
 
 // The loaded definition table (World resource). Unknown ids are answered with

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 18:56:38
+Last updated: 09:08:2026 - 19:09:18
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -46,6 +46,10 @@ UPD:
                          intensity, torch position/colour/radius. Pure
                          addition — no field changed or reordered, both
                          backends keep compiling.
+- 09:08:2026 - 19:09:18: Point LIGHT ARRAY replaces the single point light
+                         (user wants shadows from several sources) +
+                         ambient_darkness for authored pitch-black places.
+                         Render's diff, lead-authored per Rule 26.
 */
 
 #pragma once
@@ -99,6 +103,19 @@ struct RendererInitParams {
                                           // palette inside the upscale pass
 };
 
+// One point light. `casts_shadow` is honoured for the first
+// MAX_SHADOW_POINT_LIGHTS lights that request it; the rest light without
+// shadowing.
+struct PointLight {
+    glm::vec3 position{0.0f};
+    glm::vec3 color{0.0f};     // linear; black = off
+    float radius_m = 0.0f;     // 0 = off
+    bool casts_shadow = false;
+};
+
+inline constexpr uint32_t MAX_POINT_LIGHTS = 8;
+inline constexpr uint32_t MAX_SHADOW_POINT_LIGHTS = 2;
+
 // Per-frame environment + shared material parameters (atmosphere, splat
 // thresholds, water). Values come from engine/render (look-dev constants now,
 // design-doc-driven later); the backend maps them to shader uniforms, so they
@@ -135,12 +152,30 @@ struct RenderEnvironment {
                                   // than derived from sun elevation: overcast
                                   // means stars off with the sun untouched
 
-    // ONE point light (torch/lantern, interiors). Deliberately single, not a
-    // list: it is what the player carries. A light list is a later sync, when
-    // NPC lanterns and lit windows need one.
-    glm::vec3 point_light_position{0.0f}; // world space, meters
-    glm::vec3 point_light_color{0.0f};    // linear; black = off
-    float point_light_radius_m = 0.0f;    // 0 = off
+    // Point lights (torch, braziers, lit windows). The user asked for shadows
+    // cast by SEVERAL sources, so the single light this replaced was outgrown
+    // before it shipped. Cost of the shadowing half, measured by render: a
+    // point light needs a CUBE map (6 faces), so casters in range are
+    // submitted 6x more — affordable only because casters are culled to the
+    // light's sphere (in a tunnel ~6 casters = ~36 extra draws), which is why
+    // the shadow-casting RADIUS is capped rather than the honesty.
+    PointLight point_lights[MAX_POINT_LIGHTS];
+    uint32_t point_light_count = 0;
+
+    // DEPRECATED, removed once render's backend and tests migrate to the array
+    // above. Kept only so a shared tree never sits red for agents whose zones
+    // did not cause the change (core, sim and flora all build this header).
+    glm::vec3 point_light_position{0.0f};
+    glm::vec3 point_light_color{0.0f};
+    float point_light_radius_m = 0.0f;
+
+    // Authored darkness of the PLACE the player is in (user: night stays
+    // playable, but some interiors are a black void where a torch lights only
+    // a small patch). 0 = normal, 1 = void. The GEOMETRIC half of darkness is
+    // separate: per-vertex sky visibility written by worldgen. This is the
+    // authored half — the app sets it from the darkness zone and lerps across
+    // the boundary, so it is deliberately NOT per-vertex.
+    float ambient_darkness = 0.0f;
 };
 
 class IRenderer {

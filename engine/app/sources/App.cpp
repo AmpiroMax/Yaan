@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 17:32:38
+Last updated: 09:08:2026 - 19:12:24
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -59,6 +59,8 @@ UPD:
                          world a 20-second accident (sim's finding).
 - 09:08:2026 - 17:32:38: Map screen wired: M toggles it, cursor released while
                          open, canvas told the internal resolution.
+- 09:08:2026 - 19:12:24: Day/night clock wired: 48-minute day, T holds for a
+                         50x debug run, lunar phase as a pure function of date.
 */
 
 #include "engine/app/sources/App.h"
@@ -69,6 +71,7 @@ UPD:
 #include "engine/physics/sources/CollisionLayers.h"
 #include "engine/physics/sources/TerrainCollision.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
+#include "engine/render/sources/SkyModel.h"
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/input/sources/glfw/CreateGlfwInput.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
@@ -81,6 +84,7 @@ UPD:
 #include "engine/platform/window/sources/glfw/CreateGlfwWindow.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -351,6 +355,22 @@ int App::run() {
         const auto now = std::chrono::steady_clock::now();
         const double frame_dt = std::chrono::duration<double>(now - last).count();
         last = now;
+
+        // In-game clock (в67): DAY_LENGTH_SECONDS per day, with a debug key that
+        // runs it DEBUG_TIME_SCALE faster so shadows can be watched sweeping.
+        const double time_scale = input_->is_down(platform::Key::T)
+                                      ? static_cast<double>(config::DEBUG_TIME_SCALE)
+                                      : 1.0;
+        game_seconds_ += frame_dt * time_scale;
+        const double day_len = static_cast<double>(config::DAY_LENGTH_SECONDS);
+        const double days = game_seconds_ / day_len;
+        const float day_fraction = static_cast<float>(days - std::floor(days));
+        // The lunar phase is a PURE function of the date — no accumulated state,
+        // so the moon is knowable for any past or future day (в69: werewolves,
+        // vampires and lunar magic will depend on it).
+        const double lunar = days / static_cast<double>(config::LUNAR_MONTH_DAYS);
+        const float lunar_phase = static_cast<float>(lunar - std::floor(lunar));
+        render::apply_sky_time(render_system_.environment(), day_fraction, lunar_phase);
 
         gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
 

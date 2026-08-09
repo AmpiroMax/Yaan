@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 00:45:08
+# Last updated: 09:08:2026 - 18:56:32
 # File: engine/gameplay/CMakeLists.txt
 #
 # Responsibility:
@@ -19,10 +19,19 @@
 #
 # UPD:
 # - 09:08:2026 - 00:45:08: Stage 2 — player movement + dice.
+# - 09:08:2026 - 18:56:32: Interaction stage — four verbs, inventory, item
+#                          definitions, prop spawning, save sections.
 
 add_library(dfn_gameplay STATIC
     sources/Dice.cpp
+    sources/GameplaySave.cpp
+    sources/HeldItem.cpp
+    sources/InteractableSpawn.cpp
+    sources/InteractionSystem.cpp
+    sources/Inventory.cpp
     sources/PlayerMovement.cpp
     sources/PlayerMovementWorld.cpp)
 
-target_link_libraries(dfn_gameplay PUBLIC dfn_headers dfn_core)
+# dfn_world: gameplay registers its save sections with world::SaveDeltaCodec
+# (the DAG allows gameplay -> world).
+target_link_libraries(dfn_gameplay PUBLIC dfn_headers dfn_core dfn_world)

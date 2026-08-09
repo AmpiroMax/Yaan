@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 09:08:2026 - 18:56:32
 Module: tests
 File: tests/sim/JoltPhysicsTests.cpp
 
@@ -28,6 +28,8 @@ UPD:
   (core's suggestion: catches decode/contract drift between zones early).
 - 09:08:2026 - 15:08:24: Added the zero-mask rejection case per body kind
   (regression guard for the fall-through-the-world bug, app fix 37f1e1c).
+- 09:08:2026 - 18:56:32: Added the crosshair-targeting case: a real ray against
+  a real interactable body, proving user_data -> EntityId and the reach limit.
 */
 
 #include <doctest/doctest.h>
@@ -35,8 +37,14 @@ UPD:
 #include <memory>
 #include <vector>
 
+#include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
+#include "engine/core/ecs/sources/World.h"
 #include "engine/core/math/sources/HeightField.h"
+#include "engine/core/serialization/sources/ContentHash.h"
+#include "engine/gameplay/sources/InteractableSpawn.h"
+#include "engine/gameplay/sources/InteractionSystem.h"
+#include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/physics/sources/CollisionLayers.h"
 #include "engine/physics/sources/TerrainCollision.h"
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -272,6 +280,53 @@ TEST_CASE("zero-mask bodies are rejected per body kind") {
     character.collides_with = physics_layer::LAYER_STATIC;
     CHECK(physics->create_character(character).valid());
     physics->shutdown();
+}
+
+TEST_CASE("LOOK: the crosshair ray finds an interactable and resolves its entity") {
+    // The half of LOOK that null physics cannot prove: a real ray, a real
+    // prop body, and user_data surviving the round trip back to an EntityId.
+    auto physics = platform::create_jolt_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+    world.add_resource(dfn::components::HoverTarget{});
+
+    const auto player = world.spawn();
+    world.add(player, dfn::gameplay::PlayerState{});
+    // Eye at origin, yaw 0 => looking down -Z (PlayerMovement's convention).
+    world.add(player, dfn::components::CameraPose{{0.0f, 1.7f, 0.0f}, 0.0f, 0.0f});
+
+    // A chest 2 m ahead, inside INTERACT_DISTANCE.
+    const auto chest = dfn::gameplay::spawn_interactable(
+        world, *physics,
+        {dfn::gameplay::InteractableKind::Openable, {0.0f, 1.7f, -2.0f},
+         {0.5f, 0.35f, 0.35f}, "interact.open"});
+
+    dfn::gameplay::update_hover(world, *physics);
+    const auto& hover = world.resource<dfn::components::HoverTarget>();
+    CHECK(hover.entity == chest); // user_data -> EntityId survived the backend
+    CHECK(hover.verb == static_cast<uint8_t>(dfn::gameplay::InteractionVerb::Open));
+    CHECK(hover.prompt_key ==
+          dfn::serialization::fnv1a64("interact.open"));
+
+    // Out of reach: same prop pushed past INTERACT_DISTANCE is not offered.
+    auto far_physics = platform::create_jolt_physics();
+    REQUIRE(far_physics->init());
+    dfn::ecs::World far_world;
+    far_world.add_resource(dfn::components::HoverTarget{});
+    const auto far_player = far_world.spawn();
+    far_world.add(far_player, dfn::gameplay::PlayerState{});
+    far_world.add(far_player,
+                  dfn::components::CameraPose{{0.0f, 1.7f, 0.0f}, 0.0f, 0.0f});
+    (void)dfn::gameplay::spawn_interactable(
+        far_world, *far_physics,
+        {dfn::gameplay::InteractableKind::Openable,
+         {0.0f, 1.7f, -(static_cast<float>(config::INTERACT_DISTANCE) + 2.0f)},
+         {0.5f, 0.35f, 0.35f}, "interact.open"});
+    dfn::gameplay::update_hover(far_world, *far_physics);
+    CHECK(far_world.resource<dfn::components::HoverTarget>().entity.is_null());
+
+    physics->shutdown();
+    far_physics->shutdown();
 }
 
 TEST_CASE("teleport relocates without residual velocity") {

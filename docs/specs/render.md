@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 18:50:00
+Last updated: 09:08:2026 - 20:10:00
 -->
 <!--
 UPD:
@@ -51,6 +51,14 @@ UPD:
   submit path: SHADOW_MAP_SIZE 2048 -> 4096 and SHADOW_HALF_EXTENT_M 640 ->
   320 (0.625 -> 0.156 m per texel). New acceptance vantage
   Tour::thin_shadow_probe_steps (DFN_SHADOW_PROBE) with a before/after pair.
+- 09:08:2026 - 20:10:00: DAY/NIGHT STAGE, part 1 (в1/в2): SkyModel (sun+moon
+  geometry from a normalized clock, phase-derived moon direction, dawn/dusk/
+  night palette, stars), RenderEnvironment moon/star/point-light fields (lead
+  authored the diff), env uniform block 11 -> 15 vec4s, fs_sky v3 (stars +
+  phased moon disc), shared dfn_surface_light() consumed by terrain and props,
+  sky visibility consumed from vertex alpha, DFN_TIME/DFN_MOON/DFN_SKY_YAW +
+  Tour::sky_probe_steps. Cross-zone: LOD contract agreed with core, flora
+  agent's zone split accepted, haze/far-plane finding sent to design.
 -->
 
 # Spec — render agent
@@ -488,6 +496,67 @@ Thin-caster shadow fix (user bug, after the map batch):
    vantage at a dungeon entrance with trunks and standing stones on open
    ground, sun behind the camera.
 
+Day/night stage, part 1 — sky, stars, moon (user decisions в1/в2):
+1. `SkyModel.{h,cpp}` — the app-facing call is ONE function:
+   `apply_sky_time(env, day_fraction, lunar_phase)`. The app owns the clock
+   (48 real minutes per in-game day, plus a 50x debug key); this owns the look.
+   It takes NORMALIZED fractions on purpose: the day-length question (в13) was
+   still open when it was designed, and the answer could not invalidate it.
+2. Everything is keyed off SUN ELEVATION, never off the clock — the sky must
+   look identical at a given sun height whatever the day length, so the debug
+   50x key changes the speed and nothing else.
+3. The moon's DIRECTION is derived from its PHASE: elongation from the sun is
+   the phase angle, so a full moon rises at sunset and a new moon rides with
+   the sun. Phase and position are one thing, not two fields that can disagree.
+   They are not exact antipodes: both ride the same south-tilted arc (our
+   stand-in for the ecliptic), which the test documents rather than "fixes".
+4. Look decisions that came from reading frames, not from theory:
+   - The moon disc is ~4 deg across, ~15x life size. A true 0.5 deg moon is ONE
+     pixel at 640x360 — a flickering dot. Phases have to be legible as
+     silhouette or they are not a feature.
+   - The star field has NO time term. Twinkle at this resolution, under the
+     64-colour palette, reads as sensor noise rather than as sky.
+   - Fog colour is pinned to the sky horizon colour at every hour. That is what
+     keeps the streaming edge and the world edge invisible at dusk, when a
+     fixed grey fog would draw a hard band across the landscape.
+5. `dfn_surface_light()` in dfn_env.sh is now the ONLY place surface lighting
+   is computed (sun with shadow, moon unshadowed, carried point light, ambient
+   scaled by sky visibility). Terrain and props both call it, so they cannot
+   drift apart the way a duplicated lighting expression always eventually does.
+6. SKY VISIBILITY: ambient AND moonlight are multiplied by vertex ALPHA. On
+   heightfield terrain that channel is the reserved 1.0, so this is a no-op
+   above ground; core writes real sky visibility into the voxel meshes' alpha,
+   at which point interiors go dark with no further render change. This is the
+   geometric half of "true darkness"; the authored half is a per-place float.
+7. Verification hooks: `DFN_TIME` (day fraction), `DFN_MOON` (phase),
+   `DFN_SKY_YAW` (heading — the sun and moon ride an east/south/west arc, so
+   the default northward valley shot can never contain them), and
+   `Tour::sky_probe_steps` (DFN_SKY_PROBE). One route covers every hour.
+
+Cross-zone agreements made in this stage (recorded so a successor inherits the
+reasoning, not just the result):
+- LOD with core: node delivery is additive (`coarse_mesh(NodeId)`, app ferry);
+  level selection, cross-fade and skirts are render's. Core confirmed a node
+  may be resident at TWO levels at once with an explicit `release_node` from
+  render — that answer is what makes "no popping" achievable at all, because a
+  streamer that frees the old level immediately guarantees a pop whatever the
+  renderer does. Triangle budget derived, not picked: 275 px per radian at
+  640x360, 2.5 px per triangle edge => max useful edge = distance / 110, which
+  gives voxel sizes 1/4/8/16/32/64 m per level and 30-40k triangles per node at
+  every level (~1.4M for terrain per frame, ~2.8M with the shadow pass).
+- Flora agent owns ProcFlora/FloraSpecies in this directory; `pack/tri/quad`
+  were promoted out of ProcMesh.cpp's anonymous namespace into the header so
+  the two zones share primitives instead of duplicating them. Per-instance tree
+  geometry is free at the draw-call level because scatter is already baked into
+  per-chunk world-space buffers. Tree LOD distances derived the same way as
+  above: billboard beyond 350 m (a 32 m tree is then under ~25 px, where a
+  branching silhouette stops being distinguishable from a card).
+- Design's landmark separation by HAZE rather than by angular size is adopted.
+  BLOCKER raised to design, core and the lead: CAMERA_FAR is 1000 m and the new
+  temple mountain is sited at 1.4-1.6 km, so it would be clipped, not hazy.
+  Raising it past ~4 km also forces the near plane up (~0.25 m) or a reversed-Z
+  depth setup, or distant geometry z-fights — decide the number once.
+
 Stage 4 (next): skinned meshes (contract sync), frustum culling with core's
 math types, LOD/skirts, grass cards (P6 micro, §5.6), flower patches,
 sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk,
@@ -497,6 +566,16 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Day/night acceptance (Rule 27, 3 frames read 09:08:2026):** one vantage,
+  three STATES (not variants of one image, per the single-variant rule):
+  `screenshots/sky_dusk/00_sky.png` — orange horizon burn into violet, first
+  stars at the zenith, far hills dissolving into the burn (fog pinned to the
+  horizon colour); `screenshots/sky_night_full_moon/00_sky.png` — deep blue,
+  star field, and the forest/river/lake/hamlet still READABLE, which is the
+  "playable-dark" requirement; `screenshots/sky_moon/00_sky.png` — a quarter
+  moon with a crisp terminator over a dark ridge, with the ground visibly
+  darker than under the full moon, which is the requirement that phases change
+  real brightness and not just the picture.
 - **Thin-caster shadow acceptance (Rule 27, A/B read 09:08:2026):**
   `DFN_TOUR=1 DFN_SHADOW_PROBE=1 DFN_TOUR_DIR=screenshots/shadow
   DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 <build>/engine/app/dfn_app` ->

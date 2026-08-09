@@ -53,6 +53,7 @@ UPD:
 #include "engine/render/sources/ProcMesh.h"
 #include "engine/render/sources/ProcTexture.h"
 #include "engine/render/sources/ScatterBatcher.h"
+#include "engine/render/sources/SkyModel.h"
 #include "engine/render/sources/TerrainMesher.h"
 #include "engine/render/sources/Tour.h"
 #include "engine/render/sources/WaterMesher.h"
@@ -183,6 +184,19 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     }
 
     environment_ = make_default_environment();
+    // Verification hook (Rule 27): DFN_TIME=<0..1 day fraction> freezes the sky
+    // at an hour (0 = midnight, 0.5 = noon), DFN_MOON=<0..1> sets the phase.
+    // In play the app drives the same function every frame from its clock.
+    if (const char* tenv = std::getenv("DFN_TIME"); tenv != nullptr && *tenv != '\0') {
+        float day = 0.5f;
+        float phase = 0.5f;
+        if (std::sscanf(tenv, "%f", &day) == 1) {
+            if (const char* menv = std::getenv("DFN_MOON"); menv != nullptr) {
+                std::sscanf(menv, "%f", &phase);
+            }
+            apply_sky_time(environment_, day, phase);
+        }
+    }
     clock_start_ = std::chrono::steady_clock::now();
 
     // Debug water toggle (stage 3): DFN_WATER=<height_m> covers the testbed

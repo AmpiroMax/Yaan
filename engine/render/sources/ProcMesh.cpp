@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 20:05:00
 Module: engine/render
 File: engine/render/sources/ProcMesh.cpp
 
@@ -28,6 +28,9 @@ UPD:
 - 09:08:2026 - 14:11:37: Micro-relief (user decision в3): stone rebuilt as a
   ~0.9 m chunky faceted boulder (position-hash crush, re-derived flat normals)
   — the crushed 0.42 m box read as a flat speck.
+- 09:08:2026 - 20:05:00: pack/tri/quad promoted out of the anonymous namespace
+  and declared in the header — the flora agent's ProcFlora (new zone, same
+  directory) builds its tubes and clusters on them (agreed in-session).
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -63,31 +66,6 @@ constexpr glm::vec3 ROOF_RED_DARK{0.44f, 0.22f, 0.17f}; // tavern (the big roof)
 constexpr glm::vec3 ROOF_BARN{0.30f, 0.23f, 0.15f};   // barn (tall dark triangle)
 constexpr glm::vec3 SHRINE_PALE{0.82f, 0.80f, 0.74f}; // skyline-breaking spire
 constexpr glm::vec3 PORTAL_DARK{0.07f, 0.07f, 0.09f}; // dungeon mouth
-
-uint32_t pack(const glm::vec3& c) {
-    const auto r = static_cast<uint32_t>(glm::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto g = static_cast<uint32_t>(glm::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto b = static_cast<uint32_t>(glm::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
-    return 0xFF000000u | (b << 16) | (g << 8) | r; // 0xAABBGGRR (frozen Vertex)
-}
-
-// Flat-shaded triangle: normal from winding (CCW seen from outside).
-void tri(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, uint32_t color) {
-    const glm::vec3 cross = glm::cross(b - a, c - a);
-    const float len = glm::length(cross);
-    const glm::vec3 n = len > 1e-8f ? cross / len : glm::vec3{0.0f, 1.0f, 0.0f};
-    const auto base = static_cast<uint32_t>(m.vertices.size());
-    m.vertices.push_back({a, n, {0.0f, 0.0f}, color});
-    m.vertices.push_back({b, n, {0.0f, 0.0f}, color});
-    m.vertices.push_back({c, n, {0.0f, 0.0f}, color});
-    m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
-}
-
-void quad(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d,
-          uint32_t color) {
-    tri(m, a, b, c, color);
-    tri(m, a, c, d, color);
-}
 
 // Axis-aligned box, all 6 faces.
 void box(MeshData& m, glm::vec3 mn, glm::vec3 mx, uint32_t color) {
@@ -351,6 +329,35 @@ MeshData tower_ruin() { // r=2 broken cylinder to 12 m — the L0 crag topper
 }
 
 } // namespace
+
+// --- Shared primitives (public: the flora agent's ProcFlora builds on these;
+// duplicating them would let a winding fix land in one copy only) ------
+
+uint32_t pack(const glm::vec3& c) {
+    const auto r = static_cast<uint32_t>(glm::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
+    const auto g = static_cast<uint32_t>(glm::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
+    const auto b = static_cast<uint32_t>(glm::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
+    return 0xFF000000u | (b << 16) | (g << 8) | r; // 0xAABBGGRR (frozen Vertex)
+}
+
+// Flat-shaded triangle: normal from winding (CCW seen from outside).
+void tri(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, uint32_t color) {
+    const glm::vec3 cross = glm::cross(b - a, c - a);
+    const float len = glm::length(cross);
+    const glm::vec3 n = len > 1e-8f ? cross / len : glm::vec3{0.0f, 1.0f, 0.0f};
+    const auto base = static_cast<uint32_t>(m.vertices.size());
+    m.vertices.push_back({a, n, {0.0f, 0.0f}, color});
+    m.vertices.push_back({b, n, {0.0f, 0.0f}, color});
+    m.vertices.push_back({c, n, {0.0f, 0.0f}, color});
+    m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
+}
+
+void quad(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d,
+          uint32_t color) {
+    tri(m, a, b, c, color);
+    tri(m, a, c, d, color);
+}
+
 
 void append_transformed(MeshData& dst, const MeshData& src, glm::vec3 translation,
                         float yaw, float scale) {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 18:56:32
 Module: engine/physics
 File: engine/physics/sources/CollisionLayers.h
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial layer set (static, character).
+- 09:08:2026 - 18:56:32: Added LAYER_INTERACTABLE for crosshair targeting.
 */
 
 #pragma once
@@ -41,5 +42,10 @@ inline constexpr platform::CollisionMask LAYER_STATIC = 1u << 0;
 
 // Kinematic characters (player + NPCs), including their raycastable bodies.
 inline constexpr platform::CollisionMask LAYER_CHARACTER = 1u << 1;
+
+// Interactable props: doors, chests, levers, loose items. Separate from
+// LAYER_STATIC so the crosshair ray finds only things the player can act on
+// and is never blocked by ordinary terrain in front of them.
+inline constexpr platform::CollisionMask LAYER_INTERACTABLE = 1u << 2;
 
 } // namespace dfn::physics

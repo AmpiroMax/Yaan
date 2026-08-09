@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 16:51:22
+# Last updated: 09:08:2026 - 18:56:32
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -21,6 +21,7 @@
 #                          jolt physics suites.
 # - 09:08:2026 - 16:51:22: Added sim_tunnel_walk — the voxel terrain collision
 #                          acceptance walk through the crag tunnel.
+# - 09:08:2026 - 18:56:32: Added sim_interaction (four verbs, inventory, saves).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -33,7 +34,11 @@ add_dfn_test(sim_null_backends sim/NullBackendTests.cpp
 # dfn_world is linked for the real-ChunkManager heightfield smoke test
 # (cross-zone contract check suggested by core at the stage-2 sync).
 add_dfn_test(sim_jolt_physics sim/JoltPhysicsTests.cpp
-    dfn_physics dfn_platform_physics dfn_world)
+    dfn_physics dfn_platform_physics dfn_world dfn_gameplay)
+
+# The four interaction verbs, inventory semantics and the save sections.
+add_dfn_test(sim_interaction sim/InteractionTests.cpp
+    dfn_gameplay dfn_platform_physics dfn_core)
 
 # The voxel-terrain acceptance walk (crag tunnel): real generated world, real
 # extracted collision mesh, real capsule.

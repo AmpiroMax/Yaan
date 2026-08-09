@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 20:05:00
 Module: engine/render
 File: engine/render/sources/ProcMesh.h
 
@@ -40,6 +40,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial placeholder mesh catalog.
+- 09:08:2026 - 20:05:00: pack/tri/quad exposed for the flora agent's ProcFlora
+  (same directory, its own files) instead of being duplicated there.
 */
 
 #pragma once
@@ -58,6 +60,17 @@ struct MeshData {
     std::vector<uint32_t> indices;
     [[nodiscard]] size_t triangle_count() const { return indices.size() / 3; }
 };
+
+/// Packs a linear 0..1 colour into the frozen Vertex's 0xAABBGGRR field.
+[[nodiscard]] uint32_t pack(const glm::vec3& color);
+
+/// Flat-shaded triangle: the normal comes from the winding (CCW seen from
+/// outside), which is what gives the hard-edged low-poly read.
+void tri(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, uint32_t color);
+
+/// Two triangles a-b-c and a-c-d, same winding rule.
+void quad(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d,
+          uint32_t color);
 
 /// Appends `src` transformed by yaw (radians, around +Y), uniform scale and
 /// translation into `dst`. Normals are rotated (scale is uniform).

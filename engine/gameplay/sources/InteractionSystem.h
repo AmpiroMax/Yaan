@@ -96,6 +96,11 @@ struct InteractionOffer {
 // Resolves what `target` offers. Pure query — no mutation, no events.
 [[nodiscard]] InteractionOffer offer_for(const ecs::World& world, ecs::EntityId target);
 
+// The definition table used when no ItemDatabase resource is registered
+// (tests, headless tools): every id is unknown, so nothing stacks and nothing
+// is a quest item.
+[[nodiscard]] const ItemDatabase& empty_item_database();
+
 // LOOK. Once per fixed tick: casts from the player's CameraPose along the view
 // direction and writes the components::HoverTarget resource (entity + verb +
 // prompt key hash). Nothing hovered => a cleared resource.

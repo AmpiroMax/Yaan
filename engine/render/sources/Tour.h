@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 18:44:00
+Last updated: 09:08:2026 - 19:32:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -61,6 +61,7 @@ UPD:
 - 09:08:2026 - 17:33:00: map_probe_steps() — the single-frame map screen
   evidence route; testbed_steps() returns it when DFN_MAP is set.
 - 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE).
+- 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE, hour via DFN_TIME).
 */
 
 #pragma once
@@ -155,6 +156,11 @@ public:
     // Thin vertical objects are the class a coarse shadow map drops silently,
     // so they get their own acceptance frame.
     [[nodiscard]] static std::vector<TourStep> thin_shadow_probe_steps();
+
+    // Sky/day-night evidence shoot (Rule 27): one sky-heavy vantage over the
+    // valley. Selected by DFN_SKY_PROBE; the HOUR comes from DFN_TIME and the
+    // moon phase from DFN_MOON, so one route covers every time of day.
+    [[nodiscard]] static std::vector<TourStep> sky_probe_steps();
 
 private:
     // Step position with ground_relative y resolved via ground_at_ (absolute

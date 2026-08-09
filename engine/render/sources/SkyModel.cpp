@@ -65,10 +65,10 @@ constexpr glm::vec3 SKY_HORIZON_DUSK{0.86f, 0.46f, 0.26f}; // low sun burn
 constexpr glm::vec3 SUN_COLOR_LOW{1.00f, 0.55f, 0.28f};    // horizon warmth
 constexpr glm::vec3 AMBIENT_NIGHT{0.070f, 0.090f, 0.150f}; // navigable blue
 constexpr glm::vec3 AMBIENT_DUSK{0.26f, 0.24f, 0.28f};
-// Moonlight at full moon, on top of the night ambient.
-constexpr glm::vec3 MOONLIGHT_COLOR{0.42f, 0.50f, 0.72f};
-// The disc itself: cold white, and constant — a dim moon is dim because
-// moon_light drops, not because the disc changes colour.
+// The moon: cold white, and CONSTANT — a dim moon is dim because moon_light
+// drops, not because the disc changes colour. The same value tints the ground
+// (the shader scales it by DFN_MOON_GROUND_MAX); the night's blue comes from
+// the ambient floor, not from tinting the moon itself.
 constexpr glm::vec3 MOON_DISC_COLOR{0.88f, 0.91f, 1.00f};
 
 float clamp01(float v) {

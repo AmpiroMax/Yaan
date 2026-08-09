@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 17:32:10
+# Last updated: 09:08:2026 - 19:26:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -21,6 +21,7 @@
 # - 09:08:2026 - 11:57:20: Stage 3b — ProcMesh, ScatterBatcher, WaterMesher.
 # - 09:08:2026 - 17:32:10: Map screen — PixelCanvas (first UI primitive) and
 #   MapScreen (explored top-down map).
+# - 09:08:2026 - 19:26:00: SkyModel.cpp (day/night sun+moon model).
 
 add_library(dfn_render STATIC
     sources/DebugDraw.cpp
@@ -31,6 +32,7 @@ add_library(dfn_render STATIC
     sources/ProcTexture.cpp
     sources/RenderSystem.cpp
     sources/ScatterBatcher.cpp
+    sources/SkyModel.cpp
     sources/TerrainMesher.cpp
     sources/Tour.cpp
     sources/WaterMesher.cpp)

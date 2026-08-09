@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:03:23
+Last updated: 09:08:2026 - 19:13:01
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -30,6 +30,7 @@ UPD:
   from dfn::config (WORLDGEN_OCTAVE*), local constexprs removed.
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1, gated on HILL_ANISOTROPY): mid octave input-stretched along a drifting per-valley axis field via bilinear blending of fixed-frame samples (position-varying rotation rejected — |world|*grad(theta) distortion; cross-axis rhythm pinned at the 128 m contract by construction).
 - 09:08:2026 - 14:03:23: Micro-relief batch: path groove applied in macro_height before the river carve (channel clamp overrides in-water; constant along-path depth keeps CORRIDOR_SLOPE_MAX untouched; ~6 deg edge slopes stay under the blend threshold).
+- 09:08:2026 - 19:13:01: crag_height honours ridge_amp_meters when set (absolute flank relief), falling back to the fractional form otherwise.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -133,6 +134,13 @@ float crag_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     }
     const float prof = smoothstep01(1.0f - d / crag.radius);
     const float ridged = ridged_noise(seed, STREAM_CRAG_RIDGED, crag.ridge_cell, world);
+    if (crag.ridge_amp_meters > 0.0f) {
+        // Absolute flank relief: the ridges keep their real size no matter how
+        // tall the summit gets. The fractional form below couples them, which
+        // makes a taller peak raise its own occluders in lockstep.
+        return prof * crag.peak_height
+             - crag.ridge_amp_meters * (1.0f - prof) * (1.0f - ridged);
+    }
     const float modulation = crag.ridge_amp_frac * (1.0f - prof); // 0 at the peak
     return prof * crag.peak_height * (1.0f - modulation * (1.0f - ridged));
 }

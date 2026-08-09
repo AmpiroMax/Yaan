@@ -14,9 +14,10 @@ $input v_color0, v_normal, v_texcoord0, v_wpos
 void main()
 {
     vec3 n = normalize(v_normal);
-    float ndotl = max(dot(n, u_sunDir), 0.0);
     float vis = dfn_shadow_factor(v_wpos, n);
-    vec3 lit = v_color0.rgb * (u_ambientColor + u_sunColor * (ndotl * vis));
+    // Vertex alpha is the sky-visibility channel (1.0 on everything built
+    // above ground); dfn_surface_light adds moon and torch on top of sun.
+    vec3 lit = v_color0.rgb * dfn_surface_light(v_wpos, n, vis, v_color0.a);
     float fog = dfn_fog_factor(v_wpos);
     gl_FragColor = vec4(mix(lit, u_fogColor, fog), 1.0);
 }

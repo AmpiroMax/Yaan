@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 19:13:01
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -39,6 +39,7 @@ UPD:
 - 09:08:2026 - 15:18:34: Castle (§6.1): CastleLayout — Harrowward's stamp target on the crag SW foot, §6.1.3 footprints, approach-corridor index (gate is valley-facing, pad never rotated).
 - 09:08:2026 - 16:47:51: P7 carves: CarveCorridor/CarveChamber/CarveLayout — the crag switchback tunnel (8 waypoints, 4 legs, 3 landings, starts and ends in open air so the portals form where the path meets rock) and the Backbarrow passage + chamber.
 - 09:08:2026 - 17:36:42: §6.2: dungeon->carve site mapping for derived entrance markers; lakeshore held at the design position with the measured reason (bluff base sits below the lake plane).
+- 09:08:2026 - 19:13:01: CragStamp::ridge_amp_meters — flank sub-relief as an ABSOLUTE amplitude, defaulted to reproduce today's 52 m crag. The legacy ridge_amp_frac coupled flank relief to peak height, so raising the summit inflated its own occluders; harmless at 52 m, wrong at the approved 110-120 m (flora's catch, kept although it was not the C1 bug).
 */
 
 #pragma once
@@ -60,7 +61,14 @@ struct CragStamp {
                                       ///< C4 knob: keeps foothill canopy from out-angling
                                       ///< the L0; widen by lowering)
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)
-    float ridge_amp_frac = 0.25f;     ///< ridged modulation fraction of peak (stamp shape)
+    /// Flank sub-relief as a FRACTION of peak height (legacy parameterization).
+    /// Used only when ridge_amp_meters <= 0.
+    float ridge_amp_frac = 0.25f;
+    /// Flank sub-relief as an ABSOLUTE amplitude in metres. Preferred: with the
+    /// fractional form the ridges that occlude the summit scale WITH the summit,
+    /// so the occluder is pinned to the thing it occludes and raising the peak
+    /// can never buy clearance. Expressed in metres the two are independent.
+    float ridge_amp_meters = 13.0f; ///< = 0.25 * 52, i.e. today's 52 m crag unchanged
 };
 
 /// Small radial bump stamp (shrine knoll +6 m, lakeshore bluff +10 m — §7.1).

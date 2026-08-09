@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:36:59
+Last updated: 09:08:2026 - 19:13:01
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 15:18:34: Castle validation: the castle mass enters the C1 occlusion heightfield like canopy and its footprint is excluded from standpoints; hierarchy + access invariants implemented on the same raycast machinery.
 - 09:08:2026 - 15:31:04: Rule C2-testbed implemented on the R4 subtended-angle machinery: apparent SIZE (object height / distance, not the elevation angle of its top — that conflated size with ground elevation, and R4 now uses the corrected measure too), §1.5 readability gate (sub-8 px specks cannot crowd), R1 body-backing exemption, L0 exempt, composite POIs once; widest-coequal-group via a sorted sliding window.
 - 09:08:2026 - 15:36:59: Large-mass guard implemented over the same grouping (filter to large members, then widest coequal window); PX_PER_RAD factored out of the readability threshold.
+- 09:08:2026 - 19:13:01: C1 CORRECTNESS FIX: the landmark's own body is no longer counted as an occluder of itself. The aim point is peak + L0_AIM_ABOVE_PEAK (fixed) while LANDMARK_CLEARANCE_FACTOR multiplies against terrain essentially at peak height, so near-summit ground out-angled the summit once 0.2*(peak - eye) exceeded the aim margin — above a ~60 m peak the test returned 0.000 for EVERY standpoint regardless of the world, and below it the measure was biased down. Seed 1 C1 was 0.621 measured, is 0.776 true. This invalidated the recorded 'raising the peak lowers clearance' finding, which was an artifact of this bug rather than a property of landmarks.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -128,6 +129,18 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
             bool blocked = false;
             for (float t = RAY_STEP_M; t < dist - RAY_STEP_M; t += RAY_STEP_M) {
                 const glm::vec2 q = p + dir * t;
+                // THE LANDMARK IS NOT AN OCCLUDER OF ITSELF. C1 asks "can you
+                // see the crag"; its own body is the thing being seen. Counting
+                // it made the near-summit terrain, scaled by
+                // LANDMARK_CLEARANCE_FACTOR, out-angle the aim point as soon as
+                // 0.2*(peak - eye) exceeded L0_AIM_ABOVE_PEAK — i.e. above a
+                // ~60 m peak the test reported 0.000 for EVERY standpoint no
+                // matter what the world looked like, and below it the measure
+                // was already being dragged down. This was the whole basis of
+                // the recorded "raising the peak lowers clearance" finding.
+                if (crag_distance(layout, q) < layout.crag.radius) {
+                    continue;
+                }
                 const float terrain = terrain_height(ctx, q);
                 // Occlusion heightfield = terrain + canopy + CASTLE MASS
                 // (§6.1.1: the castle enters exactly like canopy and may

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:01:50
+Last updated: 09:08:2026 - 19:15:39
 -->
 <!--
 UPD:
@@ -19,6 +19,9 @@ UPD:
 - 09:08:2026 - 17:28:51: New §6.2 — dungeon entrance archetypes after a live player read a mis-sited entrance as a bug: relief-selected adit vs sunken barrow; flat-ground answer is a stamped mound + cut forecourt + lintel (generator makes the relief it needs) with four findability layers; marker/facing derived from the carve mouth (derived-only rule extended to carve-adjacent placements); attractor status ruled (assembly counts, hole never does, short-range L1 only).
 - 09:08:2026 - 18:55:22: Stage-4, five user decisions ruled. §1.3a — world to 2x2 km: testbed and region contracts coexist SPATIALLY (home valley / transition band / open region), new top landmark tier LR, LANDMARK_VISIBILITY_MIN measured over each landmark's own domain, LR and L0 separated by atmospheric depth rather than angular size. §2.5 — temple mountain: 280 m relief, massif ratio, ridged noise + irregular buttress ridges + cliff bands + asymmetry, checkable anti-dome invariant (lobed slice + 60% rock slope), mandatory validated ascent. §2.6 — border mountains replace invisible walls: varied crest, lobed spurs, impassable by slope AND a traversability flood-fill, never counted as attractors. §2.7 — micro-relief octave everywhere + one plain sited to frame the LR reveal. §5.7 — tall trees worked through: oak 24-32 m, birch 16-22 m, pine 28-38 m (declines literal x4, would overtop Ravenscar), L0_RELIEF 52 -> 110-120 m proposed, sight wedges become tree-free, crown base 35-45%, TREE_SPACING_FOREST 12-18 m (~80% density cut), tri budget 700 + mandatory LOD.
 - 09:08:2026 - 19:01:50: Flora's findings ruled. §1.3 — canopy occlusion is now a BAND (crown_base, crown_top) with transparent trunks up to CANOPY_TRUNK_PATH_MAX 250 m; the old solid-column model was pessimistic and was failing sightlines that exist. §1.3 C4 — recorded a boundary on the "raising the peak is a dead end" finding: dead for stamp-scaled flanks, live for fixed-height canopy occluders; one measurement requested. §5.7 — sight-wedge ban narrowed to the tall three in the NEAR half only (flora's bald-lane pushback accepted, their near/far reasoning corrected: near trees steal dominance, far trees steal sight). §5.8 — maturity tiers 15/60/25 with Elder Oak folded in as the giant tier. §5.9 — standing snag (only flora allowed at full height in a wedge) and riparian willow approved, with birch=moving water / willow=still water as the readable split.
+- 09:08:2026 - 19:06:29: C1 blocking ruling. §1.3 — binary forest opacity RETIRED in favour of Beer-Lambert attenuation over expected canopy hits (T = exp(-sum n_local*w(h)*d), visible at T >= CANOPY_VISIBILITY_MIN 0.25; permits ~225 m of trunk-level or ~24 m of crown-level forest), which subsumes and retires the ad-hoc CANOPY_TRUNK_PATH_MAX; same transmittance governs C4. Stated as a physics correction allowed ONCE — if seed 1 still fails, the world changes, not the floor. Recorded core's measurements: heights cost -0.048, band recovers only +0.011, crown-base fraction is visibility-insensitive. §1.3 C4 — my "live for canopy" boundary REFUTED by measurement in 52-64 m with the mechanism now stated (the crag's own flanks dominate and it hides itself faster than it gains height); above 64 m untested due to WORLDGEN_MAX_HEIGHT saturation, so L0_RELIEF stays open pending the re-run at the raised ceiling.
+- 09:08:2026 - 19:14:17: STOP-THE-LINE correction + stage-4 batch. §1.3 — "raising the peak lowers clearance" WITHDRAWN entirely: core's C1 raycast was counting the crag as an occluder of itself, so every C1 number this stage was contaminated; corrected, clearance RISES with peak (52->0.751 ... 200->0.915) and the taller canopy never broke C1 (0.751 vs 0.60 floor). Recorded why it survived — directionally plausible findings get less scrutiny than surprising ones. Beer-Lambert attenuation kept as the better model but explicitly NOT load-bearing: the one-time physics-correction budget was never spent. §1.3a — LANDMARK_MAX_DISTANCE 4 km bounds the far plane (CAMERA_FAR 1000 -> >=4000), beyond it is backdrop; 10x10 km gets one LR per 4x4 km cell. §2.5 — "7000 steps" ruled as a staged climb (1200-1800 m path, 5-7 landings), literal reading flagged to the user. §2.7 — meso relief band 25-60 m / 1.5-4 m as GENERAL terrain (forest-only would seam the forest edge) + scarps 2-5 m. §5.8 — maturity re-weighted 25/60/12/3 (sapling rare per user; sub-mature retained because young trees do mid-canopy layering, not ground fill). §5.9 — snag density split by material: 1.5-3/ha weathered grey inside forest, 0.25-0.5/ha pale bone in the open, preserving the false-L2-guide rule. §5.10 — BigBush, FallenLog (big/small, across the fall line), trees on scarp edges approved. §6.1 — castle REVISED to a real fortress per user: 80x80 curtain + 4 towers + twin-tower gatehouse + hall + keep, scalable by terraced wards A/B/C, pad 60->120 m; safe because Ravenscar's growth gives ~2x architectural headroom under the same siting mechanism. §6.3 — NEW: true-darkness places, graded AMBIENT_FLOOR, qualification by enclosure + 25 m depth, three anti-surprise layers, torch floor 4 m, C1 exempt with a findable-way-out guarantee.
+- 09:08:2026 - 19:15:39: §5.7 sight wedges RE-RULED after the C1 correction (flora asked for the re-decision): near/far half-split replaced by the single crown-vs-flank test already used for the castle; giants ALLOWED in wedges (one per wedge) because an off-axis elder gives the landmark scale — repoussoir is our best depth cue and the exclusion deleted it; C4 sharpened to govern masses and built structures rather than individual near vegetation.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -70,17 +73,59 @@ ray from a 1.7 m eye rises with distance: through forest 30 m out the ray sits
 at ≈ 6 m and passes cleanly *under* the crowns. The column model blocked that
 ray and was **pessimistic** — it was failing sightlines that exist. Rules:
 
-- The occlusion query returns a band `(crown_base, crown_top)` per sample; a
-  ray is blocked only where it lies **inside** the band.
-- **Trunks are transparent** to landmark visibility. At 44 trees/ha with 1.4 m
-  trunks a ray crossing 150 m of forest expects ≈ 0.92 trunk hits — a dappled
-  partial occluder, and parallax while walking reveals the landmark
-  continuously. A binary raycast must not treat that as a wall.
-- **But not infinitely transparent:** accumulate forest traversal at trunk
-  level and call the ray blocked past `CANOPY_TRUNK_PATH_MAX` = 250 m
-  **(предложение — утвердить)** — roughly 1.5 expected hits. Deep inside a
-  large wood you genuinely cannot orient. If the accumulator proves awkward,
-  pure transparency is an acceptable fallback; the band model is the win.
+- The occlusion query returns a band `(crown_base, crown_top)` per sample.
+
+**Forest attenuates, it does not switch (stage-4 ruling — the binary model is
+retired).** First-hit-opaque models a wall we have deliberately stopped
+generating: after the 80 % density cut a ray crossing 150 m of forest at trunk
+level expects ≈ 0.92 trunk hits. Vegetation occlusion is therefore
+**probabilistic**, and the rule is Beer–Lambert over expected hits:
+
+```
+T = exp( − Σ_segments  n_local · w(h) · d_segment )
+```
+
+- `n_local` — local stem density (stems/m², from the placement lattice, so the
+  maturity mix and the young sub-lattice are accounted for automatically).
+- `w(h)` — mean horizontal width the ray meets at its current height: **trunk
+  diameter below `crown_base`, crown diameter inside the band, 0 above**.
+- The landmark counts as **visible when `T ≥ CANOPY_VISIBILITY_MIN` = 0.25**
+  **(предложение — утвердить)**.
+
+Worked from our own numbers (44 stems/ha, 1.4 m trunks, ≈ 13 m crowns):
+λ_trunk = 0.0062/m, λ_crown = 0.0572/m, so the 0.25 threshold permits
+**≈ 225 m of trunk-level forest or ≈ 24 m of crown-level forest**. That is the
+right shape: you can see a landmark down a long colonnade, and you cannot see
+it through more than a thin screen of crown. It also **subsumes and retires**
+the ad-hoc `CANOPY_TRUNK_PATH_MAX` = 250 m from the previous revision — that
+guess and this derivation agree to within 10 %, which is why one mechanism now
+replaces both rules.
+
+- **Same transmittance governs C4:** an occluder the ray passes with
+  `T ≥ CANOPY_VISIBILITY_MIN` is not counted as an occluder for the clearance
+  test either. One notion of "blocks", used consistently.
+- **This is a physics correction, not an accommodation.** If a seed fails C1
+  after attenuation, the floor does **not** move: we change the world — thin,
+  shorten, or relocate the foothill strips. Attenuation is allowed once, as
+  the fix for a model that was wrong; it is not the first of a series.
+- **That budget was NOT spent.** The C1 emergency this rule was written under
+  turned out to be a validation bug (see the withdrawn finding in §1.3):
+  corrected, seed 1 with the full §5.7 canopy measures **0.751** against a
+  0.60 floor, so attenuation was never load-bearing for the floor. It is
+  implemented because it is the better model — the maturity mix falls out of
+  `n_local` for free, and one consistent notion of "blocks" across C1 and C4
+  is worth having on its own merits. **The contingency was never called; a
+  future reader should not think the budget is gone.**
+
+**Measured facts to build against (core, stage-4, post-correction), so nobody
+re-derives them:** crown base 35 % vs 40 % gives **identical C1 to three
+decimals**, because the ray almost never threads that 9.8–11.2 m window at the
+crossing points. **Do not spend tuning effort on the crown-base fraction** —
+it is a walkability and feel parameter (§5.7), not a visibility one. Likewise
+all three flank parameterisations (fraction-of-peak, fixed metres,
+sqrt-scaled) give identical C1 to three decimals; core kept absolute metres
+anyway, because coupling an occluder's size to the thing it occludes is a bad
+idea even when it is not the bug.
 
 This is computable, not editorial.
 
@@ -202,26 +247,43 @@ out-angling the 52 m crag from every western/southern ground vantage):
   deterministic). Terrain-side tuning knobs if wedge filtering thins a forest
   too much: widen the L0 stamp's treeless rockline band, or reshape the
   landmark-facing forest — core's choice per seed, the invariant is the
-  clearance factor. Two knobs proved to be **dead ends** in the stage-3b
-  implementation: raising the peak *lowers* clearance (its own flank occluders
-  grow at a 1.2× disadvantage), and the treeline is useless here (foothill
-  terrain sits below any sane treeline).
+  clearance factor. One knob is a genuine dead end: the treeline is useless
+  here (foothill terrain sits below any sane treeline).
 
-  **Boundary on the first dead end (stage-4, flora's finding — read before
-  citing it).** "Raising the peak lowers clearance" was measured when canopy
-  was 12–18 m and the crag's own flanks dominated the occluder set. It holds
-  for occluders that are **part of the L0 stamp**, because they scale with it.
-  It does **not** automatically hold for **canopy** occluders, which are now
-  pinned at 24–38 m independent of the stamp: raising the peak raises the L0's
-  subtended angle while foothill crowns stay put. The regime changed, so the
-  finding's scope changed with it — the lever is dead for stamp-internal
-  flanks and **live** for canopy. This is not a licence to raise peaks
-  casually; it is a request for one measurement before we treat the lever as
-  gone, and it independently supports the `L0_RELIEF` raise proposed in §5.7
-  (flora's worst case wants a peak above ≈ 84 m; the proposal is 110–120 m). The effective lever
-  is forest *shape*: a closed canopy annulus around an L0 can never pass
-  canopy-C1 from valley ground — landmark-skirting forest must be broken
-  into radial/ridge strips with gaps (see §7.1).
+  > ### ⚠ WITHDRAWN — "raising the peak lowers clearance"
+  >
+  > **This finding was WRONG and is withdrawn entirely** (09:08:2026, core).
+  > It was never a property of the world: the C1 raycast was **counting the
+  > crag itself as an occluder of the crag**. The aim point is peak + 8 m
+  > while `LANDMARK_CLEARANCE_FACTOR` (1.2) multiplies against terrain that is
+  > essentially at peak height, so near-summit ground "out-angles" the summit
+  > as soon as `0.2 × (peak − eye) > 8 m` — above a ~60 m peak the test
+  > returned 0.000 for *every* standpoint regardless of the world, and below
+  > it the measure was already dragged down.
+  >
+  > **Corrected (landmark excluded from its own occlusion):** clearance
+  > **RISES** with peak height, which was the intuitive relationship all
+  > along — peak 52 → C1 0.751, 70 → 0.783, 90 → 0.849, 115 → 0.865,
+  > 150 → 0.895, 200 → 0.915.
+  >
+  > **Why it survived, recorded so the next one does not:** it pointed the
+  > direction we half-expected, and **nobody asked why a landmark would become
+  > less visible for being taller.** A finding that is directionally plausible
+  > gets less scrutiny than a surprising one, which is exactly backwards. The
+  > review chain is what caught it — flora challenged the boundary and read
+  > the code, core re-measured and self-reported. Flora's specific hypothesis
+  > (`ridge_amp_frac`) was itself refuted; the challenge was still what
+  > produced the fix.
+  >
+  > **Consequences:** `L0_RELIEF` 110–120 m does not cost C1, it **improves**
+  > it (≈ 0.865). The taller canopy never broke C1 either — seed 1 with the
+  > §5.7 heights measures **0.751** against a 0.60 floor. Every C1 number
+  > reported before this correction is contaminated; do not cite them.
+
+  The effective lever on landmark visibility remains forest *shape*: a closed
+  canopy annulus around an L0 can never pass canopy-C1 from valley ground —
+  landmark-skirting forest must be broken into radial/ridge strips with gaps
+  (see §7.1). That finding was measured independently and stands.
 
 ### 1.3a World scale, zones, and the fourth landmark tier (stage-4 ruling)
 
@@ -280,6 +342,28 @@ to the valley's main corridors, and the valley L0 never further.
 **The LR is never fully occluded** from the valley's main corridors — it is
 the far goal, and a goal you cannot see is not a goal. Same wedge machinery
 as §1.3, applied at map scale.
+
+**Maximum landmark siting distance — the rule that bounds the far plane
+(render's blocker, ruled).** `LANDMARK_MAX_DISTANCE` = **4 km**
+**(предложение — утвердить)**. No navigational landmark is ever sited further
+from reachable ground than this, at any world size. Consequences, decided once
+so render and core need not revisit:
+
+- The 2×2 km world's temple (1.4–1.6 km) sits well inside it; `CAMERA_FAR`
+  must rise from 1000 m to **≥ 4000 m** or the LR is not hazy, it is *clipped*.
+- At 10×10 km, "one LR visible from everywhere" does **not** scale — 14 km of
+  diagonal is scenery, not navigation. The world becomes multi-region:
+  **one LR per ≈ 4×4 km region cell**, each dominating its own domain
+  (§1.3a's own-domain visibility rule already carries this).
+- **Beyond 4 km is BACKDROP, not geometry.** Distant ranges may be drawn by
+  whatever cheap mechanism render prefers (impostor layer, sky-dome
+  silhouette) and need not be depth-correct. One design constraint: a backdrop
+  must be *consistent* with the real terrain behind it — the ridge you see at
+  6 km must be the ridge you walk into at 3 km. A backdrop that lies is worse
+  than no backdrop.
+
+This bounds depth precision at ~4 km rather than 8+, which is the difference
+between a far-plane change and a depth-buffer restructure.
 
 ### 1.4 Draw-the-player rules
 
@@ -511,6 +595,20 @@ as the castle ramp (§6.1.2) — a summit temple you cannot reach on foot is a
 failed placement, not a later problem. Derived from the generated massif,
 never tabled.
 
+**"7000 steps" — a staged climb, not a switchback (user requirement).** The
+ascent is a *sequence*, not a ramp: `LR_ASCENT_LENGTH` = 1200–1800 m of path
+(4–6× the direct horizontal distance, so the route wraps the massif rather
+than attacking it) with `LR_ASCENT_LANDINGS` = 5–7 staged rests — a shrine, a
+vista, a wind-scoured shoulder — each a place to stop and look back at how far
+the valley has fallen away **(предложение — утвердить)**. Landings are what
+make a climb read as long; raw distance just makes it tiring. At 1500 m that
+is ≈ 8 min of walking one way, which is a journey.
+**Flagged for the user (via lead):** if "7000 steps" is meant *literally*
+(≈ 4.9 km of path, ≈ 27 min of walking one way), say so and I will extend the
+route — but that is a pacing decision worth making deliberately rather than
+inheriting from a phrase. My assumption is that it is the climb's *name*, as
+in the fiction it echoes, and that 5–7 landings deliver the felt length.
+
 ### 2.6 Border mountains — the world edge
 
 Replaces the invisible walls. The world ends in geography, Skyrim-style.
@@ -549,6 +647,30 @@ it. Add a fourth octave, `GROUND_MICRO_WAVELENGTH` = 8–16 m at
 billiard-table read at eye level. Micro-relief is **suppressed inside
 building pads and the castle terrace** (they are cut flat on purpose) and
 **retained everywhere else, including the plain**.
+
+**Meso relief — the missing middle band (stage-4).** Between the hill octave
+(128 m / 6 m, §2.1) and the micro octave above there was a gap, and it is
+exactly the scale at which walking through a forest felt like a flat traverse.
+Add `GROUND_MESO_WAVELENGTH` = 25–60 m at `GROUND_MESO_AMPLITUDE` = 1.5–4 m
+**(предложение — утвердить)** — dips, rises and hollows you walk into and out
+of. Max local slope ≈ 18°, so corridors and pads are unaffected.
+
+**Ruling: this is GENERAL terrain, not a forest-specific stamp.** Forests
+merely sit on it. Three reasons: a forest-only stamp makes the forest edge a
+seam where terrain character visibly changes — the classic tell of generated
+ground; meadows want the same relief (it is the same "too flat" complaint);
+and the *perception* that forests have more relief comes free, because trunks
+and canopy give the eye something to measure height against, while open meadow
+reads flatter at identical amplitude.
+
+**Scarps (обрывы).** Small cliff steps `SCARP_HEIGHT` = 2–5 m, placed where
+the meso field's local slope already exceeds a threshold, by a low-probability
+terracing transform — `SCARP_DENSITY` = 0.5–1.5 per hectare inside forest
+masses, rarer in open ground **(предложение — утвердить)**. Constraints: never
+inside a corridor mask (§2.4); never enclosing a walkable region (a scarp is
+an obstacle to go around, never a trap — the traversability check of §2.6
+applies locally); and always with a walkable way around within 40 m, so a
+scarp costs the player a decision, not a reload.
 
 **One small plain, and it earns its flatness.** A flat area is only valuable
 as contrast, so it is placed where flatness *does something*:
@@ -792,31 +914,51 @@ and **declines the literal ×4**, because:
 - Skyrim's own tall conifers are ≈ 25–30 m. The literal ×4 overshoots the
   reference the request cites.
 
-**Collision 1 — canopy-aware C1 and the 0.018 headroom.** Even at the ruled
-heights, a 35 m tree on a 25 m foothill tops out at 60 m against a 52 m
-summit. Two consequences, both binding:
+**Collision 1 — the landmark must out-top its own forest.** A 35 m tree on a
+25 m foothill tops out at 60 m against a 52 m summit. Two consequences, both
+binding:
 
 - **Ravenscar must grow with its forest:** `L0_RELIEF` 52 → **110–120 m**
-  **(предложение — утвердить; flagged to the user, §5.7 note)**. A valley
-  heart that its own trees overtop is not a landmark. All castle rules are
-  ratios to the peak (`CASTLE_SKYLINE_MARGIN` etc.) and re-derive
-  automatically — story's ~55 m castle/barrow geometry is unaffected.
+  — **APPROVED by the user**. The argument is composition, not validation:
+  a valley heart that its own trees overtop is not a landmark. (The C1 case
+  once made for this raise rested on contaminated numbers; the corrected
+  measurement shows the raise *improves* C1 to ≈ 0.865 rather than costing
+  anything — see the withdrawn finding in §1.3. Right answer, and now for a
+  reason that survives.) All castle rules are ratios to the peak
+  (`CASTLE_SKYLINE_MARGIN` etc.) and re-derive automatically — story's ~55 m
+  castle/barrow geometry is unaffected.
 - **L0/LR sight wedges — revised (flora's pushback accepted, with its
   reasoning corrected).** My first draft banned *all* trees in a wedge. Flora
   is right that at 12–18 m spacing this carves mown lanes radiating from every
   POI — authored-looking, the exact effect standing stones exist to create
   deliberately. The rule instead:
-  - **Only the tall three are excluded.** Bushes, saplings and anything under
-    ≈ 8 m stay, so the wedge keeps ground texture and reads as young growth
-    under an old canopy, not as a clearing.
-  - **The ban is the NEAR half of the wedge; the far half is governed by the
-    band-model occlusion test** (§1.3). Note this is the *opposite* half from
-    flora's proposal, because two different tests are in play: a near tall
-    tree subtends hugely and steals **dominance** (C4), while it is *far*
-    trees that sit at ray height and steal **sight** (C1) — and the band model
-    now handles that case correctly on its own. Ban where the maths says ban.
-  - **Giants and elder oaks are excluded from wedges entirely** (§5.8) — a
-    1.5× oak is a 48 m occluder and belongs nowhere near a landmark sightline.
+  - **RE-RULED after the C1 correction (flora asked for the re-decision, and
+    was right to).** Both wedge constraints were justified partly by a
+    headroom crisis that turned out to be a validation bug (§1.3). Rather than
+    inherit rules whose premise evaporated, the wedge now uses **one test,
+    the same one already governing the castle**: *no tree may occlude the
+    L0/LR's **crown** (top third) from any corridor standpoint; occluding its
+    **flank** is permitted.* One notion of acceptable occlusion across
+    architecture and vegetation, and it needs no near/far half-split.
+  - **Giants are ALLOWED in sight wedges** — reversing my exclusion. Flora's
+    compositional argument is the stronger one: a single elder standing in the
+    middle distance, off the axis, **gives the landmark scale**, which is the
+    thing a distant landmark most needs and most rarely gets. That is
+    repoussoir, and removing it deletes our best depth cue exactly where depth
+    matters most. Conditions: subject to the crown rule above, and **at most
+    one giant per wedge** — one elder frames, three elders screen.
+  - **Sharpening of C4 that this exposed:** C4 governs **masses and built
+    structures**, not individual near vegetation. A 48 m crown 100 m away
+    subtends more than the mountain behind it and that is *fine* — nobody
+    mistakes a nearby tree for a distant massif; the eye reads the depth cue
+    correctly. C4's real target was always the foothill pine *wall*, a mass.
+    Apply it to masses.
+  - Bushes, saplings and anything under ≈ 8 m were never restricted and still
+    are not — the wedge keeps its ground texture and reads as young growth
+    under an old canopy, never as a mown lane.
+  - **Fallback if per-tree crown testing proves expensive:** the previous
+    conservative rule (tall three banned in the near half) is an acceptable
+    approximation — but it is the fallback, not the intent.
 
 ### 5.8 Maturity tiers — restoring fullness without restoring canopy
 
@@ -825,29 +967,55 @@ than standing at species nominal size, because 44 stems/ha all identical reads
 as a **plantation**, and a plantation is a different failure from an empty
 field but a failure all the same.
 
+**Revised (user: «гигантским и могучим… мелкие деревья очень редкие»):**
+
 | Tier | Share | Size | Placement |
 |---|---|---|---|
-| Giant / **Elder** | 15 % | ×1.5 nominal | 1–2 per forest mass; an L2 guide (§1.3) — a forest with an internal hierarchy is legible from inside |
-| Mature | 60 % | nominal | the main lattice |
-| Young | 25 % | ×0.5–0.7 | allowed on a **half-spacing sub-lattice** — their crowns do not compete, so they cost no canopy closure |
+| Giant / **Elder** | **25 %** | ×1.5 nominal | the "могучий" read; also L2 guides (§1.3) — a forest with internal hierarchy is legible from inside |
+| Mature | **60 %** | nominal | the main lattice |
+| Sub-mature | **12 %** | ×0.7–0.85 | mid-canopy layering on a half-spacing sub-lattice |
+| Sapling | **3 %** | ×0.4–0.6 | deliberately rare — a nursery is what the user rejected |
 
-Shares предложение — утвердить. This is the cheapest available answer to
-«пустота — наш враг» at the new density: the stand fills back in at eye level
-while the canopy stays open. **The "Elder Oak" proposed as a separate species
-IS this giant tier** — one system, not two: it is a maturity scalar on the
-existing parameter set, not a catalog row.
+Shares предложение — утвердить. **Why not flora's 25/67/8:** their reasoning
+was right that the young tier's *ground-level* fill job is better done by the
+new bushes, logs and snags. But young trees at ×0.5–0.7 of a 28 m tree are
+14–20 m — their crowns sit **above** eye level and **below** the main canopy,
+so they were never doing ground fill; they were doing **mid-canopy layering**,
+which is what makes a wood feel deep rather than like a colonnade with debris
+on the floor. Deleting them wholesale would flatten the vertical section. So
+the tier splits: the genuinely small (sapling, ×0.4–0.6) drops to 3 % —
+satisfying «очень редкие» — while a sub-mature band survives at 12 % to keep
+the middle of the section populated. Ground fill moves to §5.9's classes,
+exactly as flora argued.
+
+**The "Elder Oak" proposed as a separate species IS the giant tier** — one
+system, not two: a maturity scalar on the existing parameter set, not a
+catalog row. Giants are excluded from sight wedges entirely (§5.7).
 
 ### 5.9 Additional species (approved from flora's proposals)
 
 **Standing snag (dead trunk).** Approved, and the sharpest idea in the batch:
 a barkless broken column with no crown is **the only flora that may legally
 stand at full height inside a sight wedge** — nothing to out-angle with.
-30–60 tris, the cheapest asset in the project. Pale grey-white dead wood is
-the highest flora value in the scene, so it reads as a stark vertical at
-distance — which means it must be placed *sparsely* or it becomes a false L2
-guide: `SNAG_DENSITY` = 1 per 2–4 ha **(предложение — утвердить)**, preferring
-older stands, forest edges, clearing rims, and the ground near barrows and
-ruins where the atmosphere pays double.
+30–60 tris, the cheapest asset in the project.
+
+**Density revision (user endorsed dead trees; flora flagged the tension
+honestly rather than letting it be overwritten).** My original rarity existed
+because pale dead wood is the highest flora value in the scene and a common
+snag becomes a false L2 guide. That reasoning does not stop being true because
+more were requested — so the fix is to **split the material, which turns the
+tension into a feature**:
+
+| Where | Density | Value | Reads as |
+|---|---|---|---|
+| Inside forest masses | `SNAG_DENSITY_FOREST` = 1.5–3 / ha | weathered grey-brown | texture and atmosphere; one every ~30–80 m |
+| Open ground | `SNAG_DENSITY_OPEN` = 0.25–0.5 / ha (unchanged) | pale bone | a deliberate vertical accent — a legitimate L2 guide |
+
+**(предложение — утвердить.)** A pale snag standing alone in a meadow is a
+landmark; a grey snag in a wood is weather. Same asset, two jobs, and the
+composition rule survives contact with the user's request instead of being
+quietly traded away. Prefer old stands, edges, clearing rims, scarp tops, and
+ground near barrows and ruins where the atmosphere pays double.
 
 **Vale willow / alder (riparian).** Approved, and it fixes a real flaw I had
 left: *every* water body in the world is currently flagged by pale birch, so
@@ -860,6 +1028,46 @@ dark drooping mass means still water has learned to read the landscape, which
 is the whole point of a palette this small.
 
 **Elder oak** — folded into §5.8's giant tier, not a separate species.
+
+### 5.10 Forest floor classes (user-specified, stage-4)
+
+The floor is what makes a wood feel *walked* rather than crossed, and at the
+new density it is also what replaces the fill the young tier used to carry
+(§5.8). All approved as distinct catalog classes.
+
+**BigBush** — a class, **not a scaled Bush**, and flora is right about why: a
+1.2 m bush is ground texture, a 3.5 m bush is an **obstacle that breaks a
+sightline and makes the player pick a side**. That is forest-floor navigation.
+2.5–4 m, denser silhouette, 120–180 tris. `BIGBUSH_DENSITY` = 8–15 / ha inside
+masses, plus clearing rims, scarp bases and stream banks. **Never inside a
+corridor mask** (they exist to be gone around, and the critical path is not
+the place for that); may partially occlude but at 4 m they cannot threaten a
+POI sightline at any meaningful range.
+
+**FallenLog**, two classes as specified:
+
+| Class | Size | Tris | Density | Rules |
+|---|---|---|---|---|
+| Big | 8–14 m long, ⌀ 0.8–1.4 m, half-sunk | 80–120 | `LOG_DENSITY_BIG` = 3–8 / ha | **excluded from corridors** until vaulting exists (⌀ exceeds `PLAYER_STEP_HEIGHT`, so it would be a wall on the critical path); collision on (sim) |
+| Small deadfall | 2–4 m, ⌀ 0.35–0.5 m, half-sunk | ~40 | `LOG_DENSITY_SMALL` = 15–30 / ha | allowed anywhere including corridors — half-sunk it sits under step height |
+
+**(предложение — утвердить.)** **Logs lie ACROSS the fall line, never along
+it** — flora's geometric ask, approved with its reasoning made binding: a log
+pointing downhill reads as a stick, a log lying across a slope reads as a
+fallen tree and as something to climb over. Big logs are nearly free
+geometrically (the trunk mesh, rotated and sunk) and are the cheapest "this
+forest is old" signal in the medium. **FUTURE:** when sim adds vaulting, big
+logs become legal in corridors and turn into pacing furniture.
+
+**Trees on scarp edges — flora's question, ruled: YES, deliberately.** A tree
+leaning out over a drop is a superb silhouette and a genuine L2 guide, and it
+is exactly the kind of detail that still reads at 640×360. Constraints:
+mature or giant tiers only (a sapling on a cliff reads as an accident, not a
+statement); root plate set back ≥ 1.5 m from the edge so it never floats when
+the scarp is voxelised; lean 10–20° outward, away from the mass; scarps ≥ 3 m
+only, since below that there is no drama; **never inside a sight wedge** (a
+tall occluder on a high edge is the worst case we have). Rare by design —
+one per scarp segment, never a row: a row reads as planted.
 
 **Collision 2 — under-canopy walkability.** `CANOPY_CLEARANCE_MIN` = 2.2 m is
 a floor, satisfied ~4× over by a crown base at 35–45 % of height. Stated
@@ -1042,31 +1250,67 @@ C1 failure.
 
 #### 6.1.3 Footprint, mass, readability
 
-**It is a gentry hall-castle, not a royal fortress** (story: "Harrowward",
-House Corvane's small stone hall). That is a mass ruling, not just flavour:
-the silhouette is **horizontal-dominant** — a long hall block with one modest
-vertical — not a tall square keep. This *helps* every constraint above (lower
-top elevation = more C1 clearance headroom) and it distinguishes the Ward from
-the crag's ward-tower, which owns the valley's tall vertical.
+**REVISED — it is a real fortress (user decision, stage-4).** The gentry
+hall-castle was too small: the user wants "крепость вокруг с башнями и
+каменными стенами с воротами входными и замком внутри крепости", explicitly
+scalable. So the hall no longer *is* the castle — it stands **inside** a
+walled and towered enclosure.
 
-Minimal version = **curtain wall + gatehouse + hall + solar block**, enclosing
-an open yard. Chapel, granary and outer works are later elaboration and must
-fit inside the same pad. Blocks, not filigree — §1.5 forbids sub-pixel detail
-at range.
+**Why this is now safe, when I originally sized down to protect the
+hierarchy:** Ravenscar grows to 110–120 m (§5.7). Every constraint in §6.1.1
+is a **ratio or a margin to the peak**, so a 2.2× taller landmark grants
+roughly 2× the architectural headroom for free. With a spur pad near 45 m and
+`CASTLE_SKYLINE_MARGIN` 12 m, the ceiling is ≈ 98–108 m absolute — some 50 m
+of building height available where the old design used 12. The fortress fits
+*inside the same siting mechanism*; the pad does not need to move. This is the
+first time the landmark has had real headroom over its own architecture.
 
 | Element | Footprint | Height | Tris | Reads as |
 |---|---|---|---|---|
-| Curtain wall | 40×40 m enclosure | `CASTLE_WALL_HEIGHT` 6–8 m | 300–500 | the horizontal base band |
-| Hall | 10×22 m, inside the wall | `CASTLE_HALL_HEIGHT` 7–9 m | 400–700 | the long roof mass above the band |
-| Solar block | 8×8 m, on the hall's end | `CASTLE_SOLAR_HEIGHT` 10–12 m | 250–400 | the single vertical — the Ward's "head" |
-| Gatehouse | 10×6 m | `CASTLE_GATE_HEIGHT` 9–11 m | 200–350 | the notch + entry marker in the base band |
-| Yard / tithe-yard | ≈ 20×20 m open | — | — | the dark interior gap read through the gate |
+| Curtain wall | **80×80 m** enclosure | `CASTLE_WALL_HEIGHT` **8–10 m** | 600–900 | the long horizontal stone band — the fortress's base read |
+| Corner towers ×4 | 8×8 m | `CASTLE_TOWER_HEIGHT` **12–15 m** | 200–300 ea. | the rhythm along the wall; four verticals say "fortified" at a glance |
+| Gatehouse (twin towers) | 14×8 m | `CASTLE_GATE_HEIGHT` **14–16 m** | 400–600 | the entry mass — the one asymmetry in the wall line |
+| Hall | 10×22 m, inside the ward | `CASTLE_HALL_HEIGHT` 8–10 m | 400–700 | the long roof seen *over* the wall |
+| Solar / keep | 10×10 m | `CASTLE_SOLAR_HEIGHT` **16–20 m** | 350–550 | the tallest element — the Ward's head, still below R3 |
+| Yard / tithe-yard | ≈ 35×35 m open | — | — | the dark interior read through the gate arch |
 
-All heights предложение — утвердить, and all are subordinate to R3 (pad
-elevation + tallest element is the binding constraint, not the table). The
-envelope must accommodate story's act-1 interior set (public hall, yard,
+All heights предложение — утвердить and all remain subordinate to R3 (pad
+elevation + tallest element is the binding constraint, not the table).
+
+**Scalable by TERRACED WARDS, not by a bigger box** — this is the ruling that
+makes "расширяемая" real. The pad grows 60 → `CASTLE_PAD_SIZE` **120 m**, and
+because a 120 m terrace cannot be cut flat into a spur within
+`CASTLE_PAD_CUT_MAX`, the enclosure **steps down the slope in levels**, each
+level flat within `BUILDING_PAD_SLOPE_MAX` and the wall running along the
+terrace edges. This is what real hillside fortresses do, it solves the cut
+budget, and it makes growth additive:
+
+| Stage | Adds | Terrace |
+|---|---|---|
+| **A (now)** | curtain + 4 towers + gatehouse + hall + solar | upper ward |
+| **B** | tithe-yard, granary, stables | lower bailey, one terrace down |
+| **C** | barbican / outer works | outermost terrace |
+
+Each stage is a ring, not a rebuild — and every stage re-runs the §6.1.1
+checks, because a lower bailey extends the silhouette downhill toward the
+valley where it is most visible.
+
+**Readability changes, and that is intended.** At 80–120 m across, the
+fortress *will* now read from Vaelmere (≈ 390 m) where the old hall was
+deliberately sub-threshold. R1 still holds — it reads against the crag's body,
+never sky — so it does not steal the skyline; what changes is the nature of
+the reveal. It shifts from *"you did not know it was there"* to **"you did not
+know how big it was"**: at distance a grey horizontal band at the crag's foot,
+and only on approach do the gate, the four towers and the hall over the wall
+resolve into a fortress. That is still occlude-and-reveal, and arguably a
+better version of it.
+
+The envelope must accommodate story's act-1 interior set (public hall, yard,
 muniment room, solar) — interiors are **not** designed here, only the footprint
-that leaves room for them.
+that leaves room for them. The access invariant (§6.1.2) is unchanged and now
+applies to the **gatehouse** specifically: the graded ramp runs to the gate
+threshold, and a fortress that a petitioner cannot walk into fails the same
+way a scarp-only pad did.
 
 **Value, not height** (story's ask, and already §1.5 doctrine): the Ward is the
 valley's only large pale-grey built mass. Stone against the meadow greens is
@@ -1163,6 +1407,58 @@ ruin above ground, barrow beneath it, one coherent site.
   will rarely join a coequal crowd (§1.1 C2-testbed).
 - Trivially compliant with C4 at 3 m; a sunken barrow can never contest the
   L0.
+
+### 6.3 True-darkness places (stage-4 ruling)
+
+The user keeps night **playable** — moonlit and navigable — but wants specific
+places to be pitch black: «чёрную пустоту, где даже факел освещает лишь мелкий
+клочок света». So darkness becomes a property of a **place**, never of the
+clock.
+
+**Graded, not binary.** Each enclosed volume carries an `AMBIENT_FLOOR` in
+[0, 1]: the minimum light that exists regardless of sources. Exterior night
+sits at the moonlit floor; a crypt with light shafts sits between; true
+darkness is `AMBIENT_FLOOR = 0`. A binary flag would force every dark place to
+be *equally* dark and would waste the most atmospheric range we have.
+
+**What qualifies — a rule, not a list.** True darkness is available to any
+volume that is (i) **fully enclosed**, no sky access, **and** (ii) beyond
+`DARKNESS_DEPTH_MIN` = 25 m of path from its nearest entrance
+**(предложение — утвердить)**. Consequences that make this the right rule
+rather than a naming exercise: a barrow's forecourt and first chamber are dim,
+its inner chamber is black; darkness is **earned by depth**, so the player
+learns the language and can predict it; and no designer has to remember to tag
+a location. Story may of course *want* a specific place dark — under this rule
+they get it by making it deep, which is the same thing the fiction already
+says.
+
+**No unfair surprises — three required layers:**
+
+1. **A lit threshold.** The last space before true dark must itself be
+   visibly lit, so the boundary is seen from outside as a wall of black you
+   choose to enter.
+2. **A gradient, never a plane.** Ambient falls off over
+   `DARKNESS_FALLOFF` = 8–12 m **(предложение — утвердить)**. Walking into
+   darkness is a slope, not a switch.
+3. **An audible cue** at the threshold (change in reverb/ambience) — sim and
+   audio own the implementation; design's requirement is that it exists.
+
+**The torch must still work.** In true darkness the torch's usable radius
+stays ≥ `TORCH_RADIUS_DARK` = 4 m **(предложение — утвердить)** — enough to
+show the floor and a couple of steps ahead. "Lights only a small patch" is
+atmosphere; "cannot see your own feet" is a control problem wearing
+atmosphere's clothes.
+
+**C1 does not apply inside true darkness, and something else must.** The
+no-dead-horizon rule is meaningless where nothing is visible, so true-dark
+volumes are **exempt from C1** — and inherit a replacement guarantee in its
+place: **the way out must always be findable.** Either the passage is
+unbranching within the dark zone, or the entrance direction is discoverable by
+a non-visual cue (draft, sound, a faint glow at the threshold). Getting lost
+in the dark is a designed feeling; being *stranded* in it is a bug. Interior
+layout belongs to whoever owns dungeon interiors — this is the contract they
+must satisfy, and the reason `AMBIENT_FLOOR` belongs in world data rather than
+in a renderer setting.
 
 ## 7. Testbed application (worldgen v2, что core реализует первым)
 

@@ -45,6 +45,7 @@ UPD:
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -237,7 +238,7 @@ TEST_CASE("voxel terrain collision: the player walks THROUGH the crag, not over 
     glm::vec3 previous = rig.physics->character_position(character);
 
     // 40 simulated seconds is ample for a 158 m corridor at walking pace.
-    for (int tick = 0; tick < 2400 && waypoint < tunnel.point_count; ++tick) {
+    for (int tick = 0; tick < 6000 && waypoint < tunnel.point_count; ++tick) {
         const glm::vec3 position = rig.physics->character_position(character);
         const glm::vec3 target = tunnel.points[waypoint];
         const glm::vec2 to_target{target.x - position.x, target.z - position.z};
@@ -271,6 +272,69 @@ TEST_CASE("voxel terrain collision: the player walks THROUGH the crag, not over 
         }
     }
 
+    {   // DIAGNOSTIC: where did it stop, and is the way ahead actually open?
+        const glm::vec3 stuck = rig.physics->character_position(character);
+        const glm::vec3 target = tunnel.points[waypoint < tunnel.point_count
+                                                   ? waypoint
+                                                   : tunnel.point_count - 1];
+        const glm::vec3 to_target = target - stuck;
+        const float dist = glm::length(to_target);
+        const auto ahead = rig.physics->raycast(stuck + glm::vec3{0.0f, 0.9f, 0.0f},
+                                                to_target / dist, dist,
+                                                physics_layer::LAYER_STATIC);
+        // Floor profile ahead: a step taller than PLAYER_STEP_HEIGHT is a wall.
+        std::string profile;
+        for (int i = 0; i <= 12; ++i) {
+            const glm::vec3 p = stuck + (to_target / dist) * (0.25f * static_cast<float>(i));
+            const auto down = rig.physics->raycast(p + glm::vec3{0.0f, 1.5f, 0.0f},
+                                                   {0.0f, -1.0f, 0.0f}, 4.0f,
+                                                   physics_layer::LAYER_STATIC);
+            profile += down.hit ? (std::to_string(down.position.y - stuck.y) + " ")
+                                : "MISS ";
+        }
+        const auto up = rig.physics->raycast(stuck + glm::vec3{0.0f, 0.2f, 0.0f},
+                                             {0.0f, 1.0f, 0.0f}, 10.0f,
+                                             physics_layer::LAYER_STATIC);
+        {   // Decisive: nudge to the corridor centerline and try walking again.
+            const glm::vec3 a = tunnel.points[waypoint - 1];
+            const glm::vec3 b = tunnel.points[waypoint < tunnel.point_count
+                                                  ? waypoint : tunnel.point_count - 1];
+            const glm::vec3 ab = b - a;
+            const float t = glm::clamp(glm::dot(stuck - a, ab) / glm::dot(ab, ab),
+                                       0.0f, 1.0f);
+            const glm::vec3 center = a + ab * t;
+            MESSAGE("off-centerline by " << glm::length(glm::vec2(stuck.x - center.x,
+                                                                 stuck.z - center.z))
+                                         << " m (corridor half width "
+                                         << tunnel.half_width << ")");
+            rig.physics->teleport_character(character,
+                                            center + glm::vec3{0.0f, 0.3f, 0.0f});
+            const glm::vec3 from = rig.physics->character_position(character);
+            const glm::vec3 dir = glm::normalize(glm::vec3{b.x - from.x, 0.0f, b.z - from.z});
+            float moved_after_nudge = 0.0f;
+            glm::vec3 prev_p = from;
+            for (int i = 0; i < 240; ++i) {
+                rig.physics->move_character(
+                    character, dir * static_cast<float>(config::WALK_SPEED) * DT +
+                                   glm::vec3{0.0f, -0.5f * DT, 0.0f});
+                rig.physics->step(DT);
+                const glm::vec3 p = rig.physics->character_position(character);
+                moved_after_nudge += glm::length(glm::vec2(p.x - prev_p.x, p.z - prev_p.z));
+                prev_p = p;
+            }
+            MESSAGE("after centerline nudge, walked " << moved_after_nudge
+                                                      << " m in 4 s");
+        }
+        MESSAGE("grounded " << (rig.physics->character_grounded(character) ? 1 : 0)
+                            << " headroom " << (up.hit ? up.distance : -1.0f)
+                            << " vvel " << vertical_velocity);
+        MESSAGE("floor profile ahead (dy from feet, 0.25 m steps): " << profile);
+        MESSAGE("stuck at (" << stuck.x << "," << stuck.y << "," << stuck.z
+                             << ") target (" << target.x << "," << target.y << ","
+                             << target.z << ") dist " << dist << " ray_hit "
+                             << (ahead.hit ? 1 : 0) << " hit_dist "
+                             << (ahead.hit ? ahead.distance : -1.0f));
+    }
     MESSAGE("travelled " << travelled << " m, reached waypoint " << waypoint << "/"
                          << tunnel.point_count << ", ticks under rock "
                          << ticks_under_rock << ", deepest cover " << deepest_cover

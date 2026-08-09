@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 18:05:00
+Last updated: 09:08:2026 - 20:10:00
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — surface-truth splat (SurfaceFieldView), per-body water (WaterMesher), scatter batching (ProcMesh + ScatterBatcher), site placeholder meshes ids 1..7, Tour v3 §7.1 route with lazy ground resolution.
 - 09:08:2026 - 14:11:37: Feature-requests batch — splat fixes (dryness/dirt band REMOVED per design ruling: weights come from core's surface_class only; the band painted 60 m brown washes over Grass), chunky stone boulder (в3), afternoon southern sun for readable dynamic shadows (в1; shadows themselves live in the bgfx backend).
 - 09:08:2026 - 18:05:00: Map screen (user request "миникарта как в скайриме"): PixelCanvas (the project's first UI drawing primitive), MapScreen (explored top-down map baked from the heightfields), RenderSystem overlay path + toggle_map/set_internal_resolution, Tour map probe route.
+- 09:08:2026 - 20:10:00: Day/night (в1/в2) — SkyModel (sun/moon/stars from a normalized clock, phase-derived moon direction), shared dfn_surface_light in the shader env include, sky-visibility ambient from vertex alpha, sky probe hooks; ProcMesh pack/tri/quad exposed for the flora agent.
 -->
 
 # engine/render
@@ -45,6 +46,11 @@ harness (Rule 27), and debug-draw helpers. Never touches bgfx (Rule 1).
   triangles) in internal-resolution pixels, uploaded as one RGBA8 texture and
   blitted by `RenderSystem::draw_overlay`. Screen-agnostic on purpose: the
   planned start menu draws through the same two calls.
+- `dfn::render::SkyModel` (`sources/SkyModel.h`) — `apply_sky_time(env,
+  day_fraction, lunar_phase)`: the whole day/night look from two normalized
+  fractions (sun and moon direction, sun/ambient/fog/sky colours, moonlight,
+  stars). Moon direction is DERIVED from phase, so a full moon rises at
+  sunset. Also `TORCH_COLOR`/`TORCH_RADIUS_M` for the carried light.
 - Debug draw free functions (`sources/DebugDraw.h`) — axes, AABB, grid, arrow
   over `IRenderer::debug_line`.
 - ProcTexture (`sources/ProcTexture.h`, stage 3) — procedural textures (Q4в:
