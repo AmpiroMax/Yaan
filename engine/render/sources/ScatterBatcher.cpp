@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:27:17
+Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -36,6 +36,12 @@ UPD:
 - 09:08:2026 - 22:27:17: GROUND_SINK_FRAC now reads config::SCATTER_GROUND_SINK_FRAC
   (lead landed the row on sim's request): render draws the sink and sim builds
   collision from the same triangles, so the two cannot hold separate copies.
+- 10:08:2026 - 01:47:53: species_radius TABLE DELETED — the tile bounding
+  circle is measured over the baked vertices instead. The table under-covered
+  what was actually drawn (stone 0.5 tabled vs ~0.78 built, birch 3.1 vs
+  ~4.94), which is a pop-in bug, and a table that must agree with a mesh will
+  disagree again; a measured radius cannot. Old values kept in the test suite
+  as the failing control (Rule 30).
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -66,24 +72,14 @@ namespace {
 // standing in the air. One number, two zones (Rule 14).
 constexpr float GROUND_SINK_FRAC = static_cast<float>(config::SCATTER_GROUND_SINK_FRAC);
 
-// Conservative horizontal footprint radius (m) of each species' nominal mesh,
-// used for micro tile bounding circles. Values from the flora agent's measured
-// envelopes (their radial-clip fix): the old numbers were the pre-4x trees and
-// under-covered by ~2x, which would have culled tiles while their geometry was
-// still on screen.
-float species_radius(math::ScatterSpecies species) {
-    switch (species) {
-    case math::ScatterSpecies::OakTree: return 7.3f;
-    case math::ScatterSpecies::PineTree: return 3.8f;
-    case math::ScatterSpecies::BirchTree: return 3.1f;
-    // Core has one Bush species; flora may map it to either bush size, so take
-    // the larger — an over-large bounding circle costs a few extra draws, an
-    // under-large one pops geometry out while it is still visible.
-    case math::ScatterSpecies::Bush: return 2.0f;
-    case math::ScatterSpecies::Stone: return 0.5f;
-    }
-    return 1.0f;
-}
+// THERE IS NO SPECIES RADIUS TABLE ANY MORE, ON PURPOSE. The tile bounding
+// circle is MEASURED from the baked vertices after everything is appended
+// (see the post-loop pass): a table that must agree with a mesh will disagree
+// again — this one already had (stone 0.5 m tabled vs ~0.78 m built, birch
+// 3.1 vs ~4.94 after flora's crown fix), and an under-covering radius is a
+// pop-in bug: the tile culls while its geometry is still on screen. The test
+// suite keeps the old tabled values as the Rule 30 control — the geometry
+// they claimed to cover FAILS them.
 
 bool is_tree(math::ScatterSpecies species) {
     return species == math::ScatterSpecies::OakTree
@@ -119,7 +115,6 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
     const uint32_t n = micro_tiles_per_axis;
     struct TileScratch {
         MeshData mesh;
-        float radius = 0.0f;
     };
     std::vector<TileScratch> tiles(static_cast<size_t>(n) * n);
 
@@ -160,13 +155,6 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
             static_cast<int>(n) - 1));
         TileScratch& tile = tiles[static_cast<size_t>(tz) * n + tx];
         append_transformed(tile.mesh, src, pos, inst.yaw, inst.scale);
-        const glm::vec2 tile_center{
-            chunk_origin.x + (static_cast<float>(tx) + 0.5f) * tile_size,
-            chunk_origin.y + (static_cast<float>(tz) + 0.5f) * tile_size};
-        const float reach =
-            glm::length(glm::vec2{inst.position.x, inst.position.z} - tile_center)
-            + species_radius(inst.species) * inst.scale;
-        tile.radius = std::max(tile.radius, reach);
     }
 
     for (uint32_t tz = 0; tz < n; ++tz) {
@@ -179,7 +167,17 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
             micro.center_xz = {
                 chunk_origin.x + (static_cast<float>(tx) + 0.5f) * tile_size,
                 chunk_origin.y + (static_cast<float>(tz) + 0.5f) * tile_size};
-            micro.radius_m = tile.radius;
+            // The bounding circle is MEASURED over the baked vertices, never
+            // derived from a per-species table: whatever geometry a species
+            // build produces — today's or any future one — is covered by
+            // construction, and the radius cannot drift from the mesh.
+            float radius = 0.0f;
+            for (const platform::Vertex& v : tile.mesh.vertices) {
+                const glm::vec2 d{v.position.x - micro.center_xz.x,
+                                  v.position.z - micro.center_xz.y};
+                radius = std::max(radius, glm::length(d));
+            }
+            micro.radius_m = radius;
             micro.mesh = std::move(tile.mesh);
             out.micro.push_back(std::move(micro));
         }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 19:48:00
+Last updated: 10:08:2026 - 01:47:53
 Module: tests
 File: tests/render/ScatterBatcherTests.cpp
 
@@ -23,6 +23,8 @@ UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial tests.
 - 09:08:2026 - 19:48:00: Flora bake cost measurement (per-instance tree
   geometry) as a regression guard against the chunk streaming budget.
+- 10:08:2026 - 01:47:53: Measured tile radius cases; the deleted species_radius
+  table's values kept as the failing control (Rule 30).
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -144,4 +146,61 @@ TEST_CASE("a full chunk of flora bakes well inside the streaming budget") {
     REQUIRE(!batches.trees.vertices.empty());
     // Generous ceiling: this is a "did it explode" guard, not a target.
     CHECK(ms < 100.0);
+}
+
+TEST_CASE("tile radius is measured from the baked geometry, not tabled") {
+    // Species meshes grew past their table twice (stone 0.5 tabled vs ~0.78
+    // built, birch 3.1 vs ~4.94 after flora's crown fix) and every time the
+    // table lagged, tiles culled while their geometry was on screen. The
+    // radius is now measured over the baked vertices, so coverage holds by
+    // construction — and the OLD TABLED VALUES are kept here as the control
+    // that FAILS against the same geometry (Rule 30).
+    const float scale = 1.4f;
+    const std::vector<ScatterInstance> instances{
+        make(260.0f, 10.0f, ScatterSpecies::Stone, scale),
+        make(262.0f, 12.0f, ScatterSpecies::Bush, scale),
+    };
+    const ScatterBatches batches = build_scatter_batches(instances, ORIGIN, CHUNK, 4);
+    REQUIRE(batches.micro.size() == 1);
+    const auto& tile = batches.micro.front();
+
+    // Derived radius covers every baked vertex exactly (it IS their maximum).
+    float measured = 0.0f;
+    for (const auto& v : tile.mesh.vertices) {
+        const glm::vec2 d{v.position.x - tile.center_xz.x,
+                          v.position.z - tile.center_xz.y};
+        CHECK(glm::length(d) <= tile.radius_m + 1e-3f);
+        measured = std::max(measured, glm::length(d));
+    }
+    CHECK(tile.radius_m == doctest::Approx(measured));
+
+    // THE CONTROL — the deleted table, applied the way the old code did
+    // (distance from sample point to tile center + tabled radius * scale).
+    // The stone's own built geometry must exceed what its table entry
+    // claimed, or this whole change guarded against nothing.
+    const auto old_formula = [&](const ScatterInstance& inst, float tabled) {
+        const glm::vec2 d{inst.position.x - tile.center_xz.x,
+                          inst.position.z - tile.center_xz.y};
+        return glm::length(d) + tabled * inst.scale;
+    };
+    // Worst over both instances, exactly as the old per-instance max was.
+    const float old_radius = std::max(old_formula(instances[0], 0.5f),
+                                      old_formula(instances[1], 2.0f));
+    CHECK(measured > old_radius);
+}
+
+TEST_CASE("a species mesh's real reach exceeds its dead table entry") {
+    // The direct form of the same control: the stone build's horizontal
+    // reach from its own origin, measured, against the number the table
+    // shipped for it. If a future species build SHRINKS below the old table
+    // this case stops discriminating — then pick a new failing pair, do not
+    // delete the control.
+    const dfn::render::MeshData stone =
+        dfn::render::build_scatter_mesh(ScatterSpecies::Stone);
+    REQUIRE(!stone.vertices.empty());
+    float reach = 0.0f;
+    for (const auto& v : stone.vertices) {
+        reach = std::max(reach, glm::length(glm::vec2{v.position.x, v.position.z}));
+    }
+    CHECK(reach > 0.5f); // the deleted table entry under-covered this mesh
 }
