@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:23:49
+Last updated: 09:08:2026 - 19:27:13
 -->
 <!--
 UPD:
@@ -25,6 +25,7 @@ UPD:
 - 09:08:2026 - 19:19:07: Flora's root-flare finding. §5.10 — cliff-edge setback datum corrected: >=1.5 m measured from the OUTER EDGE OF THE ROOT FLARE, not the trunk axis (a 1.6x flare left only ~0.5 m of ground and the tree would still have floated); cliff lean recorded as a separate, larger parameter than the crowding lean. §2.7 — added the standing rule that terrain never flattens under vegetation: the plant absorbs the ground via root flare, because a smoothed disc under every trunk is the pool-table flatness this section exists to remove; future "floating trees" bugs are flora/render fixes, not terrain ones.
 - 09:08:2026 - 19:20:45: §6.1.3 — story picked fork (a) (the Corvanes fortified because they feared what they buried), so two terrain asks folded in: ward masonry phasing carried by BLOCK SIZE AND VALUE rather than texture (invisible at 640x360), which costs nothing because the terrace order already puts the oldest ward uphill nearest the barrow; and a binding sightline from the barrow-facing corner tower's top to the barrow entrance, validated and occlusion-protected like the yard/gate sightline.
 - 09:08:2026 - 19:23:49: §6.1.3 — three named masonry phases from story (panic / treaty money / fear returning), and resolved an ambiguity I created: my A/B/C were BUILD stages, story's are IN-WORLD construction generations, all present when the player arrives — the doc now means the in-world axis, with implementation minimum A+B. Phase C ruled UNFINISHED as generator rules: 0.4-0.6 partial arc with the completed arc covering the APPROACH and the gap on a flank (a gap on the approach would make the gatehouse decorative and kill the petitioner ritual), raw stepped unfaced ends, 0.6-0.75 height, no parapet, spoil heap and never-laid dressed stone. Nearly free against R3 and the silhouette budget.
+- 09:08:2026 - 19:27:13: §6.1.3 — C's gap placed on the BARROW-FACING flank (story's ask; bearings checked: barrow 27 deg, peak 28 deg, approach 225 deg, so grave and road are opposite sides and the approach stays walled). Forced one refinement: since the barrow side is uphill where ward A sits, C is a contour-following perimeter wrapping A and B rather than simply the lowest terrace — also the more authentic form, since uphill outer works matter most on a hillside. Noted that the two story asks reinforce: the barrow-facing tower watches the grave THROUGH the unbuilt stretch, so sightline clearance is guaranteed by absence rather than by a height check. Gap reachable off-corridor only — a back way, never an alternative front door.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1319,7 +1320,7 @@ doc means the **in-world** one from here on:
 |---|---|---|---|---|
 | **A — the panic** | first Corvane lord, on the crown's grant; built fastest, closest to the grave | curtain + 4 towers, the redoubt | upper ward (uphill, nearest crag and barrow) | largest irregular blocks, darkest weathered value |
 | **B — the treaty money** | ~2 generations later; the family made respectable, a seat rather than a redoubt | hall, keep-solar, gatehouse, tithe-yard, granary | lower bailey, one terrace down | smaller regular coursing, lighter and cleaner |
-| **C — the fear returning** | the dowager's time; begun, never finished | outer works, partial | outermost terrace | B's stone, stopped mid-sentence |
+| **C — the fear returning** | the dowager's time; begun, never finished | outer works, partial | contour-following perimeter wrapping A and B, stepping with the slope | B's stone, stopped mid-sentence |
 
 **Implementation minimum is A + B** (the act-1 interior set lives in B), and C
 comes along free because C is mostly *absence*.
@@ -1339,6 +1340,33 @@ choice, and the cheapest of the three to build because most of it is what is
   guard: if the gap fell on the approach it would become the de-facto way in,
   the gatehouse would be decorative, and the petitioner ritual §6.1.2 exists
   to protect would quietly die. The gate stays the way in; the gap is a flank.
+- **WHICH flank: the barrow-facing one** (story's ask, granted — geometry
+  checked and it works). From the pad the barrow bears 27°, the crag peak 28°,
+  and the approach 225°: the grave and the road are on **opposite** sides, so
+  the completed arc covers approach and valley (S/W/SW) and the unbuilt stretch
+  faces NNE, uphill toward the barrow. Story's reason is the same lie-in-stone
+  logic that chose the fortified reading: the dowager walled the side a
+  frightened family can explain — the road, brigands — and stopped before
+  closing the side that faces the grave, because finishing *that* stretch
+  would have admitted what the whole wall was for.
+- **Consequence for C's terrace, and the one refinement this forces:** the
+  barrow side is *uphill*, where ward A sits, so C is **not** simply "the
+  lowest terrace". C is a **contour-following perimeter that wraps the
+  complex**, stepping where the slope demands — one step outside A and B on
+  every side, including above them on the crag side. That is also the more
+  authentic form: on a hillside the uphill outer works are the ones that
+  matter most, since an attacker holds the high ground.
+- **The two story asks reinforce each other rather than compete.** The
+  barrow-facing corner tower must see the barrow entrance (§6.1.3); the
+  barrow-facing stretch of C is exactly the part that was never built. So the
+  tower watches the grave **through the gap that shame left open**, and no
+  wall-versus-sightline conflict can arise — the clearance is guaranteed by
+  the absence, not by a height check.
+- **Reachability:** the gap is reachable but **only off-corridor** — the
+  approach ramp remains the sole corridor-grade route, and the NNE spur ground
+  is steep (which is why A was sited there as the redoubt). It therefore reads
+  as a back way a determined person finds, never an alternative front door,
+  which is precisely what the act-3 beat wants.
 - **Raw ends:** the wall terminates in a stepped, unfaced core — a ragged
   vertical break, never a clean end. At range this is the whole tell.
 - **Lower and unparapeted:** `CASTLE_WARD_C_HEIGHT_FRAC` = 0.6–0.75 of the B

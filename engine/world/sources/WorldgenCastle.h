@@ -96,6 +96,7 @@ struct CastleBuild {
     float solar_height = 0.0f;
     float wall_height = 0.0f;
     float gate_height = 0.0f;
+    float tower_height = 0.0f;
 
     /// Highest point of the built mass, absolute meters. The solar stands on
     /// ward 0, which is the highest terrace.

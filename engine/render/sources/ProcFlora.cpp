@@ -159,6 +159,26 @@ float envelope_radius(const SpeciesParams& sp, float y, float base, float top,
     }
 }
 
+/// Fraction of the species height carried by the TRUNK, the rest being filled
+/// by branches and their foliage. Not cosmetic: the species height band is a
+/// CROSS-ZONE CONTRACT (core's canopy occlusion and design's C4 arithmetic use
+/// OAK/PINE/BIRCH_HEIGHT_MAX), so a tree whose branches overshoot its band is
+/// silently taller than the model everyone else validates against. Broadleaf
+/// leaders dissolve into the crown well below the top — which is both the
+/// botanically correct shape and the fix.
+float trunk_height_frac(CrownEnvelope e) {
+    switch (e) {
+    case CrownEnvelope::Sphere:
+    case CrownEnvelope::Vase:
+    case CrownEnvelope::Weeping:
+        return 0.68f;
+    case CrownEnvelope::Cone: // conifer leader IS the top
+    case CrownEnvelope::None:
+    default:
+        return 1.0f;
+    }
+}
+
 struct Tree {
     const SpeciesParams& sp;
     FloraShape shape;
@@ -227,7 +247,10 @@ void grow_branch(MeshData& m, Tree& t, glm::vec3 base, glm::vec3 dir, float leng
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(segments);
         const float r0 = radius * (1.0f - 0.75f * t0);
         const float r1 = radius * (1.0f - 0.75f * t1);
-        const glm::vec3 next = p + d * seg_len;
+        glm::vec3 next = p + d * seg_len;
+        // Envelope ceiling: a crown flattens under competition rather than
+        // spiking past the species band (see trunk_height_frac).
+        next.y = std::min(next.y, t.crown_top);
         tube_segment(m, p, next, d, r0, std::max(r1, 0.02f), sides, t.wood);
         p = next;
     }
@@ -457,7 +480,8 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
             : glm::vec3{0.0f};
         // Stems of a clump are shorter than the nominal so the clump as a whole
         // reads at the species height rather than as N full trees.
-        const float stem_h = height * (stem_count > 1 ? (0.82f + t.rng.unit() * 0.18f) : 1.0f);
+        const float stem_h = height * trunk_height_frac(sp.envelope)
+            * (stem_count > 1 ? (0.82f + t.rng.unit() * 0.18f) : 1.0f);
         glm::vec3 dir{0.0f, 1.0f, 0.0f};
         const glm::vec3 top = build_trunk(m, t, off, stem_h, t.trunk_r, &dir);
 
@@ -502,8 +526,14 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
                              + static_cast<float>(w))
                           / static_cast<float>(whorls);
                 const glm::vec3 attach = off + (top - off) * std::min(base_frac, 0.97f);
-                const float len = stem_h * sp.length_decay[0]
-                    * shy_scale(t, cd) * (0.8f + t.rng.unit() * 0.4f);
+                // Branch length is clipped so the tip cannot leave the envelope: the
+                // species height band is a cross-zone contract, not a suggestion.
+                float len = stem_h * sp.length_decay[0] * shy_scale(t, cd)
+                    * (0.8f + t.rng.unit() * 0.4f);
+                const float headroom = t.crown_top - attach.y;
+                if (cd.y > 0.05f && headroom > 0.0f) {
+                    len = std::min(len, headroom / cd.y);
+                }
                 grow_branch(m, t, attach, cd, len, t.trunk_r * sp.radius_ratio[0], 0);
             }
         }

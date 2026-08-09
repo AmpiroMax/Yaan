@@ -52,7 +52,7 @@ const FloraLod LODS[] = {FloraLod::Full, FloraLod::Reduced, FloraLod::Silhouette
 float lowest_foliage_y(const MeshData& m, uint32_t leaf_color) {
     float lo = 1e9f;
     for (const platform::Vertex& v : m.vertices) {
-        if (v.color == leaf_color) lo = std::min(lo, v.position.y);
+        if (v.color_rgba == leaf_color) lo = std::min(lo, v.position.y);
     }
     return lo;
 }

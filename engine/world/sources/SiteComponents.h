@@ -61,7 +61,8 @@ enum class SiteType : uint8_t {
     CastleHall = 7,
     CastleWall = 8,       ///< curtain enclosure — render draws it hollow
     CastleGatehouse = 9,
-    CastleSolar = 10,     ///< the single vertical, on the hall's end
+    CastleSolar = 10,     ///< the tall vertical on the oldest ward
+    CastleTower = 11,     ///< corner tower, REINSTATED by the fortress revision
 };
 
 /// ECS component attached to every P4 site entity at chunk spawn. Derived
@@ -102,7 +103,9 @@ struct SiteArchetype {
         {SiteType::CastleGatehouse, "site.castle_gatehouse", 10, {-5.0f, 0.0f, -3.0f},
          {5.0f, 11.0f, 3.0f}},
         {SiteType::CastleSolar, "site.castle_solar", 11, {-4.0f, 0.0f, -4.0f},
-         {4.0f, 12.0f, 4.0f}},
+         {4.0f, 20.0f, 4.0f}},
+        {SiteType::CastleTower, "site.castle_tower", 12, {-3.5f, 0.0f, -3.5f},
+         {3.5f, 15.0f, 3.5f}},
     };
     return TABLE[static_cast<uint8_t>(type)];
 }
@@ -111,7 +114,7 @@ struct SiteArchetype {
 /// chunk entities from GeneratedEntityRecords). nullopt for non-site
 /// archetypes (future content kinds pass through untouched).
 [[nodiscard]] inline std::optional<SiteType> site_type_from_archetype(uint64_t archetype) {
-    for (uint8_t t = 0; t <= static_cast<uint8_t>(SiteType::CastleSolar); ++t) {
+    for (uint8_t t = 0; t <= static_cast<uint8_t>(SiteType::CastleTower); ++t) {
         const SiteArchetype& a = site_archetype(static_cast<SiteType>(t));
         if (serialization::fnv1a64(a.content_id) == archetype) {
             return a.type;
