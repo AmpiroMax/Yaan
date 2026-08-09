@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 12:49:12
+Last updated: 09:08:2026 - 17:16:27
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -35,6 +35,7 @@ UPD:
 - 09:08:2026 - 12:49:12: Graphics settings file (user decision, sync #3): settings.cfg
                          read at startup, auto-generated on first run; env
                          overrides file for tooling.
+- 09:08:2026 - 17:16:27: world_edge_: static walls at the generated extent.
 */
 
 #pragma once
@@ -42,11 +43,13 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/time/sources/FixedTimestep.h"
+#include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 #include "engine/render/sources/RenderSystem.h"
 #include "engine/render/sources/Tour.h"
 #include "engine/world/sources/ChunkManager.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -106,6 +109,7 @@ private:
     render::FirstPersonCamera camera_;
     render::Tour tour_;
     ecs::EntityId player_{};
+    std::array<platform::PhysicsBodyHandle, 4> world_edge_{}; // extent walls
 };
 
 } // namespace dfn::app

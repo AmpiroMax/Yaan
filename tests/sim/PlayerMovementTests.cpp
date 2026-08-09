@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 09:08:2026 - 17:08:40
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial movement test suite.
 - 09:08:2026 - 15:08:24: Rig sets explicit collision layers (zero masks are
                          now rejected by the IPhysics contract).
+- 09:08:2026 - 17:08:40: Run input now sprints (DEBUG_SPRINT_MULTIPLIER).
 */
 
 #include <doctest/doctest.h>
@@ -148,7 +149,7 @@ TEST_CASE("pitch clamps at CAMERA_PITCH_LIMIT in both directions") {
     CHECK(rig.state.pitch == doctest::Approx(-config::CAMERA_PITCH_LIMIT));
 }
 
-TEST_CASE("walk and run speeds move exactly one tick's distance") {
+TEST_CASE("walk and sprint speeds move exactly one tick's distance") {
     Rig rig;
     rig.state.move_axes = {0.0f, 1.0f}; // forward; yaw 0 faces -Z
     rig.tick();
@@ -156,12 +157,18 @@ TEST_CASE("walk and run speeds move exactly one tick's distance") {
           doctest::Approx(-static_cast<float>(config::WALK_SPEED) * DT).epsilon(EPS));
     CHECK(rig.transform.position.x == doctest::Approx(0.0f));
 
+    // DEBUG CONVENIENCE (user request): the run input sprints at
+    // RUN_SPEED * DEBUG_SPRINT_MULTIPLIER, not RUN_SPEED. Revisit at the
+    // movement/combat grill — RUN_SPEED itself stays the design value.
     const float after_walk = rig.transform.position.z;
+    const float sprint_speed =
+        static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
     rig.state.move_axes = {0.0f, 1.0f};
     rig.state.run = true;
     rig.tick();
     CHECK(rig.transform.position.z - after_walk ==
-          doctest::Approx(-static_cast<float>(config::RUN_SPEED) * DT).epsilon(EPS));
+          doctest::Approx(-sprint_speed * DT).epsilon(EPS));
+    CHECK(sprint_speed > static_cast<float>(config::RUN_SPEED)); // guard the multiplier
 }
 
 TEST_CASE("diagonal movement is not faster") {

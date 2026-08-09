@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:25:29
-Last updated: 09:08:2026 - 14:12:02
+Last updated: 09:08:2026 - 17:08:40
 -->
 <!--
 UPD:
@@ -18,6 +18,13 @@ UPD:
   created; Dialogue.h conditions swapped to ConditionAtom (segments/hash
   frozen untouched); Ids.h + QuestId/FlagId/TopicId/NpcCardId; open question 4
   resolved (QUEST_FORMAT.md contract, story ACK on record).
+- 09:08:2026 - 16:51:22: Voxel terrain collision: additive create_terrain_mesh
+  + physics::create_terrain_mesh_body; the crag tunnel is walkable
+  (sim_tunnel_walk acceptance suite).
+- 09:08:2026 - 17:08:40: DEBUG sprint (user request): Shift = RUN_SPEED *
+  DEBUG_SPRINT_MULTIPLIER (30 m/s), marked debug-only in code and spec;
+  verified no tunnelling and no streaming fall-through; world-edge fall-out
+  recorded as a known consequence.
 -->
 
 # Spec — sim (`docs/specs/sim.md`)
@@ -160,6 +167,21 @@ distinct POD wrappers over the stable 64-bit content hash.
   `Say`/dialogue intent always has scripted words by construction, because
   `fallback_text` is a mandatory request field — there is no code path that
   requires generated text.
+
+### DEBUG CONVENIENCE — sprint multiplier (revisit at the movement grill)
+
+The run input (Shift) currently moves at `RUN_SPEED * DEBUG_SPRINT_MULTIPLIER`
+= 30 m/s, not `RUN_SPEED`. This is a **debug convenience** requested by the user
+for crossing the valley on foot while the world is being built out; `RUN_SPEED`
+itself stays the game-design value (6 m/s) and must not be changed to chase it.
+**It must not ship as the release feel** — the movement/combat grill decides the
+real sprint/stamina model, and this multiplier goes away or becomes a
+console/debug toggle at that point. Verified at 30 m/s (`sim_tunnel_walk`):
+no tunnelling through tunnel walls or the castle curtain wall, and no
+fall-through while chunks stream. Known consequence, recorded not hidden: the
+1024 m generated extent is now reachable in ~20 s, and past the last chunk
+there is no terrain, so the player falls out of the world — a world-extent/app
+question (boundary or bigger world), not a physics defect.
 
 ## Internal design
 

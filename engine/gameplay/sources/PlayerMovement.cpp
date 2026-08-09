@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 17:08:40
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -24,6 +24,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial implementation.
+- 09:08:2026 - 17:08:40: DEBUG CONVENIENCE (user request): Shift now sprints at
+                         RUN_SPEED * DEBUG_SPRINT_MULTIPLIER (30 m/s) for
+                         crossing the valley on foot. RUN_SPEED unchanged.
+                         Revisit at the movement/combat grill.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -44,7 +48,13 @@ namespace {
 constexpr float DT = static_cast<float>(config::SIM_DT);
 constexpr float GRAVITY = static_cast<float>(config::GRAVITY);
 constexpr float WALK_SPEED = static_cast<float>(config::WALK_SPEED);
-constexpr float RUN_SPEED = static_cast<float>(config::RUN_SPEED);
+// DEBUG CONVENIENCE (user request, 09:08:2026): Shift sprints at
+// RUN_SPEED * DEBUG_SPRINT_MULTIPLIER = 30 m/s so the valley can be crossed in
+// seconds while it is being built out. RUN_SPEED itself stays the game-design
+// value (6 m/s) and must not be touched. REVISIT at the movement/combat grill —
+// this must NOT ship as the release feel.
+constexpr float SPRINT_SPEED =
+    static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
 constexpr float MOUSE_SENSITIVITY = static_cast<float>(config::MOUSE_SENSITIVITY);
 constexpr float PITCH_LIMIT = static_cast<float>(config::CAMERA_PITCH_LIMIT);
 constexpr float EYE_HEIGHT = static_cast<float>(config::PLAYER_EYE_HEIGHT);
@@ -100,7 +110,8 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics,
     if (const float len = glm::length(axes); len > 1.0f) {
         axes /= len; // diagonals are not faster
     }
-    const float speed = state.run ? RUN_SPEED : WALK_SPEED;
+    // DEBUG: run input sprints (see SPRINT_SPEED above), not RUN_SPEED.
+    const float speed = state.run ? SPRINT_SPEED : WALK_SPEED;
     glm::vec3 displacement = (right * axes.x + forward * axes.y) * speed * DT;
 
     // 4. Gravity (backend only collides-and-slides; vertical motion is ours).

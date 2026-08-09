@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 16:59:02
+Last updated: 09:08:2026 - 17:16:27
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -54,6 +54,9 @@ UPD:
 - 09:08:2026 - 16:59:02: Voxel world: terrain collision ferried from
                          ChunkManager::voxel_mesh via create_terrain_mesh_body
                          (heightfield bodies cannot carry the tunnel ceiling).
+- 09:08:2026 - 17:16:27: World-edge walls: past the generated extent there is
+                         no terrain, and sprint speed made falling out of the
+                         world a 20-second accident (sim's finding).
 */
 
 #include "engine/app/sources/App.h"
@@ -61,6 +64,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/core/config/sources/Constants.h"
+#include "engine/physics/sources/CollisionLayers.h"
 #include "engine/physics/sources/TerrainCollision.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
 #include "engine/platform/input/interfaces/IInput.h"
@@ -223,6 +227,30 @@ bool App::init(const AppConfig& config) {
     gp.min_chunk = {0, 0};
     gp.max_chunk = {3, 3};
     chunks_.open_generated(gp, sp);
+
+    // World edge (sim's finding): past the generated extent there is no terrain
+    // and the player simply falls out of the world. At walking pace that took
+    // minutes of deliberate effort; at sprint speed it is 20 seconds and looks
+    // like a crash. Four static walls close the box until the world is bigger.
+    {
+        const float span = static_cast<float>(config::CHUNK_SIZE)
+                         * static_cast<float>(gp.max_chunk.x - gp.min_chunk.x + 1);
+        const float mid = span * 0.5f;
+        const float h = 200.0f;   // tall enough that no terrain reaches over it
+        const float t = 2.0f;     // wall thickness
+        const glm::vec3 sides[4] = {{-t, 0.0f, mid}, {span + t, 0.0f, mid},
+                                    {mid, 0.0f, -t}, {mid, 0.0f, span + t}};
+        const glm::vec3 halves[4] = {{t, h, mid + t}, {t, h, mid + t},
+                                     {mid + t, h, t}, {mid + t, h, t}};
+        for (int i = 0; i < 4; ++i) {
+            platform::StaticBoxDesc wall;
+            wall.center = {sides[i].x, h * 0.5f, sides[i].z};
+            wall.half_extents = halves[i];
+            wall.layer = physics::LAYER_STATIC;
+            world_edge_[static_cast<size_t>(i)] = physics_->create_static_box(wall);
+        }
+    }
+
     const auto wb = chunks_.water_bodies();
     render_system_.set_water_bodies(*renderer_, wb.lakes, wb.river_stations,
                                     wb.river_segment_offsets);

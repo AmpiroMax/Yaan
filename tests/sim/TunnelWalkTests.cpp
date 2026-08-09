@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:51:22
-Last updated: 09:08:2026 - 16:51:22
+Last updated: 09:08:2026 - 17:08:40
 Module: tests
 File: tests/sim/TunnelWalkTests.cpp
 
@@ -29,13 +29,19 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 16:51:22: Created with the voxel terrain collision swap.
+- 09:08:2026 - 17:08:40: DEBUG sprint (30 m/s) risk coverage: per-tick
+                         tunnelling detector against tunnel walls and the
+                         castle curtain wall, plus a streaming fall-through
+                         run across chunk boundaries.
 */
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include <glm/geometric.hpp>
@@ -65,6 +71,7 @@ struct TunnelRig {
     world::ChunkManager chunks;
     std::unique_ptr<platform::IPhysics> physics = platform::create_jolt_physics();
     std::vector<platform::PhysicsBodyHandle> terrain_bodies;
+    std::unordered_map<uint64_t, platform::PhysicsBodyHandle> bodies_by_chunk;
 
     size_t total_triangles = 0;
     size_t chunk_bodies = 0;
@@ -96,6 +103,35 @@ struct TunnelRig {
                                                       start)
                 .count();
         REQUIRE(chunk_bodies > 0);
+    }
+
+    // Re-streams around `focus` exactly as the app ferry does: update the
+    // resident set, then rebuild collision so newly resident chunks have bodies
+    // and departed ones do not. Keyed by chunk coord so repeats are cheap.
+    void restream(const glm::vec3& focus) {
+        chunks.update(focus, ecs, bus);
+        for (const world::ChunkCoord coord : chunks.loaded_chunks()) {
+            const uint64_t key = chunk_key(coord);
+            if (bodies_by_chunk.contains(key)) {
+                continue; // already collidable
+            }
+            const auto mesh = chunks.voxel_mesh(coord);
+            if (!mesh.has_value()) {
+                continue;
+            }
+            total_triangles += mesh->triangle_count();
+            const auto body =
+                dfn::physics::create_terrain_mesh_body(*physics, *mesh, key);
+            if (body.valid()) {
+                bodies_by_chunk.emplace(key, body);
+                ++chunk_bodies;
+            }
+        }
+    }
+
+    static uint64_t chunk_key(world::ChunkCoord coord) {
+        return (static_cast<uint64_t>(static_cast<uint32_t>(coord.x)) << 32) |
+               static_cast<uint32_t>(coord.z);
     }
 
     // Ground height from the heightfield — the SURFACE of the mountain. Being
@@ -240,6 +276,172 @@ TEST_CASE("voxel terrain collision: the player walks THROUGH the crag, not over 
     CHECK(ticks_under_rock > 600);    // most of the walk happens inside the massif
     CHECK(deepest_cover > 5.0f);      // genuinely under the crag, not in a cutting
     CHECK(rig.physics->character_grounded(character)); // on the floor, not falling
+}
+
+// Sprints a capsule from `start` along `direction` for `ticks`, returning the
+// number of ticks in which it passed THROUGH static geometry. Detection is
+// exact rather than heuristic: each tick, ray-cast the movement segment; if the
+// segment hits a wall yet the capsule ended past that hit (beyond its own
+// radius of penetration tolerance), collide-and-slide let it tunnel.
+[[nodiscard]] int count_tunnelling_ticks(TunnelRig& rig, const glm::vec3& start,
+                                         const glm::vec3& direction, int ticks) {
+    const auto character = rig.physics->create_character(player_desc(start));
+    REQUIRE(character.valid());
+    const float speed =
+        static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
+    const float radius = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
+
+    int tunnelled = 0;
+    for (int tick = 0; tick < ticks; ++tick) {
+        const glm::vec3 before = rig.physics->character_position(character);
+        rig.physics->move_character(character, direction * speed * DT);
+        rig.physics->step(DT);
+        const glm::vec3 after = rig.physics->character_position(character);
+
+        const glm::vec3 delta = after - before;
+        const float distance = glm::length(delta);
+        if (distance < 1e-4f) {
+            continue; // blocked outright: the correct outcome
+        }
+        // Cast from chest height so floor contact is not mistaken for a wall.
+        const glm::vec3 chest{0.0f, 0.9f, 0.0f};
+        const auto hit = rig.physics->raycast(before + chest, delta / distance, distance,
+                                              physics_layer::LAYER_STATIC);
+        if (hit.hit && distance > hit.distance + radius) {
+            ++tunnelled;
+        }
+    }
+    rig.physics->destroy_character(character);
+    return tunnelled;
+}
+
+TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through tunnel walls") {
+    // 0.5 m of travel per fixed tick against corridor walls only 2 m from the
+    // centerline. If collide-and-slide misses, the sprinter leaves the mountain.
+    const dfn::world::TestbedLayout layout{};
+    const auto& tunnel = layout.carves.crag_tunnel;
+    const glm::vec3 deep = tunnel.points[3];
+    TunnelRig rig(deep);
+
+    const glm::vec3 start{deep.x, deep.y + 0.5f, deep.z};
+    int tunnelled = 0;
+    // Sweep every horizontal direction: switchback legs stack, so some headings
+    // face a thin wall with open corridor on the far side — the worst case.
+    for (int i = 0; i < 16; ++i) {
+        const float angle = 6.28318530718f * static_cast<float>(i) / 16.0f;
+        tunnelled += count_tunnelling_ticks(
+            rig, start, {std::cos(angle), 0.0f, std::sin(angle)}, 120);
+    }
+    CHECK(tunnelled == 0);
+}
+
+TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through the castle curtain wall") {
+    // The other thin vertical geometry the user can run at head-on.
+    const dfn::world::TestbedLayout layout{};
+    const glm::vec2 castle = layout.castle.center;
+    const glm::vec3 focus{castle.x, 0.0f, castle.y};
+    TunnelRig rig(focus);
+
+    const float ground = rig.surface_height(castle);
+    int tunnelled = 0;
+    // Charge the pad from eight compass points, starting well outside it.
+    for (int i = 0; i < 8; ++i) {
+        const float angle = 6.28318530718f * static_cast<float>(i) / 8.0f;
+        const glm::vec2 offset{std::cos(angle) * 60.0f, std::sin(angle) * 60.0f};
+        const glm::vec2 from = castle + offset;
+        const glm::vec3 start{from.x, rig.surface_height(from) + 1.0f, from.y};
+        const glm::vec3 toward = glm::normalize(glm::vec3{-offset.x, 0.0f, -offset.y});
+        tunnelled += count_tunnelling_ticks(rig, start, toward, 180);
+    }
+    MESSAGE("castle ground height " << ground << " m");
+    CHECK(tunnelled == 0);
+}
+
+TEST_CASE("DEBUG sprint: no fall-through while chunks are still streaming") {
+    // The failure mode that bit us before: at 30 m/s a chunk boundary arrives
+    // every 8.5 s while terrain shape build takes ~68 ms/chunk. The player must
+    // never end up below the terrain surface, mid-stream or not.
+    // Route stays INSIDE the generated extent (4x4 chunks = 0..1024 m): from
+    // x=200 east to x=800 crosses three chunk boundaries in 20 s. Running out
+    // of the world is a separate concern (see the world-edge case below), not
+    // a streaming failure.
+    const glm::vec2 start_xz{200.0f, 430.0f};
+    TunnelRig rig({start_xz.x, 0.0f, start_xz.y});
+
+    const glm::vec3 start{start_xz.x, rig.surface_height(start_xz) + 1.0f, start_xz.y};
+    const auto character = rig.physics->create_character(player_desc(start));
+    REQUIRE(character.valid());
+
+    const float speed =
+        static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
+    float vertical_velocity = 0.0f;
+    int below_surface_ticks = 0;
+    float worst_depth = 0.0f;
+
+    // Sprint due east across chunk boundaries, restreaming as the app would.
+    for (int tick = 0; tick < 1200; ++tick) {
+        const glm::vec3 position = rig.physics->character_position(character);
+        if (tick % 30 == 0) {
+            rig.restream(position); // app-side ferry: load/unload + bodies
+        }
+        vertical_velocity -= static_cast<float>(config::GRAVITY) * DT;
+        rig.physics->move_character(
+            character, {speed * DT, vertical_velocity * DT, 0.0f});
+        rig.physics->step(DT);
+        if (rig.physics->character_grounded(character) && vertical_velocity < 0.0f) {
+            vertical_velocity = 0.0f;
+        }
+
+        const glm::vec3 moved = rig.physics->character_position(character);
+        // Open valley: the capsule must stay at or above the ground surface.
+        const float depth = rig.surface_height({moved.x, moved.z}) - moved.y;
+        if (depth > 1.0f) { // 1 m tolerance for heightfield-vs-mesh sampling
+            ++below_surface_ticks;
+            worst_depth = std::max(worst_depth, depth);
+        }
+    }
+
+    const glm::vec3 finish = rig.physics->character_position(character);
+    MESSAGE("sprinted to x=" << finish.x << ", ticks below surface: "
+                             << below_surface_ticks << ", worst depth " << worst_depth
+                             << " m");
+    CHECK(finish.x > start.x + 500.0f); // actually crossed three chunk boundaries
+    CHECK(below_surface_ticks == 0);
+    CHECK(finish.y > -50.0f); // not falling forever
+}
+
+TEST_CASE("DEBUG sprint: the world edge is reachable in seconds (known limit)") {
+    // Consequence of the debug sprint, recorded rather than hidden: 30 m/s
+    // reaches the edge of the 1024 m generated extent in well under a minute,
+    // and past the last chunk there is no terrain, so the player falls. This is
+    // a world-extent/app concern (a boundary or a bigger world), NOT a physics
+    // or streaming defect — the test documents it so the grill can decide.
+    const glm::vec2 start_xz{200.0f, 430.0f};
+    TunnelRig rig({start_xz.x, 0.0f, start_xz.y});
+    const glm::vec3 start{start_xz.x, rig.surface_height(start_xz) + 1.0f, start_xz.y};
+    const auto character = rig.physics->create_character(player_desc(start));
+    REQUIRE(character.valid());
+
+    const float speed =
+        static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
+    float vertical_velocity = 0.0f;
+    for (int tick = 0; tick < 1200; ++tick) { // 20 s due WEST, off the extent
+        if (tick % 30 == 0) {
+            rig.restream(rig.physics->character_position(character));
+        }
+        vertical_velocity -= static_cast<float>(config::GRAVITY) * DT;
+        rig.physics->move_character(character,
+                                    {-speed * DT, vertical_velocity * DT, 0.0f});
+        rig.physics->step(DT);
+        if (rig.physics->character_grounded(character) && vertical_velocity < 0.0f) {
+            vertical_velocity = 0.0f;
+        }
+    }
+
+    const glm::vec3 finish = rig.physics->character_position(character);
+    MESSAGE("off-extent sprint ended at x=" << finish.x << ", y=" << finish.y);
+    CHECK(finish.x < 0.0f);  // left the generated world
+    CHECK(finish.y < -50.0f); // and fell, because there is nothing out there
 }
 
 } // namespace
