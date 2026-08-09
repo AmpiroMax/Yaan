@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 20:05:00
+Last updated: 09:08:2026 - 22:29:52
 Module: engine/render
 File: engine/render/sources/ProcMesh.cpp
 
@@ -31,6 +31,15 @@ UPD:
 - 09:08:2026 - 20:05:00: pack/tri/quad promoted out of the anonymous namespace
   and declared in the header — the flora agent's ProcFlora (new zone, same
   directory) builds its tubes and clusters on them (agreed in-session).
+- 09:08:2026 - 22:29:52: The §6.1.3 CASTLE MASS, ids 8..12 — hall, hollow
+  curtain wall with a gate opening, twin-tower gatehouse, battered solar,
+  corner drum tower. build_site_mesh returned an EMPTY mesh above id 7 and the
+  ECS pass drops a cache miss silently, so Harrowward has been invisible in the
+  world since it was generated (sim found it: they build prop collision from
+  these triangles, so the castle had no collision either). Phase colour is the
+  §6.1.3 in-world A/B distinction — the only way a placeholder can say "built
+  twice" at 640x360. Merlons are 1.2 m wide because of the THIN-CASTER RULE: a
+  caster under ~0.31 m drops out of the sun shadow map entirely.
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -328,6 +337,143 @@ MeshData tower_ruin() { // r=2 broken cylinder to 12 m — the L0 crag topper
     return m;
 }
 
+// --- The castle mass (§6.1.3, ids 8..12) ------------------------------------
+//
+// PHASE COLOUR IS FREE MEANING. §6.1.3's in-world phases A (the panic: curtain
+// + towers, darkest weathered stone) and B (the treaty money: hall, gatehouse,
+// solar, lighter regular coursing) cost one constant each here, and they are
+// the only way a placeholder can say "this was built twice" at 640x360 where
+// no masonry coursing survives.
+constexpr glm::vec3 CASTLE_A_STONE{0.40f, 0.38f, 0.35f}; // phase A, weathered
+constexpr glm::vec3 CASTLE_B_STONE{0.55f, 0.53f, 0.49f}; // phase B, cleaner
+
+// Merlons along a wall run. THE THIN-CASTER RULE APPLIES: a caster narrower
+// than ~2 * SHADOW_TEXEL_M (0.31 m today) drops out of the sun shadow map
+// entirely, so merlons are 1.2 m wide rather than the 0.4 m that would look
+// right in a reference photo and cast nothing at all.
+void crenellate(MeshData& m, glm::vec2 a, glm::vec2 b, float y, float thickness,
+                uint32_t color) {
+    const glm::vec2 along = b - a;
+    const float run = glm::length(along);
+    if (run < 2.0f) {
+        return;
+    }
+    const glm::vec2 dir = along / run;
+    const glm::vec2 side{-dir.y, dir.x};
+    constexpr float MERLON_W = 1.2f;
+    constexpr float MERLON_H = 0.9f;
+    const int count = static_cast<int>(run / (MERLON_W * 2.0f));
+    for (int i = 0; i < count; ++i) {
+        const float t = (static_cast<float>(i) * 2.0f + 0.5f) * MERLON_W;
+        const glm::vec2 c0 = a + dir * t;
+        const glm::vec2 c1 = c0 + dir * MERLON_W;
+        const glm::vec2 h = side * (thickness * 0.5f);
+        const glm::vec2 lo{std::min(c0.x, c1.x) - std::fabs(h.x),
+                           std::min(c0.y, c1.y) - std::fabs(h.y)};
+        const glm::vec2 hi{std::max(c0.x, c1.x) + std::fabs(h.x),
+                           std::max(c0.y, c1.y) + std::fabs(h.y)};
+        box(m, {lo.x, y, lo.y}, {hi.x, y + MERLON_H, hi.y}, color);
+    }
+}
+
+MeshData castle_hall() { // 10x22 inside the ward, h <= 9 — the long roof over the wall
+    MeshData m;
+    box(m, {-5.0f, 0.0f, -11.0f}, {5.0f, 5.4f, 11.0f}, pack(CASTLE_B_STONE));
+    gable(m, {-5.0f, -11.0f}, {5.0f, 11.0f}, 5.4f, 9.0f, pack(ROOF_RED_DARK),
+          pack(CASTLE_B_STONE));
+    return m;
+}
+
+MeshData castle_wall() { // 40x40 curtain, h 8 — HOLLOW, with the gate opening
+    MeshData m;
+    constexpr float R = 20.0f;  // half extent, mirrors SiteComponents' envelope
+    constexpr float T = 1.6f;   // wall thickness
+    // 7.1 + 0.9 of merlon = 8.0 exactly, the envelope's ceiling. The wall
+    // WALK is what has to fit, not the wall walk plus its teeth — an easy
+    // half-metre to lose and a bound core mirrors as LocalBounds.
+    constexpr float H = 7.1f;
+    constexpr float GATE_HALF = 4.0f; // opening the gatehouse stands in
+    const uint32_t c = pack(CASTLE_A_STONE);
+
+    // Three closed runs plus a broken one. The OPENING IS THE POINT: a closed
+    // ring is a box, and the fortress has to read as something you can go
+    // inside. It sits on -Z because the pad is never rotated and the gatehouse
+    // envelope (10 wide x 6 deep) is a z-facing mass.
+    box(m, {-R, 0.0f, R - T}, {R, H, R}, c);            // +Z run
+    box(m, {-R, 0.0f, -R + T}, {-R + T, H, R - T}, c);  // -X run
+    box(m, {R - T, 0.0f, -R + T}, {R, H, R - T}, c);    // +X run
+    box(m, {-R, 0.0f, -R}, {-GATE_HALF, H, -R + T}, c); // -Z run, west of the gate
+    box(m, {GATE_HALF, 0.0f, -R}, {R, H, -R + T}, c);   // -Z run, east of the gate
+
+    crenellate(m, {-R, R - T * 0.5f}, {R, R - T * 0.5f}, H, T, c);
+    crenellate(m, {-R + T * 0.5f, -R}, {-R + T * 0.5f, R}, H, T, c);
+    crenellate(m, {R - T * 0.5f, -R}, {R - T * 0.5f, R}, H, T, c);
+    crenellate(m, {-R, -R + T * 0.5f}, {-GATE_HALF, -R + T * 0.5f}, H, T, c);
+    crenellate(m, {GATE_HALF, -R + T * 0.5f}, {R, -R + T * 0.5f}, H, T, c);
+    return m;
+}
+
+MeshData castle_gatehouse() { // 10x6, h <= 11 — twin towers around a dark arch
+    MeshData m;
+    const uint32_t c = pack(CASTLE_B_STONE);
+    // 10.1 + 0.9 of merlon = 11.0, the envelope's ceiling (same lesson as the
+    // curtain: the teeth are part of the height, not decoration on top of it).
+    box(m, {-5.0f, 0.0f, -3.0f}, {-1.6f, 10.1f, 3.0f}, c); // west tower
+    box(m, {1.6f, 0.0f, -3.0f}, {5.0f, 10.1f, 3.0f}, c);   // east tower
+    box(m, {-1.6f, 6.2f, -3.0f}, {1.6f, 9.4f, 3.0f}, c);   // span over the arch
+    // The mouth: a dark recess, not a painted plate. A plate would be solid to
+    // the player the moment sim builds collision from these triangles, and the
+    // gate is the one opening the fortress must actually have.
+    box(m, {-1.6f, 0.0f, -3.0f}, {1.6f, 6.2f, -2.4f}, pack(PORTAL_DARK));
+    box(m, {-1.6f, 0.0f, 2.4f}, {1.6f, 6.2f, 3.0f}, pack(PORTAL_DARK));
+    crenellate(m, {-5.0f, 0.0f}, {-1.6f, 0.0f}, 10.1f, 6.0f, c);
+    crenellate(m, {1.6f, 0.0f}, {5.0f, 0.0f}, 10.1f, 6.0f, c);
+    return m;
+}
+
+MeshData castle_solar() { // 8x8, h <= 20 — the tallest element, the Ward's head
+    MeshData m;
+    const uint32_t c = pack(CASTLE_B_STONE);
+    // A slight batter (wider at the foot) is the cheapest signal that this is
+    // a keep and not a chimney: four trapezoid faces instead of four rectangles.
+    const float b = 4.0f;   // half width at the base
+    const float t = 3.4f;   // half width under the parapet
+    const float h = 17.0f;  // top of the batter; parapet above
+    const glm::vec3 b0{-b, 0.0f, -b}, b1{b, 0.0f, -b}, b2{b, 0.0f, b}, b3{-b, 0.0f, b};
+    const glm::vec3 t0{-t, h, -t}, t1{t, h, -t}, t2{t, h, t}, t3{-t, h, t};
+    quad(m, b0, t0, t1, b1, c);
+    quad(m, b1, t1, t2, b2, c);
+    quad(m, b2, t2, t3, b3, c);
+    quad(m, b3, t3, t0, b0, c);
+    box(m, {-3.8f, h, -3.8f}, {3.8f, 18.6f, 3.8f}, c); // corbelled parapet
+    crenellate(m, {-3.8f, -3.6f}, {3.8f, -3.6f}, 18.6f, 0.5f, c);
+    crenellate(m, {-3.8f, 3.6f}, {3.8f, 3.6f}, 18.6f, 0.5f, c);
+    return m;
+}
+
+MeshData castle_tower() { // 7x7 corner drum, h <= 15 — the rhythm along the wall
+    MeshData m;
+    const uint32_t c = pack(CASTLE_A_STONE);
+    constexpr float R_BASE = 3.5f;
+    constexpr float R_TOP = 3.0f;
+    constexpr float H = 13.4f;
+    ring(m, {0.0f, 0.0f}, 0.0f, R_BASE, H, R_TOP, 8, c);
+    ring(m, {0.0f, 0.0f}, H, R_TOP * 1.15f, 14.4f, R_TOP * 1.15f, 8, c); // parapet
+    // Merlons around the parapet: eight blocks on the octagon's own facets, so
+    // the crown reads as toothed rather than as a disc at 250 m.
+    for (int i = 0; i < 8; i += 2) {
+        const float a = TAU * (static_cast<float>(i) + 0.5f) / 8.0f;
+        const glm::vec2 d{std::cos(a), std::sin(a)};
+        // Pulled in to 2.75 m: at 3.15 the corner of a 1.4 m merlon reached
+        // 3.61 m and broke the 3.5 m envelope core mirrors as LocalBounds.
+        // Caught by the envelope test, which is why that test asserts the
+        // bound rather than the intent.
+        const glm::vec2 p = d * 2.75f;
+        box(m, {p.x - 0.6f, 14.4f, p.y - 0.6f}, {p.x + 0.6f, 15.0f, p.y + 0.6f}, c);
+    }
+    return m;
+}
+
 } // namespace
 
 // --- Shared primitives (public: the flora agent's ProcFlora builds on these;
@@ -400,6 +546,11 @@ MeshData build_site_mesh(uint32_t mesh_id) {
     case 5: return shrine();
     case 6: return dungeon_entrance();
     case 7: return tower_ruin();
+    case 8: return castle_hall();
+    case 9: return castle_wall();
+    case 10: return castle_gatehouse();
+    case 11: return castle_solar();
+    case 12: return castle_tower();
     default: return {};
     }
 }

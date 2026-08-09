@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 17:24:30
-Last updated: 09:08:2026 - 17:24:30
+Last updated: 09:08:2026 - 22:29:52
 Module: engine/render
 File: engine/render/sources/MapScreen.cpp
 
@@ -32,6 +32,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 17:24:30: Created with the map screen.
+- 09:08:2026 - 22:29:52: mesh id 12 (CastleTower) joins the castle marker.
 */
 
 #include "engine/render/sources/MapScreen.h"
@@ -152,12 +153,16 @@ MapMarkerKind map_marker_kind(uint32_t mesh_asset_id) {
     case 5: return MapMarkerKind::Shrine;
     case 6: return MapMarkerKind::Dungeon;
     case 7: return MapMarkerKind::TowerRuin;
-    // 8..11 are the castle parts (hall / wall / gatehouse / solar): one place
-    // on the map, not four overlapping marks.
+    // 8..12 are the castle parts (hall / wall / gatehouse / solar / tower):
+    // one place on the map, not five overlapping marks. 12 was MISSING here —
+    // the fortress revision reinstated CastleTower after this switch was
+    // written, so a castle whose only resident part was a corner tower left no
+    // mark at all.
     case 8:
     case 9:
     case 10:
-    case 11: return MapMarkerKind::Castle;
+    case 11:
+    case 12: return MapMarkerKind::Castle;
     default: return MapMarkerKind::COUNT;
     }
 }

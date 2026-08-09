@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:12:57
+Last updated: 09:08:2026 - 22:33:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -82,6 +82,7 @@ UPD:
   chunk terrain with DrawParams::fade carrying the cross-fade. Also: the
   resource/screen half of this class moved to RenderSystemResources.cpp, which
   is the same class split for the 800-line limit (Rule 21).
+- 09:08:2026 - 22:33:00: DFN_NO_SCATTER verification hook (scatter_off_).
 */
 
 #pragma once
@@ -339,6 +340,9 @@ private:
     // A/B half of the acceptance shoot, and the cost measurement.
     bool point_shadows_off_ = false;
     // DFN_DARK=<0..1> pins ambient_darkness (the app drives it in play).
+    // DFN_NO_SCATTER=1 drops every scatter batch at upload (see upload_scatter):
+    // the trees-off half of a landmark-silhouette A/B, and nothing else.
+    bool scatter_off_ = false;
     bool dark_frozen_ = false;
     float frozen_darkness_ = 0.0f;
     MapScreen map_;

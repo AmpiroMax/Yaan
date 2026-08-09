@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:14:00
+Last updated: 09:08:2026 - 22:33:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -55,6 +55,9 @@ UPD:
   upload, and an off-screen mesh within LOOKDEV_SHADOW_CASTER_KEEP_M is still
   submitted because the backend double-submits opaques into the sun map — a
   naive cull would delete shadows along with the geometry.
+- 09:08:2026 - 22:33:00: DFN_NO_SCATTER=1 — the trees-off half of a silhouette
+  A/B. A landmark verdict taken with the forest in frame is a verdict on the
+  forest.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -280,6 +283,9 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             dark_frozen_ = true;
             frozen_darkness_ = dark < 0.0f ? 0.0f : (dark > 1.0f ? 1.0f : dark);
         }
+    }
+    if (const char* ns = std::getenv("DFN_NO_SCATTER"); ns != nullptr && ns[0] == '1') {
+        scatter_off_ = true;
     }
     clock_start_ = std::chrono::steady_clock::now();
 
@@ -584,7 +590,15 @@ void RenderSystem::upload_scatter(platform::IRenderer& renderer,
                                   glm::ivec2 chunk_coord,
                                   std::span<const math::ScatterInstance> instances) {
     drop_scatter(renderer, chunk_coord); // idempotent per coord
-    if (instances.empty()) {
+    // DFN_NO_SCATTER=1: verification hook (Rule 27), never a shipping path.
+    // It exists because A LANDMARK'S SILHOUETTE CANNOT BE JUDGED WITHOUT IT.
+    // Core measured the conservative canopy envelope owning 54-79 % of the
+    // skyline at the crag's acceptance distances, which means every shape
+    // verdict taken so far may have been a verdict on a pine stand. Shooting
+    // the same vantage twice, trees on and trees off, separates "the mountain
+    // is a dome" from "the mountain is behind a forest" — and those two have
+    // completely different owners.
+    if (scatter_off_ || instances.empty()) {
         return;
     }
     const auto chunk_size = static_cast<float>(config::CHUNK_SIZE);
