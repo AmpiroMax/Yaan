@@ -1,12 +1,13 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 21:56:40
+Last updated: 09:08:2026 - 22:12:38
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:06:00: Created engine architecture hard contract, adapted from Quicky Engine with amendments approved in the initial-planning grill session (Q23, Q25, Q27, Q30, Q31, Q54, Q61, Q70, Q73).
 - 09:08:2026 - 10:42:00: Stage 3 — added the `design` zone (landscape/world design docs) to Rule 25.
 - 09:08:2026 - 21:56:40: Added Rules 30-34, all five earned by defects found in the worldgen v2 stage: controls with every test, distribution asserted not bounds, fix the mechanism not the instance, detail sized against viewing distance, never diagnose from an unchecked premise.
+- 09:08:2026 - 22:12:38: Rule 30 gained corollaries 30a (a test needs a case that CAN pass it) and 30b (for a diagnosis, the counterfactual is the control).
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -326,6 +327,21 @@ cone passed; the third was caught only because it was run against a known-bad ob
 before being trusted. Controls are cheap — a cone, a sphere, a plane, a flat field.
 "My test passes" and "my test discriminates" are different claims and only the second
 one is worth reporting.
+
+Two corollaries, both earned the same evening:
+
+**30a — a test also needs a case that CAN pass it.** An invariant requiring three
+detected ridges on a body that has exactly three has zero margin by construction: a
+perfect specimen fails when one corner reads a degree shy, and what is being measured
+is the detector rather than the object. When a generator's input and a test's threshold
+are the same number, that is a coincidence, not a check.
+
+**30b — for a diagnosis, the counterfactual is the control.** "These tests went red
+right after my change, therefore my change broke them" is Rule 34 with the premise
+hidden inside a correlation, which is how it slips past people who would never assert
+the premise out loud. Run the other arm before reverting. A good change was nearly
+withdrawn this way to avoid breaking two peers whose tests were already red for their
+own reasons.
 
 ### Rule 31 — Assert the distribution, not the bounds
 A random or noise field is verified UNIFORM (or explicitly-shaped) over its whole
