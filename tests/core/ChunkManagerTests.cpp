@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 18:19:09
+Last updated: 10:08:2026 - 02:29:54
 Module: tests
 File: tests/core/ChunkManagerTests.cpp
 
@@ -24,6 +24,7 @@ UPD:
   surfacefield/scatter/water_bodies accessors.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes is now lake + pond planes (was exactly 1); all planes checked for positive extent.
 - 09:08:2026 - 18:19:09: Streaming budget: residency cases now drive updates to settled via Fixture::settle (a ring no longer fills in one update); new case pins the per-update cap, the focus chunk being admitted first (including after a teleport), and that nothing starves.
+- 10:08:2026 - 02:29:54: surface_class_at test — sampled-field agreement inside residency, declines outside (sim's footstep query).
 */
 
 #include "engine/core/components/sources/Components.h"
@@ -33,6 +34,7 @@ UPD:
 #include "engine/world/sources/ChunkManager.h"
 #include "engine/world/sources/SiteComponents.h"
 
+#include <cmath>
 #include <doctest/doctest.h>
 #include <vector>
 
@@ -228,6 +230,26 @@ TEST_CASE("site entities spawn with components; surface/scatter views serve") {
     REQUIRE(water.river_segment_offsets.size() >= 2);
     CHECK(water.river_segment_offsets.front() == 0);
     CHECK(water.river_segment_offsets.back() == water.river_stations.size());
+
+    // surface_class_at (sim's footstep query): answers the SAMPLED field —
+    // the nearest sample of the same array render splats — inside residency,
+    // declines outside it (the control: a query that answered for terrain
+    // that is not resident would be inventing ground).
+    const glm::vec2 probe{384.0f, 384.0f};
+    const auto cls = f.chunks.surface_class_at(probe);
+    REQUIRE(cls.has_value());
+    {
+        const auto view = f.chunks.surfacefield(dfn::world::chunk_at_position(probe));
+        REQUIRE(view.has_value());
+        const auto x = static_cast<uint32_t>(
+            std::round((probe.x - view->origin.x) / view->step));
+        const auto z = static_cast<uint32_t>(
+            std::round((probe.y - view->origin.y) / view->step));
+        CHECK(static_cast<uint8_t>(*cls)
+              == view->surface_class[static_cast<std::size_t>(z) * view->resolution + x]);
+    }
+    CHECK_FALSE(f.chunks.surface_class_at({(3.0f * 256.0f) + 128.0f, 3.0f * 256.0f + 128.0f})
+                    .has_value());
 }
 
 TEST_CASE("streaming is rate-limited and always fills the ground underfoot first") {

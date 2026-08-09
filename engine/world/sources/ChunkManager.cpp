@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 23:49:27
+Last updated: 10:08:2026 - 02:05:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -41,6 +41,7 @@ UPD:
 - 09:08:2026 - 21:37:57: NEW darkness_at(world) — the §6.3 authored-darkness query wrapped at the ChunkManager level (lead's call) so the app holds only its one world handle and never the layout, the worldgen context or a GroundSampler; HOW darkness is computed stays in this zone and the sampler is guaranteed to be the one the carve mouths were derived with.
 - 09:08:2026 - 22:10:12: water_surface_at(vec2) implemented over the analytic water_at, for sim's swim test.
 - 09:08:2026 - 23:49:27: LOD STREAMING HALF. Coarse node residency (requested -> the one active build -> held until release_coarse_node), nearest-to-focus first, advanced only in updates that admitted NO chunk so two budgets never land in one frame. world_bounds_xz reports the extent the generator was OPENED with. Nothing leaves the held set on its own -- an eviction render did not ask for pulls the ground out from under a mesh it is still drawing.
+- 10:08:2026 - 02:05:00: surface_class_at(vec2) — sampled-field point query (sim request; the world->sample decoder stays in this zone, Rule 35).
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -497,6 +498,23 @@ std::optional<float> ChunkManager::water_surface_at(glm::vec2 world_xz) const {
         return std::nullopt;
     }
     return s.water_surface;
+}
+
+std::optional<math::SurfaceClass> ChunkManager::surface_class_at(glm::vec2 world_xz) const {
+    const auto view = surfacefield(chunk_at_position(world_xz));
+    if (!view.has_value() || view->resolution == 0) {
+        return std::nullopt;
+    }
+    // Nearest sample of the drawn field: the world->sample convention (origin,
+    // step, row-major x fastest) lives HERE so no consumer grows a second
+    // decoder copy of it (Rule 35, state form).
+    const float limit = static_cast<float>(view->resolution - 1);
+    const auto x = static_cast<uint32_t>(
+        std::clamp(std::round((world_xz.x - view->origin.x) / view->step), 0.0f, limit));
+    const auto z = static_cast<uint32_t>(
+        std::clamp(std::round((world_xz.y - view->origin.y) / view->step), 0.0f, limit));
+    return static_cast<math::SurfaceClass>(
+        view->surface_class[static_cast<std::size_t>(z) * view->resolution + x]);
 }
 
 float ChunkManager::darkness_at(glm::vec3 world) const {

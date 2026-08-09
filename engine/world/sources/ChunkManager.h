@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 23:49:27
+Last updated: 10:08:2026 - 02:05:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -44,6 +44,7 @@ UPD:
 - 09:08:2026 - 21:37:57: NEW darkness_at(world) — §6.3 authored darkness (0 open daylight .. 1 pitch black) as a one-position query; keeps worldgen internals out of the app's frame loop.
 - 09:08:2026 - 22:10:12: NEW water_surface_at(vec2) for sim's swimming — resolves against the analytic water field, NOT the drawable primitives (whose coverage guarantee runs field->primitive only, so they can extend past real water) and NOT the sampled grid (quantised at the shoreline).
 - 09:08:2026 - 23:49:27: LOD STREAMING HALF (the agreed seam with render): world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node, plus the two residency counters. Coarse nodes are built incrementally under a per-update row budget inside update(), nearest-to-focus first, and are freed ONLY by release_coarse_node — render drops its mesh before it calls it.
+- 10:08:2026 - 02:05:00: surface_class_at(vec2) for sim's footstep sound — nearest sample of the SAMPLED field render splats from (see doc comment for why it differs from the analytic water_surface_at).
 */
 
 #pragma once
@@ -256,6 +257,17 @@ public:
     /// it instead of a tree. Being analytic rather than grid-sampled, it is
     /// also exact at the shoreline instead of quantised to the sample spacing.
     [[nodiscard]] std::optional<float> water_surface_at(glm::vec2 world_xz) const;
+
+    /// Surface class under a world column, from the SAMPLED per-chunk field —
+    /// deliberately the same array render splats from, so what the player
+    /// SEES underfoot is what a consumer (sim's footstep sound) reports.
+    /// Nearest-sample, no interpolation (it is a class enum). If the sample
+    /// is water-covered this still returns the BED's class — wade/splash is
+    /// the caller's decision, made against water_surface_at. nullopt when the
+    /// chunk is not resident. Sibling of water_surface_at, which is analytic
+    /// on purpose (see above): coverage must be exact at the shoreline, but
+    /// the LOOK of the ground is the sampled field by definition.
+    [[nodiscard]] std::optional<math::SurfaceClass> surface_class_at(glm::vec2 world_xz) const;
 
 private:
     struct Impl; // reader, delta overlay, resident map, scratch batch buffers
