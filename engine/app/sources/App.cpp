@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:34:17
+Last updated: 09:08:2026 - 22:38:29
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -70,6 +70,7 @@ UPD:
                          never submitted — the reported "saw the map from
                          inside the barrow" was missing geometry, not light).
 - 09:08:2026 - 22:34:17: Взаимодействие подключено к игре: предметы, три пробных объекта (взять/открыть/использовать), столкновения с реквизитом, наведение, действия, переносимый свет, модель рук. Всё это существовало и не вызывалось ни разу.
+- 09:08:2026 - 22:38:29: Настоящие номера моделей руки (32) и факела (33) вместо заглушек — render их завёл.
 */
 
 #include "engine/app/sources/App.h"
@@ -360,13 +361,13 @@ bool App::init(const AppConfig& config) {
         torch.id = {serialization::fnv1a64("item.tool.torch")};
         torch.display_name_key = "item.tool.torch.name";
         torch.light_source = true;
-        torch.mesh_id = 0; // render is assigning the id; 0 draws nothing
+        torch.mesh_id = 33; // render's registry: 32 hand, 33 torch
         items.add(torch);
         world_.add_resource(std::move(items));
 
         world_.add(player_, gameplay::Inventory{});
         world_.add(player_, gameplay::HeldItem{});
-        world_.add_resource(gameplay::ViewModelAssets{.hand_mesh = 0});
+        world_.add_resource(gameplay::ViewModelAssets{.hand_mesh = 32});
         gameplay::spawn_view_model(world_, player_);
 
         // Three props, not one: take, open and use are three different verb
