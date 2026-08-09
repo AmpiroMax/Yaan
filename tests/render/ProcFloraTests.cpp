@@ -156,8 +156,13 @@ TEST_CASE("flora: sizes stay inside the design bands") {
             const MeshData m = build_flora_mesh(b.s, v, FloraShape{}, FloraLod::Full);
             float top = 0.0f;
             for (const platform::Vertex& vx : m.vertices) top = std::max(top, vx.position.y);
-            CHECK(top >= b.lo * 0.85f);       // branches may not reach the nominal top
-            CHECK(top <= b.hi * 1.15f);       // nor overshoot it meaningfully
+            // The upper bound is TIGHT on purpose. The height band is a
+            // cross-zone contract: core's canopy occlusion and design's C4
+            // arithmetic use these maxima, so a tree that overshoots is
+            // silently taller than the model everyone validates against. A
+            // loose tolerance here hid exactly that bug once already.
+            CHECK(top <= b.hi * 1.02f);
+            CHECK(top >= b.lo * 0.80f);
         }
         // Crown base fraction inside design's CROWN_BASE_FRACTION band.
         const float frac = species_crown_base(b.s) / species_nominal_height(b.s);

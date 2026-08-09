@@ -169,9 +169,10 @@ float envelope_radius(const SpeciesParams& sp, float y, float base, float top,
 float trunk_height_frac(CrownEnvelope e) {
     switch (e) {
     case CrownEnvelope::Sphere:
-    case CrownEnvelope::Vase:
     case CrownEnvelope::Weeping:
         return 0.68f;
+    case CrownEnvelope::Vase: // birch keeps a high leader; the crown is small
+        return 0.82f;
     case CrownEnvelope::Cone: // conifer leader IS the top
     case CrownEnvelope::None:
     default:
@@ -205,6 +206,8 @@ float shy_scale(const Tree& t, glm::vec3 dir_xz) {
 
 void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) {
     if (radius <= 0.05f) return;
+    // Foliage may not push the silhouette past the species height band.
+    at.y = std::min(at.y, t.crown_top - radius * 0.85f);
     const int slices = t.sp.cluster_slices;
     const int bands = t.sp.cluster_bands;
     cluster(m, at, glm::vec3{radius, radius * 0.85f, radius}, slices, bands, t.leaf);
@@ -478,10 +481,12 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
             ? glm::vec3{std::cos(ang) * sp.trunk_spread, 0.0f,
                         std::sin(ang) * sp.trunk_spread}
             : glm::vec3{0.0f};
-        // Stems of a clump are shorter than the nominal so the clump as a whole
-        // reads at the species height rather than as N full trees.
-        const float stem_h = height * trunk_height_frac(sp.envelope)
-            * (stem_count > 1 ? (0.82f + t.rng.unit() * 0.18f) : 1.0f);
+        // In a clump the LEAD stem carries the species height and the others
+        // are shorter — that is what makes it read as one multi-stemmed tree
+        // rather than as N small trees. Shrinking every stem (an earlier bug)
+        // just made the whole species shorter than its band.
+        const float stem_scale = (k == 0) ? 1.0f : (0.74f + t.rng.unit() * 0.22f);
+        const float stem_h = height * trunk_height_frac(sp.envelope) * stem_scale;
         glm::vec3 dir{0.0f, 1.0f, 0.0f};
         const glm::vec3 top = build_trunk(m, t, off, stem_h, t.trunk_r, &dir);
 

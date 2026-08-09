@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 19:25:26
+Last updated: 09:08:2026 - 19:28:46
 -->
 <!--
 UPD:
@@ -56,6 +56,14 @@ UPD:
   barrow-facing one — the outer works stopped before closing the side that
   faces the grave, because finishing it would have admitted what the wall
   was for; act 3 collects on that gap.
+- 09:08:2026 - 19:28:46: Design granted the barrow-facing flank at no cost
+  (bearings: barrow 27 deg, approach 225 deg) and refined C into a
+  contour-following perimeter wrapping A and B, including uphill — so the
+  dowager began the militarily correct wall and still could not finish the
+  stretch facing what she feared. Recorded the emergent image neither zone
+  specified alone: the barrow-facing tower watches the grave THROUGH the
+  unbuilt gap, its sightline guaranteed by absence. Reachability ruled
+  off-corridor (back way, never a second front door).
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -417,18 +425,47 @@ dressed, never-laid stone**. Those two props are the story-critical ones —
 they date the stoppage to *a person* rather than to history, which is the
 whole point of tying phase C to the dowager.
 
-**Where the gap is — settled 09:08:2026.** Design's ruling: the **completed
-arc covers the approach and the gap faces a flank**, because one walls the
-threatened side first, and a gap across the approach would become the
-de-facto way in, make the gatehouse decorative, and quietly kill the
-petitioner ritual the access invariant protects. Story's ruling on *which*
-flank: **the barrow-facing one.** The dowager began the outer works where a
-frightened family is able to explain itself — the road, the approach,
-brigands — and the work stopped before it closed the side that faces the
-grave. Finishing that stretch would have been an admission of what the wall
-was for. So the lie in stone repeats at small scale: the wall the fear built
-could not be finished toward the thing feared. Act 3 collects on it — the
-dead come from the barrow, through the gap that shame left open.
+**Where the gap is — settled 09:08:2026, geometry checked.** Design's
+ruling: the **completed arc covers the approach and the gap faces a flank**
+(a gap across the approach would become the de-facto way in, make the
+gatehouse decorative, and kill the petitioner ritual the access invariant
+protects). Story's ruling on *which* flank — **the barrow-facing one** —
+was granted at no cost, because the bearings put them on opposite sides:
+barrow at 27°, crag peak 28°, approach 225°. The completed arc covers
+approach and valley (S/W/SW); the unbuilt stretch faces **NNE, uphill,
+toward the grave**.
+
+The fiction: the dowager began the outer works where a frightened family is
+able to explain itself — the road, brigands, the approach — and the work
+stopped before it closed the side that faces the barrow. Finishing that
+stretch would have been an admission of what the whole wall was for. The lie
+in stone repeats at small scale: *the wall the fear built could not be
+finished toward the thing feared.*
+
+Design's refinement, which sharpens it: because the barrow side is uphill
+where ward A sits, C is not an outermost lower terrace but a
+**contour-following perimeter** wrapping A and B one step out on every side,
+including above them on the crag side. That is the militarily correct form —
+on a hillside the uphill outer works matter most, since an attacker holds the
+high ground — so **the dowager began the correct wall and still could not
+finish the stretch facing what she was actually afraid of.**
+
+**The emergent image (design + story, neither specified it alone) — protect
+this.** The barrow-facing corner tower must see the barrow entrance
+(binding sightline, below); the barrow-facing stretch of C is precisely what
+was never built. Therefore **the tower watches the grave through the gap that
+shame left open** — and the sightline's clearance is guaranteed by *absence*,
+so no future wall-versus-sightline conflict can arise. Four generations of
+Corvanes looking at the grave through the hole they could not bring
+themselves to close.
+
+**Reachability (design, ruled so act 3 can rely on it):** the gap is
+reachable but **only off-corridor** — the approach ramp stays the sole
+corridor-grade route, and the NNE spur is steep (which is why ward A was
+sited there as the redoubt). The gap reads as a back way a determined person
+finds, never an alternative front door. Both things are true at once: the
+dead come from the barrow, uphill, through the gap; petitioners still walk up
+the ramp to the gate.
 
 **Terrain agreement to preserve (design + story reached it independently):**
 design's terracing puts stage A uphill nearest the barrow for cut-budget

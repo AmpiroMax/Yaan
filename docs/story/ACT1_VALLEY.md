@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 19:17:47
+Last updated: 09:08:2026 - 19:28:46
 -->
 <!--
 UPD:
@@ -19,6 +19,11 @@ UPD:
   beat (the re-read — walls as testimony the valley stopped seeing), §7
   exterior spec updated to the 80x80 m towered curtain on a 120 m terraced
   pad. Interior set unchanged and still act-1 blocking.
+- 09:08:2026 - 19:28:46: MQ4's trespass route given a body from design's
+  geometry — the unbuilt NNE stretch of ward C, reachable off-corridor past
+  the barrow — and the act-1/act-3 rhyme recorded: the player breaks in by
+  the same path the dead will later take, under the tower that has watched
+  the grave through that gap for four generations.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -26,8 +31,8 @@ UPD:
 Canon: `BIBLE.md` (Pitch A — The Debt of Harrowmere). Rules: `RESEARCH.md`
 (Nx, binding). Data contract: `QUEST_FORMAT.md` (frozen §2.1/§4 vocabularies
 — everything below is expressible in them; nothing here needs a new atom).
-World: `docs/design/LANDSCAPE.md` §7 (the built valley) + design's pending
-ruling on the castle's siting.
+World: `docs/design/LANDSCAPE.md` §7 (the built valley) and §6.1/§6.1.3
+(Harrowward: siting, fortress scale, ward phasing, sightlines — all ruled).
 
 Scope share (в18: 3 acts, 8–12 main quests total): **act 1 = 4 main quests**,
 **3 secondaries**, **2 template families** (fishing, smallholding — в17).
@@ -236,9 +241,18 @@ Act-1 beats that **live in the castle**:
   economy (в17) doubles as castle access.
 - **The muniment room** (MQ4 stage 40): the crown grant naming Osric Ferrant.
   Three routes — petition-day access earned, the dowager's indulgence
-  (she knows the truth entire and has her own reasons), or trespass with
-  keys/distraction. Caught = eviction and a closed door for a stage, plus a
-  disgrace flag paid back in act 2 (N39, N36) — never a dead end.
+  (she knows the truth entire and has her own reasons), or **trespass over
+  the unfinished wall**. Caught = eviction and a closed door for a stage,
+  plus a disgrace flag paid back in act 2 (N39, N36) — never a dead end.
+- **The gap as the trespass route (act-1/act-3 rhyme — use it).** Design's
+  geometry gives the third route a body: the unbuilt NNE stretch of ward C
+  is reachable off-corridor up the steep spur, past the barrow. So the
+  player who breaks into Harrowward climbs in **by the same path the dead
+  will take in act 3**, through the hole the Corvanes could not bring
+  themselves to close, under the tower that has watched the grave through
+  it for four generations. Author the act-3 muster to make the player
+  recognize the ground: he was here first, alone, doing something shameful
+  for a good reason.
 - **The Refusal beat** (MQ4 stage 70–80): in the solar, privately. Rhys
   buries it; the clerk takes custody of the document. This is the scene the
   whole act has been walking toward, and it needs an interior with a door

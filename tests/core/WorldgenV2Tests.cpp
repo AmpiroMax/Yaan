@@ -391,10 +391,16 @@ TEST_CASE("castle: terrace, R3 skyline margin and siting (§6.1)") {
     // Terrace: the CUT is the ruled exception; the pad SURFACE still obeys
     // BUILDING_PAD_SLOPE_MAX.
     CHECK(castle.cut <= static_cast<float>(config::CASTLE_PAD_CUT_MAX) + 1e-3f);
+    // Flatness is a property of EACH WARD's own surface. The fortress is a
+    // chain of terraces stepping down the spur, so sampling one box across the
+    // whole span measures the steps BETWEEN wards, which are supposed to exist.
     float worst_pad_slope = 0.0f;
-    for (float z = -25.0f; z <= 25.0f; z += 5.0f) {
-        for (float x = -25.0f; x <= 25.0f; x += 5.0f) {
-            const glm::vec2 p = castle.center + glm::vec2{x, z};
+    for (int wi = 0; wi < castle.ward_count; ++wi) {
+        const auto& ward = castle.wards[wi];
+        const float reach = ward.half_size - 6.0f;
+        for (float z = -reach; z <= reach; z += 4.0f) {
+        for (float x = -reach; x <= reach; x += 4.0f) {
+            const glm::vec2 p = ward.center + glm::vec2{x, z};
             const float d = 2.0f;
             const float hx = world::terrain_height(ctx, {p.x + d, p.y})
                            - world::terrain_height(ctx, {p.x - d, p.y});
@@ -404,8 +410,13 @@ TEST_CASE("castle: terrace, R3 skyline margin and siting (§6.1)") {
                 std::max(worst_pad_slope,
                          std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d)));
         }
+        }
     }
     CHECK(worst_pad_slope <= static_cast<float>(config::BUILDING_PAD_SLOPE_MAX));
+    // The chain must actually STEP DOWN toward the approach.
+    for (int wi = 1; wi < castle.ward_count; ++wi) {
+        CHECK(castle.wards[wi].height < castle.wards[wi - 1].height);
+    }
 
     // R3: pad + tallest element stays CASTLE_SKYLINE_MARGIN below the L0.
     const float peak = world::terrain_height(ctx, ctx.params.layout.crag.center);

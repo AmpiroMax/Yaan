@@ -160,6 +160,25 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
         if (s.back() - h > CUT_MAX) {
             h = s.back() - CUT_MAX; // raise until the cut fits the allowance
         }
+        // NEVER TERRACE BELOW THE WATERLINE. The ward chain reaches down the
+        // spur toward the valley, and a terrace solved from terrain alone
+        // happily cut a ward floor under a pond — which flooded the ward and,
+        // where the approach corridor crosses it, drowned a ford that the C3
+        // chain depends on staying wade-shallow.
+        float water_top = -1e9f;
+        for (float z = -half; z <= half; z += 4.0f) {
+            for (float x = -half; x <= half; x += 4.0f) {
+                const glm::vec2 q = c + glm::vec2{x, z};
+                const WaterSample ws =
+                    water_at(hydro, layout, q, macro_height(seed, layout, q));
+                if (ws.water_surface != math::NO_WATER) {
+                    water_top = std::max(water_top, ws.water_surface);
+                }
+            }
+        }
+        if (water_top > -1e8f) {
+            h = std::max(h, water_top + static_cast<float>(config::BUILDING_WATER_MARGIN));
+        }
         out_cut = std::max(0.0f, s.back() - h);
         out_fill = std::max(0.0f, h - s.front());
         return h;
@@ -265,31 +284,47 @@ float castle_pad_height(const CastleBuild& castle, glm::vec2 world, float h) {
     if (!castle.valid) {
         return h;
     }
-    // Each ward is its own terrace. Nearest-ward-wins so the steps between them
-    // stay crisp instead of averaging into a ramp.
+    // Each ward is its own terrace. A FLAT ward surface always wins over a
+    // neighbour's skirt: wards are only `step` apart while each skirt reaches
+    // half_size + blend, so the chain overlaps by design. Resolving in array
+    // order instead let ward 0's skirt overwrite ward 1's floor, which tilted
+    // a terrace that is supposed to be level and put phantom steps on the ramp.
     for (int i = 0; i < castle.ward_count; ++i) {
         const CastleWard& w = castle.wards[i];
         const float cheb = std::max(std::fabs(world.x - w.center.x),
                                     std::fabs(world.y - w.center.y));
-        if (cheb > w.half_size + w.blend) {
-            continue;
-        }
         if (cheb <= w.half_size) {
-            return w.height; // flat ward surface
+            return w.height;
         }
+    }
+    // Outside every ward floor: take the NEAREST ward's skirt, so the blend
+    // belongs to the terrace it actually descends from.
+    int best = -1;
+    float best_beyond = 1e9f;
+    for (int i = 0; i < castle.ward_count; ++i) {
+        const CastleWard& w = castle.wards[i];
+        const float cheb = std::max(std::fabs(world.x - w.center.x),
+                                    std::fabs(world.y - w.center.y));
         const float beyond = cheb - w.half_size;
-        const float skirt = w.height + (h - w.height) * noise::smoothstep01(beyond / w.blend);
-
-        // The approach ramp belongs to the outermost ward, on the gate side.
-        if (i == castle.ward_count - 1) {
+        if (beyond < best_beyond && beyond <= w.blend) {
+            best_beyond = beyond;
+            best = i;
+        }
+    }
+    if (best >= 0) {
+        const CastleWard& w = castle.wards[best];
+        const float skirt =
+            w.height + (h - w.height) * noise::smoothstep01(best_beyond / w.blend);
+        // The approach ramp descends from the OUTER ward on the gate side.
+        if (best == castle.ward_count - 1) {
             const glm::vec2 local = to_local(castle, world);
             constexpr float LATERAL_FADE = 2.0f;
             if (local.y > 0.0f
                 && std::fabs(local.x) <= castle.ramp_half_width + LATERAL_FADE) {
                 const float ramp =
-                    beyond >= castle.ramp_length
+                    best_beyond >= castle.ramp_length
                         ? h
-                        : w.height + (h - w.height) * (beyond / castle.ramp_length);
+                        : w.height + (h - w.height) * (best_beyond / castle.ramp_length);
                 const float wgt = std::clamp(
                     (castle.ramp_half_width + LATERAL_FADE - std::fabs(local.x))
                         / LATERAL_FADE,
@@ -359,19 +394,24 @@ float castle_occluder_height(const CastleBuild& castle, glm::vec2 world) {
 }
 
 glm::vec2 castle_yard_point(const CastleBuild& castle) {
-    // Open tithe-yard: in front of the hall range, behind the gate.
+    // The tithe-yard is the bailey (ward 1), between hall and gate.
     const Frame f = castle_frame(castle);
-    return castle.center + f.right * 6.0f;
+    const glm::vec2 c = castle.ward_count > 1 ? castle.wards[1].center : castle.center;
+    return c + f.right * 6.0f;
 }
 
 glm::vec2 castle_gate_point(const CastleBuild& castle) {
-    // Just inside the gatehouse threshold.
-    const Frame f = castle_frame(castle);
-    return castle.center + f.forward * (WALL_SIDE * 0.5f - 2.0f);
+    // Just inside the gatehouse threshold, which stands on the OUTER ward.
+    const CastleWard& w = castle.wards[std::max(0, castle.ward_count - 1)];
+    return w.center + castle.gate_dir * (w.half_size - 2.0f);
 }
 
 glm::vec2 castle_ramp_foot(const CastleBuild& castle) {
-    return castle.center + castle.gate_dir * (castle.half_size + castle.ramp_length);
+    // The ramp descends from the outer ward, not from the chain's centre —
+    // measuring it from the centre walked the player down the terrace STEPS
+    // between wards and reported them as ramp discontinuities.
+    const CastleWard& w = castle.wards[std::max(0, castle.ward_count - 1)];
+    return w.center + castle.gate_dir * (w.half_size + castle.ramp_length);
 }
 
 } // namespace dfn::world
