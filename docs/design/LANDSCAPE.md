@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 23:14:47
+Last updated: 09:08:2026 - 23:23:29
 -->
 <!--
 UPD:
@@ -50,6 +50,7 @@ UPD:
 - 09:08:2026 - 22:46:49: THE COMPLAINT IS CLOSED AND THE ANSWER IS NOT THE MOUNTAIN. I opened both west 300 m frames myself. Trees off: a pointed tor with its tower nub, a concave left flank carrying band lips at ~2/3 height, a long straight right ridge with a distinct shoulder break, the castle reading on its spur — THE GEOMETRY IS RIGHT. Trees on: a low featureless hump. NEW §5.12 — RULED FOR LEVER 2 (the apron), and it is not a clearing, it is a landform. TWO FAILURES, NOT ONE: (1) THE FOOT IS EATEN — a mountain missing its bottom third loses the bench and the flare and what survives is the upper cap, WHICH IS CONVEX ON ANY MOUNTAIN WHATSOEVER, so this is the dome and no shape change can fix it; (2) VALUE MERGING — canopy and backlit rock on one value, so the eye sees one dark mass whose outline is the union of both. Failure 1 produces the user's word, and HUE SEPARATION CANNOT FIX IT: telling tree from rock does not give back the bottom third. MEASURED MECHANISM: the pine annulus begins at 140 m, INSIDE the 120-162 m hem where the massif is still climbing — pines do not start at the foot, they start ON it — while the only treeless rule, on_crag_treeless, fires only at d < 120 AND h >= 57.5 m, an elevation gate high on the mountain. THE BAND BEING EATEN HAS NO RULE AT ALL; the strip duty cycle is an ANGULAR gap, not a radial standoff. Rule is DERIVED, never a tabled radius (§7.1a's trap, my fourth): no tree is placed where its canopy top would obscure the massif's silhouette below MASSIF_CLIFFLINE_FRAC from any acceptance standpoint — C1-B restated as a placement predicate on machinery that already exists. IT ADDS CONTENT: the apron is exactly where §5.10's floor classes belong (scree, boulder fields, big bushes, snags, deadfall, stunted sub-cliffline pines), and a bare ring would be worse than the forest — a talus apron with scrub and stone is a better landscape than closed pine to the hem INDEPENDENTLY OF ANY INVARIANT, because that is what erosion puts there. The §7.1b ascent benefits: a worn path across open scree reads as a path, through closed pine as nothing. LEVER 1 (density) RULED NOT THE LEVER because it is ALREADY BUILT and the frame still fails — TREE_SPACING_FOREST 12-18 is consumed (oak 15 m lattice, pine 14 m), which against the previous 5-8 m is 5.3x sparser BY AREA, more than the user's «не менее чем в трое»; the user's ruling landed and was not enough near a landmark, said plainly so nobody spends the fix twice. Density is not the binding constraint, PROXIMITY TO THE MASSIF is. LEVER 3 (hue) NECESSARY BUT NOT SUFFICIENT and re-scoped into two different defects: the source colours ALREADY differ strongly in hue (PINE_DARK is teal-green at saturation 0.45, every rock tone neutral at 0.05), but (a) CHROMA DISCRIMINATION COLLAPSES AT LOW LUMINANCE so lever 3 is weakest exactly where the problem is, at the backlit hour where both surfaces are lit by ambient alone; and (b) THE 64-COLOUR PALETTE HAS NO CONIFER RAMP — its eight ramps are grass greens, dry olive, dirt browns, rock greys, sand tans, sky blues, water teals, neutrals, so PINE_DARK (0.12,0.22,0.19) must quantise into GRASS GREENS whose dark end is a yellow-green with B=0.04 against pine's 0.19. THE SINGLE MOST COMMON DARK MASS IN THE WORLD HAS NO SHADE OF ITS OWN AND THE PALETTE DESTROYS THE ONE AXIS THAT SEPARATES IT FROM ROCK. Design requirement to render: the shipped palette carries a conifer ramp. Ranked so implementation order is not a judgement call: (1) the apron, which restores the mountain; (2) the conifer ramp, which stops the merge and is cheap; (3) nothing further on density. §5.10 IS UNBUILT — THE LR's POSITION A SECOND TIME, checked in source: snags, big bushes, fallen logs, deadfall, floor scarps and maturity tiers all have constants (16 rows) and meshes and ZERO consumers; the scatter alphabet has five members and bushes and stones are BOTH barred from inside a forest mass, so THE FOREST FLOOR TODAY IS BARE TERRAIN SPLAT AND NOTHING ELSE. Unlike the LR_ rows none carries a «НЕ ПОСТРОЕНО» marker, so the registry reads as though this is built — requested of the lead that they be marked, because a numbers table that overstates what exists is how a zone spends three sessions tuning an absent object. NEW §1.3b — C1 MEASURES OCCLUSION, NOT LEGIBILITY. A landmark can be 100% unoccluded and invisible and we now have the frame that proves it; C1 has been certifying a property its raycast cannot see, and the 0.751 I offered as spur budget one message ago is denominated in the wrong currency. C1 is NOT retired but RE-SCOPED: LANDMARK_VISIBILITY_MIN 0.6 remains a floor on OCCLUSION and stops being cited as a legibility figure; until the new instrument exists every C1 number is treated as UNSHOT — recorded, not certifying. THRESHOLDS FOR THE TWO-NUMBER INSTRUMENT, mine: C1-A OUTLINE FIDELITY — per screen column compare the DRAWN horizon to core's TERRAIN-REFERENCE horizon, faithful within one readability window, LANDMARK_OUTLINE_FIDELITY_MIN = 0.90 AND no contiguous unfaithful run longer than one readable unit; THE RUN-LENGTH CLAUSE IS LOAD-BEARING AND THE FRACTION IS THE GUARD, because a fraction alone is satisfiable by a tree wall that eats one whole flank while 90% of the outline stays clean, which is exactly the west 300 m frame — derived from §1.6.1's feature budget, since a contiguous loss over one unit deletes a break together with its flanking run and an unflanked break is not detected. C1-B BODY EXPOSURE — the failure no horizon test can see, because trees shorter than the crest never touch the horizon and eat the body while C1-A reads clean: the silhouette must be exposed, neither occluded NOR value-merged, continuously from MASSIF_CLIFFLINE_FRAC of relief to the summit across >= LANDMARK_EXPOSURE_COLUMNS_MIN = 0.90 of columns, foreground permitted below the cliffline. Derived from constants already here rather than invented — §2.8.7 ruled the body the eye reads as mountain BEGINS at the cliffline and §2.8.8's I7 requires ribs to descend to that same line, so the cliffline is already this document's boundary between mountain and hem. THE VALUE TEST: two regions are SEPARATE at >= LANDMARK_SEPARATION_STEPS_MIN = 2 palette steps, or >= 1 step across a ramp CHANGE. Two and not one, by the same doctrine as I11's 20 deg — one step is the quantisation floor, two surfaces within one step are LITERALLY THE SAME COLOUR after the post, so a one-step criterion measures the quantiser rather than the image. Computed before any frame: PINE_DARK luminance 0.197 against the darkest rock stop 0.192 — ZERO STEPS. And THE TEST IS RUN WITH THE PALETTE ON: settings.cfg has palette=0, so every frame this stage was shot without the quantiser and all of them are the OPTIMISTIC case — the shipped look is worse than what we have been judging. §1.5 — THE MISSING HALF OF THE SKYLINE RULE, and its absence cost this stage a session: «value against sky» governs the landmark's OUTLINE, where the competing surface is bright sky and separation is free, and says NOTHING about the landmark's BODY, where the competing surface is another dark mass in front of it and THE SAME DOCTRINE INVERTS — value becomes the weakest axis available, and backlit dark against backlit dark is the weakest separation there is, which is precisely the hour §7.1b's verdict frame deliberately picks. Every landmark brief now states its separation from its usual FOREGROUND as well as its backdrop, and where that foreground is vegetation the separation is carried by hue and silhouette scale, never by value. §1.6 — NEW CONDITION F6, RESOLUTION: an acceptance frame is judged at INTERNAL_RES (640x360), and the crag frames are 2560x1440 — four times the linear resolution, sixteen times the pixels — so every readability judgement in this document, all of it angular and calibrated to 640x360, has been made with 4x the resolution the player has. It cuts toward FLATTERY: the band lips visible on the trees-off upper left flank are one to two pixels at INTERNAL_RES. Frames are captured at or downsampled to INTERNAL_RES before any acceptance judgement and record the resolution they were shot at; whether these were captured at INTERNAL_RES and upscaled is RENDER'S TO STATE and I have not read that path. Same defect as §1.6.1 in the other axis — there I measured at a distance nobody derived, here we judge at a resolution nobody declared. §1.3 — NEW BOX, C4 IS NOT A DOCTRINE GAP BUT AN UNENFORCED RULE WITH A STALE CONSTANT (regression, reported not patched): in the west 300 m frame the near pines stand THREE TO FOUR TIMES the L0's apparent height, against a rule that says in as many words that nothing which is not the L0 may exceed its apparent height INCLUDING CANOPY. The world's occlusion model — the sight-wedge filter that rejects trees, and the canopy height field feeding the C1 raycast — hard-codes OAK_MAX_H 12, PINE_MAX_H 18, BIRCH_MAX_H 10, while the world is built with 32 / 38 / 22. EVERY OCCLUDER IS MODELLED AT ROUGHLY HALF ITS DRAWN HEIGHT, pine at 2.1x under. §5.7's tall-tree ruling landed in render and never reached the world's occlusion model, which is Rule 32 exactly. So C1 = 0.751 carries TWO independent defects: wrong currency (§1.3b) and a world model half the height of the world. Every tree standing inside an L0 sight wedge is there because the filter thought it was 18 m tall — THE WEDGES DID NOT FAIL, THEY WERE LIED TO. No new rule and no threshold change requested; the heights are core's to source from the same constants render uses, and C1 and the wedge rejections are re-measured afterwards rather than assumed to scale.
 - 09:08:2026 - 22:55:05: Three corrections from the lead, two of them to me, plus the sequencing worked through. §1.6 F6 — SATISFIED, and the lead settled it by CHECKING rather than routing it: settings.cfg carries internal_resolution=640x360, tools/run_tour.sh shoots at DFN_INTERNAL_RES=640x360, and the PNGs are 2560x1440 = exactly 4x in both axes, an integer framebuffer upscale, so THE FILES CONTAIN NO DETAIL THE PLAYER DOES NOT HAVE — a one-pixel band lip is four file pixels, magnified rather than invented. The frames stand, the sweep is not re-run, the condition stays because it would have caught a native capture. MY «CUTS TOWARD FLATTERY» READING IS WITHDRAWN AND THE WAY I GOT IT WRONG IS WORTH MORE THAN THE CLAIM WAS: I correctly refused to assert the premise — I wrote that the capture path was render's to state and that I had not read it — AND THEN BUILT A CONCLUSION ON IT IN THE SAME BREATH. Flagging a premise as unchecked does not make it checked. Rule 34 in its subtlest costume: not reasoning from a premise I believed, but from one I had explicitly labelled unknown, as though labelling discharged it. The rule is CHECK IT OR DRAW NOTHING FROM IT. What survives is a different and better point: the band lips are ~1 internal pixel, far under SILHOUETTE_MIN_PX 8, so they are genuinely VISIBLE AS VALUE TEXTURE ON THE BODY and are NOT READABLE STRUCTURE — exactly the distinction §2.8.7 drew about ribs reading as value rather than silhouette. VISIBLE IS NOT READABLE, and only the second satisfies a criterion. §1.3b — MY «THE SHIPPED LOOK IS WORSE» FRAMING WAS WRONG (lead's correction): settings.cfg ships palette=0 and that is the default the game writes on first run, so THE FRAMES ARE NOT OPTIMISTIC RELATIVE TO WHAT SHIPS — THEY ARE WHAT SHIPS TODAY. What is actually unresolved is whether the quantiser is meant to ship on at all, which nobody has ever decided and which is now a user call. DESIGN'S POSITION ON THE RECORD FOR THAT DECISION: it should ship ON, because §1.5's entire readability doctrine («with the limited palette, tiers separate by value») is WRITTEN ASSUMING A LIMITED PALETTE, so with the quantiser off that doctrine has no premise and several rules here lose their basis — BUT THE CONIFER RAMP IS A PRECONDITION, NOT A FOLLOW-UP, since turning it on today would make the pine/rock merge WORSE because pine has no ramp of its own to quantise into. Order: ramp, then quantiser. And the separation threshold is made independent of that pending decision: THE TEST RUNS WITH THE PALETTE ON AND THAT CERTIFIES BOTH CONFIGURATIONS, because the quantiser can only ever MERGE neighbouring colours and never split them, so separation measured with it on is a LOWER BOUND on separation with it off. §1.5 — AND THE LIMITED PALETTE ARGUES FOR HUE, NOT AGAINST IT, a correction to this document's own «value contrast over hue» from reading what the palette actually is: the 64-colour post is 8 RAMPS x 8 SHADES, so it quantises HUE into eight large well-separated families and VALUE into eight fine steps within each. A RAMP CHANGE IS THEREFORE THE COARSEST AND MOST ROBUST SIGNAL THE PALETTE CAN CARRY AND A STEP CHANGE IS THE FINEST AND MOST FRAGILE. «Value contrast over hue» is sound as general low-res art direction and BACKWARDS FOR THIS PALETTE: under quantisation two things on different ramps can never merge, while two things on the same ramp merge as soon as they land within a step. That is the whole argument for the conifer ramp — a ramp is the strongest separation available and the single most common dark mass in the world does not have one. §5.12 — THE APRON IS NOT BARE BY CONSTRUCTION, IT IS A HEIGHT RULE AND NOT A CLEARING, so it does NOT have to wait for §5.10. Sequencing was raised on the reasonable fear that an apron shipped early would be the bare ring I warned against; the arithmetic does not support the fear. C1-B requires the silhouette exposed above MASSIF_CLIFFLINE_FRAC, so a tree is illegal only if ITS CANOPY TOP SUBTENDS MORE THAN THE CLIFFLINE DOES from an acceptance standpoint — a real constraint rather than a formality, because a near tree sits much closer to the eye than the mountain behind it. Worked at d_accept as illustration and NOT as a tabled number: cliffline 0.33 x 115 = 38 m, subtending 38/360 = 0.106 rad from 360 m; a tree on the near hem (~162 m from centre) stands ~198 m from the eye; legal canopy top 0.106 x 198 = ~21 m. PINE IS 28-38 m AND IS EXCLUDED; EVERYTHING UNDER ~21 m IS ADMITTED — big bushes, scrub, stunted and young pines, stone. So the apron is populated in its very first version and §5.10 ENRICHES it rather than being its precondition, and blocking the one fix that addresses the user's complaint behind an entirely unbuilt feature set would be the wrong trade. Revised order: tree heights fixed in the occlusion model -> apron (interim, with the classes that already exist) -> §5.10 floor classes enriching it -> conifer ramp -> quantiser decision. ONE REQUIREMENT ON CORE, stated because I checked and it is not free: Bush and Stone are BOTH currently barred from inside a forest mass and the apron band lies inside the pine annulus, so THE APRON IS A DISTINCT GROUND-COVER CLASS, NOT AN ABSENCE OF FOREST, and bush and stone placement must be admitted there — whether that is a small change is core's to say, not mine. The interim apron is honest rather than a stopgap: a hem of scrub, stone and young pine under a cleared skyline IS what a talus apron looks like, and nothing about it has to be undone when snags and deadfall arrive.
 - 09:08:2026 - 23:14:47: NEW §2.9 PALE SPIRES — flora's white-rock reuse ACCEPTED as a landform class, REJECTED as proposed on two counts. The world genuinely lacks a spire and pale rock is the one value role nothing else in the palette occupies, so the class is right. NOT ON RAVENSCAR'S TALUS APRON: talus is loose, angular, actively-moving debris and nothing tall and thin stands in it — a spire is IN-SITU bedrock left by differential erosion, i.e. the survivor, and talus is the pile of what it survived. Deeper objection is procedural: I ruled for the apron in §5.12 because it is right INDEPENDENTLY OF ANY INVARIANT, so putting hoodoos in it because they happen to be available and happen to solve a contrast measurement would be the exact thing I spent this stage arguing against — placing a feature because it answers a number. The apron gets scree, stone, scrub and stunted pine. NOT AT 16-22 m ON A 0.4-0.9 m BASE: that is ~25:1, which §1.5 already forbids (nothing structural thinner than ~0.5 m matters beyond 100 m; sub-pixel verticals shimmer), and a 0.8 m spire subtends 0.008 rad at 100 m against a 3.3 m readable size — FOUR TIMES UNDER THRESHOLD while being the brightest value in the scene, the worst possible thing to alias. The user's own word was «острые пики»; a real hoodoo is nearer 5:1. THE GEOMETRY CANNOT BE SCALED INTO READABILITY BECAUSE THE DEFECT IS THE RATIO, NOT THE SIZE. THE RULE THAT SETTLES BOTH OF FLORA'S CONSTRAINTS AT ONCE, computed from the palette before anything is placed: pale spire luminance 0.869 against bright sky 0.790 is 1.10x and UNUSABLE, against mid rock 0.371 is 2.3x, against PINE_DARK 0.197 is 4.4x and maximal. RULING — a pale spire is sited only where it reads against ROCK or CANOPY and MAY NEVER BREAK THE SKYLINE. It is the exact inverse of the crag: Ravenscar reads against sky at 3-4x and merges into dark foreground, the spire reads against dark foreground at 4.4x and vanishes against sky at 1.10x — two objects, two opposite backdrops, one rule each, and §1.5's «every landmark brief states its value contrast against its usual backdrop» finally earns its keep. This makes flora's constraint 2 AUTOMATIC (something that may never break the skyline can never out-angle the L0 crown — no new test, no new constant) and bounds the rarity problem STRUCTURALLY rather than by budget, since a spire in front of dark canopy is a local guide exactly where the forest has none and it is IMPOSSIBLE to site it as a false weenie, a weenie being a thing that breaks the horizon. THE CLASS: name «pale spires», always a GROUP and a single spire is never generated (my own character-not-existence rule); tier L1 minor; SPIRE_HEIGHT_MIN/MAX 8-14 m; SPIRE_GROUP_SPAN_MIN/MAX 10-16 m; SPIRE_COUNT_MIN 3; quantises to the neutrals ramp, alone among landforms. THE GROUP IS THE READABLE UNIT AND IT IS THE GROUP THAT IS SIZED AGAINST THE DISTANCE — Rule 33's third instance after the summit tor and the crest structure — so individual spires may stay thin, exactly as a stand of trees reads as a mass while every trunk is sub-readable, but the GROUP's span must clear SILHOUETTE_MIN_PX; 10-16 m is readable to ~300-480 m, squarely in §1.3's L1 band. Everything else flora measured is KEPT: concave taper 0.70, pentagonal faceting, 0.18 rad per-stem sweep, x1.6 flare, and especially the 1 m SELF-BURIAL, since a rock that plants itself into a slope is precisely right and is a property a tree only barely needed; the stepped lead-stem ratio 0.74-0.96 is what makes a group read as a group rather than a fence and is the best thing in the proposal. Siting derived and never tabled: candidates drawn where the backdrop test passes — inside and at the edges of forest masses, at the foot of the lakeshore bluff, along the river's cut banks; never on a ridgeline, never on the apron, never inside an L0 sight wedge. IT IS STONE, and three properties must not follow it across — no wind (a swaying rock is a bug that will ship), no seasonal palette (§5.11's foliage contract must never reach it), and not placed by the vegetation scatter pass, since its siting predicate is the backdrop test and no tree has one. Flora keeps the generator as the cheapest home; if those three are easier to guarantee in render's rock family, hand the parameters over — the requirement is the separation, not the owner. TWO FLAGS: story hears about it BEFORE it lands per the §2.8.7 precedent, since a distinctive pale formation acquires a name and then acquires canon; and the user may have meant «белые скалы» LITERALLY — white CLIFFS, not spires, since «скала» carries both — so a PALE ROCK BAND IN THE SPLAT PALETTE is recorded as a different, cheaper, complementary idea answering the same sentence, a §4 item and not a mesh.
+- 09:08:2026 - 23:23:29: User answered both open calls. «БЕЛЫЕ СКАЛЫ» MEANS BOTH — spire groups AND a pale rock surface — so the §4 item I recorded rather than resolved in my own favour is now authorised work, and NEW §4.1 THE PALE ROCK STRATUM is written. IT IS NOT DECORATION, IT IS THE MISSING MATERIAL HALF OF §2.8: the user's original brief was «высоту надо задавать линиями уровня», §2.8.2 answered it in GEOMETRY, and the frame that refuted the suite complained of «ONE material band, not a rhythm» — which §4 has never had an answer to, because rock has been a single grey since it was written. A pale stratum makes the contour lines visible as MATERIAL, the layer the complaint was actually about. RULE: pale rock is a STRATUM, exposed where terrain cuts through its elevation, selected by slope >= SLOPE_ROCK_MIN AND height inside a band — no new shader input, height is already there. STRATA ARE DEFINED IN ABSOLUTE WORLD HEIGHT, GLOBALLY, NEVER AS A FRACTION OF EACH LANDFORM: the same layer must appear at the same elevation on the crag, the lakeshore bluff and the river's cut banks, because A BAND AT A FIXED HEIGHT EVERYWHERE READS AS GEOLOGY AND A BAND AT A FRACTION OF EACH LANDFORM READS AS PAINT. Third instance of absolute-versus-relative after the couloir scale and the summit tor. It is a MODULATION OF THE ROCK MATERIAL, not a fifth splat layer, so §4's four-material budget is untouched. It survives quantisation BY CONSTRUCTION — grey rock on the rock-greys ramp, pale rock on neutrals, so a stratum boundary is a RAMP CHANGE, the strongest separation the palette carries and one that two things on the same ramp could never have. Sized by Rule 33: at d_accept 360 m readable is 12 m so a stratum thinner than ~12 m is stripe noise; Ravenscar's banded zone is 77 m, two to three pale bands give rhythm without corduroy, hence ROCK_STRATUM_PERIOD 28-36 m and ROCK_STRATUM_PALE_FRAC 0.35-0.45, SEEDED AND NON-UNIFORM with the same CV discipline as MASSIF_BAND_SPACING_CV_MIN because a fixed period would rebuild the wedding cake in paint. ROCK_PALE sits between grey rock (~0.37) and spire white (~0.87) and at least one palette step below the spire, since THE SPIRES MUST REMAIN THE BRIGHTEST VALUE IN THE WORLD or a cliff face of spire-white drowns the L1 formation the brightness was doing work for — C4's hierarchy argument applied to the palette instead of to height. NEW §4.2 THE RAMP BUDGET, answering render: NEITHER ANSWER THEY OFFERED IS THE FIRST THING TO TRY. THE BUDGET IS 64 ENTRIES, NOT EIGHT FAMILIES OF EIGHT — ramp depth should follow the lighting range a family carries and the screen area it covers, which are wildly unequal; grass, rock, neutrals and sky need their depth, sand serves a shore mask and water a 90x140 m lake, so reclaiming two shades each from the small families funds a conifer ramp WITHOUT DELETING ANYTHING. Follows directly from §1.5's correction: if a ramp change is the coarsest signal and a shade step the finest, TRADING SHADES FOR RAMPS IS FAVOURABLE BY DEFAULT and the uniform 8x8 grid is the one thing in the palette nobody has justified. IF uniform depth is structural in the shader the sacrifice is DRY OLIVE, and the reason is not aesthetics: §4's material list has no dry or upland grass, so DRY OLIVE IS A RAMP RESERVED FOR A BIOME THAT DOES NOT EXIST — capacity held for an unbuilt thing while a built thing goes without, the LR's mistake in colour space. Render's own argument (its dark end sits 0.046 from grass dark, the closest cross-ramp pair) is correct and I verified it, but «serves nothing that exists» is the stronger reason. Biome objection answered in advance: biomes will need several new families and the palette is re-derived wholesale, so holding one ramp today does not prepay that. ALL RAMPS CONVERGE AT THE DARK END AND THAT IS A DOCTRINE, NOT A DEFECT — checked arithmetically against the actual failing case before ruling: with a conifer ramp PINE_DARK quantises to a conifer entry 0.027 away rather than a rock entry 0.090 away, so the class of merge IS genuinely fixed and separation against lit and mid-tone rock goes from zero to ~3.1 shade steps; BUT against rock in shadow it is ~0.9 steps and still merges, because every ramp runs toward black and the darks are crowded by construction. THE CONIFER RAMP WILL NOT FIX THE BACKLIT VERDICT FRAME AND NOTHING IN THE PALETTE CAN — which confirms §5.12's ranking from an independent direction: the apron is the fix, the ramp is the hardening, and a colour cannot un-hide a mountain whose base has trees in front of it. General rule: VALUE AND HUE SEPARATION BOTH VANISH AS LUMINANCE GOES TO ZERO, SO IN DEEP SHADOW THE ONLY THING THAT SEPARATES TWO SHAPES IS SILHOUETTE — which is why §1.5's skyline rule exists and why a landmark's read must never depend on its foreground being a different colour, only on there being no foreground. §1.3b — SEPARATION CRITERION TIGHTENED and render's question is what exposed the hole: «2 steps OR 1 step across a ramp change» treats a ramp change as a guarantee when it is only a heuristic, since ADJACENT RAMPS TOUCH AT THEIR DARK ENDS (dry olive sits 0.046 from grass green there, less than a single shade step), so «different ramp» can be a label rather than a distance. Restated as the distance between the two QUANTISED ENTRIES in mean shade steps, >= 2 — same constant, same value, correct basis, the identical act as I1's re-spec from surface mean to envelope. §1.5 — MEASURE WITH THE QUANTISER ON, CERTIFY BOTH, now the general rule after the user made the 64-colour post a MENU SETTING: the player may select either configuration so every readability rule is written for the worse of the two, which is always the quantised one because THE QUANTISER CAN ONLY MERGE AND NEVER SPLIT, so one measurement in the conservative configuration certifies both. This repairs a claim I made too strongly — I wrote that with the quantiser off the doctrine «has no premise»; with a SETTING the premise is CONDITIONAL RATHER THAN ABSENT and, because the rules are written for the worse case, THEY HOLD UNCONDITIONALLY. The doctrine is stronger as an option than it would have been as a default, which is not what I expected. The conifer ramp stops being a precondition for a decision and becomes simply REQUIRED, since some players will turn the quantiser on. §1.3b — C1 RE-MEASURED ON HONEST TREE HEIGHTS: 0.751 -> 0.6429 against a floor of 0.60, with three readings and the third must travel with it. (1) THE FIX LANDED — the number moved DOWN, the predicted direction once every occluder doubled in modelled height, and a figure that moves as predicted is evidence while one that does not is a second bug. (2) It passes by 0.043, a 7% margin, which is MARGINAL by this document's own standard — «a marginal pass on one seed is not compliance» — so the min/median/max across the twelve seeds is REQUESTED as §2.8.3 requires of every other invariant; if the median sits near the bound the forest moves, not the threshold, and the apron should raise it clear regardless. (3) IT IS STILL AN OCCLUSION NUMBER AND MUST NOT BE RELAYED AS «THE LANDMARK READS» — it is now an honest measurement of what it always measured, the legibility question is untouched and stays UNSHOT, AND THE FRAME THAT STARTED ALL OF THIS HAD C1 PASSING COMFORTABLY. NEW §1.6.5 — two conduct rules in transmissible form, since «I caught it in myself» does not transmit. A HEDGE IS A DEBT, NOT A LICENCE: naming a premise unverified obliges one to verify it or drop every conclusion resting on it, and A MESSAGE CONTAINING BOTH «I HAVE NOT CHECKED X» AND A CONCLUSION DEPENDING ON X IS SELF-REFUTING — mechanically detectable in one's own draft before sending. It cost this document one wrong finding which the lead settled in about a minute by reading the file I had declined to read. A CITATION IS A CLAIM ABOUT A DOCUMENT AT A MOMENT AND IT GOES STALE IN SILENCE: the stale tree heights carried CORRECT citations of a superseded ruling — the code said «§5.1: 8-12 m» and §5.1 had said exactly that before §5.7 moved it — so the code documented its provenance faithfully and was wrong anyway, and THE CITATION MADE IT HARDER TO SPOT, because a bare literal invites suspicion while a cited literal buys trust it has not earned. Design's share: a ruling that supersedes a numeric range says so explicitly and names the section it replaces, so a grep for the old section number finds the correction; and a number in this document is never the source of truth for code, so a reader who finds one in code has found a shadow, not a reference.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -509,6 +510,25 @@ raycast measures it correctly. It is **re-scoped**: `LANDMARK_VISIBILITY_MIN` =
 figure.** Until the instrument below exists, every C1 number is treated the way
 §1.6.3 treats UNSHOT rules — recorded, not certifying.
 
+> **C1 RE-MEASURED ON HONEST TREE HEIGHTS (core, stage-4): 0.751 → 0.6429
+> against a floor of 0.60.** Three readings of that number, and the third is
+> the one that must travel with it:
+>
+> 1. **The fix landed.** The number moved *down*, which is the predicted
+>    direction once every occluder doubled in modelled height. A figure that
+>    moves as predicted is evidence; one that does not is a second bug.
+> 2. **It passes with 0.043 — a 7 % margin — and that is MARGINAL by this
+>    document's own standard.** «A marginal pass on one seed is not
+>    compliance», and I do not know how many seeds this is. **Request: the
+>    min/median/max across the twelve, as §2.8.3 requires of every other
+>    invariant.** If the median sits near the bound, the forest moves, not the
+>    threshold. The apron (§5.12) should raise it well clear regardless.
+> 3. **IT IS STILL AN OCCLUSION NUMBER AND MUST NOT BE RELAYED AS «THE LANDMARK
+>    READS».** It is now an honest measurement of the thing it always measured.
+>    The legibility question is untouched and stays UNSHOT until C1-A/C1-B
+>    below are built — and the frame that started all of this had C1 passing
+>    comfortably.
+
 **The instrument, approved by the lead and built jointly by render and core:
 core's terrain-only horizon as the REFERENCE curve, the drawn frame's horizon
 measured in VALUE. Two numbers, because occlusion and merging are demonstrably
@@ -555,9 +575,20 @@ legitimate — forest above the cliffline is not.
 
 ##### The value test — when are two masses "merged"?
 
-> **Two adjacent regions are SEPARATE when they differ by ≥
-> `LANDMARK_SEPARATION_STEPS_MIN` = 2 steps of the shipped palette ramp, or by
-> ≥ 1 step across a ramp CHANGE (i.e. a hue change). (предложение — утвердить)**
+> **Two adjacent regions are SEPARATE when the two colours they QUANTISE TO lie
+> ≥ `LANDMARK_SEPARATION_STEPS_MIN` = 2 mean shade steps apart in the shipped
+> palette.**
+
+**TIGHTENED from my original wording («2 steps, or 1 step across a ramp
+change»), and render's question is what exposed the hole.** A ramp change is a
+strong *heuristic* for separation, not a guarantee of one: **adjacent ramps
+touch at their dark ends** — dry olive sits 0.046 from grass green there, which
+is **less than a single shade step** — so «different ramp» can be a label
+rather than a distance. Measuring between the **quantised entries** is what the
+criterion always meant, it subsumes the ramp-change case (a genuine ramp change
+clears two steps easily), and it closes the loophole. **Same constant, same
+value, correct basis** — the identical act as I1's re-spec from surface mean to
+envelope, and it cost nothing because the number was never the problem.
 
 **Two, not one, and the reason is the same doctrine as I11's 20°:** one step is
 the quantisation floor — two surfaces within one step are *literally the same
@@ -663,6 +694,26 @@ horizontal ≈ 1.87 rad):
   they land within a step. **This is the whole argument for the conifer ramp
   (§5.12): a ramp is the strongest separation available, and the single most
   common dark mass in the world does not have one.**
+- **MEASURE WITH THE QUANTISER ON, CERTIFY BOTH — the general rule (user
+  decision, stage-4: the 64-colour post is a MENU SETTING, neither on nor off
+  by fiat).** The player may select either configuration, so **every
+  readability rule in this document is written for the worse of the two.** That
+  is always the quantised one, because **the quantiser can only ever MERGE
+  neighbouring colours and never split them** — so any separation measured with
+  it on is a **lower bound** on the same separation with it off. **One
+  measurement, in the conservative configuration, certifies both.** §1.3b's
+  separation threshold was already arranged this way; it now carries the whole
+  doctrine rather than one number.
+  - **This repairs a claim I made too strongly.** I wrote that with the
+    quantiser off this section's doctrine «has no premise» and several rules
+    lose their basis. With a *setting* the premise is **conditional rather than
+    absent**, and because the rules are written for the worse case **they hold
+    unconditionally.** The doctrine is stronger as an option than it would have
+    been as a default — not what I expected, and recorded as such.
+  - **The conifer ramp stops being a precondition for a decision and becomes
+    simply required.** Some players will turn the quantiser on, so shipping
+    without it ships a configuration in which the most common dark mass in the
+    world has no shade of its own.
 
 ### 1.6 THE ACCEPTANCE FRAME — what a frame certifies, and from how far (doctrine, stage-4)
 
@@ -895,6 +946,35 @@ space, not a radius in metres.
   L0's own frames** — it was blocking them at a distance that was never theirs.
 - **`CHUNK_LOAD_RADIUS` still must not rise for a screenshot**, and design
   still does not ask for it. That part of the box was right.
+
+#### 1.6.5 Two conduct rules this stage earned, in transmissible form
+
+Both were learned by being caught, and «I caught it in myself» does not
+transmit. These are the greppable versions.
+
+**A HEDGE IS A DEBT, NOT A LICENCE.** Naming a premise as unverified creates an
+obligation to verify it or to drop every conclusion resting on it. **A message
+containing both «I have not checked X» and a conclusion that depends on X is
+self-refuting**, and that is mechanically detectable in one's own draft before
+sending. This is Rule 34's subtlest form: not reasoning from a premise one
+believes, but from one already labelled unknown, as though the label discharged
+it. It cost this document one wrong finding (F6) which the lead settled in
+about a minute by *reading the file I had declined to read*.
+
+**A CITATION IS A CLAIM ABOUT A DOCUMENT AT A MOMENT, AND IT GOES STALE IN
+SILENCE.** The stale tree heights in the occlusion model carried **correct
+citations of a superseded ruling** — the code said «§5.1: 8–12 m» and §5.1 had
+said exactly that, before §5.7 moved it to 24–32 m. **The code documented its
+provenance faithfully and was wrong anyway**, and the citation made it *harder*
+to spot: a bare literal invites suspicion, a cited literal buys trust it has not
+earned. Design's share of the fix, since this document is what gets cited:
+
+- **When a ruling supersedes a numeric range that has appeared in this
+  document, the ruling says so explicitly and names the section it replaces**,
+  so a grep for the old section number finds the correction.
+- **A number in this document is never the source of truth for code — NUMBERS.md
+  is** (Rule 14). Where a §5 or §2 brief quotes a value, it is quoting, and a
+  reader who finds it in code has found a shadow, not a reference.
 
 ---
 
@@ -3028,8 +3108,131 @@ Priority order (first match wins), thresholds **предложение — ут�
 | 2 | **Rock** | `slope ≥ 0.70 rad (40°)` — hard rock, also all L0 crag stamp area above its rockline | `SLOPE_ROCK_MIN` |
 | 3 | **Grass→rock blend** | `0.52–0.70 rad (30°–40°)`: dithered blend (fits the palette look better than smooth lerp at low res) | `SLOPE_GRASS_MAX` = 0.52 |
 | 4 | **Grass** | everything else below the treeline band | — |
+| 2a | **Pale rock stratum** | a **modulation of Rock**, not a fifth material — see §4.1 | `ROCK_STRATUM_*` |
 | FUTURE | Dirt/path | road pass | — |
 | FUTURE | Snow | region mountains above snowline | `SNOWLINE_HEIGHT` (region) |
+
+### 4.1 THE PALE ROCK STRATUM — «белые скалы», and it is the material half of the banded massif
+
+User-authorised (he wanted «белые скалы» in **both** senses — the spire groups
+of §2.9 *and* a pale rock surface, which the world does not have at all).
+
+**This is not decoration. It is the missing half of §2.8.** The user's original
+massif brief was «высоту надо задавать **линиями уровня**», and §2.8.2 answered
+it in *geometry* — bands, risers, benches. The frame that refuted the suite
+complained of **«ONE material band, not a rhythm»**, and §4 has never had an
+answer to that, because rock has been a single grey since it was written.
+**A pale stratum makes the contour lines visible as MATERIAL, which is the
+layer the complaint was actually about.**
+
+- **RULE: pale rock is a STRATUM — a layer in the bedrock, exposed wherever
+  terrain cuts through its elevation.** Selection is `slope ≥ SLOPE_ROCK_MIN`
+  **and** sample height inside a stratum band. It needs no new input: `height`
+  is already there.
+- **STRATA ARE DEFINED IN ABSOLUTE WORLD HEIGHT, GLOBALLY — never as a fraction
+  of each landform.** This is the whole ruling. The same layer must appear at
+  the same elevation on the crag, on the lakeshore bluff, in the river's cut
+  banks and on any future quarry face. **A band at a fixed height everywhere
+  reads as geology; a band at a fraction of each landform's height reads as
+  paint.** Third instance of the absolute-versus-relative lesson, after the
+  couloir scale («a feature's size comes from the feature it cuts, never from
+  the mountain it sits on») and the summit tor.
+- **It is a MODULATION OF THE ROCK MATERIAL, not a fifth splat layer**, so §4's
+  four-material budget is untouched — rock's albedo lerps between its grey
+  stops and `ROCK_PALE` on the stratum mask. No new splat channel, no new
+  memory.
+- **And it survives quantisation by construction**, which is the payoff of
+  §1.5's ramp correction: grey rock sits on the **rock-greys** ramp and pale
+  rock on the **neutrals** ramp, so a stratum boundary is a **ramp change** —
+  the strongest separation the palette can carry, and one that two things on
+  the same ramp could never have. The bands cannot merge at any quantiser
+  setting.
+
+**Sizing, derived (Rule 33 — the strata must be readable from the acceptance
+distance, not merely present):**
+
+- At Ravenscar's d_accept of 360 m the readable size is **12 m**, so **a
+  stratum thinner than ≈ 12 m cannot read** and is stripe noise.
+- Ravenscar's banded zone is cliffline (38 m) to summit (115 m) = **77 m**.
+  Two to three pale bands across it give rhythm without corduroy.
+- Therefore **`ROCK_STRATUM_PERIOD` = 28–36 m** with **`ROCK_STRATUM_PALE_FRAC`
+  = 0.35–0.45** (⇒ 10–16 m of pale per period) **(предложение — утвердить)**.
+- **The period is SEEDED AND NON-UNIFORM, with the same coefficient-of-variation
+  discipline as `MASSIF_BAND_SPACING_CV_MIN`** — «линии уровня, которые где-то
+  ближе, где-то дальше» applies to the material bands for exactly the reason it
+  applied to the geometric ones, and a fixed period would rebuild the wedding
+  cake in paint.
+
+**Value, stated as a constraint so render picks the triple:**
+
+- `ROCK_PALE` sits **between** the grey rock stops (luminance ≈ 0.37) and the
+  spire white (≈ 0.87), and **at least one palette step below the spire white**.
+- **The spires must remain the brightest value in the world** (§2.9), or a
+  cliff face of spire-white drowns the L1 formation the brightness was doing
+  work for. **A material must never out-value the landmark whose legibility
+  depends on being the brightest thing in its frame** — C4's hierarchy
+  argument, applied to the palette instead of to height.
+- Pale rock is **not snow** and must not read as it; the FUTURE snow material
+  is a separate row and a separate ramp position.
+
+**Where it appears follows from the rule rather than from a table** (§7.1a):
+every rock face the strata pass through — the crag's risers, the lakeshore
+bluff, the river's cut banks, dungeon portal cuts. That consistency is the
+point: **a stratum you can trace from the mountain down into the river bank is
+the cheapest possible statement that this world has bedrock.**
+
+### 4.2 The display palette — the ramp budget (ruling, stage-4)
+
+The 64-colour post is **8 ramps × 8 shades**, quantised by nearest colour over
+all 64 entries. Render asked which family gives up a slot for the conifer ramp
+§5.12 requires. **Neither answer they offered is the first thing to try.**
+
+- **RULING: the budget is 64 ENTRIES, not eight families of eight.** Ramp depth
+  should follow **the lighting range a family carries and the screen area it
+  covers**, and those are wildly unequal. Grass, rock, neutrals and sky span
+  deep shadow to full light across most of the screen and need their depth.
+  Sand serves a shore mask; water serves a 90 × 140 m lake and a 4–7 m river.
+  **Reclaiming two shades each from the small families funds a conifer ramp
+  without deleting anything.**
+- **This follows directly from §1.5's correction.** If a ramp change is the
+  coarsest and most robust signal the palette can carry and a shade step the
+  finest, then **trading shades for ramps is favourable by default** and the
+  uniform 8 × 8 grid is the one thing in the palette nobody has justified.
+- **IF uniform ramp depth is structural in the shader, the sacrifice is DRY
+  OLIVE, and the reason is not that it is the least pretty.** §4's material
+  list is Sand / Rock / Grass-blend / Grass, plus two FUTURE rows. **There is
+  no dry or upland grass material in this world, so dry olive is a ramp
+  reserved for a biome that does not exist** — capacity held for an unbuilt
+  thing while a built thing goes without, which is the LR's mistake in the
+  colour space. Render's own argument (its dark end sits 0.046 from grass dark,
+  closer than any other cross-ramp pair) is correct and I verified it; **but
+  «serves nothing that exists» is the stronger reason and it is the one to
+  record.**
+- **The biome objection is answered in advance:** when biomes arrive they will
+  need several new families and the palette is re-derived wholesale. Holding
+  one ramp today does not meaningfully prepay that.
+
+##### ALL RAMPS CONVERGE AT THE DARK END, AND THAT IS A DOCTRINE, NOT A DEFECT
+
+Checked arithmetically against the actual failing case before ruling. With a
+conifer ramp, `PINE_DARK` quantises to a conifer entry (0.027 away) rather than
+a rock one (0.090 away), so the class of merge is genuinely fixed — **against
+lit and mid-tone rock, separation goes from zero to ≈ 3.1 shade steps.**
+
+**But against rock in shadow it is ≈ 0.9 steps and still merges**, because
+every ramp in the palette runs toward black and the darks are crowded by
+construction. Two consequences:
+
+- **THE CONIFER RAMP WILL NOT FIX THE BACKLIT VERDICT FRAME, AND NOTHING IN THE
+  PALETTE CAN.** This confirms §5.12's ranking from a direction independent of
+  the one that produced it: **the apron is the fix and the ramp is the
+  hardening.** A colour cannot un-hide a mountain whose base has trees in front
+  of it.
+- **General rule: value separation and hue separation both vanish as luminance
+  → 0. In deep shadow the ONLY thing that separates two shapes is silhouette.**
+  Which is why §1.5's skyline rule exists, and why a landmark's read must never
+  depend on its foreground being a different colour — it must depend on there
+  being no foreground.
 
 Design rationale, binding for render:
 
