@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 19:22:07
+Last updated: 09:08:2026 - 19:25:26
 -->
 <!--
 UPD:
@@ -47,6 +47,15 @@ UPD:
   the muster must hold. Recorded design's binding barrow-sightline tower
   rule and the independently-reached terracing agreement (stage A uphill
   nearest the grave) so neither side gets "simplified" away.
+- 09:08:2026 - 19:25:26: Recorded design's A/B/C axis warning (in-world
+  generations vs implementation stages; implementation minimum A+B, act-1
+  interior set lives in ward B), phase C's unfinished-state generator rules
+  (partial arc, stepped unfaced ends, no parapet, spoil heap + never-laid
+  dressed stone), and design's ruling that the completed arc covers the
+  approach with the gap on a flank. Story ruled WHICH flank: the
+  barrow-facing one — the outer works stopped before closing the side that
+  faces the grave, because finishing it would have admitted what the wall
+  was for; act 3 collects on that gap.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -390,6 +399,36 @@ works "went up in the old lady's time" long before the player understands
 why. It is also cheaper to build than a complete ward, and it hands act 3 a
 practical asset: **an unfinished outer line is a gap the muster must hold**
 (BIBLE §6, the Court of the Feast).
+
+**Axis warning (design, LANDSCAPE §6.1.3):** A/B/C above are **in-world
+construction generations** — all three are already standing (or standing
+half-built) when the player arrives. Design's *implementation* stages use the
+same letters on a different axis; the implementation minimum is **A+B**, and
+**story's act-1 interior set lives in ward B** (hall, keep-solar,
+tithe-yard; the muniment room sits with the hall). Do not read a build-order
+letter as a fiction letter.
+
+**Phase C's unfinished state, as generator rules** (design): partial arc over
+0.4–0.6 of the perimeter; raw ends terminating in a **stepped unfaced core**
+rather than a clean vertical (at range, that break *is* the tell); 0.6–0.75
+of B's wall height, flat-topped, no parapet; unfaced core on the last
+stretch, lighter and rougher; and on the ground a **spoil heap plus stacks of
+dressed, never-laid stone**. Those two props are the story-critical ones —
+they date the stoppage to *a person* rather than to history, which is the
+whole point of tying phase C to the dowager.
+
+**Where the gap is — settled 09:08:2026.** Design's ruling: the **completed
+arc covers the approach and the gap faces a flank**, because one walls the
+threatened side first, and a gap across the approach would become the
+de-facto way in, make the gatehouse decorative, and quietly kill the
+petitioner ritual the access invariant protects. Story's ruling on *which*
+flank: **the barrow-facing one.** The dowager began the outer works where a
+frightened family is able to explain itself — the road, the approach,
+brigands — and the work stopped before it closed the side that faces the
+grave. Finishing that stretch would have been an admission of what the wall
+was for. So the lie in stone repeats at small scale: the wall the fear built
+could not be finished toward the thing feared. Act 3 collects on it — the
+dead come from the barrow, through the gap that shame left open.
 
 **Terrain agreement to preserve (design + story reached it independently):**
 design's terracing puts stage A uphill nearest the barrow for cut-budget

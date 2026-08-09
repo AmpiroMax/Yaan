@@ -57,14 +57,31 @@ namespace dfn::world {
 
 /// The solved castle: pad + ramp geometry, the heights actually built (post
 /// R3), and the placed element records. `valid` is false when none is built.
+/// One terraced ward. The fortress is a CHAIN of these stepping down the spur,
+/// not one slab: a single 120 m terrace cannot hold a 6 m cut budget on a
+/// hillside, and it also swallowed the Backbarrow carve 54 m away. Ward 0 is
+/// the uphill, OLDEST ward nearest the barrow (story: the Corvanes fortified
+/// out of fear of what they buried — which is also the order the cut budget
+/// wants, arrived at independently).
+struct CastleWard {
+    glm::vec2 center{0.0f};
+    float half_size = 0.0f;
+    float blend = 0.0f;
+    float height = 0.0f; ///< terrace surface elevation
+    float cut = 0.0f;
+    float fill = 0.0f;
+};
+
 struct CastleBuild {
     bool valid = false;
     glm::vec2 center{0.0f};
-    float half_size = 0.0f;  ///< CASTLE_PAD_SIZE / 2
-    float blend = 0.0f;      ///< terrace skirt width (pad edges blend 1.5x pad)
-    float pad_height = 0.0f; ///< terrace surface elevation, meters
-    float cut = 0.0f;        ///< max material removed above the pad (<= CASTLE_PAD_CUT_MAX)
-    float fill = 0.0f;       ///< max material added below the pad
+    float half_size = 0.0f;  ///< half the ward chain's overall span
+    float blend = 0.0f;
+    float pad_height = 0.0f; ///< ward 0's surface: the reference elevation
+    float cut = 0.0f;        ///< WORST cut across all wards (<= CASTLE_PAD_CUT_MAX)
+    float fill = 0.0f;       ///< worst fill across all wards
+    CastleWard wards[3]{};
+    int ward_count = 0;
     float gate_yaw = 0.0f;   ///< radians; gate faces the valley/ford approach
 
     /// Approach ramp (access invariant): a graded band on the gate side,
@@ -80,8 +97,11 @@ struct CastleBuild {
     float wall_height = 0.0f;
     float gate_height = 0.0f;
 
-    /// Highest point of the built mass, absolute meters (pad + the solar).
-    [[nodiscard]] float top_elevation() const { return pad_height + solar_height; }
+    /// Highest point of the built mass, absolute meters. The solar stands on
+    /// ward 0, which is the highest terrace.
+    [[nodiscard]] float top_elevation() const {
+        return (ward_count > 0 ? wards[0].height : pad_height) + solar_height;
+    }
 
     std::vector<GeneratedEntityRecord> entities; ///< world_ids assigned by P4
     std::vector<SiteType> types;                 ///< parallel to entities

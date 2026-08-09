@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:20:45
+Last updated: 09:08:2026 - 19:23:49
 -->
 <!--
 UPD:
@@ -24,6 +24,7 @@ UPD:
 - 09:08:2026 - 19:15:39: §5.7 sight wedges RE-RULED after the C1 correction (flora asked for the re-decision): near/far half-split replaced by the single crown-vs-flank test already used for the castle; giants ALLOWED in wedges (one per wedge) because an off-axis elder gives the landmark scale — repoussoir is our best depth cue and the exclusion deleted it; C4 sharpened to govern masses and built structures rather than individual near vegetation.
 - 09:08:2026 - 19:19:07: Flora's root-flare finding. §5.10 — cliff-edge setback datum corrected: >=1.5 m measured from the OUTER EDGE OF THE ROOT FLARE, not the trunk axis (a 1.6x flare left only ~0.5 m of ground and the tree would still have floated); cliff lean recorded as a separate, larger parameter than the crowding lean. §2.7 — added the standing rule that terrain never flattens under vegetation: the plant absorbs the ground via root flare, because a smoothed disc under every trunk is the pool-table flatness this section exists to remove; future "floating trees" bugs are flora/render fixes, not terrain ones.
 - 09:08:2026 - 19:20:45: §6.1.3 — story picked fork (a) (the Corvanes fortified because they feared what they buried), so two terrain asks folded in: ward masonry phasing carried by BLOCK SIZE AND VALUE rather than texture (invisible at 640x360), which costs nothing because the terrace order already puts the oldest ward uphill nearest the barrow; and a binding sightline from the barrow-facing corner tower's top to the barrow entrance, validated and occlusion-protected like the yard/gate sightline.
+- 09:08:2026 - 19:23:49: §6.1.3 — three named masonry phases from story (panic / treaty money / fear returning), and resolved an ambiguity I created: my A/B/C were BUILD stages, story's are IN-WORLD construction generations, all present when the player arrives — the doc now means the in-world axis, with implementation minimum A+B. Phase C ruled UNFINISHED as generator rules: 0.4-0.6 partial arc with the completed arc covering the APPROACH and the gap on a flank (a gap on the approach would make the gatehouse decorative and kill the petitioner ritual), raw stepped unfaced ends, 0.6-0.75 height, no parapet, spoil heap and never-laid dressed stone. Nearly free against R3 and the silhouette budget.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1327,8 +1328,37 @@ Each stage is a ring, not a rebuild — and every stage re-runs the §6.1.1
 checks, because a lower bailey extends the silhouette downhill toward the
 valley where it is most visible.
 
+**Phase C is UNFINISHED — as generator rules, not an adjective.** Story's
+choice, and the cheapest of the three to build because most of it is what is
+*not* there. Rules:
+
+- **Partial arc:** the ring is built through `CASTLE_WARD_C_COMPLETION` =
+  0.4–0.6 of its perimeter **(предложение — утвердить)**.
+- **The completed arc covers the APPROACH; the gap faces away.** This is both
+  how anyone builds (wall the threatened side first) and a necessary design
+  guard: if the gap fell on the approach it would become the de-facto way in,
+  the gatehouse would be decorative, and the petitioner ritual §6.1.2 exists
+  to protect would quietly die. The gate stays the way in; the gap is a flank.
+- **Raw ends:** the wall terminates in a stepped, unfaced core — a ragged
+  vertical break, never a clean end. At range this is the whole tell.
+- **Lower and unparapeted:** `CASTLE_WARD_C_HEIGHT_FRAC` = 0.6–0.75 of the B
+  wall height, flat-topped, no crenellation **(предложение — утвердить)**.
+- **Unfaced core** on the last stretch: lighter, rougher value than B's facing
+  — inside the same block-size-and-value grammar, so it reads at 640×360.
+- **Stopped work on the ground:** a spoil heap and stacks of dressed,
+  never-laid stone at the raw end. Two props that say "stopped" better than
+  any amount of wall detail, and they date the stoppage to a person rather
+  than to history.
+
+Bonus the fiction did not have to pay for: at 0.6–0.75 height and partial
+extent, C adds almost nothing to the silhouette budget — it is nearly free
+against R3 and the §6.1.1 checks.
+**FUTURE (act 3):** the gap is a hole a muster must hold. Whenever that beat
+needs a specific footprint, the completion fraction is the knob — story comes
+to me with the beat, not with metres.
+
 **The phasing is legible in stone (story's ask, and the two systems already
-agree).** Each ward carries a masonry generation: **stage A is the oldest and
+agree).** Each ward carries a masonry generation: **phase A is the oldest and
 roughest**, later wards progressively more regular. At 640×360 this must be
 carried by **block size and value, never surface texture** — fine coursing
 detail is invisible at our resolution, so: older = larger irregular blocks in
