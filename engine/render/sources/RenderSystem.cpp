@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 17:33:00
+Last updated: 09:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -42,6 +42,7 @@ UPD:
   (draw_overlay), map_.note_chunk on terrain upload, map_.note_site in the ECS
   pass (before the mesh lookup, so the mesh-less castle ids 8..11 still map),
   DFN_MAP=1 opens the map at init for the tour evidence shot.
+- 09:08:2026 - 21:00:00: upload_terrain_voxel (see the header UPD).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -55,6 +56,7 @@ UPD:
 #include "engine/render/sources/ScatterBatcher.h"
 #include "engine/render/sources/SkyModel.h"
 #include "engine/render/sources/TerrainMesher.h"
+#include "engine/render/sources/VoxelMesher.h"
 #include "engine/render/sources/Tour.h"
 #include "engine/render/sources/WaterMesher.h"
 
@@ -459,6 +461,27 @@ void RenderSystem::upload_terrain(platform::IRenderer& renderer,
         it->second = handle.id;
     } else {
         terrain_meshes_.emplace(field.chunk_coord, handle.id);
+    }
+}
+
+void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
+                                       const math::VoxelMeshView& mesh) {
+    const TerrainMeshData data = build_voxel_terrain_mesh(mesh);
+    if (data.vertices.empty()) {
+        return; // solid or empty chunk
+    }
+    const platform::MeshHandle handle = renderer.create_mesh(data.vertices, data.indices);
+    if (!handle.valid()) {
+        return;
+    }
+    // Same key as the heightfield upload: whichever source ran last owns the
+    // chunk, so switching the ferry over never draws both.
+    const auto it = terrain_meshes_.find(mesh.chunk_coord);
+    if (it != terrain_meshes_.end()) {
+        renderer.destroy_mesh(platform::MeshHandle{it->second});
+        it->second = handle.id;
+    } else {
+        terrain_meshes_.emplace(mesh.chunk_coord, handle.id);
     }
 }
 

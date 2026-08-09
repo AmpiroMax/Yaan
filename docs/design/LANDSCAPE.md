@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:15:39
+Last updated: 09:08:2026 - 19:20:45
 -->
 <!--
 UPD:
@@ -22,6 +22,8 @@ UPD:
 - 09:08:2026 - 19:06:29: C1 blocking ruling. §1.3 — binary forest opacity RETIRED in favour of Beer-Lambert attenuation over expected canopy hits (T = exp(-sum n_local*w(h)*d), visible at T >= CANOPY_VISIBILITY_MIN 0.25; permits ~225 m of trunk-level or ~24 m of crown-level forest), which subsumes and retires the ad-hoc CANOPY_TRUNK_PATH_MAX; same transmittance governs C4. Stated as a physics correction allowed ONCE — if seed 1 still fails, the world changes, not the floor. Recorded core's measurements: heights cost -0.048, band recovers only +0.011, crown-base fraction is visibility-insensitive. §1.3 C4 — my "live for canopy" boundary REFUTED by measurement in 52-64 m with the mechanism now stated (the crag's own flanks dominate and it hides itself faster than it gains height); above 64 m untested due to WORLDGEN_MAX_HEIGHT saturation, so L0_RELIEF stays open pending the re-run at the raised ceiling.
 - 09:08:2026 - 19:14:17: STOP-THE-LINE correction + stage-4 batch. §1.3 — "raising the peak lowers clearance" WITHDRAWN entirely: core's C1 raycast was counting the crag as an occluder of itself, so every C1 number this stage was contaminated; corrected, clearance RISES with peak (52->0.751 ... 200->0.915) and the taller canopy never broke C1 (0.751 vs 0.60 floor). Recorded why it survived — directionally plausible findings get less scrutiny than surprising ones. Beer-Lambert attenuation kept as the better model but explicitly NOT load-bearing: the one-time physics-correction budget was never spent. §1.3a — LANDMARK_MAX_DISTANCE 4 km bounds the far plane (CAMERA_FAR 1000 -> >=4000), beyond it is backdrop; 10x10 km gets one LR per 4x4 km cell. §2.5 — "7000 steps" ruled as a staged climb (1200-1800 m path, 5-7 landings), literal reading flagged to the user. §2.7 — meso relief band 25-60 m / 1.5-4 m as GENERAL terrain (forest-only would seam the forest edge) + scarps 2-5 m. §5.8 — maturity re-weighted 25/60/12/3 (sapling rare per user; sub-mature retained because young trees do mid-canopy layering, not ground fill). §5.9 — snag density split by material: 1.5-3/ha weathered grey inside forest, 0.25-0.5/ha pale bone in the open, preserving the false-L2-guide rule. §5.10 — BigBush, FallenLog (big/small, across the fall line), trees on scarp edges approved. §6.1 — castle REVISED to a real fortress per user: 80x80 curtain + 4 towers + twin-tower gatehouse + hall + keep, scalable by terraced wards A/B/C, pad 60->120 m; safe because Ravenscar's growth gives ~2x architectural headroom under the same siting mechanism. §6.3 — NEW: true-darkness places, graded AMBIENT_FLOOR, qualification by enclosure + 25 m depth, three anti-surprise layers, torch floor 4 m, C1 exempt with a findable-way-out guarantee.
 - 09:08:2026 - 19:15:39: §5.7 sight wedges RE-RULED after the C1 correction (flora asked for the re-decision): near/far half-split replaced by the single crown-vs-flank test already used for the castle; giants ALLOWED in wedges (one per wedge) because an off-axis elder gives the landmark scale — repoussoir is our best depth cue and the exclusion deleted it; C4 sharpened to govern masses and built structures rather than individual near vegetation.
+- 09:08:2026 - 19:19:07: Flora's root-flare finding. §5.10 — cliff-edge setback datum corrected: >=1.5 m measured from the OUTER EDGE OF THE ROOT FLARE, not the trunk axis (a 1.6x flare left only ~0.5 m of ground and the tree would still have floated); cliff lean recorded as a separate, larger parameter than the crowding lean. §2.7 — added the standing rule that terrain never flattens under vegetation: the plant absorbs the ground via root flare, because a smoothed disc under every trunk is the pool-table flatness this section exists to remove; future "floating trees" bugs are flora/render fixes, not terrain ones.
+- 09:08:2026 - 19:20:45: §6.1.3 — story picked fork (a) (the Corvanes fortified because they feared what they buried), so two terrain asks folded in: ward masonry phasing carried by BLOCK SIZE AND VALUE rather than texture (invisible at 640x360), which costs nothing because the terrace order already puts the oldest ward uphill nearest the barrow; and a binding sightline from the barrow-facing corner tower's top to the barrow entrance, validated and occlusion-protected like the yard/gate sightline.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -655,6 +657,17 @@ Add `GROUND_MESO_WAVELENGTH` = 25–60 m at `GROUND_MESO_AMPLITUDE` = 1.5–4 m
 **(предложение — утвердить)** — dips, rises and hollows you walk into and out
 of. Max local slope ≈ 18°, so corridors and pads are unaffected.
 
+**Terrain does NOT flatten under vegetation — vegetation absorbs the terrain.**
+Stated because the opposite fix is the tempting one and it would undo this
+whole section: micro and meso relief deliberately make the ground under a tree
+uneven (a 1.2 m trunk on `TREE_SLOPE_MAX` spans ≈ 0.84 m of drop across its
+own base, before roughness), and the answer is **geometry on the plant** — a
+root flare that buries its own skirt (§5.10) — never a flattened disc of lawn
+beneath every trunk. A forest floor smoothed under each stem is a pool table
+with trees on it, which is precisely the flatness complaint that produced this
+section. Any future "trees are floating" bug is a flora/render fix, not a
+terrain one.
+
 **Ruling: this is GENERAL terrain, not a forest-specific stamp.** Forests
 merely sit on it. Three reasons: a forest-only stamp makes the forest edge a
 seam where terrain character visibly changes — the classic tell of generated
@@ -1063,11 +1076,21 @@ logs become legal in corridors and turn into pacing furniture.
 leaning out over a drop is a superb silhouette and a genuine L2 guide, and it
 is exactly the kind of detail that still reads at 640×360. Constraints:
 mature or giant tiers only (a sapling on a cliff reads as an accident, not a
-statement); root plate set back ≥ 1.5 m from the edge so it never floats when
-the scarp is voxelised; lean 10–20° outward, away from the mass; scarps ≥ 3 m
-only, since below that there is no drama; **never inside a sight wedge** (a
-tall occluder on a high edge is the worst case we have). Rare by design —
-one per scarp segment, never a row: a row reads as planted.
+statement); lean 10–20° outward, away from the mass; scarps ≥ 3 m only, since
+below that there is no drama; **never inside a sight wedge** (a tall occluder
+on a high edge is the worst case we have). Rare by design — one per scarp
+segment, never a row: a row reads as planted.
+
+**Setback corrected (flora's root-flare finding).** The ≥ 1.5 m root-plate
+setback is measured **from the outer edge of the root flare, not the trunk
+axis** — with a 1.6× flare on a 1.2 m trunk the flare radius is ≈ 0.96 m, so
+the original wording left barely 0.5 m of ground beyond it and the tree would
+still have floated the first time the scarp was voxelised. The rule was right;
+the datum was wrong.
+
+**The lean here is a SEPARATE, larger parameter than the crowding lean** —
+flora's note, adopted: crowding lean caps near 0.12 rad, and reusing it on a
+cliff edge produces a limp tree instead of a statement.
 
 **Collision 2 — under-canopy walkability.** `CANOPY_CLEARANCE_MIN` = 2.2 m is
 a floor, satisfied ~4× over by a crown base at 35–45 % of height. Stated
@@ -1285,15 +1308,47 @@ level flat within `BUILDING_PAD_SLOPE_MAX` and the wall running along the
 terrace edges. This is what real hillside fortresses do, it solves the cut
 budget, and it makes growth additive:
 
-| Stage | Adds | Terrace |
-|---|---|---|
-| **A (now)** | curtain + 4 towers + gatehouse + hall + solar | upper ward |
-| **B** | tithe-yard, granary, stables | lower bailey, one terrace down |
-| **C** | barbican / outer works | outermost terrace |
+**Two different A/B/C axes — do not conflate them (ambiguity I created,
+resolved).** My first table read as *build* stages (what we implement now
+versus later). Story's phases are *in-world construction generations* — all
+three already exist when the player arrives. They are different axes and the
+doc means the **in-world** one from here on:
+
+| Phase | In-world | Contains | Terrace | Masonry |
+|---|---|---|---|---|
+| **A — the panic** | first Corvane lord, on the crown's grant; built fastest, closest to the grave | curtain + 4 towers, the redoubt | upper ward (uphill, nearest crag and barrow) | largest irregular blocks, darkest weathered value |
+| **B — the treaty money** | ~2 generations later; the family made respectable, a seat rather than a redoubt | hall, keep-solar, gatehouse, tithe-yard, granary | lower bailey, one terrace down | smaller regular coursing, lighter and cleaner |
+| **C — the fear returning** | the dowager's time; begun, never finished | outer works, partial | outermost terrace | B's stone, stopped mid-sentence |
+
+**Implementation minimum is A + B** (the act-1 interior set lives in B), and C
+comes along free because C is mostly *absence*.
 
 Each stage is a ring, not a rebuild — and every stage re-runs the §6.1.1
 checks, because a lower bailey extends the silhouette downhill toward the
 valley where it is most visible.
+
+**The phasing is legible in stone (story's ask, and the two systems already
+agree).** Each ward carries a masonry generation: **stage A is the oldest and
+roughest**, later wards progressively more regular. At 640×360 this must be
+carried by **block size and value, never surface texture** — fine coursing
+detail is invisible at our resolution, so: older = larger irregular blocks in
+a darker weathered value; newer = smaller regular coursing in a lighter,
+cleaner value. Read at distance it becomes a tonal difference *between wards*,
+which is exactly the point.
+
+This costs nothing because the terracing rule already puts stage A uphill,
+nearest the crag and nearest the barrow, with later wards stepping down toward
+the valley. So the oldest, roughest, most hurried masonry is the ring closest
+to the grave — story's "phases of dread" and my terrace order are the same
+geometry, arrived at independently. Free coherence; keep it.
+
+**One corner tower overlooks the barrow (story's ask, ruled binding).** The
+corner tower nearest the Backbarrow must have **clear line of sight from its
+top to the barrow entrance**, validated by the same raycast as the yard/gate
+sightline (§6.1.2) and equally protected from later occlusion. A garrison
+posted on a grave should be visibly posted *on the grave* — and unlike most
+narrative asks this one is free: the tower exists anyway, the requirement only
+fixes which corner it is and forbids the terrace cut from blinding it.
 
 **Readability changes, and that is intended.** At 80–120 m across, the
 fortress *will* now read from Vaelmere (≈ 390 m) where the old hall was

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 15:05:56
+Last updated: 09:08:2026 - 19:17:47
 -->
 <!--
 UPD:
@@ -14,6 +14,11 @@ UPD:
   castle+barrow one-frame composition; the solar that faces away from the
   grave visible from its own yard), §7 split into design-owned exterior vs
   story-requested interior set, open item 1 closed.
+- 09:08:2026 - 19:17:47: Castle rescaled to a fortress per the user's
+  decision (LANDSCAPE §6.1 revised): §4 gains the scale note and a third
+  beat (the re-read — walls as testimony the valley stopped seeing), §7
+  exterior spec updated to the 80x80 m towered curtain on a 120 m terraced
+  pad. Interior set unchanged and still act-1 blocking.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -195,7 +200,22 @@ against the crag's body (never against sky — the tower keeps the skyline),
 its gate faces the valley and the ford, and **its yard and gate have clear
 line of sight to the Backbarrow entrance ~55 m away**.
 
-Two beats now key off that terrain truth:
+**Scale (revised 09:08:2026):** the Ward is a fortress, not a hall — it
+**reads from Vaelmere** as a grey band along the crag's foot, resolving on
+approach into gatehouse, towers and roofs. The act-1 reveal is therefore
+"you did not know how big it was", not "you did not know it was there", and
+the hamlet lives in sight of Corvane power every day. Per BIBLE §5.1 the
+walls are testimony — the house fortified against what it buried — and they
+are badly under-manned since the succession war took the garrison.
+
+Three beats now key off that terrain truth:
+
+- **The re-read** (MQ3→MQ4): once the player knows what happened at
+  Harrowmere, the castle stops being scenery. Towers overlooking a grave, a
+  charter that says *ward the barrow* — the evidence stood in the open for
+  four generations and the valley stopped seeing it. Author one late-act
+  line from a resident who has looked at those walls daily and never once
+  asked what they were built against.
 
 - **The frame** (MQ1 aftermath, free): walking up to the castle to report or
   petition, the player has the barrow mouth and the castle in one view. No
@@ -292,8 +312,9 @@ What act 1 **cannot** ship without, in priority order:
    beacon-log (act-1 climax; already the L0's crown).
 7. **Harrowward castle** — REQUIRED for MQ2's petition spoke, secondary 3,
    and MQ4's muniment room + Refusal beat. Exterior mass, pad and access are
-   design's (LANDSCAPE §6.1: curtain wall + gatehouse + hall + solar around
-   an open yard, 60 m pad, graded walkable ramp to the gate). Minimum
+   design's (LANDSCAPE §6.1, revised: 80×80 m towered curtain, twin-tower
+   gatehouse, hall + keep-solar inside the enclosure, 120 m terraced pad,
+   graded walkable ramp to the gatehouse). Minimum
    **interior** set, which is story's ask of whoever builds interiors:
    **hall (public), yard/tithe-yard, muniment room, solar**. Gatehouse and
    chapel are desirable, not blocking. Without the castle, MQ4's Refusal beat

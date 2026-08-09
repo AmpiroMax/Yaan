@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 19:26:00
+# Last updated: 09:08:2026 - 21:00:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -22,6 +22,7 @@
 # - 09:08:2026 - 17:32:10: Map screen — PixelCanvas (first UI primitive) and
 #   MapScreen (explored top-down map).
 # - 09:08:2026 - 19:26:00: SkyModel.cpp (day/night sun+moon model).
+# - 09:08:2026 - 21:00:00: VoxelMesher.cpp (draw the carved voxel surface).
 
 add_library(dfn_render STATIC
     sources/DebugDraw.cpp
@@ -34,6 +35,7 @@ add_library(dfn_render STATIC
     sources/ScatterBatcher.cpp
     sources/SkyModel.cpp
     sources/TerrainMesher.cpp
+    sources/VoxelMesher.cpp
     sources/Tour.cpp
     sources/WaterMesher.cpp)
 target_link_libraries(dfn_render PUBLIC dfn_headers)

@@ -123,9 +123,11 @@ TEST_CASE("apply_sky_time leaves non-sky fields alone") {
     RenderEnvironment env;
     env.terrain_tiles_per_chunk = 17.0f;
     env.water_color = {0.1f, 0.2f, 0.3f, 0.4f};
-    env.point_light_radius_m = 9.0f;
+    env.point_light_count = 1;
+    env.point_lights[0].radius_m = 9.0f;
     apply_sky_time(env, 0.33f, 0.2f);
     CHECK(env.terrain_tiles_per_chunk == doctest::Approx(17.0f));
     CHECK(env.water_color.a == doctest::Approx(0.4f));
-    CHECK(env.point_light_radius_m == doctest::Approx(9.0f));
+    CHECK(env.point_light_count == 1);
+    CHECK(env.point_lights[0].radius_m == doctest::Approx(9.0f));
 }

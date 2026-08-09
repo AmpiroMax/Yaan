@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 17:33:00
+Last updated: 09:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -58,11 +58,14 @@ UPD:
   member fed by upload_terrain (explored chunks) and the ECS pass (site
   markers), and the generic draw_overlay path that blits a PixelCanvas over
   the frame as an unlit screen-filling quad (no IRenderer change, Rule 26).
+- 09:08:2026 - 21:00:00: upload_terrain_voxel — render draws core's voxel
+  surface, so carved interiors (tunnel, barrows) exist on screen at all.
 */
 
 #pragma once
 
 #include "engine/core/math/sources/SurfaceField.h"
+#include "engine/core/math/sources/VoxelField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 #include "engine/render/sources/MapScreen.h"
@@ -108,6 +111,16 @@ public:
                         const math::SurfaceFieldView* surface);
     // Destroys the chunk's mesh. Must run before core frees the heightmap
     // (ChunkUnloaded fires before the data is freed — agreed lifetime).
+    // The VOXEL surface — the true world geometry, carves included. Terrain
+    // was drawn from the heightfield, which is a function of (x, z) and cannot
+    // represent a ceiling, so the inside of the crag tunnel and the barrows
+    // was never submitted at all: walkable, invisible. Uploading the voxel
+    // mesh for a chunk REPLACES its heightfield mesh (same key), so the app
+    // ferry can switch over per chunk without a flicker of double geometry.
+    // This is also the first step of terrain LOD — core's coarse nodes arrive
+    // through the same VoxelMeshView shape.
+    void upload_terrain_voxel(platform::IRenderer& renderer,
+                              const math::VoxelMeshView& mesh);
     void drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord);
 
     // Scatter (stage 3b, data-only P5 instances — never entities) --------------

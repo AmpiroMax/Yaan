@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 19:12:24
+Last updated: 09:08:2026 - 19:21:01
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -61,6 +61,10 @@ UPD:
                          open, canvas told the internal resolution.
 - 09:08:2026 - 19:12:24: Day/night clock wired: 48-minute day, T holds for a
                          50x debug run, lunar phase as a pure function of date.
+- 09:08:2026 - 19:21:01: Terrain DRAWN from the voxel mesh (render's finding:
+                         there was no voxel render path at all, so carves were
+                         never submitted — the reported "saw the map from
+                         inside the barrow" was missing geometry, not light).
 */
 
 #include "engine/app/sources/App.h"
@@ -270,8 +274,19 @@ bool App::init(const AppConfig& config) {
         if (!view) {
             return;
         }
-        auto sf = chunks_.surfacefield(e.coord);
-        render_system_.upload_terrain(*renderer_, *view, sf ? &*sf : nullptr);
+        // Terrain is DRAWN from the voxel mesh, not the heightfield. A
+        // heightfield stores one height per column, so it is mathematically
+        // incapable of a ceiling: inside a carve there was nothing to submit
+        // at all, and a live player who walked into the barrow saw the world
+        // from the inside. The heightfield upload remains as the fallback for
+        // chunks that have no voxel mesh.
+        const auto voxel = chunks_.voxel_mesh(e.coord);
+        if (voxel) {
+            render_system_.upload_terrain_voxel(*renderer_, *voxel);
+        } else {
+            auto sf = chunks_.surfacefield(e.coord);
+            render_system_.upload_terrain(*renderer_, *view, sf ? &*sf : nullptr);
+        }
         render_system_.upload_scatter(*renderer_, {e.coord.x, e.coord.z},
                                       chunks_.scatter(e.coord));
 
@@ -281,9 +296,9 @@ bool App::init(const AppConfig& config) {
         // handle means "empty chunk, no body needed" and is not an error.
         // sim's helper sets LAYER_STATIC (hand-rolling that once left `layer`
         // at 0 — a body colliding with nothing, and the player fell through).
-        if (const auto mesh = chunks_.voxel_mesh(e.coord)) {
+        if (voxel) {
             ChunkPhysics cp;
-            cp.body = physics::create_terrain_mesh_body(*physics_, *mesh, 0);
+            cp.body = physics::create_terrain_mesh_body(*physics_, *voxel, 0);
             if (cp.body.valid()) {
                 g_chunk_physics[pack_coord({e.coord.x, e.coord.z})] = std::move(cp);
             }

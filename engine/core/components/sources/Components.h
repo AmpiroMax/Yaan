@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:15:56
-Last updated: 09:08:2026 - 18:58:05
+Last updated: 09:08:2026 - 19:19:01
 Module: engine/core/components
 File: engine/core/components/sources/Components.h
 
@@ -44,6 +44,8 @@ UPD:
                          RenderMesh, LocalBounds).
 - 09:08:2026 - 00:29:27: Added HoverTarget world-resource (sim's Q11 design:
 - 09:08:2026 - 18:58:05: HoverTarget gains verb + prompt_key (sim's diff,
+- 09:08:2026 - 19:19:01: CarriedLight (sim's diff, lead-authored per Rule 26;
+                         agreed sim<->render). Torch light that casts shadows.
                          lead-authored per Rule 26; agreed sim<->render).
                          gameplay raycasts and writes, render reads). Stage-1
                          sync: CameraPose ACKed by sim; LocalBounds stays raw
@@ -121,6 +123,24 @@ struct HoverTarget {
                               // shared component later for a field already
                               // known to be needed. 64-bit to stay in the one
                               // frozen FNV-1a hash space (Rule 5).
+};
+
+// A light carried by an entity (torch, lantern). Written by gameplay when an
+// item is held AND lit; read by render, which collects every entity with
+// CarriedLight + Transform into its point-light array.
+//
+// `offset` is NOT cosmetic: a light at the EYE casts no visible shadow by
+// construction — every surface you can see is lit by definition — so the
+// flame must sit where the hand is (~0.35 m right, 0.25 m down) for shadows
+// from a carried light to exist at all. Attached to the CARRIER rather than
+// the player so an NPC with a lantern works with no extra code either side.
+// radius/colour of 0 mean "render's default", so a plain torch costs nothing
+// and a blue ritual lamp later costs two numbers instead of a new component.
+struct CarriedLight {
+    bool active = false;     // held AND lit
+    float radius_m = 0.0f;   // 0 = render's default for a torch
+    uint32_t color_rgb = 0;  // 0 = render's default (warm flame)
+    glm::vec3 offset{0.0f};  // carrier-local offset of the flame
 };
 
 } // namespace dfn::components

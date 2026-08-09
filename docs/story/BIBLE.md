@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 15:09:18
+Last updated: 09:08:2026 - 19:22:07
 -->
 <!--
 UPD:
@@ -28,6 +28,25 @@ UPD:
   yard→barrow sightline are now build-enforced members of the C1-guarded
   validation set, so the ~55 m composition survives retunes, with a
   ping-story-first rule if the castle must ever move.
+- 09:08:2026 - 19:17:47: User overruled the castle's scale — Harrowward is a
+  fortress (80x80 m towered curtain, twin-tower gatehouse, hall + keep-solar
+  inside, 120 m terraced pad, expandable; Ravenscar grows to 110-120 m so
+  hierarchy ratios hold). Story's ruling on design's fork: option (a) —
+  the Corvanes fortified against what they buried, so the architecture is
+  testimony and the walls are the valley's largest lie in plain sight —
+  PLUS the canon fact that the succession war stripped the garrison, which
+  supplies option (b)'s "rattling around in too much castle" without
+  inheriting anyone else's walls. Reveal shifts to "you did not know how
+  big"; visibility from Vaelmere is now a feature (ambient Corvane power).
+  Geometry unchanged: 55 m barrow proximity, valley-facing gate, act-3
+  muster yard.
+- 09:08:2026 - 19:22:07: Ward phasing mapped to three story phases (A panic /
+  B treaty money / C the dowager's unfinished fear), with design's
+  block-size-and-value grammar recorded and phase C deliberately left
+  incomplete — ties the walls to a living character and gives act 3 a gap
+  the muster must hold. Recorded design's binding barrow-sightline tower
+  rule and the independently-reached terracing agreement (stage A uphill
+  nearest the grave) so neither side gets "simplified" away.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -277,10 +296,14 @@ from act 1 and reached later, never built now.
   the crag's rock value, castle and crag read as **one composition**:
   fortress at the foot, mountain above. Fiction should describe it that way —
   the Corvanes did not build beside the crag, they built *into* it.
-- **Hall-castle, not fortress:** horizontal-dominant mass — a long hall block
-  with one modest solar vertical, no tall keep. Minimal build = curtain wall,
-  gatehouse, hall and solar block around an open yard, inside a 60 m pad;
-  chapel, granary and outer works are elaboration on the same pad.
+- **A fortress, and the fiction says why** (user decision, 09:08:2026;
+  revised LANDSCAPE §6.1): an 80×80 m curtain at 8–10 m with four corner
+  towers (12–15 m), a twin-tower gatehouse (14–16 m), and the hall plus a
+  16–20 m keep/solar **inside** the enclosure, on a 120 m pad terraced in
+  wards so it can grow (stage A upper ward, stage B lower bailey, stage C
+  outer works). Ravenscar grows to 110–120 m in the same pass, so every
+  hierarchy ratio holds and the fortress still reads against rock, never
+  against sky. **Story's ruling on what that means: see §5.2.**
 - **Access invariant is binding on terrain:** the approach side carries a
   graded ramp within the walkable-corridor limits, corridor to gate
   threshold; a pad whose only approach is a scarp is a failed placement, not
@@ -312,13 +335,74 @@ from act 1 and reached later, never built now.
   up-valley, and the corridor from the watchpoint ford is the natural line
   for people walking up from Vaelmere.
 
-**What it is.** **Harrowward**, called simply **the Ward** — a small stone
-hall-castle built against the crag's foot: curtain wall, gatehouse, a long
-hall block, a modest solar, chapel, muniment room, kennels, a granary and a
-tithe-yard around an open yard. Not a royal fortress; a gentry seat. From the
-hamlet it is a pale-grey notch on Ravenscar's dark flank — the only stone
-mass in a valley of timber and thatch, and it never breaks the skyline: the
-crag owns that, and the tower on top of it owns the story.
+**What it is.** **Harrowward**, called simply **the Ward** — a walled
+fortress at the crag's foot: towered curtain, twin-tower gatehouse, and
+inside the enclosure a hall, a keep-solar, chapel, muniment room, granary,
+kennels and the tithe-yard. From Vaelmere it is a pale-grey band along
+Ravenscar's dark flank, resolving on approach into gate, towers and roofs —
+the only stone in a valley of timber and thatch, and it never breaks the
+skyline: the crag owns that, and the tower on top of it owns the story.
+
+**Why a fortress — the architecture is testimony** (story's ruling on
+design's fork, 09:08:2026): House Corvane did not build big because it was
+grand. It built big because it was **afraid of what it had buried**. The
+crown's grant that raised the Ward in the years after the Feast says the
+thing outright — *to ward the barrow* — and everyone for four generations has
+read that as border-keeping and bandits, because a familiar castle is a thing
+nobody looks at twice. It is a garrison posted on a grave, with towers that
+overlook it, paid for by the treaty the grave made possible.
+
+This makes the walls **the largest lie in the valley, standing in plain
+sight** — which is precisely what the rust punishes, told in stone at a scale
+the whole hamlet can see and has stopped seeing. It hands act 1 its best
+re-read: once the player knows what happened at Harrowmere, the castle stops
+being scenery and becomes evidence — the testimony was always there, in the
+open, and the valley had simply grown used to it.
+
+**And it is nearly empty.** The realm's succession quarrel stripped the
+valley's garrison years ago (BIBLE §5, the same fact that let the wards
+fail): eighty metres of curtain, four towers and a gatehouse are held by a
+young lord, a steward, a gate-serjeant and a handful of retainers. The
+Corvanes rattle around inside their great-grandfather's fear, unable to man
+it — so the fortress reads as *strength that is no longer there*, and the
+Reckoning's arrival looks less like an invasion than like a debt collector
+walking up to a house whose guards were called away. The staged wards
+(A/B/C) are the family's phases of wealth and dread built in stone.
+
+**The three phases (story's mapping; design sets the stage boundaries to
+match, LANDSCAPE §6.1.3).** Phase difference is carried by **block size and
+value**, never surface texture — at 640×360 fine coursing is invisible, so
+"old" means larger irregular blocks in a darker weathered value and "later"
+means smaller regular coursing in a lighter, cleaner one. The result reads at
+distance as a **tonal difference between wards**, which is exactly the thing
+the player should see.
+
+| Ward | When | What it says | Stone |
+|---|---|---|---|
+| **A — upper ward** (uphill, nearest the crag and the barrow) | the years right after the Feast | **the panic.** Built first, fastest, closest to the grave, by the first Corvane lord with the crown's grant | largest irregular blocks, darkest weathered value |
+| **B — lower bailey** (hall, keep-solar, tithe-yard) | ~two generations later | **the treaty money.** The family made respectable: comfort, display, a seat rather than a redoubt | smaller regular coursing, lighter and cleaner |
+| **C — outer works** | begun in the **dowager's** time, and **never finished** | **the fear returning without the means.** She knows the truth entire (§5.1 household); she made them build again — and then the succession quarrel took the garrison and the money | started in B's manner, stopping abruptly: raw ends, unfaced cores, no parapet |
+
+Why phase C is unfinished rather than merely newest: it ties the architecture
+to a **living character** instead of pure history — the outer works are the
+dowager's fear, and she is still in the house. A resident can say the lower
+works "went up in the old lady's time" long before the player understands
+why. It is also cheaper to build than a complete ward, and it hands act 3 a
+practical asset: **an unfinished outer line is a gap the muster must hold**
+(BIBLE §6, the Court of the Feast).
+
+**Terrain agreement to preserve (design + story reached it independently):**
+design's terracing puts stage A uphill nearest the barrow for cut-budget
+reasons; story wants the panicked build nearest the grave for meaning. The
+two systems agree by accident, and both docs record it — do not "simplify"
+one side without checking the other.
+
+**Binding sightline (design, LANDSCAPE §6.1.3):** the corner tower nearest
+the Backbarrow must have clear line of sight from its top to the barrow
+entrance, validated by the same raycast as the yard/gate sightline and
+equally protected against later occlusion. *They have been watching it for
+four generations* is therefore something the player can stand under and
+verify, not a line of lore.
 It was raised **by the first Corvane lord with the crown's grant, in the
 years right after the Feast**, and its charter says it exists "to ward the
 barrow and keep the peace of Harrowmere". Both halves are true and neither

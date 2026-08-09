@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 19:13:19
+Last updated: 09:08:2026 - 19:18:05
 -->
 <!--
 UPD:
@@ -30,6 +30,17 @@ UPD:
                          the taller canopy never broke C1 (0.751 vs 0.60 floor),
                          so the -0.048/+0.011 deltas are void and marked as such.
                          LANDSCAPE 1.3's "do not retry" note is void.
+- 09:08:2026 - 19:18:05: design's final rulings (LANDSCAPE 5.8/5.9/5.10)
+                         fully folded in: near/far wedge split REPLACED by the
+                         crown-occlusion test, giants ALLOWED in wedges (one
+                         per wedge, repoussoir), C4 scoped to masses not near
+                         vegetation; maturity 25/60/12/3 with design's
+                         correction that the young tier was doing mid-canopy
+                         layering, not ground fill; snag two-material split;
+                         BigBush/FallenLog/Deadfall densities; cliff-edge trees.
+                         NEW flora finding: GROUND_SINK_FRAC 0.12 cannot cover
+                         0.84 m of ground drop under a 1.2 m trunk on max slope
+                         — trunks gain a root flare.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -240,16 +251,23 @@ untouched (Rule 26).
   44 trees/ha with every tree at nominal size a stand reads as a *plantation*.
   The mix restores "the forest is full" (пустота — наш враг) without putting
   canopy back.
-  **Re-weighting proposed after the user's forest-floor brief** («мелкие деревья
-  очень редкие», «гигантским и могучим»): giants 15 → 25 %, mature 60 → 67 %,
-  young 25 → 8 %. The young tier existed to carry EYE-LEVEL FILL; the same brief
-  supplies better material for that job — big bushes, fallen logs, snags — which
-  cost fewer triangles than a sapling and say *old forest* where a sapling says
-  *nursery*. With design (their catalog); build against the constant names, and
-  a successor should read whichever values NUMBERS.md carries, not these.
+  **Final tiers (design, after the user's forest-floor brief):
+  25 % giant / 60 % mature / 12 % sub-mature / 3 % sapling.**
+  Flora proposed 25/67/8 on the argument that the young tier was carrying
+  eye-level fill and the brief had supplied better material for that job.
+  **Design corrected the premise and the correction is worth more than the
+  proposal:** a "young" tree at 0.5–0.7× of a 28 m tree is 14–20 m — its crown
+  sits *above* eye level and *below* the main canopy, so it was never doing
+  ground fill at all. It was doing **mid-canopy layering**, which is what makes
+  a wood feel deep instead of a colonnade with debris on the floor. So the tier
+  splits: genuinely small (sapling, 0.4–0.6×) drops to 3 % and satisfies
+  «мелкие деревья очень редкие», while a sub-mature band survives at 12 % to
+  keep the middle of the vertical section populated. Ground fill moves to the
+  §3.4 classes, as argued. **Do not collapse sub-mature back into sapling** —
+  they are different structural jobs that happen to share a scale multiplier.
 - **Giants are not a species.** An elder tree is `DaleOak` with `maturity` > 1
-  (design's ruling: one system, not two). Giants are excluded from L0 sight
-  wedges entirely — a 48 m occluder belongs nowhere near a landmark sightline.
+  (design's ruling: one system, not two). Giants ARE allowed in L0 sight
+  wedges, one per wedge — see §4; an early version of this spec excluded them.
 
 **Known limitation:** `analyse_neighbourhood` sees one chunk unless render feeds
 it a border margin from adjacent chunks. Without the margin, trees within a crown
@@ -273,13 +291,24 @@ landmark is the ray that now shows the player 150 m of bare ground).
 
 Classes, all flora geometry:
 
-| Class | Size | Tris | Job |
-|---|---|---|---|
-| `Bush` | 1–1.5 m | 60–120 | ground texture, softens forest edges |
-| `BigBush` | 2.5–4 m | 120–180 | **an obstacle**: breaks a sightline, makes the player pick a side |
-| `FallenLog` | 8–14 m long, ⌀0.8–1.4 m | 80–120 | "this forest is old"; walk around or climb over |
-| `Deadfall` | 2–4 m, ⌀0.35–0.5 m | ~40 | scatter detail; floored at 0.35 m so it still casts |
-| `Snag` | full tree height, no crown | 30–60 | stark vertical; legal at full height inside a sight wedge |
+All approved by design (LANDSCAPE §5.10) with the densities below:
+
+| Class | Size | Tris | Density | Job |
+|---|---|---|---|---|
+| `Bush` | 1–1.5 m | 60–120 | `BUSH_EDGE_DENSITY` | ground texture, softens forest edges |
+| `BigBush` | 2.5–4 m | 120–180 | 8–15/ha in masses, clearing rims, scarp bases, stream banks; **never in a corridor mask** | **an obstacle**: breaks a sightline, makes the player pick a side |
+| `FallenLog` | 8–14 m, ⌀0.8–1.4 m | 80–120 | 3–8/ha; **excluded from corridors** until sim ships vaulting | "this forest is old"; walk around or climb over |
+| `Deadfall` | 2–4 m, ⌀0.35–0.5 m | ~40 | 15–30/ha, corridors allowed (half-sunk, under step height) | scatter detail; floored at 0.35 m so it still casts |
+| `Snag` (in masses) | full tree height, no crown | 30–60 | 1.5–3/ha (~one per 30–80 m) | **weathered grey-brown** — texture and atmosphere |
+| `Snag` (open ground) | full tree height, no crown | 30–60 | 0.25–0.5/ha | **pale bone** — a legitimate L2 guide |
+
+**The snag split is the model for how to take a user request without discarding
+a composition rule.** Design's constraint was that pale dead wood is the highest
+flora value in the scene, so a common snag becomes a false landmark; the user
+asked for more dead wood. Rather than trade one against the other, the same
+asset got two materials and two densities: *a pale snag alone in a meadow is a
+landmark; a grey snag in a wood is weather.* The user gets dense dead wood where
+they walk and the rule survives contact intact.
 
 `BigBush` is deliberately **not a scaled `Bush`** — the user named them
 separately and they do different jobs. A 1.2 m bush is texture; a 3.5 m bush is
@@ -305,10 +334,16 @@ Log height and placement get re-tuned when jump arrives — a threshold only wor
 once the verb exists. Small deadfall is non-physical (tripping on twigs is not
 a feature). Crowns never get collision, ever.
 
-Terrain relief and cliffs inside forests are core + design work, not flora's,
-but they are the first thing that will exercise the lean and phototropism
-rules, because a tree on a cliff edge leaning out over it is both a real
-botanical behaviour and a strong L2 guide.
+**Cliff-edge trees — approved, deliberate, and constrained.** A tree leaning out
+over a drop is a superb silhouette and a real L2 guide. Design's rules:
+mature/giant only (a sapling on a cliff reads as an accident, not a statement),
+root plate set back ≥ 1.5 m from the edge so it never floats when the scarp is
+voxelised, lean **10–20° outward** (0.17–0.35 rad — note this is a *separate,
+larger* parameter than the crowding lean of §3.3, which is capped near 0.12 rad),
+scarps ≥ 3 m only, and **one per scarp segment** — a row reads as planted.
+Design's §2.7 adds meso relief (25–60 m wavelength, 1.5–4 m amplitude) and
+scarps (2–5 m, 0.5–1.5/ha in forest) as general terrain, so the slope, lean and
+phototropism rules finally have terrain to exercise instead of a gentle roll.
 
 ### 3.5 Two hard geometric floors
 
@@ -329,6 +364,22 @@ lower edge above player height). The tall three target 35–45 % of height, i.e.
 `crown_base_frac · height ≥ 2.2 m` is asserted per species and per instance, and
 for drooping envelopes the check uses the *lowest foliage vertex*, not the crown
 base, because that is what a player's head meets.
+
+**Ground floor — a root flare, not a sink hack.** `ScatterBatcher` currently
+buries every instance by `GROUND_SINK_FRAC` = 0.12 × scale to hide the downhill
+gap under a mesh placed at a single sample height. That is ~0.12 m, and it does
+not survive the new sizes: a ⌀1.2 m trunk on `TREE_SLOPE_MAX` (0.61 rad) spans
+`1.2 × tan(35°)` ≈ **0.84 m of ground drop across its own base**, before §2.7's
+new micro relief (0.3–0.6 m) and meso relief (1.5–4 m) are added. The old
+⌀1.1 m trunk already needed 0.77 m, so this was marginal before and merely
+invisible at small scale.
+Flora's fix, in geometry rather than in a fudge factor: the trunk gains a
+**root flare** — the bottom ~1.2 m widens to roughly 1.6× base radius and
+extends ~1.0 m *below* the sample height. The skirt buries itself in whatever
+the terrain does, real trees have exactly this shape, and it is what makes
+design's "root plate set back ≥ 1.5 m so it never floats when the scarp is
+voxelised" achievable rather than aspirational. Raised with render, since
+`GROUND_SINK_FRAC` is theirs and should probably drop once the flare exists.
 
 **The clearance rule governs canopy, not obstacles.** A bush, a big bush, a log
 and a deadfall are things you walk *around*; they are exempt by definition. The
@@ -481,15 +532,27 @@ reasoning is what a successor cannot reconstruct:**
   across C1 and C4) is still coming, but it now rescues nothing — so **the
   maturity mix and the young sub-lattice can be designed for how they LOOK,
   not for how much light they let through to a validator.**
-- **Sight wedges — the two tests are different and must stay untangled.**
-  Design's ruling: the tall three are banned from the **near** half of a wedge,
-  where a tall tree subtends hugely and steals *dominance* (C4). The **far**
-  half is where trees sit at ray height and steal *sight* (C1) — and the band
-  model handles that correctly without a ban. Bushes, saplings and anything
-  under ~8 m stay in the wedge, so it reads as young growth under old canopy
-  rather than a mown lane. Giants are excluded from wedges entirely. Snags are
-  the one flora that may stand at full height inside a wedge: no crown, nothing
-  to out-angle with.
+- **Sight wedges — FINAL RULING (design §5.9, after the C1 correction). The
+  near/far half-split is GONE.** It is replaced by the single test that already
+  governed the castle: **no tree may occlude the landmark's CROWN (its top
+  third) from a corridor standpoint; occluding its FLANK is fine.** One notion
+  of acceptable occlusion across architecture and vegetation. If per-tree crown
+  testing proves expensive for core, the old near-half ban is an acceptable
+  *fallback* — but it is the fallback, not the intent.
+  - **Giants are now ALLOWED in sight wedges**, at most **one per wedge**.
+    Flora argued for the re-rule after the C1 debt evaporated and design
+    granted it: an off-axis elder in the middle distance **gives the landmark
+    scale**, which is what a distant landmark most needs and most rarely gets.
+    That is repoussoir, and excluding it deleted our best depth cue exactly
+    where depth matters. *One elder frames; three elders screen.*
+  - **C4 governs MASSES and built structures, not individual near vegetation.**
+    Design's sharpening: a 48 m crown 100 m away subtends more than the mountain
+    behind it and **that is fine** — nobody mistakes a near tree for a distant
+    massif. C4's real target was always the foothill pine wall.
+  - Snags may stand at full height inside a wedge: no crown, nothing to
+    out-angle with.
+  **This entry supersedes an earlier one in this spec.** A successor finding the
+  near/far split described as current is reading a stale copy.
 - **sim — answered in full.** Trunk collision radius changes with the trunk
   (в32: trunk solid, crown not); `species_trunk_radius()` exists so nobody
   tables a copy, and sim agreed to call it. Collision shape is a **capsule**

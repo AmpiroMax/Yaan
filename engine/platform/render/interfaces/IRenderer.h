@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 19:09:18
+Last updated: 09:08:2026 - 19:21:01
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -50,6 +50,8 @@ UPD:
                          (user wants shadows from several sources) +
                          ambient_darkness for authored pitch-black places.
                          Render's diff, lead-authored per Rule 26.
+- 09:08:2026 - 19:21:01: Deprecated single-point-light fields deleted now
+                         that render's backend and tests use the array.
 */
 
 #pragma once
@@ -162,12 +164,6 @@ struct RenderEnvironment {
     PointLight point_lights[MAX_POINT_LIGHTS];
     uint32_t point_light_count = 0;
 
-    // DEPRECATED, removed once render's backend and tests migrate to the array
-    // above. Kept only so a shared tree never sits red for agents whose zones
-    // did not cause the change (core, sim and flora all build this header).
-    glm::vec3 point_light_position{0.0f};
-    glm::vec3 point_light_color{0.0f};
-    float point_light_radius_m = 0.0f;
 
     // Authored darkness of the PLACE the player is in (user: night stays
     // playable, but some interiors are a black void where a torch lights only

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 19:26:00
+Last updated: 09:08:2026 - 20:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -53,6 +53,10 @@ UPD:
   carrying moon direction/phase/colour/light, star intensity and the carried
   point light; sky shader gains stars and a phased moon disc; terrain and
   props light through the shared dfn_surface_light().
+- 09:08:2026 - 20:40:00: Light ARRAY (8 lit, cube-shadow casters to come with
+  interiors) + authored ambient_darkness; env block 15 -> 32 vec4s. REVERSED-Z
+  depth (D32F internal target, clear 0, DEPTH_TEST_GREATER, projection flipped
+  in begin_frame) so CAMERA_FAR 8000 m does not z-fight distant landmarks.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -183,7 +187,7 @@ const ProgramSource PROGRAM_TABLE[] = {
 // name -> render-state convention acknowledged at the stage-3 sync).
 constexpr const char* TRANSPARENT_PROGRAMS[] = {"water"};
 
-constexpr uint16_t ENV_PARAM_VEC4S = 15; // layout contract with dfn_env.sh
+constexpr uint16_t ENV_PARAM_VEC4S = 32; // layout contract with dfn_env.sh
 constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {
@@ -281,7 +285,7 @@ struct BgfxRenderer::Impl {
     // values persist across submits within the frame.
     void apply_environment() const {
         const RenderEnvironment& e = environment;
-        glm::vec4 packed[ENV_PARAM_VEC4S] = {
+        glm::vec4 packed[ENV_PARAM_VEC4S] = {  // trailing slots zero-init
             {e.sun_direction, 0.0f},
             {e.sun_color, 0.0f},
             {e.ambient_color, 0.0f},
@@ -295,9 +299,18 @@ struct BgfxRenderer::Impl {
             {e.water_scroll_uv, 0.0f, 0.0f},
             {e.moon_direction, e.moon_phase},
             {e.moon_color, e.moon_light},
-            {e.point_light_position, e.point_light_radius_m},
-            {e.point_light_color, e.star_intensity},
+            {0.0f, 0.0f, 0.0f, 0.0f}, // [13] reserved (was the single light)
+            {0.0f, 0.0f, 0.0f, e.star_intensity},
         };
+        const uint32_t count = e.point_light_count < MAX_POINT_LIGHTS
+                                   ? e.point_light_count
+                                   : MAX_POINT_LIGHTS;
+        packed[15] = {e.ambient_darkness, static_cast<float>(count), 0.0f, 0.0f};
+        for (uint32_t i = 0; i < count; ++i) {
+            const PointLight& l = e.point_lights[i];
+            packed[16 + i] = {l.position, l.radius_m};
+            packed[24 + i] = {l.color, l.casts_shadow ? 1.0f : 0.0f};
+        }
         bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
     }
 
@@ -442,7 +455,7 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
     const bgfx::TextureHandle depth = bgfx::createTexture2D(
         static_cast<uint16_t>(im.internal_width),
         static_cast<uint16_t>(im.internal_height), false, 1,
-        bgfx::TextureFormat::D24S8, BGFX_TEXTURE_RT_WRITE_ONLY);
+        bgfx::TextureFormat::D32F, BGFX_TEXTURE_RT_WRITE_ONLY);
     const bgfx::TextureHandle attachments[] = {color, depth};
     im.internal_fb = bgfx::createFrameBuffer(2, attachments, true);
 
@@ -563,9 +576,24 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
     bgfx::setViewFrameBuffer(VIEW_SCENE, im.internal_fb);
     bgfx::setViewRect(VIEW_SCENE, 0, 0, static_cast<uint16_t>(im.internal_width),
                       static_cast<uint16_t>(im.internal_height));
+    // REVERSED-Z: the far plane is depth 0 and the near plane depth 1, so the
+    // buffer clears to 0 and comparisons are GREATER. With CAMERA_FAR at 8 km
+    // against a 0.1 m near plane this is what stops distant mountains from
+    // z-fighting: floating-point depth has its precision where the exponent is
+    // small, which reversed-Z lines up with the far distances instead of
+    // wasting it all in the first metre.
     bgfx::setViewClear(VIEW_SCENE, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
-                       SKY_COLOR_RGBA, 1.0f, 0);
-    bgfx::setViewTransform(VIEW_SCENE, glm::value_ptr(view), glm::value_ptr(proj));
+                       SKY_COLOR_RGBA, 0.0f, 0);
+    // Reverse the depth range here rather than in the camera: the depth buffer
+    // format and its comparison direction are backend concerns, and
+    // FirstPersonCamera stays a plain RH_ZO perspective that tests can reason
+    // about. z' = 1 - z on a 0..1 clip range.
+    glm::mat4 reversed = proj;
+    reversed[0][2] = -proj[0][2];
+    reversed[1][2] = -proj[1][2];
+    reversed[2][2] = -proj[2][2] + proj[2][3];
+    reversed[3][2] = -proj[3][2] + proj[3][3];
+    bgfx::setViewTransform(VIEW_SCENE, glm::value_ptr(view), glm::value_ptr(reversed));
     bgfx::touch(VIEW_SCENE); // clear even on an empty frame
 
     // Shadow view: renders (view id order) before the scene consumes the map.
@@ -618,7 +646,7 @@ void BgfxRenderer::end_frame() {
             std::memcpy(tvb.data, im.debug_lines.data(), count * sizeof(DebugVertex));
             bgfx::setVertexBuffer(0, &tvb, 0, count);
             bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-                           | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
+                           | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_GREATER
                            | BGFX_STATE_PT_LINES);
             bgfx::submit(VIEW_SCENE, im.debug_program);
         }
@@ -807,9 +835,9 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     const uint64_t state =
         is_transparent
             ? (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-               | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_BLEND_ALPHA)
+               | BGFX_STATE_DEPTH_TEST_GREATER | BGFX_STATE_BLEND_ALPHA)
             : (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z
-               | BGFX_STATE_DEPTH_TEST_LESS);
+               | BGFX_STATE_DEPTH_TEST_GREATER);
     bgfx::setState(state);
     bgfx::submit(VIEW_SCENE, prog_it->second);
 }
