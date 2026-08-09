@@ -42,7 +42,10 @@ UPD:
   vantage; the hour comes from DFN_TIME so day/dusk/night reuse it.
 - 09:08:2026 - 21:20:00: massif_probe_steps(which) (DFN_MASSIF_PROBE=1|2) —
   design's §7.1b far VERDICT and near RHYTHM vantages, one frame per run
-  because each needs its own hour.
+  because each needs its own hour. DFN_MASSIF_EYE="x,z" overrides the verdict
+  vantage: it is how the "the massif is missing at 717 m" report was proved to
+  be the 512 m streaming radius rather than a bad aim (walk the same bearing
+  in, the mountain appears).
 */
 
 #include "engine/render/sources/Tour.h"
@@ -262,6 +265,22 @@ std::vector<TourStep> Tour::sky_probe_steps() {
     return {{"sky", {pos.x, 70.0f, pos.y}, yaw, pitch, 90, true}};
 }
 
+namespace {
+// The verdict vantage, overridable for a streaming diagnostic:
+// DFN_MASSIF_EYE="x,z". Design's own value is the default.
+glm::vec2 massif_verdict_eye() {
+    glm::vec2 p{120.0f, 300.0f};
+    if (const char* e = env_or_null("DFN_MASSIF_EYE")) {
+        float x = 0.0f;
+        float z = 0.0f;
+        if (std::sscanf(e, "%f,%f", &x, &z) == 2) {
+            p = {x, z};
+        }
+    }
+    return p;
+}
+} // namespace
+
 std::vector<TourStep> Tour::massif_probe_steps(int which) {
     // Coordinates and intent are DESIGN's (§7.1b), not render's — recorded here
     // so the shoot is reproducible from the repo rather than from a message.
@@ -281,7 +300,7 @@ std::vector<TourStep> Tour::massif_probe_steps(int which) {
     // massif from, backlit (DFN_TIME 0.30) because the complaint being answered
     // was a SILHOUETTE word: a landmark reads by value against sky (§1.5), so a
     // dark ribbed mass against a bright sky is the purest form of the test.
-    const glm::vec2 pos{120.0f, 300.0f};
+    const glm::vec2 pos = massif_verdict_eye();
     return {{"massif_verdict", {pos.x, eye, pos.y}, aim_yaw(pos, {830.0f, 200.0f}),
              0.09f, 90, true}};
 }

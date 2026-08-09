@@ -299,6 +299,89 @@ TEST_CASE("flora: crown width stays inside the envelope") {
     }
 }
 
+TEST_CASE("flora: CROWN ASPECT CEILING (design's §5 acceptance rule)") {
+    // The rule that would have caught the birch on the first build instead of
+    // the fourth screenshot. Two authored rules — crown width and crown base —
+    // multiplied into a container 2.3x taller than wide, and FOUR attempts at
+    // rearranging its CONTENTS failed, because the mass IS the container.
+    //
+    // MEASURED ON THE BUILT TREE, NOT ON THE SPEC, and that detail is
+    // load-bearing: the birch's container was 1.8:1 while the tree it produced
+    // was 2.3:1, so a ceiling checked against the parameters would have passed
+    // the tree that fails. Same discipline as design's polyline-perimeter rule
+    // for the massif — measure the artefact, not the intention.
+    //
+    // PER VARIANT, never pooled: pooling 12 variants of different heights into
+    // one box measures the variant SPREAD as if it were one crown's shape, and
+    // it inflated this number by ~15 % when it was first reported.
+    const auto ceiling = static_cast<float>(config::CROWN_ASPECT_MAX);
+    for (const FloraSpecies s : ALL) {
+        if (!is_canopy_tree(s)) continue;
+        const SpeciesParams& sp = species_params(s);
+        // Conifers are exempt as a property of their SILHOUETTE BRIEF (a cone
+        // or spire is meant to be narrow), not as a species list — so nobody
+        // later claims the exemption for a broadleaf that happens to be tall.
+        if (sp.envelope == CrownEnvelope::Cone) continue;
+        const uint32_t leaf = pack(sp.foliage_color);
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh m = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            float w = 0.0f, lo = 1e9f, hi = -1e9f;
+            auto take = [&](const platform::Vertex& vx) {
+                w = std::max(w, std::sqrt(vx.position.x * vx.position.x
+                                          + vx.position.z * vx.position.z));
+                lo = std::min(lo, vx.position.y);
+                hi = std::max(hi, vx.position.y);
+            };
+            for (const platform::Vertex& vx : m.cards.vertices) take(vx);
+            for (const platform::Vertex& vx : m.wood.vertices) {
+                if (vx.color_rgba == leaf) take(vx);
+            }
+            REQUIRE(w > 0.1f);
+            CHECK((hi - lo) / (2.0f * w) <= ceiling);
+        }
+    }
+}
+
+TEST_CASE("flora: crown width has a FLOOR, not only a ceiling") {
+    // The §3.7 pattern again — a rule stated in full and implemented in half.
+    // Design's crown widths are BANDS (oak 10-16 m, birch 5-7 m) and only the
+    // maximum was ever asserted, so the birch drifted to 3.6-4.5 m — a third
+    // narrower than its brief — without a single test noticing.
+    //
+    // Checked at NOMINAL size only. It cannot be a per-instance invariant:
+    // design's own maturity tiers scale trees from x0.4 to x1.5, which takes
+    // crowns far outside any band by construction and on purpose.
+    struct Band { FloraSpecies s; float lo; float hi; };
+    const Band bands[] = {
+        {FloraSpecies::DaleOak, 10.0f, 16.0f},
+        {FloraSpecies::RiverBirch, 5.0f, 7.0f},
+    };
+    for (const Band& b : bands) {
+        const SpeciesParams& sp = species_params(b.s);
+        // The nominal-height variant: the band describes the species, and the
+        // variant spread around it is the intended variation.
+        float widest = 0.0f;
+        const float nominal = species_nominal_height(b.s);
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh m = build_flora_mesh(b.s, v, FloraShape{}, FloraLod::Full);
+            float top = 0.0f, w = 0.0f;
+            for (const platform::Vertex& vx : m.cards.vertices) {
+                top = std::max(top, vx.position.y);
+                w = std::max(w, std::sqrt(vx.position.x * vx.position.x
+                                          + vx.position.z * vx.position.z));
+            }
+            // Take the variant closest to nominal height.
+            if (std::fabs(top - nominal) < nominal * 0.12f) {
+                widest = std::max(widest, w * 2.0f);
+            }
+        }
+        REQUIRE(widest > 0.0f);
+        CHECK(widest >= b.lo);
+        CHECK(widest <= b.hi);
+        CHECK(sp.crown_width_frac > 0.0f);
+    }
+}
+
 TEST_CASE("flora: crown shyness actually narrows the crown") {
     FloraShape shy;
     shy.shyness = 0.5f;

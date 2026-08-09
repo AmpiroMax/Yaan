@@ -73,7 +73,7 @@ struct CragStamp {
     /// Arete count (L0_ARETE_COUNT): how many outward lobes/inward couloirs
     /// the per-bearing radial extent carries. This is what the barrow's
     /// couloir search needs to exist at all.
-    int arete_count = static_cast<int>(config::L0_ARETE_COUNT_MIN);
+    int arete_count = 4;
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)
     /// Flank sub-relief as a FRACTION of peak height (legacy parameterization).
     /// Used only when ridge_amp_meters <= 0.

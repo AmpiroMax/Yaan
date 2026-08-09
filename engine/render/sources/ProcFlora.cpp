@@ -292,11 +292,19 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // Fraction, not metres, so it scales with maturity for free.
     if (p.half_width < 0.22f * t.crown_r) return;
 
-    // The species HEIGHT band is a cross-zone contract (§3.7.1), and a card
-    // reaches half_height above the point it is placed at — so the clamp is on
-    // the card's TOP EDGE, not on its centre.
-    if (at.y + p.half_height > t.crown_top) {
-        at.y = t.crown_top - p.half_height;
+    // VERTICAL REACH, not half_height. THIS IS THE SAME MISTAKE A THIRD TIME
+    // (§3.7): a card is tilted in elevation and rolled in its own plane, so the
+    // lowest and highest points it reaches are its CORNERS, up to
+    // hypot(half_width, half_height) away — not the midpoints of its edges.
+    // Clamping on half_height let cards hang below the crown base and pushed the
+    // measured foliage box well outside the container, which is precisely the
+    // quantity design's CROWN_ASPECT_MAX is measured on.
+    auto vertical_reach = [&] {
+        return std::sqrt(p.half_width * p.half_width + p.half_height * p.half_height);
+    };
+    // The species HEIGHT band is a cross-zone contract (§3.7.1).
+    if (at.y + vertical_reach() > t.crown_top) {
+        at.y = t.crown_top - vertical_reach();
     }
     // CANOPY CLEARANCE, measured where it is actually felt: the lowest FOLIAGE
     // vertex, not the nominal crown base (§3.5 — drooping species are the whole
@@ -305,16 +313,18 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // only shrink it when raising would push it out of the envelope. Sacrificing
     // the arrangement to preserve a declared size is what stacked the birch.
     const float floor_y = std::max(t.crown_base, CLEARANCE_MIN);
-    if (at.y - p.half_height < floor_y) {
-        const float raised = floor_y + p.half_height;
-        if (raised + p.half_height <= t.crown_top) {
+    if (at.y - vertical_reach() < floor_y) {
+        const float raised = floor_y + vertical_reach();
+        if (raised + vertical_reach() <= t.crown_top) {
             at.y = raised;
         } else {
-            p.half_height = std::max((t.crown_top - floor_y) * 0.5f, 0.05f);
-            p.half_width = p.half_height / std::max(sp.card_aspect, 0.05f);
-            at.y = floor_y + p.half_height;
+            const float span = std::max((t.crown_top - floor_y) * 0.5f, 0.05f);
+            p.half_height = span / diag * sp.card_aspect;
+            p.half_width = span / diag;
+            at.y = floor_y + vertical_reach();
         }
     }
+    if (p.half_width < 0.22f * t.crown_r) return; // re-check after any shrink
     // The attachment (sway weight 0) is the stem at the base of the crown, so
     // the whole crown's sway grows outward and upward from the trunk exactly
     // as a real one does, and the gradient ACROSS each card — its inner corner
@@ -678,6 +688,25 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
     if (shape.understory) {
         crown_base_frac = std::min(0.75f, crown_base_frac + 0.10f);
         crown_width_frac *= 0.8f;
+    }
+    // CROWN ASPECT CEILING (design's ruling, §5). The crown's container is
+    // (1 - crown_base_frac) tall by crown_width_frac wide, both in units of
+    // height, so the ceiling is a lower bound on the crown base and the base is
+    // DERIVED rather than exempted per species. Conifers are exempt as a
+    // property of their silhouette brief — a cone is MEANT to be narrow, and a
+    // pine at 4.2 is the anti-oak, not a defect.
+    //
+    // Why this exists at all, in one line, because it is the most expensive
+    // lesson in the zone: two authored rules multiplied into a container 2.3x
+    // taller than wide, and FOUR attempts at rearranging its CONTENTS failed
+    // because the mass IS the container. Checked here, on the first build,
+    // instead of on the fourth screenshot.
+    if (sp.envelope != CrownEnvelope::Cone && sp.envelope != CrownEnvelope::None) {
+        const auto ceiling = static_cast<float>(config::CROWN_ASPECT_MAX);
+        // 0.97: derive just inside the ceiling, so the assertion on the BUILT
+        // tree has somewhere to fail if the geometry ever drifts outward again.
+        const float from_aspect = 1.0f - ceiling * 0.97f * crown_width_frac;
+        crown_base_frac = std::max(crown_base_frac, from_aspect);
     }
 
     const bool woody_tree = is_canopy_tree(species) || species == FloraSpecies::Snag;

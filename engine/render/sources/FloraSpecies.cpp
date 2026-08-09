@@ -77,7 +77,14 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     oak.trunk_sides = 5;
     oak.trunk_segments = 6;
     oak.crown_base_frac = 0.40f;
-    oak.crown_width_frac = 0.45f; // 11-14 m crown
+    // CALIBRATED AGAINST THE BUILT TREE, not against the envelope. Foliage
+    // never reaches the envelope's widest point (containment keeps a card's
+    // CORNER inside, and the widest ring sits at a height where a card would
+    // overshoot the crown top), so the achieved diameter is ~0.89 of the
+    // nominal. 0.45 measured 9.6-13.6 m against design's 10-16 m band; 0.48
+    // lands inside it. Width is load-bearing: design derived
+    // TREE_SPACING_FOREST FROM the crown width.
+    oak.crown_width_frac = 0.48f;
     oak.generations = 2;
     oak.branch_count[0] = 5;
     oak.branch_count[1] = 2;
@@ -163,8 +170,21 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     birch.trunk_spread = 0.55f;
     birch.trunk_sides = 5;
     birch.trunk_segments = 5;
-    birch.crown_base_frac = 0.45f;
-    birch.crown_width_frac = 0.30f;
+    // THE BIRCH EXCEPTION (NUMBERS.md BIRCH_CROWN_BASE_FRACTION_MIN/MAX, landed
+    // after the crown failed to read four times). The old 0.45 with a 0.30 width
+    // defines a container 1.8:1 tall-to-wide before a single leaf is placed, and
+    // the built tree measured 2.3:1 — a column. No arrangement of contents can
+    // fix a container: the mass IS the container. Raising the base also buys
+    // ~11 m of clear trunk instead of 8.5, which is design's own goal, and it is
+    // what a real river birch looks like.
+    // The band's MINIMUM, not its midpoint — design's derivation rule is "the
+    // smallest value at or above the floor that satisfies the aspect ceiling",
+    // and the smallest one leaves the most crown.
+    birch.crown_base_frac = f(config::BIRCH_CROWN_BASE_FRACTION_MIN);
+    // Same calibration, and the birch needed it most: 0.30 built a 3.6-4.5 m
+    // crown against design's 5-7 m band — the accent tree was a third narrower
+    // than its brief, which is the other half of why it read as a column.
+    birch.crown_width_frac = 0.52f;
     birch.generations = 1;
     birch.branch_count[0] = 4;
     birch.branch_angle[0] = 0.72f;
