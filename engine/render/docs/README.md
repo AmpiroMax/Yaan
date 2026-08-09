@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:23:29-->
+Last updated: 10:08:2026 - 00:00:47-->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: public headers only (camera, render system, tour, debug draw).
@@ -12,6 +12,7 @@ UPD:
 - 09:08:2026 - 18:05:00: Map screen (user request "миникарта как в скайриме"): PixelCanvas (the project's first UI drawing primitive), MapScreen (explored top-down map baked from the heightfields), RenderSystem overlay path + toggle_map/set_internal_resolution, Tour map probe route.
 - 09:08:2026 - 20:10:00: Day/night (в1/в2) — SkyModel (sun/moon/stars from a normalized clock, phase-derived moon direction), shared dfn_surface_light in the shader env include, sky-visibility ambient from vertex alpha, sky probe hooks; ProcMesh pack/tri/quad exposed for the flora agent.
 - 09:08:2026 - 22:23:29: TERRAIN LOD, THE DRAWING HALF (LodTerrain.{h,cpp}) — node mesh residency over LodResidency, coarse nodes meshed from core's HeightFieldView (129 samples at the level's voxel size: the seam with core, agreed in session, so no second mesh format exists), border SKIRTS sized from the field's own worst border step, frustum culling, and cross-faded submission through DrawParams::fade. The RESIDENT RECTANGLE is now an input to selection: a level-0 node is 1 m voxels where a chunk heightfield is 2 m, so nodes inside the streamed ring are dropped and nodes straddling its border are split — without that the two systems draw the same ground twice and interleave per pixel. Terrain UVs became WORLD-referenced (world xz / CHUNK_SIZE) in the same change: identical to the old formula for any chunk- or node-aligned field, and the fix for an 8 km node that used to stretch one texture set across itself. Also Tour::crag_acceptance_steps (DFN_CRAG_PROBE) and the sun caster cull in the bgfx backend. RenderSystem.cpp split into RenderSystemResources.cpp at the 800-line limit (Rule 21).
+- 10:08:2026 - 00:00:47: BitmapFont (the project's first glyphs: fixed-cell 6x9 atlas, ASCII + Cyrillic, a solid block for anything unmapped) + the transparent HUD layer that carries a prompt over the world. Also: water bodies merged into world-grid buckets after 17336 one-mesh-per-pond uploads exhausted bgfx's handle pool and crashed the game at exit, and GPU mesh-handle accounting so that budget is visible before it is spent.
 -->
 
 # engine/render
@@ -45,7 +46,24 @@ harness (Rule 27), and debug-draw helpers. Never touches bgfx (Rule 1).
   primitive: a clipped CPU raster surface (rects, frames, 1-bit stamps,
   triangles) in internal-resolution pixels, uploaded as one RGBA8 texture and
   blitted by `RenderSystem::draw_overlay`. Screen-agnostic on purpose: the
-  planned start menu draws through the same two calls.
+  planned start menu draws through the same two calls. `clear_transparent()`
+  makes it a HUD instead of a screen.
+- `dfn::render::BitmapFont` (`sources/BitmapFont.h`) — THE FONT. A fixed-cell
+  6x9 atlas (5x8 ink plus the built-in gaps, so the cell IS the advance),
+  printable ASCII + the whole Cyrillic alphabet + « » — (166 codepoints),
+  baked once. `draw_text(canvas, x, y, utf8, colour, shadow)` and
+  `text_width_px` are the entire surface: NO wrapping, kerning or newline
+  handling, by decision. Anything unmapped — an unknown codepoint, malformed
+  UTF-8, or a glyph nobody drew — renders as a SOLID BLOCK, because nothing
+  else in the font fills its cell and absence must never look like a space.
+  Cyrillic letters shaped like Latin ones are aliases of that art, not copies.
+  No user-facing string appears here or in any render caller (Rule 5): every
+  entry point takes UTF-8 the caller resolved from a localization file.
+- `RenderSystem::hud()` — a transparent screen-space canvas the CALLER draws
+  into every frame (the interaction prompt, later the crosshair), composited
+  over the world and under the map through the backend's alpha-blended
+  `"overlay"` program. render owns the surface and the blit; it never owns the
+  words, because the words are a localization lookup.
 - `dfn::render::SkyModel` (`sources/SkyModel.h`) — `apply_sky_time(env,
   day_fraction, lunar_phase)`: the whole day/night look from two normalized
   fractions (sun and moon direction, sun/ambient/fog/sky colours, moonlight,

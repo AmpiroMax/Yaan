@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 22:12:57
+# Last updated: 09:08:2026 - 23:32:07
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -25,7 +25,10 @@
 # - 09:08:2026 - 20:58:00: Terrain LOD tests (ladder, selection, fade window).
 # - 09:08:2026 - 22:12:57: LodTerrain tests (the LOD drawing half over the null
 #   renderer: no draw before delivery, fade values, release on disable).
+# - 09:08:2026 - 23:32:07: Bitmap font tests (glyph coverage + the unmappable
+#   control, UTF-8 decoding, alias identity, bitmap uniqueness, clipping).
 
+add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
 add_dfn_test(render_scatter_batcher render/ScatterBatcherTests.cpp dfn_render)
