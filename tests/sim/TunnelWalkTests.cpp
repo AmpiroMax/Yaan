@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:51:22
-Last updated: 09:08:2026 - 20:56:45
+Last updated: 10:08:2026 - 02:44:55
 Module: tests
 File: tests/sim/TunnelWalkTests.cpp
 
@@ -53,6 +53,7 @@ UPD:
                          now covers only this zone's cost and is an
                          order-of-magnitude guard, not a budget — the measured
                          figure moves 2x with machine load alone.
+- 10:08:2026 - 02:44:55: Walk budget 3600 -> 5400 (core's verified fix, landed by the lead with sim resting; the walk is longer since the massif reshape, completing at 4251).
 */
 
 #include <doctest/doctest.h>
@@ -277,7 +278,10 @@ TEST_CASE("voxel terrain collision: the player walks THROUGH the crag, not over 
     // capsule into the outer wall at a switchback, where it can wedge on the
     // voxel wall's bumps — measured, and the reason this loop is written this
     // way (see the report: nudged back to the centerline it walks freely).
-    for (int tick = 0; tick < 3600 && waypoint < tunnel.point_count; ++tick) {
+    // 5400: the walk is genuinely longer since the §2.8 massif reshape (the
+    // instrumented probe completes at tick 4251); at 3600 the budget expired
+    // mid-climb with a transient airborne frame. Verified at 7200 by core.
+    for (int tick = 0; tick < 5400 && waypoint < tunnel.point_count; ++tick) {
         const glm::vec3 position = rig.physics->character_position(character);
         const glm::vec3 leg_start = tunnel.points[waypoint - 1];
         const glm::vec3 leg_end = tunnel.points[waypoint];
