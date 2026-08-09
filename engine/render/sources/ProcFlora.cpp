@@ -197,6 +197,21 @@ struct Tree {
     float flare_depth = FLARE_DEPTH;
 };
 
+/// Crown shyness: the crown is pulled back on the side facing a close
+/// neighbour. Interpenetrating crowns read as one mud-coloured mass at low
+/// resolution; separated crowns read as trees.
+float shy_scale_xz(const Tree& t, glm::vec2 d) {
+    if (t.shape.shyness <= 0.0f) return 1.0f;
+    const float l = glm::length(d);
+    if (l < 1e-5f) return 1.0f;
+    const float align = glm::dot(d / l, t.shape.shy_dir); // -1..1
+    return 1.0f - t.shape.shyness * std::max(0.0f, align);
+}
+
+float shy_scale(const Tree& t, glm::vec3 dir_xz) {
+    return shy_scale_xz(t, glm::vec2{dir_xz.x, dir_xz.z});
+}
+
 /// Pulls a point inside the species envelope, radially and vertically. THIS IS
 /// THE MECHANISM that makes a silhouette guaranteed rather than emergent
 /// (docs/specs/flora.md §3.1 stage D) — without the radial half, branches reach
@@ -216,21 +231,6 @@ glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
         p.z = c.y;
     }
     return p;
-}
-
-/// Crown shyness: the crown is pulled back on the side facing a close
-/// neighbour. Interpenetrating crowns read as one mud-coloured mass at low
-/// resolution; separated crowns read as trees.
-float shy_scale_xz(const Tree& t, glm::vec2 d) {
-    if (t.shape.shyness <= 0.0f) return 1.0f;
-    const float l = glm::length(d);
-    if (l < 1e-5f) return 1.0f;
-    const float align = glm::dot(d / l, t.shape.shy_dir); // -1..1
-    return 1.0f - t.shape.shyness * std::max(0.0f, align);
-}
-
-float shy_scale(const Tree& t, glm::vec3 dir_xz) {
-    return shy_scale_xz(t, glm::vec2{dir_xz.x, dir_xz.z});
 }
 
 void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) {

@@ -142,9 +142,14 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
     // needed ~10 m — and it stops the terrace reaching the Backbarrow carve.
     const float span = static_cast<float>(config::CASTLE_PAD_SIZE);
     castle.ward_count = 3;
-    const float ward_half = span / 6.0f;        // three wards across the span
-    const float ward_blend = ward_half * 0.5f;
     const float step = span / 3.0f;
+    // Terraces are axis-aligned squares but the chain steps along the spur's
+    // DIAGONAL axis, so size them by the CHEBYSHEV separation of their centres
+    // — otherwise neighbouring flat zones overlap and the step between wards
+    // lands inside a terrace that is supposed to be level.
+    const float cheb_step = step * std::max(std::fabs(forward.x), std::fabs(forward.y));
+    const float ward_half = cheb_step * 0.5f;
+    const float ward_blend = ward_half * 0.5f;
     castle.half_size = span * 0.5f;
     castle.blend = ward_blend;
 
