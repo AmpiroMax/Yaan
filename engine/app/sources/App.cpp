@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 20:38:09
+Last updated: 09:08:2026 - 22:34:17
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -69,6 +69,7 @@ UPD:
                          there was no voxel render path at all, so carves were
                          never submitted — the reported "saw the map from
                          inside the barrow" was missing geometry, not light).
+- 09:08:2026 - 22:34:17: Взаимодействие подключено к игре: предметы, три пробных объекта (взять/открыть/использовать), столкновения с реквизитом, наведение, действия, переносимый свет, модель рук. Всё это существовало и не вызывалось ни разу.
 */
 
 #include "engine/app/sources/App.h"
@@ -78,7 +79,16 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/physics/sources/CollisionLayers.h"
 #include "engine/physics/sources/TerrainCollision.h"
+#include "engine/core/serialization/sources/ContentHash.h"
+#include "engine/gameplay/sources/HeldItem.h"
+#include "engine/gameplay/sources/InteractableSpawn.h"
+#include "engine/gameplay/sources/InteractionSystem.h"
+#include "engine/gameplay/sources/InventoryScreen.h"
+#include "engine/gameplay/sources/Item.h"
+#include "engine/gameplay/sources/PlayerActions.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
+#include "engine/gameplay/sources/PropCollision.h"
+#include "engine/gameplay/sources/ViewModel.h"
 #include "engine/render/sources/SkyModel.h"
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/input/sources/glfw/CreateGlfwInput.h"
@@ -334,6 +344,56 @@ bool App::init(const AppConfig& config) {
         return false;
     }
 
+    // TESTBED CONTENT (Rule 5 exception, same standing as the fixed seed and
+    // the extent walls above): items and placements are data and move to the
+    // content loader the day core's JSON reader lands. Ids follow story's
+    // convention and are hashed, never spelled in C++ logic.
+    //
+    // This block exists because the interaction, inventory and held-item
+    // systems were written, tested and NEVER CALLED by the running game --
+    // which is why "рук нет и трогать нечего" was a bug report rather than a
+    // feature request. Same class as the terrain ferry and the unpumped chunk
+    // events: the subsystem was correct and the composition root ignored it.
+    {
+        gameplay::ItemDatabase items;
+        gameplay::ItemDef torch;
+        torch.id = {serialization::fnv1a64("item.tool.torch")};
+        torch.display_name_key = "item.tool.torch.name";
+        torch.light_source = true;
+        torch.mesh_id = 0; // render is assigning the id; 0 draws nothing
+        items.add(torch);
+        world_.add_resource(std::move(items));
+
+        world_.add(player_, gameplay::Inventory{});
+        world_.add(player_, gameplay::HeldItem{});
+        world_.add_resource(gameplay::ViewModelAssets{.hand_mesh = 0});
+        gameplay::spawn_view_model(world_, player_);
+
+        // Three props, not one: take, open and use are three different verb
+        // paths, and a lone pickup would leave two of them as untested in the
+        // real game as they were before this block existed.
+        gameplay::InteractableDesc take;
+        take.kind = gameplay::InteractableKind::Pickup;
+        take.position = spawn + glm::vec3{2.0f, 0.5f, 0.0f};
+        take.prompt_key = "prompt.take";
+        take.item = torch.id;
+        (void)gameplay::spawn_interactable(world_, *physics_, take);
+
+        gameplay::InteractableDesc lever;
+        lever.kind = gameplay::InteractableKind::Usable;
+        lever.position = spawn + glm::vec3{-2.0f, 0.5f, 0.0f};
+        lever.prompt_key = "prompt.use";
+        lever.action = serialization::fnv1a64("use.testbed.lever");
+        (void)gameplay::spawn_interactable(world_, *physics_, lever);
+
+        gameplay::InteractableDesc door;
+        door.kind = gameplay::InteractableKind::Openable;
+        door.position = spawn + glm::vec3{0.0f, 1.0f, -2.5f};
+        door.half_extents = {0.9f, 1.0f, 0.1f};
+        door.prompt_key = "prompt.open";
+        (void)gameplay::spawn_interactable(world_, *physics_, door);
+    }
+
     camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
                            static_cast<float>(rp.framebuffer_width)
                                / static_cast<float>(rp.framebuffer_height),
@@ -420,10 +480,36 @@ int App::run() {
             chunks_.update(focus, world_, bus_);
             bus_.pump();
 
+            // Prop collision goes AFTER streaming and BEFORE the step, for the
+            // same reason the terrain ferry does: chunk residency and the site
+            // entities ChunkManager spawns must both exist, and their bodies
+            // must be in the world before step() runs. One tick late means the
+            // player walks through a house once.
+            gameplay::update_prop_collision(world_, *physics_, chunks_);
+
             if (!tour_.active()) { // frozen player during the tour: deterministic frames
-                gameplay::player_pre_step(world_, *physics_);
+                // The water callback is the authoritative source. Sampling the
+                // terrain and subtracting, or reading the drawn water, would
+                // let a primitive that extends past real water be swum in.
+                gameplay::player_pre_step(world_, *physics_,
+                    [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); });
                 physics_->step(static_cast<float>(timestep_.step_dt()));
                 gameplay::player_post_step(world_, *physics_);
+
+                // Hover AFTER post_step: the crosshair ray must use THIS tick's
+                // eye pose. Hovering from last tick's pose acts on what you were
+                // looking at a frame ago -- invisible standing still, wrong
+                // while turning.
+                gameplay::update_hover(world_, *physics_);
+                // Actions AFTER the hover they act on: E interact, F light, I bag.
+                gameplay::player_actions_step(world_, bus_);
+                // Carriers without a view model (NPCs with lanterns).
+                gameplay::update_carried_lights(world_);
+                // LAST: reads the CameraPose post_step wrote and the HeldItem
+                // the actions may have just changed, so a torch picked up this
+                // tick is in hand this tick rather than next.
+                gameplay::update_view_model(world_);
+                bus_.pump(); // deliver the interaction events published above
             }
         }
 
