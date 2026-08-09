@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 22:43:02
+Last updated: 09:08:2026 - 23:55:22
 -->
 <!--
 UPD:
@@ -9,6 +9,7 @@ UPD:
 - 09:08:2026 - 21:56:40: Added Rules 30-34, all five earned by defects found in the worldgen v2 stage: controls with every test, distribution asserted not bounds, fix the mechanism not the instance, detail sized against viewing distance, never diagnose from an unchecked premise.
 - 09:08:2026 - 22:12:38: Rule 30 gained corollaries 30a (a test needs a case that CAN pass it) and 30b (for a diagnosis, the counterfactual is the control).
 - 09:08:2026 - 22:43:02: Rule 35 — a number stops belonging to a zone when a second zone must agree with it; the trigger is a thing gaining a dimension.
+- 09:08:2026 - 23:55:22: Rule 16 — read the clock per batch, never compute forward. Три зоны сделали эту ошибку за один вечер.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -241,6 +242,15 @@ UPD:
 
 ### Rule 16 — Timestamps are real
 System time, no placeholders. `Last updated` equals the newest UPD entry.
+
+**Read the clock for every batch; never compute forward from an earlier reading.**
+Three separate zones made exactly this mistake in one evening — run `date` once,
+then hand-write later stamps by adding minutes to it — and all three produced
+entries dated in the future. It is invisible unless a reader notices a date that
+has not happened yet, and it does not merely misdate one file: the UPD blocks are
+this project's only ordering record across zones, so a stamp written forward
+silently reorders history. Provenance arguments depend on it — proving a constant
+sweep predated a bug fix meant comparing stamps in two zones' files.
 
 ### Rule 17 — UPD is append-only
 Never delete UPD entries. Every meaningful change adds one.
