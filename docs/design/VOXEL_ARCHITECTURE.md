@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 15:41:46
-Last updated: 09:08:2026 - 15:41:46
+Last updated: 09:08:2026 - 15:45:44
 -->
 <!--
 UPD:
 - 09:08:2026 - 15:41:46: Spike report — voxel terrain architecture evaluation with measured numbers from a throwaway prototype; recommendation, migration order and cost. Authored by core at the lead's direction (docs/design is design's zone; this file is a core deliverable for lead review).
+- 09:08:2026 - 15:45:44: §7 split: full migration (7.1) vs the named OPTION "3D IN ONE STAGE" (7.2) — scope/cut/debts/acceptance tables, so the crunch variant is legible without re-deriving it. Lead's request; spike otherwise accepted and committed (bf3530f), Stage 1 on hold until scheduled.
 -->
 
 # VOXEL_ARCHITECTURE.md — spike report and recommendation
@@ -230,6 +231,8 @@ pacing. Then building interiors as carved volumes.
 
 ## 7. Honest cost
 
+### 7.1 Full migration
+
 **Core-side estimate, in agent-sessions:**
 
 | Stage | Core sessions | Other zones |
@@ -240,19 +243,52 @@ pacing. Then building interiors as carved volumes.
 | 4 — LOD, budget, interiors | 3+ | render 2+ |
 | **Total** | **11-15** | **6-9** |
 
-**If we must ship 3D in ONE stage**, cut to roughly 5-6 core sessions:
+### 7.2 OPTION "3D IN ONE STAGE" — the crunch variant
 
-- **Keep:** 1 m voxels, SDF storage, surface nets, physics `MeshShape`, the
-  derived heightfield, one carve pass with a small hand-authored set (the crag
-  tunnel + the barrow interior — the two the user actually asked to walk into),
-  determinism tests, a walkability invariant for the carved passages.
-- **Cut:** 0.5/0.25 m resolution; dual contouring (accept soft edges);
-  LOD (rely on view distance and accept the triangle bill on the near ring);
-  cave scatter and cave-aware C1; building interiors; editor support;
-  collision mesh decimation (use the render mesh and eat the cost).
-- **Accept as debt:** the controller's ground query gets a special case for
-  "inside a carved volume" rather than a general 3D query, and distant chunks
-  keep the old heightfield mesh (hybrid rendering) until LOD lands.
+A named, self-contained option: the smallest thing that honestly delivers
+«воксели… нам нужно 3д» — caves you walk into, with a ceiling overhead — and
+leaves the world shippable. **Core: 5-6 sessions. Other zones: render 2,
+sim 1, design 1.**
+
+**Scope — what is built:**
+
+| Piece | Decision |
+|---|---|
+| Voxel size | 1.0 m, fixed, no LOD tiers |
+| Storage | quantized int8 SDF + int8 material, narrow band, per-column RLE |
+| Extraction | surface nets (no QEF) |
+| Macro coupling | single 129² macro sample per chunk, interpolated into the volume |
+| Physics | Jolt `MeshShape` from the render mesh, one static body per chunk |
+| Ground queries | derived heightfield, unchanged, for scatter / pads / corridors / validation / tour |
+| Carved content | exactly two: the tunnel-and-switchback route up the crag, and the Backbarrow interior |
+| Tests | volume + mesh determinism hashes; passages walkable end to end; ceiling clearance ≥ player height |
+
+**Cut — explicitly not built:**
+
+- 0.5 m / 0.25 m resolution (mesh cost, not storage, forbids it — §1)
+- dual contouring; terrace and quarry edges stay soft
+- LOD; the near ring pays the full 3.7 M triangle bill
+- cave scatter, cave-aware C1, cave-aware corridors
+- building interiors; editor support
+- collision-mesh decimation (physics eats the render mesh)
+
+**Two accepted debts — both real, both bounded:**
+
+1. **Controller ground query is special-cased, not general.** The derived
+   heightfield keeps answering "ground at (x,z)" on open terrain; inside a
+   carved volume the controller gets an explicit "you are in a cave" test
+   rather than a proper 3D voxel query. Correct behaviour, wrong shape —
+   it is replaced by the real query in Stage 3 of §6.
+2. **Distant chunks keep the old heightfield mesh (hybrid rendering).** Near
+   chunks are voxel-extracted, far chunks stay as they are today. The seam is
+   invisible because far chunks have no carved content by construction — the
+   two carve sites are near the crag, and nothing is carved outside the near
+   ring. Removed when LOD lands.
+
+**Acceptance for this option:** the player walks from the valley floor into
+the crag tunnel, stands under a stone ceiling, and comes out on the
+switchback above — with the tour proving it, and every existing worldgen
+invariant (C1, fords, corridors, castle R1-R4, water, scatter) still green.
 
 ---
 
