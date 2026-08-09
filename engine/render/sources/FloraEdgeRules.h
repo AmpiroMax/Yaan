@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:36:59
-Last updated: 10:08:2026 - 02:36:59
+Last updated: 10:08:2026 - 02:49:15
 Module: engine/render
 File: engine/render/sources/FloraEdgeRules.h
 
@@ -40,6 +40,9 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 02:36:59: Created — edge set + water margin + talus apron rows,
   with the jewel budget flag and the shade-side moss association.
+- 10:08:2026 - 02:49:15: Design's asks: the band DATUM is named (0 = the worn
+  edge of the trodden surface, outward — never the centreline), and the
+  krummholz flag-direction wind note is recorded at the row.
 */
 
 #pragma once
@@ -51,10 +54,19 @@ UPD:
 
 namespace dfn::render {
 
-/// Where a rule applies. Distances are measured to the named feature's EDGE.
+/// Where a rule applies.
+///
+/// THE DATUM, named once so it can never silently drift (design's ask — the
+/// root-flare lesson: a rule can be right while its datum is not): band
+/// distance 0 is the OUTER EDGE OF THE WORN SURFACE — the line where the
+/// trodden centre's material gradient ends — measured OUTWARD. Never the path
+/// centreline. BR-3's «≈ 0 decoration on the trodden centre» is therefore
+/// satisfied by construction: the trodden surface is entirely at negative
+/// datum and no band reaches it. For water, 0 is the waterline at the
+/// stillwater level.
 enum class EdgeHabitat : uint8_t {
-    PathMargin,  ///< dist to the path's trodden edge
-    WaterMargin, ///< dist to the waterline (banks, pond rims)
+    PathMargin,  ///< dist from the worn edge of the trodden surface, outward
+    WaterMargin, ///< dist from the waterline (banks, pond rims), outward
     ForestFloor, ///< inside forest masses, no linear feature needed
     TalusApron,  ///< §5.12: the scree band under the massif's cliffline
 };
@@ -120,6 +132,11 @@ inline constexpr FloraEdgeRule FLORA_EDGE_RULES[] = {
      ClumpClass::Pebbles, true, true, EdgeAssociation::Nothing},
     {FloraSpecies::MossPatch, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f,
      ClumpClass::Moss, true, true, EdgeAssociation::ShadeOfStone},
+    // Krummholz. NOTE FOR THE WIND HANDOFF (design-ruled): the dwarf's dead
+    // flagged tip is authentic and stays — and when the shared wind field
+    // reaches trees, the FLAG DIRECTION must sample that field at placement
+    // (a krummholz flagged against the prevailing wind is a continuity bug
+    // waiting). Static today; field-aligned then.
     {FloraSpecies::StuntedPine, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f,
      ClumpClass::GrassTufts, false, true, EdgeAssociation::Nothing},
 };

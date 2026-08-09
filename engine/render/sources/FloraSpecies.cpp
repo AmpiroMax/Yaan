@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 10:08:2026 - 01:59:06
+Last updated: 10:08:2026 - 02:49:15
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -42,6 +42,8 @@ UPD:
   upper side, broken stubs and (big class) an upturned root plate. Pine sprays
   2 -> 3 planes under the new render-spec floor: card count buys ANGULAR
   COVERAGE against the worst azimuth.
+- 10:08:2026 - 02:49:15: Moss darkened under design's moss-below-grass rule;
+  the variation multiplier unified as MOSS_TONE_B (one number, three sites).
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -77,7 +79,11 @@ constexpr glm::vec3 BUSH_GREEN{0.35f, 0.47f, 0.22f};
 constexpr glm::vec3 DEADWOOD{0.31f, 0.27f, 0.21f};
 // Moss reads as a HUE step against dead wood, not a value step: close in
 // luminance to DEADWOOD, well apart in green. Full-colour basis (user ruling).
-constexpr glm::vec3 LOG_MOSS{0.20f, 0.33f, 0.12f};
+// DARKENED 10.08.2026 under design's acceptance rule: every moss tone
+// (including the MOSS_TONE_B variation) stays >= 0.05 luminance BELOW the
+// grass band, or moss converges with grass the moment the shipped pipeline
+// shifts either. Asserted in the suite.
+constexpr glm::vec3 LOG_MOSS{0.18f, 0.30f, 0.11f};
 
 std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     std::array<SpeciesParams, FLORA_SPECIES_COUNT> t{};
@@ -459,7 +465,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     moss.ground_elements = 3;
     moss.foliage_color = LOG_MOSS;
     moss.accent_color = LOG_MOSS;
-    moss.accent_color_b = LOG_MOSS * 1.30f;
+    moss.accent_color_b = LOG_MOSS * MOSS_TONE_B;
 
     SpeciesParams& carpet = t[static_cast<size_t>(FloraSpecies::FlowerCarpet)];
     patch(carpet, "FlowerCarpet", GroundForm::HeadsTuft);

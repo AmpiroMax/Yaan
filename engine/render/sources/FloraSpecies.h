@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 10:08:2026 - 01:59:06
+Last updated: 10:08:2026 - 02:49:15
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -33,6 +33,9 @@ UPD:
 - 10:08:2026 - 01:59:06: Dead-wood vocabulary for the §5.10 forest floor:
   SnagPale (the snag's second MATERIAL, not a second shape), stub/root-plate/
   moss fields on SpeciesParams.
+- 10:08:2026 - 02:49:15: Design's acceptance asks: MOSS_TONE_B and the
+  GRASS_BAND_REFERENCE proxy — every moss tone asserted a readable step below
+  the grass band.
 */
 
 #pragma once
@@ -254,6 +257,19 @@ struct SpeciesParams {
     float shyness = 0.25f;       ///< 0..1 crown pullback toward a crowding neighbour
     float lean_response = 0.10f; ///< rad per unit crowding
 };
+
+/// Moss's brighter variation tone, as a multiplier on the base moss colour.
+/// ONE number for the log moss pass, the MossPatch species and the suite —
+/// design's acceptance rule is that EVERY moss tone stays a readable step
+/// DARKER than the grass band (luminance <= grass - 0.05, asserted), so the
+/// variation multiplier is part of that contract, not a local flourish.
+inline constexpr float MOSS_TONE_B = 1.18f;
+
+/// The grass-band reference the moss rule (and the flower value roles) are
+/// measured against. A PROXY until the shipped ground grass value is a named
+/// registry row — when render's grass colour lands in NUMBERS.md, this reads
+/// it and the literal dies (Rule 14; flagged in the Task 4 grass report).
+inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 
 /// The catalog. Stable reference for the process lifetime.
 [[nodiscard]] const SpeciesParams& species_params(FloraSpecies species);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 01:59:06
+Last updated: 10:08:2026 - 02:49:15
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -54,6 +54,8 @@ UPD:
   4-vertex-per-card buffer, so every "card" it measured was one and a half
   real cards — the channel-map case one page up had asserted % 4 == 0 all
   along; two green tests held contradictory beliefs about one buffer.
+- 10:08:2026 - 02:49:15: Moss-below-grass-band assertion (design's acceptance
+  rule) with the grass reference as its own failing control.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1542,7 +1544,7 @@ TEST_CASE("floor: moss lives on the UPPER side of a log, in patches") {
     for (const FloraSpecies s : logs) {
         const SpeciesParams& sp = species_params(s);
         const uint32_t moss_a = pack(sp.moss_color);
-        const uint32_t moss_b = pack(sp.moss_color * 1.28f);
+        const uint32_t moss_b = pack(sp.moss_color * MOSS_TONE_B);
         int up_mossed_total = 0;
         int up_total = 0;
         for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
@@ -1591,7 +1593,7 @@ TEST_CASE("floor: moss lives on the UPPER side of a log, in patches") {
     {
         const SpeciesParams& log_sp = species_params(FloraSpecies::FallenLog);
         const uint32_t moss_a = pack(log_sp.moss_color);
-        const uint32_t moss_b = pack(log_sp.moss_color * 1.28f);
+        const uint32_t moss_b = pack(log_sp.moss_color * MOSS_TONE_B);
         const FloraMesh snag =
             build_flora_mesh(FloraSpecies::Snag, 1, FloraShape{}, FloraLod::Full);
         for (const platform::Vertex& vx : snag.wood.vertices) {
@@ -2087,6 +2089,27 @@ TEST_CASE("edge: the four flowers are separable from grass and each other") {
     }
     // CONTROL: two copies of one colour fail the pairwise floor.
     CHECK_FALSE(glm::length(cols[0] - cols[0]) > 0.25f);
+
+    // MOSS STAYS BELOW THE GRASS BAND (design's acceptance rule, 10.08.2026):
+    // moss is by design the species closest to grass, so EVERY moss tone —
+    // including the MOSS_TONE_B variation, on patches and on logs — keeps a
+    // readable 0.05 of luminance under the grass reference. If the shipped
+    // grass darkens, moss follows it down rather than converging.
+    {
+        const float grass = luminance(GRASS_BAND_REFERENCE);
+        const glm::vec3 moss_tones[] = {
+            species_params(FloraSpecies::MossPatch).accent_color,
+            species_params(FloraSpecies::MossPatch).accent_color_b,
+            species_params(FloraSpecies::FallenLog).moss_color,
+            species_params(FloraSpecies::FallenLog).moss_color * MOSS_TONE_B,
+            species_params(FloraSpecies::Deadfall).moss_color * MOSS_TONE_B,
+        };
+        for (const glm::vec3& tone : moss_tones) {
+            CHECK(luminance(tone) <= grass - 0.05f);
+        }
+        // CONTROL: the grass reference itself must FAIL the rule.
+        CHECK_FALSE(luminance(GRASS_BAND_REFERENCE) <= grass - 0.05f);
+    }
 }
 
 TEST_CASE("edge: the rule table is coherent, and the jewel is a BUDGET") {

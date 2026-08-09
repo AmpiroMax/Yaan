@@ -747,7 +747,7 @@ void build_fallen_log(MeshData& m, Tree& t, Rng& rng) {
     // it arrives in patches rather than as paint.
     if (sp.moss_cover > 0.0f) {
         const uint32_t moss_a = pack(sp.moss_color);
-        const uint32_t moss_b = pack(sp.moss_color * 1.28f);
+        const uint32_t moss_b = pack(sp.moss_color * MOSS_TONE_B);
         bool any_moss = false;
         size_t first_up = m.indices.size();
         for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
