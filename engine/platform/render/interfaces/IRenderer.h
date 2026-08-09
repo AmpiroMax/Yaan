@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 19:21:01
+Last updated: 09:08:2026 - 20:01:56
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -52,6 +52,9 @@ UPD:
                          Render's diff, lead-authored per Rule 26.
 - 09:08:2026 - 19:21:01: Deprecated single-point-light fields deleted now
                          that render's backend and tests use the array.
+- 09:08:2026 - 20:01:56: Wind (direction/strength/flutter) for foliage, grass
+                         and cloth — one wind for the world. Render's diff,
+                         lead-authored per Rule 26.
 */
 
 #pragma once
@@ -164,6 +167,22 @@ struct RenderEnvironment {
     PointLight point_lights[MAX_POINT_LIGHTS];
     uint32_t point_light_count = 0;
 
+
+    // Wind. ONE wind for the world: foliage now, grass and cloth later, so a
+    // second wind can never be invented alongside this one and diverge.
+    glm::vec2 wind_direction{1.0f, 0.0f}; // normalized, world x/z
+    float wind_strength = 0.0f;           // 0..1, CURRENT value INCLUDING gusts.
+                                          // Computed CPU-side per frame and
+                                          // shipped as one scalar ON PURPOSE:
+                                          // if gusts were derived from time
+                                          // inside the vertex shader, nothing
+                                          // outside the GPU could know when a
+                                          // gust peaks, and an audio rustle
+                                          // could never be synced to the
+                                          // picture except by luck. Gameplay
+                                          // can read it too ("wait for the wind
+                                          // to drop").
+    float wind_flutter = 1.0f;            // multiplier on the fast component
 
     // Authored darkness of the PLACE the player is in (user: night stays
     // playable, but some interiors are a black void where a torch lights only

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 20:40:00
+Last updated: 09:08:2026 - 20:02:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -53,10 +53,14 @@ UPD:
   carrying moon direction/phase/colour/light, star intensity and the carried
   point light; sky shader gains stars and a phased moon disc; terrain and
   props light through the shared dfn_surface_light().
-- 09:08:2026 - 20:40:00: Light ARRAY (8 lit, cube-shadow casters to come with
+- 09:08:2026 - 19:32:00: Light ARRAY (8 lit, cube-shadow casters to come with
   interiors) + authored ambient_darkness; env block 15 -> 32 vec4s. REVERSED-Z
   depth (D32F internal target, clear 0, DEPTH_TEST_GREATER, projection flipped
   in begin_frame) so CAMERA_FAR 8000 m does not z-fight distant landmarks.
+- 09:08:2026 - 20:02:00: Foliage material path: "foliage" alpha-cutout program
+  (albedo from the leaf mask, vertex colour repurposed to wind data) and the
+  internal "shadow_cutout" caster so the canopy's shadow gets the mask's
+  holes and the same sway; wind packed at env slot [32].
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -96,6 +100,10 @@ UPD:
 #include <fs_prop_mtl.h>
 #include <vs_shadow_mtl.h>
 #include <fs_shadow_mtl.h>
+#include <vs_foliage_mtl.h>
+#include <fs_foliage_mtl.h>
+#include <vs_shadow_cutout_mtl.h>
+#include <fs_shadow_cutout_mtl.h>
 #endif
 
 namespace dfn::platform {
@@ -157,6 +165,10 @@ const ProgramSource PROGRAM_TABLE[] = {
                 {fs_terrain_mtl, sizeof(fs_terrain_mtl)}},
     {"unlit",   {vs_unlit_mtl, sizeof(vs_unlit_mtl)},
                 {fs_unlit_mtl, sizeof(fs_unlit_mtl)}},
+    {"foliage", {vs_foliage_mtl, sizeof(vs_foliage_mtl)},
+                {fs_foliage_mtl, sizeof(fs_foliage_mtl)}},
+    {"shadow_cutout", {vs_shadow_cutout_mtl, sizeof(vs_shadow_cutout_mtl)},
+                {fs_shadow_cutout_mtl, sizeof(fs_shadow_cutout_mtl)}},
     {"debug",   {vs_debug_mtl, sizeof(vs_debug_mtl)},
                 {fs_debug_mtl, sizeof(fs_debug_mtl)}},
     {"upscale", {vs_upscale_mtl, sizeof(vs_upscale_mtl)},
@@ -178,6 +190,7 @@ const ProgramSource PROGRAM_TABLE[] = {
 // (macOS focus per the stage-2 brief); load_program returns invalid handles.
 const ProgramSource PROGRAM_TABLE[] = {
     {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}},
+    {"foliage", {}, {}}, {"shadow_cutout", {}, {}},
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
     {"shadow", {}, {}},
 };
@@ -186,8 +199,11 @@ const ProgramSource PROGRAM_TABLE[] = {
 // Logical program names rendered with alpha blend + read-only depth (the
 // name -> render-state convention acknowledged at the stage-3 sync).
 constexpr const char* TRANSPARENT_PROGRAMS[] = {"water"};
+// Alpha-CUTOUT programs: opaque state (depth write, no sorting) but their
+// shadow depth must come from the mask, not from the card's rectangle.
+constexpr const char* CUTOUT_PROGRAMS[] = {"foliage"};
 
-constexpr uint16_t ENV_PARAM_VEC4S = 32; // layout contract with dfn_env.sh
+constexpr uint16_t ENV_PARAM_VEC4S = 33; // layout contract with dfn_env.sh
 constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {
@@ -242,6 +258,8 @@ struct BgfxRenderer::Impl {
     bgfx::TextureHandle shadow_map = BGFX_INVALID_HANDLE;
     bgfx::FrameBufferHandle shadow_fb = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_program = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle shadow_cutout_program = BGFX_INVALID_HANDLE;
+    std::unordered_map<uint32_t, bool> cutout; // program id -> alpha cutout
     bgfx::UniformHandle s_shadow_map = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_shadow_params = BGFX_INVALID_HANDLE;
@@ -306,6 +324,7 @@ struct BgfxRenderer::Impl {
                                    ? e.point_light_count
                                    : MAX_POINT_LIGHTS;
         packed[15] = {e.ambient_darkness, static_cast<float>(count), 0.0f, 0.0f};
+        packed[32] = {e.wind_direction, e.wind_strength, e.wind_flutter};
         for (uint32_t i = 0; i < count; ++i) {
             const PointLight& l = e.point_lights[i];
             packed[16 + i] = {l.position, l.radius_m};
@@ -496,6 +515,7 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
                                  "sun shadows disabled\n");
         }
         im.shadow_program = im.make_program("shadow");
+        im.shadow_cutout_program = im.make_program("shadow_cutout");
         im.s_shadow_map =
             bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
         im.u_light_mtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
@@ -537,6 +557,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.debug_program)) bgfx::destroy(im.debug_program);
     if (bgfx::isValid(im.sky_program)) bgfx::destroy(im.sky_program);
     if (bgfx::isValid(im.shadow_program)) bgfx::destroy(im.shadow_program);
+    if (bgfx::isValid(im.shadow_cutout_program)) bgfx::destroy(im.shadow_cutout_program);
     if (bgfx::isValid(im.shadow_fb)) bgfx::destroy(im.shadow_fb);
     if (bgfx::isValid(im.shadow_map)) bgfx::destroy(im.shadow_map);
     if (bgfx::isValid(im.s_shadow_map)) bgfx::destroy(im.s_shadow_map);
@@ -771,6 +792,11 @@ ProgramHandle BgfxRenderer::load_program(std::string_view name) {
             im.transparent.emplace(id, true);
         }
     }
+    for (const char* cutout_name : CUTOUT_PROGRAMS) {
+        if (name == cutout_name) {
+            im.cutout.emplace(id, true);
+        }
+    }
     return ProgramHandle{id};
 }
 
@@ -782,6 +808,7 @@ void BgfxRenderer::destroy_program(ProgramHandle program) {
         im.programs.erase(it);
     }
     im.transparent.erase(program.id);
+    im.cutout.erase(program.id);
 }
 
 void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
@@ -800,12 +827,28 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // Shadow caster pass (в1): every opaque submit also renders depth into the
     // sun's shadow view — terrain, trees, houses, scatter all cast. Skipped
     // when the sun is below the shadow threshold (night) or resources failed.
+    const bool is_cutout = im.cutout.contains(program.id);
     if (im.shadow_active && !is_transparent) {
+        // Cutout casters (leaf cards) punch their mask through the depth map
+        // and sway with the SAME wind as the visible geometry — otherwise the
+        // canopy casts a solid rectangle, or its shadow stands still while the
+        // leaves move. Everything else keeps the cheap depth-only program, so
+        // only foliage pays for the discard.
+        bgfx::ProgramHandle caster = im.shadow_program;
+        if (is_cutout && bgfx::isValid(im.shadow_cutout_program)) {
+            caster = im.shadow_cutout_program;
+            const auto shadow_tex = im.textures.find(texture.id);
+            if (shadow_tex != im.textures.end()) {
+                bgfx::setTexture(0, im.s_tex_color, shadow_tex->second,
+                                 BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                                     | BGFX_SAMPLER_MIP_POINT);
+            }
+        }
         bgfx::setTransform(glm::value_ptr(transform));
         bgfx::setVertexBuffer(0, mesh_it->second.vb);
         bgfx::setIndexBuffer(mesh_it->second.ib);
         bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
-        bgfx::submit(VIEW_SHADOW, im.shadow_program);
+        bgfx::submit(VIEW_SHADOW, caster);
     }
 
     bgfx::setTransform(glm::value_ptr(transform));

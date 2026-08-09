@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:05:00
+Last updated: 09:08:2026 - 19:54:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -22,12 +22,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial implementation.
-- 09:08:2026 - 21:30:00: Flora generator integrated: trees build per-instance
+- 09:08:2026 - 19:46:00: Flora generator integrated: trees build per-instance
   geometry via build_flora_mesh (variant by position, shape from
   analyse_neighbourhood), appended at scale 1.0 because maturity is
   already inside the mesh, and with NO ground sink now that they have a
   root flare. species_radius updated to flora's measured envelopes.
-- 09:08:2026 - 22:05:00: birch footprint 2.4 -> 3.1 m (flora's crown fix gave
+- 09:08:2026 - 19:54:00: birch footprint 2.4 -> 3.1 m (flora's crown fix gave
   the birch a real 6.1 m crown; the old radius was measured off a bald tree).
 */
 

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 20:00:11
+Last updated: 09:08:2026 - 20:10:24
 -->
 <!--
 UPD:
@@ -81,6 +81,28 @@ UPD:
                          Pipeline questions sent to render BEFORE building.
                          Birch drill-bit chase STOPPED under Rule 28 — the
                          approach it belonged to is being replaced.
+- 09:08:2026 - 20:03:46: New §3.9 for design's banded-massif ruling
+                         (§2.8): bench-width arithmetic (their 6 m is fine —
+                         the inner side of a bench is a riser, not a drop, so
+                         the setback was double-counted), occupancy proposed as
+                         a DUTY CYCLE rather than a per-bench count, and the
+                         value-contrast rule that trees go near the LIP (sky
+                         behind) not the riser (rock behind).
+- 09:08:2026 - 20:08:47: New §3.10 — measured the user's reference
+                         photos rather than describing them. Beer-Lambert
+                         k~0.84/m; porosity is a RIM effect (core 1.6-2.9%%
+                         sky, not "porous everywhere"); tracery reads by 2.54x
+                         VALUE contrast, not transparency; and 99%% of branch
+                         widths fall below render's 0.31 m mask floor, so the
+                         lace cannot be mask detail. Corrected my own hollow-
+                         interior guess too.
+- 09:08:2026 - 20:10:24: New §3.11 — seasons foresight only, nothing
+                         built. Colour becomes a per-species palette indexed by
+                         season; the MESH STORES AN INDEX, not a colour, so a
+                         season is a table swap and not a world regen. Notes
+                         that vertex colour has no free channel left (RGB=sway,
+                         A=sky visibility), and that winter bare-branch is
+                         nearly free since the skeleton already exists.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -682,6 +704,157 @@ should know that before building rather than after.
 **Reference images are coming from the user.** The instruction is therefore to
 build the MECHANISM and keep leaf shape and card layout cheap to retune — do
 not polish a look that is about to be specified.
+
+### 3.9 Vegetation on the banded massif (design §2.8)
+
+Ravenscar becomes a banded contour massif: near-vertical risers (≥ 55°,
+8–15 m) alternating with walkable benches (≤ 25°, 6–30 m), split by aretes.
+`TREE_SLOPE_MAX` (0.61 rad) excludes the risers automatically, so **vegetation
+collects on the benches in horizontal lines**. That look must be deliberate.
+
+**Bench width arithmetic (flora's answer to design's question).** The setback
+applies to the OUTER lip only — the inner side of a bench is the base of a
+riser going *up*, not a fall, and a tree at a cliff base is a real thing. It
+needs only the flare's own radius so the trunk is not embedded in rock:
+
+    legal axis band = W − r_flare − (CLIFF_SETBACK + r_flare)
+
+with `r_flare` = `species_trunk_radius()` (already includes the flare, so no
+one has to re-derive it): pine 0.84 m, oak 0.99 m, birch 0.40 m, big bush
+0.16 m; giants ×1.5. A 6 m bench leaves a pine **2.81 m** of lateral freedom —
+enough to look scattered rather than surveyed. Derived floors proposed to
+design: `BENCH_VEG_WIDTH_MIN` 5.0 m (below it, bushes and grass only) and
+`BENCH_VEG_WIDTH_MIN_GIANT` 7.0 m. **The vegetation floor is below the terrain
+floor, so no terrain change is needed.**
+
+**Occupancy, not a count.** Design proposed one cluster per bench segment.
+A count does not survive scale — one cluster on a 200 m bench reads as a potted
+plant exactly as badly as a continuous line reads as landscaping, and both are
+the same failure: vegetation that does not respond to the mountain. Proposed
+instead: `BENCH_VEG_DUTY_MAX` 0.25, `BENCH_CLUSTER_LENGTH_MAX` 25 m,
+`BENCH_CLUSTER_GAP_MIN` 40 m, and — the one worth defending —
+`BENCH_BARE_FRACTION_MIN` 0.40: **at least 40 % of benches carry nothing.**
+What makes a stand above a 12 m drop extraordinary is that the ledges above and
+below it are bare; a dutiful cluster on every bench is still landscaping, just
+at lower density.
+
+**Place toward the LIP, not the riser.** A tree at the inner edge of a bench has
+a cliff face behind it — dark on dark, no silhouette, invisible at any
+distance. The same tree at the setback limit has SKY behind it and its crown
+overhangs the drop. This is §1.5's skyline rule applied at band scale, and it
+is the entire reason to vegetate benches: place within the outer ~40 % of the
+legal band.
+
+**Treeline should snap to the nearest band lip** rather than sit at a flat
+elevation, which would cut mid-riser and leave half-vegetated cliff faces
+reading as a mowing line. Raised with design and core; costs nothing since the
+lips are already known.
+
+### 3.10 What the reference photos actually measure
+
+The user supplied three photos (`tree_images_examples/`): autumn broadleaves
+shot from below against sky. Adjectives about them were turning into
+requirements, so the crown was measured in pixels instead. **Two readings were
+wrong, including mine**, and the measurement corrected both.
+
+**Transmittance vs depth** (sky seen through the crown, columns whose
+background is sky; two exposures of the same maple agree within 3 pts):
+
+    depth into crown   photo 3   photo 2
+      0 – 40 px         23.6 %    22.8 %
+     40 – 80            22.9      24.2
+     80 – 120           10.3      13.6
+    120 – 160            7.3      10.8
+    160 – 200            2.9       3.8
+    200 +              0.5–4.3   0.7–3.0
+
+Clean Beer-Lambert decay to an asymptote. Fitted extinction **k ≈ 0.84 per
+metre** (half-depth 0.83 m; T < 3 % beyond ~3 m of penetration), scaling the
+390 px crown radius to a ~6 m maple.
+
+**1. "Porous everywhere, no solid core" is false.** Sky through the crown
+interior is 1.6–2.9 %; only the outer ~25 % of the radius reaches 16–28 %.
+**Porosity is a RIM phenomenon.** The core is 79–86 % leaf — nearly opaque.
+My own opposite guess (foliage on terminal twigs only, hollow interior) was
+equally wrong: the interior is full.
+
+**2. The tracery reads by VALUE CONTRAST, not transparency.** Measured
+luminance: branch 50, leaf 135, sky 235 — **branch:leaf = 2.54x**. The skeleton
+is visible because it is the darkest thing in the frame against a bright
+backlit leaf field, *not* because sky shows through. Dark limbs plus bright
+foliage reproduce the look; see-through cards do not, and are not what is
+happening in the photo.
+
+**3. The fine tracery cannot survive 640x360.** Median branch width is 2 px in
+a 780 px crown = **0.03 m**. A 12 m crown at 27.7 m fills 240 px, putting the
+median branch at **0.62 px** — sub-pixel at every gameplay distance. Worse,
+**99 % of branch widths are below render's 0.31 m mask-feature floor** (p90
+0.08 m, p95 0.12 m, p99 0.23 m). The lace is therefore unrepresentable *as mask
+detail by render's own rule*; only trunk and primary limbs can read, and they
+must be **geometry**, not alpha-mask features.
+
+**4. Do not calibrate palette from these photos.** The same tree in two frames
+gives leaf/dark splits of 76/10 and 53/40 purely on exposure.
+
+**5. Framing caveat.** All three are shot from below, close, against bright
+sky — the most flattering possible angle for canopy porosity. Gameplay is
+1.7 m eye height at 10–100 m, mostly against *terrain*. Against a dark
+hillside the rim gaps show dark ground rather than bright sky and the 2.54x
+contrast collapses. **The reference look is guaranteed only on the skyline**,
+which §1.5 already governs.
+
+**6. Two distance regimes, not one look.** Photo 1 (canopy mass at distance) has
+no readable tracery at all: what carries it is colour variation between crowns
+and a lumpy collective outline. Photos 2–3 (one near tree) carry tracery and rim
+porosity. These are different requirements for different LOD bands.
+
+**7. Conifers stay green in all three autumn photos** — the pine palette does
+not depend on the pending seasons question, so pine work is unblocked either
+way.
+
+### 3.11 Seasons — making the ruling cheap to apply (not building it)
+
+User wants autumn, summer and winter, to be game-designed later. Nothing is
+built now; what follows is only the shape that keeps a later palette ruling a
+data swap instead of a world regeneration.
+
+**Foliage colour is a per-species PALETTE INDEXED BY SEASON**, with exactly one
+entry today. Zero cost now, and it is the difference between adding a season
+and rewriting one.
+
+**Where the colour lives — and the constraint that decides it.** Vertex colour
+is *already fully spent*: RGB carries sway weight and phase, A is render's
+sky-visibility channel. **There is no free channel, so colour cannot live in
+vertex colour.** Baking it into the leaf mask is also wrong — it multiplies
+textures by species x season *and* destroys per-card jitter, since one texture
+is one colour.
+
+So: **the mesh stores an INDEX, not a colour.** A per-card scalar in 0..1
+selects a position in a palette ramp; the material resolves
+`colour = palette[species][season].sample(index)`. Consequences:
+
+- a season change swaps a small table — **no mesh regenerated, no world rebuilt**;
+- per-card jitter is baked once and is season-independent;
+- widening jitter per season is free, because the palette entry is a **ramp,
+  not a colour**. Autumn gets a wide spread (§3.10: several values in one crown,
+  strong tree-to-tree variation), summer a narrow one. This is exactly the
+  "widen the range per season" requirement, and it falls out of the
+  representation rather than needing a mechanism.
+
+**OPEN — for render.** Where does the per-card scalar live, given `Vertex` is
+frozen? Either a spare UV channel, or derive it from the leaf-mask atlas tile
+index the card already selects (free, but caps distinct colours at the tile
+count — acceptable at 4–8). Needs render's answer before cards are built.
+
+**Winter is the cheapest season and it is already in hand.** Bare deciduous
+branches = *do not emit foliage cards*; the skeleton is generated regardless.
+That is one boolean (`has_foliage`) beside the palette in the same table, false
+for deciduous in winter and true for conifers, which retain needles. Snow is
+render's and core's. §3.10 measured that conifers stay green in all three autumn
+photos, so pine's only season delta is snow — pine is season-stable otherwise.
+
+**Do not calibrate the autumn palette from the reference photos** — §3.10, the
+same tree gives leaf/dark splits of 76/10 and 53/40 on exposure alone.
 
 ### 3.7 Two bugs the suite caught — read this before touching the envelope
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:45:00
+Last updated: 09:08:2026 - 19:52:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -42,8 +42,8 @@ UPD:
   (draw_overlay), map_.note_chunk on terrain upload, map_.note_site in the ECS
   pass (before the mesh lookup, so the mesh-less castle ids 8..11 still map),
   DFN_MAP=1 opens the map at init for the tour evidence shot.
-- 09:08:2026 - 21:00:00: upload_terrain_voxel (see the header UPD).
-- 09:08:2026 - 21:45:00: DFN_TIME re-applied per frame (see the header UPD).
+- 09:08:2026 - 19:42:00: upload_terrain_voxel (see the header UPD).
+- 09:08:2026 - 19:52:00: DFN_TIME re-applied per frame (see the header UPD).
 */
 
 #include "engine/render/sources/RenderSystem.h"

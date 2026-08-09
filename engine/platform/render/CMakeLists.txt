@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 14:11:37
+# Last updated: 09:08:2026 - 20:08:11
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -31,6 +31,9 @@
 #   for placeholder scatter/site meshes; shares vs_terrain).
 # - 09:08:2026 - 14:11:37: Dynamic sun shadows — vs_shadow/fs_shadow pair,
 #   dfn_shadow.sh shared include added to the shaderc dependency list.
+# - 09:08:2026 - 20:08:11: Foliage: vs_foliage/fs_foliage (alpha-cutout
+#   leaf cards + wind sway) and vs_shadow_cutout/fs_shadow_cutout (the same
+#   mask punched through the shadow map, swaying identically).
 
 include(FetchContent)
 
@@ -75,11 +78,12 @@ function(dfn_compile_shader name type profile platform suffix)
 endfunction()
 
 if(APPLE)
-    foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow)
+    foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow
+                   vs_foliage vs_shadow_cutout)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
     foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop
-                   fs_shadow)
+                   fs_shadow fs_foliage fs_shadow_cutout)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()

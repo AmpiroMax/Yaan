@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 09:08:2026 - 20:40:00
+Last updated: 09:08:2026 - 19:58:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -10,7 +10,7 @@ Responsibility:
   index layout; BgfxRenderer.cpp packs the array in exactly this order.
 
 Key items:
-- u_envParams[32]; accessor #defines (sun, ambient, fog, sky, splat, water,
+- u_envParams[33]; accessor #defines (sun, ambient, fog, sky, splat, water,
   moon, stars, point light) + dfn_surface_light() / dfn_fog_factor().
 
 Dependencies:
@@ -28,14 +28,16 @@ UPD:
 - 09:08:2026 - 19:20:00: Day/night (в1/в2): moon + stars + carried point light
   slots (11..14) and the shared dfn_surface_light() used by terrain and props,
   so sun, moon, torch and the sky-visibility ambient are computed in ONE place.
-- 09:08:2026 - 20:40:00: Light ARRAY (up to 8) replaces the single point
+- 09:08:2026 - 19:32:00: Light ARRAY (up to 8) replaces the single point
   light, plus authored u_ambientDarkness; env block 15 -> 32 vec4s.
+- 09:08:2026 - 19:58:00: Wind slots [32] + shared dfn_wind_offset (foliage now,
+  grass and cloth later); env block 32 -> 33 vec4s.
 */
 
 #ifndef DFN_ENV_SH
 #define DFN_ENV_SH
 
-uniform vec4 u_envParams[32];
+uniform vec4 u_envParams[33];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -67,6 +69,35 @@ uniform vec4 u_envParams[32];
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
 #define u_lightColor(i)  (u_envParams[24 + (i)])
+// Wind: ONE wind for the world (foliage now, grass and cloth later).
+#define u_windDir        (u_envParams[32].xy)
+#define u_windStrength   (u_envParams[32].z)
+#define u_windFlutter    (u_envParams[32].w)
+
+// Sway offset for a wind-affected vertex, in WORLD space.
+//   sway_weight: 0 at the attachment (branch/ground), 1 at the free edge.
+//   phase:       per-INSTANCE, so a stand ripples instead of pulsing as one.
+// u_windStrength already contains the CPU-side gust envelope, which is what
+// lets audio and gameplay read the same number the leaves are moving to; this
+// function only adds per-instance and per-place variation on top of it.
+vec3 dfn_wind_offset(vec3 wpos, float sway_weight, float phase)
+{
+    if (u_windStrength <= 0.0 || sway_weight <= 0.0) {
+        return vec3(0.0, 0.0, 0.0);
+    }
+    float tau = 6.2831853;
+    // Gusts TRAVEL along the wind direction: without this term every tree in
+    // a stand peaks at the same instant and the forest breathes as one object.
+    float travel = dot(wpos.xz, u_windDir) * 0.06;
+    float sway = sin(u_envTime * 1.1 + phase * tau + travel);
+    float flutter = sin(u_envTime * 4.3 + phase * tau * 2.0) * 0.35 * u_windFlutter;
+    float amp = u_windStrength * sway_weight;
+    vec2 horizontal = u_windDir * (amp * (sway + flutter) * 0.6);
+    // A pushed card also DIPS. Pure horizontal translation reads as the card
+    // sliding; the dip is what sells it as bending about its attachment.
+    float dip = -abs(amp * sway) * 0.15;
+    return vec3(horizontal.x, dip, horizontal.y);
+}
 
 // Ground brightness of a FULL moon, as a fraction of moon_color. A full moon
 // is ~400,000x dimmer than the sun; the art value that reads as "navigable

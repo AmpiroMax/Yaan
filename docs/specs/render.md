@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 20:10:00
+Last updated: 09:08:2026 - 20:11:11
 -->
 <!--
 UPD:
@@ -59,6 +59,10 @@ UPD:
   sky visibility consumed from vertex alpha, DFN_TIME/DFN_MOON/DFN_SKY_YAW +
   Tour::sky_probe_steps. Cross-zone: LOD contract agreed with core, flora
   agent's zone split accepted, haze/far-plane finding sent to design.
+- 09:08:2026 - 20:11:11: Foliage material path (alpha-cutout leaf cards, wind,
+  leaf translucency) + the named PALETTE SIGNAL STRENGTH rule: in 8 ramps x 8
+  shades a hue change is the strongest signal and a brightness step the
+  weakest, and sub-step effects become dither, i.e. noise on small geometry.
 -->
 
 # Spec — render agent
@@ -647,6 +651,30 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
   edge detection semantics on the null backend.
 - `python3 tools/header_check.py --all` passes; zero warnings with
   `-Wall -Wextra -Wpedantic` on both toolchains (build gates).
+
+## Named rule — PALETTE SIGNAL STRENGTH (applies to every shading decision)
+
+The 64-colour palette post is 8 ramps x 8 shades. That geometry decides which
+shading effects can be SEEN at all, and it is not intuitive:
+
+1. **A ramp change (hue) is the strongest signal available. A shade step
+   (brightness) is the weakest.** An effect that needs to survive quantization
+   should move HUE, not value. Pushing a back-lit leaf from green toward gold
+   crosses into another ramp and reads instantly; making it 10% brighter lands
+   on the same index and is literally wasted work.
+2. **Sub-step differences do not vanish — they become Bayer dither.** On large
+   surfaces that is a usable gradient. On few-pixel geometry (leaf cards, thin
+   props, distant detail) it reads as NOISE rather than as the effect, which is
+   worse than not doing it.
+3. Therefore: **exaggerate deliberately or do not build it.** An effect tuned
+   to look "subtle and tasteful" in a full-colour preview will read as either
+   nothing or noise once the palette pass runs.
+
+This applies to everything shading-related we have not built yet — magic glow,
+torch light on walls, wet surfaces, blood, snow — not only to foliage. It was
+first derived for leaf translucency, where it agreed independently with the
+user's reference photos: both the palette arithmetic and the photographs say
+"push warm, not bright".
 
 ## What this zone does NOT do
 

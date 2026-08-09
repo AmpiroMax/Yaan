@@ -1,6 +1,6 @@
 /*
-Created: 09:08:2026 - 20:58:00
-Last updated: 09:08:2026 - 20:58:00
+Created: 09:08:2026 - 19:40:00
+Last updated: 09:08:2026 - 19:40:00
 Module: engine/render
 File: engine/render/sources/VoxelMesher.cpp
 
@@ -22,7 +22,7 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
-- 09:08:2026 - 20:58:00: Created with the voxel render path.
+- 09:08:2026 - 19:40:00: Created with the voxel render path.
 */
 
 #include "engine/render/sources/VoxelMesher.h"

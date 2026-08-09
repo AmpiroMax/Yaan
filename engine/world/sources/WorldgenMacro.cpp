@@ -125,24 +125,113 @@ float base_height(uint64_t seed, glm::vec2 world) {
     return valley_curve(n) * BASE_AMPLITUDE_M;
 }
 
-/// L0 crag stamp (§7.1): radial profile toward peak_height, ridged-noise
-/// modulation fading out at the summit so the layout peak height is exact.
-float crag_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
-    const float d = glm::length(world - crag.center);
-    if (d >= crag.radius) {
+/// A field of BEARING, sampled periodically. Sampling any noise on the angle
+/// VALUE puts a branch cut at +-pi and draws a vertical seam from summit to
+/// foot; sampling on a CIRCLE embedded in the noise field is periodic by
+/// construction. `lobes` sets how many wiggles go round: the circle's
+/// circumference spans that many noise cells.
+float bearing_field(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes) {
+    constexpr float CELL = 64.0f;
+    constexpr float TAU = 6.28318530717958647692f;
+    const float rc = lobes * CELL / TAU;
+    return value_noise(seed, stream, CELL, glm::vec2{4096.0f, 4096.0f} + unit_dir * rc);
+}
+
+/// Ridged version of the same: sharp crests are aretes, the troughs between
+/// them are couloirs.
+float bearing_ridged(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes) {
+    return 1.0f - std::fabs(2.0f * bearing_field(seed, stream, unit_dir, lobes) - 1.0f);
+}
+
+/// Banded contour massif (LANDSCAPE §2.8). Four seeded per-sample fields:
+///   1. a per-bearing PROFILE EXPONENT p in [1.3, 2.2] applied as
+///      h = H*(1 - d/R)^p. p > 1 is CONCAVE — steep at the summit, shallowing
+///      to the foot, which is what real mountains do. smoothstep is the
+///      opposite curve, and that single inversion is why the old stamp read as
+///      a dome no matter how it was tuned.
+///   2. a per-bearing RADIAL EXTENT R(theta) with lobe amplitude rising with
+///      elevation: outward lobes are aretes, inward folds are couloirs.
+///   3. non-uniform CONTOUR BANDS above the cliffline.
+///   4. a RISER CLASS per (band, angular sector): CLIFF or RAMP, so the
+///      terracing is discontinuous AROUND the mountain as well as up it —
+///      otherwise it reads as a wedding cake.
+/// Everything here is a pure function of position; nothing touches the voxel
+/// pipeline.
+float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
+    const glm::vec2 rel = world - crag.center;
+    const float d = glm::length(rel);
+    if (d >= crag.radius * (1.0f + static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX))) {
         return 0.0f;
     }
-    const float prof = smoothstep01(1.0f - d / crag.radius);
-    const float ridged = ridged_noise(seed, STREAM_CRAG_RIDGED, crag.ridge_cell, world);
-    if (crag.ridge_amp_meters > 0.0f) {
-        // Absolute flank relief: the ridges keep their real size no matter how
-        // tall the summit gets. The fractional form below couples them, which
-        // makes a taller peak raise its own occluders in lockstep.
-        return prof * crag.peak_height
-             - crag.ridge_amp_meters * (1.0f - prof) * (1.0f - ridged);
+    const glm::vec2 dir = d > 1e-3f ? rel / d : glm::vec2{1.0f, 0.0f};
+    const float H = crag.peak_height;
+
+    // --- Field 1: per-bearing profile exponent ---------------------------------
+    const float lobes = static_cast<float>(crag.arete_count);
+    const float p = static_cast<float>(config::MASSIF_PROFILE_EXPONENT_MIN)
+                  + bearing_field(seed, STREAM_MASSIF_PROFILE, dir, lobes)
+                        * static_cast<float>(config::MASSIF_PROFILE_EXPONENT_MAX
+                                             - config::MASSIF_PROFILE_EXPONENT_MIN);
+
+    // --- Field 2: per-bearing radial extent, lobes growing with elevation ------
+    // Elevation is what we are solving for, so take one cheap pass at the mean
+    // amplitude, then re-solve with the amplitude that height implies.
+    const float amp_lo = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN);
+    const float amp_hi = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX);
+    const float lobe = bearing_ridged(seed, STREAM_MASSIF_LOBE, dir, lobes) * 2.0f - 1.0f;
+    const auto solve = [&](float amp) {
+        const float R = crag.radius * (1.0f + amp * lobe);
+        const float t = std::clamp(d / std::max(R, 1.0f), 0.0f, 1.0f);
+        return H * std::pow(1.0f - t, p);
+    };
+    float h = solve((amp_lo + amp_hi) * 0.5f);
+    h = solve(amp_lo + (amp_hi - amp_lo) * std::clamp(h / H, 0.0f, 1.0f));
+    if (h <= 0.0f) {
+        return 0.0f;
     }
-    const float modulation = crag.ridge_amp_frac * (1.0f - prof); // 0 at the peak
-    return prof * crag.peak_height * (1.0f - modulation * (1.0f - ridged));
+
+    // --- Fields 3 & 4: contour bands with per-sector riser class ---------------
+    const float cliffline = H * static_cast<float>(config::MASSIF_CLIFFLINE_FRAC);
+    if (h <= cliffline) {
+        return h; // lower slopes stay smooth: the bands are a summit feature
+    }
+    const float band_min = static_cast<float>(config::MASSIF_CLIFF_BAND_MIN);
+    const float band_max = static_cast<float>(config::MASSIF_CLIFF_BAND_MAX);
+    // Angular sector, WRAPPED so sector 0 and n-1 are neighbours.
+    constexpr int SECTORS = 12;
+    const float ang = std::atan2(dir.y, dir.x) + 3.14159265358979f;
+    const int sector = static_cast<int>(ang / (6.28318530717958647692f / SECTORS)) % SECTORS;
+
+    float lo = cliffline;
+    for (int k = 0; k < 32; ++k) {
+        const float span = band_min
+                         + noise::lattice_value(seed, STREAM_MASSIF_BAND,
+                                                static_cast<int64_t>(k), 0)
+                               * (band_max - band_min);
+        const float hi = lo + span;
+        if (h > hi) {
+            lo = hi;
+            continue;
+        }
+        // Riser class for THIS band in THIS sector.
+        const bool cliff = noise::lattice_value(seed, STREAM_MASSIF_RISER,
+                                                static_cast<int64_t>(k),
+                                                static_cast<int64_t>(sector))
+                           < 0.55f;
+        const float u = (h - lo) / span;
+        if (!cliff) {
+            return h; // ramp: leave the concave profile alone
+        }
+        // Cliff: a flat bench holding most of the band, then a steep riser.
+        // Constant OUTPUT over a range of input height is what makes ground
+        // flat; a fast rise over a short range is what makes it vertical.
+        constexpr float BENCH_FRAC = 0.62f;
+        if (u <= BENCH_FRAC) {
+            return lo;
+        }
+        return lo + span * noise::smoothstep01((u - BENCH_FRAC) / (1.0f - BENCH_FRAC));
+    }
+    return h;
 }
 
 /// Drainage valley (layout data): clamps terrain DOWN to a monotone floor
@@ -256,7 +345,7 @@ float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) 
     for (const ValleyTrough& trough : layout.troughs) {
         h = trough_shape(trough, h, world);
     }
-    h = std::max(h, crag_height(seed, layout.crag, world));
+    h = std::max(h, massif_height(seed, layout.crag, world));
     h += bump_height(layout.knoll, world);
     h += bump_height(layout.bluff, world);
     h = lake_stamp(layout.lake, h, world);

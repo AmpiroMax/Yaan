@@ -49,6 +49,10 @@ enum WorldgenStream : uint32_t {
     STREAM_OCTAVE_BASE = 0,   // 0..2: base fBm octaves
     STREAM_HILL_AXIS = 8,     // landform-anisotropy axis field (§2.1)
     STREAM_CRAG_RIDGED = 16,  // 16..17: crag ridged noise
+    STREAM_MASSIF_PROFILE = 18, // per-bearing profile exponent (§2.8)
+    STREAM_MASSIF_LOBE = 19,    // per-bearing radial extent
+    STREAM_MASSIF_BAND = 20,    // contour band spans
+    STREAM_MASSIF_RISER = 21,   // cliff/ramp class per (band, sector)
     STREAM_RIVER_JITTER = 24, // sinuosity displacement
     STREAM_SITES = 32,        // P4 site placement rng
     STREAM_SCATTER_TREE = 40, // 40..44: per-species scatter lattices

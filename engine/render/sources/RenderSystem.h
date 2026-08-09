@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 21:45:00
+Last updated: 09:08:2026 - 19:52:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -58,9 +58,9 @@ UPD:
   member fed by upload_terrain (explored chunks) and the ECS pass (site
   markers), and the generic draw_overlay path that blits a PixelCanvas over
   the frame as an unlit screen-filling quad (no IRenderer change, Rule 26).
-- 09:08:2026 - 21:00:00: upload_terrain_voxel — render draws core's voxel
+- 09:08:2026 - 19:42:00: upload_terrain_voxel — render draws core's voxel
   surface, so carved interiors (tunnel, barrows) exist on screen at all.
-- 09:08:2026 - 21:45:00: DFN_TIME now FREEZES the sky each frame (the app's
+- 09:08:2026 - 19:52:00: DFN_TIME now FREEZES the sky each frame (the app's
   clock would otherwise overwrite the screenshot hook every frame).
 */
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 21:35:00
+Last updated: 09:08:2026 - 19:48:00
 Module: tests
 File: tests/render/ScatterBatcherTests.cpp
 
@@ -21,7 +21,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial tests.
-- 09:08:2026 - 21:35:00: Flora bake cost measurement (per-instance tree
+- 09:08:2026 - 19:48:00: Flora bake cost measurement (per-instance tree
   geometry) as a regression guard against the chunk streaming budget.
 */
 

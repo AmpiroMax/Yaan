@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:59:31
+Last updated: 09:08:2026 - 20:10:47
 -->
 <!--
 UPD:
@@ -31,6 +31,9 @@ UPD:
 - 09:08:2026 - 19:38:02: §2.5 — LR_ASCENT_LANDINGS pinned at 7 (was a 5-7 band); story ruled the count since it now carries narrative dependents, one landing per station of the naming rite, which anchors the stair's name diegetically while the user's never-count-steps rule stays intact. Verified rhythmically before pinning: 7 landings over 1200-1800 m give 57-86 s segments at WALK_SPEED, inside the testbed POI_TRAVEL_TIME band across the whole range, so the climb's cadence matches the valley's exploration cadence; ~40 m of relief per station keeps the view changing.
 - 09:08:2026 - 19:44:49: New §7.0a — barrow re-sited after the L0 raise buried it (a cascade from my own proposal, owned). RULING: swing the bearing into a couloir, do NOT move the castle — core's outward-move options were rejected because moving the castle cascades into ford command, approach corridor, trespass route, ward count and the R1 check to buy what a bearing change buys outright. Measured a ~60 deg feasible arc (bearings 180-240 at radius 90-110 keep CASTLE_BARROW_DIST legal with the castle unmoved); core searches it for low terrain nearest the current 209 deg. Fallback is a high shoulder entrance, pre-cleared with story because it inverts "the seat stands over the grave". Durable rule extracted: §7.1 coordinates are stamps against a terrain state, so changing a landmark's relief invalidates every placement on its slopes and re-validation is part of the change, not a follow-up.
 - 09:08:2026 - 19:59:31: NEW §2.8 — the anti-dome ruling, second pass, after the user rejected the mountain a THIRD time with a shape brief (sharp / ribs / cubes on cubes / contour lines at varying spacing / non-uniform steps). Diagnosis measured by core before ruling: the dome is in the SPEC, not the mesher — the L0 stamp is smoothstep(1-d/R)*peak with a noise term that vanishes at the summit, i.e. zero slope at the apex, max at mid-radius, zero at the hem; lobe ratio 0.80/0.81/0.80 (identical at every height = self-similar cone), 0.0% of surface over 55 deg, 33.2% in one 40-50 deg bin, and surface nets measured NOT to be losing slope. My predecessor's invariant judged honestly on both counts: it was never BINDING (written in §2.5 for the LR, never evaluated on the L0 the user is looking at) and it was also INSUFFICIENT (one slice cannot see self-similarity; "60% above 40 deg" is satisfied by a uniform cone, which is the complaint). Ruling: massifs are authored as a BANDED CONTOUR MODEL — non-uniform band elevations, per-bearing radial lobing (aretes/couloirs), per-bearing profile exponent p>1 (concave, the actual anti-dome fix; smoothstep is the breast curve), per-sector cliff-vs-ramp risers — plus nine checkable invariants (I1 concave profile, I2 sharp summit, I3 near-vertical rock exists, I4 no 10-deg slope bin over 30%, I5 riser/bench alternation, I6 band-spacing CV, I7 arete detection by aspect-turn with vertical persistence, I8 lobe ratio at three heights AND rising, I9 blocky rock coverage). Recorded a REJECTED test with its measurement so nobody re-proposes it: raw contour-spacing CV is useless, the current dome scores 0.935. §2.8.4 — «кубы на кубах» ruled PLACED MESHES (Bethesda's answer), NOT dual contouring, because DC does not raise the sampling rate and a block under ~3 m cannot survive 1 m voxels at all; the summit becomes a TOR carrying the tower ruin. §2.8.5 — cross-constraints: validated ascents survive as BREACHES in the cliff bands (which makes the route legible from the valley, a gain), castle R1-R4 re-run, the §7.0a barrow couloir search should now succeed because lobing creates couloirs by construction, trees move onto benches, render gets a hard-splat-edge exception at band lips. LR_LOBE_RATIO renamed MASSIF_LOBE_RATIO — the constant's NAME was the bug. §2.5 item 5 superseded; §7.1 Ravenscar row rebuilt on §2.8 and named the acceptance case (it fails all nine invariants today).
+- 09:08:2026 - 20:01:50: §5 global rule corrected on flora's flag (stale-line class): foliage is the explicit exception to "hard-edged mesh" — alpha-cutout cards and a see-through canopy per user direction, trunks/branches/bushes/logs/snags unchanged. Recorded what does NOT change so the exception cannot widen later: the crown ENVELOPE still governs and every size band, crown-base fraction, spacing and density is untouched. Two rulings folded in with it: a porous canopy is a SMALLER w(h) in §1.3's Beer-Lambert form, i.e. a coefficient re-measurement and NOT a claim on the never-spent one-time physics-correction budget; and dappled light is a LIGHTING problem, not a geometry one, because a caster thinner than render's caster floor reads solid however open the card is.
+- 09:08:2026 - 20:04:42: §2.8 amended from core's and flora's reviews, four fixes and one withdrawal. §2.8.2 — BOTH per-bearing fields and the riser-class sector index must be PERIODIC in theta (core): sampling noise on the angle VALUE puts a branch cut at +-pi and produces a vertical seam from summit to foot; sample on (cos, sin) instead, and wrap the sector index. §2.8.3 — I5 alternation is counted on radials carrying NO validated route (core): a route breaches the bands it crosses, so counting it there would make the ascent cause its own invariant to fail, which is the §6.2 pad-scorer mistake in new clothes; breaches are asserted separately. Also recorded the consequence of I3 that must be loud rather than discovered: 55-deg risers exceed PLAYER_MAX_SLOPE, so a compliant massif is unclimbable off-route and route-validation failure leaves the summit UNREACHABLE with act 1's climax on it — a hard seed failure, never a warning. §2.8.5 — my "one cluster per bench segment" WITHDRAWN as the wrong unit (flora): a count does not survive scale, one stand on a 200 m bench is a potted plant just as a continuous line is landscaping, and both are the same failure. Replaced by a duty cycle (BENCH_VEG_DUTY_MAX 0.25, BENCH_CLUSTER_LENGTH_MAX 25 m, BENCH_CLUSTER_GAP_MIN 40 m) whose load-bearing member is BENCH_BARE_FRACTION_MIN 0.40 — what makes a stand above a 12 m drop extraordinary is that the ledges above and below are BARE. Added flora's lip-bias rule (BENCH_VEG_LIP_BIAS, outer 0.40 of the legal band), which matters more than the cap: a tree at the inner edge is dark-on-dark against the riser and invisible, the same tree near the lip has SKY behind it — §1.5's skyline rule at band scale. My bench-width worry was a double-count and is dropped: only the outer lip is a drop, so vegetation floors (5.0 m / 7.0 m giant) sit BELOW the 6 m terrain minimum and no terrain change is needed. Treeline and rockline now SNAP TO THE NEAREST BAND LIP — a flat elevation across banded terrain lands mid-riser and reads as a mowing line.
+- 09:08:2026 - 20:10:47: §4 and §2.8.4/§2.8.5 amended from render's review. §4 — my narrow "hard splat edge at band lips" ask came back REFRAMED AS THE GENERAL RULE and the reframing is better: DITHER WHERE THE GEOMETRY IS SMOOTH, SNAP WHERE THE GEOMETRY HAS AN EDGE. Not a carve-out from the dither rule but that rule applied to a surface with creases, so it generalises free to quarry faces, cut terraces, the castle pad cut and cave mouths. Mechanism is a screen-space slope derivative (fwidth): two ALU instructions, no new data from core, NO CONSTANT FROM DESIGN, and the threshold is explicitly render's to set by looking at a 640x360 frame — its unit is degrees per PIXEL, which is resolution-dependent, and INTERNAL_RES is a user setting, so a number derived here would be wrong at 320x180. §2.8.5 — recorded that the splat coupling §2.8.2 depends on is STRUCTURALLY protected rather than merely agreed: render's standing post-"brown wash" ruling forbids re-deriving material from raw height/distance fields, so slope-augmented rock between the §4 thresholds is the only mechanism available to them and the contour rhythm is safe by construction, not by anyone remembering. §2.8.4 — NEW CONSTRAINT I did not know: at render's shadow-map resolution anything under ~0.31 m across CASTS NO SHADOW, and unlit geometry on shadowed ground reads as pasted on. Our 1.5-4.0 m blocks clear it, but the ruling that follows is durable — the crisp read must come from the block SILHOUETTE, never from arris detail, since a chamfer under the floor costs triangles and returns no shading. Same conclusion §6.1.3 reached about masonry coursing and §1.5 about battlement teeth, now with a measured number. Explicitly NOT a NUMBERS.md constant: it is derived from a render SETTING and moves with it, so future smaller prop classes must re-ask rather than cite this line. Also recorded that placed rock needs no new batching work — stacks bake into the same per-chunk merged buffers the trees use, and render accepted the 60000-tri / ~270-stack budget unchanged.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -125,6 +128,37 @@ replaces both rules.
   `n_local` for free, and one consistent notion of "blocks" across C1 and C4
   is worth having on its own merits. **The contingency was never called; a
   future reader should not think the budget is gone.**
+
+**AND THE CANOPY REALLY IS NEARLY OPAQUE — measured, and it refutes both
+sides of the argument that was about to be had (flora, stage-4, from the
+user's own reference photographs).** When foliage became alpha cards (§5) I
+wrote down the worry that C1 would end up "measuring a wall that no longer
+exists", and asked for a measured effective `w`. The answer is the opposite of
+what either of us expected, so it is recorded here rather than left in a
+thread:
+
+| Depth into the crown | Transmittance |
+|---|---|
+| outer rim | 23–24 % |
+| ≈ ¼ in | 10–14 % |
+| ≈ ½ in | 3–4 % |
+| interior | 0.5–4 % |
+
+Clean Beer–Lambert decay, two exposures of the same tree agreeing within three
+points, fitted extinction **k ≈ 0.84 per metre** (half-depth 0.83 m, T < 3 %
+beyond ≈ 3 m of penetration). **A real crown is 79–86 % leaf at its core;
+porosity is a RIM phenomenon, not a whole-crown one.** So the solid-crown `w`
+is close to correct, no coefficient change is worth making yet, and **the
+one-time physics-correction budget above stays unspent.**
+
+**Both of us were wrong, in opposite directions, and that is the part worth
+keeping.** I feared the model was now too opaque; flora expected foliage on
+terminal twigs over a hollow interior, which is further from the truth than my
+version was. Neither reading survived contact with the pixels. The lesson is
+the §1.3-withdrawal lesson again in a cheaper form: **the disagreement was
+settled by measuring, before either belief was written into a rule.** That is
+the second finding this stage that arrived as a refusal to hand over a number
+that would have moved a model, and it is the behaviour to keep.
 
 **Measured facts to build against (core, stage-4, post-correction), so nobody
 re-derives them:** crown base 35 % vs 40 % gives **identical C1 to three
@@ -861,6 +895,16 @@ Between bands the surface is a **bench** (`MASSIF_BENCH_SLOPE_MAX`, width
 `MASSIF_BENCH_WIDTH_MIN…MAX`). Riser heights come from
 `MASSIF_CLIFF_BAND_MIN…MAX`.
 
+**Both per-bearing fields must be PERIODIC in θ (core's catch, binding).**
+`R_k(θ)`, `p(θ)` and the riser-class sector index all wrap: sampling noise on
+the *angle value* puts a branch cut at ±π and produces **a vertical seam from
+summit to foot** — a scar exactly where nothing should be. Sample instead on
+the unit vector `(cos θ, sin θ)`, i.e. noise over a circle embedded in the
+plane, which is periodic by construction and costs nothing; and let sector `0`
+and sector `n−1` be neighbours so the cliff/ramp alternation has no
+discontinuity at the same bearing. Recorded here rather than left in a message
+so the LR massif does not rediscover it.
+
 **Why this is cheap:** every term above is arithmetic on `(d, θ, h)` at a
 sample that is already being evaluated. Core's own ranking agrees — angular
 ridge modulation, non-uniform falloff, cliff-band quantisation and asymmetry
@@ -903,6 +947,22 @@ the world.**
 - **Slope is measured on the extracted mesh normals as well as on the field**,
   and both are reported. This session's whole diagnosis turned on that pair
   disagreeing; keep the ability to ask the question.
+
+**I5 is measured on radials that carry no validated route (core's catch,
+ruled).** A route breaches the cliff bands it crosses (§2.8.5), which locally
+destroys the alternation I5 counts on that radial — so counting it there would
+make **the ascent cause its own invariant to fail**, which is the §6.2
+pad-scorer mistake in new clothes (judging a feature by a metric its own
+purpose contradicts). Count alternation on non-route radials; assert the
+existence of breaches **separately**, as their own check.
+
+**Consequence of I3 that must be made loud, not discovered.** Cliff risers at
+≥ 55° exceed `PLAYER_MAX_SLOPE` (~50°), so a compliant massif is genuinely
+unclimbable off-route. That is the intent — it is what makes the breach
+legible — but it means the crag's summit route becomes **the only** way up,
+and a route-validation failure leaves the summit *unreachable* rather than
+awkward, with act 1's climax attached to it. Route validation failure on a
+banded massif is a **hard seed failure**, reported loudly, never a warning.
 
 **I7 is the arête test and it is worth stating why it is shaped this way.**
 "Ribs" is not "bumpy in plan". A rib is **flat faces meeting along a line**.
@@ -985,7 +1045,33 @@ temple stands on — same rule, same geometry, the building sits on rock.
 - **Budget:** `MASSIF_ROCK_TRI_BUDGET_MAX` = 60 000 tris for a whole massif at
   LOD0 — ≈ 1.5× one chunk of today's heightfield mesh. **Instancing and LOD
   are mandatory, not optional**: at 0.15 coverage Ravenscar wants ≈ 270 stacks,
-  which is fine as instances and unaffordable as unique meshes.
+  which is fine as instances and unaffordable as unique meshes. **Render has
+  accepted these numbers as-is and the machinery already exists** — stacks
+  bake into the same per-chunk world-space merged buffers the trees use, so
+  "instanced" here means one buffer per chunk, not per-instance draws. No new
+  batching work, and the coverage number does not need to move.
+
+**The shadow-caster floor — a constraint I did not know, and it bounds all
+future rock detail (render, measured).** At our shadow-map resolution
+**anything under ≈ 0.31 m across casts no shadow at all**, and an unlit block
+sitting on shadowed ground reads as pasted-on geometry rather than as rock.
+Consequences, ruled:
+
+- Our 1.5–4.0 m blocks clear it comfortably; nothing changes today.
+- **The crisp read must come from the block's SILHOUETTE, never from arris
+  detail.** A chamfer or a stepped edge under 0.31 m contributes no shading
+  information at 640×360 and costs triangles for nothing — which is the same
+  conclusion §6.1.3 reached about masonry coursing and §1.5 reached about
+  battlement teeth, now with a measured number attached. Spend the 60-triangle
+  budget on the block's *outline*, not on its corners.
+- `ROCK_STACK_OFFSET_MAX` (0.8 m) is comfortably above the floor, which is
+  part of why the stepped silhouette works: the offset is what casts.
+- **This figure is NOT a NUMBERS.md constant.** It is derived from shadow-map
+  resolution, which is a render setting like `INTERNAL_RES` (sync №3) — it
+  moves when the setting moves. It is recorded here as a *published render
+  figure that design rules against*, and any future prop class smaller than
+  the current rock blocks must re-ask render for the number rather than cite
+  0.31 m from this line.
 
 **Dual contouring is explicitly NOT required by this ruling** and stays where
 core deferred it. Its real customers are the castle terrace, quarry cuts and
@@ -1026,13 +1112,60 @@ slopes*). Applying that rule to my own change:
   `TREE_SLOPE_MAX` (0.61 rad) excludes cliff faces automatically, so
   vegetation collects on benches, and the **cliff-edge setback measured from
   the outer edge of the root flare** now applies at *every band lip*, not just
-  at scarps. A short line of pines on a ledge above a 12 m drop is the best
-  silhouette this mountain can produce — **one cluster per bench segment,
-  never a continuous hedge**, or the bands read as landscaping.
-- **Render — the band lip is the one place we want a HARD splat edge.** §4's
-  dithered transitions exist to avoid smear across gradual slope change; at a
-  55° riser meeting a 20° bench the transition is a real discontinuity and
-  should be drawn as one. Requested as a narrow exception, not a policy change.
+  at scarps. Four rulings, three of them flora's and better than my drafts:
+  - **My "one cluster per bench segment" is WITHDRAWN — right intent, wrong
+    unit.** A count does not survive scale: one stand on a 200 m bench reads
+    as a potted plant exactly as badly as a continuous line reads as
+    landscaping, and both are the same failure — *the vegetation does not
+    respond to the mountain*. Replaced by a duty cycle:
+    `BENCH_VEG_DUTY_MAX` = 0.25 of a bench's running length,
+    `BENCH_CLUSTER_LENGTH_MAX` = 25 m, `BENCH_CLUSTER_GAP_MIN` = 40 m, and
+    **`BENCH_BARE_FRACTION_MIN` = 0.40 — at least 40 % of benches carry
+    nothing at all.** That last one is the load-bearing one: what makes a
+    stand on a ledge above a 12 m drop extraordinary is that the ledges above
+    and below it are **bare**. A mountain where every bench has its one
+    dutiful cluster is still landscaped, merely at lower density.
+  - **Placement is biased to the LIP, not the riser base**
+    (`BENCH_VEG_LIP_BIAS` = outer 0.40 of the legal band). Flora's addition
+    and it matters more than the cap: a tree at the inner edge has a cliff
+    face directly behind it — dark on dark, no silhouette, invisible at any
+    range. The same tree near the lip has **sky** behind it and its crown
+    overhangs the drop. This is §1.5's skyline rule applied at band scale, it
+    costs nothing, and it is the entire reason to vegetate benches.
+  - **6 m benches are wide enough; no terrain floor changes.** My worry
+    double-counted the setback: only the **outer** lip is a drop. The inner
+    side is the *base* of the riser going up — not a fall hazard, needing only
+    the flare's own radius so the trunk is not embedded in rock, and a tree at
+    a cliff base is a good thing. Legal axis band = `W − r_flare − (1.5 +
+    r_flare)`; measured from the shipped meshes a pine (`r_flare` 0.84 m) gets
+    2.81 m of lateral freedom on a 6 m bench. Vegetation floors:
+    `BENCH_VEG_WIDTH_MIN` = 5.0 m (below it, bushes and grass only) and
+    `BENCH_VEG_WIDTH_MIN_GIANT` = 7.0 m — **both below the 6 m terrain
+    minimum**, so the two systems do not fight.
+  - **The treeline SNAPS TO THE NEAREST BAND LIP.** A flat elevation cutting
+    across banded terrain lands mid-riser and half-vegetates cliff faces,
+    which reads as a **mowing line** rather than a limit. Snapped, the tree
+    limit follows a geological feature — which is what real treelines do on
+    banded rock and is far easier to look at. Same reasoning for the rockline.
+    Cost is core's call; it should be small, since the lips are already known.
+- **Render — RESOLVED, and the rule came back better than I asked for.** I
+  requested a narrow exception for a hard splat edge at band lips; render
+  reframed it as the general rule — *dither where the geometry is smooth, snap
+  where the geometry has an edge* — which is not a carve-out from §4 but §4
+  applied to a surface with creases, and it generalises free to quarry faces,
+  cut terraces and cave mouths. Now written into §4 itself. Mechanism is a
+  screen-space slope derivative: a couple of ALU instructions, no new data, no
+  constant from design, threshold set by looking at a frame.
+- **The splat coupling this section depends on is STRUCTURALLY protected, not
+  merely agreed** (render, worth recording because it is the difference
+  between a promise and a guarantee). Their zone carries a standing ruling
+  from the "brown wash" incident: render must never re-derive material bands
+  from raw height or distance fields — material comes from core's
+  `surface_class`, and the shader only *augments* rock by slope between the
+  two §4 thresholds. So the mechanism §2.8.2 relies on is the only one
+  available to them, and decoupling slope from material on steep ground would
+  require deliberately reintroducing a banned bug class. **The contour rhythm
+  is safe by construction rather than by anyone remembering.**
 - **Sim — cliff faces at 55° exceed `PLAYER_MAX_SLOPE` (50°)** and are
   therefore natural barriers, which is what we want. Watch the character
   controller against the ≈ 1 m rounded band lip.
@@ -1162,9 +1295,28 @@ Design rationale, binding for render:
   it is nearly unwalkable; grass is always walkable. The player learns the
   material language instead of testing every slope. Never let grass render on
   slopes above `PLAYER_MAX_SLOPE`.
-- **Dithered transitions**, not wide soft gradients: at 640×360 a soft blend
-  band reads as smear; ordered dither matches the retro look and keeps the
-  palette small (sync №2's palette flag).
+- **Dither where the geometry is smooth, SNAP where the geometry has an
+  edge.** At 640×360 a soft blend band reads as smear, so ordered dither is
+  the default and it matches the retro look while keeping the palette small
+  (sync №2's palette flag). But **dithering across a real discontinuity smears
+  the one line that discontinuity exists to produce** — a 55° cliff riser
+  meeting a 20° bench (§2.8) is a genuine crease, not a gradient, and must be
+  drawn as one. **Stated as the general rule rather than as a massif
+  exception (render's reframing, and it is the better statement):** this is
+  not a carve-out from the dither rule, it is the dither rule applied to a
+  surface that has creases in it. It therefore generalises for free to
+  everything else with an edge — quarry faces, cut terraces, the castle pad's
+  cut, cave mouths.
+  - **Mechanism (render, measured cheap):** screen-space derivative of slope.
+    Where `fwidth(slope)` is small the ordered dither runs unchanged; where it
+    spikes — 35° of slope change inside a pixel or two — the material boundary
+    snaps. A couple of ALU instructions, no new data from core, no memory, and
+    **no constant from design**.
+  - **The threshold is render's and is set by looking, not by arithmetic.**
+    Its natural unit is degrees of slope change *per pixel*, which is
+    resolution-dependent — and `INTERNAL_RES` is a user graphics setting
+    (sync №3), not a constant. A number derived here would be wrong at
+    320×180. Tune it against a 640×360 frame of a band lip.
 - **Treeline (region, FUTURE for testbed):** trees stop at
   `TREELINE_HEIGHT` (region-scale, ~180 m proposal) and the grass→rock blend
   shifts 5° earlier above it, giving bald summits — the classic
@@ -1187,13 +1339,29 @@ does **not** change: the crown *envelope* still governs, so oak/pine/birch
 remain separable by outline at `SILHOUETTE_MIN_PX`, and every size band,
 crown-base fraction, spacing and density in this section is unaffected —
 cards are a surface treatment inside the same envelope, not a new silhouette
-language. Two consequences to keep straight: our C1 occlusion model is
-**already** porosity-friendly (§1.3's Beer–Lambert form has an explicit
-effective-width term `w(h)`, so a porous crown is a smaller `w`, not a new
-model — do not re-derive the mechanism, re-measure the coefficient); and
-**dappled light under a canopy is a lighting problem, not a geometry one**,
-because a shadow caster thinner than render's caster floor will read as solid
-no matter how open the card looks. Placement is Poisson-disc /
+language.
+
+**The exception survives, but NOT on the reason it was granted (measured,
+flora — see §1.3).** It was granted on «хочу чтобы сквозь листву можно было
+смотреть», read as *transparency*. Measured against the user's own reference
+photographs, the tracery in those images is **not** visible because sky shows
+through it: luminance is branch 50, leaf 135, sky 235, i.e.
+**branch : leaf ≈ 2.54×**. The skeleton reads because it is **the darkest
+thing in frame against a bright backlit leaf field** — which is §1.5's
+value-contrast doctrine, not an alpha effect. So: **dark limbs plus bright
+foliage reproduce the reference; see-through cards do not.** Cards remain the
+right way to build a foliage surface, and **nobody may widen the exception on
+the theory that more transparency buys more of the reference look — it buys
+almost none of it.** This strengthens the envelope wording above rather than
+straining it.
+
+Two further consequences to keep straight: our C1 occlusion model needs **no
+change at all** — measured crown interiors are 79–86 % leaf, so the
+solid-crown effective width was already close to right (§1.3), and the
+one-time physics-correction budget stays unspent; and **dappled light under a
+canopy is a lighting problem, not a geometry one**, because a shadow caster
+thinner than render's caster floor (§2.8.4) will read as solid no matter how
+open the card looks. Placement is Poisson-disc /
 jittered-lattice per §2 (never raw high-frequency noise threshold — it
 clumps). Trees never spawn on rock or sand splat, never inside building pads,
 corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
