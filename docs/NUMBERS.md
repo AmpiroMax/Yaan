@@ -1,6 +1,6 @@
 <!--
 Created: 08:08:2026 - 21:35:00
-Last updated: 09:08:2026 - 10:40:00
+Last updated: 09:08:2026 - 11:05:00
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 00:29:27: Stage-1 sync: added SIM_MAX_CATCHUP_STEPS, chunk streaming radii, NPC/interaction defaults, camera pitch limit (all provisional).
 - 09:08:2026 - 00:48:00: Added GRAVITY and MOUSE_SENSITIVITY (sim stage-2 request, Rule 14).
 - 09:08:2026 - 10:40:00: INTERNAL_RES: пользователь отложил выбор до текстур (этап 3); 640×360 — рабочий дефолт.
+- 09:08:2026 - 11:05:00: Большой блок констант ландшафта из LANDSCAPE.md (design, этап 3) + обещанные с синка №2 октавы worldgen. Все предварительные до синка №3.
 -->
 
 # NUMBERS.md — реестр констант проекта
@@ -114,6 +115,85 @@ UPD:
 | `CAMERA_FAR` | 1000.0 | м | связана с будущим LOD/дальностью прорисовки |
 | `CAMERA_PITCH_LIMIT` | 1.55 (~89°) | рад | предел наклона взгляда вверх/вниз |
 | `INTERNAL_RES` | 640×360 | пикс | низкое разрешение рендера (Q9); целочисленный апскейл в 720p/1080p. Альтернатива для более крупного пикселя: 320×180 — **выбор пользователь отложил до текстур этапа 3** (синк №2); 640×360 — рабочий дефолт |
+
+
+## Ландшафт (LANDSCAPE.md, design) — ПРЕДВАРИТЕЛЬНО, утвердить на синке №3
+
+Источник: docs/design/LANDSCAPE.md; правила исполняются генератором, не руками (Q13).
+
+### Генератор рельефа
+
+| Константа | Значение | Единица | Примечание |
+|---|---|---|---|
+| `WORLDGEN_MAX_HEIGHT` | 64 | м | общий диапазон квантизации высот; требует ack core (стыковка краёв сохраняется) |
+| `WORLDGEN_OCTAVE1_CELL` | 512 | м | амплитуда 24 м (существующее значение из Worldgen.cpp, долг синка №2) |
+| `WORLDGEN_OCTAVE2_CELL` | 128 | м | амплитуда 6 м |
+| `WORLDGEN_OCTAVE3_CELL` | 32 | м | амплитуда 1.5 м |
+| `WORLDGEN_OCTAVE1_AMP` | 24 | м | |
+| `WORLDGEN_OCTAVE2_AMP` | 6 | м | |
+| `WORLDGEN_OCTAVE3_AMP` | 1.5 | м | |
+
+### Композиция (исполняемые проверки)
+
+| Константа | Значение | Единица | Примечание |
+|---|---|---|---|
+| `LANDMARK_VISIBILITY_MIN` | 0.6 | доля | L0 виден с ≥60% открытой земли (raycast-проверка) |
+| `GUIDE_INTERVAL` | 40–80 | м | локальные ориентиры, «нет пустой ходьбы» |
+| `SILHOUETTE_MIN_PX` | 8 | пикс | силуэт читается при size ≥ distance/30 @640×360 |
+| `CORRIDOR_WIDTH` | 10 | м | коридор критического пути, уклон ≤ 0.44 рад |
+
+### Вода
+
+| Константа | Значение | Единица |
+|---|---|---|
+| `RIVER_WIDTH` | 4–8 | м |
+| `RIVER_DEPTH` | 1.5 | м |
+| `FORD_DEPTH_MAX` | 0.4 | м |
+| `FORD_SPACING` | 200–400 | м |
+| `LAKE_DEPTH_MAX` | 4 | м |
+| `LAKE_LEVEL_TESTBED` | 15.0 | м |
+| `SHORE_SAND_DIST` | 6 | м |
+| `SHORE_SAND_HEIGHT` | 0.6 | м |
+
+### Поверхность (сплаттинг)
+
+| Константа | Значение | Единица |
+|---|---|---|
+| `SLOPE_GRASS_MAX` | 0.52 (~30°) | рад |
+| `SLOPE_ROCK_MIN` | 0.70 (~40°) | рад |
+
+### Флора
+
+| Константа | Значение | Единица |
+|---|---|---|
+| `FOREST_COVERAGE` | 0.30 (стенд; диапазон 0.25–0.40) | доля |
+| `TREE_SPACING_FOREST` | 5–8 | м |
+| `TREE_SLOPE_MAX` | 0.61 | рад |
+| `CLEARING_INTERVAL` | 150–250 | м |
+| `CLEARING_RADIUS` | 15–30 | м |
+| `OUTCROP_CELL` | 120 | м |
+| `MEADOW_CLUSTER_CELL` | 90 | м |
+| `BIRCH_WATER_DIST` | 20 | м |
+| `GRASS_VIEW_DISTANCE` | 50 | м |
+| `GRASS_DENSITY` | 0.5–1.5 | шт/м² |
+| `GRASS_HEIGHT_MAX` | 0.4 | м |
+| `BUSH_EDGE_DENSITY` | 0.01–0.03 | шт/м² |
+| `STONE_DENSITY` | 0.005–0.02 | шт/м² |
+| `FLOWER_PATCH_CELL` | 60 | м |
+| `FLOWER_PATCH_RADIUS` | 3–8 | м |
+| `FLOWER_PATCH_DENSITY` | 1–3 | шт/м² |
+
+### Постройки
+
+| Константа | Значение | Единица |
+|---|---|---|
+| `BUILDING_PAD_SLOPE_MAX` | 0.09 (~5°) | рад |
+| `BUILDING_WATER_MARGIN` | 2 | м |
+| `SETTLEMENT_WATER_DIST` | 150 | м |
+| `HAMLET_SIZE` | 4–8 | домов |
+| `HAMLET_COMMON_RADIUS` | 15–25 | м |
+| `TREE_TRI_BUDGET` | 150–500 | трис |
+| `HOUSE_TRI_BUDGET` | 200–600 | трис |
 
 ## Код и процесс
 
