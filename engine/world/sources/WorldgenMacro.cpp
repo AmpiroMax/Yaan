@@ -378,7 +378,15 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         return 0.0f;
     }
     const glm::vec2 dir = d > 1e-3f ? rel / d : glm::vec2{1.0f, 0.0f};
-    const float H = crag.peak_height;
+
+    // L0_RELIEF IS RELIEF ABOVE THE FOOT, NOT AN ABSOLUTE ELEVATION. Reading it
+    // as an absolute peak put the summit at 115.0 with the valley floor at
+    // 18.8, i.e. 96.2 m of actual relief -- the user approved 115 and was
+    // looking at 96. The datum is the terrain that WOULD be here without the
+    // massif, so the stamp delivers its ruled relief wherever it is placed.
+    const float datum = base_height(seed, crag.center);
+    const float relief = crag.peak_height;
+    const float H = datum + relief; // absolute summit elevation
 
     // --- Field 1: per-bearing profile exponent ---------------------------------
     const float lobes = static_cast<float>(crag.arete_count);
@@ -431,18 +439,26 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
             notch, r_blend * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX));
         R_solved = r_blend - cut;
         const float t = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
-        return H * std::pow(1.0f - t, p);
+        // Decays to the DATUM, not to zero. Decaying to zero buries the
+        // profile's entire concave tail under the base terrain's max(), and
+        // what stays visible is the steep crossing where the cone cuts through
+        // the valley floor -- which is why the built envelope measured
+        // shallowest at the summit and steepest at the foot, the exact inverse
+        // of what p>1 exists to produce. The concave profile was in the
+        // formula and clipped out of the surface.
+        return datum + relief * std::pow(1.0f - t, p);
     };
     // Elevation is what we are solving for, so take one pass at the midpoint
     // and re-solve with the blend that height implies.
     float h = solve(0.5f);
-    h = solve(h / H);
+    h = solve((h - datum) / relief);
     if (h <= 0.0f) {
         return 0.0f;
     }
 
     // --- Fields 3 & 4: contour bands with per-sector riser class ---------------
-    const float cliffline = H * static_cast<float>(config::MASSIF_CLIFFLINE_FRAC);
+    const float cliffline =
+        datum + relief * static_cast<float>(config::MASSIF_CLIFFLINE_FRAC);
     if (h <= cliffline) {
         return h; // lower slopes stay smooth: the bands are a summit feature
     }
@@ -485,7 +501,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     // benches horizontally (MASSIF_BENCH_WIDTH_*), so the vertical split has
     // to be derived from this, not picked.
     const float t_h = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
-    const float grad = std::max(H * p * std::pow(1.0f - t_h, std::max(p - 1.0f, 0.0f))
+    const float grad = std::max(relief * p * std::pow(1.0f - t_h, std::max(p - 1.0f, 0.0f))
                                     / std::max(R_solved, 1.0f),
                                 1e-3f);
 
@@ -577,7 +593,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         const float bench_cap = static_cast<float>(config::MASSIF_BENCH_WIDTH_MIN)
                               + static_cast<float>(config::MASSIF_BENCH_WIDTH_MAX
                                                    - config::MASSIF_BENCH_WIDTH_MIN)
-                                    * (1.0f - std::clamp(h / H, 0.0f, 1.0f));
+                                    * (1.0f - std::clamp((h - datum) / relief, 0.0f, 1.0f));
         const float rf_min = std::max(
             static_cast<float>(config::VOXEL_SIZE) / std::max(band_width, 1.0f),
             1.0f - bench_cap / std::max(band_width, 1.0f));

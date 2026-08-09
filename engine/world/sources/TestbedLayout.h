@@ -59,7 +59,9 @@ namespace dfn::world {
 /// L0 ridged-noise crag stamp (LANDSCAPE §7.1 "Ravenscar Crag").
 struct CragStamp {
     glm::vec2 center{830.0f, 200.0f}; ///< peak (§7.1)
-    float radius = 180.0f;            ///< footprint (§7.1)
+    /// Footprint (§7.1). Governed by MASSIF_ASPECT_MIN now that I10 exists, so
+    /// it is a NUMBERS constant rather than the bare literal it used to be.
+    float radius = static_cast<float>(config::L0_BASE_RADIUS);
     /// Absolute summit elevation, m. L0_RELIEF is the approved figure (52 ->
     /// 115): the fortress hierarchy rules are RATIOS to this, so the castle's
     /// R4 dominance and crown clearance both depend on it directly.
@@ -90,7 +92,7 @@ struct CragStamp {
     /// the crag tunnel. That is §7.0a's cross-cutting dependency, and spending
     /// a story invariant to buy an invariant margin is not a call this zone
     /// gets to make on its own.
-    int arete_count = static_cast<int>(config::L0_ARETE_COUNT_MIN);
+    int arete_count = 4;
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)
     /// Flank sub-relief as a FRACTION of peak height (legacy parameterization).
     /// Used only when ridge_amp_meters <= 0.
