@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 15:05:00
+Last updated: 09:08:2026 - 15:08:24
 -->
 <!--
 UPD:
@@ -13,6 +13,7 @@ UPD:
 - 09:08:2026 - 13:22:17: HILL_ANISOTROPY approved at 2.5 in NUMBERS.md (stage-3 close, sync №3) — §2.1 proposal marker removed, gates recorded as cleared, P1 retune scheduled with §2.1 as the contract.
 - 09:08:2026 - 15:00:23: New §6.1 — castle (House Corvane's seat, story pitch A) ruled as L1-max staged inside the L0's angular footprint: crag keeps the skyline, castle reads against its body, flank occlusion allowed / crown occlusion forbidden, scored in C1 both as occluder and as attractor, binding fix order on C1 failure. Siting (spur pad, ford command, barrow proximity, composite POI), minimal-version mass table, mid-range readability ruling, testbed pad at (760,330); castle row added to §7.1.
 - 09:08:2026 - 15:05:00: §6.1 folded in story's constraints for "Harrowward": gentry hall-castle mass program (horizontal hall + single solar vertical replaces the tall keep — also buys C1 clearance headroom), value-not-height doctrine tying the Ward to the crag's rock value, binding access invariant (graded ramp on the approach side within §2.4 corridor limits — a scarp-only pad is a failed placement), and a checkable Ward→Backbarrow sightline. CASTLE_KEEP_HEIGHT retired in favour of CASTLE_HALL_HEIGHT/CASTLE_SOLAR_HEIGHT/CASTLE_GATE_HEIGHT.
+- 09:08:2026 - 15:08:24: §6.1.2 — gate orientation settled as valley-facing (story canon, BIBLE §5.1), and the two new castle invariants (approach ramp, yard/gate->barrow sightline) explicitly joined to the C1-guarded set: re-validated by the same canopy-aware raycast on every worldgen run, not once at authoring time (raised by story: a later pine retune could occlude either).
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -650,6 +651,21 @@ the pad further around the crag's south flank, away from the town sightlines;
   and gate to the Backbarrow entrance must be **clear** — the terrace's own
   cut/fill may not occlude it. The beneficiary lives within sight of the
   evidence; that is a checkable raycast, not a mood note.
+- **Gate orientation — settled, do not re-litigate:** the gate faces the
+  valley/ford, **not** the barrow. It serves the access invariant (the gate
+  sits on the walkable approach) and it is the truthful read: landlords
+  watching the crossing they own, with the grave behind the house. Because the
+  yard→barrow sightline above guarantees the barrow is visible from their own
+  ground, they have not hidden it — they have declined to face it. Story
+  confirmed this is canon (BIBLE §5.1).
+
+**Both new invariants join the guarded set.** The approach ramp and the
+yard/gate→barrow sightline are occludable by later passes — a pine retune, a
+scatter change, a terrace edit — exactly as the L0 sightlines are. They are
+re-validated by the same canopy-aware raycast machinery as C1 (§1.3), on every
+worldgen run, not checked once at authoring time. A seed that terraces away
+the ramp or grows a strip across the barrow sightline fails, like any other
+C1 failure.
 
 #### 6.1.3 Footprint, mass, readability
 

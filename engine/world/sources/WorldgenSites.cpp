@@ -216,10 +216,23 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
         }
         }
     }
+
+    // Castle elements enter the shared record list last, so their
+    // WorldEntityIds continue the deterministic sequence (Q56 anchor).
+    for (std::size_t i = 0; i < out.castle.entities.size(); ++i) {
+        GeneratedEntityRecord rec = out.castle.entities[i];
+        rec.world_id = static_cast<WorldEntityId>(out.entities.size() + 1);
+        out.castle.entities[i].world_id = rec.world_id;
+        out.entities.push_back(rec);
+        out.types.push_back(out.castle.types[i]);
+    }
     return out;
 }
 
 float pads_height(const SitesData& sites, glm::vec2 world, float h) {
+    // The castle terrace first: ordinary pads are small and never overlap it,
+    // but if one ever did, the building pad should win locally.
+    h = castle_pad_height(sites.castle, world, h);
     for (const BuildingPad& pad : sites.pads) {
         const float d = glm::length(world - pad.center);
         if (d >= pad.radius + pad.blend) {

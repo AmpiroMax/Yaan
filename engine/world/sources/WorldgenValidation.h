@@ -57,4 +57,15 @@ namespace dfn::world {
 /// means the chain is severed (failed generation for the layout).
 [[nodiscard]] float max_corridor_water_depth(const WorldGenContext& ctx);
 
+/// Castle hierarchy checks (LANDSCAPE §6.1.1), all measured from the same
+/// standpoint grid C1 uses.
+struct CastleHierarchy {
+    float top_elevation = 0.0f;    ///< pad + tallest element, meters (R3)
+    float skyline_ceiling = 0.0f;  ///< L0 peak - CASTLE_SKYLINE_MARGIN (R3 limit)
+    float max_ratio = 0.0f;        ///< worst castle/crag subtended height, >= 300 m (R4)
+    bool crown_occluded = false;   ///< castle hides the L0's top third anywhere (R2)
+    uint32_t max_attractors = 0;   ///< most attractors visible from one standpoint (C2)
+};
+[[nodiscard]] CastleHierarchy castle_hierarchy(const WorldGenContext& ctx);
+
 } // namespace dfn::world

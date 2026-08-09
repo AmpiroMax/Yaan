@@ -16,20 +16,19 @@ pool); dialogue graphs bind speakers to it; the cards of §2 are caged by it.
 
 Canon depended on: main arc **Pitch A — The Debt of Harrowmere**
 (`docs/story/PITCHES.md`); the card schema and closed condition vocabulary of
-`docs/story/QUEST_FORMAT.md` §2.1/§6; the landmarks of
-`docs/design/LANDSCAPE.md` §7; the rules of `docs/story/RESEARCH.md` (N13, N19,
-N52–N58 especially). Vaelmere's craft is **fishing + smallholding farming**:
-nets, catch, ferry, flooded strips, livestock. The rust marks a household in
-proportion to the lies inside it, so every resident carries exactly one lie and
-a stated reason the mark is on the door — or is not, which neighbours notice
-just as fast.
+`docs/story/QUEST_FORMAT.md` §2.1/§6; the landmarks of `docs/design/LANDSCAPE.md`
+§7; `docs/story/RESEARCH.md` (N13, N19, N52–N58 especially). Vaelmere's craft is
+**fishing + smallholding farming**: nets, catch, ferry, flooded strips,
+livestock. The rust marks a household in proportion to the lies inside it, so
+every resident carries exactly one lie and a stated reason the mark is on the
+door — or is not, which neighbours notice just as fast.
 
 Conventions: personal names here are **design-side labels only**; every
 user-facing string ships as a localization key (Rules 5–6), so the resident
 labelled Hettie Marrow is `npc.vaelmere.tavern_keeper`, displayed via
-`npc.vaelmere.tavern_keeper.name`, and no literal player-visible text appears
-in any JSON below. Ids are `snake_case`, dot-namespaced, keyed to **function,
-not name**, so recasting a role never rewrites quest data: `npc.vaelmere.*`,
+`npc.vaelmere.tavern_keeper.name`, and no literal player-visible text appears in
+any JSON below. Ids are `snake_case`, dot-namespaced, keyed to **function, not
+name**, so recasting a role never rewrites quest data: `npc.vaelmere.*`,
 `role.*`, `voice.*`, `dlg.incidental.*`, `flag.vaelmere.*`. Per N13 the hero is
 bound by a **legal and ritual account** — a debt the old law can collect only
 from the debtor's line. He is not special, and no text here (prose, key, or
@@ -40,157 +39,141 @@ account; this one is simply the last alive.
 
 ## 1. The residents
 
-### 1.1 Elder Aldreth Sarn — `npc.vaelmere.elder`
+**1.1 Elder Aldreth Sarn — `npc.vaelmere.elder`, 67.** Hamlet elder: keeps the
+net-rota, the field strips, the tally of who owes whose crew a day's hauling.
+**Tie:** Maddren blood on her mother's side, concealed fifty years. **Wants**
+the hamlet fed and undivided through one more winter; **fears** the day the
+valley makes her say aloud which side her mother's people sat on. **Secret:**
+she had her mother's name struck from the clan's memorized roll of the dead so
+her household would read as unremarkable — she bought her elderhood with an
+erasure. **Rust:** her doorpost marked early; she has planed it twice.
+**Function:** hub quest giver for the hamlet's craft work, and the steadiest
+voice of "why you, of all of us?" (N19).
 
-Age 67. Hamlet elder: keeps the net-rota, the field strips, the tally of who
-owes whose crew a day's hauling. **Tie:** Maddren blood on her mother's side,
-concealed fifty years. **Wants** the hamlet fed and undivided through one more
-winter; **fears** the day the valley makes her say aloud which side her
-mother's people sat on. **Secret:** she had her mother's name struck from the
-clan's memorized roll of the dead so her household would read as unremarkable —
-she bought her elderhood with an erasure. **Rust:** her doorpost marked early;
-she has planed it twice. **Function:** hub quest giver for the hamlet's craft
-work, and the steadiest voice of "why you, of all of us?" (N19).
+**1.2 Hettie Marrow — `npc.vaelmere.tavern_keeper`, 44.** Keeps the tavern at
+the head of the common: buys the day's catch, brews from smallholder barley,
+rents the back room. **Tie:** Corvane tenant by lease, married once into a
+Maddren house. **Wants** a full room and a floor nobody bleeds on; **fears**
+that the first killing inside Vaelmere happens under her roof and is her fault
+for serving. **Secret:** she carries sealed letters downriver for a soft-spoken
+rider who pays silver and asks who has been up at the crag — she takes him for
+a tax clerk; he is the Quiet Hand's local agent. **Rust:** a bloom on her
+tap-fittings, scoured nightly. **Function:** the rumor hub — most incidental
+gossip routes through her; gallows humor (N53).
 
-### 1.2 Hettie Marrow — `npc.vaelmere.tavern_keeper`
+**1.3 Tolm Wray — `npc.vaelmere.ferryman`, 71.** Poles the ferry across the
+Vael narrows, rows the lake crossing to the northwest shore, recovers the
+drowned when the lake returns them. **Tie:** neither house; he came upriver as
+a boy. **Wants** to die on the water rather than in a bed; **fears** whatever
+has kept pace with the ferry underneath these last weeks. **Secret:** three
+nights ago he carried the Maddren boy Cass to the north shore, then took coin
+from the boy's brother to tell the search party he saw nobody. **Rust:** the
+ferry chain, and now the backs of his hands. **Function:** rumor source aimed
+at real content — the cold light in the ward-tower, the widening cave under the
+bluff, the crossing he denies; gallows humor.
 
-Age 44. Keeps the tavern at the head of the common: buys the day's catch, brews
-from smallholder barley, rents the back room. **Tie:** Corvane tenant by lease,
-married once into a Maddren house. **Wants** a full room and a floor nobody
-bleeds on; **fears** that the first killing inside Vaelmere happens under her
-roof and is her fault for serving. **Secret:** she carries sealed letters
-downriver for a soft-spoken rider who pays silver and asks who has been up at
-the crag — she takes him for a tax clerk; he is the Quiet Hand's local agent.
-**Rust:** a bloom on her tap-fittings, scoured nightly. **Function:** the rumor
-hub — most incidental gossip routes through her; gallows humor (N53).
+**1.4 Netmistress Iolen Brack — `npc.vaelmere.netwright`, 39.** Fishing master:
+owns the two drag-nets, sets the crews, weaves and tars the gear the hamlet
+lives by. **Tie:** Maddren, openly and without apology. **Wants** the catch
+back and her crews paid before frost; **fears** that rust in the cord means the
+lake has begun keeping a tally of the valley. **Secret:** last spring she cut
+the tithe-boat's nets and let Corvane blame the current; her own gear bloomed
+that same month and she has never said the two things in one breath. **Rust:**
+heavy — cord, needles, tar. **Function:** giver of the fishing templates (N45),
+early ally, the clearest craft-disruption evidence in the hamlet (N58).
 
-### 1.3 Tolm Wray — `npc.vaelmere.ferryman`
+**1.5 Bran Ockley — `npc.vaelmere.smallholder_father`, 51.** Smallholder: three
+cows, a barley strip on the flood margin, a quarter share in a boat. **Tie:**
+Corvane tenant, four generations on the same rent. **Wants** his strip dry, his
+herd whole, his daughter married into something safer than a feud; **fears**
+being made to swear anything again. **Secret:** during the last flood he
+shifted a boundary stone into his neighbour's strip and swore at the shrine
+that he had not. **Rust:** his barley went first, before anyone's, in full view
+of the ferry road — and the hamlet has drawn its conclusions. **Function:**
+obstacle turning to tragedy; the player's first lesson that the rust accuses
+accurately, and that a neighbour it convicts is still a neighbour.
 
-Age 71. Poles the ferry across the Vael narrows, rows the lake crossing to the
-northwest shore, recovers the drowned when the lake returns them. **Tie:**
-neither house; he came upriver as a boy. **Wants** to die on the water rather
-than in a bed; **fears** whatever has kept pace with the ferry underneath these
-last weeks. **Secret:** three nights ago he carried the Maddren boy Cass to the
-north shore, then took coin from the boy's brother to tell the search party he
-saw nobody. **Rust:** the ferry chain, and now the backs of his hands.
-**Function:** rumor source aimed at real content — the cold light in the
-ward-tower, the widening cave under the bluff, the crossing he denies; gallows
-humor.
+**1.6 Sela Ockley — `npc.vaelmere.smallholder_daughter`, 23.** Milks, salts,
+runs the household's fish to market on ferry days. **Tie:** Corvane tenant
+through her father; betrothed across the feud. **Wants** the boat share mended
+and her own roof by spring; **fears** that her father's marked grain will be
+read as her marked grain. **Secret:** she is carrying Cass Maddren's child, has
+told no one, and believes he ran from her rather than from his brother.
+**Rust:** none on her yet, and the hamlet has noticed that too. **Function:**
+ally, giver of the mended-boat thread, and the act-1 hope spot (N52).
 
-### 1.4 Netmistress Iolen Brack — `npc.vaelmere.netwright`
+**1.7 Keeper Edvane Ryle — `npc.vaelmere.shrine_keeper`, 58.** Tends the shrine
+on the knoll: name-rites for the dead, the burial book, the words said over the
+drowned. **Tie:** neither; his order posts its keepers away from their kin.
+**Wants** to say the rites correctly, in order, over the right names; **fears**
+that the sequence he was taught was interfered with and that he has been
+closing graves wrongly his whole working life. **Secret:** as a young man he
+cut four pages from the shrine's oldest name-book at a Corvane steward's
+request, for coin that re-roofed the shrine. **Rust:** the shrine's iron gate,
+which he treats as weather. **Function:** giver of the lakeshore-cave thread —
+find the three children's bones, learn their names, lay them down — which
+teaches the arc's core verb before politics arrive.
 
-Age 39. Fishing master: owns the two drag-nets, sets the crews, weaves and tars
-the gear the hamlet lives by. **Tie:** Maddren, openly and without apology.
-**Wants** the catch back and her crews paid before frost; **fears** that rust
-in the cord means the lake has begun keeping a tally of the valley.
-**Secret:** last spring she cut the tithe-boat's nets and let Corvane blame the
-current; her own gear bloomed that same month and she has never said the two
-things in one breath. **Rust:** heavy — cord, needles, tar. **Function:** giver
-of the fishing templates (N45), early ally, and the clearest craft-disruption
-evidence in the hamlet (N58).
+**1.8 Bailiff Roderic Mell — `npc.vaelmere.bailiff`, 46.** House Corvane's man
+in Vaelmere: weighs the catch, keeps the tally-sticks, collects the fish-tithe
+and the field rents. **Tie:** Corvane's servant, not Corvane's kin. **Wants**
+his quotas met without armed men to meet them; **fears** the hamlet turning on
+him in a single evening — and, quietly, that the old story about the feast is
+true. **Secret:** for two years he has covered the Maddren households' arrears
+from his own purse and written them paid; a kind lie is still a lie, and his
+ledger blooms anyway. **Rust:** tally-sticks and scale weights. **Function:**
+obstacle who converts to ally; the gate to young Lord Rhys Corvane, and so to
+the act-1 refusal beat (N14).
 
-### 1.5 Bran Ockley — `npc.vaelmere.smallholder_father`
+**1.9 Ysolde Maddren — `npc.vaelmere.widow`, 55.** Widow; mends nets for
+Iolen's crews, salts the winter fish, holds the memorized roll of Clan
+Maddren's dead — every name the Backward Rite stripped, carried aloud four
+generations because no page was permitted to keep them. **Tie:** Maddren, and
+the hamlet's living archive of it. **Wants** the roll spoken once in the open,
+where a keeper of rites must hear it; **fears** her nephews collecting the debt
+in Corvane children and damning the clan with it. **Secret:** she taught the
+roll to the young men knowing exactly what they would do with it. **Rust:**
+faint — and she reads its faintness as a verdict on everyone else.
+**Function:** ally, main-arc knowledge source (the names), tragedy.
 
-Age 51. Smallholder: three cows, a barley strip on the flood margin, a quarter
-share in a boat. **Tie:** Corvane tenant, four generations on the same rent.
-**Wants** his strip dry, his herd whole, his daughter married into something
-safer than a feud; **fears** being made to swear anything again. **Secret:**
-during the last flood he shifted a boundary stone into his neighbour's strip
-and swore at the shrine that he had not. **Rust:** his barley went first,
-before anyone's, in full view of the ferry road — and the hamlet has drawn its
-conclusions. **Function:** obstacle turning to tragedy; the player's first
-lesson that the rust accuses accurately, and that a neighbour it convicts is
-still a neighbour.
+**1.10 Tam Maddren — `npc.vaelmere.hothead`, 24.** Crews the second net;
+strongest arm in the hamlet, and barred like all Maddren men from carrying
+arms. **Tie:** Maddren, and done with patience. **Wants** one Corvane answer
+for one Maddren name, by the old reckoning of one for one; **fears** that his
+younger brother Cass, missing three days, has started it without him.
+**Secret:** he paid the ferryman to deny the crossing, and does not know
+whether he was covering his brother's flight or his brother's killing.
+**Rust:** climbing his forearms faster than anyone's. **Function:** obstacle
+and recruitable ally; the strife made local, and the living proof that a
+killing done in feud is a payment into the debt.
 
-### 1.6 Sela Ockley — `npc.vaelmere.smallholder_daughter`
-
-Age 23. Milks, salts, runs the household's fish to market on ferry days.
-**Tie:** Corvane tenant through her father; betrothed across the feud.
-**Wants** the boat share mended and her own roof by spring; **fears** that her
-father's marked grain will be read as her marked grain. **Secret:** she is
-carrying Cass Maddren's child, has told no one, and believes he ran from her
-rather than from his brother. **Rust:** none on her yet, and the hamlet has
-noticed that too. **Function:** ally, giver of the mended-boat thread, and the
-act-1 hope spot (N52).
-
-### 1.7 Keeper Edvane Ryle — `npc.vaelmere.shrine_keeper`
-
-Age 58. Tends the shrine on the knoll: name-rites for the dead, the burial
-book, the words said over the drowned. **Tie:** neither; his order posts its
-keepers away from their kin. **Wants** to say the rites correctly, in order,
-over the right names; **fears** that the sequence he was taught was interfered
-with and that he has been closing graves wrongly his whole working life.
-**Secret:** as a young man he cut four pages from the shrine's oldest name-book
-at a Corvane steward's request, for coin that re-roofed the shrine. **Rust:**
-the shrine's iron gate, which he treats as weather. **Function:** giver of the
-lakeshore-cave thread — find the three children's bones, learn their names, lay
-them down — which teaches the arc's core verb before politics arrive.
-
-### 1.8 Bailiff Roderic Mell — `npc.vaelmere.bailiff`
-
-Age 46. House Corvane's man in Vaelmere: weighs the catch, keeps the
-tally-sticks, collects the fish-tithe and the field rents. **Tie:** Corvane's
-servant, not Corvane's kin. **Wants** his quotas met without armed men to meet
-them; **fears** the hamlet turning on him in a single evening — and, quietly,
-that the old story about the feast is true. **Secret:** for two years he has
-covered the Maddren households' arrears from his own purse and written them
-paid; a kind lie is still a lie, and his ledger blooms anyway. **Rust:**
-tally-sticks and scale weights. **Function:** obstacle who converts to ally;
-the gate to young Lord Rhys Corvane, and so to the act-1 refusal beat (N14).
-
-### 1.9 Ysolde Maddren — `npc.vaelmere.widow`
-
-Age 55. Widow; mends nets for Iolen's crews, salts the winter fish, and holds
-the memorized roll of Clan Maddren's dead — every name the Backward Rite
-stripped, carried aloud four generations because no page was permitted to keep
-them. **Tie:** Maddren, and the hamlet's living archive of it. **Wants** the
-roll spoken once in the open, where a keeper of rites must hear it; **fears**
-her nephews collecting the debt in Corvane children and damning the clan with
-it. **Secret:** she taught the roll to the young men knowing exactly what they
-would do with it. **Rust:** faint — and she reads its faintness as a verdict on
-everyone else. **Function:** ally, main-arc knowledge source (the names),
-tragedy.
-
-### 1.10 Tam Maddren — `npc.vaelmere.hothead`
-
-Age 24. Crews the second net; strongest arm in the hamlet, and barred like all
-Maddren men from carrying arms. **Tie:** Maddren, and done with patience.
-**Wants** one Corvane answer for one Maddren name, by the old reckoning of one
-for one; **fears** that his younger brother Cass, missing three days, has
-started it without him. **Secret:** he paid the ferryman to deny the crossing,
-and does not know whether he was covering his brother's flight or his brother's
-killing. **Rust:** climbing his forearms faster than anyone's. **Function:**
-obstacle and recruitable ally; the strife made local, and the living proof that
-a killing done in feud is a payment into the debt.
-
-### 1.11 Alwen Fen — `npc.vaelmere.fen_grandmother`
-
-Age 74. The hero's grandmother. Half-blind; mends and tars nets from a stool by
-the door; holds the household's two flood strips and a share in Ockley's boat.
-**Tie:** none that Vaelmere knows of — the Fens are poor and unremarkable,
-which is precisely what four generations of work bought. **Wants** her grandson
-ordinary, employed and alive; **fears** the name, and specifically that someone
-reads it off a roll in front of him. **Secret:** under her hearthstone lies her
-father's oath-token — a raven badge of House Corvane's sworn service, a
-half-scratched surname beneath it. She knows the household changed its name
-twice, that the second change was made in a hurry, and that "we were on the
-wrong side of a table once"; she has never wanted to know more. **Rust:** the
-Fen doorframe is clean, and that is beginning to look strange. **Function:**
-the main arc's first thread and its first cost; the hamlet's warmth (N52); the
-loudest N19 doubt — she does not want him to be the one who answers.
+**1.11 Alwen Fen — `npc.vaelmere.fen_grandmother`, 74.** The hero's
+grandmother; half-blind, mends and tars nets from a stool by the door, holds
+the household's two flood strips and a share in Ockley's boat. **Tie:** none
+that Vaelmere knows of — the Fens are poor and unremarkable, which is precisely
+what four generations of work bought. **Wants** her grandson ordinary, employed
+and alive; **fears** the name, and specifically that someone reads it off a
+roll in front of him. **Secret:** under her hearthstone lies her father's
+oath-token — a raven badge of House Corvane's sworn service, a half-scratched
+surname beneath it. She knows the household changed its name twice, that the
+second change was made in a hurry, and that "we were on the wrong side of a
+table once"; she has never wanted to know more. **Rust:** the Fen doorframe is
+clean, and that is beginning to look strange. **Function:** the main arc's
+first thread and its first cost; the hamlet's warmth (N52); the loudest N19
+doubt — she does not want him to be the one who answers.
 
 ---
 
 ## 2. Character cards (`*.card.json`, QUEST_FORMAT §6)
 
 The six residents most likely to be spoken to incidentally. `mood_flags` use
-only §2.1 atoms (`clock` is validator-rejected until the day cycle lands, so it
-is unused) with the six comparison operators. Every `knowledge` entry points at
+only §2.1 atoms with the six comparison operators (`clock` is validator-rejected
+until the day cycle lands, so it is unused). Every `knowledge` entry points at
 content that exists in the valley; every `ignorance` list excludes the
 main-quest solution and the true nature of the Reckoning. Cards for the elder,
 the widow and the Fen grandmother are deferred to the main-arc document: their
-knowledge is gated material (the roll of the dead, the Fen name) that must
-never be improvised.
+knowledge is gated material (the roll of the dead, the Fen name) that must never
+be improvised.
 
 ```json
 {
@@ -212,8 +195,6 @@ never be improvised.
   "mood_flags": [
     { "if": [ { "flag": "flag.vaelmere.nets_rusted", "op": "==", "value": true } ],
       "then": "short-tempered; talks of closing the back room and salting what is left" },
-    { "if": [ { "flag": "flag.vaelmere.feud_killing", "op": ">=", "value": 1 } ],
-      "then": "guarded; counts who is in the room before answering anything" },
     { "if": [ { "flag": "flag.vaelmere.corpse_walked", "op": "==", "value": true } ],
       "then": "frightened under the dryness; door barred, humor thinner" }
   ],
@@ -241,8 +222,6 @@ never be improvised.
   "mood_flags": [
     { "if": [ { "flag": "flag.vaelmere.cass_missing", "op": "==", "value": true } ],
       "then": "evasive about the north crossing; changes the subject to the water level" },
-    { "if": [ { "flag": "flag.vaelmere.beacon_seen", "op": "==", "value": true } ],
-      "then": "will speak of the tower light now, quietly, and only mid-river" },
     { "if": [ { "flag": "flag.vaelmere.barrow_opened", "op": "==", "value": true } ],
       "then": "refuses night crossings; says the lake sits heavier after dark" }
   ],
@@ -271,9 +250,7 @@ never be improvised.
     { "if": [ { "flag": "flag.vaelmere.nets_rusted", "op": "==", "value": true } ],
       "then": "grim, working double; talks of the lake keeping accounts" },
     { "if": [ { "flag": "flag.vaelmere.tithe_seized", "op": "==", "value": true } ],
-      "then": "furious at the bailiff; recruits sympathy openly" },
-    { "if": [ { "quest_state": "quest.vaelmere.mended_boat", "state": "completed" } ],
-      "then": "warmer; offers the player a place on a crew" }
+      "then": "furious at the bailiff; recruits sympathy openly" }
   ],
   "fallback_lines": [ "dlg.incidental.netwright.f1", "dlg.incidental.netwright.f2" ]
 }
@@ -299,8 +276,6 @@ never be improvised.
   "mood_flags": [
     { "if": [ { "flag": "flag.vaelmere.boundary_stone_truth", "op": "==", "value": true } ],
       "then": "ashamed and defensive of her father; short answers" },
-    { "if": [ { "flag": "flag.vaelmere.cass_found", "op": "==", "value": true } ],
-      "then": "grieving or relieved strictly according to journal facts; never speculates" },
     { "if": [ { "quest_state": "quest.vaelmere.mended_boat", "state": "completed" } ],
       "then": "bright; talks of spring and a roof of her own" }
   ],
@@ -326,8 +301,6 @@ never be improvised.
       "never speaks for Lord Rhys Corvane", "never confirms the massacre as fact" ]
   },
   "mood_flags": [
-    { "if": [ { "flag": "flag.vaelmere.tithe_seized", "op": "==", "value": true } ],
-      "then": "defensive and formal; hides behind the writ" },
     { "if": [ { "flag": "flag.vaelmere.feud_killing", "op": ">=", "value": 1 } ],
       "then": "afraid; speaks of sending to Corvane for armed men, and dreads the answer" },
     { "if": [ { "flag": "flag.vaelmere.roll_heard", "op": "==", "value": true } ],
@@ -357,8 +330,6 @@ never be improvised.
   "mood_flags": [
     { "if": [ { "flag": "flag.vaelmere.barrow_opened", "op": "==", "value": true } ],
       "then": "urgent; wants the unnamed dead named before anything else is attempted" },
-    { "if": [ { "flag": "flag.vaelmere.names_laid", "op": ">=", "value": 1 } ],
-      "then": "steadier; speaks of the rite holding where a name was restored" },
     { "if": [ { "entered_location": "poi.lakeshore_cave" } ],
       "then": "asks the player plainly what was found under the bluff" }
   ],
@@ -378,7 +349,7 @@ state — cards only read it.
 | `flag.vaelmere.rust_seen` | bool | Player has examined the rust on a marked household; opens rust talk hamlet-wide. |
 | `flag.vaelmere.nets_rusted` | bool | The hamlet's gear is visibly blighted; tints netwright, tavern keeper, elder. |
 | `flag.vaelmere.barrow_opened` | bool | The seal in the crag's south face has broken; act-1 escalation gate (N3). |
-| `flag.vaelmere.beacon_seen` | bool | Player has witnessed the cold light in the ward-tower; unlocks the ferryman's tower talk. |
+| `flag.vaelmere.beacon_seen` | bool | Player has seen the cold light in the ward-tower; opens the ferryman's tower talk. |
 | `flag.vaelmere.corpse_walked` | bool | A walking dead man was seen inside the hamlet; hard tone shift for every card. |
 | `flag.vaelmere.cass_missing` | bool | Default true at world start; the Maddren boy is unaccounted for. |
 | `flag.vaelmere.cass_found` | bool | His end is established in the journal; closes the ferryman's evasion. |

@@ -90,6 +90,7 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
             const float hz = terrain_height(ctx, {p.x, p.y + d})
                            - terrain_height(ctx, {p.x, p.y - d});
             if (std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d)) > WALK_SLOPE) continue;
+            if (castle_occluder_height(ctx.sites.castle, p) > 0.0f) continue; // inside the mass
             ++open;
 
             // Canopy-aware raycast standpoint -> tower top with the C4
@@ -110,8 +111,13 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
             for (float t = RAY_STEP_M; t < dist - RAY_STEP_M; t += RAY_STEP_M) {
                 const glm::vec2 q = p + dir * t;
                 const float terrain = terrain_height(ctx, q);
+                // Occlusion heightfield = terrain + canopy + CASTLE MASS
+                // (§6.1.1: the castle enters exactly like canopy and may
+                // never be the reason the L0 fails C1).
                 const float occ_top =
-                    terrain + canopy_height_at(ctx.params.seed, layout, q, terrain);
+                    terrain
+                    + std::max(canopy_height_at(ctx.params.seed, layout, q, terrain),
+                               castle_occluder_height(ctx.sites.castle, q));
                 const float t_occ = (occ_top - eye_y) / t;
                 if (t_occ * CLEARANCE > t_l0) {
                     blocked = true;

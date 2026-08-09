@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 15:08:24
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -40,6 +40,11 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial Jolt backend (terrain mesh, boxes,
                          CharacterVirtual with inner body, masked raycast).
+- 09:08:2026 - 15:08:24: Reject layer == 0 (and character collides_with == 0)
+                         with an invalid handle — a body no mask can select is
+                         never intentional; a silently accepted layer-0 terrain
+                         let the player fall through the world (fixed in app
+                         37f1e1c; this is the backend-side guard).
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -232,7 +237,9 @@ public:
 
     // Static bodies ------------------------------------------------------------
     PhysicsBodyHandle create_terrain(const TerrainDesc& desc) override {
-        if (desc.sample_count_x < 2 || desc.sample_count_z < 2 ||
+        // layer == 0 is unreachable by construction (see the contract note in
+        // IPhysics.h): a body no mask can select is never intentional.
+        if (desc.layer == 0 || desc.sample_count_x < 2 || desc.sample_count_z < 2 ||
             desc.heights.size() <
                 static_cast<size_t>(desc.sample_count_x) * desc.sample_count_z) {
             return {};
@@ -273,7 +280,8 @@ public:
 
     PhysicsBodyHandle create_static_box(const StaticBoxDesc& desc) override {
         const JPH::Vec3 half = to_jph(desc.half_extents);
-        if (half.GetX() <= 0.0f || half.GetY() <= 0.0f || half.GetZ() <= 0.0f) {
+        if (desc.layer == 0 || half.GetX() <= 0.0f || half.GetY() <= 0.0f ||
+            half.GetZ() <= 0.0f) {
             return {};
         }
         const JPH::Quat rotation{desc.rotation.x, desc.rotation.y, desc.rotation.z,
@@ -297,7 +305,10 @@ public:
     // Character controller -----------------------------------------------------
     CharacterHandle create_character(const CharacterDesc& desc) override {
         const float cylinder_half = 0.5f * desc.height - desc.radius;
-        if (!system_ || desc.radius <= 0.0f || cylinder_half <= 0.0f) {
+        // layer == 0: the character's own body would be unhittable by any
+        // raycast. collides_with == 0: it would walk through the world.
+        if (!system_ || desc.layer == 0 || desc.collides_with == 0 ||
+            desc.radius <= 0.0f || cylinder_half <= 0.0f) {
             return {};
         }
         // Capsule offset so the character position is the capsule BOTTOM point.

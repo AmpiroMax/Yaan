@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 15:08:24
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -25,6 +25,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial null backend implementation.
+- 09:08:2026 - 15:08:24: Reject layer == 0 (and character collides_with == 0)
+                         with an invalid handle, matching the Jolt backend —
+                         null must catch the same authoring mistakes.
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
@@ -57,18 +60,28 @@ public:
     }
 
     // Static bodies ------------------------------------------------------------
+    // layer == 0 is rejected here exactly as in the Jolt backend: null is a
+    // runnable mode, so it must catch the same authoring mistakes (a body no
+    // mask can select is never intentional) rather than mask them.
     PhysicsBodyHandle create_terrain(const TerrainDesc& desc) override {
-        (void)desc;
+        if (desc.layer == 0) {
+            return {};
+        }
         return make_body();
     }
     PhysicsBodyHandle create_static_box(const StaticBoxDesc& desc) override {
-        (void)desc;
+        if (desc.layer == 0) {
+            return {};
+        }
         return make_body();
     }
     void destroy_body(PhysicsBodyHandle body) override { bodies_.erase(body.id); }
 
     // Character controller -----------------------------------------------------
     CharacterHandle create_character(const CharacterDesc& desc) override {
+        if (desc.layer == 0 || desc.collides_with == 0) {
+            return {};
+        }
         const CharacterHandle handle{next_id_++};
         characters_[handle.id] = Character{desc.position, glm::vec3{0.0f}};
         return handle;
