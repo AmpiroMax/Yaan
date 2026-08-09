@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 20:36:00
+# Last updated: 10:08:2026 - 01:47:53
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -37,6 +37,8 @@
 # - 09:08:2026 - 20:36:00: Interior lighting — vs_point_shadow/fs_point_shadow
 #   (carried-light cube faces, distance-to-light atlas) and dfn_pointshadow.sh
 #   added to the shaderc dependency list.
+# - 10:08:2026 - 01:47:53: Rule 21 split of BgfxRenderer.cpp (1424 lines) into
+#   lifecycle / frame / submit / resources over the private BgfxRendererImpl.h.
 
 include(FetchContent)
 
@@ -98,6 +100,9 @@ add_custom_target(dfn_shaders DEPENDS ${DFN_SHADER_OUTPUTS})
 # --- The backend library -----------------------------------------------------
 add_library(dfn_platform_render STATIC
     sources/bgfx/BgfxRenderer.cpp
+    sources/bgfx/BgfxRendererFrame.cpp
+    sources/bgfx/BgfxRendererSubmit.cpp
+    sources/bgfx/BgfxRendererResources.cpp
     sources/bgfx/BgfxCallback.cpp
     sources/bgfx/BgfxPalette.cpp
     sources/null/NullRenderer.cpp)
