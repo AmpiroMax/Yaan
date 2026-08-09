@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:59:25
-Last updated: 09:08:2026 - 15:11:10
+Last updated: 09:08:2026 - 15:12:53
 -->
 <!--
 UPD:
@@ -12,6 +12,12 @@ UPD:
   entered_location true only on the tick it fires — it cannot drive a
   persistent mood), namespace-ownership rule and related-but-distinct flag
   notes added, canon pointer updated to the bible.
+- 09:08:2026 - 15:12:53: Terminology aligned to BIBLE.md §2/§9: the knoll's
+  keeper is a hereditary **shrinewarden**, not a posted order-keeper —
+  `npc.vaelmere.shrine_keeper` renamed to `npc.vaelmere.shrinewarden`,
+  `role.shrinekeeper` to `role.shrinewarden`, `dlg.incidental.shrine_keeper.*`
+  to `dlg.incidental.shrinewarden.*`, and his tie rewritten as an inherited,
+  thinning wardenship.
 -->
 
 # CHARACTERS_VAELMERE.md — The Named Cast of Vaelmere
@@ -112,9 +118,10 @@ told no one, and believes he ran from her rather than from his brother.
 **Rust:** none on her yet, and the hamlet has noticed that too. **Function:**
 ally, giver of the mended-boat thread, and the act-1 hope spot (N52).
 
-**1.7 Keeper Edvane Ryle — `npc.vaelmere.shrine_keeper`, 58.** Tends the shrine
-on the knoll: name-rites for the dead, the burial book, the words said over the
-drowned. **Tie:** neither; his order posts its keepers away from their kin.
+**1.7 Shrinewarden Edvane Ryle — `npc.vaelmere.shrinewarden`, 58.** Keeps the
+shrine on the knoll: naming and burial rites, the burial book, the words said
+over the drowned. **Tie:** neither house — the wardenship is hereditary, his
+father's and his father's father's, and the line is now thin and poor.
 **Wants** to say the rites correctly, in order, over the right names; **fears**
 that the sequence he was taught was interfered with and that he has been
 closing graves wrongly his whole working life. **Secret:** as a young man he
@@ -276,7 +283,7 @@ be improvised.
     "knowledge": [ "the flood strips, the herd, market days and ferry times",
       "rumor: her father's barley took the rust before any other grain in the hamlet",
       "rumor: Cass Maddren went north over the water and did not come back",
-      "rumor: the shrine keeper has been asking after old drowned children",
+      "rumor: the shrinewarden has been asking after old drowned children",
       "which neighbours have stopped speaking to which" ],
     "ignorance": [ "why the rust settles on the houses it settles on", "her father's boundary stone",
       "quest solutions", "the true nature of the Reckoning" ],
@@ -322,8 +329,8 @@ be improvised.
 
 ```json
 {
-  "id": "npc.vaelmere.shrine_keeper", "name_key": "npc.vaelmere.shrine_keeper.name",
-  "voice": "voice.male_old_1", "role": "role.shrinekeeper", "home": "poi.shrine_knoll",
+  "id": "npc.vaelmere.shrinewarden", "name_key": "npc.vaelmere.shrinewarden.name",
+  "voice": "voice.male_old_1", "role": "role.shrinewarden", "home": "poi.shrine_knoll",
   "persona": {
     "traits": [ "precise", "scrupulous", "unsure of his own training", "gentle with the bereaved" ],
     "speech": "liturgical cadence; names the rite before performing it; corrects himself aloud",
@@ -343,7 +350,7 @@ be improvised.
     { "if": [ { "flag": "flag.vaelmere.cave_visited", "op": "==", "value": true } ],
       "then": "asks the player plainly what was found under the bluff" }
   ],
-  "fallback_lines": [ "dlg.incidental.shrine_keeper.f1", "dlg.incidental.shrine_keeper.f2" ]
+  "fallback_lines": [ "dlg.incidental.shrinewarden.f1", "dlg.incidental.shrinewarden.f2" ]
 }
 ```
 
@@ -375,7 +382,7 @@ state — cards only read it.
 | `flag.act1.tower_archive_found` | bool | The Corvane archive in the ward-tower has been reached (act-1 climax, N11). Act-scoped, not hamlet-local. |
 
 Quests the cards already reference and that need authoring next:
-`quest.vaelmere.mended_boat` (the hope spot), the shrine keeper's cave-children
+`quest.vaelmere.mended_boat` (the hope spot), the shrinewarden's cave-children
 thread, and the fishing/farming templates hung off the netwright and the elder.
 
 **Namespace rule (canon, set at reconciliation):** `flag.act1.*` for
@@ -407,6 +414,6 @@ spot is carried by the **smallholder daughter** and the **Fen grandmother**: the
 mended boat pushed off the shingle with a crew fed and paid, and a clean hearth
 in the poorest house in the hamlet — small, human, craft-scale warmth (N57),
 authored to sit immediately before the barrow beat so the darkest turn of act 1
-lands against something the player helped build. The **shrine keeper** carries
+lands against something the player helped build. The **shrinewarden** carries
 neither; he is the register of gravity, and his laying-down of three named
 children is the act's proof that the ledger can be paid honestly at all.
