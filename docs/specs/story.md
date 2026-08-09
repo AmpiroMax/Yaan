@@ -4,23 +4,10 @@ Last updated: 09:08:2026 - 15:03:05
 -->
 <!--
 UPD:
-- 09:08:2026 - 14:01:56: Initial story-zone spec: mission, zone, contracts with
-  sim/design/lead, team structure, deliverable plan (research, three pitches,
-  quest data format proposal), verification, non-goals.
-- 09:08:2026 - 14:19:25: Stage deliverables done: RESEARCH.md (N1–N58),
-  PITCHES.md (three pitches + Russian summaries, awaiting в16 choice),
-  QUEST_FORMAT.md contract-frozen with sim (Condition.h/Dialogue.h/Ids.h
-  landed). Plan step 2 marked DONE; content gate holds.
-- 09:08:2026 - 14:21:12: Lead rulings recorded: quest content path =
-  games/daggerfall_n/assets/quests/ (AGENTS.md corrected by lead); LLM
-  prompt language = English + output-language instruction. PITCHES.md
-  committed (e6f62c5) and before the user with в16-в18.
-- 09:08:2026 - 15:03:05: CONTENT GATE OPEN — user picked Pitch A (The Debt
-  of Harrowmere). BIBLE.md (canon incl. §5.1 Harrowward castle per the
-  user's seat-of-state-power requirement), ACT1_VALLEY.md (4 main quests,
-  3 secondaries, template families, minimum buildable scope) and the
-  Vaelmere cast authored. в17/в18 lead defaults adopted; castle geography
-  deferred to design's binding ruling.
+- 09:08:2026 - 14:01:56: Initial story-zone spec: mission, zone, contracts with sim/design/lead, team structure, deliverable plan (research, three pitches, quest data format proposal), verification, non-goals.
+- 09:08:2026 - 14:19:25: Stage deliverables done: RESEARCH.md (N1–N58), PITCHES.md (three pitches + Russian summaries, awaiting в16 choice), QUEST_FORMAT.md contract-frozen with sim (Condition.h/Dialogue.h/Ids.h landed). Plan step 2 marked DONE; content gate holds.
+- 09:08:2026 - 14:21:12: Lead rulings recorded: quest content path = games/daggerfall_n/assets/quests/ (AGENTS.md corrected by lead); LLM prompt language = English + output-language instruction. PITCHES.md committed (e6f62c5) and before the user with в16-в18.
+- 09:08:2026 - 15:03:05: CONTENT GATE OPEN — user picked Pitch A (The Debt of Harrowmere). BIBLE.md (canon incl. §5.1 Harrowward castle per the user's seat-of-state-power requirement), ACT1_VALLEY.md (4 main quests, 3 secondaries, template families, minimum buildable scope) and the Vaelmere cast authored. в17/в18 lead defaults adopted; castle geography deferred to design's binding ruling.
 -->
 
 # Spec — story (`docs/specs/story.md`)

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 21:00:00
+Last updated: 09:08:2026 - 21:45:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -60,6 +60,8 @@ UPD:
   the frame as an unlit screen-filling quad (no IRenderer change, Rule 26).
 - 09:08:2026 - 21:00:00: upload_terrain_voxel — render draws core's voxel
   surface, so carved interiors (tunnel, barrows) exist on screen at all.
+- 09:08:2026 - 21:45:00: DFN_TIME now FREEZES the sky each frame (the app's
+  clock would otherwise overwrite the screenshot hook every frame).
 */
 
 #pragma once
@@ -221,6 +223,12 @@ private:
     uint32_t overlay_mesh_ = 0;        // MeshHandle.id, screen-filling quad
     uint32_t overlay_texture_ = 0;     // TextureHandle.id, re-uploaded per frame
     glm::uvec2 internal_res_{0, 0};    // overlay canvas size (internal pixels)
+    // DFN_TIME/DFN_MOON freeze the sky for deterministic screenshots. Re-applied
+    // every frame, not just at init: the app drives apply_sky_time from its own
+    // clock now, so an init-time value would be overwritten before frame one.
+    bool sky_frozen_ = false;
+    float frozen_day_ = 0.5f;
+    float frozen_moon_phase_ = 0.5f;
     MapScreen map_;
     platform::RenderEnvironment environment_{};
     std::chrono::steady_clock::time_point clock_start_{}; // visual time origin

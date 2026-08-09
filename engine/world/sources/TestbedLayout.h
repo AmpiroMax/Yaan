@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 19:13:01
+Last updated: 09:08:2026 - 19:41:55
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -40,6 +40,7 @@ UPD:
 - 09:08:2026 - 16:47:51: P7 carves: CarveCorridor/CarveChamber/CarveLayout — the crag switchback tunnel (8 waypoints, 4 legs, 3 landings, starts and ends in open air so the portals form where the path meets rock) and the Backbarrow passage + chamber.
 - 09:08:2026 - 17:36:42: §6.2: dungeon->carve site mapping for derived entrance markers; lakeshore held at the design position with the measured reason (bluff base sits below the lake plane).
 - 09:08:2026 - 19:13:01: CragStamp::ridge_amp_meters — flank sub-relief as an ABSOLUTE amplitude, defaulted to reproduce today's 52 m crag. The legacy ridge_amp_frac coupled flank relief to peak height, so raising the summit inflated its own occluders; harmless at 52 m, wrong at the approved 110-120 m (flora's catch, kept although it was not the C1 bug).
+- 09:08:2026 - 19:41:55: L0_RELIEF 115 landed: crag peak reads the constant, rockline/treeline scale with the summit (absolute values tuned for 52 m left a 115 m crag bald from a third of the way up), and the switchback ascent is lifted with the summit and pushed out 1.30x so its mouth clears the taller cone. Scaling the footprint by the summit's own factor was tried first and was wrong — it put the route on the thin rim and turned the tunnel into a 349 m trench.
 */
 
 #pragma once
@@ -290,8 +291,15 @@ struct TestbedLayout {
     /// of 179 stations under rock. A steeper mountain wants the SAME tight
     /// footprint, where the rock above is deepest — the climb gets steeper
     /// instead of longer, which is what a switchback route is for.
-    static constexpr float spanx(float x) { return x; }
-    static constexpr float spanz(float z) { return z; }
+    /// ...but it does have to move OUT far enough to clear the taller cone.
+    /// At 115 m the stamp lifts ground to ~38 m where the 52 m survey put the
+    /// mouth, burying it by 17 m. Pushing the footprint out by this much puts
+    /// the mouth back where the cone falls below valley level, while keeping
+    /// the switchbacks in deep rock. Far less than the summit's own scale —
+    /// scaling by that put the route on the thin rim.
+    static constexpr float FOOTPRINT_SCALE = 1.30f;
+    static constexpr float spanx(float x) { return 830.0f + (x - 830.0f) * FOOTPRINT_SCALE; }
+    static constexpr float spanz(float z) { return 200.0f + (z - 200.0f) * FOOTPRINT_SCALE; }
 
     CarveLayout carves{
         // Crag tunnel: mouth at the SW foot, four switchback legs with

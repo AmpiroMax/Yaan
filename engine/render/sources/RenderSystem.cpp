@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:00:00
+Last updated: 09:08:2026 - 21:45:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -43,6 +43,7 @@ UPD:
   pass (before the mesh lookup, so the mesh-less castle ids 8..11 still map),
   DFN_MAP=1 opens the map at init for the tour evidence shot.
 - 09:08:2026 - 21:00:00: upload_terrain_voxel (see the header UPD).
+- 09:08:2026 - 21:45:00: DFN_TIME re-applied per frame (see the header UPD).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -196,6 +197,9 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             if (const char* menv = std::getenv("DFN_MOON"); menv != nullptr) {
                 std::sscanf(menv, "%f", &phase);
             }
+            sky_frozen_ = true;
+            frozen_day_ = day;
+            frozen_moon_phase_ = phase;
             apply_sky_time(environment_, day, phase);
         }
     }
@@ -272,6 +276,11 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // simulation — Rule 12 keeps gameplay off the wall clock; this is render).
     environment_.time_seconds = std::chrono::duration<float>(
         std::chrono::steady_clock::now() - clock_start_).count();
+    // Screenshot determinism: the app writes the sky from its own clock every
+    // frame, so the frozen hour has to be re-asserted here, after it.
+    if (sky_frozen_) {
+        apply_sky_time(environment_, frozen_day_, frozen_moon_phase_);
+    }
     renderer.set_environment(environment_);
 
     // Terrain: world-space meshes, identity transform, splat atlas bound.

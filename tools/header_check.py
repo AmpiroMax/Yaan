@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 13:19:00
+# Last updated: 09:08:2026 - 19:42:19
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -24,6 +24,11 @@
 # - 09:08:2026 - 13:18:30: Exempt feature_requests.md (user-authored wishlist, no
 #                          agent header contract).
 # - 09:08:2026 - 13:19:00: Exempt settings.cfg (runtime-generated user graphics
+# - 09:08:2026 - 19:42:19: Read the whole leading comment region instead of a
+#                          fixed 80-line window: the old window made the
+#                          contract depend on how much UPD history a file had,
+#                          and reported a mismatch on a correct header once a
+#                          doc outgrew it.
 #                          settings, also gitignored).
 
 from __future__ import annotations
@@ -75,15 +80,44 @@ SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc",
                   "feature_requests.md", "settings.cfg"}
 
 
-def read_head(path: Path, max_lines: int = 80) -> list[str]:
+# The header contract lives in the leading comment region, whose length grows
+# with a file's UPD history. A fixed line window therefore makes the check
+# silently depend on how much history a file has accumulated: once the block
+# outgrows the window the checker compares 'Last updated' against a TRUNCATED
+# list of entries and reports a mismatch on a file whose header is correct.
+# That fired once, on a doc with eleven entries, and cost real time to diagnose.
+# So: read until the leading comment region ends, with a generous hard cap as a
+# backstop for files that have no such region at all.
+COMMENT_CLOSERS = ("-->", "*/")
+HARD_CAP_LINES = 4000
+
+
+def read_head(path: Path, max_lines: int = HARD_CAP_LINES) -> list[str]:
+    """Lines of the leading comment region (plus a little), never truncated
+    mid-history. Stops once the header region is provably over."""
     lines: list[str] = []
     try:
         with path.open("r", encoding="utf-8", errors="replace") as f:
+            blocks_closed = 0
+            content_lines_after = 0
             for _ in range(max_lines):
                 line = f.readline()
                 if not line:
                     break
-                lines.append(line.rstrip("\n"))
+                stripped = line.rstrip("\n")
+                lines.append(stripped)
+                text = stripped.strip()
+                if text.endswith(COMMENT_CLOSERS):
+                    blocks_closed += 1
+                    content_lines_after = 0
+                    continue
+                # Files carry up to two leading blocks (header, then UPD). Once
+                # both have closed, a run of ordinary content means we are past
+                # the header for good.
+                if blocks_closed >= 2 and text:
+                    content_lines_after += 1
+                    if content_lines_after > 20:
+                        break
     except Exception:
         pass
     return lines

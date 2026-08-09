@@ -5,19 +5,8 @@ Last updated: 09:08:2026 - 15:12:53
 <!--
 UPD:
 - 09:08:2026 - 14:59:25: Created the Vaelmere cast for main-arc Pitch A: named residents, LLM character cards per QUEST_FORMAT §6, implied world flags, tone notes.
-- 09:08:2026 - 15:11:10: Reconciled against BIBLE.md/ACT1_VALLEY.md: flag
-  namespace collisions fixed (barrow_opened and tower_archive_found moved to
-  flag.act1.*), the shrine keeper's edge-triggered `entered_location` mood
-  replaced with a level flag `flag.vaelmere.cave_visited` (sim pinned
-  entered_location true only on the tick it fires — it cannot drive a
-  persistent mood), namespace-ownership rule and related-but-distinct flag
-  notes added, canon pointer updated to the bible.
-- 09:08:2026 - 15:12:53: Terminology aligned to BIBLE.md §2/§9: the knoll's
-  keeper is a hereditary **shrinewarden**, not a posted order-keeper —
-  `npc.vaelmere.shrine_keeper` renamed to `npc.vaelmere.shrinewarden`,
-  `role.shrinekeeper` to `role.shrinewarden`, `dlg.incidental.shrine_keeper.*`
-  to `dlg.incidental.shrinewarden.*`, and his tie rewritten as an inherited,
-  thinning wardenship.
+- 09:08:2026 - 15:11:10: Reconciled against BIBLE.md/ACT1_VALLEY.md: flag namespace collisions fixed (barrow_opened and tower_archive_found moved to flag.act1.*), the shrine keeper's edge-triggered `entered_location` mood replaced with a level flag `flag.vaelmere.cave_visited` (sim pinned entered_location true only on the tick it fires — it cannot drive a persistent mood), namespace-ownership rule and related-but-distinct flag notes added, canon pointer updated to the bible.
+- 09:08:2026 - 15:12:53: Terminology aligned to BIBLE.md §2/§9: the knoll's keeper is a hereditary **shrinewarden**, not a posted order-keeper — `npc.vaelmere.shrine_keeper` renamed to `npc.vaelmere.shrinewarden`, `role.shrinekeeper` to `role.shrinewarden`, `dlg.incidental.shrine_keeper.*` to `dlg.incidental.shrinewarden.*`, and his tie rewritten as an inherited, thinning wardenship.
 -->
 
 # CHARACTERS_VAELMERE.md — The Named Cast of Vaelmere

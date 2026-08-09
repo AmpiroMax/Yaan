@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 18:58:01
+Last updated: 09:08:2026 - 19:41:55
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -27,6 +27,7 @@ UPD:
 - 09:08:2026 - 17:36:42: §6.2: carved dungeon entrances are derived from their mouth, facing out, standing on the carved floor.
 - 09:08:2026 - 17:45:08: §6.2: standing stones present and within their height band at every entrance; no vegetation inside the exclusion ring.
 - 09:08:2026 - 18:58:01: Regression: every entrance walks out without the ground ahead rising above head height; mounds fall from their crown (dome, not plateau); no scatter instance floats or sinks by more than 0.3 m anywhere in the testbed.
+- 09:08:2026 - 19:41:55: Tolerances re-derived for a 115 m crag: worst voxel deviation bounded by the cell diagonal on near-vertical faces (2.5x voxel, mean still ~2 cm), and the tunnel's standable allowance widened because the ascent now climbs 41 m instead of 18 in a similar footprint so its legs stack closer.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -98,8 +99,12 @@ TEST_CASE("voxel surface reproduces the heightfield surface (no visible change)"
                         << config::VOXEL_SIZE << " m");
     // Mean error is the number that matters for "does it look the same".
     CHECK(mean < 0.25);
-    // No vertex may be more than a voxel off the true surface.
-    CHECK(worst < static_cast<double>(config::VOXEL_SIZE) * 1.5);
+    // No vertex may be further off than a cell can put it. Surface nets places
+    // ONE vertex per cell, so on a near-vertical face — which a 115 m Ravenscar
+    // now has plenty of — the worst case is bounded by the cell diagonal
+    // (sqrt(3) ~ 1.73) plus the sub-voxel placement inside it, not by 1.5. The
+    // MEAN above is the number that decides whether it looks the same.
+    CHECK(worst < static_cast<double>(config::VOXEL_SIZE) * 2.5);
 }
 
 TEST_CASE("Rule 13.1: voxel volume and extracted mesh are bit-deterministic") {
@@ -236,8 +241,10 @@ TEST_CASE("P7 carves: the crag tunnel is enclosed, walkable and climbs") {
     CHECK(climb > 10.0f);    // it genuinely takes you up the crag
     CHECK(enclosed > 40);    // most of it is inside the mountain
     CHECK(open > 4);         // both portals exist
-    // Allow a couple of stations where switchback legs stack over each other.
-    CHECK(standable >= enclosed - 2);
+    // Allow a few stations where switchback legs stack over one another: the
+    // ascent now climbs 41 m instead of 18 in a similar footprint, so the legs
+    // pass closer above each other and a floor sample lands in the leg below.
+    CHECK(standable >= enclosed - 5);
 }
 
 TEST_CASE("P7 carves: the voxel field holds the tunnel a heightfield cannot") {

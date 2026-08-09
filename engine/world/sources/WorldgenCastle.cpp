@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 15:20:00
-Last updated: 09:08:2026 - 19:33:58
+Last updated: 09:08:2026 - 19:41:55
 Module: engine/world
 File: engine/world/sources/WorldgenCastle.cpp
 
@@ -34,6 +34,7 @@ UPD:
 - 09:08:2026 - 15:20:00: Created — castle solve/stamp/occlusion for the
   hall-castle revision (hall + solar + wall + gatehouse, access ramp).
 - 09:08:2026 - 19:33:58: Fortress revision (§6.1, 120 m fortress): terraced wards replace the single pad — cut 9.92 m -> 1.64 m against a 6 m budget, and the terrace no longer swallows the Backbarrow carve 54 m away. Mass distributed: hall+solar on the oldest uphill ward, curtain and REINSTATED corner towers on the bailey, gatehouse on the outer works. Four defects found and fixed while landing it: wards sized by CHEBYSHEV separation (axis-aligned squares stepping on a diagonal axis overlapped, so a step fell inside a level terrace); overlaps resolved by nearest centre rather than array order; a ward may never terrace below the waterline (one ward cut its floor under a pond and drowned a corridor ford); the approach ramp is checked on its own length rather than inside the much shorter skirt band, which had left the outer half of the ramp falling through to natural terrain.
+- 09:08:2026 - 19:41:55: Ward chain: the waterline floor now WINS over the monotonic step-down (the step-down was silently pushing a ward back under the pond the floor had just lifted it out of, drowning the corridor ford crossing that ward), and the chain TRUNCATES where the spur runs into water rather than building a terrace in a pond.
 */
 
 #include "engine/world/sources/WorldgenCastle.h"
@@ -154,7 +155,9 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
     castle.half_size = span * 0.5f;
     castle.blend = ward_blend;
 
-    const auto median_height = [&](glm::vec2 c, float half, float& out_cut, float& out_fill) {
+    float ward_water_floor[3] = {-1e9f, -1e9f, -1e9f};
+    const auto median_height = [&](glm::vec2 c, float half, float& out_cut, float& out_fill,
+                                   float& out_water_floor) {
         std::vector<float> s;
         for (float z = -half; z <= half; z += 4.0f) {
             for (float x = -half; x <= half; x += 4.0f) {
@@ -182,9 +185,10 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
                 }
             }
         }
-        if (water_top > -1e8f) {
-            h = std::max(h, water_top + static_cast<float>(config::BUILDING_WATER_MARGIN));
-        }
+        out_water_floor = water_top > -1e8f
+                            ? water_top + static_cast<float>(config::BUILDING_WATER_MARGIN)
+                            : -1e9f;
+        h = std::max(h, out_water_floor);
         out_cut = std::max(0.0f, s.back() - h);
         out_fill = std::max(0.0f, h - s.front());
         return h;
@@ -199,15 +203,27 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
         w.center = castle.center + forward * (static_cast<float>(i) * step);
         w.half_size = ward_half;
         w.blend = ward_blend;
-        w.height = median_height(w.center, ward_half, w.cut, w.fill);
+        w.height = median_height(w.center, ward_half, w.cut, w.fill,
+                                 ward_water_floor[i]);
         castle.cut = std::max(castle.cut, w.cut);
         castle.fill = std::max(castle.fill, w.fill);
     }
     // Terraces must STEP DOWN along the approach; a lower ward that solved
     // higher than its uphill neighbour would read as a bowl, not a fortress.
+    // The waterline floor is re-applied AFTERWARDS and wins: the step-down was
+    // silently pushing a ward back under the pond the floor had just lifted it
+    // out of, which drowned the corridor ford crossing that ward.
     for (int i = 1; i < castle.ward_count; ++i) {
-        castle.wards[i].height =
-            std::min(castle.wards[i].height, castle.wards[i - 1].height - 1.0f);
+        const float stepped = castle.wards[i - 1].height - 1.0f;
+        if (ward_water_floor[i] > stepped) {
+            // This ward cannot step down without standing in water. The spur
+            // simply does not carry another terrace: TRUNCATE the chain rather
+            // than build a ward in a pond (which drowned the corridor ford
+            // crossing it) or fake a step down into one.
+            castle.ward_count = i;
+            break;
+        }
+        castle.wards[i].height = std::min(castle.wards[i].height, stepped);
     }
     castle.pad_height = castle.wards[0].height;
 

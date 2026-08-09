@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:34:15
+Last updated: 09:08:2026 - 19:38:02
 -->
 <!--
 UPD:
@@ -28,6 +28,7 @@ UPD:
 - 09:08:2026 - 19:27:13: §6.1.3 — C's gap placed on the BARROW-FACING flank (story's ask; bearings checked: barrow 27 deg, peak 28 deg, approach 225 deg, so grave and road are opposite sides and the approach stays walled). Forced one refinement: since the barrow side is uphill where ward A sits, C is a contour-following perimeter wrapping A and B rather than simply the lowest terrace — also the more authentic form, since uphill outer works matter most on a hillside. Noted that the two story asks reinforce: the barrow-facing tower watches the grave THROUGH the unbuilt stretch, so sightline clearance is guaranteed by absence rather than by a height check. Gap reachable off-corridor only — a back way, never an alternative front door.
 - 09:08:2026 - 19:30:26: §2.5 — "7000 steps" CLOSED by user decision: it is a name, not a step count; 1200-1800 m / 5-7 landings / ~8 min stands, fiction keeps the name. §6.1.3 — gap reachability promoted from observation to VALIDATED INVARIANT, since story's act-1 trespass route now depends on it alongside the act-3 muster: continuous traversable route from barrow ground up the NNE spur (validated like the castle ramp and summit ascent), deliberately non-corridor-grade at SCRAMBLE_SLOPE 30-45 deg, passing within 40 m of the barrow entrance so the act-1/act-3 rhyme is geometric rather than lucky, and the completion fraction recorded as having two dependents.
 - 09:08:2026 - 19:34:15: Story's near-miss (they nearly attached the Steps to act 1's climax, which is a different mountain) produced three fixes. §2.5 — added a boxed TWO DIFFERENT CLIMBS warning (the Steps are the regional massif, act 2; Ravenscar's climb is the local L0, act 1); specified the Steps as a BUILT stair in four generations of disrepair, with disrepair strictly visual/routing and never impassable; landings are now STATIONS with built markers, and LR_ASCENT_LANDINGS gains narrative dependents (5-7 landings = 5-7 rite beats), so it is no longer a free pacing knob. §7.1 — filled a real gap in my own doc: Ravenscar had no validated summit route despite act 1 climaxing there; now required and validated like the temple ascent and castle ramp, and specified as an informal worn PATH rather than a stair so the two climbs never read as the same place.
+- 09:08:2026 - 19:38:02: §2.5 — LR_ASCENT_LANDINGS pinned at 7 (was a 5-7 band); story ruled the count since it now carries narrative dependents, one landing per station of the naming rite, which anchors the stair's name diegetically while the user's never-count-steps rule stays intact. Verified rhythmically before pinning: 7 landings over 1200-1800 m give 57-86 s segments at WALK_SPEED, inside the testbed POI_TRAVEL_TIME band across the whole range, so the climb's cadence matches the valley's exploration cadence; ~40 m of relief per station keeps the view changing.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -634,9 +635,12 @@ kept the order poor, but nobody ever forbade the climb.
 each carries a small built marker — a station stone, a niche, a lintel — sized
 as an L2 guide, and the landing is a *place*, not merely a flat spot on a
 path. Consequence to respect: `LR_ASCENT_LANDINGS` now has **narrative
-dependents** — 5–7 landings is 5–7 beats. Changing the count changes a rite;
-it is no longer a free pacing knob, and moves through story the way the
-castle's completion fraction does.
+dependents** — seven landings is seven recitation beats, and story's folk
+etymology hangs the stair's name on the seven stations rather than on any step
+count (which is what lets the name have a source in the world while the user's
+"never count steps" rule stays intact). Changing the count changes a rite; it
+is no longer a free pacing knob, and moves through story the way the castle's
+completion fraction does.
 > **⚠ TWO DIFFERENT CLIMBS — do not conflate them.** This world has two
 > ascended landmarks and story nearly attached the wrong beat to the wrong
 > mountain. **The Steps are HERE, on the regional temple massif (§2.5)** — a
