@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:30:26
+Last updated: 09:08:2026 - 19:34:15
 -->
 <!--
 UPD:
@@ -27,6 +27,7 @@ UPD:
 - 09:08:2026 - 19:23:49: §6.1.3 — three named masonry phases from story (panic / treaty money / fear returning), and resolved an ambiguity I created: my A/B/C were BUILD stages, story's are IN-WORLD construction generations, all present when the player arrives — the doc now means the in-world axis, with implementation minimum A+B. Phase C ruled UNFINISHED as generator rules: 0.4-0.6 partial arc with the completed arc covering the APPROACH and the gap on a flank (a gap on the approach would make the gatehouse decorative and kill the petitioner ritual), raw stepped unfaced ends, 0.6-0.75 height, no parapet, spoil heap and never-laid dressed stone. Nearly free against R3 and the silhouette budget.
 - 09:08:2026 - 19:27:13: §6.1.3 — C's gap placed on the BARROW-FACING flank (story's ask; bearings checked: barrow 27 deg, peak 28 deg, approach 225 deg, so grave and road are opposite sides and the approach stays walled). Forced one refinement: since the barrow side is uphill where ward A sits, C is a contour-following perimeter wrapping A and B rather than simply the lowest terrace — also the more authentic form, since uphill outer works matter most on a hillside. Noted that the two story asks reinforce: the barrow-facing tower watches the grave THROUGH the unbuilt stretch, so sightline clearance is guaranteed by absence rather than by a height check. Gap reachable off-corridor only — a back way, never an alternative front door.
 - 09:08:2026 - 19:30:26: §2.5 — "7000 steps" CLOSED by user decision: it is a name, not a step count; 1200-1800 m / 5-7 landings / ~8 min stands, fiction keeps the name. §6.1.3 — gap reachability promoted from observation to VALIDATED INVARIANT, since story's act-1 trespass route now depends on it alongside the act-3 muster: continuous traversable route from barrow ground up the NNE spur (validated like the castle ramp and summit ascent), deliberately non-corridor-grade at SCRAMBLE_SLOPE 30-45 deg, passing within 40 m of the barrow entrance so the act-1/act-3 rhyme is geometric rather than lucky, and the completion fraction recorded as having two dependents.
+- 09:08:2026 - 19:34:15: Story's near-miss (they nearly attached the Steps to act 1's climax, which is a different mountain) produced three fixes. §2.5 — added a boxed TWO DIFFERENT CLIMBS warning (the Steps are the regional massif, act 2; Ravenscar's climb is the local L0, act 1); specified the Steps as a BUILT stair in four generations of disrepair, with disrepair strictly visual/routing and never impassable; landings are now STATIONS with built markers, and LR_ASCENT_LANDINGS gains narrative dependents (5-7 landings = 5-7 rite beats), so it is no longer a free pacing knob. §7.1 — filled a real gap in my own doc: Ravenscar had no validated summit route despite act 1 climaxing there; now required and validated like the temple ascent and castle ramp, and specified as an informal worn PATH rather than a stair so the two climbs never read as the same place.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -608,6 +609,32 @@ vista, a wind-scoured shoulder — each a place to stop and look back at how far
 the valley has fallen away **(предложение — утвердить)**. Landings are what
 make a climb read as long; raw distance just makes it tiring. At 1500 m that
 is ≈ 8 min of walking one way, which is a journey.
+
+**The Steps are BUILT and UNREPAIRED (story canon, and it costs nothing).**
+The ascent is a **stair**, not a bare path: cut treads and revetted edges
+following the route, in four generations of disrepair — worn and dished
+treads, sections slumped or collapsed with the path detouring around them,
+vegetation encroaching at the margins, revetment shed downslope as rubble.
+Hard constraint: **disrepair is visual and routing, never impassable.** No gap
+exceeds `PLAYER_STEP_HEIGHT`, every collapsed section has a walkable detour
+within the ascent's slope band, and the summit stays reachable — the crown
+kept the order poor, but nobody ever forbade the climb.
+
+**Each landing is a STATION** (story: a pilgrim speaks a name at each). So
+each carries a small built marker — a station stone, a niche, a lintel — sized
+as an L2 guide, and the landing is a *place*, not merely a flat spot on a
+path. Consequence to respect: `LR_ASCENT_LANDINGS` now has **narrative
+dependents** — 5–7 landings is 5–7 beats. Changing the count changes a rite;
+it is no longer a free pacing knob, and moves through story the way the
+castle's completion fraction does.
+> **⚠ TWO DIFFERENT CLIMBS — do not conflate them.** This world has two
+> ascended landmarks and story nearly attached the wrong beat to the wrong
+> mountain. **The Steps are HERE, on the regional temple massif (§2.5)** — a
+> distant act-2 destination. **Ravenscar's climb is a different, local
+> ascent** to the ward-tower ruin on the valley L0 (§7.1), which is act 1's
+> climax. Same verb, different mountains, ~1.4 km apart. Whenever a beat says
+> "the climb", check which landmark it means.
+
 **DECIDED — user, 09:08:2026: "7000 steps" is a NAME, not a step count.**
 («НЕ буквально, 8 минут — кайф, название оставляем».) The numbers above stand
 as written — 1200–1800 m, 5–7 landings, ≈ 8 min one way — and the climb keeps
@@ -1601,7 +1628,20 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 
 | Feature | Where (x, z) | Parameters |
 |---|---|---|
-| **L0: Ravenscar Crag** + watchtower ruin | peak (830, 200), footprint r ≈ 180 m | ridged-noise stamp raises peak to ~52 m (needs `WORLDGEN_MAX_HEIGHT` = 64); rock splat above ~34 m on the stamp; tower ruin (§6) on peak |
+| **L0: Ravenscar Crag** + watchtower ruin | peak (830, 200), footprint r ≈ 180 m | ridged-noise stamp; peak raised to `L0_RELIEF` **110–120 m** (approved, §5.7 — needs the raised `WORLDGEN_MAX_HEIGHT`); rock splat above the stamp's rockline; tower ruin (§6) on peak; **validated summit route — see below** |
+
+**Ravenscar's ascent is a required invariant too (gap exposed by story's
+near-miss).** Act 1's climax is the climb to the ward-tower, and I had
+specified a validated route for the temple massif (§2.5) and for the castle
+ramp (§6.1.2) but never for the crag itself — the landmark whose summit the
+story actually uses first. Rule: a **continuous walkable route from valley
+ground to the tower ruin** must exist and be validated every worldgen run,
+average slope ≤ 25°, never exceeding `PLAYER_MAX_SLOPE`, no step >
+`PLAYER_STEP_HEIGHT`. It is a *path*, not a stair — unbuilt, informal, the
+line four generations of watchmen wore into the spur — which also keeps it
+visually distinct from the Steps (§2.5), so the two climbs never read as the
+same place. At 110–120 m of relief this is a real climb; the L0 sight-wedge
+rules (§5.7) already keep its approaches clear of canopy.
 | **River** | source (760, 300) → lake; exits lake → south edge ≈ (300, 1024) | §3.1 algorithm; width 4→7 m; sinuosity ≥ 1.15; **fords are derived, not tabled** — P2 places them where POI-chain corridors cross the *generated* trace (§3.1 step 6), plus the `FORD_SPACING` minimum |
 | **Lake** | center (230, 520), ≈ 90×140 m target | basin stamp, water plane ≈ 15.0 m (`LAKE_LEVEL_TESTBED`); shore sand per §3.3 |
 | **Town site (TESTBED_TOWNS = 1): hamlet "Vaelmere"** | (360, 500), east lake shore / river inflow bend | hamlet per §6: tavern head faces the lake; trader at corridor entry; pads flattened at ≈ 17–18 m |

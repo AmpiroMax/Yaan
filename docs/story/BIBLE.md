@@ -172,6 +172,32 @@ remain, and no text derives the number from the geometry. Numeral form
 ("the 7000 Steps") is acceptable in casual speech; the prose form is
 preferred in authored text.
 
+**Where the "seven" lives, in-world:** not in the steps — in the
+**stations**. Story's ruling: **seven landings**, one per station of the
+naming rite, and the order's own folk etymology says the stair takes its
+name from them. That gives the name a diegetic anchor without anyone ever
+counting a step, and it fixes the set-piece's shape: seven landings = seven
+recitation beats on the climb. (`LR_ASCENT_LANDINGS` therefore has narrative
+dependents — the count moves through story, like the castle's completion
+fraction. LANDSCAPE §2.5.)
+
+**Disrepair rule (design, binding — caused by this bible's own line):** the
+Steps are built and unrepaired — cut treads, revetted edges worn and dished,
+sections slumped with the path detouring around them, revetment shed
+downslope as rubble. But **disrepair is visual and routing, never
+impassable**: no gap exceeds step height, every collapse has a walkable
+detour, the summit is always reachable. The reason is canon, not
+convenience — the crown kept the order poor, yet forbidding the climb would
+have been an admission, so the stair must never actually stop anyone.
+
+**TWO DIFFERENT CLIMBS — do not conflate them** (warning carried in both
+docs, LANDSCAPE §2.5 and here). The Seven Thousand Steps ascend the
+**regional temple massif** and belong to **act 2**: a *built* stair. The
+ascent of **Ravenscar** to the ward-tower is the **act-1** climax on the
+local L0, ~1.4 km away: an *unbuilt* worn path — the line four generations
+of watchmen wore into the spur. Same verb, different mountains, and
+deliberately distinct on sight so no frame can confuse them.
+
 **Ninety-six years of quiet.** The wards held because the shrinewardens kept
 tending them, the crown kept the record buried, and nobody said the word
 "feast" out loud. All three conditions are now failing at once: the wardens'

@@ -44,6 +44,8 @@ UPD:
 
 #pragma once
 
+#include "engine/core/config/sources/Constants.h"
+
 #include <cmath>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -55,9 +57,15 @@ namespace dfn::world {
 struct CragStamp {
     glm::vec2 center{830.0f, 200.0f}; ///< peak (§7.1)
     float radius = 180.0f;            ///< footprint (§7.1)
-    float peak_height = 52.0f;        ///< target peak, m (§7.1; needs WORLDGEN_MAX_HEIGHT 64)
-    float rockline = 34.0f;           ///< rock splat above this height on the stamp (§7.1)
-    float treeline = 26.0f;           ///< treeless band starts here on the stamp (§1.3
+    /// Absolute summit elevation, m. L0_RELIEF is the approved figure (52 ->
+    /// 115): the fortress hierarchy rules are RATIOS to this, so the castle's
+    /// R4 dominance and crown clearance both depend on it directly.
+    float peak_height = static_cast<float>(config::L0_RELIEF);
+    /// Splat and tree lines scale with the summit rather than sitting at the
+    /// absolute heights tuned for a 52 m crag — otherwise a 115 m Ravenscar is
+    /// bald and bare rock from a third of the way up.
+    float rockline = static_cast<float>(config::L0_RELIEF) * 0.65f;
+    float treeline = static_cast<float>(config::L0_RELIEF) * 0.50f;           ///< treeless band starts here on the stamp (§1.3
                                       ///< C4 knob: keeps foothill canopy from out-angling
                                       ///< the L0; widen by lowering)
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)

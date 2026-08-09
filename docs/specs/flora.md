@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 19:18:05
+Last updated: 09:08:2026 - 19:35:17
 -->
 <!--
 UPD:
@@ -41,6 +41,15 @@ UPD:
                          NEW flora finding: GROUND_SINK_FRAC 0.12 cannot cover
                          0.84 m of ground drop under a 1.2 m trunk on max slope
                          — trunks gain a root flare.
+- 09:08:2026 - 19:35:17: GENERATOR LANDED (ProcFlora/FloraSpecies + 12-case
+                         suite, 31064 assertions green; render acked the
+                         boundary and made ProcMesh's tri/quad/pack public).
+                         Two envelope bugs caught and recorded in new §3.7:
+                         branches overshot the species HEIGHT band (a
+                         cross-zone contract), and the envelope's RADIAL clip
+                         was missing entirely (oaks 24.5 m wide vs 10-16,
+                         pines 24.9 vs 6-9), including the env==0 apex trap.
+                         Measured output table added to §6.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -579,6 +588,37 @@ reasoning is what a successor cannot reconstruct:**
 
 ---
 
+### 3.7 Two bugs the suite caught — read this before touching the envelope
+
+Both were in the envelope code, both were invisible to the eye in a wireframe,
+and both would have surfaced as someone else's problem.
+
+1. **Branches overshot the species height band** (oak topped 38.7 m against a
+   32 m `OAK_HEIGHT_MAX`). The trunk was built to full nominal height and
+   branches then grew *above* it. This is not cosmetic: the height band is a
+   **cross-zone contract** — core's canopy occlusion and design's C4 arithmetic
+   both key off `OAK/PINE/BIRCH_HEIGHT_MAX` — so the geometry was silently
+   taller than the model every validator checks against. Fixed with
+   `trunk_height_frac()`: broadleaf leaders dissolve into the crown at ~68 % of
+   height (which is also the botanically correct shape), conifer leaders are the
+   top, plus a hard envelope clamp on every branch segment and cluster.
+2. **The envelope's radial clip was missing.** §3.1 stage D says branch lengths
+   are clipped to the envelope; only the *vertical* half was implemented. Oaks
+   came out 24.5 m wide against a 10–16 m brief and pines 24.9 m against 6–9 m.
+   Width is load-bearing: **design derived `TREE_SPACING_FOREST` (12–18 m) FROM
+   the crown width**, so a crown at double spec silently turns the thinned
+   forest the user asked for back into a closed one.
+   Inside that fix, a second-order trap worth naming: the clip began
+   `if (p.y <= crown_base || env <= 0) return p;`. The `env <= 0` early-out was
+   meant for crownless species but a **cone's envelope legitimately goes to zero
+   at the apex**, so it disabled clipping exactly at the tip — one whorl branch
+   stuck 7.6 m out of the top of a pine whose entire crown is 4 m in radius.
+   `env == 0` must clamp, not skip.
+
+Both now have regression tests (§6). The lesson for a successor: the height
+band had a test and the width band did not, which is exactly why the width bug
+survived and the height bug did not.
+
 ## 5. Step-by-step plan
 
 1. **Boundary + spec** (this document, and the four ACK-PENDING items with
@@ -639,7 +679,33 @@ successor can trust:
    flat shading preserved (faces own their vertices), y ≥ 0 at the trunk base.
 8. **Neighbour analysis** — a tree with a close neighbour gets non-zero shyness
    pointing at it and lean pointing away; an isolated tree gets neither.
-9. **Ground contact** — no gap under the trunk at the model origin.
+9. **Ground contact** — the root flare reaches at least 0.9 m below the model
+   origin, so the skirt buries itself on real terrain (§3.5).
+10. **Crown width bands** — added after the radial-clip bug (§3.7): oak ≤ 16 m,
+    pine ≤ 9 m, birch ≤ 7 m, willow ≤ 16 m across every variant.
+11. **Crown shyness has an effect** — a shy instance reaches less far toward its
+    neighbour than a plain one. A parameter with no measurable effect is a
+    parameter that will be quietly broken later.
+
+**Measured output at the time of writing** (max across 12 variants; the suite
+pins these as bands, this table is the snapshot):
+
+| Species | tris Full / Reduced / Silhouette | height | width |
+|---|---|---|---|
+| DaleOak | 240 / 200 / 54 | 20.6–27.5 m | 14.5 m |
+| HighlandPine | 536 / 386 / 48 | 28.1–37.7 m | 7.6 m |
+| RiverBirch | 180 / 180 / 54 | 14.2–17.7 m | 4.8 m |
+| ValeWillow | 230 / 190 / 54 | 12.1–16.9 m | 14.8 m |
+| Snag | 108 / 92 / 30 | 10.2–19.1 m | 8.8 m |
+| Bush / BigBush | 78 / 114 | 1.0–1.5 / 2.8–3.9 m | 1.8 / 4.0 m |
+| FallenLog / Deadfall | 48 / 30 | ⌀0.6–1.0 / 0.2–0.3 m | 13.7 / 3.7 m long |
+
+Every species is inside `TREE_TRI_BUDGET_MAX` = 700 with the pine the most
+expensive at 536. **Known conservative gap:** the oak's mesh top (20.6 m on the
+smallest variant) sits below its nominal band floor of 24 m, because foliage
+clusters stop short of `crown_top`. This errs in the SAFE direction — core
+models the canopy taller than it is, so C1 validation is pessimistic rather than
+optimistic — but it should be closed when the first frame is read.
 
 **Visual verification (Rule 27).** ONE frame, 640×360, palette off, at a forest
 edge chosen so that all three silhouettes, the under-canopy stem space, and the
