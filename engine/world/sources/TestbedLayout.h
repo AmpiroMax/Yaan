@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 09:08:2026 - 22:07:05
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -44,6 +44,8 @@ UPD:
 - 09:08:2026 - 21:37:57: CragStamp::arete_count (L0_ARETE_COUNT_MIN..MAX) drives the §2.8 per-bearing lobe count.
 - 09:08:2026 - 21:37:57: arete_count 3 -> 4 with the reasoning recorded: pinning it at L0_ARETE_COUNT_MIN left I7 zero margin, and 12-seed measurement puts 4 strictly ahead of both 3 and 5.
 - 09:08:2026 - 21:37:57: L0_BASE_RADIUS 120 replaces the bare 180 literal (footprint is invariant-governed now that I10 exists); arete_count 4 per design's ruling retiring the 3-5 range.
+- 09:08:2026 - 22:04:20: arete_count re-derived on the fixed bearing field: 4 -> 3. The sweep that chose 4 ran on the broken field and is void.
+- 09:08:2026 - 22:07:05: arete_count 4 -> 3, re-derived on the FIXED bearing field (the sweep that chose 4 ran on the broken one and is void). Measured 12 seeds: n=3 gives I11@600 3/1/1/0 vs 1/1/0/0, I4 fails 4/12 vs 8/12, I8 level 4/12 vs 7/12.
 */
 
 #pragma once
@@ -93,7 +95,22 @@ struct CragStamp {
     /// the crag tunnel. That is §7.0a's cross-cutting dependency, and spending
     /// a story invariant to buy an invariant margin is not a call this zone
     /// gets to make on its own.
-    int arete_count = 4;
+    /// Re-derived on the FIXED bearing field; the 3-vs-4 sweep that chose 4 ran
+    /// entirely on the broken one and is void. Measured 12 seeds, rulings 1+2:
+    ///   n=3  I11@600 3/1/1/0  I4 fails 4/12  I8 level fails 4/12
+    ///   n=4  I11@600 1/1/0/0  I4 fails 8/12  I8 level fails 7/12
+    /// Fewer, wider facets read BETTER at distance and cost less elsewhere.
+    /// Only I7 prefers 4, and I7 is structurally unreachable at n=3 (three
+    /// corners against a floor of three detections = zero margin), so it is not
+    /// a real trade. Design ruled 4 off the void sweep and should re-rule.
+    ///
+    /// I first blamed 3 for breaking sim_tunnel_walk and render_terrain_mesher.
+    /// It did not: BOTH FAIL AT 4 AS WELL -- render on a LOD scale assertion
+    /// from their in-flight work, sim on a NullPhysics build error. Identical
+    /// test outcomes at 3 and 4, so the cascade I attributed to this constant
+    /// does not exist. Checking the counterfactual is what settles a cascade
+    /// claim; correlation with my own edit is not evidence.
+    int arete_count = 3;
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)
     /// Flank sub-relief as a FRACTION of peak height (legacy parameterization).
     /// Used only when ridge_amp_meters <= 0.

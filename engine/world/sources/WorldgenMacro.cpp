@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 21:48:23
+Last updated: 09:08:2026 - 22:04:20
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -37,6 +37,7 @@ UPD:
 - 09:08:2026 - 21:37:57: §2.8.2 UNIT CHANGE (design's ruling): couloir depth is ABSOLUTE metres, not a fraction of local radius — a quantity held as a fraction of local radius is self-similar by construction, which is what I8's rise clause exists to detect. Scale is the CLIFF BAND height (a couloir incises the bands), not the massif radius: taking MASSIF_RADIAL_LOBE_AMP off the 180 m base gives 32-63 m insets, wider than the upper mountain, so the clamp binds everywhere and silently restores the old fraction behaviour (measured: levels 1.50/1.50/1.60 but rise 0.10 and I7 gone). Angular width stays RELATIVE. Result across 12 seeds: I8 rise now fails ZERO seeds (was the blocking clause), level fails 1.
 - 09:08:2026 - 21:37:57: §2.8.7 STEEPNESS CASCADE. (1) L0_RELIEF is RELIEF ABOVE THE FOOT, not an absolute elevation — the code read it as absolute, so the peak sat at 115.0 over a 18.8 m valley floor and the user approved 115 m while looking at 96.2. Datum is now base_height at the crag centre; measured relief is exactly 115.0. (2) THE PROFILE DECAYED TO ZERO INSTEAD OF TO THE DATUM: h = H*(1-t)^p buried the whole concave tail under the base terrain's max(), leaving only the steep crossing where the cone cuts the valley floor visible — which is why the built envelope measured shallowest at the summit and steepest at the foot, the exact inverse of what p>1 exists to produce. The concave profile was in the formula and clipped out of the surface. Now datum + relief*(1-t)^p. (3) Summit tor footprint DERIVED from MASSIF_SUMMIT_RADIUS_FRAC of the base radius instead of drawn from SUMMIT_TOR_RADIUS_MIN/MAX: at 5-10 m on a 190 m massif, disabling the tor entirely gave an identical silhouette TO THE DECIMAL, so it certified through I2's surface weighting while being invisible to the camera. Measured after the cascade, 12 seeds: I1 (envelope basis) 30.3-52.0 deg, I2 64.8-74.3, I3 62.0-71.7%, I10 1.23-1.63 — all four now pass on EVERY seed. I4 and I8 regressed and are reported, not patched.
 - 09:08:2026 - 21:48:23: SYSTEMIC FIX: bearing_field is a sum of INTEGER HARMONICS with seeded phases, not noise sampled on a circle. The circle construction was degenerate for the same reason the radial one was — rc = lobes*CELL/2pi puts the whole circle inside a couple of lattice cells. MEASURED: the field NEVER RETURNED A VALUE BELOW 0.4 and was lumpy above it (26% of samples at 0.6, 30% at 0.8) against a perfectly uniform raw lattice, so every per-bearing 'seeded spread' silently used only the top 60% of its declared range — the profile exponent never approached MASSIF_PROFILE_EXPONENT_MIN, cliff risers were never drawn near MASSIF_CLIFF_SLOPE_MIN (50-60 deg bin held 4% of surface), and the 0.5 cliff/ramp split did not split evenly. I had fixed this geometry once for the lobe field and left the broken helper feeding four other consumers: fixing a symptom is not fixing a mechanism. Riser angle additionally drawn uniform in sin(theta) so surface area spreads evenly in the measure I4 actually reads. Result across 12 seeds: I6 now passes EVERY seed (was failing), I1/I2/I3/I5/I10 robust; I4 and I8-rise still fail and are reported, not patched.
+- 09:08:2026 - 22:04:20: §2.8.2 facet rulings 1+2 (per-facet parameters, couloirs as PLANAR FACET PAIRS via line-through-two-points rather than smoothed dents). Ruling 3 (crest sized to acceptance distance) MEASURED AND REVERTED: it moved I11 at 600 m from 1/1/0/0 to 2/1/2/0 against a floor of 3 -- failing either way -- while dropping I7 from a passing 3 to 1. Also removed a dead outer notch term that subtracted a FRACTION as if it were METRES (a ~1 m no-op, inert but one refactor from mattering).
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -286,7 +287,6 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
             + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
                   * static_cast<float>(config::MASSIF_CLIFF_BAND_MAX
                                        - config::MASSIF_CLIFF_BAND_MIN);
-        (void)amp_d; // EXPERIMENT: rulings 1+2 only
         const float r_lo = convex_at(alpha - half_w);
         const float r_hi = convex_at(alpha + half_w);
         const float r_apex = std::max(convex_at(alpha) - depth, 1.0f);

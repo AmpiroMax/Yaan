@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 18:58:01
+Last updated: 09:08:2026 - 22:54:32
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 14:49:01: Scatter-in-water fix (part 2): ScatterCtx::dry_enough(p, margin) is now THE water gate for every pass — trees/bushes/stones/curbs and the forced watchpoint cluster (which sits on a ford by design and previously bypassed all gates: a pine and boulders stood in the channel). Margins TREE/BUSH/STONE_WATER_MARGIN keep trunks clear of the drawn plane edge.
 - 09:08:2026 - 17:45:08: §6.2: standing stones flanking each entrance approach (paired avenue, placed by rule — they must read as INTENTIONAL, which scatter cannot do) + the exclusion ring keeping trees, bushes and loose stones off the mound and forecourt so the silhouette survives.
 - 09:08:2026 - 18:58:01: Live-play fix: scatter resolves against the FINAL ground (macro + carve + entrance works + pads). Sampling the pre-stamp field buried props by exactly the mound's local rise — measured up to 2.4 m at the river barrow.
+- 09:08:2026 - 22:54:32: Tree occlusion heights sourced from OAK/PINE/BIRCH_HEIGHT_MAX instead of a local table that read 12/18/10 against a world built at 32/38/22 (pine 2.1x under). The sight-wedge filter and the C1 canopy field were both lied to; the wedges never failed.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -61,9 +62,20 @@ constexpr float STONE_WATER_MARGIN = 1.5f;
 
 // Species max heights (LANDSCAPE §5 size rows — design data, used for the
 // occlusion canopy and the sight-wedge angle tests).
-constexpr float OAK_MAX_H = 12.0f;   // §5.1: 8-12 m
-constexpr float PINE_MAX_H = 18.0f;  // §5.2: 12-18 m
-constexpr float BIRCH_MAX_H = 10.0f; // §5.3: 6-10 m
+// SOURCED FROM THE SAME CONSTANTS RENDER DRAWS FROM, never re-tabled here.
+// These were hard-coded at 12 / 18 / 10 while the world was BUILT at 32 / 38 /
+// 22 -- pine modelled at 2.1x under its drawn height. Every tree standing
+// inside a landmark sight wedge was admitted because this filter believed it
+// was 18 m tall, and the C1 occlusion field inherited the same lie. Design's
+// tall-tree ruling reached render and never reached the world's occlusion
+// model: a correct fix in one consumer with the mechanism left broken in
+// another.
+//
+// A tabled height that must agree with a drawn height WILL disagree again; the
+// only question is when. So there is no table here.
+constexpr float OAK_MAX_H = static_cast<float>(config::OAK_HEIGHT_MAX);
+constexpr float PINE_MAX_H = static_cast<float>(config::PINE_HEIGHT_MAX);
+constexpr float BIRCH_MAX_H = static_cast<float>(config::BIRCH_HEIGHT_MAX);
 
 /// L0 sight wedges (§1.3 C4 enforcement): 2D wedges from each POI standpoint
 /// to the L0 footprint; trees inside a wedge whose canopy top would subtend

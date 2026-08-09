@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 23:30:34
+Last updated: 09:08:2026 - 23:50:20
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -74,11 +74,13 @@ UPD:
 - 09:08:2026 - 22:47:13: Карта снова записывает разведанное: высотное поле едет вместе с воксельной выгрузкой (пометка кусков висела на старом пути и молча отвалилась). Плюс новая сигнатура действий игрока — выбрасывание предметов требует физики.
 - 09:08:2026 - 22:49:12: Мир встаёт на паузу с открытым инвентарём (как в TES). Три системы продолжают работать — иначе из меню не выйти. Накопитель шагов сбрасывается, чтобы на выходе не выстрелить пачкой догоняющих тиков.
 - 09:08:2026 - 23:30:34: Мир стал 2×2 км (WORLD_EXTENT_CHUNKS 8) — прямая просьба пользователя. Размер мира перестал быть голым числом в исходнике.
+- 09:08:2026 - 23:50:20: Ферри дальней детализации: границы мира от core, прямоугольник по сетке чанков, обновление по КАДРОВОМУ времени, сбор по ожидающим узлам, меш уничтожается раньше поля.
 */
 
 #include "engine/app/sources/App.h"
 
 #include "engine/core/components/sources/Components.h"
+#include "engine/world/sources/CoarseTerrain.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/physics/sources/CollisionLayers.h"
@@ -94,6 +96,7 @@ UPD:
 #include "engine/gameplay/sources/PropCollision.h"
 #include "engine/gameplay/sources/ViewModel.h"
 #include "engine/render/sources/SkyModel.h"
+#include "engine/render/sources/TerrainLod.h"
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/input/sources/glfw/CreateGlfwInput.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
@@ -419,6 +422,23 @@ bool App::init(const AppConfig& config) {
                            static_cast<float>(config::CAMERA_NEAR),
                            static_cast<float>(config::CAMERA_FAR));
 
+    // FAR DETAIL. Chunk streaming reaches CHUNK_LOAD_RADIUS chunks from wherever
+    // the player stands while CAMERA_FAR is 8 km, so without this the world ends
+    // a few hundred metres away in every direction. Bounds come from CORE rather
+    // than from generated config, because the configured extent and the
+    // generated extent have already disagreed once this stage.
+    //
+    // Unconditional, with DFN_NO_LOD=1 as a tooling escape rather than a user
+    // setting: with far detail off the world simply stops, which is a broken
+    // game and not a quality preference, and a graphics option nobody sets is
+    // an untested code path.
+    {
+        const glm::vec4 wb = chunks_.world_bounds_xz();
+        render_system_.set_world_bounds({wb.x, wb.y}, {wb.z, wb.w});
+        const char* no_lod = std::getenv("DFN_NO_LOD");
+        render_system_.set_lod_enabled(!(no_lod != nullptr && *no_lod == '1'));
+    }
+
     if (render::Tour::enabled_by_env()) {
         const char* dir = std::getenv("DFN_TOUR_DIR");
         tour_.begin(render::Tour::testbed_steps(), dir ? dir : "screenshots",
@@ -570,6 +590,67 @@ int App::run() {
         if (tour_.active()) {
             tour_.apply(camera_);
         }
+
+        // FAR-DETAIL FERRY. Four things here are load-bearing and were paid for
+        // in measurements rather than opinion:
+        //  - the streamed rect is CHUNK-ALIGNED, not eye +/- radius in metres.
+        //    Render's descent tests inside/outside against it, and core measured
+        //    an unaligned rect costing 71 nodes where the aligned one costs 46.
+        //    It is also a correctness matter, not a saving: a level-0 node is
+        //    1 m where a chunk heightfield is 2 m, so without the rect the two
+        //    systems draw the same ground twice at slightly different heights.
+        //  - update_lod takes the RENDER delta, never SIM_DT. The cross-fade is
+        //    a visual effect; at the fixed rate a 0.6 s dissolve steps in 16
+        //    chunks and reads as a flicker rather than a fade.
+        //  - the ferry collects against lod_pending(), NOT lod_to_load().
+        //    to_load names a node exactly once, while core answers several
+        //    frames later under its row budget, so a ferry built on to_load
+        //    requests nodes it never collects and the ground never appears.
+        //  - drop the mesh BEFORE releasing the field it was built from, the
+        //    same lifetime rule as ChunkUnloaded.
+        if (render_system_.lod_enabled()) {
+            const glm::vec3 eye = camera_.interpolated_pose(alpha).position;
+            const float cs = static_cast<float>(config::CHUNK_SIZE);
+            const float r = static_cast<float>(config::CHUNK_LOAD_RADIUS);
+            // Same focus the streaming loop used this frame: the tour drives it
+            // during a tour, the player otherwise.
+            glm::vec3 lod_focus{0.0f};
+            if (tour_.active()) {
+                lod_focus = tour_.focus_position();
+            } else if (const auto* t = world_.get<components::Transform>(player_)) {
+                lod_focus = t->position;
+            }
+            const glm::vec2 fc{std::floor(lod_focus.x / cs), std::floor(lod_focus.z / cs)};
+            render_system_.set_streamed_rect({(fc.x - r) * cs, (fc.y - r) * cs},
+                                             {(fc.x + r + 1.0f) * cs,
+                                              (fc.y + r + 1.0f) * cs});
+            render_system_.update_lod(eye, static_cast<float>(frame_dt));
+
+            const auto to_world = [](const render::LodNode& n) {
+                return world::CoarseNode{n.level, n.x, n.z};
+            };
+            std::vector<world::CoarseNode> wanted;
+            wanted.reserve(render_system_.lod_to_load().size());
+            for (const auto& n : render_system_.lod_to_load()) {
+                wanted.push_back(to_world(n));
+            }
+            if (!wanted.empty()) {
+                chunks_.request_coarse_nodes(wanted);
+            }
+            for (const auto& n : render_system_.lod_to_release()) {
+                render_system_.drop_lod_node(*renderer_, n);
+                chunks_.release_coarse_node(to_world(n));
+            }
+            for (const auto& n : render_system_.lod_pending()) {
+                const auto wn = to_world(n);
+                if (auto hf = chunks_.coarse_heightfield(wn)) {
+                    auto sf = chunks_.coarse_surfacefield(wn);
+                    render_system_.upload_lod_node(*renderer_, n, *hf,
+                                                   sf ? &*sf : nullptr);
+                }
+            }
+        }
+
         render_system_.render(world_, *renderer_, camera_, alpha);
         if (tour_.active() && tour_.post_frame(*renderer_)) {
             window_->request_close(); // tour finished (render's contract)
