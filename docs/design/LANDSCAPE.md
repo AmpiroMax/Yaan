@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 09:08:2026 - 15:22:13
 -->
 <!--
 UPD:
@@ -14,6 +14,7 @@ UPD:
 - 09:08:2026 - 15:00:23: New §6.1 — castle (House Corvane's seat, story pitch A) ruled as L1-max staged inside the L0's angular footprint: crag keeps the skyline, castle reads against its body, flank occlusion allowed / crown occlusion forbidden, scored in C1 both as occluder and as attractor, binding fix order on C1 failure. Siting (spur pad, ford command, barrow proximity, composite POI), minimal-version mass table, mid-range readability ruling, testbed pad at (760,330); castle row added to §7.1.
 - 09:08:2026 - 15:05:00: §6.1 folded in story's constraints for "Harrowward": gentry hall-castle mass program (horizontal hall + single solar vertical replaces the tall keep — also buys C1 clearance headroom), value-not-height doctrine tying the Ward to the crag's rock value, binding access invariant (graded ramp on the approach side within §2.4 corridor limits — a scarp-only pad is a failed placement), and a checkable Ward→Backbarrow sightline. CASTLE_KEEP_HEIGHT retired in favour of CASTLE_HALL_HEIGHT/CASTLE_SOLAR_HEIGHT/CASTLE_GATE_HEIGHT.
 - 09:08:2026 - 15:08:24: §6.1.2 — gate orientation settled as valley-facing (story canon, BIBLE §5.1), and the two new castle invariants (approach ramp, yard/gate->barrow sightline) explicitly joined to the C1-guarded set: re-validated by the same canopy-aware raycast on every worldgen run, not once at authoring time (raised by story: a later pine retune could occlude either).
+- 09:08:2026 - 15:22:13: C2 scope corrected (my error): POI_VISIBLE_COUNT is region-only per NUMBERS.md/Q46 and is unsatisfiable at testbed density alongside LANDMARK_VISIBILITY_MIN — general-bound citation withdrawn. Added Rule C2-testbed (no coequal crowd): max 2 attractors within a 2.0 subtended-size ratio, L0 exempt, composite POIs count once; occlude-and-reveal remains the real guarantee. Region bound unchanged.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -59,13 +60,48 @@ under a placed tree adds that species' max height (render's stage-3b probes
 proved terrain-only raycasts pass seeds where a pine wall buries the L0).
 This is computable, not editorial.
 
-**Rule C2 — never show everything.** The complement of C1: at most ~3
-attractors visible at once (`POI_VISIBLE_COUNT` upper bound). Breath of the
+**Rule C2 — never show everything.** The complement of C1. Breath of the
 Wild does this with the "triangle rule": convex terrain masses (hills, crags)
 occlude what is behind them, so content is revealed a couple of items at a
 time as the player moves. Our gentle-hills base already gives convex rolls;
 worldgen v2 must *keep* macro convexity between POIs — do not flatten the
 land between two POIs into a plane where both plus three more are visible.
+
+**Scope — corrected 09:08:2026 (design error, my import).** The absolute
+bound `POI_VISIBLE_COUNT` = 1–3 is **region-scale only**: NUMBERS.md carries
+"—" in its testbed column, and Q46 forbids applying one density contract to
+the other. My original C2 text cited it as a general bound; that was an
+overreach and is withdrawn. Two reasons it cannot govern the testbed:
+
+1. **It is unsatisfiable alongside constants we already approved.** C1
+   requires the L0 visible from ≥ `LANDMARK_VISIBILITY_MIN` (0.6) of open
+   ground, so the L0 occupies one "visible attractor" slot almost everywhere
+   by construction; C3 packs POIs at 180–270 m across a 1024 m testbed —
+   3× the region's spacing. Holding ≤ 3 total would demand occlusion heavy
+   enough to push C1 back under its own floor. The two rules pull in opposite
+   directions at testbed density, and C1 wins: a valley whose landmark you
+   cannot see is the worse failure.
+2. **It is not caused by any placement.** Measured 5 attractors from the west
+   meadows both with and without the castle — this is structural to the
+   testbed's compactness, not a defect a placement pass introduced.
+
+**Rule C2-testbed — no coequal crowd.** What actually overwhelms a player is
+several attractors of *comparable* apparent size competing as equivalent
+choices; a legible hierarchy of different scales reads as one composition with
+depth (this is why the stage-3b tour frames read cleanly at 5 visible). So on
+the testbed:
+
+- At most `POI_COEQUAL_VISIBLE_MAX` = 2 attractors of comparable apparent
+  size — within `COEQUAL_ANGLE_RATIO` = 2.0 of each other in subtended
+  height — may be visible from any standpoint **(предложение — утвердить)**.
+- The **L0 is exempt** from the count: C1 mandates its ubiquity, so counting
+  it against a visibility cap is self-contradictory.
+- Composite POIs (hamlet, castle+barrow) count **once**, per §6.1.2.
+- The real anti-overwhelm guarantee remains §1.4's occlude-and-reveal rule
+  (each POI 30–80 % hidden from its approaches), which is already validated
+  and unaffected.
+
+Region scale keeps the absolute `POI_VISIBLE_COUNT` bound unchanged.
 
 ### 1.2 Spacing derived from our metrics
 
