@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:25:29
-Last updated: 09:08:2026 - 22:31:38
+Last updated: 10:08:2026 - 02:34:41
 -->
 <!--
 UPD:
@@ -37,6 +37,23 @@ UPD:
   triangles render draws. Inventory screen state (names + rotatable preview).
   FINDING: engine/app calls none of the interaction code — wiring patch sent
   to the lead.
+- 10:08:2026 - 02:34:41: Landscape stage, three tasks landed (715c9ab, 230fe37,
+  c2438a5). (1) THE STEP IS AN EVENT (в3): stride clock in PlayerState (one
+  clock, Rule 35 — character's clips consume the same phase; convention LEFT
+  plants at FOOTFALL_PHASE_LEFT, agreed with character), FootfallEvents at the
+  bob minima, landing dip from measured impact, stop settle, fov_scale on
+  CameraPose (lead-authored), counterphase hand sway; 12 NUMBERS rows landed
+  by the lead from derivations. (2) AUDIO BRING-UP (в12): miniaudio backend
+  (0.11.22 pinned, GIT_SHALLOW; set_bus_reverb a documented v1 no-op),
+  synthesized placeholder sounds (real recordings = later asset pass),
+  StepAudio: surface-matched footstep ON THE SAME TICK, jump/land/splash,
+  wind loop reading render's wind scalar (Rule 35). core added
+  ChunkManager::surface_class_at on my request. (3) AUTONOMOUS PLAYTEST v1
+  (user request): engine/gameplay/docs/PLAYTEST.md; bot writes real input
+  intents (patrol/explorer/soak), cause-based invariants per tick, incident
+  artifacts + nonzero-exit gate; checker ships with its own Rule 30 controls.
+  App wiring blocks (fov, StepContext, audio, DFN_PLAYTEST) sent to the lead;
+  old signatures kept as shims so nothing breaks before wiring.
 -->
 
 # Spec — sim (`docs/specs/sim.md`)
