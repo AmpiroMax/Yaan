@@ -148,9 +148,23 @@ craft (в17); main quest v1 scope (в18).
    landed Condition.h/Dialogue.h/Ids.h per its §9 record; lead batches the
    sync record). **HARD GATE holds: no quest content beyond pitch level
    until the user picks a pitch.**
-3. After pitch choice: BIBLE.md (world truth for the chosen pitch), act-1
-   quest outline on the valley testbed, named characters of Vaelmere
-   (keyed to its craft, в17).
+3. **DONE — pitch chosen (в16: Pitch A, The Debt of Harrowmere).**
+   `docs/story/BIBLE.md` — canon: the Harrowmere Feast, the Backward Rite,
+   the Reckoning's five laws + escalation ladder, the hero bound by a
+   legal/ritual account and NOT by destiny (N13 guard + banned-strings
+   list), the three factions, **§5.1 Harrowward — House Corvane's castle**
+   (user-required seat of state power in the minimal version), three-act
+   spine, chain-of-debts ally model, naming/text conventions.
+   `docs/story/ACT1_VALLEY.md` — act 1 on the built valley: 4 main quests
+   with stage skeletons, 3 secondaries, fishing/smallholding template
+   families (в17), castle beats and access rules, world-flag table, and the
+   **minimum buildable scope** list for core/design/render.
+   `docs/story/CHARACTERS_VAELMERE.md` — the hamlet cast + LLM character
+   cards (documentation subagent).
+   Working defaults from the lead treated as decided: в17 craft = fishing +
+   smallholding farming; в18 scope = 3 acts, 8–12 main quests, 6–10
+   secondaries. Geography of the castle (siting, L0/skyline hierarchy) is
+   **design's binding ruling**; story owns only the fiction.
 4. After sim ACKs the format: first hand-authored quest as data + its
    localization keys + character cards for Vaelmere incidentals; walk it in
    engine with sim.

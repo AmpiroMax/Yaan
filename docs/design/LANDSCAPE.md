@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 13:22:17
+Last updated: 09:08:2026 - 15:00:23
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 13:18:17: §2.1 anisotropy sharpened per core's implementation intent (agreed at sync): mid octave only, drifting per-valley axis field (no global corduroy), recorded cautions — river trace will shift (safe under the §7.1a derived-only rule) and work is gated on HILL_ANISOTROPY landing in NUMBERS.md + lead scheduling.
 - 09:08:2026 - 13:19:34: §2.1 technique decided (core + design): anisotropic input-stretch chosen over domain-warp — elongation along the axis, cross-axis rhythm pinned at 128 m (what corridors/C1 grid feel); domain-warp rejected (wiggles crests, dilutes the shared-axis read); ping-first threshold at ~100 m cross-axis compression.
 - 09:08:2026 - 13:22:17: HILL_ANISOTROPY approved at 2.5 in NUMBERS.md (stage-3 close, sync №3) — §2.1 proposal marker removed, gates recorded as cleared, P1 retune scheduled with §2.1 as the contract.
+- 09:08:2026 - 15:00:23: New §6.1 — castle (House Corvane's seat, story pitch A) ruled as L1-max staged inside the L0's angular footprint: crag keeps the skyline, castle reads against its body, flank occlusion allowed / crown occlusion forbidden, scored in C1 both as occluder and as attractor, binding fix order on C1 failure. Siting (spur pad, ford command, barrow proximity, composite POI), minimal-version mass table, mid-range readability ruling, testbed pad at (760,330); castle row added to §7.1.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -554,6 +555,127 @@ never spawn in corridors, on sand, or within 2 m of water surface height
 
 ---
 
+### 6.1 Castle — the seat of state power (ruling, stage-3)
+
+User request: the world needs a seat of state power, present even in the
+minimal version. Story picked pitch A (*The Debt of Harrowmere*), so this is
+**House Corvane's seat**, standing on the land whose barrow is a mass grave.
+The crown's distant capital is referenced in fiction, not built (FUTURE).
+Fiction constraint taken as given from story: castle on or beside the barrow —
+that proximity is a designed asset. Interior and any town around it are **out
+of scope here** (not designed, not blocked).
+
+#### 6.1.1 The hierarchy ruling (the actual problem)
+
+A castle is a weenie by construction, and Ravenscar Crag is our L0. Two
+dominant silhouettes in one 1024×1024 valley must not compete. Ruling:
+
+**The crag stays L0 and keeps the skyline. The castle is L1-max — the
+strongest secondary landmark, staged *inside the crag's composition*, never
+against it.** The mechanism is siting, not height limits alone:
+
+- **R1 — Site the castle inside the L0's angular footprint.** From the
+  valley's main standpoints (town, lake shore, corridors), the castle must lie
+  within the crag's angular width, so it reads **against the crag's body,
+  never against sky**. A silhouette that cannot reach the horizon cannot steal
+  it. At the sited position this holds automatically: from Vaelmere the castle
+  sits ≈ 85 m lateral of the town→peak line while the crag subtends ≈ ±0.38
+  rad — the castle is a dark notch on the crag's flank, sub-threshold at that
+  range by §1.5, and the crag alone crowns the valley.
+- **R2 — The castle may occlude the L0's flank, never its crown.** Flank
+  occlusion is the desired "one composition" read (fortress at the foot,
+  mountain above). Crown occlusion (top third of the L0) from any
+  C1-crediting standpoint is forbidden.
+- **R3 — Skyline margin.** Castle top elevation ≤ L0 peak −
+  `CASTLE_SKYLINE_MARGIN` = 12 m **(предложение — утвердить)**; at seed 1
+  (peak 52 m) that is ≤ 40 m absolute, i.e. a pad at ≈ 24 m carries a keep of
+  ≤ 15 m.
+- **R4 — Dominance ratio.** From valley standpoints ≥ 300 m where both are
+  visible, castle subtended height ≤ `CASTLE_SILHOUETTE_RATIO` = 0.6 × the
+  L0's **(предложение — утвердить)**. Inside the final approach (< 300 m) the
+  castle is *allowed* to fill the view — that is the reveal (§1.4), and the
+  crag still crowns it because the castle stands on its foot.
+
+**C1/C4 scoring — the castle counts BOTH ways, explicitly:**
+
+1. **As an occluder:** its full mass enters the occlusion heightfield exactly
+   like canopy (§1.3), and the `LANDMARK_CLEARANCE_FACTOR` = 1.2 test applies
+   to it. **The castle may never be the reason the L0 fails C1.** Seed-1
+   headroom is 0.018 (C1 = 0.618 vs floor 0.6) — effectively zero, so this is
+   a real risk, not a formality.
+2. **As an attractor:** it counts toward the C1 "≥ 1 attractor visible" test
+   and toward `POI_VISIBLE_COUNT`'s upper bound of 3 (it can push a standpoint
+   over the limit — check both directions).
+
+**Fix order if inserting the castle drops C1 below the floor** (binding — do
+not improvise): (1) lower the pad elevation, keeping tower height; (2) shift
+the pad further around the crag's south flank, away from the town sightlines;
+(3) reduce tower height last. **Never** raise the crag (proven at stage-3b to
+*lower* clearance, §1.3) and never accept a C1 drop.
+
+#### 6.1.2 Siting rules
+
+- **Terrain:** a spur/bluff shoulder of the L0 massif — high enough to command,
+  low enough for R3. Needs a terraced pad: `CASTLE_PAD_SIZE` = 60 m square,
+  pad surface within `BUILDING_PAD_SLOPE_MAX` (5°), with a dedicated cut/fill
+  allowance `CASTLE_PAD_CUT_MAX` = 6 m **(предложение — утвердить)** — a
+  documented exception to §6's ordinary pads, because terracing a spur is what
+  real fortification does. Pad edges blend over 1.5× pad size.
+- **Water/ford:** the castle **commands the crossing** — its pad is sited so
+  the nearest derived ford lies inside its field of view and within
+  `CASTLE_FORD_COMMAND_DIST` = 250 m **(предложение — утвердить)**. It does
+  not create or move the ford (fords stay derived, §7.1a).
+- **Barrow:** `CASTLE_BARROW_DIST` = 40–80 m **(предложение — утвердить)**
+  from the barrow entrance — close enough that both are in one frame from the
+  approach. The seat literally stands over the grave.
+- **Vaelmere:** ≈ 390 m as sited — deliberately **beyond** one
+  `POI_TRAVEL_TIME` hop. The castle is not a neighbourhood building; you
+  travel to it. Chain integrity is preserved by the composite-POI rule below.
+- **Composite POI:** castle + barrow count as **one** POI ("the seat"),
+  exactly as a hamlet counts as one regardless of building count (§6). This
+  keeps the §7.2 chain valid without over-densifying that stretch.
+- **Corridors:** a castle implies an approach. The existing watchpoint→barrow
+  corridor becomes the castle approach; the gate faces it. **FUTURE:** an
+  actual road along that corridor when roads exist.
+
+#### 6.1.3 Footprint, mass, readability
+
+Minimal version = **keep + curtain wall + gatehouse + 2 corner towers**.
+Everything else (outer bailey, barbican, chapel, moat) is later elaboration
+and must fit inside the same pad. Blocks, not filigree — §1.5 forbids
+sub-pixel detail at range.
+
+| Element | Footprint | Height | Tris | Reads as |
+|---|---|---|---|---|
+| Curtain wall | 40×40 m enclosure | `CASTLE_WALL_HEIGHT` 6–8 m | 300–500 | the horizontal base band |
+| Keep | 14×14 m | `CASTLE_KEEP_HEIGHT` 12–15 m | 400–700 | the solid vertical mass |
+| Gatehouse | 10×6 m | 9–11 m | 200–350 | the notch in the base band |
+| Corner towers ×2 | 6×6 m | `CASTLE_TOWER_HEIGHT` 10–12 m | 150–250 ea. | the two verticals framing the keep |
+
+All heights предложение — утвердить, and all are subordinate to R3 (the sum
+pad + tallest element is the binding constraint, not the table).
+
+Readability per §1.5 (`≥ distance / 30` at 640×360): the castle is a
+**mid-range landmark**, designed to read from its approach corridor at
+150–250 m (where a 15 m keep is 2–3× threshold), *not* from town across the
+valley. From Vaelmere it is deliberately sub-threshold and read against the
+crag body — you learn of the seat by travelling toward it. This is
+occlude-and-reveal (§1.4) doing the work, and it costs nothing: the crag was
+already the thing that pulls you that way. Silhouette discipline: one solid
+keep mass + two framing towers + a horizontal wall band = three value steps,
+dark against the crag's rock. No thin battlement teeth at this budget (§1.5:
+nothing structural thinner than ~0.5 m matters beyond 100 m).
+
+#### 6.1.4 Testbed placement (seed 1)
+
+Pad center target **(760, 330)** ± 20 m — the crag's south-west foot spur:
+≈ 55 m from the barrow entrance (780, 290), commanding the watchpoint ford
+approach, ≈ 390 m from Vaelmere, and inside the crag's angular footprint from
+every western/southern valley standpoint. `CASTLE_COUNT_TESTBED` = 1. Pad
+ground target ≈ 24 m so R3 holds with a 15 m keep. Core solves the exact
+position against the C1 re-validation; the invariants above are the contract,
+the coordinates are a starting stamp.
+
 ## 7. Testbed application (worldgen v2, что core реализует первым)
 
 Canvas: 4×4 chunks, world XZ = 0…1024 m both axes, seed 1, current surface
@@ -572,6 +694,7 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 | **Town site (TESTBED_TOWNS = 1): hamlet "Vaelmere"** | (360, 500), east lake shore / river inflow bend | hamlet per §6: tavern head faces the lake; trader at corridor entry; pads flattened at ≈ 17–18 m |
 | **Shrine knoll** | (560, 620) | knoll +6 m local bump stamp; shrine spire breaks skyline from town and from ford (430, 620) |
 | **Dungeon 1: barrow in the crag** (TESTBED_DUNGEONS 1/3) | entrance (780, 290), south face of the crag | entrance pad + dark portal frame; visible from foothill watchpoint, not from town (occlude-and-reveal) |
+| **Castle: House Corvane's seat** (§6.1) | pad center (760, 330) ± 20 m, crag SW foot spur, ground ≈ 24 m | terraced 60 m pad; keep ≤ 15 m (R3); composite POI with the barrow; commands the watchpoint ford; scored in C1 as occluder AND attractor |
 | **Dungeon 2: forest ruin** | (620, 850), inside SE oak forest | in a clearing (r = 25 m); ruin walls = L2 from clearing edge |
 | **Dungeon 3: lakeshore cave** | (180, 350), NW lake shore under a 10 m bluff stamp | reachable along the sand shore; visible across the water from town (water gap = curiosity) |
 | **Foothill watchpoint (minor POI)** | (660, 430) | rock outcrop cluster + lone skyline pine + ford; bridges the town↔barrow gap in the POI chain |
