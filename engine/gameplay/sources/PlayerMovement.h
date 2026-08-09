@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 22:29:52
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -45,9 +45,21 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial movement contract + implementation.
+- 09:08:2026 - 22:18:17: Jump, crouch and swim (v1, user-approved).
+                         Locomotion mode enum; jump LATCHES across render
+                         frames; crouch resizes the capsule, not just the
+                         camera; water depth arrives as a parameter
+                         because deciding where water is belongs to
+                         engine/world (core's ruling).
+- 09:08:2026 - 22:29:52: Action latches (interact / light / inventory) —
+                         edge events survive a fast render loop.
 */
 
 #pragma once
+
+#include <cstdint>
+#include <functional>
+#include <optional>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -63,6 +75,14 @@ class World;
 
 namespace dfn::gameplay {
 
+// How the player is moving right now. Derived every tick from water depth and
+// the crouch key; never set directly.
+enum class Locomotion : uint8_t {
+    Ground = 0, // walking, running, falling — gravity applies
+    Wade = 1,   // standing in shallow water: ground rules, reduced speed
+    Swim = 2,   // buoyant: no gravity, movement follows the look direction
+};
+
 // Per-player component (Rule 8: plain data). Holds controller state at the
 // fixed tick plus the input intent accumulated since the previous tick.
 struct PlayerState {
@@ -73,6 +93,31 @@ struct PlayerState {
     glm::vec2 pending_look{0.0f};   // pixels accumulated since the last fixed tick
     glm::vec2 move_axes{0.0f};      // x = +strafe right, y = +forward; each in [-1, 1]
     bool run = false;
+
+    // Jump: LATCHED like pending_look, not sampled. Render outpaces the fixed
+    // tick, so a press and release inside one tick would otherwise be lost —
+    // the player would press jump and nothing would happen, occasionally.
+    bool jump_pressed = false;
+    // Crouch/descend key state and the resulting capsule state. `crouched` is
+    // NOT a copy of the key: standing up is refused while a ceiling is in the
+    // way, so the key can be released while the capsule stays short.
+    bool crouch_held = false;
+    bool crouched = false;
+    // 0 = standing eye height, 1 = crouched eye height. Only the CAMERA eases;
+    // the capsule swaps instantly, because a capsule that interpolated would
+    // be briefly the wrong size for the ceiling it is under.
+    float crouch_blend = 0.0f;
+
+    Locomotion locomotion = Locomotion::Ground;
+    float water_depth = 0.0f; // meters of water above the feet, 0 when dry
+
+    // Action latches. Same discipline and same reason as jump_pressed: these
+    // are EDGE events sampled by a render loop that runs faster than the fixed
+    // tick, so they are OR-ed in until a tick consumes them. Sampling them
+    // would drop presses at high frame rates — silently, and only sometimes.
+    bool interact_pressed = false;
+    bool toggle_light_pressed = false;
+    bool toggle_inventory_pressed = false;
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------
@@ -82,8 +127,16 @@ struct PlayerState {
 void accumulate_input(const platform::IInput& input, PlayerState& state);
 
 // Fixed tick, BEFORE IPhysics::step: snapshots curr->prev on both pairs,
-// applies look, integrates gravity, submits the displacement via move_character.
-void player_pre_step(PlayerState& state, platform::IPhysics& physics,
+// applies look, resolves the locomotion mode, integrates gravity or buoyancy,
+// and submits the displacement via move_character.
+//
+// `water_depth` is meters of water standing above the FEET (transform.position,
+// the capsule bottom), 0 when dry. It is a parameter rather than something this
+// function looks up because deciding where water is belongs to engine/world —
+// the truth is `ChunkManager::water_surface_at`, and the drawable lake/river
+// primitives are approximations of it that over-cover (core's ruling, on
+// record). Passing the depth in also makes swimming testable with no world.
+void player_pre_step(PlayerState& state, platform::IPhysics& physics, float water_depth,
                      const components::Transform& transform,
                      components::PreviousTransform& prev_transform,
                      const components::CameraPose& camera,
@@ -104,7 +157,17 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
                                          const glm::vec3& spawn_pos);
 
 void player_accumulate_input(ecs::World& world, const platform::IInput& input);
-void player_pre_step(ecs::World& world, platform::IPhysics& physics);
+
+// `water_surface_at` answers "what is the water surface height at this x/z, or
+// nothing at all" — bind it to world::ChunkManager::water_surface_at. It is a
+// callback rather than a ChunkManager parameter so that gameplay does not have
+// to know how water is decided, and so the app can bind it the day core's
+// accessor lands without any signature here changing.
+// An EMPTY callback means a world with no water, which is the honest answer for
+// tests and headless tools rather than a silent failure: nothing to swim in.
+using WaterSurfaceFn = std::function<std::optional<float>(glm::vec2 world_xz)>;
+void player_pre_step(ecs::World& world, platform::IPhysics& physics,
+                     const WaterSurfaceFn& water_surface_at = {});
 void player_post_step(ecs::World& world, platform::IPhysics& physics);
 
 } // namespace dfn::gameplay

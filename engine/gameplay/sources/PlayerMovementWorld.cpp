@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 22:18:17
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovementWorld.cpp
 
@@ -26,9 +26,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial World wrappers.
+- 09:08:2026 - 22:18:17: player_pre_step takes a water-surface callback,
+                         bound to world::ChunkManager::water_surface_at by
+                         the app; an unbound callback means a dry world.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
+
+#include <algorithm>
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
@@ -75,12 +80,25 @@ void player_accumulate_input(ecs::World& world, const platform::IInput& input) {
     }
 }
 
-void player_pre_step(ecs::World& world, platform::IPhysics& physics) {
+void player_pre_step(ecs::World& world, platform::IPhysics& physics,
+                     const WaterSurfaceFn& water_surface_at) {
     for (auto [id, state, transform, prev_transform, camera, prev_camera] :
          world.view<PlayerState, components::Transform, components::PreviousTransform,
                     components::CameraPose, components::PreviousCameraPose>()) {
         (void)id;
-        player_pre_step(state, physics, transform, prev_transform, camera, prev_camera);
+        // Depth is measured from the FEET (Transform.position is the capsule
+        // bottom) against the surface engine/world reports. No callback bound
+        // means a world without water — dry, not broken.
+        float depth = 0.0f;
+        if (water_surface_at) {
+            const std::optional<float> surface =
+                water_surface_at(glm::vec2{transform.position.x, transform.position.z});
+            if (surface) {
+                depth = std::max(0.0f, *surface - transform.position.y);
+            }
+        }
+        player_pre_step(state, physics, depth, transform, prev_transform, camera,
+                        prev_camera);
     }
 }
 

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 18:56:32
+# Last updated: 09:08:2026 - 22:21:30
 # File: engine/gameplay/CMakeLists.txt
 #
 # Responsibility:
@@ -21,6 +21,11 @@
 # - 09:08:2026 - 00:45:08: Stage 2 — player movement + dice.
 # - 09:08:2026 - 18:56:32: Interaction stage — four verbs, inventory, item
 #                          definitions, prop spawning, save sections.
+# - 09:08:2026 - 22:21:30: ViewModel.cpp — the visible first-person hand;
+#                          PropCollision.cpp — buildings and boulders become
+#                          solid, built from the triangles render draws (hence
+#                          the new dfn_render link; those builders are pure
+#                          geometry and pull in no third-party library).
 
 add_library(dfn_gameplay STATIC
     sources/Dice.cpp
@@ -29,9 +34,13 @@ add_library(dfn_gameplay STATIC
     sources/InteractableSpawn.cpp
     sources/InteractionSystem.cpp
     sources/Inventory.cpp
+    sources/InventoryScreen.cpp
+    sources/PlayerActions.cpp
     sources/PlayerMovement.cpp
-    sources/PlayerMovementWorld.cpp)
+    sources/PlayerMovementWorld.cpp
+    sources/PropCollision.cpp
+    sources/ViewModel.cpp)
 
 # dfn_world: gameplay registers its save sections with world::SaveDeltaCodec
 # (the DAG allows gameplay -> world).
-target_link_libraries(dfn_gameplay PUBLIC dfn_headers dfn_core dfn_world)
+target_link_libraries(dfn_gameplay PUBLIC dfn_headers dfn_core dfn_world dfn_render)

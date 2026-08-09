@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 17:08:40
+Last updated: 09:08:2026 - 22:18:17
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -27,11 +27,17 @@ UPD:
 - 09:08:2026 - 15:08:24: Rig sets explicit collision layers (zero masks are
                          now rejected by the IPhysics contract).
 - 09:08:2026 - 17:08:40: Run input now sprints (DEBUG_SPRINT_MULTIPLIER).
+- 09:08:2026 - 22:18:17: Jump, crouch and swim (v1 movement). Every case ships
+                         a control: the jump latch is checked against a sampled
+                         reading, crouch speed against standing speed, and the
+                         swim hysteresis against the one-threshold design it
+                         exists to reject.
 */
 
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <memory>
 
 #include <glm/geometric.hpp>
 
@@ -59,7 +65,8 @@ constexpr float EPS = 1e-4f;
 // Scriptable IInput: set the fields, the interface reports them.
 class FakeInput final : public platform::IInput {
 public:
-    bool w = false, a = false, s = false, d = false, shift = false;
+    bool w = false, a = false, s = false, d = false, shift = false, ctrl = false;
+    bool space_pressed = false;
     glm::vec2 delta{0.0f};
 
     void update() override {}
@@ -70,10 +77,13 @@ public:
         case platform::Key::S: return s;
         case platform::Key::D: return d;
         case platform::Key::LEFT_SHIFT: return shift;
+        case platform::Key::LEFT_CONTROL: return ctrl;
         default: return false;
         }
     }
-    bool was_pressed(platform::Key) const override { return false; }
+    bool was_pressed(platform::Key key) const override {
+        return key == platform::Key::SPACE && space_pressed;
+    }
     bool was_released(platform::Key) const override { return false; }
     bool is_down(platform::MouseButton) const override { return false; }
     bool was_pressed(platform::MouseButton) const override { return false; }
@@ -108,9 +118,10 @@ struct Rig {
         transform.position = spawn;
     }
 
-    void tick() {
-        gameplay::player_pre_step(state, *physics, transform, prev_transform, camera,
-                                  prev_camera);
+    // water_depth defaults to 0: dry land unless a case says otherwise.
+    void tick(float water_depth = 0.0f) {
+        gameplay::player_pre_step(state, *physics, water_depth, transform, prev_transform,
+                                  camera, prev_camera);
         physics->step(DT);
         gameplay::player_post_step(state, *physics, transform, camera);
     }
@@ -230,6 +241,275 @@ TEST_CASE("null physics contract: vertical intent ignored, always grounded") {
     }
     CHECK(rig.transform.position.y == doctest::Approx(4.0f)); // glides on its plane
     CHECK(rig.physics->character_grounded(rig.state.character));
+}
+
+// --- Jump / crouch / swim (v1 movement, user-approved) -----------------------
+//
+// The recording backend exists because the null contract deliberately DISCARDS
+// vertical displacement, so "did the player intend to dive" cannot be read from
+// the resulting position. Intent is submitted through move_character, so that
+// is what these cases inspect.
+class RecordingPhysics final : public platform::IPhysics {
+public:
+    std::unique_ptr<platform::IPhysics> inner = platform::create_null_physics();
+    glm::vec3 last_displacement{0.0f};
+
+    bool init() override { return inner->init(); }
+    void shutdown() override { inner->shutdown(); }
+    void step(float dt) override { inner->step(dt); }
+    platform::PhysicsBodyHandle create_terrain_mesh(
+        const platform::TerrainMeshDesc& d) override {
+        return inner->create_terrain_mesh(d);
+    }
+    platform::PhysicsBodyHandle create_terrain(const platform::TerrainDesc& d) override {
+        return inner->create_terrain(d);
+    }
+    platform::PhysicsBodyHandle create_static_box(
+        const platform::StaticBoxDesc& d) override {
+        return inner->create_static_box(d);
+    }
+    void destroy_body(platform::PhysicsBodyHandle b) override { inner->destroy_body(b); }
+    platform::CharacterHandle create_character(const platform::CharacterDesc& d) override {
+        return inner->create_character(d);
+    }
+    void destroy_character(platform::CharacterHandle c) override {
+        inner->destroy_character(c);
+    }
+    void move_character(platform::CharacterHandle c, const glm::vec3& d) override {
+        last_displacement = d;
+        inner->move_character(c, d);
+    }
+    glm::vec3 character_position(platform::CharacterHandle c) const override {
+        return inner->character_position(c);
+    }
+    bool character_grounded(platform::CharacterHandle c) const override {
+        return inner->character_grounded(c);
+    }
+    void set_character_height(platform::CharacterHandle c, float h) override {
+        inner->set_character_height(c, h);
+    }
+    float character_height(platform::CharacterHandle c) const override {
+        return inner->character_height(c);
+    }
+    void teleport_character(platform::CharacterHandle c, const glm::vec3& p) override {
+        inner->teleport_character(c, p);
+    }
+    platform::RayHit raycast(const glm::vec3& o, const glm::vec3& d, float m,
+                             platform::CollisionMask k) const override {
+        return inner->raycast(o, d, m, k);
+    }
+};
+
+TEST_CASE("jump: takeoff speed is derived from JUMP_HEIGHT, not stored twice") {
+    Rig rig;
+    const float expected = std::sqrt(2.0f * static_cast<float>(config::GRAVITY) *
+                                     static_cast<float>(config::JUMP_HEIGHT));
+    rig.state.jump_pressed = true;
+    rig.tick();
+    // One tick of gravity is already subtracted by the time we observe it.
+    CHECK(rig.state.vertical_velocity ==
+          doctest::Approx(expected - static_cast<float>(config::GRAVITY) * DT)
+              .epsilon(1e-3));
+
+    // CONTROL: the same tick without the press must not launch anybody. The
+    // comparison is against zero rather than a negative number because the null
+    // backend reports "grounded" always, so post_step clears the falling
+    // velocity every tick; a launch is the only way this becomes positive.
+    Rig control;
+    control.tick();
+    CHECK(control.state.vertical_velocity <= 0.0f);
+}
+
+TEST_CASE("jump: the press is a latch, and it is spent even when refused") {
+    Rig rig;
+    rig.state.jump_pressed = true;
+    rig.tick();
+    CHECK(rig.state.vertical_velocity > 0.0f);
+    CHECK_FALSE(rig.state.jump_pressed); // consumed
+
+    // A press while crouched is refused — a crouch-jump is the classic way to
+    // climb geometry built to stop the player — and is NOT banked for later.
+    Rig crouched;
+    crouched.state.crouch_held = true;
+    crouched.tick();
+    REQUIRE(crouched.state.crouched);
+    crouched.state.jump_pressed = true;
+    crouched.tick();
+    CHECK(crouched.state.vertical_velocity <= 0.0f); // refused, never launched
+    CHECK_FALSE(crouched.state.jump_pressed);        // spent, not banked
+}
+
+TEST_CASE("crouch: the capsule shrinks, and the camera eases separately") {
+    Rig rig;
+    REQUIRE(rig.physics->character_height(rig.state.character) ==
+            doctest::Approx(static_cast<float>(config::PLAYER_CAPSULE_HEIGHT)));
+
+    rig.state.crouch_held = true;
+    rig.tick();
+    // The CAPSULE is the point: a camera-only crouch leaves this untouched, and
+    // that is the implementation this check exists to reject.
+    CHECK(rig.physics->character_height(rig.state.character) ==
+          doctest::Approx(static_cast<float>(config::CROUCH_CAPSULE_HEIGHT)));
+    CHECK(rig.state.crouched);
+    // ... while the eye is still on its way down after a single tick.
+    CHECK(rig.state.crouch_blend < 1.0f);
+    CHECK(rig.camera.position.y > static_cast<float>(config::CROUCH_EYE_HEIGHT));
+
+    // Held long enough, the eye arrives exactly at the crouched height.
+    for (int i = 0; i < 60; ++i) {
+        rig.tick();
+    }
+    CHECK(rig.state.crouch_blend == doctest::Approx(1.0f));
+    CHECK(rig.camera.position.y ==
+          doctest::Approx(static_cast<float>(config::CROUCH_EYE_HEIGHT)).epsilon(1e-3));
+
+    // Released with nothing overhead (null raycasts always miss = open sky).
+    rig.state.crouch_held = false;
+    rig.tick();
+    CHECK_FALSE(rig.state.crouched);
+    CHECK(rig.physics->character_height(rig.state.character) ==
+          doctest::Approx(static_cast<float>(config::PLAYER_CAPSULE_HEIGHT)));
+}
+
+TEST_CASE("crouch: crouched movement uses CROUCH_SPEED") {
+    Rig rig;
+    rig.state.crouch_held = true;
+    rig.state.move_axes = {0.0f, 1.0f};
+    rig.tick();
+    const glm::vec3 start = rig.transform.position;
+    rig.tick();
+    CHECK(glm::length(rig.transform.position - start) ==
+          doctest::Approx(static_cast<float>(config::CROUCH_SPEED) * DT).epsilon(1e-3));
+
+    // CONTROL: standing, the same input moves at walking speed. An
+    // implementation that ignored the crouch speed would make these equal.
+    Rig control;
+    control.state.move_axes = {0.0f, 1.0f};
+    control.tick();
+    const glm::vec3 cstart = control.transform.position;
+    control.tick();
+    CHECK(glm::length(control.transform.position - cstart) ==
+          doctest::Approx(static_cast<float>(config::WALK_SPEED) * DT).epsilon(1e-3));
+}
+
+TEST_CASE("swim: the two thresholds are hysteresis, and one threshold fails this") {
+    const float enter = static_cast<float>(config::SWIM_ENTER_DEPTH);
+    const float exit_depth = static_cast<float>(config::SWIM_EXIT_DEPTH);
+    REQUIRE(exit_depth < enter); // the pair is the mechanism, not slack
+    const float between = 0.5f * (enter + exit_depth);
+
+    // Walking in: at a depth between the thresholds you are still WADING.
+    Rig rig;
+    rig.tick(between);
+    CHECK(rig.state.locomotion == gameplay::Locomotion::Wade);
+
+    // Deep enough, you swim.
+    rig.tick(enter + 0.01f);
+    CHECK(rig.state.locomotion == gameplay::Locomotion::Swim);
+
+    // Coming out: at the SAME between-depth you are still SWIMMING. This pair
+    // of checks is the control for the whole design — a single-threshold
+    // implementation returns the same answer for the same depth and therefore
+    // cannot pass both halves, whatever threshold it picks.
+    rig.tick(between);
+    CHECK(rig.state.locomotion == gameplay::Locomotion::Swim);
+
+    // Shallower than the exit threshold, you are back on your feet.
+    rig.tick(exit_depth - 0.01f);
+    CHECK(rig.state.locomotion == gameplay::Locomotion::Wade);
+
+    // CONTROL: dry land is neither of the two water modes.
+    rig.tick(0.0f);
+    CHECK(rig.state.locomotion == gameplay::Locomotion::Ground);
+}
+
+TEST_CASE("swim: movement follows the look direction in three dimensions") {
+    RecordingPhysics physics;
+    REQUIRE(physics.init());
+    platform::CharacterDesc desc;
+    desc.radius = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
+    desc.height = static_cast<float>(config::PLAYER_CAPSULE_HEIGHT);
+    desc.layer = physics_layer::LAYER_CHARACTER;
+    desc.collides_with = physics_layer::LAYER_STATIC;
+
+    gameplay::PlayerState state;
+    state.character = physics.create_character(desc);
+    REQUIRE(state.character.valid());
+    Transform transform;
+    PreviousTransform prev_transform;
+    CameraPose camera;
+    PreviousCameraPose prev_camera;
+
+    const float deep = static_cast<float>(config::SWIM_ENTER_DEPTH) + 2.0f;
+    state.move_axes = {0.0f, 1.0f};
+    state.pitch = -0.7f; // look down: forward now means DIVE
+
+    gameplay::player_pre_step(state, physics, deep, transform, prev_transform, camera,
+                              prev_camera);
+    REQUIRE(state.locomotion == gameplay::Locomotion::Swim);
+    CHECK(physics.last_displacement.y < 0.0f); // pressing forward went DOWN
+
+    // CONTROL: the same look and the same key on dry land must NOT drive the
+    // player into the floor — on the ground, forward is horizontal whatever the
+    // head is doing. Without this, "y < 0" above would also pass for gravity.
+    gameplay::PlayerState ground_state;
+    ground_state.character = state.character;
+    ground_state.move_axes = {0.0f, 1.0f};
+    ground_state.pitch = -0.7f;
+    gameplay::player_pre_step(ground_state, physics, 0.0f, transform, prev_transform,
+                              camera, prev_camera);
+    REQUIRE(ground_state.locomotion == gameplay::Locomotion::Ground);
+    const float horizontal = glm::length(
+        glm::vec2{physics.last_displacement.x, physics.last_displacement.z});
+    CHECK(horizontal ==
+          doctest::Approx(static_cast<float>(config::WALK_SPEED) * DT).epsilon(1e-3));
+    // Only gravity for one tick, not a dive.
+    CHECK(physics.last_displacement.y ==
+          doctest::Approx(-static_cast<float>(config::GRAVITY) * DT * DT).epsilon(1e-3));
+}
+
+TEST_CASE("wade: shallow water drags") {
+    Rig rig;
+    rig.state.move_axes = {0.0f, 1.0f};
+    const float shallow = 0.5f * static_cast<float>(config::SWIM_EXIT_DEPTH);
+    rig.tick(shallow);
+    const glm::vec3 start = rig.transform.position;
+    rig.tick(shallow);
+    REQUIRE(rig.state.locomotion == gameplay::Locomotion::Wade);
+    CHECK(glm::length(rig.transform.position - start) ==
+          doctest::Approx(static_cast<float>(config::WALK_SPEED) *
+                          static_cast<float>(config::WADE_SPEED_FACTOR) * DT)
+              .epsilon(1e-3));
+
+    // CONTROL: dry, the same input is undragged.
+    Rig control;
+    control.state.move_axes = {0.0f, 1.0f};
+    control.tick();
+    const glm::vec3 cstart = control.transform.position;
+    control.tick();
+    CHECK(glm::length(control.transform.position - cstart) ==
+          doctest::Approx(static_cast<float>(config::WALK_SPEED) * DT).epsilon(1e-3));
+}
+
+TEST_CASE("input: jump latches across frames, crouch is sampled") {
+    gameplay::PlayerState state;
+    FakeInput input;
+
+    input.space_pressed = true;
+    gameplay::accumulate_input(input, state);
+    input.space_pressed = false; // released before the fixed tick arrives
+    gameplay::accumulate_input(input, state);
+    // CONTROL: an implementation that SAMPLED the key instead of latching it
+    // reads false here, which is exactly the dropped-jump bug at high frame
+    // rates that the latch exists to prevent.
+    CHECK(state.jump_pressed);
+
+    input.ctrl = true;
+    gameplay::accumulate_input(input, state);
+    CHECK(state.crouch_held);
+    input.ctrl = false;
+    gameplay::accumulate_input(input, state);
+    CHECK_FALSE(state.crouch_held);
 }
 
 } // namespace

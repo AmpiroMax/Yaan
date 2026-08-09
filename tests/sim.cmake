@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 18:56:32
+# Last updated: 09:08:2026 - 22:27:49
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -22,6 +22,9 @@
 # - 09:08:2026 - 16:51:22: Added sim_tunnel_walk — the voxel terrain collision
 #                          acceptance walk through the crag tunnel.
 # - 09:08:2026 - 18:56:32: Added sim_interaction (four verbs, inventory, saves).
+# - 09:08:2026 - 22:18:17: Added sim_movement_solid (jump apex, crouch under a
+#                          ceiling, and the cliff-vs-jump invariant).
+# - 09:08:2026 - 22:27:49: Added sim_prop_collision (buildings and boulders).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -39,6 +42,15 @@ add_dfn_test(sim_jolt_physics sim/JoltPhysicsTests.cpp
 # The four interaction verbs, inventory semantics and the save sections.
 add_dfn_test(sim_interaction sim/InteractionTests.cpp
     dfn_gameplay dfn_platform_physics dfn_core)
+
+# Jump/crouch/swim against REAL collision: apex height, the ceiling that refuses
+# a stand-up, and the cliff invariant (jump must not repeal PLAYER_MAX_SLOPE).
+add_dfn_test(sim_movement_solid sim/MovementSolidTests.cpp
+    dfn_gameplay dfn_physics dfn_platform_physics)
+
+# Buildings and boulders are solid, built from the triangles render draws.
+add_dfn_test(sim_prop_collision sim/PropCollisionTests.cpp
+    dfn_gameplay dfn_world dfn_render dfn_platform_physics dfn_core)
 
 # The voxel-terrain acceptance walk (crag tunnel): real generated world, real
 # extracted collision mesh, real capsule.

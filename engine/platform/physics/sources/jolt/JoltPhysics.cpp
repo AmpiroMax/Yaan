@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 16:51:22
+Last updated: 09:08:2026 - 22:18:17
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -50,6 +50,10 @@ UPD:
                          supports tunnels and overhangs. Degenerate and
                          out-of-range triangles are dropped (Jolt rejects a
                          whole mesh over one bad triangle).
+- 09:08:2026 - 22:18:17: set_character_height/character_height: the
+                         capsule is rebuilt via a shared make_capsule()
+                         and stays anchored at its BOTTOM point, so
+                         crouching moves the head and not the feet.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -77,6 +81,7 @@ UPD:
 #include <Jolt/RegisterTypes.h>
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdint>
 #include <glm/geometric.hpp>
 #include <thread>
@@ -361,27 +366,20 @@ public:
 
     // Character controller -----------------------------------------------------
     CharacterHandle create_character(const CharacterDesc& desc) override {
-        const float cylinder_half = 0.5f * desc.height - desc.radius;
         // layer == 0: the character's own body would be unhittable by any
         // raycast. collides_with == 0: it would walk through the world.
-        if (!system_ || desc.layer == 0 || desc.collides_with == 0 ||
-            desc.radius <= 0.0f || cylinder_half <= 0.0f) {
+        if (!system_ || desc.layer == 0 || desc.collides_with == 0) {
             return {};
         }
-        // Capsule offset so the character position is the capsule BOTTOM point.
-        auto shape_result =
-            JPH::RotatedTranslatedShapeSettings(
-                {0.0f, 0.5f * desc.height, 0.0f}, JPH::Quat::sIdentity(),
-                new JPH::CapsuleShape(cylinder_half, desc.radius))
-                .Create();
-        if (shape_result.HasError()) {
+        const JPH::ShapeRefC shape = make_capsule(desc.radius, desc.height);
+        if (shape == nullptr) {
             return {};
         }
 
         JPH::CharacterVirtualSettings settings;
-        settings.mShape = shape_result.Get();
+        settings.mShape = shape;
         settings.mMaxSlopeAngle = desc.max_slope_radians;
-        settings.mInnerBodyShape = shape_result.Get(); // raycastable ghost body
+        settings.mInnerBodyShape = shape; // raycastable ghost body
         settings.mInnerBodyLayer = object_layers::CHARACTER_GHOST;
 
         Character character;
@@ -390,6 +388,8 @@ public:
             desc.user_data, system_.get());
         character.step_height = desc.step_height;
         character.collides_with = desc.collides_with;
+        character.radius = desc.radius;
+        character.height = desc.height;
 
         const JPH::BodyID inner = character.virtual_character->GetInnerBodyID();
         if (!inner.IsInvalid()) {
@@ -434,6 +434,32 @@ public:
                    JPH::CharacterVirtual::EGroundState::OnGround;
     }
 
+    // Crouch. The capsule is rebuilt at the new height and stays anchored at
+    // its BOTTOM point (the offset inside make_capsule), so the feet do not
+    // move and only the head does — standing up grows into the space above,
+    // which is exactly the space the caller must have checked is free.
+    void set_character_height(CharacterHandle character, float height) override {
+        auto it = characters_.find(character.id);
+        if (it == characters_.end() || !system_) {
+            return;
+        }
+        const JPH::ShapeRefC shape = make_capsule(it->second.radius, height);
+        if (shape == nullptr) {
+            return; // dimensions cannot form a capsule: change nothing
+        }
+        // max_penetration_depth 0 + lock_bodies false: SetShape is called from
+        // the fixed tick, outside step(), so no body locks are held.
+        it->second.virtual_character->SetShape(shape, FLT_MAX, {}, {}, {}, {},
+                                               *temp_allocator_);
+        it->second.virtual_character->SetInnerBodyShape(shape);
+        it->second.height = height;
+    }
+
+    float character_height(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        return it != characters_.end() ? it->second.height : 0.0f;
+    }
+
     void teleport_character(CharacterHandle character, const glm::vec3& position) override {
         if (auto it = characters_.find(character.id); it != characters_.end()) {
             it->second.virtual_character->SetPosition(JPH::RVec3(to_jph(position)));
@@ -475,7 +501,27 @@ private:
         glm::vec3 pending{0.0f};
         float step_height = 0.0f;
         CollisionMask collides_with = COLLIDE_ALL;
+        float radius = 0.0f; // kept so a resize can rebuild the capsule
+        float height = 0.0f;
     };
+
+    // Builds the bottom-anchored capsule shape used by both create_character
+    // and set_character_height. Null when the dimensions cannot form a capsule.
+    [[nodiscard]] static JPH::ShapeRefC make_capsule(float radius, float height) {
+        const float cylinder_half = 0.5f * height - radius;
+        if (radius <= 0.0f || cylinder_half <= 0.0f) {
+            return {};
+        }
+        // Offset so the character position is the capsule BOTTOM point.
+        auto result = JPH::RotatedTranslatedShapeSettings(
+                          {0.0f, 0.5f * height, 0.0f}, JPH::Quat::sIdentity(),
+                          new JPH::CapsuleShape(cylinder_half, radius))
+                          .Create();
+        if (result.HasError()) {
+            return {};
+        }
+        return result.Get();
+    }
 
     PhysicsBodyHandle add_static_body(const JPH::ShapeRefC& shape, JPH::RVec3Arg position,
                                       JPH::QuatArg rotation, CollisionMask mask,

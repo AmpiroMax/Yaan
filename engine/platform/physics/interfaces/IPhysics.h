@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 16:51:22
+Last updated: 09:08:2026 - 22:18:17
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -61,6 +61,13 @@ UPD:
                          voxel terrain (overhangs/tunnels). create_terrain and
                          every other call are untouched, so the null backend
                          and existing tests stay honest.
+- 09:08:2026 - 22:18:17: ADDITIVE: set_character_height()/character_height()
+                         for crouch. Every existing signature and semantic is
+                         untouched; the only implementers of IPhysics are the
+                         two backends in this zone (checked repo-wide), so no
+                         foreign code has to change. Rationale for a real
+                         capsule resize rather than a camera-only crouch is in
+                         the declaration.
 */
 
 #pragma once
@@ -178,6 +185,19 @@ public:
     // Post-step state. Position is the capsule bottom point (feet).
     [[nodiscard]] virtual glm::vec3 character_position(CharacterHandle character) const = 0;
     [[nodiscard]] virtual bool character_grounded(CharacterHandle character) const = 0;
+
+    // Replaces the capsule's total height, keeping the radius and the BOTTOM
+    // point fixed (the feet stay where they are; the head moves). This is what
+    // crouching is: in a voxel world with carved tunnels and real ceilings, a
+    // crouch that only lowers the camera is a lie — the player ducks and is
+    // still blocked by the same ceiling. Heights that cannot form a capsule
+    // (height <= 2 * radius) are rejected and change nothing.
+    // Callers are responsible for checking there is room to grow again before
+    // standing up (a raycast up from the head); a backend is free to refuse a
+    // resize that would leave the capsule inside geometry, but is not required
+    // to, so growing blindly is a caller bug, not a backend one.
+    virtual void set_character_height(CharacterHandle character, float height) = 0;
+    [[nodiscard]] virtual float character_height(CharacterHandle character) const = 0;
 
     // Instant placement without collision resolution (spawn, chunk streaming).
     virtual void teleport_character(CharacterHandle character, const glm::vec3& position) = 0;

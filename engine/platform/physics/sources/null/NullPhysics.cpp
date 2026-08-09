@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 16:51:22
+Last updated: 09:08:2026 - 22:18:17
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -30,6 +30,10 @@ UPD:
                          null must catch the same authoring mistakes.
 - 09:08:2026 - 16:51:22: create_terrain_mesh (voxel terrain): same zero-mask
                          and empty-mesh rules as the Jolt backend.
+- 09:08:2026 - 22:18:17: set_character_height/character_height: the null
+                         backend has no geometry, so a resize is never
+                         obstructed — it records the height so crouch
+                         logic is testable headless (Rule 3).
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
@@ -92,7 +96,8 @@ public:
             return {};
         }
         const CharacterHandle handle{next_id_++};
-        characters_[handle.id] = Character{desc.position, glm::vec3{0.0f}};
+        characters_[handle.id] =
+            Character{desc.position, glm::vec3{0.0f}, desc.radius, desc.height};
         return handle;
     }
     void destroy_character(CharacterHandle character) override {
@@ -111,6 +116,21 @@ public:
     }
     bool character_grounded(CharacterHandle character) const override {
         return characters_.contains(character.id); // contract: always grounded
+    }
+
+    // The null backend has no geometry, so a resize can never be obstructed:
+    // it simply records the height so callers read back what they set and
+    // crouch logic is testable headless (Rule 3 — a runnable mode).
+    void set_character_height(CharacterHandle character, float height) override {
+        if (auto it = characters_.find(character.id); it != characters_.end()) {
+            if (height > 2.0f * it->second.radius) {
+                it->second.height = height;
+            }
+        }
+    }
+    float character_height(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        return it != characters_.end() ? it->second.height : 0.0f;
     }
 
     void teleport_character(CharacterHandle character, const glm::vec3& position) override {
@@ -134,6 +154,8 @@ private:
     struct Character {
         glm::vec3 position{0.0f};
         glm::vec3 pending{0.0f};
+        float radius = 0.0f;
+        float height = 0.0f;
     };
 
     PhysicsBodyHandle make_body() {

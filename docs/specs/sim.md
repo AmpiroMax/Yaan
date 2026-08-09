@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:25:29
-Last updated: 09:08:2026 - 17:08:40
+Last updated: 09:08:2026 - 22:31:38
 -->
 <!--
 UPD:
@@ -25,6 +25,18 @@ UPD:
   DEBUG_SPRINT_MULTIPLIER (30 m/s), marked debug-only in code and spec;
   verified no tunnelling and no streaming fall-through; world-edge fall-out
   recorded as a known consequence.
+- 09:08:2026 - 22:31:38: Movement v1 + interaction part 2. Jump/crouch/swim
+  (takeoff speed derived from JUMP_HEIGHT; crouch resizes the capsule and is
+  refused a stand-up under a ceiling; swim uses an enter/exit threshold pair).
+  IPhysics gained set_character_height/character_height (ADDITIVE; the only
+  implementers are this zone's two backends). Water depth is a parameter fed
+  by core's ChunkManager::water_surface_at — the drawn lake/river primitives
+  over-cover real water and were rejected as a source (core's ruling, after I
+  proposed them and was corrected). Visible first-person hand as a world-space
+  entity (no render pass needed). Buildings and boulders collide with the
+  triangles render draws. Inventory screen state (names + rotatable preview).
+  FINDING: engine/app calls none of the interaction code — wiring patch sent
+  to the lead.
 -->
 
 # Spec — sim (`docs/specs/sim.md`)

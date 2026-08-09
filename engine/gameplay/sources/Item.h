@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 09:08:2026 - 22:21:30
 Module: engine/gameplay
 File: engine/gameplay/sources/Item.h
 
@@ -36,6 +36,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial item definition contract (interaction stage).
+- 09:08:2026 - 22:21:30: ItemDef::mesh_id — what the item looks like in the
+                         hand and in the inventory preview (content, Rule 5).
 */
 
 #pragma once
@@ -63,6 +65,10 @@ struct ItemDef {
     // candle). Gameplay refuses to light anything else, so a content mistake
     // surfaces instead of producing a torch-shaped rock that glows.
     bool light_source = false;
+    // Engine-level mesh asset id for the item as seen in the hand and in the
+    // inventory preview. Content decides it (Rule 5); 0 = no mesh yet, which
+    // draws nothing rather than drawing the wrong thing.
+    uint32_t mesh_id = 0;
 };
 
 // The loaded definition table (World resource). Unknown ids are answered with
