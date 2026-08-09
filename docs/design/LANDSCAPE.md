@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 00:52:46
+Last updated: 10:08:2026 - 01:54:30
 -->
 <!--
 UPD:
@@ -57,6 +57,8 @@ UPD:
 - 10:08:2026 - 00:27:25: MY UNSHOT RULING WAS SHOT AND IT FAILED, AND THE REMEDY I NAMED DOES NOT EXIST. Render had the build hot and did the check rather than hand it over. screenshots/shore/02_river_ford.png, 640x360, quantiser ON: SAND AT 4 BANDS — hard-edged tonal plateaus following the ground's curvature rather than any shadow silhouette, WITH THE CONTROL IN THE SAME FRAME (water 8 fills the right half and grass 8 the upper left, same sun and same dither pass, neither plateaus). Render bounded the reading honestly: hard shadows are hard BY DESIGN with PCF off, so only edges tracking the ground contour count. AND THE LEVER I NAMED IS ARITHMETICALLY UNAVAILABLE — the palette dither is a single global expression spanning 0.047 per channel, which breaks a band only when comparable to one quantisation step: sand 4 has a 0.195 step so dither covers 24%, dry olive 4 is 0.207 and 23%, against grass 8 at 64% and conifer 8 at 84%. Raising the amplitude to cover sand is a 4x GLOBAL increase applied to every family, noising up the whole image to fix one band, and there is no per-family dither because the pass does not know which ramp a pixel is heading for. THE REAL FINDING, AND IT IS STRUCTURAL: 64 ENTRIES CANNOT CARRY NINE FAMILIES AT THESE SPANS. Every family at >=60% dither coverage needs 86 entries; we have 64, so the palette is A THIRD TOO SMALL and no allocation fixes it — restoring sand to 5 or 6 still leaves 32-39%. SO MY §4.2 RULING WAS RIGHT ABOUT THE PRINCIPLE AND WRONG ABOUT THE SUFFICIENCY: «the budget is 64 entries, not eight families of eight» stands, since the uniform grid was never justified, but I THEN REALLOCATED INSIDE A BUDGET I HAD NEVER CHECKED WAS ADEQUATE AT ALL, and ordered a cut on the two families that could least afford it. CHECKING WHETHER A CONSTRAINT IS SATISFIABLE COMES BEFORE OPTIMISING WITHIN IT. TWO FAMILIES ARE ALREADY UNDER THE LINE THAT NOBODY HAS LOOKED AT — ROCK AND SKY, both at 52% with 8 shades, and both carry large smooth surfaces; prediction flagged for measurement rather than asserted: A QUANTISER-ON FRAME OF THE MASSIF MAY BAND ON ITS FLANKS, and nobody has shot one. AND THAT COLLIDES WITH §4.1: a deliberate pale stratum and an accidental quantisation band are THE SAME VISUAL EVENT, tonal steps across a rock flank, distinguishable by exactly one property already in §4.1's design — STRATA TRACK ABSOLUTE WORLD HEIGHT WHILE QUANTISATION BANDS TRACK LUMINANCE, so they diverge wherever the flank turns from the sun. §4.1's acceptance check is therefore that ITS BANDS HOLD THEIR ELEVATION ACROSS A LIGHTING CHANGE, not merely that bands are visible — stated before the feature is built, for once. RULING, THREE LEVERS RANKED AND THE FIRST IS A MEASUREMENT: (1) NARROW THE SPANS to the range each material actually occupies — costs nothing and is the only lever that could make 64 sufficient, since sand runs 0.35->0.84 and neutrals 0.02->0.95 and A RAMP SHOULD SPAN WHAT ITS MATERIAL ACTUALLY USES rather than a decorative full range, every unused end tone being resolution stolen from the middle where the surfaces live; this is a per-material histogram of the pre-quantised frame, measurable, and I am not guessing at it after three wrong colour numbers tonight. (2) STEP-AWARE DITHER — fixes every family at once, costs no entries, and is structurally right because THE PRESENT DITHER IS ONE FIXED AMPLITUDE APPLIED TO A PALETTE WHOSE STEPS ARE NOT UNIFORM, the identical defect as the uniform 8x8 grid I already ruled against one level down, and that recurrence is the strongest argument that it is correct. (3) MORE ENTRIES — last resort, not mine to spend alone since the palette is a user graphics setting, and it trades away the look the quantiser exists to produce. NOTHING IS REVERTED TONIGHT: reverting sand to 5 buys 32% and still bands, so it would be motion without a fix while spending the conifer depth that holds a real property; the palette stays as landed with the defect recorded and the frame in the repository, which is the honest state. STILL UNSHOT: dry olive at 4 (no large dry-grass expanse in any of seven frames; its step 0.207 is LARGER than sand's so it fails by the same arithmetic, but render labelled that as inference and so do I), and the re-measured WaterBed coverage. §1.6 NEW CONDITION F7 — A VANTAGE THAT CANNOT FAIL IS NOT EVIDENCE (render's formulation, adopted): Rule 30 in a frame instead of in a test. They nearly filed a clean result off the lake-bluff frame, which DID contain sand — flat and at essentially one luminance, and A STRIP AT ONE VALUE CANNOT SHOW BANDING ACROSS A 4-SHADE RAMP HOWEVER BAD THAT RAMP IS. Generalised: the frame must contain the subject across the RANGE the property under test varies over, F2 being that condition in angular size and this being the same condition in whatever dimension the property lives — luminance for a tonal test, bearing for a silhouette test, distance for a legibility test. Corollary and the reason it is not merely F2 restated: A PROPERTY THAT VARIES WITH VIEWING AZIMUTH NEEDS A FRAME SET THAT VARIES AZIMUTH — flora's birch cards read correctly from most bearings and as bare poles from the edge-on one, so a single standpoint certifies a single azimuth, and render's four-bearing crag sweep is now a REQUIREMENT rather than thoroughness. Per frame, state what would have to appear in it for the test to fail; if that sentence cannot be written, it is not an acceptance frame. AND THE DERIVE-THE-VANTAGE WARNING BIT EXACTLY AS PREDICTED: 03_lake_bluff.png, the tabled east-beach vantage at (278,638), HAS NO LAKE IN IT — the coordinate was derived before core's pond fix and now sits on a feature that no longer exists. Fourth vindication of «an acceptance vantage is derived, never tabled», and the first where the ground moved rather than the reader.
 - 10:08:2026 - 00:32:50: §5 — BIRCH CROWN WIDTH 5-7 m -> 6-8 m, AND IT IS FORCED RATHER THAN A MARGIN DECISION. Flora reported aspect 1.78 against the 1.8 ceiling (1% margin, and only after spending card_aspect 0.95 -> 0.76) and DECLINED to ask for the width band because a wider birch weakens the «smallest and slimmest of the three» accent role. The arithmetic takes it out of both our hands: at H=22 with base 0.40 the crown is 13.2 m and needs >= 7.33 m of width MERELY TO REACH THE CEILING, while the band's maximum is 7 — so THE EXISTING BAND IS ALREADY ILLEGAL, and flora's built 6.9 m is not a tight pass but a value OUTSIDE THE BAND'S OWN WORST CASE, the only reason nothing failed being that crown_width_frac never realises the corner the band permits. Sixth instance of «a range is two assertions», and the first where the illegal end is MINE rather than an implementation's. The band moves FOR THE DERIVATION, NOT FOR THE MARGIN, and both ends move: a crown beginning at 0.40 instead of 0.58 is 43% TALLER and a real birch's lower limbs are correspondingly longer — the same act as the crown-base re-derivation itself, one level along, a constant fitted under a condition that has since changed. Worst realised aspect becomes 1.65, an 8% margin, covering the crown-base band's own 8% span. ACCENT ROLE SURVIVES, CHECKED RATHER THAN ASSERTED: oak crowns are 11.5-15.4 m and pine 9.2-12.5 m, so a birch at 8 m is still 13% SLIMMER THAN THE NARROWEST PINE and half the oak — flora was right to raise the concern and right that it was mine to weigh. CONSEQUENCE FOR CORE, VERIFIED IN SOURCE RATHER THAN TAKEN FROM A REPORT: the birch lattice is HARD-CODED AT 8.0 m in WorldgenScatter.cpp with a 45% keep and does NOT derive from crown width, while oak and pine both read TREE_SPACING_FOREST — so at an 8 m crown on an 8 m lattice adjacent kept birches touch and A LINE OF L2 GUIDES BECOMES A HEDGE, §1.3 listing «lone birch» as a guide where a thicket is not one. The defect is that ONE SPECIES' SPACING IS PINNED WHERE THE OTHERS ARE DERIVED (Rule 32's shape: a derived quantity computed by one consumer and hard-coded by another). Reported, not patched. §5 — RULE 30 SHARPENED TWICE AND FLORA'S VERSION IS BETTER THAN MINE. I ruled that the control should be THE REAL REJECTED ARTEFACT; flora applied it and found it COULD NOT BE SATISFIED ON THE CLAUSE I AIMED IT AT — the repaired birch measures limb-spread 0.399-0.442 but THE OAK'S SMALLEST VARIANT SITS AT 0.166, BELOW the rejected birch's 0.17-0.19, because a compact crown on a short tree and a tuft on a tall pole give the same number from different objects. No floor on that quantity separates accepted from rejected without failing an accepted species. They moved the floor to FOLIAGE SPAN, where a 0.58 crown base caps span at 0.42 by construction and every accepted species measures 0.49-0.76, rejecting THE WHOLE CLASS rather than one instance. WHICH CLAUSE A FLOOR BELONGS ON IS ITSELF A MEASUREMENT (flora's, adopted verbatim), and the test for it: IF NO VALUE ON A QUANTITY SEPARATES THE ACCEPTED CASES FROM THE REJECTED ONES, THE QUANTITY IS WRONG, NOT THE THRESHOLD. That is the discriminating-power test and it is THE MECHANICAL FORM OF §2.8.7'S WHOLE THESIS — nine invariants measured the object and none the view, and the way to have caught that in an afternoon was to ask of each «is there ANY threshold on this quantity that separates the mountain the user rejected from one he would accept?», for most of which the answer is no. «Measuring the wrong thing» stops being a judgement and becomes a computation. §5 — TWO RULES FROM DEFECTS ONLY A MOVING FRAME COULD FIND. (a) cards_per_cluster = 2 IS NOT A CHEAPER 3, IT IS A DIFFERENT OBJECT: cards are fixed-orientation so two crossed planes have azimuths where BOTH present edge-on, and there the birch was «a line of bare white poles with a few flecks» — THE REJECTED SILHOUETTE SURVIVING A REWRITE THAT HAD GENUINELY FIXED THE SHAPE, purely as a viewing-angle artefact. Three planes cannot all be edge-on, so any card-based foliage species uses >= 3 planes per cluster; this is F7's corollary in geometry. (b) §1.5's SEPARATION REQUIREMENT APPLIES WITHIN AN OBJECT, NOT ONLY BETWEEN OBJECTS: all wood drew in one colour so the birch's near-white limbs matched its own foliage and the crown read as scaffolding rather than tracery — A TREE WHOSE LIMBS AND FOLIAGE SHARE A VALUE READS AS ONE MASS, the same defect as pine-against-rock two scales down. Fixed with dark twigs on a white bole, which is both what the photographs measure and what a birch is.
 - 10:08:2026 - 00:52:46: USER RULING CARRIED INTO THE BIBLE — «давай цвета фигачить по полной, потом если что ужмем палитру». FULL COLOUR IS THE BASIS; the quantiser becomes a late pass fitted to a finished world. §1.5 — «MEASURE WITH THE QUANTISER ON, CERTIFY BOTH» RETIRED, and it was ALSO UNSOUND, which nobody had noticed: it rested on «the quantiser can only merge, never split», and a quantiser splits as readily as it merges — two colours either side of a Voronoi boundary land a full step apart, WHICH IS WHAT BANDING IS, and the banding frame was shot in the same evening the doctrine was written. Measured on the live BgfxPalette: sweeping a lit rock flank the quantised instrument INVENTS up to +0.83 steps out of a true difference of 0.001 and DESTROYS up to 0.81; on the sand family +1.98 and 1.44. AGAINST A THRESHOLD OF 2 THE INSTRUMENT'S OWN ERROR IS ±1 TO ±2 STEPS, AND IT IS WORST ON THE COARSEST FAMILY — an instrument that quantises its own inputs cannot adjudicate a threshold the size of its lattice. NEW §1.5.1 — what full colour costs this section rule by rule, because several rules were derived on a limited-palette premise and needed their JUSTIFICATIONS re-stated, not their status: (1) «value contrast over hue» RESTORED to governing and the ramp correction re-scoped to quantiser-on rather than left standing as a correction to it — both are right, each in its own mode, and the ramp argument has no referent without a lattice; (2) the separation criterion re-derived in §1.3b; (3) RENDER'S AMENDMENT DOWNGRADED FROM A CONSTRAINT TO A WEIGHTING, which is the largest thing full colour gives back — «a separator must move R or G» was a hard gate because a blue-only difference could be ANNIHILATED, and at full colour it is attenuated but never destroyed (0.2 of blue = 0.85 rulers vs green 1.96, so blue costs 2.3x and is no longer forbidden); (4) THE HEADLINE DEFECT OF STAGE 4 IS NOT A PALETTE ARTEFACT — pine vs shadowed rock measures 0.632 at FULL COLOUR against 0.700 quantised, i.e. WORSE, so nobody may read this ruling as «the forest/mountain merge was a quantiser problem»: §5.12's apron stands entirely. §1.3b — LANDMARK_SEPARATION_STEPS_MIN RE-DERIVED, separating FORM, UNIT and VALUE. FORM: sqrt(0.30dr^2+0.59dg^2+0.11db^2) / PALETTE_SHADE_STEP_REF on the frame's own pixels — palette_separation_steps with the quantise step deleted — so ONE INSTRUMENT NOW READS BOTH CONFIGURATIONS because the quantisation moved out of the instrument and into the input, which is what the retired doctrine was reaching for and could not have. UNIT: PALETTE_SHADE_STEP_REF = 0.0784 FROZEN AS A NUMBER, not a function call — it stops being a floor and becomes a ruler, and while the criterion divides by the live palette_mean_shade_step() any re-allocation silently rescales every threshold in this document (Rule 35 by its predictive form; NUMBERS row requested). VALUE: the old derivation is VOID (there is no quantisation floor to sit above); the lead asked whether 2 becomes a luminance RATIO or a hue ANGLE and the answer is NEITHER — it stays a linear DIFFERENCE, because a ratio criterion is most permissive in the DARKS and every merge we have on record is in the darks, so linear is strict where the failures are. Cost stated: weak in the brights, untested there, and the metric under-reads pure-hue separation (safe direction). The value 2 is RETAINED and re-based on Rule 30's amendment — the real rejected instance (pine vs shadowed rock, 0.632) is the control and 2 sits 3.2x above it — but there is NO real accepted instance, so it is calibrated below and UNSHOT above, reported that way. §4.1 — «ROCK_PALE sits between 0.37 and 0.87, at least one palette step below the spire white» REPLACED: it gave render an open interval half the value axis wide with NO separation floor in it, and «one palette step» cited a unit now retired and a loophole §1.3b had already closed. DERIVED: ROCK_PALE albedo in [0.53, 0.71] — the two floors consume 63% of the available range, which is the useful thing the old wording hid. Also: the strata FADE WITH THE LIGHT proportionally and that is correct behaviour, so §4.1's acceptance check is about where the bands ARE, never how strong they are. NEW §4.3 — the palette reframing. Sand/dry-olive banding leaves the urgent list (quantiser-only; frame stays as evidence, finding stays true). AND «86 ENTRIES NEEDED AGAINST 64» IS WITHDRAWN — it was the wrong INSTRUMENT, not wrong arithmetic: it measured when a FIXED 0.047 dither covers 60% of a step, a property of today's dither implementation reported as a property of the world, and «60% coverage» never had a control. Replaced by a criterion this document already owns: A FAMILY BANDS WHEN ITS LARGEST INTERIOR STEP REACHES LANDMARK_SEPARATION_STEPS_MIN — one constant governing merging BETWEEN materials and banding WITHIN one. Checked against the live artefact with BOTH controls from the one shot frame: sand 2.41 rulers predicted BANDS and bands; water 0.94 and grass 0.90 predicted clean and are clean. Sizing follows and INVERTS the finding: 47 entries needed at a floor of 2, against 64 available — 64 IS NOT A THIRD TOO SMALL, IT IS A THIRD LARGER THAN NEEDED AND THE DEFECT IS ALLOCATION. The 86 figure sits at an implied floor of ~0.9 rulers, i.e. it demanded no manufactured edge exceed HALF the difference at which this document says two things are different colours at all. Honest caveat recorded because it pushes back: 2 rulers was derived for two LARGE MASSES and a band is a THIN CONTOUR, and the sensitivity curve is steep — 58 entries at 1.5, break-even at ~1.4, 68 at 1.25 — so 47 is a floor on the requirement, not a certificate. DISCRIMINATING EXPERIMENT named: the two criteria disagree on three families, coverage predicting ROCK and SKY band while separation predicts they do not (1.12, 1.08) and that NEUTRALS does (2.05, and nobody has ever flagged neutrals); §4.2's «the massif may band on its flanks» is withdrawn as stated and becomes the negative arm. AND I DISAGREE WITH THE FRAMING I WAS HANDED on the conifer ramp: it did NOT survive untouched, because the recorded harm was COUPLING and the coupling exists only because needles quantised into the water ramp — at full colour a conifer's colour is flora's albedo and is coupled to nothing, so the entries buy nothing there. What survives, and stronger, is the PRINCIPLE (appearance is chosen, never a nearest-colour accident), which full colour satisfies BY CONSTRUCTION; the ramp was its MECHANISM under quantisation. Conifer 8 stays landed — no churn on a palette about to be re-derived — but stops being cited as a precondition for any full-colour decision. §5 — BIRCH RULED, AND THE ANSWER IS NOT THE ONE I WAS ASKED FOR. CROWN_ASPECT_MAX 1.8 -> 2.0; the crown width band does NOT move; the trade I was asked to weigh (a wider birch against its accent role) DOES NOT HAVE TO BE MADE; and the landed «BIRCH CROWN WIDTH 5-7 -> 6-8 m, FORCED» ruling is WITHDRAWN together with its table. Read out of the live generator instead of modelled: crown_width_frac = 0.34 is crown DIAMETER / HEIGHT, so aspect = (1-base)/0.34 and THE HEIGHT CANCELS EXACTLY — 1.747 at 16 m, at 19 m and at 22 m. There is no worst corner of the height range because there is no variation along it, the 5-7 m band is a DESCRIPTION of what the fraction realises rather than an authored quantity, and the withdrawn table asks what a 22 m birch with a 5 m crown would measure when the generator builds that birch with a 7.48 m crown — reading the ceiling off a corner of the authored band is MEASURING THE CONTAINER, the one act this rule's own definition forbids, committed by the rule's own author for the third time around this number. THE REAL DIAGNOSIS OF THE ONE PERCENT: crown_base_frac = max(species_value, 1 - ceiling*0.97*width_frac), so at 1.8 the ceiling derives 0.4064 and OVERRIDES flora's authored, frame-tested 0.40 — the ceiling is this species' DRIVING INPUT, which the registry says it must not be. The nominal tree sits at 1.746, exactly 3% under by design, and the 1% that reached flora is what survives after the known nominal->built card-corner overshoot eats two thirds of that guard: THE MARGIN IS NOT THIN, IT IS PRE-SPENT, and no amount of crown width fixes that. At 2.0 the derived floor falls to 0.3404, below 0.40, so the species value governs and the ceiling goes back to guarding; the tree moves by 0.006 of its height and the margin goes 3.0% -> 11.8%. No runaway is possible because the ceiling enters as a std::max and can only ever RAISE the crown base. WHERE 2.0 COMES FROM: the instrument is ANTI-CORRELATED with the judgement on this species — the REJECTED palm birch measured 1.02-1.27 and the ACCEPTED one measures 1.78 — so the bracket is «1.78 reads, 2.30 does not» and 2.0 sits 12% above the highest accepted and 13% below the lowest rejected, which is the MAXIMUM SYMMETRIC MARGIN OBTAINABLE in a 1.29x-wide interval: the ceiling is now tightly bracketed by evidence rather than generously clear of it. Also: 1.8 was itself the AUTHORED CONTAINER's ratio, and the rule it gates says measure built geometry never the container. I OPENED screenshots/flora_grown/01_birch_at_040_EXPERIMENT.png rather than relaying my predecessor's reading, and add an observation from it: A LOOSE CROWN INFLATES ITS OWN BOUNDING BOX, so the looser the birch — the more it obeys §5.3's «small loose crown» — the worse it scores; the ceiling and the brief pull opposite ways on this species. Status honest: the 1.78 birch is design-accepted and USER-UNSHOT, so if the tour rejects it the bracket re-opens. Two costs corrected in passing: TREE_SPACING_FOREST is 12-18 m and was never going to move for an 8 m crown (cited twice, in both directions, and false in both), while the hard-coded 8.0 m birch lattice in WorldgenScatter remains a live Rule 32 defect for core and never depended on the band. §5.3 restated: crown 5.4-7.5 m DESCRIPTIVE, «a range is two assertions» does not apply to a fraction, and the stale 0.58-0.62 crown base marked superseded by 0.40-0.45 in place.
+- 10:08:2026 - 01:47:47: TWO RATIFICATIONS FOR CORE'S TECH-DEBT WAVE. §3.1 step 4 — pond is a FLAT REACH of the river (в23): monotone pass goes flat across a pond, reach level = min(spill saddle, entry level), drawn = swum by construction, an over-level pond is unconstructible; §3.2 — river-through-lake obeys the same entry rule, ponds are no longer stamped basins. §7.0a — barrow-mouth red test ruled: EXPECTED-FAIL registered naming §7.0a, with a trigger-expiry (couloir search re-runs when §2.8.2 absolute-couloir-depth work lands; an xfail that passes announces the couloir). Core's no-couloirs measurement supersedes the earlier «by construction» note; high-shoulder fallback illegal (breaks story's not-visible-from-Vaelmere).
+- 10:08:2026 - 01:54:30: THE LANDSCAPE STAGE'S THREE STRUCTURES LAND. §1.7 — the six beauty rules (в19/в20) as acceptance conditions BR-1…BR-6, each with a must-fail control (real rejected instances where they exist: uniform scatter, jittered-lattice grass, the find-less world) and a 30a can-pass; all thresholds are requested NUMBERS rows. §2.10 — the landform dictionary (в18): landform = recipe (requirements on core) + acceptance + used-by; five dictionary rules; seed entries LF-1…LF-8 (rolling plain, ridge-and-swale, terraced river valley, scree apron, crest/outcrop, coastal cliffs, forest floor, droplet-erosion pass); ford rule superseded by bridges on navigable water. §8 — briefs for stand 1 (FOREST: four path types as one system, rich edges, finds at the в20 cadence, §5.10 built, shared wind field proven here) and stand 2 (RIVER+CASTLE: 25–35 m navigable river, terraces, stone bridge, LARGE castle with walled city, posad, wharf; city generator flagged as the long pole); Sources renumbered §8→§9 (no inbound references existed).
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1180,6 +1182,123 @@ earned. Design's share of the fix, since this document is what gets cited:
 - **A number in this document is never the source of truth for code — NUMBERS.md
   is** (Rule 14). Where a §5 or §2 brief quotes a value, it is quoting, and a
   reader who finds it in code has found a shadow, not a reference.
+
+---
+
+### 1.7 The six beauty rules — acceptance conditions (user-ratified в19/в20, stage-5)
+
+Six rules from LIVING_WORLD_RESEARCH.md, ratified whole by the user, entering
+the bible as **acceptance conditions** — each stated testably, each with the
+case it must reject and a case that can pass (Rule 30/30a), and **where a real
+rejected instance exists, IT is the control and the threshold sits above it.**
+They gate the stand maps (§8) before they gate anything else. Every constant
+named here is a **requested NUMBERS row** (Rule 35: core generates against
+these thresholds and design accepts against them — two zones, one number),
+flagged **(предложение — утвердить)** until the lead lands it.
+
+Labels BR-1…BR-6 map to грилл в19's (а)–(е) in order.
+
+**BR-1 (а) — a path's curve hides its destination at least once.**
+Hide-and-reveal (miegakure / BotW sightline occlusion): the bend is a
+mechanism of curiosity, not an ornament.
+- **Test:** at the path's 4 m stations, cast an eye-height (1.7 m) ray to the
+  destination goal; PASS requires ≥ 1 contiguous occluded run
+  ≥ `HIDE_REVEAL_MIN_RUN_M` (10 m proposed — ≈ 3 s of walking at
+  `WALK_SPEED` 3.0 and ≥ 3 stations; shorter concealment reads as flicker,
+  not as a reveal held back).
+- **Must-fail control:** a straight path across the preserved plain (§2.7)
+  between two mutually visible goals — zero occluded stations by
+  construction.
+- **Can-pass (30a):** a path bending around a single 2–5 m grive (§2.2); the
+  smoothing the trace already gets produces this wherever meso-relief exists.
+- **Scoping:** binds paths crossing the hill landform (§2.10 LF-2). On the
+  deliberately preserved plain the rule may be waived **per path, in
+  writing** — the waiver is authored, like the plain itself (в9).
+
+**BR-2 (б) — a path connects real goals by a near-shortest route, or it
+reads as painted.** Desire lines: a path is a record of repetition, and the
+generator must fake the repetition honestly.
+- **Test, two clauses:** (i) both endpoints are registered goals (POI or find
+  — no path to nowhere); (ii) path length ≤ `DETOUR_MAX` (1.4 proposed) ×
+  the cost-optimal route length, cost = distance weighted by slope and water
+  penalties — the same cost field the generator routes with.
+- **The Rule 30a trap, named:** the generator IS a cost search, so clause
+  (ii) alone can never fail its raw output — the teeth are the endpoint
+  clause and the bending passes: BR-1's hide-and-reveal detours and BR-2's
+  ceiling FIGHT, and 1.4 is where the fight is settled. The ceiling must sit
+  above the measured overhead of trace+smoothing+BR-1 bending (expected
+  ~1.1–1.2 — measure it, Rule 30) and below the painted case.
+- **Must-fail control:** an ornament path — one that ignores the cost field
+  (a hand-drawn "scenic" S at ratio ≈ 2×) or ends nowhere.
+- **Can-pass:** the desire-line trace with BR-1 bending applied.
+
+**BR-3 (в) — the rich edge: moss, flowers, mushrooms live on the path
+margin, not scattered uniformly.** The margin is the best real estate in the
+frame — half-shade, moisture, nobody treads it (research A6).
+- **Test:** decoration density as a function of `dist_to_path`: (i) on the
+  trodden center ≈ 0; (ii) margin band (edge → 2 m out) ≥ `RICH_EDGE_RATIO`
+  (3× proposed) × the density at 10–20 m; (iii) monotone decreasing beyond
+  the margin peak.
+- **Must-fail control — the real rejected instance:** the current build's
+  uniform scatter, the user's «земля плоская и мёртвая» said in numbers:
+  uniform scatter measures ratio ≈ 1 and fails clause (ii) under any
+  threshold above its noise. The threshold stands above it, as Rule 30
+  requires.
+- **Can-pass:** any density field keyed off `dist_to_path` with a margin
+  peak — the field already needed to draw the path itself.
+
+**BR-4 (г) — clumping of grass and flowers is an AUTHORED FIELD, not
+randomness.** Tsushima's lesson: кучность is a parameter someone paints,
+never a lucky accident of scatter.
+- **Test, two claims:** (i) the scatter RESPONDS to the field — two runs
+  identical except the clump-field value differ measurably in aggregation:
+  Clark–Evans index R ≤ `CLUMP_R_CLUMPED_MAX` (0.8 proposed) where the field
+  says clumped, R ≈ 1 where it says even; (ii) the field itself passes
+  Rule 31 — its distribution over the map is asserted, not just its bounds.
+- **Must-fail control — the real rejected instance:** the current grass:
+  pure jittered-lattice scatter reads R ≈ 1 everywhere and is IDENTICAL
+  under any field value — fails claim (i) in both directions.
+- **Can-pass:** two-level scatter (Poisson parents, clustered children)
+  with parent density driven by the field.
+
+**BR-5 (д) — the middle tier of hills exists to occlude: small finds are
+visible only from crests.** BotW's middle triangle: a hill that hides
+nothing is spending its budget on nothing — §2.2's meso-relief stops being
+texture and becomes режиссура here.
+- **Test, per find placed in the hill landform:** (i) from a ring of
+  eye-height samples at 40–80 m, the find is occluded from
+  ≥ `FIND_OCCLUSION_FRAC` (0.5 proposed) of bearings; (ii) the 30a clause —
+  from the crest of the nearest grive it IS visible: a find nothing can
+  reveal is a lost find, and a test without this clause measures the
+  raycaster, not the composition.
+- **Must-fail control:** a find on the preserved plain — occluded from ≈ 0
+  of bearings. (Finds on the plain are legal; they are simply not BR-5
+  specimens — the plain's emptiness is authored, в9.)
+- **Can-pass:** a find in a swale between two grives: 2–5 m crests beat a
+  1.7 m eye by arithmetic.
+
+**BR-6 (е) — the find rule: a walker meets a small find every ~60 s.**
+The mailbox tier (Kyoto calibration, research A2) — the layer between POIs
+that makes walking itself the content. Base is the USER'S CHOICE (в20):
+- `FIND_SPACING_BASE_S` = **60 s** of walking ⇒ ≈ 180 m of route at
+  `WALK_SPEED` 3.0 m/s. Near roads denser: spacing ×`FIND_NEAR_ROAD_MULT`
+  (0.5 proposed ⇒ ~30 s / 90 m). Wilderness sparser: ×`FIND_WILD_MULT`
+  (2.0 proposed ⇒ ~120 s / 360 m).
+- **Test:** scripted walks per regime (road route / cross-country route);
+  a find is "met" when the walker passes within `FIND_ENCOUNTER_RADIUS`
+  (20 m proposed) with line of sight at some station. Median gap within the
+  regime's band, **and the Rule 31 clause: assert the gap distribution —
+  no gap on a road-adjacent route exceeds `FIND_GAP_MAX_MULT` (3× proposed)
+  of the regime's spacing. A mean can hide a desert.**
+- **Must-fail control — the real rejected instance:** the current world,
+  which has no find layer at all: gap = ∞ on every route. This is the
+  origin of the whole complaint, and it is the control.
+- **Can-pass:** finds seeded along the path network at the derived linear
+  density.
+- **What a find is:** mushroom ring, abandoned cart, strange stone, spring,
+  a pale-spire group (§2.9) — flora/render propose catalog entries, design
+  accepts. Interaction with BR-5: near roads a find may sit visible from
+  the road (the road is its reveal); in the hills it obeys BR-5.
 
 ---
 
@@ -3215,6 +3334,118 @@ rock family, do that instead; the requirement is the separation, not the owner.
   either, and it would answer the same sentence. Recorded so it is not lost;
   it is a §4 item, not a mesh.
 
+## 2.10 The landform dictionary (user-ratified, в18, stage-5)
+
+The unit of landscape authorship is a **NAMED LANDFORM: a generation recipe
+(stated as REQUIREMENTS on core's generator, never as an implementation) +
+its acceptance conditions (with controls, Rule 30) + the maps that use it.**
+A map-stand declares its composition of landforms (§8); the big world later
+blends the same entries. Vintage Story's landform system is the precedent
+(research B5); ours differs in that an entry without acceptance conditions
+cannot enter the dictionary at all.
+
+**Dictionary-level rules:**
+
+1. **A recipe is a requirement set, not a function name.** Core may build one
+   entry from three passes or three entries from one field; acceptance does
+   not care.
+2. **Landform boundaries are domain-warped, never straight field edges**
+   (research rank 2). A straight border between two landforms in a frame is
+   a failed frame.
+3. **Every entry names its controls.** A landform whose acceptance nothing
+   can fail is a description (Rule 30).
+4. **Composition is declared, not emergent:** a stand's brief lists its
+   landforms; a form appearing on a map that does not declare it is a bug,
+   not a bonus.
+5. **New entries enter by the same door:** recipe + acceptance + a map that
+   wants it. A landform likely to acquire a name gets a story consult before
+   it lands (§2.9.5 precedent).
+
+**Seed entries** (constants are proposals → NUMBERS; existing rulings are
+cited, not restated):
+
+**LF-1 — rolling plain.** *Recipe:* base field + §2.7 micro-relief (0.3–0.6 m
+waves, в9), NO meso hills; one plain per map may be preserved deliberately
+calm — the authored exception (в9). *Acceptance:* slope histogram inside the
+§2.7 band; the eye-height horizon frame shows waves, not a billiard table.
+*Control:* the pre-§2.7 flat plane — the real rejected instance («земля
+плоская») fails. *Used by:* forest stand (glades), river stand (terrace
+tops), big world.
+
+**LF-2 — ridge-and-swale hills.** *Recipe:* anisotropic meso field per
+§2.1's ridgelet rule — 2–5 m relief (в9), elongated, direction-coherent
+grives with swales between; amplitude distribution CDF-checked (Rule 31).
+*Acceptance:* BR-5 works here — from a swale floor, the neighboring swale is
+hidden over ≥ half of bearings at eye height; the crest reveals it.
+*Control:* an isotropic bump field of the same amplitude — round bumps are
+the shape the user already rejected (Запрос 1). *Used by:* forest stand,
+river-valley shoulders, big world.
+
+**LF-3 — river valley with terraces.** *Recipe:* valley cross-profile
+carrying the 25–35 m navigable river (в15): 2–3 terrace steps per side
+(terrace operator applied in the valley mask, research rank 5); tributary
+streams 3–5 m wide for scale contrast; LF-8 erosion feeds gullies and fans
+into it; the river obeys §3.1 whole (monotone + flat reaches); **current on
+the surface, not waves** (в21). **On a navigable river the §3.1.6 ford rule
+is SUPERSEDED by bridges** — a ford caps depth at 0.4 m and kills
+navigability; the POI graph is kept whole by bridges, and fords remain the
+rule for the 3–5 m tributaries. *Acceptance:* terraces read as horizontal
+lines in the cross-valley frame; width within 25–35 m at every station;
+navigable = continuous channel ≥ `NAVIGABLE_DRAFT` (1.2 m proposed) edge to
+edge. *Control:* the current testbed river — the real rejected instance
+(в6: «не как лужица что сейчас») fails the width acceptance. *Used by:*
+river+castle stand; later the big world.
+
+**LF-4 — scree apron (talus).** Already ruled in §5.12 — entered here as the
+dictionary's first citizen. *Recipe:* per §5.12: a HEIGHT rule at the massif
+foot, not a clearing; scree, stone, scrub, stunted pine; never spires
+(§2.9.1). *Acceptance:* per §5.12 — the forest does not eat the massif base
+in the valley frame. *Control:* forest drawn to the rockline — the frame
+that forced §5.12. *Used by:* massif surrounds (testbed), coastal cliff
+bases (sea stand).
+
+**LF-5 — rocky crest / outcrop.** *Recipe:* ridge-noise crest lines on grive
+tops where the meso field peaks (research rank 3 — new landforms only; the
+built massif is not re-opened), plus outcrop clusters at convex slope breaks
+(rank 7). **Outcrops are associative:** each is explained by its slope
+break; a free-floating boulder on flat ground is a placement error.
+*Acceptance:* a crest line reads at 640×360 from its declared distance
+(Rule 33 sizes it, F2 dates it); outcrop value contrast against grass passes
+§1.5. *Control:* the same outcrop set scattered uniformly on flat ground —
+the "boulder sprinkle" every generator ships by default. *Used by:* forest
+stand ridges, river-valley shoulders, sea-stand headlands.
+
+**LF-6 — coastal cliffs.** *Recipe:* cliff face with the §4.1 pale stratum
+visible as horizontal banding; undercuts/overhangs at the waterline — the
+voxel advantage, spent sparingly (1–2 per stand, rank 8); **pale spires
+sited per §2.9** — backdrop rock or canopy, never skyline: a spire group at
+a cliff foot reading against the face is the canonical siting; **Gerstner
+waves — 3 waves off the SHARED wind field (в21) — damped by depth toward
+the shore.** *Acceptance:* strata visible in the cliff frame; spires break
+no horizon in any tour frame; wave amplitude → 0 at the waterline.
+*Control:* §2.9's own rejected siting (spires against sky) — a real
+rejected instance. *Used by:* sea stand (third map, в22).
+
+**LF-7 — forest floor.** *Recipe:* §5.10 finally BUILT — BigBush, both
+FallenLog classes, colonnade spacing 12–18 m, ≥ 2.2 m under-canopy
+clearance; understory clumped by the BR-4 field; path margins rich per
+BR-3. *Acceptance:* §5.10's own rules + BR-3/BR-4 measured inside a forest
+mass; the "walked wood" frame from a path. *Control:* the current floor —
+trees over uniform grass, nothing else; the real rejected instance.
+*Used by:* forest stand first, every forest mass after.
+
+**LF-8 — erosion overlay (droplet).** Not a place but a PASS, and it lives
+in the dictionary because maps declare it like a form (в17, ratified).
+*Recipe:* seeded droplet erosion on the coarse grid BEFORE the SDF
+(research B6, rank 4): gullies (промоины), hollows (лощины), outwash fans
+(веера выноса); deterministic — fixed droplet count from seeded RNG; water
+placements stay derived-only (§7.1a), so the trace is allowed to move.
+*Acceptance:* fans appear where gullies exit onto lower ground —
+associative, each fan explained by its gully. *Control:* the same map with
+the pass OFF must fail the gully acceptance; if no frame can tell the
+difference, the pass is decoration and does not land. *Used by:* every
+stand; the big world.
+
 ## 3. Water
 
 Water does not exist in the engine yet; this section is the contract for its
@@ -3234,9 +3465,29 @@ Compatible with our heightmap pipeline (fBm has no drainage; we impose it):
    region/testbed edge or a lake.
 3. **Smooth & resample:** Chaikin-smooth the polyline, resample stations every
    4 m; enforce target sinuosity ≥ 1.15 by amplitude of smoothing noise.
-4. **Monotonic water surface:** station water height = min(previous station,
-   local terrain) — **the water surface never gains height downstream. This is
-   the invariant; a river that climbs is a failed seed.**
+4. **Monotonic water surface, with flat reaches (user-ratified, грилл в23;
+   semantics ratified stage-5 on core's diagnosis):** station water height =
+   min(previous station, local terrain) — EXCEPT through a pond, because
+   **a pond is not a separate water body: it is a FLAT REACH of the river**
+   (плёс). The monotone pass does not descend *through* a pond; it goes flat
+   across it and resumes min-descent from the reach level at the spill.
+   **Reach level = min(spill-saddle level, the water level at which the river
+   ENTERS the pond)** — every station inside the pond takes exactly that
+   level, and pond cells whose terrain rises above the lowered level drain
+   (the footprint shrinks; that is the rule working, not a defect). The
+   invariant, sharpened rather than changed: **the water surface never gains
+   height downstream, is CONSTANT across any standing body it passes through,
+   and a pond's drawn level equals its swum level BY CONSTRUCTION — there is
+   one authority for «where is the water», the reach level, and a pond whose
+   level exceeds the entering river's level is unconstructible, not merely
+   wrong.** A river that climbs is a failed seed; a pond storing a level of
+   its own is the same failure. And because the fill level is an INPUT to the
+   carve (the pond bed is cut from the reach level), moving the water moves
+   the ground under it in the same pass, never as a follow-up — this is the
+   lesson of the 7.98 m pond, stated as construction rather than as repair.
+   Control (Rule 30): the pre-fix construction, which produced a pond 7.98 m
+   above the river draining it, must FAIL this statement; the flat-reach
+   construction cannot produce it (core ships that pair with the change).
 5. **Carve:** trapezoid cross-section, depth `RIVER_DEPTH` = 1.5 m, width
    `RIVER_WIDTH` = 4–8 m growing from source to mouth, bank blend 2× width
    **(предложение — утвердить)**.
@@ -3256,8 +3507,12 @@ Compatible with our heightmap pipeline (fBm has no drainage; we impose it):
 
 - A lake is a stamped basin: radial depression to `LAKE_DEPTH_MAX` = 4 m with
   a flat water plane at its rim-min height; the river may terminate in it or
-  exit at its spill point. Ponds (steps 2 pond-and-spill) are the same at
-  radius 5–15 m.
+  exit at its spill point. **Where the river flows THROUGH a lake, the plane
+  obeys the same reach rule as a pond — plane = min(rim-min, the river's
+  entry level)** — otherwise the lake rebuilds the exact defect the flat
+  reach just removed, one water body over. Ponds are **no longer stamped
+  basins: a pond is a flat reach of the river (§3.1 step 4)** — it has no
+  level of its own, only the reach's — at radius 5–15 m.
 - Testbed carries 1 lake (§7); region density FUTURE (needs the moisture
   field).
 - Lake shores are prime real estate: the settlement rule (§3.4) and shore
@@ -5788,6 +6043,31 @@ stands over the seat rather than under it. That inversion is arguably stronger
 story's sentence, not mine — pre-cleared with them rather than assumed.
 Options (a) and (b) remain last resorts.
 
+**FINAL RULING ON THE RED TEST (stage-5): register EXPECTED-FAIL, comment
+naming this section — with a TRIGGER for expiry, because a red without an
+owner and an expected-fail without an expiry are the same lie at different
+volumes.** Core's latest measurement supersedes the «couloirs exist by
+construction» note above (Rule 34: the owner of the massif code was asked and
+answered): the current massif is a **self-similar cone with no couloirs at
+any height**, so re-running the §7.0a search now would fail a third time for
+the already-predicted reason. And the high-shoulder fallback is **measured to
+break story's not-visible-from-Vaelmere constraint** — so it is no longer
+merely story's sentence to pass, it is currently illegal. That leaves no
+green placement to site today, and a permanently red test trains people to
+ignore red — which is worse than the debt it advertises. Therefore:
+
+- The barrow-mouth carve case is registered **expected-fail**, with a comment
+  naming §7.0a. The suite goes green. Re-siting becomes a stage task.
+- **The expiry is a trigger, not a date:** when arête/couloir work lands (the
+  §2.8.2 absolute-couloir-depth unit fix that I8's 0.14-vs-0.15 failure
+  already demands), the couloir search runs **as part of that change** —
+  §7.0a's window: bearings 180°–240°, radius 90–110 m, terrain ≤ ≈ 28 m,
+  nearest to 209° — and the registration flips. An expected-fail that
+  unexpectedly PASSES is precisely the mechanism that announces the couloir
+  now exists; that is why expected-fail is chosen over deletion.
+- Owner of the trigger: design (this document). Core owns only the
+  registration and the comment.
+
 ### 7.1a Plan vs generated truth (seed 1, stage-3b probes)
 
 The layout table rows are *stamp centers and targets*; the generated world is
@@ -5866,7 +6146,141 @@ must tolerate the trace landing where it lands.
 
 ---
 
-## 8. Sources
+## 8. The stand maps — briefs (user-ratified в1/в2/в5/в6/в15, stage-5)
+
+The stands are SEPARATE maps built from generation rules (в1) — not
+hand-sculpts: everything on them comes out of the dictionary (§2.10) and the
+same passes that later compose the big world. Order ruled by the user: tech
+debt → forest → river+castle (character-agent parallel) → sea (в22) →
+town + mirror map. **A brief states what must be TRUE and how it is
+ACCEPTED — frames and conditions — never how it is built.**
+
+**Scoping rule for all stands:** stand maps are exempt from the L0/weenie
+wayfinding hierarchy (§1.3) — they test landforms and rules, not wayfinding;
+§1.3 binds the testbed and the big world. Everything else in this bible
+binds stands exactly as it binds the world, and the §1.6 frame doctrine
+(declared vantages, each able to fail — F7) governs every acceptance below.
+
+### 8.1 Stand 1 — FOREST: the walk-and-look map
+
+**Purpose:** the first map where walking IS the content. It exists to prove
+the six beauty rules (§1.7) and the forest floor (§5.10 — flagged unbuilt
+twice by the lead; this stand is where it finally gets built), against the
+user's founding complaint «земля плоская и мёртвая».
+
+**Composition (§2.10 rule 4, declared):** LF-1 rolling plain (glades),
+LF-2 ridge-and-swale, LF-5 crest/outcrop, LF-7 forest floor, LF-8 erosion
+overlay. No massif, no sea, no L0 — deliberately: nothing tall rescues a
+boring middle distance here, the meso tier and the floor must carry the
+frame alone.
+
+**What must be true:**
+
+1. **All four path types as ONE system (в7):** мостовая (paved), dirt road,
+   hint-path (тропинка-намёк), stone steps — one network, one
+   `dist_to_path` field. Type changes along a route by rule: paved near the
+   largest goal, dirt between goals, hint-paths to finds, steps where the
+   slope demands them. Cross-section per research A6: worn center → pressed
+   margins → rich edge (BR-3) — a GRADIENT, never a decal ribbon.
+2. **Real goals for the network** (BR-2 requires them): 4–6 small goals —
+   e.g. clearing shrine, spring, woodcutter's hut, a pale-spire group
+   against canopy (§2.9) — catalog design's, placement generator's.
+3. **Finds at cadence (BR-6):** both regimes measurable — total path length
+   ≥ 2 km so road and wild routes each yield ≥ 10 gaps (Rule 31 needs a
+   distribution, not an anecdote).
+4. **§5.10 floor classes built:** BigBush, both log classes, scarp-edge
+   trees where scarps exist.
+5. **Clump field authored (BR-4)** driving grass/flowers; rich edges (BR-3).
+6. **The shared wind field exists here first:** grass and leaves read ONE
+   vector. The sea stand's Gerstner waves (в21) later read the SAME field —
+   this stand proves the field, the sea stand proves the waves.
+7. **Walked in first person with the full body (в3/в11):** the acceptance
+   tour is walked at eye height; the body itself is the character-agent's
+   deliverable, but this map is its stage — step-feel (bob ↔ footstep sync,
+   research D1) is accepted here when it lands.
+
+**Acceptance:** all six §1.7 gates green on this map WITH their controls;
+declared frames (fixed before the run): (a) down-a-path frame — worn
+center, margins, rich edge in one image; (b) swale frame — the path bends
+out of sight (BR-1 visible); (c) crest frame — a find revealed; (d) glade
+frame — clumped flowers, not sprinkle; (e) floor frame — logs and bushes
+breaking sightlines. Plus the two scripted walk routes (road / wild) with
+gap statistics recorded.
+
+**Needs, for the lead to sequence:** core — path-network generator
+(cost-field desire lines, four types, `dist_to_path`), landform composition
+per §2.10, clump-field sampling, find placement, erosion pass; render —
+path splat cross-section, floor-class and find meshes, steps geometry,
+wind-driven grass; flora — edge population tables, understory clumping,
+find catalog entries; sim — collision for logs/bushes (§5.10 table).
+в24 binds the split: **core generates, render draws, flora populates the
+edge, design accepts.**
+
+### 8.2 Stand 2 — RIVER + CASTLE: the 25–35 m river and the walled city
+
+**Purpose:** water at real scale (в6: «не как лужица что сейчас») and the
+seat of state power at its final size — a NEW castle (в5) that, once
+polished, replaces Harrowward in the big world. The replacement's fiction is
+story's; this stand only has to earn it.
+
+**Composition:** LF-3 river valley with terraces (the spine), LF-1 on
+terrace tops, LF-2 on valley shoulders, LF-5 outcrops at shoulder breaks,
+LF-7 in the valley-side woods, LF-8 erosion. Structures: castle + walled
+city (§6.1 applies, scaled), stone bridge, wharf, posad.
+
+**What must be true:**
+
+1. **The river:** 25–35 m wide, **navigable edge to edge** — continuous
+   channel ≥ `NAVIGABLE_DRAFT` (1.2 m proposed); obeys §3.1 whole,
+   including flat reaches; **current on the surface, not waves** (в21);
+   tributaries 3–5 m join with visible confluences (LF-8 fans where they
+   cut the terraces).
+2. **Crossings:** per LF-3, **the ford rule is superseded by bridges on the
+   navigable channel** — ≥ 1 stone bridge carries the main road, with
+   `BRIDGE_CLEARANCE` (3 m above reach level proposed) so navigability
+   survives the crossing. Fords remain legal on tributaries only.
+3. **The castle: LARGE (в2 — the user's emphasis).** §6.1 hierarchy, siting
+   and footprint rules apply at the new scale; sited commanding the river
+   (bend outer bank / terrace edge, §3.4 scoring logic). **Walled city
+   INSIDE the walls (в6), posad outside the land gate, wharf on the
+   water.**
+4. **City anatomy minimum:** wall with ≥ 2 gates; keep + bailey (§6.1);
+   streets connecting gates ↔ keep ↔ wharf; posad = unwalled cluster
+   outside the land gate; wharf = quay wall + landing on the navigable
+   channel, reachable from a gate.
+5. **The path system continues (в7):** paved inside the walls, dirt on the
+   approaches, the bridge carries the main road; BR rules bind the
+   approaches.
+6. **Terraces:** 2–3 per side reading as horizontal lines; the city stands
+   on a terrace, not on a slope (§6.1 pads).
+
+**Acceptance:** declared frames: (a) water-level up-river frame — valley,
+terraces, castle over the water (the user's sentence «на реке должен стоять
+ЗАМОК БОЛЬШИХ РАЗМЕРОВ» as an image, from a vantage that could fail it);
+(b) bridge frame — width and current readable; (c) far-terrace frame — the
+whole hierarchy wall/keep/posad/wharf readable at 640×360 (§6.1.3);
+(d) wharf frame at eye height. Conditions: width in band at every station;
+navigability trace green; §3.1 invariants green; **no ford on the main
+channel — control: run the ford generator against the navigable river and
+the acceptance must reject the result;** §6.1 checks re-run at scale.
+**Control for LARGE:** Harrowward as built is the real comparative
+instance — proposed `CASTLE2_FOOTPRINT_MULT` ≥ 2× its footprint
+(предложение — утвердить).
+
+**Needs, for the lead to sequence:** core — wide-river carve + terrace
+operator + navigability trace, bridge/wharf pads, tributaries, and the
+**city wall + street generator, which does not exist and is the long pole —
+flagged**; render — water-current shading, bridge/quay/wall meshes
+(placeholder prisms legal per §7.3 precedent), castle at scale; sim —
+collision (boats are FUTURE: navigability is accepted by trace, not by
+sailing); flora — riverbank species (birch bank lines at
+`BIRCH_BANKLINE_SPACING`), terrace-edge planting; story — **consult before
+the city lands** (it will acquire a name and canon, §2.9.5 precedent, and
+it eventually replaces Harrowward — that transition's fiction is story's).
+
+---
+
+## 9. Sources
 
 Consulted 09:08:2026. Engine-internal grounding: NUMBERS.md, DECISIONS.md
 (Q12/Q41/Q45/Q46), `engine/world/sources/Worldgen.cpp` (octaves, quantization
