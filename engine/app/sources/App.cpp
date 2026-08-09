@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:38:29
+Last updated: 09:08:2026 - 22:47:13
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -71,6 +71,7 @@ UPD:
                          inside the barrow" was missing geometry, not light).
 - 09:08:2026 - 22:34:17: Взаимодействие подключено к игре: предметы, три пробных объекта (взять/открыть/использовать), столкновения с реквизитом, наведение, действия, переносимый свет, модель рук. Всё это существовало и не вызывалось ни разу.
 - 09:08:2026 - 22:38:29: Настоящие номера моделей руки (32) и факела (33) вместо заглушек — render их завёл.
+- 09:08:2026 - 22:47:13: Карта снова записывает разведанное: высотное поле едет вместе с воксельной выгрузкой (пометка кусков висела на старом пути и молча отвалилась). Плюс новая сигнатура действий игрока — выбрасывание предметов требует физики.
 */
 
 #include "engine/app/sources/App.h"
@@ -296,11 +297,20 @@ bool App::init(const AppConfig& config) {
         // at all, and a live player who walked into the barrow saw the world
         // from the inside. The heightfield upload remains as the fallback for
         // chunks that have no voxel mesh.
+        // The heightfield still travels with the voxel upload, for the MAP and
+        // only for the map. `note_chunk` used to hang off the heightfield path,
+        // so the day terrain moved to the voxel mesh the map silently stopped
+        // recording anything that HAD voxel geometry -- i.e. nearly everything.
+        // An unexplored map is pixel-identical to a broken one, which is why it
+        // went unnoticed for hours. Render will not re-derive one height per
+        // column from a surface mesh; the app already holds the field, so the
+        // app passes it.
         const auto voxel = chunks_.voxel_mesh(e.coord);
+        auto sf = chunks_.surfacefield(e.coord);
         if (voxel) {
-            render_system_.upload_terrain_voxel(*renderer_, *voxel);
+            render_system_.upload_terrain_voxel(*renderer_, *voxel, &*view,
+                                                sf ? &*sf : nullptr);
         } else {
-            auto sf = chunks_.surfacefield(e.coord);
             render_system_.upload_terrain(*renderer_, *view, sf ? &*sf : nullptr);
         }
         render_system_.upload_scatter(*renderer_, {e.coord.x, e.coord.z},
@@ -503,7 +513,7 @@ int App::run() {
                 // while turning.
                 gameplay::update_hover(world_, *physics_);
                 // Actions AFTER the hover they act on: E interact, F light, I bag.
-                gameplay::player_actions_step(world_, bus_);
+                gameplay::player_actions_step(world_, bus_, *physics_);
                 // Carriers without a view model (NPCs with lanterns).
                 gameplay::update_carried_lights(world_);
                 // LAST: reads the CameraPose post_step wrote and the HeldItem
