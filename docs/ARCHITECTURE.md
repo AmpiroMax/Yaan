@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 22:12:38
+Last updated: 09:08:2026 - 22:43:02
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 09:08:2026 - 10:42:00: Stage 3 — added the `design` zone (landscape/world design docs) to Rule 25.
 - 09:08:2026 - 21:56:40: Added Rules 30-34, all five earned by defects found in the worldgen v2 stage: controls with every test, distribution asserted not bounds, fix the mechanism not the instance, detail sized against viewing distance, never diagnose from an unchecked premise.
 - 09:08:2026 - 22:12:38: Rule 30 gained corollaries 30a (a test needs a case that CAN pass it) and 30b (for a diagnosis, the counterfactual is the control).
+- 09:08:2026 - 22:43:02: Rule 35 — a number stops belonging to a zone when a second zone must agree with it; the trigger is a thing gaining a dimension.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -373,6 +374,23 @@ field is seeded — is checked in the source or asked of its owner before any co
 is built on it. Sound reasoning from a false premise is indistinguishable from sound
 reasoning until it wastes a build. This rule exists because it was broken four times in
 one evening, twice by agents who had just invoked it against someone else.
+
+### Rule 35 — A number stops belonging to a zone when a second zone must agree with it
+Such a number moves to `docs/NUMBERS.md` and both zones read it there. "Zone A tells
+zone B a value and B hardcodes it" is the same defect as "B keeps a literal A has to
+match" — the direction of the conversation does not change that there are two copies.
+
+The predictive form, which is what makes this findable before it bites: **the second
+consumer appears when a thing GAINS A DIMENSION.** How far a boulder sinks into the
+ground mattered to nobody until boulders acquired collision, at which point the drawn
+surface and the solid surface had to be the same number. A torch's length mattered to
+nobody until the torch acquired a mesh, at which point the wood and the flame had to
+be the same number. So the trigger to watch for is not "two zones are arguing", it is
+"something that was only drawn is now also simulated, or the reverse".
+
+The same reasoning applies to STATE, not only to constants: the composition root must
+never reconstruct bookkeeping a subsystem already holds. Two copies drift whether they
+are numbers or sets.
 
 ---
 
