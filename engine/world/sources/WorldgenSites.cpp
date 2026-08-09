@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 18:58:01
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h; placer fallback scores dry-over-flat-over-wet and shies from banks.
 - 09:08:2026 - 15:18:34: Castle: solved first (its terrace outranks ordinary pads), elements appended to the shared record list keeping WorldEntityIds sequential; pads_height applies the terrace + ramp.
 - 09:08:2026 - 17:36:42: §6.2: entrances no longer use the pad scorer at all — relief within 25 m selects adit vs sunken barrow, the generator stamps the mound/forecourt it needs on flat ground, and the marker is derived from the mouth with an explicit floor height. Hand-authored carves outrank generated stubs.
+- 09:08:2026 - 18:58:01: Live-play fixes: (a) the forecourt now runs from the flank lintel PAST the mound rim to natural grade — it previously ended while still on the mound, so the rim walled off the exit and the barrow read as 'facing into rock, as if there is no entrance'; (b) the mound is a paraboloid DOME instead of a smoothstep plateau-with-rim ('crooked, just a square'); (c) the cut flares outward so it reads as a way in rather than a slot.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
@@ -185,8 +186,19 @@ EntranceWorks build_entrance_works(uint64_t seed, const TestbedLayout& layout,
         // player down to a lintel in its flank.
         w.mounded = true;
         w.mound_height = MOUND_H;
-        w.portal = site + w.outward * (MOUND_R * 0.45f);
+        // The lintel sits partway up the FLANK (§6.2: "walks the player down
+        // to a lintel in its flank"), so the doorway is a dark face in the
+        // dome and reads as an entrance from outside. The bug was never the
+        // lintel's position — it was that the cut ran only
+        // BARROW_FORECOURT_LENGTH and so ended while still ON the mound,
+        // leaving the way out blocked by the rim ("faces into rock, as if
+        // there is no entrance"). The cut must reach natural grade BEYOND the
+        // rim, so its length is the distance still to travel over the mound
+        // PLUS the ruled length of open approach.
+        const float portal_offset = MOUND_R * 0.45f;
+        w.portal = site + w.outward * portal_offset;
         w.portal_floor = grade - FC_DEPTH;
+        w.forecourt_length = (MOUND_R - portal_offset) + FC_LEN;
     }
     // The adit: from just outside the portal, in under the mound/hillside.
     const glm::vec3 mouth_outer{w.portal.x + w.outward.x * 2.0f, w.portal_floor,
@@ -356,12 +368,14 @@ float entrance_works_height(const SitesData& sites, glm::vec2 world, float h) {
             continue;
         }
         if (w.mounded) {
-            // Radial mound: smooth crest, so it reads as a built barrow rather
-            // than a cone, and its flank gives the portal a face.
+            // DOME, not a plateau. smoothstep flattens the top and stands the
+            // rim up like a wall, which is what read as "crooked, just a
+            // square". A paraboloid falls continuously from the crown to zero
+            // slope at the rim: round from every angle, no flat top, no step.
             const float d = glm::length(world - w.center);
             if (d < w.mound_radius) {
-                const float t = 1.0f - d / w.mound_radius;
-                h += w.mound_height * noise::smoothstep01(t);
+                const float t = d / w.mound_radius;
+                h += w.mound_height * (1.0f - t * t);
             }
         }
         // Cut forecourt: a trench running out from the portal, deepest at the
@@ -370,8 +384,12 @@ float entrance_works_height(const SitesData& sites, glm::vec2 world, float h) {
         const glm::vec2 rel = world - w.portal;
         const float along = glm::dot(rel, w.outward);
         const float across = std::fabs(rel.x * w.outward.y - rel.y * w.outward.x);
-        if (along >= -2.0f && along <= w.forecourt_length
-            && across <= w.forecourt_half_width) {
+        // The cut FLARES outward — narrow at the lintel, wider at the mouth of
+        // the approach. A constant-width slot is what made the works read as a
+        // box cut into the hill rather than a way in.
+        const float flare = w.forecourt_half_width
+                          * (1.0f + std::clamp(along / w.forecourt_length, 0.0f, 1.0f));
+        if (along >= -2.0f && along <= w.forecourt_length && across <= flare) {
             const float t = std::clamp(along / w.forecourt_length, 0.0f, 1.0f);
             const float floor_h = w.portal_floor + (h - w.portal_floor) * t;
             h = std::min(h, floor_h);

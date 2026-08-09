@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 10:48:00
+Last updated: 09:08:2026 - 18:56:38
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -40,6 +40,12 @@ UPD:
 - 09:08:2026 - 10:48:00: Stage-3 sync (Rule 26, render's batch approved):
                          RenderEnvironment + set_environment (atmosphere, splat,
                          water params as uniforms); palette_post init flag (Q9b).
+- 09:08:2026 - 18:56:38: Night sky + one carried point light appended to
+                         RenderEnvironment (render's diff, lead-authored per
+                         Rule 26): moon direction/colour/phase/light, star
+                         intensity, torch position/colour/radius. Pure
+                         addition — no field changed or reordered, both
+                         backends keep compiling.
 */
 
 #pragma once
@@ -116,6 +122,25 @@ struct RenderEnvironment {
     glm::vec4 water_color{0.16f, 0.30f, 0.34f, 0.62f}; // rgba, a = opacity
     glm::vec2 water_scroll_uv{0.02f, 0.013f};          // uv units / second
     float time_seconds = 0.0f;    // render-side visual time (not sim time)
+
+    // Night sky. The app's clock drives all of these (render::apply_sky_time).
+    glm::vec3 moon_direction{0.0f, -1.0f, 0.0f}; // TOWARD the moon, normalized;
+                                                 // below the horizon = not drawn
+    glm::vec3 moon_color{0.72f, 0.76f, 0.90f};   // disc colour (cold white)
+    float moon_phase = 0.5f;      // 0 = new, 0.5 = full, wraps at 1.0
+    float moon_light = 0.0f;      // 0..1 directional moonlight on the ground;
+                                  // separate from moon_color so an overcast
+                                  // night can dim the light, not the disc
+    float star_intensity = 0.0f;  // 0 = day, 1 = clear night. Explicit rather
+                                  // than derived from sun elevation: overcast
+                                  // means stars off with the sun untouched
+
+    // ONE point light (torch/lantern, interiors). Deliberately single, not a
+    // list: it is what the player carries. A light list is a later sync, when
+    // NPC lanterns and lit windows need one.
+    glm::vec3 point_light_position{0.0f}; // world space, meters
+    glm::vec3 point_light_color{0.0f};    // linear; black = off
+    float point_light_radius_m = 0.0f;    // 0 = off
 };
 
 class IRenderer {

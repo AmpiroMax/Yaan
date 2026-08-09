@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 17:28:51
+Last updated: 09:08:2026 - 18:55:22
 -->
 <!--
 UPD:
@@ -17,6 +17,7 @@ UPD:
 - 09:08:2026 - 15:22:13: C2 scope corrected (my error): POI_VISIBLE_COUNT is region-only per NUMBERS.md/Q46 and is unsatisfiable at testbed density alongside LANDMARK_VISIBILITY_MIN — general-bound citation withdrawn. Added Rule C2-testbed (no coequal crowd): max 2 attractors within a 2.0 subtended-size ratio, L0 exempt, composite POIs count once; occlude-and-reveal remains the real guarantee. Region bound unchanged.
 - 09:08:2026 - 15:33:48: C2-testbed limit raised 2 -> 3 on measured evidence (seed-1 crowd is three threshold-scale marks at 8-11 px), with a tightening to 2 for large crowds (COEQUAL_LARGE_PX 24 px). Blessed core's three measurement definitions into the doc: apparent size = height/distance (not top elevation angle, one definition shared by C2/C4/R4), only >=SILHOUETTE_MIN_PX attractors compete, body-backed attractors exempt per standpoint with the raw count still reported.
 - 09:08:2026 - 17:28:51: New §6.2 — dungeon entrance archetypes after a live player read a mis-sited entrance as a bug: relief-selected adit vs sunken barrow; flat-ground answer is a stamped mound + cut forecourt + lintel (generator makes the relief it needs) with four findability layers; marker/facing derived from the carve mouth (derived-only rule extended to carve-adjacent placements); attractor status ruled (assembly counts, hole never does, short-range L1 only).
+- 09:08:2026 - 18:55:22: Stage-4, five user decisions ruled. §1.3a — world to 2x2 km: testbed and region contracts coexist SPATIALLY (home valley / transition band / open region), new top landmark tier LR, LANDMARK_VISIBILITY_MIN measured over each landmark's own domain, LR and L0 separated by atmospheric depth rather than angular size. §2.5 — temple mountain: 280 m relief, massif ratio, ridged noise + irregular buttress ridges + cliff bands + asymmetry, checkable anti-dome invariant (lobed slice + 60% rock slope), mandatory validated ascent. §2.6 — border mountains replace invisible walls: varied crest, lobed spurs, impassable by slope AND a traversability flood-fill, never counted as attractors. §2.7 — micro-relief octave everywhere + one plain sited to frame the LR reveal. §5.7 — tall trees worked through: oak 24-32 m, birch 16-22 m, pine 28-38 m (declines literal x4, would overtop Ravenscar), L0_RELIEF 52 -> 110-120 m proposed, sight wedges become tree-free, crown base 35-45%, TREE_SPACING_FOREST 12-18 m (~80% density cut), tri budget 700 + mandatory LOD.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -187,6 +188,64 @@ out-angling the 52 m crag from every western/southern ground vantage):
   is forest *shape*: a closed canopy annulus around an L0 can never pass
   canopy-C1 from valley ground — landmark-skirting forest must be broken
   into radial/ridge strips with gaps (see §7.1).
+
+### 1.3a World scale, zones, and the fourth landmark tier (stage-4 ruling)
+
+The world grows to 2×2 km now, 10×10 km once LOD exists. The valley becomes a
+corner of it.
+
+**Zones, not epochs — the two density contracts coexist SPATIALLY.** Q46 says
+never cross-apply testbed and region numbers; it does not say the world may
+only have one of them. Ruling: the testbed contract is a *contract*, not a
+size. The original 1×1 km valley keeps it; everything beyond runs the region
+contract. Neither is corrected toward the other.
+
+| Zone | Extent | POI spacing (from `POI_TRAVEL_TIME`) |
+|---|---|---|
+| **Home valley** | the original 1×1 km corner | 180–270 m (testbed) |
+| **Open region** | the rest of the 2×2 km | 540–900 m (region) |
+| **Transition band** | `ZONE_TRANSITION_WIDTH` = 300 m ring around the valley **(предложение — утвердить)** | interpolate between the two |
+
+The transition is a designed feeling, not a seam: leaving home should *feel*
+like the world opening up. A hard density cliff would read as a bug; a
+gradient reads as journey.
+
+**Landmark tiers gain a top level.** The map now needs a landmark above the
+valley's:
+
+| Tier | Name | Count | Domain |
+|---|---|---|---|
+| **LR** | **Regional landmark** — the temple mountain (§2.5) | exactly 1 per world | the whole map |
+| L0 | Valley-dominant — Ravenscar | 1 per valley | its valley |
+| L1 / L2 | as before (§1.3) | | |
+
+**Scale-aware visibility — the fix that keeps C1 meaningful at 2 km.**
+`LANDMARK_VISIBILITY_MIN` (0.6) is measured over the landmark's **own
+domain**, never the whole map: the valley L0 over the valley, the LR over the
+world. This was implicit while domain == map; at 2 km it must be explicit, or
+Ravenscar fails a test it was never meant to take.
+
+**C1/C2/C3 at the new scale:** C1 holds unchanged as a floor (the LR satisfies
+it across most of the region by design — that is intended, not a loophole).
+C2-testbed is already scale-free (it compares angular ratios, not counts of
+metres) — keep as written. C3 uses the per-zone spacing above. Border
+mountains (§2.6) **never count as attractors** in any of these tests.
+
+**The two big landmarks coexist by DEPTH, not by size.** This is the
+crag-vs-castle problem again, but the map-scale answer is different: do *not*
+require the near landmark to out-subtend the far one — at 2 km their
+subtended heights are comparable and forcing a margin would mean deforming
+one of them. Instead they separate by **atmospheric depth**: the LR always
+renders beyond the haze onset from valley standpoints, the valley L0 always
+inside it. Hazy-and-huge versus solid-and-detailed reads instantly as "far
+goal" versus "here"; it is how Skyrim keeps the Throat of the World from
+eating every local landmark. Contract for render: `LANDMARK_HAZE_ONSET` =
+800 m **(предложение — утвердить)**; the LR is never sited closer than that
+to the valley's main corridors, and the valley L0 never further.
+
+**The LR is never fully occluded** from the valley's main corridors — it is
+the far goal, and a goal you cannot see is not a goal. Same wedge machinery
+as §1.3, applied at map scale.
 
 ### 1.4 Draw-the-player rules
 
@@ -372,6 +431,103 @@ will be built along a subset of corridors.
 
 ---
 
+### 2.5 The regional landmark massif — the temple mountain (LR)
+
+The far goal: high, cliffy, uneven, with a walkable ascent and a temple on
+top. Ravenscar keeps the valley and the story; this keeps the horizon.
+
+**Scale (предложение — утвердить).** `LR_RELIEF` = 280 m above the
+surrounding plain (proposed band 250–350). `LR_BASE_RADIUS` = 600–700 m, i.e.
+mean flank slope ≈ 25° — that ratio is what makes it read as a **massif**
+rather than a spike; a cone steep enough to be dramatic at the summit must be
+broad enough at the foot to look like it belongs to the ground. Sited ≥
+`LANDMARK_HAZE_ONSET` (800 m) from the valley, in practice the far corner
+(≈ 1.4–1.6 km out). Readability (§1.5): at 1500 m anything ≥ 50 m reads, so
+the massif is unmistakable while its temple (15–20 m) only resolves inside
+≈ 600 m — the temple is the reward for approaching, exactly like the castle.
+This requires `WORLDGEN_MAX_HEIGHT` 64 → **400 m**.
+
+**"Cliffy and uneven" as generator rules — the user explicitly rejects smooth
+domes, so these are invariants, not suggestions:**
+
+1. **Ridged noise, not fBm**, for the massif field: `r = 1 − |2n − 1|`
+   summed over octaves. fBm makes domes; ridged noise makes spines.
+2. **Radial buttress ridges:** `LR_RIDGE_COUNT` = 4–7 ridges descending from
+   the summit with couloirs between, as an angular modulation
+   `h *= 1 + A·cos(k·θ + φ(θ))` with `φ` from noise so the ridges are
+   **irregular, never symmetric** (a symmetric star reads as artificial).
+3. **Cliff bands:** above `LR_CLIFFLINE` (⅓ height), quantize elevation into
+   bands of `LR_CLIFF_BAND` = 8–15 m spaced 30–60 m vertically, blended just
+   enough to avoid stair-stepping artefacts. This is the "cliffy" read and it
+   feeds §4's splat directly (rock above 40°).
+4. **Asymmetry:** one flank biased steep (a scarp face), the opposite gentler
+   — the gentle side carries the ascent. Real mountains are not radially
+   uniform and neither is this one.
+5. **THE ANTI-DOME INVARIANT (checkable, not editorial):** a horizontal slice
+   at ⅔ height must be **lobed, not circular** — perimeter² / (4π·area) ≥
+   `LR_LOBE_RATIO` = 1.35 **(предложение — утвердить)** — and ≥ 60 % of the
+   surface above mid-height must exceed `SLOPE_ROCK_MIN` (40°). A seed that
+   produces a smooth dome **fails**. This is the user's "not a boob" stated
+   as a test the generator can run on itself.
+
+**The ascent is mandatory and validated.** A continuous walkable route from
+the foot to the summit must exist: average slope ≤ 25°, nowhere exceeding
+`PLAYER_MAX_SLOPE`, no step > `PLAYER_STEP_HEIGHT`. Same class of invariant
+as the castle ramp (§6.1.2) — a summit temple you cannot reach on foot is a
+failed placement, not a later problem. Derived from the generated massif,
+never tabled.
+
+### 2.6 Border mountains — the world edge
+
+Replaces the invisible walls. The world ends in geography, Skyrim-style.
+
+- **Band:** `BORDER_BAND_WIDTH` = 200–300 m of mountain, preceded by
+  `BORDER_FOOTHILL_WIDTH` = 100–200 m of rising ridgelets so the player
+  climbs *into* it rather than meeting it **(предложение — утвердить)**.
+- **Height:** crest at `BORDER_CREST_HEIGHT` = 150–250 m above local terrain,
+  **varied ±30 % along its length** at a long wavelength (600–1200 m).
+- **Not a wall — three shape rules:** (1) crest height varies as above, so it
+  reads as a *range*; (2) spurs push inward irregularly by 100–250 m so the
+  boundary is lobed, never straight — a straight edge is the tell that gives
+  away a box; (3) the inner face uses the same ridged/cliff-band rules as
+  §2.5, never a uniform slope.
+- **Impassability: slope first, validation second.** The inner face averages
+  ≥ 55° over ≥ 40 m of climb, which exceeds `PLAYER_MAX_SLOPE` (~50°) — but
+  noise *will* occasionally produce a walkable saddle, so slope alone is not
+  trusted. A traversability flood-fill from inside the playable area must
+  fail to reach the outer edge; where it succeeds the generator raises the
+  offending saddle and re-runs. Geometry plus a test, not a promise. Keep a
+  hard clamp far outside the band as engineering safety — but it is a
+  backstop nobody should ever touch, not a design element.
+- **Border mountains are NOT attractors** (§1.3a): they are the frame. They
+  never satisfy C1's "something to see" test — a wall of rock is not content,
+  and letting it count would license genuinely empty ground.
+
+### 2.7 Ground micro-relief and the plain
+
+**Everything is slightly uneven.** The complaint is that the land reads flat;
+§2.1's anisotropy gave us hill-scale ridgelets, and this is the layer below
+it. Add a fourth octave, `GROUND_MICRO_WAVELENGTH` = 8–16 m at
+`GROUND_MICRO_AMPLITUDE` = 0.3–0.6 m, plus an optional fifth at 2–4 m /
+0.1–0.2 m for surface tooth **(предложение — утвердить)**. At 0.5 m over a
+12 m wavelength the local slope is ≈ 5°, so this is free: it never threatens
+`PLAYER_STEP_HEIGHT`, corridors, or building pads, and it kills the
+billiard-table read at eye level. Micro-relief is **suppressed inside
+building pads and the castle terrace** (they are cut flat on purpose) and
+**retained everywhere else, including the plain**.
+
+**One small plain, and it earns its flatness.** A flat area is only valuable
+as contrast, so it is placed where flatness *does something*:
+`PLAIN_EXTENT` = 400–600 m across, on the route from the valley toward the
+LR, positioned so that **the massif is fully revealed and unobstructed from
+it**. The enclosed valley opens onto the plain, and the mountain is suddenly
+the whole horizon — that is the reveal beat (§1.4), and it is the reason this
+is a composition and not a bald patch. Rules inside it: flat to ±1.5 m
+overall, micro-relief retained (flat, not sterile), no forest mass, only
+sparse L2 (standing stones, a lone skyline tree) so the openness reads as
+intentional. The plain is also the natural site for a future FUTURE road and
+for the act-scale muster/travel beats story may want.
+
 ## 3. Water
 
 Water does not exist in the engine yet; this section is the contract for its
@@ -505,7 +661,9 @@ corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
 
 - **Silhouette:** short thick trunk (1/3 of height), one wide rounded crown
   mass, wider than tall overall. Reads as "ball on a stump" at 8 px.
-- **Size:** 8–12 m tall, crown 6–10 m wide.
+- **Size (stage-4 revision, §5.7):** **24–32 m** tall, crown 10–16 m wide.
+  Crown base at 35–45 % of height (≈ 9–13 m of clear trunk) — the height is
+  only half the effect, the *space underneath* is the other half.
 - **Poly budget:** 300–500 tris (`TREE_TRI_BUDGET` family).
 - **Palette:** mid-green crown, near-black trunk; value: darker than meadow
   grass, lighter than pines.
@@ -519,7 +677,8 @@ corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
 - **Silhouette:** narrow triangle, 2–3 stacked cone tiers, tip must survive
   quantization (make the top cone ≥ 1.5 m wide). Tall and pointed — the
   anti-oak.
-- **Size:** 12–18 m tall, base 4–6 m wide.
+- **Size (stage-4 revision, §5.7):** **28–38 m** tall, base 6–9 m wide —
+  ×2.3, deliberately **not** ×4 (see §5.7 for why 4× breaks the valley).
 - **Poly budget:** 150–300 tris (cones are cheap).
 - **Palette:** dark blue-green, darkest flora value in the scene — pines are
   the *dark mass* tool for composition backdrops.
@@ -536,7 +695,8 @@ corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
 
 - **Silhouette:** slim pale trunk (readable!), small loose crown, slightly
   leaning. The *light-value* accent against dark water or pines.
-- **Size:** 6–10 m tall, crown 3–4 m.
+- **Size (stage-4 revision, §5.7):** **16–22 m** tall, crown 5–7 m — stays
+  the smallest and slimmest of the three, keeping its accent role.
 - **Poly budget:** 200–350 tris (trunk needs a few more sides for the pale
   read).
 - **Palette:** near-white trunk (brightest flora value), light yellow-green
@@ -573,6 +733,75 @@ corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
   at the view distance edge (no popping line at low res — dither the fade).
 
 ---
+
+### 5.7 Tall-tree revision — working the collisions through (stage-4)
+
+User: trees ×4 taller, forests less dense, "как в Скайриме". Taken seriously,
+that request collides with four existing rules at once. Working it through
+rather than approving it:
+
+**What the request is actually about.** Our 8 m oak has its crown starting at
+≈ 2.7 m: the player pushes *through* foliage, which reads as scrub. What
+makes Skyrim's forests feel tall is walking **under a canopy** — clear trunk
+space overhead and light between stems. So the fix is three-part and the
+height is only the first part: raise the trees, **raise the crown base**, and
+**drop the density**. Height alone would have given us taller scrub.
+
+**Ruling on the numbers.** Oak 8–12 → **24–32 m** (the requested ×4 at the
+low end). Birch 6–10 → **16–22 m**. Pine 12–18 → **28–38 m**, which is ×2.3
+and **declines the literal ×4**, because:
+
+- A ×4 pine is 48–72 m. Standing on a 25 m foothill that is a 73–97 m crown
+  top against Ravenscar's 52 m summit: **the forest would be taller than the
+  landmark it frames.** Canopy-aware C1 (§1.3) would fail everywhere and no
+  strip geometry could save it.
+- Skyrim's own tall conifers are ≈ 25–30 m. The literal ×4 overshoots the
+  reference the request cites.
+
+**Collision 1 — canopy-aware C1 and the 0.018 headroom.** Even at the ruled
+heights, a 35 m tree on a 25 m foothill tops out at 60 m against a 52 m
+summit. Two consequences, both binding:
+
+- **Ravenscar must grow with its forest:** `L0_RELIEF` 52 → **110–120 m**
+  **(предложение — утвердить; flagged to the user, §5.7 note)**. A valley
+  heart that its own trees overtop is not a landmark. All castle rules are
+  ratios to the peak (`CASTLE_SKYLINE_MARGIN` etc.) and re-derive
+  automatically — story's ~55 m castle/barrow geometry is unaffected.
+- **L0 sight wedges become tree-free corridors.** The old rule rejected trees
+  that would out-angle the L0; at 35 m the honest rule is simpler and
+  stricter: **no trees at all inside an L0 or LR sight wedge.** The wedges
+  are narrow, the cost is small, and it removes an entire class of
+  near-miss failures.
+
+**Collision 2 — under-canopy walkability.** `CANOPY_CLEARANCE_MIN` = 2.2 m is
+a floor, satisfied ~4× over by a crown base at 35–45 % of height. Stated
+explicitly so no future species regresses: **every tree species must carry
+≥ 2.2 m of clear trunk**, and the tall species must target the 35–45 % band
+rather than merely clearing the floor.
+
+**Collision 3 — density, numerically.** Crown width scales ~×1.6, not ×4 —
+tall *and* slender is what makes a forest feel tall. Spacing must open up
+accordingly: `TREE_SPACING_FOREST` 5–8 m → **12–18 m**
+**(предложение — утвердить)**. In trees per hectare that is ≈ 240 → ≈ 44, an
+**≈ 80 % density cut** — which is the user's "less dense" expressed as a
+number core can implement. `FOREST_COVERAGE` (0.25–0.40) is **unchanged**:
+coverage is how much land is forest, density is how many trees stand in it,
+and only the second was wrong.
+
+**Collision 4 — budgets.** A 4× taller tree does not need 4× the triangles;
+it needs a silhouette that survives being large on screen. `TREE_TRI_BUDGET`
+500 → **700 max** for the tall species, but the real answer is LOD, not base
+budget: each species ships LOD1 at ≈ 40 % tris and a billboard beyond
+`TREE_BILLBOARD_DIST` **(предложение — утвердить, value is render's call)**.
+Shadow-map coverage is render's zone; design's constraint is only that a
+35 m canopy must not black out the ground it shades — dappled, not sealed,
+which the 80 % density cut largely delivers on its own.
+
+**Net effect on composition:** fewer, taller, slimmer trees with light
+between them. Forests stop being walls (§2.2's "trees are walls you can walk
+through" was written for the dense version) and become colonnades — you see
+*through* a forest now, which makes occlude-and-reveal work at a distance it
+never could before.
 
 ## 6. Structures catalog (домики под разные задачи)
 

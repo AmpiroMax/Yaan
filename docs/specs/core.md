@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 18:19:09
+Last updated: 09:08:2026 - 18:58:01
 -->
 <!--
 UPD:
@@ -20,6 +20,7 @@ UPD:
 - 09:08:2026 - 17:36:42: DUNGEON ENTRANCES DERIVED (LANDSCAPE §6.2 ruling; user bug: a marker 10 m from its mouth read as a box beside the hill and the player walked through the terrain). Entrances no longer use the building-pad scorer — flat and dry is exactly where a cave mouth cannot exist. Relief within 25 m selects the archetype: >= DUNGEON_ENTRANCE_MIN_RELIEF cuts an adit, below it the generator STAMPS THE RELIEF IT NEEDS (BARROW_MOUND_* radial stamp + BARROW_FORECOURT_* cut trench) and then adits into the mound flank. Markers derive position, facing AND floor height from the carve mouth (new GeneratedEntityRecord::ground_y — the heightfield cannot report a floor cut below the surface). Hand-authored carves outrank generated stubs. Derived-only now covers carve-adjacent placement, not just water.
 - 09:08:2026 - 17:45:08: §6.2 completion: standing stones (STANDING_STONE_*) placed by rule as a paired avenue on each entrance approach, and the ENTRANCE_SCATTER_EXCLUSION_MARGIN ring that keeps vegetation off the mound and forecourt (a stand of oaks on the mound erases the exact silhouette the archetype exists to create). Pad-accounting invariant restated: entities == pads + castle elements + derived entrances, each entrance carrying an explicit carve floor. PROCESS NOTE: the previous report's green was measured against STALE TEST BINARIES — building only the dfn_world target does not relink test executables, so ctest ran old code. Always run a full `cmake --build` before ctest.
 - 09:08:2026 - 18:19:09: STREAMING LOAD BUDGET (user bug: multi-second freezes while moving). ChunkManager::update admits at most CHUNK_LOAD_BUDGET chunks per call, nearest-to-focus first with a deterministic tie-break; the rest defer to following updates. Measured: cold ring 232 ms in one update BEFORE, 20 ms worst update AFTER (core-only; ~88 ms with sim's collision build, versus ~2 s before). Ordering guarantees the chunk under the player is always the next admitted, so deferral cannot open a hole underfoot. No threading — async loading remains a later stage.
+- 09:08:2026 - 18:58:01: Three live-play defects fixed at the barrows. PORTAL FACED INTO ROCK (correctness): the forecourt ran a fixed BARROW_FORECOURT_LENGTH from the lintel and so ended while still on the mound — the rim blocked the exit. It now runs (mound_radius - portal_offset) + the ruled length, reaching natural grade beyond the rim; both testbed barrows walk out to open ground (steepest 28% and 8%). BOXY MOUND: smoothstep gave a flat top and a standing rim; now a paraboloid dome, and the cut flares outward. SUNK/FLOATING PROPS: scatter resolved against the field BEFORE the mound stamp and was buried by the mound's local rise (up to 2.4 m) — it now uses the final ground including works and pads; 0 floating and 0 sunk across the testbed. All three pinned by regression tests.
 -->
 
 # Spec: `core` (engine/core + engine/world)

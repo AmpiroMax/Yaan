@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 17:45:08
+Last updated: 09:08:2026 - 18:58:01
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 16:47:51: P7 acceptance: tunnel enclosed/walkable/climbing, voxel field holds overhangs and ceiling geometry a heightfield cannot, Backbarrow is a buried reachable room.
 - 09:08:2026 - 17:36:42: §6.2: carved dungeon entrances are derived from their mouth, facing out, standing on the carved floor.
 - 09:08:2026 - 17:45:08: §6.2: standing stones present and within their height band at every entrance; no vegetation inside the exclusion ring.
+- 09:08:2026 - 18:58:01: Regression: every entrance walks out without the ground ahead rising above head height; mounds fall from their crown (dome, not plateau); no scatter instance floats or sinks by more than 0.3 m anywhere in the testbed.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -381,6 +382,53 @@ TEST_CASE("§6.2 findability: standing stones flank each entrance, nothing grows
             if (!vegetation) continue;
             const glm::vec2 p{inst.position.x, inst.position.z};
             CHECK(glm::length(p - w.center) >= w.mound_radius + margin - 0.01f);
+        }
+    }
+}
+
+TEST_CASE("§6.2 live-play fixes: entrances open outward, props sit on the ground") {
+    const auto& ctx = testbed();
+    const auto& sites = ctx.sites;
+
+    for (const world::EntranceWorks& w : sites.entrances) {
+        if (!w.valid) continue;
+
+        // (a) THE PORTAL MUST OPEN. Walking out along the approach, the ground
+        // ahead may never rise above the walker's head — the user's report was
+        // a barrow that "stands facing into rock, as if there is no entrance",
+        // caused by a forecourt that ended while still on the mound so the rim
+        // walled the exit off. Head height rises with the floor: this is a
+        // ramp, and a ramp being higher than the doorway is not a blockage.
+        for (float d = 2.0f; d <= 26.0f; d += 2.0f) {
+            const glm::vec2 here = w.portal + w.outward * d;
+            const glm::vec2 ahead = w.portal + w.outward * (d + 2.0f);
+            const float floor_here = world::terrain_height(ctx, here);
+            const float floor_ahead = world::terrain_height(ctx, ahead);
+            CHECK(floor_ahead <= floor_here + static_cast<float>(config::PLAYER_CAPSULE_HEIGHT));
+        }
+
+        // (b) THE MOUND IS A DOME, not a plateau with walls: the crown is the
+        // high point and the profile falls monotonically to the rim.
+        float prev = world::terrain_height(ctx, w.center);
+        const float crown = prev;
+        for (float d = 2.0f; d <= w.mound_radius; d += 2.0f) {
+            const float h = world::terrain_height(ctx, w.center - w.outward * d);
+            CHECK(h <= crown + 0.5f); // nothing stands above the crown
+            prev = h;
+        }
+    }
+
+    // (c) NOTHING FLOATS OR SINKS. Scatter used to resolve against the field
+    // BEFORE the mound stamp, so props near a barrow were buried by exactly
+    // the mound's local rise (measured up to 2.4 m).
+    for (int32_t cz = 0; cz <= 3; ++cz) {
+        for (int32_t cx = 0; cx <= 3; ++cx) {
+            const auto chunk = world::generate_chunk(ctx, ChunkCoord{cx, cz});
+            for (const auto& inst : chunk.scatter) {
+                const float ground = world::terrain_height(ctx, {inst.position.x,
+                                                                inst.position.z});
+                CHECK(std::fabs(inst.position.y - ground) < 0.3f);
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:03:29
-Last updated: 09:08:2026 - 14:21:12
+Last updated: 09:08:2026 - 18:56:27
 -->
 <!--
 UPD:
@@ -26,9 +26,14 @@ UPD:
   games/daggerfall_n/assets/... (ARCHITECTURE layout wins, AGENTS.md
   corrected); LLM prompts are English + explicit output-language
   instruction. Both open items closed.
+- 09:08:2026 - 18:56:27: Added §10 — inventory semantics settled with sim
+  (has_item = total count of an ItemId; take_item reports shortfall without
+  failing the transition, with a binding has_item-gate authoring rule and a
+  requested lint), story's quest_item/no_drop ask, item id convention, and
+  the joint JSON-reader dependency on core with story's parser requirements.
 -->
 
-# QUEST_FORMAT.md — Quest & Dialogue Data Format (PROPOSAL)
+# QUEST_FORMAT.md — Quest & Dialogue Data Format (CONTRACT)
 
 Status: **CONTRACT-FROZEN for the stage (Rule 26).** Sim ACKed all sections
 (§9); sim's `Condition.h`/`Dialogue.h`/`Ids.h` change landed 09:08:2026
@@ -36,6 +41,7 @@ Status: **CONTRACT-FROZEN for the stage (Rule 26).** Sim ACKed all sections
 semantics, lines take `vector<ConditionAtom>` (flat = AND), quest transitions
 take `ConditionGroup{all_of, any_of}`, new id types in `Ids.h`. Changes from
 here go through a group sync.
+
 Owner: `story`. Runtime owner: `sim` (`engine/gameplay`). Grounded in the
 feature-requests grill (в8, в11, в12), DECISIONS §5 (Q65–Q67, Q70–Q71) and
 sim's shipped stage-1 headers (`Dialogue.h`, `NpcAction.h`, `Ids.h`, `ILlm.h`).
@@ -133,7 +139,7 @@ Semantics (the contract sim implements):
   entries added; plus the global flag registry. Written through sim's
   SaveDelta section hooks; format internals are sim's.
 
-### 2.1 Condition vocabulary (needs sim ACK — the "quest grill" its spec left open)
+### 2.1 Condition vocabulary (FROZEN — the closed set sim implements)
 
 A `when` array is a conjunction (AND); an `any` wrapper gives OR. Each atom is
 one of a **closed set** (extension = group sync, like `NpcAction`):
@@ -144,7 +150,7 @@ one of a **closed set** (extension = group sync, like `NpcAction`):
 | `var` | quest-local var, op, value | quest instance |
 | `quest_state` | quest id, state id (or `completed`/`failed`) | quest system |
 | `dialog_exit` | dialog exit-point id (§4) | dialogue runner event |
-| `has_item` | item id, op, count | inventory (sim, stage 2.5+) |
+| `has_item` | item id, op, count (total count of that ItemId — see §10) | inventory (sim) |
 | `entered_location` | trigger volume / POI id | world trigger (needs sim+core: POI trigger volumes) |
 | `npc_dead` | npc id | gameplay events |
 | `clock` | day-phase id (`night`, ...) | day cycle (в2; FUTURE until it lands) |
@@ -344,9 +350,9 @@ wording, recorded here as the durable source):
   with chunk entities (placement data boundary with core — sim's follow-up).
   Edge semantics ("entered this tick"); a level-triggered `inside_location`
   is a one-line group-sync addition if ever needed.
-- **`has_item` / `give_item` / `take_item`:** shape ACKed now; runtime lands
-  with inventory (sim stage 2.5+). Validator marks "declared, runtime
-  pending", not an error.
+- **`has_item` / `give_item` / `take_item`:** shape ACKed; runtime lands with
+  sim's inventory. **Semantics settled 09:08:2026** (sim proposed, story
+  confirmed) — see §10.
 - **`npc_dead`:** realized as a sticky auto-flag set by the death path
   (NPCs are chunk-resident and despawn — corpses are not queryable);
   persists via save delta; once true, true forever.
@@ -378,6 +384,57 @@ wording, recorded here as the durable source):
 Follow-ups: sim — Dialogue.h diff at group sync (landed), TriggerVolume
 placement boundary with core; lead — prompt language ruling (ruled: English
 prompts + output-language instruction, 09:08:2026).
+
+## 10. Inventory semantics for `has_item` / `give_item` / `take_item`
+
+Settled 09:08:2026 (sim proposed the shape while building the TAKE verb;
+story confirmed against the frozen §2.1/§2.2 assumptions). Sim's inventory:
+a flat list of stacks `{ItemId item; uint32 count;}`, one stack per distinct
+`ItemId`; item definitions live in a content file keyed by string id, hashed
+to `ItemId` with the frozen FNV-1a; inventory is save-delta state.
+
+- **`has_item` compares the TOTAL COUNT of that `ItemId` in the inventory**
+  against the atom's op and value. `has_item(rope, >=, 1)` = "has at least
+  one"; `has_item(x, ==, 0)` = "has none". Non-stackables count 1 per
+  instance and are summed. Story explicitly does **not** want equipped-only
+  or container-scoped meanings folded into this atom — "wielding X" would be
+  a new atom via group sync, never a reinterpretation of this one.
+- **`take_item` does not hard-fail a transition.** It removes what is there
+  and reports the shortfall; the transition still completes. Rationale:
+  effects run on state entry *after* the transition is chosen (§9 tick
+  order), so a failing effect would leave a state whose entry only partly
+  happened. **Authoring rule (binding on story):** any transition into a
+  state that runs `take_item` MUST be gated by a matching `has_item`
+  condition on that transition. Validator lint requested (§7.5 family):
+  flag a `take_item` state with no incoming `has_item` gate; sim surfaces
+  the shortfall as a debug-log warning.
+- **Quest-item integrity (story's ask, pending sim's answer):** item
+  definitions need a `quest_item` / `no_drop` flag preventing drop and sale
+  (or an equivalent non-droppable inventory section). Otherwise selling the
+  crown grant to a trader makes MQ4 unfinishable and every quest item needs
+  a bespoke recovery branch. Story still authors N39 failure branches for
+  items lost *in fiction* (destroyed, stolen by plot) — that is reactivity;
+  losing one to the shop UI is not.
+- **Item id convention** (story-side, so definitions and quest data agree):
+  dot-namespaced snake_case `item.<category>.<name>` —
+  `item.quest.crown_grant`, `item.quest.beacon_log`, `item.craft.net_cord`,
+  `item.food.salt_fish`. Act 1 needs ~6–10 quest items plus the
+  fishing/smallholding template goods.
+- Not in this stage (sim): equipment slots, enforced weight limits,
+  containers as separate inventories. Not blocking any authored act-1 quest.
+
+**Dependency — JSON reader.** Core's `serialization` has hashing and binary
+IO only; there is no JSON reader yet, and **every** story file kind
+(`*.quest.json`, `*.dlg.json`, `*.card.json`, `world_flags.json`) needs one.
+Requested from core 09:08:2026 jointly with sim, with story's requirements:
+parse errors carrying line/column (the validator's whole job is pointing at
+the bad line), duplicate-key detection (a duplicated flag id in
+`world_flags.json` is the silent-eaten-entry bug), integers preserved as
+integers (bool|int flags compared under the six frozen operators), and only
+the subset story emits — objects, arrays, strings, ints, bools; no comments,
+no floats needed, no unicode (all user-facing text is localization keys).
+
+---
 
 **Freeze ACK (09:08:2026, second exchange):** the lead blessed the
 `Condition.h`/`Dialogue.h`/`Ids.h` change as a Rule 26 sync record gated on

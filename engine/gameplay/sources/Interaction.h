@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 18:56:32
 Module: engine/gameplay
 File: engine/gameplay/sources/Interaction.h
 
@@ -10,8 +10,11 @@ Responsibility:
   semantic, not physical.
 
 Key items:
+- InteractionVerb: what a target offers (None/Take/Open/Close/Use).
 - Highlightable: hover prompt (localization key, Rule 5).
-- Openable: doors/containers open/locked state.
+- Openable: doors/containers open/locked state (state machine shaped here).
+- Pickup: a loose item, the TAKE target.
+- Usable: content-declared "activate" (levers, campfires, beds).
 - Lootable: loot source backed by a content loot table.
 
 Dependencies:
@@ -43,6 +46,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:18:26: Initial stage-1 interaction components (highlightable,
                          openable, lootable).
+- 09:08:2026 - 18:56:32: Interaction stage: InteractionVerb, Pickup (TAKE),
+                         Usable (USE), and the Openable state machine written
+                         down (locking shaped, unlocking deferred).
 */
 
 #pragma once
@@ -54,6 +60,17 @@ UPD:
 
 namespace dfn::gameplay {
 
+// What an interactable offers when looked at. The value travels to render in
+// the HoverTarget resource as a raw uint8_t (render may not include gameplay,
+// Rule 1), where it selects the reticle shape. Append-only.
+enum class InteractionVerb : uint8_t {
+    None = 0,
+    Take = 1,  // loose item -> inventory
+    Open = 2,  // closed door/chest -> open
+    Close = 3, // open door/chest -> closed
+    Use = 4,   // lever, campfire, bed: content-declared activation
+};
+
 // Marks an entity as interactive: it highlights on hover and offers a prompt.
 struct Highlightable {
     std::string prompt_key; // localization key (Rule 5), e.g. verb of the interaction
@@ -61,10 +78,34 @@ struct Highlightable {
 };
 
 // Doors, chests, drawers. Openable state persists in the save delta.
+//
+// State machine (shaped now, locking implemented later per stage scope):
+//   Closed --open--> Open --close--> Closed
+//   Closed + locked --open--> refused (InteractionFailure::Locked)
+//   unlocking (key / Lockpicking dice vs lock_level) is NOT implemented this
+//   stage; `locked` is honoured as a hard refusal so content can already author
+//   a locked door and the verb behaves correctly around it.
 struct Openable {
     bool open = false;
     bool locked = false;
     uint32_t lock_level = 0; // 0 = trivial; checked against Lockpicking via dice
+};
+
+// A loose item lying in the world: the TAKE verb's target. Taking it moves
+// `count` of `item` into the actor's inventory and despawns the entity.
+struct Pickup {
+    ItemId item{};
+    uint32_t count = 1;
+};
+
+// A generic "activate" target: levers, campfires, beds. Content declares what
+// it means; the engine only reports that it happened, so new usables need no
+// C++ change (Rule 6). `action` is the hashed authored action id, carried in
+// the Used event for quests and systems to react to.
+struct Usable {
+    uint64_t action = 0;   // hashed content action id (e.g. "use.lever.mill_gate")
+    bool repeatable = true; // false = fires once, then offers nothing
+    bool used = false;      // save-delta state for non-repeatable usables
 };
 
 // A loot source. Contents are defined by a content-file loot table (Rule 5);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:15:56
-Last updated: 09:08:2026 - 00:29:27
+Last updated: 09:08:2026 - 18:58:05
 Module: engine/core/components
 File: engine/core/components/sources/Components.h
 
@@ -43,6 +43,8 @@ UPD:
                          stage-1 proposal (Transform pair, CameraPose pair,
                          RenderMesh, LocalBounds).
 - 09:08:2026 - 00:29:27: Added HoverTarget world-resource (sim's Q11 design:
+- 09:08:2026 - 18:58:05: HoverTarget gains verb + prompt_key (sim's diff,
+                         lead-authored per Rule 26; agreed sim<->render).
                          gameplay raycasts and writes, render reads). Stage-1
                          sync: CameraPose ACKed by sim; LocalBounds stays raw
                          min/max; RenderMesh ids settled as registry-assigned
@@ -107,7 +109,18 @@ struct LocalBounds {
 // hover highlight and by UI for the interaction prompt. Approved at the
 // stage-1 sync from sim's design.
 struct HoverTarget {
-    ecs::EntityId entity{}; // null id = nothing hovered
+    ecs::EntityId entity{};   // null id = nothing hovered
+    uint8_t verb = 0;         // gameplay::InteractionVerb value; 0 = None.
+                              // Deliberately a raw integer, not the enum:
+                              // render cannot include engine/gameplay (Rule 1),
+                              // so gameplay owns the meaning and render only
+                              // switches on the value. Without it the reticle
+                              // could never change with what is looked at.
+    uint64_t prompt_key = 0;  // localization key hash, 0 = none. Inert until a
+                              // font exists; landed now rather than reopening a
+                              // shared component later for a field already
+                              // known to be needed. 64-bit to stay in the one
+                              // frozen FNV-1a hash space (Rule 5).
 };
 
 } // namespace dfn::components

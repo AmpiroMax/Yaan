@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 17:45:08
+Last updated: 09:08:2026 - 18:58:01
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 09:08:2026 - 14:03:23: Micro-relief batch: curb stones along corridor margins (PATH_CURB_SPACING/DENSITY, margin band between groove edge and corridor edge, 0.25-0.55 m Stones, deterministic per corridor step).
 - 09:08:2026 - 14:49:01: Scatter-in-water fix (part 2): ScatterCtx::dry_enough(p, margin) is now THE water gate for every pass — trees/bushes/stones/curbs and the forced watchpoint cluster (which sits on a ford by design and previously bypassed all gates: a pine and boulders stood in the channel). Margins TREE/BUSH/STONE_WATER_MARGIN keep trunks clear of the drawn plane edge.
 - 09:08:2026 - 17:45:08: §6.2: standing stones flanking each entrance approach (paired avenue, placed by rule — they must read as INTENTIONAL, which scatter cannot do) + the exclusion ring keeping trees, bushes and loose stones off the mound and forecourt so the silhouette survives.
+- 09:08:2026 - 18:58:01: Live-play fix: scatter resolves against the FINAL ground (macro + carve + entrance works + pads). Sampling the pre-stamp field buried props by exactly the mound's local rise — measured up to 2.4 m at the river barrow.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -179,9 +180,15 @@ struct ScatterCtx {
         return p.x >= chunk_min.x && p.x < chunk_max.x && p.y >= chunk_min.y
             && p.y < chunk_max.y;
     }
-    /// Carved terrain height (pads excluded — instances never stand on pads).
+    /// FINAL terrain height — macro, hydrology carve, entrance works AND pads.
+    /// Sampling anything earlier is what buried props up to 2.4 m: the barrow
+    /// mound is stamped after the base field, so a prop placed against the
+    /// pre-stamp height sinks by exactly the mound's local rise (and floats by
+    /// the forecourt's depth on the cut side). Anything standing ON the ground
+    /// must be resolved against the ground that actually ships.
     [[nodiscard]] float ground(glm::vec2 p) const {
-        return water_at(hydro, layout, p, macro_height(seed, layout, p)).height;
+        const float base = water_at(hydro, layout, p, macro_height(seed, layout, p)).height;
+        return pads_height(sites, p, entrance_works_height(sites, p, base));
     }
     [[nodiscard]] float dist_to_water(glm::vec2 p) const {
         return water_at(hydro, layout, p, macro_height(seed, layout, p)).dist_to_water;
