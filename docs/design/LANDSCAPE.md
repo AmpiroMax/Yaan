@@ -604,9 +604,19 @@ never tabled.
 **"7000 steps" — a staged climb, not a switchback (user requirement).** The
 ascent is a *sequence*, not a ramp: `LR_ASCENT_LENGTH` = 1200–1800 m of path
 (4–6× the direct horizontal distance, so the route wraps the massif rather
-than attacking it) with `LR_ASCENT_LANDINGS` = 5–7 staged rests — a shrine, a
-vista, a wind-scoured shoulder — each a place to stop and look back at how far
-the valley has fallen away **(предложение — утвердить)**. Landings are what
+than attacking it) with `LR_ASCENT_LANDINGS` = **7** staged rests — a shrine,
+a vista, a wind-scoured shoulder — each a place to stop and look back at how
+far the valley has fallen away **(предложение — утвердить; pinned from the
+former 5–7 band by story, one landing per station of the naming rite)**.
+
+**Seven verifies rhythmically, which is why it is pinned rather than merely
+accepted.** Over the 1200–1800 m path, seven landings give segments of
+171–257 m, i.e. **57–86 s of walking at `WALK_SPEED`** — inside the testbed's
+`POI_TRAVEL_TIME` band (60–90 s) across the whole range. The climb's internal
+rhythm therefore matches the valley's exploration rhythm: the player already
+knows, in their legs, how long "one stretch to the next thing" takes, and the
+ascent speaks the same cadence. Each station also gains ≈ 40 m of relief, so
+the view genuinely changes between them rather than repeating. Landings are what
 make a climb read as long; raw distance just makes it tiring. At 1500 m that
 is ≈ 8 min of walking one way, which is a journey.
 

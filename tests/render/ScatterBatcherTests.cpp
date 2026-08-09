@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 21:35:00
 Module: tests
 File: tests/render/ScatterBatcherTests.cpp
 
@@ -21,11 +21,15 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial tests.
+- 09:08:2026 - 21:35:00: Flora bake cost measurement (per-instance tree
+  geometry) as a regression guard against the chunk streaming budget.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
 
 #include <doctest/doctest.h>
+
+#include <chrono>
 
 #include <cmath>
 #include <vector>
@@ -113,4 +117,31 @@ TEST_CASE("empty and degenerate inputs return empty batches") {
     const std::vector<ScatterInstance> one{make(300.0f, 100.0f, ScatterSpecies::Bush)};
     const ScatterBatches bad = build_scatter_batches(one, ORIGIN, 0.0f);
     CHECK(bad.micro.empty());
+}
+
+TEST_CASE("a full chunk of flora bakes well inside the streaming budget") {
+    // The flora agent flagged the cost of per-instance tree geometry and asked
+    // to be measured rather than guessed at. This is that measurement, kept as
+    // a regression guard: core admits ONE chunk per streaming update because a
+    // cold ring cost seconds, and ~83 ms of that update is already collision
+    // shape building. If flora baking ever approaches that, it stops being an
+    // implementation detail and becomes a visible hitch while walking.
+    std::vector<ScatterInstance> forest;
+    for (int i = 0; i < 100; ++i) {
+        const float fx = 260.0f + static_cast<float>((i * 37) % 250);
+        const float fz = 10.0f + static_cast<float>((i * 61) % 250);
+        const auto species = i % 3 == 0   ? ScatterSpecies::OakTree
+                             : i % 3 == 1 ? ScatterSpecies::PineTree
+                                          : ScatterSpecies::BirchTree;
+        forest.push_back(make(fx, fz, species, 0.8f + 0.01f * static_cast<float>(i % 40)));
+    }
+    const auto start = std::chrono::steady_clock::now();
+    const ScatterBatches batches = build_scatter_batches(forest, ORIGIN, CHUNK);
+    const double ms = std::chrono::duration<double, std::milli>(
+                          std::chrono::steady_clock::now() - start).count();
+    MESSAGE("100 trees baked in " << ms << " ms, "
+            << batches.trees.indices.size() / 3 << " triangles");
+    REQUIRE(!batches.trees.vertices.empty());
+    // Generous ceiling: this is a "did it explode" guard, not a target.
+    CHECK(ms < 100.0);
 }

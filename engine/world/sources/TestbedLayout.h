@@ -284,10 +284,14 @@ struct TestbedLayout {
     static constexpr float ASCENT_SCALE = static_cast<float>(config::L0_RELIEF) / 52.0f;
     static constexpr float MOUTH_Y = 21.0f; ///< valley floor, unchanged by the summit
     static constexpr float lift(float y) { return MOUTH_Y + (y - MOUTH_Y) * ASCENT_SCALE; }
-    /// Horizontal offsets from the crag centre grow with the same factor, so
-    /// the climb keeps its original gradient instead of becoming a ladder.
-    static constexpr float spanx(float x) { return 830.0f + (x - 830.0f) * ASCENT_SCALE; }
-    static constexpr float spanz(float z) { return 200.0f + (z - 200.0f) * ASCENT_SCALE; }
+    /// The horizontal footprint stays PUT. Scaling it outward with the summit
+    /// was the wrong instinct: it pushes the route toward the rim where the
+    /// massif is thin, and the tunnel surfaced into a 349 m trench with only 25
+    /// of 179 stations under rock. A steeper mountain wants the SAME tight
+    /// footprint, where the rock above is deepest — the climb gets steeper
+    /// instead of longer, which is what a switchback route is for.
+    static constexpr float spanx(float x) { return x; }
+    static constexpr float spanz(float z) { return z; }
 
     CarveLayout carves{
         // Crag tunnel: mouth at the SW foot, four switchback legs with
