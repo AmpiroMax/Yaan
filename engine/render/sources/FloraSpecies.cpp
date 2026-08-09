@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 09:08:2026 - 21:18:02
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -30,6 +30,12 @@ UPD:
   birch, willow) with their atlas tone/shape bands and card proportions; the
   conifer deliberately stays on cone tiers this stage so one frame compares the
   two treatments. Bushes stay solid (design §5: only tree foliage is cards).
+- 09:08:2026 - 21:18:02: Birch crown base moved to its landed exception band
+  (BIRCH_CROWN_BASE_FRACTION_MIN) after the crown measured 2.30:1 tall-to-wide
+  — a column by construction. Crown widths CALIBRATED against the built tree
+  rather than against the envelope (oak 0.45 -> 0.48, birch 0.30 -> 0.52): the
+  achieved diameter is ~0.7-0.9 of nominal, and the birch had drifted a third
+  under design's 5-7 m brief.
 */
 
 #include "engine/render/sources/FloraSpecies.h"

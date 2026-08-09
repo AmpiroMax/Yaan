@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 09:08:2026 - 21:02:02
+Last updated: 09:08:2026 - 21:18:02
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -37,6 +37,11 @@ UPD:
   per-card constancy of the value jitter.
 - 09:08:2026 - 21:02:02: Card legibility floor case (no detached scraps),
   added after reading the first card frame.
+- 09:08:2026 - 21:18:02: design's CROWN_ASPECT_MAX acceptance rule, measured on
+  the BUILT tree and PER VARIANT (pooling variants measures the height spread as
+  if it were one crown's shape, and did exactly that in the first report);
+  crown-width FLOOR, since only the ceiling of design's band was ever asserted
+  and the birch had drifted a third under its brief with a green suite.
 */
 
 #include "engine/render/sources/ProcFlora.h"

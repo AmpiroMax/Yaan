@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 21:02:00
+Last updated: 09:08:2026 - 21:18:02
 -->
 <!--
 UPD:
@@ -141,6 +141,26 @@ UPD:
                          both remedies move THEIR numbers. Added a general
                          legibility floor (no card below a quarter of the crown
                          radius) — a guard, not the cure.
+- 09:08:2026 - 21:18:02: BIRCH RESOLVED, and my own numbers corrected. design
+                         ruled (a) and adopted the aspect ceiling as a §5
+                         acceptance rule measured on the BUILT tree; the lead
+                         landed CROWN_ASPECT_MAX and a birch crown-base band.
+                         Implemented: crown base derived from the ceiling,
+                         birch base 0.58, crown widths CALIBRATED against the
+                         built tree (oak 0.45->0.48, birch 0.30->0.52 — the
+                         birch had drifted a third under its 5-7 m brief with a
+                         green suite), and the vertical card clamps fixed to use
+                         the card's CORNER reach rather than its half-height —
+                         the third instance of enforcing a rule on the notional
+                         element instead of on the thing that reaches. Birch
+                         aspect 2.30 -> 1.02, oak 1.53 -> 1.28. Frame reshot:
+                         the birch now reads as a small rounded crown on a pale
+                         bole, no detached fragments, and the oak stand is
+                         fuller. FIRST-REPORT ERROR CORRECTED: the original
+                         table pooled 12 variants into one bounding box and
+                         inflated every aspect by ~15 % (2.65 vs the true 2.30);
+                         re-sent to design and the lead, and pooling variants is
+                         now a named trap in §6.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1067,46 +1087,81 @@ and both would have surfaced as someone else's problem.
    decision, not a geometry one. Preserving the declared radius mattered far
    less than preserving the arrangement, and the code preserved the wrong one.
 
-6. **The birch crown is a COLUMN, and the container was always the problem —
-   STOPPED under Rule 28, escalated, do not attempt a fourth fix.** Cards did
-   not cure it. In the first card frame
-   (`screenshots/flora_cards/05_forest_species.png`) the birch crowns read as
-   narrow vertical sausages of foliage on a pale pole, with one or two clusters
-   detached below the main mass.
-   **Measured, across all 12 variants, foliage bounding box only:**
+6. **The birch crown was a COLUMN, and the container was always the problem —
+   RESOLVED by design's ruling after four failed attempts inside this zone.**
+   Cards did not cure it. In the first card frame the birch crowns read as
+   narrow vertical sausages of foliage on a pale pole.
 
-   | species | crown W | crown H | H/W | reads as |
-   |---|---|---|---|---|
-   | DaleOak | 13.6 m | 22.4 m | **1.65** | good — a mass |
-   | ValeWillow | 10.3 m | 15.5 m | **1.51** | good |
-   | RiverBirch | 4.9 m | 12.9 m | **2.65** | a column |
-   | HighlandPine | 5.5 m | 26.9 m | 4.88 | fine — a cone is MEANT to be narrow |
+   **Measured, per variant, on the BUILT tree, foliage bounding box only.**
+   *(A first report of these numbers pooled all 12 variants into one box, which
+   measures the variant HEIGHT SPREAD as if it were one crown's shape and
+   inflated every figure by ~15 %. Corrected within the hour and re-sent to
+   design and the lead. The correction did not change the diagnosis, and the
+   ruling had been made on the right side of the corrected band — but a
+   measurement that is quoted in NUMBERS.md has to be right, and pooling
+   variants is now a named trap in §6.)*
 
-   **The cause is arithmetic, not distribution.** Design's own numbers put the
-   birch crown at 5-7 m wide (§5.3) with the crown base at 35-45 % of a 16-22 m
-   height (`CROWN_BASE_FRACTION_MAX` = 0.45). Those two rules together define a
-   container roughly 5.7 m wide and 10.5 m tall, i.e. **1.8:1 before a single
-   cluster is placed**, and the generator's own fill pushes it to 2.65:1. No
-   arrangement of contents can make a 2.65:1 container read as a rounded mass —
-   the mass IS the container.
-   **This is why three previous fixes all failed.** Bug 4 changed the
+   | species | before | after | design band |
+   |---|---|---|---|
+   | DaleOak | 1.53 | **1.28** | — |
+   | ValeWillow | 1.37 | **1.25** | — |
+   | RiverBirch | **2.30** | **1.02** | — |
+   | HighlandPine | 4.23 | 4.23 | exempt: a cone is MEANT to be narrow |
+
+   **The cause was arithmetic, not distribution.** Design's crown width (5-7 m)
+   and crown base (<= 45 % of a 16-22 m height) together defined a container
+   ~1.8:1 before a single cluster was placed, and the built tree came out
+   2.3:1. **This is why three previous fixes all failed**: bug 4 changed the
    distribution, bug 5 changed the shrink rule, and this stage changed the
-   medium from solid blobs to cards — three different answers to the question
-   "what goes in the box", when the box was wrong. That is a new entry in the
-   pattern below and the most expensive one: *when three fixes at one level all
-   fail, the defect is at the level above.*
-   **Not fixable inside this zone.** Both candidate remedies move numbers that
-   belong to design and the lead: raise the birch's crown base to ~0.58-0.62
-   (which breaks `CROWN_BASE_FRACTION_MAX` and needs a per-species exception,
-   and which incidentally gives MORE clear trunk — design's own stated goal —
-   and is what a real river birch looks like), or widen the crown past design's
-   5-7 m band. Escalated to the lead and design 09:08:2026; **flora changes
-   nothing here until they rule.**
-   One thing that WAS in this zone and was fixed: a legibility floor, so a card
-   shrunk by envelope containment below a quarter of the crown radius is not
-   emitted at all rather than rendered as a detached scrap. It is a general
-   rule with a test; it did **not** change this frame, and it is recorded as a
-   guard, not as a cure.
+   medium from solid blobs to cards — three different answers to "what goes in
+   the box" when the box was wrong. *When three fixes at one level all fail,
+   the defect is at the level above.* Design records the same diagnosis about
+   the mountain (§2.8.1, «купол сидел в ЗАДАНИИ, а не в отрисовке»), so this is
+   the second instance and now a cross-cutting lesson rather than an anecdote.
+
+   **Design's ruling, and it is better than the exception flora asked for.**
+   `CROWN_BASE_FRACTION` was silently doing TWO jobs: clear trunk height (a
+   walkability goal — and §1.3 measured it visibility-insensitive to three
+   decimals, so it was never a sightline parameter) and, purely by being a
+   fraction of height, the crown's ASPECT RATIO. They pull apart on any species
+   whose crown is narrow relative to its height; the birch was merely the first
+   to expose it. So: `_MIN` 0.35 stays as a WALKABILITY FLOOR, `_MAX` 0.45 stops
+   being a binding cap, and each species' crown base is **derived** as the
+   smallest value at or above the floor that satisfies a new
+   `CROWN_ASPECT_MAX`. No per-species taxonomy to maintain — it just derives.
+
+   **`CROWN_ASPECT_MAX` is MEASURED ON THE BUILT TREE, and that is the whole
+   point.** The birch's container was 1.8:1 while the tree it produced was
+   2.3:1, so a ceiling checked against the parameters would have passed the
+   tree that fails. The generator now asserts it on itself at every build
+   (§6), which is where this should have been caught instead of on the fourth
+   screenshot. The value is **provisional**: the evidence is that 1.53 reads
+   and 2.30 does not, and the band between is untested. **The frame outranks
+   the number — if something under the ceiling still reads as a column, the
+   ceiling moves, not the tree.**
+
+   **Two flora-side defects the same measurement exposed, both the §3.7
+   pattern:**
+   - *Vertical clamps used the card's half-height, but a card is tilted in
+     elevation and rolled in its own plane, so what reaches is its CORNER.*
+     Cards hung below the crown base and pushed the measured box outside the
+     container — the exact quantity the new ceiling is measured on. Third
+     instance of "enforce on the thing that actually reaches".
+   - *Crown width was a BAND and only its maximum was ever asserted.* The birch
+     had drifted to 3.6-4.5 m against a 5-7 m brief — a third narrower than its
+     brief, and the other half of why it read as a column — with a green suite
+     throughout. Both bounds are now tested, at nominal size only, because
+     design's maturity tiers scale trees x0.4..x1.5 and take crowns outside any
+     band by construction.
+   - Foliage never reaches the envelope's widest point (containment holds the
+     card's corner inside, and the widest ring sits where a card would overshoot
+     the crown top), so `crown_width_frac` is now **calibrated against the built
+     tree**, not against the envelope: oak 0.45 -> 0.48, birch 0.30 -> 0.52.
+
+   Also added: a legibility floor — a card shrunk by containment below a quarter
+   of the crown radius is not emitted, because it renders as a detached scrap
+   rather than as part of a crown. A guard, not the cure; it did not change the
+   frame.
 
 **THE PATTERN — read this before changing the envelope or the floors.** All
 three bugs are the same failure: **a rule stated in full in this spec, and
@@ -1192,6 +1247,26 @@ successor can trust:
     **area, not vertex count**: a conifer's cone tiers cover the whole envelope
     with 72 vertices, so a vertex-share threshold fails the pine while passing
     a bald oak. Area is what the eye integrates, so area is what is asserted.
+
+13. **Crown aspect ceiling** — `CROWN_ASPECT_MAX` on the GENERATED foliage
+    bounding box, broadleaf only, conifers exempt as a property of their
+    silhouette brief. This is design's §5 acceptance rule and the one that
+    would have caught the birch on the first build instead of the fourth
+    screenshot.
+14. **Crown width has a FLOOR as well as a ceiling** — design's widths are
+    BANDS and only the maximum was ever asserted, which let the birch drift a
+    third under its brief with a green suite. Checked at nominal size only:
+    maturity tiers scale trees x0.4..x1.5 and take crowns outside any band by
+    construction.
+15. **No card below a quarter of the crown radius** — containment shrinks
+    cards, and past that point one stops joining the mass and starts reading as
+    a detached scrap hanging under the crown.
+
+**MEASURE PER VARIANT, NEVER POOLED.** Pooling the 12 variants into one
+bounding box measures the variant HEIGHT SPREAD as if it were one crown's
+shape. It inflated the first report of the birch aspect by ~15 % (2.65 against
+a true 2.30) and that wrong number reached NUMBERS.md before it was corrected.
+Anything shaped like "measure the built tree" is per variant.
 
 **Measured output at the time of writing** (max across 12 variants; the suite
 pins these as bands, this table is the snapshot):

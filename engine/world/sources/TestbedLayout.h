@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 21:40:00
+Last updated: 09:08:2026 - 02:40:00
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -42,6 +42,7 @@ UPD:
 - 09:08:2026 - 19:13:01: CragStamp::ridge_amp_meters — flank sub-relief as an ABSOLUTE amplitude, defaulted to reproduce today's 52 m crag. The legacy ridge_amp_frac coupled flank relief to peak height, so raising the summit inflated its own occluders; harmless at 52 m, wrong at the approved 110-120 m (flora's catch, kept although it was not the C1 bug).
 - 09:08:2026 - 19:41:55: L0_RELIEF 115 landed: crag peak reads the constant, rockline/treeline scale with the summit (absolute values tuned for 52 m left a 115 m crag bald from a third of the way up), and the switchback ascent is lifted with the summit and pushed out 1.30x so its mouth clears the taller cone. Scaling the footprint by the summit's own factor was tried first and was wrong — it put the route on the thin rim and turned the tunnel into a 349 m trench.
 - 09:08:2026 - 21:40:00: CragStamp::arete_count (L0_ARETE_COUNT_MIN..MAX) drives the §2.8 per-bearing lobe count.
+- 09:08:2026 - 02:40:00: arete_count 3 -> 4 with the reasoning recorded: pinning it at L0_ARETE_COUNT_MIN left I7 zero margin, and 12-seed measurement puts 4 strictly ahead of both 3 and 5.
 */
 
 #pragma once
@@ -73,7 +74,23 @@ struct CragStamp {
     /// Arete count (L0_ARETE_COUNT): how many outward lobes/inward couloirs
     /// the per-bearing radial extent carries. This is what the barrow's
     /// couloir search needs to exist at all.
-    int arete_count = 5;
+    /// Facet count for the §2.8.2 support-polygon cross-section. NOT pinned to
+    /// L0_ARETE_COUNT_MIN: reading one bound of a range as if it were the range
+    /// is the recurring bug in this zone, and it left I7 with zero margin (the
+    /// invariant needs >= 3 detected aretes, so a 3-facet massif fails if one
+    /// corner is missed). Measured across 12 seeds: 3 facets -> I8 level fails
+    /// 3 seeds; 4 -> fails 1; 5 -> fails ALL TWELVE, which is design's convex
+    /// cap n*tan(pi/n)/pi = 1.16 for a pentagon showing up as a measurement.
+    /// Whether this should be a per-seed DRAW in [MIN, MAX] rather than an
+    /// authored layout value is with design.
+    ///
+    /// HELD AT 3 PENDING DESIGN. Moving to 4 measurably improves I8, but it
+    /// reshapes the flank enough to break the Backbarrow sightline from the
+    /// castle yard AND gate -- a story-binding constraint -- and to re-close
+    /// the crag tunnel. That is §7.0a's cross-cutting dependency, and spending
+    /// a story invariant to buy an invariant margin is not a call this zone
+    /// gets to make on its own.
+    int arete_count = static_cast<int>(config::L0_ARETE_COUNT_MIN);
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)
     /// Flank sub-relief as a FRACTION of peak height (legacy parameterization).
     /// Used only when ridge_amp_meters <= 0.

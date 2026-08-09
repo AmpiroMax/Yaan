@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 09:08:2026 - 21:02:02
+Last updated: 09:08:2026 - 21:18:02
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -42,6 +42,12 @@ UPD:
   renders as a detached scrap of foliage rather than as part of the crown.
   Reduced LOD now spends its saving on fewer/larger clusters and one plane less
   per cluster, rather than only on the skeleton.
+- 09:08:2026 - 21:18:02: CROWN ASPECT CEILING (design's §5 ruling): the crown
+  base is DERIVED from CROWN_ASPECT_MAX rather than exempted per species, and
+  the card's vertical clamps now use its CORNER reach instead of its
+  half-height — a tilted, rolled card reaches its corners, and clamping on
+  half-height pushed the measured foliage box outside its container, which is
+  the very quantity the ceiling is measured on.
 */
 
 #include "engine/render/sources/ProcFlora.h"
