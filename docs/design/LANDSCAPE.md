@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 15:22:13
+Last updated: 09:08:2026 - 15:33:48
 -->
 <!--
 UPD:
@@ -15,6 +15,7 @@ UPD:
 - 09:08:2026 - 15:05:00: §6.1 folded in story's constraints for "Harrowward": gentry hall-castle mass program (horizontal hall + single solar vertical replaces the tall keep — also buys C1 clearance headroom), value-not-height doctrine tying the Ward to the crag's rock value, binding access invariant (graded ramp on the approach side within §2.4 corridor limits — a scarp-only pad is a failed placement), and a checkable Ward→Backbarrow sightline. CASTLE_KEEP_HEIGHT retired in favour of CASTLE_HALL_HEIGHT/CASTLE_SOLAR_HEIGHT/CASTLE_GATE_HEIGHT.
 - 09:08:2026 - 15:08:24: §6.1.2 — gate orientation settled as valley-facing (story canon, BIBLE §5.1), and the two new castle invariants (approach ramp, yard/gate->barrow sightline) explicitly joined to the C1-guarded set: re-validated by the same canopy-aware raycast on every worldgen run, not once at authoring time (raised by story: a later pine retune could occlude either).
 - 09:08:2026 - 15:22:13: C2 scope corrected (my error): POI_VISIBLE_COUNT is region-only per NUMBERS.md/Q46 and is unsatisfiable at testbed density alongside LANDMARK_VISIBILITY_MIN — general-bound citation withdrawn. Added Rule C2-testbed (no coequal crowd): max 2 attractors within a 2.0 subtended-size ratio, L0 exempt, composite POIs count once; occlude-and-reveal remains the real guarantee. Region bound unchanged.
+- 09:08:2026 - 15:33:48: C2-testbed limit raised 2 -> 3 on measured evidence (seed-1 crowd is three threshold-scale marks at 8-11 px), with a tightening to 2 for large crowds (COEQUAL_LARGE_PX 24 px). Blessed core's three measurement definitions into the doc: apparent size = height/distance (not top elevation angle, one definition shared by C2/C4/R4), only >=SILHOUETTE_MIN_PX attractors compete, body-backed attractors exempt per standpoint with the raw count still reported.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -91,9 +92,27 @@ choices; a legible hierarchy of different scales reads as one composition with
 depth (this is why the stage-3b tour frames read cleanly at 5 visible). So on
 the testbed:
 
-- At most `POI_COEQUAL_VISIBLE_MAX` = 2 attractors of comparable apparent
+- At most `POI_COEQUAL_VISIBLE_MAX` = **3** attractors of comparable apparent
   size — within `COEQUAL_ANGLE_RATIO` = 2.0 of each other in subtended
   height — may be visible from any standpoint **(предложение — утвердить)**.
+  **Tightens to 2 when the crowd is large:** if every member subtends
+  ≥ `COEQUAL_LARGE_PX` = 24 px (3× the §1.5 readability threshold), only 2
+  may compete **(предложение — утвердить)**. Three marks at the readability
+  floor are a vista; three masses filling the view are a menu.
+- **Apparent size means subtended height = object height / distance**, never
+  the elevation angle of the object's top. The angle measure conflates size
+  with ground elevation (a hut on a high shoulder scores as a landmark) and
+  produced a phantom crowd in the first seed-1 measurement. Same measure
+  governs C4 and §6.1.1 R4 — one definition across all three rules.
+- **Only attractors that clear the §1.5 readability threshold compete**
+  (`SILHOUETTE_MIN_PX` = 8). What you cannot resolve as a shape cannot
+  compete for your attention; sub-threshold objects are texture, not choices.
+- **Body-backed attractors are exempt per standpoint:** an attractor inside
+  the L0's angular footprint and nearer than the peak does not count, because
+  by R1 it reads against the crag's body and cannot claim the skyline. This
+  is §6.1.1's siting mechanism applied at view time. The raw unexempted count
+  is reported alongside and must stay visible in validation output — the
+  exemption is an interpretation, and interpretations get audited.
 - The **L0 is exempt** from the count: C1 mandates its ubiquity, so counting
   it against a visibility cap is self-contradictory.
 - Composite POIs (hamlet, castle+barrow) count **once**, per §6.1.2.
