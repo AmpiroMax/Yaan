@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:12:57
+Last updated: 09:08:2026 - 22:39:28
 Module: tests
 File: tests/render/LodTerrainTests.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:12:57: Created with the LOD drawing half.
+- 09:08:2026 - 22:39:28: pending() vs to_load(), with the ferry bug as its control.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -254,6 +255,44 @@ TEST_CASE("the streamed rectangle removes nodes from the draw list entirely") {
     lod.set_resident_rect({768.0f, 768.0f}, {1280.0f, 1280.0f});
     lod.update(eye, 0.0f);
     CHECK(lod.selected_count() < without_rect);
+
+    lod.destroy_all(*renderer);
+    renderer->shutdown();
+}
+
+TEST_CASE("pending() is the standing set the ferry retries, not a one-shot diff") {
+    auto renderer = dfn::platform::create_null_renderer();
+    REQUIRE(renderer->init({}));
+
+    LodTerrain lod;
+    lod.set_world_bounds({0.0f, 0.0f}, {2048.0f, 2048.0f});
+    lod.set_enabled(true);
+    const glm::vec3 eye{1024.0f, 20.0f, 1024.0f};
+
+    lod.update(eye, 0.0f);
+    const size_t announced = lod.to_load().size();
+    REQUIRE(announced > 0);
+    CHECK(lod.pending().size() == announced);
+
+    // THE CONTROL, and it is the bug a ferry written against to_load() alone
+    // would ship: to_load is a per-frame DIFF and names a node exactly once,
+    // so by the next frame it is EMPTY — while core, which admits nodes under
+    // a budget, has not answered yet. A ferry that only ever looked at
+    // to_load() would request every node once, never collect one, and the
+    // distant ground would simply never appear.
+    lod.update(eye, 0.016f);
+    CHECK(lod.to_load().empty());
+    CHECK(lod.pending().size() == announced);
+
+    // Delivering a node moves it out of pending, and only that one.
+    const LodNode first = lod.pending()[0];
+    const NodeField f = make_node_field(first);
+    lod.upload(*renderer, first, f.view, nullptr);
+    lod.update(eye, 0.016f);
+    CHECK(lod.pending().size() == announced - 1);
+    for (const LodNode& n : lod.pending()) {
+        CHECK_FALSE(n == first);
+    }
 
     lod.destroy_all(*renderer);
     renderer->shutdown();

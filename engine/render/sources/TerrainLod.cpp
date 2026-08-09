@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 09:08:2026 - 22:01:04
+Last updated: 09:08:2026 - 22:39:28
 Module: engine/render
 File: engine/render/sources/TerrainLod.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 09:08:2026 - 20:55:10: Created with the LOD selection module.
 - 09:08:2026 - 22:01:04: Resident-rectangle exclusion in the descent (coarse
   nodes stop where core's chunk streaming begins) + lod_skirt_depth_m.
+- 09:08:2026 - 22:39:28: pending() rebuilt each update.
 */
 
 #include "engine/render/sources/TerrainLod.h"
@@ -187,6 +188,7 @@ void LodResidency::update(const std::vector<LodNode>& selection, float dt_second
     to_load_.clear();
     to_release_.clear();
     draws_.clear();
+    pending_.clear();
 
     for (Entry& e : entries_) {
         e.selected = false;
@@ -213,6 +215,9 @@ void LodResidency::update(const std::vector<LodNode>& selection, float dt_second
         }
         if (e.resident && e.fade > 0.0f) {
             draws_.push_back({e.node, e.fade});
+        }
+        if (e.selected && !e.resident) {
+            pending_.push_back(e.node); // still waiting on core
         }
     }
 

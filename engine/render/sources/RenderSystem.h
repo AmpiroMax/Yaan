@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:36:47
+Last updated: 09:08:2026 - 22:39:28
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -84,6 +84,7 @@ UPD:
   is the same class split for the 800-line limit (Rule 21).
 - 09:08:2026 - 22:33:00: DFN_NO_SCATTER verification hook (scatter_off_).
 - 09:08:2026 - 22:36:47: warned_missing_meshes_ — the once-per-id missing-asset warning.
+- 09:08:2026 - 22:39:28: lod_pending() — the accessor the app ferry retries against.
 */
 
 #pragma once
@@ -183,6 +184,12 @@ public:
     [[nodiscard]] std::span<const LodNode> lod_to_release() const {
         return lod_.to_release();
     }
+    // Selected but not yet delivered. THE FERRY RETRIES coarse_heightfield
+    // AGAINST THIS, not against lod_to_load(): to_load is a per-frame diff that
+    // names a node exactly once, while core admits nodes under a budget and
+    // answers several frames later — a ferry built on to_load alone requests
+    // nodes it then never collects, and the ground never appears.
+    [[nodiscard]] std::span<const LodNode> lod_pending() const { return lod_.pending(); }
     // Meshes one coarse node (129 samples, step = the level's voxel size) and
     // uploads it. `surface` may be nullptr — core ships coarse surface fields
     // after the geometry, and slope-only splat is the agreed fallback.

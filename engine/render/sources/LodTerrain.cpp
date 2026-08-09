@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:12:57
+Last updated: 09:08:2026 - 22:39:28
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:12:57: Created with the LOD drawing half.
+- 09:08:2026 - 22:39:28: pending() forwarded.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -72,6 +73,10 @@ std::span<const LodNode> LodTerrain::to_load() const {
 
 std::span<const LodNode> LodTerrain::to_release() const {
     return residency_.to_release();
+}
+
+std::span<const LodNode> LodTerrain::pending() const {
+    return residency_.pending();
 }
 
 std::span<const LodDraw> LodTerrain::residency_draws() const {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 09:08:2026 - 22:01:04
+Last updated: 09:08:2026 - 22:39:28
 Module: engine/render
 File: engine/render/sources/TerrainLod.h
 
@@ -43,6 +43,8 @@ UPD:
   dropped and nodes straddling its border are forced to split, so coarse
   terrain and chunk terrain never draw the same ground. Plus lod_skirt_depth_m
   — the apron that hides T-junction cracks between adjacent levels.
+- 09:08:2026 - 22:39:28: LodResidency::pending() — the standing set of selected-but-
+  not-yet-delivered nodes, which is what the app ferry must retry against.
 */
 
 #pragma once
@@ -216,6 +218,13 @@ public:
     [[nodiscard]] const std::vector<LodNode>& to_release() const { return to_release_; }
     /// Everything to draw this frame, incoming and outgoing, with its fade.
     [[nodiscard]] const std::vector<LodDraw>& to_draw() const { return draws_; }
+    /// Nodes SELECTED but not yet resident — requested and still in flight.
+    /// Unlike to_load() this is not a per-frame diff but the standing set, so
+    /// the ferry can retry `coarse_heightfield` every frame until core answers.
+    /// The distinction is not cosmetic: to_load() names a node exactly once,
+    /// and core delivers under a budget several frames later, so a ferry built
+    /// on to_load() alone requests nodes it then never collects.
+    [[nodiscard]] const std::vector<LodNode>& pending() const { return pending_; }
 
     /// Marks a requested node as GPU-resident. Until this is called the node
     /// is selected but not drawn — a node cannot fade in before it exists, and
@@ -235,6 +244,7 @@ private:
     std::vector<Entry> entries_;
     std::vector<LodNode> to_load_;
     std::vector<LodNode> to_release_;
+    std::vector<LodNode> pending_;
     std::vector<LodDraw> draws_;
 };
 

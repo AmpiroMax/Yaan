@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 22:12:57
+Last updated: 09:08:2026 - 22:39:28
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -40,6 +40,7 @@ UPD:
 - 09:08:2026 - 22:12:57: Created — the render half of LOD that actually draws:
   node mesh residency, skirted coarse meshes, frustum culling and the
   screen-door cross-fade through DrawParams::fade.
+- 09:08:2026 - 22:39:28: pending() forwarded for the app ferry.
 */
 
 #pragma once
@@ -87,6 +88,11 @@ public:
     [[nodiscard]] std::span<const LodNode> to_load() const;
     /// Nodes whose mesh core may free: deselected AND fully faded out.
     [[nodiscard]] std::span<const LodNode> to_release() const;
+    /// Selected but not yet delivered. The ferry retries core's
+    /// `coarse_heightfield` against THIS every frame, not against to_load():
+    /// core admits nodes under a budget, so a node is announced once and
+    /// arrives several frames later.
+    [[nodiscard]] std::span<const LodNode> pending() const;
 
     /// Meshes the node and hands it to the GPU. Idempotent per node: a
     /// re-upload replaces the previous mesh and keeps the node's fade, so a
