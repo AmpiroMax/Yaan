@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 17:52:40
-Last updated: 09:08:2026 - 17:52:40
+Last updated: 09:08:2026 - 22:42:14
 Module: tests
 File: tests/render/MapScreenTests.cpp
 
@@ -22,9 +22,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 17:52:40: Initial tests with the map screen.
+- 09:08:2026 - 22:42:14: the castle marker range follows SITE_MESH_ID_LAST
+  instead of a copied 11, so it cannot fall behind the id table again.
 */
 
 #include "engine/render/sources/MapScreen.h"
+
+#include "engine/render/sources/ProcMesh.h" // SITE_MESH_ID_LAST — the id table
 
 #include <doctest/doctest.h>
 
@@ -104,11 +108,18 @@ TEST_CASE("marker kinds follow the blessed mesh ids, castle parts merge") {
     CHECK(map_marker_kind(1) == MapMarkerKind::Dwelling);
     CHECK(map_marker_kind(6) == MapMarkerKind::Dungeon);
     CHECK(map_marker_kind(7) == MapMarkerKind::TowerRuin);
-    for (uint32_t id = 8; id <= 11; ++id) {
+    // 8..12, not 8..11: the fortress revision reinstated CastleTower as id 12
+    // AFTER this case was written, and until now 12 mapped to COUNT — so a
+    // castle whose only resident part was a corner tower left no mark on the
+    // map at all. The range here follows the blessed ids in ProcMesh.h.
+    for (uint32_t id = 8; id <= dfn::render::SITE_MESH_ID_LAST; ++id) {
         CHECK(map_marker_kind(id) == MapMarkerKind::Castle);
     }
     CHECK(map_marker_kind(0) == MapMarkerKind::COUNT);
-    CHECK(map_marker_kind(12) == MapMarkerKind::COUNT);
+    // CONTROL: one past the blessed range must still be unknown, or the loop
+    // above proves nothing — a map_marker_kind that answered Castle for
+    // everything would pass it.
+    CHECK(map_marker_kind(dfn::render::SITE_MESH_ID_LAST + 1) == MapMarkerKind::COUNT);
 }
 
 TEST_CASE("sites are remembered once per place, castle parts collapse") {
