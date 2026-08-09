@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 16:47:51
 Module: engine/world
 File: engine/world/sources/VoxelVolume.cpp
 
@@ -27,11 +27,13 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 16:00:00: Created — volume construction for the 3D stage.
 - 09:08:2026 - 16:30:44: Representation swap: volume built from the chunk's own heightmap; border nodes emulate the NEIGHBOUR's heightmap (quantized 2 m lattice + bilinear) rather than sampling the continuous field, which disagreed by up to 0.30 m mid-cell and showed as a seam.
+- 09:08:2026 - 16:47:51: P7: slab extended to reach carved volumes (they sit below the surface band), per-column band widened over carves, CSG subtraction d = max(terrain, -carve).
 */
 
 #include "engine/world/sources/VoxelVolume.h"
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/world/sources/WorldgenCarve.h"
 
 #include <algorithm>
 #include <cmath>
@@ -125,8 +127,8 @@ math::VoxelMaterial surface_material(const SurfaceData& surface, int32_t vx, int
 
 } // namespace
 
-VoxelVolume build_voxel_volume(const Chunk& chunk,
-                               const BorderHeightSampler& border_height) {
+VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& border_height,
+                               const TestbedLayout& layout) {
     VoxelVolume v;
     v.voxel = VOXEL;
     v.band = BAND;
@@ -162,8 +164,27 @@ VoxelVolume build_voxel_volume(const Chunk& chunk,
     // Slab: the vertical range the surface passes through, plus band margin.
     // Snapped to the voxel lattice in WORLD space so neighbouring chunks share
     // node planes exactly (their meshes must meet without a seam).
-    const float lo = std::floor((hmin - BAND - VOXEL) / VOXEL) * VOXEL;
-    const float hi = std::ceil((hmax + BAND + VOXEL) / VOXEL) * VOXEL;
+    float slab_lo = hmin - BAND - VOXEL;
+    float slab_hi = hmax + BAND + VOXEL;
+    // Carved volumes live BELOW the surface band; the slab has to reach them
+    // or the tunnel simply would not exist in the field.
+    const bool carving = has_carves(layout);
+    if (carving) {
+        for (int32_t z = 0; z < v.nz; ++z) {
+            for (int32_t x = 0; x < v.nx; ++x) {
+                const auto [clo, chi] = carve_column_range(
+                    layout, v.origin + glm::vec2{static_cast<float>(x) * VOXEL,
+                                                 static_cast<float>(z) * VOXEL});
+                if (clo > chi) {
+                    continue;
+                }
+                slab_lo = std::min(slab_lo, clo - BAND - VOXEL);
+                slab_hi = std::max(slab_hi, chi + BAND + VOXEL);
+            }
+        }
+    }
+    const float lo = std::floor(slab_lo / VOXEL) * VOXEL;
+    const float hi = std::ceil(slab_hi / VOXEL) * VOXEL;
     v.y0 = lo;
     v.ny = static_cast<int32_t>(std::lround((hi - lo) / VOXEL)) + 1;
 
@@ -183,12 +204,28 @@ VoxelVolume build_voxel_volume(const Chunk& chunk,
 
             // Only the band around this column's surface varies; everything
             // below is saturated solid rock, everything above saturated air.
-            const int32_t lo = std::clamp(
+            int32_t lo = std::clamp(
                 static_cast<int32_t>(std::floor((surface - BAND - v.y0) / VOXEL)) - 1, 0,
                 v.ny - 1);
-            const int32_t hi = std::clamp(
+            int32_t hi = std::clamp(
                 static_cast<int32_t>(std::ceil((surface + BAND - v.y0) / VOXEL)) + 1, 0,
                 v.ny - 1);
+            const glm::vec2 column_xz =
+                v.origin + glm::vec2{static_cast<float>(x) * VOXEL,
+                                     static_cast<float>(z) * VOXEL};
+            bool carved_column = false;
+            if (carving) {
+                const auto [clo, chi] = carve_column_range(layout, column_xz);
+                if (clo <= chi) {
+                    carved_column = true;
+                    lo = std::min(lo, std::clamp(static_cast<int32_t>(
+                                                     std::floor((clo - BAND - v.y0) / VOXEL)),
+                                                 0, v.ny - 1));
+                    hi = std::max(hi, std::clamp(static_cast<int32_t>(
+                                                     std::ceil((chi + BAND - v.y0) / VOXEL)),
+                                                 0, v.ny - 1));
+                }
+            }
             v.band_lo[v.column(x, z)] = lo;
             v.band_hi[v.column(x, z)] = hi;
 
@@ -201,7 +238,11 @@ VoxelVolume build_voxel_volume(const Chunk& chunk,
                       static_cast<uint8_t>(math::VoxelMaterial::Rock));
             for (int32_t y = lo; y <= hi; ++y) {
                 const float wy = v.y0 + static_cast<float>(y) * VOXEL;
-                const float d = wy - surface; // negative below the surface
+                float d = wy - surface; // negative below the surface
+                if (carved_column) {
+                    // CSG subtraction: air wins over rock.
+                    d = std::max(d, -carve_distance(layout, {column_xz.x, wy, column_xz.y}));
+                }
                 const std::size_t i = v.index(x, y, z);
                 v.sdf[i] = static_cast<int8_t>(
                     std::lround(std::clamp(d / BAND, -1.0f, 1.0f) * 127.0f));

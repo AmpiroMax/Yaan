@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:00:00
+Last updated: 09:08:2026 - 16:47:51
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -23,12 +23,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 16:00:00: Created — representation-swap suite.
+- 09:08:2026 - 16:47:51: P7 acceptance: tunnel enclosed/walkable/climbing, voxel field holds overhangs and ceiling geometry a heightfield cannot, Backbarrow is a buried reachable room.
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/world/sources/VoxelMesh.h"
 #include "engine/world/sources/VoxelVolume.h"
+#include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/Worldgen.h"
 
 #include <algorithm>
@@ -107,8 +109,8 @@ TEST_CASE("Rule 13.1: voxel volume and extracted mesh are bit-deterministic") {
 
     // The volume itself (the quantized field) is an exact integer state.
     const auto sampler = [&ctx](glm::vec2 p) { return world::terrain_height(ctx, p); };
-    const auto va = world::build_voxel_volume(a, sampler);
-    const auto vb = world::build_voxel_volume(b, sampler);
+    const auto va = world::build_voxel_volume(a, sampler, ctx.params.layout);
+    const auto vb = world::build_voxel_volume(b, sampler, ctx.params.layout);
     CHECK(va.sdf == vb.sdf);
     CHECK(va.material == vb.material);
 }
@@ -188,4 +190,101 @@ TEST_CASE("the cross-zone view exposes the mesh unchanged") {
     CHECK(view.positions.size() == chunk.voxels.positions.size());
     CHECK(view.triangle_count() == chunk.voxels.indices.size() / 3);
     CHECK(view.triangle_count() > 1000);
+}
+
+TEST_CASE("P7 carves: the crag tunnel is enclosed, walkable and climbs") {
+    // The acceptance geometry: a corridor under rock, with room to stand, that
+    // gains height between two portals. Measured against the CARVE FIELD (the
+    // voxelized headroom is checked in the next case).
+    const auto& ctx = testbed();
+    const auto& layout = ctx.params.layout;
+    const auto& tun = layout.carves.crag_tunnel;
+    REQUIRE(tun.point_count >= 4); // a switchback route, not a straight adit
+    CHECK(tun.height >= static_cast<float>(config::PLAYER_CAPSULE_HEIGHT));
+
+    float length = 0.0f;
+    float climb = 0.0f;
+    int enclosed = 0;
+    int open = 0;
+    int standable = 0;
+    for (int i = 0; i + 1 < tun.point_count; ++i) {
+        const glm::vec3 a = tun.points[i];
+        const glm::vec3 b = tun.points[i + 1];
+        length += glm::length(b - a);
+        climb += std::max(0.0f, b.y - a.y);
+        const int steps = std::max(1, static_cast<int>(glm::length(b - a) / 2.0f));
+        for (int s = 0; s <= steps; ++s) {
+            const glm::vec3 p = a + (b - a) * (static_cast<float>(s) / steps);
+            const float surface = world::terrain_height(ctx, {p.x, p.z});
+            if (p.y + tun.height >= surface) {
+                ++open; // portal / approach cutting
+                continue;
+            }
+            ++enclosed;
+            // Air at eye height, rock underfoot: that is "standing in a tunnel".
+            const bool air_at_eye =
+                world::carve_distance(layout, {p.x, p.y + 1.7f, p.z}) < 0.0f;
+            const bool rock_underfoot =
+                world::carve_distance(layout, {p.x, p.y - 0.5f, p.z}) > 0.0f;
+            if (air_at_eye && rock_underfoot) ++standable;
+        }
+    }
+    CHECK(length > 100.0f);  // a traverse, not a doorway
+    CHECK(climb > 10.0f);    // it genuinely takes you up the crag
+    CHECK(enclosed > 40);    // most of it is inside the mountain
+    CHECK(open > 4);         // both portals exist
+    // Allow a couple of stations where switchback legs stack over each other.
+    CHECK(standable >= enclosed - 2);
+}
+
+TEST_CASE("P7 carves: the voxel field holds the tunnel a heightfield cannot") {
+    const auto& ctx = testbed();
+    const auto sampler = [&ctx](glm::vec2 p) { return world::terrain_height(ctx, p); };
+    const auto chunk = world::generate_chunk(ctx, ChunkCoord{3, 0});
+    const auto volume =
+        world::build_voxel_volume(chunk, sampler, ctx.params.layout);
+
+    // Columns with two solid spans are air-under-rock-under-air: a ceiling
+    // over a floor. A heightfield cannot represent ANY of these.
+    int overhang_columns = 0;
+    for (int32_t z = 0; z < volume.nz; ++z) {
+        for (int32_t x = 0; x < volume.nx; ++x) {
+            int spans = 0;
+            bool prev = false;
+            for (int32_t y = 0; y < volume.ny; ++y) {
+                const bool solid = volume.solid_at(x, y, z);
+                if (solid && !prev) ++spans;
+                prev = solid;
+            }
+            if (spans >= 2) ++overhang_columns;
+        }
+    }
+    CHECK(overhang_columns > 200);
+
+    // The extracted mesh must carry downward-facing geometry — the ceiling the
+    // player stands under. Open terrain alone produces almost none.
+    std::size_t ceiling_verts = 0;
+    for (const glm::vec3& n : chunk.voxels.normals) {
+        if (n.y < -0.5f) ++ceiling_verts;
+    }
+    CHECK(ceiling_verts > 100);
+}
+
+TEST_CASE("P7 carves: the Backbarrow is a room, not a dent") {
+    const auto& ctx = testbed();
+    const auto& ch = ctx.params.layout.carves.barrow_chamber;
+    REQUIRE(ch.half_extent.x > 0.0f);
+    CHECK(ch.half_extent.y >= static_cast<float>(config::PLAYER_CAPSULE_HEIGHT));
+    // Buried: the chamber ceiling sits under real rock.
+    const float surface = world::terrain_height(ctx, {ch.center.x, ch.center.z});
+    CHECK(surface - (ch.center.y + ch.half_extent.y) > 2.0f);
+    // Reachable: its passage breaks the surface somewhere (the entrance).
+    const auto& passage = ctx.params.layout.carves.barrow_passage;
+    REQUIRE(passage.point_count >= 2);
+    bool has_mouth = false;
+    for (int i = 0; i < passage.point_count; ++i) {
+        const glm::vec3 p = passage.points[i];
+        if (p.y + passage.height >= world::terrain_height(ctx, {p.x, p.z})) has_mouth = true;
+    }
+    CHECK(has_mouth);
 }

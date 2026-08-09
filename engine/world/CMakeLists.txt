@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 16:30:44
+# Last updated: 09:08:2026 - 16:47:51
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -22,6 +22,7 @@
 #                          hydrology, sites, scatter, validation).
 # - 09:08:2026 - 13:28:27: P1 anisotropy touch: WorldgenWater.cpp added (query side split from WorldgenHydrology.cpp).
 # - 09:08:2026 - 16:30:44: Representation swap: VoxelVolume.cpp and VoxelMesh.cpp.
+# - 09:08:2026 - 16:47:51: P7: WorldgenCarve.cpp.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -29,6 +30,7 @@ add_library(dfn_world STATIC
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
     sources/Worldgen.cpp
+    sources/WorldgenCarve.cpp
     sources/WorldgenCastle.cpp
     sources/WorldgenHydrology.cpp
     sources/WorldgenMacro.cpp

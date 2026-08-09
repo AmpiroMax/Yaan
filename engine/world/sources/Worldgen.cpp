@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 16:47:51
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -40,6 +40,7 @@ UPD:
   arrays, P4 site records, P5 scatter; WORLDGEN_MAX_HEIGHT quantization.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: grid-pass generate_chunk (water/heights once per node, slope from the grid, analytic border) — bit-identical to surface_point, ~5x fewer field evals; equality pinned by test.
 - 09:08:2026 - 16:30:44: Representation swap: generate_chunk builds the voxel volume from the heightmap it just wrote, extracts the surface, and drops the volume.
+- 09:08:2026 - 16:47:51: P7: carves passed to the volume build.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -268,9 +269,9 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     // extract its surface and DROP the volume — the world is not destructible,
     // so only the geometry stays resident.
     {
-        const VoxelVolume volume = build_voxel_volume(chunk, [&ctx](glm::vec2 p) {
-            return terrain_height(ctx, p);
-        });
+        const VoxelVolume volume = build_voxel_volume(
+            chunk, [&ctx](glm::vec2 p) { return terrain_height(ctx, p); },
+            ctx.params.layout);
         VoxelMeshData mesh = extract_surface_nets(volume);
         chunk.voxels.positions = std::move(mesh.positions);
         chunk.voxels.normals = std::move(mesh.normals);

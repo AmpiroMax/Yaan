@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:18:34
+Last updated: 09:08:2026 - 16:47:51
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -37,12 +37,14 @@ UPD:
   (lead-approved location as an additive WorldGenParams field).
 - 09:08:2026 - 13:12:19: Stage 3b amendments (design 12:44:58): fords removed from RiverLayout (derived in P2 per §7.1a); pine annulus -> radial ridge strips with count/duty knobs (§1.3 C1, tuned seed 1); crag treeline knob; corridor_distance moved here (shared layout geometry).
 - 09:08:2026 - 15:18:34: Castle (§6.1): CastleLayout — Harrowward's stamp target on the crag SW foot, §6.1.3 footprints, approach-corridor index (gate is valley-facing, pad never rotated).
+- 09:08:2026 - 16:47:51: P7 carves: CarveCorridor/CarveChamber/CarveLayout — the crag switchback tunnel (8 waypoints, 4 legs, 3 landings, starts and ends in open air so the portals form where the path meets rock) and the Backbarrow passage + chamber.
 */
 
 #pragma once
 
 #include <cmath>
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
 namespace dfn::world {
@@ -136,6 +138,30 @@ struct CorridorLayout {
     int point_count = 0;
 };
 
+/// A walkable carved corridor (P7): a polyline of floor waypoints with a flat
+/// floor and flat ceiling. Waypoints may sit outside the terrain — the portal
+/// forms where the path meets rock (see WorldgenCarve.h).
+struct CarveCorridor {
+    glm::vec3 points[10]{}; ///< x, FLOOR y, z
+    int point_count = 0;
+    float half_width = 2.0f; ///< corridor is 2x this wide
+    float height = 3.2f;     ///< floor to ceiling: real headroom, not a crawl
+};
+
+/// A carved chamber (rectangular room): the Backbarrow's interior.
+struct CarveChamber {
+    glm::vec3 center{0.0f};    ///< x, FLOOR y, z
+    glm::vec3 half_extent{0.0f}; ///< x/z half sizes; y component is the height
+};
+
+/// P7 carve set (3D terrain). Two sites in the crunch variant: the switchback
+/// route up the crag, and the Backbarrow interior behind its entrance.
+struct CarveLayout {
+    CarveCorridor crag_tunnel{};
+    CarveCorridor barrow_passage{};
+    CarveChamber barrow_chamber{};
+};
+
 /// Castle layout (LANDSCAPE §6.1 ruling): House Corvane's seat on the crag's
 /// SW foot spur. Position is a stamp target (§6.1.4) — core solves the exact
 /// pad against the C1 re-validation; the §6.1.1 invariants are the contract.
@@ -217,6 +243,27 @@ struct TestbedLayout {
     glm::vec2 watchpoint{660.0f, 430.0f};
 
     CastleLayout castle{}; ///< §6.1 — the seat of state power (CASTLE_COUNT_TESTBED)
+
+    /// P7 carves (3D terrain). Waypoints are floor levels; see WorldgenCarve.h.
+    /// The tunnel starts and ends in open air so both portals form naturally
+    /// where the path enters and leaves the massif.
+    CarveLayout carves{
+        // Crag tunnel: mouth at the SW foot, four switchback legs with
+        // landings, exit high on the SW flank overlooking the valley.
+        CarveCorridor{{{778.0f, 21.0f, 296.0f},
+                       {816.0f, 25.0f, 268.0f},
+                       {820.0f, 25.5f, 264.0f},
+                       {790.0f, 30.0f, 248.0f},
+                       {786.0f, 30.5f, 244.0f},
+                       {812.0f, 35.0f, 232.0f},
+                       {816.0f, 35.5f, 228.0f},
+                       {788.0f, 39.5f, 238.0f}},
+                      8, 2.0f, 3.2f},
+        // Backbarrow: a short passage from the entrance into the hillside.
+        CarveCorridor{{{780.0f, 20.2f, 292.0f}, {780.0f, 20.2f, 272.0f}}, 2, 1.8f, 2.6f},
+        // ... opening into a burial chamber.
+        CarveChamber{{780.0f, 20.2f, 264.0f}, {7.0f, 3.4f, 7.0f}},
+    };
 
     ForestRegions forests{};
 };

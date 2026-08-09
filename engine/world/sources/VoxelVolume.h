@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 16:47:51
 Module: engine/world
 File: engine/world/sources/VoxelVolume.h
 
@@ -35,12 +35,14 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 16:00:00: Created — voxel volume for the 3D terrain stage.
 - 09:08:2026 - 16:30:44: Representation swap: VoxelVolume (quantized SDF + material, slab-limited, y-contiguous layout, per-column active band) and the seam-cell contract.
+- 09:08:2026 - 16:47:51: P7: build_voxel_volume takes the layout and subtracts its carves.
 */
 
 #pragma once
 
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/world/sources/Chunk.h"
+#include "engine/world/sources/TestbedLayout.h"
 
 #include <cstdint>
 #include <functional>
@@ -107,7 +109,10 @@ using BorderHeightSampler = std::function<float(glm::vec2)>;
 /// emitted exactly once — by the chunk on the -x/-z side — and the duplicated
 /// node plane carries identical values, so the meshes coincide rather than
 /// overlap. `border_height` supplies the heights for that extra column.
+/// `layout` supplies the P7 carves subtracted from the terrain (pass a layout
+/// with no carves to get bare terrain).
 [[nodiscard]] VoxelVolume build_voxel_volume(const Chunk& chunk,
-                                             const BorderHeightSampler& border_height);
+                                             const BorderHeightSampler& border_height,
+                                             const TestbedLayout& layout);
 
 } // namespace dfn::world
