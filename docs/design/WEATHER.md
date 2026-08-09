@@ -1,10 +1,11 @@
 <!--
 Created: 10:08:2026 - 02:04:16
-Last updated: 10:08:2026 - 02:04:16
+Last updated: 10:08:2026 - 02:06:33
 -->
 <!--
 UPD:
 - 10:08:2026 - 02:04:16: Weather doctrine skeleton (user ruling в4: all four, CLOUDS FIRST; в10 three cloud kinds at once; в12 ambient sound; в21 Gerstner off the shared wind field). Defines what a weather STATE is (a named parameter tuple in data), how states TRANSITION (adjacency graph, upwind arrival, the wind field persists across transitions), what a ZONE PROFILE contains (state distribution + terrain-aware modifiers: fog pools in swales), and each stand's profile. Acceptance conditions and controls per state; NUMBERS rows named as proposals; ownership split flagged for the lead where open.
+- 10:08:2026 - 02:06:33: LEAD RULING CARRIED IN (flag 1 dissolved): the weather schedule is a PURE FUNCTION OF THE DATE, like the lunar phase — state-at-time = f(seed, game time, zone), no state machine anywhere, nothing serializes, frames reproduce from timestamp alone; core owns it as a sibling of the wind/coverage fields. Cost recorded in W2.5: weather cannot react to events without a FUTURE authored override layer (a named interval in the schedule, still data). Flag 2 (profile blending) parked with its trigger: wakes when two stands merge into one world.
 -->
 
 # WEATHER.md — Weather & Atmosphere Doctrine
@@ -74,10 +75,21 @@ acceptance + a stand that wants it.
    an approach.**
 4. **The wind FIELD persists across all transitions** (W3) — states modulate
    its amplitude, never replace it. Nothing pops direction.
-5. **The schedule is seeded and deterministic** (Rule 13): state sequence and
-   dwell times drawn from `WorldGenRng`-style streams keyed (seed, day,
-   zone), so a reported frame is reproducible. Dwell band
-   `WEATHER_DWELL_S` (600–1800 s proposed).
+5. **The schedule is a PURE FUNCTION OF THE DATE, like the moon (lead
+   ruling, stage-5 — it dissolved the W8 state-machine question).**
+   state-at-time = pure seeded function of (world seed, game time, zone),
+   transitions read from the adjacency graph deterministically — the same
+   construction as the lunar phase, which is computed from game time with no
+   accumulated state so werewolves and lunar magic can know it for any past
+   or future day. Consequences: **no state machine runs anywhere and nothing
+   serializes** — saves carry game seconds and the weather follows for free;
+   any reported frame reproduces from its timestamp alone (this section's
+   determinism requirement made structural). Dwell band `WEATHER_DWELL_S`
+   (600–1800 s proposed). **The cost, recorded so nobody rediscovers it as a
+   bug: weather cannot REACT to events** — a quest cannot summon a storm —
+   **without an authored override layer on top.** That layer is a FUTURE
+   decision and composes cleanly: an override is a named interval in the
+   schedule, still data, still serializable.
 
 ## W3. The shared wind field (the spine of the whole system)
 
@@ -172,10 +184,14 @@ Music: later, per user. Footsteps-by-material are movement's, not weather's.
   acceptance frames.
 - **core** — the wind field and cloud-coverage field as deterministic
   world-state (two+ consumers each ⇒ they are world data, not render
-  effects), the local-floor derivative for W5, the seeded schedule.
-- **render** — sky, shadow sampling, fog draw; **audio** — W7 mixes.
-- **OPEN (lead's call):** where the state machine itself runs (sim vs app) —
-  it ticks with game time and must serialize with saves when saves land.
-- **OPEN:** whether zones within one big-world map need boundary blending of
-  profiles (stands don't; defer until the big world composes regions —
-  same door as §2.10 blending, likely the same warp answer).
+  effects), the local-floor derivative for W5, and the schedule function —
+  a sibling of those fields, per the W2.5 ruling.
+- **render** — sky, shadow sampling, fog draw; **audio** — W7 mixes; the
+  app feeds game time exactly as it does for the sky.
+- ~~OPEN: where the state machine runs~~ **RULED (lead, stage-5): there is
+  no state machine — the schedule is a pure function of the date (W2.5).**
+  Nothing to place in sim or app, nothing to serialize.
+- **OPEN, parked with its trigger:** whether zones within one big-world map
+  need boundary blending of profiles (stands don't). Wakes when two stands
+  merge into one world — same door as §2.10 blending, likely the same warp
+  answer.
