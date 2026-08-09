@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 21:18:02
+Last updated: 09:08:2026 - 21:40:17
 -->
 <!--
 UPD:
@@ -161,6 +161,19 @@ UPD:
                          inflated every aspect by ~15 % (2.65 vs the true 2.30);
                          re-sent to design and the lead, and pooling variants is
                          now a named trap in §6.
+- 09:08:2026 - 21:40:17: CROWN_ASPECT_MAX verified against the REGISTRY, not
+                         against anyone's prose: the constant is 1.8 and always
+                         was (the lead landed 2.0 at 21:12:24 and refined it to
+                         1.8 fifty-one seconds later; design read NUMBERS.md
+                         between those two edits and relayed the stale value,
+                         and I repeated it back). Nothing needed changing —
+                         every citation in this zone is the NAME, no literal —
+                         and a fresh constants regeneration plus a full rebuild
+                         confirms the suite and the geometry were validated
+                         against 1.8 throughout. The derivation was never the
+                         binding constraint for any species, so no tree moved.
+                         Lesson kept: when prose and NUMBERS.md disagree, the
+                         registry wins and costs one grep to check.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1133,7 +1146,11 @@ and both would have surfaced as someone else's problem.
    **`CROWN_ASPECT_MAX` is MEASURED ON THE BUILT TREE, and that is the whole
    point.** The birch's container was 1.8:1 while the tree it produced was
    2.3:1, so a ceiling checked against the parameters would have passed the
-   tree that fails. The generator now asserts it on itself at every build
+   tree that fails. *(Numerical coincidence worth naming before it confuses
+   someone: the container ratio 1.8 and the constant's value 1.8 are unrelated.
+   The container figure is a MEASUREMENT of the old birch; the constant is
+   design's chosen ceiling. Cite the NAME, never either literal — Rule 14, and
+   the value moved once already while this section was being written.)* The generator now asserts it on itself at every build
    (§6), which is where this should have been caught instead of on the fourth
    screenshot. The value is **provisional**: the evidence is that 1.53 reads
    and 2.30 does not, and the band between is untested. **The frame outranks

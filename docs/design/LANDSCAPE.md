@@ -1339,6 +1339,27 @@ the world.**
     resolving the ambiguity in their own favour is the behaviour to keep; this
     ruling supplies the verdict, it does not delete the second column.
 
+- **EVERY INVARIANT SHIPS WITH A CONTROL: THE SHAPE IT EXISTS TO REJECT MUST
+  FAIL IT (core's practice, ruled into the document — and it is the strongest
+  process rule of this whole stage).** Core ran the I11 detector against a
+  smooth analytic cone before trusting it, "because I have now been burned
+  twice by trusting a detector", and **the cone scored exactly 3 against a
+  floor of 3.** This is the *third* time this section has produced a test its
+  own reject-case passes: raw contour-spacing CV scored 0.935 on the dome,
+  footprint-weighted I3 scores its ideal at zero, and now I11. Three
+  instances is not bad luck, it is a missing step. **A new invariant is not
+  believed until the dome fails it.** The control is cheap — an analytic cone,
+  a uniform cone, a pancake — and it is the only thing that distinguishes "my
+  test passes" from "my test discriminates".
+- **A VIEW-SPACE TEST IS EVALUATED AT THE RESOLUTION OF THE EYE IT STANDS IN
+  FOR (core's rule, adopted verbatim in intent).** Their first I11 returned
+  17–31 breaks whose count **did not fall as the threshold rose** — the
+  signature of sampling jitter rather than structure, and a diagnostic worth
+  keeping on its own. The window is the readability scale: a readable feature
+  is `distance/30` metres, so its **angular** size is 1/30 rad at every
+  distance, and structure finer than that cannot be something the player sees.
+  This generalises past I11 to every future camera-side check.
+
 **Verdict on the open reading, stated so it is not left implicit: I3 PASSES at
 16.5 %** against `MASSIF_STEEP_FRACTION_MIN` = 0.12. The 6.0 % footprint
 reading is retained as a **diagnostic** — the ratio between the two readings is
