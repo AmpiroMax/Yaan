@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 19:54:00
+Last updated: 09:08:2026 - 20:21:13
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -29,6 +29,10 @@ UPD:
   root flare. species_radius updated to flora's measured envelopes.
 - 09:08:2026 - 19:54:00: birch footprint 2.4 -> 3.1 m (flora's crown fix gave
   the birch a real 6.1 m crown; the old radius was measured off a bald tree).
+- 09:08:2026 - 20:21:13: Trees bake into TWO streams via flora's append_flora
+  (opaque wood + alpha-cutout leaf cards). EDITED BY THE FLORA AGENT under an
+  explicit lead-granted Rule 25 exception while render's zone was unowned;
+  wiring only, no material or shader change.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -120,14 +124,13 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
             const FloraSpecies fs = flora_species_of(inst.species);
             const uint32_t variant =
                 flora_variant_for({inst.position.x, inst.position.z});
-            const MeshData mesh =
-                build_flora_mesh(fs, variant, shapes[i], FloraLod::Full);
             // Scale 1.0: the generator has ALREADY applied FloraShape::maturity
             // (which is inst.scale) to the height. Passing inst.scale here too
             // would square it — a 1.25 giant becomes 1.56 and still looks
             // plausible, which is exactly why it would survive review.
             // Trees do not sink: they stand on their root flare.
-            append_transformed(out.trees, mesh, inst.position, inst.yaw, 1.0f);
+            append_flora(out.trees, out.foliage, fs, variant, shapes[i],
+                         FloraLod::Full, inst.position, inst.yaw);
             continue;
         }
         const MeshData& src = mesh_of(inst.species);

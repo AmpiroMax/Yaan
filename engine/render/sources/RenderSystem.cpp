@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 19:52:00
+Last updated: 09:08:2026 - 20:46:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -44,6 +44,12 @@ UPD:
   DFN_MAP=1 opens the map at init for the tour evidence shot.
 - 09:08:2026 - 19:42:00: upload_terrain_voxel (see the header UPD).
 - 09:08:2026 - 19:52:00: DFN_TIME re-applied per frame (see the header UPD).
+- 09:08:2026 - 20:21:13: Foliage pass (see the header UPD): "foliage" program,
+  leaf mask atlas upload, second scatter submit. Flora agent, lead-granted
+  Rule 25 exception.
+- 09:08:2026 - 20:46:00: collect_point_lights — CarriedLight + Transform become
+  the frame's point lights (interpolated, hand offset rotated by body yaw,
+  first two flagged for cube shadows), plus DFN_TORCH / DFN_DARK hooks.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -51,6 +57,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/render/sources/FloraCards.h"
 #include "engine/render/sources/Materials.h"
 #include "engine/render/sources/ProcMesh.h"
 #include "engine/render/sources/ProcTexture.h"
@@ -76,6 +83,7 @@ namespace {
 // Cache keys for the procedural texture registry (params -> dense asset id).
 constexpr uint64_t PROC_KEY_TERRAIN_ATLAS = 0x01;
 constexpr uint64_t PROC_KEY_WATER = 0x02;
+constexpr uint64_t PROC_KEY_LEAF_ATLAS = 0x03;
 
 uint64_t proc_key(uint64_t kind, uint32_t size, uint32_t seed) {
     return (kind << 56) | (static_cast<uint64_t>(size) << 32) | seed;
@@ -123,6 +131,7 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     unlit_program_ = renderer.load_program("unlit").id;
     water_program_ = renderer.load_program("water").id;
     prop_program_ = renderer.load_program("prop").id;
+    foliage_program_ = renderer.load_program("foliage").id;
 
     // Placeholder site meshes under the lead-blessed RenderMesh ids 1..7
     // (dwelling..tower_ruin) — chunk streaming attaches exactly these ids to
@@ -158,6 +167,19 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             renderer,
             proc_key(PROC_KEY_WATER, LOOKDEV_WATER_TEX_PX, LOOKDEV_TEXTURE_SEED),
             LOOKDEV_WATER_TEX_PX, LOOKDEV_WATER_TEX_PX, water.data());
+
+        // The leaf mask atlas (flora's zone): tile columns are leaf SHAPES,
+        // tile rows are leaf COLOURS, so a card's uv already carries both and
+        // no vertex byte is spent on colour. A SEASON CHANGE IS THIS CALL
+        // AGAIN with a different enum plus a re-upload — no mesh is rebuilt,
+        // no chunk is re-baked, no per-card jitter is invalidated.
+        const LeafAtlas leaves =
+            generate_leaf_atlas(LEAF_ATLAS_TILE_PX, FloraSeason::Summer);
+        leaf_texture_asset_ = procedural_texture_asset(
+            renderer,
+            proc_key(PROC_KEY_LEAF_ATLAS, LEAF_ATLAS_TILE_PX,
+                     static_cast<uint32_t>(FloraSeason::Summer)),
+            leaves.width, leaves.height, leaves.pixels.data());
     }
 
     // Screen overlay quad (map screen now, menus later): a unit quad in model
@@ -203,6 +225,32 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             apply_sky_time(environment_, day, phase);
         }
     }
+    // Verification hooks for the interior shoot (Rule 27). DFN_TORCH=1 lights a
+    // carried flame at the camera's hand while the tour holds the player still;
+    // DFN_DARK=<0..1> pins the authored darkness the app drives in play. Both
+    // are screenshot hooks — the shipping paths are gameplay's CarriedLight and
+    // the app's darkness ramp, and the torch hook stands down as soon as a real
+    // CarriedLight exists.
+    if (const char* tor = std::getenv("DFN_TORCH"); tor != nullptr && tor[0] != '\0') {
+        torch_debug_ = tor[0] != '0';
+        // "2" stands the flame off ahead of the camera (the brazier probe, see
+        // collect_point_lights) instead of holding it at the hand.
+        torch_ahead_m_ = tor[0] == '2' ? 6.0f : 0.0f;
+    }
+    // A/B hook: the same frame with the carried light's cube shadows OFF. A
+    // shadow is only provable against its own absence, and this is also the
+    // switch that measures what the cube pass costs.
+    if (const char* nps = std::getenv("DFN_NO_POINT_SHADOW");
+        nps != nullptr && nps[0] == '1') {
+        point_shadows_off_ = true;
+    }
+    if (const char* denv = std::getenv("DFN_DARK"); denv != nullptr && *denv != '\0') {
+        float dark = 0.0f;
+        if (std::sscanf(denv, "%f", &dark) == 1) {
+            dark_frozen_ = true;
+            frozen_darkness_ = dark < 0.0f ? 0.0f : (dark > 1.0f ? 1.0f : dark);
+        }
+    }
     clock_start_ = std::chrono::steady_clock::now();
 
     // Debug water toggle (stage 3): DFN_WATER=<height_m> covers the testbed
@@ -218,6 +266,9 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
         }
     }
 
+    // foliage_program_ is NOT required for init to succeed: the null backend
+    // hands out valid ids for everything, but a platform without the embedded
+    // shader pair would otherwise take the whole renderer down over leaves.
     return terrain_program_ != 0 && unlit_program_ != 0 && water_program_ != 0
         && prop_program_ != 0;
 }
@@ -241,6 +292,9 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
         if (scatter.trees_mesh_id != 0) {
             renderer.destroy_mesh(platform::MeshHandle{scatter.trees_mesh_id});
         }
+        if (scatter.foliage_mesh_id != 0) {
+            renderer.destroy_mesh(platform::MeshHandle{scatter.foliage_mesh_id});
+        }
         for (const MicroTileRes& tile : scatter.micro) {
             renderer.destroy_mesh(platform::MeshHandle{tile.mesh_id});
         }
@@ -257,15 +311,18 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     proc_texture_ids_.clear();
     atlas_texture_asset_ = 0;
     water_texture_asset_ = 0;
+    leaf_texture_asset_ = 0;
     next_texture_asset_ = 1;
     renderer.destroy_program(platform::ProgramHandle{terrain_program_});
     renderer.destroy_program(platform::ProgramHandle{unlit_program_});
     renderer.destroy_program(platform::ProgramHandle{water_program_});
     renderer.destroy_program(platform::ProgramHandle{prop_program_});
+    renderer.destroy_program(platform::ProgramHandle{foliage_program_});
     terrain_program_ = 0;
     unlit_program_ = 0;
     water_program_ = 0;
     prop_program_ = 0;
+    foliage_program_ = 0;
 }
 
 void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
@@ -281,6 +338,11 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     if (sky_frozen_) {
         apply_sky_time(environment_, frozen_day_, frozen_moon_phase_);
     }
+    // Carried lights (the torch) are gathered from the ECS every frame, AFTER
+    // the sky: apply_sky_time never touches the light array, and the light has
+    // to be in the environment before set_environment or the backend builds
+    // this frame's cube faces around a stale flame.
+    collect_point_lights(world, camera, alpha);
     renderer.set_environment(environment_);
 
     // Terrain: world-space meshes, identity transform, splat atlas bound.
@@ -300,10 +362,24 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     const platform::ProgramHandle prop{prop_program_};
     const glm::vec3 eye = camera.interpolated_pose(alpha).position;
     const auto micro_range = static_cast<float>(config::GRASS_VIEW_DISTANCE);
+    const platform::ProgramHandle foliage{foliage_program_};
+    platform::TextureHandle leaf_atlas{};
+    if (const auto it = texture_cache_.find(leaf_texture_asset_);
+        it != texture_cache_.end()) {
+        leaf_atlas.id = it->second;
+    }
     for (const auto& [coord, scatter] : scatter_meshes_) {
         if (scatter.trees_mesh_id != 0) {
             renderer.submit(platform::MeshHandle{scatter.trees_mesh_id}, prop,
                             identity);
+        }
+        // Leaf cards: their own program (alpha test + wind + leaf
+        // translucency) and their own texture, which the backend also binds on
+        // the shadow-cutout caster so the canopy punches its holes through the
+        // depth map instead of casting solid rectangles.
+        if (scatter.foliage_mesh_id != 0 && foliage_program_ != 0) {
+            renderer.submit(platform::MeshHandle{scatter.foliage_mesh_id}, foliage,
+                            identity, leaf_atlas);
         }
         for (const MicroTileRes& tile : scatter.micro) {
             const glm::vec2 d = tile.center_xz - glm::vec2{eye.x, eye.z};
@@ -366,6 +442,96 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     }
 
     renderer.end_frame();
+}
+
+void RenderSystem::collect_point_lights(ecs::World& world,
+                                        const FirstPersonCamera& camera,
+                                        float alpha) {
+    uint32_t count = 0;
+    const auto add = [&](const glm::vec3& position, float radius,
+                         const glm::vec3& color) {
+        if (count >= platform::MAX_POINT_LIGHTS || radius <= 0.0f) {
+            return;
+        }
+        platform::PointLight& out = environment_.point_lights[count];
+        out.position = position;
+        out.radius_m = radius;
+        out.color = color;
+        // WHICH lights cast is render's decision, never gameplay's: the first
+        // MAX_SHADOW_POINT_LIGHTS get a cube map and the rest light without
+        // one. Ordering is collection order, i.e. the carried torch — the one
+        // light the player owns — is always among the shadowed ones.
+        out.casts_shadow = count < platform::MAX_SHADOW_POINT_LIGHTS
+                        && !point_shadows_off_;
+        ++count;
+    };
+
+    world.view<components::CarriedLight, components::Transform>().each(
+        [&](ecs::EntityId id, components::CarriedLight& light,
+            components::Transform& curr) {
+            if (!light.active) {
+                return; // held but not lit — gameplay keeps the component
+            }
+            // Interpolate like any other renderable (Rule 12); a light that
+            // moved at the fixed rate would strobe against 60+ fps geometry.
+            glm::vec3 position = curr.position;
+            glm::quat rotation = curr.rotation;
+            if (const auto* prev = world.get<components::PreviousTransform>(id)) {
+                position = glm::mix(prev->position, curr.position, alpha);
+                rotation = glm::slerp(prev->rotation, curr.rotation, alpha);
+            }
+            // The offset is CARRIER-LOCAL: sim writes the hand, ~1.45 m above
+            // the feet and 0.35 m to the right, and rotating it by the body
+            // yaw is what makes the shadows swing when the player turns.
+            const float radius = light.radius_m > 0.0f ? light.radius_m
+                                                       : TORCH_RADIUS_M;
+            glm::vec3 color = TORCH_COLOR;
+            if (light.color_rgb != 0u) {
+                color = {static_cast<float>((light.color_rgb >> 16) & 0xFFu) / 255.0f,
+                         static_cast<float>((light.color_rgb >> 8) & 0xFFu) / 255.0f,
+                         static_cast<float>(light.color_rgb & 0xFFu) / 255.0f};
+            }
+            add(position + rotation * light.offset, radius, color);
+        });
+
+    // Verification hook only (Rule 27): the tour freezes the player and no
+    // entity carries a torch during a screenshot run, so DFN_TORCH=1 lights
+    // one at the camera's hand. It stands down the moment a real CarriedLight
+    // exists, so it can never quietly become the shipping path.
+    if (torch_debug_ && count == 0) {
+        const CameraPose pose = camera.interpolated_pose(alpha);
+        const glm::vec3 right = camera.right(alpha);
+        if (torch_ahead_m_ > 0.0f) {
+            // BRAZIER PROBE (DFN_TORCH=2): the light stands away from the eye,
+            // in front of the camera. A carried flame sits 0.35 m from the eye,
+            // so nearly every shadow it casts hides BEHIND its own caster —
+            // true of any real hand-held light and the reason interiors, not
+            // open ground, are its acceptance test. Standing the same light off
+            // at a distance puts casters between eye and flame, which is what
+            // makes the cube map's work visible in one open-ground frame.
+            const glm::vec3 fwd = camera.forward(alpha);
+            const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
+                                                  + glm::vec3{1e-4f, 0.0f, 0.0f});
+            add(pose.position + flat * torch_ahead_m_, TORCH_RADIUS_M, TORCH_COLOR);
+            environment_.point_light_count = count;
+            if (dark_frozen_) {
+                environment_.ambient_darkness = frozen_darkness_;
+            }
+            return;
+        }
+        // Flattened forward: a hand does not rise when the eyes look up, and
+        // sim's real CarriedLight is yaw-only for exactly the same reason.
+        const glm::vec3 fwd = camera.forward(alpha);
+        const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
+                                              + glm::vec3{1e-4f, 0.0f, 0.0f});
+        add(pose.position + right * 0.35f + flat * 0.15f
+                - glm::vec3{0.0f, 0.25f, 0.0f},
+            TORCH_RADIUS_M, TORCH_COLOR);
+    }
+    environment_.point_light_count = count;
+    if (dark_frozen_) {
+        environment_.ambient_darkness = frozen_darkness_;
+    }
 }
 
 void RenderSystem::set_internal_resolution(uint32_t width, uint32_t height) {
@@ -520,6 +686,11 @@ void RenderSystem::upload_scatter(platform::IRenderer& renderer,
             renderer.create_mesh(batches.trees.vertices, batches.trees.indices);
         res.trees_mesh_id = handle.id;
     }
+    if (!batches.foliage.vertices.empty()) {
+        const platform::MeshHandle handle =
+            renderer.create_mesh(batches.foliage.vertices, batches.foliage.indices);
+        res.foliage_mesh_id = handle.id;
+    }
     for (const MicroTile& tile : batches.micro) {
         const platform::MeshHandle handle =
             renderer.create_mesh(tile.mesh.vertices, tile.mesh.indices);
@@ -527,7 +698,7 @@ void RenderSystem::upload_scatter(platform::IRenderer& renderer,
             res.micro.push_back({tile.center_xz, tile.radius_m, handle.id});
         }
     }
-    if (res.trees_mesh_id != 0 || !res.micro.empty()) {
+    if (res.trees_mesh_id != 0 || res.foliage_mesh_id != 0 || !res.micro.empty()) {
         scatter_meshes_.emplace(chunk_coord, std::move(res));
     }
 }
@@ -539,6 +710,9 @@ void RenderSystem::drop_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_
     }
     if (it->second.trees_mesh_id != 0) {
         renderer.destroy_mesh(platform::MeshHandle{it->second.trees_mesh_id});
+    }
+    if (it->second.foliage_mesh_id != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{it->second.foliage_mesh_id});
     }
     for (const MicroTileRes& tile : it->second.micro) {
         renderer.destroy_mesh(platform::MeshHandle{tile.mesh_id});

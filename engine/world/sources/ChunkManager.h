@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 22:45:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -41,6 +41,7 @@ UPD:
   builds the WorldGenContext once; chunk load attaches Transform/RenderMesh/
   LocalBounds/SiteMarker to P4 site entities via batch ops.
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh(coord) — the 3D geometry handoff, same lifetime as heightfield().
+- 09:08:2026 - 22:45:00: NEW darkness_at(world) — §6.3 authored darkness (0 open daylight .. 1 pitch black) as a one-position query; keeps worldgen internals out of the app's frame loop.
 */
 
 #pragma once
@@ -168,6 +169,16 @@ public:
     /// Terrain height at a world position (bilinear), nullopt when the owning
     /// chunk is not resident. Convenience over Heightmap::sample_world.
     [[nodiscard]] std::optional<float> height_at(glm::vec2 world_xz) const;
+
+    /// LANDSCAPE §6.3 authored darkness at a world position: 0 = open daylight,
+    /// 1 = pitch black. Darkness is EARNED by depth — fully enclosed AND
+    /// >= DARKNESS_DEPTH_MIN walked along the passage from the nearest mouth.
+    ///
+    /// This wrapper exists so the app never has to hold the layout, the
+    /// worldgen context or a GroundSampler: HOW darkness is computed stays in
+    /// this zone, and the sampler is guaranteed to be the same one the carve
+    /// mouths were derived with. Ask it per frame for the player's position.
+    [[nodiscard]] float darkness_at(glm::vec3 world) const;
 
 private:
     struct Impl; // reader, delta overlay, resident map, scratch batch buffers

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 09:08:2026 - 20:28:17
 Module: tests
 File: tests/sim/InteractionTests.cpp
 
@@ -26,6 +26,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 18:56:32: Initial four-verb + inventory + save suite; torch
                          held/lit state.
+- 09:08:2026 - 20:28:17: Carried-light bridge case, pinning the hand
+                         offset above the feet (a "down from the origin"
+                         offset would bury the light).
 */
 
 #include <doctest/doctest.h>
@@ -34,6 +37,7 @@ UPD:
 #include <vector>
 
 #include "engine/core/components/sources/Components.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/serialization/sources/ContentHash.h"
@@ -50,6 +54,7 @@ namespace {
 namespace gameplay = dfn::gameplay;
 namespace platform = dfn::platform;
 namespace serialization = dfn::serialization;
+namespace config = dfn::config;
 using dfn::components::HoverTarget;
 using dfn::ecs::EntityId;
 
@@ -407,6 +412,47 @@ TEST_CASE("torch: the hand can only hold what is carried, and switching douses")
 
     gameplay::stow_item(rig.world, rig.events, rig.player);
     CHECK_FALSE(rig.world.get<gameplay::HeldItem>(rig.player)->item.valid());
+}
+
+TEST_CASE("torch: the carried light mirrors the held state for render") {
+    Rig rig;
+    rig.world.add(rig.player, gameplay::HeldItem{});
+    const auto& items = rig.world.resource<gameplay::ItemDatabase>();
+    gameplay::add_item(rig.inventory(), items, TORCH, 1);
+    REQUIRE(gameplay::hold_item(rig.world, rig.events, rig.player, TORCH));
+
+    // Held but unlit: no light component is created at all.
+    gameplay::update_carried_lights(rig.world);
+    CHECK(rig.world.get<dfn::components::CarriedLight>(rig.player) == nullptr);
+
+    REQUIRE(gameplay::toggle_lit(rig.world, rig.events, rig.player));
+    gameplay::update_carried_lights(rig.world);
+    const auto* light = rig.world.get<dfn::components::CarriedLight>(rig.player);
+    REQUIRE(light != nullptr);
+    CHECK(light->active);
+    CHECK(light->radius_m == 0.0f);  // 0 = render's default torch
+    CHECK(light->color_rgb == 0u);
+
+    // THE BUG THIS PINS: the offset is measured from Transform.position, which
+    // is the capsule BOTTOM. A flame "0.25 m down from the origin" would sit
+    // underground and light nothing; it belongs at hand height above the feet.
+    CHECK(light->offset.y > 1.0f);
+    CHECK(light->offset.y ==
+          doctest::Approx(static_cast<float>(config::PLAYER_EYE_HEIGHT) - 0.25f));
+    CHECK(light->offset.x > 0.0f); // local +X is the carrier's right hand
+
+    // Dousing clears it without destroying the component.
+    REQUIRE(gameplay::toggle_lit(rig.world, rig.events, rig.player));
+    gameplay::update_carried_lights(rig.world);
+    CHECK_FALSE(rig.world.get<dfn::components::CarriedLight>(rig.player)->active);
+
+    // Stowing a lit torch also goes dark.
+    REQUIRE(gameplay::toggle_lit(rig.world, rig.events, rig.player));
+    gameplay::update_carried_lights(rig.world);
+    REQUIRE(rig.world.get<dfn::components::CarriedLight>(rig.player)->active);
+    gameplay::stow_item(rig.world, rig.events, rig.player);
+    gameplay::update_carried_lights(rig.world);
+    CHECK_FALSE(rig.world.get<dfn::components::CarriedLight>(rig.player)->active);
 }
 
 // --- Persistence -------------------------------------------------------------

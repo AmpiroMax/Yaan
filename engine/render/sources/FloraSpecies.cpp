@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 09:08:2026 - 19:24:10
+Last updated: 09:08:2026 - 20:21:13
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -26,6 +26,10 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 19:24:10: Created — the three catalog trees, willow, snag, bush,
   big bush, fallen log, deadfall (LANDSCAPE §5.7-§5.10).
+- 09:08:2026 - 20:21:13: Broadleaf foliage switched to alpha-cutout CARDS (oak,
+  birch, willow) with their atlas tone/shape bands and card proportions; the
+  conifer deliberately stays on cone tiers this stage so one frame compares the
+  two treatments. Bushes stay solid (design §5: only tree foliage is cards).
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -64,7 +68,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     SpeciesParams& oak = t[static_cast<size_t>(FloraSpecies::DaleOak)];
     oak.name = "DaleOak";
     oak.envelope = CrownEnvelope::Sphere;
-    oak.foliage = FoliageShape::Blob;
+    oak.foliage = FoliageShape::Card;
     oak.height_min = f(config::OAK_HEIGHT_MIN);
     oak.height_max = f(config::OAK_HEIGHT_MAX);
     oak.trunk_radius_frac = 0.022f; // ~1.2 m diameter at 28 m
@@ -87,8 +91,20 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     oak.radius_ratio[1] = 0.46f;
     oak.phototropism = 0.30f;
     oak.droop = 0.12f;
-    oak.cluster_count = 22;
-    oak.cluster_radius_frac = 0.30f;
+    // Card foliage: FEW and LARGE. The user asked for «большими плоскими
+    // наборами листочков», and the arithmetic agrees — a crown reads as one
+    // mass only when its elements are a sizeable fraction of it (the lesson
+    // that finally cured the birch, §3.7.5), and every extra card is pure
+    // overdraw, which is the currency alpha-cutout foliage actually spends.
+    oak.cluster_count = 12;
+    oak.cluster_radius_frac = 0.40f;
+    oak.tone_first = LeafTone::OakMid;
+    oak.tone_count = 3; // mid / deep / sunlit — one crown carries all three
+    oak.card_shape_a = LeafShape::RoundLobed;
+    oak.card_shape_b = LeafShape::RaggedTip;
+    oak.cards_per_cluster = 3;
+    oak.card_width_frac = 1.10f;
+    oak.card_aspect = 0.80f;
     oak.trunk_color = OAK_TRUNK;
     oak.foliage_color = OAK_CROWN;
     oak.shyness = 0.28f;
@@ -119,6 +135,14 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     pine.droop = -0.18f; // upsweep
     pine.cluster_count = 3;
     pine.cluster_radius_frac = 1.0f;
+    // The conifer DELIBERATELY stays on solid cone tiers this stage, so the
+    // verification frame carries both treatments side by side and answers
+    // whether needles need cards — rather than the answer being guessed.
+    // Column 3 of the atlas (NeedleFan) and this tone are already generated.
+    pine.tone_first = LeafTone::ConiferDark;
+    pine.tone_count = 1;
+    pine.card_shape_a = LeafShape::NeedleFan;
+    pine.card_shape_b = LeafShape::NeedleFan;
     pine.trunk_color = PINE_TRUNK;
     pine.foliage_color = PINE_DARK;
     pine.shyness = 0.18f;
@@ -128,7 +152,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     SpeciesParams& birch = t[static_cast<size_t>(FloraSpecies::RiverBirch)];
     birch.name = "RiverBirch";
     birch.envelope = CrownEnvelope::Vase;
-    birch.foliage = FoliageShape::Blob;
+    birch.foliage = FoliageShape::Card;
     birch.height_min = f(config::BIRCH_HEIGHT_MIN);
     birch.height_max = f(config::BIRCH_HEIGHT_MAX);
     birch.trunk_radius_frac = 0.013f;
@@ -149,8 +173,20 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     birch.radius_ratio[0] = 0.34f;
     birch.phototropism = 0.45f;
     birch.droop = 0.16f;
-    birch.cluster_count = 5;           // few and large: many small = a stack
-    birch.cluster_radius_frac = 0.85f; // clusters must OVERLAP into one mass
+    // The birch is the species that twice read as STACKED PLATES (§3.7.4/5).
+    // Both cures were the same one: elements about as wide as the crown, and
+    // never allowed to slide onto the axis. Cards inherit that discipline —
+    // seven cluster centres, each carrying cards nearly as wide as the whole
+    // crown, so no arrangement of them can look like a pile of discs.
+    birch.cluster_count = 7;
+    birch.cluster_radius_frac = 0.80f; // clusters must OVERLAP into one mass
+    birch.tone_first = LeafTone::BirchLight;
+    birch.tone_count = 2;
+    birch.card_shape_a = LeafShape::OvalSpray;
+    birch.card_shape_b = LeafShape::RaggedTip;
+    birch.cards_per_cluster = 2; // a narrow crown does not need a third plane
+    birch.card_width_frac = 1.05f;
+    birch.card_aspect = 0.95f;
     birch.trunk_color = BIRCH_TRUNK;
     birch.foliage_color = BIRCH_CROWN;
     birch.shyness = 0.20f;
@@ -170,8 +206,15 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     willow.branch_angle[0] = 1.15f;
     willow.phototropism = 0.10f;
     willow.droop = 0.85f; // the falling skirt
-    willow.cluster_count = 24;
-    willow.cluster_radius_frac = 0.26f;
+    willow.cluster_count = 14;
+    willow.cluster_radius_frac = 0.34f;
+    willow.tone_first = LeafTone::WillowDark;
+    willow.tone_count = 2;
+    willow.card_shape_a = LeafShape::OvalSpray;
+    willow.card_shape_b = LeafShape::RoundLobed;
+    willow.cards_per_cluster = 3;
+    willow.card_width_frac = 1.00f;
+    willow.card_aspect = 1.35f; // taller than wide: the cards HANG
     willow.trunk_color = WILLOW_TRUNK;
     willow.foliage_color = WILLOW_CROWN;
 
@@ -287,6 +330,10 @@ bool is_canopy_tree(FloraSpecies species) {
     default:
         return false; // bushes and logs are obstacles you walk AROUND (§3.5)
     }
+}
+
+bool has_leaf_cards(FloraSpecies species) {
+    return species_params(species).foliage == FoliageShape::Card;
 }
 
 } // namespace dfn::render

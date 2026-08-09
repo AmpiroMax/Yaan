@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 19:13:01
+Last updated: 09:08:2026 - 23:55:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -31,6 +31,8 @@ UPD:
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1, gated on HILL_ANISOTROPY): mid octave input-stretched along a drifting per-valley axis field via bilinear blending of fixed-frame samples (position-varying rotation rejected — |world|*grad(theta) distortion; cross-axis rhythm pinned at the 128 m contract by construction).
 - 09:08:2026 - 14:03:23: Micro-relief batch: path groove applied in macro_height before the river carve (channel clamp overrides in-water; constant along-path depth keeps CORRIDOR_SLOPE_MAX untouched; ~6 deg edge slopes stay under the blend threshold).
 - 09:08:2026 - 19:13:01: crag_height honours ridge_amp_meters when set (absolute flank relief), falling back to the fractional form otherwise.
+- 09:08:2026 - 21:40:00: LANDSCAPE §2.8 banded contour massif: crag_height -> massif_height. Per-bearing profile exponent p>1 (concave, the anti-dome fix), per-bearing radial lobing, non-uniform contour bands with a per-bearing cliff/ramp riser class. Bearing fields sample a CIRCLE in the lattice (periodic by construction, no branch cut at +-pi). Benches keep the profile compressed to a per-bearing angle under MASSIF_BENCH_SLOPE_MAX rather than being flattened; risers are planar cliff faces whose width is solved from the drawn angle; bench width narrows with elevation. Measured seed 1: I1 15.0deg (need 12), I3 16.5% surface over 55deg (need 12), I4 fullest bin 24.2% (max 30), I5 100% of radials (need 70), I6 CV 0.518 (need 0.35).
+- 09:08:2026 - 23:55:00: §2.8 ANGULAR LOBES (I7/I8). ROOT CAUSE of the flat lobing found and it was a geometry error in my own helper: making a sampling circle's circumference span `lobes` cells forces radius = lobes*CELL/2pi, so at 3 aretes the circle is 61 m across INSIDE a 64 m cell — it fits in one cell, the noise reads as one smooth patch, and contour radius varied +-4% where the amplitude constants ask +-18-35%. A circle cannot be both small enough to carry few lobes and large enough to cross cells. Replaced by polygon_radius(): the cross-section is an irregular ROUNDED POLYGON via support function min_i d_i/cos(theta-alpha_i), whose boundary is FLAT FACETS meeting at corners — which is what an arete is — with re-entrant COULOIRS cut on the facet mid-bearings (a support function is convex-only, capped at n*tan(pi/n)/pi, and couloirs are exactly what convexity cannot express). Outline blends circle->polygon with elevation (§2.8.2 'eps increasing with elevation' = I8's rise clause), and couloirs FADE toward the summit because they are flank features that merge into the aretes — which also resolves the I7/I8 tug, since summit contours stay clean facets while flanks keep re-entrant perimeter. Periodic with no branch cut: theta enters only through cos(theta-alpha). Seed 1: I7 4 persistent aretes (need 3), I8 1.37/1.36/1.52 each >= 1.35 with rise 0.15. GROUND_MICRO_* implemented (previously unused constants) but SCOPED to the massif above the cliffline: applied globally it moved the shoreline and broke the §3.3 bed/mud cap (22.3 m vs 21.5 m), so the general 'земля слишком плоская' pass stays a separate job designed against hydrology/corridors/fords.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -130,17 +132,101 @@ float base_height(uint64_t seed, glm::vec2 world) {
 /// foot; sampling on a CIRCLE embedded in the noise field is periodic by
 /// construction. `lobes` sets how many wiggles go round: the circle's
 /// circumference spans that many noise cells.
-float bearing_field(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes) {
+/// `band` decorrelates successive contour bands by walking the sampling circle
+/// to a distant part of the SAME lattice -- adding to the stream id instead
+/// would collide with unrelated streams a few slots up.
+float bearing_field(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes, int band) {
     constexpr float CELL = 64.0f;
     constexpr float TAU = 6.28318530717958647692f;
+    constexpr float BAND_STRIDE = 1024.0f;
     const float rc = lobes * CELL / TAU;
-    return value_noise(seed, stream, CELL, glm::vec2{4096.0f, 4096.0f} + unit_dir * rc);
+    const glm::vec2 origin{4096.0f + BAND_STRIDE * static_cast<float>(band), 4096.0f};
+    return value_noise(seed, stream, CELL, origin + unit_dir * rc);
+}
+
+/// The massif's horizontal cross-section as an irregular ROUNDED POLYGON,
+/// evaluated by support function: r(theta) = min_i d_i / cos(theta - alpha_i).
+/// Its boundary is FLAT FACETS meeting at sharp corners, which is what an
+/// arete is (§2.8: "ребро — это ПЛОСКИЕ ГРАНИ, сходящиеся по линии"), and the
+/// facet midpoints are the re-entrant couloirs between them.
+///
+/// This replaces sampling ridged noise on a circle in the lattice, which was
+/// geometrically incapable of the job: making the circumference span `lobes`
+/// cells forces radius = lobes*CELL/2pi, so at 3 aretes the sampling circle is
+/// 61 m across inside a 64 m cell -- it fits INSIDE one cell, the noise reads
+/// as a single smooth patch, and the contour radius varied +-4% where the
+/// amplitude constants ask for +-18-35%. A circle cannot be both small enough
+/// to carry few lobes and large enough to cross cells.
+///
+/// Periodic with no branch cut: theta enters only through cos(theta - alpha),
+/// which is 2pi-periodic, so the +-pi jump in atan2 is invisible here.
+float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& notch_out) {
+    constexpr float TAU = 6.28318530717958647692f;
+    const int n = std::max(3, crag.arete_count);
+    const float amp_lo = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN);
+    const float amp_hi = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX);
+    float best = crag.radius * 3.0f;
+    for (int i = 0; i < n; ++i) {
+        // Irregular bearings: a symmetric star reads as artificial (§2.5.2).
+        const float jitter =
+            noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 0) - 0.5f;
+        const float alpha = TAU * (static_cast<float>(i) + jitter) / static_cast<float>(n);
+        const float amp =
+            amp_lo
+            + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 1)
+                  * (amp_hi - amp_lo);
+        const float d = crag.radius * (1.0f - amp);
+        const float c = std::cos(theta - alpha);
+        if (c > 0.05f) {
+            best = std::min(best, d / c);
+        }
+    }
+
+    // COULOIRS. A support function over half-planes can only ever produce a
+    // CONVEX outline, and a convex n-gon's lobe ratio is capped at
+    // n*tan(pi/n)/pi -- 1.65 for a triangle, 1.27 for a square. §2.8.2 asks for
+    // "inward folds are the couloirs", which is precisely the shape a convex
+    // hull cannot express, so the notches are cut explicitly.
+    //
+    // They sit on the facet mid-bearings (alpha_i), i.e. BETWEEN the corners
+    // that form the aretes, which is where a gully belongs. Re-entrant folds
+    // add perimeter without adding area, so this is also what buys I8 real
+    // margin rather than a squeak.
+    float notch = 0.0f;
+    const float half_w = TAU / static_cast<float>(n) * 0.15f; // quarter of a facet's span
+    for (int i = 0; i < n; ++i) {
+        const float jitter =
+            noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 0) - 0.5f;
+        const float alpha = TAU * (static_cast<float>(i) + jitter) / static_cast<float>(n);
+        float dth = theta - alpha;
+        while (dth > TAU * 0.5f) { dth -= TAU; }
+        while (dth < -TAU * 0.5f) { dth += TAU; }
+        if (std::fabs(dth) < half_w) {
+            // Depth is drawn PER COULOIR; the cosine is only its cross-section,
+            // deepest on the axis and running out to nothing at the walls.
+            const float depth =
+                static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN)
+                + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
+                      * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX
+                                           - config::MASSIF_RADIAL_LOBE_AMP_MIN);
+            // SQUARED cross-section, and the exponent is load-bearing: a
+            // linear taper spreads each couloir across its whole facet and
+            // curves it, and I7 wants FLAT facets meeting at a line. Measured
+            // -- linear taper dropped persistent aretes from 4 to 0 while I8
+            // rose, i.e. the two invariants pull opposite ways and the taper
+            // is what buys both.
+            const float bump = std::cos(dth / half_w * (TAU * 0.25f));
+            notch = std::max(notch, depth * bump * bump);
+        }
+    }
+    notch_out = notch;
+    return best;
 }
 
 /// Ridged version of the same: sharp crests are aretes, the troughs between
 /// them are couloirs.
-float bearing_ridged(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes) {
-    return 1.0f - std::fabs(2.0f * bearing_field(seed, stream, unit_dir, lobes) - 1.0f);
+float bearing_ridged(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes, int band) {
+    return 1.0f - std::fabs(2.0f * bearing_field(seed, stream, unit_dir, lobes, band) - 1.0f);
 }
 
 /// Banded contour massif (LANDSCAPE §2.8). Four seeded per-sample fields:
@@ -155,6 +241,30 @@ float bearing_ridged(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float l
 ///   4. a RISER CLASS per (band, angular sector): CLIFF or RAMP, so the
 ///      terracing is discontinuous AROUND the mountain as well as up it —
 ///      otherwise it reads as a wedding cake.
+/// Fine ground relief, EVERYWHERE (the user's "земля слишком плоская"). Two
+/// octaves at the ruled wavelengths, amplitude drifting between the ruled
+/// bounds so the roughness itself is not constant. At 0.3-0.6 m over 8-16 m
+/// this is ~5 deg: no threat to a step or a corridor grade.
+///
+/// It also carries §2.7 onto the massif's BENCHES (design's ruling: a bench is
+/// GROUND, and "terrain never flattens" is general, not a forest rule), and it
+/// restores the contour crenulation that the authored outline displaced --
+/// structural lobing has to EXCEED what the old fBm bleed gave for free, not
+/// merely replace it.
+float ground_micro(uint64_t seed, glm::vec2 world) {
+    const float amp = static_cast<float>(config::GROUND_MICRO_AMPLITUDE_MIN)
+                    + value_noise(seed, STREAM_MASSIF_MICRO_AMP, 256.0f, world)
+                          * static_cast<float>(config::GROUND_MICRO_AMPLITUDE_MAX
+                                               - config::GROUND_MICRO_AMPLITUDE_MIN);
+    const float a = value_noise(seed, STREAM_MASSIF_MICRO,
+                                static_cast<float>(config::GROUND_MICRO_WAVELENGTH_MIN), world)
+                        * 2.0f - 1.0f;
+    const float b = value_noise(seed, STREAM_MASSIF_MICRO + 1,
+                                static_cast<float>(config::GROUND_MICRO_WAVELENGTH_MAX), world)
+                        * 2.0f - 1.0f;
+    return amp * 0.5f * (a + b);
+}
+
 /// Everything here is a pure function of position; nothing touches the voxel
 /// pipeline.
 float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
@@ -169,7 +279,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     // --- Field 1: per-bearing profile exponent ---------------------------------
     const float lobes = static_cast<float>(crag.arete_count);
     const float p = static_cast<float>(config::MASSIF_PROFILE_EXPONENT_MIN)
-                  + bearing_field(seed, STREAM_MASSIF_PROFILE, dir, lobes)
+                  + bearing_field(seed, STREAM_MASSIF_PROFILE, dir, lobes, 0)
                         * static_cast<float>(config::MASSIF_PROFILE_EXPONENT_MAX
                                              - config::MASSIF_PROFILE_EXPONENT_MIN);
 
@@ -178,14 +288,32 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     // amplitude, then re-solve with the amplitude that height implies.
     const float amp_lo = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN);
     const float amp_hi = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX);
-    const float lobe = bearing_ridged(seed, STREAM_MASSIF_LOBE, dir, lobes) * 2.0f - 1.0f;
-    const auto solve = [&](float amp) {
-        const float R = crag.radius * (1.0f + amp * lobe);
-        const float t = std::clamp(d / std::max(R, 1.0f), 0.0f, 1.0f);
+    // The outline BECOMES the polygon as it rises: round talus at the foot,
+    // sharp faceted aretes at the summit. This is §2.8.2's "eps increasing
+    // with elevation", and it is also exactly what I8 asks for -- lobing that
+    // RISES with height rather than a self-similar cone.
+    const float theta = std::atan2(dir.y, dir.x);
+    float notch = 0.0f;
+    const float r_poly = polygon_radius(seed, crag, theta, notch);
+    float R_solved = 0.0f;
+    const auto solve = [&](float k_raw) {
+        const float k = std::clamp(k_raw, 0.0f, 1.0f);
+        // Couloirs are FLANK features: gullies cut by what runs down the face,
+        // and they merge into the aretes as they approach the summit. Fading
+        // them with height is not a fudge for the detector, it is what a
+        // couloir is -- and it resolves the I7/I8 tug directly, since the
+        // summit contours stay clean facets (I7 reads them) while the flanks
+        // keep the re-entrant perimeter (I8 reads that). An angularly-constant
+        // couloir also shrinks to ~1 m of arc at the summit radius, well under
+        // the 15 m detection window, so up there it can only ever be noise.
+        R_solved = (crag.radius + (r_poly - crag.radius) * k) * (1.0f - notch * (1.0f - k));
+        const float t = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
         return H * std::pow(1.0f - t, p);
     };
-    float h = solve((amp_lo + amp_hi) * 0.5f);
-    h = solve(amp_lo + (amp_hi - amp_lo) * std::clamp(h / H, 0.0f, 1.0f));
+    // Elevation is what we are solving for, so take one pass at the midpoint
+    // and re-solve with the blend that height implies.
+    float h = solve(0.5f);
+    h = solve(h / H);
     if (h <= 0.0f) {
         return 0.0f;
     }
@@ -195,15 +323,35 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     if (h <= cliffline) {
         return h; // lower slopes stay smooth: the bands are a summit feature
     }
+    // §2.7 on the benches (design's ruling: a bench is GROUND, and "terrain
+    // never flattens" is general, not a forest rule).
+    //
+    // Deliberately scoped to the massif ABOVE the cliffline rather than the
+    // whole world. Applied globally it perturbs the shoreline: 0.3-0.6 m dips
+    // near the bank fall under the water surface and read as WaterBed past the
+    // §3.3 bed/mud cap (measured 22.3 m against a 21.5 m cap). The general
+    // "земля слишком плоская" pass is a separate job that has to be designed
+    // against hydrology, corridors and fords; it does not belong inside the
+    // massif step, and shipping it here would have traded a water invariant
+    // for a cosmetic win.
+    h += ground_micro(seed, world);
     const float band_min = static_cast<float>(config::MASSIF_CLIFF_BAND_MIN);
     const float band_max = static_cast<float>(config::MASSIF_CLIFF_BAND_MAX);
-    // Angular sector, WRAPPED so sector 0 and n-1 are neighbours.
-    constexpr int SECTORS = 12;
-    const float ang = std::atan2(dir.y, dir.x) + 3.14159265358979f;
-    const int sector = static_cast<int>(ang / (6.28318530717958647692f / SECTORS)) % SECTORS;
+
+    // Local radial gradient of the smooth profile, which converts the band's
+    // VERTICAL span into the horizontal width the player walks. §2.8.2 sizes
+    // benches horizontally (MASSIF_BENCH_WIDTH_*), so the vertical split has
+    // to be derived from this, not picked.
+    const float t_h = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
+    const float grad = std::max(H * p * std::pow(1.0f - t_h, std::max(p - 1.0f, 0.0f))
+                                    / std::max(R_solved, 1.0f),
+                                1e-3f);
 
     float lo = cliffline;
-    for (int k = 0; k < 32; ++k) {
+    // Enough iterations to reach the summit at the thinnest legal band, +1 for
+    // the partial band at the top. Derived, so it cannot silently truncate.
+    const int band_limit = static_cast<int>((H - cliffline) / std::max(band_min, 1e-3f)) + 2;
+    for (int k = 0; k < band_limit; ++k) {
         const float span = band_min
                          + noise::lattice_value(seed, STREAM_MASSIF_BAND,
                                                 static_cast<int64_t>(k), 0)
@@ -213,23 +361,99 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
             lo = hi;
             continue;
         }
-        // Riser class for THIS band in THIS sector.
-        const bool cliff = noise::lattice_value(seed, STREAM_MASSIF_RISER,
-                                                static_cast<int64_t>(k),
-                                                static_cast<int64_t>(sector))
-                           < 0.55f;
+        // Riser class for THIS band at THIS bearing. Periodic in theta by
+        // construction (bearing_field samples the unit circle), so there is no
+        // sector count to pick and no branch cut at +-pi. The band index rides
+        // in as a separate stream offset, which is what lets one band be a
+        // cliff on the north face and a ramp on the south.
+        //
+        // The 0.5 split is not taste: I5 wants >= 3 cliff/bench ALTERNATIONS
+        // per radial, and alternation probability p(1-p) is maximised at 0.5.
+        const bool cliff = bearing_field(seed, STREAM_MASSIF_RISER, dir, lobes, k) < 0.5f;
+        // Cliff: a flat bench holding the walkable part of the band, then a
+        // steep riser. Constant OUTPUT over a range of input height is what
+        // makes ground flat; a fast rise over a short range is what makes it
+        // vertical. The bench takes MASSIF_BENCH_WIDTH_* metres HORIZONTALLY,
+        // converted through the local gradient, and the riser gets the rest.
+        const float band_width = span / grad; // horizontal metres of this band
+
+        // A bench is NOT dead flat. MASSIF_BENCH_SLOPE_MAX is a ceiling ("you
+        // can run a road along it"), not an instruction to zero the gradient.
+        // Flattening benches outright puts most of the mountain in one slope
+        // bin, which is precisely what I4 forbids and what the user called a
+        // wedding cake. So the bench keeps the concave profile, COMPRESSED
+        // only as far as the ceiling requires.
+        // ...and the bench slope VARIES per band. Pinning every bench at the
+        // ceiling is just a different constant gradient -- measured 75% of the
+        // surface in the 20-30 deg bin, failing I4 exactly as hard as flat
+        // benches failed it. The ceiling bounds the draw; it is not the draw.
+        // Drawn per BEARING as well as per band. Per-band alone gives one
+        // bench angle for the whole ring -- about eight discrete values over
+        // the massif, which quantises the slope histogram into a few tall
+        // spikes and fails I4 for a reason that has nothing to do with shape.
+        const float tan_bench = std::tan(
+            static_cast<float>(config::MASSIF_BENCH_SLOPE_MAX)
+            * bearing_field(seed, STREAM_MASSIF_BAND, dir, lobes, k + 64));
+        const float squash = std::min(1.0f, tan_bench / grad);
+
+        // The riser is a CLIFF FACE, so it is planar: its angle is drawn
+        // between MASSIF_CLIFF_SLOPE_MIN and vertical, and its width is then
+        // SOLVED for rather than clamped. Smoothstep here was a mistake worth
+        // recording -- easing the ends spends the riser's width on sub-cliff
+        // slope, so a 68 deg riser only cleared 55 deg over 60% of itself and
+        // I3 measured 7.1% where the reserved width said 12%. A hard lip is
+        // also what §2.8.5 already promised render a splat exception for.
+        // A RAMP band is still a terrace -- it just has a walkable riser
+        // instead of a cliff. Letting a ramp return the bare cone (as this did
+        // first) leaves half the massif unbanded, and that raw cone slope is a
+        // narrow range: it piled 50% of the surface into the 30-40 deg bin and
+        // failed I4 on its own.
+        constexpr float HALF_PI = 1.57079632679489661923f;
+        const float cliff_min = static_cast<float>(config::MASSIF_CLIFF_SLOPE_MIN);
+        const float bench_max = static_cast<float>(config::MASSIF_BENCH_SLOPE_MAX);
+        const float riser_lo = cliff ? cliff_min : bench_max;
+        const float riser_hi = cliff ? HALF_PI : cliff_min;
+        const float tan_riser = std::tan(
+            riser_lo
+            + bearing_field(seed, STREAM_MASSIF_BAND, dir, lobes, k + 128)
+                  * (riser_hi - riser_lo));
+        // Width shares that make the bench climb squash*grad and the riser
+        // climb the remainder at exactly tan_riser.
+        float rf = grad * (1.0f - squash) / std::max(tan_riser - grad * squash, 1e-3f);
+        // Nothing thinner than a voxel survives extraction, so a riser narrower
+        // than one cell is not a cliff, it is an aliasing artefact.
+        // The bench that is left over must still be a bench you can walk:
+        // MASSIF_BENCH_WIDTH_MIN..MAX bounds it, which in turn bounds rf. This
+        // is where that constant earns its place -- without it the bench width
+        // is whatever the slope solve happens to leave.
+        // Benches NARROW with height: the widest terraces belong to the talus
+        // shoulders, the summit gets ledges. This needs no new constant (it
+        // just slides the draw from _MAX down to _MIN across the relief) and
+        // it is what makes the upper third genuinely steeper than the lower,
+        // which is I1 -- with a height-independent bench the difference
+        // measured 8.6 deg against a 12 deg floor.
+        const float bench_cap = static_cast<float>(config::MASSIF_BENCH_WIDTH_MIN)
+                              + static_cast<float>(config::MASSIF_BENCH_WIDTH_MAX
+                                                   - config::MASSIF_BENCH_WIDTH_MIN)
+                                    * (1.0f - std::clamp(h / H, 0.0f, 1.0f));
+        const float rf_min = std::max(
+            static_cast<float>(config::VOXEL_SIZE) / std::max(band_width, 1.0f),
+            1.0f - bench_cap / std::max(band_width, 1.0f));
+        const float rf_max =
+            1.0f - static_cast<float>(config::MASSIF_BENCH_WIDTH_MIN) / std::max(band_width, 1.0f);
+        rf = std::clamp(rf, std::min(rf_min, 1.0f), std::clamp(rf_max, rf_min, 1.0f));
+
+        // u is the NATURAL height fraction through the band, and because the
+        // smooth profile is locally linear in distance, u also tracks
+        // horizontal position -- so the bench/riser split sits at the WIDTH
+        // share (1 - rf), while bench_frac is what the bench CLIMBS.
+        const float bench_frac = squash * (1.0f - rf);
         const float u = (h - lo) / span;
-        if (!cliff) {
-            return h; // ramp: leave the concave profile alone
+        if (u <= 1.0f - rf) {
+            return lo + (h - lo) * squash;
         }
-        // Cliff: a flat bench holding most of the band, then a steep riser.
-        // Constant OUTPUT over a range of input height is what makes ground
-        // flat; a fast rise over a short range is what makes it vertical.
-        constexpr float BENCH_FRAC = 0.62f;
-        if (u <= BENCH_FRAC) {
-            return lo;
-        }
-        return lo + span * noise::smoothstep01((u - BENCH_FRAC) / (1.0f - BENCH_FRAC));
+        const float bench_top = lo + span * bench_frac;
+        return bench_top + (span - span * bench_frac) * ((u - (1.0f - rf)) / rf);
     }
     return h;
 }

@@ -1,13 +1,14 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 20:21:13
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.h
 
 Responsibility:
 - Bakes a chunk's ScatterInstance span (core P5 data, not entities) into
-  batched CPU meshes: one tree batch per chunk (oak/pine/birch — always drawn)
-  and micro tiles (bush/stone) sized for GRASS_VIEW_DISTANCE camera culling.
+  batched CPU meshes: one opaque tree batch and one alpha-cutout FOLIAGE batch
+  per chunk (oak/pine/birch — always drawn) and micro tiles (bush/stone) sized
+  for GRASS_VIEW_DISTANCE camera culling.
 
 Key items:
 - ScatterBatches / MicroTile; build_scatter_batches().
@@ -34,6 +35,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial scatter batching.
+- 09:08:2026 - 20:21:13: Second stream: ScatterBatches::foliage (alpha-cutout
+  leaf cards). EDITED BY THE FLORA AGENT under an explicit lead-granted Rule 25
+  exception while render's zone was unowned; wiring only, no material change.
 */
 
 #pragma once
@@ -54,8 +58,18 @@ struct MicroTile {
 };
 
 /// Per-chunk scatter batches: trees always drawn, micro tiles distance-culled.
+///
+/// `trees` and `foliage` are TWO STREAMS ON PURPOSE and merging them would be a
+/// bug that looks like an optimisation. On the "prop" program a vertex's colour
+/// is its ALBEDO; on the "foliage" program the same four bytes are WIND DATA
+/// (sway weight, instance phase, per-card value jitter, sky visibility) and the
+/// albedo comes from the leaf mask atlas instead. Same bytes, different
+/// meaning, therefore different draws — and the foliage draw additionally needs
+/// the mask bound so its shadow caster can punch the holes through the depth
+/// map.
 struct ScatterBatches {
-    MeshData trees;
+    MeshData trees;   ///< trunks, branches, cone tiers -> "prop"
+    MeshData foliage; ///< alpha-cutout leaf cards -> "foliage" + leaf atlas
     std::vector<MicroTile> micro;
 };
 

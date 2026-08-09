@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 20:10:11
+# Last updated: 09:08:2026 - 20:21:13
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -26,10 +26,16 @@
 # - 09:08:2026 - 19:46:00: FloraSpecies.cpp + ProcFlora.cpp (flora agent's zone,
 #   same directory, registered here per Q34).
 # - 09:08:2026 - 20:10:11: WindModel.cpp (one wind for the world).
+# - 09:08:2026 - 20:21:13: FloraCards.cpp (flora agent's alpha-cutout leaf mask
+#   atlas + card emitter). EDITED BY THE FLORA AGENT under an explicit
+#   lead-granted Rule 25 exception (render's session had ended and the leaf-card
+#   stage could not wait); bounded to registration only — no shader, material,
+#   wind or backend change. Not a precedent.
 
 add_library(dfn_render STATIC
     sources/DebugDraw.cpp
     sources/FirstPersonCamera.cpp
+    sources/FloraCards.cpp
     sources/FloraSpecies.cpp
     sources/MapScreen.cpp
     sources/PixelCanvas.cpp

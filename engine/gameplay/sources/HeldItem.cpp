@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 09:08:2026 - 20:31:09
 Module: engine/gameplay
 File: engine/gameplay/sources/HeldItem.cpp
 
@@ -22,10 +22,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial implementation.
+- 09:08:2026 - 20:28:17: Added update_carried_lights() for render.
+- 09:08:2026 - 20:31:09: Hand offset now reads TORCH_HAND_OFFSET_RIGHT /
+                         TORCH_HAND_OFFSET_BELOW_EYE from NUMBERS (Rule 14);
+                         the placeholder constants are gone.
 */
 
 #include "engine/gameplay/sources/HeldItem.h"
 
+#include <vector>
+
+#include "engine/core/components/sources/Components.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/gameplay/sources/InteractionSystem.h" // empty_item_database()
@@ -38,6 +46,19 @@ namespace {
     return world.has_resource<ItemDatabase>() ? world.resource<ItemDatabase>()
                                               : empty_item_database();
 }
+
+// Where the flame sits relative to the carrier's ORIGIN, which for a character
+// is the capsule BOTTOM (the feet) — not the eye. Hence the vertical term is
+// PLAYER_EYE_HEIGHT minus the below-eye drop: measuring "0.25 m down" from the
+// origin instead would bury the light under the floor, where it lights the
+// underside of the terrain and casts nothing. The constant is named
+// TORCH_HAND_OFFSET_BELOW_EYE precisely because the datum is the eye.
+// Local +X is the carrier's right (at yaw 0 the body faces -Z).
+constexpr glm::vec3 HAND_OFFSET{
+    static_cast<float>(config::TORCH_HAND_OFFSET_RIGHT),
+    static_cast<float>(config::PLAYER_EYE_HEIGHT) -
+        static_cast<float>(config::TORCH_HAND_OFFSET_BELOW_EYE),
+    0.0f};
 
 } // namespace
 
@@ -76,6 +97,32 @@ void stow_item(ecs::World& world, events::EventBus& events, ecs::EntityId actor)
     held->item = ItemId{};
     held->lit = false;
     events.post(HeldItemChanged{actor, ItemId{}});
+}
+
+void update_carried_lights(ecs::World& world) {
+    // Collect first: adding a component during view iteration is a structural
+    // change (Rule 9), so the adds happen after the pass.
+    std::vector<ecs::EntityId> needs_light;
+    for (auto [id, held] : world.view<HeldItem>()) {
+        const bool lit = held.item.valid() && held.lit;
+        auto* light = world.get<components::CarriedLight>(id);
+        if (light == nullptr) {
+            if (lit) {
+                needs_light.push_back(id);
+            }
+            continue; // an unlit carrier needs no component at all
+        }
+        light->active = lit;
+        light->radius_m = 0.0f;  // 0 = render's default torch radius
+        light->color_rgb = 0;    // 0 = render's default warm flame
+        light->offset = HAND_OFFSET;
+    }
+    for (const ecs::EntityId id : needs_light) {
+        world.add(id, components::CarriedLight{.active = true,
+                                               .radius_m = 0.0f,
+                                               .color_rgb = 0,
+                                               .offset = HAND_OFFSET});
+    }
 }
 
 bool toggle_lit(ecs::World& world, events::EventBus& events, ecs::EntityId actor) {

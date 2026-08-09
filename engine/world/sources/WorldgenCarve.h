@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 22:30:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -36,6 +36,7 @@ UPD:
 - 09:08:2026 - 16:45:00: Created — P7 carve pass for the 3D terrain stage.
 - 09:08:2026 - 16:47:51: Created — P7 carve SDF: box cross-section corridors (flat floor, real headroom) and chambers, plus the per-column range the voxel builder needs to widen its band.
 - 09:08:2026 - 17:36:42: §6.2: carve_mouth / site_carve_mouth (entrance markers derived from the mouth, never scored) and carve overloads taking derived corridors.
+- 09:08:2026 - 22:30:00: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 */
 
 #pragma once
@@ -93,5 +94,25 @@ struct CarveMouth {
 [[nodiscard]] std::optional<CarveMouth> site_carve_mouth(const TestbedLayout& layout,
                                                          int site_index,
                                                          const GroundSampler& ground);
+
+/// LANDSCAPE §6.3 authored darkness, as the RULE rather than a list of places:
+/// darkness is EARNED by depth. Returns 0 (open daylight) .. 1 (pitch black)
+/// for `world`, and it is 0 anywhere that is not genuinely enclosed — a deep
+/// valley floor is not a cave, which is exactly the failure mode of measuring
+/// "depth below the local surface" instead.
+///
+/// Both halves of the design rule are evaluated:
+///   - ENCLOSED: the point is inside carved air AND there is rock overhead.
+///   - EARNED:   the walk back to the nearest mouth is >= DARKNESS_DEPTH_MIN,
+///               measured ALONG the corridor, not as a straight line (a
+///               switchback is dark because you walked it, not because the
+///               portal is close through solid rock).
+/// The transition ramps over DARKNESS_FALLOFF_MIN rather than switching.
+///
+/// `ground` samples surface height; pass the same sampler the carve mouths
+/// were derived with so the mouth positions agree.
+[[nodiscard]] float enclosure_darkness(const TestbedLayout& layout,
+                                       std::span<const CarveCorridor> extra,
+                                       const GroundSampler& ground, glm::vec3 world);
 
 } // namespace dfn::world

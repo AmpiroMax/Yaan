@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 20:10:24
+Last updated: 09:08:2026 - 20:21:13
 -->
 <!--
 UPD:
@@ -103,6 +103,29 @@ UPD:
                          that vertex colour has no free channel left (RGB=sway,
                          A=sky visibility), and that winter bare-branch is
                          nearly free since the skeleton already exists.
+- 09:08:2026 - 20:21:13: LEAF CARDS BUILT (new §3.8a). Render answered the
+                         per-card colour question — the mask atlas is laid out
+                         SHAPE x COLOUR, so the card's uv carries both and
+                         colour costs no vertex bytes; their reasons for
+                         rejecting a spare UV channel and a per-draw palette
+                         uniform are recorded, because they are what a
+                         successor cannot reconstruct. Broadleaf foliage is now
+                         crossed alpha-cutout cards in a SECOND mesh stream
+                         (the two render programs read vertex colour with
+                         opposite meanings, so merging them is a bug that looks
+                         like an optimisation). New FloraCards.{h,cpp} carries
+                         the procedurally generated mask atlas — mostly opaque,
+                         eroded at the edges, with one or two PLACED interior
+                         gaps rather than noise-thresholded ones so their size
+                         is guaranteed above render's feature floor. Winter is
+                         implemented as one boolean; summer and autumn are
+                         byte-identical geometry. Two containment defects found
+                         and fixed (corner reach vs half-width; card top edge
+                         vs centre), both the §3.7 pattern. Four wiring edits
+                         made inside render's zone under an explicit
+                         lead-granted Rule 25 exception while that zone was
+                         unowned; recorded in each file's UPD, reviewed and
+                         kept by the incoming render owner.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -685,25 +708,123 @@ budget; the numbers in §3.6 are about to stop being the useful metric here.
 arranged around a stem axis, generated as a texture like everything else.
 Ownership with render — it is their ProcTexture path.
 
-**Wind, without unfreezing anything.** Sway needs a per-vertex weight (0 at the
-branch attachment, 1 at the card's outer edge) or the card slides rigidly and
-reads as a flag. `platform::Vertex` is FROZEN (Rule 26) and has no spare float —
-but `color_rgba`'s **alpha byte is unused on opaque geometry**. Proposal:
-**vertex alpha carries the sway weight.** No contract change, no group sync.
-Pending render's confirmation that vertex alpha survives to the fragment stage
-without feeding output alpha into the alpha test.
-
-**Known risk, raised with render before building:** render's thin-caster rule
-(a caster under ~0.31 m casts nothing) means the GAPS in a leaf card are far
-below shadow-map resolution, so the canopy will likely cast an essentially
-solid shadow even once the shadow program samples the mask — see-through to the
-eye, opaque to the sun. If so, "light through the leaves" needs a different
-mechanism (a lighter ambient term under canopy rather than real gaps), and we
-should know that before building rather than after.
-
 **Reference images are coming from the user.** The instruction is therefore to
 build the MECHANISM and keep leaf shape and card layout cheap to retune — do
 not polish a look that is about to be specified.
+
+### 3.8a Leaf cards AS BUILT — the contracts a successor must not break
+
+Landed 09:08:2026 20:21. Files: `FloraCards.{h,cpp}` (new), `ProcFlora.*`,
+`FloraSpecies.*`, and four wiring edits inside render's zone made under an
+explicit, recorded lead-granted Rule 25 exception while that zone was unowned.
+
+**TWO STREAMS, AND MERGING THEM IS A BUG THAT LOOKS LIKE AN OPTIMISATION.**
+`build_flora_mesh` returns `FloraMesh { MeshData wood; MeshData cards; }`, and
+`ScatterBatches` grew a matching `foliage` buffer. The reason is not batching,
+it is semantics: on render's `"prop"` program a vertex's colour IS its albedo;
+on their `"foliage"` program the same four bytes are WIND DATA and the albedo
+comes from the leaf atlas. Same bytes, opposite meaning. Anyone who "notices"
+that the two buffers could be one has not read both shaders.
+
+**Channel map (render's contract — do not deviate):**
+
+| chan | meaning | granularity |
+|---|---|---|
+| r | sway weight, 0 at the attachment, 1 at the free edge | **per VERTEX** |
+| g | per-instance wind phase | per instance |
+| b | value jitter | **per CARD** — all four vertices identical |
+| a | sky visibility (render's interior lighting) | left at 255, never touched |
+| uv | mask atlas tile = the (shape, colour) pair | per card |
+
+r must be a per-vertex FIELD or the card translates rigidly and reads as a
+flag; b must be per-card or the jitter becomes a gradient across the card. Both
+are asserted in the suite, because both are the kind of thing a later reader
+"tidies up" in the wrong direction.
+
+Sway is computed as distance from an attachment point — the stem axis at the
+crown base — normalised by the cluster's own reach. One continuous field, so
+the trunk barely moves, the outer crown moves fully, and each card gets an
+inner-to-outer gradient for free.
+
+**PER-CARD COLOUR: render's ruling, and why the alternatives died.** The mask
+atlas is laid out **SHAPE x COLOUR** (4 shape columns x 8 tone rows), so a
+card's uv already selects both and colour costs **zero extra vertex bytes**.
+Recorded because the reasoning is what a successor cannot reconstruct:
+a spare UV channel would unfreeze `platform::Vertex`, which every mesher,
+shader and the backend vertex layout depend on — a real Rule 26 sync and a
+tree-wide rebuild to buy something available free; and a per-card palette
+uniform, more elegant on paper, dies because scatter bakes ONE merged buffer
+per chunk, so all species and all cards in a chunk are a single draw and a
+per-draw uniform cannot vary within it. **The tone rows are therefore a GLOBAL
+table, not per-species** (oak x3, birch x2, willow x2, conifer x1); each
+species owns a contiguous band. That is not a compromise, it is what
+one-chunk-one-draw implies.
+
+Shape and tone are drawn INDEPENDENTLY per card. That is the point of the
+layout: the same leaf outline appears light and dark in one crown, which is
+what a crown that is 79-86 % leaf in its core needs in order to read as volume
+(§3.10) — a value that is welded to a shape cannot do it.
+
+**The mask, and why it is not lace.** Masks are **mostly opaque with the
+porosity spent at the EDGES**, per §3.10's measurement. Concretely:
+
+- the outline is an ellipse scalloped by two harmonics (big lobes), then
+  ERODED by a noise field whose threshold ramps from 0.93 in the core to 0.50
+  at the rim — that erosion is where the porosity budget goes, and it is what
+  makes the silhouette bitten rather than a blob;
+- **interior gaps are PLACED, not noise-thresholded**: one or two per tile at
+  ~0.19 of the card, about 1 m on a 5.5 m oak card, three times render's
+  ~0.31 m feature floor. Placing them guarantees the SIZE. A noise threshold
+  tuned for a 2-3 % area budget produces gaps at whatever size the noise
+  happens to give, which is exactly how "a few real holes" degenerates into the
+  lace that fails twice (invisible in the direct view, aliasing in the shadow
+  map);
+- measured on the generated tiles: enclosed gaps are 0.2-3.3 % of the body,
+  against the reference interior's 1.6-2.9 %. Deliberately at the generous end,
+  because the user asked for see-through and the photo is only evidence about
+  structure;
+- **alpha is strictly binary.** The material is an alpha TEST at 640x360 under
+  a 64-colour palette post; a soft edge becomes dither, i.e. noise on
+  few-pixel geometry (render's PALETTE SIGNAL STRENGTH rule);
+- rgb carries the tone quantized to **three flat shades** with a baked
+  top-lit/rim-lit gradient. This is the "spend the effort on the leaf MASS and
+  its lighting" instruction made concrete: the card has its own form before any
+  scene light touches it.
+
+**Card geometry.** A crossed cluster is 1-3 quads sharing a centre, normals
+spread over 180° of azimuth from the outward direction, with ALTERNATING
+elevation tilt — a cluster of purely vertical planes is invisible from directly
+above, which is precisely the view a player gets of a crown from a hillside.
+Fixed orientation, never camera-facing: a billboard rotates visibly at 640x360,
+shimmers under palette quantization, and is wrong in the shadow pass by
+construction. Branch tips get ONE card, not a trio — the crown MASS is the
+envelope scatter's job (§3.7.3), the tip card is only the visual join.
+
+**Two containment rules that cost a debugging round each, so they are written
+down.** (1) The envelope and the species width band must be checked against the
+card's **CORNER reach**, not its half-width — the diagonal is what pokes out,
+and the birch broke its 7 m band by 0.11 m until this was fixed. (2) The height
+band must be checked against the card's **top edge**, not its centre — same
+species, same afternoon, 22.46 m against a 22 m maximum. Both are the §3.7
+pattern again: a rule enforced on the notional element rather than on the thing
+that actually reaches.
+
+**Winter is one boolean and it is implemented**: deciduous species emit no
+cards, the skeleton is generated regardless, and the bare tree IS the winter
+tree. Summer and autumn produce **byte-identical geometry** — asserted — so
+those two seasons are a texture regeneration and nothing else.
+
+**Overdraw is now the binding cost, not triangles.** An oak is ~36 crown cards
+plus ~20 tip cards; triangle counts went DOWN while every foliage fragment is
+now alpha-tested, which disables early-Z. The per-species lever is
+`cluster_count`. §3.6's triangle table has stopped being the useful metric for
+foliage.
+
+**Deliberately NOT done this stage: the conifer.** The pine keeps solid cone
+tiers so the verification frame carries both treatments side by side and
+answers whether needles need cards, instead of the answer being guessed. The
+atlas already generates a `NeedleFan` column and the pine already names it.
+Bushes stay solid by design's ruling (§5: only tree foliage is cards).
 
 ### 3.9 Vegetation on the banded massif (design §2.8)
 
@@ -841,10 +962,13 @@ selects a position in a palette ramp; the material resolves
   "widen the range per season" requirement, and it falls out of the
   representation rather than needing a mechanism.
 
-**OPEN — for render.** Where does the per-card scalar live, given `Vertex` is
-frozen? Either a spare UV channel, or derive it from the leaf-mask atlas tile
-index the card already selects (free, but caps distinct colours at the tile
-count — acceptable at 4–8). Needs render's answer before cards are built.
+**ANSWERED and BUILT (render, 09:08:2026).** The colour lives in the **mask
+atlas tile**: the atlas is laid out SHAPE x COLOUR, so the uv the card already
+carries selects both. Zero extra bytes, and colour is not welded to shape. The
+two rejected alternatives and their reasons are recorded in §3.8a — read them
+before proposing either again. The season requirement is met in full: a season
+change regenerates ONE texture and re-uploads it; no mesh is regenerated, no
+chunk rebuilt, no baked jitter invalidated.
 
 **Winter is the cheapest season and it is already in hand.** Bare deciduous
 branches = *do not emit foliage cards*; the skeleton is generated regardless.

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 19:52:00
+Last updated: 09:08:2026 - 20:44:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -62,6 +62,16 @@ UPD:
   surface, so carved interiors (tunnel, barrows) exist on screen at all.
 - 09:08:2026 - 19:52:00: DFN_TIME now FREEZES the sky each frame (the app's
   clock would otherwise overwrite the screenshot hook every frame).
+- 09:08:2026 - 20:21:13: FOLIAGE PASS: the "foliage" program, the procedural
+  leaf mask atlas (flora's generate_leaf_atlas, uploaded like the terrain
+  atlas) and a second per-chunk scatter mesh for the alpha-cutout leaf cards.
+  EDITED BY THE FLORA AGENT under an explicit lead-granted Rule 25 exception
+  while render's zone was unowned; wiring only — no shader, material, wind or
+  backend change. Not a precedent. (Reviewed and KEPT by render, 20:25.)
+- 09:08:2026 - 20:44:00: INTERIOR LIGHTING: collect_point_lights walks
+  CarriedLight + Transform into the frame's point-light array (hand offset
+  rotated by the carrier's interpolated rotation, first two lights flagged for
+  cube shadows), plus the DFN_TORCH / DFN_DARK verification hooks.
 */
 
 #pragma once
@@ -187,6 +197,15 @@ private:
                                       uint32_t width, uint32_t height,
                                       const uint8_t* pixels);
 
+    // Collects every entity with CarriedLight + Transform into the frame
+    // environment's point-light array (torches, lanterns, an NPC's lamp).
+    // Gameplay owns WHETHER a light is on; this owns how it looks and which
+    // ones get a shadow map. The flame sits at CarriedLight::offset in CARRIER
+    // space — a light at the eye casts no visible shadow by construction, so
+    // the offset is the feature, not a detail.
+    void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,
+                              float alpha);
+
     // Blits a CPU screen canvas over the frame: uploads it as one RGBA8
     // texture and draws the unlit quad that exactly fills the frustum just
     // past the near plane. Generic on purpose — the future menu screen draws
@@ -201,7 +220,8 @@ private:
         uint32_t mesh_id = 0; // MeshHandle.id
     };
     struct ChunkScatterRes {
-        uint32_t trees_mesh_id = 0; // 0 = no trees in this chunk
+        uint32_t trees_mesh_id = 0;   // 0 = no trees in this chunk
+        uint32_t foliage_mesh_id = 0; // alpha-cutout leaf cards ("foliage")
         std::vector<MicroTileRes> micro;
     };
 
@@ -217,8 +237,10 @@ private:
     uint32_t unlit_program_ = 0;   // ProgramHandle.id
     uint32_t water_program_ = 0;   // ProgramHandle.id
     uint32_t prop_program_ = 0;    // ProgramHandle.id (lit+fog vertex color)
+    uint32_t foliage_program_ = 0; // ProgramHandle.id (alpha-cutout leaf cards)
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
     uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
+    uint32_t leaf_texture_asset_ = 0;  // leaf mask atlas (engine asset id)
     uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no debug water plane
     uint32_t overlay_mesh_ = 0;        // MeshHandle.id, screen-filling quad
     uint32_t overlay_texture_ = 0;     // TextureHandle.id, re-uploaded per frame
@@ -229,6 +251,22 @@ private:
     bool sky_frozen_ = false;
     float frozen_day_ = 0.5f;
     float frozen_moon_phase_ = 0.5f;
+    // Verification hooks for the interior shoot (Rule 27), NOT the feature.
+    // DFN_TORCH=1 lights a carried flame at the CAMERA's hand position, because
+    // the tour freezes the player and no gameplay entity carries a torch during
+    // a screenshot run. The shipping path is components::CarriedLight, written
+    // by gameplay; if any entity carries one, it wins and this hook stands down.
+    bool torch_debug_ = false;
+    // DFN_TORCH=2: metres AHEAD of the camera to stand the debug flame off, so
+    // casters fall between eye and light and the cube map's work is visible in
+    // an open-ground frame. 0 = the flame is at the hand (DFN_TORCH=1).
+    float torch_ahead_m_ = 0.0f;
+    // DFN_NO_POINT_SHADOW=1 keeps the lights and drops their cube maps — the
+    // A/B half of the acceptance shoot, and the cost measurement.
+    bool point_shadows_off_ = false;
+    // DFN_DARK=<0..1> pins ambient_darkness (the app drives it in play).
+    bool dark_frozen_ = false;
+    float frozen_darkness_ = 0.0f;
     MapScreen map_;
     platform::RenderEnvironment environment_{};
     std::chrono::steady_clock::time_point clock_start_{}; // visual time origin

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 09:08:2026 - 20:28:17
 Module: engine/gameplay
 File: engine/gameplay/sources/HeldItem.h
 
@@ -42,6 +42,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial held-item / torch state.
+- 09:08:2026 - 20:28:17: update_carried_lights(): the render bridge
+                         (HeldItem -> components::CarriedLight), with the hand
+                         offset measured from the capsule bottom.
 */
 
 #pragma once
@@ -80,6 +83,18 @@ void stow_item(ecs::World& world, events::EventBus& events, ecs::EntityId actor)
 // Lights or douses the held item. Refuses (false) when the hand is empty or
 // the held item is not a light source per its content definition.
 bool toggle_lit(ecs::World& world, events::EventBus& events, ecs::EntityId actor);
+
+// The bridge to rendering: mirrors HeldItem into components::CarriedLight on
+// every carrier, so render can collect point lights without knowing what a
+// torch is. Call once per fixed tick, after interaction.
+//
+// The offset is carrier-local and is measured from Transform.position, which
+// for a character is the capsule BOTTOM (feet) — NOT the eye. A flame placed
+// "0.25 m down from the origin" would therefore sit underground; the hand is
+// PLAYER_EYE_HEIGHT - 0.25 m ABOVE the feet. Local +X is the carrier's right
+// (at yaw 0 the body faces -Z and Transform.rotation is identity), so the
+// offset swings with the body once render rotates it by that rotation.
+void update_carried_lights(ecs::World& world);
 
 // --- Events ------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 23:30:00
 Module: engine/core/ecs
 File: engine/core/ecs/sources/ComponentPool.h
 
@@ -28,6 +28,7 @@ UPD:
   removal hook (Rule 11), based on Quicky ECS.
 - 09:08:2026 - 00:42:03: Stage 2 — template bodies implemented in-header;
   public surface unchanged.
+- 09:08:2026 - 23:30:00: add() gains a const-lvalue overload (sim's report): T&& here is a TRUE rvalue ref, so adding a NAMED LOCAL failed to compile and blamed this header rather than the call site. Both value categories now work; move path unchanged, copy path explicit.
 */
 
 #pragma once
@@ -76,14 +77,15 @@ class ComponentPool final : public IComponentPool {
 public:
     /// Adds a component for `id`. Precondition: !has(id) (asserted).
     /// Returns a reference valid until the next add/remove on this pool.
-    T& add(EntityId id, T&& component) {
-        assert(!has(id) && "Entity already has this component");
-        const std::size_t dense_index = dense_.size();
-        dense_.push_back(std::move(component));
-        owners_.push_back(id);
-        sparse_[id.index] = dense_index;
-        return dense_.back();
-    }
+    ///
+    /// Two overloads on purpose: `T&&` here is a TRUE rvalue reference (T is
+    /// the class parameter, not deduced), so without the const-lvalue overload
+    /// a named local cannot be added at all — and the error surfaces inside
+    /// this header rather than at the call site, which reads as "the ECS is
+    /// broken" instead of "that was an lvalue". The copy path is explicit and
+    /// greppable; the move path stays exact.
+    T& add(EntityId id, T&& component) { return emplace(id, std::move(component)); }
+    T& add(EntityId id, const T& component) { return emplace(id, component); }
 
     /// See IComponentPool. O(1) via swap-and-pop.
     void remove(EntityId id) override {
@@ -136,6 +138,18 @@ public:
     [[nodiscard]] EntityId owner_at(std::size_t i) const { return owners_[i]; }
 
 private:
+    /// Single insertion path shared by both add() overloads; U deduces to
+    /// T or const T& and the push_back does the right thing for each.
+    template<typename U>
+    T& emplace(EntityId id, U&& component) {
+        assert(!has(id) && "Entity already has this component");
+        const std::size_t dense_index = dense_.size();
+        dense_.push_back(std::forward<U>(component));
+        owners_.push_back(id);
+        sparse_[id.index] = dense_index;
+        return dense_.back();
+    }
+
     std::vector<T> dense_;
     std::vector<EntityId> owners_;
     std::unordered_map<uint32_t, std::size_t> sparse_;

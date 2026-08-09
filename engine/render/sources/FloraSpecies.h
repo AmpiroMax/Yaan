@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 09:08:2026 - 19:22:41
+Last updated: 09:08:2026 - 20:21:13
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -28,9 +28,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 19:22:41: Created — catalog per LANDSCAPE §5.7-§5.10.
+- 09:08:2026 - 20:21:13: Leaf-card vocabulary: FoliageShape::Card, the
+  per-species atlas tone/shape bands and card proportions, has_leaf_cards().
 */
 
 #pragma once
+
+#include "engine/render/sources/FloraCards.h"
 
 #include <glm/vec3.hpp>
 
@@ -67,7 +71,8 @@ enum class CrownEnvelope : uint8_t {
 };
 
 enum class FoliageShape : uint8_t {
-    Blob,      ///< faceted ellipsoid cluster (broadleaf)
+    Card,      ///< crossed alpha-cutout leaf cards (the canopy default, §3.8)
+    Blob,      ///< faceted ellipsoid cluster (solid: bushes, and Silhouette LOD)
     ConeShell, ///< tier skirt (conifer)
     None,
 };
@@ -115,6 +120,20 @@ struct SpeciesParams {
     uint8_t cluster_slices = 5;
     uint8_t cluster_bands = 2;
 
+    // --- foliage cards (docs/specs/flora.md §3.8) ---------------------------
+    // A card's atlas TILE is its (shape, colour) pair, so a species declares a
+    // band of each and the generator varies them per card. Colour therefore
+    // costs no vertex bytes and is NOT welded to shape: the same leaf outline
+    // appears light and dark in one crown, which is what a crown that is
+    // 79-86 % leaf in its core needs in order to read as volume (§3.10).
+    LeafTone tone_first = LeafTone::OakMid;
+    uint8_t tone_count = 3;
+    LeafShape card_shape_a = LeafShape::RoundLobed;
+    LeafShape card_shape_b = LeafShape::RaggedTip;
+    uint8_t cards_per_cluster = 3;   ///< crossed cards sharing one centre
+    float card_width_frac = 1.15f;   ///< card half-width / cluster radius
+    float card_aspect = 0.80f;       ///< half-height / half-width
+
     // --- value (LANDSCAPE §5 palette roles) ---------------------------------
     glm::vec3 trunk_color{0.14f, 0.11f, 0.08f};
     glm::vec3 foliage_color{0.30f, 0.42f, 0.18f};
@@ -129,5 +148,9 @@ struct SpeciesParams {
 
 /// True for the species that carry a canopy and obey CANOPY_CLEARANCE_MIN.
 [[nodiscard]] bool is_canopy_tree(FloraSpecies species);
+
+/// True when this species' foliage is alpha-cutout cards (i.e. it contributes
+/// to the FOLIAGE material stream, not the opaque one).
+[[nodiscard]] bool has_leaf_cards(FloraSpecies species);
 
 } // namespace dfn::render

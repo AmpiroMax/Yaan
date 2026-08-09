@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 19:21:01
+Last updated: 09:08:2026 - 20:38:09
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -62,6 +62,10 @@ UPD:
 - 09:08:2026 - 19:12:24: Day/night clock wired: 48-minute day, T holds for a
                          50x debug run, lunar phase as a pure function of date.
 - 09:08:2026 - 19:21:01: Terrain DRAWN from the voxel mesh (render's finding:
+- 09:08:2026 - 20:27:13: ambient_darkness written per frame — a stand-in for
+- 09:08:2026 - 20:38:09: ambient_darkness now asks core's enclosure query;
+                         the app-side stand-in is deleted.
+                         core's enclosure query so interiors are dark in play.
                          there was no voxel render path at all, so carves were
                          never submitted — the reported "saw the map from
                          inside the barrow" was missing geometry, not light).
@@ -88,6 +92,7 @@ UPD:
 #include "engine/platform/window/sources/glfw/CreateGlfwWindow.h"
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
@@ -386,6 +391,18 @@ int App::run() {
         const double lunar = days / static_cast<double>(config::LUNAR_MONTH_DAYS);
         const float lunar_phase = static_cast<float>(lunar - std::floor(lunar));
         render::apply_sky_time(render_system_.environment(), day_fraction, lunar_phase);
+
+        // Authored darkness (LANDSCAPE §6.3). The rule has two halves —
+        // ENCLOSED (rock actually overhead, so a shaft open to the sky is not
+        // dark) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor
+        // from the nearest mouth, not straight-line through rock). Both live in
+        // worldgen, which is why the app asks rather than computes: an app-side
+        // approximation redefined "cave" as "low ground" and would have kept
+        // the whole switchback tunnel lit, since its portal is 15 m away
+        // through stone but 60 m away on foot.
+        if (const auto* t = world_.get<components::Transform>(player_)) {
+            render_system_.environment().ambient_darkness = chunks_.darkness_at(t->position);
+        }
 
         gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
 

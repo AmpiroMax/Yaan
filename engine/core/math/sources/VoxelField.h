@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 09:08:2026 - 21:40:00
 Module: engine/core/math
 File: engine/core/math/sources/VoxelField.h
 
@@ -35,6 +35,7 @@ UPD:
 - 09:08:2026 - 16:00:00: Created — voxel surface handoff for the 3D terrain
   stage (representation swap).
 - 09:08:2026 - 16:30:44: Representation swap: VoxelMeshView + VoxelMaterial — the additive cross-zone geometry handoff (HeightFieldView untouched, still the ground-height query).
+- 09:08:2026 - 21:40:00: ADDITIVE: VoxelMeshView::sky_visibility (per-vertex, 255=open sky, 0=sealed) at render's request; an empty span means unknown and render falls back to 255, so the field lands before it is filled. No existing field moved.
 */
 
 #pragma once
@@ -71,6 +72,16 @@ struct VoxelMeshView {
     std::span<const glm::vec3> normals;
     std::span<const uint8_t> materials; ///< VoxelMaterial per vertex
     std::span<const uint32_t> indices;
+
+    /// Per-vertex sky visibility: 255 = open sky, 0 = sealed under rock.
+    /// Parallel to `positions` when present. Render multiplies ambient AND
+    /// moonlight by this, so without it a barrow interior is lit by full open
+    /// daylight and no torch can read against it.
+    ///
+    /// An EMPTY span is legal and means "unknown": render falls back to 255,
+    /// which is exactly today's behaviour. That is deliberate, so the field
+    /// can land before it is filled.
+    std::span<const uint8_t> sky_visibility;
 
     [[nodiscard]] std::size_t triangle_count() const { return indices.size() / 3; }
 };

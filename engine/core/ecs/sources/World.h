@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 23:30:00
 Module: engine/core/ecs
 File: engine/core/ecs/sources/World.h
 
@@ -33,6 +33,7 @@ UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — implemented. Private section: stage-1 pimpl
   replaced by concrete members (template methods need member access in-header);
   public surface unchanged.
+- 09:08:2026 - 23:30:00: add() documents the value categories it accepts (sim's report); the lvalue path is fixed in ComponentPool via a const-lvalue overload.
 */
 
 #pragma once
@@ -127,6 +128,14 @@ public:
 
     /// Adds a component to a live entity. Precondition: alive(id) && !has<T>(id).
     /// The reference stays valid until the next add/remove of a T on any entity.
+    ///
+    /// Accepts BOTH value categories — a temporary is moved, a named local is
+    /// copied:
+    ///     world.add(id, components::CarriedLight{...});  // moved
+    ///     components::CarriedLight l{}; world.add(id, l); // copied
+    /// Building the value in a local first is the natural style whenever it
+    /// takes more than one statement to assemble, and it used to fail to
+    /// compile with an error pointing into this header.
     template<typename T>
     T& add(EntityId id, T&& component) {
         assert(alive(id) && "Cannot add a component to a dead entity");

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 09:08:2026 - 19:31:02
+Last updated: 09:08:2026 - 20:21:13
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -11,10 +11,12 @@ Responsibility:
   crown shyness, lean-away and understory.
 
 Key items:
-- build_flora_mesh, analyse_neighbourhood, flora_variant_for, species metadata.
+- build_flora_mesh, append_flora, emit_card_cluster, analyse_neighbourhood,
+  flora_variant_for, species metadata.
 
 Dependencies:
-- Uses: ProcFlora.h, FloraSpecies.h, ProcMesh.h (tri/quad/pack), Constants.h.
+- Uses: ProcFlora.h, FloraSpecies.h, FloraCards.h (the card emitter and the
+  leaf atlas vocabulary), ProcMesh.h (tri/quad/pack), Constants.h.
 - Used by: ScatterBatcher (render), ProcFloraTests.
 
 AI Agents Notice (must follow):
@@ -29,6 +31,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 19:31:02: Created — stage-4 parametric branching system.
+- 09:08:2026 - 20:21:13: Broadleaf foliage is now ALPHA-CUTOUT CARDS. Solid
+  blob clusters survive only for bushes and the Silhouette LOD. A tree is built
+  as two streams (FloraMesh.wood / .cards) because the two render programs read
+  vertex colour differently; per-instance wind phase is derived from the
+  instance position in analyse_neighbourhood; append_flora() bakes both streams
+  for the batcher.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -195,7 +203,18 @@ struct Tree {
     Rng rng;
     float flare_h = FLARE_HEIGHT;
     float flare_depth = FLARE_DEPTH;
+    // --- leaf cards (§3.8). `cards` is null when the species has no card
+    // foliage, or when winter has stripped it.
+    MeshData* cards = nullptr;
+    glm::vec3 stem_off{0.0f}; ///< the stem this geometry belongs to (clumps)
+    float phase = 0.0f;       ///< per-instance wind phase -> vertex GREEN
 };
+
+/// Does this species put anything in a foliage cluster at all?
+bool emits_clusters(const SpeciesParams& sp) {
+    return (sp.foliage == FoliageShape::Blob || sp.foliage == FoliageShape::Card)
+        && sp.cluster_count > 0;
+}
 
 /// Crown shyness: the crown is pulled back on the side facing a close
 /// neighbour. Interpenetrating crowns read as one mud-coloured mass at low
@@ -238,8 +257,102 @@ glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
     return p;
 }
 
-void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) { // NOLINT
+/// One CROSSED CARD CLUSTER: 1-3 flat quads intersecting at a shared centre so
+/// the group reads as volume from any azimuth.
+///
+/// The cards are FIXED-ORIENTATION, never camera-facing billboards. A billboard
+/// rotates visibly at 640x360, shimmers under palette quantization, and is
+/// wrong in the shadow pass by construction — a card turned to face the eye
+/// casts a rotating shadow. Orientation comes from where the cluster sits in
+/// the crown: outward from the crown axis, with alternating tilt.
+/// `reach` is the CORNER radius of a card (not its half-width): a card's far
+/// corner, not its edge midpoint, is what the species width band and the
+/// envelope actually have to contain.
+void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
+    if (t.cards == nullptr || reach <= 0.05f) return;
+    const SpeciesParams& sp = t.sp;
+    const int n = std::clamp(card_count, 1, 4);
+    const float diag = std::sqrt(1.0f + sp.card_aspect * sp.card_aspect);
+
+    LeafCardParams p;
+    p.half_width = reach / diag;
+    p.half_height = p.half_width * sp.card_aspect;
+
+    // The species HEIGHT band is a cross-zone contract (§3.7.1), and a card
+    // reaches half_height above the point it is placed at — so the clamp is on
+    // the card's TOP EDGE, not on its centre.
+    if (at.y + p.half_height > t.crown_top) {
+        at.y = t.crown_top - p.half_height;
+    }
+    // CANOPY CLEARANCE, measured where it is actually felt: the lowest FOLIAGE
+    // vertex, not the nominal crown base (§3.5 — drooping species are the whole
+    // reason the rule is worded that way, and a card hangs below its centre).
+    // Remedy order matters and it is the §3.7.5 lesson: RAISE the cluster, and
+    // only shrink it when raising would push it out of the envelope. Sacrificing
+    // the arrangement to preserve a declared size is what stacked the birch.
+    const float floor_y = std::max(t.crown_base, CLEARANCE_MIN);
+    if (at.y - p.half_height < floor_y) {
+        const float raised = floor_y + p.half_height;
+        if (raised + p.half_height <= t.crown_top) {
+            at.y = raised;
+        } else {
+            p.half_height = std::max((t.crown_top - floor_y) * 0.5f, 0.05f);
+            p.half_width = p.half_height / std::max(sp.card_aspect, 0.05f);
+            at.y = floor_y + p.half_height;
+        }
+    }
+    // The attachment (sway weight 0) is the stem at the base of the crown, so
+    // the whole crown's sway grows outward and upward from the trunk exactly
+    // as a real one does, and the gradient ACROSS each card — its inner corner
+    // nearer the stem than its outer one — is what makes the card bend instead
+    // of sliding like a flag.
+    p.sway_origin = {t.stem_off.x, t.crown_base, t.stem_off.z};
+    p.sway_span = glm::length(at - p.sway_origin) + p.half_width;
+    p.phase = t.phase;
+
+    const glm::vec2 out_xz{at.x - t.stem_off.x, at.z - t.stem_off.z};
+    const float base_az = glm::length(out_xz) > 1e-4f
+                              ? std::atan2(out_xz.y, out_xz.x)
+                              : t.rng.unit() * TAU;
+    for (int k = 0; k < n; ++k) {
+        const float az =
+            base_az + glm::pi<float>() * static_cast<float>(k) / static_cast<float>(n)
+            + t.rng.sym() * 0.18f;
+        // Alternating elevation: a cluster of purely vertical planes is
+        // invisible from directly above, which is exactly the view a player
+        // gets of a crown from a hillside.
+        const float el = (k % 2 == 0 ? 0.28f : -0.34f) + t.rng.sym() * 0.12f;
+        p.normal = {std::cos(el) * std::cos(az), std::sin(el),
+                    std::cos(el) * std::sin(az)};
+        p.roll = t.rng.sym() * 0.35f;
+        // Shape and TONE are drawn independently — that is the whole point of a
+        // SHAPE x COLOUR atlas: one outline may appear light and dark in the
+        // same crown, which is what gives a nearly opaque crown its volume.
+        p.shape = (t.rng.unit() < 0.62f) ? sp.card_shape_a : sp.card_shape_b;
+        const auto tone_i = static_cast<uint32_t>(sp.tone_first)
+            + static_cast<uint32_t>(t.rng.unit()
+                                    * static_cast<float>(std::max<uint8_t>(sp.tone_count, 1)));
+        p.tone = static_cast<LeafTone>(
+            std::min<uint32_t>(tone_i, LEAF_ATLAS_TONES - 1));
+        // b: ONE value per card, all six vertices. Per-vertex would make it a
+        // gradient across the card, which is not what a value jitter is.
+        p.value_jitter = t.rng.unit();
+        p.center = at;
+        emit_leaf_card(*t.cards, p);
+    }
+}
+
+void emit_cluster(MeshData& m, Tree& t, glm::vec3 at, float radius, // NOLINT
+                  int card_count = -1) {
     if (radius <= 0.05f) return;
+    // For cards the containment must be run on the CARD's CORNER reach, not on
+    // the notional cluster radius — otherwise the crown quietly grows by
+    // card_width_frac times the card diagonal, and crown width is load-bearing
+    // (design derived TREE_SPACING_FOREST from it, §3.7.2).
+    if (t.sp.foliage == FoliageShape::Card) {
+        radius *= t.sp.card_width_frac
+            * std::sqrt(1.0f + t.sp.card_aspect * t.sp.card_aspect);
+    }
     // Foliage may not push the silhouette outside the species envelope.
     at = clip_to_envelope(t, at);
     at.y = std::min(at.y, t.crown_top - radius * 0.85f);
@@ -257,6 +370,12 @@ void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) { // N
             at.x = c.x;
             at.z = c.y;
         }
+    }
+    if (t.sp.foliage == FoliageShape::Card) {
+        emit_card_cluster(t, at,
+                          radius,
+                          card_count > 0 ? card_count : t.sp.cards_per_cluster);
+        return;
     }
     const int slices = t.sp.cluster_slices;
     const int bands = t.sp.cluster_bands;
@@ -284,11 +403,23 @@ float crown_fill_start(CrownEnvelope e) {
 /// branches are structure you only resolve up close.
 void scatter_envelope_clusters(MeshData& m, Tree& t, glm::vec3 off, float radial_frac) {
     const SpeciesParams& sp = t.sp;
-    if (sp.foliage != FoliageShape::Blob || sp.cluster_count == 0) return;
+    if (!emits_clusters(sp)) return;
+    if (sp.foliage == FoliageShape::Card && t.cards == nullptr) return;
     const float span = t.crown_top - t.crown_base;
     if (span <= 0.0f) return;
-    for (int i = 0; i < sp.cluster_count; ++i) {
-        const float u_raw = (static_cast<float>(i) + 0.5f) / static_cast<float>(sp.cluster_count);
+    // Reduced LOD spends its saving on the CROWN, not on the skeleton: fewer,
+    // correspondingly larger clusters and one plane less per cluster. The
+    // silhouette is preserved because the envelope still governs; what is lost
+    // is interior card overlap, which is only resolvable close up — and close
+    // up is not where Reduced is used.
+    const bool reduced = t.lod == FloraLod::Reduced;
+    const int count = reduced ? std::max(2, sp.cluster_count * 2 / 3) : sp.cluster_count;
+    const float size_boost = reduced
+        ? std::sqrt(static_cast<float>(sp.cluster_count) / static_cast<float>(count))
+        : 1.0f;
+    const int cards = reduced ? std::max(1, sp.cards_per_cluster - 1) : -1;
+    for (int i = 0; i < count; ++i) {
+        const float u_raw = (static_cast<float>(i) + 0.5f) / static_cast<float>(count);
         // Fill the UPPER crown and vary the radius per cluster. One cluster per
         // evenly-spaced height at a fixed radius produces a helix of separated
         // blobs — which rendered as a ladder of floating discs up the birch
@@ -304,7 +435,8 @@ void scatter_envelope_clusters(MeshData& m, Tree& t, glm::vec3 off, float radial
         const float az = GOLDEN_ANGLE * static_cast<float>(i);
         const glm::vec3 at{std::cos(az) * env * rf, y, std::sin(az) * env * rf};
         emit_cluster(m, t, at + off,
-                     t.crown_r * sp.cluster_radius_frac * shy_scale(t, at));
+                     t.crown_r * sp.cluster_radius_frac * shy_scale(t, at) * size_boost,
+                     cards);
     }
 }
 
@@ -318,11 +450,14 @@ void grow_branch(MeshData& m, Tree& t, glm::vec3 base, glm::vec3 dir, float leng
     // Returning without emitting it left birches as bare poles: their primary
     // branches (0.17 m) are under the floor, so the entire crown vanished.
     if (radius * 2.0f < sp.min_branch_diameter || length < 0.4f) {
-        if (sp.foliage == FoliageShape::Blob && sp.cluster_count > 0) {
+        if (emits_clusters(sp)) {
             const glm::vec3 at = clip_to_envelope(t, base);
             if (at.y > t.crown_base) {
+                // One card at a terminated branch, not a whole crossed trio:
+                // the crown MASS is the envelope scatter's job (§3.7.3), this
+                // is only the visual join between limb and foliage.
                 emit_cluster(m, t, at,
-                             t.crown_r * sp.cluster_radius_frac * shy_scale(t, at));
+                             t.crown_r * sp.cluster_radius_frac * shy_scale(t, at), 1);
             }
         }
         return;
@@ -383,12 +518,13 @@ void grow_branch(MeshData& m, Tree& t, glm::vec3 base, glm::vec3 dir, float leng
     }
 
     // Foliage at the tip, clipped to the envelope so the silhouette holds.
-    if (sp.foliage == FoliageShape::Blob && sp.cluster_count > 0) {
+    if (emits_clusters(sp)) {
         const float env =
             envelope_radius(sp, p.y, t.crown_base, t.crown_top, t.crown_r);
         if (env > 0.0f) {
             const float r = std::min(t.crown_r * sp.cluster_radius_frac, env * 0.9f);
-            emit_cluster(m, t, p, r * shy_scale(t, p));
+            emit_cluster(m, t, p, r * shy_scale(t, p),
+                         sp.foliage == FoliageShape::Card ? 1 : -1);
         }
     }
 }
@@ -510,10 +646,12 @@ float species_trunk_radius(FloraSpecies s) {
     return species_nominal_height(s) * sp.trunk_radius_frac * FLARE_WIDEN;
 }
 
-MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
-                          const FloraShape& shape, FloraLod lod) {
+FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
+                           const FloraShape& shape, FloraLod lod,
+                           FloraSeason season) {
     const SpeciesParams& sp = species_params(species);
-    MeshData m;
+    FloraMesh parts;
+    MeshData& m = parts.wood;
 
     Rng rng{mix64(static_cast<uint64_t>(species) * 0x1000193ull
                   ^ (static_cast<uint64_t>(variant) + 1) * 0x9E3779B97F4A7C15ull)};
@@ -544,6 +682,18 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
                       : std::clamp(height * 0.08f, 0.08f, 0.4f),
            woody_tree ? FLARE_DEPTH : std::clamp(height * 0.10f, 0.10f, 0.4f)};
 
+    // Card foliage exists unless winter has stripped it. WINTER IS ONE BOOLEAN
+    // (LANDSCAPE §5.11): do not emit the cards and the already-generated
+    // skeleton IS the bare tree. Conifers keep their needles.
+    // The Silhouette LOD deliberately keeps its solid shell: at that range the
+    // silhouette is the entire information and a cutout buys nothing but
+    // shimmer and overdraw.
+    if (sp.foliage == FoliageShape::Card && lod != FloraLod::Silhouette
+        && leaf_tone_has_foliage(sp.tone_first, season)) {
+        t.cards = &parts.cards;
+    }
+    t.phase = shape.wind_phase;
+
     // HARD FLOOR (§3.5): canopy species keep CANOPY_CLEARANCE_MIN of clear
     // trunk. Enforced by construction, never by inspection.
     if (is_canopy_tree(species) && t.crown_base < CLEARANCE_MIN) {
@@ -567,12 +717,12 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
                          r * (1.0f - 0.35f * f1), sp.trunk_sides, t.wood);
             p = next;
         }
-        return m;
+        return parts;
     }
 
     if (lod == FloraLod::Silhouette) {
         build_silhouette(m, t);
-        return m;
+        return parts;
     }
 
     // Multi-trunk clumps (the user's "сколько стволов"): birch is 2-3 stems.
@@ -589,6 +739,9 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
             ? glm::vec3{std::cos(ang) * sp.trunk_spread, 0.0f,
                         std::sin(ang) * sp.trunk_spread}
             : glm::vec3{0.0f};
+        // Cards measure their sway from the stem they hang on, not from the
+        // model origin — in a birch clump those are metres apart.
+        t.stem_off = off;
         // In a clump the LEAD stem carries the species height and the others
         // are shorter — that is what makes it read as one multi-stemmed tree
         // rather than as N small trees. Shrinking every stem (an earlier bug)
@@ -641,7 +794,17 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
             }
         }
     }
-    return m;
+    return parts;
+}
+
+void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
+                  uint32_t variant, const FloraShape& shape, FloraLod lod,
+                  glm::vec3 position, float yaw, FloraSeason season) {
+    const FloraMesh parts = build_flora_mesh(species, variant, shape, lod, season);
+    // Scale 1.0: the generator has ALREADY applied FloraShape::maturity, and a
+    // tree does not sink — it stands on its root flare (§3.5).
+    append_transformed(wood, parts.wood, position, yaw, 1.0f);
+    append_transformed(cards, parts.cards, position, yaw, 1.0f);
 }
 
 std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInstance> all,
@@ -652,6 +815,19 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
         const FloraSpecies fs = flora_species_of(a.species);
         FloraShape& sh = out[i];
         sh.maturity = a.scale;
+        // Wind phase from the instance POSITION, not from the variant: twelve
+        // skeletons would give twelve phases, and a stand where every twelfth
+        // tree moves in lockstep reads as a repeating pattern the moment the
+        // wind gusts. Position-derived, it is unique per tree and still
+        // deterministic across runs and chunk borders.
+        sh.wind_phase = static_cast<float>(
+                            mix64(static_cast<uint64_t>(
+                                      static_cast<int64_t>(std::lround(a.position.x * 8.0f)))
+                                      * 0x9E3779B1ull
+                                  ^ mix64(static_cast<uint64_t>(static_cast<int64_t>(
+                                        std::lround(a.position.z * 8.0f)))))
+                            >> 40)
+            / 16777216.0f;
         if (!is_canopy_tree(fs)) continue;
 
         const float r_a = species_crown_radius(fs) * a.scale;

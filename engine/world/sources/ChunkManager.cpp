@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 18:19:09
+Last updated: 09:08:2026 - 22:45:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -35,9 +35,12 @@ UPD:
 - 09:08:2026 - 16:30:44: Representation swap: voxel_mesh accessor.
 - 09:08:2026 - 17:36:42: §6.2: honour ground_y when spawning site entities.
 - 09:08:2026 - 18:19:09: Streaming LOAD BUDGET: at most CHUNK_LOAD_BUDGET chunks admitted per update, nearest-to-focus first with a deterministic tie-break, remainder deferred to following updates. Unbounded admission was the multi-second freeze (a cold ring is ~2 s of synchronous work at ~83 ms/chunk including sim's collision build). Nearest-first is what makes deferral safe: the ground under the player is distance 0, so it is always next and the queue cannot reorder into a hole beneath them.
+- 09:08:2026 - 22:45:00: NEW darkness_at(world) — the §6.3 authored-darkness query wrapped at the ChunkManager level (lead's call) so the app holds only its one world handle and never the layout, the worldgen context or a GroundSampler; HOW darkness is computed stays in this zone and the sampler is guaranteed to be the one the carve mouths were derived with.
 */
 
 #include "engine/world/sources/ChunkManager.h"
+
+#include "engine/world/sources/WorldgenCarve.h"
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/SiteComponents.h"
@@ -310,6 +313,15 @@ std::optional<float> ChunkManager::height_at(glm::vec2 world_xz) const {
         return std::nullopt;
     }
     return it->second.heightmap.sample_world(coord, world_xz);
+}
+
+float ChunkManager::darkness_at(glm::vec3 world) const {
+    // The GroundSampler is built from the SAME context the carve mouths were
+    // derived with -- that guarantee is the reason this wrapper exists rather
+    // than the app assembling the call itself.
+    const WorldGenContext& ctx = impl_->gen_ctx;
+    const GroundSampler ground = [&ctx](glm::vec2 p) { return terrain_height(ctx, p); };
+    return enclosure_darkness(ctx.params.layout, {}, ground, world);
 }
 
 } // namespace dfn::world

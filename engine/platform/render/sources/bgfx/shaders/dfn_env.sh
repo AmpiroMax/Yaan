@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 09:08:2026 - 19:58:00
+Last updated: 09:08:2026 - 20:31:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -32,10 +32,19 @@ UPD:
   light, plus authored u_ambientDarkness; env block 15 -> 32 vec4s.
 - 09:08:2026 - 19:58:00: Wind slots [32] + shared dfn_wind_offset (foliage now,
   grass and cloth later); env block 32 -> 33 vec4s.
+- 09:08:2026 - 20:31:00: Carried lights now SHADOW: dfn_pointshadow.sh included
+  here (the light loop is here, so a torch cannot shadow on terrain and not on
+  props), shadow-casting lights are packed first so the slot index is the cube
+  index.
 */
 
 #ifndef DFN_ENV_SH
 #define DFN_ENV_SH
+
+// Cube shadows for the carried lights. Included here rather than by each
+// fragment shader because the light LOOP lives here: a torch that shadowed in
+// terrain but not in props would be worse than one that never shadowed.
+#include "dfn_pointshadow.sh"
 
 uniform vec4 u_envParams[33];
 
@@ -141,7 +150,14 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         vec3 to_light = pos_rad.xyz - wpos;
         float dist = length(to_light);
         float atten = clamp(1.0 - dist / max(pos_rad.w * reach, 0.0001), 0.0, 1.0);
-        light += u_lightColor(i).rgb * (atten * atten
+        // Shadow-casting lights are packed FIRST (BgfxRenderer orders them), so
+        // the slot index IS the cube-atlas index and no second lookup table
+        // exists to fall out of sync.
+        float occl = 1.0;
+        if (float(i) < u_pointShadowParams.x && atten > 0.0) {
+            occl = dfn_point_shadow_factor(i, wpos, n, pos_rad.xyz, pos_rad.w);
+        }
+        light += u_lightColor(i).rgb * (atten * atten * occl
                     * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
     }
     return light;

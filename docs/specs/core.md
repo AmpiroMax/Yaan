@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 19:55:17
+Last updated: 09:08:2026 - 22:10:00
 -->
 <!--
 UPD:
@@ -25,6 +25,7 @@ UPD:
 - 09:08:2026 - 19:33:58: FORTRESS REVISION — the castle is now a chain of TERRACED WARDS stepping down the spur (design's ruling) instead of one 120 m pad. Worst cut 9.92 m -> 1.64 m against the 6 m budget, and the terrace no longer swallows the Backbarrow carve 54 m away (that interaction was the cause of the barrow's lost cover, lost mouth and short tunnel). Mass distributed across wards: hall + solar on the oldest uphill ward nearest the barrow, curtain + reinstated corner towers on the bailey, gatehouse on the outer works. BLOCKED, not failing by accident: R4 dominance ratio 0.640 and crown occlusion still fail against a 52 m Ravenscar, and both clear the moment L0_RELIEF lands — measured 110 m gives ratio 0.299, crown clear, C1 0.901.
 - 09:08:2026 - 19:41:55: L0_RELIEF 115 adopted. Castle hierarchy green (R4 0.285 vs 0.6, crown clear, C1 0.90). Cascade handled: rockline/treeline now scale with the summit; the switchback ascent is lifted and pushed out 1.30x so its mouth clears the taller cone (94 of 106 stations under rock, both portals, 19.7% grade); the ward chain's waterline floor now outranks its step-down and the chain truncates where the spur meets water. OPEN, needs design: the Backbarrow site is SWALLOWED by the taller crag — its passage sits 81-105 m from the crag centre where terrain rose from ~21 m to 40-64 m, so the entrance is buried under 20-44 m of mountain. Clearing it needs ~130 m from centre, which puts it 20 m from the castle and breaks CASTLE_BARROW_DIST 40-80: the castle+barrow pair needs re-siting against a 115 m Ravenscar.
 - 09:08:2026 - 19:55:17: DIRT STRIPES FIXED (user-visible every daylight second): surface vertices took their material from the nearest solid CORNER, whose depth was measured against a different column's surface — on a slope an uphill corner reads as deep soil, painting contour-following dirt bands across meadow. Material now derives from the vertex's own depth below the interpolated local surface: dry open ground away from water is down to 19 Dirt vertices in 1.08M (0.002%), all river-bed-class. BARROW re-siting implemented per design (couloir bearing swing, rigid rotation of site+passage+chamber) but BLOCKED: Ravenscar has no couloirs to find — measured identical lobe ratio at every height, i.e. a self-similar cone — and the high-shoulder fallback was measured and rejected because it breaks story's not-visible-from-Vaelmere constraint (26/39 standpoints) and drives the barrow chamber through the crag tunnel.
+- 09:08:2026 - 22:10:00: LANDSCAPE §2.8 banded contour massif implemented (massif_height replaces crag_height): per-bearing concave profile exponent p>1, per-bearing radial lobing, non-uniform contour bands, per-bearing cliff/ramp risers, bearing fields sampled on a CIRCLE in the lattice so they are periodic with no branch cut at +-pi. Seed 1: I1 15.0 deg (need 12), I3 16.5% surface over 55 deg (need 12), I4 fullest bin 24.2% (max 30), I5 100% of radials (need 70), I6 CV 0.518 (need 0.35); I2 awaits the summit tor, I7/I8 await angular lobes. NEW spec section "Reading a constant is not reading the rule" — all four implementation bugs shared one shape (a plausible rule invented from a constant's NAME, implemented in place of the spec's), all invisible until measured, three of four caught by I4. TWO MEASUREMENT QUESTIONS ESCALATED to design rather than resolved in my own favour: footprint vs true surface area for I3/I4 (6.0% fail vs 16.5% pass), and re-stamping the §2.8 baseline after the polyline rule moved the same terrain 0.80 -> 1.27. Voxel-vs-heightfield assertion restated per vertex against local within-cell relief with carve surfaces exempt (strictly stronger than the old global-max bound: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained).
 -->
 
 # Spec: `core` (engine/core + engine/world)
@@ -363,6 +364,85 @@ Each numbered step ends green (build + tests + header_check) before the next.
   (ChunkUnloaded before free), no leaks (entity_count returns to baseline).
 - Visual verification of anything render-visible happens via render's
   screenshot tour (Rule 27) — my terrain data feeds it in stage 2.
+
+## Reading a constant is not reading the rule (LANDSCAPE §2.8, measured)
+
+The §2.8 banded massif took four passes to get green, and all four bugs were
+the SAME bug wearing different clothes: **I read a constant, formed a
+plausible rule from its name, and implemented my own instruction instead of
+the spec's.** Every one compiled, read reasonably, and was invisible until
+measured. Three of the four produced a spike in the very histogram I4 exists
+to police — so the invariant caught what reasoning did not, three times
+running.
+
+| I told myself | The constant actually said | Measured cost |
+|---|---|---|
+| "`MASSIF_BENCH_SLOPE_MAX` means benches are flat" | it is a CEILING ("you can run a road along it"), not an instruction to zero the gradient | 62% of the surface in the 0-10 deg bin |
+| "then pin benches AT the ceiling" | a ceiling bounds a DRAW; it is not the draw | 75% in the 20-30 deg bin — a different constant gradient, failing just as hard |
+| "a RAMP band is the ungraded cone" | a ramp band is still a TERRACE, with a walkable riser instead of a cliff | 50% in the 30-40 deg bin; half the massif silently unbanded |
+| "risers get smoothstepped like everything else" | a riser IS the cliff face — easing its ends spends its width on sub-cliff slope | steep-surface fraction 7.1% against a 12% floor (predicted exactly: 12% x 0.6) |
+
+Rules that follow, and they generalise past this one feature:
+
+1. **A `_MAX`/`_MIN` constant bounds a distribution; it is not the value.**
+   Pinning a quantity at its own bound reintroduces the uniformity the bound
+   exists to break. If a constant names a limit, something must still DRAW
+   inside it.
+2. **Draw per-bearing, not only per-band.** A per-band draw gave ~8 discrete
+   values across the massif and quantised the slope histogram into tall
+   spikes — an I4 failure caused purely by sampling granularity, with nothing
+   wrong with the shape. Ask whether a failure is SHAPE or SAMPLING before
+   touching shape.
+3. **Every branch of a classification must still obey the model.** The
+   cliff-vs-ramp split let one branch fall out of the banded model entirely.
+   When a spec offers "either A or B", B is a variant, not an escape hatch.
+4. **Smoothing costs width, and width is what area-fraction invariants
+   measure.** Where an invariant counts surface ABOVE an angle, an eased
+   profile spends its span below that angle. §2.8.5's hard-splat-edge
+   exception at band lips was design saying the lips are meant to be sharp; I
+   should have read it as a statement about geometry, not about texturing.
+5. **Derive the number instead of picking it.** Riser width now comes from
+   `MASSIF_CLIFF_SLOPE_MIN`, its floor from `VOXEL_SIZE`, the bench bound from
+   `MASSIF_BENCH_WIDTH_MIN/MAX`, and the 0.5 cliff/ramp split from the fact
+   that alternation probability p(1-p) peaks at 0.5 — which is what I5 asks
+   for. Zero new constants were needed, and three hardcodes I had introduced
+   myself (`SECTORS = 12`, riser threshold `0.55`, `BENCH_FRAC = 0.62`) were
+   deleted — Rule 14 breaches of my own making.
+
+Corollary, from the same work: **how a quantity is measured can outweigh the
+thing being measured.** Adopting design's binding marching-squares polyline
+rule moved the SAME terrain from 0.80 to 1.27 against a 1.35 threshold — a
+25% swing on a metric with 35% headroom, which also means the baselines
+recorded in §2.8's FAILS column are understated. And "fraction of the
+surface" is ambiguous between map footprint and true surface area by ~2.9x on
+a 70 deg cliff (I3 reads 6.0% one way, 16.5% the other). **Report both
+readings and escalate; never let the choice of measurement decide the verdict
+in your own favour.**
+
+### Shipping a primitive without asking what rule it now makes expressible
+
+A second failure of the same family, one level up, and it cost a wrong
+behaviour in another agent's zone. `carve_distance()` and the carve-mouth
+derivation had both been in the tree for hours. LANDSCAPE §6.3's darkness rule
+("fully enclosed AND >= `DARKNESS_DEPTH_MIN` from the nearest entrance") was
+written. Nobody connected them — so the gap was filled by an app-side stand-in
+measuring depth below the local surface, which quietly redefines "cave" as
+"low ground" and calls a deep valley floor pitch black.
+
+**After landing a primitive, re-read the design rules that mention the thing it
+measures.** The ingredients existing is not the same as anyone noticing the
+dish is now cookable. The check costs minutes; the miss put a rule in the
+wrong zone, where it was also unknowable — the correct measure is distance
+walked ALONG the passage, not straight-line, and no app-side approximation
+could have found that (the crag switchback is dark because you walked 60 m of
+zigzag while the portal sits 15 m away through solid stone; a straight-line
+measure leaves the whole tunnel lit and reads as a shader bug).
+
+Related, and cheap: **test the uninhabited case.** `enclosure_darkness` is
+asked about solid rock inside the crag, where no player ever stands, and must
+answer 0 — "not a place" and "very dark" are different answers. A query that
+confidently describes a place that does not exist is an invisible bug until
+the day something else asks it.
 
 ## What this zone does NOT do
 

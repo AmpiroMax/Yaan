@@ -63,6 +63,10 @@ UPD:
   leaf translucency) + the named PALETTE SIGNAL STRENGTH rule: in 8 ramps x 8
   shades a hue change is the strongest signal and a brightness step the
   weakest, and sub-step effects become dither, i.e. noise on small geometry.
+- 09:08:2026 - 20:55:00: INTERIOR LIGHTING part 1: carried lights collected
+  from components::CarriedLight, cube shadow maps for MAX_SHADOW_POINT_LIGHTS
+  (one distance ATLAS, not a cube texture), caster culling from bounds
+  measured at create_mesh, and the named EMPTY DRAWS EAT UNIFORMS rule.
 -->
 
 # Spec — render agent
@@ -537,6 +541,87 @@ Day/night stage, part 1 — sky, stars, moon (user decisions в1/в2):
    the default northward valley shot can never contain them), and
    `Tour::sky_probe_steps` (DFN_SKY_PROBE). One route covers every hour.
 
+Interior lighting, part 1 — the carried torch casts (user's "свет в пещерах"):
+1. `RenderSystem::collect_point_lights` walks
+   `world.view<CarriedLight, Transform>()` into
+   `RenderEnvironment::point_lights` every frame: position interpolated at
+   alpha (Rule 12 — a light stepping at the fixed rate strobes against 60+ fps
+   geometry), the CARRIER-LOCAL offset rotated by the interpolated rotation,
+   radius 0 -> TORCH_RADIUS_M, colour 0 -> TORCH_COLOR. WHICH lights cast is
+   render's decision and gameplay never sets it: the first
+   MAX_SHADOW_POINT_LIGHTS collected get `casts_shadow`.
+2. THE OFFSET IS THE FEATURE. A light at the eye casts no visible shadow BY
+   CONSTRUCTION — every surface you can see from the light's position is lit
+   by definition. sim writes the hand: {0.35, PLAYER_EYE_HEIGHT - 0.25, 0},
+   i.e. 1.45 m ABOVE THE FEET, because a character's Transform.position is the
+   capsule bottom. An offset of -0.25 (the value that "reads right" if you
+   assume the origin is the eye) puts the flame under the floor, lighting the
+   underside of the terrain. sim pinned that in a test; do not "simplify" the
+   Y back to a negative number.
+   sim's answer on rotation (recorded so it is not re-asked): the player's
+   Transform.rotation DOES carry the look yaw (angleAxis(-yaw, +Y), written
+   every fixed tick), yaw only, never pitch — a hand does not pitch with the
+   eyes. Do NOT special-case CameraPose; that would break an NPC lantern
+   carrier for nothing.
+3. CUBE SHADOWS, as an ATLAS rather than a cube texture. Six 90-degree faces
+   per light live in tiles of one 2D R32F atlas (4x3 of 512 px, RGBA8
+   fallback) that stores LINEAR DISTANCE / radius. Two consequences worth
+   keeping: the receiver compares world metres (no depth linearization, no
+   per-face near/far in the shader), and the face lookup is the MAJOR AXIS of
+   the direction to the fragment — exactly the region a 90-degree face
+   covers — so neither side ever depends on a cube-map sampling convention.
+   The tile scale/offset is baked into the CPU matrix, so the shader does no
+   tile arithmetic. Face order (+X,-X,+Y,-Y,+Z,-Z) and the row-major packing
+   are the dfn_pointshadow.sh <-> update_point_shadows contract.
+4. AFFORDABILITY IS THE CULL, not the resolution. Casters are rejected
+   against the light SPHERE and then against each face's four side planes
+   (inward normals normalize(fwd +/- right), normalize(fwd +/- up)), which
+   takes a prop from 6 draws to 1-2 and a 256 m terrain chunk to 2-3. The
+   sphere comes from per-mesh bounds MEASURED IN create_mesh: `submit` carries
+   no bounds and IRenderer is frozen (Rule 26), so the one place that already
+   has every vertex keeps a bounding sphere. No contract change was needed for
+   any of this.
+5. Texel density (the thin-caster rule, restated for this map): a 90-degree
+   face at distance d has texels of d / (FACE_PX/2) = d/256, i.e. 1.6 cm at a
+   tunnel wall 4 m away. Nothing we build is too thin for the TORCH map — the
+   0.31 m floor is the SUN map's alone.
+6. Alpha-CUTOUT casters are skipped in the point pass on purpose: a leaf card
+   would punch its RECTANGLE into torchlight, which is worse than a canopy
+   that casts nothing. flora agreed and asked for no change; the case that
+   would reopen it is a torch under a canopy at night.
+7. Verification hooks (Rule 27), none of them the shipping path: DFN_TORCH=1
+   holds a flame at the camera's hand while the tour freezes the player,
+   DFN_TORCH=2 stands it 6 m ahead (the BRAZIER PROBE — see the acceptance
+   note on why a hand light cannot prove itself on open ground),
+   DFN_NO_POINT_SHADOW=1 is the A/B half, DFN_DARK=<0..1> pins
+   ambient_darkness. The torch hook stands down the instant a real
+   CarriedLight exists, so it cannot quietly become the feature.
+
+## Named rule — EMPTY DRAWS EAT UNIFORMS (bgfx submission vs view order)
+
+Cost one debugging session; will cost the next agent a day if it is not
+written down.
+
+`bgfx::setUniform` does not set a value on the GPU. It appends to a per-frame
+uniform buffer, and the range accumulated since the last submit is attached to
+THE NEXT SUBMITTED DRAW. At render time bgfx replays those ranges in VIEW
+order, which is not submission order. Two things follow:
+
+1. **`bgfx::touch` is a draw.** It has no program, so bgfx skips it — and the
+   uniforms attached to it are skipped with it. A touch issued after
+   `apply_environment` silently DESTROYS that frame's environment.
+2. Therefore: **every touch of a frame must be issued before the frame's first
+   `setUniform`** (`Impl::touch_point_shadow_views` runs at the top of
+   `begin_frame` for exactly this reason), and any new view that needs a clear
+   must join that block rather than clearing where it is convenient.
+
+The symptom this produced is worth recognizing: lighting a torch turned the
+whole world DAYLIT — not "wrong shadows", not "no light", but the entire scene
+rendering with the RenderEnvironment struct's default values, because the
+night environment had been recorded into a touch that was never applied. If a
+render bug ever looks like "the environment reverted to defaults", look for a
+new empty draw before suspecting the environment code.
+
 Cross-zone agreements made in this stage (recorded so a successor inherits the
 reasoning, not just the result):
 - LOD with core: node delivery is additive (`coarse_mesh(NodeId)`, app ferry);
@@ -570,6 +655,26 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Carried-light shadow acceptance (Rule 27, A/B read 09:08:2026):**
+  `screenshots/point_light/00_point_shadow_on.png` vs
+  `01_point_shadow_off.png` — same vantage, midnight, new moon, the light 6 m
+  ahead (`DFN_TORCH=2`), the second shot adding `DFN_NO_POINT_SHADOW=1`. WITH
+  the cube map the boulders lay a dark wedge across the lit grass toward the
+  camera and the far trunk's base goes dark; WITHOUT it the same grass is lit
+  through the boulders and the trunk edge stays warm. That difference IS the
+  cube map.
+  WHY THE PROBE STANDS THE LIGHT OFF, and why the obvious shot fails: with the
+  flame at the HAND (0.35 m from the eye) almost every shadow it casts is
+  hidden BEHIND its own caster from the player's viewpoint. That is true of
+  any real hand-held light, it is not a bug, and it is why the acceptance
+  frame for carried light must be an INTERIOR — a place where walls, corners
+  and ceilings sit between the flame and the far surfaces — rather than open
+  ground with props.
+  STILL OWED (blocked, not forgotten): the frame from INSIDE the crag tunnel.
+  core is mid-repair on the carves after the §2.8 massif reshape (tunnel down
+  to 3 open stations, Backbarrow with no mouth) and will send the axis
+  endpoints and a yaw when it is walkable; core also owns the per-vertex sky
+  visibility that makes an interior dark in the first place (see below).
 - **Day/night acceptance (Rule 27, 3 frames read 09:08:2026):** one vantage,
   three STATES (not variants of one image, per the single-variant rule):
   `screenshots/sky_dusk/00_sky.png` — orange horizon burn into violet, first

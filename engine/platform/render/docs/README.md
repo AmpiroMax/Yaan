@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 20:50:00
 -->
 <!--
 UPD:
@@ -9,6 +9,7 @@ UPD:
 - 09:08:2026 - 11:26:00: Stage 3 — RenderEnvironment/set_environment + palette_post (contract sync 10:48), sky pass, water state, palette post, point-sampled textures.
 - 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain + fs_prop); terrain fragment v3 (splat-weight vertex channels + ordered dither).
 - 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0 (views renumbered), depth-only "shadow" program, dfn_shadow.sh sampling in terrain/prop; terrain fragment v4 (surface-class-only splat — legacy height-sand and dirt dryness removed per design ruling).
+- 09:08:2026 - 20:50:00: Interior lighting: CUBE SHADOWS for carried lights (12 face views into one distance atlas, "point_shadow" program, dfn_pointshadow.sh), caster culling from mesh bounds measured at create_mesh, and the touch-order rule that empty draws must precede every setUniform of the frame.
 -->
 
 # engine/platform/render
@@ -55,9 +56,9 @@ renderer.end_frame();
 ## Current state (stage 3 + shadows batch)
 
 Implemented: `sources/bgfx/` — BgfxRenderer (Metal on macOS, single-threaded
-bgfx; view 0 sun shadow map (depth only), view 1 scene -> low-res internal
-target, view 2 letterbox clear, view 3
-integer-scaled point-sampled upscale; screenshots via a custom bgfx callback
+bgfx; view 0 sun shadow map (depth only), views 1-12 the carried-light cube
+faces, view 13 scene -> low-res internal target, view 14 letterbox clear,
+view 15 integer-scaled point-sampled upscale; screenshots via a custom bgfx callback
 writing PNG through bimg; embedded shaders compiled by shaderc custom
 commands with --bin2c; reload_shaders is a documented debug no-op this
 stage) and `sources/null/` (all calls succeed, save_screenshot returns
@@ -94,7 +95,31 @@ Stage-3 additions in the bgfx backend:
   packing is a contract with `BgfxRenderer.cpp::update_shadow`). Sun below
   0.05 elevation -> shadows off (night is ambient-lit; ndotl is 0 anyway).
   Shadow constants are backend look-dev values flagged for the NUMBERS.md
-  migration.
+  migration. (Now 4096 over a 320 m half extent = 0.156 m per texel — the
+  thin-caster fix; a caster must be ~2 texels wide, i.e. ~0.31 m, to shadow.)
+- **Carried-light cube shadows (interiors)**: up to
+  `MAX_SHADOW_POINT_LIGHTS` (2) point lights get a real omnidirectional map.
+  Six 90-degree faces per light are packed into ONE 2D atlas (4x3 tiles of
+  512 px, R32F, RGBA8 fallback) that stores LINEAR DISTANCE / radius, so the
+  receiver compares world metres and never linearizes a depth buffer or knows
+  a face's near/far. `dfn_pointshadow.sh` picks the face by the major axis of
+  the direction to the fragment — the exact region a 90-degree face covers —
+  which is why neither side needs a cube-map sampling convention. Lights are
+  reordered so shadow casters take the first slots, making the shader's light
+  index the cube index by construction.
+  Casters are culled twice: to the light SPHERE (from a bounding sphere
+  measured in `create_mesh`, since the frozen `submit` carries no bounds) and
+  then per FACE against the four side planes, which takes a prop from 6 draws
+  to about 1-2. Alpha-CUTOUT programs are deliberately skipped: a leaf card
+  would punch its rectangle into torchlight.
+  **Order rule learned here, and it applies to every future view**:
+  `bgfx::touch` is an empty draw, an empty draw SWALLOWS the pending uniform
+  range without applying it, and views render sorted by id rather than in
+  submission order. Every touch of the frame therefore happens in
+  `begin_frame` BEFORE the first `setUniform`
+  (`Impl::touch_point_shadow_views`). Touching after `apply_environment` made
+  the whole world render with the DEFAULT (daylit) environment the moment a
+  torch was lit.
 
 ### Logical program name -> render state (backend convention)
 
@@ -102,7 +127,8 @@ Stage-3 additions in the bgfx backend:
 |---|---|
 | `terrain`, `unlit`, `prop` (and any unlisted name) | opaque: RGB+A+Z write, depth test LESS |
 | `water` | transparent: RGB+A write, depth test LESS, NO depth write, alpha blend; callers submit transparents after opaques (scene view is sequential); transparents do NOT cast shadows |
-| `debug`, `sky`, `upscale`, `shadow` | backend-internal (lines / background / post / caster depth) |
+| `foliage` | alpha-cutout: opaque state, mask-driven discard; casts through `shadow_cutout` in the SUN map, and is skipped entirely in the carried-light cube pass |
+| `debug`, `sky`, `upscale`, `shadow`, `shadow_cutout`, `point_shadow` | backend-internal (lines / background / post / sun caster depth / cutout caster depth / point-light distance) |
 
 Shaders: `sources/bgfx/shaders/*.sc` — terrain v4 (2x2 atlas splat driven by
 per-vertex weights R=sand/G=rock/B=water-bed baked from core's
@@ -115,5 +141,7 @@ scatter/site meshes; shares vs_terrain), shadow (depth-only caster pass),
 unlit, debug lines, sky, water (dual scrolled samples, fog-aware
 alpha), upscale (+palette), `dfn_env.sh` (environment uniform layout — change
 only together with `BgfxRenderer.cpp::apply_environment`), `dfn_shadow.sh`
-(shadow sampling — change only together with
-`BgfxRenderer.cpp::update_shadow`).
+(sun shadow sampling — change only together with
+`BgfxRenderer.cpp::update_shadow`), `dfn_pointshadow.sh` (carried-light cube
+lookup — face order and row-major matrix packing are a contract with
+`BgfxRenderer.cpp::update_point_shadows`).

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 20:02:00
+Last updated: 09:08:2026 - 20:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -61,6 +61,16 @@ UPD:
   (albedo from the leaf mask, vertex colour repurposed to wind data) and the
   internal "shadow_cutout" caster so the canopy's shadow gets the mask's
   holes and the same sway; wind packed at env slot [32].
+- 09:08:2026 - 20:40:00: INTERIOR LIGHTING — carried lights now CAST. Cube
+  shadows for up to MAX_SHADOW_POINT_LIGHTS lights: six 90-degree faces per
+  light packed into ONE 2D atlas (4x3 tiles of 512 px) storing linear distance
+  / radius, twelve views ahead of the scene view, and the "point_shadow"
+  caster program. Casters are culled to the light SPHERE and then per FACE,
+  which is what keeps a torch affordable; the sphere test uses per-mesh bounds
+  measured in create_mesh (IRenderer::submit carries no bounds and that
+  contract is frozen — so the one place that already has the vertices keeps
+  them). Lights are reordered so shadow casters occupy the first slots, which
+  makes the shader's light index the cube index by construction.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -104,6 +114,8 @@ UPD:
 #include <fs_foliage_mtl.h>
 #include <vs_shadow_cutout_mtl.h>
 #include <fs_shadow_cutout_mtl.h>
+#include <vs_point_shadow_mtl.h>
+#include <fs_point_shadow_mtl.h>
 #endif
 
 namespace dfn::platform {
@@ -111,9 +123,16 @@ namespace dfn::platform {
 namespace {
 
 constexpr bgfx::ViewId VIEW_SHADOW = 0;        // -> sun shadow map (depth only)
-constexpr bgfx::ViewId VIEW_SCENE = 1;         // -> internal low-res target
-constexpr bgfx::ViewId VIEW_BACKBUFFER = 2;    // clear (letterbox black)
-constexpr bgfx::ViewId VIEW_UPSCALE = 3;       // integer-scaled quad
+// Carried-light cube shadows: MAX_SHADOW_POINT_LIGHTS x 6 faces, each face one
+// view into a shared atlas. Views render in id order, so every face is
+// finished before the scene samples it.
+constexpr bgfx::ViewId VIEW_POINT_SHADOW_FIRST = 1;
+constexpr uint32_t POINT_SHADOW_FACES = 6;
+constexpr uint32_t POINT_SHADOW_VIEWS = MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES;
+constexpr bgfx::ViewId VIEW_SCENE =
+    static_cast<bgfx::ViewId>(VIEW_POINT_SHADOW_FIRST + POINT_SHADOW_VIEWS);
+constexpr bgfx::ViewId VIEW_BACKBUFFER = VIEW_SCENE + 1; // clear (letterbox black)
+constexpr bgfx::ViewId VIEW_UPSCALE = VIEW_SCENE + 2;    // integer-scaled quad
 
 // Look-dev clear color (sky), not a gameplay constant: light steppe-sky blue.
 constexpr uint32_t SKY_COLOR_RGBA = 0x87b5e0ff;
@@ -148,6 +167,44 @@ constexpr float SHADOW_TEXEL_M = 2.0f * SHADOW_HALF_EXTENT_M
 // birch trunk's whole shadow — and is now 0.156 m).
 constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
 constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
+
+// Carried-light (torch) cube shadow maps. Interiors are the reason they exist:
+// the crag tunnel is 158 m of carved passage and a torch that lights walls but
+// casts nothing reads as a glowing fog, not as a flame.
+//
+// One 2D ATLAS holds every face (4 columns x 3 rows = 12 tiles = 2 lights x 6
+// faces): one sampler stage, one framebuffer, and — the real reason — the face
+// lookup in the shader is plain arithmetic on OUR face order instead of a
+// cube-map sampling convention that would have to be guessed and then debugged
+// through a screenshot.
+//
+// TEXEL DENSITY, the same contract as the sun map but far kinder: a 90-degree
+// face at distance d spans 2d texels' worth of 2*d*tan(45) = 2d metres, so a
+// texel is d / (FACE_PX/2). At 512 px and a tunnel wall 4 m away that is
+// 0.016 m — a caster needs ~0.03 m of width to shadow here, against ~0.31 m
+// for the sun map. Nothing we build will be too thin for THIS map.
+// Storage: R32F 2048x1536 (12.6 MB) + a D16 depth attachment (6.3 MB).
+constexpr uint16_t POINT_SHADOW_FACE_PX = 512;
+constexpr uint16_t POINT_SHADOW_ATLAS_COLS = 4;
+constexpr uint16_t POINT_SHADOW_ATLAS_ROWS = 3;
+constexpr uint16_t POINT_SHADOW_ATLAS_W = POINT_SHADOW_FACE_PX * POINT_SHADOW_ATLAS_COLS;
+constexpr uint16_t POINT_SHADOW_ATLAS_H = POINT_SHADOW_FACE_PX * POINT_SHADOW_ATLAS_ROWS;
+constexpr float POINT_SHADOW_NEAR_M = 0.05f;   // the flame can touch a wall
+constexpr float POINT_SHADOW_NORMAL_OFFSET_M = 0.05f;
+// Bias as a FRACTION of the light radius, because that is the unit the atlas
+// stores: 0.012 of a 9 m torch is 11 cm.
+constexpr float POINT_SHADOW_BIAS_FRAC = 0.012f;
+
+// Face order — a contract with dfn_pointshadow.sh (major axis of the direction
+// to the fragment picks the face, so these must stay +X, -X, +Y, -Y, +Z, -Z).
+const glm::vec3 POINT_SHADOW_FACE_DIR[POINT_SHADOW_FACES] = {
+    {1.0f, 0.0f, 0.0f},  {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
+    {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},  {0.0f, 0.0f, -1.0f},
+};
+const glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
+    {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
+    {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
+};
 
 struct ShaderBlob {
     const uint8_t* data = nullptr;
@@ -184,6 +241,10 @@ const ProgramSource PROGRAM_TABLE[] = {
     // Backend-internal depth-only pass for the sun shadow map.
     {"shadow",  {vs_shadow_mtl, sizeof(vs_shadow_mtl)},
                 {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
+    // Backend-internal caster pass for the carried lights' cube faces (writes
+    // linear distance, not depth — see dfn_pointshadow.sh).
+    {"point_shadow", {vs_point_shadow_mtl, sizeof(vs_point_shadow_mtl)},
+                {fs_point_shadow_mtl, sizeof(fs_point_shadow_mtl)}},
 };
 #else
 // Non-Apple platforms compile clean but ship no embedded shaders this stage
@@ -192,7 +253,7 @@ const ProgramSource PROGRAM_TABLE[] = {
     {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}},
     {"foliage", {}, {}}, {"shadow_cutout", {}, {}},
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
-    {"shadow", {}, {}},
+    {"shadow", {}, {}}, {"point_shadow", {}, {}},
 };
 #endif
 
@@ -266,6 +327,21 @@ struct BgfxRenderer::Impl {
     bool shadow_active = false;   // this frame: sun above threshold + resources ok
     glm::vec3 frame_eye{0.0f};    // camera position, from begin_frame's view
 
+    // Carried-light cube shadows: one atlas, one program, per-face view state.
+    bgfx::TextureHandle point_shadow_atlas = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle point_shadow_depth = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle point_shadow_fb = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle point_shadow_program = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle s_point_shadow = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_shadow_rows = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_shadow_params = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_caster = BGFX_INVALID_HANDLE;
+    // Lights REORDERED so shadow casters come first — the shader then uses the
+    // light slot as the cube index and no second lookup table can drift.
+    std::array<PointLight, MAX_POINT_LIGHTS> lights{};
+    uint32_t light_count = 0;
+    uint32_t shadow_light_count = 0; // <= MAX_SHADOW_POINT_LIGHTS, faces valid
+
     RenderEnvironment environment;                 // last set_environment (defaults valid)
     std::array<glm::vec4, 64> palette{};           // fixed palette (Q9b)
     bool palette_post = false;
@@ -273,6 +349,12 @@ struct BgfxRenderer::Impl {
     struct MeshRes {
         bgfx::VertexBufferHandle vb;
         bgfx::IndexBufferHandle ib;
+        // Model-space bounding sphere, measured at upload. It exists so the
+        // backend can CULL casters to a light's sphere without a contract
+        // change: IRenderer::submit carries no bounds, but create_mesh sees
+        // every vertex, so the one place that already has the data keeps it.
+        glm::vec3 center{0.0f};
+        float radius = 0.0f;
     };
     std::unordered_map<uint32_t, MeshRes> meshes;
     std::unordered_map<uint32_t, bgfx::TextureHandle> textures;
@@ -298,6 +380,135 @@ struct BgfxRenderer::Impl {
         return BGFX_INVALID_HANDLE;
     }
 
+    // Orders the frame's point lights so SHADOW CASTERS COME FIRST. The shader
+    // then treats the light slot as the cube-atlas index, which removes the
+    // only place a light->map mapping could disagree with itself. Must run
+    // before apply_environment and update_point_shadows, and both of those are
+    // driven from the same two call sites, so they cannot see different orders.
+    void order_lights() {
+        light_count = 0;
+        shadow_light_count = 0;
+        const uint32_t incoming = environment.point_light_count < MAX_POINT_LIGHTS
+                                      ? environment.point_light_count
+                                      : MAX_POINT_LIGHTS;
+        const bool maps_ok = bgfx::isValid(point_shadow_fb)
+                          && bgfx::isValid(point_shadow_program);
+        for (uint32_t pass = 0; pass < 2; ++pass) {
+            for (uint32_t i = 0; i < incoming; ++i) {
+                const PointLight& l = environment.point_lights[i];
+                if (l.radius_m <= 0.0f) {
+                    continue; // radius 0 = off (contract)
+                }
+                const bool shadowing = maps_ok && l.casts_shadow
+                                    && shadow_light_count < MAX_SHADOW_POINT_LIGHTS;
+                if ((pass == 0) != shadowing) {
+                    continue;
+                }
+                lights[light_count] = l;
+                ++light_count;
+                if (pass == 0) {
+                    ++shadow_light_count;
+                }
+            }
+        }
+    }
+
+    // Framebuffer/rect/clear + touch for EVERY face tile, whether a light uses
+    // it this frame or not. Two reasons it is separate from update_point_
+    // shadows and lives at the top of begin_frame:
+    //  1. A tile with no light must still be cleared to "unoccluded", or a
+    //     torch that goes out leaves its last frame baked into the atlas.
+    //  2. A touch is an EMPTY DRAW, and an empty draw SWALLOWS the pending
+    //     uniform range without ever applying it. Touching after
+    //     apply_environment cost this project one debugging session: the whole
+    //     world rendered with the default (daylit) environment the moment a
+    //     torch was lit, because the night env had been recorded into a touch
+    //     that bgfx then skipped. Every touch happens BEFORE any setUniform of
+    //     the frame; the uniforms then attach to the sky draw, which is real.
+    void touch_point_shadow_views() {
+        if (!bgfx::isValid(point_shadow_fb)) {
+            return;
+        }
+        for (uint32_t tile = 0; tile < POINT_SHADOW_VIEWS; ++tile) {
+            const uint16_t col = static_cast<uint16_t>(tile % POINT_SHADOW_ATLAS_COLS);
+            const uint16_t row = static_cast<uint16_t>(tile / POINT_SHADOW_ATLAS_COLS);
+            const auto vid =
+                static_cast<bgfx::ViewId>(VIEW_POINT_SHADOW_FIRST + tile);
+            bgfx::setViewFrameBuffer(vid, point_shadow_fb);
+            bgfx::setViewRect(vid, static_cast<uint16_t>(col * POINT_SHADOW_FACE_PX),
+                              static_cast<uint16_t>(row * POINT_SHADOW_FACE_PX),
+                              POINT_SHADOW_FACE_PX, POINT_SHADOW_FACE_PX);
+            // Clear to 1.0 = "farther than the radius" = lit, so a face with no
+            // casters is transparent to light rather than black. Depth is a
+            // normal LESS pass: this view is its own pipeline and owes nothing
+            // to the scene's reversed-Z.
+            bgfx::setViewClear(vid, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
+                               0xffffffff, 1.0f, 0);
+            bgfx::touch(vid);
+        }
+    }
+
+    // Builds the six 90-degree face views for each shadow-casting light and
+    // uploads the matrices the receivers sample with. Each face is a rectangle
+    // of ONE atlas framebuffer, so the tile scale/offset is baked into the
+    // matrix and the shader needs no tile arithmetic.
+    void update_point_shadows() {
+        glm::vec4 rows[MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES * 4]{};
+        const bgfx::Caps& caps = *bgfx::getCaps();
+        for (uint32_t li = 0; li < shadow_light_count; ++li) {
+            const PointLight& l = lights[li];
+            for (uint32_t f = 0; f < POINT_SHADOW_FACES; ++f) {
+                const uint32_t tile = li * POINT_SHADOW_FACES + f;
+                const uint16_t col = static_cast<uint16_t>(tile % POINT_SHADOW_ATLAS_COLS);
+                const uint16_t row = static_cast<uint16_t>(tile / POINT_SHADOW_ATLAS_COLS);
+                const glm::mat4 view = glm::lookAtRH(
+                    l.position, l.position + POINT_SHADOW_FACE_DIR[f],
+                    POINT_SHADOW_FACE_UP[f]);
+                const float fov = glm::radians(90.0f);
+                const glm::mat4 proj =
+                    caps.homogeneousDepth
+                        ? glm::perspectiveRH_NO(fov, 1.0f, POINT_SHADOW_NEAR_M,
+                                                l.radius_m)
+                        : glm::perspectiveRH_ZO(fov, 1.0f, POINT_SHADOW_NEAR_M,
+                                                l.radius_m);
+                const bgfx::ViewId vid = static_cast<bgfx::ViewId>(
+                    VIEW_POINT_SHADOW_FIRST + tile);
+                // Framebuffer, rect, clear and touch were done up front by
+                // touch_point_shadow_views — NEVER touch from here (see the
+                // comment there: an empty draw eats the pending uniforms).
+                bgfx::setViewTransform(vid, glm::value_ptr(view),
+                                       glm::value_ptr(proj));
+
+                // clip -> [0,1] uv (API y flip), then into the atlas tile.
+                glm::mat4 crop(1.0f);
+                crop[0][0] = 0.5f;
+                crop[1][1] = caps.originBottomLeft ? 0.5f : -0.5f;
+                crop[3] = glm::vec4(0.5f, 0.5f, 0.0f, 1.0f);
+                const float sx = 1.0f / static_cast<float>(POINT_SHADOW_ATLAS_COLS);
+                const float sy = 1.0f / static_cast<float>(POINT_SHADOW_ATLAS_ROWS);
+                glm::mat4 tile_mtx(1.0f);
+                tile_mtx[0][0] = sx;
+                tile_mtx[1][1] = sy;
+                tile_mtx[3] = glm::vec4(static_cast<float>(col) * sx,
+                                        static_cast<float>(row) * sy, 0.0f, 1.0f);
+                const glm::mat4 m = tile_mtx * crop * proj * view;
+                // Stored as ROWS: the shader indexes them dynamically and
+                // takes three dot products, which needs no matrix assembly
+                // from a computed offset.
+                for (uint32_t r = 0; r < 4; ++r) {
+                    rows[tile * 4 + r] =
+                        glm::vec4(m[0][r], m[1][r], m[2][r], m[3][r]);
+                }
+            }
+        }
+        bgfx::setUniform(u_point_shadow_rows, rows,
+                         MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES * 4);
+        const float params[4] = {static_cast<float>(shadow_light_count),
+                                 POINT_SHADOW_NORMAL_OFFSET_M,
+                                 POINT_SHADOW_BIAS_FRAC, 0.0f};
+        bgfx::setUniform(u_point_shadow_params, params);
+    }
+
     // Packs the cached RenderEnvironment into u_envParams; the index layout is
     // the dfn_env.sh contract. Called once per frame in begin_frame — uniform
     // values persist across submits within the frame.
@@ -320,13 +531,14 @@ struct BgfxRenderer::Impl {
             {0.0f, 0.0f, 0.0f, 0.0f}, // [13] reserved (was the single light)
             {0.0f, 0.0f, 0.0f, e.star_intensity},
         };
-        const uint32_t count = e.point_light_count < MAX_POINT_LIGHTS
-                                   ? e.point_light_count
-                                   : MAX_POINT_LIGHTS;
-        packed[15] = {e.ambient_darkness, static_cast<float>(count), 0.0f, 0.0f};
+        // Lights come from the ORDERED array (order_lights), not straight from
+        // the environment: shadow casters must occupy the first slots because
+        // the shader uses the slot as the cube-atlas index.
+        packed[15] = {e.ambient_darkness, static_cast<float>(light_count), 0.0f,
+                      0.0f};
         packed[32] = {e.wind_direction, e.wind_strength, e.wind_flutter};
-        for (uint32_t i = 0; i < count; ++i) {
-            const PointLight& l = e.point_lights[i];
+        for (uint32_t i = 0; i < light_count; ++i) {
+            const PointLight& l = lights[i];
             packed[16 + i] = {l.position, l.radius_m};
             packed[24 + i] = {l.color, l.casts_shadow ? 1.0f : 0.0f};
         }
@@ -523,6 +735,47 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
     }
 
+    // Carried-light cube shadows: one colour atlas (linear distance / radius)
+    // plus its depth attachment, and the caster program. R32F preferred; RGBA8
+    // is a legitimate fallback rather than a failure mode — 8 bits over a 9 m
+    // torch is 3.5 cm of comparison resolution, which is finer than the
+    // geometry we cast from. If neither exists the lights simply stop
+    // shadowing (shadow_light_count stays 0) and still light — never a crash.
+    {
+        constexpr uint64_t atlas_flags = BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT
+                                       | BGFX_SAMPLER_MAG_POINT
+                                       | BGFX_SAMPLER_MIP_POINT
+                                       | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+        bgfx::TextureFormat::Enum fmt = bgfx::TextureFormat::R32F;
+        if (!bgfx::isTextureValid(0, false, 1, fmt, atlas_flags)) {
+            fmt = bgfx::TextureFormat::RGBA8;
+        }
+        if (bgfx::isTextureValid(0, false, 1, fmt, atlas_flags)) {
+            im.point_shadow_atlas = bgfx::createTexture2D(
+                POINT_SHADOW_ATLAS_W, POINT_SHADOW_ATLAS_H, false, 1, fmt,
+                atlas_flags);
+            im.point_shadow_depth = bgfx::createTexture2D(
+                POINT_SHADOW_ATLAS_W, POINT_SHADOW_ATLAS_H, false, 1,
+                bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY);
+            const bgfx::TextureHandle att[] = {im.point_shadow_atlas,
+                                               im.point_shadow_depth};
+            im.point_shadow_fb = bgfx::createFrameBuffer(2, att, false);
+        } else {
+            std::fprintf(stderr, "[render] no colour format for the point-light "
+                                 "shadow atlas; carried lights will not cast\n");
+        }
+        im.point_shadow_program = im.make_program("point_shadow");
+        im.s_point_shadow =
+            bgfx::createUniform("s_pointShadow", bgfx::UniformType::Sampler);
+        im.u_point_shadow_rows = bgfx::createUniform(
+            "u_pointShadowRows", bgfx::UniformType::Vec4,
+            MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES * 4);
+        im.u_point_shadow_params =
+            bgfx::createUniform("u_pointShadowParams", bgfx::UniformType::Vec4);
+        im.u_point_caster =
+            bgfx::createUniform("u_pointCaster", bgfx::UniformType::Vec4);
+    }
+
     // Sequential scene view (stage 3): sky first (backend), then the caller's
     // opaque submits, then transparents (RenderSystem orders them), then debug
     // lines in end_frame. Depth testing still resolves opaque occlusion.
@@ -560,6 +813,14 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.shadow_cutout_program)) bgfx::destroy(im.shadow_cutout_program);
     if (bgfx::isValid(im.shadow_fb)) bgfx::destroy(im.shadow_fb);
     if (bgfx::isValid(im.shadow_map)) bgfx::destroy(im.shadow_map);
+    if (bgfx::isValid(im.point_shadow_program)) bgfx::destroy(im.point_shadow_program);
+    if (bgfx::isValid(im.point_shadow_fb)) bgfx::destroy(im.point_shadow_fb);
+    if (bgfx::isValid(im.point_shadow_atlas)) bgfx::destroy(im.point_shadow_atlas);
+    if (bgfx::isValid(im.point_shadow_depth)) bgfx::destroy(im.point_shadow_depth);
+    if (bgfx::isValid(im.s_point_shadow)) bgfx::destroy(im.s_point_shadow);
+    if (bgfx::isValid(im.u_point_shadow_rows)) bgfx::destroy(im.u_point_shadow_rows);
+    if (bgfx::isValid(im.u_point_shadow_params)) bgfx::destroy(im.u_point_shadow_params);
+    if (bgfx::isValid(im.u_point_caster)) bgfx::destroy(im.u_point_caster);
     if (bgfx::isValid(im.s_shadow_map)) bgfx::destroy(im.s_shadow_map);
     if (bgfx::isValid(im.u_light_mtx)) bgfx::destroy(im.u_light_mtx);
     if (bgfx::isValid(im.u_shadow_params)) bgfx::destroy(im.u_shadow_params);
@@ -625,10 +886,18 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
         bgfx::setViewClear(VIEW_SHADOW, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
         bgfx::touch(VIEW_SHADOW);
     }
+    // Every empty draw of the frame happens HERE, before the first setUniform:
+    // bgfx attaches pending uniforms to the next submitted draw, and a touch is
+    // a draw that gets skipped, taking the uniforms with it.
+    im.touch_point_shadow_views();
     im.update_shadow();
 
     // Frame environment (cached; struct defaults are valid pre-first-set).
+    // order_lights runs FIRST: both the uniform packing and the cube-face
+    // views read the ordered array, and they must never see different orders.
+    im.order_lights();
     im.apply_environment();
+    im.update_point_shadows();
 
     // Sky background: fullscreen quad, no depth test/write; everything solid
     // draws over it (sequential view — this is always the first draw).
@@ -647,8 +916,13 @@ void BgfxRenderer::set_environment(const RenderEnvironment& env) {
     // including the shadow matrices, so the app-animated sun (day/night, в2)
     // moves the shadows in the same frame it moves the light.
     if (impl_->initialized && impl_->in_frame) {
+        impl_->order_lights();
         impl_->apply_environment();
         impl_->update_shadow();
+        // The carried light moves with the player every frame, so its faces
+        // are rebuilt here as well — a torch whose shadow map lagged the flame
+        // by a frame would smear on every step.
+        impl_->update_point_shadows();
     }
 }
 
@@ -728,7 +1002,22 @@ MeshHandle BgfxRenderer::create_mesh(std::span<const Vertex> vertices,
     Impl::MeshRes res{
         bgfx::createVertexBuffer(vmem, im.mesh_layout),
         bgfx::createIndexBuffer(imem, BGFX_BUFFER_INDEX32),
+        glm::vec3(0.0f),
+        0.0f,
     };
+    // Bounding sphere from the AABB centre: one pass, no iterative refinement.
+    // Slightly loose for long thin meshes, which is the safe direction for a
+    // cull.
+    {
+        glm::vec3 lo = vertices[0].position;
+        glm::vec3 hi = lo;
+        for (const Vertex& v : vertices) {
+            lo = glm::min(lo, v.position);
+            hi = glm::max(hi, v.position);
+        }
+        res.center = (lo + hi) * 0.5f;
+        res.radius = glm::length(hi - res.center);
+    }
     const uint32_t id = im.next_id++;
     im.meshes.emplace(id, res);
     return MeshHandle{id};
@@ -851,6 +1140,66 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         bgfx::submit(VIEW_SHADOW, caster);
     }
 
+    // Carried-light cube faces. Cutout casters are deliberately skipped: a leaf
+    // card would punch its RECTANGLE into torchlight, and a canopy that casts
+    // nothing under a torch is far less wrong than a canopy that casts boxes.
+    if (im.shadow_light_count > 0 && !is_transparent && !is_cutout) {
+        // World-space bounding sphere of this draw. The mesh sphere is model
+        // space, so it needs the transform's largest axis scale — uniform
+        // scaling is the norm here, and taking the max is the safe direction.
+        const Impl::MeshRes& res = mesh_it->second;
+        const glm::vec3 wcenter = glm::vec3(transform * glm::vec4(res.center, 1.0f));
+        const float sx = glm::length(glm::vec3(transform[0]));
+        const float sy = glm::length(glm::vec3(transform[1]));
+        const float sz = glm::length(glm::vec3(transform[2]));
+        const float wradius = res.radius * std::max(sx, std::max(sy, sz));
+        for (uint32_t li = 0; li < im.shadow_light_count; ++li) {
+            const PointLight& light = im.lights[li];
+            const glm::vec3 to_center = wcenter - light.position;
+            const float reach = light.radius_m + wradius;
+            // THE CULL that makes this affordable: only casters whose sphere
+            // meets the light's sphere are drawn at all. In a tunnel that is
+            // the resident chunk plus a handful of props.
+            if (glm::dot(to_center, to_center) > reach * reach) {
+                continue;
+            }
+            const float caster_params[4] = {light.position.x, light.position.y,
+                                            light.position.z, light.radius_m};
+            for (uint32_t f = 0; f < POINT_SHADOW_FACES; ++f) {
+                // Per-face frustum reject: each face is a 90-degree pyramid, so
+                // its four side planes have inward normals normalize(fwd +/-
+                // right) and normalize(fwd +/- up). A 256 m terrain chunk still
+                // hits 2-3 faces, but a prop usually hits one — that is the
+                // difference between 6 draws per caster and ~1.5.
+                const glm::vec3 fwd = POINT_SHADOW_FACE_DIR[f];
+                const glm::vec3 up = POINT_SHADOW_FACE_UP[f];
+                const glm::vec3 right = glm::cross(fwd, up);
+                const glm::vec3 planes[4] = {fwd + right, fwd - right, fwd + up,
+                                             fwd - up};
+                bool outside = false;
+                for (const glm::vec3& p : planes) {
+                    if (glm::dot(to_center, glm::normalize(p)) < -wradius) {
+                        outside = true;
+                        break;
+                    }
+                }
+                if (outside) {
+                    continue;
+                }
+                bgfx::setUniform(im.u_point_caster, caster_params);
+                bgfx::setTransform(glm::value_ptr(transform));
+                bgfx::setVertexBuffer(0, res.vb);
+                bgfx::setIndexBuffer(res.ib);
+                bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_Z
+                               | BGFX_STATE_DEPTH_TEST_LESS);
+                bgfx::submit(static_cast<bgfx::ViewId>(
+                                 VIEW_POINT_SHADOW_FIRST
+                                 + li * POINT_SHADOW_FACES + f),
+                             im.point_shadow_program);
+            }
+        }
+    }
+
     bgfx::setTransform(glm::value_ptr(transform));
     bgfx::setVertexBuffer(0, mesh_it->second.vb);
     bgfx::setIndexBuffer(mesh_it->second.ib);
@@ -870,6 +1219,12 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         // Compare-sampler flags come from the texture creation; stage 1 is the
         // dfn_shadow.sh contract (unused by shaders that do not sample it).
         bgfx::setTexture(1, im.s_shadow_map, im.shadow_map);
+    }
+    if (bgfx::isValid(im.point_shadow_atlas)) {
+        // Stage 2 is the dfn_pointshadow.sh contract. Bound unconditionally:
+        // Metal wants a real texture behind any sampler the program declares,
+        // and u_pointShadowParams.x = 0 is what actually turns the lookup off.
+        bgfx::setTexture(2, im.s_point_shadow, im.point_shadow_atlas);
     }
 
     // Culling deliberately off this stage (see header notice). Transparent

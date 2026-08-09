@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 20:10:47
+Last updated: 09:08:2026 - 20:41:00
 -->
 <!--
 UPD:
@@ -34,6 +34,8 @@ UPD:
 - 09:08:2026 - 20:01:50: §5 global rule corrected on flora's flag (stale-line class): foliage is the explicit exception to "hard-edged mesh" — alpha-cutout cards and a see-through canopy per user direction, trunks/branches/bushes/logs/snags unchanged. Recorded what does NOT change so the exception cannot widen later: the crown ENVELOPE still governs and every size band, crown-base fraction, spacing and density is untouched. Two rulings folded in with it: a porous canopy is a SMALLER w(h) in §1.3's Beer-Lambert form, i.e. a coefficient re-measurement and NOT a claim on the never-spent one-time physics-correction budget; and dappled light is a LIGHTING problem, not a geometry one, because a caster thinner than render's caster floor reads solid however open the card is.
 - 09:08:2026 - 20:04:42: §2.8 amended from core's and flora's reviews, four fixes and one withdrawal. §2.8.2 — BOTH per-bearing fields and the riser-class sector index must be PERIODIC in theta (core): sampling noise on the angle VALUE puts a branch cut at +-pi and produces a vertical seam from summit to foot; sample on (cos, sin) instead, and wrap the sector index. §2.8.3 — I5 alternation is counted on radials carrying NO validated route (core): a route breaches the bands it crosses, so counting it there would make the ascent cause its own invariant to fail, which is the §6.2 pad-scorer mistake in new clothes; breaches are asserted separately. Also recorded the consequence of I3 that must be loud rather than discovered: 55-deg risers exceed PLAYER_MAX_SLOPE, so a compliant massif is unclimbable off-route and route-validation failure leaves the summit UNREACHABLE with act 1's climax on it — a hard seed failure, never a warning. §2.8.5 — my "one cluster per bench segment" WITHDRAWN as the wrong unit (flora): a count does not survive scale, one stand on a 200 m bench is a potted plant just as a continuous line is landscaping, and both are the same failure. Replaced by a duty cycle (BENCH_VEG_DUTY_MAX 0.25, BENCH_CLUSTER_LENGTH_MAX 25 m, BENCH_CLUSTER_GAP_MIN 40 m) whose load-bearing member is BENCH_BARE_FRACTION_MIN 0.40 — what makes a stand above a 12 m drop extraordinary is that the ledges above and below are BARE. Added flora's lip-bias rule (BENCH_VEG_LIP_BIAS, outer 0.40 of the legal band), which matters more than the cap: a tree at the inner edge is dark-on-dark against the riser and invisible, the same tree near the lip has SKY behind it — §1.5's skyline rule at band scale. My bench-width worry was a double-count and is dropped: only the outer lip is a drop, so vegetation floors (5.0 m / 7.0 m giant) sit BELOW the 6 m terrain minimum and no terrain change is needed. Treeline and rockline now SNAP TO THE NEAREST BAND LIP — a flat elevation across banded terrain lands mid-riser and reads as a mowing line.
 - 09:08:2026 - 20:10:47: §4 and §2.8.4/§2.8.5 amended from render's review. §4 — my narrow "hard splat edge at band lips" ask came back REFRAMED AS THE GENERAL RULE and the reframing is better: DITHER WHERE THE GEOMETRY IS SMOOTH, SNAP WHERE THE GEOMETRY HAS AN EDGE. Not a carve-out from the dither rule but that rule applied to a surface with creases, so it generalises free to quarry faces, cut terraces, the castle pad cut and cave mouths. Mechanism is a screen-space slope derivative (fwidth): two ALU instructions, no new data from core, NO CONSTANT FROM DESIGN, and the threshold is explicitly render's to set by looking at a 640x360 frame — its unit is degrees per PIXEL, which is resolution-dependent, and INTERNAL_RES is a user setting, so a number derived here would be wrong at 320x180. §2.8.5 — recorded that the splat coupling §2.8.2 depends on is STRUCTURALLY protected rather than merely agreed: render's standing post-"brown wash" ruling forbids re-deriving material from raw height/distance fields, so slope-augmented rock between the §4 thresholds is the only mechanism available to them and the contour rhythm is safe by construction, not by anyone remembering. §2.8.4 — NEW CONSTRAINT I did not know: at render's shadow-map resolution anything under ~0.31 m across CASTS NO SHADOW, and unlit geometry on shadowed ground reads as pasted on. Our 1.5-4.0 m blocks clear it, but the ruling that follows is durable — the crisp read must come from the block SILHOUETTE, never from arris detail, since a chamfer under the floor costs triangles and returns no shading. Same conclusion §6.1.3 reached about masonry coursing and §1.5 about battlement teeth, now with a measured number. Explicitly NOT a NUMBERS.md constant: it is derived from a render SETTING and moves with it, so future smaller prop classes must re-ask rather than cite this line. Also recorded that placed rock needs no new batching work — stacks bake into the same per-chunk merged buffers the trees use, and render accepted the 60000-tri / ~270-stack budget unchanged.
+- 09:08:2026 - 20:13:17: Flora's canopy measurement, and it REFUTED MY OWN WORRY FROM 20:01 THIS EVENING. §1.3 — measured transmittance vs depth into a real crown (user's reference photos, two exposures agreeing within 3 points): 23-24% at the rim, 3-4% halfway in, 0.5-4% in the interior, clean Beer-Lambert decay, extinction k ~= 0.84/m. A real crown is 79-86% LEAF at its core: POROSITY IS A RIM PHENOMENON, NOT A WHOLE-CROWN ONE. So the solid-crown w(h) was already close to right, no coefficient change is worth making, and the one-time physics-correction budget STAYS UNSPENT for the second time this stage. Recorded that both of us were wrong in opposite directions — I feared the model had become too opaque, flora expected foliage on twigs over a hollow interior, which was further off than my version — and that the disagreement was settled by MEASURING BEFORE EITHER BELIEF BECAME A RULE. §5 — the alpha-card exception SURVIVES BUT NOT ON THE REASON IT WAS GRANTED: measured luminance is branch 50 / leaf 135 / sky 235, so branch:leaf ~= 2.54x and the tracery in the reference reads because dark limbs sit against a bright backlit leaf field, which is §1.5 value contrast, NOT transparency. Dark limbs plus bright foliage reproduce the reference; see-through cards do not. Explicitly barred anyone from widening the exception on the transparency theory, since it buys almost none of the look. NEW §5.11 — seasonal foliage palette contract (flora flagged the shape before entries exist, which is the cheap moment): per-species palette INDEXED BY SEASON, mesh stores an index not a colour, palette entry is a RAMP not a value, winter is one has_foliage boolean, conifers season-stable apart from snow. Added the two constraints flora could not see from their side: value ORDER between species must survive every season or the forest stops reading at SILHOUETTE_MIN_PX in exactly one of them; and since leafless deciduous forest collapses w toward trunk diameter, C1/C4/sight wedges VALIDATE AGAINST THE WORST CASE, FULL SUMMER CANOPY — winter may only improve a passing seed, never rescue a failing one, so no seed passes in February and fails in July. Binding sourcing rule added, general to the whole project and not just foliage: NEVER calibrate a palette from photographs (the same tree in two frames gave leaf/dark splits of 76/10 and 53/40 purely on exposure) — reference photos are evidence about STRUCTURE, never about hue.
+- 09:08:2026 - 20:41:00: Two blocking rulings for core's §2.8 step 1, plus the doc amendments their measurements earned. §2.8.3 — RULING 1: «of the surface» in I3/I4 means TRUE SURFACE AREA, never plan-view footprint, so **I3 PASSES at 16.5%** (the 6.0% footprint reading is retained as a diagnostic, never a verdict). Decisive argument: a footprint-weighted steepness test is anti-correlated with its own goal at the limit — a 70 deg face carries ~2.9x the surface of its footprint and a 90 deg face carries ZERO, so the score falls to nil exactly as the rock becomes perfectly vertical; a test that reports its own ideal as absence is not a test. The same weighting is independently right for I4 (surface inflates steep bins by 1/cos, so the single uniform 45 deg flank that I4 exists to reject is weighted UP, where footprint would discount it 0.71 and let it hide inside the valley floor) and is demanded by consistency (one phrase, one population, adjacent rows). Binding reading is triangle area on the extracted mesh — finite, needs no clamp, NO NEW CONSTANT; the field-side footprint/cos figure is the reported cross-check, because it diverges at vertical and a clamp would be a constant. I8 keeps plan-view P and A (a slice outline is a 2D object by definition); I9's denominator inherits the surface rule, which is the correct direction. Standing doctrine: print both, label the verdict — core printing both rather than resolving it in their own favour is the behaviour to keep. §2.8.1 — RULING 2: the 0.80/0.81/0.80 lobe baseline is WITHDRAWN and RE-STAMPED at 1.27; it was measured by boundary-cell counting, which §2.8.3 already banned, so it was a reading of a digitiser rather than of the terrain. Perimeter was short by ~26%, not the ~10% my predecessor estimated — mechanism recorded (boundary-cell counting measures Chebyshev length; a diagonal boundary is short by up to 1/sqrt(2) ~= 29%, so 26% sits at the theoretical floor, confirmation rather than coincidence). Consequences: I8's headroom was never 69% but 6%, so its load-bearing clause is the RISE (MASSIF_LOBE_RISE_MIN), not the level; and the banded model REGRESSED lobing 1.27 -> 1.01 rather than improving it 0.80 -> 1.01 — the bands replaced fBm crenulation with a cleaner authored outline, so the I7/I8 question is «does R_k(theta) replace the noise or ride on top of it», and I7/I8 is real work, not a tuning pass. Slope-histogram row flagged for re-stamp with its weighting labelled (MASSIF_SLOPE_BIN_MAX 0.30 was chosen against the 33.2% reading). §2.8.2 — core's four measured bugs written in as rules: CLIFF risers are PLANAR faces (a smoothstepped riser spends its width on sub-cliff slope, so I3 sees no cliff on a mountain that visibly has one — and §4's snap rule needs a real lip, so the hard-splat-edge-at-band-lips promise is now a requirement rather than an assumption); benches are neither dead flat (62% in one bin) nor pinned at MASSIF_BENCH_SLOPE_MAX (75% in another) — a bench is ground, §2.7's «terrain never flattens» is general, benches carry GROUND_MICRO_* and a seeded spread WITHIN the ceiling, which was never a target; and a RAMP band is still a band (falling back to the bare cone left half the massif unbanded). Lesson recorded: constant-gradient failures MOVE rather than disappear, three of the four were fixes for one invariant breaking another, and all four were found by measuring rather than by looking. §7.1 — Ravenscar status table: 5 of 8 applicable invariants pass (I1 -7.1 -> +15.0 deg, I3 0.0 -> 16.5%, I4 33.2 -> 24.2%, I5 0 -> 100% of radials, I6 0.518), I2/I7/I8 remain, I9 not applicable; frames still outrank numbers. §7.0a — SEQUENCING RULING: re-run the barrow couloir search AFTER I7/I8, not now. §2.8.5 said «after the reshape», but its precondition is unmet — at 1.01 the massif has FEWER re-entrants than the 1.27 stamp the search already failed on, and a second failure would wrongly promote the high-shoulder fallback, which inverts story canon. The two red carve tests are §7.0a's durable rule WORKING, not breaking; the barrow stays put with its test red. Zero new constants requested by either ruling — both are measurement definitions, not numbers.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -822,13 +824,70 @@ Measured on the built crag, seed 1:
 
 | Measure | Value | Reading |
 |---|---|---|
-| Lobe ratio at ½ / ⅔ / ⅚ relief | **0.80 / 0.81 / 0.80** | circular, and **identical at every height** — a self-similar cone |
+| Lobe ratio at ½ / ⅔ / ⅚ relief | **1.27** at ½ (⅔ and ⅚ pending re-measure) — the **0.80 / 0.81 / 0.80** first recorded here is **WITHDRAWN**, see the box below | near-circular, and **identical at every height** — a self-similar cone. The clause it truly fails is the *rise*, not the level |
 | Surface above mid-height over 40° | 45.9 % | passes the old 60 %-ish intent only partly, and pointlessly |
 | Surface over 55° | **0.0 %** | there is no cliff anywhere on this mountain |
 | Surface over 70° | **0.0 %** | |
 | Slope histogram, whole crag | 0–10°: 45.4 %, 30–40°: 12.4 %, **40–50°: 33.2 %**, 50–60°: 0.8 % | two spikes: flat ground, and **one uniform ≈45° flank** |
 | Field max slope vs mesh | field 68.7° max; mesh's 40–50° bin *higher* than the field's | **surface nets is not losing slope** |
 | Raw contour spacing (5 m), CV | mean 6.9 m, σ 6.5 m, **CV 0.935** | base fBm bleeding through; the *stamp* is perfectly regular |
+
+> ### ⚠ RE-STAMPED — the first lobe-ratio figures were produced by the
+> ### digitiser this document forbids
+>
+> **The 0.80 / 0.81 / 0.80 above were measured by counting boundary cells.**
+> §2.8.3 already bans that and requires the marching-squares contour polyline;
+> the figures predate the rule they violate, so they were never legitimate
+> readings of this terrain — they are readings of a digitisation choice.
+> Re-measured on the **same** terrain under the binding rule: **1.27**.
+>
+> **The perimeter was short by ≈ 26 %, not the ≈ 10 % §2.8.3 estimated**, and
+> the mechanism is worth stating so nobody re-derives it: counting boundary
+> cells measures the *Chebyshev* length of an outline. A boundary running
+> diagonally across the grid covers √2 of cell length per cell and is counted
+> as 1, so a smooth, near-circular contour comes back short by up to
+> 1/√2 ≈ 29 %. Our 26 % sits essentially at that theoretical floor — which is
+> confirmation, not coincidence, since a near-circular contour is diagonal at
+> most bearings. My predecessor's ≈ 10 % was itself an understatement; the
+> rule was right for a **stronger** reason than the one it was written with.
+>
+> **Two consequences, and the second is the one that matters.**
+>
+> 1. **I8's headroom was never 69 %.** 1.27 against a 1.35 threshold is 6 %.
+>    I8 is a far weaker test than the first pass believed, and its
+>    load-bearing clause is therefore the **second** one —
+>    `MASSIF_LOBE_RISE_MIN`, the requirement that lobing **grow with height**.
+>    A self-similar cone can sit near 1.27 the whole way up; only the rise
+>    clause can see that, which is exactly the blindness §2.8.1 diagnosed in
+>    the single-slice test it replaced.
+> 2. **The banded model REGRESSED lobing, and the contaminated baseline would
+>    have disguised the regression as progress.** Post-band measurement:
+>    **1.01, flat at every height.** Read against 0.80 that looks like a step
+>    forward; read against the true 1.27 it is a step **backward**. The old
+>    crenulation was base fBm bleeding through the smoothstep stamp — the same
+>    bleed that scores contour-spacing CV 0.935 in the row above. It was
+>    cosmetic, noise-derived and self-similar, but it was **real perimeter**,
+>    and the band model replaced the slice outline with the authored `R_k(θ)`,
+>    which is *cleaner* than the noise it displaced. **So the I7/I8 question is
+>    not "how do we add lobing" but "does `R_k(θ)` REPLACE the fBm crenulation
+>    or ride on top of it".** The mechanism is core's; the design requirement
+>    is that structural lobing must exceed what noise gave us for free, at
+>    every height, and must grow with height.
+>
+> **Also unstamped: the slope-histogram row does not say which weighting it
+> used.** Under the surface-area ruling in §2.8.3 it must be re-stamped with
+> the weighting labelled. This is not pedantry about a dead number:
+> `MASSIF_SLOPE_BIN_MAX` = 0.30 was *chosen* just under the 33.2 % reading, so
+> the threshold's provenance depends on it — though the threshold's purpose
+> (reject the single uniform flank) survives either reading, since surface
+> weighting can only make that flank count for **more**.
+>
+> **The process point, which is the durable part.** The measurement rule was
+> written before the measurement mattered, and it is what caught this. Cost:
+> one paragraph in §2.8.3. Return: a baseline nobody will cite wrongly, and a
+> regression that was wearing the costume of progress. Same lesson as the
+> §1.3 withdrawal, arriving cheaply for once — this time the rule caught the
+> number instead of the number surviving three sessions.
 
 **Was my predecessor's invariant insufficient? Both answers are true and both
 matter.**
@@ -895,6 +954,43 @@ Between bands the surface is a **bench** (`MASSIF_BENCH_SLOPE_MAX`, width
 `MASSIF_BENCH_WIDTH_MIN…MAX`). Riser heights come from
 `MASSIF_CLIFF_BAND_MIN…MAX`.
 
+**A CLIFF riser is a PLANAR face, and a bench is neither dead flat nor pinned
+at its ceiling (core, found by measuring — four bugs with one lesson under
+them).** Each of these is written down as a rule because each produced a
+*measured* invariant failure on the first implementation of this model, and
+none of them was visible by looking at the shape:
+
+- **A smoothstepped riser spends its width on sub-cliff slope.** A riser eased
+  in and out reaches `MASSIF_CLIFF_SLOPE_MIN` only at its midpoint, so most of
+  its area lands in the 30–50° bins and **I3 measures no cliff on a mountain
+  that visibly has them**. Cliff risers are therefore **planar faces** — full
+  angle from lip to base. This is also what §4's snap rule requires: a crease
+  is drawn as a crease only where there is one, and an eased riser has no lip
+  for the screen-space slope derivative to find. My predecessor's promise of a
+  **hard splat edge at band lips** was made assuming a planar riser; it is now
+  a *requirement* rather than an assumption, and the two rules corroborate.
+- **A dead-flat bench is a constant gradient too** — flat benches put **62 %**
+  of the massif in a single slope bin, an I4 failure produced by the fix for a
+  different I4 failure. And **pinning benches at `MASSIF_BENCH_SLOPE_MAX` is
+  the same mistake wearing a different constant** (**75 %** in another bin).
+  A bench is *ground*, and §2.7's rule is general and already binding:
+  **terrain never flattens.** Benches carry the `GROUND_MICRO_*` octave
+  (0.3–0.6 m over 8–16 m) and take a seeded slope spread **within**
+  `MASSIF_BENCH_SLOPE_MAX`. That constant is a **ceiling** — the angle at
+  which a bench stops being able to carry a road — and it was never a target.
+- **A RAMP band must still be a band.** A sector whose riser class is RAMP
+  cannot fall back to the bare underlying cone; that left half the massif
+  unbanded and reads as the old dome wearing stripes down one side. The
+  cliff/ramp choice varies the riser's **angle**, never whether the mountain
+  has contours at that bearing.
+
+**The lesson under all four, and it is why §2.8.3 says implement I1 and I4
+first:** three of them are cases where the obvious fix for one invariant broke
+another, and **constant-gradient failures move rather than disappear.** I4 is
+the invariant that follows them around. All four were caught by measuring the
+invariant, not by looking at the mountain — which is the whole argument for
+having written the invariants down before building the shape.
+
 **Both per-bearing fields must be PERIODIC in θ (core's catch, binding).**
 `R_k(θ)`, `p(θ)` and the riser-class sector index all wrap: sampling noise on
 the *angle value* puts a branch cut at ±π and produces **a vertical seam from
@@ -937,16 +1033,70 @@ are massif-only** (a range has no single summit and no closed slice).
 | **I8** | **Lobed AND increasingly articulated** | lobe ratio `P²/(4π·A)` at ½, ⅔ and ⅚ relief **each** ≥ `MASSIF_LOBE_RATIO` = 1.35, **and** `lobe(⅚) − lobe(½)` ≥ `MASSIF_LOBE_RISE_MIN` = 0.15 | **FAILS** — 0.80/0.81/0.80, flat as well as low |
 | **I9** | **Blocky rock present** | placed rock assemblies cover `ROCK_OUTCROP_COVERAGE_MIN…MAX` = 0.10–0.20 of the surface above the rockline, **and the summit carries a tor** (§2.8.4) | **FAILS** — no such asset class exists |
 
-**Two measurement rules, or the invariants measure the digitiser instead of
+**Three measurement rules, or the invariants measure the digitiser instead of
 the world.**
 
 - **Perimeter comes from the marching-squares contour polyline**, never from
-  counting boundary cells. Core's boundary-cell perimeter undercounts by
-  ≈ 10 %, which is a third of the headroom in I8 — a threshold that a
-  digitisation choice can flip is not a threshold.
+  counting boundary cells. **Measured, not estimated:** boundary-cell
+  perimeter came back short by **≈ 26 %** on our own crag (the ≈ 10 % first
+  written here was itself an understatement — see the re-stamp box in §2.8.1),
+  which moved the same terrain's lobe ratio from 0.80 to **1.27** against a
+  1.35 threshold. A threshold that a digitisation choice can flip is not a
+  threshold.
 - **Slope is measured on the extracted mesh normals as well as on the field**,
   and both are reported. This session's whole diagnosis turned on that pair
   disagreeing; keep the ability to ask the question.
+- **"Of the surface" means TRUE SURFACE AREA, never plan-view footprint
+  (ruled — it decides I3's verdict).** The two measures answer different
+  questions, and only one of them is the question I3 and I4 ask. Footprint is
+  the **map projection** — what a bird, or a contour sheet, sees. Surface area
+  is what the mountain **presents to a player standing on the valley floor**,
+  which is the standpoint this entire section was written from: the user is
+  looking at Ravenscar from below, side-on, and a near-vertical face fills
+  that view while contributing almost nothing to a map.
+  - **The decisive argument is that footprint weighting is anti-correlated
+    with I3's own goal at the limit.** A 70° face carries ≈ 2.9× the surface
+    of the ground beneath it; a 90° face carries **zero** footprint. So under
+    footprint weighting the score of "near-vertical rock exists" falls toward
+    zero *exactly as the rock becomes perfectly vertical*. A test that reports
+    its own ideal as absence is not a test, and no threshold can repair it.
+  - **The same weighting is right for I4, for a second and independent
+    reason.** Surface weighting inflates steep bins by 1/cos, so the one
+    failure mode I4 exists to catch — a single uniform ≈ 45° flank — is
+    weighted **up** against the flat ground around it. Footprint does the
+    opposite: it discounts that flank by 0.71 while counting flat benches at
+    full weight, so the histogram fills with valley floor and the uniform
+    flank hides inside it. An invariant must be **strictest** against the
+    thing it was written to reject.
+  - **Consistency is the third reason.** I3 and I4 use the same phrase over
+    the same population in adjacent rows of one table. Two meanings for one
+    phrase in one table is a trap laid for whoever reads this next.
+  - **How to compute it, without a new constant.** The **binding** reading is
+    **triangle area on the extracted mesh**: finite by construction, needs no
+    clamp, and it is literally the surface the player looks at. The field-side
+    reading (cell footprint ÷ cos slope) is **reported alongside** as the
+    cross-check — it diverges at vertical and would need a clamp, i.e. a
+    constant, which is precisely why it is the check and not the verdict. The
+    two disagreeing is **information**: §2.8.1's whole diagnosis came out of a
+    mesh/field pair disagreeing.
+  - **Where footprint legitimately still rules: I8.** A horizontal slice's
+    outline is a plan-view object *by definition* — `P` and `A` there are the
+    perimeter and area of a 2D curve, not of a surface. Nothing about I8's
+    measure changes (only its baseline did, §2.8.1). **I9's coverage
+    denominator inherits the surface rule**, which makes I9 slightly harder on
+    a steep massif; that is the correct direction, because a mountain with
+    more cliff on it needs **more** rock, not the same rock spread thinner.
+  - **Reporting doctrine, standing:** print **both** readings and label which
+    one is the verdict. Same discipline as C2's raw unexempted count (§1.1)
+    and the mesh/field slope pair above — an interpretation is stated in the
+    open, and interpretations get audited. Core printing both rather than
+    resolving the ambiguity in their own favour is the behaviour to keep; this
+    ruling supplies the verdict, it does not delete the second column.
+
+**Verdict on the open reading, stated so it is not left implicit: I3 PASSES at
+16.5 %** against `MASSIF_STEEP_FRACTION_MIN` = 0.12. The 6.0 % footprint
+reading is retained as a **diagnostic** — the ratio between the two readings is
+a free measure of how much of the massif is steep — and is never a verdict.
 
 **I5 is measured on radials that carry no validated route (core's catch,
 ruled).** A route breaches the cliff bands it crosses (§2.8.5), which locally
@@ -1663,6 +1813,53 @@ through" was written for the dense version) and become colonnades — you see
 *through* a forest now, which makes occlude-and-reveal work at a distance it
 never could before.
 
+### 5.11 Seasonal foliage — the palette contract (ruling, stage-4)
+
+The user wants summer, autumn and winter. The seasons themselves are a future
+game-design decision; **the palette SHAPE is a catalog decision and it is
+cheaper to fix before there are entries in it than after** (flora's flag, and
+they were right to raise it early). Ruling on the shape, adopting flora's
+proposal because it adds no mechanism:
+
+- **Foliage colour is a per-species palette indexed by SEASON.** The mesh
+  stores an **index, not a colour**. A season change is then a data swap, not
+  a re-export.
+- **A palette entry is a RAMP, not a single value**, so "autumn varies more
+  within a crown than summer does" is expressible as a wider ramp with no new
+  machinery.
+- **Winter costs one boolean, `has_foliage`**, in the same table: false for
+  deciduous, true for conifers. **Conifers are season-stable apart from snow**
+  (measured: pines stay green in every reference frame), and snow is render's
+  and core's, not the catalog's.
+
+**Two design constraints flora cannot see from their side, and they are the
+reason this needed a ruling rather than an ack:**
+
+1. **Value separation must hold in EVERY season, not just summer.** §1.5
+   separates our species by *value*, not hue — pale birch, mid oak, dark pine.
+   An autumn palette that turns oak and birch into two similar warm mid-values
+   destroys that separation at `SILHOUETTE_MIN_PX`, and the forest stops being
+   readable at distance in exactly one season. **Each season's entry must
+   preserve the species' value ORDER.** That is a checkable property of the
+   palette table and it is the acceptance test for any season anyone proposes.
+2. **Winter opens sightlines, and C1 must not be validated against it.** With
+   `has_foliage = false` a deciduous forest's effective width collapses toward
+   trunk diameter, so transmittance rises sharply and landmarks become visible
+   through woods that hide them in summer. That is a *lovely* seasonal read
+   and we should keep it — but it makes visibility season-dependent.
+   **RULING: C1, C4 and the sight wedges validate against the WORST case,
+   full summer canopy.** Winter may only improve on a passing seed, never
+   rescue a failing one. Decided now, in one line, so that no future seed
+   passes in February and fails in July.
+
+**Palette sourcing rule, binding:** **never calibrate a palette from
+photographs** (flora's finding — the same tree in two frames gave leaf/dark
+splits of 76/10 and 53/40 purely on exposure). Colour taken off a reference
+photo is colour taken off the camera's metering. Reference photographs are
+evidence about **structure** — density, value ratios, silhouette — and are not
+evidence about hue. The same caution applies to every reference image this
+project uses, not only to foliage.
+
 ## 6. Structures catalog (домики под разные задачи)
 
 Global rules: structures are placed in P4 on flattened pads — pad = footprint
@@ -2150,6 +2347,30 @@ three crest lines readable at 640×360. If a frame still reads as a dome, the
 invariant that let it through is the wrong invariant and gets fixed — the
 frames outrank the numbers, because the numbers exist to predict the frames.
 
+**Status — step 1 of §2.8 (the banded massif) is implemented, and five of the
+eight currently applicable invariants pass** (core, stage-4; I9 is not
+applicable until the placed-rock asset class exists):
+
+| Invariant | Before | Now | Bound |
+|---|---|---|---|
+| I1 concave profile | −7.1° | **+15.0°** | ≥ 12° |
+| I3 near-vertical rock | 0.0 % | **16.5 %** (surface area, §2.8.3) | ≥ 12 % |
+| I4 no constant gradient | 33.2 % | **24.2 %** | ≤ 30 % |
+| I5 riser/bench alternation | 0 | **100 %** of radials | ≥ 70 % |
+| I6 band-spacing CV | n/a | **0.518** | ≥ 0.35 |
+| **I2** sharp summit | fails | **fails** | scheduled step |
+| **I7** arêtes | fails | **fails** | scheduled step |
+| **I8** lobing | 1.27 (re-stamped) | **1.01, flat** | ≥ 1.35 **and** rising |
+
+I1 is the headline: the profile went from *convex* to concave, which is the
+anti-dome fix itself and not a proxy for it. **I8 is now worse than before the
+reshape** once its baseline is corrected (§2.8.1) — the bands erased the fBm
+crenulation they replaced — so **I7/I8 is real work, not a tuning pass**, and
+that is the honest reading rather than the 0.80 → 1.01 "progress" the
+contaminated baseline would have shown. The acceptance test does not move: it
+is still the tour frames from the valley floor and the western meadows, and
+the frames outrank the table above.
+
 **Ravenscar's ascent is a required invariant too (gap exposed by story's
 near-miss).** Act 1's climax is the climb to the ward-tower, and I had
 specified a validated route for the temple massif (§2.5) and for the castle
@@ -2219,6 +2440,25 @@ defined *relative to the barrow*, so they follow the new bearing
 automatically. The only change story absorbs is a compass direction moving up
 to ~30°. A grave hidden in a fold of the mountain is also, if anything, the
 better image.
+
+**Status after the §2.8 reshape, and a SEQUENCING RULING (stage-4).** The
+crag-tunnel and Backbarrow carve tests went **red** on the reshape and core
+reported them rather than papering over them — correct, and worth saying
+plainly: those two tests going red **is the durable rule above working, not
+breaking.** Reshaping the massif invalidated the placements on its slopes,
+exactly as stated, and the tests are the mechanism that says so out loud.
+
+**Ruling: re-run the couloir search AFTER I7/I8, not now.** §2.8.5 said to
+re-run it "after the reshape", on the reasoning that angular lobing creates
+couloirs by construction. That reasoning is sound but its precondition is not
+met yet: the reshape's measured lobe ratio is **1.01 against the smoothstep
+stamp's true 1.27** (§2.8.1), i.e. the current massif has **fewer and
+shallower re-entrants than the shape the search already failed on.** Searching
+now would fail for the same reason it failed the first time, and — this is why
+it matters — a second failure would wrongly promote the **high-shoulder
+fallback**, which inverts a line of story's canon. Do not spend that
+inversion on a measurement taken at the wrong moment. The barrow stays where
+it is, with its test red, until arête/lobe work lands.
 
 **Fallback if no couloir clears:** core's (c) — a **high entrance on the
 shoulder**, mouth 20–44 m above the valley, castle unmoved. It keeps

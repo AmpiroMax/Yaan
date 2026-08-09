@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 20:52:00
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -26,6 +26,11 @@ UPD:
 - 09:08:2026 - 11:13:00: Stage 3 — initial tests.
 - 09:08:2026 - 11:57:20: Stage 3b — scatter upload/drop, per-body water,
   site placeholder mesh registry (blessed ids 1..7).
+- 09:08:2026 - 20:52:00: Interior lighting: carried lights land at the HAND
+  (offset rotated by body yaw) and only MAX_SHADOW_POINT_LIGHTS of them get a
+  shadow map. Two counts re-baselined for flora's foliage stream: init now
+  uploads three textures (leaf mask atlas) and a scattered chunk builds three
+  meshes (branches + leaf cards + micro tile).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -34,10 +39,14 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/platform/render/sources/null/NullRenderer.h"
 #include "engine/render/sources/Materials.h"
+#include "engine/render/sources/SkyModel.h"
 
 #include <doctest/doctest.h>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/geometric.hpp>
 
 #include <cstdlib>
+#include <utility>
 #include <vector>
 
 using dfn::platform::NullRenderer;
@@ -50,8 +59,9 @@ TEST_CASE("init uploads the procedural textures once and shutdown releases all")
 
     RenderSystem system;
     REQUIRE(system.init(renderer));
-    // Terrain atlas + water texture (cached by params — exactly two).
-    CHECK(renderer.live_textures() == 2);
+    // Terrain atlas + water texture + the leaf mask atlas (cached by params —
+    // exactly three since the foliage material path landed).
+    CHECK(renderer.live_textures() == 3);
     CHECK_FALSE(system.water_enabled());
 
     system.shutdown(renderer);
@@ -143,7 +153,10 @@ TEST_CASE("scatter upload/drop lifecycle is idempotent per chunk") {
     };
     system.upload_scatter(renderer, {0, 0}, instances);
     const uint32_t after_upload = renderer.live_meshes();
-    CHECK(after_upload == base_meshes + 2); // one tree batch + one micro tile
+    // One tree (branch) batch + one leaf-card batch + one micro tile: the
+    // foliage stream is a SECOND mesh per chunk because leaf cards need the
+    // alpha-cutout program and branches do not.
+    CHECK(after_upload == base_meshes + 3);
 
     system.upload_scatter(renderer, {0, 0}, instances); // replace, no leak
     CHECK(renderer.live_meshes() == after_upload);
@@ -182,6 +195,96 @@ TEST_CASE("water bodies build one mesh per lake and river segment") {
 
     system.clear_water_bodies(renderer);
     CHECK(renderer.live_meshes() == base_meshes);
+    system.shutdown(renderer);
+}
+
+TEST_CASE("a carried light becomes a point light at the HAND, not at the origin") {
+    NullRenderer renderer;
+    REQUIRE(renderer.init({}));
+    RenderSystem system;
+    REQUIRE(system.init(renderer));
+
+    dfn::ecs::World world;
+    const auto carrier = world.spawn();
+    // Facing +X: a quarter turn about Y from the identity heading. The carrier
+    // origin is the FEET (sim's convention), so the hand offset is +1.45 up.
+    const glm::quat yaw = glm::angleAxis(glm::radians(90.0f),
+                                         glm::vec3{0.0f, 1.0f, 0.0f});
+    world.add(carrier, dfn::components::Transform{
+                           {50.0f, 10.0f, 50.0f}, yaw, glm::vec3{1.0f}});
+    world.add(carrier, dfn::components::PreviousTransform{
+                           {50.0f, 10.0f, 50.0f}, yaw, glm::vec3{1.0f}});
+    dfn::components::CarriedLight light;
+    light.active = true;
+    light.offset = {0.35f, 1.45f, 0.0f}; // right hand, hand height above feet
+    world.add(carrier, std::move(light));
+
+    dfn::render::FirstPersonCamera camera;
+    camera.set_projection(1.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+    system.render(world, renderer, camera, 1.0f);
+
+    const auto& env = system.environment();
+    REQUIRE(env.point_light_count == 1);
+    // Defaults applied for radius 0 / colour 0.
+    CHECK(env.point_lights[0].radius_m == doctest::Approx(dfn::render::TORCH_RADIUS_M));
+    CHECK(env.point_lights[0].color.r == doctest::Approx(dfn::render::TORCH_COLOR.r));
+    // THE POINT OF THE TEST: the flame is above the feet and displaced
+    // sideways, and the sideways part ROTATED with the body — a light left at
+    // the carrier origin (or at the eye) casts no visible shadow at all, which
+    // is the bug this whole feature exists to avoid.
+    CHECK(env.point_lights[0].position.y == doctest::Approx(11.45f));
+    CHECK(env.point_lights[0].position.y > 10.0f);
+    CHECK(glm::distance(env.point_lights[0].position,
+                        glm::vec3{50.0f, 11.45f, 50.0f}) == doctest::Approx(0.35f));
+    // Facing +X, the right hand points toward -Z (right-handed, Y up).
+    CHECK(env.point_lights[0].position.z == doctest::Approx(49.65f).epsilon(0.01));
+    // The first lights are the ones that get a cube map; that is render's
+    // decision, never gameplay's.
+    CHECK(env.point_lights[0].casts_shadow);
+
+    // Doused: the component stays, the light does not.
+    world.get<dfn::components::CarriedLight>(carrier)->active = false;
+    system.render(world, renderer, camera, 1.0f);
+    CHECK(system.environment().point_light_count == 0);
+
+    system.shutdown(renderer);
+}
+
+TEST_CASE("only MAX_SHADOW_POINT_LIGHTS carried lights get a shadow map") {
+    NullRenderer renderer;
+    REQUIRE(renderer.init({}));
+    RenderSystem system;
+    REQUIRE(system.init(renderer));
+
+    dfn::ecs::World world;
+    const uint32_t total = dfn::platform::MAX_SHADOW_POINT_LIGHTS + 2;
+    for (uint32_t i = 0; i < total; ++i) {
+        const auto e = world.spawn();
+        const glm::vec3 p{static_cast<float>(i) * 5.0f, 10.0f, 0.0f};
+        world.add(e, dfn::components::Transform{
+                         p, glm::quat{1.0f, 0.0f, 0.0f, 0.0f}, glm::vec3{1.0f}});
+        dfn::components::CarriedLight light;
+        light.active = true;
+        light.radius_m = 6.0f;
+        light.color_rgb = 0x00FF8040u;
+        world.add(e, std::move(light));
+    }
+
+    dfn::render::FirstPersonCamera camera;
+    camera.set_projection(1.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+    system.render(world, renderer, camera, 1.0f);
+
+    const auto& env = system.environment();
+    REQUIRE(env.point_light_count == total);
+    uint32_t shadowed = 0;
+    for (uint32_t i = 0; i < env.point_light_count; ++i) {
+        CHECK(env.point_lights[i].radius_m == doctest::Approx(6.0f));
+        // Explicit colour is honoured (0x00RRGGBB), the default is not.
+        CHECK(env.point_lights[i].color.r == doctest::Approx(1.0f));
+        shadowed += env.point_lights[i].casts_shadow ? 1u : 0u;
+    }
+    CHECK(shadowed == dfn::platform::MAX_SHADOW_POINT_LIGHTS);
+
     system.shutdown(renderer);
 }
 

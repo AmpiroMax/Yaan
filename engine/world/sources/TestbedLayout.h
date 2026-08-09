@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 19:41:55
+Last updated: 09:08:2026 - 21:40:00
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -41,6 +41,7 @@ UPD:
 - 09:08:2026 - 17:36:42: §6.2: dungeon->carve site mapping for derived entrance markers; lakeshore held at the design position with the measured reason (bluff base sits below the lake plane).
 - 09:08:2026 - 19:13:01: CragStamp::ridge_amp_meters — flank sub-relief as an ABSOLUTE amplitude, defaulted to reproduce today's 52 m crag. The legacy ridge_amp_frac coupled flank relief to peak height, so raising the summit inflated its own occluders; harmless at 52 m, wrong at the approved 110-120 m (flora's catch, kept although it was not the C1 bug).
 - 09:08:2026 - 19:41:55: L0_RELIEF 115 landed: crag peak reads the constant, rockline/treeline scale with the summit (absolute values tuned for 52 m left a 115 m crag bald from a third of the way up), and the switchback ascent is lifted with the summit and pushed out 1.30x so its mouth clears the taller cone. Scaling the footprint by the summit's own factor was tried first and was wrong — it put the route on the thin rim and turned the tunnel into a 349 m trench.
+- 09:08:2026 - 21:40:00: CragStamp::arete_count (L0_ARETE_COUNT_MIN..MAX) drives the §2.8 per-bearing lobe count.
 */
 
 #pragma once

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 09:08:2026 - 22:30:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -28,9 +28,12 @@ UPD:
 - 09:08:2026 - 16:45:00: Created — carve SDF for the crag tunnel and barrow.
 - 09:08:2026 - 16:47:51: Created — carve distance fields and column ranges.
 - 09:08:2026 - 17:36:42: §6.2: mouth walk (first station whose ceiling is under terrain) and derived-corridor overloads.
+- 09:08:2026 - 22:30:00: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -211,6 +214,89 @@ std::pair<float, float> carve_column_range(const TestbedLayout& layout,
         return {1.0f, -1.0f}; // empty
     }
     return {lo, hi};
+}
+
+/// Walk distance from a corridor's MOUTH to the point on its polyline nearest
+/// `world`, measured along the corridor. Returns a large value when the point
+/// is not in this corridor at all.
+namespace {
+
+float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& ground,
+                               glm::vec3 world) {
+    if (c.point_count < 2) {
+        return 1e9f;
+    }
+    if (corridor_distance(c, world) > 0.0f) {
+        return 1e9f; // not inside this corridor
+    }
+    const auto mouth = carve_mouth(c, ground);
+    if (!mouth) {
+        return 1e9f; // never goes under rock: not an entrance, so nothing is earned
+    }
+    // Arc length to the projection of `world`, and to the mouth, both measured
+    // from point 0; the walk between them is the difference.
+    const auto arc_to = [&](glm::vec3 q) {
+        float best = 0.0f;
+        float best_d2 = 1e30f;
+        float run = 0.0f;
+        for (int i = 0; i + 1 < c.point_count; ++i) {
+            const glm::vec3 a2 = c.points[i];
+            const glm::vec3 b2 = c.points[i + 1];
+            const glm::vec3 ab = b2 - a2;
+            const float len2 = glm::dot(ab, ab);
+            const float u = len2 > 1e-6f ? std::clamp(glm::dot(q - a2, ab) / len2, 0.0f, 1.0f) : 0.0f;
+            const glm::vec3 proj = a2 + ab * u;
+            const glm::vec3 d = q - proj;
+            const float d2 = glm::dot(d, d);
+            if (d2 < best_d2) {
+                best_d2 = d2;
+                best = run + std::sqrt(len2) * u;
+            }
+            run += std::sqrt(len2);
+        }
+        return best;
+    };
+    return std::fabs(arc_to(world) - arc_to(mouth->position));
+}
+
+} // namespace
+
+float enclosure_darkness(const TestbedLayout& layout, std::span<const CarveCorridor> extra,
+                         const GroundSampler& ground, glm::vec3 world) {
+    // Half one: ENCLOSED. Inside carved air, with rock actually overhead.
+    if (carve_distance(layout, extra, world) >= 0.0f) {
+        return 0.0f; // not in a carve at all -- a valley floor is not a cave
+    }
+    if (world.y >= ground({world.x, world.z})) {
+        return 0.0f; // open to the sky through the shaft above
+    }
+
+    // Half two: EARNED. Shortest walk back to any mouth, along the corridors.
+    float path = 1e9f;
+    path = std::min(path, corridor_path_from_mouth(layout.carves.crag_tunnel, ground, world));
+    path = std::min(path, corridor_path_from_mouth(layout.carves.barrow_passage, ground, world));
+    path = std::min(path, corridor_path_from_mouth(layout.carves.lakeshore_adit, ground, world));
+    for (const CarveCorridor& c : extra) {
+        path = std::min(path, corridor_path_from_mouth(c, ground, world));
+    }
+    if (path > 1e8f) {
+        // Inside carved air but reachable from no mouth we can measure -- the
+        // barrow CHAMBER is the real case: it hangs off the end of its
+        // passage. Fall back to the passage's full length plus the distance
+        // in, which is the walk a player actually makes.
+        const CarveCorridor& psg = layout.carves.barrow_passage;
+        const auto mouth = carve_mouth(psg, ground);
+        if (!mouth || psg.point_count < 2) {
+            return 1.0f; // sealed and unmeasurable: dark is the safe answer
+        }
+        path = glm::length(world - mouth->position);
+    }
+
+    const float depth_min = static_cast<float>(config::DARKNESS_DEPTH_MIN);
+    const float falloff = static_cast<float>(config::DARKNESS_FALLOFF_MIN);
+    // Ramp UP TO full darkness at DARKNESS_DEPTH_MIN, so the threshold is
+    // where it becomes pitch black rather than where it starts to dim.
+    return std::clamp((path - (depth_min - falloff)) / falloff, 0.0f, 1.0f);
 }
 
 } // namespace dfn::world

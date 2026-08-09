@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 20:08:11
+# Last updated: 09:08:2026 - 20:36:00
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -34,6 +34,9 @@
 # - 09:08:2026 - 20:08:11: Foliage: vs_foliage/fs_foliage (alpha-cutout
 #   leaf cards + wind sway) and vs_shadow_cutout/fs_shadow_cutout (the same
 #   mask punched through the shadow map, swaying identically).
+# - 09:08:2026 - 20:36:00: Interior lighting — vs_point_shadow/fs_point_shadow
+#   (carried-light cube faces, distance-to-light atlas) and dfn_pointshadow.sh
+#   added to the shaderc dependency list.
 
 include(FetchContent)
 
@@ -72,6 +75,7 @@ function(dfn_compile_shader name type profile platform suffix)
                 "${DFN_SHADER_SRC_DIR}/varying.def.sc"
                 "${DFN_SHADER_SRC_DIR}/dfn_env.sh"
                 "${DFN_SHADER_SRC_DIR}/dfn_shadow.sh"
+                "${DFN_SHADER_SRC_DIR}/dfn_pointshadow.sh"
         COMMENT "shaderc ${name} (${profile})"
         VERBATIM)
     set_property(GLOBAL APPEND PROPERTY DFN_SHADER_OUTPUTS "${out}")
@@ -79,11 +83,11 @@ endfunction()
 
 if(APPLE)
     foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow
-                   vs_foliage vs_shadow_cutout)
+                   vs_foliage vs_shadow_cutout vs_point_shadow)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
     foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop
-                   fs_shadow fs_foliage fs_shadow_cutout)
+                   fs_shadow fs_foliage fs_shadow_cutout fs_point_shadow)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()
