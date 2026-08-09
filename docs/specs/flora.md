@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 00:03:11
+Last updated: 10:08:2026 - 02:43:32
 -->
 <!--
 UPD:
@@ -195,6 +195,36 @@ UPD:
                          by flora_algorithms.md §4-§5; §3.8a's card contracts,
                          §3.10's photograph measurements and §3.11's seasons are
                          all UNCHANGED and still current.
+- 10:08:2026 - 02:43:32: LANDSCAPE STAGE, flora's first three tasks landed
+                         (7e497d9, 62d59c5). §5.10 BUILT AS OBJECTS: snag =
+                         broken blunt top + truncated stubs, SPLIT as one
+                         geometry / two materials (SnagPale seeds as Snag,
+                         byte-identity asserted); logs = butt swell, upturned
+                         root plate (big class), snapped stubs, upper-side moss
+                         in cell-noise patches, ground contact per buried span
+                         with the floating cylinder as control. WHICH QUANTITY
+                         separates a snag from a winter tree was measured
+                         before the threshold: limb reach CANNOT (oak winter
+                         0.106-0.136 vs snag 0.072-0.121 of height, overlap at
+                         every threshold); off-axis FACE COUNT does (snag 7-45,
+                         oak 95-179, willow 95-197); winter birch 36-61 is
+                         honestly adjacent and scoped out by name.
+                         flora_maturity_for() = the 25/60/12/3 draw's one home
+                         (bands are now REGISTRY rows, lead's Rule 35 ruling).
+                         Card foliage >= 3 planes per cluster at EVERY LOD
+                         (render-spec floor: angular coverage vs the worst
+                         azimuth; pine sprays 2 -> 3, Full 632 -> 686 tris).
+                         New §3.12: the CLUMP FIELD (в19г, design-blessed;
+                         FloraField.h) and the RICH EDGE SET (в8/в19в; seven
+                         patch species + StuntedPine; FloraEdgeRules.h). Suite
+                         instrument bug fixed: cards_of() strode 6 verts per
+                         4-vert card. Mechanism bug fixed: emit_card_cluster
+                         hard-wired the CANOPY clearance into every card
+                         species; the floor is now the tree's own (krummholz
+                         carries foliage to the ground by classification).
+                         §7's "no ground cover" is amended — the stage brief
+                         moved ground cover into flora; grass awaits the
+                         lead's Task 4 gate.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1060,6 +1090,68 @@ photos, so pine's only season delta is snow — pine is season-stable otherwise.
 **Do not calibrate the autumn palette from the reference photos** — §3.10, the
 same tree gives leaf/dark splits of 76/10 and 53/40 on exposure alone.
 
+### 3.12 The clump field and the rich edge set (landscape stage, 10.08.2026)
+
+**The clump field (в19г, design-blessed with amendments; `FloraField.h`).**
+Clumping is an AUTHORED FIELD, not randomness: per ground-cover class
+(Flowers, Mushrooms, Moss, GrassTufts, Pebbles) a seeded low-frequency field
+that scatter density MULTIPLIES by. The authorship is three registry rows per
+class — `CLUMP_WAVELENGTH/COVERAGE/CONTRAST_<CLASS>` — and the three
+load-bearing mechanisms a successor must not "simplify" away:
+
+1. **The raw field is RANK-EQUALIZED to uniform [0,1]** through a
+   deterministic CDF table. This is what makes COVERAGE exact (0.18 means the
+   top 18 % of ground, precisely) and it is Rule 31 satisfied by construction;
+   the un-equalized bell is the suite's failing control. Bare value noise
+   never leaves its middle band — the massif model already lived that defect.
+2. **Composition order is design's and binding:** `density = base × clump ×
+   edge_gradient × exclusions`, and near a path the edge gradient FLOORS the
+   field (`clump_field_edged`) so a coverage gap can never bare a margin —
+   BR-3 holds whatever the field says. The trodden centre is core's exclusion.
+3. **Mushroom rings are a SECOND STAGE under the field** (parent-child, not
+   more noise), and ring-vs-cluster parity is legible from the PARENT SEED
+   (even = ring) so core's find promotion is deterministic. Design's
+   requirement: the promotion predicate lives with FIND placement (BR-5/BR-6
+   siting can fail), never inside the parity.
+
+Destination: `engine/core/math` under core's ownership (their DAG ruling —
+engine/world cannot include engine/render); the file is dependency-free for
+that move, and until it lands the flora-zone copy is the only one. Core also
+takes `flora_maturity_for` in the same move and ports the Rule 31 tests.
+
+**The rich edge set (в8/в19в; `FloraEdgeRules.h` + seven patch species).**
+Species = `GroundForm` + numbers, the tree doctrine one level down. Design's
+flower palette roles, adopted verbatim: CARPET blue-violet (hue vs grass,
+luminance ~0.40 clear of the sky band), ACCENT white/yellow (the VALUE
+carrier — what makes a margin read lit), JEWEL deep red (a PLACEMENT BUDGET,
+never common scatter — asserted in the suite), UMBEL pale greenish cream
+(water margins, the birch bank-line's ground echo — re-coloured off the
+accent after the pairwise floor caught them 0.14 apart: one species in two
+habitats is not two species). Plus MossPatch, Mushroom, PebbleCluster, and
+`StuntedPine` — the §5.12 talus krummholz, same whorl generator with dwarf
+numbers (first cut read as a SAPLING; squatness, not smallness, is the dwarf
+read). "Boulder with moss" is a COMPOSITION — stone + MossPatch on its shade
+azimuth — not a new mesh.
+
+Two rules earned here, both the shared-helper pattern (Rule 32):
+
+- **Attachment applies at 0.2 m exactly as at 20 m**: flower heads and caps
+  must touch their tuft or stem; asserted with a floated-head control. The
+  no-detached-foliage complaint does not have a minimum size.
+- **`emit_card_cluster` applied CANOPY_CLEARANCE_MIN to every card species**
+  — invisible until the first non-canopy card species existed, then three
+  symptoms from one mechanism (foliage shoved to 2.2 m, cards shrunk against
+  the reduced span, cards torn off their anchors). The clearance floor is now
+  the TREE's own (`Tree::clearance_floor`), zero for non-canopy card species
+  by classification, exactly like bushes.
+
+Edge-placement RULES ARE DATA (`FLORA_EDGE_RULES`): per (species, habitat) a
+lateral band from the feature edge, a per-100 m density, the clump class it
+multiplies, and the association (shade-of-stone, shade-of-trunk,
+near-find-only). Built before paths exist so the day core's generator lands,
+the margins are ready; the eventual home is core's JSON reader (Rule 5), this
+header is the normative content.
+
 ### 3.7 Two bugs the suite caught — read this before touching the envelope
 
 Both were in the envelope code, both were invisible to the eye in a wireframe,
@@ -1372,9 +1464,12 @@ restate it. Checklist for that frame:
   materials, palette, wind animation — render.
 - **Collision.** Trunk capsules and the non-physical crown (в32) — sim. Flora
   only exposes `species_trunk_radius()`.
-- **Grass, flowers, micro scatter.** Render-side instancing against core's
-  density maps (LANDSCAPE §2.3). Flora owns trees, bushes and any future woody
-  plant; it does not own ground cover.
+- **Grass, flowers, micro scatter.** SUPERSEDED 10.08.2026 by the landscape
+  stage brief: flora now owns everything that grows and lies on the ground —
+  the §3.12 patch species, the clump field, and (pending the lead's Task 4
+  gate) grass tufts. Placement remains core's; drawing remains render's. An
+  earlier version of this bullet excluded ground cover from the zone; a
+  successor reading old citations of it is reading a stale copy.
 - **Structures.** `build_site_mesh` and everything in LANDSCAPE §6 stays with
   render.
 - **Content data files.** Species tables live in C++ today (like `ProcMesh`);
