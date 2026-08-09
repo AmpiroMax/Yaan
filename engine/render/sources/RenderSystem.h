@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 23:50:06
+Last updated: 10:08:2026 - 02:30:08
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -92,6 +92,9 @@ UPD:
   prompt; render owns the surface and the blit, never the string — Rule 5),
   overlay_program_, WaterBucket (bodies merged per CHUNK_SIZE cell with an AABB
   for culling), upload counters.
+- 10:08:2026 - 02:30:08: register_mesh — caller-authored geometry enters the
+  asset registry (character zone's body segments 34..49 via the app ferry;
+  render cannot include engine/anim). Additive; refusals are loud.
 */
 
 #pragma once
@@ -137,6 +140,22 @@ public:
                 const FirstPersonCamera& camera, float alpha);
 
     // Terrain (boundary agreed with core, stage-1 sync) ------------------------
+    // Registers caller-authored geometry under a RenderMesh asset id — the
+    // seam for zones whose meshes render cannot build (the DAG forbids
+    // render -> anim includes, so the app ferries engine/anim's body segments
+    // through this at init). LOUD ON EVERY REFUSAL, silent never:
+    //  - an id already registered is REFUSED (stderr + false): a collision is
+    //    two zones disagreeing about the id map, and silently replacing a
+    //    mesh is how that drift would hide. Live replacement is deliberately
+    //    not offered until something needs it — ask, do not overload this.
+    //  - ids inside ranges owned by other mechanisms are REFUSED even when
+    //    free: 1..31 (site table + growth), 32..33 (view model), 64..127
+    //    (items). A typo must not shadow a blessed id.
+    // Draws on the "prop" program like every untextured mesh in the cache.
+    [[nodiscard]] bool register_mesh(platform::IRenderer& renderer, uint32_t mesh_asset,
+                                     std::span<const platform::Vertex> vertices,
+                                     std::span<const uint32_t> indices);
+
     // Triangulates the heightfield (TerrainMesher, stage 2) and uploads the chunk
     // mesh. Idempotent per chunk_coord: re-upload replaces the previous mesh.
     void upload_terrain(platform::IRenderer& renderer, const math::HeightFieldView& field);

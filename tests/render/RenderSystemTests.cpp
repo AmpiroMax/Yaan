@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 09:08:2026 - 20:52:00
+Last updated: 10:08:2026 - 02:30:08
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -31,6 +31,9 @@ UPD:
   shadow map. Two counts re-baselined for flora's foliage stream: init now
   uploads three textures (leaf mask atlas) and a scattered chunk builds three
   meshes (branches + leaf cards + micro tile).
+- 10:08:2026 - 02:30:08: register_mesh cases (character zone seam): blessed
+  body range accepted, collisions and foreign ranges refused, registered id
+  resolves in the ECS pass.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -39,6 +42,7 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/platform/render/sources/null/NullRenderer.h"
 #include "engine/render/sources/Materials.h"
+#include "engine/render/sources/ProcMesh.h"
 #include "engine/render/sources/SkyModel.h"
 
 #include <doctest/doctest.h>
@@ -314,4 +318,56 @@ TEST_CASE("site entities with blessed mesh ids 1..7 are submitted") {
     CHECK(renderer.frame_submits() == 0);
 
     system.shutdown(renderer);
+}
+
+TEST_CASE("register_mesh accepts the blessed body range and refuses everything foreign") {
+    NullRenderer renderer;
+    REQUIRE(renderer.init({}));
+    RenderSystem system;
+    REQUIRE(system.init(renderer));
+
+    const std::vector<dfn::platform::Vertex> verts{
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, 0xFFFFFFFFu},
+        {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, 0xFFFFFFFFu},
+        {{0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, 0xFFFFFFFFu},
+    };
+    const std::vector<uint32_t> idx{0, 1, 2};
+
+    // The character zone's blessed range registers (34 = pelvis in RIG.md).
+    CHECK(system.register_mesh(renderer, dfn::render::BODY_MESH_ID_FIRST, verts, idx));
+    CHECK(system.register_mesh(renderer, dfn::render::BODY_MESH_ID_LAST, verts, idx));
+
+    // COLLISION IS REFUSED, not replaced: two zones disagreeing about an id
+    // must be heard, and a silent replace is how the drift would hide.
+    CHECK_FALSE(system.register_mesh(renderer, dfn::render::BODY_MESH_ID_FIRST,
+                                     verts, idx));
+
+    // Foreign ranges are refused even where unoccupied — a typo must not
+    // shadow a blessed site id (13..31 are free today), the view model, or
+    // an item id.
+    CHECK_FALSE(system.register_mesh(renderer, 5, verts, idx));   // site table
+    CHECK_FALSE(system.register_mesh(renderer, 13, verts, idx));  // site growth
+    CHECK_FALSE(system.register_mesh(renderer, 32, verts, idx));  // view model
+    CHECK_FALSE(system.register_mesh(renderer, 64, verts, idx));  // items
+    CHECK_FALSE(system.register_mesh(renderer, 0, verts, idx));   // not an id
+    CHECK_FALSE(system.register_mesh(renderer, dfn::render::BODY_MESH_ID_LAST + 1,
+                                     verts, {}));                 // empty geometry
+
+    // A registered id resolves in the ECS pass exactly like a built-in mesh.
+    dfn::ecs::World world;
+    dfn::render::FirstPersonCamera camera;
+    camera.set_projection(1.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+    const auto e = world.spawn();
+    world.add(e, dfn::components::Transform{{100.0f, 20.0f, 100.0f},
+                                            glm::quat{1.0f, 0.0f, 0.0f, 0.0f},
+                                            glm::vec3{1.0f}});
+    world.add(e, dfn::components::PreviousTransform{{100.0f, 20.0f, 100.0f},
+                                                    glm::quat{1.0f, 0.0f, 0.0f, 0.0f},
+                                                    glm::vec3{1.0f}});
+    world.add(e, dfn::components::RenderMesh{dfn::render::BODY_MESH_ID_FIRST, 0});
+    system.render(world, renderer, camera, 0.0f);
+    CHECK(renderer.frame_submits() >= 1);
+
+    system.shutdown(renderer);
+    CHECK(renderer.live_meshes() == 0);
 }

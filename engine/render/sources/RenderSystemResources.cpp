@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 09:08:2026 - 23:50:06
+Last updated: 10:08:2026 - 02:30:08
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -32,6 +32,9 @@ UPD:
   draw calls a frame, exhausting bgfx's 4096-handle pool AT STARTUP so that no
   terrain, scatter or site mesh could upload at all. 26 bucket meshes now.
   draw_overlay gained the blended path for the HUD.
+- 10:08:2026 - 02:30:08: register_mesh — the seam for caller-authored geometry
+  (character zone's body segments, ids 34..49, app-ferried). Refuses loudly:
+  collisions, foreign id ranges, empty geometry.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -40,6 +43,7 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/Materials.h"
+#include "engine/render/sources/ProcMesh.h"
 #include "engine/render/sources/SkyModel.h" // TORCH_COLOR / TORCH_RADIUS_M
 #include "engine/render/sources/WaterMesher.h"
 
@@ -339,6 +343,52 @@ void RenderSystem::clear_water_bodies(platform::IRenderer& renderer) {
         renderer.destroy_mesh(platform::MeshHandle{bucket.mesh_id});
     }
     water_body_meshes_.clear();
+}
+
+bool RenderSystem::register_mesh(platform::IRenderer& renderer, uint32_t mesh_asset,
+                                 std::span<const platform::Vertex> vertices,
+                                 std::span<const uint32_t> indices) {
+    // Every refusal is LOUD (stderr) — absence presenting as a neutral state
+    // is this project's most expensive recurring bug (the invisible castle),
+    // and a refused registration is an absence the caller must hear about.
+    if (mesh_asset == 0 || vertices.empty() || indices.empty()) {
+        std::fprintf(stderr,
+                     "[render] register_mesh REFUSED id %u: %s.\n", mesh_asset,
+                     mesh_asset == 0 ? "id 0 is not a mesh id"
+                                     : "empty geometry");
+        return false;
+    }
+    // Ranges owned by other mechanisms are refused even when unoccupied: a
+    // typo must not shadow a blessed site id, the view model, or an item id.
+    const bool foreign =
+        (mesh_asset >= SITE_MESH_ID_FIRST && mesh_asset <= 31)
+        || mesh_asset == VIEWMODEL_MESH_ID_HAND
+        || mesh_asset == VIEWMODEL_MESH_ID_TORCH
+        || (mesh_asset >= ITEM_MESH_ID_FIRST && mesh_asset <= ITEM_MESH_ID_LAST);
+    if (foreign) {
+        std::fprintf(stderr,
+                     "[render] register_mesh REFUSED id %u: inside a range "
+                     "owned by another mechanism (sites 1..31, view model "
+                     "32..33, items 64..127). See the id map in ProcMesh.h.\n",
+                     mesh_asset);
+        return false;
+    }
+    if (mesh_cache_.contains(mesh_asset)) {
+        std::fprintf(stderr,
+                     "[render] register_mesh REFUSED id %u: already "
+                     "registered. A collision means two zones disagree about "
+                     "the RenderMesh id map; nothing was replaced. Live "
+                     "replacement is a separate, not-yet-needed API.\n",
+                     mesh_asset);
+        return false;
+    }
+    const platform::MeshHandle handle = renderer.create_mesh(vertices, indices);
+    if (!handle.valid()) {
+        // create_mesh already reported the failure with the pool counters.
+        return false;
+    }
+    mesh_cache_.emplace(mesh_asset, handle.id);
+    return true;
 }
 
 } // namespace dfn::render

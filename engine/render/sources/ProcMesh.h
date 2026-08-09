@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:38:03
+Last updated: 10:08:2026 - 02:30:08
 Module: engine/render
 File: engine/render/sources/ProcMesh.h
 
@@ -54,6 +54,8 @@ UPD:
 - 09:08:2026 - 22:38:03: the RenderMesh id map is written down (site 1..12, world's growth
   room 13..31, view model 32/33, items 64..127) — agreed with sim, because two
   zones picking the same number is a bug nobody finds until it draws.
+- 10:08:2026 - 02:30:08: Id map: 34..49 blessed for the character zone's body
+  segments (registered via RenderSystem::register_mesh, never built here).
 */
 
 #pragma once
@@ -116,12 +118,18 @@ inline constexpr uint32_t SITE_MESH_ID_LAST = 12;
 ///   1..12    site placeholders (above) — world's SiteComponents attaches them
 ///   13..31   RESERVED for world's site table to grow into (it has grown twice)
 ///   32..33   first-person view model: 32 = hand, 33 = torch (sim's request)
+///   34..49   body segments (character zone; table in engine/anim/docs/RIG.md,
+///            34..48 used = 34 + bone index, 49 spare). Geometry is authored
+///            in engine/anim and enters through RenderSystem::register_mesh
+///            (app ferry) — render never builds these.
 ///   64..127  RESERVED for item meshes (sim; ids live in content ItemDef, so
 ///            the range is reserved rather than enumerated here). The torch is
 ///            both a held item and the view-model item and reuses 33 rather
 ///            than taking a second id for the same mesh.
 inline constexpr uint32_t VIEWMODEL_MESH_ID_HAND = 32;
 inline constexpr uint32_t VIEWMODEL_MESH_ID_TORCH = 33;
+inline constexpr uint32_t BODY_MESH_ID_FIRST = 34;
+inline constexpr uint32_t BODY_MESH_ID_LAST = 49;
 inline constexpr uint32_t ITEM_MESH_ID_FIRST = 64;
 inline constexpr uint32_t ITEM_MESH_ID_LAST = 127;
 
