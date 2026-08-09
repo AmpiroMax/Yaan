@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 20:21:13
+# Last updated: 09:08:2026 - 20:58:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -27,6 +27,8 @@
 #   same directory, registered here per Q34).
 # - 09:08:2026 - 20:10:11: WindModel.cpp (one wind for the world).
 # - 09:08:2026 - 20:21:13: FloraCards.cpp (flora agent's alpha-cutout leaf mask
+# - 09:08:2026 - 20:58:00: TerrainLod.cpp (LOD node ladder, selection and the
+#   two-level fade window).
 #   atlas + card emitter). EDITED BY THE FLORA AGENT under an explicit
 #   lead-granted Rule 25 exception (render's session had ended and the leaf-card
 #   stage could not wait); bounded to registration only — no shader, material,
@@ -45,6 +47,7 @@ add_library(dfn_render STATIC
     sources/RenderSystem.cpp
     sources/ScatterBatcher.cpp
     sources/SkyModel.cpp
+    sources/TerrainLod.cpp
     sources/TerrainMesher.cpp
     sources/WindModel.cpp
     sources/VoxelMesher.cpp
