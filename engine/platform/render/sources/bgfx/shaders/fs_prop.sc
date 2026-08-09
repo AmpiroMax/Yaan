@@ -11,8 +11,12 @@ $input v_color0, v_normal, v_texcoord0, v_wpos
 #include "dfn_env.sh"
 #include "dfn_shadow.sh"
 
+// x: texture bound (unused here), y: DrawParams::fade, z: highlight.
+uniform vec4 u_params;
+
 void main()
 {
+    dfn_screen_door(u_params.y, gl_FragCoord.xy); // LOD cross-fade / per-draw dissolve
     vec3 n = normalize(v_normal);
     float vis = dfn_shadow_factor(v_wpos, n);
     // Vertex alpha is the sky-visibility channel (1.0 on everything built

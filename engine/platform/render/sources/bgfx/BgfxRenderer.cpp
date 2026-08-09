@@ -1101,7 +1101,8 @@ void BgfxRenderer::destroy_program(ProgramHandle program) {
 }
 
 void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
-                          const glm::mat4& transform, TextureHandle texture) {
+                          const glm::mat4& transform, TextureHandle texture,
+                          const DrawParams& params_in) {
     Impl& im = *impl_;
     if (!im.initialized || !im.in_frame) {
         return;
@@ -1204,7 +1205,10 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     bgfx::setVertexBuffer(0, mesh_it->second.vb);
     bgfx::setIndexBuffer(mesh_it->second.ib);
 
-    float params[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    // u_params: x = texture bound, y = fade (screen-door dither below 1),
+    // z = highlight, w = reserved. Per DRAW, unlike u_envParams which is per
+    // frame — that split is the whole reason the DrawParams sync happened.
+    float params[4] = {0.0f, params_in.fade, params_in.highlight, params_in.aux0};
     const auto tex_it = im.textures.find(texture.id);
     if (tex_it != im.textures.end()) {
         // Point-sampled material textures: Daggerfall crunch, and no bleed

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 09:08:2026 - 20:31:00
+Last updated: 09:08:2026 - 21:06:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -36,6 +36,10 @@ UPD:
   here (the light loop is here, so a torch cannot shadow on terrain and not on
   props), shadow-casting lights are packed first so the slot index is the cube
   index.
+- 09:08:2026 - 21:06:00: dfn_screen_door + dfn_bayer4 (DrawParams::fade as an
+  ordered dissolve, the LOD cross-fade's mechanism). The pixel coordinate is a
+  PARAMETER: this header is included by vertex shaders, where gl_FragCoord does
+  not exist, and naming it in the body broke every one of them.
 */
 
 #ifndef DFN_ENV_SH
@@ -106,6 +110,47 @@ vec3 dfn_wind_offset(vec3 wpos, float sway_weight, float phase)
     // sliding; the dip is what sells it as bending about its attachment.
     float dip = -abs(amp * sway) * 0.15;
     return vec3(horizontal.x, dip, horizontal.y);
+}
+
+// SCREEN-DOOR FADE (DrawParams::fade, arriving in u_params.y — passed as an
+// argument because each fragment shader declares its own u_params).
+//
+// A LOD cross-fade draws the SAME GROUND at two levels for a moment. Alpha
+// blending would need sorting and would double-darken; a dissolve costs one
+// discard and needs neither. It also happens to be the only fade that survives
+// this project's 64-colour post: a half-transparent surface would land between
+// palette entries and be dithered anyway, so we do the dithering ourselves, at
+// the internal-pixel grid, where it reads as texture rather than as mush.
+//
+// The 4x4 ordered matrix is computed rather than tabled (no dynamic array
+// indexing on any backend): M4 = 4 * M2(high bits) + M2(low bits), with
+// M2(x,y) = 2x + 3y - 4xy reproducing [[0,2],[3,1]] exactly.
+float dfn_m2(float x, float y)
+{
+    return 2.0 * x + 3.0 * y - 4.0 * x * y;
+}
+
+float dfn_bayer4(vec2 p)
+{
+    vec2 q = mod(floor(p), 4.0);
+    float xl = mod(q.x, 2.0);
+    float yl = mod(q.y, 2.0);
+    float xh = floor(q.x * 0.5);
+    float yh = floor(q.y * 0.5);
+    return (4.0 * dfn_m2(xh, yh) + dfn_m2(xl, yl)) / 16.0;
+}
+
+// Discards the fragment if this pixel is not part of the surviving pattern.
+// fade >= 1 keeps everything (the maximum threshold is 15/16), fade <= 0 keeps
+// nothing. The pixel coordinate is a PARAMETER, not gl_FragCoord read inside:
+// this header is included by vertex shaders too (dfn_wind_offset), and
+// gl_FragCoord does not exist there — naming it in the body fails the build of
+// every vertex shader that includes this file.
+void dfn_screen_door(float fade, vec2 pixel)
+{
+    if (fade < dfn_bayer4(pixel) + 0.03125) {
+        discard;
+    }
 }
 
 // Ground brightness of a FULL moon, as a fraction of moon_color. A full moon

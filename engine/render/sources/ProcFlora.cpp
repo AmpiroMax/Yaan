@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 09:08:2026 - 21:02:02
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -37,6 +37,11 @@ UPD:
   vertex colour differently; per-instance wind phase is derived from the
   instance position in analyse_neighbourhood; append_flora() bakes both streams
   for the batcher.
+- 09:08:2026 - 21:02:02: Card legibility floor: a card shrunk by envelope
+  containment below a quarter of the crown radius is not emitted, because it
+  renders as a detached scrap of foliage rather than as part of the crown.
+  Reduced LOD now spends its saving on fewer/larger clusters and one plane less
+  per cluster, rather than only on the skeleton.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -277,6 +282,15 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     LeafCardParams p;
     p.half_width = reach / diag;
     p.half_height = p.half_width * sp.card_aspect;
+
+    // LEGIBILITY FLOOR. Containment shrinks a card to fit the envelope, and
+    // where the envelope is narrow (the bottom of a vase, the tip of a cone)
+    // that shrinking runs past the point where the card can join the mass: it
+    // then renders as a detached scrap of foliage hanging under the crown, which
+    // is worse than nothing there. A card under a quarter of the crown radius
+    // cannot read as part of the crown at 640x360, so it is not emitted.
+    // Fraction, not metres, so it scales with maturity for free.
+    if (p.half_width < 0.22f * t.crown_r) return;
 
     // The species HEIGHT band is a cross-zone contract (§3.7.1), and a card
     // reaches half_height above the point it is placed at — so the clamp is on

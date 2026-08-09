@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:59:00
+Last updated: 09:08:2026 - 21:02:17
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.cpp
 
@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 09:08:2026 - 10:59:00: Stage 3 — set_environment no-op.
+- 09:08:2026 - 21:02:17: DrawParams sync: submit signature; params ignored.
 */
 
 #include "engine/platform/render/sources/null/NullRenderer.h"
@@ -78,7 +79,9 @@ ProgramHandle NullRenderer::load_program(std::string_view) {
 
 void NullRenderer::destroy_program(ProgramHandle) {}
 
-void NullRenderer::submit(MeshHandle, ProgramHandle, const glm::mat4&, TextureHandle) {
+void NullRenderer::submit(MeshHandle, ProgramHandle, const glm::mat4&, TextureHandle,
+                          const DrawParams&) {
+    // DrawParams accepted and ignored: a headless run has no pixels to dither.
     ++frame_submits_;
 }
 

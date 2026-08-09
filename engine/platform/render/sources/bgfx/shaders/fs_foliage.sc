@@ -42,6 +42,7 @@ uniform vec4 u_params; // x: texture bound
 
 void main()
 {
+    dfn_screen_door(u_params.y, gl_FragCoord.xy); // LOD cross-fade / per-draw dissolve
     vec4 tex = texture2D(s_texColor, v_texcoord0);
     // Untextured fallback (mask not resident): draw the card solid rather than
     // discarding everything, so a missing texture reads as a bug, not as a

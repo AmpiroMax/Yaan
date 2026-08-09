@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:59:00
+Last updated: 09:08:2026 - 21:02:17
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.h
 
@@ -26,6 +26,8 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 09:08:2026 - 10:59:00: Stage 3 — set_environment (accepted-and-ignored per
   the contract sync 10:48).
+- 09:08:2026 - 21:02:17: DrawParams sync: submit takes per-draw params;
+  accepted and ignored here (Rule 3 — inert but valid, never a crash).
 */
 
 #pragma once
@@ -56,8 +58,9 @@ public:
     [[nodiscard]] ProgramHandle load_program(std::string_view name) override;
     void destroy_program(ProgramHandle program) override;
 
+    using IRenderer::submit;
     void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
-                TextureHandle texture = {}) override;
+                TextureHandle texture, const DrawParams& params) override;
     void debug_line(const glm::vec3& from, const glm::vec3& to,
                     uint32_t color_rgba) override;
 

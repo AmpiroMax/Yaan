@@ -55,6 +55,7 @@ enum WorldgenStream : uint32_t {
     STREAM_MASSIF_LOBE = 19,    // per-bearing radial extent
     STREAM_MASSIF_BAND = 20,    // contour band spans
     STREAM_MASSIF_RISER = 21,   // cliff/ramp class per (band, sector)
+    STREAM_MASSIF_TOR = 17,      // summit tor slabs (§2.8.4)
     STREAM_MASSIF_MICRO = 22,   // ground micro-relief (§2.7 "terrain never flattens")
     STREAM_MASSIF_MICRO_AMP = 23, // slow field varying the micro amplitude
     STREAM_RIVER_JITTER = 24, // sinuosity displacement

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 23:55:00
+Last updated: 09:08:2026 - 01:20:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -33,6 +33,7 @@ UPD:
 - 09:08:2026 - 19:13:01: crag_height honours ridge_amp_meters when set (absolute flank relief), falling back to the fractional form otherwise.
 - 09:08:2026 - 21:40:00: LANDSCAPE §2.8 banded contour massif: crag_height -> massif_height. Per-bearing profile exponent p>1 (concave, the anti-dome fix), per-bearing radial lobing, non-uniform contour bands with a per-bearing cliff/ramp riser class. Bearing fields sample a CIRCLE in the lattice (periodic by construction, no branch cut at +-pi). Benches keep the profile compressed to a per-bearing angle under MASSIF_BENCH_SLOPE_MAX rather than being flattened; risers are planar cliff faces whose width is solved from the drawn angle; bench width narrows with elevation. Measured seed 1: I1 15.0deg (need 12), I3 16.5% surface over 55deg (need 12), I4 fullest bin 24.2% (max 30), I5 100% of radials (need 70), I6 CV 0.518 (need 0.35).
 - 09:08:2026 - 23:55:00: §2.8 ANGULAR LOBES (I7/I8). ROOT CAUSE of the flat lobing found and it was a geometry error in my own helper: making a sampling circle's circumference span `lobes` cells forces radius = lobes*CELL/2pi, so at 3 aretes the circle is 61 m across INSIDE a 64 m cell — it fits in one cell, the noise reads as one smooth patch, and contour radius varied +-4% where the amplitude constants ask +-18-35%. A circle cannot be both small enough to carry few lobes and large enough to cross cells. Replaced by polygon_radius(): the cross-section is an irregular ROUNDED POLYGON via support function min_i d_i/cos(theta-alpha_i), whose boundary is FLAT FACETS meeting at corners — which is what an arete is — with re-entrant COULOIRS cut on the facet mid-bearings (a support function is convex-only, capped at n*tan(pi/n)/pi, and couloirs are exactly what convexity cannot express). Outline blends circle->polygon with elevation (§2.8.2 'eps increasing with elevation' = I8's rise clause), and couloirs FADE toward the summit because they are flank features that merge into the aretes — which also resolves the I7/I8 tug, since summit contours stay clean facets while flanks keep re-entrant perimeter. Periodic with no branch cut: theta enters only through cos(theta-alpha). Seed 1: I7 4 persistent aretes (need 3), I8 1.37/1.36/1.52 each >= 1.35 with rise 0.15. GROUND_MICRO_* implemented (previously unused constants) but SCOPED to the massif above the cliffline: applied globally it moved the shoreline and broke the §3.3 bed/mud cap (22.3 m vs 21.5 m), so the general 'земля слишком плоская' pass stays a separate job designed against hydrology/corridors/fords.
+- 09:08:2026 - 01:20:00: §2.8.4 SUMMIT TOR (I2): the top SUMMIT_TOR_HEIGHT is a stack of tilted, laterally offset slabs over a SUMMIT_TOR_RADIUS footprint. HEIGHT-FUNCTION work, not the cancelled placed-mesh class — §2.8.4's own scale table puts >=3 m features in the terrain SDF, and these slabs are metres thick. Slab count DERIVED from the ~3 m Nyquist floor expressed as VOXEL_SIZE rather than borrowed from the cancelled ROCK_STACK_* constants. The cone is capped at the tor's base ONLY inside the stack, so the peak stays at the ruled L0_RELIEF (measured exactly 115.0) instead of inflating to 116.1. Two bugs found by measuring: deriving the base from _MIN while drawing slab height from _MIN..MAX overshot the peak, and returning a flat platform outside the slabs built a MESA — cost 3.6 deg of summit slope, which is the shape I2 exists to reject. I2 now 52.9 deg surface / 32.5 deg footprint against a 40.1 floor.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -192,6 +193,14 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
     // that form the aretes, which is where a gully belongs. Re-entrant folds
     // add perimeter without adding area, so this is also what buys I8 real
     // margin rather than a squeak.
+    // Couloirs fade toward the summit (depth, not width). Measured alternative
+    // recorded because it is a real design choice and not an implementation
+    // detail: narrowing the couloir with height instead raises the LEVEL clause
+    // hard (1.36 -> 1.53, turning 1% of headroom into 13%) but collapses the
+    // RISE clause (0.14 -> 0.09), because a couloir that keeps its depth all
+    // the way up puts as much re-entrant perimeter on the high slices as the
+    // low ones. The two I8 clauses want opposite couloir treatments; this
+    // picks the one that serves the clause design ruled load-bearing.
     float notch = 0.0f;
     const float half_w = TAU / static_cast<float>(n) * 0.15f; // quarter of a facet's span
     for (int i = 0; i < n; ++i) {
@@ -265,6 +274,72 @@ float ground_micro(uint64_t seed, glm::vec2 world) {
     return amp * 0.5f * (a + b);
 }
 
+/// §2.8.4 THE SUMMIT TOR: the top SUMMIT_TOR_HEIGHT of the massif is a stack
+/// of tilted slabs over a SUMMIT_TOR_RADIUS footprint, not a terrain vertex.
+/// A granite tor is a real landform, it is literally «кубы на кубах», and it
+/// converts the one part of the mountain the eye always lands on from a
+/// rounded crown into a broken rock crest.
+///
+/// This is HEIGHT-FUNCTION work, not the cancelled placed-mesh class. §2.8.4's
+/// own scale table puts >= 8 m features in the terrain SDF for free and 3-8 m
+/// features there with ~1 m lip rounding accepted; only blocks under 3 m need
+/// placed meshes, because they cannot survive 1 m voxels at all. Slabs here
+/// are metres thick over a 5-10 m footprint, so they sit in the SDF band.
+///
+/// Slab count is DERIVED, not borrowed: the rock-stack constants belong to the
+/// cancelled asset class, so the count comes from the thinnest slab that can
+/// survive extraction (§2.8.4's ~3 m Nyquist floor, expressed as VOXEL_SIZE).
+float summit_tor_height(uint64_t seed) {
+    return static_cast<float>(config::SUMMIT_TOR_HEIGHT_MIN)
+         + noise::lattice_value(seed, STREAM_MASSIF_TOR, 0, 0)
+               * static_cast<float>(config::SUMMIT_TOR_HEIGHT_MAX
+                                    - config::SUMMIT_TOR_HEIGHT_MIN);
+}
+
+/// Returns -1e9 when the point lies outside every slab, so the caller can keep
+/// the cone there instead of flattening it.
+float summit_tor(uint64_t seed, const CragStamp& crag, glm::vec2 world, float tor_base) {
+    constexpr float TAU = 6.28318530717958647692f;
+    const float height = summit_tor_height(seed);
+    const float min_slab = 3.0f * static_cast<float>(config::VOXEL_SIZE);
+    const int slabs = std::clamp(static_cast<int>(height / min_slab), 2, 5);
+    const glm::vec2 rel = world - crag.center;
+
+    float top = -1e9f;
+    float z = tor_base;
+    for (int i = 0; i < slabs; ++i) {
+        // Each slab: its own radius, its own lateral offset, its own tilt.
+        // Radius shrinks upward so the stack reads as a stack rather than a
+        // cylinder, but the draw keeps it inside the ruled footprint.
+        const float shrink = 1.0f - 0.5f * static_cast<float>(i) / static_cast<float>(slabs);
+        const float r = (static_cast<float>(config::SUMMIT_TOR_RADIUS_MIN)
+                         + noise::lattice_value(seed, STREAM_MASSIF_TOR, i, 1)
+                               * static_cast<float>(config::SUMMIT_TOR_RADIUS_MAX
+                                                    - config::SUMMIT_TOR_RADIUS_MIN))
+                        * shrink;
+        // Lateral offset: a tor leans, and slabs sit off-axis. Bounded by the
+        // slab radius so the stack cannot walk off its own footprint.
+        const float off_a = noise::lattice_value(seed, STREAM_MASSIF_TOR, i, 2) * TAU;
+        const float off_d = noise::lattice_value(seed, STREAM_MASSIF_TOR, i, 3) * r * 0.35f;
+        const glm::vec2 centre{std::cos(off_a) * off_d, std::sin(off_a) * off_d};
+        const glm::vec2 local = rel - centre;
+        const float dist = glm::length(local);
+        if (dist > r) {
+            z += height / static_cast<float>(slabs);
+            continue;
+        }
+        // Tilt: the slab's top is a plane, not a dome. THIS is what makes the
+        // silhouette a broken crest instead of an arc.
+        const float tilt_a = noise::lattice_value(seed, STREAM_MASSIF_TOR, i, 4) * TAU;
+        const glm::vec2 tilt_dir{std::cos(tilt_a), std::sin(tilt_a)};
+        const float tilt = (noise::lattice_value(seed, STREAM_MASSIF_TOR, i, 5) - 0.5f) * 0.5f;
+        const float thickness = height / static_cast<float>(slabs);
+        top = std::max(top, z + thickness + glm::dot(local, tilt_dir) * tilt);
+        z += thickness;
+    }
+    return top;
+}
+
 /// Everything here is a pure function of position; nothing touches the voxel
 /// pipeline.
 float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
@@ -306,6 +381,19 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         // keep the re-entrant perimeter (I8 reads that). An angularly-constant
         // couloir also shrinks to ~1 m of arc at the summit radius, well under
         // the 15 m detection window, so up there it can only ever be noise.
+        // The blend is CURVED, not linear: k*k holds the foot rounder and
+        // drives the summit harder toward the polygon, which widens the gap
+        // between the low and high slices. That gap IS I8's rise clause, and
+        // design ruled that when a load-bearing clause sits at its bound the
+        // SHAPE PARAMETERS move rather than the threshold.
+        // The blend never reaches a CIRCLE. MASSIF_RADIAL_LOBE_AMP_MIN says the
+        // lobe amplitude ranges 0.18-0.35 and is never zero, so a blend running
+        // from 0 understates the foot and cost I8 its level clause (1.25 at the
+        // half-height slice). The floor is the ratio of the two amplitude
+        // constants -- derived, not chosen -- and the curve above it buys the
+        // rise clause.
+        const float floor_k = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN
+                                                 / config::MASSIF_RADIAL_LOBE_AMP_MAX);
         R_solved = (crag.radius + (r_poly - crag.radius) * k) * (1.0f - notch * (1.0f - k));
         const float t = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
         return H * std::pow(1.0f - t, p);
@@ -323,6 +411,25 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     if (h <= cliffline) {
         return h; // lower slopes stay smooth: the bands are a summit feature
     }
+    // THE SUMMIT TOR (§2.8.4). The cone is truncated at the tor's base and the
+    // slabs rise from there, so the tor REPLACES the top SUMMIT_TOR_HEIGHT
+    // rather than being piled on top of it -- the peak stays at the ruled
+    // L0_RELIEF and nothing downstream (R3, C1, the skyline budget) shifts.
+    const float tor_base = H - summit_tor_height(seed);
+    const float tor = summit_tor(seed, crag, world, tor_base);
+    if (tor > -1e8f) {
+        // Inside the stack: the cone is CAPPED at the tor's base and the slabs
+        // stand on it, so the tor replaces the top rather than piling onto it
+        // and the peak stays at the ruled L0_RELIEF.
+        return std::max(std::min(h, tor_base), tor);
+    }
+    // Outside every slab the cone is untouched. Returning a flat platform here
+    // instead cost 3.6 deg of summit slope -- a truncated cone is a MESA, and
+    // I2 exists to reject exactly that.
+    if (h > tor_base) {
+        return h;
+    }
+
     // §2.7 on the benches (design's ruling: a bench is GROUND, and "terrain
     // never flattens" is general, not a forest rule).
     //

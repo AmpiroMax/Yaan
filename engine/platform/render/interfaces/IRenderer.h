@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 20:01:56
+Last updated: 09:08:2026 - 21:01:17
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -53,6 +53,10 @@ UPD:
 - 09:08:2026 - 19:21:01: Deprecated single-point-light fields deleted now
                          that render's backend and tests use the array.
 - 09:08:2026 - 20:01:56: Wind (direction/strength/flutter) for foliage, grass
+- 09:08:2026 - 21:01:17: DrawParams — per-draw material parameters (fade,
+                         highlight, two reserved). Render's diff, lead-authored
+                         per Rule 26; the four-argument submit stays as a
+                         convenience so no existing call site changes.
                          and cloth — one wind for the world. Render's diff,
                          lead-authored per Rule 26.
 */
@@ -120,6 +124,22 @@ struct PointLight {
 
 inline constexpr uint32_t MAX_POINT_LIGHTS = 8;
 inline constexpr uint32_t MAX_SHADOW_POINT_LIGHTS = 2;
+
+// PER-DRAW material parameters. Deliberately one small struct rather than a
+// field per feature: the environment block is per FRAME, vertex alpha is
+// worldgen's sky visibility, and the transform's unused row is not a place to
+// smuggle a float through. At least three known consumers want exactly this —
+// the LOD cross-fade (both levels of the same ground on screen at once,
+// dithered against each other), the interaction highlight (HoverTarget already
+// names the hovered entity and render has no way to draw it differently from
+// its neighbours), and later damage flashes, magic glow and wetness. Inventing
+// a special case per feature is how this ends up as three incompatible hacks.
+struct DrawParams {
+    float fade = 1.0f;      // 1 = fully drawn; screen-door dither below that
+    float highlight = 0.0f; // 0 = none; interaction hover and similar
+    float aux0 = 0.0f;      // reserved, meaning is the program's
+    float aux1 = 0.0f;
+};
 
 // Per-frame environment + shared material parameters (atmosphere, splat
 // thresholds, water). Values come from engine/render (look-dev constants now,
@@ -230,8 +250,15 @@ public:
 
     // Submission ---------------------------------------------------------------
     // Queues one draw for the current frame. texture may be invalid (untextured).
+    // The five-argument form takes per-draw material parameters; the shorter one
+    // is a convenience that passes the defaults, so existing call sites are
+    // unchanged. Backends implement the virtual.
     virtual void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
-                        TextureHandle texture = {}) = 0;
+                        TextureHandle texture, const DrawParams& params) = 0;
+    void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
+                TextureHandle texture = {}) {
+        submit(mesh, program, transform, texture, DrawParams{});
+    }
 
     // Immediate debug line in world space, lives one frame. No-op in release builds.
     virtual void debug_line(const glm::vec3& from, const glm::vec3& to,

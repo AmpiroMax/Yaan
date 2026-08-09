@@ -35,6 +35,9 @@ float bayer2(vec2 p) // [[0,2],[3,1]] as arithmetic: 2x + 3y - 4xy
 
 void main()
 {
+    // LOD cross-fade: the outgoing level dissolves as the incoming one
+    // appears, both drawn, neither blended (dfn_env.sh).
+    dfn_screen_door(u_params.y, gl_FragCoord.xy);
     vec3 n = normalize(v_normal);
     vec2 tuv = v_texcoord0 * u_terrainTiles;
 

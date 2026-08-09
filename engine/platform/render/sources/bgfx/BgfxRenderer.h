@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 21:02:17
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -34,6 +34,8 @@ UPD:
   pass, palette post (Q9b), water transparency, point-sampled textures.
 - 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0, view layout
   renumbered.
+- 09:08:2026 - 21:02:17: DrawParams sync: submit takes per-draw params (fade
+  drives the screen-door dither, highlight reserved for sim's hover).
 */
 
 #pragma once
@@ -71,8 +73,12 @@ public:
     [[nodiscard]] ProgramHandle load_program(std::string_view name) override;
     void destroy_program(ProgramHandle program) override;
 
+    // The five-argument form is the contract's pure virtual since the
+    // DrawParams sync; the four-argument convenience overload lives in
+    // IRenderer and forwards here with defaults.
+    using IRenderer::submit;
     void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
-                TextureHandle texture = {}) override;
+                TextureHandle texture, const DrawParams& params) override;
     void debug_line(const glm::vec3& from, const glm::vec3& to,
                     uint32_t color_rgba) override;
 

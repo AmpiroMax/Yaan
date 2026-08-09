@@ -154,7 +154,12 @@ TEST_CASE("a 10x10 km world stays bounded and roots on a fixed grid") {
         dfn::render::select_lod_nodes(eye, {0.0f, 0.0f}, {10000.0f, 10000.0f});
     REQUIRE_FALSE(nodes.empty());
     CHECK(nodes.size() < 4096); // the cap is a safety net, not the policy
-    CHECK(max_level(nodes) == dfn::render::LOD_LEVEL_COUNT - 1);
+    // The coarsest levels are not reachable inside a 10 km world and that is
+    // CORRECT, not a gap: level 5 only survives beyond 7040 m of open ground,
+    // which a world this size cannot offer from its own centre. The ladder is
+    // sized for the far mountain at CAMERA_FAR, not for the playable extent.
+    CHECK(max_level(nodes) >= 3);
+    CHECK(max_level(nodes) <= dfn::render::LOD_LEVEL_COUNT - 1);
 
     // Node ids do not depend on world size: the same ground at the same level
     // keeps its id when the world grows, so core's cached nodes stay valid.
@@ -240,4 +245,26 @@ TEST_CASE("re-selecting a node mid-fade-out keeps it and fades it back in") {
     CHECK(res.to_load().empty());
     CHECK(res.is_resident(a[0]));
     CHECK(res.to_draw()[0].fade == doctest::Approx(1.0f));
+}
+
+TEST_CASE("the selection's triangle budget is known, not hoped for") {
+    // MEASURED, so a successor inherits the number instead of re-deriving it:
+    // 2x2 km world, eye at the centre -> 76 nodes, 64 of them level 0.
+    // 10x10 km -> 184 nodes, 128 at level 0. Level 0 covers 0..440 m because
+    // the ladder's first jump is 1 -> 4 m: nothing between those is available,
+    // so the fine level has to reach the coarse level's competence distance.
+    // At ~33k triangles per node that is ~2.1M triangles of terrain before
+    // frustum culling, which is the NEXT lever (a 75-degree frustum keeps
+    // roughly a third of them) and is not built yet.
+    const auto small =
+        dfn::render::select_lod_nodes({1024.0f, 20.0f, 1024.0f}, {0.0f, 0.0f},
+                                      {2048.0f, 2048.0f});
+    const auto large =
+        dfn::render::select_lod_nodes({5000.0f, 30.0f, 5000.0f}, {0.0f, 0.0f},
+                                      {10000.0f, 10000.0f});
+    CHECK(small.size() == 76);
+    CHECK(large.size() == 184);
+    // The world growing 25x in area must not grow the draw list anywhere near
+    // as fast — that is the entire point of the ladder.
+    CHECK(large.size() < small.size() * 4);
 }

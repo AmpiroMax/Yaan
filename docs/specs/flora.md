@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 09:08:2026 - 21:02:00
 -->
 <!--
 UPD:
@@ -126,6 +126,21 @@ UPD:
                          lead-granted Rule 25 exception while that zone was
                          unowned; recorded in each file's UPD, reviewed and
                          kept by the incoming render owner.
+- 09:08:2026 - 21:02:00: FRAME READ (Rule 27), and it splits. The oak/willow
+                         card canopy WORKS — 02_river_ford is dark trunks
+                         against a bright leafy mass with sky between the
+                         leaves and clear stem space beneath, which is the
+                         user's brief and the reference's value contrast at the
+                         same time. The BIRCH failed a fourth time and is
+                         STOPPED under Rule 28 (new §3.7 defect 6): measured
+                         foliage boxes give oak 1.65 and willow 1.51 tall-to-
+                         wide against birch 2.65, so the birch crown is a
+                         COLUMN by construction and the three previous fixes
+                         were all answers to "what goes in the box" when the
+                         box was wrong. Escalated to lead and design because
+                         both remedies move THEIR numbers. Added a general
+                         legibility floor (no card below a quarter of the crown
+                         radius) — a guard, not the cure.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1051,6 +1066,47 @@ and both would have surfaced as someone else's problem.
    element's SIZE or its POSITION, which one you sacrifice is a silhouette
    decision, not a geometry one. Preserving the declared radius mattered far
    less than preserving the arrangement, and the code preserved the wrong one.
+
+6. **The birch crown is a COLUMN, and the container was always the problem —
+   STOPPED under Rule 28, escalated, do not attempt a fourth fix.** Cards did
+   not cure it. In the first card frame
+   (`screenshots/flora_cards/05_forest_species.png`) the birch crowns read as
+   narrow vertical sausages of foliage on a pale pole, with one or two clusters
+   detached below the main mass.
+   **Measured, across all 12 variants, foliage bounding box only:**
+
+   | species | crown W | crown H | H/W | reads as |
+   |---|---|---|---|---|
+   | DaleOak | 13.6 m | 22.4 m | **1.65** | good — a mass |
+   | ValeWillow | 10.3 m | 15.5 m | **1.51** | good |
+   | RiverBirch | 4.9 m | 12.9 m | **2.65** | a column |
+   | HighlandPine | 5.5 m | 26.9 m | 4.88 | fine — a cone is MEANT to be narrow |
+
+   **The cause is arithmetic, not distribution.** Design's own numbers put the
+   birch crown at 5-7 m wide (§5.3) with the crown base at 35-45 % of a 16-22 m
+   height (`CROWN_BASE_FRACTION_MAX` = 0.45). Those two rules together define a
+   container roughly 5.7 m wide and 10.5 m tall, i.e. **1.8:1 before a single
+   cluster is placed**, and the generator's own fill pushes it to 2.65:1. No
+   arrangement of contents can make a 2.65:1 container read as a rounded mass —
+   the mass IS the container.
+   **This is why three previous fixes all failed.** Bug 4 changed the
+   distribution, bug 5 changed the shrink rule, and this stage changed the
+   medium from solid blobs to cards — three different answers to the question
+   "what goes in the box", when the box was wrong. That is a new entry in the
+   pattern below and the most expensive one: *when three fixes at one level all
+   fail, the defect is at the level above.*
+   **Not fixable inside this zone.** Both candidate remedies move numbers that
+   belong to design and the lead: raise the birch's crown base to ~0.58-0.62
+   (which breaks `CROWN_BASE_FRACTION_MAX` and needs a per-species exception,
+   and which incidentally gives MORE clear trunk — design's own stated goal —
+   and is what a real river birch looks like), or widen the crown past design's
+   5-7 m band. Escalated to the lead and design 09:08:2026; **flora changes
+   nothing here until they rule.**
+   One thing that WAS in this zone and was fixed: a legibility floor, so a card
+   shrunk by envelope containment below a quarter of the crown radius is not
+   emitted at all rather than rendered as a detached scrap. It is a general
+   rule with a test; it did **not** change this frame, and it is recorded as a
+   guard, not as a cure.
 
 **THE PATTERN — read this before changing the envelope or the floors.** All
 three bugs are the same failure: **a rule stated in full in this spec, and

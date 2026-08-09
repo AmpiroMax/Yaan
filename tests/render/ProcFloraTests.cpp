@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 09:08:2026 - 21:02:02
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -35,6 +35,8 @@ UPD:
   (FloraMesh.wood / .cards), plus new cases for the mask's measured porosity
   profile, the season value-order rule, the foliage channel map and the
   per-card constancy of the value jitter.
+- 09:08:2026 - 21:02:02: Card legibility floor case (no detached scraps),
+  added after reading the first card frame.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -453,6 +455,34 @@ TEST_CASE("cards: the foliage vertex channel map is honoured") {
     CHECK(gradient_cards * 4 >= static_cast<int>(m.cards.vertices.size() / 2));
     CHECK(sway_max >= 240u); // the outer crown reaches the full sway
     CHECK(sway_min <= 200u); // and the inner crown does not
+}
+
+TEST_CASE("cards: no card is too small to read (no detached scraps)") {
+    // Envelope containment shrinks a card to fit. Where the envelope is narrow
+    // — the bottom of a birch's vase, the tip of a cone — that shrinking runs
+    // past the point where a card can join the crown mass, and the result
+    // renders as a detached scrap hanging under the crown. Measured in the
+    // first card frame; the floor is a FRACTION of the crown radius so it
+    // scales with maturity.
+    FloraShape sapling;
+    sapling.maturity = 0.4f;
+    const FloraShape shapes[] = {FloraShape{}, sapling};
+    for (const FloraSpecies s : ALL) {
+        if (!has_leaf_cards(s)) continue;
+        const float crown_r = species_crown_radius(s);
+        for (const FloraShape& sh : shapes) {
+            for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+                const FloraMesh m = build_flora_mesh(s, v, sh, FloraLod::Full);
+                for (size_t i = 0; i < m.cards.vertices.size(); i += 4) {
+                    const glm::vec3 a = m.cards.vertices[i].position;
+                    const glm::vec3 c = m.cards.vertices[i + 2].position;
+                    // Diagonal of the quad -> half-width, via the card aspect.
+                    const float half_diag = glm::length(c - a) * 0.5f;
+                    CHECK(half_diag >= 0.2f * crown_r * sh.maturity);
+                }
+            }
+        }
+    }
 }
 
 TEST_CASE("cards: only the intended species carry them") {
