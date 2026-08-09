@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 00:35:07
+Last updated: 10:08:2026 - 01:45:06
 -->
 <!--
 UPD:
@@ -16,6 +16,7 @@ UPD:
 - 10:08:2026 - 00:18:40: Rule 29 — до включения веток каждый коммит перечисляет файлы явно; общий индекс делает голый git commit ловушкой.
 - 10:08:2026 - 00:31:03: Rule 27 — точка съёмки, неспособная провалиться, не является доказательством.
 - 10:08:2026 - 00:35:07: Rule 30 — на какой ВЕЛИЧИНЕ стоит порог, тоже является измерением; и вилка — это два утверждения.
+- 10:08:2026 - 01:45:06: Rule 25 — new character zone (engine/anim + platform/anim, carved from sim): user approved the character agent twice (v51, v16).
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -314,6 +315,7 @@ clone must configure and build with one documented command.
 | `render` | `engine/platform/{window,input,render}`, `engine/render` |
 | `sim`    | `engine/platform/{physics,anim,audio,llm}`, `engine/physics`, `engine/anim`, `engine/gameplay` |
 | `design` | `docs/design` (landscape/world design bible, asset briefs, placement rules) |
+| `character` | `engine/anim`, `engine/platform/anim` (rig, animations, first-person body; carved from sim) |
 | lead     | `engine/app`, `engine/editor`, `engine/core/components`, root CMake, `docs/`, `rules/`, `tools/` |
 
 An agent never edits a foreign zone. Needing a change there → message the owner.
