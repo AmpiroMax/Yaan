@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 15:08:24
 Module: tests
 File: tests/sim/NullBackendTests.cpp
 
@@ -13,7 +13,8 @@ Key items:
 - Doctest cases per backend, driven only through the public interfaces.
 
 Dependencies:
-- Uses: doctest, dfn_platform_{physics,anim,audio,llm}.
+- Uses: doctest, dfn_platform_{physics,anim,audio,llm}, engine/physics
+  CollisionLayers.h (header-only layer constants).
 - Used by: ctest (sim_null_backends).
 
 AI Agents Notice (must follow):
@@ -23,6 +24,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial null backend contract suite.
+- 09:08:2026 - 15:08:24: Added the zero-mask rejection case; existing physics
+                         cases now set explicit layers (the default-layer
+                         mistake is now rejected by contract).
 */
 
 #include <doctest/doctest.h>
@@ -30,6 +34,7 @@ UPD:
 #include <array>
 #include <vector>
 
+#include "engine/physics/sources/CollisionLayers.h"
 #include "engine/platform/anim/sources/null/CreateNullAnim.h"
 #include "engine/platform/audio/sources/null/CreateNullAudio.h"
 #include "engine/platform/llm/sources/null/CreateNullLlm.h"
@@ -38,6 +43,29 @@ UPD:
 namespace {
 
 namespace platform = dfn::platform;
+// Aliased: the test cases keep a local `physics` unique_ptr, which would
+// otherwise shadow the dfn::physics namespace.
+namespace physics_layer = dfn::physics;
+
+TEST_CASE("null physics: zero-mask bodies are rejected, matching Jolt") {
+    // The null backend is a runnable mode, so it must catch the same authoring
+    // mistake the real backend does (IPhysics.h zero-mask rejection).
+    auto physics = platform::create_null_physics();
+    REQUIRE(physics->init());
+
+    platform::TerrainDesc terrain; // layer defaults to 0
+    CHECK_FALSE(physics->create_terrain(terrain).valid());
+    CHECK_FALSE(physics->create_static_box(platform::StaticBoxDesc{}).valid());
+
+    platform::CharacterDesc character; // layer 0
+    character.collides_with = physics_layer::LAYER_STATIC;
+    CHECK_FALSE(physics->create_character(character).valid());
+
+    character.layer = physics_layer::LAYER_CHARACTER; // collides with nothing
+    character.collides_with = 0;
+    CHECK_FALSE(physics->create_character(character).valid());
+    physics->shutdown();
+}
 
 TEST_CASE("null llm: instant scripted fallback (Q62/Q67)") {
     auto llm = platform::create_null_llm();
@@ -126,13 +154,19 @@ TEST_CASE("null physics: horizontal glide, always grounded, rays miss") {
     auto physics = platform::create_null_physics();
     REQUIRE(physics->init());
 
-    // Bodies are valid-but-inert.
+    // Bodies are valid-but-inert. A non-zero layer is mandatory (zero-mask
+    // rejection is contract for every backend, IPhysics.h).
     platform::TerrainDesc terrain;
+    terrain.layer = physics_layer::LAYER_STATIC;
     CHECK(physics->create_terrain(terrain).valid());
-    CHECK(physics->create_static_box(platform::StaticBoxDesc{}).valid());
+    platform::StaticBoxDesc box;
+    box.layer = physics_layer::LAYER_STATIC;
+    CHECK(physics->create_static_box(box).valid());
 
     platform::CharacterDesc desc;
     desc.position = {1.0f, 2.0f, 3.0f};
+    desc.layer = physics_layer::LAYER_CHARACTER;
+    desc.collides_with = physics_layer::LAYER_STATIC;
     const auto character = physics->create_character(desc);
     REQUIRE(character.valid());
 

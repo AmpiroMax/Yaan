@@ -26,6 +26,7 @@ add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
     sources/Worldgen.cpp
+    sources/WorldgenCastle.cpp
     sources/WorldgenHydrology.cpp
     sources/WorldgenMacro.cpp
     sources/WorldgenScatter.cpp

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 15:08:24
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -24,6 +24,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial movement test suite.
+- 09:08:2026 - 15:08:24: Rig sets explicit collision layers (zero masks are
+                         now rejected by the IPhysics contract).
 */
 
 #include <doctest/doctest.h>
@@ -34,6 +36,7 @@ UPD:
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
+#include "engine/physics/sources/CollisionLayers.h"
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
 
 namespace {
@@ -41,6 +44,9 @@ namespace {
 namespace config = dfn::config;
 namespace gameplay = dfn::gameplay;
 namespace platform = dfn::platform;
+// Aliased: Rig holds a member named `physics`, which would otherwise shadow
+// the dfn::physics namespace inside its methods.
+namespace physics_layer = dfn::physics;
 using dfn::components::CameraPose;
 using dfn::components::PreviousCameraPose;
 using dfn::components::PreviousTransform;
@@ -93,6 +99,9 @@ struct Rig {
         desc.position = spawn;
         desc.radius = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
         desc.height = static_cast<float>(config::PLAYER_CAPSULE_HEIGHT);
+        // Explicit layers: zero masks are rejected by contract (IPhysics.h).
+        desc.layer = physics_layer::LAYER_CHARACTER;
+        desc.collides_with = physics_layer::LAYER_STATIC;
         state.character = physics->create_character(desc);
         REQUIRE(state.character.valid());
         transform.position = spawn;

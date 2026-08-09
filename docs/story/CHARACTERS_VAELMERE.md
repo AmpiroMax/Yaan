@@ -1,10 +1,17 @@
 <!--
 Created: 09:08:2026 - 14:59:25
-Last updated: 09:08:2026 - 14:59:25
+Last updated: 09:08:2026 - 15:11:10
 -->
 <!--
 UPD:
 - 09:08:2026 - 14:59:25: Created the Vaelmere cast for main-arc Pitch A: named residents, LLM character cards per QUEST_FORMAT §6, implied world flags, tone notes.
+- 09:08:2026 - 15:11:10: Reconciled against BIBLE.md/ACT1_VALLEY.md: flag
+  namespace collisions fixed (barrow_opened and tower_archive_found moved to
+  flag.act1.*), the shrine keeper's edge-triggered `entered_location` mood
+  replaced with a level flag `flag.vaelmere.cave_visited` (sim pinned
+  entered_location true only on the tick it fires — it cannot drive a
+  persistent mood), namespace-ownership rule and related-but-distinct flag
+  notes added, canon pointer updated to the bible.
 -->
 
 # CHARACTERS_VAELMERE.md — The Named Cast of Vaelmere
@@ -14,8 +21,11 @@ craft, side of the feud, want, fear, one lie, and function for the player.
 Settlement templates fill their slots from this register (N44: never a global
 pool); dialogue graphs bind speakers to it; the cards of §2 are caged by it.
 
-Canon depended on: main arc **Pitch A — The Debt of Harrowmere**
-(`docs/story/PITCHES.md`); the card schema and closed condition vocabulary of
+Canon depended on: main arc **Pitch A — The Debt of Harrowmere** — canon now
+lives in `docs/story/BIBLE.md` (this file was drafted against `PITCHES.md`
+and reconciled against the bible on 09:08:2026; the bible wins any conflict),
+with act-1 structure in `docs/story/ACT1_VALLEY.md`; the card schema and
+closed condition vocabulary of
 `docs/story/QUEST_FORMAT.md` §2.1/§6; the landmarks of `docs/design/LANDSCAPE.md`
 §7; `docs/story/RESEARCH.md` (N13, N19, N52–N58 especially). Vaelmere's craft is
 **fishing + smallholding farming**: nets, catch, ferry, flooded strips,
@@ -222,7 +232,7 @@ be improvised.
   "mood_flags": [
     { "if": [ { "flag": "flag.vaelmere.cass_missing", "op": "==", "value": true } ],
       "then": "evasive about the north crossing; changes the subject to the water level" },
-    { "if": [ { "flag": "flag.vaelmere.barrow_opened", "op": "==", "value": true } ],
+    { "if": [ { "flag": "flag.act1.barrow_opened", "op": "==", "value": true } ],
       "then": "refuses night crossings; says the lake sits heavier after dark" }
   ],
   "fallback_lines": [ "dlg.incidental.ferryman.f1", "dlg.incidental.ferryman.f2" ]
@@ -328,9 +338,9 @@ be improvised.
       "never speaks for named quest NPCs", "never jokes at the shrine" ]
   },
   "mood_flags": [
-    { "if": [ { "flag": "flag.vaelmere.barrow_opened", "op": "==", "value": true } ],
+    { "if": [ { "flag": "flag.act1.barrow_opened", "op": "==", "value": true } ],
       "then": "urgent; wants the unnamed dead named before anything else is attempted" },
-    { "if": [ { "entered_location": "poi.lakeshore_cave" } ],
+    { "if": [ { "flag": "flag.vaelmere.cave_visited", "op": "==", "value": true } ],
       "then": "asks the player plainly what was found under the bluff" }
   ],
   "fallback_lines": [ "dlg.incidental.shrine_keeper.f1", "dlg.incidental.shrine_keeper.f2" ]
@@ -348,7 +358,8 @@ state — cards only read it.
 |---|---|---|
 | `flag.vaelmere.rust_seen` | bool | Player has examined the rust on a marked household; opens rust talk hamlet-wide. |
 | `flag.vaelmere.nets_rusted` | bool | The hamlet's gear is visibly blighted; tints netwright, tavern keeper, elder. |
-| `flag.vaelmere.barrow_opened` | bool | The seal in the crag's south face has broken; act-1 escalation gate (N3). |
+| `flag.act1.barrow_opened` | bool | The seal in the crag's south face has broken; act-1 escalation gate (N3). Owned by `ACT1_VALLEY.md` (MQ1.20) — cards read it only. |
+| `flag.vaelmere.cave_visited` | bool | Player has been inside the Hiding (NW lakeshore cave). Level state, set on first entry by MQ2 — cards must read THIS, never the edge-triggered `entered_location` atom. |
 | `flag.vaelmere.beacon_seen` | bool | Player has seen the cold light in the ward-tower; opens the ferryman's tower talk. |
 | `flag.vaelmere.corpse_walked` | bool | A walking dead man was seen inside the hamlet; hard tone shift for every card. |
 | `flag.vaelmere.cass_missing` | bool | Default true at world start; the Maddren boy is unaccounted for. |
@@ -361,11 +372,27 @@ state — cards only read it.
 | `flag.vaelmere.feud_killing` | int | Revenge killings done in the valley; every increment is a payment into the debt. |
 | `flag.vaelmere.elder_kin_known` | bool | Player knows the elder's Maddren descent and her erasure. |
 | `flag.vaelmere.fen_token_shown` | bool | The Fen grandmother has produced the hearthstone oath-token. |
-| `flag.vaelmere.tower_archive_found` | bool | The Corvane archive in the ward-tower has been reached (act-1 climax, N11). |
+| `flag.act1.tower_archive_found` | bool | The Corvane archive in the ward-tower has been reached (act-1 climax, N11). Act-scoped, not hamlet-local. |
 
 Quests the cards already reference and that need authoring next:
 `quest.vaelmere.mended_boat` (the hope spot), the shrine keeper's cave-children
 thread, and the fishing/farming templates hung off the netwright and the elder.
+
+**Namespace rule (canon, set at reconciliation):** `flag.act1.*` for
+act/main-arc progress owned by `ACT1_VALLEY.md`; `flag.vaelmere.*` for
+hamlet-local state owned by this file; `flag.hero.*`, `flag.maddren.*`,
+`flag.corvane.*`, `flag.quiethand.*`, `flag.ward.*` per `ACT1_VALLEY.md` §6.
+A flag appears in exactly one owning table; other docs read it. When
+`world_flags.json` is authored, the two tables merge with no duplicates —
+`flag.act1.barrow_opened` and `flag.act1.tower_archive_found` were renamed
+here for exactly that reason.
+
+**Related-but-distinct flags** (deliberately not merged):
+`flag.vaelmere.first_death` (MQ1: the neighbor killed in the barrow) vs
+`flag.vaelmere.corpse_walked` (a walking dead man seen inside the hamlet);
+`flag.act1.first_naming_done` (the rite has been performed once — a gate) vs
+`flag.vaelmere.names_laid` (int counter of names restored — the arc's
+progress measure, read by act 3).
 
 ## 4. Tone assignment (N52 / N53)
 

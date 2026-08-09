@@ -29,11 +29,13 @@ UPD:
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/world/sources/WorldgenCastle.h"
 #include "engine/world/sources/WorldgenScatter.h"
 
 #include <algorithm>
 #include <cmath>
 #include <glm/geometric.hpp>
+#include <vector>
 
 namespace dfn::world {
 
@@ -148,6 +150,123 @@ float max_corridor_water_depth(const WorldGenContext& ctx) {
         }
     }
     return worst;
+}
+
+CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
+    CastleHierarchy out;
+    const TestbedLayout& layout = ctx.params.layout;
+    const CastleBuild& castle = ctx.sites.castle;
+    const glm::vec2 peak_xz = layout.crag.center;
+    const float peak_y = terrain_height(ctx, peak_xz);
+    const float crown_base = peak_y - (peak_y - castle.pad_height) / 3.0f; // top third
+    out.skyline_ceiling = peak_y - static_cast<float>(config::CASTLE_SKYLINE_MARGIN);
+    if (!castle.valid) {
+        return out;
+    }
+    out.top_elevation = castle.top_elevation();
+
+    // Attractors: the L0 plus every L1. Castle + barrow are ONE composite POI
+    // ("the seat", §6.1.2), so the castle is credited only when the barrow is
+    // not already counted for that standpoint.
+    struct Attractor {
+        glm::vec2 pos;
+        float top;
+        bool is_seat;
+    };
+    std::vector<Attractor> attractors;
+    attractors.push_back({peak_xz, peak_y + L0_AIM_ABOVE_PEAK, false});
+    for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
+        const SiteType type = ctx.sites.types[i];
+        const glm::vec2 pos = ctx.sites.entities[i].position_xz;
+        const bool seat = type == SiteType::CastleKeep
+                       || (type == SiteType::DungeonEntrance
+                           && glm::length(pos - castle.center)
+                                  <= static_cast<float>(config::CASTLE_BARROW_DIST_MAX));
+        switch (type) {
+        case SiteType::Tavern: // the hamlet counts once, via its anchor
+        case SiteType::Shrine:
+        case SiteType::DungeonEntrance:
+        case SiteType::CastleKeep:
+            attractors.push_back(
+                {pos, terrain_height(ctx, pos) + site_archetype(type).bounds_max.y, seat});
+            break;
+        default:
+            break;
+        }
+    }
+
+    const glm::vec2 lo{static_cast<float>(ctx.params.min_chunk.x) * CHUNK_SIZE_M,
+                       static_cast<float>(ctx.params.min_chunk.z) * CHUNK_SIZE_M};
+    const glm::vec2 hi{static_cast<float>(ctx.params.max_chunk.x + 1) * CHUNK_SIZE_M,
+                       static_cast<float>(ctx.params.max_chunk.z + 1) * CHUNK_SIZE_M};
+
+    // Line-of-sight over the same occlusion heightfield C1 uses.
+    const auto visible = [&](glm::vec2 from, float eye_y, glm::vec2 to, float top_y) {
+        const glm::vec2 delta = to - from;
+        const float dist = glm::length(delta);
+        if (dist < 1.0f) return true;
+        const glm::vec2 dir = delta / dist;
+        const float t_target = (top_y - eye_y) / dist;
+        for (float t = RAY_STEP_M; t < dist - RAY_STEP_M; t += RAY_STEP_M) {
+            const glm::vec2 q = from + dir * t;
+            const float terrain = terrain_height(ctx, q);
+            const float occ = terrain
+                            + std::max(canopy_height_at(ctx.params.seed, layout, q, terrain),
+                                       castle_occluder_height(castle, q));
+            if ((occ - eye_y) / t > t_target) return false;
+        }
+        return true;
+    };
+
+    for (float z = lo.y + STANDPOINT_GRID_M * 0.5f; z < hi.y; z += STANDPOINT_GRID_M) {
+        for (float x = lo.x + STANDPOINT_GRID_M * 0.5f; x < hi.x; x += STANDPOINT_GRID_M) {
+            const glm::vec2 p{x, z};
+            const SurfacePoint sp = surface_point(ctx, p);
+            if (sp.water_surface != math::NO_WATER) continue;
+            if (in_forest_mass(layout, p)) continue;
+            if (crag_distance(layout, p) < layout.crag.radius) continue;
+            if (castle_occluder_height(castle, p) > 0.0f) continue;
+            const float eye_y = sp.height + EYE_M;
+
+            uint32_t count = 0;
+            bool seat_counted = false;
+            for (const Attractor& a : attractors) {
+                if (!visible(p, eye_y, a.pos, a.top)) continue;
+                if (a.is_seat) {
+                    if (seat_counted) continue; // composite POI counts once
+                    seat_counted = true;
+                }
+                ++count;
+            }
+            out.max_attractors = std::max(out.max_attractors, count);
+
+            // R4 dominance + R2 crown, only where both are visible at range.
+            const float d_castle = glm::length(p - castle.center);
+            const float d_peak = glm::length(p - peak_xz);
+            if (d_castle < 300.0f || d_peak < 1.0f) continue;
+            if (!visible(p, eye_y, castle.center, castle.top_elevation())) continue;
+            if (!visible(p, eye_y, peak_xz, peak_y + L0_AIM_ABOVE_PEAK)) continue;
+            const float castle_sub = (castle.top_elevation() - eye_y) / d_castle;
+            const float crag_sub = (peak_y + L0_AIM_ABOVE_PEAK - eye_y) / d_peak;
+            if (crag_sub > 0.0f) {
+                out.max_ratio = std::max(out.max_ratio, castle_sub / crag_sub);
+            }
+            // R2: does the castle mass rise into the L0's crown along this ray?
+            const glm::vec2 dir = glm::normalize(peak_xz - p);
+            for (float t = RAY_STEP_M; t < d_peak; t += RAY_STEP_M) {
+                const glm::vec2 q = p + dir * t;
+                const float mass = castle_occluder_height(castle, q);
+                if (mass <= 0.0f) continue;
+                const float mass_top = terrain_height(ctx, q) + mass;
+                // Elevation the ray to the crown base has at this distance.
+                const float crown_ray = eye_y + (crown_base - eye_y) * (t / d_peak);
+                if (mass_top > crown_ray) {
+                    out.crown_occluded = true;
+                }
+            }
+        }
+    }
+    return out;
 }
 
 float max_corridor_avg_slope(const WorldGenContext& ctx) {

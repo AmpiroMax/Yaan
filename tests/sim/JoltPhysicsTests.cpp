@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 01:02:15
+Last updated: 09:08:2026 - 15:08:24
 Module: tests
 File: tests/sim/JoltPhysicsTests.cpp
 
@@ -26,6 +26,8 @@ UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial Jolt backend suite.
 - 09:08:2026 - 01:02:15: Added the real-ChunkManager heightfield smoke test
   (core's suggestion: catches decode/contract drift between zones early).
+- 09:08:2026 - 15:08:24: Added the zero-mask rejection case per body kind
+  (regression guard for the fall-through-the-world bug, app fix 37f1e1c).
 */
 
 #include <doctest/doctest.h>
@@ -231,6 +233,44 @@ TEST_CASE("real generated heightfield: terrain body + raycast agree with the vie
     REQUIRE(hit.hit);
     CHECK(hit.position.y == doctest::Approx(expected).epsilon(0.01));
     CHECK(hit.user_data == 0xC1A55ull);
+    physics->shutdown();
+}
+
+TEST_CASE("zero-mask bodies are rejected per body kind") {
+    // Regression guard: a hand-filled TerrainDesc left `layer` at 0, the body
+    // collided with nothing, and the player fell through the world. A collider
+    // no mask can select is never intentional (IPhysics.h contract).
+    auto physics = platform::create_jolt_physics();
+    REQUIRE(physics->init());
+
+    FlatChunk chunk;
+    std::vector<float> heights(chunk.raw.size(), GROUND_Y);
+    platform::TerrainDesc terrain;
+    terrain.sample_count_x = chunk.view.resolution;
+    terrain.sample_count_z = chunk.view.resolution;
+    terrain.sample_spacing = chunk.view.step;
+    terrain.heights = heights;
+    terrain.user_data = 1; // layer left at 0 — the exact bug
+    CHECK_FALSE(physics->create_terrain(terrain).valid());
+    terrain.layer = physics_layer::LAYER_STATIC; // same desc, now well-formed
+    CHECK(physics->create_terrain(terrain).valid());
+
+    platform::StaticBoxDesc box;
+    box.half_extents = {1.0f, 1.0f, 1.0f};
+    CHECK_FALSE(physics->create_static_box(box).valid()); // layer 0
+    box.layer = physics_layer::LAYER_STATIC;
+    CHECK(physics->create_static_box(box).valid());
+
+    platform::CharacterDesc character;
+    character.radius = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
+    character.height = static_cast<float>(config::PLAYER_CAPSULE_HEIGHT);
+    character.collides_with = physics_layer::LAYER_STATIC;
+    CHECK_FALSE(physics->create_character(character).valid()); // layer 0
+    character.layer = physics_layer::LAYER_CHARACTER;
+    character.collides_with = 0; // would walk through the world
+    CHECK_FALSE(physics->create_character(character).valid());
+    character.collides_with = physics_layer::LAYER_STATIC;
+    CHECK(physics->create_character(character).valid());
     physics->shutdown();
 }
 

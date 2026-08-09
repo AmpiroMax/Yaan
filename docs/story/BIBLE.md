@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 15:05:56
+Last updated: 09:08:2026 - 15:09:18
 -->
 <!--
 UPD:
@@ -23,6 +23,11 @@ UPD:
   sightline a checkable rule (~55 m apart, one frame). Story answered
   design's open question: keep the gate VALLEY-facing — the house watches
   the crossing it owns and turns its back on the grave it profits from.
+- 09:08:2026 - 15:09:18: Gate facing recorded as SETTLED/do-not-re-litigate
+  (design adopted story's rationale into LANDSCAPE §6.1); ramp and
+  yard→barrow sightline are now build-enforced members of the C1-guarded
+  validation set, so the ~55 m composition survives retunes, with a
+  ping-story-first rule if the castle must ever move.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -286,13 +291,23 @@ from act 1 and reached later, never built now.
   terrace's own cut and fill. Sited ~55 m apart — castle and grave sit in one
   frame from the approach. *The beneficiary lives within sight of the
   evidence* is now terrain truth, not a mood note.
-- **The gate faces the valley and the ford** (story's answer to design's
-  one question — keep it): the house watches the crossing it owns and turns
-  its **back** on the grave it profits from, while the grave stays visible
-  from its own yard. Grave-facing would have made the Corvanes penitent
-  wardens; valley-facing makes them landlords with a corpse behind the
-  house — which is the truth of them, and the exact self-deception the rust
-  reads. It also serves the access invariant.
+- **The gate faces the valley and the ford — SETTLED, do not re-litigate**
+  (story's answer to design's one question; recorded in LANDSCAPE §6.1 with
+  this rationale): the house watches the crossing it owns and turns its
+  **back** on the grave it profits from, while the grave stays visible from
+  its own yard. *They have not hidden it; they have declined to face it.*
+  Grave-facing would have made the Corvanes penitent wardens; valley-facing
+  makes them landlords with a corpse behind the house — which is the truth
+  of them, and the exact self-deception the rust reads. It also serves the
+  access invariant.
+- **Both terrain guarantees are build-enforced, not remembered:** the graded
+  approach ramp and the yard/gate → Backbarrow sightline joined the
+  C1-guarded set (design, 09:08:2026) — the canopy-aware raycast validation
+  re-checks them on every worldgen run, and a seed that terraces away the
+  ramp or grows a forest strip across the sightline fails like any other C1
+  failure. The ~55 m castle/grave composition therefore survives retunes. If
+  a later retune ever forces the castle to move, design pings story first,
+  because that proximity is load-bearing for act 1 (`ACT1_VALLEY.md` §4).
 - Act-3 muster works geometrically: the yard is the only enclosed open ground
   up-valley, and the corridor from the watchpoint ford is the natural line
   for people walking up from Vaelmere.

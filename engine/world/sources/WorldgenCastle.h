@@ -5,34 +5,43 @@ Module: engine/world
 File: engine/world/sources/WorldgenCastle.h
 
 Responsibility:
-- The castle pass (LANDSCAPE.md §6.1 ruling): House Corvane's seat on the
-  crag's SW foot — terraced spur pad (a documented BUILDING_PAD_SLOPE_MAX
-  exception for the CUT, not for the pad surface), the minimal mass (keep +
-  curtain wall + gatehouse + 2 corner towers), and the castle's contribution
-  to the C1 occlusion heightfield.
+- The castle pass (LANDSCAPE.md §6.1 ruling, hall-castle revision):
+  "Harrowward", House Corvane's gentry hall on the crag's SW foot — terraced
+  spur pad with a graded approach RAMP (the access invariant), the minimal
+  mass (curtain wall + gatehouse + hall + solar around an open yard), and the
+  castle's contribution to the C1 occlusion heightfield.
 
 Key items:
-- CastleBuild: solved pad + element heights + placed records.
-- solve_castle(): sites the pad and heights against R3 (skyline margin).
-- castle_pad_height(): the terrace stamp applied inside the height pipeline.
+- CastleBuild: solved pad, ramp, element heights and placed records.
+- solve_castle(): sites the pad/ramp and solves heights against R3.
+- castle_pad_height(): terrace + ramp stamp, applied in the height pipeline.
 - castle_occluder_height(): castle mass for the canopy-style C1 raycast.
+- castle_yard_point() / castle_gate_point(): the two standpoints the
+  yard->Backbarrow sightline invariant is measured from.
 
 Dependencies:
-- Uses: TestbedLayout.h, SiteComponents.h, Chunk.h, config.
-- Used by: WorldgenSites (P4), WorldgenValidation (C1/R2/R3/R4), tests.
+- Uses: TestbedLayout.h, SiteComponents.h, Chunk.h, WorldgenHydrology.h, config.
+- Used by: WorldgenSites (P4), WorldgenValidation (C1/R2/R3/R4, ramp,
+  sightline), tests.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - R3 IS BINDING AND OUTRANKS THE HEIGHT TABLE (§6.1.1): pad elevation plus the
-  tallest element must stay CASTLE_SKYLINE_MARGIN below the L0 peak. Heights
-  are reduced to fit; the crag is NEVER raised and a C1 drop is never accepted
-  (fix order: lower pad -> shift pad south -> cut tower height LAST).
-- The castle never creates or moves a ford (fords stay derived, §7.1a); it
-  only commands the nearest existing one.
+  tallest element (the solar) must stay CASTLE_SKYLINE_MARGIN below the L0
+  peak. Heights shrink to fit; the crag is NEVER raised and a C1 drop is never
+  accepted (fix order: lower pad -> shift pad south -> cut height LAST).
+- Horizontal-dominant mass (§6.1.3): a long hall with ONE modest vertical. Do
+  not reintroduce a keep or corner towers — that ruling is settled.
+- The ACCESS INVARIANT is terrain, not decoration: the ramp is cut by the same
+  stamp as the terrace, and a pad reachable only by a scarp is a FAILED
+  placement. The gate faces the valley/ford and the pad is never rotated
+  (settled, do not re-litigate).
+- The castle never creates or moves a ford (fords stay derived, §7.1a).
 */
 /*
 UPD:
-- 09:08:2026 - 15:20:00: Created — castle pass per design's §6.1 ruling.
+- 09:08:2026 - 15:20:00: Created — castle pass per design's §6.1 ruling
+  (hall-castle revision: hall/solar mass, access ramp, barrow sightline).
 */
 
 #pragma once
@@ -46,8 +55,8 @@ UPD:
 
 namespace dfn::world {
 
-/// The solved castle: pad geometry, the heights actually built (post-R3), and
-/// the placed element records. `valid` is false when no castle is configured.
+/// The solved castle: pad + ramp geometry, the heights actually built (post
+/// R3), and the placed element records. `valid` is false when none is built.
 struct CastleBuild {
     bool valid = false;
     glm::vec2 center{0.0f};
@@ -56,32 +65,50 @@ struct CastleBuild {
     float pad_height = 0.0f; ///< terrace surface elevation, meters
     float cut = 0.0f;        ///< max material removed above the pad (<= CASTLE_PAD_CUT_MAX)
     float fill = 0.0f;       ///< max material added below the pad
-    float gate_yaw = 0.0f;   ///< radians; gate faces the approach corridor
+    float gate_yaw = 0.0f;   ///< radians; gate faces the valley/ford approach
 
-    float keep_height = 0.0f;
+    /// Approach ramp (access invariant): a graded band on the gate side,
+    /// running from the pad edge out to `ramp_length`, half as wide as
+    /// CORRIDOR_WIDTH. Its surface interpolates linearly from the pad to
+    /// natural grade, so it carries no step and a constant, gentle slope.
+    glm::vec2 gate_dir{0.0f, 1.0f}; ///< unit, pad center -> gate -> approach
+    float ramp_length = 0.0f;
+    float ramp_half_width = 0.0f;
+
+    float hall_height = 0.0f;
+    float solar_height = 0.0f;
     float wall_height = 0.0f;
-    float tower_height = 0.0f;
     float gate_height = 0.0f;
 
-    /// Highest point of the built mass, absolute meters (pad + tallest).
-    [[nodiscard]] float top_elevation() const { return pad_height + keep_height; }
+    /// Highest point of the built mass, absolute meters (pad + the solar).
+    [[nodiscard]] float top_elevation() const { return pad_height + solar_height; }
 
     std::vector<GeneratedEntityRecord> entities; ///< world_ids assigned by P4
     std::vector<SiteType> types;                 ///< parallel to entities
 };
 
-/// Sites the castle and solves its heights against R3. Terrain is sampled
-/// WITHOUT pads (macro + hydrology carve), so this runs before P4's pad
-/// stamps exist. Deterministic and side-effect free.
+/// Sites the castle, cuts its ramp and solves its heights against R3. Terrain
+/// is sampled WITHOUT pads (macro + hydrology carve), so this runs before
+/// P4's pad stamps exist. Deterministic and side-effect free.
 [[nodiscard]] CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
                                        const HydrologyData& hydro);
 
-/// Terrace stamp: flattens the pad and blends its skirt. Applied in the same
-/// place as ordinary building pads.
+/// Terrace + ramp stamp: flattens the pad, blends its skirt, and grades the
+/// approach ramp. Applied where ordinary building pads are applied.
 [[nodiscard]] float castle_pad_height(const CastleBuild& castle, glm::vec2 world, float h);
 
 /// Height of the castle mass above the pad at `world` (0 outside the mass) —
 /// the castle's entry into the C1 occlusion heightfield, exactly like canopy.
 [[nodiscard]] float castle_occluder_height(const CastleBuild& castle, glm::vec2 world);
+
+/// Yard centre (the open tithe-yard) — a sightline standpoint (§6.1.2).
+[[nodiscard]] glm::vec2 castle_yard_point(const CastleBuild& castle);
+
+/// Gate threshold, just inside the gatehouse — the other sightline standpoint
+/// and the top of the approach ramp.
+[[nodiscard]] glm::vec2 castle_gate_point(const CastleBuild& castle);
+
+/// Outer foot of the approach ramp, where it meets natural grade.
+[[nodiscard]] glm::vec2 castle_ramp_foot(const CastleBuild& castle);
 
 } // namespace dfn::world

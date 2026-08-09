@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 15:08:24
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -31,6 +31,13 @@ Notes:
   to entities without the backend knowing what an entity is.
 - Collision layer bit meanings are defined by engine/physics (stage 2); this
   interface treats CollisionMask as opaque bits.
+- ZERO-MASK REJECTION (contract, all backends): a create_* call whose `layer`
+  is 0 — or a character whose `collides_with` is 0 — returns an INVALID handle
+  and creates nothing. A body no mask can select, or a character that collides
+  with nothing, is never intentional; leaving `layer` at its default is the
+  authoring mistake this catches. Callers must check handle.valid(). (Learned
+  the hard way: a hand-filled TerrainDesc left `layer` at 0, every terrain body
+  collided with nothing, and the player fell through the world.)
 - Null backend (Rule 3, Q31 — a runnable mode): step() is a no-op; bodies are
   valid-but-inert; move_character applies the horizontal displacement fully and
   ignores the vertical component; character_grounded() always returns true;
@@ -45,6 +52,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:18:26: Initial stage-1 contract (terrain, static boxes,
                          kinematic character, raycast).
+- 09:08:2026 - 15:08:24: Documented the zero-mask rejection rule (behavioral
+                         clarification; no API change — field set, signatures
+                         and semantics of every existing call are untouched).
 */
 
 #pragma once
