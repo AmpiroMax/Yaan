@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -24,6 +24,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P5 implementation.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: pine ring -> radial ridge strips (§5.2/§1.3); L0 sight wedges reject over-angling trees near POI sightlines (LANDMARK_CLEARANCE_FACTOR); crag treeless band via treeline; canopy_height_at.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -43,6 +44,48 @@ namespace {
 constexpr float TAU = 6.28318530717958647692f;
 constexpr float TREE_SLOPE = static_cast<float>(config::TREE_SLOPE_MAX);
 constexpr float CORRIDOR_HALF = static_cast<float>(config::CORRIDOR_WIDTH) * 0.5f;
+constexpr float EYE_M = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+constexpr float CLEARANCE = static_cast<float>(config::LANDMARK_CLEARANCE_FACTOR);
+
+// Species max heights (LANDSCAPE §5 size rows — design data, used for the
+// occlusion canopy and the sight-wedge angle tests).
+constexpr float OAK_MAX_H = 12.0f;   // §5.1: 8-12 m
+constexpr float PINE_MAX_H = 18.0f;  // §5.2: 12-18 m
+constexpr float BIRCH_MAX_H = 10.0f; // §5.3: 6-10 m
+
+/// L0 sight wedges (§1.3 C4 enforcement): 2D wedges from each POI standpoint
+/// to the L0 footprint; trees inside a wedge whose canopy top would subtend
+/// >= L0_angle / LANDMARK_CLEARANCE_FACTOR from the standpoint are rejected.
+/// Angle comparisons use tangents (angles here are < 0.2 rad; documented
+/// small-angle equivalence).
+struct SightWedges {
+    struct Standpoint {
+        glm::vec2 pos;
+        float eye_y;
+        glm::vec2 dir; ///< toward the crag center, normalized
+        float dist;    ///< to the crag center
+        float t_l0;    ///< tangent of the L0's elevation angle
+    };
+    std::vector<Standpoint> points;
+    float crag_radius = 0.0f;
+
+    /// True if a tree of top height `top_y` at `p` would violate the
+    /// clearance factor inside any wedge.
+    [[nodiscard]] bool rejects(glm::vec2 p, float top_y) const {
+        for (const Standpoint& sp : points) {
+            const glm::vec2 rel = p - sp.pos;
+            const float proj = glm::dot(rel, sp.dir);
+            if (proj < 10.0f || proj > sp.dist) continue;
+            const float perp = std::fabs(rel.x * sp.dir.y - rel.y * sp.dir.x);
+            if (perp > crag_radius * proj / sp.dist) continue;
+            const float t_tree = (top_y - sp.eye_y) / proj;
+            if (t_tree * CLEARANCE >= sp.t_l0) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
 
 /// Deterministic rng for one lattice cell of one scatter stream.
 WorldGenRng cell_rng(uint64_t seed, uint32_t stream, int64_t gx, int64_t gz) {
@@ -64,8 +107,18 @@ bool in_oak(const TestbedLayout& layout, glm::vec2 p) {
 }
 
 bool in_pine(const TestbedLayout& layout, glm::vec2 p) {
-    const float d = glm::length(p - layout.crag.center);
-    if (d >= layout.forests.pine_annulus_r0 && d < layout.forests.pine_annulus_r1) return true;
+    const glm::vec2 rel = p - layout.crag.center;
+    const float d = glm::length(rel);
+    if (d >= layout.forests.pine_annulus_r0 && d < layout.forests.pine_annulus_r1) {
+        // Radial ridge strips, never a solid ring (§5.2 / §1.3 C1 knob):
+        // sectors of the foothill annulus, pine on strip_duty of each.
+        const float bearing = std::atan2(rel.y, rel.x); // [-pi, pi]
+        const float sector =
+            (bearing + 3.14159265358979f) / TAU * layout.forests.pine_strip_count;
+        if (sector - std::floor(sector) < layout.forests.pine_strip_duty) {
+            return true;
+        }
+    }
     return in_rect(layout.forests.pine_strip, p);
 }
 
@@ -107,6 +160,7 @@ struct ScatterCtx {
     const TestbedLayout& layout;
     const HydrologyData& hydro;
     const SitesData& sites;
+    const SightWedges& wedges;
     glm::vec2 chunk_min, chunk_max;
     std::vector<math::ScatterInstance>& out;
 
@@ -133,22 +187,26 @@ struct ScatterCtx {
         }
         return false;
     }
-    [[nodiscard]] bool on_crag_rock(glm::vec2 p, float h) const {
+    /// The crag's treeless band (§1.3 C4 knob): no trees above the stamp's
+    /// treeline, which sits below the rock splat line.
+    [[nodiscard]] bool on_crag_treeless(glm::vec2 p, float h) const {
         return glm::length(p - layout.crag.center) < layout.crag.radius
-            && h >= layout.crag.rockline;
+            && h >= layout.crag.treeline;
     }
 
     void add(glm::vec2 p, math::ScatterSpecies species, float yaw, float scale) {
         out.push_back(math::ScatterInstance{{p.x, ground(p), p.y}, yaw, scale, species});
     }
 
-    /// Common tree suitability (§5 global rules + §2.4 corridor protection).
-    [[nodiscard]] bool tree_ok(glm::vec2 p, float min_water_dist) const {
+    /// Common tree suitability (§5 global rules + §2.4 corridor protection +
+    /// §1.3 sight wedges — `species_max_h` is the §5 species max height).
+    [[nodiscard]] bool tree_ok(glm::vec2 p, float min_water_dist, float species_max_h) const {
         if (corridor_distance(layout, p) < CORRIDOR_HALF + 2.0f) return false;
         if (on_pad(p)) return false;
         if (dist_to_water(p) < min_water_dist) return false;
         const float h = ground(p);
-        if (on_crag_rock(p, h)) return false;
+        if (on_crag_treeless(p, h)) return false;
+        if (wedges.rejects(p, h + species_max_h * 1.2f)) return false; // max scale margin
         return slope(p) <= TREE_SLOPE;
     }
 
@@ -177,7 +235,7 @@ void scatter_trees(ScatterCtx& ctx) {
         WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_TREE + 0, gx, gz);
         const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * spacing;
         if (!ctx.inside_chunk(p) || !in_oak(ctx.layout, p)) return;
-        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, 3.0f)) return;
+        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, 3.0f, OAK_MAX_H)) return;
         ctx.add(p, math::ScatterSpecies::OakTree, rng.next_float01() * TAU,
                 0.8f + rng.next_float01() * 0.4f);
     });
@@ -187,7 +245,7 @@ void scatter_trees(ScatterCtx& ctx) {
         const glm::vec2 p =
             corner + glm::vec2{rng.next_float01(), rng.next_float01()} * (spacing - 1.0f);
         if (!ctx.inside_chunk(p) || !in_pine(ctx.layout, p) || in_oak(ctx.layout, p)) return;
-        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, 3.0f)) return;
+        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, 3.0f, PINE_MAX_H)) return;
         ctx.add(p, math::ScatterSpecies::PineTree, rng.next_float01() * TAU,
                 0.8f + rng.next_float01() * 0.4f);
     });
@@ -202,7 +260,7 @@ void scatter_trees(ScatterCtx& ctx) {
             || d > static_cast<float>(config::BIRCH_WATER_DIST)) {
             return;
         }
-        if (in_oak(ctx.layout, p) || !ctx.tree_ok(p, 0.0f)) return;
+        if (in_oak(ctx.layout, p) || !ctx.tree_ok(p, 0.0f, BIRCH_MAX_H)) return;
         ctx.add(p, math::ScatterSpecies::BirchTree, rng.next_float01() * TAU,
                 0.85f + rng.next_float01() * 0.3f);
     });
@@ -303,12 +361,53 @@ bool in_forest_mass(const TestbedLayout& layout, glm::vec2 world) {
     return in_oak(layout, world) || in_pine(layout, world);
 }
 
+float canopy_height_at(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
+                       float terrain_h) {
+    if (glm::length(world - layout.crag.center) < layout.crag.radius
+        && terrain_h >= layout.crag.treeline) {
+        return 0.0f; // the crag's treeless band
+    }
+    const bool pine = in_pine(layout, world);
+    const bool oak = in_oak(layout, world);
+    if (!pine && !oak) {
+        return 0.0f;
+    }
+    if (in_clearing(seed, layout, world)) {
+        return 0.0f;
+    }
+    return pine ? PINE_MAX_H : OAK_MAX_H;
+}
+
 std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLayout& layout,
                                                  const HydrologyData& hydro,
                                                  const SitesData& sites, glm::vec2 chunk_min,
                                                  glm::vec2 chunk_max) {
     std::vector<math::ScatterInstance> out;
-    ScatterCtx ctx{seed, layout, hydro, sites, chunk_min, chunk_max, out};
+
+    // §1.3 sight wedges: POI standpoints (sites + watchpoint) -> the L0.
+    SightWedges wedges;
+    wedges.crag_radius = layout.crag.radius;
+    const auto ground_at = [&](glm::vec2 p) {
+        return water_at(hydro, layout, p, macro_height(seed, layout, p)).height;
+    };
+    const float l0_top =
+        ground_at(layout.crag.center) + L0_AIM_ABOVE_PEAK;
+    const auto add_standpoint = [&](glm::vec2 pos) {
+        const glm::vec2 to_crag = layout.crag.center - pos;
+        const float dist = glm::length(to_crag);
+        if (dist < layout.crag.radius) return; // standing on the L0 itself
+        SightWedges::Standpoint sp;
+        sp.pos = pos;
+        sp.eye_y = ground_at(pos) + EYE_M;
+        sp.dir = to_crag / dist;
+        sp.dist = dist;
+        sp.t_l0 = (l0_top - sp.eye_y) / dist;
+        wedges.points.push_back(sp);
+    };
+    for (const SiteLayout& site : layout.sites) add_standpoint(site.position);
+    add_standpoint(layout.watchpoint);
+
+    ScatterCtx ctx{seed, layout, hydro, sites, wedges, chunk_min, chunk_max, out};
     scatter_trees(ctx);
     scatter_bushes(ctx);
     scatter_stones(ctx);

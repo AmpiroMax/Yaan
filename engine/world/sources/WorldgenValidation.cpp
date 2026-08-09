@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — implementation.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: C1 raycast against terrain + canopy with LANDMARK_CLEARANCE_FACTOR (tangent comparison); max_corridor_water_depth.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -40,6 +41,7 @@ namespace {
 constexpr float CHUNK_SIZE_M = static_cast<float>(config::CHUNK_SIZE);
 constexpr float EYE_M = static_cast<float>(config::PLAYER_EYE_HEIGHT);
 constexpr float WALK_SLOPE = static_cast<float>(config::PLAYER_MAX_SLOPE);
+constexpr float CLEARANCE = static_cast<float>(config::LANDMARK_CLEARANCE_FACTOR);
 constexpr float STANDPOINT_GRID_M = 32.0f; // coarse but deterministic sampling
 constexpr float RAY_STEP_M = 4.0f;
 } // namespace
@@ -62,8 +64,9 @@ bool river_is_monotonic(const HydrologyData& hydro) {
 float landmark_visibility_fraction(const WorldGenContext& ctx) {
     const TestbedLayout& layout = ctx.params.layout;
     const glm::vec2 peak = layout.crag.center;
-    // Aim at the tower ruin's mid height on the peak (§6: 10-15 m topper).
-    const float target_y = terrain_height(ctx, peak) + 8.0f;
+    // Aim at the tower ruin's mid height on the peak (§6: 10-15 m topper) —
+    // same aim as the P5 sight wedges.
+    const float target_y = terrain_height(ctx, peak) + L0_AIM_ABOVE_PEAK;
 
     const glm::vec2 lo{static_cast<float>(ctx.params.min_chunk.x) * CHUNK_SIZE_M,
                        static_cast<float>(ctx.params.min_chunk.z) * CHUNK_SIZE_M};
@@ -89,7 +92,11 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
             if (std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d)) > WALK_SLOPE) continue;
             ++open;
 
-            // Heightfield raycast standpoint -> tower top.
+            // Canopy-aware raycast standpoint -> tower top with the C4
+            // clearance factor: the L0's elevation angle must exceed every
+            // occluder's (terrain + canopy) by LANDMARK_CLEARANCE_FACTOR.
+            // Compared via tangents — all angles here are < 0.2 rad, where
+            // the factor transfers within a fraction of a percent.
             const float eye_y = sp.height + EYE_M;
             const glm::vec2 to_peak = peak - p;
             const float dist = glm::length(to_peak);
@@ -98,10 +105,15 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
                 continue;
             }
             const glm::vec2 dir = to_peak / dist;
+            const float t_l0 = (target_y - eye_y) / dist;
             bool blocked = false;
             for (float t = RAY_STEP_M; t < dist - RAY_STEP_M; t += RAY_STEP_M) {
-                const float ray_y = eye_y + (target_y - eye_y) * (t / dist);
-                if (terrain_height(ctx, p + dir * t) > ray_y + 0.25f) {
+                const glm::vec2 q = p + dir * t;
+                const float terrain = terrain_height(ctx, q);
+                const float occ_top =
+                    terrain + canopy_height_at(ctx.params.seed, layout, q, terrain);
+                const float t_occ = (occ_top - eye_y) / t;
+                if (t_occ * CLEARANCE > t_l0) {
                     blocked = true;
                     break;
                 }
@@ -110,6 +122,26 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
         }
     }
     return open == 0 ? 0.0f : static_cast<float>(visible) / static_cast<float>(open);
+}
+
+float max_corridor_water_depth(const WorldGenContext& ctx) {
+    float worst = 0.0f;
+    for (const CorridorLayout& c : ctx.params.layout.corridors) {
+        for (int i = 0; i + 1 < c.point_count; ++i) {
+            const glm::vec2 a = c.points[i];
+            const glm::vec2 b = c.points[i + 1];
+            const float seg_len = glm::length(b - a);
+            const int steps = std::max(1, static_cast<int>(seg_len / 2.0f));
+            for (int s = 0; s <= steps; ++s) {
+                const float t = static_cast<float>(s) / static_cast<float>(steps);
+                const SurfacePoint sp = surface_point(ctx, a + (b - a) * t);
+                if (sp.water_surface != math::NO_WATER) {
+                    worst = std::max(worst, sp.water_surface - sp.height);
+                }
+            }
+        }
+    }
+    return worst;
 }
 
 float max_corridor_avg_slope(const WorldGenContext& ctx) {

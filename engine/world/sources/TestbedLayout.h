@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -35,6 +35,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — testbed layout table per LANDSCAPE.md §7.1
   (lead-approved location as an additive WorldGenParams field).
+- 09:08:2026 - 13:12:19: Stage 3b amendments (design 12:44:58): fords removed from RiverLayout (derived in P2 per §7.1a); pine annulus -> radial ridge strips with count/duty knobs (§1.3 C1, tuned seed 1); crag treeline knob; corridor_distance moved here (shared layout geometry).
 */
 
 #pragma once
@@ -51,6 +52,9 @@ struct CragStamp {
     float radius = 180.0f;            ///< footprint (§7.1)
     float peak_height = 52.0f;        ///< target peak, m (§7.1; needs WORLDGEN_MAX_HEIGHT 64)
     float rockline = 34.0f;           ///< rock splat above this height on the stamp (§7.1)
+    float treeline = 26.0f;           ///< treeless band starts here on the stamp (§1.3
+                                      ///< C4 knob: keeps foothill canopy from out-angling
+                                      ///< the L0; widen by lowering)
     float ridge_cell = 48.0f;         ///< ridged-noise lattice cell, m (stamp shape)
     float ridge_amp_frac = 0.25f;     ///< ridged modulation fraction of peak (stamp shape)
 };
@@ -83,12 +87,13 @@ struct LakeStamp {
     return std::sqrt(vx * vx + vz * vz);
 }
 
-/// River layout (§7.1): source near the crag; three fords at the corridor
-/// crossings. The trace itself is algorithmic (§3.1), these are its inputs.
+/// River layout (§7.1): the source stamp target. The trace is algorithmic
+/// (§3.1); FORDS ARE DERIVED, NEVER TABLED (§7.1a design ruling) — P2 places
+/// them where the POI-chain corridors cross the generated trace, plus the
+/// FORD_SPACING_MAX gap fill.
 struct RiverLayout {
     glm::vec2 source{760.0f, 300.0f};    ///< §7.1; snapped to the coarse-grid argmax
     float source_search_radius = 30.0f;  ///< argmax search around `source` (§3.1 step 1)
-    glm::vec2 fords[3] = {{660.0f, 430.0f}, {430.0f, 620.0f}, {330.0f, 840.0f}}; ///< §7.1
 };
 
 /// Drainage valley stamp along source -> lake: an explicit monotone FLOOR
@@ -131,13 +136,21 @@ struct CorridorLayout {
 };
 
 /// Forest mass regions (§7.1 "Forest masses"): oak = S + SE bands as axis
-/// rects; pine = crag-foothill annulus + north ridge strip.
+/// rects; pine = crag-foothill RIDGE STRIPS (§5.2: strips 20-60 m wide
+/// following ridgelines, never a solid ring — a closed pine ring around the
+/// L0 walls it off from every valley standpoint, §1.3 amendment) + the north
+/// ridge strip. Strips are radial wedges of the foothill annulus: pine where
+/// fract(bearing_from_crag / TAU * strip_count) < strip_duty.
 struct ForestRegions {
     // Oak rects: {min_x, min_z, max_x, max_z}.
     glm::vec4 oak_rects[2] = {{0.0f, 700.0f, 1024.0f, 1024.0f},
                               {500.0f, 600.0f, 1024.0f, 1024.0f}};
-    float pine_annulus_r0 = 140.0f; ///< around the crag center (foothills)
+    float pine_annulus_r0 = 140.0f;  ///< foothill band around the crag center
     float pine_annulus_r1 = 280.0f;
+    float pine_strip_count = 4.0f;   ///< radial strips around the annulus
+    float pine_strip_duty = 0.25f;   ///< strip fraction of each sector (§1.3 C1 knob;
+                                     ///< tuned seed 1: C1 = 0.618 >= 0.6 with the
+                                     ///< canopy-aware clearance raycast)
     glm::vec4 pine_strip{200.0f, 0.0f, 1024.0f, 120.0f}; ///< north ridge strip
     glm::vec2 forced_clearing_center{620.0f, 850.0f};    ///< forest-ruin clearing (§7.1)
     float forced_clearing_radius = 25.0f;                ///< §7.1 dungeon 2
@@ -190,5 +203,30 @@ struct TestbedLayout {
 
     ForestRegions forests{};
 };
+
+/// Distance (meters) from `world` to the nearest POI-chain corridor
+/// centerline (§2.4 mask; pure layout geometry — used by scatter exclusion,
+/// hydrology ford beds and validation). Corridor mask = distance <=
+/// CORRIDOR_WIDTH / 2.
+[[nodiscard]] inline float corridor_distance(const TestbedLayout& layout, glm::vec2 world) {
+    float best = 3.402823466e+38f;
+    for (const CorridorLayout& c : layout.corridors) {
+        for (int i = 0; i + 1 < c.point_count; ++i) {
+            const glm::vec2 a = c.points[i];
+            const glm::vec2 ab = c.points[i + 1] - a;
+            const float len2 = ab.x * ab.x + ab.y * ab.y;
+            float t = 0.0f;
+            if (len2 > 0.0f) {
+                t = ((world.x - a.x) * ab.x + (world.y - a.y) * ab.y) / len2;
+                t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+            }
+            const float dx = world.x - (a.x + ab.x * t);
+            const float dz = world.y - (a.y + ab.y * t);
+            const float d = std::sqrt(dx * dx + dz * dz);
+            best = d < best ? d : best;
+        }
+    }
+    return best;
+}
 
 } // namespace dfn::world

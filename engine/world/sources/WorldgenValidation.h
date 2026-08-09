@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.h
 
@@ -27,6 +27,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — validation passes for tests.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: canopy-aware clearance semantics documented; max_corridor_water_depth (C3 vs generated water).
 */
 
 #pragma once
@@ -41,11 +42,19 @@ namespace dfn::world {
 
 /// C1 / LANDMARK_VISIBILITY_MIN: fraction of open walkable standpoints (grid
 /// sampled, eye height, water/forest/crag/steep excluded) from which the L0
-/// crag tower top is visible over the terrain.
+/// crag tower top is visible over the OCCLUSION heightfield — terrain PLUS
+/// canopy (§1.1 amendment) — with the C4 clearance factor: the L0's subtended
+/// angle must exceed every intervening occluder by LANDMARK_CLEARANCE_FACTOR.
 [[nodiscard]] float landmark_visibility_fraction(const WorldGenContext& ctx);
 
 /// §2.4: the worst corridor's average along-path slope (radians). Must stay
 /// under CORRIDOR_SLOPE_MAX.
 [[nodiscard]] float max_corridor_avg_slope(const WorldGenContext& ctx);
+
+/// C3 vs GENERATED water (§7.1a/§7.2 amendment): the worst water depth (m)
+/// where any POI-chain corridor crosses generated water. Rivers are crossed
+/// only at fords, so this must stay <= FORD_DEPTH_MAX; a deeper crossing
+/// means the chain is severed (failed generation for the layout).
+[[nodiscard]] float max_corridor_water_depth(const WorldGenContext& ctx);
 
 } // namespace dfn::world

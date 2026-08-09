@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.h
 
@@ -33,6 +33,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P2 hydrology (trace, ponds, carve, fords,
   lake; distance field for dist_to_water).
+- 09:08:2026 - 13:12:19: Stage 3b amendments: derived ford_stations (§3.1 step 6); §3.3 bed/mud cap documented on build_hydrology.
 */
 
 #pragma once
@@ -63,6 +64,11 @@ struct HydrologyData {
     std::vector<uint32_t> segment_offsets; ///< size = segment count + 1
     std::vector<float> carve_depth;        ///< per station, ford-adjusted (m)
 
+    /// Derived ford station indices (§3.1 step 6, §7.1a design ruling): one
+    /// where each POI-chain corridor crosses the GENERATED trace, plus fills
+    /// so no along-river gap exceeds FORD_SPACING_MAX. Sorted by arclength.
+    std::vector<uint32_t> ford_stations;
+
     std::vector<Pond> ponds;
     math::LakePlane lake;
 
@@ -92,6 +98,9 @@ struct WaterSample {
 
 /// Builds hydrology over the world rect [domain_min, domain_max] (meters).
 /// Deterministic; sets ok=false instead of producing an invalid river.
+/// Pond water beyond the §3.3 bed/mud cap — max(SHORE_SAND_DIST, 2 x local
+/// river width) from the trace — is pruned (the carve still cuts the channel
+/// through drained basins), so wide mud flats cannot exist by construction.
 [[nodiscard]] HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout,
                                             glm::vec2 domain_min, glm::vec2 domain_max);
 

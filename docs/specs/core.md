@@ -1,12 +1,13 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 spec — contracts for engine/core and engine/world; boundary agreements with render, sim, and lead recorded.
 - 09:08:2026 - 00:42:03: Stage 2 — ECS/time/events/math implemented (+ ContentHash for the determinism test); world: value-noise worldgen with global quantization range (exact edge stitch), ChunkManager streaming via open_generated (in-memory generator, lead directive; .dfw IO + SaveDelta deferred to stage 3). Resolved former open items: SIM_MAX_CATCHUP_STEPS and chunk radii landed in NUMBERS.md; gen_constants contract confirmed (dfn_generated/Constants.h); shared components authored by lead in Components.h. Test suites registered in tests/core.cmake.
 - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 implementing LANDSCAPE.md (P1 macro stamps + WORLDGEN_MAX_HEIGHT=64 shared range, P2 hydrology with the monotonic water invariant, P3 surface outputs, P4 sites/pads, P5 scatter, validation passes); NEW core<->render boundary agreement: math::SurfaceFieldView + ScatterInstance + water-body primitives in core/math/SurfaceField.h (HeightFieldView untouched); ChunkManager additive queries + site-entity component attachment; suites extended (WorldgenV2Tests). Boundary item 8 below records the render agreement.
+- 09:08:2026 - 13:12:19: Stage 3b design amendments implemented (LANDSCAPE UPD 12:44:58): fords DERIVED from corridor x generated-trace crossings + FORD_SPACING_MAX gap fill (HydrologyData::ford_stations; layout ford table deleted); §3.3 bed/mud cap — pond water pruned beyond max(SHORE_SAND_DIST, 2x width) of the trace, channel bed clamped into the trapezoid band (fords RAISE the bed), corridor-mask stations ford-shallow; C3 validated against generated water (max_corridor_water_depth <= FORD_DEPTH_MAX); C1 raycast canopy-aware with LANDMARK_CLEARANCE_FACTOR + P5 L0 sight wedges; pine ring -> radial ridge strips (§5.2; count 4 / duty 0.25 gives seed-1 C1 = 0.618); dist_to_water saturated at DIST_TO_WATER_RANGE (field verified valid to 150 m — the 60 m saturation render observed was not in this field); perf: grid-pass generate_chunk (~30 ms/chunk) + binned hydrology passes (21x21 context 9.8 s -> 0.9 s).
 -->
 
 # Spec: `core` (engine/core + engine/world)

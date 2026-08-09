@@ -5,3 +5,4 @@ out/
 compile_commands.json
 .claude/worktrees/
 screenshots/
+settings.cfg

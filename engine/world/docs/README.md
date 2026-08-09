@@ -1,12 +1,13 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
 - 09:08:2026 - 00:42:03: Stage 2 — Chunk/Worldgen/ChunkManager implemented; ChunkManager::open_generated added (in-memory generator, lead directive — .dfw IO and SaveDelta deferred to stage 3); value-noise gentle hills with global quantization range for exact edge stitching; suites tests/core/{WorldgenTests,ChunkManagerTests}.cpp.
 - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 per LANDSCAPE.md: pass modules (Macro/Hydrology/Sites/Scatter/Validation + TestbedLayout + SiteComponents), WORLDGEN_MAX_HEIGHT quantization, Chunk gained SurfaceData + scatter, ChunkManager gained surfacefield/scatter/water_bodies and site-entity component attachment; suite tests/core/WorldgenV2Tests.cpp.
+- 09:08:2026 - 13:12:19: Stage 3b design amendments: derived fords (HydrologyData::ford_stations), §3.3 mud cap + ford bed raise, canopy-aware C1 with clearance factor + sight wedges, pine ridge strips, dist_to_water saturation at DIST_TO_WATER_RANGE, grid-pass chunk generation + binned hydrology (large-domain contexts 11x faster).
 -->
 
 # engine/world

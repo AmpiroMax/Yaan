@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 00:40:00
+# Last updated: 09:08:2026 - 13:19:00
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -21,6 +21,10 @@
 #                          weights, compiled shaders, voice manifests).
 # - 09:08:2026 - 00:40:00: Skip any build*/ directory (per-agent build dirs) and
 #                          _deps (FetchContent checkouts) by prefix, not exact name.
+# - 09:08:2026 - 13:18:30: Exempt feature_requests.md (user-authored wishlist, no
+#                          agent header contract).
+# - 09:08:2026 - 13:19:00: Exempt settings.cfg (runtime-generated user graphics
+#                          settings, also gitignored).
 
 from __future__ import annotations
 
@@ -65,7 +69,10 @@ SKIP_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".wav", ".mp
                    ".dylib", ".exe", ".lock", ".json", ".toml", ".ini", ".pyc",
                    ".gguf", ".onnx", ".bin", ".glb", ".gltf", ".fbx", ".ozz",
                    ".sc", ".sh.bin", ".dfw", ".dfs"}
-SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc"}
+# feature_requests.md: the user's personal wishlist — user-authored, never
+# agent-edited, exempt from the agent header contract.
+SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc",
+                  "feature_requests.md", "settings.cfg"}
 
 
 def read_head(path: Path, max_lines: int = 80) -> list[str]:

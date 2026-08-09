@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2 (fBm + redistribution + stamps).
+- 09:08:2026 - 13:12:19: Stage 3b amendments: L0_AIM_ABOVE_PEAK shared by C1 validation and P5 sight wedges.
 */
 
 #pragma once
@@ -50,6 +51,10 @@ enum WorldgenStream : uint32_t {
     STREAM_SCATTER_CLEARING = 48,
     STREAM_SCATTER_OUTCROP = 52,
 };
+
+/// Where visibility rays and sight wedges AIM on the L0: this many meters
+/// above the peak terrain (the watchtower topper's mid height, §6 10-15 m).
+inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 
 /// Macro terrain height (meters) at a world position: P1 only — no river
 /// carve, no building pads. Clamped to [0, WORLDGEN_MAX_HEIGHT].

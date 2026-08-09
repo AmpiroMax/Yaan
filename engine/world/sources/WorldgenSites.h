@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenSites.h
 
@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P4 sites & pads.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h.
 */
 
 #pragma once
@@ -66,10 +67,8 @@ struct SitesData {
                                     const HydrologyData& hydro);
 
 /// Applies pad flattening to terrain height `h` at `world` (P4 stamp).
+/// (corridor_distance moved to TestbedLayout.h — pure layout geometry, now
+/// also consumed by hydrology ford beds.)
 [[nodiscard]] float pads_height(const SitesData& sites, glm::vec2 world, float h);
-
-/// Distance (meters) from `world` to the nearest corridor centerline (§2.4).
-/// Corridor mask = distance <= CORRIDOR_WIDTH / 2.
-[[nodiscard]] float corridor_distance(const TestbedLayout& layout, glm::vec2 world);
 
 } // namespace dfn::world

@@ -1,11 +1,15 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 12:44:58
+Last updated: 09:08:2026 - 13:19:34
 -->
 <!--
 UPD:
 - 09:08:2026 - 10:45:06: Created the landscape design bible (stage 3): composition principles, detail layers with worldgen pass order, water rules, terrain palette, flora and structure catalogs, testbed v2 plan, sources. All new numeric values are proposals pending NUMBERS.md approval.
 - 09:08:2026 - 12:44:58: Amendments from render's stage-3b look-dev probes: C1/C4 visibility validation is now canopy-aware with a clearance factor and L0 sight wedges (pine wall buried the crag from town); riverbed/mud splat band capped (WaterBed 2.74% vs ~1% water was over-wide); dist_to_water field range requirement; §7.1 fords are now derived from the generated trace (fixed coords removed), seed-1 generated hydrology actuals recorded, hamlet flood-margin re-score flagged.
+- 09:08:2026 - 13:15:01: Core implemented all three rulings — doc synced to built state: crag pines are radial ridge strips (closed annulus can never pass canopy-C1), peak-raising marked a dead-end knob, §3.1 fords strengthened (bed truly raised; whole corridor mask ford-shallow), §7.1a open items resolved (lake "sprawl" was pond overflow, true basin at target), new rule: water-adjacent placements are derived-only, never tabled.
+- 09:08:2026 - 13:17:06: §2.1 landform anisotropy rule from user feedback (feature_requests.md Запрос 1): mid-scale hills must be elongated direction-coherent ridgelets, not round bumps; HILL_ANISOTROPY 2.0-3.0 proposed.
+- 09:08:2026 - 13:18:17: §2.1 anisotropy sharpened per core's implementation intent (agreed at sync): mid octave only, drifting per-valley axis field (no global corduroy), recorded cautions — river trace will shift (safe under the §7.1a derived-only rule) and work is gated on HILL_ANISOTROPY landing in NUMBERS.md + lead scheduling.
+- 09:08:2026 - 13:19:34: §2.1 technique decided (core + design): anisotropic input-stretch chosen over domain-warp — elongation along the axis, cross-axis rhythm pinned at 128 m (what corridors/C1 grid feel); domain-warp rejected (wiggles crests, dilutes the shared-axis read); ping-first threshold at ~100 m cross-axis compression.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -114,8 +118,15 @@ out-angling the 52 m crag from every western/southern ground vantage):
   would subtend ≥ `L0 angle / LANDMARK_CLEARANCE_FACTOR` from that wedge's
   standpoint is rejected (cheap: only trees inside wedges are tested,
   deterministic). Terrain-side tuning knobs if wedge filtering thins a forest
-  too much: widen the L0 stamp's treeless rockline band, or raise the peak —
-  core's choice per seed, the invariant is the clearance factor.
+  too much: widen the L0 stamp's treeless rockline band, or reshape the
+  landmark-facing forest — core's choice per seed, the invariant is the
+  clearance factor. Two knobs proved to be **dead ends** in the stage-3b
+  implementation (do not retry): raising the peak *lowers* clearance (its own
+  flank occluders grow at a 1.2× disadvantage), and the treeline is useless
+  here (foothill terrain sits below any sane treeline). The effective lever
+  is forest *shape*: a closed canopy annulus around an L0 can never pass
+  canopy-C1 from valley ground — landmark-skirting forest must be broken
+  into radial/ridge strips with gaps (see §7.1).
 
 ### 1.4 Draw-the-player rules
 
@@ -197,6 +208,34 @@ sampled against them.
   flagged for NUMBERS.md at sync №2) plus, in v2: one ridged-noise crag stamp
   per valley (L0), valley-floor redistribution (`pow`-curve toward flats, per
   procgen practice), river/lake carving.
+- **Landform anisotropy (user feedback, feature_requests.md Запрос 1):**
+  mid-scale hills must read as elongated, direction-coherent landforms —
+  ridgelets with a legible long axis — never isotropic round bumps
+  («холмики-сиськи» are explicitly rejected by the user). Implementable
+  without hand sculpting: stretch **the mid-frequency octave only**
+  (currently the 128 m / 6 m layer — it is what makes round bumps at hill
+  scale) 2–3× along a per-valley axis field **(предложение — утвердить:
+  `HILL_ANISOTROPY` = 2.0–3.0)**; the macro-roll and fine-texture octaves
+  stay isotropic, and the ridged transform on the L0 stamp already covers
+  crag flanks. **Technique decided (plan of record, core + design sync):
+  anisotropic input-stretch, not domain-warp.** Input-stretch lengthens
+  features *along* the axis (the requested elongation itself) while the
+  cross-axis wavelength — the rhythm corridors and the C1 standpoint grid
+  actually feel when crossing ridgelets — stays pinned at the current
+  128 m. Domain-warp is the opposite trade (preserves average wavelength
+  but wiggles crests and dilutes the shared-axis read) — rejected.
+  Ping-first threshold: if axis-field drift locally compresses the
+  cross-axis rhythm below ~100 m, core pings design before it lands. The axis field is a slowly-varying seeded angle: ridgelets
+  share a long axis *locally* while the axis drifts across the map — a
+  single global direction would read as corduroy. Two recorded cautions
+  (core, stage-3b sync): (a) warping the hill octave shifts drainage
+  micro-shape — the seed-1 river trace WILL move; this is safe *only*
+  because of the derived-only rule (§7.1a), which is exactly the case that
+  rule exists for; (b) implementation waits for `HILL_ANISOTROPY` in
+  NUMBERS.md (Rule 14) and the lead scheduling the P1 retune — canopy-aware
+  C1 re-validation is already automatic in the suite. Acceptance: tour
+  frames of open meadow show hills with an obvious long axis roughly
+  agreeing with their neighbors.
 - **Quantization warning (core contract):** all chunks share one quantization
   range (offset 0, scale MAX/65535). Raising the L0 above the current 31.5 m
   ceiling requires raising the shared range — **(предложение — утвердить:
@@ -297,12 +336,17 @@ Compatible with our heightmap pipeline (fBm has no drainage; we impose it):
 5. **Carve:** trapezoid cross-section, depth `RIVER_DEPTH` = 1.5 m, width
    `RIVER_WIDTH` = 4–8 m growing from source to mouth, bank blend 2× width
    **(предложение — утвердить)**.
-6. **Fords:** wherever a corridor (§2.4) crosses the river, raise the bed so
-   depth ≤ `FORD_DEPTH_MAX` = 0.4 m over a 6 m span; additionally at least one
-   ford per `FORD_SPACING` = 200–400 m of river length
-   **(предложение — утвердить)**. Until swimming exists (FUTURE), a river
-   without fords is an illegal hard wall — rivers *shape* routes, never sever
-   the POI graph.
+6. **Fords:** wherever a corridor (§2.4) crosses the river, *raise* the bed —
+   a true raise, clamping the bed into the trapezoid band, not merely a limit
+   on the carve — so depth ≤ `FORD_DEPTH_MAX` = 0.4 m. The ford-shallow zone
+   covers **every station inside the corridor mask**, not just the crossing
+   station: oblique crossings otherwise dip into neighboring stations' blend
+   zones (stage-3b measured 0.48 m exactly that way). Additionally at least
+   one ford per `FORD_SPACING` = 200–400 m of river length
+   **(предложение — утвердить)**. Validation invariant (tested):
+   max water depth inside any corridor = `FORD_DEPTH_MAX`. Until swimming
+   exists (FUTURE), a river without fords is an illegal hard wall — rivers
+   *shape* routes, never sever the POI graph.
 
 ### 3.2 Lakes and ponds
 
@@ -529,7 +573,7 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 | **Dungeon 2: forest ruin** | (620, 850), inside SE oak forest | in a clearing (r = 25 m); ruin walls = L2 from clearing edge |
 | **Dungeon 3: lakeshore cave** | (180, 350), NW lake shore under a 10 m bluff stamp | reachable along the sand shore; visible across the water from town (water gap = curiosity) |
 | **Foothill watchpoint (minor POI)** | (660, 430) | rock outcrop cluster + lone skyline pine + ford; bridges the town↔barrow gap in the POI chain |
-| **Forest masses** | oak: S+SE band (roughly z > 700 plus x > 500, z > 600); pine: crag foothills and N ridge strips | total coverage ≈ 0.30 of land; clearings per §2.2; birch lines along river and lake banks |
+| **Forest masses** | oak: S+SE band (roughly z > 700 plus x > 500, z > 600); pine: **radial ridge strips** on the crag foothills (4 sectors, duty 0.25 — layout knobs `pine_strip_count`/`pine_strip_duty`; a closed annulus can never pass canopy-C1, see §1.3) + N ridge strips | total coverage ≈ 0.30 of land; clearings per §2.2; birch lines along river and lake banks (derived from `dist_to_water`, never tabled) |
 | **Meadows** | center and west | flower patches, outcrops, meadow clusters per §2.2–2.3 |
 
 ### 7.1a Plan vs generated truth (seed 1, stage-3b probes)
@@ -538,27 +582,32 @@ The layout table rows are *stamp centers and targets*; the generated world is
 the truth, and validation runs against it (tour v3 already aims at generated
 truth). Render's probes of the actual seed-1 build recorded this drift:
 
-- River trace: (730, 320) → (560, 500), then a wide flooded bend at
-  x 320–480 / z ≈ 560 beside the hamlet site.
-- Lake actual: x 188–274 / z 460–700 (~86×240 m — much longer than the
-  90×140 m target); outflow leaves the south edge at x 300–335.
+- River trace: (730, 320) → (560, 500); outflow leaves the south edge at
+  x 300–335.
 - The originally tabled ford coordinates did not land on the generated river
   (probe at (430, 620): grass, 60 m from water) — which is why fords are now
   derived (§7.1), never tabled.
+- The "flooded bend" at x 320–480 / z ≈ 560 and the apparent oversized lake
+  (x 188–274 / z 460–700) measured by the first probes were **pond-and-spill
+  overflow sprawl**, not the basin: the §3.3 mud-cap rule drains pond water
+  beyond max(`SHORE_SAND_DIST`, 2 × local width) of the trace, after which
+  the true basin sits at its 90×140 m target. Total water settled at ≈ 2.3 %
+  of the world (lake 0.96 + channel 0.6 + capped bend pools ≈ 0.75).
 
-Open items for core from this drift **(design ruling, worldgen-side fix):**
+Resolution (same day, core): fords derived at corridor × trace intersections
++ `FORD_SPACING` gap fill; corridor water depth validated ≤ `FORD_DEPTH_MAX`;
+Vaelmere ring and pads dry with > `BUILDING_WATER_MARGIN` clearance against
+generated water; seed-1 canopy-aware C1 = 0.618 against
+`LANDMARK_VISIBILITY_MIN` = 0.6 (headroom 0.018 — retunes go *down* in
+density, there is no room up). Render re-probe of the western/southern town
+vantages and one riverside bend confirms the fixes on the next tour.
 
-1. Derive fords from corridor × generated-trace intersections and re-run the
-   C3 chain validation against them.
-2. The flooded bend at x 320–480 / z ≈ 560 sits against the Vaelmere pad
-   (360, 500): re-run the P4 site scorer with `BUILDING_WATER_MARGIN` (2 m
-   vertical) against generated water — either the bend narrows (raise its bed
-   toward target width) or the pad shifts along the shore; both are
-   parameter-level fixes.
-3. Lake basin stamp overshoots its target footprint ~2×: acceptable *if* the
-   POI chain and shore rules still validate; retune the stamp radius only if
-   they fail. Composition-wise a bigger lake is not a defect (water gap =
-   curiosity, §3.4).
+**Rule (learned the hard way) — water-adjacent placements are derived-only.**
+Hydrology drift makes any tabled coordinate that must sit on or near water a
+trap. Everything keyed to water — fords, birch lines, shore sand, lakeshore
+POI *approaches* — derives from the generated trace and the `dist_to_water`
+field. Only stamp centers (basin, source, POI pads) may be tabled, and they
+must tolerate the trace landing where it lands.
 
 ### 7.2 Why this layout satisfies the contracts
 

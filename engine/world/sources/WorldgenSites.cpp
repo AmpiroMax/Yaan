@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -25,6 +25,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P4 implementation.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h; placer fallback scores dry-over-flat-over-wet and shies from banks.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
@@ -123,16 +124,6 @@ struct Placer {
         return best;
     }
 };
-
-float segment_distance(glm::vec2 p, glm::vec2 a, glm::vec2 b) {
-    const glm::vec2 ab = b - a;
-    const float len2 = glm::dot(ab, ab);
-    if (len2 <= 0.0f) {
-        return glm::length(p - a);
-    }
-    const float t = std::clamp(glm::dot(p - a, ab) / len2, 0.0f, 1.0f);
-    return glm::length(p - (a + ab * t));
-}
 
 } // namespace
 
@@ -239,16 +230,6 @@ float pads_height(const SitesData& sites, glm::vec2 world, float h) {
         }
     }
     return h;
-}
-
-float corridor_distance(const TestbedLayout& layout, glm::vec2 world) {
-    float best = std::numeric_limits<float>::max();
-    for (const CorridorLayout& c : layout.corridors) {
-        for (int i = 0; i + 1 < c.point_count; ++i) {
-            best = std::min(best, segment_distance(world, c.points[i], c.points[i + 1]));
-        }
-    }
-    return best;
 }
 
 } // namespace dfn::world

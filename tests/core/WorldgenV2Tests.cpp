@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — initial v2 contract suite.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: derived-ford suite (crossings wade-shallow, FORD_SPACING gaps), §3.3 mud-cap band + coverage tripwire + dist saturation, grid-vs-analytic equality, canopy-aware C1 kept at LANDMARK_VISIBILITY_MIN.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -30,8 +31,10 @@ UPD:
 #include "engine/world/sources/WorldgenSites.h"
 #include "engine/world/sources/WorldgenValidation.h"
 
+#include <algorithm>
 #include <doctest/doctest.h>
 #include <glm/geometric.hpp>
+#include <vector>
 
 using namespace dfn;
 using world::ChunkCoord;
@@ -102,21 +105,71 @@ TEST_CASE("lake sits at LAKE_LEVEL_TESTBED with a sand shore") {
     CHECK(sand > 0);
 }
 
-TEST_CASE("fords: carve depth at each layout ford is wade-shallow") {
+TEST_CASE("fords are derived from the generated trace (§7.1a) and wade-shallow") {
     const auto& ctx = testbed();
-    for (const glm::vec2 ford : ctx.params.layout.river.fords) {
-        uint32_t nearest = 0;
-        float best = 1e9f;
-        for (uint32_t i = 0; i < ctx.hydrology.stations.size(); ++i) {
-            const float d = glm::length(ctx.hydrology.stations[i].position - ford);
-            if (d < best) {
-                best = d;
-                nearest = i;
-            }
-        }
-        CHECK(ctx.hydrology.carve_depth[nearest]
-              <= static_cast<float>(config::FORD_DEPTH_MAX) + 1e-3f);
+    const auto& h = ctx.hydrology;
+    REQUIRE_FALSE(h.ford_stations.empty());
+    // Every derived ford sits on a wade-shallow bed.
+    for (const uint32_t f : h.ford_stations) {
+        REQUIRE(f < h.stations.size());
+        CHECK(h.carve_depth[f] <= static_cast<float>(config::FORD_DEPTH_MAX) + 1e-3f);
     }
+    // FORD_SPACING minimum: no along-river gap (incl. start/end) exceeds
+    // FORD_SPACING_MAX.
+    std::vector<float> cum(h.stations.size(), 0.0f);
+    for (std::size_t i = 1; i < h.stations.size(); ++i) {
+        cum[i] = cum[i - 1] + glm::length(h.stations[i].position - h.stations[i - 1].position);
+    }
+    std::vector<float> marks{0.0f};
+    for (const uint32_t f : h.ford_stations) marks.push_back(cum[f]);
+    marks.push_back(cum.back());
+    std::sort(marks.begin(), marks.end());
+    for (std::size_t g = 0; g + 1 < marks.size(); ++g) {
+        CHECK(marks[g + 1] - marks[g]
+              <= static_cast<float>(config::FORD_SPACING_MAX) + 1.0f);
+    }
+    // C3 against GENERATED water: every corridor crossing of any water is
+    // wade-shallow — the chain is never severed.
+    CHECK(world::max_corridor_water_depth(ctx)
+          <= static_cast<float>(config::FORD_DEPTH_MAX) + 1e-2f);
+}
+
+TEST_CASE("§3.3 bed/mud cap: no wide water flats, dist field range") {
+    const auto& ctx = testbed();
+    const auto& h = ctx.hydrology;
+    int total = 0, covered = 0;
+    float max_dist = 0.0f;
+    for (float z = 4.0f; z < 1024.0f; z += 8.0f) {
+        for (float x = 4.0f; x < 1024.0f; x += 8.0f) {
+            const auto sp = world::surface_point(ctx, {x, z});
+            ++total;
+            max_dist = std::max(max_dist, sp.dist_to_water);
+            if (sp.water_surface == math::NO_WATER) continue;
+            ++covered;
+            if (world::lake_norm_radius(ctx.params.layout.lake, {x, z}) < 1.0f) continue;
+            // Non-lake water must hug the trace: within max(SHORE_SAND_DIST,
+            // 2 x local width) of a station (+ coarse-cell slack).
+            float best_d = 1e9f;
+            uint32_t best_i = 0;
+            for (uint32_t i = 0; i < h.stations.size(); ++i) {
+                const float d = glm::length(h.stations[i].position - glm::vec2{x, z});
+                if (d < best_d) {
+                    best_d = d;
+                    best_i = i;
+                }
+            }
+            const float cap = std::max(static_cast<float>(config::SHORE_SAND_DIST),
+                                       4.0f * h.stations[best_i].half_width);
+            CHECK(best_d <= cap + 12.0f); // half coarse-cell diagonal slack
+        }
+    }
+    // Regression tripwire on total water coverage. The binding §3.3 invariant
+    // is the per-sample band cap above; the total sits near 2.3% (lake 0.96 +
+    // channel 0.6 + capped bend pools 0.8) — the 2.74% wide-mud-flat regime
+    // stays forbidden.
+    CHECK(100.0 * covered / total < 2.5);
+    // dist_to_water: valid out to SETTLEMENT range, saturated at the cap.
+    CHECK(max_dist == doctest::Approx(static_cast<float>(config::DIST_TO_WATER_RANGE)));
 }
 
 TEST_CASE("L0 crag: peak height, rock crown, skyline dominance") {
@@ -236,6 +289,26 @@ TEST_CASE("P5 scatter: forest fills its mass, respects corridors and water") {
             || inst.species == math::ScatterSpecies::PineTree) {
             CHECK(glm::length(glm::vec2{inst.position.x, inst.position.z} - clearing)
                   >= ctx.params.layout.forests.forced_clearing_radius - 0.001f);
+        }
+    }
+}
+
+TEST_CASE("grid-pass chunk generation matches the analytic surface_point") {
+    // generate_chunk computes surface data in grid passes for speed; the
+    // per-position surface_point is the reference. They must agree exactly.
+    const auto& ctx = testbed();
+    const auto chunk = world::generate_chunk(ctx, ChunkCoord{1, 2});
+    const uint32_t res = static_cast<uint32_t>(config::HEIGHTMAP_RESOLUTION);
+    for (uint32_t z = 0; z < res; z += 17) {
+        for (uint32_t x = 0; x < res; x += 17) {
+            const glm::vec2 world{256.0f + x * 2.0f, 512.0f + z * 2.0f};
+            const auto sp = world::surface_point(ctx, world);
+            const std::size_t i = static_cast<std::size_t>(z) * res + x;
+            CHECK(chunk.surface.surface_class[i] == static_cast<uint8_t>(sp.surface_class));
+            CHECK(chunk.surface.water_surface[i] == sp.water_surface);
+            CHECK(chunk.surface.dist_to_water[i] == sp.dist_to_water);
+            CHECK(chunk.heightmap.height_at(x, z)
+                  == doctest::Approx(sp.height).epsilon(0.001));
         }
     }
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -38,6 +38,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2: P1 stamps via WorldgenMacro
   (octaves from dfn::config, local table deleted), P2 hydrology, P3 surface
   arrays, P4 site records, P5 scatter; WORLDGEN_MAX_HEIGHT quantization.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: grid-pass generate_chunk (water/heights once per node, slope from the grid, analytic border) — bit-identical to surface_point, ~5x fewer field evals; equality pinned by test.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -49,6 +50,7 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace dfn::world {
 
@@ -175,17 +177,73 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
 
     const glm::vec2 origin{static_cast<float>(coord.x) * CHUNK_SIZE_M,
                            static_cast<float>(coord.z) * CHUNK_SIZE_M};
+    const auto world_at = [&](uint32_t x, uint32_t z) {
+        return origin
+             + glm::vec2{static_cast<float>(x) * STEP_M, static_cast<float>(z) * STEP_M};
+    };
+    const TestbedLayout& layout = ctx.params.layout;
+
+    // Grid-pass generation (bit-identical to per-sample surface_point calls —
+    // every value below is the same pure position-based function, evaluated
+    // once instead of five times per sample):
+    // pass A: water samples (carve heights) + final heights per grid node.
+    std::vector<WaterSample> water(sample_count);
+    std::vector<float> final_h(sample_count);
     for (uint32_t z = 0; z < RESOLUTION; ++z) {
         for (uint32_t x = 0; x < RESOLUTION; ++x) {
-            const glm::vec2 world = origin + glm::vec2{static_cast<float>(x) * STEP_M,
-                                                       static_cast<float>(z) * STEP_M};
-            const SurfacePoint sp = surface_point(ctx, world);
-            const float raw = std::round(sp.height / MAX_HEIGHT_M * 65535.0f);
+            const glm::vec2 world = world_at(x, z);
             const std::size_t i = static_cast<std::size_t>(z) * RESOLUTION + x;
+            water[i] = water_at(ctx.hydrology, layout, world,
+                                macro_height(ctx.params.seed, layout, world));
+            final_h[i] = std::clamp(pads_height(ctx.sites, world, water[i].height), 0.0f,
+                                    MAX_HEIGHT_M);
+        }
+    }
+    // pass B: quantize + classify. Slope uses the grid where the +-STEP
+    // neighbor is inside the chunk and the analytic field on the border —
+    // identical floats either way (position-based), so shared edges agree.
+    for (uint32_t z = 0; z < RESOLUTION; ++z) {
+        for (uint32_t x = 0; x < RESOLUTION; ++x) {
+            const glm::vec2 world = world_at(x, z);
+            const std::size_t i = static_cast<std::size_t>(z) * RESOLUTION + x;
+            const float h = final_h[i];
+            const float raw = std::round(h / MAX_HEIGHT_M * 65535.0f);
             hm.samples[i] = static_cast<uint16_t>(std::clamp(raw, 0.0f, 65535.0f));
-            chunk.surface.dist_to_water[i] = sp.dist_to_water;
-            chunk.surface.water_surface[i] = sp.water_surface;
-            chunk.surface.surface_class[i] = static_cast<uint8_t>(sp.surface_class);
+
+            const auto h_at = [&](int32_t nx, int32_t nz) {
+                if (nx >= 0 && nz >= 0 && nx < static_cast<int32_t>(RESOLUTION)
+                    && nz < static_cast<int32_t>(RESOLUTION)) {
+                    return final_h[static_cast<std::size_t>(nz) * RESOLUTION
+                                   + static_cast<std::size_t>(nx)];
+                }
+                return terrain_height(ctx, {world.x + static_cast<float>(nx - static_cast<int32_t>(x)) * STEP_M,
+                                            world.y + static_cast<float>(nz - static_cast<int32_t>(z)) * STEP_M});
+            };
+            const int32_t ix = static_cast<int32_t>(x);
+            const int32_t iz = static_cast<int32_t>(z);
+            const float hx = h_at(ix + 1, iz) - h_at(ix - 1, iz);
+            const float hz = h_at(ix, iz + 1) - h_at(ix, iz - 1);
+            const float slope = std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
+
+            const WaterSample& w = water[i];
+            const bool covered = w.water_surface != math::NO_WATER && h < w.water_surface;
+            chunk.surface.dist_to_water[i] = w.dist_to_water;
+            chunk.surface.water_surface[i] = covered ? w.water_surface : math::NO_WATER;
+
+            math::SurfaceClass cls = math::SurfaceClass::Grass;
+            if (covered) {
+                cls = math::SurfaceClass::WaterBed;
+            } else if (w.dist_to_water <= SAND_DIST && w.near_level != math::NO_WATER
+                       && h - w.near_level <= SAND_HEIGHT) {
+                cls = math::SurfaceClass::Sand;
+            } else if (slope >= SLOPE_ROCK
+                       || (crag_distance(layout, world) < layout.crag.radius
+                           && h >= layout.crag.rockline)) {
+                cls = math::SurfaceClass::Rock;
+            } else if (slope >= SLOPE_GRASS) {
+                cls = math::SurfaceClass::GrassRockBlend;
+            }
+            chunk.surface.surface_class[i] = static_cast<uint8_t>(cls);
         }
     }
 

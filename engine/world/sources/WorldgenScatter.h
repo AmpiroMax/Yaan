@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 13:12:19
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.h
 
@@ -31,6 +31,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P5 scatter.
+- 09:08:2026 - 13:12:19: Stage 3b amendments: canopy_height_at exposed for the canopy-aware C1 raycast (§1.1).
 */
 
 #pragma once
@@ -47,6 +48,13 @@ namespace dfn::world {
 /// True if `world` is inside an oak or pine forest-mass region (layout shapes;
 /// terrain suitability is checked per instance, not here).
 [[nodiscard]] bool in_forest_mass(const TestbedLayout& layout, glm::vec2 world);
+
+/// Occlusion canopy height above terrain at `world` for the canopy-aware C1
+/// raycast (§1.1: the occlusion heightfield is terrain PLUS canopy): the
+/// species' §5 max height inside a forest mass, 0 in clearings, on the crag
+/// treeless band and outside masses. `terrain_h` = terrain height there.
+[[nodiscard]] float canopy_height_at(uint64_t seed, const TestbedLayout& layout,
+                                     glm::vec2 world, float terrain_h);
 
 /// All scatter instances whose positions fall inside [chunk_min, chunk_max)
 /// (world meters, half-open so chunk borders never duplicate instances).
