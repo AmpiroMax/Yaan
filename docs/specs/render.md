@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 10:08:2026 - 00:00:47-->
+Last updated: 10:08:2026 - 02:30:08-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -91,6 +91,16 @@ UPD:
   FAMILY, whose ordering premise did not survive measurement — needles were
   quantising into WATER TEALS, not into grass greens, because the quantiser's
   metric weights blue 0.11 and cannot see a blue-green/green distinction.
+- 10:08:2026 - 02:30:08: TECH DEBT WAVE (landscape stage opener): (1) Rule 21
+  split of BgfxRenderer.cpp into four TUs over private BgfxRendererImpl.h,
+  verified by identical mesh-handle counts on the same tour (c9b582e);
+  (2) THE STRADDLE-RING FIX — straddling LOD nodes judged by distance to the
+  ground they contribute and clipped by the mesher instead of force-split to
+  level 0; measured 51 nodes/frame with 44 at L0 -> 12 nodes/frame with zero
+  L0 on the app's real eye path (293bba5); (3) ScatterBatcher species_radius
+  table deleted — micro-tile radius measured over baked vertices, old tabled
+  values kept as the failing control (1794747); (4) the named rule CARDS BUY
+  ANGULAR COVERAGE written in with the birch incident as its worked example.
 -->
 
 # Spec — render agent
@@ -269,9 +279,13 @@ Output goes straight to `IRenderer::create_mesh` (Vertex layout is the frozen
 contract). LOD and skirts are stage-3 topics.
 
 **File discipline.** Each backend file targets ~300 lines, hard cap 800
-(Rule 21); BgfxRenderer splits (resources / frame / capture) before nearing
-the cap. C++23 with C++20 fallback guards (Rule 19); no C++23-only feature is
-currently used in the public headers.
+(Rule 21). BgfxRenderer IS split (10:08:2026): four TUs over the backend-
+private `BgfxRendererImpl.h` — lifecycle + embedded shader table in
+`BgfxRenderer.cpp`, frame path in `BgfxRendererFrame.cpp`, draws in
+`BgfxRendererSubmit.cpp`, handle bookkeeping in `BgfxRendererResources.cpp`.
+Nothing outside `sources/bgfx/` may include the Impl header. C++23 with C++20
+fallback guards (Rule 19); no C++23-only feature is currently used in the
+public headers.
 
 ## Dependencies
 
@@ -1017,6 +1031,49 @@ torch light on walls, wet surfaces, blood, snow — not only to foliage. It was
 first derived for leaf translucency, where it agreed independently with the
 user's reference photos: both the palette arithmetic and the photographs say
 "push warm, not bright".
+
+## Named rule — CARDS BUY ANGULAR COVERAGE (the foliage-card floor)
+
+Binding for every card-based (fixed-orientation plane) foliage build in this
+zone and flora's: **a card cluster uses AT LEAST 3 planes, and card count is
+chosen against the WORST azimuth, never the average.**
+
+The reasoning, so nobody re-litigates it from intuition:
+
+1. A fixed card presents its area times |sin(view angle to its plane)|. Any
+   set of ONE or TWO planes has azimuths where every plane is near edge-on
+   simultaneously (two planes fail where the view bisects them); THREE planes
+   at distributed orientations cannot all be edge-on at once, which puts a
+   floor under presented area at every azimuth.
+2. **A thing that vanishes at some viewing angles is indistinguishable from a
+   thing that is not there.** The player does not see the average azimuth;
+   they walk around the tree. An artefact that exists only from a third of
+   bearings is not a third of a defect — it is a full defect that hides from
+   two thirds of verification vantages (Rule 27's "a vantage that cannot fail
+   is not evidence" applies with force here: card coverage MUST be checked at
+   the worst azimuth, which is computable — the bisector of the largest
+   angular gap between plane normals).
+3. Per-plane statistics do not rescue an under-carded build. A species with
+   one card per spray survives "on average" because many sprays at random
+   yaws rarely all align — but a low-spray specimen (young pine, sparse
+   crown) aligns often enough to strobe as the camera orbits.
+
+**The worked example — THE BIRCH INCIDENT (flora, 09:08:2026, 2553ae7).** The
+birch carried TWO crossed cards per leaf cluster, under a comment saying "a
+narrow crown does not need a third plane". In the tour frame the birches were
+a line of bare white poles with a few flecks: at the tour's bearing both
+planes presented nearly edge-on and the crown vanished — the user-rejected
+silhouette resurfacing as a pure viewing-angle artefact AFTER the shape
+itself had been fixed and every shape invariant passed. No isolated render,
+no per-mesh invariant, and no average-case statistic caught it; only a frame
+from the unlucky azimuth could. The pine had the same exposure at one card
+per spray and "survived only statistically" — flora has since moved its
+sprays to 3 planes under this rule.
+
+Corollary for review: when a foliage build sets its card count, the number to
+ask for is the presented-area MINIMUM over azimuth (relative to the maximum),
+not the count itself. Three planes is the floor, not the target; dense
+species may need more, and the check is the same either way.
 
 ## What this zone does NOT do
 
