@@ -1732,10 +1732,30 @@ wrong.
     matter what its geometry does** — and that is precisely the frame: a green
     shoulder with one grey cap. The shape rule and the splat rule must agree,
     or the mountain loses the argument to the shader.
-  - **Consequence, predicted not assumed — core measures it.** At 115 m of
-    relief the base radius has to come in from 180 m. Cascades onto the barrow
-    (radius 103 m), the castle spur, the pine strips and the ascent length, so
-    it is re-validated per §7.0a's rule, not patched.
+  - **SCOPE — I10 constrains the massif ABOVE the cliffline, and the apron
+    below it may still flare.** Stated explicitly because the naive reading
+    (115 m of relief over a total base radius under ≈ 137 m) is both more
+    destructive than intended and geologically wrong: §2.8.2's `p > 1` profile
+    exists precisely because **talus fans out at the bottom**. The upper cone
+    must reach the rock threshold; the hem may lie where it lies. This
+    materially shrinks the cascade below.
+  - **Consequence, predicted not assumed — core measures it.** The upper
+    radius comes in; how far the hem follows is a measurement, not an
+    inference. Cascades onto the barrow (radius 103 m), the castle spur, the
+    pine strips and the ascent length, re-validated per §7.0a's rule.
+  - **THE CASTLE IS THE PLACEMENT AT RISK, and my earlier prediction about it
+    is void.** §2.8.5 reasoned that R1 was safe because "the base radius is
+    unchanged (180 m)". It is changing now, so that reasoning expires with it.
+    The Ward sits ≈ 148 m from the crag centre: **if the hem contracts far
+    enough, the castle is no longer on a spur of the massif at all but on flat
+    ground beside it**, which fails §6.1.2's siting rule outright and — story's
+    condition, and they are right to make it one — shrinks the angular
+    envelope that keeps the fortress reading **against rock rather than
+    against sky**. That envelope is the mechanism protecting the tower's
+    skyline monopoly, which is the arc's central image. **Re-measure R1–R4 and
+    the castle's ground from the valley standpoints after the reshape; do not
+    assume 115 m of relief still buys the margin it bought at 180 m of
+    radius.**
   - **The LR is worse and is the cheap one to fix.** 280 m over a 600–700 m
     base radius is an envelope of **≈ 23°** — flatter than Ravenscar. It does
     not exist yet, so fixing `LR_BASE_RADIUS` now costs nothing, and building
@@ -3065,6 +3085,35 @@ line four generations of watchmen wore into the spur — which also keeps it
 visually distinct from the Steps (§2.5), so the two climbs never read as the
 same place. At 110–120 m of relief this is a real climb; the L0 sight-wedge
 rules (§5.7) already keep its approaches clear of canopy.
+
+**UNBUILT IS BINDING, NOT DECORATIVE — escalate before laying a single step
+(story's condition on clearing the I10 reshape, and it survives them in
+ACT1_VALLEY §2).** If steepening ever makes the ≤ 25° natural line hard to
+find, **the answer is a longer traverse or more switchback, never masonry.**
+The reason is not fussiness about materials: a built stair up Ravenscar
+collapses §2.5's TWO DIFFERENT CLIMBS distinction, both mountains become
+stairs, and **act 2's Seven Thousand Steps stop being singular.** The whole
+point of specifying this route as a worn watchmen's line was that no frame
+could confuse the two. A graded ramp is masonry by another name here; the
+castle's approach ramp (§6.1.2) is a *pad* feature and is unaffected.
+
+**And the banded model already supplies the ascent's structure, which is why
+this condition is cheap rather than a constraint we have to fight.** On a
+massif whose upper cone reaches the rock threshold, a ≤ 25° line **cannot go
+straight up** — 115 m of climb needs ≈ 247 m of horizontal run, more than a
+contracted radius provides on any radial. So the route must wrap. That is
+exactly what §2.8.2 already builds: **the benches ARE the traverses and the
+band breaches (§2.8.5) ARE the risers between them.** A path zig-zagging bench
+to bench through breaches is a worn line by construction, it is what real
+mountain paths do on banded rock, and it makes the ascent *more* legible from
+the valley rather than less. The steeper mountain does not threaten the route;
+it supplies it.
+
+**One measurement to watch as the route wraps further:** I5 counts alternation
+on non-route radials (§2.8.3), so a longer wrapping route shrinks that sample.
+The pass *fraction* is unaffected — the denominator is the non-route set — but
+if the route consumes most bearings there is too little left to measure
+honestly. Report the non-route radial count alongside I5.
 | **River** | source (760, 300) → lake; exits lake → south edge ≈ (300, 1024) | §3.1 algorithm; width 4→7 m; sinuosity ≥ 1.15; **fords are derived, not tabled** — P2 places them where POI-chain corridors cross the *generated* trace (§3.1 step 6), plus the `FORD_SPACING` minimum |
 | **Lake** | center (230, 520), ≈ 90×140 m target | basin stamp, water plane ≈ 15.0 m (`LAKE_LEVEL_TESTBED`); shore sand per §3.3 |
 | **Town site (TESTBED_TOWNS = 1): hamlet "Vaelmere"** | (360, 500), east lake shore / river inflow bend | hamlet per §6: tavern head faces the lake; trader at corridor entry; pads flattened at ≈ 17–18 m |
