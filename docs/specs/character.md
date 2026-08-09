@@ -1,11 +1,14 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 02:36:34
 -->
 <!--
 UPD:
 - 10:08:2026 - 01:56:45: Initial spec: rig contract, rigid-segmented body,
   stride seam with sim, mirror map plan.
+- 10:08:2026 - 02:36:34: Sim's stride clock landed (715c9ab): ferry field
+  names recorded; future integration-test tolerance pinned at period +/- 1.5
+  ticks (sim's quantization bound).
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -42,12 +45,15 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
 
 ## Dependencies
 
-- sim: the stride clock (phase, step length) lives in their PlayerState; the
-  app ferries it into `BodyDrive` (agreed 10:08:2026: LEFT plants at
-  `FOOTFALL_PHASE_LEFT`, phase from post-step displacement, holds on stop,
-  suspends airborne, `Landed{impact_speed}` for the both-feet dip). The
-  view-model hand (id 32) retires later, coordinated — nothing new may
-  assume it permanent.
+- sim: the stride clock lives in their PlayerState (landed 715c9ab; fields
+  `stride_phase`, `stride_speed`, `yaw`, `airborne`, `vertical_velocity`,
+  `crouch_blend`; step length = `gameplay::step_length(stride_speed)` called
+  fresh, never cached); the app ferries it into `BodyDrive` (agreed
+  10:08:2026: LEFT plants at `FOOTFALL_PHASE_LEFT`, phase from post-step
+  displacement, holds on stop, suspends airborne, `Landed{impact_speed}` for
+  the both-feet dip — one measured impact number feeds both sim's camera dip
+  and this zone's body dip). The view-model hand (id 32) retires later,
+  coordinated — nothing new may assume it permanent.
 - render: mesh id range 34..49 blessed; `RenderSystem::register_mesh` (bool,
   refuses collisions and foreign ranges) landing on their side; segments draw
   on the default "prop" program.
@@ -79,6 +85,11 @@ cap; crouch two-link geometry with a no-fold control), `character_body`
 (segment spawn/hide-head, snapshot discipline, mirror puppet reflection with
 the no-swap lag-double control, showcase cycling). Rule 27: the mirror map
 IS the standing visual instrument; acceptance frames per plan step 2.
+FUTURE integration test (either zone may build it): sim's fired
+FootfallEvent ticks vs this zone's visual plants in a RUNNING sim — its
+tolerance is stride period +/- 1.5 ticks (sim's phase-crossing quantization
+bound, agreed 10:08:2026); the current clip tests are analytic against the
+rows and deliberately tighter (0.02 cycle).
 
 ## What this zone does NOT do
 
