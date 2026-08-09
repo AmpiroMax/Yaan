@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 00:32:50
+Last updated: 10:08:2026 - 00:52:46
 -->
 <!--
 UPD:
@@ -56,6 +56,7 @@ UPD:
 - 10:08:2026 - 00:19:39: Conifer 8 landed (render, 9a8b6eb) and §4.2 records the result plus the part of my own ruling that is STILL UNSHOT. Final allocation grass 8 / dry olive 4 / dirt 8 / rock 8 / sand 4 / sky 8 / water 8 / neutrals 8 / conifer 8; measured pine vs lit rock 2.34 steps (2.18 pre-conifer), pine vs shadowed rock 0.70 and ASSERTED as under 2, needle tones on three adjacent conifer entries — and it now holds at water 7 as well as 8, which was the whole point. THE CUT I ORDERED HAS BEEN ARGUED SAFE ON TWO SURFACES AND OBSERVED ON NEITHER, which is UNSHOT by §1.6.3 — my own status category applied to my own ruling. Render said so plainly rather than reporting «no banding seen» from a frame containing neither a beach nor a dry-grass expanse: REPORTING THE ABSENCE OF A TEST AS A PASS IS THE FAILURE THIS DOCUMENT EXISTS TO PREVENT, and they refused it while handing over for the night. THE RISK IS QUANTIFIED AND IT IS MINE — the two families I cut are now THE TWO COARSEST IN THE PALETTE: sand 4 shades at 0.159 per step (2.76x grass), dry olive 4 at 0.152 (2.65x), against neutrals 0.131 (2.28x, inherent since it spans black to bone), the 8-shade middle at 0.054-0.072, and conifer at 0.041 (0.71x). So the check is urgent rather than pro forma. THE SHORE FRAME IS THE TEST AND IT ANSWERS THREE OPEN QUESTIONS AT ONCE, worth knowing for whoever schedules it: sand at 4 on a broad beach, dry olive at 4 on a large dry-grass expanse, and THE RE-MEASURED WATERBED COVERAGE against §3.3's cap, since it is the first shore frame taken against non-duplicated water. THE VANTAGE IS DERIVED, NOT TABLED, AND THIS TIME THE REASON IS ACUTE: core's pond fix LITERALLY MOVED THE SHORE, so a beach coordinate written down before that fix sits on a feature that no longer exists — §7.1a's trap with the ground shifting underneath it. Derive from the regenerated waterline, shoot at INTERNAL_RES per F6. REVERSAL CONDITION stated now so it is not a matter of taste later: if sand at 4 bands visibly, THE FIRST LEVER IS DITHER COVERAGE ON THE SHORE BAND, NOT RE-ALLOCATION, because every remaining donor is either already the coarsest family in the palette or is the conifer depth we just bought the robustness with; whether dither is available there is render's to judge. §4.2 — NEW FAILURE MODE NAMED, render supplied the reason my reconstruction could not match theirs: THE ENDPOINTS MOVED UNDER ME. I was reconstructing the cold blue-green pair I originally accepted while the landed family runs along the ray through flora's albedo, so NEITHER ARITHMETIC HAD TO BE WRONG FOR THE RESULTS TO DISAGREE — the artefact changed between the claim and the check. Distinct from a stale premise (never true) and from an unchecked one (never looked at): this one WAS true when taken. The counter-measure is not more care but CHECKING AGAINST THE LIVE ARTEFACT RATHER THAN A COPY OF IT, which is now possible because the quantiser is CPU-side and GPU-free in BgfxPalette with palette_quantise / palette_mean_shade_step / palette_separation_steps / dfn_palette_ramps exposed and PaletteTests linking it without a GPU. §1.3b's separation criterion is therefore MECHANICALLY CHECKABLE BY DESIGN rather than by hand, and I should use it instead of rebuilding ramps in a scratch script — the same lesson as the camera for terrain and the clock for timestamps: keep a cheap channel to the actual artefact and use it every time. Also noted: render has made the needle-tone landing an ENFORCED test rather than a remembered one — PaletteTests goes red if the three tones stop landing on three adjacent conifer entries — so the re-verification I asked for when flora ships new tones happens automatically, which is strictly better than the promise I asked for.
 - 10:08:2026 - 00:27:25: MY UNSHOT RULING WAS SHOT AND IT FAILED, AND THE REMEDY I NAMED DOES NOT EXIST. Render had the build hot and did the check rather than hand it over. screenshots/shore/02_river_ford.png, 640x360, quantiser ON: SAND AT 4 BANDS — hard-edged tonal plateaus following the ground's curvature rather than any shadow silhouette, WITH THE CONTROL IN THE SAME FRAME (water 8 fills the right half and grass 8 the upper left, same sun and same dither pass, neither plateaus). Render bounded the reading honestly: hard shadows are hard BY DESIGN with PCF off, so only edges tracking the ground contour count. AND THE LEVER I NAMED IS ARITHMETICALLY UNAVAILABLE — the palette dither is a single global expression spanning 0.047 per channel, which breaks a band only when comparable to one quantisation step: sand 4 has a 0.195 step so dither covers 24%, dry olive 4 is 0.207 and 23%, against grass 8 at 64% and conifer 8 at 84%. Raising the amplitude to cover sand is a 4x GLOBAL increase applied to every family, noising up the whole image to fix one band, and there is no per-family dither because the pass does not know which ramp a pixel is heading for. THE REAL FINDING, AND IT IS STRUCTURAL: 64 ENTRIES CANNOT CARRY NINE FAMILIES AT THESE SPANS. Every family at >=60% dither coverage needs 86 entries; we have 64, so the palette is A THIRD TOO SMALL and no allocation fixes it — restoring sand to 5 or 6 still leaves 32-39%. SO MY §4.2 RULING WAS RIGHT ABOUT THE PRINCIPLE AND WRONG ABOUT THE SUFFICIENCY: «the budget is 64 entries, not eight families of eight» stands, since the uniform grid was never justified, but I THEN REALLOCATED INSIDE A BUDGET I HAD NEVER CHECKED WAS ADEQUATE AT ALL, and ordered a cut on the two families that could least afford it. CHECKING WHETHER A CONSTRAINT IS SATISFIABLE COMES BEFORE OPTIMISING WITHIN IT. TWO FAMILIES ARE ALREADY UNDER THE LINE THAT NOBODY HAS LOOKED AT — ROCK AND SKY, both at 52% with 8 shades, and both carry large smooth surfaces; prediction flagged for measurement rather than asserted: A QUANTISER-ON FRAME OF THE MASSIF MAY BAND ON ITS FLANKS, and nobody has shot one. AND THAT COLLIDES WITH §4.1: a deliberate pale stratum and an accidental quantisation band are THE SAME VISUAL EVENT, tonal steps across a rock flank, distinguishable by exactly one property already in §4.1's design — STRATA TRACK ABSOLUTE WORLD HEIGHT WHILE QUANTISATION BANDS TRACK LUMINANCE, so they diverge wherever the flank turns from the sun. §4.1's acceptance check is therefore that ITS BANDS HOLD THEIR ELEVATION ACROSS A LIGHTING CHANGE, not merely that bands are visible — stated before the feature is built, for once. RULING, THREE LEVERS RANKED AND THE FIRST IS A MEASUREMENT: (1) NARROW THE SPANS to the range each material actually occupies — costs nothing and is the only lever that could make 64 sufficient, since sand runs 0.35->0.84 and neutrals 0.02->0.95 and A RAMP SHOULD SPAN WHAT ITS MATERIAL ACTUALLY USES rather than a decorative full range, every unused end tone being resolution stolen from the middle where the surfaces live; this is a per-material histogram of the pre-quantised frame, measurable, and I am not guessing at it after three wrong colour numbers tonight. (2) STEP-AWARE DITHER — fixes every family at once, costs no entries, and is structurally right because THE PRESENT DITHER IS ONE FIXED AMPLITUDE APPLIED TO A PALETTE WHOSE STEPS ARE NOT UNIFORM, the identical defect as the uniform 8x8 grid I already ruled against one level down, and that recurrence is the strongest argument that it is correct. (3) MORE ENTRIES — last resort, not mine to spend alone since the palette is a user graphics setting, and it trades away the look the quantiser exists to produce. NOTHING IS REVERTED TONIGHT: reverting sand to 5 buys 32% and still bands, so it would be motion without a fix while spending the conifer depth that holds a real property; the palette stays as landed with the defect recorded and the frame in the repository, which is the honest state. STILL UNSHOT: dry olive at 4 (no large dry-grass expanse in any of seven frames; its step 0.207 is LARGER than sand's so it fails by the same arithmetic, but render labelled that as inference and so do I), and the re-measured WaterBed coverage. §1.6 NEW CONDITION F7 — A VANTAGE THAT CANNOT FAIL IS NOT EVIDENCE (render's formulation, adopted): Rule 30 in a frame instead of in a test. They nearly filed a clean result off the lake-bluff frame, which DID contain sand — flat and at essentially one luminance, and A STRIP AT ONE VALUE CANNOT SHOW BANDING ACROSS A 4-SHADE RAMP HOWEVER BAD THAT RAMP IS. Generalised: the frame must contain the subject across the RANGE the property under test varies over, F2 being that condition in angular size and this being the same condition in whatever dimension the property lives — luminance for a tonal test, bearing for a silhouette test, distance for a legibility test. Corollary and the reason it is not merely F2 restated: A PROPERTY THAT VARIES WITH VIEWING AZIMUTH NEEDS A FRAME SET THAT VARIES AZIMUTH — flora's birch cards read correctly from most bearings and as bare poles from the edge-on one, so a single standpoint certifies a single azimuth, and render's four-bearing crag sweep is now a REQUIREMENT rather than thoroughness. Per frame, state what would have to appear in it for the test to fail; if that sentence cannot be written, it is not an acceptance frame. AND THE DERIVE-THE-VANTAGE WARNING BIT EXACTLY AS PREDICTED: 03_lake_bluff.png, the tabled east-beach vantage at (278,638), HAS NO LAKE IN IT — the coordinate was derived before core's pond fix and now sits on a feature that no longer exists. Fourth vindication of «an acceptance vantage is derived, never tabled», and the first where the ground moved rather than the reader.
 - 10:08:2026 - 00:32:50: §5 — BIRCH CROWN WIDTH 5-7 m -> 6-8 m, AND IT IS FORCED RATHER THAN A MARGIN DECISION. Flora reported aspect 1.78 against the 1.8 ceiling (1% margin, and only after spending card_aspect 0.95 -> 0.76) and DECLINED to ask for the width band because a wider birch weakens the «smallest and slimmest of the three» accent role. The arithmetic takes it out of both our hands: at H=22 with base 0.40 the crown is 13.2 m and needs >= 7.33 m of width MERELY TO REACH THE CEILING, while the band's maximum is 7 — so THE EXISTING BAND IS ALREADY ILLEGAL, and flora's built 6.9 m is not a tight pass but a value OUTSIDE THE BAND'S OWN WORST CASE, the only reason nothing failed being that crown_width_frac never realises the corner the band permits. Sixth instance of «a range is two assertions», and the first where the illegal end is MINE rather than an implementation's. The band moves FOR THE DERIVATION, NOT FOR THE MARGIN, and both ends move: a crown beginning at 0.40 instead of 0.58 is 43% TALLER and a real birch's lower limbs are correspondingly longer — the same act as the crown-base re-derivation itself, one level along, a constant fitted under a condition that has since changed. Worst realised aspect becomes 1.65, an 8% margin, covering the crown-base band's own 8% span. ACCENT ROLE SURVIVES, CHECKED RATHER THAN ASSERTED: oak crowns are 11.5-15.4 m and pine 9.2-12.5 m, so a birch at 8 m is still 13% SLIMMER THAN THE NARROWEST PINE and half the oak — flora was right to raise the concern and right that it was mine to weigh. CONSEQUENCE FOR CORE, VERIFIED IN SOURCE RATHER THAN TAKEN FROM A REPORT: the birch lattice is HARD-CODED AT 8.0 m in WorldgenScatter.cpp with a 45% keep and does NOT derive from crown width, while oak and pine both read TREE_SPACING_FOREST — so at an 8 m crown on an 8 m lattice adjacent kept birches touch and A LINE OF L2 GUIDES BECOMES A HEDGE, §1.3 listing «lone birch» as a guide where a thicket is not one. The defect is that ONE SPECIES' SPACING IS PINNED WHERE THE OTHERS ARE DERIVED (Rule 32's shape: a derived quantity computed by one consumer and hard-coded by another). Reported, not patched. §5 — RULE 30 SHARPENED TWICE AND FLORA'S VERSION IS BETTER THAN MINE. I ruled that the control should be THE REAL REJECTED ARTEFACT; flora applied it and found it COULD NOT BE SATISFIED ON THE CLAUSE I AIMED IT AT — the repaired birch measures limb-spread 0.399-0.442 but THE OAK'S SMALLEST VARIANT SITS AT 0.166, BELOW the rejected birch's 0.17-0.19, because a compact crown on a short tree and a tuft on a tall pole give the same number from different objects. No floor on that quantity separates accepted from rejected without failing an accepted species. They moved the floor to FOLIAGE SPAN, where a 0.58 crown base caps span at 0.42 by construction and every accepted species measures 0.49-0.76, rejecting THE WHOLE CLASS rather than one instance. WHICH CLAUSE A FLOOR BELONGS ON IS ITSELF A MEASUREMENT (flora's, adopted verbatim), and the test for it: IF NO VALUE ON A QUANTITY SEPARATES THE ACCEPTED CASES FROM THE REJECTED ONES, THE QUANTITY IS WRONG, NOT THE THRESHOLD. That is the discriminating-power test and it is THE MECHANICAL FORM OF §2.8.7'S WHOLE THESIS — nine invariants measured the object and none the view, and the way to have caught that in an afternoon was to ask of each «is there ANY threshold on this quantity that separates the mountain the user rejected from one he would accept?», for most of which the answer is no. «Measuring the wrong thing» stops being a judgement and becomes a computation. §5 — TWO RULES FROM DEFECTS ONLY A MOVING FRAME COULD FIND. (a) cards_per_cluster = 2 IS NOT A CHEAPER 3, IT IS A DIFFERENT OBJECT: cards are fixed-orientation so two crossed planes have azimuths where BOTH present edge-on, and there the birch was «a line of bare white poles with a few flecks» — THE REJECTED SILHOUETTE SURVIVING A REWRITE THAT HAD GENUINELY FIXED THE SHAPE, purely as a viewing-angle artefact. Three planes cannot all be edge-on, so any card-based foliage species uses >= 3 planes per cluster; this is F7's corollary in geometry. (b) §1.5's SEPARATION REQUIREMENT APPLIES WITHIN AN OBJECT, NOT ONLY BETWEEN OBJECTS: all wood drew in one colour so the birch's near-white limbs matched its own foliage and the crown read as scaffolding rather than tracery — A TREE WHOSE LIMBS AND FOLIAGE SHARE A VALUE READS AS ONE MASS, the same defect as pine-against-rock two scales down. Fixed with dark twigs on a white bole, which is both what the photographs measure and what a birch is.
+- 10:08:2026 - 00:52:46: USER RULING CARRIED INTO THE BIBLE — «давай цвета фигачить по полной, потом если что ужмем палитру». FULL COLOUR IS THE BASIS; the quantiser becomes a late pass fitted to a finished world. §1.5 — «MEASURE WITH THE QUANTISER ON, CERTIFY BOTH» RETIRED, and it was ALSO UNSOUND, which nobody had noticed: it rested on «the quantiser can only merge, never split», and a quantiser splits as readily as it merges — two colours either side of a Voronoi boundary land a full step apart, WHICH IS WHAT BANDING IS, and the banding frame was shot in the same evening the doctrine was written. Measured on the live BgfxPalette: sweeping a lit rock flank the quantised instrument INVENTS up to +0.83 steps out of a true difference of 0.001 and DESTROYS up to 0.81; on the sand family +1.98 and 1.44. AGAINST A THRESHOLD OF 2 THE INSTRUMENT'S OWN ERROR IS ±1 TO ±2 STEPS, AND IT IS WORST ON THE COARSEST FAMILY — an instrument that quantises its own inputs cannot adjudicate a threshold the size of its lattice. NEW §1.5.1 — what full colour costs this section rule by rule, because several rules were derived on a limited-palette premise and needed their JUSTIFICATIONS re-stated, not their status: (1) «value contrast over hue» RESTORED to governing and the ramp correction re-scoped to quantiser-on rather than left standing as a correction to it — both are right, each in its own mode, and the ramp argument has no referent without a lattice; (2) the separation criterion re-derived in §1.3b; (3) RENDER'S AMENDMENT DOWNGRADED FROM A CONSTRAINT TO A WEIGHTING, which is the largest thing full colour gives back — «a separator must move R or G» was a hard gate because a blue-only difference could be ANNIHILATED, and at full colour it is attenuated but never destroyed (0.2 of blue = 0.85 rulers vs green 1.96, so blue costs 2.3x and is no longer forbidden); (4) THE HEADLINE DEFECT OF STAGE 4 IS NOT A PALETTE ARTEFACT — pine vs shadowed rock measures 0.632 at FULL COLOUR against 0.700 quantised, i.e. WORSE, so nobody may read this ruling as «the forest/mountain merge was a quantiser problem»: §5.12's apron stands entirely. §1.3b — LANDMARK_SEPARATION_STEPS_MIN RE-DERIVED, separating FORM, UNIT and VALUE. FORM: sqrt(0.30dr^2+0.59dg^2+0.11db^2) / PALETTE_SHADE_STEP_REF on the frame's own pixels — palette_separation_steps with the quantise step deleted — so ONE INSTRUMENT NOW READS BOTH CONFIGURATIONS because the quantisation moved out of the instrument and into the input, which is what the retired doctrine was reaching for and could not have. UNIT: PALETTE_SHADE_STEP_REF = 0.0784 FROZEN AS A NUMBER, not a function call — it stops being a floor and becomes a ruler, and while the criterion divides by the live palette_mean_shade_step() any re-allocation silently rescales every threshold in this document (Rule 35 by its predictive form; NUMBERS row requested). VALUE: the old derivation is VOID (there is no quantisation floor to sit above); the lead asked whether 2 becomes a luminance RATIO or a hue ANGLE and the answer is NEITHER — it stays a linear DIFFERENCE, because a ratio criterion is most permissive in the DARKS and every merge we have on record is in the darks, so linear is strict where the failures are. Cost stated: weak in the brights, untested there, and the metric under-reads pure-hue separation (safe direction). The value 2 is RETAINED and re-based on Rule 30's amendment — the real rejected instance (pine vs shadowed rock, 0.632) is the control and 2 sits 3.2x above it — but there is NO real accepted instance, so it is calibrated below and UNSHOT above, reported that way. §4.1 — «ROCK_PALE sits between 0.37 and 0.87, at least one palette step below the spire white» REPLACED: it gave render an open interval half the value axis wide with NO separation floor in it, and «one palette step» cited a unit now retired and a loophole §1.3b had already closed. DERIVED: ROCK_PALE albedo in [0.53, 0.71] — the two floors consume 63% of the available range, which is the useful thing the old wording hid. Also: the strata FADE WITH THE LIGHT proportionally and that is correct behaviour, so §4.1's acceptance check is about where the bands ARE, never how strong they are. NEW §4.3 — the palette reframing. Sand/dry-olive banding leaves the urgent list (quantiser-only; frame stays as evidence, finding stays true). AND «86 ENTRIES NEEDED AGAINST 64» IS WITHDRAWN — it was the wrong INSTRUMENT, not wrong arithmetic: it measured when a FIXED 0.047 dither covers 60% of a step, a property of today's dither implementation reported as a property of the world, and «60% coverage» never had a control. Replaced by a criterion this document already owns: A FAMILY BANDS WHEN ITS LARGEST INTERIOR STEP REACHES LANDMARK_SEPARATION_STEPS_MIN — one constant governing merging BETWEEN materials and banding WITHIN one. Checked against the live artefact with BOTH controls from the one shot frame: sand 2.41 rulers predicted BANDS and bands; water 0.94 and grass 0.90 predicted clean and are clean. Sizing follows and INVERTS the finding: 47 entries needed at a floor of 2, against 64 available — 64 IS NOT A THIRD TOO SMALL, IT IS A THIRD LARGER THAN NEEDED AND THE DEFECT IS ALLOCATION. The 86 figure sits at an implied floor of ~0.9 rulers, i.e. it demanded no manufactured edge exceed HALF the difference at which this document says two things are different colours at all. Honest caveat recorded because it pushes back: 2 rulers was derived for two LARGE MASSES and a band is a THIN CONTOUR, and the sensitivity curve is steep — 58 entries at 1.5, break-even at ~1.4, 68 at 1.25 — so 47 is a floor on the requirement, not a certificate. DISCRIMINATING EXPERIMENT named: the two criteria disagree on three families, coverage predicting ROCK and SKY band while separation predicts they do not (1.12, 1.08) and that NEUTRALS does (2.05, and nobody has ever flagged neutrals); §4.2's «the massif may band on its flanks» is withdrawn as stated and becomes the negative arm. AND I DISAGREE WITH THE FRAMING I WAS HANDED on the conifer ramp: it did NOT survive untouched, because the recorded harm was COUPLING and the coupling exists only because needles quantised into the water ramp — at full colour a conifer's colour is flora's albedo and is coupled to nothing, so the entries buy nothing there. What survives, and stronger, is the PRINCIPLE (appearance is chosen, never a nearest-colour accident), which full colour satisfies BY CONSTRUCTION; the ramp was its MECHANISM under quantisation. Conifer 8 stays landed — no churn on a palette about to be re-derived — but stops being cited as a precondition for any full-colour decision. §5 — BIRCH RULED, AND THE ANSWER IS NOT THE ONE I WAS ASKED FOR. CROWN_ASPECT_MAX 1.8 -> 2.0; the crown width band does NOT move; the trade I was asked to weigh (a wider birch against its accent role) DOES NOT HAVE TO BE MADE; and the landed «BIRCH CROWN WIDTH 5-7 -> 6-8 m, FORCED» ruling is WITHDRAWN together with its table. Read out of the live generator instead of modelled: crown_width_frac = 0.34 is crown DIAMETER / HEIGHT, so aspect = (1-base)/0.34 and THE HEIGHT CANCELS EXACTLY — 1.747 at 16 m, at 19 m and at 22 m. There is no worst corner of the height range because there is no variation along it, the 5-7 m band is a DESCRIPTION of what the fraction realises rather than an authored quantity, and the withdrawn table asks what a 22 m birch with a 5 m crown would measure when the generator builds that birch with a 7.48 m crown — reading the ceiling off a corner of the authored band is MEASURING THE CONTAINER, the one act this rule's own definition forbids, committed by the rule's own author for the third time around this number. THE REAL DIAGNOSIS OF THE ONE PERCENT: crown_base_frac = max(species_value, 1 - ceiling*0.97*width_frac), so at 1.8 the ceiling derives 0.4064 and OVERRIDES flora's authored, frame-tested 0.40 — the ceiling is this species' DRIVING INPUT, which the registry says it must not be. The nominal tree sits at 1.746, exactly 3% under by design, and the 1% that reached flora is what survives after the known nominal->built card-corner overshoot eats two thirds of that guard: THE MARGIN IS NOT THIN, IT IS PRE-SPENT, and no amount of crown width fixes that. At 2.0 the derived floor falls to 0.3404, below 0.40, so the species value governs and the ceiling goes back to guarding; the tree moves by 0.006 of its height and the margin goes 3.0% -> 11.8%. No runaway is possible because the ceiling enters as a std::max and can only ever RAISE the crown base. WHERE 2.0 COMES FROM: the instrument is ANTI-CORRELATED with the judgement on this species — the REJECTED palm birch measured 1.02-1.27 and the ACCEPTED one measures 1.78 — so the bracket is «1.78 reads, 2.30 does not» and 2.0 sits 12% above the highest accepted and 13% below the lowest rejected, which is the MAXIMUM SYMMETRIC MARGIN OBTAINABLE in a 1.29x-wide interval: the ceiling is now tightly bracketed by evidence rather than generously clear of it. Also: 1.8 was itself the AUTHORED CONTAINER's ratio, and the rule it gates says measure built geometry never the container. I OPENED screenshots/flora_grown/01_birch_at_040_EXPERIMENT.png rather than relaying my predecessor's reading, and add an observation from it: A LOOSE CROWN INFLATES ITS OWN BOUNDING BOX, so the looser the birch — the more it obeys §5.3's «small loose crown» — the worse it scores; the ceiling and the brief pull opposite ways on this species. Status honest: the 1.78 birch is design-accepted and USER-UNSHOT, so if the tour rejects it the bracket re-opens. Two costs corrected in passing: TREE_SPACING_FOREST is 12-18 m and was never going to move for an 8 m crown (cited twice, in both directions, and false in both), while the hard-coded 8.0 m birch lattice in WorldgenScatter remains a live Rule 32 defect for core and never depended on the band. §5.3 restated: crown 5.4-7.5 m DESCRIPTIVE, «a range is two assertions» does not apply to a fraction, and the stale 0.58-0.62 crown base marked superseded by 0.40-0.45 in place.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -580,9 +581,99 @@ legitimate — forest above the cliffline is not.
 
 ##### The value test — when are two masses "merged"?
 
-> **Two adjacent regions are SEPARATE when the two colours they QUANTISE TO lie
-> ≥ `LANDMARK_SEPARATION_STEPS_MIN` = 2 mean shade steps apart in the shipped
-> palette.**
+> **~~Two adjacent regions are SEPARATE when the two colours they QUANTISE TO
+> lie ≥ `LANDMARK_SEPARATION_STEPS_MIN` = 2 mean shade steps apart in the
+> shipped palette.~~ — SUPERSEDED, stage-5. Replaced by the criterion below in
+> this same section; a grep for the old wording lands here.**
+
+##### RE-DERIVED FOR FULL COLOUR — the criterion, its unit, and what it costs
+
+The user's ruling (§1.5) takes the quantiser out of the basis, and **the unit
+this constant is denominated in was the quantisation floor.** At full colour
+«one step» has no referent, so the constant cannot simply be carried over. It
+is re-derived, and the answer separates cleanly into a FORM, a UNIT and a VALUE
+— which is why the previous wording could not be patched.
+
+> **THE FORM. Two adjacent regions are SEPARATE when the colours the player
+> actually sees differ by ≥ `LANDMARK_SEPARATION_STEPS_MIN` = 2, where**
+>
+> > **separation(a, b) = √(0.30·Δr² + 0.59·Δg² + 0.11·Δb²) / `PALETTE_SHADE_STEP_REF`**
+>
+> **evaluated on the FRAME'S OWN PIXELS. This is `palette_separation_steps`
+> with the quantise step deleted and the divisor frozen.**
+
+**The single most important property, and it is what the old arrangement was
+reaching for and could not have: ONE INSTRUMENT NOW READS BOTH CONFIGURATIONS,
+because the quantisation has moved out of the instrument and into the input.**
+Hand it pixels from a full-colour frame and it reports what a full-colour player
+sees; hand it pixels from a quantiser-on frame and it reports what that player
+sees. No doctrine is needed to relate the two, and the ±1–2 step lattice noise
+measured in §1.5 — which the old instrument added to *every* reading, including
+full-colour subjects it had no business quantising — is gone.
+
+**THE UNIT. `PALETTE_SHADE_STEP_REF` = 0.0784 weighted-RGB, FROZEN AS A NUMBER
+AND NOT AS A FUNCTION CALL** (measured from the live `palette_mean_shade_step()`
+on the landed allocation, 0.078383). Two things change about it:
+
+- **It stops being a floor and becomes a ruler.** A unit does not have to be a
+  quantisation limit to be a unit; it has to be *stable*. Metres are not a floor
+  on anything.
+- **It must therefore be frozen, and this is a real hazard rather than
+  tidiness.** `palette_mean_shade_step()` is computed from the current ramp
+  allocation. **While the criterion divides by the live call, any re-allocation
+  of the palette silently rescales every threshold in this document** — and the
+  palette is scheduled to be re-derived wholesale (§4.3). A ruler that moves
+  when the thing being measured moves is not a ruler. **Rule 35 applies by its
+  own predictive form: this number gained a second consumer the moment design's
+  thresholds and render's ramp construction both had to agree on it.** Requested
+  as a NUMBERS.md row.
+
+**THE VALUE — and here is where the lead's question lands: does 2 become a
+luminance RATIO, a hue ANGLE, or something else? It stays a linear DIFFERENCE,
+and the reason is where our failures actually are.**
+
+- **Not a hue angle.** Hue angle is undefined as luminance → 0, and §4.2 has
+  already established by measurement that **every merge this project has
+  observed is in the darks.** A criterion that goes undefined exactly where the
+  subject fails is not a criterion.
+- **Not a luminance ratio, and this is the non-obvious one.** A ratio (Weber)
+  criterion is the textbook-correct model of perception, and adopting it here
+  would be **wrong in the only direction that matters**: at fixed ratio, the
+  absolute difference required *shrinks* as luminance falls, so a ratio
+  criterion is **most permissive in the darks** — the one region where we have a
+  user-rejected merge on the record. A linear-difference criterion is strictest
+  in the darks and laxest in the lights, which is strict where the failures are.
+  **Chosen because of where the evidence sits, not because of which model is
+  more sophisticated.**
+- **The cost is stated rather than hidden: in the BRIGHTS the criterion is
+  weak, and nothing has ever been tested there.** Bright pairs exist and matter
+  — pale stratum against grey rock, spire white against pale rock (§4.1),
+  anything against sky. §4.1 now carries a derived range because of this.
+- **And the metric under-reads pure-hue separation** — it is a luminance-weighted
+  RGB distance, not a colour-difference formula, so two colours of equal
+  luminance and very different hue score lower than they look. **That error is
+  in the safe direction** (it calls a separated pair merged, never the reverse),
+  so the criterion is conservative for hue and accurate for value. Recorded so
+  nobody re-derives it as a defect.
+
+**STATUS OF THE NUMBER 2 — and I am not going to pretend it survived
+untouched.** Its derivation is VOID: it was «one step is the quantisation floor,
+and a threshold must sit above its own noise floor», and there is no
+quantisation floor now. The value is **retained and re-based**, on Rule 30's
+amendment:
+
+- **The real rejected instance is the control.** Pine against shadowed rock —
+  the merge the user rejected in words — measures **0.632** at full colour. The
+  threshold sits **3.2× above it.** That clears it and clears the ≈1.6× margin
+  this document takes elsewhere.
+- **There is NO real accepted instance, and therefore no upper bracket.** We do
+  not know whether 2 is conservative or merely inherited. Under §1.6.3's own
+  status category the number is **calibrated below, UNSHOT above** — reported
+  that way and not as «passing».
+- **The experiment that would close it** is a frame containing two masses that
+  measure between 1 and 2 and demonstrably read as separate. Cheap, and it
+  belongs with the value-based silhouette instrument (C1-A/C1-B) rather than
+  ahead of it.
 
 **TIGHTENED from my original wording («2 steps, or 1 step across a ramp
 change»), and render's question is what exposed the hole.** A ramp change is a
@@ -600,32 +691,30 @@ the quantisation floor — two surfaces within one step are *literally the same
 colour* after the post, so a one-step criterion measures the quantiser rather
 than the image. A threshold must sit above its own noise floor.
 
-- **The measured case, computed before any frame was shot:** `PINE_DARK`
-  luminance **0.197**, darkest rock stop **0.192**. **Zero steps.** In shadow,
-  in a crack, or on a north-facing riser, pine canopy and rock are the same
-  value by construction. The hue axis *does* separate them at source (pine
-  saturation 0.45 against rock's 0.05) — see §5.12 for why that does not save
-  the backlit frame.
-- **THE TEST IS RUN WITH THE PALETTE ON, AND THAT CERTIFIES BOTH
-  CONFIGURATIONS.** The quantiser can only ever *merge* neighbouring colours,
-  never split them, so **separation measured with the palette on is a lower
-  bound on separation with it off.** Passing with it on implies passing with it
-  off. Running it in the conservative configuration therefore makes this
-  threshold **independent of the undecided question below**, which is the
-  property a threshold should have.
-- **MY «THE SHIPPED LOOK IS WORSE» FRAMING WAS WRONG — the lead's correction,
-  and it matters.** `settings.cfg` ships `palette=0`, which is the default the
-  game writes on first run. **So the frames are not optimistic relative to what
-  ships; they ARE what ships today.** What is actually unresolved is whether
-  the quantiser is meant to ship on at all, which nobody has ever decided.
-  **Design's position, for the record and for that decision: it should ship
-  ON** — §1.5's entire readability doctrine («with the limited palette, tiers
-  separate by value») is *written assuming a limited palette*, so with the
-  quantiser off that doctrine has no premise and several rules in this document
-  lose their basis. **But the conifer ramp is a precondition, not a follow-up:
-  turning the quantiser on today would make the pine/rock merge worse, because
-  pine has no ramp of its own to quantise into** (§5.12). Order: ramp, then
-  quantiser.
+- **~~The measured case:~~ `PINE_DARK` luminance 0.197 vs darkest rock stop
+  0.192, «zero steps» — WITHDRAWN, and it was never the operative comparison**
+  (§4.2, render's measurement). It compared a material to a *palette entry* on
+  a luminance axis the metric does not use. **The correct measured case, live
+  artefact, stage-5: pine vs shadowed rock = 0.632 at full colour, 0.700
+  quantised.** The conclusion the wrong pair was used to reach — that pine and
+  rock merge in shadow — is confirmed; the pair is not. The hue axis *does*
+  separate them at source (pine saturation 0.45 against rock's 0.05) — see
+  §5.12 for why that does not save the backlit frame.
+- **~~THE TEST IS RUN WITH THE PALETTE ON, AND THAT CERTIFIES BOTH
+  CONFIGURATIONS~~ — RETIRED, by the user's ruling AND by measurement.** The
+  «lower bound» argument is false: a quantiser splits as readily as it merges,
+  by up to a full step, which is what banding is. See §1.5. The re-derived
+  criterion above needs no such argument, because it does not quantise
+  anything.
+- **~~Design's position: the quantiser should ship ON~~ — WITHDRAWN, and the
+  user has ruled the other way** (§1.5). The argument was that §1.5's
+  readability doctrine «has no premise» without a limited palette. **§1.5.1
+  works through that claim rule by rule and it does not hold**: one bullet was
+  scoped to the wrong mode, one is re-derived above, one was a constraint that
+  full colour *relaxes*, and the headline defect measures worse at full colour
+  than it does quantised. The lead's underlying correction survives and still
+  matters: `settings.cfg` ships `palette=0`, **so the frames in this repository
+  are what ships today** — they were never optimistic relative to the product.
 - **Two shapes can occlude nothing and still merge.** That sentence is the
   reason there are two numbers and not one.
 
@@ -687,9 +776,14 @@ horizontal ≈ 1.87 rad):
   FOREGROUND as well as from its backdrop**, and where that foreground is
   vegetation the separation is carried by **hue and by silhouette scale**,
   never by value (§5.12, §1.3b).
-- **AND THE LIMITED PALETTE ARGUES FOR HUE, NOT AGAINST IT — a correction to
-  the bullet above, from reading what the palette actually is.** The 64-colour
-  post is **8 ramps × 8 shades**. So the palette quantises *hue* into eight
+- **AND THE LIMITED PALETTE ARGUES FOR HUE, NOT AGAINST IT — ~~a correction to
+  the bullet above~~, NOW SCOPED TO QUANTISER-ON (stage-5).** It was written as
+  a correction and it is not one: it is **true of the quantised configuration
+  and inapplicable to the full-colour one**, where there are no ramps to change
+  and therefore no ramp-change signal to be robust. **Both bullets are right,
+  each in its own mode, and the bullet above governs the basis** (§1.5.1). From
+  reading what the palette actually is: the 64-colour post is
+  **8 ramps × 8 shades**. So the palette quantises *hue* into eight
   large, well-separated families and *value* into eight fine steps within each.
   **A ramp change is therefore the coarsest and most robust signal the palette
   can carry, and a step change is the finest and most fragile.** «Value
@@ -708,26 +802,97 @@ horizontal ≈ 1.87 rad):
     runs first.** Two colours that look utterly different can be identical
     after the post. Every separation claim in this document is checked against
     the metric, not against the hue wheel.
-- **MEASURE WITH THE QUANTISER ON, CERTIFY BOTH — the general rule (user
-  decision, stage-4: the 64-colour post is a MENU SETTING, neither on nor off
-  by fiat).** The player may select either configuration, so **every
-  readability rule in this document is written for the worse of the two.** That
-  is always the quantised one, because **the quantiser can only ever MERGE
-  neighbouring colours and never split them** — so any separation measured with
-  it on is a **lower bound** on the same separation with it off. **One
-  measurement, in the conservative configuration, certifies both.** §1.3b's
-  separation threshold was already arranged this way; it now carries the whole
-  doctrine rather than one number.
-  - **This repairs a claim I made too strongly.** I wrote that with the
-    quantiser off this section's doctrine «has no premise» and several rules
-    lose their basis. With a *setting* the premise is **conditional rather than
-    absent**, and because the rules are written for the worse case **they hold
-    unconditionally.** The doctrine is stronger as an option than it would have
-    been as a default — not what I expected, and recorded as such.
-  - **The conifer ramp stops being a precondition for a decision and becomes
-    simply required.** Some players will turn the quantiser on, so shipping
-    without it ships a configuration in which the most common dark mass in the
-    world has no shade of its own.
+- **~~MEASURE WITH THE QUANTISER ON, CERTIFY BOTH~~ — RETIRED AS A BASIS (user
+  ruling, stage-5).** «давай цвета фигачить по полной, потом если что ужмем
+  палитру.» **The look is developed at FULL COLOUR. The quantiser becomes a
+  late pass fitted to a finished world, rather than the world being shaped to
+  fit it.** Sixty-four entries stop being a design constraint. Not up for
+  re-litigation; the substance of what it changes is §1.5.1 and §4.3.
+  - **And the doctrine was also UNSOUND, which nobody had noticed, and I am
+    recording it because the user's ruling is now resting on a claim I can no
+    longer defend.** It rested on «the quantiser can only ever MERGE
+    neighbouring colours and never split them», hence «measured with it on is a
+    lower bound». **The second half is false, and the counter-example was
+    already printed two sections below it.** A quantiser splits as readily as
+    it merges: two colours either side of a Voronoi boundary land on entries a
+    full step apart. That is not an edge case — **it is exactly what banding
+    is**, and §4.2 had shot a banding frame in the same evening the doctrine
+    was written. **Measured against the live artefact** (`BgfxPalette`,
+    `palette_separation_steps`, swept along a lit rock flank and along the sand
+    family):
+
+    | family swept | largest separation the quantiser INVENTS | largest it DESTROYS |
+    |---|---|---|
+    | rock (8 shades) | **+0.83 steps** (from a true difference of 0.001) | 0.81 steps |
+    | sand (4 shades) | **+1.98 steps** (from a true difference of 0.001) | 1.44 steps |
+
+    **Against a threshold of 2, the instrument's own error is ±1 to ±2 steps —
+    and it is worst on the coarsest family, which is where the decisions are
+    hardest.** «One measurement certifies both» was never available. The right
+    reading is not that the old doctrine was wrong-headed but that **an
+    instrument which quantises its own inputs cannot measure a threshold of the
+    same size as its lattice.**
+  - **The conifer ramp is NOT a precondition for anything at full colour** —
+    see §4.3, where I disagree with the framing I was handed and say why.
+
+#### 1.5.1 WHAT FULL COLOUR COSTS THIS SECTION, RULE BY RULE (stage-5)
+
+The user's ruling is a change of basis, not a note. Several rules here were
+derived on a limited-palette premise and their **justifications** have to be
+re-stated, not merely their status. Taken one at a time, and the honest answer
+is different in each case.
+
+**1. «Value contrast over hue» is RESTORED to governing, and the reason is not
+that the correction was wrong.** The correction («a ramp change is the coarsest
+and most robust signal the palette can carry») is a statement about a *lattice*.
+Delete the lattice and it has no referent. What remains is the original
+low-resolution argument, which never needed the palette: at 640×360 a silhouette
+survives minification by its luminance step, and the pipeline's own metric
+weights luminance at 0.30/0.59/0.11 precisely because that is where the eye's
+sensitivity is. **Value governs. Hue is a second axis that is now free of the
+quantiser's veto** — see 3.
+
+**2. The separation criterion loses its unit but keeps its form** (§1.3b,
+re-derived there). This is the one real casualty and it is handled rather than
+noted.
+
+**3. RENDER'S AMENDMENT IS DOWNGRADED FROM A CONSTRAINT TO A WEIGHTING, and
+this is the largest thing full colour gives back.** «A separator must move RED
+or GREEN» was a **hard gate**: a blue-only difference could be *annihilated*,
+both colours landing on one entry, separation exactly zero. At full colour the
+same difference is **attenuated but never destroyed.** Measured on the live
+metric:
+
+| separator | full colour | quantised |
+|---|---|---|
+| 0.2 in BLUE only | **0.85 rulers** | 1.31 |
+| 0.2 in RED only | 1.40 rulers | 1.02 |
+| 0.2 in GREEN only | 1.96 rulers | 2.01 |
+
+**Blue buys 0.43× what green buys per unit, so a blue separator must be ~2.3×
+larger — but it is no longer forbidden.** The design vocabulary regains its
+blue axis at a stated exchange rate. Note also that the quantised column is
+*not* consistently lower: it reads blue HIGHER than the truth and red LOWER,
+which is the ±1-step lattice noise of §1.5 again.
+
+**4. AND THE HEADLINE DEFECT OF STAGE 4 IS NOT A PALETTE ARTEFACT. Measured,
+and it is the finding I most want travelling with this ruling.** Pine against
+rock in shadow — the colour half of «the forest was eating the mountain», the
+thing the user rejected in words:
+
+> **full colour 0.632 rulers; quantised 0.700.** Full colour is **WORSE**.
+
+Nobody may read «develop at full colour» as «the merge was a quantiser
+problem». It was not. **§5.12's apron stands entirely**, §4.2's «in deep shadow
+the only separator left is silhouette» stands entirely, and both are now
+established on the configuration we actually design in rather than on the one
+we do not.
+
+**5. What is genuinely no longer decided here: sixty-four.** Every allocation
+argument in §4.2 — which family gives up shades, whether water is 7 or 8 — is a
+question about a *late pass fitted to a finished world*, and answering it now
+fits the pass to a world that does not exist yet. §4.3 records what survives of
+it as input to that pass.
 
 ### 1.6 THE ACCEPTANCE FRAME — what a frame certifies, and from how far (doctrine, stage-4)
 
@@ -3201,12 +3366,15 @@ layer the complaint was actually about.**
   four-material budget is untouched — rock's albedo lerps between its grey
   stops and `ROCK_PALE` on the stratum mask. No new splat channel, no new
   memory.
-- **And it survives quantisation by construction**, which is the payoff of
-  §1.5's ramp correction: grey rock sits on the **rock-greys** ramp and pale
-  rock on the **neutrals** ramp, so a stratum boundary is a **ramp change** —
-  the strongest separation the palette can carry, and one that two things on
-  the same ramp could never have. The bands cannot merge at any quantiser
-  setting.
+- **~~And it survives quantisation by construction~~ — the ramp-change argument
+  is SCOPED TO QUANTISER-ON and is no longer what makes this work (stage-5).**
+  It was: grey rock on the **rock-greys** ramp, pale rock on the **neutrals**
+  ramp, so a stratum boundary is a ramp change and the bands cannot merge at
+  any quantiser setting. That remains true *with the quantiser on*. **At full
+  colour there are no ramps, so the stratum has no separation argument at all
+  until one is measured** — and this is the first place §1.5.1's «in the
+  brights the criterion is weak, and nothing has ever been tested there» bites
+  something real. The replacement is a derived value range, below.
 
 **Sizing, derived (Rule 33 — the strata must be readable from the acceptance
 distance, not merely present):**
@@ -3225,8 +3393,39 @@ distance, not merely present):**
 
 **Value, stated as a constraint so render picks the triple:**
 
-- `ROCK_PALE` sits **between** the grey rock stops (luminance ≈ 0.37) and the
-  spire white (≈ 0.87), and **at least one palette step below the spire white**.
+- **~~`ROCK_PALE` sits between the grey rock stops (≈ 0.37) and the spire white
+  (≈ 0.87), at least one palette step below the spire white.~~ — REPLACED BY A
+  DERIVED RANGE (stage-5), and the old wording had two defects.** It gave
+  render an *open interval half the value axis wide* with no separation floor
+  in it at all, so a pale stratum 0.02 above grey rock would have satisfied it;
+  and «one palette step» is denominated in the unit §1.3b has just retired,
+  and in the *loophole* wording §1.3b closed even before that («one step across
+  a ramp change» was tightened to a plain two steps, and this line was never
+  updated with it). A textbook stale citation of the kind §1.6.5 names.
+- **DERIVED, from §1.3b's re-based criterion at 2 rulers = 0.157 weighted-RGB.**
+  Both boundaries are near-neutral pairs, for which the weighted metric reduces
+  exactly to the luminance difference, so the arithmetic is direct:
+
+  > **`ROCK_PALE` albedo ∈ [0.53, 0.71] (предложение — утвердить).**
+  > Lower bound 0.37 + 0.157 — pale must separate from GREY ROCK, which is the
+  > band the feature exists to show. Upper bound 0.87 − 0.157 — pale must stay
+  > separated below SPIRE WHITE, which is §2.9's brightest-thing-in-the-world
+  > clause restated as a distance instead of as a wish.
+
+  The interval is **0.18 wide, i.e. the two floors consume 63 % of the
+  available range** — which is the useful thing this derivation reveals and the
+  reason the open interval was dangerous: there was much less room here than
+  the old wording implied.
+- **AND THE STRATA FADE WITH THE LIGHT, PROPORTIONALLY, WHICH IS NOT A DEFECT
+  BUT MUST NOT BE MISREAD AS ONE.** Both materials are the same rock under the
+  same sun, so their *rendered* difference is the albedo difference times the
+  local illumination: a pair clearing 2 rulers on a fully-lit face clears 0.6
+  in shadow at a third of the light. **§4.1's acceptance check («the bands hold
+  their ELEVATION across a lighting change») is therefore about where the bands
+  are, never about how strong they are** — a stratum that dims on a shaded
+  flank is behaving correctly, and a reviewer must not file that as the feature
+  failing. This is §4.2's «all families converge at the dark end» arriving in a
+  place where it is benign.
 - **The spires must remain the brightest value in the world** (§2.9), or a
   cliff face of spire-white drowns the L1 formation the brightness was doing
   work for. **A material must never out-value the landmark whose legibility
@@ -3615,6 +3814,151 @@ Design rationale, binding for render:
   crag gets bald via its rock stamp instead.
 - Max 4 materials in the splat at once (render budget + palette discipline).
 
+### 4.3 FULL COLOUR IS THE BASIS — what §4.2 leaves behind, and what it hands forward (user ruling, stage-5)
+
+**«давай цвета фигачить по полной, потом если что ужмем палитру.»** The look is
+developed at full colour; the quantiser is a late pass fitted to a finished
+world. §4.2 above is preserved whole under Rule 17 and is **read from here**,
+because the ruling changes what most of it means.
+
+##### 1. THE SAND AND DRY-OLIVE BANDING LEAVES THE URGENT LIST
+
+`screenshots/shore/02_river_ford.png` **stays in the repository and the finding
+stays true.** It is a quantiser-only defect, and there is no quantiser in the
+basis. **No re-allocation, no step-aware dither, not now.** The three ranked
+levers of §4.2 are not cancelled — they are **re-dated** to the late pass, and
+lever 1 (narrow each family's span to what the material actually occupies) is
+*better* placed there, because it wants a histogram of a finished world and we
+do not have one.
+
+##### 2. «86 NEEDED AGAINST 64 AVAILABLE» IS WITHDRAWN — AND IT WAS THE WRONG INSTRUMENT, NOT THE WRONG ARITHMETIC
+
+This was the headline of my last message and I am taking it back with reasons.
+
+**What 86 actually measured:** the entry count at which a *fixed* dither span of
+0.047 covers ≥ 60 % of every family's step. **That is a property of today's
+dither implementation, converted into an entry count and then reported as a
+property of the world.** «60 % coverage» has never had a control; it entered
+this document as a rule of thumb about when ordered dither breaks a band.
+
+**The criterion this document already owns gives a different answer.** A band is
+an edge the quantiser MANUFACTURES. §1.3b defines exactly when two adjacent
+regions are different colours to the player. Put those together:
+
+> **A family BANDS when its own largest interior step reaches
+> `LANDMARK_SEPARATION_STEPS_MIN`** — i.e. when the quantiser manufactures an
+> edge that clears the threshold at which this document declares two regions to
+> be separate shapes. One constant governs merging *between* materials and
+> banding *within* one.
+
+**Derived first, then checked against the live `BgfxPalette` — and it has both
+controls, from the one frame that was shot** (§4.2's shore frame carries its own
+control, which is why that frame is worth so much):
+
+| family | shades | max step | in rulers | predicted | observed |
+|---|---|---|---|---|---|
+| **sand** | 4 | 0.189 | **2.41** | BANDS | **bands** ✓ |
+| dry olive | 4 | 0.181 | **2.31** | BANDS | not shot |
+| **neutrals** | 8 | 0.161 | **2.05** | BANDS | not shot — **and nobody has ever flagged neutrals** |
+| rock | 8 | 0.088 | 1.12 | clean | not shot |
+| sky | 8 | 0.085 | 1.08 | clean | not shot |
+| **water** | 8 | 0.073 | **0.94** | clean | **clean** ✓ |
+| **grass** | 8 | 0.070 | **0.90** | clean | **clean** ✓ |
+| dirt | 8 | 0.066 | 0.84 | clean | not shot |
+| conifer | 8 | 0.049 | 0.63 | clean | not shot |
+
+**Positive control sand, negative controls water and grass, same frame, same sun,
+same dither — and the criterion separates them.** Rule 30 satisfied.
+
+**The sizing that follows, and it inverts the finding:**
+
+| banding floor | entries needed | |
+|---|---|---|
+| 2.50 rulers | 40 | |
+| **2.00 rulers (= `LANDMARK_SEPARATION_STEPS_MIN`)** | **47** | **fits in 64 with 17 spare** |
+| 1.50 rulers | 58 | fits |
+| **1.40 (approx.)** | **64** | **break-even** |
+| 1.25 rulers | 68 | over |
+| 1.00 rulers | 80 | over |
+| 0.75 rulers | 103 | over |
+
+**64 IS NOT A THIRD TOO SMALL. It is roughly a third larger than this
+document's own criterion needs, and the defect is ALLOCATION, not size.** The
+86 figure sits at an implied floor of ≈ 0.9 rulers — **it was demanding that no
+manufactured edge exceed half the difference at which this document says two
+things are different colours at all.** That is why it produced an impossible
+number.
+
+- **What survives of the finding, and it is the useful part:** the palette
+  question is now **one measurable quantity — the banding floor** — and 64
+  suffices down to ≈ 1.4 rulers. Whoever runs the late pass gets a curve and a
+  single experiment instead of a verdict.
+- **HONEST CAVEAT, and it pushes back toward the old number: 2 rulers was
+  derived for two LARGE MASSES, and a band is a THIN CONTOUR.** The eye is more
+  sensitive to contour than to large-field difference (Mach bands), so the
+  banding floor is plausibly *below* the merging floor, and the table above
+  shows how fast that costs: at 1.25 we are already over budget. **47 is a
+  floor on the requirement, not a certificate.**
+- **THE DISCRIMINATING EXPERIMENT, and it is the same frame §4.2 already
+  wanted, now worth more.** The two criteria agree on everything shot and
+  disagree on three families: **the dither-coverage criterion predicts ROCK and
+  SKY band; the separation criterion predicts they do not (1.12, 1.08) and that
+  NEUTRALS does (2.05).** A quantiser-on frame carrying a large rock flank and
+  a large neutral surface settles which instrument the late pass should use.
+  **Per the user's ruling this is NOT urgent** — it is the first item of the
+  late pass, and it is now a test between two instruments rather than a check
+  of one prediction.
+- **§4.2's prediction «the massif may band on its flanks» is WITHDRAWN as
+  stated** (it was made on the coverage instrument). It becomes the negative
+  arm of the experiment above.
+
+##### 3. AUTHORSHIP OF APPEARANCE SURVIVES; THE CONIFER RAMP'S JUSTIFICATION DOES NOT SURVIVE UNCHANGED — I disagree with the framing I was handed, and here is why
+
+I was told the conifer argument «never depended on the quantiser». **Read
+literally it did, entirely**, and saying so is worth more than nodding:
+
+- The recorded harm was **coupling**: «a water look-dev change would have
+  restyled every conifer in the world.» That coupling exists **because the
+  needles quantised into the water ramp.** At full colour a conifer's colour is
+  flora's albedo and is coupled to nothing. **The mechanism of the defect is
+  absent from the basis, so the six-then-eight entries buy nothing there.**
+- **What genuinely survives is the PRINCIPLE, and it survives stronger:**
+
+  > **Any element covering a significant fraction of the screen has its
+  > appearance CHOSEN. An appearance arrived at by nearest-colour accident is
+  > not a decision — it moves whenever anything near it moves.**
+
+  At full colour that principle is **satisfied by construction**: the forest's
+  colour is chosen directly, by flora, in albedo. The conifer ramp was the
+  *mechanism* for satisfying it under quantisation. **Principle: durable and
+  mode-independent. Mechanism: mode-specific.**
+
+**RULING: conifer 8 stays landed. Do not churn it.** It costs nothing to keep,
+it is correct for the quantised mode, and re-allocating a palette that is about
+to be re-derived wholesale is motion without a fix — the same reasoning §4.2
+used to refuse reverting sand. But:
+
+- **It stops being cited as a precondition for any full-colour decision**
+  (§1.5, §1.3b both amended).
+- **It is provisional by its own terms anyway** — §4.2 already requires
+  re-verification when flora's needle tones land, and the late pass re-derives
+  every allocation against a finished world.
+
+##### 4. WHAT THIS SECTION HANDS FORWARD TO THE LATE PASS
+
+1. **The banding criterion** (max interior step vs `LANDMARK_SEPARATION_STEPS_MIN`),
+   with its positive and negative controls named.
+2. **The sizing curve**, and the one experiment that picks the floor on it.
+3. **Lever 1 unchanged and better placed** — narrow each family's span to the
+   histogram of a finished world. Neutrals spans 0.92 against conifer's 0.28
+   and is the obvious first cut.
+4. **`PALETTE_SHADE_STEP_REF` must be frozen before the palette moves**
+   (§1.3b), or the re-derivation silently rescales every threshold in this
+   document.
+5. **Nothing in the palette fixes a shadow merge.** Confirmed at full colour:
+   pine vs shadowed rock is **0.632**, worse than the 0.700 it measures
+   quantised. **The apron is the fix** (§5.12) and always was.
+
 ---
 
 ## 5. Flora catalog
@@ -3729,6 +4073,199 @@ container cannot be fixed by anything that fills it.**
   and clear trunk rises 8.5 → ≈ 11 m, which is §5.7's own stated goal. See
   §5.3.
 
+##### RULING — THE WIDTH BAND IS NOT THE LEVER AND NEVER WAS. THE CEILING MOVES. (stage-5)
+
+Flora asked nothing and was right not to; the trade is mine. The question put to
+me: the built birch's crown aspect is **1.78 against a ceiling of 1.8** — one
+percent, which by this document's own standard is not a margin — and the lever
+offered was the crown WIDTH band, 5–7 m → 5–8 m.
+
+> **RULED: `CROWN_ASPECT_MAX` 1.8 → **2.0** (предложение — утвердить). The
+> crown width band does not move, and the trade I was asked to weigh — a wider
+> birch against its accent role — DOES NOT HAVE TO BE MADE.**
+>
+> **AND THE «BIRCH CROWN WIDTH 5–7 → 6–8 m, FORCED» RULING ABOVE IS
+> WITHDRAWN**, together with the table that forced it.
+
+**0. FIRST, THE MECHANISM, READ OUT OF THE LIVE GENERATOR** — because both the
+question and my own first answer to it were built on a model of the birch that
+the code does not implement (`ProcFlora.cpp:528-534`, `FloraSpecies.cpp:254-258`,
+`FloraSpecies.h:101`):
+
+```
+crown_width_frac = 0.34          // crown DIAMETER / HEIGHT, not metres
+crown_base_frac  = max( species_value , 1 - ceiling * 0.97 * crown_width_frac )
+```
+
+Three consequences, and each of them dissolves part of the question:
+
+- **THE BIRCH'S CROWN ASPECT IS INDEPENDENT OF ITS HEIGHT.** Width is a
+  *fraction* of height, so aspect = (1 − base) / 0.34 and the height cancels
+  exactly. Computed at three heights: **16 m → 1.747, 19 m → 1.747, 22 m →
+  1.747.** There is no worst corner of the height range, because there is no
+  variation along it.
+- **THE 5–7 m BAND IS NOT AN AUTHORED QUANTITY. It is a DESCRIPTION of what
+  0.34 realises**, and 0.34 was calibrated *to* it (flora's own comment: «0.30
+  built a 3.6–4.5 m crown against design's 5–7 m band»). Widening the band does
+  not widen a birch; **only moving the fraction does**, and the fraction is
+  flora's.
+- **THE CEILING IS NOT A GUARD RAIL ON THIS SPECIES — IT IS THE SPECIES'
+  DRIVING INPUT**, which is exactly what NUMBERS.md says it must not be
+  («сторож, а не движущая сила»). At 1.8, `from_aspect` = **0.4064**, which is
+  *above* the species' authored and frame-tested 0.40, so **the `max` overrides
+  flora's value and the generator derives the crown base from the ceiling.**
+
+**0b. AND THAT GIVES THE REAL DIAGNOSIS OF THE ONE PERCENT, which is not a
+shortage of width.** The generator derives at **0.97 of the ceiling on
+purpose** — flora's comment: «derive just inside the ceiling, so the assertion
+on the BUILT tree has somewhere to fail if the geometry ever drifts outward
+again.» So the nominal tree sits at 1.746, **exactly 3 % under, by design.** The
+1 % that reached flora is what survives after the known nominal→built overshoot
+(cards reach with their *corner*, §5's recorded effect) has eaten two thirds of
+that guard.
+
+> **The margin is not thin — it is PRE-SPENT. A 3 % guard against geometry
+> drifting outward is being consumed by a structural overshoot that is always
+> present, so there is no guard left for the drift it exists to catch.** That is
+> a defect in where the ceiling sits, not in how wide the tree is, and no amount
+> of crown width would have fixed it.
+
+**0c. WHY MY PREDECESSOR'S TABLE FORCED THE WRONG ANSWER, and it is this
+document's own most expensive error committed by the author of the rule against
+it.** That table varies H against w **independently** — it asks what a 22 m
+birch with a 5 m crown would measure — and reads off «2.64 ✗, the existing band
+is ALREADY ILLEGAL». **The generator never builds that tree.** A 22 m birch gets
+0.34 × 22 = 7.48 m. The illegal corner is unreachable by construction, and
+applying the ceiling to a corner of the authored band is **measuring the
+container** — the precise act §5's own rule forbids in the sentence that defines
+it («measured on the built geometry, never on the authored container»). **Third
+time the number 1.8 and its consequences have come from a container rather than
+a tree**, after the ceiling's own value (point 1) and the original 2.65 : 1.
+
+**1. THE CEILING'S VALUE IS THE AUTHORED CONTAINER'S RATIO, AND THE RULE IT
+GATES FORBIDS MEASURING THE CONTAINER.** Read §5's own derivation back: «crown
+width 5–7 m and `CROWN_BASE_FRACTION_MAX` 0.45 of a 16–22 m height give a
+container **1.8 : 1** before a single cluster, and the generated foliage box
+measures 2.65 : 1». **1.8 is literally the container number.** The rule then
+says, correctly and in the same breath, *measured on the built geometry, never
+on the authored container — the container passes and the tree fails.* **The
+threshold is a container figure wearing a generated-geometry hat**, and it has
+been binding on built geometry ever since the basis was corrected under it.
+**Fifth instance of the family this document has already named: a model change
+can invalidate a constant's derivation without changing its number** (after
+I1's surface-mean → envelope re-spec, `MASSIF_SLOPE_BIN_MAX`, the profile
+exponent, and `BIRCH_CROWN_BASE_FRACTION` itself).
+
+**2. THE INSTRUMENT IS ANTI-CORRELATED WITH THE JUDGEMENT ON THIS SPECIES, AND
+THAT IS DECISIVE.** Put the two real instances side by side:
+
+| birch | crown aspect | verdict |
+|---|---|---|
+| base 0.58 — «pale pole with a tuft», the palm | **1.02–1.27** | **REJECTED** |
+| base 0.40 — the current tree | **1.78** | **ACCEPTED (frame)** |
+
+**The rejected birch scores BETTER on the ceiling than the accepted one.** A
+threshold that ranks the artefact we turned down above the artefact we kept is
+not measuring this failure. §5 already contains the diagnosis and I am only
+applying it: *«a palm and a birch can have identical crown aspect — what
+separates them is STRUCTURAL, which is why flora's limb-spread invariant is the
+right instrument and the aspect ceiling never was.»* **`CROWN_ASPECT_MAX` is a
+guard rail against the 2.30 : 1 column-box. It must never become the thing that
+shapes a species** — NUMBERS.md already records it as «сторож, а не движущая
+сила», and widening a birch to satisfy it would be exactly that inversion.
+
+**3. AND THE CEILING STRUCTURALLY PENALISES THE ONE PROPERTY §5.3 DEMANDS. I
+OPENED THE FRAME** (`screenshots/flora_grown/01_birch_at_040_EXPERIMENT.png`)
+**rather than relaying my predecessor's reading.** The two pale-trunked trees
+read as slim, light-crowned water-margin trees with visible branch structure —
+§5.3's brief, which asks for a *«small loose crown»*, not a rounded mass. **But
+a LOOSE crown inflates its own bounding box**: the aspect is measured on the
+generated foliage box, which spans from the lowest cluster to the highest, while
+the mass between them is deliberately sparse and see-through. **So the looser
+the crown — the more it obeys its brief — the worse it scores.** The ceiling and
+§5.3 are pulling in opposite directions on this species, and the ceiling is the
+younger and the more provisional of the two.
+
+**4. WHERE 2.0 COMES FROM, and it is a bracket, not a preference.** The
+evidence band is now narrower than §5's «1.53 reads, 2.30 does not»:
+
+> **1.78 reads (design-accepted, frame). 2.30 does not (the real rejected
+> column, flora's per-variant corrected measurement).**
+
+**2.0 sits 12 % above the highest accepted value and 13 % below the lowest
+rejected one.** Stated plainly rather than dressed up: **the interval is only
+1.29× wide, so ±12 % is the maximum symmetric margin obtainable** — the ceiling
+is now *tightly bracketed by evidence* rather than generously clear of it, and
+that is the better of the two conditions. It also lands back on the value the
+lead first chose, which my predecessor talked down to 1.8 on the container
+measurement that has since been superseded.
+
+- **Superseded explicitly, so a grep finds it:** §5's line «it sits above every
+  value that reads (1.65) and well below the one that does not (2.65)» is
+  replaced by 1.78 / 2.30. Both of its numbers were the pooled-variant figures
+  flora withdrew.
+- **The tightening trigger is unchanged and still live**, in the direction it
+  was written for: *if something below the ceiling reads as a column, the
+  ceiling moves, not the tree.* This ruling is the same principle — the frame
+  outranks the number — applied in the other direction.
+
+**5. WHAT 2.0 ACTUALLY DOES TO THE TREE — computed, not estimated, and it is
+almost nothing.** At 2.0 the derived `from_aspect` falls to **0.3404**, below
+the species' authored 0.40, so the `max` **hands control back to flora's
+frame-tested value**:
+
+| ceiling | derived floor | crown base used | nominal aspect | margin |
+|---|---|---|---|---|
+| **1.8 (today)** | **0.4064** | **0.4064 — ceiling overrides flora** | 1.746 | **3.0 %** |
+| **2.0 (ruled)** | 0.3404 | **0.4000 — species value governs** | 1.765 | **11.8 %** |
+
+- **The tree moves by 0.006 of its height.** Crown base 0.4064 → 0.4000; the
+  built birch is the one already in the frame.
+- **There is no runaway, and this is the fear worth killing explicitly: the
+  ceiling enters as a `std::max`, so it can only ever RAISE the crown base.**
+  Raising the ceiling cannot make the birch bushier than flora authored it, and
+  `CROWN_BASE_FRACTION_MIN` = 0.35 is never approached.
+- **The structural gain is the point:** at 2.0 the ceiling stops deriving this
+  species and goes back to guarding it, which is what the registry already
+  describes it as and what §5 says a ceiling is for.
+
+**6. THE COST I WAS ASKED TO PRICE DOES NOT ARISE — and one cost cited for the
+opposite ruling was illusory anyway.** «A wider birch weakens its accent role»
+was the real trade, and **no birch gets wider**, so it is not spent. Separately:
+§5 above justifies changes by saying a wider band would move
+`TREE_SPACING_FOREST` «which was derived *from* crown width». **Checked in
+NUMBERS.md: `TREE_SPACING_FOREST` is 12–18 m** — half again as wide as an 8 m
+crown — **and §5.3 places birches in loose bank lines, never deep forest.** That
+cost has been cited twice in both directions and does not exist in either.
+
+- **STILL STANDING, and it does not depend on the withdrawn ruling: the birch
+  lattice is hard-coded at 8.0 m in `WorldgenScatter.cpp` while oak and pine
+  read `TREE_SPACING_FOREST`.** That remains a real Rule 32 defect for core —
+  one species' spacing pinned where the others are derived — and it is now the
+  *only* live item from the withdrawn block. It was never contingent on the
+  width band moving.
+- **AND THE DOCUMENTED BAND IS WRONG AT ITS TOP, which is worth fixing as
+  documentation rather than as a lever:** 0.34 × 16…22 m realises **5.4–7.5 m**,
+  not 5–7. §5.3's band is **descriptive of a fraction**, so «a range is two
+  assertions» does not apply to it — there is only one assertion, and it is
+  `crown_width_frac`. Restated in §5.3.
+
+- **And the frame I have cannot price the real cost, which is a further reason
+  to move the ceiling instead.** A species line against flat sky is fit for the
+  question under test — crown aspect is a silhouette property and this frame
+  varies it across seven trees — but it says **nothing** about whether a wider
+  birch still reads as an accent against dark water and pines at distance
+  (F7: the frame must vary the dimension the property lives in, and accent role
+  lives in *distance and backdrop*). **Moving the ceiling needs no frame we do
+  not have; moving the width does.**
+
+**6. STATUS, AND IT IS NOT «PASSING».** The 1.78 birch is **design-accepted and
+USER-UNSHOT** — the user rejected the previous trees in words and has not seen
+the rebuilt ones. §1.6.3's category applies to my own ruling: the upper bracket
+rests on a frame I opened, not on the user's verdict. **If the rebuilt birch is
+rejected on the tour, this bracket re-opens and the width band comes back into
+play with it.**
+
 > ### RULING — `BIRCH_CROWN_BASE_FRACTION` 0.58–0.62 → **0.40–0.45**, and this
 > ### is not a change of ruling but the FIRST APPLICATION OF THE RULE ABOVE
 >
@@ -3777,9 +4314,21 @@ container cannot be fixed by anything that fills it.**
 >   not have a catalog slot.** That is «an invariant nothing fails is not an
 >   invariant» pointed at content instead of at tests.
 
-> ### RULING — BIRCH CROWN WIDTH 5–7 m → **6–8 m**, and it is FORCED, not a
-> ### margin decision
+> ### ~~RULING — BIRCH CROWN WIDTH 5–7 m → 6–8 m, and it is FORCED~~
+> ### ⚠ WITHDRAWN (stage-5) — THE TABLE BELOW DESCRIBES A GENERATOR WE DO NOT HAVE
 >
+> **`crown_width_frac` = 0.34 is crown DIAMETER / HEIGHT, so H and w are not
+> independent and the height cancels out of the aspect entirely.** Every row
+> below asks what a 22 m birch with a 5 m crown would measure; the generator
+> builds that birch with a 7.48 m crown. **The «already illegal» corner is
+> unreachable by construction, and reading the ceiling off a corner of the
+> authored band is measuring the CONTAINER — the one act this rule's own
+> definition forbids.** Replaced by the ceiling ruling in §5 above
+> (`CROWN_ASPECT_MAX` 1.8 → 2.0); the width band does not move. The only clause
+> here that survives is the hard-coded 8.0 m birch lattice, which was never
+> contingent on the band.
+>
+
 > Flora reports the birch at **aspect 1.78 against a 1.8 ceiling** — 1 % of
 > margin, and only after spending `card_aspect` 0.95 → 0.76. They declined to
 > ask for the width band, because a wider birch weakens the «smallest and
@@ -3948,7 +4497,12 @@ container cannot be fixed by anything that fills it.**
 
 - **Silhouette:** slim pale trunk (readable!), small loose crown, slightly
   leaning. The *light-value* accent against dark water or pines.
-- **Size (stage-4 revision, §5.7):** **16–22 m** tall, crown 5–7 m — stays
+- **Size (stage-4 revision, §5.7; crown restated stage-5):** **16–22 m** tall,
+  crown **5.4–7.5 m — DESCRIPTIVE, not authored.** The authored quantity is
+  `crown_width_frac` = 0.34 (crown diameter / height); the metre figures are
+  what it realises across the height band. **«A range is two assertions» does
+  not apply — there is one assertion and it is the fraction.** The old «5–7 m»
+  understated the top by half a metre and was twice mistaken for a lever. Stays
   the smallest and slimmest of the three, keeping its accent role.
 - **Poly budget:** 200–350 tris (trunk needs a few more sides for the pale
   read).
@@ -3957,7 +4511,14 @@ container cannot be fixed by anything that fills it.**
 - **Placement:** within 20 m of water only (`BIRCH_WATER_DIST` = 20 m),
   clusters of 3–7; marks rivers/lake at distance — a birch line = water line.
 - **Clustering:** loose lines along banks; never deep forest.
-- **Crown base ≈ 0.58–0.62 of height, DERIVED not authored (ruling, stage-4).**
+- **Crown base ~~≈ 0.58–0.62~~ → 0.40–0.45 of height, DERIVED not authored
+  (ruling, stage-4, re-derived twice since — this line SUPERSEDES the 0.58–0.62
+  range wherever it still appears).** The live value is
+  `BIRCH_CROWN_BASE_FRACTION_MIN` = 0.40, and at `CROWN_ASPECT_MAX` = 2.0 that
+  authored value governs rather than being overridden by the ceiling (§5).
+  The account below is the ORIGINAL stage-4 reasoning, kept because the diagnosis
+  is what matters; its numbers were superseded when the aspect basis moved from
+  the authored container to built geometry.
   The birch crown failed to read as a mass four times across two sessions and
   flora stopped it under Rule 28 rather than trying a fifth arrangement. They
   were right, and **the defect was in my numbers, not their geometry** — see
