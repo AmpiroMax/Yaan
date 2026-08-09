@@ -431,15 +431,21 @@ TEST_CASE("castle: hierarchy — the crag stays L0 (§6.1.1)") {
     CHECK(h.max_ratio <= static_cast<float>(config::CASTLE_SILHOUETTE_RATIO));
     // R2: flank occlusion is the desired read; crown occlusion is forbidden.
     CHECK_FALSE(h.crown_occluded);
-    // C2: the castle must not push any standpoint over the attractor bound.
-    // NOTE: the seed-1 layout ALREADY exceeds POI_VISIBLE_COUNT_MAX before any
-    // castle exists (open west meadows see crag + hamlet + shrine + two
-    // dungeons). That is a layout finding reported to design, not a castle
-    // regression — what this pass gates is the castle's own contribution.
+    // The castle must not push any standpoint over the attractor bound — its
+    // own contribution is what this pass gates (design ruling: the absolute
+    // POI_VISIBLE_COUNT_MAX_REGION is region-scale only and unsatisfiable on
+    // the testbed, where C3 packs POIs at ~3x region density).
     CHECK(h.max_attractors == h.max_attractors_without_castle);
     INFO("attractors with castle " << h.max_attractors << ", baseline "
-                                   << h.max_attractors_without_castle << ", bound "
-                                   << config::POI_VISIBLE_COUNT_MAX);
+                                   << h.max_attractors_without_castle
+                                   << ", region-only bound "
+                                   << config::POI_VISIBLE_COUNT_MAX_REGION);
+
+    // RULE C2-TESTBED ("no coequal crowd"): at most POI_COEQUAL_VISIBLE_MAX
+    // attractors of comparable apparent size (within COEQUAL_ANGLE_RATIO of
+    // each other in subtended height) from any standpoint. The L0 is exempt;
+    // composite POIs count once.
+    CHECK(h.max_coequal_visible <= static_cast<uint32_t>(config::POI_COEQUAL_VISIBLE_MAX));
 }
 
 TEST_CASE("corridors: average slope within CORRIDOR_SLOPE_MAX") {

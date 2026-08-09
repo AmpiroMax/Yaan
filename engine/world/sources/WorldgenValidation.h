@@ -65,13 +65,22 @@ struct CastleHierarchy {
     float skyline_ceiling = 0.0f;  ///< L0 peak - CASTLE_SKYLINE_MARGIN (R3 limit)
     float max_ratio = 0.0f;        ///< worst castle/crag subtended height, >= 300 m (R4)
     bool crown_occluded = false;   ///< castle hides the L0's top third anywhere (R2)
-    uint32_t max_attractors = 0;   ///< most attractors visible from one standpoint (C2)
+    uint32_t max_attractors = 0;   ///< most attractors visible from one standpoint
     /// Same measure with the castle removed as attractor AND occluder. The
-    /// difference is the castle's own contribution to C2 — design's "check
-    /// both directions" (§6.1.1). NOTE: the seed-1 baseline already exceeds
-    /// POI_VISIBLE_COUNT_MAX, which is a layout-level finding independent of
-    /// the castle; the castle's contribution is what this pass gates on.
+    /// difference is the castle's own contribution — design's "check both
+    /// directions" (§6.1.1). The ABSOLUTE bound POI_VISIBLE_COUNT_MAX_REGION
+    /// is region-scale only: it is unsatisfiable on the testbed, where C3
+    /// packs POIs at ~3x region density and holding <= 3 would push C1 under
+    /// its own floor (design ruling; C1 wins). On the testbed the binding
+    /// rule is `max_coequal_visible` below; this pair stays as the castle's
+    /// contribution gate.
     uint32_t max_attractors_without_castle = 0;
+    /// RULE C2-TESTBED ("no coequal crowd"): the most attractors of COMPARABLE
+    /// apparent size visible from one standpoint — comparable meaning their
+    /// subtended heights lie within COEQUAL_ANGLE_RATIO of each other. The L0
+    /// is EXEMPT (C1 mandates its ubiquity) and composite POIs count once.
+    /// Must stay <= POI_COEQUAL_VISIBLE_MAX.
+    uint32_t max_coequal_visible = 0;
 };
 [[nodiscard]] CastleHierarchy castle_hierarchy(const WorldGenContext& ctx);
 

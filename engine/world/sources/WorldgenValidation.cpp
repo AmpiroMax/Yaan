@@ -45,6 +45,15 @@ constexpr float CHUNK_SIZE_M = static_cast<float>(config::CHUNK_SIZE);
 constexpr float EYE_M = static_cast<float>(config::PLAYER_EYE_HEIGHT);
 constexpr float WALK_SLOPE = static_cast<float>(config::PLAYER_MAX_SLOPE);
 constexpr float CLEARANCE = static_cast<float>(config::LANDMARK_CLEARANCE_FACTOR);
+// Rule C2-testbed: attractors are "coequal" when their subtended heights lie
+// within this ratio of each other (the L0 is exempt — C1 mandates it).
+constexpr float COEQUAL_RATIO = static_cast<float>(config::COEQUAL_ANGLE_RATIO);
+// §1.5 readability: a silhouette needs SILHOUETTE_MIN_PX to read as a shape,
+// so an attractor only competes for attention when its apparent size clears
+// that. Vertical angular resolution = INTERNAL_RES_H / CAMERA_FOV_Y.
+constexpr float READABLE_MIN_APPARENT =
+    static_cast<float>(config::SILHOUETTE_MIN_PX)
+    / (static_cast<float>(config::INTERNAL_RES_H) / static_cast<float>(config::CAMERA_FOV_Y));
 constexpr float STANDPOINT_GRID_M = 32.0f; // coarse but deterministic sampling
 constexpr float RAY_STEP_M = 4.0f;
 } // namespace
@@ -172,11 +181,24 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
     struct Attractor {
         glm::vec2 pos;
         float top;
+        float base;     ///< ground at the attractor's own foot, meters
         bool is_seat;   ///< part of the castle+barrow composite POI
         bool is_castle; ///< the castle itself (removed for the baseline)
+        bool is_l0;     ///< the dominant landmark — exempt from Rule C2-testbed
+    };
+    // Apparent SIZE (subtended height): the attractor's own height divided by
+    // its distance — NOT the elevation angle of its top, which would conflate
+    // "how big it looks" with "how high the ground under it is".
+    const auto apparent = [](const Attractor& a, glm::vec2 from) {
+        const float d = glm::length(a.pos - from);
+        return d > 1.0f ? std::max(0.0f, a.top - a.base) / d : 0.0f;
     };
     std::vector<Attractor> attractors;
-    attractors.push_back({peak_xz, peak_y + L0_AIM_ABOVE_PEAK, false, false});
+        // The L0's foot: the terrain at its footprint edge, so its apparent size
+    // is the whole crag mass, not just the tower on top.
+    const float peak_base = terrain_height(ctx, peak_xz + glm::vec2{layout.crag.radius, 0.0f});
+    attractors.push_back(
+        {peak_xz, peak_y + L0_AIM_ABOVE_PEAK, peak_base, false, false, true});
     for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
         const SiteType type = ctx.sites.types[i];
         const glm::vec2 pos = ctx.sites.entities[i].position_xz;
@@ -191,7 +213,8 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
         case SiteType::CastleSolar:
             attractors.push_back({pos,
                                   terrain_height(ctx, pos) + site_archetype(type).bounds_max.y,
-                                  seat, type == SiteType::CastleSolar});
+                                  terrain_height(ctx, pos), seat,
+                                  type == SiteType::CastleSolar, false});
             break;
         default:
             break;
@@ -239,11 +262,21 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             uint32_t count_no_castle = 0;
             bool seat_counted = false;
             bool seat_counted_nc = false;
+            // Subtended heights of the visible non-L0 attractors, for the
+            // Rule C2-testbed pairwise test (same tangent measure as R4).
+            std::vector<float> subtended;
             for (const Attractor& a : attractors) {
                 if (visible(p, eye_y, a.pos, a.top, true)) {
                     if (!a.is_seat || !seat_counted) {
                         ++count;
                         seat_counted = seat_counted || a.is_seat;
+                        if (!a.is_l0) {
+                            // Only attractors that actually READ can crowd
+                            // each other (§1.5) — a 4 px speck on the horizon
+                            // is not competing with anything.
+                            const float size = apparent(a, p);
+                            if (size >= READABLE_MIN_APPARENT) subtended.push_back(size);
+                        }
                     }
                 }
                 if (!a.is_castle && visible(p, eye_y, a.pos, a.top, false)) {
@@ -252,6 +285,21 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
                         seat_counted_nc = seat_counted_nc || a.is_seat;
                     }
                 }
+            }
+            // "No coequal crowd": the largest group whose apparent sizes all
+            // lie within COEQUAL_ANGLE_RATIO of one another. Comparability is
+            // an interval property once sorted (a,b comparable iff
+            // max/min <= ratio), so the largest such group is the widest
+            // sliding window satisfying back/front <= ratio.
+            std::sort(subtended.begin(), subtended.end());
+            std::size_t lo = 0;
+            for (std::size_t hi_i = 0; hi_i < subtended.size(); ++hi_i) {
+                while (subtended[lo] > 0.0f
+                       && subtended[hi_i] / subtended[lo] > COEQUAL_RATIO) {
+                    ++lo;
+                }
+                out.max_coequal_visible = std::max(
+                    out.max_coequal_visible, static_cast<uint32_t>(hi_i - lo + 1));
             }
             out.max_attractors = std::max(out.max_attractors, count);
             out.max_attractors_without_castle =
@@ -263,8 +311,9 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             if (d_castle < 300.0f || d_peak < 1.0f) continue;
             if (!visible(p, eye_y, castle.center, castle.top_elevation(), true)) continue;
             if (!visible(p, eye_y, peak_xz, peak_y + L0_AIM_ABOVE_PEAK, true)) continue;
-            const float castle_sub = (castle.top_elevation() - eye_y) / d_castle;
-            const float crag_sub = (peak_y + L0_AIM_ABOVE_PEAK - eye_y) / d_peak;
+            const float castle_sub =
+                (castle.top_elevation() - castle.pad_height) / d_castle;
+            const float crag_sub = (peak_y + L0_AIM_ABOVE_PEAK - peak_base) / d_peak;
             if (crag_sub > 0.0f) {
                 out.max_ratio = std::max(out.max_ratio, castle_sub / crag_sub);
             }
