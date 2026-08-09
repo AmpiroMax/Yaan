@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 00:13:43
+Last updated: 10:08:2026 - 00:14:34
 -->
 <!--
 UPD:
@@ -12,6 +12,7 @@ UPD:
 - 09:08:2026 - 23:55:22: Rule 16 — read the clock per batch, never compute forward. Три зоны сделали эту ошибку за один вечер.
 - 10:08:2026 - 00:05:41: Rule 36 — exclusions by cause, not by magnitude; and the pipeline's own metric belongs in the design vocabulary.
 - 10:08:2026 - 00:13:43: Rule 36 — добавлена дешёвая стоячая проверка: сравнить максимум с отсечкой, и если они рядом, отвечал фильтр.
+- 10:08:2026 - 00:14:34: Rule 30 — когда есть настоящий отвергнутый образец, контролем служит ОН, и порог обязан стоять выше него.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -340,6 +341,12 @@ cone passed; the third was caught only because it was run against a known-bad ob
 before being trusted. Controls are cheap — a cone, a sphere, a plane, a flat field.
 "My test passes" and "my test discriminates" are different claims and only the second
 one is worth reporting.
+
+**When a real rejected instance exists, IT is the control, and the threshold must
+sit above it.** A synthetic worst case is the easy reject: a limb-spread test shipped
+with a synthetic palm at 0.06 against a floor of 0.15, passed it correctly, and still
+passed the tree the user had rejected in words, which measured 0.17-0.19. A threshold
+placed below every real failure is a description, not a test.
 
 Two corollaries, both earned the same evening:
 
