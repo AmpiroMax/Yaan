@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:48:00
+Last updated: 09:08:2026 - 12:49:12
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -32,6 +32,9 @@ UPD:
 - 09:08:2026 - 00:48:00: Adopted sim's free-function movement API (Rule 9) —
                          player entity id held here, no system object.
 - 09:08:2026 - 10:48:00: palette_post config flag (Q9b, stage-3 render batch).
+- 09:08:2026 - 12:49:12: Graphics settings file (user decision, sync #3): settings.cfg
+                         read at startup, auto-generated on first run; env
+                         overrides file for tooling.
 */
 
 #pragma once
@@ -67,8 +70,10 @@ struct AppConfig {
     bool palette_post = false; // Q9b palette quantization (DFN_PALETTE=1)
     std::string title_key = "app.title"; // localization key (Rule 5)
 
-    // Populates the fields above from DFN_* environment variables
-    // (DFN_INTERNAL_RES=WxH, DFN_NULL_RENDER=1, DFN_NULL_PHYSICS=1).
+    // Populates the fields above from settings.cfg (auto-generated with
+    // comments on first run; user-editable graphics settings per sync #3),
+    // then applies DFN_* environment overrides on top (tour/tooling):
+    // DFN_INTERNAL_RES=WxH, DFN_PALETTE=1, DFN_NULL_RENDER=1, DFN_NULL_PHYSICS=1.
     static AppConfig from_env();
 };
 

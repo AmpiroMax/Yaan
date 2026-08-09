@@ -325,6 +325,22 @@ stones ×2 density. Fords widen the sand band to both banks — the sand patch
 *is* the ford's visual signpost (readable value contrast at distance: pale
 sand vs dark water).
 
+**Bed/mud band is hard-capped.** The full non-grass water treatment is:
+submerged terrain (bed) + the sand band above — nothing else. Any
+bed/mud/"WaterBed" classification band must stay within
+`max(SHORE_SAND_DIST, 2 × local river width)` of the water edge
+(≤ 16 m at max testbed width). Render's stage-3b probe measured the current
+classifier at 2.74 % of the world against ~1 % actual water, producing
+30–60 m mud flats that dominate riverside compositions — that is a violation
+of this cap, fix on the classifier side (core). Wide dry flats are a *desert*
+biome tool (FUTURE), never a default river treatment.
+
+**`dist_to_water` field range.** The P3 field must be valid to at least
+`SETTLEMENT_WATER_DIST` (150 m) — the P4 site scorer and §3.4 rules consume
+it at that range. A 60 m saturation cap (observed in stage-3b probes) breaks
+settlement scoring; saturate at ≥ 150 m **(предложение — утвердить:
+`DIST_TO_WATER_RANGE` = 150 m minimum)**.
+
 ### 3.4 Water and gameplay placement
 
 - Settlements stand within `SETTLEMENT_WATER_DIST` = 150 m of fresh water
@@ -505,8 +521,8 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 | Feature | Where (x, z) | Parameters |
 |---|---|---|
 | **L0: Ravenscar Crag** + watchtower ruin | peak (830, 200), footprint r ≈ 180 m | ridged-noise stamp raises peak to ~52 m (needs `WORLDGEN_MAX_HEIGHT` = 64); rock splat above ~34 m on the stamp; tower ruin (§6) on peak |
-| **River** | source (760, 300) → lake; exits lake → south edge ≈ (300, 1024) | §3.1 algorithm; width 4→7 m; sinuosity ≥ 1.15; 3 fords: near (660, 430), (430, 620), (330, 840) |
-| **Lake** | center (230, 520), ≈ 90×140 m | basin stamp, water plane ≈ 15.0 m (`LAKE_LEVEL_TESTBED`); shore sand per §3.3 |
+| **River** | source (760, 300) → lake; exits lake → south edge ≈ (300, 1024) | §3.1 algorithm; width 4→7 m; sinuosity ≥ 1.15; **fords are derived, not tabled** — P2 places them where POI-chain corridors cross the *generated* trace (§3.1 step 6), plus the `FORD_SPACING` minimum |
+| **Lake** | center (230, 520), ≈ 90×140 m target | basin stamp, water plane ≈ 15.0 m (`LAKE_LEVEL_TESTBED`); shore sand per §3.3 |
 | **Town site (TESTBED_TOWNS = 1): hamlet "Vaelmere"** | (360, 500), east lake shore / river inflow bend | hamlet per §6: tavern head faces the lake; trader at corridor entry; pads flattened at ≈ 17–18 m |
 | **Shrine knoll** | (560, 620) | knoll +6 m local bump stamp; shrine spire breaks skyline from town and from ford (430, 620) |
 | **Dungeon 1: barrow in the crag** (TESTBED_DUNGEONS 1/3) | entrance (780, 290), south face of the crag | entrance pad + dark portal frame; visible from foothill watchpoint, not from town (occlude-and-reveal) |
@@ -516,13 +532,44 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 | **Forest masses** | oak: S+SE band (roughly z > 700 plus x > 500, z > 600); pine: crag foothills and N ridge strips | total coverage ≈ 0.30 of land; clearings per §2.2; birch lines along river and lake banks |
 | **Meadows** | center and west | flower patches, outcrops, meadow clusters per §2.2–2.3 |
 
+### 7.1a Plan vs generated truth (seed 1, stage-3b probes)
+
+The layout table rows are *stamp centers and targets*; the generated world is
+the truth, and validation runs against it (tour v3 already aims at generated
+truth). Render's probes of the actual seed-1 build recorded this drift:
+
+- River trace: (730, 320) → (560, 500), then a wide flooded bend at
+  x 320–480 / z ≈ 560 beside the hamlet site.
+- Lake actual: x 188–274 / z 460–700 (~86×240 m — much longer than the
+  90×140 m target); outflow leaves the south edge at x 300–335.
+- The originally tabled ford coordinates did not land on the generated river
+  (probe at (430, 620): grass, 60 m from water) — which is why fords are now
+  derived (§7.1), never tabled.
+
+Open items for core from this drift **(design ruling, worldgen-side fix):**
+
+1. Derive fords from corridor × generated-trace intersections and re-run the
+   C3 chain validation against them.
+2. The flooded bend at x 320–480 / z ≈ 560 sits against the Vaelmere pad
+   (360, 500): re-run the P4 site scorer with `BUILDING_WATER_MARGIN` (2 m
+   vertical) against generated water — either the bend narrows (raise its bed
+   toward target width) or the pad shifts along the shore; both are
+   parameter-level fixes.
+3. Lake basin stamp overshoots its target footprint ~2×: acceptable *if* the
+   POI chain and shore rules still validate; retune the stamp radius only if
+   they fail. Composition-wise a bigger lake is not a defect (water gap =
+   curiosity, §3.4).
+
 ### 7.2 Why this layout satisfies the contracts
 
 - **POI chain (C3, 180–270 m links):** town → shrine ≈ 230 m; shrine →
   watchpoint ≈ 215 m; watchpoint → barrow ≈ 185 m; shrine → forest ruin ≈
   240 m; town → lakeshore cave ≈ 230 m (along shore). Every POI has a
   neighbor in band; total walk town→barrow ≈ 3 links ≈ 3×70 s — the farthest
-  destination is a journey, near ones are hops.
+  destination is a journey, near ones are hops. POI positions are stamps, so
+  these distances survive hydrology drift — but links that cross the
+  *generated* river count as valid only once a derived ford (§7.1a) sits on
+  them; the C3 validation must use generated water, not this table.
 - **C1/C2:** the crag (peak +34 m over town ground, ~560 m away, angle
   ≈ 0.06 rad — clears the ≤ 26 m intervening hills) is visible from the
   meadows, lake shore, and both fords; the SE forest and crag shoulder

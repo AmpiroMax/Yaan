@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 12:05:00
+Last updated: 09:08:2026 - 12:49:12
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -42,6 +42,9 @@ UPD:
                          upload/drop, per-body water; Tour v3 (testbed steps,
                          per-frame ground resolution, tour-driven streaming
                          focus, frozen player during tour).
+- 09:08:2026 - 12:49:12: settings.cfg (graphics settings — user decision, sync #3):
+                         internal_resolution + palette read from file,
+                         auto-generated on first run; env overrides intact.
 */
 
 #include "engine/app/sources/App.h"
@@ -63,6 +66,8 @@ UPD:
 
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 
@@ -88,10 +93,56 @@ uint64_t pack_coord(glm::ivec2 c) {
 // Ferry state lives here rather than in the header to keep App.h light.
 static std::unordered_map<uint64_t, ChunkPhysics> g_chunk_physics;
 
+namespace {
+
+constexpr const char* SETTINGS_PATH = "settings.cfg";
+
+// Reads key=value graphics settings; writes a commented default file on first
+// run so the user always has something to edit (sync #3 decision: resolution
+// and palette are user settings, not constants).
+void load_or_create_settings(AppConfig& cfg) {
+    std::ifstream in(SETTINGS_PATH);
+    if (!in.is_open()) {
+        std::ofstream out(SETTINGS_PATH);
+        out << "# Daggerfall N graphics settings (auto-generated; edit freely)\n"
+            << "# internal_resolution: rendering pixel grid, integer-upscaled to the\n"
+            << "#   window. Presets: 640x360 (fine retro), 320x180 (chunky Daggerfall).\n"
+            << "internal_resolution=" << cfg.internal_width << 'x' << cfg.internal_height
+            << "\n"
+            << "# palette: 1 = 64-color quantization + dithering (DOS look), 0 = off.\n"
+            << "palette=" << (cfg.palette_post ? 1 : 0) << '\n';
+        return;
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        const auto eq = line.find('=');
+        if (eq == std::string::npos) {
+            continue;
+        }
+        const std::string key = line.substr(0, eq);
+        const std::string value = line.substr(eq + 1);
+        if (key == "internal_resolution") {
+            unsigned w = 0, h = 0;
+            if (std::sscanf(value.c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
+                cfg.internal_width = w;
+                cfg.internal_height = h;
+            }
+        } else if (key == "palette") {
+            cfg.palette_post = !value.empty() && value[0] == '1';
+        }
+    }
+}
+
+} // namespace
+
 AppConfig AppConfig::from_env() {
     AppConfig cfg;
     cfg.internal_width = static_cast<uint32_t>(config::INTERNAL_RES_W);
     cfg.internal_height = static_cast<uint32_t>(config::INTERNAL_RES_H);
+    load_or_create_settings(cfg); // file first; env below overrides (tooling)
     if (const char* res = std::getenv("DFN_INTERNAL_RES")) {
         unsigned w = 0, h = 0;
         if (std::sscanf(res, "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
