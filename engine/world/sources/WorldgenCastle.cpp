@@ -5,12 +5,13 @@ Module: engine/world
 File: engine/world/sources/WorldgenCastle.cpp
 
 Responsibility:
-- Castle pass implementation (LANDSCAPE §6.1): terrace solve with the
-  CASTLE_PAD_CUT_MAX allowance, R3 height solve, element placement with the
-  gate facing the approach corridor, and the occlusion query.
+- Castle pass implementation (LANDSCAPE §6.1, hall-castle): terrace solve with
+  the CASTLE_PAD_CUT_MAX allowance, the graded approach ramp (access
+  invariant), R3 height solve, hall/solar/wall/gatehouse placement with the
+  gate facing the valley, and the occlusion query.
 
 Key items:
-- solve_castle, castle_pad_height, castle_occluder_height.
+- solve_castle, castle_pad_height, castle_occluder_height, standpoints.
 
 Dependencies:
 - Uses: WorldgenCastle.h, WorldgenMacro.h, WorldgenNoise.h, ContentHash, config.
@@ -19,14 +20,19 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - R3 outranks the height table (§6.1.1): heights shrink to fit the skyline
-  margin, and if even the minimum table heights cannot fit, the pad is lowered
+  margin; if even the minimum table heights cannot fit, the pad is lowered
   (fix order 1) before anything else. Never raise the crag.
-- Deterministic: pure function of (seed, layout, hydrology). No rng needed —
-  the castle is a designed monument, not scatter.
+- The ramp surface is LINEAR in the approach direction on purpose: constant
+  slope, no step (PLAYER_STEP_HEIGHT), which is exactly what the access
+  invariant checks. Do not "smooth" it into an S-curve — that reintroduces a
+  steep mid-section.
+- Deterministic: pure function of (seed, layout, hydrology). No rng — the
+  castle is a designed monument, not scatter.
 */
 /*
 UPD:
-- 09:08:2026 - 15:20:00: Created — castle solve/stamp/occlusion.
+- 09:08:2026 - 15:20:00: Created — castle solve/stamp/occlusion for the
+  hall-castle revision (hall + solar + wall + gatehouse, access ramp).
 */
 
 #include "engine/world/sources/WorldgenCastle.h"
@@ -48,15 +54,24 @@ namespace {
 constexpr float PAD_SIZE = static_cast<float>(config::CASTLE_PAD_SIZE);
 constexpr float CUT_MAX = static_cast<float>(config::CASTLE_PAD_CUT_MAX);
 constexpr float SKYLINE_MARGIN = static_cast<float>(config::CASTLE_SKYLINE_MARGIN);
-constexpr float KEEP_MIN = static_cast<float>(config::CASTLE_KEEP_HEIGHT_MIN);
-constexpr float KEEP_MAX = static_cast<float>(config::CASTLE_KEEP_HEIGHT_MAX);
+constexpr float HALL_MIN = static_cast<float>(config::CASTLE_HALL_HEIGHT_MIN);
+constexpr float HALL_MAX = static_cast<float>(config::CASTLE_HALL_HEIGHT_MAX);
+constexpr float SOLAR_MIN = static_cast<float>(config::CASTLE_SOLAR_HEIGHT_MIN);
+constexpr float SOLAR_MAX = static_cast<float>(config::CASTLE_SOLAR_HEIGHT_MAX);
 constexpr float WALL_MIN = static_cast<float>(config::CASTLE_WALL_HEIGHT_MIN);
 constexpr float WALL_MAX = static_cast<float>(config::CASTLE_WALL_HEIGHT_MAX);
-constexpr float TOWER_MIN = static_cast<float>(config::CASTLE_TOWER_HEIGHT_MIN);
-constexpr float TOWER_MAX = static_cast<float>(config::CASTLE_TOWER_HEIGHT_MAX);
-// Gatehouse height band is §6.1.3 table text (9-11 m), scaled with the keep.
-constexpr float GATE_MIN = 9.0f;
-constexpr float GATE_MAX = 11.0f;
+constexpr float GATE_MIN = static_cast<float>(config::CASTLE_GATE_HEIGHT_MIN);
+constexpr float GATE_MAX = static_cast<float>(config::CASTLE_GATE_HEIGHT_MAX);
+constexpr float CORRIDOR_HALF = static_cast<float>(config::CORRIDOR_WIDTH) * 0.5f;
+// Ramp grade target: well under CORRIDOR_SLOPE_MAX so the invariant passes
+// with margin even where natural grade fights it (design: "commoner on foot").
+constexpr float RAMP_GRADE = 0.12f; // ~7 deg
+
+// §6.1.3 footprints.
+constexpr float WALL_SIDE = 40.0f;
+constexpr float HALL_X = 10.0f, HALL_Z = 22.0f;
+constexpr float SOLAR_SIDE = 8.0f;
+constexpr float GATE_X = 10.0f, GATE_Z = 6.0f;
 
 /// Terrain before any pad stamp (macro + hydrology carve).
 float ground_height(uint64_t seed, const TestbedLayout& layout, const HydrologyData& hydro,
@@ -64,38 +79,30 @@ float ground_height(uint64_t seed, const TestbedLayout& layout, const HydrologyD
     return carve_height(hydro, layout, p, macro_height(seed, layout, p));
 }
 
-/// Local frame of the castle: `forward` points down the approach (gate side).
+/// Castle frame: `forward` points out of the gate, down the approach.
 struct Frame {
     glm::vec2 forward{0.0f, 1.0f};
     glm::vec2 right{1.0f, 0.0f};
 };
 
-Frame castle_frame(const TestbedLayout& layout) {
+Frame frame_of(glm::vec2 forward) {
     Frame f;
-    const CorridorLayout& corridor =
-        layout.corridors[std::clamp(layout.castle.approach_corridor, 0,
-                                    static_cast<int>(std::size(layout.corridors)) - 1)];
-    if (corridor.point_count >= 2) {
-        // The gate faces back down the approach: toward the corridor's start
-        // (the watchpoint), i.e. the direction an arriving traveller comes from.
-        const glm::vec2 to_approach = corridor.points[0] - layout.castle.center;
-        if (glm::length(to_approach) > 1.0f) {
-            f.forward = glm::normalize(to_approach);
-            f.right = glm::vec2{-f.forward.y, f.forward.x};
-        }
-    }
+    f.forward = forward;
+    f.right = glm::vec2{-forward.y, forward.x};
     return f;
 }
 
-/// Signed local coordinates of `world` in the castle frame (x = right, y =
-/// forward), used by every footprint test so the mass rotates with the gate.
-glm::vec2 to_local(const CastleBuild& castle, const Frame& frame, glm::vec2 world) {
+Frame castle_frame(const CastleBuild& castle) { return frame_of(castle.gate_dir); }
+
+/// Local coordinates in the castle frame (x = right, y = forward).
+glm::vec2 to_local(const CastleBuild& castle, glm::vec2 world) {
+    const Frame f = castle_frame(castle);
     const glm::vec2 rel = world - castle.center;
-    return glm::vec2{glm::dot(rel, frame.right), glm::dot(rel, frame.forward)};
+    return glm::vec2{glm::dot(rel, f.right), glm::dot(rel, f.forward)};
 }
 
-bool in_box(glm::vec2 local, float half_x, float half_y) {
-    return std::fabs(local.x) <= half_x && std::fabs(local.y) <= half_y;
+bool in_box(glm::vec2 local, glm::vec2 center, float half_x, float half_y) {
+    return std::fabs(local.x - center.x) <= half_x && std::fabs(local.y - center.y) <= half_y;
 }
 
 } // namespace
@@ -113,9 +120,23 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
     // footprint to 1.5x, i.e. a quarter-pad band on each side.
     castle.blend = PAD_SIZE * 0.25f;
 
+    // --- Gate direction: out toward the valley/ford approach (§6.1.2, settled:
+    // valley-facing, never rotated toward the barrow).
+    const CorridorLayout& corridor =
+        layout.corridors[std::clamp(layout.castle.approach_corridor, 0,
+                                    static_cast<int>(std::size(layout.corridors)) - 1)];
+    glm::vec2 forward{0.0f, 1.0f};
+    if (corridor.point_count >= 2) {
+        const glm::vec2 to_approach = corridor.points[0] - castle.center;
+        if (glm::length(to_approach) > 1.0f) {
+            forward = glm::normalize(to_approach);
+        }
+    }
+    castle.gate_dir = forward;
+    castle.gate_yaw = std::atan2(forward.x, -forward.y); // yaw 0 = -Z
+
     // --- Terrace solve: pad elevation = median of the footprint (balances cut
-    // against fill), then verify the CUT stays inside CASTLE_PAD_CUT_MAX. A
-    // spur shoulder is chosen precisely because that holds.
+    // against fill); if the cut exceeds the ruled allowance, raise the pad.
     std::vector<float> samples;
     for (float z = -castle.half_size; z <= castle.half_size; z += 5.0f) {
         for (float x = -castle.half_size; x <= castle.half_size; x += 5.0f) {
@@ -125,62 +146,68 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
     }
     std::sort(samples.begin(), samples.end());
     castle.pad_height = samples[samples.size() / 2];
-    castle.cut = samples.back() - castle.pad_height;
-    castle.fill = castle.pad_height - samples.front();
-    if (castle.cut > CUT_MAX) {
-        // Raise the pad until the cut fits (fill is cheap, cut is the ruled
-        // allowance). R3 is re-checked below, so this can never breach the
-        // skyline margin.
+    if (samples.back() - castle.pad_height > CUT_MAX) {
         castle.pad_height = samples.back() - CUT_MAX;
-        castle.cut = CUT_MAX;
-        castle.fill = castle.pad_height - samples.front();
     }
 
     // --- R3 height solve: pad + tallest element <= peak - CASTLE_SKYLINE_MARGIN.
     const float peak = macro_height(seed, layout, layout.crag.center);
     const float ceiling = peak - SKYLINE_MARGIN;
-    float keep = KEEP_MAX;
-    if (castle.pad_height + keep > ceiling) {
-        keep = ceiling - castle.pad_height;
+    float solar = SOLAR_MAX;
+    if (castle.pad_height + solar > ceiling) {
+        solar = ceiling - castle.pad_height;
     }
-    if (keep < KEEP_MIN) {
-        // Fix order (1): lower the pad, keeping tower height (§6.1.1). The cut
-        // grows, so this is bounded by the terrace allowance; the design's
-        // spur was chosen so it never comes to this at seed 1.
-        keep = KEEP_MIN;
-        castle.pad_height = std::min(castle.pad_height, ceiling - keep);
-        castle.cut = std::max(0.0f, samples.back() - castle.pad_height);
-        castle.fill = std::max(0.0f, castle.pad_height - samples.front());
+    if (solar < SOLAR_MIN) {
+        // Fix order (1): lower the pad, keeping height (§6.1.1).
+        solar = SOLAR_MIN;
+        castle.pad_height = std::min(castle.pad_height, ceiling - solar);
     }
-    castle.keep_height = keep;
-    // Subordinate elements scale with the keep's share of its band so the
-    // three value steps (wall band / towers / keep) survive any R3 squeeze.
-    const float t = KEEP_MAX > KEEP_MIN ? (keep - KEEP_MIN) / (KEEP_MAX - KEEP_MIN) : 1.0f;
-    castle.tower_height = std::min(TOWER_MIN + (TOWER_MAX - TOWER_MIN) * t, keep - 1.0f);
-    castle.wall_height = WALL_MIN + (WALL_MAX - WALL_MIN) * t;
-    castle.gate_height = std::min(GATE_MIN + (GATE_MAX - GATE_MIN) * t, keep - 1.0f);
+    castle.solar_height = solar;
+    // Subordinate elements scale with the solar's share of its band so the
+    // horizontal-dominant read (wall band < hall roof < solar) survives any
+    // R3 squeeze.
+    const float t =
+        SOLAR_MAX > SOLAR_MIN ? (solar - SOLAR_MIN) / (SOLAR_MAX - SOLAR_MIN) : 1.0f;
+    castle.hall_height = std::min(HALL_MIN + (HALL_MAX - HALL_MIN) * t, solar - 1.0f);
+    castle.wall_height = std::min(WALL_MIN + (WALL_MAX - WALL_MIN) * t,
+                                  castle.hall_height - 0.5f);
+    castle.gate_height = std::min(GATE_MIN + (GATE_MAX - GATE_MIN) * t, solar - 0.5f);
 
-    // --- Element placement (§6.1.3 minimal mass) --------------------------------
-    const Frame frame = castle_frame(layout);
-    castle.gate_yaw = std::atan2(frame.forward.x, -frame.forward.y); // yaw 0 = -Z
-    const CastleLayout& cl = layout.castle;
-    const float wall_half = cl.wall_side * 0.5f;
+    // Final cut/fill against the settled pad height.
+    castle.cut = std::max(0.0f, samples.back() - castle.pad_height);
+    castle.fill = std::max(0.0f, castle.pad_height - samples.front());
 
-    auto emit = [&](SiteType type, glm::vec2 local, float yaw) {
-        const glm::vec2 world =
-            castle.center + frame.right * local.x + frame.forward * local.y;
+    // --- Access ramp (binding invariant): grade from the pad edge out to
+    // natural ground on the gate side. Length is derived from the actual drop
+    // so the slope lands at RAMP_GRADE, and is at least the skirt width so the
+    // ramp always replaces the scarp rather than sitting beside it.
+    const glm::vec2 pad_edge = castle.center + forward * castle.half_size;
+    float drop = 0.0f;
+    for (float probe = 10.0f; probe <= 80.0f; probe += 10.0f) {
+        const float g = ground_height(seed, layout, hydro, pad_edge + forward * probe);
+        drop = std::max(drop, castle.pad_height - g);
+    }
+    castle.ramp_half_width = CORRIDOR_HALF;
+    castle.ramp_length = std::max(castle.blend + 5.0f, std::fabs(drop) / RAMP_GRADE);
+
+    // --- Element placement (§6.1.3 minimal mass, local frame: +y = gate side).
+    const float wall_half = WALL_SIDE * 0.5f;
+    auto emit = [&](SiteType type, glm::vec2 local) {
+        const Frame f = castle_frame(castle);
+        const glm::vec2 world = castle.center + f.right * local.x + f.forward * local.y;
         castle.entities.push_back(GeneratedEntityRecord{
-            0, serialization::fnv1a64(site_archetype(type).content_id), world, yaw});
+            0, serialization::fnv1a64(site_archetype(type).content_id), world,
+            castle.gate_yaw});
         castle.types.push_back(type);
     };
-    // Curtain wall (one record at the enclosure center; render draws it hollow)
-    // and the keep set back from the gate, then the gatehouse in the front
-    // wall, then the two rear corner towers framing the keep.
-    emit(SiteType::CastleWall, {0.0f, 0.0f}, castle.gate_yaw);
-    emit(SiteType::CastleKeep, {0.0f, -wall_half * 0.35f}, castle.gate_yaw);
-    emit(SiteType::CastleGatehouse, {0.0f, wall_half}, castle.gate_yaw);
-    emit(SiteType::CastleTower, {-wall_half, -wall_half}, castle.gate_yaw);
-    emit(SiteType::CastleTower, {wall_half, -wall_half}, castle.gate_yaw);
+    // Curtain wall (one record at the enclosure centre; render draws it
+    // hollow), the hall along the back range leaving the yard open behind the
+    // gate, the solar on the hall's far end, the gatehouse in the front wall.
+    emit(SiteType::CastleWall, {0.0f, 0.0f});
+    emit(SiteType::CastleHall, {-wall_half + HALL_X * 0.5f + 2.0f, -2.0f});
+    emit(SiteType::CastleSolar,
+         {-wall_half + HALL_X * 0.5f + 2.0f, -2.0f - HALL_Z * 0.5f - SOLAR_SIDE * 0.5f});
+    emit(SiteType::CastleGatehouse, {0.0f, wall_half});
     return castle;
 }
 
@@ -188,56 +215,86 @@ float castle_pad_height(const CastleBuild& castle, glm::vec2 world, float h) {
     if (!castle.valid) {
         return h;
     }
-    // Axis-aligned terrace (the pad is square in world axes; only the mass
-    // rotates with the gate). Chebyshev distance gives square contours.
-    const glm::vec2 d{std::fabs(world.x - castle.center.x),
-                      std::fabs(world.y - castle.center.y)};
-    const float cheb = std::max(d.x, d.y);
-    if (cheb >= castle.half_size + castle.blend) {
-        return h;
-    }
+    // Terrace: axis-aligned square (the pad is never rotated — settled).
+    const float cheb = std::max(std::fabs(world.x - castle.center.x),
+                                std::fabs(world.y - castle.center.y));
     if (cheb <= castle.half_size) {
-        return castle.pad_height; // flat terrace surface (BUILDING_PAD_SLOPE_MAX holds)
+        return castle.pad_height; // flat surface: BUILDING_PAD_SLOPE_MAX holds
     }
-    const float s = noise::smoothstep01((cheb - castle.half_size) / castle.blend);
-    return castle.pad_height + (h - castle.pad_height) * s;
+    // Everything outside is parameterised by the SAME distance-beyond-the-edge,
+    // so the terrace skirt and the approach ramp meet the pad at exactly the
+    // same height (no step at the threshold — the access invariant is
+    // measured right through here).
+    const float beyond = cheb - castle.half_size;
+    const float skirt = beyond >= castle.blend
+                          ? h
+                          : castle.pad_height
+                                + (h - castle.pad_height)
+                                      * noise::smoothstep01(beyond / castle.blend);
+
+    // Approach ramp: LINEAR grade over a longer run than the skirt, inside a
+    // corridor-width band on the gate side — constant slope, no step. Its
+    // outer 2 m cross-fade into the skirt so the ramp's flanks are a graded
+    // edge rather than a wall.
+    const glm::vec2 local = to_local(castle, world);
+    constexpr float LATERAL_FADE = 2.0f;
+    if (local.y > 0.0f && std::fabs(local.x) <= castle.ramp_half_width + LATERAL_FADE) {
+        const float ramp = beyond >= castle.ramp_length
+                             ? h
+                             : castle.pad_height
+                                   + (h - castle.pad_height) * (beyond / castle.ramp_length);
+        const float w = std::clamp(
+            (castle.ramp_half_width + LATERAL_FADE - std::fabs(local.x)) / LATERAL_FADE,
+            0.0f, 1.0f);
+        return skirt + (ramp - skirt) * w;
+    }
+    // Remaining edges: the ordinary terrace skirt (may stay steep — that is
+    // the fortification read).
+    return skirt;
 }
 
 float castle_occluder_height(const CastleBuild& castle, glm::vec2 world) {
     if (!castle.valid) {
         return 0.0f;
     }
-    // Cheap reject before the frame math.
     if (glm::length(world - castle.center) > castle.half_size * 1.5f) {
-        return 0.0f;
+        return 0.0f; // cheap reject
     }
-    // Rebuild the frame from the stored gate yaw (yaw 0 = -Z).
-    Frame frame;
-    frame.forward = glm::vec2{std::sin(castle.gate_yaw), -std::cos(castle.gate_yaw)};
-    frame.right = glm::vec2{-frame.forward.y, frame.forward.x};
-    const glm::vec2 local = to_local(castle, frame, world);
+    const glm::vec2 local = to_local(castle, world);
+    const float wall_half = WALL_SIDE * 0.5f;
+    const glm::vec2 hall_c{-wall_half + HALL_X * 0.5f + 2.0f, -2.0f};
+    const glm::vec2 solar_c{hall_c.x, hall_c.y - HALL_Z * 0.5f - SOLAR_SIDE * 0.5f};
 
-    const float wall_half = 20.0f; // §6.1.3 curtain 40x40
     float top = 0.0f;
-    if (in_box(local, 7.0f, 7.0f)) { // keep 14x14, set back
-        top = std::max(top, castle.keep_height);
+    if (in_box(local, solar_c, SOLAR_SIDE * 0.5f, SOLAR_SIDE * 0.5f)) {
+        top = std::max(top, castle.solar_height);
     }
-    if (in_box(local - glm::vec2{0.0f, -wall_half * 0.35f}, 7.0f, 7.0f)) {
-        top = std::max(top, castle.keep_height);
+    if (in_box(local, hall_c, HALL_X * 0.5f, HALL_Z * 0.5f)) {
+        top = std::max(top, castle.hall_height);
     }
-    if (in_box(local - glm::vec2{0.0f, wall_half}, 5.0f, 3.0f)) { // gatehouse 10x6
+    if (in_box(local, {0.0f, wall_half}, GATE_X * 0.5f, GATE_Z * 0.5f)) {
         top = std::max(top, castle.gate_height);
     }
-    for (const float sx : {-1.0f, 1.0f}) { // corner towers 6x6
-        if (in_box(local - glm::vec2{sx * wall_half, -wall_half}, 3.0f, 3.0f)) {
-            top = std::max(top, castle.tower_height);
-        }
-    }
-    if (top == 0.0f && in_box(local, wall_half, wall_half)) {
-        // Inside the curtain: the wall band itself occludes at its height.
-        top = castle.wall_height;
+    if (top == 0.0f && in_box(local, {0.0f, 0.0f}, wall_half, wall_half)) {
+        top = castle.wall_height; // the curtain band
     }
     return top;
+}
+
+glm::vec2 castle_yard_point(const CastleBuild& castle) {
+    // Open tithe-yard: in front of the hall range, behind the gate.
+    const Frame f = castle_frame(castle);
+    return castle.center + f.right * 6.0f;
+}
+
+glm::vec2 castle_gate_point(const CastleBuild& castle) {
+    // Just inside the gatehouse threshold.
+    const Frame f = castle_frame(castle);
+    return castle.center + f.forward * (WALL_SIDE * 0.5f - 2.0f);
+}
+
+glm::vec2 castle_ramp_foot(const CastleBuild& castle) {
+    return castle.center + castle.gate_dir * (castle.half_size + castle.ramp_length);
 }
 
 } // namespace dfn::world

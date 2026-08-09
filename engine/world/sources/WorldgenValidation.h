@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 15:18:34
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.h
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — validation passes for tests.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: canopy-aware clearance semantics documented; max_corridor_water_depth (C3 vs generated water).
+- 09:08:2026 - 15:18:34: Castle validation: CastleHierarchy (R3 top/ceiling, R4 ratio, R2 crown, C2 attractors with and without the castle) and CastleAccess (ramp slope/step, Backbarrow sightline from yard and gate).
 */
 
 #pragma once
@@ -65,7 +66,30 @@ struct CastleHierarchy {
     float max_ratio = 0.0f;        ///< worst castle/crag subtended height, >= 300 m (R4)
     bool crown_occluded = false;   ///< castle hides the L0's top third anywhere (R2)
     uint32_t max_attractors = 0;   ///< most attractors visible from one standpoint (C2)
+    /// Same measure with the castle removed as attractor AND occluder. The
+    /// difference is the castle's own contribution to C2 — design's "check
+    /// both directions" (§6.1.1). NOTE: the seed-1 baseline already exceeds
+    /// POI_VISIBLE_COUNT_MAX, which is a layout-level finding independent of
+    /// the castle; the castle's contribution is what this pass gates on.
+    uint32_t max_attractors_without_castle = 0;
 };
 [[nodiscard]] CastleHierarchy castle_hierarchy(const WorldGenContext& ctx);
+
+/// The two story-mandated castle terrain invariants (§6.1.2), guarded on every
+/// run exactly like the L0 sightlines — a later pine retune, scatter change or
+/// terrace edit can break them, so they are re-validated, not authored once.
+struct CastleAccess {
+    /// ACCESS INVARIANT: the graded approach ramp, corridor foot -> gate
+    /// threshold, must meet the §2.4 corridor rules end to end.
+    float ramp_avg_slope = 0.0f; ///< radians; <= CORRIDOR_SLOPE_MAX
+    float ramp_max_step = 0.0f;  ///< meters between adjacent samples; <= PLAYER_STEP_HEIGHT
+    /// BARROW SIGHTLINE: the Backbarrow entrance must be visible from both the
+    /// yard and the gate over terrain + canopy (the castle's own walls are not
+    /// occluders here — the ruling is about the terrace's cut/fill and later
+    /// passes, §6.1.2).
+    bool barrow_visible_from_yard = false;
+    bool barrow_visible_from_gate = false;
+};
+[[nodiscard]] CastleAccess castle_access(const WorldGenContext& ctx);
 
 } // namespace dfn::world

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 15:18:34
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -36,6 +36,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — testbed layout table per LANDSCAPE.md §7.1
   (lead-approved location as an additive WorldGenParams field).
 - 09:08:2026 - 13:12:19: Stage 3b amendments (design 12:44:58): fords removed from RiverLayout (derived in P2 per §7.1a); pine annulus -> radial ridge strips with count/duty knobs (§1.3 C1, tuned seed 1); crag treeline knob; corridor_distance moved here (shared layout geometry).
+- 09:08:2026 - 15:18:34: Castle (§6.1): CastleLayout — Harrowward's stamp target on the crag SW foot, §6.1.3 footprints, approach-corridor index (gate is valley-facing, pad never rotated).
 */
 
 #pragma once
@@ -142,13 +143,9 @@ struct CorridorLayout {
 /// and are SUBORDINATE to R3 (pad + tallest element <= peak - margin).
 struct CastleLayout {
     glm::vec2 center{760.0f, 330.0f}; ///< §6.1.4 candidate, +-20 m
-    float wall_side = 40.0f;          ///< curtain enclosure, m
-    float keep_side = 14.0f;
-    float gate_width = 10.0f;
-    float gate_depth = 6.0f;
-    float tower_side = 6.0f;
     /// Corridor whose direction the gate faces (§6.1.2: the watchpoint ->
-    /// barrow corridor becomes the castle approach). Index into
+    /// barrow corridor becomes the castle approach; the gate is valley-facing
+    /// and the pad is never rotated — settled). Index into
     /// TestbedLayout::corridors.
     int approach_corridor = 2;
 };

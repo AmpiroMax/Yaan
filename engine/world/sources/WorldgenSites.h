@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 15:18:34
 Module: engine/world
 File: engine/world/sources/WorldgenSites.h
 
@@ -31,6 +31,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P4 sites & pads.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h.
+- 09:08:2026 - 15:18:34: Castle: SitesData carries the CastleBuild (its terrace is a separate square stamp with its own cut allowance).
 */
 
 #pragma once

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 15:18:34
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: C1 raycast against terrain + canopy with LANDMARK_CLEARANCE_FACTOR (tangent comparison); max_corridor_water_depth.
+- 09:08:2026 - 15:18:34: Castle validation: the castle mass enters the C1 occlusion heightfield like canopy and its footprint is excluded from standpoints; hierarchy + access invariants implemented on the same raycast machinery.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -171,14 +172,15 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
     struct Attractor {
         glm::vec2 pos;
         float top;
-        bool is_seat;
+        bool is_seat;   ///< part of the castle+barrow composite POI
+        bool is_castle; ///< the castle itself (removed for the baseline)
     };
     std::vector<Attractor> attractors;
-    attractors.push_back({peak_xz, peak_y + L0_AIM_ABOVE_PEAK, false});
+    attractors.push_back({peak_xz, peak_y + L0_AIM_ABOVE_PEAK, false, false});
     for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
         const SiteType type = ctx.sites.types[i];
         const glm::vec2 pos = ctx.sites.entities[i].position_xz;
-        const bool seat = type == SiteType::CastleKeep
+        const bool seat = type == SiteType::CastleSolar
                        || (type == SiteType::DungeonEntrance
                            && glm::length(pos - castle.center)
                                   <= static_cast<float>(config::CASTLE_BARROW_DIST_MAX));
@@ -186,9 +188,10 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
         case SiteType::Tavern: // the hamlet counts once, via its anchor
         case SiteType::Shrine:
         case SiteType::DungeonEntrance:
-        case SiteType::CastleKeep:
-            attractors.push_back(
-                {pos, terrain_height(ctx, pos) + site_archetype(type).bounds_max.y, seat});
+        case SiteType::CastleSolar:
+            attractors.push_back({pos,
+                                  terrain_height(ctx, pos) + site_archetype(type).bounds_max.y,
+                                  seat, type == SiteType::CastleSolar});
             break;
         default:
             break;
@@ -201,7 +204,10 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
                        static_cast<float>(ctx.params.max_chunk.z + 1) * CHUNK_SIZE_M};
 
     // Line-of-sight over the same occlusion heightfield C1 uses.
-    const auto visible = [&](glm::vec2 from, float eye_y, glm::vec2 to, float top_y) {
+    // `with_castle` off measures the layout as it would be with no castle at
+    // all (neither attractor nor occluder) — the C2 baseline.
+    const auto visible = [&](glm::vec2 from, float eye_y, glm::vec2 to, float top_y,
+                             bool with_castle) {
         const glm::vec2 delta = to - from;
         const float dist = glm::length(delta);
         if (dist < 1.0f) return true;
@@ -210,9 +216,10 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
         for (float t = RAY_STEP_M; t < dist - RAY_STEP_M; t += RAY_STEP_M) {
             const glm::vec2 q = from + dir * t;
             const float terrain = terrain_height(ctx, q);
-            const float occ = terrain
-                            + std::max(canopy_height_at(ctx.params.seed, layout, q, terrain),
-                                       castle_occluder_height(castle, q));
+            float occ = terrain + canopy_height_at(ctx.params.seed, layout, q, terrain);
+            if (with_castle) {
+                occ = std::max(occ, terrain + castle_occluder_height(castle, q));
+            }
             if ((occ - eye_y) / t > t_target) return false;
         }
         return true;
@@ -229,23 +236,33 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             const float eye_y = sp.height + EYE_M;
 
             uint32_t count = 0;
+            uint32_t count_no_castle = 0;
             bool seat_counted = false;
+            bool seat_counted_nc = false;
             for (const Attractor& a : attractors) {
-                if (!visible(p, eye_y, a.pos, a.top)) continue;
-                if (a.is_seat) {
-                    if (seat_counted) continue; // composite POI counts once
-                    seat_counted = true;
+                if (visible(p, eye_y, a.pos, a.top, true)) {
+                    if (!a.is_seat || !seat_counted) {
+                        ++count;
+                        seat_counted = seat_counted || a.is_seat;
+                    }
                 }
-                ++count;
+                if (!a.is_castle && visible(p, eye_y, a.pos, a.top, false)) {
+                    if (!a.is_seat || !seat_counted_nc) {
+                        ++count_no_castle;
+                        seat_counted_nc = seat_counted_nc || a.is_seat;
+                    }
+                }
             }
             out.max_attractors = std::max(out.max_attractors, count);
+            out.max_attractors_without_castle =
+                std::max(out.max_attractors_without_castle, count_no_castle);
 
             // R4 dominance + R2 crown, only where both are visible at range.
             const float d_castle = glm::length(p - castle.center);
             const float d_peak = glm::length(p - peak_xz);
             if (d_castle < 300.0f || d_peak < 1.0f) continue;
-            if (!visible(p, eye_y, castle.center, castle.top_elevation())) continue;
-            if (!visible(p, eye_y, peak_xz, peak_y + L0_AIM_ABOVE_PEAK)) continue;
+            if (!visible(p, eye_y, castle.center, castle.top_elevation(), true)) continue;
+            if (!visible(p, eye_y, peak_xz, peak_y + L0_AIM_ABOVE_PEAK, true)) continue;
             const float castle_sub = (castle.top_elevation() - eye_y) / d_castle;
             const float crag_sub = (peak_y + L0_AIM_ABOVE_PEAK - eye_y) / d_peak;
             if (crag_sub > 0.0f) {
@@ -266,6 +283,74 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
             }
         }
     }
+    return out;
+}
+
+CastleAccess castle_access(const WorldGenContext& ctx) {
+    CastleAccess out;
+    const CastleBuild& castle = ctx.sites.castle;
+    if (!castle.valid) {
+        return out;
+    }
+    const TestbedLayout& layout = ctx.params.layout;
+
+    // --- Access invariant: walk the ramp centreline from its foot up to the
+    // gate threshold at fine spacing. Linear grade means the average IS the
+    // local slope; the step check catches any discontinuity a later terrace
+    // edit might introduce.
+    const glm::vec2 foot = castle_ramp_foot(castle);
+    const glm::vec2 gate = castle_gate_point(castle);
+    const float run = glm::length(gate - foot);
+    const int steps = std::max(4, static_cast<int>(run / 0.5f));
+    float prev = terrain_height(ctx, foot);
+    const float start_h = prev;
+    for (int i = 1; i <= steps; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(steps);
+        const float h = terrain_height(ctx, foot + (gate - foot) * t);
+        out.ramp_max_step = std::max(out.ramp_max_step, std::fabs(h - prev));
+        prev = h;
+    }
+    out.ramp_avg_slope = run > 0.0f ? std::atan(std::fabs(prev - start_h) / run) : 0.0f;
+
+    // --- Barrow sightline: from the yard and from the gate to the Backbarrow
+    // entrance, over terrain + canopy only (the castle's own mass is not an
+    // occluder for this ruling).
+    glm::vec2 barrow{0.0f};
+    bool found = false;
+    for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
+        if (ctx.sites.types[i] != SiteType::DungeonEntrance) continue;
+        const glm::vec2 pos = ctx.sites.entities[i].position_xz;
+        if (glm::length(pos - castle.center)
+            <= static_cast<float>(config::CASTLE_BARROW_DIST_MAX) + 20.0f) {
+            barrow = pos;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        return out;
+    }
+    const float barrow_top =
+        terrain_height(ctx, barrow) + site_archetype(SiteType::DungeonEntrance).bounds_max.y;
+
+    const auto clear_line = [&](glm::vec2 from) {
+        const float eye_y = terrain_height(ctx, from) + EYE_M;
+        const glm::vec2 delta = barrow - from;
+        const float dist = glm::length(delta);
+        if (dist < 1.0f) return true;
+        const glm::vec2 dir = delta / dist;
+        const float t_target = (barrow_top - eye_y) / dist;
+        for (float t = 2.0f; t < dist - 2.0f; t += 2.0f) {
+            const glm::vec2 q = from + dir * t;
+            const float terrain = terrain_height(ctx, q);
+            const float occ =
+                terrain + canopy_height_at(ctx.params.seed, layout, q, terrain);
+            if ((occ - eye_y) / t > t_target) return false;
+        }
+        return true;
+    };
+    out.barrow_visible_from_yard = clear_line(castle_yard_point(castle));
+    out.barrow_visible_from_gate = clear_line(gate);
     return out;
 }
 

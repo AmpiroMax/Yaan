@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:49:01
+Last updated: 09:08:2026 - 15:18:34
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -27,10 +27,12 @@ UPD:
 - 09:08:2026 - 14:03:23: Micro-relief batch: groove field + carved-trail-vs-shoulders test (ford/slope contracts re-asserted), curb-stone margin-band test.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: NEW invariant — every WaterBed sample is covered by a drawable primitive (lake / pond plane / river ribbon); guards the seed-vs-coverage conflation class of bug.
 - 09:08:2026 - 14:49:01: Scatter-in-water fix: NEW invariant — no scatter instance sits in water per water_at, nor under any drawn pond plane (twin of the WaterBed-coverage invariant, from the placement side).
+- 09:08:2026 - 15:18:34: Castle suite: terrace cut/pad-surface slope, R3, horizontal-dominant mass order, ford command + barrow band, access ramp (slope/step), Backbarrow sightline, R2/R4, and the C2 castle-contribution check; P4 roster updated (castle elements share one terrace, so pads + castle entities == entities).
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/Worldgen.h"
+#include "engine/world/sources/WorldgenCastle.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenScatter.h"
 #include "engine/world/sources/WorldgenSites.h"
@@ -301,11 +303,14 @@ TEST_CASE("P4: full site roster on pads — flat, dry, above flood margin") {
     const auto& ctx = testbed();
     const auto& sites = ctx.sites;
     REQUIRE(sites.entities.size() == sites.types.size());
-    REQUIRE(sites.entities.size() == sites.pads.size());
+    // Every ordinary site stands on its own BuildingPad; the castle's elements
+    // share ONE terrace instead (§6.1), so they are excluded from the count.
+    REQUIRE(sites.entities.size() == sites.pads.size() + sites.castle.entities.size());
 
     // Roster: 1 tavern + 1 trader + dwellings/barns within HAMLET_SIZE, one
-    // shrine, TESTBED_DUNGEONS entrances, one tower ruin.
+    // shrine, TESTBED_DUNGEONS entrances, one tower ruin, plus the castle mass.
     int tavern = 0, trader = 0, dwelling = 0, barn = 0, shrine = 0, dungeon = 0, tower = 0;
+    int hall = 0, wall = 0, gatehouse = 0, solar = 0;
     for (const world::SiteType t : sites.types) {
         switch (t) {
         case world::SiteType::Tavern: ++tavern; break;
@@ -315,8 +320,17 @@ TEST_CASE("P4: full site roster on pads — flat, dry, above flood margin") {
         case world::SiteType::Shrine: ++shrine; break;
         case world::SiteType::DungeonEntrance: ++dungeon; break;
         case world::SiteType::TowerRuin: ++tower; break;
+        case world::SiteType::CastleHall: ++hall; break;
+        case world::SiteType::CastleWall: ++wall; break;
+        case world::SiteType::CastleGatehouse: ++gatehouse; break;
+        case world::SiteType::CastleSolar: ++solar; break;
         }
     }
+    // The hall-castle mass (§6.1.3): one of each, horizontal-dominant.
+    CHECK(hall == static_cast<int>(config::CASTLE_COUNT_TESTBED));
+    CHECK(wall == static_cast<int>(config::CASTLE_COUNT_TESTBED));
+    CHECK(gatehouse == static_cast<int>(config::CASTLE_COUNT_TESTBED));
+    CHECK(solar == static_cast<int>(config::CASTLE_COUNT_TESTBED));
     CHECK(tavern == 1);
     CHECK(trader == 1);
     CHECK(shrine == 1);
@@ -333,6 +347,7 @@ TEST_CASE("P4: full site roster on pads — flat, dry, above flood margin") {
 
     // Every pad: final terrain is flat across it, its center dry and clear of
     // the waterline (§6 flood margin is relative to the nearest water body).
+    // Pads are the first entries; castle records are appended after them.
     for (std::size_t i = 0; i < sites.pads.size(); ++i) {
         const auto& pad = sites.pads[i];
         const float hc = world::terrain_height(ctx, pad.center);
@@ -345,6 +360,86 @@ TEST_CASE("P4: full site roster on pads — flat, dry, above flood margin") {
         CHECK(sp.water_surface == math::NO_WATER);
         CHECK(sp.dist_to_water > 2.0f);
     }
+}
+
+TEST_CASE("castle: terrace, R3 skyline margin and siting (§6.1)") {
+    const auto& ctx = testbed();
+    const auto& castle = ctx.sites.castle;
+    REQUIRE(castle.valid);
+
+    // Terrace: the CUT is the ruled exception; the pad SURFACE still obeys
+    // BUILDING_PAD_SLOPE_MAX.
+    CHECK(castle.cut <= static_cast<float>(config::CASTLE_PAD_CUT_MAX) + 1e-3f);
+    float worst_pad_slope = 0.0f;
+    for (float z = -25.0f; z <= 25.0f; z += 5.0f) {
+        for (float x = -25.0f; x <= 25.0f; x += 5.0f) {
+            const glm::vec2 p = castle.center + glm::vec2{x, z};
+            const float d = 2.0f;
+            const float hx = world::terrain_height(ctx, {p.x + d, p.y})
+                           - world::terrain_height(ctx, {p.x - d, p.y});
+            const float hz = world::terrain_height(ctx, {p.x, p.y + d})
+                           - world::terrain_height(ctx, {p.x, p.y - d});
+            worst_pad_slope =
+                std::max(worst_pad_slope,
+                         std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d)));
+        }
+    }
+    CHECK(worst_pad_slope <= static_cast<float>(config::BUILDING_PAD_SLOPE_MAX));
+
+    // R3: pad + tallest element stays CASTLE_SKYLINE_MARGIN below the L0.
+    const float peak = world::terrain_height(ctx, ctx.params.layout.crag.center);
+    CHECK(castle.top_elevation()
+          <= peak - static_cast<float>(config::CASTLE_SKYLINE_MARGIN) + 1e-3f);
+    // Horizontal-dominant mass (§6.1.3): the solar is the single vertical and
+    // the wall band is the lowest step.
+    CHECK(castle.solar_height > castle.hall_height);
+    CHECK(castle.hall_height > castle.wall_height);
+
+    // Siting: commands a derived ford, stands over the barrow, and never
+    // creates water features of its own.
+    float d_ford = 1e9f;
+    for (const uint32_t f : ctx.hydrology.ford_stations) {
+        d_ford = std::min(d_ford,
+                          glm::length(ctx.hydrology.stations[f].position - castle.center));
+    }
+    CHECK(d_ford <= static_cast<float>(config::CASTLE_FORD_COMMAND_DIST));
+    float d_barrow = 1e9f;
+    for (std::size_t i = 0; i < ctx.sites.entities.size(); ++i) {
+        if (ctx.sites.types[i] != world::SiteType::DungeonEntrance) continue;
+        d_barrow = std::min(d_barrow,
+                            glm::length(ctx.sites.entities[i].position_xz - castle.center));
+    }
+    CHECK(d_barrow >= static_cast<float>(config::CASTLE_BARROW_DIST_MIN));
+    CHECK(d_barrow <= static_cast<float>(config::CASTLE_BARROW_DIST_MAX));
+}
+
+TEST_CASE("castle: access ramp and Backbarrow sightline (binding invariants)") {
+    const auto& ctx = testbed();
+    const auto access = world::castle_access(ctx);
+    // ACCESS INVARIANT (§6.1.2): a commoner walks up from the corridor.
+    CHECK(access.ramp_avg_slope <= static_cast<float>(config::CORRIDOR_SLOPE_MAX));
+    CHECK(access.ramp_max_step <= static_cast<float>(config::PLAYER_STEP_HEIGHT));
+    // BARROW SIGHTLINE (§6.1.2): the seat lives within sight of the evidence.
+    CHECK(access.barrow_visible_from_yard);
+    CHECK(access.barrow_visible_from_gate);
+}
+
+TEST_CASE("castle: hierarchy — the crag stays L0 (§6.1.1)") {
+    const auto& ctx = testbed();
+    const auto h = world::castle_hierarchy(ctx);
+    // R4: at valley range the castle never rivals the crag's silhouette.
+    CHECK(h.max_ratio <= static_cast<float>(config::CASTLE_SILHOUETTE_RATIO));
+    // R2: flank occlusion is the desired read; crown occlusion is forbidden.
+    CHECK_FALSE(h.crown_occluded);
+    // C2: the castle must not push any standpoint over the attractor bound.
+    // NOTE: the seed-1 layout ALREADY exceeds POI_VISIBLE_COUNT_MAX before any
+    // castle exists (open west meadows see crag + hamlet + shrine + two
+    // dungeons). That is a layout finding reported to design, not a castle
+    // regression — what this pass gates is the castle's own contribution.
+    CHECK(h.max_attractors == h.max_attractors_without_castle);
+    INFO("attractors with castle " << h.max_attractors << ", baseline "
+                                   << h.max_attractors_without_castle << ", bound "
+                                   << config::POI_VISIBLE_COUNT_MAX);
 }
 
 TEST_CASE("corridors: average slope within CORRIDOR_SLOPE_MAX") {

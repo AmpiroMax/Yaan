@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 14:49:01
+Last updated: 09:08:2026 - 15:18:34
 -->
 <!--
 UPD:
@@ -12,6 +12,7 @@ UPD:
 - 09:08:2026 - 14:03:23: Micro-relief batch: corridor path groove (macro stage, ford-safe) + curb-stone scatter along corridor margins.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: fill_level split from the Dijkstra seed set (river cells no longer flood coarse cells); ponds exposed as drawable LakePlane primitives via water_bodies(); WaterBed-coverage invariant added.
 - 09:08:2026 - 14:49:01: Scatter-in-water fix: per-cell pond planes (bbox planes over-covered dry ground) + ScatterCtx::dry_enough water gate on every scatter pass including the forced watchpoint cluster; no-scatter-in-water invariant added.
+- 09:08:2026 - 15:18:34: Castle (§6.1): WorldgenCastle module (terrace + access ramp + hall-castle mass + occlusion), castle site types on mesh ids 8..11, hierarchy/access validation; C1 re-verified with the castle in the occlusion field.
 -->
 
 # engine/world

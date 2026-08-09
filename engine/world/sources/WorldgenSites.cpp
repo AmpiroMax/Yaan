@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 15:18:34
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -26,6 +26,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P4 implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h; placer fallback scores dry-over-flat-over-wet and shies from banks.
+- 09:08:2026 - 15:18:34: Castle: solved first (its terrace outranks ordinary pads), elements appended to the shared record list keeping WorldEntityIds sequential; pads_height applies the terrace + ramp.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
