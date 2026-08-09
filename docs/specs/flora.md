@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 19:35:17
+Last updated: 09:08:2026 - 19:50:35
 -->
 <!--
 UPD:
@@ -50,6 +50,17 @@ UPD:
                          was missing entirely (oaks 24.5 m wide vs 10-16,
                          pines 24.9 vs 6-9), including the env==0 apex trap.
                          Measured output table added to §6.
+- 09:08:2026 - 19:50:35: VISUAL VERIFICATION caught a third and worse envelope
+                         bug: the crown did not exist. Branches under the
+                         0.35 m shadow floor terminated WITHOUT re-attaching
+                         their foliage (birch primaries are 0.168 m), so
+                         birches rendered as bare poles while 31k assertions
+                         passed. Fixed by emitting foliage at terminated
+                         branches AND distributing the crown over the envelope
+                         independently of the skeleton. New §3.7 "THE PATTERN":
+                         all three bugs were rules stated in full and
+                         implemented in half. New invariant: every canopy
+                         species HAS a crown, measured by foliage AREA.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -615,9 +626,33 @@ and both would have surfaced as someone else's problem.
    stuck 7.6 m out of the top of a pine whose entire crown is 4 m in radius.
    `env == 0` must clamp, not skip.
 
-Both now have regression tests (§6). The lesson for a successor: the height
-band had a test and the width band did not, which is exactly why the width bug
-survived and the height bug did not.
+3. **The crown did not exist at all** — caught only by the first rendered
+   frame, after 31 000 assertions passed over a tree with zero leaves.
+   §3.5 says branches under the shadow floor are not modelled *"and the
+   remaining foliage attaches to the parent"*. The termination was implemented;
+   the attachment was not. Measured primary-branch diameters against the 0.35 m
+   floor: oak 0.468 (survives), pine 0.317, **birch 0.168**, willow 0.336 — so
+   for three of the four canopy species every branch terminated instantly and
+   took the entire crown with it. Birches rendered as bare curved poles. The
+   pine survived only because its foliage is cone tiers rather than branch-tip
+   clusters.
+   Fixed twice over: foliage is emitted at a terminated branch's base, **and**
+   `scatter_envelope_clusters()` distributes the crown over the envelope
+   independently of the skeleton. That second half is the durable fix — foliage
+   is what READS at distance (silhouette and value, §1.5); the branch skeleton
+   is structure you only resolve up close, and a crown must not depend on it.
+
+**THE PATTERN — read this before changing the envelope or the floors.** All
+three bugs are the same failure: **a rule stated in full in this spec, and
+implemented in half.** Vertical clip without radial clip. Height band enforced
+downward but not upward. Branch termination without foliage re-attachment. In
+each case the implemented half was tested and held; the unimplemented half had
+no test and drifted 2–3× out of brief, or to zero. When a rule here has two
+clauses, write a test per clause — and note that all three survived a green
+suite, so "tests pass" is not evidence that a rule is implemented.
+
+The three now have regression tests (§6), including the one that was missing
+entirely: *does this species have a crown at all*.
 
 ## 5. Step-by-step plan
 
@@ -686,6 +721,11 @@ successor can trust:
 11. **Crown shyness has an effect** — a shy instance reaches less far toward its
     neighbour than a plain one. A parameter with no measurable effect is a
     parameter that will be quietly broken later.
+12. **Every canopy species HAS a crown** — foliage area ≥ one crown
+    cross-section, and the highest foliage above `crown_base`. Measured as
+    **area, not vertex count**: a conifer's cone tiers cover the whole envelope
+    with 72 vertices, so a vertex-share threshold fails the pine while passing
+    a bald oak. Area is what the eye integrates, so area is what is asserted.
 
 **Measured output at the time of writing** (max across 12 variants; the suite
 pins these as bands, this table is the snapshot):

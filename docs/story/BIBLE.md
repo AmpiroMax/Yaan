@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 19:39:32
+Last updated: 09:08:2026 - 19:47:45
 -->
 <!--
 UPD:
@@ -15,6 +15,7 @@ UPD:
 - 09:08:2026 - 19:32:18: Added the High Temple and the Seven Thousand Steps to world truth (design's LR temple mountain, LANDSCAPE 2.5): canon makes it the shrinewardens' mother-house where names enter a record no king can strike, so carrying the Maddren roll up the stair is an act-2 destination and each landing is a station where a name is spoken. Recorded the user's binding naming rule (a name, not a count). NOTE: the Steps are on the TEMPLE MOUNTAIN, not Ravenscar - act 1's climax climb is still the crag.
 - 09:08:2026 - 19:36:28: Steps section completed from design's 19:34:15 pass: story ruled SEVEN landings (one per station of the naming rite - the name's "seven" lives in the stations, not the steps, so the name gets a diegetic anchor without counting; LR_ASCENT_LANDINGS now story-coupled), recorded the binding disrepair rule (visual and routing, never impassable - caused by this bible's own "forbidding it would have been an admission" line) and the symmetric two-different-climbs warning: built temple stair (act 2) vs unbuilt worn watchmen's path up Ravenscar (act 1).
 - 09:08:2026 - 19:39:32: LR_ASCENT_LANDINGS pinned at 7; recorded design's metric check and its authoring consequence - seven landings give 171-257 m segments (57-86 s at WALK_SPEED, inside the valley's POI_TRAVEL_TIME band) and ~40 m of relief each, so the climb speaks the valley's own exploration cadence seven times and the view changes between stations. The seven recitations must escalate across that rhythm, never repeat.
+- 09:08:2026 - 19:47:45: Pre-cleared design's barrow relocation forced by the crag raise (52 -> 115 m): primary couloir move accepted (costs a bearing only; a grave in a fold suits the arc), fallback high-shoulder entrance accepted with its sentence inversion (grave over seat; "a house that cannot get out from under its own grave"), and one hard condition recorded — the mouth must never read from Vaelmere, since occlude-and-reveal is load-bearing for MQ1 and for a crime nobody finishes the sentence about.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -478,6 +479,37 @@ sited there as the redoubt). The gap reads as a back way a determined person
 finds, never an alternative front door. Both things are true at once: the
 dead come from the barrow, uphill, through the gap; petitioners still walk up
 the ramp to the gate.
+
+**Barrow relocation — story's pre-clearance (09:08:2026).** Raising Ravenscar
+to 115 m buried the Backbarrow's old slope, so the grave must move; the castle
+does not. Story cleared both of design's options in advance:
+
+- **Primary — the barrow moves around the crag into a couloir** (a fold
+  between buttress ridges at near-valley level). Costs a compass bearing and
+  nothing else: proximity, relative elevation, the barrow-facing gap and
+  tower, and the trespass route are all defined *relative to the barrow* and
+  follow it. **A grave hidden in a fold of the mountain is better than one on
+  an open slope** — it suits a crime nobody finishes the sentence about.
+- **Fallback — a high entrance on the mountain's shoulder (20–44 m up),
+  ACCEPTED**, with one hard condition below. It inverts a canon sentence: the
+  grave would stand **over** the seat, and the Corvanes would live beneath the
+  thing they did, overlooked by it daily; the tower would watch **up** through
+  the unfinished gap rather than across. Story judges the inversion at least
+  as strong — *a house that cannot get out from under its own grave* — and the
+  fortress logic survives intact, since one walls the uphill side first and
+  ward A (the panic) already sits uphill nearest the grave. Sentences to
+  rewrite if it lands: "towers overlooking a grave" → facing up at it; "a
+  garrison posted on a grave" → beneath it.
+
+**The condition, and it is the one refusal:** in either case the barrow mouth
+must **not read from Vaelmere**. LANDSCAPE §7.1's occlude-and-reveal intent
+(visible from the foothill watchpoint, not from town) is load-bearing for this
+arc — the crime is buried and unspoken, and MQ1 depends on the player
+*finding* it rather than looking at it over breakfast. A visible-from-town
+grave is a worse cost than any compass rotation. The vertical stack the
+fallback offers — signal-tower above, grave, beneficiary below, the whole
+crime in one silhouette — is a gain to be spent **on the approach**, never
+from the hamlet.
 
 **Terrain agreement to preserve (design + story reached it independently):**
 design's terracing puts stage A uphill nearest the barrow for cut-budget

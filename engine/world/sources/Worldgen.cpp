@@ -47,6 +47,7 @@ UPD:
 #include "engine/world/sources/Worldgen.h"
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenNoise.h"
 #include "engine/world/sources/VoxelMesh.h"
@@ -55,6 +56,7 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <glm/geometric.hpp>
 #include <vector>
 
 namespace dfn::world {
@@ -107,6 +109,101 @@ uint32_t WorldGenRng::next_range(uint32_t min, uint32_t max) {
 
 // --- World-level context -------------------------------------------------------
 
+namespace {
+
+/// §7.1 coordinates are stamps against a SPECIFIC terrain state: anything sited
+/// on a landmark's slopes carries an implicit dependency on that landmark's
+/// relief. Raising Ravenscar 52 -> 115 m buried the Backbarrow under 20-44 m of
+/// its own mountain. Design's ruling: the barrow does not move OUTWARD (that
+/// drags the castle with it and cascades five ways), it moves AROUND — into a
+/// couloir, one of the re-entrant folds a ridged stamp produces between its
+/// buttress ridges, where ground at the SAME radius is still near valley level.
+/// A rigid rotation about the crag centre carries the authored passage and
+/// chamber with the site, so the barrow keeps its designed shape.
+void swing_barrow_into_couloir(TestbedLayout& layout, uint64_t seed,
+                               const HydrologyData& hydro) {
+    const int si = layout.carves.barrow_site_index;
+    if (si < 0 || si >= static_cast<int>(std::size(layout.sites))) {
+        return;
+    }
+    const glm::vec2 cc = layout.crag.center;
+    const glm::vec2 rel = layout.sites[si].position - cc;
+    const float radius = glm::length(rel);
+    if (radius < 1.0f || radius > layout.crag.radius) {
+        return; // not sited on the massif
+    }
+    const auto ground = [&](glm::vec2 q) {
+        return carve_height(hydro, layout, q, macro_height(seed, layout, q));
+    };
+    // Valley reference along this bearing, just outside the stamp.
+    const glm::vec2 dir = rel / radius;
+    const float valley = ground(cc + dir * (layout.crag.radius + 40.0f));
+    const float threshold = valley + 8.0f;
+    if (ground(layout.sites[si].position) <= threshold) {
+        return; // already clear; nothing to swing
+    }
+    // Search the arc outward from the authored bearing so the FIRST hit is the
+    // nearest one — the barrow moves as little as the mountain allows.
+    const float base = std::atan2(rel.y, rel.x);
+    float found = 0.0f;
+    bool ok = false;
+    for (float dev = 2.0f * 0.0174532925f; dev <= 30.0f * 0.0174532925f && !ok;
+         dev += 2.0f * 0.0174532925f) {
+        for (const float sign : {1.0f, -1.0f}) {
+            const float ang = base + sign * dev;
+            const glm::vec2 probe = cc + glm::vec2{std::cos(ang), std::sin(ang)} * radius;
+            if (ground(probe) <= threshold) {
+                found = sign * dev;
+                ok = true;
+                break;
+            }
+        }
+    }
+    if (!ok) {
+        // NO COULOIR EXISTS on this massif. Design's ruling assumed a ridged
+        // stamp yields re-entrant folds "by construction", but Ravenscar's
+        // stamp is a smooth radial cone with only ridge_amp_meters (13 m) of
+        // modulation — measured, terrain sits at 41-45 m right across the
+        // +-40 deg arc, so nothing reaches the ~29 m the mouth needs. Buttress
+        // ridges are specified for the LR temple mountain, never for this one.
+        // Take design's pre-cleared fallback (c): the barrow becomes a HIGH
+        // entrance on the mountain's shoulder — the grave ends up standing over
+        // the seat rather than under it, an inversion story has already cleared.
+        CarveCorridor& passage = layout.carves.barrow_passage;
+        if (passage.point_count < 2) {
+            return;
+        }
+        const glm::vec2 mouth_xz{passage.points[0].x, passage.points[0].z};
+        const float floor_y = ground(mouth_xz) - 0.6f;
+        const float lift = floor_y - passage.points[0].y;
+        for (int i = 0; i < passage.point_count; ++i) {
+            passage.points[i].y += lift;
+        }
+        layout.carves.barrow_chamber.center.y += lift;
+        return;
+    }
+    // Rigid rotation about the crag centre: site, passage and chamber together.
+    const float cs = std::cos(found);
+    const float sn = std::sin(found);
+    const auto swing = [&](glm::vec2 q) {
+        const glm::vec2 r = q - cc;
+        return cc + glm::vec2{r.x * cs - r.y * sn, r.x * sn + r.y * cs};
+    };
+    layout.sites[si].position = swing(layout.sites[si].position);
+    CarveCorridor& passage = layout.carves.barrow_passage;
+    for (int i = 0; i < passage.point_count; ++i) {
+        const glm::vec2 xz = swing({passage.points[i].x, passage.points[i].z});
+        passage.points[i].x = xz.x;
+        passage.points[i].z = xz.y;
+    }
+    CarveChamber& ch = layout.carves.barrow_chamber;
+    const glm::vec2 cxz = swing({ch.center.x, ch.center.z});
+    ch.center.x = cxz.x;
+    ch.center.z = cxz.y;
+}
+
+} // namespace
+
 WorldGenContext build_world_context(const WorldGenParams& params) {
     WorldGenContext ctx;
     ctx.params = params;
@@ -115,7 +212,11 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
     const glm::vec2 domain_max{static_cast<float>(params.max_chunk.x + 1) * CHUNK_SIZE_M,
                                static_cast<float>(params.max_chunk.z + 1) * CHUNK_SIZE_M};
     ctx.hydrology = build_hydrology(params.seed, params.layout, domain_min, domain_max);
-    ctx.sites = build_sites(params.seed, params.layout, ctx.hydrology);
+    // Re-validate placements that sit on the L0's slopes BEFORE anything is
+    // sited against them (design's durable rule: re-validation is part of a
+    // landmark change, not a follow-up).
+    swing_barrow_into_couloir(ctx.params.layout, params.seed, ctx.hydrology);
+    ctx.sites = build_sites(params.seed, ctx.params.layout, ctx.hydrology);
     return ctx;
 }
 

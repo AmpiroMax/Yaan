@@ -171,6 +171,42 @@ TEST_CASE("flora: sizes stay inside the design bands") {
     }
 }
 
+TEST_CASE("flora: every canopy species actually HAS a crown") {
+    // THE TEST THAT WAS MISSING. The first rendered frame showed birches as
+    // bare poles: their primary branches (0.17 m) fall under the 0.35 m shadow
+    // floor, and the generator terminated them WITHOUT emitting the foliage
+    // that §3.5 says must attach to the parent instead. 31k assertions passed
+    // over a tree with zero leaves, because every one of them measured budgets,
+    // bounds and clearances — none asked whether the thing had a crown.
+    for (const FloraSpecies s : ALL) {
+        if (!is_canopy_tree(s)) continue;
+        const SpeciesParams& sp = species_params(s);
+        const uint32_t leaf = pack(sp.foliage_color);
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const MeshData m = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            // Measured as foliage AREA, not vertex count: a conifer's cone
+            // tiers cover the whole envelope with very few vertices, so a
+            // vertex-share threshold fails the pine while passing a bald oak.
+            // Area is what the eye integrates, so area is what we assert.
+            float leaf_area = 0.0f;
+            float highest_leaf = 0.0f;
+            for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
+                const platform::Vertex& a = m.vertices[m.indices[i]];
+                if (a.color_rgba != leaf) continue;
+                const glm::vec3 b = m.vertices[m.indices[i + 1]].position;
+                const glm::vec3 c = m.vertices[m.indices[i + 2]].position;
+                leaf_area += 0.5f * glm::length(glm::cross(b - a.position, c - a.position));
+                highest_leaf = std::max(highest_leaf, a.position.y);
+            }
+            // A crown covers its envelope: bar is one crown cross-section.
+            const float crown_r = species_crown_radius(s);
+            CHECK(leaf_area >= crown_r * crown_r);
+            // And it sits in the crown, not down the trunk.
+            CHECK(highest_leaf > species_crown_base(s));
+        }
+    }
+}
+
 TEST_CASE("flora: crown width stays inside the envelope") {
     // Added after a real bug: the envelope's VERTICAL clip was implemented and
     // its RADIAL clip was not, so oaks came out 24.5 m wide against a 10-16 m

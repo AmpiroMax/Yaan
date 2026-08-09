@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 21:30:00
+Last updated: 09:08:2026 - 22:05:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -27,6 +27,8 @@ UPD:
   analyse_neighbourhood), appended at scale 1.0 because maturity is
   already inside the mesh, and with NO ground sink now that they have a
   root flare. species_radius updated to flora's measured envelopes.
+- 09:08:2026 - 22:05:00: birch footprint 2.4 -> 3.1 m (flora's crown fix gave
+  the birch a real 6.1 m crown; the old radius was measured off a bald tree).
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -58,7 +60,7 @@ float species_radius(math::ScatterSpecies species) {
     switch (species) {
     case math::ScatterSpecies::OakTree: return 7.3f;
     case math::ScatterSpecies::PineTree: return 3.8f;
-    case math::ScatterSpecies::BirchTree: return 2.4f;
+    case math::ScatterSpecies::BirchTree: return 3.1f;
     // Core has one Bush species; flora may map it to either bush size, so take
     // the larger — an over-large bounding circle costs a few extra draws, an
     // under-large one pops geometry out while it is still visible.

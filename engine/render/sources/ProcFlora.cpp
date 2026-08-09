@@ -256,14 +256,44 @@ void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) {
     cluster(m, at, glm::vec3{radius, radius * 0.85f, radius}, slices, bands, t.leaf);
 }
 
+/// Distributes the species' foliage clusters over the crown envelope. The
+/// crown must exist whether or not the branch skeleton survived the shadow
+/// floor — foliage is what READS at distance (silhouette + value, §1.5), while
+/// branches are structure you only resolve up close.
+void scatter_envelope_clusters(MeshData& m, Tree& t, glm::vec3 off, float radial_frac) {
+    const SpeciesParams& sp = t.sp;
+    if (sp.foliage != FoliageShape::Blob || sp.cluster_count == 0) return;
+    const float span = t.crown_top - t.crown_base;
+    if (span <= 0.0f) return;
+    for (int i = 0; i < sp.cluster_count; ++i) {
+        const float u = (static_cast<float>(i) + 0.5f) / static_cast<float>(sp.cluster_count);
+        const float y = t.crown_base + span * u;
+        const float env = envelope_radius(sp, y, t.crown_base, t.crown_top, t.crown_r);
+        const float az = GOLDEN_ANGLE * static_cast<float>(i);
+        const glm::vec3 at{std::cos(az) * env * radial_frac, y,
+                           std::sin(az) * env * radial_frac};
+        emit_cluster(m, t, at + off,
+                     t.crown_r * sp.cluster_radius_frac * shy_scale(t, at));
+    }
+}
+
 /// Grows one branch, and recursively its children. Returns nothing — geometry
 /// goes straight into `m`. `gen` is the generation index (0 = primary).
 void grow_branch(MeshData& m, Tree& t, glm::vec3 base, glm::vec3 dir, float length,
                  float radius, int gen) {
     const SpeciesParams& sp = t.sp;
-    // SHADOW FLOOR: a thinner branch casts nothing and shimmers — stop, and let
-    // the foliage attach here instead of modelling twigs (§3.5).
+    // SHADOW FLOOR: a thinner branch casts nothing and shimmers, so we do not
+    // model it — but its FOLIAGE still has to exist, attached to the parent.
+    // Returning without emitting it left birches as bare poles: their primary
+    // branches (0.17 m) are under the floor, so the entire crown vanished.
     if (radius * 2.0f < sp.min_branch_diameter || length < 0.4f) {
+        if (sp.foliage == FoliageShape::Blob && sp.cluster_count > 0) {
+            const glm::vec3 at = clip_to_envelope(t, base);
+            if (at.y > t.crown_base) {
+                emit_cluster(m, t, at,
+                             t.crown_r * sp.cluster_radius_frac * shy_scale(t, at));
+            }
+        }
         return;
     }
     const int segments = (t.lod == FloraLod::Full) ? (gen == 0 ? 3 : 2) : 2;
@@ -541,21 +571,11 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
             build_cone_tiers(m, t);
         }
         if (sp.generations == 0) {
-            // Bushes: clusters straight onto the envelope, no woody skeleton.
-            for (int i = 0; i < sp.cluster_count; ++i) {
-                const float u = (static_cast<float>(i) + 0.5f)
-                    / static_cast<float>(sp.cluster_count);
-                const float y = t.crown_base + (t.crown_top - t.crown_base) * u;
-                const float env =
-                    envelope_radius(sp, y, t.crown_base, t.crown_top, t.crown_r);
-                const float az = GOLDEN_ANGLE * static_cast<float>(i);
-                const glm::vec3 at{std::cos(az) * env * 0.45f, y,
-                                   std::sin(az) * env * 0.45f};
-                emit_cluster(m, t, at + off,
-                             t.crown_r * sp.cluster_radius_frac * shy_scale(t, at));
-            }
+            scatter_envelope_clusters(m, t, off, 0.45f); // bushes: no skeleton
             continue;
         }
+        // Canopy species: the crown shell exists independently of the skeleton.
+        scatter_envelope_clusters(m, t, off, 0.68f);
 
         // Primary branches off the trunk, phyllotaxis or whorls.
         const int count = sp.branch_count[0];
