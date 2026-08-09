@@ -196,6 +196,9 @@ VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& bo
     v.material.assign(count, static_cast<uint8_t>(math::VoxelMaterial::Air));
     v.band_lo.assign(static_cast<std::size_t>(v.nx) * v.nz, 0);
     v.band_hi.assign(static_cast<std::size_t>(v.nx) * v.nz, 0);
+    v.column_surface.assign(static_cast<std::size_t>(v.nx) * v.nz, 0.0f);
+    v.column_skin.assign(static_cast<std::size_t>(v.nx) * v.nz,
+                         static_cast<uint8_t>(math::VoxelMaterial::Grass));
 
     constexpr int8_t SOLID_SAT = -127;
     constexpr int8_t AIR_SAT = 127;
@@ -231,6 +234,8 @@ VoxelVolume build_voxel_volume(const Chunk& chunk, const BorderHeightSampler& bo
             }
             v.band_lo[v.column(x, z)] = lo;
             v.band_hi[v.column(x, z)] = hi;
+            v.column_surface[v.column(x, z)] = surface;
+            v.column_skin[v.column(x, z)] = static_cast<uint8_t>(skin);
 
             // Saturated runs are contiguous in this layout, so they fill.
             const std::size_t base = v.index(x, 0, z);

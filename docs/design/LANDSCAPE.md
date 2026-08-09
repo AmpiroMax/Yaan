@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:38:02
+Last updated: 09:08:2026 - 19:44:49
 -->
 <!--
 UPD:
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 19:30:26: §2.5 — "7000 steps" CLOSED by user decision: it is a name, not a step count; 1200-1800 m / 5-7 landings / ~8 min stands, fiction keeps the name. §6.1.3 — gap reachability promoted from observation to VALIDATED INVARIANT, since story's act-1 trespass route now depends on it alongside the act-3 muster: continuous traversable route from barrow ground up the NNE spur (validated like the castle ramp and summit ascent), deliberately non-corridor-grade at SCRAMBLE_SLOPE 30-45 deg, passing within 40 m of the barrow entrance so the act-1/act-3 rhyme is geometric rather than lucky, and the completion fraction recorded as having two dependents.
 - 09:08:2026 - 19:34:15: Story's near-miss (they nearly attached the Steps to act 1's climax, which is a different mountain) produced three fixes. §2.5 — added a boxed TWO DIFFERENT CLIMBS warning (the Steps are the regional massif, act 2; Ravenscar's climb is the local L0, act 1); specified the Steps as a BUILT stair in four generations of disrepair, with disrepair strictly visual/routing and never impassable; landings are now STATIONS with built markers, and LR_ASCENT_LANDINGS gains narrative dependents (5-7 landings = 5-7 rite beats), so it is no longer a free pacing knob. §7.1 — filled a real gap in my own doc: Ravenscar had no validated summit route despite act 1 climaxing there; now required and validated like the temple ascent and castle ramp, and specified as an informal worn PATH rather than a stair so the two climbs never read as the same place.
 - 09:08:2026 - 19:38:02: §2.5 — LR_ASCENT_LANDINGS pinned at 7 (was a 5-7 band); story ruled the count since it now carries narrative dependents, one landing per station of the naming rite, which anchors the stair's name diegetically while the user's never-count-steps rule stays intact. Verified rhythmically before pinning: 7 landings over 1200-1800 m give 57-86 s segments at WALK_SPEED, inside the testbed POI_TRAVEL_TIME band across the whole range, so the climb's cadence matches the valley's exploration cadence; ~40 m of relief per station keeps the view changing.
+- 09:08:2026 - 19:44:49: New §7.0a — barrow re-sited after the L0 raise buried it (a cascade from my own proposal, owned). RULING: swing the bearing into a couloir, do NOT move the castle — core's outward-move options were rejected because moving the castle cascades into ford command, approach corridor, trespass route, ward count and the R1 check to buy what a bearing change buys outright. Measured a ~60 deg feasible arc (bearings 180-240 at radius 90-110 keep CASTLE_BARROW_DIST legal with the castle unmoved); core searches it for low terrain nearest the current 209 deg. Fallback is a high shoulder entrance, pre-cleared with story because it inverts "the seat stands over the grave". Durable rule extracted: §7.1 coordinates are stamps against a terrain state, so changing a landmark's relief invalidates every placement on its slopes and re-validation is part of the change, not a follow-up.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1667,6 +1668,60 @@ rules (§5.7) already keep its approaches clear of canopy.
 | **Foothill watchpoint (minor POI)** | (660, 430) | rock outcrop cluster + lone skyline pine + ford; bridges the town↔barrow gap in the POI chain |
 | **Forest masses** | oak: S+SE band (roughly z > 700 plus x > 500, z > 600); pine: **radial ridge strips** on the crag foothills (4 sectors, duty 0.25 — layout knobs `pine_strip_count`/`pine_strip_duty`; a closed annulus can never pass canopy-C1, see §1.3) + N ridge strips | total coverage ≈ 0.30 of land; clearings per §2.2; birch lines along river and lake banks (derived from `dist_to_water`, never tabled) |
 | **Meadows** | center and west | flower patches, outcrops, meadow clusters per §2.2–2.3 |
+
+### 7.0a Re-siting the barrow after the L0 raise (stage-4 ruling)
+
+Raising Ravenscar 52 → 115 m buried the Backbarrow: at 81–105 m from the crag
+centre the terrain is now 40–64 m, so there is no hillside there to open a
+mouth in. **This cascade is mine** — I proposed the raise and did not check
+what was anchored to the old surface.
+
+**The durable rule it produces, worth more than the fix:**
+**§7.1 coordinates are stamps against a specific terrain state.** Anything
+sited *on a landmark's slopes* — entrances, pads, routes — holds an implicit
+dependency on that landmark's relief. **Changing a landmark's height
+invalidates every placement on it and re-validation is part of the change, not
+a follow-up.** Same seam class as the missing Ravenscar ascent: the fact lived
+in one zone, the dependency in another.
+
+**RULING: swing the bearing, do not move the castle.** Rejecting core's (a)
+and (b) — both move the castle, which cascades into the ford-command
+distance, the approach corridor, the trespass route, the terrace/ward count
+and the R1 footprint check, to buy something a cheaper change buys outright.
+The barrow does not need to move *outward*; it needs to move *around*, into a
+**couloir** — one of the re-entrant folds between the ridged stamp's buttress
+ridges, where terrain at the same radius is still near valley level.
+
+Measured feasible window (castle unmoved at (760, 330); barrow currently
+radius 103 m, bearing 209° from the crag centre):
+
+| Bearing from crag centre | Radii keeping `CASTLE_BARROW_DIST` 40–80 m |
+|---|---|
+| 180° | 100–110 m |
+| 190°–230° | 90–110 m (the whole band) |
+| 240° | 110 m |
+
+So there is a **≈ 60° arc** of legal placement. Core's test: within bearings
+180°–240° at radius 90–110 m, find samples where terrain ≤ ≈ 28 m (valley
+level ≈ 20.4 m plus a working margin), pick the one **nearest the current
+209°**, and site the mouth there by the §6.2.1 adit rules. A ridged stamp
+produces couloirs by construction, so this should exist; it is a search, not a
+carve.
+
+**Fiction cost: almost none.** Proximity, relative elevation, and "the seat
+stands over the grave" all survive; the gap and the barrow-facing tower are
+defined *relative to the barrow*, so they follow the new bearing
+automatically. The only change story absorbs is a compass direction moving up
+to ~30°. A grave hidden in a fold of the mountain is also, if anything, the
+better image.
+
+**Fallback if no couloir clears:** core's (c) — a **high entrance on the
+shoulder**, mouth 20–44 m above the valley, castle unmoved. It keeps
+everything geometric but **inverts one line of story's canon**: the grave then
+stands over the seat rather than under it. That inversion is arguably stronger
+(the Corvanes cannot escape being overlooked by what they did) but it is
+story's sentence, not mine — pre-cleared with them rather than assumed.
+Options (a) and (b) remain last resorts.
 
 ### 7.1a Plan vs generated truth (seed 1, stage-3b probes)
 

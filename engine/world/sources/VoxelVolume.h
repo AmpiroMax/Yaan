@@ -69,6 +69,13 @@ struct VoxelVolume {
     /// it. This is what keeps a 40-layer slab from costing 40 layers of work.
     std::vector<int32_t> band_lo;
     std::vector<int32_t> band_hi;
+    /// Per column: the surface height and the skin material there. Extraction
+    /// needs these to give a vertex the material of ITS OWN position, rather
+    /// than inheriting one from whichever solid corner happened to be nearest
+    /// — on a slope that corner belongs to an uphill column and reads as deep
+    /// soil, which painted contour-following dirt stripes across open meadow.
+    std::vector<float> column_surface;
+    std::vector<uint8_t> column_skin;
 
     [[nodiscard]] std::size_t column(int32_t x, int32_t z) const {
         return static_cast<std::size_t>(z) * nx + x;

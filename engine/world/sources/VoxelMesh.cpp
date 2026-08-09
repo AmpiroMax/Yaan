@@ -52,6 +52,10 @@ constexpr std::array<std::array<int, 2>, 12> EDGE = {
                       {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
 
 constexpr int32_t NO_VERTEX = -1;
+// Same depth bands the volume builder uses, so a vertex and the voxels around
+// it cannot disagree about what they are made of.
+constexpr float SKIN_DEPTH_M = 0.4f;
+constexpr float SOIL_DEPTH_M = 2.5f;
 
 } // namespace
 
@@ -160,28 +164,50 @@ VoxelMeshData extract_surface_nets(const VoxelVolume& volume) {
                 const float len = glm::length(n);
                 n = len > 1e-6f ? n / len : glm::vec3{0.0f, 1.0f, 0.0f};
 
-                // Material: take the solid corner nearest the vertex, so cave
-                // walls carry rock and the open ground carries its splat class.
-                uint8_t mat = static_cast<uint8_t>(math::VoxelMaterial::Rock);
-                float best = 1e9f;
-                for (int c = 0; c < 8; ++c) {
-                    if (s[static_cast<std::size_t>(c)] >= 0.0f) {
-                        continue;
-                    }
-                    const glm::vec3 corner{CORNER[static_cast<std::size_t>(c)]};
-                    const float dist = glm::length(corner - acc);
-                    if (dist < best) {
-                        best = dist;
-                        mat = volume.material[idx(
-                            x + CORNER[static_cast<std::size_t>(c)].x,
-                            y + CORNER[static_cast<std::size_t>(c)].y,
-                            z + CORNER[static_cast<std::size_t>(c)].z)];
-                    }
+                // Material from the vertex's OWN depth below the surface of
+                // the column it stands in. Inheriting it from the nearest solid
+                // corner was wrong on every slope: that corner's material was
+                // computed against ITS column's surface, so an uphill corner
+                // carried deep-soil Dirt even where the isosurface grazes the
+                // top — which drew dirt in contour-following stripes across
+                // open meadow. Depth ~0 gives the skin (grass/rock/sand); only
+                // genuinely buried surfaces, i.e. cave walls, go to soil/rock.
+                const glm::vec3 vpos = volume.world_at(x, y, z) + acc * volume.voxel;
+                // BILINEAR surface lookup, not nearest column. A surface vertex
+                // sits between columns, and on a slope the nearest column's
+                // surface is up to half a voxel of rise away — at 32 degrees
+                // that is 0.3 m, enough to push a grass vertex past the 0.4 m
+                // skin band into Dirt. Rounding left 2.1% of open ground still
+                // striped; interpolating removes the discretisation entirely.
+                const float fx = std::clamp((vpos.x - volume.origin.x) / volume.voxel,
+                                            0.0f, static_cast<float>(nx - 1));
+                const float fz = std::clamp((vpos.z - volume.origin.y) / volume.voxel,
+                                            0.0f, static_cast<float>(nz - 1));
+                const int32_t x0 = std::min(static_cast<int32_t>(fx), nx - 2);
+                const int32_t z0 = std::min(static_cast<int32_t>(fz), nz - 2);
+                const float tx = fx - static_cast<float>(x0);
+                const float tz = fz - static_cast<float>(z0);
+                const auto surf_at = [&](int32_t sx, int32_t sz) {
+                    return volume.column_surface[static_cast<std::size_t>(sz) * nx + sx];
+                };
+                const float s0 = surf_at(x0, z0) + (surf_at(x0 + 1, z0) - surf_at(x0, z0)) * tx;
+                const float s1 =
+                    surf_at(x0, z0 + 1) + (surf_at(x0 + 1, z0 + 1) - surf_at(x0, z0 + 1)) * tx;
+                const std::size_t col =
+                    static_cast<std::size_t>(tz < 0.5f ? z0 : z0 + 1) * nx
+                    + (tx < 0.5f ? x0 : x0 + 1);
+                const float depth = (s0 + (s1 - s0) * tz) - vpos.y;
+                uint8_t mat;
+                if (depth < SKIN_DEPTH_M) {
+                    mat = volume.column_skin[col];
+                } else if (depth < SOIL_DEPTH_M) {
+                    mat = static_cast<uint8_t>(math::VoxelMaterial::Dirt);
+                } else {
+                    mat = static_cast<uint8_t>(math::VoxelMaterial::Rock);
                 }
 
                 cell_vertex[idx(x, y, z)] = static_cast<int32_t>(mesh.positions.size());
-                mesh.positions.push_back(volume.world_at(x, y, z)
-                                         + acc * volume.voxel);
+                mesh.positions.push_back(vpos);
                 mesh.normals.push_back(n);
                 mesh.materials.push_back(mat);
             }
