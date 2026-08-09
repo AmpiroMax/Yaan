@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 09:08:2026 - 21:48:23
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -36,6 +36,7 @@ UPD:
 - 09:08:2026 - 21:37:57: §2.8.4 SUMMIT TOR (I2): the top SUMMIT_TOR_HEIGHT is a stack of tilted, laterally offset slabs over a SUMMIT_TOR_RADIUS footprint. HEIGHT-FUNCTION work, not the cancelled placed-mesh class — §2.8.4's own scale table puts >=3 m features in the terrain SDF, and these slabs are metres thick. Slab count DERIVED from the ~3 m Nyquist floor expressed as VOXEL_SIZE rather than borrowed from the cancelled ROCK_STACK_* constants. The cone is capped at the tor's base ONLY inside the stack, so the peak stays at the ruled L0_RELIEF (measured exactly 115.0) instead of inflating to 116.1. Two bugs found by measuring: deriving the base from _MIN while drawing slab height from _MIN..MAX overshot the peak, and returning a flat platform outside the slabs built a MESA — cost 3.6 deg of summit slope, which is the shape I2 exists to reject. I2 now 52.9 deg surface / 32.5 deg footprint against a 40.1 floor.
 - 09:08:2026 - 21:37:57: §2.8.2 UNIT CHANGE (design's ruling): couloir depth is ABSOLUTE metres, not a fraction of local radius — a quantity held as a fraction of local radius is self-similar by construction, which is what I8's rise clause exists to detect. Scale is the CLIFF BAND height (a couloir incises the bands), not the massif radius: taking MASSIF_RADIAL_LOBE_AMP off the 180 m base gives 32-63 m insets, wider than the upper mountain, so the clamp binds everywhere and silently restores the old fraction behaviour (measured: levels 1.50/1.50/1.60 but rise 0.10 and I7 gone). Angular width stays RELATIVE. Result across 12 seeds: I8 rise now fails ZERO seeds (was the blocking clause), level fails 1.
 - 09:08:2026 - 21:37:57: §2.8.7 STEEPNESS CASCADE. (1) L0_RELIEF is RELIEF ABOVE THE FOOT, not an absolute elevation — the code read it as absolute, so the peak sat at 115.0 over a 18.8 m valley floor and the user approved 115 m while looking at 96.2. Datum is now base_height at the crag centre; measured relief is exactly 115.0. (2) THE PROFILE DECAYED TO ZERO INSTEAD OF TO THE DATUM: h = H*(1-t)^p buried the whole concave tail under the base terrain's max(), leaving only the steep crossing where the cone cuts the valley floor visible — which is why the built envelope measured shallowest at the summit and steepest at the foot, the exact inverse of what p>1 exists to produce. The concave profile was in the formula and clipped out of the surface. Now datum + relief*(1-t)^p. (3) Summit tor footprint DERIVED from MASSIF_SUMMIT_RADIUS_FRAC of the base radius instead of drawn from SUMMIT_TOR_RADIUS_MIN/MAX: at 5-10 m on a 190 m massif, disabling the tor entirely gave an identical silhouette TO THE DECIMAL, so it certified through I2's surface weighting while being invisible to the camera. Measured after the cascade, 12 seeds: I1 (envelope basis) 30.3-52.0 deg, I2 64.8-74.3, I3 62.0-71.7%, I10 1.23-1.63 — all four now pass on EVERY seed. I4 and I8 regressed and are reported, not patched.
+- 09:08:2026 - 21:48:23: SYSTEMIC FIX: bearing_field is a sum of INTEGER HARMONICS with seeded phases, not noise sampled on a circle. The circle construction was degenerate for the same reason the radial one was — rc = lobes*CELL/2pi puts the whole circle inside a couple of lattice cells. MEASURED: the field NEVER RETURNED A VALUE BELOW 0.4 and was lumpy above it (26% of samples at 0.6, 30% at 0.8) against a perfectly uniform raw lattice, so every per-bearing 'seeded spread' silently used only the top 60% of its declared range — the profile exponent never approached MASSIF_PROFILE_EXPONENT_MIN, cliff risers were never drawn near MASSIF_CLIFF_SLOPE_MIN (50-60 deg bin held 4% of surface), and the 0.5 cliff/ramp split did not split evenly. I had fixed this geometry once for the lobe field and left the broken helper feeding four other consumers: fixing a symptom is not fixing a mechanism. Riser angle additionally drawn uniform in sin(theta) so surface area spreads evenly in the measure I4 actually reads. Result across 12 seeds: I6 now passes EVERY seed (was failing), I1/I2/I3/I5/I10 robust; I4 and I8-rise still fail and are reported, not patched.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -138,13 +139,41 @@ float base_height(uint64_t seed, glm::vec2 world) {
 /// `band` decorrelates successive contour bands by walking the sampling circle
 /// to a distant part of the SAME lattice -- adding to the stream id instead
 /// would collide with unrelated streams a few slots up.
+/// SUM OF INTEGER HARMONICS with seeded phases, NOT noise sampled on a circle.
+///
+/// The circle construction was degenerate for the same reason it was degenerate
+/// for the radial field: rc = lobes*CELL/2pi puts the whole circle inside a
+/// couple of lattice cells, so it only ever reaches a handful of underlying
+/// lattice values. MEASURED on the shipped build: this field NEVER RETURNED A
+/// VALUE BELOW 0.4, and was lumpy above it (26% of samples at 0.6, 30% at 0.8)
+/// against a perfectly uniform raw lattice. Every "seeded spread" drawing from
+/// it silently used only the top 60% of its declared range -- the profile
+/// exponent never approached MASSIF_PROFILE_EXPONENT_MIN, cliff risers were
+/// never drawn near MASSIF_CLIFF_SLOPE_MIN (the 50-60 deg bin held 4% of the
+/// surface), and the 0.5 cliff/ramp split did not split anywhere near evenly.
+///
+/// I fixed this geometry once for the lobe field by replacing it with the
+/// support polygon, and left the broken helper feeding four other consumers.
+/// Fixing a symptom is not fixing a mechanism.
+///
+/// Integer harmonics are periodic by construction (cos(m*theta) is 2pi-periodic
+/// for integer m, so the +-pi branch cut in atan2 is invisible), give exact
+/// control of the angular frequency, and draw their phases and amplitudes from
+/// the RAW lattice, which is uniform.
 float bearing_field(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes, int band) {
-    constexpr float CELL = 64.0f;
     constexpr float TAU = 6.28318530717958647692f;
-    constexpr float BAND_STRIDE = 1024.0f;
-    const float rc = lobes * CELL / TAU;
-    const glm::vec2 origin{4096.0f + BAND_STRIDE * static_cast<float>(band), 4096.0f};
-    return value_noise(seed, stream, CELL, origin + unit_dir * rc);
+    const float theta = std::atan2(unit_dir.y, unit_dir.x);
+    const int harmonics = std::clamp(static_cast<int>(lobes), 2, 6);
+    float sum = 0.0f;
+    float norm = 0.0f;
+    for (int m = 1; m <= harmonics; ++m) {
+        const int64_t key = static_cast<int64_t>(band) * 64 + m;
+        const float phase = noise::lattice_value(seed, stream, key, 0) * TAU;
+        const float amp = 0.5f + noise::lattice_value(seed, stream, key, 1);
+        sum += amp * std::cos(static_cast<float>(m) * theta + phase);
+        norm += amp;
+    }
+    return std::clamp(0.5f + 0.5f * sum / std::max(norm, 1e-3f), 0.0f, 1.0f);
 }
 
 /// The massif's horizontal cross-section as an irregular ROUNDED POLYGON,
@@ -168,97 +197,102 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
     const int n = std::max(3, crag.arete_count);
     const float amp_lo = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN);
     const float amp_hi = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX);
-    float best = crag.radius * 3.0f;
-    for (int i = 0; i < n; ++i) {
-        // Irregular bearings: a symmetric star reads as artificial (§2.5.2).
+
+    // Facet parameters are drawn ONCE PER FACET and never modulated across it.
+    // A continuous per-bearing term applied to R(theta) bends a flat face into
+    // an arc, which is why a support-function construction -- polygonal BY
+    // DEFINITION -- was producing curved facets, and why I7's flatness test
+    // never passed.
+    const auto facet = [&](int i, float& alpha, float& d) {
         const float jitter =
             noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 0) - 0.5f;
-        const float alpha = TAU * (static_cast<float>(i) + jitter) / static_cast<float>(n);
+        alpha = TAU * (static_cast<float>(i) + jitter) / static_cast<float>(n);
         const float amp =
             amp_lo
             + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 1)
                   * (amp_hi - amp_lo);
-        const float d = crag.radius * (1.0f - amp);
-        const float c = std::cos(theta - alpha);
-        if (c > 0.05f) {
-            best = std::min(best, d / c);
-        }
-    }
+        d = crag.radius * (1.0f - amp);
+    };
 
-    // COULOIRS. A support function over half-planes can only ever produce a
-    // CONVEX outline, and a convex n-gon's lobe ratio is capped at
-    // n*tan(pi/n)/pi -- 1.65 for a triangle, 1.27 for a square. §2.8.2 asks for
-    // "inward folds are the couloirs", which is precisely the shape a convex
-    // hull cannot express, so the notches are cut explicitly.
+    // Convex hull: r(theta) = min_i d_i / cos(theta - alpha_i).
+    const auto convex_at = [&](float th) {
+        float best = crag.radius * 3.0f;
+        for (int i = 0; i < n; ++i) {
+            float alpha = 0.0f, d = 0.0f;
+            facet(i, alpha, d);
+            const float c = std::cos(th - alpha);
+            if (c > 0.05f) {
+                best = std::min(best, d / c);
+            }
+        }
+        return best;
+    };
+    float best = convex_at(theta);
+
+    // A COULOIR IS A PAIR OF FACETS, NOT A DENT IN ONE. Two planar walls
+    // meeting at an apex preserve flatness and ADD corners; a smooth
+    // re-entrant SUBTRACTS them by curving the face it sits in. That is also
+    // why deepening the old dent dropped persistent aretes from 4 to 0 while
+    // raising I8 -- as facet pairs the two invariants stop trading.
     //
-    // They sit on the facet mid-bearings (alpha_i), i.e. BETWEEN the corners
-    // that form the aretes, which is where a gully belongs. Re-entrant folds
-    // add perimeter without adding area, so this is also what buys I8 real
-    // margin rather than a squeak.
-    // Couloirs fade toward the summit (depth, not width). Measured alternative
-    // recorded because it is a real design choice and not an implementation
-    // detail: narrowing the couloir with height instead raises the LEVEL clause
-    // hard (1.36 -> 1.53, turning 1% of headroom into 13%) but collapses the
-    // RISE clause (0.14 -> 0.09), because a couloir that keeps its depth all
-    // the way up puts as much re-entrant perimeter on the high slices as the
-    // low ones. Both readings were the SAME EXPERIMENT: each varied how fast
-    // the couloir faded while holding its depth as a FRACTION OF LOCAL RADIUS,
-    // and a quantity held as a fraction of local radius is SELF-SIMILAR BY
-    // CONSTRUCTION -- which is exactly what the rise clause exists to detect.
-    // The fix is a change of UNIT, not of value (design's ruling): see below.
-    float notch = 0.0f;
-    const float half_w = TAU / static_cast<float>(n) * 0.15f; // quarter of a facet's span
+    // Radius of the straight line through two polar points, along bearing th:
+    // the line is N.X = N.P1, so r = (N.P1) / (N.u(th)).
+    const auto line_radius = [](float th, float th1, float r1, float th2, float r2) {
+        const glm::vec2 p1{r1 * std::cos(th1), r1 * std::sin(th1)};
+        const glm::vec2 p2{r2 * std::cos(th2), r2 * std::sin(th2)};
+        const glm::vec2 dvec = p2 - p1;
+        const glm::vec2 nvec{-dvec.y, dvec.x};
+        const glm::vec2 u{std::cos(th), std::sin(th)};
+        const float den = glm::dot(nvec, u);
+        if (std::fabs(den) < 1e-4f) {
+            return 1e9f;
+        }
+        const float r = glm::dot(nvec, p1) / den;
+        return r > 0.0f ? r : 1e9f;
+    };
+
+    const float half_w = TAU / static_cast<float>(n) * 0.35f;
+    float cut = 0.0f;
     for (int i = 0; i < n; ++i) {
-        const float jitter =
-            noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 0) - 0.5f;
-        const float alpha = TAU * (static_cast<float>(i) + jitter) / static_cast<float>(n);
+        float alpha = 0.0f, d = 0.0f;
+        facet(i, alpha, d);
         float dth = theta - alpha;
         while (dth > TAU * 0.5f) { dth -= TAU; }
         while (dth < -TAU * 0.5f) { dth += TAU; }
-        if (std::fabs(dth) < half_w) {
-            // Depth is drawn PER COULOIR and is ABSOLUTE (metres), scaled off
-            // the massif's BASE radius rather than the local one. That single
-            // unit choice is what earns the rise clause: R shrinks toward the
-            // summit, so a constant absolute inset is a GROWING fraction of a
-            // shrinking radius. The mountain grows more articulated near the
-            // top not because its features grow, but because the mountain gets
-            // smaller around them -- which is what real massifs do.
-            //
-            // Precedent, so this reads as consistent rather than novel:
-            // MASSIF_ARETE_TURN_ARC_MAX is already absolute on purpose -- a
-            // crest that turns over 60 m is a shoulder whatever mountain it
-            // belongs to. Same reasoning, applied to the couloir.
-            //
-            // The angular WIDTH stays relative (half_w is a fraction of the
-            // facet). Absolute width would make the couloir an ever-larger
-            // slice of an ever-smaller circumference, curve the facets and
-            // kill I7.
-            // The absolute scale is a FEATURE size, not the massif's. Taking
-            // MASSIF_RADIAL_LOBE_AMP off the 180 m base radius gives 32-63 m
-            // insets -- wider than the whole upper mountain -- so the clamp
-            // binds at every height and silently restores the fraction-of-
-            // local-radius behaviour the unit change exists to remove
-            // (measured: levels 1.50/1.50/1.60 but rise 0.10, and I7 gone).
-            //
-            // A couloir is a gully INCISING THE CLIFF BANDS, so the band height
-            // is its natural absolute scale: same units, same landform, and an
-            // existing constant rather than a new one.
-            const float depth =
-                static_cast<float>(config::MASSIF_CLIFF_BAND_MIN)
-                + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
-                      * static_cast<float>(config::MASSIF_CLIFF_BAND_MAX
-                                           - config::MASSIF_CLIFF_BAND_MIN);
-            // SQUARED cross-section, and the exponent is load-bearing: a
-            // linear taper spreads each couloir across its whole facet and
-            // curves it, and I7 wants FLAT facets meeting at a line. Measured
-            // -- linear taper dropped persistent aretes from 4 to 0 while I8
-            // rose, i.e. the two invariants pull opposite ways and the taper
-            // is what buys both.
-            const float bump = std::cos(dth / half_w * (TAU * 0.25f));
-            notch = std::max(notch, depth * bump * bump);
+        if (std::fabs(dth) >= half_w) {
+            continue;
+        }
+        // Depth is ABSOLUTE metres at the cliff-band scale (a couloir incises
+        // the bands); the V's apex sits that far inside the convex outline.
+        // CREST STRUCTURE IS SIZED AGAINST THE ACCEPTANCE DISTANCE, not against
+        // the feature it cuts. The cliff-band scale (8-15 m) is below the
+        // readable size at 600 m (~20 m), so band-deep couloirs vanish exactly
+        // where the massif has to read -- I11 measured 5/8/12/4 breaks at 300 m
+        // collapsing to 1/1/0/0 at 600 m. This is the SUMMIT TOR LESSON a
+        // second time: detail sized against the object shrinks out of
+        // legibility as the object recedes.
+        //
+        // MASSIF_RADIAL_LOBE_AMP is the right unit because it is a fraction of
+        // the MASSIF, so the couloir keeps a constant angular size whatever
+        // the massif's own angular size is. At L0_BASE_RADIUS 120 it gives
+        // 22-42 m, which clears the readable floor out to ~700 m.
+        const float amp_d =
+            static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN)
+            + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
+                  * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX
+                                       - config::MASSIF_RADIAL_LOBE_AMP_MIN);
+        const float depth = crag.radius * amp_d;
+        const float r_lo = convex_at(alpha - half_w);
+        const float r_hi = convex_at(alpha + half_w);
+        const float r_apex = std::max(convex_at(alpha) - depth, 1.0f);
+        const float wall = dth <= 0.0f ? line_radius(theta, alpha - half_w, r_lo, alpha, r_apex)
+                                       : line_radius(theta, alpha, r_apex, alpha + half_w, r_hi);
+        if (wall < best) {
+            cut = std::max(cut, (best - wall) / std::max(best, 1.0f));
+            best = wall;
         }
     }
-    notch_out = notch;
+    notch_out = cut; // reported for diagnostics only; the cut is already applied
     return best;
 }
 
@@ -425,34 +459,13 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     float R_solved = 0.0f;
     const auto solve = [&](float k_raw) {
         const float k = std::clamp(k_raw, 0.0f, 1.0f);
-        // Couloirs are FLANK features: gullies cut by what runs down the face,
-        // and they merge into the aretes as they approach the summit. Fading
-        // them with height is not a fudge for the detector, it is what a
-        // couloir is -- and it resolves the I7/I8 tug directly, since the
-        // summit contours stay clean facets (I7 reads them) while the flanks
-        // keep the re-entrant perimeter (I8 reads that). An angularly-constant
-        // couloir also shrinks to ~1 m of arc at the summit radius, well under
-        // the 15 m detection window, so up there it can only ever be noise.
-        // The blend is CURVED, not linear: k*k holds the foot rounder and
-        // drives the summit harder toward the polygon, which widens the gap
-        // between the low and high slices. That gap IS I8's rise clause, and
-        // design ruled that when a load-bearing clause sits at its bound the
-        // SHAPE PARAMETERS move rather than the threshold.
-        // The blend never reaches a CIRCLE. MASSIF_RADIAL_LOBE_AMP_MIN says the
-        // lobe amplitude ranges 0.18-0.35 and is never zero, so a blend running
-        // from 0 understates the foot and cost I8 its level clause (1.25 at the
-        // half-height slice). The floor is the ratio of the two amplitude
-        // constants -- derived, not chosen -- and the curve above it buys the
-        // rise clause.
-        const float floor_k = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN
-                                                 / config::MASSIF_RADIAL_LOBE_AMP_MAX);
-        const float r_blend = crag.radius + (r_poly - crag.radius) * k;
-        // Absolute inset, clamped so it cannot exceed MASSIF_RADIAL_LOBE_AMP_MAX
-        // of the LOCAL radius. The clamp engages only inside the summit region,
-        // where the tor owns the silhouette anyway. No new constant.
-        const float cut = std::min(
-            notch, r_blend * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX));
-        R_solved = r_blend - cut;
+        // The outline blends circle -> faceted polygon with elevation (§2.8.2's
+        // "eps increasing with elevation"). The COULOIRS ARE ALREADY IN
+        // r_poly, cut as planar facet pairs rather than smoothed dents, so
+        // there is no separate notch term here -- the previous one subtracted
+        // a FRACTION as if it were METRES and was a ~1 m no-op hiding a unit
+        // error.
+        R_solved = crag.radius + (r_poly - crag.radius) * k;
         const float t = std::clamp(d / std::max(R_solved, 1.0f), 0.0f, 1.0f);
         // Decays to the DATUM, not to zero. Decaying to zero buries the
         // profile's entire concave tail under the base terrain's max(), and

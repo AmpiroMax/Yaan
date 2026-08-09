@@ -1,11 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 10:42:00
+Last updated: 09:08:2026 - 21:56:40
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:06:00: Created engine architecture hard contract, adapted from Quicky Engine with amendments approved in the initial-planning grill session (Q23, Q25, Q27, Q30, Q31, Q54, Q61, Q70, Q73).
 - 09:08:2026 - 10:42:00: Stage 3 — added the `design` zone (landscape/world design docs) to Rule 25.
+- 09:08:2026 - 21:56:40: Added Rules 30-34, all five earned by defects found in the worldgen v2 stage: controls with every test, distribution asserted not bounds, fix the mechanism not the instance, detail sized against viewing distance, never diagnose from an unchecked premise.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -316,6 +317,46 @@ was tried. A fourth silent attempt is a violation.
 ### Rule 29 — Branch per agent (Q61)
 Each agent works on its own branch once implementation starts; merges to `main` only
 on a green build. Whoever breaks the merge fixes it immediately.
+
+### Rule 30 — Every test ships with a control
+A test is published together with the case it exists to REJECT, and that case must
+FAIL it. An invariant that nothing fails is not an invariant, it is a description.
+Three separate shape invariants were shipped in one evening that a smooth analytic
+cone passed; the third was caught only because it was run against a known-bad object
+before being trusted. Controls are cheap — a cone, a sphere, a plane, a flat field.
+"My test passes" and "my test discriminates" are different claims and only the second
+one is worth reporting.
+
+### Rule 31 — Assert the distribution, not the bounds
+A random or noise field is verified UNIFORM (or explicitly-shaped) over its whole
+declared range before anything is tuned against it. Bounds checks pass on a field that
+never leaves the top third of its range. This is not hypothetical: every seeded spread
+in the massif model was silently returning only the upper 60 % of its range, in lumps,
+which meant one half of a documented design rule had never been generated at all and
+every constant fitted against that field was fitted against a lie. When such a field is
+fixed, the fixer lists which constants were tuned while it was broken, because they all
+have to be re-derived.
+
+### Rule 32 — Fix the mechanism, not the instance
+When a defect is traced to a shared helper, every consumer of that helper is inspected
+in the same change. Repairing the one call site that surfaced the symptom and leaving
+the helper feeding the others is not a fix; it converts a visible bug into an invisible
+one. Corollary, learned the same evening: a diagnosis written down but applied only
+locally is a diagnosis not yet acted on.
+
+### Rule 33 — Detail is sized against the viewing distance
+Structure sized as a fraction of the object it belongs to shrinks out of legibility as
+that object recedes. A crest sized against the mountain is invisible from the valley;
+the same reasoning invalidated a summit feature whose outline was identical to the bare
+profile. Features exist to be read from the distance the acceptance frame is taken
+from, and that distance is the input to their size.
+
+### Rule 34 — Never diagnose from an unchecked premise
+A claim about another zone's code — that a fix landed, that a unit is absolute, that a
+field is seeded — is checked in the source or asked of its owner before any conclusion
+is built on it. Sound reasoning from a false premise is indistinguishable from sound
+reasoning until it wastes a build. This rule exists because it was broken four times in
+one evening, twice by agents who had just invoked it against someone else.
 
 ---
 
