@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 10:08:2026 - 02:29:54
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -37,6 +37,7 @@ UPD:
 - 09:08:2026 - 16:47:51: Created — P7 carve SDF: box cross-section corridors (flat floor, real headroom) and chambers, plus the per-column range the voxel builder needs to widen its band.
 - 09:08:2026 - 17:36:42: §6.2: carve_mouth / site_carve_mouth (entrance markers derived from the mouth, never scored) and carve overloads taking derived corridors.
 - 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
+- 10:08:2026 - 02:29:54: open_daylight_portals() — endpoints of flagged corridors pushed along their own leg (grade preserved) until the floor stands in open air; capped, and a corridor that cannot reach daylight is left as-is so the acceptance walk stays the alarm.
 */
 
 #pragma once
@@ -88,6 +89,18 @@ struct CarveMouth {
 /// under rock at all (a carve entirely in the open is not an entrance).
 [[nodiscard]] std::optional<CarveMouth> carve_mouth(const CarveCorridor& corridor,
                                                     const GroundSampler& ground);
+
+/// DERIVES the daylight ends of corridors flagged `daylight_portals`: each
+/// endpoint is pushed outward along its own leg (grade preserved) until the
+/// corridor floor stands in open air, so the portal genuinely forms where the
+/// path meets rock. The switchback survey has been re-buried TWICE by reshapes
+/// of the massif above it (the L0 lift, then the §2.8 banded contours) — an
+/// endpoint that must sit in open air over terrain that keeps changing is a
+/// derived quantity, not a survey point. Corridors that deliberately end
+/// inside rock (the barrow passage -> chamber) carry the flag false and are
+/// never touched. A corridor that cannot reach daylight within the cap is
+/// left as-is: the acceptance walk stays the alarm, nothing silently "fixes".
+void open_daylight_portals(TestbedLayout& layout, const GroundSampler& ground);
 
 /// The mouth belonging to site `site_index`, or nullopt when that site has no
 /// carve. THIS is what P4 uses: a carved entrance is derived, never scored.

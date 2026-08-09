@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 10:08:2026 - 02:29:54
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 16:47:51: Created — carve distance fields and column ranges.
 - 09:08:2026 - 17:36:42: §6.2: mouth walk (first station whose ceiling is under terrain) and derived-corridor overloads.
 - 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
+- 10:08:2026 - 02:29:54: open_daylight_portals() implementation (STEP 1 m walk, 0.25 m floor clearance, 60 m cap). Seed 1: crag tunnel exit extended ~15 m to (761.3, 65.4, 254.5), floor +0.44 m over terrain — the exit portal exists again.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -155,6 +156,43 @@ std::optional<CarveMouth> carve_mouth(const CarveCorridor& corridor,
         }
     }
     return std::nullopt;
+}
+
+void open_daylight_portals(TestbedLayout& layout, const GroundSampler& ground) {
+    // Derivation parameters (worldgen-internal, like the scatter margins):
+    // STEP is the walk resolution, CLEARANCE how far below the corridor floor
+    // the terrain must fall to count as open air (a floor grazing the grass
+    // is not a portal), CAP the defensive bound — a corridor that cannot
+    // reach daylight inside it is left alone so the acceptance walk stays red
+    // and loud instead of silently rerouted across half the mountain.
+    constexpr float STEP = 1.0f;
+    constexpr float CLEARANCE = 0.25f;
+    constexpr float CAP = 60.0f;
+    for (CarveCorridor* c : {&layout.carves.crag_tunnel, &layout.carves.barrow_passage,
+                             &layout.carves.lakeshore_adit}) {
+        if (!c->daylight_portals || c->point_count < 2) {
+            continue;
+        }
+        for (const int end : {0, c->point_count - 1}) {
+            glm::vec3& p = c->points[end];
+            const glm::vec3 inner = c->points[end == 0 ? 1 : c->point_count - 2];
+            glm::vec3 dir = p - inner; // outward, grade preserved
+            const float horiz = std::sqrt(dir.x * dir.x + dir.z * dir.z);
+            if (horiz < 1e-3f) {
+                continue;
+            }
+            dir /= horiz; // advance per horizontal meter
+            float walked = 0.0f;
+            glm::vec3 candidate = p;
+            while (walked < CAP && ground({candidate.x, candidate.z}) > candidate.y - CLEARANCE) {
+                candidate += dir * STEP;
+                walked += STEP;
+            }
+            if (walked < CAP) {
+                p = candidate; // reached open air: this is the daylight end
+            }
+        }
+    }
 }
 
 std::optional<CarveMouth> site_carve_mouth(const TestbedLayout& layout, int site_index,

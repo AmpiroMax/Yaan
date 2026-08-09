@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 22:07:05
+Last updated: 10:08:2026 - 02:29:54
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -46,6 +46,7 @@ UPD:
 - 09:08:2026 - 21:37:57: L0_BASE_RADIUS 120 replaces the bare 180 literal (footprint is invariant-governed now that I10 exists); arete_count 4 per design's ruling retiring the 3-5 range.
 - 09:08:2026 - 22:04:20: arete_count re-derived on the fixed bearing field: 4 -> 3. The sweep that chose 4 ran on the broken field and is void.
 - 09:08:2026 - 22:07:05: arete_count 4 -> 3, re-derived on the FIXED bearing field (the sweep that chose 4 ran on the broken one and is void). Measured 12 seeds: n=3 gives I11@600 3/1/1/0 vs 1/1/0/0, I4 fails 4/12 vs 8/12, I8 level 4/12 vs 7/12.
+- 10:08:2026 - 02:29:54: CarveCorridor::daylight_portals (authored intent flag): the crag tunnel's endpoints are now DERIVED to open air by open_daylight_portals — the §2.8 massif re-buried the surveyed exit (terrain 67.9-74.3 m over a 61.9 m floor at the old wp[7]; the tunnel dead-ended, sim_tunnel_walk stalled at 7/8 ungrounded). The barrow passage keeps the flag false: it ends in its chamber on purpose.
 */
 
 #pragma once
@@ -206,6 +207,15 @@ struct CarveCorridor {
     int point_count = 0;
     float half_width = 2.0f; ///< corridor is 2x this wide
     float height = 3.2f;     ///< floor to ceiling: real headroom, not a crawl
+    /// AUTHORED INTENT: this corridor's endpoints must stand in open air so
+    /// portals form where the path meets rock. When set, worldgen DERIVES the
+    /// daylight ends (open_daylight_portals — endpoints pushed along their own
+    /// leg until the floor clears the terrain): the massif above the survey
+    /// has reshaped twice and buried the exit both times, so "ends in open
+    /// air" is a property to enforce, not a coordinate to keep re-surveying.
+    /// False for corridors that deliberately end inside rock (barrow passage
+    /// ends in its chamber).
+    bool daylight_portals = false;
 };
 
 /// A carved chamber (rectangular room): the Backbarrow's interior.
@@ -347,15 +357,25 @@ struct TestbedLayout {
         // Crag tunnel: mouth at the SW foot, four switchback legs with
         // landings, exit high on the SW flank overlooking the valley. Surveyed
         // at 52 m and scaled to the summit (see ASCENT_SCALE).
+        // wp[6] moved (816, 228) -> (814.9, 225.6) in survey space: LATERAL
+        // SWITCHBACK CLEARANCE. Legs 4->5 and 6->7 ran 3.3 m apart center to
+        // center with 4 m wide boxes — a 0.7 m overlap strip where the upper
+        // ramp's floor is silently the LOWER corridor's floor. At the 52 m
+        // survey the floors differed by 1.7 m there (fragile but passable);
+        // ASCENT_SCALE stretched the drop to 3.7 m, and the acceptance walker
+        // drifted over the invisible edge, fell into leg 4->5 and was trapped
+        // under the ramp (sim_tunnel_walk red, measured at (803.7, 241.4)).
+        // The nudge holds the whole final leg >= 6 m from leg 4->5's line:
+        // 2 x half_width + 2 m of real rock between the stacked passages.
         CarveCorridor{{{spanx(778.0f), MOUTH_Y, spanz(296.0f)},
                        {spanx(816.0f), lift(25.0f), spanz(268.0f)},
                        {spanx(820.0f), lift(25.5f), spanz(264.0f)},
                        {spanx(790.0f), lift(30.0f), spanz(248.0f)},
                        {spanx(786.0f), lift(30.5f), spanz(244.0f)},
                        {spanx(812.0f), lift(35.0f), spanz(232.0f)},
-                       {spanx(816.0f), lift(35.5f), spanz(228.0f)},
+                       {spanx(814.9f), lift(35.5f), spanz(225.6f)},
                        {spanx(788.0f), lift(39.5f), spanz(238.0f)}},
-                      8, 2.0f, 3.2f},
+                      8, 2.0f, 3.2f, /*daylight_portals=*/true},
         // Backbarrow: a short passage from the entrance into the hillside.
         CarveCorridor{{{780.0f, 20.2f, 292.0f}, {780.0f, 20.2f, 272.0f}}, 2, 1.8f, 2.6f},
         // ... opening into a burial chamber.

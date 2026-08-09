@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 19:55:17
+Last updated: 10:08:2026 - 02:29:54
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -43,6 +43,7 @@ UPD:
 - 09:08:2026 - 16:47:51: P7: carves passed to the volume build.
 - 09:08:2026 - 17:36:42: §6.2: entrance works applied between hydrology and pads; derived adits passed to the voxel build.
 - 09:08:2026 - 19:55:17: Barrow re-siting (design ruling): swing_barrow_into_couloir searches the arc for a re-entrant fold at the same radius and rigidly rotates site, passage and chamber together. On Ravenscar it finds nothing — the stamp is a smooth radial cone with no angular structure — so the barrow stays authored and its mouth test stays red. Design's high-shoulder fallback was implemented, MEASURED and then removed: it broke story's hard constraint (mouth visible from 26 of 39 Vaelmere standpoints) and put the lifted chamber through the crag tunnel (10 stations with no floor).
+- 10:08:2026 - 02:29:54: build_world_context derives daylight portals (open_daylight_portals) after the couloir swing, against the pre-P4 sampler (macro + water carve) — same layout copy every consumer reads, so the extended corridor is one fact.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -212,6 +213,18 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
     // sited against them (design's durable rule: re-validation is part of a
     // landmark change, not a follow-up).
     swing_barrow_into_couloir(ctx.params.layout, params.seed, ctx.hydrology);
+    // Derive the daylight ends of flagged carve corridors against the terrain
+    // that actually ships (macro + water carve — the same pre-P4 sampler the
+    // carve mouths use). The §2.8 massif re-buried the surveyed tunnel exit;
+    // an endpoint that must stand in open air is derived, never re-surveyed.
+    {
+        const uint64_t seed = params.seed;
+        const TestbedLayout& lay = ctx.params.layout;
+        const HydrologyData& hydro = ctx.hydrology;
+        open_daylight_portals(ctx.params.layout, [&](glm::vec2 p) {
+            return carve_height(hydro, lay, p, macro_height(seed, lay, p));
+        });
+    }
     ctx.sites = build_sites(params.seed, ctx.params.layout, ctx.hydrology);
     return ctx;
 }
