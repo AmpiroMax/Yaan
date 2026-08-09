@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:03:23
+Last updated: 09:08:2026 - 14:49:01
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P5 implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: pine ring -> radial ridge strips (§5.2/§1.3); L0 sight wedges reject over-angling trees near POI sightlines (LANDMARK_CLEARANCE_FACTOR); crag treeless band via treeline; canopy_height_at.
 - 09:08:2026 - 14:03:23: Micro-relief batch: curb stones along corridor margins (PATH_CURB_SPACING/DENSITY, margin band between groove edge and corridor edge, 0.25-0.55 m Stones, deterministic per corridor step).
+- 09:08:2026 - 14:49:01: Scatter-in-water fix (part 2): ScatterCtx::dry_enough(p, margin) is now THE water gate for every pass — trees/bushes/stones/curbs and the forced watchpoint cluster (which sits on a ford by design and previously bypassed all gates: a pine and boulders stood in the channel). Margins TREE/BUSH/STONE_WATER_MARGIN keep trunks clear of the drawn plane edge.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -47,6 +48,14 @@ constexpr float TREE_SLOPE = static_cast<float>(config::TREE_SLOPE_MAX);
 constexpr float CORRIDOR_HALF = static_cast<float>(config::CORRIDOR_WIDTH) * 0.5f;
 constexpr float EYE_M = static_cast<float>(config::PLAYER_EYE_HEIGHT);
 constexpr float CLEARANCE = static_cast<float>(config::LANDMARK_CLEARANCE_FACTOR);
+
+// Water clearance margins (scatter-internal placement tuning, meters): keep
+// trunks and boulders clear of the drawn water plane's edge so nothing reads
+// as growing out of the water. Trees need more than stones — a trunk base
+// clipping the plane is far more obvious than a pebble at the waterline.
+constexpr float TREE_WATER_MARGIN = 3.0f;
+constexpr float BUSH_WATER_MARGIN = 2.0f;
+constexpr float STONE_WATER_MARGIN = 1.5f;
 
 // Species max heights (LANDSCAPE §5 size rows — design data, used for the
 // occlusion canopy and the sight-wedge angle tests).
@@ -176,6 +185,14 @@ struct ScatterCtx {
     [[nodiscard]] float dist_to_water(glm::vec2 p) const {
         return water_at(hydro, layout, p, macro_height(seed, layout, p)).dist_to_water;
     }
+    /// THE water gate for every scatter pass (forced clusters included):
+    /// the sample must be dry per the same water_at truth the classifier and
+    /// the drawn water primitives use, and `margin` meters clear of the water
+    /// edge so nothing reads as standing in the water.
+    [[nodiscard]] bool dry_enough(glm::vec2 p, float margin) const {
+        const WaterSample w = water_at(hydro, layout, p, macro_height(seed, layout, p));
+        return w.water_surface == math::NO_WATER && w.dist_to_water >= margin;
+    }
     [[nodiscard]] float slope(glm::vec2 p) const {
         const float d = 2.0f;
         const float hx = ground({p.x + d, p.y}) - ground({p.x - d, p.y});
@@ -204,7 +221,7 @@ struct ScatterCtx {
     [[nodiscard]] bool tree_ok(glm::vec2 p, float min_water_dist, float species_max_h) const {
         if (corridor_distance(layout, p) < CORRIDOR_HALF + 2.0f) return false;
         if (on_pad(p)) return false;
-        if (dist_to_water(p) < min_water_dist) return false;
+        if (!dry_enough(p, min_water_dist)) return false;
         const float h = ground(p);
         if (on_crag_treeless(p, h)) return false;
         if (wedges.rejects(p, h + species_max_h * 1.2f)) return false; // max scale margin
@@ -236,7 +253,7 @@ void scatter_trees(ScatterCtx& ctx) {
         WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_TREE + 0, gx, gz);
         const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * spacing;
         if (!ctx.inside_chunk(p) || !in_oak(ctx.layout, p)) return;
-        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, 3.0f, OAK_MAX_H)) return;
+        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, TREE_WATER_MARGIN, OAK_MAX_H)) return;
         ctx.add(p, math::ScatterSpecies::OakTree, rng.next_float01() * TAU,
                 0.8f + rng.next_float01() * 0.4f);
     });
@@ -246,7 +263,7 @@ void scatter_trees(ScatterCtx& ctx) {
         const glm::vec2 p =
             corner + glm::vec2{rng.next_float01(), rng.next_float01()} * (spacing - 1.0f);
         if (!ctx.inside_chunk(p) || !in_pine(ctx.layout, p) || in_oak(ctx.layout, p)) return;
-        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, 3.0f, PINE_MAX_H)) return;
+        if (in_clearing(ctx.seed, ctx.layout, p) || !ctx.tree_ok(p, TREE_WATER_MARGIN, PINE_MAX_H)) return;
         ctx.add(p, math::ScatterSpecies::PineTree, rng.next_float01() * TAU,
                 0.8f + rng.next_float01() * 0.4f);
     });
@@ -261,7 +278,7 @@ void scatter_trees(ScatterCtx& ctx) {
             || d > static_cast<float>(config::BIRCH_WATER_DIST)) {
             return;
         }
-        if (in_oak(ctx.layout, p) || !ctx.tree_ok(p, 0.0f, BIRCH_MAX_H)) return;
+        if (in_oak(ctx.layout, p) || !ctx.tree_ok(p, TREE_WATER_MARGIN, BIRCH_MAX_H)) return;
         ctx.add(p, math::ScatterSpecies::BirchTree, rng.next_float01() * TAU,
                 0.85f + rng.next_float01() * 0.3f);
     });
@@ -288,7 +305,7 @@ void scatter_bushes(ScatterCtx& ctx) {
             + rng.next_float01() * static_cast<float>(config::BUSH_EDGE_DENSITY_MAX
                                                       - config::BUSH_EDGE_DENSITY_MIN);
         if (rng.next_float01() > density * cell * cell) return;
-        if (ctx.on_pad(p) || ctx.dist_to_water(p) < 2.0f
+        if (ctx.on_pad(p) || !ctx.dry_enough(p, BUSH_WATER_MARGIN)
             || corridor_distance(ctx.layout, p) < CORRIDOR_HALF) {
             return;
         }
@@ -313,7 +330,7 @@ void scatter_stones(ScatterCtx& ctx) {
         const float d_water = ctx.dist_to_water(p);
         const float mult = d_water <= static_cast<float>(config::SHORE_SAND_DIST) ? 2.0f : 1.0f;
         if (rng.next_float01() > density * mult * cell * cell) return;
-        if (ctx.on_pad(p) || d_water < 0.5f
+        if (ctx.on_pad(p) || !ctx.dry_enough(p, STONE_WATER_MARGIN)
             || corridor_distance(ctx.layout, p) < CORRIDOR_HALF) {
             return;
         }
@@ -334,7 +351,7 @@ void scatter_stones(ScatterCtx& ctx) {
             const float rad = rng.next_float01() * 8.0f;
             const glm::vec2 p = center + glm::vec2{std::cos(ang), std::sin(ang)} * rad;
             const float scale = 1.0f + rng.next_float01() * 2.0f; // 1-3 m boulders
-            if (!ctx.inside_chunk(p) || ctx.on_pad(p) || ctx.dist_to_water(p) < 1.0f) continue;
+            if (!ctx.inside_chunk(p) || ctx.on_pad(p) || !ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
             if (corridor_distance(ctx.layout, p) < CORRIDOR_HALF + scale) continue;
             if (ctx.slope(p) > TREE_SLOPE) continue;
             ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, scale);
@@ -370,7 +387,7 @@ void scatter_stones(ScatterCtx& ctx) {
                 const float lateral = groove_hw + 0.4f + rng.next_float01() * 1.4f;
                 const glm::vec2 p = a + dir * along + perp * (side * lateral);
                 if (!ctx.inside_chunk(p) || ctx.on_pad(p)) continue;
-                if (ctx.dist_to_water(p) < 1.5f) continue;
+                if (!ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
                 ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU,
                         0.25f + rng.next_float01() * 0.3f);
             }
@@ -378,6 +395,9 @@ void scatter_stones(ScatterCtx& ctx) {
     }
 
     // Watchpoint (§7.1): outcrop cluster + lone skyline pine, deterministic.
+    // The watchpoint sits ON a ford by design (§7.1), so these forced
+    // placements must respect the water gate like every other pass — nothing
+    // stands in the channel.
     const glm::vec2 wp = ctx.layout.watchpoint;
     if (ctx.inside_chunk(wp)) {
         WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_OUTCROP + 2, 0, 0);
@@ -385,11 +405,14 @@ void scatter_stones(ScatterCtx& ctx) {
             const float ang = rng.next_float01() * TAU;
             const glm::vec2 p = wp + glm::vec2{std::cos(ang), std::sin(ang)}
                                          * (2.0f + rng.next_float01() * 4.0f);
-            ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU,
-                    1.2f + rng.next_float01() * 1.2f);
+            const float scale = 1.2f + rng.next_float01() * 1.2f;
+            if (!ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
+            ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, scale);
         }
-        ctx.add(wp + glm::vec2{3.0f, -2.0f}, math::ScatterSpecies::PineTree,
-                rng.next_float01() * TAU, 1.25f);
+        const glm::vec2 pine_p = wp + glm::vec2{3.0f, -2.0f};
+        if (ctx.dry_enough(pine_p, TREE_WATER_MARGIN)) {
+            ctx.add(pine_p, math::ScatterSpecies::PineTree, rng.next_float01() * TAU, 1.25f);
+        }
     }
 }
 

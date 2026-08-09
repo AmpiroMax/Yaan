@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 09:08:2026 - 14:49:01
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 13:28:27: P1 anisotropy retune: structure-tensor elongation invariant (seed-1 median ratio ~3.9, floor 2.5; isotropic sits near 2).
 - 09:08:2026 - 14:03:23: Micro-relief batch: groove field + carved-trail-vs-shoulders test (ford/slope contracts re-asserted), curb-stone margin-band test.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: NEW invariant — every WaterBed sample is covered by a drawable primitive (lake / pond plane / river ribbon); guards the seed-vs-coverage conflation class of bug.
+- 09:08:2026 - 14:49:01: Scatter-in-water fix: NEW invariant — no scatter instance sits in water per water_at, nor under any drawn pond plane (twin of the WaterBed-coverage invariant, from the placement side).
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -197,6 +198,39 @@ TEST_CASE("every WaterBed sample is covered by a drawable water primitive") {
     INFO("worst uncovered bed at (" << worst.x << ", " << worst.y << "), gap " << worst_gap
                                     << " m");
     CHECK(uncovered == 0);
+}
+
+TEST_CASE("nothing scattered stands in water (and planes never flood scatter)") {
+    // Twin of the WaterBed-coverage invariant, from the other side: no
+    // instance may sit in water per water_at, and no instance may sit under a
+    // DRAWN water primitive either — a per-pond bounding-box plane used to
+    // paint water over dry ground with birches on it (they read ankle-deep).
+    const auto& ctx = testbed();
+    const auto& h = ctx.hydrology;
+    int checked = 0;
+    int wet = 0;
+    int under_plane = 0;
+    for (int cz = 0; cz <= 3; ++cz) {
+        for (int cx = 0; cx <= 3; ++cx) {
+            const auto chunk = world::generate_chunk(ctx, ChunkCoord{cx, cz});
+            for (const auto& inst : chunk.scatter) {
+                ++checked;
+                const glm::vec2 p{inst.position.x, inst.position.z};
+                if (world::surface_point(ctx, p).water_surface != math::NO_WATER) ++wet;
+                for (const auto& plane : h.pond_planes) {
+                    if (std::fabs(p.x - plane.center.x) <= plane.half_extent.x
+                        && std::fabs(p.y - plane.center.y) <= plane.half_extent.y
+                        && inst.position.y < plane.surface_height) {
+                        ++under_plane;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(checked > 1000);
+    CHECK(wet == 0);
+    CHECK(under_plane == 0);
 }
 
 TEST_CASE("§3.3 bed/mud cap: no wide water flats, dist field range") {

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 09:08:2026 - 14:49:01
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (LANDSCAPE §2.1, HILL_ANISOTROPY landed): mid octave input-stretched along a drifting per-valley axis field (STREAM_HILL_AXIS; fixed-frame bilinear blending — position-varying rotation rejected for its |world|*grad(theta) distortion; cross-axis 128 m rhythm pinned by construction per the design contract). Seed-1 contracts re-verified unchanged: C1 = 0.618, corridor depth 0.40, monotonic river source->lake->south edge; new structure-tensor elongation invariant in WorldgenV2Tests (median ratio ~3.9, floor 2.5). WorldgenHydrology.cpp split at 780/800: query side (water_at/carve_height) -> WorldgenWater.cpp.
 - 09:08:2026 - 14:03:23: Micro-relief batch (user grill round 1): path groove — corridors carved PATH_GROOVE_DEPTH into the macro field BEFORE the river carve (ford shallowness untouchable by construction; constant along-path depth keeps CORRIDOR_SLOPE_MAX intact; path_groove_depth exposed) + sparse curb-stone scatter in the corridor margin band (PATH_CURB_SPACING/DENSITY, ordinary ScatterInstance Stones). Groove/curb suites added; all contracts re-verified green.
 - 09:08:2026 - 14:41:26: Frame-05 wide-bed fix (render's shadow batch exposed it): ROOT CAUSE was HydrologyData::fill_level doubling as BOTH the standing-water coverage truth read by water_at AND the dist-to-water Dijkstra seed set — river trace cells written as seeds flooded their whole 16 m coarse cell (67 station-only cells; 8.5k m2 of bed with no water body over it, up to 19.7 m past the ribbon, violating the §3.3 cap). Fixed by seeding the distance field from a LOCAL set; fill_level is now standing water only. Ponds additionally exposed as drawable primitives (HydrologyData::pond_planes, appended to water_bodies().lakes — additive, lead-blessed). WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%. NEW INVARIANT: every WaterBed sample is covered by a drawable primitive.
+- 09:08:2026 - 14:49:01: Scatter-in-water fix (trees standing in the pond at the 05 vantage): TWO bugs, both mine. (1) Pond primitives were per-pond BOUNDING BOXES over diagonal cell strings — 1.7-6x over-cover, painting water across dry ground with birches (0.24-0.94 m 'ankle-deep') and stones on it; now ONE PLANE PER CELL, exactly the water_at coverage truth. (2) The forced watchpoint cluster sits on a ford by design and bypassed every gate — a pine and boulders stood in the channel (dist_to_water 0.00). All scatter passes (incl. forced ones) now go through ScatterCtx::dry_enough(p, margin) with per-kind TREE/BUSH/STONE_WATER_MARGIN. Result: 0 instances wet, 0 under a drawn plane; min dist by species pine 0.00 -> 106 m, stone 0.00 -> 1.50 m. NEW INVARIANT pins both sides.
 -->
 
 # Spec: `core` (engine/core + engine/world)

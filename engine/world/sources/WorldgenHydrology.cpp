@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 09:08:2026 - 14:49:01
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.cpp
 
@@ -30,6 +30,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: §3.3 mud cap prunes pond water beyond max(SHORE_SAND_DIST, 2x width) of the trace; fords derived from corridor x trace crossings + FORD_SPACING_MAX gap fill; channel bed clamped into the trapezoid band (fords raise the bed); corridor-mask stations ford-shallow; pond beds raised on corridor crossings; dist_to_water saturated at DIST_TO_WATER_RANGE; station bins built early + binned nearest queries (wilderness contexts were quadratic: 9.8 s -> 0.9 s at 21x21 chunks).
 - 09:08:2026 - 13:28:27: Split: per-sample query side (water_sample_impl/water_at/carve_height) moved to WorldgenWater.cpp (file was at 780/800 lines); build side stays here.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix (ROOT CAUSE): fill_level no longer doubles as the Dijkstra seed set — river trace cells seed a LOCAL set instead, so trace cells stop flooding their whole 16 m coarse cell in water_at's pond branch (67 station-only cells -> 0; WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%). Pond primitives built from cell FOOTPRINTS (water_at floods whole cells).
+- 09:08:2026 - 14:49:01: Scatter-in-water fix (part 1): pond primitives are now ONE PLANE PER CELL, not a per-pond bounding box — pond cell sets are diagonal strings along the trace, so the bbox over-covered 1.7-6x and painted water over dry ground carrying birches/stones. Per-cell squares match the water_at coverage truth exactly and tile seamlessly at a shared level.
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -634,25 +635,18 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
     }
 
     // --- Pond primitives (drawable bodies for the surviving ponds) --------------
-    // water_at floods a pond's whole coarse cell, so the primitive must cover
-    // the cell FOOTPRINT (cell origin .. origin + CELL), not just its nodes.
+    // ONE PLANE PER CELL, not one per pond: water_at floods a pond cell by
+    // cell, and pond cell sets are diagonal strings along the trace, so a
+    // per-pond bounding box over-covers by 1.7-6x and paints water over dry
+    // ground (trees then read as flooded). A per-cell square is exactly the
+    // coverage truth; adjacent cells share a level and tile seamlessly.
     for (const Pond& pond : hydro.ponds) {
-        if (pond.cells.empty()) continue;
-        float min_x = std::numeric_limits<float>::max();
-        float min_z = min_x;
-        float max_x = -min_x;
-        float max_z = -min_x;
         for (const uint32_t c : pond.cells) {
             const glm::vec2 p = grid.pos(c);
-            min_x = std::min(min_x, p.x);
-            min_z = std::min(min_z, p.y);
-            max_x = std::max(max_x, p.x + CELL);
-            max_z = std::max(max_z, p.y + CELL);
+            hydro.pond_planes.push_back(
+                math::LakePlane{p + glm::vec2{CELL * 0.5f, CELL * 0.5f},
+                                glm::vec2{CELL * 0.5f, CELL * 0.5f}, pond.level});
         }
-        hydro.pond_planes.push_back(
-            math::LakePlane{glm::vec2{(min_x + max_x) * 0.5f, (min_z + max_z) * 0.5f},
-                            glm::vec2{(max_x - min_x) * 0.5f, (max_z - min_z) * 0.5f},
-                            pond.level});
     }
 
     // (Station spatial bins were built right after the widths pass — they

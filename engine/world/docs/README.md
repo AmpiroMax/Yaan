@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 09:08:2026 - 14:49:01
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1): mid octave input-stretched along the drifting axis field (fixed-frame blending); WorldgenWater.cpp split from WorldgenHydrology.cpp (query vs build).
 - 09:08:2026 - 14:03:23: Micro-relief batch: corridor path groove (macro stage, ford-safe) + curb-stone scatter along corridor margins.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: fill_level split from the Dijkstra seed set (river cells no longer flood coarse cells); ponds exposed as drawable LakePlane primitives via water_bodies(); WaterBed-coverage invariant added.
+- 09:08:2026 - 14:49:01: Scatter-in-water fix: per-cell pond planes (bbox planes over-covered dry ground) + ScatterCtx::dry_enough water gate on every scatter pass including the forced watchpoint cluster; no-scatter-in-water invariant added.
 -->
 
 # engine/world
