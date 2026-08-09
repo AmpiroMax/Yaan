@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 02:44:14
+Last updated: 10:08:2026 - 02:47:54
 -->
 <!--
 UPD:
@@ -60,6 +60,7 @@ UPD:
 - 10:08:2026 - 01:47:47: TWO RATIFICATIONS FOR CORE'S TECH-DEBT WAVE. §3.1 step 4 — pond is a FLAT REACH of the river (в23): monotone pass goes flat across a pond, reach level = min(spill saddle, entry level), drawn = swum by construction, an over-level pond is unconstructible; §3.2 — river-through-lake obeys the same entry rule, ponds are no longer stamped basins. §7.0a — barrow-mouth red test ruled: EXPECTED-FAIL registered naming §7.0a, with a trigger-expiry (couloir search re-runs when §2.8.2 absolute-couloir-depth work lands; an xfail that passes announces the couloir). Core's no-couloirs measurement supersedes the earlier «by construction» note; high-shoulder fallback illegal (breaks story's not-visible-from-Vaelmere).
 - 10:08:2026 - 01:54:30: THE LANDSCAPE STAGE'S THREE STRUCTURES LAND. §1.7 — the six beauty rules (в19/в20) as acceptance conditions BR-1…BR-6, each with a must-fail control (real rejected instances where they exist: uniform scatter, jittered-lattice grass, the find-less world) and a 30a can-pass; all thresholds are requested NUMBERS rows. §2.10 — the landform dictionary (в18): landform = recipe (requirements on core) + acceptance + used-by; five dictionary rules; seed entries LF-1…LF-8 (rolling plain, ridge-and-swale, terraced river valley, scree apron, crest/outcrop, coastal cliffs, forest floor, droplet-erosion pass); ford rule superseded by bridges on navigable water. §8 — briefs for stand 1 (FOREST: four path types as one system, rich edges, finds at the в20 cadence, §5.10 built, shared wind field proven here) and stand 2 (RIVER+CASTLE: 25–35 m navigable river, terraces, stone bridge, LARGE castle with walled city, posad, wharf; city generator flagged as the long pole); Sources renumbered §8→§9 (no inbound references existed).
 - 10:08:2026 - 02:44:14: §7.0a — the tunnel lower-leg HALF-BURIED CUTTING (core's report, reported-not-patched, correctly) ruled PARKED ON THE SAME TRIGGER as the barrow xfail: legs sit on the flank the §2.8.2 couloir work will move again, and the durable rule makes re-validation part of that change — patching now is spending the work twice. Acceptance named ahead: every leg either buried (cover ≥ TUNNEL_COVER_MIN, 1 m proposed) or an AUTHORED open cutting with revetment; the accidental in-between is the rejected case and core's frame is its control. Core's daylight-portal and switchback-clearance fixes accepted as reported.
+- 10:08:2026 - 02:47:54: §7.0a cutting control CORRECTED on core's challenge, upheld — my wording named «core's frame» as control when no frame existed (the finding was measured, not shot; my own Rule 27 trap, caught by core in me). Control restated as two reproducible halves: the cover table (legs 1→3 at −1.0…−2.2 m must-fail vs legs 3→7 at +1.6…+18 m passing neighbor — both Rule 30 cases from one instrument) + the vantage RECIPE (binary, seed, probe env, eye, time), never a file path — screenshots/ is gitignored and pixels die with a clean clone. Frame verified by design from the recipe: faint diagonal seam, subtle at valley range — which is why this vantage is the control and the trigger-time acceptance needs a closer authored vantage that can fail loudly (F7). Pixel archiving routed to the lead.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -6083,10 +6084,33 @@ either BURIED (cover ≥ `TUNNEL_COVER_MIN`, 1 m proposed — предложен
 утвердить) or an AUTHORED OPEN CUTTING — a deliberate sunken-road stretch
 with visible revetment that reads as built, not as eroded. The accidental
 in-between — a bare corridor top poking through the grass — is the rejected
-case, and core's frame of it is the control (Rule 30: a real instance
-exists, it is the control).** Whether the lower approach goes back
-underground or becomes an honest cutting is decided then, from the
-reshaped terrain — not now, from terrain that will not survive the change.
+case.** Whether the lower approach goes back underground or becomes an
+honest cutting is decided then, from the reshaped terrain — not now, from
+terrain that will not survive the change.
+
+**The control, corrected (core's challenge, upheld — my first wording named
+«core's frame» as the control when NO FRAME EXISTED: the finding was
+measured, not shot, and none of the seven tour vantages contains the flank
+readably. That is the Rule 27 trap this document itself defines — naming
+evidence that cannot show the defect — caught by core in me.** The control
+is two halves, both reproducible from the repo:
+
+1. *Quantitative:* the measured cover table — legs 1→3 at **−1.0…−2.2 m**
+   over ~50 m are the must-fail against `TUNNEL_COVER_MIN` = 1 m, and legs
+   3→7 at **+1.6…+18 m** are the passing neighbor: both Rule 30 cases from
+   the same instrument.
+2. *Visual:* a vantage RECIPE, never a file path — `screenshots/` is
+   gitignored, so pixels die with a clean clone and only the recipe is
+   durable: binary `build_render/dfn_app`, seed 1, `DFN_MASSIF_PROBE=1`,
+   `DFN_MASSIF_EYE="660,300"`, `DFN_TIME=0.72` (front-lit SW flank). At
+   that vantage the cutting reads as a faint diagonal seam on the lower
+   right flank at ~130–160 m — verified by design against the produced
+   frame. **Subtle at valley range is expected and is why this vantage is
+   the CONTROL, not the acceptance: the acceptance that fires with the
+   trigger needs one closer authored vantage that CAN fail loudly (F7),
+   spec'd by design at that time.** Durable pixel archiving, if wanted, is
+   a lead call (tracked frames dir or artifact store); the recipe carries
+   the control either way.
 Core's two real fixes in the same area (derived daylight portals; the 6 m
 switchback clearance) are accepted as reported — both are the §7.0a
 dependency rule working, and neither waits on the trigger.
