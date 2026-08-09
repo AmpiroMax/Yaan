@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 19:42:19
+# Last updated: 10:08:2026 - 01:58:01
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -30,6 +30,11 @@
 #                          and reported a mismatch on a correct header once a
 #                          doc outgrew it.
 #                          settings, also gitignored).
+# - 10:08:2026 - 01:58:01: --files mode: the pre-commit hook now checks only the
+#                          staged set. Six agents share one working tree, and the
+#                          whole-tree gate let any agent's mid-edit file block every
+#                          other agent's commit -- design was blocked twice in one
+#                          night by files it had never touched.
 
 from __future__ import annotations
 
@@ -185,16 +190,43 @@ def scan_directory(root: Path) -> list[tuple[Path, list[str]]]:
     return failures
 
 
+def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]]:
+    """Checks only the named files (repo-relative). Skip rules still apply, so a
+    staged file the scanner would ignore is ignored here too."""
+    failures: list[tuple[Path, list[str]]] = []
+    for rel_str in rel_paths:
+        path = root / rel_str
+        if not path.is_file():
+            continue  # deleted in this commit
+        rel = path.relative_to(root)
+        if _skip_parts(rel.parts):
+            continue
+        if any(rx.match(rel.as_posix()) for rx in SKIP_PATH_RES):
+            continue
+        errs = check_file(path)
+        if errs:
+            failures.append((rel, errs))
+    return failures
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Check Daggerfall N header/UPD contract.")
     ap.add_argument("--root", default=".", help="Project root directory.")
     ap.add_argument("--all", action="store_true",
                     help="Scan the whole project tree (default behaviour; accepted for "
                          "compatibility with the documented command).")
+    ap.add_argument("--files", nargs="*", default=None,
+                    help="Check ONLY these repo-relative files (the pre-commit hook "
+                         "passes the staged set). Six agents share one working tree, "
+                         "so a whole-tree gate lets any agent's mid-edit file block "
+                         "every other agent's commit.")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
-    failures = scan_directory(root)
+    if args.files is not None:
+        failures = check_files(root, args.files)
+    else:
+        failures = scan_directory(root)
 
     if failures:
         print("Header/UPD contract violations:", file=sys.stderr)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 00:06:00
+# Last updated: 10:08:2026 - 01:58:01
 # File: tools/hooks/pre-commit
 #
 # Responsibility:
@@ -17,8 +17,14 @@
 #
 # UPD:
 # - 09:08:2026 - 00:06:00: Created hook running header_check over the whole tree.
+# - 10:08:2026 - 01:58:01: Staged-files-only gate (design's process flag).
 
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
-python3 "$repo_root/tools/header_check.py" --all --root "$repo_root"
+# Check ONLY the staged files: six agents share one working tree, and a
+# whole-tree gate lets any agent's mid-edit header block everyone's commits.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$staged" ]; then exit 0; fi
+# shellcheck disable=SC2086
+python3 "$repo_root/tools/header_check.py" --root "$repo_root" --files $staged
