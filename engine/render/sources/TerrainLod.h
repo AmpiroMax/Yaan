@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 09:08:2026 - 20:55:10
+Last updated: 09:08:2026 - 22:01:04
 Module: engine/render
 File: engine/render/sources/TerrainLod.h
 
@@ -38,6 +38,11 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 20:55:10: Created — LOD node ladder, screen-error selection and
   the two-level fade window (render half of the LOD contract with core).
+- 09:08:2026 - 22:01:04: The RESIDENT RECTANGLE (the ground core streams at
+  full chunk detail) is now an input to the descent: nodes fully inside it are
+  dropped and nodes straddling its border are forced to split, so coarse
+  terrain and chunk terrain never draw the same ground. Plus lod_skirt_depth_m
+  — the apron that hides T-junction cracks between adjacent levels.
 */
 
 #pragma once

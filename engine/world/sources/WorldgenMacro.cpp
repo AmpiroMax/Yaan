@@ -281,7 +281,12 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
             + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
                   * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX
                                        - config::MASSIF_RADIAL_LOBE_AMP_MIN);
-        const float depth = crag.radius * amp_d;
+        const float depth =
+            static_cast<float>(config::MASSIF_CLIFF_BAND_MIN)
+            + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
+                  * static_cast<float>(config::MASSIF_CLIFF_BAND_MAX
+                                       - config::MASSIF_CLIFF_BAND_MIN);
+        (void)amp_d; // EXPERIMENT: rulings 1+2 only
         const float r_lo = convex_at(alpha - half_w);
         const float r_hi = convex_at(alpha + half_w);
         const float r_apex = std::max(convex_at(alpha) - depth, 1.0f);
