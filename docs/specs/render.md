@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 20:11:11
+Last updated: 09:08:2026 - 20:55:00
 -->
 <!--
 UPD:
@@ -788,6 +788,16 @@ user's reference photos: both the palette arithmetic and the photographs say
 - Does not generate or own world data: no heightmap generation, no chunk
   streaming policy, no world file IO (core's world zone). Render only
   consumes `HeightFieldView`s handed to it.
+- Does not decide WHERE it is dark. Darkness has two halves and render owns
+  neither: the GEOMETRIC half is core's per-vertex sky visibility (now an
+  additive `sky_visibility` span on `VoxelMeshView`; an empty span means
+  render's 255 fallback, so it can be filled whenever) and the AUTHORED half
+  is `ambient_darkness`, written by the app from the LANDSCAPE §5.9 rule
+  (enclosed AND >= DARKNESS_DEPTH_MIN from an entrance, ramped over
+  DARKNESS_FALLOFF). Render applies them — ambient *= (1-d), carried-light
+  reach *= (1 - 0.55d) — and derives neither. Same standing ruling as the
+  material bands: a render-side approximation of a world fact is how the
+  invented 60 m brown wash happened.
 - Does not own shared components — proposals go to the lead
   (`engine/core/components`).
 - Does not simulate: no camera physics, no collision, no controller logic

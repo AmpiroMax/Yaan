@@ -874,13 +874,56 @@ Measured on the built crag, seed 1:
 >    is that structural lobing must exceed what noise gave us for free, at
 >    every height, and must grow with height.
 >
-> **Also unstamped: the slope-histogram row does not say which weighting it
-> used.** Under the surface-area ruling in §2.8.3 it must be re-stamped with
-> the weighting labelled. This is not pedantry about a dead number:
-> `MASSIF_SLOPE_BIN_MAX` = 0.30 was *chosen* just under the 33.2 % reading, so
-> the threshold's provenance depends on it — though the threshold's purpose
-> (reject the single uniform flank) survives either reading, since surface
-> weighting can only make that flank count for **more**.
+> **RESOLVED the same session — and half of point 2 was MY error, so it is
+> corrected here rather than quietly left standing (core).** The re-stamp did
+> its job: it stopped core accepting 1.01 and sent them looking properly. What
+> they found was **a geometry bug in their own bearing-field helper, not a
+> property of the band model.** They were sampling the bearing field on a
+> circle sized so its circumference spanned `lobes` cells, which forces
+> `radius = lobes · CELL / 2π` — at 3 arêtes on a 64 m cell that is a circle
+> 61 m across sitting **inside a single 64 m cell**. The noise read it as one
+> smooth patch, so contour radius varied ±4 % where `MASSIF_RADIAL_LOBE_AMP`
+> asks for ±18–35 %. A circle cannot be simultaneously small enough to carry
+> few lobes and large enough to cross cells: the construction was degenerate
+> for **every** arête count this document specifies.
+>
+> - **What stands:** the re-stamp itself; that the 1.27 was fBm bleed rather
+>   than structure (now *confirmed* rather than inferred); that I8's headroom
+>   is 6 % and its load-bearing clause is the rise; and the sequencing call
+>   that followed from all of it.
+> - **WITHDRAWN — my mechanism.** I wrote that the band model "replaced the
+>   slice outline with the authored `R_k(θ)`, which is *cleaner* than the noise
+>   it displaced" — i.e. that authored outlines are inherently smoother than
+>   fBm. That was a plausible story fitted to one number, and it was wrong:
+>   `R_k(θ)` was not producing an outline at all. **There was never structural
+>   lobing to erase.** The corrected sentence is narrower and duller — an
+>   authored lobe term that does not actually vary *suppresses* the noise that
+>   used to, and the result reads as a regression.
+> - **The lesson, and it is the §1.3-withdrawal lesson wearing my own face.**
+>   A directionally plausible mechanism gets less scrutiny than a surprising
+>   one. "Clean authored geometry displaced dirty noise" is a satisfying
+>   sentence, it explained the measurement, and it was fiction. The measured
+>   number was right; my account of *why* was invented. **Ruling a number and
+>   narrating its cause are two different acts, and only the first was mine to
+>   make** — the mechanism should have been marked as a hypothesis for core to
+>   confirm, which is exactly what this document demands of every finding it
+>   receives. Recorded because the re-stamp is quoted approvingly above, and a
+>   reader should see that the same box contains a correct ruling and a wrong
+>   explanation attached to it.
+>
+> **The slope-histogram row: SUPERSEDED, not re-measured (ruled, core's
+> proposal accepted).** The 33.2 % was **footprint-weighted**, measured by my
+> predecessor on the old smoothstep dome — terrain that no longer exists in the
+> tree. Any figure produced now would be *reconstructed*, not measured, which
+> is the same class of act as the boundary-cell numbers this box withdraws. So
+> the row reads **"footprint-weighted, superseded"** and carries no number in
+> the weighting §2.8.3 has just replaced. `MASSIF_SLOPE_BIN_MAX` = 0.30 keeps
+> its provenance stated honestly: it was chosen just under a *footprint*
+> reading of 33.2 %, and under surface weighting that same flank would have
+> read **higher** — so the threshold is conservative in the right direction and
+> needs no revision. A constant whose provenance is "chosen against a number we
+> can no longer take" is acceptable **only** when the direction of the error is
+> known, which here it is.
 >
 > **The process point, which is the durable part.** The measurement rule was
 > written before the measurement mattered, and it is what caught this. Cost:
