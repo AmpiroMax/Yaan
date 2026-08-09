@@ -188,3 +188,30 @@ TEST_CASE("smaller internal resolutions downscale by an integer factor") {
     CHECK(px[1] == 10);
     CHECK(px[2] == 13);
 }
+
+TEST_CASE("a chunk is explored whether it arrives as heightfield or as voxels") {
+    // THE REGRESSION THIS PINS: the app's terrain ferry moved to the VOXEL
+    // path, note_chunk only ever ran on the heightfield path, and the map
+    // silently stopped recording anything the player walked through. Nothing
+    // reported it — an empty map and an unexplored map look identical, which
+    // is this project's most expensive bug shape.
+    //
+    // MapScreen itself is the wrong place to test the ferry, so this asserts
+    // the property that matters and is testable here: note_chunk is what makes
+    // a chunk explored, and the map has no other way to learn it. If a future
+    // path uploads terrain without calling it, that path loses the map, and
+    // the fix is always to give it a heightfield rather than to derive heights
+    // from geometry (deriving a world fact is forbidden in this zone).
+    MapScreen map;
+    FakeChunk chunk;
+    CHECK(map.explored_chunks() == 0);
+    map.note_chunk(chunk.height_view({0, 0}), nullptr);
+    CHECK(map.explored_chunks() == 1);
+    // CONTROL: a second, DIFFERENT chunk must raise the count — a map that
+    // answered "explored" for everything, or that counted calls rather than
+    // places, would pass the line above.
+    map.note_chunk(chunk.height_view({1, 0}), nullptr);
+    CHECK(map.explored_chunks() == 2);
+    map.note_chunk(chunk.height_view({0, 0}), nullptr); // re-upload of a known chunk
+    CHECK(map.explored_chunks() == 2);
+}

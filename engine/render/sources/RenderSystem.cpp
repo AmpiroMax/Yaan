@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:36:47
+Last updated: 09:08:2026 - 22:44:28
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -62,6 +62,9 @@ UPD:
   silent paths that hid the invisible castle now print: a blessed site id with
   no geometry at init, and an unregistered asset id in the ECS pass (once per
   id, not per frame).
+- 09:08:2026 - 22:44:28: MAP REGRESSION FIX — upload_terrain_voxel records the
+  explored chunk. Since the ferry moved to the voxel path the map had been
+  recording only chunks WITHOUT a voxel mesh, i.e. almost none.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -591,7 +594,16 @@ void RenderSystem::upload_terrain(platform::IRenderer& renderer,
 }
 
 void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
-                                       const math::VoxelMeshView& mesh) {
+                                        const math::VoxelMeshView& mesh,
+                                        const math::HeightFieldView* field,
+                                        const math::SurfaceFieldView* surface) {
+    // THE MAP IS RECORDED HERE FIRST, and before any early-out below. A chunk
+    // the player streamed in is explored whether or not its voxel mesh turned
+    // out to be empty — and putting this after the early-out is a smaller
+    // version of the bug it fixes.
+    if (field != nullptr) {
+        map_.note_chunk(*field, surface);
+    }
     const TerrainMeshData data = build_voxel_terrain_mesh(mesh);
     if (data.vertices.empty()) {
         return; // solid or empty chunk

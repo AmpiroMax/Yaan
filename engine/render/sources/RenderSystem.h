@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:39:28
+Last updated: 09:08:2026 - 22:44:28
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -85,6 +85,9 @@ UPD:
 - 09:08:2026 - 22:33:00: DFN_NO_SCATTER verification hook (scatter_off_).
 - 09:08:2026 - 22:36:47: warned_missing_meshes_ — the once-per-id missing-asset warning.
 - 09:08:2026 - 22:39:28: lod_pending() — the accessor the app ferry retries against.
+- 09:08:2026 - 22:44:28: upload_terrain_voxel takes the heightfield for the MAP
+  (defaulted, source-compatible). Regression fix: the map recorded nothing at
+  all once the ferry moved to the voxel path.
 */
 
 #pragma once
@@ -148,8 +151,19 @@ public:
     // ferry can switch over per chunk without a flicker of double geometry.
     // This is also the first step of terrain LOD — core's coarse nodes arrive
     // through the same VoxelMeshView shape.
+    // `field` is NOT used for geometry — the voxel mesh is the geometry. It is
+    // the MAP's source, and it is a defaulted parameter because leaving it out
+    // is what broke the map screen: the app switched the terrain ferry to the
+    // voxel path, `note_chunk` only ever ran on the heightfield path, and the
+    // explored map quietly stopped recording anything. The map wants one
+    // height per column, which is exactly a heightfield and is NOT derivable
+    // from a surface mesh without re-deriving a world fact (the bug class this
+    // zone is forbidden from re-entering). Pass the same view you would have
+    // passed to upload_terrain; nullptr keeps the old behaviour.
     void upload_terrain_voxel(platform::IRenderer& renderer,
-                              const math::VoxelMeshView& mesh);
+                              const math::VoxelMeshView& mesh,
+                              const math::HeightFieldView* field = nullptr,
+                              const math::SurfaceFieldView* surface = nullptr);
     void drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord);
 
     // Terrain LOD (the drawing half; core owns streaming and node meshes) ------
