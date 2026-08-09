@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:27:13
+Last updated: 09:08:2026 - 19:30:26
 -->
 <!--
 UPD:
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 19:20:45: §6.1.3 — story picked fork (a) (the Corvanes fortified because they feared what they buried), so two terrain asks folded in: ward masonry phasing carried by BLOCK SIZE AND VALUE rather than texture (invisible at 640x360), which costs nothing because the terrace order already puts the oldest ward uphill nearest the barrow; and a binding sightline from the barrow-facing corner tower's top to the barrow entrance, validated and occlusion-protected like the yard/gate sightline.
 - 09:08:2026 - 19:23:49: §6.1.3 — three named masonry phases from story (panic / treaty money / fear returning), and resolved an ambiguity I created: my A/B/C were BUILD stages, story's are IN-WORLD construction generations, all present when the player arrives — the doc now means the in-world axis, with implementation minimum A+B. Phase C ruled UNFINISHED as generator rules: 0.4-0.6 partial arc with the completed arc covering the APPROACH and the gap on a flank (a gap on the approach would make the gatehouse decorative and kill the petitioner ritual), raw stepped unfaced ends, 0.6-0.75 height, no parapet, spoil heap and never-laid dressed stone. Nearly free against R3 and the silhouette budget.
 - 09:08:2026 - 19:27:13: §6.1.3 — C's gap placed on the BARROW-FACING flank (story's ask; bearings checked: barrow 27 deg, peak 28 deg, approach 225 deg, so grave and road are opposite sides and the approach stays walled). Forced one refinement: since the barrow side is uphill where ward A sits, C is a contour-following perimeter wrapping A and B rather than simply the lowest terrace — also the more authentic form, since uphill outer works matter most on a hillside. Noted that the two story asks reinforce: the barrow-facing tower watches the grave THROUGH the unbuilt stretch, so sightline clearance is guaranteed by absence rather than by a height check. Gap reachable off-corridor only — a back way, never an alternative front door.
+- 09:08:2026 - 19:30:26: §2.5 — "7000 steps" CLOSED by user decision: it is a name, not a step count; 1200-1800 m / 5-7 landings / ~8 min stands, fiction keeps the name. §6.1.3 — gap reachability promoted from observation to VALIDATED INVARIANT, since story's act-1 trespass route now depends on it alongside the act-3 muster: continuous traversable route from barrow ground up the NNE spur (validated like the castle ramp and summit ascent), deliberately non-corridor-grade at SCRAMBLE_SLOPE 30-45 deg, passing within 40 m of the barrow entrance so the act-1/act-3 rhyme is geometric rather than lucky, and the completion fraction recorded as having two dependents.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -607,11 +608,11 @@ vista, a wind-scoured shoulder — each a place to stop and look back at how far
 the valley has fallen away **(предложение — утвердить)**. Landings are what
 make a climb read as long; raw distance just makes it tiring. At 1500 m that
 is ≈ 8 min of walking one way, which is a journey.
-**Flagged for the user (via lead):** if "7000 steps" is meant *literally*
-(≈ 4.9 km of path, ≈ 27 min of walking one way), say so and I will extend the
-route — but that is a pacing decision worth making deliberately rather than
-inheriting from a phrase. My assumption is that it is the climb's *name*, as
-in the fiction it echoes, and that 5–7 landings deliver the felt length.
+**DECIDED — user, 09:08:2026: "7000 steps" is a NAME, not a step count.**
+(«НЕ буквально, 8 минут — кайф, название оставляем».) The numbers above stand
+as written — 1200–1800 m, 5–7 landings, ≈ 8 min one way — and the climb keeps
+its name in the fiction, which is story's to use in canon. Closed; do not
+reopen on the arithmetic.
 
 ### 2.6 Border mountains — the world edge
 
@@ -1362,11 +1363,26 @@ choice, and the cheapest of the three to build because most of it is what is
   tower watches the grave **through the gap that shame left open**, and no
   wall-versus-sightline conflict can arise — the clearance is guaranteed by
   the absence, not by a height check.
-- **Reachability:** the gap is reachable but **only off-corridor** — the
-  approach ramp remains the sole corridor-grade route, and the NNE spur ground
-  is steep (which is why A was sited there as the redoubt). It therefore reads
-  as a back way a determined person finds, never an alternative front door,
-  which is precisely what the act-3 beat wants.
+- **Reachability — now a VALIDATED INVARIANT, not an observation.** Story's
+  act-1 MQ4 uses this gap as the trespass route into the muniment room, so it
+  is load-bearing in two acts and can no longer rest on "the spur is probably
+  climbable". Rules:
+  - **A continuous traversable route must exist** from the barrow ground up
+    the NNE spur to the gap — validated like the castle ramp (§6.1.2) and the
+    summit ascent (§2.5). A seed that walls it off with a 55° scarp breaks
+    act 1, silently.
+  - **It must NOT be corridor-grade, deliberately.** Average slope in the band
+    `SCRAMBLE_SLOPE` = 30–45° **(предложение — утвердить)** — above the 25°
+    corridor maximum, below `PLAYER_MAX_SLOPE`. No corridor mask, no width
+    guarantee, scarps and outcrops permitted along it. A scramble, not a
+    stroll: the difficulty is what makes it read as a back way rather than a
+    second front door.
+  - **The route passes within 40 m of the barrow entrance**, so story's rhyme
+    (the trespasser takes the path the dead will take) is guaranteed by
+    geometry rather than by luck.
+  - **The completion fraction now has TWO dependents** — the act-1 trespass
+    route and the act-3 muster gap. Moving it moves both; never tune it for
+    one beat without checking the other.
 - **Raw ends:** the wall terminates in a stepped, unfaced core — a ragged
   vertical break, never a clean end. At range this is the whole tell.
 - **Lower and unparapeted:** `CASTLE_WARD_C_HEIGHT_FRAC` = 0.6–0.75 of the B

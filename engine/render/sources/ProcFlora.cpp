@@ -169,8 +169,9 @@ float envelope_radius(const SpeciesParams& sp, float y, float base, float top,
 float trunk_height_frac(CrownEnvelope e) {
     switch (e) {
     case CrownEnvelope::Sphere:
-    case CrownEnvelope::Weeping:
         return 0.68f;
+    case CrownEnvelope::Weeping: // the skirt falls, so the leader must sit high
+        return 0.86f;
     case CrownEnvelope::Vase: // birch keeps a high leader; the crown is small
         return 0.82f;
     case CrownEnvelope::Cone: // conifer leader IS the top
@@ -192,22 +193,59 @@ struct Tree {
     uint32_t leaf;
     FloraLod lod;
     Rng rng;
+    float flare_h = FLARE_HEIGHT;
+    float flare_depth = FLARE_DEPTH;
 };
 
-/// Applies crown shyness: the crown is pulled back along shy_dir.
-float shy_scale(const Tree& t, glm::vec3 dir_xz) {
+/// Pulls a point inside the species envelope, radially and vertically. THIS IS
+/// THE MECHANISM that makes a silhouette guaranteed rather than emergent
+/// (docs/specs/flora.md §3.1 stage D) — without the radial half, branches reach
+/// wherever the growth rules take them and an oak comes out twice its design
+/// width, which then breaks the spacing that was derived FROM that width.
+glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
+    p.y = std::min(p.y, t.crown_top);
+    const float env = envelope_radius(t.sp, p.y, t.crown_base, t.crown_top, t.crown_r);
+    // Below the crown the trunk owns the space; above the base the envelope does.
+    if (p.y <= t.crown_base || env <= 0.0f) return p;
+    const glm::vec2 r{p.x, p.z};
+    const float len = glm::length(r);
+    const float limit = env * shy_scale_xz(t, r);
+    if (len > limit && len > 1e-5f) {
+        const glm::vec2 c = r * (limit / len);
+        p.x = c.x;
+        p.z = c.y;
+    }
+    return p;
+}
+
+/// Crown shyness: the crown is pulled back on the side facing a close
+/// neighbour. Interpenetrating crowns read as one mud-coloured mass at low
+/// resolution; separated crowns read as trees.
+float shy_scale_xz(const Tree& t, glm::vec2 d) {
     if (t.shape.shyness <= 0.0f) return 1.0f;
-    const glm::vec2 d{dir_xz.x, dir_xz.z};
     const float l = glm::length(d);
     if (l < 1e-5f) return 1.0f;
     const float align = glm::dot(d / l, t.shape.shy_dir); // -1..1
     return 1.0f - t.shape.shyness * std::max(0.0f, align);
 }
 
+float shy_scale(const Tree& t, glm::vec3 dir_xz) {
+    return shy_scale_xz(t, glm::vec2{dir_xz.x, dir_xz.z});
+}
+
 void emit_cluster(MeshData& m, const Tree& t, glm::vec3 at, float radius) {
     if (radius <= 0.05f) return;
-    // Foliage may not push the silhouette past the species height band.
+    // Foliage may not push the silhouette outside the species envelope.
+    at = clip_to_envelope(t, at);
     at.y = std::min(at.y, t.crown_top - radius * 0.85f);
+    const glm::vec2 rxz{at.x, at.z};
+    const float env = envelope_radius(t.sp, at.y, t.crown_base, t.crown_top, t.crown_r);
+    const float len = glm::length(rxz);
+    if (env > 0.0f && len + radius > env && len > 1e-5f) {
+        const glm::vec2 c = rxz * (std::max(env - radius, 0.0f) / len);
+        at.x = c.x;
+        at.z = c.y;
+    }
     const int slices = t.sp.cluster_slices;
     const int bands = t.sp.cluster_bands;
     cluster(m, at, glm::vec3{radius, radius * 0.85f, radius}, slices, bands, t.leaf);
@@ -250,11 +288,11 @@ void grow_branch(MeshData& m, Tree& t, glm::vec3 base, glm::vec3 dir, float leng
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(segments);
         const float r0 = radius * (1.0f - 0.75f * t0);
         const float r1 = radius * (1.0f - 0.75f * t1);
-        glm::vec3 next = p + d * seg_len;
-        // Envelope ceiling: a crown flattens under competition rather than
-        // spiking past the species band (see trunk_height_frac).
-        next.y = std::min(next.y, t.crown_top);
-        tube_segment(m, p, next, d, r0, std::max(r1, 0.02f), sides, t.wood);
+        // Envelope clip, radial AND vertical: a crown flattens and narrows
+        // under competition rather than spiking past the species band.
+        const glm::vec3 next = clip_to_envelope(t, p + d * seg_len);
+        const glm::vec3 step = safe_normalize(next - p, d);
+        tube_segment(m, p, next, step, r0, std::max(r1, 0.02f), sides, t.wood);
         p = next;
     }
 
@@ -301,14 +339,14 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
     // Root flare: widen and sink so the skirt buries itself in whatever the
     // terrain does. Kept above the shadow-caster floor at its narrowest.
     const float flare_r = std::max(radius * FLARE_WIDEN, SHADOW_MIN_DIAMETER * 0.5f);
-    tube_segment(m, base + glm::vec3{0.0f, -FLARE_DEPTH, 0.0f},
-                 base + glm::vec3{0.0f, FLARE_HEIGHT, 0.0f},
+    tube_segment(m, base + glm::vec3{0.0f, -t.flare_depth, 0.0f},
+                 base + glm::vec3{0.0f, t.flare_h, 0.0f},
                  glm::vec3{0.0f, 1.0f, 0.0f}, flare_r,
                  std::max(radius, SHADOW_MIN_DIAMETER * 0.5f), sides, t.wood);
 
-    glm::vec3 p = base + glm::vec3{0.0f, FLARE_HEIGHT, 0.0f};
+    glm::vec3 p = base + glm::vec3{0.0f, t.flare_h, 0.0f};
     glm::vec3 d{0.0f, 1.0f, 0.0f};
-    const float span = std::max(height - FLARE_HEIGHT, 0.5f);
+    const float span = std::max(height - t.flare_h, 0.5f);
     const float seg_len = span / static_cast<float>(segments);
     const glm::vec3 sweep_dir =
         t.shape.lean > 0.0f
@@ -424,6 +462,7 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
         crown_width_frac *= 0.8f;
     }
 
+    const bool woody_tree = is_canopy_tree(species) || species == FloraSpecies::Snag;
     Tree t{sp,
            shape,
            height,
@@ -434,7 +473,10 @@ MeshData build_flora_mesh(FloraSpecies species, uint32_t variant,
            pack(sp.trunk_color),
            pack(sp.foliage_color),
            lod,
-           rng};
+           rng,
+           woody_tree ? std::clamp(height * 0.045f, 0.5f, 1.4f)
+                      : std::clamp(height * 0.08f, 0.08f, 0.4f),
+           woody_tree ? FLARE_DEPTH : std::clamp(height * 0.10f, 0.10f, 0.4f)};
 
     // HARD FLOOR (§3.5): canopy species keep CANOPY_CLEARANCE_MIN of clear
     // trunk. Enforced by construction, never by inspection.

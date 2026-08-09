@@ -289,13 +289,25 @@ float castle_pad_height(const CastleBuild& castle, glm::vec2 world, float h) {
     // half_size + blend, so the chain overlaps by design. Resolving in array
     // order instead let ward 0's skirt overwrite ward 1's floor, which tilted
     // a terrace that is supposed to be level and put phantom steps on the ramp.
+    // The ward squares are axis-aligned but the chain steps along a DIAGONAL
+    // spur axis, so their flat zones genuinely overlap. Resolve overlaps by
+    // NEAREST CENTRE (a Voronoi split): every point belongs to the terrace it
+    // is closest to, and the step falls on the midline between them. Taking
+    // the first match instead let the upper ward's floor bleed over the lower
+    // one and tilted a terrace that must be level.
+    int owner = -1;
+    float owner_cheb = 1e9f;
     for (int i = 0; i < castle.ward_count; ++i) {
         const CastleWard& w = castle.wards[i];
         const float cheb = std::max(std::fabs(world.x - w.center.x),
                                     std::fabs(world.y - w.center.y));
-        if (cheb <= w.half_size) {
-            return w.height;
+        if (cheb <= w.half_size && cheb < owner_cheb) {
+            owner_cheb = cheb;
+            owner = i;
         }
+    }
+    if (owner >= 0) {
+        return castle.wards[owner].height;
     }
     // Outside every ward floor: take the NEAREST ward's skirt, so the blend
     // belongs to the terrace it actually descends from.
