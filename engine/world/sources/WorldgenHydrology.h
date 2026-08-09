@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:12:19
+Last updated: 09:08:2026 - 14:41:26
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.h
 
@@ -34,6 +34,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P2 hydrology (trace, ponds, carve, fords,
   lake; distance field for dist_to_water).
 - 09:08:2026 - 13:12:19: Stage 3b amendments: derived ford_stations (§3.1 step 6); §3.3 bed/mud cap documented on build_hydrology.
+- 09:08:2026 - 14:41:26: Frame-05 bed fix: pond_planes (drawable primitives for surviving ponds) so every water-covered sample has a body render can draw.
 */
 
 #pragma once
@@ -71,6 +72,10 @@ struct HydrologyData {
 
     std::vector<Pond> ponds;
     math::LakePlane lake;
+    /// Drawable primitives for the surviving ponds (centroid + bounding
+    /// half-extent + level), so every water-covered sample has a body render
+    /// can draw over it — ChunkManager appends these to water_bodies().lakes.
+    std::vector<math::LakePlane> pond_planes;
 
     // Coarse grids (HYDRO grid step), row-major x fastest.
     glm::vec2 grid_origin{0.0f};

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 14:41:26
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -31,6 +31,7 @@ UPD:
   open_generated; surfacefield/scatter/water_bodies queries; site entities get
   Transform/PreviousTransform/RenderMesh/LocalBounds/SiteMarker prototypes via
   add_batch (Rule 11 — one pool visit per component type).
+- 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes now carries the lake plus one plane per surviving pond (additive, lead-blessed; render iterates the same span).
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -100,7 +101,11 @@ void ChunkManager::open_generated(const WorldGenParams& gen_params,
     impl_->loaded_coords.clear();
     // World-level passes once per open (deterministic; chunks stay independent).
     impl_->gen_ctx = build_world_context(gen_params);
+    // Drawable water bodies: the lake plus every surviving pond, so no
+    // water-covered sample is left without a body render can draw over it.
     impl_->lakes.assign(1, impl_->gen_ctx.hydrology.lake);
+    impl_->lakes.insert(impl_->lakes.end(), impl_->gen_ctx.hydrology.pond_planes.begin(),
+                        impl_->gen_ctx.hydrology.pond_planes.end());
 }
 
 void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,

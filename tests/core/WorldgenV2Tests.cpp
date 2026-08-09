@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:03:23
+Last updated: 09:08:2026 - 14:41:26
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: derived-ford suite (crossings wade-shallow, FORD_SPACING gaps), §3.3 mud-cap band + coverage tripwire + dist saturation, grid-vs-analytic equality, canopy-aware C1 kept at LANDMARK_VISIBILITY_MIN.
 - 09:08:2026 - 13:28:27: P1 anisotropy retune: structure-tensor elongation invariant (seed-1 median ratio ~3.9, floor 2.5; isotropic sits near 2).
 - 09:08:2026 - 14:03:23: Micro-relief batch: groove field + carved-trail-vs-shoulders test (ford/slope contracts re-asserted), curb-stone margin-band test.
+- 09:08:2026 - 14:41:26: Frame-05 bed fix: NEW invariant — every WaterBed sample is covered by a drawable primitive (lake / pond plane / river ribbon); guards the seed-vs-coverage conflation class of bug.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -135,6 +136,67 @@ TEST_CASE("fords are derived from the generated trace (§7.1a) and wade-shallow"
     // wade-shallow — the chain is never severed.
     CHECK(world::max_corridor_water_depth(ctx)
           <= static_cast<float>(config::FORD_DEPTH_MAX) + 1e-2f);
+}
+
+TEST_CASE("every WaterBed sample is covered by a drawable water primitive") {
+    // The invariant that closes the stage-3 "wide dark bed" class of bug: if
+    // a sample classifies as WaterBed (submerged terrain), some primitive in
+    // water_bodies() — the lake, a pond plane, or the river ribbon — must sit
+    // over it, or render draws bare bed where water should be. Was violated
+    // by fill_level doubling as the distance-field seed set (river trace
+    // cells flooded their whole 16 m coarse cell).
+    const auto& ctx = testbed();
+    const auto& h = ctx.hydrology;
+    std::vector<math::LakePlane> planes{h.lake};
+    planes.insert(planes.end(), h.pond_planes.begin(), h.pond_planes.end());
+
+    int bed = 0;
+    int uncovered = 0;
+    glm::vec2 worst{0.0f};
+    float worst_gap = 0.0f;
+    for (float z = 2.0f; z < 1024.0f; z += 4.0f) {
+        for (float x = 2.0f; x < 1024.0f; x += 4.0f) {
+            const glm::vec2 p{x, z};
+            const auto sp = world::surface_point(ctx, p);
+            if (sp.surface_class != math::SurfaceClass::WaterBed) continue;
+            ++bed;
+            bool covered = false;
+            for (const auto& plane : planes) {
+                const float dx = (p.x - plane.center.x) / plane.half_extent.x;
+                const float dz = (p.y - plane.center.y) / plane.half_extent.y;
+                // Ellipse for the lake, its bounding box for pond cells.
+                if (dx * dx + dz * dz < 1.0f
+                    || (std::fabs(dx) <= 1.0f && std::fabs(dz) <= 1.0f)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                // River ribbon: within the local channel half width.
+                float best = std::numeric_limits<float>::max();
+                uint32_t bi = 0;
+                for (uint32_t i = 0; i < h.stations.size(); ++i) {
+                    const float d = glm::length(h.stations[i].position - p);
+                    if (d < best) {
+                        best = d;
+                        bi = i;
+                    }
+                }
+                const float gap = best - h.stations[bi].half_width;
+                if (gap <= 0.5f) { // half a sample step of tolerance
+                    covered = true;
+                } else if (gap > worst_gap) {
+                    worst_gap = gap;
+                    worst = p;
+                }
+            }
+            if (!covered) ++uncovered;
+        }
+    }
+    REQUIRE(bed > 100); // the testbed does have water
+    INFO("worst uncovered bed at (" << worst.x << ", " << worst.y << "), gap " << worst_gap
+                                    << " m");
+    CHECK(uncovered == 0);
 }
 
 TEST_CASE("§3.3 bed/mud cap: no wide water flats, dist field range") {

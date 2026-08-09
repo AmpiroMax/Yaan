@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 09:08:2026 - 14:41:26
 Module: tests
 File: tests/core/ChunkManagerTests.cpp
 
@@ -22,6 +22,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 spawns site entities: baseline
   captured before streaming; new cases for site component attachment,
   surfacefield/scatter/water_bodies accessors.
+- 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes is now lake + pond planes (was exactly 1); all planes checked for positive extent.
 */
 
 #include "engine/core/components/sources/Components.h"
@@ -197,11 +198,17 @@ TEST_CASE("site entities spawn with components; surface/scatter views serve") {
     CHECK(surface->water_surface.size() == surface->dist_to_water.size());
     CHECK_FALSE(f.chunks.surfacefield(ChunkCoord{3, 3}).has_value());
 
-    // Water bodies are exposed for render's plane/ribbon materials.
+    // Water bodies are exposed for render's plane/ribbon materials: the lake
+    // first, then one plane per surviving pond (so no water-covered sample
+    // lacks a drawable body — see the WaterBed coverage invariant).
     const auto water = f.chunks.water_bodies();
-    REQUIRE(water.lakes.size() == 1);
+    REQUIRE(water.lakes.size() >= 1);
     CHECK(water.lakes[0].surface_height
           == doctest::Approx(static_cast<float>(dfn::config::LAKE_LEVEL_TESTBED)));
+    for (const auto& plane : water.lakes) {
+        CHECK(plane.half_extent.x > 0.0f);
+        CHECK(plane.half_extent.y > 0.0f);
+    }
     CHECK_FALSE(water.river_stations.empty());
     REQUIRE(water.river_segment_offsets.size() >= 2);
     CHECK(water.river_segment_offsets.front() == 0);

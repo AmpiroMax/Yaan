@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 13:28:27
+Last updated: 09:08:2026 - 14:41:26
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — P2 implementation.
 - 09:08:2026 - 13:12:19: Stage 3b amendments: §3.3 mud cap prunes pond water beyond max(SHORE_SAND_DIST, 2x width) of the trace; fords derived from corridor x trace crossings + FORD_SPACING_MAX gap fill; channel bed clamped into the trapezoid band (fords raise the bed); corridor-mask stations ford-shallow; pond beds raised on corridor crossings; dist_to_water saturated at DIST_TO_WATER_RANGE; station bins built early + binned nearest queries (wilderness contexts were quadratic: 9.8 s -> 0.9 s at 21x21 chunks).
 - 09:08:2026 - 13:28:27: Split: per-sample query side (water_sample_impl/water_at/carve_height) moved to WorldgenWater.cpp (file was at 780/800 lines); build side stays here.
+- 09:08:2026 - 14:41:26: Frame-05 bed fix (ROOT CAUSE): fill_level no longer doubles as the Dijkstra seed set — river trace cells seed a LOCAL set instead, so trace cells stop flooding their whole 16 m coarse cell in water_at's pond branch (67 station-only cells -> 0; WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%). Pond primitives built from cell FOOTPRINTS (water_at floods whole cells).
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -587,21 +588,30 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
         }
     }
 
-    // --- River cells into the fill map (distance-field sources) -----------------
+    // --- Coarse distance-to-water field (multi-source Dijkstra) -----------------
+    // Seeds are STANDING water cells (lake + ponds) PLUS the cells the river
+    // trace passes through. The river seeds live in a LOCAL set and never
+    // enter fill_level: that array is the standing-water COVERAGE truth read
+    // by water_at, and writing 16 m trace cells into it used to flood whole
+    // coarse cells beside the channel (~8.5 k m2 of bed with no water body
+    // over it — the §3.3 cap violation seen in the stage-3 frames). Coverage
+    // and distance seeding are separate concerns; keep them separate.
+    hydro.coarse_dist.assign(cells, std::numeric_limits<float>::max());
+    MinHeap heap;
+    std::vector<uint8_t> is_seed(cells, 0);
+    for (uint32_t i = 0; i < cells; ++i) {
+        if (hydro.fill_level[i] != math::NO_WATER) {
+            is_seed[i] = 1;
+        }
+    }
     for (const math::RiverStation& st : hydro.stations) {
         const uint32_t c = cell_of(st.position);
         if (c != INVALID) {
-            hydro.fill_level[c] = hydro.fill_level[c] == math::NO_WATER
-                                    ? st.surface_height
-                                    : std::max(hydro.fill_level[c], st.surface_height);
+            is_seed[c] = 1;
         }
     }
-
-    // --- Coarse distance-to-water field (multi-source Dijkstra) -----------------
-    hydro.coarse_dist.assign(cells, std::numeric_limits<float>::max());
-    MinHeap heap;
     for (uint32_t i = 0; i < cells; ++i) {
-        if (hydro.fill_level[i] != math::NO_WATER) {
+        if (is_seed[i]) {
             hydro.coarse_dist[i] = 0.0f;
             heap.push({0.0f, i});
         }
@@ -621,6 +631,28 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
                 heap.push({nd, n});
             }
         });
+    }
+
+    // --- Pond primitives (drawable bodies for the surviving ponds) --------------
+    // water_at floods a pond's whole coarse cell, so the primitive must cover
+    // the cell FOOTPRINT (cell origin .. origin + CELL), not just its nodes.
+    for (const Pond& pond : hydro.ponds) {
+        if (pond.cells.empty()) continue;
+        float min_x = std::numeric_limits<float>::max();
+        float min_z = min_x;
+        float max_x = -min_x;
+        float max_z = -min_x;
+        for (const uint32_t c : pond.cells) {
+            const glm::vec2 p = grid.pos(c);
+            min_x = std::min(min_x, p.x);
+            min_z = std::min(min_z, p.y);
+            max_x = std::max(max_x, p.x + CELL);
+            max_z = std::max(max_z, p.y + CELL);
+        }
+        hydro.pond_planes.push_back(
+            math::LakePlane{glm::vec2{(min_x + max_x) * 0.5f, (min_z + max_z) * 0.5f},
+                            glm::vec2{(max_x - min_x) * 0.5f, (max_z - min_z) * 0.5f},
+                            pond.level});
     }
 
     // (Station spatial bins were built right after the widths pass — they

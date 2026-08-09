@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 14:03:23
+Last updated: 09:08:2026 - 14:41:26
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b design amendments implemented (LANDSCAPE UPD 12:44:58): fords DERIVED from corridor x generated-trace crossings + FORD_SPACING_MAX gap fill (HydrologyData::ford_stations; layout ford table deleted); §3.3 bed/mud cap — pond water pruned beyond max(SHORE_SAND_DIST, 2x width) of the trace, channel bed clamped into the trapezoid band (fords RAISE the bed), corridor-mask stations ford-shallow; C3 validated against generated water (max_corridor_water_depth <= FORD_DEPTH_MAX); C1 raycast canopy-aware with LANDMARK_CLEARANCE_FACTOR + P5 L0 sight wedges; pine ring -> radial ridge strips (§5.2; count 4 / duty 0.25 gives seed-1 C1 = 0.618); dist_to_water saturated at DIST_TO_WATER_RANGE (field verified valid to 150 m — the 60 m saturation render observed was not in this field); perf: grid-pass generate_chunk (~30 ms/chunk) + binned hydrology passes (21x21 context 9.8 s -> 0.9 s).
 - 09:08:2026 - 13:28:27: P1 anisotropy retune (LANDSCAPE §2.1, HILL_ANISOTROPY landed): mid octave input-stretched along a drifting per-valley axis field (STREAM_HILL_AXIS; fixed-frame bilinear blending — position-varying rotation rejected for its |world|*grad(theta) distortion; cross-axis 128 m rhythm pinned by construction per the design contract). Seed-1 contracts re-verified unchanged: C1 = 0.618, corridor depth 0.40, monotonic river source->lake->south edge; new structure-tensor elongation invariant in WorldgenV2Tests (median ratio ~3.9, floor 2.5). WorldgenHydrology.cpp split at 780/800: query side (water_at/carve_height) -> WorldgenWater.cpp.
 - 09:08:2026 - 14:03:23: Micro-relief batch (user grill round 1): path groove — corridors carved PATH_GROOVE_DEPTH into the macro field BEFORE the river carve (ford shallowness untouchable by construction; constant along-path depth keeps CORRIDOR_SLOPE_MAX intact; path_groove_depth exposed) + sparse curb-stone scatter in the corridor margin band (PATH_CURB_SPACING/DENSITY, ordinary ScatterInstance Stones). Groove/curb suites added; all contracts re-verified green.
+- 09:08:2026 - 14:41:26: Frame-05 wide-bed fix (render's shadow batch exposed it): ROOT CAUSE was HydrologyData::fill_level doubling as BOTH the standing-water coverage truth read by water_at AND the dist-to-water Dijkstra seed set — river trace cells written as seeds flooded their whole 16 m coarse cell (67 station-only cells; 8.5k m2 of bed with no water body over it, up to 19.7 m past the ribbon, violating the §3.3 cap). Fixed by seeding the distance field from a LOCAL set; fill_level is now standing water only. Ponds additionally exposed as drawable primitives (HydrologyData::pond_planes, appended to water_bodies().lakes — additive, lead-blessed). WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%. NEW INVARIANT: every WaterBed sample is covered by a drawable primitive.
 -->
 
 # Spec: `core` (engine/core + engine/world)
