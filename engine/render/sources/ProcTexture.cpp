@@ -129,12 +129,13 @@ glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
         return ramp_quantized(ROCK_STOPS, 3, t, 7);
     }
     case ProcTextureKind::SAND: {
-        // Fine grain + low ripple bands (integer cycle count keeps it tileable).
+        // Fine grain + faint ripple bands (integer cycle count keeps it
+        // tileable; ripple kept subtle — strong bands moire at a distance).
         const float grain = tileable_fbm(uv, {32, 32}, seed ^ 0x77u, 2);
         const float warp = tileable_fbm(uv, {4, 4}, seed, 2);
         const float ripple =
             0.5f + 0.5f * std::sin((uv.y * 5.0f + warp * 0.35f) * 6.2831853f);
-        const float t = 0.55f * grain + 0.30f * ripple + 0.15f * warp;
+        const float t = 0.62f * grain + 0.18f * ripple + 0.20f * warp;
         return ramp_quantized(SAND_STOPS, 3, t, 5);
     }
     case ProcTextureKind::DIRT: {
@@ -173,6 +174,14 @@ void write_tile(std::vector<uint8_t>& out, uint32_t out_side, uint32_t x0,
 }
 
 } // namespace
+
+float value_noise01(glm::vec2 p, uint32_t seed) {
+    // Wrap far outside any world extent: 1<<20 lattice cells (~1000 km at 1 m).
+    constexpr glm::ivec2 HUGE_PERIOD{1 << 20, 1 << 20};
+    const glm::vec2 uv{p.x / static_cast<float>(HUGE_PERIOD.x),
+                       p.y / static_cast<float>(HUGE_PERIOD.y)};
+    return periodic_value_noise(uv, HUGE_PERIOD, seed);
+}
 
 float tileable_fbm(glm::vec2 uv, glm::ivec2 period, uint32_t seed, int octaves) {
     float sum = 0.0f;

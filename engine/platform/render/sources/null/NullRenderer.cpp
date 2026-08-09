@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 10:59:00
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.cpp
 
@@ -20,6 +20,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 09:08:2026 - 10:59:00: Stage 3 — set_environment no-op.
 */
 
 #include "engine/platform/render/sources/null/NullRenderer.h"
@@ -43,6 +44,10 @@ void NullRenderer::begin_frame(const glm::mat4&, const glm::mat4&) {
 }
 
 void NullRenderer::end_frame() {}
+
+void NullRenderer::set_environment(const RenderEnvironment&) {
+    // Accepted and ignored (contract sync 09:08:2026 - 10:48).
+}
 
 MeshHandle NullRenderer::create_mesh(std::span<const Vertex>, std::span<const uint32_t>) {
     ++live_meshes_;

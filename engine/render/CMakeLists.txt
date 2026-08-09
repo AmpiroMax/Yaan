@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 00:45:00
+# Last updated: 09:08:2026 - 11:05:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -17,10 +17,12 @@
 #
 # UPD:
 # - 09:08:2026 - 00:45:00: Stage 2 — implementation sources.
+# - 09:08:2026 - 11:05:00: Stage 3 — ProcTexture.cpp (procedural textures).
 
 add_library(dfn_render STATIC
     sources/DebugDraw.cpp
     sources/FirstPersonCamera.cpp
+    sources/ProcTexture.cpp
     sources/RenderSystem.cpp
     sources/TerrainMesher.cpp
     sources/Tour.cpp)

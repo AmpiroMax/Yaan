@@ -106,9 +106,10 @@ TEST_CASE("apply pins the camera to the current step with a static pose") {
     std::filesystem::remove_all(TMP_DIR);
 }
 
-TEST_CASE("default steps satisfy the Q51 acceptance shape") {
+TEST_CASE("default steps satisfy the stage-3 acceptance shape") {
     const auto steps = Tour::default_steps();
-    REQUIRE(steps.size() == 4); // four screenshots (Q51)
+    REQUIRE(steps.size() == 6); // stage-3 route: texture, horizon, slope,
+                                // water valley, overview, sky
     for (const auto& step : steps) {
         CHECK_FALSE(step.label.empty());
         CHECK(step.position.y > 0.0f); // above the flat test chunk's ground

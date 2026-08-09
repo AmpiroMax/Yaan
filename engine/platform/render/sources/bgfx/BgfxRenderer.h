@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 10:58:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -29,6 +29,8 @@ Notes:
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 09:08:2026 - 10:58:00: Stage 3 — set_environment (contract sync 10:48), sky
+  pass, palette post (Q9b), water transparency, point-sampled textures.
 */
 
 #pragma once
@@ -52,6 +54,7 @@ public:
 
     void begin_frame(const glm::mat4& view, const glm::mat4& proj) override;
     void end_frame() override;
+    void set_environment(const RenderEnvironment& env) override;
 
     [[nodiscard]] MeshHandle create_mesh(std::span<const Vertex> vertices,
                                          std::span<const uint32_t> indices) override;

@@ -74,6 +74,11 @@ struct ProcTextureDesc {
 [[nodiscard]] float tileable_fbm(glm::vec2 uv, glm::ivec2 period, uint32_t seed,
                                  int octaves);
 
+// Non-periodic deterministic value noise in [0,1] over an unbounded plane
+// (lattice cell = 1 unit). Used for world-space variation that must be
+// continuous across chunk borders (e.g. the terrain dryness mottling).
+[[nodiscard]] float value_noise01(glm::vec2 p, uint32_t seed);
+
 // Generates one tileable RGBA8 texture (size*size*4 bytes, row-major, alpha
 // 255). Pure and deterministic: same desc -> identical bytes.
 [[nodiscard]] std::vector<uint8_t> generate_proc_texture(const ProcTextureDesc& desc);

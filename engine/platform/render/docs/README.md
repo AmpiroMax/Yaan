@@ -1,11 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:50:00
+Last updated: 09:08:2026 - 11:26:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: lead-authored frozen interface, no backends yet.
 - 09:08:2026 - 00:50:00: Stage 2 — bgfx + null backends, shaderc build step.
+- 09:08:2026 - 11:26:00: Stage 3 — RenderEnvironment/set_environment + palette_post (contract sync 10:48), sky pass, water state, palette post, point-sampled textures.
 -->
 
 # engine/platform/render
@@ -49,7 +50,7 @@ renderer.end_frame();
 - Used by: `engine/render` (primary consumer), `engine/editor`, `engine/app`,
   tests (null backend), the screenshot tour.
 
-## Current state (stage 2)
+## Current state (stage 3)
 
 Implemented: `sources/bgfx/` — BgfxRenderer (Metal on macOS, single-threaded
 bgfx; view 0 scene -> low-res internal target, view 1 letterbox clear, view 2
@@ -57,9 +58,38 @@ integer-scaled point-sampled upscale; screenshots via a custom bgfx callback
 writing PNG through bimg; embedded shaders compiled by shaderc custom
 commands with --bin2c; reload_shaders is a documented debug no-op this
 stage) and `sources/null/` (all calls succeed, save_screenshot returns
-false). Shaders: `sources/bgfx/shaders/*.sc` — terrain (directional lambert
-over vertex ground tint), unlit, debug lines, upscale. Factories:
+false, set_environment accepted-and-ignored). Factories:
 `sources/bgfx/CreateBgfxRenderer.h`, `sources/null/CreateNullRenderer.h`.
-Target: `dfn_platform_render`; pins GLFW-independent bgfx.cmake at tag
-v1.153.9398-566 (Rule 24). The interface stays frozen; changes go through a
-group sync with the lead.
+Target: `dfn_platform_render`; pins bgfx.cmake at tag v1.153.9398-566
+(Rule 24). The interface stays frozen; changes go through a group sync with
+the lead (last: 09:08:2026 10:48 — RenderEnvironment/set_environment +
+RendererInitParams::palette_post).
+
+Stage-3 additions in the bgfx backend:
+
+- **Environment uniforms**: `set_environment` caches the RenderEnvironment;
+  `begin_frame` packs it into the `u_envParams[11]` vec4 array (index layout =
+  `shaders/dfn_env.sh`, shared by terrain/water/sky fragments).
+- **Sky pass**: backend-internal "sky" program; fullscreen quad drawn first in
+  the scene view (view 0 is `ViewMode::Sequential` since stage 3), no depth
+  test/write; horizon->zenith gradient + sun disc/glow from the environment.
+- **Palette post (Q9b)**: `RendererInitParams::palette_post` (app wires
+  DFN_PALETTE=1) -> the upscale shader Bayer-dithers in internal-pixel space
+  and quantizes to the fixed 64-color palette (`BgfxPalette.{h,cpp}`,
+  pure/testable, 8 ramps x 8 shades). OFF = exact stage-2 passthrough.
+- **Point sampling**: all textures bound via `submit` are point-sampled
+  (Daggerfall crunch; also prevents bleed across terrain-atlas cells).
+
+### Logical program name -> render state (backend convention)
+
+| Name | State |
+|---|---|
+| `terrain`, `unlit` (and any unlisted name) | opaque: RGB+A+Z write, depth test LESS |
+| `water` | transparent: RGB+A write, depth test LESS, NO depth write, alpha blend; callers submit transparents after opaques (scene view is sequential) |
+| `debug`, `sky`, `upscale` | backend-internal (lines / background / post) |
+
+Shaders: `sources/bgfx/shaders/*.sc` — terrain v2 (2x2 atlas splat by
+slope/height/dryness + lambert + distance fog), unlit, debug lines, sky,
+water (dual scrolled samples, fog-aware alpha), upscale (+palette),
+`dfn_env.sh` (environment uniform layout — change only together with
+`BgfxRenderer.cpp::apply_environment`).

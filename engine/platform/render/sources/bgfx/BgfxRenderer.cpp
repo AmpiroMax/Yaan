@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 10:56:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -29,17 +29,23 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation (Metal, internal
   target + integer upscale, embedded shaders, screenshot scheduling).
+- 09:08:2026 - 10:56:00: Stage 3 — RenderEnvironment -> u_envParams uniforms,
+  backend sky pass (sequential scene view), palette post in the upscale pass
+  (Q9b, RendererInitParams::palette_post), "water" logical name -> alpha-blend
+  state, point-sampled material textures.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
 
 #include "engine/platform/render/sources/bgfx/BgfxCallback.h"
+#include "engine/platform/render/sources/bgfx/BgfxPalette.h"
 #include "engine/platform/render/sources/bgfx/CreateBgfxRenderer.h"
 
 #include <bgfx/bgfx.h>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -57,6 +63,10 @@ UPD:
 #include <fs_debug_mtl.h>
 #include <vs_upscale_mtl.h>
 #include <fs_upscale_mtl.h>
+#include <vs_sky_mtl.h>
+#include <fs_sky_mtl.h>
+#include <vs_water_mtl.h>
+#include <fs_water_mtl.h>
 #endif
 
 namespace dfn::platform {
@@ -90,14 +100,26 @@ const ProgramSource PROGRAM_TABLE[] = {
                 {fs_debug_mtl, sizeof(fs_debug_mtl)}},
     {"upscale", {vs_upscale_mtl, sizeof(vs_upscale_mtl)},
                 {fs_upscale_mtl, sizeof(fs_upscale_mtl)}},
+    {"sky",     {vs_sky_mtl, sizeof(vs_sky_mtl)},
+                {fs_sky_mtl, sizeof(fs_sky_mtl)}},
+    {"water",   {vs_water_mtl, sizeof(vs_water_mtl)},
+                {fs_water_mtl, sizeof(fs_water_mtl)}},
 };
 #else
 // Non-Apple platforms compile clean but ship no embedded shaders this stage
 // (macOS focus per the stage-2 brief); load_program returns invalid handles.
 const ProgramSource PROGRAM_TABLE[] = {
-    {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}}, {"upscale", {}, {}},
+    {"terrain", {}, {}}, {"unlit", {}, {}}, {"debug", {}, {}},
+    {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}},
 };
 #endif
+
+// Logical program names rendered with alpha blend + read-only depth (the
+// name -> render-state convention acknowledged at the stage-3 sync).
+constexpr const char* TRANSPARENT_PROGRAMS[] = {"water"};
+
+constexpr uint16_t ENV_PARAM_VEC4S = 11; // layout contract with dfn_env.sh
+constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {
     float x, y, z;
@@ -138,10 +160,18 @@ struct BgfxRenderer::Impl {
     bgfx::FrameBufferHandle internal_fb = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_tex_color = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_params = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_env_params = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_post_params = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_palette = BGFX_INVALID_HANDLE;
     bgfx::VertexBufferHandle quad_vb = BGFX_INVALID_HANDLE;
     bgfx::IndexBufferHandle quad_ib = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle upscale_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle debug_program = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle sky_program = BGFX_INVALID_HANDLE;
+
+    RenderEnvironment environment;                 // last set_environment (defaults valid)
+    std::array<glm::vec4, 64> palette{};           // fixed palette (Q9b)
+    bool palette_post = false;
 
     struct MeshRes {
         bgfx::VertexBufferHandle vb;
@@ -150,6 +180,7 @@ struct BgfxRenderer::Impl {
     std::unordered_map<uint32_t, MeshRes> meshes;
     std::unordered_map<uint32_t, bgfx::TextureHandle> textures;
     std::unordered_map<uint32_t, bgfx::ProgramHandle> programs;
+    std::unordered_map<uint32_t, bool> transparent; // program id -> water-style state
     uint32_t next_id = 1;
 
     std::vector<DebugVertex> debug_lines; // flushed each end_frame
@@ -168,6 +199,27 @@ struct BgfxRenderer::Impl {
         }
         std::fprintf(stderr, "[render] unknown shader program: %s\n", name);
         return BGFX_INVALID_HANDLE;
+    }
+
+    // Packs the cached RenderEnvironment into u_envParams; the index layout is
+    // the dfn_env.sh contract. Called once per frame in begin_frame — uniform
+    // values persist across submits within the frame.
+    void apply_environment() const {
+        const RenderEnvironment& e = environment;
+        glm::vec4 packed[ENV_PARAM_VEC4S] = {
+            {e.sun_direction, 0.0f},
+            {e.sun_color, 0.0f},
+            {e.ambient_color, 0.0f},
+            {e.fog_color, 0.0f},
+            {e.fog_start_m, e.fog_end_m, e.time_seconds, 0.0f},
+            {e.sky_zenith_color, 0.0f},
+            {e.sky_horizon_color, 0.0f},
+            {e.sand_height_m, e.sand_blend_m, e.rock_slope_start, e.rock_slope_end},
+            {e.terrain_tiles_per_chunk, 0.0f, 0.0f, 0.0f},
+            e.water_color,
+            {e.water_scroll_uv, 0.0f, 0.0f},
+        };
+        bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
     }
 
     // Largest integer factor of the internal target fitting the framebuffer,
@@ -259,6 +311,11 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
 
     im.s_tex_color = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
     im.u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+    im.u_env_params =
+        bgfx::createUniform("u_envParams", bgfx::UniformType::Vec4, ENV_PARAM_VEC4S);
+    im.u_post_params = bgfx::createUniform("u_postParams", bgfx::UniformType::Vec4);
+    im.u_palette =
+        bgfx::createUniform("u_palette", bgfx::UniformType::Vec4, PALETTE_SIZE);
     im.quad_vb = bgfx::createVertexBuffer(
         bgfx::makeRef(UPSCALE_QUAD_VERTICES, sizeof(UPSCALE_QUAD_VERTICES)),
         im.upscale_layout);
@@ -266,6 +323,15 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
         bgfx::makeRef(UPSCALE_QUAD_INDICES, sizeof(UPSCALE_QUAD_INDICES)));
     im.upscale_program = im.make_program("upscale");
     im.debug_program = im.make_program("debug");
+    im.sky_program = im.make_program("sky");
+
+    // Sequential scene view (stage 3): sky first (backend), then the caller's
+    // opaque submits, then transparents (RenderSystem orders them), then debug
+    // lines in end_frame. Depth testing still resolves opaque occlusion.
+    bgfx::setViewMode(VIEW_SCENE, bgfx::ViewMode::Sequential);
+
+    im.palette_post = params.palette_post;
+    im.palette = build_dfn_palette();
 
     im.initialized = true;
     return true;
@@ -291,9 +357,13 @@ void BgfxRenderer::shutdown() {
     im.programs.clear();
     if (bgfx::isValid(im.upscale_program)) bgfx::destroy(im.upscale_program);
     if (bgfx::isValid(im.debug_program)) bgfx::destroy(im.debug_program);
+    if (bgfx::isValid(im.sky_program)) bgfx::destroy(im.sky_program);
     if (bgfx::isValid(im.quad_ib)) bgfx::destroy(im.quad_ib);
     if (bgfx::isValid(im.quad_vb)) bgfx::destroy(im.quad_vb);
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);
+    if (bgfx::isValid(im.u_env_params)) bgfx::destroy(im.u_env_params);
+    if (bgfx::isValid(im.u_post_params)) bgfx::destroy(im.u_post_params);
+    if (bgfx::isValid(im.u_palette)) bgfx::destroy(im.u_palette);
     if (bgfx::isValid(im.s_tex_color)) bgfx::destroy(im.s_tex_color);
     if (bgfx::isValid(im.internal_fb)) bgfx::destroy(im.internal_fb);
     bgfx::frame(); // flush destroys (and any pending screenshot write)
@@ -326,6 +396,27 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
                        SKY_COLOR_RGBA, 1.0f, 0);
     bgfx::setViewTransform(VIEW_SCENE, glm::value_ptr(view), glm::value_ptr(proj));
     bgfx::touch(VIEW_SCENE); // clear even on an empty frame
+
+    // Frame environment (cached; struct defaults are valid pre-first-set).
+    im.apply_environment();
+
+    // Sky background: fullscreen quad, no depth test/write; everything solid
+    // draws over it (sequential view — this is always the first draw).
+    if (bgfx::isValid(im.sky_program)) {
+        bgfx::setVertexBuffer(0, im.quad_vb);
+        bgfx::setIndexBuffer(im.quad_ib);
+        bgfx::setState(BGFX_STATE_WRITE_RGB);
+        bgfx::submit(VIEW_SCENE, im.sky_program);
+    }
+}
+
+void BgfxRenderer::set_environment(const RenderEnvironment& env) {
+    impl_->environment = env;
+    // Uniforms are (re)applied at the next begin_frame; if we are mid-frame,
+    // update them now so this frame's remaining submits see the new values.
+    if (impl_->initialized && impl_->in_frame) {
+        impl_->apply_environment();
+    }
 }
 
 void BgfxRenderer::end_frame() {
@@ -367,6 +458,14 @@ void BgfxRenderer::end_frame() {
         bgfx::setViewRect(VIEW_UPSCALE, static_cast<uint16_t>(dx),
                           static_cast<uint16_t>(dy), static_cast<uint16_t>(dw),
                           static_cast<uint16_t>(dh));
+        const float post[4] = {im.palette_post ? 1.0f : 0.0f,
+                               static_cast<float>(PALETTE_SIZE),
+                               static_cast<float>(im.internal_width),
+                               static_cast<float>(im.internal_height)};
+        bgfx::setUniform(im.u_post_params, post);
+        if (im.palette_post) {
+            bgfx::setUniform(im.u_palette, im.palette.data(), PALETTE_SIZE);
+        }
         bgfx::setTexture(0, im.s_tex_color, bgfx::getTexture(im.internal_fb, 0));
         bgfx::setVertexBuffer(0, im.quad_vb);
         bgfx::setIndexBuffer(im.quad_ib);
@@ -455,6 +554,11 @@ ProgramHandle BgfxRenderer::load_program(std::string_view name) {
     }
     const uint32_t id = im.next_id++;
     im.programs.emplace(id, prog);
+    for (const char* transparent_name : TRANSPARENT_PROGRAMS) {
+        if (name == transparent_name) {
+            im.transparent.emplace(id, true);
+        }
+    }
     return ProgramHandle{id};
 }
 
@@ -465,6 +569,7 @@ void BgfxRenderer::destroy_program(ProgramHandle program) {
         bgfx::destroy(it->second);
         im.programs.erase(it);
     }
+    im.transparent.erase(program.id);
 }
 
 void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
@@ -485,14 +590,26 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     float params[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     const auto tex_it = im.textures.find(texture.id);
     if (tex_it != im.textures.end()) {
-        bgfx::setTexture(0, im.s_tex_color, tex_it->second);
+        // Point-sampled material textures: Daggerfall crunch, and no bleed
+        // across the terrain atlas cells (stage-3 sync, informational item).
+        bgfx::setTexture(0, im.s_tex_color, tex_it->second,
+                         BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                             | BGFX_SAMPLER_MIP_POINT);
         params[0] = 1.0f;
     }
     bgfx::setUniform(im.u_params, params);
 
-    // Culling deliberately off this stage (see header notice).
-    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z
-                   | BGFX_STATE_DEPTH_TEST_LESS);
+    // Culling deliberately off this stage (see header notice). Transparent
+    // programs ("water"): alpha blend, depth read-only, drawn after opaques
+    // by the caller (sequential view).
+    const bool is_transparent = im.transparent.contains(program.id);
+    const uint64_t state =
+        is_transparent
+            ? (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+               | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_BLEND_ALPHA)
+            : (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z
+               | BGFX_STATE_DEPTH_TEST_LESS);
+    bgfx::setState(state);
     bgfx::submit(VIEW_SCENE, prog_it->second);
 }
 

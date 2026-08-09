@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 10:32:00
+Last updated: 09:08:2026 - 11:28:00
 -->
 <!--
 UPD:
@@ -16,6 +16,11 @@ UPD:
   terrain underside. Fix: default_steps(ground_height = 0.0f), app passes the
   terrain height at the chunk center (App.cpp one-liner, lead). Defaulted
   parameter addition to the frozen Tour.h agreed with the lead (Rule 26).
+- 09:08:2026 - 11:28:00: Stage 3 «Картинка»: procedural textures (ProcTexture),
+  terrain splat v2, sky/fog/sun atmosphere, water plane capability, palette
+  post flag (Q9б), Tour v2 six-vantage route + 4-way res/palette matrix.
+  Contract sync 10:48 (RenderEnvironment/set_environment, palette_post).
+  Boundary agreement with core for stage 3b (SurfaceFieldView, scatter).
 -->
 
 # Spec — render agent
@@ -97,6 +102,49 @@ Stage-2 additions (my zone, agreed with the lead at stage kickoff):
 - `engine/render/sources/TerrainMesher.h` — `TerrainMeshData` +
   `build_terrain_mesh(HeightFieldView)`: pure, deterministic, GPU-free.
 - `Tour::internal_res_from_env(fallback)` — parses `DFN_INTERNAL_RES=WxH`.
+
+Stage-3 additions (contract sync 09:08:2026 10:48, applied by the lead):
+
+- `IRenderer::set_environment(const RenderEnvironment&)` — per-frame
+  atmosphere + shared material parameters (sun/ambient, fog span+color, sky
+  gradient colors, terrain splat thresholds, water color/scroll, visual time).
+  Values originate in `engine/render/sources/Materials.h` (look-dev constants,
+  explicitly temporary until the design doc; NUMBERS.md migration flagged);
+  backends map them to shader uniforms — retuning never recompiles shaders.
+  Null backend: accepted and ignored.
+- `RendererInitParams::palette_post` (Q9б) — optional post pass in the upscale
+  shader: 4x4 Bayer dither in internal-pixel space + nearest-color
+  quantization to a fixed 64-color palette (8 ramps x 8 shades,
+  `BgfxPalette.{h,cpp}`). `DFN_PALETTE=1` -> AppConfig (lead wiring). OFF by
+  default = bit-exact stage-2 passthrough.
+- `engine/render/sources/ProcTexture.h` — procedural textures (Q4в): periodic
+  integer-hash value-noise fBm (`tileable_fbm`, exact wrap), non-periodic
+  `value_noise01`, per-kind recipes (grass/rock/sand/dirt/water, quantized
+  5-8 shade ramps), `generate_terrain_atlas` 2x2 layout contract with
+  fs_terrain (grass|rock / sand|dirt). Deterministic and byte-stable; cached
+  by parameters in RenderSystem under registry-assigned dense asset ids.
+- `RenderSystem::set_water/clear_water/water_enabled` + `environment()`
+  accessor; `DFN_WATER=<height_m>` debug env in init. Water renders via the
+  "water" logical program: backend gives it alpha blend + read-only depth
+  (name->state convention, acknowledged by the lead; see the platform README
+  table) and RenderSystem submits it after all opaques (scene view is
+  sequential since stage 3).
+- Backend-internal: "sky" program (fullscreen gradient + sun, drawn first, no
+  depth), `u_envParams[11]` uniform layout shared via `shaders/dfn_env.sh`
+  (change only together with `apply_environment`), point-sampled material
+  textures.
+
+**Boundary agreement for stage 3b (with core, in-session 09:08:2026):**
+core adds an ADDITIVE `dfn::math::SurfaceFieldView` (same grid/lifetime as
+HeightFieldView; float spans dist_to_water + water_surface with NO_WATER
+sentinel, uint8 SurfaceClass mask) exposed via `ChunkManager::surfacefield`,
+app ferries it like heightfields; render will rebake per-vertex splat weights
+from it (real beaches via dist_to_water, class mask as design truth) and
+generalize water to explicit body primitives (lake plane, river ribbon) when
+core exposes them. Scatter (P5): per-chunk `ScatterInstance` arrays, drawing
+is render's (per-instance submits of shared meshes first; instancing via
+contract sync only if profiling demands). Optional future: river flow
+direction for current-following water scroll.
 
 ## Internal design
 
@@ -245,17 +293,45 @@ Stage 2 (done in this changeset — skeleton, Q37/Q51):
    RenderSystem -> Tour and shoots the Q51 acceptance frames at both internal
    resolutions.
 
-Stage 3+ (after the next sync): palette post-process flag, skinned meshes
-(contract sync), frustum culling with core's math types, LOD/skirts, sub-tick
-mouse-look offset, gamepad methods, editor render hooks.
+Stage 3 «Картинка» (done in this changeset):
+1. ProcTexture module + tests (determinism, exact tiling, atlas layout,
+   low color count).
+2. Contract sync batch (lead applied 10:48): RenderEnvironment +
+   set_environment, palette_post; both backends implement.
+3. Shaders v2: terrain atlas splat (slope/height/dryness uniforms) + fog;
+   new sky and water pairs; upscale palette+dither; shared dfn_env.sh.
+4. RenderSystem v2: atlas/water textures (dense-id registry cache), frame
+   environment (Materials.h), water plane API + DFN_WATER debug env.
+5. Tour v2 six-vantage route; 4-way matrix (2 res x palette on/off) shot via
+   tools/run_tour.sh; all frames read and checked (Rule 27) — see devlog
+   img for the sync.
+6. Look-dev calibration measured, not guessed: seed-1 slope statistics probed
+   (p99 = 0.005) -> rock band 0.0025-0.0060 documented as flat-worldgen
+   placeholder; fog span 0.25-0.70 of CAMERA_FAR hides the streaming edge.
+
+Stage 3b/4 (next): rebake splat weights from core's SurfaceFieldView (real
+beaches/design-truth mask), water body primitives (lake/river), scatter
+drawing (trees/bushes/stones), placeholder prisms for POI markers, skinned
+meshes (contract sync), frustum culling with core's math types, LOD/skirts,
+sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk.
 
 ## How it is verified
 
-- **Stage-2 acceptance criterion (Q51):** `DFN_TOUR=1` run captures **4
-  screenshots, none black, with visible ground and a correct horizon** (the
-  horizon line sits where CAMERA far plane meets the flat chunk at eye height,
-  i.e. not at the frame's top or bottom edge in a level shot). Checked frame
-  by frame against the checklist (Q24); golden-image pixel comparison later.
+- **Stage-3 acceptance (Rule 27):** `DFN_WATER=15 bash tools/run_tour.sh
+  <build>` shoots the 4-way matrix (640x360 / 320x180 x palette on/off), six
+  frames each. Checklist per frame: textures tile without obvious repetition
+  at eye level; slope splat reads (grey rock on the steepest ground — faint by
+  design on the flat stage-2 worldgen, see Materials.h); horizon fog blends
+  terrain into the sky horizon color with no visible world edge (all vantages
+  aim into the testbed interior); sky gradient + sun disc; water plane with
+  beach band; palette mode visibly quantizes (Bayer dither) without destroying
+  readability; both resolutions consistent. All 24 frames read by the agent in
+  this stage's look-dev loop; the rock-splat mechanism additionally verified
+  with a temporary aggressive threshold shoot (not shipped).
+- **Stage-2 acceptance criterion (Q51, kept green):** `DFN_TOUR=1` run captures
+  screenshots, none black, with visible ground and a correct horizon. Checked
+  frame by frame against the checklist (Q24); golden-image pixel comparison
+  later.
 - Rule 27: any image-affecting change re-runs the tour before review.
 - Headless: the same tour under null window/render must walk all steps and
   exit 0 (Rule 3) — CI smoke test without a GPU.

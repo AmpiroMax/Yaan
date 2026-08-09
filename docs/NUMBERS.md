@@ -1,6 +1,6 @@
 <!--
 Created: 08:08:2026 - 21:35:00
-Last updated: 09:08:2026 - 11:05:00
+Last updated: 09:08:2026 - 11:28:00
 -->
 <!--
 UPD:
@@ -11,6 +11,8 @@ UPD:
 - 09:08:2026 - 00:48:00: Added GRAVITY and MOUSE_SENSITIVITY (sim stage-2 request, Rule 14).
 - 09:08:2026 - 10:40:00: INTERNAL_RES: пользователь отложил выбор до текстур (этап 3); 640×360 — рабочий дефолт.
 - 09:08:2026 - 11:05:00: Большой блок констант ландшафта из LANDSCAPE.md (design, этап 3) + обещанные с синка №2 октавы worldgen. Все предварительные до синка №3.
+- 09:08:2026 - 11:20:00: Запрос core для P2/P4/P5: гидрология, долинная редистрибуция, машиночитаемые _MIN/_MAX разбивки диапазонов (диапазоны через тире генератор пропускает).
+- 09:08:2026 - 11:28:00: Разбивки переформатированы в строку-на-константу — 4-колоночная таблица теряла _MAX (парсер читает первые две ячейки; поймал core).
 -->
 
 # NUMBERS.md — реестр констант проекта
@@ -194,6 +196,44 @@ UPD:
 | `HAMLET_COMMON_RADIUS` | 15–25 | м |
 | `TREE_TRI_BUDGET` | 150–500 | трис |
 | `HOUSE_TRI_BUDGET` | 200–600 | трис |
+
+
+### Генератор v2 — запрос core (P2/P4/P5)
+
+| Константа | Значение | Единица | Примечание |
+|---|---|---|---|
+| `WORLDGEN_VALLEY_EXPONENT` | 1.25 | — | pow-редистрибуция к плоским долинам (§2.1); подобрано против фактического поля сида 1 |
+| `WORLDGEN_HYDRO_GRID_STEP` | 16 | м | грубая сетка гидрологии (§3.1) |
+| `RIVER_STATION_SPACING` | 4 | м | шаг ресемплинга полилинии реки |
+| `RIVER_SINUOSITY_MIN` | 1.15 | — | |
+| `RIVER_BANK_BLEND_FACTOR` | 2 | ×ширины | полоса сглаживания берега |
+| `FORD_SPAN` | 6 | м | приподнятое дно брода |
+| `CORRIDOR_SLOPE_MAX` | 0.44 | рад | уклон коридора критического пути |
+
+### Машиночитаемые разбивки диапазонов (одна константа на строку; исходные диапазонные строки — документация)
+
+| Константа | Значение | Единица |
+|---|---|---|
+| `RIVER_WIDTH_MIN` | 4 | м |
+| `RIVER_WIDTH_MAX` | 8 | м |
+| `TREE_SPACING_FOREST_MIN` | 5 | м |
+| `TREE_SPACING_FOREST_MAX` | 8 | м |
+| `CLEARING_INTERVAL_MIN` | 150 | м |
+| `CLEARING_INTERVAL_MAX` | 250 | м |
+| `CLEARING_RADIUS_MIN` | 15 | м |
+| `CLEARING_RADIUS_MAX` | 30 | м |
+| `HAMLET_SIZE_MIN` | 4 | домов |
+| `HAMLET_SIZE_MAX` | 8 | домов |
+| `HAMLET_COMMON_RADIUS_MIN` | 15 | м |
+| `HAMLET_COMMON_RADIUS_MAX` | 25 | м |
+| `BUSH_EDGE_DENSITY_MIN` | 0.01 | шт/м² |
+| `BUSH_EDGE_DENSITY_MAX` | 0.03 | шт/м² |
+| `STONE_DENSITY_MIN` | 0.005 | шт/м² |
+| `STONE_DENSITY_MAX` | 0.02 | шт/м² |
+| `FORD_SPACING_MIN` | 200 | м |
+| `FORD_SPACING_MAX` | 400 | м |
+| `GRASS_DENSITY_MIN` | 0.5 | шт/м² |
+| `GRASS_DENSITY_MAX` | 1.5 | шт/м² |
 
 ## Код и процесс
 

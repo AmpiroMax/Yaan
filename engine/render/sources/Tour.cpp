@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:29:00
+Last updated: 09:08:2026 - 11:05:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -27,6 +27,9 @@ UPD:
   under the generated surface (~24 m at the center, seed 1), rendering the
   terrain underside above the horizon — mistaken for a vertically flipped
   image. See Tour.h UPD for the full root cause.
+- 09:08:2026 - 11:05:00: Stage 3 — Tour v2 route: six vantages targeting the
+  stage-3 checklist (texture tiling, fog/horizon, slope splat, water valley,
+  overview, sky+sun).
 */
 
 #include "engine/render/sources/Tour.h"
@@ -143,20 +146,26 @@ bool Tour::post_frame(platform::IRenderer& renderer) {
 }
 
 std::vector<TourStep> Tour::default_steps(float ground_height) {
-    // The stage-2 acceptance route (Q51): 4 vantages over the test chunk
-    // (chunk (0,0) spans 0..CHUNK_SIZE on x/z). Positions derive from
-    // NUMBERS.md constants; `ground_height` is the terrain height at the
-    // chunk center, supplied by the app (the tour has no world access) so
-    // eye-level vantages sit above the generated surface, not under it.
+    // Stage-3 acceptance route («Картинка»): six vantages over the test chunk
+    // (chunk (0,0) spans 0..CHUNK_SIZE on x/z), each aimed at one checklist
+    // item — texture detail/tiling, fog+horizon blend, slope splat, water in
+    // the valleys (with DFN_WATER), overview, sky gradient + sun. Positions
+    // derive from NUMBERS.md constants; `ground_height` is the terrain height
+    // at the chunk center, supplied by the app (the tour has no world access)
+    // so eye-level vantages sit above the generated surface.
     const float size = static_cast<float>(config::CHUNK_SIZE);
     const float mid = size * 0.5f;
     const float eye = ground_height + static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    // All eye-level vantages aim INTO the testbed interior (from the spawn
+    // corner that is yaw ~1.6..2.9): outward aims put the unloaded world edge
+    // inside the fog-free range and break the horizon (seen in look-dev).
     return {
-        {"center_north", {mid, eye, mid}, 0.0f, 0.0f, 30},
-        {"center_east_down", {mid, eye + 2.0f, mid}, 1.5708f, -0.15f, 10},
-        {"corner_diagonal", {size * 0.125f, eye + 8.0f, size * 0.125f},
-         2.3562f, -0.2f, 10},
-        {"overview", {mid, ground_height + 60.0f, mid}, 0.7854f, -0.9f, 10},
+        {"eye_texture", {mid, eye, mid}, 2.0f, -0.5f, 30},
+        {"eye_horizon", {mid, eye, mid}, 2.3562f, -0.02f, 10},
+        {"slope_splat", {size * 0.7f, eye + 18.0f, size * 0.7f}, 2.3562f, -0.35f, 10},
+        {"water_valley", {mid, ground_height + 30.0f, mid}, 2.3562f, -0.5f, 10},
+        {"overview", {mid, ground_height + 60.0f, mid}, 2.3562f, -0.9f, 10},
+        {"sky_sun", {mid, eye, mid}, 2.48f, 0.45f, 10},
     };
 }
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 11:01:00
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -22,9 +22,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 09:08:2026 - 11:01:00: Stage 3 — vertex alpha now carries the grass<->dirt
+  "dryness" mottling (world-space value noise, continuous across chunks);
+  slope tint thresholds aligned with the shader splat band (Materials.h).
 */
 
 #include "engine/render/sources/TerrainMesher.h"
+
+#include "engine/render/sources/ProcTexture.h"
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
@@ -41,13 +46,19 @@ constexpr glm::vec3 GRASS_LOW{0.33f, 0.45f, 0.22f};   // valley grass
 constexpr glm::vec3 GRASS_HIGH{0.48f, 0.44f, 0.26f};  // dry upland grass
 constexpr glm::vec3 ROCK{0.42f, 0.40f, 0.38f};        // steep slopes
 constexpr float HEIGHT_BAND_M = 60.0f; // grass fades to dry over this rise
-constexpr float SLOPE_ROCK_START = 0.55f; // slope (1 - normal.y) where rock begins
+constexpr float SLOPE_ROCK_START = 0.07f; // slope (1 - normal.y) where rock begins
+                                          // (aligned with Materials.h splat band)
 
-uint32_t pack_rgba(const glm::vec3& c) {
+// Dryness mottling: world-space patch scale and seed (visual, not worldgen).
+constexpr float DRY_PATCH_SCALE = 1.0f / 37.0f; // patches ~ tens of meters
+constexpr uint32_t DRY_NOISE_SEED = 0x7E22u;
+
+uint32_t pack_rgba(const glm::vec3& c, float a) {
     const auto r = static_cast<uint32_t>(glm::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
     const auto g = static_cast<uint32_t>(glm::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
     const auto b = static_cast<uint32_t>(glm::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
-    return 0xFF000000u | (b << 16) | (g << 8) | r; // 0xAABBGGRR (frozen Vertex)
+    const auto av = static_cast<uint32_t>(glm::clamp(a, 0.0f, 1.0f) * 255.0f + 0.5f);
+    return (av << 24) | (b << 16) | (g << 8) | r; // 0xAABBGGRR (frozen Vertex)
 }
 
 } // namespace
@@ -86,13 +97,23 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field) {
             const glm::vec3 tint = glm::mix(glm::mix(GRASS_LOW, GRASS_HIGH, band),
                                             ROCK, rockness);
 
+            const glm::vec3 wpos{field.origin.x + static_cast<float>(x) * field.step,
+                                 h,
+                                 field.origin.y + static_cast<float>(z) * field.step};
+            // Grass<->dirt mottling for the shader splat: two-octave world-space
+            // value noise, remapped so mid-values stay grass (alpha = dryness).
+            const glm::vec2 dry_p{wpos.x * DRY_PATCH_SCALE, wpos.z * DRY_PATCH_SCALE};
+            const float dry_noise =
+                0.65f * value_noise01(dry_p, DRY_NOISE_SEED)
+                + 0.35f * value_noise01(dry_p * 2.7f, DRY_NOISE_SEED ^ 0x5Au);
+            const float dryness = glm::smoothstep(0.55f, 0.75f, dry_noise);
+
             platform::Vertex& v = mesh.vertices[static_cast<size_t>(z) * res + x];
-            v.position = {field.origin.x + static_cast<float>(x) * field.step, h,
-                          field.origin.y + static_cast<float>(z) * field.step};
+            v.position = wpos;
             v.normal = normal;
             v.uv = {static_cast<float>(x) * field.step * inv_span,
                     static_cast<float>(z) * field.step * inv_span};
-            v.color_rgba = pack_rgba(tint);
+            v.color_rgba = pack_rgba(tint, dryness);
         }
     }
 

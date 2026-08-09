@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 11:08:00
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -21,6 +21,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial tests.
+- 09:08:2026 - 11:08:00: Stage 3 — vertex alpha now carries the grass/dirt
+  dryness (world-continuous), no longer forced opaque; test updated to check
+  determinism + cross-chunk alpha continuity instead.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -137,7 +140,7 @@ TEST_CASE("normals: flat field points up, constant slope tilts against it") {
     CHECK(v.normal.z == doctest::Approx(0.0f));
 }
 
-TEST_CASE("terrain mesh is deterministic and colors are opaque") {
+TEST_CASE("terrain mesh is deterministic (colors incl. dryness alpha)") {
     const auto raw = [](uint32_t x, uint32_t z) {
         return static_cast<uint16_t>(53 * x * x + 7 * z);
     };
@@ -146,8 +149,9 @@ TEST_CASE("terrain mesh is deterministic and colors are opaque") {
     const TerrainMeshData m2 = build_terrain_mesh(f.view);
     REQUIRE(m1.vertices.size() == m2.vertices.size());
     for (size_t i = 0; i < m1.vertices.size(); ++i) {
+        // Stage 3: alpha is the grass<->dirt dryness — any value, but it must
+        // be a pure function of the input (deterministic across rebuilds).
         CHECK(m1.vertices[i].color_rgba == m2.vertices[i].color_rgba);
-        CHECK((m1.vertices[i].color_rgba & 0xFF000000u) == 0xFF000000u); // alpha 255
     }
 }
 

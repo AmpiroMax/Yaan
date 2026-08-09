@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 01:10:00
+# Last updated: 09:08:2026 - 10:57:00
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -25,6 +25,8 @@
 # - 09:08:2026 - 00:45:00: Stage 2 — bgfx backend, shaderc step, null backend.
 # - 09:08:2026 - 01:10:00: bgfx/bimg/bx include dirs marked SYSTEM (zero-warning
 #   gate: third-party headers must not trip -Wpedantic in our TUs).
+# - 09:08:2026 - 10:57:00: Stage 3 — sky/water shader pairs, dfn_env.sh shared
+#   include (shader dir added to shaderc -i), BgfxPalette.cpp.
 
 include(FetchContent)
 
@@ -56,20 +58,22 @@ function(dfn_compile_shader name type profile platform suffix)
                 --platform ${platform}
                 -p ${profile}
                 -i "${bgfx_cmake_SOURCE_DIR}/bgfx/src"
+                -i "${DFN_SHADER_SRC_DIR}"
                 --varyingdef "${DFN_SHADER_SRC_DIR}/varying.def.sc"
         DEPENDS shaderc
                 "${DFN_SHADER_SRC_DIR}/${name}.sc"
                 "${DFN_SHADER_SRC_DIR}/varying.def.sc"
+                "${DFN_SHADER_SRC_DIR}/dfn_env.sh"
         COMMENT "shaderc ${name} (${profile})"
         VERBATIM)
     set_property(GLOBAL APPEND PROPERTY DFN_SHADER_OUTPUTS "${out}")
 endfunction()
 
 if(APPLE)
-    foreach(shader vs_terrain vs_unlit vs_debug vs_upscale)
+    foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
-    foreach(shader fs_terrain fs_unlit fs_debug fs_upscale)
+    foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()
@@ -81,6 +85,7 @@ add_custom_target(dfn_shaders DEPENDS ${DFN_SHADER_OUTPUTS})
 add_library(dfn_platform_render STATIC
     sources/bgfx/BgfxRenderer.cpp
     sources/bgfx/BgfxCallback.cpp
+    sources/bgfx/BgfxPalette.cpp
     sources/null/NullRenderer.cpp)
 target_link_libraries(dfn_platform_render
     PUBLIC dfn_headers

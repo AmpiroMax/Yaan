@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 09:08:2026 - 11:02:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -42,12 +42,19 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
+- 09:08:2026 - 11:02:00: Stage 3 — procedural terrain atlas + water texture
+  (ProcTexture, registry-assigned dense asset ids), RenderEnvironment per
+  frame (Materials.h defaults, environment() accessor for tuning), water
+  plane capability (set_water/clear_water + DFN_WATER=<height_m> debug env),
+  render-side visual clock for water animation.
 */
 
 #pragma once
 
+#include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 
+#include <chrono>
 #include <cstdint>
 #include <glm/vec2.hpp>
 #include <unordered_map>
@@ -57,10 +64,6 @@ class World; // engine/core/ecs/sources/World.h (core zone)
 }
 namespace dfn::math {
 struct HeightFieldView; // engine/core/math/sources/HeightField.h (core zone)
-}
-namespace dfn::platform {
-class IRenderer;
-struct MeshHandle;
 }
 
 namespace dfn::render {
@@ -87,17 +90,48 @@ public:
     // (ChunkUnloaded fires before the data is freed — agreed lifetime).
     void drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord);
 
+    // Environment (stage 3) ----------------------------------------------------
+    // The frame environment sent to IRenderer::set_environment each render.
+    // Defaults from Materials.h; mutate to tune atmosphere/splat/water live.
+    // time_seconds is overwritten each frame from the render-side visual clock.
+    [[nodiscard]] platform::RenderEnvironment& environment() { return environment_; }
+
+    // Water plane capability (stage 3) -----------------------------------------
+    // Creates (or replaces) a flat water plane at world height `height_m`
+    // covering the square [center - half_extent, center + half_extent] on x/z.
+    // Also raises the terrain sand line to just above the waterline. Placement
+    // is data-driven later (design doc); the app/editor wires real calls.
+    // Debug: DFN_WATER=<height_m> in init() enables a testbed-covering plane.
+    void set_water(platform::IRenderer& renderer, float height_m,
+                   glm::vec2 center_xz, float half_extent_m);
+    void clear_water(platform::IRenderer& renderer);
+    [[nodiscard]] bool water_enabled() const { return water_mesh_ != 0; }
+
 private:
     struct ChunkKeyHash {
         size_t operator()(const glm::ivec2& v) const;
     };
 
+    // Registry-assigned dense id for a procedural texture, cached by params
+    // (stage-1 registry decision); creates and uploads on first use.
+    uint32_t procedural_texture_asset(platform::IRenderer& renderer, uint64_t key,
+                                      uint32_t width, uint32_t height,
+                                      const uint8_t* pixels);
+
     // Resource bookkeeping only — never game state (Rule 10).
     std::unordered_map<glm::ivec2, uint32_t, ChunkKeyHash> terrain_meshes_; // coord -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id
+    std::unordered_map<uint64_t, uint32_t> proc_texture_ids_; // params key -> asset id
+    uint32_t next_texture_asset_ = 1; // dense id allocator (0 = none)
     uint32_t terrain_program_ = 0; // ProgramHandle.id
     uint32_t unlit_program_ = 0;   // ProgramHandle.id
+    uint32_t water_program_ = 0;   // ProgramHandle.id
+    uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
+    uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
+    uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no water
+    platform::RenderEnvironment environment_{};
+    std::chrono::steady_clock::time_point clock_start_{}; // visual time origin
 };
 
 } // namespace dfn::render
