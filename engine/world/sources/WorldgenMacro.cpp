@@ -341,10 +341,24 @@ float summit_tor(uint64_t seed, const CragStamp& crag, glm::vec2 world, float to
         // Radius shrinks upward so the stack reads as a stack rather than a
         // cylinder, but the draw keeps it inside the ruled footprint.
         const float shrink = 1.0f - 0.5f * static_cast<float>(i) / static_cast<float>(slabs);
-        const float r = (static_cast<float>(config::SUMMIT_TOR_RADIUS_MIN)
-                         + noise::lattice_value(seed, STREAM_MASSIF_TOR, i, 1)
-                               * static_cast<float>(config::SUMMIT_TOR_RADIUS_MAX
-                                                    - config::SUMMIT_TOR_RADIUS_MIN))
+        // Footprint is DERIVED from the acceptance distance, not drawn from
+        // SUMMIT_TOR_RADIUS_MIN/MAX. Measured: at 5-10 m on a 190 m massif the
+        // tor changed the outline by NOTHING -- disabling it entirely gave an
+        // identical silhouette to the decimal. A 5 m ornament is below
+        // SILHOUETTE_MIN_PX at every acceptance distance, so it certified
+        // through I2's surface weighting while being invisible to the camera.
+        // MASSIF_SUMMIT_RADIUS_FRAC of the base radius is the same fraction I2
+        // already calls "the summit", which keeps the feature and its test on
+        // one definition. The drawn range now varies the stack ABOUT that size
+        // rather than setting it.
+        const float tor_r = std::max(
+            static_cast<float>(config::MASSIF_SUMMIT_RADIUS_FRAC) * crag.radius,
+            static_cast<float>(config::SUMMIT_TOR_RADIUS_MIN));
+        const float vary = static_cast<float>(config::SUMMIT_TOR_RADIUS_MIN)
+                         / static_cast<float>(config::SUMMIT_TOR_RADIUS_MAX);
+        const float r = tor_r
+                        * (vary + (1.0f - vary) * noise::lattice_value(
+                                      seed, STREAM_MASSIF_TOR, i, 1))
                         * shrink;
         // Lateral offset: a tor leans, and slabs sit off-axis. Bounded by the
         // slab radius so the stack cannot walk off its own footprint.

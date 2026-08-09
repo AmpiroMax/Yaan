@@ -1769,6 +1769,24 @@ wrong.
     the castle's ground from the valley standpoints after the reshape; do not
     assume 115 m of relief still buys the margin it bought at 180 m of
     radius.**
+  - **THE APRON FLARE IS THE RELEASE VALVE — spend it before moving the
+    castle.** Since I10 constrains only the body above the cliffline, the hem
+    is free to stay out where it is, and **preserving the Ward's spur is a
+    legitimate reason to let it.** Order of preference, binding on the
+    re-siting pass: (1) flare the apron so the spur survives; (2) stop the
+    contraction; (3) move the castle — **and (3) requires a story consult
+    BEFORE it lands, not after.**
+  - **Why moving the castle is the expensive option, and it is an asymmetry
+    worth understanding rather than a preference (story's catch).** When the
+    *barrow* moves, its satellites follow for free: the ward gap and the
+    barrow-facing tower are **defined relative to the barrow** (§7.0a). When
+    the *castle* moves, nothing follows — the ≈ 55 m barrow proximity, the
+    yard/gate→barrow sightline and the act-1 trespass route are each defined
+    between the castle and something that is **not moving with it**, so all
+    three break independently. **A landmark whose dependents are defined
+    relative to it is cheap to move; a landmark that is itself the fixed end
+    of other relations is expensive.** That distinction should be checked
+    before relocating anything in this document, not only here.
   - **The LR is worse and is the cheap one to fix.** 280 m over a 600–700 m
     base radius is an envelope of **≈ 23°** — flatter than Ravenscar. It does
     not exist yet, so fixing `LR_BASE_RADIUS` now costs nothing, and building

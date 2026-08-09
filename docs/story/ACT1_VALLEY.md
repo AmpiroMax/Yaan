@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 21:27:32
+Last updated: 09:08:2026 - 21:33:24
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 19:32:18: Recorded that the trespass route is now a VALIDATED worldgen invariant (continuous, deliberately non-corridor-grade, forced within 40 m of the barrow entrance) and that ward C's completion fraction has two dependents - the act-1 trespass route and the act-3 muster gap.
 - 09:08:2026 - 19:36:28: MQ4's ascent of Ravenscar is now a validated worldgen invariant (continuous walkable route to the tower ruin, <=25 deg, checked every run) - design added it after story's near-miss exposed that act 1 climaxed on a summit with no guaranteed route. Specified as an unbuilt worn watchmen's path, visually distinct from act 2's built stair.
 - 09:08:2026 - 21:27:32: Answered design's pre-clearance on reshaping Ravenscar (steeper, narrower base, four ribs): nothing in the arc needs a broad-shouldered crag — steeper suits act 1 — but recorded two escalation conditions in §2: the ward-tower ascent must stay an UNBUILT walkable path (a built stair here would collapse the two-different-climbs distinction with act 2's Seven Thousand Steps), and the narrowed base must be re-checked so the castle still reads against rock rather than sky, since that siting is what protects the tower's skyline monopoly.
+- 09:08:2026 - 21:33:24: Design accepted both conditions as binding in LANDSCAPE (incl. closing the graded-ramp-is-masonry loophole). Recorded the reshape's gift — on a steep banded massif the walkable line must wrap, so ledges are traverses and cliff-band breaks are risers, making the unbuilt worn path true by construction — and the escalated castle risk: the Ward may end up freestanding if the hem contracts far enough, with design committed to moving it or stopping the contraction; if it moves, story must be consulted since barrow proximity, the yard sightline and the trespass route are all keyed to its position.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -165,7 +166,27 @@ preferences:
    protecting the tower's skyline monopoly (and so the black-signal image) is
    siting the Ward *inside the crag's angular footprint*. Narrowing the base
    radius shrinks that envelope, so the against-rock read needs re-checking
-   from the valley standpoints after the reshape. Getting the
+   from the valley standpoints after the reshape. **Escalated risk (design,
+   09:08:2026):** the Ward sits ~148 m from the crag centre, so a far enough
+   contraction leaves it freestanding on flat ground beside the massif rather
+   than on a spur of it. Design has committed that the castle moves or the
+   contraction stops rather than letting it end up freestanding. **If moving
+   the castle is ever the answer, story must be consulted:** the ~55 m
+   barrow proximity, the yard/gate sightline and the act-1 trespass route
+   are load-bearing and all keyed to where the Ward stands.
+
+**The climb's texture — a gift from the reshape (design, 09:08:2026).** On a
+massif this steep the walkable line *cannot* go straight up: 115 m of climb
+at walkable gradient needs ~247 m of run, more than any single radial gives
+once the base contracts, so the route must wrap. The banded rock supplies it
+exactly — **the ledges are the traverses and the breaks in the cliff bands
+are the risers**. Author the ascent as that: a line zig-zagging ledge to
+ledge through gaps in the rock, which is what real mountain paths do on
+banded ground and *cannot* be mistaken for a stair, because nobody laid it.
+The worn watchmen's path is now true by construction rather than by
+assertion. (Design closed a loophole story could not have seen: a "graded
+ramp" here would be masonry by another name. The castle's approach ramp is a
+pad feature and unaffected.) Getting the
 grant is intrigue at the castle (§4). Putting the two together gives the
 hero the sentence that ends act 1: *the man who lit the signal was my
 family, and my family changed its name twice to survive it.* The Fen kin
