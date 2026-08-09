@@ -95,6 +95,66 @@ float crag_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     return prof * crag.peak_height * (1.0f - modulation * (1.0f - ridged));
 }
 
+/// Drainage valley (layout data): clamps terrain DOWN to a monotone floor
+/// profile inside the valley and UP to a shoulder crest just outside — the
+/// deterministic watershed the §3.1 descent trace follows. Applied to the
+/// base BEFORE the crag max() so the crag flank stays intact and the valley
+/// takes over at its foot.
+float trough_shape(const ValleyTrough& trough, float h, glm::vec2 world) {
+    if (trough.point_count < 2) {
+        return h;
+    }
+    const float shoulder_band = trough.half_width * trough.shoulder_frac;
+    const float reach = trough.half_width + shoulder_band;
+    // Distance to the polyline and the normalized along-path position of the
+    // closest point (for the floor lerp).
+    float best_d = 1e9f;
+    float best_t = 0.0f;
+    float cum = 0.0f;
+    float total = 0.0f;
+    for (int i = 0; i + 1 < trough.point_count; ++i) {
+        total += glm::length(trough.points[i + 1] - trough.points[i]);
+    }
+    if (total <= 0.0f) {
+        return h;
+    }
+    for (int i = 0; i + 1 < trough.point_count; ++i) {
+        const glm::vec2 a = trough.points[i];
+        const glm::vec2 b = trough.points[i + 1];
+        const glm::vec2 ab = b - a;
+        const float len = glm::length(ab);
+        const float t = len > 0.0f
+                          ? std::clamp(glm::dot(world - a, ab) / (len * len), 0.0f, 1.0f)
+                          : 0.0f;
+        const float d = glm::length(world - (a + ab * t));
+        if (d < best_d) {
+            best_d = d;
+            best_t = (cum + t * len) / total;
+        }
+        cum += len;
+    }
+    if (best_d >= reach) {
+        return h;
+    }
+    const float floor_h =
+        trough.floor_source + (trough.floor_mouth - trough.floor_source) * best_t;
+    if (best_d < trough.half_width) {
+        // Valley interior: terrain is clamped to the designed cross-section
+        // (floor + parabolic rise, 1.5 m noise allowance below) so the floor
+        // descends monotonically all the way to the lake rim — no stray dips
+        // that would pond against the levee, no rises that would divert the
+        // §3.1 descent out of the valley.
+        const float cross = best_d / trough.half_width;
+        const float surface = floor_h + trough.wall_height * cross * cross;
+        return std::clamp(h, surface - 1.5f, surface);
+    }
+    // Shoulder: raise terrain to the crest, fading back to the base outward —
+    // this is the watershed that keeps the drainage in the valley.
+    const float crest = floor_h + trough.wall_height;
+    const float s = smoothstep01((best_d - trough.half_width) / shoulder_band);
+    return std::max(h, (1.0f - s) * crest + s * h);
+}
+
 /// Additive radial bump (knoll, bluff).
 float bump_height(const BumpStamp& bump, glm::vec2 world) {
     if (bump.radius <= 0.0f) {
@@ -143,6 +203,9 @@ float lake_stamp(const LakeStamp& lake, float h, glm::vec2 world) {
 
 float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) {
     float h = base_height(seed, world);
+    for (const ValleyTrough& trough : layout.troughs) {
+        h = trough_shape(trough, h, world);
+    }
     h = std::max(h, crag_height(seed, layout.crag, world));
     h += bump_height(layout.knoll, world);
     h += bump_height(layout.bluff, world);

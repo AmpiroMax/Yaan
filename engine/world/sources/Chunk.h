@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -12,8 +12,9 @@ Responsibility:
 Key items:
 - ChunkCoord / chunk_group(): grid coordinate and its ecs::GroupId packing.
 - Heightmap: owned height data; view() yields the agreed math::HeightFieldView.
+- SurfaceData: owned P3 surface data; view() yields math::SurfaceFieldView.
 - WorldEntityId: stable id of a generated entity (save-delta anchor, Q56).
-- Chunk: one loaded chunk (heightmap + generated entity records).
+- Chunk: one loaded chunk (heightmap + surface + entity records + scatter).
 
 Dependencies:
 - Uses: engine/core/{math,ecs,config}, glm, std.
@@ -32,6 +33,9 @@ UPD:
   group packing for batch ECS streaming (Q22, Rule 11), stable entity ids (Q56).
 - 09:08:2026 - 00:42:03: Stage 2 — explicit size_t casts in height_at (generated
   constants are int64); no interface change.
+- 09:08:2026 - 11:05:22: Stage 3b — SurfaceData (per-sample splat/water inputs,
+  view() -> math::SurfaceFieldView per the render agreement) and scatter
+  instances added to Chunk. Additive; heightmap contract unchanged.
 */
 
 #pragma once
@@ -39,6 +43,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/EntityId.h"
 #include "engine/core/math/sources/HeightField.h"
+#include "engine/core/math/sources/SurfaceField.h"
 
 #include <cstdint>
 #include <glm/vec2.hpp>
@@ -117,12 +122,27 @@ struct GeneratedEntityRecord {
     float yaw = 0.0f;              ///< radians.
 };
 
+/// Owned per-sample surface data of one chunk (worldgen P3 outputs), same
+/// grid as the heightmap. view() yields the additive cross-zone
+/// math::SurfaceFieldView agreed with render (stage 3b).
+struct SurfaceData {
+    std::vector<float> dist_to_water;   ///< meters to nearest water edge
+    std::vector<float> water_surface;   ///< water level or math::NO_WATER
+    std::vector<uint8_t> surface_class; ///< math::SurfaceClass values
+
+    /// Non-owning cross-zone view for `coord`'s data. Valid while this
+    /// SurfaceData is alive and unmodified (same lifetime as the heightmap).
+    [[nodiscard]] math::SurfaceFieldView view(ChunkCoord coord) const;
+};
+
 /// One loaded chunk: pure data, produced by the world file reader (plus the
 /// save-delta overlay) and owned by ChunkManager.
 struct Chunk {
     ChunkCoord coord;
     Heightmap heightmap;
-    std::vector<GeneratedEntityRecord> entities;
+    SurfaceData surface;                          ///< P3 splat/water inputs
+    std::vector<GeneratedEntityRecord> entities;  ///< P4 sites (ECS-spawned)
+    std::vector<math::ScatterInstance> scatter;   ///< P5 vegetation/stones (data-only)
 };
 
 } // namespace dfn::world

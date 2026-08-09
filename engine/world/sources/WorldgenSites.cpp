@@ -46,7 +46,6 @@ namespace {
 
 constexpr float PAD_SLOPE_MAX = static_cast<float>(config::BUILDING_PAD_SLOPE_MAX);
 constexpr float WATER_MARGIN = static_cast<float>(config::BUILDING_WATER_MARGIN);
-constexpr float LAKE_LEVEL_M = static_cast<float>(config::LAKE_LEVEL_TESTBED);
 constexpr float TAU = 6.28318530717958647692f;
 
 /// Carved terrain height (macro + hydrology, no pads — pads are being placed).
@@ -80,7 +79,7 @@ struct Placer {
     SitesData& out;
     WorldEntityId next_id = 1;
 
-    void emit(SiteType type, uint8_t poi_index, glm::vec2 pos, float yaw) {
+    void emit(SiteType type, glm::vec2 pos, float yaw) {
         const SiteArchetype& a = site_archetype(type);
         const float r = pad_radius(a);
         const float h = ground_height(seed, layout, hydro, pos);
@@ -91,10 +90,11 @@ struct Placer {
     }
 
     /// Picks a position near `want` satisfying the pad slope + flood margin;
-    /// falls back to the least-slope candidate (deterministic).
+    /// falls back to the best-scored candidate (dry beats flat beats wet —
+    /// deterministic).
     glm::vec2 place(WorldGenRng& rng, glm::vec2 want, float jitter_radius) {
         glm::vec2 best = want;
-        float best_slope = std::numeric_limits<float>::max();
+        float best_score = std::numeric_limits<float>::max();
         for (int attempt = 0; attempt < 6; ++attempt) {
             glm::vec2 cand = want;
             if (attempt > 0) {
@@ -103,15 +103,20 @@ struct Placer {
                 cand += glm::vec2{std::cos(ang), std::sin(ang)} * rad;
             }
             const float slope = ground_slope(seed, layout, hydro, cand);
-            const float h = ground_height(seed, layout, hydro, cand);
             const WaterSample ws = water_at(hydro, layout, cand, macro_height(seed, layout, cand));
+            // Flood margin (§6) is relative to the NEAREST water body: a dry
+            // hollow far from any water is legal ground.
             const bool dry = ws.water_surface == math::NO_WATER
-                          && h >= LAKE_LEVEL_M + WATER_MARGIN - 0.001f;
+                          && (ws.near_level == math::NO_WATER
+                              || ws.dist_to_water > 8.0f * WATER_MARGIN
+                              || ws.height >= ws.near_level + WATER_MARGIN - 0.001f);
             if (slope <= PAD_SLOPE_MAX && dry) {
                 return cand;
             }
-            if (slope < best_slope && dry) {
-                best_slope = slope;
+            const float score = (dry ? 0.0f : 1000.0f) + slope
+                              + std::max(0.0f, 4.0f - ws.dist_to_water); // shy of banks
+            if (score < best_score) {
+                best_score = score;
                 best = cand;
             }
         }
@@ -189,14 +194,14 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
                 const glm::vec2 to_common = site.position - pos;
                 const float face = std::atan2(to_common.x, -to_common.y) // yaw 0 = -Z
                                  + (rng.next_float01() * 2.0f - 1.0f) * 0.52f;
-                placer.emit(ring[b], si, pos, face);
+                placer.emit(ring[b], pos, face);
             }
             break;
         }
         case SiteKind::Shrine: {
             const glm::vec2 pos = placer.place(rng, site.position, 8.0f);
             const glm::vec2 to_town = layout.sites[0].position - pos;
-            placer.emit(SiteType::Shrine, si, pos, std::atan2(to_town.x, -to_town.y));
+            placer.emit(SiteType::Shrine, pos, std::atan2(to_town.x, -to_town.y));
             break;
         }
         case SiteKind::DungeonEntrance: {
@@ -206,15 +211,13 @@ SitesData build_sites(uint64_t seed, const TestbedLayout& layout, const Hydrolog
             const glm::vec2 dir = glm::length(away) < layout.crag.radius
                                     ? away
                                     : layout.sites[0].position - pos;
-            placer.emit(SiteType::DungeonEntrance, si, pos,
-                        std::atan2(dir.x, -dir.y));
+            placer.emit(SiteType::DungeonEntrance, pos, std::atan2(dir.x, -dir.y));
             break;
         }
         case SiteKind::TowerRuin: {
             // Exactly on the crag peak (§7.1) — no slope scoring, the pad
             // flattens the summit.
-            placer.emit(SiteType::TowerRuin, si, site.position,
-                        rng.next_float01() * TAU);
+            placer.emit(SiteType::TowerRuin, site.position, rng.next_float01() * TAU);
             break;
         }
         }

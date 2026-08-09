@@ -337,12 +337,17 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
 
     std::vector<uint32_t> path2;
     if (hydro.ok && reached_lake) {
-        // Outlet = lowest rim-ring cell (the outlet-biased levee crest min).
+        // Outlet = lowest cell ON THE CREST LINE (the outlet-biased levee
+        // minimum). Only the outer part of the crest band qualifies: closer
+        // to the waterline the crest ramps down to lake level everywhere, and
+        // beyond the band the fade terrain dips below the crest — neither is
+        // a point water can escape through without crossing the crest itself.
         uint32_t outlet = INVALID;
-        const float ring_max = 1.0f + layout.lake.rim_band_frac + layout.lake.rim_fade_frac;
+        const float ring_min = 1.0f + layout.lake.rim_band_frac * 0.75f;
+        const float ring_max = 1.0f + layout.lake.rim_band_frac;
         for (uint32_t i = 0; i < cells; ++i) {
             const float q = lake_norm_radius(layout.lake, grid.pos(i));
-            if (q < 1.0f || q > ring_max) continue;
+            if (q < ring_min || q > ring_max) continue;
             if (outlet == INVALID || grid.eff[i] < grid.eff[outlet]) {
                 outlet = i;
             }
@@ -493,8 +498,13 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
     return hydro;
 }
 
-WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout, glm::vec2 world,
-                     float h) {
+namespace {
+
+/// Single implementation behind water_at and carve_height: `with_distance`
+/// skips only distance/near-level bookkeeping, never height math — the two
+/// paths return identical heights by construction.
+WaterSample water_sample_impl(const HydrologyData& hydro, const TestbedLayout& layout,
+                              glm::vec2 world, float h, bool with_distance) {
     WaterSample out;
     float dist = std::numeric_limits<float>::max();
 
@@ -502,12 +512,17 @@ WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout, gl
     const float q = lake_norm_radius(layout.lake, world);
     if (q < 1.0f) {
         dist = 0.0f;
+        out.near_level = LAKE_LEVEL_M;
         if (h < LAKE_LEVEL_M) {
             out.water_surface = LAKE_LEVEL_M;
         }
-    } else {
+    } else if (with_distance) {
         const float from_center = glm::length(world - layout.lake.center);
-        dist = std::min(dist, (q - 1.0f) / q * from_center);
+        const float lake_d = (q - 1.0f) / q * from_center;
+        if (lake_d < dist) {
+            dist = lake_d;
+            out.near_level = LAKE_LEVEL_M;
+        }
     }
 
     // --- River (nearest station via 3x3 bins) ------------------------------------
@@ -543,19 +558,22 @@ WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout, gl
                 // Trapezoid channel (§3.1 step 5): flat middle half, sloped sides.
                 const float t = best_d / hw;
                 const float prof = t <= 0.5f ? 1.0f : (1.0f - t) * 2.0f;
-                out.height = std::min(h, wl - hydro.carve_depth[nearest] * prof);
-                h = out.height;
+                h = std::min(h, wl - hydro.carve_depth[nearest] * prof);
                 if (h < wl) {
                     out.water_surface = std::max(out.water_surface, wl);
                 }
                 dist = 0.0f;
+                out.near_level = wl;
             } else {
                 const float band = BANK_BLEND * (2.0f * hw); // factor x full width
                 if (best_d <= hw + band && h > wl) {
                     const float s = smoothstep01((best_d - hw) / band);
                     h = wl + (h - wl) * s; // banks descend smoothly to the waterline
                 }
-                dist = std::min(dist, best_d - hw);
+                if (best_d - hw < dist) {
+                    dist = best_d - hw;
+                    out.near_level = wl;
+                }
             }
         }
     }
@@ -573,12 +591,13 @@ WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout, gl
                 out.water_surface = fill;
                 h = std::min(h, fill - FORD_DEPTH_M); // shallow pond bed
                 dist = 0.0f;
+                out.near_level = fill;
             }
         }
     }
 
     // --- Far-field distance from the coarse Dijkstra grid --------------------------
-    if (dist > 0.0f && !hydro.coarse_dist.empty()) {
+    if (with_distance && dist > 0.0f && !hydro.coarse_dist.empty()) {
         const float fx = std::clamp((world.x - hydro.grid_origin.x) / CELL, 0.0f,
                                     static_cast<float>(hydro.grid_w - 1));
         const float fz = std::clamp((world.y - hydro.grid_origin.y) / CELL, 0.0f,
@@ -598,6 +617,18 @@ WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout, gl
     out.height = h;
     out.dist_to_water = std::max(dist, 0.0f);
     return out;
+}
+
+} // namespace
+
+WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout, glm::vec2 world,
+                     float h) {
+    return water_sample_impl(hydro, layout, world, h, true);
+}
+
+float carve_height(const HydrologyData& hydro, const TestbedLayout& layout, glm::vec2 world,
+                   float h) {
+    return water_sample_impl(hydro, layout, world, h, false).height;
 }
 
 } // namespace dfn::world

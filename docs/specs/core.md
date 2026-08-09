@@ -1,11 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 spec — contracts for engine/core and engine/world; boundary agreements with render, sim, and lead recorded.
 - 09:08:2026 - 00:42:03: Stage 2 — ECS/time/events/math implemented (+ ContentHash for the determinism test); world: value-noise worldgen with global quantization range (exact edge stitch), ChunkManager streaming via open_generated (in-memory generator, lead directive; .dfw IO + SaveDelta deferred to stage 3). Resolved former open items: SIM_MAX_CATCHUP_STEPS and chunk radii landed in NUMBERS.md; gen_constants contract confirmed (dfn_generated/Constants.h); shared components authored by lead in Components.h. Test suites registered in tests/core.cmake.
+- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 implementing LANDSCAPE.md (P1 macro stamps + WORLDGEN_MAX_HEIGHT=64 shared range, P2 hydrology with the monotonic water invariant, P3 surface outputs, P4 sites/pads, P5 scatter, validation passes); NEW core<->render boundary agreement: math::SurfaceFieldView + ScatterInstance + water-body primitives in core/math/SurfaceField.h (HeightFieldView untouched); ChunkManager additive queries + site-entity component attachment; suites extended (WorldgenV2Tests). Boundary item 8 below records the render agreement.
 -->
 
 # Spec: `core` (engine/core + engine/world)
@@ -74,8 +75,19 @@ doc comments; template/method bodies land in stage 2 without changing signatures
   `HeightFieldView {ivec2 chunk_coord, vec2 origin, uint32 resolution, float
   step, span<const uint16> heights, float height_scale, float height_offset}`;
   row-major, x fastest; +X east, +Z south, Y up;
-  `height_m = height_offset + raw * height_scale` (scale = meters per raw unit,
-  worldgen precomputes `(max-min)/65535`); shared edge rows between neighbors.
+  `height_m = height_offset + raw * height_scale` (scale = meters per raw unit;
+  since stage 3b ALL chunks share offset 0, scale = WORLDGEN_MAX_HEIGHT/65535);
+  shared edge rows between neighbors.
+- `sources/SurfaceField.h` — **stage-3b ADDITIVE boundary contract with
+  render** (HeightField.h untouched): `SurfaceClass {Grass, GrassRockBlend,
+  Rock, Sand, WaterBed}`, `NO_WATER` sentinel, `SurfaceFieldView` (same grid/
+  conventions/lifetime as HeightFieldView; spans: `dist_to_water` (m, 0 in
+  water), `water_surface` (m or NO_WATER; monotonically non-increasing
+  downstream), `surface_class`); `ScatterSpecies {Oak, Pine, Birch, Bush,
+  Stone}` + `ScatterInstance {vec3 position, yaw, scale, species}`;
+  water-body primitives `LakePlane {center, half_extent, surface_height}` and
+  `RiverStation {position, surface_height, half_width}` (ordered source ->
+  mouth; flow dir = station[i+1]-station[i]) for render's plane/ribbon water.
 
 ### engine/core/time (namespace `dfn::time`)
 
@@ -144,18 +156,49 @@ doc comments; template/method bodies land in stage 2 without changing signatures
   Q13; deterministic chunk order = part of byte-identical output).
 - `sources/ChunkManager.h` — events `ChunkLoaded`/`ChunkUnloaded` (published
   synchronously; **unload fires before memory is freed**); `ChunkStreamingParams
-  {load_radius, unload_radius}` (hysteresis; NUMBERS entries pending);
-  `ChunkManager`: `open(world_file, SaveDelta*, params)`, `update(focus, ecs,
-  bus)` (load: decode -> delta overlay -> `spawn_batch(group)` -> `add_batch`
-  prototypes -> publish; unload: publish -> `destroy_group` -> free),
-  `unload_all`, `is_loaded`, `loaded_chunks`, `heightfield(coord)`,
-  `chunk(coord)`, `height_at(world_xz)`.
-- `sources/Worldgen.h` — `WorldGenParams {seed, min/max chunk}`;
-  `generate_world(params, out_file) -> WorldGenResult` (byte-identical output,
-  Rule 13.1); `generate_chunk(params, coord)` (bit-identical to the same chunk
-  in a full run; chunk depends only on params + coord); `WorldGenRng`
-  (SplitMix64 streams keyed by seed/coord/pass, rejection-sampled ranges — no
-  modulo bias).
+  {load_radius, unload_radius}` (hysteresis); `ChunkManager`:
+  `open(world_file, SaveDelta*, params)`, `update(focus, ecs, bus)` (load:
+  decode -> delta overlay -> `spawn_batch(group)` -> `add_batch` prototypes ->
+  publish; unload: publish -> `destroy_group` -> free), `unload_all`,
+  `is_loaded`, `loaded_chunks`, `heightfield(coord)`, `chunk(coord)`,
+  `height_at(world_xz)`. Stage 3b (additive): `surfacefield(coord)` (the
+  SurfaceFieldView, same lifetime as heightfield), `scatter(coord)` (span of
+  ScatterInstance), `water_bodies()` (`{lakes, river_stations,
+  river_segment_offsets}`, valid until re-open); `open_generated` builds the
+  WorldGenContext once; site entities get Transform/PreviousTransform/
+  RenderMesh (placeholder ids)/LocalBounds/SiteMarker via one add_batch per
+  component type (Rule 11).
+- `sources/Worldgen.h` — `WorldGenParams {seed, min/max chunk, TestbedLayout
+  layout}` (layout added stage 3b, additive — lead-approved; serialized into
+  WorldInfo when .dfw IO lands); `WorldGenContext {params, hydrology, sites}`
+  + `build_world_context` (world-level passes built once; ChunkManager caches
+  it); `terrain_height(ctx, world)` (final P1+P2+P4 height field) and
+  `surface_point(ctx, world)` (P3 outputs); `generate_world(params, out_file)
+  -> WorldGenResult` (byte-identical output, Rule 13.1);
+  `generate_chunk(params|ctx, coord)` (bit-identical either way; chunk depends
+  only on params + coord); `WorldGenRng` (SplitMix64 streams keyed by
+  seed/coord/pass, rejection-sampled ranges — no modulo bias).
+- **Worldgen v2 pass modules** (stage 3b, LANDSCAPE.md §2 pass order;
+  worldgen-internal, never included by other zones):
+  `WorldgenNoise.h` (mix64/value/ridged noise — the single mixing primitive),
+  `WorldgenMacro` (P1: fBm octaves from dfn::config, valley pow
+  redistribution via WORLDGEN_VALLEY_EXPONENT — sqrt-exact for 1.25; crag
+  ridged stamp, knoll/bluff bumps, drainage valley stamps with floor +
+  watershed shoulders, lake basin with outlet-biased rim),
+  `WorldgenHydrology` (P2: coarse-grid greedy descent with pond-and-spill,
+  Chaikin + sinuosity, **monotonic water surface — a climbing river = failed
+  generation (ok=false), asserted and tested**; trapezoid carve with ford
+  depth caps; Dijkstra dist-to-water field),
+  `WorldgenSites` (P4: hamlet ring/shrine/dungeons/tower on flattened pads
+  with the BUILDING_PAD_SLOPE_MAX scorer and water-relative flood margin;
+  corridor_distance for the §2.4 mask),
+  `WorldgenScatter` (P5: world-lattice species scatter — cross-chunk
+  consistent, data-only, never ECS entities),
+  `WorldgenValidation` (river_is_monotonic, landmark_visibility_fraction (C1),
+  max_corridor_avg_slope), `TestbedLayout.h` (the §7.1 layout table as
+  generator INPUT DATA — lead-approved home; design owns the values),
+  `SiteComponents.h` (SiteMarker component; placeholder archetype table with
+  PROVISIONAL dense RenderMesh ids 1..7 pending the lead's registry).
 - `sources/SaveDelta.h` — `.dfs` container: `SAVE_MAGIC` 'DFNS', version 1;
   sections `META`, `EDLT`, `DSPN` + registered module sections.
   `EntityDelta {world_id, Kind {Destroyed, Moved, StateChanged}, position_xz,
@@ -247,6 +290,21 @@ stage-1 messages:
 7. **gen_constants (core <-> lead).** Emit path `<build>/dfn_generated/
    Constants.h`, namespace dfn::config, names/types as documented in
    `config/sources/Constants.h`. Communicated to the lead; awaiting objection.
+8. **SurfaceFieldView + scatter + water bodies (core <-> render) — AGREED
+   09:08:2026 (stage 3b), recorded in both specs.** Additive parallel contract
+   in `engine/core/math/sources/SurfaceField.h`; HeightFieldView untouched
+   (sim's terrain collision unaffected). Render ACKed: float spans
+   (unquantized), per-sample dist_to_water/water_surface/surface_class enough
+   for the splat/water shaders; explicit water primitives (LakePlane + river
+   ribbon stations, segments via offsets) requested by render and provided
+   through `ChunkManager::water_bodies()`; scatter shape
+   (position/yaw/scale/species) ACKed — drawing/instancing is render's.
+   Access wiring mirrors heightfield: app subscribes to chunk events and
+   passes views to render (lead). OPEN: placeholder RenderMesh ids 1..7 in
+   SiteComponents.h are provisional until the lead's registry assigns dense
+   ids (stage-1 sync decision); render maps the same numbers meanwhile.
+   FUTURE (render wish, non-blocking): per-station flow direction is implied
+   by station order — no extra data needed for UV scroll.
 
 ## Step-by-step plan
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/Chunk.cpp
 
@@ -23,6 +23,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — implementation.
+- 09:08:2026 - 11:05:22: Stage 3b — SurfaceData::view (SurfaceFieldView per
+  the render agreement).
 */
 
 #include "engine/world/sources/Chunk.h"
@@ -53,6 +55,19 @@ math::HeightFieldView Heightmap::view(ChunkCoord coord) const {
     v.heights = std::span<const uint16_t>{samples.data(), samples.size()};
     v.height_scale = height_scale;
     v.height_offset = height_offset;
+    return v;
+}
+
+math::SurfaceFieldView SurfaceData::view(ChunkCoord coord) const {
+    math::SurfaceFieldView v;
+    v.chunk_coord = glm::ivec2{coord.x, coord.z};
+    v.origin = glm::vec2{static_cast<float>(coord.x) * CHUNK_SIZE_M,
+                         static_cast<float>(coord.z) * CHUNK_SIZE_M};
+    v.resolution = RESOLUTION;
+    v.step = STEP_M;
+    v.dist_to_water = std::span<const float>{dist_to_water.data(), dist_to_water.size()};
+    v.water_surface = std::span<const float>{water_surface.data(), water_surface.size()};
+    v.surface_class = std::span<const uint8_t>{surface_class.data(), surface_class.size()};
     return v;
 }
 

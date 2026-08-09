@@ -1,11 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
 - 09:08:2026 - 00:42:03: Stage 2 — Chunk/Worldgen/ChunkManager implemented; ChunkManager::open_generated added (in-memory generator, lead directive — .dfw IO and SaveDelta deferred to stage 3); value-noise gentle hills with global quantization range for exact edge stitching; suites tests/core/{WorldgenTests,ChunkManagerTests}.cpp.
+- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 per LANDSCAPE.md: pass modules (Macro/Hydrology/Sites/Scatter/Validation + TestbedLayout + SiteComponents), WORLDGEN_MAX_HEIGHT quantization, Chunk gained SurfaceData + scatter, ChunkManager gained surfacefield/scatter/water_bodies and site-entity component attachment; suite tests/core/WorldgenV2Tests.cpp.
 -->
 
 # engine/world
@@ -28,8 +29,16 @@ deltas (Q56).
 - `ChunkManager`, `ChunkLoaded`/`ChunkUnloaded`, `ChunkStreamingParams`
   (`sources/ChunkManager.h`) — residency around the focus position; batch
   spawn/destroy per chunk; synchronous events (unload fires before free).
-- `generate_world`/`generate_chunk`, `WorldGenParams`, `WorldGenRng`
-  (`sources/Worldgen.h`) — offline, seeded, byte-identical output.
+- `generate_world`/`generate_chunk`, `WorldGenParams` (now carrying the
+  `TestbedLayout`), `WorldGenContext`/`build_world_context`,
+  `terrain_height`/`surface_point`, `WorldGenRng` (`sources/Worldgen.h`) —
+  offline, seeded, byte-identical output. v2 pass modules:
+  `WorldgenNoise/Macro/Hydrology/Sites/Scatter/Validation` (P1 stamps +
+  valley redistribution, P2 river/lake/fords with the monotonic water
+  invariant, P3 surface classification, P4 pads/sites, P5 scatter, C1/§2.4
+  validation). `TestbedLayout` (`sources/TestbedLayout.h`) is the LANDSCAPE
+  §7.1 layout table as generator input data; `SiteMarker`/`site_archetype`
+  (`sources/SiteComponents.h`) the site component + placeholder archetypes.
 - `SaveDelta`, `EntityDelta`, `DynamicSpawn`, `SaveDeltaCodec`,
   `SaveSectionHooks` (`sources/SaveDelta.h`) — delta-vs-generated-world saves;
   gameplay contributes sections via registered hooks.

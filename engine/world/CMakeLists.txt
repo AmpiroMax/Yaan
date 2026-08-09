@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 09:08:2026 - 00:42:03
+# Last updated: 09:08:2026 - 11:05:22
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -18,10 +18,17 @@
 # - 09:08:2026 - 00:42:03: Stage 2 — created dfn_world with Chunk/Worldgen/
 #                          ChunkManager implementations (world file IO and
 #                          SaveDelta deferred to stage 3).
+# - 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 pass sources (macro,
+#                          hydrology, sites, scatter, validation).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
-    sources/Worldgen.cpp)
+    sources/Worldgen.cpp
+    sources/WorldgenHydrology.cpp
+    sources/WorldgenMacro.cpp
+    sources/WorldgenScatter.cpp
+    sources/WorldgenSites.cpp
+    sources/WorldgenValidation.cpp)
 
 target_link_libraries(dfn_world PUBLIC dfn_core)

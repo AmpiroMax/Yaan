@@ -85,6 +85,9 @@ struct WaterSample {
     float height = 0.0f;                 ///< terrain after carve, meters
     float water_surface = math::NO_WATER; ///< water covering this sample, or NO_WATER
     float dist_to_water = 0.0f;          ///< horizontal meters to nearest water edge
+    float near_level = math::NO_WATER;   ///< surface height of the nearest water
+                                          ///< body when one is within exact range
+                                          ///< (shore-mask input), else NO_WATER
 };
 
 /// Builds hydrology over the world rect [domain_min, domain_max] (meters).
@@ -96,5 +99,10 @@ struct WaterSample {
 /// reports water surface + distance to water. Position-based (chunk-free).
 [[nodiscard]] WaterSample water_at(const HydrologyData& hydro, const TestbedLayout& layout,
                                    glm::vec2 world, float h);
+
+/// Carve-only fast path (no distance field / coverage math) — used by the
+/// height pipeline's gradient samples. MUST return exactly water_at().height.
+[[nodiscard]] float carve_height(const HydrologyData& hydro, const TestbedLayout& layout,
+                                 glm::vec2 world, float h);
 
 } // namespace dfn::world

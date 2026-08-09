@@ -1,39 +1,51 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
 Responsibility:
-- Stage-2 deterministic worldgen: gentle-hills heightmaps from seeded value
-  noise (Rule 13.1 — same seed, byte-identical output), SplitMix64 RNG streams.
+- Worldgen v2 orchestration (Rule 13.1: same seed, byte-identical output):
+  world context (P2 hydrology + P4 sites over the P1 macro field), per-chunk
+  generation — final heights quantized in the shared WORLDGEN_MAX_HEIGHT
+  range, P3 surface arrays, P4 entity records, P5 scatter instances.
 
 Key items:
-- WorldGenRng (SplitMix64), generate_chunk (value-noise fBm), generate_world
-  (file output deferred to stage 3).
+- WorldGenRng (SplitMix64), build_world_context, terrain_height,
+  surface_point, generate_chunk, generate_world (file output still deferred).
 
 Dependencies:
-- Uses: Worldgen.h, generated constants.
-- Used by: dfn_world, worldgen determinism test.
+- Uses: Worldgen.h, WorldgenMacro/Hydrology/Sites/Scatter, WorldgenNoise,
+  generated constants.
+- Used by: dfn_world, worldgen tests.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-- DETERMINISM IS NON-NEGOTIABLE (Rule 13.1): all randomness flows from mix64 of
-  (seed, lattice coords, octave); no std::rand, no platform-dependent paths.
-- All chunks share ONE quantization range (offset 0, scale AMPLITUDE/65535) so
-  shared edge samples decode identically across neighbors — exact-stitch
-  guarantee of the HeightFieldView contract. Do not "optimize" to per-chunk
-  min/max without a group sync (it would break edge equality).
-- Terrain shape numbers below are worldgen-internal algorithm constants,
-  flagged for NUMBERS.md at the next sync; do not add gameplay constants here.
+- DETERMINISM IS NON-NEGOTIABLE (Rule 13.1): all randomness flows from mix64
+  streams; no std::rand, no platform-dependent paths.
+- All chunks share ONE quantization range (offset 0, scale
+  WORLDGEN_MAX_HEIGHT/65535) so shared edge samples decode identically across
+  neighbors — exact-stitch guarantee of the HeightFieldView contract. Do not
+  "optimize" to per-chunk min/max without a group sync (it would break edge
+  equality). Range raised 31.5 -> 64 m at stage 3b (lead-acked, sync note).
+- Heights/surface/classification are pure functions of (params, world_xz) —
+  chunk-independent by construction. Keep it that way.
 */
 /*
 UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — value-noise gentle hills, SplitMix64 rng;
   generate_world returns a deferred-IO error until stage 3.
+- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2: P1 stamps via WorldgenMacro
+  (octaves from dfn::config, local table deleted), P2 hydrology, P3 surface
+  arrays, P4 site records, P5 scatter; WORLDGEN_MAX_HEIGHT quantization.
 */
 
 #include "engine/world/sources/Worldgen.h"
+
+#include "engine/core/config/sources/Constants.h"
+#include "engine/world/sources/WorldgenMacro.h"
+#include "engine/world/sources/WorldgenNoise.h"
+#include "engine/world/sources/WorldgenScatter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -45,79 +57,21 @@ namespace {
 constexpr uint32_t RESOLUTION = static_cast<uint32_t>(config::HEIGHTMAP_RESOLUTION);
 constexpr float STEP_M = static_cast<float>(config::HEIGHTMAP_STEP);
 constexpr float CHUNK_SIZE_M = static_cast<float>(config::CHUNK_SIZE);
-
-// Gentle-hills shape (worldgen-internal; candidates for NUMBERS.md at the next
-// sync). Octaves: (lattice cell size in meters, amplitude in meters).
-struct Octave {
-    float cell_size;
-    float amplitude;
-};
-constexpr Octave OCTAVES[] = {
-    {512.0f, 24.0f}, // broad rolling hills
-    {128.0f, 6.0f},  // mid-scale variation
-    {32.0f, 1.5f},   // fine detail
-};
-// Sum of amplitudes — the fixed quantization range shared by ALL chunks
-// (offset 0), guaranteeing exact decoded-height equality on shared edges.
-constexpr float MAX_HEIGHT_M = 24.0f + 6.0f + 1.5f;
-
-// SplitMix64 finalizer — the single mixing primitive of all worldgen hashing.
-constexpr uint64_t mix64(uint64_t x) {
-    x += 0x9E3779B97F4A7C15ull;
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
-    return x ^ (x >> 31);
-}
-
-// Deterministic lattice value in [0, 1) for integer lattice point (gx, gz).
-float lattice_value(uint64_t seed, uint32_t octave, int64_t gx, int64_t gz) {
-    uint64_t h = mix64(seed ^ (0xA24BAED4963EE407ull + octave));
-    h = mix64(h ^ static_cast<uint64_t>(gx));
-    h = mix64(h ^ static_cast<uint64_t>(gz));
-    return static_cast<float>(h >> 40) * (1.0f / 16777216.0f); // top 24 bits
-}
-
-float smoothstep01(float t) { return t * t * (3.0f - 2.0f * t); }
-
-// Bilinear value noise in [0, 1) at world position, on a lattice of cell_size.
-float value_noise(uint64_t seed, uint32_t octave, float cell_size, glm::vec2 world) {
-    const float cx = world.x / cell_size;
-    const float cz = world.y / cell_size;
-    const int64_t gx = static_cast<int64_t>(std::floor(cx));
-    const int64_t gz = static_cast<int64_t>(std::floor(cz));
-    const float tx = smoothstep01(cx - static_cast<float>(gx));
-    const float tz = smoothstep01(cz - static_cast<float>(gz));
-
-    const float v00 = lattice_value(seed, octave, gx, gz);
-    const float v10 = lattice_value(seed, octave, gx + 1, gz);
-    const float v01 = lattice_value(seed, octave, gx, gz + 1);
-    const float v11 = lattice_value(seed, octave, gx + 1, gz + 1);
-    const float v0 = v00 + (v10 - v00) * tx;
-    const float v1 = v01 + (v11 - v01) * tx;
-    return v0 + (v1 - v0) * tz;
-}
-
-// Terrain height in meters at a world position. Position-based (not
-// chunk-based), so neighboring chunks sample identical values on shared edges.
-float terrain_height(uint64_t seed, glm::vec2 world) {
-    float h = 0.0f;
-    uint32_t octave = 0;
-    for (const Octave& o : OCTAVES) {
-        h += value_noise(seed, octave, o.cell_size, world) * o.amplitude;
-        ++octave;
-    }
-    return h;
-}
+constexpr float MAX_HEIGHT_M = static_cast<float>(config::WORLDGEN_MAX_HEIGHT);
+constexpr float SLOPE_GRASS = static_cast<float>(config::SLOPE_GRASS_MAX);
+constexpr float SLOPE_ROCK = static_cast<float>(config::SLOPE_ROCK_MIN);
+constexpr float SAND_DIST = static_cast<float>(config::SHORE_SAND_DIST);
+constexpr float SAND_HEIGHT = static_cast<float>(config::SHORE_SAND_HEIGHT);
 
 } // namespace
 
 // --- WorldGenRng --------------------------------------------------------------
 
 WorldGenRng WorldGenRng::for_chunk(uint64_t seed, ChunkCoord coord, uint32_t pass_tag) {
-    uint64_t s = mix64(seed ^ 0x8BADF00D5EEDC0DEull);
-    s = mix64(s ^ static_cast<uint64_t>(static_cast<uint32_t>(coord.x)));
-    s = mix64(s ^ static_cast<uint64_t>(static_cast<uint32_t>(coord.z)));
-    s = mix64(s ^ pass_tag);
+    uint64_t s = noise::mix64(seed ^ 0x8BADF00D5EEDC0DEull);
+    s = noise::mix64(s ^ static_cast<uint64_t>(static_cast<uint32_t>(coord.x)));
+    s = noise::mix64(s ^ static_cast<uint64_t>(static_cast<uint32_t>(coord.z)));
+    s = noise::mix64(s ^ pass_tag);
     return WorldGenRng{s};
 }
 
@@ -144,16 +98,80 @@ uint32_t WorldGenRng::next_range(uint32_t min, uint32_t max) {
     return min + static_cast<uint32_t>(v % span);
 }
 
+// --- World-level context -------------------------------------------------------
+
+WorldGenContext build_world_context(const WorldGenParams& params) {
+    WorldGenContext ctx;
+    ctx.params = params;
+    const glm::vec2 domain_min{static_cast<float>(params.min_chunk.x) * CHUNK_SIZE_M,
+                               static_cast<float>(params.min_chunk.z) * CHUNK_SIZE_M};
+    const glm::vec2 domain_max{static_cast<float>(params.max_chunk.x + 1) * CHUNK_SIZE_M,
+                               static_cast<float>(params.max_chunk.z + 1) * CHUNK_SIZE_M};
+    ctx.hydrology = build_hydrology(params.seed, params.layout, domain_min, domain_max);
+    ctx.sites = build_sites(params.seed, params.layout, ctx.hydrology);
+    return ctx;
+}
+
+float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
+    const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
+    const float carved = carve_height(ctx.hydrology, ctx.params.layout, world, macro);
+    const float padded = pads_height(ctx.sites, world, carved);
+    return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
+}
+
+SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world) {
+    const TestbedLayout& layout = ctx.params.layout;
+    const float macro = macro_height(ctx.params.seed, layout, world);
+    const WaterSample water = water_at(ctx.hydrology, layout, world, macro);
+    const float h = std::clamp(pads_height(ctx.sites, world, water.height), 0.0f, MAX_HEIGHT_M);
+
+    SurfacePoint out;
+    out.height = h;
+    out.dist_to_water = water.dist_to_water;
+    const bool covered = water.water_surface != math::NO_WATER && h < water.water_surface;
+    out.water_surface = covered ? water.water_surface : math::NO_WATER;
+
+    // Slope from central differences of the FINAL height field (position-based
+    // — identical on shared chunk edges even though neighbors lie outside the
+    // chunk being generated).
+    const float hx = terrain_height(ctx, {world.x + STEP_M, world.y})
+                   - terrain_height(ctx, {world.x - STEP_M, world.y});
+    const float hz = terrain_height(ctx, {world.x, world.y + STEP_M})
+                   - terrain_height(ctx, {world.x, world.y - STEP_M});
+    const float slope = std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
+
+    // Priority rules per LANDSCAPE §4 (first match wins).
+    if (covered) {
+        out.surface_class = math::SurfaceClass::WaterBed;
+    } else if (water.dist_to_water <= SAND_DIST && water.near_level != math::NO_WATER
+               && h - water.near_level <= SAND_HEIGHT) {
+        out.surface_class = math::SurfaceClass::Sand;
+    } else if (slope >= SLOPE_ROCK
+               || (crag_distance(layout, world) < layout.crag.radius
+                   && h >= layout.crag.rockline)) {
+        out.surface_class = math::SurfaceClass::Rock;
+    } else if (slope >= SLOPE_GRASS) {
+        out.surface_class = math::SurfaceClass::GrassRockBlend;
+    } else {
+        out.surface_class = math::SurfaceClass::Grass;
+    }
+    return out;
+}
+
 // --- Generation ----------------------------------------------------------------
 
-Chunk generate_chunk(const WorldGenParams& params, ChunkCoord coord) {
+Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     Chunk chunk;
     chunk.coord = coord;
 
     Heightmap& hm = chunk.heightmap;
     hm.height_offset = 0.0f;
     hm.height_scale = MAX_HEIGHT_M / 65535.0f; // shared by all chunks (edge equality)
-    hm.samples.resize(static_cast<std::size_t>(RESOLUTION) * RESOLUTION);
+    const std::size_t sample_count = static_cast<std::size_t>(RESOLUTION) * RESOLUTION;
+    hm.samples.resize(sample_count);
+    chunk.surface.dist_to_water.resize(sample_count);
+    chunk.surface.water_surface.resize(sample_count);
+    chunk.surface.surface_class.resize(sample_count);
 
     const glm::vec2 origin{static_cast<float>(coord.x) * CHUNK_SIZE_M,
                            static_cast<float>(coord.z) * CHUNK_SIZE_M};
@@ -161,26 +179,44 @@ Chunk generate_chunk(const WorldGenParams& params, ChunkCoord coord) {
         for (uint32_t x = 0; x < RESOLUTION; ++x) {
             const glm::vec2 world = origin + glm::vec2{static_cast<float>(x) * STEP_M,
                                                        static_cast<float>(z) * STEP_M};
-            const float h = std::clamp(terrain_height(params.seed, world), 0.0f, MAX_HEIGHT_M);
-            const float raw = std::round(h / MAX_HEIGHT_M * 65535.0f);
-            hm.samples[static_cast<std::size_t>(z) * RESOLUTION + x] =
-                static_cast<uint16_t>(raw);
+            const SurfacePoint sp = surface_point(ctx, world);
+            const float raw = std::round(sp.height / MAX_HEIGHT_M * 65535.0f);
+            const std::size_t i = static_cast<std::size_t>(z) * RESOLUTION + x;
+            hm.samples[i] = static_cast<uint16_t>(std::clamp(raw, 0.0f, 65535.0f));
+            chunk.surface.dist_to_water[i] = sp.dist_to_water;
+            chunk.surface.water_surface[i] = sp.water_surface;
+            chunk.surface.surface_class[i] = static_cast<uint8_t>(sp.surface_class);
         }
     }
 
-    // Stage 2: terrain only — no generated entities yet (props/NPC spawns are a
-    // later worldgen pass; the streaming batch path is exercised regardless).
+    // P4 entities whose position falls inside this chunk (half-open bounds —
+    // no duplicates across neighbors). Order preserved => deterministic ids.
+    const glm::vec2 chunk_max = origin + glm::vec2{CHUNK_SIZE_M, CHUNK_SIZE_M};
+    for (const GeneratedEntityRecord& rec : ctx.sites.entities) {
+        if (rec.position_xz.x >= origin.x && rec.position_xz.x < chunk_max.x
+            && rec.position_xz.y >= origin.y && rec.position_xz.y < chunk_max.y) {
+            chunk.entities.push_back(rec);
+        }
+    }
+
+    // P5 scatter instances for this chunk.
+    chunk.scatter = build_scatter(ctx.params.seed, ctx.params.layout, ctx.hydrology,
+                                  ctx.sites, origin, chunk_max);
     return chunk;
+}
+
+Chunk generate_chunk(const WorldGenParams& params, ChunkCoord coord) {
+    return generate_chunk(build_world_context(params), coord);
 }
 
 WorldGenResult generate_world(const WorldGenParams& params,
                               const std::filesystem::path& out_file) {
     (void)params;
     (void)out_file;
-    // World file IO is deferred to stage 3 (lead directive: stage 2 streams from
-    // the in-memory generator; WorldFormat stays headers-only).
+    // World file IO is deferred (lead directive: streaming uses the in-memory
+    // generator via ChunkManager::open_generated; WorldFormat stays headers-only).
     return WorldGenResult{false,
-                          "generate_world: .dfw output arrives in stage 3; stage 2 uses "
+                          "generate_world: .dfw output arrives with world file IO; use "
                           "ChunkManager::open_generated (in-memory chunks)"};
 }
 

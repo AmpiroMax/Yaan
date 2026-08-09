@@ -36,8 +36,11 @@ UPD:
 
 #pragma once
 
+#include "engine/core/serialization/sources/ContentHash.h"
+
 #include <cstdint>
 #include <glm/vec3.hpp>
+#include <optional>
 
 namespace dfn::world {
 
@@ -53,11 +56,10 @@ enum class SiteType : uint8_t {
     TowerRuin = 6,
 };
 
-/// ECS component attached to every P4 site entity at chunk spawn.
-/// poi_index = index into TestbedLayout::sites of the owning POI.
+/// ECS component attached to every P4 site entity at chunk spawn. Derived
+/// from the entity record's archetype hash (site_type_from_archetype).
 struct SiteMarker {
     SiteType type = SiteType::Dwelling;
-    uint8_t poi_index = 0;
 };
 
 /// Placeholder archetype: content id (hashed into GeneratedEntityRecord),
@@ -84,6 +86,19 @@ struct SiteArchetype {
         {SiteType::TowerRuin, "site.tower_ruin", 7, {-2.0f, 0.0f, -2.0f}, {2.0f, 12.0f, 2.0f}},
     };
     return TABLE[static_cast<uint8_t>(type)];
+}
+
+/// Inverse lookup: archetype content hash -> site type (used when spawning
+/// chunk entities from GeneratedEntityRecords). nullopt for non-site
+/// archetypes (future content kinds pass through untouched).
+[[nodiscard]] inline std::optional<SiteType> site_type_from_archetype(uint64_t archetype) {
+    for (uint8_t t = 0; t <= static_cast<uint8_t>(SiteType::TowerRuin); ++t) {
+        const SiteArchetype& a = site_archetype(static_cast<SiteType>(t));
+        if (serialization::fnv1a64(a.content_id) == archetype) {
+            return a.type;
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace dfn::world

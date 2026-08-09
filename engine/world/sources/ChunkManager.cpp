@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -27,11 +27,19 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — in-memory generator streaming (open_generated),
   hysteresis load/unload ring, batch spawn/destroy, event protocol.
+- 09:08:2026 - 11:05:22: Stage 3b — WorldGenContext built once at
+  open_generated; surfacefield/scatter/water_bodies queries; site entities get
+  Transform/PreviousTransform/RenderMesh/LocalBounds/SiteMarker prototypes via
+  add_batch (Rule 11 — one pool visit per component type).
 */
 
 #include "engine/world/sources/ChunkManager.h"
 
+#include "engine/core/components/sources/Components.h"
+#include "engine/world/sources/SiteComponents.h"
+
 #include <cstdlib>
+#include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -43,6 +51,8 @@ struct ChunkManager::Impl {
     ChunkStreamingParams params;
     const SaveDelta* delta = nullptr; // stage 3: overlay on load
 
+    WorldGenContext gen_ctx;                      // built once per open_generated
+    std::vector<math::LakePlane> lakes;           // water_bodies() storage
     std::unordered_map<uint64_t, Chunk> resident; // key = chunk_group(coord)
     std::vector<ChunkCoord> loaded_coords;        // cache for loaded_chunks()
 
@@ -88,6 +98,9 @@ void ChunkManager::open_generated(const WorldGenParams& gen_params,
     impl_->delta = nullptr;
     impl_->resident.clear();
     impl_->loaded_coords.clear();
+    // World-level passes once per open (deterministic; chunks stay independent).
+    impl_->gen_ctx = build_world_context(gen_params);
+    impl_->lakes.assign(1, impl_->gen_ctx.hydrology.lake);
 }
 
 void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
@@ -123,16 +136,50 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
             if (!impl_->in_extent(coord) || impl_->resident.contains(key)) {
                 continue;
             }
-            Chunk chunk = generate_chunk(impl_->gen_params, coord);
+            Chunk chunk = generate_chunk(impl_->gen_ctx, coord);
             // Stage 3: apply impl_->delta overlay here before spawning (Q56).
 
-            // Batch entity spawn for the chunk's generated records (Rule 11).
-            // Stage-2 worldgen emits none; the path stays batch-only regardless.
+            // Batch entity spawn for the chunk's generated records (Rule 11):
+            // one spawn_batch + one add_batch per component type. Stage 3b
+            // records are P4 sites — placeholder RenderMesh ids + SiteMarker
+            // (render maps the ids; real archetype instantiation from content
+            // files is gameplay/lead wiring, a later stage).
             if (!chunk.entities.empty()) {
-                std::vector<ecs::EntityId> ids(chunk.entities.size());
+                const std::size_t n = chunk.entities.size();
+                std::vector<ecs::EntityId> ids(n);
                 ecs.spawn_batch(ids, key);
-                // Component attachment from archetypes is gameplay/lead wiring
-                // (arrives with content archetypes; world stays data-only).
+
+                std::vector<components::Transform> transforms(n);
+                std::vector<components::RenderMesh> meshes(n);
+                std::vector<components::LocalBounds> bounds(n);
+                std::vector<SiteMarker> markers(n);
+                for (std::size_t i = 0; i < n; ++i) {
+                    const GeneratedEntityRecord& rec = chunk.entities[i];
+                    const float y =
+                        chunk.heightmap.sample_world(coord, rec.position_xz);
+                    transforms[i].position = {rec.position_xz.x, y, rec.position_xz.y};
+                    transforms[i].rotation =
+                        glm::angleAxis(rec.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+                    if (const auto type = site_type_from_archetype(rec.archetype)) {
+                        const SiteArchetype& a = site_archetype(*type);
+                        meshes[i] = components::RenderMesh{a.mesh_id, 0};
+                        bounds[i] = components::LocalBounds{a.bounds_min, a.bounds_max};
+                        markers[i] = SiteMarker{*type};
+                    }
+                }
+                ecs.add_batch<components::Transform>(ids, std::span<const components::Transform>{transforms});
+                std::vector<components::PreviousTransform> prev(n);
+                for (std::size_t i = 0; i < n; ++i) {
+                    prev[i].position = transforms[i].position;
+                    prev[i].rotation = transforms[i].rotation;
+                }
+                ecs.add_batch<components::PreviousTransform>(
+                    ids, std::span<const components::PreviousTransform>{prev});
+                ecs.add_batch<components::RenderMesh>(
+                    ids, std::span<const components::RenderMesh>{meshes});
+                ecs.add_batch<components::LocalBounds>(
+                    ids, std::span<const components::LocalBounds>{bounds});
+                ecs.add_batch<SiteMarker>(ids, std::span<const SiteMarker>{markers});
             }
 
             impl_->resident.emplace(key, std::move(chunk));
@@ -171,6 +218,30 @@ std::optional<math::HeightFieldView> ChunkManager::heightfield(ChunkCoord coord)
         return std::nullopt;
     }
     return it->second.heightmap.view(coord);
+}
+
+std::optional<math::SurfaceFieldView> ChunkManager::surfacefield(ChunkCoord coord) const {
+    const auto it = impl_->resident.find(chunk_group(coord));
+    if (it == impl_->resident.end()) {
+        return std::nullopt;
+    }
+    return it->second.surface.view(coord);
+}
+
+std::span<const math::ScatterInstance> ChunkManager::scatter(ChunkCoord coord) const {
+    const auto it = impl_->resident.find(chunk_group(coord));
+    if (it == impl_->resident.end()) {
+        return {};
+    }
+    return it->second.scatter;
+}
+
+ChunkManager::WaterBodies ChunkManager::water_bodies() const {
+    if (!impl_->opened) {
+        return {};
+    }
+    return WaterBodies{impl_->lakes, impl_->gen_ctx.hydrology.stations,
+                       impl_->gen_ctx.hydrology.segment_offsets};
 }
 
 const Chunk* ChunkManager::chunk(ChunkCoord coord) const {

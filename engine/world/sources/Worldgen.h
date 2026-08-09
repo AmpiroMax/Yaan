@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -11,12 +11,15 @@ Responsibility:
   the result.
 
 Key items:
-- WorldGenParams: seed + extent.
+- WorldGenParams: seed + extent + TestbedLayout (LANDSCAPE §7.1 layout table).
+- WorldGenContext / build_world_context: world-level P2/P4 passes, built once.
+- terrain_height / surface_point: the final height field and P3 outputs.
 - generate_world(): params -> .dfw file on disk.
 - generate_chunk(): single-chunk generation, exposed for determinism tests.
 
 Dependencies:
-- Uses: Chunk.h, WorldFormat.h, engine/core/config.
+- Uses: Chunk.h, TestbedLayout.h, WorldFormat.h, WorldgenHydrology.h,
+  WorldgenSites.h, engine/core/config.
 - Used by: tools/worldgen CLI, determinism tests (Rule 13.1, first-commit test),
   editor re-generation flows (via lead).
 
@@ -32,12 +35,19 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — offline deterministic worldgen API
   (Q13, Rule 13.1) with per-chunk entry point for tests.
+- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 (LANDSCAPE.md): WorldGenParams
+  gains the TestbedLayout field (additive, lead-approved); WorldGenContext +
+  build_world_context so streaming builds hydrology/sites once; terrain and
+  surface queries exposed for validation/tests.
 */
 
 #pragma once
 
 #include "engine/world/sources/Chunk.h"
+#include "engine/world/sources/TestbedLayout.h"
 #include "engine/world/sources/WorldFormat.h"
+#include "engine/world/sources/WorldgenHydrology.h"
+#include "engine/world/sources/WorldgenSites.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -47,12 +57,38 @@ namespace dfn::world {
 
 /// Inputs of a full world generation. Everything influencing output is HERE —
 /// if a knob is added, it must be serialized into WorldInfo so a world file
-/// records exactly how it was made.
+/// records exactly how it was made (layout serialization lands with .dfw IO).
 struct WorldGenParams {
     uint64_t seed = 0;
     ChunkCoord min_chunk;   ///< Inclusive extent; the testbed is 4x4 chunks (Q45).
     ChunkCoord max_chunk;
+    TestbedLayout layout{}; ///< Feature/site layout table (LANDSCAPE §7.1 defaults).
 };
+
+/// Precomputed world-level passes (P2 hydrology, P4 sites) shared by every
+/// chunk of one generation. Pure function of params (deterministic); building
+/// it per chunk is valid but wasteful — ChunkManager builds it once.
+struct WorldGenContext {
+    WorldGenParams params;
+    HydrologyData hydrology;
+    SitesData sites;
+};
+
+/// Builds the world-level context (macro field is implicit — position-based).
+[[nodiscard]] WorldGenContext build_world_context(const WorldGenParams& params);
+
+/// Final terrain height (m) at a world position: macro (P1) + hydrology carve
+/// (P2) + building pads (P4). The continuous field the heightmaps sample.
+[[nodiscard]] float terrain_height(const WorldGenContext& ctx, glm::vec2 world);
+
+/// Full per-position surface sample (P3 outputs + final height).
+struct SurfacePoint {
+    float height = 0.0f;
+    float water_surface = math::NO_WATER; ///< water covering this point, or NO_WATER
+    float dist_to_water = 0.0f;
+    math::SurfaceClass surface_class = math::SurfaceClass::Grass;
+};
+[[nodiscard]] SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world);
 
 /// Result of generate_world with a human-readable failure reason (tool output).
 struct WorldGenResult {
@@ -71,8 +107,12 @@ struct WorldGenResult {
 /// the same chunk inside generate_world (chunk generation depends only on
 /// params + coord — neighbor-aware passes derive shared edges from the same
 /// noise field, not from neighbor state). Exposed for the determinism test and
-/// the editor's preview.
+/// the editor's preview. Builds a throwaway context — prefer the overload
+/// below when generating more than one chunk.
 [[nodiscard]] Chunk generate_chunk(const WorldGenParams& params, ChunkCoord coord);
+
+/// Same, against a prebuilt context (ctx.params is the source of truth).
+[[nodiscard]] Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord);
 
 /// The deterministic PRNG used by all worldgen passes: SplitMix64 streams keyed
 /// by (seed, coord, pass tag). Declared here so tests can pin its outputs;

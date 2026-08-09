@@ -87,8 +87,26 @@ struct LakeStamp {
 /// crossings. The trace itself is algorithmic (§3.1), these are its inputs.
 struct RiverLayout {
     glm::vec2 source{760.0f, 300.0f};    ///< §7.1; snapped to the coarse-grid argmax
-    float source_search_radius = 48.0f;  ///< argmax search around `source` (§3.1 step 1)
+    float source_search_radius = 30.0f;  ///< argmax search around `source` (§3.1 step 1)
     glm::vec2 fords[3] = {{660.0f, 430.0f}, {430.0f, 620.0f}, {330.0f, 840.0f}}; ///< §7.1
+};
+
+/// Drainage valley stamp along source -> lake: an explicit monotone FLOOR
+/// profile (terrain clamped down to it inside the valley) plus raised
+/// shoulders (terrain clamped up just outside) forming the watershed divide.
+/// This is what makes the §3.1 greedy descent drain where the §7.1
+/// composition wants the river — without the shoulders, the sub-15 m eastern
+/// lowland would capture the flow (macro "must never create local minima with
+/// no hydrology resolution"). floor_mouth sits above the lake's rim crest so
+/// the river crosses the levee into the basin without ponding.
+struct ValleyTrough {
+    glm::vec2 points[4]{};
+    int point_count = 0;
+    float half_width = 80.0f;    ///< valley floor half width
+    float floor_source = 22.0f;  ///< floor height at the upstream end, m
+    float floor_mouth = 16.5f;   ///< floor at the downstream end, m
+    float wall_height = 5.0f;    ///< cross-section rise floor -> valley edge
+    float shoulder_frac = 0.6f;  ///< shoulder band width as a fraction of half_width
 };
 
 /// What stands at a site (P4). Kinds map 1:1 to placeholder archetypes.
@@ -133,6 +151,19 @@ struct TestbedLayout {
     BumpStamp bluff{{180.0f, 350.0f}, 35.0f, 10.0f}; ///< lakeshore cave bluff +10 m (§7.1)
     LakeStamp lake{};
     RiverLayout river{};
+
+    /// Drainage valleys carrying the §7.1 river: [0] crag -> lake (inflow),
+    /// [1] lake south rim -> south edge ≈ (300, 1024) (outflow, carries the
+    /// (330, 840) ford). Outflow floor starts under the outlet-biased rim
+    /// crest so the lake spill lands in it deterministically.
+    /// Inflow bends SOUTH of the hamlet (360, 500) — the "river inflow bend"
+    /// of §7.1 with the settlement on the dry north bank.
+    ValleyTrough troughs[2] = {
+        {{{760.0f, 300.0f}, {640.0f, 420.0f}, {480.0f, 555.0f}, {310.0f, 565.0f}},
+         4, 80.0f, 22.0f, 16.5f, 5.0f, 0.6f},
+        {{{240.0f, 600.0f}, {300.0f, 760.0f}, {330.0f, 900.0f}, {300.0f, 1024.0f}},
+         4, 60.0f, 14.8f, 9.5f, 4.0f, 0.6f},
+    };
 
     /// Sites in deterministic placement order (WorldEntityIds follow it).
     SiteLayout sites[6] = {

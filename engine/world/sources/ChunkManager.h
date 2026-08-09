@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -36,6 +36,10 @@ UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — added open_generated() (in-memory generator
   path, lead directive: no .dfw IO this stage); open(file) documented as
   deferred to stage 3. Additive change only.
+- 09:08:2026 - 11:05:22: Stage 3b (additive): surfacefield()/scatter() per
+  resident chunk + water_bodies() (render handoff agreement); open_generated
+  builds the WorldGenContext once; chunk load attaches Transform/RenderMesh/
+  LocalBounds/SiteMarker to P4 site entities via batch ops.
 */
 
 #pragma once
@@ -127,6 +131,27 @@ public:
     /// The frozen cross-zone heightfield view of a resident chunk (render
     /// meshing, physics terrain — agreed Rule 26). nullopt if not resident.
     [[nodiscard]] std::optional<math::HeightFieldView> heightfield(ChunkCoord coord) const;
+
+    /// The stage-3b surface view of a resident chunk (render splat/water —
+    /// agreed with render). Same lifetime as heightfield(). nullopt if not
+    /// resident.
+    [[nodiscard]] std::optional<math::SurfaceFieldView> surfacefield(ChunkCoord coord) const;
+
+    /// P5 scatter instances of a resident chunk (render decides drawing).
+    /// Empty span if not resident. Same lifetime as heightfield().
+    [[nodiscard]] std::span<const math::ScatterInstance> scatter(ChunkCoord coord) const;
+
+    /// Explicit water-body primitives of the whole open world (render's
+    /// plane/ribbon water materials). River stations are ordered source ->
+    /// mouth with monotonically non-increasing surface heights; segment i is
+    /// stations [river_segment_offsets[i], river_segment_offsets[i+1]).
+    /// Valid until the manager is re-opened.
+    struct WaterBodies {
+        std::span<const math::LakePlane> lakes;
+        std::span<const math::RiverStation> river_stations;
+        std::span<const uint32_t> river_segment_offsets;
+    };
+    [[nodiscard]] WaterBodies water_bodies() const;
 
     /// Full chunk data of a resident chunk (editor, save encoding). nullptr if
     /// not resident.

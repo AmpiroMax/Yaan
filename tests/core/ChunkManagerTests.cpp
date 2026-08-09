@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
+Last updated: 09:08:2026 - 11:05:22
 Module: tests
 File: tests/core/ChunkManagerTests.cpp
 
@@ -19,12 +19,17 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:42:03: Stage 2 — initial suite.
+- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 spawns site entities: baseline
+  captured before streaming; new cases for site component attachment,
+  surfacefield/scatter/water_bodies accessors.
 */
 
+#include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/world/sources/ChunkManager.h"
+#include "engine/world/sources/SiteComponents.h"
 
 #include <doctest/doctest.h>
 #include <vector>
@@ -155,15 +160,50 @@ TEST_CASE("determinism across managers: same seed serves identical heights") {
 
 TEST_CASE("unload_all releases everything with the event protocol") {
     Fixture f;
+    const std::size_t baseline = f.ecs.entity_count(); // before any streaming
     f.chunks.update({0.0f, 0.0f, 0.0f}, f.ecs, f.bus);
     REQUIRE(f.chunks.loaded_chunks().size() == 9);
-    const std::size_t baseline = f.ecs.entity_count();
 
     f.chunks.unload_all(f.ecs, f.bus);
     CHECK(f.unloaded_events.size() == 9);
     CHECK(f.chunks.loaded_chunks().empty());
     CHECK_FALSE(f.chunks.is_loaded(ChunkCoord{0, 0}));
-    // No entity leaks: stage-2 chunks spawn no entities, and unload destroys
-    // whole groups either way.
+    // No entity leaks: site entities spawned by loaded chunks are destroyed
+    // with their groups; the world returns to its pre-streaming population.
     CHECK(f.ecs.entity_count() == baseline);
+}
+
+TEST_CASE("site entities spawn with components; surface/scatter views serve") {
+    // Testbed layout: the hamlet (360, 500) lives in chunk (1, 1) — stream it.
+    Fixture f{WorldGenParams{1, {0, 0}, {3, 3}}};
+    f.chunks.update({384.0f, 0.0f, 384.0f}, f.ecs, f.bus); // focus chunk (1, 1)
+    REQUIRE(f.chunks.is_loaded(ChunkCoord{1, 1}));
+
+    // The hamlet's entities carry the full component set (Rule 11 batches).
+    std::size_t sites = 0;
+    for (const auto& [id, marker, transform, mesh] :
+         f.ecs.view<dfn::world::SiteMarker, dfn::components::Transform,
+                    dfn::components::RenderMesh>()) {
+        ++sites;
+        CHECK(mesh.mesh_asset != 0);
+        CHECK(transform.position.y > 0.0f);
+    }
+    CHECK(sites >= static_cast<std::size_t>(dfn::config::HAMLET_SIZE_MIN));
+
+    // Stage-3b views mirror heightfield residency and lifetimes.
+    const auto surface = f.chunks.surfacefield(ChunkCoord{1, 1});
+    REQUIRE(surface.has_value());
+    CHECK(surface->surface_class.size() == surface->dist_to_water.size());
+    CHECK(surface->water_surface.size() == surface->dist_to_water.size());
+    CHECK_FALSE(f.chunks.surfacefield(ChunkCoord{3, 3}).has_value());
+
+    // Water bodies are exposed for render's plane/ribbon materials.
+    const auto water = f.chunks.water_bodies();
+    REQUIRE(water.lakes.size() == 1);
+    CHECK(water.lakes[0].surface_height
+          == doctest::Approx(static_cast<float>(dfn::config::LAKE_LEVEL_TESTBED)));
+    CHECK_FALSE(water.river_stations.empty());
+    REQUIRE(water.river_segment_offsets.size() >= 2);
+    CHECK(water.river_segment_offsets.front() == 0);
+    CHECK(water.river_segment_offsets.back() == water.river_stations.size());
 }
