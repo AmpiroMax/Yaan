@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 22:20:46
+Last updated: 09:08:2026 - 22:46:49
 -->
 <!--
 UPD:
@@ -47,6 +47,7 @@ UPD:
 - 09:08:2026 - 21:41:00: The cascade landed and produced three rulings, one of which is my own I3 fix colliding with my own I4 rule. §2.8.3 NEW MEASUREMENT RULE — EVERY INVARIANT SHIPS WITH A CONTROL: THE SHAPE IT EXISTS TO REJECT MUST FAIL IT. Core ran the I11 detector against a smooth analytic cone before trusting it («I have now been burned twice by trusting a detector») and THE CONE SCORED EXACTLY 3 AGAINST A FLOOR OF 3. Third time this section has produced a test its own reject-case passes — contour-CV scored 0.935 on the dome, footprint-weighted I3 scores its ideal at zero, now I11 — and three instances is a missing step, not bad luck. A new invariant is not believed until the dome fails it. §2.8.3 — second new rule, core's, adopted: A VIEW-SPACE TEST IS EVALUATED AT THE RESOLUTION OF THE EYE IT STANDS IN FOR; their first I11 returned 17-31 breaks whose count DID NOT FALL AS THE THRESHOLD ROSE, which is the signature of sampling jitter rather than structure and is a keeper as a diagnostic. Window is the readability scale: distance/30 metres is 1/30 rad at every distance. §2.8.7 I11 — RULED, count breaks on the INTERIOR of the horizon only, excluding apex and the two hem junctions, which is what §7.1's «three readable crest lines» always meant; cone scores 0, reshaped massif 4-11. Break threshold 20 deg of tangent turn, bracketed rather than picked off the curve: above by MASSIF_ARETE_TURN_MIN 50 deg (a plan-view aspect turn always projects to a SMALLER silhouette tangent break, so the silhouette threshold sits below it), below by core's measured 10-15 deg noise floor; 20 deg takes the wider margin, 6 breaks against a floor of 3, rather than 30 deg's 4-against-3 which would violate the never-equal-the-floor spacing. Provisional; frames outrank it. Recorded that I WROTE I11 WITH THIS HOLE IN IT ONE MESSAGE AFTER WITHDRAWING TWO INVARIANTS FOR THE IDENTICAL DEFECT. §2.8.2 — CLIFF RISERS ARE PLANAR BUT NOT IDENTICAL, the angle varies between bands. I4 now fails 8 of 12 because a steep massif concentrates surface in the 60-70 deg bin, and the cause is PLANARITY PLUS A SINGLE CLIFF ANGLE: I ruled risers planar to stop them spending width on sub-cliff slope (I3), and a planar face puts ALL its area at ONE angle, so a single cliff angle lands every riser in the same bin. My two rulings were fighting and I4 noticed. Fix moves no threshold — the CLIFF class becomes a BAND of angles, each riser still planar and still above MASSIF_CLIFF_SLOPE_MIN but drawing from a seeded spread; I3 unaffected, I4 satisfied by VARIETY rather than shallowness, and it is the truer landform since a real banded scarp carries 55, 70 and overhanging faces in one massif. MASSIF_CLIFF_SLOPE_MIN is a FLOOR and a floor was never a target — the same sentence I wrote about MASSIF_BENCH_SLOPE_MAX being a ceiling. Ruled explicitly that I4 is SOUND and not the thing to relax: «перепады не должны быть постоянными» is exactly the complaint a uniformly 65 deg massif re-creates at a steeper angle, and this is the THIRD variant of the identical failure after dead-flat benches and ceiling-pinned benches, each fixed by variety rather than by a different constant. CORE'S SECOND BUG, and it is why the profile was inverted: the stamp computed h = H*(1-t)^p, which decays to ZERO at the rim rather than to the valley floor, so the entire concave tail sat below base terrain and was discarded by the max() — only the steep crossing where the cone cuts the valley survived, which is precisely why the envelope measured shallowest at the summit and steepest at the foot. Now datum + relief*(1-t)^p. My I1 envelope re-spec reads 42.5 deg where the surface basis reported 6.4 deg on the same mountain, so the re-spec was right AND there was a bug underneath it. CASTLE NEEDS NO RE-SITING: R1-R4 pass, crown unoccluded, ratio within CASTLE_SILHOUETTE_RATIO, ramp within budget, Backbarrow visible from BOTH yard and gate — option (1) of the preference ladder happened for free because I10 constrains only the body above the cliffline and the p>1 profile fans the hem naturally. Distribution after the cascade: I1 30.3-52.0, I2 64.8-74.3, I3 62.0-71.7, I5 92.2-100, I10 1.23-1.63 all passing on every seed; I6 fails seed 1 only; I4 fails 8, I8 level 6, I8 rise 8, I7 0-2 everywhere. Core did not patch the regressions and reported them as my own model-change rule arriving on schedule.
 - 09:08:2026 - 21:50:00: I11 WORKS AND REPRODUCES THE USER'S COMPLAINT FROM A CAMERA. Interior breaks at 20 deg, floor 3, cone control reading 0 everywhere: 300 m gives 5/8/12/4 and passes from every bearing; 400 m gives 1/4/5/4 and fails from one; 600 m gives 1/1/0/0 and FAILS FROM EVERY BEARING. The massif reads as broken rock up close and as a smooth mass from the valley — the sentence the user has been saying for four sessions, now produced by the only invariant computed from a camera, while nine object-space invariants report a healthy mountain on the same build (I1 47.3, I2 70.2, I3 67.9%, I10 1.46, robust across twelve seeds). The §2.8.7 thesis measured rather than argued: the frame and the camera-side invariant agree with each other and disagree with everything else. §2.8.2 MODEL RULING — I7 FAILING ON EVERY SEED AND I11 FAILING AT 600 m ARE ONE FAILURE. A tangent break is scale-free: a genuine corner between two flat faces reads at any distance, because the chord either side lies along a straight facet however wide the window grows. Breaks can only wash out with distance if THE FACETS THEMSELVES ARE CURVED, which is precisely what I7's MASSIF_FACET_TURN_MAX says directly and it has never passed. Three rulings follow: (a) seeded variation perturbs the polygon's PARAMETERS — each facet's support distance d_i and bearing alpha_i drawn once per facet — and NEVER modulates R(theta) continuously across a facet, which is what bends a flat face into an arc and why a support-function construction that is polygonal by definition has been producing curved facets; (b) A COULOIR IS A PAIR OF FACETS, NOT A DENT IN ONE — a notch with its own two planar walls preserves flatness and ADDS corners where a smooth re-entrant subtracts them, which also retires the tension core measured earlier (deepening couloirs dropped aretes 4->0 BECAUSE they were dents; as facet pairs they raise I8 and I11 together), leaving everything on the massif as flat faces meeting along lines at every scale — the user's «рёбра» and this document's own definition of an arete, finally built the way both are written; (c) CREST STRUCTURE IS SIZED AGAINST THE ACCEPTANCE DISTANCE, facet arc exceeding the readability window at the far range (~20-24 m at 600-717 m). SECOND INSTANCE of that rule after the summit tor, so it is now general: DETAIL SIZED AGAINST THE OBJECT SHRINKS OUT OF LEGIBILITY AS THE OBJECT RECEDES; anything required to read at distance is sized against the distance. Corner count follows for free since only limb-facing facets contribute breaks — four aretes alone put barely two corners on the outline, and couloirs as facet pairs clear I11's floor without touching L0_ARETE_COUNT and without hitting the convexity cap, because a re-entrant notch is exactly what makes the section non-convex. §2.8.2 NEW CONTROL — A PER-BEARING FIELD MUST BE VERIFIED UNIFORM OVER ITS DECLARED RANGE (core's proposal, adopted; the distribution-shaped version of the reject-case control). Core measured 0% of samples below 0.4, then lumps of 26% at 0.6 and 30% at 0.8, against a raw lattice uniform to a tenth of a percent: every seeded spread in the model was silently using the top 60% of its range, lumpily. Cost, all invisible until measured — the profile exponent never approached MASSIF_PROFILE_EXPONENT_MIN so THE GENTLE-FLANK HALF OF §2.8.2'S ASYMMETRY RULE NEVER EXISTED AT ALL; cliff risers were never drawn near MASSIF_CLIFF_SLOPE_MIN, leaving 4% in the 50-60 deg bin, a hole exactly where my band-of-angles ruling expected mass; and the 0.5 cliff/ramp split was arithmetic about a coin that was never fair. A spread that is secretly peaked passes every review and no invariant in this document names it. MY I4 DIAGNOSIS WAS WRONG ABOUT CORE'S BUILD: the band-of-angles was ALREADY implemented per (band, bearing), so single-angle risers were never the cause. Fourth time this session I reasoned soundly from an unchecked premise, and the worst instance because I asserted a fact about another zone's code IN THE SAME MESSAGE where I refused to reason about I8 without asking — I applied the lesson to one item and not the other, one message after the lead taught it to me. The ruling survives as a rule (a floor was never a target) but not as a diagnosis. Core's own lesson recorded beside mine: they fixed the degenerate-circle geometry once for the lobe field and left the broken helper feeding four other consumers — FIXING A SYMPTOM IS NOT FIXING A MECHANISM, and they had already written the mechanism down. I8 rise: unit change VERIFIED IN SOURCE and rise still fails 9 of 12, so the measurement is honest — but it predates the facet-planarity change, which alters how eps varies with height entirely, so DO NOT DIAGNOSE THE MECHANISM YET; re-measure after facets and couloirs land. I6 now passes on every seed (the harmonic fix did that). Six of ten robust across twelve seeds.
 - 09:08:2026 - 22:20:46: THE ACCEPTANCE DOCTRINE, and it invalidates the number this whole stage was measured against. NEW §1.6 — an acceptance frame is a VERDICT only if five conditions hold (residency, budget, authorship, standpoint, light) and is otherwise a DIAGNOSTIC that is labelled and never relayed as the state of the world; four frames were shot this stage and not one of them was a verdict. §1.6.1 F2 — AN ACCEPTANCE DISTANCE IS A PROPERTY OF THE LANDMARK, NEVER OF THE PROJECT: readable units U(d)=60R/d, I11 demands six silhouette features (3 interior breaks + apex + 2 hem junctions) at ~2 units apiece = 12 units with zero slack, and this document has twice refused zero slack, so LANDMARK_ACCEPTANCE_UNITS_MIN = 20 and d_accept = 3R. Derived first and checked after, not fitted: I11 fails from one bearing at 400 m (18 units), passes everywhere at 300 m (24) and reads 9-12 at 253 m (28). Ravenscar's acceptance distance is 360 m; the LR's is 780-930. THE 600 m FIGURE WAS WRITTEN FOR THE LR AND APPLIED TO THE CRAG — conservative for the mountain it was written for, impossible for the one it was used on, and the evening's headline sentence is that mismatch measured rather than a finding about Ravenscar's shape. Honest cost recorded: at 3R the verdict frame lands at 360 m and the rhythm frame is at 287 m, so RAVENSCAR IS TOO SMALL TO HAVE A FAR FRAME DISTINGUISHABLE FROM ITS NEAR ONE — the two frames now differ by clause and light, not by range, and a far frame is a thing only a large landmark has. Metric structure (band pair ~28 m, readable to ~840 m) and angular structure (3R) have different acceptance distances: THE BINDING DISTANCE IS THE CLAUSE'S, NEVER THE FRAME'S. §1.6.2 F3 — measured in the generator rather than assumed: the world is 4x4 chunks = 1024 m closed by physics walls, and authored influence is a UNION OF STAMP FOOTPRINTS (massif 162 m, troughs 96-128 m, bumps and lake at their radii) outside which the terrain is three octaves of value noise at 0-31.5 m relief, INSIDE the box as much as outside it. Rulings: unauthored FOREGROUND does not invalidate a frame (ground is allowed to be ground); unauthored BACKDROP invalidates every COMPOSITION clause (C2, C4, §1.3a depth separation, §6.1's rock-not-sky envelope are all claims about relationships between two AUTHORED masses); unauthored terrain touching the subject's outline contaminates the silhouette clause specifically, so I11's azimuth guard becomes general — every view-space test states the angular window within which it attributes structure to its subject; a frame whose subject is unauthored is a RENDER test. Therefore EXTENDING THE WORLD DOES NOT EXTEND THE AUTHORED WORLD: a 2x2 km map with the same five stamps has exactly as much design in it and four times as much backdrop. §1.6.3 — NO RULE IN §1.3/§1.3a IS PASSING OR FAILING BEYOND THE AUTHORED EXTENT, IT IS UNSHOT. LANDMARK_MAX_DISTANCE 4000 m is a siting ceiling and a depth-precision bound, never a legibility specification, and it has certified nothing because nothing has ever been sited past 1 km — there is nowhere to put it. Every C1/C2/C3/C4 figure is a statement about a 1024 m world and is reported with that extent attached. THE LR DOES NOT EXIST IN THE GENERATOR (core established by search: no code path reads any LR_ constant), so every temple-massif ruling I have made is unvalidated by construction and DESIGN STOPS REFINING LR NUMBERS UNTIL AN LR STAMP EXISTS — tuning a constant for an absent object is the purest instance of this stage's defect and I did it all evening. NEW STATUS CATEGORY, the reporting half of Rule 30: PASSING / FAILING / UNSHOT, and UNSHOT never enters a count. §1.6.4 F1 — §1.3a's box CORRECTED on a measurement: ChunkManager loads by CHEBYSHEV radius in CHUNK units and clips to extent, so 'the world stops at 512 m' is the right order and the wrong shape; for Ravenscar in chunk (3,0) the legal standpoints are x >= 256 and z < 768 and frame 1's (120,300) is illegal on its BEARING, not its range (flagged as a PREDICTION from reading ChunkManager.cpp, to be checked by render — I have not read how a probe sets its streaming focus and will not assume it). LOD IS NOT THE PRECONDITION FOR RAVENSCAR'S ACCEPTANCE: at 360 m the verdict frame is shootable tonight. CHUNK_LOAD_RADIUS still must not rise for a screenshot. NEW §2.8.8 — THE DOME FRAME IS ATTRIBUTED AND IT WAS RECORDED, no reconstruction needed: screenshots/massif/02_massif_verdict_400m_diagnostic.png, 21:14, L0 at 400 m on frame 1's bearing (eye ~(434,256), due west of the peak), backlit. 400 m is 18 readable units, INSIDE the budget, so the comfortable reading 'photographed from too far away' is available and is FALSE for this frame — I looked at the mountain from very nearly its own acceptance distance and saw a dome. But the frame PREDATES THE PROFILE-CLIPPING FIX BY HALF AN HOUR: the stamp was computing h = H*(1-t)^p, decaying to zero at the rim so the whole concave tail was discarded by the max(), which core describes as precisely why the envelope measured shallowest at the summit and steepest at the foot — the textbook dome signature. THE FRAME WAS RIGHT; IT WAS A PICTURE OF A BUG, AND THE BUG IS FIXED. So MY dome verdict is CLOSED and THE USER'S COMPLAINT IS NOT: he said it while playing, four sessions running, and no frame has been shot since relief +19, radius 180->120, the profile fix, faceted couloirs, arete 4->3 and a noise field returning a third of its range. An explanation that dissolves the measurement while leaving the complaint standing is the move this project keeps making. RULING — I7 MEASURES RIDGE PERSISTENCE, NOT RIDGE COUNT. The floor of 3 against a generator input of 3 is my own never-equal-the-floor rule broken, but the deeper fault is that I7 WAS MEASURING AN INPUT: L0_ARETE_COUNT is a number design hands the generator, and counting it back out checks the detector rather than the mountain. Measured quantity becomes DESCENT DEPTH — the span of relief over which a crest survives before the flank swallows it — over eight levels across the banded zone. MASSIF_ARETE_DESCENT_MIN = 0.50 of relief, DERIVED: a rib must run from near the summit (0.85) to the cliffline (MASSIF_CLIFFLINE_FRAC 0.33) because below that §2.8.7 permits a grassy apron and ribs are supposed to die into talus; span 0.52 rounded to 0.50. The count survives only as a guard against the coincidence and as a FRACTION, ceil(2/3 * L0_ARETE_COUNT) = 2 of 3 — accepting core's measured 2-of-3 detector limit is not accommodation ONLY BECAUSE THE SUBSTANCE MOVED TO PERSISTENCE; lowering the floor and still counting would have been. Both controls per Rule 30 and the lead's corollary — MUST FAIL: a cone, and the case the old I7 could not reject, A SMOOTH CONE WITH A FACETED CAP whose corners appear at 0.85 and are gone by 0.70 (descent ~0.15), which is exactly the dome-with-a-sharp-hat the frames kept showing; MUST BE ABLE TO PASS: three ribs each running summit to cliffline. Why this version predicts I11: a rib dying above 0.55 leaves the lower two-thirds of the silhouette smooth and that is most of what a standing eye sees, so descent depth is the object-space quantity whose failure PRODUCES I11's. The 21:29 guard is discharged — re-scoping I7's levels was conditional on I11 existing, and it exists. THE CONVEXITY CAP PROTECTS NOTHING and there is no veto to lift: n*tan(pi/n)/pi is arithmetic (the isoperimetric ratio of a regular n-gon) that arrived as a CONSEQUENCE of core's support-function construction, not a rule design imposed, and I have never ruled that a massif must be convex. What I barred is ELONGATION as a knob for passing I8, which stands and is about ridge-versus-peak, not convexity. The model is ALREADY non-convex in plan; what it cannot express is PROTRUSION. So protrusion gets a BUDGET in quantities we already measure: (1) SINGLE SUMMIT via topographic prominence, MASSIF_SPUR_PROMINENCE_MAX = 0.20 of relief (23 m on Ravenscar) — above that the massif reads as a cluster of hills, which C4 forbids; (2) C1 visibility, no new constant, spurs may grow until LANDMARK_VISIBILITY_MIN 0.6 binds and Ravenscar has 0.751 to spend; (3) elongation, unchanged and the one hard bar; (4) the castle spur is a BENEFICIARY — protrusion IS §2.8.7's release valve done deliberately. Where: the south-west three-quarters, since the crag sits 194 m from the east edge and 200 m from the north edge and has no long sightlines from those bearings at all. CONSTANTS RE-DERIVED AFTER THE FIELD FIX. MASSIF_PROFILE_EXPONENT_MIN 1.3 -> 1.5, and the rule it belonged to was WRONG ON THE ARITHMETIC: h = H*(1-d/R)^p runs from H to 0 for EVERY p, so mean envelope slope is H/R = 43.8 deg regardless and p CANNOT MAKE A FLANK GENTLER OR STEEPER — it only moves where the steepness sits along the radius. §2.8.2's 'the low-p sector is the gentle flank that carries the ascent' is false in both halves: the low-p sector is the most UNIFORM flank, the one closest to the constant gradient I4 exists to reject. The gentle flank must come from R(theta) or from the benches, and §7.1b already says the benches carry the ascent. The broken field did not merely hide the low-p half, it hid the fact that the low-p half was never going to do its assigned job. Nothing pulls p down and the anti-dome argument pulls it up; derived against I1's own 12 deg floor on the envelope basis at H=115/R=120: p=1.0 gives 0.0 deg (the cone control failing as it must), 1.2 gives 9.5 (fails), 1.3 gives 13.4 (passes by 1.4 — no margin, and it survived only because the field never generated it), 1.5 gives 19.8 (1.65x the floor), 2.2 gives 34.4. _MAX 2.2 untainted and unchanged. AND THE BOUNDS ARE NOT ENOUGH — Rule 31 in full: the fixed bearing_field is a normalised sum of cosines and is BELL-SHAPED about 0.5, not uniform, so a [1.5, 2.2] range drawn from it concentrates p near 1.85 and delivers little asymmetry — 'only the top 60%' replaced by 'mostly the middle'. Design does not get to specify the noise function, so the requirement is stated on the OUTCOME: MASSIF_PROFILE_ASYMMETRY_MIN = 10 deg of spread between the steepest and shallowest per-bearing I1 steepening across the 64 radials (middle-half field yields ~7 and fails; the full range yields ~14.6 and passes). It has a control — a cone reads 0 deg of spread — and it cannot be satisfied by a peaked field pretending to be a spread. THE 20 DEG BREAK THRESHOLD RE-CONFIRMED ON A DIFFERENT BASIS: the upper bracket (below MASSIF_ARETE_TURN_MIN 50 deg, since a plan-view aspect turn always projects to a smaller silhouette break) is geometry and is untouched; THE LOWER BRACKET IS WITHDRAWN AS A BASIS because core's 10-15 deg noise floor was measured on the broken field and 'where counts stop responding' is a property of sub-readable band structure drawn from that same field. Re-derived perceptually instead: at the 1/30 rad window a break is a direction change between two ~17.5 px segments, where orientation discrimination is unambiguous well below 20 deg, so 20 sits above the perceptual floor and below the 50 deg ceiling with no measured curve in it. Standing control: the cone must read 0 AND the threshold sweep must show counts FALLING as the threshold rises — counts that do not fall are core's own jitter signature and mean the detector is measuring itself. Rule 14 gap flagged: the 20 deg is a LITERAL in the probe while MASSIF_SILHOUETTE_BREAKS_MIN gives a count with no magnitude — requested MASSIF_SILHOUETTE_BREAK_TURN_MIN = 0.35 rad. MASSIF_SLOPE_BIN_MAX 0.30 STANDS with its PROVENANCE replaced rather than its value moved: re-derived from the landform (a banded scarp puts risers across three steep bins at ~22% each and benches across two at ~17%, so the intended mountain's fullest bin lands near 22%) instead of from the dead 33.2% dome reading. I4 is not the thing to relax and its eight-seed failure is NOT to be diagnosed until re-measured on the fixed field, since the band-of-angles spread that was supposed to satisfy it has never actually been exercised. THE SUITE IS NOT A SCOREBOARD — the object-space invariants are NOT retired, and the honest answer is more uncomfortable than retirement: they are nine correct measurements of nine different things, SEVEN OF WHICH THE USER NEVER COMPLAINED ABOUT. The complaint has two halves, 'siska' (convex profile: I1, I10) and 'rebra' (angular structure: I7, I11), and A PERFECTLY CONCAVE PERFECTLY SMOOTH MOUNTAIN PASSES I1/I3/I4/I5/I10 AND READS AS A SMOOTH MASS — concave and smooth are not exclusive, so there was never a contradiction between suite and frame to resolve. THE TWO INVARIANTS THAT ENCODE THE ACTUAL COMPLAINT ARE EXACTLY THE TWO THAT FAIL ON EVERY SEED. The defect was in the REPORTING FORM: 'seven of eight', 'nine of eleven', 'six of ten robust' weight every invariant equally when only some protect the thing under complaint. RULING: a suite is reported as a list with its LOAD-BEARING member named for the complaint in hand, never as a score. STANDING DEBT, mine: NINE OF TEN INVARIANTS HAVE NO CONTROL and Rule 30 is retroactive or it is decoration — requested of core as one cheap batch, the whole suite against a cone and against a smoothstep dome, with my predictions recorded BEFORE the measurement so they can be wrong (I1/I3/I4/I5/I6/I8 and the repaired I7 reject the cone; I2 and I10 PASS it, I2 because a cone's flank satisfies a summit-slope test with no summit in it and I10 because its proper reject case is a pancake). THE I7/I11 TRADE needed no ruling: I11 read 1,1,0,0 without ruling 3 and 2,1,2,0 with it, failing from every bearing either way, so there was never a trade because ONE ARM NEVER CROSSED THE BAR. General form recorded — a trade between two invariants is only a trade if BOTH readings cross their thresholds; two failing numbers moving in opposite directions is one regression and one coincidence. And §2.8.2 ruled I7 and I11 are ONE failure, so A CHANGE THAT MOVES ITS TWO SYMPTOMS IN OPPOSITE DIRECTIONS HAS NOT TOUCHED THE MECHANISM (Rule 32) — the test to apply to the next candidate fix before it is measured. Ruling 3's PRINCIPLE stands (it is Rule 33 and is upstream of §1.6.1's whole derivation); what is withdrawn is the implementation and the distance it was sized against — it was sizing crest structure for 600 m, a range belonging to a mountain that does not exist.
+- 09:08:2026 - 22:46:49: THE COMPLAINT IS CLOSED AND THE ANSWER IS NOT THE MOUNTAIN. I opened both west 300 m frames myself. Trees off: a pointed tor with its tower nub, a concave left flank carrying band lips at ~2/3 height, a long straight right ridge with a distinct shoulder break, the castle reading on its spur — THE GEOMETRY IS RIGHT. Trees on: a low featureless hump. NEW §5.12 — RULED FOR LEVER 2 (the apron), and it is not a clearing, it is a landform. TWO FAILURES, NOT ONE: (1) THE FOOT IS EATEN — a mountain missing its bottom third loses the bench and the flare and what survives is the upper cap, WHICH IS CONVEX ON ANY MOUNTAIN WHATSOEVER, so this is the dome and no shape change can fix it; (2) VALUE MERGING — canopy and backlit rock on one value, so the eye sees one dark mass whose outline is the union of both. Failure 1 produces the user's word, and HUE SEPARATION CANNOT FIX IT: telling tree from rock does not give back the bottom third. MEASURED MECHANISM: the pine annulus begins at 140 m, INSIDE the 120-162 m hem where the massif is still climbing — pines do not start at the foot, they start ON it — while the only treeless rule, on_crag_treeless, fires only at d < 120 AND h >= 57.5 m, an elevation gate high on the mountain. THE BAND BEING EATEN HAS NO RULE AT ALL; the strip duty cycle is an ANGULAR gap, not a radial standoff. Rule is DERIVED, never a tabled radius (§7.1a's trap, my fourth): no tree is placed where its canopy top would obscure the massif's silhouette below MASSIF_CLIFFLINE_FRAC from any acceptance standpoint — C1-B restated as a placement predicate on machinery that already exists. IT ADDS CONTENT: the apron is exactly where §5.10's floor classes belong (scree, boulder fields, big bushes, snags, deadfall, stunted sub-cliffline pines), and a bare ring would be worse than the forest — a talus apron with scrub and stone is a better landscape than closed pine to the hem INDEPENDENTLY OF ANY INVARIANT, because that is what erosion puts there. The §7.1b ascent benefits: a worn path across open scree reads as a path, through closed pine as nothing. LEVER 1 (density) RULED NOT THE LEVER because it is ALREADY BUILT and the frame still fails — TREE_SPACING_FOREST 12-18 is consumed (oak 15 m lattice, pine 14 m), which against the previous 5-8 m is 5.3x sparser BY AREA, more than the user's «не менее чем в трое»; the user's ruling landed and was not enough near a landmark, said plainly so nobody spends the fix twice. Density is not the binding constraint, PROXIMITY TO THE MASSIF is. LEVER 3 (hue) NECESSARY BUT NOT SUFFICIENT and re-scoped into two different defects: the source colours ALREADY differ strongly in hue (PINE_DARK is teal-green at saturation 0.45, every rock tone neutral at 0.05), but (a) CHROMA DISCRIMINATION COLLAPSES AT LOW LUMINANCE so lever 3 is weakest exactly where the problem is, at the backlit hour where both surfaces are lit by ambient alone; and (b) THE 64-COLOUR PALETTE HAS NO CONIFER RAMP — its eight ramps are grass greens, dry olive, dirt browns, rock greys, sand tans, sky blues, water teals, neutrals, so PINE_DARK (0.12,0.22,0.19) must quantise into GRASS GREENS whose dark end is a yellow-green with B=0.04 against pine's 0.19. THE SINGLE MOST COMMON DARK MASS IN THE WORLD HAS NO SHADE OF ITS OWN AND THE PALETTE DESTROYS THE ONE AXIS THAT SEPARATES IT FROM ROCK. Design requirement to render: the shipped palette carries a conifer ramp. Ranked so implementation order is not a judgement call: (1) the apron, which restores the mountain; (2) the conifer ramp, which stops the merge and is cheap; (3) nothing further on density. §5.10 IS UNBUILT — THE LR's POSITION A SECOND TIME, checked in source: snags, big bushes, fallen logs, deadfall, floor scarps and maturity tiers all have constants (16 rows) and meshes and ZERO consumers; the scatter alphabet has five members and bushes and stones are BOTH barred from inside a forest mass, so THE FOREST FLOOR TODAY IS BARE TERRAIN SPLAT AND NOTHING ELSE. Unlike the LR_ rows none carries a «НЕ ПОСТРОЕНО» marker, so the registry reads as though this is built — requested of the lead that they be marked, because a numbers table that overstates what exists is how a zone spends three sessions tuning an absent object. NEW §1.3b — C1 MEASURES OCCLUSION, NOT LEGIBILITY. A landmark can be 100% unoccluded and invisible and we now have the frame that proves it; C1 has been certifying a property its raycast cannot see, and the 0.751 I offered as spur budget one message ago is denominated in the wrong currency. C1 is NOT retired but RE-SCOPED: LANDMARK_VISIBILITY_MIN 0.6 remains a floor on OCCLUSION and stops being cited as a legibility figure; until the new instrument exists every C1 number is treated as UNSHOT — recorded, not certifying. THRESHOLDS FOR THE TWO-NUMBER INSTRUMENT, mine: C1-A OUTLINE FIDELITY — per screen column compare the DRAWN horizon to core's TERRAIN-REFERENCE horizon, faithful within one readability window, LANDMARK_OUTLINE_FIDELITY_MIN = 0.90 AND no contiguous unfaithful run longer than one readable unit; THE RUN-LENGTH CLAUSE IS LOAD-BEARING AND THE FRACTION IS THE GUARD, because a fraction alone is satisfiable by a tree wall that eats one whole flank while 90% of the outline stays clean, which is exactly the west 300 m frame — derived from §1.6.1's feature budget, since a contiguous loss over one unit deletes a break together with its flanking run and an unflanked break is not detected. C1-B BODY EXPOSURE — the failure no horizon test can see, because trees shorter than the crest never touch the horizon and eat the body while C1-A reads clean: the silhouette must be exposed, neither occluded NOR value-merged, continuously from MASSIF_CLIFFLINE_FRAC of relief to the summit across >= LANDMARK_EXPOSURE_COLUMNS_MIN = 0.90 of columns, foreground permitted below the cliffline. Derived from constants already here rather than invented — §2.8.7 ruled the body the eye reads as mountain BEGINS at the cliffline and §2.8.8's I7 requires ribs to descend to that same line, so the cliffline is already this document's boundary between mountain and hem. THE VALUE TEST: two regions are SEPARATE at >= LANDMARK_SEPARATION_STEPS_MIN = 2 palette steps, or >= 1 step across a ramp CHANGE. Two and not one, by the same doctrine as I11's 20 deg — one step is the quantisation floor, two surfaces within one step are LITERALLY THE SAME COLOUR after the post, so a one-step criterion measures the quantiser rather than the image. Computed before any frame: PINE_DARK luminance 0.197 against the darkest rock stop 0.192 — ZERO STEPS. And THE TEST IS RUN WITH THE PALETTE ON: settings.cfg has palette=0, so every frame this stage was shot without the quantiser and all of them are the OPTIMISTIC case — the shipped look is worse than what we have been judging. §1.5 — THE MISSING HALF OF THE SKYLINE RULE, and its absence cost this stage a session: «value against sky» governs the landmark's OUTLINE, where the competing surface is bright sky and separation is free, and says NOTHING about the landmark's BODY, where the competing surface is another dark mass in front of it and THE SAME DOCTRINE INVERTS — value becomes the weakest axis available, and backlit dark against backlit dark is the weakest separation there is, which is precisely the hour §7.1b's verdict frame deliberately picks. Every landmark brief now states its separation from its usual FOREGROUND as well as its backdrop, and where that foreground is vegetation the separation is carried by hue and silhouette scale, never by value. §1.6 — NEW CONDITION F6, RESOLUTION: an acceptance frame is judged at INTERNAL_RES (640x360), and the crag frames are 2560x1440 — four times the linear resolution, sixteen times the pixels — so every readability judgement in this document, all of it angular and calibrated to 640x360, has been made with 4x the resolution the player has. It cuts toward FLATTERY: the band lips visible on the trees-off upper left flank are one to two pixels at INTERNAL_RES. Frames are captured at or downsampled to INTERNAL_RES before any acceptance judgement and record the resolution they were shot at; whether these were captured at INTERNAL_RES and upscaled is RENDER'S TO STATE and I have not read that path. Same defect as §1.6.1 in the other axis — there I measured at a distance nobody derived, here we judge at a resolution nobody declared. §1.3 — NEW BOX, C4 IS NOT A DOCTRINE GAP BUT AN UNENFORCED RULE WITH A STALE CONSTANT (regression, reported not patched): in the west 300 m frame the near pines stand THREE TO FOUR TIMES the L0's apparent height, against a rule that says in as many words that nothing which is not the L0 may exceed its apparent height INCLUDING CANOPY. The world's occlusion model — the sight-wedge filter that rejects trees, and the canopy height field feeding the C1 raycast — hard-codes OAK_MAX_H 12, PINE_MAX_H 18, BIRCH_MAX_H 10, while the world is built with 32 / 38 / 22. EVERY OCCLUDER IS MODELLED AT ROUGHLY HALF ITS DRAWN HEIGHT, pine at 2.1x under. §5.7's tall-tree ruling landed in render and never reached the world's occlusion model, which is Rule 32 exactly. So C1 = 0.751 carries TWO independent defects: wrong currency (§1.3b) and a world model half the height of the world. Every tree standing inside an L0 sight wedge is there because the filter thought it was 18 m tall — THE WEDGES DID NOT FAIL, THEY WERE LIED TO. No new rule and no threshold change requested; the heights are core's to source from the same constants render uses, and C1 and the wedge rejections are re-measured afterwards rather than assumed to scale.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -306,6 +307,36 @@ out-angling the 52 m crag from every western/southern ground vantage):
   clearance factor. One knob is a genuine dead end: the treeline is useless
   here (foothill terrain sits below any sane treeline).
 
+> ### ⚠ C4 IS NOT A DOCTRINE GAP — IT IS AN UNENFORCED RULE WITH A STALE
+> ### CONSTANT (regression, reported not patched, stage-4)
+>
+> In `screenshots/crag/06_crag_w_300m.png` the near pines stand **three to four
+> times the L0's apparent height.** C4 says in as many words that *nothing
+> which is not the L0 may exceed L0's apparent height from the main travel
+> corridors — including canopy.* The rule is correct, it is implemented, and
+> it is being violated grossly. **The reason is a stale constant.**
+>
+> The world's occlusion model — the sight-wedge filter that rejects trees, and
+> the canopy height field that feeds the C1 raycast — hard-codes
+> `OAK_MAX_H = 12`, `PINE_MAX_H = 18`, `BIRCH_MAX_H = 10`. The world is built
+> with `OAK_HEIGHT_MAX` = 32, `PINE_HEIGHT_MAX` = **38**, `BIRCH_HEIGHT_MAX` =
+> 22. **Every occluder is modelled at roughly half its drawn height — pine at
+> 2.1× under.**
+>
+> - **§5.7's tall-tree ruling landed in render and never reached the world's
+>   occlusion model.** That is Rule 32 exactly: a shared quantity was changed
+>   for one consumer and left stale for the others.
+> - **So C1 = 0.751 is not merely denominated in the wrong currency
+>   (§1.3b) — it was computed on a world model half the height of the world.**
+>   Two independent defects in one number, and the second is fixable tonight.
+> - **Every tree currently standing inside an L0 sight wedge is there because
+>   the filter thought it was 18 m tall.** The wedges did not fail; they were
+>   lied to.
+> - **Design does not ask for a new rule here and asks for no threshold change.
+>   The heights are core's to source from the same constants render uses.**
+>   Reported, not patched, and re-measure C1 and the wedge rejections
+>   afterwards — do not assume the ratio scales.
+
   > ### ⚠ WITHDRAWN — "raising the peak lowers clearance"
   >
   > **This finding was WRONG and is withdrawn entirely** (09:08:2026, core).
@@ -460,6 +491,90 @@ so render and core need not revisit:
 This bounds depth precision at ~4 km rather than 8+, which is the difference
 between a far-plane change and a depth-buffer restructure.
 
+### 1.3b C1 MEASURES OCCLUSION, NOT LEGIBILITY — the two-number instrument (ruling, stage-4)
+
+**A landmark can be 100 % unoccluded and invisible, and we now have the frame
+that proves it.** `LANDMARK_VISIBILITY_MIN` is a raycast test: it asks whether
+a line from the eye to the landmark is interrupted. Nothing in it can see that
+two unoccluded masses have merged into one dark shape. So **C1 has been
+certifying a property it cannot measure**, and every figure it has produced —
+including the 0.751 I offered as spur budget one message ago — is denominated
+in the wrong currency.
+
+**C1 is NOT retired.** Occlusion is a real and necessary condition, and the
+raycast measures it correctly. It is **re-scoped**: `LANDMARK_VISIBILITY_MIN` =
+0.6 remains a floor on occlusion and **stops being cited as a legibility
+figure.** Until the instrument below exists, every C1 number is treated the way
+§1.6.3 treats UNSHOT rules — recorded, not certifying.
+
+**The instrument, approved by the lead and built jointly by render and core:
+core's terrain-only horizon as the REFERENCE curve, the drawn frame's horizon
+measured in VALUE. Two numbers, because occlusion and merging are demonstrably
+different failures. The thresholds are mine and are below.**
+
+##### C1-A — OUTLINE FIDELITY (does the drawn outline belong to the mountain?)
+
+Per screen column across the landmark's angular span, compare the **drawn**
+horizon to the **terrain-reference** horizon. A column is FAITHFUL when they
+agree within one readability window (1/30 rad).
+
+> **`LANDMARK_OUTLINE_FIDELITY_MIN` = 0.90 of columns faithful (предложение —
+> утвердить), AND no contiguous unfaithful run longer than one readable unit.**
+
+**The run-length clause is the load-bearing one and the fraction is the guard.**
+A fraction alone is satisfiable by a tree wall that eats one whole flank while
+90 % of the outline elsewhere stays clean — which is exactly the failure in
+`screenshots/crag/06_crag_w_300m.png`. Derived from the feature budget of
+§1.6.1: at d_accept the landmark spans ≈ 20 readable units and must carry six
+silhouette features, so a contiguous loss of more than one unit can delete a
+break together with its flanking run, and a break that is not flanked is not
+detected.
+
+##### C1-B — BODY EXPOSURE (is the mountain's *body* there, or only its cap?)
+
+**The failure this exists to catch:** a mountain missing its bottom third loses
+the bench and the flare of the base, and what survives is the upper cap — which
+is convex on **any** mountain. **You do not need a domed mountain to get a
+domed silhouette; you need a mountain with its base hidden.** No horizon test
+can see this, because trees shorter than the crest do not touch the horizon at
+all — they eat the body while C1-A reads clean.
+
+> **The landmark's silhouette must be exposed — neither occluded NOR
+> value-merged — continuously from `MASSIF_CLIFFLINE_FRAC` of its relief to its
+> summit, across ≥ `LANDMARK_EXPOSURE_COLUMNS_MIN` = 0.90 of its columns
+> (предложение — утвердить).** Below the cliffline, foreground is permitted.
+
+**Derived from constants already in the document, not invented.** §2.8.7 ruled
+that the body the eye reads as mountain **begins at the cliffline** and that the
+apron below may flare; §2.8.8's I7 requires ribs to descend to that same line.
+The cliffline is already this document's boundary between *mountain* and *hem*,
+so it is the right place to put the exposure floor. Forest at the very hem is
+legitimate — forest above the cliffline is not.
+
+##### The value test — when are two masses "merged"?
+
+> **Two adjacent regions are SEPARATE when they differ by ≥
+> `LANDMARK_SEPARATION_STEPS_MIN` = 2 steps of the shipped palette ramp, or by
+> ≥ 1 step across a ramp CHANGE (i.e. a hue change). (предложение — утвердить)**
+
+**Two, not one, and the reason is the same doctrine as I11's 20°:** one step is
+the quantisation floor — two surfaces within one step are *literally the same
+colour* after the post, so a one-step criterion measures the quantiser rather
+than the image. A threshold must sit above its own noise floor.
+
+- **The measured case, computed before any frame was shot:** `PINE_DARK`
+  luminance **0.197**, darkest rock stop **0.192**. **Zero steps.** In shadow,
+  in a crack, or on a north-facing riser, pine canopy and rock are the same
+  value by construction. The hue axis *does* separate them at source (pine
+  saturation 0.45 against rock's 0.05) — see §5.12 for why that does not save
+  the backlit frame.
+- **THE TEST IS RUN WITH THE PALETTE ON.** `settings.cfg` has `palette=0`, so
+  **every frame this stage was shot without the quantiser**, per the user's
+  standing instruction. That makes all of them the **optimistic case** for
+  separation, and the shipped look is worse than what we have been judging.
+- **Two shapes can occlude nothing and still merge.** That sentence is the
+  reason there are two numbers and not one.
+
 ### 1.4 Draw-the-player rules
 
 - **Occlude-and-reveal:** an L1 should be *partially* hidden from at least one
@@ -506,6 +621,18 @@ horizontal ≈ 1.87 rad):
 - **Value contrast over hue:** with the limited palette, tiers separate by
   *value* (dark crag vs light sky, pale birch vs dark pines). Every landmark
   brief in §5/§6 states its value contrast against its usual backdrop.
+- **THE MISSING HALF OF THE SKYLINE RULE (added stage-4, and its absence cost
+  this stage a session).** «Value against sky» governs the landmark's
+  **OUTLINE**, where the competing surface is bright sky and value separation
+  is enormous and free. It says nothing about the landmark's **BODY**, where
+  the competing surface is **another dark mass in front of it** — and there the
+  same doctrine inverts: **value is the weakest axis available, not the
+  strongest.** Backlit dark against backlit dark is the weakest separation
+  there is, which is precisely the hour §7.1b's verdict frame deliberately
+  picks. **Rule: every landmark brief states its separation from its usual
+  FOREGROUND as well as from its backdrop**, and where that foreground is
+  vegetation the separation is carried by **hue and by silhouette scale**,
+  never by value (§5.12, §1.3b).
 
 ### 1.6 THE ACCEPTANCE FRAME — what a frame certifies, and from how far (doctrine, stage-4)
 
@@ -531,9 +658,33 @@ the label only works if the reader honours it.
 | **F3** | **AUTHORSHIP** — everything the frame credits or blames is authored | any frame whose composition clause rests on unauthored fBm |
 | **F4** | **STANDPOINT** — derived, C1-credited, on reachable ground, at eye height | the tabled (545, 165) inside a pine stand |
 | **F5** | **LIGHT** — chosen to expose *this frame's own* failure mode | frame 2's first hour |
+| **F6** | **RESOLUTION** — judged at the resolution the player plays at | every frame this stage, judged at 2560×1440 |
 
-F4 and F5 were ruled in §7.1b and are unchanged. F1–F3 are new and are the
-subject of the rest of this section.
+F4 and F5 were ruled in §7.1b and are unchanged. F1–F3 and F6 are new.
+
+##### F6 — AN ACCEPTANCE FRAME IS JUDGED AT `INTERNAL_RES`, NOT AT WINDOW SIZE
+
+`INTERNAL_RES` is **640×360**. The frames in `screenshots/crag/` and
+`screenshots/crag_notrees/` are **2560×1440** — four times the linear
+resolution, sixteen times the pixels. **Every readability judgement in this
+document is angular and is calibrated to 640×360** (`SILHOUETTE_MIN_PX` = 8 px
+⇒ readable size = distance/30). Judging a frame at 4× that resolution means
+crediting the mountain with structure the player's screen cannot resolve — and
+it cuts toward *flattery*: the band lips visible on the trees-off frame's upper
+left flank are one to two pixels at `INTERNAL_RES`.
+
+- **RULING: an acceptance frame is captured at, or downsampled to,
+  `INTERNAL_RES` before any acceptance judgement is made**, and the frame
+  records the internal resolution it was shot at. A frame that does not state
+  its resolution is a diagnostic.
+- **Whether these particular frames were captured at `INTERNAL_RES` and
+  upscaled, or captured at 2560×1440, is render's to state — I have not read
+  that path and will not assume it.** If `DFN_INTERNAL_RES` was raised for the
+  shoot, they are diagnostics and the acceptance sweep is re-run.
+- **This is the same defect as §1.6.1 in the other axis.** There I was
+  measuring at a distance nobody derived; here we are judging at a resolution
+  nobody declared. Both are «the criterion and its evaluation live in different
+  spaces», which is §2.8.7's thesis wearing a third costume.
 
 #### 1.6.1 F2 — AN ACCEPTANCE DISTANCE IS A PROPERTY OF THE LANDMARK, NEVER OF THE PROJECT
 
@@ -3248,6 +3399,121 @@ photo is colour taken off the camera's metering. Reference photographs are
 evidence about **structure** — density, value ratios, silhouette — and are not
 evidence about hue. The same caution applies to every reference image this
 project uses, not only to foliage.
+
+### 5.12 THE FOREST WAS EATING THE MOUNTAIN — the apron ruling (stage-4)
+
+Render re-shot the west 300 m frame with scatter suppressed and nothing else
+changed. **The geometry is right**: a pointed tor with its tower nub, a concave
+left flank carrying visible band lips at about two-thirds height, a long
+straight right ridge with a distinct shoulder break, and the castle reading on
+its spur. **With the trees on, that mountain is a low featureless hump.** I
+opened both frames myself.
+
+**Three candidate levers were put to me. I rule for the second, and the reason
+is that it is the only one that addresses the mechanism that actually produces
+the dome.**
+
+##### THE MECHANISM, and why only one lever touches it
+
+There are two failures, not one:
+
+1. **THE FOOT IS EATEN.** A mountain missing its bottom third loses the bench
+   and the flare of the base, and what survives is the upper cap — **which is
+   convex on any mountain whatsoever.** This is the dome. It is not a shape
+   defect and no shape change can fix it.
+2. **VALUE MERGING.** Canopy and backlit rock land on the same value, so the
+   eye does not see trees in front of a mountain; it sees one dark mass whose
+   outline is the union of both (§1.3b).
+
+**Failure 1 is the one that produces the user's word.** Hue separation makes
+you able to *tell* tree from rock; it does not give you back the bottom third
+of the mountain. **Only clearing the foot does.** So:
+
+##### RULING — LEVER 2. AND IT IS NOT A CLEARING, IT IS A LANDFORM
+
+**A massif's apron is talus, scree and scrub. Closed forest does not grow on
+it.** The forest standing on Ravenscar's hem was never right; it is a placement
+that no rule in this document ever asked for and no rule ever forbade.
+
+- **Measured, so this is a mechanism and not a preference:** the pine annulus
+  begins at **140 m** from the crag centre, which is *inside* the 120–162 m hem
+  where the massif surface is still climbing. **Pines do not start at the foot;
+  they start ON it.** Meanwhile the only treeless rule that exists,
+  `on_crag_treeless`, fires **only** at `d < 120 m` **and** `h ≥ 57.5 m` — an
+  elevation gate high on the mountain. **The band that is being eaten has no
+  rule at all.** The one thing protecting the sightline is the strip duty
+  cycle, which is an *angular* gap, not a radial standoff.
+- **THE RULE IS DERIVED, NEVER A TABLED RADIUS** — §7.1a's trap, and I have
+  fallen into it three times already. **No tree is placed where its canopy top
+  would obscure the massif's silhouette below `MASSIF_CLIFFLINE_FRAC` from any
+  acceptance standpoint.** That is C1-B (§1.3b) restated as a placement
+  predicate, it uses the sight-wedge machinery that already exists, and it
+  produces a radius per seed instead of a number in a table.
+- **This ADDS content rather than deleting it, which is why it is the ruling
+  the landscape actually wants.** The apron is exactly where §5.10's forest
+  floor classes belong: scree and boulder fields, big bushes, snags, deadfall,
+  and scattered stunted pines that are *below* the cliffline and therefore
+  legal. A bare ring would be worse than the forest. **A talus apron with scrub
+  and stone is a better landscape than closed pine to the hem, independently of
+  any invariant** — real massifs look like that because that is what erosion
+  puts there.
+- **The ascent (§7.1b) benefits:** a worn watchmen's path across open scree
+  reads as a path. Through closed pine it reads as nothing at all.
+
+##### THE OTHER TWO LEVERS, ruled rather than surveyed
+
+**LEVER 1 — density near sightlines: NOT the lever, because it is already
+built and the frame still fails.** `TREE_SPACING_FOREST` is 12–18 m and the
+scatter consumes it: oak on a 15 m lattice, pine on 14 m. Against the previous
+5–8 m that is **5.3× sparser by area**, more than the «не менее чем в трое» the
+user ordered. **The user's ruling landed and it was not enough near a
+landmark**, which is worth saying plainly so nobody spends the fix twice.
+Density is not the binding constraint; *proximity to the massif* is.
+
+**LEVER 3 — hue separation: NECESSARY, NOT SUFFICIENT, and re-scoped.** The
+source colours already differ strongly in hue — `PINE_DARK` is a teal-green at
+saturation 0.45, every rock tone is neutral at 0.05. The lever is therefore not
+«add hue separation», it is two different defects:
+
+- **Chroma discrimination collapses at low luminance.** At the backlit hour
+  both surfaces are lit by ambient alone, and at those levels the hue
+  difference that exists on paper is not available to the eye. **Lever 3 is
+  weakest exactly where the problem is.**
+- **The 64-colour palette has no conifer ramp.** Its eight ramps are grass
+  greens, dry olive, dirt browns, rock greys, sand tans, sky blues, water teals
+  and neutrals. `PINE_DARK` (0.12, 0.22, 0.19) must quantise into *grass
+  greens*, whose dark end is a yellow-green with B = 0.04 against pine's 0.19.
+  **The single most common dark mass in the world has no shade of its own, and
+  the palette destroys the one axis that separates it from rock.** Design
+  requirement handed to render: **the shipped palette carries a conifer ramp**,
+  and §1.3b's separation test is run with the palette ON.
+
+**Ranked, so implementation order is not a judgement call: (1) the apron, which
+restores the mountain; (2) the conifer ramp, which stops the merge and is cheap;
+(3) nothing further on density.**
+
+##### §5.10 IS UNBUILT — the LR's position, a second time
+
+Checked in source rather than assumed, and this is the answer to «check which,
+because §5 has been in the same position the LR was»:
+
+| §5.10 / §5.8 item | Constants | Mesh | Placed in world |
+|---|---|---|---|
+| Snags | `SNAG_DENSITY_*` (6 rows) | exists | **never** |
+| Big bushes | `BIGBUSH_DENSITY_*` | exists | **never** |
+| Fallen logs / deadfall | `LOG_DENSITY_*` (4 rows) | exists | **never** |
+| Floor scarps / elevation change | `SCARP_*` (4 rows) | — | **no generator at all** |
+| Maturity tiers 25/60/12/3 | `TREE_MATURITY_*_PCT` | — | **never — scale is a uniform 0.8–1.2** |
+| Boulders on the forest floor | — | exists | **explicitly excluded from forest masses** |
+
+**The scatter alphabet has five members — oak, pine, birch, bush, stone — and
+bushes and stones are both barred from inside a forest mass. So the forest
+floor today is bare terrain splat and nothing else.** Every constant above has
+**zero consumers**, and unlike the `LR_*` rows **none of them carries a
+«НЕ ПОСТРОЕНО» marker**, so the registry currently reads as though this is
+built. Requested of the lead: mark them, exactly as the LR rows are marked. A
+numbers table that overstates what exists is how a zone spends three sessions
+tuning an absent object — §1.6.3, in a different zone, on the same evening.
 
 ## 6. Structures catalog (домики под разные задачи)
 
