@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:24:44
+Last updated: 10:08:2026 - 02:39:07
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -38,14 +38,20 @@ UPD:
 - 09:08:2026 - 17:16:27: world_edge_: static walls at the generated extent.
 - 09:08:2026 - 19:12:24: game clock (day/night cycle) held here.
 - 09:08:2026 - 22:24:44: Игровые часы стартуют с START_TIME_OF_DAY, а не с нуля — ноль это полночь, и свежий запуск открывался в темноте.
+- 10:08:2026 - 02:39:07: Audio, step context, first-person body rig and the autonomous playtest join the composition root (landscape stage wiring).
 */
 
 #pragma once
 
+#include "engine/anim/sources/Rig.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/time/sources/FixedTimestep.h"
+#include "engine/gameplay/sources/PlayerMovement.h"
+#include "engine/gameplay/sources/PlaytestBot.h"
+#include "engine/gameplay/sources/StepAudio.h"
+#include "engine/platform/audio/interfaces/IAudio.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 #include "engine/render/sources/RenderSystem.h"
@@ -53,6 +59,7 @@ UPD:
 #include "engine/world/sources/ChunkManager.h"
 
 #include <array>
+#include <optional>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -73,6 +80,10 @@ struct AppConfig {
     uint32_t internal_height = 0; // 0 = take dfn::config INTERNAL_RES_H
     bool use_null_renderer = false;
     bool use_null_physics = false;
+    bool use_null_audio = false;   // DFN_NULL_AUDIO=1
+    float head_bob = 1.0f;         // settings.cfg: 0 disables bob/dip/settle
+                                   // MOTION (events and sound still fire) --
+                                   // the research's motion-sickness mandate
     bool palette_post = false; // Q9b palette quantization (DFN_PALETTE=1)
     std::string title_key = "app.title"; // localization key (Rule 5)
 
@@ -103,6 +114,7 @@ private:
     std::unique_ptr<platform::IInput> input_;
     std::unique_ptr<platform::IRenderer> renderer_;
     std::unique_ptr<platform::IPhysics> physics_;
+    std::unique_ptr<platform::IAudio> audio_;
 
     ecs::World world_;
     events::EventBus bus_;
@@ -118,6 +130,22 @@ private:
     double game_seconds_ = static_cast<double>(config::START_TIME_OF_DAY)
                            * static_cast<double>(config::DAY_LENGTH_SECONDS);
     std::array<platform::PhysicsBodyHandle, 4> world_edge_{}; // extent walls
+
+    // Step feel + audio (sim's zone, wired here).
+    platform::BusHandle sfx_bus_{};
+    gameplay::StepSoundBank sound_bank_{};
+    gameplay::WindLoop wind_loop_{};
+    gameplay::StepContext step_ctx_{};
+
+    // First-person body (character's zone, wired here).
+    anim::Rig body_rig_{};
+
+    // Autonomous playtest (sim's zone; DFN_PLAYTEST=patrol|explore|soak).
+    std::optional<gameplay::PlaytestState> playtest_;
+    gameplay::PlaytestCheckEnv pt_env_{};
+    std::string pt_dir_;
+    int pt_shots_ = 0;
+    bool pt_artifacts_pending_ = true;
 };
 
 } // namespace dfn::app

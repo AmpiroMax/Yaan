@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 00:04:04
+Last updated: 10:08:2026 - 02:44:09
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -76,6 +76,7 @@ UPD:
 - 09:08:2026 - 23:30:34: Мир стал 2×2 км (WORLD_EXTENT_CHUNKS 8) — прямая просьба пользователя. Размер мира перестал быть голым числом в исходнике.
 - 09:08:2026 - 23:50:20: Ферри дальней детализации: границы мира от core, прямоугольник по сетке чанков, обновление по КАДРОВОМУ времени, сбор по ожидающим узлам, меш уничтожается раньше поля.
 - 10:08:2026 - 00:04:04: Подсказки взаимодействия рисуются на экране. Первый настоящий текст в игре: таблица строк грузится из данных, промах даёт заметную заглушку, а не пустоту.
+- 10:08:2026 - 02:44:09: Большая проводка ландшафтного этапа: аудио (слушатель, ветер, шаги), контекст шага, тело от первого лица (ферри BodyDrive от часов шага sim), зеркальный двойник (DFN_MIRROR/DFN_SHOWCASE), автономный плейтест (DFN_PLAYTEST), связь угла обзора со скоростью, строка head_bob в настройках.
 */
 
 #include "engine/app/sources/App.h"
@@ -89,6 +90,8 @@ UPD:
 #include "engine/physics/sources/CollisionLayers.h"
 #include "engine/physics/sources/TerrainCollision.h"
 #include "engine/core/serialization/sources/ContentHash.h"
+#include "engine/anim/sources/Body.h"
+#include "engine/anim/sources/BodyMesh.h"
 #include "engine/gameplay/sources/HeldItem.h"
 #include "engine/gameplay/sources/InteractableSpawn.h"
 #include "engine/gameplay/sources/InteractionSystem.h"
@@ -101,6 +104,10 @@ UPD:
 #include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/SkyModel.h"
 #include "engine/render/sources/TerrainLod.h"
+#include "engine/gameplay/sources/StepEvents.h"
+#include "engine/gameplay/sources/StepFeel.h"
+#include "engine/platform/audio/sources/miniaudio/CreateMiniaudioAudio.h"
+#include "engine/platform/audio/sources/null/CreateNullAudio.h"
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/input/sources/glfw/CreateGlfwInput.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
@@ -113,6 +120,7 @@ UPD:
 #include "engine/platform/window/sources/glfw/CreateGlfwWindow.h"
 
 #include <chrono>
+#include <filesystem>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -160,7 +168,10 @@ void load_or_create_settings(AppConfig& cfg) {
             << "internal_resolution=" << cfg.internal_width << 'x' << cfg.internal_height
             << "\n"
             << "# palette: 1 = 64-color quantization + dithering (DOS look), 0 = off.\n"
-            << "palette=" << (cfg.palette_post ? 1 : 0) << '\n';
+            << "palette=" << (cfg.palette_post ? 1 : 0) << "\n"
+            << "# head_bob: bob/dip/settle motion scale; 0 disables the motion\n"
+            << "# entirely (footstep sound and animation still fire).\n"
+            << "head_bob=" << cfg.head_bob << '\n';
         return;
     }
     std::string line;
@@ -182,6 +193,11 @@ void load_or_create_settings(AppConfig& cfg) {
             }
         } else if (key == "palette") {
             cfg.palette_post = !value.empty() && value[0] == '1';
+        } else if (key == "head_bob") {
+            float v = 1.0f;
+            if (std::sscanf(value.c_str(), "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
+                cfg.head_bob = v;
+            }
         }
     }
 }
@@ -202,6 +218,9 @@ AppConfig AppConfig::from_env() {
     }
     if (const char* nr = std::getenv("DFN_NULL_RENDER"); nr && nr[0] == '1') {
         cfg.use_null_renderer = true;
+    }
+    if (const char* na = std::getenv("DFN_NULL_AUDIO"); na && na[0] == '1') {
+        cfg.use_null_audio = true;
     }
     if (const char* np = std::getenv("DFN_NULL_PHYSICS"); np && np[0] == '1') {
         cfg.use_null_physics = true;
@@ -247,6 +266,20 @@ bool App::init(const AppConfig& config) {
     if (!physics_ || !physics_->init()) {
         return false;
     }
+
+    // Audio: no device is a MODE, not an error (Rule 3) -- the game runs
+    // silent-but-correct on the null backend.
+    audio_ = config.use_null_audio ? platform::create_null_audio()
+                                   : platform::create_miniaudio_audio();
+    if (!audio_ || !audio_->init()) {
+        audio_ = platform::create_null_audio();
+        (void)audio_->init();
+    }
+    sfx_bus_ = audio_->create_bus({});
+    sound_bank_ = gameplay::load_step_sound_bank(
+        *audio_, "games/daggerfall_n/assets/audio", sfx_bus_);
+    gameplay::wire_step_audio(bus_, *audio_, sound_bank_);
+    wind_loop_ = gameplay::start_wind_loop(*audio_, sound_bank_);
 
     if (!render_system_.init(*renderer_)) {
         return false;
@@ -420,6 +453,110 @@ bool App::init(const AppConfig& config) {
         (void)gameplay::spawn_interactable(world_, *physics_, door);
     }
 
+    // FIRST-PERSON BODY (character's zone, wired here). Rigid segments through
+    // the ordinary render path; the head MESH is hidden because the camera
+    // sits inside the skull.
+    body_rig_ = anim::Rig::build(anim::RigProportions::from_config());
+    for (uint32_t b = 0; b < anim::BONE_COUNT; ++b) {
+        const auto bone = static_cast<anim::Bone>(b);
+        const auto seg = anim::build_body_segment_mesh(bone, body_rig_.proportions);
+        if (!render_system_.register_mesh(*renderer_, anim::body_segment_mesh_id(bone),
+                                          seg.vertices, seg.indices)) {
+            std::fprintf(stderr, "[app] body segment mesh %u refused by the registry\n",
+                         anim::body_segment_mesh_id(bone));
+        }
+    }
+    anim::spawn_body(world_, player_, body_rig_, /*hide_head=*/true);
+
+    // Landing dip rides sim's measured impact, not a guess (their event).
+    bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
+        anim::note_landed(world_, e.walker, e.impact_speed);
+    });
+
+    // MIRROR PUPPET (grill v11). DFN_MIRROR=1: the double stands 3 m ahead and
+    // mirrors you. DFN_SHOWCASE=1: it floats and cycles the clip reel instead.
+    // Placement literals live here under the testbed block's Rule 5 exception.
+    {
+        const char* mirror_env = std::getenv("DFN_MIRROR");
+        const char* showcase_env = std::getenv("DFN_SHOWCASE");
+        const bool want_mirror = (mirror_env && *mirror_env == '1')
+                              || (showcase_env && *showcase_env == '1');
+        if (want_mirror) {
+            const glm::vec3 mirror_pt = spawn + glm::vec3{0.0f, 0.0f, -3.0f};
+            const auto puppet = anim::spawn_mirror_puppet(world_, body_rig_, player_,
+                                                          mirror_pt, {0.0f, 1.0f});
+            if (showcase_env && *showcase_env == '1') {
+                if (auto* mp = world_.get<anim::MirrorPuppet>(puppet)) {
+                    mp->showcase = true;
+                    mp->hover_height_m = 1.2f;
+                    mp->clip_seconds = 4.0f;
+                }
+            }
+        }
+    }
+
+    // STEP CONTEXT: who publishes, whose ground, the user's bob setting.
+    step_ctx_.events = &bus_;
+    step_ctx_.surface_class_at = [this](glm::vec2 xz) {
+        return chunks_.surface_class_at(xz);
+    };
+    step_ctx_.bob_scale = config.head_bob;
+
+    // AUTONOMOUS PLAYTEST (sim's spec, engine/gameplay/docs/PLAYTEST.md).
+    // DFN_PLAYTEST=patrol|explore|soak. The bot writes the same input intents
+    // human keys write; incidents screenshot and gate the exit code.
+    if (const char* pt = std::getenv("DFN_PLAYTEST"); pt != nullptr && *pt != '\0') {
+        gameplay::PlaytestConfig ptc;
+        const std::string mode(pt);
+        if (mode == "patrol") {
+            ptc.mode = gameplay::BotMode::WaypointPatrol;
+            // v1 route: the three testbed props and home.
+            ptc.waypoints = {{spawn.x + 2.0f, spawn.z}, {spawn.x - 2.0f, spawn.z},
+                             {spawn.x, spawn.z - 2.5f}, {spawn.x, spawn.z}};
+            ptc.loop_waypoints = true;
+        } else if (mode == "explore") {
+            ptc.mode = gameplay::BotMode::RandomExplorer;
+        } else {
+            ptc.mode = gameplay::BotMode::Soak;
+        }
+        if (const char* sd = std::getenv("DFN_PLAYTEST_SEED")) {
+            ptc.seed = std::strtoull(sd, nullptr, 10);
+        }
+        if (const char* sec = std::getenv("DFN_PLAYTEST_SECONDS")) {
+            ptc.duration_seconds = std::strtof(sec, nullptr);
+        }
+        const glm::vec4 wbz = chunks_.world_bounds_xz();
+        ptc.world_min = {wbz.x + 16.0f, wbz.y + 16.0f};
+        ptc.world_max = {wbz.z - 16.0f, wbz.w - 16.0f};
+        playtest_ = gameplay::make_playtest(ptc);
+        pt_env_.terrain_height = [this](glm::vec2 xz) { return chunks_.height_at(xz); };
+        pt_env_.water_analytic = [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); };
+        pt_env_.water_drawn = [this](glm::vec2 xz) -> std::optional<float> {
+            const auto bodies = chunks_.water_bodies();
+            for (const auto& l : bodies.lakes) {
+                const glm::vec2 dd = (xz - l.center) / l.half_extent;
+                if (glm::dot(dd, dd) <= 1.0f) {
+                    return l.surface_height;
+                }
+            }
+            std::optional<float> best;
+            float best_d = 1e9f;
+            for (const auto& st : bodies.river_stations) {
+                const float dist = glm::length(xz - st.position);
+                if (dist <= st.half_width && dist < best_d) {
+                    best_d = dist;
+                    best = st.surface_height;
+                }
+            }
+            return best;
+        };
+        pt_env_.world_floor_y = -60.0f; // below every legitimate carve
+        const char* dir = std::getenv("DFN_PLAYTEST_DIR");
+        pt_dir_ = dir ? dir : ("screenshots/playtest_" + mode);
+        std::filesystem::create_directories(pt_dir_);
+        // The bot needs the world, not the cursor; the player is NOT frozen.
+    }
+
     camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
                            static_cast<float>(rp.framebuffer_width)
                                / static_cast<float>(rp.framebuffer_height),
@@ -512,7 +649,9 @@ int App::run() {
             render_system_.environment().ambient_darkness = chunks_.darkness_at(t->position);
         }
 
-        gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
+        if (!playtest_) {
+            gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
+        }
 
         // THE WORLD PAUSES WHILE THE INVENTORY IS OPEN (в70: "инвентарь как в
         // скайриме" -- Skyrim, Oblivion and Morrowind all pause, and the pause
@@ -564,13 +703,44 @@ int App::run() {
             gameplay::update_prop_collision(world_, *physics_, chunks_);
 
             if (!tour_.active()) { // frozen player during the tour: deterministic frames
+                // The bot steers by writing the same input intents human keys
+                // write -- BEFORE pre_step, per sim's playtest contract.
+                if (playtest_ && !playtest_->finished) {
+                    gameplay::playtest_drive(*playtest_, world_);
+                }
                 // The water callback is the authoritative source. Sampling the
                 // terrain and subtracting, or reading the drawn water, would
                 // let a primitive that extends past real water be swum in.
                 gameplay::player_pre_step(world_, *physics_,
-                    [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); });
+                    [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); },
+                    step_ctx_);
                 physics_->step(static_cast<float>(timestep_.step_dt()));
-                gameplay::player_post_step(world_, *physics_);
+                gameplay::player_post_step(world_, *physics_, step_ctx_);
+
+                // BODY FERRY (character's zone reads, the app writes): sim's
+                // stride clock drives the leg clips, so the visual foot-plant
+                // and the footstep sound land on the same tick by construction.
+                if (auto* drive = world_.get<anim::BodyDrive>(player_)) {
+                    if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                        drive->stride_phase = ps->stride_phase;
+                        drive->step_length_m = gameplay::step_length(ps->stride_speed);
+                        drive->speed_mps = ps->stride_speed;
+                        drive->facing_yaw = ps->yaw;
+                        drive->grounded = !ps->airborne;
+                        drive->vertical_velocity = ps->vertical_velocity;
+                        drive->crouch_blend = ps->crouch_blend;
+                    }
+                }
+                anim::update_bodies(world_, body_rig_);
+
+                // Invariant checks AFTER post_step; an incident screenshots.
+                if (playtest_ && !playtest_->finished) {
+                    if (const size_t n = gameplay::playtest_check(*playtest_, world_, pt_env_);
+                        n > 0 && pt_shots_ < 20) {
+                        (void)renderer_->save_screenshot(
+                            pt_dir_ + "/incident_" + std::to_string(pt_shots_++) + ".png");
+                    }
+                }
 
                 // Hover AFTER post_step: the crosshair ray must use THIS tick's
                 // eye pose. Hovering from last tick's pose acts on what you were
@@ -595,6 +765,30 @@ int App::run() {
         if (pose != nullptr && prev_pose != nullptr) {
             camera_.set_poses({prev_pose->position, prev_pose->yaw, prev_pose->pitch},
                               {pose->position, pose->yaw, pose->pitch});
+            // Speed-coupled FOV (sim writes fov_scale at fixed tick; the app
+            // interpolates and applies -- default 1.0 changes nothing).
+            const float fs = prev_pose->fov_scale
+                           + (pose->fov_scale - prev_pose->fov_scale) * alpha;
+            camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y) * fs,
+                                   camera_.aspect_ratio(), camera_.near_plane(),
+                                   camera_.far_plane());
+        }
+
+        // Audio follows the eye; the wind bed follows the ONE wind model the
+        // foliage bends to (Rule 35 -- same gust envelope for ear and eye).
+        {
+            const auto eye = camera_.interpolated_pose(alpha);
+            const float cp = std::cos(eye.pitch);
+            const platform::ListenerPose lp{
+                eye.position,
+                {std::sin(eye.yaw) * cp, std::sin(eye.pitch), -std::cos(eye.yaw) * cp},
+                {0.0f, 1.0f, 0.0f}};
+            audio_->update(lp);
+            gameplay::update_wind_loop(*audio_, wind_loop_,
+                                       render_system_.environment().wind_strength);
+        }
+        if (playtest_ && !playtest_->finished) {
+            gameplay::playtest_note_frame(*playtest_, static_cast<float>(frame_dt));
         }
         if (tour_.active()) {
             tour_.apply(camera_);
@@ -702,6 +896,15 @@ int App::run() {
         if (tour_.active() && tour_.post_frame(*renderer_)) {
             window_->request_close(); // tour finished (render's contract)
         }
+        if (playtest_ && playtest_->finished && pt_artifacts_pending_) {
+            gameplay::playtest_write_artifacts(*playtest_, pt_dir_);
+            pt_artifacts_pending_ = false;
+            window_->request_close();
+        }
+    }
+    // Gate: a playtest run with incidents exits nonzero (Main passes it through).
+    if (playtest_) {
+        return playtest_->incidents.empty() ? 0 : 1;
     }
     return 0;
 }
@@ -718,6 +921,9 @@ void App::shutdown() {
         bus_.pump();
         render_system_.shutdown(*renderer_);
         renderer_->shutdown();
+    }
+    if (audio_) {
+        audio_->shutdown();
     }
     if (physics_) {
         physics_->shutdown();
