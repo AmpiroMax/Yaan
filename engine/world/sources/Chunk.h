@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -30,6 +30,8 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — chunk types per NUMBERS.md (Q48),
   group packing for batch ECS streaming (Q22, Rule 11), stable entity ids (Q56).
+- 09:08:2026 - 00:42:03: Stage 2 — explicit size_t casts in height_at (generated
+  constants are int64); no interface change.
 */
 
 #pragma once
@@ -89,8 +91,9 @@ struct Heightmap {
 
     /// Decoded height in meters at integer sample (x, z). Bounds unchecked.
     [[nodiscard]] float height_at(uint32_t x, uint32_t z) const {
+        const std::size_t row = static_cast<std::size_t>(config::HEIGHTMAP_RESOLUTION);
         return height_offset
-             + static_cast<float>(samples[z * config::HEIGHTMAP_RESOLUTION + x]) * height_scale;
+             + static_cast<float>(samples[static_cast<std::size_t>(z) * row + x]) * height_scale;
     }
 
     /// Bilinearly interpolated height at world position (meters), given the

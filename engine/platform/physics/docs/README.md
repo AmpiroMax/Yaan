@@ -1,10 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 01:02:15
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:18:26: Stage-1 state: interface only, no backends yet.
+- 09:08:2026 - 01:02:15: Stage 2 — jolt + null backends implemented; factory
+  headers CreateJoltPhysics.h / CreateNullPhysics.h; Jolt pinned v5.2.0.
 -->
 
 # engine/platform/physics
@@ -39,6 +41,14 @@ bool grounded = physics.character_grounded(character);
 - Uses: stdlib + glm only (Rule 1).
 - Used by: `engine/physics` (controller, layers), `engine/gameplay` (queries via
   engine/physics), tests.
-- Backends (stage 2): `sources/jolt/` (JoltPhysics, FetchContent pinned),
-  `sources/null/` — runnable mode: no-op step, full horizontal displacement,
-  always grounded, raycasts miss (see interface header notes).
+- Backends (implemented, stage 2): `sources/jolt/` (JoltPhysics v5.2.0,
+  FetchContent-pinned in this layer's CMakeLists) and `sources/null/` —
+  runnable mode: no-op step, full horizontal displacement, always grounded,
+  raycasts miss (see interface header notes). Factories:
+  `create_jolt_physics()` / `create_null_physics()`.
+- Jolt backend notes: terrain is a static MeshShape built from the float
+  samples (Jolt's HeightFieldShape block-size constraint does not fit our
+  129x129 chunks — revisit at a sync); characters are CharacterVirtual with a
+  raycastable inner body; the opaque CollisionMask is stored per body and
+  filtered by AND — the backend never interprets bits (engine/physics owns
+  semantics).

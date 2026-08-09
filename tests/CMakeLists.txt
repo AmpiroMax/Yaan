@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 09:08:2026 - 00:35:09
+# Last updated: 09:08:2026 - 00:55:00
 # File: tests/CMakeLists.txt
 #
 # Responsibility:
@@ -18,10 +18,13 @@
 #
 # UPD:
 # - 09:08:2026 - 00:35:09: Created scaffold for stage 2.
-
-enable_testing()
+# - 09:08:2026 - 00:55:00: doctest include marked SYSTEM (silences __COUNTER__
+#                          pedantic warnings in every zone's test TUs — core's
+#                          report, note 2); enable_testing moved to root.
 
 add_library(dfn_doctest_main STATIC DoctestMain.cpp)
+target_include_directories(dfn_doctest_main SYSTEM PUBLIC
+    $<TARGET_PROPERTY:doctest::doctest,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_libraries(dfn_doctest_main PUBLIC doctest::doctest dfn_headers)
 
 # add_dfn_test(<name> <source> [extra libs...])

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -33,6 +33,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — streaming interface with batch ECS
   ops (Q22, Rule 11), event-driven handoff agreed with render/sim (Rule 26).
+- 09:08:2026 - 00:42:03: Stage 2 — added open_generated() (in-memory generator
+  path, lead directive: no .dfw IO this stage); open(file) documented as
+  deferred to stage 3. Additive change only.
 */
 
 #pragma once
@@ -43,6 +46,7 @@ UPD:
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/SaveDelta.h"
 #include "engine/world/sources/WorldFormat.h"
+#include "engine/world/sources/Worldgen.h"
 
 #include <filesystem>
 #include <glm/vec3.hpp>
@@ -88,9 +92,18 @@ public:
 
     /// Opens the world file and (optionally) a save delta to overlay (Q56).
     /// No chunks are loaded yet — the first update() does that. False on error.
+    /// STAGE 2: world file IO is deferred (lead directive); this returns false
+    /// until stage 3 — use open_generated() for the skeleton.
     [[nodiscard]] bool open(const std::filesystem::path& world_file,
                             const SaveDelta* delta,
                             ChunkStreamingParams params);
+
+    /// Stage-2 path (lead directive, sync of 09:08:2026): serve chunks straight
+    /// from the deterministic in-memory generator instead of a .dfw file —
+    /// each chunk is produced by Worldgen's generate_chunk() on first load and
+    /// discarded on unload (regeneration is deterministic, Rule 13.1). The
+    /// extent in `gen_params` clips streaming. Always succeeds.
+    void open_generated(const WorldGenParams& gen_params, ChunkStreamingParams params);
 
     /// Streams around `focus_position` (the player, meters): loads every missing
     /// chunk within load_radius, unloads residents beyond unload_radius.

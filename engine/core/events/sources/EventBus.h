@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/events
 File: engine/core/events/sources/EventBus.h
 
@@ -23,12 +23,16 @@ AI Agents Notice (must follow):
   reference entities by EntityId.
 - Single-threaded by contract, like ecs::World: publish/post/pump only on the
   simulation thread.
-- STAGE 1 CONTRACT: declarations only; bodies arrive in stage 2.
+- Public surface frozen per stage-1 contract; template bodies in-header,
+  non-template bodies in EventBus.cpp.
 */
 /*
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — typed bus with immediate and queued
   dispatch.
+- 09:08:2026 - 00:42:03: Stage 2 — implemented. Private section: stage-1 pimpl
+  replaced by concrete members (template methods need member access in-header);
+  public surface unchanged.
 */
 
 #pragma once
@@ -36,8 +40,12 @@ UPD:
 #include "engine/core/types/sources/Handle.h"
 #include "engine/core/types/sources/TypeId.h"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace dfn::events {
 
@@ -69,18 +77,32 @@ public:
     /// struct. Returns the id used to unsubscribe. Subscribers are invoked in
     /// subscription order.
     template<typename E>
-    SubscriptionId subscribe(std::function<void(const E&)> handler);
+    SubscriptionId subscribe(std::function<void(const E&)> handler) {
+        const types::TypeId tid = types::type_id<E>();
+        const SubscriptionId id{next_subscription_++};
+        subscribers_[tid].push_back(Subscriber{
+            id.value,
+            [fn = std::move(handler)](const void* event) {
+                fn(*static_cast<const E*>(event));
+            }});
+        subscription_types_[id.value] = tid;
+        return id;
+    }
 
     /// Removes a subscription; no-op if already removed.
     void unsubscribe(SubscriptionId id);
 
     /// Immediate dispatch to all current subscribers of E.
     template<typename E>
-    void publish(const E& event);
+    void publish(const E& event) {
+        dispatch(types::type_id<E>(), &event);
+    }
 
     /// Queues a copy of `event` for the next pump().
     template<typename E>
-    void post(const E& event);
+    void post(const E& event) {
+        queue_.push_back(QueuedEvent{types::type_id<E>(), std::make_shared<E>(event)});
+    }
 
     /// Delivers all queued events (including those posted by handlers during
     /// this pump) and clears the queue. Called once per simulation tick by the
@@ -88,8 +110,22 @@ public:
     void pump();
 
 private:
-    struct Impl; // per-TypeId subscriber lists + type-erased event queue
-    std::unique_ptr<Impl> impl_;
+    struct Subscriber {
+        uint64_t id = 0;
+        std::function<void(const void*)> fn; // type-erased, bound to E at subscribe
+    };
+    struct QueuedEvent {
+        types::TypeId type = 0;
+        std::shared_ptr<void> payload; // owns a copy of E (typed deleter)
+    };
+
+    /// Invokes every subscriber of `type` with `event` (points at a live E).
+    void dispatch(types::TypeId type, const void* event);
+
+    std::unordered_map<types::TypeId, std::vector<Subscriber>> subscribers_;
+    std::unordered_map<uint64_t, types::TypeId> subscription_types_;
+    std::vector<QueuedEvent> queue_;
+    uint64_t next_subscription_ = 1;
 };
 
 } // namespace dfn::events

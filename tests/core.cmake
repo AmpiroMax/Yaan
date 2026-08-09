@@ -1,0 +1,26 @@
+#
+# Created: 09:08:2026 - 00:42:03
+# Last updated: 09:08:2026 - 00:42:03
+# File: tests/core.cmake
+#
+# Responsibility:
+# - Test registration for the core zone (engine/core + engine/world). Included
+#   by tests/CMakeLists.txt (lead scaffold); uses add_dfn_test().
+#
+# Dependencies:
+# - Uses: add_dfn_test (tests/CMakeLists.txt), dfn_core, dfn_world.
+# - Used by: ctest.
+#
+# AI Agents Notice:
+# - Follow docs/ARCHITECTURE.md strictly. Zone-owned (core agent, Rule 25).
+#
+# UPD:
+# - 09:08:2026 - 00:42:03: Stage 2 — ECS, time, events, math, worldgen
+#                          determinism (Rule 13.1), chunk streaming suites.
+
+add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
+add_dfn_test(test_time core/TimeTests.cpp dfn_core)
+add_dfn_test(test_events core/EventBusTests.cpp dfn_core)
+add_dfn_test(test_math core/MathTests.cpp dfn_core)
+add_dfn_test(test_worldgen_determinism core/WorldgenTests.cpp dfn_world)
+add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)

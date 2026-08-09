@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 09:08:2026 - 00:50:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: interface only, no backends yet.
+- 09:08:2026 - 00:50:00: Stage 2 — glfw + null backends implemented.
 -->
 
 # engine/platform/window
@@ -46,7 +47,12 @@ window.shutdown();
 - Used by: `engine/app` (owns the window, feeds `RendererInitParams` from
   `native_handle` + `framebuffer_size`), tests.
 
-## Current state (stage 1)
+## Current state (stage 2)
 
-Interface only — no `sources/` yet (contracts-only stage, Q38/Q51). Backend
-plan: see `docs/specs/render.md`.
+Implemented: `sources/glfw/` (GlfwWindow — GLFW 3.4, polling model, Cocoa
+native handle; owns glfwInit/Terminate, one live window at a time; claims no
+GLFW callbacks — those belong to GlfwInput) and `sources/null/` (headless,
+Rule 3). Factories: `sources/glfw/CreateGlfwWindow.h`,
+`sources/null/CreateNullWindow.h`. Target: `dfn_platform_window`
+(CMakeLists here, GLFW pinned at tag 3.4). Windows branch (Win32 handle)
+compiles clean but is untested this stage.

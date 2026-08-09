@@ -1,6 +1,6 @@
 <!--
 Created: 08:08:2026 - 21:35:00
-Last updated: 09:08:2026 - 00:29:27
+Last updated: 09:08:2026 - 00:48:00
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 09:08:2026 - 00:15:56: Added provisional camera and internal-resolution constants requested by render agent; pending user approval at the stage-1 sync.
 - 09:08:2026 - 00:26:00: Added provisional player capsule/controller constants requested by sim agent; tunable at the future movement grill.
 - 09:08:2026 - 00:29:27: Stage-1 sync: added SIM_MAX_CATCHUP_STEPS, chunk streaming radii, NPC/interaction defaults, camera pitch limit (all provisional).
+- 09:08:2026 - 00:48:00: Added GRAVITY and MOUSE_SENSITIVITY (sim stage-2 request, Rule 14).
 -->
 
 # NUMBERS.md — реестр констант проекта
@@ -33,6 +34,8 @@ UPD:
 |---|---|---|---|
 | `WALK_SPEED` | 3.0 | м/с | Q47 |
 | `RUN_SPEED` | 6.0 | м/с | Q47 |
+| `GRAVITY` | 9.81 | м/с² | этап 2 (запрос sim) |
+| `MOUSE_SENSITIVITY` | 0.002 | рад/пиксель | этап 2 (запрос sim); позже уедет в настройки, дефолт остаётся здесь |
 
 ## Мир и чанки
 

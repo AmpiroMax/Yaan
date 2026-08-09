@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 09:08:2026 - 00:50:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: public headers only (camera, render system, tour, debug draw).
+- 09:08:2026 - 00:50:00: Stage 2 — implementations + TerrainMesher; tests.
 -->
 
 # engine/render
@@ -48,8 +49,15 @@ if (tour.active()) {
   `engine/platform/render` (IRenderer). glm per Rule 2.
 - Used by: `engine/app` (main loop), `engine/editor`.
 
-## Current state (stage 1)
+## Current state (stage 2)
 
-Public headers only — no `.cpp` (contracts-only stage, Q38/Q51). Internal
-design and the stage-2 plan (terrain mesher, shader set, tour route): see
-`docs/specs/render.md`.
+Fully implemented (`dfn_render` target): FirstPersonCamera (shortest-arc yaw,
+CAMERA_PITCH_LIMIT clamp, perspectiveRH_ZO — zero-to-one depth for
+Metal/Vulkan/D3D), TerrainMesher (`sources/TerrainMesher.h`: pure
+deterministic `build_terrain_mesh` — central-difference normals, chunk-wide
+UVs, height/slope ground tint, crack-free shared edges), RenderSystem
+(terrain + interpolated ECS submissions; ECS mesh path inert until the
+stage-3 asset pipeline fills the caches), Tour (DFN_TOUR / DFN_TOUR_DIR /
+DFN_INTERNAL_RES; schedules screenshots then renders flush frames for async
+backends; `default_steps()` = the 4-frame Q51 route), DebugDraw. Tests:
+`tests/render.cmake` (mesher, camera, tour headless, null backends).

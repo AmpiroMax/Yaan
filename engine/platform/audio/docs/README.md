@@ -1,10 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 01:02:15
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:18:26: Stage-1 state: interface only, no backends yet.
+- 09:08:2026 - 01:02:15: Stage 2 — null backend implemented
+  (CreateNullAudio.h); miniaudio backend remains stage 3.
 -->
 
 # engine/platform/audio

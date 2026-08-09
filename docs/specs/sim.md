@@ -1,12 +1,19 @@
 <!--
 Created: 09:08:2026 - 00:25:29
-Last updated: 09:08:2026 - 00:25:29
+Last updated: 09:08:2026 - 01:02:15
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:25:29: Initial stage-1 spec: contracts for platform
   physics/anim/audio/llm and the gameplay public API; boundary agreements with
   core, render and the lead recorded.
+- 09:08:2026 - 01:02:15: Stage 2 status: jolt + all null backends implemented;
+  engine/physics (layers, terrain conversion) and player movement + dice
+  implemented; factory convention (create_*_physics/anim/audio/llm) and the
+  app tick order (pre_step -> app-owned step(SIM_DT) -> post_step) agreed with
+  the lead. Jolt terrain uses a MeshShape (HeightFieldShape block-size
+  constraint vs 129x129 chunks) — flagged for a later sync. GRAVITY and
+  MOUSE_SENSITIVITY added to NUMBERS on sim request.
 -->
 
 # Spec — sim (`docs/specs/sim.md`)
@@ -273,14 +280,21 @@ with the owning agent:
 
 ## Step-by-step plan
 
-1. **Stage 1 (this deliverable)** — spec + public headers above; boundary
-   agreements recorded; no `.cpp`.
-2. **Stage 2 (skeleton walk, Q37/Q51)** — in order:
-   a. `platform/physics/sources/null` then `sources/jolt` (FetchContent pin);
-   b. `engine/physics`: collision layers, terrain-from-HeightFieldView,
-      `CharacterController` writing Transform/CameraPose pairs;
-   c. doctest: controller on a flat chunk (jolt vs null parity where defined);
-      support the four-screenshot tour criterion with render/lead.
+1. **Stage 1 (DONE)** — spec + public headers above; boundary agreements
+   recorded; no `.cpp`.
+2. **Stage 2 (skeleton walk, Q37/Q51 — code DONE, tour pending with render):**
+   a. DONE `platform/physics/sources/null` + `sources/jolt` (Jolt pinned
+      v5.2.0 in the layer CMakeLists); null anim/audio/llm backends; factory
+      headers per the lead's convention (`create_jolt_physics()` etc.).
+   b. DONE `engine/physics`: CollisionLayers (LAYER_STATIC/LAYER_CHARACTER),
+      TerrainCollision (HeightFieldView decode -> terrain body). Player
+      movement lives in `engine/gameplay/sources/PlayerMovement.*`: ref-based
+      core + World wrappers; app tick order agreed: accumulate (render frame)
+      -> pre_step -> app-owned `step(SIM_DT)` -> post_step.
+   c. DONE doctest suites (`tests/sim.cmake`): dice determinism, movement on
+      null physics (snapshot discipline, pitch clamp, speeds), null backend
+      contracts, jolt integration (fall/walk/slide/raycast+mask/user_data);
+      the four-screenshot tour criterion lands with render/lead.
 3. **Stage 2.5 (gameplay core loop)** — `enqueue`/`clear_queue`/executor for
    MoveTo/Face/Wait on null physics; Stats + `record_use`; Dice + splitmix64;
    seed-replay tests (Rule 13.2); save sections registered via SaveDeltaCodec.

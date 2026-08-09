@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
+- 09:08:2026 - 00:42:03: Stage 2 — implemented (templates in-header, EventBus.cpp for dispatch/pump); suite tests/core/EventBusTests.cpp.
 -->
 
 # engine/core/events

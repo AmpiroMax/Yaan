@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 09:08:2026 - 00:50:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: lead-authored frozen interface, no backends yet.
+- 09:08:2026 - 00:50:00: Stage 2 — bgfx + null backends, shaderc build step.
 -->
 
 # engine/platform/render
@@ -48,9 +49,17 @@ renderer.end_frame();
 - Used by: `engine/render` (primary consumer), `engine/editor`, `engine/app`,
   tests (null backend), the screenshot tour.
 
-## Current state (stage 1)
+## Current state (stage 2)
 
-Frozen interface only — no `sources/` yet (contracts-only stage, Q38/Q51).
-Backend plan (bgfx FetchContent pin, shaderc CMake step, hot-reload, low-res
-target + integer upscale): see `docs/specs/render.md`. Do not edit the
-interface; changes go through a group sync with the lead.
+Implemented: `sources/bgfx/` — BgfxRenderer (Metal on macOS, single-threaded
+bgfx; view 0 scene -> low-res internal target, view 1 letterbox clear, view 2
+integer-scaled point-sampled upscale; screenshots via a custom bgfx callback
+writing PNG through bimg; embedded shaders compiled by shaderc custom
+commands with --bin2c; reload_shaders is a documented debug no-op this
+stage) and `sources/null/` (all calls succeed, save_screenshot returns
+false). Shaders: `sources/bgfx/shaders/*.sc` — terrain (directional lambert
+over vertex ground tint), unlit, debug lines, upscale. Factories:
+`sources/bgfx/CreateBgfxRenderer.h`, `sources/null/CreateNullRenderer.h`.
+Target: `dfn_platform_render`; pins GLFW-independent bgfx.cmake at tag
+v1.153.9398-566 (Rule 24). The interface stays frozen; changes go through a
+group sync with the lead.

@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
+- 09:08:2026 - 00:42:03: Stage 2 — implemented (Aabb/Ray/Frustum/Intersect .cpp); suite tests/core/MathTests.cpp.
 -->
 
 # engine/core/math

@@ -1,10 +1,13 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 00:20:00
+Last updated: 09:08:2026 - 00:50:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
+- 09:08:2026 - 00:50:00: Stage 2 implementation: backend factories, embedded
+  shader decision (--bin2c), exact dependency pins, TerrainMesher header,
+  DFN_INTERNAL_RES override, test suite.
 -->
 
 # Spec — render agent
@@ -76,31 +79,42 @@ Stage-1 headers (all frozen for the stage per Rule 26):
   `IRenderer::debug_line`: `debug_draw_axes` / `debug_draw_aabb` /
   `debug_draw_grid` / `debug_draw_arrow`. Colors 0xAABBGGRR as in `IRenderer`.
 
+Stage-2 additions (my zone, agreed with the lead at stage kickoff):
+
+- Backend factories (integration convention): `create_glfw_window()`,
+  `create_null_window()`, `create_glfw_input(IWindow&)` (requires a
+  GlfwWindow), `create_null_input()`, `create_bgfx_renderer()`,
+  `create_null_renderer()` — each in
+  `engine/platform/<module>/sources/<backend>/Create*.h`.
+- `engine/render/sources/TerrainMesher.h` — `TerrainMeshData` +
+  `build_terrain_mesh(HeightFieldView)`: pure, deterministic, GPU-free.
+- `Tour::internal_res_from_env(fallback)` — parses `DFN_INTERNAL_RES=WxH`.
+
 ## Internal design
 
-**bgfx integration plan (stage 2).** bgfx arrives exclusively in
+**bgfx integration (stage 2, implemented).** bgfx lives exclusively in
 `engine/platform/render/sources/bgfx/`, fetched via CMake FetchContent from
-`bkaradzic/bgfx.cmake` (the CMake-native distribution bundling bgfx + bimg +
-bx) pinned to an exact release tag (Rule 24; the concrete tag is chosen at
-stage-2 start by verifying one tag against both toolchains — Homebrew clang 22
-and Apple clang 15 — and is recorded in `engine/platform/render/CMakeLists.txt`,
-never a branch name). The BgfxRenderer implements `IRenderer` with two bgfx
-views: view 0 renders the scene into an offscreen framebuffer at
-`INTERNAL_RES` (NUMBERS.md, provisional 640×360), view 1 blits/upscales to the
-window backbuffer. `save_screenshot` requests a bgfx frame capture of the final
-view and writes a PNG. Shader compilation per Q50: `shaderc` (built as part of
-bgfx.cmake's tools) runs as a custom CMake build step over
-`engine/platform/render/sources/bgfx/shaders/*.sc`, emitting per-API binaries
-(metal + spirv now, dxbc later on Windows) into the build tree under logical
-names; `load_program("terrain")` resolves name -> per-API binary at runtime, so
-consumers never see paths or APIs. Shader hot-reload in debug builds (Q50):
-`reload_shaders()` re-stats the compiled artifacts and recreates programs whose
-files changed; a debug key in `engine/app` (and later the editor) triggers it —
-combined with the CMake step, "edit .sc, rebuild shaders target, press reload"
-needs no app restart. The null renderer (`sources/null/`) implements the whole
-contract inert-but-valid: monotonically increasing handles, all calls succeed,
+`bkaradzic/bgfx.cmake` (bundles bgfx + bimg + bx) pinned to release tag
+**v1.153.9398-566**; GLFW pinned to tag **3.4** (Rule 24; both recorded in
+this zone's CMakeLists headers). The BgfxRenderer runs bgfx single-threaded
+(renderFrame before init), Metal on macOS, and uses three views: 0 = scene
+into the internal low-res target (RGBA8 + D24S8, point-sampled), 1 =
+backbuffer clear (letterbox black), 2 = integer-scaled upscale quad.
+`save_screenshot` schedules a bgfx backbuffer capture into the NEXT end_frame;
+the custom `bgfx::CallbackI` writes the PNG via `bimg::imageWritePng`; the
+Tour renders flush frames after scheduling so files land before advancing.
+Shader compilation per Q50: `shaderc` (from bgfx.cmake tools) runs as CMake
+custom commands over `sources/bgfx/shaders/*.sc` with `--bin2c`, generating
+embedded headers in the build tree (`shaders_gen/<name>_mtl.h`);
+`load_program("terrain"/"unlit")` resolves logical names against the embedded
+table ("debug" and "upscale" are backend-internal). DECISION (stage 2):
+shaders are embedded rather than loaded from disk — zero runtime path issues
+for the tour; `reload_shaders()` is therefore a documented debug no-op this
+stage (accepted by the lead), and disk artifacts + real hot-reload arrive with
+the stage-3 material work. The null renderer implements the whole contract
+inert-but-valid: monotonically increasing handles, all calls succeed,
 `save_screenshot` returns false — a runnable headless mode, not a stub
-(Rule 3).
+(Rule 3); it carries the headless tour smoke test.
 
 **Low-res target + integer upscale (Q9).** The internal target is fixed at
 `INTERNAL_RES` regardless of the window framebuffer; the backend upscales by
@@ -199,27 +213,29 @@ to confirm at the sync; 640×360 vs 320×180 is a user decision), plus
 
 ## Step-by-step plan
 
-Stage 1 (this changeset — contracts only, done):
-1. `IWindow.h`, `IInput.h` public contracts.
-2. `engine/render` public headers: FirstPersonCamera, RenderSystem, Tour,
-   DebugDraw.
-3. Boundary agreements above; module `docs/README.md` files; this spec.
+Stage 1 (done): `IWindow.h` / `IInput.h` contracts, `engine/render` public
+headers, boundary agreements, module docs, this spec.
 
-Stage 2 (skeleton, Q37/Q51 — order chosen so teammates unblock early):
-1. `engine/platform/window/sources/null` + `engine/platform/input/sources/null`
-   + `engine/platform/render/sources/null` — the headless trio first, so core
-   and sim can run ECS/physics tests against real interfaces immediately.
-2. Zone CMakeLists (window/input/render layers) with GLFW + bgfx.cmake
-   FetchContent pins; verify tags on both toolchains.
-3. `glfw/` window + input backends (macOS first).
-4. `bgfx/` renderer: init with native handle, internal target + integer
-   upscale, clear + frame; then mesh/texture/program resources; then submit
-   path; then `save_screenshot`; then `debug_line`; then `reload_shaders`.
-5. shaderc CMake step + the two stage-2 shader pairs ("terrain", "unlit").
-6. TerrainMesher over `HeightFieldView`; RenderSystem submit path + camera.
-7. Tour implementation + `default_steps()` for the flat test chunk; run the
-   stage-2 acceptance tour (criterion below) and file the frames with the lead
-   for the devlog.
+Stage 2 (done in this changeset — skeleton, Q37/Q51):
+1. Null backends for window/input/render (headless trio, Rule 3) + factory
+   headers per the lead's integration convention
+   (`Create<Backend><Module>.h`, `create_*` free functions).
+2. Zone CMakeLists: `dfn_platform_window` (GLFW 3.4 pin),
+   `dfn_platform_input`, `dfn_platform_render` (bgfx.cmake v1.153.9398-566
+   pin + shaderc step), `dfn_render`.
+3. `glfw/` window + input backends (macOS tested; Win32 branches
+   compile-clean, untested).
+4. `bgfx/` renderer (see Internal design) + four shader pairs: terrain
+   (lambert over vertex ground tint), unlit, debug (lines), upscale.
+5. TerrainMesher over `HeightFieldView` (crack-free shared edges);
+   FirstPersonCamera; RenderSystem; Tour with `default_steps()` and
+   `internal_res_from_env` (DFN_INTERNAL_RES override for the 640x360 vs
+   320x180 user decision).
+6. Tests: `tests/render.cmake` — mesher, camera, tour (headless), null
+   backends.
+7. Integration: the LEAD's engine/app drives window -> input -> renderer ->
+   RenderSystem -> Tour and shoots the Q51 acceptance frames at both internal
+   resolutions.
 
 Stage 3+ (after the next sync): palette post-process flag, skinned meshes
 (contract sync), frustum culling with core's math types, LOD/skirts, sub-tick

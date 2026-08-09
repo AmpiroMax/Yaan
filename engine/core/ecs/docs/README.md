@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
+- 09:08:2026 - 00:42:03: Stage 2 — implemented (header-only templates + World.cpp for non-template internals); doctest suite tests/core/EcsTests.cpp.
 -->
 
 # engine/core/ecs
@@ -43,5 +44,6 @@ world.destroy_group(dfn::world::chunk_group({3, -2}));      // chunk unload
 ## Dependencies
 
 Uses `engine/core/types` (TypeId). Used by every system, `engine/world`
-(ChunkManager streaming), `engine/app`, tests. Stage 1: declarations only;
-bodies land in stage 2 (header-only templates).
+(ChunkManager streaming), `engine/app`, tests. Implemented in stage 2:
+template bodies in-header, non-template internals in `sources/World.cpp`
+(builds into `dfn_core`); covered by `tests/core/EcsTests.cpp`.

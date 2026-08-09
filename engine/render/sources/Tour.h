@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 09:08:2026 - 00:45:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -42,6 +42,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
+- 09:08:2026 - 00:45:00: Stage 2 — added internal_res_from_env (DFN_INTERNAL_RES
+  override for the 640x360 vs 320x180 user decision) and screenshot flush
+  phase state (bgfx captures asynchronously into the following frame).
 */
 
 #pragma once
@@ -73,6 +76,12 @@ public:
     // True when the DFN_TOUR environment variable requests a tour run.
     [[nodiscard]] static bool enabled_by_env();
 
+    // Parses DFN_INTERNAL_RES ("WxH", e.g. "320x180") for the app's
+    // RendererInitParams; returns `fallback` (normally the NUMBERS.md
+    // INTERNAL_RES) when unset or malformed. Lets the lead shoot the same
+    // vantages at both candidate resolutions (Q9 user decision).
+    [[nodiscard]] static glm::uvec2 internal_res_from_env(glm::uvec2 fallback);
+
     // Arms the tour. `output_dir` empty = DFN_TOUR_DIR or the default dir.
     void begin(std::vector<TourStep> steps, std::string output_dir);
 
@@ -99,6 +108,7 @@ private:
     std::string output_dir_;
     uint32_t step_ = 0;
     uint32_t frames_waited_ = 0;
+    uint32_t flush_left_ = 0; // frames rendered after scheduling a screenshot
     bool active_ = false;
 };
 

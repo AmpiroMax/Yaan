@@ -1,0 +1,157 @@
+/*
+Created: 09:08:2026 - 00:45:00
+Last updated: 09:08:2026 - 00:45:00
+Module: engine/render
+File: engine/render/sources/Tour.cpp
+
+Responsibility:
+- Screenshot tour implementation (Rule 27, Q51): env parsing, step walking,
+  screenshot scheduling with flush frames, the default acceptance route.
+
+Key items:
+- Tour methods; default_steps() (4 vantages over the flat test chunk).
+
+Dependencies:
+- Uses: Tour.h, IRenderer, dfn::config, std::filesystem.
+- Used by: dfn_render target; driven by engine/app when DFN_TOUR=1.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Debug tooling: no simulation or gameplay knowledge in here.
+*/
+/*
+UPD:
+- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+*/
+
+#include "engine/render/sources/Tour.h"
+
+#include "engine/core/config/sources/Constants.h"
+#include "engine/platform/render/interfaces/IRenderer.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <utility>
+
+namespace dfn::render {
+
+namespace {
+
+// Frames rendered after scheduling a screenshot so async backends (bgfx
+// captures during the following frame) finish writing before we advance.
+constexpr uint32_t FLUSH_FRAMES = 2;
+
+const char* env_or_null(const char* name) {
+    const char* value = std::getenv(name);
+    return (value != nullptr && value[0] != '\0') ? value : nullptr;
+}
+
+} // namespace
+
+bool Tour::enabled_by_env() {
+    const char* value = env_or_null("DFN_TOUR");
+    return value != nullptr && !(value[0] == '0' && value[1] == '\0');
+}
+
+glm::uvec2 Tour::internal_res_from_env(glm::uvec2 fallback) {
+    const char* value = env_or_null("DFN_INTERNAL_RES");
+    if (value == nullptr) {
+        return fallback;
+    }
+    unsigned w = 0;
+    unsigned h = 0;
+    if (std::sscanf(value, "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
+        return {w, h};
+    }
+    std::fprintf(stderr, "[tour] malformed DFN_INTERNAL_RES '%s' (want WxH)\n", value);
+    return fallback;
+}
+
+void Tour::begin(std::vector<TourStep> steps, std::string output_dir) {
+    steps_ = std::move(steps);
+    if (output_dir.empty()) {
+        const char* dir = env_or_null("DFN_TOUR_DIR");
+        output_dir = dir != nullptr ? dir : "screenshots";
+    }
+    output_dir_ = std::move(output_dir);
+    std::error_code ec;
+    std::filesystem::create_directories(output_dir_, ec); // best effort
+    step_ = 0;
+    frames_waited_ = 0;
+    flush_left_ = 0;
+    active_ = !steps_.empty();
+}
+
+bool Tour::active() const {
+    return active_;
+}
+
+uint32_t Tour::current_step() const {
+    return step_;
+}
+
+void Tour::apply(FirstPersonCamera& camera) const {
+    if (!active_) {
+        return;
+    }
+    const TourStep& step = steps_[step_];
+    const CameraPose pose{step.position, step.yaw, step.pitch};
+    camera.set_poses(pose, pose); // static vantage: interpolation is a no-op
+}
+
+bool Tour::post_frame(platform::IRenderer& renderer) {
+    if (!active_) {
+        return true;
+    }
+    const TourStep& step = steps_[step_];
+
+    if (flush_left_ > 0) { // screenshot scheduled: let the backend finish
+        if (--flush_left_ > 0) {
+            return false;
+        }
+        // Flush done — advance.
+        ++step_;
+        frames_waited_ = 0;
+        if (step_ >= steps_.size()) {
+            active_ = false;
+            return true; // the app closes the window now
+        }
+        return false;
+    }
+
+    if (frames_waited_ < step.wait_frames) {
+        ++frames_waited_;
+        return false;
+    }
+
+    char name[32];
+    std::snprintf(name, sizeof(name), "%02u_", step_);
+    const std::string path = output_dir_ + "/" + name + step.label + ".png";
+    if (!renderer.save_screenshot(path)) {
+        // Null backend (headless smoke run): keep walking the route (Rule 3).
+        std::fprintf(stderr, "[tour] screenshot unsupported, skipped: %s\n",
+                     path.c_str());
+    }
+    flush_left_ = FLUSH_FRAMES;
+    return false;
+}
+
+std::vector<TourStep> Tour::default_steps() {
+    // The stage-2 acceptance route (Q51): 4 vantages over the flat test chunk
+    // (chunk (0,0) spans 0..CHUNK_SIZE on x/z). Positions derive from
+    // NUMBERS.md constants; eye height assumes ground near y=0 on the test
+    // chunk (the app may substitute terrain-aware steps).
+    const float size = static_cast<float>(config::CHUNK_SIZE);
+    const float mid = size * 0.5f;
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    return {
+        {"center_north", {mid, eye, mid}, 0.0f, 0.0f, 30},
+        {"center_east_down", {mid, eye + 2.0f, mid}, 1.5708f, -0.15f, 10},
+        {"corner_diagonal", {size * 0.125f, eye + 8.0f, size * 0.125f},
+         2.3562f, -0.2f, 10},
+        {"overview", {mid, 60.0f, mid}, 0.7854f, -0.9f, 10},
+    };
+}
+
+} // namespace dfn::render

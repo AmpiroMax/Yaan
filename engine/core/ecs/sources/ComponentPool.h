@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/ecs
 File: engine/core/ecs/sources/ComponentPool.h
 
@@ -20,22 +20,25 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Components are plain movable structs (Rule 8): no virtuals, no backend types,
   no pointers to other components.
-- STAGE 1 CONTRACT: declarations only; method bodies arrive in stage 2 (in this
-  header — templates stay header-only).
+- Header-only (templates). Public surface frozen per stage-1 contract.
 */
 /*
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — sparse-set pool interface with batch
   removal hook (Rule 11), based on Quicky ECS.
+- 09:08:2026 - 00:42:03: Stage 2 — template bodies implemented in-header;
+  public surface unchanged.
 */
 
 #pragma once
 
 #include "engine/core/ecs/sources/EntityId.h"
 
+#include <cassert>
 #include <cstddef>
 #include <span>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace dfn::ecs {
@@ -73,24 +76,64 @@ class ComponentPool final : public IComponentPool {
 public:
     /// Adds a component for `id`. Precondition: !has(id) (asserted).
     /// Returns a reference valid until the next add/remove on this pool.
-    T& add(EntityId id, T&& component);
+    T& add(EntityId id, T&& component) {
+        assert(!has(id) && "Entity already has this component");
+        const std::size_t dense_index = dense_.size();
+        dense_.push_back(std::move(component));
+        owners_.push_back(id);
+        sparse_[id.index] = dense_index;
+        return dense_.back();
+    }
 
     /// See IComponentPool. O(1) via swap-and-pop.
-    void remove(EntityId id) override;
-    void remove_batch(std::span<const EntityId> ids) override;
+    void remove(EntityId id) override {
+        const auto it = sparse_.find(id.index);
+        if (it == sparse_.end()) {
+            return;
+        }
+        const std::size_t index = it->second;
+        const std::size_t last = dense_.size() - 1;
+        if (index != last) {
+            dense_[index] = std::move(dense_[last]);
+            owners_[index] = owners_[last];
+            sparse_[owners_[index].index] = index;
+        }
+        dense_.pop_back();
+        owners_.pop_back();
+        sparse_.erase(it);
+    }
+
+    void remove_batch(std::span<const EntityId> ids) override {
+        for (const EntityId id : ids) {
+            remove(id);
+        }
+    }
 
     /// Returns the component of `id`, or nullptr if absent. O(1).
-    [[nodiscard]] T* get(EntityId id);
-    [[nodiscard]] const T* get(EntityId id) const;
+    [[nodiscard]] T* get(EntityId id) {
+        const auto it = sparse_.find(id.index);
+        return it == sparse_.end() ? nullptr : &dense_[it->second];
+    }
+    [[nodiscard]] const T* get(EntityId id) const {
+        const auto it = sparse_.find(id.index);
+        return it == sparse_.end() ? nullptr : &dense_[it->second];
+    }
 
-    [[nodiscard]] bool has(EntityId id) const override;
-    [[nodiscard]] std::size_t size() const override;
-    void clear() override;
+    [[nodiscard]] bool has(EntityId id) const override {
+        return sparse_.find(id.index) != sparse_.end();
+    }
+    [[nodiscard]] std::size_t size() const override { return dense_.size(); }
+
+    void clear() override {
+        dense_.clear();
+        owners_.clear();
+        sparse_.clear();
+    }
 
     /// Direct dense access for View iteration. `i < size()`.
-    [[nodiscard]] T& data_at(std::size_t i);
-    [[nodiscard]] const T& data_at(std::size_t i) const;
-    [[nodiscard]] EntityId owner_at(std::size_t i) const;
+    [[nodiscard]] T& data_at(std::size_t i) { return dense_[i]; }
+    [[nodiscard]] const T& data_at(std::size_t i) const { return dense_[i]; }
+    [[nodiscard]] EntityId owner_at(std::size_t i) const { return owners_[i]; }
 
 private:
     std::vector<T> dense_;

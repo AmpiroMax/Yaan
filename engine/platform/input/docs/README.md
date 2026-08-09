@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 09:08:2026 - 00:50:00
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: interface only, no backends yet.
+- 09:08:2026 - 00:50:00: Stage 2 — glfw + null backends implemented.
 -->
 
 # engine/platform/input
@@ -43,8 +44,13 @@ if (input.was_pressed(dfn::platform::Key::ESCAPE)) {
 - Used by: `engine/app`, controller/gameplay systems (as a parameter, Rule 9),
   `engine/editor`, tests.
 
-## Current state (stage 1)
+## Current state (stage 2)
 
-Interface only — no `sources/` yet (contracts-only stage, Q38/Q51). Action
-mapping and rebinding are a later engine-layer module on top of these enums;
-gamepad methods will be added additively via group sync (Rule 26).
+Implemented: `sources/glfw/` (GlfwInput — snapshot polling with edge
+detection, raw mouse motion when captured, scroll via callback; owns the GLFW
+window user pointer per the zone-internal callback policy) and
+`sources/null/`. Factories: `sources/glfw/CreateGlfwInput.h` (requires a
+GlfwWindow), `sources/null/CreateNullInput.h`. Target: `dfn_platform_input`.
+Action mapping and rebinding remain a later engine-layer module on top of
+these enums; gamepad methods will be added additively via group sync
+(Rule 26).

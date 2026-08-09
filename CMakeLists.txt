@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 09:08:2026 - 00:35:09
+# Last updated: 09:08:2026 - 00:55:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -25,6 +25,8 @@
 #
 # UPD:
 # - 09:08:2026 - 00:35:09: Created for stage 2 (skeleton walk).
+# - 09:08:2026 - 00:55:00: include(CTest) at root so ctest works from the build
+#                          root (core's report, note 3).
 
 cmake_minimum_required(VERSION 3.28)
 project(daggerfall_n CXX)
@@ -57,6 +59,7 @@ FetchContent_Declare(doctest
     GIT_REPOSITORY https://github.com/doctest/doctest.git
     GIT_TAG v2.4.11)
 FetchContent_MakeAvailable(glm doctest)
+include(CTest) # root-level so `ctest --test-dir <build>` finds zone tests
 
 # --- Common interface target -------------------------------------------------
 add_library(dfn_headers INTERFACE)

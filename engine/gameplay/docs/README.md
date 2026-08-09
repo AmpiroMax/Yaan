@@ -1,11 +1,14 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 01:02:15
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:18:26: Stage-1 state: public contract headers only, no
   implementation yet.
+- 09:08:2026 - 01:02:15: Stage 2 — implemented player movement
+  (PlayerMovement.h/.cpp + World wrappers) and the dice RNG (Dice.cpp);
+  NpcAction/stats/dialogue remain headers-only by stage scope.
 -->
 
 # engine/gameplay
@@ -32,6 +35,14 @@ passed into systems.
 - `sources/NpcComponents.h` — `VoiceTimbre` (Q80), `ScheduleState` (Q44).
 - `sources/Interaction.h` — `Highlightable`, `Openable`, `Lootable` (Q11).
 - `sources/Ids.h` — typed stable content ids.
+- `sources/PlayerMovement.h` (implemented, stage 2) — `PlayerState` component;
+  ref-based core `accumulate_input`/`player_pre_step`/`player_post_step`
+  (unit-testable without a World) plus World-facing `spawn_player` +
+  per-tick wrappers for engine/app. Tick order: accumulate (per render frame)
+  -> pre_step -> app calls `IPhysics::step(SIM_DT)` -> post_step; pre_step
+  snapshots curr->prev on Transform/CameraPose pairs (Rule 12 contract).
+  Implemented: `Dice.cpp` (splitmix64; `resolve_attack` waits for the combat
+  grill).
 
 ## Usage example
 

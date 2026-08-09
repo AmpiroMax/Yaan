@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/math
 File: engine/core/math/sources/Aabb.h
 
@@ -23,10 +23,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — POD AABB with trivial inline helpers.
+- 09:08:2026 - 00:42:03: Stage 2 — added missing <glm/mat4x4.hpp> include
+  (transformed() signature uses glm::mat4).
 */
 
 #pragma once
 
+#include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
 namespace dfn::math {

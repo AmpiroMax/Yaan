@@ -1,5 +1,5 @@
 # Created: 09:08:2026 - 00:29:27
-# Last updated: 09:08:2026 - 00:29:27
+# Last updated: 09:08:2026 - 00:50:00
 # File: .clangd
 #
 # Responsibility:
@@ -12,6 +12,9 @@
 #
 # UPD:
 # - 09:08:2026 - 00:29:27: Created (stage-1 headers predate the build system).
+# - 09:08:2026 - 00:50:00: Point clangd at build_lead's compile_commands.json;
+#   absolute include fallback for headers not yet in the database.
 
 CompileFlags:
-  Add: [-std=c++20, -I., -Wall, -Wextra]
+  CompilationDatabase: build_lead
+  Add: [-std=c++20, "-I/Users/ampiro/programs/Daggerfall N", -Wall, -Wextra]

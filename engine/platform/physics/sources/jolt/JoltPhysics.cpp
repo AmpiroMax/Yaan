@@ -1,0 +1,453 @@
+/*
+Created: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 00:45:08
+Module: engine/platform/physics
+File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
+
+Responsibility:
+- Jolt backend of IPhysics: fixed-step world, static terrain (triangle mesh
+  from heightmap samples) and boxes, kinematic capsule characters via
+  CharacterVirtual (collide-and-slide, stair stepping, slope limit), masked
+  raycasts. The ONLY translation unit that includes Jolt (Rule 1).
+
+Key items:
+- JoltPhysics (file-local): the IPhysics implementation.
+- Object layers: STATIC / CHARACTER / CHARACTER_GHOST (ghost = the character's
+  raycastable inner body; collides with nothing).
+- MaskBodyFilter: filters queries/contacts by the engine's opaque CollisionMask
+  stored per body — the backend never interprets mask bits (IPhysics.h note).
+
+Dependencies:
+- Uses: interfaces/IPhysics.h, Jolt (v5.2.0), generated constants (GRAVITY).
+- Used by: engine/app wiring (via CreateJoltPhysics.h), jolt-backed tests.
+
+Notes:
+- Terrain is a static MeshShape built from the float samples, not a
+  JPH::HeightFieldShape: Jolt's height field wants sample counts divisible by
+  its block size, while our chunks are 129x129 (NUMBERS, 2^n+1 with shared
+  edges). The mesh triangulation matches the render mesher's grid exactly, so
+  collision and visuals cannot disagree. Revisit (memory) at a later sync.
+- move_character() accumulates the desired displacement; step() converts it to
+  a velocity over SIM_DT and runs ExtendedUpdate (slide + stairs + stick to
+  floor). Queries return post-step state, per the interface contract.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Keep the null backend's observable API semantics identical where defined.
+- Do not interpret CollisionMask bits — store and AND them, nothing more.
+*/
+/*
+UPD:
+- 09:08:2026 - 00:45:08: Stage 2 — initial Jolt backend (terrain mesh, boxes,
+                         CharacterVirtual with inner body, masked raycast).
+*/
+
+#include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
+
+#include "engine/core/config/sources/Constants.h"
+
+#include <Jolt/Jolt.h>
+
+#include <Jolt/Core/Factory.h>
+#include <Jolt/Core/JobSystemThreadPool.h>
+#include <Jolt/Core/TempAllocator.h>
+#include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/ObjectLayer.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
+#include <Jolt/Physics/PhysicsSettings.h>
+#include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/RegisterTypes.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <thread>
+#include <unordered_map>
+
+namespace dfn::platform {
+namespace {
+
+// --- Conversions -------------------------------------------------------------
+
+[[nodiscard]] JPH::Vec3 to_jph(const glm::vec3& v) { return {v.x, v.y, v.z}; }
+[[nodiscard]] glm::vec3 to_glm(JPH::Vec3Arg v) { return {v.GetX(), v.GetY(), v.GetZ()}; }
+
+// --- Layers ------------------------------------------------------------------
+// Backend-internal Jolt layers; engine semantics stay in the opaque
+// CollisionMask stored per body (never interpreted here).
+
+namespace object_layers {
+constexpr JPH::ObjectLayer STATIC = 0;
+constexpr JPH::ObjectLayer CHARACTER = 1;
+constexpr JPH::ObjectLayer CHARACTER_GHOST = 2; // raycast-only inner bodies
+constexpr JPH::uint COUNT = 3;
+} // namespace object_layers
+
+namespace broad_phase_layers {
+constexpr JPH::BroadPhaseLayer STATIC{0};
+constexpr JPH::BroadPhaseLayer MOVING{1};
+constexpr JPH::uint COUNT = 2;
+} // namespace broad_phase_layers
+
+class BroadPhaseLayerMap final : public JPH::BroadPhaseLayerInterface {
+public:
+    JPH::uint GetNumBroadPhaseLayers() const override { return broad_phase_layers::COUNT; }
+    JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer layer) const override {
+        return layer == object_layers::STATIC ? broad_phase_layers::STATIC
+                                              : broad_phase_layers::MOVING;
+    }
+#if defined(JPH_EXTERNAL_PROFILE) || defined(JPH_PROFILE_ENABLED)
+    const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer layer) const override {
+        return layer == broad_phase_layers::STATIC ? "STATIC" : "MOVING";
+    }
+#endif
+};
+
+class ObjectVsBroadPhaseFilter final : public JPH::ObjectVsBroadPhaseLayerFilter {
+public:
+    bool ShouldCollide(JPH::ObjectLayer layer, JPH::BroadPhaseLayer bp) const override {
+        // Characters query static geometry; ghosts collide with nothing.
+        if (layer == object_layers::CHARACTER_GHOST) {
+            return false;
+        }
+        if (layer == object_layers::CHARACTER) {
+            return bp == broad_phase_layers::STATIC;
+        }
+        return false; // static vs anything: static never queries
+    }
+};
+
+class ObjectPairFilter final : public JPH::ObjectLayerPairFilter {
+public:
+    bool ShouldCollide(JPH::ObjectLayer a, JPH::ObjectLayer b) const override {
+        const auto pair_is = [&](JPH::ObjectLayer x, JPH::ObjectLayer y) {
+            return (a == x && b == y) || (a == y && b == x);
+        };
+        return pair_is(object_layers::CHARACTER, object_layers::STATIC);
+    }
+};
+
+// Filters bodies by the engine's opaque per-body CollisionMask (stored by the
+// backend at creation): pass iff (body_mask & query_mask) != 0.
+class MaskBodyFilter final : public JPH::BodyFilter {
+public:
+    MaskBodyFilter(const std::unordered_map<JPH::uint32, CollisionMask>& masks,
+                   CollisionMask query_mask)
+        : masks_(masks), query_mask_(query_mask) {}
+
+    bool ShouldCollide(const JPH::BodyID& body_id) const override {
+        const auto it = masks_.find(body_id.GetIndexAndSequenceNumber());
+        const CollisionMask body_mask = it != masks_.end() ? it->second : COLLIDE_ALL;
+        return (body_mask & query_mask_) != 0;
+    }
+
+private:
+    const std::unordered_map<JPH::uint32, CollisionMask>& masks_;
+    CollisionMask query_mask_;
+};
+
+// --- Backend -----------------------------------------------------------------
+
+class JoltPhysics final : public IPhysics {
+public:
+    bool init() override {
+        // Process-global Jolt bootstrap; idempotent across instances (tests).
+        static bool jolt_registered = [] {
+            JPH::RegisterDefaultAllocator();
+            JPH::Factory::sInstance = new JPH::Factory();
+            JPH::RegisterTypes();
+            return true;
+        }();
+        (void)jolt_registered;
+
+        // Backend capacities (engine internals, not gameplay constants):
+        // enough for the testbed's chunks, props and characters (NUMBERS
+        // TESTBED_*); revisit at the streaming-budget sync.
+        constexpr JPH::uint MAX_BODIES = 16384;
+        constexpr JPH::uint BODY_MUTEXES = 0; // 0 = Jolt default
+        constexpr JPH::uint MAX_BODY_PAIRS = 16384;
+        constexpr JPH::uint MAX_CONTACTS = 8192;
+        constexpr JPH::uint TEMP_ALLOC_BYTES = 16 * 1024 * 1024;
+
+        temp_allocator_ = std::make_unique<JPH::TempAllocatorImpl>(TEMP_ALLOC_BYTES);
+        job_system_ = std::make_unique<JPH::JobSystemThreadPool>(
+            JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers,
+            std::max(1u, std::thread::hardware_concurrency() - 1u));
+
+        system_ = std::make_unique<JPH::PhysicsSystem>();
+        system_->Init(MAX_BODIES, BODY_MUTEXES, MAX_BODY_PAIRS, MAX_CONTACTS,
+                      bp_layer_map_, object_vs_bp_filter_, pair_filter_);
+        return true;
+    }
+
+    void shutdown() override {
+        for (auto& [id, character] : characters_) {
+            character.virtual_character = nullptr;
+        }
+        characters_.clear();
+        bodies_.clear();
+        body_masks_.clear();
+        system_.reset();
+        job_system_.reset();
+        temp_allocator_.reset();
+    }
+
+    // Simulation ---------------------------------------------------------------
+    void step(float dt) override {
+        if (!system_) {
+            return;
+        }
+        if (broad_phase_dirty_) {
+            system_->OptimizeBroadPhase();
+            broad_phase_dirty_ = false;
+        }
+
+        // Characters first: collide-and-slide against the current static world.
+        const JPH::Vec3 gravity{0.0f, -static_cast<float>(dfn::config::GRAVITY), 0.0f};
+        for (auto& [id, character] : characters_) {
+            JPH::CharacterVirtual::ExtendedUpdateSettings update_settings;
+            update_settings.mWalkStairsStepUp = {0.0f, character.step_height, 0.0f};
+            update_settings.mStickToFloorStepDown = {0.0f, -character.step_height, 0.0f};
+
+            character.virtual_character->SetLinearVelocity(to_jph(character.pending / dt));
+            const MaskBodyFilter body_filter{body_masks_, character.collides_with};
+            character.virtual_character->ExtendedUpdate(
+                dt, gravity, update_settings,
+                system_->GetDefaultBroadPhaseLayerFilter(object_layers::CHARACTER),
+                system_->GetDefaultLayerFilter(object_layers::CHARACTER), body_filter,
+                {}, *temp_allocator_);
+            character.pending = glm::vec3{0.0f};
+        }
+
+        constexpr int COLLISION_STEPS = 1; // one fixed step per call (Rule 12)
+        system_->Update(dt, COLLISION_STEPS, temp_allocator_.get(), job_system_.get());
+    }
+
+    // Static bodies ------------------------------------------------------------
+    PhysicsBodyHandle create_terrain(const TerrainDesc& desc) override {
+        if (desc.sample_count_x < 2 || desc.sample_count_z < 2 ||
+            desc.heights.size() <
+                static_cast<size_t>(desc.sample_count_x) * desc.sample_count_z) {
+            return {};
+        }
+
+        // Grid triangulation identical to the render mesher (see header notes).
+        JPH::VertexList vertices;
+        vertices.reserve(desc.heights.size());
+        for (uint32_t z = 0; z < desc.sample_count_z; ++z) {
+            for (uint32_t x = 0; x < desc.sample_count_x; ++x) {
+                vertices.push_back(JPH::Float3(
+                    desc.origin.x + static_cast<float>(x) * desc.sample_spacing,
+                    desc.heights[static_cast<size_t>(z) * desc.sample_count_x + x],
+                    desc.origin.z + static_cast<float>(z) * desc.sample_spacing));
+            }
+        }
+        JPH::IndexedTriangleList triangles;
+        triangles.reserve(static_cast<size_t>(desc.sample_count_x - 1) *
+                          (desc.sample_count_z - 1) * 2);
+        for (uint32_t z = 0; z + 1 < desc.sample_count_z; ++z) {
+            for (uint32_t x = 0; x + 1 < desc.sample_count_x; ++x) {
+                const JPH::uint32 i00 = z * desc.sample_count_x + x;
+                const JPH::uint32 i10 = i00 + 1;
+                const JPH::uint32 i01 = i00 + desc.sample_count_x;
+                const JPH::uint32 i11 = i01 + 1;
+                triangles.push_back(JPH::IndexedTriangle(i00, i01, i10)); // up-facing
+                triangles.push_back(JPH::IndexedTriangle(i10, i01, i11));
+            }
+        }
+
+        auto shape_result = JPH::MeshShapeSettings(vertices, triangles).Create();
+        if (shape_result.HasError()) {
+            return {};
+        }
+        return add_static_body(shape_result.Get(), JPH::RVec3::sZero(),
+                               JPH::Quat::sIdentity(), desc.layer, desc.user_data);
+    }
+
+    PhysicsBodyHandle create_static_box(const StaticBoxDesc& desc) override {
+        const JPH::Vec3 half = to_jph(desc.half_extents);
+        if (half.GetX() <= 0.0f || half.GetY() <= 0.0f || half.GetZ() <= 0.0f) {
+            return {};
+        }
+        const JPH::Quat rotation{desc.rotation.x, desc.rotation.y, desc.rotation.z,
+                                 desc.rotation.w};
+        return add_static_body(new JPH::BoxShape(half), JPH::RVec3(to_jph(desc.center)),
+                               rotation, desc.layer, desc.user_data);
+    }
+
+    void destroy_body(PhysicsBodyHandle body) override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end()) {
+            return;
+        }
+        auto& body_interface = system_->GetBodyInterface();
+        body_masks_.erase(it->second.GetIndexAndSequenceNumber());
+        body_interface.RemoveBody(it->second);
+        body_interface.DestroyBody(it->second);
+        bodies_.erase(it);
+    }
+
+    // Character controller -----------------------------------------------------
+    CharacterHandle create_character(const CharacterDesc& desc) override {
+        const float cylinder_half = 0.5f * desc.height - desc.radius;
+        if (!system_ || desc.radius <= 0.0f || cylinder_half <= 0.0f) {
+            return {};
+        }
+        // Capsule offset so the character position is the capsule BOTTOM point.
+        auto shape_result =
+            JPH::RotatedTranslatedShapeSettings(
+                {0.0f, 0.5f * desc.height, 0.0f}, JPH::Quat::sIdentity(),
+                new JPH::CapsuleShape(cylinder_half, desc.radius))
+                .Create();
+        if (shape_result.HasError()) {
+            return {};
+        }
+
+        JPH::CharacterVirtualSettings settings;
+        settings.mShape = shape_result.Get();
+        settings.mMaxSlopeAngle = desc.max_slope_radians;
+        settings.mInnerBodyShape = shape_result.Get(); // raycastable ghost body
+        settings.mInnerBodyLayer = object_layers::CHARACTER_GHOST;
+
+        Character character;
+        character.virtual_character = new JPH::CharacterVirtual(
+            &settings, JPH::RVec3(to_jph(desc.position)), JPH::Quat::sIdentity(),
+            desc.user_data, system_.get());
+        character.step_height = desc.step_height;
+        character.collides_with = desc.collides_with;
+
+        const JPH::BodyID inner = character.virtual_character->GetInnerBodyID();
+        if (!inner.IsInvalid()) {
+            system_->GetBodyInterface().SetUserData(inner, desc.user_data);
+            body_masks_[inner.GetIndexAndSequenceNumber()] = desc.layer;
+        }
+
+        const CharacterHandle handle{next_id_++};
+        characters_.emplace(handle.id, std::move(character));
+        return handle;
+    }
+
+    void destroy_character(CharacterHandle character) override {
+        const auto it = characters_.find(character.id);
+        if (it == characters_.end()) {
+            return;
+        }
+        const JPH::BodyID inner = it->second.virtual_character->GetInnerBodyID();
+        if (!inner.IsInvalid()) {
+            body_masks_.erase(inner.GetIndexAndSequenceNumber());
+        }
+        characters_.erase(it); // Ref<> releases the CharacterVirtual (+ inner body)
+    }
+
+    void move_character(CharacterHandle character, const glm::vec3& displacement) override {
+        if (auto it = characters_.find(character.id); it != characters_.end()) {
+            it->second.pending += displacement;
+        }
+    }
+
+    glm::vec3 character_position(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        return it != characters_.end()
+                   ? to_glm(it->second.virtual_character->GetPosition())
+                   : glm::vec3{0.0f};
+    }
+
+    bool character_grounded(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        return it != characters_.end() &&
+               it->second.virtual_character->GetGroundState() ==
+                   JPH::CharacterVirtual::EGroundState::OnGround;
+    }
+
+    void teleport_character(CharacterHandle character, const glm::vec3& position) override {
+        if (auto it = characters_.find(character.id); it != characters_.end()) {
+            it->second.virtual_character->SetPosition(JPH::RVec3(to_jph(position)));
+            it->second.pending = glm::vec3{0.0f};
+        }
+    }
+
+    // Queries ------------------------------------------------------------------
+    RayHit raycast(const glm::vec3& origin, const glm::vec3& direction,
+                   float max_distance, CollisionMask mask) const override {
+        RayHit result;
+        if (!system_ || max_distance <= 0.0f) {
+            return result;
+        }
+        const JPH::RRayCast ray{JPH::RVec3(to_jph(origin)),
+                                to_jph(direction * max_distance)};
+        JPH::RayCastResult hit;
+        const MaskBodyFilter body_filter{body_masks_, mask};
+        if (!system_->GetNarrowPhaseQuery().CastRay(ray, hit, {}, {}, body_filter)) {
+            return result;
+        }
+
+        result.hit = true;
+        result.distance = hit.mFraction * max_distance;
+        result.position = origin + direction * result.distance;
+        JPH::BodyLockRead lock(system_->GetBodyLockInterface(), hit.mBodyID);
+        if (lock.Succeeded()) {
+            const JPH::Body& body = lock.GetBody();
+            result.normal = to_glm(body.GetWorldSpaceSurfaceNormal(
+                hit.mSubShapeID2, ray.GetPointOnRay(hit.mFraction)));
+            result.user_data = body.GetUserData();
+        }
+        return result;
+    }
+
+private:
+    struct Character {
+        JPH::Ref<JPH::CharacterVirtual> virtual_character;
+        glm::vec3 pending{0.0f};
+        float step_height = 0.0f;
+        CollisionMask collides_with = COLLIDE_ALL;
+    };
+
+    PhysicsBodyHandle add_static_body(const JPH::ShapeRefC& shape, JPH::RVec3Arg position,
+                                      JPH::QuatArg rotation, CollisionMask mask,
+                                      uint64_t user_data) {
+        JPH::BodyCreationSettings settings(shape, position, rotation,
+                                           JPH::EMotionType::Static,
+                                           object_layers::STATIC);
+        settings.mUserData = user_data;
+        const JPH::BodyID body_id = system_->GetBodyInterface().CreateAndAddBody(
+            settings, JPH::EActivation::DontActivate);
+        if (body_id.IsInvalid()) {
+            return {};
+        }
+        const PhysicsBodyHandle handle{next_id_++};
+        bodies_.emplace(handle.id, body_id);
+        body_masks_[body_id.GetIndexAndSequenceNumber()] = mask;
+        broad_phase_dirty_ = true;
+        return handle;
+    }
+
+    BroadPhaseLayerMap bp_layer_map_;
+    ObjectVsBroadPhaseFilter object_vs_bp_filter_;
+    ObjectPairFilter pair_filter_;
+
+    std::unique_ptr<JPH::TempAllocatorImpl> temp_allocator_;
+    std::unique_ptr<JPH::JobSystemThreadPool> job_system_;
+    std::unique_ptr<JPH::PhysicsSystem> system_;
+
+    uint32_t next_id_ = 1; // 0 is the invalid handle
+    std::unordered_map<uint32_t, JPH::BodyID> bodies_;
+    std::unordered_map<uint32_t, Character> characters_;
+    // BodyID (index+sequence) -> engine mask, for query/contact filtering.
+    std::unordered_map<JPH::uint32, CollisionMask> body_masks_;
+    bool broad_phase_dirty_ = false;
+};
+
+} // namespace
+
+std::unique_ptr<IPhysics> create_jolt_physics() {
+    return std::make_unique<JoltPhysics>();
+}
+
+} // namespace dfn::platform

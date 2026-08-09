@@ -1,10 +1,12 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 09:08:2026 - 01:02:15
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:18:26: Stage-1 state: interface only, no backends yet.
+- 09:08:2026 - 01:02:15: Stage 2 — null backend implemented (CreateNullLlm.h);
+  llama.cpp backend remains stage 4.
 -->
 
 # engine/platform/llm

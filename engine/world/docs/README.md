@@ -1,10 +1,11 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 09:08:2026 - 00:42:03
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
+- 09:08:2026 - 00:42:03: Stage 2 — Chunk/Worldgen/ChunkManager implemented; ChunkManager::open_generated added (in-memory generator, lead directive — .dfw IO and SaveDelta deferred to stage 3); value-noise gentle hills with global quantization range for exact edge stitching; suites tests/core/{WorldgenTests,ChunkManagerTests}.cpp.
 -->
 
 # engine/world
@@ -37,7 +38,10 @@ deltas (Q56).
 
 ```cpp
 dfn::world::ChunkManager chunks;
-chunks.open(world_path, &delta, params);
+// Stage 2: in-memory deterministic generator (open(file) arrives in stage 3).
+chunks.open_generated({seed, {-10, -10}, {10, 10}},
+                      {static_cast<uint32_t>(dfn::config::CHUNK_LOAD_RADIUS),
+                       static_cast<uint32_t>(dfn::config::CHUNK_UNLOAD_RADIUS)});
 chunks.update(player_pos, ecs, bus);            // loads/unloads, batch ECS ops
 auto hf = chunks.heightfield({3, -2});          // -> render mesher / physics
 float ground = chunks.height_at({812.f, -95.f}).value_or(0.f);
