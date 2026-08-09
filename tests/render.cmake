@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 19:46:00
+# Last updated: 09:08:2026 - 20:58:00
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -22,6 +22,7 @@
 # - 09:08:2026 - 17:55:00: Map screen tests (explored chunks, markers, compose).
 # - 09:08:2026 - 19:53:00: Sky model tests (sun/moon geometry, night invariants).
 # - 09:08:2026 - 19:46:00: Flora generator tests (flora agent's suite).
+# - 09:08:2026 - 20:58:00: Terrain LOD tests (ladder, selection, fade window).
 
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
@@ -29,6 +30,7 @@ add_dfn_test(render_scatter_batcher render/ScatterBatcherTests.cpp dfn_render)
 add_dfn_test(render_water_mesher render/WaterMesherTests.cpp dfn_render)
 add_dfn_test(render_map_screen render/MapScreenTests.cpp dfn_render)
 add_dfn_test(render_sky_model render/SkyModelTests.cpp dfn_render)
+add_dfn_test(render_terrain_lod render/TerrainLodTests.cpp dfn_render)
 add_dfn_test(render_proc_flora render/ProcFloraTests.cpp dfn_render)
 add_dfn_test(render_camera render/CameraTests.cpp dfn_render)
 add_dfn_test(render_tour render/TourTests.cpp dfn_render dfn_platform_render)
