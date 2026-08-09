@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:47:13
+Last updated: 09:08:2026 - 22:49:12
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -72,6 +72,7 @@ UPD:
 - 09:08:2026 - 22:34:17: Взаимодействие подключено к игре: предметы, три пробных объекта (взять/открыть/использовать), столкновения с реквизитом, наведение, действия, переносимый свет, модель рук. Всё это существовало и не вызывалось ни разу.
 - 09:08:2026 - 22:38:29: Настоящие номера моделей руки (32) и факела (33) вместо заглушек — render их завёл.
 - 09:08:2026 - 22:47:13: Карта снова записывает разведанное: высотное поле едет вместе с воксельной выгрузкой (пометка кусков висела на старом пути и молча отвалилась). Плюс новая сигнатура действий игрока — выбрасывание предметов требует физики.
+- 09:08:2026 - 22:49:12: Мир встаёт на паузу с открытым инвентарём (как в TES). Три системы продолжают работать — иначе из меню не выйти. Накопитель шагов сбрасывается, чтобы на выходе не выстрелить пачкой догоняющих тиков.
 */
 
 #include "engine/app/sources/App.h"
@@ -477,7 +478,35 @@ int App::run() {
 
         gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
 
-        const uint32_t steps = timestep_.accumulate(frame_dt);
+        // THE WORLD PAUSES WHILE THE INVENTORY IS OPEN (в70: "инвентарь как в
+        // скайриме" -- Skyrim, Oblivion and Morrowind all pause, and the pause
+        // is what makes a menu with a 3D preview usable at all: you study an
+        // object without being hit while you do it).
+        //
+        // Three of these systems MUST keep running, and sim restructured their
+        // zone so that they can. A pause that skipped the whole block would
+        // have locked the player in the menu forever, because the key that
+        // CLOSES the screen is consumed by player_actions_step -- and the
+        // preview turntable lived in the movement path, so "skip movement"
+        // would have frozen the one thing on screen. The guard compiles either
+        // way; only the restructure makes it correct.
+        const bool paused =
+            world_.has_resource<gameplay::InventoryScreen>()
+            && world_.resource<gameplay::InventoryScreen>().open;
+
+        if (paused) {
+            // reset() rather than simply skipping the loop: accumulate() would
+            // bank a step per frame while paused and spend the backlog in one
+            // burst on unpause, teleporting the player. SIM_MAX_CATCHUP_STEPS
+            // bounds that but does not make it right.
+            timestep_.reset();
+            gameplay::player_actions_step(world_, bus_, *physics_);
+            gameplay::update_carried_lights(world_);
+            gameplay::update_view_model(world_);
+            bus_.pump();
+        }
+
+        const uint32_t steps = paused ? 0u : timestep_.accumulate(frame_dt);
         for (uint32_t i = 0; i < steps; ++i) {
             // Streaming runs BEFORE the physics step: a step must never execute
             // against a world whose collision bodies are one tick stale, or the
