@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 00:18:40
+Last updated: 10:08:2026 - 00:31:03
 -->
 <!--
 UPD:
@@ -14,6 +14,7 @@ UPD:
 - 10:08:2026 - 00:13:43: Rule 36 — добавлена дешёвая стоячая проверка: сравнить максимум с отсечкой, и если они рядом, отвечал фильтр.
 - 10:08:2026 - 00:14:34: Rule 30 — когда есть настоящий отвергнутый образец, контролем служит ОН, и порог обязан стоять выше него.
 - 10:08:2026 - 00:18:40: Rule 29 — до включения веток каждый коммит перечисляет файлы явно; общий индекс делает голый git commit ловушкой.
+- 10:08:2026 - 00:31:03: Rule 27 — точка съёмки, неспособная провалиться, не является доказательством.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -325,6 +326,15 @@ stage. Changing one requires a group sync, recorded in `docs/devlog/`.
 Any change that can affect the rendered image must be verified by running the
 screenshot tour and checking each frame against the checklist. "It should work" in
 prose is not an accepted verification.
+
+**A vantage that cannot fail is not evidence.** The frame must contain the subject
+ACROSS THE RANGE THE PROPERTY UNDER TEST VARIES OVER — a banding check needs the
+material at several luminances, not a flat strip at one; a silhouette check needs
+several bearings, not the flattering one; a legibility check needs the landmark at
+its own acceptance distance. A clean result off a frame that could not have shown
+the defect is measuring the absence of a test. This is Rule 30 moved from the test
+suite into the camera, and it was earned twice in one evening by the same agent
+catching it in themselves.
 
 ### Rule 28 — Three strikes (Q61)
 Three failed attempts at the same problem → **stop and message the lead** with what
