@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 22:54:32
+Last updated: 10:08:2026 - 01:58:00
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -30,6 +30,7 @@ UPD:
 - 09:08:2026 - 17:45:08: §6.2: standing stones flanking each entrance approach (paired avenue, placed by rule — they must read as INTENTIONAL, which scatter cannot do) + the exclusion ring keeping trees, bushes and loose stones off the mound and forecourt so the silhouette survives.
 - 09:08:2026 - 18:58:01: Live-play fix: scatter resolves against the FINAL ground (macro + carve + entrance works + pads). Sampling the pre-stamp field buried props by exactly the mound's local rise — measured up to 2.4 m at the river barrow.
 - 09:08:2026 - 22:54:32: Tree occlusion heights sourced from OAK/PINE/BIRCH_HEIGHT_MAX instead of a local table that read 12/18/10 against a world built at 32/38/22 (pine 2.1x under). The sight-wedge filter and the C1 canopy field were both lied to; the wedges never failed.
+- 10:08:2026 - 01:58:00: Birch lattice derives from BIRCH_BANKLINE_SPACING_MIN/MAX (design ruling on core's Rule 32 question: bank-line accent spacing = crown width x 1.1-1.5, NOT TREE_SPACING_FOREST; the hard-coded 8.0 sat inside the band by luck). Mid-of-band derivation, same shape as oak/pine.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -306,10 +307,20 @@ void scatter_trees(ScatterCtx& ctx) {
                 0.8f + rng.next_float01() * 0.4f);
     });
     // Birch (stream 42): banks only, outside the sand band (§5.3 + §5 "never
-    // on sand"), loose lines — 45% keep.
-    ctx.for_cells(8.0f, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+    // on sand"), loose lines — 45% keep. Spacing = mid of the
+    // BIRCH_BANKLINE_SPACING band, same derivation shape as oak/pine above —
+    // but from its OWN band: birch is a bank-line accent whose spacing is
+    // crown width x 1.1-1.5 (a guide line reads as a line when crowns nearly
+    // touch), design-ruled NOT to derive from TREE_SPACING_FOREST. The old
+    // hard-coded 8.0 sat inside the band by luck, not by derivation (Rule 32:
+    // one species pinned where the others derive).
+    const float birch_spacing =
+        static_cast<float>(config::BIRCH_BANKLINE_SPACING_MIN
+                           + config::BIRCH_BANKLINE_SPACING_MAX) * 0.5f;
+    ctx.for_cells(birch_spacing, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
         WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_TREE + 2, gx, gz);
-        const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * 8.0f;
+        const glm::vec2 p =
+            corner + glm::vec2{rng.next_float01(), rng.next_float01()} * birch_spacing;
         if (!ctx.inside_chunk(p) || rng.next_float01() > 0.45f) return;
         const float d = ctx.dist_to_water(p);
         if (d <= static_cast<float>(config::SHORE_SAND_DIST)
