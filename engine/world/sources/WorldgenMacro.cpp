@@ -586,10 +586,20 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         const float bench_max = static_cast<float>(config::MASSIF_BENCH_SLOPE_MAX);
         const float riser_lo = cliff ? cliff_min : bench_max;
         const float riser_hi = cliff ? HALF_PI : cliff_min;
-        const float tan_riser = std::tan(
-            riser_lo
-            + bearing_field(seed, STREAM_MASSIF_BAND, dir, lobes, k + 128)
-                  * (riser_hi - riser_lo));
+        // The angle is drawn so the SURFACE AREA spreads evenly, not the angle.
+        // Drawing theta uniformly looks like variety but is not, because I4
+        // measures surface and surface per unit footprint goes as 1/cos(theta):
+        // a uniform angle draw piles surface into the middle of the steep range
+        // (measured 26% in the 60-70 bin with 50-60 at only 4%). Sampling
+        // sin(theta) uniformly gives a density proportional to cos(theta),
+        // which cancels the 1/cos weighting exactly and flattens the histogram
+        // in the units the invariant actually reads. No new constant -- it is
+        // the same range, sampled in the measure I4 uses.
+        const float u_r = bearing_field(seed, STREAM_MASSIF_BAND, dir, lobes, k + 128);
+        const float s_lo = std::sin(riser_lo);
+        const float s_hi = std::sin(riser_hi);
+        const float tan_riser =
+            std::tan(std::asin(std::clamp(s_lo + u_r * (s_hi - s_lo), -1.0f, 1.0f)));
         // Width shares that make the bench climb squash*grad and the riser
         // climb the remainder at exactly tan_riser.
         float rf = grad * (1.0f - squash) / std::max(tan_riser - grad * squash, 1e-3f);
