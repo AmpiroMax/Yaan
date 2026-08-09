@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 01:45:06
+Last updated: 10:08:2026 - 02:49:47
 -->
 <!--
 UPD:
@@ -17,6 +17,7 @@ UPD:
 - 10:08:2026 - 00:31:03: Rule 27 — точка съёмки, неспособная провалиться, не является доказательством.
 - 10:08:2026 - 00:35:07: Rule 30 — на какой ВЕЛИЧИНЕ стоит порог, тоже является измерением; и вилка — это два утверждения.
 - 10:08:2026 - 01:45:06: Rule 25 — new character zone (engine/anim + platform/anim, carved from sim): user approved the character agent twice (v51, v16).
+- 10:08:2026 - 02:49:47: Rule 27 — цитируемые кадры архивируются в docs/acceptance/ в родном разрешении; рецепт обязателен рядом.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -338,6 +339,16 @@ its own acceptance distance. A clean result off a frame that could not have show
 the defect is measuring the absence of a test. This is Rule 30 moved from the test
 suite into the camera, and it was earned twice in one evening by the same agent
 catching it in themselves.
+
+**Evidence frames are archived, not only recipes.** A reproduction recipe (binary
+provenance, seed, probe env, eye, time) is the CONTROL — it reproduces bit-identically
+under Rule 13 and is mandatory wherever a frame is cited. But `screenshots/` is
+gitignored and binaries die, so any frame a ruling or an acceptance CITES is also
+copied into `docs/acceptance/` (tracked), at native internal resolution (640x360 — the
+4x tour upscale adds pixels, not information), filename carrying the commit and the
+subject. Recipes prove the present; pixels preserve the past — every provenance-dead
+measurement hunt this project has run would have been cheaper with the original
+pixels. Curated only: a frame nobody cites does not enter.
 
 ### Rule 28 — Three strikes (Q61)
 Three failed attempts at the same problem → **stop and message the lead** with what
