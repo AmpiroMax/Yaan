@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 22:49:12
+Last updated: 09:08:2026 - 23:30:34
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -73,6 +73,7 @@ UPD:
 - 09:08:2026 - 22:38:29: Настоящие номера моделей руки (32) и факела (33) вместо заглушек — render их завёл.
 - 09:08:2026 - 22:47:13: Карта снова записывает разведанное: высотное поле едет вместе с воксельной выгрузкой (пометка кусков висела на старом пути и молча отвалилась). Плюс новая сигнатура действий игрока — выбрасывание предметов требует физики.
 - 09:08:2026 - 22:49:12: Мир встаёт на паузу с открытым инвентарём (как в TES). Три системы продолжают работать — иначе из меню не выйти. Накопитель шагов сбрасывается, чтобы на выходе не выстрелить пачкой догоняющих тиков.
+- 09:08:2026 - 23:30:34: Мир стал 2×2 км (WORLD_EXTENT_CHUNKS 8) — прямая просьба пользователя. Размер мира перестал быть голым числом в исходнике.
 */
 
 #include "engine/app/sources/App.h"
@@ -256,7 +257,13 @@ bool App::init(const AppConfig& config) {
     world::WorldGenParams gp;
     gp.seed = 1u;
     gp.min_chunk = {0, 0};
-    gp.max_chunk = {3, 3};
+    // 2x2 km (WORLD_EXTENT_CHUNKS 8 x CHUNK_SIZE 256), the user's direct and
+    // twice-repeated request. Was a bare {3,3} here, which made the size of the
+    // world unchangeable without editing source. The far-detail ladder is
+    // already sized for the 10x10 km target and node ids sit on a fixed world
+    // grid, so growing the world renumbers nothing already cached.
+    gp.max_chunk = {static_cast<int>(config::WORLD_EXTENT_CHUNKS) - 1,
+                    static_cast<int>(config::WORLD_EXTENT_CHUNKS) - 1};
     chunks_.open_generated(gp, sp);
 
     // World edge (sim's finding): past the generated extent there is no terrain
