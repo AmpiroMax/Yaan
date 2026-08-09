@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 09:08:2026 - 16:51:22
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -28,6 +28,8 @@ UPD:
 - 09:08:2026 - 15:08:24: Reject layer == 0 (and character collides_with == 0)
                          with an invalid handle, matching the Jolt backend —
                          null must catch the same authoring mistakes.
+- 09:08:2026 - 16:51:22: create_terrain_mesh (voxel terrain): same zero-mask
+                         and empty-mesh rules as the Jolt backend.
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
@@ -63,6 +65,13 @@ public:
     // layer == 0 is rejected here exactly as in the Jolt backend: null is a
     // runnable mode, so it must catch the same authoring mistakes (a body no
     // mask can select is never intentional) rather than mask them.
+    PhysicsBodyHandle create_terrain_mesh(const TerrainMeshDesc& desc) override {
+        if (desc.layer == 0 || desc.indices.size() < 3) {
+            return {}; // empty mesh: nothing to collide, not an error
+        }
+        return make_body();
+    }
+
     PhysicsBodyHandle create_terrain(const TerrainDesc& desc) override {
         if (desc.layer == 0) {
             return {};

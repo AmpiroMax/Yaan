@@ -1,17 +1,18 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 16:51:22
 Module: engine/physics
 File: engine/physics/sources/TerrainCollision.h
 
 Responsibility:
-- Bridges world heightmap data to physics: converts a math::HeightFieldView
-  (raw uint16 + scale/offset, the agreed core<->sim contract) into an IPhysics
-  terrain body. The uint16 -> float meters conversion lives HERE, per the
-  stage-1 boundary agreement with core.
+- Bridges world terrain data to physics. Voxel path: math::VoxelMeshView ->
+  one static mesh body per chunk (tunnels/overhangs). Heightmap path (legacy):
+  math::HeightFieldView -> heightfield-derived body; the uint16 -> float meters
+  conversion lives HERE, per the stage-1 boundary agreement with core.
 
 Key items:
-- create_terrain_body(): decode + create_terrain in one call, one body per chunk.
+- create_terrain_mesh_body(): THE voxel-world terrain call, one body per chunk.
+- create_terrain_body(): heightmap decode + create_terrain (no overhangs).
 
 Dependencies:
 - Uses: core math (HeightFieldView), platform physics interface, CollisionLayers.
@@ -25,6 +26,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — heightfield -> terrain body conversion.
+- 09:08:2026 - 16:51:22: Voxel swap: create_terrain_mesh_body() from
+                         math::VoxelMeshView — the terrain collision path that
+                         supports the crag tunnel. Heightmap path retained.
 */
 
 #pragma once
@@ -32,13 +36,26 @@ UPD:
 #include <vector>
 
 #include "engine/core/math/sources/HeightField.h"
+#include "engine/core/math/sources/VoxelField.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 
 namespace dfn::physics {
 
-/// Decodes `view` into float meters (scratch is reused between calls to avoid
-/// per-chunk allocations on the streaming path) and creates one static terrain
-/// body on LAYER_STATIC. `user_data` carries the chunk terrain entity's id bits.
+/// THE terrain collision call for the voxel world: builds one static body per
+/// chunk from the extracted surface mesh, on LAYER_STATIC. Represents tunnels,
+/// caves and overhangs — a heightfield-derived body cannot, which is why the
+/// player used to walk over the crag instead of through it.
+/// `user_data` carries the chunk terrain entity's id bits.
+/// Returns an INVALID handle when the chunk has no triangles (all air or all
+/// rock) — that means "no body needed", not an error; callers simply skip it.
+[[nodiscard]] platform::PhysicsBodyHandle create_terrain_mesh_body(
+    platform::IPhysics& physics, const math::VoxelMeshView& mesh,
+    uint64_t user_data);
+
+/// Heightmap terrain collision (pre-voxel worlds and tests). Decodes `view`
+/// into float meters (scratch is reused between calls to avoid per-chunk
+/// allocations) and creates one static body on LAYER_STATIC.
+/// CANNOT represent overhangs — voxel terrain must use create_terrain_mesh_body.
 /// Returns an invalid handle if the view is malformed.
 [[nodiscard]] platform::PhysicsBodyHandle create_terrain_body(
     platform::IPhysics& physics, const math::HeightFieldView& view,

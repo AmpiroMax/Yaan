@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 09:08:2026 - 16:51:22
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -45,6 +45,11 @@ UPD:
                          never intentional; a silently accepted layer-0 terrain
                          let the player fall through the world (fixed in app
                          37f1e1c; this is the backend-side guard).
+- 09:08:2026 - 16:51:22: create_terrain_mesh: static MeshShape from the
+                         extracted voxel surface — the terrain path that
+                         supports tunnels and overhangs. Degenerate and
+                         out-of-range triangles are dropped (Jolt rejects a
+                         whole mesh over one bad triangle).
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -73,11 +78,17 @@ UPD:
 
 #include <algorithm>
 #include <cstdint>
+#include <glm/geometric.hpp>
 #include <thread>
 #include <unordered_map>
 
 namespace dfn::platform {
 namespace {
+
+// Squared-area threshold below which an extracted triangle is treated as
+// degenerate. 1e-12 m^4 is ~1e-6 m^2 of area: far below anything the 1 m voxel
+// grid produces intentionally, far above float noise.
+constexpr float DEGENERATE_AREA_EPSILON = 1e-12f;
 
 // --- Conversions -------------------------------------------------------------
 
@@ -236,6 +247,52 @@ public:
     }
 
     // Static bodies ------------------------------------------------------------
+    PhysicsBodyHandle create_terrain_mesh(const TerrainMeshDesc& desc) override {
+        if (desc.layer == 0 || desc.indices.size() < 3) {
+            return {}; // empty mesh: nothing to collide, not an error
+        }
+
+        JPH::VertexList vertices;
+        vertices.reserve(desc.positions.size());
+        for (const glm::vec3& p : desc.positions) {
+            vertices.push_back(JPH::Float3(p.x, p.y, p.z));
+        }
+
+        // Extraction can emit degenerate (zero-area) triangles at cell corners;
+        // Jolt rejects the whole mesh on those, so drop them here instead.
+        JPH::IndexedTriangleList triangles;
+        triangles.reserve(desc.indices.size() / 3);
+        const auto vertex_count = static_cast<uint32_t>(desc.positions.size());
+        for (size_t i = 0; i + 2 < desc.indices.size(); i += 3) {
+            const uint32_t a = desc.indices[i];
+            const uint32_t b = desc.indices[i + 1];
+            const uint32_t c = desc.indices[i + 2];
+            if (a >= vertex_count || b >= vertex_count || c >= vertex_count) {
+                continue; // malformed index: skip rather than corrupt the shape
+            }
+            if (a == b || b == c || a == c) {
+                continue; // degenerate by index
+            }
+            const glm::vec3 e1 = desc.positions[b] - desc.positions[a];
+            const glm::vec3 e2 = desc.positions[c] - desc.positions[a];
+            const glm::vec3 cross = glm::cross(e1, e2);
+            if (glm::dot(cross, cross) <= DEGENERATE_AREA_EPSILON) {
+                continue; // degenerate by area (no GTX: dot(cross, cross))
+            }
+            triangles.push_back(JPH::IndexedTriangle(a, b, c));
+        }
+        if (triangles.empty()) {
+            return {};
+        }
+
+        auto shape_result = JPH::MeshShapeSettings(vertices, triangles).Create();
+        if (shape_result.HasError()) {
+            return {};
+        }
+        return add_static_body(shape_result.Get(), JPH::RVec3::sZero(),
+                               JPH::Quat::sIdentity(), desc.layer, desc.user_data);
+    }
+
     PhysicsBodyHandle create_terrain(const TerrainDesc& desc) override {
         // layer == 0 is unreachable by construction (see the contract note in
         // IPhysics.h): a body no mask can select is never intentional.

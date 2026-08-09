@@ -1,14 +1,16 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 09:08:2026 - 16:51:22
 Module: engine/physics
 File: engine/physics/sources/TerrainCollision.cpp
 
 Responsibility:
-- Implements the HeightFieldView -> IPhysics terrain body conversion (the
+- Implements both terrain collision paths: VoxelMeshView -> mesh body (the
+  voxel world) and HeightFieldView -> heightfield-derived body (legacy; the
   agreed core<->sim boundary: raw uint16 decoded here, backend gets meters).
 
 Key items:
+- create_terrain_mesh_body(): world-space triangle hand-off, LAYER_STATIC.
 - create_terrain_body(): decode via the frozen height formula, fill TerrainDesc.
 
 Dependencies:
@@ -22,6 +24,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial implementation.
+- 09:08:2026 - 16:51:22: Added create_terrain_mesh_body (voxel terrain).
 */
 
 #include "engine/physics/sources/TerrainCollision.h"
@@ -29,6 +32,19 @@ UPD:
 #include "engine/physics/sources/CollisionLayers.h"
 
 namespace dfn::physics {
+
+platform::PhysicsBodyHandle create_terrain_mesh_body(platform::IPhysics& physics,
+                                                     const math::VoxelMeshView& mesh,
+                                                     uint64_t user_data) {
+    // The extracted mesh is already world-space float triangles, so this is a
+    // pure hand-off: no decode, no scratch, no per-chunk copy on our side.
+    platform::TerrainMeshDesc desc;
+    desc.positions = mesh.positions;
+    desc.indices = mesh.indices;
+    desc.layer = LAYER_STATIC;
+    desc.user_data = user_data;
+    return physics.create_terrain_mesh(desc);
+}
 
 platform::PhysicsBodyHandle create_terrain_body(platform::IPhysics& physics,
                                                 const math::HeightFieldView& view,

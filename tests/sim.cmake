@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 00:45:08
+# Last updated: 09:08:2026 - 16:51:22
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -19,6 +19,8 @@
 # UPD:
 # - 09:08:2026 - 00:45:08: Stage 2 — dice, player movement, null backends,
 #                          jolt physics suites.
+# - 09:08:2026 - 16:51:22: Added sim_tunnel_walk — the voxel terrain collision
+#                          acceptance walk through the crag tunnel.
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -32,3 +34,8 @@ add_dfn_test(sim_null_backends sim/NullBackendTests.cpp
 # (cross-zone contract check suggested by core at the stage-2 sync).
 add_dfn_test(sim_jolt_physics sim/JoltPhysicsTests.cpp
     dfn_physics dfn_platform_physics dfn_world)
+
+# The voxel-terrain acceptance walk (crag tunnel): real generated world, real
+# extracted collision mesh, real capsule.
+add_dfn_test(sim_tunnel_walk sim/TunnelWalkTests.cpp
+    dfn_physics dfn_platform_physics dfn_world dfn_core)

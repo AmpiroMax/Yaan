@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 15:07:13
+Last updated: 09:08:2026 - 16:59:02
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -51,6 +51,9 @@ UPD:
                          Ferry now uses physics::create_terrain_body (owns the
                          decode and LAYER_STATIC). Also: pump the chunk events
                          before spawning, and stream before stepping.
+- 09:08:2026 - 16:59:02: Voxel world: terrain collision ferried from
+                         ChunkManager::voxel_mesh via create_terrain_mesh_body
+                         (heightfield bodies cannot carry the tunnel ceiling).
 */
 
 #include "engine/app/sources/App.h"
@@ -235,13 +238,19 @@ bool App::init(const AppConfig& config) {
         render_system_.upload_scatter(*renderer_, {e.coord.x, e.coord.z},
                                       chunks_.scatter(e.coord));
 
-        // Use sim's helper rather than filling TerrainDesc here: it owns the
-        // uint16 decode AND sets LAYER_STATIC. Hand-rolling this left `layer`
-        // at 0 — a terrain body that collides with nothing, so the player fell
-        // through the world on spawn.
-        ChunkPhysics cp;
-        cp.body = physics::create_terrain_body(*physics_, *view, 0, cp.heights);
-        g_chunk_physics[pack_coord({e.coord.x, e.coord.z})] = std::move(cp);
+        // Terrain collision comes from the VOXEL surface, not the heightfield:
+        // a heightfield body cannot represent the crag tunnel's ceiling, so the
+        // player would walk over the mountain instead of through it. An invalid
+        // handle means "empty chunk, no body needed" and is not an error.
+        // sim's helper sets LAYER_STATIC (hand-rolling that once left `layer`
+        // at 0 — a body colliding with nothing, and the player fell through).
+        if (const auto mesh = chunks_.voxel_mesh(e.coord)) {
+            ChunkPhysics cp;
+            cp.body = physics::create_terrain_mesh_body(*physics_, *mesh, 0);
+            if (cp.body.valid()) {
+                g_chunk_physics[pack_coord({e.coord.x, e.coord.z})] = std::move(cp);
+            }
+        }
     });
     bus_.subscribe<world::ChunkUnloaded>([this](const world::ChunkUnloaded& e) {
         render_system_.drop_terrain(*renderer_, {e.coord.x, e.coord.z});

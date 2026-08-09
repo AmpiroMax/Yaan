@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 09:08:2026 - 16:51:22
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -11,6 +11,8 @@ Responsibility:
 Key items:
 - IPhysics: init/shutdown, fixed step, static terrain/box bodies, kinematic
   character controller (capsule, move-with-slide, grounded query), raycast.
+- TerrainMeshDesc: voxel-terrain collision from extracted triangles (tunnels,
+  overhangs) — the terrain path for the 3D world.
 - TerrainDesc: heightmap collision from plain float samples (engine/world data).
 - CharacterDesc / RayHit: plain-data descriptors, no backend types.
 - PhysicsBodyHandle / CharacterHandle: opaque POD handles (0 = invalid).
@@ -55,6 +57,10 @@ UPD:
 - 09:08:2026 - 15:08:24: Documented the zero-mask rejection rule (behavioral
                          clarification; no API change — field set, signatures
                          and semantics of every existing call are untouched).
+- 09:08:2026 - 16:51:22: ADDITIVE: TerrainMeshDesc + create_terrain_mesh() for
+                         voxel terrain (overhangs/tunnels). create_terrain and
+                         every other call are untouched, so the null backend
+                         and existing tests stay honest.
 */
 
 #pragma once
@@ -91,6 +97,19 @@ struct TerrainDesc {
     std::span<const float> heights; // sample_count_x * sample_count_z values
     CollisionMask layer = 0;
     uint64_t user_data = 0;         // EntityId bits (chunk terrain entity)
+};
+
+// Static terrain collision built from an EXTRACTED SURFACE MESH (the voxel
+// world). This is the terrain path for 3D terrain: unlike TerrainDesc it
+// represents overhangs, caves and tunnels, which a heightfield structurally
+// cannot. Triangles are world-space; still one body per chunk.
+// An empty mesh (no triangles) is legal — a chunk may be all air or all rock —
+// and yields an INVALID handle meaning "no body needed", not an error.
+struct TerrainMeshDesc {
+    std::span<const glm::vec3> positions; // world space, meters
+    std::span<const uint32_t> indices;    // 3 per triangle, indices into positions
+    CollisionMask layer = 0;
+    uint64_t user_data = 0;               // EntityId bits (chunk terrain entity)
 };
 
 // Static box collider (buildings, dungeon prefab pieces, large props).
@@ -137,6 +156,12 @@ public:
     virtual void step(float dt) = 0;
 
     // Static bodies ------------------------------------------------------------
+    // Voxel terrain (the 3D world): the path that supports tunnels/overhangs.
+    [[nodiscard]] virtual PhysicsBodyHandle create_terrain_mesh(
+        const TerrainMeshDesc& desc) = 0;
+
+    // Heightmap terrain. Retained for heightfield-only worlds and tests; it
+    // CANNOT represent overhangs, so voxel terrain must use create_terrain_mesh.
     [[nodiscard]] virtual PhysicsBodyHandle create_terrain(const TerrainDesc& desc) = 0;
     [[nodiscard]] virtual PhysicsBodyHandle create_static_box(const StaticBoxDesc& desc) = 0;
     virtual void destroy_body(PhysicsBodyHandle body) = 0;

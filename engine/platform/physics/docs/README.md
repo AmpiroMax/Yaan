@@ -1,12 +1,15 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 01:02:15
+Last updated: 09:08:2026 - 16:51:22
 -->
 <!--
 UPD:
 - 09:08:2026 - 00:18:26: Stage-1 state: interface only, no backends yet.
 - 09:08:2026 - 01:02:15: Stage 2 — jolt + null backends implemented; factory
   headers CreateJoltPhysics.h / CreateNullPhysics.h; Jolt pinned v5.2.0.
+- 09:08:2026 - 16:51:22: ADDITIVE create_terrain_mesh (TerrainMeshDesc) — voxel
+  terrain collision via a static MeshShape; HeightFieldShape was never used and
+  create_terrain is unchanged.
 -->
 
 # engine/platform/physics
@@ -19,8 +22,10 @@ only behind `interfaces/IPhysics.h`.
 
 ## Key types
 
-- `IPhysics` — init/shutdown, `step(SIM_DT)`, `create_terrain` / `create_static_box` /
-  `destroy_body`, character create/move/teleport/queries, `raycast`.
+- `IPhysics` — init/shutdown, `step(SIM_DT)`, `create_terrain_mesh` (voxel
+  terrain: tunnels/overhangs) / `create_terrain` (legacy heightmap) /
+  `create_static_box` / `destroy_body`, character create/move/teleport/queries,
+  `raycast`.
 - `TerrainDesc`, `StaticBoxDesc`, `CharacterDesc`, `RayHit` — plain-data descriptors.
 - `PhysicsBodyHandle`, `CharacterHandle` — opaque POD handles (0 = invalid).
 - `CollisionMask` — opaque bits; semantics defined by `engine/physics` (stage 2).
