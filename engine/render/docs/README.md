@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 18:05:00
 -->
 <!--
 UPD:
@@ -10,6 +10,7 @@ UPD:
 - 09:08:2026 - 11:25:00: Stage 3 «Картинка» — ProcTexture module, Materials.h look-dev environment, RenderSystem v2 (splat atlas, water plane, RenderEnvironment), Tour v2 six-vantage route, mesher dryness alpha.
 - 09:08:2026 - 11:57:20: Stage 3b — surface-truth splat (SurfaceFieldView), per-body water (WaterMesher), scatter batching (ProcMesh + ScatterBatcher), site placeholder meshes ids 1..7, Tour v3 §7.1 route with lazy ground resolution.
 - 09:08:2026 - 14:11:37: Feature-requests batch — splat fixes (dryness/dirt band REMOVED per design ruling: weights come from core's surface_class only; the band painted 60 m brown washes over Grass), chunky stone boulder (в3), afternoon southern sun for readable dynamic shadows (в1; shadows themselves live in the bgfx backend).
+- 09:08:2026 - 18:05:00: Map screen (user request "миникарта как в скайриме"): PixelCanvas (the project's first UI drawing primitive), MapScreen (explored top-down map baked from the heightfields), RenderSystem overlay path + toggle_map/set_internal_resolution, Tour map probe route.
 -->
 
 # engine/render
@@ -33,6 +34,17 @@ harness (Rule 27), and debug-draw helpers. Never touches bgfx (Rule 1).
 - `dfn::render::Tour`, `TourStep` (`sources/Tour.h`) — `DFN_TOUR=1` screenshot
   tour; stage-3 route = six vantages (texture tiling, fog/horizon, slope splat,
   water valley, overview, sky+sun), all aimed into the testbed interior.
+- `dfn::render::MapScreen` (`sources/MapScreen.h`) — the world map screen:
+  `note_chunk` (bakes a top-down tile per VISITED chunk: averaged height, hill
+  shade, water OR), `note_site` (marker memory keyed to the blessed mesh ids
+  1..11), `compose(w, h, eye, yaw)` -> a `PixelCanvas` with the plate, the
+  frame, the north tick, the site silhouettes and the player arrow.
+  `toggle_map()` on RenderSystem opens it; `DFN_MAP=1` opens it at init.
+- `dfn::render::PixelCanvas` (`sources/PixelCanvas.h`) — the first UI
+  primitive: a clipped CPU raster surface (rects, frames, 1-bit stamps,
+  triangles) in internal-resolution pixels, uploaded as one RGBA8 texture and
+  blitted by `RenderSystem::draw_overlay`. Screen-agnostic on purpose: the
+  planned start menu draws through the same two calls.
 - Debug draw free functions (`sources/DebugDraw.h`) — axes, AABB, grid, arrow
   over `IRenderer::debug_line`.
 - ProcTexture (`sources/ProcTexture.h`, stage 3) — procedural textures (Q4в:
@@ -127,3 +139,24 @@ Look-dev note: the flat-worldgen rock band (0.0025-0.0060) is gone; slope
 thresholds now derive from the design constants in NUMBERS.md. Placeholder
 mesh dimensions/colors cite LANDSCAPE §5/§6 and move to data files with the
 content pipeline (Rule 5).
+
+Map screen (user request «миникарта как в скайриме», after the feature-requests
+batch):
+
+- **No IRenderer change (Rule 26)**: the screen is composed on the CPU into a
+  `PixelCanvas`, uploaded as one RGBA8 texture and drawn as an unlit quad that
+  exactly fills the frustum just past the near plane (`draw_overlay`). The
+  world keeps rendering behind the opaque map, so the toggle costs nothing and
+  the app loop is untouched.
+- **Explored only**: a chunk enters the map in `upload_terrain` (i.e. when the
+  player streamed it in) and never leaves; sites are noted in the ECS pass
+  BEFORE the mesh lookup, so the castle (ids 8..11, no placeholder mesh yet)
+  is on the map anyway. Castle parts merge into one marker.
+- **Legibility findings (measured on the frames, not guessed)**: normalizing
+  the elevation ramp over 0..WORLDGEN_MAX_HEIGHT flattened the whole valley
+  into one green band — the ramp is stretched over the EXPLORED span instead;
+  and true-scale hill shading is invisible on ground this gentle, so shading
+  uses a cartographic z-factor of 4 and is normalized against flat ground.
+- **Scale**: MAP_TILE_PX = 80 px per chunk (3.2 m per map pixel) -> the 1024 m
+  testbed is a 320x320 plate inside 640x360; compose() only picks an integer
+  DOWNSCALE (2 at 320x180), never a fractional zoom, so pixels stay square.

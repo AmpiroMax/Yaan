@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 17:16:27
+Last updated: 09:08:2026 - 17:32:38
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -57,6 +57,8 @@ UPD:
 - 09:08:2026 - 17:16:27: World-edge walls: past the generated extent there is
                          no terrain, and sprint speed made falling out of the
                          world a 20-second accident (sim's finding).
+- 09:08:2026 - 17:32:38: Map screen wired: M toggles it, cursor released while
+                         open, canvas told the internal resolution.
 */
 
 #include "engine/app/sources/App.h"
@@ -215,6 +217,9 @@ bool App::init(const AppConfig& config) {
     if (!render_system_.init(*renderer_)) {
         return false;
     }
+    // The map canvas rasterizes in internal-resolution pixels, so it must know
+    // the settings.cfg-driven resolution to stay pixel-exact (render's note).
+    render_system_.set_internal_resolution(config.internal_width, config.internal_height);
 
     // Chunk streaming: stage 2 serves the in-memory generated world (core's
     // open_generated path; .dfw file IO lands in stage 3). Testbed extent 4x4
@@ -335,6 +340,12 @@ int App::run() {
         }
         if (input_->was_pressed(platform::Key::ESCAPE)) {
             window_->request_close();
+        }
+        if (input_->was_pressed(platform::Key::M)) {
+            render_system_.toggle_map();
+            // Free the cursor while the map is up: mouse-look under a fullscreen
+            // plate spins the world behind it for no reason.
+            input_->set_cursor_captured(!render_system_.map_open());
         }
 
         const auto now = std::chrono::steady_clock::now();

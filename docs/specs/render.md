@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 18:10:00
 -->
 <!--
 UPD:
@@ -37,6 +37,15 @@ UPD:
   shore/brown washes), GrassRockBlend = ordered grass<->rock dither, chunky
   ~0.9 m stone boulder, afternoon southern look-dev sun. RenderEnvironment
   verified sufficient for the app day/night cycle — no contract change needed.
+- 09:08:2026 - 18:10:00: MAP SCREEN (user request «добавь миникарты… как в
+  скайриме по нажатию на клавишу»): the project's first UI. PixelCanvas (CPU
+  raster primitives) + MapScreen (explored top-down map: elevation ramp over
+  the explored span, hill shade with a cartographic z-factor, water from
+  water_surface, site silhouettes from the blessed mesh ids 1..11, player
+  arrow) + RenderSystem::draw_overlay (unlit frustum-filling quad — NO
+  IRenderer change) + toggle_map/set_internal_resolution + DFN_MAP=1 and
+  Tour::map_probe_steps for the one-frame evidence shoot. App wiring (Key::M
+  -> toggle_map, set_internal_resolution) requested from the lead.
 -->
 
 # Spec — render agent
@@ -385,6 +394,61 @@ Feature-requests batch (done in this changeset, after stage 3b):
    name->state program convention and per-frame env uniforms leave room; no
    contract obstacle identified.
 
+Map screen batch (done in this changeset — the first UI in the project):
+1. `PixelCanvas` (`sources/PixelCanvas.{h,cpp}`) — clipped CPU raster surface
+   in INTERNAL-resolution pixels: clear/put/fill_rect/frame_rect/hline/vline,
+   `draw_stamp` (1-bit silhouette + optional 8-way dark halo) and
+   `fill_triangle`. RGBA8 out, row 0 = top. No font system exists, so screens
+   speak in silhouette and value only. Deliberately screen-agnostic — the
+   start menu the user asked for later draws through the same primitives.
+2. `MapScreen` (`sources/MapScreen.{h,cpp}`) — pure, GPU-free:
+   - `note_chunk(HeightFieldView, SurfaceFieldView*)` bakes one MAP_TILE_PX^2
+     tile per chunk: per map pixel the block-AVERAGED height, a quantized
+     hill-shade factor, and a water flag that is an OR over the block (a 4-8 m
+     river is one map pixel — averaging turns it into dashes). Called from
+     `upload_terrain`, so the map records exactly what the player streamed in.
+   - `note_site(mesh_asset_id, position)` — marker memory. Cheap enough to
+     call for every site entity every frame: a quantized cell key is the fast
+     path, and a new cell is still distance-merged against known markers
+     (cell keys alone split the castle across a cell border). Mesh ids 1..7
+     map to their own silhouettes, 8..11 collapse into one castle mark.
+   - `compose(w, h, eye, yaw)` — backdrop, plate (unexplored stays dark),
+     tiles, 1 px frame, north tick, markers (dwelling dots first, special
+     sites over them), player arrow with a dark halo.
+3. `RenderSystem`: `toggle_map/set_map_open/map_open`,
+   `set_internal_resolution` (canvas size = internal target, 1 canvas pixel =
+   1 screen pixel), and the generic `draw_overlay` — uploads the canvas as one
+   RGBA8 texture (recreated per frame: the frozen IRenderer has no texture
+   update) and submits an unlit quad placed at 1.5 * near, sized exactly to
+   the frustum there. Culling is off in the backend, depth test LESS, so the
+   quad covers everything submitted earlier. NO contract change (Rule 26).
+4. Verification hooks: `DFN_MAP=1` opens the map at RenderSystem::init, and
+   `Tour::testbed_steps()` returns the single-vantage `map_probe_steps()`
+   under the same variable — one frame, not seven copies of one overlay.
+5. Tests: `render_map_screen` (marker id mapping, castle merge, explored-chunk
+   memory, composed size/water/player/backdrop, integer downscale at 320x180).
+
+Decisions and measured findings of this batch (for whoever continues):
+- The world keeps rendering behind the OPAQUE map. Freezing or skipping the
+  world would need an app-loop change (lead's zone) and buys nothing at this
+  frame cost; translucency was rejected outright — at 640x360, and under the
+  64-colour palette post, a see-through map destroys both layers.
+- Normalizing the elevation ramp over `0..WORLDGEN_MAX_HEIGHT` (the
+  quantization range) put the whole valley into one green band: the crag
+  outlier owns the top of the ramp. The ramp is stretched over the EXPLORED
+  height span instead, updated as chunks arrive.
+- True-scale hill shading is invisible here: over a 3.2 m map pixel the valley
+  floor turns by a couple of degrees, so every normal shades the same. Shading
+  applies the standard cartographic z-factor (4.0) and is normalized against
+  FLAT ground (which lands on 1.0) — that is what made ridges, terraces and
+  the river gorge read in the accepted frame.
+- The overlay quad must NOT be overscanned: a 0.5% factor duplicated pixel
+  columns under the point sampler and visibly softened the plate.
+- CUT deliberately (scope): no zoom, no panning, no fast travel, no corner
+  minimap, no labels/legend (there is no font system — markers carry meaning
+  by silhouette alone), no map-specific input beyond the toggle, no
+  compass/quest markers.
+
 Stage 4 (next): skinned meshes (contract sync), frustum culling with core's
 math types, LOD/skirts, grass cards (P6 micro, §5.6), flower patches,
 sub-tick mouse-look offset, editor render hooks, shader hot-reload from disk,
@@ -394,6 +458,18 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Map screen acceptance (Rule 27, frame read 09:08:2026):**
+  `DFN_TOUR=1 DFN_MAP=1 DFN_TOUR_DIR=screenshots/map DFN_INTERNAL_RES=640x360
+  DFN_PALETTE=0 <build>/engine/app/dfn_app` -> `screenshots/map/
+  00_map_screen.png` (ONE frame). Checked: north up (crag NE, lake W, outflow
+  river S — matches the probed seed-1 world); the corridor valley, terraces
+  and crag dome read by shading; river and lake read as continuous water; the
+  Vaelmere cluster (dwelling dots + tavern + trader + barn), 3 dungeon marks,
+  the shrine cross, the tower-ruin bar on the crag and the castle block all
+  distinguishable by silhouette; the player arrow reads position AND facing
+  (yaw 2.36 -> south-east). All 16 testbed chunks were resident at the shot,
+  so the frame does NOT demonstrate the unexplored plate — that path is
+  covered by the unit test instead.
 - **Verification cadence (user instruction via lead, 09:08:2026):**
   `bash tools/run_tour.sh build_render` shoots ONE variant (640x360, palette
   off); the 4-way matrix runs only behind `run_tour.sh build_render matrix`
