@@ -589,12 +589,16 @@ domes, so these are invariants, not suggestions:**
 4. **Asymmetry:** one flank biased steep (a scarp face), the opposite gentler
    — the gentle side carries the ascent. Real mountains are not radially
    uniform and neither is this one.
-5. **THE ANTI-DOME INVARIANT (checkable, not editorial):** a horizontal slice
-   at ⅔ height must be **lobed, not circular** — perimeter² / (4π·area) ≥
-   `LR_LOBE_RATIO` = 1.35 **(предложение — утвердить)** — and ≥ 60 % of the
-   surface above mid-height must exceed `SLOPE_ROCK_MIN` (40°). A seed that
-   produces a smooth dome **fails**. This is the user's "not a boob" stated
-   as a test the generator can run on itself.
+5. **THE ANTI-DOME INVARIANT — SUPERSEDED BY §2.8, AND THAT SECTION IS NOW
+   THE CONTRACT.** The rule as first written here (lobed ⅔ slice at
+   `LR_LOBE_RATIO` ≥ 1.35 plus ≥ 60 % of the upper surface above 40°) was
+   scoped to the LR and never evaluated on anything. The user rejected the
+   mountain a third time while looking at **Ravenscar**, which this section
+   does not govern. Both halves of that failure — the scoping and the
+   insufficiency of a single-slice plan-view test — are worked through in
+   **§2.8**, which replaces this item and applies to *every* massif including
+   this one. `LR_LOBE_RATIO` is renamed `MASSIF_LOBE_RATIO` there: the
+   constant's **name was the bug**.
 
 **The ascent is mandatory and validated.** A continuous walkable route from
 the foot to the summit must exist: average slope ≤ 25°, nowhere exceeding

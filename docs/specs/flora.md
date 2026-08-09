@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 19:54:01
+Last updated: 09:08:2026 - 19:56:29
 -->
 <!--
 UPD:
@@ -67,6 +67,11 @@ UPD:
                          crown through its volume and overlap. Oak/pine
                          verified good in 06_overview: full crowns, trunks
                          beneath, dappled floor, legible spacing.
+- 09:08:2026 - 19:56:29: Fifth defect (same symptom, deeper cause): the
+                         envelope containment rule slid over-sized clusters to
+                         the trunk axis instead of shrinking them, stacking the
+                         birch crown into a drill bit. Clusters now shrink to
+                         fit; birch uses 5 large clusters, 660 -> 450 tris.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -659,6 +664,23 @@ and both would have surfaced as someone else's problem.
    until neighbours overlap. Note the test suite could not have caught this —
    foliage area, envelope containment and budgets were all already green. Some
    defects are only visible in a frame, which is why Rule 27 exists.
+
+5. **The containment rule chose the wrong remedy.** Bug 4's fix made the birch
+   crown denser without curing it — it still read as a stack of plates. The
+   cause underneath: `emit_cluster` kept a cluster inside the envelope by
+   **sliding its centre inward**. A birch's vase envelope is ~0.86 m in radius
+   low in the crown while its clusters were 1.57 m, so every over-sized cluster
+   slid all the way onto the trunk axis — twelve spheres at twelve heights, all
+   centred on the axis, which is a stack by construction.
+   Fixed by shrinking clusters to fit instead of sliding them, plus 5 large
+   clusters rather than 12 small ones (a crown 5.6 m wide and 10 m tall reads as
+   one mass only if the clusters are about as wide as the crown; many small
+   clusters in a narrow crown can only be a stack — that is geometry, not
+   tuning). Birch dropped 660 → 450 tris in the process.
+   **The general lesson:** when a constraint can be satisfied by changing an
+   element's SIZE or its POSITION, which one you sacrifice is a silhouette
+   decision, not a geometry one. Preserving the declared radius mattered far
+   less than preserving the arrangement, and the code preserved the wrong one.
 
 **THE PATTERN — read this before changing the envelope or the floors.** All
 three bugs are the same failure: **a rule stated in full in this spec, and
