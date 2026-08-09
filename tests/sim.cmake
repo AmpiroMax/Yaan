@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 22:27:49
+# Last updated: 09:08:2026 - 22:34:38
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -25,6 +25,7 @@
 # - 09:08:2026 - 22:18:17: Added sim_movement_solid (jump apex, crouch under a
 #                          ceiling, and the cliff-vs-jump invariant).
 # - 09:08:2026 - 22:27:49: Added sim_prop_collision (buildings and boulders).
+# - 09:08:2026 - 22:34:38: Added sim_view_model (hand anchor, inventory state).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -47,6 +48,9 @@ add_dfn_test(sim_interaction sim/InteractionTests.cpp
 # a stand-up, and the cliff invariant (jump must not repeal PLAYER_MAX_SLOPE).
 add_dfn_test(sim_movement_solid sim/MovementSolidTests.cpp
     dfn_gameplay dfn_physics dfn_platform_physics)
+
+# The visible hand and the inventory screen state.
+add_dfn_test(sim_view_model sim/ViewModelTests.cpp dfn_gameplay dfn_core)
 
 # Buildings and boulders are solid, built from the triangles render draws.
 add_dfn_test(sim_prop_collision sim/PropCollisionTests.cpp
