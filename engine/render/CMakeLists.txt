@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 21:00:00
+# Last updated: 09:08:2026 - 21:30:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -23,12 +23,16 @@
 #   MapScreen (explored top-down map).
 # - 09:08:2026 - 19:26:00: SkyModel.cpp (day/night sun+moon model).
 # - 09:08:2026 - 21:00:00: VoxelMesher.cpp (draw the carved voxel surface).
+# - 09:08:2026 - 21:30:00: FloraSpecies.cpp + ProcFlora.cpp (flora agent's zone,
+#   same directory, registered here per Q34).
 
 add_library(dfn_render STATIC
     sources/DebugDraw.cpp
     sources/FirstPersonCamera.cpp
+    sources/FloraSpecies.cpp
     sources/MapScreen.cpp
     sources/PixelCanvas.cpp
+    sources/ProcFlora.cpp
     sources/ProcMesh.cpp
     sources/ProcTexture.cpp
     sources/RenderSystem.cpp

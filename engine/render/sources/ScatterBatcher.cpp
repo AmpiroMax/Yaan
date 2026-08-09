@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
+Last updated: 09:08:2026 - 21:30:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -22,11 +22,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 11:57:20: Stage 3b — initial implementation.
+- 09:08:2026 - 21:30:00: Flora generator integrated: trees build per-instance
+  geometry via build_flora_mesh (variant by position, shape from
+  analyse_neighbourhood), appended at scale 1.0 because maturity is
+  already inside the mesh, and with NO ground sink now that they have a
+  root flare. species_radius updated to flora's measured envelopes.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
 
 #include <algorithm>
+#include "engine/render/sources/ProcFlora.h"
+
 #include <array>
 #include <cmath>
 
@@ -35,17 +42,27 @@ namespace dfn::render {
 namespace {
 
 // Sink fraction of the instance scale: hides the downhill gap under a mesh
-// placed at the sample-point terrain height on sloped ground.
+// placed at the sample-point terrain height on sloped ground. TREES NO LONGER
+// SINK AT ALL: the flora generator gives them a root flare reaching ~1 m below
+// the model origin, which covers far more ground drop than this ever did, and
+// sinking a tree only makes it shorter — the opposite of the point of the 4x
+// height stage. Kept for bushes and stones, which have no flare.
 constexpr float GROUND_SINK_FRAC = 0.12f;
 
 // Conservative horizontal footprint radius (m) of each species' nominal mesh,
-// used for micro tile bounding circles (kept in sync with ProcMesh geometry).
+// used for micro tile bounding circles. Values from the flora agent's measured
+// envelopes (their radial-clip fix): the old numbers were the pre-4x trees and
+// under-covered by ~2x, which would have culled tiles while their geometry was
+// still on screen.
 float species_radius(math::ScatterSpecies species) {
     switch (species) {
-    case math::ScatterSpecies::OakTree: return 4.0f;
-    case math::ScatterSpecies::PineTree: return 2.5f;
-    case math::ScatterSpecies::BirchTree: return 2.0f;
-    case math::ScatterSpecies::Bush: return 1.0f;
+    case math::ScatterSpecies::OakTree: return 7.3f;
+    case math::ScatterSpecies::PineTree: return 3.8f;
+    case math::ScatterSpecies::BirchTree: return 2.4f;
+    // Core has one Bush species; flora may map it to either bush size, so take
+    // the larger — an over-large bounding circle costs a few extra draws, an
+    // under-large one pops geometry out while it is still visible.
+    case math::ScatterSpecies::Bush: return 2.0f;
     case math::ScatterSpecies::Stone: return 0.5f;
     }
     return 1.0f;
@@ -89,7 +106,28 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
     };
     std::vector<TileScratch> tiles(static_cast<size_t>(n) * n);
 
-    for (const math::ScatterInstance& inst : instances) {
+    // Per-instance shape (crowding lean, crown shyness, maturity, understory)
+    // is derived from the neighbourhood once, up front — it needs every
+    // instance to see its neighbours, so it cannot be done inside the loop.
+    const std::vector<FloraShape> shapes =
+        analyse_neighbourhood(instances, instances.size());
+
+    for (size_t i = 0; i < instances.size(); ++i) {
+        const math::ScatterInstance& inst = instances[i];
+        if (is_tree(inst.species)) {
+            const FloraSpecies fs = flora_species_of(inst.species);
+            const uint32_t variant =
+                flora_variant_for({inst.position.x, inst.position.z});
+            const MeshData mesh =
+                build_flora_mesh(fs, variant, shapes[i], FloraLod::Full);
+            // Scale 1.0: the generator has ALREADY applied FloraShape::maturity
+            // (which is inst.scale) to the height. Passing inst.scale here too
+            // would square it — a 1.25 giant becomes 1.56 and still looks
+            // plausible, which is exactly why it would survive review.
+            // Trees do not sink: they stand on their root flare.
+            append_transformed(out.trees, mesh, inst.position, inst.yaw, 1.0f);
+            continue;
+        }
         const MeshData& src = mesh_of(inst.species);
         if (src.vertices.empty()) {
             continue;
@@ -97,10 +135,6 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
         const glm::vec3 pos{inst.position.x,
                             inst.position.y - GROUND_SINK_FRAC * inst.scale,
                             inst.position.z};
-        if (is_tree(inst.species)) {
-            append_transformed(out.trees, src, pos, inst.yaw, inst.scale);
-            continue;
-        }
         // Micro: clamp the tile index so border instances never fall outside.
         const auto tx = static_cast<uint32_t>(std::clamp(
             static_cast<int>((inst.position.x - chunk_origin.x) / tile_size), 0,

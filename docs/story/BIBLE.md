@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 19:32:18
+Last updated: 09:08:2026 - 19:36:28
 -->
 <!--
 UPD:
@@ -71,6 +71,14 @@ UPD:
   and each landing is a station where a name is spoken. Recorded the user's
   binding naming rule (a name, not a count). NOTE: the Steps are on the
   TEMPLE MOUNTAIN, not Ravenscar - act 1's climax climb is still the crag.
+- 09:08:2026 - 19:36:28: Steps section completed from design's 19:34:15 pass:
+  story ruled SEVEN landings (one per station of the naming rite - the
+  name's "seven" lives in the stations, not the steps, so the name gets a
+  diegetic anchor without counting; LR_ASCENT_LANDINGS now story-coupled),
+  recorded the binding disrepair rule (visual and routing, never impassable
+  - caused by this bible's own "forbidding it would have been an admission"
+  line) and the symmetric two-different-climbs warning: built temple stair
+  (act 2) vs unbuilt worn watchmen's path up Ravenscar (act 1).
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere

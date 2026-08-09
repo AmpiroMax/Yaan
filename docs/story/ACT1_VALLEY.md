@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 19:32:18
+Last updated: 09:08:2026 - 19:36:28
 -->
 <!--
 UPD:
@@ -28,6 +28,11 @@ UPD:
   worldgen invariant (continuous, deliberately non-corridor-grade, forced
   within 40 m of the barrow entrance) and that ward C's completion fraction
   has two dependents - the act-1 trespass route and the act-3 muster gap.
+- 09:08:2026 - 19:36:28: MQ4's ascent of Ravenscar is now a validated
+  worldgen invariant (continuous walkable route to the tower ruin, <=25 deg,
+  checked every run) - design added it after story's near-miss exposed that
+  act 1 climaxed on a summit with no guaranteed route. Specified as an
+  unbuilt worn watchmen's path, visually distinct from act 2's built stair.
 -->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
@@ -158,7 +163,15 @@ muniment room** holds the crown's grant to House Corvane, which names the
 sworn-sword who lit it: **Osric Ferrant**.
 
 The climb to the tower is act 1's summit beat (N11 — the act's climax at the
-landmark that has dominated every skyline since minute one). Getting the
+landmark that has dominated every skyline since minute one). **The ascent is
+now a validated worldgen invariant** (LANDSCAPE §2.5/§7.1, added after story
+flagged the near-miss): a continuous walkable route from valley ground to the
+tower ruin, ≤ 25° average, no step over the limit, checked every run — act 1
+had been climaxing on a summit nobody had guaranteed was climbable. It is an
+**unbuilt worn path**, not a stair: the line four generations of watchmen
+wore into the spur. At 110–120 m of relief this is a real climb, and it must
+stay visually distinct from act 2's built temple stair (BIBLE §2, "two
+different climbs"). Getting the
 grant is intrigue at the castle (§4). Putting the two together gives the
 hero the sentence that ends act 1: *the man who lit the signal was my
 family, and my family changed its name twice to survive it.* The Fen kin

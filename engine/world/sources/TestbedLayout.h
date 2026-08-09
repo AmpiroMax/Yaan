@@ -277,17 +277,30 @@ struct TestbedLayout {
     /// P7 carves (3D terrain). Waypoints are floor levels; see WorldgenCarve.h.
     /// The tunnel starts and ends in open air so both portals form naturally
     /// where the path enters and leaves the massif.
+    /// L0 ascent scale: the switchback route was surveyed against a 52 m
+    /// Ravenscar. With the summit at L0_RELIEF the whole climb has to grow with
+    /// it or the tunnel ends up buried inside the mountain with no portals at
+    /// all — the waypoints are absolute elevations, not fractions.
+    static constexpr float ASCENT_SCALE = static_cast<float>(config::L0_RELIEF) / 52.0f;
+    static constexpr float MOUTH_Y = 21.0f; ///< valley floor, unchanged by the summit
+    static constexpr float lift(float y) { return MOUTH_Y + (y - MOUTH_Y) * ASCENT_SCALE; }
+    /// Horizontal offsets from the crag centre grow with the same factor, so
+    /// the climb keeps its original gradient instead of becoming a ladder.
+    static constexpr float spanx(float x) { return 830.0f + (x - 830.0f) * ASCENT_SCALE; }
+    static constexpr float spanz(float z) { return 200.0f + (z - 200.0f) * ASCENT_SCALE; }
+
     CarveLayout carves{
         // Crag tunnel: mouth at the SW foot, four switchback legs with
-        // landings, exit high on the SW flank overlooking the valley.
-        CarveCorridor{{{778.0f, 21.0f, 296.0f},
-                       {816.0f, 25.0f, 268.0f},
-                       {820.0f, 25.5f, 264.0f},
-                       {790.0f, 30.0f, 248.0f},
-                       {786.0f, 30.5f, 244.0f},
-                       {812.0f, 35.0f, 232.0f},
-                       {816.0f, 35.5f, 228.0f},
-                       {788.0f, 39.5f, 238.0f}},
+        // landings, exit high on the SW flank overlooking the valley. Surveyed
+        // at 52 m and scaled to the summit (see ASCENT_SCALE).
+        CarveCorridor{{{spanx(778.0f), MOUTH_Y, spanz(296.0f)},
+                       {spanx(816.0f), lift(25.0f), spanz(268.0f)},
+                       {spanx(820.0f), lift(25.5f), spanz(264.0f)},
+                       {spanx(790.0f), lift(30.0f), spanz(248.0f)},
+                       {spanx(786.0f), lift(30.5f), spanz(244.0f)},
+                       {spanx(812.0f), lift(35.0f), spanz(232.0f)},
+                       {spanx(816.0f), lift(35.5f), spanz(228.0f)},
+                       {spanx(788.0f), lift(39.5f), spanz(238.0f)}},
                       8, 2.0f, 3.2f},
         // Backbarrow: a short passage from the entrance into the hillside.
         CarveCorridor{{{780.0f, 20.2f, 292.0f}, {780.0f, 20.2f, 272.0f}}, 2, 1.8f, 2.6f},
