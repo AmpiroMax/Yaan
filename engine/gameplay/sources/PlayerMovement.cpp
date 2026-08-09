@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:40:04
+Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -34,6 +34,7 @@ UPD:
                          NUMBERS row that could drift from the first.
 - 09:08:2026 - 22:29:52: Latch the interact / light / inventory keys.
 - 09:08:2026 - 22:40:04: Latch inventory navigation (arrows, wheel, Enter).
+- 09:08:2026 - 22:44:47: Latch the drop key.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -153,6 +154,7 @@ void accumulate_input(const platform::IInput& input, PlayerState& state) {
     state.pending_selection_delta -=
         static_cast<int32_t>(std::lround(input.scroll_delta().y));
     state.equip_pressed = state.equip_pressed || input.was_pressed(platform::Key::ENTER);
+    state.drop_pressed = state.drop_pressed || input.was_pressed(platform::Key::Q);
 }
 
 void player_pre_step(PlayerState& state, platform::IPhysics& physics, float water_depth,

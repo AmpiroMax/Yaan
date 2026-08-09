@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 09:08:2026 - 22:40:04
+Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/ViewModel.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 09:08:2026 - 22:21:30: Created — visible hands.
 - 09:08:2026 - 22:40:04: The flame moves to the torch HEAD via the shared
                          TORCH_FLAME_ABOVE_GRIP row (was burning at the grip).
+- 09:08:2026 - 22:44:47: hand_anchor_position() for the drop point.
 */
 
 #include "engine/gameplay/sources/ViewModel.h"
@@ -78,6 +79,10 @@ struct Anchor {
 }
 
 } // namespace
+
+glm::vec3 hand_anchor_position(const components::CameraPose& eye) {
+    return hand_anchor(eye).position;
+}
 
 void spawn_view_model(ecs::World& world, ecs::EntityId carrier) {
     for (auto [id, part] : world.view<ViewModelPart>()) {

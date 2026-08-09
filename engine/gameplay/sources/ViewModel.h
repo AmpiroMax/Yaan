@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 09:08:2026 - 22:21:30
+Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/ViewModel.h
 
@@ -51,12 +51,16 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:21:30: Created — visible hands (user request: "рук нет").
+- 09:08:2026 - 22:44:47: hand_anchor_position() exposed for dropping.
 */
 
 #pragma once
 
 #include <cstdint>
 
+#include <glm/vec3.hpp>
+
+#include "engine/core/components/sources/Components.h"
 #include "engine/core/ecs/sources/EntityId.h"
 
 namespace dfn::ecs {
@@ -87,5 +91,10 @@ void spawn_view_model(ecs::World& world, ecs::EntityId carrier);
 // parts, places them at the hand anchor derived from the carrier's CameraPose,
 // and points the item entity's RenderMesh at whatever HeldItem now holds.
 void update_view_model(ecs::World& world);
+
+// The world-space grip point for an eye pose: where the hand is, and therefore
+// where an item leaves the player from when dropped. Exposed so dropping needs
+// no distance number of its own — an item let go appears where it was held.
+[[nodiscard]] glm::vec3 hand_anchor_position(const components::CameraPose& eye);
 
 } // namespace dfn::gameplay

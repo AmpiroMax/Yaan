@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:34:38
-Last updated: 09:08:2026 - 22:40:04
+Last updated: 09:08:2026 - 22:44:47
 Module: tests
 File: tests/sim/ViewModelTests.cpp
 
@@ -25,6 +25,8 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 22:34:38: Created with the visible hands and inventory screen.
 - 09:08:2026 - 22:40:04: Flame at the torch head, not the grip.
+- 09:08:2026 - 22:44:47: Drop cases (world spawn, quest refusal, the hand
+                         emptying) and the rotation's new home.
 */
 
 #include <doctest/doctest.h>
@@ -36,6 +38,10 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/core/events/sources/EventBus.h"
+#include "engine/gameplay/sources/Interaction.h"
+#include "engine/gameplay/sources/InteractionSystem.h"
+#include "engine/gameplay/sources/PlayerActions.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/gameplay/sources/HeldItem.h"
 #include "engine/gameplay/sources/Inventory.h"
@@ -331,9 +337,12 @@ TEST_CASE("inventory screen: the mouse turns the item only while it is open") {
 
     auto& screen = world.resource<gameplay::InventoryScreen>();
 
+    dfn::events::EventBus bus;
+
     // CLOSED: the mouse turns the HEAD and the preview does not move.
     screen.open = false;
     world.get<gameplay::PlayerState>(owner)->pending_look = {40.0f, 0.0f};
+    gameplay::player_actions_step(world, bus, *physics);
     gameplay::player_pre_step(world, *physics);
     CHECK(screen.preview_yaw == doctest::Approx(0.0f));
     CHECK(world.get<gameplay::PlayerState>(owner)->yaw != doctest::Approx(0.0f));
@@ -341,12 +350,189 @@ TEST_CASE("inventory screen: the mouse turns the item only while it is open") {
     // OPEN: the same motion turns the ITEM and leaves the head alone. Without
     // this diversion the preview is not rotatable at all, since the mouse is
     // the only rotation input there is.
+    //
+    // It happens in player_actions_step and NOT in the movement path on
+    // purpose: the world pauses behind the screen, so movement does not run,
+    // and a preview that turned there would freeze exactly when it is needed.
     screen.open = true;
     const float yaw_before = world.get<gameplay::PlayerState>(owner)->yaw;
     world.get<gameplay::PlayerState>(owner)->pending_look = {40.0f, 0.0f};
-    gameplay::player_pre_step(world, *physics);
+    gameplay::player_actions_step(world, bus, *physics);
     CHECK(screen.preview_yaw != doctest::Approx(0.0f));
     CHECK(world.get<gameplay::PlayerState>(owner)->yaw == doctest::Approx(yaw_before));
+}
+
+
+TEST_CASE("drop: the item leaves the bag and appears in the world at the hand") {
+    World world;
+    gameplay::ItemDatabase items;
+    gameplay::ItemDef stone;
+    stone.id = {serialization::fnv1a64("item.junk.stone")};
+    stone.display_name_key = "item.junk.stone.name";
+    items.add(stone);
+    world.add_resource(std::move(items));
+
+    auto physics = dfn::platform::create_null_physics();
+    REQUIRE(physics->init());
+
+    const EntityId owner = world.spawn();
+    gameplay::Inventory inv;
+    inv.stacks.push_back(gameplay::ItemStack{stone.id, 2});
+    world.add(owner, std::move(inv));
+    world.add(owner, gameplay::HeldItem{});
+    world.add(owner, components::CameraPose{.position = {5.0f, 2.0f, 5.0f}});
+    world.add(owner, gameplay::PlayerState{});
+    gameplay::refresh_inventory_screen(world, owner);
+
+    auto& screen = world.resource<gameplay::InventoryScreen>();
+    screen.open = true;
+    dfn::events::EventBus bus;
+
+    int dropped_events = 0;
+    bus.subscribe<gameplay::ItemDropped>(
+        [&](const gameplay::ItemDropped& e) {
+            ++dropped_events;
+            CHECK(e.item.value == stone.id.value);
+            CHECK(e.count == 1);
+        });
+
+    world.get<gameplay::PlayerState>(owner)->drop_pressed = true;
+    gameplay::player_actions_step(world, bus, *physics);
+    bus.pump();
+
+    // One left the bag, not the whole stack.
+    CHECK(gameplay::count_item(*world.get<gameplay::Inventory>(owner), stone.id) == 1);
+    CHECK(dropped_events == 1);
+
+    // ... and it is now a real loose item, at the hand rather than at the feet.
+    int pickups = 0;
+    glm::vec3 where{0.0f};
+    for (auto [id, pickup, xf] :
+         world.view<gameplay::Pickup, components::Transform>()) {
+        (void)id;
+        CHECK(pickup.item.value == stone.id.value);
+        where = xf.position;
+        ++pickups;
+    }
+    REQUIRE(pickups == 1);
+    const glm::vec3 hand = gameplay::hand_anchor_position(
+        *world.get<components::CameraPose>(owner));
+    CHECK(glm::length(where - hand) == doctest::Approx(0.0f).epsilon(1e-3));
+
+    // CONTROL: with the screen SHUT the same latch drops nothing — the key is
+    // an inventory action, not a world action, and Q while walking must not
+    // scatter your belongings behind you.
+    world.resource<gameplay::InventoryScreen>().open = false;
+    world.get<gameplay::PlayerState>(owner)->drop_pressed = true;
+    gameplay::player_actions_step(world, bus, *physics);
+    bus.pump();
+    CHECK(gameplay::count_item(*world.get<gameplay::Inventory>(owner), stone.id) == 1);
+    CHECK(dropped_events == 1);
+}
+
+TEST_CASE("drop: a quest item is refused, loudly") {
+    World world;
+    gameplay::ItemDatabase items;
+    gameplay::ItemDef crown;
+    crown.id = {serialization::fnv1a64("item.quest.crown_grant")};
+    crown.display_name_key = "item.quest.crown_grant.name";
+    crown.quest_item = true; // story's integrity rule
+    items.add(crown);
+    world.add_resource(std::move(items));
+
+    auto physics = dfn::platform::create_null_physics();
+    REQUIRE(physics->init());
+
+    const EntityId owner = world.spawn();
+    gameplay::Inventory inv;
+    inv.stacks.push_back(gameplay::ItemStack{crown.id, 1});
+    world.add(owner, std::move(inv));
+    world.add(owner, gameplay::HeldItem{});
+    world.add(owner, components::CameraPose{});
+    world.add(owner, gameplay::PlayerState{});
+    gameplay::refresh_inventory_screen(world, owner);
+    world.resource<gameplay::InventoryScreen>().open = true;
+
+    dfn::events::EventBus bus;
+    int refusals = 0;
+    int drops = 0;
+    bus.subscribe<gameplay::InteractionFailed>([&](const gameplay::InteractionFailed& e) {
+        if (e.reason == gameplay::InteractionFailure::Undroppable) {
+            ++refusals;
+        }
+    });
+    bus.subscribe<gameplay::ItemDropped>([&](const gameplay::ItemDropped&) { ++drops; });
+
+    world.get<gameplay::PlayerState>(owner)->drop_pressed = true;
+    gameplay::player_actions_step(world, bus, *physics);
+    bus.pump();
+
+    // Still carried, nothing spawned, and the refusal was ANNOUNCED rather than
+    // swallowed: a silent refusal is indistinguishable from a broken key.
+    CHECK(gameplay::count_item(*world.get<gameplay::Inventory>(owner), crown.id) == 1);
+    CHECK(drops == 0);
+    CHECK(refusals == 1);
+
+    // CONTROL: the identical flow on a NON-quest item does drop. Without this,
+    // "nothing dropped" would also pass for a drop that never works at all.
+    gameplay::ItemDef rag;
+    rag.id = {serialization::fnv1a64("item.junk.rag")};
+    rag.display_name_key = "item.junk.rag.name";
+    world.resource<gameplay::ItemDatabase>().add(rag);
+    world.get<gameplay::Inventory>(owner)->stacks.push_back(
+        gameplay::ItemStack{rag.id, 1});
+    gameplay::refresh_inventory_screen(world, owner);
+    auto& screen = world.resource<gameplay::InventoryScreen>();
+    for (uint32_t i = 0; i < screen.entries.size(); ++i) {
+        if (screen.entries[i].item.value == rag.id.value) {
+            screen.selected = i;
+        }
+    }
+    world.get<gameplay::PlayerState>(owner)->drop_pressed = true;
+    gameplay::player_actions_step(world, bus, *physics);
+    bus.pump();
+    CHECK(drops == 1);
+    CHECK(gameplay::count_item(*world.get<gameplay::Inventory>(owner), rag.id) == 0);
+}
+
+TEST_CASE("drop: letting go of the last one empties the hand") {
+    World world;
+    gameplay::ItemDatabase items;
+    gameplay::ItemDef torch;
+    torch.id = {serialization::fnv1a64("item.tool.torch")};
+    torch.display_name_key = "item.tool.torch.name";
+    torch.light_source = true;
+    items.add(torch);
+    world.add_resource(std::move(items));
+
+    auto physics = dfn::platform::create_null_physics();
+    REQUIRE(physics->init());
+
+    const EntityId owner = world.spawn();
+    gameplay::Inventory inv;
+    inv.stacks.push_back(gameplay::ItemStack{torch.id, 1});
+    world.add(owner, std::move(inv));
+    world.add(owner, gameplay::HeldItem{});
+    world.add(owner, components::CameraPose{});
+    world.add(owner, gameplay::PlayerState{});
+
+    dfn::events::EventBus bus;
+    REQUIRE(gameplay::hold_item(world, bus, owner, torch.id));
+    REQUIRE(gameplay::toggle_lit(world, bus, owner));
+    REQUIRE(world.get<gameplay::HeldItem>(owner)->lit);
+
+    gameplay::refresh_inventory_screen(world, owner);
+    world.resource<gameplay::InventoryScreen>().open = true;
+    world.get<gameplay::PlayerState>(owner)->drop_pressed = true;
+    gameplay::player_actions_step(world, bus, *physics);
+    bus.pump();
+
+    // The hand cannot show something the bag does not have. A lit torch left
+    // burning in an empty hand is the bug this exists to reject.
+    const auto* held = world.get<gameplay::HeldItem>(owner);
+    REQUIRE(held != nullptr);
+    CHECK_FALSE(held->item.valid());
+    CHECK_FALSE(held->lit);
 }
 
 } // namespace

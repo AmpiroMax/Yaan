@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractionSystem.h
 
@@ -48,6 +48,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial four-verb interaction system.
+- 09:08:2026 - 22:44:47: InteractionFailure::Undroppable (quest items refuse to
+                         be dropped; story's protection, now reachable).
 */
 
 #pragma once
@@ -79,6 +81,7 @@ enum class InteractionFailure : uint8_t {
     AlreadyUsed,   // non-repeatable Usable
     InventoryFull, // reserved: no limit enforced yet
     NoInventory,   // actor has no Inventory component
+    Undroppable,   // a quest item: held and given freely, never dropped or sold
 };
 
 // What a target offers to a given actor at this instant.
