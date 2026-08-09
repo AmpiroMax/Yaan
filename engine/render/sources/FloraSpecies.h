@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 10:08:2026 - 01:59:06
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -30,6 +30,9 @@ UPD:
 - 09:08:2026 - 19:22:41: Created — catalog per LANDSCAPE §5.7-§5.10.
 - 09:08:2026 - 20:21:13: Leaf-card vocabulary: FoliageShape::Card, the
   per-species atlas tone/shape bands and card proportions, has_leaf_cards().
+- 10:08:2026 - 01:59:06: Dead-wood vocabulary for the §5.10 forest floor:
+  SnagPale (the snag's second MATERIAL, not a second shape), stub/root-plate/
+  moss fields on SpeciesParams.
 */
 
 #pragma once
@@ -55,8 +58,16 @@ enum class FloraSpecies : uint8_t {
     BigBush = 6,
     FallenLog = 7,
     Deadfall = 8,
+    /// THE SNAG SPLIT IS TWO MATERIALS ON ONE ASSET (design §5.10, recorded in
+    /// flora.md §3.4): a pale snag alone in a meadow is a LANDMARK, a grey snag
+    /// in a wood is weather. Snag = in-forest, grey-brown weathered, dense
+    /// (SNAG_DENSITY_FOREST_*); SnagPale = open ground, bone-white, rare
+    /// (SNAG_DENSITY_OPEN_*). The GEOMETRY of a given variant is byte-identical
+    /// across the two — asserted in the suite — because that is what "the same
+    /// asset got two materials" means; only the values differ.
+    SnagPale = 9,
 };
-inline constexpr uint8_t FLORA_SPECIES_COUNT = 9;
+inline constexpr uint8_t FLORA_SPECIES_COUNT = 10;
 
 /// The silhouette intent. Branch target lengths are clipped to this envelope so
 /// the species read at SILHOUETTE_MIN_PX is GUARANTEED rather than emergent —
@@ -147,6 +158,20 @@ struct SpeciesParams {
     float phototropism = 0.35f;      ///< +Y component of eq. (3)'s tropism vector
     float droop = 0.10f;             ///< -Y component; high = willow, conifer sag
     float min_branch_diameter = 0.35f; ///< SHADOW FLOOR — see docs/specs/flora.md §3.5
+
+    // --- dead wood (snags and fallen logs) ----------------------------------
+    // A snag is NOT a tree with zero leaves and a log is NOT a floating
+    // cylinder — both need the marks of a DEAD tree: truncated limb stubs, a
+    // broken (blunt, splintered) top, an upturned root plate, moss on the side
+    // the rain hits. Fields are zero for everything alive.
+    uint8_t stub_count = 0;      ///< truncated dead limbs on the bole/log
+    float stub_len_frac = 0.0f;  ///< stub length as a fraction of height/length
+    bool root_plate = false;     ///< fallen log: upturned root disc at the butt
+    /// Fraction of UP-facing surface carrying moss (logs; 0 = none). Moss lives
+    /// on the upper side because that is where light and rain land; the
+    /// underside gate is asserted in the suite.
+    float moss_cover = 0.0f;
+    glm::vec3 moss_color{0.20f, 0.32f, 0.12f};
 
     // --- foliage ------------------------------------------------------------
     uint8_t cluster_count = 22;

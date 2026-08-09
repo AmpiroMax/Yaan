@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 10:08:2026 - 01:59:06
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -36,6 +36,8 @@ UPD:
   FloraMesh (the wood stream and the card stream, which carry different
   vertex-colour meanings and so must be different draws); append_flora() for
   the batcher; FloraShape::wind_phase; season argument.
+- 10:08:2026 - 01:59:06: flora_maturity_for() — the §5.10 maturity-tier draw
+  gets its one home, for core to call when filling ScatterInstance.scale.
 */
 
 #pragma once
@@ -112,6 +114,17 @@ void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
 
 /// Variant index for a world position (stable across runs and chunk borders).
 [[nodiscard]] uint32_t flora_variant_for(glm::vec2 world_xz);
+
+/// The MATURITY-TIER DRAW (design §5.10: TREE_MATURITY_GIANT/MATURE/SUBMATURE/
+/// YOUNG_PCT = 25/60/12/3, until now sixteen constants with zero consumers).
+/// Returns the FloraShape::maturity multiplier for a tree standing at this
+/// position: giant 1.15-1.50, mature 0.85-1.15, sub-mature 0.50-0.70 (design's
+/// mid-canopy layer — do NOT collapse it into sapling, they are different
+/// structural jobs), sapling 0.40-0.60. Deterministic and position-keyed like
+/// flora_variant_for, so core can call it when filling ScatterInstance.scale
+/// and the rule has exactly one home (Rule 35). Distribution is asserted over
+/// its whole declared range in the suite (Rule 31).
+[[nodiscard]] float flora_maturity_for(glm::vec2 world_xz);
 
 /// Derives a FloraShape per instance from the instance array itself.
 /// `all` may include neighbouring-chunk instances; results are returned for

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 09:08:2026 - 21:18:02
+Last updated: 10:08:2026 - 01:59:06
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -42,9 +42,22 @@ UPD:
   if it were one crown's shape, and did exactly that in the first report);
   crown-width FLOOR, since only the ceiling of design's band was ever asserted
   and the birch had drifted a third under its brief with a green suite.
+- 10:08:2026 - 01:59:06: The §5.10 forest-floor cases: snag limb-reach band
+  with BOTH neighbouring objects as controls (bare pole = the real rejected
+  instance, winter oak = the tree-with-zero-leaves it must not be); snag split
+  as one-geometry-two-materials; log ground contact per axial slice with the
+  floated copy as control; upper-side moss in patches with the mossless snag
+  as the gate control; the maturity draw's full-band distribution (Rule 31)
+  with the historic top-60 % defect rebuilt as the control; >= 3 card planes
+  per cluster and WORST-AZIMUTH coverage with single-plane and parallel-plane
+  controls. INSTRUMENT FIX: cards_of() strode 6 vertices per card over a
+  4-vertex-per-card buffer, so every "card" it measured was one and a half
+  real cards — the channel-map case one page up had asserted % 4 == 0 all
+  along; two green tests held contradictory beliefs about one buffer.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
+#include "engine/render/sources/FloraField.h"
 #include "engine/render/sources/ProcFlora.h"
 
 #include "engine/core/config/sources/Constants.h"
@@ -63,6 +76,7 @@ const FloraSpecies ALL[] = {
     FloraSpecies::DaleOak, FloraSpecies::HighlandPine, FloraSpecies::RiverBirch,
     FloraSpecies::ValeWillow, FloraSpecies::Snag,      FloraSpecies::Bush,
     FloraSpecies::BigBush,  FloraSpecies::FallenLog,   FloraSpecies::Deadfall,
+    FloraSpecies::SnagPale,
 };
 
 const FloraLod LODS[] = {FloraLod::Full, FloraLod::Reduced, FloraLod::Silhouette};
@@ -811,7 +825,17 @@ TEST_CASE("atlas: species VALUE ORDER holds in every season") {
 
 namespace {
 
-/// Centroid and corner reach of card `i` (six vertices, two triangles).
+/// Centroid and corner reach of one card. A card is FOUR vertices and six
+/// indices (emit_leaf_card appends an indexed quad; the card is planar, so its
+/// two triangles legally share vertices).
+///
+/// INSTRUMENT BUG, FIXED 10.08.2026: this helper strode SIX vertices per card
+/// on the assumption that a quad is two vertex-owning triangles. It is not, in
+/// this one stream — so every "card" this measured was one-and-a-half real
+/// cards, misaligned after the first. The channel-map case right above it had
+/// asserted % 4 == 0 all along; two tests in one file held contradictory
+/// beliefs about the same buffer and both were green, which is why this note
+/// is long. Thresholds downstream were re-measured after the fix.
 struct Card {
     glm::vec3 centre{0.0f};
     float reach = 0.0f;
@@ -819,11 +843,11 @@ struct Card {
 
 std::vector<Card> cards_of(const MeshData& m) {
     std::vector<Card> out;
-    for (size_t i = 0; i + 6 <= m.vertices.size(); i += 6) {
+    for (size_t i = 0; i + 4 <= m.vertices.size(); i += 4) {
         Card c;
-        for (size_t k = 0; k < 6; ++k) c.centre += m.vertices[i + k].position;
-        c.centre /= 6.0f;
-        for (size_t k = 0; k < 6; ++k) {
+        for (size_t k = 0; k < 4; ++k) c.centre += m.vertices[i + k].position;
+        c.centre /= 4.0f;
+        for (size_t k = 0; k < 4; ++k) {
             c.reach = std::max(c.reach, glm::length(m.vertices[i + k].position - c.centre));
         }
         out.push_back(c);
@@ -1229,5 +1253,710 @@ TEST_CASE("REJECTION 3: no canopy tree is a bare pole with a tuft on top") {
         CHECK_FALSE((hi - lo) / h >= LIMB_SPREAD_MIN); // the tuft spans 0.06
         const float tuft_span = h * 0.96f - h * top_frac;
         CHECK_FALSE(tuft_span / h >= FOLIAGE_SPAN_MIN);
+    }
+}
+
+// ===========================================================================
+// THE §5.10 FOREST FLOOR — sixteen constants, zero consumers, finally OBJECTS
+// (10.08.2026). Same Rule 30 discipline: every invariant ships with the case
+// it must reject, and where a real rejected instance exists, IT is the
+// control — the bare-pole snag this generator used to build, and the floating
+// cylinder a log must never be.
+// ===========================================================================
+
+namespace {
+
+/// Limb reach measured AGAINST THE LOCAL TRUNK AXIS, not against the origin:
+/// vertices are binned by height and measured from their bin's own centroid,
+/// so trunk sweep and lean cancel out and a swept bare pole cannot smuggle in
+/// reach it does not have. Bins below `y_min` are skipped (the root flare is
+/// ground contact, not a limb).
+float limb_reach_frac(const MeshData& m, float y_min, float height) {
+    constexpr float BIN = 1.0f;
+    struct Acc {
+        glm::vec3 sum{0.0f};
+        int n = 0;
+    };
+    std::vector<Acc> bins(static_cast<size_t>(height / BIN) + 2);
+    auto bin_of = [&](float y) { return static_cast<size_t>((y - y_min) / BIN); };
+    for (const platform::Vertex& v : m.vertices) {
+        if (v.position.y < y_min || v.position.y > height + 1.0f) continue;
+        Acc& a = bins[bin_of(v.position.y)];
+        a.sum += v.position;
+        ++a.n;
+    }
+    float worst = 0.0f;
+    for (const platform::Vertex& v : m.vertices) {
+        if (v.position.y < y_min || v.position.y > height + 1.0f) continue;
+        const Acc& a = bins[bin_of(v.position.y)];
+        if (a.n < 3) continue;
+        const glm::vec3 c = a.sum / static_cast<float>(a.n);
+        const glm::vec2 d{v.position.x - c.x, v.position.z - c.z};
+        worst = std::max(worst, glm::length(d));
+    }
+    return worst / std::max(height, 1e-3f);
+}
+
+} // namespace
+
+TEST_CASE("floor: a snag is its own object — not a pole, not a winter tree") {
+    // Design's model (flora.md §3.4): a snag carries truncated STUBS where the
+    // limbs snapped, and what separates it from its two neighbouring objects
+    // was MEASURED before the threshold was chosen (Rule 30: which quantity a
+    // threshold belongs on is itself a measurement — the first draft put the
+    // ceiling on limb REACH, and the data refused it: winter oak reach
+    // measures 0.106-0.136 of height against snag 0.072-0.121, overlap at
+    // every threshold, because a bin-centroid axis halves an asymmetric
+    // crown's apparent reach).
+    //
+    // The quantity that DOES separate is RAMIFICATION — the count of off-axis
+    // wood faces. A snag is a few fat remnants (measured 7-45 across both
+    // materials and all variants); a live winter broadleaf is many fine
+    // branches (oak 95-179, willow 95-197). Winter BIRCH measures 36-61 —
+    // genuinely adjacent to the snag band, and honestly so: a dead birch and
+    // a leafless winter birch are near-confusable in the field too. That
+    // separation is carried by bark VALUE and the broken top, not by gross
+    // limb statistics, and winter is not yet a shipped season; recorded here
+    // so a successor knows the ceiling was scoped to oak/willow on purpose.
+    constexpr float STUB_REACH_MIN = 0.04f;  // vs the pole (which has none)
+    constexpr float STUB_REACH_MAX = 0.16f;  // stubs stay TRUNCATED
+    constexpr int OFFAXIS_MIN = 6;
+    constexpr int OFFAXIS_MAX = 70;
+    auto offaxis_faces = [](const MeshData& m, float y_min, float height) {
+        constexpr float BIN = 1.0f;
+        struct Acc {
+            glm::vec3 sum{0.0f};
+            int n = 0;
+        };
+        std::vector<Acc> bins(static_cast<size_t>(height / BIN) + 2);
+        for (const platform::Vertex& v : m.vertices) {
+            if (v.position.y < y_min || v.position.y > height + 1.0f) continue;
+            Acc& a = bins[static_cast<size_t>((v.position.y - y_min) / BIN)];
+            a.sum += v.position;
+            ++a.n;
+        }
+        int cnt = 0;
+        for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
+            const glm::vec3 mid = (m.vertices[m.indices[i]].position
+                                   + m.vertices[m.indices[i + 1]].position
+                                   + m.vertices[m.indices[i + 2]].position)
+                / 3.0f;
+            if (mid.y < y_min || mid.y > height + 1.0f) continue;
+            const Acc& bn = bins[static_cast<size_t>((mid.y - y_min) / BIN)];
+            if (bn.n < 3) continue;
+            const glm::vec3 ax = bn.sum / static_cast<float>(bn.n);
+            const glm::vec2 d{mid.x - ax.x, mid.z - ax.z};
+            if (glm::length(d) > 0.55f) ++cnt;
+        }
+        return cnt;
+    };
+    const FloraSpecies snags[] = {FloraSpecies::Snag, FloraSpecies::SnagPale};
+    for (const FloraSpecies s : snags) {
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            float top = 0.0f;
+            for (const platform::Vertex& vx : f.wood.vertices) {
+                top = std::max(top, vx.position.y);
+            }
+            REQUIRE(top > 5.0f);
+            const float reach = limb_reach_frac(f.wood, top * 0.25f, top);
+            CHECK(reach >= STUB_REACH_MIN);
+            CHECK(reach <= STUB_REACH_MAX);
+            const int n = offaxis_faces(f.wood, top * 0.25f, top);
+            CHECK(n >= OFFAXIS_MIN);
+            CHECK(n <= OFFAXIS_MAX);
+        }
+    }
+
+    // CONTROL 1 — the REAL rejected instance: the bare tapered pole this
+    // generator built until 10.08.2026. Must fail both floors. (Straight
+    // rather than swept, and that is honest: the bin-centroid metric cancels
+    // sweep by construction, so sweep is not what separates them.)
+    {
+        MeshData pole;
+        const float h = 15.0f;
+        const float r = 0.36f;
+        for (int seg = 0; seg < 5; ++seg) {
+            const float y0 = h * static_cast<float>(seg) / 5.0f;
+            const float y1 = h * static_cast<float>(seg + 1) / 5.0f;
+            const float r0 = r * (1.0f - 0.8f * static_cast<float>(seg) / 5.0f);
+            const float r1 = r * (1.0f - 0.8f * static_cast<float>(seg + 1) / 5.0f);
+            for (int k = 0; k < 5; ++k) {
+                const float a0 = 6.2831853f * static_cast<float>(k) / 5.0f;
+                const float a1 = 6.2831853f * static_cast<float>(k + 1) / 5.0f;
+                quad(pole, {std::cos(a0) * r0, y0, std::sin(a0) * r0},
+                     {std::cos(a0) * r1, y1, std::sin(a0) * r1},
+                     {std::cos(a1) * r1, y1, std::sin(a1) * r1},
+                     {std::cos(a1) * r0, y0, std::sin(a1) * r0}, 0xFFFFFFFFu);
+            }
+        }
+        CHECK_FALSE(limb_reach_frac(pole, 15.0f * 0.25f, 15.0f) >= STUB_REACH_MIN);
+        CHECK_FALSE(offaxis_faces(pole, 15.0f * 0.25f, 15.0f) >= OFFAXIS_MIN);
+    }
+
+    // CONTROL 2 — the neighbouring LIVE objects: winter oak and winter willow
+    // (trees with zero leaves) must fail the ramification CEILING. If they do
+    // not, "snag" and "dead-looking winter tree" are one object and the split
+    // asset is a lie. (Winter birch is exempt by measurement — see the header
+    // comment.)
+    for (const FloraSpecies live : {FloraSpecies::DaleOak, FloraSpecies::ValeWillow}) {
+        const FloraMesh w = build_flora_mesh(live, 3, FloraShape{}, FloraLod::Full,
+                                             FloraSeason::Winter);
+        float top = 0.0f;
+        for (const platform::Vertex& vx : w.wood.vertices) {
+            top = std::max(top, vx.position.y);
+        }
+        CHECK_FALSE(offaxis_faces(w.wood, top * 0.25f, top) <= OFFAXIS_MAX);
+    }
+}
+
+TEST_CASE("floor: the snag split is ONE asset with two materials") {
+    // Design §5.10: «a pale snag alone in a meadow is a landmark; a grey snag
+    // in a wood is weather» — the same geometry, two values, two densities.
+    // Geometry identity is asserted so nobody can quietly fork the shape, and
+    // the VALUE separation is asserted so the two looks stay two looks.
+    float lum_grey = 0.0f;
+    float lum_pale = 0.0f;
+    for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+        for (const FloraLod lod : LODS) {
+            const FloraMesh grey =
+                build_flora_mesh(FloraSpecies::Snag, v, FloraShape{}, lod);
+            const FloraMesh pale =
+                build_flora_mesh(FloraSpecies::SnagPale, v, FloraShape{}, lod);
+            REQUIRE(grey.wood.vertices.size() == pale.wood.vertices.size());
+            REQUIRE(grey.wood.indices == pale.wood.indices);
+            for (size_t i = 0; i < grey.wood.vertices.size(); ++i) {
+                CHECK(grey.wood.vertices[i].position.x
+                      == pale.wood.vertices[i].position.x);
+                CHECK(grey.wood.vertices[i].position.y
+                      == pale.wood.vertices[i].position.y);
+                CHECK(grey.wood.vertices[i].position.z
+                      == pale.wood.vertices[i].position.z);
+            }
+        }
+        const FloraMesh grey =
+            build_flora_mesh(FloraSpecies::Snag, v, FloraShape{}, FloraLod::Full);
+        const FloraMesh pale =
+            build_flora_mesh(FloraSpecies::SnagPale, v, FloraShape{}, FloraLod::Full);
+        auto mean_lum = [](const MeshData& m) {
+            double sum = 0.0;
+            for (const platform::Vertex& vx : m.vertices) {
+                sum += 0.30 * chan_r(vx.color_rgba) + 0.60 * chan_g(vx.color_rgba)
+                    + 0.10 * chan_b(vx.color_rgba);
+            }
+            return static_cast<float>(sum / std::max<size_t>(m.vertices.size(), 1));
+        };
+        lum_grey = mean_lum(grey.wood);
+        lum_pale = mean_lum(pale.wood);
+        // The open-ground look must be readably brighter — it is a legitimate
+        // L2 guide, the forest look is texture. 1.25x is well past a palette
+        // step and well under the birch bole, which stays the brightest LIVE
+        // flora value.
+        CHECK(lum_pale >= lum_grey * 1.25f);
+    }
+    // CONTROL: the same species against itself measures 1.0x and must FAIL the
+    // separation clause — i.e. the clause cannot be satisfied by accident.
+    CHECK_FALSE(lum_grey >= lum_grey * 1.25f);
+}
+
+TEST_CASE("floor: a log contacts the ground along its length") {
+    // THE REJECTED INSTANCE IS A FLOATING CYLINDER. A log mesh guarantees
+    // contact on FLAT ground by construction: every axial slice of the tube
+    // dips below the ground datum (y = 0). On real terrain core places it
+    // across the fall line; micro relief under 0.2 x radius is absorbed by the
+    // same burial. Checked per SLICE, not on the whole mesh — a log whose butt
+    // is buried and whose tip hovers passes a whole-mesh min and is exactly
+    // the floating-log artefact.
+    const FloraSpecies logs[] = {FloraSpecies::FallenLog, FloraSpecies::Deadfall};
+    for (const FloraSpecies s : logs) {
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            // Contact is a property of the TRUNK, so it is measured on the
+            // BURIED geometry: the x-span of vertices below the ground datum
+            // must cover (nearly) the whole log, with no slice of that span
+            // empty. Measuring slices of the full mesh extent was the first
+            // version, and it failed on its own instrument: a stub's splinter
+            // tip pokes past the tube's end, so the last slice held only
+            // above-ground stub geometry and "the log floats" was reported
+            // about a slice with no log in it.
+            float x_lo = 1e9f;
+            float x_hi = -1e9f;
+            for (const platform::Vertex& vx : f.wood.vertices) {
+                if (vx.position.y >= -0.01f) continue;
+                x_lo = std::min(x_lo, vx.position.x);
+                x_hi = std::max(x_hi, vx.position.x);
+            }
+            // The buried span exists and is the length of the log, not a
+            // buried butt with a hovering tip. The floor is the species'
+            // MINIMUM length (a variant may legally draw it), less 10 % for
+            // ring geometry.
+            REQUIRE(x_hi - x_lo > 1.5f);
+            CHECK(x_hi - x_lo >= species_params(s).height_min * 0.9f);
+            // No long stretch of the span hovers: the largest gap between
+            // consecutive buried x-positions stays under 40 % of the span.
+            // (An equal-slice binning was the first version and it failed on
+            // its own instrument: the bins were finer than the mesh's vertex
+            // rings, so a 3-segment deadfall "hovered" in slices that simply
+            // had no ring in them. The gap between RINGS is the honest
+            // resolution of the question.)
+            std::vector<float> xs;
+            for (const platform::Vertex& vx : f.wood.vertices) {
+                if (vx.position.y < -0.01f) xs.push_back(vx.position.x);
+            }
+            std::sort(xs.begin(), xs.end());
+            float max_gap = 0.0f;
+            for (size_t i = 1; i < xs.size(); ++i) {
+                max_gap = std::max(max_gap, xs[i] - xs[i - 1]);
+            }
+            CHECK(max_gap <= (x_hi - x_lo) * 0.40f);
+
+            // CONTROL: the same log floated up by three metres — clear of the
+            // root plate's own depth — has NO buried geometry at all. This is
+            // the artefact by name.
+            int buried_after_float = 0;
+            for (const platform::Vertex& vx : f.wood.vertices) {
+                if (vx.position.y + 3.0f < -0.01f) ++buried_after_float;
+            }
+            CHECK_FALSE(buried_after_float > 0);
+        }
+    }
+}
+
+TEST_CASE("floor: moss lives on the UPPER side of a log, in patches") {
+    // Research §A7: associative placement — moss grows where rain and light
+    // land. On the mesh that means up-facing faces only, and in PATCHES: an
+    // all-green top is paint, not moss.
+    const FloraSpecies logs[] = {FloraSpecies::FallenLog, FloraSpecies::Deadfall};
+    for (const FloraSpecies s : logs) {
+        const SpeciesParams& sp = species_params(s);
+        const uint32_t moss_a = pack(sp.moss_color);
+        const uint32_t moss_b = pack(sp.moss_color * 1.28f);
+        int up_mossed_total = 0;
+        int up_total = 0;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            int up_mossed = 0;
+            int up_bare = 0;
+            for (size_t i = 0; i + 2 < f.wood.indices.size(); i += 3) {
+                const platform::Vertex& a = f.wood.vertices[f.wood.indices[i]];
+                const bool mossed =
+                    a.color_rgba == moss_a || a.color_rgba == moss_b;
+                if (a.normal.y < -0.2f) {
+                    // The underside NEVER mosses; moss under a log is the
+                    // "pasted decal" read.
+                    CHECK_FALSE(mossed);
+                }
+                if (a.normal.y > 0.40f) {
+                    ++up_total;
+                    if (mossed) {
+                        ++up_mossed;
+                        ++up_mossed_total;
+                    } else {
+                        ++up_bare;
+                    }
+                }
+            }
+            // A log that declares moss CARRIES moss («поваленные деревья … с
+            // мохом» is the brief, not a probability).
+            CHECK(up_mossed > 0);
+            // PATCHES, not paint — but only where the class has enough
+            // up-faces for "patchy" to be expressible. A deadfall piece has a
+            // handful of up-faces and may legitimately moss them all.
+            if (s == FloraSpecies::FallenLog) {
+                CHECK(up_bare > 0);
+            }
+        }
+        // Aggregate cover near the declared fraction — the moss_cover field is
+        // a real parameter, not a suggestion.
+        const float cover = static_cast<float>(up_mossed_total)
+            / static_cast<float>(std::max(up_total, 1));
+        CHECK(cover >= sp.moss_cover * 0.5f);
+        CHECK(cover <= sp.moss_cover * 1.6f);
+    }
+    // CONTROL: a species that declares no moss carries none — the classifier
+    // itself would pass a green-splattered snag, so the zero case is what
+    // proves the gate is the moss pass and not the paint bucket.
+    {
+        const SpeciesParams& log_sp = species_params(FloraSpecies::FallenLog);
+        const uint32_t moss_a = pack(log_sp.moss_color);
+        const uint32_t moss_b = pack(log_sp.moss_color * 1.28f);
+        const FloraMesh snag =
+            build_flora_mesh(FloraSpecies::Snag, 1, FloraShape{}, FloraLod::Full);
+        for (const platform::Vertex& vx : snag.wood.vertices) {
+            CHECK(vx.color_rgba != moss_a);
+            CHECK(vx.color_rgba != moss_b);
+        }
+    }
+}
+
+TEST_CASE("floor: the maturity draw covers 25/60/12/3 over the WHOLE band") {
+    // Rule 31: a field is verified over its declared range before anything is
+    // tuned against it. This project has already lived through a seeded spread
+    // that silently returned only the top 60 % of its range — every constant
+    // fitted against it was fitted against a lie.
+    constexpr int N = 200;
+    int giant = 0;
+    int mature = 0;
+    int small = 0; // sub-mature + sapling (their value bands overlap by design)
+    int sapling_only = 0; // below 0.5: unambiguously sapling
+    float lo = 10.0f;
+    float hi = 0.0f;
+    int mature_buckets[6] = {0, 0, 0, 0, 0, 0};
+    for (int ix = 0; ix < N; ++ix) {
+        for (int iz = 0; iz < N; ++iz) {
+            const glm::vec2 p{static_cast<float>(ix) * 3.7f,
+                              static_cast<float>(iz) * 3.7f};
+            const float m = flora_maturity_for(p);
+            lo = std::min(lo, m);
+            hi = std::max(hi, m);
+            if (m >= 1.15f) {
+                ++giant;
+            } else if (m >= 0.85f) {
+                ++mature;
+                const int b = std::min(5, static_cast<int>((m - 0.85f) / 0.05f));
+                ++mature_buckets[b];
+            } else {
+                ++small;
+                if (m < 0.5f) ++sapling_only;
+            }
+        }
+    }
+    const float total = static_cast<float>(N) * static_cast<float>(N);
+    // Tier shares against TREE_MATURITY_*_PCT (25/60/12/3), +-1.5 % absolute.
+    CHECK(std::fabs(static_cast<float>(giant) / total
+                    - static_cast<float>(config::TREE_MATURITY_GIANT_PCT) / 100.0f)
+          < 0.015f);
+    CHECK(std::fabs(static_cast<float>(mature) / total
+                    - static_cast<float>(config::TREE_MATURITY_MATURE_PCT) / 100.0f)
+          < 0.015f);
+    CHECK(std::fabs(static_cast<float>(small) / total
+                    - static_cast<float>(config::TREE_MATURITY_SUBMATURE_PCT
+                                         + config::TREE_MATURITY_YOUNG_PCT)
+                          / 100.0f)
+          < 0.015f);
+    // Saplings below the sub-mature floor exist at all (the 0.40-0.50 stretch
+    // belongs to them alone).
+    CHECK(sapling_only > 0);
+    // The WHOLE band is reached: both ends, not the top third.
+    CHECK(lo <= 0.43f);
+    CHECK(hi >= 1.46f);
+    // Uniform WITHIN the mature band: six buckets, each within 30 % of even.
+    for (const int b : mature_buckets) {
+        const float share = static_cast<float>(b) / static_cast<float>(mature);
+        CHECK(share > (1.0f / 6.0f) * 0.7f);
+        CHECK(share < (1.0f / 6.0f) * 1.3f);
+    }
+
+    // CONTROL (Rule 31's historic defect, rebuilt): a draw squeezed into the
+    // top 60 % of its input range must FAIL the tier shares. This is exactly
+    // the "no random field ever returned below 0.4" bug from the massif model.
+    {
+        int giant_c = 0;
+        for (int i = 0; i < 10000; ++i) {
+            const float u = 0.4f + 0.6f * static_cast<float>(i) / 10000.0f;
+            if (u < static_cast<float>(config::TREE_MATURITY_GIANT_PCT) / 100.0f) {
+                ++giant_c;
+            }
+        }
+        CHECK_FALSE(std::fabs(static_cast<float>(giant_c) / 10000.0f
+                              - static_cast<float>(config::TREE_MATURITY_GIANT_PCT)
+                                    / 100.0f)
+                    < 0.015f);
+    }
+}
+
+TEST_CASE("cards: >= 3 planes per cluster, and coverage holds at the WORST azimuth") {
+    // Render-spec floor (10.08.2026): card count buys ANGULAR COVERAGE, chosen
+    // against the worst azimuth. Two crossed planes have viewing directions
+    // where their projected area collapses and the cluster all but vanishes —
+    // the birch showed it as a line of bare poles surviving a rewrite that had
+    // genuinely fixed the shape, and the pine carried the same exposure at
+    // lower odds. Three planes spread over the azimuths cannot all be edge-on
+    // at once. The failure is a property of viewing ANGLE, not distance, so
+    // the floor binds at Reduced as well as Full.
+    struct Cluster {
+        std::vector<glm::vec3> normals;
+        std::vector<float> areas;
+    };
+    auto clusters_of = [](const MeshData& cards) {
+        // Cards of one cluster share their centre (emit_card_cluster places
+        // every plane of a cluster at one `at`).
+        std::vector<glm::vec3> keys;
+        std::vector<Cluster> out;
+        for (size_t i = 0; i + 4 <= cards.vertices.size(); i += 4) {
+            glm::vec3 c{0.0f};
+            for (size_t k = 0; k < 4; ++k) c += cards.vertices[i + k].position;
+            c /= 4.0f;
+            const glm::vec3 e1 =
+                cards.vertices[i + 1].position - cards.vertices[i].position;
+            const glm::vec3 e2 =
+                cards.vertices[i + 3].position - cards.vertices[i].position;
+            const glm::vec3 cr = glm::cross(e1, e2);
+            const float area = glm::length(cr);
+            size_t found = keys.size();
+            for (size_t k = 0; k < keys.size(); ++k) {
+                if (glm::length(keys[k] - c) < 0.05f) {
+                    found = k;
+                    break;
+                }
+            }
+            if (found == keys.size()) {
+                keys.push_back(c);
+                out.emplace_back();
+            }
+            out[found].normals.push_back(area > 1e-6f ? cr / area
+                                                      : glm::vec3{0.0f, 0.0f, 1.0f});
+            out[found].areas.push_back(area);
+        }
+        return out;
+    };
+    auto coverage_ratio = [](const Cluster& cl) {
+        // Projected card area summed over the cluster, from 36 horizontal
+        // bearings — the player walks around a tree, not over it.
+        float worst = 1e9f;
+        float best = 0.0f;
+        for (int a = 0; a < 36; ++a) {
+            const float az = 6.2831853f * static_cast<float>(a) / 36.0f;
+            const glm::vec3 view{std::cos(az), 0.0f, std::sin(az)};
+            float sum = 0.0f;
+            for (size_t i = 0; i < cl.normals.size(); ++i) {
+                sum += cl.areas[i] * std::fabs(glm::dot(cl.normals[i], view));
+            }
+            worst = std::min(worst, sum);
+            best = std::max(best, sum);
+        }
+        return best > 1e-6f ? worst / best : 0.0f;
+    };
+    constexpr float COVERAGE_RATIO_MIN = 0.30f;
+    for (const FloraSpecies s : ALL) {
+        if (!has_leaf_cards(s)) continue;
+        for (const FloraLod lod : {FloraLod::Full, FloraLod::Reduced}) {
+            for (uint32_t v = 0; v < FLORA_VARIANTS; v += 3) {
+                const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, lod);
+                const auto cls = clusters_of(f.cards);
+                REQUIRE_FALSE(cls.empty());
+                for (const Cluster& cl : cls) {
+                    CHECK(cl.normals.size() >= 3);
+                    CHECK(coverage_ratio(cl) >= COVERAGE_RATIO_MIN);
+                }
+            }
+        }
+    }
+
+    // CONTROL 1: a single plane — coverage collapses to ~0 edge-on. This is
+    // the pre-fix pine spray.
+    {
+        Cluster one;
+        one.normals.push_back(glm::normalize(glm::vec3{1.0f, 0.1f, 0.0f}));
+        one.areas.push_back(1.0f);
+        CHECK_FALSE(coverage_ratio(one) >= COVERAGE_RATIO_MIN);
+    }
+    // CONTROL 2: near-parallel planes — plane COUNT without angular SPREAD
+    // buys nothing, which is why the rule says coverage, not count.
+    {
+        Cluster par;
+        par.normals.push_back(glm::normalize(glm::vec3{1.0f, 0.15f, 0.05f}));
+        par.normals.push_back(glm::normalize(glm::vec3{1.0f, -0.12f, -0.06f}));
+        par.normals.push_back(glm::normalize(glm::vec3{1.0f, 0.05f, 0.1f}));
+        par.areas = {1.0f, 1.0f, 1.0f};
+        CHECK_FALSE(coverage_ratio(par) >= COVERAGE_RATIO_MIN);
+    }
+}
+
+// ===========================================================================
+// THE CLUMP FIELD (в19г, design-blessed 10.08.2026, LANDSCAPE §1.7 BR-4).
+// Rule 31 in full: the raw field is verified UNIFORM over its whole declared
+// range before anything is tuned against it, with the un-equalized noise as
+// the failing control — this project has already shipped a seeded spread that
+// never left the top 60 % of its range.
+// ===========================================================================
+
+TEST_CASE("clump: the raw field is UNIFORM over [0,1] (Rule 31)") {
+    constexpr int N = 220;
+    for (uint8_t ci = 0; ci < CLUMP_CLASS_COUNT; ++ci) {
+        const auto c = static_cast<ClumpClass>(ci);
+        const float step = clump_params(c).wavelength_m * 0.37f;
+        int bins[10] = {};
+        float lo = 1.0f;
+        float hi = 0.0f;
+        for (int ix = 0; ix < N; ++ix) {
+            for (int iz = 0; iz < N; ++iz) {
+                const float u = clump_raw(
+                    c, {static_cast<float>(ix) * step, static_cast<float>(iz) * step},
+                    777u);
+                lo = std::min(lo, u);
+                hi = std::max(hi, u);
+                ++bins[std::min(9, static_cast<int>(u * 10.0f))];
+            }
+        }
+        // Both ends of the range are REACHED (the historic defect was a field
+        // that never returned below 0.4)...
+        CHECK(lo < 0.02f);
+        CHECK(hi > 0.98f);
+        // ...and every decile carries its share. Spatial correlation widens
+        // the variance, hence 2 % absolute rather than binomial-tight.
+        for (const int b : bins) {
+            const float share = static_cast<float>(b) / (static_cast<float>(N) * N);
+            CHECK(share > 0.08f);
+            CHECK(share < 0.12f);
+        }
+    }
+
+    // CONTROL: the UN-equalized value noise must FAIL the decile check — it is
+    // bell-shaped, so its outer bins starve. If this control ever passes, the
+    // equalization step has been deleted and every coverage number in the
+    // registry silently stopped meaning what it says.
+    {
+        int bins[10] = {};
+        for (int ix = 0; ix < N; ++ix) {
+            for (int iz = 0; iz < N; ++iz) {
+                const float u = clump_detail::value_noise(
+                    {static_cast<float>(ix) * 0.61f, static_cast<float>(iz) * 0.61f},
+                    777u);
+                ++bins[std::clamp(static_cast<int>(u * 10.0f), 0, 9)];
+            }
+        }
+        bool all_bins_fair = true;
+        for (const int b : bins) {
+            const float share = static_cast<float>(b) / (static_cast<float>(N) * N);
+            if (share <= 0.08f || share >= 0.12f) all_bins_fair = false;
+        }
+        CHECK_FALSE(all_bins_fair);
+    }
+}
+
+TEST_CASE("clump: coverage is EXACT and the field saturates in drift cores") {
+    // Because the raw field is uniform, "coverage 0.18" must mean exactly the
+    // top 18 % of ground. This is what makes the parameter AUTHORSHIP rather
+    // than a suggestion the noise reinterprets.
+    constexpr int N = 220;
+    for (uint8_t ci = 0; ci < CLUMP_CLASS_COUNT; ++ci) {
+        const auto c = static_cast<ClumpClass>(ci);
+        const ClumpParams p = clump_params(c);
+        const float step = p.wavelength_m * 0.61f;
+        int covered = 0;
+        float top = 0.0f;
+        for (int ix = 0; ix < N; ++ix) {
+            for (int iz = 0; iz < N; ++iz) {
+                const float f = clump_field(
+                    c, {static_cast<float>(ix) * step, static_cast<float>(iz) * step},
+                    777u);
+                CHECK(f >= 0.0f);
+                CHECK(f <= 1.0f);
+                if (f > 0.0f) ++covered;
+                top = std::max(top, f);
+            }
+        }
+        const float frac = static_cast<float>(covered) / (static_cast<float>(N) * N);
+        CHECK(std::fabs(frac - p.coverage) < 0.025f);
+        // Drift interiors reach full strength — a field that never saturates
+        // is a global density dimmer, not clumping.
+        CHECK(top > 0.95f);
+    }
+}
+
+TEST_CASE("clump: wavelength IS the drift scale, and classes are independent") {
+    const ClumpClass c = ClumpClass::Flowers;
+    const float wl = clump_params(c).wavelength_m;
+    double near_d = 0.0;
+    double far_d = 0.0;
+    double cross = 0.0;
+    constexpr int N = 4000;
+    for (int i = 0; i < N; ++i) {
+        const glm::vec2 p{static_cast<float>(i % 63) * 7.3f,
+                          static_cast<float>(i / 63) * 7.7f};
+        const float u0 = clump_raw(c, p, 777u);
+        near_d += std::fabs(clump_raw(c, p + glm::vec2{wl * 0.15f, 0.0f}, 777u) - u0);
+        far_d += std::fabs(clump_raw(c, p + glm::vec2{wl * 4.0f, 1.7f * wl}, 777u) - u0);
+        // Independence across classes: the mushroom field at the SAME point.
+        const float m0 = clump_raw(ClumpClass::Mushrooms, p, 777u);
+        cross += (static_cast<double>(u0) - 0.5) * (static_cast<double>(m0) - 0.5);
+    }
+    // Nearby (a sixth of a wavelength) the field barely moves; four
+    // wavelengths away it is as unrelated as two uniform draws (E|u-v| = 1/3).
+    CHECK(near_d / N < 0.12);
+    CHECK(far_d / N > 0.26);
+    // Class independence: covariance of two independent U(0,1) is 0
+    // (1/12 = 0.083 would be perfect correlation).
+    CHECK(std::fabs(cross / N) < 0.012);
+    // CONTROL for the independence metric: a field against ITSELF measures
+    // full covariance, so the bound above cannot be satisfied by accident.
+    double self = 0.0;
+    for (int i = 0; i < N; ++i) {
+        const glm::vec2 p{static_cast<float>(i % 63) * 7.3f,
+                          static_cast<float>(i / 63) * 7.7f};
+        const float u0 = clump_raw(c, p, 777u);
+        self += (static_cast<double>(u0) - 0.5) * (static_cast<double>(u0) - 0.5);
+    }
+    CHECK_FALSE(std::fabs(self / N) < 0.012);
+}
+
+TEST_CASE("clump: the edge gradient FLOORS the field (design amendment 2)") {
+    // BR-3 must hold WHATEVER the clump field says: a coverage gap in the
+    // flower field must not bare a path margin. Find a real zero of the field
+    // and check the edge floor fills it.
+    const ClumpClass c = ClumpClass::Flowers;
+    glm::vec2 bare{-1.0f, -1.0f};
+    for (int i = 0; i < 4000; ++i) {
+        const glm::vec2 p{static_cast<float>(i % 63) * 9.1f,
+                          static_cast<float>(i / 63) * 8.3f};
+        if (clump_field(c, p, 777u) == 0.0f) {
+            bare = p;
+            break;
+        }
+    }
+    REQUIRE(bare.x >= 0.0f);
+    // On the margin the floor is FULL even where the field is bare...
+    CHECK(clump_field_edged(c, bare, 777u, 0.0f) == doctest::Approx(1.0f));
+    CHECK(clump_field_edged(c, bare, 777u, 1.0f) > 0.4f);
+    // ...beyond the band the field speaks alone...
+    CHECK(clump_field_edged(c, bare, 777u, 3.0f) == doctest::Approx(0.0f));
+    // ...and the floor never SUBTRACTS: edged >= bare field everywhere.
+    for (int i = 0; i < 500; ++i) {
+        const glm::vec2 p{static_cast<float>(i) * 3.3f, static_cast<float>(i) * 1.9f};
+        for (const float d : {0.0f, 0.8f, 1.9f, 4.0f}) {
+            CHECK(clump_field_edged(c, p, 777u, d) >= clump_field(c, p, 777u) - 1e-6f);
+        }
+    }
+}
+
+TEST_CASE("clump: mushroom second stage — rings are RINGS, clusters are not") {
+    // Design's blessed split: within a drift, mushrooms are parent-child, and
+    // even parents ring (a ring is also a BR-6 find-catalog entry). A ring
+    // means near-constant radius; a cluster means spread radii.
+    glm::vec2 out[16];
+    const int n_ring = mushroom_ring_offsets(42ull * 2ull, out, 16); // even
+    REQUIRE(n_ring >= 5);
+    float mean_r = 0.0f;
+    for (int i = 0; i < n_ring; ++i) mean_r += glm::length(out[i]);
+    mean_r /= static_cast<float>(n_ring);
+    float dev = 0.0f;
+    for (int i = 0; i < n_ring; ++i) {
+        dev += std::fabs(glm::length(out[i]) - mean_r);
+    }
+    CHECK(mean_r > 0.6f);
+    CHECK(dev / static_cast<float>(n_ring) / mean_r < 0.12f); // a RING
+
+    glm::vec2 out2[16];
+    const int n_cl = mushroom_ring_offsets(43ull * 2ull + 1ull, out2, 16); // odd
+    REQUIRE(n_cl >= 3);
+    float mean2 = 0.0f;
+    for (int i = 0; i < n_cl; ++i) mean2 += glm::length(out2[i]);
+    mean2 /= static_cast<float>(n_cl);
+    float dev2 = 0.0f;
+    for (int i = 0; i < n_cl; ++i) {
+        dev2 += std::fabs(glm::length(out2[i]) - mean2);
+    }
+    // CONTROL for the ring metric: the cluster must FAIL the ring criterion.
+    CHECK_FALSE(dev2 / static_cast<float>(std::max(n_cl, 1)) / std::max(mean2, 0.01f)
+                < 0.12f);
+
+    // Determinism.
+    glm::vec2 again[16];
+    const int n2 = mushroom_ring_offsets(42ull * 2ull, again, 16);
+    REQUIRE(n2 == n_ring);
+    for (int i = 0; i < n2; ++i) {
+        CHECK(again[i].x == out[i].x);
+        CHECK(again[i].y == out[i].y);
     }
 }

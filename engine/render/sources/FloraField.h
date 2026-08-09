@@ -1,0 +1,250 @@
+/*
+Created: 10:08:2026 - 02:16:00
+Last updated: 10:08:2026 - 02:16:00
+Module: engine/render
+File: engine/render/sources/FloraField.h
+
+Responsibility:
+- THE CLUMP FIELD (user-ratified в19г: clumping is an AUTHORED FIELD, not
+  randomness; design blessed the spec 10.08.2026 with amendments, LANDSCAPE
+  §1.7 BR-4). A seeded, deterministic, low-frequency scalar field per
+  ground-cover class; core's scatter density for that class MULTIPLIES by it,
+  so flowers come in drifts, mushrooms in rings, moss in patches — Tsushima's
+  clumping-factor lesson (LIVING_WORLD_RESEARCH §A3/§A7).
+
+Key items:
+- ClumpClass, ClumpParams, clump_params(), clump_raw(), clump_field(),
+  clump_field_edged(), mushroom_ring_offsets().
+
+Dependencies:
+- Uses: glm and <cstdint> ONLY — deliberately dependency-free so the file can
+  move to engine/core/math (core's zone) the day worldgen consumes it; the DAG
+  forbids engine/world including engine/render, so this header's PRESENT home
+  is provisional and its portability is a design property, not tidiness.
+- Used by: ProcFloraTests (Rule 31 verification); core's WorldgenScatter once
+  the placement wiring lands (messaged 10.08.2026).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly; zone contract docs/specs/flora.md.
+- PURE AND DETERMINISTIC. Same (class, xz, seed) -> same value, all platforms.
+- THE RAW FIELD IS UNIFORM ON [0,1] BY CONSTRUCTION (rank equalization through
+  a deterministic CDF table), and Rule 31 asserts it with the un-equalized
+  noise as the failing control. Do not remove the equalization step: value
+  noise is bell-shaped, and every threshold below would silently stop meaning
+  what it says (this project has already shipped a field that never left the
+  top 60 % of its range — every constant tuned against it was tuned against a
+  lie).
+- COMPOSITION ORDER IS DESIGN'S AMENDMENT AND IT IS BINDING:
+      density(class, xz) = base(class) x clump(class, xz)
+                           x edge_gradient(dist_to_path) x exclusions
+  and the edge gradient acts as a FLOOR on the field (clump_field_edged), so a
+  coverage gap in the flower field can never bare a path margin — BR-3's ratio
+  clauses (rich edge >= 3x far-field, ~0 on the trodden centre) must hold
+  WHATEVER the clump field says. The trodden-centre zero is core's exclusion
+  mask, not this file's job.
+- The per-class parameter values are design-signed PROPOSALS routed to the
+  lead as CLUMP_WAVELENGTH_<CLASS> / CLUMP_COVERAGE_<CLASS> /
+  CLUMP_CONTRAST_<CLASS>; once the rows land in NUMBERS.md, clump_params()
+  reads the generated Constants.h and the literals here die (Rule 14).
+*/
+/*
+UPD:
+- 10:08:2026 - 02:16:00: Created — field machinery per design's blessed spec:
+  per-class seeded low-frequency field with WAVELENGTH / COVERAGE / CONTRAST
+  as the authorship, rank-equalized raw noise (Rule 31), the edge-floor
+  composition (design amendment 2), and the mushroom ring second stage
+  (parent-child under the field, not more noise).
+*/
+
+#pragma once
+
+#include <glm/vec2.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+
+namespace dfn::render {
+
+/// Ground-cover classes that clump. Each gets an INDEPENDENT field (same
+/// machinery, different salt), so a flower drift and a mushroom colony do not
+/// mysteriously share a shoreline.
+enum class ClumpClass : uint8_t {
+    Flowers = 0,
+    Mushrooms = 1,
+    Moss = 2,
+    GrassTufts = 3,
+    Pebbles = 4,
+};
+inline constexpr uint8_t CLUMP_CLASS_COUNT = 5;
+
+/// The authorship. Tsushima paints clump maps by hand; our author is three
+/// numbers per class (design's ruling: "the per-class parameters ARE the
+/// paint").
+struct ClumpParams {
+    float wavelength_m = 20.0f; ///< drift size: field feature scale
+    float coverage = 0.2f;      ///< fraction of ground carrying the class AT ALL
+    float contrast = 0.6f;      ///< 0 = gentle waxing, 1 = hard drift edges
+};
+
+namespace clump_detail {
+
+inline uint64_t mix64(uint64_t x) {
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
+inline float lattice(int32_t x, int32_t z, uint32_t seed) {
+    const uint64_t h = mix64((static_cast<uint64_t>(static_cast<uint32_t>(x)) << 32)
+                             ^ static_cast<uint32_t>(z) ^ (static_cast<uint64_t>(seed) << 17));
+    return static_cast<float>(h >> 40) / 16777216.0f;
+}
+
+/// One octave of value noise with smoothstep interpolation, plus a second
+/// octave at half amplitude for interior variety. NOT uniform — see cdf_u().
+inline float value_noise(glm::vec2 p, uint32_t seed) {
+    auto octave = [&](glm::vec2 q, uint32_t s) {
+        const float fx = std::floor(q.x);
+        const float fz = std::floor(q.y);
+        const auto x0 = static_cast<int32_t>(fx);
+        const auto z0 = static_cast<int32_t>(fz);
+        const float tx0 = q.x - fx;
+        const float tz0 = q.y - fz;
+        const float tx = tx0 * tx0 * (3.0f - 2.0f * tx0);
+        const float tz = tz0 * tz0 * (3.0f - 2.0f * tz0);
+        const float a = lattice(x0, z0, s);
+        const float b = lattice(x0 + 1, z0, s);
+        const float c = lattice(x0, z0 + 1, s);
+        const float d = lattice(x0 + 1, z0 + 1, s);
+        return (a * (1.0f - tx) + b * tx) * (1.0f - tz)
+            + (c * (1.0f - tx) + d * tx) * tz;
+    };
+    return (octave(p, seed) * 2.0f + octave(p * 2.03f, seed ^ 0x9E37u)) / 3.0f;
+}
+
+/// Rank equalization: maps the bell-shaped value noise onto UNIFORM [0,1]
+/// through its own empirical CDF, sampled once, deterministically. After this,
+/// "coverage 0.18" means EXACTLY the top 18 % of ground — a threshold on a
+/// non-uniform field means whatever the bell decides, which is Rule 31's
+/// defect wearing a hat.
+inline float cdf_u(float n) {
+    static const std::array<float, 257> table = [] {
+        std::array<uint32_t, 1024> hist{};
+        constexpr int SAMPLES = 512;
+        for (int ix = 0; ix < SAMPLES; ++ix) {
+            for (int iz = 0; iz < SAMPLES; ++iz) {
+                const glm::vec2 p{static_cast<float>(ix) * 0.173f + 0.031f,
+                                  static_cast<float>(iz) * 0.229f + 0.017f};
+                const float v = std::clamp(value_noise(p, 0xC1F0u), 0.0f, 0.999f);
+                ++hist[static_cast<size_t>(v * 1024.0f)];
+            }
+        }
+        std::array<float, 257> t{};
+        const float total = static_cast<float>(SAMPLES) * SAMPLES;
+        uint64_t run = 0;
+        // t[i] = CDF at n = i/256.
+        size_t coarse = 0;
+        for (size_t i = 0; i < 1024; ++i) {
+            run += hist[i];
+            if ((i + 1) % 4 == 0) {
+                t[++coarse] = static_cast<float>(run) / total;
+            }
+        }
+        t[0] = 0.0f;
+        t[256] = 1.0f;
+        return t;
+    }();
+    const float x = std::clamp(n, 0.0f, 1.0f) * 256.0f;
+    const auto i = static_cast<size_t>(std::min(x, 255.0f));
+    const float f = x - static_cast<float>(i);
+    return table[i] * (1.0f - f) + table[i + 1] * f;
+}
+
+} // namespace clump_detail
+
+/// Design-signed proposals (10.08.2026) pending their NUMBERS.md rows —
+/// CLUMP_WAVELENGTH/COVERAGE/CONTRAST_<CLASS>. Cite the names once they land.
+[[nodiscard]] inline ClumpParams clump_params(ClumpClass c) {
+    switch (c) {
+    case ClumpClass::Flowers:    return {24.0f, 0.18f, 0.75f};
+    case ClumpClass::Mushrooms:  return {11.0f, 0.10f, 0.85f};
+    case ClumpClass::Moss:       return {13.0f, 0.22f, 0.55f};
+    case ClumpClass::GrassTufts: return {32.0f, 0.55f, 0.35f};
+    case ClumpClass::Pebbles:    return {16.0f, 0.15f, 0.65f};
+    }
+    return {};
+}
+
+/// The RAW field: uniform on [0,1] by construction (rank-equalized), feature
+/// scale = the class wavelength, independent per class. This is the object
+/// Rule 31 verifies; everything below is shaping.
+[[nodiscard]] inline float clump_raw(ClumpClass c, glm::vec2 world_xz, uint32_t seed) {
+    const ClumpParams p = clump_params(c);
+    const uint32_t salt = seed ^ (0x517CC1B7u * (static_cast<uint32_t>(c) + 1u));
+    return clump_detail::cdf_u(
+        clump_detail::value_noise(world_xz / std::max(p.wavelength_m, 1.0f), salt));
+}
+
+/// The FIELD: what scatter density multiplies by. Zero outside the covered
+/// fraction; rises toward 1 in drift interiors, with contrast setting how hard
+/// the edge snaps. Because the raw field is uniform, `coverage` is exact:
+/// the field is non-zero on exactly that fraction of ground (asserted).
+[[nodiscard]] inline float clump_field(ClumpClass c, glm::vec2 world_xz, uint32_t seed) {
+    const ClumpParams p = clump_params(c);
+    const float u = clump_raw(c, world_xz, seed);
+    const float t = (u - (1.0f - p.coverage)) / std::max(p.coverage, 1e-4f);
+    if (t <= 0.0f) return 0.0f;
+    // Contrast: the drift saturates after `1 - contrast` of its rise, so high
+    // contrast = a plateau with a crisp rim, low contrast = a gentle swell.
+    const float edge = std::max(1.0f - p.contrast * 0.85f, 0.10f);
+    const float s = std::min(t / edge, 1.0f);
+    return s * s * (3.0f - 2.0f * s);
+}
+
+/// DESIGN AMENDMENT 2 (binding): near a path the edge gradient FLOORS the
+/// field, so a clump-coverage gap can never bare a margin — BR-3's rich edge
+/// must exist whatever the field says. `dist_to_path_m` is distance to the
+/// path EDGE (not centreline); core owes the trodden-centre exclusion
+/// separately. Returns the field value to multiply into density.
+[[nodiscard]] inline float clump_field_edged(ClumpClass c, glm::vec2 world_xz,
+                                             uint32_t seed, float dist_to_path_m) {
+    constexpr float EDGE_BAND_M = 2.5f; // the rich margin (research §A6.3)
+    const float f = clump_field(c, world_xz, seed);
+    if (dist_to_path_m >= EDGE_BAND_M) return f;
+    const float t = std::max(dist_to_path_m, 0.0f) / EDGE_BAND_M;
+    const float ramp = 1.0f - t * t * (3.0f - 2.0f * t); // 1 at the edge -> 0
+    return std::max(f, ramp);
+}
+
+/// SECOND STAGE under the mushroom field (design's blessed split): within a
+/// drift, mushrooms arrive as ring/cluster CHILDREN of a parent point, not as
+/// more noise. Given the parent's seed, returns up to `max_out` XZ offsets in
+/// metres. Even parents ring (the find-catalog entry design named — a ring can
+/// be promoted to a BR-6 find), odd parents clump.
+inline int mushroom_ring_offsets(uint64_t parent_seed, glm::vec2* out, int max_out) {
+    using clump_detail::mix64;
+    uint64_t s = mix64(parent_seed);
+    auto unit = [&s] {
+        s = mix64(s);
+        return static_cast<float>(s >> 40) / 16777216.0f;
+    };
+    // Parity of the PARENT SEED itself, not of a hash of it: "even parents
+    // ring" is a contract core can rely on when promoting a ring to a BR-6
+    // find, so it must be legible from the seed, not an accident of mixing.
+    const bool ring = (parent_seed & 1u) == 0u;
+    const int n = std::min(max_out, ring ? 6 + static_cast<int>(unit() * 4.0f)
+                                         : 4 + static_cast<int>(unit() * 3.0f));
+    const float radius = ring ? 0.9f + unit() * 1.1f : 0.35f + unit() * 0.4f;
+    for (int i = 0; i < n; ++i) {
+        const float az = 6.2831853f * (static_cast<float>(i) + unit() * 0.35f)
+            / static_cast<float>(n);
+        const float r = radius * (ring ? 0.9f + unit() * 0.2f : unit());
+        out[i] = glm::vec2{std::cos(az) * r, std::sin(az) * r};
+    }
+    return n;
+}
+
+} // namespace dfn::render

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 09:08:2026 - 21:18:02
+Last updated: 10:08:2026 - 01:59:06
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -36,6 +36,12 @@ UPD:
   rather than against the envelope (oak 0.45 -> 0.48, birch 0.30 -> 0.52): the
   achieved diameter is ~0.7-0.9 of nominal, and the birch had drifted a third
   under design's 5-7 m brief.
+- 10:08:2026 - 01:59:06: §5.10 forest floor becomes real objects: the snag
+  gains truncated stubs and its SPLIT (Snag weathered grey / SnagPale bone —
+  one geometry, two materials, the design §5.10 model); logs gain moss on the
+  upper side, broken stubs and (big class) an upturned root plate. Pine sprays
+  2 -> 3 planes under the new render-spec floor: card count buys ANGULAR
+  COVERAGE against the worst azimuth.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -64,8 +70,14 @@ constexpr glm::vec3 BIRCH_CROWN{0.55f, 0.62f, 0.30f};
 constexpr glm::vec3 WILLOW_CROWN{0.20f, 0.30f, 0.16f};
 constexpr glm::vec3 WILLOW_TRUNK{0.17f, 0.14f, 0.11f};
 constexpr glm::vec3 SNAG_WEATHERED{0.42f, 0.39f, 0.34f};
+// Bone-white, deliberately UNDER the birch bole (0.88) so the open-field snag
+// is the brightest DEAD thing without contesting the brightest LIVE one.
+constexpr glm::vec3 SNAG_BONE{0.78f, 0.75f, 0.66f};
 constexpr glm::vec3 BUSH_GREEN{0.35f, 0.47f, 0.22f};
 constexpr glm::vec3 DEADWOOD{0.31f, 0.27f, 0.21f};
+// Moss reads as a HUE step against dead wood, not a value step: close in
+// luminance to DEADWOOD, well apart in green. Full-colour basis (user ruling).
+constexpr glm::vec3 LOG_MOSS{0.20f, 0.33f, 0.12f};
 
 std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     std::array<SpeciesParams, FLORA_SPECIES_COUNT> t{};
@@ -209,7 +221,14 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     pine.foliage = FoliageShape::Card;
     pine.card_width_frac = 1.30f;
     pine.card_aspect = 0.62f; // a needle spray is wider than it is deep
-    pine.cards_per_cluster = 2; // same edge-on exposure as the birch had
+    // THREE PLANES IS NOW THE FLOOR FOR CARD FOLIAGE (render-spec constraint,
+    // 10.08.2026): card count buys ANGULAR COVERAGE and is chosen against the
+    // WORST azimuth, not the average one. Two was the birch's defect surviving
+    // in the pine at lower odds — a 2-plane spray still has viewing directions
+    // where its projected area collapses, and 46 sprays only made the failure
+    // statistical instead of certain. The suite now measures worst-azimuth
+    // coverage per cluster with a parallel-plane control.
+    pine.cards_per_cluster = 3;
     pine.tone_first = LeafTone::ConiferDark;
     pine.tone_count = 1;
     pine.card_shape_a = LeafShape::NeedleFan;
@@ -339,6 +358,12 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     willow.foliage_color = WILLOW_CROWN;
 
     // --- Snag: no crown; the only flora legal at full height in a wedge -----
+    // A SNAG IS NOT A TREE WITH ZERO LEAVES. A winter oak is a live skeleton:
+    // full limb spread, fine ramification. A snag is what is LEFT of one —
+    // broken blunt top, a handful of truncated stubs where the limbs snapped
+    // off, nothing fine surviving. The suite separates the three objects
+    // (snag / winter tree / bare pole) on limb reach, with the bare pole — the
+    // asset this entry used to build — as the real rejected control.
     SpeciesParams& snag = t[static_cast<size_t>(FloraSpecies::Snag)];
     snag.name = "Snag";
     snag.envelope = CrownEnvelope::None;
@@ -356,11 +381,24 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     snag.phototropism = 0.0f;
     snag.droop = 0.0f;
     snag.cluster_count = 0;
-    snag.trunk_color = SNAG_WEATHERED; // in-forest value; open-ground is paler
+    snag.stub_count = 5;      // truncated dead limbs; band asserted in the suite
+    snag.stub_len_frac = 0.085f; // ~1-1.7 m on a 12-20 m snag: stubs, not limbs
+    snag.trunk_color = SNAG_WEATHERED; // in-forest look (SNAG_DENSITY_FOREST_*)
     snag.twig_color = SNAG_WEATHERED * 0.85f;
     snag.foliage_color = SNAG_WEATHERED;
     snag.shyness = 0.0f;
     snag.lean_response = 0.0f;
+
+    // --- SnagPale: the SAME asset, open-ground material (design §5.10) ------
+    // «a pale snag alone in a meadow is a landmark; a grey snag in a wood is
+    // weather» — one geometry, two values, two densities. Geometry identity per
+    // variant is asserted in the suite, so nobody can quietly fork the shape.
+    SpeciesParams& snag_pale = t[static_cast<size_t>(FloraSpecies::SnagPale)];
+    snag_pale = snag;
+    snag_pale.name = "SnagPale";
+    snag_pale.trunk_color = SNAG_BONE;
+    snag_pale.twig_color = SNAG_BONE * 0.88f;
+    snag_pale.foliage_color = SNAG_BONE;
 
     // --- Bush: ground texture ----------------------------------------------
     SpeciesParams& bush = t[static_cast<size_t>(FloraSpecies::Bush)];
@@ -394,6 +432,11 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     big.cluster_radius_frac = 0.52f;
 
     // --- Fallen logs: the trunk generator, lying down -----------------------
+    // THE REJECTED INSTANCE IS A FLOATING CYLINDER. What separates a fallen
+    // TREE from a cylinder: it touches the ground along its whole length (the
+    // suite asserts every axial slice is part-buried, with a floated copy as
+    // the control), it carries moss on its UPPER side, broken limb stubs, and
+    // — for the big class — the upturned root plate where it tore out.
     SpeciesParams& log = t[static_cast<size_t>(FloraSpecies::FallenLog)];
     log.name = "FallenLog";
     log.envelope = CrownEnvelope::None;
@@ -409,6 +452,11 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     log.crown_width_frac = 0.0f;
     log.has_skeleton = false;
     log.cluster_count = 0;
+    log.stub_count = 3;
+    log.stub_len_frac = 0.07f; // ~0.6-1 m: snapped in the fall, not a rack
+    log.root_plate = true;
+    log.moss_cover = 0.45f;
+    log.moss_color = LOG_MOSS;
     log.trunk_color = DEADWOOD;
     log.foliage_color = DEADWOOD;
     log.shyness = 0.0f;
@@ -424,6 +472,10 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     dead.trunk_radius_frac = 0.062f;
     dead.trunk_sides = 5;
     dead.trunk_segments = 3;
+    dead.stub_count = 1;     // a branch piece, not a trunk: one snag of a limb
+    dead.stub_len_frac = 0.10f;
+    dead.root_plate = false; // deadfall is shed wood; it never had roots
+    dead.moss_cover = 0.22f; // younger wood on the ground mosses less
 
     return t;
 }

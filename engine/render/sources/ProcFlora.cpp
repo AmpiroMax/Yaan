@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 09:08:2026 - 23:52:07
+Last updated: 10:08:2026 - 01:59:06
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -62,6 +62,16 @@ UPD:
   tiers is precisely «юбки». Branch radii come from the pipe model over trunk
   and crown as one structure. File split for Rule 21: the geometry primitives
   moved to FloraBuild.{h,cpp} and the neighbour analysis to FloraNeighbours.cpp.
+- 10:08:2026 - 01:59:06: §5.10 forest floor built as OBJECTS: snags gain a
+  broken blunt top with shards and truncated stubs on the real swept axis
+  (TrunkRing path — the §3.7 lesson applied in advance), with the snag split
+  as one geometry / two materials (SnagPale seeds as Snag); fallen logs gain
+  butt swell, an upturned root plate, snapped stubs and upper-side moss in
+  cell-noise patches, ground contact along their whole length asserted with a
+  floated control. flora_maturity_for() gives the 25/60/12/3 tier draw its one
+  home. Card LODs keep >= 3 planes per cluster (render-spec floor: plane count
+  buys angular coverage, and the edge-on failure is angle-, not distance-,
+  dependent).
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -371,16 +381,33 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
     const uint32_t clusters = (t.lod == FloraLod::Reduced)
         ? std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u)
         : sp.cluster_count;
+    // THREE PLANES IS THE FLOOR AT EVERY CARD LOD (render-spec constraint,
+    // 10.08.2026). The edge-on failure is a property of viewing ANGLE, not of
+    // viewing distance, so Reduced may not spend its saving on plane count —
+    // it spends on cluster count and on the skeleton instead. A 2-plane
+    // cluster at 150 m vanishes at the same azimuths a near one does.
     emit_anchored_foliage(m, t, sk, clusters,
                           (t.lod == FloraLod::Reduced)
-                              ? std::max(1, sp.cards_per_cluster - 1)
+                              ? std::max(3, sp.cards_per_cluster - 1)
                               : -1);
 }
 
 
+/// One sample of the swept trunk axis: where the bole actually IS at a given
+/// parameter, so dead-wood detail (stubs, the broken top) attaches to the real
+/// swept axis instead of to the notional straight one. Attaching to the
+/// notional element instead of the thing that exists is the §3.7 pattern, and
+/// this struct exists so the snag does not become its fifth instance.
+struct TrunkRing {
+    glm::vec3 pos{0.0f};
+    glm::vec3 dir{0.0f, 1.0f, 0.0f};
+    float radius = 0.0f;
+};
+
 /// Trunk with root flare. Returns the top point and its direction.
 glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
-                      float radius, glm::vec3* out_dir) {
+                      float radius, glm::vec3* out_dir,
+                      std::vector<TrunkRing>* out_path = nullptr) {
     const SpeciesParams& sp = t.sp;
     const int segments = std::max<int>(2, (t.lod == FloraLod::Silhouette)
                                               ? 2
@@ -406,6 +433,10 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
             : glm::vec3{1.0f, 0.0f, 0.0f};
     const float bend = sp.trunk_sweep + t.shape.lean;
 
+    const float path_floor_r = SHADOW_MIN_DIAMETER * 0.5f;
+    if (out_path) {
+        out_path->push_back(TrunkRing{p, d, std::max(radius, path_floor_r)});
+    }
     for (int s = 0; s < segments; ++s) {
         d = safe_normalize(d + sweep_dir * (bend / static_cast<float>(segments)), d);
         const float t0 = static_cast<float>(s) / static_cast<float>(segments);
@@ -421,9 +452,198 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
         tube_segment(m, p, next, d, std::max(r0, floor_r), std::max(r1, floor_r), sides,
                      t.wood);
         p = next;
+        if (out_path) {
+            out_path->push_back(TrunkRing{p, d, std::max(r1, floor_r)});
+        }
     }
     if (out_dir) *out_dir = d;
     return p;
+}
+
+// --- Dead wood: the §5.10 forest-floor classes ------------------------------
+
+/// A SNAPPED dead limb: one tapered tube ending in a short splinter cone. The
+/// splinter is what says "broken", the truncation is what says "dead" — a limb
+/// of live length with no foliage says "winter", which is a different object.
+void snapped_stub(MeshData& m, glm::vec3 base, glm::vec3 dir, float len,
+                  float r0, uint32_t color) {
+    if (len <= 0.05f || r0 <= 0.02f) return;
+    dir = safe_normalize(dir, glm::vec3{0.0f, 1.0f, 0.0f});
+    const glm::vec3 snap = base + dir * len;
+    const int sides = (r0 > 0.15f) ? 4 : 3;
+    tube_segment(m, base, snap, dir, r0, r0 * 0.45f, sides, color);
+    // The splinter: a very short cone past the break.
+    tube_segment(m, snap, snap + dir * std::min(0.18f * len, 0.25f), dir, r0 * 0.45f,
+                 0.0f, 3, color);
+}
+
+/// What makes a snag ITS OWN OBJECT rather than a bare pole or a leafless tree:
+/// a broken BLUNT top with shards, and a handful of truncated stubs where the
+/// limbs snapped. Limb reach is deliberately BETWEEN the two controls the suite
+/// runs — above a pole's (which has none), below a winter broadleaf's (whose
+/// limbs measure >= 0.166 of height).
+void build_snag_detail(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
+                       Rng& rng) {
+    if (path.size() < 2) return;
+    const SpeciesParams& sp = t.sp;
+    const float h = t.height;
+
+    // Broken top: three shards standing off the top ring. Small (0.4-0.8 m),
+    // so they read as splintered wood on a blunt break, never as a spire.
+    const TrunkRing& top = path.back();
+    const glm::vec3 u = perp_of(top.dir);
+    const glm::vec3 v = glm::cross(top.dir, u);
+    for (int k = 0; k < 3; ++k) {
+        const float az = TAU * (static_cast<float>(k) + rng.unit() * 0.5f) / 3.0f;
+        const float az2 = az + 0.45f + rng.unit() * 0.3f;
+        const glm::vec3 rim_a = top.pos + (u * std::cos(az) + v * std::sin(az)) * top.radius;
+        const glm::vec3 rim_b =
+            top.pos + (u * std::cos(az2) + v * std::sin(az2)) * top.radius;
+        const float shard_h = 0.4f + rng.unit() * 0.4f;
+        const glm::vec3 tip = (rim_a + rim_b) * 0.5f + top.dir * shard_h
+            + (u * rng.sym() + v * rng.sym()) * 0.08f;
+        tri(m, rim_a, tip, rim_b, t.wood);
+        tri(m, rim_b, tip, rim_a, t.wood); // two-sided: a shard is a sliver
+    }
+
+    // Truncated limb stubs over the upper two thirds of the bole. The FIRST one
+    // is guaranteed long and near-horizontal so the limb-reach floor holds by
+    // construction, not by luck of the draw; the rest are the variation.
+    const int n = static_cast<int>(sp.stub_count);
+    for (int i = 0; i < n; ++i) {
+        const float f = 0.36f + (0.92f - 0.36f) * rng.unit();
+        const float fi = f * (static_cast<float>(path.size()) - 1.0f);
+        const auto i0 = static_cast<size_t>(fi);
+        const size_t i1 = std::min(i0 + 1, path.size() - 1);
+        const float k = fi - static_cast<float>(i0);
+        const glm::vec3 at = path[i0].pos * (1.0f - k) + path[i1].pos * k;
+        const float r_at = path[i0].radius * (1.0f - k) + path[i1].radius * k;
+
+        const float az = rng.unit() * TAU;
+        const float pitch = (i == 0) ? 0.25f + rng.unit() * 0.2f
+                                     : -0.30f + rng.unit() * 0.95f;
+        const glm::vec3 dir{std::cos(az) * std::cos(pitch), std::sin(pitch),
+                            std::sin(az) * std::cos(pitch)};
+        const float len = sp.stub_len_frac * h
+            * ((i == 0) ? 0.95f + rng.unit() * 0.25f : 0.55f + rng.unit() * 0.65f);
+        const float r0 = std::clamp(r_at * 0.5f, SHADOW_MIN_DIAMETER * 0.5f,
+                                    r_at * 0.85f);
+        snapped_stub(m, at + dir * (r_at * 0.6f), dir, len, r0, t.twig);
+    }
+}
+
+/// A fallen tree, not a floating cylinder: the trunk generator laid down along
+/// +X, part-buried along its WHOLE length (the suite asserts every axial slice
+/// dips below the ground datum, with a floated copy as the control), plus the
+/// marks of the fall — an upturned root plate at the butt for the big class,
+/// snapped stubs, and moss on the upper side.
+void build_fallen_log(MeshData& m, Tree& t, Rng& rng) {
+    const SpeciesParams& sp = t.sp;
+    const float len = t.height; // "height" is LENGTH once laid down
+    const float r = len * sp.trunk_radius_frac;
+    const int segs = sp.trunk_segments;
+    const float y0 = r * 0.45f; // axis height: lower half buried on flat ground
+
+    glm::vec3 p{-len * 0.5f, y0, 0.0f};
+    const glm::vec3 d{1.0f, 0.0f, 0.0f};
+    for (int s = 0; s < segs; ++s) {
+        const float f0 = static_cast<float>(s) / static_cast<float>(segs);
+        const float f1 = static_cast<float>(s + 1) / static_cast<float>(segs);
+        // Butt swell on the first ring; then the usual taper to the crown end.
+        const float rr0 = r * ((s == 0) ? 1.12f : (1.0f - 0.35f * f0));
+        const float rr1 = r * (1.0f - 0.35f * f1);
+        const glm::vec3 next = p + d * (len / static_cast<float>(segs));
+        tube_segment(m, p, next, d, rr0, rr1, sp.trunk_sides, t.wood);
+        p = next;
+    }
+
+    if (t.lod != FloraLod::Silhouette) {
+        // The upturned ROOT PLATE: a fallen tree tore out of the ground, and
+        // the disc of roots and earth standing on the butt is the single
+        // strongest "this fell" signal the medium has. Two fans, front and
+        // back, jagged rim; big class only (deadfall is shed wood, it never
+        // had roots).
+        if (sp.root_plate) {
+            const glm::vec3 c{-len * 0.5f, y0, 0.0f};
+            const glm::vec3 n = safe_normalize(glm::vec3{-1.0f, 0.22f + rng.sym() * 0.1f,
+                                                         rng.sym() * 0.15f},
+                                               glm::vec3{-1.0f, 0.0f, 0.0f});
+            const glm::vec3 pu = perp_of(n);
+            const glm::vec3 pv = glm::cross(n, pu);
+            const float rp = r * (1.9f + rng.unit() * 0.4f);
+            constexpr int SPOKES = 8;
+            glm::vec3 rim[SPOKES];
+            for (int k = 0; k < SPOKES; ++k) {
+                const float az = TAU * static_cast<float>(k) / SPOKES;
+                const float rk = rp * (0.68f + rng.unit() * 0.45f);
+                rim[k] = c + (pu * std::cos(az) + pv * std::sin(az)) * rk;
+            }
+            const glm::vec3 off = n * (r * 0.10f);
+            for (int k = 0; k < SPOKES; ++k) {
+                const glm::vec3& a = rim[k];
+                const glm::vec3& b = rim[(k + 1) % SPOKES];
+                tri(m, c + off, a + off, b + off, t.twig); // face away from the log
+                tri(m, c - off, b - off, a - off, t.wood); // face toward it
+            }
+        }
+
+        // Snapped stubs on the exposed upper side.
+        for (int i = 0; i < static_cast<int>(sp.stub_count); ++i) {
+            const float fx = -0.32f + rng.unit() * 0.74f;
+            const float f01 = fx + 0.5f;
+            const float r_x = r * (1.0f - 0.35f * f01);
+            const float theta = rng.sym() * 1.15f; // from up, around the axis
+            const float tilt = rng.sym() * 0.4f;   // lean along the axis
+            const glm::vec3 dir =
+                safe_normalize(glm::vec3{tilt, std::cos(theta), std::sin(theta)},
+                               glm::vec3{0.0f, 1.0f, 0.0f});
+            const glm::vec3 base = glm::vec3{fx * len, y0, 0.0f} + dir * (r_x * 0.7f);
+            const float slen = sp.stub_len_frac * len * (0.7f + rng.unit() * 0.7f);
+            const float r0 = std::clamp(r_x * 0.42f, SHADOW_MIN_DIAMETER * 0.5f,
+                                        r_x * 0.8f);
+            snapped_stub(m, base, dir, slen, r0, t.twig);
+        }
+    }
+
+    // MOSS, upper side only, in patches. Recoloured per FACE (faces own their
+    // vertices under flat shading), gated by the face normal — moss grows where
+    // rain and light land — and by a low-frequency cell noise along the log so
+    // it arrives in patches rather than as paint.
+    if (sp.moss_cover > 0.0f) {
+        const uint32_t moss_a = pack(sp.moss_color);
+        const uint32_t moss_b = pack(sp.moss_color * 1.28f);
+        bool any_moss = false;
+        size_t first_up = m.indices.size();
+        for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
+            platform::Vertex& a = m.vertices[m.indices[i]];
+            platform::Vertex& b = m.vertices[m.indices[i + 1]];
+            platform::Vertex& c = m.vertices[m.indices[i + 2]];
+            if (a.normal.y < 0.40f) continue; // flat-shaded: one normal per face
+            if (first_up == m.indices.size()) first_up = i;
+            const glm::vec3 mid = (a.position + b.position + c.position) / 3.0f;
+            const auto cx = static_cast<uint64_t>(
+                static_cast<int64_t>(std::floor(mid.x / 0.7f)));
+            const auto cz = static_cast<uint64_t>(
+                static_cast<int64_t>(std::floor(mid.z / 0.7f)));
+            const uint64_t hash = mix64(cx * 0x9E3779B1ull ^ mix64(cz ^ t.rng.s));
+            const float gate = static_cast<float>(hash >> 40) / 16777216.0f;
+            if (gate >= sp.moss_cover) continue;
+            const uint32_t moss = ((hash >> 17) & 1u) ? moss_a : moss_b;
+            a.color_rgba = moss;
+            b.color_rgba = moss;
+            c.color_rgba = moss;
+            any_moss = true;
+        }
+        // The user's brief is «поваленные деревья … с мохом»: a log that
+        // declares moss CARRIES moss. A small deadfall has few up-faces, and
+        // at 22 % cover the cell noise can legitimately miss all of them — so
+        // the first up-face mosses as a floor. Colour only; geometry untouched.
+        if (!any_moss && first_up < m.indices.size()) {
+            for (size_t k = 0; k < 3; ++k) {
+                m.vertices[m.indices[first_up + k]].color_rgba = moss_a;
+            }
+        }
+    }
 }
 
 /// Conifer SILHOUETTE-LOD shell: a single cone. This is the ONLY place a solid
@@ -464,6 +684,34 @@ uint32_t flora_variant_for(glm::vec2 world_xz) {
     return static_cast<uint32_t>(mix64(xi * 0x9E3779B1ull ^ mix64(zi)) % FLORA_VARIANTS);
 }
 
+float flora_maturity_for(glm::vec2 world_xz) {
+    // The tier DRAW (design §5.10, TREE_MATURITY_*_PCT = 25/60/12/3), keyed by
+    // quantized world position exactly like flora_variant_for, so it is stable
+    // across runs and chunk borders and needs no field on ScatterInstance.
+    const auto xi =
+        static_cast<uint64_t>(static_cast<int64_t>(std::lround(world_xz.x * 2.0f)));
+    const auto zi =
+        static_cast<uint64_t>(static_cast<int64_t>(std::lround(world_xz.y * 2.0f)));
+    const uint64_t h = mix64(xi * 0x9E3779B1ull ^ mix64(zi ^ 0x5F0AB1ull));
+    const float u = static_cast<float>(h >> 40) / 16777216.0f;      // tier draw
+    const float w = static_cast<float>(mix64(h) >> 40) / 16777216.0f; // in band
+
+    const float giant = static_cast<float>(config::TREE_MATURITY_GIANT_PCT) / 100.0f;
+    const float mature = static_cast<float>(config::TREE_MATURITY_MATURE_PCT) / 100.0f;
+    const float sub = static_cast<float>(config::TREE_MATURITY_SUBMATURE_PCT) / 100.0f;
+
+    // Tier multiplier bands are ASSET GEOMETRY (same standing as taper or crown
+    // fractions), derived from design's own figures: a giant is "maturity > 1"
+    // capped at the 1.5 the FloraShape contract already declares; a sub-mature
+    // tree is design's 14-20 m of a 28 m nominal (0.50-0.70); a sapling is
+    // their "genuinely small" 0.40-0.60. Mature fills the gap so the tiers
+    // TILE the multiplier axis without a hole at 0.70-0.85.
+    if (u < giant) return 1.15f + w * 0.35f;
+    if (u < giant + mature) return 0.85f + w * 0.30f;
+    if (u < giant + mature + sub) return 0.50f + w * 0.20f;
+    return 0.40f + w * 0.20f;
+}
+
 FloraSpecies flora_species_of(math::ScatterSpecies species) {
     switch (species) {
     case math::ScatterSpecies::OakTree: return FloraSpecies::DaleOak;
@@ -501,7 +749,13 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
     FloraMesh parts;
     MeshData& m = parts.wood;
 
-    Rng rng{mix64(static_cast<uint64_t>(species) * 0x1000193ull
+    // THE SNAG SPLIT IS TWO MATERIALS ON ONE ASSET (design §5.10): SnagPale
+    // seeds its rng as Snag, so a given variant is byte-identical geometry in
+    // both looks — asserted in the suite. Fork the seed and you have forked
+    // the asset.
+    const FloraSpecies geo_species =
+        (species == FloraSpecies::SnagPale) ? FloraSpecies::Snag : species;
+    Rng rng{mix64(static_cast<uint64_t>(geo_species) * 0x1000193ull
                   ^ (static_cast<uint64_t>(variant) + 1) * 0x9E3779B97F4A7C15ull)};
 
     float height = sp.height_min + rng.unit() * (sp.height_max - sp.height_min);
@@ -533,7 +787,9 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
         crown_base_frac = std::max(crown_base_frac, from_aspect);
     }
 
-    const bool woody_tree = is_canopy_tree(species) || species == FloraSpecies::Snag;
+    const bool is_snag =
+        species == FloraSpecies::Snag || species == FloraSpecies::SnagPale;
+    const bool woody_tree = is_canopy_tree(species) || is_snag;
     Tree t{sp,
            shape,
            height,
@@ -569,22 +825,11 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
     }
 
     if (species == FloraSpecies::FallenLog || species == FloraSpecies::Deadfall) {
-        // A log IS the trunk generator, laid down: built along +X, half-sunk.
+        // A log IS the trunk generator, laid down along +X, part-buried, with
+        // the marks of the fall (root plate, stubs, upper-side moss).
         // Placement lays it ACROSS the fall line (design's binding doctrine);
         // the yaw for that is the batcher's, not ours.
-        const float len = height;
-        const float r = len * sp.trunk_radius_frac;
-        const int segs = sp.trunk_segments;
-        glm::vec3 p{-len * 0.5f, r * 0.45f, 0.0f};
-        const glm::vec3 d{1.0f, 0.0f, 0.0f};
-        for (int s = 0; s < segs; ++s) {
-            const float f0 = static_cast<float>(s) / static_cast<float>(segs);
-            const float f1 = static_cast<float>(s + 1) / static_cast<float>(segs);
-            const glm::vec3 next = p + d * (len / static_cast<float>(segs));
-            tube_segment(m, p, next, d, r * (1.0f - 0.35f * f0),
-                         r * (1.0f - 0.35f * f1), sp.trunk_sides, t.wood);
-            p = next;
-        }
+        build_fallen_log(m, t, rng);
         return parts;
     }
 
@@ -620,7 +865,16 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
         const float stem_scale = (k == 0) ? 1.0f : (0.74f + t.rng.unit() * 0.22f);
         const float stem_h = height * trunk_height_frac(sp.envelope) * stem_scale;
         glm::vec3 dir{0.0f, 1.0f, 0.0f};
-        const glm::vec3 top = build_trunk(m, t, off, stem_h, t.trunk_r, &dir);
+        std::vector<TrunkRing> path;
+        const bool wants_detail = is_snag && lod != FloraLod::Silhouette;
+        const glm::vec3 top =
+            build_trunk(m, t, off, stem_h, t.trunk_r, &dir,
+                        wants_detail ? &path : nullptr);
+        if (wants_detail) {
+            // The broken top and the truncated stubs are what make a snag its
+            // own object instead of a pole (docs/specs/flora.md §3.4).
+            build_snag_detail(m, t, path, t.rng);
+        }
 
         if (!sp.has_skeleton) {
             // Bushes have no skeleton worth growing: they ARE their foliage, and
