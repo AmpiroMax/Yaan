@@ -23,6 +23,11 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 01:53:17: Counterphase arm sway (в3, the fourth ratified
+                         component): the hand swings opposite the camera's
+                         lateral bob, from the SAME stride clock (Rule 35 —
+                         no second oscillator), scaled by the live bob
+                         amplitude so it is zero at rest.
 - 09:08:2026 - 22:21:30: Created — visible hands.
 - 09:08:2026 - 22:40:04: The flame moves to the torch HEAD via the shared
                          TORCH_FLAME_ABOVE_GRIP row (was burning at the grip).
@@ -41,6 +46,8 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/HeldItem.h"
 #include "engine/gameplay/sources/Item.h"
+#include "engine/gameplay/sources/PlayerMovement.h"
+#include "engine/gameplay/sources/StepFeel.h"
 
 namespace dfn::gameplay {
 
@@ -52,6 +59,11 @@ constexpr float OFFSET_FORWARD = static_cast<float>(config::HAND_OFFSET_FORWARD)
 // The flame sits at the HEAD of the torch, not at the fist holding it. Render
 // builds the stick this long from the same row, so wood and fire cannot drift.
 constexpr float FLAME_ABOVE_GRIP = static_cast<float>(config::TORCH_FLAME_ABOVE_GRIP);
+// Counterphase arm sway (в3): full VIEWMODEL_SWAY_AMPLITUDE at walking bob,
+// scaled by the live amplitude so a stationary hand is perfectly still — the
+// same zero-at-rest construction as the bob itself.
+constexpr float SWAY_AMPLITUDE = static_cast<float>(config::VIEWMODEL_SWAY_AMPLITUDE);
+constexpr float BOB_AT_WALK = static_cast<float>(config::HEADBOB_AMPLITUDE_AT_WALK);
 
 struct Anchor {
     glm::vec3 position{0.0f};
@@ -130,7 +142,18 @@ void update_view_model(ecs::World& world) {
         prev_transform.rotation = transform.rotation;
         prev_transform.scale = transform.scale;
 
-        const Anchor anchor = hand_anchor(*eye);
+        Anchor anchor = hand_anchor(*eye);
+        // Counterphase arm sway: the hand swings OPPOSITE the camera's lateral
+        // bob, from the same stride clock (PlayerState is the one step clock —
+        // Rule 35; agreed with character). The camera's own bob already moves
+        // the anchor with the eye; this adds the arm's pendulum against it.
+        if (const auto* walker = world.get<PlayerState>(part.carrier)) {
+            const float ratio = walker->bob_amplitude / BOB_AT_WALK;
+            const float sway =
+                -bob_lateral(walker->stride_phase, SWAY_AMPLITUDE * ratio);
+            const glm::vec3 right = anchor.rotation * glm::vec3{1.0f, 0.0f, 0.0f};
+            anchor.position += right * sway;
+        }
         transform.position = anchor.position;
         transform.rotation = anchor.rotation;
 

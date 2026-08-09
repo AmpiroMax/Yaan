@@ -25,6 +25,11 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 01:53:17: Step-feel wiring (в3): both wrappers take a
+                         StepContext; the wrapper fills walker with the
+                         iterated entity, post_step now feeds the real
+                         PreviousTransform so the stride runs on actual
+                         displacement.
 - 09:08:2026 - 00:45:08: Stage 2 — initial World wrappers.
 - 09:08:2026 - 22:18:17: player_pre_step takes a water-surface callback,
                          bound to world::ChunkManager::water_surface_at by
@@ -88,11 +93,12 @@ void player_accumulate_input(ecs::World& world, const platform::IInput& input) {
 }
 
 void player_pre_step(ecs::World& world, platform::IPhysics& physics,
-                     const WaterSurfaceFn& water_surface_at) {
+                     const WaterSurfaceFn& water_surface_at, const StepContext& step) {
     for (auto [id, state, transform, prev_transform, camera, prev_camera] :
          world.view<PlayerState, components::Transform, components::PreviousTransform,
                     components::CameraPose, components::PreviousCameraPose>()) {
-        (void)id;
+        StepContext ctx = step;
+        ctx.walker = id;
         // Depth is measured from the FEET (Transform.position is the capsule
         // bottom) against the surface engine/world reports. No callback bound
         // means a world without water — dry, not broken.
@@ -105,15 +111,18 @@ void player_pre_step(ecs::World& world, platform::IPhysics& physics,
             }
         }
         player_pre_step(state, physics, depth, transform, prev_transform, camera,
-                        prev_camera);
+                        prev_camera, ctx);
     }
 }
 
-void player_post_step(ecs::World& world, platform::IPhysics& physics) {
-    for (auto [id, state, transform, camera] :
-         world.view<PlayerState, components::Transform, components::CameraPose>()) {
-        (void)id;
-        player_post_step(state, physics, transform, camera);
+void player_post_step(ecs::World& world, platform::IPhysics& physics,
+                      const StepContext& step) {
+    for (auto [id, state, prev_transform, transform, camera] :
+         world.view<PlayerState, components::PreviousTransform, components::Transform,
+                    components::CameraPose>()) {
+        StepContext ctx = step;
+        ctx.walker = id;
+        player_post_step(state, physics, prev_transform, transform, camera, ctx);
     }
 }
 

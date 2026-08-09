@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 22:31:38
+Last updated: 10:08:2026 - 02:27:07
 -->
 <!--
 UPD:
@@ -16,6 +16,10 @@ UPD:
 - 09:08:2026 - 22:31:38: Interaction stage part 2 — visible hands (ViewModel),
   prop collision (buildings + boulders from the drawn triangles), inventory
   screen state, player action latches, and jump/crouch/swim.
+- 10:08:2026 - 02:27:07: Landscape stage — THE STEP IS AN EVENT (в3): stride
+  clock in PlayerState, FootfallEvents at the bob minima, landing dip, stop
+  settle, FOV coupling, counterphase hand sway; StepAudio (footsteps by
+  surface + wind loop, в12); PlaytestBot v1 (docs/PLAYTEST.md).
 -->
 
 # engine/gameplay
@@ -78,6 +82,25 @@ passed into systems.
   shelving shore. Water depth arrives as a PARAMETER — the authoritative source
   is `world::ChunkManager::water_surface_at`, never the drawn water primitives,
   which over-cover (core's ruling).
+
+- `sources/StepFeel.h` / `StepEvents.h` / `StepAudio.h` (implemented,
+  landscape stage) — THE STEP IS AN EVENT (в3): the stride clock lives in
+  `PlayerState` (phase per full L+R cycle; LEFT plants at
+  `FOOTFALL_PHASE_LEFT`, RIGHT at `FOOTFALL_PHASE_RIGHT`; advanced only by
+  ACTUAL post-step displacement). The bob curve's minima ARE the
+  `FootfallEvent`s; landing dip scales from measured impact; stopping plays a
+  settle micro-curve; `CameraPose.fov_scale` couples to speed. `StepAudio`
+  subscribes and plays the surface-matched take THE SAME TICK (the research's
+  one non-negotiable), plus jump/land/splash one-shots and the wind loop that
+  follows render's wind model (Rule 35: read, never re-derive). character's
+  leg animation consumes the same phase — one clock, several consumers.
+- `sources/PlaytestBot.h` (implemented, v1) — the autonomous playtest
+  (docs/PLAYTEST.md): a bot that writes the same PlayerState input intents a
+  human's keys write (patrol / explorer / soak), cause-based runtime
+  invariants every tick (below_world, below_surface, freefall, speed_bound,
+  water_mismatch, stuck, nan, frame_budget), incident records with artifact
+  writers, nonzero-exit gating. The checker ships with its own Rule 30
+  controls (tests/sim/PlaytestTests.cpp).
 
 ## Usage example
 

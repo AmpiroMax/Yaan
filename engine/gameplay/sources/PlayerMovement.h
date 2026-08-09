@@ -44,6 +44,15 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 01:53:17: THE STEP IS AN EVENT (landscape stage, в3): stride
+                         cycle in PlayerState (the one step clock, Rule 35 —
+                         character's leg animation consumes the same phase);
+                         head bob whose minima fire FootfallEvents; landing
+                         dip from measured impact; stop settle; FOV-speed
+                         coupling via CameraPose.fov_scale; StepContext with
+                         EventBus + surface-class callback. Old signatures
+                         kept as delegating overloads (app rewires via the
+                         lead's block).
 - 09:08:2026 - 00:45:08: Stage 2 — initial movement contract + implementation.
 - 09:08:2026 - 22:18:17: Jump, crouch and swim (v1, user-approved).
                          Locomotion mode enum; jump LATCHES across render
@@ -68,11 +77,15 @@ UPD:
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/ecs/sources/EntityId.h"
+#include "engine/core/math/sources/SurfaceField.h"
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 
 namespace dfn::ecs {
 class World;
+}
+namespace dfn::events {
+class EventBus;
 }
 
 namespace dfn::gameplay {
@@ -124,6 +137,52 @@ struct PlayerState {
     int32_t pending_selection_delta = 0; // + moves down the list
     bool equip_pressed = false;          // put the selected item in the hand
     bool drop_pressed = false;           // let the selected item go into the world
+
+    // --- Stride cycle: THE step clock (в3; Rule 35 state form, agreed with
+    // character 10:08:2026). One clock, several consumers: the camera bob's
+    // minima, the FootfallEvents audio plays, and character's leg animation
+    // all read THIS phase. Convention (cited by character's RIG.md): phase in
+    // [0,1) spans one full stride; the LEFT foot plants at FOOTFALL_PHASE_LEFT
+    // (0.25), the RIGHT at FOOTFALL_PHASE_RIGHT (0.75). The phase advances
+    // only from ACTUAL post-step horizontal displacement (blocked against a
+    // wall the feet stop), HOLDS on stop, and is suspended while airborne.
+    float stride_phase = 0.0f;  // [0,1)
+    float stride_speed = 0.0f;  // actual horizontal speed this tick, m/s
+    float bob_amplitude = 0.0f; // eased vertical half-amplitude, m
+
+    // Landing dip: set on the grounded edge from the measured impact speed.
+    // dip_elapsed >= LANDING_DIP_TIME means inactive.
+    float dip_depth = 0.0f;
+    float dip_elapsed = 1.0e9f;
+    bool airborne = false;    // tracked across ticks for the landing edge
+    float fall_speed = 0.0f;  // downward speed while airborne, for the impact
+
+    // Stop settle: a short overshoot-and-ease when walking ends, seeded from
+    // the live bob offset so the stop continues the last half-step.
+    // settle_elapsed >= STOP_SETTLE_TIME means inactive.
+    float settle_start = 0.0f;
+    float settle_depth = 0.0f;
+    float settle_elapsed = 1.0e9f;
+
+    // FOV-speed coupling (eased toward fov_scale_target, written to
+    // CameraPose.fov_scale each tick).
+    float fov_scale = 1.0f;
+};
+
+// Everything post_step needs to make the step an EVENT rather than a curve:
+// where to publish, who is stepping, what ground is underfoot, and the user's
+// bob setting. Default-constructed = silent (no events, full bob) — existing
+// tests and the pre-wiring app keep exactly their old behavior.
+struct StepContext {
+    events::EventBus* events = nullptr; // null = publish nothing
+    ecs::EntityId walker{};             // carried in every event
+    // Surface class under a world x/z — bind to core's query (app side).
+    // Empty = surface unknown, events report Grass (the least wrong sound).
+    std::function<std::optional<math::SurfaceClass>(glm::vec2)> surface_class_at;
+    // User setting («слайдер боба» — the research's motion-sickness mandate):
+    // scales bob/dip/settle amplitudes. 0 disables the motion entirely;
+    // events still fire — sound and animation are not what causes sickness.
+    float bob_scale = 1.0f;
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------
@@ -146,10 +205,24 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
                      const components::Transform& transform,
                      components::PreviousTransform& prev_transform,
                      const components::CameraPose& camera,
-                     components::PreviousCameraPose& prev_camera);
+                     components::PreviousCameraPose& prev_camera,
+                     const StepContext& step = {});
 
-// Fixed tick, AFTER IPhysics::step: reads back position/grounded and writes
-// the new current Transform + CameraPose (eye = bottom + PLAYER_EYE_HEIGHT).
+// Fixed tick, AFTER IPhysics::step: reads back position/grounded, advances
+// the stride cycle from the ACTUAL displacement (prev_transform -> new
+// position), publishes FootfallEvent at each bob minimum and Landed on the
+// grounded edge, and writes the new current Transform + CameraPose (eye =
+// bottom + PLAYER_EYE_HEIGHT + bob/dip/settle offsets; fov_scale from speed).
+void player_post_step(PlayerState& state, platform::IPhysics& physics,
+                      const components::PreviousTransform& prev_transform,
+                      components::Transform& transform,
+                      components::CameraPose& camera,
+                      const StepContext& step = {});
+
+// Transitional overload (pre-step-feel signature): no previous transform
+// means no measurable displacement, so the stride cycle stays parked — the
+// exact old behavior. Callers migrate to the full signature; kept so the app
+// compiles until the lead lands the wiring block.
 void player_post_step(PlayerState& state, platform::IPhysics& physics,
                       components::Transform& transform,
                       components::CameraPose& camera);
@@ -173,7 +246,11 @@ void player_accumulate_input(ecs::World& world, const platform::IInput& input);
 // tests and headless tools rather than a silent failure: nothing to swim in.
 using WaterSurfaceFn = std::function<std::optional<float>(glm::vec2 world_xz)>;
 void player_pre_step(ecs::World& world, platform::IPhysics& physics,
-                     const WaterSurfaceFn& water_surface_at = {});
-void player_post_step(ecs::World& world, platform::IPhysics& physics);
+                     const WaterSurfaceFn& water_surface_at = {},
+                     const StepContext& step = {});
+// The wrapper fills StepContext.walker with the player entity itself; pass
+// events + surface_class_at bound app-side. Default = old silent behavior.
+void player_post_step(ecs::World& world, platform::IPhysics& physics,
+                      const StepContext& step = {});
 
 } // namespace dfn::gameplay

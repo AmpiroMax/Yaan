@@ -18,6 +18,7 @@
 #   platform access through interfaces passed as parameters only (Rule 9).
 #
 # UPD:
+# - 10:08:2026 - 01:53:17: StepFeel.cpp — the step-as-an-event math (в3).
 # - 09:08:2026 - 00:45:08: Stage 2 — player movement + dice.
 # - 09:08:2026 - 18:56:32: Interaction stage — four verbs, inventory, item
 #                          definitions, prop spawning, save sections.
@@ -38,7 +39,10 @@ add_library(dfn_gameplay STATIC
     sources/PlayerActions.cpp
     sources/PlayerMovement.cpp
     sources/PlayerMovementWorld.cpp
+    sources/PlaytestBot.cpp
     sources/PropCollision.cpp
+    sources/StepAudio.cpp
+    sources/StepFeel.cpp
     sources/ViewModel.cpp)
 
 # dfn_world: gameplay registers its save sections with world::SaveDeltaCodec

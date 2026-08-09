@@ -23,6 +23,14 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 01:53:17: THE STEP IS AN EVENT (landscape stage, в3): stride
+                         advance from ACTUAL displacement, FootfallEvents at
+                         the bob minima, landing dip from measured impact,
+                         stop settle seeded from the live bob offset, FOV
+                         eased toward the speed target. Jumped/WaterEntered
+                         published from pre_step. The stop threshold and the
+                         amplitude-ease tau are DERIVED (documented inline),
+                         not new rows.
 - 09:08:2026 - 00:45:08: Stage 2 — initial implementation.
 - 09:08:2026 - 17:08:40: DEBUG CONVENIENCE (user request): Shift now sprints at
                          RUN_SPEED * DEBUG_SPRINT_MULTIPLIER (30 m/s) for
@@ -46,6 +54,9 @@ UPD:
 #include <glm/gtc/quaternion.hpp>
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/core/events/sources/EventBus.h"
+#include "engine/gameplay/sources/StepEvents.h"
+#include "engine/gameplay/sources/StepFeel.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
 namespace dfn::gameplay {
@@ -87,6 +98,36 @@ const float JUMP_TAKEOFF_SPEED = std::sqrt(2.0f * GRAVITY * static_cast<float>(c
 // above the surface, so the feet hang PLAYER_EYE_HEIGHT below that. Derived
 // for the same reason as the takeoff speed.
 constexpr float SWIM_FLOAT_DRAFT = EYE_HEIGHT - SWIM_EYE_ABOVE;
+
+// Step-feel rows (в3).
+constexpr float DIP_PER_MPS = static_cast<float>(config::LANDING_DIP_PER_MPS);
+constexpr float DIP_MAX = static_cast<float>(config::LANDING_DIP_MAX);
+constexpr float DIP_TIME = static_cast<float>(config::LANDING_DIP_TIME);
+constexpr float SETTLE_TIME = static_cast<float>(config::STOP_SETTLE_TIME);
+constexpr float FOV_EASE = static_cast<float>(config::FOV_SCALE_EASE_TIME);
+
+// DERIVED (documented, not rows — same standing as JUMP_TAKEOFF_SPEED):
+// "stopped" means actual speed under a tenth of walking pace — slower than
+// any commanded gait, so only a real stop (or a wall) crosses it.
+constexpr float STOP_SPEED_EPS = 0.1f * WALK_SPEED;
+// The bob amplitude eases in over roughly half a step at the current pace
+// (tau = half the step duration), so the first stride swells instead of
+// snapping — the number is the stride's own, not a new constant.
+[[nodiscard]] float amplitude_ease_alpha(float speed) {
+    const float step_duration = step_length(speed) / std::max(speed, STOP_SPEED_EPS);
+    const float tau = 0.5f * step_duration;
+    return 1.0f - std::exp(-DT / tau);
+}
+
+[[nodiscard]] math::SurfaceClass surface_under(const StepContext& step,
+                                               const glm::vec3& feet) {
+    if (step.surface_class_at) {
+        if (const auto s = step.surface_class_at(glm::vec2{feet.x, feet.z})) {
+            return *s;
+        }
+    }
+    return math::SurfaceClass::Grass; // unknown ground: the least wrong sound
+}
 
 // True when the player can straighten up: nothing solid within standing height
 // above the feet. The ray starts INSIDE the crouched capsule (never on the
@@ -161,7 +202,8 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
                      const components::Transform& transform,
                      components::PreviousTransform& prev_transform,
                      const components::CameraPose& camera,
-                     components::PreviousCameraPose& prev_camera) {
+                     components::PreviousCameraPose& prev_camera,
+                     const StepContext& step) {
     // 1. Snapshot discipline (Rule 12 contract): prev <- curr, before anything.
     prev_transform.position = transform.position;
     prev_transform.rotation = transform.rotation;
@@ -185,6 +227,11 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
                                  : (state.water_depth >= SWIM_ENTER_DEPTH);
     if (swimming) {
         state.locomotion = Locomotion::Swim;
+        // The plunge is an event (в3/в12): walking became swimming.
+        if (!was_swimming && step.events != nullptr) {
+            step.events->post(WaterEntered{step.walker, transform.position,
+                                           state.water_depth});
+        }
     } else {
         state.locomotion = state.water_depth > 0.0f ? Locomotion::Wade : Locomotion::Ground;
     }
@@ -261,6 +308,9 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
         const bool grounded = physics.character_grounded(state.character);
         if (state.jump_pressed && grounded && !state.crouched) {
             state.vertical_velocity = JUMP_TAKEOFF_SPEED;
+            if (step.events != nullptr) {
+                step.events->post(Jumped{step.walker, transform.position});
+            }
         }
 
         // Gravity (the backend only collides and slides; vertical is ours).
@@ -276,10 +326,31 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
 }
 
 void player_post_step(PlayerState& state, platform::IPhysics& physics,
+                      const components::PreviousTransform& prev_transform,
                       components::Transform& transform,
-                      components::CameraPose& camera) {
+                      components::CameraPose& camera,
+                      const StepContext& step) {
     const glm::vec3 position = physics.character_position(state.character);
-    if (physics.character_grounded(state.character) && state.vertical_velocity < 0.0f) {
+    const bool grounded = physics.character_grounded(state.character);
+    const bool swimming = state.locomotion == Locomotion::Swim;
+
+    // --- Landing edge: measure the impact BEFORE the velocity is zeroed.
+    // The dip and the Landed event both scale from the measured fall, which is
+    // what makes a curb tap nod and a cliff fall sink (research §D1.3).
+    if (state.airborne && grounded && !swimming) {
+        const float impact = std::max(0.0f, state.fall_speed);
+        state.dip_depth = std::min(DIP_PER_MPS * impact, DIP_MAX);
+        state.dip_elapsed = 0.0f;
+        if (step.events != nullptr) {
+            step.events->post(Landed{step.walker, position, impact,
+                                     surface_under(step, position),
+                                     state.water_depth > 0.0f});
+        }
+    }
+    state.airborne = !grounded && !swimming;
+    state.fall_speed = state.airborne ? std::max(0.0f, -state.vertical_velocity) : 0.0f;
+
+    if (grounded && state.vertical_velocity < 0.0f) {
         state.vertical_velocity = 0.0f;
     }
 
@@ -288,11 +359,91 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     // above, our yaw is CW, hence the negation (header conventions).
     transform.rotation = glm::angleAxis(-state.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
 
+    // --- The stride cycle: driven by the ACTUAL horizontal displacement the
+    // solver granted, never the commanded speed — feet stop against a wall,
+    // slide on nothing, and freeze in the air. This is the step clock (Rule 35)
+    // that character's leg animation and the footstep sound both consume.
+    const glm::vec2 moved{position.x - prev_transform.position.x,
+                          position.z - prev_transform.position.z};
+    const float speed = glm::length(moved) / DT;
+    const bool striding = grounded && !swimming;
+
+    if (striding && speed > STOP_SPEED_EPS) {
+        const StrideAdvance adv = advance_stride(state.stride_phase, speed, DT);
+        if (adv.footfalls > 0 && step.events != nullptr) {
+            const math::SurfaceClass surface = surface_under(step, position);
+            const bool wading = state.water_depth > 0.0f;
+            bool left = adv.first_is_left;
+            for (int i = 0; i < adv.footfalls; ++i) {
+                step.events->post(
+                    FootfallEvent{step.walker, position, surface, speed, left, wading});
+                left = !left;
+            }
+        }
+        state.stride_phase = adv.new_phase;
+        // Amplitude swells over ~half a step rather than snapping (tau is the
+        // stride's own duration, derived above).
+        const float target = bob_amplitude_target(speed);
+        state.bob_amplitude += (target - state.bob_amplitude) * amplitude_ease_alpha(speed);
+        // Walking again cancels a settle-in-progress.
+        state.settle_elapsed = 1.0e9f;
+    } else if (state.stride_speed > STOP_SPEED_EPS && striding) {
+        // --- The stop is punctuation, not a freeze: a short overshoot-and-
+        // ease seeded from wherever the bob left the camera, so the settle IS
+        // the landing of the last half-step (the NUMBERS row's derivation).
+        state.settle_start = bob_vertical(state.stride_phase, state.bob_amplitude);
+        state.settle_depth = bob_amplitude_target(state.stride_speed);
+        state.settle_elapsed = 0.0f;
+        state.bob_amplitude = 0.0f; // the settle curve owns the camera now
+    } else if (!striding) {
+        state.bob_amplitude = 0.0f; // airborne/swimming: no ground, no bob
+    }
+    state.stride_speed = striding ? speed : 0.0f;
+
+    // --- Punctuation curves.
+    float dip_offset = 0.0f;
+    if (state.dip_elapsed < DIP_TIME) {
+        dip_offset = -state.dip_depth * punctuation_curve(state.dip_elapsed / DIP_TIME);
+        state.dip_elapsed += DT;
+    }
+    float settle = 0.0f;
+    if (state.settle_elapsed < SETTLE_TIME) {
+        settle = settle_offset(state.settle_elapsed / SETTLE_TIME, state.settle_start,
+                               state.settle_depth);
+        state.settle_elapsed += DT;
+    }
+
+    // --- FOV-speed coupling: eased, clamped by the target formula itself.
+    state.fov_scale += (fov_scale_target(speed) - state.fov_scale)
+                       * (1.0f - std::exp(-DT / FOV_EASE));
+
     // Eye height eases between standing and crouched (the capsule did not).
     const float eye = EYE_HEIGHT + (CROUCH_EYE - EYE_HEIGHT) * state.crouch_blend;
-    camera.position = position + glm::vec3{0.0f, eye, 0.0f};
+    const float vertical =
+        bob_vertical(state.stride_phase, state.bob_amplitude) + dip_offset + settle;
+    const float lateral = bob_lateral(
+        state.stride_phase,
+        static_cast<float>(config::HEADBOB_LATERAL_FACTOR) * state.bob_amplitude);
+    const glm::vec3 right{std::cos(state.yaw), 0.0f, std::sin(state.yaw)};
+    camera.position = position + glm::vec3{0.0f, eye, 0.0f}
+                      + step.bob_scale * (glm::vec3{0.0f, vertical, 0.0f} + right * lateral);
     camera.yaw = state.yaw;
     camera.pitch = state.pitch;
+    camera.fov_scale = state.fov_scale;
+}
+
+void player_post_step(PlayerState& state, platform::IPhysics& physics,
+                      components::Transform& transform,
+                      components::CameraPose& camera) {
+    // Transitional shim (pre-step-feel callers, incl. the app until the lead's
+    // wiring lands): no previous transform = no measurable displacement, and
+    // bob_scale 0 keeps the camera arithmetic EXACTLY as before — stage-2
+    // tests assert eye = feet + EYE_HEIGHT to the bit.
+    const components::PreviousTransform frozen{transform.position, transform.rotation,
+                                               transform.scale};
+    StepContext silent;
+    silent.bob_scale = 0.0f;
+    player_post_step(state, physics, frozen, transform, camera, silent);
 }
 
 } // namespace dfn::gameplay

@@ -17,6 +17,10 @@
 #   their own <zone>.cmake.
 #
 # UPD:
+# - 10:08:2026 - 01:53:17: Added sim_step_feel (the step as an event: spacing,
+#                          stride arithmetic, zero-when-still, dip/settle,
+#                          FOV clamp) and sim_audio (miniaudio backend +
+#                          placeholder bank; DFN_REPO_ROOT for asset paths).
 # - 09:08:2026 - 00:45:08: Stage 2 — dice, player movement, null backends,
 #                          jolt physics suites.
 # - 09:08:2026 - 16:51:22: Added sim_tunnel_walk — the voxel terrain collision
@@ -61,3 +65,20 @@ add_dfn_test(sim_prop_collision sim/PropCollisionTests.cpp
 # extracted collision mesh, real capsule.
 add_dfn_test(sim_tunnel_walk sim/TunnelWalkTests.cpp
     dfn_physics dfn_platform_physics dfn_world dfn_core)
+
+# THE STEP IS AN EVENT (в3): footfall spacing/arithmetic, zero-when-still (the
+# rejected floating is the control), landing dip, stop settle, FOV clamp.
+add_dfn_test(sim_step_feel sim/StepFeelTests.cpp
+    dfn_gameplay dfn_physics dfn_platform_physics dfn_core)
+
+# miniaudio backend contract + the placeholder step-sound bank. Needs the repo
+# root to find the generated wav assets from the build dir.
+add_dfn_test(sim_audio sim/AudioTests.cpp
+    dfn_gameplay dfn_platform_audio dfn_core)
+target_compile_definitions(sim_audio PRIVATE
+    DFN_REPO_ROOT="${CMAKE_SOURCE_DIR}")
+
+# The playtest checker's own controls (Rule 30): broken runs MUST fire, the
+# clean patrol must not, and the bot must actually cover ground.
+add_dfn_test(sim_playtest sim/PlaytestTests.cpp
+    dfn_gameplay dfn_physics dfn_platform_physics dfn_core)
