@@ -1,7 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 20:10:00
--->
+Last updated: 09:08:2026 - 22:23:29-->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: public headers only (camera, render system, tour, debug draw).
@@ -12,6 +11,7 @@ UPD:
 - 09:08:2026 - 14:11:37: Feature-requests batch — splat fixes (dryness/dirt band REMOVED per design ruling: weights come from core's surface_class only; the band painted 60 m brown washes over Grass), chunky stone boulder (в3), afternoon southern sun for readable dynamic shadows (в1; shadows themselves live in the bgfx backend).
 - 09:08:2026 - 18:05:00: Map screen (user request "миникарта как в скайриме"): PixelCanvas (the project's first UI drawing primitive), MapScreen (explored top-down map baked from the heightfields), RenderSystem overlay path + toggle_map/set_internal_resolution, Tour map probe route.
 - 09:08:2026 - 20:10:00: Day/night (в1/в2) — SkyModel (sun/moon/stars from a normalized clock, phase-derived moon direction), shared dfn_surface_light in the shader env include, sky-visibility ambient from vertex alpha, sky probe hooks; ProcMesh pack/tri/quad exposed for the flora agent.
+- 09:08:2026 - 22:23:29: TERRAIN LOD, THE DRAWING HALF (LodTerrain.{h,cpp}) — node mesh residency over LodResidency, coarse nodes meshed from core's HeightFieldView (129 samples at the level's voxel size: the seam with core, agreed in session, so no second mesh format exists), border SKIRTS sized from the field's own worst border step, frustum culling, and cross-faded submission through DrawParams::fade. The RESIDENT RECTANGLE is now an input to selection: a level-0 node is 1 m voxels where a chunk heightfield is 2 m, so nodes inside the streamed ring are dropped and nodes straddling its border are split — without that the two systems draw the same ground twice and interleave per pixel. Terrain UVs became WORLD-referenced (world xz / CHUNK_SIZE) in the same change: identical to the old formula for any chunk- or node-aligned field, and the fix for an 8 km node that used to stretch one texture set across itself. Also Tour::crag_acceptance_steps (DFN_CRAG_PROBE) and the sun caster cull in the bgfx backend. RenderSystem.cpp split into RenderSystemResources.cpp at the 800-line limit (Rule 21).
 -->
 
 # engine/render

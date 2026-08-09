@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 09:08:2026 - 20:55:10
+Last updated: 09:08:2026 - 22:01:04
 Module: engine/render
 File: engine/render/sources/TerrainLod.cpp
 
@@ -23,6 +23,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 20:55:10: Created with the LOD selection module.
+- 09:08:2026 - 22:01:04: Resident-rectangle exclusion in the descent (coarse
+  nodes stop where core's chunk streaming begins) + lod_skirt_depth_m.
 */
 
 #include "engine/render/sources/TerrainLod.h"
@@ -39,7 +41,8 @@ namespace {
 // four children are considered. Level 0 is always accepted (nothing finer
 // exists), which is what terminates the recursion.
 void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
-             glm::vec2 world_max, size_t max_nodes, std::vector<LodNode>& out) {
+             glm::vec2 world_max, const LodRect& resident, size_t max_nodes,
+             std::vector<LodNode>& out) {
     if (out.size() >= max_nodes) {
         return;
     }
@@ -52,8 +55,35 @@ void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
         || z0 + size <= world_min.y) {
         return;
     }
-    if (node.level == 0
-        || lod_node_distance_m(node, eye) >= lod_split_distance_m(node.level)) {
+    // The resident rectangle: ground core already draws at full chunk detail.
+    // Wholly inside -> this node must not exist (it would draw the same ground
+    // a second time). Straddling -> descend rather than accept, so that the
+    // inside/outside decision is only ever taken on nodes small enough for it
+    // to be exact. See the header for why level 0 makes that terminate.
+    bool straddles_resident = false;
+    if (!resident.empty()) {
+        const bool outside = x0 >= resident.max.x || z0 >= resident.max.y
+                          || x0 + size <= resident.min.x
+                          || z0 + size <= resident.min.y;
+        if (!outside) {
+            const bool inside = x0 >= resident.min.x && z0 >= resident.min.y
+                             && x0 + size <= resident.max.x
+                             && z0 + size <= resident.max.y;
+            if (inside) {
+                return; // chunks own this ground
+            }
+            straddles_resident = true;
+        }
+    }
+    if (node.level == 0) {
+        // Nothing finer exists. A level-0 node that still straddles the
+        // rectangle means the rectangle is not aligned to the 128 m node grid;
+        // drawing it is the safe direction (an overlap band, not a hole).
+        out.push_back(node);
+        return;
+    }
+    if (!straddles_resident
+        && lod_node_distance_m(node, eye) >= lod_split_distance_m(node.level)) {
         out.push_back(node);
         return;
     }
@@ -67,7 +97,7 @@ void descend(const LodNode& node, const glm::vec3& eye, glm::vec2 world_min,
     for (int32_t dz = 0; dz < stride; ++dz) {
         for (int32_t dx = 0; dx < stride; ++dx) {
             descend({child_level, node.x * stride + dx, node.z * stride + dz}, eye,
-                    world_min, world_max, max_nodes, out);
+                    world_min, world_max, resident, max_nodes, out);
         }
     }
 }
@@ -100,8 +130,21 @@ bool lod_node_is_silhouette(const LodNode& node, const glm::vec3& eye) {
     return lod_node_distance_m(node, eye) > LOD_SILHOUETTE_DISTANCE_M;
 }
 
+float lod_skirt_depth_m(uint8_t level, float max_border_step_m) {
+    const uint32_t l = level < LOD_LEVEL_COUNT ? level : LOD_LEVEL_COUNT - 1;
+    const float voxel = LOD_VOXEL_SIZE_M[l];
+    const float measured = std::max(0.0f, max_border_step_m) * LOD_SKIRT_LADDER_RATIO;
+    return std::max(measured, voxel * LOD_SKIRT_MIN_VOXELS);
+}
+
 std::vector<LodNode> select_lod_nodes(const glm::vec3& eye, glm::vec2 world_min,
                                       glm::vec2 world_max, size_t max_nodes) {
+    return select_lod_nodes(eye, world_min, world_max, LodRect{}, max_nodes);
+}
+
+std::vector<LodNode> select_lod_nodes(const glm::vec3& eye, glm::vec2 world_min,
+                                      glm::vec2 world_max, const LodRect& resident,
+                                      size_t max_nodes) {
     std::vector<LodNode> out;
     if (world_max.x <= world_min.x || world_max.y <= world_min.y) {
         return out;
@@ -118,7 +161,8 @@ std::vector<LodNode> select_lod_nodes(const glm::vec3& eye, glm::vec2 world_min,
     const auto iz1 = static_cast<int32_t>(std::ceil(world_max.y / root_size));
     for (int32_t iz = iz0; iz < iz1; ++iz) {
         for (int32_t ix = ix0; ix < ix1; ++ix) {
-            descend({root_level, ix, iz}, eye, world_min, world_max, max_nodes, out);
+            descend({root_level, ix, iz}, eye, world_min, world_max, resident,
+                    max_nodes, out);
         }
     }
     return out;

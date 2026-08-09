@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:58:00
-Last updated: 09:08:2026 - 20:58:00
+Last updated: 09:08:2026 - 22:12:57
 Module: tests
 File: tests/render/TerrainLodTests.cpp
 
@@ -23,6 +23,15 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 20:58:00: Created with the LOD selection module.
+- 09:08:2026 - 22:12:57: Resident-rectangle carve-out (with the control that a
+  rectangle-blind selection fails) and the skirt-depth derivation.
+  TIMESTAMP CORRECTION (lead's catch, Rule 16): this entry and the file's
+  'Last updated' were first written as 22:40:00 — a time COMPUTED forward from
+  an earlier `date` call rather than read from one. Corrected to the real time
+  of the edit, along with every other stamp in this changeset that had the same
+  origin. The reason it matters is not tidiness: UPD stamps are the only
+  cross-zone ordering record this project has, and a stamp half an hour early
+  reorders history while looking exactly like a correct one.
 */
 
 #include "engine/render/sources/TerrainLod.h"
@@ -267,4 +276,135 @@ TEST_CASE("the selection's triangle budget is known, not hoped for") {
     // The world growing 25x in area must not grow the draw list anywhere near
     // as fast — that is the entire point of the ladder.
     CHECK(large.size() < small.size() * 4);
+}
+
+// --- The resident rectangle: where chunk streaming ends and LOD begins ------
+
+namespace {
+
+// World rectangle a node occupies, for overlap checks.
+struct NodeRect {
+    float x0, z0, x1, z1;
+};
+NodeRect rect_of(const LodNode& n) {
+    const float s = dfn::render::lod_node_size_m(n.level);
+    const float x0 = static_cast<float>(n.x) * s;
+    const float z0 = static_cast<float>(n.z) * s;
+    return {x0, z0, x0 + s, z0 + s};
+}
+bool overlaps(const NodeRect& a, const dfn::render::LodRect& b) {
+    return a.x0 < b.max.x && a.x1 > b.min.x && a.z0 < b.max.y && a.z1 > b.min.y;
+}
+bool covers(const LodNode& n, float x, float z) {
+    const NodeRect r = rect_of(n);
+    return x >= r.x0 && x < r.x1 && z >= r.z0 && z < r.z1;
+}
+
+} // namespace
+
+TEST_CASE("the streamed rectangle is carved out of the selection") {
+    const glm::vec2 lo{0.0f, 0.0f};
+    const glm::vec2 hi{2048.0f, 2048.0f};
+    const glm::vec3 eye{1024.0f, 20.0f, 1024.0f};
+    // What core streams today: Chebyshev CHUNK_LOAD_RADIUS around the focus
+    // chunk, i.e. a chunk-aligned square. 768..1280 is the 2-chunk ring around
+    // the chunk containing the eye.
+    const dfn::render::LodRect resident{{768.0f, 768.0f}, {1280.0f, 1280.0f}};
+
+    const auto blind = dfn::render::select_lod_nodes(eye, lo, hi);
+    const auto carved = dfn::render::select_lod_nodes(eye, lo, hi, resident);
+
+    // THE CONTROL. The node the eye stands in is selected when nothing is
+    // streamed — and MUST NOT be selected once chunks own that ground, because
+    // a level-0 node is 1 m voxels where the chunk heightfield is 2 m and the
+    // two surfaces would interleave per pixel. A selection that ignored the
+    // rectangle passes every other case in this file; this is the one that
+    // rejects it.
+    const auto under = std::find_if(blind.begin(), blind.end(), [&](const LodNode& n) {
+        return covers(n, eye.x, eye.z);
+    });
+    REQUIRE(under != blind.end());
+    CHECK(contains(blind, *under));
+    CHECK_FALSE(contains(carved, *under));
+
+    // No selected node overlaps the rectangle AT ALL — not merely "mostly".
+    for (const LodNode& n : carved) {
+        CHECK_FALSE(overlaps(rect_of(n), resident));
+    }
+
+    // And nothing outside the rectangle is lost in the process: every sample
+    // outside it is still covered by exactly one node. A carve-out that leaves
+    // a ring of missing ground is worse than the overlap it fixed.
+    for (float z = 16.0f; z < 2048.0f; z += 128.0f) {
+        for (float x = 16.0f; x < 2048.0f; x += 128.0f) {
+            const bool inside = x >= resident.min.x && x < resident.max.x
+                             && z >= resident.min.y && z < resident.max.y;
+            if (inside) {
+                continue;
+            }
+            int hits = 0;
+            for (const LodNode& n : carved) {
+                if (covers(n, x, z)) {
+                    ++hits;
+                }
+            }
+            CHECK(hits == 1);
+        }
+    }
+}
+
+TEST_CASE("a node straddling the streamed border splits instead of overlapping") {
+    // The rectangle sits in the world corner and the eye is 2 km away, so the
+    // screen-error rule alone would put a single COARSE node over that whole
+    // corner — and that node would redraw ground the chunk ring already owns.
+    const glm::vec2 lo{0.0f, 0.0f};
+    const glm::vec2 hi{2048.0f, 2048.0f};
+    const glm::vec3 eye{2000.0f, 20.0f, 2000.0f};
+    const dfn::render::LodRect resident{{0.0f, 0.0f}, {256.0f, 256.0f}};
+
+    const auto blind = dfn::render::select_lod_nodes(eye, lo, hi);
+    const auto carved = dfn::render::select_lod_nodes(eye, lo, hi, resident);
+
+    // CONTROL: without the rectangle the corner is one coarse node...
+    const auto coarse_corner =
+        std::find_if(blind.begin(), blind.end(), [](const LodNode& n) {
+            return n.level > 0 && covers(n, 10.0f, 10.0f);
+        });
+    REQUIRE(coarse_corner != blind.end());
+    // ...and with it, that node is gone: it straddled the border, so it was
+    // split rather than accepted. Accepting it is the failure this rejects.
+    CHECK_FALSE(contains(carved, *coarse_corner));
+
+    // The split runs all the way to level 0, which is the level at which
+    // inside/outside is exact (128 m nodes against a 256 m chunk grid).
+    // 256..384 m is outside the rectangle and must be a level-0 node.
+    CHECK(contains(carved, LodNode{0, 2, 0}));
+    // 0..128 m is inside it and must not exist at any level.
+    for (const LodNode& n : carved) {
+        CHECK_FALSE(covers(n, 64.0f, 64.0f));
+    }
+}
+
+TEST_CASE("skirt depth is measured from the ground, not picked") {
+    // Flat ground: no measured step, so the floor applies — one voxel of the
+    // node's own level. A zero skirt still shows a hairline where two lattices
+    // meet, which is why the floor is not zero.
+    CHECK(dfn::render::lod_skirt_depth_m(0, 0.0f) == doctest::Approx(1.0f));
+    CHECK(dfn::render::lod_skirt_depth_m(5, 0.0f) == doctest::Approx(64.0f));
+
+    // A cliff edge: the measurement dominates, scaled by the ladder's largest
+    // jump (1 -> 4 m), because the neighbour that disagrees may be four times
+    // coarser.
+    CHECK(dfn::render::lod_skirt_depth_m(0, 12.0f) == doctest::Approx(48.0f));
+
+    // CONTROL — the thing this rejects is a CONSTANT skirt. No single value
+    // can satisfy both of these: 1 m on flat level-0 ground is right and would
+    // be a 12-fold hole under a cliff; 48 m would be right at the cliff and is
+    // absurd everywhere else. The two cases must disagree by more than an
+    // order of magnitude, and they do.
+    CHECK(dfn::render::lod_skirt_depth_m(0, 12.0f)
+          > dfn::render::lod_skirt_depth_m(0, 0.0f) * 10.0f);
+    // Negative or nonsense measurements never produce a negative skirt (a
+    // skirt that pointed UP would be visible geometry floating in the air).
+    CHECK(dfn::render::lod_skirt_depth_m(2, -5.0f) > 0.0f);
 }

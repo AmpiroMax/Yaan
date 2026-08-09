@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 20:40:00
+Last updated: 09:08:2026 - 22:23:29
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -71,6 +71,21 @@ UPD:
   contract is frozen — so the one place that already has the vertices keeps
   them). Lights are reordered so shadow casters occupy the first slots, which
   makes the shader's light index the cube index by construction.
+- 09:08:2026 - 22:23:29: SUN CASTER CULL. `submit` now rejects a draw's depth
+  pass when its world bounding sphere lies wholly outside the shadow ortho
+  volume (light-space slab test against SHADOW_HALF_EXTENT_M /
+  SHADOW_DEPTH_HALF_M). Every opaque draw used to be double-submitted into the
+  sun map unconditionally, which is fine at 512 m of world and is not fine once
+  terrain LOD puts nodes at 1-4 km: those nodes cannot darken a single texel of
+  a map that ends at 320 m, and each was paying a full ~33k-triangle depth
+  draw. NOT the same test as RenderSystem::visible_or_casting, which decides
+  whether to submit AT ALL and deliberately keeps off-screen casters that are
+  inside this volume; this decides whether a submitted draw also needs depth.
+  Verified by A/B (Rule 27): three shadow-heavy vantages are BIT-IDENTICAL with
+  the cull on and off, and the control — the same cull inverted, so only the
+  rejected draws cast — changes all three, so "identical" is not vacuous.
+  The world-space bounding sphere is now computed once and shared with the
+  point-light face cull, which was recomputing it.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRenderer.h"
@@ -325,6 +340,10 @@ struct BgfxRenderer::Impl {
     bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_shadow_params = BGFX_INVALID_HANDLE;
     bool shadow_active = false;   // this frame: sun above threshold + resources ok
+    // The sun shadow map's LIGHT-SPACE view matrix for this frame. Valid only
+    // while shadow_active; `submit` uses it to reject casters that cannot
+    // reach the volume (see update_shadow).
+    glm::mat4 shadow_view{1.0f};
     glm::vec3 frame_eye{0.0f};    // camera position, from begin_frame's view
 
     // Carried-light cube shadows: one atlas, one program, per-face view state.
@@ -577,6 +596,12 @@ struct BgfxRenderer::Impl {
                 c.y = std::floor(c.y / SHADOW_TEXEL_M) * SHADOW_TEXEL_M;
                 const glm::mat4 view =
                     glm::translate(glm::mat4(1.0f), -c) * rot;
+                // Kept so `submit` can reject casters that lie outside this
+                // volume. Without it every LOD node at 1-4 km pays for a full
+                // depth draw into a map that ends at 320 m — the terrain LOD
+                // ladder's whole point is that distant ground is cheap, and a
+                // free shadow draw per node undoes it.
+                shadow_view = view;
                 const bgfx::Caps& caps = *bgfx::getCaps();
                 // near = -D / far = +D brackets the eye plane along the light.
                 const glm::mat4 proj =
@@ -1118,7 +1143,35 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // sun's shadow view — terrain, trees, houses, scatter all cast. Skipped
     // when the sun is below the shadow threshold (night) or resources failed.
     const bool is_cutout = im.cutout.contains(program.id);
-    if (im.shadow_active && !is_transparent) {
+    // World-space bounding sphere of this draw, used by both shadow passes.
+    // The mesh sphere is model space, so it needs the transform's largest axis
+    // scale — uniform scaling is the norm here and taking the max is the safe
+    // direction for a cull.
+    const glm::vec3 world_center =
+        glm::vec3(transform * glm::vec4(mesh_it->second.center, 1.0f));
+    const float world_radius =
+        mesh_it->second.radius
+        * std::max({glm::length(glm::vec3(transform[0])),
+                    glm::length(glm::vec3(transform[1])),
+                    glm::length(glm::vec3(transform[2]))});
+
+    // CASTER CULL AGAINST THE SUN VOLUME. The shadow map is an eye-centred
+    // ortho box of half extent SHADOW_HALF_EXTENT_M and depth half
+    // SHADOW_DEPTH_HALF_M; anything wholly outside it cannot darken a single
+    // texel, so its depth draw is pure cost. This is not the same test as
+    // RenderSystem::visible_or_casting — that one decides whether to submit at
+    // all (and deliberately KEEPS off-screen casters that are inside this
+    // volume). This one decides whether a submitted draw also needs a depth
+    // pass, which is the only reason keeping those casters costs anything.
+    bool casts_into_sun_map = im.shadow_active;
+    if (casts_into_sun_map) {
+        const glm::vec3 ls = glm::vec3(im.shadow_view * glm::vec4(world_center, 1.0f));
+        const float r = world_radius;
+        casts_into_sun_map = std::fabs(ls.x) <= SHADOW_HALF_EXTENT_M + r
+                          && std::fabs(ls.y) <= SHADOW_HALF_EXTENT_M + r
+                          && std::fabs(ls.z) <= SHADOW_DEPTH_HALF_M + r;
+    }
+    if (casts_into_sun_map && !is_transparent) {
         // Cutout casters (leaf cards) punch their mask through the depth map
         // and sway with the SAME wind as the visible geometry — otherwise the
         // canopy casts a solid rectangle, or its shadow stands still while the
@@ -1145,15 +1198,8 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // card would punch its RECTANGLE into torchlight, and a canopy that casts
     // nothing under a torch is far less wrong than a canopy that casts boxes.
     if (im.shadow_light_count > 0 && !is_transparent && !is_cutout) {
-        // World-space bounding sphere of this draw. The mesh sphere is model
-        // space, so it needs the transform's largest axis scale — uniform
-        // scaling is the norm here, and taking the max is the safe direction.
-        const Impl::MeshRes& res = mesh_it->second;
-        const glm::vec3 wcenter = glm::vec3(transform * glm::vec4(res.center, 1.0f));
-        const float sx = glm::length(glm::vec3(transform[0]));
-        const float sy = glm::length(glm::vec3(transform[1]));
-        const float sz = glm::length(glm::vec3(transform[2]));
-        const float wradius = res.radius * std::max(sx, std::max(sy, sz));
+        const glm::vec3 wcenter = world_center;
+        const float wradius = world_radius;
         for (uint32_t li = 0; li < im.shadow_light_count; ++li) {
             const PointLight& light = im.lights[li];
             const glm::vec3 to_center = wcenter - light.position;
@@ -1189,8 +1235,8 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
                 }
                 bgfx::setUniform(im.u_point_caster, caster_params);
                 bgfx::setTransform(glm::value_ptr(transform));
-                bgfx::setVertexBuffer(0, res.vb);
-                bgfx::setIndexBuffer(res.ib);
+                bgfx::setVertexBuffer(0, mesh_it->second.vb);
+                bgfx::setIndexBuffer(mesh_it->second.ib);
                 bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_Z
                                | BGFX_STATE_DEPTH_TEST_LESS);
                 bgfx::submit(static_cast<bgfx::ViewId>(

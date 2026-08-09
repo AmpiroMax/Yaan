@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 21:20:00
+Last updated: 09:08:2026 - 22:19:03
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -64,6 +64,11 @@ UPD:
 - 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE, hour via DFN_TIME).
 - 09:08:2026 - 21:20:00: massif_probe_steps() (DFN_MASSIF_PROBE=1|2) — design's
   §7.1b verdict/rhythm vantages.
+- 09:08:2026 - 22:19:03: crag_acceptance_steps() (DFN_CRAG_PROBE=1) — the crag
+  from four bearings at 253 m and 300 m. The 600/717 m vantage everyone was
+  waiting on LOD for was sized for LR, the temple mountain, which exists in
+  NUMBERS and in the design doc and in no code path; the testbed's only real
+  landform is the crag, whose equivalent range is well inside streaming.
 */
 
 #pragma once
@@ -173,6 +178,25 @@ public:
     // light per frame to expose that frame's failure mode, and the other
     // frame's light would hide it. Pass the matching DFN_TIME.
     [[nodiscard]] static std::vector<TourStep> massif_probe_steps(int which);
+
+    // CRAG ACCEPTANCE ROUTE (DFN_CRAG_PROBE=1, Rule 27). Ravenscar from FOUR
+    // BEARINGS at TWO RANGES, standing on the valley floor at eye height.
+    //
+    // Why this route exists and why it is not massif_probe_steps: the 600/717 m
+    // vantage was sized for LR, the temple mountain — which is a NUMBERS row
+    // and a design section and NOTHING IN THE GENERATOR. The testbed's only
+    // real landform is the crag: 115 m of relief on a 120 m base radius, whose
+    // equivalent acceptance range is 253 m, comfortably inside streaming. So
+    // the frame everyone has been waiting on LOD for was never blocked on LOD;
+    // it was aimed at the wrong mountain.
+    //
+    // Bearings are given as the compass direction FROM the peak TO the eye and
+    // are chosen for what the world can actually hold: the peak sits at
+    // (830, 200) in a 1024 m box, so north and east run out of world before
+    // 253 m. 180/225/270/300 all fit at both ranges. ONE frame is not enough
+    // for a shape verdict — a dome and a three-lobed cone look identical from
+    // the one bearing that happens to face a lobe.
+    [[nodiscard]] static std::vector<TourStep> crag_acceptance_steps();
 
 private:
     // Step position with ground_relative y resolved via ground_at_ (absolute

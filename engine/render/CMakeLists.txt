@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 20:58:00
+# Last updated: 09:08:2026 - 22:12:57
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -29,6 +29,9 @@
 # - 09:08:2026 - 20:21:13: FloraCards.cpp (flora agent's alpha-cutout leaf mask
 # - 09:08:2026 - 20:58:00: TerrainLod.cpp (LOD node ladder, selection and the
 #   two-level fade window).
+# - 09:08:2026 - 22:12:57: LodTerrain.cpp (the LOD DRAWING half: node meshes,
+#   skirts, cross-faded submission) + RenderSystemResources.cpp (RenderSystem
+#   split at the 800-line hard limit, Rule 21).
 #   atlas + card emitter). EDITED BY THE FLORA AGENT under an explicit
 #   lead-granted Rule 25 exception (render's session had ended and the leaf-card
 #   stage could not wait); bounded to registration only — no shader, material,
@@ -39,12 +42,14 @@ add_library(dfn_render STATIC
     sources/FirstPersonCamera.cpp
     sources/FloraCards.cpp
     sources/FloraSpecies.cpp
+    sources/LodTerrain.cpp
     sources/MapScreen.cpp
     sources/PixelCanvas.cpp
     sources/ProcFlora.cpp
     sources/ProcMesh.cpp
     sources/ProcTexture.cpp
     sources/RenderSystem.cpp
+    sources/RenderSystemResources.cpp
     sources/ScatterBatcher.cpp
     sources/SkyModel.cpp
     sources/TerrainLod.cpp

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 19:12:24
+Last updated: 09:08:2026 - 22:24:44
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -37,10 +37,12 @@ UPD:
                          overrides file for tooling.
 - 09:08:2026 - 17:16:27: world_edge_: static walls at the generated extent.
 - 09:08:2026 - 19:12:24: game clock (day/night cycle) held here.
+- 09:08:2026 - 22:24:44: Игровые часы стартуют с START_TIME_OF_DAY, а не с нуля — ноль это полночь, и свежий запуск открывался в темноте.
 */
 
 #pragma once
 
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/time/sources/FixedTimestep.h"
@@ -110,7 +112,11 @@ private:
     render::FirstPersonCamera camera_;
     render::Tour tour_;
     ecs::EntityId player_{};
-    double game_seconds_ = 0.0; // in-game clock; DAY_LENGTH_SECONDS per day
+    // In-game clock; DAY_LENGTH_SECONDS per day. Starts at START_TIME_OF_DAY
+    // rather than at zero: zero is MIDNIGHT, so a fresh launch opened in the
+    // dark and the frame gave no hint that the hour was the reason.
+    double game_seconds_ = static_cast<double>(config::START_TIME_OF_DAY)
+                           * static_cast<double>(config::DAY_LENGTH_SECONDS);
     std::array<platform::PhysicsBodyHandle, 4> world_edge_{}; // extent walls
 };
 

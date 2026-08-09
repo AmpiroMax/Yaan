@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 22:01:04
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -37,6 +37,14 @@ UPD:
   re-purposed from tint to splat weights (shader contract updated in step).
 - 09:08:2026 - 14:11:37: Dryness/dirt channel removed (design ruling): splat
   keys off core's surface_class only; alpha reserved.
+- 09:08:2026 - 22:01:04: LOD support. (1) UVs are WORLD-REFERENCED (world xz /
+  CHUNK_SIZE) instead of 0..1 across the field. For a field whose origin sits
+  on the 128 m node grid this is identical to the old formula — the difference
+  is a whole number of tile repeats — but under the old formula a 1..8 km LOD
+  node stretched one texture set across the entire node. A test pins the
+  equality rather than asserting it in prose. (2) TerrainMeshOptions::
+  skirt_depth_m appends a vertical apron to the four borders, which is what
+  hides the T-junction crack between two adjacent LOD levels.
 */
 
 #pragma once
@@ -66,5 +74,30 @@ struct TerrainMeshData {
 
 /// Stage-2 compatible form: slope-only splat weights (no surface data).
 [[nodiscard]] TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field);
+
+/// Extra meshing choices. Everything here defaults to the chunk behaviour, so
+/// the two calls above are exactly `build_terrain_mesh(field, surface, {})`.
+struct TerrainMeshOptions {
+    /// Metres of vertical apron hung from the four border edges, 0 = none.
+    /// A skirt exists ONLY to hide the T-junction crack where this mesh meets
+    /// a neighbour meshed on a different lattice — it is never visible ground,
+    /// so it is deliberately allowed to be too deep rather than too shallow.
+    /// Derive it with lod_skirt_depth_m(); chunks share a sample lattice with
+    /// their neighbours by contract and need none.
+    float skirt_depth_m = 0.0f;
+};
+
+/// Full form. Skirt vertices are appended AFTER the resolution^2 grid vertices,
+/// so `vertices[z * resolution + x]` keeps addressing the surface and existing
+/// callers that index the grid are unaffected.
+[[nodiscard]] TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
+                                                 const math::SurfaceFieldView* surface,
+                                                 const TerrainMeshOptions& options);
+
+/// The largest height difference between two ADJACENT samples along the four
+/// border rows of `field`, in metres. This is the measurement that sizes a
+/// skirt (see lod_skirt_depth_m) — measured from the field the node was built
+/// from, never assumed.
+[[nodiscard]] float terrain_border_max_step_m(const math::HeightFieldView& field);
 
 } // namespace dfn::render

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 21:14:00
+Last updated: 09:08:2026 - 22:12:57
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -75,6 +75,13 @@ UPD:
 - 09:08:2026 - 21:14:00: Frustum culling: per-chunk world bounds measured at
   upload (TerrainRes / ChunkScatterRes::bounds) and visible_or_casting, which
   keeps off-screen shadow casters alive.
+- 09:08:2026 - 22:12:57: TERRAIN LOD, the drawing half. lod_* forwarding calls
+  over a LodTerrain member: the app sets the world bounds and the streamed
+  rectangle, ferries lod_to_load()/lod_to_release() to core's coarse-node
+  calls, and hands meshes back through upload_lod_node. Nodes draw after the
+  chunk terrain with DrawParams::fade carrying the cross-fade. Also: the
+  resource/screen half of this class moved to RenderSystemResources.cpp, which
+  is the same class split for the 800-line limit (Rule 21).
 */
 
 #pragma once
@@ -85,6 +92,7 @@ UPD:
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
+#include "engine/render/sources/LodTerrain.h"
 #include "engine/render/sources/MapScreen.h"
 
 #include <chrono>
@@ -139,6 +147,47 @@ public:
     void upload_terrain_voxel(platform::IRenderer& renderer,
                               const math::VoxelMeshView& mesh);
     void drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord);
+
+    // Terrain LOD (the drawing half; core owns streaming and node meshes) ------
+    //
+    // THE PROBLEM THIS SOLVES IS NOT PERFORMANCE. Chunk streaming reaches
+    // ~512 m while CAMERA_FAR is 8 km and the landmark rules are written for
+    // 4 km, so the world simply STOPS EXISTING before the distance design
+    // judges landmarks from — the 717 m acceptance frame of the massif could
+    // not be photographed at all. LOD is what makes those frames exist.
+    //
+    // App wiring, in the order the app should call it:
+    //   set_world_bounds(core's world_bounds_xz)          — once, after open
+    //   set_lod_enabled(true)                             — once core answers
+    //   set_streamed_rect(focus chunk +/- load_radius)    — when it changes
+    //   update_lod(eye, dt)                               — every frame
+    //   ferry lod_to_load()  -> core request_coarse_nodes
+    //   ferry lod_to_release() -> core release_coarse_node + drop_lod_node
+    //   upload_lod_node(...) when core's coarse_heightfield turns non-null
+    // Nothing here is required for the app to run: with LOD disabled the
+    // renderer behaves exactly as before.
+    void set_world_bounds(glm::vec2 min_xz, glm::vec2 max_xz);
+    // The ground core has streamed at FULL chunk detail. Coarse nodes are
+    // excluded from it — see select_lod_nodes: a level-0 node is 1 m voxels
+    // where a chunk is 2 m, so without this the two draw the same ground.
+    void set_streamed_rect(glm::vec2 min_xz, glm::vec2 max_xz);
+    void set_lod_enabled(bool enabled) { lod_.set_enabled(enabled); }
+    [[nodiscard]] bool lod_enabled() const { return lod_.enabled(); }
+    // Selection + fades. `dt_seconds` is the RENDER frame delta, not the sim
+    // step: the cross-fade is a visual effect and must run at frame rate.
+    void update_lod(const glm::vec3& eye, float dt_seconds);
+    [[nodiscard]] std::span<const LodNode> lod_to_load() const { return lod_.to_load(); }
+    [[nodiscard]] std::span<const LodNode> lod_to_release() const {
+        return lod_.to_release();
+    }
+    // Meshes one coarse node (129 samples, step = the level's voxel size) and
+    // uploads it. `surface` may be nullptr — core ships coarse surface fields
+    // after the geometry, and slope-only splat is the agreed fallback.
+    void upload_lod_node(platform::IRenderer& renderer, const LodNode& node,
+                         const math::HeightFieldView& field,
+                         const math::SurfaceFieldView* surface);
+    void drop_lod_node(platform::IRenderer& renderer, const LodNode& node);
+    [[nodiscard]] const LodTerrain& lod() const { return lod_; }
 
     // Scatter (stage 3b, data-only P5 instances — never entities) --------------
     // Bakes the chunk's scatter span into batched meshes (ScatterBatcher):
@@ -293,6 +342,7 @@ private:
     bool dark_frozen_ = false;
     float frozen_darkness_ = 0.0f;
     MapScreen map_;
+    LodTerrain lod_; // coarse terrain beyond the streamed chunk ring
     platform::RenderEnvironment environment_{};
     std::chrono::steady_clock::time_point clock_start_{}; // visual time origin
 };

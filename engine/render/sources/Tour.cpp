@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:20:00
+Last updated: 09:08:2026 - 22:19:03
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -46,6 +46,7 @@ UPD:
   vantage: it is how the "the massif is missing at 717 m" report was proved to
   be the 512 m streaming radius rather than a bad aim (walk the same bearing
   in, the mountain appears).
+- 09:08:2026 - 22:19:03: crag_acceptance_steps() (DFN_CRAG_PROBE=1).
 */
 
 #include "engine/render/sources/Tour.h"
@@ -305,6 +306,46 @@ std::vector<TourStep> Tour::massif_probe_steps(int which) {
              0.09f, 90, true}};
 }
 
+std::vector<TourStep> Tour::crag_acceptance_steps() {
+    // Peak from world::CragStamp::center — the generator's own value, not the
+    // §7.1 plan table (the two have drifted before, and a tabled coordinate
+    // that must sit on a generated feature is the trap this project keeps
+    // stepping in).
+    const glm::vec2 peak{830.0f, 200.0f};
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    // Compass bearing FROM the peak TO the eye. 208 deg is the castle sector,
+    // which §6.1.1 lets fill the view inside 300 m — 225 is the closest of
+    // these to it and is included deliberately, so that if the castle owns a
+    // frame we find out rather than assume.
+    const float bearings[4] = {180.0f, 225.0f, 270.0f, 300.0f};
+    const char* names[4] = {"s", "sw", "w", "wnw"};
+    // 253 m is the crag's equivalent of the 600 m figure written for LR: the
+    // range at which a 115 m / 120 m landform subtends what the big mountain
+    // would at 600. 300 m is the second range, so a shape reading that only
+    // holds at one distance cannot pass unnoticed.
+    const float ranges[2] = {253.0f, 300.0f};
+
+    std::vector<TourStep> steps;
+    steps.reserve(8);
+    for (float range : ranges) {
+        for (int b = 0; b < 4; ++b) {
+            const float rad = bearings[b] * 3.14159265f / 180.0f;
+            const glm::vec2 pos{peak.x + range * std::sin(rad),
+                                peak.y - range * std::cos(rad)};
+            char label[48];
+            std::snprintf(label, sizeof(label), "crag_%s_%dm", names[b],
+                          static_cast<int>(range));
+            // Pitch just above level: the summit is 115 m up at ~253 m out,
+            // i.e. ~24 degrees, and the frame has to hold BOTH the outline
+            // against sky and the foot on the ground — a shape verdict taken
+            // with the base cropped is not a verdict.
+            steps.push_back({label, {pos.x, eye, pos.y}, aim_yaw(pos, peak), 0.16f,
+                             90, true});
+        }
+    }
+    return steps;
+}
+
 std::vector<TourStep> Tour::testbed_steps() {
     // Verification hooks (Rule 27, user instruction "one variant, no
     // near-identical frames"): each of these collapses the tour to the single
@@ -320,6 +361,9 @@ std::vector<TourStep> Tour::testbed_steps() {
     }
     if (const char* menv = env_or_null("DFN_MASSIF_PROBE")) {
         return massif_probe_steps(std::atoi(menv));
+    }
+    if (env_or_null("DFN_CRAG_PROBE") != nullptr) {
+        return crag_acceptance_steps();
     }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative

@@ -1,7 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 09:08:2026 - 21:08:00
--->
+Last updated: 09:08:2026 - 22:23:29-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -70,6 +69,18 @@ UPD:
 - 09:08:2026 - 21:08:00: LOD render half (TerrainLod: derived ladder, quadtree
   selection, two-level fade window) + the DrawParams contract sync (lead
   authored; both backends implement it, fade drives an ordered dissolve).
+- 09:08:2026 - 22:23:29: LOD DRAWING HALF + the crag acceptance route.
+  (1) LodTerrain owns coarse-node meshes and draws them faded; the seam with
+  core is "a coarse node IS a HeightFieldView" (129 samples, step = the level's
+  voxel size), which core ACKed, so the splat, atlas and shader are the chunk
+  path's and nothing new was invented. (2) The RESIDENT RECTANGLE is an input
+  to selection, not a draw-time skip. (3) Skirts are MEASURED from the field's
+  worst border step, not picked. (4) World-referenced terrain UVs. (5) Sun
+  caster cull in the backend, A/B-verified bit-identical with a non-vacuous
+  control. (6) THE 600 m FRAME WAS AIMED AT A MOUNTAIN THAT DOES NOT EXIST:
+  LR is a NUMBERS row and a design section with no code path, and the testbed's
+  only real landform is the crag, whose equivalent acceptance range is 253 m —
+  inside streaming all along. See "How it is verified" for what the frames say.
 -->
 
 # Spec — render agent
@@ -703,6 +714,36 @@ ProcMesh placeholder dims -> content data files (Rule 5, lead-coordinated).
 
 ## How it is verified
 
+- **Crag shape acceptance (Rule 27, 8 frames read 09:08:2026 - 22:23:29):**
+  `DFN_TOUR=1 DFN_CRAG_PROBE=1 DFN_TIME=0.30 DFN_TOUR_DIR=screenshots/crag
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 <build>/engine/app/dfn_app`.
+  Ravenscar from four bearings (180/225/270/300 compass, peak -> eye) at 253 m
+  and 300 m, eye 1.7 m on the valley floor. THE FRAMES DO NOT AGREE, and that
+  disagreement is the result:
+  - FROM THE SOUTH the crag is SHARP. A pointed summit tor with sky on both
+    sides, asymmetric flanks, a shoulder on the descending right ridge, a rock
+    bench with a hard splat lip. Not a dome.
+  - FROM THE WEST at 300 m it IS A DOME — a single smooth convex arc, no crest,
+    no bench, and the summit tor invisible behind the mass. Both western frames
+    are backlit, which is the purest form of the "reads by value against sky"
+    test, and it is the reading that fails.
+  - FROM THE WNW the crag is UNREADABLE at BOTH ranges: a pine stand owns the
+    frame. Two standpoints 47 m apart on the same bearing fail identically, so
+    this is a property of the sector, not of one unlucky coordinate.
+  INFERENCE (marked as such): with arete_count = 3 a bearing looking INTO a
+  couloir sees two lobes and a notch, while a bearing looking flat-on at one
+  lobe sees that lobe's own convex profile as the whole outline. Roughly a
+  third of all bearings are flat-on. A per-bearing invariant that passes on
+  average can therefore read 9-12 against a floor of 3 while a third of the
+  valley sees a heap.
+  WHY THIS FRAME WAS THOUGHT UNSHOOTABLE: the 600/717 m vantage was sized for
+  LR, the temple mountain, which exists in NUMBERS.md and in LANDSCAPE §2.5 and
+  in NO CODE PATH. It was never a streaming problem.
+- **Sun caster cull (Rule 27, A/B + control, 09:08:2026 - 22:23:29):** three shadow-heavy
+  crag vantages are BIT-IDENTICAL with the cull enabled and disabled. On its
+  own that proves nothing — it is also what a cull that never fires looks like.
+  The control is the same test INVERTED (only the rejected draws cast): all
+  three frames then differ, so both sides of the test are non-empty.
 - **Carried-light shadow acceptance (Rule 27, A/B read 09:08:2026):**
   `screenshots/point_light/00_point_shadow_on.png` vs
   `01_point_shadow_off.png` — same vantage, midnight, new moon, the light 6 m

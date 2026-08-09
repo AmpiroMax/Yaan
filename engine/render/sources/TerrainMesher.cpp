@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 14:11:37
+Last updated: 09:08:2026 - 22:01:04
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -35,14 +35,18 @@ UPD:
   whole sightline Grass, yet the frame read as a 60+ m brown flat). LANDSCAPE
   §4 has no dirt material (dirt/path is a FUTURE road pass); the splat now
   keys off core's surface_class ONLY. Vertex alpha is reserved (255).
+- 09:08:2026 - 22:01:04: World-referenced UVs + border skirts (LOD).
 */
 
 #include "engine/render/sources/TerrainMesher.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace dfn::render {
@@ -63,11 +67,37 @@ uint32_t pack_weights(float sand, float rock, float bed) {
 } // namespace
 
 TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field) {
-    return build_terrain_mesh(field, nullptr);
+    return build_terrain_mesh(field, nullptr, {});
 }
 
 TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
                                    const math::SurfaceFieldView* surface) {
+    return build_terrain_mesh(field, surface, {});
+}
+
+float terrain_border_max_step_m(const math::HeightFieldView& field) {
+    const uint32_t res = field.resolution;
+    if (res < 2 || field.heights.size() < static_cast<size_t>(res) * res) {
+        return 0.0f;
+    }
+    float worst = 0.0f;
+    for (uint32_t i = 0; i + 1 < res; ++i) {
+        // The four border rows, each walked as adjacent pairs.
+        worst = std::max(worst, std::fabs(field.height_at(i + 1, 0)
+                                          - field.height_at(i, 0)));
+        worst = std::max(worst, std::fabs(field.height_at(i + 1, res - 1)
+                                          - field.height_at(i, res - 1)));
+        worst = std::max(worst, std::fabs(field.height_at(0, i + 1)
+                                          - field.height_at(0, i)));
+        worst = std::max(worst, std::fabs(field.height_at(res - 1, i + 1)
+                                          - field.height_at(res - 1, i)));
+    }
+    return worst;
+}
+
+TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
+                                   const math::SurfaceFieldView* surface,
+                                   const TerrainMeshOptions& options) {
     TerrainMeshData mesh;
     const uint32_t res = field.resolution;
     if (res < 2 || field.heights.size() < static_cast<size_t>(res) * res) {
@@ -83,7 +113,13 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
     }
 
     mesh.vertices.resize(static_cast<size_t>(res) * res);
-    const float inv_span = 1.0f / (field.step * static_cast<float>(res - 1));
+    // UVs are WORLD-referenced: one unit of uv is one CHUNK_SIZE of ground, so
+    // the material tiles at the same physical size on a 256 m chunk and on an
+    // 8 km LOD node. The old formula (offset within the field / field span)
+    // agrees with this exactly whenever the origin is a whole number of
+    // CHUNK_SIZE/tiles apart, which every chunk and every node origin is — and
+    // disagrees catastrophically for a node, which was the bug this fixes.
+    const float inv_tile = 1.0f / static_cast<float>(config::CHUNK_SIZE);
 
     for (uint32_t z = 0; z < res; ++z) {
         for (uint32_t x = 0; x < res; ++x) {
@@ -126,8 +162,7 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
             platform::Vertex& v = mesh.vertices[static_cast<size_t>(z) * res + x];
             v.position = wpos;
             v.normal = normal;
-            v.uv = {static_cast<float>(x) * field.step * inv_span,
-                    static_cast<float>(z) * field.step * inv_span};
+            v.uv = {wpos.x * inv_tile, wpos.z * inv_tile};
             v.color_rgba = pack_weights(sand_w, rock_w, bed_w);
         }
     }
@@ -142,6 +177,55 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
             // CCW seen from +Y (culling is off this stage; kept consistent
             // so stage 3 can enable it without re-meshing).
             mesh.indices.insert(mesh.indices.end(), {i00, i11, i10, i00, i01, i11});
+        }
+    }
+
+    // Skirt: an apron dropped from each border vertex. It is NOT ground and is
+    // never seen as a surface — it exists so that the pixel-wide gap where two
+    // differently-tessellated meshes meet shows terrain instead of sky. Skirt
+    // vertices copy their parent's normal, colour and uv, so a skirt that IS
+    // momentarily visible at a crack shades like the ground it stands in
+    // rather than as a black band.
+    if (options.skirt_depth_m > 0.0f) {
+        const auto grid_count = static_cast<uint32_t>(mesh.vertices.size());
+        mesh.vertices.reserve(mesh.vertices.size() + static_cast<size_t>(res) * 4);
+        mesh.indices.reserve(mesh.indices.size() + static_cast<size_t>(res - 1) * 4 * 6);
+
+        // Each border walked in order; `parent` indexes the surface grid.
+        const auto add_border = [&](uint32_t border) {
+            const uint32_t base = grid_count + border * res;
+            for (uint32_t i = 0; i < res; ++i) {
+                uint32_t px = 0;
+                uint32_t pz = 0;
+                switch (border) {
+                case 0: px = i;       pz = 0;       break; // -z edge
+                case 1: px = i;       pz = res - 1; break; // +z edge
+                case 2: px = 0;       pz = i;       break; // -x edge
+                default: px = res - 1; pz = i;      break; // +x edge
+                }
+                platform::Vertex v = mesh.vertices[static_cast<size_t>(pz) * res + px];
+                v.position.y -= options.skirt_depth_m;
+                mesh.vertices.push_back(v);
+            }
+            for (uint32_t i = 0; i + 1 < res; ++i) {
+                uint32_t p0 = 0;
+                uint32_t p1 = 0;
+                switch (border) {
+                case 0: p0 = i;                            p1 = i + 1; break;
+                case 1: p0 = (res - 1) * res + i;          p1 = p0 + 1; break;
+                case 2: p0 = i * res;                      p1 = p0 + res; break;
+                default: p0 = i * res + (res - 1);         p1 = p0 + res; break;
+                }
+                const uint32_t s0 = base + i;
+                const uint32_t s1 = base + i + 1;
+                // Two triangles per span. Backface culling is off for terrain,
+                // so the winding is chosen for consistency with the surface
+                // rather than to be load-bearing.
+                mesh.indices.insert(mesh.indices.end(), {p0, s0, s1, p0, s1, p1});
+            }
+        };
+        for (uint32_t border = 0; border < 4; ++border) {
+            add_border(border);
         }
     }
     return mesh;

@@ -87,6 +87,23 @@ inline constexpr float LOD_SILHOUETTE_DISTANCE_M = 800.0f;
 /// rarely both resident.
 inline constexpr float LOD_FADE_SECONDS = 0.6f;
 
+/// Skirt depth multiplier — see lod_skirt_depth_m(). The largest jump in the
+/// ladder is 1 -> 4 m (every other step is a factor of two), so a fine node's
+/// edge can disagree with a coarse neighbour's linear edge by up to the relief
+/// across FOUR of its own cells. Multiplying the measured worst adjacent step
+/// by that factor bounds the crack without knowing which neighbour turned up.
+/// PROVISIONAL: core is measuring the real worst-case inter-level disagreement
+/// per level pair on the testbed and will send a table; this is the bound that
+/// is derivable without it, and it errs deep (a too-deep skirt is hidden under
+/// the ground, a too-shallow one is a hole to the sky).
+inline constexpr float LOD_SKIRT_LADDER_RATIO = 4.0f;
+
+/// Floor on the skirt depth, in the node's own voxels. Perfectly flat ground
+/// measures a zero step and would get a zero skirt, which is exactly where
+/// floating-point disagreement between two different sample lattices still
+/// shows a hairline.
+inline constexpr float LOD_SKIRT_MIN_VOXELS = 1.0f;
+
 /// One quadtree node. `x`/`z` are node coordinates AT THAT LEVEL (world
 /// position = coord * node_size), so a node id is exact integer identity and
 /// never a float comparison. Mirrors what core hands back from coarse_mesh.
@@ -112,16 +129,59 @@ struct LodNode {
 /// using the footprint is the conservative (finer) choice.
 [[nodiscard]] float lod_node_distance_m(const LodNode& node, const glm::vec3& eye);
 
+/// World-space rectangle on the xz plane. Empty (min >= max on either axis)
+/// means "no such area", which is how an absent resident rectangle is spelled.
+struct LodRect {
+    glm::vec2 min{0.0f};
+    glm::vec2 max{0.0f};
+
+    [[nodiscard]] bool empty() const { return max.x <= min.x || max.y <= min.y; }
+};
+
 /// The set of nodes that should be drawn: a quadtree descent from the coarsest
 /// level over the world rectangle [world_min, world_max] (metres, xz), split
 /// where the node is closer than its split distance. Deterministic order.
 /// `max_nodes` is a safety cap, not a policy: hitting it means the ladder or
 /// the world size is wrong, and the selection stops rather than growing without
 /// bound.
+///
+/// `resident` is THE GROUND CORE ALREADY STREAMS AT FULL CHUNK DETAIL. It is
+/// not an optimisation: a level-0 node is 1 m voxels where a chunk heightfield
+/// is 2 m, so without it the two systems draw the same ground twice, at
+/// slightly different heights, and the overlap band interleaves per pixel.
+/// The descent therefore (a) DROPS a node that lies entirely inside the
+/// rectangle and (b) SPLITS a node that straddles its border instead of
+/// accepting it. (b) is what makes (a) exact rather than approximate: at
+/// level 0 a node is 128 m and the chunk grid is 256 m, so a level-0 node is
+/// always either wholly inside a chunk or wholly outside the resident set —
+/// there is no level at which a partial overlap has to be tolerated. Pass an
+/// empty rectangle when nothing is streamed (the pure-LOD case).
+[[nodiscard]] std::vector<LodNode> select_lod_nodes(const glm::vec3& eye,
+                                                    glm::vec2 world_min,
+                                                    glm::vec2 world_max,
+                                                    const LodRect& resident,
+                                                    size_t max_nodes = 4096);
+
+/// Convenience form for the pure-LOD case (nothing streamed at chunk detail).
 [[nodiscard]] std::vector<LodNode> select_lod_nodes(const glm::vec3& eye,
                                                     glm::vec2 world_min,
                                                     glm::vec2 world_max,
                                                     size_t max_nodes = 4096);
+
+/// Depth of the vertical apron hung from a node's border, in metres.
+///
+/// WHY A SKIRT AT ALL: two nodes at different levels sample the same ground on
+/// different lattices, so along a shared border the finer node's vertices do
+/// not lie on the coarser node's straight edge. The gap is a T-junction crack —
+/// a one-pixel line of SKY through the ground, which at 640x360 is not subtle.
+/// Nothing in the ladder prevents it and no amount of matching the heights
+/// does either, because the two edges have different vertex counts.
+///
+/// `max_border_step_m` is the largest height difference between two ADJACENT
+/// samples along this node's border, measured from the field at bake time
+/// rather than assumed: flat ground needs a millimetre and a cliff edge needs
+/// metres, and a single constant would be wrong at both ends.
+[[nodiscard]] float lod_skirt_depth_m(uint8_t level, float max_border_step_m);
 
 /// True if the node is far enough that only its silhouette matters (no scatter,
 /// no props).
