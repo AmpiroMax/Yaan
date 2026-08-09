@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 14:41:26
+Last updated: 10:08:2026 - 01:48:11
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.h
 
@@ -26,8 +26,10 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - DETERMINISM (Rule 13.1): all iteration orders fixed (index tie-breaks in
   heaps/argmins); randomness only via WorldgenNoise streams.
-- MONOTONIC WATER INVARIANT (§3.1.4): station water heights never increase
-  downstream. Enforced by construction, asserted in build, guarded by test.
+- MONOTONIC WATER INVARIANT (§3.1.4, flat-reach form): station water heights
+  never increase downstream, are CONSTANT across any standing body, and the
+  drawn level of a pond equals the swum level by construction. Enforced by
+  construction, asserted in build, guarded by test.
 */
 /*
 UPD:
@@ -35,6 +37,7 @@ UPD:
   lake; distance field for dist_to_water).
 - 09:08:2026 - 13:12:19: Stage 3b amendments: derived ford_stations (§3.1 step 6); §3.3 bed/mud cap documented on build_hydrology.
 - 09:08:2026 - 14:41:26: Frame-05 bed fix: pond_planes (drawable primitives for surviving ponds) so every water-covered sample has a body render can draw.
+- 10:08:2026 - 01:48:11: The pond becomes a flat reach of the river (grill в23, §3.1 amendment): Pond::level = min(spill saddle, river entry level), Pond::spill_level added as the control-test record; the lake obeys the same entry rule (§3.2 extension).
 */
 
 #pragma once
@@ -48,11 +51,20 @@ UPD:
 
 namespace dfn::world {
 
-/// A pond created by pond-and-spill (§3.1 step 2): coarse cells filled to a
-/// spill level. Water surface = level; bed carved slightly below.
+/// A pond created by pond-and-spill (§3.1 step 2): coarse cells filled to one
+/// FLAT level. A pond is a flat reach of the river (grill в23): its level is
+/// min(spill saddle, the level the river ENTERS at), so the drawn plane and
+/// the swum surface are the same number by construction — a pond sitting
+/// above the river that feeds it is unconstructible. Bed carved from `level`.
 struct Pond {
     std::vector<uint32_t> cells; ///< coarse-grid indices (z * grid_w + x)
-    float level = 0.0f;          ///< spill (saddle) height, meters
+    float level = 0.0f;          ///< flat water level, meters
+    /// Spill (saddle) height recorded at creation, BEFORE the entering-river
+    /// clamp. level <= spill_level always; level < spill_level is the case
+    /// the flat-reach rule exists for (the old construction drew the pond at
+    /// spill_level while the river swam through it at `level` — kept so the
+    /// control test can prove that pond really occurs).
+    float spill_level = 0.0f;
 };
 
 /// Output of the hydrology pass. Coarse grids are worldgen-internal; the

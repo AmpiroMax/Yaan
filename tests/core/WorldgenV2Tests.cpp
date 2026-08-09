@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 00:10:41
+Last updated: 10:08:2026 - 01:48:11
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -33,6 +33,7 @@ UPD:
 - 09:08:2026 - 17:45:08: §6.2: pad accounting restated as the NEW invariant — entities == pads + castle elements + derived entrances — with each entrance checked to carry an explicit carve floor. The old assertion encoded the rule this change replaced.
 - 09:08:2026 - 19:33:58: Fortress revision: terrace flatness is measured PER WARD (one box across the chain measures the steps between wards, which are supposed to exist) plus a new check that the chain steps down toward the approach.
 - 10:08:2026 - 00:10:41: NEW invariant "one patch of ground carries exactly one water surface" (no cell in two ponds, no cell at two levels, pond_planes == wet non-lake cells with no stacked centres) plus its Rule 30 control, a hand-built pond pair sharing a cell that the same checkers must flag -- including a same-level variant proving the two checkers are not one measurement twice.
+- 10:08:2026 - 01:48:11: Flat-reach tests (grill в23 / §3.1 amendment): drawn pond level == swum station level at every station standing in a pond (with a vacuity guard), lake settled plane <= design constant, and the Rule 30 control — Pond::spill_level is the record of what the OLD construction drew, so 'spill - level > 0.5 m somewhere' proves the rejected instance really occurs and the clamp really binds.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -796,4 +797,100 @@ TEST_CASE("the water-surface uniqueness checks reject a world that violates them
     same_level.ponds[1].level = 10.0f;
     CHECK(cells_in_two_ponds(same_level) == 1);
     CHECK(cells_at_two_levels(same_level) == 0);
+}
+
+namespace {
+
+/// Coarse-cell index of a world position on the hydrology grid, or INVALID.
+[[nodiscard]] uint32_t hydro_cell_of(const world::HydrologyData& h, glm::vec2 p) {
+    const float cell = static_cast<float>(config::WORLDGEN_HYDRO_GRID_STEP);
+    const int32_t x = static_cast<int32_t>(std::floor((p.x - h.grid_origin.x) / cell));
+    const int32_t z = static_cast<int32_t>(std::floor((p.y - h.grid_origin.y) / cell));
+    if (x < 0 || z < 0 || x >= static_cast<int32_t>(h.grid_w)
+        || z >= static_cast<int32_t>(h.grid_h)) {
+        return std::numeric_limits<uint32_t>::max();
+    }
+    return static_cast<uint32_t>(z) * h.grid_w + static_cast<uint32_t>(x);
+}
+
+} // namespace
+
+TEST_CASE("the pond is a flat reach: drawn level equals swum level at every station") {
+    // grill в23 / §3.1 amendment (design-ratified): a pond is a flat reach of
+    // the river. The monotone pass does not descend through it — a station
+    // inside a pond carries EXACTLY the level the pond is drawn at, so the
+    // water the player sees and the water the player swims are one number.
+    // Before the amendment the drawn plane sat at the spill saddle while the
+    // stations swam at min(entry, spill): 7.98 m apart at the largest pond.
+    for (const int side : {4, 8}) {
+        CAPTURE(side);
+        const world::WorldGenContext ctx = world::build_world_context(
+            WorldGenParams{1, {0, 0}, {side - 1, side - 1}, world::TestbedLayout{}});
+        const world::HydrologyData& h = ctx.hydrology;
+        REQUIRE(h.ok);
+
+        std::map<uint32_t, float> pond_level_of_cell;
+        for (const world::Pond& p : h.ponds) {
+            for (const uint32_t c : p.cells) pond_level_of_cell[c] = p.level;
+        }
+        int stations_in_ponds = 0;
+        float worst = 0.0f;
+        for (const math::RiverStation& st : h.stations) {
+            const auto it = pond_level_of_cell.find(hydro_cell_of(h, st.position));
+            if (it == pond_level_of_cell.end()) continue;
+            ++stations_in_ponds;
+            worst = std::max(worst, std::fabs(st.surface_height - it->second));
+            CHECK(std::fabs(st.surface_height - it->second) <= 1e-3f);
+            // The drawn plane reads the same array the swimmer reads.
+            CHECK(h.fill_level[it->first] == doctest::Approx(it->second));
+        }
+        MESSAGE("side " << side << ": " << stations_in_ponds
+                        << " stations inside ponds, worst drawn-vs-swum gap " << worst
+                        << " m");
+        // Rule 30a: the invariant needs subjects — a world where no station
+        // ever stands in a pond would pass vacuously and prove nothing.
+        REQUIRE(stations_in_ponds > 0);
+
+        // §3.2 extension: the lake is a flat reach too — its settled plane
+        // never sits above the design constant, and segment 1 (the outlet)
+        // starts at or below it.
+        CHECK(h.lake.surface_height <= LAKE_LEVEL + 1e-4f);
+        if (h.segment_offsets.size() > 2) {
+            CHECK(h.stations[h.segment_offsets[1]].surface_height
+                  <= h.lake.surface_height + 1e-4f);
+        }
+    }
+}
+
+TEST_CASE("the impossible pond is unconstructible — and the old construction built one") {
+    // Rule 30 with the REAL rejected instance as the control. Pond::spill_level
+    // records the saddle height the OLD construction drew the pond at; the new
+    // level is min(spill, river entry). So "spill_level - level > 0" is not a
+    // synthetic case: it is the measured record, on this very world, of a pond
+    // the old code drew ABOVE the river that feeds it — the player saw water
+    // at spill_level and swam at level. The threshold sits below the recorded
+    // 7.98 m instance and above float noise.
+    float worst = 0.0f;
+    int clamped = 0;
+    for (const int side : {4, 8}) {
+        CAPTURE(side);
+        const world::WorldGenContext ctx = world::build_world_context(
+            WorldGenParams{1, {0, 0}, {side - 1, side - 1}, world::TestbedLayout{}});
+        for (const world::Pond& p : ctx.hydrology.ponds) {
+            // Unconstructible: no pond ever sits above its own spill saddle,
+            // and (via the flat-reach test above) none above its entry level.
+            CHECK(p.level <= p.spill_level + 1e-4f);
+            if (p.spill_level - p.level > 0.01f) {
+                ++clamped;
+                worst = std::max(worst, p.spill_level - p.level);
+            }
+        }
+    }
+    MESSAGE(clamped << " ponds clamped below their spill saddle, worst " << worst << " m");
+    // The control must have teeth: at least one pond on these worlds was
+    // genuinely lowered, by a gap a player would notice (> 0.5 m). If this
+    // ever fails, the clamp stopped binding and the flat-reach test above has
+    // gone vacuous on the pond-vs-spill axis.
+    REQUIRE(clamped > 0);
+    CHECK(worst > 0.5f);
 }

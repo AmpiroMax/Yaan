@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 13:28:27
-Last updated: 09:08:2026 - 13:28:27
+Last updated: 10:08:2026 - 01:48:11
 Module: engine/world
 File: engine/world/sources/WorldgenWater.cpp
 
@@ -28,6 +28,10 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 13:28:27: Split from WorldgenHydrology.cpp (file-size limit;
   hydrology build vs query responsibilities separated).
+- 10:08:2026 - 01:48:11: Flat-reach change (§3.2 extension): the lake branch
+  reads the SETTLED level from hydro.lake.surface_height — min(rim design
+  level, river entry level) — never the LAKE_LEVEL_TESTBED constant, which
+  would recreate the drawn-above-the-river defect for the lake.
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -47,7 +51,6 @@ namespace {
 using noise::smoothstep01;
 
 constexpr float CELL = static_cast<float>(config::WORLDGEN_HYDRO_GRID_STEP);
-constexpr float LAKE_LEVEL_M = static_cast<float>(config::LAKE_LEVEL_TESTBED);
 constexpr float FORD_DEPTH_M = static_cast<float>(config::FORD_DEPTH_MAX);
 constexpr float BANK_BLEND = static_cast<float>(config::RIVER_BANK_BLEND_FACTOR);
 constexpr float DIST_RANGE_M = static_cast<float>(config::DIST_TO_WATER_RANGE);
@@ -66,19 +69,24 @@ WaterSample water_sample_impl(const HydrologyData& hydro, const TestbedLayout& l
     float dist = std::numeric_limits<float>::max();
 
     // --- Lake --------------------------------------------------------------------
+    // The lake level is the SETTLED level from hydro.lake (§3.2 flat-reach
+    // extension: plane = min(rim-min design level, river entry level)), never
+    // the raw LAKE_LEVEL_TESTBED constant — reading the constant here would
+    // recreate the drawn-above-the-river defect for the lake.
+    const float lake_level = hydro.lake.surface_height;
     const float q = lake_norm_radius(layout.lake, world);
     if (q < 1.0f) {
         dist = 0.0f;
-        out.near_level = LAKE_LEVEL_M;
-        if (h < LAKE_LEVEL_M) {
-            out.water_surface = LAKE_LEVEL_M;
+        out.near_level = lake_level;
+        if (h < lake_level) {
+            out.water_surface = lake_level;
         }
     } else if (with_distance) {
         const float from_center = glm::length(world - layout.lake.center);
         const float lake_d = (q - 1.0f) / q * from_center;
         if (lake_d < dist) {
             dist = lake_d;
-            out.near_level = LAKE_LEVEL_M;
+            out.near_level = lake_level;
         }
     }
 

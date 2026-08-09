@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 00:10:41
+Last updated: 10:08:2026 - 01:48:11
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.cpp
 
@@ -32,6 +32,7 @@ UPD:
 - 09:08:2026 - 14:41:26: Frame-05 bed fix (ROOT CAUSE): fill_level no longer doubles as the Dijkstra seed set — river trace cells seed a LOCAL set instead, so trace cells stop flooding their whole 16 m coarse cell in water_at's pond branch (67 station-only cells -> 0; WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%). Pond primitives built from cell FOOTPRINTS (water_at floods whole cells).
 - 09:08:2026 - 14:49:01: Scatter-in-water fix (part 1): pond primitives are now ONE PLANE PER CELL, not a per-pond bounding box — pond cell sets are diagonal strings along the trace, so the bbox over-covered 1.7-6x and painted water over dry ground carrying birches/stones. Per-cell squares match the water_at coverage truth exactly and tile seamlessly at a shared level.
 - 10:08:2026 - 00:10:41: POND CELL OWNERSHIP (correctness, found via render's crash report). The trace revisits ground it has already flooded -- a pond that spills raises eff, so the next local minimum downstream floods a region containing the previous pond's cells -- and every revisit APPENDED the cell to another pond carrying its own stale level. Measured at 2x2 km: 17335 cell entries over 1042 distinct cells (x16.6), one cell claimed by 36 ponds, 94.5% of cells claimed at MORE THAN ONE level, 17336 drawable planes summing to 106% of the world area against 7.01% real water. Cells are now TRANSFERRED to the rising pond, not duplicated, with one ownership index shared across both traces. Additionally pond_planes are emitted from fill_level -- the coverage truth water_at answers from -- instead of from the pond objects, so the drawn level and the swum level stop being two copies of one fact. After: x1.0 duplication, 0 cells at two levels, 1042 planes, plane area 6.66% against 7.01% real water. fill_level itself is UNCHANGED (1042 wet cells before and after): the water did not move, only the bookkeeping. Both invariants re-verified green (monotonic water; every WaterBed sample covered, worst gap 0 m).
+- 10:08:2026 - 01:48:11: THE POND BECOMES A FLAT REACH OF THE RIVER (grill в23, design-ratified §3.1 amendment). The monotone pass no longer descends through a pond: a station inside a pond takes the pond's level, and the pond's level settles to min(spill saddle, the level the river ENTERS at) — the settle runs to fixpoint because a trace can re-enter a pond it left. Cells the lowered water no longer reaches DRAIN (footprint shrinks). Pond::spill_level records the pre-clamp saddle so the control test can prove the old construction drew ponds above the river feeding them (7.98 m at the largest pond). Drawn (fill_level/pond_planes) == swum (station surfaces) is now true by construction and guarded by an ok backstop. §3.2 extension (design amendment c): the LAKE obeys the same entry rule — hydro.lake.surface_height = min(LAKE_LEVEL_TESTBED, river entry level); the query side reads the settled level, never the constant.
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -211,6 +212,7 @@ std::vector<uint32_t> trace_descent(Grid& grid, uint32_t start, const LakeStamp&
         }
         Pond pond;
         pond.level = level;
+        pond.spill_level = level;
         for (const uint32_t c : region) {
             if (grid.height[c] < level) {
                 pond.cells.push_back(c);
@@ -522,20 +524,110 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
     }
 
     // --- Monotonic water levels (§3.1 step 4 — THE invariant; pruned fill) ------
-    float w_prev = std::numeric_limits<float>::max();
-    for (std::size_t s = 0; s + 1 < hydro.segment_offsets.size(); ++s) {
-        if (s == 1) {
-            w_prev = std::min(w_prev, LAKE_LEVEL_M); // outlet water starts at the lake plane
+    // THE POND IS A FLAT REACH OF THE RIVER (grill в23, §3.1 amendment,
+    // design-ratified): the monotone pass never descends THROUGH a pond. A
+    // station inside a pond takes the pond's level, and the pond's level is
+    // min(spill saddle, the level the river ENTERS at) — the clamp happens
+    // here, where the entering level first becomes known. Cells the lowered
+    // water no longer reaches DRAIN (the footprint shrinking is the rule
+    // working, not a defect). The drawn plane (fill_level) and the swum
+    // surface (station heights) therefore agree by construction; a pond above
+    // the river feeding it is unconstructible.
+    // §3.2 EXTENSION (design's amendment c): the river-through-LAKE obeys the
+    // same entry rule — lake plane = min(rim-min design level, river entry
+    // level) — otherwise the lake rebuilds the exact defect one body over.
+    {
+        std::vector<uint32_t> cell_pond(cells, INVALID);
+        for (uint32_t pi = 0; pi < hydro.ponds.size(); ++pi) {
+            for (const uint32_t c : hydro.ponds[pi].cells) cell_pond[c] = pi;
         }
-        for (uint32_t i = hydro.segment_offsets[s]; i < hydro.segment_offsets[s + 1]; ++i) {
-            const glm::vec2 p = hydro.stations[i].position;
-            float e = macro_height(seed, layout, p);
-            const uint32_t c = cell_of(p);
-            if (c != INVALID && hydro.fill_level[c] != math::NO_WATER) {
-                e = std::max(e, hydro.fill_level[c]); // flat across ponds/lake
+        float lake_level = LAKE_LEVEL_M;
+        // Fixpoint: the trace can leave a pond and RE-enter it further down;
+        // a lowering on the re-entry invalidates surfaces assigned earlier in
+        // the same pass. Every extra pass only ever lowers levels toward
+        // values drawn from a finite set (station terrain heights), so this
+        // terminates; the cap is defensive — ok=false (failed generation) is
+        // the honest answer, a half-settled world is not.
+        bool lowered = true;
+        uint32_t settle_pass = 0;
+        const auto pass_cap = static_cast<uint32_t>(hydro.ponds.size()) + 3;
+        while (lowered && hydro.ok) {
+            if (++settle_pass > pass_cap) {
+                hydro.ok = false;
+                break;
             }
-            w_prev = std::min(w_prev, e);
-            hydro.stations[i].surface_height = w_prev;
+            lowered = false;
+            float w_prev = std::numeric_limits<float>::max();
+            for (std::size_t s = 0; s + 1 < hydro.segment_offsets.size(); ++s) {
+                if (s == 1) {
+                    w_prev = std::min(w_prev, lake_level); // outlet starts at the lake plane
+                }
+                for (uint32_t i = hydro.segment_offsets[s]; i < hydro.segment_offsets[s + 1];
+                     ++i) {
+                    const glm::vec2 p = hydro.stations[i].position;
+                    const uint32_t c = cell_of(p);
+                    const uint32_t pi = c != INVALID ? cell_pond[c] : INVALID;
+                    if (pi != INVALID) {
+                        Pond& pond = hydro.ponds[pi];
+                        if (w_prev < pond.level) {
+                            // The river enters below the pond's level: the
+                            // flat reach settles to the entering level.
+                            pond.level = w_prev;
+                            for (const uint32_t pc : pond.cells) {
+                                if (grid.height[pc] < pond.level) {
+                                    hydro.fill_level[pc] = pond.level;
+                                } else {
+                                    hydro.fill_level[pc] = math::NO_WATER; // drained
+                                    cell_pond[pc] = INVALID;
+                                }
+                            }
+                            std::erase_if(pond.cells, [&](uint32_t pc) {
+                                return hydro.fill_level[pc] == math::NO_WATER;
+                            });
+                            lowered = true;
+                        }
+                        hydro.stations[i].surface_height = pond.level;
+                        w_prev = pond.level;
+                    } else {
+                        float e = macro_height(seed, layout, p);
+                        if (c != INVALID && hydro.fill_level[c] != math::NO_WATER) {
+                            e = std::max(e, hydro.fill_level[c]); // flat across the lake
+                        }
+                        w_prev = std::min(w_prev, e);
+                        hydro.stations[i].surface_height = w_prev;
+                    }
+                }
+                // River entry into the lake (end of segment 0): the lake obeys
+                // the same rule as any flat reach.
+                if (s == 0 && reached_lake && w_prev < lake_level) {
+                    lake_level = w_prev;
+                    for (uint32_t c = 0; c < cells; ++c) {
+                        if (lake_norm_radius(layout.lake, grid.pos(c)) >= 1.0f
+                            || hydro.fill_level[c] == math::NO_WATER) {
+                            continue;
+                        }
+                        hydro.fill_level[c] =
+                            grid.height[c] < lake_level ? lake_level : math::NO_WATER;
+                    }
+                    lowered = true;
+                }
+            }
+        }
+        hydro.lake.surface_height = lake_level;
+        // Flat-reach backstop (drawn == swum): every station standing in a
+        // pond-owned cell must carry exactly that cell's fill level. Keyed on
+        // pond OWNERSHIP, not on wetness — a lake-prefilled 16 m cell can
+        // contain a station that stands outside the lake ellipse, and that
+        // station rightly carries the river's level, not the lake's.
+        // Construction above makes this true; a violation means the settle
+        // loop is broken.
+        for (const math::RiverStation& st : hydro.stations) {
+            const uint32_t c = cell_of(st.position);
+            if (c == INVALID || cell_pond[c] == INVALID) continue;
+            if (hydro.fill_level[c] == math::NO_WATER
+                || std::fabs(st.surface_height - hydro.fill_level[c]) > 1e-3f) {
+                hydro.ok = false;
+            }
         }
     }
     for (std::size_t i = 1; i < hydro.stations.size(); ++i) {
