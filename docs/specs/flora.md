@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 09:08:2026 - 19:56:29
+Last updated: 09:08:2026 - 20:00:11
 -->
 <!--
 UPD:
@@ -72,6 +72,15 @@ UPD:
                          the trunk axis instead of shrinking them, stacking the
                          birch crown into a drill bit. Clusters now shrink to
                          fit; birch uses 5 large clusters, 660 -> 450 tris.
+- 09:08:2026 - 20:00:11: USER DIRECTION supersedes the solid-cluster
+                         approach: foliage becomes flat alpha-cutout CARDS,
+                         see-through canopy, wind-ready. New §3.8 designs the
+                         geometry/layout half (crossed FIXED cards, not
+                         billboards; shrink-don't-slide; vertex ALPHA carries
+                         the sway weight so the frozen Vertex is untouched).
+                         Pipeline questions sent to render BEFORE building.
+                         Birch drill-bit chase STOPPED under Rule 28 — the
+                         approach it belonged to is being replaced.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -609,6 +618,70 @@ reasoning is what a successor cannot reconstruct:**
   `WORLDGEN_MAX_HEIGHT` = 400.
 
 ---
+
+### 3.8 Foliage cards — the approach that REPLACES solid clusters
+
+User direction, verbatim: «хочу деревья с кронами не шариками, а с листвой …
+надо сделать ствол, листву плоскими прозрачными большими плоскими наборами
+листочков / хочу чтобы сквозь листву можно было смотреть, хочу чтобы она якобы
+перемещалась и шуршала / деревья очень больная и важная для меня вещь».
+
+**This supersedes the solid blob clusters of §3.1 stage C.** It is not a tuning
+of them — the user is rejecting the volume itself, so no amount of reshaping a
+blob satisfies it. Three requirements, in priority order:
+
+1. Foliage is **flat alpha-cutout cards** carrying clusters of leaves.
+2. You can **see through the canopy** — sky and light between the leaves. This
+   is the actual point, and it is why cards are the only option: a solid cluster
+   can never do it however well shaped.
+3. The foliage **moves**. Wind is render's vertex shader; the rustle is audio
+   and belongs to a later stage. Flora's job is to build cards wind CAN move.
+
+**Card geometry.** One card = a quad = 2 triangles. Cards are grouped into
+**crossed clusters**: 2–3 quads intersecting at angles around a shared centre,
+so the group reads as volume from any azimuth. Cards are **fixed-orientation,
+never camera-facing billboards** — billboards rotate visibly at 640×360,
+shimmer under palette quantization, and are wrong in the shadow pass by
+construction (a card turned to face the eye casts a rotating shadow).
+Orientation comes from the card's position in the crown: normal roughly outward
+from the crown axis, plus a deterministic tilt so the crown does not read as a
+set of concentric shells.
+
+**Layout.** Cards replace clusters one-for-one in `scatter_envelope_clusters`
+and at branch tips — the existing envelope machinery (§3.1 stage D) is
+unchanged and still what guarantees the silhouette. Card SIZE scales with the
+local envelope radius, and the §3.7 lesson applies directly: when a card does
+not fit, **shrink it, never slide it to the axis**.
+
+**Triangle budget stops being the binding currency.** A crossed pair is 4 tris
+against ~15 for one blob cluster: an oak's foliage goes from ~330 tris to
+~80–160. The cost moves entirely into **overdraw**, which alpha testing makes
+worse by disabling early-Z, and which flora has never counted. Render owns that
+budget; the numbers in §3.6 are about to stop being the useful metric here.
+
+**The alpha mask is procedural (Q13, no image files):** lobed leaf shapes
+arranged around a stem axis, generated as a texture like everything else.
+Ownership with render — it is their ProcTexture path.
+
+**Wind, without unfreezing anything.** Sway needs a per-vertex weight (0 at the
+branch attachment, 1 at the card's outer edge) or the card slides rigidly and
+reads as a flag. `platform::Vertex` is FROZEN (Rule 26) and has no spare float —
+but `color_rgba`'s **alpha byte is unused on opaque geometry**. Proposal:
+**vertex alpha carries the sway weight.** No contract change, no group sync.
+Pending render's confirmation that vertex alpha survives to the fragment stage
+without feeding output alpha into the alpha test.
+
+**Known risk, raised with render before building:** render's thin-caster rule
+(a caster under ~0.31 m casts nothing) means the GAPS in a leaf card are far
+below shadow-map resolution, so the canopy will likely cast an essentially
+solid shadow even once the shadow program samples the mask — see-through to the
+eye, opaque to the sun. If so, "light through the leaves" needs a different
+mechanism (a lighter ambient term under canopy rather than real gaps), and we
+should know that before building rather than after.
+
+**Reference images are coming from the user.** The instruction is therefore to
+build the MECHANISM and keep leaf shape and card layout cheap to retune — do
+not polish a look that is about to be specified.
 
 ### 3.7 Two bugs the suite caught — read this before touching the envelope
 

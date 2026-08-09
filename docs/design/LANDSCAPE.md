@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 09:08:2026 - 19:44:49
+Last updated: 09:08:2026 - 19:59:31
 -->
 <!--
 UPD:
@@ -30,6 +30,7 @@ UPD:
 - 09:08:2026 - 19:34:15: Story's near-miss (they nearly attached the Steps to act 1's climax, which is a different mountain) produced three fixes. §2.5 — added a boxed TWO DIFFERENT CLIMBS warning (the Steps are the regional massif, act 2; Ravenscar's climb is the local L0, act 1); specified the Steps as a BUILT stair in four generations of disrepair, with disrepair strictly visual/routing and never impassable; landings are now STATIONS with built markers, and LR_ASCENT_LANDINGS gains narrative dependents (5-7 landings = 5-7 rite beats), so it is no longer a free pacing knob. §7.1 — filled a real gap in my own doc: Ravenscar had no validated summit route despite act 1 climaxing there; now required and validated like the temple ascent and castle ramp, and specified as an informal worn PATH rather than a stair so the two climbs never read as the same place.
 - 09:08:2026 - 19:38:02: §2.5 — LR_ASCENT_LANDINGS pinned at 7 (was a 5-7 band); story ruled the count since it now carries narrative dependents, one landing per station of the naming rite, which anchors the stair's name diegetically while the user's never-count-steps rule stays intact. Verified rhythmically before pinning: 7 landings over 1200-1800 m give 57-86 s segments at WALK_SPEED, inside the testbed POI_TRAVEL_TIME band across the whole range, so the climb's cadence matches the valley's exploration cadence; ~40 m of relief per station keeps the view changing.
 - 09:08:2026 - 19:44:49: New §7.0a — barrow re-sited after the L0 raise buried it (a cascade from my own proposal, owned). RULING: swing the bearing into a couloir, do NOT move the castle — core's outward-move options were rejected because moving the castle cascades into ford command, approach corridor, trespass route, ward count and the R1 check to buy what a bearing change buys outright. Measured a ~60 deg feasible arc (bearings 180-240 at radius 90-110 keep CASTLE_BARROW_DIST legal with the castle unmoved); core searches it for low terrain nearest the current 209 deg. Fallback is a high shoulder entrance, pre-cleared with story because it inverts "the seat stands over the grave". Durable rule extracted: §7.1 coordinates are stamps against a terrain state, so changing a landmark's relief invalidates every placement on its slopes and re-validation is part of the change, not a follow-up.
+- 09:08:2026 - 19:59:31: NEW §2.8 — the anti-dome ruling, second pass, after the user rejected the mountain a THIRD time with a shape brief (sharp / ribs / cubes on cubes / contour lines at varying spacing / non-uniform steps). Diagnosis measured by core before ruling: the dome is in the SPEC, not the mesher — the L0 stamp is smoothstep(1-d/R)*peak with a noise term that vanishes at the summit, i.e. zero slope at the apex, max at mid-radius, zero at the hem; lobe ratio 0.80/0.81/0.80 (identical at every height = self-similar cone), 0.0% of surface over 55 deg, 33.2% in one 40-50 deg bin, and surface nets measured NOT to be losing slope. My predecessor's invariant judged honestly on both counts: it was never BINDING (written in §2.5 for the LR, never evaluated on the L0 the user is looking at) and it was also INSUFFICIENT (one slice cannot see self-similarity; "60% above 40 deg" is satisfied by a uniform cone, which is the complaint). Ruling: massifs are authored as a BANDED CONTOUR MODEL — non-uniform band elevations, per-bearing radial lobing (aretes/couloirs), per-bearing profile exponent p>1 (concave, the actual anti-dome fix; smoothstep is the breast curve), per-sector cliff-vs-ramp risers — plus nine checkable invariants (I1 concave profile, I2 sharp summit, I3 near-vertical rock exists, I4 no 10-deg slope bin over 30%, I5 riser/bench alternation, I6 band-spacing CV, I7 arete detection by aspect-turn with vertical persistence, I8 lobe ratio at three heights AND rising, I9 blocky rock coverage). Recorded a REJECTED test with its measurement so nobody re-proposes it: raw contour-spacing CV is useless, the current dome scores 0.935. §2.8.4 — «кубы на кубах» ruled PLACED MESHES (Bethesda's answer), NOT dual contouring, because DC does not raise the sampling rate and a block under ~3 m cannot survive 1 m voxels at all; the summit becomes a TOR carrying the tower ruin. §2.8.5 — cross-constraints: validated ascents survive as BREACHES in the cliff bands (which makes the route legible from the valley, a gain), castle R1-R4 re-run, the §7.0a barrow couloir search should now succeed because lobing creates couloirs by construction, trees move onto benches, render gets a hard-splat-edge exception at band lips. LR_LOBE_RATIO renamed MASSIF_LOBE_RATIO — the constant's NAME was the bug. §2.5 item 5 superseded; §7.1 Ravenscar row rebuilt on §2.8 and named the acceptance case (it fails all nine invariants today).
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -746,6 +747,313 @@ sparse L2 (standing stones, a lone skyline tree) so the openness reads as
 intentional. The plain is also the natural site for a future FUTURE road and
 for the act-scale muster/travel beats story may want.
 
+### 2.8 Massif shape language — the anti-dome ruling, second pass (stage-4)
+
+The user has rejected the mountain a **third** time, and this time gave a
+shape brief rather than a complaint: «гора — это всё ещё сиська… гора она
+должна быть **острая**, иметь **рёбра**, надо её **из камней собирать
+местами, где-то кубы на кубах**, высоту надо задавать **линиями уровня,
+которые где-то ближе, где-то дальше**, **перепады не должны быть
+постоянными».** Decoded into the five things a generator must do:
+
+1. **Sharp, not domed** — the summit is a point, not a crown.
+2. **Ribs (рёбра)** — hard arêtes: flat faces meeting along visible crest
+   lines, not soft radial swells.
+3. **Assembled from stone in places, cubes on cubes** — blocky stacked rock
+   that reads as *rock*, not as terrain that happens to be steep.
+4. **Height defined by contour lines whose spacing varies** — close where it
+   is steep, far where it is gentle.
+5. **The steps are not uniform** — no constant gradient, and no wedding cake
+   either.
+
+They are looking at **Ravenscar** (`L0_RELIEF` 115 m). The temple massif does
+not exist yet. This ruling therefore governs **every massif** — L0, LR, and
+the inner faces of the border ranges — with Ravenscar as the acceptance case.
+
+#### 2.8.1 Diagnosis — why the first invariant did not bite (measured, core)
+
+Asked before ruling, and the answer is unambiguous.
+
+**The dome is in the spec, not in the mesher.** The L0 stamp is
+`smoothstep(1 − d/R) · peak − 13 m · (1 − prof) · (1 − ridged_noise)`. That is
+a **smooth radial falloff with a little noise on its sides**: no angular
+modulation, no cliff bands, no asymmetry. Worse, the noise term is multiplied
+by `(1 − prof)`, so it **vanishes at the summit by construction** — the top
+third of Ravenscar is a pure smoothstep surface of revolution. A smoothstep
+radial profile has **zero slope at the apex, maximum slope at mid-radius, and
+zero slope again at the hem**. That is not "a bit round". That is the
+mathematical definition of the shape the user keeps naming.
+
+Measured on the built crag, seed 1:
+
+| Measure | Value | Reading |
+|---|---|---|
+| Lobe ratio at ½ / ⅔ / ⅚ relief | **0.80 / 0.81 / 0.80** | circular, and **identical at every height** — a self-similar cone |
+| Surface above mid-height over 40° | 45.9 % | passes the old 60 %-ish intent only partly, and pointlessly |
+| Surface over 55° | **0.0 %** | there is no cliff anywhere on this mountain |
+| Surface over 70° | **0.0 %** | |
+| Slope histogram, whole crag | 0–10°: 45.4 %, 30–40°: 12.4 %, **40–50°: 33.2 %**, 50–60°: 0.8 % | two spikes: flat ground, and **one uniform ≈45° flank** |
+| Field max slope vs mesh | field 68.7° max; mesh's 40–50° bin *higher* than the field's | **surface nets is not losing slope** |
+| Raw contour spacing (5 m), CV | mean 6.9 m, σ 6.5 m, **CV 0.935** | base fBm bleeding through; the *stamp* is perfectly regular |
+
+**Was my predecessor's invariant insufficient? Both answers are true and both
+matter.**
+
+- **It was never binding.** `LR_LOBE_RATIO` exists as a number in NUMBERS.md
+  and **nothing in the pipeline evaluates it**. It was written in §2.5, which
+  governs a massif that has not been built, while the user judges one that has.
+  A rule authored against object A while the user looks at object B is a
+  process failure, and it is the primary cause here.
+- **It was also genuinely insufficient**, and saying only the first thing
+  would be dodging. A **single horizontal slice** cannot see that the shape is
+  identical at every height — the measured 0.80/0.81/0.80 is exactly the
+  signature it is blind to. And "≥ 60 % of the upper surface above 40°" is
+  **satisfied by a perfect 45° cone**, which is precisely «перепады
+  постоянные». Both clauses are plan-view or scalar statistics; **neither
+  constrains the vertical profile**, and the vertical profile is the entirety
+  of what the user described.
+
+**One test I intended to write, killed by the measurement.** A floor on the
+*coefficient of variation of contour spacing* is a bad invariant: the current
+dome already scores **0.935**. Variance is free — fBm supplies it. What the
+user is asking for is not variance, it is **alternation**: risers and benches
+in a rhythm that is itself irregular. The invariants below test alternation
+and are recorded here with the rejected version, so nobody re-proposes CV.
+
+#### 2.8.2 The generator model — the BANDED CONTOUR MASSIF
+
+The user handed us the authoring model in their own sentence: *«высоту надо
+задавать линиями уровня»*. Take it literally. A massif is **no longer a
+radial profile with noise on it**; it is a **stack of contours**, and height
+is reconstructed between them. This matters because it is *structurally
+incapable* of producing a dome — there is no smooth falloff anywhere in it.
+
+Four seeded fields, all per-sample analytic, all deterministic, all pure
+height-function work (so the voxel pipeline carries them unchanged):
+
+1. **Band elevations `e_0 … e_n`.** Non-uniform by construction:
+   `e_{k+1} = e_k + Δ_k`, `Δ_k` drawn from a seeded distribution whose
+   coefficient of variation is at least `MASSIF_BAND_SPACING_CV_MIN`. Bands
+   start at the cliffline (`MASSIF_CLIFFLINE_FRAC` of relief) and run to the
+   summit. **This is "линии уровня, которые где-то ближе, где-то дальше",
+   authored rather than hoped for.**
+2. **Radial extent `R_k(θ)`** — each band's outline as a function of bearing:
+   `R_k(θ) = R_base(e_k) · (1 + ε(e_k) · ridged(θ))`, with
+   `ε ∈ [MASSIF_RADIAL_LOBE_AMP_MIN, _MAX]` and **ε increasing with
+   elevation**. Outward lobes are the **arêtes**; inward folds are the
+   **couloirs**. Irregular by seeded phase — a symmetric star reads as
+   artificial (§2.5.2, unchanged).
+3. **Profile exponent `p(θ) ∈ [MASSIF_PROFILE_EXPONENT_MIN, _MAX]`** — the
+   base falloff is `h = H·(1 − d/R)^p` with **p > 1**, which is the whole
+   fix in one symbol. `p > 1` gives **steep at the summit, shallowing to the
+   foot** — the concave profile every real mountain has, because talus fans
+   out at the bottom. `smoothstep` gives the opposite and that is why it
+   reads as a breast. Varying `p` with bearing **is** the §2.5.4 asymmetry
+   rule: the low-`p` sector is the gentle flank that carries the ascent, the
+   high-`p` sector is the scarp face.
+4. **Riser class per (band, angular sector).** Each band's riser is either a
+   **CLIFF** (≥ `MASSIF_CLIFF_SLOPE_MIN`) or a **RAMP**, chosen per sector by
+   seeded noise. So a single band can be a cliff on the north side and a ramp
+   on the south. This is what stops the wedding cake: the terracing is
+   discontinuous *around* the mountain as well as irregular *up* it.
+
+Between bands the surface is a **bench** (`MASSIF_BENCH_SLOPE_MAX`, width
+`MASSIF_BENCH_WIDTH_MIN…MAX`). Riser heights come from
+`MASSIF_CLIFF_BAND_MIN…MAX`.
+
+**Why this is cheap:** every term above is arithmetic on `(d, θ, h)` at a
+sample that is already being evaluated. Core's own ranking agrees — angular
+ridge modulation, non-uniform falloff, cliff-band quantisation and asymmetry
+are all *free* per-sample math on a position function. No new pass, no new
+storage, no mesher change.
+
+**The bonus nobody had to pay for.** Cliff risers exceed `SLOPE_ROCK_MIN`
+(40°) and benches sit under `SLOPE_GRASS_MAX` (30°), so the existing §4 splat
+paints **risers as rock and benches as grass/blend automatically**. The
+contour rhythm becomes a **visible horizontal stripe rhythm** at 640×360, with
+zero shader work. The user asked to define height by contour lines; this is
+the mechanism by which they will actually *see* them.
+
+#### 2.8.3 The invariants — nine tests the generator runs on itself
+
+Scope: any landform whose relief ≥ `MASSIF_RULE_MIN_RELIEF` = 40 m. Knolls
+(+6 m) and the lakeshore bluff (+10 m) are bumps and are exempt. Border
+ranges (§2.6) inherit **I1, I3, I4, I5, I7** on their inner face; **I2 and I8
+are massif-only** (a range has no single summit and no closed slice).
+
+| # | Invariant | Test | Current crag |
+|---|---|---|---|
+| **I1** | **Concave profile** (the core anti-dome test) | mean slope over the **upper third of relief** exceeds mean slope over the **lower third** by ≥ `MASSIF_PROFILE_STEEPENING_MIN` = 12° | **FAILS** — one uniform 45° flank, difference ≈ 0 |
+| **I2** | **Sharp summit** | mean slope within `MASSIF_SUMMIT_RADIUS_FRAC` = 0.12 of base radius of the summit ≥ `MASSIF_SUMMIT_SLOPE_MIN` = 40° | **FAILS** — smoothstep gives slope → 0 at the apex |
+| **I3** | **Near-vertical rock exists** | ≥ `MASSIF_STEEP_FRACTION_MIN` = 0.12 of the surface above the cliffline exceeds `MASSIF_CLIFF_SLOPE_MIN` = 55° | **FAILS** — measured 0.0 % |
+| **I4** | **No constant gradient** (the direct «перепады не постоянные» test) | above the cliffline, **no single 10° slope bin holds more than** `MASSIF_SLOPE_BIN_MAX` = 0.30 of the surface | **FAILS** — 40–50° holds 33.2 % of the *whole* crag, far more above the cliffline |
+| **I5** | **Riser/bench alternation** | on each of `MASSIF_RADIAL_SAMPLES` = 64 radials, between ⅓ and full relief, ≥ `MASSIF_BAND_ALTERNATION_MIN` = 3 transitions between cliff class (≥ 55°) and bench class (≤ `MASSIF_BENCH_SLOPE_MAX` = 25°); required on ≥ `MASSIF_RADIAL_PASS_FRACTION` = 0.7 of radials | **FAILS** — no cliff class exists, so zero transitions |
+| **I6** | **Band spacing is irregular** | CV of the **vertical spacing between successive cliff bands** along a radial ≥ `MASSIF_BAND_SPACING_CV_MIN` = 0.35. **Measured on band spacing, never on raw contour spacing** (see §2.8.1 — the dome scores 0.935 on the latter) | n/a — no bands |
+| **I7** | **Arêtes exist, are sharp, and persist** | on contours at 0.4/0.55/0.7/0.85 relief, an arête is a point where surface **aspect turns ≥ `MASSIF_ARETE_TURN_MIN` = 50° within `MASSIF_ARETE_TURN_ARC_MAX` = 15 m of arc**, flanked on both sides by **facets turning ≤ `MASSIF_FACET_TURN_MAX` = 15° over ≥ `MASSIF_FACET_ARC_FRAC_MIN` = 0.08 of that contour's perimeter**. Require ≥ `MASSIF_ARETE_COUNT_MIN` = 3, each detected on ≥ `MASSIF_ARETE_PERSISTENCE_MIN` = 0.6 of the four levels within `MASSIF_ARETE_BEARING_TOL` = 15° of bearing | **FAILS** — no angular structure at all |
+| **I8** | **Lobed AND increasingly articulated** | lobe ratio `P²/(4π·A)` at ½, ⅔ and ⅚ relief **each** ≥ `MASSIF_LOBE_RATIO` = 1.35, **and** `lobe(⅚) − lobe(½)` ≥ `MASSIF_LOBE_RISE_MIN` = 0.15 | **FAILS** — 0.80/0.81/0.80, flat as well as low |
+| **I9** | **Blocky rock present** | placed rock assemblies cover `ROCK_OUTCROP_COVERAGE_MIN…MAX` = 0.10–0.20 of the surface above the rockline, **and the summit carries a tor** (§2.8.4) | **FAILS** — no such asset class exists |
+
+**Two measurement rules, or the invariants measure the digitiser instead of
+the world.**
+
+- **Perimeter comes from the marching-squares contour polyline**, never from
+  counting boundary cells. Core's boundary-cell perimeter undercounts by
+  ≈ 10 %, which is a third of the headroom in I8 — a threshold that a
+  digitisation choice can flip is not a threshold.
+- **Slope is measured on the extracted mesh normals as well as on the field**,
+  and both are reported. This session's whole diagnosis turned on that pair
+  disagreeing; keep the ability to ask the question.
+
+**I7 is the arête test and it is worth stating why it is shaped this way.**
+"Ribs" is not "bumpy in plan". A rib is **flat faces meeting along a line**.
+Aspect (the compass direction of downhill) is *constant across a face* and
+*flips fast at a crest*, so the distribution of aspect-turn-per-arc is what
+separates a ridged mountain from a lumpy one — and it is scale-free, which is
+why the same test governs a 115 m crag and a 280 m massif. Persistence across
+four elevations is what stops a single noise lump from scoring as a rib.
+
+**I1 and I4 are the two that would have caught this a session earlier**, and
+neither is expensive. If only two are implemented first, implement those.
+
+#### 2.8.4 «Кубы на кубах» — the tor ruling, and what voxels can honestly do
+
+**Say the achievability plainly, because the answer is not the one that was
+assumed.** Surface nets rounds edges — that is recorded in
+VOXEL_ARCHITECTURE.md §2 as a known cut of the crunch variant. It was
+reasonable to suspect the mesher of the smoothness. **It is not guilty:**
+measured field max slope 68.7°, and the mesh's 40–50° bin sits *above* the
+field's. At `VOXEL_SIZE` 1.0 m the rounding radius is ≈ 1 m, which against an
+8–15 m cliff band is a 7–12 % softening of the lip — a *weathered* cliff top,
+which is what we want anyway.
+
+So the brief splits cleanly by feature scale:
+
+| Scale | Feature | Mechanism | Cost |
+|---|---|---|---|
+| ≥ 8 m | arêtes, couloirs, cliff bands, sharp summit, non-uniform contour spacing | **terrain SDF, per-sample math** | **free** — no new pass, no new storage, no mesher change |
+| 3–8 m | slab benches, stepped shoulders | terrain SDF, ≈ 1 m lip rounding accepted | **free**, reads correctly |
+| < 3 m | **«кубы на кубах»** — stacked slabs with crisp arrises | **placed rock meshes** | new asset class + placement pass + collision |
+
+**RULING: the blocky read is PLACED MESHES, not dual contouring.** Four
+reasons, and the first is decisive:
+
+1. **Dual contouring would not deliver it.** DC sharpens edges the SDF already
+   contains; it does not raise the sampling rate. At 1 m voxels a block under
+   ≈ 3 m does not survive Nyquist at all, so DC buys us *crisper 3–5 m
+   masses*, never "cubes". The thing the user asked for is below our voxel
+   floor by construction.
+2. **DC is a mesher change that touches every surface in the game** (core's
+   words), with non-manifold and determinism care, for a benefit confined to
+   one landform class.
+3. **Placed rock is reusable everywhere else** — scarp faces (§2.7), outcrops
+   (§2.2), the barrow lintel and standing stones (§6.2), the castle's spoil
+   heap and never-laid dressed stone (§6.1.3), quarry cuts. It is not a
+   one-mountain investment.
+4. **It is the reference answer.** Bethesda puts placed rock meshes over
+   heightfield terrain for exactly this problem, and the user has been told as
+   much. Instanced, LODs trivially, arbitrarily crisp arrises.
+
+**The tor rule — the single highest-value item in this whole ruling.**
+**A massif's summit is a TOR, not a terrain vertex.** The top
+`SUMMIT_TOR_HEIGHT` = 6–12 m of Ravenscar is a **stack of tilted slabs** over
+a footprint of `SUMMIT_TOR_RADIUS` = 5–10 m, with the watchtower ruin (§6,
+§7.1) standing **on** it rather than on smoothed ground. This is a real
+landform (a granite tor), it is literally "кубы на кубах", and it converts the
+one part of the mountain the eye always lands on from a rounded crown into a
+broken rock crest. Ravenscar's silhouette against sky stops being an arc.
+
+The LR's summit carries the temple; there the tor becomes the **plinth** the
+temple stands on — same rule, same geometry, the building sits on rock.
+
+**Assembly grammar (generator rules, not hand placement):**
+
+- A **stack** is `ROCK_STACK_BLOCKS` = 2–5 blocks, each
+  `ROCK_BLOCK_SIZE` = 1.5–4.0 m, flat-topped, near-vertical sided, hard
+  arrises, ≤ `ROCK_BLOCK_TRI_BUDGET_MAX` = 60 tris per block.
+- Blocks are **offset laterally by up to `ROCK_STACK_OFFSET_MAX` = 0.8 m** and
+  **tilted by up to `ROCK_STACK_TILT_MAX` = 0.21 rad (12°)**. A perfectly
+  level, perfectly aligned stack reads as **masonry**, and the moment it does
+  the player thinks *ruin*, not *mountain*. The offset is what makes the
+  silhouette stepped; the tilt is what makes it geological.
+- **Placement is derived from the terrain, never tabled** (§7.1a rule,
+  extended once more): stacks sit on **arête crests** at
+  `ROCK_STACK_SPACING` = 15–35 m of crest length, at **cliff-band lips and
+  bases**, and on the summit. A crest that resolves, on approach, into stacked
+  blocks is the payoff shot of this entire section.
+- **Never on a bench a route crosses**, never inside a corridor mask, never
+  where they would block a validated ascent (§2.8.5).
+- **Budget:** `MASSIF_ROCK_TRI_BUDGET_MAX` = 60 000 tris for a whole massif at
+  LOD0 — ≈ 1.5× one chunk of today's heightfield mesh. **Instancing and LOD
+  are mandatory, not optional**: at 0.15 coverage Ravenscar wants ≈ 270 stacks,
+  which is fine as instances and unaffordable as unique meshes.
+
+**Dual contouring is explicitly NOT required by this ruling** and stays where
+core deferred it. Its real customers are the castle terrace, quarry cuts and
+cave mouths (VOXEL_ARCHITECTURE §2). Revisit it there, on their evidence, not
+on the mountain's.
+
+#### 2.8.5 What this costs the rules we already have
+
+A landmark's shape is load-bearing for a dozen placements (§7.0a's durable
+rule: *changing a landmark's relief invalidates every placement on its
+slopes*). Applying that rule to my own change:
+
+- **The validated ascents survive by being BREACHES, and that is an
+  improvement, not a concession.** Ravenscar's summit route (§7.1), the LR's
+  Steps (§2.5) and the castle scramble (§6.1.3, `SCRAMBLE_SLOPE` 30–45°) must
+  each cross the cliff bands. Rule: **cliff bands are broken where a validated
+  route crosses them**, breach width ≤ `MASSIF_ROUTE_BREACH_WIDTH` = 12 m,
+  generated as part of the route stamp and reading as a gully or a gate. The
+  gain is real: when everything else is cliff, **the one way up becomes
+  legible from the valley floor**. The mountain teaches its own route. A
+  breach is a feature of the shape language, not an exception to it.
+- **Castle R1–R4 (§6.1.1) must be re-run, and I predict they get easier.**
+  The base radius is unchanged (180 m), so the crag's angular footprint at the
+  horizon — what R1 tests — does not move. `p > 1` makes the *mid-body*
+  slimmer, so the crag occludes itself less and R2 (flank yes, crown no) gains
+  headroom. **Predicted, not assumed:** re-validate. The failure mode to watch
+  is the opposite of the one that looks obvious — a slimmer upper body could
+  narrow the *upper* footprint enough to push a tall element outside R1.
+- **§7.0a's barrow couloir search should now succeed.** Core's search for a
+  low-terrain couloir in the 180°–240° arc failed against a stamp that has no
+  couloirs — angular lobing creates them by construction, and core flagged
+  this connection unprompted. **Re-run the couloir search after the reshape
+  before touching the high-shoulder fallback**, which stays out of scope.
+- **C1 / C4 (§1.3):** less self-occlusion should raise clearance; cliff bands
+  add local flank occluders where the pine strips already sit. Re-measure;
+  the floor does not move (§1.3's standing rule).
+- **Flora — trees move onto the benches** (§5.10 already has the machinery).
+  `TREE_SLOPE_MAX` (0.61 rad) excludes cliff faces automatically, so
+  vegetation collects on benches, and the **cliff-edge setback measured from
+  the outer edge of the root flare** now applies at *every band lip*, not just
+  at scarps. A short line of pines on a ledge above a 12 m drop is the best
+  silhouette this mountain can produce — **one cluster per bench segment,
+  never a continuous hedge**, or the bands read as landscaping.
+- **Render — the band lip is the one place we want a HARD splat edge.** §4's
+  dithered transitions exist to avoid smear across gradual slope change; at a
+  55° riser meeting a 20° bench the transition is a real discontinuity and
+  should be drawn as one. Requested as a narrow exception, not a policy change.
+- **Sim — cliff faces at 55° exceed `PLAYER_MAX_SLOPE` (50°)** and are
+  therefore natural barriers, which is what we want. Watch the character
+  controller against the ≈ 1 m rounded band lip.
+- **Voxel pipeline — nothing to do.** All of §2.8.2 is height-function work,
+  and per RIVER_RESEARCH §0.3 any change expressible as a height modification
+  survives the voxel pipeline unchanged. Only the placed rock of §2.8.4 is new
+  geometry, and it is ordinary instanced meshes with collision.
+
+#### 2.8.6 Constants (for NUMBERS.md, Rule 14)
+
+Renames first, because one of them is the lesson: **`LR_LOBE_RATIO` →
+`MASSIF_LOBE_RATIO`**, **`LR_CLIFF_BAND_MIN/MAX` →
+`MASSIF_CLIFF_BAND_MIN/MAX`**, **`LR_CLIFFLINE` → `MASSIF_CLIFFLINE_FRAC`**.
+Nothing evaluates them today, so the rename is free; scoping a shape rule to
+one landmark is exactly the failure that produced this session.
+`LR_RIDGE_COUNT_MIN/MAX` (4–7) stays as the LR's generator input and is now
+understood as its **arête count**; Ravenscar gets `L0_ARETE_COUNT` = 3–5.
+
+All values **предложение — утвердить**. Full table with units and
+justifications is handed to the lead with this ruling.
+
 ## 3. Water
 
 Water does not exist in the engine yet; this section is the contract for its
@@ -868,8 +1176,24 @@ Design rationale, binding for render:
 
 ## 5. Flora catalog
 
-Global rules: every species is a low-poly hard-edged mesh, 2–3 flat colors,
-strong value separation (readability §1.5). Placement is Poisson-disc /
+Global rules: every species is low-poly with 2–3 flat colors and strong value
+separation (readability §1.5). **Foliage is the one exception to
+"hard-edged mesh" (stage-4, user direction via flora):** «кроны не шариками, а
+с листвой… плоскими прозрачными большими плоскими наборами листочков… хочу
+чтобы сквозь листву можно было смотреть» — tree foliage is **flat
+alpha-cutout cards** carrying leaf clusters, and the canopy is **see-through**.
+Trunks, branches, bushes, logs and snags stay solid hard-edged meshes. What
+does **not** change: the crown *envelope* still governs, so oak/pine/birch
+remain separable by outline at `SILHOUETTE_MIN_PX`, and every size band,
+crown-base fraction, spacing and density in this section is unaffected —
+cards are a surface treatment inside the same envelope, not a new silhouette
+language. Two consequences to keep straight: our C1 occlusion model is
+**already** porosity-friendly (§1.3's Beer–Lambert form has an explicit
+effective-width term `w(h)`, so a porous crown is a smaller `w`, not a new
+model — do not re-derive the mechanism, re-measure the coefficient); and
+**dappled light under a canopy is a lighting problem, not a geometry one**,
+because a shadow caster thinner than render's caster floor will read as solid
+no matter how open the card looks. Placement is Poisson-disc /
 jittered-lattice per §2 (never raw high-frequency noise threshold — it
 clumps). Trees never spawn on rock or sand splat, never inside building pads,
 corridors, or water. Slope limit for all trees: `TREE_SLOPE_MAX` = 0.61 rad
@@ -1647,7 +1971,16 @@ of a procedural stamp/scorer, tunable and deterministic. **Все координ
 
 | Feature | Where (x, z) | Parameters |
 |---|---|---|
-| **L0: Ravenscar Crag** + watchtower ruin | peak (830, 200), footprint r ≈ 180 m | ridged-noise stamp; peak raised to `L0_RELIEF` **110–120 m** (approved, §5.7 — needs the raised `WORLDGEN_MAX_HEIGHT`); rock splat above the stamp's rockline; tower ruin (§6) on peak; **validated summit route — see below** |
+| **L0: Ravenscar Crag** + watchtower ruin | peak (830, 200), footprint r ≈ 180 m | **banded contour massif per §2.8** (replaces the smoothstep radial stamp — the shape the user rejected three times); `L0_RELIEF` **115 m**; `L0_ARETE_COUNT` 3–5; cliff bands above `MASSIF_CLIFFLINE_FRAC`; **summit is a tor** (§2.8.4) carrying the tower ruin (§6); rock splat above the stamp's rockline; **validated summit route, breaching the bands — see below** |
+
+**Ravenscar is the acceptance case for §2.8.** The nine invariants are not
+abstract quality gates: the crag **fails all nine today**, measured, and the
+user is looking at it. Acceptance is the tour frames from the valley floor and
+from the western meadows showing a summit that is a broken rock crest rather
+than an arc, visible horizontal stripe rhythm on the flanks, and at least
+three crest lines readable at 640×360. If a frame still reads as a dome, the
+invariant that let it through is the wrong invariant and gets fixed — the
+frames outrank the numbers, because the numbers exist to predict the frames.
 
 **Ravenscar's ascent is a required invariant too (gap exposed by story's
 near-miss).** Act 1's climax is the climb to the ward-tower, and I had
