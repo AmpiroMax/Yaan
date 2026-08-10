@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 11:27:07
+Last updated: 10:08:2026 - 11:31:39
 -->
 <!--
 UPD:
@@ -330,6 +330,25 @@ UPD:
                          batch. The habit that fails is stamping from memory of
                          'about when it is now'; the only fix that works is
                          reading the clock INTO the edit, never around it.
+- 10:08:2026 - 11:31:39: DESIGN RULED (5a316f4): BR-5 aggregates PER-DISTANCE,
+                         not pooled — cross-applying BR-6's own "no gap over
+                         3x, a mean can hide a desert" reasoning to distance
+                         instead of gap length. So the ruled-MIN/40m miss is
+                         LIVE, not a pooling artefact — but design withheld the
+                         placement lever pending a seed-spread reconfirmation
+                         (0.021 against 0.5 is inside "a few percent = the
+                         filter is the result"). RECONFIRMED, 40 seeds: mean
+                         0.5038 (passes by 0.004), median 0.4778 (fails by
+                         0.022), 60% of individual seeds fail outright, sd
+                         0.164. NOT NOISE AROUND A PASS — a coin flip astride
+                         the bar, and which seed-statistic aggregates decides
+                         the verdict AGAIN: fourth instance of the definition-
+                         not-the-number disease in two days (Clark-Evans
+                         denominator, per-class control, ring aggregation, now
+                         this). Reported without picking a statistic; flagged
+                         MEDIAN as the discipline-consistent choice per §2.8.3
+                         ("a marginal pass on one seed is not compliance") but
+                         left the ruling to design.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1424,6 +1443,31 @@ tree TRUNKS are absent from this model and are probably the larger term
 (44 trees/ha × ~1.2 m ⇒ ~0.27 occlusion at 60 m analytically), so whether
 BR-5's raycast already counts them changes the whole arithmetic and should be
 settled before any floor-class density moves.
+
+**SEED-SPREAD RECONFIRMATION of the one live cell, per design's ruling
+(per-distance aggregation; ask to core before any lever) — 40 seeds, ruled
+MIN, 40 m:**
+
+    mean   0.5038    median  0.4778    sd  0.164
+    min    0.2847    max     1.0000
+    seeds below 0.50:  24 / 40  (60 %)
+    95 % range (order stats): [0.294, 0.764]
+
+**It is not noise around a pass, and it is not a clean fail — it is a
+near-exact coin flip astride the bar, and WHICH STATISTIC AGGREGATES THE SEEDS
+DECIDES THE VERDICT AGAIN.** Mean clears 0.5 by 0.004; median misses by 0.022;
+60 % of individual draws fail outright. The single seed originally reported
+(0.479) was not an unlucky outlier — it sits almost exactly at the median. The
+spread (sd 0.164, min 0.28 to max 1.00) says this cell's occlusion depends
+strongly on where the nearest bush drift happens to fall relative to the find,
+which is coherent with §3.14's own finding that clumping trades mean occlusion
+for lane-vs-cluster variance. **Fourth instance of the same disease in two
+days**: Clark-Evans denominator, per-class control, ring aggregation, now
+seed-statistic choice — every one of them looked like it needed a number and
+turned out to need a definition. Reported to design and core without picking
+one; MEDIAN is the discipline-consistent choice (§2.8.3's own standard:
+"a marginal pass on one seed is not compliance," median/min matter more than a
+favourable mean), but it is their rule to apply, not mine.
 
 **THE COMBINED FIGURE (measured after core confirmed the omission WAS the
 answer — their raycast marches terrain only).** Trunks come from the shipped
