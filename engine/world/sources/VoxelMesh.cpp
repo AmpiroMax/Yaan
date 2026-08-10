@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 21:27:14
+Last updated: 10:08:2026 - 21:32:35
 Module: engine/world
 File: engine/world/sources/VoxelMesh.cpp
 
@@ -32,6 +32,11 @@ UPD:
 - 10:08:2026 - 21:27:14: Recorded the unmeasured premise under render's
   0.375%% visible-share figure for the Rule 39 blend fix: it assumes these
   gradient normals match worldgen's analytic slope, and nobody has checked.
+- 10:08:2026 - 21:32:35: Closed the normals premise. The extracted normals
+  are NOT systematically flatter than the analytic slope (51.8%% flatter, mean
+  slightly steeper); they are noisier. 46.1%% of blend vertices change under the
+  Rule 39 fix, so render's 0.375%% ground-pixel figure is a floor — but vertices
+  are not pixels, and the converting measurement is render's instrument.
 */
 
 #include "engine/world/sources/VoxelMesh.h"
@@ -212,25 +217,45 @@ VoxelMeshData extract_surface_nets(const VoxelVolume& volume) {
 
                 cell_vertex[idx(x, y, z)] = static_cast<int32_t>(mesh.positions.size());
                 mesh.positions.push_back(vpos);
-                // OPEN PREMISE, and it is load-bearing for a number now quoted
-                // in two zones. `n` is the SDF gradient of the voxel field.
-                // Render measured that fixing the GrassRockBlend hop moves only
-                // ~0.375% of ground pixels, because fs_terrain.sc re-derives
-                // rock from SLOPE across the same band and was already covering
-                // most of the blend. That figure assumes these extracted
-                // normals agree with worldgen's analytic gradient. If surface
-                // nets smooth them systematically FLATTER — which is what a
-                // cell-averaged gradient tends to do on a crag — the shader's
-                // slope term fires less often than render's estimate assumed
-                // and 0.375% is a FLOOR, not a result.
+                // MEASURED 10.08.2026, closing the premise this note used to
+                // record as open. `n` is the SDF gradient; the shader's slope
+                // measure is 1-cos(angle), which is exactly 1-n.y, so the two
+                // are directly comparable. Over the 26136 blend vertices of the
+                // seed-1 testbed, against terrain_slope() at the same points:
                 //
-                // NOBODY HAS MEASURED IT. The measurement is the distribution
-                // of (1 - n.y) over the 26136 blend vertices of the seed-1
-                // testbed, against terrain_slope() at the same positions. Until
-                // it exists, do not quote 0.375% without this caveat, and do
-                // not retire BLEND_CLASS_ROCK_W (render's Materials.h) on the
-                // strength of it. Recorded here rather than in a message
-                // because this is where the normals are made.
+                //   1-n.y     mean 0.1875  p10 0.1205  p50 0.1893  p90 0.2516
+                //   analytic  mean 0.1796  p10 0.1334  p50 0.1802  p90 0.2290
+                //
+                // THE "FLATTER NORMALS" HYPOTHESIS IS WRONG. Surface nets do
+                // not bias these toward flat: the voxel normal reads flatter on
+                // 51.8% of vertices and steeper on the rest — a coin flip — and
+                // the mean is slightly STEEPER, not flatter. What the extraction
+                // actually adds is SCATTER (p10 lower and p90 higher than the
+                // analytic), which is a different defect from a bias and would
+                // not have been found by looking for the one we expected.
+                //
+                // The consequence still runs the other way from the estimate.
+                // Against the shader ramp (START 0.1322, END 0.2352): 12.8% of
+                // blend vertices sit below START, where the shader adds NO rock
+                // and the surface class is the only source; 14.9% sit above END,
+                // where it is already saturated. The shader's own term is
+                // already >= 0.5 on 53.9%, so the fix changes 46.1% of blend
+                // vertices — far more than the ~17% implied by the 0.375%
+                // ground-pixel estimate. Mean rock-weight delta 0.1652; the
+                // median vertex changes by 0, the affected ones by the full 0.5.
+                //
+                // WHAT THIS DOES NOT SETTLE, and the reason it is not a licence
+                // to quote a new percentage: THESE ARE VERTICES, NOT PIXELS. A
+                // vertex on a crag covers a different screen area from one on a
+                // valley floor, so 46.1% of vertices does not convert to 46.1%
+                // of anything visible. This measures the OBJECT; the claim
+                // 0.375% makes is about the VIEW, and Rule 41 says an
+                // instrument on one cannot settle the other. What it does
+                // establish is that 0.375% is a FLOOR, and by a wide enough
+                // margin (~2.7x on the vertex share alone) that retiring
+                // BLEND_CLASS_ROCK_W on the strength of it would be premature.
+                // The number that closes it is a pixel-space measurement and
+                // that instrument lives in render.
                 mesh.normals.push_back(n);
                 mesh.materials.push_back(mat);
             }
