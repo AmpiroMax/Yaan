@@ -6,3 +6,5 @@ compile_commands.json
 .claude/worktrees/
 screenshots/
 settings.cfg
+captures/
+playtest_test_artifacts/

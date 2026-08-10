@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 10:08:2026 - 01:58:01
+# Last updated: 10:08:2026 - 20:16:01
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -54,9 +54,20 @@ UPD_ENTRY_RE = re.compile(
 # - Build/tooling output (.git, build*, ...).
 # - third_party: vendored dependencies — never hand-edited.
 # - __pycache__/.venv: Python artifacts.
+# - 10:08:2026 - 20:16:01: captures/ и playtest_test_artifacts/ исключены из обхода — это ВЫВОД прогонов, и они держали --all вечно красным.
 SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
              ".claude", "third_party", "__pycache__", ".venv", "_deps",
-             "screenshots"}
+             # RUN OUTPUT, not source. These are written BY the tools whose
+             # evidence discipline this script enforces -- capture sidecars,
+             # playtest summaries and incident logs -- and a header comment is
+             # meaningless on a file that a program regenerates every run.
+             #
+             # They were making `--all` permanently red, which is worse than it
+             # sounds: a check that is always failing for a reason nobody can
+             # fix stops being read, and then the real failure underneath it is
+             # invisible. Same failure mode as a test that goes red on correct
+             # code (Rule 38), aimed at a tool instead of a suite.
+             "screenshots", "captures", "playtest_test_artifacts"}
 # Any path part starting with one of these prefixes is skipped (covers the
 # per-agent build dirs: build_lead/, build_core/, build_render/, build_sim/...).
 SKIP_DIR_PREFIXES = ("build", ".build")
