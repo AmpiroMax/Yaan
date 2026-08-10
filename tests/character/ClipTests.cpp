@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:34:24
+Last updated: 10:08:2026 - 22:39:13
 Module: tests
 File: tests/character/ClipTests.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 10:08:2026 - 20:00:23: The wave waves (hand sweep, with the elbow-roll version as the control) + no clip loses motion to the hinge reduction; four doctest::Approx epsilons replaced by explicit metres (lead's broadcast: the admitted band was e*(1+|x|), up to +/-0.27 m on a foot).
 - 10:08:2026 - 20:22:44: eye_lean_offset asserted against the rig's own FK, plus the property the seam exists for — leaning harder never brings the chest closer to the eye, with today's non-riding eye as the control.
 - 10:08:2026 - 21:34:24: The slip check the swing-cap row asks for, phrased as the outcome — and it surfaced that the row's 0.798 % is IDEALISED: the drawn ankle travels 0.6944 m against the stick model's 0.9722, so real slip at a walk is 29.1 %, not 0.8 %. Plus explicit bounds on the chest-to-eye clearance the repo audit named (the old +/-20.5 mm band also hid a wrong nominal).
+- 10:08:2026 - 22:39:13: THE CROUCHED EYE. crouch_eye_offset() checked against the rig's own FK skull at four blends, the property stated as the outcome (the eye is above the neck at every depth of squat), and the retired CROUCH_EYE_HEIGHT 0.85 as the control — a REAL rejected instance, 0.3711 m below the drawn eye and 0.2478 m below the neck. Plus the crouched gaze (-5.73 deg, was -14.3), with the un-stabilized head as its control.
 */
 
 #include <doctest/doctest.h>
@@ -585,4 +586,121 @@ TEST_CASE("leaning harder never brings the chest closer to the eye") {
         worst = chest_ahead_of_eye(w, false);
     }
     CHECK(worst > 4.0f * chest_ahead_of_eye(0.0f, false));
+}
+
+// --- THE CROUCHED EYE SITS IN THE CROUCHED HEAD ---------------------------
+
+TEST_CASE("crouch_eye_offset puts the camera in the skull, not in the chest") {
+    // THE USER'S BUG, AS A NUMBER («при присяди голова в коробку туловища
+    // залезает», twice). The camera is not tested here — it is RECONSTRUCTED
+    // from what sim does with this producer (standing eye height minus the
+    // ferried drop, plus the ferried advance along the facing), and then
+    // compared against the eye the RIG actually draws, through FK. That is the
+    // point of the seam: one number, two consumers, and the test can see both.
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto& p = rig.proportions;
+    const auto eye_height = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const auto eye_forward = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    constexpr float FK_AGREEMENT = 0.002f; // m — the same instrument bound the
+        // lean uses; the residual here is the planar fold against the legs'
+        // inward convergence, ~1 mm at full crouch.
+
+    // MEASURED AS A DIFFERENCE FROM STANDING, which is what the offset IS —
+    // and the alternative is a worse test, not a stricter one: the drawn eye
+    // stands at 1.6927 rather than PLAYER_EYE_HEIGHT 1.7000, because converged
+    // legs span 7.3 mm less vertical than straight ones. That gap is the
+    // STANDING pose's and predates every crouch; folding it in here would make
+    // this case fail on correct code and pass on a crouch that cancelled it by
+    // accident (Rule 38).
+    LocalPose upright;
+    const glm::vec3 standing = eye_world(rig, upright);
+    for (const float b : {0.0f, 0.25f, 0.5f, 1.0f}) {
+        LocalPose pose; // rest: the crouch is the only thing acting
+        apply_crouch(rig, b, pose);
+        const glm::vec3 drawn = eye_world(rig, pose);
+        const glm::vec2 said = crouch_eye_offset(p, b);
+        // Forward is -Z; drop is positive-down. Agreement is ~1e-5 m.
+        CHECK(std::abs((standing.y - drawn.y) - said.y) < FK_AGREEMENT);
+        CHECK(std::abs((standing.z - drawn.z) - said.x) < FK_AGREEMENT);
+        // And the camera sim builds from it lands on the drawn eye to within
+        // that same standing 7.3 mm — against 0.3711 m before this change.
+        CHECK(std::abs((eye_height - said.y) - drawn.y) < 0.010f);
+        CHECK(std::abs((eye_forward + said.x) - (-drawn.z)) < 0.010f);
+    }
+
+    // THE PROPERTY THE BUG IS, stated as the outcome (Rule 38): the eye is
+    // above the NECK at every depth of squat. "Inside the torso" is not a
+    // tolerance on a height — it is the eye falling below the top of the box.
+    for (int i = 0; i <= 20; ++i) {
+        const float b = static_cast<float>(i) / 20.0f;
+        LocalPose pose;
+        apply_crouch(rig, b, pose);
+        std::array<glm::mat4, BONE_COUNT> m;
+        forward_kinematics(rig, pose, {}, m);
+        const float neck_y = m[bone_index(Bone::Head)][3].y;
+        CHECK((eye_height - crouch_eye_offset(p, b).y) > neck_y);
+    }
+
+    // CONTROL, and it is the REJECTED INSTANCE rather than a synthetic one
+    // (Rule 30): the shipped camera height, sim's retired CROUCH_EYE_HEIGHT
+    // row. It fails both assertions above at full crouch — 0.36 m below the
+    // drawn eye, and 0.25 m BELOW the neck, which is the chest the user was
+    // standing inside.
+    LocalPose full;
+    apply_crouch(rig, 1.0f, full);
+    std::array<glm::mat4, BONE_COUNT> m;
+    forward_kinematics(rig, full, {}, m);
+    const float neck_y = m[bone_index(Bone::Head)][3].y;
+    // The value is written out rather than read from the row ON PURPOSE: the
+    // row is being retired, and a control must keep failing after its subject
+    // is deleted. This is the height the camera actually sat at, frozen.
+    constexpr float retired = 0.85f; // sim's CROUCH_EYE_HEIGHT, retired
+    CHECK(retired < neck_y - 0.2f);                        // inside the chest
+    CHECK(std::abs(retired - eye_world(rig, full).y) > 0.3f); // 0.3711 m off
+
+    // THE FIXED NUMBERS, explicit rather than epsilon-banded (Rule 40). At full
+    // crouch the eye drops 0.4716 m — the pelvis fold 0.4419 plus 0.0297 the
+    // hunch adds — and advances 0.1643 m, which is the hunch alone. The camera
+    // therefore sits at 1.2284 against the drawn eye's 1.2211 and the crouched
+    // neck's 1.0978. It used to sit at 0.85.
+    const glm::vec2 deep = crouch_eye_offset(p, 1.0f);
+    CHECK(std::abs(deep.y - 0.4716f) < 0.0010f);
+    CHECK(std::abs(deep.x - 0.1643f) < 0.0010f);
+    // Standing is untouched, and clamping holds past both ends so an
+    // out-of-range blend cannot invent a squat.
+    CHECK(crouch_eye_offset(p, 0.0f).x == doctest::Approx(0.0f));
+    CHECK(crouch_eye_offset(p, 0.0f).y == doctest::Approx(0.0f));
+    CHECK(crouch_eye_offset(p, 2.0f).y == doctest::Approx(deep.y));
+    CHECK(crouch_eye_offset(p, -1.0f).y == doctest::Approx(0.0f));
+}
+
+TEST_CASE("the crouch does not make the character stare at the floor") {
+    // THE SECOND HALF, and it is only visible on the mirror double and on
+    // NPCs: the hunch used to carry the skull through its full -0.25 rad, so a
+    // crouched body looked 14.3 deg into the ground. Asserted as the OUTCOME —
+    // where the gaze points — not as "the counter-pitch was applied".
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto gaze_pitch_deg = [&](const LocalPose& pose) {
+        std::array<glm::mat4, BONE_COUNT> m;
+        forward_kinematics(rig, pose, {}, m);
+        // The head's own forward (-Z) carried into the world.
+        const glm::vec3 fwd = glm::normalize(
+            glm::vec3{m[bone_index(Bone::Head)] * glm::vec4{0.0f, 0.0f, -1.0f, 0.0f}});
+        return std::asin(glm::clamp(fwd.y, -1.0f, 1.0f)) * (180.0f / glm::pi<float>());
+    };
+    LocalPose standing;
+    CHECK(std::abs(gaze_pitch_deg(standing)) < 0.5f);
+
+    LocalPose crouched;
+    apply_crouch(rig, 1.0f, crouched);
+    const float deep = gaze_pitch_deg(crouched);
+    CHECK(deep < 0.0f);          // still a hunch: the gaze does dip
+    CHECK(deep > -6.0f);         // measured -5.73 deg, a look-ahead squat
+    // CONTROL (Rule 30): the shipped pose, i.e. the same hunch with the head
+    // NOT counter-pitching. It must fail the bound above — and it does, by a
+    // factor of 2.5.
+    LocalPose unstabilized;
+    unstabilized.rotation[bone_index(Bone::Torso)] =
+        glm::angleAxis(-0.25f, glm::vec3{1.0f, 0.0f, 0.0f});
+    CHECK(gaze_pitch_deg(unstabilized) < -14.0f);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:18:17
+Last updated: 10:08:2026 - 22:39:13
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -32,6 +32,7 @@ UPD:
                          reading, crouch speed against standing speed, and the
                          swim hysteresis against the one-threshold design it
                          exists to reject.
+- 10:08:2026 - 22:39:13: The crouch case no longer asserts the camera arrives at CROUCH_EYE_HEIGHT — it asserts the eye follows the FERRIED crouch offset (character's carve; the old assertion was faithful to a camera sitting inside the body's chest). Control: halve the ferried drop and the eye must halve with it, which a camera holding a constant of its own cannot do.
 */
 
 #include <doctest/doctest.h>
@@ -124,6 +125,15 @@ struct Rig {
                                   camera, prev_camera);
         physics->step(DT);
         gameplay::player_post_step(state, *physics, transform, camera);
+    }
+
+    // Same tick, but with the app's ferry present — the crouch case needs it,
+    // because the crouched eye is no longer a constant this side owns.
+    void tick(const gameplay::StepContext& step, float water_depth = 0.0f) {
+        gameplay::player_pre_step(state, *physics, water_depth, transform, prev_transform,
+                                  camera, prev_camera, step);
+        physics->step(DT);
+        gameplay::player_post_step(state, *physics, prev_transform, transform, camera, step);
     }
 };
 
@@ -388,29 +398,60 @@ TEST_CASE("jump: the press is a latch, and it is spent even when refused") {
     CHECK_FALSE(crouched.state.jump_pressed);        // spent, not banked
 }
 
-TEST_CASE("crouch: the capsule shrinks, and the camera eases separately") {
+TEST_CASE("crouch: the capsule shrinks, and the eye goes where the BODY says") {
+    // REWRITTEN 10:08:2026 (character's carve). This case used to assert that
+    // the crouched camera arrives at `CROUCH_EYE_HEIGHT` 0.85 — and it did,
+    // faithfully, while character folded the drawn body by half its LEG and put
+    // the same character's eye at 1.2211. The camera sat 0.37 m below the drawn
+    // skull and 0.25 m below its NECK, i.e. inside the chest, which the user
+    // reported twice. The eye height is no longer this zone's number to hold:
+    // it arrives as StepContext::crouch_eye from anim::crouch_eye_offset().
     Rig rig;
     REQUIRE(rig.physics->character_height(rig.state.character) ==
             doctest::Approx(static_cast<float>(config::PLAYER_CAPSULE_HEIGHT)));
+    const auto eye_height = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    // What character reports at full crouch for the shipped rig, ferried by the
+    // app each tick. bob_scale 0 so the only thing moving the eye is the crouch.
+    constexpr float DEEP_DROP = 0.4716f;
+    gameplay::StepContext ferry;
+    ferry.bob_scale = 0.0f;
+    ferry.crouch_eye = {0.0f, DEEP_DROP};
 
     rig.state.crouch_held = true;
-    rig.tick();
+    rig.tick(ferry);
     // The CAPSULE is the point: a camera-only crouch leaves this untouched, and
     // that is the implementation this check exists to reject.
     CHECK(rig.physics->character_height(rig.state.character) ==
           doctest::Approx(static_cast<float>(config::CROUCH_CAPSULE_HEIGHT)));
     CHECK(rig.state.crouched);
-    // ... while the eye is still on its way down after a single tick.
+    // ...while the BLEND is still on its way down after a single tick (it is
+    // the blend that eases, and character scales the offset by it).
     CHECK(rig.state.crouch_blend < 1.0f);
-    CHECK(rig.camera.position.y > static_cast<float>(config::CROUCH_EYE_HEIGHT));
 
-    // Held long enough, the eye arrives exactly at the crouched height.
     for (int i = 0; i < 60; ++i) {
-        rig.tick();
+        rig.tick(ferry);
     }
     CHECK(rig.state.crouch_blend == doctest::Approx(1.0f));
-    CHECK(rig.camera.position.y ==
-          doctest::Approx(static_cast<float>(config::CROUCH_EYE_HEIGHT)).epsilon(1e-3));
+    // THE EYE IS WHERE THE BODY PUT IT: 1.2284, a hair above the drawn skull's
+    // 1.2211 (the 7.3 mm the converged legs cost the STANDING pose too) and
+    // 0.13 m above the crouched neck. Never 0.85 again.
+    CHECK(rig.camera.position.y == doctest::Approx(eye_height - DEEP_DROP).epsilon(1e-3));
+    CHECK(rig.camera.position.y > 1.09f); // above the crouched neck joint
+
+    // CONTROL (Rule 30), and it is the implementation this rewrite rejects: a
+    // camera that lowers itself to a constant of its own would land at the same
+    // height for a DIFFERENT body. Halve the ferried drop and the eye must
+    // follow it exactly.
+    Rig shallow;
+    gameplay::StepContext half = ferry;
+    half.crouch_eye = {0.0f, 0.5f * DEEP_DROP};
+    shallow.state.crouch_held = true;
+    for (int i = 0; i < 61; ++i) {
+        shallow.tick(half);
+    }
+    CHECK(shallow.camera.position.y ==
+          doctest::Approx(eye_height - 0.5f * DEEP_DROP).epsilon(1e-3));
+    CHECK(shallow.camera.position.y > rig.camera.position.y + 0.2f);
 
     // Released with nothing overhead (null raycasts always miss = open sky).
     rig.state.crouch_held = false;

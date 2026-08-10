@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 20:32:57
+Last updated: 10:08:2026 - 22:37:10
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -70,6 +70,15 @@ UPD:
                          record, so a forward stamp REORDERS history rather
                          than merely misdating a file (character2's catch,
                          independent of my own).
+- 10:08:2026 - 22:37:10: THE CROUCHED EYE IS NO LONGER THIS ZONE'S NUMBER.
+  LEAD CARVE by character into this zone (sim stopped; user's «при присяди
+  голова в коробку туловища залезает», reported twice). The camera eased to
+  CROUCH_EYE_HEIGHT 0.85 while character folded the drawn body by half its LEG
+  0.4419 -- "both about a half", of DIFFERENT quantities, differing 0.4081 m.
+  At full crouch the eye sat 0.3711 m below the drawn skull and 0.2478 m below
+  the NECK, i.e. inside the chest. It now reads StepContext::crouch_eye from
+  anim::crouch_eye_offset (the same ferry as eye_lean) and CROUCH_EYE_HEIGHT
+  has no reader here -- flagged to the lead for retirement.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -111,7 +120,11 @@ constexpr float EYE_HEIGHT = static_cast<float>(config::PLAYER_EYE_HEIGHT);
 constexpr float EYE_FORWARD = static_cast<float>(config::PLAYER_EYE_FORWARD);
 constexpr float STAND_HEIGHT = static_cast<float>(config::PLAYER_CAPSULE_HEIGHT);
 constexpr float CROUCH_HEIGHT = static_cast<float>(config::CROUCH_CAPSULE_HEIGHT);
-constexpr float CROUCH_EYE = static_cast<float>(config::CROUCH_EYE_HEIGHT);
+// CROUCH_EYE_HEIGHT IS NO LONGER READ HERE, and the row should retire with it
+// (flagged to the lead): the crouched eye is not a fraction of the standing one
+// — it is wherever the crouch puts the skull, which is character's geometry and
+// arrives as StepContext::crouch_eye. The row said 0.85 while the body's eye
+// was at 1.2102.
 constexpr float CROUCH_SPEED = static_cast<float>(config::CROUCH_SPEED);
 constexpr float CROUCH_BLEND_TIME = static_cast<float>(config::CROUCH_TRANSITION_TIME);
 constexpr float SWIM_SPEED = static_cast<float>(config::SWIM_SPEED);
@@ -473,8 +486,14 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     state.fov_scale += (fov_scale_target(speed) - state.fov_scale)
                        * (1.0f - std::exp(-DT / FOV_EASE));
 
-    // Eye height eases between standing and crouched (the capsule did not).
-    const float eye = EYE_HEIGHT + (CROUCH_EYE - EYE_HEIGHT) * state.crouch_blend;
+    // THE CROUCHED EYE COMES FROM THE BODY, NOT FROM A CAMERA CONSTANT.
+    // The eye height is PLAYER_EYE_HEIGHT minus whatever the crouch actually
+    // does to the drawn skull (ferried in `step.crouch_eye`, produced by
+    // anim::crouch_eye_offset from the SAME crouch_blend the body poses with).
+    // It used to ease toward CROUCH_EYE_HEIGHT 0.85 while the body folded by
+    // half its leg — see StepContext::crouch_eye for the 0.4081 m that opened
+    // between them and the chest the user found himself standing inside.
+    const float eye = EYE_HEIGHT - step.crouch_eye.y;
     const float vertical =
         bob_vertical(state.stride_phase, state.bob_amplitude) + dip_offset + settle;
     const float lateral = bob_lateral(
@@ -513,8 +532,15 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     // NOT scaled by bob_scale, on the same ruling as EYE_FORWARD above: the bob
     // slider is a motion-sickness setting, and posture is not motion. A player
     // who turns the bob off still has a body that leans when it runs.
+    //
+    // THE CROUCH RIDES THE SAME OFFSET, for the same reason: a squat hunches
+    // the trunk, which carries the head FORWARD as well as down, and the
+    // forward half is exactly what the vertical-only camera lost. Summed rather
+    // than branched — a player crouch-running is leaning for two reasons at
+    // once, and both offsets are measured from the same upright skull.
     const glm::vec3 lean_offset =
-        facing * step.eye_lean.x - glm::vec3{0.0f, step.eye_lean.y, 0.0f};
+        facing * (step.eye_lean.x + step.crouch_eye.x)
+        - glm::vec3{0.0f, step.eye_lean.y, 0.0f};
     camera.position = position + glm::vec3{0.0f, eye, 0.0f} + facing * EYE_FORWARD
                       + lean_offset
                       + step.bob_scale * (glm::vec3{0.0f, vertical, 0.0f} + right * lateral);

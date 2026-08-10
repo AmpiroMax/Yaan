@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 20:32:57
+Last updated: 10:08:2026 - 22:37:10
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -91,6 +91,9 @@ UPD:
                          record, so a forward stamp REORDERS history rather
                          than merely misdating a file (character2's catch,
                          independent of my own).
+- 10:08:2026 - 22:37:10: StepContext::crouch_eye -- the crouched eye placement,
+  FERRIED from character (anim::crouch_eye_offset) exactly as eye_lean is.
+  character's lead carve; see the .cpp entry for the 0.4081 m.
 */
 
 #pragma once
@@ -250,6 +253,25 @@ struct StepContext {
     // a gear change wants smoothing, the ease belongs in the PRODUCER so body
     // and eye ease together — one place, still one number.
     glm::vec2 eye_lean{0.0f, 0.0f};
+
+    // THE CROUCHED EYE IS WHERE THE DRAWN SKULL IS. Same shape, same ferry and
+    // the same rule as eye_lean above: `.x` = forward advance along the facing,
+    // `.y` = drop BELOW THE STANDING EYE HEIGHT (positive = down), metres,
+    // produced by anim::crouch_eye_offset(rig, crouch_blend).
+    //
+    // WHAT IT REPLACED, because a reader will ask why the row is gone: this
+    // side used to lower the camera to `CROUCH_EYE_HEIGHT` 0.85 while character
+    // folded the body's legs by half the LEG (0.4419 m). Both were honestly "a
+    // half"; they were halves of DIFFERENT quantities and differed by 0.4081 m,
+    // so at full crouch the camera sat 0.3602 m below the body's own eye and
+    // 0.2478 m below its NECK — literally inside the chest. The user reported
+    // it twice. There is no camera-side crouch constant any more: the depth of
+    // a squat is decided once, by the zone that draws the squat.
+    //
+    // ZERO IS THE HONEST DEFAULT: a caller that ferries nothing is not crouched
+    // as far as the camera is concerned, exactly as it leans not at all. It is
+    // also why standing frames are bit-for-bit unchanged by this.
+    glm::vec2 crouch_eye{0.0f, 0.0f};
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------

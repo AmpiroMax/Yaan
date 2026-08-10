@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:22:44
+Last updated: 10:08:2026 - 22:25:12
 Module: engine/anim
 File: engine/anim/sources/Clips.h
 
@@ -41,6 +41,7 @@ UPD:
 - 10:08:2026 - 01:56:45: Initial procedural clip set.
 - 10:08:2026 - 20:00:23: anim::Gait + gait_run_weight(): the gear is ferried and looked up, never re-derived from speed (Rules 35, 37).
 - 10:08:2026 - 20:22:44: eye_lean_offset() declared — producer/consumer with sim, deliberately not a NUMBERS row.
+- 10:08:2026 - 22:25:12: crouch_eye_offset() declared — the crouched camera comes from the RIG, not from CROUCH_EYE_HEIGHT.
 */
 
 #pragma once
@@ -119,6 +120,19 @@ enum class Gait : uint8_t {
 // two readers, and re-deriving it on sim's side would copy both RUN_LEAN and
 // gait_run_weight's authored table.
 [[nodiscard]] glm::vec2 eye_lean_offset(const RigProportions& p, float run_weight);
+
+// WHERE THE CROUCH PUTS THE EYE, for `blend` in [0,1] (sim's crouch_blend).
+// `.x` = forward advance (m, along the facing), `.y` = drop from the STANDING
+// eye height (m, positive = down). Same producer/consumer shape as
+// eye_lean_offset above, and the same reason.
+//
+// THE SEAM THIS CLOSES, and it is the same bug one pose over: the camera used
+// `CROUCH_EYE_HEIGHT` 0.85 while apply_crouch dropped the pelvis by half the
+// LEG. At full crouch that put the camera 0.3602 m below the drawn skull and
+// 0.2478 m below the NECK — inside the chest, reported twice by the user. The
+// crouched eye is not a fraction anybody chose: it is where the skull is, and
+// this zone is the one that knows.
+[[nodiscard]] glm::vec2 crouch_eye_offset(const RigProportions& p, float blend);
 
 enum class ShowcaseClip : uint8_t {
     Idle = 0,

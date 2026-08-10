@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:38:46
+Last updated: 10:08:2026 - 22:37:57
 -->
 <!--
 UPD:
@@ -64,6 +64,17 @@ UPD:
   itself measures 0.1815 m, larger than the run lean's 0.1320 because the
   crouch does not counter-pitch the head. No producer landed: a function with
   no consumer is the same defect as a row with no reader.
+- 10:08:2026 - 22:37:57: a10 FIXED, AND FIXED AS THE MECHANISM (lead carve into
+  engine/gameplay, sim stopped; user's second report of «при присяди голова в
+  коробку туловища залезает»). The crouched camera no longer reads
+  `CROUCH_EYE_HEIGHT`: it reads `anim::crouch_eye_offset()`, ferried by the app
+  exactly as `eye_lean_offset` is, so the depth of a squat is decided once by
+  the zone that draws it. `eye_pitch_offset()` is now one derivation with two
+  callers, and `crouch_pelvis_drop()` one copy of the fold. The head
+  counter-pitches the hunch (HEAD_STABILIZE) in the same batch — the third
+  finding, and it was in frame. FRAMES: character-crouch-{fwd,lookdown}-
+  {BEFORE,AFTER} + recipe. FLAGGED TO THE LEAD: `CROUCH_EYE_HEIGHT` now has
+  zero readers in the engine and should be retired.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -634,6 +645,10 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       word *half* was the same, and nothing made them so. A comment is not a
       mechanism; calling one function is.
 
+      WHAT FOLLOWS UNTIL THE `FIXED` BLOCK IS THE DIAGNOSIS AS IT WAS
+      WRITTEN, kept because the numbers in it are measurements and the
+      last paragraph's prediction is what the fix then paid out:
+
       NOT FIXED HERE: `CROUCH_EYE_HEIGHT` is sim's row and is marked
       ПРЕДВАРИТЕЛЬНО. A real deep squat drops the eye ~0.45-0.55 m on a 1.8 m
       adult, not 0.85, which puts the eye barely above `BODY_KNEE_HEIGHT_FRAC`·H
@@ -669,6 +684,44 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       and on any NPC. It is also what makes the offset 0.1815 rather than ~0.13
       — so the smaller number is bought by stabilising the head, not by shrinking
       the offset.
+
+      FIXED (lead carve, 10:08:2026 - 22:37:57). The camera no longer holds an
+      opinion about the crouch at all: `anim::crouch_eye_offset(p, blend)`
+      reports where the crouch actually puts the skull — pelvis fold plus what
+      the hunch adds — and the app ferries it into `StepContext::crouch_eye`
+      the same way the run lean travels. `CROUCH_EYE_HEIGHT` has zero readers
+      in the engine now and is flagged to the lead for retirement. At full
+      crouch: eye drop **0.4716 m** (camera 1.2284) against the drawn eye's
+      **1.2211** — the residual 7.3 mm is the STANDING pose's own (converged
+      legs span that much less vertical) and is not the crouch's. It was
+      0.3711 m.
+
+      THE SECOND HALF LANDED IN THE SAME BATCH: the hunch now counter-pitches
+      the head by `HEAD_STABILIZE`, so the crouched gaze is **-5.73 deg**
+      instead of -14.3, and the eye's forward advance is **0.1643 m** rather
+      than 0.1815 — the smaller number bought by stabilising the head, exactly
+      as predicted above. `eye_pitch_offset()` is now ONE derivation with two
+      callers (lean, crouch) and `crouch_pelvis_drop()` ONE copy of the fold,
+      so the shadow-copy that caused this cannot re-form: the comment claiming
+      two quantities matched is replaced by a function call, which is the only
+      thing that ever makes two quantities match.
+
+      FRAMES (Rule 27), one restore file per view, both arms from it, differing
+      only in the camera placement: `character-crouch-fwd-{BEFORE,AFTER}` and
+      `character-crouch-lookdown-{BEFORE,AFTER}` + `character-crouch-restore`.
+      THE LOOK-DOWN IS THE ONE THAT SHOWS IT: before, the torso box fills the
+      frame from 15 % down and no leg is visible at all; after, the ground,
+      both knees and the chest below them. The forward pair is nearly as blunt
+      — before, the upper half of the frame is the INSIDE of your own chest.
+
+      A THIRD THING FELL OUT, and it is why no automated frame of this ever
+      existed: `DFN_RESTORE` carried `crouched` in the sidecar since the day it
+      was written and NOTHING applied it, while `accumulate_input` rewrites
+      `crouch_held` from the live keyboard every render frame. So no capture
+      path could hold a crouch, and the defect was reachable only by a human
+      holding Ctrl — which is exactly who found it, twice. Both halves fixed in
+      the app (and the restored feet now derive from the crouch offset instead
+      of subtracting a standing eye height from a crouched eye).
 
    c. **THE HEAD IS A BOX ON A BOX.** No neck segment exists between
       `BODY_NECK_HEIGHT_FRAC` and the head, so the head sits straight on the

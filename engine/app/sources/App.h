@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:26:54
+Last updated: 10:08:2026 - 22:37:21
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -48,6 +48,7 @@ UPD:
 - 10:08:2026 - 19:57:06: Поле счётчика попыток доводки восстановления.
 - 10:08:2026 - 20:03:30: Счётчик попыток доводки более не используется — восстановление стало размещением.
 - 10:08:2026 - 21:26:54: Поля признака тишины мира для затвора тура.
+- 10:08:2026 - 22:37:21: hold_crouch_ -- a restored crouch survives the live keyboard, which is what makes an automated capture at full crouch possible at all (character's carve).
 */
 
 #pragma once
@@ -156,6 +157,13 @@ private:
     // map it names -- the pose cannot be applied to a world that does not
     // exist yet, and the stand it names decides WHICH world gets built.
     std::optional<DebugSnapshot> restore_;
+    // A RESTORED CROUCH IS HELD, not merely set once. accumulate_input rewrites
+    // crouch_held from the real keyboard every RENDER frame, so a restored
+    // crouch survived exactly until the first frame -- which is why no
+    // automated capture had ever been taken at full crouch, and why the defect
+    // that put the camera inside the chest was only ever seen by the user.
+    // Cleared by any crouch capture that restores standing.
+    bool hold_crouch_ = false;
     // Where a restore ASKED the capsule to end up. Checked once, the frame
     // after: IPhysics has no teleport, so a restore is a long collide-and-slide
     // walk and can be stopped by geometry. Reported, never assumed.

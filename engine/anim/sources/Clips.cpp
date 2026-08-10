@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:34:24
+Last updated: 10:08:2026 - 22:25:12
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 10:08:2026 - 20:00:23: The wave's wag moved off the ELBOW (a hinge deleted it, so the wave never waved); flex's forearm rolls likewise; gait_run_weight authored per gear instead of interpolated across the rows.
 - 10:08:2026 - 20:22:44: eye_lean_offset() — the eye rides the trunk's lean (sim's request; both zones derived it independently and agree to the millimetre); the head counter-pitch is named HEAD_STABILIZE now that it has a second reader.
 - 10:08:2026 - 21:34:24: THIGH_SWING_MAX_SIN now READS its NUMBERS row. The row landed 19:26:40 and this file kept a private 0.55, so the row had zero readers in the engine and zero in the suite — a row that guards nothing while looking like it guards something.
+- 10:08:2026 - 22:25:12: THE CROUCHED EYE IS WHERE THE SKULL IS. eye_pitch_offset() extracted (one two-rotation derivation, two callers: the run lean and the crouch hunch); crouch_pelvis_drop() is now the ONE copy of the squat depth, read by apply_crouch and by the camera's producer; the crouch hunch finally counter-pitches the head (HEAD_STABILIZE), which it never did.
 */
 
 #include "engine/anim/sources/Clips.h"
@@ -112,6 +113,14 @@ constexpr float HEAD_STABILIZE = 0.6f;    // the head counter-pitches this
     // has a second reader: eye_lean_offset() has to counter-rotate the eye by
     // the same fraction, and a literal 0.6 in two places is the two-copies
     // defect at file scope (Rule 35's shape, one file down).
+    // IT NOW HAS FOUR READERS AND THAT IS THE POINT: the crouch hunch stabilizes
+    // by the SAME fraction as the run lean, because it is the same reflex — you
+    // do not look at the floor because you squatted. Before this, the crouch
+    // pitched the skull the full -0.25 rad and a crouched character stared 14.3
+    // deg down (visible on the mirror double and on every future NPC).
+constexpr float CROUCH_HUNCH = 0.25f;     // rad, trunk hunch at full crouch —
+    // a bolt-upright crouch reads as sitting. Same axis and same sign as
+    // RUN_LEAN, hence the same two-rotation eye model (eye_pitch_offset).
 constexpr float RUN_ELBOW = 0.80f;        // rad, elbows carried bent at full run.
 // Idle breathing.
 constexpr float BREATH_PERIOD_S = 4.0f;   // calm breath ~15/min.
@@ -209,6 +218,50 @@ struct LegAngles {
     return a;
 }
 
+// HOW FAR THE EYE TRAVELS WHEN THE TRUNK PITCHES `theta` ABOUT THE HIP while
+// the head counter-pitches `stabilize` of it. `.x` = forward (m), `.y` = drop
+// (m, positive down). ONE BODY, TWO CALLERS (the run lean and the crouch
+// hunch), and it is a helper rather than two derivations for the reason this
+// zone spent a session on: the crouch's own eye placement was a SECOND IDEA of
+// where the head is, written as a comment claiming a proportionality, and it
+// put sim's camera 0.36 m below the drawn skull (Rule 39 — the copies agree
+// only until one side moves).
+//
+// THE MODEL IS TWO ROTATIONS, because BONE_PARENT puts Head under Torso:
+//   1. the torso pitches -theta about the HIP, carrying the neck through an
+//      arc of (neck_height - hip_height);
+//   2. the head counter-pitches +stabilize*theta, so the skull's NET world
+//      pitch is -(1 - stabilize)*theta, and the eye — which sits in the skull,
+//      `PLAYER_EYE_HEIGHT` up and `PLAYER_EYE_FORWARD` forward — swings by
+//      that smaller angle about the neck.
+// Taking only step 1 would put the eye 0.1482 m forward at full run instead of
+// 0.1320: the counter-pitch is 11% of the answer.
+[[nodiscard]] glm::vec2 eye_pitch_offset(const RigProportions& p, float theta,
+                                         float stabilize) {
+    const auto eye_height = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const auto eye_forward = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    const float neck_up = p.neck_height - p.hip_height;
+    const float eye_above_neck = eye_height - p.neck_height;
+
+    const float neck_fwd = neck_up * std::sin(theta);
+    const float neck_drop = neck_up * (1.0f - std::cos(theta));
+
+    const float a = (1.0f - stabilize) * theta;
+    const float eye_fwd_local = eye_above_neck * std::sin(a) + eye_forward * std::cos(a);
+    const float eye_up_local = eye_above_neck * std::cos(a) - eye_forward * std::sin(a);
+
+    return {neck_fwd + eye_fwd_local - eye_forward,
+            neck_drop + (eye_above_neck - eye_up_local)};
+}
+
+// HOW FAR THE PELVIS DROPS AT CROUCH BLEND `b`. THE ONE COPY: apply_crouch
+// folds the legs by exactly this much and crouch_eye_offset() lowers the eye by
+// exactly this much, so the camera cannot disagree with the body about how deep
+// the squat is — which is precisely how it came to disagree by 0.4081 m.
+[[nodiscard]] float crouch_pelvis_drop(const RigProportions& p, float b) {
+    return 0.5f * (p.thigh_length() + p.shin_length()) * b;
+}
+
 } // namespace
 
 glm::vec2 eye_lean_offset(const RigProportions& p, float run_weight) {
@@ -223,30 +276,34 @@ glm::vec2 eye_lean_offset(const RigProportions& p, float run_weight) {
     // derived from. One producer, one consumer, no registry row — a row would
     // still be two readers.
     //
-    // THE MODEL IS TWO ROTATIONS, because BONE_PARENT puts Head under Torso:
-    //   1. the torso pitches -theta about the HIP, carrying the neck through
-    //      an arc of (neck_height - hip_height);
-    //   2. the head counter-pitches +HEAD_STABILIZE*theta, so the skull's NET
-    //      world pitch is -(1 - HEAD_STABILIZE)*theta, and the eye — which
-    //      sits in the skull, `PLAYER_EYE_HEIGHT` up and `PLAYER_EYE_FORWARD`
-    //      forward — swings by that smaller angle about the neck.
-    // Taking only step 1 would put the eye 0.1482 m forward at full run
-    // instead of 0.1320: the counter-pitch is 11% of the answer.
-    const float theta = RUN_LEAN * std::clamp(run_weight, 0.0f, 1.0f);
-    const auto eye_height = static_cast<float>(config::PLAYER_EYE_HEIGHT);
-    const auto eye_forward = static_cast<float>(config::PLAYER_EYE_FORWARD);
-    const float neck_up = p.neck_height - p.hip_height;
-    const float eye_above_neck = eye_height - p.neck_height;
+    // The geometry itself is eye_pitch_offset() above (see it for the model);
+    // this function is the LEAN's instance of it. It was inlined here until the
+    // crouch needed the same two rotations, at which point one derivation with
+    // two callers beat two derivations agreeing by comment.
+    return eye_pitch_offset(p, RUN_LEAN * std::clamp(run_weight, 0.0f, 1.0f),
+                            HEAD_STABILIZE);
+}
 
-    const float neck_fwd = neck_up * std::sin(theta);
-    const float neck_drop = neck_up * (1.0f - std::cos(theta));
-
-    const float a = (1.0f - HEAD_STABILIZE) * theta;
-    const float eye_fwd_local = eye_above_neck * std::sin(a) + eye_forward * std::cos(a);
-    const float eye_up_local = eye_above_neck * std::cos(a) - eye_forward * std::sin(a);
-
-    return {neck_fwd + eye_fwd_local - eye_forward,
-            neck_drop + (eye_above_neck - eye_up_local)};
+glm::vec2 crouch_eye_offset(const RigProportions& p, float blend) {
+    // WHERE THE CROUCH ACTUALLY PUTS THE EYE — the same question the run lean
+    // asks, and it is answered from the RIG rather than from a camera constant.
+    //
+    // WHAT THIS REPLACED, because the value of the fix is the mechanism: sim's
+    // camera used its own row `CROUCH_EYE_HEIGHT` = 0.85, and apply_crouch drops
+    // the pelvis by half the LEG, under a comment saying the two "match" because
+    // both are "about a half". Half the eye height is 0.8500 m; half the leg is
+    // 0.4419 m. At full crouch the camera sat 0.3602 m below the drawn skull and
+    // 0.2478 m BELOW THE NECK — inside the chest, which is what the user saw
+    // twice («при присяди голова в коробку туловища залезает»). Two zones held
+    // two ideas of where the head is; now there is one, and it is this one.
+    //
+    // `.x` = forward advance (m, along the facing), `.y` = TOTAL drop (m,
+    // positive = down) = the pelvis fold plus what the hunch adds. Zero at
+    // blend 0, so a standing camera is bit-for-bit unchanged.
+    const float b = glm::clamp(blend, 0.0f, 1.0f);
+    glm::vec2 eye = eye_pitch_offset(p, CROUCH_HUNCH * b, HEAD_STABILIZE);
+    eye.y += crouch_pelvis_drop(p, b);
+    return eye;
 }
 
 float gait_run_weight(Gait gait) {
@@ -359,9 +416,13 @@ void apply_crouch(const Rig& rig, float blend, LocalPose& pose) {
     const float s = pr.shin_length();
     // Lower the pelvis; fold both legs symmetrically so the feet stay put:
     // with equal fold angle a, hip height above ankle = (t+s) * cos(a).
-    // Drop half the leg at full crouch (matches CROUCH_EYE_HEIGHT being about
-    // half of PLAYER_EYE_HEIGHT without duplicating sim's camera constant).
-    const float drop = 0.5f * (t + s) * b;
+    // Half the leg at full crouch — a deep squat, and THE DEPTH IS DECIDED
+    // HERE, once. The camera used to decide it separately from
+    // `CROUCH_EYE_HEIGHT` under a comment claiming the two agreed because both
+    // were "about a half"; they were halves of different quantities and
+    // differed by 0.4081 m. The camera now reads crouch_eye_offset(), which
+    // reads this same helper.
+    const float drop = crouch_pelvis_drop(pr, b);
     const float cos_a = glm::clamp(1.0f - drop / (t + s), 0.05f, 1.0f);
     const float a = std::acos(cos_a);
     pose.pelvis_offset.y -= drop;
@@ -374,7 +435,15 @@ void apply_crouch(const Rig& rig, float blend, LocalPose& pose) {
     fold(Bone::ThighR, Bone::ShinR, Bone::FootR);
     // Hunch the torso forward a touch — a bolt-upright crouch reads as sitting.
     pose.rotation[bone_index(Bone::Torso)] =
-        pitch(-0.25f * b) * pose.rotation[bone_index(Bone::Torso)];
+        pitch(-CROUCH_HUNCH * b) * pose.rotation[bone_index(Bone::Torso)];
+    // ...AND STABILIZE THE HEAD AGAINST IT, exactly as the run lean does. The
+    // hunch used to carry the skull with it at full angle, so a crouched
+    // character looked 14.3 deg into the floor: invisible in first person,
+    // glaring on the mirror double and on any NPC. Pre-multiplied like the
+    // torso above, so it composes with a gait pose that already stabilized
+    // against ITS lean rather than replacing it.
+    pose.rotation[bone_index(Bone::Head)] =
+        pitch(CROUCH_HUNCH * b * HEAD_STABILIZE) * pose.rotation[bone_index(Bone::Head)];
 }
 
 LocalPose air_pose(float vertical_velocity_mps) {

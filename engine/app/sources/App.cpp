@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:41:45
+Last updated: 10:08:2026 - 22:37:21
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -93,6 +93,7 @@ UPD:
 - 10:08:2026 - 21:26:54: Тур снимается на СЧЁТНЫХ часах, а не настенных: затвор ждёт тишины подгрузки, часы игры и растворение детализации идут фиксированным шагом. Собственный контроль тура 27.67% → 14.73%; остаток НЕ объяснён.
 - 10:08:2026 - 21:32:18: Зонд тела считается желающим двойника: без этого он снимал пустую поляну, и кадр читался как «тело не рисуется». Третий немой ноль за день и один и тот же баг — ПРЕДУСЛОВИЕ, записанное списком тех, кому оно тогда понадобилось.
 - 10:08:2026 - 21:41:45: Карта грузится из данных, а не вкомпилирована: 441 строка обзора ОДНОЙ игры уезжает из движка. Отказ загрузки — фатален, потому что откат к вкомпилированным значениям дал бы почти правильный мир, которого никто не искал бы.
+- 10:08:2026 - 22:37:21: THE CROUCH FERRY (character's carve): crouch_eye travels back the same way the lean does, so the camera and the posed body agree on how deep a squat is. Plus the two halves of a crouched RESTORE that never worked -- the snapshot's `crouched` is applied and HELD (accumulate_input rewrites it from a keyboard nobody is at), and the feet are derived with the crouch offset instead of the standing eye height.
 */
 
 #include "engine/app/sources/App.h"
@@ -1327,8 +1328,20 @@ void App::apply_restore(const DebugSnapshot& snap) {
     const float eye_h = static_cast<float>(config::PLAYER_EYE_HEIGHT);
     const float fwd = static_cast<float>(config::PLAYER_EYE_FORWARD);
     const glm::vec3 facing{std::sin(snap.yaw), 0.0f, -std::cos(snap.yaw)};
-    const glm::vec3 feet{snap.position.x - facing.x * fwd, snap.position.y - eye_h,
-                         snap.position.z - facing.z * fwd};
+    // A CROUCHED CAPTURE RESTORES CROUCHED, and it did not before: the snapshot
+    // has carried `crouched` since it was written, nothing ever applied it, so
+    // every crouched frame restored standing -- and the feet were then derived
+    // by subtracting the STANDING eye height from a CROUCHED eye, which buried
+    // the player by the depth of the squat. Both halves are fixed here, and the
+    // offset comes from the one producer that knows it rather than from a third
+    // idea of where the eye is (the second one is what this commit removes).
+    const glm::vec2 crouch_eye =
+        snap.crouched ? anim::crouch_eye_offset(body_rig_.proportions, 1.0f)
+                      : glm::vec2{0.0f, 0.0f};
+    const float ahead = fwd + crouch_eye.x;
+    const glm::vec3 feet{snap.position.x - facing.x * ahead,
+                         snap.position.y - (eye_h - crouch_eye.y),
+                         snap.position.z - facing.z * ahead};
 
     // A RESTORE IS A PLACEMENT, NOT A WALK. `teleport_character` is documented
     // as "instant placement without collision resolution (spawn, chunk
@@ -1356,6 +1369,12 @@ void App::apply_restore(const DebugSnapshot& snap) {
     ps->yaw = snap.yaw;
     ps->pitch = snap.pitch;
     ps->vertical_velocity = 0.0f; // a restored player is not mid-fall
+    // THE KEY, NOT THE STATE. Setting `crouched` here would flag a capsule that
+    // is still standing height; holding the key lets sim's own crouch state
+    // machine resize the capsule and ease the blend on the next tick, which is
+    // the only code allowed to decide whether there is headroom to stand again.
+    ps->crouch_held = snap.crouched;
+    hold_crouch_ = snap.crouched; // ...and KEPT held, see App.h
 
     std::fprintf(stderr,
                  "[restore] stand %u  pos %.2f %.2f %.2f  yaw %.4f  pitch %.4f  "
@@ -1645,6 +1664,13 @@ int App::run() {
                 // AFTER the bot (it owns yaw; the probe owns the rest) and
                 // BEFORE pre_step, which is where a look intent is consumed.
                 body_probe_drive();
+                // The restored crouch, re-asserted after accumulate_input has
+                // overwritten it from a keyboard nobody is sitting at.
+                if (hold_crouch_) {
+                    if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                        ps->crouch_held = true;
+                    }
+                }
                 // The water callback is the authoritative source. Sampling the
                 // terrain and subtracting, or reading the drawn water, would
                 // let a primitive that extends past real water be swum in.
@@ -1723,6 +1749,18 @@ int App::run() {
                         step_ctx_.eye_lean =
                             anim::eye_lean_offset(body_rig_.proportions,
                                                   drive->run_weight);
+                        // THE CROUCH TRAVELS THE SAME WAY, and it had to: the
+                        // camera used to drop to sim's own CROUCH_EYE_HEIGHT
+                        // 0.85 while character folded the body by half the leg,
+                        // which left the eye 0.36 m below the drawn skull and
+                        // 0.25 m below its neck -- inside the chest, reported
+                        // twice by the user. `drive->crouch_blend` is the same
+                        // float this block just ferried the other way, so the
+                        // posed body and the camera cannot disagree about how
+                        // deep the squat is.
+                        step_ctx_.crouch_eye =
+                            anim::crouch_eye_offset(body_rig_.proportions,
+                                                    drive->crouch_blend);
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
