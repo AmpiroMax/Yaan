@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 11:29:44
+Last updated: 10:08:2026 - 11:34:54
 -->
 <!--
 UPD:
@@ -65,6 +65,7 @@ UPD:
 - 10:08:2026 - 11:10:03: §1.7 BR-4/BR-3 — flora implemented both rulings and RE-TOOK THE CONTROL PER CLASS; my quoted measurements were superseded within the hour and are corrected here rather than left standing. The control climbs monotonically with acceptance rate (1.052 at coverage 0.09 to 1.136 at 0.35), confirming the density dependence by measurement instead of argument; correction ran one way as ruled and no verdict flipped (mushrooms 0.338→0.364, pebbles 0.411→0.437, flowers 0.454→0.478, moss 0.466→0.490, grass 0.685→0.683, worst seed 0.714). The trap kept on the record: the single-control table was wrong for four of five classes and right only for grass, by the accident that grass's mean sat nearest the one constant used — the error hid behind the very class under argument. BR-3 kept-verge ruled the rest of the way on flora's question: the class weight scales the PEAK and never the base presence (cobble 0 = no peak, not no plants), and MOSS ALONE keeps a 0.25 residual on cobble — confirmed because the damp joint is a mechanism the broom cannot reach, bounded strictly under the dirt weight, and accepted on a FRAME rather than the ratio (pockets, not a ribbon down both kerbs).
 - 10:08:2026 - 11:23:17: §1.7 BR-5 RULED: bare terrain is the wrong instrument for the forest stand (option 3), not a hill-wavelength or ring-scale fix. Confirmed in core's source, not argued: the current raycast is terrain-only (no trunks, no canopy, no floor scatter), so the measured 0.03 was the forest deleted, not the forest failing — and §8.1's own brief already names the meso tier AND the floor as joint carriers for this stand. New gate: terrain + real placed oak trunks (44.4/ha, the lattice core already ships) + real placed Bush/BigBush instances (flora's measured load-bearing classes; FallenLog/snag/deadfall may ride along but the gate may never depend on them — dead wood is sized for the user's brief, not a validator), combined by a ray-vs-disc march reusing flora's floor-class shape — explicitly NOT the C1/C4 canopy transmittance model, which returns zero blocked below crown_base. Bar, ring, and eye height unchanged (0.5 / 40–80 m / 1.7 m); LF-2's own dictionary acceptance stays bare-terrain for landform-only contexts (cross-referenced at §2.10) — two contexts, one rule. The terrain-only 0.03/0.06 is kept forever as the must-fail control. Core's pinned regression test (siting beats bare-ground control 3–4×, median stays under 0.5 on bare terrain) is kept verbatim, reclassified from gate to permanent canary — if the bare-terrain median ever clears 0.5 that is a tripwire, not a win, and forces a rewrite. Separately ruled: flora's measured BR-4/BR-5 tension (authored clumping costs 0.09–0.26 of occlusion; the ruled density band's MIN end fails at 40–60 m before trunks) is real and not closed by the instrument change alone — retuning BR-4's clump field or oversizing dead wood are both refused; the available lever is density-aware find placement (extending BR-5's existing plain carve-out), sized only after core re-measures on the new instrument. Sent lead the corrected per-class CLUMP_R_NORM_MAX prose (flora's re-taken control, value unchanged at 0.85).
 - 10:08:2026 - 11:29:44: §1.7 BR-5 SHARPENED on flora's follow-up measurement (§3.14): the combined trunk+floor figure (real 44.4/ha uniform lattice + clumped Bush/BigBush) passes everywhere except ruled-MIN at the 40 m ring, which misses by 0.021 — and whether that miss exists at all depended on an aggregation clause BR-5 never stated. Ruled: per-distance aggregation, never pooled across 40-80 m, same "mean hides a desert" reasoning BR-6 already codifies as a tail clause, now cross-applied to distance. 0.021 against 0.5 sits inside Rule 36's few-percent caution, so core reconfirms across a seed spread before building anything, not off one draw; if it holds, the density-aware placement lever is scoped to exactly that cell (sparse floor, near ring) and nowhere else; if it doesn't, no lever is built at all. Flagged to the lead as a candidate standing clause for ARCHITECTURE.md: acceptance rules should name their aggregation and denominator, not only their number — third time in two days the deciding fact was a definition, not a measurement.
+- 10:08:2026 - 11:34:54: §1.7 BR-5 CLOSED (pending core's build): flora reconfirmed ruled-MIN/40m across 40 seeds — mean 0.5038 (pass), median 0.4778 (fail by 0.022), sd 0.164, 60% of seeds failing outright. Which seed-statistic decides was ruled to DISSOLVE rather than answer, on the lead's reframing: BR-5 is a per-instance placement rule (many finds per seed), not a per-seed structural one like the §2.8.3 massif/C1 invariants it would otherwise inherit a statistic from, so the fix is not a better summary statistic but removing the randomness the statistic summarises — density-aware find placement, confirmed rather than merely greenlit, scoped to sparse-floor/near-ring only. Two gates before core builds: (1) reconcile against core's independent instrument on the same 40 seeds — a live marginal cell is exactly where two instruments disagreeing would matter, and the ruling is provisional until they agree; (2) check the BR-6 gap-tail interaction before, not after, since steering finds away from sparse-floor locations concentrates them in the covered fraction and can widen wilderness-route gaps FIND_GAP_MAX_MULT exists to catch.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1590,6 +1591,75 @@ building it any broader than that. **If it does not hold** (0.021 was
 seed noise): the lever is not built at all, and BR-5 is fully closed by the
 terrain+trunks+floor instrument alone, with no placement change required.
 Either way this is core's next measurement, not a new design question.
+
+**WHICH SEED-STATISTIC DECIDES THE VERDICT — the question DISSOLVES rather
+than gets answered (flora's reconfirmation §3.14, the lead's reframing,
+ruled here).** Flora re-ran ruled-MIN/40m across 40 seeds while core ran
+their own instrument in parallel: mean 0.5038 (a pass), median 0.4778 (a
+miss, −0.022), sd 0.164, min 0.2847, max 1.0000, 60 % of individual seeds
+below 0.5, 95 % range [0.294, 0.764]. Not noise around a pass — a wide
+spread whose centre sits on the fail side. Flora correctly declined to pick
+the statistic herself (same category of move as picking a favourable
+denominator) and named it a fourth instance of the same pattern: dispersion
+denominator, per-class control, ring aggregation, now seed-statistic choice.
+
+**The lead's reading is right and it is sharper than reaching for §2.8.3:
+the spread IS the finding, not the centre.** Sd 0.164 against a 0.5 bar,
+seeds ranging 0.28 to 1.00, does not describe a world that nearly passes —
+it describes a PROPERTY THAT IS NOT RELIABLY PRODUCED: a third of seeds
+hide the find well, a third leave it naked, and which one a given player
+gets is close to a coin flip. Every summary statistic pulled from that
+distribution is a way of not saying so — median would still be reporting a
+population's central tendency for a question that was never about the
+population.
+
+**Because BR-5 is a PER-INSTANCE placement rule, not a per-seed structural
+one, it dissolves rather than needing a §2.8.3-style answer.** §2.8.3 was
+written for invariants with exactly one realised structure per seed (one
+massif, one landmark) — there the only lever IS a population statistic
+across seeds, because nothing about a single instance can be chosen. BR-5
+governs MANY placed instances per seed, each individually siteable. The
+property BR-5 actually wants is not "does the average patch of ground
+happen to be covered" but **"is each find placed where cover exists."**
+Density-aware siting — already scoped two paragraphs above as a candidate
+lever — does not shift this distribution, it COLLAPSES it: a find sited
+because its local terrain+trunk+floor instrument already clears 0.5 is no
+longer a draw from the ambient population that produced sd 0.164 in the
+first place. This is the general lesson underneath every "which
+definition decides" instance this stage, one layer further down: sometimes
+the fix to an unstable statistic is not a better statistic, it is removing
+the randomness the statistic was trying to summarise.
+
+**Ruling: the density-aware placement lever is CONFIRMED, not because a
+chosen statistic fails, but because the population it would summarise is
+itself the defect.** Scope unchanged from above: sparse-floor (ruled-MIN
+density) locations at the near ring (40 m) only — every other cell in
+flora's combined table clears comfortably under any reasonable statistic
+and needs nothing. §2.8.3's min/median/max reporting still binds BR-5 for
+every OTHER cell and for re-verifying this one after the lever lands (a
+placed-and-sited population should read a tight distribution near 1.0, not
+merely a passing median — that shape is itself evidence the fix worked
+rather than papered over the number).
+
+**Two gates before this is built, not after — the ruling PAUSES for the
+first one:**
+
+1. **Instrument reconciliation outranks this entire ruling.** Flora sent
+   core the same 40 seeds as a cross-check target for core's independently
+   built ray-vs-disc instrument. If core's reading on those seeds disagrees
+   with flora's beyond seed noise, that is a bug in one of the two
+   instruments, and everything above is provisional on the WRONG number
+   until it is found — ten minutes of diffing now against a lever built on
+   a bug later.
+2. **The BR-6 interaction is measurable before anything is built, so
+   measure it before, not after.** Sparse-floor locations are, by
+   construction, where BR-6's finds would otherwise have landed too;
+   steering BR-5 specimens away from them concentrates finds in the
+   covered fraction, which can widen gaps in the sparse fraction — exactly
+   what BR-6's `FIND_GAP_MAX_MULT` (3×) tail clause exists to catch on
+   wilderness routes. Core checks the gap distribution under the
+   density-aware lever, not merely BR-5's own numbers, before calling this
+   closed.
 
 **BR-6 (е) — the find rule: a walker meets a small find every ~60 s.**
 The mailbox tier (Kyoto calibration, research A2) — the layer between POIs
