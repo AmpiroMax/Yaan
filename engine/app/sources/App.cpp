@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:08:54
+Last updated: 10:08:2026 - 20:20:17
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -86,6 +86,7 @@ UPD:
 - 10:08:2026 - 20:03:30: Восстановление через teleport_character вместо самодельной доводки. Прежний комментарий утверждал, что телепорта в IPhysics нет — предпосылка была моя, непроверенная (grep по неверному имени), и успела уйти в бриф core. Промах упал с 0.53 м до 0.001 м; вся машинерия доводки удалена.
 - 10:08:2026 - 20:05:06: DFN_CAPTURE_DIR на существующий каталог убивал процесс до загрузки мира (бросающая форма create_directories) — render потерял на этом три прогона, и прогон, не измеривший НИЧЕГО, выглядел как измеривший ноль.
 - 10:08:2026 - 20:08:54: Передача gait в BodyDrive включена: походку выбирает передача, а не сравнение скорости с числами. Закрывает и трусцу-с-наклоном-0.286, и окно регрессии, в котором ВСЕ передачи рисовались шагом.
+- 10:08:2026 - 20:20:17: Рука вида от первого лица объявляла меш 32, которого никто никогда не строил, — она рисовалась как НИЧТО с самого дня проводки. Отсутствие теперь объявлено, а не получается случайно; тело и так рисует настоящую правую кисть.
 */
 
 #include "engine/app/sources/App.h"
@@ -596,7 +597,29 @@ bool App::enter_world(uint32_t stand) {
 
         world_.add(player_, gameplay::Inventory{});
         world_.add(player_, gameplay::HeldItem{});
-        world_.add_resource(gameplay::ViewModelAssets{.hand_mesh = 32});
+        // THE VIEW MODEL'S HAND IS DECLARED ABSENT, ON PURPOSE, and this line
+        // is a fix rather than a disabling.
+        //
+        // It used to say 32 (VIEWMODEL_MESH_ID_HAND). Nothing has ever built a
+        // mesh for that id: render reserves 32..33 for a view-model mechanism
+        // that does not exist yet, and `register_mesh` REFUSES the id for that
+        // very reason -- so the app named an asset nobody supplies, and the
+        // first-person hand has drawn as NOTHING since the day it was wired.
+        // Render's loud unregistered-asset report is what surfaced it; it was
+        // firing every launch, next to the `mesh_asset = 0` sentinel warning
+        // that made it easy to dismiss as noise.
+        //
+        // 0 is the documented "none", so this states the absence instead of
+        // producing it by accident, and the warning goes quiet because there is
+        // nothing missing to warn about.
+        //
+        // WHY NOT POINT IT AT THE RIG'S HAND INSTEAD: the first-person BODY
+        // already draws a real HandR, placed by the rig. A second hand placed
+        // by the view model's own sway would be the same hand in two places.
+        // Whether a view-model hand should exist at all now that a full body
+        // does is a design question, not a wiring one -- raised, not decided
+        // here. The item slot is untouched and a held torch still draws.
+        world_.add_resource(gameplay::ViewModelAssets{.hand_mesh = 0});
         gameplay::spawn_view_model(world_, player_);
 
         // Three props, not one: take, open and use are three different verb
