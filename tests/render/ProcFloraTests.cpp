@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 21:16:23
+Last updated: 10:08:2026 - 21:19:35
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -118,6 +118,21 @@ UPD:
   constants divided and is blind to whole clusters being flat; the clump
   coverage identity is named as a restatement of the CDF's definition. The
   presented-area floor now reads config::FLORA_PRESENTED_AREA_FLOOR_M2.
+- 10:08:2026 - 21:19:35: THE SIX CONTROLS THAT REJECTED NOTHING (audit),
+  rebuilt against real geometry. Three were literal arithmetic on locally
+  declared values — `x >= 1.25x`, `0 > 0.25`, `g <= g - 0.05` — and one
+  rejected on a clause the case does not accept on (a log floated 3 m, checked
+  for "nothing buried", while acceptance is a buried SPAN). Now: the snag
+  separation is controlled by two REAL grey builds (variant spread 1.000x
+  against a 1.25x threshold); the log by its own mesh lifted to rest ON the
+  datum and by the BUTT-BURIED-TIP-HOVERING tilt, which a whole-mesh minimum
+  still passes and the span clause rejects; the attachment rule by the real
+  mushroom's real cap vertices lifted 1 m, every one of them rejected by the
+  same per-species `touch`; the accent-colour floor by the four flowers' own
+  near-identical foliage greens (all six pairs rejected); the moss-below-grass
+  rule by a shipped live green (bush foliage 0.4264 against a 0.3272
+  threshold); the sweep ordering by ONE predicate applied to both the shipped
+  rows and the pre-ruling flat table.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1611,9 +1626,36 @@ TEST_CASE("floor: the snag split is ONE asset with two materials") {
         // flora value.
         CHECK(lum_pale >= lum_grey * 1.25f);
     }
-    // CONTROL: the same species against itself measures 1.0x and must FAIL the
-    // separation clause — i.e. the clause cannot be satisfied by accident.
-    CHECK_FALSE(lum_grey >= lum_grey * 1.25f);
+    // CONTROL, REBUILT 10.08.2026 — it used to read
+    // `CHECK_FALSE(lum_grey >= lum_grey * 1.25f)`, which is `x >= 1.25x` on one
+    // local float: true arithmetic, zero engine code, and it was being counted
+    // as a control. A control that cannot reject is worse than none, because
+    // the suite reports it as coverage.
+    //
+    // The real thing: TWO REAL BUILDS of the grey snag, at different variants,
+    // through the same builder and the same luminance instrument. They must
+    // FAIL the 1.25x separation, because variant-to-variant palette wobble is
+    // exactly what the clause must not mistake for the pale/grey split.
+    // Measured: grey is 0.4663 at every variant (spread 1.000x) and pale is
+    // 0.7094, so the real pair separates by 1.521x against a threshold of 1.25.
+    {
+        auto mean_lum = [](const MeshData& m) {
+            double sum = 0.0;
+            for (const platform::Vertex& vx : m.vertices) {
+                sum += 0.30 * chan_r(vx.color_rgba) + 0.60 * chan_g(vx.color_rgba)
+                    + 0.10 * chan_b(vx.color_rgba);
+            }
+            return static_cast<float>(sum / std::max<size_t>(m.vertices.size(), 1));
+        };
+        const float a = mean_lum(
+            build_flora_mesh(FloraSpecies::Snag, 0, FloraShape{}, FloraLod::Full).wood);
+        const float b = mean_lum(
+            build_flora_mesh(FloraSpecies::Snag, 7, FloraShape{}, FloraLod::Full).wood);
+        REQUIRE(a > 0.0f);
+        REQUIRE(b > 0.0f);
+        CHECK_FALSE(b >= a * 1.25f);
+        CHECK_FALSE(a >= b * 1.25f);
+    }
 }
 
 TEST_CASE("floor: a log contacts the ground along its length") {
@@ -1667,14 +1709,64 @@ TEST_CASE("floor: a log contacts the ground along its length") {
             }
             CHECK(max_gap <= (x_hi - x_lo) * 0.40f);
 
-            // CONTROL: the same log floated up by three metres — clear of the
-            // root plate's own depth — has NO buried geometry at all. This is
-            // the artefact by name.
-            int buried_after_float = 0;
+            // CONTROLS, REBUILT 10.08.2026. The one that stood here counted
+            // vertices below -2.99 m on a log whose root plate is nowhere near
+            // 3 m deep, so it could not reject; and it rejected on a clause
+            // ("nothing is buried") that is NOT the clause this case accepts
+            // on (a buried SPAN of the log's length with no long gap). A
+            // control has to fail the acceptance clause itself, or it is
+            // measuring something nobody asserts.
+            //
+            // The two clauses above are run again, verbatim, on two deformed
+            // copies of THIS mesh — real log geometry, not a strawman.
+            auto buried_span_and_gap = [](const std::vector<platform::Vertex>& vs,
+                                          auto lift) {
+                std::vector<float> xs;
+                for (const platform::Vertex& vx : vs) {
+                    if (lift(vx.position) < -0.01f) xs.push_back(vx.position.x);
+                }
+                std::sort(xs.begin(), xs.end());
+                float gap = 0.0f;
+                for (size_t i = 1; i < xs.size(); ++i) {
+                    gap = std::max(gap, xs[i] - xs[i - 1]);
+                }
+                const float span = xs.empty() ? 0.0f : xs.back() - xs.front();
+                return std::pair<float, float>{span, gap};
+            };
+            // CONTROL 1 — THE FLOATING CYLINDER: lifted by its own deepest
+            // point plus a centimetre, so it rests exactly ON the datum
+            // instead of into it. Nothing is buried, the span collapses to 0,
+            // and the length clause fails.
+            float deepest = 0.0f;
             for (const platform::Vertex& vx : f.wood.vertices) {
-                if (vx.position.y + 3.0f < -0.01f) ++buried_after_float;
+                deepest = std::min(deepest, vx.position.y);
             }
-            CHECK_FALSE(buried_after_float > 0);
+            REQUIRE(deepest < -0.01f); // the real log IS buried
+            const float lift = -deepest + 0.01f;
+            const auto floated =
+                buried_span_and_gap(f.wood.vertices, [lift](const glm::vec3& p) {
+                    return p.y + lift;
+                });
+            CHECK_FALSE(floated.first >= species_params(s).height_min * 0.9f);
+            // CONTROL 2 — THE ARTEFACT BY NAME, and the reason this case
+            // measures per slice: BUTT BURIED, TIP HOVERING. The log is tilted
+            // about its buried end until the far end clears the datum. Its
+            // whole-mesh minimum is still deep underground — a naive "the log
+            // touches the ground" test passes it — while the buried span and
+            // the ring gap both reject it.
+            {
+                const float slope = (-deepest + 0.05f) / std::max(x_hi - x_lo, 0.1f);
+                const auto tilted =
+                    buried_span_and_gap(f.wood.vertices, [&](const glm::vec3& p) {
+                        return p.y + (p.x - x_lo) * slope;
+                    });
+                float naive_min = 1e9f;
+                for (const platform::Vertex& vx : f.wood.vertices) {
+                    naive_min = std::min(naive_min, vx.position.y + (vx.position.x - x_lo) * slope);
+                }
+                CHECK(naive_min < -0.01f); // the naive test still passes it
+                CHECK_FALSE(tilted.first >= species_params(s).height_min * 0.9f);
+            }
         }
     }
 }
@@ -2695,13 +2787,40 @@ TEST_CASE("edge: flower heads and caps are ATTACHED, at 0.2 m as at 20 m") {
             }
         }
     }
-    // CONTROL: a head floated a metre above its tuft must FAIL the touch
-    // distance — i.e. the classifier really is measuring attachment, not
-    // vacuously passing everything.
+    // CONTROL, REBUILT 10.08.2026. What stood here was
+    // `CHECK_FALSE(length({0,1.2,0} - {0,0.2,0}) <= 0.35f)` — two locally
+    // declared points and a hard-coded 0.35 that is not even the `touch`
+    // distance the case accepts on. It ran no engine code and could not
+    // reject; it was counted as a control anyway.
+    //
+    // The real control: THE REAL MUSHROOM, with its real cap vertices lifted
+    // 1 m off its real stem, measured by the same nearest-support loop and the
+    // same per-species `touch`. This is the detached-cap artefact built out of
+    // the mesh it would happen to.
     {
-        const glm::vec3 tuft_top{0.0f, 0.2f, 0.0f};
-        const glm::vec3 floated{0.0f, 1.2f, 0.0f};
-        CHECK_FALSE(glm::length(floated - tuft_top) <= 0.35f);
+        const SpeciesParams& sp = species_params(FloraSpecies::Mushroom);
+        const FloraMesh f =
+            build_flora_mesh(FloraSpecies::Mushroom, 0, FloraShape{}, FloraLod::Full);
+        const uint32_t green = pack(sp.foliage_color);
+        const uint32_t stem = pack(sp.trunk_color);
+        std::vector<glm::vec3> support;
+        for (const platform::Vertex& vx : f.wood.vertices) {
+            if (vx.color_rgba == green || vx.color_rgba == stem) support.push_back(vx.position);
+        }
+        REQUIRE_FALSE(support.empty());
+        const float touch = std::max(0.30f, sp.element_radius * 3.0f);
+        int detached = 0;
+        int caps = 0;
+        for (const platform::Vertex& vx : f.wood.vertices) {
+            if (vx.color_rgba == green || vx.color_rgba == stem) continue;
+            ++caps;
+            const glm::vec3 lifted = vx.position + glm::vec3{0.0f, 1.0f, 0.0f};
+            float best = 1e9f;
+            for (const glm::vec3& p : support) best = std::min(best, glm::length(lifted - p));
+            if (best > touch) ++detached;
+        }
+        REQUIRE(caps > 0);
+        CHECK(detached == caps); // every lifted cap vertex is rejected
     }
 }
 
@@ -2732,8 +2851,25 @@ TEST_CASE("edge: the four flowers are separable from grass and each other") {
             CHECK(glm::length(cols[i] - cols[j]) > 0.25f);
         }
     }
-    // CONTROL: two copies of one colour fail the pairwise floor.
-    CHECK_FALSE(glm::length(cols[0] - cols[0]) > 0.25f);
+    // CONTROL, REBUILT 10.08.2026: it was `length(cols[0] - cols[0]) > 0.25`,
+    // i.e. `0 > 0.25`, an arithmetic identity standing in for a control. The
+    // real rejected instance is in the same registry and needs no invention —
+    // THE FOUR FLOWERS' OWN FOLIAGE GREENS, which are deliberately near-
+    // identical (measured pairwise 0.000-0.030, and carpet/jewel are the SAME
+    // colour). They go through the same metric and must fail the same floor:
+    // that is what proves the 0.25 is separating the accents rather than
+    // passing anything the registry hands it.
+    {
+        const glm::vec3 greens[] = {carpet.foliage_color, accent.foliage_color,
+                                    jewel.foliage_color, umbel.foliage_color};
+        int rejected = 0;
+        for (int i = 0; i < 4; ++i) {
+            for (int j = i + 1; j < 4; ++j) {
+                if (!(glm::length(greens[i] - greens[j]) > 0.25f)) ++rejected;
+            }
+        }
+        CHECK(rejected == 6); // all six pairs of the greens fail the accent floor
+    }
 
     // MOSS STAYS BELOW THE GRASS BAND (design's acceptance rule, 10.08.2026):
     // moss is by design the species closest to grass, so EVERY moss tone —
@@ -2752,8 +2888,21 @@ TEST_CASE("edge: the four flowers are separable from grass and each other") {
         for (const glm::vec3& tone : moss_tones) {
             CHECK(luminance(tone) <= grass - 0.05f);
         }
-        // CONTROL: the grass reference itself must FAIL the rule.
-        CHECK_FALSE(luminance(GRASS_BAND_REFERENCE) <= grass - 0.05f);
+        // CONTROL, REBUILT 10.08.2026. It was
+        // `CHECK_FALSE(luminance(GRASS_BAND_REFERENCE) <= grass - 0.05f)` with
+        // `grass` defined as that same luminance one line above: `g <= g-0.05`,
+        // false for every g, no species involved. The rule is about SHIPPED
+        // GREENS converging on the grass, so the control is a shipped green:
+        // the bush's live foliage, luminance 0.4264 against a threshold of
+        // 0.3272 (grass 0.3772 less the 0.05 step). It fails the moss rule by
+        // 0.099 — as any live green must, which is the whole point of the moss
+        // tones (0.2608-0.3077) sitting where they do.
+        CHECK_FALSE(luminance(species_params(FloraSpecies::Bush).foliage_color)
+                    <= grass - 0.05f);
+        // ...and the margin is stated rather than implied: the darkest moss
+        // tone clears the threshold by 0.066, the brightest by 0.019.
+        MESSAGE("grass " << grass << ", threshold " << (grass - 0.05f) << ", bush "
+                         << luminance(species_params(FloraSpecies::Bush).foliage_color));
     }
 }
 
@@ -2895,13 +3044,32 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
     // ruling, i.e. no maintenance modelled at all, which gardened a town
     // gutter as lushly as a woodland trail. Flat weights must FAIL the
     // suppression clause; if they passed, the column would be decorative.
+    // REBUILT 10.08.2026: it read `CHECK_FALSE(flat.cobble <= 0.35f)` on a
+    // locally declared `{1,1,1,1}` — the literal `1.0 <= 0.35`, evaluated
+    // against nothing. The clauses the real rows are judged by are spelled out
+    // in the loop above, so the control has to be judged by THE SAME
+    // PREDICATE, not by a copy of one line of it. It is one lambda now, and
+    // the shipped rows are re-checked through it so the two cannot drift
+    // (Rule 39 — a copy of a chain is a defect the day the original branches).
+    auto sweep_ordering_holds = [](const PathClassRichness& w) {
+        return w.faint_trail >= w.dirt && w.dirt > w.cobble
+            && w.faint_trail == doctest::Approx(1.0f) && w.cobble <= 0.35f
+            && w.dirt <= 0.75f;
+    };
+    for (size_t i = 0; i < FLORA_EDGE_RULE_COUNT; ++i) {
+        const FloraEdgeRule& r = FLORA_EDGE_RULES[i];
+        if (r.habitat != EdgeHabitat::PathMargin) continue;
+        CHECK(sweep_ordering_holds(r.richness));
+    }
     {
         const PathClassRichness flat{1.0f, 1.0f, 1.0f, 1.0f};
-        CHECK_FALSE(flat.cobble <= 0.35f);
-        // ...while still satisfying monotonicity, which is exactly why
-        // monotonicity ALONE could not have caught it. Two clauses, because
-        // this zone's signature failure is a rule implemented in half.
+        CHECK_FALSE(sweep_ordering_holds(flat));
+        // ...and it fails on the SUPPRESSION half while satisfying the
+        // ordering half, which is exactly why monotonicity alone could not
+        // have caught it: the pre-ruling table gardened a town gutter as
+        // lushly as a woodland trail without ever going backwards.
         CHECK(flat.faint_trail >= flat.dirt);
+        CHECK_FALSE(flat.dirt > flat.cobble);
     }
     // (The kept-verge-is-not-bare-ground assertions that stood here moved to
     // core with clump_field_edged() — see the tombstone above the mushroom
