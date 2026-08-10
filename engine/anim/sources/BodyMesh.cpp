@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
+Last updated: 10:08:2026 - 21:21:19
 Module: engine/anim
 File: engine/anim/sources/BodyMesh.cpp
 
@@ -20,6 +20,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial implementation.
 - 10:08:2026 - 12:10:00: Bevelled tapered prisms replace the boxes (user: more rounded); the torso stops at the shoulder line with a neck stub (user: too much chest); calf tapers to a real ankle so the closed stance cannot merge the legs.
+- 10:08:2026 - 21:21:19: The trunk box stops at the ARM'S INNER EDGE, not at the acromion — the shoulder row is a joint span and a chest is not as wide as one, so the box was burying half the arm (Rule 43 at the shoulder). Silhouette unchanged at every height; the arm goes from 4.88 cm inside the trunk to 3.4 cm clear of it.
 */
 
 #include "engine/anim/sources/BodyMesh.h"
@@ -189,8 +190,43 @@ BodySegmentMesh build_body_segment_mesh(Bone bone, const RigProportions& p) {
         const float shoulder_line = p.shoulder_height - p.hip_height;
         const float sx = p.shoulder_width * 0.5f;
         const float sz = p.torso_depth * 0.5f;
-        // Trunk: hips to the acromion, a V.
-        prism(m, y0, shoulder_line, sx * TORSO_HIP_RATIO, sz * TORSO_HIP_RATIO, sx, sz,
+        // THE ARM WAS 50 % BURIED, AND THE BOX BORROWED A NUMBER THAT MEANS
+        // SOMETHING ELSE (user, twice: «форма персонажа странная» — measured in
+        // the mirror stand, not guessed at). `BODY_SHOULDER_WIDTH_FRAC` is the
+        // BIACROMIAL breadth, acromion to acromion, which is a JOINT SPAN — and
+        // the rig is right to hang the shoulder joints at +-sx from it. The
+        // trunk box then also drew itself to sx, so the torso wall reached
+        // exactly the arm's own centre line and swallowed its inner half: the
+        // arm measured 4 px of mesh reading 2 px of silhouette at 6 m, and the
+        // body read as a slab with a head.
+        //
+        // A CHEST IS NOT AS WIDE AS THE ACROMION SPAN. There is no chest-breadth
+        // row, so the box was deriving a body width from a joint width — Rule 43
+        // at the shoulder: the bound is written on the biacromial and the
+        // acceptance is judged on the silhouette, and those are the same number
+        // only if arms have zero thickness. Ending the trunk at the arm's INNER
+        // edge is the whole fix, and it moves nothing else:
+        //
+        // | quantity | before | after | real adult |
+        // |---|---|---|---|
+        // | shoulder silhouette | 0.5652 m = 0.314H | 0.5652 m = 0.314H | ~0.280H bideltoid |
+        // | trunk box at the chest | 0.4662 m = 0.259H | 0.3672 m = 0.204H | ~0.181H chest breadth |
+        // | arm width inside the box | 50 % | 0 % | 0 % |
+        //
+        // The delivered silhouette is UNCHANGED because the joint did not move —
+        // joint + half an arm was already the bideltoid, and 0.314H against a
+        // real 0.280H is this project's declared stocky bias, not an error. The
+        // rejected alternative moved the joint inboard instead, which buys the
+        // same unburied arm by paying 0.149H of chest (−18 % on a real one) and
+        // collapsing the shoulders to 0.259H: a correct joint moved to
+        // compensate for a wrong box. The chest is the thing with no row; the
+        // joint is not.
+        const float cx = sx - p.arm_thickness * 0.5f;
+        // Trunk: hips to the acromion, a V. The taper is on the CHEST width, so
+        // the waist still narrows below it (0.2938 m = 0.163H against a real
+        // ~0.16H) instead of inverting the V into a wedge that is widest at the
+        // hips.
+        prism(m, y0, shoulder_line, cx * TORSO_HIP_RATIO, sz * TORSO_HIP_RATIO, cx, sz,
               BEVEL_TORSO, pack(TUNIC));
         // THE TRAPEZIUS WEDGE, and it is the second attempt. Ending the trunk
         // at the acromion and standing a thin pole on it was geometrically
@@ -202,6 +238,15 @@ BodySegmentMesh build_body_segment_mesh(Bone bone, const RigProportions& p) {
         // full depth either way (a foot is visible past 0.294 m of swing
         // instead of 0.430), because at 45 % depth the neck-line corner cannot
         // block a downward ray at all.
+        //
+        // THE WEDGE KEEPS ITS FULL ACROMIAL BASE `sx` WHILE THE TRUNK BELOW IT
+        // NOW STOPS AT `cx`, and the 4.95 cm step out at the shoulder line is
+        // deliberate: the arm hangs DOWNWARD from the joint, so it occupies only
+        // y < shoulder_line and never competes with the wedge for silhouette.
+        // Narrowing the wedge too would delete the acromion and leave the arms
+        // floating outboard of a gap. A real shoulder does exactly this — the
+        // widest point of the body is the deltoid, just BELOW the bony corner it
+        // hangs from.
         const float nx = p.head_width * NECK_WIDTH_RATIO * 0.5f;
         prism(m, shoulder_line, torso_len, sx, sz, nx, sz * NECK_DEPTH_RATIO,
               BEVEL_TORSO, pack(TUNIC));

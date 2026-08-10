@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
+Last updated: 10:08:2026 - 21:24:59
 Module: tests
 File: tests/character/RigPoseTests.cpp
 
@@ -22,6 +22,10 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial suite.
 - 10:08:2026 - 12:10:00: Stance convergence + hinge-limit suites, each with its control; FK heights now assert the soles on the ground.
+- 10:08:2026 - 21:24:59: The arm-breaks-the-silhouette test (the user's «форма персонажа
+  странная», measured), with the joint-on-the-wall control; and the Rule 41
+  caveat on the leg-convergence band — it compares a hip->ANKLE angle against a
+  hip->KNEE band, on top of a hip width that is a silhouette used as a joint span.
 */
 
 #include <doctest/doctest.h>
@@ -124,6 +128,26 @@ TEST_CASE("the legs converge to the stance row (user note: feet too far apart)")
     // convergence is DERIVED from the stance, and it must land in the band real
     // femoral obliquity occupies. A stance row that pushes it outside means hip
     // width or leg length moved without anyone rethinking the model.
+    //
+    // READ THE CAVEAT BEFORE TRUSTING THIS BAND (Rule 41, found 10:08:2026 while
+    // measuring the arm burial). `leg_convergence()` is the angle of the
+    // hip->ANKLE line; femoral obliquity is measured on the hip->KNEE line. They
+    // are DIFFERENT QUANTITIES — the tibia is near-vertical, so the hip->ankle
+    // angle is systematically the smaller of the two — and this check compares
+    // one against the other's band. It is a useful tripwire for "somebody moved
+    // hip width or leg length", which is what it is really guarding; it is NOT
+    // evidence that the model matches anatomy, and it must not be cited as
+    // such.
+    //
+    // IT ALSO SITS ON TOP OF A KNOWN-WRONG INPUT, filed with lead rather than
+    // fixed here: `BODY_HIP_WIDTH_FRAC` 0.191 is the BITROCHANTERIC breadth — an
+    // OUTER silhouette width — used as the hip JOINT SPAN, which its own row
+    // admits. Real femoral heads are ~0.095H apart, half of that. So the 7.37
+    // deg this reports is produced by a reach roughly twice the anatomical one,
+    // and it lands inside the band partly BECAUSE of the error. Correcting the
+    // pivots without the femoral-head row would drop it to 2.39 deg and turn
+    // this check red for the right reason — which is exactly how a check gets
+    // weakened instead of argued with (Rule 38). Both move together or neither.
     const float deg = p.leg_convergence() * 180.0f / 3.14159265f;
     CHECK(deg > 5.0f);
     CHECK(deg < 12.0f);
@@ -281,6 +305,101 @@ TEST_CASE("every bone builds a non-empty segment mesh with sane bounds") {
     // Mesh id arithmetic pins the range agreed with render (34..48, spare 49).
     CHECK(body_segment_mesh_id(Bone::Pelvis) == 34);
     CHECK(body_segment_mesh_id(Bone::FootR) == 48);
+}
+
+TEST_CASE("the arm breaks the silhouette instead of hiding inside the trunk") {
+    // THE USER'S «форма персонажа странная», reduced to a number. The trunk box
+    // used to draw itself to BODY_SHOULDER_WIDTH_FRAC — the BIACROMIAL breadth,
+    // which is a JOINT SPAN, acromion to acromion — so the torso wall reached
+    // the arm's own centre line and swallowed its inner half. Measured on the
+    // mirror stand at 6 m the arm was 4 px of mesh reading 2 px of body, and
+    // the figure read as a slab with a head.
+    //
+    // ASSERT THE OUTCOME, NOT THE MECHANISM (Rule 38): not "the trunk half-width
+    // equals sx - arm/2", which is the construction restated and would pass by
+    // definition, but "the arm adds its WHOLE width to the front silhouette".
+    // That quantity is computed from real FK over real segment meshes, so it
+    // also binds two files that must agree — Rig.cpp places the joint from the
+    // rows, BodyMesh.cpp sizes the box from the rows, and moving one without
+    // the other is exactly the drift this catches (Rule 35 shape).
+    const RigProportions p = RigProportions::from_config();
+    const Rig rig = Rig::build(p);
+
+    // The X interval a set of bones covers in the FRONT view at one world
+    // height — a scanline through the world triangles, NOT a vertex scan. The
+    // difference is load-bearing and cost this test one red run: a prism only
+    // carries vertices at its two end rings, so a vertex scan can only read the
+    // acromion PLANE, where the trapezius wedge's full-width base and the arm's
+    // top cap coincide and the answer is about a height at which nothing hangs.
+    // This is the same instrument the archived before/after frames were measured
+    // with (docs/acceptance/character-mirror-arms-restore.txt).
+    const auto span_at = [&p](const Rig& r, std::initializer_list<Bone> bones, float y) {
+        std::array<glm::mat4, BONE_COUNT> m{};
+        forward_kinematics(r, LocalPose{}, BodyRoot{}, m);
+        float lo = 1e9f;
+        float hi = -1e9f;
+        for (const Bone b : bones) {
+            const BodySegmentMesh mesh = build_body_segment_mesh(b, p);
+            const glm::mat4& xf = m[bone_index(b)];
+            for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
+                glm::vec3 v[3];
+                for (int k = 0; k < 3; ++k) {
+                    v[k] = glm::vec3{xf
+                                     * glm::vec4{mesh.vertices[mesh.indices[i + k]].position,
+                                                 1.0f}};
+                }
+                for (int e = 0; e < 3; ++e) {
+                    const glm::vec3& a = v[e];
+                    const glm::vec3& b2 = v[(e + 1) % 3];
+                    if ((a.y - y) * (b2.y - y) > 0.0f || a.y == b2.y) {
+                        continue;
+                    }
+                    const float x = a.x + (y - a.y) / (b2.y - a.y) * (b2.x - a.x);
+                    lo = std::min(lo, x);
+                    hi = std::max(hi, x);
+                }
+            }
+        }
+        return glm::vec2{lo, hi};
+    };
+
+    // Two centimetres BELOW the acromion: the highest place the arm actually
+    // hangs, and therefore where burial was worst.
+    const float y_shoulder = p.shoulder_height - 0.02f;
+    const glm::vec2 trunk = span_at(rig, {Bone::Torso}, y_shoulder);
+    const glm::vec2 arm = span_at(rig, {Bone::UpperArmR}, y_shoulder);
+
+    // THE OUTCOME. How much wider the body is BECAUSE the arm is there: the
+    // whole arm, not half of it. Explicit absolute bounds, not .epsilon() —
+    // this is a difference and scaling its tolerance by an operand would be
+    // scaling it by the wrong number entirely (Rule 40).
+    const float silhouette_gain = arm.y - trunk.y;
+    CHECK(silhouette_gain > p.arm_thickness * 0.95f);
+    // ...and no part of the arm is inside the box at all.
+    CHECK(arm.x >= trunk.y - 0.001f);
+
+    // CONTROL, and it is the real rejected instance rather than an invented
+    // one: the shipped-before body, whose shoulder joint sat ON the torso wall.
+    // Reproduced by displacing the joints inboard by half an arm — the test
+    // measures the arm's placement RELATIVE to the box, and joint-on-wall is
+    // that relation whichever of the two moved to create it. A second copy of
+    // BodyMesh's old expression would have been a control that agrees with the
+    // code by construction instead of one that fails it.
+    Rig buried = rig;
+    buried.rest_offset[bone_index(Bone::UpperArmR)].x -= p.arm_thickness * 0.5f;
+    buried.rest_offset[bone_index(Bone::UpperArmL)].x += p.arm_thickness * 0.5f;
+    const glm::vec2 buried_arm = span_at(buried, {Bone::UpperArmR}, y_shoulder);
+    const float buried_gain = buried_arm.y - trunk.y;
+    CHECK(buried_gain < p.arm_thickness * 0.6f); // half an arm, and it FAILS above
+    CHECK(buried_arm.x < trunk.y - 0.001f);      // demonstrably inside the box
+
+    // AND THE SEPARATION GROWS DOWNWARD, which is what makes it read at 640x360
+    // rather than merely being true: the trunk tapers to TORSO_HIP_RATIO while
+    // the arm hangs straight, so mid-chest there is real air between them.
+    const float mid = p.hip_height + (p.shoulder_height - p.hip_height) * 0.55f;
+    const glm::vec2 mid_trunk = span_at(rig, {Bone::Torso}, mid);
+    const glm::vec2 mid_arm = span_at(rig, {Bone::UpperArmR}, mid);
+    CHECK(mid_arm.x - mid_trunk.y > 0.02f); // measured 0.034 m at the shipped rows
 }
 
 TEST_CASE("hinges are hinges: knees and elbows cannot bend backwards") {

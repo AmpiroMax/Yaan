@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:41:46
+Last updated: 10:08:2026 - 21:21:19
 -->
 <!--
 UPD:
@@ -50,6 +50,12 @@ UPD:
 - 10:08:2026 - 20:41:46: a9 LANDED (this zone's half) — the gear weight is eased
   once in update_bodies and read by both the trunk and, via the app, the eye.
   The steady-state test stops being vacuous in the same change.
+- 10:08:2026 - 21:21:19: ITEM b CLOSED, and all three costed options were wrong including
+  the lead's ruling. The pelvis box is 7.65 cm INSIDE the hip silhouette, so it
+  is not a lever in either direction; the lever is the trunk box, which had no
+  row of its own and borrowed the biacromial JOINT SPAN for a body width. One
+  expression, no rows, silhouette identical to four decimals. Two hip findings
+  filed for lead rather than fixed half-way.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -511,6 +517,82 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       `BODY_STANCE_WIDTH_FRAC`'s row already anticipates exactly this, calling
       the hip-joint-vs-trochanter conflation an honest simplification that a
       real joint row would supersede. The shoulder has the same shape.
+
+      **CLOSED — AND ALL THREE COSTED OPTIONS WERE WRONG, INCLUDING THE ONE THE
+      LEAD RULED FOR.** Lead ruled for the third (revisit the pelvis box), with
+      the standing invitation to overrule it by measurement. The measurement
+      overruled it, and the instrument is a front-view silhouette scan: every
+      mesh vertex of every segment through FK, scanline in Y at 2 mm, X interval
+      per bone group and for the union.
+
+      **THE PELVIS BOX IS NOT A LEVER IN EITHER DIRECTION, and this is the
+      number.** At the hip line the THIGHS already reach +/-0.2484 m while the
+      pelvis box reaches +/-0.1719 m. The box is **entirely interior to the hip
+      silhouette — 7.65 cm inside it per side** — so no width you give it changes
+      one pixel of the standing figure. This is Rule 41's shape in a place nobody
+      was looking: the quantity being argued over cannot express the difference.
+
+      What IS broken at the hip is a different defect with the same cause: the
+      delivered hip silhouette is 0.4968 m = **0.276H against a real
+      bitrochanteric 0.197H, 40 % over**, because `BODY_HIP_WIDTH_FRAC` 0.191 is
+      an OUTER silhouette width used as a JOINT SPAN — its own row says so in as
+      many words, so the defect was written down and then depended on for a day.
+      NOT FIXED, deliberately: moving the thigh pivots inboard by half a leg
+      drops `leg_convergence` 7.37 deg -> 2.39 deg, outside the rig test's own
+      5-12 deg control band. It is a NUMBERS row request (femoral head width,
+      which `BODY_STANCE_WIDTH_FRAC` already anticipates) PLUS a control revisit,
+      and doing half of it would break a green check for the right reason and
+      teach the next reader to weaken it (Rule 38).
+
+      **THE LEVER IS THE TRUNK BOX, AND IT IS RULE 43 AT THE SHOULDER.**
+      `BODY_SHOULDER_WIDTH_FRAC` is the BIACROMIAL breadth — acromion to
+      acromion — which genuinely IS a joint span, so the rig is RIGHT to hang the
+      shoulder joints at +/-sx from it. The trunk box then also drew itself to
+      sx, so the torso wall reached exactly the arm's own centre line. **A chest
+      is not as wide as the acromion span.** There is no chest-breadth row, so a
+      box with no row of its own borrowed a number that means something else, and
+      the bound written on the biacromial was being judged on the silhouette —
+      the same number only if arms have zero thickness.
+
+      Fix: `cx = sx - arm_thickness/2`, one expression in `BodyMesh.cpp`'s Torso
+      case. No NUMBERS row, no pelvis revisit, no user trade. Measured:
+
+      | y (m) | trunk half-width B -> A | arm-to-trunk gap B -> A | silhouette B -> A |
+      |---|---|---|---|
+      | 1.46 (acromion) | 0.2325 -> 0.1832 | **-0.0488** -> +0.0005 | 0.5650 -> **0.5650** |
+      | 1.35 | 0.2205 -> 0.1737 | -0.0343 -> +0.0125 | 0.5601 -> 0.5601 |
+      | 1.15 (mid-chest) | 0.1987 -> 0.1565 | -0.0081 -> **+0.0341** | 0.5512 -> 0.5512 |
+      | 1.05 (waist) | 0.1877 -> 0.1479 | +0.0053 -> +0.0451 | 0.5465 -> 0.5465 |
+
+      **The silhouette is identical to four decimals at every height** — the
+      change is entirely internal separation, which is why it costs nothing. The
+      arm goes from 4.88 cm buried (49 % of its 9.9 cm) to flush at the acromion
+      and 3.4 cm clear at mid-chest. Delivered shoulder breadth stays 0.5652 m =
+      0.314H against a real bideltoid ~0.280H (the declared stocky bias); the
+      chest lands at 0.3672 m = 0.204H against a real ~0.181H. Option 3 would
+      have moved a CORRECT joint to compensate for a WRONG box and paid 0.149H of
+      chest for it — trading one wrong silhouette for another, which is exactly
+      what it was chosen to avoid.
+
+      The trapezius wedge KEEPS its full acromial base while the trunk below it
+      stops at `cx`, and the 4.95 cm step out at the shoulder line is deliberate:
+      the arm hangs DOWNWARD from the joint, so it occupies only y < shoulder
+      line and never competes with the wedge. A real shoulder does this — the
+      widest point of the body is the deltoid, just BELOW the bony corner it
+      hangs from.
+
+      FRAMES: `character-mirror-arms-{BEFORE,AFTER,ZOOM5x}-3903d69.png` +
+      `character-mirror-arms-restore.txt`, one recipe for both arms. **The zoom
+      is part of the evidence, not decoration** — 3.4 cm at 6 m is 5 px on a
+      640x360 frame, so a verdict read off the archived pair alone would be a
+      vantage that cannot fail (Rule 27). At 5x the before is a slab with a
+      1-2 px sleeve sliver at each edge; the after has two distinct arm columns
+      with the trunk drawn in behind them.
+
+      **AND THE POINT THE USER IS OWED:** «форма персонажа странная» was never a
+      taste question and never needed his ruling. The arm was half buried because
+      a box with no row borrowed a number that means something else. The question
+      put to him is answered by measurement and withdrawn.
    c. **THE HEAD IS A BOX ON A BOX.** No neck segment exists between
       `BODY_NECK_HEIGHT_FRAC` and the head, so the head sits straight on the
       shoulders. Harmless in first person (hidden), mannequin-ish on NPCs.

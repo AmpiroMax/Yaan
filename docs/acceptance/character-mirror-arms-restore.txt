@@ -1,0 +1,53 @@
+# Created: 10:08:2026 - 21:20:24
+# Last updated: 10:08:2026 - 21:20:24
+# Module: docs/acceptance
+# File: docs/acceptance/character-mirror-arms-restore.txt
+#
+# Responsibility:
+# - The exact recipe behind character-mirror-arms-{BEFORE,AFTER,ZOOM5x}: one
+#   file for both arms, so the frames differ ONLY in the compiled-in trunk-box
+#   width (BodyMesh.cpp, Torso case: sx -> sx - arm_thickness/2).
+#
+# Key items:
+# - DFN_BODY_PROBE=mirror is self-driving, so the "restore" here is the probe
+#   recipe rather than a DFN_RESTORE pose file: the probe spawns the double at
+#   spawn + (0,0,-3), warms up 4 s, aims the eye at it, and shoots at yaw
+#   offsets 0 / -0.25 / -0.5 rad. Frame 00 (offset 0, the double square-on) is
+#   the silhouette shot; the archived pair is frame 00 from each arm.
+# - DFN_MIRROR=1 IS REQUIRED and is easy to miss: DFN_BODY_PROBE=mirror selects
+#   the probe's camera behaviour but does NOT spawn the puppet, so without it
+#   the probe photographs an empty clearing and the frame looks like "the body
+#   is not drawing". Cost one shoot to rediscover.
+# - DFN_STAND=1, not the default 0: at stand 0 the double now spawns behind
+#   testbed geometry that arrived after the earlier mirror frames were taken.
+#
+# Dependencies:
+# - Uses: engine/app's DFN_BODY_PROBE (App.cpp, gated).
+# - Used by: docs/specs/character.md item b.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - Do NOT "improve" the vantage. Both archived frames were shot from THIS
+#   recipe; changing it silently invalidates the comparison rather than
+#   improving it.
+# - THE ZOOM IS PART OF THE EVIDENCE, not decoration. The change moves the arm
+#   3.4 cm clear of the trunk at mid-chest, which is 5 px at this range on a
+#   640x360 frame — legible only at the 5x nearest-neighbour blow-up. A
+#   verdict read off the 640x360 pair alone would be a vantage that cannot
+#   fail (Rule 27).
+#
+# UPD:
+# - 10:08:2026 - 21:20:24: Captured for the arm-burial before/after pair.
+
+# Daggerfall N probe recipe
+build_commit  = 3903d69   # both arms; AFTER additionally carries this commit's diff
+command       = DFN_STAND=1 DFN_MIRROR=1 DFN_BODY_PROBE=mirror \
+                DFN_BODY_PROBE_DIR=<dir> DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 \
+                build_lead/engine/app/dfn_app
+frame         = 00_mirror_0.000.png
+achieved_yaw  = -0.004 rad (target 0.000)
+double_yaw    = -3.137 rad (facing the eye)
+speed         = 0.00 m/s, step 0.00  (standing; idle breath only)
+t             = 4.0 s after world entry
+native        = 2560x1440, archived at 640x360 via tools/archive_frame.py
+zoom          = 5x nearest-neighbour, source rect (1215,700) 130x190 in native px
