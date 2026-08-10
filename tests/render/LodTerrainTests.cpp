@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 20:15:40
 Module: tests
 File: tests/render/LodTerrainTests.cpp
 
@@ -27,6 +27,9 @@ UPD:
 - 10:08:2026 - 01:47:53: Stale-clip re-ship case (straddle-ring fix): a moved
   rectangle re-ships only the nodes whose clip changed, and the old mesh
   draws until the replacement lands.
+- 10:08:2026 - 20:15:40: Which LOD counter a readout may believe. The control
+  is a frustum that rejects everything: pending() answers zero for a CULLED
+  ring and for a MISSING one alike, and last_draw_count() separates them.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -366,6 +369,67 @@ TEST_CASE("a moved rectangle re-ships stale clips without ever dropping the draw
     lod.upload(*renderer, straddler, sf.view, nullptr);
     lod.update(eye, 0.016f);
     CHECK_FALSE(in_pending(straddler));
+
+    lod.destroy_all(*renderer);
+    renderer->shutdown();
+}
+
+TEST_CASE("a healthy ring reads as ZERO on pending() — which counter a readout "
+          "asks decides what it can see") {
+    // EARNED, NOT HYPOTHETICAL. The debug overlay showed "lod 0" taken from
+    // pending(), and two zones independently read it as "the far-detail ring
+    // never populates". One of them nearly published it as a defect in a
+    // subsystem that turned out to be healthy, and the other had the same
+    // number from the same field, so the two observations agreeing was not
+    // confirmation — both instruments had the same blind spot. pending() is
+    // the AWAITING-UPLOAD list: it reads as ABSENCE exactly when everything
+    // has arrived.
+    auto renderer = dfn::platform::create_null_renderer();
+    REQUIRE(renderer != nullptr);
+    REQUIRE(renderer->init({}));
+
+    LodTerrain lod;
+    lod.set_world_bounds({0.0f, 0.0f}, {2048.0f, 2048.0f});
+    lod.set_enabled(true);
+    const glm::vec3 eye{1024.0f, 20.0f, 1024.0f};
+
+    lod.update(eye, 0.0f);
+    REQUIRE_FALSE(lod.to_load().empty());
+    std::vector<LodNode> announced(lod.to_load().begin(), lod.to_load().end());
+    for (const LodNode& n : announced) {
+        const NodeField field = make_node_field(n);
+        lod.upload(*renderer, n, field.view, nullptr);
+    }
+    lod.update(eye, dfn::render::LOD_FADE_SECONDS);
+
+    const dfn::math::Frustum all = accept_all_frustum();
+    const size_t drawn = lod.draw(*renderer, all, dfn::platform::ProgramHandle{1},
+                                  dfn::platform::TextureHandle{});
+
+    // THE STATE THE READOUT MISREPORTED: everything delivered, everything
+    // drawing, and pending() empty. Zero here means healthy.
+    CHECK(lod.pending().empty());
+    CHECK(lod.selected_count() > 0);
+    CHECK(lod.resident_count() > 0);
+    CHECK(lod.last_draw_count() == drawn);
+    CHECK(lod.last_draw_count() > 0);
+
+    // THE CONTROL, and it is the whole reason last_draw_count() is the counter
+    // worth showing: cull everything. A ring that is CULLED and a ring that is
+    // MISSING are different situations, and pending() gives the same answer to
+    // both — so any readout built on it cannot tell them apart. The draw count
+    // separates them, which is the property being asserted.
+    dfn::math::Frustum none{};
+    for (dfn::math::Plane& plane : none.planes) {
+        plane.normal = {0.0f, 1.0f, 0.0f};
+        plane.d = -1.0e9f; // every point sits far OUTSIDE every plane
+    }
+    CHECK(lod.draw(*renderer, none, dfn::platform::ProgramHandle{1},
+                   dfn::platform::TextureHandle{})
+          == 0);
+    CHECK(lod.last_draw_count() == 0);
+    CHECK(lod.pending().empty());       // unchanged — it cannot see the cull
+    CHECK(lod.resident_count() > 0);    // the meshes are still there
 
     lod.destroy_all(*renderer);
     renderer->shutdown();

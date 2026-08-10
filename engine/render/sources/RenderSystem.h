@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 10:08:2026 - 03:08:00
+Last updated: 10:08:2026 - 20:15:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -100,6 +100,10 @@ UPD:
   apply_clouds (the one coverage-field drift) each frame; DFN_CLOUD pins
   cover (0 = the pass's control), DFN_VISTIME pins the visual clock for the
   drift acceptance pair.
+- 10:08:2026 - 20:15:40: lod_selected_count / lod_resident_count /
+  lod_draw_count. A readout built on lod_pending() reads a HEALTHY ring as
+  zero, because pending() is the awaiting-upload list; two zones read that
+  zero as "the far-detail ring never populates" on the same day.
 */
 
 #pragma once
@@ -232,6 +236,20 @@ public:
     // answers several frames later — a ferry built on to_load alone requests
     // nodes it then never collects, and the ground never appears.
     [[nodiscard]] std::span<const LodNode> lod_pending() const { return lod_.pending(); }
+    // FOR A READOUT, USE lod_draw_count(), NOT lod_pending().size(). Earned:
+    // the debug overlay showed "lod 0" from pending(), two zones read that as
+    // "the far-detail ring never populates", and one of them (me) nearly
+    // published it as a defect in a subsystem that was healthy — pending() is
+    // the AWAITING-UPLOAD list, so zero is the steady state, and it reads as
+    // absence exactly when everything is fine. The three counters answer three
+    // different questions and only the last one goes to zero when the ring is
+    // CULLED rather than missing:
+    //   lod_selected_count() — what the policy asked for, from the eye alone
+    //   lod_resident_count() — what core has actually delivered
+    //   lod_draw_count()     — what survived the frustum and reached the GPU
+    [[nodiscard]] size_t lod_selected_count() const { return lod_.selected_count(); }
+    [[nodiscard]] size_t lod_resident_count() const { return lod_.resident_count(); }
+    [[nodiscard]] size_t lod_draw_count() const { return lod_.last_draw_count(); }
     // Meshes one coarse node (129 samples, step = the level's voxel size) and
     // uploads it. `surface` may be nullptr — core ships coarse surface fields
     // after the geometry, and slope-only splat is the agreed fallback.
