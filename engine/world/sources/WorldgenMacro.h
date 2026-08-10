@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 21:37:57
+Last updated: 10:08:2026 - 02:59:28
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -34,6 +34,7 @@ UPD:
 - 09:08:2026 - 17:45:08: §6.2: STREAM_SCATTER_MARKER for entrance standing stones.
 - 09:08:2026 - 21:37:57: Banded massif streams: STREAM_MASSIF_PROFILE/LOBE/BAND/RISER; bearing_field/bearing_ridged gain a band index that decorrelates successive contour bands within one stream.
 - 09:08:2026 - 21:37:57: STREAM_MASSIF_MICRO / STREAM_MASSIF_MICRO_AMP for bench micro-relief; polygon_radius replaces the circle-sampled lobe field.
+- 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches to the forest stand's field when layout.stand == Forest (testbed path untouched); STREAM_FOREST_* / STREAM_EROSION / STREAM_PATHS / STREAM_FINDS / STREAM_SCATTER_FLOOR stream ids; ground_micro_relief exposed (one §2.7 octave, two consumers — Rule 32).
 */
 
 #pragma once
@@ -65,6 +66,14 @@ enum WorldgenStream : uint32_t {
     STREAM_SCATTER_OUTCROP = 52,
     STREAM_SCATTER_CURB = 56, // corridor-margin curb stones (micro-relief batch)
     STREAM_SCATTER_MARKER = 60, // entrance standing stones (§6.2 findability)
+    STREAM_FOREST_BASE = 70,  // forest stand: base rolling field (§8.1 LF-1)
+    STREAM_FOREST_GRIVE = 71, // forest stand: LF-2 ridge-and-swale field
+    STREAM_FOREST_GRIVE_AXIS = 72, // LF-2 drifting grive axis field
+    STREAM_FOREST_GRIVE_AMP = 73,  // LF-2 slow amplitude field (2-5 m draw)
+    STREAM_EROSION = 74,      // LF-8 droplet seeding
+    STREAM_PATHS = 75,        // §8.1 path network draws
+    STREAM_FINDS = 76,        // BR-6 find placement draws
+    STREAM_SCATTER_FLOOR = 80, // 80..83: §5.10 forest floor lattices
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters
@@ -78,6 +87,16 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// Distance from `world` to the crag stamp center (meters). The stamp
 /// footprint is d < layout.crag.radius (classification: rock above rockline).
 [[nodiscard]] float crag_distance(const TestbedLayout& layout, glm::vec2 world);
+
+/// §2.7 ground micro-relief (meters, signed): two octaves at the ruled
+/// GROUND_MICRO_* wavelengths, amplitude drifting between the ruled bounds.
+/// On the testbed it is applied only to the massif's benches (the §3.3
+/// shoreline finding — see massif_height); the forest stand applies it
+/// GENERALLY (§2.7's "general terrain" ruling; that stand has no water, so
+/// the shore-taper clause is vacuous there and activates with the first
+/// wet stand). Exposed so WorldgenForest composes the same octave rather
+/// than a second copy (Rule 32).
+[[nodiscard]] float ground_micro_relief(uint64_t seed, glm::vec2 world);
 
 /// Path-groove carve depth (meters, >= 0) at `world` (micro-relief batch):
 /// PATH_GROOVE_DEPTH on the corridor centerline, smooth fade to 0 at

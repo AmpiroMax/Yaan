@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 01:58:00
+# Last updated: 10:08:2026 - 02:59:28
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -27,6 +27,9 @@
 #                          two zones AGREE (ladder equality + the inter-level
 #                          disagreement table against render's skirt).
 # - 10:08:2026 - 01:58:00: test_json (strict JSON reader, tech-debt task 3).
+# - 10:08:2026 - 02:59:28: test_forest_stand (LANDSCAPE §8.1: stand selector
+#                          byte-identity guard + LF-1/LF-2 acceptances with
+#                          their Rule 30 controls).
 
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
@@ -35,6 +38,7 @@ add_dfn_test(test_events core/EventBusTests.cpp dfn_core)
 add_dfn_test(test_math core/MathTests.cpp dfn_core)
 add_dfn_test(test_worldgen_determinism core/WorldgenTests.cpp dfn_world)
 add_dfn_test(test_worldgen_v2 core/WorldgenV2Tests.cpp dfn_world)
+add_dfn_test(test_forest_stand core/ForestStandTests.cpp dfn_world)
 add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)

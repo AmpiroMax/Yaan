@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 02:29:54
+Last updated: 10:08:2026 - 02:59:28
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 09:08:2026 - 17:36:42: §6.2: entrance works applied between hydrology and pads; derived adits passed to the voxel build.
 - 09:08:2026 - 19:55:17: Barrow re-siting (design ruling): swing_barrow_into_couloir searches the arc for a re-entrant fold at the same radius and rigidly rotates site, passage and chamber together. On Ravenscar it finds nothing — the stamp is a smooth radial cone with no angular structure — so the barrow stays authored and its mouth test stays red. Design's high-shoulder fallback was implemented, MEASURED and then removed: it broke story's hard constraint (mouth visible from 26 of 39 Vaelmere standpoints) and put the lifted chamber through the crag tunnel (10 stations with no floor).
 - 10:08:2026 - 02:29:54: build_world_context derives daylight portals (open_daylight_portals) after the couloir swing, against the pre-P4 sampler (macro + water carve) — same layout copy every consumer reads, so the extended corridor is one fact.
+- 10:08:2026 - 02:59:28: Stand selector (§8.1): build_world_context branches for StandId::Forest — empty hydrology (a waterless stand's VALID P2, ok=true), empty sites; the stand's own passes land with the erosion/path commits. Testbed path untouched.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -208,6 +209,17 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
                                static_cast<float>(params.min_chunk.z) * CHUNK_SIZE_M};
     const glm::vec2 domain_max{static_cast<float>(params.max_chunk.x + 1) * CHUNK_SIZE_M,
                                static_cast<float>(params.max_chunk.z + 1) * CHUNK_SIZE_M};
+    if (params.layout.stand == StandId::Forest) {
+        // §8.1: the forest stand declares NO water landform (LF-3/LF-6 absent
+        // from its composition), so P2 stays empty — water_at then passes
+        // heights through and reports far-field distance everywhere. ok=true
+        // because an empty hydrology is this stand's VALID hydrology, not a
+        // failed trace. P4 sites stay empty too: the stand's goals belong to
+        // the §8.1 path network (built in the stand passes below), not to the
+        // testbed site table.
+        ctx.hydrology.ok = true;
+        return ctx;
+    }
     ctx.hydrology = build_hydrology(params.seed, params.layout, domain_min, domain_max);
     // Re-validate placements that sit on the L0's slopes BEFORE anything is
     // sited against them (design's durable rule: re-validation is part of a

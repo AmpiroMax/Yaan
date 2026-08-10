@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 22:04:20
+Last updated: 10:08:2026 - 02:59:28
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -38,11 +38,13 @@ UPD:
 - 09:08:2026 - 21:37:57: §2.8.7 STEEPNESS CASCADE. (1) L0_RELIEF is RELIEF ABOVE THE FOOT, not an absolute elevation — the code read it as absolute, so the peak sat at 115.0 over a 18.8 m valley floor and the user approved 115 m while looking at 96.2. Datum is now base_height at the crag centre; measured relief is exactly 115.0. (2) THE PROFILE DECAYED TO ZERO INSTEAD OF TO THE DATUM: h = H*(1-t)^p buried the whole concave tail under the base terrain's max(), leaving only the steep crossing where the cone cuts the valley floor visible — which is why the built envelope measured shallowest at the summit and steepest at the foot, the exact inverse of what p>1 exists to produce. The concave profile was in the formula and clipped out of the surface. Now datum + relief*(1-t)^p. (3) Summit tor footprint DERIVED from MASSIF_SUMMIT_RADIUS_FRAC of the base radius instead of drawn from SUMMIT_TOR_RADIUS_MIN/MAX: at 5-10 m on a 190 m massif, disabling the tor entirely gave an identical silhouette TO THE DECIMAL, so it certified through I2's surface weighting while being invisible to the camera. Measured after the cascade, 12 seeds: I1 (envelope basis) 30.3-52.0 deg, I2 64.8-74.3, I3 62.0-71.7%, I10 1.23-1.63 — all four now pass on EVERY seed. I4 and I8 regressed and are reported, not patched.
 - 09:08:2026 - 21:48:23: SYSTEMIC FIX: bearing_field is a sum of INTEGER HARMONICS with seeded phases, not noise sampled on a circle. The circle construction was degenerate for the same reason the radial one was — rc = lobes*CELL/2pi puts the whole circle inside a couple of lattice cells. MEASURED: the field NEVER RETURNED A VALUE BELOW 0.4 and was lumpy above it (26% of samples at 0.6, 30% at 0.8) against a perfectly uniform raw lattice, so every per-bearing 'seeded spread' silently used only the top 60% of its declared range — the profile exponent never approached MASSIF_PROFILE_EXPONENT_MIN, cliff risers were never drawn near MASSIF_CLIFF_SLOPE_MIN (50-60 deg bin held 4% of surface), and the 0.5 cliff/ramp split did not split evenly. I had fixed this geometry once for the lobe field and left the broken helper feeding four other consumers: fixing a symptom is not fixing a mechanism. Riser angle additionally drawn uniform in sin(theta) so surface area spreads evenly in the measure I4 actually reads. Result across 12 seeds: I6 now passes EVERY seed (was failing), I1/I2/I3/I5/I10 robust; I4 and I8-rise still fail and are reported, not patched.
 - 09:08:2026 - 22:04:20: §2.8.2 facet rulings 1+2 (per-facet parameters, couloirs as PLANAR FACET PAIRS via line-through-two-points rather than smoothed dents). Ruling 3 (crest sized to acceptance distance) MEASURED AND REVERTED: it moved I11 at 600 m from 1/1/0/0 to 2/1/2/0 against a floor of 3 -- failing either way -- while dropping I7 from a passing 3 to 1. Also removed a dead outer notch term that subtracted a FRACTION as if it were METRES (a ~1 m no-op, inert but one refactor from mattering).
+- 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches whole to forest_stand_height when layout.stand == Forest; testbed path untouched (pinned-heightmap guard). ground_micro_relief exported — the §2.7 octave gains its second consumer (Rule 32: one implementation).
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/WorldgenNoise.h"
 
 #include <algorithm>
@@ -329,18 +331,10 @@ float bearing_ridged(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float l
 /// restores the contour crenulation that the authored outline displaced --
 /// structural lobing has to EXCEED what the old fBm bleed gave for free, not
 /// merely replace it.
+// (body moved to the exported ground_micro_relief below; this alias keeps the
+// massif code reading as before)
 float ground_micro(uint64_t seed, glm::vec2 world) {
-    const float amp = static_cast<float>(config::GROUND_MICRO_AMPLITUDE_MIN)
-                    + value_noise(seed, STREAM_MASSIF_MICRO_AMP, 256.0f, world)
-                          * static_cast<float>(config::GROUND_MICRO_AMPLITUDE_MAX
-                                               - config::GROUND_MICRO_AMPLITUDE_MIN);
-    const float a = value_noise(seed, STREAM_MASSIF_MICRO,
-                                static_cast<float>(config::GROUND_MICRO_WAVELENGTH_MIN), world)
-                        * 2.0f - 1.0f;
-    const float b = value_noise(seed, STREAM_MASSIF_MICRO + 1,
-                                static_cast<float>(config::GROUND_MICRO_WAVELENGTH_MAX), world)
-                        * 2.0f - 1.0f;
-    return amp * 0.5f * (a + b);
+    return ground_micro_relief(seed, world);
 }
 
 /// §2.8.4 THE SUMMIT TOR: the top SUMMIT_TOR_HEIGHT of the massif is a stack
@@ -765,7 +759,27 @@ float lake_stamp(const LakeStamp& lake, float h, glm::vec2 world) {
 
 } // namespace
 
+float ground_micro_relief(uint64_t seed, glm::vec2 world) {
+    const float amp = static_cast<float>(config::GROUND_MICRO_AMPLITUDE_MIN)
+                    + value_noise(seed, STREAM_MASSIF_MICRO_AMP, 256.0f, world)
+                          * static_cast<float>(config::GROUND_MICRO_AMPLITUDE_MAX
+                                               - config::GROUND_MICRO_AMPLITUDE_MIN);
+    const float a = value_noise(seed, STREAM_MASSIF_MICRO,
+                                static_cast<float>(config::GROUND_MICRO_WAVELENGTH_MIN), world)
+                        * 2.0f - 1.0f;
+    const float b = value_noise(seed, STREAM_MASSIF_MICRO + 1,
+                                static_cast<float>(config::GROUND_MICRO_WAVELENGTH_MAX), world)
+                        * 2.0f - 1.0f;
+    return amp * 0.5f * (a + b);
+}
+
 float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) {
+    if (layout.stand == StandId::Forest) {
+        // §8.1: the forest stand is a different landform composition, not a
+        // re-tune of the testbed — it branches whole here so the testbed path
+        // below stays byte-identical (guarded by the pinned-heightmap test).
+        return forest_stand_height(seed, layout, world);
+    }
     float h = base_height(seed, world);
     for (const ValleyTrough& trough : layout.troughs) {
         h = trough_shape(trough, h, world);

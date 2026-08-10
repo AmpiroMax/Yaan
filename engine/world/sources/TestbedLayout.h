@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 02:29:54
+Last updated: 10:08:2026 - 02:59:28
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -47,6 +47,7 @@ UPD:
 - 09:08:2026 - 22:04:20: arete_count re-derived on the fixed bearing field: 4 -> 3. The sweep that chose 4 ran on the broken field and is void.
 - 09:08:2026 - 22:07:05: arete_count 4 -> 3, re-derived on the FIXED bearing field (the sweep that chose 4 ran on the broken one and is void). Measured 12 seeds: n=3 gives I11@600 3/1/1/0 vs 1/1/0/0, I4 fails 4/12 vs 8/12, I8 level 4/12 vs 7/12.
 - 10:08:2026 - 02:29:54: CarveCorridor::daylight_portals (authored intent flag): the crag tunnel's endpoints are now DERIVED to open air by open_daylight_portals — the §2.8 massif re-buried the surveyed exit (terrain 67.9-74.3 m over a 61.9 m floor at the old wp[7]; the tunnel dead-ended, sim_tunnel_walk stalled at 7/8 ungrounded). The barrow passage keeps the flag false: it ends in its chamber on purpose.
+- 10:08:2026 - 02:59:28: STAND SELECTOR (LANDSCAPE §8, в1): StandId + TestbedLayout::stand. A stand is a separate map declared as a composition of §2.10 landforms; Testbed is the default and its generation path is untouched (byte-identity guarded by the pinned-heightmap test). Forest stand layout factory lives in WorldgenForest.h.
 */
 
 #pragma once
@@ -60,7 +61,15 @@ UPD:
 
 namespace dfn::world {
 
-/// L0 ridged-noise crag stamp (LANDSCAPE §7.1 "Ravenscar Crag").
+/// Which stand map this layout describes (LANDSCAPE §8, user-ratified в1):
+/// stands are SEPARATE maps built from generation rules — each declares its
+/// own composition of §2.10 landforms. The app selects one via the DFN_MAP
+/// env (lead's wiring); the generator branches on this id at the macro pass.
+/// Future stands (river+castle, sea, town, mirror) extend this enum.
+enum class StandId : uint8_t {
+    Testbed = 0, ///< the §7.1 testbed — today's world, byte-identical default
+    Forest = 1,  ///< §8.1 «лесок»: LF-1, LF-2, LF-5, LF-7, LF-8 — no massif, no water
+};
 struct CragStamp {
     glm::vec2 center{830.0f, 200.0f}; ///< peak (§7.1)
     /// Footprint (§7.1). Governed by MASSIF_ASPECT_MIN now that I10 exists, so
@@ -276,7 +285,15 @@ struct ForestRegions {
 
 /// The testbed layout table (LANDSCAPE.md §7.1) as generator parameters.
 /// Defaults reproduce the design; tests may perturb copies.
+/// Despite the name this struct is the layout of ANY stand (renaming it would
+/// touch every consumer for zero behavior; the stand id below is the truth):
+/// forest_stand_layout() (WorldgenForest.h) returns one with stand = Forest
+/// and every testbed feature neutralized.
 struct TestbedLayout {
+    /// Which stand this layout generates. Testbed default — the generator's
+    /// testbed path must remain byte-identical when this field says Testbed.
+    StandId stand = StandId::Testbed;
+
     CragStamp crag{};
     BumpStamp knoll{{560.0f, 620.0f}, 45.0f, 6.0f};  ///< shrine knoll +6 m (§7.1)
     BumpStamp bluff{{180.0f, 350.0f}, 35.0f, 10.0f}; ///< lakeshore cave bluff +10 m (§7.1)
