@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 12:15:37
+Last updated: 10:08:2026 - 20:20:20
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -63,6 +63,11 @@ UPD:
   count ("44 stems x ~2/3 carrying a basal patch" counts patches on the ground).
   The fix is the ROW (per_m2 ~= 0.0263), not this code, and it must not be
   closed by widening the clump field.
+- 10:08:2026 - 20:20:20: §5.12 THE APRON WIRED into tree_ok. on_crag_treeless is
+  an ELEVATION gate high on the mountain (d < radius AND h >= treeline); the
+  hem where the flank is still climbing had NO RULE AT ALL, which is how the
+  pine annulus came to start at 140 m inside a 120-162 m foot. 88 of 2282 trees
+  (3.9%) leave the massif's hem; the annulus keeps its forest.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -323,6 +328,17 @@ struct ScatterCtx {
         if (!dry_enough(p, min_water_dist)) return false;
         const float h = ground(p);
         if (on_crag_treeless(p, h)) return false;
+        // §5.12 / LF-4 THE APRON. Closed forest does not grow on a massif's
+        // talus. The old on_crag_treeless gate is an ELEVATION gate high on the
+        // mountain (d < radius AND h >= treeline); the band being eaten — the
+        // hem where the flank is still climbing — had no rule at all, which is
+        // how pines came to start ON the foot rather than at it. This is the
+        // rule for that band, and it is derived: the radius falls out of the
+        // seed's own profile (measured seed 1: the apron reaches 162 m at its
+        // tightest bearing, against a pine annulus starting at 140 m).
+        if (breaks_massif_apron(seed, layout.crag, p, h + species_max_h * GIANT_MULT)) {
+            return false;
+        }
         if (wedges.rejects(p, h + species_max_h * GIANT_MULT)) return false; // the giant tier
         return slope(p) <= TREE_SLOPE;
     }

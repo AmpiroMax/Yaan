@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 20:13:53
+Last updated: 10:08:2026 - 20:20:20
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -112,6 +112,9 @@ UPD:
   beside the claim. The withdrawn figures are struck through rather than
   deleted: a number quoted into a design ruling should stay findable by whoever
   reads the ruling.
+- 10:08:2026 - 20:20:20: probe caveat recorded (sim's catch): the three-arg
+  build_voxel_volume omits the derived adit corridors and is exact only on a
+  stand with no carves.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1172,6 +1175,13 @@ TEST_CASE("the drawn ground IS the placed ground, and the pre-pass field is the 
 
     const world::Chunk chunk = world::generate_chunk(c, cc);
     const auto shipped_height = [&](glm::vec2 w) { return world::terrain_height(c, w); };
+    // THREE ARGS IS CORRECT HERE AND WRONG ON THE TESTBED (sim's catch).
+    // generate_chunk passes a FOURTH — the derived entrance adit corridors —
+    // and omitting it extracts a surface with solid rock where the tunnel is.
+    // This stand has none (forest_stand_layout zeroes the crag, the barrow and
+    // both carves), so the two calls agree exactly. Anyone copying this pattern
+    // to the testbed must pass the derived carves or they are measuring a world
+    // the game does not ship.
     const world::VoxelMeshData drawn = world::extract_surface_nets(
         world::build_voxel_volume(chunk, shipped_height, c.params.layout));
     // EXPLICIT BOUNDS, NOT Approx().epsilon(). doctest's epsilon is not a

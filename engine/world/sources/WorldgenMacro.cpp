@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 02:59:28
+Last updated: 10:08:2026 - 20:20:20
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -39,6 +39,8 @@ UPD:
 - 09:08:2026 - 21:48:23: SYSTEMIC FIX: bearing_field is a sum of INTEGER HARMONICS with seeded phases, not noise sampled on a circle. The circle construction was degenerate for the same reason the radial one was — rc = lobes*CELL/2pi puts the whole circle inside a couple of lattice cells. MEASURED: the field NEVER RETURNED A VALUE BELOW 0.4 and was lumpy above it (26% of samples at 0.6, 30% at 0.8) against a perfectly uniform raw lattice, so every per-bearing 'seeded spread' silently used only the top 60% of its declared range — the profile exponent never approached MASSIF_PROFILE_EXPONENT_MIN, cliff risers were never drawn near MASSIF_CLIFF_SLOPE_MIN (50-60 deg bin held 4% of surface), and the 0.5 cliff/ramp split did not split evenly. I had fixed this geometry once for the lobe field and left the broken helper feeding four other consumers: fixing a symptom is not fixing a mechanism. Riser angle additionally drawn uniform in sin(theta) so surface area spreads evenly in the measure I4 actually reads. Result across 12 seeds: I6 now passes EVERY seed (was failing), I1/I2/I3/I5/I10 robust; I4 and I8-rise still fail and are reported, not patched.
 - 09:08:2026 - 22:04:20: §2.8.2 facet rulings 1+2 (per-facet parameters, couloirs as PLANAR FACET PAIRS via line-through-two-points rather than smoothed dents). Ruling 3 (crest sized to acceptance distance) MEASURED AND REVERTED: it moved I11 at 600 m from 1/1/0/0 to 2/1/2/0 against a floor of 3 -- failing either way -- while dropping I7 from a passing 3 to 1. Also removed a dead outer notch term that subtracted a FRACTION as if it were METRES (a ~1 m no-op, inert but one refactor from mattering).
 - 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches whole to forest_stand_height when layout.stand == Forest; testbed path untouched (pinned-heightmap guard). ground_micro_relief exported — the §2.7 octave gains its second consumer (Rule 32: one implementation).
+- 10:08:2026 - 20:20:20: breaks_massif_apron implemented against base_height +
+  MASSIF_CLIFFLINE_FRAC; no new constant.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -790,6 +792,19 @@ float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) 
     h = lake_stamp(layout.lake, h, world);
     h -= path_groove_depth(layout, world);
     return std::clamp(h, 0.0f, MAX_HEIGHT_M);
+}
+
+bool breaks_massif_apron(uint64_t seed, const CragStamp& crag, glm::vec2 world,
+                         float canopy_top_y) {
+    // Off the massif's own stamp there is no apron. massif_height returns 0
+    // outside the lobed footprint, which is the seed's real extent rather than
+    // a radius anyone chose.
+    if (massif_height(seed, crag, world) <= 0.0f) {
+        return false;
+    }
+    const float cliffline = base_height(seed, crag.center)
+                          + crag.peak_height * static_cast<float>(config::MASSIF_CLIFFLINE_FRAC);
+    return canopy_top_y > cliffline;
 }
 
 float crag_distance(const TestbedLayout& layout, glm::vec2 world) {

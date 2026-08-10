@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 10:08:2026 - 20:20:20
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -36,6 +36,11 @@ UPD:
 - 09:08:2026 - 21:37:57: STREAM_MASSIF_MICRO / STREAM_MASSIF_MICRO_AMP for bench micro-relief; polygon_radius replaces the circle-sampled lobe field.
 - 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches to the forest stand's field when layout.stand == Forest (testbed path untouched); STREAM_FOREST_* / STREAM_EROSION / STREAM_PATHS / STREAM_FINDS / STREAM_SCATTER_FLOOR stream ids; ground_micro_relief exposed (one §2.7 octave, two consumers — Rule 32).
 - 10:08:2026 - 11:51:23: STREAM_SCATTER_EDGE (§5.11 rich-edge rows).
+- 10:08:2026 - 20:20:20: §5.12 / LF-4 breaks_massif_apron(): the apron rule,
+  derived. Scoped by the massif's OWN stamp rather than by a distance literal,
+  because the ruling's sentence read globally excludes every tree within ~670 m
+  of a standpoint (measured) — a tree in front of your face obscures a mountain
+  too. The radius is an OUTPUT: 162 m at seed 1's tightest bearing.
 */
 
 #pragma once
@@ -89,6 +94,28 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// Distance from `world` to the crag stamp center (meters). The stamp
 /// footprint is d < layout.crag.radius (classification: rock above rockline).
 [[nodiscard]] float crag_distance(const TestbedLayout& layout, glm::vec2 world);
+
+/// §5.12 / LF-4 — THE APRON RULE, AND IT IS DERIVED, NEVER A TABLED RADIUS.
+///
+/// True if a canopy reaching `canopy_top_y` (absolute elevation) would obscure
+/// the massif's silhouette below `MASSIF_CLIFFLINE_FRAC`. Design ruled this as
+/// "a HEIGHT rule at the massif foot, not a clearing", explicitly to avoid
+/// §7.1a's trap of tabling a radius — so the RADIUS IS AN OUTPUT: it falls out
+/// of the seed's own profile wherever the flank rises far enough that a tree
+/// standing on it breaks the low outline.
+///
+/// Scoped to the massif by the massif's OWN stamp rather than by a distance
+/// literal: off the stamp this is always false, so ordinary forest anywhere
+/// else is untouched. That scoping is load-bearing — read as a global rule the
+/// same sentence excludes every tree within ~670 m of a standpoint, because a
+/// tree in front of your face obscures a mountain too.
+///
+/// Why the mountain needs it (design measured it, 10.08.2026): the pine annulus
+/// begins at 140 m, INSIDE the 120-162 m hem where the massif is still
+/// climbing. Pines do not start at the foot, they start ON it, and a mountain
+/// missing its bottom third reads as a dome no shape change can fix.
+[[nodiscard]] bool breaks_massif_apron(uint64_t seed, const CragStamp& crag, glm::vec2 world,
+                                       float canopy_top_y);
 
 /// §2.7 ground micro-relief (meters, signed): two octaves at the ruled
 /// GROUND_MICRO_* wavelengths, amplitude drifting between the ruled bounds.

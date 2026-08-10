@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 10:08:2026 - 20:20:20
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -38,6 +38,11 @@ UPD:
   flora_species_of() switches on them for the MESH across a DAG seam, and its
   `default` returns Bush, so an ordinal walking off the mapping draws a forest
   floor of snags and logs as a field of shrubs without failing anything.
+- 10:08:2026 - 20:20:20: §5.12 apron acceptance with THREE controls: the rule
+  must fire on a giant canopy on the flank, must NOT fire on the same canopy
+  far away (the arm that catches the naive global reading), and must NOT fire
+  on a ground-hugging canopy on the flank — the rule is about the silhouette,
+  not about the massif being off-limits.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -925,4 +930,98 @@ TEST_CASE("ScatterSpecies ordinals are a cross-zone contract and are pinned") {
     CHECK(static_cast<uint8_t>(ScatterSpecies::Mushroom) == 15);
     CHECK(static_cast<uint8_t>(ScatterSpecies::PebbleCluster) == 16);
     CHECK(static_cast<uint8_t>(ScatterSpecies::StuntedPine) == 17);
+}
+
+TEST_CASE("§5.12: the forest does not stand on the massif's apron") {
+    // DESIGN RULED FOR THE APRON because the forest was eating the mountain:
+    // with scatter suppressed the west 300 m frame shows a pointed tor, band
+    // lips and a shoulder break; with the trees on it is a low featureless
+    // hump. The mechanism is that a mountain missing its bottom third loses the
+    // bench and the flare, and what survives is the upper cap — convex on ANY
+    // mountain, which is the dome. No shape change can fix it; only clearing
+    // the foot can.
+    //
+    // The rule is a HEIGHT rule at the massif foot and the RADIUS IS AN OUTPUT.
+    // Measured seed 1: the apron reaches 162 m at its tightest bearing, against
+    // a pine annulus that starts at 140 m — i.e. pines were starting ON the
+    // foot, inside the 120-162 m hem where the flank is still climbing.
+    const world::WorldGenParams params{1, {0, 0}, {3, 3}};
+    const world::WorldGenContext ctx = world::build_world_context(params);
+    const world::TestbedLayout& lay = ctx.params.layout;
+    const auto CH = static_cast<float>(config::CHUNK_SIZE);
+    const auto GIANT = static_cast<float>(config::TREE_MATURITY_GIANT_MULT_MAX);
+
+    std::vector<math::ScatterInstance> trees;
+    for (int cz = 0; cz < 4; ++cz) {
+        for (int cx = 0; cx < 4; ++cx) {
+            const auto s = world::build_scatter(
+                params.seed, lay, ctx.hydrology, ctx.sites, ctx.erosion, ctx.paths,
+                {static_cast<float>(cx) * CH, static_cast<float>(cz) * CH},
+                {static_cast<float>(cx + 1) * CH, static_cast<float>(cz + 1) * CH});
+            for (const math::ScatterInstance& i : s) {
+                if (i.species == math::ScatterSpecies::OakTree
+                    || i.species == math::ScatterSpecies::PineTree
+                    || i.species == math::ScatterSpecies::BirchTree) {
+                    trees.push_back(i);
+                }
+            }
+        }
+    }
+    REQUIRE(trees.size() > 1500);
+
+    // THE CLAIM: nothing shipped stands on the apron.
+    const auto species_max_h = [](math::ScatterSpecies s) {
+        switch (s) {
+        case math::ScatterSpecies::PineTree:
+            return static_cast<float>(config::PINE_HEIGHT_MAX);
+        case math::ScatterSpecies::BirchTree:
+            return static_cast<float>(config::BIRCH_HEIGHT_MAX);
+        default:
+            return static_cast<float>(config::OAK_HEIGHT_MAX);
+        }
+    };
+    int on_apron = 0;
+    for (const math::ScatterInstance& t : trees) {
+        const glm::vec2 p{t.position.x, t.position.z};
+        if (world::breaks_massif_apron(params.seed, lay.crag, p,
+                                       t.position.y + species_max_h(t.species) * GIANT)) {
+            ++on_apron;
+        }
+    }
+    INFO("trees standing on the apron: ", on_apron, " of ", trees.size());
+    CHECK(on_apron == 0);
+
+    // CONTROL 1 — THE RULE MUST BE ABLE TO FIRE (Rule 30a). A giant canopy
+    // placed on the massif's own flank is exactly what the rule exists to
+    // reject, and if this ever stops being rejected the predicate has been
+    // scoped out of existence rather than satisfied.
+    const glm::vec2 flank = lay.crag.center + glm::vec2{lay.crag.radius * 0.5f, 0.0f};
+    const float flank_h = world::terrain_height(ctx, flank);
+    CHECK(world::breaks_massif_apron(params.seed, lay.crag, flank,
+                                     flank_h + static_cast<float>(config::PINE_HEIGHT_MAX)));
+    // CONTROL 2 — AND IT MUST NOT FIRE EVERYWHERE. The same tall canopy far
+    // from the massif is legal; a rule that rejected it would be deleting the
+    // forest rather than clearing the foot. This is the arm that would have
+    // caught the naive reading of design's sentence, which excludes every tree
+    // within ~670 m of a standpoint because a tree in front of your face
+    // obscures a mountain too.
+    const glm::vec2 away = lay.crag.center + glm::vec2{lay.crag.radius * 6.0f, 0.0f};
+    CHECK_FALSE(world::breaks_massif_apron(params.seed, lay.crag, away,
+                                           world::terrain_height(ctx, away) + 60.0f));
+    // CONTROL 3 — A GROUND-HUGGING CANOPY ON THE FLANK IS LEGAL. The rule is
+    // about the SILHOUETTE, not about the massif being off-limits: stunted
+    // pines and scrub below the cliffline are exactly what §5.12 wants there.
+    CHECK_FALSE(world::breaks_massif_apron(params.seed, lay.crag, flank, flank_h + 0.5f));
+
+    // AND THE FOREST STILL EXISTS. Clearing the foot must not have emptied the
+    // annulus — a bare ring would be worse than the forest (design's words).
+    int in_annulus = 0;
+    for (const math::ScatterInstance& t : trees) {
+        const float d = glm::length(glm::vec2{t.position.x, t.position.z} - lay.crag.center);
+        if (d >= lay.forests.pine_annulus_r0 && d < lay.forests.pine_annulus_r1) {
+            ++in_annulus;
+        }
+    }
+    INFO("trees surviving in the pine annulus: ", in_annulus);
+    CHECK(in_annulus > 100);
 }
