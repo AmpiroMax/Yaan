@@ -1,0 +1,65 @@
+# Created: 10:08:2026 - 22:56:41
+# Last updated: 10:08:2026 - 22:56:41
+# Module: docs/acceptance
+# File: docs/acceptance/flora-canopy-speckle-pose.txt
+#
+# Responsibility:
+# - The standpoint the canopy-speckle measurement was taken from, as a restore
+#   sidecar, so the pose survives as something you can RUN from rather than as
+#   coordinates in a commit message. The complaint is a MOTION complaint
+#   («при беге трясет»), and a still frame cannot carry it.
+#
+# Key items:
+# - Under the seed-1 oak/pine mass (forests.oak_rects covers z >= 700), eye at
+#   PLAYER_EYE_HEIGHT, pitched up into the crowns. Same pose as
+#   DFN_FLORA_PROBE=1, which is the pinned single-frame version of it.
+#
+# Dependencies:
+# - Uses: App's DFN_RESTORE parser (engine/app, DebugOverlay::parse_snapshot).
+# - Used by: anyone re-taking the speckle numbers; the acceptance frames
+#   docs/acceptance/flora-canopy-speckle-*.png were shot here.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - Restore with:
+#     DFN_RESTORE=docs/acceptance/flora-canopy-speckle-pose.txt ./dfn_app
+#   and add DFN_WIND_FREEZE=120 before quoting any pixel number off it.
+#
+# UPD:
+# - 10:08:2026 - 22:56:41: Created. The pose behind the 0.864 % / 0.093 % baseline.
+captured_at = 10:08:2026 - 22:53:25
+build_commit = flora-canopy-speckle
+stand = 0
+seed = 1
+game_seconds = 886.011789
+day_fraction = 0.500000
+lunar_phase = 0.010987
+pos_x = 619.977905
+pos_y = 16.207472
+pos_z = 790.001038
+yaw = 0.000000
+pitch = 0.420000
+look_x = 0.000000
+look_y = 0.407600
+look_z = -0.913200
+speed_mps = 6.000000
+vertical_velocity = 0.000000
+stride_phase = 0.000000
+gait = 2
+locomotion = 0
+grounded = 1
+crouched = 0
+water_depth = 0.000000
+internal_w = 640
+internal_h = 360
+fov_y_rad = 1.309000
+head_bob = 1.000000
+palette_post = 0
+wind_strength = 0.480618
+cloud_cover = 0.450000
+ambient_darkness = 0.000000
+fps = 120.0
+frame_ms = 8.3
+frame_ms_worst = 8.3
+chunks_resident = 9
+lod_nodes = 0

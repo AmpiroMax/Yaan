@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:30:09
+Last updated: 10:08:2026 - 22:54:58
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -74,6 +74,13 @@ UPD:
   Three frame-count settles now share the defect (45, 120, 300), and the 300
   was accepted because an artefact stopped appearing, with no control arm.
   Recorded that it is NOT verified.
+- 10:08:2026 - 22:54:58: flora_probe_steps(which) (DFN_FLORA_PROBE=1|2): near canopy
+  under the oak mass and the treeline from open ground, coordinates taken from
+  the stand's own forests.oak_rects rather than typed here. DFN_FLORA_STEP
+  moves the STANDPOINT and not the aim, because running does not turn the head.
+  With DFN_WIND_FREEZE the control arm comes back bit-identical (0.000 %,
+  maxL 0) — the first tour route in this file that satisfies Rule 30 outright
+  instead of inheriting pngdiff's "certifies nothing" caveat.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -382,6 +389,86 @@ std::vector<TourStep> Tour::massif_probe_steps(int which) {
              0.09f, 90, true}};
 }
 
+std::vector<TourStep> Tour::flora_probe_steps(int which) {
+    // THE CANOPY-SPECKLE PROBE. It exists because the user's oldest unfixed
+    // complaint is a MOTION complaint («при беге трясет», «всё дергает и
+    // перерисовывается очень рябью») and a still frame cannot hold it: the
+    // defect is the DIFFERENCE between two frames one running stride apart.
+    // So the route is built to be shot twice with ONE variable changed —
+    // DFN_FLORA_STEP metres along the eye's own forward vector, and 0.05 m is
+    // exactly one 120 fps frame at RUN_SPEED = 6 m/s.
+    //
+    // RULE 30, AND IT IS NOT OPTIONAL HERE: the control arm is this same route
+    // with DFN_FLORA_STEP unset. tools/pngdiff.py's header says a tour number
+    // certifies nothing until its control comes back at zero, and that is why
+    // the wait is 240 frames rather than the testbed's 45 — the oak stand
+    // streams heavily and a shutter that opens mid-stream measures streaming,
+    // not foliage.
+    //
+    // Coordinates come from the STAND's own oak mass
+    // (games/daggerfall_n/assets/world/testbed_layout.json: forests.oak_rects
+    // = [0,700,1024,1024] and [500,600,1024,1024], forced clearing at
+    // (620,850) r 25), not from a number typed here — a probe standing where
+    // the forest is not is a probe that measures sky.
+    const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    uint32_t wait = 240;
+    if (const char* w = env_or_null("DFN_TOUR_WAIT")) {
+        const long v = std::strtol(w, nullptr, 10);
+        if (v > 0 && v < 100000) {
+            wait = static_cast<uint32_t>(v);
+        }
+    }
+
+    glm::vec2 pos{620.0f, 790.0f};
+    glm::vec2 look{620.0f, 700.0f};
+    // NEAR CANOPY is pitched UP, and that is the whole point of the vantage
+    // rather than a framing preference: oaks stand 24-32 m with their card
+    // area at ~20 m, so from 1.7 m the crowns overhead subtend 40-60 degrees
+    // of elevation. A level frame taken inside a wood photographs boles.
+    float pitch = 0.42f;
+    const char* label = "flora_near_canopy";
+    if (which >= 2) {
+        // TREELINE: open ground west of both oak rects (x < 500 keeps rect 2
+        // out, z < 700 keeps rect 1 out), aimed north into the mass so the
+        // edge stands at ~70 m and the canopy recedes past 200 m. This is the
+        // view the presented-area floor was written for, and the one where a
+        // card is only a few pixels wide.
+        pos = {350.0f, 628.0f};
+        look = {350.0f, 850.0f};
+        pitch = 0.06f;
+        label = "flora_treeline";
+    }
+    if (const char* e = env_or_null("DFN_FLORA_EYE")) {
+        float x = 0.0f;
+        float z = 0.0f;
+        if (std::sscanf(e, "%f,%f", &x, &z) == 2) {
+            const glm::vec2 d = look - pos;
+            pos = {x, z};
+            look = pos + d;
+        }
+    }
+    float yaw = aim_yaw(pos, look);
+    if (const char* y = env_or_null("DFN_FLORA_YAW")) {
+        float parsed = 0.0f;
+        if (std::sscanf(y, "%f", &parsed) == 1) yaw = parsed;
+    }
+    if (const char* p = env_or_null("DFN_FLORA_PITCH")) {
+        float parsed = 0.0f;
+        if (std::sscanf(p, "%f", &parsed) == 1) pitch = parsed;
+    }
+    // THE ONE VARIABLE. Applied to the STANDPOINT and not to the aim, because
+    // running does not turn the head: what the eye does in one 120 fps stride
+    // is translate, and translation is what re-samples every leaf mask.
+    if (const char* s = env_or_null("DFN_FLORA_STEP")) {
+        float metres = 0.0f;
+        if (std::sscanf(s, "%f", &metres) == 1) {
+            // Forward under the frozen convention (yaw 0 -> -Z, +yaw -> +X).
+            pos += glm::vec2{std::sin(yaw), -std::cos(yaw)} * metres;
+        }
+    }
+    return {{label, {pos.x, eye, pos.y}, yaw, pitch, wait, true}};
+}
+
 std::vector<TourStep> Tour::crag_acceptance_steps() {
     // Peak from world::CragStamp::center — the generator's own value, not the
     // §7.1 plan table (the two have drifted before, and a tabled coordinate
@@ -513,7 +600,8 @@ std::vector<TourStep> Tour::stand_steps(std::span<const math::StandVantage> vant
         || env_or_null("DFN_SKY_PROBE") != nullptr
         || env_or_null("DFN_MASSIF_PROBE") != nullptr
         || env_or_null("DFN_CRAG_PROBE") != nullptr
-        || env_or_null("DFN_CLOUD_PROBE") != nullptr) {
+        || env_or_null("DFN_CLOUD_PROBE") != nullptr
+        || env_or_null("DFN_FLORA_PROBE") != nullptr) {
         return testbed_steps();
     }
     if (!vantages.empty()) {
@@ -546,6 +634,9 @@ std::vector<TourStep> Tour::testbed_steps() {
     }
     if (env_or_null("DFN_CLOUD_PROBE") != nullptr) {
         return cloud_probe_steps();
+    }
+    if (const char* fenv = env_or_null("DFN_FLORA_PROBE")) {
+        return flora_probe_steps(std::atoi(fenv));
     }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative

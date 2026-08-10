@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:17:40
+Last updated: 10:08:2026 - 22:54:58
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -83,6 +83,14 @@ UPD:
   slot), so the missing-asset warning was firing on correct code every
   launch — Rule 38's failure mode in a log rather than a test. Skipped
   before the lookup; a genuinely unregistered id still warns once.
+- 10:08:2026 - 22:54:58: DFN_WIND_FREEZE=<seconds> pins environment_.time_seconds for
+  pixel-diff evidence. It was written because the canopy-speckle control was
+  DIRTY and got WORSE with a longer settle (0.000 % at 240 frames, 1.990 % at
+  700, same binary, same pinned pose) — the opposite of a streaming problem,
+  which converges. The wind clock accumulates wall-clock frame_dt, so two runs
+  reach the shutter with the crown in different positions. Consequence worth
+  more than the hook (Rule 41): with the wind live, a pixel diff of a canopy
+  CANNOT separate the shimmer the user reports from the rustle he likes.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -534,6 +542,33 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // site anywhere — env.wind_strength sat at its 0.0 default and the zero
     // read as a calm day (absence presenting as neutral), so the model is
     // now driven from render's own frame path where it cannot be dropped.
+    // DFN_WIND_FREEZE=<seconds>: pin the wind clock for pixel-diff evidence
+    // (Rule 27/30 hook, never a shipping path).
+    //
+    // IT EXISTS BECAUSE IT INVALIDATED A NUMBER. tools/pngdiff.py's header
+    // blames the tour's non-determinism on chunk streaming under a frame-count
+    // wait (Rule 42), and for the tour route that is right — but on a SINGLE
+    // PINNED probe, with nothing left to stream, the canopy-speckle control
+    // still came back DIRTY and got WORSE the longer the shutter waited:
+    // 0.000 % at 240 settle frames, 1.990 % at 700, near canopy, same binary,
+    // same pose, nothing changed. That is not streaming, which converges; it is
+    // THIS LINE. `time_seconds` accumulates wall-clock frame_dt, so two runs
+    // reach the shutter with different gust phases and the crown is genuinely
+    // in a different position in each. Longer settle = more divergence, which
+    // is the exact opposite of the usual advice and is how it was caught.
+    //
+    // The uncomfortable half, recorded because the next agent will otherwise
+    // rediscover it as a "fix" (Rule 41): with the wind LIVE, a pixel diff of a
+    // canopy cannot separate the shimmer the user reports from the rustle he
+    // says he likes — they are the same pixels flipping by the same amount.
+    // Freezing the clock is what makes the two separable at all.
+    // It pins time_seconds ITSELF and not just apply_wind's argument: the sway
+    // in dfn_wind_offset runs off u_envTime, so freezing only the gust envelope
+    // would leave the leaves moving and the control still dirty — a fix that
+    // measures as a fix.
+    if (const char* wf = std::getenv("DFN_WIND_FREEZE")) {
+        environment_.time_seconds = static_cast<float>(std::atof(wf));
+    }
     apply_wind(environment_, environment_.time_seconds);
     // Clouds (W4): ONE coverage field, drifting along the wind just applied.
     // The offset written here is read by BOTH samplers (sky sheet + ground

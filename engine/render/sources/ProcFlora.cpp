@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 10:08:2026 - 11:59:40
+Last updated: 10:08:2026 - 22:54:58
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -80,6 +80,15 @@ UPD:
 - 10:08:2026 - 11:59:40: flora_owns() implemented as an exhaustive switch with
   NO default, so a new ScatterSpecies breaks the build here rather than
   silently answering for a species nobody has considered.
+- 10:08:2026 - 22:54:58: DFN_FLORA_ONLY=1|2 (wood only / cards only) — a Rule 30
+  control with the same standing as render's DFN_NO_SCATTER, added because the
+  cheap instrument was wrong: classifying the flipping PIXELS by colour counts
+  every shaded leaf card as trunk (an oak's card and its bark are both under
+  luma 55) and answered "93 % wood" with confidence. Drawing one mesh at a time
+  says instead that the WOOD carries the near canopy (0.864 -> 0.382 % with the
+  trunks gone) and the CARDS carry the treeline, and that wood alone is worse
+  than the whole tree at BOTH vantages — a crown in front of a bole does not add
+  a flicker, it buries one.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -93,6 +102,7 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace dfn::render {
 
@@ -1090,8 +1100,44 @@ void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
     const FloraMesh parts = build_flora_mesh(species, variant, shape, lod, season);
     // Scale 1.0: the generator has ALREADY applied FloraShape::maturity, and a
     // tree does not sink — it stands on its root flare (§3.5).
-    append_transformed(wood, parts.wood, position, yaw, 1.0f);
-    append_transformed(cards, parts.cards, position, yaw, 1.0f);
+    // VERIFICATION HOOK, NEVER A SHIPPING PATH (Rule 27/30, the same standing
+    // as render's DFN_NO_SCATTER). DFN_FLORA_ONLY=1 draws WOOD only, =2 draws
+    // CARDS only; unset draws the tree.
+    //
+    // IT EXISTS BECAUSE THE OBVIOUS INSTRUMENT WAS WRONG. Asked which of the
+    // two meshes produces the running shimmer, the cheap answer is to classify
+    // the flipping PIXELS by colour — and it gives a confident, wrong number:
+    // an oak's shaded leaf card and its bark are BOTH under luma 55, so every
+    // card in shadow was counted as trunk (measured "93 % wood"; the arms below
+    // say otherwise). A claim about which MESH drew a pixel has to be settled
+    // by not drawing one of them.
+    //
+    // Measured with DFN_FLORA_PROBE + DFN_WIND_FREEZE, control 0.000 % / maxL 0,
+    // one 0.05 m stride at RUN_SPEED, 640x360, share of screen flipping by more
+    // than 64 luma (near canopy / treeline):
+    //     both meshes (shipped)   0.864 % / 0.093 %
+    //     wood only               1.069 % / 0.164 %
+    //     cards only              0.382 % / 0.095 %
+    // TWO READINGS, AND THEY POINT AT DIFFERENT MESHES AT THE TWO VANTAGES:
+    // under the crowns the WOOD carries it (dropping the trunks takes 0.864 to
+    // 0.382, i.e. 56 % of the near shimmer is bole silhouette); at the treeline
+    // the CARDS carry it (cards alone measure the shipped number, 0.095 vs
+    // 0.093). And wood alone is WORSE than the whole tree at BOTH vantages,
+    // which is the mechanism in one line: what flickers is high-contrast edge
+    // standing against SKY, so a crown in front of a bole does not add a
+    // flicker, it BURIES one. Detail is not the variable; occlusion is.
+    //
+    // FIRST DRAFT OF THIS COMMENT QUOTED SIX DIFFERENT NUMBERS and concluded
+    // the opposite ("removing either mesh makes it worse"). They were taken
+    // before DFN_WIND_FREEZE existed, i.e. against a control that was not zero.
+    // Left recorded rather than silently corrected: on this probe a dirty
+    // control does not add noise, it reverses the verdict.
+    static const int only = [] {
+        const char* e = std::getenv("DFN_FLORA_ONLY");
+        return e ? std::atoi(e) : 0;
+    }();
+    if (only != 2) append_transformed(wood, parts.wood, position, yaw, 1.0f);
+    if (only != 1) append_transformed(cards, parts.cards, position, yaw, 1.0f);
 }
 
 } // namespace dfn::render

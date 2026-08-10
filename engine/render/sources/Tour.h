@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 10:08:2026 - 12:12:40
+Last updated: 10:08:2026 - 22:54:58
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -75,6 +75,11 @@ UPD:
 - 10:08:2026 - 12:12:40: stand_steps()/vantage_steps() — the tour shoots whatever stand is
   open, from the standpoints the stand publishes; DFN_VANTAGE filters, and
   admits a claim's _control with it.
+- 10:08:2026 - 22:54:58: flora_probe_steps() (DFN_FLORA_PROBE=1|2) — the canopy-speckle
+  probe, declared here because it is the first route built to be shot TWICE:
+  DFN_FLORA_STEP slides the eye along its own forward vector and 0.05 m is one
+  120 fps frame at RUN_SPEED, which is the user's «при беге трясет» in a form a
+  pixel diff can read.
 */
 
 #pragma once
@@ -221,6 +226,20 @@ public:
     // for a shape verdict — a dome and a three-lobed cone look identical from
     // the one bearing that happens to face a lobe.
     [[nodiscard]] static std::vector<TourStep> crag_acceptance_steps();
+
+    // CANOPY SPECKLE PROBE (DFN_FLORA_PROBE=1|2, Rule 27 + Rule 30). ONE frame
+    // per run, pinned, and built to be shot TWICE with only the eye moved:
+    // DFN_FLORA_STEP=<m> slides the eye along its own forward vector, so
+    // DFN_FLORA_STEP=0.05 is exactly one 120 fps frame at RUN_SPEED = 6 m/s —
+    // the user's «при беге трясет» expressed as a pair of frames a pixel diff
+    // can read. The control arm is the SAME route with STEP unset (or 0), and
+    // per tools/pngdiff.py it must come back at 0.000 % before any other
+    // number out of this route means anything.
+    //   1 = NEAR CANOPY: standing under the crowns, pitched up into them.
+    //   2 = TREELINE: open ground, the forest edge at reading distance.
+    // DFN_FLORA_EYE="x,z", DFN_FLORA_YAW / DFN_FLORA_PITCH (rad) re-place it
+    // without a new route.
+    [[nodiscard]] static std::vector<TourStep> flora_probe_steps(int which);
 
     // THE ROUTE FOR WHATEVER STAND IS OPEN. `vantages` is
     // ChunkManager::stand_vantages() — the standpoints the STAND publishes,
