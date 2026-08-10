@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 22:00:42
-Last updated: 10:08:2026 - 22:19:27
+Last updated: 10:08:2026 - 22:23:47
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 10:08:2026 - 22:13:54: TOOL CHANGED — Azgaar's FMG supersedes the PNG sketch (design's WORLD_MAP.md §9, ddd34c0). Map CONTENT is unaffected and deliberately NOT rewritten; §0.1 and every "what is painted" paragraph are marked superseded pending design's importer schema. Ran design's requested Seremarch check from FMG's documented source rather than the browser: the endorheic map is PRODUCIBLE — `Mask` with a NEGATIVE fraction is the documented operation that lowers the map CENTRE instead of the edges, so land at every border is authorable, and FMG's lake type is computed from flux vs evaporation so a terminal salt lake is native. The risk is relocated, not removed: it moves from "can the tool draw it" to "do FMG's downstream modules assume an ocean exists", and Seremarch gains a NEW authoring constraint nobody had — the lake's salt is CLIMATE-DERIVED, not drawn, so the map must be sited hot and dry enough that evaporation beats inflow or LF-11's entire premise is lost. Also found: FMG's `dry lake` type is a native real rejected instance for LF-11, which answers design's synthetic-control flag on that entry.
 - 10:08:2026 - 22:14:33: Исправление: запись 22:13:54 попала в блок Created/Last updated вместо блока UPD, и Last updated не был поднят. Обе ошибки — Rule 16: заголовок правился программой, которая нашла ПЕРВЫЙ `-->`, а не нужный, и header_check это пропустил, потому что он сверяет Last updated с самой новой записью UPD — а запись, положенная не в тот блок, для него просто не существует. Прибор мерил СОГЛАСОВАННОСТЬ двух полей, а дефект был в РАЗМЕЩЕНИИ третьего (Rule 41). Поймано перечитыванием файла после публикации, а не проверкой (Rule 34).
 - 10:08:2026 - 22:19:27: Проведена коррекция собственного пере-утверждения, вызванная обобщением design (WORLD_MAP.md §9.9, 46b40e5): «широта несёт нагрузку на этой карте и ни на какой другой» — неверно. Добавлен §12: пять карт из шести опираются на то, что FMG ВЫВОДИТ, а не рисует. И главное в находке не широта, а СТАТУС ПОРТА: четыре карты из шести ставят своё «почему здесь» на гавани, гавани выводятся, и сильнейшая география во всём документе — перешейки Farness («в любой ветер есть подветренная гавань») — оказалась самой уязвимой к настройке, которую никто ещё не смотрел. Следствие для очереди: у Farness ДВЕ разные приёмки — контур (не затронут) и поселения (не проявятся в первом экспорте без портов), и гонять их как одну нельзя.
+- 10:08:2026 - 22:23:47: Второе пере-утверждение исправлено — и снова его нашёл сосед, не я. «Перешейки Farness зависят целиком от ненастроенного параметра» неверно: 300-метровый перешеек это факт МАСКИ, проверяемый первым же экспортом без единого порта; ждёт только половина про гавань. Добавлен §12.1 — разбор сильнейшей фразы каждой из шести карт по правилу design (карта не обязана быть проверяемой целиком, она обязана сказать, какая её часть проверяема). Вышло ЧЕТЫРЕ корзины, а не три: четвёртая — то, что порождает НАШ словарь форм (LF-9/10/11), у которого приёмка уже есть в §2.10, и она невидима, если спрашивать только «маска или производное». Два следствия: вересковая пустошь Farness даёт БЕСПЛАТНЫЙ настоящий отвергнутый образец для ВТОРОГО режима отказа прибора D (невыразимое), тогда как солёное озеро Seremarch покрывает только первый (противоречие); и найден дефект в собственной карте — «где кончается прилив» несёт пять городов Sedgewend, а приливов у нас нет (G3), то есть желание в одежде ХУДОЖЕСТВЕННОГО текста, которое никто никогда не проверит, потому что от прозы проверки не ждут.
 -->
 
 # WORLD_MAPS.md — Six Example Worlds, as Places
@@ -885,16 +886,73 @@ derives**, and the exposure is not where I would have guessed:
 | **Thornsound** | conifer to a treeline, snow on the tops; fan-town harbours and the ferry | Taiga/Tundra biomes (cold latitude); port status | a temperate broadleaf sound, which is a different country wearing the same coastline |
 
 **The finding worth carrying forward is not latitude — it is PORT STATUS.**
-Four of the six put their why-here on harbours, and harbours are derived. My
-single strongest piece of geography in this document is Farness's necks —
-*at a neck the two shores are within 300 m, so there is a lee harbour in
-every wind* — and it is also the one most exposed to a setting nobody has
-looked at yet. **That matters for sequencing**, because Farness is the map
-§11 recommends building first: its boundary test is unaffected (a thin arm
-still cannot be high and still cannot carry a river), but its *settlement*
-claim will not be visible in the first export unless ports come back. Those
-are two different acceptances on one map and they should not be run as one.
+Four of the six put their why-here on harbours, and harbours are derived.
+
+**And a correction to the paragraph that used to stand here.** I wrote that
+Farness's necks — *at a neck the two shores are within 300 m, so there is a
+lee harbour in every wind* — "depend entirely on a setting nobody has
+inspected". Design showed that is wrong, and the fix is worth more than the
+error: **the sentence does not come back as one verdict.** The 300 m neck is
+a **mask** fact, pure geometry, and Farness's first export proves or refuses
+it with no port existing anywhere. Only the harbour half waits on a derived
+setting. The sentence survives whole; two thirds of it become falsifiable and
+the last third is labelled inference instead of passing as certified fact.
+
+That generalises, and design has ruled it: **a map's fiction is not required
+to be all-checkable; it is required to say which parts are.** §12.1 does that
+exercise across the set.
 
 Nothing here changes a place. It changes what each map must **state**, and
 the six "what is painted" sections become "what is configured" against
 design's importer schema when it lands (§0.1's status note).
+
+### 12.1 Decomposing each map's strongest sentence — DRAFT
+
+Design's ruling applied to the six. These are **drafts**, not finished
+assertion lists: the importer schema will carry the declared-assertion format
+and these get rewritten against it. What the exercise is for is finding which
+sentences are wishes.
+
+It produced **four** buckets, not the three design named — and the fourth is
+the one worth having:
+
+- **MASK** — geometry and topology. Checkable today, instruments A/B/C.
+- **DERIVED** — port status, lake type, biome, burg existence. Instrument D.
+- **OURS** — generated downstream by our own landform dictionary, not by FMG
+  at all. Instrumented by the landform's own §2.10 acceptance, which already
+  exists. This bucket is invisible if you only ask "mask or derived", and
+  three of my six lean on it.
+- **INFERENCE** — the joining claim and the fiction. Checked by nothing, and
+  that is correct.
+
+| Map | The sentence | MASK (A/B/C) | DERIVED (D) | OURS (§2.10) | INFERENCE |
+|---|---|---|---|---|---|
+| **Vaelmere** | Vaelmere is at the Mere's outlet | the lake has exactly one outflow and the site is on it | the hamlet exists | — | "net still water and moving water in one morning" |
+| **Aldfell** | eight river-mouth towns, and a mouth is where the boat meets the river | **eight rivers reach the sea at eight mouths, none merging first** | a burg at each mouth, each a port | — | "the island's entire politics is eight of these" |
+| **Sedgewend** | every inlet head is a town: where the tide stops and the water turns fresh | each inlet terminates inland with a watercourse meeting it | burg at each head; port status; `Wetland` biome | LF-9 salt marsh | ⚠ **"where the tide stops" — see below** |
+| **Farness** | at a neck the two shores are within 300 m, so there is a lee harbour in every wind | **the 300 m neck at three named places; no watercourse on the arm** | a port at each neck; biome | LF-10 maritime heath | "therefore a lee harbour in every wind" |
+| **Seremarch** | the lake is salt, and Saltstair has moved downhill three times | three rivers converge on one basin with no outlet | **lake type = salt** | LF-11 relict shoreline — the terraces are *ours* | "everyone living there knows it" |
+| **Thornsound** | each fan-town faces one it can see and cannot reach in under two days | the sound's width over its length; the land route's length between paired fans | burgs on the fans; ports; the ferry | — | "and the two do not intermarry" |
+
+**Two things fell out that are worth more than the table.**
+
+**1. Farness supplies the control for instrument D's SECOND failure mode, free.**
+Design's Seremarch-at-a-cool-latitude is a real rejected instance for
+**contradiction** (export says fresh, map says salt). It is not an instance of
+**unexpressible**, which is the other mode. **Farness's maritime heath is** —
+no biome id in FMG's fixed list can express it, so the assertion cannot be
+checked against any field in the export at all. Both of D's modes now have a
+real rejected instance rather than a synthetic one, and neither was
+manufactured for the purpose.
+
+**2. A hazard the three-bucket form does not catch, and Sedgewend has it.**
+*"Where the tide stops and the water turns fresh"* is the load-bearing
+why-here for five towns on that map — and **we have no tides** (§10, G3). It
+is not an inference and it is not derived: it is a claim resting on a feature
+that does not exist, and it reads exactly like harmless flavour. That is the
+same shape as design's "unfalsifiable assertion sitting in a map's
+requirements is a wish wearing a check's clothes", one step earlier: a wish
+wearing *fiction's* clothes, which nothing will ever ask about because nobody
+expects prose to be checked. **Recorded against Sedgewend as a defect in the
+map, not as a request** — the map must either earn those five towns without
+tides, or wait for G3. It cannot keep the sentence and the towns for free.
