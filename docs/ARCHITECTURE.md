@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 21:17:06
+Last updated: 10:08:2026 - 21:31:13
 -->
 <!--
 UPD:
@@ -32,6 +32,7 @@ UPD:
 - 10:08:2026 - 20:45:59: Правило 44 (константа, подогнанная СКВОЗЬ деталь реализации, перестаёт означать то, что говорит её имя — две среды складывают одни и те же поля по-разному и промахиваются в ПРОТИВОПОЛОЖНЫЕ стороны). Находка core.
 - 10:08:2026 - 21:12:54: Правило 45 (порог различимости и порог РАЗДЕЛЕНИЯ — разные объекты; признак виден ДО измерения: если обоснование ни разу не упоминает отвергнутый образец, это пол, и в гнезде приёмки он пропускает всё). Формулировка design.
 - 10:08:2026 - 21:17:06: Правило 29 — `git commit --amend` ЗАПРЕЩЁН на общей ветке: HEAD, прочитанный секунду назад, это предпосылка, а не факт. Правка задела чужой коммит, потому что третий агент успел вклиниться между двумя вызовами.
+- 10:08:2026 - 21:31:13: Правило 32 дополнено: если механизм поставлен верно, а починен экземпляр — записать диагноз у КАЖДОГО места, где он тот же. Иначе диагноз это сообщение, а не механизм. Затвор тура был верно разобран за девять часов до того, как его нашли заново.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -508,6 +509,28 @@ in the same change. Repairing the one call site that surfaced the symptom and le
 the helper feeding the others is not a fix; it converts a visible bug into an invisible
 one. Corollary, learned the same evening: a diagnosis written down but applied only
 locally is a diagnosis not yet acted on.
+
+**AND IF YOU DIAGNOSE THE MECHANISM BUT FIX THE INSTANCE, WRITE THE DIAGNOSIS AT
+EVERY SITE THAT SHARES IT — otherwise the diagnosis is a message, not a
+mechanism.** The acceptance tour's settle was diagnosed correctly nine hours
+before it was re-found, in the file's own UPD log, in the right words: *"the
+frame count was being read as 'long enough to settle' when it only ever meant
+'frames rendered'; far nodes are still ARRIVING at frame 75."* The remedy chosen
+was to raise that one number from 75 to 300. The reasoning was never carried to
+the other two frame-count settles in the same file, so one defect now sat in
+three places and was re-diagnosed from scratch by someone who had to measure it
+again.
+
+Worse, the raised number was accepted because **an artefact stopped appearing** —
+not because two runs were shown to agree. An artefact vanishing means you are
+past the point where THAT artefact shows; it says nothing about determinism, and
+it leaves a constant everyone trusts for a reason that was never a control
+(Rule 30).
+
+So the standing question after any instance fix is not "did this one stop" but
+**"who else has this?"** — and the answer belongs in their code, not in your
+commit message. A correct diagnosis that lives only in a changelog is
+rediscovered at full price.
 
 ### Rule 33 — Detail is sized against the viewing distance
 Structure sized as a fraction of the object it belongs to shrinks out of legibility as
