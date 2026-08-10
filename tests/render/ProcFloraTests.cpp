@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 21:08:24
+Last updated: 10:08:2026 - 21:16:23
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -102,6 +102,22 @@ UPD:
   250.3, 413 -> 412.7). Measured 249.8, +9.1 %. OPEN: oak at Reduced LOD
   presents 208.0, 9.2 % UNDER the floor, on the LOD that draws the treeline.
   The old case is kept and RENAMED to the tilt statistic it measures.
+- 10:08:2026 - 21:16:23: THE ELEVEN TAUTOLOGIES (audit). Each one either
+  re-derived to capture the property it was pretending to measure, or KEPT AND
+  LABELLED as a fork tripwire where the property is guaranteed by construction:
+  the crown-base fractions now measure the BUILT tree (0.456-0.495 of height
+  against a 0.35 floor) instead of comparing a registry row with itself, and
+  the demoted _MAX clause is gone with its reason written down; the canopy
+  clearance is an ABSOLUTE bound (the epsilon admitted 2.04 m) and says out
+  loud that FloraBuild's clamp guarantees it, with the measured margin 2.42 m;
+  the log-moss clause moves to >= 2 mossed up-faces for the FallenLog (7-21
+  measured) because ProcFlora's fallback always mosses one; the tilt bands are
+  the RULED 5-10/48-66 rather than the 0-12/45-69 supersets, so `other == 0` is
+  a conformance check (0 of 2 400 outside); the flat SHARE is asserted PER
+  CLUSTER (800 of 800 at 3 cards, 1 flat) because the aggregate 1/3 is the two
+  constants divided and is blind to whole clusters being flat; the clump
+  coverage identity is named as a restatement of the CDF's definition. The
+  presented-area floor now reads config::FLORA_PRESENTED_AREA_FLOOR_M2.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -257,6 +273,24 @@ TEST_CASE("flora: canopy clearance floor is never violated") {
     understory.maturity = 0.4f;
     const FloraShape shapes[] = {FloraShape{}, understory};
 
+    // WHAT THIS ASSERTION IS, SAID OUT LOUD (audit, 10.08.2026): a FORK
+    // TRIPWIRE, not a measurement. FloraBuild.cpp:258-269 clamps the cluster
+    // against exactly this floor before emitting it — raise, then shrink if
+    // raising would leave the envelope — so no mesh the current builder can
+    // produce fails this line. It is kept because the clamp is the thing that
+    // must not be removed or forked, and a compile-time guarantee restated as
+    // a runtime check is worth keeping when it is NAMED as one.
+    //
+    // Two things it does measure, and they are why it is not deleted:
+    //  - the clamp runs on EVERY species/shape/variant, including the drooping
+    //    and understory paths (the shrink branch is only reachable there);
+    //  - the margin. Measured minimum over all canopy species, both shapes and
+    //    all 12 variants: 2.42 m (willow, understory, maturity 0.4) against a
+    //    2.20 m floor, i.e. 0.22 m. The floor is APPROACHED but never touched.
+    // The epsilon that stood here admitted 2.04 m — 16 cm of foliage inside
+    // the player's head, on a rule whose entire content is that number
+    // (Rule 40: e*(1+|x|) on a clearance). It is an absolute bound now.
+    float worst_clearance = 1e9f;
     for (const FloraSpecies s : ALL) {
         if (!is_canopy_tree(s)) continue;
         const uint32_t leaf = pack(species_params(s).foliage_color);
@@ -265,11 +299,14 @@ TEST_CASE("flora: canopy clearance floor is never violated") {
                 const FloraMesh m = build_flora_mesh(s, v, sh, FloraLod::Full);
                 const float lo = lowest_foliage_y(m, leaf);
                 if (lo < 1e8f) {
-                    CHECK(lo >= doctest::Approx(floor_m).epsilon(0.05));
+                    CHECK(lo >= floor_m);
+                    worst_clearance = std::min(worst_clearance, lo);
                 }
             }
         }
     }
+    REQUIRE(worst_clearance < 1e8f); // ...and the loop actually measured trees
+    MESSAGE("lowest foliage over all canopy trees: " << worst_clearance << " m");
 }
 
 TEST_CASE("flora: no branch below the shadow-caster floor") {
@@ -308,15 +345,62 @@ TEST_CASE("flora: sizes stay inside the design bands") {
         // showed that the same number was silently doing a second job (setting
         // the crown's ASPECT, purely because it is a fraction of height). The
         // base is now DERIVED per species; the birch has its own landed band.
-        const float frac = species_crown_base(b.s) / species_nominal_height(b.s);
-        CHECK(frac >= doctest::Approx(config::CROWN_BASE_FRACTION_MIN).epsilon(0.02));
+        // THE WALKABILITY FRACTION, MEASURED ON THE BUILT TREE (rewritten
+        // 10.08.2026 — the three lines that stood here were `X >= X`).
+        //
+        // What they did: `species_crown_base(s)/species_nominal_height(s)` is
+        // `sp.crown_base_frac` by definition (ProcFlora.cpp:905-907 multiplies
+        // by exactly that field), and `FloraSpecies.cpp:279` assigns
+        // `birch.crown_base_frac = f(config::BIRCH_CROWN_BASE_FRACTION_MIN)`.
+        // So the birch clause compared a constant against itself, in a case
+        // titled "sizes stay inside the design bands", without ever calling
+        // build_flora_mesh. The oak/pine clause was the same shape against the
+        // shared floor, and the _MAX clause had ZERO margin by construction:
+        // pine is 0.45 and CROWN_BASE_FRACTION_MAX is 0.45 (FloraSpecies.cpp:175
+        // says it in prose — "this species sits ON it"), so a one-ulp registry
+        // edit either way decided a test (Rule 30a).
+        //
+        // What the property actually is: the player walks under the canopy, so
+        // it is the BUILT foliage that has to start high, and that number is
+        // not the registry row — the lowest card sits ABOVE the nominal crown
+        // base (clamps, card half-height, cluster placement). Measured over 12
+        // variants: oak 0.463-0.495, pine 0.466-0.475, birch 0.456-0.486 of
+        // built height, against a 0.35 floor — 30 % of margin, and every one of
+        // those numbers comes out of build_flora_mesh.
+        const uint32_t leaf = pack(species_params(b.s).foliage_color);
+        float built_frac_lo = 9.0f;
+        float built_frac_hi = 0.0f;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh m = build_flora_mesh(b.s, v, FloraShape{}, FloraLod::Full);
+            const float lo = lowest_foliage_y(m, leaf);
+            const float hi = highest_y(m);
+            REQUIRE(hi > 0.0f);
+            REQUIRE(lo < 1e8f);
+            built_frac_lo = std::min(built_frac_lo, lo / hi);
+            built_frac_hi = std::max(built_frac_hi, lo / hi);
+        }
+        CHECK(built_frac_lo >= static_cast<float>(config::CROWN_BASE_FRACTION_MIN));
         if (b.s == FloraSpecies::RiverBirch) {
-            CHECK(frac >= doctest::Approx(config::BIRCH_CROWN_BASE_FRACTION_MIN)
-                              .epsilon(0.02));
-            CHECK(frac <= doctest::Approx(config::BIRCH_CROWN_BASE_FRACTION_MAX)
-                              .epsilon(0.02));
-        } else {
-            CHECK(frac <= doctest::Approx(config::CROWN_BASE_FRACTION_MAX).epsilon(0.02));
+            // The birch's own landed floor, on the built tree (measured 0.456).
+            CHECK(built_frac_lo
+                  >= static_cast<float>(config::BIRCH_CROWN_BASE_FRACTION_MIN));
+        }
+        // NO _MAX CLAUSE ON THE BUILT TREE, and this is a finding rather than
+        // an omission: the oak's built foliage starts at 0.495 of its height,
+        // ABOVE design's CROWN_BASE_FRACTION_MAX of 0.45, because the cards sit
+        // above the nominal base. Design's §5 ruling already demoted _MAX from
+        // a binding cap to "documentation of the typical outcome for broad
+        // crowns" (FloraSpecies.cpp:171-175) and the crown's PROPORTION is
+        // guarded by CROWN_ASPECT_MAX in its own case, on the built mesh. An
+        // assertion here would forbid the shipped, accepted tree (Rule 38).
+        MESSAGE("built crown-base fraction: " << built_frac_lo << ".." << built_frac_hi);
+        // FORK TRIPWIRE, and it is labelled as one because it cannot fail
+        // today: the registry row IS the named constant by assignment. It
+        // fires only if someone hand-edits the row to a literal, which is the
+        // change that would silently unpick the derivation above.
+        if (b.s == FloraSpecies::RiverBirch) {
+            const float row = species_crown_base(b.s) / species_nominal_height(b.s);
+            CHECK(row == doctest::Approx(config::BIRCH_CROWN_BASE_FRACTION_MIN));
         }
     }
 }
@@ -1630,8 +1714,24 @@ TEST_CASE("floor: moss lives on the UPPER side of a log, in patches") {
                 }
             }
             // A log that declares moss CARRIES moss («поваленные деревья … с
-            // мохом» is the brief, not a probability).
-            CHECK(up_mossed > 0);
+            // мохом» is the brief, not a probability) — but `> 0` is
+            // GUARANTEED BY CONSTRUCTION and was sold here as a measurement:
+            // ProcFlora.cpp:783-787 mosses the first up-face unconditionally
+            // when the cell noise misses everything. So the threshold is moved
+            // to where the fallback stops covering for the noise.
+            //
+            // Measured over 12 variants: the FallenLog carries 7-21 mossed
+            // up-faces (cover 0.206-0.690 against a declared 0.450), so >= 2
+            // asserts real moss with a 3.5x margin and rejects a build in
+            // which only the fallback fired. The Deadfall bottoms out at
+            // EXACTLY 1 — that variant IS the fallback, nothing else — so for
+            // that species the clause stays at `> 0` and is named as a
+            // tripwire on the fallback rather than evidence of moss.
+            if (s == FloraSpecies::FallenLog) {
+                CHECK(up_mossed >= 2);
+            } else {
+                CHECK(up_mossed > 0); // fallback tripwire; see above
+            }
             // PATCHES, not paint — but only where the class has enough
             // up-faces for "patchy" to be expressible. A deadfall piece has a
             // handful of up-faces and may legitimately moss them all.
@@ -2037,7 +2137,11 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     // (5 deg, i.e. the treeline view), 9.1 % over the floor. This is the one
     // assertion here with user provenance — «листва прикольная» about a build
     // that measured 229, so nothing may be thinner than the thinnest he blessed.
-    constexpr float PRESENTED_FLOOR_M2 = 229.0f;
+    // The floor is a NUMBERS row now (LEAD landed it 10.08.2026 carrying the
+    // aggregation recovered above) — two consumers, so Rule 35 says it does
+    // not live in this file.
+    const auto PRESENTED_FLOOR_M2 =
+        static_cast<float>(config::FLORA_PRESENTED_AREA_FLOOR_M2);
     CHECK(oak_m2 >= PRESENTED_FLOOR_M2);
 
     // The other card species were never in the 229 derivation (it is an oak
@@ -2185,6 +2289,17 @@ TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
     auto tilt_deg = [](glm::vec3 n) {
         return std::acos(std::min(1.0f, std::fabs(n.y))) * 57.2957795f;
     };
+    // THE CLASSIFICATION BANDS ARE THE RULED ONES (tightened 10.08.2026). They
+    // were 0-12 and 45-69 deg, i.e. STRICT SUPERSETS of the 5-10 and 48-66 the
+    // generator draws from, which made `other == 0` impossible to violate for
+    // any build the generator can produce — a tautology dressed as a
+    // conformance check. Measured, the build lands at 5.01-9.99 and
+    // 48.01-65.99 over 2 400 cards, so the bands below are the user's ruling
+    // plus 0.05 deg of float slack and nothing more: a card at 11 deg or at
+    // 70 deg is now a failure, which is what the ruling says.
+    constexpr float FLAT_HI_DEG = 10.05f;
+    constexpr float LEAN_LO_DEG = 47.95f;
+    constexpr float LEAN_HI_DEG = 66.05f;
     int flat = 0;
     int lean = 0;
     int other = 0;
@@ -2192,10 +2307,53 @@ TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
     float flat_hi = 0.0f;
     float lean_lo = 90.0f;
     float lean_hi = 0.0f;
+    int clusters_seen = 0;
+    int clusters_with_wrong_flat_count = 0;
     for (const FloraSpecies s : ALL) {
         if (!has_leaf_cards(s)) continue;
         for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
             const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            // PER-CLUSTER flat count, which the aggregate share cannot see: a
+            // build that laid whole clusters flat and left others all-steep
+            // scores the same 1/3 share and is a different tree entirely.
+            {
+                std::vector<glm::vec3> keys;
+                std::vector<int> flats;
+                std::vector<int> counts;
+                for (size_t i = 0; i + 4 <= f.cards.vertices.size(); i += 4) {
+                    glm::vec3 c{0.0f};
+                    for (size_t k = 0; k < 4; ++k) c += f.cards.vertices[i + k].position;
+                    c /= 4.0f;
+                    const glm::vec3 e1 =
+                        f.cards.vertices[i + 1].position - f.cards.vertices[i].position;
+                    const glm::vec3 e2 =
+                        f.cards.vertices[i + 3].position - f.cards.vertices[i].position;
+                    const glm::vec3 cr = glm::cross(e1, e2);
+                    if (glm::length(cr) <= 1e-9f) continue;
+                    const bool is_flat = tilt_deg(glm::normalize(cr)) <= FLAT_HI_DEG;
+                    size_t found = keys.size();
+                    for (size_t k = 0; k < keys.size(); ++k) {
+                        if (glm::length(keys[k] - c) < 0.05f) {
+                            found = k;
+                            break;
+                        }
+                    }
+                    if (found == keys.size()) {
+                        keys.push_back(c);
+                        flats.push_back(0);
+                        counts.push_back(0);
+                    }
+                    flats[found] += is_flat ? 1 : 0;
+                    counts[found] += 1;
+                }
+                for (size_t k = 0; k < keys.size(); ++k) {
+                    ++clusters_seen;
+                    if (flats[k] != static_cast<int>(config::FLORA_CARD_FLAT_PER_CLUSTER)
+                        || counts[k] != static_cast<int>(species_params(s).cards_per_cluster)) {
+                        ++clusters_with_wrong_flat_count;
+                    }
+                }
+            }
             for (size_t i = 0; i + 4 <= f.cards.vertices.size(); i += 4) {
                 const glm::vec3 e1 =
                     f.cards.vertices[i + 1].position - f.cards.vertices[i].position;
@@ -2204,11 +2362,11 @@ TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
                 const glm::vec3 cr = glm::cross(e1, e2);
                 if (glm::length(cr) <= 1e-9f) continue;
                 const float t = tilt_deg(glm::normalize(cr));
-                if (t <= 12.0f) {
+                if (t <= FLAT_HI_DEG) {
                     ++flat;
                     flat_lo = std::min(flat_lo, t);
                     flat_hi = std::max(flat_hi, t);
-                } else if (t >= 45.0f && t <= 69.0f) {
+                } else if (t >= LEAN_LO_DEG && t <= LEAN_HI_DEG) {
                     ++lean;
                     lean_lo = std::min(lean_lo, t);
                     lean_hi = std::max(lean_hi, t);
@@ -2219,8 +2377,24 @@ TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
         }
     }
     REQUIRE(flat + lean > 0);
-    CHECK(other == 0); // nothing lives between or beyond the two declared bands
-    // The share: one card of every three-card cluster is flat.
+    // Now a real conformance check: the bands above are the RULED ones, so a
+    // card outside 5-10 or 48-66 deg lands here. Measured: 0 of 2 400.
+    CHECK(other == 0);
+    // THE SHARE, ASSERTED PER CLUSTER (rewritten 10.08.2026). The aggregate
+    // band 0.30-0.37 that stood here could only ever read 1/3: every card
+    // species declares cards_per_cluster = 3 and FLORA_CARD_FLAT_PER_CLUSTER
+    // is 1, so the quotient was the two constants divided, and the band was
+    // drawn around the answer. Worse, the aggregate is blind to the mixture
+    // being mixed IN THE WRONG PLACE — 800 clusters of which a third are
+    // entirely flat and the rest entirely steep score exactly 0.333 and are a
+    // different tree. So the count is checked in every cluster: measured 800
+    // of 800 clusters at 3 cards, 1 flat, 0 wrong.
+    REQUIRE(clusters_seen > 0);
+    CHECK(clusters_with_wrong_flat_count == 0);
+    MESSAGE("clusters checked: " << clusters_seen);
+    // ...and the aggregate share is then a DERIVED number, kept as the thing
+    // the presented-area arithmetic is written against (33 % of card area
+    // near-horizontal, under the derived ~43 % ceiling).
     const float share = static_cast<float>(flat) / static_cast<float>(flat + lean);
     CHECK(share > 0.30f);
     CHECK(share < 0.37f);
@@ -2335,6 +2509,18 @@ TEST_CASE("clump: coverage is EXACT and the field saturates in drift cores") {
             }
         }
         const float frac = static_cast<float>(covered) / (static_cast<float>(N) * N);
+        // NAMED FOR WHAT IT IS (audit, 10.08.2026): this restates the
+        // definition of the rank-equalisation CDF rather than measuring an
+        // outcome. `clump_field` thresholds an equalised field at exactly
+        // `1 - coverage`, so "the fraction of probes above zero equals
+        // coverage" is the construction, sampled — the only thing the 0.025
+        // band can catch is the 220x220 probe grid being too coarse for the
+        // drift wavelength, which is a property of THIS TEST's sampling.
+        // Kept as a fork tripwire on the equalisation (it fires the day the
+        // field stops being equalised, e.g. a raw-noise threshold), and the
+        // clauses that carry the real content are the neighbours: the field
+        // saturates in drift cores (below), it is UNIFORM over [0,1] (own
+        // case), and its wavelength IS the drift scale (own case).
         CHECK(std::fabs(frac - p.coverage) < 0.025f);
         // Drift interiors reach full strength — a field that never saturates
         // is a global density dimmer, not clumping.
