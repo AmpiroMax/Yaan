@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:35:08
+Last updated: 10:08:2026 - 20:41:46
 -->
 <!--
 UPD:
@@ -47,6 +47,9 @@ UPD:
 - 10:08:2026 - 20:35:08: a9 gains sim's compression (their transition worry and
   my vacuous steady-state qualifier are one missing piece) and their
   endorsement of the shape.
+- 10:08:2026 - 20:41:46: a9 LANDED (this zone's half) — the gear weight is eased
+  once in update_bodies and read by both the trunk and, via the app, the eye.
+  The steady-state test stops being vacuous in the same change.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -385,7 +388,10 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       0.132 m in ONE tick, because `gait_run_weight` is a step function. Body
       and eye pop together, so nothing is exposed — but see a9.
 
-   a9. **THE GEAR CHANGE POPS, and easing it is NOT a one-zone fix.** Raised by
+   a9. **THE GEAR CHANGE POPPED, and easing it was NOT a one-zone fix.
+      LANDED 10:08:2026 - 20:41:06 — this zone's half; the app's one line follows
+      immediately (lead was at the keyboard, so the desync window is seconds
+      rather than a session, which is the whole reason it was done now).** Raised by
       sim when their consumer landed. `gait_run_weight` is a step function, so
       walk -> run moves the trunk AND the eye 0.132 m within a single tick —
       about 1.3 ticks' worth of normal running displacement delivered in one,
@@ -408,11 +414,24 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       (like `anim_time_s` and `land_dip`), with `evaluate_body_pose` reading it
       and the app ferrying THAT float to `eye_lean_offset` instead of
       recomputing from the gait. Body and eye then share one number and cannot
-      drift by construction. It needs one line in the app (lead's), so it is
-      proposed rather than landed: landing my half alone would create exactly
-      the decelerating-desync above. sim reviewed the asymmetry and withdrew
-      their own "ease it in the producer" suggestion in favour of this shape,
-      so both zones are agreed on the design before anyone writes it.
+      drift by construction. sim reviewed the asymmetry and withdrew their own
+      "ease it in the producer" suggestion in favour of this shape, so both
+      zones agreed the design before anyone wrote it.
+
+      BLEND TIME 0.20 s, sized against the stride rather than picked for feel:
+      a walk step lasts step_length(1.8)/1.8 = 0.54 s, so the change settles
+      inside the stride the player changed gear in, and the eye's 0.132 m is
+      spread to ~0.66 m/s — a tenth of running speed, i.e. under the camera
+      motion already on screen. Exponential, matching sim's fov_scale easing.
+      MEASURED worst tick after: 0.011 m against 0.132 m before, 12x better.
+
+      AND THE TEST STOPPED BEING FREE. "A gait held past any transition
+      renders as that gait" now HOLDS a gear — it spawns a body, steps fixed
+      ticks, and arrives; before the ease, evaluate_body_pose was a pure
+      function of the gait and the qualifier was vacuously true. Each gear is
+      approached from the FURTHEST one so every case crosses a transition, and
+      the Rule 38 re-check of the control is now a real re-check rather than
+      the same pure function read twice.
 
       BONUS, and it is why this is worth doing rather than tolerating: it would
       make the steady-state qualifier in the gait test REAL. Today nothing

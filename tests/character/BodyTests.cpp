@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:31:38
+Last updated: 10:08:2026 - 20:41:06
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 10:08:2026 - 20:13:01: Feet-before-chest, measured against the drawn meshes and the real frustum; its control is the live lean defect (a8), not a synthetic case.
 - 10:08:2026 - 20:25:17: the reel renders the same gear the live body does, with the other gear's weight as the control.
 - 10:08:2026 - 20:31:38: feet-before-chest INVERTED together with its control, now that sim's consumer makes the eye ride the lean: the order holds at every gear and the fixed eye is the case that must fail.
+- 10:08:2026 - 20:41:06: holding a gear is a real act now (spawn, step ticks, arrive), so the steady-state qualifier stops being vacuous; plus the anti-lurch outcome test with the step function as its control.
 */
 
 #include <doctest/doctest.h>
@@ -269,6 +270,36 @@ namespace {
     return d;
 }
 
+// HOLDING A GEAR IS NOW A REAL ACT, not a struct literal. The gear weight is
+// eased inside update_bodies, so reaching a gait's steady state means running
+// the system for `hold_s` of fixed ticks — which is what "held past any
+// transition" always claimed to measure and, until the ease existed, never
+// did. `from` seeds the settled weight of the gear being left, so a
+// transition can be driven in either direction.
+[[nodiscard]] BodyDrive hold_gear(const Rig& rig, Gait gait, float speed, float hold_s,
+                                  Gait from = Gait::Walk) {
+    ecs::World world;
+    const auto owner = make_owner(world, {0.0f, 0.0f, 0.0f});
+    spawn_body(world, owner, rig, /*hide_head=*/false);
+    if (auto* seed = world.get<BodyDrive>(owner)) {
+        seed->run_weight = gait_run_weight(from);
+    }
+    const int ticks =
+        static_cast<int>(hold_s / static_cast<float>(config::SIM_DT));
+    for (int i = 0; i < ticks; ++i) {
+        auto* d = world.get<BodyDrive>(owner);
+        REQUIRE(d != nullptr);
+        const BodyDrive want = gear_drive(gait, speed, 0.0f);
+        d->gait = want.gait; // the app ferries these every tick
+        d->speed_mps = want.speed_mps;
+        d->stride_phase = want.stride_phase;
+        d->step_length_m = want.step_length_m;
+        d->grounded = true;
+        update_bodies(world, rig);
+    }
+    return *world.get<BodyDrive>(owner);
+}
+
 [[nodiscard]] LocalPose gait_reference(const Rig& rig, const BodyDrive& d, float run_w) {
     LocalPose p = gait_pose(rig, d.stride_phase, d.step_length_m, run_w);
     apply_joint_limits(rig, p);
@@ -285,8 +316,13 @@ TEST_CASE("a gait held past any transition renders as that gait") {
     // 3600, so a legitimate transition blend passes; a selection that is a
     // pure function of speed has nothing to settle and reads identically at
     // both, which is exactly why the control below still fails.
-    constexpr float BLINK = 0.1f;
-    constexpr float AN_HOUR = 3600.0f;
+    // 2 s is ten time constants of the gear blend, so the residual weight
+    // error is exp(-10) = 4.5e-5 — settled by any standard. THE QUALIFIER IS
+    // NOW REAL: until the ease landed, evaluate_body_pose was a pure function
+    // of the gait and "held past any transition" was vacuously true, so this
+    // test passed for free. sim's worry about forbidding transition blends and
+    // this test's empty qualifier turned out to be the same missing piece.
+    constexpr float SETTLED = 2.0f;
     // 0.01 rad = 0.57 deg. Below the angular size of one 640x360 pixel on a
     // limb at arm's length, and four orders above float noise on these
     // slerps, so it separates "the same pose" from "a different one".
@@ -299,12 +335,16 @@ TEST_CASE("a gait held past any transition renders as that gait") {
     for (const Gear g : {Gear{Gait::Walk, static_cast<float>(config::WALK_SPEED)},
                          Gear{Gait::Jog, static_cast<float>(config::JOG_SPEED)},
                          Gear{Gait::Run, static_cast<float>(config::RUN_SPEED)}}) {
-        const LocalPose early = evaluate_body_pose(rig, gear_drive(g.gait, g.speed, BLINK));
-        const LocalPose late = evaluate_body_pose(rig, gear_drive(g.gait, g.speed, AN_HOUR));
-        const LocalPose want =
-            gait_reference(rig, gear_drive(g.gait, g.speed, AN_HOUR), gait_run_weight(g.gait));
+        // Arrive from the FURTHEST gear, so every case actually crosses a
+        // transition rather than starting where it means to end up (Rule 30a
+        // in reverse: a test also needs a case that can FAIL it).
+        const Gait from = g.gait == Gait::Run ? Gait::Walk : Gait::Run;
+        const BodyDrive held = hold_gear(rig, g.gait, g.speed, SETTLED, from);
+        const LocalPose late = evaluate_body_pose(rig, held);
+        const LocalPose want = gait_reference(rig, held, gait_run_weight(g.gait));
         CHECK(pose_distance(late, want) < SAME_POSE);
-        CHECK(pose_distance(early, late) < SAME_POSE);
+        // The gear is REACHED, not assumed: the eased weight has arrived.
+        CHECK(held.run_weight == doctest::Approx(gait_run_weight(g.gait)).epsilon(0.01));
     }
 
     // THE CONTROL (Rule 30), and it is the real rejected instance rather than
@@ -318,7 +358,7 @@ TEST_CASE("a gait held past any transition renders as that gait") {
     const float speed_derived_at_jog = (jog - walk) / (run - walk);
     CHECK(speed_derived_at_jog == doctest::Approx(0.286f).epsilon(0.01));
 
-    const BodyDrive d = gear_drive(Gait::Jog, jog, AN_HOUR);
+    const BodyDrive d = hold_gear(rig, Gait::Jog, jog, SETTLED, Gait::Run);
     const LocalPose rendered = evaluate_body_pose(rig, d);
     const LocalPose defect = gait_reference(rig, d, speed_derived_at_jog);
     // 0.05 rad = 2.9 deg. MEASURED disagreement 0.0897 rad = 5.14 deg, worst
@@ -328,11 +368,17 @@ TEST_CASE("a gait held past any transition renders as that gait") {
     // assertions).
     constexpr float A_DIFFERENT_GAIT = 0.05f;
     CHECK(pose_distance(rendered, defect) > A_DIFFERENT_GAIT);
-    // ...and it fails at 0.1 s exactly as it fails at an hour: being a pure
-    // function of speed, it never settles into the gear. This is the half of
+    // ...and it fails after a blink exactly as it fails after ten time
+    // constants: being a pure function of speed, it has nothing to settle, so
+    // it lands the same distance from the gear at both. This is the half of
     // Rule 38 that is easy to skip — after loosening an assertion so it stops
     // forbidding correct code, re-verify that the control still fails it.
-    CHECK(pose_distance(evaluate_body_pose(rig, gear_drive(Gait::Jog, jog, BLINK)), defect)
+    // NOW A REAL RE-VERIFICATION: at 0.1 s the eased weight genuinely has not
+    // arrived, so this line is exercising the transition it names rather than
+    // re-reading the same pure function twice.
+    CHECK(pose_distance(
+              evaluate_body_pose(rig, hold_gear(rig, Gait::Jog, jog, 0.1f, Gait::Run)),
+              defect)
           > A_DIFFERENT_GAIT);
 
     // At the ENDS the two agree, and saying so is what keeps the control
@@ -534,4 +580,55 @@ TEST_CASE("the showcase reel renders the same gear the live body does") {
     // the table entirely.
     CHECK(pose_distance(reel(ShowcaseClip::Run), live(run, Gait::Walk)) > SAME_POSE);
     CHECK(pose_distance(reel(ShowcaseClip::Walk), live(walk, Gait::Run)) > SAME_POSE);
+}
+
+TEST_CASE("a gear change moves the eye smoothly, not in one jump") {
+    // THE OUTCOME THE EASE EXISTS FOR. Not "run_weight is eased" — that is the
+    // mechanism — but what the player's eye actually does, which is the thing
+    // that either lurches or does not (Rule 38).
+    const Rig rig = Rig::build(RigProportions::from_config());
+    ecs::World world;
+    const auto owner = make_owner(world, {0.0f, 0.0f, 0.0f});
+    spawn_body(world, owner, rig, /*hide_head=*/true);
+    const auto run = static_cast<float>(config::RUN_SPEED);
+
+    // Walk -> Run, the largest gear change there is, driven a tick at a time.
+    float worst_step = 0.0f;
+    float previous = eye_lean_offset(rig.proportions, 0.0f).x;
+    const int ticks = static_cast<int>(1.0f / static_cast<float>(config::SIM_DT));
+    for (int i = 0; i < ticks; ++i) {
+        auto* d = world.get<BodyDrive>(owner);
+        REQUIRE(d != nullptr);
+        d->gait = Gait::Run;
+        d->speed_mps = run;
+        d->grounded = true;
+        d->step_length_m = static_cast<float>(config::STEP_LENGTH_BASE)
+                         + static_cast<float>(config::STEP_LENGTH_PER_MPS) * run;
+        update_bodies(world, rig);
+        // What the app ferries to sim is THIS float — the same one the trunk
+        // just leaned by — so measuring the camera means measuring it.
+        const float now = eye_lean_offset(rig.proportions,
+                                          world.get<BodyDrive>(owner)->run_weight).x;
+        worst_step = std::max(worst_step, std::abs(now - previous));
+        previous = now;
+    }
+    // 0.02 m per tick. At RUN_SPEED the camera already travels 0.10 m per
+    // tick, so a fifth of that is comfortably inside the motion on screen.
+    // MEASURED worst tick: 0.011 m, so this passes with 1.8x of margin.
+    constexpr float NO_LURCH = 0.02f;
+    CHECK(worst_step < NO_LURCH);
+    // And it ARRIVES — a "smooth" transition that never gets there would pass
+    // the bound above trivially (Rule 30a: the case that can fail it).
+    CHECK(previous == doctest::Approx(eye_lean_offset(rig.proportions, 1.0f).x)
+                          .epsilon(0.01));
+
+    // CONTROL (Rule 30): the step function this replaced. gait_run_weight goes
+    // 0 -> 1 in a single tick, which moves the eye 0.132 m at once — 6.6x the
+    // bound, and 1.3 ticks' worth of running displacement delivered in one.
+    const float unsmoothed = std::abs(eye_lean_offset(rig.proportions,
+                                                      gait_run_weight(Gait::Run)).x
+                                      - eye_lean_offset(rig.proportions,
+                                                        gait_run_weight(Gait::Walk)).x);
+    CHECK(unsmoothed > NO_LURCH);
+    CHECK(unsmoothed > 5.0f * worst_step);
 }

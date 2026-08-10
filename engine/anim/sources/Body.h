@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:41:06
 Module: engine/anim
 File: engine/anim/sources/Body.h
 
@@ -44,6 +44,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial body/puppet systems.
 - 10:08:2026 - 20:00:23: BodyDrive::gait — the ferry target lead's parked switch writes into.
+- 10:08:2026 - 20:41:06: BodyDrive::run_weight — the eased gear weight, read by this zone's trunk lean AND ferried to sim's eye so the two cannot drift.
 */
 
 #pragma once
@@ -92,6 +93,21 @@ struct BodyDrive {
     // Internal animation state (this zone's, decayed/advanced in update).
     float land_dip = 0.0f;          // 1 at touchdown -> 0
     float anim_time_s = 0.0f;       // idle breathing clock (fixed-tick sum)
+    // THE EASED GEAR WEIGHT, and it has TWO READERS ON PURPOSE (Rule 35's
+    // state form): this zone leans the trunk by it, and the app ferries THIS
+    // FLOAT — not `gait_run_weight(gait)` — into `anim::eye_lean_offset` so
+    // sim's camera leans by the same number. They cannot drift, because there
+    // is only one of them.
+    //
+    // WHY IT IS EASED HERE RATHER THAN IN EITHER CAMERA: `gait_run_weight` is
+    // a step function, so a gear change moved trunk and eye 0.132 m in ONE
+    // tick. Easing either side alone is worse than the pop, and asymmetric —
+    // accelerating, the eye leads a body still straightening up, which is
+    // SAFER than steady state; decelerating, the body is still leaning while
+    // the eye is already back on the axis, and the chest returns to frame for
+    // the length of every run->walk. An intermittent defect in one transition
+    // direction costs more than a lurch you can see every time.
+    float run_weight = 0.0f;        // eased toward gait_run_weight(gait)
     // Showcase override (mirror map techno-demo): SHOWCASE_NONE = live body.
     uint8_t showcase_clip = SHOWCASE_NONE;
     float showcase_time_s = 0.0f;

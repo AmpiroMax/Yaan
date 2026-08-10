@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:25:17
+Last updated: 10:08:2026 - 20:41:06
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 10:08:2026 - 12:10:00: evaluate_body_pose applies the joint limits at every exit.
 - 10:08:2026 - 20:00:23: Clip selection reads BodyDrive::gait; speed now only answers 'are the feet moving at all'.
 - 10:08:2026 - 20:25:17: the showcase reel reads gait_run_weight instead of literal 0.0/1.0 run weights.
+- 10:08:2026 - 20:41:06: the gear weight is eased over GAIT_BLEND_TIME_S in update_bodies; evaluate_body_pose reads the eased value.
 */
 
 #include "engine/anim/sources/Body.h"
@@ -45,6 +46,13 @@ namespace {
 
 // Locomotion blending (procedural asset data, see Clips.cpp header ruling).
 constexpr float GAIT_FULL_AT_FRAC = 0.3f;  // full gait by this fraction of WALK_SPEED
+constexpr float GAIT_BLEND_TIME_S = 0.20f; // time constant for the gear blend.
+    // Sized against the stride, not picked for feel: a walk step lasts
+    // step_length(1.8) / 1.8 = 0.54 s, so 0.20 s settles most of the change
+    // inside the stride the player changed gear in, and the eye's 0.132 m of
+    // travel is spread to ~0.66 m/s — about a tenth of running speed, i.e.
+    // under the camera motion already on screen. Exponential, matching the
+    // easing sim's fov_scale already uses, so the two read the same way.
 constexpr float LAND_DIP_DECAY_PER_S = 4.0f;   // ~0.25 s dip
 constexpr float LAND_DIP_FULL_AT_MPS = 6.0f;   // impact speed for a full dip
 // Showcase: jump mini-cycle timing (seconds) and clip dwell.
@@ -156,7 +164,10 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
     const auto walk_speed = static_cast<float>(config::WALK_SPEED);
     const float gait_w =
         std::clamp(drive.speed_mps / (GAIT_FULL_AT_FRAC * walk_speed), 0.0f, 1.0f);
-    const float run_w = gait_run_weight(drive.gait);
+    // THE EASED weight, not gait_run_weight(gait) — update_bodies advances it,
+    // and the app hands the SAME float to eye_lean_offset so the eye and the
+    // trunk lean together at every instant of a transition (see BodyDrive).
+    const float run_w = drive.run_weight;
     LocalPose pose = idle_pose(drive.anim_time_s);
     if (gait_w > 0.0f) {
         pose = blend(pose,
@@ -246,6 +257,10 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         }
         drive.anim_time_s += dt;
         drive.land_dip = std::max(0.0f, drive.land_dip - LAND_DIP_DECAY_PER_S * dt);
+        // The gear blend: one eased number, read by the trunk here and by
+        // sim's camera through the app's ferry.
+        drive.run_weight += (gait_run_weight(drive.gait) - drive.run_weight)
+                          * (1.0f - std::exp(-dt / GAIT_BLEND_TIME_S));
         if (drive.showcase_clip != SHOWCASE_NONE) {
             drive.showcase_time_s += dt;
         }
