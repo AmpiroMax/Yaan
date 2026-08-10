@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 20:28:17
+Last updated: 10:08:2026 - 21:06:27
 Module: tests
 File: tests/sim/InteractionTests.cpp
 
@@ -29,6 +29,14 @@ UPD:
 - 09:08:2026 - 20:28:17: Carried-light bridge case, pinning the hand
                          offset above the feet (a "down from the origin"
                          offset would bury the light).
+- 10:08:2026 - 21:06:27: UNBLOCKED. core's BinaryReader/BinaryWriter are
+                         implemented (sim, under a lead carve), so the two
+                         persistence cases below now LINK and RUN as authored —
+                         DFN_SIM_HAVE_BINARY_IO defaults to 1. Not one
+                         assertion in them was edited: they were written before
+                         the implementation existed and by a different pass,
+                         which is what makes them evidence rather than a
+                         restatement of the code.
 */
 
 #include <doctest/doctest.h>
@@ -457,14 +465,18 @@ TEST_CASE("torch: the carried light mirrors the held state for render") {
 
 // --- Persistence -------------------------------------------------------------
 //
-// BLOCKED, NOT SKIPPED: core's BinaryReader/BinaryWriter are declared but not
-// yet implemented (serialization IO has been deferred each stage in favour of
-// the in-memory generator path), so these two cases cannot LINK today. They are
-// written, reviewed and ready: flip DFN_SIM_HAVE_BINARY_IO to 1 the day core
-// lands the IO and they run as-is. Until then gameplay state is serializable in
-// code but proven only by inspection — recorded in the report, not hidden here.
+// WAS BLOCKED, NOW LIVE. These two cases were written, reviewed and compiled
+// out for two days because core's BinaryReader/BinaryWriter were declaration
+// only. The IO landed and the switch below is now 1; the cases run exactly as
+// they were authored, with no assertion touched. That ordering is the point:
+// they are a check written against the CONTRACT before any implementation
+// existed to be accidentally described.
+//
+// The round trip's Rule 30 control is not here but in SaveFormatTests.cpp — a
+// second payload that must restore to DIFFERENT values, because a reader that
+// returned a fixed struct would sail through the case below.
 #ifndef DFN_SIM_HAVE_BINARY_IO
-#define DFN_SIM_HAVE_BINARY_IO 0
+#define DFN_SIM_HAVE_BINARY_IO 1
 #endif
 
 #if DFN_SIM_HAVE_BINARY_IO

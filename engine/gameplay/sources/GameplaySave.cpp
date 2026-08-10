@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 10:08:2026 - 21:07:24
 Module: engine/gameplay
 File: engine/gameplay/sources/GameplaySave.cpp
 
@@ -9,12 +9,13 @@ Responsibility:
   registration with world::SaveDeltaCodec.
 
 Key items:
-- write/read_inventory_section, write/read_interactables_section,
-  register_gameplay_save_sections.
+- write/read_inventory_section, write/read_interactables_section.
 
 Dependencies:
-- Uses: GameplaySave.h, core ecs World, Inventory.h, Interaction.h, SaveDelta.
-- Used by: engine/app, tests.
+- Uses: GameplaySave.h, core ecs World, Inventory.h, Interaction.h.
+- Used by: engine/app, tests. (Codec registration lives in
+  GameplaySaveRegistration.cpp — see its header for why the split is load
+  bearing rather than cosmetic.)
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -24,6 +25,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial implementation.
+- 10:08:2026 - 21:07:24: register_gameplay_save_sections moved to
+  GameplaySaveRegistration.cpp. It was the only reference in this file to
+  world::SaveDeltaCodec, which has no implementation yet, so every consumer of
+  a SECTION was dragging a missing codec symbol into its link — that is what
+  kept the two authored round-trip tests unlinkable even after the Binary IO
+  landed. The sections themselves are unchanged.
 */
 
 #include "engine/gameplay/sources/GameplaySave.h"
@@ -33,7 +40,6 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/Interaction.h"
 #include "engine/gameplay/sources/Inventory.h"
-#include "engine/world/sources/SaveDelta.h"
 
 namespace dfn::gameplay {
 
@@ -176,17 +182,6 @@ bool read_interactables_section(serialization::BinaryReader& reader, ecs::World&
         }
     }
     return reader.ok();
-}
-
-// --- Registration ------------------------------------------------------------
-
-void register_gameplay_save_sections(world::SaveDeltaCodec& codec) {
-    codec.register_section(world::SaveSectionHooks{
-        SECTION_INVENTORY, INVENTORY_SECTION_VERSION, write_inventory_section,
-        read_inventory_section});
-    codec.register_section(world::SaveSectionHooks{
-        SECTION_INTERACTABLES, INTERACTABLES_SECTION_VERSION,
-        write_interactables_section, read_interactables_section});
 }
 
 } // namespace dfn::gameplay

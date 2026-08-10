@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 22:21:30
+# Last updated: 10:08:2026 - 21:13:08
 # File: engine/gameplay/CMakeLists.txt
 #
 # Responsibility:
@@ -27,10 +27,15 @@
 #                          solid, built from the triangles render draws (hence
 #                          the new dfn_render link; those builders are pure
 #                          geometry and pull in no third-party library).
+# - 10:08:2026 - 21:13:08: GameplaySaveRegistration.cpp — the codec
+#                          registration split out of GameplaySave.cpp so that
+#                          using a save SECTION no longer drags in the
+#                          not-yet-implemented world::SaveDeltaCodec symbol.
 
 add_library(dfn_gameplay STATIC
     sources/Dice.cpp
     sources/GameplaySave.cpp
+    sources/GameplaySaveRegistration.cpp
     sources/HeldItem.cpp
     sources/InteractableSpawn.cpp
     sources/InteractionSystem.cpp

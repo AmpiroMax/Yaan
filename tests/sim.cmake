@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 22:34:38
+# Last updated: 10:08:2026 - 21:13:08
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -30,6 +30,14 @@
 #                          ceiling, and the cliff-vs-jump invariant).
 # - 09:08:2026 - 22:27:49: Added sim_prop_collision (buildings and boulders).
 # - 09:08:2026 - 22:34:38: Added sim_view_model (hand anchor, inventory state).
+# - 10:08:2026 - 21:13:08: Added sim_save_format — the save CONTAINER's own
+#                          suite (byte-exact grammar + endianness, the
+#                          committed fixture that proves an older build's file
+#                          still loads, skip-unknown, fail-soft truncation, and
+#                          the two misuse latches). Registered here rather than
+#                          in core.cmake because sim implemented the IO under a
+#                          lead carve; it moves to tests/core/ when core takes
+#                          serialization back.
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -89,3 +97,10 @@ add_dfn_test(sim_playtest sim/PlaytestTests.cpp
 # curve. A measurement, not a gate — no wall-clock threshold (Rule 38).
 add_dfn_test(sim_collision_cost sim/CollisionCostTests.cpp
     dfn_physics dfn_platform_physics dfn_world dfn_core)
+
+# The save container itself (engine/core/serialization), implemented by sim
+# under a lead carve. DFN_REPO_ROOT locates the committed byte-exact fixture.
+add_dfn_test(sim_save_format sim/SaveFormatTests.cpp
+    dfn_core dfn_gameplay)
+target_compile_definitions(sim_save_format PRIVATE
+    DFN_REPO_ROOT="${CMAKE_SOURCE_DIR}")

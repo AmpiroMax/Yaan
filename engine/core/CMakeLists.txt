@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 01:58:00
+# Last updated: 10:08:2026 - 21:05:44
 # File: engine/core/CMakeLists.txt
 #
 # Responsibility:
@@ -20,6 +20,12 @@
 #                          implementations (serialization IO deferred;
 #                          ContentHash built for the determinism test).
 # - 10:08:2026 - 01:58:00: JSON reader (serialization/Json) — tech-debt task 3.
+# - 10:08:2026 - 21:05:44: BinaryWriter/BinaryReader implementations
+#                          (Rule 7 container IO). Written by sim under an
+#                          explicit lead carve of this zone: the save path was
+#                          declaration-only, six files could not link against
+#                          it, and two authored round-trip tests were compiled
+#                          out. Two source lines below, nothing else changed.
 
 add_library(dfn_core STATIC
     ecs/sources/World.cpp
@@ -28,6 +34,8 @@ add_library(dfn_core STATIC
     math/sources/Frustum.cpp
     math/sources/Intersect.cpp
     math/sources/Ray.cpp
+    serialization/sources/BinaryReader.cpp
+    serialization/sources/BinaryWriter.cpp
     serialization/sources/ContentHash.cpp
     serialization/sources/Json.cpp
     time/sources/Clock.cpp
