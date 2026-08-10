@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: tests
 File: tests/character/RigPoseTests.cpp
 
@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial suite.
+- 10:08:2026 - 12:10:00: Stance convergence + hinge-limit suites, each with its control; FK heights now assert the soles on the ground.
 */
 
 #include <doctest/doctest.h>
@@ -33,6 +34,7 @@ UPD:
 #include <glm/mat4x4.hpp>
 
 #include "engine/anim/sources/BodyMesh.h"
+#include "engine/anim/sources/Clips.h"
 #include "engine/anim/sources/Pose.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/core/config/sources/Constants.h"
@@ -80,19 +82,70 @@ TEST_CASE("rest pose FK puts joints at the config heights") {
     const auto m = fk_rest(rig);
     const auto& p = rig.proportions;
 
-    CHECK(joint_pos(m, Bone::Pelvis).y == doctest::Approx(p.hip_height));
-    CHECK(joint_pos(m, Bone::Head).y == doctest::Approx(p.neck_height));
-    CHECK(joint_pos(m, Bone::UpperArmL).y == doctest::Approx(p.shoulder_height));
-    CHECK(joint_pos(m, Bone::ShinL).y == doctest::Approx(p.knee_height));
+    // THE SOLES STAY ON THE GROUND, which is the assertion the whole leg
+    // convergence has to survive: converged legs span less vertical distance,
+    // so the pelvis rides standing_hip_height (~7 mm under the anthropometric
+    // hip_height) and the ANKLES come out exactly on their row. Checking the
+    // hip against hip_height instead would have hidden a floating figure.
+    CHECK(joint_pos(m, Bone::Pelvis).y == doctest::Approx(p.standing_hip_height()));
     CHECK(joint_pos(m, Bone::FootL).y == doctest::Approx(p.ankle_height));
     CHECK(joint_pos(m, Bone::FootR).y == doctest::Approx(p.ankle_height));
+    CHECK(p.standing_hip_height() < p.hip_height);          // it really does dip
+    CHECK(p.hip_height - p.standing_hip_height() < 0.02f);   // ...but only barely
+    CHECK(joint_pos(m, Bone::Head).y
+          == doctest::Approx(p.standing_hip_height() + p.torso_length()));
+    CHECK(joint_pos(m, Bone::UpperArmL).y
+          == doctest::Approx(p.standing_hip_height() + p.shoulder_height
+                             - p.hip_height));
     // Wrists hang at shoulder minus the arm chain.
     CHECK(joint_pos(m, Bone::HandL).y
-          == doctest::Approx(p.shoulder_height - p.upper_arm_length
+          == doctest::Approx(p.standing_hip_height() + p.shoulder_height
+                             - p.hip_height - p.upper_arm_length
                              - p.forearm_length));
     // Left is -X at yaw 0 (docs/RIG.md); hips half a hip-width out.
     CHECK(joint_pos(m, Bone::ThighL).x == doctest::Approx(-p.hip_width * 0.5f));
     CHECK(joint_pos(m, Bone::ThighR).x == doctest::Approx(p.hip_width * 0.5f));
+}
+
+TEST_CASE("the legs converge to the stance row (user note: feet too far apart)") {
+    const auto p = RigProportions::from_config();
+    const Rig rig = Rig::build(p);
+    const auto m = fk_rest(rig);
+
+    // THE THING THE USER LOOKED AT: how far apart the feet are. The hips stay
+    // a full hip-breadth apart at the top, the ankles close to the stance row.
+    const float ankles = joint_pos(m, Bone::FootR).x - joint_pos(m, Bone::FootL).x;
+    CHECK(ankles == doctest::Approx(p.stance_width).epsilon(1e-3));
+    CHECK(ankles < p.hip_width * 0.5f); // it really is a NARROW stance now
+    const float hips = joint_pos(m, Bone::ThighR).x - joint_pos(m, Bone::ThighL).x;
+    CHECK(hips == doctest::Approx(p.hip_width)); // ...and the pelvis did not shrink
+
+    // THE MODEL CHECK (Rule 30 in the "prove it is not fitted" direction): the
+    // convergence is DERIVED from the stance, and it must land in the band real
+    // femoral obliquity occupies. A stance row that pushes it outside means hip
+    // width or leg length moved without anyone rethinking the model.
+    const float deg = p.leg_convergence() * 180.0f / 3.14159265f;
+    CHECK(deg > 5.0f);
+    CHECK(deg < 12.0f);
+
+    // CONTROL: the rejected instance is the old rig — legs hung straight down
+    // from the hip pivots, which is what a stance equal to the hip breadth
+    // means. It must produce no convergence and the wide stance the user
+    // complained about, so this test would have failed to notice the defect.
+    RigProportions wide = p;
+    wide.stance_width = wide.hip_width;
+    CHECK(wide.leg_convergence() == doctest::Approx(0.0f));
+    const auto wm = fk_rest(Rig::build(wide));
+    CHECK(joint_pos(wm, Bone::FootR).x - joint_pos(wm, Bone::FootL).x
+          == doctest::Approx(wide.hip_width));
+
+    // CONTROL: the feet must not merge into one block. This is the constraint
+    // that forced SHIN_ANKLE_TAPER — at the old constant calf width the two
+    // legs would intersect at this stance, and nothing else would have said so.
+    const auto foot = build_body_segment_mesh(Bone::FootL, p);
+    CHECK(foot.bounds_max.x - foot.bounds_min.x < ankles);
+    const auto shin = build_body_segment_mesh(Bone::ShinL, p);
+    CHECK(shin.bounds_max.x - shin.bounds_min.x < p.hip_width);
 }
 
 TEST_CASE("yaw convention matches sim: forward = (sin yaw, 0, -cos yaw)") {
@@ -228,4 +281,97 @@ TEST_CASE("every bone builds a non-empty segment mesh with sane bounds") {
     // Mesh id arithmetic pins the range agreed with render (34..48, spare 49).
     CHECK(body_segment_mesh_id(Bone::Pelvis) == 34);
     CHECK(body_segment_mesh_id(Bone::FootR) == 48);
+}
+
+TEST_CASE("hinges are hinges: knees and elbows cannot bend backwards") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto knee_lo = -static_cast<float>(config::BODY_KNEE_FLEX_MAX);
+    const auto knee_hi = static_cast<float>(config::BODY_KNEE_HYPEREXT_MAX);
+    const auto elbow_lo = -static_cast<float>(config::BODY_ELBOW_HYPEREXT_MAX);
+    const auto elbow_hi = static_cast<float>(config::BODY_ELBOW_FLEX_MAX);
+    const auto ax = glm::vec3{1.0f, 0.0f, 0.0f};
+    const auto angle_of = [](const glm::quat& q) {
+        const float w = q.w < 0.0f ? -q.w : q.w;
+        const float x = q.w < 0.0f ? -q.x : q.x;
+        return 2.0f * std::atan2(x, w);
+    };
+
+    // CONTROL (Rule 30), and it is the user's actual complaint: a limb bent the
+    // wrong way. Both joints, both directions — a range is two assertions, and
+    // the two joints run in OPPOSITE senses, so a single-sign implementation
+    // would pass one of these and fail the other.
+    LocalPose bad;
+    bad.rotation[bone_index(Bone::ShinL)] = glm::angleAxis(1.0f, ax);   // knee back
+    bad.rotation[bone_index(Bone::ForearmL)] = glm::angleAxis(-1.0f, ax); // elbow back
+    bad.rotation[bone_index(Bone::ShinR)] = glm::angleAxis(-3.0f, ax);  // knee folded past the heel
+    bad.rotation[bone_index(Bone::ForearmR)] = glm::angleAxis(3.0f, ax); // elbow past the shoulder
+    // Before: every one of these is out of range, i.e. the check can fail.
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ShinL)]) > knee_hi);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ForearmL)]) < elbow_lo);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ShinR)]) < knee_lo);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ForearmR)]) > elbow_hi);
+
+    apply_joint_limits(rig, bad);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ShinL)]) <= knee_hi + 1e-5f);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ForearmL)]) >= elbow_lo - 1e-5f);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ShinR)]) >= knee_lo - 1e-5f);
+    CHECK(angle_of(bad.rotation[bone_index(Bone::ForearmR)]) <= elbow_hi + 1e-5f);
+
+    // A hinge has ONE axis. Yaw and roll handed to a knee are not reduced, they
+    // are removed: a knee that can twist is its own kind of creepy.
+    LocalPose twisted;
+    twisted.rotation[bone_index(Bone::ShinL)] =
+        glm::angleAxis(0.8f, glm::normalize(glm::vec3{0.3f, 1.0f, 0.4f}));
+    apply_joint_limits(rig, twisted);
+    const glm::quat k = twisted.rotation[bone_index(Bone::ShinL)];
+    CHECK(std::abs(k.y) < 1e-5f);
+    CHECK(std::abs(k.z) < 1e-5f);
+
+    // Free bones are left alone — the limit must not quietly flatten a
+    // shoulder, which is a ball joint and has to stay one.
+    LocalPose free_pose;
+    const glm::quat shoulder =
+        glm::angleAxis(0.7f, glm::normalize(glm::vec3{0.2f, 0.5f, 1.0f}));
+    free_pose.rotation[bone_index(Bone::UpperArmL)] = shoulder;
+    apply_joint_limits(rig, free_pose);
+    CHECK(free_pose.rotation[bone_index(Bone::UpperArmL)].y
+          == doctest::Approx(shoulder.y));
+
+    // Idempotent: a legal pose survives the clamp untouched, so applying it at
+    // several layers cannot drift a clip.
+    LocalPose once = bad;
+    apply_joint_limits(rig, once);
+    CHECK(angle_of(once.rotation[bone_index(Bone::ShinR)])
+          == doctest::Approx(angle_of(bad.rotation[bone_index(Bone::ShinR)])));
+}
+
+TEST_CASE("every shipped clip stays inside the joint limits") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto knee_hi = static_cast<float>(config::BODY_KNEE_HYPEREXT_MAX);
+    const auto elbow_lo = -static_cast<float>(config::BODY_ELBOW_HYPEREXT_MAX);
+    const float step = static_cast<float>(config::STEP_LENGTH_BASE)
+                     + static_cast<float>(config::STEP_LENGTH_PER_MPS)
+                           * static_cast<float>(config::WALK_SPEED);
+    const auto angle_of = [](const glm::quat& q) {
+        const float w = q.w < 0.0f ? -q.w : q.w;
+        const float x = q.w < 0.0f ? -q.x : q.x;
+        return 2.0f * std::atan2(x, w);
+    };
+    // The clips must be HONEST, not merely corrected: these are the raw poses,
+    // before the rig's clamp is applied. The walk clip failed this by 33.4 deg
+    // when the user reported it, and the fix was the forefoot rocker, not a
+    // wider limit.
+    for (int i = 0; i <= 64; ++i) {
+        const float t = static_cast<float>(i) / 64.0f;
+        const LocalPose clips[] = {gait_pose(rig, t, step, 0.0f),
+                                   gait_pose(rig, t, step, 1.0f),
+                                   idle_pose(t * 6.0f), wave_pose(t * 4.0f),
+                                   flex_pose(t * 4.0f), air_pose(8.0f * (t - 0.5f))};
+        for (const LocalPose& p : clips) {
+            CHECK(angle_of(p.rotation[bone_index(Bone::ShinL)]) <= knee_hi + 1e-4f);
+            CHECK(angle_of(p.rotation[bone_index(Bone::ShinR)]) <= knee_hi + 1e-4f);
+            CHECK(angle_of(p.rotation[bone_index(Bone::ForearmL)]) >= elbow_lo - 1e-4f);
+            CHECK(angle_of(p.rotation[bone_index(Bone::ForearmR)]) >= elbow_lo - 1e-4f);
+        }
+    }
 }

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial implementation (gait keyed to sim's phases).
+- 10:08:2026 - 12:10:00: The stance knee no longer hyperextends (was 33.4 deg) and the foot rolls over the toe instead - the forefoot rocker, 22.4 deg at full swing.
 */
 
 #include "engine/anim/sources/Clips.h"
@@ -47,6 +48,9 @@ constexpr float THIGH_SWING_MAX_SIN = 0.55f; // cap on sin(thigh amplitude): an
     // KNOWN v1 LIMIT, recorded: at sim's step model the visual reach covers
     // roughly half the actual step at 3 m/s, so fast feet slide somewhat;
     // honest fix is slower WALK_SPEED (movement grill) or hip translation.
+// Fraction of the foot behind the ankle; mirrors BodyMesh FOOT_HEEL_RATIO so
+// the toe used by the rocker is the toe that is drawn.
+constexpr float FOOT_HEEL_FRAC = 0.25f;
 constexpr float SWING_LIFT = 0.6f;        // rad, swing-knee clearance on a
     // sqrt envelope (below): ~7 cm of foot lift mid-swing, and a SHARP
     // arrival — the sqrt makes approach height linear in phase, so the
@@ -58,16 +62,24 @@ constexpr float ELBOW_SWING = 0.35f;      // rad, extra flex as the arm swings f
 // THE GAIT MODEL ("wheel gait"), chosen after the compass-pendulum model
 // measurably failed (swing foot penetrated the ground on approach and the
 // plant instant was a soft quadratic kiss no threshold could pin):
-//   - STANCE: the SHIN STAYS VERTICAL (knee = -thigh), which grounds the
-//     ankle EXACTLY for every stance angle by construction:
-//     ankle_y = hip + dy - T*cos(th) - S = ground, with the derived pelvis
-//     arc dy = T*(cos(th)-1). One mechanism gives grounded feet, the bob,
-//     and both bob minima exactly on the FOOTFALL_PHASE rows.
 //   - SWING: knee = -thigh - SWING_LIFT*sqrt(max(0,cos(2pi*lp))): clearance
 //     is S*(1-cos(lift)), strictly positive through swing, EXACTLY zero at
-//     both stance endpoints — the foot can never penetrate, touches down
-//     exactly at local 0.25 and releases exactly at local 0.75 (which IS the
-//     other foot's plant: single-support walking).
+//     both stance endpoints — the foot can never penetrate and touches down
+//     exactly at local 0.25.
+//   - STANCE: originally the SHIN WAS HELD VERTICAL (knee = -thigh), which
+//     grounded the ankle exactly for every stance angle. IT ALSO BENT THE KNEE
+//     BACKWARDS by up to 33.4 deg, because holding a shin vertical under a
+//     thigh that has swung behind you is not something a leg can do — the user
+//     saw it and called it creepy (10:08:2026). The knee is now capped at
+//     BODY_KNEE_HYPEREXT_MAX and the foot rolls over the toe instead (the
+//     forefoot rocker in leg_angles): the heel lifts, the toe stays down, and
+//     the ankle is free to rise. 22.4 deg of toe-off at full swing, against a
+//     real 20-25.
+//   - CONSEQUENCE, and it is a contract change: release is no longer the
+//     instant the other foot plants. Toe-off comes AFTER the other foot is
+//     down — that overlap is DOUBLE SUPPORT and it is what walking is. The
+//     footfall test asserts it, and it measures the SOLE, because once the
+//     heel lifts the ankle stops being a witness to ground contact.
 // Heel-strike shin-vertical posture and a knee-absorbed arc are also what
 // real gait does (Winter's stance-knee flexion determinant), so this is not
 // only the testable model but the more anatomical one.
@@ -122,18 +134,51 @@ struct LegAngles {
 // right — the left/right assignment itself comes from the FOOTFALL_PHASE_*
 // rows in gait_pose()). amp_ratio scales the swing lift so a standstill has
 // straight legs (asserted by ClipTests).
-[[nodiscard]] LegAngles leg_angles(float lp, float thigh_amp, float amp_ratio) {
+[[nodiscard]] LegAngles leg_angles(const RigProportions& p, float lp, float thigh_amp,
+                                  float amp_ratio, float pelvis_dy) {
     LegAngles a;
     const float s = std::sin(TWO_PI * lp);
     a.thigh = thigh_amp * s; // forward-max exactly at local 0.25 (the plant)
-    // Knee = -thigh keeps the shin vertical (grounded through stance, see
-    // the model note above); the sqrt-envelope lift clears the swing foot
-    // and is exactly zero at both stance endpoints.
+    // Knee = -thigh WOULD hold the shin vertical, which is how this clip kept
+    // the planted foot down — and it is why the knees bent BACKWARDS (user,
+    // 10:08:2026: «не должны выгибаться обратно»). Holding a shin vertical
+    // while the thigh swings back is anatomically impossible: it opens the knee
+    // by exactly the thigh's swing, measured at 33.4 deg. The sqrt envelope
+    // lifts the swing foot and is exactly zero at both stance endpoints.
     const float env = std::max(0.0f, std::cos(TWO_PI * lp));
-    a.knee = -a.thigh - SWING_LIFT * amp_ratio * std::sqrt(env);
-    // Foot counter-rotates the whole chain: flat through stance (shin is
-    // vertical there), near-flat through swing.
-    a.foot = -(a.thigh + a.knee);
+    const float want = -a.thigh - SWING_LIFT * amp_ratio * std::sqrt(env);
+    // Flexion is NEGATIVE for a knee, so hyperextension is the UPPER bound.
+    // The rig clamps this too; this is the clip being honest rather than being
+    // corrected, so that the rig's clamp stays a guarantee and not a crutch.
+    a.knee = std::min(want, static_cast<float>(config::BODY_KNEE_HYPEREXT_MAX));
+    a.foot = -(a.thigh + a.knee); // flat: cancels the chain above it
+
+    // THE FOREFOOT ROCKER, and it is only meaningful in STANCE (env == 0 there
+    // by construction, which is the same test the swing lift already uses).
+    // Refusing the hyperextension straightens the stance leg, which lifts the
+    // ankle; a real leg answers by lifting the HEEL and rolling over the toe.
+    // Pitch the foot until the toe is back on the ground: solve
+    // ankle_h*cos(phi) + toe*sin(phi) = ankle_y. At full swing this asks for
+    // 22.4 deg and real toe-off is 20-25, which is the check that the model is
+    // right rather than merely fitted.
+    if (env <= 0.0f) {
+        // The leg is also tilted INWARD by the stance convergence, which
+        // shortens its vertical reach by cos(theta). standing_hip_height()
+        // already pays for that at rest, so leaving it out here double-counted
+        // it and left the toe hovering 7 mm — sub-pixel in a frame, and caught
+        // only because the contact test measures the sole to a millimetre.
+        const float lean = std::cos(p.leg_convergence());
+        const float ankle_y = p.standing_hip_height() + pelvis_dy
+                            - lean * (p.thigh_length() * std::cos(a.thigh)
+                                      + p.shin_length() * std::cos(a.thigh + a.knee));
+        const float toe = p.foot_length * (1.0f - FOOT_HEEL_FRAC);
+        const float reach = std::sqrt(p.ankle_height * p.ankle_height + toe * toe);
+        if (ankle_y > p.ankle_height && reach > 1.0e-4f) {
+            const float ratio = std::clamp(ankle_y / reach, -1.0f, 1.0f);
+            const float phi = std::asin(ratio) - std::atan2(p.ankle_height, toe);
+            a.foot -= std::max(0.0f, phi); // heel up, toe down
+        }
+    }
     return a;
 }
 
@@ -170,8 +215,11 @@ LocalPose gait_pose(const Rig& rig, float phase, float step_length_m, float run_
     const float amp_ratio = sin_a / THIGH_SWING_MAX_SIN;
     const float thigh_len = std::max(0.01f, pr.thigh_length());
 
-    const LegAngles left = leg_angles(pl, amp, amp_ratio);
-    const LegAngles right = leg_angles(pr_, amp, amp_ratio);
+    // The pelvis arc is needed BEFORE the legs now: the forefoot rocker asks
+    // how high the ankle actually is, and that depends on where the pelvis is.
+    const float dy = thigh_len * (std::cos(amp * std::sin(TWO_PI * pl)) - 1.0f);
+    const LegAngles left = leg_angles(pr, pl, amp, amp_ratio, dy);
+    const LegAngles right = leg_angles(pr, pr_, amp, amp_ratio, dy);
     p.rotation[bone_index(Bone::ThighL)] = pitch(left.thigh);
     p.rotation[bone_index(Bone::ShinL)] = pitch(left.knee);
     p.rotation[bone_index(Bone::FootL)] = pitch(left.foot);
@@ -184,8 +232,6 @@ LocalPose gait_pose(const Rig& rig, float phase, float step_length_m, float run_
     // Minima land exactly on the plants, the maximum on mid-stance, and the
     // planted foot sits on the ground through stance BY CONSTRUCTION rather
     // than by a second tuned number.
-    const float dy =
-        thigh_len * (std::cos(amp * std::sin(TWO_PI * pl)) - 1.0f);
     const float sway = std::sin(TWO_PI * (phase - left_phase));
     p.pelvis_offset = {-SWAY_M * sway, dy, 0.0f};
 

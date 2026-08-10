@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: tests
 File: tests/character/ClipTests.cpp
 
@@ -24,6 +24,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial gait-contract suite.
+- 10:08:2026 - 12:10:00: Contact is measured at the SOLE against the ground, not at the ankle against its own minimum; double support replaces the single-support release assertion.
 */
 
 #include <doctest/doctest.h>
@@ -53,12 +54,24 @@ constexpr int SAMPLES = 400; // phase resolution 0.0025 — an order finer than
 
 // Ankle-joint height of `foot` at `phase` (phase_shift models the broken
 // clip the control needs).
-[[nodiscard]] float ankle_height(const Rig& rig, Bone foot, float phase,
-                                 float step, float phase_shift = 0.0f) {
+// THE LOWEST POINT OF THE SOLE, not the ankle joint. The distinction became
+// load-bearing the moment the walk grew a forefoot rocker: through late stance
+// the heel lifts and the ANKLE climbs while the TOE is still planted, so an
+// ankle-height reading calls the foot airborne a fifth of a cycle before it
+// leaves the ground. "In contact" means the sole touches; measure the sole.
+[[nodiscard]] float sole_height(const Rig& rig, Bone foot, float phase,
+                                float step, float phase_shift = 0.0f) {
     const LocalPose pose = gait_pose(rig, phase + phase_shift, step, 0.0f);
     std::array<glm::mat4, BONE_COUNT> m;
     forward_kinematics(rig, pose, {}, m);
-    return m[bone_index(foot)][3].y;
+    const auto& p = rig.proportions;
+    const float heel = p.foot_length * 0.25f; // BodyMesh FOOT_HEEL_RATIO
+    float lowest = 1e9f;
+    for (const float z : {heel, -(p.foot_length - heel)}) {
+        const glm::vec4 corner{0.0f, -p.ankle_height, z, 1.0f};
+        lowest = std::min(lowest, (m[bone_index(foot)] * corner).y);
+    }
+    return lowest;
 }
 
 // TOUCH-DOWN / RELEASE phases: the edges of the foot's ground-contact run —
@@ -73,11 +86,9 @@ struct ContactEdges {
 [[nodiscard]] ContactEdges contact_edges(const Rig& rig, Bone foot, float step,
                                          float phase_shift = 0.0f) {
     std::array<float, SAMPLES> h{};
-    float lowest = 1e9f;
     for (int i = 0; i < SAMPLES; ++i) {
-        h[static_cast<size_t>(i)] = ankle_height(
+        h[static_cast<size_t>(i)] = sole_height(
             rig, foot, static_cast<float>(i) / SAMPLES, step, phase_shift);
-        lowest = std::min(lowest, h[static_cast<size_t>(i)]);
     }
     // 1 mm: the sqrt swing envelope makes approach height LINEAR in phase
     // (~0.5 m per cycle), so a 1 mm epsilon leads the true instant by only
@@ -85,7 +96,13 @@ struct ContactEdges {
     // would put the detected edge outside the very tolerance the test
     // asserts — measuring its own epsilon (Rule 36's standing check: when
     // the reading sits near the cutoff, the cutoff is the answer).
+    // ABSOLUTE, measured from the GROUND rather than from the curve's own
+    // minimum. The relative form was self-referential in the way Rule 36 warns
+    // about: a sub-millimetre numerical undershoot at the plant dragged the
+    // threshold down with it and shortened every stance it measured. The sole's
+    // stance height is zero by construction, so zero is the thing to compare to.
     constexpr float contact_eps = 0.001f;
+    constexpr float lowest = 0.0f;
     ContactEdges edges;
     int rises = 0;
     int falls = 0;
@@ -126,15 +143,27 @@ TEST_CASE("feet touch down exactly at the FOOTFALL_PHASE rows sim fires at") {
     const ContactEdges er = contact_edges(rig, Bone::FootR, step);
     CHECK(phase_distance(el.touch_down, left) < TOL);
     CHECK(phase_distance(er.touch_down, right) < TOL);
-    // Single-support walking: one foot's release IS the other's plant.
-    CHECK(phase_distance(el.release, right) < TOL);
-    CHECK(phase_distance(er.release, left) < TOL);
+    // DOUBLE SUPPORT. The old model held the sole flat until the instant the
+    // other foot landed, so release == the other plant. A real walk rolls over
+    // the toe instead, and toe-off comes AFTER the other foot is down — that
+    // overlap is what makes walking walking rather than a series of falls. So
+    // the assertion is no longer equality but the thing that actually matters:
+    // this foot must still be down when the other one plants, and must let go
+    // before its own next touch-down.
+    CHECK(phase_distance(el.release, right) < 0.12f);
+    CHECK(phase_distance(er.release, left) < 0.12f);
+    const float el_stance = std::fmod(el.release - el.touch_down + 1.0f, 1.0f);
+    const float er_stance = std::fmod(er.release - er.touch_down + 1.0f, 1.0f);
+    CHECK(el_stance > 0.5f); // stance outlasts the other foot's arrival
+    CHECK(er_stance > 0.5f);
+    CHECK(el_stance < 0.75f); // ...but this is a walk, not a shuffle
+    CHECK(er_stance < 0.75f);
 
-    // The planted foot then STAYS grounded into stance (the wheel-gait
-    // plateau): a fifth of a cycle after touch-down the ankle is still at
-    // stance height.
-    const float at_plant = ankle_height(rig, Bone::FootL, left, step);
-    const float mid_stance = ankle_height(rig, Bone::FootL, left + 0.2f, step);
+    // The planted foot then STAYS grounded into stance: a fifth of a cycle
+    // after touch-down the SOLE is still on the ground (the ankle above it is
+    // free to rise once the heel lifts, and now does).
+    const float at_plant = sole_height(rig, Bone::FootL, left, step);
+    const float mid_stance = sole_height(rig, Bone::FootL, left + 0.2f, step);
     CHECK(mid_stance == doctest::Approx(at_plant).epsilon(0.02));
 
     // CONTROL (Rule 30): a clip shifted by 0.07 must FAIL the same check.
@@ -154,8 +183,8 @@ TEST_CASE("feet touch down exactly at the FOOTFALL_PHASE rows sim fires at") {
     float lowest = 1e9f;
     for (int i = 0; i < SAMPLES; ++i) {
         lowest = std::min(lowest,
-                          ankle_height(rig, Bone::FootL,
-                                       static_cast<float>(i) / SAMPLES, step));
+                          sole_height(rig, Bone::FootL,
+                                      static_cast<float>(i) / SAMPLES, step));
     }
     CHECK(lowest > at_plant - 0.001f);
 }

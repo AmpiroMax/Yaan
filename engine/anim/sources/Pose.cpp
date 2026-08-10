@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Pose.cpp
 
@@ -19,6 +19,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial implementation.
+- 10:08:2026 - 12:10:00: FK applies rest_rotation and lifts the root by standing_hip_height; apply_joint_limits reduces hinges to one axis and clamps them.
 */
 
 #include "engine/anim/sources/Pose.h"
@@ -39,17 +40,43 @@ void forward_kinematics(const Rig& rig, const LocalPose& pose, const BodyRoot& r
     // Yaw rotation about +Y: sim's convention (yaw 0 -> -Z) equals a rotation
     // of -yaw around +Y in the right-handed frame... verified by test: at yaw 0
     // forward is -Z; positive yaw turns clockwise seen from above (+X first).
+    // standing_hip_height(), not hip_height: converged legs span less vertical
+    // distance than straight ones, so the pelvis rides ~7 mm lower. Taking the
+    // compensation here is what keeps the SOLES on the ground — a straight
+    // hip_height lift would float the whole figure by that much.
     const glm::vec3 pelvis_world =
-        root.ground + glm::vec3{0.0f, rig.proportions.hip_height, 0.0f};
+        root.ground + glm::vec3{0.0f, rig.proportions.standing_hip_height(), 0.0f};
     glm::mat4 root_m = glm::translate(glm::mat4{1.0f}, pelvis_world);
     root_m = glm::rotate(root_m, -root.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
     root_m = glm::translate(root_m, pose.pelvis_offset);
 
     for (uint32_t b = 0; b < BONE_COUNT; ++b) {
         const glm::mat4 local = glm::translate(glm::mat4{1.0f}, rig.rest_offset[b])
+                              * glm::mat4_cast(rig.rest_rotation[b])
                               * glm::mat4_cast(pose.rotation[b]);
         const int8_t parent = BONE_PARENT[b];
         out[b] = (parent < 0 ? root_m : out[static_cast<uint32_t>(parent)]) * local;
+    }
+}
+
+void apply_joint_limits(const Rig& rig, LocalPose& pose) {
+    for (uint32_t b = 0; b < BONE_COUNT; ++b) {
+        const glm::vec2 range = rig.hinge_range[b];
+        if (!std::isfinite(range.x) || !std::isfinite(range.y)) {
+            continue; // a free bone: shoulders, hips, torso, head, ankles
+        }
+        // Swing-twist about X, keeping only the twist: this is what makes a
+        // hinge a hinge. A knee handed a rotation with yaw or roll in it does
+        // not get a "mostly correct" knee, it gets no yaw or roll at all.
+        const glm::quat& q = pose.rotation[b];
+        // q and -q are the same rotation; pick the w>=0 representative so the
+        // extracted angle lands in (-pi, pi] instead of wrapping to its
+        // complement and clamping to the wrong end of the range.
+        const float w = q.w < 0.0f ? -q.w : q.w;
+        const float x = q.w < 0.0f ? -q.x : q.x;
+        const float angle = 2.0f * std::atan2(x, w);
+        const float clamped = glm::clamp(angle, range.x, range.y);
+        pose.rotation[b] = glm::angleAxis(clamped, glm::vec3{1.0f, 0.0f, 0.0f});
     }
 }
 

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Rig.h
 
@@ -33,12 +33,16 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial rig: 15 bones, hierarchy, rest pose from
                          BODY_* rows, mirror table.
+- 10:08:2026 - 12:10:00: stance_width + leg_convergence()/standing_hip_height(); rest_rotation and hinge_range on the Rig.
 */
 
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
+#include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 #include <string_view>
 
@@ -116,7 +120,8 @@ struct RigProportions {
     float foot_length = 0.0f;
     // Widths / thicknesses (segment boxes, LocalBounds).
     float shoulder_width = 0.0f; // biacromial, arm pivots sit at +-half
-    float hip_width = 0.0f;      // leg pivots sit at +-half
+    float hip_width = 0.0f;      // hip breadth: the PELVIS box and the leg PIVOTS
+    float stance_width = 0.0f;   // ankle separation standing; legs converge to it
     float torso_depth = 0.0f;
     float head_width = 0.0f;
     float arm_thickness = 0.0f;
@@ -126,6 +131,26 @@ struct RigProportions {
     [[nodiscard]] float thigh_length() const { return hip_height - knee_height; }
     [[nodiscard]] float shin_length() const { return knee_height - ankle_height; }
     [[nodiscard]] float torso_length() const { return neck_height - hip_height; }
+    [[nodiscard]] float leg_length() const { return hip_height - ankle_height; }
+
+    // LEG CONVERGENCE, derived — never a row of its own (Rule 35: the stance is
+    // the measured thing, the angle follows it). Real legs are oblique: the hip
+    // JOINTS are a hip-breadth apart while a standing adult's ankles are ~0.12 m
+    // apart, so hanging both legs straight down from +-hip_width/2 planted the
+    // feet 0.344 m apart — a wide, comic stance, and the user said so. This is
+    // the inward tilt of the hip->ankle line that closes that gap.
+    [[nodiscard]] float leg_convergence() const {
+        const float reach = (hip_width - stance_width) * 0.5f;
+        return std::asin(std::clamp(reach / std::max(0.01f, leg_length()), -1.0f, 1.0f));
+    }
+    // Hip height once the legs are oblique: a converged leg spans less VERTICAL
+    // distance than a straight one, so the pelvis rides lower by
+    // leg_length*(1-cos) — about 7 mm here. Compensating it in the root lift is
+    // what keeps the soles exactly on the ground, which is a thing the frames
+    // measured (sole at y=242, grass at 243) and must not silently lose.
+    [[nodiscard]] float standing_hip_height() const {
+        return ankle_height + leg_length() * std::cos(leg_convergence());
+    }
 
     // The one place that reads dfn::config for body shape (Rule 14).
     [[nodiscard]] static RigProportions from_config();
@@ -137,6 +162,22 @@ struct RigProportions {
 struct Rig {
     RigProportions proportions;
     std::array<glm::vec3, BONE_COUNT> rest_offset{};
+    // Rest ORIENTATION per bone, applied between the rest offset and the pose
+    // quaternion: model = parent * T(rest_offset) * R(rest_rotation) * R(q).
+    // Identity everywhere would be the old straight-down rest; the legs use it
+    // to converge (see leg_convergence). Clips are unaffected — they are still
+    // deltas from rest, which is exactly why the rest is the place to put it.
+    std::array<glm::quat, BONE_COUNT> rest_rotation{};
+
+    // HINGES ARE HINGES (user note 10:08:2026: knees and elbows «не должны
+    // выгибаться обратно» — it read as creepy, and it was). A finite range here
+    // marks the bone as a one-axis hinge: the pose's rotation for it is reduced
+    // to a pitch about the bone's own X axis and clamped into [x, y] radians.
+    // Everything else is left free. Applied when a pose is EVALUATED rather
+    // than when a clip is authored, so a hyperextended limb is unrepresentable
+    // — including from crouch, the landing dip, the showcase reel and any clip
+    // written after this comment. Infinite range = free bone.
+    std::array<glm::vec2, BONE_COUNT> hinge_range{};
 
     [[nodiscard]] static Rig build(const RigProportions& p);
 };

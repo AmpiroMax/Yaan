@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 11:42:00
+Last updated: 10:08:2026 - 12:05:00
 -->
 <!--
 UPD:
@@ -17,6 +17,10 @@ UPD:
   (63 %, not 100 %), the FOV those angles were computed against (75, not an
   assumed 60), PLAYER_EYE_FORWARD bounded at 0.10 rather than my 0.18 — plus
   the torso-top ruling (a2) and the assertion owed to sim (a3).
+- 10:08:2026 - 12:05:00: USER ACCEPTANCE, four notes: too much chest, more
+  rounded, legs closer together, and joints must not bend backwards. Joint
+  limits now live in the rig, the walk grew a forefoot rocker, the stance row
+  landed, and the segments are bevelled prisms instead of boxes.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -138,6 +142,44 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       Rule 30 control: an eye_forward of head half-depth + 1 cm must fail it.
       Today the relation is 0.10 <= 0.1035 — 3.5 mm of margin, which is
       exactly why it wants a test and not a comment.
+
+   a4. **DONE — THE KNEES BENT BACKWARDS, and the elbows never did.** The user
+      called it «крипово» and he was right. Measured from WORLD joint positions
+      across every shipped clip (quaternion signs lie too easily — my first
+      metric had the elbow inverted and only a raw coordinate dump caught it):
+
+      | clip | knee | elbow |
+      |---|---|---|
+      | walk / run | **−33.4 deg**, hyperextended | +17 .. +63, clean |
+      | jump / air | +51.6 flexion | +17.2, clean |
+      | flex | 0 | +108 (a bicep curl, correct) |
+      | idle | 0 | +8.6, clean |
+
+      CAUSE, and it is construction rather than accident: the walk set
+      `knee = -thigh` to hold the shin VERTICAL through stance, which is what
+      kept the planted foot on the ground. Holding a shin vertical while the
+      thigh swings BACKWARD is anatomically impossible — it opens the knee by
+      exactly the thigh's swing amplitude, which is 33.4 deg. Same shape as the
+      birch: a rule stated for the object that the construction satisfied the
+      wrong way.
+
+      FIX, two halves. (1) The rig carries a hinge RANGE per bone and reduces
+      those bones to one axis when any pose is evaluated, so a hyperextended or
+      twisted knee is UNREPRESENTABLE — covering crouch, the landing dip, the
+      showcase reel and anything authored later, not just today's clips.
+      (2) The walk clip stops asking: the stance knee is capped and the foot
+      rolls over the toe (the forefoot rocker), because clamping alone lifts
+      the ankle 7.3 cm and floats the foot. The rocker asks for 22.4 deg of
+      toe-off and real toe-off is 20-25 — the model landing on a number it was
+      not fitted to, the same check the stance row passed.
+
+      WHAT IT COST ELSEWHERE, recorded because it is a contract change: the
+      old clip released the foot exactly when the other foot planted (single
+      support). A real walk rolls over the toe and lets go AFTER the other foot
+      is down, so the footfall test now asserts double support instead of
+      equality — and it measures the SOLE rather than the ankle, since the heel
+      lifting is precisely what makes the ankle a liar about ground contact.
+      Touch-down, the assertion sim's audio rides on, is untouched at 0.25/0.75.
 
    b. **THE ARMS ARE HALF BURIED IN THE TORSO.** The shoulder joint is at
       +/-`BODY_SHOULDER_WIDTH_FRAC`/2 = 0.233 m — exactly the torso box's own

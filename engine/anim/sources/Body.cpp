@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial implementation.
+- 10:08:2026 - 12:10:00: evaluate_body_pose applies the joint limits at every exit.
 */
 
 #include "engine/anim/sources/Body.h"
@@ -121,11 +122,19 @@ void write_segments(ecs::World& world, const BodyRig& body, const Rig& rig,
 } // namespace
 
 LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
+    // ONE EXIT, so the joint limits cannot be bypassed by adding a branch.
+    // Every early return this function used to have was a way for a future
+    // clip to reach the renderer unclamped.
+    LocalPose out;
     if (drive.showcase_clip != SHOWCASE_NONE) {
-        return showcase_pose(rig, drive.showcase_clip, drive.showcase_time_s);
+        out = showcase_pose(rig, drive.showcase_clip, drive.showcase_time_s);
+        apply_joint_limits(rig, out);
+        return out;
     }
     if (!drive.grounded) {
-        return air_pose(drive.vertical_velocity);
+        out = air_pose(drive.vertical_velocity);
+        apply_joint_limits(rig, out);
+        return out;
     }
     const auto walk_speed = static_cast<float>(config::WALK_SPEED);
     const auto run_speed = static_cast<float>(config::RUN_SPEED);
@@ -142,6 +151,9 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
     }
     apply_crouch(rig, drive.crouch_blend, pose);
     apply_land_dip(rig, drive.land_dip, pose);
+    // LAST, after every layer: crouch and the landing dip both drive the knees,
+    // and a blend of two legal poses is not automatically legal.
+    apply_joint_limits(rig, pose);
     return pose;
 }
 

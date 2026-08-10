@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Pose.h
 
@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial pose math (FK, mirror, blend).
+- 10:08:2026 - 12:10:00: apply_joint_limits declared.
 */
 
 #pragma once
@@ -68,6 +69,13 @@ void forward_kinematics(const Rig& rig, const LocalPose& pose, const BodyRoot& r
 
 // Sagittal mirror: swap L/R bones, (w,x,y,z) -> (w,x,-y,-z) on every rotation,
 // negate pelvis_offset.x. mirror_pose(mirror_pose(p)) == p.
+// HINGES ARE HINGES. Reduces every bone the rig marks as a hinge to a pure
+// rotation about its own X axis and clamps it into the bone's range, in place;
+// free bones are untouched. Called at the END of pose evaluation, so no clip —
+// present or future, authored or blended — can produce a limb bent the wrong
+// way. Idempotent: applying it twice changes nothing.
+void apply_joint_limits(const Rig& rig, LocalPose& pose);
+
 [[nodiscard]] LocalPose mirror_pose(const LocalPose& pose);
 
 // World-space reflection across the vertical mirror plane through plane_point
