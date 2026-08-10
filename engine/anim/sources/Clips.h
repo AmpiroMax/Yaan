@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 20:00:23
 Module: engine/anim
 File: engine/anim/sources/Clips.h
 
@@ -39,6 +39,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial procedural clip set.
+- 10:08:2026 - 20:00:23: anim::Gait + gait_run_weight(): the gear is ferried and looked up, never re-derived from speed (Rules 35, 37).
 */
 
 #pragma once
@@ -76,6 +77,28 @@ void apply_land_dip(const Rig& rig, float dip01, LocalPose& pose);
 // Showcase clips (mirror map's techno-demo mode).
 [[nodiscard]] LocalPose wave_pose(float time_s);
 [[nodiscard]] LocalPose flex_pose(float time_s);
+
+// THE GEAR, ferried from sim's `PlayerState::gait` (the app switches on it
+// explicitly; anim sits below gameplay in the DAG so the two enums exist by
+// construction — see App.cpp's ferry for why a static_cast is refused).
+// Values match gameplay::Gait so a reader can diff the two lists at a glance;
+// NOTHING may rely on that — the ferry is a switch, and it is the only place
+// allowed to know both.
+enum class Gait : uint8_t {
+    Walk = 0, // WALK_SPEED, the strolling default
+    Jog = 1,  // JOG_SPEED
+    Run = 2,  // RUN_SPEED (and the debug sprint)
+};
+
+// The run clip's weight for a gear. AUTHORED PER GEAR, NOT INTERPOLATED, and
+// that is the whole point (Rule 37): the weight used to be
+// (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED), which was right while
+// there were two gears and became a defect the moment JOG_SPEED 3.0 landed
+// between them — jog rendered as a walk leaning 0.286 toward run, a gait
+// nobody chose, produced by a map that was never calibrated for the point it
+// was being asked about. A table cannot acquire an interior point by
+// accident: adding a gear here is a decision someone has to write down.
+[[nodiscard]] float gait_run_weight(Gait gait);
 
 enum class ShowcaseClip : uint8_t {
     Idle = 0,

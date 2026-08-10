@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
+Last updated: 10:08:2026 - 20:00:23
 Module: tests
 File: tests/character/ClipTests.cpp
 
@@ -25,6 +25,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial gait-contract suite.
 - 10:08:2026 - 12:10:00: Contact is measured at the SOLE against the ground, not at the ankle against its own minimum; double support replaces the single-support release assertion.
+- 10:08:2026 - 20:00:23: The wave waves (hand sweep, with the elbow-roll version as the control) + no clip loses motion to the hinge reduction; four doctest::Approx epsilons replaced by explicit metres (lead's broadcast: the admitted band was e*(1+|x|), up to +/-0.27 m on a foot).
 */
 
 #include <doctest/doctest.h>
@@ -32,6 +33,10 @@ UPD:
 #include <array>
 #include <cmath>
 
+#include <glm/common.hpp>
+#include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <glm/mat4x4.hpp>
 
 #include "engine/anim/sources/Clips.h"
@@ -164,7 +169,14 @@ TEST_CASE("feet touch down exactly at the FOOTFALL_PHASE rows sim fires at") {
     // free to rise once the heel lifts, and now does).
     const float at_plant = sole_height(rig, Bone::FootL, left, step);
     const float mid_stance = sole_height(rig, Bone::FootL, left + 0.2f, step);
-    CHECK(mid_stance == doctest::Approx(at_plant).epsilon(0.02));
+    // EXPLICIT METRES, not doctest::Approx (lead's broadcast 10:08:2026, core's
+    // find): Approx(x).epsilon(e) admits e * (scale + max(|lhs|,|rhs|)) with
+    // scale defaulting to 1, so on a quantity this small the "+1" IS the
+    // tolerance and the number in the source says nothing about what passes.
+    // SOLE_STAYS_DOWN is the perceptual bound: at 640x360 with the body a
+    // metre from the eye, a centimetre of sole lift is under a pixel.
+    constexpr float SOLE_STAYS_DOWN = 0.01f; // m
+    CHECK(std::abs(mid_stance - at_plant) < SOLE_STAYS_DOWN);
 
     // CONTROL (Rule 30): a clip shifted by 0.07 must FAIL the same check.
     // 0.07 is ~35 ms at walk cadence — the audible desync magnitude the
@@ -224,7 +236,12 @@ TEST_CASE("gait amplitude follows step length (and is capped)") {
     CHECK(spread(0.9f) > spread(0.5f) + 0.05f);
     // ...but the cap keeps a sprint-multiplier step from a cartoon scissor:
     // beyond the cap the spread stops growing.
-    CHECK(spread(4.0f) == doctest::Approx(spread(3.0f)).epsilon(0.01));
+    // EXACT, and it can be: past the cap both steps clamp to the same
+    // THIGH_SWING_MAX_SIN, so the two spreads are the same float. Measured
+    // difference 0.000000 m. The old Approx(...).epsilon(0.01) admitted
+    // 0.0169 m here (0.01 x (1 + 0.694)) — 1.7 cm of drift on a quantity that
+    // is meant to be bit-identical, which is a different assertion entirely.
+    CHECK(std::abs(spread(4.0f) - spread(3.0f)) < 1.0e-4f);
     // Control: zero step length is a standing pose — no spread beyond the
     // foot boxes themselves.
     CHECK(spread(0.0f) < 0.01f);
@@ -239,12 +256,24 @@ TEST_CASE("crouch folds the legs and keeps feet near the ground") {
     const auto& p = rig.proportions;
     // Pelvis dropped by half the leg (the clip's documented model).
     const float expected_drop = 0.5f * (p.thigh_length() + p.shin_length());
-    CHECK(m[bone_index(Bone::Pelvis)][3].y
-          == doctest::Approx(p.hip_height - expected_drop).epsilon(0.01));
-    // Ankles stay near their rest height: the fold is what keeps the feet
-    // planted instead of dangling (two-link geometry, not a magic offset).
-    CHECK(m[bone_index(Bone::FootL)][3].y
-          == doctest::Approx(p.ankle_height).epsilon(0.25));
+    // 1 cm, EXPLICIT. The residual is 7.3 mm and it has a cause rather than
+    // being noise: the fold's arithmetic is planar, while the legs also lean
+    // inward by leg_convergence(), which shortens their vertical reach by
+    // cos(theta). Anything past a centimetre means the fold model changed.
+    CHECK(std::abs(m[bone_index(Bone::Pelvis)][3].y - (p.hip_height - expected_drop))
+          < 0.01f);
+    // THE FEET STAY PLANTED — and this is the assertion lead's broadcast
+    // caught (core's find, 10:08:2026). It read
+    // `Approx(p.ankle_height).epsilon(0.25)`, and doctest's tolerance is
+    // e * (scale + max(|lhs|,|rhs|)) with scale = 1, so on an ankle_height of
+    // 0.0702 m the admitted band was +/-0.268 m: a quarter of a metre of
+    // slack on the one property the line names. It could not tell a planted
+    // foot from a dangling one, which is Rule 38 pointed at an assertion —
+    // green on correct code AND green on the defect.
+    // MEASURED: the crouch fold moves the ankle 3.7 mm (same convergence
+    // term as above), so 1 cm passes with 2.7x of margin (Rule 30a) while
+    // sitting two orders below the -0.23 m the no-fold control produces.
+    CHECK(std::abs(m[bone_index(Bone::FootL)][3].y - p.ankle_height) < 0.01f);
     // Control: WITHOUT the fold, the same pelvis drop buries the ankles —
     // the geometry term is load-bearing, not decorative.
     LocalPose no_fold;
@@ -268,4 +297,105 @@ TEST_CASE("air, wave and flex poses are not idle") {
     CHECK(differs(flex_pose(0.0f), idle));
     // Control: idle at the same instant equals itself.
     CHECK_FALSE(differs(idle_pose(0.0f), idle));
+}
+
+// --- THE HINGE DELETES WHAT IT CANNOT REPRESENT ---------------------------
+// User, 10:08:2026: «в анимации махания всё такая же проблема, локоть
+// неестественно двигается». The joint limits DID cover the wave — that was
+// never the gap. The gap is that a hinge does not clamp an off-axis rotation,
+// it DROPS it (Pose.cpp: "a knee handed a rotation with yaw or roll in it
+// gets no yaw or roll at all"), and the wave asked its ELBOW for a roll. So
+// the whole wag was thrown away silently and the arm was a rigid stick.
+//
+// Both checks below assert the OUTCOME (Rule 38): what the eye gets, not
+// which quaternion produced it.
+
+namespace {
+
+[[nodiscard]] glm::vec3 hand_at(const Rig& rig, const LocalPose& raw) {
+    LocalPose pose = raw;
+    apply_joint_limits(rig, pose); // exactly what the renderer receives
+    std::array<glm::mat4, BONE_COUNT> m;
+    forward_kinematics(rig, pose, {}, m);
+    return glm::vec3{m[bone_index(Bone::HandR)][3]};
+}
+
+// The rejected instance, kept as source: the shipped wave up to 10:08:2026.
+[[nodiscard]] LocalPose wave_pose_on_the_elbow(float t) {
+    LocalPose p = idle_pose(t);
+    p.rotation[bone_index(Bone::UpperArmR)] =
+        glm::angleAxis(2.4f, glm::vec3{0.0f, 0.0f, 1.0f});
+    p.rotation[bone_index(Bone::ForearmR)] =
+        glm::angleAxis(0.5f * std::sin(2.0f * glm::pi<float>() * 1.8f * t),
+                       glm::vec3{0.0f, 0.0f, 1.0f})
+        * glm::angleAxis(0.3f, glm::vec3{1.0f, 0.0f, 0.0f});
+    return p;
+}
+
+} // namespace
+
+TEST_CASE("the wave waves: the hand sweeps a visible arc") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto travel = [&](LocalPose (*clip)(float)) {
+        glm::vec3 lo{1e9f};
+        glm::vec3 hi{-1e9f};
+        for (int i = 0; i <= 64; ++i) { // one full 1.8 Hz wag
+            const float t = 4.0f + static_cast<float>(i) / (64.0f * 1.8f);
+            const glm::vec3 h = hand_at(rig, clip(t));
+            lo = glm::min(lo, h);
+            hi = glm::max(hi, h);
+        }
+        return glm::length(hi - lo);
+    };
+    // WHY 0.10 m, and the number is a bracket rather than a taste: a wave has
+    // to be legible on a body a few metres off at 640x360, and 0.10 m at 3 m
+    // is ~11 px of hand travel. Measured, the fixed clip sweeps 0.236 m, so
+    // this passes with 2.4x of margin (Rule 30a: a case that CAN pass).
+    constexpr float VISIBLE_SWEEP = 0.10f; // m
+    CHECK(travel(wave_pose) > VISIBLE_SWEEP);
+
+    // CONTROL (Rule 30), and it is a REAL rejected instance, not a synthetic
+    // one: the shipped wave. Its wag lived on the elbow, the hinge dropped
+    // it, and the hand moved 0.011 m over the whole cycle — every millimetre
+    // of that the idle breath, none of it the wave. The threshold sits 9x
+    // above the defect and 2.4x below the fix.
+    CHECK(travel(wave_pose_on_the_elbow) < VISIBLE_SWEEP);
+    CHECK(travel(wave_pose) > 10.0f * travel(wave_pose_on_the_elbow));
+}
+
+TEST_CASE("no shipped clip loses motion to the hinge reduction") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    // The standing guard the wave defect earned (Rule 32 — the mechanism, not
+    // the one clip): if a clip's authored pose already places every hinge on
+    // its own axis, then the reduction has nothing to delete and the limits
+    // can only ever CLAMP AN ANGLE, which is their job. This is deliberately
+    // not "the clamp changed nothing": crouch legitimately folds a knee past
+    // BODY_KNEE_FLEX_MAX and getting clamped there is correct animation.
+    const auto off_axis = [&](const LocalPose& pose) {
+        float worst = 0.0f;
+        for (uint32_t b = 0; b < BONE_COUNT; ++b) {
+            if (!std::isfinite(rig.hinge_range[b].x)) {
+                continue; // free bone: any axis is legal there
+            }
+            const glm::quat& q = pose.rotation[b];
+            worst = std::max(worst, std::abs(q.y) + std::abs(q.z));
+        }
+        return worst;
+    };
+    constexpr float ON_AXIS = 1.0e-6f;
+    const float step = step_at(static_cast<float>(config::WALK_SPEED));
+    for (int i = 0; i <= 32; ++i) {
+        const float t = static_cast<float>(i) * 0.1f;
+        CHECK(off_axis(idle_pose(t)) < ON_AXIS);
+        CHECK(off_axis(wave_pose(t)) < ON_AXIS);
+        CHECK(off_axis(flex_pose(t)) < ON_AXIS);
+        CHECK(off_axis(air_pose(4.0f - t)) < ON_AXIS);
+        LocalPose g = gait_pose(rig, static_cast<float>(i) / 32.0f, step, 0.0f);
+        CHECK(off_axis(g) < ON_AXIS);
+        apply_crouch(rig, static_cast<float>(i) / 32.0f, g);
+        apply_land_dip(rig, static_cast<float>(i) / 32.0f, g);
+        CHECK(off_axis(g) < ON_AXIS);
+    }
+    // CONTROL: the shipped wave put 0.233 of quaternion z on an elbow.
+    CHECK(off_axis(wave_pose_on_the_elbow(4.0f)) > 0.2f);
 }

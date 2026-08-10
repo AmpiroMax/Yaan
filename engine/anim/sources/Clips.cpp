@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
+Last updated: 10:08:2026 - 20:00:23
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial implementation (gait keyed to sim's phases).
 - 10:08:2026 - 12:10:00: The stance knee no longer hyperextends (was 33.4 deg) and the foot rolls over the toe instead - the forefoot rocker, 22.4 deg at full swing.
+- 10:08:2026 - 20:00:23: The wave's wag moved off the ELBOW (a hinge deleted it, so the wave never waved); flex's forearm rolls likewise; gait_run_weight authored per gear instead of interpolated across the rows.
 */
 
 #include "engine/anim/sources/Clips.h"
@@ -106,9 +107,16 @@ constexpr float LAND_KNEE = 0.7f;         // rad at full dip.
 constexpr float LAND_PELVIS_DROP = 0.12f; // m at full dip.
 // Showcase.
 constexpr float WAVE_RAISE = 2.4f;        // rad, right arm up.
-constexpr float WAVE_AMP = 0.5f;          // rad, forearm wag.
+constexpr float WAVE_AMP = 0.5f;          // rad, the wag.
 constexpr float WAVE_HZ = 1.8f;
+constexpr float WAVE_ELBOW = 1.40f;       // rad, ~80 deg. A wave is given with
+    // the elbow BENT — see the note in wave_pose(); the old 0.3 rad held the
+    // arm nearly straight, which is a salute rather than a greeting.
 constexpr float FLEX_RAISE = 1.6f;        // rad, both arms out to the sides.
+constexpr float FLEX_SPLAY = 0.3f;        // rad, humeral rotation that turns
+    // the elbows outward. ON THE UPPER ARM'S OWN LONG AXIS, which is the joint
+    // that actually does it; it used to be a roll on the FOREARM, i.e. on the
+    // elbow, and see wave_pose() for what happened to it.
 constexpr float FLEX_CURL = 1.9f;         // rad, biceps curl.
 constexpr float FLEX_PUMP = 0.15f;        // rad, slow pump on top of the curl.
 constexpr float FLEX_HZ = 0.5f;
@@ -183,6 +191,33 @@ struct LegAngles {
 }
 
 } // namespace
+
+float gait_run_weight(Gait gait) {
+    switch (gait) {
+    case Gait::Walk:
+        return 0.0f;
+    case Gait::Jog:
+        // AUTHORED, and it is an admission as much as a value: there is no jog
+        // clip yet (a real one needs a FLIGHT PHASE — sim's own header says so
+        // — and that is a stage of work, not a constant). Until it exists, jog
+        // is rendered as half of the run layer, and the half is not a
+        // midpoint: the run layer's two visible markers are the trunk lean
+        // RUN_LEAN 0.20 rad and the carried elbows RUN_ELBOW 0.80, and half of
+        // that lean is 0.10 rad = 5.7 deg, which lands inside the measured
+        // jogging trunk lean of 5-8 deg (sprinting is 11-15). The model
+        // arriving at a number it was not fitted to is the same check the
+        // stance row and the 22.4 deg toe-off passed.
+        //
+        // WHY THIS IS NOT THE 0.286 UNDER A NEW NAME: 0.286 was nobody's
+        // decision — it was where a straight line happened to pass. This is a
+        // choice with a reason attached, it is on the record, and when the jog
+        // clip lands this function stops returning a weight for Jog at all.
+        return 0.5f;
+    case Gait::Run:
+        return 1.0f;
+    }
+    return 0.0f;
+}
 
 LocalPose idle_pose(float time_s) {
     LocalPose p;
@@ -324,9 +359,25 @@ void apply_land_dip(const Rig& rig, float dip01, LocalPose& pose) {
 
 LocalPose wave_pose(float time_s) {
     LocalPose p = idle_pose(time_s);
-    p.rotation[bone_index(Bone::UpperArmR)] = roll(WAVE_RAISE);
-    p.rotation[bone_index(Bone::ForearmR)] =
-        roll(WAVE_AMP * std::sin(TWO_PI * WAVE_HZ * time_s)) * pitch(0.3f);
+    // THE WAG MOVED OFF THE ELBOW, and it had to: an elbow is a HINGE, so the
+    // rig reduces it to its own X axis (Pose.cpp) and a roll asked of it is
+    // not clamped, it is DELETED. This clip used to wag the forearm with
+    // roll(WAVE_AMP * sin), and measured through evaluate_body_pose the
+    // clamped forearm quaternion was the CONSTANT (0.989, 0.149, 0, 0) at
+    // every instant of the cycle — the right hand travelled 11 mm over a full
+    // wag, all of it the idle breath. The clip was asking a hinge to do
+    // something hinges cannot do, so nothing moved at all.
+    //
+    // A human waves with humeral ROTATION: the upper arm turns about its own
+    // long axis while the elbow holds a bend, and the forearm sweeps sideways
+    // as a result. That axis is the upper arm's rest -Y, the bone is FREE
+    // (no hinge range), and composing raise * twist puts the twist in the
+    // arm's own frame. Same gesture, on the joint that owns it (Rule 32: the
+    // mechanism, which is why flex_pose below is fixed in the same change and
+    // ClipTests now checks every clip rather than this one).
+    const float wag = WAVE_AMP * std::sin(TWO_PI * WAVE_HZ * time_s);
+    p.rotation[bone_index(Bone::UpperArmR)] = roll(WAVE_RAISE) * yaw_q(wag);
+    p.rotation[bone_index(Bone::ForearmR)] = pitch(WAVE_ELBOW);
     p.rotation[bone_index(Bone::Head)] = yaw_q(0.1f);
     return p;
 }
@@ -334,10 +385,14 @@ LocalPose wave_pose(float time_s) {
 LocalPose flex_pose(float time_s) {
     LocalPose p;
     const float pump = FLEX_PUMP * std::sin(TWO_PI * FLEX_HZ * time_s);
-    p.rotation[bone_index(Bone::UpperArmL)] = roll(-FLEX_RAISE - pump);
-    p.rotation[bone_index(Bone::UpperArmR)] = roll(FLEX_RAISE + pump);
-    p.rotation[bone_index(Bone::ForearmL)] = pitch(FLEX_CURL) * roll(-0.3f);
-    p.rotation[bone_index(Bone::ForearmR)] = pitch(FLEX_CURL) * roll(0.3f);
+    // The elbow-splay rolls that used to ride on the forearms were deleted by
+    // the hinge reduction exactly as the wave's wag was (see wave_pose): they
+    // cost two multiplications and changed nothing on screen. The splay is
+    // humeral rotation, so it belongs on the upper arm.
+    p.rotation[bone_index(Bone::UpperArmL)] = roll(-FLEX_RAISE - pump) * yaw_q(FLEX_SPLAY);
+    p.rotation[bone_index(Bone::UpperArmR)] = roll(FLEX_RAISE + pump) * yaw_q(-FLEX_SPLAY);
+    p.rotation[bone_index(Bone::ForearmL)] = pitch(FLEX_CURL);
+    p.rotation[bone_index(Bone::ForearmR)] = pitch(FLEX_CURL);
     p.rotation[bone_index(Bone::Torso)] = pitch(-0.06f);
     return p;
 }
