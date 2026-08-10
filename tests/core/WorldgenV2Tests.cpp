@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 20:20:20
+Last updated: 10:08:2026 - 20:26:55
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -43,6 +43,13 @@ UPD:
   far away (the arm that catches the naive global reading), and must NOT fire
   on a ground-hugging canopy on the flank — the rule is about the silhouette,
   not about the massif being off-limits.
+- 10:08:2026 - 20:26:55: §5.12's RESIDUAL recorded as a named gap, with the
+  apron-disabled counterfactual as its other arm: 300 m west 39.5%->38.4%,
+  350 m 45.6%->38.1%, 500 m 42.0%->31.0% of the massif's low silhouette
+  hidden by canopies. The apron does real work and more of it with distance,
+  but a third of the silhouette is still hidden by trees standing OFF the
+  massif — the case the scoping excludes and the global reading over-corrects.
+  Asserted at BOTH ENDS so the gap cannot drift silently either way.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1024,4 +1031,67 @@ TEST_CASE("§5.12: the forest does not stand on the massif's apron") {
     }
     INFO("trees surviving in the pine annulus: ", in_annulus);
     CHECK(in_annulus > 100);
+
+    // §5.12 IS NOT CLOSED BY THIS, AND THE RESIDUAL IS RECORDED RATHER THAN
+    // LEFT TO BE INFERRED. Design's acceptance is "the forest does not eat the
+    // massif base in the valley frame". Measured from the west, counting how
+    // much of the massif's own sub-cliffline surface is hidden behind tree
+    // canopies, with the apron disabled as the counterfactual arm:
+    //
+    //   from 300 m west:  39.5% hidden -> 38.4%   (apron off -> on)
+    //   from 350 m west:  45.6% hidden -> 38.1%
+    //   from 500 m west:  42.0% hidden -> 31.0%
+    //
+    // So the apron does real work and does more of it with distance, but
+    // ROUGHLY A THIRD OF THE LOW SILHOUETTE IS STILL HIDDEN. The trees doing
+    // it stand OFF the massif's stamp, between the viewer and the mountain —
+    // exactly the case the scoping decision above excludes, and exactly the
+    // case the naive global reading over-corrects into a ~670 m clearcut.
+    // Neither reading is right and the middle is design's to rule, not mine to
+    // invent: this is a NAMED GAP (§5.11's habit), not an exemption.
+    //
+    // The gap is asserted at BOTH ENDS so it cannot drift silently in either
+    // direction: if it ever falls below 15% something has closed §5.12 and this
+    // case must be rewritten into the real gate; if it climbs past 50% the
+    // apron has stopped working and that is a regression.
+    const glm::vec2 west_eye = lay.crag.center - glm::vec2{350.0f, 0.0f};
+    const float eye_y = world::terrain_height(ctx, west_eye)
+                      + static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const float datum = world::terrain_height(ctx, lay.crag.center)
+                      - static_cast<float>(config::L0_RELIEF);
+    const float cliff_y = datum + static_cast<float>(config::L0_RELIEF)
+                                      * static_cast<float>(config::MASSIF_CLIFFLINE_FRAC);
+    int samples = 0;
+    int hidden = 0;
+    for (int b = -30; b <= 30; ++b) {
+        const glm::vec2 dir{std::cos(static_cast<float>(b) * 0.01f),
+                            std::sin(static_cast<float>(b) * 0.01f)};
+        for (float r = lay.crag.radius; r > 5.0f; r -= 4.0f) {
+            const glm::vec2 pt = lay.crag.center - dir * r;
+            const float h = world::terrain_height(ctx, pt);
+            if (h > cliff_y || h < datum + 2.0f) continue;
+            ++samples;
+            for (const math::ScatterInstance& t : trees) {
+                const glm::vec2 seg = pt - west_eye;
+                const float len2 = glm::dot(seg, seg);
+                if (len2 < 1e-3f) continue;
+                const glm::vec2 c{t.position.x, t.position.z};
+                float u = glm::dot(c - west_eye, seg) / len2;
+                u = std::clamp(u, 0.0f, 1.0f);
+                const glm::vec2 off = c - (west_eye + seg * u);
+                const float rad = 0.65f * t.scale; // flora's mid-ray bole
+                if (glm::dot(off, off) > rad * rad) continue;
+                if (eye_y + (h - eye_y) * u
+                    <= t.position.y + species_max_h(t.species) * t.scale * GIANT) {
+                    ++hidden;
+                    break;
+                }
+            }
+        }
+    }
+    REQUIRE(samples > 200);
+    const float frac_hidden = static_cast<float>(hidden) / static_cast<float>(samples);
+    INFO("low silhouette hidden by trees from 350 m west: ", frac_hidden);
+    CHECK(frac_hidden < 0.50f); // regression guard
+    CHECK(frac_hidden > 0.15f); // the NAMED GAP: §5.12 is not closed
 }
