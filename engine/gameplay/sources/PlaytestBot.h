@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 12:08:26
+Last updated: 10:08:2026 - 12:13:41
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -48,6 +48,11 @@ UPD:
                          skipped, never silently passing); bound by character.
                          Bot also picks its gear through the same modifiers a
                          player's keys set.
+- 10:08:2026 - 12:13:41: FootSample semantics pinned with character: SOLE not
+                         ankle (the forefoot rocker walks the ankle forward
+                         while the sole is still planted, and this check is
+                         horizontal), and stance runs to TOE-OFF so both feet
+                         overlap in double support.
 */
 
 #pragma once
@@ -99,8 +104,18 @@ struct PlaytestIncident {
 };
 
 // One tick's view of the feet, supplied by character's rig (world space).
-// `planted` is true exactly while that foot is in STANCE — touch-down to
-// toe-off — which after the knee fix means the two overlap in double support.
+// SEMANTICS AGREED WITH character (10:08:2026), and both halves are
+// load-bearing rather than pedantic:
+//  - the position is the SOLE point, NOT the ankle. With the forefoot rocker
+//    the foot pivots over the toe while still planted, which translates the
+//    ankle FORWARD — and this check measures horizontal drift, so an ankle
+//    would report slip that is not happening. The header said "ankle or sole"
+//    when the seam was written; that ambiguity is resolved here before anyone
+//    binds the wrong joint.
+//  - `planted` runs touch-down to TOE-OFF, so after the knee fix BOTH feet
+//    read planted across the plant instant (double support). That is real
+//    walking, not a bug: each foot carries its own anchor, so overlapping
+//    stances are measured independently and neither disturbs the other.
 struct FootSample {
     glm::vec3 left{0.0f};
     glm::vec3 right{0.0f};
