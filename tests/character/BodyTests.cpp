@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:13:01
+Last updated: 10:08:2026 - 20:25:17
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 10:08:2026 - 20:00:23: A gait held past any transition renders as that gait — steady state at 0.1 s and at an hour, with the 0.286 speed-derived lean as the control.
 - 10:08:2026 - 20:06:45: The assertion owed to sim since PLAYER_EYE_FORWARD landed: the eye stays behind its own drawn face (3.5 mm of margin today), asserted against the head MESH rather than a re-derived formula.
 - 10:08:2026 - 20:13:01: Feet-before-chest, measured against the drawn meshes and the real frustum; its control is the live lean defect (a8), not a synthetic case.
+- 10:08:2026 - 20:25:17: the reel renders the same gear the live body does, with the other gear's weight as the control.
 */
 
 #include <doctest/doctest.h>
@@ -459,4 +460,39 @@ TEST_CASE("walking, the feet enter the frame before the chest does") {
     // is meant to be inverted, not deleted, the day the eye rides the lean.
     CHECK(entry_angle_deg(rig, Bone::Torso, gait_run_weight(Gait::Run), step(6.0f))
           < entry_angle_deg(rig, Bone::FootL, gait_run_weight(Gait::Run), step(6.0f)));
+}
+
+TEST_CASE("the showcase reel renders the same gear the live body does") {
+    // The reel used to pass the literals 0.0f and 1.0f as run weights. They
+    // agreed with gait_run_weight by coincidence of authorship and would have
+    // stopped agreeing the moment someone re-authored the table — and the reel
+    // is the WORST place for that, because a floating double has no ground
+    // speed beside it to contradict a wrong gait. Nobody would have seen it.
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto step_at = [](float v) {
+        return static_cast<float>(config::STEP_LENGTH_BASE)
+             + static_cast<float>(config::STEP_LENGTH_PER_MPS) * v;
+    };
+    const auto reel = [&](ShowcaseClip clip) {
+        BodyDrive d;
+        d.showcase_clip = static_cast<uint8_t>(clip);
+        d.showcase_time_s = 0.0f; // phase 0 by construction: fract(0) == 0
+        return evaluate_body_pose(rig, d);
+    };
+    const auto live = [&](float speed, Gait gait) {
+        LocalPose p = gait_pose(rig, 0.0f, step_at(speed), gait_run_weight(gait));
+        apply_joint_limits(rig, p);
+        return p;
+    };
+    const auto walk = static_cast<float>(config::WALK_SPEED);
+    const auto run = static_cast<float>(config::RUN_SPEED);
+    constexpr float SAME_POSE = 0.01f; // rad, as elsewhere in this file
+
+    CHECK(pose_distance(reel(ShowcaseClip::Walk), live(walk, Gait::Walk)) < SAME_POSE);
+    CHECK(pose_distance(reel(ShowcaseClip::Run), live(run, Gait::Run)) < SAME_POSE);
+    // CONTROL (Rule 30): the reel must not match the OTHER gear's weight at
+    // the same speed, or the check above would pass on a body that ignored
+    // the table entirely.
+    CHECK(pose_distance(reel(ShowcaseClip::Run), live(run, Gait::Walk)) > SAME_POSE);
+    CHECK(pose_distance(reel(ShowcaseClip::Walk), live(walk, Gait::Run)) > SAME_POSE);
 }

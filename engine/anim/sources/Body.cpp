@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:25:17
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -23,6 +23,7 @@ UPD:
 - 10:08:2026 - 01:56:45: Initial implementation.
 - 10:08:2026 - 12:10:00: evaluate_body_pose applies the joint limits at every exit.
 - 10:08:2026 - 20:00:23: Clip selection reads BodyDrive::gait; speed now only answers 'are the feet moving at all'.
+- 10:08:2026 - 20:25:17: the showcase reel reads gait_run_weight instead of literal 0.0/1.0 run weights.
 */
 
 #include "engine/anim/sources/Body.h"
@@ -66,15 +67,23 @@ constexpr float JUMP_LAND_S = 0.45f;
     switch (static_cast<ShowcaseClip>(clip)) {
     case ShowcaseClip::Idle:
         return idle_pose(t);
+    // THE REEL READS THE SAME TABLE THE LIVE BODY DOES. These were the
+    // literals 0.0f and 1.0f, which happened to agree with gait_run_weight and
+    // would have stopped agreeing the day someone re-authored it — the reel is
+    // the one place a wrong gait is HARD to notice, because there is no ground
+    // speed beside it to disagree with. Same defect shape as the one this file
+    // just stopped committing with speed-derived selection, one scope over.
     case ShowcaseClip::Walk: {
         const auto v = static_cast<float>(config::WALK_SPEED);
         const float step = step_at(v);
-        return gait_pose(rig, fract(t * v / (2.0f * step)), step, 0.0f);
+        return gait_pose(rig, fract(t * v / (2.0f * step)), step,
+                         gait_run_weight(Gait::Walk));
     }
     case ShowcaseClip::Run: {
         const auto v = static_cast<float>(config::RUN_SPEED);
         const float step = step_at(v);
-        return gait_pose(rig, fract(t * v / (2.0f * step)), step, 1.0f);
+        return gait_pose(rig, fract(t * v / (2.0f * step)), step,
+                         gait_run_weight(Gait::Run));
     }
     case ShowcaseClip::Jump: {
         const float cycle = JUMP_CROUCH_S + JUMP_AIR_S + JUMP_LAND_S;
