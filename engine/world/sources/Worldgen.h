@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 10:08:2026 - 10:52:15
+Last updated: 10:08:2026 - 10:55:03
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -45,6 +45,7 @@ UPD:
 - 10:08:2026 - 10:52:15: §8.1 path network on WorldGenContext (в7/в24). Empty on stands
   that declare no paths, and an empty network reports "far from any path", so
   consumers need no stand check.
+- 10:08:2026 - 10:55:03: BR-6 find layer on WorldGenContext (в20).
 */
 
 #pragma once
@@ -53,6 +54,7 @@ UPD:
 #include "engine/world/sources/TestbedLayout.h"
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/WorldgenErosion.h"
+#include "engine/world/sources/WorldgenFinds.h"
 #include "engine/world/sources/WorldgenHydrology.h"
 #include "engine/world/sources/WorldgenPaths.h"
 #include "engine/world/sources/WorldgenSites.h"
@@ -88,6 +90,8 @@ struct WorldGenContext {
     /// sampling an empty network reports "far from any path", so consumers
     /// need no stand check.
     PathNetwork paths;
+    /// BR-6 find layer (в20). Empty on stands that place no finds.
+    std::vector<Find> finds;
 };
 
 /// Builds the world-level context (macro field is implicit — position-based).

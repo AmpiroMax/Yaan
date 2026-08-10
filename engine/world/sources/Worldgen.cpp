@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 10:52:15
+Last updated: 10:08:2026 - 10:55:03
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -54,6 +54,9 @@ UPD:
   BUILT ON (macro + LF-8 erosion, not macro alone — routing on the pre-erosion
   field would lay treads across gullies the router never saw), and
   terrain_height composes macro + erosion + the flatten delta.
+- 10:08:2026 - 10:55:03: BR-6 find layer built on the FINISHED ground (macro + erosion
+  + path flattening) — occlusion siting against terrain that does not ship is
+  siting against nothing.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -245,6 +248,16 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
                                            [&](glm::vec2 p) {
                                                return macro_height(seed, lay, p) + ero.sample(p);
                                            });
+            // BR-6 (в20): the find layer is seeded on the FINISHED ground —
+            // the occlusion siting must see the erosion and the path treads,
+            // or a find is placed against terrain that does not ship.
+            const PathNetwork& pn = ctx.paths;
+            ctx.finds = build_finds(seed, pn, domain_min, domain_max, FindParams{},
+                                    [&](glm::vec2 p) {
+                                        const float e = macro_height(seed, lay, p)
+                                                      + ero.sample(p);
+                                        return e + pn.flatten_at(p, e);
+                                    });
         }
         return ctx;
     }

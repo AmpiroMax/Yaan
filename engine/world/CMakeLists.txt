@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 10:44:13
+# Last updated: 10:08:2026 - 10:55:03
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -27,6 +27,7 @@
 # - 10:08:2026 - 02:59:28: Forest stand (LANDSCAPE §8.1): WorldgenForest.cpp.
 # - 10:08:2026 - 10:40:28: LF-8 erosion overlay: WorldgenErosion.cpp.
 # - 10:08:2026 - 10:44:13: §8.1 path network: WorldgenPaths.cpp.
+# - 10:08:2026 - 10:55:03: BR-6 find layer: WorldgenFinds.cpp.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -38,6 +39,7 @@ add_library(dfn_world STATIC
     sources/WorldgenCarve.cpp
     sources/WorldgenCastle.cpp
     sources/WorldgenErosion.cpp
+    sources/WorldgenFinds.cpp
     sources/WorldgenForest.cpp
     sources/WorldgenHydrology.cpp
     sources/WorldgenMacro.cpp

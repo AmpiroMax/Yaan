@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 10:50:58
+Last updated: 10:08:2026 - 11:08:01
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -41,6 +41,9 @@ UPD:
   SHIPPED terrain, with the open-glade must-fail control), the three-band wear
   field on flora's datum, path flatness (curvature + cross tilt, after the
   max-min instrument was caught measuring slope), and the class rule.
+- 10:08:2026 - 11:08:01: BR-6 cadence per regime with the tail clause, and BR-5 RECORDED
+  AS AN OPEN DEFECT with its measurement — the landform cannot carry it while
+  its swale floors percolate.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -762,4 +765,127 @@ TEST_CASE("path classes follow their RULE — and the steps class has no ground 
     // class is populated.
     CHECK(max_grade < 0.22f);
     CHECK(seen[3] == 0);
+}
+
+TEST_CASE("BR-6: the find cadence holds in both regimes, tail clause included") {
+    const world::WorldGenContext& c = forest();
+    REQUIRE(!c.finds.empty()); // THE CONTROL IS THE REAL REJECTED INSTANCE: the
+                               // world before this pass had no find layer at
+                               // all, so every gap was infinite. Any threshold
+                               // above zero encounters stands above it.
+    const float R = static_cast<float>(config::FIND_ENCOUNTER_RADIUS);
+
+    // A scripted walk per regime — §1.7 measures walks, not maps.
+    const auto walk = [&](const std::vector<glm::vec2>& route, world::FindRegime regime) {
+        std::vector<float> gaps;
+        std::vector<char> used(c.finds.size(), 0);
+        float since = 0.0f;
+        for (std::size_t i = 1; i < route.size(); ++i) {
+            since += glm::length(route[i] - route[i - 1]);
+            for (std::size_t k = 0; k < c.finds.size(); ++k) {
+                if (used[k] != 0 || c.finds[k].regime != regime) {
+                    continue;
+                }
+                if (glm::length(c.finds[k].position - route[i]) <= R) {
+                    used[k] = 1;
+                    gaps.push_back(since);
+                    since = 0.0f;
+                }
+            }
+        }
+        std::sort(gaps.begin(), gaps.end());
+        return gaps;
+    };
+
+    // ONE SCRIPTED WALK PER ROUTE, then the gap lists are merged. Concatenating
+    // the routes into a single polyline was the first cut and it TELEPORTED
+    // between route ends: the jump entered the statistics as a 953 m gap and
+    // failed the tail clause with an artefact of the instrument. A walk that
+    // teleports is not a walk.
+    std::vector<float> road_gaps;
+    for (const world::PathRoute& r : c.paths.routes) {
+        const std::vector<float> g = walk(r.points, world::FindRegime::NearRoad);
+        road_gaps.insert(road_gaps.end(), g.begin(), g.end());
+    }
+    std::sort(road_gaps.begin(), road_gaps.end());
+    const float road_spacing = world::find_spacing_m(world::FindRegime::NearRoad);
+    REQUIRE(road_gaps.size() >= 10); // §8.1 item 3: >= 10 gaps per regime
+    const float road_med = road_gaps[road_gaps.size() / 2];
+    INFO("road: ", road_gaps.size(), " gaps, median ", road_med, " m, max ", road_gaps.back(),
+         " m, regime spacing ", road_spacing);
+    CHECK(road_med >= road_spacing * 0.6f);
+    CHECK(road_med <= road_spacing * 1.4f);
+    // THE TAIL CLAUSE IS THE POINT (Rule 31): a mean can hide a desert.
+    CHECK(road_gaps.back() <= road_spacing * static_cast<float>(config::FIND_GAP_MAX_MULT));
+
+    // Cross-country: a long zigzag that does not follow the network.
+    std::vector<glm::vec2> wild;
+    for (int leg = 0; leg < 8; ++leg) {
+        glm::vec2 a{60.0f + static_cast<float>(leg) * 110.0f, 60.0f};
+        glm::vec2 b{60.0f + static_cast<float>(leg) * 110.0f, 960.0f};
+        if (leg % 2 != 0) {
+            std::swap(a, b);
+        }
+        for (float t = 0.0f; t <= 1.0f; t += 4.0f / 900.0f) {
+            wild.push_back(a + (b - a) * t);
+        }
+    }
+    const std::vector<float> wild_gaps = walk(wild, world::FindRegime::Wilderness);
+    const float wild_spacing = world::find_spacing_m(world::FindRegime::Wilderness);
+    REQUIRE(wild_gaps.size() >= 10);
+    const float wild_med = wild_gaps[wild_gaps.size() / 2];
+    INFO("wild: ", wild_gaps.size(), " gaps, median ", wild_med, " m, regime spacing ",
+         wild_spacing);
+    CHECK(wild_med >= wild_spacing * 0.6f);
+    CHECK(wild_med <= wild_spacing * 1.4f);
+    // The two regimes must be DISTINGUISHABLE — в20's whole point is that one
+    // is denser than the other, and FIND_NEAR_ROAD_MULT / FIND_WILD_MULT were
+    // chosen as the smallest pair that survives Poisson spread.
+    CHECK(wild_med > road_med * 1.5f);
+}
+
+TEST_CASE("BR-5 on this stand: the siting works, the LANDFORM does not (open defect)") {
+    // BR-5 asks that a find be occluded from >= FIND_OCCLUSION_FRAC of a
+    // 40-80 m eye-height ring. ON THIS STAND'S BARE GROUND IT IS NOT, and this
+    // test records the measurement instead of pretending otherwise.
+    //
+    // Scanned over the stand (16 bearings, find 0.5 m, eye 1.7 m):
+    //   ring 40+80 m: p50 0.03, p90 0.19, max 0.53, >= 0.50 on 0% of ground
+    //   ring 80 m only: p50 0.06, p90 0.31, max 0.69, >= 0.50 on 3%
+    //   ring 40 m only: p50 0.00, p90 0.06 — at 40 m against a 100 m grive
+    //                   wavelength a ring often crosses NO crest at all
+    //
+    // THE CAUSE IS A CONFLICT BETWEEN TWO RATIFIED REQUIREMENTS ON ONE
+    // LANDFORM, not a placement bug. LF-2's swale floors must be CONTINUOUS
+    // (fog pools there, WEATHER W5), and continuity is percolation: 55% of the
+    // ground sits at floor level in ONE connected network. A connected level
+    // floor is precisely a network of long open sightlines. The same fix that
+    // made fog possible is what opened the sightlines.
+    //
+    // Escalated to the lead as a NUMBERS row. Candidate resolutions, none of
+    // them core's to pick: shorten LF2_HILL_WAVELENGTH so a 40 m ring always
+    // crosses a crest; measure the ring at 60-80 m; or — most likely correct —
+    // accept that BR-5 measured on BARE TERRAIN is the wrong instrument for a
+    // FOREST stand, since §8.1's own frame (e) names logs and bushes as the
+    // sightline breakers and LF-7 is not built yet.
+    const world::WorldGenContext& c = forest();
+    std::vector<float> wild_occ;
+    for (const world::Find& f : c.finds) {
+        if (f.regime == world::FindRegime::Wilderness) {
+            wild_occ.push_back(f.occluded_fraction);
+        }
+    }
+    REQUIRE(wild_occ.size() >= 20);
+    const float med = median(wild_occ);
+    INFO("wilderness find occlusion median ", med);
+
+    // What IS assertable today: the SITING WORKS — finds are placed on the
+    // most-occluded candidate in their cell, so they beat the ground's own
+    // median (0.03 measured over the stand). That is the placement rule doing
+    // its job on a landform that cannot yet carry it.
+    CHECK(med > 0.06f);
+    // And the defect is pinned, so it cannot be quietly "fixed" by a threshold
+    // drifting down: if this ever passes, BR-5 has become satisfiable and the
+    // test must be rewritten into the real gate.
+    CHECK(med < static_cast<float>(config::FIND_OCCLUSION_FRAC));
 }
