@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 11:05:00
+Last updated: 10:08:2026 - 11:42:00
 -->
 <!--
 UPD:
@@ -13,6 +13,10 @@ UPD:
   docs/acceptance/. Passed: proportions to the pixel, ground contact, the
   footfall contract in profile, the mirror. Failed: the first-person look-down
   (see the defect below). Three defects recorded as step 3's actual worklist.
+- 10:08:2026 - 11:42:00: Corrections after sim's review — the look-down fraction
+  (63 %, not 100 %), the FOV those angles were computed against (75, not an
+  assumed 60), PLAYER_EYE_FORWARD bounded at 0.10 rather than my 0.18 — plus
+  the torso-top ruling (a2) and the assertion owed to sim (a3).
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -77,14 +81,64 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       at `PLAYER_EYE_HEIGHT` 1.7 m. The torso box's top face is at the neck,
       `BODY_NECK_HEIGHT_FRAC`·H = 1.566 m, i.e. 13.4 cm straight below the eye,
       and it spans +/-0.233 m across and +/-0.126 m fore-aft AROUND that eye.
-      Its forward edge therefore sits 43 deg below the horizon: past ~13 deg of
-      downward look the chest enters frame, and by ~73 deg it is the whole
-      lower field. You can never see your own legs or feet — at −66 deg the
-      frame is 100 % torso. This is not a tuning value, it is a missing seam:
-      a real eye is FORWARD of the chest, and there is no row for that offset.
-      Fix belongs with sim (they own CameraPose): an eye offset of about half
-      the torso depth plus margin (~0.18 m along facing), or the camera hung
-      off the Head bone. Frames: `character-lookdown-{66,40}deg-*`.
+      Its forward edge therefore sits atan(0.134/0.126) = 46.8 deg below the
+      horizon, so with `CAMERA_FOV_Y` 75 deg the chest enters frame past 9.3
+      deg of downward look. **CORRECTED 10:08:2026 - 11:40, and the correction
+      is on the record because the first version of this paragraph was
+      committed wrong (4a44c26):** the earlier 43 deg / ~13 deg were computed
+      against an assumed 60 deg FOV before the row was read, and the claim
+      "at −66 deg the frame is 100 % torso" was an eyeball. Measured on the
+      archived frame: the chest starts at row 113 of 360 and covers 63 % of it.
+      sim caught the overstatement.
+
+      WHAT SURVIVES THE CORRECTION IS THE CONCLUSION, and it is stronger than
+      the fraction was: EVERY foot position lies inside the chest's angular
+      shadow. The most forward the foot ever gets is the capped visual reach
+      0.486 m, which puts it at atan(1.7/0.486) = 74.0 deg of depression
+      against a chest edge at 46.8 deg. Not "usually hidden" — geometrically
+      unreachable, at every phase, at every pitch.
+
+      This is not a tuning value, it is a missing seam: a real eye is FORWARD
+      of the chest, and there is no row for that offset. Fix belongs with sim
+      (they own CameraPose). MY ~0.18 m SUGGESTION WAS WRONG TOO — sim bounded
+      it at `PLAYER_EYE_FORWARD` = 0.10 m, and both bounds check out here:
+      the head mesh's own front face is at head_width/2 * HEAD_DEPTH_RATIO =
+      0.09 * 1.15 = 0.1035 m, so 0.18 would have floated the eye 7.6 cm in
+      front of its own face — invisible in first person, glaring in the mirror
+      map that exists to look at yourself; and 0.18 + `CAMERA_NEAR` = 0.28
+      against `PLAYER_CAPSULE_RADIUS` 0.35 leaves the near plane 7 cm from a
+      surface the body cannot pass. Frames: `character-lookdown-{66,40}deg-*`.
+   a2. **THE TORSO SLAB IS FULL-DEPTH THROUGH THE NECK — my row, my call, and
+      the answer is yes, drop it to the shoulder line.** sim routed this back
+      with the two numbers that decide it rather than a shape, which is the
+      right way round. The torso mesh runs to `torso_len` — the NECK, 1.566 m —
+      at full `BODY_TORSO_DEPTH_FRAC`, where a real chest tops out at the
+      collarbone, `BODY_SHOULDER_HEIGHT_FRAC`·H = 1.472 m, with a narrower neck
+      rising from it. The arithmetic, at sim's eye offset of 0.10 m (chest
+      forward edge then 0.026 m ahead of the eye):
+
+      | torso top | chest edge, depression | leading foot at 77.2 deg clears by |
+      |---|---|---|
+      | neck 1.566 m (today) | atan(0.134/0.026) = 79.0 deg | −1.8 deg: STILL HIDDEN |
+      | shoulder 1.472 m | atan(0.228/0.026) = 83.5 deg | +6.3 deg, ~25 px at 640x360 |
+
+      So the eye row ALONE does not put the feet back on screen — it misses by
+      about two degrees. The pair does. That is the finding: neither change is
+      sufficient alone, and I would rather record that than let sim's row land
+      and have the feet still missing. The bone table does not move (the Torso
+      bone still spans hip→neck, Rule 26 intact) — only `BodyMesh.cpp`'s box
+      for it, plus a narrower neck stub. NOT IMPLEMENTED: the user directs the
+      next work; this is the costed decision waiting for him.
+
+   a3. **The assertion I owe sim**, once `PLAYER_EYE_FORWARD` lands: the eye
+      must stay behind its own face, `eye_forward <= head half-depth`. Assert
+      it against the ACTUAL head segment mesh — `build_body_segment_mesh(
+      Bone::Head, ...).bounds_min.z` — not against a re-derived formula, so
+      it keeps holding if `HEAD_DEPTH_RATIO` or `BODY_HEAD_WIDTH_FRAC` moves.
+      Rule 30 control: an eye_forward of head half-depth + 1 cm must fail it.
+      Today the relation is 0.10 <= 0.1035 — 3.5 mm of margin, which is
+      exactly why it wants a test and not a comment.
+
    b. **THE ARMS ARE HALF BURIED IN THE TORSO.** The shoulder joint is at
       +/-`BODY_SHOULDER_WIDTH_FRAC`/2 = 0.233 m — exactly the torso box's own
       half-width — so an arm of `BODY_ARM_THICKNESS_FRAC`·H = 0.099 m hangs
