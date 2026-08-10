@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 11:05:46
+Last updated: 10:08:2026 - 11:29:06
 -->
 <!--
 UPD:
@@ -19,6 +19,7 @@ UPD:
 - 10:08:2026 - 01:45:06: Rule 25 — new character zone (engine/anim + platform/anim, carved from sim): user approved the character agent twice (v51, v16).
 - 10:08:2026 - 02:49:47: Rule 27 — цитируемые кадры архивируются в docs/acceptance/ в родном разрешении; рецепт обязателен рядом.
 - 10:08:2026 - 11:05:46: Rule 27 — тур замораживает тик и потому слеп ко всему движущемуся; живые пути съёмки признаны доказательством.
+- 10:08:2026 - 11:29:06: Rule 30 — каждое приёмочное правило называет свою АГРЕГАЦИЮ и свой ЗНАМЕНАТЕЛЬ, а не только число (три спора за два дня оказались спорами об определении).
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -397,6 +398,16 @@ the view, and the way to have caught it in an afternoon was to ask of each one
 whether ANY threshold on it would separate the mountain the user rejected from one
 he would accept. For most of them the answer was no, and that is computable rather
 than a matter of judgement.
+
+**Every acceptance rule names its AGGREGATION and its DENOMINATOR, not just its
+number.** Three arguments in two days turned out to be definitions wearing a
+measurement's clothes: a dispersion threshold whose denominator was never stated
+(ideal Poisson or the same placement unclumped — they disagreed only for the class
+under dispute), a control taken once and applied across classes whose densities
+differ (right exactly where everyone was looking, wrong everywhere else), and a rule
+reading "a ring of samples at 40-80 m" that passes read as one ring and fails read
+per-distance. In all three the number was never the disagreement. A threshold
+without its aggregation and its denominator is not yet a rule.
 
 **A range is two assertions, not one.** Both ends get derived and both get measured.
 Six defects tonight came from an unexamined end: a crown-width band whose maximum
