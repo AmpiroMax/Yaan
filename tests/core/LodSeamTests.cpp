@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:49:27
-Last updated: 09:08:2026 - 23:49:27
+Last updated: 10:08:2026 - 19:55:51
 Module: tests
 File: tests/core/LodSeamTests.cpp
 
@@ -26,11 +26,21 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 23:49:27: Created with the LOD streaming half.
+- 10:08:2026 - 19:55:51: The seam contract now covers the HEIGHT as well as the
+  quantization, on both stands, with the pre-fix open-coded chain as its
+  control. The control is EQUAL to the right answer on the testbed and wrong on
+  16158 of 16641 forest-stand samples — that asymmetry is the finding, not a
+  weak control: no amount of testing the stand everyone was looking at could
+  have caught a copy that only diverges where a stand declares passes the copy
+  never learned.
 */
 
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/CoarseTerrain.h"
 #include "engine/world/sources/Worldgen.h"
+#include "engine/world/sources/WorldgenForest.h"
+#include "engine/world/sources/WorldgenMacro.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/TerrainLod.h"
 
 #include <algorithm>
@@ -205,4 +215,88 @@ TEST_CASE("inter-level height disagreement table for render's skirt") {
     // does not, the number to change is in render's zone and this is the
     // measurement that says so.
     CHECK(all_covered);
+}
+
+TEST_CASE("the coarse node and the chunks build the SAME terrain, on every stand") {
+    // THE EXACT-SEAM CONTRACT, RE-ARMED. It was proved once, on the testbed,
+    // by extracting quantize_height/classify_surface so both builders call one
+    // function each. The HEIGHT ITSELF was left as two open-coded copies of
+    // "water -> entrance works -> pads -> clamp", with a comment in each
+    // asserting they were the same chain. They were, until the forest stand's
+    // branch (LF-8 erosion, then the path flatten) landed in terrain_height and
+    // neither copy was told — at which point the coarse nodes were building a
+    // different terrain from the chunks they have to meet, and nothing was red.
+    //
+    // A comment claiming two things are the same is not a mechanism that makes
+    // them the same. Both now call compose_passes().
+    for (const bool forest : {false, true}) {
+        dfn::world::WorldGenParams p{1, {0, 0}, {3, 3}};
+        if (forest) {
+            p.layout = dfn::world::forest_stand_layout();
+        }
+        const dfn::world::WorldGenContext ctx = dfn::world::build_world_context(p);
+        const dfn::world::CoarseNode node{0, 1, 2};
+        const dfn::world::CoarseNodeData data = dfn::world::build_coarse_node(ctx, node);
+        const glm::vec2 origin = dfn::world::coarse_node_origin_m(node);
+        const float step = dfn::world::coarse_voxel_size_m(node.level);
+
+        int mismatches = 0;
+        int control_mismatches = 0;
+        float worst = 0.0f;
+        float control_lo = 0.0f;
+        float control_hi = 0.0f;
+        for (uint32_t z = 0; z < dfn::world::COARSE_NODE_RESOLUTION; ++z) {
+            for (uint32_t x = 0; x < dfn::world::COARSE_NODE_RESOLUTION; ++x) {
+                const glm::vec2 w = origin
+                                  + glm::vec2{static_cast<float>(x) * step,
+                                              static_cast<float>(z) * step};
+                const float chunk_sample =
+                    dfn::world::dequantize_height(dfn::world::quantize_height(dfn::world::terrain_height(ctx, w)));
+                const float coarse_sample = dfn::world::dequantize_height(
+                    data.heights[static_cast<std::size_t>(z) * dfn::world::COARSE_NODE_RESOLUTION + x]);
+                if (coarse_sample != chunk_sample) {
+                    ++mismatches;
+                    worst = std::max(worst, std::fabs(coarse_sample - chunk_sample));
+                }
+                // THE CONTROL IS THE REAL REJECTED INSTANCE (Rule 30) — the
+                // chain this builder actually open-coded until today, written
+                // out verbatim: water -> entrance works -> pads -> clamp.
+                //
+                // AND IT IS EQUAL TO THE RIGHT ANSWER ON THE TESTBED. That is
+                // not a weak control, it is the finding: the copy really was
+                // the whole chain on the stand everyone was looking at, so no
+                // amount of testing THERE could have caught it. It goes wrong
+                // only where a stand declares passes the copy never learned —
+                // and on that stand it is wrong almost everywhere.
+                const float macro =
+                    dfn::world::macro_height(ctx.params.seed, ctx.params.layout, w);
+                const dfn::world::WaterSample cw =
+                    dfn::world::water_at(ctx.hydrology, ctx.params.layout, w, macro);
+                const float control = dfn::world::dequantize_height(dfn::world::quantize_height(
+                    std::clamp(dfn::world::pads_height(
+                                   ctx.sites, w,
+                                   dfn::world::entrance_works_height(ctx.sites, w, cw.height)),
+                               0.0f, static_cast<float>(dfn::config::WORLDGEN_MAX_HEIGHT))));
+                if (control != chunk_sample) {
+                    ++control_mismatches;
+                }
+                control_lo = std::min(control_lo, control - chunk_sample);
+                control_hi = std::max(control_hi, control - chunk_sample);
+            }
+        }
+        CAPTURE(forest);
+        INFO("mismatches ", mismatches, " worst ", worst, " m; control mismatches ",
+             control_mismatches, " spanning ", control_lo, " .. ", control_hi, " m");
+        CHECK(mismatches == 0);
+        // The control must FAIL on the stand whose passes are not identities,
+        // and it is legitimately EQUAL on the testbed — where the open-coded
+        // chain really was the whole chain. Stating both is the point: the
+        // defect existed on exactly one stand and that is why it survived.
+        if (forest) {
+            CHECK(control_mismatches > 10000);
+            CHECK(control_lo < -1.0f);
+        } else {
+            CHECK(control_mismatches == 0);
+        }
+    }
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 10:08:2026 - 10:55:03
+Last updated: 10:08:2026 - 19:55:51
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -46,6 +46,10 @@ UPD:
   that declare no paths, and an empty network reports "far from any path", so
   consumers need no stand check.
 - 10:08:2026 - 10:55:03: BR-6 find layer on WorldGenContext (в20).
+- 10:08:2026 - 19:55:51: compose_passes() published: the pass stack had three
+  open-coded copies (terrain_height, generate_chunk, the coarse node builder)
+  and two of them were never told when the forest stand's branch landed. One
+  definition now, called by all three.
 */
 
 #pragma once
@@ -97,8 +101,29 @@ struct WorldGenContext {
 /// Builds the world-level context (macro field is implicit — position-based).
 [[nodiscard]] WorldGenContext build_world_context(const WorldGenParams& params);
 
-/// Final terrain height (m) at a world position: macro (P1) + hydrology carve
-/// (P2) + building pads (P4). The continuous field the heightmaps sample.
+/// THE PASS STACK — the ONE statement of what the finished ground is, and the
+/// only one. Every producer of a height sample calls this: terrain_height()
+/// (the continuous field), generate_chunk() (the heightmap that becomes the
+/// drawn and collided mesh), and the coarse LOD node builder.
+///
+/// IT IS A FUNCTION RATHER THAN THREE COPIES BECAUSE IT WAS THREE COPIES.
+/// Two of them said "the chain is water -> entrance works -> pads -> clamp",
+/// which was true when written; when the forest stand's branch (LF-8 erosion,
+/// then the path flatten) landed in terrain_height, neither copy was told.
+/// The result was measured, not feared: the drawn ground stood up to 1.50 m
+/// from the ground everything was PLACED on, and the path groove was absent
+/// from the drawn world entirely. Rule 35's state clause — two copies drift
+/// whether they are numbers or passes. Do not re-open-code this chain.
+///
+/// `macro` is the P1 field at `world` and `carved` the water-carve result
+/// (`water_at(...).height` and `carve_height(...)` are the same call by
+/// construction); both are passed in so a caller holding them adds no field
+/// evaluation.
+[[nodiscard]] float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
+                                   float carved);
+
+/// Final terrain height (m) at a world position — compose_passes() evaluated
+/// from scratch. The continuous field the heightmaps sample.
 [[nodiscard]] float terrain_height(const WorldGenContext& ctx, glm::vec2 world);
 
 /// Terrain slope (radians) at a world position: central differences of the

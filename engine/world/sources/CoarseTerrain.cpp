@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:49:27
-Last updated: 09:08:2026 - 23:49:27
+Last updated: 10:08:2026 - 19:55:51
 Module: engine/world
 File: engine/world/sources/CoarseTerrain.cpp
 
@@ -29,6 +29,16 @@ UPD:
 - 09:08:2026 - 23:49:27: Dropped the per-node max-adjacent-step measurement — render already
   measures it from the view it is handed, and a second copy nobody reads is
   the defect Rule 35 names, not a service.
+- 10:08:2026 - 19:55:51: THE THIRD COPY OF THE PASS STACK, found by sweeping
+  every height producer rather than waiting for a report (Rule 32). This
+  builder open-coded "water -> entrance works -> pads -> clamp" and asserted in
+  a comment that terrain_height() was the same chain; the forest stand's branch
+  landed in terrain_height and this copy was never told, so the coarse nodes
+  were building a DIFFERENT TERRAIN from the chunks they must meet and the
+  exact-seam contract was quietly false on that stand. Measured on the L0 node
+  (0,1,2): 16158 of 16641 samples disagreed, spanning -1.5015..+1.2634 m; after
+  calling compose_passes(), 0 mismatches on BOTH stands. The old chain equals
+  the right answer on the testbed exactly, which is why nothing was ever red.
 */
 
 #include "engine/world/sources/CoarseTerrain.h"
@@ -46,7 +56,6 @@ namespace {
 
 constexpr uint32_t RES = COARSE_NODE_RESOLUTION;
 constexpr std::size_t SAMPLE_COUNT = static_cast<std::size_t>(RES) * RES;
-constexpr float MAX_HEIGHT_M = static_cast<float>(config::WORLDGEN_MAX_HEIGHT);
 
 [[nodiscard]] uint8_t clamp_level(uint8_t level) {
     return level < COARSE_LEVEL_COUNT ? level : static_cast<uint8_t>(COARSE_LEVEL_COUNT - 1);
@@ -133,16 +142,20 @@ uint32_t build_coarse_rows(const WorldGenContext& ctx, CoarseNodeData& data,
                                               static_cast<float>(z) * step};
             const std::size_t i = static_cast<std::size_t>(z) * RES + x;
 
-            // Exactly the chunk builder's chain, evaluated at this position:
-            // water sample -> entrance works -> pads -> clamp. terrain_height()
-            // is that same chain, so the value below and terrain_height(world)
-            // are the same float by construction.
-            const WaterSample water = water_at(ctx.hydrology, layout, world,
-                                               macro_height(ctx.params.seed, layout, world));
-            const float h = std::clamp(
-                pads_height(ctx.sites, world,
-                            entrance_works_height(ctx.sites, world, water.height)),
-                0.0f, MAX_HEIGHT_M);
+            // THE PASS STACK, VIA ITS ONE DEFINITION (compose_passes). This
+            // used to open-code "water -> entrance works -> pads -> clamp" and
+            // assert in a comment that terrain_height() was the same chain. It
+            // was, until the forest stand's branch (LF-8 erosion, then the path
+            // flatten) landed in terrain_height and this copy was not told —
+            // at which point the coarse nodes were building a DIFFERENT
+            // TERRAIN from the chunks they have to meet, and the exact-seam
+            // contract (a coarse sample equals a chunk sample bit for bit
+            // wherever the lattices coincide) was quietly false on that stand.
+            // A comment claiming two things are the same is not a mechanism
+            // that makes them the same; calling one function is.
+            const float macro = macro_height(ctx.params.seed, layout, world);
+            const WaterSample water = water_at(ctx.hydrology, layout, world, macro);
+            const float h = compose_passes(ctx, world, macro, water.height);
 
             data.heights[i] = quantize_height(h);
 

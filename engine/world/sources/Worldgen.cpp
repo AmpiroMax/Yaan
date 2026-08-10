@@ -303,12 +303,10 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
     return ctx;
 }
 
-namespace {
-
-/// THE PASS STACK — the ONE place that says what the finished ground is.
-/// `carved` is the water-carve result (`water_at(...).height` and
-/// `carve_height(...)` are the same call by construction), passed in so a
-/// caller that already has it does not recompute the macro field.
+/// THE PASS STACK — see the contract in Worldgen.h. It is a function rather
+/// than three copies because it WAS three copies (chunk builder, coarse node
+/// builder, and this), and two of them were never told when the forest stand's
+/// branch landed.
 float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro, float carved) {
     if (ctx.params.layout.stand == StandId::Forest) {
         // The stand's own pass stack: P1 + LF-8 erosion + the path flatten.
@@ -322,8 +320,6 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro, f
     const float padded = pads_height(ctx.sites, world, worked);
     return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
 }
-
-} // namespace
 
 float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
     const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
