@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:32:07
+Last updated: 10:08:2026 - 20:32:52
 -->
 <!--
 UPD:
@@ -24,6 +24,7 @@ UPD:
 - 10:08:2026 - 19:53:40: Правило 37 расширено общей формой: опасны САМИ ИМЕНОВАННЫЕ КОНЦЫ линейной карты — не только когда между ними ложится третья константа, но и когда старая МЕНЯЕТ ЗНАЧЕНИЕ. Перенос WALK_SPEED с 3.0 на 1.8 разом пересчитал всю кривую покачивания в 1.667 раза.
 - 10:08:2026 - 20:01:34: Правила 39 (теневая копия цепочки становится дефектом, как только у оригинала появляется ветка — три копии одного высотного конвейера разошлись за день, и все наборы остались зелёными, потому что тестировали единственный стенд, где они ещё совпадали) и 40 (Approx().epsilon() не проценты, а на РАЗНОСТИ неверен при любом масштабе). Формулировка 39 — core, чья находка.
 - 10:08:2026 - 20:32:07: Правило 41 (прибор, меряющий ОБЪЕКТ, не может принять утверждение о ВИДЕ — одна и та же доля даёт противоположные вердикты). И у правила 16 появилось МЕХАНИЧЕСКОЕ средство: читать date и писать файл одним вызовом оболочки, потому что шесть нарушений после написания правила допустили те, кто мог его процитировать.
+- 10:08:2026 - 20:32:52: Правило 42 (бюджет, выраженный в единицах одних часов, ничего не ограничивает в единицах других — бюджет читался как 1 и выдавал 5). Формулировка sim, чья находка; вместе с признаком: величина, повторяющаяся до цифры без разброса, это ограничитель, а не склонность.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -665,6 +666,38 @@ Sibling of Rule 30's "which quantity a threshold sits on is itself a measurement
 and of Rule 36 — there the filter decided the answer, here the choice of quantity
 does. All three are the same disease: **the measurement looked rigorous and was
 about the wrong thing.**
+
+### Rule 42 — A budget denominated in one clock's units enforces nothing in another clock's
+`CHUNK_LOAD_BUDGET` was 1 chunk per `ChunkManager::update`, and its own NUMBERS row
+priced the thing it protects against in FRAMES: *"~83 ms per chunk, at 2 per frame
+already 166 ms — reads as a freeze."* But `update()` was called once per SIM STEP,
+inside the fixed-timestep catch-up loop, so one frame could contain up to
+`SIM_MAX_CATCHUP_STEPS` of them. **The budget read as 1 and delivered 5.**
+
+**The protection inverts exactly where it is needed:** the slower the frame, the
+more catch-up steps it runs, the more streaming work it is permitted to do. A
+budget meant to prevent hitches was scaled by the size of the hitch.
+
+Neither number is wrong. `1` is right per tick; `5` is right as a spiral-of-death
+guard. The defect is that they live in different clocks and the limit that matters
+is in the second one. It survived review by two zones who each reasoned correctly
+from a wrong model of the call site, and it was found only by grepping where the
+call actually is.
+
+**The check, and it is mechanical: for every budget, name the unit of the thing it
+protects. If that unit is not the unit the budget is counted in, there is a
+conversion factor — and the conversion factor is variable.**
+
+Sibling of Rule 35 (one number, two zones) and Rule 37 (a range gains an interior
+point). Here a RATE is correct in one denominator and wrong in another, and nothing
+about either figure looks wrong in isolation.
+
+**The detection heuristic that found it is worth as much as the rule: a measured
+quantity that repeats to the digit with zero variance is a CLAMP, not a tendency.**
+Every stall episode across nine runs sat at exactly 5.00 ticks per frame against a
+normal of 0.503. That was sitting in data already collected for a different
+question — nobody had to instrument anything, only to notice that a real
+measurement does not repeat exactly.
 
 ---
 
