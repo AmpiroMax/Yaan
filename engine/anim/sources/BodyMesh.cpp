@@ -71,9 +71,11 @@ constexpr float SHIN_ANKLE_TAPER = 0.58f;
 constexpr float FOOT_WIDTH_RATIO = 0.62f;
 // Trunk taper: the torso is a V, hips narrower than shoulders.
 constexpr float TORSO_HIP_RATIO = 0.80f;
-// Neck stub: fraction of head width, and it replaces the full-depth torso slab
-// that used to run all the way up to the neck (see NECK_LINE below).
+// The top of the trapezius wedge, as fractions of head width and torso depth.
+// The DEPTH one is the number that fixed the chest: it is what stops the mass
+// above the shoulder line from standing in front of the eye.
 constexpr float NECK_WIDTH_RATIO = 0.62f;
+constexpr float NECK_DEPTH_RATIO = 0.45f;
 
 [[nodiscard]] uint32_t pack(const glm::vec3& c) {
     const auto to8 = [](float v) {
@@ -184,13 +186,25 @@ BodySegmentMesh build_body_segment_mesh(Bone bone, const RigProportions& p) {
         // of swing to 0.294 m against a maximum reach of 0.486 — a foot on
         // screen across 59 % of the stride where it used to be 31 %.
         const float y0 = torso_len * (PELVIS_HEIGHT_RATIO + TORSO_GAP_RATIO);
-        const float neck_line = p.shoulder_height - p.hip_height;
+        const float shoulder_line = p.shoulder_height - p.hip_height;
         const float sx = p.shoulder_width * 0.5f;
         const float sz = p.torso_depth * 0.5f;
-        prism(m, y0, neck_line, sx * TORSO_HIP_RATIO, sz * TORSO_HIP_RATIO, sx, sz,
+        // Trunk: hips to the acromion, a V.
+        prism(m, y0, shoulder_line, sx * TORSO_HIP_RATIO, sz * TORSO_HIP_RATIO, sx, sz,
               BEVEL_TORSO, pack(TUNIC));
+        // THE TRAPEZIUS WEDGE, and it is the second attempt. Ending the trunk
+        // at the acromion and standing a thin pole on it was geometrically
+        // right and looked absurd — a 9.4 cm neck reads as a plucked bird, and
+        // the user asked for «чуть», not for a new silhouette. A real shoulder
+        // SLOPES from the neck base down to the acromion, so the mass keeps
+        // going up to the neck line but sheds width and most of its depth. The
+        // occlusion win is identical: the binding corner is the acromion at
+        // full depth either way (a foot is visible past 0.294 m of swing
+        // instead of 0.430), because at 45 % depth the neck-line corner cannot
+        // block a downward ray at all.
         const float nx = p.head_width * NECK_WIDTH_RATIO * 0.5f;
-        prism(m, neck_line, torso_len, nx, nx, nx, nx, BEVEL_LIMB, pack(SKIN));
+        prism(m, shoulder_line, torso_len, sx, sz, nx, sz * NECK_DEPTH_RATIO,
+              BEVEL_TORSO, pack(TUNIC));
         break;
     }
     case Bone::Head: {
