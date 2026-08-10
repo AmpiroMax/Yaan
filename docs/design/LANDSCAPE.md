@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 12:07:08
+Last updated: 10:08:2026 - 20:11:26
 -->
 <!--
 UPD:
@@ -67,6 +67,7 @@ UPD:
 - 10:08:2026 - 11:29:44: §1.7 BR-5 SHARPENED on flora's follow-up measurement (§3.14): the combined trunk+floor figure (real 44.4/ha uniform lattice + clumped Bush/BigBush) passes everywhere except ruled-MIN at the 40 m ring, which misses by 0.021 — and whether that miss exists at all depended on an aggregation clause BR-5 never stated. Ruled: per-distance aggregation, never pooled across 40-80 m, same "mean hides a desert" reasoning BR-6 already codifies as a tail clause, now cross-applied to distance. 0.021 against 0.5 sits inside Rule 36's few-percent caution, so core reconfirms across a seed spread before building anything, not off one draw; if it holds, the density-aware placement lever is scoped to exactly that cell (sparse floor, near ring) and nowhere else; if it doesn't, no lever is built at all. Flagged to the lead as a candidate standing clause for ARCHITECTURE.md: acceptance rules should name their aggregation and denominator, not only their number — third time in two days the deciding fact was a definition, not a measurement.
 - 10:08:2026 - 11:34:54: §1.7 BR-5 CLOSED (pending core's build): flora reconfirmed ruled-MIN/40m across 40 seeds — mean 0.5038 (pass), median 0.4778 (fail by 0.022), sd 0.164, 60% of seeds failing outright. Which seed-statistic decides was ruled to DISSOLVE rather than answer, on the lead's reframing: BR-5 is a per-instance placement rule (many finds per seed), not a per-seed structural one like the §2.8.3 massif/C1 invariants it would otherwise inherit a statistic from, so the fix is not a better summary statistic but removing the randomness the statistic summarises — density-aware find placement, confirmed rather than merely greenlit, scoped to sparse-floor/near-ring only. Two gates before core builds: (1) reconcile against core's independent instrument on the same 40 seeds — a live marginal cell is exactly where two instruments disagreeing would matter, and the ruling is provisional until they agree; (2) check the BR-6 gap-tail interaction before, not after, since steering finds away from sparse-floor locations concentrates them in the covered fraction and can widen wilderness-route gaps FIND_GAP_MAX_MULT exists to catch.
 - 10:08:2026 - 12:07:08: §1.7 BR-3 CLOSED: core found the ForestFloor edge rows (MossPatch, Mushroom) carried no density at all (per_100m is linear, a forest floor isn't), so BR-3's ratio was dividing by an unauthored zero and read ~27000 — refused rather than shipped. Blessed flora's anchor-derived fix (MossPatch 40/ha, Mushroom 20/ha, no double-count with fallen-log moss_cover) and ruled the ratio's denominator SAME-SET (edge species both sides). Either denominator reading clears RICH_EDGE_RATIO=3 by 6-30x, so the ratio is DEMOTED to a logged floor/canary (same move as BR-5's bare-terrain instrument the same day) and the ordering clause (hint >= dirt > cobble ~ 1, real separation) becomes BR-3's formal acceptance. Declined re-tightening the ratio to "where it bites" — deriving a threshold from the value it tests is the 30a coincidence already refused twice. Closed the floor-vs-product composition question core validated by mutation (plain product zeros cobble's moss residual, correctly reds the suite) by writing the max-not-product requirement into BR-3's text explicitly. Also recorded: zero stone steps on this stand is accepted (в7 binds the system, not a per-stand instance count); forcing a climb to manufacture a steps frame would repeat the grass "buy the number" trap. Sixth definitional-question instance in three days; forwarded ARCHITECTURE.md clause is doing its job.
+- 10:08:2026 - 20:11:26: §1.7 — MY OWN CITED CONTROL DOES NOT REPRODUCE, AND IT IS REFUTED BY ARITHMETIC I COULD HAVE RUN WITHOUT SPENDING CORE'S MEASUREMENT. §1.7 cited bare terrain at 0.03/0.06 (40/80 m) as BR-5's permanent must-fail control; core re-measured the same arm at 0.0000/0.2083 (c8e6a73) and eliminated their ray, bearing count and LF-8 erosion as causes — erosion turned out to REDUCE terrain occlusion here, the opposite of the guess. The pair is dead on a two-line proof: for equal-sized groups the pooled median can never exceed the larger group median, so per-ring 0.03/0.06 forces a pooled value <= 0.06, while the generator itself recorded 0.1042 on the same finds. 0.03/0.06 AND 0.1042 CANNOT BOTH DESCRIBE ONE DRAW. I inherited the pair as a per-distance reading without checking it against the pooled figure beside it — Rule 34 landing on design, and specifically the aggregation ambiguity that ARCHITECTURE.md's Rule 30 already uses THIS RULE as its worked example. The number was recorded on the wrong side of the very ambiguity it is quoted to illustrate. WHAT SURVIVES: the control's job is to FAIL the bar and 0.2083 fails it by 2.4x, so nothing in the BR-5 ruling rested on its magnitude. WHAT DOES NOT: the pinned canary's '3-4x' clause is a RATIO whose denominator is now measured at exactly ZERO at 40 m, so no threshold on it can separate working siting from broken — Rule 30's own test for a wrong QUANTITY rather than a wrong threshold. Restated as a DIFFERENCE (composed minus terrain-only, per-distance, never pooled): 0.4167 / 0.5833 / 0.5000, all defined, and the 40 m case the ratio could not express at all is where siting does its LARGEST work. Ratified core's refusal to assert the bar at 40 m: a red suite on a lever I ruled must be sized AFTER this re-measurement would be a known-open item wearing a failure's clothes. Endorsed their by-cause exclusion of dead wood (Rule 36) — a gate leaning on classes sized for the user's brief could be passed by enlarging scenery.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1484,7 +1485,9 @@ texture and becomes режиссура here.
 
 **BR-5 SCOPED — bare terrain is the wrong instrument for the FOREST STAND,
 and the two carriers of this rule are declared, not accidental (ruling,
-stage-5).** Core measured BR-5 on the forest stand at 0.03/0.06 median
+stage-5).** Core measured BR-5 on the forest stand at a median far under the 0.5 bar
+(cited here as 0.03/0.06; **that pair was withdrawn 10.08.2026 and
+re-measured at 0.0000/0.2083 — see the CONTROL paragraph below**)
 occlusion (40/80 m rings) against the 0.5 bar, and flagged that LF-2's own
 recipe cannot supply it alone: making the swale floor CONNECTED for W5's fog
 (§2.10 LF-2, the percolation threshold at 0.593) is the same change that
@@ -1555,18 +1558,61 @@ a test:**
   lead): **the 0.5 is a bar on terrain+trunks+floor**, not on bare terrain
   and not on terrain+trunks alone.
 
-**CONTROL (Rule 30) — it already exists, nothing new to build:** the
-current terrain-only measurement (0.03 / 0.06 median at 40/80 m) is the
-must-fail control, permanently. It is the literal "forest with the forest
-deleted" case, and it must keep reading far under 0.5. If it ever climbs
-toward the bar, the terrain itself has quietly grown a job it was not
-supposed to carry (wavelength, amplitude, or ring drift) and this ruling's
-premise needs re-checking, not a shrug.
+**CONTROL (Rule 30) — the control stands, its NUMBER is withdrawn and
+replaced (core, 10.08.2026, `c8e6a73`).** The terrain-only case is the
+must-fail control permanently: it is the literal "forest with the forest
+deleted", and it must keep reading far under 0.5. But the pair this
+section cited for it — **0.03 / 0.06 at 40/80 m — does not reproduce and
+is withdrawn.** Core re-measured the same terrain-only arm at
+**0.0000 / 0.2083** (seed 1, 156 finds, 24 bearings), 3.5× the cited
+figure at 80 m, and eliminated three candidate causes before reporting:
+not their ray (pooled the old way it returns 0.1042, matching the
+generator's own `Find::occluded_fraction` median to four decimals), not
+bearing count (converged by 24; 8/16/24/48 never approach 0.06), and not
+LF-8 erosion (disabling it raises the 80 m control to 0.2500, so erosion
+slightly *reduces* terrain occlusion here — the opposite of the guess).
 
-**THE PINNED REGRESSION TEST STAYS, RECLASSIFIED, NOT REPLACED.** Core's
-existing test — find siting beats a bare-ground/naive control by 3–4×, AND
-the median stays below 0.5 on bare terrain — keeps BOTH assertions
-verbatim. It stops being read as the BR-5 acceptance gate (that role moves
+**The cited pair is refuted by arithmetic alone, with no re-run needed,
+and design should have caught this without core spending a measurement.**
+For two equal-sized groups, at least half of each lies at or below its own
+median, so the pooled median can never exceed the larger of the two group
+medians. Per-ring medians of 0.03 and 0.06 therefore force a pooled median
+**≤ 0.06** — yet the generator itself recorded **0.1042** on the same
+finds. **0.03 / 0.06 and 0.1042 cannot both describe one draw.** The
+citation was inherited into this section as a per-distance pair without
+anyone checking it against the pooled figure sitting beside it, and this
+is Rule 34 landing on design: a number quoted from another zone is a
+premise, and a premise gets checked before a ruling is built on it. It is
+also the aggregation defect ARCHITECTURE.md's Rule 30 already records
+using **this very rule** as its example — "a ring of samples at 40–80 m"
+passes read as one ring and fails read per-distance. The number was
+recorded on the wrong side of the ambiguity the rule itself was cited to
+illustrate.
+
+**What survives unharmed, and why this is a reconciliation and not an
+alarm:** the control's JOB is to fail the bar, and 0.2083 fails it by
+2.4×. Nothing in the BR-5 ruling rested on the control's magnitude — only
+on its being far under 0.5, which it is. The rest of §1.7 stands.
+
+**THE PINNED REGRESSION TEST STAYS, RECLASSIFIED — AND ITS FIRST CLAUSE
+NOW HAS THE WRONG QUANTITY (amended 10.08.2026).** The "3–4×" clause is a
+RATIO, and core's re-measurement shows its denominator can be **exactly
+zero**: the terrain-only control reads 0.0000 at 40 m. A ratio against
+zero is undefined, so at the near ring no threshold on that quantity
+separates a working siting logic from a broken one — which is Rule 30's
+own test for a wrong quantity rather than a wrong threshold. **Restate the
+first clause as a DIFFERENCE, not a ratio:** composed minus terrain-only,
+at each ring, aggregated per-distance and never pooled. On core's numbers
+that reads 0.4167 at 40 m, 0.5833 at 60 m, 0.5000 at 80 m — all three
+comfortably positive, all three defined, and the 40 m case (the one the
+ratio cannot express at all) is where the siting logic does its *largest*
+work. The below-0.5 tripwire clause is untouched and keeps its exact
+wording.
+
+Core's existing test — find siting beats a bare-ground/naive control, AND
+the median stays below 0.5 on bare terrain — keeps BOTH assertions, the
+first with the amended quantity above. It stops being read as the BR-5
+acceptance gate (that role moves
 to the terrain+trunks+floor instrument above) and becomes the **permanent
 canary for this ruling's premise**: the 3–4× clause proves the siting logic
 does real directional work even on an instrument too thin to reach the bar;
@@ -1598,13 +1644,13 @@ instrument, no new one) remains a legal find location but is not claimed as
 a BR-5 specimen there. This is a placement-generator lever, not a density
 lever, and it is core's to build once the instrument above exists and is
 re-measured — not sized today, because per Rule 34 nobody has yet measured
-the real number the new instrument produces, only the terrain-only 0.03 and
+the real number the new instrument produces, only the terrain-only control (0.0000/0.2083 as re-measured) and
 flora's trunk-less scatter estimate.
 
 **Sequencing, for core:** (1) build the terrain+trunks+Bush/BigBush
 ray-vs-disc instrument, reusing flora's floor-class shape; (2) re-measure
-BR-5 on it, keeping the existing terrain-only numbers as the permanent
-control; (3) only if the re-measured MIN end still fails, apply the
+BR-5 on it, keeping the terrain-only arm as the permanent control at its
+re-measured value; (3) only if the re-measured MIN end still fails, apply the
 placement-density-awareness lever above — not before, since the numbers in
 hand cannot say whether it is even needed once trunks (a real, uniform,
 non-clumped 44/ha contribution no earlier estimate included) are in the sum.
