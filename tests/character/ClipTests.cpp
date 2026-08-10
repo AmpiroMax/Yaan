@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:22:44
+Last updated: 10:08:2026 - 21:34:24
 Module: tests
 File: tests/character/ClipTests.cpp
 
@@ -27,6 +27,7 @@ UPD:
 - 10:08:2026 - 12:10:00: Contact is measured at the SOLE against the ground, not at the ankle against its own minimum; double support replaces the single-support release assertion.
 - 10:08:2026 - 20:00:23: The wave waves (hand sweep, with the elbow-roll version as the control) + no clip loses motion to the hinge reduction; four doctest::Approx epsilons replaced by explicit metres (lead's broadcast: the admitted band was e*(1+|x|), up to +/-0.27 m on a foot).
 - 10:08:2026 - 20:22:44: eye_lean_offset asserted against the rig's own FK, plus the property the seam exists for — leaning harder never brings the chest closer to the eye, with today's non-riding eye as the control.
+- 10:08:2026 - 21:34:24: The slip check the swing-cap row asks for, phrased as the outcome — and it surfaced that the row's 0.798 % is IDEALISED: the drawn ankle travels 0.6944 m against the stick model's 0.9722, so real slip at a walk is 29.1 %, not 0.8 %. Plus explicit bounds on the chest-to-eye clearance the repo audit named (the old +/-20.5 mm band also hid a wrong nominal).
 */
 
 #include <doctest/doctest.h>
@@ -246,6 +247,81 @@ TEST_CASE("gait amplitude follows step length (and is capped)") {
     // Control: zero step length is a standing pose — no spread beyond the
     // foot boxes themselves.
     CHECK(spread(0.0f) < 0.01f);
+
+    // THE CHECK `BODY_THIGH_SWING_MAX_SIN`'s ROW ASKS FOR, and until now the
+    // row had ZERO readers in the engine AND zero in this suite — a row that
+    // guards nothing while looking like it guards something (the pattern the
+    // repo audit named on `min_branch_diameter`; this is its instance in this
+    // zone). Clips.cpp now reads the row instead of keeping a private 0.55,
+    // and the row is a row precisely because sim measures residual foot slip
+    // against the same cap (Rule 35: two zones, one number).
+    //
+    // PHRASED AS THE OUTCOME, WHICH THE ROW ALSO INSISTS ON: "residual slip
+    // stays under a perceptual bound", never "the clamp is inactive" — at
+    // WALK_SPEED the clamp still binds by 0.798 %, so the mechanism-shaped
+    // version would have gone red on correct code the day it was written, and
+    // a test that goes red on correct code gets weakened rather than argued
+    // with (Rule 38).
+    //
+    // AND WRITING IT SURFACED THAT THE ROW'S OWN PERCENTAGE IS IDEALISED.
+    // The row derives the shortfall as leg x (required_sin - 0.55) and reports
+    // 7.82 mm = 0.798 % of the step at WALK_SPEED. That arithmetic treats
+    // hip->ankle as a RIGID STICK at asin(0.55). The drawn leg is not a stick:
+    // the knee is flexed through swing and the foot rockers, so the ankle's
+    // actual fore-aft excursion is 0.6944 m against the stick model's 0.9722 —
+    // **78.6 % of it**. Measured through FK over the evaluated pose rather than
+    // recomputed from the cap, which is the whole reason it shows up here:
+    //
+    // | gear | step model | ankle excursion, DRAWN | slip | row/spec said |
+    // |---|---|---|---|---|
+    // | walk 1.8 | 0.980 | 0.6944 | 0.2856 = **29.1 %** | 0.798 % |
+    // | jog 3.0  | 1.400 | 0.6944 | 0.7056 = 50.4 % | — |
+    // | run 6.0  | 2.450 | 0.6944 | 1.7556 = **71.7 %** | ~60 % |
+    //
+    // Rule 44's shape: a constant fitted through an implementation detail stops
+    // meaning what its name says. "Residual slip" in the row means residual in
+    // a model of the leg, not residual in the leg that is drawn, and the two
+    // differ by 36x at a walk. Reported to lead for the row's note; NOT quietly
+    // corrected here, because it is also the number the row says sim's
+    // instrument independently agrees with, and I have not read their
+    // instrument to know which quantity IT is on (Rule 34).
+    const auto excursion = [&](float speed) {
+        const float step = step_at(speed);
+        float lo = 1e9f;
+        float hi = -1e9f;
+        for (int i = 0; i < SAMPLES; ++i) {
+            const LocalPose pose =
+                gait_pose(rig, static_cast<float>(i) / SAMPLES, step, 0.0f);
+            std::array<glm::mat4, BONE_COUNT> m;
+            forward_kinematics(rig, pose, {}, m);
+            const float z = m[bone_index(Bone::FootL)][3].z;
+            lo = std::min(lo, z);
+            hi = std::max(hi, z);
+        }
+        return hi - lo;
+    };
+    const float walk_reach = excursion(static_cast<float>(config::WALK_SPEED));
+    const float run_reach = excursion(static_cast<float>(config::RUN_SPEED));
+
+    // THE CAP SATURATES AT EVERY GEAR, INCLUDING A WALK, so the drawn stride is
+    // one constant and the slip is entirely a function of how fast the world
+    // moves under it. That is the v1 limit stated as a measurement instead of a
+    // comment: explicit bounds, 0.6944 measured (Rule 40).
+    CHECK(std::abs(walk_reach - run_reach) < 1.0e-3f);
+    CHECK(walk_reach > 0.68f);
+    CHECK(walk_reach < 0.71f);
+
+    // ...and the slip therefore GROWS with speed. Pinned so the limit cannot
+    // silently get worse, and so that the day someone fixes it — slower rows,
+    // or hip translation — this goes red and the limit is deleted deliberately
+    // rather than drifting into being untrue.
+    const float walk_step = step_at(static_cast<float>(config::WALK_SPEED));
+    const float run_step = step_at(static_cast<float>(config::RUN_SPEED));
+    const float walk_slip = (walk_step - walk_reach) / walk_step;
+    const float run_slip = (run_step - run_reach) / run_step;
+    CHECK(walk_slip > 0.25f); // measured 0.291
+    CHECK(walk_slip < 0.33f);
+    CHECK(run_slip > walk_slip + 0.3f); // measured 0.717 vs 0.291
 }
 
 TEST_CASE("crouch folds the legs and keeps feet near the ground") {
@@ -487,7 +563,18 @@ TEST_CASE("leaning harder never brings the chest closer to the eye") {
     // shoulder hang off the same hip pivot at comparable lever arms, so they
     // advance together by construction.
     CHECK(chest_ahead_of_eye(1.0f, true) < 0.0f);
-    CHECK(chest_ahead_of_eye(0.0f, true) == doctest::Approx(0.026f).epsilon(0.02));
+    // EXPLICIT BOUNDS ON A CLEARANCE (Rule 40; the repo audit named this exact
+    // line). It read `Approx(0.026f).epsilon(0.02)`, which admits
+    // 0.02 x (1 + 0.026) = +/-0.0205 m — a band 158 % as wide as the gap it is
+    // asserting, on the one quantity that decides whether you can see your own
+    // chest. AND THE BAND HID A WRONG NOMINAL: the resting gap measures
+    // 0.02537 m, not the 0.026 quoted here and in the spec, so the assertion
+    // was 0.63 mm off its own subject and nothing could say so. That is the
+    // sharper cost of a loose epsilon — not only that it fails to catch a
+    // regression, but that the number written IN it stops being checked.
+    const float resting_gap = chest_ahead_of_eye(0.0f, true);
+    CHECK(resting_gap > 0.0244f); // measured 0.02537 m, +/-1 mm
+    CHECK(resting_gap < 0.0264f);
 
     // CONTROL, and it is today's shipped behaviour rather than a synthetic
     // case: with the eye NOT riding the lean, the same sweep goes the wrong

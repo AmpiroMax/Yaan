@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:22:44
+Last updated: 10:08:2026 - 21:34:24
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 10:08:2026 - 12:10:00: The stance knee no longer hyperextends (was 33.4 deg) and the foot rolls over the toe instead - the forefoot rocker, 22.4 deg at full swing.
 - 10:08:2026 - 20:00:23: The wave's wag moved off the ELBOW (a hinge deleted it, so the wave never waved); flex's forearm rolls likewise; gait_run_weight authored per gear instead of interpolated across the rows.
 - 10:08:2026 - 20:22:44: eye_lean_offset() — the eye rides the trunk's lean (sim's request; both zones derived it independently and agree to the millimetre); the head counter-pitch is named HEAD_STABILIZE now that it has a second reader.
+- 10:08:2026 - 21:34:24: THIGH_SWING_MAX_SIN now READS its NUMBERS row. The row landed 19:26:40 and this file kept a private 0.55, so the row had zero readers in the engine and zero in the suite — a row that guards nothing while looking like it guards something.
 */
 
 #include "engine/anim/sources/Clips.h"
@@ -44,12 +45,23 @@ constexpr float TWO_PI = 6.28318530717958647692f;
 // --- Procedural asset data (NOT NUMBERS rows — lead ruling, see header) -----
 // Gait shape. Rationales cite Winter's gait chapters / Inman's "Human Walking"
 // qualitatively; exact values are authored for the chunky low-res read.
-constexpr float THIGH_SWING_MAX_SIN = 0.55f; // cap on sin(thigh amplitude): an
-    // uncapped asin() at sim's brisk 3 m/s walk gives a cartoon scissor, and
-    // the cap bounds the derived pelvis arc (below) to T*(1-cos(0.58)) ~ 7 cm.
-    // KNOWN v1 LIMIT, recorded: at sim's step model the visual reach covers
-    // roughly half the actual step at 3 m/s, so fast feet slide somewhat;
-    // honest fix is slower WALK_SPEED (movement grill) or hip translation.
+// THIS ONE IS A ROW, NOT ASSET DATA, AND IT HAD TO BECOME ONE (Rule 35): the
+// cap bounds the visual half-step, and sim measures the RESIDUAL FOOT SLIP
+// against the same bound, so two zones must agree on it. The row landed in
+// NUMBERS on 10:08:2026 - 19:26:40 and this literal was never switched over —
+// the row then sat with ZERO readers in the engine and zero in the suite,
+// which is a row that guards nothing while looking like it guards something.
+// Found by sweeping this zone for the pattern the repo audit named elsewhere.
+// It is stated as a SINE because that is what the pose consumes; an angle
+// would be an intermediate somebody rounds separately.
+constexpr float THIGH_SWING_MAX_SIN =
+    static_cast<float>(config::BODY_THIGH_SWING_MAX_SIN);
+    // Uncapped, asin() at sim's brisk walk gives a cartoon scissor, and the
+    // cap bounds the derived pelvis arc (below) to T*(1-cos(0.58)) ~ 7 cm.
+    // HOW TO PHRASE ANY CHECK ON IT, and the row says the same: "the residual
+    // slip stays under a perceptual bound", NEVER "the clamp is inactive". At
+    // WALK_SPEED the clamp still binds by 0.798 %, so the mechanism-shaped
+    // assertion would go red on correct code the day it was written (Rule 38).
 // Fraction of the foot behind the ankle; mirrors BodyMesh FOOT_HEEL_RATIO so
 // the toe used by the rocker is the toe that is drawn.
 constexpr float FOOT_HEEL_FRAC = 0.25f;

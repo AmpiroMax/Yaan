@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:24:59
+Last updated: 10:08:2026 - 21:34:24
 Module: tests
 File: tests/character/RigPoseTests.cpp
 
@@ -26,6 +26,7 @@ UPD:
   странная», measured), with the joint-on-the-wall control; and the Rule 41
   caveat on the leg-convergence band — it compares a hip->ANKLE angle against a
   hip->KNEE band, on top of a hip width that is a silhouette used as a joint span.
+- 10:08:2026 - 21:34:24: Rule 40 sweep — the leg-chain residual, the stance residual and the mirror identities take explicit absolute bounds measured rather than guessed.
 */
 
 #include <doctest/doctest.h>
@@ -66,8 +67,12 @@ TEST_CASE("proportions from config are internally consistent") {
     // The leg chain must land back on the hip row: thigh + shin + ankle == hip.
     // This catches a mistyped fraction the day a row changes (each length is
     // derived from TWO rows, so an error cannot cancel).
-    CHECK(p.thigh_length() + p.shin_length() + p.ankle_height
-          == doctest::Approx(p.hip_height).epsilon(1e-4));
+    // Explicit: a chain residual, correct value 0 (Rule 40). It is exact to
+    // float precision here — the probe measured it below 1e-7 m — so 1e-5 m
+    // (0.01 mm) is a real bound rather than the +/-1.95e-4 the old epsilon
+    // admitted by scaling with hip_height.
+    CHECK(std::abs(p.thigh_length() + p.shin_length() + p.ankle_height - p.hip_height)
+          < 1.0e-5f);
     // Ordering that the rest pose depends on.
     CHECK(p.ankle_height < p.knee_height);
     CHECK(p.knee_height < p.hip_height);
@@ -119,7 +124,9 @@ TEST_CASE("the legs converge to the stance row (user note: feet too far apart)")
     // THE THING THE USER LOOKED AT: how far apart the feet are. The hips stay
     // a full hip-breadth apart at the top, the ankles close to the stance row.
     const float ankles = joint_pos(m, Bone::FootR).x - joint_pos(m, Bone::FootL).x;
-    CHECK(ankles == doctest::Approx(p.stance_width).epsilon(1e-3));
+    // Explicit: the stance is what the user looked at, and the assertion is a
+    // residual against the row. Measured 7.5e-9 m (Rule 40).
+    CHECK(std::abs(ankles - p.stance_width) < 1.0e-5f);
     CHECK(ankles < p.hip_width * 0.5f); // it really is a NARROW stance now
     const float hips = joint_pos(m, Bone::ThighR).x - joint_pos(m, Bone::ThighL).x;
     CHECK(hips == doctest::Approx(p.hip_width)); // ...and the pelvis did not shrink
@@ -241,8 +248,9 @@ TEST_CASE("mirror moves the raised arm to the other side in world space") {
 
     const glm::vec3 hand_l = glm::vec3{m[bone_index(Bone::HandL)][3]};
     const glm::vec3 hand_r_mirrored = glm::vec3{mm[bone_index(Bone::HandR)][3]};
-    CHECK(hand_r_mirrored.y == doctest::Approx(hand_l.y).epsilon(1e-4));
-    CHECK(hand_r_mirrored.x == doctest::Approx(-hand_l.x).epsilon(1e-4));
+    // Explicit: mirror identities are residuals (Rule 40).
+    CHECK(std::abs(hand_r_mirrored.y - hand_l.y) < 1.0e-5f);
+    CHECK(std::abs(hand_r_mirrored.x + hand_l.x) < 1.0e-5f);
     // And the mirrored pose's LEFT hand hangs low (the raise moved sides).
     const glm::vec3 hand_l_mirrored = glm::vec3{mm[bone_index(Bone::HandL)][3]};
     CHECK(hand_l_mirrored.y < hand_l.y - 0.2f);
