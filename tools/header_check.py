@@ -35,6 +35,8 @@
 #                          whole-tree gate let any agent's mid-edit file block every
 #                          other agent's commit -- design was blocked twice in one
 #                          night by files it had never touched.
+# - 10:08:2026 - 20:16:01: captures/ и playtest_test_artifacts/ исключены из обхода —
+#                          это ВЫВОД прогонов, и они держали --all вечно красным.
 
 from __future__ import annotations
 
@@ -54,7 +56,6 @@ UPD_ENTRY_RE = re.compile(
 # - Build/tooling output (.git, build*, ...).
 # - third_party: vendored dependencies — never hand-edited.
 # - __pycache__/.venv: Python artifacts.
-# - 10:08:2026 - 20:16:01: captures/ и playtest_test_artifacts/ исключены из обхода — это ВЫВОД прогонов, и они держали --all вечно красным.
 SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
              ".claude", "third_party", "__pycache__", ".venv", "_deps",
              # RUN OUTPUT, not source. These are written BY the tools whose
