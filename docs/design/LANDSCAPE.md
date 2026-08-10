@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 21:08:13
+Last updated: 10:08:2026 - 21:11:31
 -->
 <!--
 UPD:
@@ -70,6 +70,7 @@ UPD:
 - 10:08:2026 - 20:11:26: §1.7 — MY OWN CITED CONTROL DOES NOT REPRODUCE, AND IT IS REFUTED BY ARITHMETIC I COULD HAVE RUN WITHOUT SPENDING CORE'S MEASUREMENT. §1.7 cited bare terrain at 0.03/0.06 (40/80 m) as BR-5's permanent must-fail control; core re-measured the same arm at 0.0000/0.2083 (c8e6a73) and eliminated their ray, bearing count and LF-8 erosion as causes — erosion turned out to REDUCE terrain occlusion here, the opposite of the guess. The pair is dead on a two-line proof: for equal-sized groups the pooled median can never exceed the larger group median, so per-ring 0.03/0.06 forces a pooled value <= 0.06, while the generator itself recorded 0.1042 on the same finds. 0.03/0.06 AND 0.1042 CANNOT BOTH DESCRIBE ONE DRAW. I inherited the pair as a per-distance reading without checking it against the pooled figure beside it — Rule 34 landing on design, and specifically the aggregation ambiguity that ARCHITECTURE.md's Rule 30 already uses THIS RULE as its worked example. The number was recorded on the wrong side of the very ambiguity it is quoted to illustrate. WHAT SURVIVES: the control's job is to FAIL the bar and 0.2083 fails it by 2.4x, so nothing in the BR-5 ruling rested on its magnitude. WHAT DOES NOT: the pinned canary's '3-4x' clause is a RATIO whose denominator is now measured at exactly ZERO at 40 m, so no threshold on it can separate working siting from broken — Rule 30's own test for a wrong QUANTITY rather than a wrong threshold. Restated as a DIFFERENCE (composed minus terrain-only, per-distance, never pooled): 0.4167 / 0.5833 / 0.5000, all defined, and the 40 m case the ratio could not express at all is where siting does its LARGEST work. Ratified core's refusal to assert the bar at 40 m: a red suite on a lever I ruled must be sized AFTER this re-measurement would be a known-open item wearing a failure's clothes. Endorsed their by-cause exclusion of dead wood (Rule 36) — a gate leaning on classes sized for the user's brief could be passed by enlarging scenery.
 - 10:08:2026 - 20:29:59: §5.12a-e — CORE FOUND A HOLE IN MY OWN SENTENCE AND I RULED IT RATHER THAN PATCHING IT. The apron predicate never said WHICH TREES it ranges over; core measured both readings instead of arguing them — globally it excludes every tree within ~670 m (a clearcut, REFUSED), scoped to the massif stamp it reaches 162 m as a derived output against a pine annulus at 140 m (RATIFIED AS SHIPPED, and it reproduces my measurement from the other side). THE REAL RULING IS THAT THE ACCEPTANCE QUANTITY IS WRONG, which is why the middle looked unrulable: at 300 m the apron moves 'fraction hidden' by 1.1 points (39.5->38.4) despite demonstrably fixing the actual defect, and core's own third option is right that a third hidden IS what a forested valley looks like. Both true at once convicts the QUANTITY, not either answer — Rule 30's mechanical test. The case the fraction cannot see: 69% visible spread evenly reads as a mountain behind a wood, 69% visible with the BOTTOM curtained reads as a painted backdrop, and the fraction is identical. Same family as §2.8.7 — the instrument measures the OBJECT while the acceptance is about the VIEW. Acceptance moves to the GROUND JUNCTION: a contiguous run of >=20 px at 640x360 (4.885 deg at SKY_ANGULAR_PIXEL, reused from WEATHER.md W9.0) where the lowest visible massif pixel is massif-meeting-ground rather than canopy edge; aggregation longest run, denominator the massif's angular width. THRESHOLD DELIBERATELY NOT PLACED — both arms must be measured on the new quantity first, apron-OFF being the real rejected instance, and sizing before measuring is the error I ruled against on BR-5 the same day. Core's 15/50 band survives RECLASSIFIED from acceptance gap to canary on the apron's machinery. Wedge refused for now with its unnamed cost written down: a corridor pointed at a landmark is a bald lane along the exact bearing the player walks. The missing frame is upgraded from Rule 27 debt to BLOCKER, because the junction run is defined ON the frame; handed core the clock convention they were missing (0.25 sunrise / 0.5 noon / 0.75 sunset as a fraction of DAY_LENGTH_SECONDS). Separately flagged to flora/core as Rule 32: species_trunk_radius() returning ROOT FLARE is a SHARED HELPER, so every consumer is inspected in the same change, not only the BR-5 ray that surfaced it.
 - 10:08:2026 - 21:08:13: §5.10a THE MOSS RULING — flora's GROUND_MOSS_FOREST_PER_M2 0.0263 REFUSED, row stays 0.0040 (40/ha). Settled by arithmetic before definitions: scatter_forest_ground places at most ONE patch per trunk, so per_anchor = per_m2 x 225 m2 is a PROBABILITY and saturates — the requested row realises ~8.4/ha, a 1.4x gain where 6.6x was intended, against a structural ceiling of 41.9/ha that no row raises. Model validated first: E[clump_moss] = 0.1614 derived in closed form from COVERAGE 0.22 / CONTRAST 0.55 predicts 6.45/ha against core's independently measured 6.09/ha. Definitional core: flora's derivation says 2/3 of stems carry a patch (0.667) while CLUMP_COVERAGE_MOSS says moss exists on 0.22 of the ground — contradictory as statements about the same moss, so no row value exists. M-1 moss is ANCHORED, clump_applies -> FALSE same commit (37.7/ha = 0.94x authored). M-2 mushroom keeps the field (flora authored it 'before clumping' — the field IS the look). M-3 the discriminator as a schema column, DensityBasis BASE vs REALISED, since clump_applies is being asked to mean two things and every per_100m row is REALISED by its own contract. M-4 §A7 changes in the SAME commit but not as feared: the count does not rise, so no rings — what 6/ha hid is that every patch sits at a CONSTANT offset (0,-0.6), one azimuth for every trunk in the world, which at 37/ha is A7's forbidden stamp; bearing jittered off a real shade direction (Rule 35 second consumer, named before it bites), distance scaled by trunk size, acceptance = circular variance of bearing (denominator: uniform-bearing control on the same anchors), today's single-azimuth build reads 0 and is the must-fail arm. M-5 ground moss at 263/ha is a legitimate SEPARATE row (assoc Nothing, basis Base, derivation must not mention stem count, must state its relation to §5.10 moss_cover) — filed open, not a blocker. M-6 PathMargin's 2.5-2.7x OVER and ForestFloor's under are ONE defect: rho normalises by INTEGRAL(edge) while placing with max(clump, edge*rich) — numerator weight and denominator normaliser are different functions. The max() STAYS (core's mutation proves it load-bearing for the kept verge); normalise by the integral of the weight actually used. NO ROW MOVES in either habitat, so Rule 44's trap is avoided by fixing the denominator rather than by choosing a composition.
+- 10:08:2026 - 21:11:31: §5.12f-h — THE 20 px JUNCTION THRESHOLD IS WITHDRAWN AND RULE 41 HAS NOW FIRED TWICE ON THE SAME ACCEPTANCE, the second time on the quantity Rule 41 itself installed. Core measured both arms and REPORTED RATHER THAN TUNED, which is the only reason this is rulable: junction 106 px apron-OFF vs 108 px apron-ON (+1.9%), against my proposed 20 px — the real rejected instance clears my threshold by 5.3x, so Rule 30 kills it outright. But the movement is the finding: the junction moved 1.9% where the hidden-fraction it replaced moved 1.1 points, one day apart, and no threshold can be placed between 106 and 108 (below both certifies nothing; between them is the 30a coincidence refused three times here already). WHAT WENT WRONG BOTH TIMES, stated because a rule that catches everyone but its author is not yet a rule: I derived 20 px from LEGIBILITY (the width surviving the palette quantiser) and put it in the slot where a SEPARATION belongs. A legibility floor is derived from the display and answers 'below what can the eye not read this'; a separating threshold can only be derived from two measured arms. The tell is available before any measurement — a threshold whose derivation never mentions the rejected instance is a floor, and a floor in an acceptance's slot passes everything. Forwarded to main for ARCHITECTURE (docs/ is the lead's zone). ANGULAR EXTENT REFUSED as the replacement despite being the quantity that moved (328->357, +8.8%): the defect is VERTICAL and extent is HORIZONTAL, so a massif at 100% width with its bottom third curtained scores perfectly and IS the rejected picture — the same identical-number-opposite-verdicts failure that convicted the fraction, one axis over; it is not monotone in the defect (it keeps improving toward the clearcut 5.12a refused); and it has no accepted arm, so adopting it lands us one measurement later in this same position. THE JUNCTION QUANTITY SURVIVES; ITS AGGREGATION DOES NOT, and the aggregation is where 106 px comes from — 'longest run anywhere along the extent' lets a run at the outer margin, where the massif is at valley level anyway, answer for the centre where the flare and bench are read. New §5.12h acceptance: PRIMARY = CURTAIN HEIGHT, the lowest visible massif pixel per column as a fraction of that column's unoccluded extent; aggregation MEDIAN OVER THE CENTRAL HALF (outer quarters reported, never asserted); denominator the SCATTER-SUPPRESSED frame's own column extent so other terrain's occlusion is divided out rather than counted as canopy; lower is better, 0 = the massif stands on its ground. Junction run retained DEMOTED to canary beside 5.12c's 15/50 band. THRESHOLD STILL NOT PLACED, but this time the placing PROCEDURE has a stopping condition so it cannot return as a threshold argument: three arms (scatter-suppressed — which ALREADY EXISTS, it is the frame that opened §5.12 — apron ON, apron OFF) on the same vantage; BEFORE proposing any number, check that apron-OFF and scatter-suppressed separate by more than the measure's own frame-to-frame noise, and if they do not, REFUSE THIS QUANTITY TOO and write nothing (Rule 41 a third time is a legitimate outcome and beats a fitted number); only then does the threshold go between the two apron arms, and if apron-ON does not land materially closer to scatter-suppressed then the apron is not the whole fix and 5.12d's thinning returns with its bald-lane cost intact.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -5932,6 +5933,131 @@ FRACTION of `DAY_LENGTH_SECONDS` (2880 s) — **0.25 sunrise, 0.5 noon, 0.75
 sunset**, and `START_TIME_OF_DAY` 0.30 is the early-morning default a fresh
 world opens on. For a midday massif frame set 0.5; for the raking light that
 made the band lips legible in the original diagnostic, 0.30–0.35.
+
+##### 5.12f THE JUNCTION'S THRESHOLD IS WITHDRAWN — Rule 41 has now fired TWICE on the same acceptance, and the second time it fired on the quantity Rule 41 itself installed
+
+Core produced the frames and measured both arms (`3506f0b` line of work), and
+**they reported rather than tuned, which is the whole of what 5.12b asked for
+and the only reason this is rulable at all.** A zone that had quietly moved the
+threshold to fit would have handed me a green number and no information.
+
+| quantity | apron OFF (the real rejected instance) | apron ON | movement |
+|---|---|---|---|
+| ground-junction run | **106 px** | **108 px** | +2 px, **+1.9 %** |
+| massif visible angular extent | 328 px | 357 px | +29 px, **+8.8 %** |
+
+**The 20 px is dead on Rule 30's plain reading: a threshold must sit above the
+real rejected instance, and the rejected instance clears mine by 5.3×.** I do
+not get to keep it, and I said in 5.12b that if apron-OFF already cleared 20 px
+the quantity needed tightening. It does. This is that debt being paid.
+
+**But the interesting failure is the second one, and it is Rule 41 word for
+word:** *when an acceptance number moves by almost nothing while everyone agrees
+the thing got better, do not widen the threshold — ask whether the quantity can
+express the difference at all.* The junction moved 1.9 %. The hidden-fraction it
+replaced moved 1.1 points. **Two different quantities, the same non-movement,
+the same file, one day apart** — and the second one is the replacement I wrote
+*because* the first failed that exact test. Recorded plainly, because a rule that
+catches everyone else and not its author is not yet a rule.
+
+**And no threshold can be placed between 106 and 108.** Below both, it certifies
+nothing (Rule 30: a threshold below every real failure is a description). Between
+them, it is derived from the values it is meant to test — corollary 30a, refused
+three times in this document already, and I am not making it four.
+
+##### 5.12g WHAT WENT WRONG BOTH TIMES, since it is the same mistake and it is transmissible
+
+The first quantity I inherited from core's instrument. The second I derived
+myself — and I derived it from **legibility** («20 px is the width at which a run
+survives the palette quantiser instead of reading as a gap between two trees»)
+and then put that number in the slot where a **separation** belongs.
+
+**A legibility floor and a separating threshold are different objects.** A
+legibility floor answers *"below what value can the eye not read this at all?"*
+and is derived from the display. A separating threshold answers *"what value
+puts the rejected picture on one side and the accepted picture on the other?"*
+and can only be derived from **two measured arms**. Mine was correctly computed
+and correctly cited and answered the wrong question, so it landed 5.3× below the
+thing it was supposed to reject. **The tell is available before any measurement:
+a threshold whose derivation never mentions the rejected instance is a floor, and
+a floor put in an acceptance's slot will pass everything.** Forwarded to `main`
+for ARCHITECTURE as a sibling of Rules 30/41 rather than written into it here —
+`docs/` is the lead's zone.
+
+##### 5.12h RULING — the junction SURVIVES, its AGGREGATION does not, and angular extent is REFUSED
+
+**Angular extent is refused as the replacement, and the reason is that it is
+blind in exactly the direction the defect lies.** It moved, which is seductive
+after two quantities that did not — but movement is not discrimination:
+
+- **The defect is VERTICAL and extent is HORIZONTAL.** §5.12's mechanism is «a
+  mountain missing its bottom third». A massif whose full angular *width* is
+  visible while its bottom third is canopy scores 100 % extent and **is the
+  rejected picture**. That is the identical failure that convicted the hidden
+  fraction — identical number, opposite verdicts — one axis over.
+- **It is not monotone in the defect.** Clearing trees near the massif raises
+  extent whether or not the base is freed, so extent will keep improving as the
+  apron widens even in the limit where the apron becomes the bald clearcut
+  5.12a refused.
+- **It has no control.** 328 is the rejected arm; nothing has ever measured an
+  *accepted* one. Adopting it would put us one measurement later in exactly the
+  position we are in now, which is the argument for spending that measurement on
+  a quantity that can lose.
+
+**The junction quantity is retained. What is withdrawn with the 20 px is its
+AGGREGATION, and the aggregation is where the 106 px comes from.** «Longest
+contiguous run anywhere along the massif's angular extent» scores a run at the
+extent's outer margin — where the massif is nearly at valley level anyway and
+meeting the ground is unremarkable — identically to a run through its centre,
+which is the only place the base flare and the bench can be read. **A quantity
+whose aggregation lets an unremarkable region answer for the remarkable one
+cannot discriminate, however well it is measured.** So:
+
+> **§5.12h ACCEPTANCE (replaces 5.12b's run-length clause; the quantity is
+> unchanged, the aggregation and the denominator are not).**
+>
+> **Primary — THE CURTAIN HEIGHT.** For each column of the massif's angular
+> extent in the valley frame, take the elevation of the **lowest visible massif
+> pixel**, expressed as a fraction of that column's **full unoccluded massif
+> extent** (base to summit, which the generator knows and the scatter-suppressed
+> frame shows).
+> *Aggregation:* the **median over the central half** of the massif's angular
+> extent — median because one open column must not answer for the picture, and
+> central half because the flare and the bench are read at the body, not at the
+> hem. The outer quarters are **reported, never asserted.**
+> *Denominator:* the same column's unoccluded extent in the **scatter-suppressed
+> frame** — not the massif's modelled height, so occlusion by other terrain is
+> divided out rather than counted as canopy.
+> *Direction:* lower is better. 0 = the massif stands on the ground it is
+> drawn on.
+>
+> **Secondary, retained and demoted — the junction run**, reported with its
+> aggregation and denominator as written in 5.12b, as a canary alongside 5.12c's
+> 15/50 band. It failed as a gate; it remains a cheap tripwire for the massif
+> having lost its footing entirely.
+
+**THE THRESHOLD IS STILL NOT PLACED, AND THIS TIME THE PROCEDURE THAT PLACES IT
+IS WRITTEN DOWN WITH A STOPPING CONDITION**, so this cannot come back a third
+time as a threshold argument:
+
+1. **Three arms, on the same frame and vantage** (300 m west, midday 0.5, and
+   also at 350 and 500 m where core already has the other two quantities):
+   **scatter-suppressed** (the accepted extreme — and this frame *already
+   exists*, it is the one that opened §5.12 and showed the tor, the band lips
+   and the shoulder break), **apron ON**, **apron OFF** (the rejected instance).
+2. **The stopping condition, checked BEFORE any number is proposed:** if
+   apron-OFF and scatter-suppressed do not separate by **more than the
+   frame-to-frame noise of the measure itself** (re-shoot one arm twice and
+   read it), **the quantity is refused too and no threshold is written** —
+   report that and stop. Rule 41 a third time is a possible outcome and it is
+   better than a fitted number.
+3. Only if they separate: the threshold goes **between the apron-OFF value and
+   the apron-ON value**, and if apron-ON does not itself land materially closer
+   to scatter-suppressed than apron-OFF does, **the apron is not the whole fix**
+   — which 5.12a already suspects — and 5.12d's thinning is back on the table
+   with its bald-lane cost still standing.
+4. Report all three arms and the noise figure. **A single arm is not a
+   measurement of a threshold, it is a measurement of a world.**
 
 ##### THE OTHER TWO LEVERS, ruled rather than surveyed
 
