@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:22:44
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -23,6 +23,7 @@ UPD:
 - 10:08:2026 - 01:56:45: Initial implementation (gait keyed to sim's phases).
 - 10:08:2026 - 12:10:00: The stance knee no longer hyperextends (was 33.4 deg) and the foot rolls over the toe instead - the forefoot rocker, 22.4 deg at full swing.
 - 10:08:2026 - 20:00:23: The wave's wag moved off the ELBOW (a hinge deleted it, so the wave never waved); flex's forearm rolls likewise; gait_run_weight authored per gear instead of interpolated across the rows.
+- 10:08:2026 - 20:22:44: eye_lean_offset() — the eye rides the trunk's lean (sim's request; both zones derived it independently and agree to the millimetre); the head counter-pitch is named HEAD_STABILIZE now that it has a second reader.
 */
 
 #include "engine/anim/sources/Clips.h"
@@ -93,6 +94,12 @@ constexpr float TORSO_ROLL = 0.06f;       // rad, upper-body list toward the
     // test's penetration check before any frame was shot).
 constexpr float TORSO_TWIST = 0.10f;      // rad, counter-rotation vs the pelvis.
 constexpr float RUN_LEAN = 0.20f;         // rad, forward trunk lean at full run.
+constexpr float HEAD_STABILIZE = 0.6f;    // the head counter-pitches this
+    // fraction of the trunk's lean, so the gaze stays nearer the horizon and
+    // the skull's NET world pitch is only (1 - this) x lean. NAMED because it
+    // has a second reader: eye_lean_offset() has to counter-rotate the eye by
+    // the same fraction, and a literal 0.6 in two places is the two-copies
+    // defect at file scope (Rule 35's shape, one file down).
 constexpr float RUN_ELBOW = 0.80f;        // rad, elbows carried bent at full run.
 // Idle breathing.
 constexpr float BREATH_PERIOD_S = 4.0f;   // calm breath ~15/min.
@@ -192,6 +199,44 @@ struct LegAngles {
 
 } // namespace
 
+glm::vec2 eye_lean_offset(const RigProportions& p, float run_weight) {
+    // THE EYE RIDES THE LEAN. Requested by sim, derived independently on both
+    // sides, and the two derivations agree to the millimetre.
+    //
+    // WHY IT IS A FUNCTION HERE AND NOT A NUMBERS ROW (sim's argument, and it
+    // is `BodyDrive::gait` run backwards): if sim re-derived the lean from the
+    // gait, their side would hold a second copy of gait_run_weight's AUTHORED
+    // table and of RUN_LEAN, and an authored number with two copies drifts the
+    // day it is re-authored. So: the LEAN CHARACTER CHOSE, not the gait it was
+    // derived from. One producer, one consumer, no registry row — a row would
+    // still be two readers.
+    //
+    // THE MODEL IS TWO ROTATIONS, because BONE_PARENT puts Head under Torso:
+    //   1. the torso pitches -theta about the HIP, carrying the neck through
+    //      an arc of (neck_height - hip_height);
+    //   2. the head counter-pitches +HEAD_STABILIZE*theta, so the skull's NET
+    //      world pitch is -(1 - HEAD_STABILIZE)*theta, and the eye — which
+    //      sits in the skull, `PLAYER_EYE_HEIGHT` up and `PLAYER_EYE_FORWARD`
+    //      forward — swings by that smaller angle about the neck.
+    // Taking only step 1 would put the eye 0.1482 m forward at full run
+    // instead of 0.1320: the counter-pitch is 11% of the answer.
+    const float theta = RUN_LEAN * std::clamp(run_weight, 0.0f, 1.0f);
+    const auto eye_height = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const auto eye_forward = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    const float neck_up = p.neck_height - p.hip_height;
+    const float eye_above_neck = eye_height - p.neck_height;
+
+    const float neck_fwd = neck_up * std::sin(theta);
+    const float neck_drop = neck_up * (1.0f - std::cos(theta));
+
+    const float a = (1.0f - HEAD_STABILIZE) * theta;
+    const float eye_fwd_local = eye_above_neck * std::sin(a) + eye_forward * std::cos(a);
+    const float eye_up_local = eye_above_neck * std::cos(a) - eye_forward * std::sin(a);
+
+    return {neck_fwd + eye_fwd_local - eye_forward,
+            neck_drop + (eye_above_neck - eye_up_local)};
+}
+
 float gait_run_weight(Gait gait) {
     switch (gait) {
     case Gait::Walk:
@@ -288,7 +333,7 @@ LocalPose gait_pose(const Rig& rig, float phase, float step_length_m, float run_
         pitch(ELBOW_BASE + elbow_extra * std::max(0.0f, -std::sin(TWO_PI * pr_)));
 
     // Head stabilizes the gaze against the torso lean.
-    p.rotation[bone_index(Bone::Head)] = pitch(RUN_LEAN * run_weight * 0.6f);
+    p.rotation[bone_index(Bone::Head)] = pitch(RUN_LEAN * run_weight * HEAD_STABILIZE);
     return p;
 }
 

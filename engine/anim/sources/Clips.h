@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:22:44
 Module: engine/anim
 File: engine/anim/sources/Clips.h
 
@@ -40,6 +40,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial procedural clip set.
 - 10:08:2026 - 20:00:23: anim::Gait + gait_run_weight(): the gear is ferried and looked up, never re-derived from speed (Rules 35, 37).
+- 10:08:2026 - 20:22:44: eye_lean_offset() declared — producer/consumer with sim, deliberately not a NUMBERS row.
 */
 
 #pragma once
@@ -48,6 +49,7 @@ UPD:
 #include "engine/anim/sources/Rig.h"
 
 #include <cstdint>
+#include <glm/vec2.hpp>
 
 namespace dfn::anim {
 
@@ -99,6 +101,24 @@ enum class Gait : uint8_t {
 // was being asked about. A table cannot acquire an interior point by
 // accident: adding a gear here is a decision someone has to write down.
 [[nodiscard]] float gait_run_weight(Gait gait);
+
+// HOW FAR THE EYE MOVES BECAUSE THE TRUNK IS LEANING, for `run_weight` in
+// [0,1]. `.x` = forward advance (m, along the facing), `.y` = drop (m,
+// positive = down). Zero at a walk.
+//
+// THE SEAM THIS CLOSES: the trunk pitches about the HIP while sim's camera
+// sits bolt upright on the capsule axis, so every degree of lean was spent
+// carrying the chest toward a stationary eye — measured, the chest entered
+// frame at 45 - 18 x run_weight degrees, i.e. at RUN you met your own chest at
+// 27 deg and your feet only at 41. A real lean carries the HEAD forward too,
+// which is exactly what keeps your chest out of your own view.
+//
+// PRODUCER/CONSUMER, DELIBERATELY, and not a NUMBERS row: this zone owns the
+// rig and the lean, so it owns the offset between them; the app ferries the
+// result and sim adds it to CameraPose along the facing. A row would still be
+// two readers, and re-deriving it on sim's side would copy both RUN_LEAN and
+// gait_run_weight's authored table.
+[[nodiscard]] glm::vec2 eye_lean_offset(const RigProportions& p, float run_weight);
 
 enum class ShowcaseClip : uint8_t {
     Idle = 0,

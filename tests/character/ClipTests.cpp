@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:22:44
 Module: tests
 File: tests/character/ClipTests.cpp
 
@@ -26,6 +26,7 @@ UPD:
 - 10:08:2026 - 01:56:45: Initial gait-contract suite.
 - 10:08:2026 - 12:10:00: Contact is measured at the SOLE against the ground, not at the ankle against its own minimum; double support replaces the single-support release assertion.
 - 10:08:2026 - 20:00:23: The wave waves (hand sweep, with the elbow-roll version as the control) + no clip loses motion to the hinge reduction; four doctest::Approx epsilons replaced by explicit metres (lead's broadcast: the admitted band was e*(1+|x|), up to +/-0.27 m on a foot).
+- 10:08:2026 - 20:22:44: eye_lean_offset asserted against the rig's own FK, plus the property the seam exists for — leaning harder never brings the chest closer to the eye, with today's non-riding eye as the control.
 */
 
 #include <doctest/doctest.h>
@@ -398,4 +399,103 @@ TEST_CASE("no shipped clip loses motion to the hinge reduction") {
     }
     // CONTROL: the shipped wave put 0.233 of quaternion z on an elbow.
     CHECK(off_axis(wave_pose_on_the_elbow(4.0f)) > 0.2f);
+}
+
+// --- THE EYE RIDES THE LEAN ----------------------------------------------
+
+namespace {
+
+// Where the eye actually is, in world space, for a given pose: the eye lives
+// in the SKULL, so it is the head bone's world matrix applied to the eye's
+// offset from the neck joint. Reading it through FK is the point — it is what
+// makes these assertions checks on the RIG rather than on a second copy of
+// the arithmetic in eye_lean_offset().
+[[nodiscard]] glm::vec3 eye_world(const Rig& rig, const LocalPose& pose) {
+    std::array<glm::mat4, BONE_COUNT> m;
+    forward_kinematics(rig, pose, {}, m);
+    const auto eye_height = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const auto eye_forward = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    const glm::vec4 in_skull{0.0f, eye_height - rig.proportions.neck_height,
+                             -eye_forward, 1.0f};
+    return glm::vec3{m[bone_index(Bone::Head)] * in_skull};
+}
+
+} // namespace
+
+TEST_CASE("eye_lean_offset matches where the lean actually puts the skull") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const float step = step_at(static_cast<float>(config::RUN_SPEED));
+    // Phase 0.25 puts the torso's lateral SWAY at zero, so the only nuisance
+    // rotation left is the counter-twist, which shortens the measured forward
+    // component by 0.7 mm — hence the 2 mm bound below rather than a tighter
+    // one. Naming the reason is the point: the bound is a measurement of the
+    // instrument, not a guess.
+    constexpr float PHASE_NO_SWAY = 0.25f;
+    constexpr float FK_AGREEMENT = 0.002f; // m
+
+    for (const float w : {0.0f, 0.286f, 0.5f, 1.0f}) {
+        const glm::vec3 flat =
+            eye_world(rig, gait_pose(rig, PHASE_NO_SWAY, step, 0.0f));
+        const glm::vec3 leaning =
+            eye_world(rig, gait_pose(rig, PHASE_NO_SWAY, step, w));
+        const glm::vec2 said = eye_lean_offset(rig.proportions, w);
+        // Forward is -Z; drop is positive-down.
+        CHECK(std::abs((flat.z - leaning.z) - said.x) < FK_AGREEMENT);
+        CHECK(std::abs((flat.y - leaning.y) - said.y) < FK_AGREEMENT);
+    }
+    // Measured, and agreed to the millimetre with sim's independent
+    // derivation: 0.1320 m forward and 0.0206 m down at full lean.
+    const glm::vec2 full = eye_lean_offset(rig.proportions, 1.0f);
+    CHECK(std::abs(full.x - 0.1320f) < 0.0005f);
+    CHECK(std::abs(full.y - 0.0206f) < 0.0005f);
+    // Control (Rule 30): a walk moves the eye not at all, and clamping holds
+    // past the ends so an out-of-range weight cannot invent travel.
+    CHECK(eye_lean_offset(rig.proportions, 0.0f).x == doctest::Approx(0.0f));
+    CHECK(eye_lean_offset(rig.proportions, 2.0f).x == doctest::Approx(full.x));
+    CHECK(eye_lean_offset(rig.proportions, -1.0f).x == doctest::Approx(0.0f));
+}
+
+TEST_CASE("leaning harder never brings the chest closer to the eye") {
+    // THE PROPERTY THE WHOLE SEAM EXISTS FOR, and it is assertable entirely on
+    // this side: however hard the trunk leans, the chest must not gain on the
+    // eye. Today it gains 0.103 m of the 0.129 m gap, which is why the chest
+    // enters frame at 27 deg at a run against the feet's 41.
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const auto& p = rig.proportions;
+    const float step = step_at(static_cast<float>(config::RUN_SPEED));
+    // The torso's own front corner, through FK and the drawn depth — the
+    // thing that actually blocks the view.
+    const auto chest_ahead_of_eye = [&](float w, bool eye_rides) {
+        const LocalPose pose = gait_pose(rig, 0.25f, step, w);
+        std::array<glm::mat4, BONE_COUNT> m;
+        forward_kinematics(rig, pose, {}, m);
+        const glm::vec4 corner{0.0f, p.shoulder_height - p.hip_height,
+                               -0.5f * p.torso_depth, 1.0f};
+        const float chest_fwd = -(m[bone_index(Bone::Torso)] * corner).z;
+        const float eye_fwd = static_cast<float>(config::PLAYER_EYE_FORWARD)
+                            + (eye_rides ? eye_lean_offset(p, w).x : 0.0f);
+        return chest_fwd - eye_fwd;
+    };
+    float previous = chest_ahead_of_eye(0.0f, true);
+    for (const float w : {0.286f, 0.5f, 1.0f}) {
+        const float now = chest_ahead_of_eye(w, true);
+        CHECK(now <= previous + 1.0e-4f); // never gains
+        previous = now;
+    }
+    // At full lean the gap has not merely shrunk, it has CROSSED: the chest
+    // ends up 5.5 mm BEHIND the eye. Not a tuned coincidence — the eye and the
+    // shoulder hang off the same hip pivot at comparable lever arms, so they
+    // advance together by construction.
+    CHECK(chest_ahead_of_eye(1.0f, true) < 0.0f);
+    CHECK(chest_ahead_of_eye(0.0f, true) == doctest::Approx(0.026f).epsilon(0.02));
+
+    // CONTROL, and it is today's shipped behaviour rather than a synthetic
+    // case: with the eye NOT riding the lean, the same sweep goes the wrong
+    // way at every step and the gap ends up 5x its resting value.
+    float worst = chest_ahead_of_eye(0.0f, false);
+    for (const float w : {0.286f, 0.5f, 1.0f}) {
+        CHECK(chest_ahead_of_eye(w, false) > worst);
+        worst = chest_ahead_of_eye(w, false);
+    }
+    CHECK(worst > 4.0f * chest_ahead_of_eye(0.0f, false));
 }
