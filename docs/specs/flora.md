@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 20:15:51
+Last updated: 10:08:2026 - 20:26:20
 -->
 <!--
 UPD:
@@ -381,6 +381,12 @@ UPD:
                          crown-width literal (5-7, the band design called
                          illegal) that only held because vertical cards never
                          spent their reach horizontally.
+- 10:08:2026 - 20:26:20: FILED: `species_trunk_radius()` returns the ROOT FLARE radius, not
+                         the bole (oak 0.986 returned vs 0.593 measured at the
+                         1.0-1.5 m ring). Core's find-occlusion gate was built
+                         on it as a uniform cylinder — up to 1.67x too wide —
+                         and was corrected before the number was recorded. The
+                         accessor needs FLARE in its name or a height argument.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1980,6 +1986,21 @@ restate it. Checklist for that frame:
   materials, palette, wind animation — render.
 - **Collision.** Trunk capsules and the non-physical crown (в32) — sim. Flora
   only exposes `species_trunk_radius()`.
+
+  **OPEN DEFECT IN THAT ACCESSOR'S NAME, filed 10.08.2026 after it misled its
+  first outside consumer.** `species_trunk_radius()` returns the radius AT THE
+  GROUND, which is the ROOT FLARE — 1.6× the bole over the flare's bottom 1.2 m
+  (§3.5, the mechanism that buries a tree on a slope instead of hovering it).
+  Oak: 0.986 m returned, **0.593 m measured at the 1.0-1.5 m ring**, 0.523 m at
+  4 m. Pine: 0.845 m returned, 0.533 m at the same ring. Core built a
+  find-occlusion gate on it as a uniform cylinder and was modelling a trunk up
+  to **1.67× too wide**; caught before their number was recorded, and they were
+  told the ray-height-appropriate value (~0.65 m oak, ~0.55 m pine, taken at
+  the ray's mid-path height of ~1.0 m).
+  **The accessor should either say FLARE in its name or take a height
+  argument.** This is Rule 35's own trigger — a thing that was only DRAWN is
+  now also QUERIED, and the next consumer is placement, where a trunk radius
+  1.67× too wide is a collision hull rather than a rounding error.
 - **Grass, flowers, micro scatter.** SUPERSEDED 10.08.2026 by the landscape
   stage brief: flora now owns everything that grows and lies on the ground —
   the §3.12 patch species, the clump field, and (pending the lead's Task 4
