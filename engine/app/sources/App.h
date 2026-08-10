@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 19:57:06
+Last updated: 10:08:2026 - 20:03:30
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -46,6 +46,7 @@ UPD:
 - 10:08:2026 - 10:28:59: Menu-first launch: init() raises the engine, enter_world() builds a chosen demo map (user request: check different maps, with and without the menu).
 - 10:08:2026 - 19:26:40: Отладочный экран (F3) и снимок состояния (F2) с восстановлением по DFN_RESTORE — запрос пользователя: видеть куда смотрю, fps, скорость, координаты, и уметь передать состояние так, чтобы его подняли обратно.
 - 10:08:2026 - 19:57:06: Поле счётчика попыток доводки восстановления.
+- 10:08:2026 - 20:03:30: Счётчик попыток доводки более не используется — восстановление стало размещением.
 */
 
 #pragma once
@@ -161,7 +162,7 @@ private:
     // Remaining correction attempts. One collide-and-slide step does not carry
     // a long displacement (sim measured 0.53 m of residual), so the horizontal
     // correction is re-issued until it converges or these run out.
-    int restore_attempts_ = 0;
+    int restore_attempts_ = 0; // vestigial after the teleport fix; kept at 0
 
     AppConfig config_{};
 

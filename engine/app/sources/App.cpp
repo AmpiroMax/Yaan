@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 19:57:06
+Last updated: 10:08:2026 - 20:03:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -83,6 +83,7 @@ UPD:
 - 10:08:2026 - 19:26:40: Отладочный экран, снимок состояния и восстановление. Заодно убран ВТОРОЙ обработчик Esc: он звал request_close(), поэтому Esc открывал паузу И закрывал игру — экран паузы существовал, но увидеть его было нельзя.
 - 10:08:2026 - 19:44:12: DFN_HEAD_BOB и DFN_PLAYTEST_GAIT — двери к контролю движения и к передаче бота (запрос sim: без них автоматический прогон умел мерить ТОЛЬКО шаг). Неверное значение отвергается ГРОМКО: молчаливый откат к умолчанию воспроизвёл бы ровно тот дефект, ради которого дверь и открыта.
 - 10:08:2026 - 19:57:06: Три починки снимка состояния, все три найдены sim при проверке инструмента, а не при его использовании: хэш сборки штампуется во время СБОРКИ (был — при конфигурации, и называл сборку на два коммита старше), восстановление доводится итеративно (промах был 0.53 м), и вычитается ВЫНОС глаза вперёд, а не только высота — иначе круговой прогон уводил игрока на 0.10 м вперёд каждый раз.
+- 10:08:2026 - 20:03:30: Восстановление через teleport_character вместо самодельной доводки. Прежний комментарий утверждал, что телепорта в IPhysics нет — предпосылка была моя, непроверенная (grep по неверному имени), и успела уйти в бриф core. Промах упал с 0.53 м до 0.001 м; вся машинерия доводки удалена.
 */
 
 #include "engine/app/sources/App.h"
@@ -1226,20 +1227,28 @@ void App::apply_restore(const DebugSnapshot& snap) {
     const glm::vec3 feet{snap.position.x - facing.x * fwd, snap.position.y - eye_h,
                          snap.position.z - facing.z * fwd};
 
-    // THERE IS NO TELEPORT IN IPhysics -- only move_character, which records a
-    // displacement to be resolved with collide-and-slide. So a restore is a
-    // very long WALK, not a placement, and it can be stopped by anything in
-    // the way. That is a real limitation and it is measured rather than
-    // assumed: restore_target_ holds the request, and the next frame prints
-    // how far the capsule actually got. A restore that silently landed 40 m
-    // short would otherwise look exactly like a successful one.
-    const glm::vec3 current = physics_->character_position(ps->character);
-    physics_->move_character(ps->character, feet - current);
+    // A RESTORE IS A PLACEMENT, NOT A WALK. `teleport_character` is documented
+    // as "instant placement without collision resolution (spawn, chunk
+    // streaming)", which is exactly this operation.
+    //
+    // THIS CODE PREVIOUSLY CLAIMED IPhysics HAD NO TELEPORT, and built a
+    // 30-frame convergence loop to work around a function that was already
+    // there. The claim was mine and it was never checked -- I grepped for
+    // `set_character_position`, did not find it, and wrote the conclusion into
+    // a comment as fact (Rule 34). Sim caught it, and by then the false
+    // premise had already been quoted into core's brief, one hop from being
+    // three agents deep. It also explains a number that shipped: the 0.53 m
+    // restore drift was not the capsule settling, it was the capsule WALKING
+    // and running out of frames. A placement does not drift.
+    physics_->teleport_character(ps->character, feet);
     tr->position = feet;
     restore_target_ = feet;
-    restore_attempts_ = 30; // ~30 frames to converge; bounded so a restore into
-                            // solid rock stops and REPORTS instead of shoving
-                            // the capsule at a wall forever
+    // ONE post-hoc check, not a convergence loop. Teleport bypasses collision
+    // by contract -- correct here, because the capture was taken from a legal
+    // pose, so reproducing it is legal. But that also means a capture taken
+    // inside geometry would now restore SILENTLY, so the next frame still
+    // reports where the capsule actually ended up (sim's caveat, kept).
+    restore_attempts_ = 0;
 
     ps->yaw = snap.yaw;
     ps->pitch = snap.pitch;
@@ -1728,29 +1737,7 @@ int App::run() {
         if (close_after_flush_ > 0 && --close_after_flush_ == 0) {
             window_->request_close();
         }
-        // RESTORE CONVERGENCE. `move_character` records a displacement resolved
-        // by ONE collide-and-slide step, and a long displacement does not
-        // arrive in one: sim measured the first version landing 0.53 m from the
-        // requested spot, which the promise "puts the player back at that exact
-        // pose" does not survive. So the correction is RE-ISSUED until the
-        // horizontal residual is under a centimetre or the attempts run out --
-        // and the outcome is reported either way, because the point of the tool
-        // is that two people look at the SAME moment rather than two similar
-        // ones (Rule 38: assert the outcome, and here, report it).
-        if (restore_target_ && restore_attempts_ > 0) {
-            if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-                const glm::vec3 got = physics_->character_position(ps->character);
-                const float dx = restore_target_->x - got.x;
-                const float dz = restore_target_->z - got.z;
-                if (std::sqrt(dx * dx + dz * dz) > 0.01f) {
-                    physics_->move_character(ps->character, {dx, 0.0f, dz});
-                    --restore_attempts_;
-                } else {
-                    restore_attempts_ = 0;
-                }
-            }
-        }
-        if (restore_target_ && restore_attempts_ == 0) {
+        if (restore_target_) {
             if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
                 const glm::vec3 got = physics_->character_position(ps->character);
                 // HORIZONTAL AND VERTICAL ERROR ARE DIFFERENT QUANTITIES and
