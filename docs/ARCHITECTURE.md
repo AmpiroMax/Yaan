@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:32:52
+Last updated: 10:08:2026 - 20:33:41
 -->
 <!--
 UPD:
@@ -25,6 +25,7 @@ UPD:
 - 10:08:2026 - 20:01:34: Правила 39 (теневая копия цепочки становится дефектом, как только у оригинала появляется ветка — три копии одного высотного конвейера разошлись за день, и все наборы остались зелёными, потому что тестировали единственный стенд, где они ещё совпадали) и 40 (Approx().epsilon() не проценты, а на РАЗНОСТИ неверен при любом масштабе). Формулировка 39 — core, чья находка.
 - 10:08:2026 - 20:32:07: Правило 41 (прибор, меряющий ОБЪЕКТ, не может принять утверждение о ВИДЕ — одна и та же доля даёт противоположные вердикты). И у правила 16 появилось МЕХАНИЧЕСКОЕ средство: читать date и писать файл одним вызовом оболочки, потому что шесть нарушений после написания правила допустили те, кто мог его процитировать.
 - 10:08:2026 - 20:32:52: Правило 42 (бюджет, выраженный в единицах одних часов, ничего не ограничивает в единицах других — бюджет читался как 1 и выдавал 5). Формулировка sim, чья находка; вместе с признаком: величина, повторяющаяся до цифры без разброса, это ограничитель, а не склонность.
+- 10:08:2026 - 20:33:41: Правило 43 (ограничение связывает ту величину, на которой написано, а не ту, по которой меряют контракт — карточки легли плоско и потратили запас, который всегда был законным). Формулировка flora; перенумеровано с 39, тот номер уже занят.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -698,6 +699,31 @@ Every stall episode across nine runs sat at exactly 5.00 ticks per frame against
 normal of 0.503. That was sitting in data already collected for a different
 question — nobody had to instrument anything, only to notice that a real
 measurement does not repeat exactly.
+
+### Rule 43 — A containment bounds the quantity it is written on, never the quantity the contract is measured on
+Card clusters were contained by a 3D corner reach — `centre + hypot(half_width,
+half_height) <= envelope` — while the species width band is measured HORIZONTALLY.
+Those are the same number only for a plane standing upright, which every card
+happened to be. The first build that laid cards flat spent the whole reach
+horizontally, occupied an allowance that had always been legal, and the birch
+measured 7.36 m against a band asserted at 7 — **with no code changing on the path
+that broke.**
+
+The tell is that **nothing was violated.** Containment held exactly (1.44 + 2.23 =
+3.67 against an envelope of 3.67), the contract still failed, and the gap between
+the two quantities had been sitting there unmeasured the whole time. A bound in one
+quantity is an upper bound in another only by an inequality nobody wrote down, and
+when the geometry changes orientation, distribution or shape, it cashes that
+inequality in.
+
+So: **when you write a containment, write down WHICH quantity the acceptance is
+measured on, and enforce on that one.** If the two differ, the slack between them
+is a budget the next change will spend — silently, because the change that spends
+it is nowhere near the code that bounds it.
+
+Sibling of Rules 35 and 37 in shape: there a NUMBER gained a second consumer and a
+RANGE gained an interior point; here a BOUND gained a second quantity. The trigger
+is the same kind of event — not a bug report, but a change of representation.
 
 ---
 
