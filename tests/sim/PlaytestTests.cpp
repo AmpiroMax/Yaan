@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 02:23:05
+Last updated: 10:08:2026 - 19:48:10
 Module: tests (sim zone)
 File: tests/sim/PlaytestTests.cpp
 
@@ -26,6 +26,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 02:23:05: Created with playtest v1.
+- 10:08:2026 - 19:48:10: The unbound-sampler subcase asserted
+  `worst_slip_m == 0.0`, which a run with PERFECT feet also satisfies -- it
+  could not tell a skipped check from a passed one, the exact confusion it
+  exists to forbid (Rule 38). Now asserts the outcome: the run is MARKED as
+  not measured. Drag control re-verified against the new absolute bound.
 */
 
 #include <doctest/doctest.h>
@@ -205,14 +210,24 @@ TEST_CASE("foot slip: a dragging planted foot fires, a still one does not") {
         for (const auto& inc : rig.pt.incidents) {
             CHECK(inc.invariant != "foot_slip");
         }
-        CHECK(rig.pt.worst_slip_m < 1e-6); // and it measured, rather than skipped
+        CHECK(rig.pt.worst_slip_m < 1e-6);
+        // AND IT LOOKED. `worst_slip_m == 0` is the value a run with the rig
+        // seam unbound also produces, so on its own it is not evidence of
+        // clean feet — only these two counters separate "measured, and it was
+        // still" from "nobody ever measured".
+        CHECK(rig.pt.foot_samples_seen == 120);
+        CHECK(rig.pt.foot_planted_ticks == 120);
     }
 
     SUBCASE("a foot dragged while planted fires") {
         PlaytestRig rig(cfg);
-        // Drags 1 mm per tick: after ~60 ticks it has slid 6 cm, past the 5%
-        // bound. This is the shape of the real defect — the clip plants the
-        // foot and the body walks out from under it.
+        // Drags 1 mm per tick, so it crosses the 30 mm absolute bound on tick
+        // 30 and is well clear of it by 200. This is the shape of the real
+        // defect — the clip plants the foot and the body walks out from under
+        // it. Re-verified against the bound after it changed from a
+        // 5%-of-step-length fraction to an absolute distance (Rule 38's
+        // corollary: loosening or moving a bound is not done until the control
+        // has been checked against the NEW one).
         static float drag = 0.0f;
         drag = 0.0f;
         rig.env.foot_sample = []() {
@@ -236,7 +251,14 @@ TEST_CASE("foot slip: a dragging planted foot fires, a still one does not") {
         for (int i = 0; i < 60; ++i) {
             rig.tick();
         }
-        CHECK(rig.pt.worst_slip_m == 0.0); // nothing measured, nothing claimed
+        // THE OUTCOME, NOT THE MECHANISM (Rule 38). The old assertion here was
+        // `worst_slip_m == 0.0`, which a run with PERFECT feet also satisfies —
+        // so it could not tell a skipped check from a passed one, which is the
+        // exact confusion this subcase exists to forbid. What must be true is
+        // that the run is MARKED as not having measured anything.
+        CHECK(rig.pt.foot_samples_seen == 0);
+        CHECK(rig.pt.foot_planted_ticks == 0);
+        CHECK(rig.pt.worst_slip_m == 0.0);
     }
 }
 

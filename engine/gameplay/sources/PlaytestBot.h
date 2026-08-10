@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 12:13:41
+Last updated: 10:08:2026 - 19:48:10
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -53,6 +53,12 @@ UPD:
                          while the sole is still planted, and this check is
                          horizontal), and stance runs to TOE-OFF so both feet
                          overlap in double support.
+- 10:08:2026 - 19:48:10: Ground-contact counters (airborne/grounded ticks,
+                         landings = dip retriggers, worst landing dip) and the
+                         two foot-slip WITNESS counters. The witness counters
+                         exist because worst_foot_slip_mm == 0 was printed by
+                         every playtest run so far while the rig seam was
+                         unbound -- bit-identical to a perfect pass.
 */
 
 #pragma once
@@ -169,6 +175,30 @@ struct PlaytestState {
     bool left_slip_reported = false;
     bool right_slip_reported = false;
     double worst_slip_m = 0.0; // reported in the summary even when under bound
+    // WHY THESE TWO COUNTERS EXIST, and they are not bookkeeping. A slip check
+    // that never ran reports worst_slip_m == 0, which is bit-identical to a
+    // perfect pass — so the summary line for a run where character's rig seam
+    // was unbound looked exactly like the summary line for flawless feet, and
+    // did so in every playtest run this project has produced so far. The
+    // counters make "measured, and it was clean" and "nobody ever looked"
+    // different strings. Same failure the invariant itself is designed against:
+    // silence that reads as a pass.
+    uint64_t foot_samples_seen = 0;   // ticks the rig actually handed feet over
+    uint64_t foot_planted_ticks = 0;  // ticks with at least one foot planted
+
+    // GROUND CONTACT, and why it is worth counting: the landing dip restarts
+    // its curve from zero on every airborne->grounded edge, and `airborne` has
+    // no hysteresis. So a capsule that skips over terrain crests re-kicks the
+    // camera at the RATE OF THE SKIPPING, not at the rate of the stride — and
+    // that rate is a function of speed, which makes it invisible at the gait
+    // every automated run has ever used. Counted in SIM ticks, so the number
+    // is deterministic even though the frame statistics next to it are not.
+    uint64_t airborne_ticks = 0;
+    uint64_t grounded_ticks = 0;
+    uint64_t landings = 0;      // airborne -> grounded edges = dip retriggers
+    double worst_landing_dip_m = 0.0;
+    bool prev_airborne = false;
+    bool has_prev_airborne = false;
 
     // Frame statistics (render frames, wall-clock — not deterministic, not
     // meant to be; the summary reports them, the budget invariant gates).

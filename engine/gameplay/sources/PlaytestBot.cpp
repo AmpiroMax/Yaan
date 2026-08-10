@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 12:08:26
+Last updated: 10:08:2026 - 19:48:10
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -36,6 +36,13 @@ UPD:
                          skipped, never silently passing); bound by character.
                          Bot also picks its gear through the same modifiers a
                          player's keys set.
+- 10:08:2026 - 19:48:10: Foot-slip bound is now ABSOLUTE (30 mm), not 5% of
+                         step length: the fraction grew to 122 mm at RUN_SPEED,
+                         where no value of it separated an accepted run from a
+                         rejected one (Rule 30 -- the quantity was wrong, not
+                         the threshold). Ground-contact counters added, which
+                         REFUTED the landing-dip-retrigger hypothesis for the
+                         running judder by measurement.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -71,13 +78,33 @@ constexpr float WATER_MISMATCH_TOLERANCE = 0.05f; // m: sub-ankle
 constexpr float FRAME_BUDGET_SECONDS = 0.050f;    // three 60 Hz frames = a felt hitch
 constexpr float SPEED_BOUND_MARGIN = 1.2f;        // legal gait + 20 %
 constexpr uint64_t INCIDENT_COOLDOWN_TICKS = 120; // one finding per 2 s episode
-// FOOT SLIP tolerance. A planted foot should not travel at all — the world
-// moves under it — so the bound is perceptual rather than physical: slip below
-// ~5% of a step length is not seen. Derived from the rows so it tracks a
-// retune: at WALK_SPEED the clip's residual is 0.8%, which leaves real margin
-// (Rule 30: the threshold sits above the accepted case and below the rejected
-// one — the 31% that WAS shipped for hours is the rejected instance).
-constexpr float SLIP_TOLERANCE_FRACTION = 0.05f;
+// FOOT SLIP tolerance, and it is ABSOLUTE ON PURPOSE — this replaced a
+// fraction-of-step-length bound, for a reason worth keeping written down.
+//
+// The old bound was 5% of step_length(stride_speed). That tracks a retune,
+// which sounds like a virtue, but it makes the bound GROW WITH SPEED: 49 mm at
+// WALK_SPEED, 122 mm at RUN_SPEED. A foot sliding 122 mm through a stance is
+// grossly visible, and the check would have called it a pass — so at the very
+// gait the movement ruling was about, no value of the fraction separated an
+// accepted run from a rejected one. Rule 30's mechanical form says that makes
+// the QUANTITY wrong, not the threshold: perceptibility of a slide is a
+// distance on screen, and it does not get more forgiving because the player is
+// going faster.
+//
+// The bound is placed between the two REAL instances, not chosen for roundness:
+//  - accepted: at WALK_SPEED the swing clamp still binds and leaves 7.8 mm of
+//    residual per step (step_length(1.8) = 0.980 m against the clamped
+//    0.55 x 0.884 x 2 = 0.972 m). That is CORRECT code — Rule 38 — so the
+//    bound must sit above it or it goes red on the day it is written.
+//  - rejected: the 31% mismatch that shipped for hours, ~434 mm at JOG_SPEED.
+// 30 mm is 3.8x above the accepted residual and 14x below the rejected
+// instance. Rule 38's corollary, re-verified rather than assumed: the control
+// still fails this bound by more than an order of magnitude.
+//
+// SECOND ZONE WARNING (Rule 35): character tunes clips against this number the
+// moment the gait clips land, at which point it stops being a tool threshold
+// and becomes a registry row. Row requested from the lead.
+constexpr float SLIP_TOLERANCE_M = 0.030f;
 // The fastest legal gait: the debug sprint (a real key a real player holds).
 const float MAX_LEGAL_SPEED =
     static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
@@ -251,6 +278,23 @@ size_t playtest_check(PlaytestState& pt, ecs::World& world,
             return new_incidents; // nothing else is meaningful on NaN
         }
 
+        // GROUND CONTACT bookkeeping (measured, never gated — there is no
+        // threshold here yet, so there is nothing for a control to reject).
+        // The landing edge is the DIP RETRIGGER: player_post_step restarts
+        // dip_elapsed at every airborne->grounded transition.
+        if (state.airborne) {
+            ++pt.airborne_ticks;
+        } else {
+            ++pt.grounded_ticks;
+        }
+        if (pt.has_prev_airborne && pt.prev_airborne && !state.airborne) {
+            ++pt.landings;
+            pt.worst_landing_dip_m =
+                std::max(pt.worst_landing_dip_m, static_cast<double>(state.dip_depth));
+        }
+        pt.prev_airborne = state.airborne;
+        pt.has_prev_airborne = true;
+
         // below_world — fell through everything.
         if (pos.y < env.world_floor_y) {
             new_incidents += record(pt, "below_world", pos,
@@ -317,8 +361,11 @@ size_t playtest_check(PlaytestState& pt, ecs::World& world,
         // Unbound callback = skipped, not silently passing.
         if (env.foot_sample) {
             if (const auto feet = env.foot_sample()) {
-                const float bound =
-                    SLIP_TOLERANCE_FRACTION * step_length(state.stride_speed);
+                ++pt.foot_samples_seen;
+                if (feet->left_planted || feet->right_planted) {
+                    ++pt.foot_planted_ticks;
+                }
+                const float bound = SLIP_TOLERANCE_M;
                 const auto watch = [&](bool planted, const glm::vec3& now,
                                        glm::vec3& anchor, bool& was, bool& reported,
                                        const char* which) {
@@ -405,7 +452,38 @@ void playtest_write_artifacts(const PlaytestState& pt, const std::string& run_di
             // Reported even when no incident fired: "how close did we get" is
             // the number that shows a retune drifting toward visibility long
             // before it crosses the bound.
-            << "worst_foot_slip_mm " << pt.worst_slip_m * 1000.0 << '\n';
+            // FOOT SLIP. The verdict line comes FIRST and is a word, not a
+            // number, because the number 0 means two opposite things and a
+            // reader scanning a summary will take the friendlier one.
+            << "foot_slip_verdict "
+            << (pt.foot_samples_seen == 0
+                    ? "NOT_MEASURED(rig seam unbound - this is not a pass)"
+                    : (pt.foot_planted_ticks == 0
+                           ? "NOT_MEASURED(feet never reported planted)"
+                           : "measured"))
+            << '\n'
+            << "foot_sample_ticks " << pt.foot_samples_seen << '\n'
+            << "foot_planted_ticks " << pt.foot_planted_ticks << '\n'
+            << "foot_slip_bound_mm " << SLIP_TOLERANCE_M * 1000.0f << '\n'
+            << "worst_foot_slip_mm " << pt.worst_slip_m * 1000.0 << '\n'
+            // Ground contact. `landings_per_sim_second` is the rate the camera
+            // dip is RE-ARMED; compare it against the stride's own footfall
+            // rate (2 * speed / (2 * step_length)) — a landing rate above the
+            // footfall rate means the punctuation curve never finishes, which
+            // is a judder rather than a landing.
+            << "airborne_ticks " << pt.airborne_ticks << '\n'
+            << "grounded_ticks " << pt.grounded_ticks << '\n'
+            << "airborne_fraction "
+            << (pt.tick > 0 ? static_cast<double>(pt.airborne_ticks)
+                                  / static_cast<double>(pt.tick)
+                            : 0.0)
+            << '\n'
+            << "landings " << pt.landings << '\n'
+            << "landings_per_sim_second "
+            << (pt.sim_seconds > 0.0 ? static_cast<double>(pt.landings) / pt.sim_seconds
+                                     : 0.0)
+            << '\n'
+            << "worst_landing_dip_mm " << pt.worst_landing_dip_m * 1000.0 << '\n';
     if (pt.frame_count > 0) {
         const double mean = pt.frame_dt_sum / static_cast<double>(pt.frame_count);
         summary << "frames " << pt.frame_count << '\n'
