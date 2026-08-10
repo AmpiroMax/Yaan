@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 11:10:03
+Last updated: 10:08:2026 - 11:23:17
 -->
 <!--
 UPD:
@@ -63,6 +63,7 @@ UPD:
 - 10:08:2026 - 02:47:54: §7.0a cutting control CORRECTED on core's challenge, upheld — my wording named «core's frame» as control when no frame existed (the finding was measured, not shot; my own Rule 27 trap, caught by core in me). Control restated as two reproducible halves: the cover table (legs 1→3 at −1.0…−2.2 m must-fail vs legs 3→7 at +1.6…+18 m passing neighbor — both Rule 30 cases from one instrument) + the vantage RECIPE (binary, seed, probe env, eye, time), never a file path — screenshots/ is gitignored and pixels die with a clean clone. Frame verified by design from the recipe: faint diagonal seam, subtle at valley range — which is why this vantage is the control and the trigger-time acceptance needs a closer authored vantage that can fail loudly (F7). Pixel archiving routed to the lead.
 - 10:08:2026 - 11:01:27: §1.7 BR-4 — MY THRESHOLD SAT ON THE WRONG QUANTITY, and flora's measurement is what showed it. Clark-Evans is now NORMALISED by the same-placement constant-field control (which measures 1.134, not 1.0, because a jittered lattice beats Poisson for regularity): R_norm = R(field on)/R(field constant), CLUMP_R_NORM_MAX = 0.85 replaces CLUMP_R_CLUMPED_MAX = 0.80. The condemning evidence is NOT grass but my own even-field clause — «R ≈ 1 where the field says even» failed on the correct pass case (Rule 30a), which indicts the quantity independently of any verdict. Grass ruled NOT tuned: coverage 0.55 arithmetically bounds clumping, and buying the number would put bare earth between tufts (a different meadow); broad-cover exemption also refused. All five classes pass normalised, no seed breaching. §1.7 BR-3 — SCOPED BY MAINTENANCE on flora's finding: the rich margin is what grows where nobody sweeps, so cobble/paved suppresses it (kept verge), dirt moderate, hint-path is the specimen class, steps get moss in joints; the ratio is measured on unmaintained classes only, and a cobbled street failing it is a PASS. Band datum adopted from flora: 0 = outer edge of the worn surface. Two sharpenings on the same pass: BR-4's CONTROL is itself density-dependent (a jittered lattice thins toward Poisson) so it must be re-taken per class at that class's coverage — one global 1.134 is the escalated defect one level down; the correction runs one way and cannot flip a verdict, so it is a chore, not a gate. BR-3 is stated as ONE threshold on the hint-path specimen plus an ORDERING (hint ≥ dirt > cobble ≈ 1) rather than four per-class multipliers; the §3.12 edge-gradient FLOOR is scoped by the same column (it is what would garden a cobbled gutter — the machinery guaranteeing BR-3 is what would break this ruling), and a kept verge is life in the joints and wall bases, never bare ground: §1.1 does not stop at the town gate.
 - 10:08:2026 - 11:10:03: §1.7 BR-4/BR-3 — flora implemented both rulings and RE-TOOK THE CONTROL PER CLASS; my quoted measurements were superseded within the hour and are corrected here rather than left standing. The control climbs monotonically with acceptance rate (1.052 at coverage 0.09 to 1.136 at 0.35), confirming the density dependence by measurement instead of argument; correction ran one way as ruled and no verdict flipped (mushrooms 0.338→0.364, pebbles 0.411→0.437, flowers 0.454→0.478, moss 0.466→0.490, grass 0.685→0.683, worst seed 0.714). The trap kept on the record: the single-control table was wrong for four of five classes and right only for grass, by the accident that grass's mean sat nearest the one constant used — the error hid behind the very class under argument. BR-3 kept-verge ruled the rest of the way on flora's question: the class weight scales the PEAK and never the base presence (cobble 0 = no peak, not no plants), and MOSS ALONE keeps a 0.25 residual on cobble — confirmed because the damp joint is a mechanism the broom cannot reach, bounded strictly under the dirt weight, and accepted on a FRAME rather than the ratio (pockets, not a ribbon down both kerbs).
+- 10:08:2026 - 11:23:17: §1.7 BR-5 RULED: bare terrain is the wrong instrument for the forest stand (option 3), not a hill-wavelength or ring-scale fix. Confirmed in core's source, not argued: the current raycast is terrain-only (no trunks, no canopy, no floor scatter), so the measured 0.03 was the forest deleted, not the forest failing — and §8.1's own brief already names the meso tier AND the floor as joint carriers for this stand. New gate: terrain + real placed oak trunks (44.4/ha, the lattice core already ships) + real placed Bush/BigBush instances (flora's measured load-bearing classes; FallenLog/snag/deadfall may ride along but the gate may never depend on them — dead wood is sized for the user's brief, not a validator), combined by a ray-vs-disc march reusing flora's floor-class shape — explicitly NOT the C1/C4 canopy transmittance model, which returns zero blocked below crown_base. Bar, ring, and eye height unchanged (0.5 / 40–80 m / 1.7 m); LF-2's own dictionary acceptance stays bare-terrain for landform-only contexts (cross-referenced at §2.10) — two contexts, one rule. The terrain-only 0.03/0.06 is kept forever as the must-fail control. Core's pinned regression test (siting beats bare-ground control 3–4×, median stays under 0.5 on bare terrain) is kept verbatim, reclassified from gate to permanent canary — if the bare-terrain median ever clears 0.5 that is a tripwire, not a win, and forces a rewrite. Separately ruled: flora's measured BR-4/BR-5 tension (authored clumping costs 0.09–0.26 of occlusion; the ruled density band's MIN end fails at 40–60 m before trunks) is real and not closed by the instrument change alone — retuning BR-4's clump field or oversizing dead wood are both refused; the available lever is density-aware find placement (extending BR-5's existing plain carve-out), sized only after core re-measures on the new instrument. Sent lead the corrected per-class CLUMP_R_NORM_MAX prose (flora's re-taken control, value unchanged at 0.85).
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1404,6 +1405,133 @@ texture and becomes режиссура here.
   specimens — the plain's emptiness is authored, в9.)
 - **Can-pass:** a find in a swale between two grives: 2–5 m crests beat a
   1.7 m eye by arithmetic.
+
+**BR-5 SCOPED — bare terrain is the wrong instrument for the FOREST STAND,
+and the two carriers of this rule are declared, not accidental (ruling,
+stage-5).** Core measured BR-5 on the forest stand at 0.03/0.06 median
+occlusion (40/80 m rings) against the 0.5 bar, and flagged that LF-2's own
+recipe cannot supply it alone: making the swale floor CONNECTED for W5's fog
+(§2.10 LF-2, the percolation threshold at 0.593) is the same change that
+opens the long sightlines BR-5 needs closed. **Ruling: option 3.** Bare
+terrain is not the instrument BR-5 is measured against on this stand.
+Grounds, checked rather than argued:
+
+- Confirmed in source (core, not inferred): the current raycast
+  (`WorldgenFinds.cpp:47-81`, fed by `Worldgen.cpp:255`) is terrain-only —
+  macro relief + LF-8 erosion + path tread. No trunks, no canopy, no floor
+  scatter. **0.03 was measured with essentially the whole forest missing**,
+  not with the forest present and failing. That settles, by arithmetic, the
+  branch core and flora both flagged as open (does the raycast count
+  trunks — no): finds are not landing outside the forest mass (the oak rect
+  covers the whole stand), so this was never a placement bug.
+- §8.1's own purpose clause: *"no massif, no sea, no L0 ... nothing tall
+  rescues a boring middle distance here, the meso tier **and the floor**
+  must carry the frame alone."* The floor (LF-7) is declared, by this
+  stand's own brief, as a co-equal composition carrier alongside the meso
+  tier — not dressing added after the gate is decided. Measuring BR-5 with
+  the floor deleted deletes exactly what §8.1 promises. This is Rule 36:
+  bare terrain excludes the floor by convenience (LF-7 wasn't built yet
+  when BR-5 was first measured), never by cause.
+- **LF-2's own dictionary-level acceptance is UNCHANGED and stays
+  bare-terrain** (cross-reference added at §2.10): that acceptance is for
+  LF-2 stamped WITHOUT a forest (river-valley shoulders, big-world hills),
+  where there is no floor to include. Scope split: landform-only contexts
+  test BR-5 on terrain; the forest stand tests BR-5 on the composed scene.
+  One rule, two contexts — not two rules.
+- **LF-2's 55 % floor network never needed correcting.** The percolation
+  requirement is core's to keep exactly as built; it was only ever in
+  tension with BR-5 while BR-5 asked bare terrain to do a job §8.1 assigns
+  jointly to terrain and floor. Candidates 1 (shorten hill wavelength to
+  ≈ 55 m) and 2 (move the ring to 60–80 m) are declined — both patch the
+  terrain side of a problem whose measured cause is that the terrain side
+  was never meant to carry it alone on this stand.
+
+**THE NEW GATE, STATED AS AN INSTRUMENT — "include the scatter" is not yet
+a test:**
+
+- **Scope:** the forest stand's BR-5 acceptance only (§8.1). Every other
+  declared use of LF-2 (§2.10 `Used by`) keeps the bare-terrain instrument.
+- **Occluder set — REAL PLACED instances for the seed under test, never a
+  mean-density approximation:** (a) the existing terrain heightfield,
+  unchanged; (b) tree trunks below `crown_base`, at the oak lattice core
+  already generates for this stand (44.4 stems/ha, ≈ 15 m jittered spacing,
+  `WorldgenScatter.cpp:288` — no new density, the one already shipping);
+  (c) `Bush` and `BigBush` instances from the BR-4-driven floor scatter —
+  flora's measurement makes these the two classes that matter (alone at
+  60 m: bush 0.725, big bush 0.239, vs fallen-log 0.050 / snag 0.008 /
+  deadfall 0.000). `FallenLog`/snag/deadfall MAY be included for
+  completeness but the gate must never be made to depend on them — those
+  classes are sized for the user's brief («поваленные деревья... кусты...
+  сухие мертвые деревья»), never for a validator.
+- **Mechanism:** a ray-vs-obstacle march along each ring bearing (same 4 m
+  stepping core already uses), occluded when the terrain-chord test trips
+  (unchanged) OR the segment intersects the disc/footprint of any real
+  placed trunk, Bush, or BigBush instance. **This is NOT the C1/C4 canopy
+  Beer–Lambert transmittance model** (§1) — that instrument is built for a
+  different band (crown occlusion of a *distant* landmark) and would return
+  0 blocked here, since an eye at 1.7 m and a find at ≈ 0.5 m both sit under
+  `crown_base`. The right shape is the stem-level ray-vs-disc test flora
+  already built for the floor classes — reuse it (Rule 32); this stand does
+  not get a second, ad hoc occlusion model.
+- **The bar itself does not move:** `FIND_OCCLUSION_FRAC` stays 0.5, the
+  ring stays 40–80 m, eye height stays 1.7 m. Only the occluder set changes.
+  Answering core's question directly, for the NUMBERS.md row (sent to
+  lead): **the 0.5 is a bar on terrain+trunks+floor**, not on bare terrain
+  and not on terrain+trunks alone.
+
+**CONTROL (Rule 30) — it already exists, nothing new to build:** the
+current terrain-only measurement (0.03 / 0.06 median at 40/80 m) is the
+must-fail control, permanently. It is the literal "forest with the forest
+deleted" case, and it must keep reading far under 0.5. If it ever climbs
+toward the bar, the terrain itself has quietly grown a job it was not
+supposed to carry (wavelength, amplitude, or ring drift) and this ruling's
+premise needs re-checking, not a shrug.
+
+**THE PINNED REGRESSION TEST STAYS, RECLASSIFIED, NOT REPLACED.** Core's
+existing test — find siting beats a bare-ground/naive control by 3–4×, AND
+the median stays below 0.5 on bare terrain — keeps BOTH assertions
+verbatim. It stops being read as the BR-5 acceptance gate (that role moves
+to the terrain+trunks+floor instrument above) and becomes the **permanent
+canary for this ruling's premise**: the 3–4× clause proves the siting logic
+does real directional work even on an instrument too thin to reach the bar;
+the below-0.5 clause is the tripwire — if bare terrain alone ever starts
+clearing 0.5, the premise "landform cannot do this job alone on this stand"
+has silently stopped being true, and per the standing instruction that must
+FAIL the canary and force a rewrite, never a quiet pass.
+
+**THE BR-4/BR-5 TENSION FLORA MEASURED IS REAL AND IS NOT CLOSED BY THE
+INSTRUMENT CHANGE ALONE — ruled separately, same commit.** Flora measured
+that BR-4's authored clumping costs 0.09–0.26 of occlusion at equal mean
+Bush density against a naive even-scatter estimate, and that the ruled
+density band's MIN end (0.339 at 40 m, 0.458 at 60 m) sits under the bar
+even before trunks are added — the ruled band spans pass and fail (Rule
+30's "a range is two assertions," its seventh appearance this stage). Two
+levers are refused outright, flagged independently by flora and by the
+lead: **do not retune BR-4's clump field to pass this gate** — the same
+trap the grass class was already protected from in BR-4's own ruling, tuning
+a meadow to a raycast; and **do not size dead wood up to compensate** — it
+is the wrong class (flora measured it near-zero at 60 m) and it is a class
+the user asked for by name, sized for the brief, never for a validator. The
+lever that IS available, because it is already precedented in this rule and
+retunes no authored field: **find placement becomes density-aware.** BR-5's
+own can-pass clause already carves out "finds on the plain are legal,
+simply not BR-5 specimens" (в9's authored emptiness); the same shape
+extends here — a candidate find location whose local terrain+trunk+floor
+instrument cannot plausibly clear 0.5 (checked at placement time, the same
+instrument, no new one) remains a legal find location but is not claimed as
+a BR-5 specimen there. This is a placement-generator lever, not a density
+lever, and it is core's to build once the instrument above exists and is
+re-measured — not sized today, because per Rule 34 nobody has yet measured
+the real number the new instrument produces, only the terrain-only 0.03 and
+flora's trunk-less scatter estimate.
+
+**Sequencing, for core:** (1) build the terrain+trunks+Bush/BigBush
+ray-vs-disc instrument, reusing flora's floor-class shape; (2) re-measure
+BR-5 on it, keeping the existing terrain-only numbers as the permanent
+control; (3) only if the re-measured MIN end still fails, apply the
+placement-density-awareness lever above — not before, since the numbers in
+hand cannot say whether it is even needed once trunks (a real, uniform,
+non-clumped 44/ha contribution no earlier estimate included) are in the sum.
 
 **BR-6 (е) — the find rule: a walker meets a small find every ~60 s.**
 The mailbox tier (Kyoto calibration, research A2) — the layer between POIs
@@ -3504,10 +3632,15 @@ tops), big world.
 §2.1's ridgelet rule — 2–5 m relief (в9), elongated, direction-coherent
 grives with swales between; amplitude distribution CDF-checked (Rule 31).
 *Acceptance:* BR-5 works here — from a swale floor, the neighboring swale is
-hidden over ≥ half of bearings at eye height; the crest reveals it.
-*Control:* an isotropic bump field of the same amplitude — round bumps are
-the shape the user already rejected (Запрос 1). *Used by:* forest stand,
-river-valley shoulders, big world.
+hidden over ≥ half of bearings at eye height; the crest reveals it. **This
+acceptance is bare-terrain and stays bare-terrain — it is LF-2's own recipe
+test, for contexts where LF-2 stands without a forest floor (river-valley
+shoulders, big-world hills). On the forest stand specifically, BR-5's gate
+is the composed terrain+trunks+floor instrument ruled at §1.7 BR-5,
+stage-5 — landform-only and forest-stand are two CONTEXTS for one rule, not
+two rules.** *Control:* an isotropic bump field of the same amplitude —
+round bumps are the shape the user already rejected (Запрос 1). *Used by:*
+forest stand, river-valley shoulders, big world.
 
 **LF-3 — river valley with terraces.** *Recipe:* valley cross-profile
 carrying the 25–35 m navigable river (в15): 2–3 terrace steps per side
