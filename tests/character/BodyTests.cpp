@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:25:17
+Last updated: 10:08:2026 - 20:31:38
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 10:08:2026 - 20:06:45: The assertion owed to sim since PLAYER_EYE_FORWARD landed: the eye stays behind its own drawn face (3.5 mm of margin today), asserted against the head MESH rather than a re-derived formula.
 - 10:08:2026 - 20:13:01: Feet-before-chest, measured against the drawn meshes and the real frustum; its control is the live lean defect (a8), not a synthetic case.
 - 10:08:2026 - 20:25:17: the reel renders the same gear the live body does, with the other gear's weight as the control.
+- 10:08:2026 - 20:31:38: feet-before-chest INVERTED together with its control, now that sim's consumer makes the eye ride the lean: the order holds at every gear and the fixed eye is the case that must fail.
 */
 
 #include <doctest/doctest.h>
@@ -386,13 +387,12 @@ namespace {
 // `pitch` (radians, negative = down)? Camera per sim's rows: the eye at
 // PLAYER_EYE_HEIGHT, PLAYER_EYE_FORWARD ahead of the capsule axis, yaw 0.
 [[nodiscard]] bool segment_in_frame(const Rig& rig, const LocalPose& pose, Bone bone,
-                                    const BodySegmentMesh& mesh, float pitch) {
+                                    const BodySegmentMesh& mesh, float pitch,
+                                    const glm::vec3& eye) {
     std::array<glm::mat4, BONE_COUNT> m;
     forward_kinematics(rig, pose, BodyRoot{glm::vec3{0.0f}, 0.0f}, m);
     const float ty = std::tan(0.5f * static_cast<float>(config::CAMERA_FOV_Y));
     const float tx = ty * (640.0f / 360.0f); // the internal render aspect
-    const glm::vec3 eye{0.0f, static_cast<float>(config::PLAYER_EYE_HEIGHT),
-                        -static_cast<float>(config::PLAYER_EYE_FORWARD)};
     for (const auto& v : mesh.vertices) {
         const glm::vec3 d = glm::vec3{m[bone_index(bone)] * glm::vec4{v.position, 1.0f}} - eye;
         const float depth = d.y * std::sin(pitch) - d.z * std::cos(pitch);
@@ -409,16 +409,25 @@ namespace {
 
 // Shallowest downward look, in DEGREES, at which `bone` reaches the frame at
 // any point of the stride. 999 = never within 90 deg.
+// `eye_rides` selects the camera under test: true is the shipped one, whose
+// eye takes anim::eye_lean_offset along the facing (sim applies it in
+// player_post_step); false is the eye nailed to the capsule axis, which is
+// what shipped until 10:08:2026 and is now this test's control.
 [[nodiscard]] float entry_angle_deg(const Rig& rig, Bone bone, float run_weight,
-                                    float step_length) {
+                                    float step_length, bool eye_rides) {
     const BodySegmentMesh mesh = build_body_segment_mesh(bone, rig.proportions);
+    const glm::vec2 lean =
+        eye_rides ? eye_lean_offset(rig.proportions, run_weight) : glm::vec2{0.0f, 0.0f};
+    const glm::vec3 eye{0.0f,
+                        static_cast<float>(config::PLAYER_EYE_HEIGHT) - lean.y,
+                        -(static_cast<float>(config::PLAYER_EYE_FORWARD) + lean.x)};
     for (int deg = 0; deg <= 90; ++deg) {
         const float pitch = -static_cast<float>(deg) * glm::pi<float>() / 180.0f;
         for (int k = 0; k < 60; ++k) {
             LocalPose p = gait_pose(rig, static_cast<float>(k) / 60.0f, step_length,
                                     run_weight);
             apply_joint_limits(rig, p);
-            if (segment_in_frame(rig, p, bone, mesh, pitch)) {
+            if (segment_in_frame(rig, p, bone, mesh, pitch, eye)) {
                 return static_cast<float>(deg);
             }
         }
@@ -428,38 +437,68 @@ namespace {
 
 } // namespace
 
-TEST_CASE("walking, the feet enter the frame before the chest does") {
+TEST_CASE("at every gear, the feet enter the frame before the chest does") {
+    // INVERTED 10:08:2026, in one edit with its control, the day sim's
+    // consumer landed (0015f93) and the eye began riding the trunk's lean.
+    // Until then this test asserted the property at a WALK and carried the
+    // reversal at a run as a documented live defect. Both halves moved
+    // together on purpose (Rule 38's corollary): the old control — a fixed eye
+    // — is now the case that must FAIL, and it is re-verified below against
+    // the new bound rather than merely deleted.
     const Rig rig = Rig::build(RigProportions::from_config());
     const auto step = [](float v) {
         return static_cast<float>(config::STEP_LENGTH_BASE)
              + static_cast<float>(config::STEP_LENGTH_PER_MPS) * v;
     };
-    const auto walk = static_cast<float>(config::WALK_SPEED);
-    const float foot = entry_angle_deg(rig, Bone::FootL, gait_run_weight(Gait::Walk),
-                                       step(walk));
-    const float chest = entry_angle_deg(rig, Bone::Torso, gait_run_weight(Gait::Walk),
-                                        step(walk));
-    // Measured: foot 41 deg, chest 45. Nothing at all is in frame at level
-    // gaze, which is the half of this the user could not see: the clavicle cut
-    // landed. The margin is only 4 deg, so this is a real check and not a
-    // formality.
-    CHECK(foot < chest);
-    CHECK(chest > 41.0f);
-    // And the level-gaze case, stated separately because it is the complaint:
-    CHECK(entry_angle_deg(rig, Bone::Torso, gait_run_weight(Gait::Walk), step(walk))
-          > 20.0f);
+    struct Gear {
+        Gait gait;
+        float speed;
+    };
+    const Gear gears[] = {{Gait::Walk, static_cast<float>(config::WALK_SPEED)},
+                          {Gait::Jog, static_cast<float>(config::JOG_SPEED)},
+                          {Gait::Run, static_cast<float>(config::RUN_SPEED)}};
 
-    // CONTROL, and it is a LIVE DEFECT rather than a synthetic case (see the
-    // seam note in specs/character.md): as soon as the run lean comes in, the
-    // order REVERSES. The trunk pitches about the hip while the eye stays
-    // bolt upright on the capsule axis, so the whole lean is spent closing the
-    // chest-to-eye gap — the shoulder corner advances 0.103 m at full lean
-    // while the eye advances 0. Measured entry_angle(chest) = 45 - 18 * w
-    // degrees, crossing the foot's 41 at w = 0.20, so EVERY gear above a walk
-    // shows chest before feet. This CHECK documents that it is still true; it
-    // is meant to be inverted, not deleted, the day the eye rides the lean.
-    CHECK(entry_angle_deg(rig, Bone::Torso, gait_run_weight(Gait::Run), step(6.0f))
-          < entry_angle_deg(rig, Bone::FootL, gait_run_weight(Gait::Run), step(6.0f)));
+    // MEASURED, eye riding:  walk 41/45, jog 43/48, run 45/51 (foot/chest).
+    // The order holds at every gear AND the margin GROWS with speed, which is
+    // the part worth stating: the lean now buys clearance instead of spending
+    // it, because the eye and the shoulder hang off the same hip pivot.
+    float previous_margin = 0.0f;
+    for (const Gear g : gears) {
+        const float w = gait_run_weight(g.gait);
+        const float foot = entry_angle_deg(rig, Bone::FootL, w, step(g.speed), true);
+        const float chest = entry_angle_deg(rig, Bone::Torso, w, step(g.speed), true);
+        CHECK(foot < chest);
+        CHECK(chest >= 45.0f);   // never easier to see than at a standstill
+        CHECK(foot >= 41.0f);
+        CHECK(chest - foot >= 4.0f); // the walk margin, as a floor for all gears
+        CHECK(chest - foot >= previous_margin); // and it never narrows with speed
+        previous_margin = chest - foot;
+    }
+    // The complaint itself, stated separately because it is what the user
+    // reported: at NO gear is the chest anywhere near a level gaze.
+    for (const Gear g : gears) {
+        CHECK(entry_angle_deg(rig, Bone::Torso, gait_run_weight(g.gait), step(g.speed),
+                              true)
+              > 20.0f);
+    }
+
+    // THE CONTROL, and it is the assertion this test used to make. With the
+    // eye nailed to the capsule axis the order REVERSES at every gear above a
+    // walk — measured chest entry 35 deg at jog and 27 at run against a foot
+    // that never moves off 41. Re-verified here against the NEW bound, which
+    // is the half of Rule 38 that is easy to skip: loosening an assertion
+    // without re-running its control is how a refinement becomes a gutting.
+    for (const Gear g : gears) {
+        if (g.gait == Gait::Walk) {
+            continue; // no lean at a walk: the two cameras agree, correctly
+        }
+        const float w = gait_run_weight(g.gait);
+        const float foot = entry_angle_deg(rig, Bone::FootL, w, step(g.speed), false);
+        const float chest = entry_angle_deg(rig, Bone::Torso, w, step(g.speed), false);
+        CHECK(chest < foot);          // the defect: chest first
+        CHECK(chest - foot < 4.0f);   // and it fails the margin bound above
+        CHECK(chest < 45.0f);         // ...and the absolute one
+    }
 }
 
 TEST_CASE("the showcase reel renders the same gear the live body does") {

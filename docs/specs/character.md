@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:13:01
+Last updated: 10:08:2026 - 20:31:38
 -->
 <!--
 UPD:
@@ -41,6 +41,9 @@ UPD:
   the gait fix would help the chest. IT DOES THE OPPOSITE — jog's chest entry
   went 39 -> 35 deg, because the authored jog weight leans the trunk MORE than
   the 0.286 did. The real mechanism is a8, and it is bigger than either.
+- 10:08:2026 - 20:31:38: a8 CLOSED. sim landed the consumer (0015f93),
+  the eye rides the lean, and the frustum test was inverted together with its
+  control. The order now holds at every gear and the margin GROWS with speed.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -348,11 +351,69 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       than the mechanism (Rule 32) — and it is the second time today that
       lowering a number would have hidden a missing seam.
 
-      TEST: `character_body` "walking, the feet enter the frame before the
-      chest does" asserts the order at a walk (41 vs 45 deg, a 4 deg margin),
-      and its control is the LIVE defect — at run the order is reversed, and
-      the CHECK says so. That check is meant to be INVERTED, not deleted, on
-      the day the eye rides the lean.
+      **CLOSED 10:08:2026 - 20:31:38 — and the fix does not reduce the problem,
+      it REVERSES it.** sim derived the offset independently (agreeing with
+      mine to the millimetre on the eye, and correcting me: my 0.12 m was the
+      NECK; the eye is 0.134 m higher and 0.10 m ahead of it, so it swings
+      0.1320 m forward and 0.0206 m down at full lean). `eye_lean_offset()`
+      lives here, sim's `player_post_step` applies it, and the app ferries —
+      NOT a NUMBERS row, because re-deriving it on sim's side would copy
+      `gait_run_weight`'s authored table.
+
+      | gear | foot enters | chest enters | margin |
+      |---|---|---|---|
+      | walk | 41 deg | 45 deg | 4 |
+      | jog | 43 | 48 | **5** |
+      | run | 45 | **51** | **6** |
+
+      The chest is now HARDEST to see at a run, where it used to be easiest
+      (27 deg). The margin grows with speed because the eye and the shoulder
+      hang off the same hip pivot at comparable lever arms — 0.746 m against
+      0.518 m, with the head's counter-pitch trimming the difference — so they
+      advance together by construction rather than by fitting.
+
+      TEST: `character_body` "at every gear, the feet enter the frame before
+      the chest does". Inverted in ONE edit with its control, which is the
+      whole point of Rule 38's corollary: the fixed eye is now the case that
+      must FAIL, and it is re-verified against the NEW bounds rather than
+      deleted. Splitting that across two commits is how one half lands alone.
+
+      STILL OPEN, and filed rather than done: a gear change moves the eye
+      0.132 m in ONE tick, because `gait_run_weight` is a step function. Body
+      and eye pop together, so nothing is exposed — but see a9.
+
+   a9. **THE GEAR CHANGE POPS, and easing it is NOT a one-zone fix.** Raised by
+      sim when their consumer landed. `gait_run_weight` is a step function, so
+      walk -> run moves the trunk AND the eye 0.132 m within a single tick —
+      about 1.3 ticks' worth of normal running displacement delivered in one,
+      i.e. a one-frame doubling of apparent speed.
+
+      THE OBVIOUS FIX IS A TRAP. Easing the eye alone desynchronises it from
+      the body, and the two directions are NOT symmetric:
+
+      | transition | body vs eye during the ease | chest-to-eye gap |
+      |---|---|---|
+      | accelerating | eye leads a body still straightening up | SAFER than steady state |
+      | **decelerating** | **body still leaning, eye already back on the axis** | **the defect returns** |
+
+      So an eased camera would reintroduce the chest for the duration of every
+      run -> walk, and only that direction — the kind of asymmetry that reads
+      as an intermittent glitch nobody can reproduce.
+
+      THE CORRECT SHAPE: ease the WEIGHT, once, where both consumers read it —
+      `BodyDrive::run_weight` as internal state advanced in `update_bodies`
+      (like `anim_time_s` and `land_dip`), with `evaluate_body_pose` reading it
+      and the app ferrying THAT float to `eye_lean_offset` instead of
+      recomputing from the gait. Body and eye then share one number and cannot
+      drift by construction. It needs one line in the app (lead's), so it is
+      proposed rather than landed: landing my half alone would create exactly
+      the decelerating-desync above.
+
+      BONUS, and it is why this is worth doing rather than tolerating: it would
+      make the steady-state qualifier in the gait test REAL. Today nothing
+      settles, so "held past any transition" is vacuously true; with an eased
+      weight the test would have to step ticks to reach full weight, which is
+      what the phrasing has always claimed to measure.
 
    a7. **THE ELBOW — «в анимации махания всё такая же проблема, локоть
       неестественно двигается». THE JOINT LIMITS WERE NEVER THE GAP.** They
