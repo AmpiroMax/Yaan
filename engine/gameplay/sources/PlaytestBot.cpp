@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 19:48:10
+Last updated: 10:08:2026 - 20:14:20
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -43,6 +43,13 @@ UPD:
                          the threshold). Ground-contact counters added, which
                          REFUTED the landing-dip-retrigger hypothesis for the
                          running judder by measurement.
+- 10:08:2026 - 20:14:20: Frame trace at a 20 ms threshold, below the 50 ms
+                         incident gate on purpose: an event's shape lives in
+                         its shoulders and a threshold at the gate records only
+                         the peak. It answered render's sizing question -- the
+                         chunk-boundary stall is TWO consecutive ~390 ms frames
+                         (3/3 runs), not one, so a per-frame budget would not
+                         decompose it.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -76,6 +83,13 @@ constexpr float STUCK_REPORT_SECONDS = 5.0f;  // then it is a finding
 constexpr float FREEFALL_REPORT_SECONDS = 3.0f; // longer than any legal fall here
 constexpr float WATER_MISMATCH_TOLERANCE = 0.05f; // m: sub-ankle
 constexpr float FRAME_BUDGET_SECONDS = 0.050f;    // three 60 Hz frames = a felt hitch
+// The TRACE threshold is deliberately lower than the incident budget: an
+// event's shape is in its shoulders, and a threshold set at the gate would
+// only ever record the peak. 20 ms is ~2.3x the observed mean frame, low
+// enough to catch a re-ship spread over several frames and high enough that a
+// healthy 45 s run traces nothing.
+constexpr float FRAME_TRACE_SECONDS = 0.020f;
+constexpr size_t TRACE_MAX = 256; // bounded: a trace is evidence, not a log
 constexpr float SPEED_BOUND_MARGIN = 1.2f;        // legal gait + 20 %
 constexpr uint64_t INCIDENT_COOLDOWN_TICKS = 120; // one finding per 2 s episode
 // FOOT SLIP tolerance, and it is ABSOLUTE ON PURPOSE — this replaced a
@@ -416,6 +430,12 @@ void playtest_note_frame(PlaytestState& pt, float frame_dt_seconds) {
     pt.frame_dt_sum += frame_dt_seconds;
     pt.frame_dt_max = std::max(pt.frame_dt_max, static_cast<double>(frame_dt_seconds));
     ++pt.frame_count;
+    // The trace, before the deduped incident: every frame over the trace
+    // threshold, in order, so consecutive bad frames stay consecutive.
+    if (frame_dt_seconds > FRAME_TRACE_SECONDS && pt.frame_trace.size() < TRACE_MAX) {
+        pt.frame_trace.push_back(
+            PlaytestState::FrameMark{pt.frame_count, pt.tick, frame_dt_seconds * 1000.0f});
+    }
     if (frame_dt_seconds > FRAME_BUDGET_SECONDS) {
         record(pt, "frame_budget", pt.last_position,
                std::to_string(frame_dt_seconds * 1000.0f) + " ms frame");
@@ -490,6 +510,15 @@ void playtest_write_artifacts(const PlaytestState& pt, const std::string& run_di
                 << "mean_fps " << (mean > 0.0 ? 1.0 / mean : 0.0) << '\n'
                 << "min_fps " << (pt.frame_dt_max > 0.0 ? 1.0 / pt.frame_dt_max : 0.0)
                 << '\n';
+        summary << "frame_trace_threshold_ms " << FRAME_TRACE_SECONDS * 1000.0f << '\n'
+                << "frame_trace_count " << pt.frame_trace.size()
+                << (pt.frame_trace.size() >= TRACE_MAX ? " (TRUNCATED)" : "") << '\n';
+        // frame_index is CONSECUTIVE-READABLE on purpose: adjacent indices mean
+        // adjacent frames, which is the whole question this trace answers.
+        for (const auto& m : pt.frame_trace) {
+            summary << "  frame " << m.frame_index << "  tick " << m.tick << "  "
+                    << m.ms << " ms\n";
+        }
     }
 }
 

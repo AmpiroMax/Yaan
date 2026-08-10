@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 19:48:10
+Last updated: 10:08:2026 - 20:14:20
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -59,6 +59,11 @@ UPD:
                          exist because worst_foot_slip_mm == 0 was printed by
                          every playtest run so far while the rig seam was
                          unbound -- bit-identical to a perfect pass.
+- 10:08:2026 - 20:14:20: UNDEDUPED frame trace. The incident log cannot
+                         answer "how many frames did the stall span" -- it
+                         dedupes on a 120-tick cooldown and the survivor is not
+                         the worst frame, so it under-reported a 779 ms event
+                         as 346 ms and I passed that understatement to render.
 */
 
 #pragma once
@@ -199,6 +204,22 @@ struct PlaytestState {
     double worst_landing_dip_m = 0.0;
     bool prev_airborne = false;
     bool has_prev_airborne = false;
+
+    // FRAME TRACE. The incident log cannot answer "how many frames did the
+    // stall span", for two independent reasons: it dedupes by a 120-tick
+    // cooldown, so consecutive bad frames collapse into one record, and the
+    // survivor is not the worst one. That distinction sizes a fix — one 345 ms
+    // frame means N uploads landed together and a per-frame budget would split
+    // it into N small ones; several consecutive frames means something is
+    // serialising instead. So the trace is UNDEDUPED and its threshold is
+    // lower than the incident budget, to catch the shoulders of an event and
+    // not just its peak.
+    struct FrameMark {
+        uint64_t frame_index = 0;
+        uint64_t tick = 0;
+        float ms = 0.0f;
+    };
+    std::vector<FrameMark> frame_trace; // bounded; see TRACE_MAX in the .cpp
 
     // Frame statistics (render frames, wall-clock — not deterministic, not
     // meant to be; the summary reports them, the budget invariant gates).
