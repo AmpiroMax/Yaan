@@ -1,4 +1,14 @@
 $input v_color0, v_normal, v_texcoord0, v_wpos
+/*
+UPD:
+- 10:08:2026 - 23:26:06: COVERAGE, NOT A CUTOFF. The mask now carries a mip
+  chain, so `alpha` here is the AVERAGE over the texels this pixel covers;
+  it is written out and consumed by BGFX_STATE_BLEND_ALPHA_TO_COVERAGE
+  instead of being rounded to 0 or 1. That is the treeline half of the
+  running-shimmer fix (0.094 -> 0.004 % of screen flipping per stride).
+  u_params.x == 2 selects the mode so DFN_MSAA=0 keeps the old hard cutout
+  and stays a bit-exact control arm.
+*/
 
 // Foliage fragment shader: ALPHA CUTOUT (discard), never blending — cutout
 // needs no back-to-front sorting and does not fight the palette post.
@@ -12,6 +22,10 @@ SAMPLER2D(s_texColor, 0);
 uniform vec4 u_params; // x: texture bound
 
 #define FOLIAGE_ALPHA_CUTOFF 0.5
+// Below this the texel is empty, not partly covered: discard so nothing writes
+// depth over the sky. Deliberately far below the 0.5 cutout threshold — every
+// value BETWEEN the two is now a real partial coverage the target can express.
+#define FOLIAGE_ALPHA_EMPTY 0.02
 
 // --- Leaf translucency (в: the user's three reference photos are ALL shot
 // into the light, and in every one the back-lit leaves are BRIGHTER than the
@@ -48,7 +62,34 @@ void main()
     // discarding everything, so a missing texture reads as a bug, not as a
     // vanished forest.
     float alpha = mix(1.0, tex.a, step(0.5, u_params.x));
-    if (alpha < FOLIAGE_ALPHA_CUTOFF) {
+    // u_params.x == 2 means the backend bound a MIPPED mask into an
+    // alpha-to-coverage draw, i.e. `alpha` is a real partial coverage and the
+    // target has samples to spend on it. At 1 (single-sampled target, or a
+    // mask with no mip chain) the old hard cutout is still the correct and
+    // only representable answer, so DFN_MSAA=0 stays a true control arm
+    // instead of quietly rendering a thicker canopy.
+    float coverage_mode = step(1.5, u_params.x);
+    // COVERAGE, NOT A CUTOFF — and the distinction is the user's oldest
+    // complaint («при беге трясет», «всё дергает и перерисовывается очень
+    // рябью»). At the treeline a leaf mask is minified ~30:1, so `alpha` here
+    // is the mip chain's AVERAGE over the ~900 texels this pixel covers. Under
+    // the old hard cutoff that average was rounded to 0 or 1, which is why a
+    // 0.05 m step — one 120 fps frame at RUN_SPEED — flipped whole pixels
+    // between leaf and sky at full contrast. Written out as alpha and consumed
+    // by BGFX_STATE_BLEND_ALPHA_TO_COVERAGE, the same average becomes a
+    // fraction of the pixel's samples, so a fraction of a pixel of motion
+    // changes the pixel by a fraction.
+    //
+    // THE MEAN IS PRESERVED, which is what keeps this from thinning the
+    // canopy. Point-sampling a minified mask and testing it against 0.5 draws
+    // a pixel with probability equal to the mean alpha; using that same mean
+    // as coverage draws the same expected area, deterministically instead of
+    // by dice. FLORA_PRESENTED_AREA_FLOOR_M2 is untouched and no card gets
+    // smaller — only the dice go away.
+    //
+    // The discard stays for the FULLY empty texels: they must not write depth
+    // over the sky, and at coverage 0 the sample would be dropped anyway.
+    if (alpha < mix(FOLIAGE_ALPHA_CUTOFF, FOLIAGE_ALPHA_EMPTY, coverage_mode)) {
         discard;
     }
     vec3 albedo = mix(vec3(0.28, 0.40, 0.18), tex.rgb, step(0.5, u_params.x));
@@ -77,5 +118,6 @@ void main()
            * (transmit * FOLIAGE_TRANSMIT_STRENGTH);
 
     float fog = dfn_fog_factor(v_wpos);
-    gl_FragColor = vec4(mix(lit, u_fogColor, fog), 1.0);
+    // Alpha carries COVERAGE in coverage mode and 1.0 otherwise (see above).
+    gl_FragColor = vec4(mix(lit, u_fogColor, fog), mix(1.0, alpha, coverage_mode));
 }

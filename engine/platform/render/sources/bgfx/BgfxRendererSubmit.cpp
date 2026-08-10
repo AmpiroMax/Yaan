@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 20:01:43
+Last updated: 10:08:2026 - 23:24:48
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -35,6 +35,17 @@ UPD:
   (SHADOW_CASTER_MIN_FADE). A cross-fading terrain LOD node cast SOLID depth
   at every fade value, so both levels of one patch of ground were in the
   shadow map together and the visible one was shadowed by the other.
+- 10:08:2026 - 23:24:48: COVERAGE ANTIALIASING ON THE INTERNAL TARGET — the
+  user's oldest complaint («при беге трясет», «всё дергает и перерисовывается
+  очень рябью»). MSAA 4x on the internal colour+depth target (DFN_MSAA=0|2|4|8),
+  an alpha-weighted mip chain for cutout MASKS only, and
+  BGFX_STATE_BLEND_ALPHA_TO_COVERAGE on the cutout path. Measured, one 0.05 m
+  stride at RUN_SPEED, DFN_WIND_FREEZE=120, 640x360, palette off, control
+  0.000 %: near canopy 0.864 -> 0.621 %, treeline 0.094 -> 0.004 %. MSAA ALONE
+  IS WORTH ALMOST NOTHING (0.819 / 0.080) and MSAA 8x equals 4x to three
+  digits — the residual pixels are not partially covered, they are written or
+  discarded, so the fix had to reach the MASK. Details and the palette-on
+  numbers in docs/specs/render.md.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -189,10 +200,25 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     if (tex_it != im.textures.end()) {
         // Point-sampled material textures: Daggerfall crunch, and no bleed
         // across the terrain atlas cells (stage-3 sync, informational item).
+        //
+        // A MASK IS THE ONE EXCEPTION, AND IT IS NOT A LOOK CHANGE. Only a
+        // cutout mask carries a mip chain (create_texture builds one for
+        // exactly those), and only its MINIFICATION filter is linear —
+        // MAG stays POINT, so every texture magnified on screen is still the
+        // hard-edged crunch the look is built on. What changes is the case
+        // where one screen pixel covers hundreds of mask texels and the point
+        // sampler was picking one at random: that is the treeline half of the
+        // running shimmer, and it is invisible to MSAA because the edge lives
+        // inside the texture fetch rather than on a triangle.
+        const bool coverage = im.mipped_textures.contains(texture.id) && is_cutout
+                              && im.internal_samples > 1;
         bgfx::setTexture(0, im.s_tex_color, tex_it->second,
-                         BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
-                             | BGFX_SAMPLER_MIP_POINT);
-        params[0] = 1.0f;
+                         coverage ? (BGFX_SAMPLER_MAG_POINT)
+                                  : (BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                                     | BGFX_SAMPLER_MIP_POINT));
+        // 2 == "mipped mask into an alpha-to-coverage draw"; fs_foliage reads
+        // the distinction, every other shader only tests > 0.5.
+        params[0] = coverage ? 2.0f : 1.0f;
     }
     bgfx::setUniform(im.u_params, params);
     if (bgfx::isValid(im.shadow_map)) {
@@ -210,12 +236,26 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // Culling deliberately off this stage (see header notice). Transparent
     // programs ("water"): alpha blend, depth read-only, drawn after opaques
     // by the caller (sequential view).
-    const uint64_t state =
+    uint64_t state =
         is_transparent
             ? (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
                | BGFX_STATE_DEPTH_TEST_GREATER | BGFX_STATE_BLEND_ALPHA)
             : (BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z
                | BGFX_STATE_DEPTH_TEST_GREATER);
+    // ALPHA TO COVERAGE FOR THE CUTOUT PATH. It is the half of the shimmer fix
+    // that MSAA alone cannot deliver: a cutout writes the pixel or discards
+    // it, so the mask edge is all-or-nothing no matter how many samples the
+    // target has (measured: MSAA 4x and MSAA 8x give the identical treeline
+    // number). With A2C the mask's own alpha becomes the number of samples
+    // covered, so the fractional coverage the mip chain now computes survives
+    // into the frame instead of being rounded to 0 or 1.
+    //
+    // Costs nothing and does nothing when the target is single-sampled
+    // (DFN_MSAA=0), which is why it is gated: one sample has no fractions to
+    // hand out, and enabling it there only pays for a pipeline variant.
+    if (is_cutout && im.internal_samples > 1 && params[0] > 1.5f) {
+        state |= BGFX_STATE_BLEND_ALPHA_TO_COVERAGE;
+    }
     bgfx::setState(state);
     bgfx::submit(VIEW_SCENE, prog_it->second);
 }

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 10:08:2026 - 10:55:09-->
+Last updated: 10:08:2026 - 23:24:48-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -147,6 +147,11 @@ UPD:
   ring at real cloud altitudes. engine/render/sources/CloudModel.cpp now
   carries the field's CPU reference so the distribution can be asserted, with
   the pre-remap form kept as the tests' control.
+- 10:08:2026 - 23:24:48: Named rule «A CUTOUT IS NOT AN EDGE THE FRAMEBUFFER
+  CAN SEE» — the running-shimmer fix, its measurement matrix (MSAA alone
+  0.819/0.080 and 8x = 4x; +mipped mask +alpha-to-coverage 0.621/0.004
+  against 0.864/0.094), the palette-on arm (0.712/0.017), and the evidence
+  that the canopy did not thin (mean luma +1.8 % / +0.2 %).
 -->
 
 # Spec — render agent
@@ -1120,6 +1125,98 @@ Corollary for review: when a foliage build sets its card count, the number to
 ask for is the presented-area MINIMUM over azimuth (relative to the maximum),
 not the count itself. Three planes is the floor, not the target; dense
 species may need more, and the check is the same either way.
+
+## Named rule — A CUTOUT IS NOT AN EDGE THE FRAMEBUFFER CAN SEE
+
+The user's oldest complaint — *«при беге трясет»*, *«всё дергает и
+перерисовывается очень рябью»* — was handed to this zone with the diagnosis
+already made by two others: not camera motion (`head_bob=0` leaves the frame
+pair bit-identical), not the shadow map, and not foliage detail (flora
+measured every geometric lever they own; the canopy is at the bottom of that
+curve). The remaining variable was EDGE COVERAGE. That was right. The part
+that was not yet known is WHICH edges, and it is the whole content of this
+section.
+
+**MSAA on the internal target was the obvious answer and it is worth almost
+nothing on its own.** Measured with `DFN_FLORA_PROBE` + `DFN_WIND_FREEZE=120`,
+one 0.05 m stride at `RUN_SPEED`, 640x360, palette off, share of screen
+flipping by more than 64 luma, against a control that comes back 0.000 %:
+
+| arm | near canopy | treeline |
+|---|---|---|
+| before | 0.864 % | 0.094 % |
+| MSAA 4x on the internal target | 0.819 % | 0.080 % |
+| MSAA 8x | 0.819 % | 0.080 % |
+| MSAA 4x + mipped mask + alpha-to-coverage | **0.621 %** | **0.004 %** |
+
+**8x equalling 4x to three digits is the finding.** If the residual were
+coverage QUANTISATION — an edge whose partial coverage the target cannot
+express finely enough — doubling the samples would have moved it. It did not
+move at all, which says the residual pixels were never partially covered in
+the first place: the shader wrote them or discarded them, and no number of
+samples changes a `discard`.
+
+Where the flicker actually lives, and both halves were measured, not reasoned:
+
+- **The treeline is the leaf MASK.** A leaf card at 70 m is minified about
+  30:1, so one screen pixel covers ~900 mask texels and the point sampler
+  picks ONE. A 0.05 m step — one 120 fps frame at `RUN_SPEED` — picks a
+  different one and the pixel flips leaf/sky at full contrast. That edge is
+  inside the texture fetch, so the framebuffer never sees it and MSAA cannot
+  touch it. A mip chain turns the fetch into the AVERAGE over those texels,
+  and alpha-to-coverage lets that average survive as a fraction of the pixel
+  instead of being rounded to 0 or 1 by the cutout. Cards alone, near canopy:
+  0.382 % → 0.043 %.
+- **The near residual is the TRUNKS, and it is not a defect.** Wood alone goes
+  1.070 % → 0.891 % and stops. Under the crowns the boles stand at 2-5 m,
+  where a silhouette translates 11.7/d ≈ 2-6 pixels per frame. That is not an
+  edge failing to be antialiased, it is an edge that genuinely moved several
+  pixels; no coverage scheme suppresses it and none should. The 11.7/d rule
+  that located this fix also bounds it: it says nothing can move a whole pixel
+  BEYOND 12 m, and the near vantage is standing inside that radius.
+
+**THE MEAN IS PRESERVED, WHICH IS WHY THIS DOES NOT THIN THE CANOPY.**
+Point-sampling a minified mask and testing it against 0.5 draws the pixel with
+probability equal to the mean alpha; using that same mean as coverage draws
+the same expected area, deterministically instead of by dice. Measured on the
+frames: mean luma over the treeline band 109.33 → 111.35 (+1.8 %), over the
+whole near-canopy frame 104.80 → 105.06 (+0.2 %).
+`FLORA_PRESENTED_AREA_FLOOR_M2` is untouched and no card changed size.
+
+**The palette quantiser eats some of it and the fix still wins.** This was the
+open question when the work started — antialiasing the 64-colour post then
+throws away is wasted work. The same matrix with `DFN_PALETTE=1`: near canopy
+0.863 % → 0.712 %, treeline 0.098 % → 0.017 %. So the quantiser costs about
+0.09 points near and turns the treeline's 0.004 into 0.017 — real, and not a
+choice anyone has to make, because both numbers go down in both modes and the
+shipping default is palette off.
+
+**And it does not un-pixelate the game.** The pixel GRID is unchanged: 640x360
+internal, integer upscale, point sampling. MSAA decides what colour each of
+those same pixels gets; it adds shades, not resolution. `MAG` filtering stays
+POINT everywhere, so every texture magnified on screen keeps its hard edges —
+only MINIFICATION, where the sampler was picking one texel out of hundreds,
+changed.
+
+The parts, all inside this zone: `BgfxRenderer.cpp` creates the internal
+colour+depth target with `BGFX_TEXTURE_RT_MSAA_X4` (`DFN_MSAA=0|2|4|8`
+overrides; note the MSAA bits are a 3-bit FIELD, `BGFX_TEXTURE_RT` is that
+field's value 1, so the depth attachment ORs the same flags in whole);
+`BgfxRendererResources.cpp` builds an alpha-weighted mip chain for cutout
+masks ONLY — discriminated by the DATA, an RGBA8 texture containing any alpha
+< 255, so the terrain atlas can never be mipped and bleed across its cell
+borders; `BgfxRendererSubmit.cpp` binds those masks `MIN_LINEAR|MAG_POINT` and
+adds `BGFX_STATE_BLEND_ALPHA_TO_COVERAGE`; `fs_foliage.sc` writes coverage
+into alpha. `fs_shadow_cutout.sc` pins mip 0 explicitly — the shadow pass has
+no coverage to spend, and an averaged alpha against its hard 0.5 threshold
+would have thinned the canopy's SHADOW as a side effect of fixing the colour
+pass.
+
+**`DFN_MSAA=0` is a BIT-EXACT before-arm, deliberately.** The mip chain is
+built only when the target is multi-sampled, because a mipped mask sampled
+through the old 0.5 cutout is the classic distant-canopy dissolve — an off
+switch that shipped a second, different defect would not be a control
+(Rule 30). Verified: `DFN_MSAA=0` reproduces 0.864 % / 0.094 %.
 
 ## What this zone does NOT do
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 23:24:48
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -92,6 +92,17 @@ UPD:
   the embedded shader table; frame pass, submit and handle bookkeeping moved
   to BgfxRendererFrame/Submit/Resources.cpp. Code moved VERBATIM — no
   behaviour change (control: identical mesh-handle counts on the same tour).
+- 10:08:2026 - 23:24:48: COVERAGE ANTIALIASING ON THE INTERNAL TARGET — the
+  user's oldest complaint («при беге трясет», «всё дергает и перерисовывается
+  очень рябью»). MSAA 4x on the internal colour+depth target (DFN_MSAA=0|2|4|8),
+  an alpha-weighted mip chain for cutout MASKS only, and
+  BGFX_STATE_BLEND_ALPHA_TO_COVERAGE on the cutout path. Measured, one 0.05 m
+  stride at RUN_SPEED, DFN_WIND_FREEZE=120, 640x360, palette off, control
+  0.000 %: near canopy 0.864 -> 0.621 %, treeline 0.094 -> 0.004 %. MSAA ALONE
+  IS WORTH ALMOST NOTHING (0.819 / 0.080) and MSAA 8x equals 4x to three
+  digits — the residual pixels are not partially covered, they are written or
+  discarded, so the fix had to reach the MASK. Details and the palette-on
+  numbers in docs/specs/render.md.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -290,17 +301,59 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
         .end();
 
     // Internal low-res target: point-sampled color + write-only depth (Q9).
-    const uint64_t color_flags = BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT
+    //
+    // COVERAGE ANTIALIASING ON THE INTERNAL BUFFER, AND IT IS THE FIX FOR THE
+    // USER'S OLDEST COMPLAINT («при беге трясет», «всё дергает и
+    // перерисовывается очень рябью»). The chain that lands here, none of it
+    // derived in this file: it is not camera motion (head_bob=0 leaves the
+    // frame pair bit-identical), not the shadow map, and not foliage detail —
+    // flora measured every geometric lever they own and the canopy is already
+    // at the bottom of that curve. What it IS: at RUN_SPEED a silhouette at
+    // distance d translates 11.7/d pixels per frame, so past ~12 m NOTHING in
+    // the picture can move a whole pixel — it can only FLIP. The stride sweep
+    // is linear in the step (0.229/0.451/0.864/1.691/3.167 % at
+    // 0.0125/0.025/0.05/0.10/0.20 m), which is the signature of an edge
+    // crossing a pixel CENTRE rather than of content aliasing, and internal
+    // resolution does not move it (320x180 0.927 %, 1280x720 0.887 % against
+    // 640x360's 0.864 %). A geometric edge crossing a pixel centre was
+    // all-or-nothing; MSAA makes a fraction of a pixel of motion produce a
+    // fraction of the colour change.
+    //
+    // THIS DOES NOT UN-PIXELATE THE GAME, which is the objection to answer
+    // before the objection is raised. The pixel GRID is unchanged — 640x360
+    // internal, integer-upscaled, point-sampled. MSAA only decides what
+    // colour each of those same pixels gets; it adds shades, not resolution.
+    //
+    // Sample count via DFN_MSAA (0/1 = off, 2, 4, 8), default MSAA 4x —
+    // measured with DFN_FLORA_PROBE + DFN_WIND_FREEZE, one 0.05 m stride at
+    // RUN_SPEED, share of screen flipping by more than 64 luma, control
+    // 0.000 % (near canopy / treeline): see the UPD entry for the table.
+    uint64_t msaa_flags = BGFX_TEXTURE_RT_MSAA_X4;
+    im.internal_samples = 4;
+    if (const char* m = std::getenv("DFN_MSAA")) {
+        switch (std::atoi(m)) {
+            case 0:
+            case 1: msaa_flags = BGFX_TEXTURE_RT; im.internal_samples = 1; break;
+            case 2: msaa_flags = BGFX_TEXTURE_RT_MSAA_X2; im.internal_samples = 2; break;
+            case 8: msaa_flags = BGFX_TEXTURE_RT_MSAA_X8; im.internal_samples = 8; break;
+            default: break;
+        }
+    }
+    const uint64_t color_flags = msaa_flags | BGFX_SAMPLER_MIN_POINT
                                | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT
                                | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
     const bgfx::TextureHandle color = bgfx::createTexture2D(
         static_cast<uint16_t>(im.internal_width),
         static_cast<uint16_t>(im.internal_height), false, 1,
         bgfx::TextureFormat::RGBA8, color_flags);
+    // The depth attachment MUST carry the same sample count or the pass will
+    // not build; WRITE_ONLY keeps it from allocating a resolve target. Note
+    // BGFX_TEXTURE_RT_MSAA_* is a 3-bit FIELD, not a set of additive bits
+    // (RT itself is the field's value 1), so the flags are ORed in whole.
     const bgfx::TextureHandle depth = bgfx::createTexture2D(
         static_cast<uint16_t>(im.internal_width),
         static_cast<uint16_t>(im.internal_height), false, 1,
-        bgfx::TextureFormat::D32F, BGFX_TEXTURE_RT_WRITE_ONLY);
+        bgfx::TextureFormat::D32F, msaa_flags | BGFX_TEXTURE_RT_WRITE_ONLY);
     const bgfx::TextureHandle attachments[] = {color, depth};
     im.internal_fb = bgfx::createFrameBuffer(2, attachments, true);
 

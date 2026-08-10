@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 23:24:48
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererResources.cpp
 
@@ -32,12 +32,25 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp.
   Handle bookkeeping moved verbatim; no behaviour change.
+- 10:08:2026 - 23:24:48: COVERAGE ANTIALIASING ON THE INTERNAL TARGET — the
+  user's oldest complaint («при беге трясет», «всё дергает и перерисовывается
+  очень рябью»). MSAA 4x on the internal colour+depth target (DFN_MSAA=0|2|4|8),
+  an alpha-weighted mip chain for cutout MASKS only, and
+  BGFX_STATE_BLEND_ALPHA_TO_COVERAGE on the cutout path. Measured, one 0.05 m
+  stride at RUN_SPEED, DFN_WIND_FREEZE=120, 640x360, palette off, control
+  0.000 %: near canopy 0.864 -> 0.621 %, treeline 0.094 -> 0.004 %. MSAA ALONE
+  IS WORTH ALMOST NOTHING (0.819 / 0.080) and MSAA 8x equals 4x to three
+  digits — the residual pixels are not partially covered, they are written or
+  discarded, so the fix had to reach the MASK. Details and the palette-on
+  numbers in docs/specs/render.md.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
+#include <vector>
 
 namespace dfn::platform {
 
@@ -167,16 +180,131 @@ TextureHandle BgfxRenderer::create_texture(uint32_t width, uint32_t height,
     const bgfx::TextureFormat::Enum fmt = format == TextureFormat::RGBA8
                                               ? bgfx::TextureFormat::RGBA8
                                               : bgfx::TextureFormat::R8;
-    const bgfx::Memory* mem =
-        bgfx::copy(pixels.data(), static_cast<uint32_t>(pixels.size_bytes()));
+    // MASK TEXTURES GET A MIP CHAIN; EVERYTHING ELSE STAYS EXACTLY AS IT WAS.
+    //
+    // The discriminator is the DATA, not a flag on the interface: an RGBA8
+    // texture that contains a single pixel with alpha < 255 is a cutout mask
+    // (leaf card), and nothing else in this project has one. That matters
+    // because the terrain ATLAS must never be mipped — a mip level averages
+    // across the cell borders and every cell bleeds into its neighbour, which
+    // is the reason the material sampler is point/point/point in the first
+    // place. Keeping the test on alpha means the atlas, the bark and the path
+    // textures take this change as a no-op and cannot regress.
+    //
+    // WHY A MASK NEEDS ONE — this is the treeline half of the running-shimmer
+    // fix. A leaf mask at 70 m is minified ~30:1, so one screen pixel covers
+    // ~900 mask texels and the point sampler picks ONE of them. Move the eye
+    // 0.05 m (one 120 fps frame at RUN_SPEED) and it picks a different one:
+    // the pixel flips leaf/sky at full contrast. Averaging is not a cosmetic
+    // preference here, it is the only way a fraction of a pixel of motion can
+    // produce a fraction of a colour change. MSAA cannot reach this at all —
+    // the edge is inside the texture fetch, not on a triangle — which is
+    // exactly what the measurement said: MSAA 4x took the treeline from
+    // 0.095 % to 0.080 % and MSAA 8x took it no further.
+    //
+    // The RGB average is ALPHA-WEIGHTED. A straight box filter pulls the
+    // colour of the fully transparent texels (usually black) into the leaf
+    // colour, so a distant crown darkens as it recedes — a look change nobody
+    // asked for, arriving as a side effect of an antialiasing fix.
+    //
+    // GATED ON MSAA so that DFN_MSAA=0 is a BIT-EXACT control arm and not
+    // merely "the old look, roughly" (Rule 30). Without the gate the mask
+    // would carry a mip chain that the single-sample path samples through the
+    // old 0.5 cutout — averaged alpha against a hard threshold is the classic
+    // distant-canopy dissolve, i.e. the off switch would ship a second,
+    // different defect.
+    bool has_alpha = false;
+    if (im.internal_samples > 1 && fmt == bgfx::TextureFormat::RGBA8
+        && pixels.size_bytes() >= static_cast<std::size_t>(width) * height * 4) {
+        for (std::size_t i = 3; i < static_cast<std::size_t>(width) * height * 4;
+             i += 4) {
+            if (pixels[i] < 255) {
+                has_alpha = true;
+                break;
+            }
+        }
+    }
+
+    if (!has_alpha) {
+        const bgfx::Memory* mem =
+            bgfx::copy(pixels.data(), static_cast<uint32_t>(pixels.size_bytes()));
+        const bgfx::TextureHandle tex = bgfx::createTexture2D(
+            static_cast<uint16_t>(width), static_cast<uint16_t>(height), false, 1,
+            fmt, BGFX_TEXTURE_NONE, mem);
+        if (!bgfx::isValid(tex)) {
+            return {};
+        }
+        const uint32_t id = im.next_id++;
+        im.textures.emplace(id, tex);
+        return TextureHandle{id};
+    }
+
     const bgfx::TextureHandle tex = bgfx::createTexture2D(
-        static_cast<uint16_t>(width), static_cast<uint16_t>(height), false, 1, fmt,
-        BGFX_TEXTURE_NONE, mem);
+        static_cast<uint16_t>(width), static_cast<uint16_t>(height), true, 1, fmt,
+        BGFX_TEXTURE_NONE, nullptr);
     if (!bgfx::isValid(tex)) {
         return {};
     }
+    {
+        const bgfx::Memory* mem =
+            bgfx::copy(pixels.data(), static_cast<uint32_t>(pixels.size_bytes()));
+        bgfx::updateTexture2D(tex, 0, 0, 0, 0, static_cast<uint16_t>(width),
+                              static_cast<uint16_t>(height), mem);
+    }
+    std::vector<uint8_t> src(pixels.begin(),
+                             pixels.begin()
+                                 + static_cast<std::ptrdiff_t>(width) * height * 4);
+    uint32_t sw = width;
+    uint32_t sh = height;
+    uint8_t level = 1;
+    while (sw > 1 || sh > 1) {
+        const uint32_t dw = sw > 1 ? sw / 2 : 1;
+        const uint32_t dh = sh > 1 ? sh / 2 : 1;
+        std::vector<uint8_t> dst(static_cast<std::size_t>(dw) * dh * 4, 0);
+        for (uint32_t y = 0; y < dh; ++y) {
+            for (uint32_t x = 0; x < dw; ++x) {
+                const uint32_t x0 = x * 2;
+                const uint32_t y0 = y * 2;
+                const uint32_t x1 = sw > 1 ? x0 + 1 : x0;
+                const uint32_t y1 = sh > 1 ? y0 + 1 : y0;
+                const uint32_t xs[2] = {x0, x1};
+                const uint32_t ys[2] = {y0, y1};
+                uint32_t asum = 0;
+                uint32_t csum[3] = {0, 0, 0};
+                for (uint32_t yi = 0; yi < 2; ++yi) {
+                    for (uint32_t xi = 0; xi < 2; ++xi) {
+                        const std::size_t o =
+                            (static_cast<std::size_t>(ys[yi]) * sw + xs[xi]) * 4;
+                        const uint32_t a = src[o + 3];
+                        asum += a;
+                        for (int k = 0; k < 3; ++k) {
+                            csum[k] += static_cast<uint32_t>(src[o + k]) * a;
+                        }
+                    }
+                }
+                const std::size_t d = (static_cast<std::size_t>(y) * dw + x) * 4;
+                for (int k = 0; k < 3; ++k) {
+                    dst[d + k] = asum > 0
+                                     ? static_cast<uint8_t>(csum[k] / asum)
+                                     : src[(static_cast<std::size_t>(y0) * sw + x0)
+                                               * 4
+                                           + static_cast<std::size_t>(k)];
+                }
+                dst[d + 3] = static_cast<uint8_t>((asum + 2) / 4);
+            }
+        }
+        const bgfx::Memory* mem =
+            bgfx::copy(dst.data(), static_cast<uint32_t>(dst.size()));
+        bgfx::updateTexture2D(tex, 0, level, 0, 0, static_cast<uint16_t>(dw),
+                              static_cast<uint16_t>(dh), mem);
+        src.swap(dst);
+        sw = dw;
+        sh = dh;
+        ++level;
+    }
     const uint32_t id = im.next_id++;
     im.textures.emplace(id, tex);
+    im.mipped_textures.insert(id);
     return TextureHandle{id};
 }
 
@@ -186,6 +314,7 @@ void BgfxRenderer::destroy_texture(TextureHandle texture) {
     if (it != im.textures.end()) {
         bgfx::destroy(it->second);
         im.textures.erase(it);
+        im.mipped_textures.erase(texture.id);
     }
 }
 

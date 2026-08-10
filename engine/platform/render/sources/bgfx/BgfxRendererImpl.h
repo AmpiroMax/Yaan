@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 20:10:49
+Last updated: 10:08:2026 - 23:24:48
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -40,6 +40,10 @@ UPD:
   shadow.
 - 10:08:2026 - 20:10:49: ENV_PARAM_VEC4S 35 -> 36 (slot 35 = the sun's body,
   paired with dfn_env.sh per the layout contract).
+- 10:08:2026 - 23:24:48: Impl::internal_samples (MSAA sample count of the
+  internal target) and Impl::mipped_textures (cutout masks that carry a mip
+  chain). Both exist for the coverage-antialiasing fix; see
+  BgfxRenderer.cpp's internal-target block and docs/specs/render.md.
 */
 
 #pragma once
@@ -53,6 +57,7 @@ UPD:
 #include <array>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace dfn::platform {
@@ -191,6 +196,11 @@ struct BgfxRenderer::Impl {
     uint32_t internal_width = 0;
     uint32_t internal_height = 0;
     uint32_t reset_flags = BGFX_RESET_NONE;
+    // Coverage antialiasing on the INTERNAL target (samples per internal
+    // pixel: 1 = off, 2/4/8 = MSAA). See BgfxRenderer.cpp's internal-target
+    // block for why this is the fix for the running shimmer and why it does
+    // NOT make the picture less pixelated.
+    uint32_t internal_samples = 1;
 
     bgfx::VertexLayout mesh_layout;
     bgfx::VertexLayout debug_layout;
@@ -214,6 +224,9 @@ struct BgfxRenderer::Impl {
     bgfx::ProgramHandle shadow_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_cutout_program = BGFX_INVALID_HANDLE;
     std::unordered_map<uint32_t, bool> cutout; // program id -> alpha cutout
+    // Texture ids that carry a mip chain (cutout masks only — see
+    // create_texture; the terrain atlas must never be mipped).
+    std::unordered_set<uint32_t> mipped_textures;
     std::unordered_map<uint32_t, bool> non_casting; // program id -> never a sun caster
     bgfx::UniformHandle s_shadow_map = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;
