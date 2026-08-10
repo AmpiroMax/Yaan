@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 11:01:27
+Last updated: 10:08:2026 - 11:10:03
 -->
 <!--
 UPD:
@@ -62,6 +62,7 @@ UPD:
 - 10:08:2026 - 02:44:14: §7.0a — the tunnel lower-leg HALF-BURIED CUTTING (core's report, reported-not-patched, correctly) ruled PARKED ON THE SAME TRIGGER as the barrow xfail: legs sit on the flank the §2.8.2 couloir work will move again, and the durable rule makes re-validation part of that change — patching now is spending the work twice. Acceptance named ahead: every leg either buried (cover ≥ TUNNEL_COVER_MIN, 1 m proposed) or an AUTHORED open cutting with revetment; the accidental in-between is the rejected case and core's frame is its control. Core's daylight-portal and switchback-clearance fixes accepted as reported.
 - 10:08:2026 - 02:47:54: §7.0a cutting control CORRECTED on core's challenge, upheld — my wording named «core's frame» as control when no frame existed (the finding was measured, not shot; my own Rule 27 trap, caught by core in me). Control restated as two reproducible halves: the cover table (legs 1→3 at −1.0…−2.2 m must-fail vs legs 3→7 at +1.6…+18 m passing neighbor — both Rule 30 cases from one instrument) + the vantage RECIPE (binary, seed, probe env, eye, time), never a file path — screenshots/ is gitignored and pixels die with a clean clone. Frame verified by design from the recipe: faint diagonal seam, subtle at valley range — which is why this vantage is the control and the trigger-time acceptance needs a closer authored vantage that can fail loudly (F7). Pixel archiving routed to the lead.
 - 10:08:2026 - 11:01:27: §1.7 BR-4 — MY THRESHOLD SAT ON THE WRONG QUANTITY, and flora's measurement is what showed it. Clark-Evans is now NORMALISED by the same-placement constant-field control (which measures 1.134, not 1.0, because a jittered lattice beats Poisson for regularity): R_norm = R(field on)/R(field constant), CLUMP_R_NORM_MAX = 0.85 replaces CLUMP_R_CLUMPED_MAX = 0.80. The condemning evidence is NOT grass but my own even-field clause — «R ≈ 1 where the field says even» failed on the correct pass case (Rule 30a), which indicts the quantity independently of any verdict. Grass ruled NOT tuned: coverage 0.55 arithmetically bounds clumping, and buying the number would put bare earth between tufts (a different meadow); broad-cover exemption also refused. All five classes pass normalised, no seed breaching. §1.7 BR-3 — SCOPED BY MAINTENANCE on flora's finding: the rich margin is what grows where nobody sweeps, so cobble/paved suppresses it (kept verge), dirt moderate, hint-path is the specimen class, steps get moss in joints; the ratio is measured on unmaintained classes only, and a cobbled street failing it is a PASS. Band datum adopted from flora: 0 = outer edge of the worn surface. Two sharpenings on the same pass: BR-4's CONTROL is itself density-dependent (a jittered lattice thins toward Poisson) so it must be re-taken per class at that class's coverage — one global 1.134 is the escalated defect one level down; the correction runs one way and cannot flip a verdict, so it is a chore, not a gate. BR-3 is stated as ONE threshold on the hint-path specimen plus an ORDERING (hint ≥ dirt > cobble ≈ 1) rather than four per-class multipliers; the §3.12 edge-gradient FLOOR is scoped by the same column (it is what would garden a cobbled gutter — the machinery guaranteeing BR-3 is what would break this ruling), and a kept verge is life in the joints and wall bases, never bare ground: §1.1 does not stop at the town gate.
+- 10:08:2026 - 11:10:03: §1.7 BR-4/BR-3 — flora implemented both rulings and RE-TOOK THE CONTROL PER CLASS; my quoted measurements were superseded within the hour and are corrected here rather than left standing. The control climbs monotonically with acceptance rate (1.052 at coverage 0.09 to 1.136 at 0.35), confirming the density dependence by measurement instead of argument; correction ran one way as ruled and no verdict flipped (mushrooms 0.338→0.364, pebbles 0.411→0.437, flowers 0.454→0.478, moss 0.466→0.490, grass 0.685→0.683, worst seed 0.714). The trap kept on the record: the single-control table was wrong for four of five classes and right only for grass, by the accident that grass's mean sat nearest the one constant used — the error hid behind the very class under argument. BR-3 kept-verge ruled the rest of the way on flora's question: the class weight scales the PEAK and never the base presence (cobble 0 = no peak, not no plants), and MOSS ALONE keeps a 0.25 residual on cobble — confirmed because the damp joint is a mechanism the broom cannot reach, bounded strictly under the dirt weight, and accepted on a FRAME rather than the ratio (pockets, not a ribbon down both kerbs).
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1286,6 +1287,19 @@ frame — half-shade, moisture, nobody treads it (research A6).
   broom**, not by absence of life: moss and weeds in the joints, at wall
   bases, in the lee of steps and thresholds — the swept ground between them
   is what makes those pockets legible as spared rather than as leftover.
+  Two consequences flora drew out and I confirm: the class weight scales the
+  edge PEAK and never the base presence, so cobble at 0 means «ratio ≈ 1, no
+  peak» and not «no plants» (asserted at a field ZERO, the case where the
+  two readings would otherwise agree); and **moss alone keeps a small
+  residual peak on cobble (0.25), the other species go to 0** — moss is the
+  broom-survivor, so the fiction predicts it and the damp joint is the
+  mechanism. Bounded, because a residual argued from fiction can grow:
+  it stays strictly under the dirt weight (the ordering keeps its teeth) and
+  it is moss only. **Its acceptance is a FRAME, not the ratio (Rule 27):
+  pockets, not a ribbon.** If a cobbled street renders a continuous green
+  stripe down both kerbs the residual is wrong regardless of what the test
+  says — drop it to 0 and let the ShadeOfStone association carry the joints,
+  which is the same fiction keyed to the place instead of the distance.
 - **Must-fail control — the real rejected instance:** the current build's
   uniform scatter, the user's «земля плоская и мёртвая» said in numbers:
   uniform scatter measures ratio ≈ 1 and fails clause (ii) under any
@@ -1325,22 +1339,33 @@ never a lucky accident of scatter.
   lattice (R well above 1), accept one in ten and the survivors approach
   Poisson (R → 1). So the machinery's contribution is a function of
   COVERAGE, and our classes span 0.10 to 0.55 — a single control divides
-  mushrooms by a number that was never theirs. The constant-field run must
-  therefore be re-taken **per class with the constant set to that class's
-  coverage**, so numerator and denominator differ in one thing only: the
-  field. **This does not gate the ruling.** The correction runs one way —
-  low-coverage classes are currently over-divided, so their true `R_norm`
-  can only rise, from 0.34–0.47 toward at most 0.85's far side — and grass,
-  the only marginal class, sits at the TOP of the coverage range where the
-  control is largest, so its denominator can only grow and its `R_norm`
-  only fall. No verdict in the table can flip. It is a correctness chore
-  owed to the quantity, not a gate on the classes.
+  mushrooms by a number that was never theirs. The constant-field run is
+  therefore taken **per class with the constant set to that class's own
+  mean**, so numerator and denominator differ in one thing only: the field.
+  **MEASURED (flora, same day), and the density dependence is now visible
+  rather than argued** — the control climbs monotonically with the
+  acceptance rate, 1.052 → 1.136 across the classes:
+  | class | field mean | R (field on) | control | `R_norm` |
+  |---|---|---|---|---|
+  | Mushrooms | 0.087 | 0.383 | 1.052 | **0.364** |
+  | Pebbles | 0.121 | 0.466 | 1.065 | **0.437** |
+  | Flowers | 0.150 | 0.515 | 1.075 | **0.478** |
+  | Moss | 0.163 | 0.529 | 1.080 | **0.490** |
+  | GrassTufts | 0.352 | 0.776 | 1.136 | **0.683** (worst seed 0.714) |
+  As predicted the correction ran one way and no verdict flipped: the
+  over-divided low-coverage classes rose, and grass — at the top of the
+  range, where the control is largest — got a bigger denominator and a
+  smaller number. **The trap worth keeping:** the single-control table was
+  wrong for four classes and right only for grass, by the accident that
+  grass's mean sat nearest the one constant used — i.e. the error hid
+  behind the very class we were arguing about, and a table can be correct
+  exactly where you are looking while wrong everywhere else.
 - **Must-fail control — the real rejected instance:** the current grass:
   pure jittered-lattice scatter, `R_norm` = **1.000 by construction**
   (it IS the denominator) and identical under any field value — fails
   claim (i) in both directions. The bar sits 0.15 below it, ≈ 3–4 seed-noise
   widths, and above the worst measured seed of the least-clumped authored
-  class (grass, 0.715) — threshold above the passing cases, well clear of
+  class (grass, 0.714) — threshold above the passing cases, well clear of
   the rejected one. **0.85 is DERIVED on the new quantity, not translated
   from the old** (the lead's row makes the same point): translating 0.80
   through the control gives 0.705, under which grass's worst seed still
@@ -1348,9 +1373,9 @@ never a lucky accident of scatter.
   error in a new suit, and the arithmetic would have hidden it as a
   conversion.
 - **Can-pass:** two-level scatter (Poisson parents, clustered children)
-  with parent density driven by the field. Measured `R_norm`, all five
-  classes, no seed breaching: mushrooms 0.338, pebbles 0.411, flowers
-  0.454, moss 0.466, grass 0.684.
+  with parent density driven by the field. Measured `R_norm` against the
+  per-class control, all five classes, no seed breaching: mushrooms 0.364,
+  pebbles 0.437, flowers 0.478, moss 0.490, grass 0.683.
 - **GRASS IS THE LEAST-CLUMPED CLASS ON PURPOSE, AND IT IS NOT TUNED TO
   PASS.** Coverage 0.55 puts grass on over half the ground, and a pattern
   covering half the ground *cannot* be strongly clumped — that is
