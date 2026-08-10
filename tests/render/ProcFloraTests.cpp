@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 11:59:40
+Last updated: 10:08:2026 - 11:59:55
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -70,6 +70,10 @@ UPD:
   BUILDS non-empty geometry with real extent, at every LOD, walking the enum by
   VALUE. Control is the old three-tree predicate, which every §5.10/§5.11
   ordinal must fail: that predicate is why the forest floor drew as bare earth.
+- 10:08:2026 - 11:59:55: the edge-rule rows are keyed on math::ScatterSpecies
+  now that the table lives in core (placement data, placed by core); the four
+  comparisons here map through flora_species_of, the same mapping render uses
+  to pick a mesh.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"

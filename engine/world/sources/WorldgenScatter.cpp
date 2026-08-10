@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 10:08:2026 - 11:59:55
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -43,12 +43,19 @@ UPD:
   cut and WorldgenV2Tests caught it: §2.4 is asserted over every non-Stone
   instance, not over trees, and a blanket rule a new species may opt out of is
   not a rule.
+- 10:08:2026 - 11:59:55: §5.11 scatter_path_edges(): flora's seven edge species
+  on the margins, on THEIR datum (the worn edge, outward — never the
+  centreline), with the edge ramp applied EXACTLY ONCE from PathSample::edge
+  and per_100m normalised by the ramp's own integral. The field term is
+  max(clump, edge x richness), a FLOOR and not a product: written as a product
+  the swept classes' margins go to exactly zero, which the suite now fails on.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/core/math/sources/FloraEdgeRules.h"
 #include "engine/world/sources/WorldgenNoise.h"
 #include "engine/world/sources/Worldgen.h"
 
@@ -468,6 +475,139 @@ void scatter_forest_floor(ScatterCtx& ctx) {
                  0.7f, 1.15f);
 }
 
+
+// ---------------------------------------------------------------------------
+// §5.11 THE RICH EDGE (в8/в19в, BR-3)
+//
+// «Обочина — самая богатая полоса» (research §A6.3). The composition order is
+// design's amendment and it is binding:
+//
+//     density = base x clump(class, xz) x edge_gradient x richness x exclusions
+//
+// with THE EDGE GRADIENT AS A FLOOR ON THE FIELD rather than a factor of it,
+// so a coverage gap can never bare a path margin. Written out:
+//
+//     field(p) = max(clump(p), edge(p) * richness(path_class))
+//     rho(p)   = (per_100m / 100 m) * field(p) / INTEGRAL(edge over the band)
+//
+// FOUR THINGS IN THAT ARE EASY TO GET WRONG AND ALL FOUR WERE FLAGGED BEFORE
+// THE CODE EXISTED, which is why they are spelled out here:
+//
+// 1. THE EDGE RAMP IS APPLIED ONCE. flora's clump_field_edged() computed its
+//    own; called with PathSample::edge as well it would have SQUARED the band
+//    and moved its peak inward. It is deleted and this calls plain
+//    clump_field(). The symptom would have been «обочина жидковата», which
+//    nobody diagnoses as a units bug.
+// 2. per_100m IS A TOTAL COUNT ACROSS THE BAND — neither a peak nor a mean
+//    density. So the ramp shapes the DISTRIBUTION and not the amount, and the
+//    magnitude is normalised by the ramp's own integral, READ FROM THE RAMP
+//    (edge_band_integral) rather than pasted, so retuning the ramp does not
+//    silently move every count in flora's table.
+// 3. THE DATUM IS THE WORN EDGE, OUTWARD — never the centreline. PathSample
+//    reports dist_from_worn_edge directly so nothing here reconstructs it from
+//    a distance and a guessed width.
+// 4. THE FLOOR NEVER SUBTRACTS AND A KEPT VERGE IS NOT BARE GROUND. max(), not
+//    a product: at richness 0 the margin falls back to the FIELD value, never
+//    to zero, because §1.1 does not stop at the town gate and a margin
+//    suppressed to nothing re-makes «земля плоская и мёртвая» inside the
+//    settlement. BR-3's ratio is therefore scoped to the unmaintained classes
+//    and A COBBLED STREET FAILING IT IS A PASS.
+// ---------------------------------------------------------------------------
+
+void scatter_path_edges(ScatterCtx& ctx) {
+    const PathNetwork& net = ctx.paths;
+    if (net.routes.empty()) {
+        return;
+    }
+    // Lateral resolution of the placement integral. 0.25 m is a quarter of the
+    // 1.0 m narrowest band and well inside the 0.35 m peak — the ramp has one
+    // corner and integrating a corner is not where the error lives.
+    constexpr float DX = 0.25f;
+    // A station cannot seed anything further than its own reach, so a station
+    // whose reach misses the chunk is skipped before any draw. Without this the
+    // pass walks all six routes for all sixteen chunks.
+    const float max_reach = net.rich_edge_band_m + 6.0f;
+
+    for (std::size_t ri = 0; ri < net.routes.size(); ++ri) {
+        const PathRoute& r = net.routes[ri];
+        for (std::size_t si = 0; si + 1 < r.points.size(); ++si) {
+            const glm::vec2 a = r.points[si];
+            const glm::vec2 b = r.points[si + 1];
+            if (a.x < ctx.chunk_min.x - max_reach || a.x > ctx.chunk_max.x + max_reach
+                || a.y < ctx.chunk_min.y - max_reach || a.y > ctx.chunk_max.y + max_reach) {
+                continue;
+            }
+            const glm::vec2 d = b - a;
+            const float seg_len = glm::length(d);
+            if (seg_len < 1e-3f) {
+                continue;
+            }
+            const glm::vec2 t = d / seg_len;
+            const glm::vec2 n{-t.y, t.x};
+            const float half = path_half_width(r.classes[si]);
+            const auto cls_ordinal = static_cast<uint8_t>(r.classes[si]);
+
+            for (std::size_t k = 0; k < math::FLORA_EDGE_RULE_COUNT; ++k) {
+                const math::FloraEdgeRule& rule = math::FLORA_EDGE_RULES[k];
+                if (rule.habitat != math::EdgeHabitat::PathMargin || !rule.common_scatter
+                    || rule.per_100m <= 0.0f) {
+                    continue; // THE JEWEL IS A BUDGET, NOT A PROBABILITY: it is
+                              // placed at finds and pearls, never here.
+                }
+                const float integral = math::edge_band_integral(rule, net.rich_edge_band_m);
+                if (integral <= 1e-4f) {
+                    continue;
+                }
+                const float rich = rule.richness.by_ordinal(cls_ordinal);
+                // instances per metre of route per metre of lateral offset,
+                // before the field: per_100m over 100 m of route, spread by the
+                // ramp and normalised so the total is per_100m whatever the
+                // ramp's shape.
+                const float base = rule.per_100m / 100.0f / integral;
+
+                for (int side = -1; side <= 1; side += 2) {
+                    for (float x = rule.band_min_m + DX * 0.5f; x < rule.band_max_m; x += DX) {
+                        const glm::vec2 p =
+                            a + t * (seg_len * 0.5f)
+                            + n * (static_cast<float>(side) * (half + x));
+                        if (!ctx.inside_chunk(p)) {
+                            continue;
+                        }
+                        // The datum, from the query rather than reconstructed.
+                        const PathSample ps = net.sample(p);
+                        const float edge = ps.edge;
+                        const float clump = rule.clump_applies
+                                              ? math::clump_field(rule.clump, p, static_cast<uint32_t>(ctx.seed))
+                                              : 1.0f;
+                        const float field = std::max(clump, edge * rich);
+                        const float expected = base * field * seg_len * DX;
+                        if (expected <= 0.0f) {
+                            continue;
+                        }
+                        // One deterministic draw per (route, station, rule,
+                        // side, lateral step) — keyed by the tuple, not by a
+                        // running counter, so a chunk computes exactly the same
+                        // instances whichever of its neighbours asked first.
+                        const auto lat = static_cast<int64_t>(x / DX);
+                        WorldGenRng rng =
+                            cell_rng(ctx.seed, STREAM_SCATTER_EDGE + static_cast<uint32_t>(k),
+                                     static_cast<int64_t>(ri * 4096 + si),
+                                     lat * 4 + (side > 0 ? 1 : 0));
+                        if (rng.next_float01() >= std::min(expected, 1.0f)) {
+                            continue;
+                        }
+                        if (!ctx.dry_enough(p, 0.5f) || ctx.on_pad(p) || ctx.near_entrance(p)) {
+                            continue;
+                        }
+                        ctx.add(p, rule.species, rng.next_float01() * TAU,
+                                0.8f + rng.next_float01() * 0.4f);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Forest trees: per-species lattice; oak fills its rects, pine its annulus
 /// and strip; birch lines the banks (§5.1-§5.3).
 void scatter_trees(ScatterCtx& ctx) {
@@ -753,6 +893,7 @@ std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLay
     scatter_stones(ctx);
     scatter_entrance_markers(ctx);
     scatter_forest_floor(ctx);
+    scatter_path_edges(ctx);
     return out;
 }
 

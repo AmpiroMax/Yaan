@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 10:08:2026 - 11:59:55
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -66,6 +66,14 @@ UPD:
   placement multiplied by. Plus: logs measured against the CONTOUR with the
   fold-uniform 0.785 rad of a drawn yaw as the reachable control, nothing dead
   on a tread, and the canopy envelope against its own old value.
+- 10:08:2026 - 11:59:55: §5.11 acceptances, and one of them was rewritten
+  because the first version could not fail: BR-3's headline ratio came out at
+  ~27000 against an off-path ground carrying NO ground cover at all, since
+  flora's ForestFloor rows have per_100m = 0 (the column is per 100 LINEAR
+  metres and a forest floor is not a linear feature). Comparing against zero is
+  not a measurement, so the claim asserted is design's actual ruling — the
+  margin ORDERS by maintenance, hint-path > dirt > cobble > 0 — and the gap is
+  reported rather than papered over.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -73,6 +81,7 @@ UPD:
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/core/math/sources/FloraEdgeRules.h"
 #include "engine/core/math/sources/FloraField.h"
 #include "engine/world/sources/WorldgenScatter.h"
 #include "engine/world/sources/WorldgenVantages.h"
@@ -1462,4 +1471,188 @@ TEST_CASE("the canopy occlusion envelope is the GIANT tier, not the nominal heig
     }
     INFO("tallest drawn maturity multiplier ", tallest);
     CHECK(tallest > giant * 0.95f);
+}
+
+TEST_CASE("§5.11: the rich edge exists, at flora's declared per-100m counts") {
+    const FloorCensus& c = floor_census();
+    const world::WorldGenContext& ctx = forest();
+
+    // Route length per CLASS, because per_100m is per 100 linear metres of
+    // feature and the maintenance column scales by class — pooling the classes
+    // would divide a hint-path's count by a cobbled street's length.
+    float len_by_class[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    for (const world::PathRoute& r : ctx.paths.routes) {
+        for (std::size_t i = 0; i + 1 < r.points.size(); ++i) {
+            len_by_class[static_cast<int>(r.classes[i])] += glm::length(r.points[i + 1] - r.points[i]);
+        }
+    }
+    const float total_len = len_by_class[0] + len_by_class[1] + len_by_class[2] + len_by_class[3];
+    REQUIRE(total_len > 1000.0f);
+
+    // Every instance within the margin band of a path, by species.
+    int edge_count = 0;
+    int by_species[18] = {};
+    for (const auto& i : c.all) {
+        const glm::vec2 p{i.position.x, i.position.z};
+        const world::PathSample s = ctx.paths.sample(p);
+        if (s.dist_from_worn_edge < 0.0f || s.dist_from_worn_edge > 4.0f) {
+            continue;
+        }
+        const auto sp = static_cast<int>(i.species);
+        if (sp < static_cast<int>(math::ScatterSpecies::MossPatch)) {
+            continue;
+        }
+        ++edge_count;
+        ++by_species[sp];
+    }
+    // FLORA'S OWN FALSIFICATION, quoted so it can fail: their PathMargin rows
+    // sum to 58 instances per 100 m per SIDE. "If your first run comes out near
+    // 23 instead of 58, the ramp integral is missing" — 23 is 58 x the ramp's
+    // own mean (~0.4), i.e. exactly the number a peak-density wiring produces.
+    // So 23 is not a soft miss, it is the SIGNATURE of the units bug, and the
+    // window below is placed to exclude it rather than to bracket 58 loosely.
+    const float per_100m_per_side =
+        static_cast<float>(edge_count) / (total_len / 100.0f) * 0.5f;
+    INFO("realized ", per_100m_per_side, " instances per 100 m per side (", edge_count,
+         " over ", total_len, " m); flora's table sums to 58, the peak-density bug reads 23");
+    CHECK(edge_count > 0);
+    CHECK(per_100m_per_side > 30.0f); // above the units-bug signature
+    CHECK(per_100m_per_side < 120.0f);
+
+    // ALL SEVEN EDGE SPECIES ARE IN THE WORLD except the jewel, which is a
+    // PLACEMENT BUDGET AND NOT A PROBABILITY (design's ruling): common_scatter
+    // is false and per_100m is 0, so it may only arrive at a find or a
+    // wilderness pearl. Its ABSENCE here is the rule working.
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::MossPatch)] > 0);
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::FlowerCarpet)] > 0);
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::FlowerAccent)] > 0);
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::Mushroom)] > 0);
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::PebbleCluster)] > 0);
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::FlowerJewel)] == 0);
+    // The carpet outnumbers the accent, as the rows say (18 vs 8 per 100 m).
+    CHECK(by_species[static_cast<int>(math::ScatterSpecies::FlowerCarpet)]
+          > by_species[static_cast<int>(math::ScatterSpecies::FlowerAccent)]);
+}
+
+TEST_CASE("BR-3: the margin ORDERS by maintenance, hint-path > dirt > cobble > bare") {
+    const FloorCensus& c = floor_census();
+    const world::WorldGenContext& ctx = forest();
+
+    // WHAT THIS TEST DOES *NOT* CLAIM, stated first because the obvious version
+    // of it is worthless: BR-3's headline ratio is "the margin is richer than
+    // THE GROUND", and that ratio is currently ~27000 because the off-path
+    // ground carries no ground cover at all. The §5.11 ForestFloor rows exist
+    // in flora's table with per_100m = 0 — the column is instances per 100
+    // LINEAR metres and a forest floor is not a linear feature, so those rows
+    // carry no density anyone has authored. Until design gives them an areal
+    // one, "richer than the ground" compares against zero and CANNOT FAIL, so
+    // it is not asserted here. Reported to flora and design instead.
+    //
+    // WHAT IS MEASURABLE, and is design's actual maintenance ruling: the margin
+    // must ORDER by class. A rich verge is what grows where nobody sweeps, so
+    // the hint-path (BR-3's specimen class) carries the full band, dirt is
+    // moderate, and the cobbled street is suppressed — AND A COBBLED STREET
+    // FAILING THE RATIO IS A PASS. The ordering is falsifiable in both
+    // directions and every term of it is nonzero.
+    int in_band[4] = {};
+    float band_area[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    for (const auto& i : c.all) {
+        if (static_cast<int>(i.species) < static_cast<int>(math::ScatterSpecies::MossPatch)) {
+            continue;
+        }
+        const glm::vec2 p{i.position.x, i.position.z};
+        const world::PathSample s = ctx.paths.sample(p);
+        if (s.dist_from_worn_edge >= 0.0f && s.dist_from_worn_edge <= 4.0f) {
+            ++in_band[static_cast<int>(s.path_class)];
+        }
+    }
+    for (const world::PathRoute& r : ctx.paths.routes) {
+        for (std::size_t i = 0; i + 1 < r.points.size(); ++i) {
+            band_area[static_cast<int>(r.classes[i])] +=
+                glm::length(r.points[i + 1] - r.points[i]) * 4.0f * 2.0f; // 4 m band, both sides
+        }
+    }
+    const auto density = [&](world::PathClass k) {
+        const int idx = static_cast<int>(k);
+        return band_area[idx] > 1.0f ? static_cast<float>(in_band[idx]) / band_area[idx] : -1.0f;
+    };
+    const float faint = density(world::PathClass::FaintTrail);
+    const float dirt = density(world::PathClass::Dirt);
+    const float cobble = density(world::PathClass::Cobble);
+    INFO("margin density /m2 — hint-path ", faint, ", dirt ", dirt, ", cobble ", cobble);
+    REQUIRE(faint > 0.0f);
+    REQUIRE(dirt > 0.0f);
+    REQUIRE(cobble > 0.0f);
+
+    // The ordering design ruled.
+    CHECK(faint > dirt);
+    CHECK(dirt > cobble);
+    // And it is an ordering with real separation, not three numbers that
+    // happen to sort: the maintenance weights differ by ~2x between the
+    // neighbouring classes, so a wiring that ignored the column entirely would
+    // land all three within noise of each other and fail this.
+    CHECK(faint > cobble * 1.6f);
+
+    // A KEPT VERGE IS NOT BARE GROUND. The swept class keeps whatever
+    // base x clump gives it — §1.1 does not stop at the town gate, and a margin
+    // suppressed to nothing would re-make «земля плоская и мёртвая» inside the
+    // settlement, which is the complaint this whole stage exists to answer.
+    // This is the clause that fails if the composition is written as a PRODUCT
+    // instead of as a FLOOR: cobble's flower and pebble weights are exactly 0,
+    // so a product zeroes the street's margin outright.
+    CHECK(cobble > faint * 0.15f);
+}
+
+TEST_CASE("the two invariants that came off clump_field_edged() (flora's, now core's)") {
+    // Flora deleted clump_field_edged() at core's request and named the two
+    // properties it carried as UNOWNED until core's suite took them. They are
+    // composition-level now: they live in scatter_path_edges' field term.
+    const world::WorldGenContext& ctx = forest();
+    const auto seed32 = static_cast<uint32_t>(ctx.params.seed);
+    const auto compose = [&](math::ClumpClass cc, glm::vec2 p, float edge, float rich) {
+        return std::max(math::clump_field(cc, p, seed32), edge * rich);
+    };
+
+    // (i) THE FLOOR NEVER SUBTRACTS: the composed value is >= the bare field
+    // everywhere. Trivially violated by writing `field * edge` where BR-3 wants
+    // a floor — and `field * edge` is the more natural thing to type.
+    int checked = 0;
+    for (float z = 100.0f; z < 700.0f; z += 13.0f) {
+        for (float x = 100.0f; x < 700.0f; x += 13.0f) {
+            const glm::vec2 p{x, z};
+            const float bare = math::clump_field(math::ClumpClass::Flowers, p, seed32);
+            for (const float e : {0.0f, 0.25f, 0.6f, 1.0f}) {
+                for (const float r : {0.0f, 0.55f, 1.0f}) {
+                    CHECK(compose(math::ClumpClass::Flowers, p, e, r) >= bare - 1e-6f);
+                    ++checked;
+                }
+            }
+        }
+    }
+    CHECK(checked > 5000);
+
+    // (ii) A KEPT VERGE IS NOT BARE GROUND, and flora named the DISCRIMINATING
+    // CASE because everywhere else the two candidate models agree: ground where
+    // THE FIELD IS ZERO. On ordinary ground "richness scales the peak" and
+    // "richness scales the whole density" give the same answer, so a test that
+    // samples ordinary ground passes under both and proves neither.
+    int zero_field_cases = 0;
+    for (float z = 100.0f; z < 900.0f && zero_field_cases < 200; z += 3.0f) {
+        for (float x = 100.0f; x < 900.0f && zero_field_cases < 200; x += 3.0f) {
+            const glm::vec2 p{x, z};
+            const float bare = math::clump_field(math::ClumpClass::Flowers, p, seed32);
+            if (bare > 1e-6f) {
+                continue; // not the discriminating case
+            }
+            ++zero_field_cases;
+            // Specimen class (richness 1) still floors to the full peak here...
+            CHECK(compose(math::ClumpClass::Flowers, p, 1.0f, 1.0f) == doctest::Approx(1.0f));
+            // ...and the swept class reads EXACTLY the field, which is 0 here —
+            // this is the case that separates the two models, and it is the one
+            // the test would have missed by sampling anywhere convenient.
+            CHECK(compose(math::ClumpClass::Flowers, p, 1.0f, 0.0f) == doctest::Approx(bare));
+        }
+    }
+    INFO("zero-field discriminating cases exercised: ", zero_field_cases);
+    CHECK(zero_field_cases >= 100); // Rule 30a: the case must be REACHABLE
 }
