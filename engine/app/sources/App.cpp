@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 11:40:12
+Last updated: 10:08:2026 - 19:26:40
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -80,6 +80,7 @@ UPD:
 - 10:08:2026 - 10:36:22: Запуск через МЕНЮ: init() поднимает движок, enter_world() строит выбранную демо-карту. Стартовый экран, выбор карты, пауза по Esc. DFN_MENU=0/DFN_MAP для инструментов; тур и плейтест выключают меню сами.
 - 10:08:2026 - 11:37:37: Ферри поверхностей дорожек и маршрут съёмки по точкам стенда — лесок стал фотографируемым.
 - 10:08:2026 - 11:40:12: Выбор стенда переехал с DFN_MAP на DFN_STAND — DFN_MAP уже был щупом экрана карты у render, и маршрут стенда молча схлопывался в один кадр.
+- 10:08:2026 - 19:26:40: Отладочный экран, снимок состояния и восстановление. Заодно убран ВТОРОЙ обработчик Esc: он звал request_close(), поэтому Esc открывал паузу И закрывал игру — экран паузы существовал, но увидеть его было нельзя.
 */
 
 #include "engine/app/sources/App.h"
@@ -124,6 +125,7 @@ UPD:
 #include "engine/platform/window/sources/glfw/CreateGlfwWindow.h"
 
 #include <chrono>
+#include <ctime>
 #include <filesystem>
 #include <algorithm>
 #include <cmath>
@@ -340,14 +342,58 @@ bool App::init(const AppConfig& config) {
                                static_cast<float>(config::CAMERA_FAR));
     }
 
+    // The readout is a KEY (F3), but a key cannot be pressed by a tour, and
+    // Rule 27 wants a frame of it. So it also has an env door -- the same
+    // shape as every other verification hook here, and the reason the readout
+    // can be shown in evidence at all.
+    if (const char* dbg = std::getenv("DFN_DEBUG_OVERLAY");
+        dbg != nullptr && *dbg == '1') {
+        debug_overlay_ = true;
+    }
+
+    // STATE CAPTURE destination and STATE RESTORE source.
+    capture_dir_ = [] {
+        const char* d = std::getenv("DFN_CAPTURE_DIR");
+        return std::string(d != nullptr ? d : "captures");
+    }();
+    std::filesystem::create_directories(capture_dir_);
+    if (const char* ca = std::getenv("DFN_CAPTURE_AFTER"); ca != nullptr) {
+        capture_after_s_ = std::strtod(ca, nullptr);
+    }
+
+    // DFN_RESTORE names a sidecar written by F2. Read BEFORE the world is
+    // built, because the capture says WHICH stand to build -- restoring a pose
+    // into the default map and then noticing the mismatch would be a worse
+    // version of the same feature.
+    if (const char* rp = std::getenv("DFN_RESTORE"); rp != nullptr && *rp != '\0') {
+        std::ifstream in(rp, std::ios::binary);
+        if (!in) {
+            std::fprintf(stderr, "[restore] cannot open %s\n", rp);
+        } else {
+            const std::string text((std::istreambuf_iterator<char>(in)),
+                                   std::istreambuf_iterator<char>());
+            restore_ = parse_snapshot(text);
+            if (!restore_) {
+                std::fprintf(stderr, "[restore] %s is not a state capture\n", rp);
+            } else {
+                // The capture decides the map and the menu is skipped: a
+                // restore that stopped at a start screen would need the player
+                // to pick the right map by hand, which is the mistake the file
+                // exists to prevent.
+                config_.start_stand = restore_->stand;
+                config_.show_menu = false;
+            }
+        }
+    }
+
     // The world itself is NOT built here. Menu-first launch means the player
     // picks a demo map before any terrain exists, so world construction lives
     // in enter_world() and init() only raises the engine.
-    if (config.show_menu) {
+    if (config_.show_menu) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
     } else {
-        if (!enter_world(config.start_stand)) {
+        if (!enter_world(config_.start_stand)) {
             return false;
         }
     }
@@ -748,6 +794,15 @@ bool App::enter_world(uint32_t stand) {
         // would only steal the desktop's pointer for the length of the run.
         input_->set_cursor_captured(!body_probe_.has_value());
     }
+
+    // A pending restore is applied LAST, once the world it describes exists and
+    // the player is in it. Consumed rather than kept: re-entering a map from
+    // the menu later should start fresh, not silently teleport to a pose from
+    // a command line the player has long forgotten typing.
+    if (restore_) {
+        apply_restore(*restore_);
+        restore_.reset();
+    }
     return true;
 }
 
@@ -964,6 +1019,165 @@ void App::body_probe_frame(float alpha, float frame_dt) {
     p.cooldown = 4; // let the backend flush before another shot is scheduled
 }
 
+// ---------------------------------------------------------------------------
+// DEBUG READOUT + STATE CAPTURE / RESTORE
+//
+// The user asked for one thing that is really two: a readout he can look at
+// while playing, and a screenshot that carries enough state for someone else to
+// stand where he was standing. They share a struct on purpose -- see
+// DebugOverlay.h -- so the number he is looking at when he decides something is
+// wrong is the number in the file he sends.
+// ---------------------------------------------------------------------------
+
+DebugSnapshot App::collect_snapshot(float alpha) {
+    DebugSnapshot s{};
+    s.stand = active_stand_;
+    s.seed = 1u; // the fixed worldgen seed (Rule 13.1); see enter_world()
+    s.build_commit = DFN_BUILD_COMMIT;
+    {
+        // Wall clock, so a folder of captures can be put back in the order the
+        // player took them. Local time on purpose: its reader is the person who
+        // pressed the key, and "which of these two did I take first" is the
+        // only question it answers.
+        const std::time_t t = std::time(nullptr);
+        std::tm tm{};
+        localtime_r(&t, &tm);
+        char stamp[32];
+        std::strftime(stamp, sizeof(stamp), "%d:%m:%Y - %H:%M:%S", &tm);
+        s.captured_at = stamp;
+    }
+
+    s.game_seconds = game_seconds_;
+    const double day_len = static_cast<double>(config::DAY_LENGTH_SECONDS);
+    const double days = game_seconds_ / day_len;
+    s.day_fraction = static_cast<float>(days - std::floor(days));
+    const double lunar = days / static_cast<double>(config::LUNAR_MONTH_DAYS);
+    s.lunar_phase = static_cast<float>(lunar - std::floor(lunar));
+
+    // THE EYE, NOT THE FEET. The camera pose is what the frame was rendered
+    // from, so it is what a restore must reproduce; the Transform is half a
+    // body lower and would put the restored player's head where his knees
+    // were. Interpolated at the same alpha render() used, for the same reason
+    // the capture waits for render(): the file must describe the image.
+    const auto eye = camera_.interpolated_pose(alpha);
+    s.position = eye.position;
+    s.yaw = eye.yaw;
+    s.pitch = eye.pitch;
+    const float cp = std::cos(eye.pitch);
+    s.look_dir = {std::sin(eye.yaw) * cp, std::sin(eye.pitch), -std::cos(eye.yaw) * cp};
+
+    if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+        s.speed_mps = ps->stride_speed;
+        s.vertical_velocity = ps->vertical_velocity;
+        s.stride_phase = ps->stride_phase;
+        s.gait = static_cast<uint8_t>(ps->gait);
+        s.locomotion = static_cast<uint8_t>(ps->locomotion);
+        s.grounded = !ps->airborne;
+        s.crouched = ps->crouched;
+        s.water_depth = ps->water_depth;
+    }
+
+    s.internal_w = config_.internal_width;
+    s.internal_h = config_.internal_height;
+    s.fov_y_rad = camera_.fov_y();
+    s.head_bob = config_.head_bob;
+    s.palette_post = config_.palette_post;
+
+    const auto& env = render_system_.environment();
+    s.wind_strength = env.wind_strength;
+    s.cloud_cover = env.cloud_cover;
+    s.ambient_darkness = env.ambient_darkness;
+
+    s.fps = frame_clock_.fps();
+    s.frame_ms = frame_clock_.mean_ms();
+    s.frame_ms_worst = frame_clock_.worst_ms();
+    s.chunks_resident = static_cast<uint32_t>(chunks_.loaded_chunks().size());
+    s.lod_nodes = static_cast<uint32_t>(render_system_.lod_pending().size());
+    return s;
+}
+
+void App::write_capture(const DebugSnapshot& snap) {
+    char stem[64];
+    std::snprintf(stem, sizeof(stem), "capture_%03d", captures_written_);
+    const std::string base = capture_dir_ + "/" + stem;
+
+    // The PNG first: if the backend refuses it, the sidecar must not claim a
+    // frame that does not exist. A state file pointing at a missing image is
+    // worse than no capture, because it reads as evidence.
+    if (!renderer_->save_screenshot(base + ".png")) {
+        std::fprintf(stderr, "[capture] screenshot FAILED, no state written: %s.png\n",
+                     base.c_str());
+        return;
+    }
+    const std::string text = format_snapshot(snap);
+    if (std::FILE* f = std::fopen((base + ".txt").c_str(), "wb"); f != nullptr) {
+        std::fwrite(text.data(), 1, text.size(), f);
+        std::fclose(f);
+    } else {
+        std::fprintf(stderr, "[capture] state file FAILED: %s.txt\n", base.c_str());
+        return;
+    }
+    // Echoed to the terminal as well as the file: the fastest path from "I saw
+    // something wrong" to a repro is a copy-paste, and that needs no file
+    // manager.
+    std::fprintf(stderr, "[capture] %s.png + .txt\n%s", base.c_str(), text.c_str());
+    ++captures_written_;
+}
+
+void App::apply_restore(const DebugSnapshot& snap) {
+    // A restore into a different world is a coincidence, not a reproduction.
+    // Said loudly rather than silently tolerated (Rule 27) -- and NOT refused,
+    // because a capture from an older stand list is still the best guess
+    // available and refusing would throw away the only evidence there is.
+    if (snap.stand != active_stand_) {
+        std::fprintf(stderr,
+                     "[restore] STAND MISMATCH: capture says %u, world is %u. "
+                     "The pose is being applied anyway, but this is NOT the "
+                     "world the capture was taken in.\n",
+                     snap.stand, active_stand_);
+    }
+    game_seconds_ = snap.game_seconds;
+
+    auto* ps = world_.get<gameplay::PlayerState>(player_);
+    auto* tr = world_.get<components::Transform>(player_);
+    if (ps == nullptr || tr == nullptr) {
+        std::fprintf(stderr, "[restore] no player to restore onto\n");
+        return;
+    }
+    // The capture holds the EYE; the character controller is placed by its
+    // FEET. Subtracting the eye height here is the inverse of the transform
+    // sim applies when it writes CameraPose -- if that offset ever changes,
+    // this is a second consumer of it and belongs in NUMBERS (Rule 35). It
+    // already is one: PLAYER_EYE_HEIGHT.
+    const float eye_h = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const glm::vec3 feet{snap.position.x, snap.position.y - eye_h, snap.position.z};
+
+    // THERE IS NO TELEPORT IN IPhysics -- only move_character, which records a
+    // displacement to be resolved with collide-and-slide. So a restore is a
+    // very long WALK, not a placement, and it can be stopped by anything in
+    // the way. That is a real limitation and it is measured rather than
+    // assumed: restore_target_ holds the request, and the next frame prints
+    // how far the capsule actually got. A restore that silently landed 40 m
+    // short would otherwise look exactly like a successful one.
+    const glm::vec3 current = physics_->character_position(ps->character);
+    physics_->move_character(ps->character, feet - current);
+    tr->position = feet;
+    restore_target_ = feet;
+
+    ps->yaw = snap.yaw;
+    ps->pitch = snap.pitch;
+    ps->vertical_velocity = 0.0f; // a restored player is not mid-fall
+
+    std::fprintf(stderr,
+                 "[restore] stand %u  pos %.2f %.2f %.2f  yaw %.4f  pitch %.4f  "
+                 "clock %.1f  (from build %s)\n",
+                 snap.stand, static_cast<double>(snap.position.x),
+                 static_cast<double>(snap.position.y),
+                 static_cast<double>(snap.position.z), static_cast<double>(snap.yaw),
+                 static_cast<double>(snap.pitch), snap.game_seconds,
+                 snap.build_commit.c_str());
+}
+
 int App::run() {
     auto last = std::chrono::steady_clock::now();
     while (!window_->should_close()) {
@@ -1040,11 +1254,16 @@ int App::run() {
                                    static_cast<float>(fb.x) / static_cast<float>(fb.y),
                                    camera_.near_plane(), camera_.far_plane());
         }
-        if (input_->was_pressed(platform::Key::ESCAPE)) {
-            window_->request_close();
-        }
         // ESC pauses. Cursor is released so the pointer is usable, and the
         // world stops ticking because Menu mode skips the whole simulation.
+        //
+        // THERE WERE TWO ESCAPE HANDLERS HERE and the first one called
+        // request_close(). Both ran on the same edge, so ESC opened the pause
+        // menu AND asked the window to close, and the app quit on the next
+        // iteration -- the pause screen existed but could never be seen. It
+        // survived review because each half is correct on its own; only the
+        // pair is wrong, which is why the fix is deleting a handler rather
+        // than reordering them (Rule 32).
         if (input_->was_pressed(platform::Key::ESCAPE)) {
             if (render_system_.map_open()) {
                 render_system_.set_map_open(false);
@@ -1053,6 +1272,34 @@ int App::run() {
                 mode_ = AppMode::Menu;
                 input_->set_cursor_captured(false);
                 continue;
+            }
+        }
+        // DEBUG READOUT (F3) and STATE CAPTURE (F2). User request: "нужна
+        // кнопка с дебаг выводом, куда я смотрю, fps, скорость координата... надо
+        // чтобы я мог скриншот сделать игры, скрина и состояния персонажа... чтобы
+        // ты потом восстановил состояние игры, углы мои наклонов, позиций".
+        // The capture is deferred to AFTER render() so the .png and the sidecar
+        // describe the same frame; capturing here would save the state of frame
+        // N next to the image of frame N-1.
+        if (input_->was_pressed(platform::Key::F3)) {
+            debug_overlay_ = !debug_overlay_;
+        }
+        if (input_->was_pressed(platform::Key::F2)) {
+            capture_pending_ = true;
+        }
+        // TOOLING DOOR for the same capture (DFN_CAPTURE_AFTER=<seconds>):
+        // fires one capture and closes. This is how the capture path itself is
+        // verified -- an F2 that only a human can press is a feature nobody can
+        // prove works, and the restore it feeds would be untested by
+        // construction (Rule 27).
+        if (capture_after_s_ > 0.0) {
+            capture_after_elapsed_ += std::chrono::duration<double>(
+                                          std::chrono::steady_clock::now() - last)
+                                          .count();
+            if (capture_after_elapsed_ >= capture_after_s_) {
+                capture_pending_ = true;
+                capture_after_s_ = 0.0;
+                capture_then_close_ = true;
             }
         }
         if (input_->was_pressed(platform::Key::M)) {
@@ -1065,6 +1312,7 @@ int App::run() {
         const auto now = std::chrono::steady_clock::now();
         const double frame_dt = std::chrono::duration<double>(now - last).count();
         last = now;
+        frame_clock_.push(static_cast<float>(frame_dt));
 
         // In-game clock (в67): DAY_LENGTH_SECONDS per day, with a debug key that
         // runs it DEBUG_TIME_SCALE faster so shadows can be watched sweeping.
@@ -1177,6 +1425,34 @@ int App::run() {
                         drive->grounded = !ps->airborne;
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;
+                        // THE GAIT ITSELF, not the speed it was derived from.
+                        // While this line was missing, character re-derived the
+                        // gear by comparing speed against WALK_SPEED and
+                        // RUN_SPEED, and the three-speed ruling turned that into
+                        // a defect: JOG 3.0 rendered as a walk clip leaning
+                        // (3.0-1.8)/(6.0-1.8) = 0.286 toward run -- a gait
+                        // nobody chose (Rule 37).
+                        //
+                        // AN EXPLICIT SWITCH, NEVER A CAST. anim sits below
+                        // gameplay in the DAG, so anim::Gait cannot BE
+                        // gameplay::Gait and the two declarations exist by
+                        // construction (Rule 35 with no remedy available -- the
+                        // rule's usual fix, move it to NUMBERS, does not apply
+                        // to a type). A static_cast would keep compiling if
+                        // either enum gained or reordered a member; the switch
+                        // goes red HERE, at the one place that can see both.
+                        //
+                        // PARKED, NOT FORGOTTEN: `anim::BodyDrive::gait` does
+                        // not exist yet -- character is landing it this batch
+                        // and sent the exact declaration. The line below is
+                        // theirs verbatim and goes live the moment the field
+                        // does; until then the 0.286 blend is STILL SHIPPING,
+                        // so locomotion between 1.8 and 6.0 is unruled.
+                        // switch (ps->gait) {
+                        // case gameplay::Gait::Walk: drive->gait = anim::Gait::Walk; break;
+                        // case gameplay::Gait::Jog:  drive->gait = anim::Gait::Jog;  break;
+                        // case gameplay::Gait::Run:  drive->gait = anim::Gait::Run;  break;
+                        // }
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
@@ -1337,10 +1613,74 @@ int App::run() {
                                   miss, render::Color{232, 228, 214}, true);
                 any = true;
             }
+            // The readout draws LAST inside the HUD block so it is never
+            // occluded by a prompt, and it forces the layer visible: a debug
+            // view that can be hidden by whatever else is on screen is not a
+            // debug view.
+            if (debug_overlay_ || capture_pending_) {
+                draw_debug_overlay(hud, collect_snapshot(alpha));
+                any = true;
+            }
             render_system_.set_hud_visible(any);
         }
 
         render_system_.render(world_, *renderer_, camera_, alpha);
+
+        // CAPTURE AFTER RENDER, so the .png and the sidecar are the same frame.
+        // The snapshot is collected a second time here rather than reused from
+        // the overlay above -- one frame of drift between the image and its
+        // state file is exactly the kind of small lie that makes a repro fail
+        // for reasons nobody can find.
+        if (capture_pending_) {
+            capture_pending_ = false;
+            write_capture(collect_snapshot(alpha));
+            // CLOSING HERE WOULD LOSE THE PNG. save_screenshot() returns true
+            // when the capture has been REQUESTED, not when the file exists --
+            // the bgfx backend reads the framebuffer back over the following
+            // frames. Closing on the same frame produced a .txt with no .png
+            // beside it, and, worse, a "[capture] ok" line above the pair. So
+            // the tooling door waits for the flush; the same reason the body
+            // probe holds a 4-frame cooldown between shots.
+            if (capture_then_close_) {
+                close_after_flush_ = 8;
+            }
+        }
+        // How far the restore actually got. IPhysics has no teleport (see
+        // apply_restore), so this is the check that keeps a half-completed
+        // restore from passing as a completed one.
+        if (close_after_flush_ > 0 && --close_after_flush_ == 0) {
+            window_->request_close();
+        }
+        if (restore_target_) {
+            if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                const glm::vec3 got = physics_->character_position(ps->character);
+                // HORIZONTAL AND VERTICAL ERROR ARE DIFFERENT QUANTITIES and
+                // only one of them is a failure. A straight 3D distance called
+                // the first working restore BLOCKED at 1.138 m -- of which
+                // 0.07 m was horizontal and the rest was the capsule settling
+                // onto the ground, which is the controller doing its job. The
+                // captured eye height is a float that lands a few centimetres
+                // off the terrain; the player then falls those centimetres,
+                // every time, correctly. Which quantity the threshold sits on
+                // is itself a measurement (Rule 30), and this one was on the
+                // wrong quantity -- it would have cried wolf on every restore
+                // ever taken, which is precisely how a check gets ignored.
+                const float dx = got.x - restore_target_->x;
+                const float dz = got.z - restore_target_->z;
+                const float horiz = std::sqrt(dx * dx + dz * dz);
+                const float vert = got.y - restore_target_->y;
+                std::fprintf(stderr,
+                             "[restore] landed %.2f %.2f %.2f  horiz %.3f m  "
+                             "settle %.3f m%s\n",
+                             static_cast<double>(got.x), static_cast<double>(got.y),
+                             static_cast<double>(got.z), static_cast<double>(horiz),
+                             static_cast<double>(vert),
+                             horiz > 1.0f
+                                 ? "  -- BLOCKED, this is NOT the captured spot"
+                                 : "");
+            }
+            restore_target_.reset();
+        }
         body_probe_frame(alpha, static_cast<float>(frame_dt));
         if (tour_.active() && tour_.post_frame(*renderer_)) {
             window_->request_close(); // tour finished (render's contract)

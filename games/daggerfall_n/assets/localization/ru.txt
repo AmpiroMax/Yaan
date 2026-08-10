@@ -30,3 +30,22 @@ map.forest.name=Лесок
 map.forest.blurb=Тропы, обочина, подлесок — стенд красоты
 map.mirror.name=Зеркало
 map.mirror.blurb=Двойник напротив: проверка анимаций
+
+# Отладочный экран (F3) и снимок состояния (F2)
+debug.compass.n=север
+debug.compass.ne=северо-восток
+debug.compass.e=восток
+debug.compass.se=юго-восток
+debug.compass.s=юг
+debug.compass.sw=юго-запад
+debug.compass.w=запад
+debug.compass.nw=северо-запад
+debug.gait.walk=шаг
+debug.gait.jog=трусца
+debug.gait.run=бег
+debug.gait.unknown=походка?
+debug.loco.ground=земля
+debug.loco.wade=вброд
+debug.loco.swim=вплавь
+debug.loco.unknown=среда?
+debug.hint.capture=F2 — снимок состояния

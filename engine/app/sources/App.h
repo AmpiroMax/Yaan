@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 10:28:59
+Last updated: 10:08:2026 - 19:26:40
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -44,11 +44,13 @@ UPD:
                          can photograph only still life; this probe runs the
                          world and triggers the shot off simulation state.
 - 10:08:2026 - 10:28:59: Menu-first launch: init() raises the engine, enter_world() builds a chosen demo map (user request: check different maps, with and without the menu).
+- 10:08:2026 - 19:26:40: Отладочный экран (F3) и снимок состояния (F2) с восстановлением по DFN_RESTORE — запрос пользователя: видеть куда смотрю, fps, скорость, координаты, и уметь передать состояние так, чтобы его подняли обратно.
 */
 
 #pragma once
 
 #include "engine/anim/sources/Rig.h"
+#include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Menu.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
@@ -91,7 +93,7 @@ struct AppConfig {
     bool show_menu = true;         // settings.cfg + DFN_MENU=0 for tooling:
                                    // the tour and the playtest bot must not
                                    // stop at a menu nobody can press Enter on
-    uint32_t start_stand = 0;      // DFN_MAP: which demo map when the menu is off
+    uint32_t start_stand = 0;      // DFN_STAND: which demo map when the menu is off
     float head_bob = 1.0f;         // settings.cfg: 0 disables bob/dip/settle
                                    // MOTION (events and sound still fire) --
                                    // the research's motion-sickness mandate
@@ -131,6 +133,30 @@ private:
     int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter
     void body_probe_drive();  // fixed tick: pose the camera for the probe
     void body_probe_frame(float alpha, float frame_dt); // after render: shoot
+
+    // DEBUG READOUT + STATE CAPTURE (user request). collect_snapshot() reads
+    // the world; write_capture() saves the .png and its sidecar; apply_restore()
+    // puts the player back where a sidecar says he was.
+    [[nodiscard]] DebugSnapshot collect_snapshot(float alpha);
+    void write_capture(const DebugSnapshot& snap);
+    void apply_restore(const DebugSnapshot& snap);
+    bool debug_overlay_ = false;    // F3
+    bool capture_pending_ = false;  // F2, serviced after render()
+    FrameClock frame_clock_{};
+    int captures_written_ = 0;
+    std::string capture_dir_;
+    double capture_after_s_ = 0.0;      // DFN_CAPTURE_AFTER, 0 = off
+    double capture_after_elapsed_ = 0.0;
+    bool capture_then_close_ = false;
+    int close_after_flush_ = 0; // frames to keep running so the PNG lands
+    // A restore read from DFN_RESTORE, held until enter_world() has built the
+    // map it names -- the pose cannot be applied to a world that does not
+    // exist yet, and the stand it names decides WHICH world gets built.
+    std::optional<DebugSnapshot> restore_;
+    // Where a restore ASKED the capsule to end up. Checked once, the frame
+    // after: IPhysics has no teleport, so a restore is a long collide-and-slide
+    // walk and can be stopped by geometry. Reported, never assumed.
+    std::optional<glm::vec3> restore_target_;
 
     AppConfig config_{};
 

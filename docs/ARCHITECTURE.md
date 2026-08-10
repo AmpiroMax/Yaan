@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 11:29:06
+Last updated: 10:08:2026 - 19:26:40
 -->
 <!--
 UPD:
@@ -20,6 +20,7 @@ UPD:
 - 10:08:2026 - 02:49:47: Rule 27 — цитируемые кадры архивируются в docs/acceptance/ в родном разрешении; рецепт обязателен рядом.
 - 10:08:2026 - 11:05:46: Rule 27 — тур замораживает тик и потому слеп ко всему движущемуся; живые пути съёмки признаны доказательством.
 - 10:08:2026 - 11:29:06: Rule 30 — каждое приёмочное правило называет свою АГРЕГАЦИЮ и свой ЗНАМЕНАТЕЛЬ, а не только число (три спора за два дня оказались спорами об определении).
+- 10:08:2026 - 19:26:40: Правила 37 (линейная карта между двумя именованными константами становится скрытым дефектом, когда между ними ложится третья) и 38 (утверждать исход, а не механизм) — обе выведены двумя зонами независимо, из разных дефектов, за один день.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -504,6 +505,48 @@ in Euclidean RGB while the quantiser weights the channels 0.30/0.59/0.11, so a
 difference that lives in blue is nearly invisible to it. A rule about what the EYE
 reads and a rule about what the PIPELINE preserves are different rules, and a
 design must pass both.
+
+### Rule 37 — A linear map between two named constants becomes a latent defect the moment a third named constant lands between them
+The animation blend interpolated between `WALK_SPEED` 1.8 and `RUN_SPEED` 6.0. That
+was correct while those were the only two gears. The user then ruled three speeds,
+`JOG_SPEED` 3.0 landed between them, and jog silently began rendering as a walk clip
+leaning (3.0−1.8)/(6.0−1.8) = **0.286 toward run** — a gait nobody chose, and not a
+gait at all, just what a linear map does when asked about a point it was never
+calibrated for.
+
+**Nothing about the interpolation changed.** No code was touched, no test went red,
+no review would have caught it, because the defect was created by a ROW LANDING IN A
+REGISTRY. That is what makes it worth a rule: the change that introduces it does not
+happen anywhere near the code that breaks.
+
+Sibling of Rule 35 in shape. There a NUMBER gained a second consumer; here a RANGE
+gained an interior point. The trigger to watch for is the same kind of thing — not a
+bug report, but a registry edit — and the question to ask when a constant lands
+between two existing ones is: **what interpolates across this range?**
+
+### Rule 38 — Assert the outcome, not the mechanism
+Two zones reached this independently, from unrelated defects, on the same day, which
+is the only reason it is a rule rather than a preference:
+
+- *"the residual slip is imperceptible"*, **not** *"the clamp is inactive"* — at
+  `WALK_SPEED` the clamp still binds by 0.4%, so the mechanism-shaped assertion goes
+  red on correct code the day it is written.
+- *"this gait renders as this gait"*, **not** *"no interpolation ran"* — a blend
+  mid-transition is CORRECT animation, so the mechanism-shaped assertion forbids the
+  right implementation.
+
+The shared failure mode is the point, and it is worse than being too loose: **a test
+that goes red on correct code does not get argued with, it gets weakened.** A
+mechanism-shaped assertion therefore does not merely fail to catch things — it trains
+everyone reading the suite that tests are obstacles. That is a different and more
+expensive failure than a test that simply passes when it should not.
+
+**Corollary, and it is the half that is easy to skip:** when you loosen an assertion
+to stop it forbidding correct code, RE-VERIFY THAT THE CONTROL STILL FAILS IT
+(Rule 30). Speed-derived gait selection leans 0.286 after 0.1 s and after an hour —
+being a pure function of speed, it has nothing to settle — so it still fails a
+steady-state assertion exactly where a legitimate transition blend would have
+finished settling. That check is what separates a refinement from a quiet gutting.
 
 ---
 
