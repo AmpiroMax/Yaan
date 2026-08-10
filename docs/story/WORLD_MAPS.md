@@ -1,6 +1,7 @@
 <!--
 Created: 10:08:2026 - 22:00:42
 Last updated: 10:08:2026 - 22:00:42
+- 10:08:2026 - 22:13:54: TOOL CHANGED — Azgaar's FMG supersedes the PNG sketch (design's WORLD_MAP.md §9, ddd34c0). Map CONTENT is unaffected and deliberately NOT rewritten; §0.1 and every "what is painted" paragraph are marked superseded pending design's importer schema. Ran design's requested Seremarch check from FMG's documented source rather than the browser: the endorheic map is PRODUCIBLE — `Mask` with a NEGATIVE fraction is the documented operation that lowers the map CENTRE instead of the edges, so land at every border is authorable, and FMG's lake type is computed from flux vs evaporation so a terminal salt lake is native. The risk is relocated, not removed: it moves from "can the tool draw it" to "do FMG's downstream modules assume an ocean exists", and Seremarch gains a NEW authoring constraint nobody had — the lake's salt is CLIMATE-DERIVED, not drawn, so the map must be sited hot and dry enough that evaporation beats inflow or LF-11's entire premise is lost. Also found: FMG's `dry lake` type is a native real rejected instance for LF-11, which answers design's synthetic-control flag on that entry.
 -->
 <!--
 UPD:
@@ -8,6 +9,28 @@ UPD:
 -->
 
 # WORLD_MAPS.md — Six Example Worlds, as Places
+
+> ## ⚠ STATUS — THE AUTHORING TOOL CHANGED; THE PLACES DID NOT
+>
+> The user found **Azgaar's Fantasy Map Generator** and it replaces the
+> six-colour PNG sketch as the authoring tool (design's `WORLD_MAP.md` §9).
+> What that supersedes here is **§0.1 (the format paragraph) and every
+> "what is painted" section** — those become "what is configured, and what
+> the export must contain", and they are **deliberately not rewritten yet**:
+> design holds the importer schema, and writing against a schema that has not
+> landed is the exact parallel-schema failure this document avoided once
+> already.
+>
+> **Everything else stands.** The six maps are content — geography, names,
+> why anyone lives there, what the walk is like — and no part of that
+> depended on which tool draws the boundary. So does §0.2 (our elevation
+> model is still distance-from-drainage; FMG's own `h` never becomes our
+> elevation, per §9.2), §9 (the three landforms, all accepted), §10 (the
+> gaps), and §11 (build Farness first, Vaelmere beside it as its control —
+> that reason never mentioned the tool).
+>
+> **Seremarch survives, and moved from "at risk" to "constrained"** — see
+> §7's closing note.
 
 **What this is.** Six worked example maps, written as CONTENT — places, not
 algorithms. The user asked for these by name («хочу чтобы дизайнеры истории
@@ -30,7 +53,7 @@ flora, §8 stand briefs), `ACT1_VALLEY.md` (the valley we already have).
 
 ## 0. If you are about to draw a map, read this page and nothing else
 
-### 0.1 The format, in one paragraph (mapdesign's, binding)
+### 0.1 The format, in one paragraph (mapdesign's) — ⚠ SUPERSEDED BY FMG, see the status note above
 
 You draw a **PNG, 640 × 640 pixels = a 10 × 10 km world** at
 `SKETCH_METRES_PER_PIXEL` = **16 m/px** (one pixel is exactly one hydrology
@@ -576,6 +599,39 @@ the branch has not been tested.
 
 **What it would want.** River incision (§10, G2) and rain shadow (§10, G4) —
 both improvements, neither blocking.
+
+**FMG check — the map is producible, and it gained a constraint nobody had.**
+Design asked for ten minutes in the browser on the one thing they could not
+settle from source: can FMG make a map with **no ocean at all**? Answered from
+FMG's own documentation instead, which is stronger than a single browser run
+because it names the mechanism rather than one seed's outcome.
+
+- **Land at every border is authorable.** FMG's `Mask` operation is what
+  creates border ocean — it grades the edge cells down toward 0 — and
+  **a negative fraction inverts it, lowering the map CENTRE instead.** That is
+  an inland basin stated as a template operation: high rim, low middle, land
+  all the way to the frame. The heightmap brush and the image converter reach
+  the same result by hand.
+- **The terminal salt lake is native.** FMG classifies a lake as fresh, salt or
+  **dry** from river flux against evaporation, so a basin with inflow and no
+  outlet becomes salt by its own hydrology — we do not draw it.
+- **But the salt is CLIMATE-DERIVED, not authored, and that is the new
+  constraint.** Seremarch must be sited hot and dry enough that evaporation
+  beats inflow. Put this province somewhere cool and wet and FMG hands back a
+  large *fresh* lake with an outlet — at which point the shrinking, the salt,
+  the relict shorelines and the three stranded harbours of Saltstair are all
+  gone, and the map is just a lake district. **Latitude is now a load-bearing
+  authoring decision on this map**, which it is on no other map in the set.
+- **A gift for LF-11.** FMG's `dry lake` type is a **real** relict basin the
+  tool produces on its own — which supplies the real rejected instance design
+  flagged LF-11 as lacking (§9), instead of the synthetic smooth slope.
+
+The residual risk is real but it is a **different** risk from the one design
+named: not "can the tool draw it", but "do FMG's downstream modules assume an
+ocean exists" — ports and harbours, the Marine biome, and the temperature and
+precipitation passes that key off distance to water. That is what the first
+export should be inspected for, and it is an importer question rather than a
+map question.
 
 ---
 
