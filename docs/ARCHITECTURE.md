@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 21:31:13
+Last updated: 10:08:2026 - 21:32:18
 -->
 <!--
 UPD:
@@ -33,6 +33,7 @@ UPD:
 - 10:08:2026 - 21:12:54: Правило 45 (порог различимости и порог РАЗДЕЛЕНИЯ — разные объекты; признак виден ДО измерения: если обоснование ни разу не упоминает отвергнутый образец, это пол, и в гнезде приёмки он пропускает всё). Формулировка design.
 - 10:08:2026 - 21:17:06: Правило 29 — `git commit --amend` ЗАПРЕЩЁН на общей ветке: HEAD, прочитанный секунду назад, это предпосылка, а не факт. Правка задела чужой коммит, потому что третий агент успел вклиниться между двумя вызовами.
 - 10:08:2026 - 21:31:13: Правило 32 дополнено: если механизм поставлен верно, а починен экземпляр — записать диагноз у КАЖДОГО места, где он тот же. Иначе диагноз это сообщение, а не механизм. Затвор тура был верно разобран за девять часов до того, как его нашли заново.
+- 10:08:2026 - 21:32:18: Правило 27 дополнено: точки выборки прибора обязаны лежать там, где величина МЕНЯЕТСЯ, и это относится к наборам тестов, а не только к камерам. Точке съёмки, неспособной провалиться, камера не нужна. Формулировка character.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -405,6 +406,20 @@ copied into `docs/acceptance/` (tracked), at native internal resolution (640x360
 subject. Recipes prove the present; pixels preserve the past — every provenance-dead
 measurement hunt this project has run would have been cheaper with the original
 pixels. Curated only: a frame nobody cites does not enter.
+
+**AND THE SAME RULE APPLIES INDOORS: the instrument's sample points must lie
+where the property VARIES — in test suites, not only in cameras.** A silhouette
+test scanned mesh VERTICES and went red on correct code. A prism carries vertices
+only at its two end rings, so a vertex scan can read exactly one height — the
+acromion plane, where the trapezius wedge's full-width base and the arm's top cap
+coincide and nothing hangs. It answered confidently about the one height at which
+the question is meaningless. Replaced with a scanline (triangle/plane
+intersection) at the heights the arm actually occupies.
+
+**A vantage that cannot fail does not need a camera to exist in.** It needs only
+a sampling scheme chosen for convenience rather than for where the quantity
+lives — and a suite is where that is hardest to see, because the green tick looks
+the same either way.
 
 ### Rule 28 — Three strikes (Q61)
 Three failed attempts at the same problem → **stop and message the lead** with what

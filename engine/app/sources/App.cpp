@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:26:54
+Last updated: 10:08:2026 - 21:32:18
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -91,6 +91,7 @@ UPD:
 - 10:08:2026 - 20:43:18: Наклон глаза берётся из СГЛАЖЕННОГО веса походки, а не из передачи: корпус и глаз обязаны наклоняться одним числом, иначе на торможении с бега грудь возвращается.
 - 10:08:2026 - 21:14:51: Меню выключают ВСЕ автоматические двери, а не только тур и плейтест: снимок, зонд тела и восстановление зависали на стартовом экране и фотографировали меню (жалоба пользователя: «они в меню зависают все»).
 - 10:08:2026 - 21:26:54: Тур снимается на СЧЁТНЫХ часах, а не настенных: затвор ждёт тишины подгрузки, часы игры и растворение детализации идут фиксированным шагом. Собственный контроль тура 27.67% → 14.73%; остаток НЕ объяснён.
+- 10:08:2026 - 21:32:18: Зонд тела считается желающим двойника: без этого он снимал пустую поляну, и кадр читался как «тело не рисуется». Третий немой ноль за день и один и тот же баг — ПРЕДУСЛОВИЕ, записанное списком тех, кому оно тогда понадобилось.
 */
 
 #include "engine/app/sources/App.h"
@@ -696,8 +697,25 @@ bool App::enter_world(uint32_t stand) {
     {
         const char* mirror_env = std::getenv("DFN_MIRROR");
         const char* showcase_env = std::getenv("DFN_SHOWCASE");
+        // THE PROBE COUNTS AS WANTING A DOUBLE, and leaving it out cost
+        // character a whole shoot. `DFN_BODY_PROBE=mirror|showcase|profile|
+        // plant|gait` selects the camera BEHAVIOUR and every one of those modes
+        // aims at `mirror_puppet_` -- so without the puppet the probe framed an
+        // empty clearing, and the resulting frame reads as "the body is not
+        // drawing" rather than as "the subject was never spawned".
+        //
+        // THIRD SILENT ZERO OF THE DAY AND THE SAME BUG ALL THREE TIMES: a
+        // PRECONDITION written as a list of the callers who happened to need it
+        // when it was written. The menu skip named two env vars and four more
+        // arrived; the unregistered-mesh warning named ids and the sentinel
+        // arrived; this names two and the probe arrived. A list of names cannot
+        // notice that a new caller has the same requirement -- only the
+        // requirement can, and the requirement here is "this run aims a camera
+        // at the double".
+        const char* probe_env = std::getenv("DFN_BODY_PROBE");
         const bool want_mirror = (mirror_env && *mirror_env == '1')
-                              || (showcase_env && *showcase_env == '1');
+                              || (showcase_env && *showcase_env == '1')
+                              || (probe_env != nullptr && *probe_env != '\0');
         if (want_mirror) {
             const glm::vec3 mirror_pt = spawn + glm::vec3{0.0f, 0.0f, -3.0f};
             const auto puppet = anim::spawn_mirror_puppet(world_, body_rig_, player_,
