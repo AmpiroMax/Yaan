@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 11:33:00
+Last updated: 10:08:2026 - 11:27:07
 -->
 <!--
 UPD:
@@ -304,7 +304,7 @@ UPD:
                          lattice read back. BR-5 gets fixed at its instrument;
                          dead wood is sized for the user's brief, not for a
                          validator.
-- 10:08:2026 - 11:33:00: THE COMBINED BR-5 FIGURE measured (§3.14), closing the
+- 10:08:2026 - 11:27:07: THE COMBINED BR-5 FIGURE measured (§3.14), closing the
                          gap design named in their ruling: trunks from the
                          shipped lattice (uniform, maturity-scaled) plus the
                          clumped floor classes in ONE model, which nobody had
@@ -320,6 +320,16 @@ UPD:
                          denominator in two days — settle the aggregation
                          before building a lever for a failure that may not
                          exist.
+- 10:08:2026 - 11:27:07: TIMESTAMP CORRECTION, and the confession travels with
+                         it: the entry above was first written 11:33:00 — a
+                         time COMPUTED FORWARD, six minutes in the future, when
+                         the clock read 11:26:57. Second Rule 16 breach of this
+                         session by the same agent, after confessing the first
+                         one to the lead, which is the part worth recording: a
+                         rule I had just been burned by did not survive one
+                         batch. The habit that fails is stamping from memory of
+                         'about when it is now'; the only fix that works is
+                         reading the clock INTO the edit, never around it.
 -->
 
 # Flora — tree and plant geometry (agent spec)
