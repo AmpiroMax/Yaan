@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:06:45
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial suite.
 - 10:08:2026 - 20:00:23: A gait held past any transition renders as that gait — steady state at 0.1 s and at an hour, with the 0.286 speed-derived lean as the control.
+- 10:08:2026 - 20:06:45: The assertion owed to sim since PLAYER_EYE_FORWARD landed: the eye stays behind its own drawn face (3.5 mm of margin today), asserted against the head MESH rather than a re-derived formula.
 */
 
 #include <doctest/doctest.h>
@@ -338,4 +339,35 @@ TEST_CASE("a gait held past any transition renders as that gait") {
     CHECK(gait_run_weight(Gait::Run) == doctest::Approx(1.0f).epsilon(1e-6));
     CHECK(gait_run_weight(Gait::Jog) > gait_run_weight(Gait::Walk));
     CHECK(gait_run_weight(Gait::Jog) < gait_run_weight(Gait::Run));
+}
+
+TEST_CASE("the eye stays behind its own face") {
+    // THE ASSERTION OWED TO sim SINCE PLAYER_EYE_FORWARD LANDED (spec a3).
+    // The row moved the camera off the spine and onto the face, and its upper
+    // bound was argued as "half the depth of the head" — beyond that the eye
+    // floats IN FRONT of its own face, which first person cannot see and the
+    // mirror map shows instantly. Today the relation is 0.100 <= 0.1035:
+    // 3.5 mm of margin, which is exactly why it is a test and not a comment.
+    const Rig rig = Rig::build(RigProportions::from_config());
+    // AGAINST THE ACTUAL MESH, not against a re-derived formula. If
+    // HEAD_DEPTH_RATIO or BODY_HEAD_WIDTH_FRAC moves, a formula here would
+    // move with the wrong copy of the reasoning and keep passing; the drawn
+    // face is the thing the eye must stay behind. Forward is -Z, so the front
+    // of the head is bounds_min.z.
+    const BodySegmentMesh head = build_body_segment_mesh(Bone::Head, rig.proportions);
+    const float face = -head.bounds_min.z;
+    const auto eye_forward = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    CHECK(face > 0.0f);
+    CHECK(eye_forward <= face);
+    // CONTROL (Rule 30): a centimetre further out must fail the same check —
+    // and 1 cm is not arbitrary, it is ~3x today's whole margin, so the
+    // control is a value someone could plausibly have proposed rather than an
+    // absurd one.
+    CHECK_FALSE(face + 0.01f <= face);
+    // ...and the check discriminates on the QUANTITY, not just the number: a
+    // head drawn with no depth at all must reject any positive eye offset.
+    RigProportions flat = rig.proportions;
+    flat.head_width = 0.0f;
+    const BodySegmentMesh no_face = build_body_segment_mesh(Bone::Head, flat);
+    CHECK_FALSE(eye_forward <= -no_face.bounds_min.z);
 }
