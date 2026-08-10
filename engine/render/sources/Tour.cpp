@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 03:11:00
+Last updated: 10:08:2026 - 11:10:53
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -51,6 +51,15 @@ UPD:
   acceptance vantage, aimed at a MIXED background rather than at a chart.
 - 10:08:2026 - 03:11:00: cloud_probe_steps() (DFN_CLOUD_PROBE=1) — the W4
   shoot: shadow-patterned valley floor + upwind cumulus horizon.
+- 10:08:2026 - 11:10:53: cloud probe waits 300 frames, not 75/30. The lead read a
+  CHECKERBOARD over the crag in the first archived frame. It is the LOD
+  screen-door cross-fade photographed in flight, not a stuck fade and not two
+  systems drawing the same ground: held stationary the same vantage comes back
+  solid, which is the counterfactual that separates them (Rule 30b). The
+  frame count was being read as "long enough to settle" when it only ever
+  meant "frames rendered"; far nodes are still ARRIVING from core at frame 75,
+  and each starts its 0.6 s dissolve when it lands, so the settle time is
+  streaming latency PLUS the fade, not the fade alone.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -297,13 +306,13 @@ std::vector<TourStep> Tour::cloud_probe_steps() {
     // (the W4 acceptance wording). Shot at noon (DFN_TIME=0.5) the sun is
     // near-overhead, so sheet and shadow line up visibly in one frame.
     steps.push_back({"cloud_shadows_valley", {pos.x, 85.0f, pos.y},
-                     aim_yaw(pos, {500.0f, 380.0f}), -0.30f, 75, true});
+                     aim_yaw(pos, {500.0f, 380.0f}), -0.30f, 300, true});
     // (2) THE UPWIND FRAME: same standpoint aimed into the wind (the default
     // wind blows from the WNW: WindModel's {0.87, 0.50} heading), pitched up
     // for sky headroom. This is where the cumulus announcement must stand
     // (W2.3) and where both sheets show their parallax and drift.
     steps.push_back({"cumulus_upwind", {pos.x, 85.0f, pos.y},
-                     -1.05f, 0.12f, 30, true});
+                     -1.05f, 0.12f, 300, true});
     return steps;
 }
 
