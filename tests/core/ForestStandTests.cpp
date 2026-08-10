@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 10:39:07
+Last updated: 10:08:2026 - 10:50:58
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -36,6 +36,11 @@ UPD:
 - 10:08:2026 - 10:39:07: LF-8 acceptances — gullies vs the pass-OFF control, and the
   fan-association SYMMETRY test after the density instrument was measured
   passing a shuffled field at 1.000.
+- 10:08:2026 - 10:50:58: §8.1 path network acceptances: BR-2 (real endpoints, measured
+  overhead, the ornament control), BR-1 (hidden run, re-measured on the
+  SHIPPED terrain, with the open-glade must-fail control), the three-band wear
+  field on flora's datum, path flatness (curvature + cross tilt, after the
+  max-min instrument was caught measuring slope), and the class rule.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -517,4 +522,244 @@ TEST_CASE("LF-8 fans are ASSOCIATIVE — each sits below a gully (§2.10 accepta
     // still fails, which is the point of using the ratio.
     CHECK(up / down >= 1.30f);
     CHECK(c_up / c_down < 1.10f); // the control MUST fail the acceptance
+}
+
+namespace {
+
+/// Eye-height visibility over the SHIPPED terrain, marched at BR-1's own 4 m
+/// station spacing so the test and the generator use one instrument.
+bool eye_visible(const world::WorldGenContext& c, glm::vec2 from, glm::vec2 to) {
+    const float d = glm::length(to - from);
+    if (d < 1e-3f) {
+        return true;
+    }
+    const float eye = world::terrain_height(c, from) + static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const float tgt = world::terrain_height(c, to) + 2.0f;
+    const int steps = std::max(2, static_cast<int>(d / 4.0f));
+    for (int i = 1; i < steps; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(steps);
+        if (world::terrain_height(c, from + (to - from) * t) > eye + (tgt - eye) * t) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+TEST_CASE("BR-2: every route ends at a real goal, near-shortest; the ornament fails") {
+    const world::WorldGenContext& c = forest();
+    const world::PathNetwork& net = c.paths;
+    REQUIRE(net.goals.size() >= 4); // §8.1 item 2: 4-6 real goals
+    REQUIRE(net.goals.size() <= 6);
+    REQUIRE(net.routes.size() >= 4);
+
+    float total = 0.0f;
+    for (const world::PathRoute& r : net.routes) {
+        // Clause (i): both endpoints are REGISTERED goals. Not a formality —
+        // this is the clause with teeth (§1.7 names clause (ii)'s Rule 30a
+        // trap explicitly: the generator IS a cost search, so (ii) can never
+        // fail its own raw output).
+        CHECK(r.goal_a >= 0);
+        CHECK(r.goal_b >= 0);
+        CHECK(r.goal_a < static_cast<int>(net.goals.size()));
+        CHECK(r.goal_b < static_cast<int>(net.goals.size()));
+        CHECK(glm::length(r.points.front() - net.goals[static_cast<std::size_t>(r.goal_a)].position)
+              < 1.0f);
+        CHECK(glm::length(r.points.back() - net.goals[static_cast<std::size_t>(r.goal_b)].position)
+              < 1.0f);
+        total += r.length_m;
+    }
+    // §8.1 item 3: >= 2 km of network, so BR-6's gap statistics are a
+    // distribution and not an anecdote.
+    INFO("total network ", total, " m");
+    CHECK(total >= 2000.0f);
+
+    const float ratio = net.max_detour_ratio();
+    INFO("MEASURED detour overhead (max over routes) ", ratio);
+    CHECK(ratio <= static_cast<float>(config::DETOUR_MAX));
+
+    // THE ORNAMENT CONTROL (§1.7's must-fail case): a hand-drawn "scenic" S
+    // between the same two goals, ignoring the cost field. It must blow the
+    // ceiling — otherwise the ceiling admits painted paths.
+    const world::PathRoute& r0 = net.routes.front();
+    const glm::vec2 a = r0.points.front();
+    const glm::vec2 b = r0.points.back();
+    const glm::vec2 dir = glm::normalize(b - a);
+    const glm::vec2 nrm{-dir.y, dir.x};
+    std::vector<glm::vec2> ornament;
+    for (int i = 0; i <= 64; ++i) {
+        const float t = static_cast<float>(i) / 64.0f;
+        ornament.push_back(a + (b - a) * t
+                           + nrm * (std::sin(t * 6.2831853f * 2.0f) * 0.30f
+                                    * glm::length(b - a)));
+    }
+    float ornament_len = 0.0f;
+    for (std::size_t i = 1; i < ornament.size(); ++i) {
+        ornament_len += glm::length(ornament[i] - ornament[i - 1]);
+    }
+    const float ornament_ratio = ornament_len / r0.optimal_length_m;
+    INFO("ornament ratio ", ornament_ratio);
+    CHECK(ornament_ratio > static_cast<float>(config::DETOUR_MAX)); // the control MUST fail
+}
+
+TEST_CASE("BR-1: the trace hides its destination; the open-glade control does not") {
+    const world::WorldGenContext& c = forest();
+    for (const world::PathRoute& r : c.paths.routes) {
+        INFO("route ", r.goal_a, "->", r.goal_b, " longest hidden run ", r.longest_hidden_run_m);
+        CHECK(r.longest_hidden_run_m >= static_cast<float>(config::HIDE_REVEAL_MIN_RUN_M));
+    }
+    // Re-measure independently on the SHIPPED terrain, not on the generator's
+    // routing grid: a rule verified only against the surface the generator
+    // used is a rule verified against the generator.
+    const world::PathRoute& r = c.paths.routes.front();
+    const glm::vec2 dest = c.paths.goals[static_cast<std::size_t>(r.goal_b)].position;
+    float run = 0.0f, best = 0.0f;
+    for (std::size_t i = 0; i + 1 < r.points.size(); ++i) {
+        if (glm::length(r.points[i] - dest) < 4.0f) {
+            continue; // Rule 36: at one station out, "the destination" is underfoot
+        }
+        if (!eye_visible(c, r.points[i], dest)) {
+            run += glm::length(r.points[i + 1] - r.points[i]);
+            best = std::max(best, run);
+        } else {
+            run = 0.0f;
+        }
+    }
+    INFO("independently measured hidden run ", best);
+    CHECK(best >= static_cast<float>(config::HIDE_REVEAL_MIN_RUN_M));
+
+    // §1.7's NAMED MUST-FAIL CONTROL: a straight line across the preserved
+    // plain (в9's glade) between two mutually visible points — zero occluded
+    // stations by construction. A raycaster that reports concealment HERE is
+    // measuring itself, not the composition.
+    const glm::vec2 gc = c.params.layout.forests.forced_clearing_center;
+    const glm::vec2 pa = gc + glm::vec2{-55.0f, 0.0f};
+    const glm::vec2 pb = gc + glm::vec2{55.0f, 0.0f};
+    float ctrl_run = 0.0f, ctrl_best = 0.0f;
+    for (float t = 0.0f; t < 1.0f; t += 4.0f / 110.0f) {
+        const glm::vec2 p = pa + (pb - pa) * t;
+        if (glm::length(p - pb) < 4.0f) {
+            continue;
+        }
+        if (!eye_visible(c, p, pb)) {
+            ctrl_run += 4.0f;
+            ctrl_best = std::max(ctrl_best, ctrl_run);
+        } else {
+            ctrl_run = 0.0f;
+        }
+    }
+    INFO("glade control hidden run ", ctrl_best);
+    CHECK(ctrl_best < static_cast<float>(config::HIDE_REVEAL_MIN_RUN_M));
+}
+
+TEST_CASE("the wear field: worn centre, pressed margins, rich edge OUTSIDE the tread") {
+    const world::WorldGenContext& c = forest();
+    const world::PathRoute& r = c.paths.routes.front();
+    const std::size_t i = r.points.size() / 2;
+    const glm::vec2 dir = glm::normalize(r.points[i + 1] - r.points[i - 1]);
+    const glm::vec2 nrm{-dir.y, dir.x};
+
+    const world::PathSample centre = c.paths.sample(r.points[i]);
+    REQUIRE(centre.worn_half_width > 0.0f);
+    CHECK(centre.wear > 0.95f);      // bare, trodden
+    CHECK(centre.edge == 0.0f);      // BR-3 (i): ~0 decoration on the centre
+    // FLORA'S DATUM: negative on the trodden surface, by construction.
+    CHECK(centre.dist_from_worn_edge < 0.0f);
+
+    float last_wear = 2.0f;
+    float peak_edge = 0.0f;
+    float peak_at = 0.0f;
+    for (float t = 0.0f; t <= 6.0f; t += 0.25f) {
+        const world::PathSample s = c.paths.sample(r.points[i] + nrm * t);
+        CHECK(s.wear <= last_wear + 1e-4f); // monotone decreasing outward
+        last_wear = s.wear;
+        // The two claims are OPPOSITE claims about the same ground and may
+        // never both be true: no decoration lives on the trodden surface.
+        CHECK((s.wear <= 0.0f || s.edge <= 0.0f));
+        if (s.edge > peak_edge) {
+            peak_edge = s.edge;
+            peak_at = s.dist_from_worn_edge;
+        }
+    }
+    INFO("edge peak ", peak_edge, " at datum ", peak_at);
+    CHECK(peak_edge > 0.9f);
+    CHECK(peak_at > 0.0f);   // outside the worn edge, per the datum
+    CHECK(peak_at < 1.0f);   // and hugging it, not drifting into the wood
+    // Beyond the band the field is off (BR-3 (iii): monotone to nothing).
+    CHECK(c.paths.sample(r.points[i] + nrm * 8.0f).edge == 0.0f);
+}
+
+TEST_CASE("a path is FLATTER than its surroundings (§8.1 item 1)") {
+    const world::WorldGenContext& c = forest();
+    std::vector<float> curv_on, curv_off, tilt_on, tilt_off;
+    for (const world::PathRoute& r : c.paths.routes) {
+        for (std::size_t i = 3; i + 3 < r.points.size(); ++i) {
+            const glm::vec2 d = glm::normalize(r.points[i + 1] - r.points[i - 1]);
+            const glm::vec2 nrm{-d.y, d.x};
+            // SECOND DIFFERENCE, not max-min: a max-min window on a constant
+            // slope measures the SLOPE. The first instrument did exactly that
+            // and reported the path only 15% flatter than open ground while
+            // the cross-section was in fact dead level.
+            const auto curv = [&](glm::vec2 q) {
+                return std::fabs(world::terrain_height(c, q - d * 3.0f)
+                                 - 2.0f * world::terrain_height(c, q)
+                                 + world::terrain_height(c, q + d * 3.0f));
+            };
+            const auto tilt = [&](glm::vec2 q) {
+                return std::fabs(world::terrain_height(c, q + nrm)
+                                 - world::terrain_height(c, q - nrm));
+            };
+            curv_on.push_back(curv(r.points[i]));
+            tilt_on.push_back(tilt(r.points[i]));
+            // The control is the ground 14 m away: same terrain, same
+            // instrument, no path.
+            curv_off.push_back(curv(r.points[i] + nrm * 14.0f));
+            tilt_off.push_back(tilt(r.points[i] + nrm * 14.0f));
+        }
+    }
+    REQUIRE(curv_on.size() > 100);
+    const float c_on = median(curv_on);
+    const float c_off = median(curv_off);
+    const float t_on = median(tilt_on);
+    const float t_off = median(tilt_off);
+    INFO("curvature ON ", c_on, " OFF ", c_off, " | cross tilt ON ", t_on, " OFF ", t_off);
+    CHECK(c_off >= 3.0f * c_on);  // measured 5.7x
+    CHECK(t_on <= 0.02f);         // level across the tread: measured 0.000
+    CHECK(t_off > 0.015f);        // the control is not level
+}
+
+TEST_CASE("path classes follow their RULE — and the steps class has no ground here yet") {
+    const world::WorldGenContext& c = forest();
+    int seen[4] = {0, 0, 0, 0};
+    float max_grade = 0.0f;
+    for (const world::PathRoute& r : c.paths.routes) {
+        for (std::size_t i = 0; i < r.classes.size(); ++i) {
+            ++seen[static_cast<int>(r.classes[i])];
+            if (i > 0) {
+                const float dh = std::fabs(world::terrain_height(c, r.points[i])
+                                           - world::terrain_height(c, r.points[i - 1]));
+                max_grade = std::max(max_grade,
+                                     dh / std::max(0.1f, glm::length(r.points[i] - r.points[i - 1])));
+            }
+        }
+    }
+    INFO("cobble ", seen[0], " dirt ", seen[1], " faint ", seen[2], " steps ", seen[3],
+         " | max route grade ", max_grade);
+    // Three classes are BUILT and each appears where its rule says.
+    CHECK(seen[0] > 0); // cobble: the approach to the largest goal
+    CHECK(seen[1] > 0); // dirt: between goals
+    CHECK(seen[2] > 0); // faint: thinning toward the small goals
+
+    // THE FOURTH CLASS IS HONEST ABOUT ITSELF. StoneSteps is implemented and
+    // its rule is live, but this stand's DECLARED landforms (LF-1 + LF-2:
+    // 2-5 m relief over ~100 m) never produce a route grade above 0.22 — the
+    // measured maximum is 0.12 even where the router deliberately stops
+    // contouring on the summit approach. Steps arrive with LF-5 (rocky crest /
+    // outcrop), which §8.1 declares and which is not built yet. Lowering the
+    // threshold until the class appeared would put stone stairs on a lawn and
+    // certify nothing; the test therefore asserts the RULE holds, not that the
+    // class is populated.
+    CHECK(max_grade < 0.22f);
+    CHECK(seen[3] == 0);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 10:40:28
+Last updated: 10:08:2026 - 10:52:15
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -50,6 +50,10 @@ UPD:
   macro + delta on that stand's pass stack (no water carve / entrance works /
   pads — the stand declares none of them, and running their no-ops here would
   invite one to stop being a no-op unnoticed). Testbed path untouched.
+- 10:08:2026 - 10:52:15: §8.1 paths wired: the network routes on the ground it will be
+  BUILT ON (macro + LF-8 erosion, not macro alone — routing on the pre-erosion
+  field would lay treads across gullies the router never saw), and
+  terrain_height composes macro + erosion + the flatten delta.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -232,6 +236,15 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
             ctx.erosion = build_erosion(
                 seed, domain_min, domain_max, ErosionParams{},
                 [&](glm::vec2 p) { return macro_height(seed, lay, p); }, lay.erosion);
+            // The path network routes on the GROUND IT WILL BE BUILT ON —
+            // macro + erosion, not macro alone. Routing on the pre-erosion
+            // field would put treads across gullies that the shipped terrain
+            // has and the router never saw.
+            const ErosionGrid& ero = ctx.erosion;
+            ctx.paths = build_path_network(seed, lay, domain_min, domain_max, PathParams{},
+                                           [&](glm::vec2 p) {
+                                               return macro_height(seed, lay, p) + ero.sample(p);
+                                           });
         }
         return ctx;
     }
@@ -263,7 +276,8 @@ float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
         // entrance works, no pads — that stand declares none of them, and
         // running their no-ops here would only invite one to stop being a
         // no-op unnoticed.
-        return std::clamp(macro + ctx.erosion.sample(world), 0.0f, MAX_HEIGHT_M);
+        const float eroded = macro + ctx.erosion.sample(world);
+        return std::clamp(eroded + ctx.paths.flatten_at(world, eroded), 0.0f, MAX_HEIGHT_M);
     }
     const float carved = carve_height(ctx.hydrology, ctx.params.layout, world, macro);
     const float worked = entrance_works_height(ctx.sites, world, carved);
