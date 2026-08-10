@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:36:00
+Last updated: 10:08:2026 - 12:44:00
 -->
 <!--
 UPD:
@@ -28,6 +28,9 @@ UPD:
 - 10:08:2026 - 12:36:00: a5(i) gains the test it owes — sim's slip instrument is
   blind to gait SELECTION faults by construction, so fixing the ferry and seeing
   no incidents would prove nothing.
+- 10:08:2026 - 12:44:00: a5(i)'s test bound to STEADY STATE (sim's catch): the
+  first phrasing forbade transition blends and would have gone red on correct
+  code. Assert the outcome, not the mechanism.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -222,9 +225,26 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
          plants feet on the ground slides by nothing and the instrument is
          silent. Foot slip and gait selection are different classes and only
          the first is covered. The test this zone owes, in the Rule 30 shape:
-         for each `Gait` on PlayerState the selected clip must BE that gear's
-         clip, not an interpolation toward a neighbour — and the rejected
-         instance is today's speed-derived selection, which must fail it.
+         hold a `Gait` on PlayerState past any transition blend, THEN assert
+         that gear's clip is at full weight — and the rejected instance is
+         today's speed-derived selection, which must fail it.
+
+         THE STEADY-STATE QUALIFIER IS LOAD-BEARING and it is sim's catch on my
+         first phrasing. "Must not be an interpolation toward a neighbour" is
+         right at rest and WRONG mid-transition: accelerating walk→jog, a brief
+         blend is correct animation and a hard clip swap would snap. A test
+         phrased that way goes red the day someone implements a good
+         transition, and they will weaken the test rather than argue with it.
+         The control survives the qualifier unharmed — speed-derived selection
+         gives jog a 0.286 run-lean after 0.1 s and after an hour, because it
+         is a pure function of speed with nothing to settle, so it fails
+         exactly where a legitimate transition would not.
+
+         Which is the same move as sim's slip bound, and the pair is worth more
+         than either: ASSERT THE OUTCOME, NOT THE MECHANISM. "Residual slip is
+         imperceptible" rather than "the clamp is inactive"; "this gait renders
+         as this gait" rather than "no interpolation ran". The mechanism-shaped
+         assertion is the one that goes red on correct code.
 
          The generalisable shape, worth more than this instance: **a linear map
          between two named values becomes a latent defect the moment a third
