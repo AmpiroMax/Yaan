@@ -8,3 +8,4 @@ screenshots/
 settings.cfg
 captures/
 playtest_test_artifacts/
+__pycache__/
