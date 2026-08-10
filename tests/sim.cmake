@@ -82,3 +82,10 @@ target_compile_definitions(sim_audio PRIVATE
 # clean patrol must not, and the bot must actually cover ground.
 add_dfn_test(sim_playtest sim/PlaytestTests.cpp
     dfn_gameplay dfn_physics dfn_platform_physics dfn_core)
+
+# COLLISION MESH COST. After the streaming fix, sim's Jolt MeshShape build is
+# the dominant remaining term in a chunk admission (~68 of ~83 ms). This sizes
+# what a coarser collision mesh would buy, so the decision is taken against a
+# curve. A measurement, not a gate — no wall-clock threshold (Rule 38).
+add_dfn_test(sim_collision_cost sim/CollisionCostTests.cpp
+    dfn_physics dfn_platform_physics dfn_world dfn_core)
