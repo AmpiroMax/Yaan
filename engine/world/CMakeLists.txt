@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 11:19:15
+# Last updated: 10:08:2026 - 21:20:31
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -31,11 +31,21 @@
 # - 10:08:2026 - 11:19:15: WorldgenVantages.cpp — the forest stand's acceptance
 #                          standpoints, so render's Tour can shoot a stand it
 #                          cannot see the coordinates of.
+# - 10:08:2026 - 21:13:28: LayoutLoad.cpp — the map moves to data
+#                          (CODE_AUDIT §3.4); world keeps the loader, the
+#                          content lives under games/.
+# - 10:08:2026 - 21:20:31: SaveDelta.cpp — the .dfs codec, written by sim
+#                          under an explicit lead carve (this file and this
+#                          line only). It was the last declaration-only piece
+#                          between the engine and a save file the user can
+#                          actually write.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
     sources/CoarseTerrain.cpp
+    sources/LayoutLoad.cpp
+    sources/SaveDelta.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
     sources/Worldgen.cpp

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 20:06:10
+# Last updated: 10:08:2026 - 21:15:28
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -34,6 +34,11 @@
 # - 10:08:2026 - 20:06:10: test_find_occlusion (BR-5's composed-scene
 #                          ray-vs-disc instrument with its bare-terrain
 #                          must-fail control; links dfn_render for geometry).
+# - 10:08:2026 - 21:15:28: test_layout_load — the map-to-data migration guard
+#                          (CODE_AUDIT §3.4). Runs from the repo ROOT: it opens
+#                          the shipped asset by relative path on purpose, so a
+#                          missing asset is a red test rather than a silent
+#                          fallback to compiled content.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -44,6 +49,7 @@ add_dfn_test(test_worldgen_v2 core/WorldgenV2Tests.cpp dfn_world)
 add_dfn_test(test_forest_stand core/ForestStandTests.cpp dfn_world)
 add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
+add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)
 add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 # Links dfn_render for the SAME reason test_lod_seam does: it checks two zones
