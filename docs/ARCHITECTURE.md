@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:37:27
+Last updated: 10:08:2026 - 20:37:53
 -->
 <!--
 UPD:
@@ -28,6 +28,7 @@ UPD:
 - 10:08:2026 - 20:33:41: Правило 43 (ограничение связывает ту величину, на которой написано, а не ту, по которой меряют контракт — карточки легли плоско и потратили запас, который всегда был законным). Формулировка flora; перенумеровано с 39, тот номер уже занят.
 - 10:08:2026 - 20:34:56: Правило 36 дополнено случаем ВБЛИЗИ НУЛЯ: «малая поправка» и «ответ» там одного размера. Отброшенный член 2.5 мм при результате 3.0 мм — 83% ответа. Выведено sim и character независимо, из разных дефектов.
 - 10:08:2026 - 20:37:27: Правило 16 — почему «замечать» не могло сработать: проверка мерила ВЕЛИЧИНУ ухода, а дефект — ПРОИСХОЖДЕНИЕ отметки. Четырёхсекундный уход это тот же поступок, что тридцатиминутный. Правило 41, наведённое на правило 16 (формулировка character).
+- 10:08:2026 - 20:37:53: Правило 16 — соблюдение проверяется по СПОСОБУ, а не по результату: зона нарушила средство в том самом коммите, которым чинила форму починки, и значение вышло верным по везению. Верный результат — это ровно то, что даёт удачливый неверный способ.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -292,6 +293,15 @@ stamp look wrong?" cannot express "was it read or recalled?", and the harmless-
 looking instance is the one that proves the habit is still there. Both of today's
 breaches happened while their author was moving fast on a correction to something
 else.
+
+**So compliance is audited on the METHOD, never on the output.** The zone that
+disclosed six violations then fixed them, was corrected on the FORM of the fix, and
+**used the forbidden method in the commit that fixed the form** — reading `date` in
+one tool call and writing the stamp as a literal in the next. The value was right,
+by luck of timing rather than by construction, and nobody could have caught it by
+looking at the file, because a correct output is exactly what a lucky wrong method
+produces. Asking "is this stamp right?" cannot find it. Asking "was this stamp read
+by the command that wrote it?" finds it every time.
 
 ### Rule 17 — UPD is append-only
 Never delete UPD entries. Every meaningful change adds one.
