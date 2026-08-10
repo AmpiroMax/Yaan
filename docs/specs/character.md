@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:44:00
+Last updated: 10:08:2026 - 20:00:23
 -->
 <!--
 UPD:
@@ -31,6 +31,12 @@ UPD:
 - 10:08:2026 - 12:44:00: a5(i)'s test bound to STEADY STATE (sim's catch): the
   first phrasing forbade transition blends and would have gone red on correct
   code. Assert the outcome, not the mechanism.
+- 10:08:2026 - 20:00:23: THREE USER NOTES ANSWERED WITH MEASUREMENTS, not with
+  a second guess at the same fix (Rule 32): the chest is measured NOT visible
+  at level gaze and the shape complaint relocated to the arms (a6); the wave's
+  elbow defect found — a hinge does not clamp an off-axis rotation, it DELETES
+  it, and the wag was on the elbow (a7); gait selection moved onto the ferried
+  enum with the steady-state test and the 0.286 control (a5(i) closed).
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -263,7 +269,83 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
          check that goes red the day it is written teaches everyone to ignore
          it. (Agreed with sim independently on both halves.)
 
-   b. **THE ARMS ARE HALF BURIED IN THE TORSO.** The shoulder joint is at
+   a6. **THE CHEST COMPLAINT, RE-OPENED AND MEASURED — AND THE FIX HAD
+      LANDED.** User, 10:08:2026: «когда я хожу, вижу свою грудь, мне не
+      нравится, форма персонажа странная». This was the second time, so the
+      premise was checked before anything was changed (Rules 32, 34), and the
+      premise is FALSE for the shipped build. Two instruments agree:
+
+      | look angle (down) | first body part in frame | torso |
+      |---|---|---|
+      | 0 deg (walking, level) | NOTHING | not in frame |
+      | 25 deg | hand | not in frame |
+      | 31 deg | forearm | not in frame |
+      | 41 deg | foot | not in frame |
+      | **45 deg** | — | **enters** |
+
+      Analytic (every mesh vertex of every segment through
+      `evaluate_body_pose` + FK, projected against `CAMERA_FOV_Y` 75 deg and
+      the eye at `PLAYER_EYE_HEIGHT` + `PLAYER_EYE_FORWARD`), and confirmed by
+      frame: `character-walk-level-gaze-no-chest-b134936.png` at pitch 0.00,
+      1.80 m/s, phase 0.23, contains no body at all. The clavicle cut did what
+      it was measured to do. A REAL body IS visible at 45 deg of depression,
+      so nothing here is a defect to re-fix.
+
+      **THE ONE REAL FINDING, and it is a coupling nobody predicted:** at JOG
+      the torso enters at **39 deg — BEFORE the feet at 41**, so the chest
+      arrives while the feet are still hidden, which is exactly the complaint.
+      Cause is a5(i): the 0.286 run-lean pitched the trunk 0.057 rad forward
+      and carried its top corner 13 mm toward the eye. **Fixing the gait
+      selection fixes part of the chest complaint** — the two items the user
+      reported separately are one defect. Walk was never affected (0 lean).
+
+      WHAT IS NOT ANSWERED BY GEOMETRY: 45 deg is an ordinary glance at the
+      ground. If the user still dislikes it, the lever is `CAMERA_FOV_Y` (75
+      deg puts the frame edge 37.5 deg below the axis, far past a comfortable
+      human downward field) — sim's row, and a taste decision, not a bug.
+
+   a7. **THE ELBOW — «в анимации махания всё такая же проблема, локоть
+      неестественно двигается». THE JOINT LIMITS WERE NEVER THE GAP.** They
+      cover the wave path (`evaluate_body_pose` clamps at every exit, verified).
+      The gap is what a hinge DOES with an illegal axis: it does not clamp it,
+      it DELETES it (`Pose.cpp`: swing-twist about X, keep the twist). The
+      wave wagged the forearm with `roll(WAVE_AMP*sin)` — a roll, on an elbow.
+
+      Measured through `evaluate_body_pose` over a full 1.8 Hz wag, the
+      clamped forearm quaternion was the CONSTANT (0.989, 0.149, 0, 0) at
+      every instant, and the right hand travelled **0.011 m** across the whole
+      cycle — all of it the idle breath. The arm was a rigid stick at a 17.2
+      deg elbow. Not "insufficiently clamped" and not "clamped on the wrong
+      path": the clip asked a hinge for something hinges cannot do, and got
+      silence.
+
+      FIX, on the mechanism rather than the clip (Rule 32): a human waves with
+      HUMERAL ROTATION — the upper arm turns about its own long axis while the
+      elbow holds a bend — so the wag moved to the shoulder (a FREE bone) and
+      the elbow took a real 1.40 rad. `flex_pose` had the same defect in its
+      forearm rolls and is fixed in the same change. Measured after: hand
+      sweep **0.236 m**, elbow 80.2 deg, and clamped == authored everywhere.
+
+      THE TEST IS THE OUTCOME (Rule 38): *"the wave waves"* — hand sweep over
+      one cycle > 0.10 m — with the shipped elbow-roll version kept in the
+      suite as the control at 0.011 m. Plus the standing guard the defect
+      earned: **no shipped clip may lose motion to the hinge reduction** (every
+      clip x every hinge bone, off-axis components below 1e-6), which is what
+      makes this a fix to the mechanism instead of to one gesture.
+
+      AND A RULE 27 CASUALTY, recorded because it is the same lesson in the
+      camera: `character-showcase-wave-da9ff6e.png` claimed the wave "reads as
+      a hand gesture". **A still frame cannot show that.** The broken clip
+      produced the identical raised arm, so the vantage could not fail. Frame
+      deleted; the measurement replaces it.
+
+   b. **THE ARMS ARE HALF BURIED IN THE TORSO — and this is where «форма
+      персонажа странная» actually lives (measured 10:08:2026 in the mirror
+      stand, `character-mirror-shape-b134936.png`).** Judged from the eye the
+      shape complaint has no subject at all, since nothing is in frame; judged
+      in the mirror it does: the arms do not break the silhouette, so the body
+      reads as a slab with a head. STILL NOT FIXED, and now with the two
+      candidates costed, because neither is free: The shoulder joint is at
       +/-`BODY_SHOULDER_WIDTH_FRAC`/2 = 0.233 m — exactly the torso box's own
       half-width — so an arm of `BODY_ARM_THICKNESS_FRAC`·H = 0.099 m hangs
       with half its thickness inside the box. Measured on the standing double
@@ -273,6 +355,19 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       NUMBERS row, not a literal: the arm hangs outboard of the acromion, so
       either the shoulder joint moves out by half the arm thickness or the
       torso box narrows below the shoulder line.
+
+      | option | silhouette across the shoulders | what breaks |
+      |---|---|---|
+      | joint out by half the arm | 0.565 x 2 = **0.664 m** | a linebacker; real is 0.46-0.50 |
+      | trunk narrows to shoulder_w - 2 x arm | chest **0.268 m** wide | narrower than the 0.344 m pelvis box: a mushroom |
+      | joint INBOARD to (shoulder_w - arm)/2, trunk to shoulder_w/2 - arm | **0.466 m**, = biacromial | chest reads 0.149H against a real 0.174H |
+
+      The third is the only one that keeps the total right, and it wants the
+      pelvis box revisited in the same breath — which is why it is a costed
+      decision for the user and not a quiet edit. NOTE for whoever takes it:
+      `BODY_STANCE_WIDTH_FRAC`'s row already anticipates exactly this, calling
+      the hip-joint-vs-trochanter conflation an honest simplification that a
+      real joint row would supersede. The shoulder has the same shape.
    c. **THE HEAD IS A BOX ON A BOX.** No neck segment exists between
       `BODY_NECK_HEIGHT_FRAC` and the head, so the head sits straight on the
       shoulders. Harmless in first person (hidden), mannequin-ish on NPCs.
