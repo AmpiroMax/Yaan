@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 21:58:31
-Last updated: 10:08:2026 - 22:17:38
+Last updated: 10:08:2026 - 22:21:48
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 10:08:2026 - 21:59:49: WORLDGEN_SEA_LEVEL corrected on two checked premises (Rule 34, publishing trigger): it is a per-map DEFAULT overridable by the sidecar, because FOREST_BASE_ELEV is 20 m and a single global sea level would drown an existing stand; and its derivation is anchored on MASSIF_CLIFF_BAND_MAX, whose own NUMBERS row is marked pending re-derivation against a broken field — recorded at the anchor rather than left to be rediscovered (Rule 37's second half).
 - 10:08:2026 - 22:08:45: AMENDED — the user moved to Azgaar's Fantasy Map Generator, so FMG becomes the AUTHORING TOOL and we consume its export (§9). Measured from source, not assumed: licence is MIT with an explicit commercial-derivatives expansion (blocker cleared); height is (h-18)**heightExponent metres, so our whole 0-400 m range is FMG h in [20,38] — NINETEEN steps, quantum 5 m at the coast and 41 m at the ceiling — and the ruling is that h is NEVER our elevation, only a land/water mask and a mountain region, which is the same ruling that rejected Amit's elevation model; cell spacing is sqrt(map_area / cellsDesired) and therefore SCALE-FREE, giving the configuration instruction 30x30 to 69x69 km at 10k cells, against a continental default of ~40 km cells at which our entire target world is 1/16 of ONE CELL. Crop chosen by him via a DFN_ORIGIN marker, missing or duplicated is a hard error. Three NEW Rule 39 shadow copies from FMG's settlement/route/biome layers, each ruled FMG-owns-the-graph / we-own-the-geometry. §2.1-2.5 and §2.8's sketch compiler SUPERSEDED as the authoring path and kept with a note, because their reasoning is the importer's specification — §9.6 re-targets every ruling line by line, including the two-tier split-by-cause rule, whose heir (an unmapped biome id is an ERROR, never a nearest match) is the most likely place for a silently-nearby world under FMG. §1, §2.6 and §5 survive untouched. WORLDGEN_SEA_LEVEL stays and does NOT become an FMG mapping constant (Rule 43).
 - 10:08:2026 - 22:17:38: §9.8 revised on story's Seremarch findings, §9.9 and §9.10 added. CLOSED: FMG CAN hold land at every border — Mask with a NEGATIVE fraction inverts and lowers the map centre, so border ocean is a DEFAULT, not a constraint. Story's evidence argument accepted and recorded rather than waived: a mechanism settles the general case and one seed cannot, though the grade is documentation-derived, neither source-derived nor frame-verified. REPLACED BY THE SHARPER QUESTION: do FMG's downstream modules assume an ocean exists — ports, the Marine biome, and the temperature/precipitation passes that key off distance-to-water? The risk relocated from the map to the import. NEW FORMAT REQUIREMENT (§9.9): lake type is CLIMATE-DERIVED via Penman evaporation against river flux, so latitude is a load-bearing authoring input and any map whose fiction leans on a salt or dry lake must state it — generalised to the rule that FMG derives more than it draws, so the settings that produce a fact belong in the map's requirements. LF-11's synthetic-control flag LIFTED: FMG's native `dry lake` type is the real rejected instance Rule 45 asked for. §9.10: the water half of h is 19 hyperbolic steps to -950 m, ample and irrelevant for the same reason as the land half — h is not our elevation on either side.
+- 10:08:2026 - 22:21:48: §5 GAINED INSTRUMENT D (§5.3a) and §5.0 gained its second axis — story's finding, and a gap I could not have found by re-reading my own section (Rule 46: I checked §5 against the model I used, that the world is a mask, and the model was what was incomplete). A, B and C all measure the MASK; port status, lake type, biome and population are DERIVED and were instrumented by nothing — yet four of the six maps put their why-here on harbours. A green A/B/C would have certified a boundary and silently certified nothing about settlements while looking like one verdict, on the first map we build. D checks each declared derived assertion against the export: exact aggregation, denominator = the map's own count of assertions, and ZERO IS A FAILURE (Rule 30a — a test that cannot fail). Two distinct failure modes: contradiction, and UNEXPRESSIBLE, the second catching an unfalsifiable assertion sitting in a map's requirements (Rule 45's tell aimed at fiction). Control is free and real, not synthetic: Seremarch re-exported at a cool wet latitude returns a fresh lake and must fail D while passing A/B/C unchanged. Worked example shows story's neck sentence decomposing into a mask claim, a derived claim and a labelled inference — a map's fiction need not be all-checkable, it must say which parts are.
 -->
 
 # WORLD_MAP.md — the drawn world map
@@ -665,6 +666,24 @@ The eye's evidence is two archived frames (§5.5). The numbers are regression
 instruments. Presenting the numbers as the acceptance of "it looks like my
 drawing" would be the exact error Rule 41 was written for.
 
+**AND THERE IS A SECOND AXIS, WHICH THIS SECTION MISSED UNTIL STORY FOUND IT
+(Rule 46).** §5.0's split is about **who accepts** — the eye or the numbers.
+Orthogonal to it is **what is measured**, and a map makes two kinds of claim:
+
+- **MASK claims** — coastline, rivers, landmasses, topology. Instruments A, B, C.
+- **DERIVED claims** — port status, lake type, biome, population, which burg
+  exists. **These were instrumented by nothing**, and they carry the *why-here* of
+  most of the maps in §3: four of story's six put their reason for existing on
+  harbours, and a harbour is derived, not drawn.
+
+**The failure mode is precise and it would have fired on the first map we build:
+a green A/B/C on a map certifies its boundary and silently certifies nothing about
+its settlements, while looking like one verdict.** That is Rule 27's vantage that
+cannot fail, in the suite rather than the camera. Closed by **instrument D**
+(§5.3a). I could not have found this by re-reading §5, because I checked §5 against
+the model I used — that the world is a mask — and the model was the thing that was
+incomplete.
+
 ### 5.1 A — realised shoreline agreement
 
 - **Quantity:** the generated heightfield thresholded at `sea_level_m`,
@@ -709,12 +728,52 @@ drawing" would be the exact error Rule 41 was written for.
   not, C is not measuring topology and should be rebuilt. This is the instrument
   that expresses "same shape" in the sense a person means it, and it is cheap.
 
+### 5.3a D — derived-layer agreement, which is what A, B and C cannot see
+
+- **Quantity:** each **declared derived assertion** in the map's sidecar, checked
+  against the export. Story's finding, and §9.9's requirement made enforceable —
+  *"the settings that produce a fact belong in the map's requirements"* is a wish
+  until something reads them back.
+- **Aggregation:** exact, per assertion. These are categorical facts (is this burg
+  a port; is this lake salt), so there is no tolerance to state.
+- **Denominator:** the number of declared assertions — **and zero is a FAILURE, not
+  a pass.** A map whose fiction leans on a derived fact and declares none has a
+  test that cannot fail (Rule 30a). The denominator is the map's own count of what
+  it is claiming.
+- **Two failure modes, and they must not be merged**, because the second is the one
+  that catches good writing rather than bad:
+  1. **Contradiction** — the export says fresh, the map says salt. Hard error.
+  2. **Unexpressible** — the assertion cannot be checked against any field in the
+     export. **Also an error**, because an unfalsifiable assertion sitting in a
+     map's requirements is a wish wearing a check's clothes (Rule 45's tell,
+     pointed at fiction instead of at a threshold).
+- **Control, and it exists for free:** re-export a map with the setting changed —
+  Seremarch at a cool, wet latitude returns a **fresh** lake and must **fail D while
+  passing A, B and C unchanged**. That is a real rejected instance, not a synthetic
+  one, and it is the pair that proves D discriminates.
+
+**What mode 2 buys, worked through on the best sentence in story's set.** *"At a
+neck the two shores are within 300 m, so there is a lee harbour in every wind"*
+does not come back as one verdict. It decomposes into three things, and only
+labelling them separately is honest:
+
+| Part | Instrument |
+|---|---|
+| the two shores are within 300 m at three named necks | **MASK — A/B**, checkable today |
+| there is a port at each | **DERIVED — D**, checkable against the export's port status |
+| *therefore* a lee harbour in every wind | **an inference joining them — checked by nothing, and that is fine** |
+
+The sentence survives intact; what changes is that two thirds of it become
+falsifiable and the remaining third is labelled as inference rather than passing
+for a certified fact. **A map's fiction is not required to be all-checkable. It is
+required to say which parts are.**
+
 ### 5.4 The cross-sketch matrix — the control the whole feature rests on
 
 Generate all four maps. Score **every generated world against every sketch**: a
 4×4 matrix, 16 cells.
 
-- **The 4 diagonal cells must pass all three instruments.**
+- **The 4 diagonal cells must pass all four instruments.**
 - **All 12 off-diagonal cells must fail**, on C at minimum.
 - Report it as a matrix, and report the *margin* — the ratio between the worst
   diagonal and the best off-diagonal on each instrument. That ratio, not the
