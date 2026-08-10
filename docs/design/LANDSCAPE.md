@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 20:11:26
+Last updated: 10:08:2026 - 20:29:59
 -->
 <!--
 UPD:
@@ -68,6 +68,7 @@ UPD:
 - 10:08:2026 - 11:34:54: §1.7 BR-5 CLOSED (pending core's build): flora reconfirmed ruled-MIN/40m across 40 seeds — mean 0.5038 (pass), median 0.4778 (fail by 0.022), sd 0.164, 60% of seeds failing outright. Which seed-statistic decides was ruled to DISSOLVE rather than answer, on the lead's reframing: BR-5 is a per-instance placement rule (many finds per seed), not a per-seed structural one like the §2.8.3 massif/C1 invariants it would otherwise inherit a statistic from, so the fix is not a better summary statistic but removing the randomness the statistic summarises — density-aware find placement, confirmed rather than merely greenlit, scoped to sparse-floor/near-ring only. Two gates before core builds: (1) reconcile against core's independent instrument on the same 40 seeds — a live marginal cell is exactly where two instruments disagreeing would matter, and the ruling is provisional until they agree; (2) check the BR-6 gap-tail interaction before, not after, since steering finds away from sparse-floor locations concentrates them in the covered fraction and can widen wilderness-route gaps FIND_GAP_MAX_MULT exists to catch.
 - 10:08:2026 - 12:07:08: §1.7 BR-3 CLOSED: core found the ForestFloor edge rows (MossPatch, Mushroom) carried no density at all (per_100m is linear, a forest floor isn't), so BR-3's ratio was dividing by an unauthored zero and read ~27000 — refused rather than shipped. Blessed flora's anchor-derived fix (MossPatch 40/ha, Mushroom 20/ha, no double-count with fallen-log moss_cover) and ruled the ratio's denominator SAME-SET (edge species both sides). Either denominator reading clears RICH_EDGE_RATIO=3 by 6-30x, so the ratio is DEMOTED to a logged floor/canary (same move as BR-5's bare-terrain instrument the same day) and the ordering clause (hint >= dirt > cobble ~ 1, real separation) becomes BR-3's formal acceptance. Declined re-tightening the ratio to "where it bites" — deriving a threshold from the value it tests is the 30a coincidence already refused twice. Closed the floor-vs-product composition question core validated by mutation (plain product zeros cobble's moss residual, correctly reds the suite) by writing the max-not-product requirement into BR-3's text explicitly. Also recorded: zero stone steps on this stand is accepted (в7 binds the system, not a per-stand instance count); forcing a climb to manufacture a steps frame would repeat the grass "buy the number" trap. Sixth definitional-question instance in three days; forwarded ARCHITECTURE.md clause is doing its job.
 - 10:08:2026 - 20:11:26: §1.7 — MY OWN CITED CONTROL DOES NOT REPRODUCE, AND IT IS REFUTED BY ARITHMETIC I COULD HAVE RUN WITHOUT SPENDING CORE'S MEASUREMENT. §1.7 cited bare terrain at 0.03/0.06 (40/80 m) as BR-5's permanent must-fail control; core re-measured the same arm at 0.0000/0.2083 (c8e6a73) and eliminated their ray, bearing count and LF-8 erosion as causes — erosion turned out to REDUCE terrain occlusion here, the opposite of the guess. The pair is dead on a two-line proof: for equal-sized groups the pooled median can never exceed the larger group median, so per-ring 0.03/0.06 forces a pooled value <= 0.06, while the generator itself recorded 0.1042 on the same finds. 0.03/0.06 AND 0.1042 CANNOT BOTH DESCRIBE ONE DRAW. I inherited the pair as a per-distance reading without checking it against the pooled figure beside it — Rule 34 landing on design, and specifically the aggregation ambiguity that ARCHITECTURE.md's Rule 30 already uses THIS RULE as its worked example. The number was recorded on the wrong side of the very ambiguity it is quoted to illustrate. WHAT SURVIVES: the control's job is to FAIL the bar and 0.2083 fails it by 2.4x, so nothing in the BR-5 ruling rested on its magnitude. WHAT DOES NOT: the pinned canary's '3-4x' clause is a RATIO whose denominator is now measured at exactly ZERO at 40 m, so no threshold on it can separate working siting from broken — Rule 30's own test for a wrong QUANTITY rather than a wrong threshold. Restated as a DIFFERENCE (composed minus terrain-only, per-distance, never pooled): 0.4167 / 0.5833 / 0.5000, all defined, and the 40 m case the ratio could not express at all is where siting does its LARGEST work. Ratified core's refusal to assert the bar at 40 m: a red suite on a lever I ruled must be sized AFTER this re-measurement would be a known-open item wearing a failure's clothes. Endorsed their by-cause exclusion of dead wood (Rule 36) — a gate leaning on classes sized for the user's brief could be passed by enlarging scenery.
+- 10:08:2026 - 20:29:59: §5.12a-e — CORE FOUND A HOLE IN MY OWN SENTENCE AND I RULED IT RATHER THAN PATCHING IT. The apron predicate never said WHICH TREES it ranges over; core measured both readings instead of arguing them — globally it excludes every tree within ~670 m (a clearcut, REFUSED), scoped to the massif stamp it reaches 162 m as a derived output against a pine annulus at 140 m (RATIFIED AS SHIPPED, and it reproduces my measurement from the other side). THE REAL RULING IS THAT THE ACCEPTANCE QUANTITY IS WRONG, which is why the middle looked unrulable: at 300 m the apron moves 'fraction hidden' by 1.1 points (39.5->38.4) despite demonstrably fixing the actual defect, and core's own third option is right that a third hidden IS what a forested valley looks like. Both true at once convicts the QUANTITY, not either answer — Rule 30's mechanical test. The case the fraction cannot see: 69% visible spread evenly reads as a mountain behind a wood, 69% visible with the BOTTOM curtained reads as a painted backdrop, and the fraction is identical. Same family as §2.8.7 — the instrument measures the OBJECT while the acceptance is about the VIEW. Acceptance moves to the GROUND JUNCTION: a contiguous run of >=20 px at 640x360 (4.885 deg at SKY_ANGULAR_PIXEL, reused from WEATHER.md W9.0) where the lowest visible massif pixel is massif-meeting-ground rather than canopy edge; aggregation longest run, denominator the massif's angular width. THRESHOLD DELIBERATELY NOT PLACED — both arms must be measured on the new quantity first, apron-OFF being the real rejected instance, and sizing before measuring is the error I ruled against on BR-5 the same day. Core's 15/50 band survives RECLASSIFIED from acceptance gap to canary on the apron's machinery. Wedge refused for now with its unnamed cost written down: a corridor pointed at a landmark is a bald lane along the exact bearing the player walks. The missing frame is upgraded from Rule 27 debt to BLOCKER, because the junction run is defined ON the frame; handed core the clock convention they were missing (0.25 sunrise / 0.5 noon / 0.75 sunset as a fraction of DAY_LENGTH_SECONDS). Separately flagged to flora/core as Rule 32: species_trunk_radius() returning ROOT FLARE is a SHARED HELPER, so every consumer is inspected in the same change, not only the BR-5 ray that surfaced it.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -5646,6 +5647,109 @@ that no rule in this document ever asked for and no rule ever forbade.
   puts there.
 - **The ascent (§7.1b) benefits:** a worn watchmen's path across open scree
   reads as a path. Through closed pine it reads as nothing at all.
+
+##### 5.12a SCOPE — the hole core measured in my own sentence (ruled 10.08.2026)
+
+The predicate above says "no tree is placed where its canopy top would obscure
+the massif's silhouette below `MASSIF_CLIFFLINE_FRAC` **from any acceptance
+standpoint**" — and **it never says WHICH TREES it ranges over.** Core built the
+apron (`3106051`, `687f152`), found the hole rather than papering over it, and
+measured both readings instead of arguing them:
+
+- **Read GLOBALLY it is a clearcut.** Measured: it excludes every tree within
+  **~670 m** of a standpoint, because a tree in front of your face obscures a
+  mountain too. **Refused.**
+- **Read SCOPED to the massif's own stamp** — which is what LF-4 says ("a
+  HEIGHT rule *at the massif foot*") and what core shipped — the apron reaches
+  **162 m** at its tightest bearing as a derived output, against a pine annulus
+  starting at 140 m. **RATIFIED AS SHIPPED.** It reproduces my measurement
+  independently, from the other side, with no tabled radius: pines were
+  starting ON the foot.
+
+**But the counterfactual arm is what makes this rulable, and it says the apron
+is not the whole answer:**
+
+| vantage | hidden, apron OFF | hidden, apron ON |
+|---|---|---|
+| 300 m west | 39.5 % | 38.4 % |
+| 350 m west | 45.6 % | 38.1 % |
+| 500 m west | 42.0 % | 31.0 % |
+
+##### 5.12b THE ACCEPTANCE QUANTITY IS WRONG, AND THAT IS WHY THE MIDDLE LOOKED UNRULABLE
+
+Core offered three candidate middles and declined to invent one. **None of the
+three is the answer, because the disagreement is not about where to put a
+threshold — it is about what to measure.** Rule 30's mechanical test: if no
+value on a quantity separates the accepted cases from the rejected ones, the
+QUANTITY is wrong, not the threshold. Apply it here.
+
+**At 300 m the apron moves the number by 1.1 points (39.5 → 38.4).** If
+"fraction of the sub-cliffline surface hidden" were the right quantity, the
+apron — which demonstrably fixed the real defect, pines standing on the hem —
+would have moved it. It did not, at the nearest vantage. And **core's own third
+option is correct on its own terms: a third hidden IS what a forested valley
+looks like.** Both of those are true at once, and together they convict the
+quantity rather than either answer.
+
+**Here is the case the fraction cannot see.** Sixty-nine per cent visible
+spread evenly reads as a mountain standing behind a wood. Sixty-nine per cent
+visible with the *bottom* uniformly curtained reads as a painted backdrop —
+the mountain no longer stands on the same ground the player is standing on. The
+fraction is identical in both. **That is the defect the user's word "eating"
+names, and it is the same family as §2.8.7: the instrument measures the object
+while the acceptance is about the view.**
+
+**RULING — the acceptance moves to the GROUND JUNCTION.**
+
+> Along the massif's angular extent in the valley frame, there must exist a
+> contiguous run of **≥ 20 px at 640×360** (= 4.885° at `SKY_ANGULAR_PIXEL`
+> 0.0042629 rad/px) over which the lowest visible massif pixel is
+> **massif-meeting-ground**, not a canopy edge.
+> *Aggregation:* longest contiguous run. *Denominator:* the massif's total
+> angular width in that frame, reported alongside so the run can be read as a
+> fraction as well as an absolute.
+
+One visible junction is qualitatively different from zero — it is what tells
+the eye the mountain rises from this valley rather than hanging behind it — and
+20 px is the width at which a run survives the palette quantiser instead of
+reading as a gap between two trees.
+
+**THE THRESHOLD IS NOT YET PLACED, AND I AM NOT PLACING IT TODAY.** Both arms
+must be measured on the NEW quantity first: apron-OFF is the real rejected
+instance (Rule 30 — when a real rejected instance exists, IT is the control),
+and 20 px is my derivation of legibility, not a measured separation. If
+apron-OFF already clears 20 px, the threshold is too low and the quantity needs
+its run-count or its position tightened. **Sizing a threshold before both arms
+are measured is the error I ruled against on BR-5 six hours ago; I am not
+committing it here.**
+
+**5.12c THE NAMED GAP SURVIVES, RECLASSIFIED.** Core's >15 % / <50 % band is a
+good instrument held the right way (two assertions, per §5.11's habit), but it
+must stop being called a gap in the *acceptance*, because under 5.12b the
+fraction is no longer the acceptance. **It becomes a canary on the apron's own
+machinery**: under 15 % the apron has started clearcutting and someone has
+widened its scope; over 50 % it has stopped working. Both ends are mechanism
+failures, which is what a canary is for and what an acceptance is not.
+
+**5.12d NO MECHANISM IS PICKED TODAY, AND THE WEDGE HAS A COST NOBODY NAMED.**
+The foreground corridor along standpoint→massif bearings is the obvious lever
+and the machinery exists — but a corridor pointed at a landmark is **a bald
+lane through a forest**, one of the most reliable tells of a generated world,
+and it would be carved along exactly the bearing the player walks. If it is
+ever built it is built as a *thinning with a soft edge*, never a carve-out, and
+it is sized only after 5.12b's two arms are measured. **Trigger for revisiting:
+the junction-run measurement on both arms, nothing earlier.**
+
+**5.12e THE FRAME IS NOW THE INSTRUMENT, NOT ONLY THE PROOF.** Core reported
+honestly that they could not produce the acceptance frame — restore placed them
+at 0.000 m error, but both captures came out at night. That was a Rule 27 debt;
+under 5.12b **it is now a blocker**, because the junction run is defined ON the
+frame and cannot be measured without one. Priority accordingly.
+The clock convention they were missing, since it is mine: time-of-day is a
+FRACTION of `DAY_LENGTH_SECONDS` (2880 s) — **0.25 sunrise, 0.5 noon, 0.75
+sunset**, and `START_TIME_OF_DAY` 0.30 is the early-morning default a fresh
+world opens on. For a midday massif frame set 0.5; for the raking light that
+made the band lips legible in the original diagnostic, 0.30–0.35.
 
 ##### THE OTHER TWO LEVERS, ruled rather than surveyed
 
