@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 10:08:2026 - 21:13:39
+Last updated: 10:08:2026 - 21:25:38
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -51,6 +51,13 @@ UPD:
   render as grass, which is how the blend class was lost. Value 0.5 preserved
   unchanged and marked unverified; changing it inside a structural fix would
   have made both unmeasurable.
+- 10:08:2026 - 21:25:38: The measurement moves OUT of the agent conversation and
+  next to the constant it is about. 0.375% of ground pixels, 46.8% of the
+  blend band changed by exactly nothing, and the unverified voxel-normal
+  premise that makes those a floor. A finding that lives only in a message
+  does not survive the session, and the next agent to look at
+  BLEND_CLASS_ROCK_W is the one who needs it -- it is a deletion candidate,
+  and the note says what has to be measured BEFORE deleting it.
 */
 
 #pragma once
@@ -109,6 +116,38 @@ inline const float LOOKDEV_ROCK_SLOPE_END =
 // the note under splat_weights_of() for the reason that matters less than it
 // looks. It lives here rather than in a mesher because it now has two
 // consumers (Rule 35).
+//
+// MEASURED 10.08.2026, AND IT IS A DELETION CANDIDATE RATHER THAN A TUNABLE.
+// fs_terrain.sc:50 computes rock_w = max(v_color0.g, smoothstep(
+// u_rockSlopeStart, u_rockSlopeEnd, slope)), and those two uniforms are
+// 1-cos(SLOPE_GRASS_MAX) / 1-cos(SLOPE_ROCK_MIN) -- THE SAME TWO CONSTANTS
+// (0.52 / 0.70 rad) that Worldgen.cpp:353-359 uses to decide a sample IS
+// GrassRockBlend. So wherever this weight is written, the slope ramp is
+// already running 0 -> 1 across exactly that band, and 0.5 only survives the
+// max() on the band's lower half:
+//
+//   blend band by slope angle          29.79 deg .. 40.11 deg
+//   slope ramp reaches 0.5 at          35.28 deg
+//   band fraction changed by EXACTLY   46.8 %   <- the upper half; max() eats it
+//     nothing
+//   mean excess rock_w over the band   0.170
+//   ground-pixel share flipping        ~0.375 % (core's 2.21 % of voxel
+//     grass -> rock                     vertices carry the class)
+//
+// Two independent encodings of one fact combined with a max() is not a
+// tunable; it is a shadow copy with a blend factor (Rule 39, found in the
+// middle of fixing a different instance of itself). Deleting this is ahead of
+// giving it a NUMBERS row, since a row would make the third copy official.
+//
+// ONE PREMISE IS UNVERIFIED AND THE NUMBERS ABOVE ARE A FLOOR UNTIL IT IS
+// (Rule 34): all of it assumes the shader's interpolated normal agrees with
+// worldgen's analytic slope_rad. True by construction on the heightfield path.
+// On the VOXEL path the normals come out of surface extraction, and if they
+// read systematically flatter the ramp sits lower, this weight survives the
+// max() more often, and the honest share is higher. The measurement that
+// closes it is the distribution of (1 - n.y) over the blend vertices; core
+// owns it and has it queued. DO NOT DELETE THIS CONSTANT, AND DO NOT QUOTE
+// 0.375 % WITHOUT THE CAVEAT, UNTIL THAT NUMBER EXISTS.
 inline constexpr float BLEND_CLASS_ROCK_W = 0.5f;
 
 /// The three splat channels a terrain vertex carries: R sand / G rock /
