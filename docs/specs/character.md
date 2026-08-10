@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:00:23
+Last updated: 10:08:2026 - 20:13:01
 -->
 <!--
 UPD:
@@ -37,6 +37,10 @@ UPD:
   elbow defect found — a hinge does not clamp an off-axis rotation, it DELETES
   it, and the wag was on the elbow (a7); gait selection moved onto the ferried
   enum with the steady-state test and the 0.286 control (a5(i) closed).
+- 10:08:2026 - 20:13:01: CORRECTION, and it is mine: I wrote in 19ae71e that
+  the gait fix would help the chest. IT DOES THE OPPOSITE — jog's chest entry
+  went 39 -> 35 deg, because the authored jog weight leans the trunk MORE than
+  the 0.286 did. The real mechanism is a8, and it is bigger than either.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -303,6 +307,52 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       ground. If the user still dislikes it, the lever is `CAMERA_FOV_Y` (75
       deg puts the frame edge 37.5 deg below the axis, far past a comfortable
       human downward field) — sim's row, and a taste decision, not a bug.
+
+   a8. **THE TRUNK LEANS AND THE EYE DOES NOT — the actual cause of «вижу
+      свою грудь» at any speed above a walk, and it is a SEAM, not a tuning
+      value.** Found by checking my own claim (Rule 34 turned inward): 19ae71e
+      says the gait-selection fix helps the chest. It does not. Measured:
+
+      | run_weight | chest enters | foot enters | order |
+      |---|---|---|---|
+      | 0.00 (walk) | 45 deg | 41 deg | feet first — correct |
+      | 0.20 | 41 | 41 | the crossover |
+      | 0.286 (the old defect) | 39 | 41 | chest first |
+      | **0.50 (jog today)** | **35** | 41 | chest first — WORSE than the defect |
+      | 1.00 (run) | 27 | 41 | chest first |
+
+      `entry_angle(chest) = 45 - 18 x run_weight` degrees, dead linear, and it
+      crosses the foot at run_weight 0.20 — i.e. at 2.3 deg of trunk lean. So
+      this cannot be tuned away: a run needs a lean, and ANY lean worth seeing
+      already puts the chest in front of the feet.
+
+      MECHANISM: `RUN_LEAN` pitches the torso about the HIP while the eye
+      stays bolt upright on the capsule axis at `PLAYER_EYE_HEIGHT`. The
+      shoulder corner therefore advances 0.518 x sin(0.20) = 0.103 m toward the
+      eye at full lean, taking the chest-to-eye gap from 0.026 m to 0.129 m —
+      five times — while the eye advances by exactly nothing. In a real body a
+      forward lean carries the HEAD forward too, which is precisely what keeps
+      your chest out of your own view; here the lean spends 100 % of its
+      geometry closing a gap that anatomy spends ~0 % on.
+
+      SAME SHAPE AS `PLAYER_EYE_FORWARD` THIS MORNING, and that is the reason
+      to trust the diagnosis: neither zone has a bug on its own. The rig leans
+      a body that has no eye; the camera holds an eye that has no body; the
+      offset between them belongs to nobody (Rule 35). The eye should ride the
+      trunk's lean — at full run that is ~0.12 m forward and ~0.01 m down at
+      the neck — which is sim's `CameraPose`, so the fix is theirs to place and
+      the number is a registry row both read, not a constant either of us keeps.
+
+      NOT FIXED HERE ON PURPOSE. Reducing `RUN_LEAN` below 0.04 rad would make
+      the test pass and the run look like a walk, which is the instance rather
+      than the mechanism (Rule 32) — and it is the second time today that
+      lowering a number would have hidden a missing seam.
+
+      TEST: `character_body` "walking, the feet enter the frame before the
+      chest does" asserts the order at a walk (41 vs 45 deg, a 4 deg margin),
+      and its control is the LIVE defect — at run the order is reversed, and
+      the CHECK says so. That check is meant to be INVERTED, not deleted, on
+      the day the eye rides the lean.
 
    a7. **THE ELBOW — «в анимации махания всё такая же проблема, локоть
       неестественно двигается». THE JOINT LIMITS WERE NEVER THE GAP.** They
