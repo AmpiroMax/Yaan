@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:01:34
+Last updated: 10:08:2026 - 20:32:07
 -->
 <!--
 UPD:
@@ -23,6 +23,7 @@ UPD:
 - 10:08:2026 - 19:26:40: Правила 37 (линейная карта между двумя именованными константами становится скрытым дефектом, когда между ними ложится третья) и 38 (утверждать исход, а не механизм) — обе выведены двумя зонами независимо, из разных дефектов, за один день.
 - 10:08:2026 - 19:53:40: Правило 37 расширено общей формой: опасны САМИ ИМЕНОВАННЫЕ КОНЦЫ линейной карты — не только когда между ними ложится третья константа, но и когда старая МЕНЯЕТ ЗНАЧЕНИЕ. Перенос WALK_SPEED с 3.0 на 1.8 разом пересчитал всю кривую покачивания в 1.667 раза.
 - 10:08:2026 - 20:01:34: Правила 39 (теневая копия цепочки становится дефектом, как только у оригинала появляется ветка — три копии одного высотного конвейера разошлись за день, и все наборы остались зелёными, потому что тестировали единственный стенд, где они ещё совпадали) и 40 (Approx().epsilon() не проценты, а на РАЗНОСТИ неверен при любом масштабе). Формулировка 39 — core, чья находка.
+- 10:08:2026 - 20:32:07: Правило 41 (прибор, меряющий ОБЪЕКТ, не может принять утверждение о ВИДЕ — одна и та же доля даёт противоположные вердикты). И у правила 16 появилось МЕХАНИЧЕСКОЕ средство: читать date и писать файл одним вызовом оболочки, потому что шесть нарушений после написания правила допустили те, кто мог его процитировать.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -264,6 +265,18 @@ has not happened yet, and it does not merely misdate one file: the UPD blocks ar
 this project's only ordering record across zones, so a stamp written forward
 silently reorders history. Provenance arguments depend on it — proving a constant
 sweep predated a bug fix meant comparing stamps in two zones' files.
+
+**THE REMEDY IS MECHANICAL, NOT ATTENTIONAL, and it took a second day to learn
+that.** Six more violations happened after the rule was written — by agents who
+could quote it, including one who committed it minutes after reporting the same
+violation in a peer, and including the lead. "Read the clock" is not a practice
+anyone fails at deliberately; it fails because the stamp gets written from memory
+of a reading taken a few tool calls ago, and a few tool calls is enough time for
+the clock to move. So: **read `date` and write the file in the SAME shell
+invocation.** If the stamp cannot be produced by the same command that consumes
+it, treat that as the defect to fix rather than as care to apply harder. A rule
+that only holds while you are paying attention is a rule that fails precisely
+when you are busy — which is when the stamps matter.
 
 ### Rule 17 — UPD is append-only
 Never delete UPD entries. Every meaningful change adds one.
@@ -625,6 +638,33 @@ happened to be 20 m up, which admits a log floating knee-high.
 
 **Use explicit bounds.** They are longer to write and they say what they mean, and on
 a difference they are the only thing that can.
+
+### Rule 41 — An instrument that measures the OBJECT cannot accept a claim about the VIEW
+The apron around the massif was accepted on "fraction of the mountain's low
+silhouette hidden by canopy". At 300 m the apron moved that fraction by **1.1
+points** while demonstrably fixing the defect it was built for, and a third of the
+silhouette stayed hidden — which is also, correctly, what a forested valley looks
+like. Both readings are true at once, and when two correct readings disagree about
+the verdict, **the ruler is what is wrong, not either answer.**
+
+The case the fraction cannot see: 69% visible spread evenly reads as a mountain
+behind a wood; 69% visible with the BOTTOM curtained reads as a painted backdrop.
+**Identical fraction, opposite verdicts.** The quantity is a property of the
+object; the acceptance is a property of the picture. Replaced with the ground
+junction — a contiguous run where the lowest visible massif pixel is
+massif-meeting-ground rather than canopy edge.
+
+The general trigger, and it is cheap to apply: **when an acceptance number moves
+by almost nothing while everyone agrees the thing got better, do not widen the
+threshold — ask whether the quantity can express the difference at all.** A
+threshold argument is the expected shape of this failure and it is always the
+wrong argument, because no threshold on a quantity that cannot see the difference
+will ever separate the cases (Rule 30's mechanical form).
+
+Sibling of Rule 30's "which quantity a threshold sits on is itself a measurement",
+and of Rule 36 — there the filter decided the answer, here the choice of quantity
+does. All three are the same disease: **the measurement looked rigorous and was
+about the wrong thing.**
 
 ---
 
