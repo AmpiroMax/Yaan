@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:37:53
+Last updated: 10:08:2026 - 20:45:59
 -->
 <!--
 UPD:
@@ -29,6 +29,7 @@ UPD:
 - 10:08:2026 - 20:34:56: Правило 36 дополнено случаем ВБЛИЗИ НУЛЯ: «малая поправка» и «ответ» там одного размера. Отброшенный член 2.5 мм при результате 3.0 мм — 83% ответа. Выведено sim и character независимо, из разных дефектов.
 - 10:08:2026 - 20:37:27: Правило 16 — почему «замечать» не могло сработать: проверка мерила ВЕЛИЧИНУ ухода, а дефект — ПРОИСХОЖДЕНИЕ отметки. Четырёхсекундный уход это тот же поступок, что тридцатиминутный. Правило 41, наведённое на правило 16 (формулировка character).
 - 10:08:2026 - 20:37:53: Правило 16 — соблюдение проверяется по СПОСОБУ, а не по результату: зона нарушила средство в том самом коммите, которым чинила форму починки, и значение вышло верным по везению. Верный результат — это ровно то, что даёт удачливый неверный способ.
+- 10:08:2026 - 20:45:59: Правило 44 (константа, подогнанная СКВОЗЬ деталь реализации, перестаёт означать то, что говорит её имя — две среды складывают одни и те же поля по-разному и промахиваются в ПРОТИВОПОЛОЖНЫЕ стороны). Находка core.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -767,6 +768,42 @@ it is nowhere near the code that bounds it.
 Sibling of Rules 35 and 37 in shape: there a NUMBER gained a second consumer and a
 RANGE gained an interior point; here a BOUND gained a second quantity. The trigger
 is the same kind of event — not a bug report, but a change of representation.
+
+### Rule 44 — A constant fitted through an implementation detail no longer means what its name says
+Two habitats compose the same two fields differently, and nothing in the code or the
+docs said so:
+
+```
+PathMargin   field = max(clump, edge * rich)   <- a FLOOR
+ForestFloor  field = clump                     <- a pure PRODUCT
+```
+
+PathMargin realises **2.5–2.7× OVER** its authored density (a cobble gutter whose
+authored flower weight is exactly 0.0 carries ~20 per 100 m); ForestFloor realises
+**0.15–0.31×**, i.e. 3.3–6.6× UNDER. **They err in opposite directions, which is
+precisely why neither was obvious** — an overshoot and an undershoot in one system
+read as two unrelated tuning problems rather than as one unexamined composition.
+
+A pure product delivers `authored × E[clump]`, and the measured mean of that field
+is **0.086–0.163 by class** — nowhere near 1. So the shortfall is set by **the mean
+of a noise field, which is not an authored quantity** and moves whenever the field
+is retuned for how it looks.
+
+**The trap is the fix that looks obvious: raise the row to compensate.** It works,
+and it changes what the row MEANS — from "density" to "density before an
+implementation detail". Every such row is then calibrated against an unauthored
+property of a working system, and the day the field is retuned for appearance, every
+row fitted through it moves silently and nobody connects the two changes.
+
+So: **before tuning a constant to make an output right, measure whether the path
+between them has a gain you did not author.** If it does, the constant is the wrong
+place to fix it — and if you fix it there anyway, RENAME the row to say what it now
+means, because the next reader will take its name literally.
+
+Rule 31's shape one level up: there the field's distribution decided an answer, here
+an unauthored property of a field is being absorbed into a named constant. Sibling
+of Rule 41 — both are cases where the number is right and the thing it denotes is
+not what anyone thinks.
 
 ---
 
