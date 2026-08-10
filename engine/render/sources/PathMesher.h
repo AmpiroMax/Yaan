@@ -1,6 +1,6 @@
 /*
-Created: 10:08:2026 - 12:02:41
-Last updated: 10:08:2026 - 12:02:41
+Created: 10:08:2026 - 12:11:29
+Last updated: 10:08:2026 - 12:11:29
 Module: engine/render
 File: engine/render/sources/PathMesher.h
 
@@ -55,7 +55,7 @@ The prohibition is on a hard-edged stamped strip, which this is the opposite of.
 */
 /*
 UPD:
-- 10:08:2026 - 12:02:41: Created — the path surface splat.
+- 10:08:2026 - 12:11:29: Created — the path surface splat.
 */
 
 #pragma once

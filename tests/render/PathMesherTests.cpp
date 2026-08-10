@@ -1,6 +1,6 @@
 /*
-Created: 10:08:2026 - 12:26:05
-Last updated: 10:08:2026 - 12:26:05
+Created: 10:08:2026 - 12:11:29
+Last updated: 10:08:2026 - 12:11:29
 Module: tests
 File: tests/render/PathMesherTests.cpp
 
@@ -25,7 +25,7 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
-- 10:08:2026 - 12:26:05: Created — the path surface splat.
+- 10:08:2026 - 12:11:29: Created — the path surface splat.
 */
 
 #include "engine/render/sources/PathMesher.h"

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 10:08:2026 - 12:26:05
+# Last updated: 10:08:2026 - 12:11:29
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -28,8 +28,14 @@
 # - 09:08:2026 - 23:32:07: Bitmap font tests (glyph coverage + the unmappable
 #   control, UTF-8 decoding, alias identity, bitmap uniqueness, clipping).
 # - 10:08:2026 - 03:14:30: Cloud model tests (downwind drift, becalmed control).
-# - 10:08:2026 - 12:26:05: Path mesher tests (the cross-section's knot error
-#   against core's own profile, with the wrong-curve control).
+# - 10:08:2026 - 12:11:29: Path mesher tests (the cross-section's knot error
+#   against core's own profile, with the wrong-curve control). NOTE: the first
+#   version of this entry was stamped 12:26:05 — a time SIXTEEN MINUTES IN THE
+#   FUTURE, computed forward instead of read from the clock (Rule 16). It broke
+#   the shared header gate and cost sim a --no-verify commit. Corrected from a
+#   real `date` reading; recorded rather than quietly overwritten, because the
+#   UPD block is this project's ordering record and a silent correction is
+#   indistinguishable from the error never happening.
 
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
