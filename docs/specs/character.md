@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:05:00
+Last updated: 10:08:2026 - 12:30:00
 -->
 <!--
 UPD:
@@ -21,6 +21,10 @@ UPD:
   rounded, legs closer together, and joints must not bend backwards. Joint
   limits now live in the rig, the walk grew a forefoot rocker, the stance row
   landed, and the segments are bevelled prisms instead of boxes.
+- 10:08:2026 - 12:30:00: Two open seams recorded at the pause (a5): nothing
+  ferries sim's Gait yet and this zone still re-derives it, which now leaves
+  JOG rendering as a 29 % lean toward the run clip; and the thigh-swing cap is
+  still a file-local constant that has to agree with sim's rows.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -180,6 +184,41 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       equality — and it measures the SOLE rather than the ankle, since the heel
       lifting is precisely what makes the ankle a liar about ground contact.
       Touch-down, the assertion sim's audio rides on, is untouched at 0.25/0.75.
+
+   a5. **OPEN SEAMS AT THE PAUSE — recorded so neither is rediscovered as a
+      mystery.** Both are one line of somebody's work, neither is mine alone.
+
+      i. **NOTHING FERRIES `Gait` YET, and this zone is still re-deriving it.**
+         sim's `PlayerState::gait` exists, and their header says in as many
+         words that character must select clips from that field "rather than
+         re-deriving it by comparing speed against the rows". `evaluate_body_pose`
+         still compares against `WALK_SPEED` / `RUN_SPEED`. That is the Rule 35
+         defect this project spent a morning on, live, in my file, behind a
+         comment forbidding it. It was harmless while there were two gears and
+         is not harmless now that there are three — with the user's rows
+         (1.8 / 3.0 / 6.0) the measured consequence is:
+
+         | gear | speed | my run-clip weight |
+         |---|---|---|
+         | walk | 1.8 | 0.00 |
+         | **jog** | **3.0** | **0.29** |
+         | run | 6.0 | 1.00 |
+
+         So JOG currently renders as a walk leaning 29 % toward the run clip —
+         an artifact of a linear blend between two rows that now have a third
+         row between them, and a number nobody chose. Fix is the app ferry
+         (lead's line) plus switching selection to the enum (mine). Until then
+         treat locomotion between 1.8 and 6.0 as unruled.
+
+      ii. **`BODY_THIGH_SWING_MAX_SIN` is requested but not landed.** 0.55 lives
+         as a file-local constexpr in Clips.cpp while it now has to AGREE with
+         sim's step-length rows — it caps the visual half-step at 0.55 x leg
+         length = 0.486 m, and sim's binding check wants to be arithmetic over
+         the generated header with no cross-zone include. The check must be
+         written as "residual slip stays under a perceptual bound", never as
+         "the clamp is inactive": at WALK 1.8 the residual is 0.8 %, and a
+         check that goes red the day it is written teaches everyone to ignore
+         it. (Agreed with sim independently on both halves.)
 
    b. **THE ARMS ARE HALF BURIED IN THE TORSO.** The shoulder joint is at
       +/-`BODY_SHOULDER_WIDTH_FRAC`/2 = 0.233 m — exactly the torso box's own
