@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 10:08:2026 - 21:21:55
+# Last updated: 10:08:2026 - 21:24:32
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -45,6 +45,11 @@
 #                          missing-META refusal, and the forward-compatibility
 #                          case (a section this build does not understand must
 #                          survive a load AND a re-save).
+# - 10:08:2026 - 21:24:32: sim_jolt_physics links dfn_render, for the same
+#                          reason test_lod_seam does: the new diagonal case
+#                          checks that two zones agree about one geometry, and
+#                          it reads render's actual mesh rather than a literal
+#                          copy of its triangulation.
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -57,7 +62,7 @@ add_dfn_test(sim_null_backends sim/NullBackendTests.cpp
 # dfn_world is linked for the real-ChunkManager heightfield smoke test
 # (cross-zone contract check suggested by core at the stage-2 sync).
 add_dfn_test(sim_jolt_physics sim/JoltPhysicsTests.cpp
-    dfn_physics dfn_platform_physics dfn_world dfn_gameplay)
+    dfn_physics dfn_platform_physics dfn_world dfn_gameplay dfn_render)
 
 # The four interaction verbs, inventory semantics and the save sections.
 add_dfn_test(sim_interaction sim/InteractionTests.cpp

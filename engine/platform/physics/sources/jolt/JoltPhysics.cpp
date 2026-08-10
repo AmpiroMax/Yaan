@@ -25,8 +25,13 @@ Notes:
 - Terrain is a static MeshShape built from the float samples, not a
   JPH::HeightFieldShape: Jolt's height field wants sample counts divisible by
   its block size, while our chunks are 129x129 (NUMBERS, 2^n+1 with shared
-  edges). The mesh triangulation matches the render mesher's grid exactly, so
-  collision and visuals cannot disagree. Revisit (memory) at a later sync.
+  edges). The mesh triangulation matches the render mesher's grid exactly — the
+  same quad diagonal, not merely the same vertices — so collision and visuals
+  cannot disagree. THAT SENTENCE WAS FALSE FOR TWO DAYS while it sat here: the
+  two zones split every quad on OPPOSITE diagonals, and the only test covering
+  it used a flat chunk, where the two splits are identically equal. A claim of
+  agreement between two zones is worth exactly the test that could refute it
+  (Rule 35), which now exists and runs against real generated terrain.
 - move_character() accumulates the desired displacement; step() converts it to
   a velocity over SIM_DT and runs ExtendedUpdate (slide + stairs + stick to
   floor). Queries return post-step state, per the interface contract.
@@ -307,7 +312,12 @@ public:
             return {};
         }
 
-        // Grid triangulation identical to the render mesher (see header notes).
+        // Grid triangulation identical to the render mesher — and identical is
+        // now a TESTED claim rather than a comment (sim_jolt_physics, "render
+        // and collision split every quad on the same diagonal"). It was false
+        // for two days: this loop split each quad on i01-i10 while the render
+        // mesher splits on i00-i11, so the drawn ground and the solid ground
+        // were different surfaces wherever the four corners were not coplanar.
         JPH::VertexList vertices;
         vertices.reserve(desc.heights.size());
         for (uint32_t z = 0; z < desc.sample_count_z; ++z) {
@@ -327,8 +337,13 @@ public:
                 const JPH::uint32 i10 = i00 + 1;
                 const JPH::uint32 i01 = i00 + desc.sample_count_x;
                 const JPH::uint32 i11 = i01 + 1;
-                triangles.push_back(JPH::IndexedTriangle(i00, i01, i10)); // up-facing
-                triangles.push_back(JPH::IndexedTriangle(i10, i01, i11));
+                // Split on i00-i11, the diagonal the render mesher uses, in the
+                // winding that makes cross(v1-v0, v2-v0) point at +Y (up-facing
+                // for both triangles). Which diagonal is arbitrary; that the
+                // two zones pick THE SAME one is not, and the choice belongs to
+                // whoever draws the ground — collision follows it.
+                triangles.push_back(JPH::IndexedTriangle(i00, i11, i10));
+                triangles.push_back(JPH::IndexedTriangle(i00, i01, i11));
             }
         }
 
