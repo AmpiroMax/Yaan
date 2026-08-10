@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:33:41
+Last updated: 10:08:2026 - 20:34:56
 -->
 <!--
 UPD:
@@ -26,6 +26,7 @@ UPD:
 - 10:08:2026 - 20:32:07: Правило 41 (прибор, меряющий ОБЪЕКТ, не может принять утверждение о ВИДЕ — одна и та же доля даёт противоположные вердикты). И у правила 16 появилось МЕХАНИЧЕСКОЕ средство: читать date и писать файл одним вызовом оболочки, потому что шесть нарушений после написания правила допустили те, кто мог его процитировать.
 - 10:08:2026 - 20:32:52: Правило 42 (бюджет, выраженный в единицах одних часов, ничего не ограничивает в единицах других — бюджет читался как 1 и выдавал 5). Формулировка sim, чья находка; вместе с признаком: величина, повторяющаяся до цифры без разброса, это ограничитель, а не склонность.
 - 10:08:2026 - 20:33:41: Правило 43 (ограничение связывает ту величину, на которой написано, а не ту, по которой меряют контракт — карточки легли плоско и потратили запас, который всегда был законным). Формулировка flora; перенумеровано с 39, тот номер уже занят.
+- 10:08:2026 - 20:34:56: Правило 36 дополнено случаем ВБЛИЗИ НУЛЯ: «малая поправка» и «ответ» там одного размера. Отброшенный член 2.5 мм при результате 3.0 мм — 83% ответа. Выведено sim и character независимо, из разных дефектов.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -515,6 +516,26 @@ on sight.
 Sibling of Rule 31: there the field's shape decided the answer, here the filter's
 threshold does. Both produce a number that survives review because nothing about it
 looks wrong.
+
+**THE SIBLING CASE: near zero, "a small correction" and "the answer" are the same
+size.** The parent check compares a reported extreme against a filter's cutoff.
+When a result sits near ZERO, the test is not *"is this term small"* but **"is it
+small relative to the RESIDUAL"** — and only the second one discriminates.
+
+The eye-vs-chest cancellation was computed as **−0.0030 m** by a linear form that
+dropped the chest corner's own cos(θ) foreshortening. The dropped term was
+**0.0025 m** — 83% of the reported answer. The exact figure is −0.0055 m. Nothing
+about *"I will ignore a 2.5 mm second-order term"* looks wrong when written down;
+it is wrong only because the result it feeds is 3 mm.
+
+Same disease as the parent: there the filter's threshold became the result, here a
+discarded small term did. **The shared trigger is a reading close to zero** —
+precisely when a quantity you decided was negligible stops being negligible,
+because negligible is a RATIO and the denominator just collapsed.
+
+**Mechanical form: after any result near zero, recompute the largest term you
+dropped and divide it by the result. If that ratio is not small, you have not
+measured the thing.**
 
 And the general form, which cost a full evening in another guise: **the pipeline's
 own metric is part of the design vocabulary.** Colour separation was reasoned about
