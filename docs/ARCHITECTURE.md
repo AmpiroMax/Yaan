@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 21:38:24
+Last updated: 10:08:2026 - 21:41:45
 -->
 <!--
 UPD:
@@ -35,6 +35,7 @@ UPD:
 - 10:08:2026 - 21:31:13: Правило 32 дополнено: если механизм поставлен верно, а починен экземпляр — записать диагноз у КАЖДОГО места, где он тот же. Иначе диагноз это сообщение, а не механизм. Затвор тура был верно разобран за девять часов до того, как его нашли заново.
 - 10:08:2026 - 21:32:18: Правило 27 дополнено: точки выборки прибора обязаны лежать там, где величина МЕНЯЕТСЯ, и это относится к наборам тестов, а не только к камерам. Точке съёмки, неспособной провалиться, камера не нужна. Формулировка character.
 - 10:08:2026 - 21:38:24: Правило 46 (самопроверка проверяет арифметику, модель проверяет только другая зона): за день двух зон ВСЕ самопроверки прошли, а обе настоящие ошибки нашёл сосед.
+- 10:08:2026 - 21:41:45: Правило 34 дополнено: ЧИСЛО тоже предпосылка, и спусковой крючок — ПУБЛИКАЦИЯ, а не вывод. Сверить с выводом, который уже на экране, прежде чем число войдёт в файл. Свёрнуто в 34 по просьбе зоны, чьи ошибки его породили.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -561,6 +562,36 @@ field is seeded — is checked in the source or asked of its owner before any co
 is built on it. Sound reasoning from a false premise is indistinguishable from sound
 reasoning until it wastes a build. This rule exists because it was broken four times in
 one evening, twice by agents who had just invoked it against someone else.
+
+**A NUMBER IS A PREMISE TOO, and the trigger is PUBLISHING, not deriving.** A
+derived figure you did not check — or checked earlier, against data that has
+since moved — is exactly as unchecked as a mechanism you assumed. The rule bites
+at the moment the number enters a file, a commit message or a report: **before it
+does, reconcile it against output you already have.** Not re-derive from scratch;
+compare it against what is already on screen.
+
+Both of one day's cross-zone errors die to that check, and neither would ever
+have gone red. `0.375 / 2.21 = 0.1697` was read as a share of vertices when
+0.170 was a mean WEIGHT — and the refuting figure, 0.1652, was printed on the
+next line of the same terminal. It was then written into a source comment as a
+finding. The other zone quoted a 2.21% exposure figure into a commit message
+without re-deriving it. **Both were right answers from wrong reasons**, which is
+the class a green suite is structurally unable to report.
+
+**Aim it at publishing, because "be careful when you divide" is unenforceable and
+"reconcile before it enters a file" has a checkable moment.** The zone whose
+error produced this asked for that framing themselves, and asked that the
+camouflage not be offered as the lesson: two quantities taking nearly the same
+value by construction explains the MISREADING; it does not explain the
+PUBLISHING, and only the second is a habit. **A rule whose worked example lets
+the reader off is a rule nobody runs.**
+
+Scope, stated by the same zone against their own name on it: of four errors they
+made that day this catches ONE. A wrong premise, a wrong instrument and an
+assertion that cannot fail are Rules 34's parent clause, 41 and 30 — three of
+the four had no prior output to reconcile against, and only running a fresh
+measurement disconfirmed them. **Reconciling a number is not a substitute for
+checking a premise; on that day it was the weaker of the two.**
 
 ### Rule 35 — A number stops belonging to a zone when a second zone must agree with it
 Such a number moves to `docs/NUMBERS.md` and both zones read it there. "Zone A tells

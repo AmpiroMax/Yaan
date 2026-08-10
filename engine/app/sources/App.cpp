@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:32:18
+Last updated: 10:08:2026 - 21:41:45
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -92,6 +92,7 @@ UPD:
 - 10:08:2026 - 21:14:51: Меню выключают ВСЕ автоматические двери, а не только тур и плейтест: снимок, зонд тела и восстановление зависали на стартовом экране и фотографировали меню (жалоба пользователя: «они в меню зависают все»).
 - 10:08:2026 - 21:26:54: Тур снимается на СЧЁТНЫХ часах, а не настенных: затвор ждёт тишины подгрузки, часы игры и растворение детализации идут фиксированным шагом. Собственный контроль тура 27.67% → 14.73%; остаток НЕ объяснён.
 - 10:08:2026 - 21:32:18: Зонд тела считается желающим двойника: без этого он снимал пустую поляну, и кадр читался как «тело не рисуется». Третий немой ноль за день и один и тот же баг — ПРЕДУСЛОВИЕ, записанное списком тех, кому оно тогда понадобилось.
+- 10:08:2026 - 21:41:45: Карта грузится из данных, а не вкомпилирована: 441 строка обзора ОДНОЙ игры уезжает из движка. Отказ загрузки — фатален, потому что откат к вкомпилированным значениям дал бы почти правильный мир, которого никто не искал бы.
 */
 
 #include "engine/app/sources/App.h"
@@ -105,6 +106,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/CoarseTerrain.h"
 #include "engine/world/sources/WorldgenForest.h"
+#include "engine/world/sources/LayoutLoad.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/physics/sources/CollisionLayers.h"
@@ -478,6 +480,29 @@ bool App::enter_world(uint32_t stand) {
     sp.load_radius = static_cast<uint32_t>(config::CHUNK_LOAD_RADIUS);
     sp.unload_radius = static_cast<uint32_t>(config::CHUNK_UNLOAD_RADIUS);
     world::WorldGenParams gp;
+    // THE MAP IS CONTENT AND IT IS LOADED, NOT COMPILED IN (Rule 5). Core moved
+    // 441 lines of ONE GAME'S survey -- Vaelmere, Ravenscar, Harrowward -- out
+    // of `engine/world` and proved the asset reproduces the compiled defaults
+    // exactly; this is the call that retires them. It was the largest Rule 5
+    // violation in the repo and the single edit that turns "architecturally
+    // reusable" into reusable, because until now the reusable engine knew the
+    // name of this game's mountain.
+    //
+    // A FAILURE IS FATAL, DELIBERATELY. Falling back to the compiled defaults
+    // would mean a missing or malformed asset produces a world that looks
+    // almost right -- the fourth silent-zero of the day, and the most expensive
+    // kind, because nobody would be looking for it. The file carries survey
+    // coordinates and FRACTIONS only; the registry anchors and the scaling
+    // transforms stay in the engine, so that moving a constant still moves the
+    // world it is supposed to move (Rule 37).
+    {
+        const auto lr = world::load_layout_file(
+            "games/daggerfall_n/assets/world/testbed_layout.json", gp.layout);
+        if (!lr.ok) {
+            std::fprintf(stderr, "[app] FATAL: layout asset: %s\n", lr.error.c_str());
+            return false;
+        }
+    }
     gp.seed = 1u;
     gp.min_chunk = {0, 0};
     // 2x2 km (WORLD_EXTENT_CHUNKS 8 x CHUNK_SIZE 256), the user's direct and
