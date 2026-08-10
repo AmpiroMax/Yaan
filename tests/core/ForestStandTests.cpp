@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 19:45:47
+Last updated: 10:08:2026 - 19:59:10
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -98,6 +98,12 @@ UPD:
   band, doctest's tolerance is eps*(scale + max|lhs|,|rhs|) with scale 1.0, so
   the band around 0.15 was -0.14..+0.44 m and a BURIED tread passed it. Both
   replaced with explicit bounds.
+- 10:08:2026 - 19:59:10: The dead-wood "stands on the shipped ground" check was
+  .epsilon(0.02) against a ~20 m height, i.e. a 0.42 m tolerance — it claimed
+  the wood was on the ground while admitting a log floating knee-high. The
+  quantity is a height ERROR and its threshold now sits in metres: worst
+  deviation < 0.01 m, with the pre-path field as a control that must differ by
+  more than 0.05 m so the assertion cannot be measuring nothing.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1554,6 +1560,8 @@ TEST_CASE("§5.10: nothing dead lies on the tread or in a corridor") {
     const FloorCensus& c = floor_census();
     const world::WorldGenContext& ctx = forest();
     int checked = 0;
+    float worst_sink = 0.0f;
+    float worst_prepath = 0.0f;
     for (const auto& i : c.all) {
         switch (i.species) {
         case math::ScatterSpecies::Snag:
@@ -1572,9 +1580,28 @@ TEST_CASE("§5.10: nothing dead lies on the tread or in a corridor") {
         CHECK(s.dist_from_worn_edge > 0.9f);
         // And it stands on the SHIPPED ground, not on the pre-erosion field —
         // the defect the scatter context inherited when the stand was wired.
-        CHECK(i.position.y == doctest::Approx(world::terrain_height(ctx, p)).epsilon(0.02));
+        //
+        // ABSOLUTE BOUND, and it used to be .epsilon(0.02). Against a ~20 m
+        // terrain height doctest's tolerance is eps*(1 + |h|) = 0.42 m, so this
+        // line claimed "stands on the ground" while admitting a piece of dead
+        // wood floating knee-high. The quantity is a height ERROR; its
+        // threshold belongs in metres, not in parts of an unrelated altitude.
+        worst_sink = std::max(worst_sink, std::fabs(i.position.y - world::terrain_height(ctx, p)));
+        // The control is the field this defect actually put things on.
+        worst_prepath = std::max(
+            worst_prepath,
+            std::fabs(i.position.y
+                      - (world::macro_height(ctx.params.seed, ctx.params.layout, p)
+                         + ctx.erosion.sample(p))));
     }
     CHECK(checked > 500);
+    INFO("worst deviation from shipped ground ", worst_sink, " m; from the pre-path field ",
+         worst_prepath, " m");
+    CHECK(worst_sink < 0.01f);
+    // AND THE CONTROL CAN FAIL IT (Rule 30): the pre-path field is a real
+    // surface this scatter was once placed against, and it is a DIFFERENT
+    // surface — if it were not, this assertion would be measuring nothing.
+    CHECK(worst_prepath > 0.05f);
 }
 
 TEST_CASE("the canopy occlusion envelope is the GIANT tier, not the nominal height") {
