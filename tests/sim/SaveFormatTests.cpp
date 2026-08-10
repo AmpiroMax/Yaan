@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 21:10:26
-Last updated: 10:08:2026 - 21:10:26
+Last updated: 10:08:2026 - 21:18:21
 Module: tests
 File: tests/sim/SaveFormatTests.cpp
 
@@ -34,6 +34,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 21:10:26: Created with the Binary IO implementation.
+- 10:08:2026 - 21:18:21: The misuse cases now assert BinaryWriter::ok()
+  directly (the lead approved adding it), not only that save_to_file refuses.
 */
 
 #include <doctest/doctest.h>
@@ -450,10 +452,13 @@ TEST_CASE("a write outside a section can never become a file") {
 
     serialization::BinaryWriter misused;
     misused.begin_file(TEST_MAGIC, 1);
+    CHECK(misused.ok()); // still well-formed up to here
     misused.write_u32(FIX_U32); // no begin_section: nowhere in the grammar
+    CHECK_FALSE(misused.ok()); // and the writer SAYS SO — it does not just drop
     misused.begin_section(TAG_MAIN, 1);
     misused.write_u32(FIX_U32);
     misused.end_section();
+    CHECK_FALSE(misused.ok()); // sticky: a later well-formed call cannot clear it
     CHECK_FALSE(misused.save_to_file(dir / "misused.bin"));
     CHECK_FALSE(std::filesystem::exists(dir / "misused.bin"));
 
@@ -470,6 +475,7 @@ TEST_CASE("a write outside a section can never become a file") {
     // "save_to_file always returns false" passes both arms above.
     serialization::BinaryWriter good;
     write_fixture_payload(good);
+    CHECK(good.ok());
     const std::filesystem::path path = dir / "good.bin";
     REQUIRE(good.save_to_file(path));
     REQUIRE(std::filesystem::exists(path));

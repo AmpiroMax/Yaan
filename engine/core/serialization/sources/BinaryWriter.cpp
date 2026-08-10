@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 21:05:44
-Last updated: 10:08:2026 - 21:05:44
+Last updated: 10:08:2026 - 21:18:55
 Module: engine/core/serialization
 File: engine/core/serialization/sources/BinaryWriter.cpp
 
@@ -36,10 +36,12 @@ next reader hits the edge case in this file and not in a commit log):
    neutral result. So misuse poisons the writer: the bytes are dropped, every
    later call is refused, and save_to_file() returns false forever after. The
    already-written buffer() stays readable so a caller can still inspect what it
-   built. The latch lives in open_section_length_offset_ (see POISONED below)
-   because the declared class has no ok() and the header is frozen (Rule 26);
-   the RIGHT channel is a public ok() on this class, which needs a contract
-   change and is recommended to the lead in the report.
+   built. The latch is the declared ok(). It first rode a sentinel value inside
+   open_section_length_offset_, because the header was frozen and had no error
+   channel at all; the lead approved widening the contract instead, on the
+   grounds that Rule 26 protects a contract from casual change and not from one
+   that turned out to be incomplete — and a private member silently carrying a
+   second meaning is a defect lying in wait for its next reader.
 
 2. THE READER LATCHES !ok() ON READS OUTSIDE A SECTION, including a read before
    the first next_section(). Enforced in BinaryReader.cpp; noted here because
@@ -55,24 +57,21 @@ UPD:
   round-trip tests sat compiled out behind DFN_SIM_HAVE_BINARY_IO. The grammar
   implemented here is exactly the one in the header; the only things added are
   the three decisions above, each ruled on by the lead before being written.
+- 10:08:2026 - 21:18:55: The misuse latch is now the declared ok()
+  instead of a sentinel value inside open_section_length_offset_ (lead-approved
+  header change; a private member carrying a second meaning is a defect lying
+  in wait for its next reader).
 */
 
 #include "engine/core/serialization/sources/BinaryWriter.h"
 
 #include <bit>
 #include <fstream>
-#include <limits>
 #include <system_error>
 
 namespace dfn::serialization {
 
 namespace {
-
-/// Sentinel stored in open_section_length_offset_ once the writer has been
-/// misused. Distinct from 0 ("no section open", the legitimate idle state) and
-/// unreachable as a real offset, since a real length offset is at most the
-/// buffer size.
-constexpr std::size_t POISONED = std::numeric_limits<std::size_t>::max();
 
 /// The one place integers become bytes: `count` bytes of `value`, least
 /// significant first. Identical output on a big-endian host (Rule 7).
@@ -96,13 +95,13 @@ void patch_le(std::vector<std::byte>& out, std::size_t offset, uint64_t value,
 BinaryWriter::BinaryWriter() = default;
 
 void BinaryWriter::begin_file(uint32_t magic, uint32_t container_version) {
-    if (open_section_length_offset_ == POISONED) {
+    if (failed_) {
         return;
     }
     if (header_written_) {
         // A second header would sit inside the file as unparseable bytes and
         // make every section after it unreachable. Decision 1: latch.
-        open_section_length_offset_ = POISONED;
+        failed_ = true;
         return;
     }
     put_le(buffer_, magic, 4);
@@ -111,12 +110,12 @@ void BinaryWriter::begin_file(uint32_t magic, uint32_t container_version) {
 }
 
 void BinaryWriter::begin_section(SectionTag tag, uint16_t section_version) {
-    if (open_section_length_offset_ == POISONED) {
+    if (failed_) {
         return;
     }
     if (!header_written_ || open_section_length_offset_ != 0) {
         // No header yet, or sections would overlap — the header forbids both.
-        open_section_length_offset_ = POISONED;
+        failed_ = true;
         return;
     }
     put_le(buffer_, tag, 4);
@@ -129,11 +128,11 @@ void BinaryWriter::begin_section(SectionTag tag, uint16_t section_version) {
 }
 
 void BinaryWriter::end_section() {
-    if (open_section_length_offset_ == POISONED) {
+    if (failed_) {
         return;
     }
     if (open_section_length_offset_ == 0) {
-        open_section_length_offset_ = POISONED; // end without begin
+        failed_ = true; // end_section without begin_section
         return;
     }
     const std::size_t payload_begin = open_section_length_offset_ + 8;
@@ -148,32 +147,32 @@ void BinaryWriter::end_section() {
 // on-disk byte order. Each first asks whether a section is open (decision 1).
 
 void BinaryWriter::write_u8(uint8_t v) {
-    if (open_section_length_offset_ == 0 || open_section_length_offset_ == POISONED) {
-        open_section_length_offset_ = POISONED;
+    if (failed_ || open_section_length_offset_ == 0) {
+        failed_ = true;
         return;
     }
     put_le(buffer_, v, 1);
 }
 
 void BinaryWriter::write_u16(uint16_t v) {
-    if (open_section_length_offset_ == 0 || open_section_length_offset_ == POISONED) {
-        open_section_length_offset_ = POISONED;
+    if (failed_ || open_section_length_offset_ == 0) {
+        failed_ = true;
         return;
     }
     put_le(buffer_, v, 2);
 }
 
 void BinaryWriter::write_u32(uint32_t v) {
-    if (open_section_length_offset_ == 0 || open_section_length_offset_ == POISONED) {
-        open_section_length_offset_ = POISONED;
+    if (failed_ || open_section_length_offset_ == 0) {
+        failed_ = true;
         return;
     }
     put_le(buffer_, v, 4);
 }
 
 void BinaryWriter::write_u64(uint64_t v) {
-    if (open_section_length_offset_ == 0 || open_section_length_offset_ == POISONED) {
-        open_section_length_offset_ = POISONED;
+    if (failed_ || open_section_length_offset_ == 0) {
+        failed_ = true;
         return;
     }
     put_le(buffer_, v, 8);
@@ -195,16 +194,16 @@ void BinaryWriter::write_f64(double v) { write_u64(std::bit_cast<uint64_t>(v)); 
 void BinaryWriter::write_bool(bool v) { write_u8(v ? uint8_t{1} : uint8_t{0}); }
 
 void BinaryWriter::write_bytes(std::span<const std::byte> bytes) {
-    if (open_section_length_offset_ == 0 || open_section_length_offset_ == POISONED) {
-        open_section_length_offset_ = POISONED;
+    if (failed_ || open_section_length_offset_ == 0) {
+        failed_ = true;
         return;
     }
     buffer_.insert(buffer_.end(), bytes.begin(), bytes.end());
 }
 
 void BinaryWriter::write_string(std::string_view utf8) {
-    if (open_section_length_offset_ == 0 || open_section_length_offset_ == POISONED) {
-        open_section_length_offset_ = POISONED;
+    if (failed_ || open_section_length_offset_ == 0) {
+        failed_ = true;
         return;
     }
     put_le(buffer_, static_cast<uint64_t>(utf8.size()), 4);
@@ -220,9 +219,11 @@ std::span<const std::byte> BinaryWriter::buffer() const {
     return std::span<const std::byte>(buffer_.data(), buffer_.size());
 }
 
+bool BinaryWriter::ok() const { return !failed_; }
+
 bool BinaryWriter::save_to_file(const std::filesystem::path& path) const {
-    if (open_section_length_offset_ != 0) {
-        // Poisoned, or a section is still open — an unpatched length would
+    if (failed_ || open_section_length_offset_ != 0) {
+        // Misused, or a section is still open — an unpatched length would
         // record a zero-byte section and silently swallow its payload.
         return false;
     }

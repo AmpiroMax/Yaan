@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 10:08:2026 - 21:17:56
 Module: engine/core/serialization
 File: engine/core/serialization/sources/BinaryWriter.h
 
@@ -27,6 +27,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — section writer per Rule 7 (Q49).
+- 10:08:2026 - 21:17:56: ok() added (lead-approved contract change, made
+  while implementing the bodies). The class had no way to report that it had
+  been misused, so the implementation's failure latch had to ride a sentinel
+  value inside open_section_length_offset_ — a private member silently carrying
+  a second meaning, which is the shape of half the defects found in this repo.
+  Rule 26 protects a contract from casual change, not from one that turned out
+  to be incomplete, and "the writer cannot tell you it failed" is incomplete.
 */
 
 #pragma once
@@ -103,6 +110,16 @@ public:
     /// UTF-8 string: u32 byte length + bytes, no terminator.
     void write_string(std::string_view utf8);
 
+    /// False once the writer has been MISUSED in a way the container grammar
+    /// cannot express: a write with no section open, a nested or unopened
+    /// section, a second file header. Such bytes are dropped rather than
+    /// appended, because appending them would produce a file that still LOADS
+    /// and is quietly wrong — a save format is the worst possible place to let
+    /// absence look like a neutral result. The latch is sticky: once false,
+    /// every later call is refused and save_to_file() can never succeed.
+    /// buffer() stays readable so a caller can inspect what it built.
+    [[nodiscard]] bool ok() const;
+
     /// The finished buffer. Valid only after all sections are closed.
     [[nodiscard]] std::span<const std::byte> buffer() const;
 
@@ -114,6 +131,7 @@ private:
     std::vector<std::byte> buffer_;
     std::size_t open_section_length_offset_ = 0; // 0 = no open section
     bool header_written_ = false;
+    bool failed_ = false;                        // sticky misuse latch, see ok()
 };
 
 } // namespace dfn::serialization
