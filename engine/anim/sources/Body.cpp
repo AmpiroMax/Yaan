@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
+Last updated: 10:08:2026 - 20:00:23
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:56:45: Initial implementation.
 - 10:08:2026 - 12:10:00: evaluate_body_pose applies the joint limits at every exit.
+- 10:08:2026 - 20:00:23: Clip selection reads BodyDrive::gait; speed now only answers 'are the feet moving at all'.
 */
 
 #include "engine/anim/sources/Body.h"
@@ -136,13 +137,17 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
         apply_joint_limits(rig, out);
         return out;
     }
+    // TWO DIFFERENT QUESTIONS, and only one of them has gears in it.
+    // gait_w is "are the feet moving at all" — a fade out of idle, legitimately
+    // a function of speed, with no named value anywhere inside its range.
+    // run_w is WHICH GEAR, and that is sim's decision, ferried. It used to be
+    // (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED), which silently turned
+    // jog into a walk leaning 0.286 toward run the day JOG_SPEED 3.0 landed
+    // between the two rows the line interpolated across (Rule 37).
     const auto walk_speed = static_cast<float>(config::WALK_SPEED);
-    const auto run_speed = static_cast<float>(config::RUN_SPEED);
     const float gait_w =
         std::clamp(drive.speed_mps / (GAIT_FULL_AT_FRAC * walk_speed), 0.0f, 1.0f);
-    const float run_w = std::clamp(
-        (drive.speed_mps - walk_speed) / std::max(0.01f, run_speed - walk_speed), 0.0f,
-        1.0f);
+    const float run_w = gait_run_weight(drive.gait);
     LocalPose pose = idle_pose(drive.anim_time_s);
     if (gait_w > 0.0f) {
         pose = blend(pose,

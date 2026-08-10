@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 20:00:23
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial suite.
+- 10:08:2026 - 20:00:23: A gait held past any transition renders as that gait — steady state at 0.1 s and at an hour, with the 0.286 speed-derived lean as the control.
 */
 
 #include <doctest/doctest.h>
@@ -229,4 +230,112 @@ TEST_CASE("showcase puppet floats and cycles through the clips") {
         update_bodies(world, rig);
     }
     CHECK(world.get<BodyDrive>(puppet)->showcase_clip != first_clip);
+}
+
+// --- GAIT SELECTION -------------------------------------------------------
+// The test a5(i) owes, in the shape sim and this zone converged on: assert
+// the OUTCOME ("this gait renders as this gait") rather than the mechanism
+// ("no interpolation ran"), because a blend mid-transition is CORRECT
+// animation and a mechanism-shaped assertion would forbid the right
+// implementation and then get weakened instead of argued with (Rule 38).
+
+namespace {
+
+// Largest rotation disagreement between two poses, in radians. A pose is what
+// the renderer receives, so this is the observable — no quaternion component
+// is read on its own, and the metric is blind to q vs -q.
+[[nodiscard]] float pose_distance(const LocalPose& a, const LocalPose& b) {
+    float worst = 0.0f;
+    for (uint32_t i = 0; i < BONE_COUNT; ++i) {
+        const float d = std::abs(glm::dot(a.rotation[i], b.rotation[i]));
+        worst = std::max(worst, 2.0f * std::acos(std::min(1.0f, d)));
+    }
+    return worst;
+}
+
+[[nodiscard]] BodyDrive gear_drive(Gait gait, float speed, float hold_s) {
+    BodyDrive d;
+    d.gait = gait;
+    d.speed_mps = speed;
+    d.stride_phase = 0.31f; // an ordinary mid-stride instant, not an extremum
+    d.step_length_m = static_cast<float>(config::STEP_LENGTH_BASE)
+                    + static_cast<float>(config::STEP_LENGTH_PER_MPS) * speed;
+    d.grounded = true;
+    d.anim_time_s = hold_s;
+    return d;
+}
+
+[[nodiscard]] LocalPose gait_reference(const Rig& rig, const BodyDrive& d, float run_w) {
+    LocalPose p = gait_pose(rig, d.stride_phase, d.step_length_m, run_w);
+    apply_joint_limits(rig, p);
+    return p;
+}
+
+} // namespace
+
+TEST_CASE("a gait held past any transition renders as that gait") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    // THE STEADY-STATE QUALIFIER, and it is load-bearing (sim's catch on the
+    // first phrasing of this test): held for 0.1 s and held for an hour must
+    // give the same answer. Anything still settling at 0.1 s has finished by
+    // 3600, so a legitimate transition blend passes; a selection that is a
+    // pure function of speed has nothing to settle and reads identically at
+    // both, which is exactly why the control below still fails.
+    constexpr float BLINK = 0.1f;
+    constexpr float AN_HOUR = 3600.0f;
+    // 0.01 rad = 0.57 deg. Below the angular size of one 640x360 pixel on a
+    // limb at arm's length, and four orders above float noise on these
+    // slerps, so it separates "the same pose" from "a different one".
+    constexpr float SAME_POSE = 0.01f;
+
+    struct Gear {
+        Gait gait;
+        float speed;
+    };
+    for (const Gear g : {Gear{Gait::Walk, static_cast<float>(config::WALK_SPEED)},
+                         Gear{Gait::Jog, static_cast<float>(config::JOG_SPEED)},
+                         Gear{Gait::Run, static_cast<float>(config::RUN_SPEED)}}) {
+        const LocalPose early = evaluate_body_pose(rig, gear_drive(g.gait, g.speed, BLINK));
+        const LocalPose late = evaluate_body_pose(rig, gear_drive(g.gait, g.speed, AN_HOUR));
+        const LocalPose want =
+            gait_reference(rig, gear_drive(g.gait, g.speed, AN_HOUR), gait_run_weight(g.gait));
+        CHECK(pose_distance(late, want) < SAME_POSE);
+        CHECK(pose_distance(early, late) < SAME_POSE);
+    }
+
+    // THE CONTROL (Rule 30), and it is the real rejected instance rather than
+    // a synthetic one: the selection this zone shipped until 10:08:2026,
+    // (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED). At the two ENDS it
+    // agrees with the table, which is why nothing caught it for a morning —
+    // it is wrong only at the interior point a third row created (Rule 37).
+    const auto walk = static_cast<float>(config::WALK_SPEED);
+    const auto jog = static_cast<float>(config::JOG_SPEED);
+    const auto run = static_cast<float>(config::RUN_SPEED);
+    const float speed_derived_at_jog = (jog - walk) / (run - walk);
+    CHECK(speed_derived_at_jog == doctest::Approx(0.286f).epsilon(0.01));
+
+    const BodyDrive d = gear_drive(Gait::Jog, jog, AN_HOUR);
+    const LocalPose rendered = evaluate_body_pose(rig, d);
+    const LocalPose defect = gait_reference(rig, d, speed_derived_at_jog);
+    // 0.05 rad = 2.9 deg. MEASURED disagreement 0.0897 rad = 5.14 deg, worst
+    // at the carried elbow, which moves the hand about 4 cm — so the bound
+    // sits 1.8x below the defect and 5x above SAME_POSE. Both ends of that
+    // gap are measurements, not preferences (Rule 30: a range is two
+    // assertions).
+    constexpr float A_DIFFERENT_GAIT = 0.05f;
+    CHECK(pose_distance(rendered, defect) > A_DIFFERENT_GAIT);
+    // ...and it fails at 0.1 s exactly as it fails at an hour: being a pure
+    // function of speed, it never settles into the gear. This is the half of
+    // Rule 38 that is easy to skip — after loosening an assertion so it stops
+    // forbidding correct code, re-verify that the control still fails it.
+    CHECK(pose_distance(evaluate_body_pose(rig, gear_drive(Gait::Jog, jog, BLINK)), defect)
+          > A_DIFFERENT_GAIT);
+
+    // At the ENDS the two agree, and saying so is what keeps the control
+    // honest: this test would pass a broken implementation that only ever
+    // returned the walk pose, if it were not for the Jog case above.
+    CHECK(gait_run_weight(Gait::Walk) == doctest::Approx(0.0f).epsilon(1e-6));
+    CHECK(gait_run_weight(Gait::Run) == doctest::Approx(1.0f).epsilon(1e-6));
+    CHECK(gait_run_weight(Gait::Jog) > gait_run_weight(Gait::Walk));
+    CHECK(gait_run_weight(Gait::Jog) < gait_run_weight(Gait::Run));
 }

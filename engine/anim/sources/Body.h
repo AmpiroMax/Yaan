@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
+Last updated: 10:08:2026 - 20:00:23
 Module: engine/anim
 File: engine/anim/sources/Body.h
 
@@ -43,6 +43,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:56:45: Initial body/puppet systems.
+- 10:08:2026 - 20:00:23: BodyDrive::gait — the ferry target lead's parked switch writes into.
 */
 
 #pragma once
@@ -77,6 +78,13 @@ struct BodyDrive {
     float stride_phase = 0.0f;      // sim's clock, [0,1)
     float step_length_m = 0.0f;     // sim's length(v) model output
     float speed_mps = 0.0f;         // horizontal speed
+    // THE GEAR sim CHOSE, not the speed it was derived from. This zone used to
+    // re-derive it by comparing speed_mps against WALK_SPEED and RUN_SPEED,
+    // which is the two-copies defect (Rule 35) and became a visible one when a
+    // third gear landed between the two rows (Rule 37). speed_mps survives for
+    // the idle<->moving fade only, which is a question about whether the feet
+    // are moving at all and has no gears in it.
+    Gait gait = Gait::Walk;
     float facing_yaw = 0.0f;        // radians, sim's yaw convention
     bool grounded = true;
     float vertical_velocity = 0.0f; // m/s, + up
