@@ -40,6 +40,7 @@ UPD:
 
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <glm/vec2.hpp>
 #include <vector>
 
@@ -92,6 +93,71 @@ struct FindParams {
                                             glm::vec2 domain_min, glm::vec2 domain_max,
                                             const FindParams& params,
                                             const std::function<float(glm::vec2)>& height);
+
+// --- BR-5's composed-scene instrument (§1.7 ruling, 10.08.2026) ---------------
+//
+// DESIGN RULED THE OCCLUDER SET, NOT JUST THE BAR: on the forest stand BR-5 is
+// measured against terrain + real placed oak trunks + real placed Bush/BigBush,
+// because the terrain side was never meant to carry that job alone there. The
+// bare-terrain reading (0.03/0.06 median at 40/80 m) is kept forever as the
+// must-fail control — it is the literal "forest with the forest deleted".
+//
+// This is NOT the C1/C4 canopy transmittance model. That one is built for crown
+// occlusion of a distant landmark and returns zero blocked here by construction:
+// an eye at 1.7 m and a find top at 0.5 m both sit under crown_base, so every
+// ray passes beneath every crown. The right shape is a stem-level ray-vs-disc
+// test, which is what this is.
+
+/// One occluder: a vertical cylinder standing on the ground.
+///
+/// `top_y` is an ABSOLUTE world height, not a height above ground. A ray that
+/// passes over a bush is not blocked by it, and "above ground" would have to be
+/// re-resolved against the terrain at the bush rather than at the ray — which
+/// is the same two-surfaces mistake that cost this zone a session today.
+struct OccluderDisc {
+    glm::vec2 center{0.0f, 0.0f};
+    float radius = 0.0f;
+    float top_y = 0.0f;
+};
+
+/// THE DISC GEOMETRY, AND IT IS DELIBERATELY NOT DEFAULTED TO ANYTHING.
+///
+/// Rule 35, predicted rather than discovered: a trunk radius already has two
+/// consumers (render's mesh, sim's collision — `species_trunk_radius()` says so
+/// in its own comment) and this instrument makes a third. `engine/world` cannot
+/// include `engine/render` (Rule 1, DAG siblings), so a literal here would be a
+/// third copy of a number nobody owns, which is exactly the defect this project
+/// spent today paying for in a different guise.
+///
+/// The fields are therefore REQUIRED INPUT. When the NUMBERS.md rows land, one
+/// caller changes; until then every call site states its provisional geometry
+/// out loud and can be found by grep.
+struct OccluderGeometry {
+    float oak_trunk_radius_m = 0.0f;   ///< below crown_base, scaled by instance scale
+    float oak_trunk_top_frac = 0.0f;   ///< crown_base as a fraction of tree height
+    float oak_height_m = 0.0f;         ///< nominal, scaled by instance scale
+    float bush_radius_m = 0.0f;
+    float bush_height_m = 0.0f;
+    float big_bush_radius_m = 0.0f;
+    float big_bush_height_m = 0.0f;
+};
+
+/// Builds the occluder set for one seed from REAL PLACED instances (design:
+/// "never a mean-density approximation"). Only the three classes the gate may
+/// depend on are emitted — FallenLog/snag/deadfall are excluded BY CAUSE, not
+/// by size: they are sized for the user's brief, never for a validator, so a
+/// gate that leans on them would be tuned by changing scenery (Rule 36).
+[[nodiscard]] std::vector<OccluderDisc> build_find_occluders(
+    std::span<const math::ScatterInstance> scatter, const OccluderGeometry& geom,
+    const std::function<float(glm::vec2)>& height);
+
+/// BR-5's occluded fraction AT ONE RING RADIUS. Per-distance by construction:
+/// design sharpened the rule so a strong far reading can never buy cover for a
+/// weak near one, and the way to make that unforgettable is to give the
+/// function no way to pool. Pass `discs` empty for the bare-terrain control.
+[[nodiscard]] float occluded_fraction_at(const std::function<float(glm::vec2)>& height,
+                                         std::span<const OccluderDisc> discs, glm::vec2 find,
+                                         float ring_radius_m, int bearings);
 
 /// Spacing (m of route) each regime is placed at, derived from в20's cadence:
 /// FIND_SPACING_BASE_S seconds of walking at WALK_SPEED, times the regime

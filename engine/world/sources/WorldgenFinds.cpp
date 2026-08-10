@@ -31,6 +31,7 @@ UPD:
 #include "engine/world/sources/WorldgenNoise.h"
 
 #include <algorithm>
+#include <span>
 #include <cmath>
 #include <glm/geometric.hpp>
 
@@ -96,6 +97,104 @@ FindKind kind_for(uint64_t seed, uint32_t stream, int64_t i, FindRegime regime) 
 }
 
 } // namespace
+
+std::vector<OccluderDisc> build_find_occluders(std::span<const math::ScatterInstance> scatter,
+                                               const OccluderGeometry& geom,
+                                               const std::function<float(glm::vec2)>& height) {
+    std::vector<OccluderDisc> discs;
+    discs.reserve(scatter.size() / 4);
+    for (const math::ScatterInstance& i : scatter) {
+        const glm::vec2 p{i.position.x, i.position.z};
+        OccluderDisc d;
+        d.center = p;
+        switch (i.species) {
+        case math::ScatterSpecies::OakTree:
+            // Only the CLEAR TRUNK occludes: above crown_base the ray is in
+            // foliage, which is the C1 model's business and not this one.
+            d.radius = geom.oak_trunk_radius_m * i.scale;
+            d.top_y = height(p) + geom.oak_height_m * i.scale * geom.oak_trunk_top_frac;
+            break;
+        case math::ScatterSpecies::Bush:
+            d.radius = geom.bush_radius_m * i.scale;
+            d.top_y = height(p) + geom.bush_height_m * i.scale;
+            break;
+        case math::ScatterSpecies::BigBush:
+            d.radius = geom.big_bush_radius_m * i.scale;
+            d.top_y = height(p) + geom.big_bush_height_m * i.scale;
+            break;
+        default:
+            // EXCLUDED BY CAUSE (design's ruling), not by size: dead wood,
+            // pines, birches, stones and ground cover are not classes this
+            // gate is permitted to depend on.
+            continue;
+        }
+        if (d.radius > 0.0f) {
+            discs.push_back(d);
+        }
+    }
+    return discs;
+}
+
+namespace {
+
+/// True if the eye->find segment is stopped by `d`. Two conditions, and the
+/// height one is what stops a bush "occluding" a find it is nowhere near
+/// vertically.
+///
+/// SEGMENT-vs-DISC, computed exactly, NOT sampled at the march step. A 4 m
+/// stride past a 0.4 m trunk steps over it about nine times out of ten, so a
+/// sampled test would report the stride rather than the forest — the same
+/// class of error as measuring a groove on a lattice too coarse to hold it.
+bool disc_blocks(const OccluderDisc& d, glm::vec2 from, glm::vec2 to, float eye_y, float tgt_y) {
+    const glm::vec2 seg = to - from;
+    const float len2 = glm::dot(seg, seg);
+    if (len2 < 1e-6f) {
+        return false;
+    }
+    float t = glm::dot(d.center - from, seg) / len2;
+    t = std::clamp(t, 0.0f, 1.0f);
+    const glm::vec2 closest = from + seg * t;
+    const glm::vec2 off = d.center - closest;
+    if (glm::dot(off, off) > d.radius * d.radius) {
+        return false;
+    }
+    // The ray's height where it passes the disc. Below the occluder's top means
+    // blocked; a ray sailing over a bush is not blocked by that bush.
+    return eye_y + (tgt_y - eye_y) * t <= d.top_y;
+}
+
+} // namespace
+
+float occluded_fraction_at(const std::function<float(glm::vec2)>& height,
+                           std::span<const OccluderDisc> discs, glm::vec2 find,
+                           float ring_radius_m, int bearings) {
+    if (bearings <= 0) {
+        return 0.0f;
+    }
+    const float tgt_y = height(find) + FIND_TOP_M;
+    int blocked = 0;
+    for (int i = 0; i < bearings; ++i) {
+        const float ang = 6.2831853f * static_cast<float>(i) / static_cast<float>(bearings);
+        const glm::vec2 eye = find + glm::vec2{std::cos(ang), std::sin(ang)} * ring_radius_m;
+        const float eye_y = height(eye) + EYE_M;
+        bool hit = false;
+        // Terrain first: it is the cheap test and it is the one that was here
+        // before, unchanged, so the control really is this instrument minus the
+        // scatter rather than a different instrument.
+        const int steps = std::max(4, static_cast<int>(ring_radius_m / 4.0f));
+        for (int k = 1; k < steps && !hit; ++k) {
+            const float t = static_cast<float>(k) / static_cast<float>(steps);
+            if (height(eye + (find - eye) * t) > eye_y + (tgt_y - eye_y) * t) {
+                hit = true;
+            }
+        }
+        for (std::size_t di = 0; di < discs.size() && !hit; ++di) {
+            hit = disc_blocks(discs[di], eye, find, eye_y, tgt_y);
+        }
+        blocked += hit ? 1 : 0;
+    }
+    return static_cast<float>(blocked) / static_cast<float>(bearings);
+}
 
 float find_spacing_m(FindRegime regime) {
     const float base_m = static_cast<float>(config::FIND_SPACING_BASE_S)

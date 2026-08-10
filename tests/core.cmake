@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 02:59:28
+# Last updated: 10:08:2026 - 20:06:10
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -31,6 +31,9 @@
 #                          byte-identity guard + LF-1/LF-2 acceptances with
 #                          their Rule 30 controls).
 
+# - 10:08:2026 - 20:06:10: test_find_occlusion (BR-5's composed-scene
+#                          ray-vs-disc instrument with its bare-terrain
+#                          must-fail control; links dfn_render for geometry).
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -43,3 +46,7 @@ add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)
 add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
+# Links dfn_render for the SAME reason test_lod_seam does: it checks two zones
+# agree about one geometry (the occluder discs are sized from render's own
+# species table, never from literals copied into the test).
+add_dfn_test(test_find_occlusion core/FindOcclusionTests.cpp dfn_world dfn_render)
