@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 20:20:20
+Last updated: 10:08:2026 - 20:40:52
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -115,6 +115,17 @@ UPD:
 - 10:08:2026 - 20:20:20: probe caveat recorded (sim's catch): the three-arg
   build_voxel_volume omits the derived adit corridors and is exact only on a
   stand with no carves.
+- 10:08:2026 - 20:40:52: THE max() FLOOR OVERSHOOTS THE AUTHORED EDGE DENSITY,
+  measured after flora asked whether the max was deliberate. It is (design
+  ruled max-not-product so cobble keeps a moss residual), but `base` is
+  normalised by the EDGE RAMP'S integral, so wherever clump > edge*rich the
+  realised count exceeds per_100m*rich. Cobble's FlowerCarpet weight is exactly
+  0.0 and it realises ~20 per 100 m of its own route against dirt's 27 and
+  faint-trail's 45 — a residual it is not. Recorded, not enforced: closing the
+  gap between the ruling's intent and its effect is design's.
+  Incidentally settles flora's bare-verge question in the direction they
+  suspected: Dirt places 2.7x MORE than authored, so an empty 40 m of verge is
+  drifts, not under-placement.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -131,6 +142,7 @@ UPD:
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <functional>
 #include <cmath>
 #include <doctest/doctest.h>
@@ -1984,4 +1996,80 @@ TEST_CASE("§5.11: the forest floor carries cover, and BR-3 finally has a denomi
     INFO("BR-3 same-set: margin ", band_density, "/m2 vs wood ", off_density,
          "/m2, ratio ", band_density / std::max(off_density, 1e-9f));
     CHECK(band_density > off_density * static_cast<float>(config::RICH_EDGE_RATIO));
+}
+
+TEST_CASE("§5.11: the max() floor overshoots the authored edge density, and cobble proves it") {
+    // FLORA ASKED WHETHER `max(clump, edge * rich)` (WorldgenScatter.cpp) was
+    // deliberate. IT IS — design ruled max-not-product in §1.7 BR-3 (12:07:08)
+    // so a swept cobble gutter keeps a MOSS RESIDUAL, and a plain product zeros
+    // it (validated by mutation before the ruling: the product correctly reds
+    // the suite). This case is not a challenge to that ruling.
+    //
+    // WHAT IT RECORDS is the consequence nobody had stated. `base` is
+    // normalised by the EDGE RAMP'S OWN INTEGRAL so the realised count lands on
+    // per_100m whatever the ramp's shape — an identity that holds only while
+    // the field IS the ramp. Wherever clump > edge*rich the realised density
+    // exceeds the authored per_100m * rich, by an amount set by the clump
+    // field's distribution rather than by anything authored.
+    //
+    // MEASURED, seed 1, per 100 m of that class's OWN route:
+    //   class          flowers realised / authored
+    //   Cobble   (0)      20.44 / 0.00      <- weight is ZERO
+    //   Dirt     (1)      26.72 / 9.90      2.70x
+    //   FaintTrail(2)     44.87 / 18.00     2.49x
+    //
+    // "Residual" is what the ruling intends; ~20 per 100 m against an authored
+    // zero is not a residual, it is most of a dirt verge. That gap between the
+    // ruling's intent and the implementation's effect is design's to close, so
+    // this case MEASURES and does not enforce.
+    const world::WorldGenContext& c = forest();
+    const auto CHUNKM = static_cast<float>(config::CHUNK_SIZE);
+
+    std::map<int, double> route_len;
+    for (const world::PathRoute& r : c.paths.routes) {
+        for (std::size_t k = 0; k + 1 < r.points.size(); ++k) {
+            route_len[static_cast<int>(r.classes[k])] +=
+                glm::length(r.points[k + 1] - r.points[k]);
+        }
+    }
+    // THE DENOMINATOR IS THE CLASS'S OWN METRES. per_100m is linear, and
+    // dividing by the whole network reads low by exactly the fraction that is
+    // another class — how §5.10's snag density once read nine-fold under.
+    std::map<int, int> flowers;
+    for (int cz = 0; cz < 4; ++cz) {
+        for (int cx = 0; cx < 4; ++cx) {
+            const auto s = world::build_scatter(
+                c.params.seed, c.params.layout, c.hydrology, c.sites, c.erosion, c.paths,
+                {static_cast<float>(cx) * CHUNKM, static_cast<float>(cz) * CHUNKM},
+                {static_cast<float>(cx + 1) * CHUNKM, static_cast<float>(cz + 1) * CHUNKM});
+            for (const math::ScatterInstance& i : s) {
+                if (i.species != math::ScatterSpecies::FlowerCarpet) continue;
+                const world::PathSample ps = c.paths.sample({i.position.x, i.position.z});
+                if (ps.dist_from_worn_edge > c.paths.rich_edge_band_m + 1.0f) continue;
+                ++flowers[static_cast<int>(ps.path_class)];
+            }
+        }
+    }
+    const auto per100 = [&](int cls) {
+        return route_len[cls] < 50.0 ? 0.0
+                                     : flowers[cls] / (route_len[cls] / 100.0);
+    };
+    const double cobble = per100(static_cast<int>(world::PathClass::Cobble));
+    const double dirt = per100(static_cast<int>(world::PathClass::Dirt));
+    const double faint = per100(static_cast<int>(world::PathClass::FaintTrail));
+    INFO("flowers per 100 m of own route — cobble ", cobble, ", dirt ", dirt, ", faint ", faint);
+
+    // DESIGN'S FORMAL ACCEPTANCE IS THE ORDERING, and it still holds.
+    CHECK(faint > dirt);
+    CHECK(dirt > cobble);
+    // AND THE NAMED GAP: cobble's authored FlowerCarpet weight is exactly 0.0,
+    // so anything it carries is the max() floor rather than an authored
+    // density. Asserted as PRESENT, because the day it becomes a true residual
+    // this case must be revisited rather than quietly keep passing.
+    CHECK(cobble > 5.0); // it is ~20; a residual it is not
+    // The separation the authored weights ask for (0 : 0.55 : 1.0) is
+    // compressed by the floor into roughly 0.45 : 0.60 : 1.0. Recorded as a
+    // band so a drift in either direction is visible.
+    CHECK(cobble / faint > 0.30);
+    CHECK(cobble / faint < 0.60);
 }
