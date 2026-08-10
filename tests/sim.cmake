@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 10:08:2026 - 21:13:08
+# Last updated: 10:08:2026 - 21:21:55
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -38,6 +38,13 @@
 #                          in core.cmake because sim implemented the IO under a
 #                          lead carve; it moves to tests/core/ when core takes
 #                          serialization back.
+# - 10:08:2026 - 21:21:55: Added sim_save_delta — the .dfs codec end to
+#                          end on a real file: delta round trip with a second
+#                          payload as its control, the gameplay sections
+#                          travelling in the same file, the seed guard, the
+#                          missing-META refusal, and the forward-compatibility
+#                          case (a section this build does not understand must
+#                          survive a load AND a re-save).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -104,3 +111,7 @@ add_dfn_test(sim_save_format sim/SaveFormatTests.cpp
     dfn_core dfn_gameplay)
 target_compile_definitions(sim_save_format PRIVATE
     DFN_REPO_ROOT="${CMAKE_SOURCE_DIR}")
+
+# The .dfs codec (engine/world), implemented by sim under a lead carve.
+add_dfn_test(sim_save_delta sim/SaveDeltaTests.cpp
+    dfn_world dfn_gameplay dfn_core)
