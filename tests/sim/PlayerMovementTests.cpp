@@ -214,6 +214,44 @@ TEST_CASE("camera eye rides PLAYER_EYE_HEIGHT above the capsule bottom") {
     CHECK(rig.camera.position.x == doctest::Approx(5.0f));
 }
 
+TEST_CASE("the eye sits on the face, PLAYER_EYE_FORWARD ahead of the capsule axis") {
+    // The camera used to sit ON the axis, which put it inside the body's chest
+    // box (centred on that same axis) — looking down filled the frame with
+    // torso and the feet were unreachable by construction (character's
+    // measured frame). The offset is along FACING, not the view direction.
+    constexpr float FWD = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    Rig rig({5.0f, 2.0f, 5.0f});
+    rig.tick();
+    // yaw 0 faces -Z: the eye leads the feet along -Z, and x is untouched.
+    CHECK(rig.camera.position.z == doctest::Approx(5.0f - FWD).epsilon(EPS));
+    CHECK(rig.camera.position.x == doctest::Approx(5.0f).epsilon(EPS));
+
+    // Turned east (+X), the same offset must follow the FACING, not the world.
+    const float half_pi = std::acos(0.0f);
+    rig.state.yaw = half_pi;
+    rig.tick();
+    CHECK(rig.camera.position.x - rig.transform.position.x ==
+          doctest::Approx(FWD).epsilon(EPS));
+    CHECK(rig.camera.position.z - rig.transform.position.z ==
+          doctest::Approx(0.0f).epsilon(EPS));
+
+    // PITCH MUST NOT MOVE THE EYE (the reason the offset is yaw-only): looking
+    // down would otherwise walk the camera forward into whatever it faces.
+    const glm::vec3 before = rig.camera.position;
+    rig.state.pitch = -1.0f;
+    rig.tick();
+    CHECK(rig.camera.position.x == doctest::Approx(before.x).epsilon(EPS));
+    CHECK(rig.camera.position.z == doctest::Approx(before.z).epsilon(EPS));
+
+    // BOUND, the one that keeps the camera out of walls (Rule 30, both ends):
+    // the near plane must stay inside the collision capsule, or the view pokes
+    // through geometry that stops the body.
+    CHECK(FWD + static_cast<float>(config::CAMERA_NEAR) <
+          static_cast<float>(config::PLAYER_CAPSULE_RADIUS));
+    // ...and the offset must clear zero, which is the rejected instance.
+    CHECK(FWD > 0.0f);
+}
+
 TEST_CASE("input accumulation: look sums across frames, axes take the latest") {
     FakeInput input;
     gameplay::PlayerState state;

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 10:08:2026 - 02:27:07
+Last updated: 10:08:2026 - 11:06:41
 -->
 <!--
 UPD:
@@ -20,6 +20,9 @@ UPD:
   clock in PlayerState, FootfallEvents at the bob minima, landing dip, stop
   settle, FOV coupling, counterphase hand sway; StepAudio (footsteps by
   surface + wind loop, в12); PlaytestBot v1 (docs/PLAYTEST.md).
+- 10:08:2026 - 11:06:41: PLAYER_EYE_FORWARD — the eye moved onto the FACE. The
+  camera stood on the capsule axis, inside the body's chest box, so looking
+  down filled the frame with torso (character's measured frame, 4a44c26).
 -->
 
 # engine/gameplay

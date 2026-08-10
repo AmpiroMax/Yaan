@@ -23,6 +23,14 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 11:06:41: THE EYE SITS ON THE FACE (PLAYER_EYE_FORWARD 0.10):
+                         the camera stood on the capsule axis, inside the
+                         body's chest box, so looking down filled the frame
+                         with torso and the player's own feet were unreachable
+                         by construction (character's measured frame, 4a44c26).
+                         Yaw-only offset — pitch-coupling would walk the camera
+                         forward as you look down. Half the fix by arithmetic;
+                         the torso's top face is character's residual.
 - 10:08:2026 - 01:53:17: THE STEP IS AN EVENT (landscape stage, в3): stride
                          advance from ACTUAL displacement, FootfallEvents at
                          the bob minima, landing dip from measured impact,
@@ -77,6 +85,7 @@ constexpr float SPRINT_SPEED =
 constexpr float MOUSE_SENSITIVITY = static_cast<float>(config::MOUSE_SENSITIVITY);
 constexpr float PITCH_LIMIT = static_cast<float>(config::CAMERA_PITCH_LIMIT);
 constexpr float EYE_HEIGHT = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+constexpr float EYE_FORWARD = static_cast<float>(config::PLAYER_EYE_FORWARD);
 constexpr float STAND_HEIGHT = static_cast<float>(config::PLAYER_CAPSULE_HEIGHT);
 constexpr float CROUCH_HEIGHT = static_cast<float>(config::CROUCH_CAPSULE_HEIGHT);
 constexpr float CROUCH_EYE = static_cast<float>(config::CROUCH_EYE_HEIGHT);
@@ -425,7 +434,23 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
         state.stride_phase,
         static_cast<float>(config::HEADBOB_LATERAL_FACTOR) * state.bob_amplitude);
     const glm::vec3 right{std::cos(state.yaw), 0.0f, std::sin(state.yaw)};
-    camera.position = position + glm::vec3{0.0f, eye, 0.0f}
+    // THE EYE SITS ON THE FACE, NOT ON THE SPINE. Without this the camera is
+    // literally inside the chest: the torso box is centred on the same capsule
+    // axis the eye sat on, so looking down filled the whole frame with torso
+    // and the player could never see their own feet (character's measured
+    // frame, docs/acceptance/character-lookdown-66deg-*). Not a tuning value —
+    // it is the missing anatomy between two zones, hence a NUMBERS row both
+    // read (Rule 35: the rig had no eye and the camera had no body).
+    //
+    // YAW ONLY, deliberately: the eye is fixed in the head, and coupling the
+    // offset to PITCH would translate the camera forward as you look down,
+    // which both moves the near plane toward whatever you are facing and makes
+    // the camera position depend on where you look. Modelling the small real
+    // swing about the neck joint is a later refinement, not this fix.
+    // NOT scaled by bob_scale: turning the bob slider off is a motion-sickness
+    // setting, and anatomy is not motion.
+    const glm::vec3 facing{std::sin(state.yaw), 0.0f, -std::cos(state.yaw)};
+    camera.position = position + glm::vec3{0.0f, eye, 0.0f} + facing * EYE_FORWARD
                       + step.bob_scale * (glm::vec3{0.0f, vertical, 0.0f} + right * lateral);
     camera.yaw = state.yaw;
     camera.pitch = state.pitch;

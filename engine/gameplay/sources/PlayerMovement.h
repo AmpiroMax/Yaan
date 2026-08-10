@@ -44,6 +44,11 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 11:06:41: Eye moved onto the FACE (PLAYER_EYE_FORWARD): the eye
+                         point is now capsule bottom + PLAYER_EYE_HEIGHT +
+                         facing * PLAYER_EYE_FORWARD. Consumers deriving from
+                         CameraPose (interaction ray, hand anchor) shift
+                         forward with it — consequences, not surprises.
 - 10:08:2026 - 01:53:17: THE STEP IS AN EVENT (landscape stage, в3): stride
                          cycle in PlayerState (the one step clock, Rule 35 —
                          character's leg animation consumes the same phase);
