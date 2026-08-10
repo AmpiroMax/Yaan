@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 10:08:2026 - 01:59:06
+Last updated: 10:08:2026 - 11:51:23
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -38,10 +38,14 @@ UPD:
   the batcher; FloraShape::wind_phase; season argument.
 - 10:08:2026 - 01:59:06: flora_maturity_for() — the §5.10 maturity-tier draw
   gets its one home, for core to call when filling ScatterInstance.scale.
+- 10:08:2026 - 11:51:23: flora_maturity_for() moved to core/math and is
+  imported here — core's canopy occlusion envelope is defined from its
+  multiplier bands, so the draw gained a second zone (Rule 35).
 */
 
 #pragma once
 
+#include "engine/core/math/sources/FloraField.h"
 #include "engine/core/math/sources/SurfaceField.h"
 #include "engine/render/sources/FloraSpecies.h"
 #include "engine/render/sources/ProcMesh.h"
@@ -124,7 +128,12 @@ void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
 /// flora_variant_for, so core can call it when filling ScatterInstance.scale
 /// and the rule has exactly one home (Rule 35). Distribution is asserted over
 /// its whole declared range in the suite (Rule 31).
-[[nodiscard]] float flora_maturity_for(glm::vec2 world_xz);
+/// MOVED to engine/core/math/sources/FloraField.h (10.08.2026) and imported
+/// here so flora's call sites are unchanged: core's canopy occlusion envelope
+/// is SPECIES_HEIGHT_MAX x TREE_MATURITY_GIANT_MULT_MAX, so the draw gained a
+/// second zone and had to stop belonging to one (Rule 35). Same key, same
+/// mixer, bit-identical results.
+using math::flora_maturity_for;
 
 /// Derives a FloraShape per instance from the instance array itself.
 /// `all` may include neighbouring-chunk instances; results are returned for

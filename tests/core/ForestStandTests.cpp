@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 11:37:17
+Last updated: 10:08:2026 - 11:51:23
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -58,6 +58,14 @@ UPD:
   exactness, GoalKind's ordinal pin, and the mechanical pairing rule that a
   control's label is its claim's label plus "_control" — a Rule 27 obligation
   only a human can check is one that stops being checked.
+- 10:08:2026 - 11:51:23: §5.10 acceptances. The density test measured
+  SNAG_DENSITY_OPEN over the WHOLE STAND and read 0.029/ha against a declared
+  0.25-0.5 — a nine-fold miss that was entirely the denominator, since the oak
+  mass covers this stand and "open ground" is the clearings alone. Fixed by
+  exporting the placement's own domain predicates and dividing by the area the
+  placement multiplied by. Plus: logs measured against the CONTOUR with the
+  fold-uniform 0.785 rad of a drawn yaw as the reachable control, nothing dead
+  on a tread, and the canopy envelope against its own old value.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -65,10 +73,13 @@ UPD:
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/core/math/sources/FloraField.h"
+#include "engine/world/sources/WorldgenScatter.h"
 #include "engine/world/sources/WorldgenVantages.h"
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <cmath>
 #include <doctest/doctest.h>
 #include <glm/geometric.hpp>
@@ -1222,3 +1233,233 @@ TEST_CASE("the path_along vantages stand ON the tread with both margins in frame
     CHECK(checked >= 2); // the SET is the evidence for the per-class scoping
 }
 
+
+namespace {
+
+/// Every scatter instance of the forest stand over a block of chunks, with the
+/// area it was counted over — so a density is measured, never inferred from
+/// the lattice constant that produced it (that would test arithmetic).
+struct FloorCensus {
+    std::vector<math::ScatterInstance> all;
+    float hectares = 0.0f;
+    [[nodiscard]] int count(math::ScatterSpecies s) const {
+        int n = 0;
+        for (const auto& i : all) {
+            if (i.species == s) ++n;
+        }
+        return n;
+    }
+    [[nodiscard]] float per_ha(math::ScatterSpecies s) const {
+        return static_cast<float>(count(s)) / hectares;
+    }
+    /// Density per hectare OF THE GROUND THE ROW APPLIES TO. Measuring an
+    /// open-ground density over the whole stand read 0.029/ha against a
+    /// declared 0.25-0.5 and looked like a nine-fold placement bug; it was the
+    /// denominator, because on the §8.1 stand the oak mass covers everything
+    /// and "open ground" is the clearings alone. The eligible area is sampled
+    /// through the SAME predicate the placement used.
+    [[nodiscard]] float per_eligible_ha(math::ScatterSpecies s,
+                                        const std::function<bool(glm::vec2)>& eligible) const {
+        constexpr float STEP = 4.0f;
+        const float side = static_cast<float>(config::TESTBED_SIZE);
+        int hits = 0, total = 0;
+        for (float z = STEP * 0.5f; z < side; z += STEP) {
+            for (float x = STEP * 0.5f; x < side; x += STEP) {
+                ++total;
+                if (eligible({x, z})) ++hits;
+            }
+        }
+        const float frac = static_cast<float>(hits) / static_cast<float>(total);
+        return static_cast<float>(count(s)) / std::max(hectares * frac, 1e-3f);
+    }
+};
+
+const FloorCensus& floor_census() {
+    static const FloorCensus c = [] {
+        FloorCensus out;
+        const world::WorldGenContext& ctx = forest();
+        for (int cz = 0; cz < 4; ++cz) {
+            for (int cx = 0; cx < 4; ++cx) {
+                const world::Chunk ch = world::generate_chunk(ctx, ChunkCoord{cx, cz});
+                out.all.insert(out.all.end(), ch.scatter.begin(), ch.scatter.end());
+            }
+        }
+        const float side = static_cast<float>(config::TESTBED_SIZE);
+        out.hectares = side * side / 10000.0f;
+        return out;
+    }();
+    return c;
+}
+
+} // namespace
+
+TEST_CASE("§5.10: the forest floor is no longer bare ground, at the declared densities") {
+    const FloorCensus& c = floor_census();
+    // Every one of these rows carried «НЕ ПОСТРОЕНО ... в мире нет ничего»
+    // in NUMBERS.md until this pass existed. The point of the test is that the
+    // rows now have a CONSUMER whose output matches them, so it measures the
+    // realized per-hectare density against the declared band rather than
+    // asserting the lattice constant back to itself.
+    //
+    // The realized figure lands BELOW the band because placement is gated:
+    // water margins, corridors, pads, entrance rings, clearings and the path
+    // treads all reject candidates. The band is therefore the CEILING and the
+    // assertion is two-sided but asymmetric — the floor is a fraction of the
+    // band, and the fraction is stated so a gate that starts rejecting
+    // everything is caught rather than absorbed.
+    const world::WorldGenContext& ctx = forest();
+    const uint64_t seed = ctx.params.seed;
+    const auto& lay = ctx.params.layout;
+    const auto interior = [&](glm::vec2 p) { return world::in_forest_interior(seed, lay, p); };
+    const auto open = [&](glm::vec2 p) { return world::in_open_ground(seed, lay, p); };
+    const auto mass = [&](glm::vec2 p) { return world::in_forest_mass(lay, p); };
+
+    struct Row {
+        const char* name;
+        math::ScatterSpecies sp;
+        double band_min;
+        double band_max;
+        const std::function<bool(glm::vec2)>* domain;
+    };
+    const std::function<bool(glm::vec2)> f_interior = interior;
+    const std::function<bool(glm::vec2)> f_open = open;
+    const std::function<bool(glm::vec2)> f_mass = mass;
+    const Row rows[] = {
+        {"Snag (forest)", math::ScatterSpecies::Snag, config::SNAG_DENSITY_FOREST_MIN,
+         static_cast<double>(config::SNAG_DENSITY_FOREST_MAX), &f_interior},
+        {"SnagPale (open)", math::ScatterSpecies::SnagPale, config::SNAG_DENSITY_OPEN_MIN,
+         config::SNAG_DENSITY_OPEN_MAX, &f_open},
+        {"BigBush", math::ScatterSpecies::BigBush,
+         static_cast<double>(config::BIGBUSH_DENSITY_MIN),
+         static_cast<double>(config::BIGBUSH_DENSITY_MAX), &f_mass},
+        {"FallenLog", math::ScatterSpecies::FallenLog,
+         static_cast<double>(config::LOG_DENSITY_BIG_MIN),
+         static_cast<double>(config::LOG_DENSITY_BIG_MAX), &f_interior},
+        {"Deadfall", math::ScatterSpecies::Deadfall,
+         static_cast<double>(config::LOG_DENSITY_SMALL_MIN),
+         static_cast<double>(config::LOG_DENSITY_SMALL_MAX), &f_interior},
+    };
+    for (const Row& r : rows) {
+        const float d = c.per_eligible_ha(r.sp, *r.domain);
+        INFO(r.name, " realized ", d, "/ha against band ", r.band_min, "..", r.band_max);
+        CHECK(d > 0.0f);                                  // it is IN THE WORLD
+        CHECK(d <= static_cast<float>(r.band_max) * 1.05f); // never above the band
+        CHECK(d >= static_cast<float>(r.band_min) * 0.35f); // and not gated to a sprinkle
+    }
+    // The pale snag is the RARE one — the split exists because a lone bone-white
+    // trunk in the open is a landmark and a grey one in the wood is weather.
+    // If the two densities ever cross, the split has stopped meaning anything.
+    const float dense = c.per_eligible_ha(math::ScatterSpecies::Snag, interior);
+    const float rare = c.per_eligible_ha(math::ScatterSpecies::SnagPale, open);
+    INFO("snag forest ", dense, "/ha of wood, pale ", rare, "/ha of open");
+    CHECK(dense > rare * 2.0f);
+}
+
+TEST_CASE("§5.10: logs lie ACROSS the slope, and the flat-ground control cannot say so") {
+    const FloorCensus& c = floor_census();
+    const world::WorldGenContext& ctx = forest();
+    /// The angle between a log's axis and the local CONTOUR, in radians,
+    /// folded onto [0, pi/2] because a log has no head or tail.
+    const auto off_contour = [&](const math::ScatterInstance& i) {
+        const glm::vec2 p{i.position.x, i.position.z};
+        constexpr float D = 3.0f;
+        const float gx = world::terrain_height(ctx, {p.x + D, p.y})
+                       - world::terrain_height(ctx, {p.x - D, p.y});
+        const float gz = world::terrain_height(ctx, {p.x, p.y + D})
+                       - world::terrain_height(ctx, {p.x, p.y - D});
+        const glm::vec2 axis{std::sin(i.yaw), std::cos(i.yaw)};
+        const glm::vec2 grad{gx, gz};
+        // On the contour, the axis is PERPENDICULAR to the gradient.
+        const float dot = std::fabs(glm::dot(glm::normalize(grad), axis));
+        return std::asin(std::clamp(dot, 0.0f, 1.0f));
+    };
+
+    // Only logs on ground steep enough for "across the slope" to mean anything:
+    // the exclusion is BY CAUSE, not by magnitude (Rule 36) — on ground with no
+    // gradient there is no contour to lie along, and folding those samples in
+    // would dilute the measurement with cases that carry no information.
+    std::vector<float> steep, flat;
+    for (const auto& i : c.all) {
+        if (i.species != math::ScatterSpecies::FallenLog
+            && i.species != math::ScatterSpecies::Deadfall) {
+            continue;
+        }
+        const glm::vec2 p{i.position.x, i.position.z};
+        (world::terrain_slope(ctx, p) > 0.05f ? steep : flat).push_back(off_contour(i));
+    }
+    REQUIRE(steep.size() > 200);
+    const float mean_steep = median(steep);
+    INFO("median angle off contour, sloping ground: ", mean_steep, " rad (", steep.size(),
+         " logs); flat ground: ", flat.size(), " logs");
+    // Across the slope = near 0 off the contour. A drawn yaw would sit at the
+    // mean of a fold-uniform distribution, pi/4 = 0.785 — THE CONTROL, and it
+    // is a real one because the jitter is +-0.22 rad by construction, so a
+    // broken derivation lands on it rather than near it.
+    CHECK(mean_steep < 0.25f);
+    // And the control is reachable: a uniform draw would fail this by 3x.
+    CHECK(mean_steep < 0.7853982f * 0.5f);
+}
+
+TEST_CASE("§5.10: nothing dead lies on the tread or in a corridor") {
+    const FloorCensus& c = floor_census();
+    const world::WorldGenContext& ctx = forest();
+    int checked = 0;
+    for (const auto& i : c.all) {
+        switch (i.species) {
+        case math::ScatterSpecies::Snag:
+        case math::ScatterSpecies::SnagPale:
+        case math::ScatterSpecies::BigBush:
+        case math::ScatterSpecies::FallenLog:
+        case math::ScatterSpecies::Deadfall:
+            break;
+        default:
+            continue;
+        }
+        ++checked;
+        const glm::vec2 p{i.position.x, i.position.z};
+        const world::PathSample s = ctx.paths.sample(p);
+        INFO("dead wood at ", p.x, ",", p.y, " dist_from_worn_edge ", s.dist_from_worn_edge);
+        CHECK(s.dist_from_worn_edge > 0.9f);
+        // And it stands on the SHIPPED ground, not on the pre-erosion field —
+        // the defect the scatter context inherited when the stand was wired.
+        CHECK(i.position.y == doctest::Approx(world::terrain_height(ctx, p)).epsilon(0.02));
+    }
+    CHECK(checked > 500);
+}
+
+TEST_CASE("the canopy occlusion envelope is the GIANT tier, not the nominal height") {
+    // A giant is a DaleOak with maturity > 1 (design §5.10 — one system, not
+    // two), so the ceiling a sightline must clear is the species max TIMES
+    // TREE_MATURITY_GIANT_MULT_MAX. Modelling the nominal height is the
+    // "half the world" defect one factor further out than the one the OAK/PINE
+    // height constants were introduced to fix.
+    const world::WorldGenContext& c = forest();
+    const auto& lay = c.params.layout;
+    float best = 0.0f;
+    for (float z = 100.0f; z < 900.0f; z += 37.0f) {
+        for (float x = 100.0f; x < 900.0f; x += 37.0f) {
+            const glm::vec2 p{x, z};
+            best = std::max(best, world::canopy_height_at(c.params.seed, lay, p,
+                                                          world::terrain_height(c, p)));
+        }
+    }
+    const auto nominal = static_cast<float>(config::OAK_HEIGHT_MAX);
+    const auto giant = static_cast<float>(config::TREE_MATURITY_GIANT_MULT_MAX);
+    INFO("envelope ", best, " nominal ", nominal, " x giant ", giant);
+    CHECK(best == doctest::Approx(nominal * giant));
+    // THE CONTROL IS THE OLD VALUE, and the threshold sits above it: if the
+    // envelope ever collapses back to the nominal height this fails, which is
+    // the whole point of writing it as a comparison rather than as an equality
+    // to a number somebody could re-tune to match.
+    CHECK(best > nominal * 1.05f);
+    // Real trees reach it: the draw is not a ceiling nothing touches.
+    float tallest = 0.0f;
+    for (const auto& i : floor_census().all) {
+        if (i.species == math::ScatterSpecies::OakTree) {
+            tallest = std::max(tallest,
+                               math::flora_maturity_for({i.position.x, i.position.z}));
+        }
+    }
+    INFO("tallest drawn maturity multiplier ", tallest);
+    CHECK(tallest > giant * 0.95f);
+}

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 10:08:2026 - 01:59:06
+Last updated: 10:08:2026 - 11:51:23
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -72,6 +72,11 @@ UPD:
   home. Card LODs keep >= 3 planes per cluster (render-spec floor: plane count
   buys angular coverage, and the edge-on failure is angle-, not distance-,
   dependent).
+- 10:08:2026 - 11:51:23: flora_maturity_for() definition removed (moved to
+  core/math, bit-identical: same key, same splitmix64). flora_species_of()
+  spells out §5.10/§5.11/§5.12 explicitly — its `default` returns Bush, so an
+  unmapped species does not fail to build, it draws a forest floor of snags and
+  logs as a field of shrubs.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -820,54 +825,30 @@ uint32_t flora_variant_for(glm::vec2 world_xz) {
     return static_cast<uint32_t>(mix64(xi * 0x9E3779B1ull ^ mix64(zi)) % FLORA_VARIANTS);
 }
 
-float flora_maturity_for(glm::vec2 world_xz) {
-    // The tier DRAW (design §5.10, TREE_MATURITY_*_PCT = 25/60/12/3), keyed by
-    // quantized world position exactly like flora_variant_for, so it is stable
-    // across runs and chunk borders and needs no field on ScatterInstance.
-    const auto xi =
-        static_cast<uint64_t>(static_cast<int64_t>(std::lround(world_xz.x * 2.0f)));
-    const auto zi =
-        static_cast<uint64_t>(static_cast<int64_t>(std::lround(world_xz.y * 2.0f)));
-    const uint64_t h = mix64(xi * 0x9E3779B1ull ^ mix64(zi ^ 0x5F0AB1ull));
-    const float u = static_cast<float>(h >> 40) / 16777216.0f;      // tier draw
-    const float w = static_cast<float>(mix64(h) >> 40) / 16777216.0f; // in band
-
-    const float giant = static_cast<float>(config::TREE_MATURITY_GIANT_PCT) / 100.0f;
-    const float mature = static_cast<float>(config::TREE_MATURITY_MATURE_PCT) / 100.0f;
-    const float sub = static_cast<float>(config::TREE_MATURITY_SUBMATURE_PCT) / 100.0f;
-
-    // Tier multiplier bands are REGISTRY ROWS (lead's Rule 35 ruling,
-    // 10.08.2026): the moment core's canopy occlusion must know the real crown
-    // ceiling the multipliers gained a second consumer — a 1.5x giant oak is
-    // 48 m against a cited 32, which is the "model half the world's height"
-    // defect caught before it was built. The occlusion envelope is defined as
-    // SPECIES_HEIGHT_MAX x TREE_MATURITY_GIANT_MULT_MAX and both zones read
-    // the same rows.
-    auto band = [w](double lo, double hi) {
-        return static_cast<float>(lo) + w * static_cast<float>(hi - lo);
-    };
-    if (u < giant) {
-        return band(config::TREE_MATURITY_GIANT_MULT_MIN,
-                    config::TREE_MATURITY_GIANT_MULT_MAX);
-    }
-    if (u < giant + mature) {
-        return band(config::TREE_MATURITY_MATURE_MULT_MIN,
-                    config::TREE_MATURITY_MATURE_MULT_MAX);
-    }
-    if (u < giant + mature + sub) {
-        return band(config::TREE_MATURITY_SUBMATURE_MULT_MIN,
-                    config::TREE_MATURITY_SUBMATURE_MULT_MAX);
-    }
-    return band(config::TREE_MATURITY_SAPLING_MULT_MIN,
-                config::TREE_MATURITY_SAPLING_MULT_MAX);
-}
-
 FloraSpecies flora_species_of(math::ScatterSpecies species) {
     switch (species) {
     case math::ScatterSpecies::OakTree: return FloraSpecies::DaleOak;
     case math::ScatterSpecies::PineTree: return FloraSpecies::HighlandPine;
     case math::ScatterSpecies::BirchTree: return FloraSpecies::RiverBirch;
     case math::ScatterSpecies::Bush: return FloraSpecies::Bush;
+    // §5.10/§5.11/§5.12, wired by core 10.08.2026. THE DEFAULT BELOW IS WHY
+    // THESE ARE SPELLED OUT: an unmapped species does not fail to compile, it
+    // silently draws as a Bush — so a forest floor of snags and fallen logs
+    // would have shipped as a field of shrubs and read as "the placement is
+    // broken" rather than "the mapping is missing".
+    case math::ScatterSpecies::Snag: return FloraSpecies::Snag;
+    case math::ScatterSpecies::SnagPale: return FloraSpecies::SnagPale;
+    case math::ScatterSpecies::BigBush: return FloraSpecies::BigBush;
+    case math::ScatterSpecies::FallenLog: return FloraSpecies::FallenLog;
+    case math::ScatterSpecies::Deadfall: return FloraSpecies::Deadfall;
+    case math::ScatterSpecies::MossPatch: return FloraSpecies::MossPatch;
+    case math::ScatterSpecies::FlowerCarpet: return FloraSpecies::FlowerCarpet;
+    case math::ScatterSpecies::FlowerAccent: return FloraSpecies::FlowerAccent;
+    case math::ScatterSpecies::FlowerJewel: return FloraSpecies::FlowerJewel;
+    case math::ScatterSpecies::FlowerUmbel: return FloraSpecies::FlowerUmbel;
+    case math::ScatterSpecies::Mushroom: return FloraSpecies::Mushroom;
+    case math::ScatterSpecies::PebbleCluster: return FloraSpecies::PebbleCluster;
+    case math::ScatterSpecies::StuntedPine: return FloraSpecies::StuntedPine;
     default: return FloraSpecies::Bush;
     }
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 01:58:00
+Last updated: 10:08:2026 - 11:51:23
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -31,6 +31,18 @@ UPD:
 - 09:08:2026 - 18:58:01: Live-play fix: scatter resolves against the FINAL ground (macro + carve + entrance works + pads). Sampling the pre-stamp field buried props by exactly the mound's local rise — measured up to 2.4 m at the river barrow.
 - 09:08:2026 - 22:54:32: Tree occlusion heights sourced from OAK/PINE/BIRCH_HEIGHT_MAX instead of a local table that read 12/18/10 against a world built at 32/38/22 (pine 2.1x under). The sight-wedge filter and the C1 canopy field were both lied to; the wedges never failed.
 - 10:08:2026 - 01:58:00: Birch lattice derives from BIRCH_BANKLINE_SPACING_MIN/MAX (design ruling on core's Rule 32 question: bank-line accent spacing = crown width x 1.1-1.5, NOT TREE_SPACING_FOREST; the hard-coded 8.0 sat inside the band by luck). Mid-of-band derivation, same shape as oak/pine.
+- 10:08:2026 - 11:51:23: scatter_forest_floor(): snags (grey in the wood, pale
+  in the open — two materials on one asset, and a 6x density split is why they
+  are two lattices), big bushes, fallen logs laid ACROSS the slope by derived
+  yaw, deadfall. Lattice cell derived from the declared per-hectare band rather
+  than tabled, so the NUMBERS row stays the single source. THE CANOPY OCCLUSION
+  ENVELOPE is now SPECIES_HEIGHT_MAX x TREE_MATURITY_GIANT_MULT_MAX: a 1.5x
+  giant oak is 48 m where the raycast modelled 32 — the same "half the world's
+  height" defect the species-height constants were introduced to stop, one
+  factor further out. The corridor clause on floor_ok was missing in the first
+  cut and WorldgenV2Tests caught it: §2.4 is asserted over every non-Stone
+  instance, not over trees, and a blanket rule a new species may opt out of is
+  not a rule.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -77,6 +89,22 @@ constexpr float STONE_WATER_MARGIN = 1.5f;
 constexpr float OAK_MAX_H = static_cast<float>(config::OAK_HEIGHT_MAX);
 constexpr float PINE_MAX_H = static_cast<float>(config::PINE_HEIGHT_MAX);
 constexpr float BIRCH_MAX_H = static_cast<float>(config::BIRCH_HEIGHT_MAX);
+
+/// THE CANOPY OCCLUSION ENVELOPE IS NOT THE SPECIES MAX HEIGHT.
+///
+/// A tree's drawn height is its species max TIMES its maturity multiplier, and
+/// the top tier goes to TREE_MATURITY_GIANT_MULT_MAX (design §5.10: a giant is
+/// a DaleOak with maturity > 1, not a second species). So the ceiling a
+/// sightline has to clear is SPECIES_HEIGHT_MAX x GIANT_MULT_MAX — a 1.5x oak
+/// is 48 m where the raycast used to model 32.
+///
+/// This is the SAME DEFECT the OAK/PINE/BIRCH constants above were written to
+/// stop, one factor further out: a world modelled at a fraction of its drawn
+/// height. It was caught before it shipped because the maturity bands became
+/// registry rows with two zones reading them (Rule 35), and the hard-coded 1.2
+/// "max scale margin" below was a third of the way to the right answer by
+/// accident. Both consumers now read the row.
+constexpr float GIANT_MULT = static_cast<float>(config::TREE_MATURITY_GIANT_MULT_MAX);
 
 /// L0 sight wedges (§1.3 C4 enforcement): 2D wedges from each POI standpoint
 /// to the L0 footprint; trees inside a wedge whose canopy top would subtend
@@ -186,6 +214,11 @@ struct ScatterCtx {
     const HydrologyData& hydro;
     const SitesData& sites;
     const SightWedges& wedges;
+    /// The §8.1 stand's own passes. EMPTY ON THE TESTBED, and an empty grid
+    /// samples 0 while an empty network flattens by 0 — so this is one code
+    /// path, not a branch (Rule 32), and the testbed's scatter is byte-identical.
+    const ErosionGrid& erosion;
+    const PathNetwork& paths;
     glm::vec2 chunk_min, chunk_max;
     std::vector<math::ScatterInstance>& out;
 
@@ -199,9 +232,15 @@ struct ScatterCtx {
     /// pre-stamp height sinks by exactly the mound's local rise (and floats by
     /// the forecourt's depth on the cut side). Anything standing ON the ground
     /// must be resolved against the ground that actually ships.
+    /// ... and, on the forest stand, LF-8's erosion delta and the path tread.
+    /// Those were missing when the stand was first wired, which put every
+    /// instance at its PRE-EROSION height — the same class of bug as the
+    /// pre-stamp props above, and invisible until something stands in a gully.
     [[nodiscard]] float ground(glm::vec2 p) const {
-        const float base = water_at(hydro, layout, p, macro_height(seed, layout, p)).height;
-        return pads_height(sites, p, entrance_works_height(sites, p, base));
+        const float base = water_at(hydro, layout, p, macro_height(seed, layout, p)).height
+                         + erosion.sample(p);
+        const float worked = pads_height(sites, p, entrance_works_height(sites, p, base));
+        return worked + paths.flatten_at(p, worked);
     }
     [[nodiscard]] float dist_to_water(glm::vec2 p) const {
         return water_at(hydro, layout, p, macro_height(seed, layout, p)).dist_to_water;
@@ -263,7 +302,7 @@ struct ScatterCtx {
         if (!dry_enough(p, min_water_dist)) return false;
         const float h = ground(p);
         if (on_crag_treeless(p, h)) return false;
-        if (wedges.rejects(p, h + species_max_h * 1.2f)) return false; // max scale margin
+        if (wedges.rejects(p, h + species_max_h * GIANT_MULT)) return false; // the giant tier
         return slope(p) <= TREE_SLOPE;
     }
 
@@ -281,6 +320,153 @@ struct ScatterCtx {
         }
     }
 };
+
+
+// ---------------------------------------------------------------------------
+// §5.10 THE FOREST FLOOR
+//
+// Until this pass existed every constant below was marked НЕ ПОСТРОЕНО in
+// NUMBERS.md with the same sentence repeated eleven times: «меши есть в render,
+// правило есть в документе дизайна, в мире нет ничего — пол леса сегодня это
+// голая земля». The meshes were built, the rule was written, and nothing stood
+// on the ground.
+//
+// SPACING FROM DENSITY, and it is the mid of each declared band, matching the
+// derivation the tree lattices already use: a density of D per hectare is one
+// instance per 10000/D square metres, so the lattice cell is sqrt(10000/D).
+// Stating it as a conversion rather than as a spacing constant is what keeps
+// the NUMBERS row the single source — a tabled spacing would be a second place
+// for the density to live.
+// ---------------------------------------------------------------------------
+
+/// Lattice cell (m) for a per-hectare density band, taken at the band's mid.
+[[nodiscard]] float cell_for_density_ha(double min_per_ha, double max_per_ha) {
+    const auto mid = static_cast<float>(min_per_ha + max_per_ha) * 0.5f;
+    return std::sqrt(10000.0f / std::max(mid, 0.01f));
+}
+
+/// Downslope azimuth at `p` (the direction water runs), or 0 on flat ground.
+[[nodiscard]] float downslope_yaw(const ScatterCtx& ctx, glm::vec2 p) {
+    constexpr float D = 3.0f;
+    const float gx = ctx.ground({p.x + D, p.y}) - ctx.ground({p.x - D, p.y});
+    const float gz = ctx.ground({p.x, p.y + D}) - ctx.ground({p.x, p.y - D});
+    if (std::fabs(gx) < 1e-4f && std::fabs(gz) < 1e-4f) {
+        return 0.0f;
+    }
+    return std::atan2(-gx, -gz);
+}
+
+/// Ground a piece of dead wood may occupy: dry, off the pads and entrances,
+/// out of the §2.4 corridors, and — the clause the tree passes do not have —
+/// OFF THE TREAD.
+///
+/// The corridor clause is here because the first cut left it out and
+/// WorldgenV2Tests caught it immediately: §2.4 corridors are protected ground,
+/// and the suite asserts it over EVERY non-Stone instance rather than over
+/// trees. I would have argued that a 0.25 m deadfall blocks no sightline —
+/// and the argument is beside the point twice over. A corridor is kept clear
+/// because it is walked and looked along, and a trunk lying across it is a
+/// roadblock for the same reason a trunk across a tread is; and a blanket rule
+/// that a new species may opt out of is not a rule.
+[[nodiscard]] bool floor_ok(const ScatterCtx& ctx, glm::vec2 p, float clear_of_tread_m) {
+    if (corridor_distance(ctx.layout, p) < CORRIDOR_HALF + 2.0f) {
+        return false;
+    }
+    if (!ctx.dry_enough(p, BUSH_WATER_MARGIN) || ctx.on_pad(p) || ctx.near_entrance(p)) {
+        return false;
+    }
+    const PathSample ps = ctx.paths.sample(p);
+    return ps.dist_from_worn_edge > clear_of_tread_m;
+}
+
+/// §5.10: standing dead wood, downed wood, and the shrub mass.
+void scatter_forest_floor(ScatterCtx& ctx) {
+    const bool mass_anywhere =
+        ctx.layout.forests.oak_rects[0].z > ctx.layout.forests.oak_rects[0].x
+        || ctx.layout.forests.pine_annulus_r1 > 0.0f;
+    if (!mass_anywhere) {
+        return;
+    }
+
+    // (a) SNAGS, and the split is TWO MATERIALS ON ONE ASSET (design §5.10):
+    // grey-brown and dense inside the wood, where it is weather; bone-pale and
+    // rare in the open, where a single standing dead trunk is a landmark
+    // somebody navigates by. The densities differ by 6x for that reason, so
+    // they are two lattices and not one lattice with a material flag.
+    {
+        const float cell = cell_for_density_ha(config::SNAG_DENSITY_FOREST_MIN,
+                                               static_cast<double>(config::SNAG_DENSITY_FOREST_MAX));
+        ctx.for_cells(cell, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+            WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_FLOOR + 0, gx, gz);
+            const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * cell;
+            if (!ctx.inside_chunk(p) || !in_forest_interior(ctx.seed, ctx.layout, p)) return;
+            if (!floor_ok(ctx, p, 1.5f)) return;
+            ctx.add(p, math::ScatterSpecies::Snag, rng.next_float01() * TAU,
+                    0.75f + rng.next_float01() * 0.5f);
+        });
+    }
+    {
+        const float cell = cell_for_density_ha(config::SNAG_DENSITY_OPEN_MIN,
+                                               config::SNAG_DENSITY_OPEN_MAX);
+        ctx.for_cells(cell, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+            WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_FLOOR + 1, gx, gz);
+            const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * cell;
+            if (!ctx.inside_chunk(p)) return;
+            if (!in_open_ground(ctx.seed, ctx.layout, p) || !floor_ok(ctx, p, 2.0f)) return;
+            ctx.add(p, math::ScatterSpecies::SnagPale, rng.next_float01() * TAU,
+                    0.8f + rng.next_float01() * 0.5f);
+        });
+    }
+
+    // (b) BIG BUSHES. Flora measured this to be BR-5's load-bearing occluder —
+    // not the dead wood, which a ray still 0.5 m up at the find sails over
+    // (bush 0.725 of bearings at 60 m, big bush 0.239, fallen log 0.050, snag
+    // 0.008, deadfall 0.000). Sized for §5.10 all the same, not to feed a
+    // validator: it is the class the user asked for by name.
+    {
+        const float cell = cell_for_density_ha(static_cast<double>(config::BIGBUSH_DENSITY_MIN),
+                                               static_cast<double>(config::BIGBUSH_DENSITY_MAX));
+        ctx.for_cells(cell, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+            WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_FLOOR + 2, gx, gz);
+            const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * cell;
+            if (!ctx.inside_chunk(p) || !in_forest_mass(ctx.layout, p)) return;
+            if (!floor_ok(ctx, p, 1.0f)) return;
+            ctx.add(p, math::ScatterSpecies::BigBush, rng.next_float01() * TAU,
+                    0.8f + rng.next_float01() * 0.4f);
+        });
+    }
+
+    // (c) FALLEN LOGS, ACROSS THE SLOPE — в17's phrasing and a real fact: a
+    // trunk that comes down on a slope rolls until it lies along the contour,
+    // and one lying down the fall line is what a reader notices as wrong even
+    // if they cannot say why. The yaw is therefore DERIVED from the gradient
+    // (downslope + 90 deg) with only a few degrees of jitter, not drawn.
+    const auto scatter_logs = [&](uint32_t stream, math::ScatterSpecies sp, float cell,
+                                  float scale_lo, float scale_hi) {
+        ctx.for_cells(cell, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+            WorldGenRng rng = cell_rng(ctx.seed, stream, gx, gz);
+            const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * cell;
+            if (!ctx.inside_chunk(p) || !in_forest_interior(ctx.seed, ctx.layout, p)) return;
+            if (!floor_ok(ctx, p, 1.5f)) return;
+            constexpr float QUARTER = TAU * 0.25f;
+            constexpr float JITTER = 0.22f; // ~12 deg either way: settled, not surveyed
+            const float yaw = downslope_yaw(ctx, p) + QUARTER
+                            + (rng.next_float01() - 0.5f) * 2.0f * JITTER;
+            ctx.add(p, sp, yaw, scale_lo + rng.next_float01() * (scale_hi - scale_lo));
+        });
+    };
+    scatter_logs(STREAM_SCATTER_FLOOR + 3, math::ScatterSpecies::FallenLog,
+                 cell_for_density_ha(static_cast<double>(config::LOG_DENSITY_BIG_MIN),
+                                     static_cast<double>(config::LOG_DENSITY_BIG_MAX)),
+                 0.85f, 1.3f);
+    // The SMALL row is the deadfall tier: LOG_DENSITY_SMALL is 15-30/ha against
+    // the big row's 3-8, which is litter rather than landmark. Mapping it to
+    // FallenLog as well would have put 25 full trunks on every hectare.
+    scatter_logs(STREAM_SCATTER_FLOOR + 4, math::ScatterSpecies::Deadfall,
+                 cell_for_density_ha(static_cast<double>(config::LOG_DENSITY_SMALL_MIN),
+                                     static_cast<double>(config::LOG_DENSITY_SMALL_MAX)),
+                 0.7f, 1.15f);
+}
 
 /// Forest trees: per-species lattice; oak fills its rects, pine its annulus
 /// and strip; birch lines the banks (§5.1-§5.3).
@@ -504,6 +690,14 @@ bool in_forest_mass(const TestbedLayout& layout, glm::vec2 world) {
     return in_oak(layout, world) || in_pine(layout, world);
 }
 
+bool in_forest_interior(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) {
+    return in_forest_mass(layout, world) && !in_clearing(seed, layout, world);
+}
+
+bool in_open_ground(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) {
+    return !in_forest_mass(layout, world) || in_clearing(seed, layout, world);
+}
+
 float canopy_height_at(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
                        float terrain_h) {
     if (glm::length(world - layout.crag.center) < layout.crag.radius
@@ -518,12 +712,14 @@ float canopy_height_at(uint64_t seed, const TestbedLayout& layout, glm::vec2 wor
     if (in_clearing(seed, layout, world)) {
         return 0.0f;
     }
-    return pine ? PINE_MAX_H : OAK_MAX_H;
+    return (pine ? PINE_MAX_H : OAK_MAX_H) * GIANT_MULT;
 }
 
 std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLayout& layout,
                                                  const HydrologyData& hydro,
-                                                 const SitesData& sites, glm::vec2 chunk_min,
+                                                 const SitesData& sites,
+                                                 const ErosionGrid& erosion,
+                                                 const PathNetwork& paths, glm::vec2 chunk_min,
                                                  glm::vec2 chunk_max) {
     std::vector<math::ScatterInstance> out;
 
@@ -550,11 +746,13 @@ std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLay
     for (const SiteLayout& site : layout.sites) add_standpoint(site.position);
     add_standpoint(layout.watchpoint);
 
-    ScatterCtx ctx{seed, layout, hydro, sites, wedges, chunk_min, chunk_max, out};
+    ScatterCtx ctx{seed, layout, hydro, sites, wedges, erosion, paths, chunk_min,
+                   chunk_max, out};
     scatter_trees(ctx);
     scatter_bushes(ctx);
     scatter_stones(ctx);
     scatter_entrance_markers(ctx);
+    scatter_forest_floor(ctx);
     return out;
 }
 

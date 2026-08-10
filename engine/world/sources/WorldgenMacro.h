@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 02:59:28
+Last updated: 10:08:2026 - 11:51:23
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -35,6 +35,7 @@ UPD:
 - 09:08:2026 - 21:37:57: Banded massif streams: STREAM_MASSIF_PROFILE/LOBE/BAND/RISER; bearing_field/bearing_ridged gain a band index that decorrelates successive contour bands within one stream.
 - 09:08:2026 - 21:37:57: STREAM_MASSIF_MICRO / STREAM_MASSIF_MICRO_AMP for bench micro-relief; polygon_radius replaces the circle-sampled lobe field.
 - 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches to the forest stand's field when layout.stand == Forest (testbed path untouched); STREAM_FOREST_* / STREAM_EROSION / STREAM_PATHS / STREAM_FINDS / STREAM_SCATTER_FLOOR stream ids; ground_micro_relief exposed (one §2.7 octave, two consumers — Rule 32).
+- 10:08:2026 - 11:51:23: STREAM_SCATTER_EDGE (§5.11 rich-edge rows).
 */
 
 #pragma once
@@ -73,7 +74,8 @@ enum WorldgenStream : uint32_t {
     STREAM_EROSION = 74,      // LF-8 droplet seeding
     STREAM_PATHS = 75,        // §8.1 path network draws
     STREAM_FINDS = 76,        // BR-6 find placement draws
-    STREAM_SCATTER_FLOOR = 80, // 80..83: §5.10 forest floor lattices
+    STREAM_SCATTER_FLOOR = 80, // 80..85: §5.10 forest floor lattices
+    STREAM_SCATTER_EDGE = 88,  // 88..95: §5.11 rich-edge species per rule row
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters

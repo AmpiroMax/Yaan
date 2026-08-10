@@ -440,7 +440,7 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
 
     // P5 scatter instances for this chunk.
     chunk.scatter = build_scatter(ctx.params.seed, ctx.params.layout, ctx.hydrology,
-                                  ctx.sites, origin, chunk_max);
+                                  ctx.sites, ctx.erosion, ctx.paths, origin, chunk_max);
 
     // 3D terrain: build the voxel volume from the heightmap just written, then
     // extract its surface and DROP the volume — the world is not destructible,

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 01:48:11
+Last updated: 10:08:2026 - 11:51:23
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -34,6 +34,10 @@ UPD:
 - 09:08:2026 - 19:33:58: Fortress revision: terrace flatness is measured PER WARD (one box across the chain measures the steps between wards, which are supposed to exist) plus a new check that the chain steps down toward the approach.
 - 10:08:2026 - 00:10:41: NEW invariant "one patch of ground carries exactly one water surface" (no cell in two ponds, no cell at two levels, pond_planes == wet non-lake cells with no stacked centres) plus its Rule 30 control, a hand-built pond pair sharing a cell that the same checkers must flag -- including a same-level variant proving the two checkers are not one measurement twice.
 - 10:08:2026 - 01:48:11: Flat-reach tests (grill в23 / §3.1 amendment): drawn pond level == swum station level at every station standing in a pond (with a vacuity guard), lake settled plane <= design constant, and the Rule 30 control — Pond::spill_level is the record of what the OLD construction drew, so 'spill - level > 0.5 m somewhere' proves the rejected instance really occurs and the clamp really binds.
+- 10:08:2026 - 11:51:23: ScatterSpecies ordinals pinned — render's
+  flora_species_of() switches on them for the MESH across a DAG seam, and its
+  `default` returns Bush, so an ordinal walking off the mapping draws a forest
+  floor of snags and logs as a field of shrubs without failing anything.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -893,4 +897,32 @@ TEST_CASE("the impossible pond is unconstructible — and the old construction b
     // gone vacuous on the pond-vs-spill axis.
     REQUIRE(clamped > 0);
     CHECK(worst > 0.5f);
+}
+
+TEST_CASE("ScatterSpecies ordinals are a cross-zone contract and are pinned") {
+    // render::flora_species_of() switches on these to pick a MESH, across a DAG
+    // seam where neither declaration can see the other. A renumber does not
+    // fail to build — it redresses the world, and worse, that function's
+    // `default` returns Bush, so an ordinal that walks off the end of the
+    // mapping silently draws a field of shrubs where the forest floor was.
+    // This test is the only thing standing between those two facts.
+    using math::ScatterSpecies;
+    CHECK(static_cast<uint8_t>(ScatterSpecies::OakTree) == 0);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::PineTree) == 1);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::BirchTree) == 2);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::Bush) == 3);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::Stone) == 4);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::Snag) == 5);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::SnagPale) == 6);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::BigBush) == 7);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::FallenLog) == 8);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::Deadfall) == 9);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::MossPatch) == 10);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::FlowerCarpet) == 11);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::FlowerAccent) == 12);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::FlowerJewel) == 13);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::FlowerUmbel) == 14);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::Mushroom) == 15);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::PebbleCluster) == 16);
+    CHECK(static_cast<uint8_t>(ScatterSpecies::StuntedPine) == 17);
 }

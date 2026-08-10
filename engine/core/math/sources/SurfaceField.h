@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:19:15
+Last updated: 10:08:2026 - 11:51:23
 Module: engine/core/math
 File: engine/core/math/sources/SurfaceField.h
 
@@ -43,6 +43,11 @@ UPD:
 - 10:08:2026 - 11:19:15: §8.1 path handoff (render's request, 10.08.2026):
   PathStation / PathGoalMark primitives + the two cross-section profiles
   moved OUT of WorldgenPaths.cpp so both zones call the same function.
+- 10:08:2026 - 11:51:23: ScatterSpecies gains §5.10's forest floor, §5.11's
+  rich-edge set and §5.12's krummholz (append-only, and the ordinals are the
+  same silent cross-DAG contract PathClass is — pinned). Until this the meshes
+  existed in render and the rules existed in design's document and the forest
+  floor in the world was bare earth, eleven NUMBERS rows deep.
 */
 
 #pragma once
@@ -88,12 +93,36 @@ struct SurfaceFieldView {
 
 /// Species of a scattered instance (P5 meso pass). Append-only enum — render
 /// maps species -> mesh; worldgen never decides drawing.
+/// APPEND-ONLY. Render maps species -> mesh from these ordinals across a DAG
+/// seam it cannot static_assert (render::flora_species_of), so a reorder
+/// silently redresses the world — the same class of defect as PathClass, and
+/// pinned the same way (tests/core/WorldgenV2Tests.cpp).
 enum class ScatterSpecies : uint8_t {
     OakTree = 0,
     PineTree = 1,
     BirchTree = 2,
     Bush = 3,
     Stone = 4,
+    // --- §5.10 THE FOREST FLOOR. Added 10.08.2026: until then every one of
+    // --- these NUMBERS rows was marked НЕ ПОСТРОЕНО with zero consumers —
+    // --- the meshes existed in render, the rule existed in design's document,
+    // --- and the forest floor in the world was bare earth.
+    Snag = 5,      ///< standing dead, IN FOREST: grey-brown weathered, texture
+    SnagPale = 6,  ///< standing dead, IN THE OPEN: bone-white, a real landmark
+    BigBush = 7,   ///< the mass-forming shrub (BR-5's load-bearing occluder)
+    FallenLog = 8, ///< a big trunk down, laid ACROSS the slope
+    Deadfall = 9,  ///< small broken wood, the litter tier
+    // --- §5.11 THE RICH EDGE SET. Ground cover; placement is field-modulated
+    // --- (math::clump_field) and, on a path margin, edge-weighted once.
+    MossPatch = 10,
+    FlowerCarpet = 11,
+    FlowerAccent = 12,
+    FlowerJewel = 13,
+    FlowerUmbel = 14,
+    Mushroom = 15,
+    PebbleCluster = 16,
+    /// §5.12 talus apron: the wind-formed dwarf conifer of the scree band.
+    StuntedPine = 17,
 };
 
 /// One scattered vegetation/stone instance, produced deterministically per
