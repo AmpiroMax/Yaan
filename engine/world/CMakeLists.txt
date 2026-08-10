@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 10:55:03
+# Last updated: 10:08:2026 - 11:19:15
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -28,6 +28,9 @@
 # - 10:08:2026 - 10:40:28: LF-8 erosion overlay: WorldgenErosion.cpp.
 # - 10:08:2026 - 10:44:13: §8.1 path network: WorldgenPaths.cpp.
 # - 10:08:2026 - 10:55:03: BR-6 find layer: WorldgenFinds.cpp.
+# - 10:08:2026 - 11:19:15: WorldgenVantages.cpp — the forest stand's acceptance
+#                          standpoints, so render's Tour can shoot a stand it
+#                          cannot see the coordinates of.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -47,6 +50,7 @@ add_library(dfn_world STATIC
     sources/WorldgenScatter.cpp
     sources/WorldgenSites.cpp
     sources/WorldgenValidation.cpp
+    sources/WorldgenVantages.cpp
     sources/WorldgenWater.cpp)
 
 target_link_libraries(dfn_world PUBLIC dfn_core)

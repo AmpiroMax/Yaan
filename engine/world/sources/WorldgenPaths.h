@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:44:13
-Last updated: 10:08:2026 - 11:11:16
+Last updated: 10:08:2026 - 11:37:17
 Module: engine/world
 File: engine/world/sources/WorldgenPaths.h
 
@@ -42,10 +42,19 @@ UPD:
 - 10:08:2026 - 11:11:16: PathClass ordinals declared a cross-zone contract (flora's
   PathClassRichness maps positionally; siblings in the DAG, so a reorder is
   silent). Pinned by test.
+- 10:08:2026 - 11:37:17: BR-1's acceptance STANDPOINTS, as a pair. The
+  measurement had no place to be photographed from, so a frame of it was a
+  frame of a forest. hidden_station is the run's station nearest
+  BR1_FRAME_RANGE_M (not its middle — the middle sat 400 m out, where the goal
+  covers three lines and the frame cannot fail either way) and visible_station
+  is the range-matched control. Also path_render_stations(): the network as
+  core/math primitives, because render is a DAG sibling and cannot see this
+  header at all.
 */
 
 #pragma once
 
+#include "engine/core/math/sources/SurfaceField.h"
 #include "engine/world/sources/TestbedLayout.h"
 
 #include <cstdint>
@@ -124,6 +133,20 @@ struct PathRoute {
     /// BR-1 measurement: the longest contiguous run (m) of stations from which
     /// the destination goal is occluded at eye height.
     float longest_hidden_run_m = 0.0f;
+    /// THE STANDPOINT OF THAT MEASUREMENT: the station at the middle of the
+    /// longest hidden run, -1 when the route never hides its destination.
+    /// Kept because BR-1's acceptance FRAME has to be shot from where the
+    /// number was taken — a frame from anywhere else is a picture of a forest,
+    /// not evidence about the trace.
+    int hidden_station = -1;
+    /// THE CONTROL STANDPOINT (Rule 30b: for a diagnosis the counterfactual is
+    /// the control). A station on the SAME route, at the SAME range to the SAME
+    /// goal, from which the goal IS visible. Two frames that differ only in
+    /// where along the trace the walker stands: if BR-1 holds, the destination
+    /// is in one of them and absent from the other. A lone "look, no shrine"
+    /// frame cannot fail — a stand made entirely of trees would produce it.
+    /// -1 when no visible station exists at a comparable range.
+    int visible_station = -1;
 };
 
 struct PathParams {
@@ -192,5 +215,15 @@ struct PathNetwork {
 /// sizes its surface splat from the SAME numbers core wears the ground with
 /// (Rule 35: two zones, one number).
 [[nodiscard]] float path_half_width(PathClass c);
+
+/// Flattens the network into the render-side primitives (math::PathStation /
+/// math::PathGoalMark, core/math). Render cannot see `dfn::world` — it is a
+/// DAG sibling — so the polyline crosses as plain structs plus CSR offsets:
+/// route i occupies stations [route_offsets[i], route_offsets[i+1]).
+/// `route_offsets` always ends with the total station count, so the last route
+/// needs no special case and an empty network is a one-element array.
+void path_render_stations(const PathNetwork& net, std::vector<math::PathStation>& stations,
+                          std::vector<uint32_t>& route_offsets,
+                          std::vector<math::PathGoalMark>& goals);
 
 } // namespace dfn::world

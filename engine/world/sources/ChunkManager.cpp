@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 02:05:00
+Last updated: 10:08:2026 - 11:37:17
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -42,12 +42,14 @@ UPD:
 - 09:08:2026 - 22:10:12: water_surface_at(vec2) implemented over the analytic water_at, for sim's swim test.
 - 09:08:2026 - 23:49:27: LOD STREAMING HALF. Coarse node residency (requested -> the one active build -> held until release_coarse_node), nearest-to-focus first, advanced only in updates that admitted NO chunk so two budgets never land in one frame. world_bounds_xz reports the extent the generator was OPENED with. Nothing leaves the held set on its own -- an eviction render did not ask for pulls the ground out from under a mesh it is still drawing.
 - 10:08:2026 - 02:05:00: surface_class_at(vec2) — sampled-field point query (sim request; the world->sample decoder stays in this zone, Rule 35).
+- 10:08:2026 - 11:37:17: path_surface() / stand_vantages() storage, flattened once per open.
 */
 
 #include "engine/world/sources/ChunkManager.h"
 
 #include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/world/sources/WorldgenVantages.h"
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/SiteComponents.h"
@@ -69,6 +71,14 @@ struct ChunkManager::Impl {
 
     WorldGenContext gen_ctx;                      // built once per open_generated
     std::vector<math::LakePlane> lakes;           // water_bodies() storage
+    // path_surface() storage — flattened once per open, same lifetime as lakes.
+    std::vector<math::PathStation> path_stations;
+    std::vector<uint32_t> path_route_offsets;
+    std::vector<math::PathGoalMark> path_goals;
+    std::vector<int32_t> path_hidden_station;
+    std::vector<int32_t> path_visible_station;
+    std::vector<float> path_hidden_run_m;
+    std::vector<math::StandVantage> vantages;      // stand_vantages() storage
     std::unordered_map<uint64_t, Chunk> resident; // key = chunk_group(coord)
     std::vector<ChunkCoord> loaded_coords;        // cache for loaded_chunks()
 
@@ -197,6 +207,29 @@ void ChunkManager::open_generated(const WorldGenParams& gen_params,
     impl_->lakes.assign(1, impl_->gen_ctx.hydrology.lake);
     impl_->lakes.insert(impl_->lakes.end(), impl_->gen_ctx.hydrology.pond_planes.begin(),
                         impl_->gen_ctx.hydrology.pond_planes.end());
+    // The §8.1 path network flattened for render. Unconditional: a stand with
+    // no paths flattens to zero stations and a one-element offsets array, which
+    // is the same code path rather than a branch (Rule 32).
+    path_render_stations(impl_->gen_ctx.paths, impl_->path_stations,
+                         impl_->path_route_offsets, impl_->path_goals);
+    impl_->path_hidden_station.clear();
+    impl_->path_visible_station.clear();
+    impl_->path_hidden_run_m.clear();
+    for (const PathRoute& r : impl_->gen_ctx.paths.routes) {
+        impl_->path_hidden_station.push_back(r.hidden_station);
+        impl_->path_visible_station.push_back(r.visible_station);
+        impl_->path_hidden_run_m.push_back(r.longest_hidden_run_m);
+    }
+    // The stand's own acceptance standpoints. Gated on the STAND, not on
+    // emptiness: the testbed publishes none because its §7.1 route is authored
+    // in render's own testbed_steps(), and inventing forest vantages for it
+    // would emit frames aimed at ground that carries no such claim.
+    impl_->vantages.clear();
+    if (impl_->gen_ctx.params.layout.stand == StandId::Forest) {
+        impl_->vantages = forest_vantages(impl_->gen_ctx.params.seed,
+                                          impl_->gen_ctx.params.layout, impl_->gen_ctx.paths,
+                                          impl_->gen_ctx.finds);
+    }
 }
 
 void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
@@ -396,6 +429,28 @@ ChunkManager::WaterBodies ChunkManager::water_bodies() const {
     }
     return WaterBodies{impl_->lakes, impl_->gen_ctx.hydrology.stations,
                        impl_->gen_ctx.hydrology.segment_offsets};
+}
+
+ChunkManager::PathSurface ChunkManager::path_surface() const {
+    if (!impl_->opened) {
+        return {};
+    }
+    PathSurface ps;
+    ps.stations = impl_->path_stations;
+    ps.route_offsets = impl_->path_route_offsets;
+    ps.goals = impl_->path_goals;
+    ps.rich_edge_band_m = impl_->gen_ctx.paths.rich_edge_band_m;
+    ps.hidden_station = impl_->path_hidden_station;
+    ps.visible_station = impl_->path_visible_station;
+    ps.hidden_run_m = impl_->path_hidden_run_m;
+    return ps;
+}
+
+std::span<const math::StandVantage> ChunkManager::stand_vantages() const {
+    if (!impl_->opened) {
+        return {};
+    }
+    return impl_->vantages;
 }
 
 const Chunk* ChunkManager::chunk(ChunkCoord coord) const {

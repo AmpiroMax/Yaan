@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 10:08:2026 - 02:05:00
+Last updated: 10:08:2026 - 11:37:17
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -45,6 +45,11 @@ UPD:
 - 09:08:2026 - 22:10:12: NEW water_surface_at(vec2) for sim's swimming — resolves against the analytic water field, NOT the drawable primitives (whose coverage guarantee runs field->primitive only, so they can extend past real water) and NOT the sampled grid (quantised at the shoreline).
 - 09:08:2026 - 23:49:27: LOD STREAMING HALF (the agreed seam with render): world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node, plus the two residency counters. Coarse nodes are built incrementally under a per-update row budget inside update(), nearest-to-focus first, and are freed ONLY by release_coarse_node — render drops its mesh before it calls it.
 - 10:08:2026 - 02:05:00: surface_class_at(vec2) for sim's footstep sound — nearest sample of the SAMPLED field render splats from (see doc comment for why it differs from the analytic water_surface_at).
+- 10:08:2026 - 11:37:17: path_surface() and stand_vantages() — the §8.1 path
+  network and the stand's own acceptance standpoints, whole-world and built at
+  open, exactly like water_bodies(). Render owns the Tour and cannot see
+  dfn::world; without these a tour on DFN_MAP=forest shot the TESTBED's
+  coordinates.
 */
 
 #pragma once
@@ -52,6 +57,7 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/math/sources/HeightField.h"
+#include "engine/core/math/sources/StandVantage.h"
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/CoarseTerrain.h"
@@ -166,6 +172,48 @@ public:
         std::span<const uint32_t> river_segment_offsets;
     };
     [[nodiscard]] WaterBodies water_bodies() const;
+
+    /// The §8.1 PATH NETWORK of the whole open world, as render-side
+    /// primitives. Same shape and lifetime as water_bodies(): whole-world,
+    /// built once at open, valid until the manager is re-opened. Empty on
+    /// stands that declare no paths — an empty span is a valid answer, not a
+    /// failure, so no consumer needs a stand check (Rule 32).
+    ///
+    /// Route i occupies stations [route_offsets[i], route_offsets[i+1]);
+    /// route_offsets always ends with the total, so the last route is not a
+    /// special case.
+    struct PathSurface {
+        std::span<const math::PathStation> stations;
+        std::span<const uint32_t> route_offsets;
+        std::span<const math::PathGoalMark> goals;
+        /// BR-3's margin band reach (m), outward from the worn edge — the
+        /// `band_m` argument of math::path_edge_profile.
+        float rich_edge_band_m = 0.0f;
+        /// BR-1, per route. `hidden_run_m` is the longest contiguous run with
+        /// the destination occluded; `hidden_station` is the station at the
+        /// MIDDLE of that run, and `visible_station` is the paired CONTROL —
+        /// the station on the same route at the same range to the same goal
+        /// from which the goal IS visible.
+        ///
+        /// The pair is the point. A single frame of ground with no shrine in it
+        /// cannot fail (Rule 27): a stand made entirely of trees would produce
+        /// it by accident. Two frames that differ only in where along the trace
+        /// the walker stands can. Both indices are -1 where they do not exist.
+        std::span<const int32_t> hidden_station;
+        std::span<const int32_t> visible_station;
+        std::span<const float> hidden_run_m;
+    };
+    [[nodiscard]] PathSurface path_surface() const;
+
+    /// THE OPEN STAND'S ACCEPTANCE STANDPOINTS (WorldgenVantages.h), controls
+    /// included and paired with their claims. Built once at open, valid until
+    /// re-open; empty on stands that publish none, which is a valid answer.
+    ///
+    /// This exists because the Tour lives in render and render cannot see
+    /// `dfn::world`. Without it a tour on a stand other than the testbed shoots
+    /// the testbed's coordinates, which on the forest stand means one frame and
+    /// a stop — a stand nobody can photograph cannot be accepted by anyone.
+    [[nodiscard]] std::span<const math::StandVantage> stand_vantages() const;
 
     /// Full chunk data of a resident chunk (editor, save encoding). nullptr if
     /// not resident.

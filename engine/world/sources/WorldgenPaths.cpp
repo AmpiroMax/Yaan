@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:44:13
-Last updated: 10:08:2026 - 10:44:13
+Last updated: 10:08:2026 - 11:37:17
 Module: engine/world
 File: engine/world/sources/WorldgenPaths.cpp
 
@@ -24,6 +24,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 10:44:13: Created.
+- 10:08:2026 - 11:37:17: The wear/edge ramps MOVED to core/math (SurfaceField.h):
+  render draws the tread from them per pixel and flora plants the verge
+  against them, so a copy here would drift into a verge sitting beside an edge
+  that has moved. Plus the BR-1 standpoint pair.
 */
 
 #include "engine/world/sources/WorldgenPaths.h"
@@ -42,6 +46,17 @@ namespace {
 
 constexpr float EYE_M = static_cast<float>(config::PLAYER_EYE_HEIGHT);
 constexpr float HIDE_MIN_RUN_M = static_cast<float>(config::HIDE_REVEAL_MIN_RUN_M);
+
+/// Range from the goal at which BR-1's acceptance PAIR is shot (m).
+///
+/// DERIVED FROM THE FRAME, not chosen: the claim is "the destination is not in
+/// this picture", and it is only falsifiable at a range where the destination
+/// WOULD be in the picture. A goal reads at roughly 3 m; at INTERNAL_RES_H
+/// lines over CAMERA_FOV_Y that is 3/d radians spread over (FOV/H) radians per
+/// line, i.e. about 3*H/(FOV*d) lines tall — 8 lines at 120 m and 2.5 at
+/// 400 m. Two or three lines of a 360-line frame is not a shrine anyone can
+/// see, so a frame taken out there cannot fail and is not evidence.
+constexpr float BR1_FRAME_RANGE_M = 120.0f;
 
 /// Worn half-widths. REQUESTED NUMBERS rows (Rule 35 — render sizes its splat
 /// from these, so they stop belonging to core the moment render reads them):
@@ -365,18 +380,44 @@ PathSample PathNetwork::sample(glm::vec2 world) const {
     s.dist_from_worn_edge = s.dist_to_center - s.worn_half_width;
 
     // The three bands (research A6, §8.1 item 1) as a GRADIENT, never a
-    // ribbon: worn centre -> pressed margins -> rich edge.
-    const float t = s.dist_to_center / s.worn_half_width;
-    s.wear = std::clamp(1.0f - t * t, 0.0f, 1.0f);
-    const float e = s.dist_from_worn_edge;
-    if (e >= 0.0f && e < rich_edge_band_m) {
-        // The peak is NOT at the edge itself: the first few centimetres are
-        // still pressed by feet that stray off the tread.
-        constexpr float PEAK = 0.35f;
-        s.edge = (e < PEAK) ? (e / PEAK)
-                            : std::max(0.0f, 1.0f - (e - PEAK) / (rich_edge_band_m - PEAK));
-    }
+    // ribbon: worn centre -> pressed margins -> rich edge. BOTH RAMPS LIVE IN
+    // core/math (SurfaceField.h) because render draws the tread from them and
+    // flora plants the verge against them — see the notice in that header.
+    s.wear = math::path_wear_profile(s.dist_to_center / s.worn_half_width);
+    s.edge = math::path_edge_profile(s.dist_from_worn_edge, rich_edge_band_m);
     return s;
+}
+
+void path_render_stations(const PathNetwork& net, std::vector<math::PathStation>& stations,
+                          std::vector<uint32_t>& route_offsets,
+                          std::vector<math::PathGoalMark>& goals) {
+    stations.clear();
+    route_offsets.clear();
+    goals.clear();
+    route_offsets.reserve(net.routes.size() + 1);
+    for (const PathRoute& r : net.routes) {
+        route_offsets.push_back(static_cast<uint32_t>(stations.size()));
+        for (std::size_t i = 0; i < r.points.size(); ++i) {
+            math::PathStation st;
+            st.position = r.points[i];
+            st.tread_height = r.heights[i];
+            st.worn_half_width = path_half_width(r.classes[i]);
+            st.path_class = static_cast<uint8_t>(r.classes[i]);
+            stations.push_back(st);
+        }
+    }
+    // CSR: the terminator is what makes `route i = [off[i], off[i+1])` work for
+    // the LAST route as well. Emitted unconditionally, so an empty network is a
+    // single-element offsets array and zero routes rather than a special case.
+    route_offsets.push_back(static_cast<uint32_t>(stations.size()));
+    for (const Goal& g : net.goals) {
+        math::PathGoalMark m;
+        m.position = g.position;
+        m.height = g.height;
+        m.kind = static_cast<uint8_t>(g.kind);
+        m.importance = g.importance;
+        goals.push_back(m);
+    }
 }
 
 float PathNetwork::max_detour_ratio() const {
@@ -537,8 +578,14 @@ PathNetwork build_path_network(uint64_t seed, const TestbedLayout& layout, glm::
         r.optimal_length_m = polyline_length(to_points(plain));
 
         // BR-1 measurement at the ruled stations: the longest contiguous run
-        // from which the destination is occluded at eye height.
+        // from which the destination is occluded at eye height. The run's
+        // MIDDLE station is recorded with it, because the acceptance frame has
+        // to be shot from the standpoint the number was taken at.
         float run = 0.0f;
+        std::size_t run_begin = 0;
+        std::size_t best_begin = 0;
+        std::size_t best_end = 0;
+        bool have_run = false;
         for (std::size_t i = 0; i + 1 < r.points.size(); ++i) {
             // The last stations are excluded by CAUSE, not by magnitude
             // (Rule 36): within one station of the goal the "destination" is
@@ -547,10 +594,63 @@ PathNetwork build_path_network(uint64_t seed, const TestbedLayout& layout, glm::
                 continue;
             }
             if (!visible(g, r.points[i], b.position, 2.0f)) {
+                if (run <= 0.0f) {
+                    run_begin = i;
+                }
                 run += glm::length(r.points[i + 1] - r.points[i]);
-                r.longest_hidden_run_m = std::max(r.longest_hidden_run_m, run);
+                if (run > r.longest_hidden_run_m) {
+                    r.longest_hidden_run_m = run;
+                    best_begin = run_begin;
+                    best_end = i;
+                    have_run = true;
+                }
             } else {
                 run = 0.0f;
+            }
+        }
+
+        // ---- the BR-1 acceptance PAIR ------------------------------------
+        // Not the middle of the run, and not the longest range: the station
+        // inside the run whose distance to the goal is closest to
+        // BR1_FRAME_RANGE_M. The middle was the obvious choice and the wrong
+        // one — on the long route it sat 400 m out, where a shrine covers
+        // three pixels of a 360-line frame whether or not a hill is in front
+        // of it. A frame in which the subject would be invisible ANYWAY cannot
+        // fail (Rule 27), so the standpoint is chosen at a range where the
+        // goal WOULD read if the trace let it.
+        if (have_run) {
+            float best_err = 1e18f;
+            for (std::size_t i = best_begin; i <= best_end; ++i) {
+                const float err =
+                    std::fabs(glm::length(r.points[i] - b.position) - BR1_FRAME_RANGE_M);
+                if (err < best_err) {
+                    best_err = err;
+                    r.hidden_station = static_cast<int>(i);
+                }
+            }
+        }
+        // The paired CONTROL standpoint: same route, same goal, matched RANGE,
+        // goal visible. Matching the range is what makes it a control rather
+        // than a second picture — an unmatched station would differ in two
+        // things at once (where it stands AND how far away the goal is), and a
+        // reader could then credit the distance for the disappearance. A route
+        // that has no visible station at a comparable range therefore yields NO
+        // control, and forest_vantages skips it rather than shipping half a
+        // pair.
+        if (r.hidden_station >= 0) {
+            const float ref =
+                glm::length(r.points[static_cast<std::size_t>(r.hidden_station)] - b.position);
+            float best_err = 1e18f;
+            for (std::size_t i = 0; i + 1 < r.points.size(); ++i) {
+                const float d = glm::length(r.points[i] - b.position);
+                if (d < params.station_m || !visible(g, r.points[i], b.position, 2.0f)) {
+                    continue;
+                }
+                const float err = std::fabs(d - ref);
+                if (err < best_err) {
+                    best_err = err;
+                    r.visible_station = static_cast<int>(i);
+                }
             }
         }
 

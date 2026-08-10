@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 11:11:16
+Last updated: 10:08:2026 - 11:37:17
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -46,6 +46,18 @@ UPD:
   its swale floors percolate.
 - 10:08:2026 - 11:11:16: PathClass ordinals pinned — flora's maintenance column maps to
   them positionally across a DAG seam no static_assert can reach.
+- 10:08:2026 - 11:37:17: The vantage suite, and it is the reason three defects
+  are not in the tree: the LF-2 standpoints were the argmin of a field that is
+  EXACTLY ZERO over 55 % of the stand, so "the minimum" was a plateau of tied
+  ties and the winner was whichever corner the scan reached first; the BR-1
+  pair stood at 402 m against a 185 m control, which is two pictures rather
+  than a control; and the first run of all of it was read off a STALE BINARY
+  because a `head -20` on the build log hid the compile errors under the
+  warnings (Rule 34 — the premise was unchecked). Adds: the cross-section
+  agreement between PathNetwork::sample and core/math, the render handoff's
+  exactness, GoalKind's ordinal pin, and the mechanical pairing rule that a
+  control's label is its claim's label plus "_control" — a Rule 27 obligation
+  only a human can check is one that stops being checked.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -53,8 +65,10 @@ UPD:
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/world/sources/WorldgenVantages.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <doctest/doctest.h>
 #include <glm/geometric.hpp>
@@ -911,3 +925,300 @@ TEST_CASE("PathClass ordinals are a cross-zone contract and are pinned") {
     CHECK(world::path_half_width(world::PathClass::StoneSteps)
           > world::path_half_width(world::PathClass::FaintTrail));
 }
+
+TEST_CASE("GoalKind ordinals are a cross-zone contract and are pinned") {
+    // Same disease as PathClass, one struct along: math::PathGoalMark carries
+    // the kind as a bare uint8_t because render cannot name world's enum, and
+    // render switches on it to pick a marker. A renumber here does not fail to
+    // compile anywhere — it just puts a shrine's marker on a woodcutter's hut.
+    CHECK(static_cast<uint8_t>(world::GoalKind::ClearingShrine) == 0);
+    CHECK(static_cast<uint8_t>(world::GoalKind::Spring) == 1);
+    CHECK(static_cast<uint8_t>(world::GoalKind::WoodcuttersHut) == 2);
+    CHECK(static_cast<uint8_t>(world::GoalKind::SpireGroup) == 3);
+    CHECK(static_cast<uint8_t>(world::GoalKind::CrestCairn) == 4);
+}
+
+TEST_CASE("the path cross-section has ONE definition and PathSample calls it") {
+    // Render draws the tread per pixel from math::path_wear_profile /
+    // path_edge_profile and flora plants the verge against the same two. If
+    // PathNetwork::sample ever grows its own copy of either ramp, the verge
+    // walks off the edge it was measured against and nothing fails — so the
+    // agreement is asserted rather than assumed.
+    const world::WorldGenContext& c = forest();
+    const world::PathNetwork& net = c.paths;
+    REQUIRE(!net.routes.empty());
+    const world::PathRoute& r = net.routes.front();
+    const auto mid = r.points.size() / 2;
+    const glm::vec2 t = glm::normalize(r.points[mid + 1] - r.points[mid]);
+    const glm::vec2 n{-t.y, t.x};
+    int checked = 0;
+    for (float off = 0.0f; off <= 4.0f; off += 0.1f) {
+        const world::PathSample s = net.sample(r.points[mid] + n * off);
+        CHECK(s.wear
+              == doctest::Approx(math::path_wear_profile(s.dist_to_center / s.worn_half_width))
+                     .epsilon(1e-5));
+        CHECK(s.edge
+              == doctest::Approx(math::path_edge_profile(s.dist_from_worn_edge,
+                                                         net.rich_edge_band_m))
+                     .epsilon(1e-5));
+        ++checked;
+    }
+    CHECK(checked > 30);
+    // The two ramps are OPPOSITE claims about the same ground, so nowhere may
+    // both be positive: that would be ground both trodden bare and richly
+    // vegetated. The check has a case that can fail it — the offsets above
+    // sweep straight through the worn edge where a sloppy ramp would overlap.
+    for (float off = 0.0f; off <= 4.0f; off += 0.05f) {
+        const world::PathSample s = net.sample(r.points[mid] + n * off);
+        CHECK_FALSE((s.wear > 0.0f && s.edge > 0.0f));
+    }
+    // And the peak sits where design put it: OUTSIDE the worn edge by a boot's
+    // width, not at the edge itself.
+    CHECK(math::path_edge_profile(0.0f, 2.5f) == doctest::Approx(0.0f));
+    CHECK(math::path_edge_profile(math::PATH_EDGE_PEAK_M, 2.5f) == doctest::Approx(1.0f));
+    CHECK(math::path_edge_profile(2.5f, 2.5f) == doctest::Approx(0.0f));
+}
+
+TEST_CASE("the render handoff carries the whole network and nothing invented") {
+    const world::WorldGenContext& c = forest();
+    std::vector<math::PathStation> stations;
+    std::vector<uint32_t> offsets;
+    std::vector<math::PathGoalMark> goals;
+    world::path_render_stations(c.paths, stations, offsets, goals);
+
+    REQUIRE(offsets.size() == c.paths.routes.size() + 1);
+    CHECK(offsets.front() == 0);
+    CHECK(offsets.back() == stations.size());
+    CHECK(goals.size() == c.paths.goals.size());
+    for (std::size_t ri = 0; ri < c.paths.routes.size(); ++ri) {
+        const world::PathRoute& r = c.paths.routes[ri];
+        REQUIRE(offsets[ri + 1] - offsets[ri] == r.points.size());
+        for (std::size_t k = 0; k < r.points.size(); ++k) {
+            const math::PathStation& st = stations[offsets[ri] + k];
+            CHECK(st.position.x == doctest::Approx(r.points[k].x));
+            CHECK(st.tread_height == doctest::Approx(r.heights[k]));
+            CHECK(st.path_class == static_cast<uint8_t>(r.classes[k]));
+            CHECK(st.worn_half_width == doctest::Approx(world::path_half_width(r.classes[k])));
+        }
+    }
+    // RENDER'S LOAD-BEARING ASSUMPTION, checked here rather than in render's
+    // head: a ribbon drawn AT tread_height must clear the flattened ground, or
+    // it z-fights along its whole length. Measured, not asserted from the
+    // formula — the formula is what could be wrong.
+    float worst_clearance = 1e9f;
+    for (const world::PathRoute& r : c.paths.routes) {
+        for (std::size_t k = 1; k + 1 < r.points.size(); ++k) {
+            worst_clearance =
+                std::min(worst_clearance, r.heights[k] - world::terrain_height(c, r.points[k]));
+        }
+    }
+    INFO("worst tread-above-ground clearance ", worst_clearance, " m");
+    CHECK(worst_clearance > 0.0f);
+    CHECK(worst_clearance
+          == doctest::Approx(static_cast<float>(config::PATH_GROOVE_DEPTH)).epsilon(0.25));
+}
+
+TEST_CASE("the stand publishes vantages, and every claim ships with its control") {
+    const world::WorldGenContext& c = forest();
+    const auto vs = world::forest_vantages(c.params.seed, c.params.layout, c.paths, c.finds);
+    REQUIRE(!vs.empty());
+
+    const auto find_label = [&](const std::string& l) -> const math::StandVantage* {
+        for (const math::StandVantage& v : vs) {
+            if (v.label == l) return &v;
+        }
+        return nullptr;
+    };
+    const auto has_prefix = [&](const std::string& p) {
+        for (const math::StandVantage& v : vs) {
+            if (v.label.rfind(p, 0) == 0) return true;
+        }
+        return false;
+    };
+
+    // THE PAIRING RULE, MECHANICALLY (Rule 27). The convention is that a
+    // control's label is its claim's label plus "_control" — chosen so this
+    // loop can exist. A prettier scheme ("br1_hidden" against
+    // "br1_visible_control") pairs only in a reader's head, and an obligation
+    // only a reader can check is one that quietly stops being checked.
+    int controls = 0;
+    for (const math::StandVantage& v : vs) {
+        const std::string suffix = "_control";
+        if (v.label.size() <= suffix.size()
+            || v.label.compare(v.label.size() - suffix.size(), suffix.size(), suffix) != 0) {
+            continue;
+        }
+        ++controls;
+        const std::string claim = v.label.substr(0, v.label.size() - suffix.size());
+        INFO("orphan control ", v.label, " -> expected claim ", claim);
+        CHECK(find_label(claim) != nullptr);
+    }
+    CHECK(controls >= 2); // and the loop above is vacuous without this
+    CHECK(has_prefix("br1_hidden"));
+    CHECK(find_label("lf2_swale_floor") != nullptr);
+    CHECK(find_label("lf2_swale_floor_control") != nullptr);
+    // The money frame: the tread with its margins in shot. At least the dirt
+    // class, which is what the network is mostly built of.
+    CHECK(find_label("path_along_dirt") != nullptr);
+    CHECK(has_prefix("goal_"));
+
+    // Labels are filenames. A duplicate silently overwrites an archived frame,
+    // and the frame that survives is whichever ran last.
+    for (std::size_t i = 0; i < vs.size(); ++i) {
+        for (std::size_t j = i + 1; j < vs.size(); ++j) {
+            INFO("duplicate label ", vs[i].label);
+            CHECK(vs[i].label != vs[j].label);
+        }
+        for (const char ch : vs[i].label) {
+            CHECK((std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_'));
+        }
+        // Inside the stand, and aimed at something that is not itself.
+        CHECK(vs[i].position.x > 0.0f);
+        CHECK(vs[i].position.x < static_cast<float>(config::TESTBED_SIZE));
+        CHECK(vs[i].position.y > 0.0f);
+        CHECK(vs[i].position.y < static_cast<float>(config::TESTBED_SIZE));
+        CHECK(glm::length(vs[i].subject - vs[i].position) > 1.0f);
+        CHECK(vs[i].eye_offset == doctest::Approx(config::PLAYER_EYE_HEIGHT));
+        // The yaw must agree with the subject, or a consumer that re-aims and
+        // a consumer that does not would shoot two different frames.
+        const glm::vec2 d = vs[i].subject - vs[i].position;
+        CHECK(vs[i].yaw == doctest::Approx(std::atan2(d.x, -d.y)).epsilon(1e-4));
+    }
+
+    // Rule 13.1: the query is a pure function, so a second call is the same list.
+    const auto again = world::forest_vantages(c.params.seed, c.params.layout, c.paths, c.finds);
+    REQUIRE(again.size() == vs.size());
+    for (std::size_t i = 0; i < vs.size(); ++i) {
+        CHECK(again[i].label == vs[i].label);
+        CHECK(again[i].position.x == doctest::Approx(vs[i].position.x));
+        CHECK(again[i].position.y == doctest::Approx(vs[i].position.y));
+        CHECK(again[i].yaw == doctest::Approx(vs[i].yaw));
+    }
+}
+
+TEST_CASE("BR-1's vantage pair: the destination is absent from one frame and in the other") {
+    const world::WorldGenContext& c = forest();
+    const auto vs = world::forest_vantages(c.params.seed, c.params.layout, c.paths, c.finds);
+    const math::StandVantage* hidden = nullptr;
+    const math::StandVantage* control = nullptr;
+    for (const math::StandVantage& v : vs) {
+        if (v.label.rfind("br1_hidden", 0) != 0) continue;
+        if (v.label.size() > 8 && v.label.compare(v.label.size() - 8, 8, "_control") == 0) {
+            control = &v;
+        } else {
+            hidden = &v;
+        }
+    }
+    REQUIRE(hidden != nullptr);
+    REQUIRE(control != nullptr);
+    // Same goal — otherwise the pair is two pictures, not a control.
+    CHECK(glm::length(hidden->subject - control->subject) < 1.0f);
+
+    // The claim, re-measured on the SHIPPED field rather than trusted from the
+    // router's own 4 m grid.
+    INFO("hidden standpoint ", hidden->position.x, ",", hidden->position.y);
+    CHECK_FALSE(eye_visible(c, hidden->position, hidden->subject));
+    INFO("control standpoint ", control->position.x, ",", control->position.y);
+    CHECK(eye_visible(c, control->position, control->subject));
+
+    // MATCHED RANGE is what makes it a control and not a coincidence: an
+    // unmatched pair differs in two things at once and a reader could credit
+    // the distance for the disappearance. Within a couple of stations.
+    const float dh = glm::length(hidden->subject - hidden->position);
+    const float dc = glm::length(control->subject - control->position);
+    INFO("hidden range ", dh, " control range ", dc);
+    // Stated as a FRACTION of the range, which is what "the goal looks about
+    // the same size in both" actually means; the absolute cap is the
+    // generator's own selection rule restated so a loosened rule fails here.
+    CHECK(std::fabs(dh - dc) < 0.25f * dh);
+    CHECK(std::fabs(dh - dc) < 25.0f);
+    // And both frames are shot where a goal WOULD read — 3 m of shrine over
+    // 360 lines at CAMERA_FOV_Y is ~8 lines at 120 m and ~2 at 400 m. A frame
+    // whose subject is invisible either way cannot fail, so it is not evidence.
+    CHECK(dh > 40.0f);
+    CHECK(dh < 220.0f);
+}
+
+TEST_CASE("the LF-2 vantages stand on the landform, and the glade control does not") {
+    const world::WorldGenContext& c = forest();
+    const auto vs = world::forest_vantages(c.params.seed, c.params.layout, c.paths, c.finds);
+    const math::StandVantage* floor_v = nullptr;
+    const math::StandVantage* crest_v = nullptr;
+    const math::StandVantage* glade_v = nullptr;
+    for (const math::StandVantage& v : vs) {
+        if (v.label == "lf2_swale_floor") floor_v = &v;
+        if (v.label == "lf2_crest") crest_v = &v;
+        if (v.label == "lf2_swale_floor_control") glade_v = &v;
+    }
+    REQUIRE(floor_v != nullptr);
+    REQUIRE(crest_v != nullptr);
+    REQUIRE(glade_v != nullptr);
+
+    const float g_floor = world::forest_grive_component(c.params.seed, floor_v->position);
+    const float g_crest = world::forest_grive_component(c.params.seed, crest_v->position);
+    INFO("grive at floor ", g_floor, " at crest ", g_crest);
+    CHECK(g_crest - g_floor >= world::LF2_HILL_RELIEF_MIN);
+
+    /// Relief a standing camera would actually see: max minus min of the
+    /// SHIPPED field over a disc the size of the frame's foreground.
+    const auto local_relief = [&](glm::vec2 p) {
+        float lo = 1e9f, hi = -1e9f;
+        for (float dz = -40.0f; dz <= 40.0f; dz += 5.0f) {
+            for (float dx = -40.0f; dx <= 40.0f; dx += 5.0f) {
+                const float h = world::terrain_height(c, p + glm::vec2{dx, dz});
+                lo = std::min(lo, h);
+                hi = std::max(hi, h);
+            }
+        }
+        return hi - lo;
+    };
+    const float r_crest = local_relief(crest_v->position);
+    const float r_glade = local_relief(glade_v->position);
+    INFO("relief around crest ", r_crest, " around glade control ", r_glade);
+    // THE CONTROL MUST FAIL THE CLAIM. в9's calm plain is real shipped ground
+    // with §2.7 micro-relief still on it ("flat, not sterile"), so this is not
+    // a comparison against zero — it is a comparison against ground that has
+    // texture but no landform.
+    CHECK(r_crest >= world::LF2_HILL_RELIEF_MIN);
+    CHECK(r_glade < world::LF2_HILL_RELIEF_MIN);
+    CHECK(r_crest > r_glade * 2.0f);
+    // Same bearing and same pitch as the swale frame: the two frames differ in
+    // the ground underfoot and in nothing the camera did.
+    CHECK(glade_v->pitch == doctest::Approx(floor_v->pitch));
+    CHECK(glade_v->yaw == doctest::Approx(floor_v->yaw));
+}
+
+TEST_CASE("the path_along vantages stand ON the tread with both margins in frame") {
+    const world::WorldGenContext& c = forest();
+    const auto vs = world::forest_vantages(c.params.seed, c.params.layout, c.paths, c.finds);
+    int checked = 0;
+    for (const math::StandVantage& v : vs) {
+        if (v.label.rfind("path_along_", 0) != 0) {
+            continue;
+        }
+        ++checked;
+        const world::PathSample s = c.paths.sample(v.position);
+        INFO(v.label, " wear ", s.wear, " dist_to_center ", s.dist_to_center);
+        CHECK(s.wear > 0.9f);            // on the bare worn centre, not beside it
+        CHECK(s.edge == doctest::Approx(0.0f));
+        // Aimed ALONG the tread: the subject is on the path too, and far
+        // enough away that the frame has depth rather than a metre of dirt.
+        const world::PathSample sub = c.paths.sample(v.subject);
+        CHECK(sub.wear > 0.5f);
+        CHECK(glm::length(v.subject - v.position) > 20.0f);
+        // Pitched down far enough to put the margins in shot. A level frame
+        // would put BR-3's rich edge in the bottom few rows of 360 and the
+        // acceptance would be a picture of trees.
+        CHECK(v.pitch < -0.08f);
+        // The rich edge is REACHABLE from the standpoint, i.e. there is verge
+        // beside this tread and not a cliff or another path.
+        const glm::vec2 t = glm::normalize(v.subject - v.position);
+        const glm::vec2 n{-t.y, t.x};
+        const float peak_off = s.worn_half_width + math::PATH_EDGE_PEAK_M;
+        CHECK(c.paths.sample(v.position + n * peak_off).edge > 0.7f);
+        CHECK(c.paths.sample(v.position - n * peak_off).edge > 0.7f);
+    }
+    INFO("path_along vantages ", checked);
+    CHECK(checked >= 2); // the SET is the evidence for the per-class scoping
+}
+
