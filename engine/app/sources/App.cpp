@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:03:30
+Last updated: 10:08:2026 - 20:05:06
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -84,6 +84,7 @@ UPD:
 - 10:08:2026 - 19:44:12: DFN_HEAD_BOB и DFN_PLAYTEST_GAIT — двери к контролю движения и к передаче бота (запрос sim: без них автоматический прогон умел мерить ТОЛЬКО шаг). Неверное значение отвергается ГРОМКО: молчаливый откат к умолчанию воспроизвёл бы ровно тот дефект, ради которого дверь и открыта.
 - 10:08:2026 - 19:57:06: Три починки снимка состояния, все три найдены sim при проверке инструмента, а не при его использовании: хэш сборки штампуется во время СБОРКИ (был — при конфигурации, и называл сборку на два коммита старше), восстановление доводится итеративно (промах был 0.53 м), и вычитается ВЫНОС глаза вперёд, а не только высота — иначе круговой прогон уводил игрока на 0.10 м вперёд каждый раз.
 - 10:08:2026 - 20:03:30: Восстановление через teleport_character вместо самодельной доводки. Прежний комментарий утверждал, что телепорта в IPhysics нет — предпосылка была моя, непроверенная (grep по неверному имени), и успела уйти в бриф core. Промах упал с 0.53 м до 0.001 м; вся машинерия доводки удалена.
+- 10:08:2026 - 20:05:06: DFN_CAPTURE_DIR на существующий каталог убивал процесс до загрузки мира (бросающая форма create_directories) — render потерял на этом три прогона, и прогон, не измеривший НИЧЕГО, выглядел как измеривший ноль.
 */
 
 #include "engine/app/sources/App.h"
@@ -385,7 +386,19 @@ bool App::init(const AppConfig& config) {
         const char* d = std::getenv("DFN_CAPTURE_DIR");
         return std::string(d != nullptr ? d : "captures");
     }();
-    std::filesystem::create_directories(capture_dir_);
+    // THE ERROR_CODE OVERLOAD, NOT THE THROWING ONE. The throwing form killed
+    // the process before the world loaded whenever DFN_CAPTURE_DIR named an
+    // existing path, and render lost three probe runs to it: no PNG, no
+    // sidecar, and a run that measured NOTHING looked exactly like a run that
+    // measured zero. That is the second defect in this capture path whose
+    // failure mode is a legitimate-looking zero, which is the failure mode
+    // worth being paranoid about here.
+    std::error_code cap_dir_ec;
+    std::filesystem::create_directories(capture_dir_, cap_dir_ec);
+    if (cap_dir_ec && !std::filesystem::is_directory(capture_dir_)) {
+        std::fprintf(stderr, "[capture] cannot use directory \"%s\": %s\n",
+                     capture_dir_.c_str(), cap_dir_ec.message().c_str());
+    }
     if (const char* ca = std::getenv("DFN_CAPTURE_AFTER"); ca != nullptr) {
         capture_after_s_ = std::strtod(ca, nullptr);
     }
