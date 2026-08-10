@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:44:47
+Last updated: 10:08:2026 - 20:49:30
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -78,6 +78,11 @@ UPD:
                          edge events survive a fast render loop.
 - 09:08:2026 - 22:40:04: Inventory navigation latches (selection, equip).
 - 09:08:2026 - 22:44:47: Drop latch.
+- 10:08:2026 - 20:49:30: THE EYE RIDES THE TRUNK'S LEAN. StepContext gains
+  eye_lean, FERRIED from character (anim::eye_lean_offset), never derived here
+  -- deriving it would copy their AUTHORED gait_run_weight table. Not eased on
+  this side on purpose: the property is "chest never ahead of eye", which holds
+  only if the eye tracks the body's lean at every instant.
 */
 
 #pragma once
@@ -218,6 +223,25 @@ struct StepContext {
     // scales bob/dip/settle amplitudes. 0 disables the motion entirely;
     // events still fire — sound and animation are not what causes sickness.
     float bob_scale = 1.0f;
+    // THE EYE RIDES THE TRUNK'S LEAN. `.x` = forward advance along the facing,
+    // `.y` = drop (positive = down), both metres, produced by
+    // anim::eye_lean_offset() and ferried in by the app.
+    //
+    // FERRIED, NOT DERIVED, and that is the whole design (Rule 35). sim must
+    // not recompute this from the gait, because that would put a second copy of
+    // character's AUTHORED gait_run_weight table and of RUN_LEAN on this side —
+    // and an authored number with two copies drifts the day it is re-authored.
+    // This is BodyDrive::gait run backwards: the LEAN CHARACTER CHOSE, not the
+    // gait it was derived from.
+    //
+    // NOT EASED HERE, deliberately, and this is the subtle half: the property
+    // the seam exists for is "the chest is never ahead of the eye", and that
+    // holds only if the eye's offset tracks the body's actual lean at EVERY
+    // instant. Easing the camera while the body snaps would desynchronise them
+    // and open the exact gap this closes, during the transition. If the pop on
+    // a gear change wants smoothing, the ease belongs in the PRODUCER so body
+    // and eye ease together — one place, still one number.
+    glm::vec2 eye_lean{0.0f, 0.0f};
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------

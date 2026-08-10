@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
+Last updated: 10:08:2026 - 20:49:30
 Module: tests (sim zone)
 File: tests/sim/StepFeelTests.cpp
 
@@ -29,6 +29,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:53:17: Created for the landscape stage (шаг как событие).
+- 10:08:2026 - 20:49:30: Eye-lean application, with two controls: zero in ->
+  zero out (rejects sim deriving a lean of its own), and bob_scale 0 must NOT
+  disable it. Plus the discriminating case -- applied along FACING, which a
+  fixed-world-axis implementation fails.
 */
 
 #include <doctest/doctest.h>
@@ -393,4 +397,74 @@ TEST_CASE("landing after a jump dips the camera and fires Landed with the measur
         rig.tick();
     }
     CHECK(rig.log.landings.size() == settled);
+}
+
+TEST_CASE("the eye rides the trunk's lean, and only when one is ferried in") {
+    // THE SEAM: the rig leans a body that has no eye, the camera holds an eye
+    // that has no body, and the offset between them belonged to nobody -- so
+    // the chest corner advanced 0.103 m toward a stationary eye and the
+    // chest-to-eye gap went 0.026 -> 0.129 m at full run. character produces
+    // the offset (anim::eye_lean_offset); this asserts sim APPLIES it, which
+    // is the only half sim owns.
+    //
+    // Deliberately does not link anim: what is under test is the application,
+    // not the geometry. character's suite already checks the offset against
+    // where the skull actually is, read through FK. Recomputing their trig
+    // here would be the second copy the whole ferry exists to avoid.
+    const float EYE = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const float FWD = static_cast<float>(config::PLAYER_EYE_FORWARD);
+
+    SUBCASE("a ferried lean moves the eye forward along the facing and down") {
+        auto rig = make_null_rig();
+        rig.state.yaw = 0.0f; // facing -Z
+        rig.step.eye_lean = glm::vec2{0.1320f, 0.0206f}; // the full-run figures
+        rig.tick();
+        // Facing at yaw 0 is -Z, so a forward advance is MORE NEGATIVE z.
+        CHECK(rig.camera.position.z
+              == doctest::Approx(rig.transform.position.z - FWD - 0.1320f).epsilon(1e-4));
+        CHECK(rig.camera.position.y
+              == doctest::Approx(rig.transform.position.y + EYE - 0.0206f).epsilon(1e-4));
+    }
+
+    SUBCASE("the lean is applied along FACING, not along a world axis") {
+        // The discriminating case: at yaw 90 deg the same lean must move the
+        // eye in +X, not in -Z. A implementation that added the offset to a
+        // fixed axis passes the subcase above and fails this one.
+        auto rig = make_null_rig();
+        rig.state.yaw = 1.57079633f;
+        rig.step.eye_lean = glm::vec2{0.1320f, 0.0f};
+        rig.tick();
+        CHECK(rig.camera.position.x
+              == doctest::Approx(rig.transform.position.x + FWD + 0.1320f).epsilon(1e-3));
+        CHECK(rig.camera.position.z
+              == doctest::Approx(rig.transform.position.z).epsilon(1e-3));
+    }
+
+    SUBCASE("CONTROL: no ferried lean leaves the camera exactly where it was") {
+        // The case this test exists to REJECT is a lean applied when none was
+        // sent -- i.e. sim quietly deriving one of its own. Zero in, zero out.
+        auto rig = make_null_rig();
+        rig.state.yaw = 0.0f;
+        rig.step.eye_lean = glm::vec2{0.0f, 0.0f};
+        rig.tick();
+        CHECK(rig.camera.position.z
+              == doctest::Approx(rig.transform.position.z - FWD).epsilon(1e-6));
+        CHECK(rig.camera.position.y
+              == doctest::Approx(rig.transform.position.y + EYE).epsilon(1e-6));
+    }
+
+    SUBCASE("CONTROL: the bob slider does NOT disable it -- posture is not motion") {
+        // Same ruling as PLAYER_EYE_FORWARD: head_bob is a motion-sickness
+        // setting, and a player who turns the bob off still has a body that
+        // leans when it runs. If this ever goes red because someone scaled the
+        // lean by bob_scale, the chest returns to the frame for exactly the
+        // players who were most bothered by the camera.
+        auto rig = make_null_rig();
+        rig.state.yaw = 0.0f;
+        rig.step.bob_scale = 0.0f;
+        rig.step.eye_lean = glm::vec2{0.1320f, 0.0206f};
+        rig.tick();
+        CHECK(rig.camera.position.z
+              == doctest::Approx(rig.transform.position.z - FWD - 0.1320f).epsilon(1e-4));
+    }
 }

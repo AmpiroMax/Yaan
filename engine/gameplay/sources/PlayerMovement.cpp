@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:44:47
+Last updated: 10:08:2026 - 20:49:30
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -57,6 +57,11 @@ UPD:
 - 09:08:2026 - 22:29:52: Latch the interact / light / inventory keys.
 - 09:08:2026 - 22:40:04: Latch inventory navigation (arrows, wheel, Enter).
 - 09:08:2026 - 22:44:47: Latch the drop key.
+- 10:08:2026 - 20:49:30: Applies StepContext::eye_lean to CameraPose along
+  the facing. Closes the second eye-vs-body seam of the day: the chest-to-eye
+  gap went 0.026 -> 0.129 m at full run because the rig leaned a body with no
+  eye. With the eye riding it closes to -0.0055 m and improves monotonically
+  with lean. NOT scaled by bob_scale -- posture is not motion.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -484,7 +489,26 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     // NOT scaled by bob_scale: turning the bob slider off is a motion-sickness
     // setting, and anatomy is not motion.
     const glm::vec3 facing{std::sin(state.yaw), 0.0f, -std::cos(state.yaw)};
+    // THE EYE RIDES THE TRUNK'S LEAN, for the same reason it sits on the face:
+    // a real forward lean carries the HEAD forward, and that is precisely what
+    // keeps your own chest out of your view when you run. Without this the rig
+    // leaned a body that has no eye while the camera held an eye that has no
+    // body, so the lean spent 100% of its geometry on a gap anatomy spends
+    // about 0% on: the chest corner advanced 0.103 m toward a stationary eye
+    // and the chest-to-eye gap went 0.026 -> 0.129 m, FIVE TIMES, at full run.
+    // With the eye riding, the gap closes to -0.0055 m and — the property that
+    // matters more than the value — it improves monotonically with lean instead
+    // of degrading. That is not a tuned coincidence: the eye and the shoulder
+    // hang off the same hip pivot at comparable lever arms, so they advance
+    // together by construction.
+    //
+    // NOT scaled by bob_scale, on the same ruling as EYE_FORWARD above: the bob
+    // slider is a motion-sickness setting, and posture is not motion. A player
+    // who turns the bob off still has a body that leans when it runs.
+    const glm::vec3 lean_offset =
+        facing * step.eye_lean.x - glm::vec3{0.0f, step.eye_lean.y, 0.0f};
     camera.position = position + glm::vec3{0.0f, eye, 0.0f} + facing * EYE_FORWARD
+                      + lean_offset
                       + step.bob_scale * (glm::vec3{0.0f, vertical, 0.0f} + right * lateral);
     camera.yaw = state.yaw;
     camera.pitch = state.pitch;
