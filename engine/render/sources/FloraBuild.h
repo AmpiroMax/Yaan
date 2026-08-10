@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 10:08:2026 - 20:15:51
+Last updated: 10:08:2026 - 20:32:40
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -34,9 +34,15 @@ UPD:
   ANCHOR rather than the crown base.
 - 10:08:2026 - 20:15:51: CARD_TILT_FLAT_* / CARD_TILT_LEAN_* / CARD_FLAT_PER_CLUSTER — the
   ruled card-plane tilt bands. NUMBERS rows requested from lead the same day.
+- 10:08:2026 - 20:32:40: The five card-tilt constants now READ config:: (rows landed in
+  NUMBERS.md, 2ffe2c1) instead of carrying their own copies. The tilt
+  distribution test passing unchanged against the generated values is the
+  cross-check that the rows carry the numbers that were measured.
 */
 
 #pragma once
+
+#include "engine/core/config/sources/Constants.h"
 
 #include "engine/render/sources/FloraCards.h"
 #include "engine/render/sources/FloraSkeleton.h"
@@ -73,19 +79,23 @@ constexpr float SHADOW_MIN_DIAMETER = 0.35f;
 // over their whole declared range (Rule 31) and both ENDS are asserted
 // (Rule 30's "a range is two assertions").
 //
-// PENDING NUMBERS ROWS (Rule 35 — the user has ruled on these, and render's
-// CARDS BUY ANGULAR COVERAGE rule is stated on the quantity they set): row
-// request sent to lead 10.08.2026 as FLORA_CARD_TILT_FLAT_MIN/MAX,
-// FLORA_CARD_TILT_LEAN_MIN/MAX, FLORA_CARD_FLAT_PER_CLUSTER. Swap these five
-// for config:: the moment the rows land.
-constexpr float CARD_TILT_FLAT_MIN = 0.0873f; ///< 5 deg — the user's band
-constexpr float CARD_TILT_FLAT_MAX = 0.1745f; ///< 10 deg
-constexpr float CARD_TILT_LEAN_MIN = 0.8378f; ///< 48 deg — the silhouette half
-constexpr float CARD_TILT_LEAN_MAX = 1.1519f; ///< 66 deg
+// THE ROWS ARE IN NUMBERS.md (landed 10.08.2026, 2ffe2c1) — read there, never
+// re-typed here (Rule 14/35): the user ruled the flat band, and render's CARDS
+// BUY ANGULAR COVERAGE rule is stated on the same quantity, so this number has
+// two consumers and cannot belong to one zone.
+constexpr float CARD_TILT_FLAT_MIN =
+    static_cast<float>(config::FLORA_CARD_TILT_FLAT_MIN); ///< 5 deg, the user's band
+constexpr float CARD_TILT_FLAT_MAX =
+    static_cast<float>(config::FLORA_CARD_TILT_FLAT_MAX); ///< 10 deg
+constexpr float CARD_TILT_LEAN_MIN =
+    static_cast<float>(config::FLORA_CARD_TILT_LEAN_MIN); ///< 48 deg, silhouette half
+constexpr float CARD_TILT_LEAN_MAX =
+    static_cast<float>(config::FLORA_CARD_TILT_LEAN_MAX); ///< 66 deg
 /// How many cards of a cluster lie in the flat band. 1 of 3 is 33 % of card
 /// AREA, under the ~43 % ceiling that holding the accepted eye-level presented
 /// area imposes at constant triangle count.
-constexpr int CARD_FLAT_PER_CLUSTER = 1;
+constexpr int CARD_FLAT_PER_CLUSTER =
+    static_cast<int>(config::FLORA_CARD_FLAT_PER_CLUSTER);
 
 /// splitmix64 — local, deterministic, no shared state.
 [[nodiscard]] uint64_t mix64(uint64_t x);
