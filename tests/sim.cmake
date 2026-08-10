@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 10:08:2026 - 21:24:32
+# Last updated: 10:08:2026 - 21:33:52
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -50,6 +50,11 @@
 #                          checks that two zones agree about one geometry, and
 #                          it reads render's actual mesh rather than a literal
 #                          copy of its triangulation.
+# - 10:08:2026 - 21:33:52: sim_tunnel_walk links dfn_gameplay. The castle
+#                          curtain-wall tunnelling case had no curtain wall in
+#                          its physics world — the rig built terrain collision
+#                          only, and the wall is a prop — so eight charges were
+#                          running through open ground and reporting success.
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -84,7 +89,7 @@ add_dfn_test(sim_prop_collision sim/PropCollisionTests.cpp
 # The voxel-terrain acceptance walk (crag tunnel): real generated world, real
 # extracted collision mesh, real capsule.
 add_dfn_test(sim_tunnel_walk sim/TunnelWalkTests.cpp
-    dfn_physics dfn_platform_physics dfn_world dfn_core)
+    dfn_physics dfn_platform_physics dfn_world dfn_core dfn_gameplay)
 
 # THE STEP IS AN EVENT (в3): footfall spacing/arithmetic, zero-when-still (the
 # rejected floating is the control), landing dip, stop settle, FOV clamp.

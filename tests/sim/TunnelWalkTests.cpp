@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:51:22
-Last updated: 10:08:2026 - 02:44:55
+Last updated: 10:08:2026 - 21:33:30
 Module: tests
 File: tests/sim/TunnelWalkTests.cpp
 
@@ -54,6 +54,30 @@ UPD:
                          order-of-magnitude guard, not a budget — the measured
                          figure moves 2x with machine load alone.
 - 10:08:2026 - 02:44:55: Walk budget 3600 -> 5400 (core's verified fix, landed by the lead with sim resting; the walk is longer since the massif reshape, completing at 4251).
+- 10:08:2026 - 21:33:30: THREE METRICS THAT FAILED OPEN, fixed together
+  because they are one disease: a measurement whose EMPTY state is
+  indistinguishable from its SUCCESS state.
+  (1) count_tunnelling_ticks scored a perfect zero for a capsule that never
+      moved. It is now probe_tunnelling, which reports its own coverage and a
+      verdict word, and the callers assert the coverage before the result.
+  (2) The coverage quantity itself was wrong on the first attempt and the run
+      said so: "moving ticks whose segment met a wall" reads ZERO on a clean
+      pass, because a capsule that does not tunnel never crosses geometry. No
+      threshold on that quantity separates the accepted case from the rejected
+      one, so the QUANTITY was wrong rather than the number (Rule 30). Replaced
+      by IMPEDED ticks — geometry took at least half the intended step — which
+      counts being BLOCKED as the strongest evidence a wall is there.
+  (3) The castle curtain-wall case had no curtain wall: TunnelRig builds terrain
+      collision only, and the wall is a prop. Eight charges from 60 m out were
+      running through open ground and reporting no tunnelling. Impeded ticks
+      went 0 -> 501 once the props are built; it still does not tunnel, so the
+      claim now stands on evidence instead of on absence.
+  Also the floor band at the deep waypoint: Approx(deep.y).epsilon(0.35) is
+  0.35 * (1 + |deep.y|) = a +/-14.67 m tolerance on a ray only 6 m long, which
+  NO RESULT COULD HAVE FAILED (Rule 40 — and it is a DIFFERENCE, so a relative
+  band was the wrong instrument at any scale). Now absolute metres, derived from
+  the voxel lattice the floor is quantised on. Measured: 0.067 m against a
+  1.6 m band.
 */
 
 #include <doctest/doctest.h>
@@ -63,6 +87,7 @@ UPD:
 #include <cmath>
 #include <memory>
 #include <unordered_map>
+#include <string>
 #include <vector>
 
 #include <glm/geometric.hpp>
@@ -71,6 +96,7 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/physics/sources/CollisionLayers.h"
+#include "engine/gameplay/sources/PropCollision.h"
 #include "engine/physics/sources/TerrainCollision.h"
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
 #include "engine/world/sources/ChunkManager.h"
@@ -117,6 +143,11 @@ struct TunnelRig {
     /// Tests that walk on the terrain need the SETTLED world: drive updates —
     /// each building collision for whatever became resident — until residency
     /// stops changing. Same pattern as core's Fixture::settle.
+    /// Buildings and boulders. The terrain path above does NOT include them:
+    /// the castle's curtain wall is a prop, so a sweep meant to charge it needs
+    /// this call or it charges open ground (see the case that found this).
+    void build_props() { dfn::gameplay::update_prop_collision(ecs, *physics, chunks); }
+
     void settle(const glm::vec3& focus) {
         for (int i = 0; i < 256; ++i) {
             const std::size_t before = chunks.loaded_chunks().size();
@@ -222,6 +253,21 @@ TEST_CASE("voxel terrain collision: the extraction resolution is affordable") {
     CHECK(rig.shape_ms / static_cast<double>(rig.chunk_bodies) < 250.0);
 }
 
+// The carved floor is an isosurface on a VOXEL_SIZE lattice, so the only
+// meaningful band around a waypoint is that lattice plus the SDF band the
+// surface can shift within, plus a tick of ray precision. Derived from the
+// representation, not fitted to the measurement — a tolerance chosen after
+// seeing the number is a description of today's build.
+constexpr float FLOOR_TOLERANCE_M =
+    static_cast<float>(config::VOXEL_SIZE + config::VOXEL_SDF_BAND) * 0.5f + 0.1f;
+
+// The one property that makes the assertion an assertion: the ray searches from
+// 1 m above the waypoint to 5 m below it, so a tolerance of 5 m or more admits
+// every result the instrument can produce. The old band was 14.67 m. This is
+// the check that would have caught it without anyone measuring anything.
+static_assert(FLOOR_TOLERANCE_M < 5.0f,
+              "a tolerance wider than the ray's own reach cannot be failed");
+
 TEST_CASE("voxel terrain collision: rock overhead inside the tunnel (overhang)") {
     // The geometric proof that a heightfield-derived body cannot pass: at a
     // deep waypoint there is collision ABOVE the floor, and the floor itself
@@ -239,7 +285,21 @@ TEST_CASE("voxel terrain collision: rock overhead inside the tunnel (overhang)")
                                            {0.0f, -1.0f, 0.0f}, 6.0f,
                                            physics_layer::LAYER_STATIC);
     REQUIRE(down.hit);
-    CHECK(down.position.y == doctest::Approx(deep.y).epsilon(0.35));
+    // ABSOLUTE metres, because this is a DIFFERENCE — the distance between the
+    // carved floor and the waypoint it was carved around, whose correct value
+    // is zero (Rule 40). It was written as Approx(deep.y).epsilon(0.35), which
+    // doctest expands to 0.35 * (1 + |deep.y|): at this waypoint's height that
+    // is a +/-14.67 m band on a ray only 6 m long. NO RESULT THE RAY CAN
+    // PRODUCE COULD HAVE FAILED IT — the assertion was unfalsifiable by
+    // arithmetic, not merely loose.
+    //
+    // The floor is a voxel surface, so the band that means something is the
+    // lattice it is quantised on: one VOXEL_SIZE either way, plus the SDF band
+    // the isosurface can shift within. Measured below so the number in the
+    // report is the real one and not this bound.
+    const float floor_error_m = std::abs(down.position.y - deep.y);
+    MESSAGE("carved floor sits " << floor_error_m << " m from the waypoint");
+    CHECK(floor_error_m < FLOOR_TOLERANCE_M);
 
     // Ceiling above it — this is the overhang a heightfield cannot represent.
     const auto up = rig.physics->raycast({deep.x, deep.y + 0.5f, deep.z},
@@ -353,15 +413,51 @@ TEST_CASE("voxel terrain collision: the player walks THROUGH the crag, not over 
 // exact rather than heuristic: each tick, ray-cast the movement segment; if the
 // segment hits a wall yet the capsule ended past that hit (beyond its own
 // radius of penetration tolerance), collide-and-slide let it tunnel.
-[[nodiscard]] int count_tunnelling_ticks(TunnelRig& rig, const glm::vec3& start,
-                                         const glm::vec3& direction, int ticks) {
+//
+// IT REPORTS ITS OWN COVERAGE, and that is not decoration. A capsule that never
+// moves — spawned inside solid rock, or wedged, or created against a body that
+// failed to build — produces zero tunnelling ticks and reads exactly like a
+// clean sweep. That is the same disease as the worst_foot_slip_mm 0 that every
+// run printed while measuring nothing: A METRIC WHOSE EMPTY STATE IS
+// INDISTINGUISHABLE FROM ITS SUCCESS STATE. So the probe returns how far it
+// actually got, the caller asserts that, and the verdict says which of the two
+// it is looking at.
+struct TunnelProbe {
+    int tunnelled = 0;     ///< ticks that passed THROUGH static geometry.
+    int moving_ticks = 0;  ///< ticks in which the capsule actually advanced.
+    int impeded_ticks = 0; ///< ticks in which geometry took away most of the
+                           ///< intended displacement — blocked outright or
+                           ///< slid along a wall. THE COVERAGE QUANTITY: it is
+                           ///< the evidence that the sweep met the walls it
+                           ///< claims to be testing.
+    float travelled_m = 0.0f;
+
+    /// One word a caller can print, so a run that measured nothing says so
+    /// instead of reporting a perfect zero (see the note above the probe).
+    [[nodiscard]] std::string verdict() const {
+        if (moving_ticks == 0 && impeded_ticks == 0) {
+            return "NOTHING HAPPENED - measured nothing";
+        }
+        if (impeded_ticks == 0) {
+            return "MET NO GEOMETRY - measured nothing";
+        }
+        return tunnelled == 0 ? "held" : "TUNNELLED";
+    }
+};
+
+[[nodiscard]] TunnelProbe probe_tunnelling(TunnelRig& rig, const glm::vec3& start,
+                                           const glm::vec3& direction, int ticks) {
     const auto character = rig.physics->create_character(player_desc(start));
     REQUIRE(character.valid());
     const float speed =
         static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
     const float radius = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
+    // What an unobstructed tick would cover. Zero when the caller asked for no
+    // movement at all, which must NOT read as "geometry stopped us" — that
+    // distinction is the whole point of the coverage quantity.
+    const float intended = glm::length(direction) * speed * DT;
 
-    int tunnelled = 0;
+    TunnelProbe probe;
     for (int tick = 0; tick < ticks; ++tick) {
         const glm::vec3 before = rig.physics->character_position(character);
         rig.physics->move_character(character, direction * speed * DT);
@@ -370,19 +466,32 @@ TEST_CASE("voxel terrain collision: the player walks THROUGH the crag, not over 
 
         const glm::vec3 delta = after - before;
         const float distance = glm::length(delta);
+        // Impeded = geometry took at least half the intended step away, whether
+        // by stopping the capsule dead or by turning it along a wall. Being
+        // BLOCKED is the strongest evidence a wall is there, so it counts as
+        // coverage rather than being skipped as "nothing happened" — which is
+        // how the old metric managed to confront a wall and record silence.
+        if (intended > 1e-6f && distance < 0.5f * intended) {
+            ++probe.impeded_ticks;
+        }
         if (distance < 1e-4f) {
             continue; // blocked outright: the correct outcome
         }
+        ++probe.moving_ticks;
+        probe.travelled_m += distance;
         // Cast from chest height so floor contact is not mistaken for a wall.
         const glm::vec3 chest{0.0f, 0.9f, 0.0f};
         const auto hit = rig.physics->raycast(before + chest, delta / distance, distance,
                                               physics_layer::LAYER_STATIC);
-        if (hit.hit && distance > hit.distance + radius) {
-            ++tunnelled;
+        if (!hit.hit) {
+            continue; // open corridor ahead: nothing to tunnel through
+        }
+        if (distance > hit.distance + radius) {
+            ++probe.tunnelled;
         }
     }
     rig.physics->destroy_character(character);
-    return tunnelled;
+    return probe;
 }
 
 TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through tunnel walls") {
@@ -394,15 +503,27 @@ TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through tunnel walls") {
     TunnelRig rig(deep);
 
     const glm::vec3 start{deep.x, deep.y + 0.5f, deep.z};
-    int tunnelled = 0;
+    TunnelProbe total;
     // Sweep every horizontal direction: switchback legs stack, so some headings
     // face a thin wall with open corridor on the far side — the worst case.
     for (int i = 0; i < 16; ++i) {
         const float angle = 6.28318530718f * static_cast<float>(i) / 16.0f;
-        tunnelled += count_tunnelling_ticks(
+        const TunnelProbe leg = probe_tunnelling(
             rig, start, {std::cos(angle), 0.0f, std::sin(angle)}, 120);
+        total.tunnelled += leg.tunnelled;
+        total.moving_ticks += leg.moving_ticks;
+        total.impeded_ticks += leg.impeded_ticks;
+        total.travelled_m += leg.travelled_m;
     }
-    CHECK(tunnelled == 0);
+    MESSAGE("16 headings: " << total.verdict() << " - moved on " << total.moving_ticks
+                            << " ticks over " << total.travelled_m << " m, impeded on "
+                            << total.impeded_ticks);
+    // COVERAGE FIRST, because zero tunnelling on a capsule that never left the
+    // spawn point is not a result. Only these two lines separate "the walls
+    // held" from "nothing was measured".
+    CHECK(total.moving_ticks > 500);
+    CHECK(total.impeded_ticks > 50);
+    CHECK(total.tunnelled == 0);
 }
 
 TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through the castle curtain wall") {
@@ -412,8 +533,9 @@ TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through the castle curtain wall"
     const glm::vec3 focus{castle.x, 0.0f, castle.y};
     TunnelRig rig(focus);
 
+    rig.build_props(); // WITHOUT THIS THE CASE CHARGES OPEN GROUND — see below.
     const float ground = rig.surface_height(castle);
-    int tunnelled = 0;
+    TunnelProbe total;
     // Charge the pad from eight compass points, starting well outside it.
     for (int i = 0; i < 8; ++i) {
         const float angle = 6.28318530718f * static_cast<float>(i) / 8.0f;
@@ -421,10 +543,50 @@ TEST_CASE("DEBUG sprint: 30 m/s does not tunnel through the castle curtain wall"
         const glm::vec2 from = castle + offset;
         const glm::vec3 start{from.x, rig.surface_height(from) + 1.0f, from.y};
         const glm::vec3 toward = glm::normalize(glm::vec3{-offset.x, 0.0f, -offset.y});
-        tunnelled += count_tunnelling_ticks(rig, start, toward, 180);
+        const TunnelProbe leg = probe_tunnelling(rig, start, toward, 180);
+        total.tunnelled += leg.tunnelled;
+        total.moving_ticks += leg.moving_ticks;
+        total.impeded_ticks += leg.impeded_ticks;
+        total.travelled_m += leg.travelled_m;
     }
-    MESSAGE("castle ground height " << ground << " m");
-    CHECK(tunnelled == 0);
+    MESSAGE("castle ground height " << ground << " m; 8 charges: " << total.verdict()
+                                    << " - moved on " << total.moving_ticks
+                                    << " ticks over " << total.travelled_m
+                                    << " m, impeded on " << total.impeded_ticks);
+    CHECK(total.moving_ticks > 500);
+    CHECK(total.impeded_ticks > 20);
+    CHECK(total.tunnelled == 0);
+}
+
+TEST_CASE("the tunnelling probe reports an empty run as empty, not as a pass") {
+    // THE CONTROL for the two cases above, and the reason the metric was worth
+    // changing at all. A probe that cannot move scores a perfect zero on
+    // tunnelling — identical to a clean sweep — so the coverage assertions are
+    // the only thing standing between "the walls held" and "nothing happened".
+    // Here the empty run is manufactured on purpose and must be VISIBLE.
+    const dfn::world::TestbedLayout layout{};
+    const auto& tunnel = layout.carves.crag_tunnel;
+    const glm::vec3 deep = tunnel.points[3];
+    TunnelRig rig(deep);
+    const glm::vec3 start{deep.x, deep.y + 0.5f, deep.z};
+
+    // A zero heading: the capsule is asked to go nowhere and obeys.
+    const TunnelProbe still = probe_tunnelling(rig, start, {0.0f, 0.0f, 0.0f}, 120);
+    MESSAGE("standing still: " << still.verdict());
+    CHECK(still.tunnelled == 0);       // the number the old metric reported...
+    CHECK(still.moving_ticks == 0);    // ...on a run that measured nothing,
+    CHECK(still.impeded_ticks == 0);   // which the probe now says out loud.
+    CHECK(still.verdict() == "NOTHING HAPPENED - measured nothing");
+
+    // And the control's control: a real heading from the same spawn DOES move
+    // and DOES meet walls, so the guards above are satisfiable rather than
+    // merely strict (Rule 30a).
+    const TunnelProbe moving = probe_tunnelling(rig, start, {1.0f, 0.0f, 0.0f}, 120);
+    MESSAGE("heading +X: " << moving.verdict() << " - " << moving.moving_ticks
+                           << " moving ticks, impeded on " << moving.impeded_ticks);
+    CHECK(moving.moving_ticks > 0);
+    CHECK(moving.impeded_ticks > 0);
+    CHECK(moving.verdict() == "held");
 }
 
 TEST_CASE("DEBUG sprint: no fall-through while chunks are still streaming") {
