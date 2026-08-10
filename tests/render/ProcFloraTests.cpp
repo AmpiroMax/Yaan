@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 11:59:55
+Last updated: 10:08:2026 - 12:12:26
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -74,6 +74,12 @@ UPD:
   now that the table lives in core (placement data, placed by core); the four
   comparisons here map through flora_species_of, the same mapping render uses
   to pick a mesh.
+- 10:08:2026 - 12:12:26: "edge rule densities carry one unit" — the density
+  invariant asserted rather than described, in BOTH directions. A row with both
+  per_100m and per_m2 non-zero is placed twice; a row with BOTH at zero places
+  nothing while looking finished, which is literally how the forest floor
+  shipped as bare earth. The three §5.12 TalusApron rows are un-authored today
+  and the test counts them by name, so the gap cannot quietly grow.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2356,4 +2362,41 @@ TEST_CASE("routing: every species core can place BUILDS something") {
         CHECK(flora_owns(s));
         CHECK_FALSE(old_is_tree(s)); // the old predicate dropped every one
     }
+}
+
+TEST_CASE("edge rule densities carry one unit, and the empty rows are named") {
+    // Same disease as the routing bug, one layer up. A FloraEdgeRule carries
+    // TWO density columns — per_100m (linear features) and per_m2 (areal
+    // habitats) — and BOTH failure modes are silent:
+    //
+    //   both non-zero: two placement passes each believe they own the row and
+    //                  the realised density doubles, unattributably;
+    //   both ZERO:     the row places NOTHING while looking finished. That is
+    //                  literally how the forest floor shipped as bare earth —
+    //                  per_100m = 0 on a habitat with no linear metres read as
+    //                  a decision instead of as a gap, and core's BR-3 measured
+    //                  a ratio of ~27000 against it before anyone looked.
+    //
+    // So both are asserted, and the rows that ARE still un-authored are named
+    // HERE rather than described in a comment: the §5.12 talus apron carries no
+    // ground-cover densities yet. When they are authored this list shrinks; if
+    // someone adds a new empty row the count no longer matches and the suite
+    // says so. An un-authored density is allowed to exist; it is not allowed to
+    // be invisible.
+    size_t unauthored = 0;
+    for (size_t i = 0; i < FLORA_EDGE_RULE_COUNT; ++i) {
+        const math::FloraEdgeRule& r = FLORA_EDGE_RULES[i];
+        CAPTURE(i);
+        const bool both_units = (r.per_100m > 0.0f) && (r.per_m2 > 0.0f);
+        CHECK_FALSE(both_units);
+        if (r.per_100m <= 0.0f && r.per_m2 <= 0.0f && r.common_scatter) {
+            ++unauthored;
+            // Every empty common-scatter row today is talus. If one appears in
+            // a habitat that already HAS authored numbers, that is a dropped
+            // row, not a pending one, and this is where it surfaces.
+            CHECK(r.habitat == math::EdgeHabitat::TalusApron);
+        }
+    }
+    // The §5.12 set: PebbleCluster, MossPatch, StuntedPine on the apron.
+    CHECK(unauthored == 3);
 }
