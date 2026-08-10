@@ -1,10 +1,15 @@
 <!--
 Created: 10:08:2026 - 20:13:20
-Last updated: 10:08:2026 - 20:13:20
+Last updated: 10:08:2026 - 20:20:37
 -->
 <!--
 UPD:
 - 10:08:2026 - 20:13:20: Recipe + measurements for the sun-disc pair (W9).
+- 10:08:2026 - 20:20:37: Second frame at a LOW SUN (elevation ~5°), because the
+  disc's colour and brightness are functions of elevation and one vantage
+  cannot cover that range (Rule 27). Carries the measured deviation: the warm
+  disc lands at luma 0.898, not the row's 1.00, because a saturated warm hue
+  clips red before its luma reaches 1.
 -->
 
 # Acceptance: the sun gained a body (W9)
@@ -82,3 +87,42 @@ The two moons. Design's W9 brief derives their orbits, sizes and phases; the
 model needs `apply_sky_time` to take absolute game days instead of a
 (day_fraction, lunar_phase) pair that cannot be checked for agreement. Handed
 over, not attempted.
+
+## Second frame: the LOW SUN, because one vantage does not cover the range
+
+`render-sun-disc-lowsun-f20bde9.png`. Same recipe, `DFN_TIME=0.272`
+(elevation ~5°) and pitch 0.090000 so the disc sits just over the treeline.
+
+Rule 27 asks for the subject ACROSS THE RANGE THE PROPERTY VARIES OVER, and
+the sun's colour and brightness are functions of elevation: `apply_sky_time`
+reddens `u_sunColor` toward `SUN_COLOR_LOW` (1.00, 0.55, 0.28) and scales it
+down as the sun drops. A disc verified only at 23° would be a disc verified at
+one colour.
+
+Measured on that frame:
+
+| | value |
+|---|---|
+| disc peak luma | **0.898** |
+| disc RGB | (1.00, 0.90, 0.62) — reads warm, not white |
+| sky beside it | 0.333 |
+| disc − sky | **0.565 = 7.2 quantiser steps** |
+| edge fall, 90% → 60% | 9 px |
+
+**A STATED DEVIATION, measured rather than discovered later.** The disc does
+not reach `SUN_DISC_LUMA` 1.00 at a low sun: it lands at 0.898. The cause is
+arithmetic and not a bug — the shader carries hue at unit luma and multiplies
+by the row, and a warm hue clips its red channel before its luma reaches 1.0
+(the unit-luma form of `SUN_COLOR_LOW` is (1.53, 0.84, 0.43), and 1.53 does
+not exist in an 8-bit channel). A saturated warm disc at luma 1.00 is not
+representable, full stop.
+
+It costs nothing that any rule cares about: the disc clears the sky by 7.2
+quantiser steps against a 2-step requirement, and it clears it by HUE as well,
+which is the property a low sun is supposed to have. The alternative — pushing
+luma to 1.00 by desaturating — would make the sunrise sun white, which is the
+opposite of what the frame should show.
+
+The edge is 9 px of fall here against 7 px at 23°, because the halo is
+relatively brighter next to a dimmer disc. Both are edges. The old shader had
+16 px at 23°, which is not an edge at any elevation.
