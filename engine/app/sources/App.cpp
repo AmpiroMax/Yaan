@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:25:36
+Last updated: 10:08:2026 - 20:43:18
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -88,6 +88,7 @@ UPD:
 - 10:08:2026 - 20:08:54: Передача gait в BodyDrive включена: походку выбирает передача, а не сравнение скорости с числами. Закрывает и трусцу-с-наклоном-0.286, и окно регрессии, в котором ВСЕ передачи рисовались шагом.
 - 10:08:2026 - 20:20:17: Рука вида от первого лица объявляла меш 32, которого никто никогда не строил, — она рисовалась как НИЧТО с самого дня проводки. Отсутствие теперь объявлено, а не получается случайно; тело и так рисует настоящую правую кисть.
 - 10:08:2026 - 20:25:36: chunks_.update() вынесен ИЗ цикла догоняющих шагов — он вызывался раз на ШАГ, поэтому после медленного кадра догон впускал пять кусков подряд по 83 мс. Задержка на пересечении границы 730 мс → 39.8 мс.
+- 10:08:2026 - 20:43:18: Наклон глаза берётся из СГЛАЖЕННОГО веса походки, а не из передачи: корпус и глаз обязаны наклоняться одним числом, иначе на торможении с бега грудь возвращается.
 */
 
 #include "engine/app/sources/App.h"
@@ -1621,9 +1622,23 @@ int App::run() {
                         // of the gait switch above, which is a worse trade than
                         // one tick. If that ever stops being true, hoist the
                         // switch into a helper rather than duplicating it.
+                        // THE EASED WEIGHT, NOT THE GAIT. Both the trunk and the
+                        // eye must lean by the SAME float or they desync during
+                        // a gear change -- and the desync is one-sided:
+                        // accelerating, the eye leads a body still straightening
+                        // up, which is safer than steady state; DECELERATING, the
+                        // body is still leaning while the eye is already back on
+                        // the axis, and the chest returns for the length of every
+                        // run->walk. An intermittent chest nobody can reproduce
+                        // is worse than the pop it would replace, which is why
+                        // easing either side alone was rejected.
+                        //
+                        // `run_weight` is character's internal state, advanced in
+                        // update_bodies each fixed tick, so body and eye read one
+                        // number and cannot drift by construction.
                         step_ctx_.eye_lean =
                             anim::eye_lean_offset(body_rig_.proportions,
-                                                  anim::gait_run_weight(drive->gait));
+                                                  drive->run_weight);
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
