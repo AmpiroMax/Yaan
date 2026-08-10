@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 20:15:51
+Last updated: 10:08:2026 - 21:08:24
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -88,6 +88,20 @@ UPD:
   design's 6-8 m birch band: the 5-7 they carried is the band design itself
   called illegal, and it only went red once the geometry actually occupied the
   envelope it has always been allowed.
+- 10:08:2026 - 21:08:24: THE ABSOLUTE PRESENTED-AREA FLOOR, FOR REAL THIS
+  TIME. Yesterday's "absolute" case divided the presented sum by the same
+  tree's own card area, so it was the area-weighted mean of |dot(n,view)| — a
+  tilt statistic, scale-invariant, and the degenerate it was written to catch
+  (every card scaled 0.01, crown presents 1e-4 of its area) scored BIT-
+  IDENTICALLY. The 229 m^2/tree accepted floor (NUMBERS.md:377,
+  FloraBuild.cpp:343) is now asserted in m^2, with that scaled crown, a half-
+  area crown and an all-flat re-tilt at constant area as failing controls. The
+  229 row's AGGREGATION was never written down and is recovered here by
+  measurement: mean over all 12 variants of the worst-azimuth area, oak, Full —
+  the only reading under which the row's companion figures reproduce (250 ->
+  250.3, 413 -> 412.7). Measured 249.8, +9.1 %. OPEN: oak at Reduced LOD
+  presents 208.0, 9.2 % UNDER the floor, on the LOD that draws the treeline.
+  The old case is kept and RENAMED to the tilt statistic it measures.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1840,14 +1854,29 @@ TEST_CASE("cards: >= 3 planes per cluster, and coverage holds at the WORST azimu
     }
 }
 
-TEST_CASE("cards: the canopy still PRESENTS area at every viewing elevation") {
-    // THE ABSOLUTE HALF of render's CARDS BUY ANGULAR COVERAGE rule, added when
-    // the user ruled the card planes near-horizontal (10.08.2026). The ratio
-    // case above cannot see this failure by construction.
+TEST_CASE("cards: the crown's TILT MIX presents evenly over the elevation band") {
+    // WHAT THIS CASE MEASURES, CORRECTED 10.08.2026 — it was shipped one page
+    // ago as "THE ABSOLUTE HALF" of render's CARDS BUY ANGULAR COVERAGE rule
+    // and it is nothing of the kind. `presented_min` divides the presented sum
+    // by THAT SAME TREE'S total card area (:below), so numerator and
+    // denominator both scale linearly with card area and the quotient is
+    // exactly the area-weighted mean of |dot(n, view)| — a pure statistic of
+    // the TILT DISTRIBUTION, scale-invariant, in no unit. Scale every card of
+    // a crown by 0.01 and the crown presents 1e-4 of its area while this
+    // number is BIT-IDENTICAL (measured: oak v0 Full, 0.336489 both ways,
+    // 266.3 m^2 -> 0.027 m^2). The blind spot it was written to close was
+    // therefore reproduced one level up, and the absolute case that actually
+    // closes it is the NEXT one, in m^2.
+    //
+    // Kept, because the quantity is still worth an invariant: a crown whose
+    // planes all point one way loses its canopy from some bearing whatever its
+    // area, and the three synthetic controls below are real rejected mixtures.
+    // It is a TILT test. It is not an area test, and the name now says so.
     //
     // AGGREGATION: sum of area*|dot(view, normal)| over ALL cards of ONE TREE,
     //              minimised over 36 azimuths and over the elevation band.
-    // DENOMINATOR: that tree's own total card area.
+    // DENOMINATOR: that tree's own total card area — which is what makes it
+    //              scale-invariant, i.e. blind to the defect class next door.
     // ELEVATIONS:  0..90 deg. Not decoration — a 20.1 m oak crown is seen from
     //              eye height 1.7 m at 61 deg at 10 m, 43 deg at 20 m, 13 deg
     //              at 80 m, so the player's own vantage sweeps nearly the whole
@@ -1926,6 +1955,221 @@ TEST_CASE("cards: the canopy still PRESENTS area at every viewing elevation") {
     // ...and the shipped ratio (one flat of three) must still PASS it, or the
     // threshold is not separating the candidates, it is rejecting everything.
     CHECK(presented_min(synthetic_crown(1)) >= PRESENTED_MIN);
+}
+
+TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") {
+    // THE NUMBER THE WHOLE CARD-TILT RULING WAS DERIVED FROM, asserted for the
+    // first time. docs/NUMBERS.md:377 and FloraBuild.cpp:343 both quote
+    // 229 m^2/tree as the ACCEPTED FLOOR — "the presented area the shipped
+    // build ALREADY ACHIEVES at its own worst view", i.e. the thinnest canopy
+    // the user has said yes to — and every constant of the 5-10/48-66 deg
+    // mixture (FLORA_CARD_TILT_*, FLORA_CARD_FLAT_PER_CLUSTER) was solved
+    // against it. Until this case landed, no assertion in the repo carried a
+    // presented area in m^2 at all: the case above divides by the tree's own
+    // card area and is therefore blind to the crown shrinking (Rule 43 — a
+    // bound written on one quantity does not bound the quantity the contract
+    // is measured on, and here the contract is measured in SQUARE METRES).
+    //
+    // THE AGGREGATION AND THE DENOMINATOR OF THE 229 ROW, RECOVERED BY
+    // MEASUREMENT (Rule 30 — an acceptance rule names both, and this one never
+    // did). Today's build reproduces the row's two companion figures EXACTLY
+    // under one aggregation and no other: MEAN OVER ALL 12 VARIANTS of the
+    // WORST-AZIMUTH presented area, oak, Full LOD, at a fixed elevation.
+    //     row says 250 m^2 looking level     -> measured 250.3
+    //     row says 413 m^2 at 60 deg         -> measured 412.7
+    // So 229 is a FLEET statistic in m^2/tree, not a per-tree floor: it is
+    // 12 trees averaged, each already reduced to its own worst bearing. A
+    // per-tree reading of the same row would go red on today's ACCEPTED build
+    // (oak v5 Full bottoms at 164.6 m^2), which is how a number gets quietly
+    // weakened instead of understood.
+    struct Plane {
+        glm::vec3 n;
+        float a;
+    };
+    auto planes_of = [](const MeshData& m) {
+        std::vector<Plane> out;
+        for (size_t i = 0; i + 4 <= m.vertices.size(); i += 4) {
+            const glm::vec3 e1 = m.vertices[i + 1].position - m.vertices[i].position;
+            const glm::vec3 e2 = m.vertices[i + 3].position - m.vertices[i].position;
+            const glm::vec3 cr = glm::cross(e1, e2);
+            const float a = glm::length(cr);
+            out.push_back({a > 1e-9f ? cr / a : glm::vec3{0.0f, 1.0f, 0.0f}, a});
+        }
+        return out;
+    };
+    // Presented area in m^2 from the worst of 36 bearings at one elevation.
+    auto worst_azimuth_m2 = [](const std::vector<Plane>& ps, float phi) {
+        float worst = 1e9f;
+        for (int a = 0; a < 36; ++a) {
+            const float az = 6.2831853f * static_cast<float>(a) / 36.0f;
+            const glm::vec3 d{std::cos(phi) * std::cos(az), std::sin(phi),
+                              std::cos(phi) * std::sin(az)};
+            float s = 0.0f;
+            for (const Plane& p : ps) s += p.a * std::fabs(glm::dot(p.n, d));
+            worst = std::min(worst, s);
+        }
+        return worst;
+    };
+    // The 229 row's own aggregation, minimised over the elevation band the
+    // player's vantage sweeps (0-90 deg in 5 deg steps).
+    auto fleet_worst_m2 = [&](const std::vector<std::vector<Plane>>& fleet) {
+        float worst = 1e9f;
+        for (int e = 0; e <= 18; ++e) {
+            const float phi = 1.5707963f * static_cast<float>(e) / 18.0f;
+            float acc = 0.0f;
+            for (const auto& tree : fleet) acc += worst_azimuth_m2(tree, phi);
+            worst = std::min(worst, acc / static_cast<float>(fleet.size()));
+        }
+        return worst;
+    };
+    auto fleet_of = [&](FloraSpecies s, FloraLod lod) {
+        std::vector<std::vector<Plane>> fleet;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            fleet.push_back(planes_of(build_flora_mesh(s, v, FloraShape{}, lod).cards));
+        }
+        return fleet;
+    };
+
+    const auto oak_full = fleet_of(FloraSpecies::DaleOak, FloraLod::Full);
+    const float oak_m2 = fleet_worst_m2(oak_full);
+    MESSAGE("oak Full, fleet worst presented area: " << oak_m2 << " m^2/tree");
+    // THE ACCEPTED FLOOR. Measured today: 249.8 m^2 at its worst elevation
+    // (5 deg, i.e. the treeline view), 9.1 % over the floor. This is the one
+    // assertion here with user provenance — «листва прикольная» about a build
+    // that measured 229, so nothing may be thinner than the thinnest he blessed.
+    constexpr float PRESENTED_FLOOR_M2 = 229.0f;
+    CHECK(oak_m2 >= PRESENTED_FLOOR_M2);
+
+    // The other card species were never in the 229 derivation (it is an oak
+    // crown of ~20 m), so their floors are REGRESSION TRIPWIRES and are named
+    // as such: each is 0.85x today's measured fleet figure, rounded down. The
+    // 15 % band is there so a variant reshuffle does not go red on correct code
+    // (Rule 38) while a real thinning still trips. THEY HAVE NO USER
+    // PROVENANCE — the day design rules a floor for these species, these rows
+    // are replaced, not tightened.
+    struct Row {
+        FloraSpecies s;
+        FloraLod lod;
+        float tripwire_m2;
+        float measured_m2;
+    };
+    const Row ROWS[] = {
+        {FloraSpecies::DaleOak, FloraLod::Reduced, 176.0f, 208.0f},
+        {FloraSpecies::HighlandPine, FloraLod::Full, 170.0f, 200.2f},
+        {FloraSpecies::HighlandPine, FloraLod::Reduced, 92.0f, 109.2f},
+        {FloraSpecies::RiverBirch, FloraLod::Full, 48.0f, 57.2f},
+        {FloraSpecies::RiverBirch, FloraLod::Reduced, 37.0f, 43.9f},
+        {FloraSpecies::ValeWillow, FloraLod::Full, 190.0f, 225.4f},
+        {FloraSpecies::ValeWillow, FloraLod::Reduced, 152.0f, 179.1f},
+        {FloraSpecies::StuntedPine, FloraLod::Full, 14.0f, 16.5f},
+        {FloraSpecies::StuntedPine, FloraLod::Reduced, 9.0f, 11.7f},
+    };
+    for (const Row& r : ROWS) {
+        const float m2 = fleet_worst_m2(fleet_of(r.s, r.lod));
+        CHECK(m2 >= r.tripwire_m2);
+        // ...and the row's recorded measurement is still what the build does,
+        // within the same 15 %: a tripwire whose recorded value has drifted is
+        // a tripwire nobody can re-derive.
+        CHECK(m2 <= r.measured_m2 * 1.30f);
+    }
+    // OPEN, AND REPORTED RATHER THAN ASSERTED AWAY: the oak at Reduced LOD
+    // presents 208.0 m^2 — 9.2 % UNDER the 229 floor — and Reduced is the LOD
+    // that draws the treeline, which is the exact view the floor was written
+    // for. That is a build shortfall, not a test defect, so it is a row for
+    // design/LEAD and NOT a red assertion here (a red test on a shipped build
+    // gets weakened, Rule 38). The tripwire above stops it sliding further.
+
+    // NO SPECIES MAY EMPTY OUT AT ANY ELEVATION, per individual tree. Coarse
+    // by construction — an oak could lose 98 % of its cards and still clear
+    // 2 m^2, which is exactly why the fleet floors above exist — but it is the
+    // one assertion that binds on EVERY card species, LOD and variant.
+    // Measured tightest today: StuntedPine Reduced v6, 3.3 m^2.
+    constexpr float PER_TREE_FLOOR_M2 = 2.0f;
+    for (const FloraSpecies s : ALL) {
+        if (!has_leaf_cards(s)) continue;
+        for (const FloraLod lod : {FloraLod::Full, FloraLod::Reduced}) {
+            for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+                const auto ps = planes_of(build_flora_mesh(s, v, FloraShape{}, lod).cards);
+                REQUIRE_FALSE(ps.empty());
+                float worst = 1e9f;
+                for (int e = 0; e <= 18; ++e) {
+                    worst = std::min(worst, worst_azimuth_m2(
+                                                ps, 1.5707963f * static_cast<float>(e) / 18.0f));
+                }
+                CHECK(worst >= PER_TREE_FLOOR_M2);
+            }
+        }
+    }
+
+    // ===================== CONTROLS (Rule 30) =====================
+    // CONTROL 1 — THE DEFECT THE CASE ABOVE CANNOT SEE, and the reason this
+    // case exists: every card of every crown scaled by 0.01 in linear size.
+    // The crown then presents 1e-4 of its area — a bald tree at any distance —
+    // and the ratio the neighbouring case asserts is BIT-IDENTICAL, because
+    // numerator and denominator scale together. Both halves are checked here
+    // so the blind spot is pinned rather than described.
+    auto scaled_fleet = [&](const std::vector<std::vector<Plane>>& fleet, float area_k) {
+        std::vector<std::vector<Plane>> out = fleet;
+        for (auto& tree : out) {
+            for (Plane& p : tree) p.a *= area_k;
+        }
+        return out;
+    };
+    auto ratio_of = [&](const std::vector<Plane>& ps) {
+        float total = 0.0f;
+        for (const Plane& p : ps) total += p.a;
+        float worst = 1e9f;
+        for (int e = 0; e <= 18; ++e) {
+            worst = std::min(worst, worst_azimuth_m2(
+                                        ps, 1.5707963f * static_cast<float>(e) / 18.0f));
+        }
+        return total > 0.0f ? worst / total : 0.0f;
+    };
+    {
+        const auto tiny = scaled_fleet(oak_full, 1e-4f); // 0.01 linear
+        const float tiny_m2 = fleet_worst_m2(tiny);
+        CHECK_FALSE(tiny_m2 >= PRESENTED_FLOOR_M2); // 0.025 m^2 — rejected here
+        CHECK(ratio_of(tiny[0]) == doctest::Approx(ratio_of(oak_full[0])));
+        // ...and per-tree too, so the coarse floor is not the only thing
+        // standing between the suite and a 1e-4 crown.
+        for (const auto& tree : tiny) {
+            float worst = 1e9f;
+            for (int e = 0; e <= 18; ++e) {
+                worst = std::min(worst, worst_azimuth_m2(
+                                            tree, 1.5707963f * static_cast<float>(e) / 18.0f));
+            }
+            CHECK_FALSE(worst >= PER_TREE_FLOOR_M2);
+        }
+    }
+    // CONTROL 2 — half the card area, tilt distribution untouched. Measured
+    // 125.1 m^2 against the 229 floor. The ratio case scores this build
+    // IDENTICALLY to the accepted one; a canopy at half density is precisely
+    // the "thinning out of existence at the distance a forest is a skyline"
+    // that FloraBuild.cpp:343 argues about, so the floor must reject it.
+    CHECK_FALSE(fleet_worst_m2(scaled_fleet(oak_full, 0.5f)) >= PRESENTED_FLOOR_M2);
+    // CONTROL 3 — the real rejected candidate: the naive all-horizontal
+    // reading of the user's 5-10 deg ruling, at CONSTANT total card area (each
+    // real card keeps its own area, only its plane is re-laid at 7.5 deg off
+    // the ground). Measured 58.1 m^2 looking level, 23 % of the accepted
+    // build. This is the arithmetic FloraBuild.cpp:343 spends a page on,
+    // measured on real crowns instead of a synthetic one.
+    {
+        std::vector<std::vector<Plane>> flat = oak_full;
+        for (auto& tree : flat) {
+            for (size_t i = 0; i < tree.size(); ++i) {
+                const float az = 2.39996323f * static_cast<float>(i);
+                const float el =
+                    (i % 2 == 0 ? 1.0f : -1.0f) * (1.5707963f - 0.1309f); // 7.5 deg plane
+                tree[i].n = glm::normalize(glm::vec3{std::cos(el) * std::cos(az),
+                                                     std::sin(el), std::cos(el) * std::sin(az)});
+            }
+        }
+        CHECK_FALSE(fleet_worst_m2(flat) >= PRESENTED_FLOOR_M2);
+    }
+    // CONTROL 4, the Rule 30a half — a case that CAN pass, with its margin
+    // stated: the shipped build clears the floor by 9.1 % (249.8 vs 229.0),
+    // so the floor separates the candidates rather than rejecting everything.
+    CHECK(oak_m2 >= PRESENTED_FLOOR_M2 * 1.05f);
 }
 
 TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
