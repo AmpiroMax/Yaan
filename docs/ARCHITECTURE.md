@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:45:59
+Last updated: 10:08:2026 - 21:12:54
 -->
 <!--
 UPD:
@@ -30,6 +30,7 @@ UPD:
 - 10:08:2026 - 20:37:27: Правило 16 — почему «замечать» не могло сработать: проверка мерила ВЕЛИЧИНУ ухода, а дефект — ПРОИСХОЖДЕНИЕ отметки. Четырёхсекундный уход это тот же поступок, что тридцатиминутный. Правило 41, наведённое на правило 16 (формулировка character).
 - 10:08:2026 - 20:37:53: Правило 16 — соблюдение проверяется по СПОСОБУ, а не по результату: зона нарушила средство в том самом коммите, которым чинила форму починки, и значение вышло верным по везению. Верный результат — это ровно то, что даёт удачливый неверный способ.
 - 10:08:2026 - 20:45:59: Правило 44 (константа, подогнанная СКВОЗЬ деталь реализации, перестаёт означать то, что говорит её имя — две среды складывают одни и те же поля по-разному и промахиваются в ПРОТИВОПОЛОЖНЫЕ стороны). Находка core.
+- 10:08:2026 - 21:12:54: Правило 45 (порог различимости и порог РАЗДЕЛЕНИЯ — разные объекты; признак виден ДО измерения: если обоснование ни разу не упоминает отвергнутый образец, это пол, и в гнезде приёмки он пропускает всё). Формулировка design.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -804,6 +805,44 @@ Rule 31's shape one level up: there the field's distribution decided an answer, 
 an unauthored property of a field is being absorbed into a named constant. Sibling
 of Rule 41 — both are cases where the number is right and the thing it denotes is
 not what anyone thinks.
+
+### Rule 45 — A legibility floor and a separating threshold are different objects
+A **floor** answers *"below what value can the eye not read this at all?"* and is
+derived from the DISPLAY — pixel size, quantiser step, contrast. A **separating
+threshold** answers *"what value puts the rejected picture on one side and the
+accepted picture on the other?"* and can only be derived from **two measured
+arms**.
+
+A 20 px legibility floor was derived correctly from the palette quantiser and put
+in an acceptance's slot. The real rejected instance then measured **106 px** — it
+cleared the threshold by 5.3×. A floor in an acceptance's slot **passes
+everything**, and it does so while looking rigorous, because its derivation is
+sound; it is simply the answer to a different question.
+
+**The tell is available BEFORE any measurement, which is what makes this cheap:
+a threshold whose derivation never mentions the REJECTED INSTANCE is a floor.**
+Read the justification. If it talks only about perception, resolution or physical
+limits and never about the thing that must fail, it cannot separate anything.
+
+Corollary, and it is the harder half: **movement is not discrimination.** A
+quantity that moves when the fix lands is not thereby the right quantity. The
+alternative proposed here moved by 8.8% and was still refused, because the defect
+is vertical and the quantity is horizontal — a massif at full width with its
+bottom third curtained scores perfectly and IS the rejected picture. Rule 41's
+identical-number-opposite-verdicts failure, one axis over.
+
+**And a procedure needs a STOPPING CONDITION or the threshold argument returns.**
+The one adopted here: measure the rejected arm against the ideal arm FIRST, and
+if they do not separate by more than the instrument's own re-shoot noise, **refuse
+the quantity and write nothing.** Finding the quantity wrong a third time is a
+legitimate outcome and beats a fitted number.
+
+Sibling of Rule 30 (a threshold must sit above the real rejected instance; which
+quantity it sits on is itself a measurement) and Rule 41 (an instrument that
+measures the object cannot accept a claim about the view). Rule 41 has now fired
+twice on the same acceptance one day apart — the second time on the quantity Rule
+41 itself installed, which is the strongest available argument that this class of
+error is not carelessness.
 
 ---
 
