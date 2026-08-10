@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 02:56:25
+Last updated: 10:08:2026 - 23:32:21
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -60,6 +60,7 @@ UPD:
                          and cloth — one wind for the world. Render's diff,
                          lead-authored per Rule 26.
 - 10:08:2026 - 02:56:25: Weather cloud slice: six additive RenderEnvironment fields (render's diff, Rule 26 sync). Defaults = the scattered state; cloud_offset_m is the ONE drift both sky and ground shadow read.
+- 10:08:2026 - 23:32:21: RendererInitParams::msaa_samples — число выборок покрытия на внутренней цели как ПОЛЬЗОВАТЕЛЬСКАЯ настройка (синк №3), а не переменная окружения.
 */
 
 #pragma once
@@ -109,6 +110,12 @@ struct RendererInitParams {
     uint32_t internal_width = 0;          // low-res internal target (Q9); the
     uint32_t internal_height = 0;         // backend integer-upscales to the framebuffer
     bool vsync = true;
+    // Coverage samples on the INTERNAL target. A user graphics setting of the
+    // same class as internal_resolution and palette (sync #3), so it lives in
+    // settings.cfg; 0/1 = off, 2/4/8 = MSAA. It is what stopped the running
+    // shimmer at the treeline (0.094% -> 0.004%), so lowering it is a real
+    // visual regression and not just a performance dial.
+    uint32_t msaa_samples = 4;
     bool palette_post = false;            // Q9b: quantize the final image to a fixed
                                           // palette inside the upscale pass
 };

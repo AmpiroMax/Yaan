@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 22:37:21
+Last updated: 10:08:2026 - 23:32:21
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -94,6 +94,7 @@ UPD:
 - 10:08:2026 - 21:32:18: Зонд тела считается желающим двойника: без этого он снимал пустую поляну, и кадр читался как «тело не рисуется». Третий немой ноль за день и один и тот же баг — ПРЕДУСЛОВИЕ, записанное списком тех, кому оно тогда понадобилось.
 - 10:08:2026 - 21:41:45: Карта грузится из данных, а не вкомпилирована: 441 строка обзора ОДНОЙ игры уезжает из движка. Отказ загрузки — фатален, потому что откат к вкомпилированным значениям дал бы почти правильный мир, которого никто не искал бы.
 - 10:08:2026 - 22:37:21: THE CROUCH FERRY (character's carve): crouch_eye travels back the same way the lean does, so the camera and the posed body agree on how deep a squat is. Plus the two halves of a crouched RESTORE that never worked -- the snapshot's `crouched` is applied and HELD (accumulate_input rewrites it from a keyboard nobody is at), and the feet are derived with the crouch offset instead of the standing eye height.
+- 10:08:2026 - 23:32:21: Настройка msaa в settings.cfg рядом с разрешением и палитрой: это то, что остановило рябь на линии леса, и понижать её — зрительная регрессия, а не только производительность. Неверное значение отвергается ГРОМКО.
 */
 
 #include "engine/app/sources/App.h"
@@ -191,6 +192,11 @@ void load_or_create_settings(AppConfig& cfg) {
             << "#   window. Presets: 640x360 (fine retro), 320x180 (chunky Daggerfall).\n"
             << "internal_resolution=" << cfg.internal_width << 'x' << cfg.internal_height
             << "\n"
+            << "# msaa: coverage samples on the internal grid (0 = off, 2, 4, 8).\n"
+            << "#   This is what stopped the treeline shimmering when you run\n"
+            << "#   (0.094% -> 0.004% of the screen flipping per frame); lowering\n"
+            << "#   it brings that back. It does NOT change the pixel grid.\n"
+            << "msaa=" << cfg.msaa_samples << "\n"
             << "# palette: 1 = 64-color quantization + dithering (DOS look), 0 = off.\n"
             << "palette=" << (cfg.palette_post ? 1 : 0) << "\n"
             << "# head_bob: bob/dip/settle motion scale; 0 disables the motion\n"
@@ -217,6 +223,17 @@ void load_or_create_settings(AppConfig& cfg) {
             if (std::sscanf(value.c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
                 cfg.internal_width = w;
                 cfg.internal_height = h;
+            }
+        } else if (key == "msaa") {
+            const unsigned v = static_cast<unsigned>(std::strtoul(value.c_str(), nullptr, 10));
+            if (v == 0 || v == 1 || v == 2 || v == 4 || v == 8) {
+                cfg.msaa_samples = v;
+            } else {
+                // Loud, never a nearest match: a silently-clamped sample count
+                // would look like a working setting and draw a different world.
+                std::fprintf(stderr,
+                             "[settings] msaa=%s REJECTED (want 0, 2, 4 or 8); "
+                             "keeping %u\n", value.c_str(), cfg.msaa_samples);
             }
         } else if (key == "palette") {
             cfg.palette_post = !value.empty() && value[0] == '1';

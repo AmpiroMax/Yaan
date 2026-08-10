@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 22:37:21
+Last updated: 10:08:2026 - 23:32:21
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -49,6 +49,7 @@ UPD:
 - 10:08:2026 - 20:03:30: Счётчик попыток доводки более не используется — восстановление стало размещением.
 - 10:08:2026 - 21:26:54: Поля признака тишины мира для затвора тура.
 - 10:08:2026 - 22:37:21: hold_crouch_ -- a restored crouch survives the live keyboard, which is what makes an automated capture at full crouch possible at all (character's carve).
+- 10:08:2026 - 23:32:21: Поле msaa_samples в настройках.
 */
 
 #pragma once
@@ -101,6 +102,9 @@ struct AppConfig {
     float head_bob = 1.0f;         // settings.cfg: 0 disables bob/dip/settle
                                    // MOTION (events and sound still fire) --
                                    // the research's motion-sickness mandate
+    uint32_t msaa_samples = 4; // settings.cfg: coverage samples on the internal
+                               // grid (0/1 off, 2, 4, 8). What stopped the
+                               // treeline shimmer; DFN_MSAA overrides for tooling
     bool palette_post = false; // Q9b palette quantization (DFN_PALETTE=1)
     std::string title_key = "app.title"; // localization key (Rule 5)
 

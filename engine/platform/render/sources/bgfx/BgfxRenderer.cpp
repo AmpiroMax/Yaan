@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:24:48
+Last updated: 10:08:2026 - 23:32:21
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -103,6 +103,7 @@ UPD:
   digits — the residual pixels are not partially covered, they are written or
   discarded, so the fix had to reach the MASK. Details and the palette-on
   numbers in docs/specs/render.md.
+- 10:08:2026 - 23:32:21: Число выборок берётся из параметров запуска, DFN_MSAA остаётся перекрытием для инструментов. Врезка лида в одну строку: оставить настройку неподключённой значило бы отгрузить немой ноль ровно того класса, который этот файл сегодня и чинил.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -328,14 +329,30 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
     // measured with DFN_FLORA_PROBE + DFN_WIND_FREEZE, one 0.05 m stride at
     // RUN_SPEED, share of screen flipping by more than 64 luma, control
     // 0.000 % (near canopy / treeline): see the UPD entry for the table.
+    // The SETTING is the source; DFN_MSAA still overrides it for tooling, the
+    // same precedence settings.cfg has everywhere else (lead's one-line carve
+    // into this file -- the field it reads is RendererInitParams::msaa_samples,
+    // added at the same time, and leaving the setting inert would have been a
+    // silent no-op of exactly the class this file spent the day fixing).
     uint64_t msaa_flags = BGFX_TEXTURE_RT_MSAA_X4;
     im.internal_samples = 4;
+    {
+        const uint32_t req = params.msaa_samples;
+        switch (req) {
+            case 0:
+            case 1: msaa_flags = BGFX_TEXTURE_RT; im.internal_samples = 1; break;
+            case 2: msaa_flags = BGFX_TEXTURE_RT_MSAA_X2; im.internal_samples = 2; break;
+            case 8: msaa_flags = BGFX_TEXTURE_RT_MSAA_X8; im.internal_samples = 8; break;
+            default: break;
+        }
+    }
     if (const char* m = std::getenv("DFN_MSAA")) {
         switch (std::atoi(m)) {
             case 0:
             case 1: msaa_flags = BGFX_TEXTURE_RT; im.internal_samples = 1; break;
             case 2: msaa_flags = BGFX_TEXTURE_RT_MSAA_X2; im.internal_samples = 2; break;
             case 8: msaa_flags = BGFX_TEXTURE_RT_MSAA_X8; im.internal_samples = 8; break;
+            case 4: msaa_flags = BGFX_TEXTURE_RT_MSAA_X4; im.internal_samples = 4; break;
             default: break;
         }
     }
