@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 02:18:26
+Last updated: 10:08:2026 - 20:46:11
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -30,6 +30,10 @@ UPD:
 - 09:08:2026 - 19:41:55: Tolerances re-derived for a 115 m crag: worst voxel deviation bounded by the cell diagonal on near-vertical faces (2.5x voxel, mean still ~2 cm), and the tunnel's standable allowance widened because the ascent now climbs 41 m instead of 18 in a similar footprint so its legs stack closer.
 - 09:08:2026 - 21:37:57: Heightfield-vs-voxel check restated for §2.8 cliffs: every vertex must lie on the heightfield within the terrain's own relief across one voxel cell, UNLESS it is a carve surface (a tunnel wall is not describable as a height per column). Checked per vertex rather than on the global max, which is strictly stronger — the old flat 2.5 m bound let one cliff vertex mask every other error. Measured: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained.
 - 10:08:2026 - 02:18:26: Barrow mouth split into its own EXPECTED-FAIL case (design ruling §7.0a; trigger-expiry = the §2.8.2 couloir work, owner design; should_fail announces the day it opens). The room/burial assertions stay guarding in the plain case.
+- 10:08:2026 - 20:46:11: Both three-arg build_voxel_volume calls documented (sim's
+  catch): the omitted fourth argument is the DERIVED entrance adits, so the
+  determinism case is sound because the omission cancels on both sides, and the
+  P7 case measures the LAYOUT's tunnel rather than the shipped field.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -159,6 +163,14 @@ TEST_CASE("Rule 13.1: voxel volume and extracted mesh are bit-deterministic") {
     CHECK(mesh_hash(a.voxels) == mesh_hash(b.voxels));
 
     // The volume itself (the quantized field) is an exact integer state.
+    //
+    // THREE ARGS, AND IT IS SOUND HERE FOR A REASON WORTH STATING: the fourth
+    // argument generate_chunk passes is the DERIVED entrance adits, and
+    // omitting it builds a volume with solid rock where those corridors are.
+    // This case compares two builds of the SAME call, so the omission is
+    // identical on both sides and cancels — it is a determinism claim, not a
+    // claim about the shipped field. Anywhere the shipped field is the subject,
+    // pass the derived carves (sim's catch, 10.08.2026).
     const auto sampler = [&ctx](glm::vec2 p) { return world::terrain_height(ctx, p); };
     const auto va = world::build_voxel_volume(a, sampler, ctx.params.layout);
     const auto vb = world::build_voxel_volume(b, sampler, ctx.params.layout);
@@ -294,6 +306,12 @@ TEST_CASE("P7 carves: the voxel field holds the tunnel a heightfield cannot") {
     const auto& ctx = testbed();
     const auto sampler = [&ctx](glm::vec2 p) { return world::terrain_height(ctx, p); };
     const auto chunk = world::generate_chunk(ctx, ChunkCoord{3, 0});
+    // LAYOUT CARVES ONLY. The derived entrance adits are NOT in this volume
+    // (generate_chunk passes them as a fourth argument this call omits), so the
+    // overhang count below is a claim about the LAYOUT's tunnel and understates
+    // the shipped field. That is the right scope for this case — it exists to
+    // prove the representation can hold a ceiling at all — but a reader must
+    // not read the number as "the world has this many overhangs".
     const auto volume =
         world::build_voxel_volume(chunk, sampler, ctx.params.layout);
 
