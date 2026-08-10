@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:14:51
+Last updated: 10:08:2026 - 21:26:54
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -90,6 +90,7 @@ UPD:
 - 10:08:2026 - 20:25:36: chunks_.update() вынесен ИЗ цикла догоняющих шагов — он вызывался раз на ШАГ, поэтому после медленного кадра догон впускал пять кусков подряд по 83 мс. Задержка на пересечении границы 730 мс → 39.8 мс.
 - 10:08:2026 - 20:43:18: Наклон глаза берётся из СГЛАЖЕННОГО веса походки, а не из передачи: корпус и глаз обязаны наклоняться одним числом, иначе на торможении с бега грудь возвращается.
 - 10:08:2026 - 21:14:51: Меню выключают ВСЕ автоматические двери, а не только тур и плейтест: снимок, зонд тела и восстановление зависали на стартовом экране и фотографировали меню (жалоба пользователя: «они в меню зависают все»).
+- 10:08:2026 - 21:26:54: Тур снимается на СЧЁТНЫХ часах, а не настенных: затвор ждёт тишины подгрузки, часы игры и растворение детализации идут фиксированным шагом. Собственный контроль тура 27.67% → 14.73%; остаток НЕ объяснён.
 */
 
 #include "engine/app/sources/App.h"
@@ -527,6 +528,7 @@ bool App::enter_world(uint32_t stand) {
 
     // Subscribe the ferry BEFORE the first update so initial loads are seen.
     bus_.subscribe<world::ChunkLoaded>([this](const world::ChunkLoaded& e) {
+        world_changed_this_frame_ = true; // streaming quiescence, see run()
         auto view = chunks_.heightfield(e.coord);
         if (!view) {
             return;
@@ -571,6 +573,7 @@ bool App::enter_world(uint32_t stand) {
         }
     });
     bus_.subscribe<world::ChunkUnloaded>([this](const world::ChunkUnloaded& e) {
+        world_changed_this_frame_ = true; // streaming quiescence, see run()
         render_system_.drop_terrain(*renderer_, {e.coord.x, e.coord.z});
         render_system_.drop_scatter(*renderer_, {e.coord.x, e.coord.z});
         auto it = g_chunk_physics.find(pack_coord({e.coord.x, e.coord.z}));
@@ -1456,13 +1459,33 @@ int App::run() {
         const double frame_dt = std::chrono::duration<double>(now - last).count();
         last = now;
         frame_clock_.push(static_cast<float>(frame_dt));
+        // Cleared before the tick that may set it again (the chunk ferry does).
+        world_changed_this_frame_ = false;
 
         // In-game clock (в67): DAY_LENGTH_SECONDS per day, with a debug key that
         // runs it DEBUG_TIME_SCALE faster so shadows can be watched sweeping.
         const double time_scale = input_->is_down(platform::Key::T)
                                       ? static_cast<double>(config::DEBUG_TIME_SCALE)
                                       : 1.0;
-        game_seconds_ += frame_dt * time_scale;
+        // THE TOUR RUNS ON A COUNTED CLOCK, NOT A WALL CLOCK, and this is the
+        // rest of the Rule 42 defect in the acceptance instrument.
+        //
+        // Gating the settle on streaming quiescence was necessary and NOT
+        // SUFFICIENT: measured after that fix, two runs of the same binary still
+        // differed by 27.67% of pixels. The reason is here. Everything animated
+        // in the frame -- sun elevation and colour, the moon, cloud drift, the
+        // wind field the foliage bends to -- is a function of `game_seconds_`,
+        // which advances by the WALL-CLOCK frame delta. So a machine that runs
+        // the tour faster photographs a world at a different hour and a
+        // different gust phase, and the diff is dominated by sky and foliage
+        // rather than by anything the change under test touched.
+        //
+        // A fixed increment per rendered frame makes the tour's world a pure
+        // function of the frame INDEX, which is what an acceptance instrument
+        // has to be. It changes nothing outside a tour: play still runs on the
+        // wall clock, because play is not evidence.
+        game_seconds_ += tour_.active() ? static_cast<double>(config::SIM_DT)
+                                        : frame_dt * time_scale;
         const double day_len = static_cast<double>(config::DAY_LENGTH_SECONDS);
         const double days = game_seconds_ / day_len;
         const float day_fraction = static_cast<float>(days - std::floor(days));
@@ -1755,7 +1778,20 @@ int App::run() {
             render_system_.set_streamed_rect({(fc.x - r) * cs, (fc.y - r) * cs},
                                              {(fc.x + r + 1.0f) * cs,
                                               (fc.y + r + 1.0f) * cs});
-            render_system_.update_lod(eye, static_cast<float>(frame_dt));
+            // THE CROSS-FADE ALSO RUNS ON A COUNTED CLOCK DURING A TOUR, for
+            // the same reason the game clock does: `LOD_FADE_SECONDS` is a
+            // dissolve measured in REAL seconds, so a machine that reaches the
+            // shot faster catches the fade at a different point and two runs
+            // disagree over whichever patches of ground are mid-dissolve.
+            //
+            // Measured: gating the settle on streaming quiescence took the
+            // tour's self-control from 27.67% to nothing on its own; adding the
+            // counted game clock took it to 14.73%. Neither was sufficient
+            // alone, and each was a different quantity riding the same wall
+            // clock. This is the third.
+            render_system_.update_lod(eye, tour_.active()
+                                               ? static_cast<float>(config::SIM_DT)
+                                               : static_cast<float>(frame_dt));
 
             const auto to_world = [](const render::LodNode& n) {
                 return world::CoarseNode{n.level, n.x, n.z};
@@ -1886,8 +1922,57 @@ int App::run() {
             restore_target_.reset();
         }
         body_probe_frame(alpha, static_cast<float>(frame_dt));
-        if (tour_.active() && tour_.post_frame(*renderer_)) {
-            window_->request_close(); // tour finished (render's contract)
+        // THE TOUR'S SETTLE IS GATED ON THE WORLD HAVING STOPPED CHANGING,
+        // not on frames elapsing. `Tour.cpp` waits a fixed 45 RENDERED FRAMES
+        // for streaming that is driven in SIM STEPS off a wall clock -- Rule 42,
+        // a budget denominated in one clock's units enforcing a limit that only
+        // matters in another's. The cost was measured, not guessed: two runs of
+        // the SAME binary at the SAME commit differ by 17.4% of pixels (34.7%
+        // re-measured later), so no full-tour pixel claim below ~20% has ever
+        // certified anything -- in the instrument this project uses for Rule 27.
+        //
+        // The gate lives HERE rather than in Tour.cpp because the app is the
+        // only place that can see all three queues at once, and because it needs
+        // no change to render's contract: withholding the call simply pauses the
+        // countdown, so the 45 frames now run on a SETTLED world instead of
+        // starting at the refocus.
+        //
+        // HYSTERESIS IS NOT OPTIONAL: a queue legitimately reads empty for one
+        // frame mid-refocus, so quiescence must HOLD. And the cap is a backstop
+        // that REPORTS -- an unreachable vantage must say so rather than hang,
+        // because a tour that quietly never finishes is the same silent-zero
+        // failure as a capture that wrote nothing.
+        //
+        // HONEST GAP, disclosed rather than papered over: there is no
+        // chunk-pending accessor, so "chunks still arriving" is inferred from
+        // ChunkLoaded/ChunkUnloaded events seen this frame. That is sound for
+        // "something arrived" and blind to "something is queued and has not
+        // arrived yet" -- a request to core is out for the real counter, and
+        // until it lands the cap is doing more work than it should.
+        if (tour_.active()) {
+            const bool quiet = !world_changed_this_frame_
+                               && chunks_.coarse_pending_count() == 0
+                               && render_system_.lod_pending().empty();
+            quiet_frames_ = quiet ? quiet_frames_ + 1 : 0;
+            const bool settled = quiet_frames_ >= 4;
+            // The cap counts frames since the world was last SETTLED, so it
+            // measures "this vantage is not converging" rather than "the tour
+            // has been running a while" -- the second would fire on a long but
+            // healthy route.
+            tour_settle_frames_ = settled ? 0 : tour_settle_frames_ + 1;
+            const bool capped = tour_settle_frames_ >= 600;
+            if (capped && !settled) {
+                std::fprintf(stderr,
+                             "[tour] vantage never settled after %d frames "
+                             "(quiet=%d coarse=%zu lod=%zu) -- shooting anyway, "
+                             "this frame is NOT evidence\n",
+                             tour_settle_frames_, quiet_frames_,
+                             chunks_.coarse_pending_count(),
+                             render_system_.lod_pending().size());
+            }
+            if ((settled || capped) && tour_.post_frame(*renderer_)) {
+                window_->request_close(); // tour finished (render's contract)
+            }
         }
         if (playtest_ && playtest_->finished && pt_artifacts_pending_) {
             gameplay::playtest_write_artifacts(*playtest_, pt_dir_);

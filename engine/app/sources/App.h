@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:03:30
+Last updated: 10:08:2026 - 21:26:54
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -47,6 +47,7 @@ UPD:
 - 10:08:2026 - 19:26:40: Отладочный экран (F3) и снимок состояния (F2) с восстановлением по DFN_RESTORE — запрос пользователя: видеть куда смотрю, fps, скорость, координаты, и уметь передать состояние так, чтобы его подняли обратно.
 - 10:08:2026 - 19:57:06: Поле счётчика попыток доводки восстановления.
 - 10:08:2026 - 20:03:30: Счётчик попыток доводки более не используется — восстановление стало размещением.
+- 10:08:2026 - 21:26:54: Поля признака тишины мира для затвора тура.
 */
 
 #pragma once
@@ -163,6 +164,15 @@ private:
     // a long displacement (sim measured 0.53 m of residual), so the horizontal
     // correction is re-issued until it converges or these run out.
     int restore_attempts_ = 0; // vestigial after the teleport fix; kept at 0
+    // STREAMING QUIESCENCE for the tour's settle (Rule 42). The tour waited a
+    // fixed count of RENDERED frames for work denominated in SIM steps, and two
+    // runs of the same binary differed by 17-35% of pixels because of it. These
+    // let the app hold the countdown until the world has actually stopped
+    // changing. `world_changed_this_frame_` is set by the chunk ferry and
+    // cleared at the top of each frame.
+    bool world_changed_this_frame_ = false;
+    int quiet_frames_ = 0;         // consecutive settled frames (hysteresis)
+    int tour_settle_frames_ = 0;   // frames since last settled; cap backstop
 
     AppConfig config_{};
 
