@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 21:11:31
+Last updated: 10:08:2026 - 21:18:30
 -->
 <!--
 UPD:
@@ -71,6 +71,7 @@ UPD:
 - 10:08:2026 - 20:29:59: §5.12a-e — CORE FOUND A HOLE IN MY OWN SENTENCE AND I RULED IT RATHER THAN PATCHING IT. The apron predicate never said WHICH TREES it ranges over; core measured both readings instead of arguing them — globally it excludes every tree within ~670 m (a clearcut, REFUSED), scoped to the massif stamp it reaches 162 m as a derived output against a pine annulus at 140 m (RATIFIED AS SHIPPED, and it reproduces my measurement from the other side). THE REAL RULING IS THAT THE ACCEPTANCE QUANTITY IS WRONG, which is why the middle looked unrulable: at 300 m the apron moves 'fraction hidden' by 1.1 points (39.5->38.4) despite demonstrably fixing the actual defect, and core's own third option is right that a third hidden IS what a forested valley looks like. Both true at once convicts the QUANTITY, not either answer — Rule 30's mechanical test. The case the fraction cannot see: 69% visible spread evenly reads as a mountain behind a wood, 69% visible with the BOTTOM curtained reads as a painted backdrop, and the fraction is identical. Same family as §2.8.7 — the instrument measures the OBJECT while the acceptance is about the VIEW. Acceptance moves to the GROUND JUNCTION: a contiguous run of >=20 px at 640x360 (4.885 deg at SKY_ANGULAR_PIXEL, reused from WEATHER.md W9.0) where the lowest visible massif pixel is massif-meeting-ground rather than canopy edge; aggregation longest run, denominator the massif's angular width. THRESHOLD DELIBERATELY NOT PLACED — both arms must be measured on the new quantity first, apron-OFF being the real rejected instance, and sizing before measuring is the error I ruled against on BR-5 the same day. Core's 15/50 band survives RECLASSIFIED from acceptance gap to canary on the apron's machinery. Wedge refused for now with its unnamed cost written down: a corridor pointed at a landmark is a bald lane along the exact bearing the player walks. The missing frame is upgraded from Rule 27 debt to BLOCKER, because the junction run is defined ON the frame; handed core the clock convention they were missing (0.25 sunrise / 0.5 noon / 0.75 sunset as a fraction of DAY_LENGTH_SECONDS). Separately flagged to flora/core as Rule 32: species_trunk_radius() returning ROOT FLARE is a SHARED HELPER, so every consumer is inspected in the same change, not only the BR-5 ray that surfaced it.
 - 10:08:2026 - 21:08:13: §5.10a THE MOSS RULING — flora's GROUND_MOSS_FOREST_PER_M2 0.0263 REFUSED, row stays 0.0040 (40/ha). Settled by arithmetic before definitions: scatter_forest_ground places at most ONE patch per trunk, so per_anchor = per_m2 x 225 m2 is a PROBABILITY and saturates — the requested row realises ~8.4/ha, a 1.4x gain where 6.6x was intended, against a structural ceiling of 41.9/ha that no row raises. Model validated first: E[clump_moss] = 0.1614 derived in closed form from COVERAGE 0.22 / CONTRAST 0.55 predicts 6.45/ha against core's independently measured 6.09/ha. Definitional core: flora's derivation says 2/3 of stems carry a patch (0.667) while CLUMP_COVERAGE_MOSS says moss exists on 0.22 of the ground — contradictory as statements about the same moss, so no row value exists. M-1 moss is ANCHORED, clump_applies -> FALSE same commit (37.7/ha = 0.94x authored). M-2 mushroom keeps the field (flora authored it 'before clumping' — the field IS the look). M-3 the discriminator as a schema column, DensityBasis BASE vs REALISED, since clump_applies is being asked to mean two things and every per_100m row is REALISED by its own contract. M-4 §A7 changes in the SAME commit but not as feared: the count does not rise, so no rings — what 6/ha hid is that every patch sits at a CONSTANT offset (0,-0.6), one azimuth for every trunk in the world, which at 37/ha is A7's forbidden stamp; bearing jittered off a real shade direction (Rule 35 second consumer, named before it bites), distance scaled by trunk size, acceptance = circular variance of bearing (denominator: uniform-bearing control on the same anchors), today's single-azimuth build reads 0 and is the must-fail arm. M-5 ground moss at 263/ha is a legitimate SEPARATE row (assoc Nothing, basis Base, derivation must not mention stem count, must state its relation to §5.10 moss_cover) — filed open, not a blocker. M-6 PathMargin's 2.5-2.7x OVER and ForestFloor's under are ONE defect: rho normalises by INTEGRAL(edge) while placing with max(clump, edge*rich) — numerator weight and denominator normaliser are different functions. The max() STAYS (core's mutation proves it load-bearing for the kept verge); normalise by the integral of the weight actually used. NO ROW MOVES in either habitat, so Rule 44's trap is avoided by fixing the denominator rather than by choosing a composition.
 - 10:08:2026 - 21:11:31: §5.12f-h — THE 20 px JUNCTION THRESHOLD IS WITHDRAWN AND RULE 41 HAS NOW FIRED TWICE ON THE SAME ACCEPTANCE, the second time on the quantity Rule 41 itself installed. Core measured both arms and REPORTED RATHER THAN TUNED, which is the only reason this is rulable: junction 106 px apron-OFF vs 108 px apron-ON (+1.9%), against my proposed 20 px — the real rejected instance clears my threshold by 5.3x, so Rule 30 kills it outright. But the movement is the finding: the junction moved 1.9% where the hidden-fraction it replaced moved 1.1 points, one day apart, and no threshold can be placed between 106 and 108 (below both certifies nothing; between them is the 30a coincidence refused three times here already). WHAT WENT WRONG BOTH TIMES, stated because a rule that catches everyone but its author is not yet a rule: I derived 20 px from LEGIBILITY (the width surviving the palette quantiser) and put it in the slot where a SEPARATION belongs. A legibility floor is derived from the display and answers 'below what can the eye not read this'; a separating threshold can only be derived from two measured arms. The tell is available before any measurement — a threshold whose derivation never mentions the rejected instance is a floor, and a floor in an acceptance's slot passes everything. Forwarded to main for ARCHITECTURE (docs/ is the lead's zone). ANGULAR EXTENT REFUSED as the replacement despite being the quantity that moved (328->357, +8.8%): the defect is VERTICAL and extent is HORIZONTAL, so a massif at 100% width with its bottom third curtained scores perfectly and IS the rejected picture — the same identical-number-opposite-verdicts failure that convicted the fraction, one axis over; it is not monotone in the defect (it keeps improving toward the clearcut 5.12a refused); and it has no accepted arm, so adopting it lands us one measurement later in this same position. THE JUNCTION QUANTITY SURVIVES; ITS AGGREGATION DOES NOT, and the aggregation is where 106 px comes from — 'longest run anywhere along the extent' lets a run at the outer margin, where the massif is at valley level anyway, answer for the centre where the flare and bench are read. New §5.12h acceptance: PRIMARY = CURTAIN HEIGHT, the lowest visible massif pixel per column as a fraction of that column's unoccluded extent; aggregation MEDIAN OVER THE CENTRAL HALF (outer quarters reported, never asserted); denominator the SCATTER-SUPPRESSED frame's own column extent so other terrain's occlusion is divided out rather than counted as canopy; lower is better, 0 = the massif stands on its ground. Junction run retained DEMOTED to canary beside 5.12c's 15/50 band. THRESHOLD STILL NOT PLACED, but this time the placing PROCEDURE has a stopping condition so it cannot return as a threshold argument: three arms (scatter-suppressed — which ALREADY EXISTS, it is the frame that opened §5.12 — apron ON, apron OFF) on the same vantage; BEFORE proposing any number, check that apron-OFF and scatter-suppressed separate by more than the measure's own frame-to-frame noise, and if they do not, REFUSE THIS QUANTITY TOO and write nothing (Rule 41 a third time is a legitimate outcome and beats a fitted number); only then does the threshold go between the two apron arms, and if apron-ON does not land materially closer to scatter-suppressed then the apron is not the whole fix and 5.12d's thinning returns with its bald-lane cost intact.
+- 10:08:2026 - 21:18:30: §1.9 THE BACKWARD SWEEP — 61 pre-existing acceptance rules across LANDSCAPE.md and WEATHER.md read against the aggregation/denominator clause. Handed back twice; it ran now because three things forced it and ALL THREE were found by other zones auditing me. CODE_AUDIT's three shapes are all present in this document. THE INSTRUMENT IS ONE QUESTION and it is the transmissible part: 'what world MAXIMISES this number, and would I ship that world?' Reviewing a rule when you write it asks 'does this measure the thing', which every rule below passed — the denominator defect is invisible to that question and visible to this one. Seconds per rule, no measurement, found S-1 and S-5 immediately; now asked at authoring time and answered in the rule's own text. S-1 C1's DENOMINATOR IS CHOSEN BY THE EFFECT C1 MEASURES, verified in source (WorldgenValidation.cpp:104, 'not inside forest masses (trees occlude)'): the numerator asks whether the landmark is occluded and the denominator has deleted where the dominant occluder lives, with the effect given as the reason — Rule 36 inverted. PLANTING FOREST CAN RAISE C1; FOREST_COVERAGE 0.25-0.40 means the filter is bigger than the 4.3-point margin at the measured 0.6429; and C1 COULD NEVER HAVE CAUGHT §5.12, because the standpoints where the forest eats the mountain are the ones C1 does not look at. Exclusion RETAINED but it becomes a written SCOPE: excluded fraction reported beside every C1 figure, a second figure over ALL walkable ground reported-never-asserted, and the falsifiable clause — C1's denominator must not shrink when the world gains occluders, counterfactual arm = raise FOREST_COVERAGE and confirm C1 does not IMPROVE. If it improves the rule is inverted. Nobody has run it. S-2 I4 HAS NO VALID CONTROL: its must-fail arm (the dome at 33.2%) was footprint-weighted over the WHOLE crag, its passing values (24.2/18.5) are surface-weighted ABOVE THE CLIFFLINE — the audit's two-denominator headline inside an invariant currently cited as holding, and since the surface reading systematically lowers the fullest bin's share on a steep body the control may well PASS once measured right, leaving I4 with no rejected instance at all. I4 is REPORTED NEVER ASSERTED until the dome is re-measured on I4's own denominator, and may not be counted among the invariants a seed passes. S-3 §2.9's spire backdrop rule is a luminance RATIO where §1.3b ruled the quantity a linear DIFFERENCE. Converted on §2.9's own luminances: sky 1.01 steps, mid rock 6.35, canopy 8.58. NO VERDICT FLIPS and the sky case gets STRONGER — it now fails the 2-step floor outright instead of being called '1.10x unusable'. Restated in steps, ratio table kept as superseded provenance. S-4 the rules still missing a half are REPORTED NEVER ASSERTED until it is written — headed by R4 CASTLE_SILHOUETTE_RATIO, whose denominator 'standpoints where BOTH are visible' is S-1's disease inside the rule protecting the landmark hierarchy from the castle, and W3's wind invariant, which is unfalsifiable because its 'stated lag' is never stated. S-5 A FLAT TREELESS WORLD SCORES 1.000 ON C1 — the exact world §1.1 forbids, scoring perfectly on the rule §1.1 leads with. C2-testbed does not bind (a bare plain with one landmark satisfies a coequal-attractor count trivially) and §2.1's concealment clause is a CEILING pointing the same way. The corpus has exactly one global LOWER bound on concealment: §1.4's occlude-and-reveal 30-80%, recorded as 'already validated' with no number anywhere. C1 and occlude-and-reveal are now read as a PAIR and neither is quoted alone; occlude-and-reveal is promoted to a first-class acceptance with aggregation (fraction of stations PLUS a longest-visible-run clause, since 55% in one block and 55% alternating are the reveal and its absence at the same number — §5.12's lesson one rule over) and denominator (stations on BR-2's own cost-optimal route, so the two rules cannot disagree about which path they mean); the flat plain is its control and must fail. AND WHAT THE SWEEP DID NOT FIND, recorded so the corpus is not misrepresented: the large majority name both halves and a dozen name them better than the clause requires — BR-4's per-class normalised control, BR-5's ratio demoted to a difference because its denominator can be zero, BR-6's median-plus-tail, I3/I5's true-surface-area rule, I8's isoperimetric denominator, §4.3's banding criterion, and WEATHER's A1-A7 and W10.4 C1-C3, every one with aggregation, denominator and a control, four of them real shipped rejected instances. The clause works; the pre-existing corpus had simply never been passed under it, and now has.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1799,6 +1800,195 @@ that makes walking itself the content. Base is the USER'S CHOICE (в20):
   a pale-spire group (§2.9) — flora/render propose catalog entries, design
   accepts. Interaction with BR-5: near roads a find may sit visible from
   the road (the road is its reveal); in the hills it obeys BR-5.
+
+---
+
+## 1.9 THE BACKWARD SWEEP — every pre-existing acceptance rule against the aggregation/denominator clause (audit, stage-5)
+
+**This was handed back twice and it should not have been.** It ran now because
+three independent things forced it, and **all three were found by other zones
+auditing me rather than by me auditing the corpus** — §1.7's terrain-only
+control, withdrawn after core found it contradicted a figure in its own report;
+§5.12's fraction, which was the wrong quantity outright; and `docs/CODE_AUDIT.md`
+finding the same disease in the test suites, in three shapes: *a share of X among
+Y where Y is pre-selected by X*, *a ratio whose ideal value is achieved by a
+fully flat world*, and *a headline whose two halves come from two different
+denominators.* **All three shapes are present in this document.** Sixty-one
+acceptance rules across LANDSCAPE.md and WEATHER.md were read against the clause.
+
+##### 1.9.0 THE INSTRUMENT, because it is the transmissible part and it is one question
+
+Reviewing a rule when you write it asks *"does this measure the thing?"* — and
+every rule below passed that, which is why they shipped. The denominator defect
+is invisible to that question and visible to a different one:
+
+> **What world MAXIMISES this number, and would I ship that world?**
+
+It is mechanical, it costs seconds per rule, it needs no measurement, and it
+found S-1 and S-5 below immediately. **Every acceptance rule in this document
+gets that question asked of it at authoring time from now on**, and the answer
+goes in the rule's own text where the aggregation and denominator already go.
+
+##### S-1 ⚠ C1's DENOMINATOR IS CHOSEN BY THE EFFECT C1 MEASURES — and more forest RAISES the score
+
+**Verified in source, not inferred** (`WorldgenValidation.cpp:104`):
+
+```cpp
+// "Open walkable ground": dry, walkable slope, not inside forest
+// masses (trees occlude) and not on the landmark itself.
+if (in_forest_mass(layout, p)) continue;
+```
+
+**The numerator asks "is the landmark occluded?" and the denominator has already
+removed the places where the dominant occluder lives — and the comment gives the
+reason as `trees occlude`.** That is the audit's first shape exactly, and it is
+Rule 36 inverted: an exclusion is supposed to be chosen by cause and this one is
+chosen by the effect under test.
+
+Three consequences, all arithmetic rather than opinion:
+
+- **Planting forest can RAISE C1.** Every standpoint that becomes forest leaves
+  the denominator, and standpoints inside a wood are overwhelmingly the blocked
+  ones. The rule improves as the world acquires the occluder it exists to police.
+- **The excluded set is larger than the margin.** `FOREST_COVERAGE` is
+  0.25–0.40; C1 measured **0.6429** against a floor of 0.6, a margin of 4.3
+  points. A filter covering a quarter to two fifths of the ground is deciding a
+  four-point verdict.
+- **C1 could never have caught §5.12.** The forest eating the mountain is exactly
+  a canopy-occlusion defect, and the standpoints where it is worst are the ones
+  C1 does not look at. That is not a hypothetical: it took a screenshot and a
+  user's word, and this is why.
+
+**RULING S-1. The exclusion is RETAINED and stops being invisible.** It has a
+real defence — "the player standing inside a wood sees nothing, and that is not
+a landscape failure" — but a defence makes it a **scope**, and a scope has to be
+written on the rule instead of living in a comment. Binding:
+
+- **C1 is restated as a rule about open ground**, in its own text, with the
+  excluded fraction of walkable ground **reported beside every C1 figure.** A
+  number quoted without it is not quotable.
+- **A second figure is computed over ALL walkable ground including forest
+  interiors, and it is REPORTED, NEVER ASSERTED.** *Aggregation:* same standpoint
+  grid. *Denominator:* every walkable, dry, non-landmark standpoint. If the two
+  figures diverge by more than the margin, **the verdict is being carried by the
+  denominator** and the rule is not usable until that is resolved.
+- **The falsifiable clause, and it is the one that makes this a rule rather than
+  a caveat: C1's denominator must not shrink when the world gains occluders.**
+  Counterfactual arm (Rule 30b), one run: raise `FOREST_COVERAGE` and confirm
+  C1 does not **improve**. **If it improves, the rule is inverted** and no
+  threshold on it means anything. Nobody has run this and it is cheap.
+
+##### S-2 ⚠ I4 HAS NO VALID CONTROL — its must-fail arm and its passing values sit on DIFFERENT denominators
+
+I4 is *"above the cliffline, no single 10° slope bin holds more than 0.30 of the
+surface"*, surface-area weighted. Its recorded control — the old dome at **33.2 %**
+— was measured **footprint-weighted, over the whole crag**, and this document
+already records that reading as *superseded, not reconstructed*. The passing
+values (24.2 %, 18.5 %) are surface-weighted above the cliffline.
+
+**So the number that is supposed to fail I4 and the numbers that pass it have
+never been on the same instrument.** This is the audit's third shape — a headline
+assembled from two denominators — inside an invariant that is currently cited as
+holding. 33.2 % vs 30 % is a 10 % margin, and switching from plan-view footprint
+to true surface area systematically *lowers* the fullest bin's share on a steep
+body, so **the control may well pass I4 once measured correctly**, which would
+leave I4 with no rejected instance at all.
+
+**RULING S-2. Until the dome is re-measured on I4's own denominator, I4 is
+REPORTED, NEVER ASSERTED**, and it may not be counted among the invariants a
+seed "passes". Re-measuring it is one run of an instrument that already exists.
+**This is Rule 30 at its plainest and it has been sitting in the numbers table
+looking green.**
+
+##### S-3 §2.9's spire siting is a luminance RATIO, and §1.3b ruled that quantity is a linear DIFFERENCE
+
+§1.3b settled it explicitly — *"Not a luminance ratio… a ratio criterion is most
+permissive in the darks"* — and §2.9's backdrop table predates it and still
+divides. Two rules about value separation, two denominators, one document.
+Converted to §1.3b's own ruler (`PALETTE_SHADE_STEP_REF` 0.0784), using §2.9's
+own measured luminances:
+
+| backdrop | §2.9's ratio | difference | **steps** | verdict |
+|---|---|---|---|---|
+| bright sky 0.790 | 1.10× "unusable" | 0.079 | **1.01** | **fails the 2-step floor outright** |
+| mid rock 0.371 | 2.3× "strong" | 0.498 | **6.35** | passes |
+| `PINE_DARK` 0.197 | 4.4× "maximal" | 0.672 | **8.58** | passes |
+
+**No verdict flips, and the sky case gets STRONGER** — "1.01 steps against a
+floor of 2" is a rejection by the project's own separation rule, where "1.10×
+unusable" was an adjective. **RULING S-3: §2.9's siting rule is restated in
+steps; the ratio table is retained as provenance and marked superseded.** Cheap,
+no re-measurement, and it removes a second denominator from the corpus.
+
+##### S-4 THE RULES WHOSE AGGREGATION OR DENOMINATOR IS STILL UNSTATED — reported, never asserted, until named
+
+**RULING S-4: a rule in this list may be measured and reported but may not carry
+a verdict until its missing half is written.** Not deleted — most are good rules
+missing one sentence — but a rule that cannot say what it divides by cannot fail
+anything, and quoting one as a pass is the exact move this sweep exists to stop.
+
+| rule | missing | note |
+|---|---|---|
+| **R4 `CASTLE_SILHOUETTE_RATIO` 0.6** | aggregation; **and the denominator is self-selecting** | "standpoints ≥ 300 m **where both are visible**" — a castle that occludes the L0 deletes the standpoints where it dominates most. **S-1's disease, in the rule that protects the landmark hierarchy from the castle.** Highest priority in this table. |
+| **W3 wind-field invariant** | both — *"agree… to within their stated lag"* and **the lag is never stated** | unfalsifiable as written; the must-fail control is good and cannot be run against nothing |
+| `CANOPY_VISIBILITY_MIN` 0.25 | both | a per-ray transmittance with no rule for combining rays |
+| occlude-and-reveal 30–80 % | aggregation, **and it has never been measured** | see S-5 — this is the load-bearing one |
+| `LANDMARK_SEPARATION_STEPS_MIN` | aggregation | the threshold and its ruler are exemplary; what is aggregated over the two masses is not stated |
+| BR-2 `DETOUR_MAX` 1.4 | aggregation | denominator is exemplary (the generator's own cost field); per-path vs worst-path unstated, and passing overhead is still unmeasured |
+| BR-3 ratio, BR-4 | aggregation / seed statistic | both already demoted or normalised, so the exposure is low |
+| I6 CV 0.35 | cross-radial aggregation | per-radial CV is defined; how radials combine is not |
+| §4.1 `ROCK_PALE`, elevation-holding check | aggregation | interval is derived from §1.3b's rulers and is sound |
+| W4, W5 | both | frame-condition rules, never numeric |
+
+##### S-5 ⚠ A FLAT, TREELESS WORLD SCORES THE MAXIMUM ON C1 — and the only rule that would reject it has never been measured
+
+Asked of the corpus's headline rule, §1.9.0's question answers itself: **C1 is
+maximised at 1.000 by a bare plain with one crag on it** — «земля плоская и
+мёртвая», the exact world §1.1 exists to forbid, scoring perfectly on the rule
+§1.1 leads with. C2 was meant to be the counterweight and does not bind: its
+testbed form counts *coequal attractors*, which a bare plain with one landmark
+trivially satisfies, and §2.1's concealment clause is a **ceiling** (≤ 40 % hidden),
+pointing the same way.
+
+**Searched the whole corpus for a LOWER bound on concealment. There are two.**
+BR-1's occluded run is per-path and waivable in writing. **§1.4's
+occlude-and-reveal — "visibility from the two nearest POIs is between 30 % and
+80 % of the approach path" — is the only global one, and its lower bound of 30 %
+is the single clause in this document that a flat world fails.** It is recorded
+as *"already validated"* with **no number anywhere.**
+
+**RULING S-5.**
+- **C1 and occlude-and-reveal are read as a PAIR and neither is quoted alone.**
+  C1 without its partner certifies a landmark visible from a world with nothing
+  in it.
+- **Occlude-and-reveal is promoted to a first-class acceptance and gets the
+  missing half:** *Aggregation:* fraction of sampled stations along the approach,
+  **plus** a longest-visible-run clause, since 55 % visible in one continuous
+  block and 55 % alternating are the reveal and its absence at the same number —
+  §5.12's lesson, one rule over. *Denominator:* stations on the approach path
+  between the two nearest POIs, the path being BR-2's own cost-optimal route so
+  the two rules cannot disagree about which path they mean.
+- **It must be measured, and the flat plain is its control** — a real rejected
+  instance this project has already shipped and been told about in words. It will
+  read ≈ 100 % visible and must fail.
+
+##### 1.9.6 WHAT THE SWEEP DID NOT FIND, which is most of it
+
+Stated because a sweep that only reports damage misrepresents the corpus and
+tempts the next reader to discount it. **The large majority of these sixty-one
+rules name both halves, and a dozen name them better than the clause requires:**
+BR-4's normalised Clark–Evans (denominator re-derived per class, after the single
+global control was found wrong for four of five); BR-5, whose ratio was
+*demoted to a difference* precisely because its denominator can be zero, and
+whose aggregation is pinned per-distance against pooling; BR-6's median-plus-tail
+("a mean can hide a desert"); I3 and I5's true-surface-area rule with footprint
+kept as a diagnostic; I8's isoperimetric denominator; §4.3's banding criterion,
+which replaced a ratio-shaped instrument with a max-interior-step against a named
+ruler and shipped with both arms from one frame; and **WEATHER.md's A1–A7 and
+W10.4's C1–C3, every one of which names aggregation, denominator and a control —
+four of them a real shipped rejected instance, one of them another studio's
+shipped game.** The clause works. It was the pre-existing corpus that had never
+been passed under it, and that is now done.
 
 ---
 
