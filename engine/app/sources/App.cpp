@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 10:36:22
+Last updated: 10:08:2026 - 11:40:12
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -78,6 +78,8 @@ UPD:
 - 10:08:2026 - 00:04:04: Подсказки взаимодействия рисуются на экране. Первый настоящий текст в игре: таблица строк грузится из данных, промах даёт заметную заглушку, а не пустоту.
 - 10:08:2026 - 02:44:09: Большая проводка ландшафтного этапа: аудио (слушатель, ветер, шаги), контекст шага, тело от первого лица (ферри BodyDrive от часов шага sim), зеркальный двойник (DFN_MIRROR/DFN_SHOWCASE), автономный плейтест (DFN_PLAYTEST), связь угла обзора со скоростью, строка head_bob в настройках.
 - 10:08:2026 - 10:36:22: Запуск через МЕНЮ: init() поднимает движок, enter_world() строит выбранную демо-карту. Стартовый экран, выбор карты, пауза по Esc. DFN_MENU=0/DFN_MAP для инструментов; тур и плейтест выключают меню сами.
+- 10:08:2026 - 11:37:37: Ферри поверхностей дорожек и маршрут съёмки по точкам стенда — лесок стал фотографируемым.
+- 10:08:2026 - 11:40:12: Выбор стенда переехал с DFN_MAP на DFN_STAND — DFN_MAP уже был щупом экрана карты у render, и маршрут стенда молча схлопывался в один кадр.
 */
 
 #include "engine/app/sources/App.h"
@@ -229,7 +231,12 @@ AppConfig AppConfig::from_env() {
     if (const char* mn = std::getenv("DFN_MENU")) {
         cfg.show_menu = (mn[0] == '1');
     }
-    if (const char* mp = std::getenv("DFN_MAP")) {
+    // DFN_STAND, not DFN_MAP: DFN_MAP was already render's MAP-SCREEN probe,
+    // and Tour::stand_steps treats any probe variable as "this run is a single
+    // evidence frame" -- so selecting the stand with it silently collapsed the
+    // stand's own tour to one testbed frame. A name collision, found by the
+    // frame it produced rather than by reading either file.
+    if (const char* mp = std::getenv("DFN_STAND")) {
         const std::string m(mp);
         if (m == "forest") {
             cfg.start_stand = 1;
@@ -400,6 +407,13 @@ bool App::enter_world(uint32_t stand) {
     const auto wb = chunks_.water_bodies();
     render_system_.set_water_bodies(*renderer_, wb.lakes, wb.river_stations,
                                     wb.river_segment_offsets);
+
+    // Path surfaces: whole-world, built at open, valid until re-open -- the
+    // same lifetime as the water bodies above, so the same one-shot call site
+    // is the right one. Empty on a stand with no paths, which is a valid
+    // answer and needs no stand check.
+    const auto ps = chunks_.path_surface();
+    render_system_.set_path_surface(*renderer_, ps.stations, ps.route_offsets);
 
     // Subscribe the ferry BEFORE the first update so initial loads are seen.
     bus_.subscribe<world::ChunkLoaded>([this](const world::ChunkLoaded& e) {
@@ -722,7 +736,12 @@ bool App::enter_world(uint32_t stand) {
 
     if (render::Tour::enabled_by_env()) {
         const char* dir = std::getenv("DFN_TOUR_DIR");
-        tour_.begin(render::Tour::testbed_steps(), dir ? dir : "screenshots",
+        // The stand publishes its own vantages, so a tour on the forest stand
+        // photographs the forest instead of shooting one frame at a testbed
+        // coordinate and stopping. An empty vantage list falls through to the
+        // testbed route, so nothing about the old stand changes.
+        tour_.begin(render::Tour::stand_steps(chunks_.stand_vantages()),
+                    dir ? dir : "screenshots",
                     [this](glm::vec2 p) { return chunks_.height_at(p).value_or(0.0f); });
     } else {
         // The body probe drives the look itself; grabbing the cursor for it
