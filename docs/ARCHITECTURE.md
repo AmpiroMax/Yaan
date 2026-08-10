@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 21:12:54
+Last updated: 10:08:2026 - 21:17:06
 -->
 <!--
 UPD:
@@ -31,6 +31,7 @@ UPD:
 - 10:08:2026 - 20:37:53: Правило 16 — соблюдение проверяется по СПОСОБУ, а не по результату: зона нарушила средство в том самом коммите, которым чинила форму починки, и значение вышло верным по везению. Верный результат — это ровно то, что даёт удачливый неверный способ.
 - 10:08:2026 - 20:45:59: Правило 44 (константа, подогнанная СКВОЗЬ деталь реализации, перестаёт означать то, что говорит её имя — две среды складывают одни и те же поля по-разному и промахиваются в ПРОТИВОПОЛОЖНЫЕ стороны). Находка core.
 - 10:08:2026 - 21:12:54: Правило 45 (порог различимости и порог РАЗДЕЛЕНИЯ — разные объекты; признак виден ДО измерения: если обоснование ни разу не упоминает отвергнутый образец, это пол, и в гнезде приёмки он пропускает всё). Формулировка design.
+- 10:08:2026 - 21:17:06: Правило 29 — `git commit --amend` ЗАПРЕЩЁН на общей ветке: HEAD, прочитанный секунду назад, это предпосылка, а не факт. Правка задела чужой коммит, потому что третий агент успел вклиниться между двумя вызовами.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -421,6 +422,21 @@ fix for the only crash a user hit that day, so the most valuable change of the n
 is recorded under a message about a documentation rule and a bisect will point at the
 wrong commit. Nothing was lost and history was correctly NOT rewritten, because
 rewriting shared `main` under four agents is worse than a misleading message.
+
+**`git commit --amend` IS BANNED on the shared branch, and the reason is Rule 34
+in its cheapest possible form: HEAD read a second ago is a PREMISE, not a fact.**
+An agent committed with a message file whose name a peer had already used in the
+shared scratchpad, so their commit went in wearing another zone's message; they
+reached for `--amend` to fix it, and a third agent had committed **in the gap
+between the two calls** — so the amend rewrote the wrong commit. Nothing was
+lost, and the repair was the right tool (`git commit-tree` plus a
+compare-and-swap `git update-ref`, which touches neither the index nor anyone's
+working tree). But with five agents committing concurrently that window is
+always open, and a wrong message is cheaper than a rewritten peer.
+
+The same lesson one layer down: **the shared scratchpad is shared.** A commit
+message at `msg1.txt` is not a filename, it is an unlocked resource. Name files
+uniquely per agent.
 The failure is silent, it will recur, and the next collision may not compile.
 
 ### Rule 30 — Every test ships with a control
