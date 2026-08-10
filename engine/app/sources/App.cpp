@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 19:26:40
+Last updated: 10:08:2026 - 19:44:12
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -81,6 +81,7 @@ UPD:
 - 10:08:2026 - 11:37:37: Ферри поверхностей дорожек и маршрут съёмки по точкам стенда — лесок стал фотографируемым.
 - 10:08:2026 - 11:40:12: Выбор стенда переехал с DFN_MAP на DFN_STAND — DFN_MAP уже был щупом экрана карты у render, и маршрут стенда молча схлопывался в один кадр.
 - 10:08:2026 - 19:26:40: Отладочный экран, снимок состояния и восстановление. Заодно убран ВТОРОЙ обработчик Esc: он звал request_close(), поэтому Esc открывал паузу И закрывал игру — экран паузы существовал, но увидеть его было нельзя.
+- 10:08:2026 - 19:44:12: DFN_HEAD_BOB и DFN_PLAYTEST_GAIT — двери к контролю движения и к передаче бота (запрос sim: без них автоматический прогон умел мерить ТОЛЬКО шаг). Неверное значение отвергается ГРОМКО: молчаливый откат к умолчанию воспроизвёл бы ровно тот дефект, ради которого дверь и открыта.
 */
 
 #include "engine/app/sources/App.h"
@@ -261,6 +262,28 @@ AppConfig AppConfig::from_env() {
     }
     if (const char* pal = std::getenv("DFN_PALETTE"); pal && pal[0] == '1') {
         cfg.palette_post = true;
+    }
+    // Same tooling pattern as DFN_PALETTE: the settings row is the user's, the
+    // env var is the harness's. head_bob 0 is the ready-made MOTION control
+    // (Rule 30) -- bob/dip/settle stop, events and sound keep firing -- so a
+    // judder can be attributed to camera motion or exonerated of it in one run.
+    if (const char* hb = std::getenv("DFN_HEAD_BOB"); hb != nullptr && *hb != '\0') {
+        float v = 1.0f;
+        if (std::sscanf(hb, "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
+            cfg.head_bob = v;
+        } else {
+            // LOUD, not silent. A rejected value here would leave bob at its
+            // default while the harness believed the control was applied -- so
+            // the counterfactual arm would be a duplicate of the other arm, and
+            // "the judder survives bob at zero" would be concluded from a run
+            // where bob was never zero. A control that can silently fail to
+            // apply is worse than no control (Rule 30).
+            std::fprintf(stderr,
+                         "[config] DFN_HEAD_BOB=\"%s\" REJECTED (want 0..2); "
+                         "head_bob stays %.2f -- the motion control was NOT "
+                         "applied\n",
+                         hb, static_cast<double>(cfg.head_bob));
+        }
     }
     return cfg;
 }
@@ -722,6 +745,36 @@ bool App::enter_world(uint32_t stand) {
         }
         if (const char* sec = std::getenv("DFN_PLAYTEST_SECONDS")) {
             ptc.duration_seconds = std::strtof(sec, nullptr);
+        }
+        // DFN_PLAYTEST_GAIT=walk|jog|run. The bot already carries the gear
+        // (PlaytestConfig::gait); without a door to it the harness can only
+        // ever measure WALK, and every step-feel quantity is a function of
+        // speed -- so the gears that are not the default are exactly the ones
+        // no automated run has ever visited.
+        if (const char* g = std::getenv("DFN_PLAYTEST_GAIT"); g != nullptr && *g != '\0') {
+            //
+            // AN UNKNOWN VALUE IS REFUSED OUT LOUD, not folded into walk. A
+            // typo ("jgo") falling through to Walk would silently reproduce the
+            // exact defect this door was opened to fix: a run that reports
+            // itself as a jog measurement while measuring a walk. The default
+            // is the dangerous branch here precisely because it is also the
+            // correct spelling of a real gear.
+            const std::string gait(g);
+            if (gait == "run") {
+                ptc.gait = gameplay::Gait::Run;
+            } else if (gait == "jog") {
+                ptc.gait = gameplay::Gait::Jog;
+            } else if (gait == "walk") {
+                ptc.gait = gameplay::Gait::Walk;
+            } else {
+                std::fprintf(stderr,
+                             "[playtest] DFN_PLAYTEST_GAIT=\"%s\" is not "
+                             "walk|jog|run -- REFUSING to run, because a run "
+                             "that quietly measured walk would be reported as "
+                             "measuring \"%s\"\n",
+                             g, g);
+                return false;
+            }
         }
         const glm::vec4 wbz = chunks_.world_bounds_xz();
         ptc.world_min = {wbz.x + 16.0f, wbz.y + 16.0f};
