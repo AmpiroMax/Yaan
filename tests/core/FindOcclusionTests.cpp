@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 20:06:10
-Last updated: 10:08:2026 - 20:06:10
+Last updated: 10:08:2026 - 20:13:53
 Module: tests
 File: tests/core/FindOcclusionTests.cpp
 
@@ -33,6 +33,11 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 20:06:10: Created — BR-5's ray-vs-disc acceptance with its
   bare-terrain control and a per-distance aggregation that has no way to pool.
+- 10:08:2026 - 20:13:53: The siting claim is a DIFFERENCE, never a ratio. The
+  measured bare-terrain control is EXACTLY 0.0000 at 40 m, so a ratio has no
+  denominator there and no threshold on it could separate working siting from
+  broken siting (Rule 30: the quantity is wrong, not the threshold). The ring
+  the ratio cannot express is where the scatter does its largest work.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -171,10 +176,18 @@ TEST_CASE("BR-5: the composed scene occludes, and bare terrain is the must-fail 
         // the bar, the terrain has quietly grown a job it was not given, and
         // the ruling's premise needs re-checking rather than a shrug.
         CHECK(r.bare < BAR);
-        // And the scatter must be doing the work, at every distance — if the
-        // composed reading ever equalled the control, this instrument would be
-        // the old one wearing a new name.
-        CHECK(r.composed > r.bare);
+        // THE SITING CLAIM AS A DIFFERENCE, NOT A RATIO (design's amendment,
+        // 10.08.2026). The old canary read "siting beats the bare-ground
+        // control 3-4x", and this measurement puts that ratio's denominator at
+        // EXACTLY 0.0000 at the 40 m ring — so at the near ring no threshold on
+        // that quantity separates working siting from broken siting. Rule 30's
+        // own words: if no value on a quantity separates the accepted cases
+        // from the rejected ones, the QUANTITY is wrong, not the threshold.
+        //
+        // Measured differences: 40 m -> 0.4167, 60 m -> 0.5833, 80 m -> 0.5000.
+        // Note that the ring the ratio CANNOT express at all is where the
+        // scatter does its largest work — which is what the ratio was hiding.
+        CHECK(r.composed - r.bare > 0.3f);
     }
 
     // THE GATE ITSELF, REPORTED PER RING RATHER THAN ASSERTED AS ONE NUMBER.

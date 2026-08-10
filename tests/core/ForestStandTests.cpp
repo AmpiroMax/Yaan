@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 19:59:10
+Last updated: 10:08:2026 - 20:13:53
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -104,6 +104,14 @@ UPD:
   quantity is a height ERROR and its threshold now sits in metres: worst
   deviation < 0.01 m, with the pre-path field as a control that must differ by
   more than 0.05 m so the assertion cannot be measuring nothing.
+- 10:08:2026 - 20:13:53: BR-5 canary restated as a DIFFERENCE with a MEASURED
+  denominator (design's amendment, 0c24946). The old form compared the siting
+  median against a 0.06 literal that was twice a ground median design has now
+  withdrawn as arithmetically impossible — a threshold derived from a number
+  nobody can reproduce. The unchosen-ground median is now measured in the test
+  beside the claim. The withdrawn figures are struck through rather than
+  deleted: a number quoted into a design ruling should stay findable by whoever
+  reads the ruling.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -917,11 +925,20 @@ TEST_CASE("BR-5 on this stand: the siting works, the LANDFORM does not (open def
     // 40-80 m eye-height ring. ON THIS STAND'S BARE GROUND IT IS NOT, and this
     // test records the measurement instead of pretending otherwise.
     //
-    // Scanned over the stand (16 bearings, find 0.5 m, eye 1.7 m):
-    //   ring 40+80 m: p50 0.03, p90 0.19, max 0.53, >= 0.50 on 0% of ground
-    //   ring 80 m only: p50 0.06, p90 0.31, max 0.69, >= 0.50 on 3%
-    //   ring 40 m only: p50 0.00, p90 0.06 — at 40 m against a 100 m grive
-    //                   wavelength a ring often crosses NO crest at all
+    // THE PER-RING FIGURES BELOW ARE WITHDRAWN (design, 10.08.2026, §1.7
+    // amended in 0c24946). They were recorded as a per-distance pair and are
+    // arithmetically impossible as one: two equal groups cannot have medians
+    // 0.03 and 0.06 while the POOLED median of the same draw is 0.1042, which
+    // is what the generator actually recorded and what the new instrument
+    // reproduces to four decimals. They were almost certainly a pooled reading
+    // mislabelled per-distance — the exact ambiguity Rule 30's aggregation
+    // clause uses this rule as its worked example of.
+    //
+    // The measured per-distance control is now 0.0000 / 0.0417 / 0.2083 at
+    // 40 / 60 / 80 m (tests/core/FindOcclusionTests.cpp). Kept here struck
+    // through rather than deleted, because a number that was quoted into a
+    // design ruling should stay findable by whoever reads that ruling:
+    //   [WITHDRAWN] ring 40+80 m: p50 0.03 / ring 80 m: p50 0.06
     //
     // THE CAUSE IS A CONFLICT BETWEEN TWO RATIFIED REQUIREMENTS ON ONE
     // LANDFORM, not a placement bug. LF-2's swale floors must be CONTINUOUS
@@ -948,10 +965,23 @@ TEST_CASE("BR-5 on this stand: the siting works, the LANDFORM does not (open def
     INFO("wilderness find occlusion median ", med);
 
     // What IS assertable today: the SITING WORKS — finds are placed on the
-    // most-occluded candidate in their cell, so they beat the ground's own
-    // median (0.03 measured over the stand). That is the placement rule doing
-    // its job on a landform that cannot yet carry it.
-    CHECK(med > 0.06f);
+    // most-occluded candidate in their cell, so they beat the ground they
+    // stand on. THE DENOMINATOR IS MEASURED HERE rather than carried as a
+    // literal: the 0.06 that used to sit in this line was twice a ground
+    // median that has since been withdrawn, which made it a threshold derived
+    // from a number nobody could reproduce.
+    std::vector<float> ground_occ;
+    for (const world::Find& f : c.finds) {
+        // The same ray, aimed at ground the placement did NOT choose: one
+        // find-spacing away, perpendicular to nothing in particular. This is
+        // the "ground's own occlusion" the siting has to beat.
+        ground_occ.push_back(world::occluded_fraction_at(
+            [&](glm::vec2 q) { return world::terrain_height(c, q); }, {},
+            f.position + glm::vec2{37.0f, 23.0f}, 80.0f, 24));
+    }
+    const float ground_med = median(ground_occ);
+    INFO("siting median ", med, " against unchosen-ground median ", ground_med);
+    CHECK(med > ground_med);
     // And the defect is pinned, so it cannot be quietly "fixed" by a threshold
     // drifting down: if this ever passes, BR-5 has become satisfiable and the
     // test must be rewritten into the real gate.
