@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 11:07:33
+Last updated: 10:08:2026 - 11:14:45
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -60,6 +60,9 @@ UPD:
   the pre-ruling flat table as the rejected control; the kept-verge-is-not-
   bare-ground clause; the PathClass ordinal mapping pinned (nothing else can
   check it across the DAG).
+- 10:08:2026 - 11:14:45: Design's bounds on the moss residual (strictly under
+  the dirt weight, moss only); the ordinal-mapping test now says WHY it failed,
+  so whoever trips it fixes the mapping rather than the expectation.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2238,6 +2241,16 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
         // value: moss lives in the shaded JOINTS, flowers never do.
         if (r.species == FloraSpecies::MossPatch) {
             CHECK(w.stone_steps >= 0.5f);
+            // THE MOSS RESIDUAL IS BOUNDED (design, 10.08.2026). It is argued
+            // from fiction — «life survives where the broom cannot reach», the
+            // damp joint being a mechanism rather than a mood — and a number
+            // argued from fiction is exactly the kind that grows later. So:
+            // STRICTLY under the dirt weight, or the ordering loses its teeth;
+            // and moss ONLY, never generalised to "damp species" (enforced by
+            // this clause living under a MossPatch test, plus the flowers and
+            // mushrooms taking 0 on cobble above).
+            CHECK(w.cobble < w.dirt);
+            CHECK(w.cobble <= 0.30f);
         }
         if (r.species == FloraSpecies::FlowerCarpet
             || r.species == FloraSpecies::FlowerAccent) {
@@ -2310,6 +2323,19 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
     // DAG). Pin the mapping so a reorder on either side breaks a test rather
     // than permuting a landscape.
     {
+        // The failure message has to say WHY (design's ask): whoever trips
+        // this must fix the MAPPING, not the expectation. If you are reading
+        // this because the line below went red, core's PathClass enum has been
+        // reordered and every margin weight in FloraEdgeRules.h now applies to
+        // the wrong path class — silently, because `world` and `render` are
+        // DAG siblings and neither can see the other's enum. A cobbled street
+        // will bloom and a hint-path will be swept. Fix PathClassRichness's
+        // field order to match the new PathClass, do not relax this test.
+        INFO("PathClassRichness field order must match core's PathClass "
+             "ordinals (0 Cobble, 1 Dirt, 2 FaintTrail, 3 StoneSteps, "
+             "engine/world/sources/WorldgenPaths.h). A reorder on either side "
+             "PERMUTES THE MARGIN WEIGHTS SILENTLY — fix the mapping, never "
+             "this expectation.");
         const PathClassRichness w{0.1f, 0.2f, 0.3f, 0.4f};
         CHECK(w.by_ordinal(0) == doctest::Approx(0.1f)); // Cobble
         CHECK(w.by_ordinal(1) == doctest::Approx(0.2f)); // Dirt

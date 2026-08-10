@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 11:07:33
+Last updated: 10:08:2026 - 11:14:45
 -->
 <!--
 UPD:
@@ -263,6 +263,24 @@ UPD:
                          per-class column; and the weight scales the edge PEAK
                          and never the base presence, because A KEPT VERGE IS
                          NOT BARE GROUND.
+- 10:08:2026 - 11:14:45: Design confirmed the moss residual and BOUNDED it
+                         (strictly under dirt, moss only, acceptance is a
+                         FRAME — pockets not a ribbon; remedy pre-chosen if the
+                         frame fails). New §3.14 answers core's BR-5 question
+                         BEFORE any re-sizing: the floor classes can move p50
+                         occlusion from 0.03 to 0.34-0.89, but (a) the
+                         load-bearing class is BUSH, not the dead wood — logs
+                         contribute 0.05 and deadfall 0.000, so sizing dead
+                         wood up to rescue BR-5 would spend on the wrong class;
+                         (b) CLUMPING COSTS 0.09-0.26 of occlusion at equal
+                         mean density, so BR-4 and BR-5 pull against each other
+                         and the Poisson estimate everyone would reach for is
+                         optimistic by that much — at the DENSE end, clumped
+                         bush at 40 m is 0.475, under the bar; (c) the ruled
+                         band spans pass AND fail, «a range is two assertions»
+                         for the seventh time. Not sized: density is design's,
+                         and tree TRUNKS (~0.27 at 60 m) are omitted from the
+                         model and must be settled first.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1270,6 +1288,65 @@ ordinals are core's `PathClass` positions and nothing checks it**, because
 other; the mapping is pinned by a test and stops being a seam at the migration
 already scheduled for this table (Rule 5, core's JSON reader), where both
 declarations are visible and a `static_assert` replaces the convention.
+
+**The moss residual on cobble (0.25) is design-confirmed and BOUNDED**, since
+a number argued from fiction is the kind that grows later: strictly under the
+dirt weight (asserted), moss ONLY — never generalised to "damp species" — and
+**its acceptance is a FRAME, not the ratio.** Pockets, not a ribbon: if a
+cobbled street renders a continuous green stripe down both kerbs the residual
+is wrong however green the test is, and the remedy is already chosen — drop it
+to 0 and let `ShadeOfStone` carry the joints, which is the same fiction keyed
+to the PLACE instead of to the distance. **That frame is OWED** and cannot be
+shot until core places on a cobbled street.
+
+### 3.14 Can the floor classes carry BR-5? Measured before anyone re-sizes
+
+Core measures BR-5 p50 occlusion at **0.03 against a 0.5 bar** on this stand's
+bare terrain, and proposed re-measuring with §5.10's classes in the raycast —
+which would make the forest floor load-bearing for a beauty rule rather than
+dressing. Asked and answered *before* sizing anything (eye 1.7 m, find 0.3 m,
+bearings occluded at 40–80 m, ruled densities):
+
+| | 40 m | 60 m | 80 m |
+|---|---|---|---|
+| ruled MAX of every band | 0.667 | 0.804 | 0.893 |
+| ruled MIN of every band | 0.339 | 0.458 | 0.569 |
+
+**Three findings, and two of them change the plan.**
+
+1. **THE LOAD-BEARING CLASS IS `Bush`, NOT THE DEAD WOOD.** Alone at 60 m:
+   bush **0.725**, big bush 0.239, fallen log **0.050**, snag 0.008, deadfall
+   **0.000**. A 0.25 m deadfall never rises into a ray that is still 0.5 m up
+   at the find, and a half-sunk log barely does. So "measure BR-5 with the logs
+   and bushes in" is right about bushes and a rounding error about logs — the
+   count does it (bush is 100–300/ha against big bush's 8–15), not the mass.
+   Sizing the dead wood *up* to rescue BR-5 would be spending on the wrong
+   class.
+2. **CLUMPING COSTS 0.09–0.26 OF OCCLUSION AT EQUAL MEAN DENSITY**, and
+   clumping is mandatory (в19г/BR-4), so a Poisson estimate is optimistic by
+   about that much. Clumped obstacles block redundantly inside a clump and
+   leave open LANES between clumps. Measured on the bush class with real 2D
+   placement and real ray–disc intersection:
+
+   | mean density | 40 m Poisson → clumped | 60 m Poisson → clumped |
+   |---|---|---|
+   | 0.030 /m² | 0.731 → **0.475** | 0.874 → 0.653 |
+   | 0.020 /m² | 0.528 → 0.356 | 0.700 → 0.571 |
+   | 0.010 /m² | 0.392 → 0.257 | 0.490 → 0.397 |
+
+   **At the DENSE end of the ruled band, clumped bush at 40 m is 0.475 — under
+   the bar.** The two rules pull against each other: BR-4 wants drifts, BR-5
+   wants screening, and drifts screen worse than an even spread.
+3. **The ruled band spans PASS AND FAIL** — «a range is two assertions»
+   (design's own defect, and this is its seventh appearance): the MAX end
+   clears BR-5 everywhere, the MIN end fails at 40–60 m. A band whose two ends
+   answer an acceptance rule differently is not yet a decision.
+
+**Not sized here — density is design's.** Flagged with one omission named:
+tree TRUNKS are absent from this model and are probably the larger term
+(44 trees/ha × ~1.2 m ⇒ ~0.27 occlusion at 60 m analytically), so whether
+BR-5's raycast already counts them changes the whole arithmetic and should be
+settled before any floor-class density moves.
 
 **The rich edge set (в8/в19в; `FloraEdgeRules.h` + seven patch species).**
 Species = `GroundForm` + numbers, the tree doctrine one level down. Design's
