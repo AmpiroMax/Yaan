@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:31:38
+Last updated: 10:08:2026 - 20:35:08
 -->
 <!--
 UPD:
@@ -44,6 +44,9 @@ UPD:
 - 10:08:2026 - 20:31:38: a8 CLOSED. sim landed the consumer (0015f93),
   the eye rides the lean, and the frustum test was inverted together with its
   control. The order now holds at every gear and the margin GROWS with speed.
+- 10:08:2026 - 20:35:08: a9 gains sim's compression (their transition worry and
+  my vacuous steady-state qualifier are one missing piece) and their
+  endorsement of the shape.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -407,13 +410,23 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       recomputing from the gait. Body and eye then share one number and cannot
       drift by construction. It needs one line in the app (lead's), so it is
       proposed rather than landed: landing my half alone would create exactly
-      the decelerating-desync above.
+      the decelerating-desync above. sim reviewed the asymmetry and withdrew
+      their own "ease it in the producer" suggestion in favour of this shape,
+      so both zones are agreed on the design before anyone writes it.
 
       BONUS, and it is why this is worth doing rather than tolerating: it would
       make the steady-state qualifier in the gait test REAL. Today nothing
       settles, so "held past any transition" is vacuously true; with an eased
       weight the test would have to step ticks to reach full weight, which is
       what the phrasing has always claimed to measure.
+
+      **sim's compression of that, and it is the sentence to keep: THEIR
+      TRANSITION WORRY AND MY VACUOUS QUALIFIER ARE THE SAME MISSING PIECE.**
+      One zone was worried about a blend that does not exist; the other had
+      written a test that passes for free because it does not exist. Neither
+      of us could see the whole shape from one side — which is the argument
+      for a9 being scheduled rather than tolerated, since it closes a real
+      motion artifact AND a test that currently costs nothing to satisfy.
 
    a7. **THE ELBOW — «в анимации махания всё такая же проблема, локоть
       неестественно двигается». THE JOINT LIMITS WERE NEVER THE GAP.** They
