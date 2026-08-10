@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:05:06
+Last updated: 10:08:2026 - 20:08:54
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -85,6 +85,7 @@ UPD:
 - 10:08:2026 - 19:57:06: Три починки снимка состояния, все три найдены sim при проверке инструмента, а не при его использовании: хэш сборки штампуется во время СБОРКИ (был — при конфигурации, и называл сборку на два коммита старше), восстановление доводится итеративно (промах был 0.53 м), и вычитается ВЫНОС глаза вперёд, а не только высота — иначе круговой прогон уводил игрока на 0.10 м вперёд каждый раз.
 - 10:08:2026 - 20:03:30: Восстановление через teleport_character вместо самодельной доводки. Прежний комментарий утверждал, что телепорта в IPhysics нет — предпосылка была моя, непроверенная (grep по неверному имени), и успела уйти в бриф core. Промах упал с 0.53 м до 0.001 м; вся машинерия доводки удалена.
 - 10:08:2026 - 20:05:06: DFN_CAPTURE_DIR на существующий каталог убивал процесс до загрузки мира (бросающая форма create_directories) — render потерял на этом три прогона, и прогон, не измеривший НИЧЕГО, выглядел как измеривший ноль.
+- 10:08:2026 - 20:08:54: Передача gait в BodyDrive включена: походку выбирает передача, а не сравнение скорости с числами. Закрывает и трусцу-с-наклоном-0.286, и окно регрессии, в котором ВСЕ передачи рисовались шагом.
 */
 
 #include "engine/app/sources/App.h"
@@ -1540,18 +1541,11 @@ int App::run() {
                         // to a type). A static_cast would keep compiling if
                         // either enum gained or reordered a member; the switch
                         // goes red HERE, at the one place that can see both.
-                        //
-                        // PARKED, NOT FORGOTTEN: `anim::BodyDrive::gait` does
-                        // not exist yet -- character is landing it this batch
-                        // and sent the exact declaration. The line below is
-                        // theirs verbatim and goes live the moment the field
-                        // does; until then the 0.286 blend is STILL SHIPPING,
-                        // so locomotion between 1.8 and 6.0 is unruled.
-                        // switch (ps->gait) {
-                        // case gameplay::Gait::Walk: drive->gait = anim::Gait::Walk; break;
-                        // case gameplay::Gait::Jog:  drive->gait = anim::Gait::Jog;  break;
-                        // case gameplay::Gait::Run:  drive->gait = anim::Gait::Run;  break;
-                        // }
+                        switch (ps->gait) {
+                        case gameplay::Gait::Walk: drive->gait = anim::Gait::Walk; break;
+                        case gameplay::Gait::Jog:  drive->gait = anim::Gait::Jog;  break;
+                        case gameplay::Gait::Run:  drive->gait = anim::Gait::Run;  break;
+                        }
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
