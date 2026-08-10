@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 02:49:15
+Last updated: 10:08:2026 - 11:07:33
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -56,6 +56,10 @@ UPD:
   along; two green tests held contradictory beliefs about one buffer.
 - 10:08:2026 - 02:49:15: Moss-below-grass-band assertion (design's acceptance
   rule) with the grass reference as its own failing control.
+- 10:08:2026 - 11:07:33: Margin-richness invariant on design's ORDERING with
+  the pre-ruling flat table as the rejected control; the kept-verge-is-not-
+  bare-ground clause; the PathClass ordinal mapping pinned (nothing else can
+  check it across the DAG).
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1877,8 +1881,10 @@ TEST_CASE("clump: wavelength IS the drift scale, and classes are independent") {
     double cross = 0.0;
     constexpr int N = 4000;
     for (int i = 0; i < N; ++i) {
-        const glm::vec2 p{static_cast<float>(i % 63) * 7.3f,
-                          static_cast<float>(i / 63) * 7.7f};
+        const int col = i % 63;
+        const int row = i / 63; // integer ON PURPOSE: a lattice row index
+        const glm::vec2 p{static_cast<float>(col) * 7.3f,
+                          static_cast<float>(row) * 7.7f};
         const float u0 = clump_raw(c, p, 777u);
         near_d += std::fabs(clump_raw(c, p + glm::vec2{wl * 0.15f, 0.0f}, 777u) - u0);
         far_d += std::fabs(clump_raw(c, p + glm::vec2{wl * 4.0f, 1.7f * wl}, 777u) - u0);
@@ -1897,8 +1903,10 @@ TEST_CASE("clump: wavelength IS the drift scale, and classes are independent") {
     // full covariance, so the bound above cannot be satisfied by accident.
     double self = 0.0;
     for (int i = 0; i < N; ++i) {
-        const glm::vec2 p{static_cast<float>(i % 63) * 7.3f,
-                          static_cast<float>(i / 63) * 7.7f};
+        const int col = i % 63;
+        const int row = i / 63; // integer ON PURPOSE: a lattice row index
+        const glm::vec2 p{static_cast<float>(col) * 7.3f,
+                          static_cast<float>(row) * 7.7f};
         const float u0 = clump_raw(c, p, 777u);
         self += (static_cast<double>(u0) - 0.5) * (static_cast<double>(u0) - 0.5);
     }
@@ -1912,8 +1920,10 @@ TEST_CASE("clump: the edge gradient FLOORS the field (design amendment 2)") {
     const ClumpClass c = ClumpClass::Flowers;
     glm::vec2 bare{-1.0f, -1.0f};
     for (int i = 0; i < 4000; ++i) {
-        const glm::vec2 p{static_cast<float>(i % 63) * 9.1f,
-                          static_cast<float>(i / 63) * 8.3f};
+        const int col = i % 63;
+        const int row = i / 63; // integer ON PURPOSE: a lattice row index
+        const glm::vec2 p{static_cast<float>(col) * 9.1f,
+                          static_cast<float>(row) * 8.3f};
         if (clump_field(c, p, 777u) == 0.0f) {
             bare = p;
             break;
@@ -2181,4 +2191,130 @@ TEST_CASE("edge: the stunted pine is a dwarf, not a sapling and not a bush") {
     const FloraMesh forest = build_flora_mesh(FloraSpecies::HighlandPine, 1,
                                               FloraShape{}, FloraLod::Full);
     CHECK_FALSE(highest_y(forest) <= kp.height_max * 1.05f);
+}
+
+TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
+    // Design's ruling (10.08.2026) and the fiction that decides every number:
+    // A RICH MARGIN IS WHAT GROWS WHERE NOBODY SWEEPS. Cobble through a
+    // settlement is swept by the people who live there; a hint-path is BR-3's
+    // specimen class and carries the full band. The test asserts the ORDERING
+    // the fiction implies, not the literals, so re-tuning a value stays legal
+    // and inverting the fiction does not.
+    int path_rows = 0;
+    for (size_t i = 0; i < FLORA_EDGE_RULE_COUNT; ++i) {
+        const FloraEdgeRule& r = FLORA_EDGE_RULES[i];
+        const PathClassRichness& w = r.richness;
+        if (r.habitat != EdgeHabitat::PathMargin) {
+            // The column is meaningless off a path, and identity there so a
+            // consumer that multiplies by it anyway is harmless.
+            CHECK(w.cobble == doctest::Approx(1.0f));
+            CHECK(w.dirt == doctest::Approx(1.0f));
+            CHECK(w.faint_trail == doctest::Approx(1.0f));
+            CHECK(w.stone_steps == doctest::Approx(1.0f));
+            continue;
+        }
+        ++path_rows;
+        // DESIGN RULED AN ORDERING, NOT FOUR CONSTANTS (10.08.2026), and the
+        // reason is worth keeping: four per-class numbers would be four things
+        // to tune, while «less tended means more overgrown» is what the
+        // fiction actually claims. So the assertions are ordinal.
+        // hint >= dirt > cobble, with the dirt/cobble step STRICT: a dirt road
+        // must SHOW a peak (it is not required to reach RICH_EDGE_RATIO) and
+        // cobble must not.
+        CHECK(w.faint_trail >= w.dirt);
+        CHECK(w.dirt > w.cobble);
+        // The hint-path is BR-3's specimen class — the one the ratio is
+        // MEASURED on — and carries the full band.
+        CHECK(w.faint_trail == doctest::Approx(1.0f));
+        // The maintained end has no peak worth the name.
+        CHECK(w.cobble <= 0.35f);
+        CHECK(w.dirt <= 0.75f);
+        // Every weight is a multiplier.
+        for (uint8_t k = 0; k < 4; ++k) {
+            CHECK(w.by_ordinal(k) >= 0.0f);
+            CHECK(w.by_ordinal(k) <= 1.0f);
+        }
+        // Design's two named stair cases, asserted by species rather than by
+        // value: moss lives in the shaded JOINTS, flowers never do.
+        if (r.species == FloraSpecies::MossPatch) {
+            CHECK(w.stone_steps >= 0.5f);
+        }
+        if (r.species == FloraSpecies::FlowerCarpet
+            || r.species == FloraSpecies::FlowerAccent) {
+            CHECK(w.stone_steps == doctest::Approx(0.0f));
+        }
+    }
+    REQUIRE(path_rows >= 6); // the margin set is actually being measured
+
+    // CONTROL — THE REAL REJECTED INSTANCE: this table as it stood BEFORE the
+    // ruling, i.e. no maintenance modelled at all, which gardened a town
+    // gutter as lushly as a woodland trail. Flat weights must FAIL the
+    // suppression clause; if they passed, the column would be decorative.
+    {
+        const PathClassRichness flat{1.0f, 1.0f, 1.0f, 1.0f};
+        CHECK_FALSE(flat.cobble <= 0.35f);
+        // ...while still satisfying monotonicity, which is exactly why
+        // monotonicity ALONE could not have caught it. Two clauses, because
+        // this zone's signature failure is a rule implemented in half.
+        CHECK(flat.faint_trail >= flat.dirt);
+    }
+    // A KEPT VERGE IS NOT BARE GROUND (design's second consequence, and the
+    // one most easily lost in implementation). The richness scales the edge
+    // PEAK, never the base presence — so on a fully swept class the margin
+    // must fall back to exactly what the clump field gives that ground, not
+    // to zero. Suppressing it to nothing would re-make «земля плоская и
+    // мёртвая» inside the settlement, which is the complaint this whole stage
+    // exists to answer.
+    {
+        const ClumpClass c = ClumpClass::Flowers;
+        int checked = 0;
+        for (int i = 0; i < 400; ++i) {
+            const glm::vec2 p{static_cast<float>(i) * 5.3f,
+                              static_cast<float>(i) * 3.1f};
+            const float plain = clump_field(c, p, 777u);
+            // Swept class (richness 0), right at the margin: the guarantee
+            // stops applying, the ground keeps its own field value.
+            CHECK(clump_field_edged(c, p, 777u, 0.0f, 0.0f)
+                  == doctest::Approx(plain));
+            // The specimen class (richness 1) still gets the full guarantee.
+            CHECK(clump_field_edged(c, p, 777u, 0.0f, 1.0f)
+                  >= doctest::Approx(1.0f));
+            ++checked;
+        }
+        REQUIRE(checked == 400);
+        // CONTROL: if the weight scaled the WHOLE density instead of the peak,
+        // a swept margin would read 0 wherever the field is 0 — and on ground
+        // where the field is non-zero the two models are indistinguishable, so
+        // the discriminating case must be a field ZERO. Find one and pin it.
+        glm::vec2 bare{-1.0f, -1.0f};
+        for (int i = 0; i < 4000; ++i) {
+            const int col = i % 63;
+            const int row = i / 63; // integer ON PURPOSE: a lattice row index
+            const glm::vec2 p{static_cast<float>(col) * 9.1f,
+                              static_cast<float>(row) * 8.3f};
+            if (clump_field(c, p, 777u) == 0.0f) {
+                bare = p;
+                break;
+            }
+        }
+        REQUIRE(bare.x >= 0.0f);
+        // Unpeaked, and equal to the field — the "scales the whole density"
+        // model would agree here (both 0), so this pins the OTHER end: the
+        // specimen class must still be floored to 1 on that same bare ground.
+        CHECK(clump_field_edged(c, bare, 777u, 0.0f, 0.0f) == doctest::Approx(0.0f));
+        CHECK(clump_field_edged(c, bare, 777u, 0.0f, 1.0f) == doctest::Approx(1.0f));
+    }
+
+    // CONTROL 2: the ordinal accessor is bound to core's PathClass order, and
+    // a mismatch is silent (the two enums cannot see each other across the
+    // DAG). Pin the mapping so a reorder on either side breaks a test rather
+    // than permuting a landscape.
+    {
+        const PathClassRichness w{0.1f, 0.2f, 0.3f, 0.4f};
+        CHECK(w.by_ordinal(0) == doctest::Approx(0.1f)); // Cobble
+        CHECK(w.by_ordinal(1) == doctest::Approx(0.2f)); // Dirt
+        CHECK(w.by_ordinal(2) == doctest::Approx(0.3f)); // FaintTrail
+        CHECK(w.by_ordinal(3) == doctest::Approx(0.4f)); // StoneSteps
+        CHECK(w.by_ordinal(9) == doctest::Approx(1.0f)); // unknown -> identity
+    }
 }

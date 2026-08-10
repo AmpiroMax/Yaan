@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:16:00
-Last updated: 10:08:2026 - 02:34:52
+Last updated: 10:08:2026 - 11:07:33
 Module: engine/render
 File: engine/render/sources/FloraField.h
 
@@ -58,6 +58,9 @@ UPD:
   CLUMP_* with design's signature); literals replaced by Constants.h names
   (Rule 14). Ring/cluster parity moved onto the PARENT SEED itself so the
   contract "even parents ring" is legible to core's find promotion.
+- 10:08:2026 - 11:07:33: clump_field_edged() takes path_richness: the BR-3
+  floor is the very machinery that would garden a cobbled gutter, so it is
+  scoped by the maintenance column and stops applying on swept classes.
 */
 
 #pragma once
@@ -227,14 +230,28 @@ inline float cdf_u(float n) {
 /// must exist whatever the field says. `dist_to_path_m` is distance to the
 /// path EDGE (not centreline); core owes the trodden-centre exclusion
 /// separately. Returns the field value to multiply into density.
+///
+/// `path_richness` IS THE MAINTENANCE SCALE (design's ruling 10.08.2026,
+/// FloraEdgeRules.h) AND IT MUST BE PASSED, because this floor is precisely
+/// the machinery that would garden a cobbled gutter: **the mechanism
+/// installed to GUARANTEE the rich edge is the one that breaks the
+/// maintenance rule.** Scale it to 0 on a swept class and the guarantee
+/// stops applying there, which is what "no peak on cobble" means. The base
+/// field still returns its own value, so the verge is unpeaked, NOT bare —
+/// a kept verge is not bare ground.
+///
+/// When core's path network is the live source, pass `PathSample.edge`
+/// (already the ramp) times the richness instead of calling this — two ramps
+/// is a bug. This overload exists for callers with only a distance.
 [[nodiscard]] inline float clump_field_edged(ClumpClass c, glm::vec2 world_xz,
-                                             uint32_t seed, float dist_to_path_m) {
+                                             uint32_t seed, float dist_to_path_m,
+                                             float path_richness = 1.0f) {
     constexpr float EDGE_BAND_M = 2.5f; // the rich margin (research §A6.3)
     const float f = clump_field(c, world_xz, seed);
     if (dist_to_path_m >= EDGE_BAND_M) return f;
     const float t = std::max(dist_to_path_m, 0.0f) / EDGE_BAND_M;
     const float ramp = 1.0f - t * t * (3.0f - 2.0f * t); // 1 at the edge -> 0
-    return std::max(f, ramp);
+    return std::max(f, ramp * std::clamp(path_richness, 0.0f, 1.0f));
 }
 
 /// SECOND STAGE under the mushroom field (design's blessed split): within a

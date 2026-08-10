@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 10:56:08
+Last updated: 10:08:2026 - 11:07:33
 -->
 <!--
 UPD:
@@ -241,6 +241,28 @@ UPD:
                          give opposite verdicts for grass. Escalated to design
                          and the lead; not tuned, because buying the number
                          would mean bare earth between tufts.
+- 10:08:2026 - 11:07:33: BOTH ESCALATIONS RULED (design §1.7, 9b2f58b; lead's
+                         row f201bac) and the rulings implemented. BR-4 moves
+                         onto R_norm with CLUMP_R_NORM_MAX 0.85 — and what
+                         condemned the old row was design's OWN even-field
+                         clause failing the case it exists to admit (Rule 30a),
+                         not grass. Design then escalated a defect one level
+                         down that I had missed: THE CONTROL IS ITSELF
+                         DENSITY-DEPENDENT, since a jittered lattice loses
+                         regularity as it is thinned. Re-measured per class
+                         (control 1.052 at coverage 0.09 rising to 1.136 at
+                         0.35); low-coverage classes were over-divided and
+                         rise, grass falls, NO VERDICT FLIPS, all five pass.
+                         New §3.13: path-class margin richness on the
+                         maintenance fiction — one threshold plus an ORDERING
+                         (hint >= dirt > cobble), BR-3 scoped to the
+                         unmaintained classes so a cobbled street failing the
+                         ratio is a PASS. Two inversions of earlier work in
+                         this same spec: §3.12's edge FLOOR is precisely what
+                         would garden a cobbled gutter, so it is scoped by the
+                         per-class column; and the weight scales the edge PEAK
+                         and never the base presence, because A KEPT VERGE IS
+                         NOT BARE GROUND.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1149,25 +1171,105 @@ interior-buffer edge correction, three seeds, 240 m square:
 | Flowers | 0.18 | 0.75 | 0.515 (0.448–0.565) | passes |
 | Mushrooms | 0.10 | 0.85 | 0.383 (0.335–0.429) | passes |
 
-**Two findings, and neither is "tune grass until it passes".**
+**Two findings, and neither was "tune grass until it passes".**
 
 1. **R IS A PROPERTY OF THE PLACEMENT, NOT OF THE FIELD ALONE, and the
    control proves it.** The same machinery with the field replaced by a
    constant measures **R = 1.134, not 1.000** — a jittered grid is *more
-   regular* than Poisson, so roughly 0.13 of every number above is the
-   placement machinery rather than the field. Normalised against that control
-   grass reads 0.685. So the threshold has an unstated denominator: is
-   `CLUMP_R_CLUMPED_MAX` measured against ideal Poisson, or against the same
-   placement unclumped? The two verdicts for grass differ. **Design and the
-   lead own that; flora does not get to pick the denominator that passes.**
+   regular* than Poisson, so roughly 0.13 of every raw number is the placement
+   machinery rather than the field.
 2. **Grass is marginal BY AUTHORSHIP, not by defect.** A class authored at
    coverage 0.55 carries something on over half the ground; a pattern that
    covers half the ground *cannot* be strongly clumped, which is arithmetic
-   rather than tuning. The table shows R tracking the authored contrast
-   monotonically, so the metric is meaningful and grass is simply the least
-   clumped class on purpose («широкие волны»). Raising grass's contrast to
-   pass the bar would buy the number by putting bare earth between tufts,
-   which is a different meadow. **Escalated rather than tuned.**
+   rather than tuning. R tracks the authored contrast monotonically, so the
+   metric is meaningful and grass is simply the least clumped class on purpose
+   («широкие волны»). Raising its contrast would buy the number by putting
+   bare earth between tufts — a different meadow. **Escalated, not tuned.**
+
+**DESIGN'S RULING (10.08.2026, LANDSCAPE §1.7; `CLUMP_R_NORM_MAX` = 0.85
+replaces `CLUMP_R_CLUMPED_MAX` = 0.80).** The bar moves onto the NORMALISED
+quantity `R_norm = R(field on) / R(same placement, field constant)`. Two
+points worth more than the number:
+
+- **What condemned the old row was not grass — it was design's own even-field
+  clause.** BR-4 demanded «R ≈ 1 where the field says even», and the correct
+  pass case measures 1.134 on this machinery, so *the clause failed the case
+  it exists to admit* (Rule 30a). That indicts the quantity with grass struck
+  from the table entirely. Normalised, the even-field case is 1.0 by
+  construction: **the rejected instance becomes the denominator**, which is
+  the tidiest form a control can take.
+- **0.85 is DERIVED, not translated.** 0.80 through the control would give
+  0.705, under which grass's worst seed (0.715) still breaches — translating a
+  bar across a change of quantity would have smuggled the original error
+  through. It is set from the rejected instance at 1.000 and the worst
+  authored seed at 0.715, a few seed-noise widths off the reject.
+
+**THE CONTROL IS ITSELF DENSITY-DEPENDENT — re-measured per class.** A
+jittered lattice loses regularity as it is thinned (accept everything and you
+measure the lattice; accept one in ten and the survivors approach Poisson), so
+one constant-field control cannot serve five classes spanning coverage
+0.09–0.35. Re-taken with the constant set to each class's OWN mean, so
+numerator and denominator differ in exactly one thing:
+
+| class | field mean | R field-on | control | **R_norm** |
+|---|---|---|---|---|
+| Mushrooms | 0.087 | 0.383 | 1.052 | **0.364** |
+| Pebbles | 0.121 | 0.466 | 1.065 | **0.437** |
+| Flowers | 0.150 | 0.515 | 1.075 | **0.478** |
+| Moss | 0.163 | 0.529 | 1.080 | **0.490** |
+| GrassTufts | 0.352 | 0.776 | 1.136 | **0.683** |
+
+The control rises monotonically with acceptance rate (1.052 → 1.136), which is
+the density dependence made visible. The correction runs one way as predicted:
+low-coverage classes were over-divided and rise, grass's denominator grows and
+its number falls. **No verdict flips; all five pass 0.85, worst grass seed
+0.714.** Correctness owed to the quantity, not a gate.
+
+### 3.13 Path-class margin richness — the maintenance fiction
+
+**Design's ruling (10.08.2026): A RICH MARGIN IS WHAT GROWS WHERE NOBODY
+SWEEPS.** Cobble through a settlement is swept by the people who live there; a
+generator that gardens a town gutter has made maintenance invisible. Stated as
+**one threshold plus an ORDERING**, deliberately not four per-class constants
+— four rows would be four things to tune, while «less tended means more
+overgrown» is what the fiction actually claims:
+
+- `RICH_EDGE_RATIO` keeps its single value and is **measured on the
+  hint-path**, the specimen class it was written for;
+- the others are held to their order only: **hint ≥ dirt > cobble**, with a
+  dirt road required to *show* a peak but not to reach 3×, and cobble showing
+  none;
+- **stone steps get their own clause**: moss in the shaded joints, flowers
+  absent. Not the ratio.
+
+**BR-3's ratio is therefore SCOPED to the unmaintained classes: a cobbled
+street failing it is a PASS**, and a suite that reds there is measuring the
+rule's scope rather than the world.
+
+Two implementation consequences, both of which invert something built earlier
+in this same spec — worth reading before "simplifying" either:
+
+1. **§3.12's mechanism 2 is exactly what would garden a cobbled gutter.** The
+   edge gradient FLOORS the clump field so a coverage gap can never bare a
+   margin — i.e. *the machinery installed to guarantee BR-3 is the machinery
+   that breaks this ruling.* The floor is therefore scoped by the same
+   per-class column: zero on the maintained classes.
+2. **A KEPT VERGE IS NOT BARE GROUND.** §1.1 does not stop at the town gate,
+   and a margin suppressed to nothing would re-make «земля плоская и мёртвая»
+   inside the settlement — the complaint this stage exists to answer. So the
+   weight scales the edge PEAK, never the base presence: weight 0 means
+   "ratio ≈ 1, no peak", never "no life". Maintenance reads by *where life
+   survives a broom* — moss and weeds in joints, at wall bases, in the lee of
+   steps and thresholds — and the swept ground between those pockets is what
+   makes them read as **spared** rather than as leftover. Asserted: at
+   richness 0 the margin falls back to exactly the field value, not to zero.
+
+Schema is `PathClassRichness` on each edge rule (`FloraEdgeRules.h`). **The
+ordinals are core's `PathClass` positions and nothing checks it**, because
+`world` and `render` are siblings in the DAG and neither may include the
+other; the mapping is pinned by a test and stops being a seam at the migration
+already scheduled for this table (Rule 5, core's JSON reader), where both
+declarations are visible and a `static_assert` replaces the convention.
 
 **The rich edge set (в8/в19в; `FloraEdgeRules.h` + seven patch species).**
 Species = `GroundForm` + numbers, the tree doctrine one level down. Design's
