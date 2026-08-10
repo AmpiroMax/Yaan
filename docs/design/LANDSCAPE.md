@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 11:23:17
+Last updated: 10:08:2026 - 11:29:44
 -->
 <!--
 UPD:
@@ -64,6 +64,7 @@ UPD:
 - 10:08:2026 - 11:01:27: §1.7 BR-4 — MY THRESHOLD SAT ON THE WRONG QUANTITY, and flora's measurement is what showed it. Clark-Evans is now NORMALISED by the same-placement constant-field control (which measures 1.134, not 1.0, because a jittered lattice beats Poisson for regularity): R_norm = R(field on)/R(field constant), CLUMP_R_NORM_MAX = 0.85 replaces CLUMP_R_CLUMPED_MAX = 0.80. The condemning evidence is NOT grass but my own even-field clause — «R ≈ 1 where the field says even» failed on the correct pass case (Rule 30a), which indicts the quantity independently of any verdict. Grass ruled NOT tuned: coverage 0.55 arithmetically bounds clumping, and buying the number would put bare earth between tufts (a different meadow); broad-cover exemption also refused. All five classes pass normalised, no seed breaching. §1.7 BR-3 — SCOPED BY MAINTENANCE on flora's finding: the rich margin is what grows where nobody sweeps, so cobble/paved suppresses it (kept verge), dirt moderate, hint-path is the specimen class, steps get moss in joints; the ratio is measured on unmaintained classes only, and a cobbled street failing it is a PASS. Band datum adopted from flora: 0 = outer edge of the worn surface. Two sharpenings on the same pass: BR-4's CONTROL is itself density-dependent (a jittered lattice thins toward Poisson) so it must be re-taken per class at that class's coverage — one global 1.134 is the escalated defect one level down; the correction runs one way and cannot flip a verdict, so it is a chore, not a gate. BR-3 is stated as ONE threshold on the hint-path specimen plus an ORDERING (hint ≥ dirt > cobble ≈ 1) rather than four per-class multipliers; the §3.12 edge-gradient FLOOR is scoped by the same column (it is what would garden a cobbled gutter — the machinery guaranteeing BR-3 is what would break this ruling), and a kept verge is life in the joints and wall bases, never bare ground: §1.1 does not stop at the town gate.
 - 10:08:2026 - 11:10:03: §1.7 BR-4/BR-3 — flora implemented both rulings and RE-TOOK THE CONTROL PER CLASS; my quoted measurements were superseded within the hour and are corrected here rather than left standing. The control climbs monotonically with acceptance rate (1.052 at coverage 0.09 to 1.136 at 0.35), confirming the density dependence by measurement instead of argument; correction ran one way as ruled and no verdict flipped (mushrooms 0.338→0.364, pebbles 0.411→0.437, flowers 0.454→0.478, moss 0.466→0.490, grass 0.685→0.683, worst seed 0.714). The trap kept on the record: the single-control table was wrong for four of five classes and right only for grass, by the accident that grass's mean sat nearest the one constant used — the error hid behind the very class under argument. BR-3 kept-verge ruled the rest of the way on flora's question: the class weight scales the PEAK and never the base presence (cobble 0 = no peak, not no plants), and MOSS ALONE keeps a 0.25 residual on cobble — confirmed because the damp joint is a mechanism the broom cannot reach, bounded strictly under the dirt weight, and accepted on a FRAME rather than the ratio (pockets, not a ribbon down both kerbs).
 - 10:08:2026 - 11:23:17: §1.7 BR-5 RULED: bare terrain is the wrong instrument for the forest stand (option 3), not a hill-wavelength or ring-scale fix. Confirmed in core's source, not argued: the current raycast is terrain-only (no trunks, no canopy, no floor scatter), so the measured 0.03 was the forest deleted, not the forest failing — and §8.1's own brief already names the meso tier AND the floor as joint carriers for this stand. New gate: terrain + real placed oak trunks (44.4/ha, the lattice core already ships) + real placed Bush/BigBush instances (flora's measured load-bearing classes; FallenLog/snag/deadfall may ride along but the gate may never depend on them — dead wood is sized for the user's brief, not a validator), combined by a ray-vs-disc march reusing flora's floor-class shape — explicitly NOT the C1/C4 canopy transmittance model, which returns zero blocked below crown_base. Bar, ring, and eye height unchanged (0.5 / 40–80 m / 1.7 m); LF-2's own dictionary acceptance stays bare-terrain for landform-only contexts (cross-referenced at §2.10) — two contexts, one rule. The terrain-only 0.03/0.06 is kept forever as the must-fail control. Core's pinned regression test (siting beats bare-ground control 3–4×, median stays under 0.5 on bare terrain) is kept verbatim, reclassified from gate to permanent canary — if the bare-terrain median ever clears 0.5 that is a tripwire, not a win, and forces a rewrite. Separately ruled: flora's measured BR-4/BR-5 tension (authored clumping costs 0.09–0.26 of occlusion; the ruled density band's MIN end fails at 40–60 m before trunks) is real and not closed by the instrument change alone — retuning BR-4's clump field or oversizing dead wood are both refused; the available lever is density-aware find placement (extending BR-5's existing plain carve-out), sized only after core re-measures on the new instrument. Sent lead the corrected per-class CLUMP_R_NORM_MAX prose (flora's re-taken control, value unchanged at 0.85).
+- 10:08:2026 - 11:29:44: §1.7 BR-5 SHARPENED on flora's follow-up measurement (§3.14): the combined trunk+floor figure (real 44.4/ha uniform lattice + clumped Bush/BigBush) passes everywhere except ruled-MIN at the 40 m ring, which misses by 0.021 — and whether that miss exists at all depended on an aggregation clause BR-5 never stated. Ruled: per-distance aggregation, never pooled across 40-80 m, same "mean hides a desert" reasoning BR-6 already codifies as a tail clause, now cross-applied to distance. 0.021 against 0.5 sits inside Rule 36's few-percent caution, so core reconfirms across a seed spread before building anything, not off one draw; if it holds, the density-aware placement lever is scoped to exactly that cell (sparse floor, near ring) and nowhere else; if it doesn't, no lever is built at all. Flagged to the lead as a candidate standing clause for ARCHITECTURE.md: acceptance rules should name their aggregation and denominator, not only their number — third time in two days the deciding fact was a definition, not a measurement.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1396,10 +1397,17 @@ nothing is spending its budget on nothing — §2.2's meso-relief stops being
 texture and becomes режиссура here.
 - **Test, per find placed in the hill landform:** (i) from a ring of
   eye-height samples at 40–80 m, the find is occluded from
-  ≥ `FIND_OCCLUSION_FRAC` (0.5 proposed) of bearings; (ii) the 30a clause —
-  from the crest of the nearest grive it IS visible: a find nothing can
-  reveal is a lost find, and a test without this clause measures the
-  raycaster, not the composition.
+  ≥ `FIND_OCCLUSION_FRAC` (0.5 proposed) of bearings **— aggregated
+  PER-DISTANCE, never pooled across the band (sharpened stage-5, flora's
+  find, see the BR-5 note below): the frac must clear at each distance the
+  ring is actually sampled at (the discrete rings core already measures,
+  e.g. 40 m / 60 m / 80 m), because BR-5 models a walker CROSSING the band,
+  and a strong far reading must never be allowed to buy cover for a weak
+  near one — the same "a mean can hide a desert" reasoning BR-6 already
+  states as a tail clause, applied here to distance instead of gap length**;
+  (ii) the 30a clause — from the crest of the nearest grive it IS visible: a
+  find nothing can reveal is a lost find, and a test without this clause
+  measures the raycaster, not the composition.
 - **Must-fail control:** a find on the preserved plain — occluded from ≈ 0
   of bearings. (Finds on the plain are legal; they are simply not BR-5
   specimens — the plain's emptiness is authored, в9.)
@@ -1532,6 +1540,56 @@ control; (3) only if the re-measured MIN end still fails, apply the
 placement-density-awareness lever above — not before, since the numbers in
 hand cannot say whether it is even needed once trunks (a real, uniform,
 non-clumped 44/ha contribution no earlier estimate included) are in the sum.
+
+**THE COMBINED FIGURE, MEASURED — flora closed the gap above rather than
+leave it as a guess (§3.14, stage-5).** Trunks (the shipped 44.4/ha lattice,
+UNIFORM — BR-4's clump field does not touch trees) plus the clumped floor
+classes, one model:
+
+| band | dist | trunks | floor | combined | vs 0.50 |
+|---|---|---|---|---|---|
+| ruled MIN | 40 m | 0.214 | 0.307 | **0.479** | FAIL by 0.021 |
+| ruled MIN | 60 m | 0.300 | 0.501 | 0.662 | pass |
+| ruled MIN | 80 m | 0.389 | 0.613 | 0.767 | pass |
+| ruled MAX | 40 m | 0.214 | 0.575 | 0.649 | pass |
+| ruled MAX | 60 m | 0.300 | 0.747 | 0.818 | pass |
+| ruled MAX | 80 m | 0.389 | 0.881 | 0.924 | pass |
+
+The trunk term alone measures 0.300 at 60 m against the 0.27 predicted
+analytically earlier in this ruling — close, and wrong in the direction a
+jittered lattice being more regular than the Poisson assumption predicts,
+which is corroboration rather than coincidence and means the trunk term can
+be trusted without a second re-derivation.
+
+**Everything passes except ruled-MIN at 40 m, and whether that failure
+EXISTS AT ALL turned on the aggregation clause just added above — flora
+surfaced the ambiguity before either of us had to discover it by a
+contradiction later.** Read pooled across the 40–80 m band the MIN end
+averages ≈ 0.64 and passes comfortably; read per-distance (now ruled, see
+above) it fails its near edge by 0.021. Per-distance stands, for the reason
+stated there — this is the third time in two days the deciding fact was a
+DEFINITION rather than a number (Clark–Evans' denominator, BR-4's per-class
+control, now this), which is a pattern rather than bad luck: a rule states
+its threshold precisely and its instrument loosely, so ambiguity collects in
+the instrument and stays invisible until a measurement lands near the bar.
+Flagged to the lead as a candidate standing clause for `docs/ARCHITECTURE.md`
+(every acceptance rule names its aggregation and its denominator, not only
+its number) — that file is the lead's zone, so it is a request, not a
+ruling, here.
+
+**0.021 against 0.5 is inside Rule 36's own "a few percent" caution — the
+right next step is confirming the miss is real before building anything for
+it, not building for a single seed.** Core re-measures ruled-MIN at 40 m
+across a small seed spread (Rule 31: assert the distribution, do not act on
+one draw) before the placement-density-awareness lever from the prior
+paragraph is built. **If it holds:** the lever is scoped exactly where the
+number says it is needed and nowhere else — sparse-floor (ruled-MIN)
+locations, near ring (40 m) only; every other combination in the table
+already clears the bar on the instrument as built, so there is no case for
+building it any broader than that. **If it does not hold** (0.021 was
+seed noise): the lever is not built at all, and BR-5 is fully closed by the
+terrain+trunks+floor instrument alone, with no placement change required.
+Either way this is core's next measurement, not a new design question.
 
 **BR-6 (е) — the find rule: a walker meets a small find every ~60 s.**
 The mailbox tier (Kyoto calibration, research A2) — the layer between POIs
