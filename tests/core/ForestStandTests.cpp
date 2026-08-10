@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 12:11:07
+Last updated: 10:08:2026 - 12:15:37
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -80,6 +80,15 @@ UPD:
   is design's ruling and flora's recommendation. Plus the one-dimension-per-row
   invariant, whose §5.12 arm records the apron's three consumerless rows as a
   NAMED GAP so "the apron is done" cannot be inferred from a green run.
+- 10:08:2026 - 12:15:37: TWO RULED-BUT-UNFIXED DEFECTS NAMED IN PLACE, both of
+  them cases of a green assertion about the wrong thing. (1) The moss density
+  above. (2) The tread-clearance case proves the ribbon clears the HEIGHT FIELD,
+  and the field is not what occludes it: the drawn ground is the VOXEL surface
+  at VOXEL_SIZE 1.0 m, on which a PATH_GROOVE_DEPTH of 0.15 m cannot exist at
+  all (render's finding, measured by lift sweep). Left green on purpose — what
+  it proves is still worth proving — but it does not prove the road is visible,
+  and anything placed by HEIGHT and drawn against the VOXEL surface inherits
+  the same gap.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1031,6 +1040,30 @@ TEST_CASE("the render handoff carries the whole network and nothing invented") {
     // head: a ribbon drawn AT tread_height must clear the flattened ground, or
     // it z-fights along its whole length. Measured, not asserted from the
     // formula — the formula is what could be wrong.
+    //
+    // AND THIS ASSERTION IS TRUE OF THE WRONG SURFACE. OPEN DEFECT, render's
+    // finding (10.08.2026), kept green DELIBERATELY because what it proves is
+    // still worth proving — but it does not prove the road is visible.
+    //
+    // The ground the player SEES is the VOXEL surface, and VOXEL_SIZE is 1.0 m
+    // against a PATH_GROOVE_DEPTH of 0.15 m. A groove 15% of a voxel deep
+    // CANNOT EXIST on that lattice, and the extracted surface stands up to a
+    // whole voxel above the height field — so on the drawn world the tread is
+    // buried under its own ground for most of its length. Render measured it by
+    // a lift sweep on this stand: 0.00 m showed nothing, 0.35 m showed four
+    // metres of road, ~0.8 m made it continuous. They ship a VOXEL_SIZE lift as
+    // a hair, at the cost of the tread floating at grazing angles.
+    //
+    // THE FIX IS CORE'S AND IT IS NOT A NUMBER: carve the tread into the VOXEL
+    // VOLUME as well as the height field, or expose the drawn surface as a
+    // query render can conform to. Either retires their constant.
+    //
+    // THE GENERAL SHAPE, which is the part worth carrying: ANYTHING PLACED BY
+    // HEIGHT AND DRAWN AGAINST THE VOXEL SURFACE INHERITS THIS. Scatter has
+    // survived it only because a tree is 10 m tall and a metre of sink does not
+    // read; the 0.15 m groove is simply the first thing thin enough to vanish
+    // entirely. The §5.11 ground cover placed this session — moss patches,
+    // pebbles — is the next thinnest thing in the world.
     float worst_clearance = 1e9f;
     for (const world::PathRoute& r : c.paths.routes) {
         for (std::size_t k = 1; k + 1 < r.points.size(); ++k) {
@@ -1744,11 +1777,22 @@ TEST_CASE("§5.11: the forest floor carries cover, and BR-3 finally has a denomi
          "/ha (authored base 20), over ", eligible_ha, " ha of forest interior");
     CHECK(moss_ha <= 40.0f * 1.05f);
     CHECK(mush_ha <= 20.0f * 1.05f);
-    // MEASURED 10.08.2026: moss 6.09/ha, mushroom 1.61/ha — i.e. the authored
-    // base times the clump field's own mean (0.152 and 0.081), which is the
-    // composition order working and is why the floors below sit well under the
-    // authored ceilings rather than near them. Reported to flora; if either
-    // number is meant to be POST-clump, these are the figures that say so.
+    // MEASURED 10.08.2026: moss 6.09/ha, mushroom 1.61/ha — the authored figure
+    // times the clump field's own mean (0.152 and 0.081).
+    //
+    // MUSHROOM IS CORRECT; MOSS IS A RULED, UNFIXED DEFECT AND THESE BOUNDS
+    // ENCODE THAT. Flora ruled the asymmetry: 20/ha is a BASE (they wrote
+    // "before clumping", because the field IS the intended look), while 40/ha
+    // is a REALISED count ("44 stems x ~2/3 carrying a basal patch" counts
+    // patches on the ground). So moss ships 6.6x low and the row wants
+    // per_m2 ~= 0.0263, which is a NUMBERS change with a frame to re-shoot.
+    //
+    // The ceiling below is deliberately the AUTHORED figure even though moss's
+    // is not a ceiling at all: when the row is corrected the realised value
+    // will approach 40 and this assertion will still hold, so nothing here has
+    // to be relaxed to land the fix. What must NOT happen is the gap being
+    // closed by widening the clump field — flora's warning, and the reason the
+    // floors are stated as absolutes rather than as a fraction of the row.
     CHECK(moss_ha > 3.0f);
     CHECK(mush_ha > 0.8f);
     // Moss outnumbers mushrooms, as the authored rows say (40 vs 20) — and by

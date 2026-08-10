@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 12:11:07
+Last updated: 10:08:2026 - 12:15:37
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -57,6 +57,12 @@ UPD:
   wrong. Flora derived the density FROM the stem count, so the loop is over
   stems, with for_cells_margin so a trunk over the border still dresses into
   this chunk.
+- 10:08:2026 - 12:15:37: MOSS SHIPS 6.6x LOW, recorded rather than fixed. Flora
+  ruled the asymmetry I asked about: mushroom 20/ha is a BASE (they wrote
+  "before clumping" — the field IS the intended look), moss 40/ha is a REALISED
+  count ("44 stems x ~2/3 carrying a basal patch" counts patches on the ground).
+  The fix is the ROW (per_m2 ~= 0.0263), not this code, and it must not be
+  closed by widening the clump field.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -646,12 +652,29 @@ void scatter_path_edges(ScatterCtx& ctx) {
 // authored the areal figures with derivations (spec §3.13); they are placed
 // here.
 //
-// TREATED AS BASE DENSITIES, i.e. BEFORE the clump field, which is design's
-// composition order and is what flora states outright for the mushroom row
-// ("mushrooms carry the tightest field in the set, so the realised world shows
-// rings with most of the wood bare — which is the intent"). The moss row does
-// not say so either way, and I have applied the SAME treatment rather than
-// invent a per-row exception: one rule, measured, reported back.
+// BOTH ROWS ARE TREATED AS BASE DENSITIES HERE — i.e. multiplied by the clump
+// field — AND FOR MOSS THAT IS KNOWN-WRONG. OPEN DEFECT, RULED, NOT YET FIXED.
+//
+// I applied one rule to both rather than invent a per-row exception, measured
+// the result and asked. Flora ruled (10.08.2026), and the derivations say it if
+// you read WHAT EACH ONE COUNTS:
+//
+//   MUSHROOM 20/ha is a BASE. Flora wrote "BEFORE clumping" outright, because
+//     the intent is rings and clusters with most of the wood bare — the FIELD
+//     IS THE LOOK, so the authored number must sit upstream of it. Correct as
+//     placed: realised 1.61/ha.
+//   MOSS 40/ha is a REALISED figure. "44 stems/ha x ~2/3 carrying a basal
+//     patch" counts PATCHES THAT EXIST ON THE GROUND — there is no field in
+//     that sentence, it is already the answer. So this pass places moss 6.6x
+//     LOW: realised 6.09/ha against 40, short by exactly the moss field's own
+//     mean (0.152).
+//
+// THE FIX IS THE ROW, NOT THIS CODE, and it must not be "fixed" by tuning the
+// field (flora's explicit warning — the field is authored for how moss LOOKS,
+// and bending it to hit a count would trade a visible property for an
+// invisible one). per_m2 for moss wants ~0.0263 so that base x mean-field
+// lands on 40/ha. It is a NUMBERS change with an acceptance frame to re-shoot,
+// so it belongs to whoever picks up §5.12, not to a pause.
 // ---------------------------------------------------------------------------
 
 /// Ground cover on the forest floor: the §5.11 rows whose habitat is areal.
