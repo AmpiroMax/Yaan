@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 20:01:43
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -48,6 +48,10 @@ UPD:
   region changed re-enters pending() while its old mesh keeps drawing, so the
   ferry re-ships it through the ordinary upload path (core keeps node fields
   until release) and the swap keeps the fade — no hole, no pop, no app change.
+- 10:08:2026 - 20:01:43: The "coarse nodes are past the shadow volume" claim in
+  draw() now carries its MEASURED margin (512 m worst against a 320 m volume,
+  1.6x) instead of standing as an assertion, because it is the premise that
+  decides whether a cross-fading node can double-cast into the sun shadow map.
 */
 
 #pragma once
@@ -127,6 +131,19 @@ public:
     /// is already past the sun shadow map's half extent. There is no
     /// off-screen shadow to preserve, so keeping off-screen nodes would buy
     /// nothing at all.
+    ///
+    /// THAT CLAIM NOW CARRIES ITS MARGIN, because it is the premise a shadow
+    /// artefact hunt had to check rather than accept (Rule 34). Measured in a
+    /// running build: the streamed rectangle is CHUNK_LOAD_RADIUS chunks each
+    /// way of the focus chunk, so its nearest edge is 2*CHUNK_SIZE = 512 m
+    /// from the eye at worst (eye at its chunk's far corner) and 768 m at
+    /// best, against SHADOW_HALF_EXTENT_M = 320 m. Margin 1.6x at the worst
+    /// eye position. It is NOT a large margin, and it is what decides whether
+    /// a cross-fading node can put a second version of the same ground into
+    /// the sun shadow map: shrink CHUNK_LOAD_RADIUS, or grow the shadow
+    /// volume past 512 m for a second cascade, and coarse geometry enters the
+    /// map. The backend's SHADOW_CASTER_MIN_FADE gate makes that safe in
+    /// advance rather than after the frame that shows it.
     size_t draw(platform::IRenderer& renderer, const math::Frustum& frustum,
                 platform::ProgramHandle program, platform::TextureHandle atlas) const;
 

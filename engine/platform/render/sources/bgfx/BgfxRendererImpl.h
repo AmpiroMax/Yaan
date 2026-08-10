@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 03:04:00
+Last updated: 10:08:2026 - 20:01:43
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -34,6 +34,10 @@ UPD:
   verbatim; no behaviour change.
 - 10:08:2026 - 03:04:00: ENV_PARAM_VEC4S 33 -> 35 (cloud slots 33/34, the
   W4 coverage-field state — change paired with dfn_env.sh per the contract).
+- 10:08:2026 - 20:01:43: SHADOW_CASTER_MIN_FADE — a dissolving draw was fully
+  present in the sun shadow map, so a terrain LOD cross-fade put two versions
+  of the same ground in it at once and the visible one landed in the other's
+  shadow.
 */
 
 #pragma once
@@ -94,6 +98,31 @@ inline constexpr float SHADOW_TEXEL_M =
 // birch trunk's whole shadow — and is now 0.156 m).
 inline constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
 inline constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
+
+// A DISSOLVING DRAW IS HALF PRESENT ON SCREEN AND WAS FULLY PRESENT IN THE
+// SHADOW MAP. DrawParams::fade drives a screen-door dither in the scene
+// fragment shaders, but the caster pass runs vs_shadow/fs_shadow, which take
+// no fade input at all — so during a cross-fade BOTH instances of the same
+// ground wrote solid depth. They are not the same surface: the terrain LOD
+// ladder's coarser level samples the height field at 4x the step, and the
+// file that meshes them bounds their disagreement at "the relief across FOUR
+// of the fine level's own cells" (LodTerrain skirt derivation). Whichever of
+// the two sits higher wins the depth test, and the one you can actually SEE is
+// then behind it — i.e. in its own shadow. That is a dark band along the LOD
+// ring, lasting LOD_FADE_SECONDS, appearing every time the ring re-selects.
+//
+// The rule, stated so it survives the next fading caster (Rule 32 — the fade
+// is a shared mechanism, not a terrain feature): A DRAW CASTS A SUN SHADOW
+// ONLY WHILE IT IS THE DOMINANT INSTANCE. Strictly greater than one half is
+// what makes "at most one" provable rather than likely: the residency fades
+// the outgoing level down and the incoming one up at the same rate and the
+// incoming one cannot start before the outgoing one leaves 1.0, so the pair
+// sums to at most 1 and only one member can exceed 0.5. `>=` would let an
+// exact 0.5/0.5 tie put both in the map, which is the very frame the band is
+// worst. The accepted cost is the opposite tie: for at most one frame, or for
+// as long as a late mesh delays the incoming fade, neither casts — a missing
+// shadow 250 m away for a frame against a black stripe across the ground.
+inline constexpr float SHADOW_CASTER_MIN_FADE = 0.5f;
 
 // Carried-light (torch) cube shadow maps. Interiors are the reason they exist:
 // the crag tunnel is 158 m of carved passage and a torch that lights walls but

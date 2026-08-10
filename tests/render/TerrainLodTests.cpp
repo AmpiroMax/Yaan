@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:58:00
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 20:01:43
 Module: tests
 File: tests/render/TerrainLodTests.cpp
 
@@ -36,6 +36,11 @@ UPD:
   NEW contract (no node wholly inside; straddlers accepted at ladder level and
   clipped by the mesher) plus the zero-level-0 ring case the old force-split
   rule fails.
+- 10:08:2026 - 20:01:43: The cross-fade's SHADOW property: at most one version
+  of a patch of ground is the DOMINANT instance at any instant, which is what
+  makes the backend's fade-gated sun caster sound. The control is the real
+  rejected behaviour (everything drawn casts, i.e. a gate at fade > 0), and it
+  was run: it reports CHECK(2 <= 1) on twelve assertions.
 */
 
 #include "engine/render/sources/TerrainLod.h"
@@ -464,4 +469,90 @@ TEST_CASE("skirt depth is measured from the ground, not picked") {
     // Negative or nonsense measurements never produce a negative skirt (a
     // skirt that pointed UP would be visible geometry floating in the air).
     CHECK(dfn::render::lod_skirt_depth_m(2, -5.0f) > 0.0f);
+}
+
+TEST_CASE("a cross-fade never puts two versions of one patch of ground in the "
+          "sun shadow map") {
+    // WHAT THIS PROTECTS. DrawParams::fade dissolves a draw on SCREEN, but the
+    // sun caster pass renders depth only and had no fade input at all, so both
+    // levels of a swapping patch wrote SOLID depth into the shadow map. They
+    // are not the same surface — the coarse level samples the height field at
+    // four times the step — so whichever sat higher won the depth test and the
+    // level you could actually see was left inside the other's shadow: a dark
+    // band along the LOD ring for LOD_FADE_SECONDS, every time the ring
+    // re-selects. The backend now gates the caster on the fade
+    // (SHADOW_CASTER_MIN_FADE, BgfxRendererImpl.h); what makes that gate SOUND
+    // is the property asserted here, which belongs to this file.
+    //
+    // "Dominant" means more than half dissolved in. It is a definition, not a
+    // tunable — if it ever becomes one it gains a second consumer across two
+    // modules and moves to NUMBERS.md (Rule 35).
+    constexpr float DOMINANT = 0.5f;
+
+    LodResidency res;
+    const std::vector<LodNode> coarse{{1, 0, 0}};
+    const std::vector<LodNode> fine{{0, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 1, 1}};
+
+    res.update(coarse, 0.0f);
+    res.mark_resident(coarse[0]);
+    res.update(coarse, dfn::render::LOD_FADE_SECONDS);
+    REQUIRE(res.to_draw().size() == 1);
+
+    // Walk in. The children arrive at once, which is the WORST case for this
+    // property: a late mesh only delays the incoming fade, and delay can never
+    // create a second dominant instance, only leave zero for a while.
+    res.update(fine, 0.0f);
+    for (const LodNode& n : fine) {
+        res.mark_resident(n);
+    }
+
+    // Step through the whole window, finely enough to land on and around the
+    // 0.5/0.5 tie that a `>=` gate would fail.
+    const float dt = dfn::render::LOD_FADE_SECONDS / 12.0f;
+    int instants_with_both_drawn = 0;
+    int instants_checked = 0;
+    for (int i = 0; i < 12; ++i) {
+        res.update(fine, dt);
+        int drawn = 0;
+        int dominant = 0;
+        for (const auto& d : res.to_draw()) {
+            ++drawn;
+            if (d.fade > DOMINANT) {
+                ++dominant;
+            }
+        }
+        if (drawn == 0) {
+            continue; // window already closed
+        }
+        ++instants_checked;
+        // THE OUTCOME, not the mechanism (Rule 38): the coarse node and its own
+        // four children cover the SAME ground, so "at most one dominant" is
+        // asserted per patch — one coarse instance plus four fine ones is one
+        // patch covered once, which is why the fine level is allowed all four.
+        int coarse_dominant = 0;
+        int fine_dominant = 0;
+        for (const auto& d : res.to_draw()) {
+            if (d.fade > DOMINANT) {
+                (d.node.level == 1 ? coarse_dominant : fine_dominant) += 1;
+            }
+        }
+        CHECK(coarse_dominant + (fine_dominant > 0 ? 1 : 0) <= 1);
+        (void)dominant;
+        if (drawn > 1
+            && std::any_of(res.to_draw().begin(), res.to_draw().end(),
+                           [](const auto& d) { return d.node.level == 1; })
+            && std::any_of(res.to_draw().begin(), res.to_draw().end(),
+                           [](const auto& d) { return d.node.level == 0; })) {
+            ++instants_with_both_drawn;
+        }
+    }
+    REQUIRE(instants_checked > 0);
+
+    // THE CONTROL, and it is the real rejected instance rather than a synthetic
+    // one: the behaviour being fixed is "everything DRAWN casts", i.e. a gate
+    // at fade > 0. This asserts that such a gate really would put both levels
+    // in the map, so the test above is discriminating and not just restating
+    // "one node is drawn at a time". If this line ever goes to zero the
+    // cross-fade window has stopped existing and the case above is vacuous.
+    CHECK(instants_with_both_drawn > 0);
 }

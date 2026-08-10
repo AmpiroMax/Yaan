@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 20:01:43
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -31,6 +31,10 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp.
   submit moved verbatim; no behaviour change.
+- 10:08:2026 - 20:01:43: The sun caster pass now obeys DrawParams::fade
+  (SHADOW_CASTER_MIN_FADE). A cross-fading terrain LOD node cast SOLID depth
+  at every fade value, so both levels of one patch of ground were in the
+  shadow map together and the visible one was shadowed by the other.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -80,7 +84,16 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // all (and deliberately KEEPS off-screen casters that are inside this
     // volume). This one decides whether a submitted draw also needs a depth
     // pass, which is the only reason keeping those casters costs anything.
-    bool casts_into_sun_map = im.shadow_active;
+    // DOMINANT-INSTANCE GATE (SHADOW_CASTER_MIN_FADE). A dissolving draw is
+    // half present on screen but was fully present in the depth map, so a
+    // terrain LOD cross-fade put TWO versions of the same ground in the sun
+    // map at once and the visible one landed inside the other's shadow. The
+    // derivation, the "at most one" proof and the accepted cost are with the
+    // constant in BgfxRendererImpl.h; this is the only place that reads it,
+    // and it reads DrawParams::fade rather than anything terrain-shaped so
+    // the next fading caster inherits the rule (Rule 32).
+    bool casts_into_sun_map =
+        im.shadow_active && params_in.fade > SHADOW_CASTER_MIN_FADE;
     if (casts_into_sun_map) {
         const glm::vec3 ls = glm::vec3(im.shadow_view * glm::vec4(world_center, 1.0f));
         const float r = world_radius;
