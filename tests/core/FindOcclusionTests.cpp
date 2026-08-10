@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 20:06:10
-Last updated: 10:08:2026 - 20:13:53
+Last updated: 10:08:2026 - 20:24:58
 Module: tests
 File: tests/core/FindOcclusionTests.cpp
 
@@ -38,6 +38,13 @@ UPD:
   denominator there and no threshold on it could separate working siting from
   broken siting (Rule 30: the quantity is wrong, not the threshold). The ring
   the ratio cannot express is where the scatter does its largest work.
+- 10:08:2026 - 20:24:58: Oak disc radius corrected from species_trunk_radius()
+  0.986 m to 0.65 m (flora's measurement of the built mesh): the accessor
+  returns the ROOT FLARE at y=0, and this ray never leaves the 0.3-1.7 m band
+  where the bole is 0.62-0.65 m. Every ring moved DOWN -- 0.4167/0.6250/0.7083
+  to 0.3333/0.5417/0.6250 -- i.e. the correction went against this
+  instrument's own result, which is the direction a flattering error moves when
+  it is fixed. The near ring's failure is now larger, not smaller.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -79,7 +86,20 @@ world::OccluderGeometry geometry_from_render() {
     world::OccluderGeometry g;
     const float oak_h = render::species_nominal_height(FloraSpecies::DaleOak);
     g.oak_height_m = oak_h;
-    g.oak_trunk_radius_m = render::species_trunk_radius(FloraSpecies::DaleOak);
+    // NOT species_trunk_radius(): that accessor returns the ROOT FLARE at
+    // y=0, which is 0.986 m and 1.6x the bole above it (flora measured the
+    // built mesh, 10.08.2026). This ray runs from an eye at 1.7 m down to a
+    // find top at 0.5 m, so it never leaves the 0.3-1.7 m band and never meets
+    // the clear bole at all; at its mid-path height of ~1.0 m the oak measures
+    // 0.62-0.65 m over 12 variants. Using the accessor overstated the oak's
+    // occluding width by up to 1.67x and flattered this gate.
+    //
+    // A LITERAL HERE, DELIBERATELY AND TEMPORARILY, because the honest value is
+    // not exposed: flora is renaming the accessor or giving it a height
+    // argument (Rule 35's "a thing gains a dimension" firing early -- the next
+    // consumer is placement, where a 1.67x trunk is a collision hull rather
+    // than a rounding error). This line becomes a call again when it lands.
+    g.oak_trunk_radius_m = 0.65f;
     // Only the CLEAR TRUNK occludes. Above crown_base the ray is in foliage,
     // which is C1's transmittance model and explicitly not this one.
     g.oak_trunk_top_frac = render::species_crown_base(FloraSpecies::DaleOak) / oak_h;
@@ -184,15 +204,19 @@ TEST_CASE("BR-5: the composed scene occludes, and bare terrain is the must-fail 
         // own words: if no value on a quantity separates the accepted cases
         // from the rejected ones, the QUANTITY is wrong, not the threshold.
         //
-        // Measured differences: 40 m -> 0.4167, 60 m -> 0.5833, 80 m -> 0.5000.
+        // Measured differences: 40 m -> 0.3333, 60 m -> 0.5000, 80 m -> 0.4167.
         // Note that the ring the ratio CANNOT express at all is where the
         // scatter does its largest work — which is what the ratio was hiding.
         CHECK(r.composed - r.bare > 0.3f);
     }
 
     // THE GATE ITSELF, REPORTED PER RING RATHER THAN ASSERTED AS ONE NUMBER.
-    // Measured 10.08.2026 at seed 1: 40 m -> 0.4167, 60 m -> 0.6250,
-    // 80 m -> 0.7083 against a bar of 0.5.
+    // Measured 10.08.2026 at seed 1, with flora's corrected bole radius:
+    // 40 m -> 0.3333, 60 m -> 0.5417, 80 m -> 0.6250 against a bar of 0.5.
+    // (With the flare radius they read 0.4167 / 0.6250 / 0.7083 -- the
+    // correction moved every ring DOWN, i.e. against this instrument's own
+    // result, which is the direction an error in one's favour should move when
+    // it is fixed.)
     //
     // THE NEAR RING FAILS AND THAT IS NOT ASSERTED AWAY. It is the same cell
     // flora found marginal from the other side (their ruled-MIN/40 m missed by
