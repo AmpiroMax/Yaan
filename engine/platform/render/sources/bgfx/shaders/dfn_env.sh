@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 10:08:2026 - 02:59:00
+Last updated: 10:08:2026 - 10:45:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -46,6 +46,18 @@ UPD:
   sampled by BOTH the sky sheet (fs_sky) and the ground shadow
   (dfn_cloud_sun_vis, applied to the sun term inside dfn_surface_light so
   terrain, props and foliage all darken together and cannot disagree).
+- 10:08:2026 - 10:45:06: CLOUD FIELD FIXED, after reproducing it numerically (Rule 30b).
+  (1) Rule 31: the octave sum is GAUSSIAN — measured over 400k samples it held
+  98% of its mass in 0.200..0.797 of the [0,1] it declared, so cover 0.10 drew
+  NOTHING and the default 0.45 drew 0.19. Remapped through its own CDF, so
+  cover now means coverage within 0.024 across the whole range, both ends
+  asserted. (2) Per-octave LOD on an ANISOTROPIC cells-per-pixel metric (the
+  radial axis runs 20x the tangential one near the horizon — the streaks), and
+  convergence to the area mean past the resolution limit, which replaced the
+  distance/elevation fades that had been deleting 22% of the sky. (3) Rule 33:
+  layers 1200/2200 -> 2600/4400 m, because at 1200 m the whole sky above 45 deg
+  saw 10.8 cells of field AREA and mid-sky had nothing to draw at any
+  threshold. The wavelength could not move — it is shared with the ground.
 */
 
 #ifndef DFN_ENV_SH
@@ -106,14 +118,32 @@ uniform vec4 u_envParams[35];
 // the ground shadow projects along the sun to the SAME planes, so the sheet
 // and its shadow line up by construction. Terrain tops out at ~400 m
 // (WORLDGEN_MAX_HEIGHT), so both planes clear every landform.
-#define DFN_CLOUD_LAYER1_M 1200.0
-#define DFN_CLOUD_LAYER2_M 2200.0
+//
+// SIZED AGAINST THE VIEWING DISTANCE (Rule 33). These were 1200/2200 m, and at
+// 1200 m the entire sky above 45 deg elevation mapped to a disc of 1.86
+// wavelengths — 10.8 cells of AREA for the whole upper hemisphere. Mid-sky was
+// therefore one or two cells and had nothing to draw at any threshold; it was
+// a coin flip whether the frame caught a cloud overhead. The wavelength cannot
+// move (it is NUMBERS' WIND_FIELD_WAVELENGTH, derived for the GROUND shadow's
+// viewing distance and shared), so the SKY's distance to the field is what
+// changes: 2600 m puts ~5 wavelengths of radius above 45 deg and ~9 above 30,
+// which is a picture instead of a coin flip.
+#define DFN_CLOUD_LAYER1_M 2600.0
+#define DFN_CLOUD_LAYER2_M 4400.0
 // Layer 2 samples the SAME field at a coarser scale and a fixed seed shift so
 // the sheets decorrelate without inventing a second field or a second wind.
 #define DFN_CLOUD_LAYER2_SCALE 0.47
 #define DFN_CLOUD_LAYER2_SEED  vec2(310.0, -170.0)
-// Softness of the coverage threshold (field units) — the cloud edge width.
-#define DFN_CLOUD_EDGE 0.16
+// Softness of the coverage threshold, in UNIFORM field units (post-remap).
+// Scale-free: after the remap the field's units are probability, so this is
+// "the softest 10% of the distribution" at every cover value.
+#define DFN_CLOUD_EDGE_U 0.10
+// Mean and standard deviation of the raw octave sum, MEASURED over 400k
+// samples (engine/render/sources/CloudModel.cpp is the reference side and
+// tests/render/CloudModelTests.cpp asserts them). The remap below is this
+// Gaussian's own CDF.
+#define DFN_CLOUD_FIELD_MEAN 0.4980
+#define DFN_CLOUD_FIELD_SD   0.1368
 
 float dfn_cloud_hash(vec2 c)
 {
@@ -132,43 +162,91 @@ float dfn_cloud_vnoise(vec2 p)
     return mix(mix(a, b, f.x), mix(d, e, f.x), f.y);
 }
 
-// THE coverage field (W4): one authority. `p` is world x/z ON A LAYER PLANE
-// in meters, drift NOT yet applied — every sampler goes through the
-// dfn_cloud_sheet*_alpha wrappers below, which add u_cloudOffset, so no call
-// site can drift its own copy.
-float dfn_cloud_field(vec2 p)
+// An octave whose cells have gone under about two pixels contributes nothing
+// but aliasing. It is replaced by its MEAN, not scaled toward zero: scaling
+// toward zero shrinks the field's spread and silently moves every coverage
+// threshold with it — the Rule 31 defect re-introduced by the fix for it.
+float dfn_cloud_octave_lod(float cells_px, float freq)
+{
+    return 1.0 - smoothstep(0.22, 0.75, cells_px * freq);
+}
+
+// THE coverage field (W4): one authority, UNIFORM on [0,1] by construction.
+// `p` is world x/z ON A LAYER PLANE in meters, drift NOT yet applied — every
+// sampler goes through the dfn_cloud_sheet*_alpha wrappers below, which add
+// u_cloudOffset, so no call site can drift its own copy. `cells_px` is how
+// much field one pixel covers here, in wavelengths, along the WORST screen
+// axis (see dfn_cloud_cells_px).
+//
+// The octave sum is Gaussian, so thresholding it at 1-cover does NOT cover
+// `cover`: measured, the sum occupied 0.045..0.945 with 98% of its mass in
+// 0.200..0.797, cover 0.10 drew nothing at all and the shipped default 0.45
+// drew 0.19 — the first shoot's empty sky, visible in the numbers before it
+// was visible in a frame. Pushing the sum through its own CDF makes the field
+// uniform, and then the threshold means what it says.
+float dfn_cloud_field(vec2 p, float cells_px)
 {
     vec2 q = p / max(u_cloudWavelength, 1.0);
-    return dfn_cloud_vnoise(q) * 0.55
-         + dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) * 0.28
-         + dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) * 0.17;
+    float l0 = dfn_cloud_octave_lod(cells_px, 1.00);
+    float l1 = dfn_cloud_octave_lod(cells_px, 2.03);
+    float l2 = dfn_cloud_octave_lod(cells_px, 4.07);
+    float raw = 0.5
+              + (dfn_cloud_vnoise(q) - 0.5) * 0.55 * l0
+              + (dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) - 0.5) * 0.28 * l1
+              + (dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) - 0.5) * 0.17 * l2;
+    float z = (raw - DFN_CLOUD_FIELD_MEAN) / DFN_CLOUD_FIELD_SD;
+    return 1.0 / (1.0 + exp(-1.702 * z)); // logistic ~= the normal CDF
 }
 
 // Coverage -> opacity. cover 0 = empty sky (alpha exactly 0 everywhere: the
-// Rule 30 control — DFN_CLOUD=0 must erase sheet AND shadows in one move).
-float dfn_cloud_alpha(vec2 p, float cover)
+// Rule 30 control — DFN_CLOUD=0 must erase sheet AND shadows in one move);
+// cover 1 = solid, with no holes left by an edge hanging off the end of the
+// range (the other of the two assertions a range is).
+float dfn_cloud_alpha(vec2 p, float cover, float cells_px)
 {
     if (cover <= 0.0) {
         return 0.0;
     }
-    float threshold = 1.0 - cover;
-    return smoothstep(threshold, threshold + DFN_CLOUD_EDGE,
-                      dfn_cloud_field(p));
+    float u = dfn_cloud_field(p, cells_px);
+    float edge = min(DFN_CLOUD_EDGE_U, min(cover, 1.0 - cover));
+    float a = smoothstep(1.0 - cover - edge, 1.0 - cover + edge, u);
+    // Past the resolution limit a point sample is noise; the honest value is
+    // the area average, which for a uniform field thresholded at 1-cover is
+    // `cover`. Converging there turns the far sheet into a haze veil instead
+    // of a speckle band, and needs no distance cut-off to hide the aliasing —
+    // the cut-off is what carved the hard shelf across the first shoot's sky.
+    return mix(a, cover, smoothstep(0.20, 0.60, cells_px));
 }
+
+// How much field one pixel covers, in wavelengths, at a sampled layer point.
+// Taken from the SCREEN DERIVATIVES of the point itself, which is anisotropic
+// for free: tangentially a pixel spans dist/px_per_rad, but RADIALLY the plane
+// runs away as dist/dir_y — near the horizon that is twenty times more field
+// per pixel, and it is the radial axis, not the tangential one, that smeared
+// the first shoot's horizon into streaks. The worst axis wins.
+//
+// Derived rather than computed from the projection: the analytic version read
+// px_per_rad off u_proj/u_viewRect, which came back as garbage in the sky pass
+// and drove the ENTIRE sky past the resolution limit — every pixel converged
+// to the area mean and the sky went out as a flat 45% wash. Caught by the
+// cover-0 control, which was clean blue beside it. FRAGMENT SHADERS ONLY.
+#define DFN_CLOUD_CELLS_PX(p) \
+    (max(length(dFdx(p)), length(dFdy(p))) / max(u_cloudWavelength, 1.0))
 
 // The two sheets, as the ONLY two ways to read the field. Layer 1 is the main
 // sheet (full cover weight); layer 2 is the high thin sheet (reduced cover).
-float dfn_cloud_sheet_alpha(vec2 p_on_layer1)
+float dfn_cloud_sheet_alpha(vec2 p_on_layer1, float cells_px)
 {
-    return dfn_cloud_alpha(p_on_layer1 + u_cloudOffset, u_cloudCover);
+    return dfn_cloud_alpha(p_on_layer1 + u_cloudOffset, u_cloudCover, cells_px);
 }
 
-float dfn_cloud_sheet2_alpha(vec2 p_on_layer2)
+float dfn_cloud_sheet2_alpha(vec2 p_on_layer2, float cells_px)
 {
     return dfn_cloud_alpha((p_on_layer2 + u_cloudOffset)
                                * DFN_CLOUD_LAYER2_SCALE
                            + DFN_CLOUD_LAYER2_SEED,
-                           u_cloudCover * 0.75);
+                           u_cloudCover * 0.75,
+                           cells_px * DFN_CLOUD_LAYER2_SCALE);
 }
 
 // Sun visibility through the cloud sheets at a WORLD point: project along the
@@ -192,9 +270,12 @@ float dfn_cloud_sun_vis(vec3 wpos)
             + u_sunDir.xz * ((DFN_CLOUD_LAYER1_M - wpos.y) / sun_y);
     vec2 p2 = wpos.xz
             + u_sunDir.xz * ((DFN_CLOUD_LAYER2_M - wpos.y) / sun_y);
+    // Fully resolved: the shadow is read at a GROUND point, where one pixel
+    // covers metres, not the kilometres a grazing sky ray covers. The sheet's
+    // LOD exists for the sky's perspective and would only blur the shadow.
     // The high sheet is thin: half occlusion weight.
-    float transmit = (1.0 - dfn_cloud_sheet_alpha(p1))
-                   * (1.0 - 0.5 * dfn_cloud_sheet2_alpha(p2));
+    float transmit = (1.0 - dfn_cloud_sheet_alpha(p1, 0.0))
+                   * (1.0 - 0.5 * dfn_cloud_sheet2_alpha(p2, 0.0));
     return 1.0 - u_cloudShadow * low_sun * (1.0 - transmit);
 }
 

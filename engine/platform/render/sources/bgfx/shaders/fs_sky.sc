@@ -10,26 +10,44 @@ $input v_dir
 // announce the weather that is coming (W2.3). Clouds blend over stars and
 // moon, so night cover occludes the star field where it sits. All driven by
 // RenderEnvironment via dfn_env.sh — no shader recompile to retune.
+//
+// UPD 10:08:2026 - 10:45:06: the sheet's horizon/distance fades DELETED (they carved a
+// hard shelf across the sky at dir.y ~ 0.07 and emptied everything under it —
+// the first shoot's "materialises only near the horizon"); the sheet now meets
+// the horizon by converging to its own area average. Cumulus rebuilt on the
+// same coverage field with an elevation-rising threshold, on a 20 km ring with
+// real cloud altitudes, so the masses are rounded domes standing clear of the
+// terrain line instead of trapezoids with their bodies under it.
 
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
-// The sheet fades out into the horizon haze band instead of shrinking to a
-// vanishing-point moire; cumulus lives BELOW this, on the ring. The DIST pair
-// is the same guard by distance: past ~8 km a 600 m cell is under 20 internal
-// pixels and compresses into radial streaks (the "funnel" artifact the first
-// shoot caught), so the sheet melts into haze there instead.
-#define SHEET_HORIZON_FADE_LO 0.05
-#define SHEET_HORIZON_FADE_HI 0.18
-#define SHEET_FAR_FADE_LO_M   8000.0
-#define SHEET_FAR_FADE_HI_M  16000.0
-// Cumulus ring distance and angular height of the tallest tower.
-#define CUMULUS_RING_M   6500.0
-#define CUMULUS_TOP_Y    0.13
-// Cumulus bases extend BELOW the apparent horizon (the terrain silhouette
-// draws over the sky, so the base is clipped by real ridges, not by a fade
-// that leaves towers floating — the first shoot's second artifact).
-#define CUMULUS_BASE_Y  -0.03
+// The sheet meets the horizon by CONVERGING TO ITS OWN AREA AVERAGE (the LOD
+// in dfn_cloud_alpha), which is what an unresolvable sheet honestly looks
+// like — a veil. It used to be cut instead: an elevation fade over 0.05..0.18
+// and a distance fade over 8..16 km, which between them deleted 22.4% of the
+// sky's pixels and left a hard horizontal SHELF at dir.y ~ 0.07 with empty sky
+// under it. That shelf, not the projection, is what the first shoot read as
+// "the sheet only materialises near the horizon". All that is left here is the
+// last degree or so, blended into the haze band the sky already draws.
+#define SHEET_HAZE_LO 0.004
+#define SHEET_HAZE_HI 0.030
+
+// Horizon cumulus, sized against the distance it is READ from (Rule 33). A
+// bank on a 20 km ring with a 1100 m base and 3400 m tops subtends dir.y
+// 0.055..0.170 — a band about 6.6 deg tall, ~85 px of a 640x360 frame at the
+// tour's 45 deg FOV, so an individual mass is legible rather than a pixel of
+// texture. The previous ring was 6.5 km with a base BELOW the horizon, which
+// put the whole body under the terrain line and left only the tapering tips
+// showing: the "floating funnels" of the first shoot.
+#define CUMULUS_RING_M   20000.0
+#define CUMULUS_BASE_M    1100.0
+#define CUMULUS_TOP_M     3800.0
+#define CUMULUS_BASE_Y   (CUMULUS_BASE_M / CUMULUS_RING_M)
+#define CUMULUS_TOP_Y    (CUMULUS_TOP_M / CUMULUS_RING_M)
+// The ONE field, read coarser on the ring: at 20 km an unscaled 600 m cell
+// subtends 1.7 deg, which is texture, not a cloud.
+#define CUMULUS_SCALE     2.5
 
 // Angular half-size of the moon disc. The true moon is ~0.26 deg, which at
 // 640x360 is ONE pixel — invisible and, worse, a flickering pixel. Ours is
@@ -120,65 +138,60 @@ void main()
     vec3 cloud_bright = dfn_cloud_bright();
     vec3 cloud_dark = cloud_bright * 0.58;
 
-    float sheet_fade = smoothstep(SHEET_HORIZON_FADE_LO,
-                                  SHEET_HORIZON_FADE_HI, dir.y);
-    if (sheet_fade > 0.0) {
-        // Layer 1, the main sheet: view ray onto the low plane. Same field,
-        // same offset the ground shadow projects — one authority (W4).
+    // Layer 1, the main sheet: view ray onto the low plane. Same field, same
+    // offset the ground shadow projects — one authority (W4). No elevation or
+    // distance gate: the LOD inside dfn_cloud_alpha handles the horizon.
+    if (dir.y > 0.0005) {
         float dist1 = (DFN_CLOUD_LAYER1_M - eye.y) / dir.y;
         vec2 p1 = eye.xz + dir.xz * dist1;
-        float fade1 = sheet_fade
-                    * (1.0 - smoothstep(SHEET_FAR_FADE_LO_M,
-                                        SHEET_FAR_FADE_HI_M, dist1));
-        float a1 = dfn_cloud_sheet_alpha(p1) * fade1;
+        float cpx1 = DFN_CLOUD_CELLS_PX(p1);
+        float haze = smoothstep(SHEET_HAZE_LO, SHEET_HAZE_HI, dir.y);
+        float a1 = dfn_cloud_sheet_alpha(p1, cpx1) * haze;
         // Layer 2, high and thin: farther plane = slower apparent drift and
         // smaller cells — the parallax that makes the sky read as deep.
         float dist2 = (DFN_CLOUD_LAYER2_M - eye.y) / dir.y;
         vec2 p2 = eye.xz + dir.xz * dist2;
-        float fade2 = sheet_fade
-                    * (1.0 - smoothstep(SHEET_FAR_FADE_LO_M * 1.5,
-                                        SHEET_FAR_FADE_HI_M * 1.5, dist2));
-        float a2 = dfn_cloud_sheet2_alpha(p2) * fade2 * 0.65;
+        float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX(p2))
+                 * haze * 0.55;
 
         // Denser core -> darker base: reuse the field so shading and shape
         // cannot disagree.
-        float core1 = smoothstep(1.0 - u_cloudCover * 0.6, 1.0,
-                                 dfn_cloud_field(p1 + u_cloudOffset));
+        float core1 = smoothstep(1.0 - u_cloudCover * 0.55, 1.0,
+                                 dfn_cloud_field(p1 + u_cloudOffset, cpx1));
         vec3 col1 = mix(cloud_bright, cloud_dark, core1);
         sky = mix(sky, cloud_bright, a2); // thin high sheet first (behind)
         sky = mix(sky, col1, a1);
     }
 
-    // Cumulus impostors on the horizon ring (в10 third kind): anchored to
-    // WORLD points on a far ring, drifting with the same offset, biased
-    // UPWIND so the densest towers stand where the weather will come from
-    // (W2.3 — the announcement). Terrain draws over the sky afterwards, so
-    // every tower sits BEHIND the far ridges by construction, and the FLAT
-    // BASE below the apparent horizon is clipped by real ground, never by a
-    // fade (a fade left the first shoot's towers floating).
-    if (u_cloudCumulus > 0.0 && dir.y < CUMULUS_TOP_Y + 0.03
-        && dir.y > CUMULUS_BASE_Y) {
+    // Cumulus on the horizon ring (в10 third kind): THE SAME coverage field,
+    // read on a far ring and drifting with the same offset, against a
+    // threshold that RISES with elevation. Where the field is strong the mass
+    // climbs high, where it is weak it stays a low lump — so the silhouette is
+    // a set of rounded domes with the field's own octaves for a cauliflower
+    // rim. The shipped version multiplied one saturating gate into both the
+    // presence and the height, which made every mass the same flat-topped
+    // trapezoid. Biased UPWIND so the densest bank stands where the weather is
+    // coming from (W2.3 — the announcement).
+    if (u_cloudCumulus > 0.0 && dir.y < CUMULUS_TOP_Y + 0.02
+        && dir.y > CUMULUS_BASE_Y - 0.004) {
         vec2 dh = normalize(dir.xz + vec2(1e-5, 0.0));
-        vec2 ring = eye.xz + dh * CUMULUS_RING_M;
-        vec2 q = (ring + u_cloudOffset * 0.6) / (u_cloudWavelength * 2.4);
-        float tower = dfn_cloud_vnoise(q);
-        float detail = dfn_cloud_vnoise(q * 3.13 + vec2(9.0, 23.0));
+        vec2 ring = (eye.xz + dh * CUMULUS_RING_M + u_cloudOffset)
+                  / CUMULUS_SCALE;
         float upwind = 0.5 - 0.5 * dot(dh, u_windDir);
-        float density = u_cloudCumulus * (0.30 + 0.90 * upwind);
-        // DISTINCT towers: the gate keeps only the ridges of the ring noise,
-        // so the horizon carries separate masses with sky between them
-        // rather than a continuous rampart.
-        float gate = smoothstep(0.60 - 0.28 * density, 0.76 - 0.28 * density,
-                                tower);
-        // Crenellated tops: the detail octave varies the summit line.
-        float top_y = gate * (0.55 + 0.45 * detail) * CUMULUS_TOP_Y;
-        // Solid body up to ~3/4 height, then a domed soft top.
-        float hfrac = (dir.y - CUMULUS_BASE_Y)
-                    / max(top_y - CUMULUS_BASE_Y, 0.001);
-        float cum = gate * (1.0 - smoothstep(0.72, 1.0, hfrac));
+        float dens = clamp(u_cloudCumulus * (0.18 + 0.52 * upwind), 0.0, 0.85);
+        float F = dfn_cloud_field(ring, 0.02);
+        float hn = clamp((dir.y - CUMULUS_BASE_Y)
+                         / (CUMULUS_TOP_Y - CUMULUS_BASE_Y), 0.0, 1.0);
+        // hn*hn climbs slowly low down and steeply near the top, so the
+        // silhouette has near-vertical flanks and a ROUNDED shoulder instead
+        // of the triangular peaks a linear ramp gives.
+        float T = (1.0 - dens) + dens * hn * hn * 0.99;
+        float cum = smoothstep(T, T + 0.09, F)
+                  * smoothstep(CUMULUS_BASE_Y - 0.004, CUMULUS_BASE_Y + 0.010,
+                               dir.y);
         // Sunlit tops, shaded bases — the same hour palette as the sheets.
-        vec3 cum_col = mix(cloud_dark * 0.90, cloud_bright,
-                           clamp(0.25 + 0.75 * hfrac, 0.0, 1.0));
+        vec3 cum_col = mix(cloud_dark * 0.92, cloud_bright,
+                           clamp(0.05 + 1.60 * hn, 0.0, 1.0));
         sky = mix(sky, cum_col, cum);
     }
 
@@ -188,10 +201,10 @@ void main()
     // dims the disc to a glow instead of the disc burning through a cloud.
     float sun_dot = max(dot(dir, u_sunDir), 0.0);
     float sun_occl = 1.0;
-    if (u_sunDir.y > SHEET_HORIZON_FADE_LO) {
+    if (u_sunDir.y > 0.03) {
         vec2 ps = eye.xz
                 + u_sunDir.xz * ((DFN_CLOUD_LAYER1_M - eye.y) / u_sunDir.y);
-        sun_occl = 1.0 - 0.85 * dfn_cloud_sheet_alpha(ps);
+        sun_occl = 1.0 - 0.85 * dfn_cloud_sheet_alpha(ps, 0.0);
     }
     sky += u_sunColor * ((pow(sun_dot, 900.0) * 0.85
                           + pow(sun_dot, 24.0) * 0.10) * sun_occl);

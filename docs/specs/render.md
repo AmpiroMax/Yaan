@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 10:08:2026 - 03:20:00-->
+Last updated: 10:08:2026 - 10:55:09-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -113,6 +113,40 @@ UPD:
   presenting as neutral); it now runs in RenderSystem::render each frame.
   Hooks: DFN_CLOUD (0 = the pass's control), DFN_VISTIME (drift pair),
   Tour::cloud_probe_steps (DFN_CLOUD_PROBE).
+- 10:08:2026 - 10:55:09: THE SKY VIEW RAY WAS INVERTED, and had been since stage 3.
+  vs_sky built v_dir as far-minus-near on the assumption that "any two points
+  on the ray give its direction" — they give its LINE; the sign was never
+  checked. Under this project's depth convention the z=1 unprojection lands
+  NEARER, so v_dir pointed back down the ray: measured dir.y = -0.702 at the
+  top of a frame pitched +0.12 UP. Everything downstream clamped silently —
+  the gradient's `up` was 0 for the whole visible sky so u_skyZenith had never
+  been drawn (the sky was a flat horizon colour), star_fade was 0 so the STAR
+  FIELD had never appeared, the moon drew at the mirror of its direction, and
+  the W4 sheets, gated on dir.y > 0, could only reach the narrow band where the
+  inverted ray still read positive. That band IS the first cloud shoot's
+  "materialises only near the horizon, mid-sky empty". Found by instrumenting
+  the shader after a numeric harness had cleared the field math — the picture
+  named three plausible field defects and the actual cause was in neither the
+  field nor the projection of it.
+- 10:08:2026 - 10:55:09: Clouds, second pass, all measured before touching a pixel
+  (Rule 30b). (1) Rule 31: the coverage field's octave sum is GAUSSIAN and was
+  thresholded as uniform — 98% of its mass sat in 0.200..0.797 of the [0,1] it
+  declared, so cover 0.10 drew NOTHING, cover 0.20 drew 0.0005 and the default
+  0.45 drew 0.19. Remapped through its own CDF; cover now means coverage within
+  0.024 across the whole range and both ends are asserted. Constants that were
+  fitted while it was broken: none shipped — DFN_CLOUD_EDGE (0.16, raw units)
+  was replaced by DFN_CLOUD_EDGE_U (0.10, probability units). (2) The sheet's
+  elevation and distance fades deleted 22.4% of sky pixels and cut a hard shelf
+  at dir.y ~ 0.07; replaced by per-octave LOD on an ANISOTROPIC cells-per-pixel
+  metric (the radial axis runs ~20x the tangential near the horizon) plus
+  convergence to the area mean, so the sheet becomes a haze veil rather than a
+  speckle band. (3) Rule 33: cloud layers 1200/2200 -> 2600/4400 m, because at
+  1200 m the whole sky above 45 deg saw 10.8 cells of field AREA; the
+  wavelength could not move, it is shared with the ground shadow. (4) Cumulus
+  rebuilt on the same field with a threshold rising in elevation, on a 20 km
+  ring at real cloud altitudes. engine/render/sources/CloudModel.cpp now
+  carries the field's CPU reference so the distribution can be asserted, with
+  the pre-remap form kept as the tests' control.
 -->
 
 # Spec — render agent
