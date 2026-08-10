@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 10:59:25
+Last updated: 10:08:2026 - 11:01:27
 -->
 <!--
 UPD:
@@ -61,7 +61,7 @@ UPD:
 - 10:08:2026 - 01:54:30: THE LANDSCAPE STAGE'S THREE STRUCTURES LAND. §1.7 — the six beauty rules (в19/в20) as acceptance conditions BR-1…BR-6, each with a must-fail control (real rejected instances where they exist: uniform scatter, jittered-lattice grass, the find-less world) and a 30a can-pass; all thresholds are requested NUMBERS rows. §2.10 — the landform dictionary (в18): landform = recipe (requirements on core) + acceptance + used-by; five dictionary rules; seed entries LF-1…LF-8 (rolling plain, ridge-and-swale, terraced river valley, scree apron, crest/outcrop, coastal cliffs, forest floor, droplet-erosion pass); ford rule superseded by bridges on navigable water. §8 — briefs for stand 1 (FOREST: four path types as one system, rich edges, finds at the в20 cadence, §5.10 built, shared wind field proven here) and stand 2 (RIVER+CASTLE: 25–35 m navigable river, terraces, stone bridge, LARGE castle with walled city, posad, wharf; city generator flagged as the long pole); Sources renumbered §8→§9 (no inbound references existed).
 - 10:08:2026 - 02:44:14: §7.0a — the tunnel lower-leg HALF-BURIED CUTTING (core's report, reported-not-patched, correctly) ruled PARKED ON THE SAME TRIGGER as the barrow xfail: legs sit on the flank the §2.8.2 couloir work will move again, and the durable rule makes re-validation part of that change — patching now is spending the work twice. Acceptance named ahead: every leg either buried (cover ≥ TUNNEL_COVER_MIN, 1 m proposed) or an AUTHORED open cutting with revetment; the accidental in-between is the rejected case and core's frame is its control. Core's daylight-portal and switchback-clearance fixes accepted as reported.
 - 10:08:2026 - 02:47:54: §7.0a cutting control CORRECTED on core's challenge, upheld — my wording named «core's frame» as control when no frame existed (the finding was measured, not shot; my own Rule 27 trap, caught by core in me). Control restated as two reproducible halves: the cover table (legs 1→3 at −1.0…−2.2 m must-fail vs legs 3→7 at +1.6…+18 m passing neighbor — both Rule 30 cases from one instrument) + the vantage RECIPE (binary, seed, probe env, eye, time), never a file path — screenshots/ is gitignored and pixels die with a clean clone. Frame verified by design from the recipe: faint diagonal seam, subtle at valley range — which is why this vantage is the control and the trigger-time acceptance needs a closer authored vantage that can fail loudly (F7). Pixel archiving routed to the lead.
-- 10:08:2026 - 10:59:25: §1.7 BR-4 — MY THRESHOLD SAT ON THE WRONG QUANTITY, and flora's measurement is what showed it. Clark-Evans is now NORMALISED by the same-placement constant-field control (which measures 1.134, not 1.0, because a jittered lattice beats Poisson for regularity): R_norm = R(field on)/R(field constant), CLUMP_R_NORM_MAX = 0.85 replaces CLUMP_R_CLUMPED_MAX = 0.80. The condemning evidence is NOT grass but my own even-field clause — «R ≈ 1 where the field says even» failed on the correct pass case (Rule 30a), which indicts the quantity independently of any verdict. Grass ruled NOT tuned: coverage 0.55 arithmetically bounds clumping, and buying the number would put bare earth between tufts (a different meadow); broad-cover exemption also refused. All five classes pass normalised, no seed breaching. §1.7 BR-3 — SCOPED BY MAINTENANCE on flora's finding: the rich margin is what grows where nobody sweeps, so cobble/paved suppresses it (kept verge), dirt moderate, hint-path is the specimen class, steps get moss in joints; the ratio is measured on unmaintained classes only, and a cobbled street failing it is a PASS. Band datum adopted from flora: 0 = outer edge of the worn surface.
+- 10:08:2026 - 11:01:27: §1.7 BR-4 — MY THRESHOLD SAT ON THE WRONG QUANTITY, and flora's measurement is what showed it. Clark-Evans is now NORMALISED by the same-placement constant-field control (which measures 1.134, not 1.0, because a jittered lattice beats Poisson for regularity): R_norm = R(field on)/R(field constant), CLUMP_R_NORM_MAX = 0.85 replaces CLUMP_R_CLUMPED_MAX = 0.80. The condemning evidence is NOT grass but my own even-field clause — «R ≈ 1 where the field says even» failed on the correct pass case (Rule 30a), which indicts the quantity independently of any verdict. Grass ruled NOT tuned: coverage 0.55 arithmetically bounds clumping, and buying the number would put bare earth between tufts (a different meadow); broad-cover exemption also refused. All five classes pass normalised, no seed breaching. §1.7 BR-3 — SCOPED BY MAINTENANCE on flora's finding: the rich margin is what grows where nobody sweeps, so cobble/paved suppresses it (kept verge), dirt moderate, hint-path is the specimen class, steps get moss in joints; the ratio is measured on unmaintained classes only, and a cobbled street failing it is a PASS. Band datum adopted from flora: 0 = outer edge of the worn surface. Two sharpenings on the same pass: BR-4's CONTROL is itself density-dependent (a jittered lattice thins toward Poisson) so it must be re-taken per class at that class's coverage — one global 1.134 is the escalated defect one level down; the correction runs one way and cannot flip a verdict, so it is a chore, not a gate. BR-3 is stated as ONE threshold on the hint-path specimen plus an ORDERING (hint ≥ dirt > cobble ≈ 1) rather than four per-class multipliers; the §3.12 edge-gradient FLOOR is scoped by the same column (it is what would garden a cobbled gutter — the machinery guaranteeing BR-3 is what would break this ruling), and a kept verge is life in the joints and wall bases, never bare ground: §1.1 does not stop at the town gate.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1257,11 +1257,35 @@ frame — half-shade, moisture, nobody treads it (research A6).
   | Dirt road | moderate — ratio applies at reduced strength | used hard, tended never |
   | Hint-path (тропинка-намёк) | **maximum** — the BR-3 specimen class | nature reclaiming the edge |
   | Stone steps | **moss in the shaded joints**, no flowers | damp stone, trodden treads |
+  **The rule, so this is not four invented multipliers: ONE threshold and
+  an ORDERING.** `RICH_EDGE_RATIO` keeps its single value and is measured
+  on the **hint-path** — the specimen class, the case the rule was written
+  for. The other three are held to their ORDER against it, not to numbers
+  of their own: `hint ≥ dirt > cobble`, with cobble at ≈ 1 (no margin peak
+  at all) and the dirt road required only to show a peak, not to reach 3×.
+  An ordering is what the fiction actually claims — *less tended means more
+  overgrown* — and it needs no constant per class to be asserted, which is
+  the whole point: four rows would be four things to tune, one ordering is
+  a property. Steps are judged on their own clause (moss present in joints,
+  flowers absent), not on the ratio.
   Acceptance therefore measures the ratio **on the unmaintained classes**;
   a cobbled street failing it is a PASS, and a test that reds there would
   be measuring the rule's scope rather than the world. Implementation: a
   per-class column on flora's edge table (it keys on habitat only today) —
   requirement, not a schema.
+- **THE EDGE-GRADIENT FLOOR IS SCOPED BY THE SAME COLUMN.** flora's §3.12
+  mechanism 2 floors the clump field near a path so a coverage gap can
+  never bare a margin — that floor is exactly what would garden a cobbled
+  gutter, i.e. the machinery installed to GUARANTEE BR-3 is what would
+  break this ruling. The floor is zero on the maintained classes. Naming it
+  here because it is invisible from the edge table alone.
+- **A kept verge is not bare ground — §1.1 does not stop at the town gate.**
+  Suppressing the margin must not re-make «земля плоская и мёртвая» inside
+  the settlement, which would trade one complaint for the same complaint in
+  a better neighbourhood. Maintenance reads by **where life survives a
+  broom**, not by absence of life: moss and weeds in the joints, at wall
+  bases, in the lee of steps and thresholds — the swept ground between them
+  is what makes those pockets legible as spared rather than as leftover.
 - **Must-fail control — the real rejected instance:** the current build's
   uniform scatter, the user's «земля плоская и мёртвая» said in numbers:
   uniform scatter measures ratio ≈ 1 and fails clause (ii) under any
@@ -1295,13 +1319,34 @@ never a lucky accident of scatter.
   it condemns the quantity independently of any class's result.** Whoever
   measures this next inherits the denominator with the row; it is never
   the measurer's choice.
+- **THE CONTROL IS MEASURED PER CLASS, AT THAT CLASS'S DENSITY — one global
+  1.134 is the same defect one level down.** A jittered lattice loses its
+  regularity as you thin it: accept every candidate and you measure the
+  lattice (R well above 1), accept one in ten and the survivors approach
+  Poisson (R → 1). So the machinery's contribution is a function of
+  COVERAGE, and our classes span 0.10 to 0.55 — a single control divides
+  mushrooms by a number that was never theirs. The constant-field run must
+  therefore be re-taken **per class with the constant set to that class's
+  coverage**, so numerator and denominator differ in one thing only: the
+  field. **This does not gate the ruling.** The correction runs one way —
+  low-coverage classes are currently over-divided, so their true `R_norm`
+  can only rise, from 0.34–0.47 toward at most 0.85's far side — and grass,
+  the only marginal class, sits at the TOP of the coverage range where the
+  control is largest, so its denominator can only grow and its `R_norm`
+  only fall. No verdict in the table can flip. It is a correctness chore
+  owed to the quantity, not a gate on the classes.
 - **Must-fail control — the real rejected instance:** the current grass:
   pure jittered-lattice scatter, `R_norm` = **1.000 by construction**
   (it IS the denominator) and identical under any field value — fails
   claim (i) in both directions. The bar sits 0.15 below it, ≈ 3–4 seed-noise
   widths, and above the worst measured seed of the least-clumped authored
   class (grass, 0.715) — threshold above the passing cases, well clear of
-  the rejected one.
+  the rejected one. **0.85 is DERIVED on the new quantity, not translated
+  from the old** (the lead's row makes the same point): translating 0.80
+  through the control gives 0.705, under which grass's worst seed still
+  falls — carrying a number across a change of quantity is the original
+  error in a new suit, and the arithmetic would have hidden it as a
+  conversion.
 - **Can-pass:** two-level scatter (Poisson parents, clustered children)
   with parent density driven by the field. Measured `R_norm`, all five
   classes, no seed breaching: mushrooms 0.338, pebbles 0.411, flowers
