@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:30:00
+Last updated: 10:08:2026 - 12:36:00
 -->
 <!--
 UPD:
@@ -25,6 +25,9 @@ UPD:
   ferries sim's Gait yet and this zone still re-derives it, which now leaves
   JOG rendering as a 29 % lean toward the run clip; and the thigh-swing cap is
   still a file-local constant that has to agree with sim's rows.
+- 10:08:2026 - 12:36:00: a5(i) gains the test it owes — sim's slip instrument is
+  blind to gait SELECTION faults by construction, so fixing the ferry and seeing
+  no incidents would prove nothing.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -209,6 +212,26 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
          row between them, and a number nobody chose. Fix is the app ferry
          (lead's line) plus switching selection to the enum (mine). Until then
          treat locomotion between 1.8 and 6.0 as unruled.
+
+         **AND IT NEEDS ITS OWN TEST, because sim's slip instrument cannot see
+         it** (their limit, raised by them before anyone could over-trust it).
+         Today their check WOULD fire at jog — but for the wrong reason: jog
+         slips 30.6 % because the swing clamp saturates, so the incident reads
+         "foot_slip" while the fault is SELECTION. Once jog and run clips exist
+         and their strides match the rows, a wrongly-weighted blend that still
+         plants feet on the ground slides by nothing and the instrument is
+         silent. Foot slip and gait selection are different classes and only
+         the first is covered. The test this zone owes, in the Rule 30 shape:
+         for each `Gait` on PlayerState the selected clip must BE that gear's
+         clip, not an interpolation toward a neighbour — and the rejected
+         instance is today's speed-derived selection, which must fail it.
+
+         The generalisable shape, worth more than this instance: **a linear map
+         between two named values becomes a latent defect the moment a third
+         named value lands between them.** Nothing about the interpolation
+         changed; a row appeared in the middle and a correct-looking blend
+         silently became a number nobody chose. That is not specific to gaits,
+         and may deserve a home wider than this spec.
 
       ii. **`BODY_THIGH_SWING_MAX_SIN` is requested but not landed.** 0.55 lives
          as a file-local constexpr in Clips.cpp while it now has to AGREE with
