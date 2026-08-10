@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 20:14:16
+Last updated: 10:08:2026 - 20:32:57
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -50,6 +50,14 @@ UPD:
                          chunk-boundary stall is TWO consecutive ~390 ms frames
                          (3/3 runs), not one, so a per-frame budget would not
                          decompose it.
+- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17). The stamp on the entry
+                         above was written 22 minutes AHEAD of the clock I had
+                         just read; it now reads the true 20:26:56. Recorded as
+                         an appended entry rather than a silent edit, because
+                         UPD blocks are this project's only cross-zone ordering
+                         record, so a forward stamp REORDERS history rather
+                         than merely misdating a file (character2's catch,
+                         independent of my own).
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 20:14:16
+Last updated: 10:08:2026 - 20:32:57
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -64,6 +64,14 @@ UPD:
                          dedupes on a 120-tick cooldown and the survivor is not
                          the worst frame, so it under-reported a 779 ms event
                          as 346 ms and I passed that understatement to render.
+- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17). The stamp on the entry
+                         above was written 22 minutes AHEAD of the clock I had
+                         just read; it now reads the true 20:26:56. Recorded as
+                         an appended entry rather than a silent edit, because
+                         UPD blocks are this project's only cross-zone ordering
+                         record, so a forward stamp REORDERS history rather
+                         than merely misdating a file (character2's catch,
+                         independent of my own).
 */
 
 #pragma once

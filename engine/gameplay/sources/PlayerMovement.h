@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 20:26:56
+Last updated: 10:08:2026 - 20:32:57
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -83,6 +83,14 @@ UPD:
   -- deriving it would copy their AUTHORED gait_run_weight table. Not eased on
   this side on purpose: the property is "chest never ahead of eye", which holds
   only if the eye tracks the body's lean at every instant.
+- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17). The stamp on the entry
+                         above was written 22 minutes AHEAD of the clock I had
+                         just read; it now reads the true 20:26:56. Recorded as
+                         an appended entry rather than a silent edit, because
+                         UPD blocks are this project's only cross-zone ordering
+                         record, so a forward stamp REORDERS history rather
+                         than merely misdating a file (character2's catch,
+                         independent of my own).
 */
 
 #pragma once
