@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:44:13
-Last updated: 10:08:2026 - 10:44:13
+Last updated: 10:08:2026 - 11:11:16
 Module: engine/world
 File: engine/world/sources/WorldgenPaths.h
 
@@ -39,6 +39,9 @@ UPD:
 - 10:08:2026 - 10:44:13: Created — §8.1 path network: goal siting, slope-aware
   cost routing, BR-1 as a term IN the cost field, class assignment, the
   three-band wear field and the flatten delta.
+- 10:08:2026 - 11:11:16: PathClass ordinals declared a cross-zone contract (flora's
+  PathClassRichness maps positionally; siblings in the DAG, so a reorder is
+  silent). Pinned by test.
 */
 
 #pragma once
@@ -55,6 +58,15 @@ namespace dfn::world {
 /// в7's four types as ONE system. The class changes ALONG a route by rule
 /// (§8.1 item 1): paved near the largest goal, dirt between goals, hint-paths
 /// to the small ones, steps where the slope demands them.
+///
+/// THESE ORDINALS ARE A CROSS-ZONE CONTRACT. FLORA'S MAINTENANCE COLUMN
+/// (FloraEdgeRules.h, PathClassRichness) MAPS TO THEM POSITIONALLY, and world
+/// and render are SIBLINGS in the DAG — neither can see the other's
+/// declaration, so no static_assert can catch a reorder. Renumbering or
+/// reordering this enum silently permutes flora's per-class edge weights and
+/// gardens a cobbled gutter while leaving a hint-path swept. The values are
+/// therefore written out explicitly and PathClassTests pins them; if a class
+/// is ever added it goes on the END, and flora is told in the same commit.
 enum class PathClass : uint8_t {
     Cobble = 0,     ///< «мостовая» — the approach to the largest goal
     Dirt = 1,       ///< the road between goals

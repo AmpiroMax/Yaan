@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 11:08:01
+Last updated: 10:08:2026 - 11:11:16
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -44,6 +44,8 @@ UPD:
 - 10:08:2026 - 11:08:01: BR-6 cadence per regime with the tail clause, and BR-5 RECORDED
   AS AN OPEN DEFECT with its measurement — the landform cannot carry it while
   its swale floors percolate.
+- 10:08:2026 - 11:11:16: PathClass ordinals pinned — flora's maintenance column maps to
+  them positionally across a DAG seam no static_assert can reach.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -888,4 +890,24 @@ TEST_CASE("BR-5 on this stand: the siting works, the LANDFORM does not (open def
     // drifting down: if this ever passes, BR-5 has become satisfiable and the
     // test must be rewritten into the real gate.
     CHECK(med < static_cast<float>(config::FIND_OCCLUSION_FRAC));
+}
+
+TEST_CASE("PathClass ordinals are a cross-zone contract and are pinned") {
+    // Flora's PathClassRichness (FloraEdgeRules.h) maps to these ordinals
+    // POSITIONALLY, and world and render are siblings in the DAG: neither
+    // declaration can see the other, so no static_assert can catch a reorder.
+    // A permutation here does not fail to compile — it gardens a cobbled
+    // gutter and leaves a hint-path swept, silently. This test is the only
+    // thing standing between those two facts.
+    CHECK(static_cast<uint8_t>(world::PathClass::Cobble) == 0);
+    CHECK(static_cast<uint8_t>(world::PathClass::Dirt) == 1);
+    CHECK(static_cast<uint8_t>(world::PathClass::FaintTrail) == 2);
+    CHECK(static_cast<uint8_t>(world::PathClass::StoneSteps) == 3);
+    // Widths are read across the seam too (render sizes its splat from them).
+    CHECK(world::path_half_width(world::PathClass::Cobble)
+          > world::path_half_width(world::PathClass::Dirt));
+    CHECK(world::path_half_width(world::PathClass::Dirt)
+          > world::path_half_width(world::PathClass::StoneSteps));
+    CHECK(world::path_half_width(world::PathClass::StoneSteps)
+          > world::path_half_width(world::PathClass::FaintTrail));
 }
