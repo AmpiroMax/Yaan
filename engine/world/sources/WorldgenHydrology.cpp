@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 01:48:11
+Last updated: 10:08:2026 - 21:27:14
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.cpp
 
@@ -33,6 +33,9 @@ UPD:
 - 09:08:2026 - 14:49:01: Scatter-in-water fix (part 1): pond primitives are now ONE PLANE PER CELL, not a per-pond bounding box — pond cell sets are diagonal strings along the trace, so the bbox over-covered 1.7-6x and painted water over dry ground carrying birches/stones. Per-cell squares match the water_at coverage truth exactly and tile seamlessly at a shared level.
 - 10:08:2026 - 00:10:41: POND CELL OWNERSHIP (correctness, found via render's crash report). The trace revisits ground it has already flooded -- a pond that spills raises eff, so the next local minimum downstream floods a region containing the previous pond's cells -- and every revisit APPENDED the cell to another pond carrying its own stale level. Measured at 2x2 km: 17335 cell entries over 1042 distinct cells (x16.6), one cell claimed by 36 ponds, 94.5% of cells claimed at MORE THAN ONE level, 17336 drawable planes summing to 106% of the world area against 7.01% real water. Cells are now TRANSFERRED to the rising pond, not duplicated, with one ownership index shared across both traces. Additionally pond_planes are emitted from fill_level -- the coverage truth water_at answers from -- instead of from the pond objects, so the drawn level and the swum level stop being two copies of one fact. After: x1.0 duplication, 0 cells at two levels, 1042 planes, plane area 6.66% against 7.01% real water. fill_level itself is UNCHANGED (1042 wet cells before and after): the water did not move, only the bookkeeping. Both invariants re-verified green (monotonic water; every WaterBed sample covered, worst gap 0 m).
 - 10:08:2026 - 01:48:11: THE POND BECOMES A FLAT REACH OF THE RIVER (grill в23, design-ratified §3.1 amendment). The monotone pass no longer descends through a pond: a station inside a pond takes the pond's level, and the pond's level settles to min(spill saddle, the level the river ENTERS at) — the settle runs to fixpoint because a trace can re-enter a pond it left. Cells the lowered water no longer reaches DRAIN (footprint shrinks). Pond::spill_level records the pre-clamp saddle so the control test can prove the old construction drew ponds above the river feeding them (7.98 m at the largest pond). Drawn (fill_level/pond_planes) == swum (station surfaces) is now true by construction and guarded by an ok backstop. §3.2 extension (design amendment c): the LAKE obeys the same entry rule — hydro.lake.surface_height = min(LAKE_LEVEL_TESTBED, river entry level); the query side reads the settled level, never the constant.
+- 10:08:2026 - 21:27:14: Recorded (no behaviour change) that FORD_SPACING_MIN
+  has zero references while its _MAX is enforced — nothing stops two fords
+  landing on top of each other. Second of three orphaned range halves.
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -64,6 +67,12 @@ constexpr float WIDTH_MIN_M = static_cast<float>(config::RIVER_WIDTH_MIN);
 constexpr float WIDTH_MAX_M = static_cast<float>(config::RIVER_WIDTH_MAX);
 constexpr float SINUOSITY_MIN = static_cast<float>(config::RIVER_SINUOSITY_MIN);
 constexpr float SAND_DIST_M = static_cast<float>(config::SHORE_SAND_DIST);
+// ORPHANED RANGE HALF (measured 10.08.2026): FORD_SPACING_MAX has 8 references,
+// FORD_SPACING_MIN has ZERO. The gap-fill below enforces the ceiling and
+// nothing enforces the floor, so fords may legitimately land arbitrarily close
+// together — which is the opposite oversight from DARKNESS_FALLOFF (see
+// WorldgenCarve.cpp, where the _MIN is read as the whole band). Same class of
+// defect, same needed ruling; recorded here so the two are found together.
 constexpr float FORD_SPACING_MAX_M = static_cast<float>(config::FORD_SPACING_MAX);
 constexpr float BIN_SIZE = 2.0f * CELL; // station bin span; 3x3 bins cover >= 32 m
 

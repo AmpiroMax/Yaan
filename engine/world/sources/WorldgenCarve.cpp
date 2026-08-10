@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 10:08:2026 - 02:29:54
+Last updated: 10:08:2026 - 21:27:14
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -30,6 +30,11 @@ UPD:
 - 09:08:2026 - 17:36:42: §6.2: mouth walk (first station whose ceiling is under terrain) and derived-corridor overloads.
 - 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 - 10:08:2026 - 02:29:54: open_daylight_portals() implementation (STEP 1 m walk, 0.25 m floor clearance, 60 m cap). Seed 1: crag tunnel exit extended ~15 m to (761.3, 65.4, 254.5), floor +0.44 m over terrain — the exit portal exists again.
+- 10:08:2026 - 21:27:14: Recorded (no behaviour change) that
+  DARKNESS_FALLOFF_MIN is read as the whole ramp width while
+  DARKNESS_FALLOFF_MAX has zero references anywhere. One of three orphaned
+  range halves found in the constants census; needs a design ruling, not a
+  local edit.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -331,6 +336,23 @@ float enclosure_darkness(const TestbedLayout& layout, std::span<const CarveCorri
     }
 
     const float depth_min = static_cast<float>(config::DARKNESS_DEPTH_MIN);
+    // ORPHANED RANGE HALF, measured 10.08.2026 and recorded here rather than in
+    // a message, because this line is where the person who can fix it stands.
+    // DARKNESS_FALLOFF_MIN has 4 references, all of them this one and its
+    // documentation; DARKNESS_FALLOFF_MAX has ZERO, in engine/, tests/, games/
+    // and tools/ alike. So a registry RANGE is being read as if it were a
+    // VALUE: `falloff` is not a minimum here, it is the entire ramp width, and
+    // the name says otherwise (Rule 44 — a constant no longer meaning what its
+    // name says). Whoever authored the pair intended a band and got a floor.
+    //
+    // NOT fixed in place, deliberately: picking MAX, or the midpoint, or a
+    // per-seed draw across the band are three different design answers with
+    // three different looks underground, and that is design's call rather than
+    // this zone's. Two siblings are in the same state and want one ruling
+    // together: FORD_SPACING_MIN (0 refs, its _MAX has 8 — see
+    // WorldgenHydrology.cpp) and L0_ARETE_COUNT_MAX (0 refs, its _MIN has 3 —
+    // see TestbedLayout.h, which already argues at length about not reading one
+    // bound of a range as the range).
     const float falloff = static_cast<float>(config::DARKNESS_FALLOFF_MIN);
     // Ramp UP TO full darkness at DARKNESS_DEPTH_MIN, so the threshold is
     // where it becomes pitch black rather than where it starts to dim.

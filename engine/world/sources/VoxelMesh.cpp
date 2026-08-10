@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 19:55:17
+Last updated: 10:08:2026 - 21:27:14
 Module: engine/world
 File: engine/world/sources/VoxelMesh.cpp
 
@@ -29,6 +29,9 @@ UPD:
 - 09:08:2026 - 16:00:00: Created — surface nets extraction.
 - 09:08:2026 - 16:30:44: Representation swap: surface nets with gradient normals and per-vertex material; scans only the active band; volume fields hoisted out of the inner loops.
 - 09:08:2026 - 19:55:17: STRIPES FIX (user-visible): a surface vertex's material now comes from its own depth below the interpolated local surface, not from the nearest solid corner. That corner's material was computed against ITS column's surface, so on any slope an uphill corner carried deep-soil Dirt even where the isosurface grazes the top — drawing dirt in contour-following bands across open meadow. Dry open ground away from water now carries 19 Dirt vertices out of 1.08M upward-facing (0.002%), all of them river-bed-class columns.
+- 10:08:2026 - 21:27:14: Recorded the unmeasured premise under render's
+  0.375%% visible-share figure for the Rule 39 blend fix: it assumes these
+  gradient normals match worldgen's analytic slope, and nobody has checked.
 */
 
 #include "engine/world/sources/VoxelMesh.h"
@@ -209,6 +212,25 @@ VoxelMeshData extract_surface_nets(const VoxelVolume& volume) {
 
                 cell_vertex[idx(x, y, z)] = static_cast<int32_t>(mesh.positions.size());
                 mesh.positions.push_back(vpos);
+                // OPEN PREMISE, and it is load-bearing for a number now quoted
+                // in two zones. `n` is the SDF gradient of the voxel field.
+                // Render measured that fixing the GrassRockBlend hop moves only
+                // ~0.375% of ground pixels, because fs_terrain.sc re-derives
+                // rock from SLOPE across the same band and was already covering
+                // most of the blend. That figure assumes these extracted
+                // normals agree with worldgen's analytic gradient. If surface
+                // nets smooth them systematically FLATTER — which is what a
+                // cell-averaged gradient tends to do on a crag — the shader's
+                // slope term fires less often than render's estimate assumed
+                // and 0.375% is a FLOOR, not a result.
+                //
+                // NOBODY HAS MEASURED IT. The measurement is the distribution
+                // of (1 - n.y) over the 26136 blend vertices of the seed-1
+                // testbed, against terrain_slope() at the same positions. Until
+                // it exists, do not quote 0.375% without this caveat, and do
+                // not retire BLEND_CLASS_ROCK_W (render's Materials.h) on the
+                // strength of it. Recorded here rather than in a message
+                // because this is where the normals are made.
                 mesh.normals.push_back(n);
                 mesh.materials.push_back(mat);
             }
