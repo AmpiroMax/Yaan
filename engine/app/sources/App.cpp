@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:20:17
+Last updated: 10:08:2026 - 20:25:36
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -87,6 +87,7 @@ UPD:
 - 10:08:2026 - 20:05:06: DFN_CAPTURE_DIR на существующий каталог убивал процесс до загрузки мира (бросающая форма create_directories) — render потерял на этом три прогона, и прогон, не измеривший НИЧЕГО, выглядел как измеривший ноль.
 - 10:08:2026 - 20:08:54: Передача gait в BodyDrive включена: походку выбирает передача, а не сравнение скорости с числами. Закрывает и трусцу-с-наклоном-0.286, и окно регрессии, в котором ВСЕ передачи рисовались шагом.
 - 10:08:2026 - 20:20:17: Рука вида от первого лица объявляла меш 32, которого никто никогда не строил, — она рисовалась как НИЧТО с самого дня проводки. Отсутствие теперь объявлено, а не получается случайно; тело и так рисует настоящую правую кисть.
+- 10:08:2026 - 20:25:36: chunks_.update() вынесен ИЗ цикла догоняющих шагов — он вызывался раз на ШАГ, поэтому после медленного кадра догон впускал пять кусков подряд по 83 мс. Задержка на пересечении границы 730 мс → 39.8 мс.
 */
 
 #include "engine/app/sources/App.h"
@@ -1498,10 +1499,40 @@ int App::run() {
         }
 
         const uint32_t steps = paused ? 0u : timestep_.accumulate(frame_dt);
-        for (uint32_t i = 0; i < steps; ++i) {
-            // Streaming runs BEFORE the physics step: a step must never execute
-            // against a world whose collision bodies are one tick stale, or the
-            // player falls through terrain that has not been created yet.
+
+        // STREAMING RUNS ONCE PER FRAME, NOT ONCE PER STEP -- and moving this
+        // line out of the catch-up loop is the fix for the project's largest
+        // measured stall (730 ms mean, reproduced 3/3 at a fixed world
+        // position, plus 1.3-1.6 s at startup).
+        //
+        // `CHUNK_LOAD_BUDGET` admits ONE chunk per update at ~83 ms, and its
+        // own NUMBERS row says two in a frame already reads as a freeze. Inside
+        // the loop, `update()` ran once per SIM STEP -- so after any slow frame
+        // the accumulator asked for 24 steps, `SIM_MAX_CATCHUP_STEPS` clamped
+        // it to 5, and the frame admitted FIVE chunks: ~415 ms against measured
+        // second frames of 320-400 ms. Sim's trace shows every stall episode
+        // sitting at exactly 5.00 ticks per frame with zero variance against a
+        // normal 0.503 -- a number that repeats exactly is a clamp, not a
+        // coincidence.
+        //
+        // The protection inverted precisely when it was needed: THE SLOWER THE
+        // FRAME, THE MORE STREAMING WORK THE NEXT FRAME WAS ALLOWED TO DO.
+        // Positive feedback, bounded only by the clamp.
+        //
+        // Two zones reasoned about this correctly and still got it wrong,
+        // because both assumed a per-FRAME call while reading a per-STEP one --
+        // the budget is denominated in one clock's units while the freeze it
+        // prevents is measured in another's.
+        //
+        // THE INVARIANT BELOW IS PRESERVED: streaming still runs before any
+        // step, so collision bodies exist before the first step executes. What
+        // is given up is that steps 2..5 of a catch-up burst stream against a
+        // focus up to 5 x 16.67 ms x 6 m/s = 0.5 m stale, against a streaming
+        // radius measured in hundreds of metres.
+        if (steps > 0) {
+            // A step must never execute against a world whose collision bodies
+            // are one tick stale, or the player falls through terrain that has
+            // not been created yet.
             glm::vec3 focus{0.0f};
             if (tour_.active()) {
                 focus = tour_.focus_position();
@@ -1510,7 +1541,9 @@ int App::run() {
             }
             chunks_.update(focus, world_, bus_);
             bus_.pump();
+        }
 
+        for (uint32_t i = 0; i < steps; ++i) {
             // Prop collision goes AFTER streaming and BEFORE the step, for the
             // same reason the terrain ferry does: chunk residency and the site
             // entities ChunkManager spawns must both exist, and their bodies
@@ -1569,6 +1602,28 @@ int App::run() {
                         case gameplay::Gait::Jog:  drive->gait = anim::Gait::Jog;  break;
                         case gameplay::Gait::Run:  drive->gait = anim::Gait::Run;  break;
                         }
+                        // THE RETURN FERRY: the lean travels back the other way.
+                        // The rig leans a body that has no eye and the camera
+                        // holds an eye that has no body, so the offset between
+                        // them belonged to nobody and the chest-to-eye gap grew
+                        // 5x at full run. character owns the geometry, so
+                        // character computes it; sim only applies it to
+                        // CameraPose. Deriving it here from the gait would put a
+                        // second copy of the AUTHORED gait_run_weight table on
+                        // the consumer's side -- the very defect the ferry above
+                        // exists to prevent, one direction over.
+                        //
+                        // ONE TICK LATE, knowingly: post_step already ran this
+                        // iteration, so this lands on the next one. 16.7 ms on a
+                        // POSTURAL offset that only changes when the player
+                        // shifts gear is not perceptible, and the alternative --
+                        // computing it before post_step -- needs a second copy
+                        // of the gait switch above, which is a worse trade than
+                        // one tick. If that ever stops being true, hoist the
+                        // switch into a helper rather than duplicating it.
+                        step_ctx_.eye_lean =
+                            anim::eye_lean_offset(body_rig_.proportions,
+                                                  anim::gait_run_weight(drive->gait));
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
