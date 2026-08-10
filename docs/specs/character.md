@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:21:19
+Last updated: 10:08:2026 - 21:38:46
 -->
 <!--
 UPD:
@@ -56,6 +56,14 @@ UPD:
   row of its own and borrowed the biacromial JOINT SPAN for a body width. One
   expression, no rows, silhouette identical to four decimals. Two hip findings
   filed for lead rather than fixed half-way.
+- 10:08:2026 - 21:38:46: a10 OPENED WITH A BIGGER FINDING THAN THE ITEM IT WAS OPENED FOR.
+  Chasing the crouch-hunch eye offset found that sim's camera sits 0.36 m BELOW
+  this zone's own head at full crouch — a1 returning in a pose nobody
+  re-measured — because a comment claims a half-of-the-LEG drop matches a
+  half-of-the-EYE-HEIGHT drop. They differ by 0.4081 m. The hunch offset
+  itself measures 0.1815 m, larger than the run lean's 0.1320 because the
+  crouch does not counter-pitch the head. No producer landed: a function with
+  no consumer is the same defect as a row with no reader.
 -->
 
 # Spec: character (engine/anim + engine/platform/anim)
@@ -593,6 +601,75 @@ and plant timing come from one mechanism. Mirroring = L/R bone swap +
       taste question and never needed his ruling. The arm was half buried because
       a box with no row borrowed a number that means something else. The question
       put to him is answered by measurement and withdrawn.
+   a10. **THE CROUCH PUTS THE CAMERA 0.36 m BELOW THE BODY'S OWN HEAD — and
+      the cause is a comment asserting that two things match when they are
+      HALVES OF DIFFERENT QUANTITIES.** Measured 10:08:2026 through FK over
+      `apply_crouch` and the real segment meshes, while going after the much
+      smaller hunch seam this item was opened for.
+
+      | | standing | full crouch |
+      |---|---|---|
+      | body's neck joint | 1.5660 | **1.0978** |
+      | body's EYE, riding the skull at PLAYER_EYE_HEIGHT/FORWARD in head space | 1.7000 | **1.2102** |
+      | sim's camera, `CROUCH_EYE_HEIGHT` 0.85 | 1.7000 | **0.8500** |
+
+      Disagreement **0.3602 m**. The crouched torso spans hip 0.5121 to neck
+      1.0978, so a camera at 0.85 sits **0.2478 m below the neck — inside the
+      chest.** That is item a1 returning in a pose nobody re-measured after the
+      clavicle cut fixed it standing, which is the general lesson: **a fix
+      verified in one pose is verified in one pose.** The crouch was authored
+      later and inherited none of that morning's measurement.
+
+      MECHANISM. `apply_crouch` drops the pelvis by `0.5 * (thigh + shin)` and
+      says in as many words that this "matches `CROUCH_EYE_HEIGHT` being about
+      half of `PLAYER_EYE_HEIGHT` without duplicating sim's camera constant."
+      Both are honestly "a half". They are halves of different things:
+
+      - half the EYE HEIGHT = **0.8500 m** of drop (sim's)
+      - half the LEG = **0.4419 m** of drop (this zone's)
+
+      They differ by **0.4081 m**, and that comment is the only thing that ever
+      claimed they agreed. Rule 39's shape applied to a PROPORTIONALITY rather
+      than to a chain — the copies were "identical" when written because the
+      word *half* was the same, and nothing made them so. A comment is not a
+      mechanism; calling one function is.
+
+      NOT FIXED HERE: `CROUCH_EYE_HEIGHT` is sim's row and is marked
+      ПРЕДВАРИТЕЛЬНО. A real deep squat drops the eye ~0.45-0.55 m on a 1.8 m
+      adult, not 0.85, which puts the eye barely above `BODY_KNEE_HEIGHT_FRAC`·H
+      = 0.513 m. What the drawn body offers is 1.7 − 0.4898 = **1.2102**.
+
+      **THE SMALLER SEAM, which is what this item was opened for, and its number
+      is bigger than the estimate:** the crouch hunches the trunk
+      `pitch(-0.25 x blend)` and the eye does not ride it — exactly
+      `eye_lean_offset`'s case, with one difference that changes the answer:
+      **the crouch does NOT counter-pitch the head, where the run does**
+      (`HEAD_STABILIZE`), so the eye swings by the FULL theta about the neck.
+
+      | crouch blend | eye forward | eye down (hunch only, excluding the pelvis drop) |
+      |---|---|---|
+      | 0.25 | 0.0464 | 0.0119 |
+      | 0.50 | 0.0922 | 0.0242 |
+      | 1.00 | **0.1815** | **0.0479** |
+
+      0.1815 m is LARGER than the run lean's 0.1320 despite a SMALLER trunk
+      angle (0.25 rad against 0.20), purely because nothing stabilises the head.
+      The working estimate was ~0.11 m; it was low, and the head is why.
+
+      NO PRODUCER LANDED, DELIBERATELY. The geometry generalises cleanly —
+      `eye_lean_offset`'s body depends only on theta and the stabilisation
+      fraction — but landing a pure function with no consumer would be a
+      function with zero readers, which is the exact defect this session removed
+      from this zone (`BODY_THIGH_SWING_MAX_SIN`, a row nothing read). It lands
+      the same hour as sim's consumer, the way a8 did, or not at all.
+
+      THIRD FINDING, free with the measurement and this zone's own: the drawn
+      head pitches −0.25 rad at full crouch, so a crouched character looks 14.3
+      deg at the floor. Invisible in first person, glaring on the mirror double
+      and on any NPC. It is also what makes the offset 0.1815 rather than ~0.13
+      — so the smaller number is bought by stabilising the head, not by shrinking
+      the offset.
+
    c. **THE HEAD IS A BOX ON A BOX.** No neck segment exists between
       `BODY_NECK_HEIGHT_FRAC` and the head, so the head sits straight on the
       shoulders. Harmless in first person (hidden), mannequin-ish on NPCs.
