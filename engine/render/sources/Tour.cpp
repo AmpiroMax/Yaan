@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:29:16
+Last updated: 10:08:2026 - 21:30:09
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -68,6 +68,12 @@ UPD:
   wall clock). Two identical runs differ by 17.448% of pixels, 21.748% with
   the sky pinned, 34.660% post-3903d69. No behaviour change: the fix is a
   streaming-quiescent predicate and spans three zones.
+- 10:08:2026 - 21:30:09: ...and this file had already diagnosed it once. The
+  11:10:53 entry states the frames-vs-arrival defect correctly and fixes the
+  cloud probe by raising 75 -> 300: the instance, not the mechanism (Rule 32).
+  Three frame-count settles now share the defect (45, 120, 300), and the 300
+  was accepted because an artefact stopped appearing, with no control arm.
+  Recorded that it is NOT verified.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -582,6 +588,19 @@ std::vector<TourStep> Tour::testbed_steps() {
     //
     // Note also: vantage_steps() honours DFN_TOUR_WAIT; THIS route does not,
     // so there is no way to raise the settle here without an edit.
+    //
+    // AND THIS FILE ALREADY DIAGNOSED IT ONCE. The UPD entry of
+    // 10:08:2026 - 11:10:53 says it exactly: "the frame count was being read as
+    // 'long enough to settle' when it only ever meant 'frames rendered'; far
+    // nodes are still ARRIVING from core at frame 75". Correct, and the remedy
+    // chosen was to raise the cloud probe 75 -> 300 -- the instance, not the
+    // mechanism (Rule 32). The same reasoning was never carried to this 45 or
+    // to vantage_steps()'s 120, so there are now THREE frame-count settles in
+    // this file with the same defect, and the 300 was accepted because a
+    // checkerboard stopped appearing, WITHOUT a control arm proving two runs
+    // agree. By the argument above it is very likely still non-deterministic;
+    // it is merely non-deterministic past the point where the artefact someone
+    // was hunting shows up. Do not treat 300 as verified.
     constexpr uint32_t WAIT = 45;
 
     // Vantages aim at the GENERATED seed-1 world, probed 09:08:2026 (the §7.1
