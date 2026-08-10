@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 21:32:18
+Last updated: 10:08:2026 - 21:38:24
 -->
 <!--
 UPD:
@@ -34,6 +34,7 @@ UPD:
 - 10:08:2026 - 21:17:06: Правило 29 — `git commit --amend` ЗАПРЕЩЁН на общей ветке: HEAD, прочитанный секунду назад, это предпосылка, а не факт. Правка задела чужой коммит, потому что третий агент успел вклиниться между двумя вызовами.
 - 10:08:2026 - 21:31:13: Правило 32 дополнено: если механизм поставлен верно, а починен экземпляр — записать диагноз у КАЖДОГО места, где он тот же. Иначе диагноз это сообщение, а не механизм. Затвор тура был верно разобран за девять часов до того, как его нашли заново.
 - 10:08:2026 - 21:32:18: Правило 27 дополнено: точки выборки прибора обязаны лежать там, где величина МЕНЯЕТСЯ, и это относится к наборам тестов, а не только к камерам. Точке съёмки, неспособной провалиться, камера не нужна. Формулировка character.
+- 10:08:2026 - 21:38:24: Правило 46 (самопроверка проверяет арифметику, модель проверяет только другая зона): за день двух зон ВСЕ самопроверки прошли, а обе настоящие ошибки нашёл сосед.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -897,6 +898,49 @@ measures the object cannot accept a claim about the view). Rule 41 has now fired
 twice on the same acceptance one day apart — the second time on the quantity Rule
 41 itself installed, which is the strongest available argument that this class of
 error is not carelessness.
+
+### Rule 46 — A self-check tests your arithmetic; only another zone tests your model
+Two zones spent a day on one measurement, both careful, both running controls,
+both disclosing their own errors as they found them. At the end:
+
+> **Every self-check either of them ran passed. Both real errors were found by
+> the other zone.**
+
+That is not a story about carelessness — it is the strongest empirical claim this
+project has produced about how review works, and the two errors are different in
+kind, which is the point.
+
+**The arithmetic error** was caught by a peer re-checking a number that had already
+been committed: `0.375 / 2.21 = 0.1697` was read as "17% of vertices" when 0.170
+was a mean **weight**, not a share — and the correct value, 0.1652, **was printed
+on the next line of the same terminal output.** Both numbers were in hand and the
+wrong pair was compared. Two figures agreeing to 97% were mistaken for a
+discrepancy, and effort went into explaining it.
+
+**The model error** was caught by a peer measuring a DISTRIBUTION where the other
+had measured an aggregate. The derivation assumed every blend vertex lies inside
+the slope ramp's band — which looks safe, since the class is assigned on exactly
+that band. It is not: **12.8% fall below the band's start, 14.9% above its end,
+and the two errors cancel in the mean.** A right answer from a wrong model.
+Neither zone set out to test that assumption, because assuming it was reasonable.
+
+**Why a self-check cannot find these.** You verify against the model you used; the
+model is the thing that is wrong. Re-reading your own arithmetic re-reads the
+pairing you already chose. The remedy is not more care, it is a **second zone
+asking a different question of the same object** — and the cheapest form of it is
+what happened here: one asked for a number, the other measured how it was
+distributed.
+
+Corollaries, both earned today:
+- **Two numbers that agree closely are not a discrepancy.** Check the agreement
+  before explaining the difference.
+- **An aggregate can be right while the model producing it is wrong.** Measure the
+  distribution when a figure is about to become load-bearing — the mean is where
+  cancelling errors hide.
+
+Sibling of Rule 30 (a claim needs a control) and Rule 41 (the instrument may not
+be about the right thing). Those say what a measurement must have. This one says
+**who has to look at it.**
 
 ---
 
