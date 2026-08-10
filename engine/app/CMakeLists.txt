@@ -48,6 +48,7 @@ if(DFN_APP_READY)
     add_executable(dfn_app
         sources/Main.cpp
         sources/App.cpp
-        sources/Localization.cpp)
+        sources/Localization.cpp
+        sources/Menu.cpp)
     target_link_libraries(dfn_app PRIVATE dfn_headers ${DFN_APP_DEPS})
 endif()

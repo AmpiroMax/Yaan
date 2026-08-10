@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 02:44:09
+Last updated: 10:08:2026 - 10:36:22
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -77,6 +77,7 @@ UPD:
 - 09:08:2026 - 23:50:20: Ферри дальней детализации: границы мира от core, прямоугольник по сетке чанков, обновление по КАДРОВОМУ времени, сбор по ожидающим узлам, меш уничтожается раньше поля.
 - 10:08:2026 - 00:04:04: Подсказки взаимодействия рисуются на экране. Первый настоящий текст в игре: таблица строк грузится из данных, промах даёт заметную заглушку, а не пустоту.
 - 10:08:2026 - 02:44:09: Большая проводка ландшафтного этапа: аудио (слушатель, ветер, шаги), контекст шага, тело от первого лица (ферри BodyDrive от часов шага sim), зеркальный двойник (DFN_MIRROR/DFN_SHOWCASE), автономный плейтест (DFN_PLAYTEST), связь угла обзора со скоростью, строка head_bob в настройках.
+- 10:08:2026 - 10:36:22: Запуск через МЕНЮ: init() поднимает движок, enter_world() строит выбранную демо-карту. Стартовый экран, выбор карты, пауза по Esc. DFN_MENU=0/DFN_MAP для инструментов; тур и плейтест выключают меню сами.
 */
 
 #include "engine/app/sources/App.h"
@@ -85,6 +86,7 @@ UPD:
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/CoarseTerrain.h"
+#include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/physics/sources/CollisionLayers.h"
@@ -171,7 +173,10 @@ void load_or_create_settings(AppConfig& cfg) {
             << "palette=" << (cfg.palette_post ? 1 : 0) << "\n"
             << "# head_bob: bob/dip/settle motion scale; 0 disables the motion\n"
             << "# entirely (footstep sound and animation still fire).\n"
-            << "head_bob=" << cfg.head_bob << '\n';
+            << "head_bob=" << cfg.head_bob << "\n"
+            << "# show_menu: 1 = start in the menu and pick a demo map,\n"
+            << "#            0 = drop straight into the world.\n"
+            << "show_menu=" << (cfg.show_menu ? 1 : 0) << '\n';
         return;
     }
     std::string line;
@@ -193,6 +198,8 @@ void load_or_create_settings(AppConfig& cfg) {
             }
         } else if (key == "palette") {
             cfg.palette_post = !value.empty() && value[0] == '1';
+        } else if (key == "show_menu") {
+            cfg.show_menu = !value.empty() && value[0] == '1';
         } else if (key == "head_bob") {
             float v = 1.0f;
             if (std::sscanf(value.c_str(), "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
@@ -218,6 +225,24 @@ AppConfig AppConfig::from_env() {
     }
     if (const char* nr = std::getenv("DFN_NULL_RENDER"); nr && nr[0] == '1') {
         cfg.use_null_renderer = true;
+    }
+    if (const char* mn = std::getenv("DFN_MENU")) {
+        cfg.show_menu = (mn[0] == '1');
+    }
+    if (const char* mp = std::getenv("DFN_MAP")) {
+        const std::string m(mp);
+        if (m == "forest") {
+            cfg.start_stand = 1;
+        } else if (m == "testbed" || m == "valley") {
+            cfg.start_stand = 0;
+        } else {
+            cfg.start_stand = static_cast<uint32_t>(std::strtoul(mp, nullptr, 10));
+        }
+    }
+    // Tooling never stops at a menu: nobody is there to press Enter, and a
+    // tour that screenshots a menu is a tour that verified nothing.
+    if (std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr) {
+        cfg.show_menu = false;
     }
     if (const char* na = std::getenv("DFN_NULL_AUDIO"); na && na[0] == '1') {
         cfg.use_null_audio = true;
@@ -288,6 +313,45 @@ bool App::init(const AppConfig& config) {
     // the settings.cfg-driven resolution to stay pixel-exact (render's note).
     render_system_.set_internal_resolution(config.internal_width, config.internal_height);
 
+    // Rule 5: every user-facing string comes from here and nowhere else.
+    // A missing file is loud and the game still runs, with every string drawn
+    // as a visible placeholder rather than as nothing.
+    (void)load_localization("games/daggerfall_n/assets/localization/ru.txt");
+
+    // The demo-map table. Adding a stand is one row here plus two localization
+    // lines -- the menu itself never changes, which is the point of a table.
+    // Stand ids belong to core's WorldGenParams; 0 is today's valley.
+    menu_.set_maps({{static_cast<uint32_t>(world::StandId::Testbed),
+                     "map.valley.name", "map.valley.blurb"},
+                    {static_cast<uint32_t>(world::StandId::Forest),
+                     "map.forest.name", "map.forest.blurb"}});
+    {
+        const auto fb = window_->framebuffer_size();
+        camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
+                               static_cast<float>(fb.x) / static_cast<float>(fb.y),
+                               static_cast<float>(config::CAMERA_NEAR),
+                               static_cast<float>(config::CAMERA_FAR));
+    }
+
+    // The world itself is NOT built here. Menu-first launch means the player
+    // picks a demo map before any terrain exists, so world construction lives
+    // in enter_world() and init() only raises the engine.
+    if (config.show_menu) {
+        mode_ = AppMode::Menu;
+        input_->set_cursor_captured(false);
+    } else {
+        if (!enter_world(config.start_stand)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Builds (or rebuilds) the world for one demo map. Everything that depends on
+// terrain existing lives here: streaming, edge walls, the chunk ferry, the
+// player, the testbed content, the body, the mirror puppet and the playtest.
+bool App::enter_world(uint32_t stand) {
+    active_stand_ = stand;
     // Chunk streaming: stage 2 serves the in-memory generated world (core's
     // open_generated path; .dfw file IO lands in stage 3). Testbed extent 4x4
     // chunks (Q45), fixed seed for reproducible screenshots (Rule 13.1).
@@ -304,6 +368,10 @@ bool App::init(const AppConfig& config) {
     // grid, so growing the world renumbers nothing already cached.
     gp.max_chunk = {static_cast<int>(config::WORLD_EXTENT_CHUNKS) - 1,
                     static_cast<int>(config::WORLD_EXTENT_CHUNKS) - 1};
+    // The chosen demo map. Stand ids are core's; the app only selects.
+    if (stand == static_cast<uint32_t>(world::StandId::Forest)) {
+        gp.layout = world::forest_stand_layout();
+    }
     chunks_.open_generated(gp, sp);
 
     // World edge (sim's finding): past the generated extent there is no terrain
@@ -492,7 +560,41 @@ bool App::init(const AppConfig& config) {
                     mp->clip_seconds = 4.0f;
                 }
             }
+            mirror_puppet_ = puppet;
         }
+    }
+
+    // BODY PROBE (Rule 27 evidence; see App.h). The Tour freezes the tick, so
+    // an animated subject cannot be photographed by it at all. Here the world
+    // RUNS and the shot is triggered off simulation state.
+    if (const char* bp = std::getenv("DFN_BODY_PROBE"); bp != nullptr && *bp != '\0') {
+        BodyProbe probe;
+        probe.mode = bp;
+        const char* d = std::getenv("DFN_BODY_PROBE_DIR");
+        probe.dir = d ? d : ("screenshots/body_" + probe.mode);
+        std::filesystem::create_directories(probe.dir);
+        probe.warmup_s = 4.0f;
+        if (probe.mode == "stride") {
+            // The four quarters of ONE stride, in crossing order. This is the
+            // Rule 27 range clause: FOOTFALL_PHASE_LEFT/RIGHT are where a foot
+            // MUST be planted, and 0.0/0.5 are where one MUST be in the air —
+            // a set that can only pass if the plant timing is actually right.
+            probe.targets = {static_cast<float>(config::FOOTFALL_PHASE_LEFT), 0.5f,
+                             static_cast<float>(config::FOOTFALL_PHASE_RIGHT), 0.0f};
+            probe.pitch = -1.15f; // look at your own feet
+            if (const char* p = std::getenv("DFN_BODY_PITCH")) {
+                probe.pitch = std::strtof(p, nullptr);
+            }
+        } else if (probe.mode == "showcase") {
+            // Mid-clip of each of the six reel entries (4 s per clip).
+            probe.targets = {2.0f, 6.0f, 10.0f, 14.0f, 18.0f, 22.0f};
+            probe.pitch = 0.15f; // the double floats at 1.2 m
+        } else { // mirror
+            // Turn LEFT by these offsets; the double must turn the other way.
+            probe.targets = {0.0f, -0.25f, -0.5f};
+            probe.pitch = 0.0f;
+        }
+        body_probe_ = std::move(probe);
     }
 
     // STEP CONTEXT: who publishes, whose ground, the user's bob setting.
@@ -500,7 +602,7 @@ bool App::init(const AppConfig& config) {
     step_ctx_.surface_class_at = [this](glm::vec2 xz) {
         return chunks_.surface_class_at(xz);
     };
-    step_ctx_.bob_scale = config.head_bob;
+    step_ctx_.bob_scale = config_.head_bob;
 
     // AUTONOMOUS PLAYTEST (sim's spec, engine/gameplay/docs/PLAYTEST.md).
     // DFN_PLAYTEST=patrol|explore|soak. The bot writes the same input intents
@@ -557,11 +659,13 @@ bool App::init(const AppConfig& config) {
         // The bot needs the world, not the cursor; the player is NOT frozen.
     }
 
-    camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
-                           static_cast<float>(rp.framebuffer_width)
-                               / static_cast<float>(rp.framebuffer_height),
-                           static_cast<float>(config::CAMERA_NEAR),
-                           static_cast<float>(config::CAMERA_FAR));
+    {
+        const auto fb = window_->framebuffer_size();
+        camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
+                               static_cast<float>(fb.x) / static_cast<float>(fb.y),
+                               static_cast<float>(config::CAMERA_NEAR),
+                               static_cast<float>(config::CAMERA_FAR));
+    }
 
     // FAR DETAIL. Chunk streaming reaches CHUNK_LOAD_RADIUS chunks from wherever
     // the player stands while CAMERA_FAR is 8 km, so without this the world ends
@@ -580,19 +684,164 @@ bool App::init(const AppConfig& config) {
         render_system_.set_lod_enabled(!(no_lod != nullptr && *no_lod == '1'));
     }
 
-    // Rule 5: every user-facing string comes from here and nowhere else.
-    // A missing file is loud and the game still runs, with every string drawn
-    // as a visible placeholder rather than as nothing.
-    (void)load_localization("games/daggerfall_n/assets/localization/ru.txt");
-
     if (render::Tour::enabled_by_env()) {
         const char* dir = std::getenv("DFN_TOUR_DIR");
         tour_.begin(render::Tour::testbed_steps(), dir ? dir : "screenshots",
                     [this](glm::vec2 p) { return chunks_.height_at(p).value_or(0.0f); });
     } else {
-        input_->set_cursor_captured(true);
+        // The body probe drives the look itself; grabbing the cursor for it
+        // would only steal the desktop's pointer for the length of the run.
+        input_->set_cursor_captured(!body_probe_.has_value());
     }
     return true;
+}
+
+namespace {
+
+// Did the swept interval a -> b pass `target`? `wrapping` treats the values as
+// a cycle in [0,1) advancing forward (the stride phase); otherwise a plain
+// interval test that also fires when an endpoint IS the target.
+[[nodiscard]] bool swept_past(float a, float b, float target, bool wrapping) {
+    if (wrapping) {
+        const float span = std::fmod(b - a + 1.0f, 1.0f);
+        const float to_target = std::fmod(target - a + 1.0f, 1.0f);
+        return span > 0.0f && to_target <= span;
+    }
+    return (a - target) * (b - target) <= 0.0f;
+}
+
+} // namespace
+
+void App::body_probe_drive() {
+    if (!body_probe_) {
+        return;
+    }
+    BodyProbe& p = *body_probe_;
+    p.elapsed_s += static_cast<float>(config::SIM_DT);
+    auto* ps = world_.get<gameplay::PlayerState>(player_);
+    if (ps == nullptr) {
+        return;
+    }
+    if (p.mode == "stride") {
+        // The bot walks; the probe only aims the eye at its own feet.
+        ps->pitch = p.pitch;
+        return;
+    }
+    // Showcase and mirror: stand still, face the double. The mirror run then
+    // turns LEFT at a fixed rate, and the double must answer to ITS left.
+    ps->move_axes = {0.0f, 0.0f};
+    ps->run = false;
+    ps->pending_look = {0.0f, 0.0f};
+    if (!p.aimed) {
+        const auto* self = world_.get<components::Transform>(player_);
+        const auto* other = world_.get<components::Transform>(mirror_puppet_);
+        if (self != nullptr && other != nullptr) {
+            const glm::vec2 d{other->position.x - self->position.x,
+                              other->position.z - self->position.z};
+            if (glm::dot(d, d) > 1.0e-6f) {
+                p.aim_yaw = std::atan2(d.x, -d.y);
+            }
+        }
+        p.aimed = p.elapsed_s >= p.warmup_s;
+    }
+    float offset = 0.0f;
+    if (p.mode == "mirror" && p.elapsed_s > p.warmup_s) {
+        offset = std::max(-0.5f, -0.25f * (p.elapsed_s - p.warmup_s));
+    }
+    ps->yaw = p.aim_yaw + offset;
+    ps->pitch = p.pitch;
+}
+
+void App::body_probe_frame(float alpha, float frame_dt) {
+    if (!body_probe_ || renderer_ == nullptr) {
+        return;
+    }
+    (void)alpha;
+    (void)frame_dt;
+    BodyProbe& p = *body_probe_;
+    if (p.next >= p.targets.size() || p.elapsed_s > p.warmup_s + 60.0f) {
+        if (!p.log.empty()) {
+            if (std::FILE* f = std::fopen((p.dir + "/probe_log.txt").c_str(), "w")) {
+                std::fwrite(p.log.data(), 1, p.log.size(), f);
+                std::fclose(f);
+            }
+            p.log.clear();
+        }
+        window_->request_close();
+        return;
+    }
+    if (p.cooldown > 0) {
+        --p.cooldown;
+        return;
+    }
+
+    // What this probe is watching, and the line the shot must land on.
+    float now = 0.0f;
+    bool wrapping = false;
+    float speed = 0.0f;
+    float step_len = 0.0f;
+    if (p.mode == "stride") {
+        const auto* drive = world_.get<anim::BodyDrive>(player_);
+        if (drive == nullptr) {
+            return;
+        }
+        now = drive->stride_phase;
+        speed = drive->speed_mps;
+        step_len = drive->step_length_m;
+        wrapping = true;
+        if (speed < 0.5f || !drive->grounded) {
+            p.prev_value = now; // a standing frame proves nothing about a stride
+            return;
+        }
+    } else if (p.mode == "showcase") {
+        const auto* drive = world_.get<anim::BodyDrive>(mirror_puppet_);
+        if (drive == nullptr) {
+            return;
+        }
+        now = drive->showcase_time_s;
+    } else {
+        const auto* ps = world_.get<gameplay::PlayerState>(player_);
+        if (ps == nullptr) {
+            return;
+        }
+        now = ps->yaw - p.aim_yaw;
+    }
+    if (p.elapsed_s < p.warmup_s) {
+        p.prev_value = now;
+        return;
+    }
+
+    // The backend captures into the NEXT rendered frame, so the target is
+    // tested against where the subject will BE, not where it is.
+    const float delta = wrapping ? std::fmod(now - p.prev_value + 1.0f, 1.0f)
+                                 : now - p.prev_value;
+    const float predicted = wrapping ? std::fmod(now + delta, 1.0f) : now + delta;
+    p.prev_value = now;
+    if (!p.primed) {
+        p.value = predicted;
+        p.primed = true;
+        return;
+    }
+    const float before = p.value;
+    p.value = predicted;
+    if (!swept_past(before, predicted, p.targets[p.next], wrapping)) {
+        return;
+    }
+
+    char name[96];
+    std::snprintf(name, sizeof(name), "%02zu_%s_%.3f.png", p.next, p.mode.c_str(),
+                  static_cast<double>(p.targets[p.next]));
+    (void)renderer_->save_screenshot(p.dir + "/" + name);
+    char line[256];
+    std::snprintf(line, sizeof(line),
+                  "%s target=%.3f captured=%.3f speed=%.2f step=%.2f t=%.1f\n", name,
+                  static_cast<double>(p.targets[p.next]),
+                  static_cast<double>(predicted), static_cast<double>(speed),
+                  static_cast<double>(step_len), static_cast<double>(p.elapsed_s));
+    p.log += line;
+    std::fprintf(stderr, "[body_probe] %s", line);
+    ++p.next;
+    p.cooldown = 4; // let the backend flush before another shot is scheduled
 }
 
 int App::run() {
@@ -600,6 +849,70 @@ int App::run() {
     while (!window_->should_close()) {
         window_->poll_events();
         input_->update();
+
+        // MENU MODE: the engine is up, the world may not exist yet. Nothing
+        // simulates here -- the menu is drawn over whatever the last frame was
+        // (a dimmed world when paused, a plain ground before any world).
+        if (mode_ == AppMode::Menu) {
+            if (input_->was_pressed(platform::Key::UP)) {
+                menu_.move(-1);
+            }
+            if (input_->was_pressed(platform::Key::DOWN)) {
+                menu_.move(1);
+            }
+            MenuAction action = MenuAction::None;
+            if (input_->was_pressed(platform::Key::ENTER)) {
+                action = menu_.activate();
+            } else if (input_->was_pressed(platform::Key::ESCAPE)) {
+                action = menu_.back();
+            }
+            switch (action) {
+            case MenuAction::EnterWorld:
+                if (!enter_world(menu_.chosen_stand())) {
+                    return 1;
+                }
+                mode_ = AppMode::Playing;
+                input_->set_cursor_captured(true);
+                break;
+            case MenuAction::Resume:
+                mode_ = AppMode::Playing;
+                input_->set_cursor_captured(true);
+                break;
+            case MenuAction::Quit:
+                window_->request_close();
+                break;
+            case MenuAction::ToRoot:
+            case MenuAction::None:
+                break;
+            }
+            if (window_->should_close()) {
+                break;
+            }
+            // Drawn through the PUBLIC hud layer rather than a new render API:
+            // clear() writes alpha 255, so a fully cleared canvas covers the
+            // frame exactly like an opaque screen, and the pause page clears
+            // transparent to keep the world visible underneath.
+            draw_menu(render_system_.hud(), menu_);
+            render_system_.set_hud_visible(true);
+            render_system_.render(world_, *renderer_, camera_, 0.0f);
+            // VERIFICATION HOOK (Rule 27): a menu nobody can photograph is a
+            // menu nobody can verify. DFN_MENU_SHOT=<path> captures one frame
+            // of whichever page is showing and closes.
+            if (const char* shot = std::getenv("DFN_MENU_SHOT");
+                shot != nullptr && *shot != '\0') {
+                // The backend captures AFTER the current end_frame and needs a
+                // few frames to flush (the tour learned this the hard way), so
+                // shoot once and keep drawing until the flush lands.
+                if (menu_shot_frames_ == 0) {
+                    (void)renderer_->save_screenshot(shot);
+                }
+                if (++menu_shot_frames_ > 4) {
+                    window_->request_close();
+                }
+            }
+            last = std::chrono::steady_clock::now(); // no frame_dt spike on resume
+            continue;
+        }
         if (window_->consume_resize()) {
             const auto fb = window_->framebuffer_size();
             renderer_->resize(fb.x, fb.y);
@@ -609,6 +922,18 @@ int App::run() {
         }
         if (input_->was_pressed(platform::Key::ESCAPE)) {
             window_->request_close();
+        }
+        // ESC pauses. Cursor is released so the pointer is usable, and the
+        // world stops ticking because Menu mode skips the whole simulation.
+        if (input_->was_pressed(platform::Key::ESCAPE)) {
+            if (render_system_.map_open()) {
+                render_system_.set_map_open(false);
+            } else {
+                menu_.open(MenuPage::Pause);
+                mode_ = AppMode::Menu;
+                input_->set_cursor_captured(false);
+                continue;
+            }
         }
         if (input_->was_pressed(platform::Key::M)) {
             render_system_.toggle_map();
@@ -708,6 +1033,9 @@ int App::run() {
                 if (playtest_ && !playtest_->finished) {
                     gameplay::playtest_drive(*playtest_, world_);
                 }
+                // AFTER the bot (it owns yaw; the probe owns the rest) and
+                // BEFORE pre_step, which is where a look intent is consumed.
+                body_probe_drive();
                 // The water callback is the authoritative source. Sampling the
                 // terrain and subtracting, or reading the drawn water, would
                 // let a primitive that extends past real water be swum in.
@@ -893,6 +1221,7 @@ int App::run() {
         }
 
         render_system_.render(world_, *renderer_, camera_, alpha);
+        body_probe_frame(alpha, static_cast<float>(frame_dt));
         if (tour_.active() && tour_.post_frame(*renderer_)) {
             window_->request_close(); // tour finished (render's contract)
         }

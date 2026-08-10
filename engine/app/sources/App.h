@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 02:39:07
+Last updated: 10:08:2026 - 10:28:59
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -39,11 +39,17 @@ UPD:
 - 09:08:2026 - 19:12:24: game clock (day/night cycle) held here.
 - 09:08:2026 - 22:24:44: Игровые часы стартуют с START_TIME_OF_DAY, а не с нуля — ноль это полночь, и свежий запуск открывался в темноте.
 - 10:08:2026 - 02:39:07: Audio, step context, first-person body rig and the autonomous playtest join the composition root (landscape stage wiring).
+- 10:08:2026 - 10:52:00: BodyProbe (DFN_BODY_PROBE) — the acceptance-frame path
+                         for anything ANIMATED. The Tour freezes the tick, so it
+                         can photograph only still life; this probe runs the
+                         world and triggers the shot off simulation state.
+- 10:08:2026 - 10:28:59: Menu-first launch: init() raises the engine, enter_world() builds a chosen demo map (user request: check different maps, with and without the menu).
 */
 
 #pragma once
 
 #include "engine/anim/sources/Rig.h"
+#include "engine/app/sources/Menu.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
@@ -63,6 +69,7 @@ UPD:
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace dfn::platform {
 class IWindow;
@@ -81,6 +88,10 @@ struct AppConfig {
     bool use_null_renderer = false;
     bool use_null_physics = false;
     bool use_null_audio = false;   // DFN_NULL_AUDIO=1
+    bool show_menu = true;         // settings.cfg + DFN_MENU=0 for tooling:
+                                   // the tour and the playtest bot must not
+                                   // stop at a menu nobody can press Enter on
+    uint32_t start_stand = 0;      // DFN_MAP: which demo map when the menu is off
     float head_bob = 1.0f;         // settings.cfg: 0 disables bob/dip/settle
                                    // MOTION (events and sound still fire) --
                                    // the research's motion-sickness mandate
@@ -102,11 +113,24 @@ public:
     App& operator=(const App&) = delete;
 
     [[nodiscard]] bool init(const AppConfig& config);
+    // Builds the world for one demo map. Called from init() when the menu is
+    // off, or from the menu when the player picks a map.
+    [[nodiscard]] bool enter_world(uint32_t stand);
     int run();
     void shutdown();
 
 private:
     void pump_chunk_events(); // ferry ChunkLoaded/Unloaded -> render + physics
+
+    // Menu-first launch: the engine is up but no world exists until a map is
+    // chosen. Playing is the only mode that ticks the simulation.
+    enum class AppMode : uint8_t { Menu, Playing };
+    AppMode mode_ = AppMode::Playing;
+    MenuModel menu_;
+    uint32_t active_stand_ = 0;
+    int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter
+    void body_probe_drive();  // fixed tick: pose the camera for the probe
+    void body_probe_frame(float alpha, float frame_dt); // after render: shoot
 
     AppConfig config_{};
 
@@ -139,6 +163,35 @@ private:
 
     // First-person body (character's zone, wired here).
     anim::Rig body_rig_{};
+    ecs::EntityId mirror_puppet_{}; // DFN_MIRROR/DFN_SHOWCASE double, 0 when absent
+
+    // BODY PROBE (Rule 27 evidence path for the body; DFN_BODY_PROBE=
+    // stride|showcase|mirror). The screenshot Tour FREEZES the simulation, so
+    // every animated subject in the project is invisible to it by construction:
+    // no tick means no update_bodies, no stride clock, no clip reel. This probe
+    // is the opposite instrument — the world RUNS and the camera is posed and
+    // triggered off simulation state, so a frame can be demanded AT a named
+    // stride phase or clip time. Debug tooling: gated, and it closes the app
+    // when the shot list is spent.
+    struct BodyProbe {
+        std::string mode;            // stride | showcase | mirror
+        std::string dir;             // output directory
+        std::vector<float> targets;  // stride phase | clip time (s) | yaw offset
+        size_t next = 0;             // index into targets
+        float warmup_s = 0.0f;       // streaming/settle time before the first shot
+        float elapsed_s = 0.0f;
+        float pitch = 0.0f;          // forced look pitch, radians
+        float aim_yaw = 0.0f;        // resolved at warmup end (mirror/showcase)
+        bool aimed = false;
+        bool primed = false;         // one frame of history before triggering
+        float value = 0.0f;          // this frame's tracked quantity
+        float prev_value = 0.0f;     // last frame's, for crossing detection
+        float tick_value = 0.0f;     // tracked quantity at the newest tick
+        float prev_tick_value = 0.0f;
+        int cooldown = 0;            // frames before another shot may be scheduled
+        std::string log;             // one line per shot, written next to the frames
+    };
+    std::optional<BodyProbe> body_probe_;
 
     // Autonomous playtest (sim's zone; DFN_PLAYTEST=patrol|explore|soak).
     std::optional<gameplay::PlaytestState> playtest_;

@@ -14,3 +14,19 @@ prompt.use=Использовать
 prompt.look=Осмотреть
 
 item.tool.torch.name=Факел
+
+# Меню
+menu.play=Играть
+menu.quit=Выход
+menu.back=Назад
+menu.resume=Продолжить
+menu.paused=Пауза
+menu.hint=Стрелки — выбор, Enter — принять, Esc — назад
+
+# Демонстрационные карты
+map.valley.name=Долина Вэйлмир
+map.valley.blurb=Скала, река, озеро, деревня, замок
+map.forest.name=Лесок
+map.forest.blurb=Тропы, обочина, подлесок — стенд красоты
+map.mirror.name=Зеркало
+map.mirror.blurb=Двойник напротив: проверка анимаций
