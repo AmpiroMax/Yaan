@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 11:10:53
+Last updated: 10:08:2026 - 12:12:40
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -60,6 +60,8 @@ UPD:
   meant "frames rendered"; far nodes are still ARRIVING from core at frame 75,
   and each starts its 0.6 s dissolve when it lands, so the settle time is
   streaming latency PLUS the fade, not the fade alone.
+- 10:08:2026 - 12:12:40: stand_steps/vantage_steps over math::StandVantage + DFN_SKY_PITCH
+  (the moon rides a steep arc; a fixed 0.16 framed the ground it was lighting).
 */
 
 #include "engine/render/sources/Tour.h"
@@ -68,6 +70,7 @@ UPD:
 #include "engine/platform/render/interfaces/IRenderer.h"
 
 #include <cmath>
+#include <string>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -290,6 +293,17 @@ std::vector<TourStep> Tour::sky_probe_steps() {
             pitch = 0.16f; // celestial shots want a little sky headroom
         }
     }
+    // DFN_SKY_PITCH: the moon rides a STEEP arc (SKY_ARC_TILT), so at the hours
+    // where it is fully lit it sits 25-50 degrees up and a fixed 0.16 pitch
+    // frames the ground it is lighting instead of the moon. The elevation is
+    // computable from SkyModel before the run (Rule 33), so the pitch is chosen
+    // with the hour rather than discovered from a frame.
+    if (const char* penv = env_or_null("DFN_SKY_PITCH")) {
+        float parsed = 0.0f;
+        if (std::sscanf(penv, "%f", &parsed) == 1) {
+            pitch = parsed;
+        }
+    }
     return {{"sky", {pos.x, 70.0f, pos.y}, yaw, pitch, 90, true}};
 }
 
@@ -394,6 +408,106 @@ std::vector<TourStep> Tour::crag_acceptance_steps() {
         }
     }
     return steps;
+}
+
+std::vector<TourStep> Tour::vantage_steps(std::span<const math::StandVantage> vantages) {
+    // Wait frames. NOT inherited from the testbed's 45, and not from the 300
+    // the sky probe uses either: the forest stand streams FASTER per chunk than
+    // the testbed (core measured 14.16 ms vs 21.79 ms per chunk, release,
+    // 4x4 chunks) but pays a much larger one-time cost (329.4 ms vs 1.9 ms) and
+    // carries far more scatter per chunk. Arrival, not cost, is what a wait
+    // frame buys, so the number is MEASURED on this stand (see the recipe in
+    // the spec) and overridable while it is being measured.
+    uint32_t wait = 120;
+    if (const char* w = env_or_null("DFN_TOUR_WAIT")) {
+        const long v = std::strtol(w, nullptr, 10);
+        if (v > 0 && v < 100000) {
+            wait = static_cast<uint32_t>(v);
+        }
+    }
+    const char* only = env_or_null("DFN_VANTAGE");
+
+    // Order is a decision, not the producer's array order: the path frames are
+    // what the stand exists to show, and a route whose first frame is a control
+    // reads as though the control were the claim.
+    const auto rank = [](const std::string& label) {
+        if (label.rfind("path_", 0) == 0) return 0;
+        if (label.rfind("br1_", 0) == 0) return 1;
+        if (label.rfind("lf2_", 0) == 0) return 2;
+        if (label.rfind("goal_", 0) == 0) return 3;
+        if (label.rfind("find_", 0) == 0) return 4;
+        return 5;
+    };
+
+    // THE PAIRING CONVENTION IS MECHANICAL (core's, and it is the reason the
+    // filter is not a one-line prefix test): a control's label is its claim's
+    // label plus "_control". A filter that admits a claim and drops its control
+    // produces a frame that CANNOT FAIL — the exact thing Rule 27 exists to
+    // prevent — so admitting a claim admits its control too, whether or not the
+    // control's label happens to start with the prefix.
+    std::vector<std::string> admitted;
+    if (only != nullptr) {
+        for (const math::StandVantage& v : vantages) {
+            if (v.label.rfind(only, 0) == 0) {
+                admitted.push_back(v.label);
+            }
+        }
+        for (const std::string& claim : std::vector<std::string>(admitted)) {
+            for (const math::StandVantage& v : vantages) {
+                if (v.label == claim + "_control") {
+                    admitted.push_back(v.label);
+                }
+            }
+        }
+    }
+    const auto wanted = [&](const std::string& label) {
+        if (only == nullptr) {
+            return true;
+        }
+        for (const std::string& a : admitted) {
+            if (a == label) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    std::vector<TourStep> steps;
+    for (int pass = 0; pass <= 5; ++pass) {
+        for (const math::StandVantage& v : vantages) {
+            if (rank(v.label) != pass) {
+                continue;
+            }
+            if (!wanted(v.label)) {
+                continue;
+            }
+            // eye_offset is ABOVE THE TERRAIN at the standpoint, which is
+            // exactly what ground_relative means here — so the stand's own
+            // framing survives whatever the shipped height field does.
+            steps.push_back({v.label,
+                             {v.position.x, v.eye_offset, v.position.y},
+                             v.yaw, v.pitch, wait, true});
+        }
+    }
+    return steps;
+}
+
+std::vector<TourStep> Tour::stand_steps(std::span<const math::StandVantage> vantages) {
+    // A probe variable owns the run: those are single-frame evidence shoots and
+    // shooting a whole acceptance route around one is how a probe stops being
+    // read. testbed_steps() already dispatches every one of them.
+    if (env_or_null("DFN_MAP") != nullptr || env_or_null("DFN_FONT_PROBE") != nullptr
+        || env_or_null("DFN_SHADOW_PROBE") != nullptr
+        || env_or_null("DFN_SKY_PROBE") != nullptr
+        || env_or_null("DFN_MASSIF_PROBE") != nullptr
+        || env_or_null("DFN_CRAG_PROBE") != nullptr
+        || env_or_null("DFN_CLOUD_PROBE") != nullptr) {
+        return testbed_steps();
+    }
+    if (!vantages.empty()) {
+        return vantage_steps(vantages);
+    }
+    return testbed_steps();
 }
 
 std::vector<TourStep> Tour::testbed_steps() {

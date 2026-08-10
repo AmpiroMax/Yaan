@@ -77,12 +77,20 @@ TEST_CASE("trees and micro scatter split into their batches") {
         max_x = std::max(max_x, v.position.x);
     }
     CHECK(min_x > 290.0f);
-    CHECK(max_x < 330.0f);
+    // The BUSH at x=330 is now baked into this stream too: routing asks
+    // `flora_owns()` rather than a hand-written three-tree predicate, and
+    // flora owns the bush. So the stream reaches a bush's half-width past 330
+    // instead of stopping at the birch — which is the whole point of the
+    // change, and the reason §5.10's floor drew as bare earth before it.
+    CHECK(max_x < 334.0f);
 }
 
 TEST_CASE("micro tiles cover their instances within center + radius") {
+    // STONE ONLY. The micro-tile path is now exactly "what flora does not
+    // own" — bushes moved to the flora stream with the rest of §5.10 — so a
+    // bush here would test the tiling of an empty set.
     const std::vector<ScatterInstance> instances{
-        make(260.0f, 10.0f, ScatterSpecies::Bush),
+        make(260.0f, 10.0f, ScatterSpecies::Stone),
         make(500.0f, 250.0f, ScatterSpecies::Stone),
     };
     const ScatterBatches batches = build_scatter_batches(instances, ORIGIN, CHUNK, 4);
@@ -116,7 +124,7 @@ TEST_CASE("empty and degenerate inputs return empty batches") {
     const ScatterBatches none = build_scatter_batches({}, ORIGIN, CHUNK);
     CHECK(none.trees.vertices.empty());
     CHECK(none.micro.empty());
-    const std::vector<ScatterInstance> one{make(300.0f, 100.0f, ScatterSpecies::Bush)};
+    const std::vector<ScatterInstance> one{make(300.0f, 100.0f, ScatterSpecies::Stone)};
     const ScatterBatches bad = build_scatter_batches(one, ORIGIN, 0.0f);
     CHECK(bad.micro.empty());
 }

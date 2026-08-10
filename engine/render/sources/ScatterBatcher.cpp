@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 12:12:40
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -42,6 +42,9 @@ UPD:
   ~4.94), which is a pop-in bug, and a table that must agree with a mesh will
   disagree again; a measured radius cannot. Old values kept in the test suite
   as the failing control (Rule 30).
+- 10:08:2026 - 12:12:40: routing asks flora_owns() instead of a hand-written three-tree
+  predicate — that predicate is why §5.10's floor and §5.11's edge set drew as
+  bare earth while every suite was green.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -97,12 +100,6 @@ void report_missing_species(size_t ordinal) {
                  "instances of it and they draw as NOTHING. Add it to "
                  "build_scatter_mesh (ProcMesh.cpp) or to the flora path.\n",
                  ordinal);
-}
-
-bool is_tree(math::ScatterSpecies species) {
-    return species == math::ScatterSpecies::OakTree
-        || species == math::ScatterSpecies::PineTree
-        || species == math::ScatterSpecies::BirchTree;
 }
 
 } // namespace
@@ -168,7 +165,19 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
 
     for (size_t i = 0; i < instances.size(); ++i) {
         const math::ScatterInstance& inst = instances[i];
-        if (is_tree(inst.species)) {
+        // ROUTING ASKS FLORA, IT DOES NOT RE-DERIVE THE ANSWER. This used to
+        // be `is_tree()` — oak, pine, birch by name — which was the whole
+        // reason §5.10's forest floor and §5.11's edge set drew as bare earth:
+        // flora had built every one of those meshes and nothing routed to them.
+        // `flora_owns()` is an exhaustive switch with NO default in flora's
+        // zone, so the next time core grows the enum that file fails to COMPILE
+        // rather than quietly answering for a species nobody considered.
+        //
+        // Note it is a predicate and not `flora_species_of(...) != something`:
+        // that mapping returns Bush through its default, so a Stone taking this
+        // branch would draw a shrub where a boulder belongs — a routing bug
+        // wearing a placement bug's clothes.
+        if (flora_owns(inst.species)) {
             const FloraSpecies fs = flora_species_of(inst.species);
             const uint32_t variant =
                 flora_variant_for({inst.position.x, inst.position.z});
@@ -176,7 +185,14 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
             // (which is inst.scale) to the height. Passing inst.scale here too
             // would square it — a 1.25 giant becomes 1.56 and still looks
             // plausible, which is exactly why it would survive review.
-            // Trees do not sink: they stand on their root flare.
+            //
+            // AND NO GROUND SINK ON THIS PATH, for every flora class and not
+            // only for trees: append_flora's contract is that the mesh already
+            // stands on its own root flare, and the ground-cover classes bury
+            // their own lower half (moss domes, part-buried pebbles and logs).
+            // Sinking them again would put the moss under the terrain, and
+            // "the moss did not draw" and "the moss drew 12 cm underground"
+            // are the same screenshot.
             append_flora(out.trees, out.foliage, fs, variant, shapes[i],
                          FloraLod::Full, inst.position, inst.yaw);
             continue;

@@ -45,9 +45,15 @@ $input v_dir
 #define CUMULUS_TOP_M     3800.0
 #define CUMULUS_BASE_Y   (CUMULUS_BASE_M / CUMULUS_RING_M)
 #define CUMULUS_TOP_Y    (CUMULUS_TOP_M / CUMULUS_RING_M)
-// The ONE field, read coarser on the ring: at 20 km an unscaled 600 m cell
-// subtends 1.7 deg, which is texture, not a cloud.
-#define CUMULUS_SCALE     2.5
+// The ONE field, read coarser on the ring. THE NUMBER IS AN ASPECT RATIO, not
+// a taste: the band is CUMULUS_TOP_Y - CUMULUS_BASE_Y = 0.135 of a radian tall,
+// i.e. 7.7 deg, and a cumulus mass is WIDER THAN IT IS TALL — a fair-weather
+// cumulus is 2-5 km across against 2-3 km of depth, and at 20 km that is a
+// silhouette whose lobes are 6-14 deg wide. At scale 2.5 one 600 m field cell
+// subtended 4.3 deg: NARROWER than the band was tall, which is what made every
+// mass a vertical tooth. At 7.0 a cell subtends 12 deg — about 1.6 times the
+// band's height, which is the proportion a bank of cumulus actually has.
+#define CUMULUS_SCALE     7.0
 
 // Angular half-size of the moon disc. The true moon is ~0.26 deg, which at
 // 640x360 is ONE pixel — invisible and, worse, a flickering pixel. Ours is
@@ -178,20 +184,46 @@ void main()
         vec2 ring = (eye.xz + dh * CUMULUS_RING_M + u_cloudOffset)
                   / CUMULUS_SCALE;
         float upwind = 0.5 - 0.5 * dot(dh, u_windDir);
-        float dens = clamp(u_cloudCumulus * (0.18 + 0.52 * upwind), 0.0, 0.85);
+        // THE TWO NUMBERS ARE COVERAGE FRACTIONS AT THE TWO ENDS OF THE BAND,
+        // and stating them that way is the correction. The field is remapped
+        // through its own CDF, so it is uniform on [0,1] and a threshold of
+        // 1-c admits exactly c of all azimuths. The shipped form folded base
+        // and top into one `dens`, which made the BASE as sparse as the tops
+        // were rare: at cumulus 0.5 only ~35% of azimuths carried any cloud at
+        // all, and each of those was the narrow peak of a field lobe. A bank of
+        // cumulus at 20 km is nearly CONTINUOUS along the horizon; what varies
+        // is how high each mass climbs. So the base is broad and only the tops
+        // are rationed.
+        float base_cover = clamp(u_cloudCumulus * (0.55 + 0.40 * upwind), 0.0, 0.92);
+        float top_cover = base_cover * 0.06;
         float F = dfn_cloud_field(ring, 0.02);
         float hn = clamp((dir.y - CUMULUS_BASE_Y)
                          / (CUMULUS_TOP_Y - CUMULUS_BASE_Y), 0.0, 1.0);
-        // hn*hn climbs slowly low down and steeply near the top, so the
-        // silhouette has near-vertical flanks and a ROUNDED shoulder instead
-        // of the triangular peaks a linear ramp gives.
-        float T = (1.0 - dens) + dens * hn * hn * 0.99;
-        float cum = smoothstep(T, T + 0.09, F)
-                  * smoothstep(CUMULUS_BASE_Y - 0.004, CUMULUS_BASE_Y + 0.010,
+        // THE THRESHOLD RISES WITH hn SQUARED, and the reason is the SHAPE OF
+        // THE INVERSE. F is a function of AZIMUTH ALONE, so a column stands
+        // from the base up to where T(hn) reaches F: the skyline IS hn_max(F).
+        // Squared gives hn_max ~ sqrt(F), which is steep at the flanks and
+        // FLAT at the top — a cumulus profile. Linear was tried and gives
+        // hn_max ~ F, an affine image of a field whose lobes are conical, so
+        // every mass came out a straight-sided TENT and the horizon read as a
+        // distant mountain range.
+        //
+        // (The vertical teeth this pass started from were NOT this exponent's
+        // fault, which is why the linear experiment was worth running: they
+        // came from CUMULUS_SCALE making a mass narrower than the band is
+        // tall. Fix the aspect ratio and the square root is right again.)
+        float T = mix(1.0 - base_cover, 1.0 - top_cover, hn * hn);
+        float cum = smoothstep(T, T + 0.05, F)
+                  * smoothstep(CUMULUS_BASE_Y - 0.004, CUMULUS_BASE_Y + 0.006,
                                dir.y);
-        // Sunlit tops, shaded bases — the same hour palette as the sheets.
-        vec3 cum_col = mix(cloud_dark * 0.92, cloud_bright,
-                           clamp(0.05 + 1.60 * hn, 0.0, 1.0));
+        // SHADED BASES ARE WHAT SEPARATE A BANK FROM THE HAZE. A cumulus is
+        // lit from above and its flat base is the darkest thing in the sky
+        // near the horizon — and near the horizon the SKY is the pale horizon
+        // colour, so a white-to-the-bottom mass has nothing to read against
+        // and dissolves upward into a floating tooth. The ramp therefore holds
+        // the dark through the lower third and only then climbs.
+        vec3 cum_col = mix(cloud_dark * 0.78, cloud_bright,
+                           smoothstep(0.10, 0.75, hn));
         sky = mix(sky, cum_col, cum);
     }
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 10:08:2026 - 03:10:00
+Last updated: 10:08:2026 - 12:12:40
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -72,14 +72,19 @@ UPD:
   landform is the crag, whose equivalent range is well inside streaming.
 - 10:08:2026 - 03:10:00: cloud_probe_steps() (DFN_CLOUD_PROBE=1) — the W4
   acceptance pair: shadow-patterned valley + upwind cumulus horizon.
+- 10:08:2026 - 12:12:40: stand_steps()/vantage_steps() — the tour shoots whatever stand is
+  open, from the standpoints the stand publishes; DFN_VANTAGE filters, and
+  admits a claim's _control with it.
 */
 
 #pragma once
 
+#include "engine/core/math/sources/StandVantage.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -216,6 +221,29 @@ public:
     // for a shape verdict — a dome and a three-lobed cone look identical from
     // the one bearing that happens to face a lobe.
     [[nodiscard]] static std::vector<TourStep> crag_acceptance_steps();
+
+    // THE ROUTE FOR WHATEVER STAND IS OPEN. `vantages` is
+    // ChunkManager::stand_vantages() — the standpoints the STAND publishes,
+    // controls included and already paired with their claims.
+    //
+    // This is the app's only tour entry point and it needs no stand check
+    // (Rule 32): a probe variable still wins (those are single-frame evidence
+    // shoots and they own the run), an empty vantage list falls back to the
+    // testbed route, and a stand that publishes vantages gets them. Before it
+    // existed, `DFN_MAP=forest` walked and streamed correctly and then shot ONE
+    // frame at the TESTBED's first coordinate and stopped, because the forest
+    // stand's other six vantages were underground or outside the world.
+    //
+    // DFN_VANTAGE=<prefix> shoots only the vantages whose label starts with it
+    // — one variant per run (the standing verification cadence), and the way a
+    // single acceptance frame is re-shot without re-running the route.
+    [[nodiscard]] static std::vector<TourStep>
+    stand_steps(std::span<const math::StandVantage> vantages);
+
+    // The vantage list as tour steps, in a deliberate order: the path frames
+    // first, then the paired claims, then everything else. Exposed for tests.
+    [[nodiscard]] static std::vector<TourStep>
+    vantage_steps(std::span<const math::StandVantage> vantages);
 
 private:
     // Step position with ground_relative y resolved via ground_at_ (absolute
