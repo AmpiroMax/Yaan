@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:25:29
-Last updated: 10:08:2026 - 02:34:41
+Last updated: 10:08:2026 - 21:36:20
 -->
 <!--
 UPD:
@@ -54,6 +54,26 @@ UPD:
   artifacts + nonzero-exit gate; checker ships with its own Rule 30 controls.
   App wiring blocks (fov, StepContext, audio, DFN_PLAYTEST) sent to the lead;
   old signatures kept as shims so nothing breaks before wiring.
+- 10:08:2026 - 21:36:20: Save/load stage plus two live defects.
+  (1) SAVES EXIST. Under two explicit lead carves of core's zone: core's
+  BinaryWriter/BinaryReader (Rule 7 container: magic + version, tagged
+  length-prefixed sections, explicit little-endian, atomic save_to_file) and
+  world::SaveDeltaCodec (.dfs: META/EDLT/DSPN, dispatch of registered module
+  sections, verbatim preservation of unknown sections). All three
+  under-specified points were put to the lead before being written and are
+  documented at the code: a write outside a section is a latched failure
+  (BinaryWriter::ok(), a lead-approved contract widening), a read outside a
+  section latches !ok(), and container_version is opaque to core because
+  sections carry their own. The two round-trip tests that had been compiled out
+  behind DFN_SIM_HAVE_BINARY_IO now run unedited. NOTE for the "What this zone
+  does NOT do" line below: the save CONTAINER is still not sim's — I implemented
+  it on loan and both suites are marked to move to tests/core/.
+  (2) THE DRAWN GROUND AND THE SOLID GROUND WERE TWO SURFACES: Jolt's terrain
+  mesh split every quad on the opposite diagonal from render's, under a comment
+  saying the two "cannot disagree". Fixed, and the agreement is now measured
+  against render's real mesh on real terrain rather than asserted in prose.
+  (3) Three fail-open metrics in the tunnel suite, including a castle
+  curtain-wall case that had no curtain wall in its physics world.
 -->
 
 # Spec — sim (`docs/specs/sim.md`)
@@ -404,7 +424,11 @@ with the owning agent:
 - **No ECS internals, no shared components**: core owns the ECS; the lead owns
   `engine/core/components` — I propose, never author, cross-zone types.
 - **No save container format**: I write sections through core's SaveDeltaCodec;
-  magic/versioning/skip-unknown are core's (Rule 7).
+  magic/versioning/skip-unknown are core's (Rule 7). Still true as an OWNERSHIP
+  statement even though sim wrote those files on 10:08:2026 under lead
+  carves — they were declaration-only and the user had asked for saves twice.
+  The suites carry a header note to move to tests/core/ when core takes them
+  back.
 - **No content in C++** (Rules 5/6): items, schedules, dialogue lines, loot
   tables, prompts are data files; user-facing strings only as localization keys.
 - **No hardcoded constants** (Rule 14): every gameplay number comes from the
@@ -415,3 +439,51 @@ with the owning agent:
   synthesis lives in `tools/voice_gen/` (lead zone), runtime Piper arrives only
   behind a platform contract if/when scheduled.
 - **No physics sandbox** (Q11): interactions are explicit, marked objects.
+
+## Open handover — the 2 m collision lattice
+
+A costed proposal, not a plan: it is written down because the measurement exists
+and the risk has a NUMBER, and because the decision belongs to whoever owns
+chunk admission rather than to me.
+
+**What it buys, measured on this machine (sim_collision_cost, sim_tunnel_walk):**
+
+- Jolt's MeshShape build is 65.4 ms for the 140 858 triangles of one real chunk,
+  and the cost is linear in triangle count within noise: 1/2 → 35.3 ms, 1/4 →
+  16.5 ms, 1/8 → 8.6 ms (0.46–0.50 µs/triangle across the whole range).
+- A 2 m collision lattice halves the resolution on each axis, so the extracted
+  surface carries about a quarter of the triangles: **~16.5 ms/chunk instead of
+  ~65 ms**.
+- Chunk admission is ~83 ms today, split ~14.5 ms core generation + ~68 ms this
+  zone's shape build. It would become **~32 ms**, and 16-chunk settle measured
+  1313 ms (1053 shape + 261 stream) would become **~525 ms**. Those two figures
+  independently reproduce the audit's ~32 ms and ~0.5 s, which is why they are
+  quoted rather than argued.
+
+**The risk, named as a quantity rather than as "might break":**
+
+1. **It deliberately buys the defect that was just fixed.** On 10:08:2026 the
+   drawn ground and the solid ground turned out to be different surfaces because
+   two zones split quads on opposite diagonals. A coarser collision lattice
+   makes them different surfaces ON PURPOSE, by up to about one collision voxel
+   — the player would stand up to ~1 m off the surface he can see. That is the
+   whole cost, and it is not a rounding error: it is the same class of bug,
+   accepted knowingly, and it needs a stated tolerance that the diagonal
+   agreement case is then relaxed to admit. Whoever takes this decides what
+   vertical disagreement between eye and foot is acceptable, and that number
+   belongs in NUMBERS.md because two zones will have to agree about it.
+2. **Carve interiors.** A corridor narrower than the lattice can close, and a
+   floor can move by up to half a voxel. sim_tunnel_walk is the instrument that
+   settles it and it is now honest enough to be trusted: the deep-waypoint floor
+   band is absolute metres derived from the lattice (it was a +/-14.67 m band
+   that no result could fail), and the tunnelling probes assert their own
+   coverage. At a 2 m lattice the derived floor band becomes 2.1 m and the
+   headroom assertion (> PLAYER_CAPSULE_HEIGHT) is the one that would bite.
+3. **The cheaper alternative should be priced first**: the same 68 ms moved OFF
+   the admission tick — built asynchronously or amortised across ticks — costs
+   no geometric fidelity at all. It trades a hitch for latency instead of for
+   accuracy, and nobody has measured it.
+
+**Blocked on:** a run of sim_tunnel_walk against a 2 m collision extraction.
+That extraction lives in core's voxel code, not here, so this cannot start as a
+sim-only change.
