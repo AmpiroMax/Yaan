@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 10:08:2026 - 21:25:38
+Last updated: 10:08:2026 - 21:35:12
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -58,6 +58,13 @@ UPD:
   does not survive the session, and the next agent to look at
   BLEND_CLASS_ROCK_W is the one who needs it -- it is a deletion candidate,
   and the note says what has to be measured BEFORE deleting it.
+- 10:08:2026 - 21:35:12: The unverified premise is now measured (core, ff11f04).
+  The flatter-normals hypothesis is REFUTED -- extraction adds scatter, not
+  bias. The 0.375% aggregate survives (measured 0.365%) but the model under it
+  was wrong: 12.8% of blend vertices fall BELOW rock_slope_start, where this
+  constant is the only source of rock. Note now separates the two quantities
+  that were being swapped, and records that the pixel-space question is still
+  open (Rule 41) and is render's.
 */
 
 #pragma once
@@ -139,15 +146,54 @@ inline const float LOOKDEV_ROCK_SLOPE_END =
 // middle of fixing a different instance of itself). Deleting this is ahead of
 // giving it a NUMBERS row, since a row would make the third copy official.
 //
-// ONE PREMISE IS UNVERIFIED AND THE NUMBERS ABOVE ARE A FLOOR UNTIL IT IS
-// (Rule 34): all of it assumes the shader's interpolated normal agrees with
-// worldgen's analytic slope_rad. True by construction on the heightfield path.
-// On the VOXEL path the normals come out of surface extraction, and if they
-// read systematically flatter the ramp sits lower, this weight survives the
-// max() more often, and the honest share is higher. The measurement that
-// closes it is the distribution of (1 - n.y) over the blend vertices; core
-// owns it and has it queued. DO NOT DELETE THIS CONSTANT, AND DO NOT QUOTE
-// 0.375 % WITHOUT THE CAVEAT, UNTIL THAT NUMBER EXISTS.
+// THE PREMISE HAS NOW BEEN MEASURED (core, ff11f04, 26136 blend vertices of
+// the seed-1 testbed). It was that the shader's interpolated normal might read
+// systematically FLATTER than worldgen's analytic slope_rad on the voxel path,
+// which would let this weight survive the max() more often.
+//
+//   THE HYPOTHESIS WAS WRONG. Surface extraction adds SCATTER, not bias:
+//     1-n.y     mean 0.1875  p10 0.1205  p50 0.1893  p90 0.2516
+//     analytic  mean 0.1796  p10 0.1334  p50 0.1802  p90 0.2290
+//   Flatter on 51.8 % of vertices and steeper on the rest -- a coin flip --
+//   and the mean is very slightly STEEPER. Both tails are wider (p10 lower AND
+//   p90 higher), which is the signature of noise rather than a shift.
+//
+// The aggregate above SURVIVED: measured mean rock-weight delta over blend
+// vertices is 0.1652 against the 0.170 this comment predicted (97.2 %
+// agreement), so the pixel-flip share is 0.365 % against 0.375 %.
+//
+// BUT IT SURVIVED FOR A PARTLY WRONG REASON, WHICH IS WORTH MORE THAN THE
+// AGREEMENT. This comment's model assumed every blend vertex lies INSIDE the
+// ramp band, since the class is assigned on exactly that band. It does not:
+// 12.8 % fall BELOW rock_slope_start, where the shader contributes no rock at
+// all and this constant is the ONLY source of it, and 14.9 % sit above
+// rock_slope_end already saturated. The scatter pushes vertices out of both
+// ends and the two errors happen to cancel in the mean. A right answer from a
+// wrong model is worth flagging, not banking.
+//
+// TWO DIFFERENT QUANTITIES LIVE HERE AND THEY MUST NOT BE SWAPPED:
+//   - share of blend vertices changed AT ALL ......... 46.1 % (1.02 % of all)
+//   - mean rock-weight delta, i.e. the share of
+//     pixels that flip grass -> rock .................. 16.5 % (0.365 % of ground)
+// The 0.375 % in the table above is the SECOND. It never implied the first,
+// and the ~2.8x between them is the ratio of two different questions rather
+// than an error in either.
+//
+// WHAT IS STILL OPEN, AND IT IS RULE 41: all of the above counts VERTICES. A
+// vertex on a crag face covers a different screen area from one on a valley
+// floor, so none of it is yet a claim about the picture -- an instrument that
+// measures the object cannot settle a question about the view. The direction
+// is probably UP: blend ground is by definition sloped 30-40 deg, and to a
+// camera at eye height looking near-horizontally, sloped ground faces the
+// viewer more squarely than flat ground does, so it should be over-represented
+// in pixels relative to its share of vertices. That is an argument, not a
+// measurement. The number that closes it is pixel-space (tools/pngdiff.py),
+// it is render's to take, and it is not taken.
+//
+// DO NOT RETIRE THIS CONSTANT ON ANY OF THESE NUMBERS -- not on 0.375 %, and
+// not on 46.1 % either. The 12.8 % below rock_slope_start is the specific
+// finding that argues against retiring it: there the slope ramp contributes
+// nothing and deleting this weight would draw that ground as plain grass.
 inline constexpr float BLEND_CLASS_ROCK_W = 0.5f;
 
 /// The three splat channels a terrain vertex carries: R sand / G rock /
