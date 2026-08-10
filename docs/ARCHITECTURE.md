@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 02:49:47
+Last updated: 10:08:2026 - 11:05:46
 -->
 <!--
 UPD:
@@ -18,6 +18,7 @@ UPD:
 - 10:08:2026 - 00:35:07: Rule 30 — на какой ВЕЛИЧИНЕ стоит порог, тоже является измерением; и вилка — это два утверждения.
 - 10:08:2026 - 01:45:06: Rule 25 — new character zone (engine/anim + platform/anim, carved from sim): user approved the character agent twice (v51, v16).
 - 10:08:2026 - 02:49:47: Rule 27 — цитируемые кадры архивируются в docs/acceptance/ в родном разрешении; рецепт обязателен рядом.
+- 10:08:2026 - 11:05:46: Rule 27 — тур замораживает тик и потому слеп ко всему движущемуся; живые пути съёмки признаны доказательством.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -339,6 +340,15 @@ its own acceptance distance. A clean result off a frame that could not have show
 the defect is measuring the absence of a test. This is Rule 30 moved from the test
 suite into the camera, and it was earned twice in one evening by the same agent
 catching it in themselves.
+
+**The screenshot tour is not the only sanctioned evidence, and for anything that
+MOVES it is the wrong instrument.** The tour freezes the tick to make its frames
+deterministic, so it can photograph still life and nothing else — every animation,
+every drift, every gait in this project was unreachable by it until two live-world
+capture paths appeared (a gated simulation probe and the playtest bot's incident
+shots). A frame of a moving thing comes from a live tick, with the achieved state
+(phase, clip time, timestamp) recorded beside it so the recipe is checkable. A still
+frame cannot show a motion artifact at all — do not claim one from it.
 
 **Evidence frames are archived, not only recipes.** A reproduction recipe (binary
 provenance, seed, probe env, eye, time) is the CONTROL — it reproduces bit-identically
