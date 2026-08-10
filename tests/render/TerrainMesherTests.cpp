@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 21:13:39
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -31,12 +31,21 @@ UPD:
 - 10:08:2026 - 01:47:53: Clip rectangle cases (straddle-ring fix): cell removal
   with the unclipped mesh as the Rule 30 control, cut-line skirts, and the
   no-op guarantee for a rectangle that misses the field.
+- 10:08:2026 - 21:13:39: Cross-mesher agreement case. The two meshers must give
+  the same ground the same splat bytes, walked over every SurfaceClass and
+  every VoxelMaterial enumerator. Control (Rule 30 in the shape Rule 39 names
+  for a shadow-copy fix): the PRE-FIX voxel table written out verbatim, which
+  agrees on the four classes everyone tested and disagrees on exactly the
+  fifth -- asserted as `control_disagreements == 1`, so a fix that changed
+  nothing and a fix that broke the other four both go red.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/render/sources/Materials.h"
 #include "engine/render/sources/TerrainLod.h"
+#include "engine/render/sources/VoxelMesher.h"
 
 #include <doctest/doctest.h>
 
@@ -212,6 +221,118 @@ TEST_CASE("surface field drives the splat weight channels") {
     const TerrainMeshData fallback = build_terrain_mesh(f.view, &surface);
     CHECK(red(fallback.vertices[0].color_rgba) == 0);
     CHECK(green(fallback.vertices[1].color_rgba) == 0);
+}
+
+TEST_CASE("the two meshers give the same ground the same splat weights") {
+    using dfn::math::SurfaceClass;
+    using dfn::math::VoxelMaterial;
+
+    // THE POINT OF THE TEST, stated as an outcome and not as a mechanism
+    // (Rule 38): the same ground must DRAW the same through either mesher. It
+    // is not "both call splat_weights_of" — that would forbid a future in
+    // which one path legitimately carries more information than the other.
+    //
+    // It exists because they did NOT agree. TerrainMesher switched over
+    // SurfaceClass and VoxelMesher over VoxelMaterial; each switch was
+    // exhaustive within its own enum, so -Wswitch was satisfied and could not
+    // see that the blend class drew at rock 0.5 on one path and 0.0 on the
+    // other (Rule 39: a shadow copy of a chain, with a compiler guarantee
+    // supplying the false comfort).
+
+    // One flat sample per class, run through the REAL heightfield mesher.
+    const auto height_path = [](SurfaceClass c) {
+        const FieldData f = make_field(0, [](uint32_t, uint32_t) { return uint16_t{100}; });
+        const std::vector<uint8_t> classes(RES * RES, static_cast<uint8_t>(c));
+        const std::vector<float> dist(RES * RES, 100.0f);
+        const std::vector<float> water(RES * RES, dfn::math::NO_WATER);
+        dfn::math::SurfaceFieldView s;
+        s.chunk_coord = f.view.chunk_coord;
+        s.origin = f.view.origin;
+        s.resolution = RES;
+        s.step = STEP;
+        s.dist_to_water = dist;
+        s.water_surface = water;
+        s.surface_class = classes;
+        return build_terrain_mesh(f.view, &s).vertices.at(0).color_rgba;
+    };
+
+    // ...and through the REAL voxel mesher. One triangle is enough: the splat
+    // is per-vertex and has no neighbourhood.
+    const auto voxel_path = [](VoxelMaterial m) {
+        const std::vector<glm::vec3> pos{{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},
+                                         {0.0f, 0.0f, 1.0f}};
+        const std::vector<glm::vec3> nrm(3, glm::vec3{0.0f, 1.0f, 0.0f});
+        const std::vector<uint8_t> mats(3, static_cast<uint8_t>(m));
+        const std::vector<uint32_t> idx{0, 1, 2};
+        dfn::math::VoxelMeshView v;
+        v.positions = pos;
+        v.normals = nrm;
+        v.materials = mats;
+        v.indices = idx;
+        return dfn::render::build_voxel_terrain_mesh(v).vertices.at(0).color_rgba;
+    };
+
+    // CONTROL (Rule 30, in the shape Rule 39 names for a shadow-copy fix): the
+    // PRE-FIX voxel table, written out verbatim. Its value is exactly that it
+    // is EQUAL to the correct answer on the four classes everyone was testing
+    // and wrong on the fifth — the asymmetry is the finding, not a weakness,
+    // because no amount of testing the well-trodden classes could have caught
+    // a copy that diverges only where the newer branch applies.
+    const auto pre_fix_voxel_table = [](VoxelMaterial m) {
+        dfn::render::SplatWeights w;
+        switch (m) {
+        case VoxelMaterial::Sand: w.sand = 1.0f; break;
+        case VoxelMaterial::Rock: w.rock = 1.0f; break;
+        case VoxelMaterial::Dirt: w.bed = 1.0f; break;
+        // The defect, preserved: the blend had no case and no member to have
+        // one, so it fell through to all-zero, i.e. plain grass.
+        case VoxelMaterial::GrassRockBlend:
+        case VoxelMaterial::Grass:
+        case VoxelMaterial::Air: break;
+        }
+        return dfn::render::pack_splat(w, 255);
+    };
+
+    // Every SurfaceClass, projected: the two paths must agree on all five.
+    constexpr SurfaceClass ALL_CLASSES[] = {
+        SurfaceClass::Grass, SurfaceClass::GrassRockBlend, SurfaceClass::Rock,
+        SurfaceClass::Sand,  SurfaceClass::WaterBed,
+    };
+    uint32_t control_disagreements = 0;
+    for (const SurfaceClass c : ALL_CLASSES) {
+        const VoxelMaterial m = dfn::math::voxel_material_of(c);
+        CAPTURE(static_cast<int>(c));
+        CHECK(height_path(c) == voxel_path(m));
+        if (pre_fix_voxel_table(m) != height_path(c)) {
+            ++control_disagreements;
+        }
+    }
+    // The control must FAIL on exactly the blend and pass everywhere else. A
+    // control that failed on none would prove the fix changed nothing; one
+    // that failed on all five would mean I broke the four that were correct.
+    CHECK(control_disagreements == 1);
+    CHECK(pre_fix_voxel_table(VoxelMaterial::GrassRockBlend)
+          != height_path(SurfaceClass::GrassRockBlend));
+    CHECK(pre_fix_voxel_table(VoxelMaterial::Rock) == height_path(SurfaceClass::Rock));
+
+    // And the blend really does carry the mid weight through the voxel path
+    // now — the concrete byte, not just "the two agree" (they would also agree
+    // if I had broken BOTH to zero).
+    const auto green_of = [](uint32_t c) { return (c >> 8) & 0xFFu; };
+    CHECK(green_of(voxel_path(VoxelMaterial::GrassRockBlend)) == 128);
+    CHECK(green_of(pre_fix_voxel_table(VoxelMaterial::GrassRockBlend)) == 0);
+
+    // Every VoxelMaterial enumerator is reachable and total. Air is included
+    // deliberately: it never lands on a vertex, but a table with a hole in it
+    // is what this whole case exists about.
+    constexpr VoxelMaterial ALL_MATERIALS[] = {
+        VoxelMaterial::Air,  VoxelMaterial::Grass, VoxelMaterial::Rock,
+        VoxelMaterial::Sand, VoxelMaterial::Dirt,  VoxelMaterial::GrassRockBlend,
+    };
+    for (const VoxelMaterial m : ALL_MATERIALS) {
+        CAPTURE(static_cast<int>(m));
+        CHECK(voxel_path(m) == dfn::render::pack_splat(dfn::render::splat_weights_of(m), 255));
+    }
 }
 
 TEST_CASE("malformed heightfield views yield an empty mesh, never UB") {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 21:13:39
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -39,11 +39,16 @@ UPD:
 - 10:08:2026 - 01:47:53: Clip rectangle (options.clip_*): cells wholly inside
   the chunk-streamed rect are skipped and skirts follow the emitted region's
   whole boundary. The no-clip path is untouched and bit-identical.
+- 10:08:2026 - 21:13:39: Rule 39 fix, render half. The private switch over
+  SurfaceClass and the private pack_weights() are gone; both come from
+  Materials.h now, shared with VoxelMesher. Behaviour-preserving on all five
+  classes (verified row by row against both old tables before landing).
 */
 
 #include "engine/render/sources/TerrainMesher.h"
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/render/sources/Materials.h"
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
@@ -55,17 +60,6 @@ UPD:
 namespace dfn::render {
 
 namespace {
-
-// Splat weight of the GrassRockBlend class (§4 priority 3): mid value so the
-// shader's dither band straddles it between grass and rock.
-constexpr float BLEND_CLASS_ROCK_W = 0.5f;
-
-uint32_t pack_weights(float sand, float rock, float bed) {
-    const auto r = static_cast<uint32_t>(glm::clamp(sand, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto g = static_cast<uint32_t>(glm::clamp(rock, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto b = static_cast<uint32_t>(glm::clamp(bed, 0.0f, 1.0f) * 255.0f + 0.5f);
-    return 0xFF000000u | (b << 16) | (g << 8) | r; // 0xAABBGGRR; A reserved
-}
 
 } // namespace
 
@@ -146,27 +140,26 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
             // Splat weights (shader contract, see header). Surface data is the
             // design truth (LANDSCAPE §4 priority: sand > rock > blend > grass;
             // water bed under water); slope-driven rock is added in-shader.
-            float sand_w = 0.0f;
-            float rock_w = 0.0f;
-            float bed_w = 0.0f;
+            //
+            // ONE table, shared with VoxelMesher (Materials.h). This file used
+            // to own a second switch over SurfaceClass; it was exhaustive, so
+            // the compiler was satisfied, and it still disagreed with the voxel
+            // path about the blend class because the two enums hid the
+            // divergence from -Wswitch (Rule 39).
+            SplatWeights w;
             if (surface != nullptr) {
                 const size_t idx = static_cast<size_t>(z) * res + x;
-                switch (static_cast<math::SurfaceClass>(surface->surface_class[idx])) {
-                case math::SurfaceClass::Sand: sand_w = 1.0f; break;
-                case math::SurfaceClass::Rock: rock_w = 1.0f; break;
-                case math::SurfaceClass::GrassRockBlend:
-                    rock_w = BLEND_CLASS_ROCK_W;
-                    break;
-                case math::SurfaceClass::WaterBed: bed_w = 1.0f; break;
-                case math::SurfaceClass::Grass: break;
-                }
+                w = splat_weights_of(static_cast<math::SurfaceClass>(
+                    surface->surface_class[idx]));
             }
 
             platform::Vertex& v = mesh.vertices[static_cast<size_t>(z) * res + x];
             v.position = wpos;
             v.normal = normal;
             v.uv = {wpos.x * inv_tile, wpos.z * inv_tile};
-            v.color_rgba = pack_weights(sand_w, rock_w, bed_w);
+            // Alpha is sky visibility; the heightfield path has none, and 255
+            // (open sky) is what it has always written.
+            v.color_rgba = pack_splat(w, 255);
         }
     }
 

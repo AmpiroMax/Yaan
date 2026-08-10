@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 09:08:2026 - 21:12:00
+Last updated: 10:08:2026 - 21:13:39
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -43,14 +43,25 @@ UPD:
   fog/sky per frame via RenderSystem::environment(); these remain the defaults.
 - 09:08:2026 - 21:12:00: LOOKDEV_SHADOW_CASTER_KEEP_M — the radius that keeps
   off-screen shadow casters alive once frustum culling exists.
+- 10:08:2026 - 21:13:39: THE SPLAT TABLE. splat_weights_of(VoxelMaterial) plus the
+  SurfaceClass overload through core's voxel_material_of(), and pack_splat().
+  BLEND_CLASS_ROCK_W moves here from TerrainMesher.cpp: it has two consumers
+  now, so it stopped belonging to one of them (Rule 35). No `default:` in the
+  switch, deliberately -- a new material must break the build rather than
+  render as grass, which is how the blend class was lost. Value 0.5 preserved
+  unchanged and marked unverified; changing it inside a structural fix would
+  have made both unmeasurable.
 */
 
 #pragma once
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/core/math/sources/VoxelField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <glm/geometric.hpp>
 
 namespace dfn::render {
@@ -89,6 +100,77 @@ inline const float LOOKDEV_ROCK_SLOPE_START =
     1.0f - std::cos(static_cast<float>(config::SLOPE_GRASS_MAX));
 inline const float LOOKDEV_ROCK_SLOPE_END =
     1.0f - std::cos(static_cast<float>(config::SLOPE_ROCK_MIN));
+
+// --- THE splat table -------------------------------------------------------
+//
+// Splat weight of the GrassRockBlend class (LANDSCAPE §4 priority 3): a mid
+// value so the shader's ordered dither band straddles it between grass and
+// rock. UNVERIFIED as a look-dev value — it has never been measured, and see
+// the note under splat_weights_of() for the reason that matters less than it
+// looks. It lives here rather than in a mesher because it now has two
+// consumers (Rule 35).
+inline constexpr float BLEND_CLASS_ROCK_W = 0.5f;
+
+/// The three splat channels a terrain vertex carries: R sand / G rock /
+/// B water-bed. This is a SHADER CONTRACT (fs_terrain.sc), not a world fact,
+/// which is why the table lives in render and is keyed off world's material.
+struct SplatWeights {
+    float sand = 0.0f;
+    float rock = 0.0f;
+    float bed = 0.0f;
+};
+
+/// THE mapping from a surface material to its splat weights — one table, read
+/// by BOTH meshers.
+///
+/// It exists because there used to be two. `TerrainMesher` switched over
+/// `SurfaceClass` and `VoxelMesher` over `VoxelMaterial`; each was exhaustive
+/// within its own enum, so the compiler was satisfied and nothing checked that
+/// the two answered the same question the same way. They did not: the blend
+/// class drew at rock 0.5 through the heightfield path and 0.0 through the
+/// voxel path, on the same chunk-load branch (Rule 39 — a shadow copy of a
+/// chain, with a compiler guarantee supplying false comfort).
+///
+/// No `default:` here, deliberately: a new VoxelMaterial must break the build
+/// rather than silently render as grass, which is exactly how the blend class
+/// was lost in the first place.
+[[nodiscard]] constexpr SplatWeights splat_weights_of(math::VoxelMaterial m) {
+    switch (m) {
+    case math::VoxelMaterial::Sand:
+        return {1.0f, 0.0f, 0.0f};
+    case math::VoxelMaterial::Rock:
+        return {0.0f, 1.0f, 0.0f};
+    // Dirt is sub-surface fill AND carved cave wall AND (via voxel_material_of)
+    // river/lake bed: the darkest atlas cell is the closest thing to bare
+    // earth, and a tunnel wall reading as grass would be worse than as mud.
+    case math::VoxelMaterial::Dirt:
+        return {0.0f, 0.0f, 1.0f};
+    case math::VoxelMaterial::GrassRockBlend:
+        return {0.0f, BLEND_CLASS_ROCK_W, 0.0f};
+    case math::VoxelMaterial::Grass:
+    case math::VoxelMaterial::Air: // never lands on a vertex
+        return {};
+    }
+    return {}; // unreachable for a valid enumerator
+}
+
+/// Same table, reached from the design-truth class through world's projection.
+/// Going through `voxel_material_of` rather than switching on `SurfaceClass`
+/// separately is the point: it is what makes ONE table serve both meshers.
+[[nodiscard]] constexpr SplatWeights splat_weights_of(math::SurfaceClass c) {
+    return splat_weights_of(math::voxel_material_of(c));
+}
+
+/// Packs the splat weights into a vertex colour. 0xAABBGGRR; alpha is sky
+/// visibility (255 = open sky), reserved on the heightfield path.
+[[nodiscard]] inline uint32_t pack_splat(SplatWeights w, uint8_t sky = 255) {
+    const auto q = [](float v) {
+        return static_cast<uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
+    };
+    return (static_cast<uint32_t>(sky) << 24) | (q(w.bed) << 16) | (q(w.rock) << 8)
+           | q(w.sand);
+}
+// --- end splat table -------------------------------------------------------
 // Radius around the eye inside which an off-screen mesh is STILL submitted,
 // because the backend double-submits every opaque draw into the sun shadow map
 // and a caster culled from the camera would take its shadow with it. It mirrors

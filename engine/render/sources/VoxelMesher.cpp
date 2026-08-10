@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:40:00
-Last updated: 09:08:2026 - 19:40:00
+Last updated: 10:08:2026 - 21:13:39
 Module: engine/render
 File: engine/render/sources/VoxelMesher.cpp
 
@@ -23,28 +23,22 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 19:40:00: Created with the voxel render path.
+- 10:08:2026 - 21:13:39: Rule 39 fix, render half. GrassRockBlend was drawing as
+  plain grass (rock weight 0.0) while the heightfield path drew the same
+  ground at 0.5, on the same chunk-load branch. The private switch and
+  pack_voxel_weights() are gone; one table in Materials.h serves both meshers.
+  26136 of 1183258 voxel vertices on the seed-1 testbed (2.21%, core's
+  measurement) carried the material and drew wrong.
 */
 
 #include "engine/render/sources/VoxelMesher.h"
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/render/sources/Materials.h"
 
 #include <glm/common.hpp>
 
 namespace dfn::render {
-
-namespace {
-
-// Mirrors TerrainMesher's packing: R sand / G rock / B water-bed, alpha = sky
-// visibility (255 = open sky until core supplies the real channel).
-uint32_t pack_voxel_weights(float sand, float rock, float bed, uint8_t sky) {
-    const auto r = static_cast<uint32_t>(glm::clamp(sand, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto g = static_cast<uint32_t>(glm::clamp(rock, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const auto b = static_cast<uint32_t>(glm::clamp(bed, 0.0f, 1.0f) * 255.0f + 0.5f);
-    return (static_cast<uint32_t>(sky) << 24) | (b << 16) | (g << 8) | r; // 0xAABBGGRR
-}
-
-} // namespace
 
 TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh) {
     TerrainMeshData out;
@@ -63,22 +57,18 @@ TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh) {
         v.normal = i < mesh.normals.size() ? mesh.normals[i] : glm::vec3{0.0f, 1.0f, 0.0f};
         v.uv = {v.position.x * inv_span, v.position.z * inv_span};
 
-        float sand_w = 0.0f;
-        float rock_w = 0.0f;
-        float bed_w = 0.0f;
+        // ONE table, shared with TerrainMesher (Materials.h). This file used to
+        // own a second switch, over VoxelMaterial where TerrainMesher switched
+        // over SurfaceClass. Both were exhaustive within their own enum — which
+        // is precisely why -Wswitch could not see that they disagreed about the
+        // blend class, and why it drew as plain grass here (Rule 39).
+        SplatWeights w;
         if (i < mesh.materials.size()) {
-            switch (static_cast<math::VoxelMaterial>(mesh.materials[i])) {
-            case math::VoxelMaterial::Sand: sand_w = 1.0f; break;
-            case math::VoxelMaterial::Rock: rock_w = 1.0f; break;
-            // Dirt is sub-surface fill AND carved cave wall: the darkest of the
-            // atlas cells is the closest thing we have to bare earth, and a
-            // tunnel wall reading as grass would be worse than reading as mud.
-            case math::VoxelMaterial::Dirt: bed_w = 1.0f; break;
-            case math::VoxelMaterial::Grass:
-            case math::VoxelMaterial::Air: break;
-            }
+            w = splat_weights_of(static_cast<math::VoxelMaterial>(mesh.materials[i]));
         }
-        v.color_rgba = pack_voxel_weights(sand_w, rock_w, bed_w, 255);
+        // Alpha is sky visibility; 255 (open sky) until core supplies the
+        // channel, which VoxelMeshView::sky_visibility now carries.
+        v.color_rgba = pack_splat(w, 255);
     }
 
     out.indices.assign(mesh.indices.begin(), mesh.indices.end());
