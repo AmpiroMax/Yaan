@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 22:54:58
+Last updated: 10:08:2026 - 23:00:35
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -91,6 +91,13 @@ UPD:
   reach the shutter with the crown in different positions. Consequence worth
   more than the hook (Rule 41): with the wind live, a pixel diff of a canopy
   CANNOT separate the shimmer the user reports from the rustle he likes.
+- 10:08:2026 - 23:00:35: CORRECTION to the DFN_WIND_FREEZE entry above. It claimed a
+  canopy pixel diff cannot separate the reported shimmer from the liked rustle.
+  Measured with the hook that entry introduced: rustle alone (wind +1/120 s, eye
+  still) is 0.008 % near canopy and 0.003 % treeline, against 0.864 % / 0.093 %
+  for the running motion — 1 % and 3 % of the per-frame change. The two ARE
+  separable and are not in tension, which is the opposite of what was written,
+  and it matters because the wrong version invites softening the animation.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -557,11 +564,22 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // in a different position in each. Longer settle = more divergence, which
     // is the exact opposite of the usual advice and is how it was caught.
     //
-    // The uncomfortable half, recorded because the next agent will otherwise
-    // rediscover it as a "fix" (Rule 41): with the wind LIVE, a pixel diff of a
-    // canopy cannot separate the shimmer the user reports from the rustle he
-    // says he likes — they are the same pixels flipping by the same amount.
-    // Freezing the clock is what makes the two separable at all.
+    // AND THEN THE HOOK ANSWERED THE QUESTION IT WAS BUILT TO DODGE. The first
+    // version of this comment said a canopy diff "cannot separate the shimmer
+    // the user reports from the rustle he says he likes — the same pixels
+    // flipping by the same amount". That is true of ONE live-wind diff and
+    // false of the zone, because a pinnable clock turns the rustle into an arm
+    // you can hold still. Advancing the wind by exactly one 120 fps frame with
+    // the eye STATIONARY, against the same 0.000 % control (near / treeline):
+    //     rustle alone  (wind +1/120 s, eye still)   0.008 % / 0.003 %
+    //     motion alone  (wind frozen, eye +0.05 m)   0.864 % / 0.093 %
+    //     both          (the frame pair he sees)     1.001 % / 0.103 %
+    // THE RUSTLE IS 1 % OF WHAT CHANGES PER FRAME UNDER THE CROWNS and 3 % at
+    // the treeline; the running motion is ~108x and ~31x larger. So the two are
+    // not in tension at all: whatever suppresses the running shimmer can be
+    // pushed hard without spending the rustle, and an agent who softens the
+    // canopy's ANIMATION to chase this number is trading away the thing the
+    // user likes to buy one part in a hundred of the thing he complained about.
     // It pins time_seconds ITSELF and not just apply_wind's argument: the sway
     // in dfn_wind_offset runs off u_envTime, so freezing only the gust envelope
     // would leave the leaves moving and the control still dirty — a fix that
