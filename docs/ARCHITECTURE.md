@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 19:53:40
+Last updated: 10:08:2026 - 20:01:34
 -->
 <!--
 UPD:
@@ -22,6 +22,7 @@ UPD:
 - 10:08:2026 - 11:29:06: Rule 30 — каждое приёмочное правило называет свою АГРЕГАЦИЮ и свой ЗНАМЕНАТЕЛЬ, а не только число (три спора за два дня оказались спорами об определении).
 - 10:08:2026 - 19:26:40: Правила 37 (линейная карта между двумя именованными константами становится скрытым дефектом, когда между ними ложится третья) и 38 (утверждать исход, а не механизм) — обе выведены двумя зонами независимо, из разных дефектов, за один день.
 - 10:08:2026 - 19:53:40: Правило 37 расширено общей формой: опасны САМИ ИМЕНОВАННЫЕ КОНЦЫ линейной карты — не только когда между ними ложится третья константа, но и когда старая МЕНЯЕТ ЗНАЧЕНИЕ. Перенос WALK_SPEED с 3.0 на 1.8 разом пересчитал всю кривую покачивания в 1.667 раза.
+- 10:08:2026 - 20:01:34: Правила 39 (теневая копия цепочки становится дефектом, как только у оригинала появляется ветка — три копии одного высотного конвейера разошлись за день, и все наборы остались зелёными, потому что тестировали единственный стенд, где они ещё совпадали) и 40 (Approx().epsilon() не проценты, а на РАЗНОСТИ неверен при любом масштабе). Формулировка 39 — core, чья находка.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -570,6 +571,60 @@ to stop it forbidding correct code, RE-VERIFY THAT THE CONTROL STILL FAILS IT
 being a pure function of speed, it has nothing to settle — so it still fails a
 steady-state assertion exactly where a legitimate transition blend would have
 finished settling. That check is what separates a refinement from a quiet gutting.
+
+### Rule 39 — A shadow copy of a chain is a latent defect the moment the original gains a branch
+Rule 35's state clause says two copies drift. This is the trigger that makes the
+drift findable: the copies are IDENTICAL when written, and they are usually
+accompanied by a comment saying so — *"exactly the chunk builder's chain"*, *"this is
+the same function evaluated here"*. **That comment is true on the day it is written
+and it is the only thing holding the two together**, which means the defect is
+created by a change that happens **nowhere near the copy**: a new branch, a new
+stand, a new mode landing in the original.
+
+Nothing goes red, because the copies still agree everywhere the new branch does not
+apply — **and the place it does not apply is usually the case everyone is testing.**
+
+Three copies of one height pipeline drifted this way in a single day. The drawn
+ground stood up to 1.50 m from the ground everything was placed on; the LOD coarse
+nodes built a different terrain from the chunks they are contractually required to
+meet bit for bit (16158 of 16641 samples disagreeing, −1.5015 .. +1.2634 m); and
+every suite stayed green throughout, because the testbed was the one stand where all
+three still agreed.
+
+**The question to ask when adding a branch is not "did I break a caller" but "WHO
+ELSE CLAIMS TO BE THIS FUNCTION?" — and a comment asserting two things are the same
+is not a mechanism that makes them the same. Calling one function is.**
+
+Sibling of 37 in shape (a change breaking code far from itself, nothing red in
+between); sibling of 35 in substance (two copies of one fact).
+
+A note on the control this earned, because it generalises past height fields: the
+right control for a shadow-copy fix is **the pre-fix copy written out verbatim**, and
+its value is that it is EQUAL to the correct answer on the case everyone tests while
+wrong on the case nobody did. That asymmetry is the finding rather than a weakness —
+no amount of testing the well-trodden stand can catch a copy that diverges only where
+a newer branch applies.
+
+### Rule 40 — `Approx().epsilon()` is not a percentage, and it is simply wrong on a difference
+doctest's tolerance is `eps * (scale + max(|lhs|,|rhs|))` with `scale` defaulting to
+**1.0**. So `.epsilon(e)` admits `e * (1 + |x|)`, which is inflated over the relative
+band the author meant by a factor of **(1 + |x|)/|x|** — near 1 for large quantities
+and catastrophic for small ones, which is most physical quantities in this project:
+fractions, metres of clearance, joint offsets. `.epsilon(0.25)` around 0.15 admits
+**−0.14 .. +0.44 m**, so a clearance assertion passed a path buried 14 cm under its
+own ground, and an ankle assertion claiming to prove a foot is "planted rather than
+dangling" carried **±0.27 m** of slack — a quarter of a metre of vertical freedom on
+the exact property it names.
+
+**And the sharper form, which is not about magnitude at all: `.epsilon()` is wrong
+whenever the quantity is a DIFFERENCE, at any scale.** A height error, a residual, a
+gap, a slip — these are all quantities whose correct value is ZERO, and scaling the
+tolerance by the operand is scaling it by the wrong number entirely. A 0.02 epsilon
+on "does this log sit on the ground" became 0.42 m of slack because the ground
+happened to be 20 m up, which admits a log floating knee-high.
+
+**Use explicit bounds.** They are longer to write and they say what they mean, and on
+a difference they are the only thing that can.
 
 ---
 
