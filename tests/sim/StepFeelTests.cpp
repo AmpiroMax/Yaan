@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 20:49:30
+Last updated: 10:08:2026 - 20:26:56
 Module: tests (sim zone)
 File: tests/sim/StepFeelTests.cpp
 
@@ -29,7 +29,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:53:17: Created for the landscape stage (шаг как событие).
-- 10:08:2026 - 20:49:30: Eye-lean application, with two controls: zero in ->
+- 10:08:2026 - 20:26:56: Eye-lean application, with two controls: zero in ->
   zero out (rejects sim deriving a lean of its own), and bob_scale 0 must NOT
   disable it. Plus the discriminating case -- applied along FACING, which a
   fixed-world-axis implementation fails.

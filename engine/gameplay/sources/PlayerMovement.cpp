@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 20:49:30
+Last updated: 10:08:2026 - 20:26:56
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -57,7 +57,7 @@ UPD:
 - 09:08:2026 - 22:29:52: Latch the interact / light / inventory keys.
 - 09:08:2026 - 22:40:04: Latch inventory navigation (arrows, wheel, Enter).
 - 09:08:2026 - 22:44:47: Latch the drop key.
-- 10:08:2026 - 20:49:30: Applies StepContext::eye_lean to CameraPose along
+- 10:08:2026 - 20:26:56: Applies StepContext::eye_lean to CameraPose along
   the facing. Closes the second eye-vs-body seam of the day: the chest-to-eye
   gap went 0.026 -> 0.129 m at full run because the rig leaned a body with no
   eye. With the eye riding it closes to -0.0055 m and improves monotonically

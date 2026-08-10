@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 20:14:20
+Last updated: 10:08:2026 - 20:14:16
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -59,7 +59,7 @@ UPD:
                          exist because worst_foot_slip_mm == 0 was printed by
                          every playtest run so far while the rig seam was
                          unbound -- bit-identical to a perfect pass.
-- 10:08:2026 - 20:14:20: UNDEDUPED frame trace. The incident log cannot
+- 10:08:2026 - 20:14:16: UNDEDUPED frame trace. The incident log cannot
                          answer "how many frames did the stall span" -- it
                          dedupes on a 120-tick cooldown and the survivor is not
                          the worst frame, so it under-reported a 779 ms event

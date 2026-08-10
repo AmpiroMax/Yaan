@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 20:14:20
+Last updated: 10:08:2026 - 20:14:16
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -43,7 +43,7 @@ UPD:
                          the threshold). Ground-contact counters added, which
                          REFUTED the landing-dip-retrigger hypothesis for the
                          running judder by measurement.
-- 10:08:2026 - 20:14:20: Frame trace at a 20 ms threshold, below the 50 ms
+- 10:08:2026 - 20:14:16: Frame trace at a 20 ms threshold, below the 50 ms
                          incident gate on purpose: an event's shape lives in
                          its shoulders and a threshold at the gate records only
                          the peak. It answered render's sizing question -- the

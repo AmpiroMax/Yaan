@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 20:49:30
+Last updated: 10:08:2026 - 20:26:56
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -78,7 +78,7 @@ UPD:
                          edge events survive a fast render loop.
 - 09:08:2026 - 22:40:04: Inventory navigation latches (selection, equip).
 - 09:08:2026 - 22:44:47: Drop latch.
-- 10:08:2026 - 20:49:30: THE EYE RIDES THE TRUNK'S LEAN. StepContext gains
+- 10:08:2026 - 20:26:56: THE EYE RIDES THE TRUNK'S LEAN. StepContext gains
   eye_lean, FERRIED from character (anim::eye_lean_offset), never derived here
   -- deriving it would copy their AUTHORED gait_run_weight table. Not eased on
   this side on purpose: the property is "chest never ahead of eye", which holds

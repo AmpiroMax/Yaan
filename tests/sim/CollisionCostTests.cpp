@@ -1,6 +1,6 @@
 /*
-Created: 10:08:2026 - 21:02:10
-Last updated: 10:08:2026 - 21:02:10
+Created: 10:08:2026 - 20:30:54
+Last updated: 10:08:2026 - 20:30:54
 Module: tests/sim
 File: tests/sim/CollisionCostTests.cpp
 
@@ -37,7 +37,7 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
-- 10:08:2026 - 21:02:10: Created to size the collision-mesh cost after the
+- 10:08:2026 - 20:30:54: Created to size the collision-mesh cost after the
                          streaming fix made it the dominant remaining term.
 */
 
