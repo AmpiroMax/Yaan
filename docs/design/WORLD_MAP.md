@@ -1,11 +1,12 @@
 <!--
 Created: 10:08:2026 - 21:58:31
-Last updated: 10:08:2026 - 21:59:49
+Last updated: 10:08:2026 - 22:08:45
 -->
 <!--
 UPD:
 - 10:08:2026 - 21:58:31: Created. The drawn world map: Amit Patel polygon map generation adapted to a HAND-DRAWN sketch as the primary input (user request, verbatim in the doc). Rulings: the polygon map is a REGIONAL structure anchored in absolute world metres (POLYGON_SPACING 600 m, derived from LANDMARK_HAZE_ONSET, LF2_HILL_WAVELENGTH and the region POI band); Amit elevation = distance-from-coast REJECTED and replaced by elevation = distance from the DRAWN DRAINAGE, which is what makes a hand-drawn river reproducible; sketch format is an indexed PNG mask (6 colours, 16 m/px = one hydrology cell) plus a JSON sidecar, compiled offline by tools/sketch_compile.py, no silent fallback ever; five Rule 39 shadow copies named before they exist; N = 4 example maps derived as the count of topologies the reader must be proven on; acceptance is a three-instrument cross-sketch matrix with the eye holding the headline claim (Rule 41).
 - 10:08:2026 - 21:59:49: WORLDGEN_SEA_LEVEL corrected on two checked premises (Rule 34, publishing trigger): it is a per-map DEFAULT overridable by the sidecar, because FOREST_BASE_ELEV is 20 m and a single global sea level would drown an existing stand; and its derivation is anchored on MASSIF_CLIFF_BAND_MAX, whose own NUMBERS row is marked pending re-derivation against a broken field — recorded at the anchor rather than left to be rediscovered (Rule 37's second half).
+- 10:08:2026 - 22:08:45: AMENDED — the user moved to Azgaar's Fantasy Map Generator, so FMG becomes the AUTHORING TOOL and we consume its export (§9). Measured from source, not assumed: licence is MIT with an explicit commercial-derivatives expansion (blocker cleared); height is (h-18)**heightExponent metres, so our whole 0-400 m range is FMG h in [20,38] — NINETEEN steps, quantum 5 m at the coast and 41 m at the ceiling — and the ruling is that h is NEVER our elevation, only a land/water mask and a mountain region, which is the same ruling that rejected Amit's elevation model; cell spacing is sqrt(map_area / cellsDesired) and therefore SCALE-FREE, giving the configuration instruction 30x30 to 69x69 km at 10k cells, against a continental default of ~40 km cells at which our entire target world is 1/16 of ONE CELL. Crop chosen by him via a DFN_ORIGIN marker, missing or duplicated is a hard error. Three NEW Rule 39 shadow copies from FMG's settlement/route/biome layers, each ruled FMG-owns-the-graph / we-own-the-geometry. §2.1-2.5 and §2.8's sketch compiler SUPERSEDED as the authoring path and kept with a note, because their reasoning is the importer's specification — §9.6 re-targets every ruling line by line, including the two-tier split-by-cause rule, whose heir (an unmapped biome id is an ERROR, never a nearest match) is the most likely place for a silently-nearby world under FMG. §1, §2.6 and §5 survive untouched. WORLDGEN_SEA_LEVEL stays and does NOT become an FMG mapping constant (Rule 43).
 -->
 
 # WORLD_MAP.md — the drawn world map
@@ -31,6 +32,14 @@ mirror https://xenon.stanford.edu/~amitp/...). We take his **graph**, his
 lookup** and his **flow accumulation**. We reject his **elevation model** and
 we do not implement his **noisy edges** as a second mechanism. Reasons below,
 each one at the stage it applies to.
+
+> ### ⚠ AMENDED 10.08.2026 — THE AUTHORING TOOL IS NOW AZGAAR'S FMG. READ §9 FIRST.
+> The user moved to https://azgaar.github.io/Fantasy-Map-Generator/. **§2.1–§2.5 and
+> §2.8's `sketch_compile.py` are SUPERSEDED as the authoring path** and re-targeted to
+> an importer; they are kept because their reasoning IS the importer's specification
+> (§9.6 maps every ruling across). **§1 (where it sits), §1.6 (the shadow copies),
+> §2.6 (a drawn river generates elevation) and §5 (the whole acceptance) survive
+> untouched** — §2.6 in particular is the answer whichever tool produced the polyline.
 
 ---
 
@@ -215,6 +224,10 @@ feature would create by default**, each with its ruling.
 
 ## 2. THE SKETCH FORMAT
 
+> **§2.1–§2.5 and §2.8 are SUPERSEDED as the authoring path (§9). They are kept
+> because the importer's requirements are derived from them, one for one, in §9.6.
+> §2.6 and §2.7 are NOT superseded and are load-bearing under FMG.**
+
 ### 2.1 What he draws, and why a PNG mask
 
 **Decision: an indexed PNG colour mask plus a JSON sidecar.** The alternatives
@@ -384,6 +397,11 @@ asked for something it did not use); the painted-versus-derived forest fraction;
 each river's accumulated drainage and resulting width class.
 
 ### 2.6 A DRAWN RIVER THAT DOES NOT RUN DOWNHILL — the hard part, solved
+
+> **NOT SUPERSEDED — this section is the reason the FMG pivot costs us nothing.**
+> FMG derives its rivers from its own heightmap, but the moment he edits one in FMG's
+> river editor the conflict returns identically. The construction below is the answer
+> whichever tool produced the polyline.
 
 This is the single hardest thing in the request. Amit's rivers are a
 *consequence* of elevation: elevation is distance from the coast, it is monotone
@@ -787,3 +805,259 @@ Sequencing note for the lead, highest-value-first, each step shippable:
 6. Hydrology seeding from the drawn rivers; flow accumulation and width bands.
 7. `build_scatter()` reading moisture and elevation zone; `ForestRegions` deleted
    in the same change (Rule 32 — the mechanism, not the instance).
+
+---
+
+## 9. AMENDMENT — AZGAAR'S FMG BECOMES THE AUTHORING TOOL
+
+> «так, нашел другой генератор в 1000 лучше —
+> https://azgaar.github.io/Fantasy-Map-Generator/ — тут столько всего
+> конфигурировать и сделать можно»
+
+**The seam moves and it moves in our favour.** FMG is a browser application, not a
+library: there is no algorithm to lift and porting is off the table. So FMG
+becomes the **authoring tool** and we consume its export. That is a closer answer
+to the original request than anything we would have built — he configures without
+touching our code, and FMG's own image converter means a drawing on paper still
+becomes a world.
+
+**What is superseded:** §2.1–§2.5 (the PNG colour key, the two-tier antialiasing
+resolution, the ambiguity list) and §2.8's `tools/sketch_compile.py` **as the
+authoring path**, and §3.1's control set as painted PNGs. They are kept, not
+deleted, because **the reasoning in them is what justifies the importer's
+requirements** — every ruling below is a re-targeting of one of them, and §9.6
+maps each one across.
+
+**What survives untouched:** §1 (where it sits — regional structure over the
+10×10 km target, today's 2 km a crop, anchored in absolute world metres); §1.6
+(the five shadow copies, now MORE urgent — see §9.5); **§2.6 (a drawn river
+GENERATES elevation), which is the best thing in this document and is the answer
+whichever tool produced the polyline**; §5 entire (the three instruments, the
+cross-map matrix, the seed-invariance arm, Rule 45's stopping condition); and the
+no-silent-fallback doctrine.
+
+### 9.1 Licence — CHECKED, not assumed
+
+**MIT**, © Max Haniyeu (Azgaar), read from the repository's own `LICENSE` file.
+It carries a non-standard *expansion* rather than a restriction: *"You can produce,
+without restrictions, any derivative works from the original software and even
+reap commercial benefits from the sale of the secondary product"*, extended
+explicitly to *"created maps, map images, screenshots, videos, and other
+materials"*. No attribution burden beyond shipping the licence text. **We may
+depend on it and we may ship worlds made with it.** Blocker cleared.
+
+### 9.2 HEIGHT RESOLUTION — measured, and the answer is that `h` never becomes our elevation
+
+**The conversion, verbatim from `src/utils/unitUtils.ts:61–74`:**
+
+```js
+let height = -990;
+if (h >= 20)          height = (h - 18) ** +heightExponentInput.value;
+else if (h < 20 && h > 0) height = ((h - 20) / h) * 50;
+```
+
+Metres when the unit is `m` (the base expression is metric; `unitRatio` 3.281
+converts to the default feet). **`heightExponent` is carried in the JSON export**
+(`src/services/io/export-json.ts:113`), so **the importer reads it and never
+assumes a default** — this document deliberately does not quote one.
+
+**The measurement, at exponent 2.** The conversion is a power law, so the step is
+not uniform, and that changes the answer completely:
+
+| FMG `h` | our metres | step to next `h` |
+|---|---|---|
+| 20 (sea level) | 4 m | **5 m** |
+| 25 | 49 m | 15 m |
+| 30 | 144 m | 25 m |
+| 38 | **400 m** = `WORLDGEN_MAX_HEIGHT` | 41 m |
+| 100 (FMG max) | 6724 m | 165 m |
+
+**So "eighty steps across the land range" is true of FMG's range and false of
+ours.** Our entire world height budget, 0–400 m, is FMG `h ∈ [20, 38]` — **19
+integer values** — and the quantum is **finest exactly where our world lives**: 5 m
+at the coast, 41 m at the ceiling.
+
+**The ruling, and it is the same ruling that rejected Amit's elevation model, which
+is the strongest argument for it: FMG's `h` is NOT our elevation.** It supplies
+exactly two things — **(a) the land/water mask at the threshold `h ≥ 20`**, and
+**(b) the MOUNTAIN region, the successor to §2.3's grey paint, at a threshold read
+from the export.** Elevation comes from §2.6's drainage construction, unchanged.
+
+**The number that says why, which is what `main` asked for.** If anyone did use
+`h` as elevation, the terrace to be smoothed is the quantum — **41 m at the top of
+our range** — and the term available to smooth it is `DIVIDE_RELIEF`, whose band
+is 20–60 m. **The filler and the artefact are the same size**, so the filler
+cannot hide the artefact; it can only move it. That is the quantitative form of
+the ruling, and it is the number to quote at anyone who proposes reading `h` as
+metres. Under §2.6 the question does not arise: `h_base = h_drainage +
+DIVIDE_RELIEF · f(d/d_divide)` is continuous by construction and takes nothing
+from `h` but a mask.
+
+### 9.3 CELL SIZE — the question re-derived as `main` asked, and the answer is a configuration instruction
+
+`POLYGON_SPACING` was ours to choose; FMG's cell size is set by its own controls.
+So the question becomes **"which FMG map settings give a cell we can accept"**.
+
+**The formula, verbatim from `src/utils/graphUtils.ts:82`**, on a jittered square
+grid:
+
+```js
+const spacing = rn(Math.sqrt((graphWidth * graphHeight) / cellsDesired), 2);
+```
+
+Multiply through by the km-per-pixel setting and the pixels cancel:
+
+> **cell spacing = √( map area in km² / `cellsDesired` )**
+
+**This is scale-free** — the "1 pixel = X km" slider does not enter. Only the map's
+physical area and the cell count do. That is a much better situation than it
+looked, because it means one instruction covers every zoom he might use.
+
+`cellsDesired` defaults to 10,000, range 1,000–100,000. §1.2 derived the
+acceptable spacing interval as **[300 m, 693 m]** (≥ 3 × `LF2_HILL_WAVELENGTH`;
+widest chord under `LANDMARK_HAZE_ONSET`). Inverting:
+
+| `cellsDesired` | map area for 600 m cells | acceptable map area, [300, 693] m |
+|---|---|---|
+| 1,000 (min) | 360 km² ≈ 19 × 19 km | 90 – 480 km² |
+| **10,000 (default)** | **3,600 km² ≈ 60 × 60 km** | **900 – 4,800 km² (30×30 to 69×69 km)** |
+| 100,000 (max) | 36,000 km² ≈ 190 × 190 km | 9,000 – 48,000 km² |
+
+**The configuration instruction, derived rather than chosen: at FMG's default
+10,000 cells, make the map between 30×30 km and 69×69 km, and 60×60 km puts the
+cell exactly on `POLYGON_SPACING`.** Our 10×10 km target world is then 1/36 of it
+and holds **≈ 278 cells**; today's 2×2 km holds **≈ 11**, which is the same
+answer §1.2 gave and is the reconciliation that matters.
+
+**And the number that decides the architecture — the counter-case.** At FMG's
+*continental* defaults (1 px = 3 km on a ≈1900×950 canvas → ≈5700 × 2850 km,
+16.2 M km², 10,000 cells) the cell spacing is **≈ 40 km**. At that setting **our
+entire 10×10 km target world is one sixteenth of ONE CELL.** There is no
+interpolation that recovers a coastline from that; the map simply does not contain
+one.
+
+**So there are two regimes and he must pick per export. They compose, and
+conflating them is the failure mode:**
+
+- **ATLAS regime** (continental, ~40 km cells). FMG supplies **fiction and
+  context** — which state, which culture, which biome band, nearest burg, is this
+  coast — and **no geometry whatsoever.** Our generator supplies every metre. This
+  is what the map screen shows and what story writes against.
+- **REGION regime** (30–69 km at 10k cells, ~600 m cells). FMG cells **are** our
+  polygons: its coastline, rivers, biomes and burgs become geometry. **This is the
+  regime that realises the original request.**
+
+**The importer computes `√(area / cellsDesired)` from the export's own metadata
+and hard-fails outside [300 m, 693 m]** (error **E9′**), naming the computed
+spacing and the map area that would fix it. An ATLAS export handed to the importer
+is rejected in one line rather than producing a world at 40 km granularity — which
+would be precisely a silently-nearby world, and a spectacular one.
+
+### 9.4 WHICH REGION — the crop, and who chooses it
+
+**He chooses it, in FMG, using an object that exists in his map so it survives
+regeneration and round-trips: a MARKER.**
+
+He places a marker named `DFN_ORIGIN`. FMG exports markers to CSV with lon/lat
+(and height). The importer takes the `WORLD_EXTENT_CHUNKS` square centred on it.
+
+- **Missing marker → hard error.** There is no default crop and no centre-of-map
+  guess. A crop guessed is a world in the wrong place, and it would look fine.
+- **Two markers with that name → hard error**, naming both.
+- The resolved lon/lat and world origin are **recorded** into the compiled
+  artifact's `INFO` section — recorded, not re-decided. One authority (Rule 39).
+
+Why a marker rather than a field in our sidecar: the crop is a geographic decision
+and it belongs where the geography is, visible on the map at the moment it is
+made. A number typed into a JSON file beside a map he keeps regenerating is a
+second copy waiting to drift.
+
+**In REGION regime the crop is 1/36 of the map** (10 km of 60 km), so choosing it
+is a real decision and worth a marker. In ATLAS regime there is no crop to choose,
+because there is no geometry to crop.
+
+### 9.5 RULE 39 UNDER FMG — three new shadow copies, because FMG generates far more than terrain
+
+§1.6's five rulings stand unchanged. FMG ships cultures, states, provinces, burgs
+with population and port status, religions, trade routes and military — layers we
+do not have and will need. **Every one of them is a place for a second authority
+to appear, and the pattern of the ruling is the same each time: FMG owns the
+GRAPH, we own the GEOMETRY.**
+
+6. **Two authorities for "where is the castle."** FMG's burgs versus our P4 site
+   scorer and `TestbedLayout`'s sites. *Ruling: FMG's burgs are authoritative for
+   WHICH places exist and for their names, population and port status. The P4
+   scorer is authoritative for the exact metre-scale pad inside the cell, and it
+   is not consulted about whether the place exists.* Not "the scorer proposes and
+   we compare" — that is two copies with a comment holding them together.
+
+7. **Two authorities for routes.** FMG's trade routes versus §8.1's four-type path
+   network and its single `dist_to_path` field. *Ruling: FMG routes are
+   authoritative for the route GRAPH — which burg connects to which, and by land
+   or water. Our generator is authoritative for the polyline, the type selection
+   and the cross-section.* Same shape as the river ruling (§1.6.1), deliberately.
+
+8. **Two authorities for biome.** FMG's `biome` id versus the elevation × moisture
+   lookup this document specified. *Ruling: in REGION regime FMG's biome id is the
+   input and our lookup is retired for cells FMG covers; the moisture field is
+   still built, because §3.2's region-lake blocker and the flora tables need a
+   CONTINUOUS field and a biome id is categorical.* Two things that sound like one
+   thing: **which recipe runs here** (FMG) and **how wet is it here, exactly**
+   (ours, from the one distance field of §1.6.2).
+
+### 9.6 WHAT THE SUPERSEDED SECTIONS BECOME — each ruling re-targeted
+
+The PNG format is gone; **the reasoning that produced it is the importer's
+specification.** Line by line:
+
+| §2 ruling | Its heir in the importer |
+|---|---|
+| **Two-tier colour resolution, split by CAUSE not magnitude (§2.5)** | FMG's fields are categorical integers, so there is no antialiasing — **but the analogous defect is exactly present**: an FMG biome id, lake type, or route type with no entry in our mapping table. **Same ruling, same reason: a mapped id resolves; an unmapped id is an ERROR, never a nearest-match.** This is the single most likely place for a silently-nearby world under FMG, because a nearest-biome fallback is the obvious thing to write and it would never go red. |
+| **E1 unresolvable pixel colour** | **E1′ unmapped attribute id** (biome, lake type, route type, burg type), naming the id and the cells. |
+| **E2/E3/E4 river topology** | **Unchanged in substance.** FMG's rivers are derived from its own heightmap and are well-formed — but the moment he edits one in FMG's river editor we are back in the same conflict, which is why §2.6 survives. Check them, do not trust them. |
+| **E5 water gains height downstream** | **Unchanged, and now the most valuable check we have**, because the heights come from a tool whose datum is not ours. |
+| **E6 site bijection** | **E6′ burg ↔ site bijection** between the CSV export and the compiled artifact. |
+| **E7 undeclared landform** | **Unchanged.** §2.10 rule 4 survives the tool change intact: the map declares its composition and a cell resolving outside it is an error. |
+| **E9 metres-per-pixel** | **E9′ cell spacing outside [300, 693] m** (§9.3) — the ATLAS/REGION guard. |
+| **E10 gorge depth, E11 crop coverage** | **Unchanged.** |
+| **No silent fallback, ever (§2.5)** | **Unchanged and more important**, because an import has more ways to half-succeed than a paint file does. |
+| **`tools/sketch_compile.py`** | **`tools/fmg_import.py`.** Same architecture and the same first reason: it is offline, in Python, and emits the same `.dfnm` binary section container. FMG exports GeoJSON and CSV, which are text, so the PNG-decoder argument is moot — but the other three reasons stand, and the compiled artifact, its byte-identical regeneration check (§5.6) and the whole downstream C++ path are **unchanged**. |
+| **§3.1's six painted control sketches** | **Six FMG exports, hand-edited to be malformed in exactly one way each**, plus their near-identical valid twins. The `C-AA` antialiasing control is replaced by **`C-BIOME`: an export carrying one biome id absent from the mapping table**, which must fail rather than snap. |
+
+### 9.7 `WORLDGEN_SEA_LEVEL` — it stays, and it does NOT become an FMG mapping constant
+
+`main` asked whether the row becomes a mapping constant or disappears. **Neither:
+it stays, with its meaning unchanged, as the per-map default it was already
+amended to be.**
+
+FMG's `20` is a **dimensionless mask threshold** on a Uint8 field. Our
+`WORLDGEN_SEA_LEVEL` is **the water-surface height of the ocean drainage in our
+datum, in metres** — the value the §2.6 monotone pass starts from, and the number
+LF-6 needs 45 m of room below. Identifying the two would be **Rule 43 exactly**: a
+bound written on one quantity and enforced on another, holding only while a
+coincidence holds.
+
+The mapping between them is not a constant at all — it is the whole of §2.6. And
+the row's existing flag stands: its derivation is anchored on
+`MASSIF_CLIFF_BAND_MAX`, which NUMBERS marks as pending re-derivation.
+
+### 9.8 WHAT MUST BE MEASURED IN THE TOOL BEFORE ANYONE BUILDS
+
+Three claims this amendment does **not** make, because they are properties of an
+application and cannot be read out of its source in the time available. Each is a
+measurement someone runs in the browser, and each has a map depending on it:
+
+1. **Can FMG produce a map with NO OCEAN AT ALL?** Story's *Seremarch* (endorheic,
+   §3's M4 branch) depends on it, and M4 was included precisely because it was the
+   branch Amit's pipeline could not do. FMG has salt lakes, which are endorheic by
+   construction, so the terminal-lake half is native; the "no border ocean" half is
+   unconfirmed. **If FMG cannot, M4 becomes an importer-side test fixture rather
+   than an authored map, and it must still exist.**
+2. **What does a REGION-regime export actually contain?** At 30–69 km, does FMG
+   still assign states, cultures and burgs sensibly, or does it produce one state
+   and three burgs? This decides how much of the fiction layer is usable at
+   playable scale.
+3. **Does the GeoJSON export carry rivers with their `discharge` and `length`**,
+   and are lake types (fresh / salt / dry) present in it — or only in the `.map`
+   format? §2.7's width-from-accumulation ruling needs discharge, and E8's
+   navigability check is written against it.
