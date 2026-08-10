@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 03:08:00
+Last updated: 10:08:2026 - 20:17:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -78,6 +78,11 @@ UPD:
   render() each frame (apply_wind had NO live call site — the 0.0 default
   read as a calm day: absence presenting as neutral, the invisible-castle
   family); DFN_CLOUD / DFN_VISTIME hooks for the acceptance shoot.
+- 10:08:2026 - 20:17:40: RenderMesh::mesh_asset 0 is the documented "none"
+  sentinel and is produced deliberately (hidden bone segment, empty item
+  slot), so the missing-asset warning was firing on correct code every
+  launch — Rule 38's failure mode in a log rather than a test. Skipped
+  before the lookup; a genuinely unregistered id still warns once.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -654,6 +659,18 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             // resident, BEFORE the mesh lookup, so a site with no mesh is
             // still discoverable on the map rather than doubly absent.
             map_.note_site(rm.mesh_asset, curr.position);
+            // THE SENTINEL IS NOT A MISSING ASSET. `RenderMesh::mesh_asset`
+            // documents 0 as "none" (engine/core/components), and it is
+            // PRODUCED DELIBERATELY — a hidden bone segment, an empty item
+            // slot. The warning below was firing on all of it, every launch,
+            // which is Rule 38's failure mode moved from the test suite into
+            // the log: a check that goes red on correct code does not get
+            // argued with, it gets ignored, and then it cannot report the one
+            // id that really is unregistered either. Drawing nothing for "no
+            // mesh" is the correct outcome, so there is nothing to look up.
+            if (rm.mesh_asset == 0) {
+                return;
+            }
             const auto mesh_it = mesh_cache_.find(rm.mesh_asset);
             if (mesh_it == mesh_cache_.end()) {
                 // ONCE per id, never per frame: a per-frame warning at 60 fps
