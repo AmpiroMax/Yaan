@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:36:59
-Last updated: 10:08:2026 - 11:07:33
+Last updated: 10:08:2026 - 11:24:00
 Module: engine/render
 File: engine/render/sources/FloraEdgeRules.h
 
@@ -27,8 +27,14 @@ AI Agents Notice (must follow):
   clump(class, xz) x edge_gradient(dist_to_path) x richness(path_class) x
   exclusions, with the edge gradient FLOORING the field so BR-3 holds whatever
   the clump field says. The trodden CENTRE is ~0 by core's exclusion mask.
-  Core's PathSample.edge IS the edge_gradient factor — pass it directly and use
-  plain clump_field(); calling clump_field_edged() as well applies two ramps.
+  Core's PathSample.edge IS the edge_gradient factor and it is applied ONCE, by
+  them, with plain clump_field(). Flora's clump_field_edged() is DELETED as of
+  10.08.2026 for exactly this reason — two ramps would square the band and move
+  its peak inward, and the symptom is "the verge looks thin", which nobody
+  diagnoses as a units bug.
+- `per_100m` IS A TOTAL COUNT ACROSS THE BAND, not a density: see its field
+  comment for the normalisation the ramp requires. Wiring it as a peak density
+  places a different number of instances than any figure quoted here.
 - BR-3's RICH_EDGE_RATIO IS SCOPED TO THE UNMAINTAINED CLASSES (design's
   ruling, 10.08.2026). A cobbled street failing the ratio is a **PASS**: the
   margin is suppressed there on purpose, because a rich verge is what grows
@@ -54,6 +60,9 @@ UPD:
   row (hint >= dirt > cobble; moss in stair joints, flowers never). The weight
   scales the edge PEAK, not the base presence — a kept verge is not bare
   ground. BR-3's ratio scoped to the unmaintained classes.
+- 10:08:2026 - 11:24:00: per_100m's dimension made unambiguous — a TOTAL
+  COUNT across the band, with the normalisation the ramp requires, after core
+  asked whether it was a peak or a mean density (it is neither).
 */
 
 #pragma once
@@ -168,7 +177,31 @@ struct FloraEdgeRule {
     EdgeHabitat habitat;
     float band_min_m;     ///< lateral band start (from the feature edge)
     float band_max_m;     ///< lateral band end
-    float per_100m;       ///< instances per 100 m of feature, per side
+    /// A TOTAL COUNT, not a density — core asked and the honest answer is
+    /// "neither of your two options" (10.08.2026). Dimension: **instances per
+    /// 100 linear metres of feature, per side, SUMMED ACROSS THE WHOLE BAND**
+    /// [band_min_m, band_max_m]. It is not instances/m², so it is neither a
+    /// peak density nor a band-mean density.
+    ///
+    /// **THE RAMP THEREFORE SHAPES THE DISTRIBUTION, NOT THE AMOUNT.** Placing
+    /// with `PathSample::edge` as a weight and this number as a magnitude
+    /// requires normalising by the ramp's own integral, or the count comes out
+    /// low by exactly that integral:
+    ///
+    ///     rho(x) = per_100m * edge(x) / (100 m * INTEGRAL of edge(x) dx)
+    ///
+    /// over the band, so that the placed total is `per_100m` by construction
+    /// whatever shape the ramp has. With core's measured ramp (peak just
+    /// outside the worn edge, decaying to 0 by 2.5 m, mean ~0.4) the integral
+    /// is ~1.0 m, but **read it from the ramp rather than pasting 1.0** — the
+    /// whole point of normalising is that the ramp may be retuned and the
+    /// counts must not silently move with it.
+    ///
+    /// Wiring it as a PEAK density instead would place a different number of
+    /// instances than any figure quoted in this table or in flora.md §3.12,
+    /// and the error would look like "the margin feels sparse" rather than
+    /// like a units bug.
+    float per_100m;
     ClumpClass clump;     ///< the field this density MULTIPLIES by
     bool clump_applies;   ///< false: density is not field-modulated
     bool common_scatter;  ///< false: placement-budget only (finds/pearls)

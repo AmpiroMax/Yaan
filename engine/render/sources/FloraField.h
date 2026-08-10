@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:16:00
-Last updated: 10:08:2026 - 11:07:33
+Last updated: 10:08:2026 - 11:24:00
 Module: engine/render
 File: engine/render/sources/FloraField.h
 
@@ -14,7 +14,7 @@ Responsibility:
 
 Key items:
 - ClumpClass, ClumpParams, clump_params(), clump_raw(), clump_field(),
-  clump_field_edged(), mushroom_ring_offsets().
+  mushroom_ring_offsets().
 
 Dependencies:
 - Uses: glm and <cstdint> ONLY — deliberately dependency-free so the file can
@@ -38,15 +38,17 @@ AI Agents Notice (must follow):
       density(class, xz) = base(class) x clump(class, xz)
                            x edge_gradient(dist_to_path) x richness(path_class)
                            x exclusions
-  and the edge gradient acts as a FLOOR on the field (clump_field_edged), so a
-  coverage gap in the flower field can never bare a path margin — BR-3's ratio
-  clauses must hold WHATEVER the clump field says. The trodden-centre zero is
-  core's exclusion mask, not this file's job.
-  **BUT THE FLOOR IS SCOPED BY MAINTENANCE** (design, 10.08.2026): that same
-  guarantee is precisely what would garden a cobbled gutter, so it is scaled
-  by the path class's richness (FloraEdgeRules.h) and stops applying on swept
-  classes. BR-3's ratio is measured on the hint-path; a cobbled street failing
-  it is a PASS.
+  where the edge gradient acts as a FLOOR on the field, so a coverage gap can
+  never bare a path margin. THAT FACTOR IS THE CALLER'S AND IS APPLIED ONCE:
+  core passes PathSample::edge, which already carries the band shape and
+  design's per-class maintenance scoping. This file deliberately computes NO
+  ramp of its own — two ramps multiply into a squared band with its peak in
+  the wrong place. The trodden-centre zero is core's exclusion mask.
+  **THE FLOOR IS SCOPED BY MAINTENANCE** (design, 10.08.2026): the guarantee
+  that installs BR-3 is precisely what would garden a cobbled gutter, so it is
+  scaled by the path class's richness (FloraEdgeRules.h) and stops applying on
+  swept classes. BR-3's ratio is measured on the hint-path; a cobbled street
+  failing it is a PASS.
 - The per-class parameter values are REGISTRY ROWS (landed 10.08.2026):
   CLUMP_WAVELENGTH_<CLASS> / CLUMP_COVERAGE_<CLASS> / CLUMP_CONTRAST_<CLASS>,
   read from the generated Constants.h. Cite the names, never the values.
@@ -73,6 +75,9 @@ UPD:
 - 10:08:2026 - 11:07:33: clump_field_edged() takes path_richness: the BR-3
   floor is the very machinery that would garden a cobbled gutter, so it is
   scoped by the maintenance column and stops applying on swept classes.
+- 10:08:2026 - 11:24:00: clump_field_edged() DELETED — core wired the
+  consumer and applies the BR-3 gradient once from PathSample::edge; two ramps
+  square the band. A tombstone records where its two invariants went.
 */
 
 #pragma once
@@ -237,34 +242,21 @@ inline float cdf_u(float n) {
     return s * s * (3.0f - 2.0f * s);
 }
 
-/// DESIGN AMENDMENT 2 (binding): near a path the edge gradient FLOORS the
-/// field, so a clump-coverage gap can never bare a margin — BR-3's rich edge
-/// must exist whatever the field says. `dist_to_path_m` is distance to the
-/// path EDGE (not centreline); core owes the trodden-centre exclusion
-/// separately. Returns the field value to multiply into density.
+/// NOTE — `clump_field_edged()` WAS HERE AND IS DELETED (10.08.2026), by
+/// agreement with core once they wired the consumer. The BR-3 edge gradient is
+/// now applied ONCE, by the caller, from `PathSample::edge` — which already
+/// carries the band shape AND design's per-class maintenance scoping. This
+/// header computing a second ramp would have SQUARED the band and moved its
+/// peak inward, and the symptom would have been "the verge looks a bit thin",
+/// which nobody diagnoses. Deleted rather than kept as a pass-through on
+/// core's reasoning, which is right: a function whose name promises an edge
+/// and no longer computes one is the next reader's trap.
 ///
-/// `path_richness` IS THE MAINTENANCE SCALE (design's ruling 10.08.2026,
-/// FloraEdgeRules.h) AND IT MUST BE PASSED, because this floor is precisely
-/// the machinery that would garden a cobbled gutter: **the mechanism
-/// installed to GUARANTEE the rich edge is the one that breaks the
-/// maintenance rule.** Scale it to 0 on a swept class and the guarantee
-/// stops applying there, which is what "no peak on cobble" means. The base
-/// field still returns its own value, so the verge is unpeaked, NOT bare —
-/// a kept verge is not bare ground.
-///
-/// When core's path network is the live source, pass `PathSample.edge`
-/// (already the ramp) times the richness instead of calling this — two ramps
-/// is a bug. This overload exists for callers with only a distance.
-[[nodiscard]] inline float clump_field_edged(ClumpClass c, glm::vec2 world_xz,
-                                             uint32_t seed, float dist_to_path_m,
-                                             float path_richness = 1.0f) {
-    constexpr float EDGE_BAND_M = 2.5f; // the rich margin (research §A6.3)
-    const float f = clump_field(c, world_xz, seed);
-    if (dist_to_path_m >= EDGE_BAND_M) return f;
-    const float t = std::max(dist_to_path_m, 0.0f) / EDGE_BAND_M;
-    const float ramp = 1.0f - t * t * (3.0f - 2.0f * t); // 1 at the edge -> 0
-    return std::max(f, ramp * std::clamp(path_richness, 0.0f, 1.0f));
-}
+/// The two invariants it carried moved WITH it, to core, with their controls:
+/// (1) the floor never SUBTRACTS from the field, and (2) a kept verge is not
+/// bare ground — at maintenance 0 the margin falls back to the field value,
+/// never to zero. They are composition-level properties now and cannot be
+/// asserted from this file; losing them silently is the failure mode to avoid.
 
 /// SECOND STAGE under the mushroom field (design's blessed split): within a
 /// drift, mushrooms arrive as ring/cluster CHILDREN of a parent point, not as

@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 11:14:45
+Last updated: 10:08:2026 - 11:24:00
 -->
 <!--
 UPD:
@@ -281,6 +281,29 @@ UPD:
                          for the seventh time. Not sized: density is design's,
                          and tree TRUNKS (~0.27 at 60 m) are omitted from the
                          model and must be settled first.
+- 10:08:2026 - 11:24:00: THE SEAM CLOSED. Core wired plain clump_field() and
+                         applies the BR-3 gradient ONCE from PathSample::edge,
+                         so clump_field_edged() is DELETED — two ramps would
+                         have squared the band and moved its peak inward, and
+                         the symptom is «обочина жидковата», which nobody
+                         diagnoses. Its two invariants MOVED to core with their
+                         controls and are named in a tombstone in the suite, so
+                         "moved" cannot be mistaken for "dropped". Answered
+                         core's units question, and the answer was neither of
+                         their options: per_100m is a TOTAL COUNT across the
+                         band, so the ramp shapes the DISTRIBUTION and not the
+                         amount — placement must normalise by the ramp's own
+                         integral or every count lands low by it. Table sums
+                         published for falsification: 58 instances / 100 m /
+                         side, 28 % areal coverage of the margin. Core also
+                         confirmed the §3.14 omission WAS the answer: their
+                         BR-5 raycast marches terrain only — no trunks, no
+                         canopy, no floor — and the forest stand's oak rect is
+                         the whole domain, so "finds outside the mass" is
+                         independently ruled out. My 44 stems/ha was their own
+                         lattice read back. BR-5 gets fixed at its instrument;
+                         dead wood is sized for the user's brief, not for a
+                         validator.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1288,6 +1311,34 @@ ordinals are core's `PathClass` positions and nothing checks it**, because
 other; the mapping is pinned by a test and stops being a seam at the migration
 already scheduled for this table (Rule 5, core's JSON reader), where both
 declarations are visible and a `static_assert` replaces the convention.
+
+**`per_100m` IS A TOTAL COUNT, AND THE RAMP SHAPES THE DISTRIBUTION RATHER
+THAN THE AMOUNT.** Core asked whether the table's numbers are a peak density
+or a band mean; the answer is neither — the dimension is *instances per 100
+linear metres of feature, per side, summed across the whole band*. Placing
+with `PathSample::edge` as a weight therefore requires normalising by that
+ramp's own integral, `rho(x) = per_100m * edge(x) / (100 * ∫edge dx)`, so the
+placed total is `per_100m` whatever shape the ramp has. Read the integral from
+the ramp rather than pasting today's ~1.0 m: the point of normalising is that
+the ramp can be retuned without silently moving every count. Wired as a peak
+density instead, the world gets a different number of instances than any
+figure quoted in this spec, and it presents as «обочина жидковата» rather than
+as a units bug.
+
+**What the table sums to, so a wiring can be falsified against it rather than
+eyeballed:** 58 instances per 100 m per side, ~71 m² of footprint over a
+~250 m² margin — **28 % areal coverage**. Rich, and not a solid carpet.
+
+**`clump_field_edged()` IS DELETED** (10.08.2026, once core wired the
+consumer): the BR-3 gradient is applied ONCE, by the caller, from
+`PathSample::edge`, which already carries both the band shape and the
+maintenance scoping. Two ramps would have squared the band and moved its peak
+inward — a defect whose symptom is "the verge looks thin", which nobody
+diagnoses. **Its two invariants moved to core with their controls** (the floor
+never subtracts; a kept verge is not bare ground, discriminated on ground where
+the field is *zero*) and are named in a tombstone in this zone's suite, because
+the difference between "moved" and "silently dropped" is a successor's whole
+picture.
 
 **The moss residual on cobble (0.25) is design-confirmed and BOUNDED**, since
 a number argued from fiction is the kind that grows later: strictly under the

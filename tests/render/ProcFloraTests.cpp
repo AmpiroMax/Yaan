@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 11:14:45
+Last updated: 10:08:2026 - 11:24:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -63,6 +63,9 @@ UPD:
 - 10:08:2026 - 11:14:45: Design's bounds on the moss residual (strictly under
   the dirt weight, moss only); the ordinal-mapping test now says WHY it failed,
   so whoever trips it fixes the mapping rather than the expectation.
+- 10:08:2026 - 11:24:00: The edge-floor and kept-verge invariants moved to
+  core with clump_field_edged(); tombstones name both clauses so a successor
+  can tell 'moved' from 'dropped'.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1916,36 +1919,16 @@ TEST_CASE("clump: wavelength IS the drift scale, and classes are independent") {
     CHECK_FALSE(std::fabs(self / N) < 0.012);
 }
 
-TEST_CASE("clump: the edge gradient FLOORS the field (design amendment 2)") {
-    // BR-3 must hold WHATEVER the clump field says: a coverage gap in the
-    // flower field must not bare a path margin. Find a real zero of the field
-    // and check the edge floor fills it.
-    const ClumpClass c = ClumpClass::Flowers;
-    glm::vec2 bare{-1.0f, -1.0f};
-    for (int i = 0; i < 4000; ++i) {
-        const int col = i % 63;
-        const int row = i / 63; // integer ON PURPOSE: a lattice row index
-        const glm::vec2 p{static_cast<float>(col) * 9.1f,
-                          static_cast<float>(row) * 8.3f};
-        if (clump_field(c, p, 777u) == 0.0f) {
-            bare = p;
-            break;
-        }
-    }
-    REQUIRE(bare.x >= 0.0f);
-    // On the margin the floor is FULL even where the field is bare...
-    CHECK(clump_field_edged(c, bare, 777u, 0.0f) == doctest::Approx(1.0f));
-    CHECK(clump_field_edged(c, bare, 777u, 1.0f) > 0.4f);
-    // ...beyond the band the field speaks alone...
-    CHECK(clump_field_edged(c, bare, 777u, 3.0f) == doctest::Approx(0.0f));
-    // ...and the floor never SUBTRACTS: edged >= bare field everywhere.
-    for (int i = 0; i < 500; ++i) {
-        const glm::vec2 p{static_cast<float>(i) * 3.3f, static_cast<float>(i) * 1.9f};
-        for (const float d : {0.0f, 0.8f, 1.9f, 4.0f}) {
-            CHECK(clump_field_edged(c, p, 777u, d) >= clump_field(c, p, 777u) - 1e-6f);
-        }
-    }
-}
+// THE EDGE-FLOOR INVARIANT MOVED TO CORE (10.08.2026) together with
+// clump_field_edged(), which is deleted: the BR-3 gradient is applied ONCE by
+// the caller from PathSample::edge, so the property is now composition-level
+// and cannot be asserted from this file. It travelled WITH its controls, and
+// both clauses are named here so a successor can tell "moved" from "dropped":
+//   (i) the floor never SUBTRACTS — edged >= the bare field everywhere;
+//  (ii) a KEPT VERGE IS NOT BARE GROUND — at maintenance 0 the margin falls
+//       back to the field value, never to zero, and the discriminating case is
+//       ground where the field is ZERO (elsewhere the two models agree).
+// If core's suite does not carry these, they exist nowhere.
 
 TEST_CASE("clump: mushroom second stage — rings are RINGS, clusters are not") {
     // Design's blessed split: within a drift, mushrooms are parent-child, and
@@ -2271,52 +2254,13 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
         // this zone's signature failure is a rule implemented in half.
         CHECK(flat.faint_trail >= flat.dirt);
     }
-    // A KEPT VERGE IS NOT BARE GROUND (design's second consequence, and the
-    // one most easily lost in implementation). The richness scales the edge
-    // PEAK, never the base presence — so on a fully swept class the margin
-    // must fall back to exactly what the clump field gives that ground, not
-    // to zero. Suppressing it to nothing would re-make «земля плоская и
-    // мёртвая» inside the settlement, which is the complaint this whole stage
-    // exists to answer.
-    {
-        const ClumpClass c = ClumpClass::Flowers;
-        int checked = 0;
-        for (int i = 0; i < 400; ++i) {
-            const glm::vec2 p{static_cast<float>(i) * 5.3f,
-                              static_cast<float>(i) * 3.1f};
-            const float plain = clump_field(c, p, 777u);
-            // Swept class (richness 0), right at the margin: the guarantee
-            // stops applying, the ground keeps its own field value.
-            CHECK(clump_field_edged(c, p, 777u, 0.0f, 0.0f)
-                  == doctest::Approx(plain));
-            // The specimen class (richness 1) still gets the full guarantee.
-            CHECK(clump_field_edged(c, p, 777u, 0.0f, 1.0f)
-                  >= doctest::Approx(1.0f));
-            ++checked;
-        }
-        REQUIRE(checked == 400);
-        // CONTROL: if the weight scaled the WHOLE density instead of the peak,
-        // a swept margin would read 0 wherever the field is 0 — and on ground
-        // where the field is non-zero the two models are indistinguishable, so
-        // the discriminating case must be a field ZERO. Find one and pin it.
-        glm::vec2 bare{-1.0f, -1.0f};
-        for (int i = 0; i < 4000; ++i) {
-            const int col = i % 63;
-            const int row = i / 63; // integer ON PURPOSE: a lattice row index
-            const glm::vec2 p{static_cast<float>(col) * 9.1f,
-                              static_cast<float>(row) * 8.3f};
-            if (clump_field(c, p, 777u) == 0.0f) {
-                bare = p;
-                break;
-            }
-        }
-        REQUIRE(bare.x >= 0.0f);
-        // Unpeaked, and equal to the field — the "scales the whole density"
-        // model would agree here (both 0), so this pins the OTHER end: the
-        // specimen class must still be floored to 1 on that same bare ground.
-        CHECK(clump_field_edged(c, bare, 777u, 0.0f, 0.0f) == doctest::Approx(0.0f));
-        CHECK(clump_field_edged(c, bare, 777u, 0.0f, 1.0f) == doctest::Approx(1.0f));
-    }
+    // (The kept-verge-is-not-bare-ground assertions that stood here moved to
+    // core with clump_field_edged() — see the tombstone above the mushroom
+    // ring case. What REMAINS testable from this zone is the table itself:
+    // that the weights are ordered, bounded, and mean what the fiction says.
+    // The property that a maintenance weight of 0 leaves the base presence
+    // untouched is a property of the COMPOSITION, and the composition now
+    // lives in core.)
 
     // CONTROL 2: the ordinal accessor is bound to core's PathClass order, and
     // a mismatch is silent (the two enums cannot see each other across the
