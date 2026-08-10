@@ -574,24 +574,60 @@ bool App::enter_world(uint32_t stand) {
         probe.dir = d ? d : ("screenshots/body_" + probe.mode);
         std::filesystem::create_directories(probe.dir);
         probe.warmup_s = 4.0f;
-        if (probe.mode == "stride") {
+        if (probe.mode == "stride" || probe.mode == "gait") {
             // The four quarters of ONE stride, in crossing order. This is the
             // Rule 27 range clause: FOOTFALL_PHASE_LEFT/RIGHT are where a foot
             // MUST be planted, and 0.0/0.5 are where one MUST be in the air —
             // a set that can only pass if the plant timing is actually right.
             probe.targets = {static_cast<float>(config::FOOTFALL_PHASE_LEFT), 0.5f,
                              static_cast<float>(config::FOOTFALL_PHASE_RIGHT), 0.0f};
-            probe.pitch = -1.15f; // look at your own feet
+            // "stride" looks down at its own feet; "gait" watches the MIRROR
+            // double instead, because a walker cannot photograph its own legs
+            // from inside its own skull. Same trigger, outside vantage.
+            probe.pitch = probe.mode == "gait" ? -0.10f : -1.15f;
             if (const char* p = std::getenv("DFN_BODY_PITCH")) {
                 probe.pitch = std::strtof(p, nullptr);
             }
         } else if (probe.mode == "showcase") {
-            // Mid-clip of each of the six reel entries (4 s per clip).
-            probe.targets = {2.0f, 6.0f, 10.0f, 14.0f, 18.0f, 22.0f};
+            // Mid-clip of each of the six reel entries (4 s per clip); the run
+            // starts one whole clip in so the warm-up cannot eat a shot.
+            probe.targets = {6.0f, 10.0f, 14.0f, 18.0f, 22.0f, 26.0f};
             probe.pitch = 0.15f; // the double floats at 1.2 m
+        } else if (probe.mode == "profile") {
+            // THE SIDE BEARING, and it exists because the front one cannot
+            // fail: a fore-aft leg scissor projects to nothing when the subject
+            // faces the lens, so a frontal walk frame looks identical whether
+            // the legs swing or not. The mirror double can never supply this —
+            // it reflects the camera's OWN facing, so it turns to face you
+            // whichever way you turn. Only the showcase double, whose facing is
+            // independent, can be walked around and seen in profile.
+            probe.targets = {6.0f, 10.0f, 26.0f}; // walk, run, idle
+            probe.warmup_s = 5.0f;
+            probe.pitch = 0.10f;
+        } else if (probe.mode == "plant") {
+            // THE FOOTFALL FRAME. Same side vantage, but the shots are the four
+            // quarters of one walk cycle: the phase rows FOOTFALL_PHASE_LEFT
+            // and _RIGHT, where a foot MUST be down, and 0.5 / 1.0, where the
+            // legs MUST be passing. The clip's own clock is a pure function of
+            // WALK_SPEED and the step-length pair, so the times are derived
+            // here from those rows rather than typed in.
+            const auto v = static_cast<float>(config::WALK_SPEED);
+            const float step = static_cast<float>(config::STEP_LENGTH_BASE)
+                             + static_cast<float>(config::STEP_LENGTH_PER_MPS) * v;
+            const float period = 2.0f * step / v;   // seconds per full stride
+            const float clip = 4.0f;                // the walk clip starts here
+            probe.targets = {clip + (2.0f + static_cast<float>(config::FOOTFALL_PHASE_LEFT))
+                                        * period,
+                             clip + 2.5f * period,
+                             clip + (2.0f + static_cast<float>(config::FOOTFALL_PHASE_RIGHT))
+                                        * period,
+                             clip + 3.0f * period};
+            probe.warmup_s = 4.0f;
+            probe.pitch = 0.10f;
         } else { // mirror
             // Turn LEFT by these offsets; the double must turn the other way.
             probe.targets = {0.0f, -0.25f, -0.5f};
+            probe.direction = -1;
             probe.pitch = 0.0f;
         }
         body_probe_ = std::move(probe);
@@ -698,16 +734,15 @@ bool App::enter_world(uint32_t stand) {
 
 namespace {
 
-// Did the swept interval a -> b pass `target`? `wrapping` treats the values as
-// a cycle in [0,1) advancing forward (the stride phase); otherwise a plain
-// interval test that also fires when an endpoint IS the target.
-[[nodiscard]] bool swept_past(float a, float b, float target, bool wrapping) {
-    if (wrapping) {
-        const float span = std::fmod(b - a + 1.0f, 1.0f);
-        const float to_target = std::fmod(target - a + 1.0f, 1.0f);
-        return span > 0.0f && to_target <= span;
+// How far `value` still has to travel to reach `target`. Negative means it is
+// already there or past. `direction` is the probe's DECLARED travel direction,
+// not the measured one: several render frames can share a simulation tick, and
+// a zero measured step read as "ascending" fired every shot at once.
+[[nodiscard]] float distance_to(float value, float target, int direction) {
+    if (direction == 0) { // a cycle in [0,1) that only ever advances forward
+        return std::fmod(target - value + 1.0f, 1.0f);
     }
-    return (a - target) * (b - target) <= 0.0f;
+    return direction > 0 ? target - value : value - target;
 }
 
 } // namespace
@@ -724,6 +759,54 @@ void App::body_probe_drive() {
     }
     if (p.mode == "stride") {
         // The bot walks; the probe only aims the eye at its own feet.
+        ps->pitch = p.pitch;
+        return;
+    }
+    if (p.mode == "gait") {
+        // STRAFE, facing the double across the mirror plane. The stride clock
+        // advances from real horizontal displacement at the real walk speed, so
+        // the phase, the step length and therefore the leg cycle are exactly
+        // the walking ones; only the facing is turned out of the travel
+        // direction, which this rig's v1 does not model anyway (no strafe
+        // clip). The double reflects x=x and z=-z, so it tracks alongside at a
+        // FIXED distance while both of us walk — the framing cannot drift.
+        const auto* self = world_.get<components::Transform>(player_);
+        const auto* other = world_.get<components::Transform>(mirror_puppet_);
+        if (self != nullptr && other != nullptr) {
+            const glm::vec2 d{other->position.x - self->position.x,
+                              other->position.z - self->position.z};
+            if (glm::dot(d, d) > 1.0e-6f) {
+                p.aim_yaw = std::atan2(d.x, -d.y);
+            }
+        }
+        ps->yaw = p.aim_yaw;
+        ps->pitch = p.pitch;
+        ps->pending_look = {0.0f, 0.0f};
+        ps->move_axes = {1.0f, 0.0f};
+        ps->run = false;
+        return;
+    }
+    if (p.mode == "profile" || p.mode == "plant") {
+        // Walk around to the double's side during the warm-up, then stand and
+        // watch it from there. The showcase double faces a fixed direction, so
+        // a vantage off its shoulder is a true side profile.
+        const auto* self = world_.get<components::Transform>(player_);
+        const auto* other = world_.get<components::Transform>(mirror_puppet_);
+        if (self != nullptr && other != nullptr) {
+            const glm::vec2 me{self->position.x, self->position.z};
+            const glm::vec2 it{other->position.x, other->position.z};
+            const glm::vec2 stand = it + glm::vec2{4.5f, 1.5f};
+            const glm::vec2 leg = stand - me;
+            const bool travelling = glm::length(leg) > 0.6f
+                                    && p.elapsed_s < p.warmup_s - 0.5f;
+            const glm::vec2 aim = travelling ? leg : (it - me);
+            if (glm::dot(aim, aim) > 1.0e-6f) {
+                ps->yaw = std::atan2(aim.x, -aim.y);
+            }
+            ps->move_axes = travelling ? glm::vec2{0.0f, 1.0f} : glm::vec2{0.0f, 0.0f};
+        }
+        ps->run = false;
+        ps->pending_look = {0.0f, 0.0f};
         ps->pitch = p.pitch;
         return;
     }
@@ -770,17 +853,17 @@ void App::body_probe_frame(float alpha, float frame_dt) {
         window_->request_close();
         return;
     }
-    if (p.cooldown > 0) {
-        --p.cooldown;
-        return;
-    }
+    // NOTE the cooldown is spent further down, AFTER the tracked value has been
+    // refreshed: skipping the read as well let the per-frame step be measured
+    // across five frames, and the tolerance derived from it fired the next shot
+    // a tenth of a cycle early.
 
     // What this probe is watching, and the line the shot must land on.
     float now = 0.0f;
     bool wrapping = false;
     float speed = 0.0f;
     float step_len = 0.0f;
-    if (p.mode == "stride") {
+    if (p.mode == "stride" || p.mode == "gait") {
         const auto* drive = world_.get<anim::BodyDrive>(player_);
         if (drive == nullptr) {
             return;
@@ -793,7 +876,7 @@ void App::body_probe_frame(float alpha, float frame_dt) {
             p.prev_value = now; // a standing frame proves nothing about a stride
             return;
         }
-    } else if (p.mode == "showcase") {
+    } else if (p.mode == "showcase" || p.mode == "profile" || p.mode == "plant") {
         const auto* drive = world_.get<anim::BodyDrive>(mirror_puppet_);
         if (drive == nullptr) {
             return;
@@ -822,9 +905,18 @@ void App::body_probe_frame(float alpha, float frame_dt) {
         p.primed = true;
         return;
     }
-    const float before = p.value;
     p.value = predicted;
-    if (!swept_past(before, predicted, p.targets[p.next], wrapping)) {
+    if (p.cooldown > 0) {
+        --p.cooldown; // the backend is still flushing the previous shot
+        return;
+    }
+    // Shoot the frame that lands NEAREST the target: when the remaining travel
+    // is under one frame of it, the frame after this one would overshoot. The
+    // achieved value is logged rather than assumed — at this frame rate the
+    // landing error is one frame of stride, and the log says how much.
+    const float tolerance = std::max(std::fabs(delta), 0.005f);
+    if (distance_to(predicted, p.targets[p.next], wrapping ? 0 : p.direction)
+        > tolerance) {
         return;
     }
 
@@ -832,12 +924,21 @@ void App::body_probe_frame(float alpha, float frame_dt) {
     std::snprintf(name, sizeof(name), "%02zu_%s_%.3f.png", p.next, p.mode.c_str(),
                   static_cast<double>(p.targets[p.next]));
     (void)renderer_->save_screenshot(p.dir + "/" + name);
+    // The double's own facing goes in the log: "it turns the other way" is a
+    // claim about a number, and the frame should not be the only witness.
+    float puppet_yaw = 0.0f;
+    if (const auto* pd = world_.get<anim::BodyDrive>(mirror_puppet_)) {
+        puppet_yaw = pd->facing_yaw;
+    }
     char line[256];
     std::snprintf(line, sizeof(line),
-                  "%s target=%.3f captured=%.3f speed=%.2f step=%.2f t=%.1f\n", name,
+                  "%s target=%.3f captured=%.3f speed=%.2f step=%.2f t=%.1f "
+                  "double_yaw=%.3f\n",
+                  name,
                   static_cast<double>(p.targets[p.next]),
                   static_cast<double>(predicted), static_cast<double>(speed),
-                  static_cast<double>(step_len), static_cast<double>(p.elapsed_s));
+                  static_cast<double>(step_len), static_cast<double>(p.elapsed_s),
+                  static_cast<double>(puppet_yaw));
     p.log += line;
     std::fprintf(stderr, "[body_probe] %s", line);
     ++p.next;

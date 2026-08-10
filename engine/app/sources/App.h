@@ -178,6 +178,7 @@ private:
         std::string dir;             // output directory
         std::vector<float> targets;  // stride phase | clip time (s) | yaw offset
         size_t next = 0;             // index into targets
+        int direction = 1;           // +1 targets ascend, -1 descend, 0 = cycle
         float warmup_s = 0.0f;       // streaming/settle time before the first shot
         float elapsed_s = 0.0f;
         float pitch = 0.0f;          // forced look pitch, radians
