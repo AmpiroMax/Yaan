@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 20:29:59
+Last updated: 10:08:2026 - 21:08:13
 -->
 <!--
 UPD:
@@ -69,6 +69,7 @@ UPD:
 - 10:08:2026 - 12:07:08: §1.7 BR-3 CLOSED: core found the ForestFloor edge rows (MossPatch, Mushroom) carried no density at all (per_100m is linear, a forest floor isn't), so BR-3's ratio was dividing by an unauthored zero and read ~27000 — refused rather than shipped. Blessed flora's anchor-derived fix (MossPatch 40/ha, Mushroom 20/ha, no double-count with fallen-log moss_cover) and ruled the ratio's denominator SAME-SET (edge species both sides). Either denominator reading clears RICH_EDGE_RATIO=3 by 6-30x, so the ratio is DEMOTED to a logged floor/canary (same move as BR-5's bare-terrain instrument the same day) and the ordering clause (hint >= dirt > cobble ~ 1, real separation) becomes BR-3's formal acceptance. Declined re-tightening the ratio to "where it bites" — deriving a threshold from the value it tests is the 30a coincidence already refused twice. Closed the floor-vs-product composition question core validated by mutation (plain product zeros cobble's moss residual, correctly reds the suite) by writing the max-not-product requirement into BR-3's text explicitly. Also recorded: zero stone steps on this stand is accepted (в7 binds the system, not a per-stand instance count); forcing a climb to manufacture a steps frame would repeat the grass "buy the number" trap. Sixth definitional-question instance in three days; forwarded ARCHITECTURE.md clause is doing its job.
 - 10:08:2026 - 20:11:26: §1.7 — MY OWN CITED CONTROL DOES NOT REPRODUCE, AND IT IS REFUTED BY ARITHMETIC I COULD HAVE RUN WITHOUT SPENDING CORE'S MEASUREMENT. §1.7 cited bare terrain at 0.03/0.06 (40/80 m) as BR-5's permanent must-fail control; core re-measured the same arm at 0.0000/0.2083 (c8e6a73) and eliminated their ray, bearing count and LF-8 erosion as causes — erosion turned out to REDUCE terrain occlusion here, the opposite of the guess. The pair is dead on a two-line proof: for equal-sized groups the pooled median can never exceed the larger group median, so per-ring 0.03/0.06 forces a pooled value <= 0.06, while the generator itself recorded 0.1042 on the same finds. 0.03/0.06 AND 0.1042 CANNOT BOTH DESCRIBE ONE DRAW. I inherited the pair as a per-distance reading without checking it against the pooled figure beside it — Rule 34 landing on design, and specifically the aggregation ambiguity that ARCHITECTURE.md's Rule 30 already uses THIS RULE as its worked example. The number was recorded on the wrong side of the very ambiguity it is quoted to illustrate. WHAT SURVIVES: the control's job is to FAIL the bar and 0.2083 fails it by 2.4x, so nothing in the BR-5 ruling rested on its magnitude. WHAT DOES NOT: the pinned canary's '3-4x' clause is a RATIO whose denominator is now measured at exactly ZERO at 40 m, so no threshold on it can separate working siting from broken — Rule 30's own test for a wrong QUANTITY rather than a wrong threshold. Restated as a DIFFERENCE (composed minus terrain-only, per-distance, never pooled): 0.4167 / 0.5833 / 0.5000, all defined, and the 40 m case the ratio could not express at all is where siting does its LARGEST work. Ratified core's refusal to assert the bar at 40 m: a red suite on a lever I ruled must be sized AFTER this re-measurement would be a known-open item wearing a failure's clothes. Endorsed their by-cause exclusion of dead wood (Rule 36) — a gate leaning on classes sized for the user's brief could be passed by enlarging scenery.
 - 10:08:2026 - 20:29:59: §5.12a-e — CORE FOUND A HOLE IN MY OWN SENTENCE AND I RULED IT RATHER THAN PATCHING IT. The apron predicate never said WHICH TREES it ranges over; core measured both readings instead of arguing them — globally it excludes every tree within ~670 m (a clearcut, REFUSED), scoped to the massif stamp it reaches 162 m as a derived output against a pine annulus at 140 m (RATIFIED AS SHIPPED, and it reproduces my measurement from the other side). THE REAL RULING IS THAT THE ACCEPTANCE QUANTITY IS WRONG, which is why the middle looked unrulable: at 300 m the apron moves 'fraction hidden' by 1.1 points (39.5->38.4) despite demonstrably fixing the actual defect, and core's own third option is right that a third hidden IS what a forested valley looks like. Both true at once convicts the QUANTITY, not either answer — Rule 30's mechanical test. The case the fraction cannot see: 69% visible spread evenly reads as a mountain behind a wood, 69% visible with the BOTTOM curtained reads as a painted backdrop, and the fraction is identical. Same family as §2.8.7 — the instrument measures the OBJECT while the acceptance is about the VIEW. Acceptance moves to the GROUND JUNCTION: a contiguous run of >=20 px at 640x360 (4.885 deg at SKY_ANGULAR_PIXEL, reused from WEATHER.md W9.0) where the lowest visible massif pixel is massif-meeting-ground rather than canopy edge; aggregation longest run, denominator the massif's angular width. THRESHOLD DELIBERATELY NOT PLACED — both arms must be measured on the new quantity first, apron-OFF being the real rejected instance, and sizing before measuring is the error I ruled against on BR-5 the same day. Core's 15/50 band survives RECLASSIFIED from acceptance gap to canary on the apron's machinery. Wedge refused for now with its unnamed cost written down: a corridor pointed at a landmark is a bald lane along the exact bearing the player walks. The missing frame is upgraded from Rule 27 debt to BLOCKER, because the junction run is defined ON the frame; handed core the clock convention they were missing (0.25 sunrise / 0.5 noon / 0.75 sunset as a fraction of DAY_LENGTH_SECONDS). Separately flagged to flora/core as Rule 32: species_trunk_radius() returning ROOT FLARE is a SHARED HELPER, so every consumer is inspected in the same change, not only the BR-5 ray that surfaced it.
+- 10:08:2026 - 21:08:13: §5.10a THE MOSS RULING — flora's GROUND_MOSS_FOREST_PER_M2 0.0263 REFUSED, row stays 0.0040 (40/ha). Settled by arithmetic before definitions: scatter_forest_ground places at most ONE patch per trunk, so per_anchor = per_m2 x 225 m2 is a PROBABILITY and saturates — the requested row realises ~8.4/ha, a 1.4x gain where 6.6x was intended, against a structural ceiling of 41.9/ha that no row raises. Model validated first: E[clump_moss] = 0.1614 derived in closed form from COVERAGE 0.22 / CONTRAST 0.55 predicts 6.45/ha against core's independently measured 6.09/ha. Definitional core: flora's derivation says 2/3 of stems carry a patch (0.667) while CLUMP_COVERAGE_MOSS says moss exists on 0.22 of the ground — contradictory as statements about the same moss, so no row value exists. M-1 moss is ANCHORED, clump_applies -> FALSE same commit (37.7/ha = 0.94x authored). M-2 mushroom keeps the field (flora authored it 'before clumping' — the field IS the look). M-3 the discriminator as a schema column, DensityBasis BASE vs REALISED, since clump_applies is being asked to mean two things and every per_100m row is REALISED by its own contract. M-4 §A7 changes in the SAME commit but not as feared: the count does not rise, so no rings — what 6/ha hid is that every patch sits at a CONSTANT offset (0,-0.6), one azimuth for every trunk in the world, which at 37/ha is A7's forbidden stamp; bearing jittered off a real shade direction (Rule 35 second consumer, named before it bites), distance scaled by trunk size, acceptance = circular variance of bearing (denominator: uniform-bearing control on the same anchors), today's single-azimuth build reads 0 and is the must-fail arm. M-5 ground moss at 263/ha is a legitimate SEPARATE row (assoc Nothing, basis Base, derivation must not mention stem count, must state its relation to §5.10 moss_cover) — filed open, not a blocker. M-6 PathMargin's 2.5-2.7x OVER and ForestFloor's under are ONE defect: rho normalises by INTEGRAL(edge) while placing with max(clump, edge*rich) — numerator weight and denominator normaliser are different functions. The max() STAYS (core's mutation proves it load-bearing for the kept verge); normalise by the integral of the weight actually used. NO ROW MOVES in either habitat, so Rule 44's trap is avoided by fixing the denominator rather than by choosing a composition.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -5540,6 +5541,187 @@ between them. Forests stop being walls (§2.2's "trees are walls you can walk
 through" was written for the dense version) and become colonnades — you see
 *through* a forest now, which makes occlude-and-reveal work at a distance it
 never could before.
+
+### 5.10a THE MOSS RULING — an anchored class is explained by its ANCHOR, not by the ground (ruling, stage-5)
+
+Flora requested `GROUND_MOSS_FOREST_PER_M2` = **0.0263** (263/ha) against the
+shipped **0.0040** (40/ha), so that `authored × E[clump]` would land the realised
+count on 40/ha. **REFUSED. The row is unchanged at 0.0040.** Not because 263/ha
+is a wrong number for ground moss — it is a perfectly good number for a
+*different thing* — but because the two figures are not two values of one
+quantity, **and because the requested row does not do what it was requested to
+do.** That second half is measurable and it comes first, since it settles the
+matter without anyone having to win the definitional argument.
+
+#### 5.10a.1 The arithmetic, which closes it before the definitions are opened
+
+`scatter_forest_ground` (WorldgenScatter.cpp) iterates **anchors**, not ground:
+one candidate trunk per `TREE_SPACING_FOREST` lattice cell (mid-band 15 m ⇒
+225 m²), and it places **at most one patch per trunk**, with per-anchor
+probability `per_m2 × 225 × clump_field(p)`.
+
+- At the shipped 0.0040 the per-anchor probability is **0.90** — which is
+  flora's own «44 stems/ha × ~⅔ carrying a basal patch» read back correctly,
+  so the row and the code agree about the *derivation*.
+- `CLUMP_COVERAGE_MOSS` 0.22 and `CLUMP_CONTRAST_MOSS` 0.55 give, from
+  `clump_field`'s closed form, **E[field] = 0.1614** (coverage × [½·edge +
+  (1 − edge)], edge = 1 − 0.55·0.85 = 0.5325). That is *derived*, not fitted:
+  it reproduces core's independently measured 0.152–0.163 without using it.
+- Predicted realised = 0.90 × 0.1614 × 44.4/ha = **6.45/ha**, against core's
+  **measured 6.09/ha**. The 5.6 % gap is the pass's own rejections (water, pads,
+  entrance rings, the path margin). **A model that reproduces a measurement it
+  did not consume is allowed to predict the next one.**
+
+Now run the *requested* row through that same model. At 0.0263 the per-anchor
+figure is **5.92 — and it is a probability.** It saturates:
+
+> P(place) = E[min(1, 5.92 · field)] = **0.200**  ⇒ realised ≈ **8.4/ha**.
+
+**The requested row buys 1.4×, where 6.6× was intended.** And it cannot be made
+to buy more by pushing it further, because this pass places **one patch per
+trunk at most**: its structural ceiling is one per lattice cell = **44.4/ha
+before rejections, ≈ 41.9/ha after.** 263/ha is **5.9× a ceiling the row does
+not raise.**
+
+**Normalising by the field's own mean instead — the obvious counter-proposal —
+is arithmetically the SAME operation and fails identically:** 0.90 / 0.1614 =
+5.58, P = 0.199, realised **8.4/ha**. Both "fixes" are one fix wearing two
+names, and the reason they fail is the next section.
+
+Rule 44 warned that raising a row to compensate *works* and silently redefines
+the row. **Here it does not even work**, which is the same disease one stage
+worse: the linear model `realised = authored × E[field]` that justifies the new
+number is false exactly at the value the new number puts it. Had the row landed,
+the suite's `ratio < 0.60` band would have gone on reporting a shortfall while
+everyone believed the shortfall had been paid.
+
+#### 5.10a.2 The definitional answer, and why NO row value exists
+
+Two authored numbers about moss contradict each other as statements about the
+same moss:
+
+- flora's derivation asserts **⅔ of stems carry a basal patch** — 0.667;
+- `CLUMP_COVERAGE_MOSS` asserts moss is non-zero on **0.22 of the ground**, and
+  that figure is exact by construction (the raw field is rank-equalised, and
+  core asserts the realised coverage against it).
+
+**0.667 > 0.22, so no row value, no composition and no normalisation can satisfy
+both** — they disagree about the CAUSE, not about a magnitude. A 13 m drift
+field says *moss grows where the ground is damp and shaded*. A basal patch says
+*moss grows where THIS TRUNK is damp and shaded*. A trunk manufactures its own
+microclimate; that is the entire content of §A7's associative grammar —
+«каждый предмет объясним соседом». **If the ground field decides whether the
+patch exists, the anchor is decoration and the association is a lie.** That is
+the ruling, and the 6.6× was its symptom.
+
+**RULING M-1 — MossPatch/ForestFloor is ANCHORED.** `GROUND_MOSS_FOREST_PER_M2`
+**stays 0.0040 (40/ha)**; the request for 0.0263 is refused; and
+`clump_applies` on that row goes to **FALSE in the same commit as this text**.
+The column already exists and `FlowerJewel` already uses it, so this is a
+one-bool change and no new mechanism. Predicted realised afterwards:
+0.90 × 44.4 × 0.944 = **37.7/ha = 0.94× authored**, and *that* residual is
+honest — it is the placement's stated exclusions, each of which has a cause.
+**Where the patchiness then comes from, since it must come from somewhere:**
+trees are already clumped, ~10 % of trunks carry nothing, and M-4 below
+scatters the dressing. Moss inherits the stand's own structure, which is what
+an anchored class is supposed to do.
+
+**RULING M-2 — Mushroom/ForestFloor keeps `clump_applies` TRUE and its 20/ha
+row unchanged.** Flora authored it «BEFORE clumping» in as many words: the
+rings-and-clusters look IS the intent and the field IS that look, so the
+authored number correctly sits upstream of it. Realised 1.61/ha against 20 is
+the design, not a defect. The two rows share a habitat and a loop and must
+still differ — which is exactly why M-3 exists.
+
+**RULING M-3 — the DISCRIMINATOR, so this is a mechanism and not two
+exceptions.** Every density row declares which of two things its number counts,
+and the schema carries it as a column rather than as prose:
+
+| basis | meaning | composition | rows |
+|---|---|---|---|
+| **BASE** | density *before* the field; the field is the intended look | `authored × field` | Mushroom/ForestFloor, and every row whose derivation says "before clumping" |
+| **REALISED** | a count of things that *exist on the ground*; the field may SHAPE but never SCALE | `authored`, field normalised by its own integral | MossPatch/ForestFloor, and **every `per_100m` row by definition** — that field is documented as "a TOTAL COUNT, not a density" |
+
+**The tell that tells you which one you are holding: read the derivation and
+count the verbs.** «44 stems × ⅔ carrying a patch» counts patches — there is no
+field anywhere in that sentence, it is already the answer. «Fungi fruit on
+rotting wood, before clumping» names an upstream quantity explicitly. Flora
+supplied both sentences correctly; nothing in the schema could receive the
+difference, so one rule got applied to both and one of them was wrong.
+**Requested of the lead and of core: `FloraEdgeRule` gains a `DensityBasis`
+column, and `clump_applies` stops being asked to mean two things.** Until it
+lands, the two ForestFloor rows carry the distinction in their comments.
+
+**RULING M-4 — §A7's association changes in the same commit, and it is not the
+change that was anticipated.** The count does not rise, so the feared failure
+(6.6× the patches piling into rings at the trunk bases) never arises. But
+raising the *hit rate* to 0.90 exposes a different §A7 breach that 6/ha was
+hiding: **every patch is placed at `trunk + (0, −0.6)` — one constant offset, one
+azimuth, one distance, for every trunk in the world.** At 6/ha that is
+invisible; at 37/ha it is 37 identical dressings per hectare, and §A7's own
+sentence forbids it — «равномерная сыпь запрещается как штамп». So, binding on
+the same commit:
+
+- the offset **bearing** is the shade azimuth **jittered**, not a compass
+  constant, and −Z is a placeholder for a shade direction nobody has computed
+  yet (a sun the world already owns; this is a Rule 35 second consumer waiting
+  to happen, and it should be named as such before it is);
+- the offset **distance** scales with the trunk it touches rather than being
+  0.6 m everywhere — a patch at the base of a 1.5× giant oak standing the same
+  0.6 m out is standing *inside* the trunk;
+- **acceptance:** the distribution of patch bearings around their anchors is
+  not concentrated — *aggregation:* circular variance of the bearing over all
+  placed MossPatch/ForestFloor instances in the stand; *denominator:* the
+  uniform-bearing control on the same anchor set. A single-azimuth build reads
+  0 and is the must-fail arm; it is what ships today.
+
+**RULING M-5 — ground moss, if it is wanted, is a SEPARATE ROW.** 263/ha of
+patches in leaf litter, on rocks and in hollows is a real and good thing and
+this ruling does not forbid it — it forbids *spending an anchored row's number
+on it*. Such a row is `EdgeAssociation::Nothing`, `DensityBasis::Base`, carries
+its own derivation that must not mention the stem count (or it is the same moss
+twice), and must state its relationship to §5.10's `moss_cover` on fallen logs
+for the same reason flora already excluded logs from the anchored figure.
+**Filed as open, unauthored, and it is flora's to author or to decline.** It is
+NOT a blocker for the two zones waiting on this ruling: they are waiting on
+M-1, which is settled.
+
+#### 5.10a.3 The PathMargin overshoot is the SAME defect, not a second one
+
+Core measured PathMargin at **2.5–2.7× OVER** authored while ForestFloor ran
+3.3–6.6× under, and reported the two compositions — `max(clump, edge×rich)` vs a
+pure product — as the difference. **The compositions are not the defect. The
+missing normalisation is, in both, and in opposite directions.** The shipped
+formula is its own indictment:
+
+```
+rho(p) = (per_100m / 100 m) * field(p) / INTEGRAL(edge over the band)
+                              ^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              max(clump, edge*rich)      edge alone
+```
+
+**The numerator's weight and the denominator's normaliser are different
+functions.** `per_100m`'s own contract says the magnitude is "normalised by the
+ramp's own integral … so the placed total is `per_100m` by construction whatever
+shape the ramp has" — and it is normalised by the integral of a ramp that is not
+the weight being placed with. The overshoot is then not a mystery but a
+quotient: `∫max(clump, edge×rich) / ∫edge ≈ 2.5–2.7`, which is what core
+measured.
+
+**RULING M-6 — the `max()` STAYS; normalise by the integral of the weight
+actually used.** The floor is load-bearing and proven so: core's mutation check
+shows a plain product drives cobble's margin to exactly zero and correctly reds
+the suite, which is the kept-verge ruling (§1.7 BR-3) doing its job. What must
+change is that the normaliser is computed over `max(clump, edge×rich)` — the
+same function, sampled on the same lateral grid the placement already walks —
+rather than over `edge`. **No row moves, in either habitat.** That is the whole
+point: Rule 44's trap is avoided not by choosing a composition but by noticing
+that both habitats were dividing by the wrong thing, which is Rule 30's
+denominator clause showing up inside an implementation instead of inside a test.
+
+*(Housekeeping for whoever touches the file: `WorldgenScatter.cpp`'s ground-cover
+banner cites "§5.11" for the forest floor. §5.11 is seasonal foliage; the forest
+floor is §5.10 and this ruling is §5.10a.)*
 
 ### 5.11 Seasonal foliage — the palette contract (ruling, stage-4)
 
