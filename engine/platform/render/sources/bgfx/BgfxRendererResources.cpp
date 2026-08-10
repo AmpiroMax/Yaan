@@ -14,7 +14,8 @@ Responsibility:
 Key items:
 - BgfxRenderer::create_mesh / destroy_mesh / create_texture / destroy_texture /
   load_program / destroy_program.
-- TRANSPARENT_PROGRAMS / CUTOUT_PROGRAMS (logical name -> render state).
+- TRANSPARENT_PROGRAMS / CUTOUT_PROGRAMS / NON_CASTING_PROGRAMS (logical
+  name -> render state).
 
 Dependencies:
 - Uses: BgfxRendererImpl.h, bgfx.
@@ -48,6 +49,16 @@ constexpr const char* TRANSPARENT_PROGRAMS[] = {"water", "overlay"};
 // Alpha-CUTOUT programs: opaque state (depth write, no sorting) but their
 // shadow depth must come from the mask, not from the card's rectangle.
 constexpr const char* CUTOUT_PROGRAMS[] = {"foliage"};
+// Programs that are drawn but must NOT write the sun shadow map.
+//
+// The path ribbon (§8.1) is the first, and the reason is the feather, not the
+// cost. Its outer band is a DISCARD — an ordered dither that thins the surface
+// out into the ground — while the cheap depth-only caster program has no
+// discard at all. Left casting, a path whose visible edge dissolves would lay a
+// hard-edged full-width dark strip beside itself at low sun: the shadow of a
+// surface that is not there. It lies on the ground it would darken, so it has
+// nothing to cast in the first place.
+constexpr const char* NON_CASTING_PROGRAMS[] = {"path"};
 
 } // namespace
 
@@ -197,6 +208,11 @@ ProgramHandle BgfxRenderer::load_program(std::string_view name) {
     for (const char* cutout_name : CUTOUT_PROGRAMS) {
         if (name == cutout_name) {
             im.cutout.emplace(id, true);
+        }
+    }
+    for (const char* non_casting_name : NON_CASTING_PROGRAMS) {
+        if (name == non_casting_name) {
+            im.non_casting.emplace(id, true);
         }
     }
     return ProgramHandle{id};

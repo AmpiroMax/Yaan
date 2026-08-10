@@ -260,6 +260,19 @@ public:
                           std::span<const uint32_t> river_segment_offsets);
     void clear_water_bodies(platform::IRenderer& renderer);
 
+    // --- The §8.1 path surface ------------------------------------------------
+    //
+    // The app ferries ChunkManager::path_surface() here once per world, the
+    // same way it ferries water_bodies(): the network is whole-world and built
+    // at open, not streamed. Render draws the tread; core routed it; flora
+    // populates the margin (в24).
+    void set_path_surface(platform::IRenderer& renderer,
+                          std::span<const math::PathStation> stations,
+                          std::span<const uint32_t> route_offsets);
+    void clear_path_surface(platform::IRenderer& renderer);
+    /// Drawable pieces currently resident (diagnostics and tests).
+    [[nodiscard]] std::size_t path_piece_count() const { return path_meshes_.size(); }
+
     // Environment (stage 3) ----------------------------------------------------
     // The frame environment sent to IRenderer::set_environment each render.
     // Defaults from Materials.h; mutate to tune atmosphere/splat/water live.
@@ -389,6 +402,10 @@ private:
         math::Aabb bounds{};
     };
     std::vector<WaterBucket> water_body_meshes_;
+    // A path piece is one class over ~128 m of tread; the class picks the atlas
+    // cell and is carried in the vertices, so this only needs the mesh and its
+    // bounds — same shape as a water bucket, same reason (something to cull).
+    std::vector<WaterBucket> path_meshes_;
     uint32_t next_texture_asset_ = 1; // dense id allocator (0 = none)
     uint32_t terrain_program_ = 0; // ProgramHandle.id
     uint32_t unlit_program_ = 0;   // ProgramHandle.id
@@ -396,9 +413,11 @@ private:
     uint32_t prop_program_ = 0;    // ProgramHandle.id (lit+fog vertex color)
     uint32_t foliage_program_ = 0; // ProgramHandle.id (alpha-cutout leaf cards)
     uint32_t overlay_program_ = 0; // ProgramHandle.id ("unlit" + alpha blend)
+    uint32_t path_program_ = 0;    // ProgramHandle.id (§8.1 path surface)
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
     uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
     uint32_t leaf_texture_asset_ = 0;  // leaf mask atlas (engine asset id)
+    uint32_t path_atlas_asset_ = 0;    // §8.1 path surface atlas (engine asset id)
     uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no debug water plane
     uint32_t overlay_mesh_ = 0;        // MeshHandle.id, screen-filling quad
     uint32_t overlay_texture_ = 0;     // TextureHandle.id, re-uploaded per frame

@@ -70,5 +70,6 @@ add_library(dfn_render STATIC
     sources/WindModel.cpp
     sources/VoxelMesher.cpp
     sources/Tour.cpp
-    sources/WaterMesher.cpp)
+    sources/WaterMesher.cpp
+    sources/PathMesher.cpp)
 target_link_libraries(dfn_render PUBLIC dfn_headers)

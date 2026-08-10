@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 09:08:2026 - 10:48:00
+Last updated: 10:08:2026 - 11:34:12
 Module: engine/render
 File: engine/render/sources/ProcTexture.h
 
@@ -16,6 +16,9 @@ Key items:
 - generate_terrain_atlas(): grass|rock / sand|dirt in one 2x2 atlas (the
   terrain shader selects cells by splat weights — one bound texture, no
   contract change).
+- generate_path_atlas(): the four §8.1 path surfaces in one 2x2 atlas, INDEXED
+  BY core's `PathClass` ORDINAL (cobble 0 / packed earth 1 / scuffed trail 2 /
+  cut slab 3). See the ordinal warning below.
 
 Dependencies:
 - Uses: glm, C++ stdlib only. No GPU, no ECS, no platform includes.
@@ -37,10 +40,22 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep generation pure and deterministic; covered by ProcTextureTests.
+- **THE PATH ATLAS IS ORDINAL-KEYED, AND THE ORDINALS ARE core's.** Cell i of
+  `generate_path_atlas` IS `world::PathClass(i)` (Cobble 0, Dirt 1, FaintTrail 2,
+  StoneSteps 3, pinned by core's PathClassTests since 95e4880). render and world
+  are DAG SIBLINGS — neither declaration can see the other, so no static_assert
+  can catch a reorder, exactly as it cannot for flora's PathClassRichness.
+  A reorder there repaves a hint-path in cobble here. Render is on core's pin;
+  if a class is ever added it goes on the END and this atlas grows with it.
 */
 /*
 UPD:
 - 09:08:2026 - 10:48:00: Stage 3 — initial procedural texture module.
+- 10:08:2026 - 11:34:12: §8.1 path surfaces: a periodic cellular primitive
+  (`tileable_cells`) and four kinds over it — COBBLE, PACKED_EARTH, SCUFFED,
+  CUT_SLAB — plus generate_path_atlas(), whose cell index is core's PathClass
+  ordinal. The stone kinds are CELLULAR, not fBm: a path made of stones reads
+  by its JOINTS, and fBm has none.
 */
 
 #pragma once
@@ -57,6 +72,12 @@ enum class ProcTextureKind : uint8_t {
     SAND = 2,
     DIRT = 3,
     WATER = 4,
+    // §8.1 path surfaces (append-only; the ATLAS order below is the contract,
+    // not these values).
+    COBBLE = 5,       ///< «мостовая»: rounded set stones, dark joints
+    PACKED_EARTH = 6, ///< the dirt road's trodden centre: smoothed, pebbled
+    SCUFFED = 7,      ///< the hint-path: thin earth with grass surviving in it
+    CUT_SLAB = 8,     ///< stone steps: rectangular cut stone, running bond
 };
 
 // Cache key for generated textures: generation is a pure function of this.
@@ -91,5 +112,35 @@ struct ProcTextureDesc {
 // within itself; the shader wraps per-cell with fract().
 [[nodiscard]] std::vector<uint8_t> generate_terrain_atlas(uint32_t cell_size,
                                                           uint32_t seed);
+
+// Periodic cellular (Worley) field over the tile domain. Returns the distance
+// to the SECOND nearest feature point minus the distance to the nearest, in
+// cell units — i.e. 0 exactly on a cell border and rising into a cell's
+// interior. `period` cells per axis wrap exactly, so the field tiles.
+// `jitter` in [0,1] moves each feature point off its cell centre.
+//
+// This exists because the two stone path surfaces read by their JOINTS. An fBm
+// mottle has no joints at any frequency, and cobble drawn as mottle reads as
+// gravel — which is a different material, not a coarser one.
+[[nodiscard]] float tileable_cells(glm::vec2 uv, glm::ivec2 period, uint32_t seed,
+                                   float jitter);
+
+// Which cell of the tiling `uv` falls in, as a stable per-stone id in [0,1).
+// Cobble and slabs need PER-STONE value variation (that is what separates a
+// paved surface from a textured one), and that variation must be constant
+// across a stone, not noise sampled inside it.
+[[nodiscard]] float tileable_cell_id(glm::vec2 uv, glm::ivec2 period, uint32_t seed,
+                                     float jitter);
+
+// The §8.1 path surface atlas: a 2x2 grid of `cell_size` textures in one RGBA8
+// image of side 2*cell_size, laid out EXACTLY like the terrain atlas
+// (cell index i -> {x: i & 1, y: i >> 1} * 0.5, wrapped per-cell with fract()).
+//
+// THE CELL INDEX IS core's PathClass ORDINAL — see the ordinal warning in this
+// file's header:
+//   (0,0) COBBLE [0]   (1,0) PACKED_EARTH [1]
+//   (0,1) SCUFFED [2]  (1,1) CUT_SLAB     [3]
+[[nodiscard]] std::vector<uint8_t> generate_path_atlas(uint32_t cell_size,
+                                                       uint32_t seed);
 
 } // namespace dfn::render

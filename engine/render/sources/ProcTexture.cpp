@@ -1,15 +1,17 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 09:08:2026 - 10:48:00
+Last updated: 10:08:2026 - 11:34:12
 Module: engine/render
 File: engine/render/sources/ProcTexture.cpp
 
 Responsibility:
-- Procedural texture implementation: integer-hash periodic value noise, per-kind
-  recipes (grass, rock, sand, dirt, water), ramp quantization, atlas assembly.
+- Procedural texture implementation: integer-hash periodic value noise, periodic
+  cellular (Worley) fields, per-kind recipes (grass, rock, sand, dirt, water,
+  and the four §8.1 path surfaces), ramp quantization, atlas assembly.
 
 Key items:
-- tileable_fbm(); generate_proc_texture(); generate_terrain_atlas().
+- tileable_fbm(); tileable_cells(); tileable_cell_id();
+  generate_proc_texture(); generate_terrain_atlas(); generate_path_atlas().
 
 Dependencies:
 - Uses: ProcTexture.h, glm.
@@ -23,6 +25,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 10:48:00: Stage 3 — initial implementation.
+- 10:08:2026 - 11:34:12: §8.1 path surfaces + the periodic cellular primitive
+  they are built on. Note on the ramps: the two stone kinds take their value
+  variation PER STONE (from the cell id) and their shading from the joint
+  distance, so the quantiser sees a few flat plates with dark lines between
+  them rather than a continuous field — which is what makes them read as set
+  stones at 640x360 instead of as grey noise.
 */
 
 #include "engine/render/sources/ProcTexture.h"
@@ -77,6 +85,46 @@ float periodic_value_noise(glm::vec2 uv, glm::ivec2 period, uint32_t seed) {
     return a + (b - a) * fy;
 }
 
+// One traversal of the periodic cellular field: the two nearest feature points
+// and the id of the nearest cell. `period` cells per axis; feature points are
+// hashed from the WRAPPED cell coordinate (lattice01 wraps), so the field tiles
+// exactly while the distances are measured in unwrapped cell units.
+struct CellField {
+    float d1 = 1e9f; // distance to the nearest feature point, cell units
+    float d2 = 1e9f; // to the second nearest
+    float id = 0.0f; // stable per-cell value in [0,1)
+};
+
+CellField cell_field(glm::vec2 uv, glm::ivec2 period, uint32_t seed, float jitter) {
+    period = glm::max(period, glm::ivec2{1, 1});
+    jitter = glm::clamp(jitter, 0.0f, 1.0f);
+    const glm::vec2 p{uv.x * static_cast<float>(period.x),
+                      uv.y * static_cast<float>(period.y)};
+    const int x0 = static_cast<int>(std::floor(p.x));
+    const int y0 = static_cast<int>(std::floor(p.y));
+    CellField out;
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            const int cx = x0 + dx;
+            const int cy = y0 + dy;
+            const float jx = lattice01(cx, cy, period, seed);
+            const float jy = lattice01(cx, cy, period, seed ^ 0x1B873593U);
+            const glm::vec2 f{static_cast<float>(cx) + 0.5f + (jx - 0.5f) * jitter,
+                              static_cast<float>(cy) + 0.5f + (jy - 0.5f) * jitter};
+            const glm::vec2 delta = p - f;
+            const float d = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+            if (d < out.d1) {
+                out.d2 = out.d1;
+                out.d1 = d;
+                out.id = lattice01(cx, cy, period, seed ^ 0xCC9E2D51U);
+            } else if (d < out.d2) {
+                out.d2 = d;
+            }
+        }
+    }
+    return out;
+}
+
 // Color ramp: t in [0,1] quantized to `shades` levels across the stops.
 glm::vec3 ramp_quantized(const glm::vec3* stops, int stop_count, float t, int shades) {
     t = glm::clamp(t, 0.0f, 1.0f);
@@ -107,6 +155,23 @@ constexpr glm::vec3 DIRT_STOPS[] = {
     {0.23f, 0.16f, 0.10f}, {0.36f, 0.26f, 0.16f}, {0.48f, 0.38f, 0.25f}};
 constexpr glm::vec3 WATER_STOPS[] = {
     {0.10f, 0.20f, 0.24f}, {0.16f, 0.30f, 0.34f}, {0.30f, 0.44f, 0.46f}};
+
+// --- §8.1 path surfaces -----------------------------------------------------
+//
+// PACKED_EARTH is deliberately LIGHTER than DIRT (which is river-bed mud). A
+// road is compacted and dusty and the forest floor around it is dark; at
+// 640x360 a road reads as a PALE LINE THROUGH DARK GROUND long before any of
+// its texture is resolvable, and that silhouette is the whole feature. Making
+// the road the same value as the ground and relying on grain would be the
+// PALETTE SIGNAL STRENGTH rule's textbook failure.
+constexpr glm::vec3 COBBLE_STOPS[] = {
+    {0.15f, 0.14f, 0.12f}, {0.43f, 0.40f, 0.35f}, {0.67f, 0.63f, 0.55f}};
+constexpr glm::vec3 PATH_EARTH_STOPS[] = {
+    {0.30f, 0.24f, 0.17f}, {0.46f, 0.38f, 0.28f}, {0.62f, 0.54f, 0.41f}};
+constexpr glm::vec3 TRAIL_STOPS[] = {
+    {0.24f, 0.20f, 0.13f}, {0.38f, 0.33f, 0.21f}, {0.52f, 0.46f, 0.31f}};
+constexpr glm::vec3 SLAB_STOPS[] = {
+    {0.14f, 0.14f, 0.15f}, {0.37f, 0.38f, 0.38f}, {0.60f, 0.61f, 0.60f}};
 
 glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
     switch (kind) {
@@ -150,6 +215,73 @@ glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
         const float chop = tileable_fbm(uv, {20, 8}, seed ^ 0xAAu, 2);
         const float t = 0.7f * streaks + 0.3f * chop;
         return ramp_quantized(WATER_STOPS, 3, t, 5);
+    }
+    case ProcTextureKind::COBBLE: {
+        // Set stones: the JOINT is the feature. d2-d1 is ~0 on a cell border
+        // and rises into the stone, so it is simultaneously the joint mask and
+        // the dome shading. Value comes PER STONE from the cell id — a paved
+        // surface is a mosaic of flat plates, and sampling noise inside a stone
+        // would dissolve the plate back into gravel.
+        const CellField c = cell_field(uv, {9, 9}, seed, 0.80f);
+        const float joint = c.d2 - c.d1;
+        const float dome = glm::clamp(joint / 0.30f, 0.0f, 1.0f);
+        const float grain = tileable_fbm(uv, {40, 40}, seed ^ 0x5Au, 2);
+        float t = (0.34f + 0.52f * c.id) * (0.60f + 0.40f * dome)
+                + 0.10f * (grain - 0.5f);
+        if (joint < 0.055f) {
+            t -= 0.45f; // the mortar/earth line between stones
+        }
+        return ramp_quantized(COBBLE_STOPS, 3, t, 6);
+    }
+    case ProcTextureKind::PACKED_EARTH: {
+        // Compacted, smoothed, with pebbles worked to the surface.
+        const float base = tileable_fbm(uv, {5, 5}, seed, 3);
+        const float grit = tileable_fbm(uv, {36, 36}, seed ^ 0x21u, 2);
+        const CellField peb = cell_field(uv, {15, 15}, seed ^ 0x8Du, 0.95f);
+        float t = 0.28f + 0.46f * base + 0.18f * grit;
+        if (peb.d1 < 0.17f && peb.id > 0.55f) {
+            t += 0.24f; // a pebble catching the light
+        }
+        return ramp_quantized(PATH_EARTH_STOPS, 3, t, 6);
+    }
+    case ProcTextureKind::SCUFFED: {
+        // The hint-path: thin earth with grass surviving IN it. The survivors
+        // are a THRESHOLD, not a blend — at 640x360 a blend of earth and green
+        // is mud, and a threshold is tufts.
+        const float earth = tileable_fbm(uv, {6, 6}, seed, 3);
+        const float tuft = tileable_fbm(uv, {17, 17}, seed ^ 0x3Cu, 2);
+        // Threshold read off the dumped tile, not guessed: at 0.615 the cell
+        // was ~40% green, which fights the WORN CENTRE this cell is supposed to
+        // be — the trail's grass belongs at the margins, where the wear
+        // gradient puts it, not in the tread.
+        if (tuft > 0.680f) {
+            return ramp_quantized(GRASS_STOPS, 3, 0.25f + 0.55f * tuft, 5) * 0.88f;
+        }
+        return ramp_quantized(TRAIL_STOPS, 3, 0.30f + 0.52f * earth, 5);
+    }
+    case ProcTextureKind::CUT_SLAB: {
+        // Cut stone in running bond — an analytic grid rather than a cellular
+        // field, because a step tread is rectangular by definition and Worley
+        // cells cannot be made rectangular without giving up the tiling.
+        constexpr glm::ivec2 BOND{5, 10}; // both wrap; y EVEN so the half-row
+                                          // offset is consistent across the seam
+        const float py = uv.y * static_cast<float>(BOND.y);
+        const int row = static_cast<int>(std::floor(py));
+        const float offset = (row & 1) != 0 ? 0.5f : 0.0f;
+        const float px = uv.x * static_cast<float>(BOND.x) + offset;
+        const int col = static_cast<int>(std::floor(px));
+        const float fx = px - static_cast<float>(col);
+        const float fy = py - static_cast<float>(row);
+        const float dj = std::min(std::min(fx, 1.0f - fx), std::min(fy, 1.0f - fy));
+        const float id = lattice01(col, row, BOND, seed ^ 0x6Bu);
+        const float grain = tileable_fbm(uv, {30, 30}, seed ^ 0x6Bu, 2);
+        const float bevel = glm::clamp(dj / 0.10f, 0.0f, 1.0f);
+        float t = (0.36f + 0.44f * id) * (0.74f + 0.26f * bevel)
+                + 0.08f * (grain - 0.5f);
+        if (dj < 0.035f) {
+            t -= 0.42f; // the joint
+        }
+        return ramp_quantized(SLAB_STOPS, 3, t, 6);
     }
     }
     return {1.0f, 0.0f, 1.0f}; // unreachable: loud magenta if it ever is
@@ -207,6 +339,15 @@ std::vector<uint8_t> generate_proc_texture(const ProcTextureDesc& desc) {
     return pixels;
 }
 
+float tileable_cells(glm::vec2 uv, glm::ivec2 period, uint32_t seed, float jitter) {
+    const CellField c = cell_field(uv, period, seed, jitter);
+    return c.d2 - c.d1;
+}
+
+float tileable_cell_id(glm::vec2 uv, glm::ivec2 period, uint32_t seed, float jitter) {
+    return cell_field(uv, period, seed, jitter).id;
+}
+
 std::vector<uint8_t> generate_terrain_atlas(uint32_t cell_size, uint32_t seed) {
     std::vector<uint8_t> pixels;
     if (cell_size == 0) {
@@ -217,6 +358,29 @@ std::vector<uint8_t> generate_terrain_atlas(uint32_t cell_size, uint32_t seed) {
     // Layout contract with fs_terrain.sc (see header).
     const ProcTextureKind cells[] = {ProcTextureKind::GRASS, ProcTextureKind::ROCK,
                                      ProcTextureKind::SAND, ProcTextureKind::DIRT};
+    for (uint32_t i = 0; i < 4; ++i) {
+        ProcTextureDesc desc;
+        desc.kind = cells[i];
+        desc.size = cell_size;
+        desc.seed = seed;
+        write_tile(pixels, side, (i & 1u) * cell_size, (i >> 1u) * cell_size, desc);
+    }
+    return pixels;
+}
+
+std::vector<uint8_t> generate_path_atlas(uint32_t cell_size, uint32_t seed) {
+    std::vector<uint8_t> pixels;
+    if (cell_size == 0) {
+        return pixels;
+    }
+    const uint32_t side = cell_size * 2;
+    pixels.resize(static_cast<size_t>(side) * side * 4);
+    // THE INDEX IS core's PathClass ORDINAL (Cobble 0, Dirt 1, FaintTrail 2,
+    // StoneSteps 3). See the ordinal warning in ProcTexture.h.
+    const ProcTextureKind cells[] = {ProcTextureKind::COBBLE,
+                                     ProcTextureKind::PACKED_EARTH,
+                                     ProcTextureKind::SCUFFED,
+                                     ProcTextureKind::CUT_SLAB};
     for (uint32_t i = 0; i < 4; ++i) {
         ProcTextureDesc desc;
         desc.kind = cells[i];

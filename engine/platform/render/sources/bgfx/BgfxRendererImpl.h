@@ -183,6 +183,7 @@ struct BgfxRenderer::Impl {
     bgfx::ProgramHandle shadow_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_cutout_program = BGFX_INVALID_HANDLE;
     std::unordered_map<uint32_t, bool> cutout; // program id -> alpha cutout
+    std::unordered_map<uint32_t, bool> non_casting; // program id -> never a sun caster
     bgfx::UniformHandle s_shadow_map = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_shadow_params = BGFX_INVALID_HANDLE;

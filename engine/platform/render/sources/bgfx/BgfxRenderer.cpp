@@ -120,6 +120,7 @@ UPD:
 #include <vs_water_mtl.h>
 #include <fs_water_mtl.h>
 #include <fs_prop_mtl.h>
+#include <fs_path_mtl.h>
 #include <vs_shadow_mtl.h>
 #include <fs_shadow_mtl.h>
 #include <vs_foliage_mtl.h>
@@ -166,6 +167,12 @@ const ProgramSource PROGRAM_TABLE[] = {
     // pass-through); only the fragment differs (vertex-color albedo).
     {"prop",    {vs_terrain_mtl, sizeof(vs_terrain_mtl)},
                 {fs_prop_mtl, sizeof(fs_prop_mtl)}},
+    // "path" (§8.1) also shares the terrain vertex stage: the path ribbon is a
+    // world-space mesh with the same attributes, and only the cross-section
+    // reading of them differs. Opaque with discard, like "foliage" — the
+    // feather is an ordered dither, so it needs no blend and no sorting.
+    {"path",    {vs_terrain_mtl, sizeof(vs_terrain_mtl)},
+                {fs_path_mtl, sizeof(fs_path_mtl)}},
     // "overlay" is "unlit" with an alpha blend: the screen-space layer the HUD
     // (interaction prompts, later the crosshair) composites over the world.
     // Same shaders on purpose — the difference is render state, which is what
@@ -188,6 +195,7 @@ const ProgramSource PROGRAM_TABLE[] = {
     {"foliage", {}, {}}, {"shadow_cutout", {}, {}},
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
     {"overlay", {}, {}}, {"shadow", {}, {}}, {"point_shadow", {}, {}},
+    {"path", {}, {}},
 };
 #endif
 

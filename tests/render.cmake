@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 10:08:2026 - 03:14:30
+# Last updated: 10:08:2026 - 12:26:05
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -28,12 +28,15 @@
 # - 09:08:2026 - 23:32:07: Bitmap font tests (glyph coverage + the unmappable
 #   control, UTF-8 decoding, alias identity, bitmap uniqueness, clipping).
 # - 10:08:2026 - 03:14:30: Cloud model tests (downwind drift, becalmed control).
+# - 10:08:2026 - 12:26:05: Path mesher tests (the cross-section's knot error
+#   against core's own profile, with the wrong-curve control).
 
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
 add_dfn_test(render_scatter_batcher render/ScatterBatcherTests.cpp dfn_render)
 add_dfn_test(render_water_mesher render/WaterMesherTests.cpp dfn_render)
+add_dfn_test(render_path_mesher render/PathMesherTests.cpp dfn_render dfn_core)
 add_dfn_test(render_map_screen render/MapScreenTests.cpp dfn_render)
 add_dfn_test(render_sky_model render/SkyModelTests.cpp dfn_render)
 add_dfn_test(render_cloud_model render/CloudModelTests.cpp dfn_render)

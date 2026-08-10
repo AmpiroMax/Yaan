@@ -39,6 +39,8 @@ UPD:
 
 #include "engine/render/sources/RenderSystem.h"
 
+#include "engine/render/sources/PathMesher.h"
+
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/config/sources/Constants.h"
@@ -336,6 +338,71 @@ void RenderSystem::set_water_bodies(platform::IRenderer& renderer,
                      "%zu bucket meshes.\n",
                      lakes.size(), river_segment_offsets.size(), merged);
     }
+}
+
+void RenderSystem::set_path_surface(platform::IRenderer& renderer,
+                                    std::span<const math::PathStation> stations,
+                                    std::span<const uint32_t> route_offsets) {
+    clear_path_surface(renderer);
+    std::vector<PathPiece> pieces = build_path_pieces(stations, route_offsets);
+    // THE TREAD IS RAISED OFF core's PROFILE BY ONE VOXEL. See
+    // PATH_SURFACE_LIFT_M for why, and for why it is a stopgap rather than a
+    // material constant: the ground the player sees is the 1 m voxel surface,
+    // not the height field core flattens the tread into, so at the profile
+    // itself the road is buried under its own ground for most of its length.
+    // DFN_PATH_LIFT overrides it — the measurement hook that produced the
+    // number and the one that will retire it.
+    float lift = PATH_SURFACE_LIFT_M;
+    if (const char* lenv = std::getenv("DFN_PATH_LIFT")) {
+        lift = std::strtof(lenv, nullptr);
+    }
+    if (lift != 0.0f) {
+        for (PathPiece& piece : pieces) {
+            for (platform::Vertex& v : piece.mesh.vertices) {
+                v.position.y += lift;
+            }
+            piece.bounds.min.y += lift;
+            piece.bounds.max.y += lift;
+        }
+    }
+    std::size_t failed = 0;
+    for (const PathPiece& piece : pieces) {
+        if (piece.mesh.vertices.empty() || piece.mesh.indices.empty()) {
+            continue;
+        }
+        const platform::MeshHandle handle =
+            renderer.create_mesh(piece.mesh.vertices, piece.mesh.indices);
+        if (!handle.valid()) {
+            ++failed;
+            continue;
+        }
+        path_meshes_.push_back({handle.id, piece.bounds});
+    }
+    if (failed > 0) {
+        // The silent half of the water crash, not repeated: a path that failed
+        // to upload is a path the player walks down and cannot see.
+        std::fprintf(stderr,
+                     "[render] %zu OF %zu PATH PIECES FAILED TO UPLOAD — that "
+                     "tread is missing from the world.\n",
+                     failed, pieces.size());
+    }
+    if (std::getenv("DFN_MESH_STATS") != nullptr) {
+        std::size_t tris = 0;
+        for (const PathPiece& piece : pieces) {
+            tris += piece.mesh.triangle_count();
+        }
+        std::fprintf(stderr,
+                     "[render] path surface: %zu stations -> %zu pieces, "
+                     "%zu triangles.\n",
+                     stations.size(), path_meshes_.size(), tris);
+    }
+}
+
+void RenderSystem::clear_path_surface(platform::IRenderer& renderer) {
+    for (const WaterBucket& piece : path_meshes_) {
+        renderer.destroy_mesh(platform::MeshHandle{piece.mesh_id});
+    }
+    path_meshes_.clear();
 }
 
 void RenderSystem::clear_water_bodies(platform::IRenderer& renderer) {

@@ -110,6 +110,41 @@ inline constexpr float LOOKDEV_WATER_UV_TILE_M = 24.0f; // meters per texture re
 inline constexpr float LOOKDEV_WATER_EDGE_MARGIN_M = 2.0f;
 
 // Procedural texture assets.
+// §8.1 path surface: how far the tread is raised above core's longitudinal
+// profile, metres.
+//
+// A STOPGAP WITH A DERIVED SIZE, NOT A TUNED ONE — and the reason it exists is
+// worth reading before anyone "cleans it up" to zero.
+//
+// Core flattens the HEIGHT FIELD to the tread and sinks it by
+// PATH_GROOVE_DEPTH, and its own suite measures that a ribbon drawn at the
+// profile clears that field. But the ground the player SEES is not that field:
+// terrain is drawn from the VOXEL surface, whose lattice is VOXEL_SIZE = 1 m.
+// A 0.15 m groove cannot exist on a 1 m lattice, and the extracted surface can
+// stand a whole voxel ABOVE the smooth height — so the tread, drawn where core
+// put it, is buried under its own ground for most of its length. Measured on
+// the forest stand at a lift sweep: 0.00 m showed nothing at all, 0.35 m showed
+// the nearest four metres, and only at ~0.8 m did the road become continuous.
+//
+// The lift is therefore VOXEL_SIZE: one voxel is exactly how far the drawn
+// surface can stand above the field, so it is the smallest value that CANNOT
+// bury the tread, and it is a number that follows the lattice if the lattice
+// ever changes. The cost is that the tread floats by up to a voxel where the
+// surface sits low, which will read at grazing angles.
+//
+// THE REAL FIX IS NOT HERE: the path is a groove in the ground and the drawn
+// ground should carry it. Requested from core — carve the tread into the voxel
+// volume, or expose the drawn surface as a query render can conform to. When
+// either lands this drops to a hair and this comment becomes the history.
+inline constexpr float PATH_SURFACE_LIFT_M = static_cast<float>(config::VOXEL_SIZE);
+
+// §8.1 path surface: tile repeats per METRE of tread (the path mesh's uv is
+// already in metres, so this cannot ride on the terrain's per-CHUNK tiling).
+// Sized from the cobble cell, which is the only one of the four whose element
+// size is a real-world fact: the atlas cell carries 9x9 set stones, and a set
+// stone is ~0.25 m, so one repeat should span ~2.2 m of ground.
+inline constexpr float PATH_TILES_PER_M = 0.45f;
+
 inline constexpr uint32_t LOOKDEV_ATLAS_CELL_PX = 128;
 inline constexpr uint32_t LOOKDEV_WATER_TEX_PX = 128;
 inline constexpr uint32_t LOOKDEV_TEXTURE_SEED = 1337; // visual seed, not worldgen

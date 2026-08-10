@@ -88,7 +88,7 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
                           && std::fabs(ls.y) <= SHADOW_HALF_EXTENT_M + r
                           && std::fabs(ls.z) <= SHADOW_DEPTH_HALF_M + r;
     }
-    if (casts_into_sun_map && !is_transparent) {
+    if (casts_into_sun_map && !is_transparent && !im.non_casting.contains(program.id)) {
         // Cutout casters (leaf cards) punch their mask through the depth map
         // and sway with the SAME wind as the visible geometry — otherwise the
         // canopy casts a solid rectangle, or its shadow stands still while the

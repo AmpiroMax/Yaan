@@ -89,7 +89,7 @@ if(APPLE)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
     foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop
-                   fs_shadow fs_foliage fs_shadow_cutout fs_point_shadow)
+                   fs_shadow fs_foliage fs_shadow_cutout fs_point_shadow fs_path)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()

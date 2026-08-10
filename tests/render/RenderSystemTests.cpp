@@ -63,9 +63,10 @@ TEST_CASE("init uploads the procedural textures once and shutdown releases all")
 
     RenderSystem system;
     REQUIRE(system.init(renderer));
-    // Terrain atlas + water texture + the leaf mask atlas (cached by params —
-    // exactly three since the foliage material path landed).
-    CHECK(renderer.live_textures() == 3);
+    // Terrain atlas + water texture + the leaf mask atlas + the §8.1 path
+    // surface atlas (all cached by params — exactly four since the path splat
+    // landed).
+    CHECK(renderer.live_textures() == 4);
     CHECK_FALSE(system.water_enabled());
 
     system.shutdown(renderer);
@@ -157,10 +158,11 @@ TEST_CASE("scatter upload/drop lifecycle is idempotent per chunk") {
     };
     system.upload_scatter(renderer, {0, 0}, instances);
     const uint32_t after_upload = renderer.live_meshes();
-    // One tree (branch) batch + one leaf-card batch + one micro tile: the
-    // foliage stream is a SECOND mesh per chunk because leaf cards need the
-    // alpha-cutout program and branches do not.
-    CHECK(after_upload == base_meshes + 3);
+    // One wood batch + one card batch, and NO micro tile: routing now asks
+    // flora_owns(), and flora owns the bush, so both instances bake into the
+    // two flora streams. The foliage stream is a SECOND mesh per chunk because
+    // cards need the alpha-cutout program and wood does not.
+    CHECK(after_upload == base_meshes + 2);
 
     system.upload_scatter(renderer, {0, 0}, instances); // replace, no leak
     CHECK(renderer.live_meshes() == after_upload);

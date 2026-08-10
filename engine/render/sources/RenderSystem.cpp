@@ -115,6 +115,7 @@ namespace {
 constexpr uint64_t PROC_KEY_TERRAIN_ATLAS = 0x01;
 constexpr uint64_t PROC_KEY_WATER = 0x02;
 constexpr uint64_t PROC_KEY_LEAF_ATLAS = 0x03;
+constexpr uint64_t PROC_KEY_PATH_ATLAS = 0x04;
 
 uint64_t proc_key(uint64_t kind, uint32_t size, uint32_t seed) {
     return (kind << 56) | (static_cast<uint64_t>(size) << 32) | seed;
@@ -189,6 +190,27 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     prop_program_ = renderer.load_program("prop").id;
     foliage_program_ = renderer.load_program("foliage").id;
     overlay_program_ = renderer.load_program("overlay").id;
+    path_program_ = renderer.load_program("path").id;
+
+    // A LOGICAL PROGRAM THAT FAILS TO LOAD DRAWS NOTHING, SILENTLY. The
+    // backend's submit early-returns on an unknown program id, so a missing
+    // shader looks exactly like geometry that was never built — which is how
+    // an hour goes into hunting a mesher that was correct all along.
+    {
+        const struct { const char* name; uint32_t id; } required[] = {
+            {"terrain", terrain_program_}, {"unlit", unlit_program_},
+            {"water", water_program_},     {"prop", prop_program_},
+            {"foliage", foliage_program_}, {"overlay", overlay_program_},
+            {"path", path_program_},
+        };
+        for (const auto& r : required) {
+            if (r.id == 0) {
+                std::fprintf(stderr,
+                             "[render] PROGRAM \"%s\" FAILED TO LOAD — every draw "
+                             "that uses it is silently dropped.\n", r.name);
+            }
+        }
+    }
 
     // Placeholder site meshes under the lead-blessed RenderMesh ids (1..12:
     // dwelling..tower_ruin, then the castle mass) — chunk streaming attaches
@@ -234,6 +256,15 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             proc_key(PROC_KEY_TERRAIN_ATLAS, LOOKDEV_ATLAS_CELL_PX,
                      LOOKDEV_TEXTURE_SEED),
             LOOKDEV_ATLAS_CELL_PX * 2, LOOKDEV_ATLAS_CELL_PX * 2, atlas.data());
+
+        // The §8.1 path atlas: cell index IS core's PathClass ordinal.
+        const auto path_atlas =
+            generate_path_atlas(LOOKDEV_ATLAS_CELL_PX, LOOKDEV_TEXTURE_SEED);
+        path_atlas_asset_ = procedural_texture_asset(
+            renderer,
+            proc_key(PROC_KEY_PATH_ATLAS, LOOKDEV_ATLAS_CELL_PX,
+                     LOOKDEV_TEXTURE_SEED),
+            LOOKDEV_ATLAS_CELL_PX * 2, LOOKDEV_ATLAS_CELL_PX * 2, path_atlas.data());
 
         ProcTextureDesc water_desc;
         water_desc.kind = ProcTextureKind::WATER;
@@ -419,6 +450,7 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     }
     clear_water(renderer);
     clear_water_bodies(renderer);
+    clear_path_surface(renderer);
     if (overlay_mesh_ != 0) {
         renderer.destroy_mesh(platform::MeshHandle{overlay_mesh_});
         overlay_mesh_ = 0;
@@ -459,12 +491,15 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     next_texture_asset_ = 1;
     renderer.destroy_program(platform::ProgramHandle{terrain_program_});
     renderer.destroy_program(platform::ProgramHandle{unlit_program_});
+    renderer.destroy_program(platform::ProgramHandle{path_program_});
     renderer.destroy_program(platform::ProgramHandle{water_program_});
     renderer.destroy_program(platform::ProgramHandle{prop_program_});
     renderer.destroy_program(platform::ProgramHandle{foliage_program_});
     terrain_program_ = 0;
     unlit_program_ = 0;
     water_program_ = 0;
+    path_program_ = 0;
+    path_atlas_asset_ = 0;
     prop_program_ = 0;
     foliage_program_ = 0;
 }
@@ -543,6 +578,32 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // overlap (a streamed rectangle not aligned to the 128 m node grid) the
     // near, finer surface has already written depth.
     lod_.draw(renderer, frustum, terrain, atlas);
+
+    // The §8.1 PATH SURFACE, drawn after the ground it lies on. Depth alone
+    // would resolve the order (the tread sits PATH_GROOVE_DEPTH proud of the
+    // flattened ground core sank for it), but the LOD nodes above may overlap
+    // the chunk terrain, and a path is the one surface that must never lose
+    // that tie. Never a shadow caster — see NON_CASTING_PROGRAMS.
+    if (!path_meshes_.empty()) {
+        const platform::ProgramHandle path{path_program_};
+        platform::TextureHandle path_atlas{};
+        if (const auto it = texture_cache_.find(path_atlas_asset_);
+            it != texture_cache_.end()) {
+            path_atlas.id = it->second;
+        }
+        // aux0 carries the material's tiles per metre: the path atlas has its
+        // own scale and lives on a mesh whose uv is already in metres, so it
+        // cannot ride on u_terrainTiles (which is per CHUNK).
+        platform::DrawParams params;
+        params.aux0 = PATH_TILES_PER_M;
+        for (const WaterBucket& piece : path_meshes_) {
+            if (!frustum.visible(piece.bounds)) {
+                continue;
+            }
+            renderer.submit(platform::MeshHandle{piece.mesh_id}, path, identity,
+                            path_atlas, params);
+        }
+    }
 
     // Scatter batches (stage 3b): trees always; bush/stone micro tiles only
     // within GRASS_VIEW_DISTANCE of the eye (LANDSCAPE §2.3 micro contract).
