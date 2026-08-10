@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 20:43:18
+Last updated: 10:08:2026 - 21:14:51
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -89,6 +89,7 @@ UPD:
 - 10:08:2026 - 20:20:17: Рука вида от первого лица объявляла меш 32, которого никто никогда не строил, — она рисовалась как НИЧТО с самого дня проводки. Отсутствие теперь объявлено, а не получается случайно; тело и так рисует настоящую правую кисть.
 - 10:08:2026 - 20:25:36: chunks_.update() вынесен ИЗ цикла догоняющих шагов — он вызывался раз на ШАГ, поэтому после медленного кадра догон впускал пять кусков подряд по 83 мс. Задержка на пересечении границы 730 мс → 39.8 мс.
 - 10:08:2026 - 20:43:18: Наклон глаза берётся из СГЛАЖЕННОГО веса походки, а не из передачи: корпус и глаз обязаны наклоняться одним числом, иначе на торможении с бега грудь возвращается.
+- 10:08:2026 - 21:14:51: Меню выключают ВСЕ автоматические двери, а не только тур и плейтест: снимок, зонд тела и восстановление зависали на стартовом экране и фотографировали меню (жалоба пользователя: «они в меню зависают все»).
 */
 
 #include "engine/app/sources/App.h"
@@ -260,9 +261,26 @@ AppConfig AppConfig::from_env() {
             cfg.start_stand = static_cast<uint32_t>(std::strtoul(mp, nullptr, 10));
         }
     }
-    // Tooling never stops at a menu: nobody is there to press Enter, and a
-    // tour that screenshots a menu is a tour that verified nothing.
-    if (std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr) {
+    // TOOLING NEVER STOPS AT A MENU: nobody is there to press Enter, and a tour
+    // that screenshots a menu is a tour that verified nothing.
+    //
+    // THE LIST MUST NAME EVERY AUTOMATED DOOR, and it did not. `DFN_TOUR` and
+    // `DFN_PLAYTEST` were here from the start; `DFN_CAPTURE_AFTER`,
+    // `DFN_BODY_PROBE` and `DFN_MENU_SHOT` were added later and each inherited
+    // the trap -- they run unattended, so they sat on the start screen until the
+    // timer fired and photographed the menu. Every agent shooting frames hit it
+    // at once, which is the tell that this is a LIST that grows rather than a
+    // property of the two names originally on it. The user reported it as
+    // "they all hang in the menu".
+    //
+    // The rule for whoever adds the next door: if it runs without a human, it
+    // belongs in this condition, and the condition is the place to look BEFORE
+    // debugging why a frame is wrong.
+    if (std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
+        || std::getenv("DFN_CAPTURE_AFTER") != nullptr
+        || std::getenv("DFN_BODY_PROBE") != nullptr
+        || std::getenv("DFN_MENU_SHOT") != nullptr
+        || std::getenv("DFN_RESTORE") != nullptr) {
         cfg.show_menu = false;
     }
     if (const char* na = std::getenv("DFN_NULL_AUDIO"); na && na[0] == '1') {
