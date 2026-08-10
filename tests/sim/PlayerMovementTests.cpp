@@ -160,7 +160,11 @@ TEST_CASE("pitch clamps at CAMERA_PITCH_LIMIT in both directions") {
     CHECK(rig.state.pitch == doctest::Approx(-config::CAMERA_PITCH_LIMIT));
 }
 
-TEST_CASE("walk and sprint speeds move exactly one tick's distance") {
+TEST_CASE("gear speeds move exactly one tick's distance") {
+    // UPDATED for the user's three-speed ruling: `run` now means RUN_SPEED,
+    // and the debug sprint moved to its own flag. Before the ruling this case
+    // asserted that `run` produced the DEBUG speed — it went red on the
+    // change, which is the test doing its job rather than a break.
     Rig rig;
     rig.state.move_axes = {0.0f, 1.0f}; // forward; yaw 0 faces -Z
     rig.tick();
@@ -168,16 +172,23 @@ TEST_CASE("walk and sprint speeds move exactly one tick's distance") {
           doctest::Approx(-static_cast<float>(config::WALK_SPEED) * DT).epsilon(EPS));
     CHECK(rig.transform.position.x == doctest::Approx(0.0f));
 
-    // DEBUG CONVENIENCE (user request): the run input sprints at
-    // RUN_SPEED * DEBUG_SPRINT_MULTIPLIER, not RUN_SPEED. Revisit at the
-    // movement/combat grill — RUN_SPEED itself stays the design value.
     const float after_walk = rig.transform.position.z;
-    const float sprint_speed =
-        static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
     rig.state.move_axes = {0.0f, 1.0f};
     rig.state.run = true;
     rig.tick();
     CHECK(rig.transform.position.z - after_walk ==
+          doctest::Approx(-static_cast<float>(config::RUN_SPEED) * DT).epsilon(EPS));
+
+    // DEBUG CONVENIENCE (user request, still live): its own flag now, so it
+    // cannot be confused with the real run gear. Revisit at the movement grill.
+    const float after_run = rig.transform.position.z;
+    const float sprint_speed =
+        static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
+    rig.state.move_axes = {0.0f, 1.0f};
+    rig.state.run = false;
+    rig.state.debug_sprint = true;
+    rig.tick();
+    CHECK(rig.transform.position.z - after_run ==
           doctest::Approx(-sprint_speed * DT).epsilon(EPS));
     CHECK(sprint_speed > static_cast<float>(config::RUN_SPEED)); // guard the multiplier
 }

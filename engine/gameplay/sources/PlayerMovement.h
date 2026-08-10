@@ -44,6 +44,15 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 12:08:26: THREE GEARS (user ruling): WALK 1.8 / JOG 3.0 / RUN
+                         6.0 + the debug sprint on its own flag. New `Gait`
+                         enum on PlayerState — THE one gait decision, which
+                         character reads for clip selection instead of
+                         re-deriving it from speeds (Rule 35). Default gear is
+                         WALK: with only a walk clip in the engine, every gear
+                         above it saturates the clip's swing cap and slides
+                         (jog 31%, run 60%) — revisit when the flight-phase
+                         clips land.
 - 10:08:2026 - 11:06:41: Eye moved onto the FACE (PLAYER_EYE_FORWARD): the eye
                          point is now capsule bottom + PLAYER_EYE_HEIGHT +
                          facing * PLAYER_EYE_FORWARD. Consumers deriving from
@@ -97,6 +106,19 @@ namespace dfn::gameplay {
 
 // How the player is moving right now. Derived every tick from water depth and
 // the crouch key; never set directly.
+// The three gears the user ruled for (WALK/JOG/RUN rows). THE ONE GAIT
+// DECISION: character selects locomotion clips from this field rather than
+// re-deriving it by comparing speed against the rows, so a gait can never be
+// two different things in two zones (Rule 35 — the defect this project spent
+// a morning on was exactly two copies of one quantity).
+// The DEBUG sprint reports Run: it is Run's gait at an absurd speed, not a
+// fourth gait, and it is scheduled to disappear at the movement grill.
+enum class Gait : uint8_t {
+    Walk = 0, // WALK_SPEED — a strolling walk; the default gear
+    Jog = 1,  // JOG_SPEED — the old "walk", named for what it always was
+    Run = 2,  // RUN_SPEED (and the debug sprint)
+};
+
 enum class Locomotion : uint8_t {
     Ground = 0, // walking, running, falling — gravity applies
     Wade = 1,   // standing in shallow water: ground rules, reduced speed
@@ -112,7 +134,15 @@ struct PlayerState {
     float vertical_velocity = 0.0f; // m/s (gravity integration)
     glm::vec2 pending_look{0.0f};   // pixels accumulated since the last fixed tick
     glm::vec2 move_axes{0.0f};      // x = +strafe right, y = +forward; each in [-1, 1]
-    bool run = false;
+
+    // Gear selection. Default (no modifier) is WALK: with only a walk clip in
+    // the engine today, every gear above it slides badly, so the default is
+    // the one gear that looks right — revisit when character's flight-phase
+    // clips land. `run` keeps its name (Shift) for the callers that set it.
+    bool jog = false;           // LEFT_ALT
+    bool run = false;           // LEFT_SHIFT
+    bool debug_sprint = false;  // RIGHT_SHIFT — debug only, user-requested
+    Gait gait = Gait::Walk;     // resolved each tick; read by character
 
     // Jump: LATCHED like pending_look, not sampled. Render outpaces the fixed
     // tick, so a press and release inside one tick would otherwise be lost —

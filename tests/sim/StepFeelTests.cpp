@@ -200,6 +200,57 @@ TEST_CASE("stationary means flat: zero bob, zero events — the rejected floatin
     CHECK(max_y < EYE + 1e-4f);
 }
 
+TEST_CASE("three gears: the default is a walk, and each modifier is its own speed") {
+    // The user's ruling: WALK 1.8 / JOG 3.0 / RUN 6.0. The DEFAULT is walk,
+    // because it is the only gear whose clip matches the ground it covers
+    // until character's flight-phase clips land.
+    struct Gear {
+        bool jog, run, sprint;
+        float speed;
+        gameplay::Gait gait;
+    };
+    const Gear gears[] = {
+        {false, false, false, static_cast<float>(config::WALK_SPEED), gameplay::Gait::Walk},
+        {true, false, false, static_cast<float>(config::JOG_SPEED), gameplay::Gait::Jog},
+        {false, true, false, static_cast<float>(config::RUN_SPEED), gameplay::Gait::Run},
+        {false, false, true,
+         static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER),
+         gameplay::Gait::Run},
+    };
+    for (const Gear& g : gears) {
+        auto rig = make_null_rig();
+        rig.state.move_axes = {0.0f, 1.0f};
+        rig.state.jog = g.jog;
+        rig.state.run = g.run;
+        rig.state.debug_sprint = g.sprint;
+        const glm::vec3 from = rig.transform.position;
+        rig.tick();
+        const float moved = glm::length(rig.transform.position - from) / DT;
+        CHECK(moved == doctest::Approx(g.speed).epsilon(0.01));
+        CHECK(rig.state.gait == g.gait);
+    }
+
+    // The gears are DISTINCT — a mapping that collapsed two of them would pass
+    // every individual case above (Rule 30: the control is the confusion).
+    CHECK(static_cast<float>(config::WALK_SPEED) < static_cast<float>(config::JOG_SPEED));
+    CHECK(static_cast<float>(config::JOG_SPEED) < static_cast<float>(config::RUN_SPEED));
+
+    // THE DEBUG SPRINT STILL WORKS. The user asked for it by name and uses it;
+    // it merely moved off the key the third gear needed.
+    CHECK(static_cast<float>(config::DEBUG_SPRINT_MULTIPLIER) > 1.0f);
+
+    // Crouch outranks every gear: no jogging while duck-walking.
+    auto crouch_rig = make_null_rig();
+    crouch_rig.state.move_axes = {0.0f, 1.0f};
+    crouch_rig.state.run = true;
+    crouch_rig.state.crouch_held = true;
+    const glm::vec3 from = crouch_rig.transform.position;
+    crouch_rig.tick();
+    CHECK(glm::length(crouch_rig.transform.position - from) / DT ==
+          doctest::Approx(static_cast<float>(config::CROUCH_SPEED)).epsilon(0.01));
+    CHECK(crouch_rig.state.gait == gameplay::Gait::Walk);
+}
+
 TEST_CASE("footfall carries the surface class underfoot and the wading flag") {
     auto rig = make_null_rig();
     rig.step.surface_class_at = [](glm::vec2) {

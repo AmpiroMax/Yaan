@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 02:23:05
+Last updated: 10:08:2026 - 12:08:26
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -41,6 +41,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 02:23:05: v1 per PLAYTEST.md.
+- 10:08:2026 - 12:08:26: FOOT SLIP invariant (the instrument the movement
+                         ruling asked for): a planted foot must not travel.
+                         Slip is a MOTION artifact, so no still frame can show
+                         it. Feet arrive through a callback seam (unbound =
+                         skipped, never silently passing); bound by character.
+                         Bot also picks its gear through the same modifiers a
+                         player's keys set.
 */
 
 #pragma once
@@ -55,6 +62,7 @@ UPD:
 #include <glm/vec3.hpp>
 
 #include "engine/gameplay/sources/Dice.h"
+#include "engine/gameplay/sources/PlayerMovement.h" // Gait (the one gait decision)
 
 namespace dfn::ecs {
 class World;
@@ -74,6 +82,10 @@ struct PlaytestConfig {
     bool loop_waypoints = false;      // patrol: wrap instead of finishing
     float duration_seconds = 300.0f;  // 0 with patrol = once through the list
     uint64_t seed = 1;
+    // Which gear the bot walks in. Walk is the default because it is the gait
+    // whose clip matches the ground it covers; a slip run wants this, while a
+    // coverage soak may prefer Jog.
+    Gait gait = Gait::Walk;
     glm::vec2 world_min{0.0f};        // explorer target bounds (world x/z)
     glm::vec2 world_max{0.0f};
     float soak_radius = 20.0f;        // metres around the spawn
@@ -86,6 +98,16 @@ struct PlaytestIncident {
     std::string detail;
 };
 
+// One tick's view of the feet, supplied by character's rig (world space).
+// `planted` is true exactly while that foot is in STANCE — touch-down to
+// toe-off — which after the knee fix means the two overlap in double support.
+struct FootSample {
+    glm::vec3 left{0.0f};
+    glm::vec3 right{0.0f};
+    bool left_planted = false;
+    bool right_planted = false;
+};
+
 // What the checks need from the world, bound app-side (Rule 34: the truth
 // lives with its owner — heights and water come from core's queries).
 struct PlaytestCheckEnv {
@@ -94,6 +116,10 @@ struct PlaytestCheckEnv {
     std::function<std::optional<float>(glm::vec2)> water_drawn;    // seen water
     float world_floor_y = -100.0f; // below EVERYTHING legitimate (app derives)
     float deep_margin = 60.0f;     // covers the deepest legitimate carve
+    // FOOT SLIP (the instrument the movement ruling asked for): world-space
+    // feet + stance flags. Unbound = the check is skipped, so this costs
+    // nothing until character binds it. A planted foot must not travel.
+    std::function<std::optional<FootSample>()> foot_sample;
 };
 
 struct PlaytestState {
@@ -117,6 +143,17 @@ struct PlaytestState {
     bool stuck_reported = false;
     glm::vec3 last_position{0.0f};
     bool has_last_position = false;
+
+    // Foot-slip bookkeeping: where each foot touched down, and whether this
+    // stance episode has already been reported (one finding per stance, not
+    // one per tick).
+    glm::vec3 left_anchor{0.0f};
+    glm::vec3 right_anchor{0.0f};
+    bool left_was_planted = false;
+    bool right_was_planted = false;
+    bool left_slip_reported = false;
+    bool right_slip_reported = false;
+    double worst_slip_m = 0.0; // reported in the summary even when under bound
 
     // Frame statistics (render frames, wall-clock — not deterministic, not
     // meant to be; the summary reports them, the budget invariant gates).

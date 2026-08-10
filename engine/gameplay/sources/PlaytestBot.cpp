@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 02:23:05
+Last updated: 10:08:2026 - 12:08:26
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -29,6 +29,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 02:23:05: v1 per PLAYTEST.md.
+- 10:08:2026 - 12:08:26: FOOT SLIP invariant (the instrument the movement
+                         ruling asked for): a planted foot must not travel.
+                         Slip is a MOTION artifact, so no still frame can show
+                         it. Feet arrive through a callback seam (unbound =
+                         skipped, never silently passing); bound by character.
+                         Bot also picks its gear through the same modifiers a
+                         player's keys set.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -42,6 +49,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
+#include "engine/gameplay/sources/StepFeel.h" // step_length: the slip bound scales with the stride
 
 namespace dfn::gameplay {
 
@@ -63,6 +71,13 @@ constexpr float WATER_MISMATCH_TOLERANCE = 0.05f; // m: sub-ankle
 constexpr float FRAME_BUDGET_SECONDS = 0.050f;    // three 60 Hz frames = a felt hitch
 constexpr float SPEED_BOUND_MARGIN = 1.2f;        // legal gait + 20 %
 constexpr uint64_t INCIDENT_COOLDOWN_TICKS = 120; // one finding per 2 s episode
+// FOOT SLIP tolerance. A planted foot should not travel at all — the world
+// moves under it — so the bound is perceptual rather than physical: slip below
+// ~5% of a step length is not seen. Derived from the rows so it tracks a
+// retune: at WALK_SPEED the clip's residual is 0.8%, which leaves real margin
+// (Rule 30: the threshold sits above the accepted case and below the rejected
+// one — the 31% that WAS shipped for hours is the rejected instance).
+constexpr float SLIP_TOLERANCE_FRACTION = 0.05f;
 // The fastest legal gait: the debug sprint (a real key a real player holds).
 const float MAX_LEGAL_SPEED =
     static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
@@ -197,7 +212,11 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
         // Walk when roughly facing the target; turn in place otherwise.
         state.move_axes = std::abs(delta) < 0.5f * PI ? glm::vec2{0.0f, 1.0f}
                                                       : glm::vec2{0.0f, 0.0f};
-        state.run = false;
+        // The bot drives the SAME gear modifiers a player's keys set, so the
+        // gait it walks in goes through the one gear-resolution path.
+        state.jog = pt.config.gait == Gait::Jog;
+        state.run = pt.config.gait == Gait::Run;
+        state.debug_sprint = false; // never: the debug gear is not a playtest
 
         // --- Occasional jumps (explorer) and the stuck-retry jump.
         pt.jump_cooldown_seconds = std::max(0.0f, pt.jump_cooldown_seconds - DT);
@@ -292,6 +311,44 @@ size_t playtest_check(PlaytestState& pt, ecs::World& world,
         pt.last_position = pos;
         pt.has_last_position = true;
 
+        // foot_slip — A PLANTED FOOT MUST NOT TRAVEL. This is the instrument
+        // the movement ruling asked for: foot slide is a MOTION artifact, so
+        // no still frame can show it and only a per-tick check catches it.
+        // Unbound callback = skipped, not silently passing.
+        if (env.foot_sample) {
+            if (const auto feet = env.foot_sample()) {
+                const float bound =
+                    SLIP_TOLERANCE_FRACTION * step_length(state.stride_speed);
+                const auto watch = [&](bool planted, const glm::vec3& now,
+                                       glm::vec3& anchor, bool& was, bool& reported,
+                                       const char* which) {
+                    if (planted && !was) {
+                        anchor = now; // touch-down: remember where it landed
+                        reported = false;
+                    } else if (planted && !reported) {
+                        const glm::vec2 drift{now.x - anchor.x, now.z - anchor.z};
+                        const float slipped = glm::length(drift);
+                        pt.worst_slip_m = std::max(pt.worst_slip_m,
+                                                   static_cast<double>(slipped));
+                        if (slipped > bound) {
+                            reported = true;
+                            new_incidents +=
+                                record(pt, "foot_slip", pos,
+                                       std::string(which) + " foot slid "
+                                           + std::to_string(slipped * 1000.0f)
+                                           + " mm while planted (bound "
+                                           + std::to_string(bound * 1000.0f) + " mm)");
+                        }
+                    }
+                    was = planted;
+                };
+                watch(feet->left_planted, feet->left, pt.left_anchor,
+                      pt.left_was_planted, pt.left_slip_reported, "left");
+                watch(feet->right_planted, feet->right, pt.right_anchor,
+                      pt.right_was_planted, pt.right_slip_reported, "right");
+            }
+        }
+
         // water_mismatch — seen water vs swum water at the player column.
         if (env.water_analytic && env.water_drawn) {
             const auto truth = env.water_analytic(xz);
@@ -343,7 +400,12 @@ void playtest_write_artifacts(const PlaytestState& pt, const std::string& run_di
     }
     summary << "distance_walked_m " << pt.distance_walked << '\n'
             << "sim_seconds " << pt.sim_seconds << '\n'
-            << "ticks " << pt.tick << '\n';
+            << "ticks " << pt.tick << '\n'
+            << "gait " << static_cast<int>(pt.config.gait) << '\n'
+            // Reported even when no incident fired: "how close did we get" is
+            // the number that shows a retune drifting toward visibility long
+            // before it crosses the bound.
+            << "worst_foot_slip_mm " << pt.worst_slip_m * 1000.0 << '\n';
     if (pt.frame_count > 0) {
         const double mean = pt.frame_dt_sum / static_cast<double>(pt.frame_count);
         summary << "frames " << pt.frame_count << '\n'

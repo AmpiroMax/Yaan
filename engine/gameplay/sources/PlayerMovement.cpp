@@ -23,6 +23,12 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
+- 10:08:2026 - 12:08:26: Three gears wired (WALK/JOG/RUN + debug sprint) with
+                         gait resolved in ONE place. Debug sprint moved from
+                         LEFT_SHIFT to RIGHT_SHIFT so the third gear could have
+                         a key; it keeps a dedicated key rather than a chord
+                         because the user asked for it and uses it. Input
+                         mapping is provisional pending character's ack.
 - 10:08:2026 - 11:06:41: THE EYE SITS ON THE FACE (PLAYER_EYE_FORWARD 0.10):
                          the camera stood on the capsule axis, inside the
                          body's chest box, so looking down filled the frame
@@ -75,11 +81,15 @@ namespace {
 constexpr float DT = static_cast<float>(config::SIM_DT);
 constexpr float GRAVITY = static_cast<float>(config::GRAVITY);
 constexpr float WALK_SPEED = static_cast<float>(config::WALK_SPEED);
-// DEBUG CONVENIENCE (user request, 09:08:2026): Shift sprints at
+constexpr float JOG_SPEED = static_cast<float>(config::JOG_SPEED);
+constexpr float RUN_SPEED = static_cast<float>(config::RUN_SPEED);
+// DEBUG CONVENIENCE (user request, 09:08:2026): RIGHT_SHIFT sprints at
 // RUN_SPEED * DEBUG_SPRINT_MULTIPLIER = 30 m/s so the valley can be crossed in
 // seconds while it is being built out. RUN_SPEED itself stays the game-design
 // value (6 m/s) and must not be touched. REVISIT at the movement/combat grill —
-// this must NOT ship as the release feel.
+// this must NOT ship as the release feel. It moved off LEFT_SHIFT when the
+// third gear arrived; it keeps a dedicated key rather than a chord because the
+// user asked for it explicitly and uses it.
 constexpr float SPRINT_SPEED =
     static_cast<float>(config::RUN_SPEED * config::DEBUG_SPRINT_MULTIPLIER);
 constexpr float MOUSE_SENSITIVITY = static_cast<float>(config::MOUSE_SENSITIVITY);
@@ -172,8 +182,15 @@ void accumulate_input(const platform::IInput& input, PlayerState& state) {
         axes.x -= 1.0f;
     }
     state.move_axes = axes;
-    state.run = input.is_down(platform::Key::LEFT_SHIFT) ||
-                input.is_down(platform::Key::RIGHT_SHIFT);
+    // THREE GEARS (the user's ruling). Default is WALK — no modifier — because
+    // it is the only gear whose animation currently matches the ground it
+    // covers; jog and run saturate the clip's swing cap until their own
+    // flight-phase clips exist. Shift stays "go faster"; the debug sprint keeps
+    // its own key rather than a chord.
+    state.jog = input.is_down(platform::Key::LEFT_ALT) ||
+                input.is_down(platform::Key::RIGHT_ALT);
+    state.run = input.is_down(platform::Key::LEFT_SHIFT);
+    state.debug_sprint = input.is_down(platform::Key::RIGHT_SHIFT);
 
     // Jump LATCHES rather than being sampled. Render runs faster than the fixed
     // tick, so a press and release inside one tick would be sampled as "not
@@ -305,8 +322,25 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
             displacement.y += std::clamp(error, -SWIM_SPEED * DT, SWIM_SPEED * DT);
         }
     } else {
-        float speed = state.crouched ? CROUCH_SPEED
-                                     : (state.run ? SPRINT_SPEED : WALK_SPEED);
+        // Gear resolution, once, here — the single place a gait is decided
+        // (character reads state.gait rather than re-deriving it). Crouch
+        // overrides every gear: you cannot jog while duck-walking.
+        float speed = WALK_SPEED;
+        state.gait = Gait::Walk;
+        if (state.debug_sprint) {
+            speed = SPRINT_SPEED;
+            state.gait = Gait::Run; // debug speed, Run's gait
+        } else if (state.run) {
+            speed = RUN_SPEED;
+            state.gait = Gait::Run;
+        } else if (state.jog) {
+            speed = JOG_SPEED;
+            state.gait = Gait::Jog;
+        }
+        if (state.crouched) {
+            speed = CROUCH_SPEED;
+            state.gait = Gait::Walk;
+        }
         if (state.locomotion == Locomotion::Wade) {
             speed *= WADE_FACTOR; // water drags, even when you can still stand
         }

@@ -184,6 +184,62 @@ TEST_CASE("water mismatch: a skewed drawn surface fires, the honest one does not
     CHECK(mismatch); // a metre of visible-but-unswimmable water is a finding
 }
 
+TEST_CASE("foot slip: a dragging planted foot fires, a still one does not") {
+    // THE INSTRUMENT THE MOVEMENT RULING ASKED FOR, with its own control.
+    // Slip is a MOTION artifact — no still frame can show it — so the check is
+    // per-tick, and it is tested here with a synthetic rig rather than waiting
+    // for character's clips: the checker must be known-good BEFORE it is
+    // pointed at real feet, or a silent check reads exactly like a clean run.
+    gameplay::PlaytestConfig cfg;
+    cfg.mode = gameplay::BotMode::Soak;
+
+    SUBCASE("a foot held still while planted is silent (30a: a case that CAN pass)") {
+        PlaytestRig rig(cfg);
+        rig.env.foot_sample = []() {
+            return std::optional<gameplay::FootSample>{
+                gameplay::FootSample{{1.0f, 0.0f, 2.0f}, {1.2f, 0.0f, 2.0f}, true, false}};
+        };
+        for (int i = 0; i < 120; ++i) {
+            rig.tick();
+        }
+        for (const auto& inc : rig.pt.incidents) {
+            CHECK(inc.invariant != "foot_slip");
+        }
+        CHECK(rig.pt.worst_slip_m < 1e-6); // and it measured, rather than skipped
+    }
+
+    SUBCASE("a foot dragged while planted fires") {
+        PlaytestRig rig(cfg);
+        // Drags 1 mm per tick: after ~60 ticks it has slid 6 cm, past the 5%
+        // bound. This is the shape of the real defect — the clip plants the
+        // foot and the body walks out from under it.
+        static float drag = 0.0f;
+        drag = 0.0f;
+        rig.env.foot_sample = []() {
+            drag += 0.001f;
+            return std::optional<gameplay::FootSample>{
+                gameplay::FootSample{{1.0f + drag, 0.0f, 2.0f}, {1.2f, 0.0f, 2.0f},
+                                     true, false}};
+        };
+        bool fired = false;
+        for (int i = 0; i < 200 && !fired; ++i) {
+            rig.tick();
+            for (const auto& inc : rig.pt.incidents) {
+                fired |= inc.invariant == "foot_slip";
+            }
+        }
+        CHECK(fired);
+    }
+
+    SUBCASE("an unbound foot sampler skips the check rather than passing it") {
+        PlaytestRig rig(cfg); // env.foot_sample left unbound
+        for (int i = 0; i < 60; ++i) {
+            rig.tick();
+        }
+        CHECK(rig.pt.worst_slip_m == 0.0); // nothing measured, nothing claimed
+    }
+}
+
 TEST_CASE("artifacts: the writers produce the log and the summary") {
     gameplay::PlaytestConfig cfg;
     cfg.mode = gameplay::BotMode::Soak;
