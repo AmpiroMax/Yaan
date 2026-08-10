@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:32:21
+Last updated: 10:08:2026 - 23:51:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -95,6 +95,7 @@ UPD:
 - 10:08:2026 - 21:41:45: Карта грузится из данных, а не вкомпилирована: 441 строка обзора ОДНОЙ игры уезжает из движка. Отказ загрузки — фатален, потому что откат к вкомпилированным значениям дал бы почти правильный мир, которого никто не искал бы.
 - 10:08:2026 - 22:37:21: THE CROUCH FERRY (character's carve): crouch_eye travels back the same way the lean does, so the camera and the posed body agree on how deep a squat is. Plus the two halves of a crouched RESTORE that never worked -- the snapshot's `crouched` is applied and HELD (accumulate_input rewrites it from a keyboard nobody is at), and the feet are derived with the crouch offset instead of the standing eye height.
 - 10:08:2026 - 23:32:21: Настройка msaa в settings.cfg рядом с разрешением и палитрой: это то, что остановило рябь на линии леса, и понижать её — зрительная регрессия, а не только производительность. Неверное значение отвергается ГРОМКО.
+- 10:08:2026 - 23:51:30: Клавиши по запросу пользователя: 1 — вид от третьего лица (стоя мышь вращает камеру ВОКРУГ персонажа и он не поворачивается, в движении камера встаёт за спину), 2 — отладочный экран, 3 — снимок состояния. F2/F3 оставлены псевдонимами, иначе все записанные рецепты съёмки стали бы неверными. В третьем лице возвращается голова — в первом она скрыта намеренно.
 */
 
 #include "engine/app/sources/App.h"
@@ -1506,10 +1507,33 @@ int App::run() {
         // The capture is deferred to AFTER render() so the .png and the sidecar
         // describe the same frame; capturing here would save the state of frame
         // N next to the image of frame N-1.
-        if (input_->was_pressed(platform::Key::F3)) {
+        // USER-CHOSEN KEYS (his request): 1 third person, 2 the debug readout,
+        // 3 the state capture. F3/F2 stay as aliases -- they are in the frames
+        // and recipes already archived, and silently moving a key would make
+        // every recipe on disk wrong.
+        if (input_->was_pressed(platform::Key::NUM_1)) {
+            third_person_ = !third_person_;
+            orbit_yaw_ = 0.0f;
+            orbit_pitch_ = 0.0f;
+            // THE HEAD COMES BACK IN THIRD PERSON. It is hidden in first person
+            // because the camera sits inside the skull; from behind, a headless
+            // body is the first thing he would report, and it would read as a
+            // missing mesh rather than as a deliberate first-person choice.
+            if (auto* rig = world_.get<anim::BodyRig>(player_)) {
+                rig->hide_head = !third_person_;
+                const auto head = rig->segments[anim::bone_index(anim::Bone::Head)];
+                if (auto* rm = world_.get<components::RenderMesh>(head)) {
+                    rm->mesh_asset = third_person_
+                        ? anim::body_segment_mesh_id(anim::Bone::Head) : 0u;
+                }
+            }
+        }
+        if (input_->was_pressed(platform::Key::NUM_2)
+            || input_->was_pressed(platform::Key::F3)) {
             debug_overlay_ = !debug_overlay_;
         }
-        if (input_->was_pressed(platform::Key::F2)) {
+        if (input_->was_pressed(platform::Key::NUM_3)
+            || input_->was_pressed(platform::Key::F2)) {
             capture_pending_ = true;
         }
         // TOOLING DOOR for the same capture (DFN_CAPTURE_AFTER=<seconds>):
@@ -1588,7 +1612,42 @@ int App::run() {
         }
 
         if (!playtest_) {
-            gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
+            // THIRD-PERSON ORBIT (his request, and the Skyrim rule he named):
+            // standing still, the mouse swings the camera AROUND the character
+            // and the character does not turn; moving, the camera locks behind
+            // him. Implemented by withholding the look from sim for those
+            // frames rather than by reaching into their look code -- the app
+            // owns which input reaches the simulation, and this keeps the
+            // character's own yaw the single authority on where he faces.
+            bool orbiting = false;
+            if (third_person_) {
+                if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    orbiting = ps->stride_speed < 0.15f; // still, not "not running"
+                }
+            }
+            if (orbiting) {
+                const glm::vec2 d = input_->mouse_delta();
+                const float sens = static_cast<float>(config::MOUSE_SENSITIVITY);
+                orbit_yaw_ += d.x * sens;
+                orbit_pitch_ = std::clamp(orbit_pitch_ - d.y * sens, -1.2f, 1.2f);
+                // Sim's accumulate runs normally so movement keys still reach
+                // it -- he can walk out of an orbit without letting go of the
+                // mouse -- and then the LOOK it banked is dropped. Clearing the
+                // latch rather than adding a sim entry point keeps this the
+                // app's decision about which input reaches the simulation,
+                // which is the composition root's job (Rule 22), and leaves
+                // sim's look code with exactly one caller and one meaning.
+                gameplay::player_accumulate_input(world_, *input_);
+                if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    ps->pending_look = glm::vec2{0.0f};
+                }
+            } else {
+                // Locked behind: the offset decays rather than snapping, so
+                // starting to walk does not whip the camera.
+                orbit_yaw_ *= 0.85f;
+                orbit_pitch_ *= 0.85f;
+                gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
+            }
         }
 
         // THE WORLD PAUSES WHILE THE INVENTORY IS OPEN (в70: "инвентарь как в
@@ -1812,8 +1871,31 @@ int App::run() {
         const auto* pose = world_.get<components::CameraPose>(player_);
         const auto* prev_pose = world_.get<components::PreviousCameraPose>(player_);
         if (pose != nullptr && prev_pose != nullptr) {
-            camera_.set_poses({prev_pose->position, prev_pose->yaw, prev_pose->pitch},
-                              {pose->position, pose->yaw, pose->pitch});
+            // THIRD PERSON: the eye pulls back along the orbit direction. The
+            // character's own yaw is untouched -- the camera moves, he does not
+            // turn -- which is what makes standing-still orbiting read right.
+            if (third_person_) {
+                const float y0 = prev_pose->yaw + orbit_yaw_;
+                const float y1 = pose->yaw + orbit_yaw_;
+                const float p0 = prev_pose->pitch + orbit_pitch_;
+                const float p1 = pose->pitch + orbit_pitch_;
+                const auto back = [](float yaw, float pitch, glm::vec3 eye) {
+                    const float cp = std::cos(pitch);
+                    const glm::vec3 fwd{std::sin(yaw) * cp, std::sin(pitch),
+                                        -std::cos(yaw) * cp};
+                    // Distance and lift are debug-view framing, not world
+                    // constants: this view exists so a human can watch the body
+                    // (his stated reason -- «полезно для дебага»), so it is
+                    // sized to hold the whole figure with headroom rather than
+                    // derived from anything.
+                    return eye - fwd * 3.2f + glm::vec3{0.0f, 0.55f, 0.0f};
+                };
+                camera_.set_poses({back(y0, p0, prev_pose->position), y0, p0},
+                                  {back(y1, p1, pose->position), y1, p1});
+            } else {
+                camera_.set_poses({prev_pose->position, prev_pose->yaw, prev_pose->pitch},
+                                  {pose->position, pose->yaw, pose->pitch});
+            }
             // Speed-coupled FOV (sim writes fov_scale at fixed tick; the app
             // interpolates and applies -- default 1.0 changes nothing).
             const float fs = prev_pose->fov_scale

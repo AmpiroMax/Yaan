@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:32:21
+Last updated: 10:08:2026 - 23:51:30
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -50,6 +50,7 @@ UPD:
 - 10:08:2026 - 21:26:54: Поля признака тишины мира для затвора тура.
 - 10:08:2026 - 22:37:21: hold_crouch_ -- a restored crouch survives the live keyboard, which is what makes an automated capture at full crouch possible at all (character's carve).
 - 10:08:2026 - 23:32:21: Поле msaa_samples в настройках.
+- 10:08:2026 - 23:51:30: Поля третьего лица и орбиты камеры.
 */
 
 #pragma once
@@ -148,7 +149,13 @@ private:
     [[nodiscard]] DebugSnapshot collect_snapshot(float alpha);
     void write_capture(const DebugSnapshot& snap);
     void apply_restore(const DebugSnapshot& snap);
-    bool debug_overlay_ = false;    // F3
+    // THIRD PERSON (key 1), his request: a debug view from behind. Standing
+    // still the mouse orbits the camera and the body does NOT turn; moving, the
+    // camera locks behind him -- the Skyrim behaviour he named.
+    bool third_person_ = false;
+    float orbit_yaw_ = 0.0f;
+    float orbit_pitch_ = 0.0f;
+    bool debug_overlay_ = false;    // key 2 (F3 alias)
     bool capture_pending_ = false;  // F2, serviced after render()
     FrameClock frame_clock_{};
     int captures_written_ = 0;
