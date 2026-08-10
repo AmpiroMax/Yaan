@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 10:55:03
+Last updated: 10:08:2026 - 19:45:47
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -57,6 +57,27 @@ UPD:
 - 10:08:2026 - 10:55:03: BR-6 find layer built on the FINISHED ground (macro + erosion
   + path flattening) — occlusion siting against terrain that does not ship is
   siting against nothing.
+- 10:08:2026 - 19:45:47: THE DRAWN GROUND AND THE PLACED GROUND WERE TWO
+  GROUNDS. generate_chunk carried its own copy of the pass stack, and when the
+  forest stand's branch (LF-8 erosion, then the path flatten) landed in
+  terrain_height, the copy was never told: everything PLACED read
+  terrain_height, everything DRAWN and COLLIDED came from the heightmap written
+  here. Measured on stand 0, chunk (1,2): stored heightmap minus placed field
+  -1.5000..+1.5028 m (the erosion overlay's own clamp, appearing verbatim, which
+  is the control) plus a further +0.166 m median on every path tread (exactly
+  PATH_GROOVE_DEPTH -- the groove was not in the drawn world at all), and the
+  worst tread clearance against the drawn surface -0.663 m. Fixed by extracting
+  compose_passes() as the ONE statement of what the finished ground is; both
+  terrain_height and generate_chunk call it, the second passing the water sample
+  it already has so no macro evaluation is added. After: heightmap agrees with
+  the placed field to +-0.0031 m (one quantization step), worst tread clearance
+  +0.100 m, median +0.146 m against a 0.15 m groove. Rule 35's state clause --
+  two copies drift whether they are numbers or passes.
+  NOT A VOXEL DEFECT: VOXEL_SIZE 1.0 m vs PATH_GROOVE_DEPTH 0.15 m was the
+  standing diagnosis and it was wrong. Surface nets reproduces the height field
+  to +-0.03 m on open ground; a vertex-snap refinement of the extractor was
+  written, measured against the un-refined arm, found identical to four decimals
+  and DROPPED rather than shipped as a fix for nothing.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -282,20 +303,32 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
     return ctx;
 }
 
-float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
-    const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
+namespace {
+
+/// THE PASS STACK — the ONE place that says what the finished ground is.
+/// `carved` is the water-carve result (`water_at(...).height` and
+/// `carve_height(...)` are the same call by construction), passed in so a
+/// caller that already has it does not recompute the macro field.
+float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro, float carved) {
     if (ctx.params.layout.stand == StandId::Forest) {
-        // The stand's own pass stack: P1 + LF-8 erosion. No water carve, no
-        // entrance works, no pads — that stand declares none of them, and
-        // running their no-ops here would only invite one to stop being a
-        // no-op unnoticed.
+        // The stand's own pass stack: P1 + LF-8 erosion + the path flatten.
+        // No water carve, no entrance works, no pads — that stand declares
+        // none of them, and running their no-ops here would only invite one to
+        // stop being a no-op unnoticed.
         const float eroded = macro + ctx.erosion.sample(world);
         return std::clamp(eroded + ctx.paths.flatten_at(world, eroded), 0.0f, MAX_HEIGHT_M);
     }
-    const float carved = carve_height(ctx.hydrology, ctx.params.layout, world, macro);
     const float worked = entrance_works_height(ctx.sites, world, carved);
     const float padded = pads_height(ctx.sites, world, worked);
     return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
+}
+
+} // namespace
+
+float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
+    const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
+    return compose_passes(ctx, world, macro,
+                          carve_height(ctx.hydrology, ctx.params.layout, world, macro));
 }
 
 float terrain_slope(const WorldGenContext& ctx, glm::vec2 world) {
@@ -385,12 +418,21 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
         for (uint32_t x = 0; x < RESOLUTION; ++x) {
             const glm::vec2 world = world_at(x, z);
             const std::size_t i = static_cast<std::size_t>(z) * RESOLUTION + x;
-            water[i] = water_at(ctx.hydrology, layout, world,
-                                macro_height(ctx.params.seed, layout, world));
-            final_h[i] = std::clamp(
-                pads_height(ctx.sites, world,
-                            entrance_works_height(ctx.sites, world, water[i].height)),
-                0.0f, MAX_HEIGHT_M);
+            const float macro = macro_height(ctx.params.seed, layout, world);
+            water[i] = water_at(ctx.hydrology, layout, world, macro);
+            // THE PASS STACK HAS ONE COPY (compose_passes), and this is why.
+            // It used to be spelled out here as well, and when the forest
+            // stand's branch (LF-8 erosion, then the path flatten) landed in
+            // terrain_height, THIS copy was not told. The result was two
+            // different grounds: everything PLACED by height read
+            // terrain_height, and everything DRAWN and COLLIDED came from the
+            // heightmap written here — measured on stand 0 as the stored
+            // heightmap standing -1.50..+1.50 m off the placed field (exactly
+            // the erosion overlay's clamp, which is the control) plus a further
+            // +0.166 m median on every path tread (exactly PATH_GROOVE_DEPTH).
+            // Rule 35's state clause: two copies drift whether they are numbers
+            // or passes.
+            final_h[i] = compose_passes(ctx, world, macro, water[i].height);
         }
     }
     // pass B: quantize + classify. Slope uses the grid where the +-STEP

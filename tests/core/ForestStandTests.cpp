@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 12:15:37
+Last updated: 10:08:2026 - 19:45:47
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -89,6 +89,15 @@ UPD:
   it proves is still worth proving — but it does not prove the road is visible,
   and anything placed by HEIGHT and drawn against the VOXEL surface inherits
   the same gap.
+- 10:08:2026 - 19:45:47: The tread-clearance case now proves the RIGHT object:
+  a new case measures the tread against the surface actually drawn (chunk
+  heightmap -> voxel volume -> surface nets), with the pre-pass field -- the
+  ground this stand shipped this morning -- as a control that FAILS it (worst
+  -0.287 m vs +0.100 m, median -0.006 m vs +0.146 m). Writing that control
+  exposed a second defect in both cases: Approx(x).epsilon(0.25) is not a +-25%
+  band, doctest's tolerance is eps*(scale + max|lhs|,|rhs|) with scale 1.0, so
+  the band around 0.15 was -0.14..+0.44 m and a BURIED tread passed it. Both
+  replaced with explicit bounds.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -100,6 +109,8 @@ UPD:
 #include "engine/core/math/sources/FloraField.h"
 #include "engine/world/sources/WorldgenScatter.h"
 #include "engine/world/sources/WorldgenVantages.h"
+#include "engine/world/sources/VoxelMesh.h"
+#include "engine/world/sources/VoxelVolume.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1041,29 +1052,10 @@ TEST_CASE("the render handoff carries the whole network and nothing invented") {
     // it z-fights along its whole length. Measured, not asserted from the
     // formula — the formula is what could be wrong.
     //
-    // AND THIS ASSERTION IS TRUE OF THE WRONG SURFACE. OPEN DEFECT, render's
-    // finding (10.08.2026), kept green DELIBERATELY because what it proves is
-    // still worth proving — but it does not prove the road is visible.
-    //
-    // The ground the player SEES is the VOXEL surface, and VOXEL_SIZE is 1.0 m
-    // against a PATH_GROOVE_DEPTH of 0.15 m. A groove 15% of a voxel deep
-    // CANNOT EXIST on that lattice, and the extracted surface stands up to a
-    // whole voxel above the height field — so on the drawn world the tread is
-    // buried under its own ground for most of its length. Render measured it by
-    // a lift sweep on this stand: 0.00 m showed nothing, 0.35 m showed four
-    // metres of road, ~0.8 m made it continuous. They ship a VOXEL_SIZE lift as
-    // a hair, at the cost of the tread floating at grazing angles.
-    //
-    // THE FIX IS CORE'S AND IT IS NOT A NUMBER: carve the tread into the VOXEL
-    // VOLUME as well as the height field, or expose the drawn surface as a
-    // query render can conform to. Either retires their constant.
-    //
-    // THE GENERAL SHAPE, which is the part worth carrying: ANYTHING PLACED BY
-    // HEIGHT AND DRAWN AGAINST THE VOXEL SURFACE INHERITS THIS. Scatter has
-    // survived it only because a tree is 10 m tall and a metre of sink does not
-    // read; the 0.15 m groove is simply the first thing thin enough to vanish
-    // entirely. The §5.11 ground cover placed this session — moss patches,
-    // pebbles — is the next thinnest thing in the world.
+    // This is the clearance against the PLACED field. The clearance against the
+    // ground the player actually SEES is a separate and, until 10.08.2026, a
+    // failing claim — see "the drawn ground is the placed ground" below, which
+    // is the assertion that proves the road is visible.
     float worst_clearance = 1e9f;
     for (const world::PathRoute& r : c.paths.routes) {
         for (std::size_t k = 1; k + 1 < r.points.size(); ++k) {
@@ -1073,8 +1065,118 @@ TEST_CASE("the render handoff carries the whole network and nothing invented") {
     }
     INFO("worst tread-above-ground clearance ", worst_clearance, " m");
     CHECK(worst_clearance > 0.0f);
-    CHECK(worst_clearance
-          == doctest::Approx(static_cast<float>(config::PATH_GROOVE_DEPTH)).epsilon(0.25));
+    // Explicit bounds. This was Approx(GROOVE).epsilon(0.25), which sounds like
+    // +-25% and is not: doctest's tolerance is eps*(scale + max|lhs|,|rhs|)
+    // with scale 1.0, so the band was -0.14..+0.44 m and a buried tread passed
+    // it. Same idiom, same file, same change (Rule 32).
+    CHECK(worst_clearance > static_cast<float>(config::PATH_GROOVE_DEPTH) * 0.75f);
+    CHECK(worst_clearance < static_cast<float>(config::PATH_GROOVE_DEPTH) * 1.25f);
+}
+
+TEST_CASE("the drawn ground IS the placed ground, and the pre-pass field is the control") {
+    // THE OBJECT UNDER TEST IS THE SURFACE THE PLAYER SEES (Rule 38: assert the
+    // outcome). Everything this engine places — the tread, moss, pebbles, every
+    // scatter root — is placed by terrain_height(); everything drawn and
+    // collided comes out of the chunk heightmap, through the voxel volume, out
+    // of surface nets. Those were two different grounds on this stand until
+    // 10.08.2026, because generate_chunk carried its own copy of the pass stack
+    // and the copy was never told about LF-8 erosion or the path flatten.
+    //
+    // Measured then, on chunk (1,2), 116 stations: worst tread clearance
+    // against the DRAWN surface -0.663 m (the road buried two thirds of a metre
+    // under its own ground), median drawn-minus-placed on open ground
+    // -0.56..+0.81 m at the 1st/99th percentile and +-1.5 m at the extremes,
+    // which is the erosion overlay's own clamp appearing verbatim.
+    //
+    // NOT a voxel-lattice defect: VOXEL_SIZE 1.0 m against PATH_GROOVE_DEPTH
+    // 0.15 m was the plausible mechanism and it was wrong. Surface nets
+    // reconstructs the height field to +-0.03 m on open ground (arm measured
+    // with a vertex-snap refinement in and out — identical to 4 decimal places,
+    // so the refinement was dropped rather than shipped as a fix for nothing).
+    const world::WorldGenContext& c = forest();
+    const auto CHUNK = static_cast<float>(config::CHUNK_SIZE);
+    const ChunkCoord cc{1, 2}; // the chunk carrying the most path stations (163)
+
+    // The drawn surface, as a query: the highest upward-facing extracted vertex
+    // within half a metre of a point. Half a metre because a 1 m lattice puts
+    // 1-4 vertices in that disc, and what buries a ribbon is the HIGHEST of
+    // them, not their average.
+    const auto drawn_surface = [&](const world::VoxelMeshData& m, glm::vec2 q) {
+        float top = -1e9f;
+        for (std::size_t i = 0; i < m.positions.size(); ++i) {
+            if (m.normals[i].y <= 0.0f) continue;
+            const glm::vec3& v = m.positions[i];
+            const float dx = v.x - q.x;
+            const float dz = v.z - q.y;
+            if (dx * dx + dz * dz > 0.36f) continue;
+            top = std::max(top, v.y);
+        }
+        return top;
+    };
+    // Worst and median tread clearance over the stations inside `cc`, against
+    // whatever ground `mesh` describes. AGGREGATION AND DENOMINATOR, named:
+    // the denominator is the stations of this chunk, interior ones only (a
+    // route endpoint is a goal marker, not a tread), and the two aggregations
+    // are the minimum and the median over them.
+    const auto tread_clearance = [&](const world::VoxelMeshData& mesh) {
+        std::vector<float> cl;
+        for (const world::PathRoute& r : c.paths.routes) {
+            for (std::size_t k = 1; k + 1 < r.points.size(); ++k) {
+                const glm::vec2 q = r.points[k];
+                if (static_cast<int>(std::floor(q.x / CHUNK)) != cc.x) continue;
+                if (static_cast<int>(std::floor(q.y / CHUNK)) != cc.z) continue;
+                const float top = drawn_surface(mesh, q);
+                if (top < -1e8f) continue;
+                cl.push_back(r.heights[k] - top);
+            }
+        }
+        REQUIRE(cl.size() > 50);
+        return std::pair<float, float>{*std::min_element(cl.begin(), cl.end()), median(cl)};
+    };
+
+    const world::Chunk chunk = world::generate_chunk(c, cc);
+    const auto shipped_height = [&](glm::vec2 w) { return world::terrain_height(c, w); };
+    const world::VoxelMeshData drawn = world::extract_surface_nets(
+        world::build_voxel_volume(chunk, shipped_height, c.params.layout));
+    // EXPLICIT BOUNDS, NOT Approx().epsilon(). doctest's epsilon is not a
+    // relative band: its tolerance is eps * (scale + max|lhs|,|rhs|) with scale
+    // defaulting to 1.0, so ".epsilon(0.25)" against 0.15 admits anything from
+    // -0.14 to +0.44 m — it would have accepted a tread buried 14 cm under the
+    // ground, which is most of the defect this case exists to reject. Found by
+    // the control below passing when it had to fail.
+    const auto GROOVE = static_cast<float>(config::PATH_GROOVE_DEPTH);
+    const auto [worst, mid] = tread_clearance(drawn);
+    INFO("drawn-surface tread clearance: worst ", worst, " m, median ", mid, " m");
+    CHECK(worst > 0.0f);
+    CHECK(mid > GROOVE * 0.75f);
+    CHECK(mid < GROOVE * 1.25f);
+
+    // THE CONTROL IS THE REAL REJECTED INSTANCE (Rule 30): the ground this
+    // stand actually shipped this morning — macro + erosion, with the path
+    // flatten missing, which is precisely what generate_chunk used to write.
+    // It must FAIL the assertion above, and it must fail it on the tread
+    // rather than by being a different terrain: away from the paths this field
+    // and the shipped one are the same field.
+    world::Chunk uncarved = chunk;
+    const auto prepath_height = [&](glm::vec2 w) {
+        return world::macro_height(c.params.seed, c.params.layout, w) + c.erosion.sample(w);
+    };
+    const auto RES = static_cast<uint32_t>(config::HEIGHTMAP_RESOLUTION);
+    const auto STEP = static_cast<float>(config::HEIGHTMAP_STEP);
+    for (uint32_t z = 0; z < RES; ++z) {
+        for (uint32_t x = 0; x < RES; ++x) {
+            const glm::vec2 w{static_cast<float>(cc.x) * CHUNK + static_cast<float>(x) * STEP,
+                              static_cast<float>(cc.z) * CHUNK + static_cast<float>(z) * STEP};
+            uncarved.heightmap.samples[static_cast<std::size_t>(z) * RES + x] =
+                world::quantize_height(prepath_height(w));
+        }
+    }
+    const world::VoxelMeshData control = world::extract_surface_nets(
+        world::build_voxel_volume(uncarved, prepath_height, c.params.layout));
+    const auto [c_worst, c_mid] = tread_clearance(control);
+    INFO("control (no path flatten) clearance: worst ", c_worst, " m, median ", c_mid, " m");
+    CHECK(c_worst < 0.0f);
+    CHECK_FALSE(c_mid > GROOVE * 0.75f);
 }
 
 TEST_CASE("the stand publishes vantages, and every claim ships with its control") {
