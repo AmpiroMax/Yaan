@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 11:59:55
+Last updated: 10:08:2026 - 12:11:07
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -74,6 +74,12 @@ UPD:
   not a measurement, so the claim asserted is design's actual ruling — the
   margin ORDERS by maintenance, hint-path > dirt > cobble > 0 — and the gap is
   reported rather than papered over.
+- 10:08:2026 - 12:11:07: BR-3 measured against a real denominator at last —
+  same-set, design's ruled reading (65655b2): margin 0.1077/m2 vs wood
+  0.000730/m2, ratio 148. Logged, with the ORDERING clause as the gate, which
+  is design's ruling and flora's recommendation. Plus the one-dimension-per-row
+  invariant, whose §5.12 arm records the apron's three consumerless rows as a
+  NAMED GAP so "the apron is done" cannot be inferred from a green run.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1655,4 +1661,114 @@ TEST_CASE("the two invariants that came off clump_field_edged() (flora's, now co
     }
     INFO("zero-field discriminating cases exercised: ", zero_field_cases);
     CHECK(zero_field_cases >= 100); // Rule 30a: the case must be REACHABLE
+}
+
+TEST_CASE("§5.11: a rule row states its density in exactly one dimension") {
+    // per_100m is a count per 100 LINEAR metres; per_m2 is areal. A row with
+    // BOTH is a row two passes each believe they own, and the symptom is a
+    // doubled density nobody can attribute to either. Never both is the hard
+    // invariant; the wired habitats must additionally have ONE.
+    int wired = 0, apron = 0;
+    for (std::size_t k = 0; k < math::FLORA_EDGE_RULE_COUNT; ++k) {
+        const math::FloraEdgeRule& r = math::FLORA_EDGE_RULES[k];
+        INFO("rule ", k, " per_100m ", r.per_100m, " per_m2 ", r.per_m2);
+        CHECK_FALSE((r.per_100m > 0.0f && r.per_m2 > 0.0f));
+        if (r.habitat == math::EdgeHabitat::TalusApron) {
+            // §5.12 IS NOT BUILT. These rows carry no density in either
+            // dimension and that is a NAMED GAP, not an exemption — recorded
+            // here so "the apron is done" cannot be inferred from a green run.
+            ++apron;
+            continue;
+        }
+        if (!r.common_scatter) {
+            continue; // the jewel: a placement BUDGET, not a density
+        }
+        ++wired;
+        CHECK((r.per_100m > 0.0f) != (r.per_m2 > 0.0f));
+    }
+    CHECK(wired >= 8);
+    CHECK(apron == 3); // §5.12: three rows, no consumer, no density
+}
+
+TEST_CASE("§5.11: the forest floor carries cover, and BR-3 finally has a denominator") {
+    const FloorCensus& c = floor_census();
+    const world::WorldGenContext& ctx = forest();
+    const auto is_cover = [](math::ScatterSpecies s) {
+        return static_cast<int>(s) >= static_cast<int>(math::ScatterSpecies::MossPatch)
+            && static_cast<int>(s) <= static_cast<int>(math::ScatterSpecies::PebbleCluster);
+    };
+
+    int off_path = 0, in_band = 0;
+    int moss_off = 0, mush_off = 0;
+    for (const auto& i : c.all) {
+        if (!is_cover(i.species)) continue;
+        const glm::vec2 p{i.position.x, i.position.z};
+        const float e = ctx.paths.sample(p).dist_from_worn_edge;
+        if (e >= 0.0f && e <= 4.0f) {
+            ++in_band;
+            continue;
+        }
+        ++off_path;
+        if (i.species == math::ScatterSpecies::MossPatch) ++moss_off;
+        if (i.species == math::ScatterSpecies::Mushroom) ++mush_off;
+    }
+    // The denominator EXISTS now — that is the whole point of this pass.
+    CHECK(off_path > 0);
+    CHECK(moss_off > 0);
+    CHECK(mush_off > 0);
+
+    // Eligible area for the areal rows, through the placement's own predicate.
+    const uint64_t seed = ctx.params.seed;
+    const auto& lay = ctx.params.layout;
+    int hits = 0, total = 0;
+    for (float z = 2.0f; z < static_cast<float>(config::TESTBED_SIZE); z += 4.0f) {
+        for (float x = 2.0f; x < static_cast<float>(config::TESTBED_SIZE); x += 4.0f) {
+            ++total;
+            if (world::in_forest_interior(seed, lay, {x, z})) ++hits;
+        }
+    }
+    const float side = static_cast<float>(config::TESTBED_SIZE);
+    const float eligible_ha =
+        side * side / 10000.0f * static_cast<float>(hits) / static_cast<float>(total);
+    const float moss_ha = static_cast<float>(moss_off) / eligible_ha;
+    const float mush_ha = static_cast<float>(mush_off) / eligible_ha;
+    // FLORA AUTHORED 40/ha AND 20/ha AS *BASE* DENSITIES — before the clump
+    // field, which is design's composition order and which flora states
+    // outright for the mushroom row ("rings with most of the wood bare, which
+    // is the intent"). So the REALISED figures are below the authored ones by
+    // the field's own mean, and the same is true of the ShadeOfTrunk anchor
+    // gate. The bound checked is therefore the AUTHORED CEILING plus a floor
+    // that a collapsed gate would breach; the realised numbers are reported to
+    // flora rather than asserted to a value nobody has ruled.
+    INFO("realised moss ", moss_ha, "/ha (authored base 40), mushroom ", mush_ha,
+         "/ha (authored base 20), over ", eligible_ha, " ha of forest interior");
+    CHECK(moss_ha <= 40.0f * 1.05f);
+    CHECK(mush_ha <= 20.0f * 1.05f);
+    // MEASURED 10.08.2026: moss 6.09/ha, mushroom 1.61/ha — i.e. the authored
+    // base times the clump field's own mean (0.152 and 0.081), which is the
+    // composition order working and is why the floors below sit well under the
+    // authored ceilings rather than near them. Reported to flora; if either
+    // number is meant to be POST-clump, these are the figures that say so.
+    CHECK(moss_ha > 3.0f);
+    CHECK(mush_ha > 0.8f);
+    // Moss outnumbers mushrooms, as the authored rows say (40 vs 20) — and by
+    // more than that, since the mushroom field is the tightest in the set.
+    CHECK(moss_ha > mush_ha);
+
+    // DESIGN'S RULED READING (65655b2): same-set denominator — the numerator
+    // counts edge species, so the denominator counts edge species too. Logged,
+    // not gated: design demoted the ratio to a floor and made the ORDERING the
+    // formal gate, on flora's finding that a world clearing the bar by 2-10x
+    // is describing itself rather than testing itself.
+    const float off_density = static_cast<float>(off_path) / (side * side);
+    float band_area = 0.0f;
+    for (const world::PathRoute& r : ctx.paths.routes) {
+        for (std::size_t i = 0; i + 1 < r.points.size(); ++i) {
+            band_area += glm::length(r.points[i + 1] - r.points[i]) * 4.0f * 2.0f;
+        }
+    }
+    const float band_density = static_cast<float>(in_band) / band_area;
+    INFO("BR-3 same-set: margin ", band_density, "/m2 vs wood ", off_density,
+         "/m2, ratio ", band_density / std::max(off_density, 1e-9f));
+    CHECK(band_density > off_density * static_cast<float>(config::RICH_EDGE_RATIO));
 }

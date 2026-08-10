@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:59:55
+Last updated: 10:08:2026 - 12:11:07
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -49,6 +49,14 @@ UPD:
   and per_100m normalised by the ramp's own integral. The field term is
   max(clump, edge x richness), a FLOOR and not a product: written as a product
   the swept classes' margins go to exactly zero, which the suite now fails on.
+- 10:08:2026 - 12:11:07: scatter_forest_ground() — BR-3's DENOMINATOR. The first
+  cut sampled positions and asked "is there a trunk within reach", which is the
+  anchor question read backwards and is off by the odds of asking it: at 44
+  stems/ha a random point has a trunk within 3 m ~13% of the time, so an
+  authored 40/ha placed 0.82/ha. No reach tuning fixes that — the STRUCTURE was
+  wrong. Flora derived the density FROM the stem count, so the loop is over
+  stems, with for_cells_margin so a trunk over the border still dresses into
+  this chunk.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -314,6 +322,23 @@ struct ScatterCtx {
     }
 
     /// Iterates lattice cells of size `cell` overlapping the chunk.
+    /// for_cells with `rings` extra cells of margin: for ANCHORED classes,
+    /// whose instance is offset from a parent that may sit in a neighbouring
+    /// cell. The instance's RESOLVED position still decides which chunk owns
+    /// it, so borders stay half-open and nothing is placed twice.
+    template <typename Fn> void for_cells_margin(float cell, int rings, Fn&& fn) const {
+        const int64_t gx0 = static_cast<int64_t>(std::floor(chunk_min.x / cell)) - rings;
+        const int64_t gx1 = static_cast<int64_t>(std::floor((chunk_max.x - 0.001f) / cell)) + rings;
+        const int64_t gz0 = static_cast<int64_t>(std::floor(chunk_min.y / cell)) - rings;
+        const int64_t gz1 = static_cast<int64_t>(std::floor((chunk_max.y - 0.001f) / cell)) + rings;
+        for (int64_t gz = gz0; gz <= gz1; ++gz) {
+            for (int64_t gx = gx0; gx <= gx1; ++gx) {
+                fn(gx, gz, glm::vec2{static_cast<float>(gx) * cell,
+                                     static_cast<float>(gz) * cell});
+            }
+        }
+    }
+
     template <typename Fn> void for_cells(float cell, Fn&& fn) const {
         const int64_t gx0 = static_cast<int64_t>(std::floor(chunk_min.x / cell));
         const int64_t gx1 = static_cast<int64_t>(std::floor((chunk_max.x - 0.001f) / cell));
@@ -608,6 +633,93 @@ void scatter_path_edges(ScatterCtx& ctx) {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// §5.11 THE FOREST FLOOR'S GROUND COVER — BR-3's DENOMINATOR
+//
+// This pass exists because a measurement had nothing to divide by. BR-3 claims
+// the margin is richer than THE GROUND, and the ground carried no ground cover
+// at all, so the first acceptance read a ratio of ~27000 and could not fail.
+// The cause was dimensional: flora's ForestFloor rows carried per_100m = 0,
+// and per_100m is a count per 100 LINEAR metres — a forest floor is not a
+// linear feature, so the rows had 0 by default rather than by decision. Flora
+// authored the areal figures with derivations (spec §3.13); they are placed
+// here.
+//
+// TREATED AS BASE DENSITIES, i.e. BEFORE the clump field, which is design's
+// composition order and is what flora states outright for the mushroom row
+// ("mushrooms carry the tightest field in the set, so the realised world shows
+// rings with most of the wood bare — which is the intent"). The moss row does
+// not say so either way, and I have applied the SAME treatment rather than
+// invent a per-row exception: one rule, measured, reported back.
+// ---------------------------------------------------------------------------
+
+/// Ground cover on the forest floor: the §5.11 rows whose habitat is areal.
+///
+/// ANCHORED CLASSES ITERATE THEIR ANCHORS. The first cut sampled positions on
+/// a lattice and asked "is there a trunk within reach", which is the same
+/// sentence read backwards and is off by the odds of the question: at 44
+/// stems/ha a random point has a trunk within 3 m about 13% of the time, so
+/// 40/ha placed 0.82/ha — a 49x shortfall that no amount of tuning the reach
+/// would have fixed, because the structure was wrong rather than the number.
+/// Flora derived this density FROM the stem count (44 stems/ha x ~2/3 carrying
+/// a basal patch), so the loop has to be over stems. Their own conversion says
+/// so out loud: 40/ha / 44 stems/ha ~= 0.9 patches per trunk.
+void scatter_forest_ground(ScatterCtx& ctx) {
+    // §A7's associative grammar: an anchored class sits ON the shade azimuth of
+    // its neighbour, TOUCHING it. North is -Z in this world's convention, and
+    // the offset is a trunk-radius-ish 0.6 m so the patch reads as growing at
+    // the base rather than as a decal dropped nearby.
+    constexpr float ANCHOR_TOUCH_M = 0.6f;
+    const float spacing = static_cast<float>(config::TREE_SPACING_FOREST_MIN
+                                             + config::TREE_SPACING_FOREST_MAX) * 0.5f;
+
+    for (std::size_t k = 0; k < math::FLORA_EDGE_RULE_COUNT; ++k) {
+        const math::FloraEdgeRule& rule = math::FLORA_EDGE_RULES[k];
+        if (rule.habitat != math::EdgeHabitat::ForestFloor || !rule.common_scatter
+            || rule.per_m2 <= 0.0f) {
+            continue;
+        }
+        // ONE TRUNK PER LATTICE CELL, so the expected instances per trunk is
+        // the areal density times the cell's area — derived, so a change to
+        // TREE_SPACING_FOREST moves it rather than leaving a stale per-anchor
+        // constant behind.
+        const float per_anchor = rule.per_m2 * spacing * spacing;
+        // Cells one ring out too: a trunk just over the border dresses into
+        // this chunk, and reading the instance list back would drop exactly
+        // those and leave a seam of bare trunks along every chunk edge.
+        ctx.for_cells_margin(spacing, 1, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+            WorldGenRng trunk_rng = cell_rng(ctx.seed, STREAM_SCATTER_TREE + 0, gx, gz);
+            const glm::vec2 trunk =
+                corner + glm::vec2{trunk_rng.next_float01(), trunk_rng.next_float01()} * spacing;
+            // THE SAME acceptance chain the trunk pass applies, CALLED and not
+            // restated, so a rejected trunk cannot be dressed.
+            if (!in_oak(ctx.layout, trunk) || in_clearing(ctx.seed, ctx.layout, trunk)) return;
+            if (!ctx.tree_ok(trunk, TREE_WATER_MARGIN, OAK_MAX_H)) return;
+
+            WorldGenRng rng =
+                cell_rng(ctx.seed, STREAM_SCATTER_EDGE + 32u + static_cast<uint32_t>(k), gx, gz);
+            const glm::vec2 p = trunk + glm::vec2{0.0f, -ANCHOR_TOUCH_M};
+            // Composition order, minus the edge term this habitat has none of
+            // (a forest floor has no worn edge to be a margin of):
+            // base x clump x exclusions.
+            const float field =
+                rule.clump_applies
+                  ? math::clump_field(rule.clump, p, static_cast<uint32_t>(ctx.seed))
+                  : 1.0f;
+            if (rng.next_float01() >= per_anchor * field) return;
+            if (!ctx.inside_chunk(p)) return; // the RESOLVED position picks the owner
+            if (!ctx.dry_enough(p, 0.5f) || ctx.on_pad(p) || ctx.near_entrance(p)) return;
+            // Off the margin: that band is the OTHER rule's ground, and an
+            // instance inside it would be counted by BR-3's numerator having
+            // been placed by its denominator.
+            if (ctx.paths.sample(p).dist_from_worn_edge < ctx.paths.rich_edge_band_m) return;
+            ctx.add(p, rule.species, rng.next_float01() * TAU,
+                    0.8f + rng.next_float01() * 0.4f);
+        });
+    }
+}
+
 /// Forest trees: per-species lattice; oak fills its rects, pine its annulus
 /// and strip; birch lines the banks (§5.1-§5.3).
 void scatter_trees(ScatterCtx& ctx) {
@@ -894,6 +1006,7 @@ std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLay
     scatter_entrance_markers(ctx);
     scatter_forest_floor(ctx);
     scatter_path_edges(ctx);
+    scatter_forest_ground(ctx);
     return out;
 }
 

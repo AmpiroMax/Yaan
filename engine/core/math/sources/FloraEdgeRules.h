@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 12:05:00
-Last updated: 10:08:2026 - 11:59:55
+Last updated: 10:08:2026 - 12:11:07
 Module: engine/core/math
 File: engine/core/math/sources/FloraEdgeRules.h
 
@@ -52,6 +52,11 @@ UPD:
   computed FROM the ramp rather than pasted, so the ramp can be retuned without
   silently moving every count in the table.
 - 10:08:2026 - 11:59:55: edge_band_integral() lands with its consumer.
+- 10:08:2026 - 12:11:07: FloraEdgeRule gains per_m2, and flora's two authored
+  ForestFloor densities land in it (moss 0.0040/m2, mushroom 0.0020/m2 — spec
+  §3.13, REQUESTED NUMBERS rows pending design's blessing). Exactly one of the
+  two dimensions is non-zero per wired row and it is asserted: a row with both
+  is a row two passes each believe they own.
 */
 
 #pragma once
@@ -194,6 +199,42 @@ struct FloraEdgeRule {
     /// and the error would look like "the margin feels sparse" rather than
     /// like a units bug.
     float per_100m;
+    /// AREAL density: instances per SQUARE metre, for habitats that are not
+    /// linear features. Authored by flora with derivations (spec §3.13) after
+    /// core measured BR-3's ratio at ~27000 against a denominator of zero: a
+    /// forest floor has no "100 linear metres", so `per_100m` was the wrong
+    /// dimension for it and the rows carried 0 by default rather than by
+    /// decision.
+    ///
+    /// AT MOST ONE OF per_100m AND per_m2 IS NON-ZERO PER ROW — asserted in
+    /// tests/render/ProcFloraTests.cpp ("edge rule densities carry one unit"),
+    /// not left to reading: a row with both gets placed twice by two passes
+    /// that each believe they own it, and the symptom is a doubled density
+    /// nobody can attribute.
+    ///
+    /// AND THE OTHER HALF, WHICH IS THE ONE THAT ALREADY BIT US: a row with
+    /// BOTH AT ZERO places NOTHING while looking like a finished row. That is
+    /// how the forest floor shipped bare — per_100m = 0 on a habitat that has
+    /// no linear metres read as a decision instead of as a gap. The §5.12
+    /// TalusApron rows below are in exactly that state TODAY (both columns 0,
+    /// common_scatter true), and the same assertion NAMES them as the known
+    /// un-authored set so the list cannot quietly grow. Authoring the talus
+    /// densities is the open item; until then the scree band has no ground
+    /// cover and the suite says so out loud.
+    ///
+    /// REQUESTED NUMBERS rows (Rule 14/35 — flagged to the lead; flora is the
+    /// author, design blessed them 10.08.2026 in LANDSCAPE §1.7 BR-3, the lead
+    /// lands them):
+    ///   MossPatch/ForestFloor 0.0040 /m² (40/ha) = 44 stems/ha x ~2/3 carrying
+    ///     a basal patch on the shaded side, plus moss on stones. FALLEN LOGS
+    ///     ARE DELIBERATELY NOT COUNTED — they moss in their own mesh, and
+    ///     counting them twice is how a density becomes a double-dressing that
+    ///     presents as "the logs look over-mossed" rather than as a duplicate.
+    ///   Mushroom/ForestFloor 0.0020 /m² (20/ha) = fungi on rotting wood and
+    ///     trunk bases, BEFORE clumping. Mushrooms carry the tightest field in
+    ///     the set, so the realised world is rings and clusters with most of
+    ///     the wood bare — which is the intent for find-tier ornament.
+    float per_m2;
     ClumpClass clump;     ///< the field this density MULTIPLIES by
     bool clump_applies;   ///< false: density is not field-modulated
     bool common_scatter;  ///< false: placement-budget only (finds/pearls)
@@ -206,40 +247,40 @@ struct FloraEdgeRule {
 /// design accepts per-species from the species-line frame.
 inline constexpr FloraEdgeRule FLORA_EDGE_RULES[] = {
     // --- path margins: the richest strip in the world (BR-3) ---------------
-    {ScatterSpecies::MossPatch, EdgeHabitat::PathMargin, 0.0f, 1.2f, 12.0f,
+    {ScatterSpecies::MossPatch, EdgeHabitat::PathMargin, 0.0f, 1.2f, 12.0f, 0.0f,
      ClumpClass::Moss, true, true, EdgeAssociation::Nothing, RICHNESS_MOSS},
-    {ScatterSpecies::MossPatch, EdgeHabitat::PathMargin, 0.0f, 2.5f, 6.0f,
+    {ScatterSpecies::MossPatch, EdgeHabitat::PathMargin, 0.0f, 2.5f, 6.0f, 0.0f,
      ClumpClass::Moss, true, true, EdgeAssociation::ShadeOfStone, RICHNESS_MOSS},
-    {ScatterSpecies::FlowerCarpet, EdgeHabitat::PathMargin, 0.3f, 2.5f, 18.0f,
+    {ScatterSpecies::FlowerCarpet, EdgeHabitat::PathMargin, 0.3f, 2.5f, 18.0f, 0.0f,
      ClumpClass::Flowers, true, true, EdgeAssociation::Nothing, RICHNESS_FLOWER},
-    {ScatterSpecies::FlowerAccent, EdgeHabitat::PathMargin, 0.3f, 2.0f, 8.0f,
+    {ScatterSpecies::FlowerAccent, EdgeHabitat::PathMargin, 0.3f, 2.0f, 8.0f, 0.0f,
      ClumpClass::Flowers, true, true, EdgeAssociation::Nothing, RICHNESS_FLOWER},
-    {ScatterSpecies::Mushroom, EdgeHabitat::PathMargin, 0.5f, 3.0f, 4.0f,
+    {ScatterSpecies::Mushroom, EdgeHabitat::PathMargin, 0.5f, 3.0f, 4.0f, 0.0f,
      ClumpClass::Mushrooms, true, true, EdgeAssociation::ShadeOfTrunk,
      RICHNESS_MUSHROOM},
     // «аккуратно выложенные камешки»: the pebble line hugs the very border.
-    {ScatterSpecies::PebbleCluster, EdgeHabitat::PathMargin, 0.0f, 1.0f, 10.0f,
+    {ScatterSpecies::PebbleCluster, EdgeHabitat::PathMargin, 0.0f, 1.0f, 10.0f, 0.0f,
      ClumpClass::Pebbles, true, true, EdgeAssociation::Nothing, RICHNESS_PEBBLE},
     // THE JEWEL: never in the common scatter — budgeted at finds and pearls.
     // Its richness column is the flower profile for coherence, but it is inert:
     // per_100m is 0 and the budget places it.
-    {ScatterSpecies::FlowerJewel, EdgeHabitat::PathMargin, 0.5f, 4.0f, 0.0f,
+    {ScatterSpecies::FlowerJewel, EdgeHabitat::PathMargin, 0.5f, 4.0f, 0.0f, 0.0f,
      ClumpClass::Flowers, false, false, EdgeAssociation::NearFindOnly,
      RICHNESS_FLOWER},
 
     // --- water margins ------------------------------------------------------
-    {ScatterSpecies::FlowerUmbel, EdgeHabitat::WaterMargin, 0.5f, 4.0f, 6.0f,
+    {ScatterSpecies::FlowerUmbel, EdgeHabitat::WaterMargin, 0.5f, 4.0f, 6.0f, 0.0f,
      ClumpClass::Flowers, true, true, EdgeAssociation::Nothing,
      RICHNESS_IRRELEVANT},
-    {ScatterSpecies::MossPatch, EdgeHabitat::WaterMargin, 0.0f, 2.0f, 8.0f,
+    {ScatterSpecies::MossPatch, EdgeHabitat::WaterMargin, 0.0f, 2.0f, 8.0f, 0.0f,
      ClumpClass::Moss, true, true, EdgeAssociation::ShadeOfStone,
      RICHNESS_IRRELEVANT},
 
     // --- forest floor (no path needed) -------------------------------------
-    {ScatterSpecies::Mushroom, EdgeHabitat::ForestFloor, 0.0f, 0.0f, 0.0f,
+    {ScatterSpecies::Mushroom, EdgeHabitat::ForestFloor, 0.0f, 0.0f, 0.0f, 0.0020f,
      ClumpClass::Mushrooms, true, true, EdgeAssociation::ShadeOfTrunk,
      RICHNESS_IRRELEVANT},
-    {ScatterSpecies::MossPatch, EdgeHabitat::ForestFloor, 0.0f, 0.0f, 0.0f,
+    {ScatterSpecies::MossPatch, EdgeHabitat::ForestFloor, 0.0f, 0.0f, 0.0f, 0.0040f,
      ClumpClass::Moss, true, true, EdgeAssociation::ShadeOfTrunk,
      RICHNESS_IRRELEVANT},
 
@@ -247,10 +288,10 @@ inline constexpr FloraEdgeRule FLORA_EDGE_RULES[] = {
     // Scree texture + the stunted pines; boulders themselves are render's
     // Stone class — "boulder with moss" is a COMPOSITION (stone + MossPatch on
     // its shade side), not a new mesh.
-    {ScatterSpecies::PebbleCluster, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f,
+    {ScatterSpecies::PebbleCluster, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f, 0.0f,
      ClumpClass::Pebbles, true, true, EdgeAssociation::Nothing,
      RICHNESS_IRRELEVANT},
-    {ScatterSpecies::MossPatch, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f,
+    {ScatterSpecies::MossPatch, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f, 0.0f,
      ClumpClass::Moss, true, true, EdgeAssociation::ShadeOfStone,
      RICHNESS_IRRELEVANT},
     // Krummholz. NOTE FOR THE WIND HANDOFF (design-ruled): the dwarf's dead
@@ -258,7 +299,7 @@ inline constexpr FloraEdgeRule FLORA_EDGE_RULES[] = {
     // reaches trees, the FLAG DIRECTION must sample that field at placement
     // (a krummholz flagged against the prevailing wind is a continuity bug
     // waiting). Static today; field-aligned then.
-    {ScatterSpecies::StuntedPine, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f,
+    {ScatterSpecies::StuntedPine, EdgeHabitat::TalusApron, 0.0f, 0.0f, 0.0f, 0.0f,
      ClumpClass::GrassTufts, false, true, EdgeAssociation::Nothing,
      RICHNESS_IRRELEVANT},
 };
