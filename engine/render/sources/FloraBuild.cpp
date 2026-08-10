@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 09:08:2026 - 23:48:30
+Last updated: 10:08:2026 - 20:15:51
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -31,6 +31,13 @@ UPD:
   space-colonization rewrite. `cluster` renamed `blob_cluster`; the card sway
   origin is now the skeleton ANCHOR node rather than the crown base, which is
   possible for the first time because a cluster now knows what it hangs on.
+- 10:08:2026 - 20:15:51: CARD PLANE TILT is now a MIXTURE (в: «плоскости листвы... не
+  больше чем 5-10 градусов, сейчас они перпендикулярны»). One card per
+  cluster lies at 5-10 deg off the ground, the other two lean at 48-66 deg
+  instead of standing at 63.6-80.8. Mean plane tilt 72.7 -> 40.9 deg. The
+  minority is NOT a hedge: presented area at a level view is bought only by
+  steep planes, and all-flat measures 150 m2/tree against 229 for the build
+  the user already accepted (flora.md 3.8b).
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -317,10 +324,48 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
         const float az =
             base_az + glm::pi<float>() * static_cast<float>(k) / static_cast<float>(n)
             + t.rng.sym() * 0.18f;
-        // Alternating elevation: a cluster of purely vertical planes is
-        // invisible from directly above, which is exactly the view a player
-        // gets of a crown from a hillside.
-        const float el = (k % 2 == 0 ? 0.28f : -0.34f) + t.rng.sym() * 0.12f;
+        // CARD PLANE TILT FROM THE GROUND — a MIXTURE, and the mixture is the
+        // whole content of this change (в: «плоскости листвы... не больше чем
+        // 5-10 градусов, сейчас они перпендикулярны», 10.08.2026).
+        //
+        // The first card of every cluster lies in the user's band, 5-10 deg off
+        // the ground: real broadleaf foliage sprays ARE near-horizontal because
+        // leaves present their faces to the sun, and the shipped build was
+        // measurably the opposite — every card plane stood at 63.6-80.8 deg,
+        // mean 72.7.
+        //
+        // THE REST DO NOT, AND THAT IS NOT A HEDGE, IT IS ARITHMETIC. A plane
+        // presents its area times |cos(view, normal)|, so a horizontal card is
+        // edge-on to a horizontal view and contributes nothing to a canopy seen
+        // from far away — where the eye->crown ray is nearly level (measured:
+        // 13.0 deg at 80 m, 7.0 deg at 150 m for a 20.1 m oak crown). Holding
+        // the presented area the shipped build ALREADY ACHIEVES at its own worst
+        // view (229 m^2/tree, oak, at 60 deg elevation) needs >= 416 m^2 of
+        // steeply-tilted card area, i.e. AT CONSTANT CARD AREA AT MOST ~43 % OF
+        // FOLIAGE MAY LIE NEAR-HORIZONTAL. Cards all at 5-10 deg measure 150
+        // m^2 at eye level — a third below a build the user has already
+        // accepted, i.e. the canopy thinning out of existence at exactly the
+        // distance a forest is a skyline. That is render's CARDS BUY ANGULAR
+        // COVERAGE rule in its numeric form, and it is why "set every card to 7
+        // degrees" is not on the table.
+        //
+        // The minority planes are therefore kept steep but NOT vertical: their
+        // band drops from 63.6-80.8 to 48-66 deg, which is as far as it can go
+        // before the low-elevation area falls under the accepted floor
+        // (40-60 deg measures 230 m^2 against a 229 floor — no margin left).
+        // Mean plane tilt over the whole crown: 72.7 -> 40.9 deg, and nothing
+        // in the canopy stands near-perpendicular any more.
+        //
+        // Both bands are UNIFORM over their declared range (Rule 31); the
+        // shipped elevation was two bumps dressed as one band. Sign alternates
+        // so cards of one cluster are not co-planar.
+        const bool flat = k < CARD_FLAT_PER_CLUSTER;
+        const float tilt_lo = flat ? CARD_TILT_FLAT_MIN : CARD_TILT_LEAN_MIN;
+        const float tilt_hi = flat ? CARD_TILT_FLAT_MAX : CARD_TILT_LEAN_MAX;
+        const float tilt = tilt_lo + (tilt_hi - tilt_lo) * t.rng.unit();
+        // The NORMAL's elevation is the complement of the PLANE's tilt: a plane
+        // lying on the ground has a normal pointing straight up.
+        const float el = (k % 2 == 0 ? 1.0f : -1.0f) * (glm::half_pi<float>() - tilt);
         p.normal = {std::cos(el) * std::cos(az), std::sin(el),
                     std::cos(el) * std::sin(az)};
         p.roll = t.rng.sym() * 0.35f;

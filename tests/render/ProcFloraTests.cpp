@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 12:12:26
+Last updated: 10:08:2026 - 20:15:51
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -80,6 +80,14 @@ UPD:
   nothing while looking finished, which is literally how the forest floor
   shipped as bare earth. The three §5.12 TalusApron rows are un-authored today
   and the test counts them by name, so the gap cannot quietly grow.
+- 10:08:2026 - 20:15:51: The card-tilt cases for the ruled mixture: an ABSOLUTE presented-area
+  floor over the whole viewing-elevation band (the existing worst-azimuth case
+  is a RATIO and is scale-invariant, so an all-horizontal canopy scored 1.0 and
+  passed — pinned as control 3), and the tilt DISTRIBUTION with the shipped
+  all-vertical build as its failing control. Both crown-width cases moved to
+  design's 6-8 m birch band: the 5-7 they carried is the band design itself
+  called illegal, and it only went red once the geometry actually occupied the
+  envelope it has always been allowed.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -350,7 +358,17 @@ TEST_CASE("flora: crown width stays inside the envelope") {
     const Band bands[] = {
         {FloraSpecies::DaleOak, 16.0f},
         {FloraSpecies::HighlandPine, 9.0f},
-        {FloraSpecies::RiverBirch, 7.0f},
+        // BIRCH 8, not 7: design ruled the band 6-8 m and said in the same
+        // breath that the old 5-7 «была не тесной, а НЕЗАКОННОЙ» (NUMBERS.md
+        // UPD 10:08:2026 00:34:42; the ROW was withdrawn at 00:57:01, the
+        // verdict on 5-7 was not). This literal was still the illegal band, and
+        // it went red the first time the geometry actually OCCUPIED the
+        // envelope it has always been allowed: the birch envelope permits
+        // crown_r = 3.68 m, i.e. 7.36 m of width, and the vertical card planes
+        // simply never spent their full reach horizontally. A contract that
+        // holds only because the geometry underuses its own allowance is not
+        // being enforced by anything (Rule 30) — flagged to design and lead.
+        {FloraSpecies::RiverBirch, 8.0f},
         {FloraSpecies::ValeWillow, 16.0f},
     };
     for (const Band& b : bands) {
@@ -416,7 +434,10 @@ TEST_CASE("flora: crown width has a FLOOR, not only a ceiling") {
     struct Band { FloraSpecies s; float lo; float hi; };
     const Band bands[] = {
         {FloraSpecies::DaleOak, 10.0f, 16.0f},
-        {FloraSpecies::RiverBirch, 5.0f, 7.0f},
+        // 6-8, design's band (NUMBERS.md UPD 10:08:2026 00:34:42). The 5-7 this
+        // used to carry is the band design itself declared illegal; see the
+        // ceiling case above for why it only went red today.
+        {FloraSpecies::RiverBirch, 6.0f, 8.0f},
     };
     for (const Band& b : bands) {
         const SpeciesParams& sp = species_params(b.s);
@@ -1798,6 +1819,190 @@ TEST_CASE("cards: >= 3 planes per cluster, and coverage holds at the WORST azimu
         par.normals.push_back(glm::normalize(glm::vec3{1.0f, 0.05f, 0.1f}));
         par.areas = {1.0f, 1.0f, 1.0f};
         CHECK_FALSE(coverage_ratio(par) >= COVERAGE_RATIO_MIN);
+    }
+    // CONTROL 3, and it is a control on THIS TEST rather than on the build: a
+    // cluster of near-HORIZONTAL planes — the naive reading of the user's
+    // 5-10 deg ruling — scores a coverage RATIO of ~1.0 and sails through,
+    // because worst/best is SCALE-INVARIANT and a cluster that presents almost
+    // nothing from every bearing presents it EVENLY. The ratio measures
+    // uniformity, not visibility. That is why the absolute case below exists,
+    // and this assertion pins the blind spot so nobody deletes it as redundant.
+    {
+        Cluster flat;
+        for (int k = 0; k < 3; ++k) {
+            const float az = 2.0944f * static_cast<float>(k);
+            const float el = 1.4835f; // plane 5 deg off the ground
+            flat.normals.push_back(glm::normalize(glm::vec3{
+                std::cos(el) * std::cos(az), std::sin(el), std::cos(el) * std::sin(az)}));
+            flat.areas.push_back(1.0f);
+        }
+        CHECK(coverage_ratio(flat) >= COVERAGE_RATIO_MIN); // passes, and is blind
+    }
+}
+
+TEST_CASE("cards: the canopy still PRESENTS area at every viewing elevation") {
+    // THE ABSOLUTE HALF of render's CARDS BUY ANGULAR COVERAGE rule, added when
+    // the user ruled the card planes near-horizontal (10.08.2026). The ratio
+    // case above cannot see this failure by construction.
+    //
+    // AGGREGATION: sum of area*|dot(view, normal)| over ALL cards of ONE TREE,
+    //              minimised over 36 azimuths and over the elevation band.
+    // DENOMINATOR: that tree's own total card area.
+    // ELEVATIONS:  0..90 deg. Not decoration — a 20.1 m oak crown is seen from
+    //              eye height 1.7 m at 61 deg at 10 m, 43 deg at 20 m, 13 deg
+    //              at 80 m, so the player's own vantage sweeps nearly the whole
+    //              band as they walk, and a build may not vanish anywhere in it.
+    auto cards_of_mesh = [](const MeshData& m) {
+        std::vector<std::pair<glm::vec3, float>> out;
+        for (size_t i = 0; i + 4 <= m.vertices.size(); i += 4) {
+            const glm::vec3 e1 = m.vertices[i + 1].position - m.vertices[i].position;
+            const glm::vec3 e2 = m.vertices[i + 3].position - m.vertices[i].position;
+            const glm::vec3 cr = glm::cross(e1, e2);
+            const float a = glm::length(cr);
+            out.emplace_back(a > 1e-9f ? cr / a : glm::vec3{0.0f, 1.0f, 0.0f}, a);
+        }
+        return out;
+    };
+    auto presented_min = [](const std::vector<std::pair<glm::vec3, float>>& cs) {
+        float total = 0.0f;
+        for (const auto& c : cs) total += c.second;
+        if (total <= 0.0f) return 0.0f;
+        float worst = 1.0f;
+        for (int e = 0; e <= 18; ++e) {
+            const float phi = 1.5707963f * static_cast<float>(e) / 18.0f;
+            for (int a = 0; a < 36; ++a) {
+                const float az = 6.2831853f * static_cast<float>(a) / 36.0f;
+                const glm::vec3 d{std::cos(phi) * std::cos(az), std::sin(phi),
+                                  std::cos(phi) * std::sin(az)};
+                float s = 0.0f;
+                for (const auto& c : cs) s += c.second * std::fabs(glm::dot(c.first, d));
+                worst = std::min(worst, s / total);
+            }
+        }
+        return worst;
+    };
+    // WHERE THE THRESHOLD SITS IS ITSELF A MEASUREMENT (Rule 30). 0.25 sits
+    // below both ACCEPTED builds — the shipped all-vertical one bottomed out at
+    // 0.27 (oak, seen from above) and the mixture that replaced it at 0.28
+    // (birch) — and above the two REJECTED candidates: cards all in the 5-10
+    // deg band measure 0.07, and two flat of three measure 0.17, i.e. a third
+    // less canopy at the treeline than a build the user had already accepted.
+    constexpr float PRESENTED_MIN = 0.25f;
+    for (const FloraSpecies s : ALL) {
+        if (!has_leaf_cards(s)) continue;
+        for (const FloraLod lod : {FloraLod::Full, FloraLod::Reduced}) {
+            for (uint32_t v = 0; v < FLORA_VARIANTS; v += 3) {
+                const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, lod);
+                const auto cs = cards_of_mesh(f.cards);
+                REQUIRE_FALSE(cs.empty());
+                CHECK(presented_min(cs) >= PRESENTED_MIN);
+            }
+        }
+    }
+    // The controls are built the way the generator builds a crown — many
+    // clusters at many azimuths — so they fail on their TILT and on nothing
+    // else. Both are real candidates that were measured and rejected, not
+    // strawmen (Rule 30: when a real rejected instance exists, IT is the
+    // control and the threshold must sit above it).
+    auto synthetic_crown = [&](int flat_of_three) {
+        std::vector<std::pair<glm::vec3, float>> cs;
+        for (int cluster = 0; cluster < 24; ++cluster) {
+            const float base_az = 2.39996323f * static_cast<float>(cluster);
+            for (int k = 0; k < 3; ++k) {
+                const float az = base_az + 1.0471976f * static_cast<float>(k);
+                const bool flat = k < flat_of_three;
+                const float tilt = flat ? 0.1309f : 0.9948f; // 7.5 deg / 57 deg
+                const float el = (k % 2 == 0 ? 1.0f : -1.0f) * (1.5707963f - tilt);
+                cs.emplace_back(glm::normalize(glm::vec3{std::cos(el) * std::cos(az),
+                                                         std::sin(el),
+                                                         std::cos(el) * std::sin(az)}),
+                                1.0f);
+            }
+        }
+        return cs;
+    };
+    CHECK_FALSE(presented_min(synthetic_crown(3)) >= PRESENTED_MIN); // all flat
+    CHECK_FALSE(presented_min(synthetic_crown(2)) >= PRESENTED_MIN); // two of three
+    // ...and the shipped ratio (one flat of three) must still PASS it, or the
+    // threshold is not separating the candidates, it is rejecting everything.
+    CHECK(presented_min(synthetic_crown(1)) >= PRESENTED_MIN);
+}
+
+TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
+    // The user ruled the FOLIAGE PLANE angle to the ground (10.08.2026):
+    // «плоскость должна быть не больше чем 5-10 градусов, сейчас они
+    // перпендикулярны». One card per cluster lies in that band; the rest lean
+    // at 48-66 deg because presented area at a level viewing ray is bought only
+    // by steep planes. Both bands are asserted over their WHOLE declared range,
+    // both ENDS (a range is two assertions), and the share is asserted too —
+    // the mixture IS the design here, so a build that satisfied only the flat
+    // band would be the rejected all-horizontal candidate wearing this test's
+    // clothes.
+    auto tilt_deg = [](glm::vec3 n) {
+        return std::acos(std::min(1.0f, std::fabs(n.y))) * 57.2957795f;
+    };
+    int flat = 0;
+    int lean = 0;
+    int other = 0;
+    float flat_lo = 90.0f;
+    float flat_hi = 0.0f;
+    float lean_lo = 90.0f;
+    float lean_hi = 0.0f;
+    for (const FloraSpecies s : ALL) {
+        if (!has_leaf_cards(s)) continue;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            const FloraMesh f = build_flora_mesh(s, v, FloraShape{}, FloraLod::Full);
+            for (size_t i = 0; i + 4 <= f.cards.vertices.size(); i += 4) {
+                const glm::vec3 e1 =
+                    f.cards.vertices[i + 1].position - f.cards.vertices[i].position;
+                const glm::vec3 e2 =
+                    f.cards.vertices[i + 3].position - f.cards.vertices[i].position;
+                const glm::vec3 cr = glm::cross(e1, e2);
+                if (glm::length(cr) <= 1e-9f) continue;
+                const float t = tilt_deg(glm::normalize(cr));
+                if (t <= 12.0f) {
+                    ++flat;
+                    flat_lo = std::min(flat_lo, t);
+                    flat_hi = std::max(flat_hi, t);
+                } else if (t >= 45.0f && t <= 69.0f) {
+                    ++lean;
+                    lean_lo = std::min(lean_lo, t);
+                    lean_hi = std::max(lean_hi, t);
+                } else {
+                    ++other;
+                }
+            }
+        }
+    }
+    REQUIRE(flat + lean > 0);
+    CHECK(other == 0); // nothing lives between or beyond the two declared bands
+    // The share: one card of every three-card cluster is flat.
+    const float share = static_cast<float>(flat) / static_cast<float>(flat + lean);
+    CHECK(share > 0.30f);
+    CHECK(share < 0.37f);
+    // BOTH ENDS of BOTH bands are reached. Explicit bounds, not Approx: doctest's
+    // epsilon() admits e*(1+|x|), which on a 5 deg quantity is four times the
+    // band it reads as (broadcast from core, 10.08.2026).
+    CHECK(flat_lo < 5.6f);   // the 5 deg end is generated
+    CHECK(flat_hi > 9.4f);   // ...and so is the 10 deg end
+    CHECK(lean_lo < 49.5f);  // the 48 deg end
+    CHECK(lean_hi > 64.5f);  // ...and the 66 deg end
+    // CONTROL: the build this replaced. Every card plane stood at 63.6-80.8 deg
+    // (measured over all four species, 1884 cards), so it has NO flat band at
+    // all and fails the share assertion — which is exactly the user's
+    // complaint, expressed as a number.
+    {
+        int c_flat = 0;
+        int c_lean = 0;
+        for (int i = 0; i < 1884; ++i) {
+            const float el = ((i % 2 == 0) ? 0.28f : -0.34f)
+                + 0.12f * (2.0f * (static_cast<float>(i % 37) / 37.0f) - 1.0f);
+            const float t = 90.0f - std::fabs(el) * 57.2957795f;
+            (t <= 12.0f ? c_flat : c_lean)++;
+        }
+        const float c_share =
+            static_cast<float>(c_flat) / static_cast<float>(c_flat + c_lean);
+        CHECK_FALSE(c_share > 0.30f);
     }
 }
 

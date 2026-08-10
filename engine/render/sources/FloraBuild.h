@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 09:08:2026 - 23:48:30
+Last updated: 10:08:2026 - 20:15:51
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -32,6 +32,8 @@ UPD:
   for `cluster` being renamed `blob_cluster` (it collided with the local
   variable name in every caller) and the sway origin becoming the skeleton
   ANCHOR rather than the crown base.
+- 10:08:2026 - 20:15:51: CARD_TILT_FLAT_* / CARD_TILT_LEAN_* / CARD_FLAT_PER_CLUSTER — the
+  ruled card-plane tilt bands. NUMBERS rows requested from lead the same day.
 */
 
 #pragma once
@@ -61,6 +63,29 @@ constexpr float FLARE_DEPTH = 1.0f;
 // Render's constraint: the flare must stay above the shadow-caster floor all
 // the way down, or the tree reads as hovering even while correctly buried.
 constexpr float SHADOW_MIN_DIAMETER = 0.35f;
+
+// CARD PLANE TILT FROM THE GROUND, radians (0 = the plane lies flat on the
+// ground, pi/2 = it stands perpendicular to it). The user ruled the band
+// (10.08.2026): «плоскость должна быть не больше чем 5-10 градусов, сейчас они
+// перпендикулярны». One card per cluster lies in that band; the rest are kept
+// steep because presented area at a LEVEL viewing ray is bought only by steep
+// planes, and the arithmetic is in emit_card_cluster. Both bands are uniform
+// over their whole declared range (Rule 31) and both ENDS are asserted
+// (Rule 30's "a range is two assertions").
+//
+// PENDING NUMBERS ROWS (Rule 35 — the user has ruled on these, and render's
+// CARDS BUY ANGULAR COVERAGE rule is stated on the quantity they set): row
+// request sent to lead 10.08.2026 as FLORA_CARD_TILT_FLAT_MIN/MAX,
+// FLORA_CARD_TILT_LEAN_MIN/MAX, FLORA_CARD_FLAT_PER_CLUSTER. Swap these five
+// for config:: the moment the rows land.
+constexpr float CARD_TILT_FLAT_MIN = 0.0873f; ///< 5 deg — the user's band
+constexpr float CARD_TILT_FLAT_MAX = 0.1745f; ///< 10 deg
+constexpr float CARD_TILT_LEAN_MIN = 0.8378f; ///< 48 deg — the silhouette half
+constexpr float CARD_TILT_LEAN_MAX = 1.1519f; ///< 66 deg
+/// How many cards of a cluster lie in the flat band. 1 of 3 is 33 % of card
+/// AREA, under the ~43 % ceiling that holding the accepted eye-level presented
+/// area imposes at constant triangle count.
+constexpr int CARD_FLAT_PER_CLUSTER = 1;
 
 /// splitmix64 — local, deterministic, no shared state.
 [[nodiscard]] uint64_t mix64(uint64_t x);

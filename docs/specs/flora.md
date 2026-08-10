@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 12:03:39
+Last updated: 10:08:2026 - 20:15:51
 -->
 <!--
 UPD:
@@ -371,6 +371,16 @@ UPD:
                          moss in their own mesh) and named the ratio's second
                          ambiguity: same-set gives ~30x, all-scatter ~6x, and
                          RICH_EDGE_RATIO = 3 is not binding under either.
+- 10:08:2026 - 20:15:51: 3.8b CARD PLANE TILT — the user's 5-10 deg ruling implemented as a
+                         MIXTURE (one card of three flat, two leaning 48-66
+                         instead of 63.6-80.8), with the arithmetic that
+                         forbids the naive all-flat reading: at constant card
+                         area at most ~43 % of foliage may lie near-horizontal
+                         or the treeline drops under the presented area the
+                         user has already accepted. Exposed a stale birch
+                         crown-width literal (5-7, the band design called
+                         illegal) that only held because vertical cards never
+                         spent their reach horizontally.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1048,13 +1058,77 @@ porosity spent at the EDGES**, per §3.10's measurement. Concretely:
   scene light touches it.
 
 **Card geometry.** A crossed cluster is 1-3 quads sharing a centre, normals
-spread over 180° of azimuth from the outward direction, with ALTERNATING
-elevation tilt — a cluster of purely vertical planes is invisible from directly
-above, which is precisely the view a player gets of a crown from a hillside.
-Fixed orientation, never camera-facing: a billboard rotates visibly at 640x360,
-shimmers under palette quantization, and is wrong in the shadow pass by
-construction. Branch tips get ONE card, not a trio — the crown MASS is the
-envelope scatter's job (§3.7.3), the tip card is only the visual join.
+spread over 180° of azimuth from the outward direction, with the ELEVATION
+DISTRIBUTION of §3.8b. Fixed orientation, never camera-facing: a billboard
+rotates visibly at 640x360, shimmers under palette quantization, and is wrong in
+the shadow pass by construction. Branch tips get ONE card, not a trio — the
+crown MASS is the envelope scatter's job (§3.7.3), the tip card is only the
+visual join.
+
+### 3.8b Card plane tilt — the MIXTURE, and the arithmetic that forces it
+
+The user ruled the angle on 10.08.2026: *«хочется чтобы плоскости листвы были
+под другим углом относительно земли, плоскость должна быть не больше чем 5-10
+градусов, сейчас они перпендикулярны»* — he likes the foliage and the rustle;
+what he wants changed is that the card PLANES stand up. He is factually right,
+and the shipped build measured it exactly: every card plane sat at **63.6-80.8°
+from the ground, mean 72.7°**, nothing flatter anywhere in any species.
+
+He is also botanically right — broadleaf sprays lie near-horizontal because
+leaves present their faces to the sun — and the naive implementation is still
+wrong, for a reason that is arithmetic rather than taste:
+
+- a plane presents `area × |cos(view, normal)|`, so a HORIZONTAL card is
+  edge-on to a LEVEL view and contributes nothing to a canopy seen from far;
+- the whole-tree presented area at the worst azimuth, with all cards in the
+  5-10° band, measures **150 m²/tree (oak) at eye level against 229 m² for the
+  build the user has already accepted** — a third of the treeline gone;
+- holding that accepted 229 m² requires ≥ 416 m² of steeply tilted card area,
+  i.e. **at constant card area at most ~43 % of foliage may lie
+  near-horizontal.** That ceiling is the numeric form of render's CARDS BUY
+  ANGULAR COVERAGE rule, and it is why "set every card to 7°" is not available.
+
+**What ships: one card of every cluster in the user's band (5-10°), the other
+two leaning at 48-66°.** Mean plane tilt over the crown falls 72.7° → 40.9°,
+nothing stands near-perpendicular any more, and 43 % of the presented foliage
+area at a 20 m viewing distance is now flat spray. Both bands are uniform over
+their whole declared range (Rule 31) and both ends of both are asserted.
+
+**The vantage that made the trade visible, and it is not the obvious one.** Our
+trees are 24-32 m tall and the oak's card area sits at a measured 20.1 m, so a
+walking player at eye height 1.7 m sees that canopy at **61.5° at 10 m, 42.7° at
+20 m, 24.8° at 40 m, 13.0° at 80 m**. The walking vantage is NOT φ≈0: near
+canopy is seen steeply from below, which is exactly where vertical cards were
+weakest (oak presented 424 m² level but 229 m² at 60°). The change therefore
+buys area where the player mostly is and spends it at the treeline:
+
+| view elevation | 0° | 20° | 45° | 60° | 90° |
+|---|---|---|---|---|---|
+| before, m²/tree (oak) | 424 | 395 | 299 | 229 | 216 |
+| after, m²/tree (oak) | 250 | 291 | 353 | 413 | 501 |
+
+Worst view over the whole band: **216 → 250 m² (+16 %)**. Per species the
+margin over the shipped worst is oak +9 %, pine +10 %, willow +8 %, **birch
++3 %** — birch is thin and is reported as thin.
+
+**Rejected, with the number:** two flat cards of three (150 m² level, −34 %
+against the accepted build) and four cards with two flat (295 m², passes, but
++33 % foliage triangles, which `max_crown_segments` pays for out of the branch
+budget — 4-6 segments per tree). A bigger flat card at constant count is worse
+than either: the envelope containment shrinks the whole cluster to fit it, so
+total card area FALLS (729 → 667 m² at ×1.25) and the level view drops to
+226 m², under the floor.
+
+**A defect this exposed rather than caused.** The birch's crown-width ceiling
+was asserted at 7 m while its envelope permits `crown_r = 3.68 m`, i.e. 7.36 m
+of width. The contract held only because vertical cards never spent their reach
+horizontally; the first build that lies flat occupies the allowance and measures
+7.05-7.36 m. Design had already ruled the band **6-8 m** and called the 5-7 the
+test carried «не тесной, а НЕЗАКОННОЙ» (NUMBERS.md UPD 10:08:2026 00:34:42), so
+the test literal was stale as well as slack. Both crown-width cases now carry
+6-8. **The general form is worth keeping: a containment expressed as a 3D corner
+reach does not bound the HORIZONTAL reach a contract is measured on, and any
+orientation change cashes in the difference.**
 
 **Two containment rules that cost a debugging round each, so they are written
 down.** (1) The envelope and the species width band must be checked against the
