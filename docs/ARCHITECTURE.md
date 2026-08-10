@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 19:26:40
+Last updated: 10:08:2026 - 19:53:40
 -->
 <!--
 UPD:
@@ -21,6 +21,7 @@ UPD:
 - 10:08:2026 - 11:05:46: Rule 27 — тур замораживает тик и потому слеп ко всему движущемуся; живые пути съёмки признаны доказательством.
 - 10:08:2026 - 11:29:06: Rule 30 — каждое приёмочное правило называет свою АГРЕГАЦИЮ и свой ЗНАМЕНАТЕЛЬ, а не только число (три спора за два дня оказались спорами об определении).
 - 10:08:2026 - 19:26:40: Правила 37 (линейная карта между двумя именованными константами становится скрытым дефектом, когда между ними ложится третья) и 38 (утверждать исход, а не механизм) — обе выведены двумя зонами независимо, из разных дефектов, за один день.
+- 10:08:2026 - 19:53:40: Правило 37 расширено общей формой: опасны САМИ ИМЕНОВАННЫЕ КОНЦЫ линейной карты — не только когда между ними ложится третья константа, но и когда старая МЕНЯЕТ ЗНАЧЕНИЕ. Перенос WALK_SPEED с 3.0 на 1.8 разом пересчитал всю кривую покачивания в 1.667 раза.
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -523,6 +524,28 @@ Sibling of Rule 35 in shape. There a NUMBER gained a second consumer; here a RAN
 gained an interior point. The trigger to watch for is the same kind of thing — not a
 bug report, but a registry edit — and the question to ask when a constant lands
 between two existing ones is: **what interpolates across this range?**
+
+**The general form, which is wider than the first case and was found the same day
+by a different zone: the danger is a linear map's ENDPOINTS being named constants at
+all — whether a new one lands between them, or an old one MOVES.**
+`bob_amplitude_target(v) = HEADBOB_AMPLITUDE_AT_WALK × v / WALK_SPEED` was authored
+when `WALK_SPEED` was 3.0. The three-speed ruling moved `WALK_SPEED` to 1.8 five
+hours later, and because the map is *anchored* on that name, **every point of the
+curve below the cap was rescaled by 3.0/1.8 = 1.667× at once** — walking and jogging
+silently received 67% more head bob than anyone chose, and the cap engagement point
+slid from 5.14 m/s down to 3.09 m/s. Nobody touched the bob code, no test went red.
+
+The interior-point case corrupts one region; the moved-anchor case corrupts the
+**whole curve** and is therefore easier to miss, because nothing looks locally
+wrong — everything is consistently off. So the standing question has two halves:
+when a constant lands between two others, ask what interpolates across the range;
+when a constant's VALUE changes, ask **what is anchored on its name**.
+
+Note what this rule does NOT license: in the bob case the running gait was clamped
+by `HEADBOB_AMPLITUDE_MAX` both before and after, so the rescale did not explain the
+judder it was found while investigating. The zone reported it anyway, as true rather
+than as convenient. A rule that only surfaces the defects that happen to be the one
+you are hunting is a rule nobody runs.
 
 ### Rule 38 — Assert the outcome, not the mechanism
 Two zones reached this independently, from unrelated defects, on the same day, which

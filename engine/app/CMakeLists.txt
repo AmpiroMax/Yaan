@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 10:08:2026 - 19:26:40
+# Last updated: 10:08:2026 - 19:57:06
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -20,6 +20,7 @@
 # - 10:08:2026 - 02:42:46: Link dfn_anim (first-person body wiring).
 #                          uses it instead of hand-filling TerrainDesc.
 # - 10:08:2026 - 19:26:40: DebugOverlay.cpp в сборке; хэш коммита штампуется в бинарник (DFN_BUILD_COMMIT) — снимок состояния обязан называть сборку, иначе он невоспроизводим.
+# - 10:08:2026 - 19:57:06: Хэш коммита штампуется во время СБОРКИ через tools/stamp_build_commit.cmake, с пометкой +dirty для незакоммиченного дерева.
 
 set(DFN_APP_DEPS
     dfn_core
@@ -55,20 +56,28 @@ if(DFN_APP_READY)
     target_link_libraries(dfn_app PRIVATE dfn_headers ${DFN_APP_DEPS})
 
     # The commit the binary was built from, stamped into every state capture.
-    # A bug report carries the build it was seen on or it is not reproducible:
-    # "it looks wrong" against an unknown revision costs more than it reports.
-    # Resolved at CONFIGURE time, so a capture can name a commit that the
-    # working tree has since moved past -- which is the normal case and exactly
-    # why the field exists. "unknown" when this is not a git checkout.
-    execute_process(
-        COMMAND git rev-parse --short HEAD
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE DFN_GIT_COMMIT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET)
-    if(NOT DFN_GIT_COMMIT)
-        set(DFN_GIT_COMMIT "unknown")
-    endif()
-    target_compile_definitions(dfn_app
-        PRIVATE DFN_BUILD_COMMIT="${DFN_GIT_COMMIT}")
+    # A bug report carries the build it was seen on or it is not reproducible.
+    #
+    # STAMPED AT BUILD TIME, NOT CONFIGURE TIME. The first version of this
+    # resolved the hash during cmake configure, and sim's capture then named a
+    # build TWO COMMITS STALE. That is worse than having no field at all: the
+    # question it exists to answer is "was this taken before or after the fix",
+    # and a wrong answer converts "I do not know which build this is" into a
+    # confident false premise (Rule 34) that two agents can each reason
+    # soundly from. The script also appends "+dirty" for uncommitted edits,
+    # because a hash alone cannot describe the working tree that captures are
+    # normally taken from.
+    set(DFN_BUILDINFO_DIR "${CMAKE_CURRENT_BINARY_DIR}/dfn_buildinfo")
+    set(DFN_BUILDINFO_H "${DFN_BUILDINFO_DIR}/BuildInfo.h")
+    file(MAKE_DIRECTORY "${DFN_BUILDINFO_DIR}")
+    add_custom_target(dfn_buildinfo
+        BYPRODUCTS "${DFN_BUILDINFO_H}"
+        COMMAND ${CMAKE_COMMAND}
+                -DOUT=${DFN_BUILDINFO_H}
+                -DSRC=${CMAKE_SOURCE_DIR}
+                -P ${CMAKE_SOURCE_DIR}/tools/stamp_build_commit.cmake
+        COMMENT "Stamping the build commit into BuildInfo.h"
+        VERBATIM)
+    add_dependencies(dfn_app dfn_buildinfo)
+    target_include_directories(dfn_app PRIVATE "${DFN_BUILDINFO_DIR}")
 endif()

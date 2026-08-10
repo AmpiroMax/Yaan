@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 19:44:12
+Last updated: 10:08:2026 - 19:57:06
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -82,11 +82,16 @@ UPD:
 - 10:08:2026 - 11:40:12: Выбор стенда переехал с DFN_MAP на DFN_STAND — DFN_MAP уже был щупом экрана карты у render, и маршрут стенда молча схлопывался в один кадр.
 - 10:08:2026 - 19:26:40: Отладочный экран, снимок состояния и восстановление. Заодно убран ВТОРОЙ обработчик Esc: он звал request_close(), поэтому Esc открывал паузу И закрывал игру — экран паузы существовал, но увидеть его было нельзя.
 - 10:08:2026 - 19:44:12: DFN_HEAD_BOB и DFN_PLAYTEST_GAIT — двери к контролю движения и к передаче бота (запрос sim: без них автоматический прогон умел мерить ТОЛЬКО шаг). Неверное значение отвергается ГРОМКО: молчаливый откат к умолчанию воспроизвёл бы ровно тот дефект, ради которого дверь и открыта.
+- 10:08:2026 - 19:57:06: Три починки снимка состояния, все три найдены sim при проверке инструмента, а не при его использовании: хэш сборки штампуется во время СБОРКИ (был — при конфигурации, и называл сборку на два коммита старше), восстановление доводится итеративно (промах был 0.53 м), и вычитается ВЫНОС глаза вперёд, а не только высота — иначе круговой прогон уводил игрока на 0.10 м вперёд каждый раз.
 */
 
 #include "engine/app/sources/App.h"
 
 #include "engine/app/sources/Localization.h"
+// Generated at BUILD time by tools/stamp_build_commit.cmake; carries
+// DFN_BUILD_COMMIT into every state capture. See that script for why the
+// configure-time version was a defect rather than a simplification.
+#include "BuildInfo.h"
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/CoarseTerrain.h"
@@ -1202,8 +1207,24 @@ void App::apply_restore(const DebugSnapshot& snap) {
     // sim applies when it writes CameraPose -- if that offset ever changes,
     // this is a second consumer of it and belongs in NUMBERS (Rule 35). It
     // already is one: PLAYER_EYE_HEIGHT.
+    // THE EYE IS NOT ABOVE THE FEET, IT IS ABOVE AND FORWARD OF THEM. Undoing
+    // only the height left a systematic PLAYER_EYE_FORWARD error along the
+    // facing direction, so capture -> restore -> capture WALKED THE PLAYER
+    // 0.10 m FORWARD EVERY TIME. Measured, not reasoned: a round trip at yaw
+    // 1.93936 moved the eye by (+0.0974, +0.0394), against the predicted
+    // (+0.0934, +0.0358) for a 0.10 m forward offset.
+    //
+    // The residual check could not have caught this, and that is the lesson:
+    // it compares the achieved position against a target computed with the
+    // SAME wrong formula, so it reported 0.000 m of error while the player
+    // drifted. A check derived from the thing it checks is not a check. The
+    // property that catches it is ROUND-TRIP IDEMPOTENCE -- restore a capture,
+    // capture again, and the two files must agree.
     const float eye_h = static_cast<float>(config::PLAYER_EYE_HEIGHT);
-    const glm::vec3 feet{snap.position.x, snap.position.y - eye_h, snap.position.z};
+    const float fwd = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    const glm::vec3 facing{std::sin(snap.yaw), 0.0f, -std::cos(snap.yaw)};
+    const glm::vec3 feet{snap.position.x - facing.x * fwd, snap.position.y - eye_h,
+                         snap.position.z - facing.z * fwd};
 
     // THERE IS NO TELEPORT IN IPhysics -- only move_character, which records a
     // displacement to be resolved with collide-and-slide. So a restore is a
@@ -1216,6 +1237,9 @@ void App::apply_restore(const DebugSnapshot& snap) {
     physics_->move_character(ps->character, feet - current);
     tr->position = feet;
     restore_target_ = feet;
+    restore_attempts_ = 30; // ~30 frames to converge; bounded so a restore into
+                            // solid rock stops and REPORTS instead of shoving
+                            // the capsule at a wall forever
 
     ps->yaw = snap.yaw;
     ps->pitch = snap.pitch;
@@ -1704,7 +1728,29 @@ int App::run() {
         if (close_after_flush_ > 0 && --close_after_flush_ == 0) {
             window_->request_close();
         }
-        if (restore_target_) {
+        // RESTORE CONVERGENCE. `move_character` records a displacement resolved
+        // by ONE collide-and-slide step, and a long displacement does not
+        // arrive in one: sim measured the first version landing 0.53 m from the
+        // requested spot, which the promise "puts the player back at that exact
+        // pose" does not survive. So the correction is RE-ISSUED until the
+        // horizontal residual is under a centimetre or the attempts run out --
+        // and the outcome is reported either way, because the point of the tool
+        // is that two people look at the SAME moment rather than two similar
+        // ones (Rule 38: assert the outcome, and here, report it).
+        if (restore_target_ && restore_attempts_ > 0) {
+            if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                const glm::vec3 got = physics_->character_position(ps->character);
+                const float dx = restore_target_->x - got.x;
+                const float dz = restore_target_->z - got.z;
+                if (std::sqrt(dx * dx + dz * dz) > 0.01f) {
+                    physics_->move_character(ps->character, {dx, 0.0f, dz});
+                    --restore_attempts_;
+                } else {
+                    restore_attempts_ = 0;
+                }
+            }
+        }
+        if (restore_target_ && restore_attempts_ == 0) {
             if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
                 const glm::vec3 got = physics_->character_position(ps->character);
                 // HORIZONTAL AND VERTICAL ERROR ARE DIFFERENT QUANTITIES and
