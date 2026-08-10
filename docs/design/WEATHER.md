@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 02:04:16
-Last updated: 10:08:2026 - 20:01:36
+Last updated: 10:08:2026 - 21:16:05
 -->
 <!--
 UPD:
@@ -8,6 +8,7 @@ UPD:
 - 10:08:2026 - 02:06:33: LEAD RULING CARRIED IN (flag 1 dissolved): the weather schedule is a PURE FUNCTION OF THE DATE, like the lunar phase — state-at-time = f(seed, game time, zone), no state machine anywhere, nothing serializes, frames reproduce from timestamp alone; core owns it as a sibling of the wind/coverage fields. Cost recorded in W2.5: weather cannot react to events without a FUTURE authored override layer (a named interval in the schedule, still data). Flag 2 (profile blending) parked with its trigger: wakes when two stands merge into one world.
 - 10:08:2026 - 19:49:41: W9 — SOLAR AND LUNAR MOTION (user ruling: no solar disc at all; sun somewhat bigger; moon far too small and BIGGER than the sun; moon visible day AND night; TWO moons orbiting the planet; a REAL trajectory, not a plain circle, options to be researched). Three defects found by source audit before any number was proposed (Rule 34): the sun has no disc term and no size constant at all, the game has never once started with a visible moon, and the daily lag runs backwards. Angular sizes derived from the pixel ruler and from crescent legibility; periods from a provable non-resonance argument; brightness from measured surface photometry in the QUANTISER's own luma (Rule 36). Every control is a real shipped build. Requests ~24 NUMBERS rows and the RETIREMENT of LUNAR_MONTH_DAYS (Rule 37).
 - 10:08:2026 - 20:01:36: W10 — VOLUMETRIC CLOUDS. Premise checked in the shader before any recommendation (Rule 34): the squareness is the NOISE BASIS (value noise, cubic interpolant, three co-aligned octaves with no rotation), and the flatness is the total absence of any lighting term — u_sunDir never reaches cloud shading. A ray-march fixes neither. Derived what 640x360 justifies (two levels of internal structure; a march starts paying at 2560x1440) and delivered a three-tier ladder whose ORDER is the deliverable: Tier 2 without Tier 0 is a ray-marched cloud that is still square. Three acceptance rules with aggregation, denominator and a must-fail control each; no NUMBERS rows requested yet, with the trigger for the first one named in advance.
+- 10:08:2026 - 21:16:05: W9.7-R1/R2 + W9.9 A8 — THE ECLIPSE SURVIVED BUT ONLY AS A NOTE, AND A NOTE IS WHAT A SUCCESSOR SKIPS. It had no identifier, no trigger, no control and no acceptance while everything around it had all four; promoted to a named requirement. W9.7-R1 AN OCCULTED SUN IS DARK. Trigger: separation between the sun's centre and either moon's centre below the sum of angular radii — 3.35 deg Masser, 1.85 deg Secunda — which is not an event the sky code opts into but a geometric fact about positions it already computes every frame. Requirement: sun_color and the directional light scale by (1 - occulted fraction of the solar disc), circle-circle overlap of two discs the frame is already drawing, and NO NEW AUTHORED CONSTANT IS INVOLVED — which is why this half is implementable today. CONTROL checked in source rather than assumed (Rule 34): SkyModel.cpp:139 makes env.sun_color a function of ELEVATION ALONE, no occultation term anywhere on the path, so today's build is a real shipped rejected instance and must fail A8. HOW SOON, because it decides scheduled-vs-urgent and it is nearer than 'every ~51 game days' sounds: MASSER_ELONGATION_EPOCH 270 deg puts the FIRST conjunction 90/360 x MASSER_SYNODIC_DAYS = 7.0 game days out = 5.6 REAL HOURS of play, against a per-conjunction partial probability of 0.546. The first conjunction a new player reaches is closer to a coin flip than to a rarity and it lands inside a first sitting. Whether that one clears |beta| < 3.90 deg is a two-line evaluation in the node convention the sky code owns — requested of render rather than guessed (Rule 34). W9.7-R2 filed OPEN and deliberately unnumbered: what the sky and ambient do at TOTALITY, with both ends of the range named (floor is not black — real totality is civil-twilight bright and a pitch-black midday frame is a different bug wearing the fix's clothes; ceiling is not subtle — bounded BELOW by 2 x PALETTE_SHADE_STEP_REF, not near it) and an explicit warning not to derive the amount by physics on an already tone-mapped display ramp, which is Rule 36 one step out. W9.9 A8 added with its aggregation and denominator: mean luma over TERRAIN PIXELS ONLY (the sky excluded BY CAUSE — it is where the black disc is, and including it would let the defect darken its own evidence), denominator the same frame at first contact so the rule is a ratio against the un-occulted world rather than against an absolute the tone-mapper owns; today's build's landscape luma is FLAT across the sweep and fails the strict half of the pair. How dark totality gets is deliberately NOT asserted. TRAP NAMED BEFORE ANYONE WALKS INTO IT: MOON_SOLAR_EXCLUSION is a MEASUREMENT exclusion (its only consumers today are A4's denominator and its own row — verified, nothing is broken) and must never become a DRAW rule. The two readings collide exactly at the event: exclusion 20 deg, occultation below 3.35 deg, so a build that hid the moon within 20 deg of the sun would make an eclipse literally undrawable at the moment it occurs, and the symptom would read as 'eclipses do not work' rather than as a wrong exclusion.
 -->
 
 # WEATHER.md — Weather & Atmosphere Doctrine
@@ -511,6 +512,86 @@ lever is **inclination** (higher i ⇒ rarer), never the periods — the periods
 are carrying the non-resonance argument and must not be retuned for a second
 purpose.
 
+### W9.7-R1 — AN OCCULTED SUN IS DARK (named requirement, with its trigger)
+
+The paragraph above was a note, and a note is what a successor skips. **It is
+promoted here to a requirement with an identifier, a trigger, a control and an
+acceptance (W9.9 A8), because everything else in this block has those and this
+does not become findable by being true.**
+
+> **Trigger.** Whenever the angular separation between the sun's centre and
+> either moon's centre falls below the sum of their angular radii —
+> `(SUN_ANGULAR_DIAMETER + MASSER_ANGULAR_DIAMETER)/2` = 3.35°, or
+> `(SUN + SECUNDA)/2` = 1.85°. This is not an event the sky code opts into: it
+> is a geometric fact about positions the sky code already computes every
+> frame, and it will occur whether or not anybody has budgeted for it.
+>
+> **Requirement.** `sun_color` and the directional light scale by
+> **(1 − occulted fraction of the solar disc)**, computed as the
+> circle–circle overlap area of the two discs the frame is already drawing.
+> **No new authored constant is involved** — the geometry comes entirely from
+> `SUN_ANGULAR_DIAMETER`, `MASSER_/SECUNDA_ANGULAR_DIAMETER` and the positions
+> W9.4–W9.6 already fix. That is why this half is implementable today.
+>
+> **Failure it prevents, in the user's likely words:** *"the moon turned into a
+> black hole and nothing else changed."* A disc that occludes the sun's
+> geometry while the landscape stays at noon is not a subtle wrongness; it
+> reads as a graphics bug, and a graphics bug seen once costs more trust than
+> the feature was ever going to buy.
+
+**CONTROL — today's build, checked in source rather than assumed (Rule 34).**
+`SkyModel.cpp:139` reads `env.sun_color = sun_hue * clamp01(smooth01(...,
+elevation))`. **The sun's colour is a function of ELEVATION ALONE**; there is no
+occultation term anywhere on the path, and `Materials.h:232-233` sets the
+look-dev sun from a constant. So today's build is a real shipped rejected
+instance and must fail A8 — the strongest kind of control this project accepts.
+
+**HOW SOON — because the answer decides whether this is scheduled or urgent,
+and it is nearer than "every ~51 game days" makes it sound.** `MASSER_ELONGATION_EPOCH`
+is 270°, so a fresh world starts three-quarters of the way through Masser's
+synodic cycle: the **first conjunction is 90/360 × `MASSER_SYNODIC_DAYS`
+= 7.0 game days** away, which at `DAY_LENGTH_SECONDS` 2880 s is **5.6 real
+hours of continuous play.** The per-conjunction partial probability in the
+table above is **0.546**. **So the very first conjunction a new player reaches
+is closer to a coin flip than to a rarity, and it arrives inside a first
+sitting.** Whether that particular one clears |β| < 3.90° is a two-line
+evaluation from `MASSER_NODE_EPOCH`/`MASSER_NODE_PERIOD_DAYS` in the node
+convention the sky code owns — **requested of render rather than computed here,
+since guessing another zone's convention is exactly Rule 34.** If it lands
+inside the tour's window it is a blocker; if it lands at day 180 it is
+scheduled. Either way the answer is cheap and nobody has taken it.
+
+### W9.7-R2 — WHAT THE WORLD LOOKS LIKE AT TOTALITY (open, deliberately unnumbered)
+
+R1 fixes the black-disc-over-a-lit-landscape defect completely and needs no new
+row. **What the sky and the ambient do at totality is a separate question and I
+am not authoring its number today**, for the same reason §5.12's threshold is
+still unplaced: nothing has measured an arm. Recorded so the gap is a decision
+rather than an oversight, with both ends of the range named because a range is
+two assertions:
+
+- **The floor is not black.** A real totality is roughly civil-twilight bright
+  — corona plus a lit horizon ring all the way round — and a pitch-black midday
+  frame is a *different* bug wearing the fix's clothes.
+- **The ceiling is not subtle.** W9.8 establishes 2 · `PALETTE_SHADE_STEP_REF`
+  as the smallest change that survives the quantiser at all; totality must read
+  as an event and not as a cloud crossing, so its drop is bounded **below** by
+  that, not near it.
+- **Do not derive the amount by physics on the display ramp.** The sky's
+  0.05 → 0.62 sweep is already tone-mapped, and a real eclipse's 10⁴ luminance
+  drop divided into it produces a confident, meaningless number. This is the
+  Rule 36 trap one step out: the ruler decides the answer.
+
+**⚠ A TRAP TO NAME BEFORE SOMEBODY WALKS INTO IT: `MOON_SOLAR_EXCLUSION` is a
+MEASUREMENT exclusion and must never become a DRAW rule.** Checked: its only
+consumers today are A4's denominator and its own registry row — there is no
+code consumer, so nothing is broken. But the name invites it, and the two
+readings collide exactly at the event: the exclusion is 20°, occultation
+happens below 3.35°, so **a build that hid the moon within 20° of the sun would
+make an eclipse literally undrawable at the moment it occurs**, and the symptom
+would be "eclipses don't work" rather than "the exclusion is wrong". One name,
+two rules, and the inequality between them is the whole eclipse.
+
 ## W9.8 Brightness — the actual fix for "bright yes, no disc"
 
 Measured in the **quantiser's own luma**, weights 0.30/0.59/0.11
@@ -649,6 +730,25 @@ minimum sky separation between the two moons at a fixed in-world hour is
 threshold. *Denominator:* the 45 days. **Control: Skyrim's 6:5 ratio**
 (24 h / 20 h), which conjoins on day 5, 10, 15, … — 9 of 45. A real shipped
 rejected instance, and the threshold sits above it.
+
+**A8 — an occulted sun darkens the world** (W9.7-R1's acceptance; the
+requirement is stated there with its trigger). Over a sweep of frames spanning
+one Masser conjunction at which |β| < 3.90°, sampled at ≤ 2 in-world minutes
+around greatest occultation, the **landscape's** mean luma is monotonically
+non-increasing as the occulted fraction of the solar disc rises, and at
+greatest occultation it is lower than at first contact by more than
+2 · `PALETTE_SHADE_STEP_REF`. *Aggregation:* per-frame mean luma over
+**terrain pixels only** — the sky is excluded **by cause**, since the sky is
+where the black disc is and including it would let the defect darken its own
+evidence (Rule 36). *Denominator:* the same frame's mean luma at first contact,
+so the rule is a ratio against the un-occulted world and not against an
+absolute the tone-mapper owns. **Control: today's build** — `SkyModel.cpp:139`
+makes `sun_color` a function of elevation alone, so its landscape luma is
+**flat across the whole sweep** and the sequence is non-increasing only in the
+degenerate sense. Must fail, and it fails on the *strict* half of the pair,
+which is why the rule carries both clauses instead of just monotonicity.
+*Deliberately NOT asserted:* how dark totality gets — that is W9.7-R2, open,
+and asserting it here would place a number nothing has measured.
 
 Rule 38 applies throughout: these assert **outcomes** — "the disc reads as a
 disc", "the phase matches the position", "the moon rises later" — never
