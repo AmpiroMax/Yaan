@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 21:32:35
+Last updated: 10:08:2026 - 21:36:41
 Module: engine/world
 File: engine/world/sources/VoxelMesh.cpp
 
@@ -37,6 +37,13 @@ UPD:
   slightly steeper); they are noisier. 46.1%% of blend vertices change under the
   Rule 39 fix, so render's 0.375%% ground-pixel figure is a floor — but vertices
   are not pixels, and the converting measurement is render's instrument.
+- 10:08:2026 - 21:36:41: CORRECTION (render's catch): my "0.375%% is a floor
+  by ~2.7x" was false. 0.375%% was derived as 2.21%% x MEAN DELTA 0.170, not from
+  a share-of-vertices; my measured 0.1652 agrees to 97.2%%. I read a weight as a
+  share. The distribution still broke the model behind that figure (12.8%% of
+  blend vertices fall below the ramp, 14.9%% above; the errors cancel in the
+  mean), and that 12.8%% is why BLEND_CLASS_ROCK_W is load-bearing, not
+  redundant — there the slope ramp contributes nothing.
 */
 
 #include "engine/world/sources/VoxelMesh.h"
@@ -234,28 +241,54 @@ VoxelMeshData extract_surface_nets(const VoxelVolume& volume) {
                 // analytic), which is a different defect from a bias and would
                 // not have been found by looking for the one we expected.
                 //
-                // The consequence still runs the other way from the estimate.
-                // Against the shader ramp (START 0.1322, END 0.2352): 12.8% of
-                // blend vertices sit below START, where the shader adds NO rock
-                // and the surface class is the only source; 14.9% sit above END,
-                // where it is already saturated. The shader's own term is
-                // already >= 0.5 on 53.9%, so the fix changes 46.1% of blend
-                // vertices — far more than the ~17% implied by the 0.375%
-                // ground-pixel estimate. Mean rock-weight delta 0.1652; the
-                // median vertex changes by 0, the affected ones by the full 0.5.
+                // TWO QUANTITIES, AND THEY MUST NOT BE SWAPPED. I swapped
+                // them once and the correction is render's (10.08.2026):
                 //
-                // WHAT THIS DOES NOT SETTLE, and the reason it is not a licence
-                // to quote a new percentage: THESE ARE VERTICES, NOT PIXELS. A
-                // vertex on a crag covers a different screen area from one on a
-                // valley floor, so 46.1% of vertices does not convert to 46.1%
-                // of anything visible. This measures the OBJECT; the claim
-                // 0.375% makes is about the VIEW, and Rule 41 says an
-                // instrument on one cannot settle the other. What it does
-                // establish is that 0.375% is a FLOOR, and by a wide enough
-                // margin (~2.7x on the vertex share alone) that retiring
-                // BLEND_CLASS_ROCK_W on the strength of it would be premature.
-                // The number that closes it is a pixel-space measurement and
-                // that instrument lives in render.
+                //   share of blend vertices that change AT ALL   46.1%
+                //     (= 1.02% of all vertices)
+                //   MEAN rock-weight delta over blend vertices   0.1652
+                //     (= 0.365% of ground pixels flipping)
+                //
+                // The ~2.8x between them is the ratio of two different
+                // questions, not an error in either. The second row is the one
+                // that reaches the screen: the splat is an ordered dither, so
+                // step(bayer, rock_w) paints rock on a pixel fraction equal to
+                // rock_w, which makes the MEAN delta directly a pixel share.
+                // Render derived 0.375% analytically as 2.21% x 0.170 before I
+                // measured anything; my 0.1652 agrees with their 0.170 to 97.2%.
+                //
+                // My error is worth keeping because it was not a hard one:
+                // 0.375 / 2.21 = 0.1697, and I read that as "17% of vertices"
+                // when it was the mean delta 0.170 — a WEIGHT read as a SHARE.
+                // The probe printed my own 0.1652 on the next line of output. I
+                // had both numbers and compared the wrong pair, then wrote
+                // "0.375% is a floor by ~2.7x" here, which was simply false.
+                // Two numbers agreeing to 97% is not a discrepancy to explain.
+                //
+                // WHAT THE DISTRIBUTION DID BREAK — and this is worth more than
+                // the agreement — IS THE MODEL BEHIND THAT ANALYTIC 0.170. It
+                // assumed every blend vertex lies inside the ramp band, which
+                // looks safe because the class is assigned on exactly that band.
+                // It is not: 12.8% fall BELOW rock_slope_start and 14.9% ABOVE
+                // rock_slope_end, and the two errors cancel in the mean. A right
+                // answer from a wrong model, found only by measuring the
+                // distribution rather than the aggregate.
+                //
+                // AND IT INVERTS THE CONCLUSION WE BOTH STARTED FROM. That
+                // 12.8% is the reason BLEND_CLASS_ROCK_W is NOT redundant with
+                // the slope ramp: below rock_slope_start the ramp contributes
+                // nothing at all, so the surface class is the ONLY source of
+                // rock there and deleting the constant would draw that ground as
+                // plain grass. Redundant on the upper half, load-bearing on the
+                // lower 12.8%. Do not retire it.
+                //
+                // STILL NOT SETTLED: these are VERTICES, NOT PIXELS. This
+                // instrument measures the OBJECT and the pixel share is a claim
+                // about the VIEW (Rule 41). Render's directional argument that
+                // sloped ground faces an eye-height camera more squarely than
+                // flat ground, so blend vertices are over-represented in pixels,
+                // is an ARGUMENT and is labelled as one by its author. The
+                // closing number is a pixel-space measurement in render's zone.
                 mesh.normals.push_back(n);
                 mesh.materials.push_back(mat);
             }
