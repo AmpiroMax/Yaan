@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 20:46:11
+Last updated: 10:08:2026 - 21:06:20
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -34,6 +34,13 @@ UPD:
   catch): the omitted fourth argument is the DERIVED entrance adits, so the
   determinism case is sound because the omission cancels on both sides, and the
   P7 case measures the LAYOUT's tunnel rather than the shipped field.
+- 10:08:2026 - 21:06:20: Rule 39 regression for the surface-class hop, with
+  the control the rule prescribes — the PRE-FIX projection copied out verbatim,
+  asserted to agree with the fixed one on all four classes the suite already
+  exercised and to disagree on exactly the fifth. That asymmetry is the finding:
+  the drift was unreachable from any test of the well-trodden classes. Also
+  replaced `mat <= Dirt` with a named-enumerator check; that bound was a fact
+  about declaration order in an APPEND-ONLY enum and went red on the append.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -60,6 +67,44 @@ const world::WorldGenContext& testbed() {
     static const world::WorldGenContext ctx =
         world::build_world_context(WorldGenParams{1, {0, 0}, {3, 3}});
     return ctx;
+}
+
+/// Is this byte a material a vertex may actually carry? Spelled out rather
+/// than bounded by "<= the last enumerator", which is a fact about the
+/// declaration order and not about the contract.
+bool is_real_material(uint8_t mat) {
+    switch (static_cast<math::VoxelMaterial>(mat)) {
+    case math::VoxelMaterial::Grass:
+    case math::VoxelMaterial::Rock:
+    case math::VoxelMaterial::Sand:
+    case math::VoxelMaterial::Dirt:
+    case math::VoxelMaterial::GrassRockBlend:
+        return true;
+    case math::VoxelMaterial::Air:
+        return false;
+    }
+    return false;
+}
+
+/// THE CONTROL for the surface-class projection, per Rule 39's prescription:
+/// the pre-fix projection copied out VERBATIM from VoxelVolume.cpp as it stood
+/// before math::voxel_material_of existed, `default:` and all. Its value is
+/// precisely that it is EQUAL to the correct answer on the four classes
+/// everyone tests and WRONG on the fifth — which is why no amount of testing
+/// the well-trodden classes could ever have caught the drift.
+math::VoxelMaterial voxel_material_of_prefix(math::SurfaceClass cls) {
+    switch (cls) {
+    case math::SurfaceClass::Rock:
+        return math::VoxelMaterial::Rock;
+    case math::SurfaceClass::Sand:
+        return math::VoxelMaterial::Sand;
+    case math::SurfaceClass::WaterBed:
+        return math::VoxelMaterial::Dirt;
+    case math::SurfaceClass::GrassRockBlend:
+    case math::SurfaceClass::Grass:
+    default:
+        return math::VoxelMaterial::Grass;
+    }
 }
 
 uint64_t mesh_hash(const world::VoxelSurface& m) {
@@ -218,6 +263,76 @@ TEST_CASE("neighbouring chunks meet without a seam") {
     CHECK(worst < 1e-3);
 }
 
+TEST_CASE("the blend surface class survives the hop onto the voxel skin") {
+    // Rule 39 regression. SurfaceClass::GrassRockBlend had no VoxelMaterial to
+    // land on, so world's projection folded it into Grass. The consequence was
+    // not in world at all: the heightfield mesher drew the blend with rock
+    // weight 0.5 and the voxel mesher, handed a Grass vertex, drew 0.0 — two
+    // readings of one surface on the same chunk-load branch, same shader.
+
+    // (a) The projection is total and carries every class distinctly, EXCEPT
+    //     the one collapse that is deliberate and documented (WaterBed -> Dirt
+    //     shares the bed weight with carved rock).
+    CHECK(math::voxel_material_of(math::SurfaceClass::Grass) == math::VoxelMaterial::Grass);
+    CHECK(math::voxel_material_of(math::SurfaceClass::Rock) == math::VoxelMaterial::Rock);
+    CHECK(math::voxel_material_of(math::SurfaceClass::Sand) == math::VoxelMaterial::Sand);
+    CHECK(math::voxel_material_of(math::SurfaceClass::WaterBed) == math::VoxelMaterial::Dirt);
+    CHECK(math::voxel_material_of(math::SurfaceClass::GrassRockBlend)
+          == math::VoxelMaterial::GrassRockBlend);
+
+    // (b) THE CONTROL (Rule 30). The pre-fix projection agrees on all four
+    //     classes the old suite exercised and disagrees on exactly one. If
+    //     this block ever stops holding, the test above has stopped measuring
+    //     the thing it was written for.
+    for (const math::SurfaceClass cls :
+         {math::SurfaceClass::Grass, math::SurfaceClass::Rock, math::SurfaceClass::Sand,
+          math::SurfaceClass::WaterBed}) {
+        CHECK(voxel_material_of_prefix(cls) == math::voxel_material_of(cls));
+    }
+    CHECK(voxel_material_of_prefix(math::SurfaceClass::GrassRockBlend)
+          != math::voxel_material_of(math::SurfaceClass::GrassRockBlend));
+
+    // (c) The OUTCOME (Rule 38), on real worldgen rather than on the function:
+    //     the blend class exists in the testbed, and it reaches voxel vertices.
+    //     A projection that is correct on a class the world never produces
+    //     fixes nothing, so this half is what makes the case evidence.
+    const auto& ctx = testbed();
+    long blend_samples = 0;
+    long total_samples = 0;
+    long blend_vertices = 0;
+    long total_vertices = 0;
+    for (int cz = 0; cz <= 3; ++cz) {
+        for (int cx = 0; cx <= 3; ++cx) {
+            const auto chunk = world::generate_chunk(ctx, ChunkCoord{cx, cz});
+            for (const uint8_t c : chunk.surface.surface_class) {
+                ++total_samples;
+                if (static_cast<math::SurfaceClass>(c) == math::SurfaceClass::GrassRockBlend) {
+                    ++blend_samples;
+                }
+            }
+            for (const uint8_t mat : chunk.voxels.materials) {
+                ++total_vertices;
+                if (static_cast<math::VoxelMaterial>(mat)
+                    == math::VoxelMaterial::GrassRockBlend) {
+                    ++blend_vertices;
+                }
+            }
+        }
+    }
+    INFO("blend samples " << blend_samples << "/" << total_samples << ", blend vertices "
+                          << blend_vertices << "/" << total_vertices);
+    // Measured on this seed at the time of the fix: 3536/266256 samples
+    // (1.33%) and 26136/1183258 vertices (2.21%). Asserted as a BAND rather
+    // than pinned to those counts — the numbers move whenever the crag is
+    // retuned, and a test that goes red on a legitimate retune is a test that
+    // gets weakened (Rule 38). The band is wide on purpose; it is here to
+    // catch the blend vanishing again or flooding the map, not to re-tune it.
+    CHECK(blend_samples > 0);
+    CHECK(blend_vertices > 0);
+    CHECK(blend_vertices * 100 > total_vertices); // >1%: it did not vanish
+    CHECK(blend_vertices * 4 < total_vertices);   // <25%: it did not flood
+}
+
 TEST_CASE("mesh is well formed: indices in range, normals unit, materials solid") {
     const auto& ctx = testbed();
     const auto chunk = world::generate_chunk(ctx, ChunkCoord{2, 1});
@@ -234,7 +349,13 @@ TEST_CASE("mesh is well formed: indices in range, normals unit, materials solid"
     for (const uint8_t mat : m.materials) {
         // Air must never reach a vertex — every vertex has a solid side.
         CHECK(mat != static_cast<uint8_t>(math::VoxelMaterial::Air));
-        CHECK(mat <= static_cast<uint8_t>(math::VoxelMaterial::Dirt));
+        // Every vertex carries a REAL enumerator. This used to read
+        // `mat <= Dirt`, which only worked because Dirt was last in the enum
+        // on the day it was written — an append-only enum makes that bound
+        // wrong on the next append, and it duly went red when GrassRockBlend
+        // landed. Naming the members is the same assertion without the
+        // dependence on declaration order.
+        CHECK(is_real_material(mat));
     }
     // Open terrain: the great majority of faces point upward. (Carves will add
     // downward-facing ceilings; this pins the pre-carve baseline.)

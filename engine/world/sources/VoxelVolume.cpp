@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 19:55:17
+Last updated: 10:08:2026 - 21:05:31
 Module: engine/world
 File: engine/world/sources/VoxelVolume.cpp
 
@@ -30,6 +30,14 @@ UPD:
 - 09:08:2026 - 16:47:51: P7: slab extended to reach carved volumes (they sit below the surface band), per-column band widened over carves, CSG subtraction d = max(terrain, -carve).
 - 09:08:2026 - 17:36:42: §6.2: derived corridors included in the band widening and the CSG subtraction.
 - 09:08:2026 - 19:55:17: Stripes fix: column_surface/column_skin populated during the band pass.
+- 10:08:2026 - 21:05:31: The class -> material projection moved OUT of this
+  file into math::voxel_material_of (VoxelField.h), and the `default:` is gone
+  with it. The default was not a tidiness point: it killed -Wswitch on this
+  switch, so SurfaceClass::GrassRockBlend fell into the Grass arm without a
+  warning and the voxel terrain drew 26136 of 1183258 vertices (2.21%, seed-1
+  testbed) with rock weight 0.0 where the heightfield mesher drew 0.5. One
+  function, called by both zones, is the only thing that makes two copies the
+  same; a comment saying they are the same is not (Rule 39).
 */
 
 #include "engine/world/sources/VoxelVolume.h"
@@ -106,25 +114,19 @@ float height_at_node(const Heightmap& hm, int32_t vx, int32_t vz) {
 
 /// Surface class at a voxel node, nearest-sample (materials are categorical —
 /// interpolating them would invent classes that do not exist).
+///
+/// The class -> material projection itself is NOT here: it is
+/// math::voxel_material_of (VoxelField.h). It used to be a private switch in
+/// this file, with a `default:` that silently swallowed GrassRockBlend into
+/// Grass and, worse, disabled -Wswitch so the NEXT class would have been
+/// swallowed too. All this function decides now is WHICH SAMPLE to read.
 math::VoxelMaterial surface_material(const SurfaceData& surface, int32_t vx, int32_t vz) {
     const uint32_t sx = std::min(
         static_cast<uint32_t>(std::lround(static_cast<float>(vx) * VOXEL / STEP_M)), RES - 1);
     const uint32_t sz = std::min(
         static_cast<uint32_t>(std::lround(static_cast<float>(vz) * VOXEL / STEP_M)), RES - 1);
-    const auto cls = static_cast<math::SurfaceClass>(
-        surface.surface_class[static_cast<std::size_t>(sz) * RES + sx]);
-    switch (cls) {
-    case math::SurfaceClass::Rock:
-        return math::VoxelMaterial::Rock;
-    case math::SurfaceClass::Sand:
-        return math::VoxelMaterial::Sand;
-    case math::SurfaceClass::WaterBed:
-        return math::VoxelMaterial::Dirt; // river and lake beds
-    case math::SurfaceClass::GrassRockBlend:
-    case math::SurfaceClass::Grass:
-    default:
-        return math::VoxelMaterial::Grass;
-    }
+    return math::voxel_material_of(static_cast<math::SurfaceClass>(
+        surface.surface_class[static_cast<std::size_t>(sz) * RES + sx]));
 }
 
 } // namespace
