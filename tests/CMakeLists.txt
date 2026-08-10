@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 10:08:2026 - 21:05:04
+# Last updated: 10:08:2026 - 21:36:13
 # File: tests/CMakeLists.txt
 #
 # Responsibility:
@@ -24,6 +24,7 @@
 # - 10:08:2026 - 01:52:48: character zone added to the test loop (new Rule 25 zone).
 # - 10:08:2026 - 19:26:40: Зона app в цикле тестов: у лида появился код, который можно проверять отдельно от окна.
 # - 10:08:2026 - 21:05:04: Ворота DAG в ctest: архитектура утверждала, что слои держит CMake, а он не держал.
+# - 10:08:2026 - 21:36:13: Каждый тест запускается ИЗ КОРНЯ репозитория: тест, читающий ассет по относительному пути, был зелёным у одного агента и красным у другого на одном коммите.
 
 add_library(dfn_doctest_main STATIC DoctestMain.cpp)
 target_include_directories(dfn_doctest_main SYSTEM PUBLIC
@@ -34,7 +35,17 @@ target_link_libraries(dfn_doctest_main PUBLIC doctest::doctest dfn_headers)
 function(add_dfn_test name source)
     add_executable(${name} ${source})
     target_link_libraries(${name} PRIVATE dfn_doctest_main ${ARGN})
-    add_test(NAME ${name} COMMAND ${name})
+    # EVERY TEST RUNS FROM THE REPO ROOT. Without this, a suite that opens an
+    # asset by a repo-relative path passes for whoever launched ctest from the
+    # source directory and fails for everyone whose build dir is elsewhere --
+    # which is exactly what happened: test_layout_load was green in one agent's
+    # tree and red in another's, on the same commit, with the same binary.
+    #
+    # A test whose result depends on where it was launched is not a test, and
+    # the failure mode is the worst kind: it reads as a real regression to
+    # whoever sees the red, and as someone else's problem to whoever sees green.
+    add_test(NAME ${name} COMMAND ${name}
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endfunction()
 
 # THE DAG GATE. ARCHITECTURE.md claimed CMake enforced the layering and it did
