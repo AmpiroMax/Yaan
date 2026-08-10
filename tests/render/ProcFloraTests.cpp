@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 10:08:2026 - 11:24:00
+Last updated: 10:08:2026 - 11:59:40
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -66,6 +66,10 @@ UPD:
 - 10:08:2026 - 11:24:00: The edge-floor and kept-verge invariants moved to
   core with clump_field_edged(); tombstones name both clauses so a successor
   can tell 'moved' from 'dropped'.
+- 10:08:2026 - 11:59:40: Routing invariant — every ordinal flora_owns() claims
+  BUILDS non-empty geometry with real extent, at every LOD, walking the enum by
+  VALUE. Control is the old three-tree predicate, which every §5.10/§5.11
+  ordinal must fail: that predicate is why the forest floor drew as bare earth.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2126,7 +2130,7 @@ TEST_CASE("edge: the rule table is coherent, and the jewel is a BUDGET") {
         if (r.habitat == EdgeHabitat::PathMargin && r.common_scatter) {
             CHECK(r.per_100m > 0.0f);
         }
-        if (r.species == FloraSpecies::FlowerJewel) {
+        if (flora_species_of(r.species) == FloraSpecies::FlowerJewel) {
             jewel_seen = true;
             // DESIGN'S RULING: rarity is a placement budget, not a
             // probability. A jewel row that enters the common scatter is the
@@ -2135,7 +2139,7 @@ TEST_CASE("edge: the rule table is coherent, and the jewel is a BUDGET") {
             CHECK(r.assoc == EdgeAssociation::NearFindOnly);
         }
         for (int k = 0; k < 7; ++k) {
-            if (r.species == edge_species[k]) edge_species_covered[k] = true;
+            if (flora_species_of(r.species) == edge_species[k]) edge_species_covered[k] = true;
         }
     }
     CHECK(jewel_seen);
@@ -2222,7 +2226,7 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
         }
         // Design's two named stair cases, asserted by species rather than by
         // value: moss lives in the shaded JOINTS, flowers never do.
-        if (r.species == FloraSpecies::MossPatch) {
+        if (flora_species_of(r.species) == FloraSpecies::MossPatch) {
             CHECK(w.stone_steps >= 0.5f);
             // THE MOSS RESIDUAL IS BOUNDED (design, 10.08.2026). It is argued
             // from fiction — «life survives where the broom cannot reach», the
@@ -2235,8 +2239,8 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
             CHECK(w.cobble < w.dirt);
             CHECK(w.cobble <= 0.30f);
         }
-        if (r.species == FloraSpecies::FlowerCarpet
-            || r.species == FloraSpecies::FlowerAccent) {
+        if (flora_species_of(r.species) == FloraSpecies::FlowerCarpet
+            || flora_species_of(r.species) == FloraSpecies::FlowerAccent) {
             CHECK(w.stone_steps == doctest::Approx(0.0f));
         }
     }
@@ -2286,5 +2290,66 @@ TEST_CASE("edge: margin richness follows the SWEEP fiction, per path class") {
         CHECK(w.by_ordinal(2) == doctest::Approx(0.3f)); // FaintTrail
         CHECK(w.by_ordinal(3) == doctest::Approx(0.4f)); // StoneSteps
         CHECK(w.by_ordinal(9) == doctest::Approx(1.0f)); // unknown -> identity
+    }
+}
+
+TEST_CASE("routing: every species core can place BUILDS something") {
+    // THE BUG THIS EXISTS TO MAKE IMPOSSIBLE (render, 10.08.2026): core grew
+    // math::ScatterSpecies from 5 to 18; render's build_scatter_mesh switched
+    // over the original five and returned an EMPTY MeshData for the rest, and
+    // build_scatter_batches skipped empties silently. So the world placed
+    // snags, big bushes, fallen logs and deadfall, the forest floor drew as
+    // BARE EARTH, and every test in both zones stayed green — absence
+    // presenting as a neutral state, which is the same failure that hid the
+    // missing site meshes for a whole stage.
+    //
+    // Flora cannot fix render's switch from here, but it CAN guarantee the
+    // half it owns: that every ordinal it claims actually produces geometry.
+    // Walk the enum by VALUE rather than by a hand-written list, or this test
+    // acquires the very blind spot it is meant to remove.
+    for (uint8_t ord = 0; ord <= static_cast<uint8_t>(math::ScatterSpecies::StuntedPine);
+         ++ord) {
+        const auto s = static_cast<math::ScatterSpecies>(ord);
+        CAPTURE(ord);
+        if (!flora_owns(s)) continue;
+        const FloraSpecies fs = flora_species_of(s);
+        for (const FloraLod lod : LODS) {
+            const FloraMesh m = build_flora_mesh(fs, 3, FloraShape{}, lod);
+            const size_t tris = m.wood.triangle_count() + m.cards.triangle_count();
+            // Non-empty is the whole point: an empty mesh is what drew nothing.
+            CHECK(tris > 0);
+            // ...and it must have real extent, since a degenerate mesh would
+            // pass a triangle count and still render as nothing visible.
+            float hi = 0.0f;
+            for (const MeshData* md : {&m.wood, &m.cards}) {
+                for (const platform::Vertex& v : md->vertices) {
+                    hi = std::max(hi, std::abs(v.position.y));
+                }
+            }
+            CHECK(hi > 0.01f);
+        }
+    }
+
+    // Stone is NOT flora's, and the mapping's default is why that matters:
+    // flora_species_of(Stone) answers Bush, so routing a boulder down the
+    // flora path would draw a shrub. The predicate is what keeps it out.
+    CHECK_FALSE(flora_owns(math::ScatterSpecies::Stone));
+
+    // CONTROL — the rejected instance, rebuilt: the OLD routing predicate,
+    // which named only the three canopy trees. Every §5.10 and §5.11 ordinal
+    // must fail it, which is precisely why the forest floor drew as bare
+    // earth. If this control ever passes, someone has narrowed flora_owns()
+    // back to a tree list.
+    auto old_is_tree = [](math::ScatterSpecies s) {
+        return s == math::ScatterSpecies::OakTree || s == math::ScatterSpecies::PineTree
+            || s == math::ScatterSpecies::BirchTree;
+    };
+    for (const math::ScatterSpecies s :
+         {math::ScatterSpecies::Snag, math::ScatterSpecies::SnagPale,
+          math::ScatterSpecies::BigBush, math::ScatterSpecies::FallenLog,
+          math::ScatterSpecies::Deadfall, math::ScatterSpecies::MossPatch,
+          math::ScatterSpecies::StuntedPine}) {
+        CHECK(flora_owns(s));
+        CHECK_FALSE(old_is_tree(s)); // the old predicate dropped every one
     }
 }

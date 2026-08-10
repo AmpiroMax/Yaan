@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 10:08:2026 - 11:59:40
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -77,6 +77,9 @@ UPD:
   spells out §5.10/§5.11/§5.12 explicitly — its `default` returns Bush, so an
   unmapped species does not fail to build, it draws a forest floor of snags and
   logs as a field of shrubs.
+- 10:08:2026 - 11:59:40: flora_owns() implemented as an exhaustive switch with
+  NO default, so a new ScatterSpecies breaks the build here rather than
+  silently answering for a species nobody has considered.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -851,6 +854,42 @@ FloraSpecies flora_species_of(math::ScatterSpecies species) {
     case math::ScatterSpecies::StuntedPine: return FloraSpecies::StuntedPine;
     default: return FloraSpecies::Bush;
     }
+}
+
+bool flora_owns(math::ScatterSpecies species) {
+    // Enumerated POSITIVELY and without a default, so adding a ScatterSpecies
+    // makes this switch non-exhaustive and the compiler names the file that
+    // has to decide. A `default` here would answer for a species nobody has
+    // thought about yet, which is exactly how the forest floor came to draw as
+    // bare earth: the fallthrough was silent and looked like a neutral state.
+    switch (species) {
+    case math::ScatterSpecies::OakTree:
+    case math::ScatterSpecies::PineTree:
+    case math::ScatterSpecies::BirchTree:
+    case math::ScatterSpecies::Bush:
+    case math::ScatterSpecies::Snag:
+    case math::ScatterSpecies::SnagPale:
+    case math::ScatterSpecies::BigBush:
+    case math::ScatterSpecies::FallenLog:
+    case math::ScatterSpecies::Deadfall:
+    case math::ScatterSpecies::MossPatch:
+    case math::ScatterSpecies::FlowerCarpet:
+    case math::ScatterSpecies::FlowerAccent:
+    case math::ScatterSpecies::FlowerJewel:
+    case math::ScatterSpecies::FlowerUmbel:
+    case math::ScatterSpecies::Mushroom:
+    case math::ScatterSpecies::PebbleCluster:
+    case math::ScatterSpecies::StuntedPine:
+        return true;
+    // Stone is render's own mesh (ProcMesh's boulder path), not a plant.
+    // NOTE the trap this predicate exists to keep shut: flora_species_of()
+    // maps Stone to Bush through its default, so routing a Stone down the
+    // flora path would draw a SHRUB where a boulder belongs — wrong, and
+    // wrong in a way that reads as a placement bug rather than a routing one.
+    case math::ScatterSpecies::Stone:
+        return false;
+    }
+    return false;
 }
 
 float species_nominal_height(FloraSpecies s) {

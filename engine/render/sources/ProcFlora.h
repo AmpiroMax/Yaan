@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 10:08:2026 - 11:59:40
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -41,6 +41,10 @@ UPD:
 - 10:08:2026 - 11:51:23: flora_maturity_for() moved to core/math and is
   imported here — core's canopy occlusion envelope is defined from its
   multiplier bands, so the draw gained a second zone (Rule 35).
+- 10:08:2026 - 11:59:40: flora_owns() — the ROUTING PREDICATE, so render asks
+  flora which ordinals take the flora path instead of keeping a list that can
+  drift. Added after render found that core's 5->18 enum growth left every new
+  ordinal drawing NOTHING, silently, with both suites green.
 */
 
 #pragma once
@@ -143,6 +147,26 @@ analyse_neighbourhood(std::span<const math::ScatterInstance> all, size_t count);
 
 /// Maps core's placement species onto the flora catalog.
 [[nodiscard]] FloraSpecies flora_species_of(math::ScatterSpecies species);
+
+/// **THE ROUTING PREDICATE — one source of truth, so render never keeps a
+/// species list that can drift from this one.** True when the instance's mesh
+/// comes from `append_flora`/`build_flora_mesh`; false only for the classes
+/// render meshes itself (today: `Stone`).
+///
+/// This exists because the alternative already bit us. `ScatterBatcher` named
+/// Oak/Pine/Birch in a local `is_tree()` and `build_scatter_mesh` switched over
+/// the original five species, so when core grew `ScatterSpecies` from 5 to 18
+/// every new ordinal fell through to an EMPTY MeshData and was silently
+/// skipped: core placed snags, big bushes, fallen logs and deadfall, and the
+/// forest floor drew as bare earth with both zones' suites green. Absence
+/// presenting as a neutral state — the same failure that hid the missing site
+/// meshes for a whole stage.
+///
+/// So the predicate is asked of flora rather than restated by render, and the
+/// suite asserts that every species this returns true for actually BUILDS
+/// non-empty geometry. A new ordinal is then either meshed or loudly missing,
+/// never quietly nothing.
+[[nodiscard]] bool flora_owns(math::ScatterSpecies species);
 
 // --- Metadata other zones need without pulling in the tables ---------------
 [[nodiscard]] float species_nominal_height(FloraSpecies);
