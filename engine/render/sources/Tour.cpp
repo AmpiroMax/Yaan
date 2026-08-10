@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 12:12:40
+Last updated: 10:08:2026 - 21:29:16
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -62,6 +62,12 @@ UPD:
   streaming latency PLUS the fade, not the fade alone.
 - 10:08:2026 - 12:12:40: stand_steps/vantage_steps over math::StandVantage + DFN_SKY_PITCH
   (the moon rides a steep arc; a fixed 0.16 framed the ground it was lighting).
+- 10:08:2026 - 21:29:16: testbed_steps()'s WAIT = 45 gains the measurement that
+  refutes its own old comment. It claimed to "cover streaming + mesh upload";
+  it does not, and no frame count can (Rule 42 -- frames vs sim steps off a
+  wall clock). Two identical runs differ by 17.448% of pixels, 21.748% with
+  the sky pinned, 34.660% post-3903d69. No behaviour change: the fix is a
+  streaming-quiescent predicate and spans three zones.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -538,9 +544,44 @@ std::vector<TourStep> Tour::testbed_steps() {
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative
     // (y = offset above terrain, resolved through the begin() callback while
-    // the app streams around focus_position()). Wait frames cover streaming +
-    // mesh upload for each refocus.
+    // the app streams around focus_position()).
     const float eye = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+
+    // THIS NUMBER DOES NOT DO WHAT ITS OLD COMMENT SAID ("wait frames cover
+    // streaming + mesh upload for each refocus"). IT DOES NOT COVER THEM, AND
+    // NO FRAME COUNT CAN. Measured 10.08.2026 with tools/pngdiff.py: two runs
+    // of the SAME binary at the SAME commit with NO change between them differ
+    // by 17.448 % of pixels (max channel delta 247/255). Pinning the sky with
+    // DFN_TIME=0.5 does not help -- 21.748 % -- so it is not the day/night
+    // clock. Re-measured after the menu-skip fix (3903d69): 34.660 %.
+    //
+    // Rule 42: this budget is denominated in RENDERED FRAMES. What it is
+    // waiting for -- chunk streaming -- is denominated in SIM STEPS, driven
+    // off wall-clock frame_dt through the fixed-timestep catch-up loop
+    // (App.cpp's game loop). So a different set of chunks is resident when the
+    // shutter opens on every run, and on a faster or busier machine it is a
+    // different set again. Raising the constant does not fix it; it only moves
+    // the failure, because the correct value is machine-dependent, which is
+    // the whole defect.
+    //
+    // WHAT THIS COSTS, and it is why the note is here rather than only in the
+    // tool: the tour is what this project uses for Rule 27 visual acceptance,
+    // and a full-tour pixel difference below ~20 % (35 % post-3903d69)
+    // certifies NOTHING -- it is indistinguishable from two identical runs.
+    // Single pinned-state probes (DFN_MASSIF_PROBE, DFN_CRAG_PROBE and
+    // friends), where nothing streams between the two arms, remain valid.
+    //
+    // THE FIX IS NOT A BIGGER NUMBER. It is a streaming-quiescent predicate --
+    // shoot once the pending set (chunks + uploads + coarse LOD nodes, since
+    // any one being non-zero means the frame is still filling in) has been
+    // empty for a few consecutive frames, with a frame cap as a backstop that
+    // LOGS the timeout rather than shooting silently. That needs a per-frame
+    // pending count out of App/ChunkManager which does not exist yet
+    // (ChunkManager::coarse_pending_count() is the only piece that does), so
+    // it spans three zones and is not a render-local change. Assigned, open.
+    //
+    // Note also: vantage_steps() honours DFN_TOUR_WAIT; THIS route does not,
+    // so there is no way to raise the settle here without an edit.
     constexpr uint32_t WAIT = 45;
 
     // Vantages aim at the GENERATED seed-1 world, probed 09:08:2026 (the §7.1
