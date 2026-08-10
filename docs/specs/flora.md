@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 02:43:32
+Last updated: 10:08:2026 - 10:56:08
 -->
 <!--
 UPD:
@@ -225,6 +225,22 @@ UPD:
                          §7's "no ground cover" is amended — the stage brief
                          moved ground cover into flora; grass awaits the
                          lead's Task 4 gate.
+- 10:08:2026 - 10:56:08: CLARK-EVANS R MEASURED across all five clump classes
+                         (core's request, BR-4) and added to §3.12. Four
+                         classes pass CLUMP_R_CLUMPED_MAX comfortably
+                         (0.38-0.53); GRASS IS MARGINAL — 0.776 mean, one seed
+                         at 0.811 breaching 0.80 — and it is marginal BY
+                         AUTHORSHIP: coverage 0.55 means over half the ground
+                         carries grass, and a pattern covering half the ground
+                         cannot be strongly clumped. The CONTROL also found an
+                         instrument bias nobody had priced: the same placement
+                         machinery with NO field measures R = 1.134, not 1.000,
+                         because a jittered grid is more regular than Poisson.
+                         So the threshold's DENOMINATOR is unstated (ideal
+                         Poisson vs the same placement unclumped) and the two
+                         give opposite verdicts for grass. Escalated to design
+                         and the lead; not tuned, because buying the number
+                         would mean bare earth between tufts.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1118,6 +1134,40 @@ Destination: `engine/core/math` under core's ownership (their DAG ruling —
 engine/world cannot include engine/render); the file is dependency-free for
 that move, and until it lands the flora-zone copy is the only one. Core also
 takes `flora_maturity_for` in the same move and ports the Rule 31 tests.
+
+**CLARK-EVANS R, MEASURED (BR-4, core's request, 10.08.2026).** R = observed
+mean nearest-neighbour distance / the Poisson expectation `1/(2√ρ)`;
+`CLUMP_R_CLUMPED_MAX` = 0.8. Placement modelled as core described it —
+jittered-grid candidates accepted with probability = `clump_field` — with an
+interior-buffer edge correction, three seeds, 240 m square:
+
+| class | coverage | contrast | R (mean, range) | vs 0.80 |
+|---|---|---|---|---|
+| GrassTufts | 0.55 | 0.35 | 0.776 (0.723–0.811) | **marginal, one seed breaches** |
+| Moss | 0.22 | 0.55 | 0.529 (0.494–0.576) | passes |
+| Pebbles | 0.15 | 0.65 | 0.466 (0.399–0.527) | passes |
+| Flowers | 0.18 | 0.75 | 0.515 (0.448–0.565) | passes |
+| Mushrooms | 0.10 | 0.85 | 0.383 (0.335–0.429) | passes |
+
+**Two findings, and neither is "tune grass until it passes".**
+
+1. **R IS A PROPERTY OF THE PLACEMENT, NOT OF THE FIELD ALONE, and the
+   control proves it.** The same machinery with the field replaced by a
+   constant measures **R = 1.134, not 1.000** — a jittered grid is *more
+   regular* than Poisson, so roughly 0.13 of every number above is the
+   placement machinery rather than the field. Normalised against that control
+   grass reads 0.685. So the threshold has an unstated denominator: is
+   `CLUMP_R_CLUMPED_MAX` measured against ideal Poisson, or against the same
+   placement unclumped? The two verdicts for grass differ. **Design and the
+   lead own that; flora does not get to pick the denominator that passes.**
+2. **Grass is marginal BY AUTHORSHIP, not by defect.** A class authored at
+   coverage 0.55 carries something on over half the ground; a pattern that
+   covers half the ground *cannot* be strongly clumped, which is arithmetic
+   rather than tuning. The table shows R tracking the authored contrast
+   monotonically, so the metric is meaningful and grass is simply the least
+   clumped class on purpose («широкие волны»). Raising grass's contrast to
+   pass the bar would buy the number by putting bare earth between tufts,
+   which is a different meadow. **Escalated rather than tuned.**
 
 **The rich edge set (в8/в19в; `FloraEdgeRules.h` + seven patch species).**
 Species = `GroundForm` + numbers, the tree doctrine one level down. Design's
