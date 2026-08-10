@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 11:31:39
+Last updated: 10:08:2026 - 12:03:39
 -->
 <!--
 UPD:
@@ -349,6 +349,28 @@ UPD:
                          MEDIAN as the discipline-consistent choice per §2.8.3
                          ("a marginal pass on one seed is not compliance") but
                          left the ruling to design.
+- 10:08:2026 - 12:03:39: CORE LANDED THE PLACEMENT and falsified against my
+                         published count: 43.0 instances/100 m/side against my
+                         58, and the gap is the MAINTENANCE COLUMN working —
+                         79% of the network is Dirt at 0.45-0.55 and cobble
+                         zeroes flowers and pebbles, so 58 was always the
+                         hint-path figure. Per-species shares land within 0.03
+                         of my table, which is what says the shape is right.
+                         They also mutation-checked the floor invariant I handed
+                         over: rewriting max(clump, edge*rich) as a PRODUCT
+                         zeroes a cobbled street outright, so «a kept verge is
+                         not bare ground» is the only thing standing between the
+                         composition and that outcome. My table and the clump
+                         field now live in core/math; the render headers are
+                         shims. NEW GAP, THEIRS TO FIND AND MINE TO AUTHOR: the
+                         ForestFloor rows carried per_100m = 0 because a forest
+                         floor is not a linear feature, so BR-3's ratio had NO
+                         DENOMINATOR and measured ~27000 against zero. Authored
+                         areal densities above (moss 40/ha, mushroom 20/ha, both
+                         derived from anchor counts, logs excluded because they
+                         moss in their own mesh) and named the ratio's second
+                         ambiguity: same-set gives ~30x, all-scatter ~6x, and
+                         RICH_EDGE_RATIO = 3 is not binding under either.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1384,6 +1406,45 @@ never subtracts; a kept verge is not bare ground, discriminated on ground where
 the field is *zero*) and are named in a tombstone in this zone's suite, because
 the difference between "moved" and "silently dropped" is a successor's whole
 picture.
+
+**THE FOREST-FLOOR ROWS NEEDED AN AREAL DENSITY, AND CARRYING ZERO BROKE
+BR-3'S DENOMINATOR** (core found it, 10.08.2026, and was right not to invent
+the number). `per_100m` is *instances per 100 LINEAR metres of feature* — and
+a forest floor is not a linear feature, so the two `ForestFloor` rows
+(MossPatch, Mushroom) carried no authored density at all. Consequence: the
+off-path ground had no ground cover, so core's first BR-3 acceptance measured
+"the margin is richer than the wood" at **~27 000** — a ratio against zero,
+which is not a measurement. They threw it away rather than ship a green
+number, which is the right instinct and the same one that has been catching
+instruments all week.
+
+**Authored densities (flora's content; design blesses, the lead lands the
+rows).** Both classes are ANCHORED rather than sprinkled — §A7's associative
+grammar, and `EdgeAssociation::ShadeOfTrunk` already says so — so the areal
+figure is derived from the anchor count rather than picked:
+
+| row | authored | derivation |
+|---|---|---|
+| MossPatch, ForestFloor | **40 /ha** (0.0040 /m²) | 44 stems/ha × ~⅔ carrying a basal patch on the shaded side, plus moss on stones. **Fallen logs are NOT counted here** — they carry moss in their own mesh (§5.10's `moss_cover`), and counting them twice is how a density becomes a double-dressing. |
+| Mushroom, ForestFloor | **20 /ha** (0.0020 /m²) | fungi fruit on rotting wood and at trunk bases (deadfall 15–30/ha, logs 3–8/ha, stems 44/ha). This is the density BEFORE clumping, and mushrooms carry the tightest field in the set (coverage 0.10, contrast 0.85), so the realised world shows rings and clusters with most of the wood bare — which is the intent, since a mushroom is find-tier ornament and not a carpet. |
+
+**AND THE RATIO NEEDS ITS DENOMINATOR NAMED — the fifth definitional
+question in three days.** BR-3 compares margin richness against far-field
+richness, but nothing says *which classes count on each side*, and the answer
+changes the result by 5×:
+
+- **Same-set** (the seven edge species on both sides), which is the
+  apples-to-apples reading and the one flora recommends: 0.181 /m² on the
+  hint-path against **0.0060 /m²** off-path ⇒ **≈ 30×**.
+- **All-scatter** (every placed instance on both sides): the far field also
+  carries bush, big bush, deadfall, snags and logs, ≈ 0.030 /m² ⇒ **≈ 6×**.
+
+**Either way `RICH_EDGE_RATIO` = 3 stops being a binding constraint**, and
+that is worth design knowing rather than discovering: a threshold the world
+clears by 2× to 10× is, in this project's own Rule 30 language, a description
+rather than a test. The ordering clause core kept in its place (hint-path >
+dirt > cobble > 0, with real separation) is the falsifiable one and should
+probably remain the primary acceptance whatever the ratio is re-set to.
 
 **The moss residual on cobble (0.25) is design-confirmed and BOUNDED**, since
 a number argued from fiction is the kind that grows later: strictly under the
