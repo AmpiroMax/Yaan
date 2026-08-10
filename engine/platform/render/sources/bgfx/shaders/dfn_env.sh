@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 09:08:2026 - 21:06:00
+Last updated: 10:08:2026 - 02:59:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -40,6 +40,12 @@ UPD:
   ordered dissolve, the LOD cross-fade's mechanism). The pixel coordinate is a
   PARAMETER: this header is included by vertex shaders, where gl_FragCoord does
   not exist, and naming it in the body broke every one of them.
+- 10:08:2026 - 02:59:00: CLOUDS (WEATHER.md W4): env block 33 -> 35 vec4s
+  (slots 33/34 = the weather/cloud state + drift offset), the ONE cloud
+  coverage field (dfn_cloud_field / dfn_cloud_sheet_alpha / _sheet2_alpha)
+  sampled by BOTH the sky sheet (fs_sky) and the ground shadow
+  (dfn_cloud_sun_vis, applied to the sun term inside dfn_surface_light so
+  terrain, props and foliage all darken together and cannot disagree).
 */
 
 #ifndef DFN_ENV_SH
@@ -50,7 +56,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[33];
+uniform vec4 u_envParams[35];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -86,6 +92,111 @@ uniform vec4 u_envParams[33];
 #define u_windDir        (u_envParams[32].xy)
 #define u_windStrength   (u_envParams[32].z)
 #define u_windFlutter    (u_envParams[32].w)
+// Clouds (WEATHER.md W4): the weather-state tuple's cloud slice plus the
+// drift offset of the ONE coverage field. Both the sky sheet and the ground
+// shadow sample the field through u_cloudOffset — never a second offset.
+#define u_cloudCover      (u_envParams[33].x)
+#define u_cloudCumulus    (u_envParams[33].y)
+#define u_cloudShadow     (u_envParams[33].z)
+#define u_cloudWavelength (u_envParams[33].w)
+#define u_cloudOffset     (u_envParams[34].xy)
+
+// Cloud layer altitudes, meters ABOVE SEA LEVEL (world y). Look-dev pair for
+// the two-sheet parallax: the sky intersects the view ray with these planes,
+// the ground shadow projects along the sun to the SAME planes, so the sheet
+// and its shadow line up by construction. Terrain tops out at ~400 m
+// (WORLDGEN_MAX_HEIGHT), so both planes clear every landform.
+#define DFN_CLOUD_LAYER1_M 1200.0
+#define DFN_CLOUD_LAYER2_M 2200.0
+// Layer 2 samples the SAME field at a coarser scale and a fixed seed shift so
+// the sheets decorrelate without inventing a second field or a second wind.
+#define DFN_CLOUD_LAYER2_SCALE 0.47
+#define DFN_CLOUD_LAYER2_SEED  vec2(310.0, -170.0)
+// Softness of the coverage threshold (field units) — the cloud edge width.
+#define DFN_CLOUD_EDGE 0.16
+
+float dfn_cloud_hash(vec2 c)
+{
+    return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float dfn_cloud_vnoise(vec2 p)
+{
+    vec2 c = floor(p);
+    vec2 f = p - c;
+    f = f * f * (3.0 - 2.0 * f);
+    float a = dfn_cloud_hash(c);
+    float b = dfn_cloud_hash(c + vec2(1.0, 0.0));
+    float d = dfn_cloud_hash(c + vec2(0.0, 1.0));
+    float e = dfn_cloud_hash(c + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(d, e, f.x), f.y);
+}
+
+// THE coverage field (W4): one authority. `p` is world x/z ON A LAYER PLANE
+// in meters, drift NOT yet applied — every sampler goes through the
+// dfn_cloud_sheet*_alpha wrappers below, which add u_cloudOffset, so no call
+// site can drift its own copy.
+float dfn_cloud_field(vec2 p)
+{
+    vec2 q = p / max(u_cloudWavelength, 1.0);
+    return dfn_cloud_vnoise(q) * 0.55
+         + dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) * 0.28
+         + dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) * 0.17;
+}
+
+// Coverage -> opacity. cover 0 = empty sky (alpha exactly 0 everywhere: the
+// Rule 30 control — DFN_CLOUD=0 must erase sheet AND shadows in one move).
+float dfn_cloud_alpha(vec2 p, float cover)
+{
+    if (cover <= 0.0) {
+        return 0.0;
+    }
+    float threshold = 1.0 - cover;
+    return smoothstep(threshold, threshold + DFN_CLOUD_EDGE,
+                      dfn_cloud_field(p));
+}
+
+// The two sheets, as the ONLY two ways to read the field. Layer 1 is the main
+// sheet (full cover weight); layer 2 is the high thin sheet (reduced cover).
+float dfn_cloud_sheet_alpha(vec2 p_on_layer1)
+{
+    return dfn_cloud_alpha(p_on_layer1 + u_cloudOffset, u_cloudCover);
+}
+
+float dfn_cloud_sheet2_alpha(vec2 p_on_layer2)
+{
+    return dfn_cloud_alpha((p_on_layer2 + u_cloudOffset)
+                               * DFN_CLOUD_LAYER2_SCALE
+                           + DFN_CLOUD_LAYER2_SEED,
+                           u_cloudCover * 0.75);
+}
+
+// Sun visibility through the cloud sheets at a WORLD point: project along the
+// sun to each layer plane and read the same alphas the sky draws. Applied to
+// the sun term of dfn_surface_light, so terrain, props and foliage darken
+// together as the shadow crawls (the "мир живёт" frame). Fades out at low
+// sun: near the horizon a crawling shadow degenerates into kilometers of
+// smear, and dusk attenuation belongs to the state's sun_attenuation, not to
+// this projection.
+float dfn_cloud_sun_vis(vec3 wpos)
+{
+    if (u_cloudShadow <= 0.0 || u_cloudCover <= 0.0) {
+        return 1.0;
+    }
+    float sun_y = u_sunDir.y;
+    float low_sun = smoothstep(0.08, 0.20, sun_y);
+    if (low_sun <= 0.0) {
+        return 1.0;
+    }
+    vec2 p1 = wpos.xz
+            + u_sunDir.xz * ((DFN_CLOUD_LAYER1_M - wpos.y) / sun_y);
+    vec2 p2 = wpos.xz
+            + u_sunDir.xz * ((DFN_CLOUD_LAYER2_M - wpos.y) / sun_y);
+    // The high sheet is thin: half occlusion weight.
+    float transmit = (1.0 - dfn_cloud_sheet_alpha(p1))
+                   * (1.0 - 0.5 * dfn_cloud_sheet2_alpha(p2));
+    return 1.0 - u_cloudShadow * low_sun * (1.0 - transmit);
+}
 
 // Sway offset for a wind-affected vertex, in WORLD space.
 //   sway_weight: 0 at the attachment (branch/ground), 1 at the free edge.
@@ -176,7 +287,11 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
     float dark = clamp(u_ambientDarkness, 0.0, 1.0);
     float sky = sky_vis * (1.0 - dark);
     vec3 light = u_ambientColor * sky;
-    light += u_sunColor * (max(dot(n, u_sunDir), 0.0) * sun_vis);
+    // Cloud shadow (W4): the same coverage field the sky draws, projected
+    // along the sun. Lives HERE so every surface-lit thing — terrain, props,
+    // foliage — darkens under the same crawling shadow (Rule 32).
+    light += u_sunColor * (max(dot(n, u_sunDir), 0.0) * sun_vis
+                           * dfn_cloud_sun_vis(wpos));
     // Moonlight: directional and unshadowed — the shadow map belongs to the
     // sun, and a second cascade for the moon is not worth the frame.
     light += u_moonColor * (u_moonLight * DFN_MOON_GROUND_MAX

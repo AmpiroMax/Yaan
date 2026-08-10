@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 10:08:2026 - 02:30:08-->
+Last updated: 10:08:2026 - 03:20:00-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -101,6 +101,18 @@ UPD:
   table deleted — micro-tile radius measured over baked vertices, old tabled
   values kept as the failing control (1794747); (4) the named rule CARDS BUY
   ANGULAR COVERAGE written in with the birch incident as its worked example.
+- 10:08:2026 - 03:20:00: CLOUDS (WEATHER.md W4, user в4/в10 — all three kinds
+  at once): the ONE coverage field in dfn_env.sh sampled by the sky sheets
+  (fs_sky, two parallax layer planes) AND the ground shadow (dfn_cloud_sun_vis
+  inside dfn_surface_light, so terrain/props/foliage/water darken together);
+  cumulus impostors on the horizon ring, upwind-biased (W2.3 announcement);
+  CloudModel drives the drift off the SHARED wind; RenderEnvironment gained
+  the six-field cloud slice (lead-authored, 043e473); WIND_FIELD_DRIFT_SPEED /
+  WIND_FIELD_WAVELENGTH entered NUMBERS with derivations. Found and fixed:
+  apply_wind had NO live call site (wind_strength 0.0 read as calm — absence
+  presenting as neutral); it now runs in RenderSystem::render each frame.
+  Hooks: DFN_CLOUD (0 = the pass's control), DFN_VISTIME (drift pair),
+  Tour::cloud_probe_steps (DFN_CLOUD_PROBE).
 -->
 
 # Spec — render agent

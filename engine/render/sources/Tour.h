@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 22:19:03
+Last updated: 10:08:2026 - 03:10:00
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -70,6 +70,8 @@ UPD:
   waiting on LOD for was sized for LR, the temple mountain, which exists in
   NUMBERS and in the design doc and in no code path; the testbed's only real
   landform is the crag, whose equivalent range is well inside streaming.
+- 10:08:2026 - 03:10:00: cloud_probe_steps() (DFN_CLOUD_PROBE=1) — the W4
+  acceptance pair: shadow-patterned valley + upwind cumulus horizon.
 */
 
 #pragma once
@@ -174,6 +176,17 @@ public:
     // valley. Selected by DFN_SKY_PROBE; the HOUR comes from DFN_TIME and the
     // moon phase from DFN_MOON, so one route covers every time of day.
     [[nodiscard]] static std::vector<TourStep> sky_probe_steps();
+
+    // Cloud evidence shoot (W4, Rule 27): DFN_CLOUD_PROBE=1. TWO frames —
+    // (1) the raised valley overview pitched DOWN so the ground is most of
+    // the frame: cloud shadows patterning the valley floor is the claim under
+    // test and a sky-heavy frame could not fail it; (2) the same standpoint
+    // aimed UPWIND with sky headroom: the cumulus announcement on the horizon
+    // ring plus both drifting sheets. The hour comes from DFN_TIME, the drift
+    // timestamp from DFN_VISTIME (two runs 30 s apart = the drift pair), and
+    // DFN_CLOUD=0 is the control run in which every cloud artifact of both
+    // frames must vanish at once.
+    [[nodiscard]] static std::vector<TourStep> cloud_probe_steps();
 
     // Massif shape evidence shoot (design's §7.1b, Rule 27): the two vantages
     // that judge the §2.8 mountain. ONE frame per run — DFN_MASSIF_PROBE=1 is

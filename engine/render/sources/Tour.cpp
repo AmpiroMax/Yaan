@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 23:32:07
+Last updated: 10:08:2026 - 03:11:00
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -49,6 +49,8 @@ UPD:
 - 09:08:2026 - 22:19:03: crag_acceptance_steps() (DFN_CRAG_PROBE=1).
 - 09:08:2026 - 23:32:07: font_probe_steps() (DFN_FONT_PROBE=1) — the font's
   acceptance vantage, aimed at a MIXED background rather than at a chart.
+- 10:08:2026 - 03:11:00: cloud_probe_steps() (DFN_CLOUD_PROBE=1) — the W4
+  shoot: shadow-patterned valley floor + upwind cumulus horizon.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -282,6 +284,29 @@ std::vector<TourStep> Tour::sky_probe_steps() {
     return {{"sky", {pos.x, 70.0f, pos.y}, yaw, pitch, 90, true}};
 }
 
+std::vector<TourStep> Tour::cloud_probe_steps() {
+    // The W4 acceptance frames. Both stand on the raised southern overview
+    // point — the one standpoint whose frame holds most of the valley floor,
+    // which is the surface the claim under test (crawling cloud shadows)
+    // varies over. A sky-heavy vantage could not fail that claim (Rule 27).
+    const glm::vec2 pos{512.0f, 800.0f};
+
+    std::vector<TourStep> steps;
+    // (1) THE SHADOW FRAME: pitched down over the valley, the crag ridge in
+    // the top of the frame so a shadow can be seen crossing a KNOWN landform
+    // (the W4 acceptance wording). Shot at noon (DFN_TIME=0.5) the sun is
+    // near-overhead, so sheet and shadow line up visibly in one frame.
+    steps.push_back({"cloud_shadows_valley", {pos.x, 85.0f, pos.y},
+                     aim_yaw(pos, {500.0f, 380.0f}), -0.30f, 75, true});
+    // (2) THE UPWIND FRAME: same standpoint aimed into the wind (the default
+    // wind blows from the WNW: WindModel's {0.87, 0.50} heading), pitched up
+    // for sky headroom. This is where the cumulus announcement must stand
+    // (W2.3) and where both sheets show their parallax and drift.
+    steps.push_back({"cumulus_upwind", {pos.x, 85.0f, pos.y},
+                     -1.05f, 0.12f, 30, true});
+    return steps;
+}
+
 namespace {
 // The verdict vantage, overridable for a streaming diagnostic:
 // DFN_MASSIF_EYE="x,z". Design's own value is the default.
@@ -383,6 +408,9 @@ std::vector<TourStep> Tour::testbed_steps() {
     }
     if (env_or_null("DFN_CRAG_PROBE") != nullptr) {
         return crag_acceptance_steps();
+    }
+    if (env_or_null("DFN_CLOUD_PROBE") != nullptr) {
+        return cloud_probe_steps();
     }
     // Tour v3 (stage 3b acceptance, Rule 27): vantages at the LANDSCAPE §7.1
     // layout coordinates (seed-1 testbed, world 0..1024 m). All ground_relative

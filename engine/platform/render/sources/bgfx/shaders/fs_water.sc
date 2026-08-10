@@ -20,7 +20,13 @@ void main()
     vec3 waves = t1 * 0.6 + t2 * 0.4;
 
     vec3 base = mix(u_waterColor.rgb, waves, step(0.5, u_params.x) * 0.65);
-    vec3 lit = base * (u_ambientColor + u_sunColor * max(u_sunDir.y, 0.0));
+    // Cloud shadow (W4): the same coverage field the terrain darkens under.
+    // Without this a crawling shadow SKIPS every lake and river — a bright
+    // hole in the middle of the moving patch, which is the two-samplers
+    // disagreement the one-field rule exists to kill.
+    vec3 lit = base * (u_ambientColor
+                       + u_sunColor * (max(u_sunDir.y, 0.0)
+                                       * dfn_cloud_sun_vis(v_wpos)));
 
     float fog = dfn_fog_factor(v_wpos);
     float alpha = u_waterColor.a * (1.0 - fog * 0.6);

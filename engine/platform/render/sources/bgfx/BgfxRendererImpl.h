@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 03:04:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -32,6 +32,8 @@ UPD:
 - 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp
   (1424 lines against the 800 ceiling). All state and constants moved
   verbatim; no behaviour change.
+- 10:08:2026 - 03:04:00: ENV_PARAM_VEC4S 33 -> 35 (cloud slots 33/34, the
+  W4 coverage-field state — change paired with dfn_env.sh per the contract).
 */
 
 #pragma once
@@ -141,7 +143,7 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 33; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 35; // layout contract with dfn_env.sh
 inline constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {

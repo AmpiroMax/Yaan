@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 23:32:07
+# Last updated: 10:08:2026 - 03:14:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -43,9 +43,11 @@
 #   crosses the render/flora seam. Registered by render, not by flora — the
 #   file is render's under Rule 25 and the earlier exception said so itself.
 # - 09:08:2026 - 23:32:07: BitmapFont.cpp — the project's first font.
+# - 10:08:2026 - 03:14:00: CloudModel.cpp (W4 cloud drift off the shared wind).
 
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
+    sources/CloudModel.cpp
     sources/DebugDraw.cpp
     sources/FirstPersonCamera.cpp
     sources/FloraBuild.cpp

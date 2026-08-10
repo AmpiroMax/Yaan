@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 00:20:00
+Last updated: 10:08:2026 - 03:08:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -74,6 +74,10 @@ UPD:
   hud_visible_. The app now owns that flag (it wires the real interaction
   prompt) and the first frame after it landed came back EMPTY, with nothing
   saying the hook had been switched off.
+- 10:08:2026 - 03:08:00: CLOUDS (W4): apply_wind + apply_clouds driven from
+  render() each frame (apply_wind had NO live call site — the 0.0 default
+  read as a calm day: absence presenting as neutral, the invisible-castle
+  family); DFN_CLOUD / DFN_VISTIME hooks for the acceptance shoot.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -82,6 +86,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/render/sources/BitmapFont.h"
+#include "engine/render/sources/CloudModel.h"
 #include "engine/render/sources/FloraCards.h"
 #include "engine/render/sources/Materials.h"
 #include "engine/render/sources/ProcMesh.h"
@@ -92,6 +97,7 @@ UPD:
 #include "engine/render/sources/VoxelMesher.h"
 #include "engine/render/sources/Tour.h"
 #include "engine/render/sources/WaterMesher.h"
+#include "engine/render/sources/WindModel.h"
 
 #include <array>
 #include <cmath>
@@ -337,6 +343,28 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     if (const char* ns = std::getenv("DFN_NO_SCATTER"); ns != nullptr && ns[0] == '1') {
         scatter_off_ = true;
     }
+    // Cloud hooks (Rule 27/30). DFN_CLOUD=<0..1> pins the coverage amount:
+    // 0 is the CONTROL of the whole pass — the sheet, the cumulus and the
+    // ground shadows must all vanish in one move because they are one field
+    // (a shadow surviving cover 0 would be the two-copies defect made
+    // visible). DFN_VISTIME=<seconds> pins the visual clock, which pins the
+    // drift: two runs 30 s of pinned time apart are the deterministic
+    // acceptance pair proving coverage moves along the wind.
+    if (const char* cenv = std::getenv("DFN_CLOUD"); cenv != nullptr && *cenv != '\0') {
+        float cover = 0.0f;
+        if (std::sscanf(cenv, "%f", &cover) == 1) {
+            cloud_pinned_ = true;
+            frozen_cloud_cover_ =
+                cover < 0.0f ? 0.0f : (cover > 1.0f ? 1.0f : cover);
+        }
+    }
+    if (const char* venv = std::getenv("DFN_VISTIME"); venv != nullptr && *venv != '\0') {
+        float t = 0.0f;
+        if (std::sscanf(venv, "%f", &t) == 1) {
+            vis_time_frozen_ = true;
+            frozen_vis_time_ = t;
+        }
+    }
     clock_start_ = std::chrono::steady_clock::now();
 
     // Debug water toggle (stage 3): DFN_WATER=<height_m> covers the testbed
@@ -449,11 +477,37 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // simulation — Rule 12 keeps gameplay off the wall clock; this is render).
     environment_.time_seconds = std::chrono::duration<float>(
         std::chrono::steady_clock::now() - clock_start_).count();
+    // DFN_VISTIME pins the visual clock: wind envelope, water scroll and the
+    // cloud drift all become pure functions of the pinned value, which is
+    // what makes the two-timestamp drift pair deterministic evidence.
+    if (vis_time_frozen_) {
+        environment_.time_seconds = frozen_vis_time_;
+    }
     // Screenshot determinism: the app writes the sky from its own clock every
     // frame, so the frozen hour has to be re-asserted here, after it.
     if (sky_frozen_) {
         apply_sky_time(environment_, frozen_day_, frozen_moon_phase_);
     }
+    // THE SHARED WIND (W3) drives everything that moves: foliage sway, the
+    // audio bed's gain (sim reads env.wind_strength), and the cloud drift.
+    // Called HERE and not in the app: grep found no live apply_wind call
+    // site anywhere — env.wind_strength sat at its 0.0 default and the zero
+    // read as a calm day (absence presenting as neutral), so the model is
+    // now driven from render's own frame path where it cannot be dropped.
+    apply_wind(environment_, environment_.time_seconds);
+    // Clouds (W4): ONE coverage field, drifting along the wind just applied.
+    // The offset written here is read by BOTH samplers (sky sheet + ground
+    // shadow); the state tuple (cover/cumulus/shadow) stays whatever the app
+    // or the "scattered" defaults put there.
+    if (cloud_pinned_) {
+        environment_.cloud_cover = frozen_cloud_cover_;
+        // Cumulus follows the pin to zero so DFN_CLOUD=0 empties the WHOLE
+        // sky (the Rule 30 control), not just the sheet.
+        if (frozen_cloud_cover_ <= 0.0f) {
+            environment_.cloud_cumulus = 0.0f;
+        }
+    }
+    apply_clouds(environment_, environment_.time_seconds);
     // Carried lights (the torch) are gathered from the ECS every frame, AFTER
     // the sky: apply_sky_time never touches the light array, and the light has
     // to be in the environment before set_environment or the backend builds

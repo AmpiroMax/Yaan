@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 10:08:2026 - 03:04:30
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -33,6 +33,8 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp.
   Frame path moved verbatim; no behaviour change.
+- 10:08:2026 - 03:04:30: Cloud slots 33/34 packed in apply_environment (W4
+  state + the one drift offset; paired with dfn_env.sh's 35-slot layout).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -210,6 +212,10 @@ void BgfxRenderer::Impl::apply_environment() const {
     packed[15] = {e.ambient_darkness, static_cast<float>(light_count), 0.0f,
                   0.0f};
     packed[32] = {e.wind_direction, e.wind_strength, e.wind_flutter};
+    // Clouds (W4): state tuple + the ONE drift offset both samplers read.
+    packed[33] = {e.cloud_cover, e.cloud_cumulus, e.cloud_shadow,
+                  e.cloud_wavelength_m};
+    packed[34] = {e.cloud_offset_m, e.weather_wind_mult, 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

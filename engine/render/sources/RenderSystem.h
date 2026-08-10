@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 10:08:2026 - 02:30:08
+Last updated: 10:08:2026 - 03:08:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -95,6 +95,11 @@ UPD:
 - 10:08:2026 - 02:30:08: register_mesh — caller-authored geometry enters the
   asset registry (character zone's body segments 34..49 via the app ferry;
   render cannot include engine/anim). Additive; refusals are loud.
+- 10:08:2026 - 03:08:00: CLOUDS (W4): render() now drives apply_wind (no live
+  call site existed anywhere — wind_strength sat at 0.0 and read as calm) and
+  apply_clouds (the one coverage-field drift) each frame; DFN_CLOUD pins
+  cover (0 = the pass's control), DFN_VISTIME pins the visual clock for the
+  drift acceptance pair.
 */
 
 #pragma once
@@ -404,6 +409,16 @@ private:
     bool sky_frozen_ = false;
     float frozen_day_ = 0.5f;
     float frozen_moon_phase_ = 0.5f;
+    // DFN_CLOUD pins cloud cover (0 = the pass's Rule 30 control: sheet,
+    // cumulus AND ground shadows must vanish together — one field). Re-applied
+    // per frame like the sky freeze so a future app-side schedule write cannot
+    // overrule a screenshot pin.
+    bool cloud_pinned_ = false;
+    float frozen_cloud_cover_ = 0.0f;
+    // DFN_VISTIME pins the visual clock (wind envelope, water scroll, cloud
+    // drift): the deterministic half of the drift acceptance pair.
+    bool vis_time_frozen_ = false;
+    float frozen_vis_time_ = 0.0f;
     // Verification hooks for the interior shoot (Rule 27), NOT the feature.
     // DFN_TORCH=1 lights a carried flame at the CAMERA's hand position, because
     // the tour freezes the player and no gameplay entity carries a torch during
