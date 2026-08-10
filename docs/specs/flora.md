@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 19:02:07
-Last updated: 10:08:2026 - 11:24:00
+Last updated: 10:08:2026 - 11:33:00
 -->
 <!--
 UPD:
@@ -304,6 +304,22 @@ UPD:
                          lattice read back. BR-5 gets fixed at its instrument;
                          dead wood is sized for the user's brief, not for a
                          validator.
+- 10:08:2026 - 11:33:00: THE COMBINED BR-5 FIGURE measured (§3.14), closing the
+                         gap design named in their ruling: trunks from the
+                         shipped lattice (uniform, maturity-scaled) plus the
+                         clumped floor classes in ONE model, which nobody had
+                         put together. Everything passes except the MIN end at
+                         40 m, which misses by 0.021. Trunks measured 0.300 at
+                         60 m against 0.27 predicted analytically — two models
+                         agreeing, and off in the right direction since a
+                         jittered lattice screens better than Poisson. THE
+                         DECIDING QUESTION IS NOT A DENSITY: read per-distance
+                         the sparse end fails at its near edge, read as ONE
+                         ring across 40-80 m (which is what BR-5's wording
+                         describes) it averages 0.64 and passes. Third unstated
+                         denominator in two days — settle the aggregation
+                         before building a lever for a failure that may not
+                         exist.
 -->
 
 # Flora — tree and plant geometry (agent spec)
@@ -1398,6 +1414,37 @@ tree TRUNKS are absent from this model and are probably the larger term
 (44 trees/ha × ~1.2 m ⇒ ~0.27 occlusion at 60 m analytically), so whether
 BR-5's raycast already counts them changes the whole arithmetic and should be
 settled before any floor-class density moves.
+
+**THE COMBINED FIGURE (measured after core confirmed the omission WAS the
+answer — their raycast marches terrain only).** Trunks come from the shipped
+lattice (15 m spacing, jittered, each bole scaled by the real maturity draw)
+and are UNIFORM — the clump field does not touch trees — so they add
+differently from the floor classes, which stay clumped:
+
+| band | dist | trunks only | floor only | **combined** |
+|---|---|---|---|---|
+| ruled MIN | 40 m | 0.214 | 0.307 | **0.479** ✗ |
+| ruled MIN | 60 m | 0.300 | 0.501 | **0.662** |
+| ruled MIN | 80 m | 0.389 | 0.613 | **0.767** |
+| ruled MAX | 40 m | 0.214 | 0.575 | **0.649** |
+| ruled MAX | 60 m | 0.300 | 0.747 | **0.818** |
+| ruled MAX | 80 m | 0.389 | 0.881 | **0.924** |
+
+Trunks measure 0.300 at 60 m against the 0.27 predicted analytically — close,
+and off in the *right* direction, since a jittered lattice is more regular than
+the Poisson the analytic form assumes and therefore screens slightly better.
+Two models agreeing is worth more than either alone.
+
+**Everything passes except the MIN end at 40 m, and it misses by 0.021.**
+Which raises the question that actually decides it, and it is the third
+unstated denominator in two days: **how does BR-5 AGGREGATE its ring?** The
+rule says "a ring of eye-height samples at 40–80 m". Read per-distance, the
+sparse end fails at its near edge. Read as ONE ring sampled across 40–80 m —
+which is what the wording most naturally describes — the MIN end averages
+≈ 0.64 and passes comfortably. **No density needs to move if the aggregation
+is the ring**, so that clause should be settled before anyone builds a lever to
+fix a failure that may not exist. Same shape as the Clark-Evans denominator and
+the per-class control: the number was never the argument, the definition was.
 
 **The rich edge set (в8/в19в; `FloraEdgeRules.h` + seven patch species).**
 Species = `GroundForm` + numbers, the tree doctrine one level down. Design's
