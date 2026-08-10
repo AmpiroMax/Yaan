@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 11:05:22
+Last updated: 10:08:2026 - 10:40:28
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -39,6 +39,9 @@ UPD:
   gains the TestbedLayout field (additive, lead-approved); WorldGenContext +
   build_world_context so streaming builds hydrology/sites once; terrain and
   surface queries exposed for validation/tests.
+- 10:08:2026 - 10:40:28: LF-8 (§2.10, в17): WorldGenContext carries the baked ErosionGrid.
+  Empty unless the layout declares the pass, and sampling an empty grid is 0 —
+  so the QUERY is unconditional and only the BUILD is gated (Rule 32).
 */
 
 #pragma once
@@ -46,6 +49,7 @@ UPD:
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/TestbedLayout.h"
 #include "engine/world/sources/WorldFormat.h"
+#include "engine/world/sources/WorldgenErosion.h"
 #include "engine/world/sources/WorldgenHydrology.h"
 #include "engine/world/sources/WorldgenSites.h"
 
@@ -72,6 +76,10 @@ struct WorldGenContext {
     WorldGenParams params;
     HydrologyData hydrology;
     SitesData sites;
+    /// LF-8 (§2.10, в17) baked delta. Empty unless the layout declares erosion;
+    /// sampling an empty grid returns 0, so the query is unconditional and only
+    /// the BUILD is gated — one code path, per Rule 32.
+    ErosionGrid erosion;
 };
 
 /// Builds the world-level context (macro field is implicit — position-based).

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 02:59:28
+Last updated: 10:08:2026 - 10:40:28
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -45,6 +45,11 @@ UPD:
 - 09:08:2026 - 19:55:17: Barrow re-siting (design ruling): swing_barrow_into_couloir searches the arc for a re-entrant fold at the same radius and rigidly rotates site, passage and chamber together. On Ravenscar it finds nothing — the stamp is a smooth radial cone with no angular structure — so the barrow stays authored and its mouth test stays red. Design's high-shoulder fallback was implemented, MEASURED and then removed: it broke story's hard constraint (mouth visible from 26 of 39 Vaelmere standpoints) and put the lifted chamber through the crag tunnel (10 stations with no floor).
 - 10:08:2026 - 02:29:54: build_world_context derives daylight portals (open_daylight_portals) after the couloir swing, against the pre-P4 sampler (macro + water carve) — same layout copy every consumer reads, so the extended corridor is one fact.
 - 10:08:2026 - 02:59:28: Stand selector (§8.1): build_world_context branches for StandId::Forest — empty hydrology (a waterless stand's VALID P2, ok=true), empty sites; the stand's own passes land with the erosion/path commits. Testbed path untouched.
+- 10:08:2026 - 10:40:28: LF-8 wired: build_world_context bakes the erosion delta for
+  the forest stand against its own P1 field, and terrain_height composes
+  macro + delta on that stand's pass stack (no water carve / entrance works /
+  pads — the stand declares none of them, and running their no-ops here would
+  invite one to stop being a no-op unnoticed). Testbed path untouched.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -218,6 +223,16 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
         // the §8.1 path network (built in the stand passes below), not to the
         // testbed site table.
         ctx.hydrology.ok = true;
+        // LF-8 (в17): the overlay runs against the stand's P1 field, ONCE, and
+        // is baked. `layout.erosion == false` returns the zero grid from the
+        // same entry point — the dictionary's named control.
+        {
+            const uint64_t seed = params.seed;
+            const TestbedLayout& lay = ctx.params.layout;
+            ctx.erosion = build_erosion(
+                seed, domain_min, domain_max, ErosionParams{},
+                [&](glm::vec2 p) { return macro_height(seed, lay, p); }, lay.erosion);
+        }
         return ctx;
     }
     ctx.hydrology = build_hydrology(params.seed, params.layout, domain_min, domain_max);
@@ -243,6 +258,13 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
 
 float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
     const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
+    if (ctx.params.layout.stand == StandId::Forest) {
+        // The stand's own pass stack: P1 + LF-8 erosion. No water carve, no
+        // entrance works, no pads — that stand declares none of them, and
+        // running their no-ops here would only invite one to stop being a
+        // no-op unnoticed.
+        return std::clamp(macro + ctx.erosion.sample(world), 0.0f, MAX_HEIGHT_M);
+    }
     const float carved = carve_height(ctx.hydrology, ctx.params.layout, world, macro);
     const float worked = entrance_works_height(ctx.sites, world, carved);
     const float padded = pads_height(ctx.sites, world, worked);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 02:59:28
+Last updated: 10:08:2026 - 10:40:28
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -48,6 +48,9 @@ UPD:
 - 09:08:2026 - 22:07:05: arete_count 4 -> 3, re-derived on the FIXED bearing field (the sweep that chose 4 ran on the broken one and is void). Measured 12 seeds: n=3 gives I11@600 3/1/1/0 vs 1/1/0/0, I4 fails 4/12 vs 8/12, I8 level 4/12 vs 7/12.
 - 10:08:2026 - 02:29:54: CarveCorridor::daylight_portals (authored intent flag): the crag tunnel's endpoints are now DERIVED to open air by open_daylight_portals — the §2.8 massif re-buried the surveyed exit (terrain 67.9-74.3 m over a 61.9 m floor at the old wp[7]; the tunnel dead-ended, sim_tunnel_walk stalled at 7/8 ungrounded). The barrow passage keeps the flag false: it ends in its chamber on purpose.
 - 10:08:2026 - 02:59:28: STAND SELECTOR (LANDSCAPE §8, в1): StandId + TestbedLayout::stand. A stand is a separate map declared as a composition of §2.10 landforms; Testbed is the default and its generation path is untouched (byte-identity guarded by the pinned-heightmap test). Forest stand layout factory lives in WorldgenForest.h.
+- 10:08:2026 - 10:40:28: TestbedLayout::erosion — LF-8 is DECLARED by the stand (§2.10
+  rule 4), default false; setting it false on a stand that declares it is that
+  landform's named control, which is why the switch lives in the layout.
 */
 
 #pragma once
@@ -290,6 +293,14 @@ struct ForestRegions {
 /// forest_stand_layout() (WorldgenForest.h) returns one with stand = Forest
 /// and every testbed feature neutralized.
 struct TestbedLayout {
+    /// LF-8 (§2.10, в17): does this stand DECLARE the erosion overlay? Default
+    /// false — the testbed's composition does not list it, and §2.10 rule 4
+    /// makes an undeclared form a bug rather than a bonus. Setting it false on
+    /// a stand that does declare it is that landform's NAMED CONTROL ("the same
+    /// map with the pass OFF must fail the gully acceptance"), which is why the
+    /// switch is here in the layout and not a build flag.
+    bool erosion = false;
+
     /// Which stand this layout generates. Testbed default — the generator's
     /// testbed path must remain byte-identical when this field says Testbed.
     StandId stand = StandId::Testbed;

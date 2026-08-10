@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 10:29:50
+Last updated: 10:08:2026 - 10:39:07
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -33,6 +33,9 @@ UPD:
   so the isotropic control passed the acceptance it exists to fail (4.8
   against a 2.5 floor). At ~3 wavelengths aniso 3.10 / control 1.61.
   Continuity floor raised 0.5 -> 0.65 on the post-fix measurements.
+- 10:08:2026 - 10:39:07: LF-8 acceptances — gullies vs the pass-OFF control, and the
+  fan-association SYMMETRY test after the density instrument was measured
+  passing a shuffled field at 1.000.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -353,4 +356,165 @@ TEST_CASE("swale floors are continuous and swales hide each other (LF-2 acceptan
     }
     INFO("glade pairs ", open_pairs, " hidden ", open_hidden);
     CHECK(open_hidden <= open_pairs / 4);
+}
+
+TEST_CASE("LF-8 erosion cuts gullies the pass-OFF control lacks (§2.10, в17)") {
+    // The dictionary's own clause: "the same map with the pass OFF must fail
+    // the gully acceptance; if no frame can tell the difference, the pass is
+    // decoration and does not land." The control is the SAME entry point with
+    // layout.erosion = false, so what is compared is the pass, not two
+    // generators.
+    WorldGenParams po = forest_params();
+    po.layout.erosion = false;
+    const world::WorldGenContext off = world::build_world_context(po);
+    const world::WorldGenContext& on = forest();
+
+    CHECK(off.erosion.n == on.erosion.n); // same geometry, so the same instrument reads both
+    for (const float v : off.erosion.delta) {
+        REQUIRE(v == 0.0f);
+    }
+
+    // A gully is a NOTCH IN THE CROSS-SLOPE PROFILE: standing on a flank and
+    // looking along the contour, the ground dips and comes back. Sampling
+    // along the slope instead would count the slope itself.
+    const auto notch_stations = [](const world::WorldGenContext& c) {
+        int hits = 0;
+        for (float wz = 100.0f; wz < 950.0f; wz += 17.0f) {
+            for (float wx = 100.0f; wx < 950.0f; wx += 17.0f) {
+                const glm::vec2 w{wx, wz};
+                const float hx = world::terrain_height(c, {w.x + 4.0f, w.y})
+                               - world::terrain_height(c, {w.x - 4.0f, w.y});
+                const float hz = world::terrain_height(c, {w.x, w.y + 4.0f})
+                               - world::terrain_height(c, {w.x, w.y - 4.0f});
+                const float m = std::sqrt(hx * hx + hz * hz);
+                if (m / 8.0f < 0.06f) {
+                    continue; // flanks only: a swale floor has no cross-slope
+                }
+                const glm::vec2 across{-hz / m, hx / m};
+                float prof[31];
+                for (int i = 0; i < 31; ++i) {
+                    prof[i] = world::terrain_height(
+                        c, w + across * (static_cast<float>(i - 15) * 2.0f));
+                }
+                for (int i = 3; i < 28; ++i) {
+                    const float l = std::max({prof[i - 1], prof[i - 2], prof[i - 3]});
+                    const float r = std::max({prof[i + 1], prof[i + 2], prof[i + 3]});
+                    if (prof[i] < l - 0.25f && prof[i] < r - 0.25f) {
+                        ++hits;
+                        break;
+                    }
+                }
+            }
+        }
+        return hits;
+    };
+    const int hits_on = notch_stations(on);
+    const int hits_off = notch_stations(po.layout.erosion ? on : off);
+    INFO("gullied stations: pass ON ", hits_on, " vs control OFF ", hits_off);
+    // Measured seed 1: ON 70-94 across the swept rates, OFF 5. The control is
+    // not zero because the §2.7 micro octave makes a few 0.25 m dips of its
+    // own — which is exactly why the threshold is a RATIO against the measured
+    // control and not an absolute count.
+    CHECK(hits_off <= 12);
+    CHECK(hits_on >= 5 * std::max(1, hits_off));
+
+    // The pass must DECORATE the landform, not replace it: the grives are
+    // 2-5 m and the cut may not eat them.
+    std::vector<float> d = on.erosion.delta;
+    std::sort(d.begin(), d.end());
+    const float p01 = d[d.size() / 100];
+    const float p99 = d[d.size() * 99 / 100];
+    INFO("delta p1 ", p01, " p99 ", p99, " min ", d.front(), " max ", d.back());
+    CHECK(p01 > -1.0f);
+    CHECK(p99 < 1.0f);
+    CHECK(d.front() >= -1.51f);
+}
+
+TEST_CASE("LF-8 fans are ASSOCIATIVE — each sits below a gully (§2.10 acceptance)") {
+    // "Fans appear where gullies exit onto lower ground — associative, each
+    // fan explained by its gully."
+    //
+    // THE OBVIOUS INSTRUMENT DOES NOT WORK AND ITS CONTROL SAYS SO. "Is there
+    // a gully cell within R of this fan cell" measures DENSITY, not
+    // association: on a spatially shuffled delta field of the identical
+    // distribution it returns 1.000, i.e. it passes a field with no structure
+    // whatsoever. Measured, so recorded (Rule 30a: an instrument nothing can
+    // fail is not an instrument).
+    //
+    // What does work is a SYMMETRY test. A fan is downslope of its gully, so
+    // search a wedge UPHILL and the mirrored wedge DOWNHILL and compare. The
+    // shuffled control has no preferred direction and reads ~1.00 by
+    // construction, which makes the test self-controlling.
+    const world::WorldGenContext& ctx = forest();
+    const world::ErosionGrid& g = ctx.erosion;
+    const world::TestbedLayout& lay = ctx.params.layout;
+    const auto base = [&](glm::vec2 p) { return world::macro_height(1, lay, p); };
+
+    std::vector<float> shuffled = g.delta;
+    { // deterministic shuffle: the control must be reproducible too
+        uint64_t s = 0x5EEDFACEull;
+        for (std::size_t i = shuffled.size(); i > 1; --i) {
+            s = s * 6364136223846793005ull + 1442695040888963407ull;
+            std::swap(shuffled[i - 1], shuffled[(s >> 33) % i]);
+        }
+    }
+
+    const auto association = [&](const std::vector<float>& d, float dir) {
+        const int n = g.n;
+        const auto at = [&](int x, int z) {
+            return (x < 0 || z < 0 || x >= n || z >= n)
+                     ? 0.0f
+                     : d[static_cast<std::size_t>(z) * static_cast<std::size_t>(n)
+                         + static_cast<std::size_t>(x)];
+        };
+        int fans = 0, explained = 0;
+        for (int z = 12; z < n - 12; ++z) {
+            for (int x = 12; x < n - 12; ++x) {
+                if (at(x, z) < 0.25f) {
+                    continue;
+                }
+                const glm::vec2 w{g.origin.x + static_cast<float>(x) * g.cell,
+                                  g.origin.y + static_cast<float>(z) * g.cell};
+                // Uphill is taken on the PRE-erosion field: the deposit whose
+                // cause we are asking about must not be allowed to answer.
+                const float hx = base({w.x + 6.0f, w.y}) - base({w.x - 6.0f, w.y});
+                const float hz = base({w.x, w.y + 6.0f}) - base({w.x, w.y - 6.0f});
+                const float m = std::sqrt(hx * hx + hz * hz);
+                if (m < 0.05f) {
+                    continue; // no defined uphill: not a specimen either way
+                }
+                ++fans;
+                const float ux = dir * hx / m;
+                const float uz = dir * hz / m;
+                bool found = false;
+                for (int s = 2; s <= 10 && !found; ++s) { // 8..40 m
+                    for (int a = -1; a <= 1 && !found; ++a) {
+                        const auto qx = x + static_cast<int>(std::lround(
+                                                ux * s - static_cast<float>(a) * uz * s * 0.5f));
+                        const auto qz = z + static_cast<int>(std::lround(
+                                                uz * s + static_cast<float>(a) * ux * s * 0.5f));
+                        if (at(qx, qz) <= -0.30f) {
+                            found = true;
+                        }
+                    }
+                }
+                if (found) {
+                    ++explained;
+                }
+            }
+        }
+        REQUIRE(fans > 500); // a distribution, not an anecdote (Rule 31)
+        return static_cast<float>(explained) / static_cast<float>(fans);
+    };
+
+    const float up = association(g.delta, +1.0f);
+    const float down = association(g.delta, -1.0f);
+    const float c_up = association(shuffled, +1.0f);
+    const float c_down = association(shuffled, -1.0f);
+    INFO("real up ", up, " down ", down, " | shuffled up ", c_up, " down ", c_down);
+    // Measured seed 1: real 0.549 / 0.375 (ratio 1.46), shuffled 0.825 / 0.819
+    // (ratio 1.01). The shuffled field scores HIGHER in absolute terms and
+    // still fails, which is the point of using the ratio.
+    CHECK(up / down >= 1.30f);
+    CHECK(c_up / c_down < 1.10f); // the control MUST fail the acceptance
 }

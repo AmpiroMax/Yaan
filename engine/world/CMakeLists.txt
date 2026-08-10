@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 02:59:28
+# Last updated: 10:08:2026 - 10:40:28
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -25,6 +25,7 @@
 # - 09:08:2026 - 16:47:51: P7: WorldgenCarve.cpp.
 # - 09:08:2026 - 23:49:27: LOD streaming half: CoarseTerrain.cpp.
 # - 10:08:2026 - 02:59:28: Forest stand (LANDSCAPE §8.1): WorldgenForest.cpp.
+# - 10:08:2026 - 10:40:28: LF-8 erosion overlay: WorldgenErosion.cpp.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -35,6 +36,7 @@ add_library(dfn_world STATIC
     sources/Worldgen.cpp
     sources/WorldgenCarve.cpp
     sources/WorldgenCastle.cpp
+    sources/WorldgenErosion.cpp
     sources/WorldgenForest.cpp
     sources/WorldgenHydrology.cpp
     sources/WorldgenMacro.cpp

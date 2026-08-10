@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 10:29:50
+Last updated: 10:08:2026 - 10:40:28
 Module: engine/world
 File: engine/world/sources/WorldgenForest.cpp
 
@@ -35,6 +35,7 @@ UPD:
   continuity acceptance is a percolation problem. Largest connected floor
   component went 0.23 -> 0.84 (2048 m, seed 1) and now GROWS with the domain
   instead of shrinking. Derivation table in the header.
+- 10:08:2026 - 10:40:28: Forest stand declares LF-8 (в17).
 */
 
 #include "engine/world/sources/WorldgenForest.h"
@@ -202,6 +203,9 @@ TestbedLayout forest_stand_layout() {
     // it, and the grive field tapers to calm inside it (glade_factor).
     l.forests.forced_clearing_center = {512.0f, 640.0f};
     l.forests.forced_clearing_radius = 80.0f;
+
+    // LF-8 is in this stand's declared composition (§8.1) — в17.
+    l.erosion = true;
     return l;
 }
 
