@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 10:08:2026 - 02:30:08
+Last updated: 10:08:2026 - 21:12:53
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -34,6 +34,15 @@ UPD:
 - 10:08:2026 - 02:30:08: register_mesh cases (character zone seam): blessed
   body range accepted, collisions and foreign ranges refused, registered id
   resolves in the ECS pass.
+- 10:08:2026 - 21:12:53: Rule 40 sweep (code audit). The carried-light DIRECTION
+  assertion used Approx(49.65f).epsilon(0.01), which admits
+  0.01 * (1 + 49.65) = +-0.5065 m -- wider than the whole 0.35 m
+  displacement it guards, so z = 50.0 (a light left at the carrier
+  origin, the exact bug the case's own comment names) PASSED it. Now an
+  explicit-metre residual bound, with two Rule 30 controls that run
+  through the real render path: the origin light and the right distance
+  in the wrong direction must both FAIL, and the second also PASSES the
+  magnitude assertion, which is why direction needed its own line.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -49,6 +58,7 @@ UPD:
 #include <glm/gtc/quaternion.hpp>
 #include <glm/geometric.hpp>
 
+#include <cmath>
 #include <cstdlib>
 #include <utility>
 #include <vector>
@@ -242,11 +252,50 @@ TEST_CASE("a carried light becomes a point light at the HAND, not at the origin"
     CHECK(env.point_lights[0].position.y > 10.0f);
     CHECK(glm::distance(env.point_lights[0].position,
                         glm::vec3{50.0f, 11.45f, 50.0f}) == doctest::Approx(0.35f));
-    // Facing +X, the right hand points toward -Z (right-handed, Y up).
-    CHECK(env.point_lights[0].position.z == doctest::Approx(49.65f).epsilon(0.01));
+    // Facing +X, the right hand points toward -Z (right-handed, Y up). This is
+    // the ONLY assertion of DIRECTION in the case; :243 pins the magnitude.
+    //
+    // EXPLICIT METRES, not doctest::Approx(...).epsilon() (Rule 40, and the
+    // pattern is ClipTests.cpp:170-180): epsilon(e) admits e * (scale +
+    // max(|lhs|,|rhs|)) with scale defaulting to 1, so the `.epsilon(0.01)`
+    // that stood here admitted 0.01 * (1 + 49.65) = +-0.5065 m -- WIDER THAN
+    // THE ENTIRE 0.35 m DISPLACEMENT IT GUARDS. z = 50.0, a light left at the
+    // carrier origin with no lateral offset at all, satisfied it
+    // (|50.0 - 49.65| = 0.35 < 0.5065): the assertion admitted the exact bug
+    // the comment eight lines up says this test exists to catch.
+    //
+    // The quantity is a RESIDUAL against an analytically exact value
+    // (origin + yaw * offset, a quarter turn), whose correct value is zero, so
+    // the bound is float rounding and nothing else -- not a tolerance anyone
+    // chose about the world.
+    constexpr float HAND_POS_EXACT_M = 1e-4f;
+    CHECK(std::fabs(env.point_lights[0].position.z - 49.65f) < HAND_POS_EXACT_M);
     // The first lights are the ones that get a cube map; that is render's
     // decision, never gameplay's.
     CHECK(env.point_lights[0].casts_shadow);
+
+    // CONTROL (Rule 30), and it runs through the real code rather than
+    // restating arithmetic: the named bug -- a light left at the carrier
+    // ORIGIN, offset stripped of its lateral component -- must FAIL the
+    // assertion above. It passed the old band, which is the whole finding.
+    world.get<dfn::components::CarriedLight>(carrier)->offset = {0.0f, 1.45f, 0.0f};
+    system.render(world, renderer, camera, 1.0f);
+    REQUIRE(system.environment().point_light_count == 1);
+    const float origin_z = system.environment().point_lights[0].position.z;
+    CHECK(origin_z == doctest::Approx(50.0f)); // it really is at the origin
+    CHECK_FALSE(std::fabs(origin_z - 49.65f) < HAND_POS_EXACT_M);
+    // ...and the OTHER failure the magnitude assertion cannot see: the right
+    // distance in the wrong direction. Offset +0.35 along body-forward, facing
+    // +X, displaces along +X and leaves z at 50.0 -- so it satisfies :243's
+    // 0.35 m magnitude exactly while pointing the torch nowhere near the hand.
+    world.get<dfn::components::CarriedLight>(carrier)->offset = {0.0f, 1.45f, -0.35f};
+    system.render(world, renderer, camera, 1.0f);
+    REQUIRE(system.environment().point_light_count == 1);
+    const glm::vec3 wrong_dir = system.environment().point_lights[0].position;
+    CHECK(glm::distance(wrong_dir, glm::vec3{50.0f, 11.45f, 50.0f})
+          == doctest::Approx(0.35f)); // passes the magnitude check...
+    CHECK_FALSE(std::fabs(wrong_dir.z - 49.65f) < HAND_POS_EXACT_M); // ...fails this
+    world.get<dfn::components::CarriedLight>(carrier)->offset = {0.35f, 1.45f, 0.0f};
 
     // Doused: the component stays, the light does not.
     world.get<dfn::components::CarriedLight>(carrier)->active = false;
