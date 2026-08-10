@@ -1,12 +1,13 @@
 <!--
 Created: 10:08:2026 - 21:58:31
-Last updated: 10:08:2026 - 22:08:45
+Last updated: 10:08:2026 - 22:17:38
 -->
 <!--
 UPD:
 - 10:08:2026 - 21:58:31: Created. The drawn world map: Amit Patel polygon map generation adapted to a HAND-DRAWN sketch as the primary input (user request, verbatim in the doc). Rulings: the polygon map is a REGIONAL structure anchored in absolute world metres (POLYGON_SPACING 600 m, derived from LANDMARK_HAZE_ONSET, LF2_HILL_WAVELENGTH and the region POI band); Amit elevation = distance-from-coast REJECTED and replaced by elevation = distance from the DRAWN DRAINAGE, which is what makes a hand-drawn river reproducible; sketch format is an indexed PNG mask (6 colours, 16 m/px = one hydrology cell) plus a JSON sidecar, compiled offline by tools/sketch_compile.py, no silent fallback ever; five Rule 39 shadow copies named before they exist; N = 4 example maps derived as the count of topologies the reader must be proven on; acceptance is a three-instrument cross-sketch matrix with the eye holding the headline claim (Rule 41).
 - 10:08:2026 - 21:59:49: WORLDGEN_SEA_LEVEL corrected on two checked premises (Rule 34, publishing trigger): it is a per-map DEFAULT overridable by the sidecar, because FOREST_BASE_ELEV is 20 m and a single global sea level would drown an existing stand; and its derivation is anchored on MASSIF_CLIFF_BAND_MAX, whose own NUMBERS row is marked pending re-derivation against a broken field — recorded at the anchor rather than left to be rediscovered (Rule 37's second half).
 - 10:08:2026 - 22:08:45: AMENDED — the user moved to Azgaar's Fantasy Map Generator, so FMG becomes the AUTHORING TOOL and we consume its export (§9). Measured from source, not assumed: licence is MIT with an explicit commercial-derivatives expansion (blocker cleared); height is (h-18)**heightExponent metres, so our whole 0-400 m range is FMG h in [20,38] — NINETEEN steps, quantum 5 m at the coast and 41 m at the ceiling — and the ruling is that h is NEVER our elevation, only a land/water mask and a mountain region, which is the same ruling that rejected Amit's elevation model; cell spacing is sqrt(map_area / cellsDesired) and therefore SCALE-FREE, giving the configuration instruction 30x30 to 69x69 km at 10k cells, against a continental default of ~40 km cells at which our entire target world is 1/16 of ONE CELL. Crop chosen by him via a DFN_ORIGIN marker, missing or duplicated is a hard error. Three NEW Rule 39 shadow copies from FMG's settlement/route/biome layers, each ruled FMG-owns-the-graph / we-own-the-geometry. §2.1-2.5 and §2.8's sketch compiler SUPERSEDED as the authoring path and kept with a note, because their reasoning is the importer's specification — §9.6 re-targets every ruling line by line, including the two-tier split-by-cause rule, whose heir (an unmapped biome id is an ERROR, never a nearest match) is the most likely place for a silently-nearby world under FMG. §1, §2.6 and §5 survive untouched. WORLDGEN_SEA_LEVEL stays and does NOT become an FMG mapping constant (Rule 43).
+- 10:08:2026 - 22:17:38: §9.8 revised on story's Seremarch findings, §9.9 and §9.10 added. CLOSED: FMG CAN hold land at every border — Mask with a NEGATIVE fraction inverts and lowers the map centre, so border ocean is a DEFAULT, not a constraint. Story's evidence argument accepted and recorded rather than waived: a mechanism settles the general case and one seed cannot, though the grade is documentation-derived, neither source-derived nor frame-verified. REPLACED BY THE SHARPER QUESTION: do FMG's downstream modules assume an ocean exists — ports, the Marine biome, and the temperature/precipitation passes that key off distance-to-water? The risk relocated from the map to the import. NEW FORMAT REQUIREMENT (§9.9): lake type is CLIMATE-DERIVED via Penman evaporation against river flux, so latitude is a load-bearing authoring input and any map whose fiction leans on a salt or dry lake must state it — generalised to the rule that FMG derives more than it draws, so the settings that produce a fact belong in the map's requirements. LF-11's synthetic-control flag LIFTED: FMG's native `dry lake` type is the real rejected instance Rule 45 asked for. §9.10: the water half of h is 19 hyperbolic steps to -950 m, ample and irrelevant for the same reason as the land half — h is not our elevation on either side.
 -->
 
 # WORLD_MAP.md — the drawn world map
@@ -569,6 +570,11 @@ round number and it is not "enough to look at".
 4. **Its fiction survives the terrain between the named places being generated.**
    If the story depends on what is at 4.2 km east, the map is over-specified for
    what this format promises.
+6. **It states the SETTINGS that produce what its fiction leans on**, not just
+   the place — latitude above all, because lake type is derived from climate and
+   not authored (§9.9). *(Added by the FMG amendment; the point generalises to
+   biome, port status and population.)*
+
 5. It is drawable in twenty minutes. A map that takes a day to paint will not be
    iterated on, and iteration is the entire value of the drawn-map path.
 
@@ -1041,23 +1047,96 @@ The mapping between them is not a constant at all — it is the whole of §2.6. 
 the row's existing flag stands: its derivation is anchored on
 `MASSIF_CLIFF_BAND_MAX`, which NUMBERS marks as pending re-derivation.
 
-### 9.8 WHAT MUST BE MEASURED IN THE TOOL BEFORE ANYONE BUILDS
+### 9.8 WHAT MUST BE MEASURED IN THE TOOL — one closed, one replaced, two open
 
-Three claims this amendment does **not** make, because they are properties of an
-application and cannot be read out of its source in the time available. Each is a
-measurement someone runs in the browser, and each has a map depending on it:
+Claims this amendment does **not** make on its own authority, because they are
+properties of a running application. Each is graded by what kind of evidence
+settles it, because "measured" has covered three different standards in this
+section alone.
 
-1. **Can FMG produce a map with NO OCEAN AT ALL?** Story's *Seremarch* (endorheic,
-   §3's M4 branch) depends on it, and M4 was included precisely because it was the
-   branch Amit's pipeline could not do. FMG has salt lakes, which are endorheic by
-   construction, so the terminal-lake half is native; the "no border ocean" half is
-   unconfirmed. **If FMG cannot, M4 becomes an importer-side test fixture rather
-   than an authored map, and it must still exist.**
-2. **What does a REGION-regime export actually contain?** At 30–69 km, does FMG
-   still assign states, cultures and burgs sensibly, or does it produce one state
-   and three burgs? This decides how much of the fiction layer is usable at
-   playable scale.
-3. **Does the GeoJSON export carry rivers with their `discharge` and `length`**,
-   and are lake types (fresh / salt / dry) present in it — or only in the `.map`
-   format? §2.7's width-from-accumulation ruling needs discharge, and E8's
-   navigability check is written against it.
+**1. CLOSED — FMG CAN produce a map with land at every border. Mechanism, not a
+frame (story's finding).** FMG's `Mask` operation is exactly what manufactures
+border ocean (it grades edge cells toward 0; fraction 2 leaves them at 50), and
+per FMG's template-editor documentation **a NEGATIVE fraction inverts it, lowering
+cells in the map CENTRE instead** — an inland basin as a single template op, high
+rim and low middle, land to the frame. The heightmap brush and the image converter
+reach the same place by hand. So *"FMG floods the borders"* is a **default, not a
+constraint**, which is the distinction §9.8 could not settle from source.
+
+**And the evidence argument is right, so it is recorded rather than waived:** a
+browser run tells you what one seed did and cannot distinguish *"this template
+happens not to flood the border"* from *"the border can be kept dry on purpose"*.
+**Naming the mechanism settles the general case; a seed cannot.** Two things a
+frame would still add, neither of which blocks anything: it would show what the
+*default* templates do, which is a different question and is the one a user will
+hit first; and it would catch a documented operation not behaving as documented.
+Grade of this evidence, stated plainly: **documentation-derived, not
+source-derived and not frame-verified.**
+
+**2. ITS REPLACEMENT, and it is the sharper question (story's) — DO FMG'S
+DOWNSTREAM MODULES ASSUME AN OCEAN EXISTS?** Ports and harbours, the `Marine`
+biome, and above all the **temperature and precipitation passes, which key off
+distance-to-water**, all run after the heightmap on a map that now has none. The
+risk did not disappear when (1) closed, it **relocated from the map to the
+import**, and it is what the first endorheic export must be inspected for. This is
+an importer question, not a map question.
+
+**3. OPEN — what does a REGION-regime export actually contain?** At 30–69 km, does
+FMG still assign states, cultures and burgs sensibly, or one state and three
+burgs? Decides how much of the fiction layer is usable at playable scale.
+
+**4. OPEN — does the GeoJSON export carry river `discharge` and `length`**, and
+are lake types (fresh / salt / dry) in it, or only in the `.map` format? §2.7's
+width-from-accumulation and E8's navigability check are both written against
+discharge.
+
+### 9.9 LAKE TYPE IS CLIMATE-DERIVED, WHICH MAKES LATITUDE AN AUTHORING INPUT
+
+**The finding is story's and it is a format requirement, not a map note.** FMG
+classifies a lake fresh / salt / **dry** dynamically, from river flux against
+evaporation (a simplified Penman using surface, temperature and elevation). So a
+terminal salt lake is **native** — three rivers into one sink with no outlet is
+salt by FMG's own hydrology, and we do not draw it.
+
+**But the salt is derived, not authored.** Site the same province somewhere cool
+and wet and FMG returns a large *fresh* lake, probably with an outlet — and every
+consequence the fiction was built on (the shrinking, the salt, the relict
+shorelines, the stranded harbours) is gone, leaving a lake district.
+
+> **Requirement, added to §3's list of what a map must specify: any map whose
+> fiction depends on a lake being salt or dry must state its LATITUDE as an export
+> requirement.** It is a load-bearing authoring decision and it must not be left to
+> whoever happens to configure the tool.
+
+This generalises past lakes and is worth holding on to: **FMG derives more than it
+draws.** Anything the fiction leans on that FMG *computes* — lake type, biome,
+port status, population — is a consequence of settings, so the settings that
+produce it belong in the map's requirements, not in a sentence about the place.
+
+**LF-11's control is closed by the same mechanism.** I flagged LF-11 (relict
+shoreline) for having only a synthetic control. **FMG has a native `dry lake`
+type** — a real relict basin the tool produces on its own — which is precisely the
+real rejected instance Rule 45 asks for, supplied by the tool rather than
+invented. The flag is lifted.
+
+### 9.10 THE WATER HALF OF `h` — the same ruling, applied once more
+
+Confirmed: FMG's land threshold is **`h >= 20` on a 0–100 `Uint8Array`, not
+runtime-configurable**, so the whole water range is 20 units. The reasonable worry
+is that this bounds what a `Mask -N` inland basin can carry. **It does not**, and
+the reason is §9.2's ruling applied to the other side of the threshold.
+
+The depth branch is `((h - 20) / h) * 50` metres, which is hyperbolic, not linear:
+
+| `h` | depth |
+|---|---|
+| 19 | −2.6 m |
+| 10 | −50 m |
+| 5 | −150 m |
+| 1 | −950 m |
+
+Nineteen steps spanning nearly a kilometre, finest at the shoreline — ample for
+any basin, and **irrelevant for the same reason the land half is: `h` is not our
+elevation on the water side either.** Lake beds are cut by §3.1's carve from the
+reach level, which is the one authority for where water is. FMG's water `h` gives
+us the mask and nothing else.
