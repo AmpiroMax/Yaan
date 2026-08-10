@@ -1,12 +1,13 @@
 <!--
 Created: 10:08:2026 - 22:00:42
-Last updated: 10:08:2026 - 22:14:33
+Last updated: 10:08:2026 - 22:19:27
 -->
 <!--
 UPD:
 - 10:08:2026 - 22:00:42: Created the example world-map set the user asked for by name («примеры из N карт, я вообще напрямую хочу карту нарисовать»). Six maps as CONTENT, coordinated with mapdesign who owns the format: their four acceptance branches (M1 island, M2 home-valley continuity, M3 sea-vs-lake flood fill, M4 endorheic) are each carried by one map, plus two chosen for range of PLACE rather than branch coverage. Written against mapdesign's corrected elevation model — distance from DRAINAGE, not from coast — so local minima, lakes at altitude, coastless maps and sea cliffs are all legal, and the drawing lesson is «river spacing is elevation». Proposes LF-9 salt marsh, LF-10 maritime heath, LF-11 relict shoreline with recipe/acceptance/control per LANDSCAPE 2.10 rule 5; records five known gaps as requests (delta, incision, tides, rain shadow, drawn crest) rather than describing them as free; recommends Farness first with the Vaelmere sketch as its control.
 - 10:08:2026 - 22:13:54: TOOL CHANGED — Azgaar's FMG supersedes the PNG sketch (design's WORLD_MAP.md §9, ddd34c0). Map CONTENT is unaffected and deliberately NOT rewritten; §0.1 and every "what is painted" paragraph are marked superseded pending design's importer schema. Ran design's requested Seremarch check from FMG's documented source rather than the browser: the endorheic map is PRODUCIBLE — `Mask` with a NEGATIVE fraction is the documented operation that lowers the map CENTRE instead of the edges, so land at every border is authorable, and FMG's lake type is computed from flux vs evaporation so a terminal salt lake is native. The risk is relocated, not removed: it moves from "can the tool draw it" to "do FMG's downstream modules assume an ocean exists", and Seremarch gains a NEW authoring constraint nobody had — the lake's salt is CLIMATE-DERIVED, not drawn, so the map must be sited hot and dry enough that evaporation beats inflow or LF-11's entire premise is lost. Also found: FMG's `dry lake` type is a native real rejected instance for LF-11, which answers design's synthetic-control flag on that entry.
 - 10:08:2026 - 22:14:33: Исправление: запись 22:13:54 попала в блок Created/Last updated вместо блока UPD, и Last updated не был поднят. Обе ошибки — Rule 16: заголовок правился программой, которая нашла ПЕРВЫЙ `-->`, а не нужный, и header_check это пропустил, потому что он сверяет Last updated с самой новой записью UPD — а запись, положенная не в тот блок, для него просто не существует. Прибор мерил СОГЛАСОВАННОСТЬ двух полей, а дефект был в РАЗМЕЩЕНИИ третьего (Rule 41). Поймано перечитыванием файла после публикации, а не проверкой (Rule 34).
+- 10:08:2026 - 22:19:27: Проведена коррекция собственного пере-утверждения, вызванная обобщением design (WORLD_MAP.md §9.9, 46b40e5): «широта несёт нагрузку на этой карте и ни на какой другой» — неверно. Добавлен §12: пять карт из шести опираются на то, что FMG ВЫВОДИТ, а не рисует. И главное в находке не широта, а СТАТУС ПОРТА: четыре карты из шести ставят своё «почему здесь» на гавани, гавани выводятся, и сильнейшая география во всём документе — перешейки Farness («в любой ветер есть подветренная гавань») — оказалась самой уязвимой к настройке, которую никто ещё не смотрел. Следствие для очереди: у Farness ДВЕ разные приёмки — контур (не затронут) и поселения (не проявятся в первом экспорте без портов), и гонять их как одну нельзя.
 -->
 
 # WORLD_MAPS.md — Six Example Worlds, as Places
@@ -621,8 +622,13 @@ because it names the mechanism rather than one seed's outcome.
   beats inflow. Put this province somewhere cool and wet and FMG hands back a
   large *fresh* lake with an outlet — at which point the shrinking, the salt,
   the relict shorelines and the three stranded harbours of Saltstair are all
-  gone, and the map is just a lake district. **Latitude is now a load-bearing
-  authoring decision on this map**, which it is on no other map in the set.
+  gone, and the map is just a lake district. **Latitude is a load-bearing
+  authoring decision on this map** — and design has since generalised the
+  point past lakes into a format requirement (`WORLD_MAP.md` §9.9: *FMG
+  derives more than it draws*). That generalisation corrects an over-claim
+  I made here: latitude is worst on Seremarch, but **it is not unique to
+  it.** §12 works the correction through the whole set, and the answer is
+  five maps out of six.
 - **A gift for LF-11.** FMG's `dry lake` type is a **real** relict basin the
   tool produces on its own — which supplies the real rejected instance design
   flagged LF-11 as lacking (§9), instead of the synthetic smooth slope.
@@ -854,3 +860,41 @@ document), **then Thornsound**, **then Sedgewend**.
    authored against the published schema rather than guessed at from a
    message, which is exactly the parallel-schema failure this coordination
    avoided in the first place.
+
+---
+
+## 12. What each map's fiction leans on that FMG DERIVES rather than draws
+
+Design's `WORLD_MAP.md` §9.9 generalised a note I wrote about Seremarch's
+latitude into a rule: **FMG derives more than it draws** — lake type, biome,
+port status and population are all consequences of settings, so a map states
+the settings its fiction depends on, not only the place.
+
+Working that back through this set corrects something I got wrong. I wrote
+that latitude was load-bearing "on this map and no other". **It is worst on
+Seremarch and it is not unique to it — five of the six lean on something FMG
+derives**, and the exposure is not where I would have guessed:
+
+| Map | What the fiction leans on | The derived thing | What we get if the setting is wrong |
+|---|---|---|---|
+| **Vaelmere Sketch** | temperate valley, oak low and pine above | biome from temperature × precipitation | least exposed — it is our own built terrain, and the sketch is a continuity check rather than a generation |
+| **Aldfell** | **eight river-mouth ports**; the full strand-to-snow ladder in one 4 km walk | **port status**; the temperature gradient over the massif's relief | eight harbour towns become eight villages, and the island's entire politics — sea trade meeting inland produce — has no mechanism; no snow line and the ladder loses its top two rungs |
+| **Sedgewend** | "wet everywhere"; marsh, carr, reed; **five inlet-head ports** | **`Wetland` biome** (native, but needs the precipitation to earn it); port status | it returns as Grassland and the map is a flat farm with inlets — the one map whose identity is its wetness |
+| **Farness** | no fresh water; maritime heath; **three neck towns whose whole reason is a lee harbour in every wind** | **no native heath biome** (this is LF-10); **port status** | Grassland or Tundra, and necks with no harbours — which unmakes **the strongest why-here in this document** |
+| **Seremarch** | salt, shrinking, relict shorelines, three stranded harbours | **lake type from flux vs evaporation** → latitude | a fresh lake with an outlet, and the premise is gone entire |
+| **Thornsound** | conifer to a treeline, snow on the tops; fan-town harbours and the ferry | Taiga/Tundra biomes (cold latitude); port status | a temperate broadleaf sound, which is a different country wearing the same coastline |
+
+**The finding worth carrying forward is not latitude — it is PORT STATUS.**
+Four of the six put their why-here on harbours, and harbours are derived. My
+single strongest piece of geography in this document is Farness's necks —
+*at a neck the two shores are within 300 m, so there is a lee harbour in
+every wind* — and it is also the one most exposed to a setting nobody has
+looked at yet. **That matters for sequencing**, because Farness is the map
+§11 recommends building first: its boundary test is unaffected (a thin arm
+still cannot be high and still cannot carry a river), but its *settlement*
+claim will not be visible in the first export unless ports come back. Those
+are two different acceptances on one map and they should not be run as one.
+
+Nothing here changes a place. It changes what each map must **state**, and
+the six "what is painted" sections become "what is configured" against
+design's importer schema when it lands (§0.1's status note).
