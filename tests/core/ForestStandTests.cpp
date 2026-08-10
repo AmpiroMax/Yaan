@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 20:40:52
+Last updated: 10:08:2026 - 20:44:36
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -126,6 +126,17 @@ UPD:
   Incidentally settles flora's bare-verge question in the direction they
   suspected: Dirt places 2.7x MORE than authored, so an empty 40 m of verge is
   drifts, not under-placement.
+- 10:08:2026 - 20:44:36: RULE 32'S OTHER HALF. The max() finding covered ONE of
+  two habitats; measuring one and stopping is the state that reads as finished.
+  The two compose differently and nothing said so — PathMargin takes a max()
+  FLOOR, ForestFloor a pure PRODUCT — so they miss in OPPOSITE directions:
+  PathMargin 2.5-2.7x OVER authored, ForestFloor 0.15-0.31x, i.e. 3.3-6.6x
+  UNDER. Mechanism measured: a product delivers authored x E[clump], and
+  E[clump] here is 0.086-0.163, so the shortfall is set by the MEAN OF A NOISE
+  FIELD rather than by anything authored — and the row is being raised to
+  compensate, which makes the authored number mean "density before an
+  implementation detail". Measured, not fixed; which composition is right is
+  design's.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -2072,4 +2083,88 @@ TEST_CASE("§5.11: the max() floor overshoots the authored edge density, and cob
     // band so a drift in either direction is visible.
     CHECK(cobble / faint > 0.30);
     CHECK(cobble / faint < 0.60);
+}
+
+TEST_CASE("§5.11: the two habitats compose differently and BOTH miss their authored density") {
+    // RULE 32, THE HALF THAT IS EASY TO SKIP. The previous case measured the
+    // PathMargin habitat and found the max() floor overshooting. That is one
+    // consumer of the density composition; there are two. Measuring one and
+    // stopping is the state that reads as finished.
+    //
+    // THE TWO HABITATS DO NOT COMPOSE THE SAME WAY, and nothing says so:
+    //   PathMargin  field = max(clump, edge * rich)   -- a FLOOR
+    //   ForestFloor field = clump                     -- a pure PRODUCT
+    //
+    // So they miss in OPPOSITE DIRECTIONS, which is why neither was obvious:
+    //   PathMargin  realises 2.5-2.7x OVER authored (and cobble, weight 0.0,
+    //               carries ~20 flowers per 100 m)
+    //   ForestFloor realises 0.15-0.31x of authored, i.e. 3.3-6.6x UNDER
+    //
+    // MECHANISM, measured rather than argued: a pure product delivers
+    // `authored x E[clump]`, and E[clump] over this stand is 0.086-0.163 by
+    // clump class — nowhere near 1. The shortfall is therefore set by the MEAN
+    // OF A NOISE FIELD, which is not an authored quantity and can move whenever
+    // the field is retuned. That is the part worth flagging: flora's moss row
+    // is being raised to compensate (WorldgenScatter.cpp's own note says "the
+    // fix is the ROW, not this code"), which makes the authored number mean
+    // "density before an implementation detail" rather than "density".
+    //
+    // MEASURED AND NOT FIXED. Which composition is right is design's — the max
+    // is their ruling and the product may equally be intended. This case exists
+    // so the asymmetry cannot be rediscovered a third time.
+    const world::WorldGenContext& c = forest();
+    const auto CHUNKM = static_cast<float>(config::CHUNK_SIZE);
+
+    // The placement's OWN domain predicate, exported for exactly this reason:
+    // a density per m2 is a density per m2 OF ITS OWN GROUND.
+    constexpr float STEP = 4.0f;
+    double area = 0.0;
+    for (float z = 0.0f; z < 4.0f * CHUNKM; z += STEP) {
+        for (float x = 0.0f; x < 4.0f * CHUNKM; x += STEP) {
+            if (world::in_forest_interior(c.params.seed, c.params.layout, {x, z})) {
+                area += static_cast<double>(STEP) * STEP;
+            }
+        }
+    }
+    REQUIRE(area > 100000.0);
+
+    std::map<int, int> realised;
+    for (int cz = 0; cz < 4; ++cz) {
+        for (int cx = 0; cx < 4; ++cx) {
+            const auto s = world::build_scatter(
+                c.params.seed, c.params.layout, c.hydrology, c.sites, c.erosion, c.paths,
+                {static_cast<float>(cx) * CHUNKM, static_cast<float>(cz) * CHUNKM},
+                {static_cast<float>(cx + 1) * CHUNKM, static_cast<float>(cz + 1) * CHUNKM});
+            for (const math::ScatterInstance& i : s) {
+                if (world::in_forest_interior(c.params.seed, c.params.layout,
+                                              {i.position.x, i.position.z})) {
+                    ++realised[static_cast<int>(i.species)];
+                }
+            }
+        }
+    }
+
+    int rows_checked = 0;
+    for (std::size_t k = 0; k < math::FLORA_EDGE_RULE_COUNT; ++k) {
+        const math::FloraEdgeRule& r = math::FLORA_EDGE_RULES[k];
+        if (r.habitat != math::EdgeHabitat::ForestFloor || !r.common_scatter
+            || r.per_m2 <= 0.0f) {
+            continue;
+        }
+        ++rows_checked;
+        const int n = realised.count(static_cast<int>(r.species))
+                        ? realised[static_cast<int>(r.species)]
+                        : 0;
+        const double got = static_cast<double>(n) / area;
+        const double ratio = got / static_cast<double>(r.per_m2);
+        INFO("ForestFloor species ", static_cast<int>(r.species), ": realised ", got,
+             " /m2 against authored ", r.per_m2, " -> ", ratio, "x");
+        // THE SHORTFALL IS REAL AND IS ASSERTED AS A BAND, not as "> 0".
+        // Measured 0.151 (Mushroom) and 0.307 (MossPatch). If either ever
+        // reaches 1.0 the composition has been changed or the row absorbed the
+        // field's mean, and this case must be re-read rather than kept green.
+        CHECK(ratio > 0.05);
+        CHECK(ratio < 0.60);
+    }
+    CHECK(rows_checked >= 2);
 }
