@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 20:34:56
+Last updated: 10:08:2026 - 20:37:27
 -->
 <!--
 UPD:
@@ -27,6 +27,7 @@ UPD:
 - 10:08:2026 - 20:32:52: Правило 42 (бюджет, выраженный в единицах одних часов, ничего не ограничивает в единицах других — бюджет читался как 1 и выдавал 5). Формулировка sim, чья находка; вместе с признаком: величина, повторяющаяся до цифры без разброса, это ограничитель, а не склонность.
 - 10:08:2026 - 20:33:41: Правило 43 (ограничение связывает ту величину, на которой написано, а не ту, по которой меряют контракт — карточки легли плоско и потратили запас, который всегда был законным). Формулировка flora; перенумеровано с 39, тот номер уже занят.
 - 10:08:2026 - 20:34:56: Правило 36 дополнено случаем ВБЛИЗИ НУЛЯ: «малая поправка» и «ответ» там одного размера. Отброшенный член 2.5 мм при результате 3.0 мм — 83% ответа. Выведено sim и character независимо, из разных дефектов.
+- 10:08:2026 - 20:37:27: Правило 16 — почему «замечать» не могло сработать: проверка мерила ВЕЛИЧИНУ ухода, а дефект — ПРОИСХОЖДЕНИЕ отметки. Четырёхсекундный уход это тот же поступок, что тридцатиминутный. Правило 41, наведённое на правило 16 (формулировка character).
 -->
 
 # Architecture & Code Rules (Humans + AI Agents) — HARD CONTRACT
@@ -280,6 +281,17 @@ invocation.** If the stamp cannot be produced by the same command that consumes
 it, treat that as the defect to fix rather than as care to apply harder. A rule
 that only holds while you are paying attention is a rule that fails precisely
 when you are busy — which is when the stamps matter.
+
+**And the reason noticing could never have worked, which is Rule 41 pointed at this
+rule:** the same batch that produced a 31-minute forward stamp also produced a
+FOUR-SECOND one. Both are the same act — a timestamp written from memory instead of
+read from the clock — and they differ only in how far the estimate had drifted. A
+check enforced by noticing catches the 31-minute case and never the 4-second one,
+which means it was measuring **drift** when the defect is **provenance**. "Does the
+stamp look wrong?" cannot express "was it read or recalled?", and the harmless-
+looking instance is the one that proves the habit is still there. Both of today's
+breaches happened while their author was moving fast on a correction to something
+else.
 
 ### Rule 17 — UPD is append-only
 Never delete UPD entries. Every meaningful change adds one.
