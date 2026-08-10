@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 10:08:2026 - 20:16:01
+# Last updated: 10:08:2026 - 22:17:20
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -56,6 +57,10 @@ UPD_ENTRY_RE = re.compile(
 # - Build/tooling output (.git, build*, ...).
 # - third_party: vendored dependencies — never hand-edited.
 # - __pycache__/.venv: Python artifacts.
+# - 10:08:2026 - 22:17:20: В режиме --files проверяется то, чего файл-локальная проверка не может в
+#                          принципе: ПОЯВИЛАСЬ ЛИ запись UPD в этом коммите. Всё
+#                          остальное — проверка внутренней согласованности, и файл,
+#                          отредактированный без записи, проходил её безупречно.
 SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
              ".claude", "third_party", "__pycache__", ".venv", "_deps",
              # RUN OUTPUT, not source. These are written BY the tools whose
@@ -202,9 +207,45 @@ def scan_directory(root: Path) -> list[tuple[Path, list[str]]]:
     return failures
 
 
+def upd_entry_count(text: str) -> int:
+    """UPD entries in a blob's leading comment region."""
+    n = 0
+    for line in text.splitlines()[:HARD_CAP_LINES]:
+        if UPD_ENTRY_RE.match(line):
+            n += 1
+    return n
+
+
+def head_blob(root: Path, rel: str) -> str | None:
+    """The file as it exists in HEAD, or None if it is new / not a git tree."""
+    try:
+        out = subprocess.run(["git", "show", f"HEAD:{rel}"], cwd=root,
+                             capture_output=True, check=False)
+    except OSError:
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.decode("utf-8", errors="replace")
+
+
 def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]]:
     """Checks only the named files (repo-relative). Skip rules still apply, so a
-    staged file the scanner would ignore is ignored here too."""
+    staged file the scanner would ignore is ignored here too.
+
+    THIS MODE ALSO CHECKS THE THING THE FILE-LOCAL CHECK STRUCTURALLY CANNOT:
+    that a file being COMMITTED actually gained a UPD entry. Everything in
+    check_file() is an internal-consistency test -- `Last updated` agrees with
+    the newest entry -- and a file edited without touching either passes it
+    perfectly, because the two fields it compares still agree with each other.
+    That happened: an agent published an edit whose UPD entry landed in the
+    WRONG BLOCK and whose `Last updated` stayed stale, and this script stayed
+    green through both, because the defect was the placement of a THIRD thing
+    (Rule 41 -- the instrument measured agreement between two fields while the
+    question was about a third).
+
+    Comparing against HEAD is the only way to ask "was this file updated", and
+    it is available exactly here, in the hook, where the answer matters.
+    """
     failures: list[tuple[Path, list[str]]] = []
     for rel_str in rel_paths:
         path = root / rel_str
@@ -216,6 +257,16 @@ def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]
         if any(rx.match(rel.as_posix()) for rx in SKIP_PATH_RES):
             continue
         errs = check_file(path)
+        # Did this commit actually add an entry? Only answerable against HEAD.
+        before = head_blob(root, rel.as_posix())
+        if before is not None:
+            now_text = path.read_text(encoding="utf-8", errors="replace")
+            if now_text != before:
+                if upd_entry_count(now_text) <= upd_entry_count(before):
+                    errs.append(
+                        "file changed but gained no UPD entry (Rule 17). An entry "
+                        "filed in the wrong comment block does not count -- it must "
+                        "be in the UPD block, which is what a reader looks at.")
         if errs:
             failures.append((rel, errs))
     return failures
