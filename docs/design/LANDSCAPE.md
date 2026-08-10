@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 11:34:54
+Last updated: 10:08:2026 - 12:07:08
 -->
 <!--
 UPD:
@@ -66,6 +66,7 @@ UPD:
 - 10:08:2026 - 11:23:17: §1.7 BR-5 RULED: bare terrain is the wrong instrument for the forest stand (option 3), not a hill-wavelength or ring-scale fix. Confirmed in core's source, not argued: the current raycast is terrain-only (no trunks, no canopy, no floor scatter), so the measured 0.03 was the forest deleted, not the forest failing — and §8.1's own brief already names the meso tier AND the floor as joint carriers for this stand. New gate: terrain + real placed oak trunks (44.4/ha, the lattice core already ships) + real placed Bush/BigBush instances (flora's measured load-bearing classes; FallenLog/snag/deadfall may ride along but the gate may never depend on them — dead wood is sized for the user's brief, not a validator), combined by a ray-vs-disc march reusing flora's floor-class shape — explicitly NOT the C1/C4 canopy transmittance model, which returns zero blocked below crown_base. Bar, ring, and eye height unchanged (0.5 / 40–80 m / 1.7 m); LF-2's own dictionary acceptance stays bare-terrain for landform-only contexts (cross-referenced at §2.10) — two contexts, one rule. The terrain-only 0.03/0.06 is kept forever as the must-fail control. Core's pinned regression test (siting beats bare-ground control 3–4×, median stays under 0.5 on bare terrain) is kept verbatim, reclassified from gate to permanent canary — if the bare-terrain median ever clears 0.5 that is a tripwire, not a win, and forces a rewrite. Separately ruled: flora's measured BR-4/BR-5 tension (authored clumping costs 0.09–0.26 of occlusion; the ruled density band's MIN end fails at 40–60 m before trunks) is real and not closed by the instrument change alone — retuning BR-4's clump field or oversizing dead wood are both refused; the available lever is density-aware find placement (extending BR-5's existing plain carve-out), sized only after core re-measures on the new instrument. Sent lead the corrected per-class CLUMP_R_NORM_MAX prose (flora's re-taken control, value unchanged at 0.85).
 - 10:08:2026 - 11:29:44: §1.7 BR-5 SHARPENED on flora's follow-up measurement (§3.14): the combined trunk+floor figure (real 44.4/ha uniform lattice + clumped Bush/BigBush) passes everywhere except ruled-MIN at the 40 m ring, which misses by 0.021 — and whether that miss exists at all depended on an aggregation clause BR-5 never stated. Ruled: per-distance aggregation, never pooled across 40-80 m, same "mean hides a desert" reasoning BR-6 already codifies as a tail clause, now cross-applied to distance. 0.021 against 0.5 sits inside Rule 36's few-percent caution, so core reconfirms across a seed spread before building anything, not off one draw; if it holds, the density-aware placement lever is scoped to exactly that cell (sparse floor, near ring) and nowhere else; if it doesn't, no lever is built at all. Flagged to the lead as a candidate standing clause for ARCHITECTURE.md: acceptance rules should name their aggregation and denominator, not only their number — third time in two days the deciding fact was a definition, not a measurement.
 - 10:08:2026 - 11:34:54: §1.7 BR-5 CLOSED (pending core's build): flora reconfirmed ruled-MIN/40m across 40 seeds — mean 0.5038 (pass), median 0.4778 (fail by 0.022), sd 0.164, 60% of seeds failing outright. Which seed-statistic decides was ruled to DISSOLVE rather than answer, on the lead's reframing: BR-5 is a per-instance placement rule (many finds per seed), not a per-seed structural one like the §2.8.3 massif/C1 invariants it would otherwise inherit a statistic from, so the fix is not a better summary statistic but removing the randomness the statistic summarises — density-aware find placement, confirmed rather than merely greenlit, scoped to sparse-floor/near-ring only. Two gates before core builds: (1) reconcile against core's independent instrument on the same 40 seeds — a live marginal cell is exactly where two instruments disagreeing would matter, and the ruling is provisional until they agree; (2) check the BR-6 gap-tail interaction before, not after, since steering finds away from sparse-floor locations concentrates them in the covered fraction and can widen wilderness-route gaps FIND_GAP_MAX_MULT exists to catch.
+- 10:08:2026 - 12:07:08: §1.7 BR-3 CLOSED: core found the ForestFloor edge rows (MossPatch, Mushroom) carried no density at all (per_100m is linear, a forest floor isn't), so BR-3's ratio was dividing by an unauthored zero and read ~27000 — refused rather than shipped. Blessed flora's anchor-derived fix (MossPatch 40/ha, Mushroom 20/ha, no double-count with fallen-log moss_cover) and ruled the ratio's denominator SAME-SET (edge species both sides). Either denominator reading clears RICH_EDGE_RATIO=3 by 6-30x, so the ratio is DEMOTED to a logged floor/canary (same move as BR-5's bare-terrain instrument the same day) and the ordering clause (hint >= dirt > cobble ~ 1, real separation) becomes BR-3's formal acceptance. Declined re-tightening the ratio to "where it bites" — deriving a threshold from the value it tests is the 30a coincidence already refused twice. Closed the floor-vs-product composition question core validated by mutation (plain product zeros cobble's moss residual, correctly reds the suite) by writing the max-not-product requirement into BR-3's text explicitly. Also recorded: zero stone steps on this stand is accepted (в7 binds the system, not a per-stand instance count); forcing a climb to manufacture a steps frame would repeat the grass "buy the number" trap. Sixth definitional-question instance in three days; forwarded ARCHITECTURE.md clause is doing its job.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -1310,6 +1311,72 @@ frame — half-shade, moisture, nobody treads it (research A6).
   requires.
 - **Can-pass:** any density field keyed off `dist_to_path` with a margin
   peak — the field already needed to draw the path itself.
+
+**BR-3 CLOSED — the ratio is DEMOTED to a floor, the ordering is the gate
+(ruling, stage-5, on core's found gap and flora's authored fix).** Core
+found the `ForestFloor` rows (MossPatch, Mushroom) carried no density at
+all — `per_100m` is linear-per-path and a forest floor is not a linear
+habitat, so the far-field side of BR-3's ratio was dividing by an
+unauthored zero and returned ≈ 27 000, which is not a measurement (correctly
+refused rather than shipped green). Ruled:
+
+- **Densities blessed as proposed** (flora, `docs/specs/flora.md` §3.13,
+  design blesses per Rule 25 — the numbers are flora's zone, the acceptance
+  shape is mine): MossPatch 40/ha, Mushroom 20/ha, both DERIVED from
+  existing anchor counts (stems/ha, log/deadfall counts) rather than picked
+  fresh, and MossPatch explicitly excludes fallen logs (they carry moss in
+  their own mesh, §5.10 `moss_cover`) so the figure is not double-dressing
+  the same moss twice under two different meshes.
+- **Denominator: SAME-SET** (the seven edge species measured on both sides
+  of the ratio), not all-scatter. The numerator already counts edge
+  species only; counting bush/snag/log/deadfall only on the far side would
+  answer a different question (is the whole floor denser near the path)
+  than the one BR-3 asks (are the EDGE species enriched near the path).
+- **`RICH_EDGE_RATIO` (3) is DEMOTED from gate to floor, kept at its
+  current value, never promoted back without a real intermediate rejected
+  instance to derive against.** Same-set gives ≈ 30×, all-scatter gives
+  ≈ 6× — either way the world clears 3 by a wide enough margin that, per
+  this document's own Rule 30 language, the ratio at 3 certifies nothing
+  among any authoring anyone would plausibly ship: it still correctly
+  fails the uniform-scatter control (≈ 1), so it stays as a logged floor
+  and a cheap total-collapse tripwire, but it stops being what BR-3's
+  acceptance is measured against. **This is the same move already made for
+  BR-5 the same day** (bare terrain kept as a permanent must-fail canary
+  once it stopped being the gate) — an instrument that can only catch
+  total failure, not grade real authoring, is demoted rather than
+  discarded or arbitrarily re-tightened. Re-tightening to "where it bites"
+  (flora's own estimate, ≈ 12–15×) is declined for now: nothing but the
+  realized value itself would justify that number, and setting a threshold
+  from the value it is meant to test is the 30a coincidence this document
+  has already refused twice.
+- **The ordering clause is BR-3's acceptance for clause (ii)'s intent,
+  formally, not merely in practice:** `hint-path ≥ dirt > cobble ≈ 1`,
+  measured with real separation between the classes, exactly as core
+  already asserts it. It is falsifiable in both directions (a class out of
+  order fails it; classes correctly ordered but numerically indistinct
+  also fails it) and tracks the maintenance fiction directly, which the
+  ratio never did.
+- **The floor-vs-product composition question is CLOSED by core's mutation
+  check, and the requirement is now written down rather than left
+  implicit:** the composition must preserve the kept-verge floor via a
+  MAX-with, never a plain product — multiplying by cobble's zero
+  flower/pebble weights would zero the moss residual (0.25) too and
+  rebuild «земля плоская и мёртвая» inside the settlement, exactly what
+  the kept-verge ruling forbids. Core confirmed by mutation: swapping the
+  shipped `max(...)` for a plain product drives cobble's margin to exactly
+  zero and the suite correctly reds — the control exists and discriminates
+  (Rule 30), and the floor is now proven load-bearing rather than merely
+  argued.
+- **NUMBERS.md forwarded to lead:** `RICH_EDGE_RATIO`'s row should record
+  the same-set denominator and the floor-not-gate status, so a future
+  reader does not re-litigate the ratio's role from the bare number.
+
+**Sixth definitional question in three days, named because the pattern is
+now load-bearing on its own:** dispersion denominator, per-class control,
+ring aggregation, seed statistic, BR-5's instrument, now BR-3's ratio scope
+— five of six were caught only once a measurement landed near a bar. The
+forwarded ARCHITECTURE.md clause (name the aggregation and denominator
+alongside the number) is doing exactly the job it was written for.
 
 **BR-4 (г) — clumping of grass and flowers is an AUTHORED FIELD, not
 randomness.** Tsushima's lesson: кучность is a parameter someone paints,
@@ -6616,6 +6683,17 @@ frame alone.
    largest goal, dirt between goals, hint-paths to finds, steps where the
    slope demands them. Cross-section per research A6: worn center → pressed
    margins → rich edge (BR-3) — a GRADIENT, never a decal ribbon.
+   **в7 binds the SYSTEM, not a per-stand instance count (core's report,
+   stage-5):** this map realizes 59 cobble / 507 dirt / 76 hint-path
+   stations and zero stone steps — honestly, at a re-derived 0.22 grade
+   threshold (0.30 produced none), because this stand's routes contour and
+   never climb a slope that demands them. That is accepted, not a defect:
+   the class exists in the generator and is rule-selected like the other
+   three, and forcing a climb into the landform solely to manufacture a
+   steps frame would be the same "buy the number" move BR-4's grass class
+   was already refused. A future stand (or a scarp-climbing spur added to
+   this one) exercises the fourth class; nothing here requires it to be
+   this stand.
 2. **Real goals for the network** (BR-2 requires them): 4–6 small goals —
    e.g. clearing shrine, spring, woodcutter's hut, a pale-spire group
    against canopy (§2.9) — catalog design's, placement generator's.
