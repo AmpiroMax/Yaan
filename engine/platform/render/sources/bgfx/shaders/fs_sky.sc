@@ -19,6 +19,16 @@ $input v_dir
 // real cloud altitudes, so the masses are rounded domes standing clear of the
 // terrain line instead of trapezoids with their bodies under it.
 
+// UPD 10:08:2026 - 20:10:49: THE SUN GAINED A BODY (W9). Two additive glow
+// lobes replaced by a hard-edged disc composited inside a CAPPED halo. What
+// read as a disc before was the RGBA8 clamp: measured at this vantage the old
+// bright mass was 21.6 px across at its half-contour with a 16 px edge fall
+// and 15.5 px of the red channel pegged at 255, i.e. no edge and a size set
+// by saturation. It is now 9.24 px against SUN_ANGULAR_DIAMETER's 9.0 px, a
+// 7 px fall, inside a glare that reaches ~36 px — so the bright FEATURE grew
+// while acquiring a body, which is what "чуть больше" and "солнца не видно"
+// asked for together.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -231,15 +241,52 @@ void main()
     // black below the horizon — no separate "is it day" flag needed. Drawn
     // after the clouds but attenuated by the sheet at ITS direction, so cover
     // dims the disc to a glow instead of the disc burning through a cloud.
-    float sun_dot = max(dot(dir, u_sunDir), 0.0);
+    float sun_dot = clamp(dot(dir, u_sunDir), -1.0, 1.0);
     float sun_occl = 1.0;
     if (u_sunDir.y > 0.03) {
         vec2 ps = eye.xz
                 + u_sunDir.xz * ((DFN_CLOUD_LAYER1_M - eye.y) / u_sunDir.y);
         sun_occl = 1.0 - 0.85 * dfn_cloud_sheet_alpha(ps, 0.0);
     }
-    sky += u_sunColor * ((pow(sun_dot, 900.0) * 0.85
-                          + pow(sun_dot, 24.0) * 0.10) * sun_occl);
+    // THE SUN HAS A BODY (W9). What stood here was two glow lobes,
+    // pow(dot,900)*0.85 + pow(dot,24)*0.10, ADDED to the sky — and what the
+    // player read as a disc was the RGBA8 clamp cutting that glow off at 1.0.
+    // Measured at noon by design, per channel: red saturated out to 1.40 deg,
+    // green to 1.95, blue to 2.82. So the "sun" was a ~5.6 deg white smear
+    // with coloured fringes, it had no edge anywhere, and its apparent SIZE
+    // drifted through the day with u_sunColor and the sky ramp. Nothing in
+    // the code named it. "Ярко есть, солнца не видно" is a precise report.
+    float sun_ang = acos(sun_dot);
+    float sun_luma = dot(u_sunColor, DFN_LUMA_WEIGHTS);
+    if (sun_luma > 0.001) {
+        // Unit-luma hue: the rows below fix BRIGHTNESS in the quantiser's
+        // metric, so the colour has to carry the hue and nothing else, or the
+        // separations design derived are separations of a different number.
+        // This also gates the sun without a day flag — apply_sky_time drives
+        // u_sunColor to black under the horizon and the luma goes with it.
+        vec3 hue = u_sunColor / sun_luma;
+        // THE GLARE, AND ITS CEILING IS THE ACTUAL FIX. The sky beside the
+        // sun used to reach the top of the range, so a disc had nowhere above
+        // it to stand and "make the sun brighter" was a no-op — that is why
+        // this is a halo with a CAP rather than a bigger, brighter blob.
+        // u_sunGlareLumaMax sits two quantiser steps below the top, not one,
+        // because one step IS the quantisation cell and a threshold equal to
+        // the instrument's resolution has no margin at all (Rule 30a).
+        float glare = 1.0 - smoothstep(0.0, u_sunGlareRadius, sun_ang);
+        glare *= glare; // bright core, long tail, still zero at the rim
+        sky = mix(sky, hue * u_sunGlareLumaMax, clamp(glare * sun_occl, 0.0, 1.0));
+        // THE DISC. Antialiased over ONE PIXEL of sky, taken from the
+        // derivative rather than from a constant: at 640x360 the disc is ~9 px
+        // and a hard threshold rasterises it as a diamond, and the 320x180
+        // preset would need a different constant. fwidth is right at both.
+        float aa = max(fwidth(sun_ang), 1e-5);
+        float disc = 1.0 - smoothstep(u_sunDiscRadius - aa,
+                                      u_sunDiscRadius + aa, sun_ang);
+        // COMPOSITE, NEVER ADD. `sky += disc` clamps to white, which destroys
+        // every luma relation the sky rules are written in and is exactly how
+        // the old glow ended up defining its own size by saturation.
+        sky = mix(sky, hue * u_sunDiscLuma, clamp(disc * sun_occl, 0.0, 1.0));
+    }
 
     gl_FragColor = vec4(sky, 1.0);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 20:01:43
+Last updated: 10:08:2026 - 20:10:49
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -38,6 +38,8 @@ UPD:
   present in the sun shadow map, so a terrain LOD cross-fade put two versions
   of the same ground in it at once and the visible one landed in the other's
   shadow.
+- 10:08:2026 - 20:10:49: ENV_PARAM_VEC4S 35 -> 36 (slot 35 = the sun's body,
+  paired with dfn_env.sh per the layout contract).
 */
 
 #pragma once
@@ -172,7 +174,7 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 35; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 36; // layout contract with dfn_env.sh
 inline constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {

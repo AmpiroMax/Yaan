@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 10:08:2026 - 10:45:06
+Last updated: 10:08:2026 - 20:10:49
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -58,6 +58,12 @@ UPD:
   layers 1200/2200 -> 2600/4400 m, because at 1200 m the whole sky above 45 deg
   saw 10.8 cells of field AREA and mid-sky had nothing to draw at any
   threshold. The wavelength could not move — it is shared with the ground.
+- 10:08:2026 - 20:10:49: env block 35 -> 36 vec4s. Slot 35 carries the SUN'S
+  BODY (SUN_ANGULAR_DIAMETER / SUN_GLARE_ANGULAR_DIAMETER / SUN_DISC_LUMA /
+  SUN_GLARE_LUMA_MAX) from the GENERATED header rather than as #defines here:
+  design derives those rows and the shader measures the frame with them, so
+  they have two consumers and may exist exactly once (Rule 35). Paired with
+  apply_environment per this file's own contract notice.
 */
 
 #ifndef DFN_ENV_SH
@@ -68,7 +74,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[35];
+uniform vec4 u_envParams[36];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -112,6 +118,21 @@ uniform vec4 u_envParams[35];
 #define u_cloudShadow     (u_envParams[33].z)
 #define u_cloudWavelength (u_envParams[33].w)
 #define u_cloudOffset     (u_envParams[34].xy)
+// The SUN'S BODY (W9). These are NUMBERS rows, not look-dev values, and they
+// arrive through the uniform rather than as #defines here for one reason:
+// design derives them and render measures the frame with them, so they have
+// two consumers and may exist exactly once (Rule 35). The backend fills this
+// slot straight from the generated header, so there is no second copy to
+// drift. Radii, not diameters — the shader compares against an angle.
+#define u_sunDiscRadius   (u_envParams[35].x)
+#define u_sunGlareRadius  (u_envParams[35].y)
+#define u_sunDiscLuma     (u_envParams[35].z)
+#define u_sunGlareLumaMax (u_envParams[35].w)
+// The quantiser's own luma weights (fs_upscale.sc). Every brightness rule in
+// the sky is written in THIS metric and not in Euclidean RGB, because the
+// palette pass weights the channels and a difference that lives in blue is
+// nearly invisible to it (Rule 36's pipeline-metric clause).
+#define DFN_LUMA_WEIGHTS vec3(0.30, 0.59, 0.11)
 
 // Cloud layer altitudes, meters ABOVE SEA LEVEL (world y). Look-dev pair for
 // the two-sheet parallax: the sky intersects the view ray with these planes,

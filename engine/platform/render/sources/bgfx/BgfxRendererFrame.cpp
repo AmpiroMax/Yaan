@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 03:04:30
+Last updated: 10:08:2026 - 20:10:49
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -35,9 +35,15 @@ UPD:
   Frame path moved verbatim; no behaviour change.
 - 10:08:2026 - 03:04:30: Cloud slots 33/34 packed in apply_environment (W4
   state + the one drift offset; paired with dfn_env.sh's 35-slot layout).
+- 10:08:2026 - 20:10:49: Slot 35 packed with the sun's body straight from the
+  generated constants (SUN_ANGULAR_DIAMETER / SUN_GLARE_ANGULAR_DIAMETER /
+  SUN_DISC_LUMA / SUN_GLARE_LUMA_MAX), never through RenderEnvironment — they
+  are NUMBERS rows with two consumers and exist once (Rule 35).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -216,6 +222,16 @@ void BgfxRenderer::Impl::apply_environment() const {
     packed[33] = {e.cloud_cover, e.cloud_cumulus, e.cloud_shadow,
                   e.cloud_wavelength_m};
     packed[34] = {e.cloud_offset_m, e.weather_wind_mult, 0.0f};
+    // THE SUN'S BODY (W9). Straight from the generated header, never through
+    // RenderEnvironment: these are NUMBERS rows with two consumers by
+    // construction — design derives them, the shader measures the frame with
+    // them — so they exist once and travel to the only place that reads them
+    // (Rule 35). Radii, because the shader compares against an angle; the
+    // rows are diameters because that is how a sky is described.
+    packed[35] = {0.5f * static_cast<float>(config::SUN_ANGULAR_DIAMETER),
+                  0.5f * static_cast<float>(config::SUN_GLARE_ANGULAR_DIAMETER),
+                  static_cast<float>(config::SUN_DISC_LUMA),
+                  static_cast<float>(config::SUN_GLARE_LUMA_MAX)};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};
