@@ -36,16 +36,28 @@ AI Agents Notice (must follow):
   lie).
 - COMPOSITION ORDER IS DESIGN'S AMENDMENT AND IT IS BINDING:
       density(class, xz) = base(class) x clump(class, xz)
-                           x edge_gradient(dist_to_path) x exclusions
+                           x edge_gradient(dist_to_path) x richness(path_class)
+                           x exclusions
   and the edge gradient acts as a FLOOR on the field (clump_field_edged), so a
   coverage gap in the flower field can never bare a path margin — BR-3's ratio
-  clauses (rich edge >= 3x far-field, ~0 on the trodden centre) must hold
-  WHATEVER the clump field says. The trodden-centre zero is core's exclusion
-  mask, not this file's job.
-- The per-class parameter values are design-signed PROPOSALS routed to the
-  lead as CLUMP_WAVELENGTH_<CLASS> / CLUMP_COVERAGE_<CLASS> /
-  CLUMP_CONTRAST_<CLASS>; once the rows land in NUMBERS.md, clump_params()
-  reads the generated Constants.h and the literals here die (Rule 14).
+  clauses must hold WHATEVER the clump field says. The trodden-centre zero is
+  core's exclusion mask, not this file's job.
+  **BUT THE FLOOR IS SCOPED BY MAINTENANCE** (design, 10.08.2026): that same
+  guarantee is precisely what would garden a cobbled gutter, so it is scaled
+  by the path class's richness (FloraEdgeRules.h) and stops applying on swept
+  classes. BR-3's ratio is measured on the hint-path; a cobbled street failing
+  it is a PASS.
+- The per-class parameter values are REGISTRY ROWS (landed 10.08.2026):
+  CLUMP_WAVELENGTH_<CLASS> / CLUMP_COVERAGE_<CLASS> / CLUMP_CONTRAST_<CLASS>,
+  read from the generated Constants.h. Cite the names, never the values.
+- ACCEPTANCE IS CLUMP_R_NORM_MAX (0.85) ON A NORMALISED CLARK-EVANS R:
+  R_norm = R(field on) / R(the same placement with the field flattened to that
+  class's own mean). The denominator is NOT ideal Poisson and NOT a single
+  constant: the placement lattice carries its own regularity, and that
+  regularity CHANGES WITH ACCEPTANCE RATE (measured 1.052 at coverage 0.09 up
+  to 1.136 at 0.35), so the control is re-taken per class or low-coverage
+  classes are divided by a denominator that was never theirs. Full table and
+  derivation in docs/specs/flora.md §3.12.
 */
 /*
 UPD:
