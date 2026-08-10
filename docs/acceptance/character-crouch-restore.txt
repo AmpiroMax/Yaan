@@ -1,0 +1,83 @@
+# Created: 10:08:2026 - 22:40:13
+# Last updated: 10:08:2026 - 22:40:13
+# Module: docs/acceptance
+# File: docs/acceptance/character-crouch-restore.txt
+#
+# Responsibility:
+# - THE RECIPE AND THE POSE IN ONE FILE (it is itself a valid DFN_RESTORE
+#   sidecar): all four crouch frames come from THIS state, so BEFORE and AFTER
+#   differ only in where the camera is put at full crouch.
+#
+# Key items:
+# - The four frames: character-crouch-{fwd,lookdown}-{BEFORE,AFTER}-c296fec.png
+# - Shoot, from the repo root, with dfn_app built at c296fec:
+#     DFN_RESTORE=docs/acceptance/character-crouch-restore.txt DFN_MENU=0 \
+#     DFN_CAPTURE_AFTER=4 DFN_CAPTURE_DIR=<NEW dir> DFN_INTERNAL_RES=640x360 \
+#     DFN_PALETTE=0 build_lead/engine/app/dfn_app
+#   then tools/archive_frame.py <capture_000.png> <dst.png> 640 (2560x1440
+#   native, box-average /4).
+# - THE LOOK-DOWN ARM IS THIS FILE WITH ONE FIELD CHANGED: pitch = -1.150000
+#   (the same 66 deg down the earlier look-down frames used). Nothing else.
+# - THE BEFORE ARM is the same binary with the crouched eye placement, and
+#   ONLY that, reverted in engine/gameplay/sources/PlayerMovement.cpp:
+#       const float eye = EYE_HEIGHT + (0.85f - EYE_HEIGHT) * state.crouch_blend;
+#       ... facing * (step.eye_lean.x)            // i.e. drop step.crouch_eye.x
+#   Everything else -- the restored crouch, the feet derivation, the head
+#   counter-pitch -- is identical in both arms, so the pair isolates the fix.
+#   Both arms report the SAME feet: [restore] landed 241.66 20.75 170.07.
+#
+# Dependencies:
+# - Uses: engine/app's DFN_RESTORE + DFN_CAPTURE_AFTER doors.
+# - Used by: docs/specs/character.md item a10.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - A CROUCHED RESTORE ONLY WORKS FROM c296fec ONWARDS. Before it, the sidecar
+#   carried `crouched` and nothing applied it, and accumulate_input rewrote the
+#   key from the live keyboard every render frame -- which is why this defect
+#   had no automated frame for as long as it existed. On an older binary this
+#   file restores a STANDING player and the comparison silently means nothing.
+# - Do NOT "improve" the vantage. pos_y here is the CROUCHED eye (feet +
+#   1.2284); the app derives the feet by subtracting the crouch offset, so
+#   editing pos_y to a standing value drops the player through a squat's worth
+#   of air.
+#
+# UPD:
+# - 10:08:2026 - 22:40:13: Captured for the crouched-camera before/after pair.
+
+captured_at = 10:08:2026 - 22:40:13
+build_commit = c296fec
+stand = 0
+seed = 1
+game_seconds = 886.011789
+day_fraction = 0.307643
+lunar_phase = 0.010987
+pos_x = 241.907715
+pos_y = 21.970800
+pos_z = 170.162476
+yaw = 1.939360
+pitch = 0.000000
+look_x = 0.932846
+look_y = 0.000000
+look_z = 0.360276
+speed_mps = 0.000000
+vertical_velocity = 0.000000
+stride_phase = 0.000000
+gait = 0
+locomotion = 0
+grounded = 1
+crouched = 1
+water_depth = 0.000000
+internal_w = 640
+internal_h = 360
+fov_y_rad = 1.383074
+head_bob = 1.000000
+palette_post = 0
+wind_strength = 0.480618
+cloud_cover = 0.450000
+ambient_darkness = 0.000000
+fps = 116.102
+frame_ms = 8.613
+frame_ms_worst = 16.731
+chunks_resident = 9
+lod_nodes = 0
