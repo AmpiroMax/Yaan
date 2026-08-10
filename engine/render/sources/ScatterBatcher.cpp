@@ -53,6 +53,9 @@ UPD:
 
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <set>
+#include <vector>
 
 namespace dfn::render {
 
@@ -81,6 +84,21 @@ constexpr float GROUND_SINK_FRAC = static_cast<float>(config::SCATTER_GROUND_SIN
 // suite keeps the old tabled values as the Rule 30 control — the geometry
 // they claimed to cover FAILS them.
 
+// One line per species, once per process — a per-instance warning would print
+// hundreds of thousands of times and be scrolled past, which is the same as
+// silence.
+void report_missing_species(size_t ordinal) {
+    static std::set<size_t> reported;
+    if (!reported.insert(ordinal).second) {
+        return;
+    }
+    std::fprintf(stderr,
+                 "[render] SCATTER SPECIES %zu HAS NO MESH — worldgen places "
+                 "instances of it and they draw as NOTHING. Add it to "
+                 "build_scatter_mesh (ProcMesh.cpp) or to the flora path.\n",
+                 ordinal);
+}
+
 bool is_tree(math::ScatterSpecies species) {
     return species == math::ScatterSpecies::OakTree
         || species == math::ScatterSpecies::PineTree
@@ -99,14 +117,38 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
 
     // Species meshes built once per call (cheap; caching across calls is the
     // caller's option — batches dominate the cost anyway).
-    std::array<MeshData, 5> species_mesh;
-    std::array<bool, 5> built{};
+    //
+    // THE LENGTH IS NOT A CONSTANT, AND THAT IS THE FIX, NOT A STYLE CHOICE.
+    // `math::ScatterSpecies` is an APPEND-ONLY enum in core's zone; this was a
+    // `std::array<MeshData, 5>` indexed by the ordinal, which was true on the
+    // day it was written and became a heap-corrupting out-of-bounds WRITE the
+    // moment core added the §5.10 forest floor and §5.11 edge set (5 species ->
+    // 18). It did not crash where it was wrong: it scribbled over whatever
+    // followed on the stack and aborted later inside an unrelated vector
+    // assignment, so the backtrace named this function and no line of it looked
+    // suspicious. A sibling zone must never mirror an append-only enum with a
+    // fixed length — grow to the ordinal instead, and the whole failure mode
+    // stops being representable.
+    std::vector<MeshData> species_mesh;
+    std::vector<char> built;
 
     const auto mesh_of = [&](math::ScatterSpecies s) -> const MeshData& {
         const auto i = static_cast<size_t>(s);
-        if (!built[i]) {
+        if (i >= built.size()) {
+            species_mesh.resize(i + 1);
+            built.resize(i + 1, 0);
+        }
+        if (built[i] == 0) {
             species_mesh[i] = build_scatter_mesh(s);
-            built[i] = true;
+            built[i] = 1;
+            if (species_mesh[i].vertices.empty()) {
+                // AND THE SECOND HALF: a species core places and render cannot
+                // build must be LOUD. Silently skipping it is how the forest
+                // floor ships as bare earth while every test is green — the
+                // same "absence presenting as a neutral state" that hid the
+                // missing site meshes for a whole stage.
+                report_missing_species(i);
+            }
         }
         return species_mesh[i];
     };
