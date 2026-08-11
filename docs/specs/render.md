@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 11:08:2026 - 14:52:34-->
+Last updated: 11:08:2026 - 15:08:17-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -208,6 +208,31 @@ UPD:
   clear air because he is in a VALLEY. Player vantages top out at 25.44 m and
   the shipped 70 m already clears them by 28 m. The SKY PROBE was the fault: it
   stood 1.6 m inside the layer. Pinned to the band constants at 106 m.
+- 11:08:2026 - 15:08:17: R3.2 / R3.3 DIAGNOSED AND MEASURED, NOTHING SHIPPED (session wrap-up; a
+  half-finished env-block change was reverted on purpose). THE INSTRUMENT IS THE
+  INHERITANCE: per-row SD of the CLOUD-ONLY DIFFERENCE (frame minus the
+  DFN_CLOUD=0 arm), which needs no brightness or colour mask at all because
+  everything that is not cloud is bit-identical in both arms and subtracts to
+  zero -- the first sky instrument here that Rule 47 has nothing to bite, and it
+  is zero-dose-safe by construction (the difference is identically 0, so the
+  criterion cannot pass without the subject). MEASURED: the hard bright band at
+  the horizon is the sheet's own AREA MEAN, drawn where the field is STILL
+  RESOLVED -- SD collapses 38..51 -> 8.2..13.0 over rows 144..152 while the MEAN
+  stays the highest in the frame (72..78), i.e. a bright strip with the texture
+  taken out. Cause located: dfn_cloud_alpha's outer mix converges at cells_px
+  0.60 while the base octave's own LOD still carries 21% of its amplitude --
+  two redundant convergences, the outer one running far ahead of the inner. A
+  row-mean instrument would have declared the band absent (the mean profile has
+  no step at all). Fix designed and NOT written: renormalise the field by the
+  spread that survives the LOD (sd_lod = SD * sqrt(sum w_i^2)/0.6402, mean_lod
+  interpolated), then drive the outer convergence off the residual spread. Rule
+  31 flagged on it: the uncorrelated-equal-variance premise must be MEASURED in
+  CloudModel.cpp with the current fixed-SD form as the failing control, BEFORE
+  the shader half. R3.2 likewise designed and unwritten (three decks, the low
+  one dark and in front at a DERIVED 1500 m = 1.73x apparent cell size,
+  directional self-shadowing from one sun-side field tap, the high deck made the
+  brightest so holes show it) with its per-deck-arm measurement specified.
+  Deferred list added at the end of this file.
 -->
 
 # Spec — render agent
@@ -1740,6 +1765,227 @@ recipe is in the acceptance README. The three ranges ARE the control (Rule 30):
 a change that makes the picture prettier without making 900 m differ from 250 m
 has not done R1, and this instrument reports that as a flat column.
 
+
+## R3.2 / R3.3 — DIAGNOSED AND MEASURED, NOT SHIPPED (session ended here)
+
+**Status: nothing of this is in the build.** The tree is at HEAD; a half-finished
+env-block change was reverted deliberately (the lead's wrap-up instruction: half
+a shader in a shared tree is worse than nothing). What follows is the whole of
+what was established, in the order a successor needs it. The diagnosis is the
+expensive part and it is finished; the code is the cheap part and it is not
+started.
+
+### The instrument, and it is the one thing here worth inheriting
+
+Everything below is measured as **the per-row standard deviation of the
+CLOUD-ONLY DIFFERENCE image** — the frame with clouds minus the frame with
+`DFN_CLOUD=0`, pixel by pixel, at the same vantage in the same run conditions.
+
+Why this shape and not another (Rule 47's structural cure, applied before rather
+than after being caught by it): the subject is *how much structure the cloud
+layer has at a given elevation*. Every earlier sky instrument in this file tried
+to find cloud by being bright, and the horizon's pale sky defeated all of them —
+`runs` had to be moved onto a NEUTRALITY mask (b−r ≤ 5) for exactly this reason,
+and even that is a colour test. Differencing against the cover-0 arm needs no
+mask at all: the sky gradient, the sun, the haze, the mist band and the terrain
+are bit-identical in both arms and subtract to **zero**, so what is left in the
+difference image IS the cloud and nothing else. Rows are fixed geometry, read in
+both arms alike.
+
+**Rule 48 check, done before the measurement and not after:** at zero dose the
+difference image is identically zero, so the SD is 0 at every row and the
+criterion cannot pass. It is an existence criterion on a quantity that only the
+subject can produce — which is the property Rule 48 asks for, stated positively.
+
+Script (scratchpad only, ~40 lines, not landed as a tool — see the deferred
+list): decode both PNGs, take `0.30/0.59/0.11` luma, subtract per pixel, report
+mean and SD per internal row.
+
+### R3.3 — THE HARD BRIGHT BAND IS THE SHEET'S OWN AREA-MEAN, AND IT IS DRAWN WHERE THE FIELD IS STILL RESOLVED
+
+Measured on `render-sky-R3-structure-CLOUD-{ON,OFF}-4deffcd.png`, all 640
+columns, internal rows (horizon sits at row ~206 at this vantage's +0.06 pitch):
+
+| internal rows | what is there | mean of diff | **SD of diff** |
+|---|---|---|---|
+| 110–133 | resolved sheet (speckle) | 61–80 | **38–51** |
+| 144–152 | **THE BAND** | 72–78 | **8.2–13.0** |
+| 155–178 | horizon cumulus (R3.1) | 30–47 | **42–49** |
+| 180–183 | second flat strip | 58–64 | **1.7–3.3** |
+| 193+ | below the sheet fade | 0.00 | 0.00 |
+
+**The band is not dim and it is not a seam in the gradient — it is a bright
+strip of cloud tone with the structure taken out of it.** Its mean cloud
+contribution (~75 luma) is the HIGHEST anywhere in the frame; its SD is a sixth
+of the sheet's just 15 rows above. A constant next to a texture is read as a
+join between two pictures, which is precisely the user's report. Note also that
+the mean profile alone shows NOTHING: it declines smoothly from 75 to 0 across
+the whole region with no step at all. An instrument that averaged rows would
+have declared the band absent.
+
+**Cause, located exactly.** `dfn_cloud_alpha` ends with
+
+```
+return mix(a, cover, smoothstep(0.20, 0.60, cells_px));
+```
+
+i.e. the sheet is replaced by its area average — the constant `cover` — once one
+pixel covers 0.6 wavelengths. But `dfn_cloud_field` ALREADY has a per-octave LOD,
+and at `cells_px` 0.60 the base octave's own LOD term is still `1 −
+smoothstep(0.22, 0.75, 0.60) = 0.21`, i.e. **21 % of the largest octave is still
+alive and fully resolvable when the outer convergence has already discarded
+everything.** The two convergences are redundant with each other and the outer
+one runs far ahead of the inner one. That gap in `cells_px`, projected into the
+frame, is the band.
+
+The outer convergence is not gratuitous, and this is why the fix is not "delete
+it": when octaves are replaced by their MEAN the sum's spread shrinks, so the
+field stops being uniform on [0,1], and thresholding it at `1 − cover` stops
+covering `cover`. At full LOD collapse the field is the constant 0.5 and alpha
+would be a hard 0 or 1 rather than `cover`. The outer mix is a blunt patch for a
+real problem.
+
+**The fix that was designed and NOT written (a successor should start here).**
+Renormalise the field by the spread that actually survives the LOD, instead of
+throwing the survivors away:
+
+- weights after LOD: `w_i = W_i * l_i` for `W = (0.55, 0.28, 0.17)`;
+- the octaves are the same construction at incommensurate frequencies, so treat
+  them as uncorrelated with equal marginal variance — **the same assumption the
+  shipped `CLOUD_FIELD_MEAN/SD` pair already rests on**;
+- then `sd_lod = CLOUD_FIELD_SD * sqrt(Σ w_i²) / sqrt(Σ W_i²)`, with
+  `sqrt(Σ W_i²) = 0.6402`;
+- and `mean_lod = 0.5 + (CLOUD_FIELD_MEAN − 0.5) * Σ w_i` (the weights sum to
+  exactly 1.0 at full resolution, so this is the identity there);
+- `z = (raw − mean_lod) / sd_lod`.
+
+Coverage then equals `cover` at **every** LOD by construction, the surviving
+large-scale structure keeps its full contrast instead of being flattened, and the
+outer convergence can be driven by the residual spread `res = sd_lod /
+CLOUD_FIELD_SD` rather than by `cells_px` — so it fires only where the field is
+genuinely dead, which is much nearer the horizon and inside the sheet's existing
+haze fade. Computed values of `res` against `cells_px`, for whoever tunes the
+window: 0.20 → 0.914, 0.30 → 0.809, 0.50 → 0.394, 0.60 → ~0.28, 0.70 → 0.022,
+0.75 → 0. Suggested window `res` 0.18 → 0.04, with a floor on `sd_lod` so the
+division cannot blow up when every octave is gone.
+
+**Rule 31 applies to this and it must be MEASURED, not assumed.** The
+uncorrelated-equal-variance step above is exactly the kind of statistical premise
+that cost this file a day the first time. `CloudModel.cpp` already mirrors the
+2-D field; the renormalisation belongs there first, with a test asserting that
+`P(field > 1 − cover) ≈ cover` at several `cells_per_pixel` values — and with the
+CURRENT fixed-SD form kept as the control that FAILS it. Do not ship the shader
+half before that test exists; the 3-D field shipped in that order once already
+and the owed control corrected its author's own claim when it finally ran.
+
+**A second flat strip exists at rows 180–183 (SD 1.7–3.3, mean 64)** and it is
+the same mechanism at the very bottom of the sheet, just below the cumulus base
+(`CUMULUS_BASE_Y` = 0.055 lands at row 182 at this vantage — the arithmetic
+matches to a row). One fix removes both.
+
+### R3.2 — THE CEILING IS ONE TONE ON ONE PLANE. What was designed, and why each piece.
+
+Reference 12 carries three claims and we satisfy none of them: at least three
+strata, self-shadowed, with holes that show BRIGHTER sky behind. Read against
+the shipped `fs_sky`:
+
+1. **The high sheet is invisible as a deck.** It is composited
+   `mix(sky, cloud_bright, a2)` — the SAME white the main sheet's lit body uses.
+   Two decks of one tone are one deck with extra opacity, whatever their
+   parallax.
+2. **The main sheet is nearly untoned.** Its only shading is
+   `core1 = smoothstep(1 − cover*0.55, 1, F)`, which at the default cover 0.45 is
+   `smoothstep(0.7525, 1.0, F)` — while cloud exists wherever `F > 0.55`. So the
+   great majority of every mass is flat `cloud_bright` and the darkening only
+   ever finds the middle of a blob. It is also non-directional: it cannot move
+   with the sun, so it cannot read as self-shadowing.
+3. **Nothing is in front.** Both planes are at 2600/4400 m — a ratio of 1.7 in
+   distance, but with the same tone and the same construction that reads as one
+   ceiling.
+
+The intended change, in the order of decreasing value:
+
+- **(a) Directional self-shadowing on the main deck.** One extra field tap, at
+  `p + normalize(u_sunDir.xz) * step`: where the field is HIGHER toward the sun,
+  this point stands behind a thicker mass and darkens; where it is lower, the
+  point is on a sun-facing slope and lightens. This is the single biggest
+  flat→modelled move available and it costs one sample. It also moves with the
+  hour for free, which the density-only term never could.
+- **(b) A third, LOW deck at 1500 m — sparse, ragged and DARK — drawn LAST.**
+  The altitude is derived, not chosen: the same field wavelength at 1500 m
+  against 2600 m subtends **1.73×** the angle, and it is the difference of
+  apparent cell size that reads as "nearer". Below ~1000 m one cell is wider
+  than half the frame; by 2000 m the ratio is down to 1.3 and the deck merges
+  into the middle one. Real broken stratocumulus bases sit at 600–2000 m.
+- **(c) Make the high deck the BRIGHTEST of the three.** Then a hole in the dark
+  low deck shows the bright high deck behind it, which is R3's wording made
+  literal rather than approximated.
+- Cover for the low deck must be a FRACTION of the total (0.45 was the derived
+  value): three independent decks at full cover close `1 − (1−c)³` of the sky =
+  83 % at c = 0.45, and the holes the whole exercise exists for would be gone.
+- `dfn_cloud_sun_vis` must gain the third deck too. It is the file's own
+  standing rule — one authority for the field — and a deck that draws in the sky
+  but does not occlude the sun is the "shadow crossing land with no cloud above
+  it" reject W4 was built to prevent.
+
+**The measurement that was designed for it, since "the sky looks deeper" is not
+a criterion.** Per-deck arms, each shot with exactly one deck disabled in the
+shader (a 3-second rebuild — timed), all read against the full arm:
+
+- a deck is PRESENT iff the pixels that change when it alone is switched off are
+  a substantial set — the subject is located by an ARM DIFFERENCE, never by
+  brightness, so Rule 47 has nothing to bite;
+- the three sets must be largely DISJOINT, which is what "three strata" means
+  operationally;
+- "holes show brighter sky behind": inside the sky box, compare the luma of
+  pixels the FRONT deck owns against the luma of pixels it does not — with
+  ownership decided by the arm difference and only the VALUE read from the
+  frame. The claim passes only if the not-owned set is brighter.
+- self-shadowing: the SD of luma WITHIN the front deck's own (arm-located)
+  pixels, before against after. Flat white gives near zero by construction.
+
+### The NUMBERS rows that were drafted and reverted with the code
+
+`CLOUD_DECK_LOW_M` 1500, `CLOUD_DECK_MID_M` 2600, `CLOUD_DECK_HIGH_M` 4400,
+`CLOUD_DECK_LOW_COVER` 0.45, with the derivations above, replacing the shader
+literals `DFN_CLOUD_LAYER1_M`/`2_M`. They belong in NUMBERS rather than in
+`dfn_env.sh` for the Rule 35 reason the haze rows already travel that way: each
+altitude has TWO consumers — `fs_sky` intersects the view ray with the plane and
+`dfn_cloud_sun_vis` projects along the sun to the same plane — and if those ever
+read different numbers the shadow slides out from under the cloud casting it.
+The route is the established one: NUMBERS row → generated header →
+`apply_environment` slot 38 (env block 38 → 39) → `u_cloudDeck*` accessors. The
+draft was written and reverted intact; re-doing it is mechanical.
+
+## DEFERRED — found on the way, NOT fixed, deliberately left
+
+Recorded per the user's instruction to write new bugs down and close our eyes on
+them rather than forget them. None of these was touched.
+
+1. **R3.3 — the hard bright band at the horizon.** Diagnosed to the line, fix
+   designed and unwritten (see above). This is the user-visible one.
+2. **R3.2 — the sky is one flat speckled ceiling.** Same: diagnosed, designed,
+   unwritten.
+3. **The second flat strip at rows 180–183**, same mechanism as (1), same fix.
+4. **The cloud-structure instrument lives only in the session scratchpad.** It
+   should be a mode of `tools/measure_aerial.py` (`structure <ON> <OFF> <box>`)
+   next to `profile` and `runs`, because it is the first sky instrument in this
+   zone that is immune to the horizon's pale sky by construction rather than by
+   a mask, and every future sky claim wants it. Not landed: new code, and the
+   session was wrapping up.
+5. **`SHEET_HAZE_LO/HI` (0.004..0.030) is a hard cut, not a fade.** It spans
+   0.23°–1.72°, about 12 px of a 640×360 frame, and it is what terminates the
+   sheet at rows ~190–193. It is invisible TODAY only because the band above it
+   is already a flat wash; the moment R3.3's fix restores structure down to the
+   horizon, this cut becomes the next visible edge. Fix it in the same change,
+   not after.
+6. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
+   fixed ring where that was defensible; if the cumulus band ever moves off the
+   ring it will alias immediately.
+7. **Other zones' working tree was dirty throughout this session** (core's
+   worldgen split, new `WorldgenOutcrop`/`WorldgenRelief`/`GroundReliefTests`).
+   Nothing of mine touched it and no test of mine depends on it; noted only so
+   the next agent does not read a red core test as render's.
 
 ## What this zone does NOT do
 
