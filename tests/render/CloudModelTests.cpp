@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 03:13:00
-Last updated: 10:08:2026 - 10:45:06
+Last updated: 11:08:2026 - 14:43:44
 Module: tests
 File: tests/render/CloudModelTests.cpp
 
@@ -24,6 +24,11 @@ UPD:
 - 10:08:2026 - 03:13:00: Initial tests with the cloud pass.
 - 10:08:2026 - 10:45:06: The COVERAGE FIELD's distribution tests (Rule 31),
   each shipping the pre-remap field as the control it must reject.
+- 11:08:2026 - 14:43:44: THE 3-D FIELD (R3.1): uniformity, cover-means-coverage, and the
+  control that the 2-D mean/SD FAIL in 3-D — which is why the second pair of
+  constants exists at all. Plus the assertion that the field actually varies
+  with HEIGHT, since not varying with height is what made the band's
+  silhouette single-valued and produced the mushroom caps.
 */
 
 #include "engine/render/sources/CloudModel.h"
@@ -31,6 +36,7 @@ UPD:
 #include <doctest/doctest.h>
 
 #include <glm/geometric.hpp>
+#include <glm/vec3.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -243,4 +249,147 @@ TEST_CASE("below the resolution limit the field converges to its AREA MEAN") {
         spread = std::max(spread, std::fabs(a - cover));
     }
     CHECK(spread > 0.5f);
+}
+
+// ===========================================================================
+// THE 3-D FIELD (R3.1). Same assertions as the 2-D one, because the same
+// defect is possible: a Gaussian sum thresholded as though it were uniform.
+// ===========================================================================
+
+namespace {
+
+// A deterministic walk through a volume, same construction as field_samples.
+std::vector<glm::vec3> field3_samples(int n) {
+    std::vector<glm::vec3> pts;
+    pts.reserve(static_cast<size_t>(n));
+    float a = 0.0f, b = 0.0f, c = 0.0f;
+    for (int i = 0; i < n; ++i) {
+        a = std::fmod(a + 0.8191725134f, 1.0f); // R3 sequence
+        b = std::fmod(b + 0.6710436067f, 1.0f);
+        c = std::fmod(c + 0.5497004779f, 1.0f);
+        pts.push_back({(a - 0.5f) * 800.0f, (b - 0.5f) * 800.0f,
+                       (c - 0.5f) * 800.0f});
+    }
+    return pts;
+}
+
+std::vector<float> field3_values(const std::vector<glm::vec3>& pts, float mean,
+                                 float sd) {
+    std::vector<float> v;
+    v.reserve(pts.size());
+    for (const glm::vec3& q : pts) {
+        v.push_back(dfn::render::cloud_field3_with(q, mean, sd));
+    }
+    return v;
+}
+
+} // namespace
+
+TEST_CASE("the 3-D field is UNIFORM over its whole declared range") {
+    const auto pts = field3_samples(120000);
+    const float err = worst_decile_error(field3_values(
+        pts, dfn::render::CLOUD_FIELD3_MEAN, dfn::render::CLOUD_FIELD3_SD));
+    INFO("worst decile error = ", err);
+    CHECK(err < 0.030f);
+}
+
+TEST_CASE("CONTROL: the 2-D mean/SD are MEASURABLY WRONG in 3-D") {
+    // THE REASON THE SECOND PAIR OF CONSTANTS EXISTS -- stated at its true size,
+    // which is smaller than first claimed. Reusing the 2-D numbers does NOT
+    // reproduce Rule 31's original severity (there, cover 0.10 drew literally
+    // 0.0000 of the sky). It reproduces its FORM at about a fifth of its size:
+    // the 3-D sum is tighter (sd 0.1185 against 0.1368 -- a trilinear blend of
+    // eight iid uniforms beats a bilinear blend of four), so the 2-D sd
+    // over-widens the remap and compresses the field toward its middle.
+    //
+    // The damage is therefore all at the ENDS, which is exactly where the
+    // cumulus band lives: measured, cover 0.05 draws 0.0219 -- 44 % short --
+    // and cover 0.90 draws 0.9317. Worst coverage error 0.0317 against the
+    // correct pair's 0.0176, i.e. 1.8x. Small, systematic, and in the one place
+    // a few fair-weather cumulus on a clear day are asked for.
+    //
+    // Asserted on COVERAGE rather than on deciles because coverage is what the
+    // constants are FOR: by decile error the two pairs are 0.0282 vs 0.0221 and
+    // the difference nearly vanishes, which is how this went unnoticed until
+    // the control was written.
+    const auto pts = field3_samples(120000);
+    const auto worst_cover_err = [&](float mean, float sd) {
+        float worst = 0.0f;
+        for (const float cover : {0.05f, 0.10f, 0.25f, 0.50f, 0.75f, 0.90f}) {
+            int hit = 0;
+            for (const glm::vec3& q : pts) {
+                hit += dfn::render::cloud_field3_with(q, mean, sd)
+                               > (1.0f - cover)
+                           ? 1
+                           : 0;
+            }
+            worst = std::max(worst,
+                             std::fabs(static_cast<float>(hit)
+                                           / static_cast<float>(pts.size())
+                                       - cover));
+        }
+        return worst;
+    };
+    const float with_2d = worst_cover_err(dfn::render::CLOUD_FIELD_MEAN,
+                                          dfn::render::CLOUD_FIELD_SD);
+    const float with_3d = worst_cover_err(dfn::render::CLOUD_FIELD3_MEAN,
+                                          dfn::render::CLOUD_FIELD3_SD);
+    INFO("worst coverage error -- 2-D constants = ", with_2d,
+         "   3-D constants = ", with_3d);
+    CHECK(with_2d > 0.028f);
+    CHECK(with_3d < 0.026f);
+    CHECK(with_3d < with_2d * 0.85f);
+
+    // THE SHARP END OF THE SAME CLAIM, and the one worth keeping: the aggregate
+    // above only separates the pairs by ~1.4x, but at the SPARSE end -- a few
+    // fair-weather cumulus on a clear day, which is precisely what this field
+    // draws -- the 2-D constants lose a third of the cloud that was asked for.
+    const auto admitted = [&](float mean, float sd, float cover) {
+        int hit = 0;
+        for (const glm::vec3& q : pts) {
+            hit += dfn::render::cloud_field3_with(q, mean, sd) > (1.0f - cover)
+                       ? 1
+                       : 0;
+        }
+        return static_cast<float>(hit) / static_cast<float>(pts.size());
+    };
+    const float sparse_2d = admitted(dfn::render::CLOUD_FIELD_MEAN,
+                                     dfn::render::CLOUD_FIELD_SD, 0.05f);
+    const float sparse_3d = admitted(dfn::render::CLOUD_FIELD3_MEAN,
+                                     dfn::render::CLOUD_FIELD3_SD, 0.05f);
+    INFO("cover 0.05 admits -- 2-D constants ", sparse_2d, "   3-D constants ",
+         sparse_3d);
+    CHECK(sparse_2d < 0.035f);  // asked 0.05, drew ~0.022
+    CHECK(sparse_3d > 0.038f);
+}
+
+TEST_CASE("in 3-D too, cover MEANS coverage") {
+    // A threshold at 1-cover must admit `cover` of SPACE — which is what the
+    // cumulus band's base_cover/top_cover pair relies on to mean anything.
+    const auto pts = field3_samples(120000);
+    for (const float cover : {0.10f, 0.25f, 0.50f, 0.75f, 0.90f}) {
+        int hit = 0;
+        for (const glm::vec3& q : pts) {
+            hit += dfn::render::cloud_field3(q) > (1.0f - cover) ? 1 : 0;
+        }
+        const float got =
+            static_cast<float>(hit) / static_cast<float>(pts.size());
+        INFO("cover ", cover, " -> ", got);
+        CHECK(std::fabs(got - cover) < 0.030f);
+    }
+}
+
+TEST_CASE("the 3-D field VARIES WITH HEIGHT -- the domes' actual cause") {
+    // The band's silhouette was a single-valued function of azimuth for one
+    // reason: the field did not depend on height AT ALL. Moving only the
+    // vertical coordinate must move the field, or the fix was cosmetic.
+    float worst = 0.0f;
+    for (int i = 0; i < 400; ++i) {
+        const float x = static_cast<float>(i) * 0.37f;
+        worst = std::max(worst,
+                         std::fabs(dfn::render::cloud_field3({x, 0.20f, 1.7f})
+                                   - dfn::render::cloud_field3({x, 1.40f, 1.7f})));
+    }
+    INFO("largest change from height alone = ", worst);
+    CHECK(worst > 0.30f);
 }

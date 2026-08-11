@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 11:08:2026 - 14:39:40-->
+Last updated: 11:08:2026 - 14:47:30-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -191,11 +191,17 @@ UPD:
   read the field as a function of AZIMUTH ALONE, so the silhouette was
   single-valued and could not hold a hole, and inverting a squared threshold
   gave vertical sides under a flat top — a mushroom cap. Now read in 3D on the
-  ring (dfn_cloud_field3, its OWN measured mean/SD 0.5000/0.1185 — the 2D pair
-  would have re-run Rule 31), threshold back to linear. Measured: columns with a
+  ring (dfn_cloud_field3, its OWN measured mean/SD 0.5000/0.1185), threshold
+  back to linear. Measured: columns with a
   hole 0 -> 11, and zero was the structural prediction. Owed: no CPU reference
   or test for the 3D field yet. Flagged: the elevated sky vantage now sits
   inside the mist band.
+- 11:08:2026 - 14:47:30: R3.1 debt CLOSED — cloud_field3 has a CPU reference and four tests,
+  one of them the control the lead asked for. The control FAILED as first
+  written and corrected my own claim: reusing the 2D constants costs 1.4x
+  worst coverage error, not a catastrophe — but loses a third of the cloud at
+  cover 0.05, the sparse end where cumulus live. Spec corrected to match.
+
 -->
 
 # Spec — render agent
@@ -1623,9 +1629,23 @@ from the field instead of from the inversion.
 
 `dfn_cloud_field3` reuses the octave weights and the CDF remap of the 2D field
 and **its own mean and SD**: measured over 400k samples the 3D sum is
-0.5000 / **0.1185** against 2D's 0.4980 / 0.1368. Reusing the 2D pair would have
-re-run Rule 31 exactly — the sum is Gaussian, the remap is its own CDF, and a
-wrong SD makes `cover` mean something other than coverage.
+0.5000 / **0.1185** against 2D's 0.4980 / 0.1368.
+
+**I first wrote that reusing the 2D pair "would have re-run Rule 31 exactly".
+That was overstated, and the control test caught me.** Measured properly, the 2D
+constants cost:
+
+| | worst coverage error | at cover 0.05, admits |
+|---|---|---|
+| correct 3D pair | 0.0225 | 0.042 |
+| 2D pair reused | 0.0311 | **0.022** (asked 0.05) |
+
+So it reproduces Rule 31's *form* at roughly a fifth of its size — 1.4x in
+aggregate, but **a third of the cloud lost at the sparse end**, which is exactly
+where a few fair-weather cumulus on a clear day live. By DECILE error the pairs
+are 0.0282 vs 0.0221 and the difference nearly vanishes; that is why the control
+asserts on coverage, which is what the constant is *for*. Real, systematic,
+worth its own constant — but not the catastrophe I claimed.
 
 **Measured** (`runs` mode, cumulus band y160..204, mask b-r <= 5):
 

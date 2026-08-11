@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 11:08:2026 - 14:40:43
+Last updated: 11:08:2026 - 14:47:30
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -87,12 +87,19 @@ UPD:
   less length inside a horizontal slab.
 - 11:08:2026 - 14:40:43: dfn_cloud_field3 — the SAME field construction read in 3D, for the
   horizon cumulus (R3.1). Its own measured mean/SD 0.5000/0.1185 against the
-  2D pair's 0.4980/0.1368: reusing the 2D constants would have re-run Rule 31,
-  since the sum is Gaussian and the remap is its own CDF. Needed because the
+  2D pair's 0.4980/0.1368. NOT Rule 31 at its original size — measured, the 2D
+  constants cost 1.4x worst coverage error in aggregate, but lose a THIRD of the
+  cloud at cover 0.05, where this field's whole job is. Needed because the
   band read the field as a function of AZIMUTH ALONE, which made the silhouette
   single-valued — no hole was possible in it — and inverting a squared
   threshold gave vertical sides under a flat top, i.e. a mushroom cap.
   OWED: no CPU reference in CloudModel.cpp and no test yet, unlike the 2D field.
+- 11:08:2026 - 14:47:30: CORRECTION to the entry above, from the control test that was owed.
+  I had written that reusing the 2D mean/SD 'would have re-run Rule 31
+  exactly'. Overstated. Measured: 1.4x worst coverage error in aggregate, but
+  a THIRD of the cloud lost at cover 0.05. Rule 31's form at a fifth of its
+  size, not its severity. CloudModelTests.cpp now asserts it on coverage --
+  by decile error the two pairs barely differ, which is how it hid.
 */
 
 #ifndef DFN_ENV_SH
@@ -266,9 +273,17 @@ float dfn_cloud_field(vec2 p, float cells_px)
 // --- THE FIELD IN 3D, for the horizon cumulus (R3) -------------------------
 // SAME construction, SAME octave weights, SAME CDF remap — and its OWN mean and
 // SD, because they are not the 2D ones. Measured over 400k samples the 3D sum
-// sits at mean 0.5000 / sd 0.1185 against 2D's 0.4980 / 0.1368: reusing the 2D
-// pair would have re-run Rule 31 exactly (the sum is Gaussian, the remap is its
-// own CDF, and a wrong SD makes `cover` mean something other than coverage).
+// sits at mean 0.5000 / sd 0.1185 against 2D's 0.4980 / 0.1368. The sum is
+// Gaussian and the remap is its own CDF, so a wrong SD makes `cover` mean
+// something other than coverage. Reusing the 2-D pair does NOT reproduce Rule 31's
+// original severity — there, cover 0.10 drew literally nothing. It reproduces
+// its FORM at about a fifth of the size, and the honest numbers are: worst
+// coverage error 0.0311 against the correct pair's 0.0225, i.e. 1.4x in
+// aggregate, BUT at cover 0.05 the 2-D constants admit 0.022 where 0.05 was
+// asked — a third of the cloud lost, concentrated exactly at the sparse end
+// where a few fair-weather cumulus live. By DECILE error the two pairs are
+// 0.0282 vs 0.0221 and the difference nearly disappears, which is how this
+// would have gone unnoticed. Asserted on coverage in CloudModelTests.cpp.
 //
 // WHY 3D AT ALL, which is the whole cumulus fix. The band used to threshold a
 // field of AZIMUTH ALONE against a height-rising threshold. For a fixed azimuth

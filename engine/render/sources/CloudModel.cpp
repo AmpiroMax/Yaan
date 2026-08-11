@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 10:08:2026 - 10:45:06
+Last updated: 11:08:2026 - 14:43:13
 Module: engine/render
 File: engine/render/sources/CloudModel.cpp
 
@@ -28,6 +28,9 @@ UPD:
 - 10:08:2026 - 10:45:06: THE COVERAGE FIELD's reference implementation
   (cloud_field_raw / cloud_field / cloud_alpha) — the CPU mirror of
   dfn_env.sh, added so the field's DISTRIBUTION can be asserted (Rule 31).
+- 11:08:2026 - 14:43:13: cloud_field3 / cloud_field3_with — the 3-D mirror of dfn_env.sh's
+  dfn_cloud_field3 (R3.1), with its own measured mean/SD and an injectable
+  pair so the 2-D constants can be shipped as the failing control.
 */
 
 #include "engine/render/sources/CloudModel.h"
@@ -155,6 +158,56 @@ float cloud_alpha(glm::vec2 p_m, float wavelength_m, float cover,
     // Below the resolution limit the only defensible value is the area
     // average, which for a uniform field thresholded at 1-cover is `cover`.
     return mix1(a, cover, smooth_step(0.20f, 0.60f, cells_per_pixel));
+}
+
+namespace {
+
+// The 3-D hash and lattice, mirrored from dfn_env.sh verbatim.
+float cloud_hash3(glm::vec3 c) {
+    return fract1(std::sin(c.x * 127.1f + c.y * 311.7f + c.z * 74.7f)
+                  * 43758.5453f);
+}
+
+float cloud_vnoise3(glm::vec3 p) {
+    const glm::vec3 c{std::floor(p.x), std::floor(p.y), std::floor(p.z)};
+    glm::vec3 f{p.x - c.x, p.y - c.y, p.z - c.z};
+    f.x = f.x * f.x * (3.0f - 2.0f * f.x);
+    f.y = f.y * f.y * (3.0f - 2.0f * f.y);
+    f.z = f.z * f.z * (3.0f - 2.0f * f.z);
+    const auto h = [&](float i, float j, float k) {
+        return cloud_hash3({c.x + i, c.y + j, c.z + k});
+    };
+    const float x00 = mix1(h(0, 0, 0), h(1, 0, 0), f.x);
+    const float x10 = mix1(h(0, 1, 0), h(1, 1, 0), f.x);
+    const float x01 = mix1(h(0, 0, 1), h(1, 0, 1), f.x);
+    const float x11 = mix1(h(0, 1, 1), h(1, 1, 1), f.x);
+    return mix1(mix1(x00, x10, f.y), mix1(x01, x11, f.y), f.z);
+}
+
+} // namespace
+
+float cloud_field3_with(glm::vec3 q, float mean, float sd) {
+    const float raw =
+        0.5f + (cloud_vnoise3(q) - 0.5f) * CLOUD_OCTAVE_W0
+        + (cloud_vnoise3({q.x * CLOUD_OCTAVE_F1 + 17.0f,
+                          q.y * CLOUD_OCTAVE_F1 + 31.0f,
+                          q.z * CLOUD_OCTAVE_F1 + 7.0f})
+           - 0.5f)
+              * CLOUD_OCTAVE_W1
+        + (cloud_vnoise3({q.x * CLOUD_OCTAVE_F2 + 47.0f,
+                          q.y * CLOUD_OCTAVE_F2 + 89.0f,
+                          q.z * CLOUD_OCTAVE_F2 + 23.0f})
+           - 0.5f)
+              * CLOUD_OCTAVE_W2;
+    // No LOD term here, unlike cloud_field: the cumulus band is drawn on a ring
+    // at a fixed 20 km, so its cells-per-pixel does not vary across the band
+    // the way the overhead sheet's does from zenith to horizon.
+    const float z = (raw - mean) / (sd > 1e-6f ? sd : 1e-6f);
+    return 1.0f / (1.0f + std::exp(-1.702f * z));
+}
+
+float cloud_field3(glm::vec3 q) {
+    return cloud_field3_with(q, CLOUD_FIELD3_MEAN, CLOUD_FIELD3_SD);
 }
 
 } // namespace dfn::render

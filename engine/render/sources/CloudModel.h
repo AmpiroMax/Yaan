@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 10:08:2026 - 10:45:06
+Last updated: 11:08:2026 - 14:43:13
 Module: engine/render
 File: engine/render/sources/CloudModel.h
 
@@ -54,6 +54,12 @@ UPD:
   constants. The shipped field was a Gaussian octave sum thresholded as if it
   were uniform, so `cover` did not mean coverage (cover 0.10 drew nothing);
   the remap makes it mean coverage, and cloud_field_raw stays as the control.
+- 11:08:2026 - 14:43:13: cloud_field3 — the same field in 3D, for the horizon cumulus band
+  (R3.1). Its own MEASURED mean/SD 0.5000/0.1185; the 2D pair fails the
+  uniformity assertion here, which is the shipped control. Needed because the
+  2D read made the band's silhouette a single-valued function of azimuth, so a
+  hole in it was impossible by construction and the masses came out as
+  mushroom caps.
 */
 
 #pragma once
@@ -62,6 +68,7 @@ UPD:
 #include "engine/platform/render/interfaces/IRenderer.h"
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 
 namespace dfn::render {
 
@@ -158,5 +165,42 @@ inline constexpr float CLOUD_EDGE_U = 0.10f;
 /// of a speckle field, with no distance cut-off needed to hide aliasing.
 [[nodiscard]] float cloud_alpha(glm::vec2 p_m, float wavelength_m, float cover,
                                 float cells_per_pixel);
+
+// ===========================================================================
+// THE SAME FIELD IN 3D — reference implementation for the horizon cumulus.
+//
+// MIRROR NOTICE. dfn_env.sh carries dfn_cloud_field3; this is its CPU side and
+// exists for the same reason the 2D one does: so the DISTRIBUTION can be
+// asserted rather than assumed (Rule 31).
+//
+// WHY A THIRD DIMENSION AT ALL. The cumulus band read the 2D field on a ring at
+// fixed distance, making it a function of AZIMUTH ALONE against a height-rising
+// threshold. For a fixed azimuth that makes opacity monotone in height, so the
+// silhouette was a single-valued function of azimuth and no hole or overlap was
+// POSSIBLE in it — provably, not incidentally. Inverting a squared threshold
+// then gives height ~ sqrt(field): vertical where a lobe crosses the threshold,
+// flat at its peak, i.e. a mushroom cap. Sampling in 3D is what removes the
+// constraint; no exponent could have.
+// ===========================================================================
+
+/// Mean and standard deviation of the RAW 3-D octave sum, MEASURED over 400k
+/// samples: 0.5000 / 0.1185. THEY ARE NOT THE 2-D PAIR (0.4980 / 0.1368), and
+/// the difference is the whole reason they exist. The sum is Gaussian and the
+/// remap is that Gaussian's own CDF, so feeding it the 2-D SD would re-run
+/// Rule 31 exactly — `cover` would stop meaning coverage. A trilinear blend of
+/// eight iid uniforms is simply tighter than a bilinear blend of four. The
+/// control test asserts the 2-D pair FAILS here.
+inline constexpr float CLOUD_FIELD3_MEAN = 0.5000f;
+inline constexpr float CLOUD_FIELD3_SD = 0.1185f;
+
+/// THE 3-D field: uniform on [0,1] by construction, same octave weights and
+/// same CDF remap as cloud_field, so a threshold at 1-cover admits exactly
+/// `cover` of space. `q` is in FIELD UNITS (already divided by wavelength and
+/// by any scale), matching dfn_cloud_field3's parameter exactly.
+[[nodiscard]] float cloud_field3(glm::vec3 q);
+
+/// cloud_field3 with the mean/SD injected — the Rule 30 control. Passing the
+/// 2-D pair must FAIL the uniformity assertion; that is the test's whole point.
+[[nodiscard]] float cloud_field3_with(glm::vec3 q, float mean, float sd);
 
 } // namespace dfn::render
