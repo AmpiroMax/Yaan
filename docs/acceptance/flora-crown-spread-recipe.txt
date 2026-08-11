@@ -1,0 +1,93 @@
+# Created: 12:08:2026 - 00:27:00
+# Last updated: 12:08:2026 - 00:27:00
+# Module: docs/acceptance
+# File: docs/acceptance/flora-crown-spread-recipe.txt
+#
+# Responsibility:
+# - The recipe behind flora-crown-spread-{BEFORE,AFTER}-669f1a7.png and
+#   flora-great-oak-669f1a7.png (Rule 27: acceptance is a FRAME from our build,
+#   archived with the recipe that reproduces it).
+#
+# Key items:
+# - The user's brief, the pose, the two arms, and what to look for in each.
+#
+# Dependencies:
+# - Uses: build_flora/engine/app/dfn_app, docs/acceptance/flora-canopy-speckle-pose.txt.
+# - Used by: anyone re-taking these frames or arguing with them.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - THE TWO ARMS COME FROM ONE BINARY. Do not re-take BEFORE by checking out an
+#   old commit and rebuilding: a rebuild also changes the terrain, the sky and
+#   the shaders, so that pair answers "did anything change" instead of "did THIS
+#   change". DFN_FLORA_CONTROL=1 is the zero-dose arm and it is in the shipped
+#   binary for exactly this reason (Rule 30/48).
+#
+# UPD:
+# - 12:08:2026 - 00:27:00: Created with the frames for commit 669f1a7.
+
+WHAT THE USER ASKED (11.08.2026, verbatim)
+
+  по поводу деревьев, надо разные сделать по ширине, высоте
+  также в целом большую часть деревьев сделать шире, но мелкие также добавить
+  деревья не должны расти четко вверх, листва должна быть пониже
+
+HOW TO REPRODUCE
+
+  # BEFORE — the zero-dose control arm (flora as of 11.08.2026)
+  DFN_FLORA_CONTROL=1 \
+  DFN_RESTORE=docs/acceptance/flora-canopy-speckle-pose.txt \
+  DFN_WIND_FREEZE=120 DFN_NULL_PHYSICS=1 \
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 \
+  DFN_CAPTURE_DIR=<dir> DFN_CAPTURE_AFTER=4 ./build_flora/engine/app/dfn_app
+
+  # AFTER — the shipped arm. Same command, without DFN_FLORA_CONTROL.
+
+  # THE GREAT OAK — same command plus DFN_FLORA_GREAT_OAK=3 (one oak in
+  # sixteen is promoted to a great oak and carries the golden chain).
+  # DFN_FLORA_GREAT_OAK=2 promotes every oak, for a close-up of the structure.
+
+  DFN_NULL_PHYSICS=1 IS NOT COSMETIC: without it the restored player falls out
+  of the world during the four-second settle and the capture is taken from
+  y = -71 m, looking up at the underside of the terrain. It looks like a
+  vertically flipped screenshot and it cost a run.
+
+WHAT THE CONTROL ARM PUTS BACK (and nothing else)
+  - maturity from core's flat scatter scale (0.8-1.2) instead of the
+    25/60/12/3 tier draw;
+  - no crown allometry, no per-instance width draw;
+  - the oak's crown width 0.70 -> 0.48 and its crown base 0.35 -> 0.40, the
+    birch's width back to 0.34 (the two species rows this change moved);
+  - the mid-crown-widest envelope profile;
+  - the lean back to crowding-only, capped at 0.12 rad.
+
+WHAT TO LOOK FOR
+
+  BEFORE: near-identical trees. Every trunk the same height, every crown the
+  same small tuft, every stem vertical. This is the "plantation" design §5.8
+  ruled against — and the cure had been written down as sixteen NUMBERS rows
+  since 09.08 without being connected to anything.
+
+  AFTER: three changes, all visible in one frame.
+   1. HEIGHT SPREAD — giants, mature trees and a sub-mature layer under them.
+   2. WIDTH — crowns are wide masses rather than tufts, and they differ in
+      width independently of height (two trees of the same height do not have
+      the same crown).
+   3. LEAN — the trunks are off vertical and they agree about the direction.
+      That agreement is the point (LANDSCAPE §10.3.1); a frame where each tree
+      leaned its own way would be a failure wearing the same numbers.
+
+  GREAT OAK: the branch system reads as STRUCTURE — recursive ramification with
+  sky between the major limbs. Per docs/GIANT_OAKS.md §4 that gap is the whole
+  test: an envelope-filled crown cannot produce one, because its silhouette is
+  a single-valued function of angle. Positive gap => structure exists.
+
+WHAT IS NOT IN THESE FRAMES, AND IS OPEN
+  - The great oak at its own read distance. It is readable as an object to
+    2.4 km (§1 of GIANT_OAKS) and every frame here is taken from under it, so
+    "очень большие как горы" is NOT yet demonstrated. Needs a distant vantage.
+  - Real placement. DFN_FLORA_GREAT_OAK is a capture-only stand-in; rarity, the
+    sea cliff and the named tree are core's and design's.
+  - The great oak's crown is thinner than intended: the foliage count is capped
+    by the fractal grower's TIP COUNT, not by cluster_count, so a fuller crown
+    means more depth or a bigger node budget, not more clusters.
