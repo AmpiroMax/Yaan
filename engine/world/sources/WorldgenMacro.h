@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 20:20:20
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -41,6 +41,7 @@ UPD:
   because the ruling's sentence read globally excludes every tree within ~670 m
   of a standpoint (measured) — a tree in front of your face obscures a mountain
   too. The radius is an OUTPUT: 162 m at seed 1's tightest bearing.
+- 11:08:2026 - 15:15:55: streams for the §2.7 meso octave, §10.5 B1 boulders and B2 outcrops; aniso_octave_sample published so every octave that must share the land's grain samples it the same way.
 */
 
 #pragma once
@@ -65,6 +66,11 @@ enum WorldgenStream : uint32_t {
     STREAM_MASSIF_TOR = 17,      // summit tor slabs (§2.8.4)
     STREAM_MASSIF_MICRO = 22,   // ground micro-relief (§2.7 "terrain never flattens")
     STREAM_MASSIF_MICRO_AMP = 23, // slow field varying the micro amplitude
+    STREAM_GROUND_MESO = 25,    // 25..26: §2.7 meso octave (the missing middle band)
+    STREAM_GROUND_MESO_AMP = 27, // slow field varying the meso amplitude
+    STREAM_SCATTER_BOULDER = 64, // 64..65: §10.5 B1 boulder clusters / open draws
+    STREAM_OUTCROP = 96,        // 96..127: §10.5 B2 outcrop cell draws (slots)
+    STREAM_OUTCROP_BEDDING = 128, // 128..129: dip azimuth/magnitude, 200 m coherent
     STREAM_RIVER_JITTER = 24, // sinuosity displacement
     STREAM_SITES = 32,        // P4 site placement rng
     STREAM_SCATTER_TREE = 40, // 40..44: per-species scatter lattices
@@ -126,6 +132,23 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// wet stand). Exposed so WorldgenForest composes the same octave rather
 /// than a second copy (Rule 32).
 [[nodiscard]] float ground_micro_relief(uint64_t seed, glm::vec2 world);
+
+/// §2.1's ANISOTROPIC SAMPLING, exported so every octave that must share the
+/// land's grain samples it the same way (Rule 32).
+///
+/// Returns value_noise in [0,1] for `stream`/`cell`, but read along the local
+/// long axis: each WORLDGEN_OCTAVE1_CELL of the axis lattice carries one angle
+/// in [0, pi), the along-axis input is compressed by HILL_ANISOTROPY and the
+/// cross-axis input stays 1:1, with the four corner frames blended so the field
+/// is seamless.
+///
+/// WHY ANY NEW OCTAVE MUST USE IT: an isotropic layer laid over the ridgelets
+/// does not sit beside the grain, it erases it. Measured on seed 1 when §2.7's
+/// meso octave first went in isotropically — open-meadow structure-tensor
+/// anisotropy 3.61 -> 2.22 against a 2.5 floor, with the hill octave and
+/// HILL_ANISOTROPY both untouched.
+[[nodiscard]] float aniso_octave_sample(uint64_t seed, uint32_t stream, float cell,
+                                        glm::vec2 world);
 
 /// Path-groove carve depth (meters, >= 0) at `world` (micro-relief batch):
 /// PATH_GROOVE_DEPTH on the corridor centerline, smooth fade to 0 at

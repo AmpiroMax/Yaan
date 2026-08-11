@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 10:08:2026 - 19:55:51
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -50,6 +50,7 @@ UPD:
   open-coded copies (terrain_height, generate_chunk, the coarse node builder)
   and two of them were never told when the forest stand's branch landed. One
   definition now, called by all three.
+- 11:08:2026 - 15:15:55: compose_passes takes the WaterSample: §2.7's relief tapers across the shore band and needs dist_to_water. No caller pays a field evaluation for it -- all three already held the sample.
 */
 
 #pragma once
@@ -119,8 +120,14 @@ struct WorldGenContext {
 /// (`water_at(...).height` and `carve_height(...)` are the same call by
 /// construction); both are passed in so a caller holding them adds no field
 /// evaluation.
+///
+/// `water` is the hydrology sample at `world` — the carve result AND the shore
+/// distance, because §2.7's general relief pass (WorldgenRelief.h) tapers its
+/// amplitude across the shore band and therefore needs both. It used to be the
+/// carved height alone; passing the whole sample adds no field evaluation,
+/// since every caller already holds it.
 [[nodiscard]] float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
-                                   float carved);
+                                   const WaterSample& water);
 
 /// Final terrain height (m) at a world position — compose_passes() evaluated
 /// from scratch. The continuous field the heightmaps sample.

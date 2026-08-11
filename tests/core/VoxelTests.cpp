@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 21:06:20
+Last updated: 11:08:2026 - 15:15:55
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -41,6 +41,7 @@ UPD:
   the drift was unreachable from any test of the well-trodden classes. Also
   replaced `mat <= Dirt` with a named-enumerator check; that bound was a fact
   about declaration order in an APPEND-ONLY enum and went red on the append.
+- 11:08:2026 - 15:15:55: props-sit-on-the-ground restated for §10.5 B1: a boulder is DUG IN, so the invariant is one-sided -- never floating, never deeper than BOULDER_BURIAL_FRAC_MAX of its own extent.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -638,7 +639,20 @@ TEST_CASE("§6.2 live-play fixes: entrances open outward, props sit on the groun
             for (const auto& inst : chunk.scatter) {
                 const float ground = world::terrain_height(ctx, {inst.position.x,
                                                                 inst.position.z});
+                // §10.5 B1: A BOULDER IS DUG IN, so a Stone is not expected to sit
+            // ON the ground — it is expected to sit UNDER it, by its own
+            // declared burial and by nothing else. The invariant is therefore
+            // one-sided for this species rather than absent: a stone may never
+            // float, and it may never sink deeper than
+            // BOULDER_BURIAL_FRAC_MAX of its own extent.
+            if (inst.species == math::ScatterSpecies::Stone) {
+                const float sunk = ground - inst.position.y;
+                CHECK(sunk >= -0.3f);
+                CHECK(sunk <= static_cast<float>(config::BOULDER_BURIAL_FRAC_MAX) * inst.scale
+                                  + 0.3f);
+            } else {
                 CHECK(std::fabs(inst.position.y - ground) < 0.3f);
+            }
             }
         }
     }

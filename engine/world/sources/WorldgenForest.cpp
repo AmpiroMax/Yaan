@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 10:40:28
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenForest.cpp
 
@@ -36,6 +36,7 @@ UPD:
   component went 0.23 -> 0.84 (2048 m, seed 1) and now GROWS with the domain
   instead of shrinking. Derivation table in the header.
 - 10:08:2026 - 10:40:28: Forest stand declares LF-8 (в17).
+- 11:08:2026 - 15:15:55: glade_factor exported (§2.7's meso tier must taper through в9's authored calm plain too); the stand stops applying the micro octave itself now that compose_passes applies relief generally.
 */
 
 #include "engine/world/sources/WorldgenForest.h"
@@ -143,9 +144,8 @@ float grive_cdf_u(float n) {
     return table[i] * (1.0f - f) + table[i + 1] * f;
 }
 
-/// Glade factor: 0 inside the authored calm plain (в9 — the ONE deliberately
-/// preserved plain of this map), rising to 1 over half a radius outside it.
-/// Only the MESO tier tapers; §2.7 micro is retained ("flat, not sterile").
+} // namespace
+
 float glade_factor(const TestbedLayout& layout, glm::vec2 world) {
     const float r = layout.forests.forced_clearing_radius;
     if (r <= 0.0f) {
@@ -160,8 +160,6 @@ float glade_factor(const TestbedLayout& layout, glm::vec2 world) {
     }
     return smoothstep01((d - r) / (r * 0.5f));
 }
-
-} // namespace
 
 TestbedLayout forest_stand_layout() {
     TestbedLayout l;
@@ -255,10 +253,11 @@ float forest_stand_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 
     h += value_noise(seed, STREAM_FOREST_BASE, 512.0f, world) * FOREST_BASE_AMP;
     // LF-2 grives, tapered inside the authored glade.
     h += forest_grive_component(seed, world, false) * glade_factor(layout, world);
-    // §2.7 micro-relief, GENERAL on this stand (the ruling's end state; the
-    // shore-amplitude taper is vacuous on a waterless map and activates with
-    // the first wet stand).
-    h += ground_micro_relief(seed, world);
+    // §2.7's relief is NOT applied here any more. It moved to compose_passes,
+    // where it is general to every stand and carries its shore, corridor and
+    // massif masks — one implementation, one application site (Rule 32). This
+    // function stayed the stand's P1 field; adding the octave here as well
+    // would have doubled it on exactly one map.
     return std::clamp(h, 0.0f, static_cast<float>(config::WORLDGEN_MAX_HEIGHT));
 }
 

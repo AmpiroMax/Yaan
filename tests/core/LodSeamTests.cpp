@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:49:27
-Last updated: 10:08:2026 - 19:55:51
+Last updated: 11:08:2026 - 15:15:55
 Module: tests
 File: tests/core/LodSeamTests.cpp
 
@@ -33,6 +33,7 @@ UPD:
   weak control: no amount of testing the stand everyone was looking at could
   have caught a copy that only diverges where a stand declares passes the copy
   never learned.
+- 11:08:2026 - 15:15:55: the open-coded control chain now fails on BOTH stands: §2.7's relief is a pass it never learned, so the shelter that hid the original drift on the testbed is gone.
 */
 
 #include "engine/world/sources/Chunk.h"
@@ -288,15 +289,18 @@ TEST_CASE("the coarse node and the chunks build the SAME terrain, on every stand
         INFO("mismatches ", mismatches, " worst ", worst, " m; control mismatches ",
              control_mismatches, " spanning ", control_lo, " .. ", control_hi, " m");
         CHECK(mismatches == 0);
-        // The control must FAIL on the stand whose passes are not identities,
-        // and it is legitimately EQUAL on the testbed — where the open-coded
-        // chain really was the whole chain. Stating both is the point: the
-        // defect existed on exactly one stand and that is why it survived.
-        if (forest) {
-            CHECK(control_mismatches > 10000);
-            CHECK(control_lo < -1.0f);
-        } else {
-            CHECK(control_mismatches == 0);
-        }
+        // The control must FAIL wherever the pass stack has a pass the
+        // open-coded chain never learned.
+        //
+        // It used to be legitimately EQUAL on the testbed, and that equality
+        // was the finding: the copy really was the whole chain on the stand
+        // everyone looked at, so no amount of testing THERE could have caught
+        // the drift. 11.08.2026 ended that — §2.7's general ground relief is a
+        // pass the copy does not know, and it runs on every stand — so the
+        // control now fails on both. The old sentence is kept above because it
+        // explains why the bug survived; this assertion records that the
+        // shelter it describes is gone.
+        CHECK(control_mismatches > 10000);
+        CHECK(control_lo < -1.0f);
     }
 }

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 21:20:31
+# Last updated: 11:08:2026 - 15:15:55
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -39,6 +39,7 @@
 #                          line only). It was the last declaration-only piece
 #                          between the engine and a save file the user can
 #                          actually write.
+# - 11:08:2026 - 15:15:55: WorldgenRelief.cpp + WorldgenOutcrop.cpp (§2.7 general relief, §10.5 B2 rock).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -59,6 +60,8 @@ add_library(dfn_world STATIC
     sources/WorldgenPaths.cpp
     sources/WorldgenScatter.cpp
     sources/WorldgenSites.cpp
+    sources/WorldgenOutcrop.cpp
+    sources/WorldgenRelief.cpp
     sources/WorldgenValidation.cpp
     sources/WorldgenVantages.cpp
     sources/WorldgenWater.cpp)

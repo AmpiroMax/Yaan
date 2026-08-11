@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 10:08:2026 - 10:29:50
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenForest.h
 
@@ -45,6 +45,7 @@ UPD:
   0.55 — the swale-floor lip is a PERCOLATION threshold, derived and measured,
   not taste. Below it the floors are disconnected potholes at every noise
   tuning.
+- 11:08:2026 - 15:15:55: glade_factor published with the measurement that forced it (glade relief 3.43 m against the stand's own 3.0 m budget).
 */
 
 #pragma once
@@ -92,6 +93,13 @@ inline constexpr float FOREST_BASE_ELEV = 20.0f;
 /// + §2.7 micro-relief. Pure function of (seed, world); the LF-8 erosion
 /// delta and the path carve are context passes composed on top by
 /// stand_height_adjust (Worldgen.h).
+/// в9's ONE authored calm plain, as a 0..1 factor: 0 inside the forced
+/// clearing, 1 half a radius outside it. Exported because §2.7's meso tier
+/// must taper through it too — a 25-60 m octave at 1.5-4 m inside the
+/// deliberately calm plain is exactly the thing that plain exists not to be
+/// (measured: glade relief 3.43 m against the stand's own 3.0 m budget).
+[[nodiscard]] float glade_factor(const TestbedLayout& layout, glm::vec2 world);
+
 [[nodiscard]] float forest_stand_height(uint64_t seed, const TestbedLayout& layout,
                                         glm::vec2 world);
 

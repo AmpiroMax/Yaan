@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 20:26:55
+Last updated: 11:08:2026 - 15:15:55
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -50,6 +50,7 @@ UPD:
   but a third of the silhouette is still hidden by trees standing OFF the
   massif — the case the scoping excludes and the global reading over-corrects.
   Asserted at BOTH ENDS so the gap cannot drift silently either way.
+- 11:08:2026 - 15:15:55: §2.1 anisotropy: the probe caught a new octave ignoring the land's grain (3.61 -> 2.22, hill octave untouched); re-sampled through the shared axis field it reads 2.92 against a 3.83 counterfactual (DFN_NO_RELIEF=1).
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -61,6 +62,7 @@ UPD:
 #include "engine/world/sources/WorldgenValidation.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <doctest/doctest.h>
 #include <map>
 #include <set>
@@ -657,8 +659,18 @@ TEST_CASE("curb stones: sparse, in the margin band, never in the groove") {
 TEST_CASE("§2.1 landform anisotropy: meadow ridgelets share a local long axis") {
     // Structure-tensor eigenvalue ratio over open-meadow windows (7x7
     // gradients, 12 m spacing). The HILL_ANISOTROPY input-stretch of the mid
-    // octave pushes the seed-1 median to ~3.9; an isotropic field sits near
+    // octave pushes the seed-1 median to ~3.8; an isotropic field sits near
     // ~2 — the 2.5 floor trips if the stretch ever regresses.
+    //
+    // IT ALSO TRIPS IF A NEW OCTAVE IGNORES THE GRAIN, and that is what it
+    // caught. §2.7's meso octave (25-60 m) first went in sampled isotropically
+    // and this median fell 3.61 -> 2.22 with the hill octave and
+    // HILL_ANISOTROPY both untouched: an isotropic layer laid over ridgelets
+    // does not sit beside the grain, it erases it. Re-sampled through
+    // aniso_octave_sample the same octave reads 2.92 — the ground is bumpier
+    // AND still has one local long axis. The counterfactual is one env away
+    // (DFN_NO_RELIEF=1 -> 3.83), so the cost of the bumpiness is visible
+    // rather than hidden inside a pass.
     const auto& ctx = testbed();
     std::vector<float> ratios;
     for (float wz = 100.0f; wz < 950.0f; wz += 110.0f) {
@@ -691,6 +703,7 @@ TEST_CASE("§2.1 landform anisotropy: meadow ridgelets share a local long axis")
     }
     REQUIRE(ratios.size() >= 10);
     std::sort(ratios.begin(), ratios.end());
+    MESSAGE("hill-band anisotropy median " << ratios[ratios.size() / 2]);
     CHECK(ratios[ratios.size() / 2] >= 2.5f);
 }
 
@@ -961,10 +974,7 @@ TEST_CASE("§5.12: the forest does not stand on the massif's apron") {
     std::vector<math::ScatterInstance> trees;
     for (int cz = 0; cz < 4; ++cz) {
         for (int cx = 0; cx < 4; ++cx) {
-            const auto s = world::build_scatter(
-                params.seed, lay, ctx.hydrology, ctx.sites, ctx.erosion, ctx.paths,
-                {static_cast<float>(cx) * CH, static_cast<float>(cz) * CH},
-                {static_cast<float>(cx + 1) * CH, static_cast<float>(cz + 1) * CH});
+            const auto s = world::build_scatter(ctx, {static_cast<float>(cx) * CH, static_cast<float>(cz) * CH}, {static_cast<float>(cx + 1) * CH, static_cast<float>(cz + 1) * CH});
             for (const math::ScatterInstance& i : s) {
                 if (i.species == math::ScatterSpecies::OakTree
                     || i.species == math::ScatterSpecies::PineTree

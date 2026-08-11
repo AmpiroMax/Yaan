@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.h
 
@@ -40,12 +40,15 @@ UPD:
   in_forest_interior / in_open_ground: a per-hectare density is per hectare of
   ITS OWN ground, and the acceptance must divide by the area the placement
   multiplied by.
+- 11:08:2026 - 15:15:55: build_scatter takes the whole WorldGenContext instead of six pieces. A signature that cannot express 'some of the passes' cannot drift from the ground that ships.
 */
 
 #pragma once
 
 #include "engine/core/math/sources/SurfaceField.h"
+#include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/TestbedLayout.h"
+#include "engine/world/sources/WorldgenOutcrop.h"
 #include "engine/world/sources/WorldgenHydrology.h"
 #include "engine/world/sources/WorldgenErosion.h"
 #include "engine/world/sources/WorldgenPaths.h"
@@ -83,15 +86,15 @@ namespace dfn::world {
 
 /// All scatter instances whose positions fall inside [chunk_min, chunk_max)
 /// (world meters, half-open so chunk borders never duplicate instances).
-/// `erosion` and `paths` are the §8.1 stand's own passes. THEY ARE NOT
-/// OPTIONAL AND THEY ARE NOT BRANCHED ON: an empty ErosionGrid samples 0 and an
-/// empty PathNetwork flattens by 0 and reports "far from any path", so the
-/// testbed goes through the identical code and produces identical scatter
-/// (Rule 32). They are here because without them every instance on the forest
-/// stand stood at its PRE-EROSION height and dead wood could land on the tread.
-[[nodiscard]] std::vector<math::ScatterInstance> build_scatter(
-    uint64_t seed, const TestbedLayout& layout, const HydrologyData& hydro,
-    const SitesData& sites, const ErosionGrid& erosion, const PathNetwork& paths,
-    glm::vec2 chunk_min, glm::vec2 chunk_max);
+///
+/// TAKES THE WHOLE CONTEXT rather than the six pieces it used to, because the
+/// height every instance stands on is compose_passes() and nothing else. The
+/// piecewise signature let this pass hold its own copy of the pass stack — the
+/// fifth — and that copy was never told about §2.7's relief: instances floated
+/// or sank by up to 0.59 m the day the octave landed. A signature that cannot
+/// express "some of the passes" cannot drift from the ground that ships.
+[[nodiscard]] std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
+                                                               glm::vec2 chunk_min,
+                                                               glm::vec2 chunk_max);
 
 } // namespace dfn::world

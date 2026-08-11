@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 10:08:2026 - 21:15:28
+# Last updated: 11:08:2026 - 14:23:03
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -39,6 +39,12 @@
 #                          the shipped asset by relative path on purpose, so a
 #                          missing asset is a red test rather than a silent
 #                          fallback to compiled content.
+# - 11:08:2026 - 14:23:03: test_ground_relief (LANDSCAPE §10.1): the detrended
+#                          bumpiness instrument on the SHIPPED world, read at
+#                          the pinned standpoint of the archived lowland frames
+#                          plus a trend-ranked (never sigma-ranked) sweep of
+#                          the flattest legal ground. Runs from the repo ROOT
+#                          for the same reason test_layout_load does.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -50,6 +56,7 @@ add_dfn_test(test_forest_stand core/ForestStandTests.cpp dfn_world)
 add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
+add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)
 add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 # Links dfn_render for the SAME reason test_lod_seam does: it checks two zones

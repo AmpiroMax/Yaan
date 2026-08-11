@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 23:49:27
+Last updated: 11:08:2026 - 15:15:55
 -->
 <!--
 UPD:
@@ -15,6 +15,7 @@ UPD:
 - 09:08:2026 - 16:30:44: 3D terrain stage 1 — VoxelVolume + VoxelMesh (surface nets) built from each chunk's heightmap; Chunk carries the extracted VoxelSurface; ChunkManager::voxel_mesh() hands it to render/physics; HeightFieldView unchanged.
 - 09:08:2026 - 15:18:34: Castle (§6.1): WorldgenCastle module (terrace + access ramp + hall-castle mass + occlusion), castle site types on mesh ids 8..11, hierarchy/access validation; C1 re-verified with the castle in the occlusion field.
 - 09:08:2026 - 23:49:27: LOD STREAMING HALF — CoarseTerrain module (coarse quadtree node identity on a fixed world grid, the 1/4/8/16/32/64 m ladder, incremental node builder) and the five ChunkManager calls the app ferries to render: world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node. Heights and surface classes are produced by the SAME quantize_height() and classify_surface() the chunk builder uses, so a coarse sample equals a chunk sample exactly where the lattices coincide (measured: 9828 shared points, 0 mismatches, both counterfactual builders rejected). Suites tests/core/{CoarseLodTests,LodSeamTests}.cpp.
+- 11:08:2026 - 15:15:55: §2.7 relief, §10.5 B2 outcrops, the §10.1 probe, build_scatter's new signature.
 -->
 
 # engine/world
@@ -80,3 +81,22 @@ Uses `engine/core/{ecs,events,math,serialization,config}` and glm only — no
 physics, no rendering (Rule 1). Used by engine/app (owns ChunkManager, wires
 events to render/physics), tools/worldgen CLI, gameplay (save hooks,
 height queries via app-provided access), tests (determinism, format round-trip).
+
+## §2.7 general relief and §10.5 B2 outcrops (added 11:08:2026 - 14:58:39)
+
+- `WorldgenRelief.h` — the general ground relief: the meso octave (25-60 m /
+  1.5-4 m, previously a NUMBERS row with no consumer anywhere) plus micro,
+  masked by shore / corridor / massif and rank-equalized so the realized band
+  is the declared band. Applied in exactly ONE place: `compose_passes`.
+- `WorldgenOutcrop.h` — §10.5 B2 slabs and bosses as TERRAIN, not meshes
+  (§10.2: the heightmap owns 4 m and up). Anchored on convex curvature,
+  forbidden in hollows, bedding dip coherent over 200 m.
+- `WorldgenValidation.h` — `ground_relief_20m()`, §10.1's detrended bumpiness
+  instrument, plus `relief_floor_binds()` whose exemption list must stay equal
+  to WorldgenRelief's masks.
+- `WorldgenScatter.h` — `build_scatter()` now takes the whole `WorldGenContext`.
+  It used to take six pieces and hold its own copy of the pass stack; that copy
+  never learned about the relief pass and instances floated or sank by up to
+  0.59 m. A signature that cannot express "some of the passes" cannot drift.
+- COUNTERFACTUAL: `DFN_NO_RELIEF=1` stands the relief, the rock and the boulder
+  pass down together, reproducing the previous world byte for byte.

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 15:36:59
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.h
 
@@ -31,6 +31,7 @@ UPD:
 - 09:08:2026 - 15:18:34: Castle validation: CastleHierarchy (R3 top/ceiling, R4 ratio, R2 crown, C2 attractors with and without the castle) and CastleAccess (ramp slope/step, Backbarrow sightline from yard and gate).
 - 09:08:2026 - 15:31:04: Rule C2-testbed: max_coequal_visible (+ raw and without-castle variants) replacing the absolute bound on the testbed path; POI_VISIBLE_COUNT_MAX renamed to POI_VISIBLE_COUNT_MAX_REGION (region-scale only, design ruling).
 - 09:08:2026 - 15:36:59: Large-mass guard: max_coequal_large — the widest coequal group whose every member subtends >= COEQUAL_LARGE_PX, held to 2 while POI_COEQUAL_VISIBLE_MAX (now 3) governs threshold-scale groups.
+- 11:08:2026 - 15:15:55: ground_relief_20m / relief_floor_binds / flattest_legal_standpoints. NOTE: GROUND_RELIEF_SIGMA_20M_MIN was withdrawn the same day (NUMBERS 0825317) -- sigma survives here as the trend-ranking machinery, not as a contract quantity.
 */
 
 #pragma once
@@ -117,5 +118,60 @@ struct CastleAccess {
     bool barrow_visible_from_gate = false;
 };
 [[nodiscard]] CastleAccess castle_access(const WorldGenContext& ctx);
+
+// --- §10.1 THE BUMPINESS INSTRUMENT -------------------------------------------
+
+/// The disc radius of `GROUND_RELIEF_SIGMA_20M_*`. It is NOT a NUMBERS.md row
+/// on purpose: the radius is part of the constant's own NAME there, and a
+/// second row saying 20 would be a shadow copy that stops agreeing the moment
+/// the name changes (Rule 39 — the same argument that kept
+/// `TOWER_MINOR_DIM_PER_DISTANCE` out of NUMBERS.md).
+inline constexpr float GROUND_RELIEF_DISC_RADIUS = 20.0f;
+
+/// One reading of §10.1.2's instrument at one standpoint.
+///
+/// THE INSTRUMENT: sample the FINAL terrain height inside a disc of radius
+/// `GROUND_RELIEF_DISC_RADIUS`, fit and SUBTRACT a least-squares plane, and
+/// take the standard deviation of the residual.
+///
+/// Detrended, because peak-to-trough over a window rewards a tilted plane and a
+/// tilted plane is exactly what «ухабистая» is not. Fixed radius, because the
+/// window is what names the BAND (above ~40 m is eaten by the plane fit, below
+/// ~4 m sits under `LOD_VOXEL_SIZE_L0`). σ of a residual and not a max, because
+/// one lucky bump must not buy a pass.
+struct GroundRelief {
+    float sigma = 0.0f;       ///< σ of the residual after the plane, m — THE MEASURE
+    float trend_slope = 0.0f; ///< slope of the fitted plane, rad — the SELECTION property
+    float p2p = 0.0f;         ///< raw peak-to-trough in the disc, m (diagnostic only)
+    uint32_t samples = 0;
+};
+
+/// Reads the instrument at `centre`. Samples on the `HEIGHTMAP_STEP` lattice,
+/// which is the resolution the drawn ground actually has — measuring the
+/// continuous field finer than it is ever built would report relief the player
+/// cannot see.
+[[nodiscard]] GroundRelief ground_relief_20m(const WorldGenContext& ctx, glm::vec2 centre);
+
+/// §10.1.2's legality clause: the floor binds on open, dry, ungraded ground.
+/// NOT binding — and therefore excluded from the standpoint search — on
+/// corridor masks, building pads, entrance works, the castle terrace and the
+/// shore band, all of which are flattened by an approved rule.
+[[nodiscard]] bool relief_floor_binds(const WorldGenContext& ctx, glm::vec2 world);
+
+/// The standpoint search, and it is deliberately BLIND TO σ.
+///
+/// A metric may not find its subject by the property it is testing: ranking
+/// candidates by "flattest" measured as σ would pick the smoothest ground in
+/// every arm and then report that it is smooth, and adding an octave would move
+/// the standpoints as well as the reading. So candidates are ranked by
+/// `trend_slope` — the plane the instrument throws AWAY — which is a different
+/// property of the same disc, and one the §10.1 octaves barely move.
+///
+/// Even that is used only ONCE, to choose the pinned standpoints recorded in
+/// `docs/acceptance/`; both arms of a before/after then read those same
+/// coordinates. Returned in ascending trend slope, ties broken by scan order.
+[[nodiscard]] std::vector<glm::vec2> flattest_legal_standpoints(const WorldGenContext& ctx,
+                                                                std::size_t count,
+                                                                float search_step = 16.0f);
 
 } // namespace dfn::world

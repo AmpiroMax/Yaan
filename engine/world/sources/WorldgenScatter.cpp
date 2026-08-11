@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 20:20:20
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -68,6 +68,7 @@ UPD:
   hem where the flank is still climbing had NO RULE AT ALL, which is how the
   pine annulus came to start at 140 m inside a 120-162 m foot. 88 of 2282 trees
   (3.9%) leave the massif's hem; the annulus keeps its forest.
+- 11:08:2026 - 15:15:55: §10.5 B1 boulders replace the sourceless 120 m outcrop-cluster lattice: buried, sourced, size-spread by construction, with B6 skirts. AND ScatterCtx::ground() was a FIFTH copy of the pass stack -- the ground everything STANDS on -- which never learned about the relief pass: instances floated or sank by up to 0.59 m.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -235,6 +236,10 @@ bool in_clearing(uint64_t seed, const TestbedLayout& layout, glm::vec2 p) {
 }
 
 struct ScatterCtx {
+    /// THE finished-ground authority (compose_passes). Held by reference; the
+    /// individual fields below stay because the placement predicates read them
+    /// directly, but NOTHING here may re-derive a height without it.
+    const WorldGenContext& gen;
     uint64_t seed;
     const TestbedLayout& layout;
     const HydrologyData& hydro;
@@ -262,11 +267,14 @@ struct ScatterCtx {
     /// Those were missing when the stand was first wired, which put every
     /// instance at its PRE-EROSION height — the same class of bug as the
     /// pre-stamp props above, and invisible until something stands in a gully.
+    /// ... and it was a FIFTH COPY of the pass stack until 11.08.2026, which is
+    /// how §2.7's general relief landed in the drawn ground and not in the
+    /// ground everything STANDS on: measured, scatter instances floating or
+    /// buried by up to 0.59 m the day the octave went in. It calls
+    /// compose_passes() now, like the other four.
     [[nodiscard]] float ground(glm::vec2 p) const {
-        const float base = water_at(hydro, layout, p, macro_height(seed, layout, p)).height
-                         + erosion.sample(p);
-        const float worked = pads_height(sites, p, entrance_works_height(sites, p, base));
-        return worked + paths.flatten_at(p, worked);
+        const float macro = macro_height(seed, layout, p);
+        return compose_passes(gen, p, macro, water_at(hydro, layout, p, macro));
     }
     [[nodiscard]] float dist_to_water(glm::vec2 p) const {
         return water_at(hydro, layout, p, macro_height(seed, layout, p)).dist_to_water;
@@ -318,6 +326,53 @@ struct ScatterCtx {
 
     void add(glm::vec2 p, math::ScatterSpecies species, float yaw, float scale) {
         out.push_back(math::ScatterInstance{{p.x, ground(p), p.y}, yaw, scale, species});
+    }
+
+    /// §10.5 B1's most important number: A BOULDER IS DUG IN, NOT SET DOWN.
+    /// `burial` is the fraction of the stone's own vertical extent that sits
+    /// below the ground surface (BOULDER_BURIAL_FRAC 0.25-0.55). An unburied
+    /// stone rests on the terrain with a visible contact ellipse and reads
+    /// instantly as PLACED — the single loudest tell of scatter code — and
+    /// burial also solves the slope-contact problem for free, because a rock
+    /// sunk into a hillside cannot float off it.
+    ///
+    /// The sink is burial x scale. `scale` is metres by this pass's own
+    /// convention (the stone mesh is ~0.9 m nominal and the batcher multiplies
+    /// it), so this is the stone's extent to within the mesh's own aspect —
+    /// close enough that the contact line is gone, which is the whole claim.
+    void add_buried(glm::vec2 p, math::ScatterSpecies species, float yaw, float scale,
+                    float burial) {
+        out.push_back(math::ScatterInstance{
+            {p.x, ground(p) - burial * scale, p.y}, yaw, scale, species});
+    }
+
+    /// §10.5 B6: the shrub SKIRT. The seam between an object and the ground is
+    /// where placement gives itself away; a tuft at the contact removes the
+    /// line. Cheap, and it is part of B1/B2's acceptance rather than a later
+    /// polish pass (§10.6).
+    void add_skirt(glm::vec2 contact, float radius, WorldGenRng& rng) {
+        const float frac = static_cast<float>(config::SHRUB_SKIRT_FRAC_MIN)
+                         + rng.next_float01()
+                               * static_cast<float>(config::SHRUB_SKIRT_FRAC_MAX
+                                                    - config::SHRUB_SKIRT_FRAC_MIN);
+        if (rng.next_float01() > frac) return; // NOT 1.0: a continuous skirt is itself a pattern
+        const float ang = rng.next_float01() * TAU;
+        const glm::vec2 p = contact + glm::vec2{std::cos(ang), std::sin(ang)} * (radius + 0.4f);
+        if (!inside_chunk(p) || !dry_enough(p, 0.5f) || on_pad(p) || near_entrance(p)) return;
+        // THE CLUMP IS THE READABLE UNIT (§10.4, seventh Rule-33 case): one
+        // 0.6 m shrub expires at 18 m, a CLUMP_SPAN clump reads to 150 m.
+        const float span = static_cast<float>(config::CLUMP_SPAN_MIN)
+                         + rng.next_float01() * static_cast<float>(config::CLUMP_SPAN_MAX
+                                                                   - config::CLUMP_SPAN_MIN);
+        const int n = 3 + static_cast<int>(rng.next_float01() * 4.0f);
+        for (int i = 0; i < n; ++i) {
+            const float a = rng.next_float01() * TAU;
+            const float r = rng.next_float01() * span * 0.5f;
+            const glm::vec2 q = p + glm::vec2{std::cos(a), std::sin(a)} * r;
+            if (!inside_chunk(q) || !dry_enough(q, 0.5f)) continue;
+            add(q, math::ScatterSpecies::Bush, rng.next_float01() * TAU,
+                0.7f + rng.next_float01() * 0.5f);
+        }
     }
 
     /// Common tree suitability (§5 global rules + §2.4 corridor protection +
@@ -863,27 +918,163 @@ void scatter_stones(ScatterCtx& ctx) {
         ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU,
                 0.2f + rng.next_float01() * 0.4f); // 0.2-0.6 m loose stones
     });
-    const float ocell = static_cast<float>(config::OUTCROP_CELL);
-    ctx.for_cells(ocell, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
-        WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_OUTCROP, gx, gz);
-        if (rng.next_float01() < 0.3f) return; // 30% skip (§2.2)
-        const glm::vec2 center =
-            corner + glm::vec2{0.15f + rng.next_float01() * 0.7f,
-                               0.15f + rng.next_float01() * 0.7f} * ocell;
-        if (in_forest_mass(ctx.layout, center)) return; // open land only
-        const uint32_t count = rng.next_range(2, 6);
-        for (uint32_t b = 0; b < count; ++b) {
+}
+
+/// §10.5 B1 — BOULDERS. Replaces the old lattice of "outcrop clusters", which
+/// scattered 1-3 m stones on a 120 m grid with no source, no burial and no size
+/// spread: three of the four things the brief says make a rock read as rock.
+///
+/// TWO RULES CARRY ALMOST ALL OF IT.
+///   1. A BOULDER CAME FROM SOMEWHERE. Every cluster sits within
+///      BOULDER_SOURCE_RADIUS downhill of a source — a B2 outcrop, or ground at
+///      SLOPE_ROCK_MIN. A rock alone in open grass with nothing above it reads
+///      as a prop, and that is what the old pass produced everywhere.
+///   2. A BOULDER IS DUG IN (add_buried).
+/// Plus the one that gives itself away fastest: WITHIN A CLUSTER THE SIZES MUST
+/// DIFFER by BOULDER_SIZE_RATIO_MIN. Equal stones read as copies of one mesh —
+/// visible in the archived lowland frame before anything else on it.
+void scatter_boulders(ScatterCtx& ctx) {
+    if (std::getenv("DFN_NO_RELIEF") != nullptr) return; // the counterfactual arm
+    const float src_r = static_cast<float>(config::BOULDER_SOURCE_RADIUS);
+    const float smin = static_cast<float>(config::BOULDER_SIZE_MIN);
+    const float smax = static_cast<float>(config::BOULDER_SIZE_MAX);
+    const float ratio = static_cast<float>(config::BOULDER_SIZE_RATIO_MIN);
+
+    const auto place_cluster = [&](glm::vec2 centre, WorldGenRng& rng, bool anchored) {
+        const uint32_t n = rng.next_range(
+            static_cast<uint32_t>(config::BOULDER_CLUSTER_SIZE_MIN),
+            static_cast<uint32_t>(config::BOULDER_CLUSTER_SIZE_MAX));
+        const float span = static_cast<float>(config::BOULDER_CLUSTER_SPAN_MIN)
+                         + rng.next_float01()
+                               * static_cast<float>(config::BOULDER_CLUSTER_SPAN_MAX
+                                                    - config::BOULDER_CLUSTER_SPAN_MIN);
+        // The size spread is BUILT, not hoped for: the cluster's smallest stone
+        // is drawn first, the largest is forced to at least ratio x that, and
+        // the rest fill between. Drawing n independent sizes and checking the
+        // ratio afterwards is how a scatter ends up with same-sized rocks
+        // whenever the draw is unlucky, which is most of the time at n = 3.
+        const float lo = smin + rng.next_float01() * (smax / ratio - smin);
+        const float hi = std::min(smax, lo * (ratio + rng.next_float01() * 1.4f));
+        for (uint32_t i = 0; i < n; ++i) {
             const float ang = rng.next_float01() * TAU;
-            const float rad = rng.next_float01() * 8.0f;
-            const glm::vec2 p = center + glm::vec2{std::cos(ang), std::sin(ang)} * rad;
-            const float scale = 1.0f + rng.next_float01() * 2.0f; // 1-3 m boulders
-            if (!ctx.inside_chunk(p) || ctx.on_pad(p) || ctx.near_entrance(p)
-                || !ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
-            if (corridor_distance(ctx.layout, p) < CORRIDOR_HALF + scale) continue;
-            if (ctx.slope(p) > TREE_SLOPE) continue;
-            ctx.add(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, scale);
+            const float rad = rng.next_float01() * span * 0.5f;
+            const glm::vec2 p = centre + glm::vec2{std::cos(ang), std::sin(ang)} * rad;
+            const float t = (i == 0) ? 0.0f : ((i == 1) ? 1.0f : rng.next_float01());
+            const float size = lo + (hi - lo) * t;
+            if (!ctx.inside_chunk(p) || ctx.on_pad(p) || ctx.near_entrance(p)) continue;
+            if (!ctx.dry_enough(p, STONE_WATER_MARGIN)) continue;
+            if (corridor_distance(ctx.layout, p) < CORRIDOR_HALF + size) continue;
+            const float burial = static_cast<float>(config::BOULDER_BURIAL_FRAC_MIN)
+                               + rng.next_float01()
+                                     * static_cast<float>(config::BOULDER_BURIAL_FRAC_MAX
+                                                          - config::BOULDER_BURIAL_FRAC_MIN);
+            ctx.add_buried(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, size,
+                           burial);
+            ctx.add_skirt(p, size * 0.5f, rng); // §10.5 B6
+        }
+        (void)anchored;
+    };
+
+    // --- Anchored clusters: at the TOE of every outcrop -----------------------
+    // Preferred site number one in the brief, and it is free now that B2 exists:
+    // the rock that shed them is standing right there, so the source rule is
+    // satisfied by construction rather than by a search.
+    const std::vector<Outcrop> rocks =
+        outcrops_in(ctx.seed, ctx.layout, ctx.chunk_min - glm::vec2{src_r, src_r},
+                    ctx.chunk_max + glm::vec2{src_r, src_r});
+    for (std::size_t i = 0; i < rocks.size(); ++i) {
+        const Outcrop& r = rocks[i];
+        WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_BOULDER,
+                                   static_cast<int64_t>(r.centre.x), static_cast<int64_t>(r.centre.y));
+        const float density = static_cast<float>(config::BOULDER_DENSITY_ANCHORED_MIN)
+                            + rng.next_float01()
+                                  * static_cast<float>(config::BOULDER_DENSITY_ANCHORED_MAX
+                                                       - config::BOULDER_DENSITY_ANCHORED_MIN);
+        // The toe is DOWNHILL: talus falls. Direction from the local gradient of
+        // the ground the outcrop stands on, so it is the terrain that decides,
+        // not a draw.
+        const float d = 8.0f;
+        const float gx = ctx.ground({r.centre.x + d, r.centre.y})
+                       - ctx.ground({r.centre.x - d, r.centre.y});
+        const float gz = ctx.ground({r.centre.x, r.centre.y + d})
+                       - ctx.ground({r.centre.x, r.centre.y - d});
+        glm::vec2 down{-gx, -gz};
+        const float len = glm::length(down);
+        down = len > 1e-3f ? down / len
+                           : glm::vec2{std::cos(rng.next_float01() * TAU),
+                                       std::sin(rng.next_float01() * TAU)};
+        // Clusters per outcrop from the anchored density over the disc the
+        // source rule allows (BOULDER_SOURCE_RADIUS), divided by a mid cluster.
+        const float ha = 3.14159265f * src_r * src_r / 10000.0f;
+        const int clusters = std::max(1, static_cast<int>(density * ha / 6.0f));
+        for (int c = 0; c < clusters; ++c) {
+            const float along = r.extent + rng.next_float01() * (src_r - r.extent);
+            const float spread = (rng.next_float01() - 0.5f) * r.extent * 1.5f;
+            const glm::vec2 perp{-down.y, down.x};
+            place_cluster(r.centre + down * along + perp * spread, rng, true);
+        }
+        // The outcrop's own rim gets a skirt too — B6 names outcrop rims
+        // alongside boulders, and the rim is where a 25 m mass meets the soil.
+        ctx.add_skirt(r.centre + down * r.extent, 1.0f, rng);
+    }
+
+    // --- Open ground: an ORDER OF MAGNITUDE sparser, and still sourced --------
+    const float ocell = 64.0f; // one draw per 0.41 ha, so the open band resolves
+    ctx.for_cells(ocell, [&](int64_t gx, int64_t gz, glm::vec2 corner) {
+        WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_BOULDER + 1, gx, gz);
+        const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * ocell;
+        if (!ctx.inside_chunk(p)) return;
+        const float density = static_cast<float>(config::BOULDER_DENSITY_OPEN_MIN)
+                            + rng.next_float01()
+                                  * static_cast<float>(config::BOULDER_DENSITY_OPEN_MAX
+                                                       - config::BOULDER_DENSITY_OPEN_MIN);
+        const float roll = rng.next_float01();
+        if (roll <= density * ocell * ocell / 10000.0f) {
+            // A SOURCE, UPHILL, WITHIN BOULDER_SOURCE_RADIUS. Sampled on a ring
+            // rather than a disc: what matters is that something above could
+            // have shed it, and a ring at the radius is the cheapest honest
+            // question. Steep ground counts (SLOPE_ROCK_MIN); so does an
+            // outcrop, which outcrop_at answers directly.
+            bool sourced = false;
+            const float here = ctx.ground(p);
+            for (int k = 0; k < 8 && !sourced; ++k) {
+                const float a = static_cast<float>(k) * (TAU / 8.0f);
+                const glm::vec2 q = p + glm::vec2{std::cos(a), std::sin(a)} * src_r;
+                if (ctx.ground(q) <= here) continue; // must be UPHILL
+                if (outcrop_at(ctx.seed, ctx.layout, q).hit) sourced = true;
+                else if (ctx.slope(q) >= static_cast<float>(config::SLOPE_ROCK_MIN)) sourced = true;
+            }
+            if (sourced) {
+                place_cluster(p, rng, false);
+            }
+            return;
+        }
+        // --- THE ERRATIC: the one deliberate exception ------------------------
+        // A single big stone in open ground with NO source, rare enough to be an
+        // event (BOULDER_ERRATIC_DENSITY_MAX). It works as a landmark precisely
+        // BECAUSE it breaks the source rule; above that density it stops being an
+        // exception and the rule stops being a rule.
+        const float erratic =
+            static_cast<float>(config::BOULDER_ERRATIC_DENSITY_MAX) * ocell * ocell / 10000.0f;
+        if (roll > 1.0f - erratic) {
+            const float size = smax * (0.75f + rng.next_float01() * 0.25f);
+            if (ctx.on_pad(p) || ctx.near_entrance(p) || !ctx.dry_enough(p, STONE_WATER_MARGIN)) {
+                return;
+            }
+            if (corridor_distance(ctx.layout, p) < CORRIDOR_HALF + size) return;
+            const float burial = static_cast<float>(config::BOULDER_BURIAL_FRAC_MIN)
+                               + rng.next_float01()
+                                     * static_cast<float>(config::BOULDER_BURIAL_FRAC_MAX
+                                                          - config::BOULDER_BURIAL_FRAC_MIN);
+            ctx.add_buried(p, math::ScatterSpecies::Stone, rng.next_float01() * TAU, size,
+                           burial);
+            ctx.add_skirt(p, size * 0.5f, rng);
         }
     });
+}
+
+/// The remaining §2.3 loose-stone and forced placements (unchanged).
+void scatter_stones_rest(ScatterCtx& ctx) {
     // Curb stones along corridor margins (micro-relief batch): sparse small
     // stones in the band between the path groove edge and the corridor edge —
     // the trail reads as tended without blocking it (corridor mask stays
@@ -1006,12 +1197,14 @@ float canopy_height_at(uint64_t seed, const TestbedLayout& layout, glm::vec2 wor
     return (pine ? PINE_MAX_H : OAK_MAX_H) * GIANT_MULT;
 }
 
-std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLayout& layout,
-                                                 const HydrologyData& hydro,
-                                                 const SitesData& sites,
-                                                 const ErosionGrid& erosion,
-                                                 const PathNetwork& paths, glm::vec2 chunk_min,
-                                                 glm::vec2 chunk_max) {
+std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
+                                                 glm::vec2 chunk_min, glm::vec2 chunk_max) {
+    const uint64_t seed = gen.params.seed;
+    const TestbedLayout& layout = gen.params.layout;
+    const HydrologyData& hydro = gen.hydrology;
+    const SitesData& sites = gen.sites;
+    const ErosionGrid& erosion = gen.erosion;
+    const PathNetwork& paths = gen.paths;
     std::vector<math::ScatterInstance> out;
 
     // §1.3 sight wedges: POI standpoints (sites + watchpoint) -> the L0.
@@ -1037,11 +1230,13 @@ std::vector<math::ScatterInstance> build_scatter(uint64_t seed, const TestbedLay
     for (const SiteLayout& site : layout.sites) add_standpoint(site.position);
     add_standpoint(layout.watchpoint);
 
-    ScatterCtx ctx{seed, layout, hydro, sites, wedges, erosion, paths, chunk_min,
-                   chunk_max, out};
+    ScatterCtx ctx{gen,   seed,  layout, hydro,     sites,     wedges,
+                   erosion, paths, chunk_min, chunk_max, out};
     scatter_trees(ctx);
     scatter_bushes(ctx);
     scatter_stones(ctx);
+    scatter_stones_rest(ctx);
+    scatter_boulders(ctx);
     scatter_entrance_markers(ctx);
     scatter_forest_floor(ctx);
     scatter_path_edges(ctx);

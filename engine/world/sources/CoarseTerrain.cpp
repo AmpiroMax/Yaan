@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:49:27
-Last updated: 10:08:2026 - 19:55:51
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/CoarseTerrain.cpp
 
@@ -39,6 +39,7 @@ UPD:
   (0,1,2): 16158 of 16641 samples disagreed, spanning -1.5015..+1.2634 m; after
   calling compose_passes(), 0 mismatches on BOTH stands. The old chain equals
   the right answer on the testbed exactly, which is why nothing was ever red.
+- 11:08:2026 - 15:15:55: compose_passes takes the WaterSample (§2.7's shore taper needs the distance, not just the carved height).
 */
 
 #include "engine/world/sources/CoarseTerrain.h"
@@ -155,7 +156,7 @@ uint32_t build_coarse_rows(const WorldGenContext& ctx, CoarseNodeData& data,
             // that makes them the same; calling one function is.
             const float macro = macro_height(ctx.params.seed, layout, world);
             const WaterSample water = water_at(ctx.hydrology, layout, world, macro);
-            const float h = compose_passes(ctx, world, macro, water.height);
+            const float h = compose_passes(ctx, world, macro, water);
 
             data.heights[i] = quantize_height(h);
 

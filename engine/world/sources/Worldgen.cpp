@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 19:45:47
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -78,6 +78,7 @@ UPD:
   to +-0.03 m on open ground; a vertex-snap refinement of the extractor was
   written, measured against the un-refined arm, found identical to four decimals
   and DROPPED rather than shipped as a fix for nothing.
+- 11:08:2026 - 15:15:55: §2.7 general relief and §10.5 B2 outcrops compose HERE, once, before the works and pads. AND surface_point() was a FOURTH open-coded copy of the pass stack -- the one that classifies the ground's MATERIAL, so its drift would have read as a splat seam rather than as a failing height test. It calls compose_passes now.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -85,6 +86,9 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/WorldgenMacro.h"
+#include "engine/world/sources/WorldgenForest.h"
+#include "engine/world/sources/WorldgenOutcrop.h"
+#include "engine/world/sources/WorldgenRelief.h"
 #include "engine/world/sources/WorldgenNoise.h"
 #include "engine/world/sources/VoxelMesh.h"
 #include "engine/world/sources/VoxelVolume.h"
@@ -307,16 +311,45 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
 /// than three copies because it WAS three copies (chunk builder, coarse node
 /// builder, and this), and two of them were never told when the forest stand's
 /// branch landed.
-float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro, float carved) {
+float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
+                     const WaterSample& water) {
+    // §2.7 THE GENERAL GROUND RELIEF, and it goes HERE for a reason that was
+    // measured rather than chosen. Inside the macro step it perturbs the field
+    // hydrology is solved on, which is how the first attempt moved the
+    // shoreline; after the carve it cannot, and the shore taper keeps the bank
+    // itself flat. Before the works and the pads, so anything cut flat on
+    // purpose still wins (§10.1.2 exempts exactly that list from the σ floor).
+    const float meso_scale = ctx.params.layout.stand == StandId::Forest
+                                 ? glade_factor(ctx.params.layout, world)
+                                 : 1.0f;
+    float relief = ground_relief(ctx.params.seed, ctx.params.layout, world,
+                                 water.dist_to_water, meso_scale);
+    // §10.5 B2 — the rock. It is terrain and not scatter (§10.2's seam: the
+    // heightmap owns 4 m and up), so it composes here with everything else that
+    // decides what the ground IS. Multiplied by the same shore mask the relief
+    // carries, because a rock rising out of the bank has the same effect on the
+    // §3.3 bed/mud cap that a 0.5 m dip had.
+    {
+        const float shore_ok =
+            std::clamp(water.dist_to_water / static_cast<float>(config::SHORE_SAND_DIST), 0.0f,
+                       1.0f);
+        // meso_scale carries в9's glade taper here too: a 5 m boss inside the
+        // ONE authored calm plain is exactly what that plain exists not to be,
+        // and §10.1.2's own exemption logic says a place an approved rule keeps
+        // flat is not where the bumpiness contract binds.
+        relief +=
+            outcrop_height(ctx.params.seed, ctx.params.layout, world) * shore_ok * meso_scale;
+    }
+
     if (ctx.params.layout.stand == StandId::Forest) {
-        // The stand's own pass stack: P1 + LF-8 erosion + the path flatten.
-        // No water carve, no entrance works, no pads — that stand declares
-        // none of them, and running their no-ops here would only invite one to
-        // stop being a no-op unnoticed.
-        const float eroded = macro + ctx.erosion.sample(world);
+        // The stand's own pass stack: P1 + LF-8 erosion + §2.7 relief + the
+        // path flatten. No water carve, no entrance works, no pads — that stand
+        // declares none of them, and running their no-ops here would only
+        // invite one to stop being a no-op unnoticed.
+        const float eroded = macro + ctx.erosion.sample(world) + relief;
         return std::clamp(eroded + ctx.paths.flatten_at(world, eroded), 0.0f, MAX_HEIGHT_M);
     }
-    const float worked = entrance_works_height(ctx.sites, world, carved);
+    const float worked = entrance_works_height(ctx.sites, world, water.height + relief);
     const float padded = pads_height(ctx.sites, world, worked);
     return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
 }
@@ -324,7 +357,7 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro, f
 float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {
     const float macro = macro_height(ctx.params.seed, ctx.params.layout, world);
     return compose_passes(ctx, world, macro,
-                          carve_height(ctx.hydrology, ctx.params.layout, world, macro));
+                          water_at(ctx.hydrology, ctx.params.layout, world, macro));
 }
 
 float terrain_slope(const WorldGenContext& ctx, glm::vec2 world) {
@@ -365,9 +398,14 @@ SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world) {
     const TestbedLayout& layout = ctx.params.layout;
     const float macro = macro_height(ctx.params.seed, layout, world);
     const WaterSample water = water_at(ctx.hydrology, layout, world, macro);
-    const float h = std::clamp(
-        pads_height(ctx.sites, world, entrance_works_height(ctx.sites, world, water.height)),
-        0.0f, MAX_HEIGHT_M);
+    // A FOURTH COPY OF THE PASS STACK LIVED HERE, and the extraction that
+    // deduplicated the other three never looked at it. It said
+    // "water -> works -> pads -> clamp" — right for the testbed on the day it
+    // was written, silently wrong on the forest stand (no erosion, no path
+    // tread) and wrong everywhere once §2.7's relief landed. It is what
+    // classifies the ground's MATERIAL, so the drift showed up as splat
+    // disagreeing with geometry rather than as a failing height test.
+    const float h = compose_passes(ctx, world, macro, water);
 
     SurfacePoint out;
     out.height = h;
@@ -428,7 +466,7 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             // +0.166 m median on every path tread (exactly PATH_GROOVE_DEPTH).
             // Rule 35's state clause: two copies drift whether they are numbers
             // or passes.
-            final_h[i] = compose_passes(ctx, world, macro, water[i].height);
+            final_h[i] = compose_passes(ctx, world, macro, water[i]);
         }
     }
     // pass B: quantize + classify. Slope uses the grid where the +-STEP
@@ -477,8 +515,7 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     }
 
     // P5 scatter instances for this chunk.
-    chunk.scatter = build_scatter(ctx.params.seed, ctx.params.layout, ctx.hydrology,
-                                  ctx.sites, ctx.erosion, ctx.paths, origin, chunk_max);
+    chunk.scatter = build_scatter(ctx, origin, chunk_max);
 
     // 3D terrain: build the voxel volume from the heightmap just written, then
     // extract its surface and DROP the volume — the world is not destructible,

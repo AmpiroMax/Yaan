@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 20:06:10
-Last updated: 10:08:2026 - 20:24:58
+Last updated: 11:08:2026 - 15:15:55
 Module: tests
 File: tests/core/FindOcclusionTests.cpp
 
@@ -45,6 +45,7 @@ UPD:
   to 0.3333/0.5417/0.6250 -- i.e. the correction went against this
   instrument's own result, which is the direction a flattering error moves when
   it is fixed. The near ring's failure is now larger, not smaller.
+- 11:08:2026 - 15:15:55: build_scatter's new context-taking signature.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -116,10 +117,7 @@ std::vector<math::ScatterInstance> stand_scatter() {
     std::vector<math::ScatterInstance> all;
     for (int cz = 0; cz < 4; ++cz) {
         for (int cx = 0; cx < 4; ++cx) {
-            const auto s = world::build_scatter(
-                c.params.seed, c.params.layout, c.hydrology, c.sites, c.erosion, c.paths,
-                {static_cast<float>(cx) * CH, static_cast<float>(cz) * CH},
-                {static_cast<float>(cx + 1) * CH, static_cast<float>(cz + 1) * CH});
+            const auto s = world::build_scatter(c, {static_cast<float>(cx) * CH, static_cast<float>(cz) * CH}, {static_cast<float>(cx + 1) * CH, static_cast<float>(cz + 1) * CH});
             all.insert(all.end(), s.begin(), s.end());
         }
     }

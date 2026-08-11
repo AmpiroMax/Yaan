@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 19:13:01
+Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -27,6 +27,7 @@ UPD:
 - 09:08:2026 - 15:31:04: Rule C2-testbed implemented on the R4 subtended-angle machinery: apparent SIZE (object height / distance, not the elevation angle of its top — that conflated size with ground elevation, and R4 now uses the corrected measure too), §1.5 readability gate (sub-8 px specks cannot crowd), R1 body-backing exemption, L0 exempt, composite POIs once; widest-coequal-group via a sorted sliding window.
 - 09:08:2026 - 15:36:59: Large-mass guard implemented over the same grouping (filter to large members, then widest coequal window); PX_PER_RAD factored out of the readability threshold.
 - 09:08:2026 - 19:13:01: C1 CORRECTNESS FIX: the landmark's own body is no longer counted as an occluder of itself. The aim point is peak + L0_AIM_ABOVE_PEAK (fixed) while LANDMARK_CLEARANCE_FACTOR multiplies against terrain essentially at peak height, so near-summit ground out-angled the summit once 0.2*(peak - eye) exceeded the aim margin — above a ~60 m peak the test returned 0.000 for EVERY standpoint regardless of the world, and below it the measure was biased down. Seed 1 C1 was 0.621 measured, is 0.776 true. This invalidated the recorded 'raising the peak lowers clearance' finding, which was an artifact of this bug rather than a property of landmarks.
+- 11:08:2026 - 15:15:55: §10.1's detrended bumpiness probe and the standpoint search, which ranks by TREND and never by the sigma it reports. relief_floor_binds' exemption list aligned to WorldgenRelief's masks -- where they disagreed the floor was being read on ground the generator was told to keep flat.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -39,6 +40,7 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <glm/geometric.hpp>
+#include <utility>
 #include <vector>
 
 namespace dfn::world {
@@ -489,6 +491,125 @@ float max_corridor_avg_slope(const WorldGenContext& ctx) {
         }
     }
     return worst;
+}
+
+// --- §10.1 THE BUMPINESS INSTRUMENT -------------------------------------------
+
+GroundRelief ground_relief_20m(const WorldGenContext& ctx, glm::vec2 centre) {
+    constexpr float R = GROUND_RELIEF_DISC_RADIUS;
+    constexpr float STEP = static_cast<float>(config::HEIGHTMAP_STEP);
+    const int n = static_cast<int>(R / STEP);
+
+    // The disc is SYMMETRIC about the centre, so sum(x) = sum(z) = sum(xz) = 0
+    // and the least-squares plane has a closed form: a = Sxh/Sxx, b = Szh/Szz,
+    // c = mean(h). Solving a 3x3 would give the same answer with a pivot to get
+    // wrong; the symmetry is a property of the sampling, so it is used.
+    double sxx = 0.0, szz = 0.0, sxh = 0.0, szh = 0.0, sh = 0.0;
+    uint32_t count = 0;
+    float lo = 1e9f, hi = -1e9f;
+    for (int j = -n; j <= n; ++j) {
+        for (int i = -n; i <= n; ++i) {
+            const float dx = static_cast<float>(i) * STEP;
+            const float dz = static_cast<float>(j) * STEP;
+            if (dx * dx + dz * dz > R * R) continue;
+            const float h = terrain_height(ctx, centre + glm::vec2{dx, dz});
+            sxx += static_cast<double>(dx) * dx;
+            szz += static_cast<double>(dz) * dz;
+            sxh += static_cast<double>(dx) * h;
+            szh += static_cast<double>(dz) * h;
+            sh += h;
+            lo = std::min(lo, h);
+            hi = std::max(hi, h);
+            ++count;
+        }
+    }
+    GroundRelief out;
+    if (count == 0) return out;
+    const double a = sxx > 0.0 ? sxh / sxx : 0.0;
+    const double b = szz > 0.0 ? szh / szz : 0.0;
+    const double c = sh / static_cast<double>(count);
+
+    double ss = 0.0;
+    for (int j = -n; j <= n; ++j) {
+        for (int i = -n; i <= n; ++i) {
+            const float dx = static_cast<float>(i) * STEP;
+            const float dz = static_cast<float>(j) * STEP;
+            if (dx * dx + dz * dz > R * R) continue;
+            const double r = static_cast<double>(terrain_height(ctx, centre + glm::vec2{dx, dz}))
+                           - (a * dx + b * dz + c);
+            ss += r * r;
+        }
+    }
+    out.samples = count;
+    out.sigma = static_cast<float>(std::sqrt(ss / static_cast<double>(count)));
+    out.trend_slope = static_cast<float>(std::atan(std::sqrt(a * a + b * b)));
+    out.p2p = hi - lo;
+    return out;
+}
+
+bool relief_floor_binds(const WorldGenContext& ctx, glm::vec2 world) {
+    // Everything excluded here is flattened by an APPROVED rule, so a low
+    // reading in it is compliance and not a defect (§10.1.2's exemption list).
+    // THE TWO LISTS MUST AGREE. WorldgenRelief.h's masks and this exemption
+    // list are the same clause read from two sides, and where they disagreed
+    // the floor was being measured on ground the generator had been told to
+    // keep flat: the corridor taper runs from half a width to a full width, so
+    // excluding only the half-width left a 5 m ring of "legal" ground with the
+    // relief faded out of it (σ 0.037 m on ground the search then ranked
+    // flattest). Every threshold below is the OUTER edge of the matching mask.
+    const TestbedLayout& layout = ctx.params.layout;
+    if (corridor_distance(layout, world) < static_cast<float>(config::CORRIDOR_WIDTH)) {
+        return false;
+    }
+    if (layout.crag.radius > 0.0f
+        && glm::length(world - layout.crag.center) < layout.crag.radius * 1.25f) {
+        return false; // the massif and its mask fade — §2.8 owns that surface
+    }
+    for (const BuildingPad& pad : ctx.sites.pads) {
+        if (glm::length(world - pad.center) < pad.radius + pad.blend) return false;
+    }
+    for (const EntranceWorks& w : ctx.sites.entrances) {
+        if (!w.valid) continue;
+        if (glm::length(world - w.center) < w.mound_radius) return false;
+        if (glm::length(world - w.portal) < w.forecourt_length) return false;
+    }
+    // The shore band: water flattens its own margins (§2.7), and §3.3 sizes
+    // that band as SHORE_SAND_DIST. Wet ground is not ground.
+    const WaterSample w =
+        water_at(ctx.hydrology, layout, world, macro_height(ctx.params.seed, layout, world));
+    if (w.water_surface != math::NO_WATER) return false;
+    if (w.dist_to_water < static_cast<float>(config::SHORE_SAND_DIST)) return false;
+    // The path tread on stands that have one.
+    if (ctx.paths.flatten_at(world, terrain_height(ctx, world)) != 0.0f) return false;
+    return true;
+}
+
+std::vector<glm::vec2> flattest_legal_standpoints(const WorldGenContext& ctx, std::size_t count,
+                                                  float search_step) {
+    const float extent_min_x = static_cast<float>(ctx.params.min_chunk.x) * CHUNK_SIZE_M;
+    const float extent_min_z = static_cast<float>(ctx.params.min_chunk.z) * CHUNK_SIZE_M;
+    const float extent_max_x = static_cast<float>(ctx.params.max_chunk.x + 1) * CHUNK_SIZE_M;
+    const float extent_max_z = static_cast<float>(ctx.params.max_chunk.z + 1) * CHUNK_SIZE_M;
+
+    std::vector<std::pair<float, glm::vec2>> ranked; // (trend slope, position)
+    // Keep a disc-radius margin off the world edge so every candidate's window
+    // is a full disc: a clipped disc reads a different band than a whole one.
+    const float margin = GROUND_RELIEF_DISC_RADIUS + 1.0f;
+    for (float z = extent_min_z + margin; z <= extent_max_z - margin; z += search_step) {
+        for (float x = extent_min_x + margin; x <= extent_max_x - margin; x += search_step) {
+            const glm::vec2 p{x, z};
+            if (!relief_floor_binds(ctx, p)) continue;
+            // Ranked on the TREND ONLY. The disc is read once and σ is
+            // discarded here on purpose — see the header.
+            const GroundRelief g = ground_relief_20m(ctx, p);
+            ranked.emplace_back(g.trend_slope, p);
+        }
+    }
+    std::stable_sort(ranked.begin(), ranked.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    std::vector<glm::vec2> out;
+    for (std::size_t i = 0; i < ranked.size() && i < count; ++i) out.push_back(ranked[i].second);
+    return out;
 }
 
 } // namespace dfn::world
