@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 10:08:2026 - 20:15:40
+Last updated: 12:08:2026 - 00:52:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -104,6 +104,14 @@ UPD:
   lod_draw_count. A readout built on lod_pending() reads a HEALTHY ring as
   zero, because pending() is the awaiting-upload list; two zones read that
   zero as "the far-detail ring never populates" on the same day.
+- 12:08:2026 - 00:52:40: GROUND TUFTS — the sparse near-field grass layer
+  (GroundTufts.h). Spots are harvested once per chunk off the DRAWN voxel mesh
+  in upload_terrain_voxel; the geometry is ONE eye-local mesh regrown only when
+  the eye has walked TUFT_REBUILD_STEP_M, because at the Rule 33 view distance
+  only a couple of hundred clumps are ever visible and baking a whole chunk of
+  blades would spend tens of megabytes to draw a hundredth of them. Every
+  setting is derived from an approved row (tuft_params(), Rule 14).
+  DFN_NO_TUFTS=1 is the counterfactual arm.
 */
 
 #pragma once
@@ -114,6 +122,7 @@ UPD:
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
+#include "engine/render/sources/GroundTufts.h"
 #include "engine/render/sources/LodTerrain.h"
 #include "engine/render/sources/MapScreen.h"
 
@@ -405,6 +414,27 @@ private:
     // Resource bookkeeping only — never game state (Rule 10).
     std::unordered_map<glm::ivec2, TerrainRes, ChunkKeyHash> terrain_meshes_;
     std::unordered_map<glm::ivec2, ChunkScatterRes, ChunkKeyHash> scatter_meshes_;
+
+    // GROUND TUFTS (GroundTufts.h): the sparse near-field grass. Two halves,
+    // and the split is the whole design.
+    //
+    // The SPOTS are harvested once per chunk upload, off the drawn mesh, and
+    // are cheap to keep (a 256 m chunk at the design floor density is a few
+    // hundred KB). The GEOMETRY is one eye-local mesh rebuilt only when the eye
+    // has walked TUFT_REBUILD_STEP_M, because at the Rule 33 view distance only
+    // a couple of hundred tufts are ever visible — baking blades for a whole
+    // chunk would spend tens of megabytes to draw a hundredth of them.
+    /// The tuft settings, DERIVED from approved rows rather than typed
+    /// (Rule 14). Defined in the .cpp beside the Rule 33 arithmetic.
+    [[nodiscard]] static GroundTuftParams tuft_params();
+    /// Regrows the eye-local tuft mesh if the eye has moved far enough.
+    void refresh_ground_tufts(platform::IRenderer& renderer, glm::vec3 eye);
+
+    std::unordered_map<glm::ivec2, std::vector<TuftSpot>, ChunkKeyHash> tuft_spots_;
+    uint32_t tuft_mesh_id_ = 0;
+    glm::vec3 tuft_built_at_{0.0f};
+    bool tuft_built_ = false;
+    bool tufts_off_ = false; // DFN_NO_TUFTS=1 — the counterfactual arm
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id
     std::unordered_map<uint64_t, uint32_t> proc_texture_ids_; // params key -> asset id

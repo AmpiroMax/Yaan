@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 10:08:2026 - 03:14:00
+# Last updated: 12:08:2026 - 00:52:40
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -44,6 +44,7 @@
 #   file is render's under Rule 25 and the earlier exception said so itself.
 # - 09:08:2026 - 23:32:07: BitmapFont.cpp — the project's first font.
 # - 10:08:2026 - 03:14:00: CloudModel.cpp (W4 cloud drift off the shared wind).
+# - 12:08:2026 - 00:52:40: sources/GroundTufts.cpp — the sparse near-field grass layer.
 
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
@@ -55,6 +56,7 @@ add_library(dfn_render STATIC
     sources/FloraNeighbours.cpp
     sources/FloraSkeleton.cpp
     sources/FloraSpecies.cpp
+    sources/GroundTufts.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
     sources/PixelCanvas.cpp

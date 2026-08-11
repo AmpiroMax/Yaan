@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:00:35
+Last updated: 12:08:2026 - 00:52:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -98,6 +98,14 @@ UPD:
   for the running motion — 1 % and 3 % of the per-frame change. The two ARE
   separable and are not in tension, which is the opposite of what was written,
   and it matters because the wrong version invites softening the animation.
+- 12:08:2026 - 00:52:40: GROUND TUFTS — the sparse near-field grass layer
+  (GroundTufts.h). Spots are harvested once per chunk off the DRAWN voxel mesh
+  in upload_terrain_voxel; the geometry is ONE eye-local mesh regrown only when
+  the eye has walked TUFT_REBUILD_STEP_M, because at the Rule 33 view distance
+  only a couple of hundred clumps are ever visible and baking a whole chunk of
+  blades would spend tens of megabytes to draw a hundredth of them. Every
+  setting is derived from an approved row (tuft_params(), Rule 14).
+  DFN_NO_TUFTS=1 is the counterfactual arm.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -394,6 +402,14 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     if (const char* ns = std::getenv("DFN_NO_SCATTER"); ns != nullptr && ns[0] == '1') {
         scatter_off_ = true;
     }
+    // DFN_NO_TUFTS=1 — the ground-tuft layer's counterfactual arm (Rule 30).
+    // It has to exist before the layer is worth measuring: "the grass helps"
+    // and "the grass costs shimmer" are both claims about a DIFFERENCE, and a
+    // difference needs an arm without it shot from the same standpoint by the
+    // same binary.
+    if (const char* nt = std::getenv("DFN_NO_TUFTS"); nt != nullptr && nt[0] == '1') {
+        tufts_off_ = true;
+    }
     // Cloud hooks (Rule 27/30). DFN_CLOUD=<0..1> pins the coverage amount:
     // 0 is the CONTROL of the whole pass — the sheet, the cumulus and the
     // ground shadows must all vanish in one move because they are one field
@@ -496,6 +512,12 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
         }
     }
     scatter_meshes_.clear();
+    if (tuft_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{tuft_mesh_id_});
+        tuft_mesh_id_ = 0;
+    }
+    tuft_spots_.clear();
+    tuft_built_ = false;
     for (const auto& [asset, mesh_id] : mesh_cache_) {
         renderer.destroy_mesh(platform::MeshHandle{mesh_id});
     }
@@ -667,6 +689,18 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // within GRASS_VIEW_DISTANCE of the eye (LANDSCAPE §2.3 micro contract).
     const platform::ProgramHandle prop{prop_program_};
     const glm::vec3 eye = camera.interpolated_pose(alpha).position;
+
+    // GROUND TUFTS. Grown around the eye, drawn as ordinary opaque props: the
+    // blades are geometry, not an alpha mask, so the coverage AA already
+    // running on the internal target handles their edges and no mask, no
+    // cutout and no mip chain is involved (GroundTufts.cpp says why that
+    // choice is the anti-shimmer one). No frustum test: the whole layer lives
+    // inside a 12 m ball around the eye, so the cull would cost more than the
+    // draw it saves, and the shadow pass wants it anyway.
+    refresh_ground_tufts(renderer, eye);
+    if (tuft_mesh_id_ != 0) {
+        renderer.submit(platform::MeshHandle{tuft_mesh_id_}, prop, identity);
+    }
     const auto micro_range = static_cast<float>(config::GRASS_VIEW_DISTANCE);
     const platform::ProgramHandle foliage{foliage_program_};
     platform::TextureHandle leaf_atlas{};
@@ -881,6 +915,20 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
         return;
     }
     ++uploads_.voxel;
+    // GROUND TUFTS: harvested off the mesh WE JUST BUILT, which is the ground
+    // the player sees. Doing it here rather than from the height field is the
+    // whole reason the tufts sit on the surface instead of hovering over it or
+    // sinking into it (GroundTufts.h explains the 0.10-0.15 m the two surfaces
+    // still disagree by). Cheap and once per chunk.
+    if (!tufts_off_) {
+        std::vector<TuftSpot> spots = harvest_tuft_spots(mesh, tuft_params());
+        if (spots.empty()) {
+            tuft_spots_.erase(mesh.chunk_coord);
+        } else {
+            tuft_spots_[mesh.chunk_coord] = std::move(spots);
+        }
+        tuft_built_ = false; // the world under the eye changed; regrow
+    }
     // Same key as the heightfield upload: whichever source ran last owns the
     // chunk, so switching the ferry over never draws both.
     const TerrainRes res{handle.id, bounds_of(data.vertices)};
@@ -893,7 +941,88 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
     }
 }
 
+// THE TUFT SETTINGS, AND EVERY ONE OF THEM IS DERIVED FROM A ROW THAT ALREADY
+// EXISTS (Rule 14). Nothing here is a taste value:
+//
+//  * density = GRASS_DENSITY_MIN. The approved range is 0.5-1.5 /m² and the
+//    user asked for «не много», so the layer sits on the FLOOR of the range
+//    rather than inventing a number under it.
+//  * height  = GRASS_HEIGHT_MAX, the §2.3 cap that keeps grass from hiding an
+//    interactable.
+//  * slope   = SLOPE_GRASS_MAX, the same threshold the splat uses, so a tuft
+//    can never stand on ground the shader is drawing as rock.
+//  * VIEW DISTANCE = RULE 33, COMPUTED, and it is the interesting one. A
+//    silhouette needs SILHOUETTE_MIN_PX to be an object; at INTERNAL_RES_H
+//    over CAMERA_FOV_Y that is a fixed angular size, so an object of height h
+//    stops being one at h * (focal px / min px). For a 0.4 m tuft on a
+//    640x360 frame that lands near 12 m. Past it a tuft is not small — it is
+//    ABSENT, and drawing it there buys nothing while manufacturing the running
+//    shimmer this project has already fought twice. Tufts cannot fix the
+//    middle distance; their band is the near metres, where the ground is bare.
+GroundTuftParams RenderSystem::tuft_params() {
+    GroundTuftParams p;
+    p.density_per_m2 = static_cast<float>(config::GRASS_DENSITY_MIN);
+    p.height_max_m = static_cast<float>(config::GRASS_HEIGHT_MAX);
+    p.slope_max_rad = static_cast<float>(config::SLOPE_GRASS_MAX);
+    const float focal_px = 0.5f * static_cast<float>(config::INTERNAL_RES_H)
+                         / std::tan(0.5f * static_cast<float>(config::CAMERA_FOV_Y));
+    p.view_distance_m = p.height_max_m * focal_px
+                      / static_cast<float>(config::SILHOUETTE_MIN_PX);
+    p.seed = 0x67C5u;
+    return p;
+}
+
+// How far the eye may walk before the tufts are regrown. Half the smallest
+// clump is invisible as a pop and keeps the rebuild off the per-frame path;
+// the layer is deterministic, so a regrown tuft lands exactly where the old
+// one stood and only the SET changes at the rim of the view distance.
+constexpr float TUFT_REBUILD_STEP_M = 2.0f;
+
+void RenderSystem::refresh_ground_tufts(platform::IRenderer& renderer, glm::vec3 eye) {
+    if (tufts_off_) {
+        return;
+    }
+    if (tuft_built_ && glm::distance(eye, tuft_built_at_) < TUFT_REBUILD_STEP_M) {
+        return;
+    }
+    const GroundTuftParams params = tuft_params();
+    MeshData grown;
+    for (const auto& [coord, spots] : tuft_spots_) {
+        MeshData part = build_ground_tufts(spots, eye, params);
+        if (part.vertices.empty()) {
+            continue;
+        }
+        const auto base = static_cast<uint32_t>(grown.vertices.size());
+        grown.vertices.insert(grown.vertices.end(), part.vertices.begin(),
+                              part.vertices.end());
+        for (uint32_t i : part.indices) {
+            grown.indices.push_back(base + i);
+        }
+    }
+    // The old mesh is destroyed AFTER the new one is built but BEFORE it is
+    // uploaded, so the handle budget never holds two full sets at once.
+    if (tuft_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{tuft_mesh_id_});
+        tuft_mesh_id_ = 0;
+    }
+    tuft_built_ = true;
+    tuft_built_at_ = eye;
+    if (grown.vertices.empty()) {
+        return;
+    }
+    const platform::MeshHandle handle =
+        renderer.create_mesh(grown.vertices, grown.indices);
+    if (!handle.valid()) {
+        ++uploads_.failed;
+        report_upload_failure("ground tufts");
+        return;
+    }
+    tuft_mesh_id_ = handle.id;
+}
+
 void RenderSystem::drop_terrain(platform::IRenderer& renderer, glm::ivec2 chunk_coord) {
+    tuft_spots_.erase(chunk_coord);
+    tuft_built_ = false;
     const auto it = terrain_meshes_.find(chunk_coord);
     if (it != terrain_meshes_.end()) {
         renderer.destroy_mesh(platform::MeshHandle{it->second.mesh_id});
