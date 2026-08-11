@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 10:08:2026 - 20:15:51
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -38,6 +38,14 @@ UPD:
   minority is NOT a hedge: presented area at a level view is bought only by
   steep planes, and all-flat measures 150 m2/tree against 229 for the build
   the user already accepted (flora.md 3.8b).
+- 12:08:2026 - 00:20:00: Containment moved onto the crown AXIS in both places
+  that measure it (Rule 32: clip_to_envelope was moved and emit_cluster was
+  not, for one run). The card legibility floor re-expressed against the
+  species' own nominal cluster instead of against the crown radius, and taken
+  as the MINIMUM of the two forms -- as a straight swap it silently cost the
+  birch 65 % of its foliage. The old form was a latent bug that a 40 m crown
+  detonated: it dropped EVERY card on the great oak and the tree photographed
+  as a winter skeleton.
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -149,7 +157,8 @@ float trunk_height_frac(CrownEnvelope e) {
 /// definition, in FloraSkeleton, so the thing that grows the crown and the thing
 /// that contains it can never disagree.
 CrownVolume crown_volume(const Tree& t) {
-    return CrownVolume{t.sp.envelope, t.crown_base, t.crown_top, t.crown_r};
+    return CrownVolume{t.sp.envelope, t.crown_base, t.crown_top, t.crown_r,
+                       t.crown_axis};
 }
 
 float envelope_radius(const Tree& t, float y) {
@@ -192,11 +201,14 @@ glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
     // clip exactly at the tip — which let a whorl branch stick 7.6 m out of the
     // top of a pine whose whole crown is meant to be 4 m in radius.
     if (p.y <= t.crown_base) return p;
-    const glm::vec2 r{p.x, p.z};
+    // MEASURED FROM THE CROWN AXIS, not from the local origin. The two are the
+    // same thing only for a plumb single-stem tree, which is what every tree
+    // was until the lean band opened.
+    const glm::vec2 r = glm::vec2{p.x, p.z} - t.crown_axis;
     const float len = glm::length(r);
     const float limit = env * shy_scale_xz(t, r);
     if (len > limit && len > 1e-5f) {
-        const glm::vec2 c = r * (limit / len);
+        const glm::vec2 c = t.crown_axis + r * (limit / len);
         p.x = c.x;
         p.z = c.y;
     }
@@ -231,7 +243,37 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // is worse than nothing there. A card under a quarter of the crown radius
     // cannot read as part of the crown at 640x360, so it is not emitted.
     // Fraction, not metres, so it scales with maturity for free.
-    if (p.half_width < 0.22f * t.crown_r) return;
+    //
+    // RE-EXPRESSED 12.08.2026, AND THE OLD FORM WAS A LATENT BUG THAT THE GREAT
+    // OAK DETONATED. The floor was a fraction of the CROWN RADIUS, which is the
+    // right order of magnitude only while every crown radius is about ten
+    // metres. On a 40 m crown it became an 8.8 m minimum half-width — larger
+    // than the species' own nominal cluster — so EVERY card was silently
+    // dropped and the tree photographed as a winter skeleton with the branch
+    // system perfect and no foliage at all. Nothing failed; the crown was just
+    // absent, which is this project's favourite failure mode.
+    //
+    // The quantity the rule is actually about is "has containment shrunk this
+    // card to a scrap OF WHAT IT WAS MEANT TO BE", so it is measured against
+    // the species' own nominal cluster instead of against the crown. Chosen so
+    // the number is UNCHANGED where it was tuned: for the oak of 10.08.2026,
+    // 0.55 x 10.0 x 0.40 x 1.10 = 2.2 m, which is 0.22 x crown_r to two
+    // figures. Same floor, on a quantity that survives a species eight times
+    // the size.
+    // AND IT IS THE **MINIMUM** OF THE TWO FORMS, which is the second thing
+    // this cost. Swapping one for the other outright made the floor STRICTER
+    // for species with a large cluster fraction on a small crown — the birch's
+    // presented area fell 65 % in a single run, measured — because its clusters
+    // are a big share of a small crown and the new form scales with exactly
+    // that. A floor whose job is "do not emit scraps" must never start
+    // rejecting foliage that used to be legible, so the change is allowed to
+    // RELAX the floor where the old form was absurd (a 40 m crown radius) and
+    // never to tighten it anywhere.
+    const float nominal_half_width =
+        t.crown_r * sp.cluster_radius_frac * sp.card_width_frac;
+    if (p.half_width < std::min(0.22f * t.crown_r, 0.55f * nominal_half_width)) {
+        return;
+    }
 
     // VERTICAL REACH, not half_height. THIS IS THE SAME MISTAKE A THIRD TIME
     // (§3.7): a card is tilted in elevation and rolled in its own plane, so the
@@ -399,7 +441,12 @@ void emit_cluster(MeshData& m, Tree& t, glm::vec3 at, float radius, int card_cou
     // Foliage may not push the silhouette outside the species envelope.
     at = clip_to_envelope(t, at);
     at.y = std::min(at.y, t.crown_top - radius * 0.85f);
-    const glm::vec2 rxz{at.x, at.z};
+    // FROM THE CROWN AXIS. clip_to_envelope was moved onto the axis when the
+    // lean band opened and this second, independent radial test was not — so a
+    // leaning tree's clusters were contained against a circle centred on its
+    // stump while its crown sat several metres downwind. Rule 32: the same
+    // mechanism, every consumer, in one change.
+    const glm::vec2 rxz = glm::vec2{at.x, at.z} - t.crown_axis;
     const float env = envelope_radius(t, at.y);
     const float len = glm::length(rxz);
     if (env > 0.0f && len + radius > env) {
@@ -418,7 +465,8 @@ void emit_cluster(MeshData& m, Tree& t, glm::vec3 at, float radius, int card_cou
         // if it bites we still pull the centre in — but by at most 30 %, never
         // to the axis.
         if (len + radius > env && len > 1e-5f) {
-            const glm::vec2 c = rxz * (std::max(env - radius, 0.0f) / len);
+            const glm::vec2 c =
+                t.crown_axis + rxz * (std::max(env - radius, 0.0f) / len);
             at.x = c.x;
             at.z = c.y;
         }

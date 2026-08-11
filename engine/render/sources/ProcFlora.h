@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 10:08:2026 - 11:59:40
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -45,6 +45,10 @@ UPD:
   flora which ordinals take the flora path instead of keeping a list that can
   drift. Added after render found that core's 5->18 enum growth left every new
   ordinal drawing NOTHING, silently, with both suites green.
+- 12:08:2026 - 00:20:00: FloraShape::crown_width_mult (width varies on its own
+  axis, or trees of equal height are still copies), FloraShape::chained (the
+  named лукоморье oak), and the lean's docstring restated as a WIND response
+  with an azimuth source rather than a per-tree jitter.
 */
 
 #pragma once
@@ -79,11 +83,27 @@ inline constexpr uint32_t FLORA_VARIANTS = 12;
 /// math::ScatterInstance — that contract is frozen (Rule 26) and gains nothing.
 struct FloraShape {
     float maturity = 1.0f;     ///< 0.4 sapling .. 1.5 giant; scales height
+    /// Per-instance multiplier on the crown's WIDTH ONLY, on top of the
+    /// species allometry. Its own axis of variation on purpose: height spread
+    /// alone still lets two trees of equal height be identical, and a forest
+    /// where every 28 m tree has the same 20 m crown is a plantation with a
+    /// height histogram.
+    float crown_width_mult = 1.0f;
     glm::vec2 lean_dir{0.0f};  ///< unit; direction the crown leans toward
-    float lean = 0.0f;         ///< rad (crowding lean; cliff lean is separate)
+    /// Rad off vertical. NOT a per-instance jitter: LANDSCAPE §10.3.1 rules
+    /// that every tilt has an AZIMUTH SOURCE and only boulders may use a free
+    /// one, and reference frame 16 is the evidence — the canopy leans TOGETHER.
+    /// The azimuth here is the wind field's (see FloraNeighbours.cpp); the
+    /// magnitude carries crowding on top of it.
+    float lean = 0.0f;
     glm::vec2 shy_dir{0.0f};   ///< unit; direction of strongest crowding
     float shyness = 0.0f;      ///< 0..1 crown pullback along shy_dir
     bool understory = false;   ///< raise crown base, narrow crown, shorten
+    /// THE NAMED TREE. Set by the placer for the ONE great oak on the sea
+    /// cliff, which carries a golden chain around its bole (the user's
+    /// лукоморье). Everything about WHERE it stands is core's and design's;
+    /// this flag is the whole of flora's side of the contract.
+    bool chained = false;
     /// 0..1, this instance's wind phase (vertex GREEN). Derived from the
     /// instance POSITION in analyse_neighbourhood, because a stand whose trees
     /// share a phase does not ripple, it pulses as one object.

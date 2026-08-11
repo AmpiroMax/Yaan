@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 10:08:2026 - 02:49:15
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -44,6 +44,12 @@ UPD:
   COVERAGE against the worst azimuth.
 - 10:08:2026 - 02:49:15: Moss darkened under design's moss-below-grass rule;
   the variation multiplier unified as MOSS_TONE_B (one number, three sites).
+- 12:08:2026 - 00:20:00: Crown widths re-derived (oak 0.48 -> 0.70 from three
+  independent arms; birch only as far as its bank-line spacing contract allows;
+  the conifer's ratio deliberately untouched), crown allometry and per-instance
+  width jitter, oak crown base at the band floor, and the GreatOak row.
+  flora_control_arm() -- the zero-dose control that lets BEFORE and AFTER come
+  out of ONE binary.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -51,6 +57,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 
 #include <array>
+#include <cstdlib>
 
 namespace dfn::render {
 
@@ -100,7 +107,14 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     oak.trunk_sweep = 0.12f;
     oak.trunk_sides = 5;
     oak.trunk_segments = 6;
-    oak.crown_base_frac = 0.40f;
+    // The band's FLOOR (CROWN_BASE_FRACTION_MIN), not its middle: the user's
+    // «листва должна быть пониже» is a request to move down inside a band that
+    // design already approved, and the lowest approved value needs no new
+    // number. It buys 9.8 m of clear bole on a 28 m oak against a 2.2 m
+    // walkability requirement — the fraction has four times the margin the
+    // clearance rule asks for, which is why the rest of the answer is the
+    // bottom-heavy envelope profile (FloraSkeleton.cpp) and not this number.
+    oak.crown_base_frac = f(config::CROWN_BASE_FRACTION_MIN);
     // CALIBRATED AGAINST THE BUILT TREE, not against the envelope. Foliage
     // never reaches the envelope's widest point (containment keeps a card's
     // CORNER inside, and the widest ring sits at a height where a card would
@@ -108,7 +122,39 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // nominal. 0.45 measured 9.6-13.6 m against design's 10-16 m band; 0.48
     // lands inside it. Width is load-bearing: design derived
     // TREE_SPACING_FOREST FROM the crown width.
-    oak.crown_width_frac = 0.48f;
+    // RE-DERIVED 11.08.2026, user: «в целом большую часть деревьев сделать
+    // шире». 0.48 is not withdrawn as a measurement — it is the value that put
+    // the built crown inside design's 10-16 m brief — the BRIEF is what the
+    // user has revised, and the derivation below is the one that produces the
+    // new number rather than a nudged old one.
+    //
+    // THREE INDEPENDENT ARMS, and they land within 10 % of each other:
+    //  (1) THE FRAME. Reference frame 16, the one the user's sentence is about:
+    //      the canopy oaks' crown width measures 0.85-0.95 of the visible tree
+    //      height. Read as a DIAMETER over height, that is 0.85-0.95.
+    //  (2) BOTANY. Open-grown Quercus crown diameter runs 0.8-1.0 x height;
+    //      closed forest-grown runs 0.4-0.5. Our stand is thinned on purpose
+    //      (TREE_SPACING_FOREST 12-18 m against a 20 m crown), so it sits
+    //      between the two and nearer the open figure: ~0.7.
+    //  (3) THE LATTICE. At 12-18 m spacing a crown of 0.70 x 28 m = 19.6 m
+    //      overlaps its neighbour by ~25 %, which is what a closed-but-thinned
+    //      canopy IS. Crown shyness (0.28) and the crowding lean already exist
+    //      to resolve that overlap, and they have had nothing to do until now.
+    // The conservative arm wins: 0.70, i.e. built ~0.62 after containment.
+    //
+    // NOTE WHAT THIS IS NOT DERIVED FROM. CROWN_ASPECT_MAX is not an input
+    // here and must not become one — its own NUMBERS row records that it once
+    // became the LEADING input and spoiled the birch. Widening moves the crown
+    // AWAY from that ceiling (container aspect falls 1.25 -> 0.93), so the
+    // guard is left with more slack, not less, which is the only relationship
+    // a guard is allowed to have with the thing it guards.
+    oak.crown_width_frac = 0.70f;
+    // A veteran oak spreads long after it stops climbing: exp 1.35 makes a
+    // giant (x1.5) 15 % wider FOR ITS HEIGHT and a sapling (x0.4) 27 % narrower
+    // for its own, so the same rule delivers both halves of the user's
+    // sentence — most trees wider, small ones still small.
+    oak.crown_allometry_exp = 1.35f;
+    oak.crown_width_jitter = 0.16f;
     // SPACE COLONIZATION. A Quercus crown is the paper's DECURRENT case: no
     // single dominant axis above the fork, heavy sinuous limbs that ramify, and
     // — from the botany — "just a few large branches bearing relatively sparse
@@ -134,8 +180,16 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // mass only when its elements are a sizeable fraction of it (the lesson
     // that finally cured the birch, §3.7.5), and every extra card is pure
     // overdraw, which is the currency alpha-cutout foliage actually spends.
-    oak.cluster_count = 22;
-    oak.cluster_radius_frac = 0.46f;
+    // RE-BALANCED WITH THE WIDTH, because these two are one decision. Cluster
+    // radius is a fraction of the CROWN radius, so widening the crown by 46 %
+    // and leaving 0.46 alone would have grown each card by the same 46 % — the
+    // crown would have stayed a picture of 22 blobs, only bigger. Holding the
+    // absolute cluster size roughly where the user approved it (3.1 -> 3.5 m)
+    // and spending the widening on COUNT is what makes the extra width read as
+    // more crown rather than as a zoomed-in crown. 28 x 3 x 2 = 168 card
+    // triangles, still a fifth of TREE_TRI_BUDGET_MAX.
+    oak.cluster_count = 26;
+    oak.cluster_radius_frac = 0.40f;
     oak.tone_first = LeafTone::OakMid;
     oak.tone_count = 3; // mid / deep / sunlit — one crown carries all three
     oak.card_shape_a = LeafShape::RoundLobed;
@@ -196,6 +250,13 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // WIDER. The two move together and tuning one alone is how the pine went to
     // 11 m against a 6-9 m brief.
     pine.crown_width_frac = 0.25f;
+    // NO ALLOMETRY FOR THE CONIFER, and that is a positive statement rather
+    // than an omission: a spruce really does hold its width-to-height ratio
+    // through its life, and «шире» applied to the anti-oak would delete the one
+    // silhouette contrast the catalog is built on (§1.5). It gets the
+    // per-instance jitter only, so no two pines are the same pine.
+    pine.crown_allometry_exp = 1.0f;
+    pine.crown_width_jitter = 0.08f;
     // WHORLS, not tiers. A whorl is a YEAR: the leader puts on one internode and
     // flushes one ring of laterals at the top of it. Spacing is therefore that
     // year's height increment (short at the apex, long through the vigorous
@@ -280,7 +341,18 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // Same calibration, and the birch needed it most: 0.30 built a 3.6-4.5 m
     // crown against design's 5-7 m band — the accent tree was a third narrower
     // than its brief, which is the other half of why it read as a column.
-    birch.crown_width_frac = 0.34f;
+    // WIDENED ONLY AS FAR AS ITS OWN COUPLING ALLOWS (11.08.2026). The user's
+    // «шире» is general, but the birch's width has a second consumer: core
+    // derives BIRCH_BANKLINE_SPACING (7-9 m) from the crown width, so a birch
+    // that outgrows its 6-8 m band silently breaks the bank line it exists to
+    // draw. 0.40 builds ~6.7 m at the 19 m nominal — the top of the band, wider
+    // than today, and inside the number somebody else is standing on. The oak
+    // takes the user's request in full; the accent tree takes it up to its
+    // contract and no further, and the difference is reported rather than
+    // smoothed over.
+    birch.crown_width_frac = 0.35f;
+    birch.crown_allometry_exp = 1.22f;
+    birch.crown_width_jitter = 0.08f;
     // Betula pendula's two-part branch rule, and it is the whole silhouette:
     // the MAIN branches ascend while the outer branchlets are thin, drooping and
     // flexible — "a fine hanging haze of twigs". So: strong phototropism to lift
@@ -626,10 +698,108 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     dead.root_plate = false; // deadfall is shed wood; it never had roots
     dead.moss_cover = 0.22f; // younger wood on the ground mosses less
 
+    // --- THE GREAT OAK: a landmark that happens to be a tree ---------------
+    // User, 11.08.2026: «дубы, которые будут высокие и чья нижняя часть кроны
+    // будет в радиусе равна высоте, ветки будут расти как фракталы, редкие и
+    // очень большие как горы, на некоторые можно будет забраться».
+    //
+    // WHY IT IS A ROW AND NOT A MATURITY. Design ruled (§5.8) that a giant is
+    // DaleOak with maturity > 1 — one system, not two — and that ruling was
+    // correct for a tree that differed only in size. This one differs in what
+    // it is made of: a different GROWER (recursive ramification, not space
+    // colonization), a crown rule stated as radius-equals-height rather than
+    // as a fraction of height, and furniture that no other plant carries.
+    // Reached through the maturity scalar it would need every one of those as
+    // an if-branch on the scalar, which is the same two systems with the seam
+    // hidden inside the first one.
+    SpeciesParams& great = t[static_cast<size_t>(FloraSpecies::GreatOak)];
+    great = oak; // the value language, bark, leaf tones and cards are the oak's
+    great.name = "GreatOak";
+    great.envelope = CrownEnvelope::GreatCrown;
+    // HEIGHT. Not the giant tier's 1.5 x 32 = 48 m, and the ceiling is somebody
+    // else's rule rather than taste: design §5.7 binds the forest to stay under
+    // the landmark it frames, and Ravenscar's approved relief is 110-120 m. A
+    // 46 m great oak standing on a 25 m foothill tops out at 71 m against a
+    // 110 m summit — clear, with the margin that ruling asked for. Its own
+    // maturity band is narrow (see ProcFlora): this species IS the giant, so
+    // drawing another 1.5 x on top of it would be the same multiplier twice.
+    great.height_min = 34.0f;
+    great.height_max = 46.0f;
+    // A trunk you can put a staircase on. 0.045 of height = 1.8 m diameter at
+    // 40 m, and the flare takes it to 2.9 m — wide enough for a 0.9 m tread to
+    // land on solid wood, which is the geometric precondition for anything sim
+    // does with it later.
+    great.trunk_radius_frac = 0.045f;
+    great.taper_exp = 0.65f; // a veteran's bole barely tapers below the fork
+    great.trunk_sweep = 0.16f;
+    great.trunk_sides = 7;   // it is read from 20 m away, not from 200
+    great.trunk_segments = 7;
+    // The crown starts LOW, and on this species that is not a stylistic choice
+    // either: an 80 m wide crown carried at 0.40 of height would be a canopy
+    // roof with nothing under it, and the user's picture is a tree you climb
+    // INTO. 0.30 puts the lowest limbs at 12 m on a 40 m tree.
+    great.crown_base_frac = 0.30f;
+    // THE HEADLINE RULE, verbatim: lower crown radius = tree height.
+    great.crown_radius_per_height = 1.0f;
+    great.crown_width_frac = 2.0f; // = 2 x radius/height; kept in sync, see above
+    great.crown_allometry_exp = 1.0f; // the rule is absolute, not maturity-scaled
+    great.crown_width_jitter = 0.10f;
+    // FRACTAL RAMIFICATION. Depth 5 with 2-5 majors and 2-3 children gives
+    // 64-405 tips before the node budget bites; the variety of the FIRST-order
+    // count is what makes one great oak two-lobed («как сиськи» — two majors,
+    // wide pitch, each carrying its own sub-crown), another an upright ellipse
+    // (two majors at a steep pitch), another a broad dome (four or five).
+    // Nothing enumerates those outcomes; they are what the parameter does.
+    great.fractal_depth = 4;
+    great.fractal_majors_min = 2;
+    great.fractal_majors_max = 5;
+    great.fractal_children_min = 2;
+    great.fractal_children_max = 3;
+    great.fractal_major_pitch = 1.05f;  // ~60 deg off vertical: limbs go OUT
+    great.fractal_pitch_spread = 0.42f;
+    great.fractal_length_decay = 0.70f;
+    great.droop = 0.16f;
+    great.phototropism = 0.20f;
+    great.pipe_exponent = 2.6f;
+    // Climbing furniture. Treads every ~0.42 m of rise up a 12 m bole is 28
+    // steps; two platforms sit at the first-order forks. Numbers requested from
+    // lead as GREAT_OAK_STEP_RISE / _TREAD / _PLATFORM_R (see the file header).
+    great.climb_steps = 28;
+    great.climb_platforms = 2;
+    // Foliage: many more, larger clusters — the crown is an order of magnitude
+    // bigger in plan than a forest oak's, and 28 clusters spread over it would
+    // read as a bare frame with confetti.
+    // MEASURED OFF THE FIRST FRAME, not chosen: at 64 clusters the great oak
+    // photographed as a WINTER tree — the ramification read beautifully and the
+    // crown did not exist. The arithmetic says why, and it is the sparseness
+    // trap in a new place: a card cluster is three crossed cutouts, so its
+    // effective covering power is a fraction of its disc area, and 64 discs
+    // that tile an 80 m crown ON PAPER leave it transparent in fact.
+    // AND THE SECOND MEASUREMENT SAYS THIS NUMBER IS NOT THE BINDING ONE.
+    // Raising it from 110 to 190 changed the frame by nothing, because the
+    // foliage path takes ONE mass per branch TIP and subsamples down to this
+    // count — so when the fractal grower yields ~156 tips, anything above ~156
+    // is dead weight and the real lever is the grower's depth and node budget.
+    // Recorded rather than quietly tuned: the next agent who wants a fuller
+    // great oak should raise `fractal_depth` / GREAT_OAK_MAX_NODES, not this.
+    great.cluster_count = 190;
+    great.cluster_radius_frac = 0.19f;
+    great.attractors = 0;    // it does not colonize; the fractal grower supplies
+    great.shyness = 0.0f;    // nothing crowds a great oak
+    great.lean_response = 0.04f;
+
     return t;
 }
 
 } // namespace
+
+bool flora_control_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_CONTROL");
+        return e != nullptr && e[0] == '1';
+    }();
+    return on;
+}
 
 const SpeciesParams& species_params(FloraSpecies species) {
     static const std::array<SpeciesParams, FLORA_SPECIES_COUNT> table = build_table();
@@ -643,6 +813,7 @@ bool is_canopy_tree(FloraSpecies species) {
     case FloraSpecies::HighlandPine:
     case FloraSpecies::RiverBirch:
     case FloraSpecies::ValeWillow:
+    case FloraSpecies::GreatOak:
         return true;
     default:
         return false; // bushes and logs are obstacles you walk AROUND (§3.5)

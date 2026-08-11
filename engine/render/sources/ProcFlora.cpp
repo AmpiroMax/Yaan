@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 10:08:2026 - 22:54:58
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -89,6 +89,20 @@ UPD:
   trunks gone) and the CARDS carry the treeline, and that wood alone is worse
   than the whole tree at BOTH vantages — a crown in front of a bole does not add
   a flicker, it buries one.
+- 12:08:2026 - 00:20:00: THE FOREST GAINED ITS SPREAD, ITS WIDTH AND ITS LEAN,
+  and the great oak arrived as a species (user, 11.08.2026). Per-instance crown
+  width on three axes (species ratio re-derived, allometry against maturity,
+  own per-instance draw); the crown BASE drawn over the lower half of design's
+  approved band; the crown envelope now follows the top of a LEANING bole
+  (t.crown_axis) instead of standing over the roots -- which is what the old
+  0.12 rad lean cap was really protecting. GreatOak builds through
+  build_great_crown() with the fractal grower, climb treads, fork platforms and
+  the golden chain. DFN_FLORA_CONTROL=1 is the zero-dose arm for all of it and
+  DFN_FLORA_GREAT_OAK the capture-only placement stand-in.
+  MEASURED WRONG TWICE ON THE WAY, both recorded at their site: the crown axis
+  may not follow the bole's own SWEEP (a plumb birch lost 65 % of its presented
+  area to a shift its branches had already made), and the conifer is exempt
+  from it entirely because whorl_skeleton builds on the straight stem.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -109,6 +123,40 @@ namespace dfn::render {
 namespace {
 
 constexpr float CLEARANCE_MIN = static_cast<float>(config::CANOPY_CLEARANCE_MIN);
+
+// --- THE GREAT OAK'S OWN BUDGET ---------------------------------------------
+// TREE_TRI_BUDGET_MAX is 700 and it is the right number for a tree that stands
+// forty to a hectare. This species stands about one to fifty hectares and its
+// crown is 80 m across, so by the project's own read-distance rule (Rule 33:
+// readable size = distance / 30) it is still an OBJECT at 2.4 km — it is on
+// screen for the length of a journey rather than for the length of a glance.
+// Spending 6x the ordinary tree on ~1/2000 of the instances is a net saving
+// against drawing it as a forest oak and being asked why the landmark looks
+// like scenery.
+// NUMBERS ROWS REQUESTED FROM LEAD (Rule 14/35), carried locally until they
+// land: GREAT_OAK_TRI_BUDGET 3500, GREAT_OAK_STEP_RISE 0.42 m,
+// GREAT_OAK_STEP_REACH 0.75 m, GREAT_OAK_PLATFORM_RADIUS 2.6 m.
+constexpr uint32_t GREAT_OAK_MAX_NODES = 700;
+constexpr uint32_t GREAT_OAK_MAX_SEGMENTS = 400;
+constexpr float GREAT_OAK_STEP_RISE = 0.42f;   ///< m of climb per tread
+constexpr float GREAT_OAK_STEP_REACH = 0.75f;  ///< m the tread sticks out
+constexpr float GREAT_OAK_STEP_RADIUS = 0.15f; ///< m, half-thickness of a tread
+constexpr float GREAT_OAK_PLATFORM_R = 2.6f;   ///< m, a deck at a major fork
+/// The golden chain of the user's лукоморье. Its own value band, well above
+/// every bark and leaf tone in the catalog, because the whole point of it is to
+/// be the one bright thing on a dark bole.
+constexpr glm::vec3 CHAIN_GOLD{0.86f, 0.70f, 0.24f};
+
+/// One sample of the swept trunk axis: where the bole actually IS at a given
+/// parameter, so dead-wood detail (stubs, the broken top) attaches to the real
+/// swept axis instead of to the notional straight one. Attaching to the
+/// notional element instead of the thing that exists is the §3.7 pattern, and
+/// this struct exists so the snag does not become its fifth instance.
+struct TrunkRing {
+    glm::vec3 pos{0.0f};
+    glm::vec3 dir{0.0f, 1.0f, 0.0f};
+    float radius = 0.0f;
+};
 
 /// Emits one skeleton as tapered tubes. Segments whose BOTH ends are authored
 /// trunk nodes are skipped: the trunk mesh already covers that axis, and drawing
@@ -277,10 +325,164 @@ uint32_t max_crown_segments(const SpeciesParams& sp) {
     return ((cap > committed) ? (cap - committed) : 60u) / 11u;
 }
 
+/// CLIMBING FURNITURE — what flora hands to the zones that will make this a
+/// place people live in. GEOMETRY ONLY, and the boundary is worth stating
+/// because three zones meet on it:
+///   - flora (here) emits the treads and the decks, at real climbable rise and
+///     reach, on the ACTUAL swept bole rather than on a notional straight one;
+///   - sim owns whether they are solid and how a body moves on them;
+///   - core/design own who lives up there and what they build;
+///   - render owns how they are lit and batched.
+/// The contract flora offers outward is: a tread every GREAT_OAK_STEP_RISE of
+/// climb, spiralling by the golden angle so no two are stacked; a deck of
+/// GREAT_OAK_PLATFORM_R at each first-order fork; both centred on the bole axis
+/// at their own height, so anything that wants to snap to them can find them by
+/// re-walking the trunk path this function was handed.
+void build_climb_steps(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
+                       float top_y) {
+    const SpeciesParams& sp = t.sp;
+    if (sp.climb_steps == 0 || path.size() < 2) return;
+    const float y0 = std::max(1.2f, path.front().pos.y + 0.6f);
+    const int n = static_cast<int>(sp.climb_steps);
+    for (int i = 0; i < n; ++i) {
+        const float y = y0 + GREAT_OAK_STEP_RISE * static_cast<float>(i);
+        if (y > top_y - 0.5f) break;
+        // Find the bole at this height on the REAL swept path (the §3.7 lesson:
+        // attach to the thing that exists, not to the notional axis).
+        size_t k = 0;
+        while (k + 1 < path.size() && path[k + 1].pos.y < y) ++k;
+        const TrunkRing& ring = path[k];
+        const float az = GOLDEN_ANGLE * static_cast<float>(i);
+        const glm::vec3 u = perp_of(ring.dir);
+        const glm::vec3 v = glm::cross(ring.dir, u);
+        const glm::vec3 out = u * std::cos(az) + v * std::sin(az);
+        const glm::vec3 base = glm::vec3{ring.pos.x, y, ring.pos.z}
+            + out * (ring.radius * 0.75f);
+        // Slight downward slope outward: a tread you can stand on reads as one
+        // only if it is not a spike, and 4 sides at 0.30 m across is 4 px of
+        // silhouette at 20 m — the distance this tree is climbed from.
+        const glm::vec3 dir = safe_normalize(out - glm::vec3{0.0f, 0.08f, 0.0f}, out);
+        tube_segment(m, base, base + dir * GREAT_OAK_STEP_REACH, dir,
+                     GREAT_OAK_STEP_RADIUS, GREAT_OAK_STEP_RADIUS * 0.8f, 4, t.wood);
+    }
+}
+
+/// A deck at a fork: the flat thing a dwelling can stand on. Deliberately a
+/// disc rather than a platform with a rail — the rail is architecture and
+/// architecture is not this zone's.
+void build_climb_platforms(MeshData& m, Tree& t, glm::vec3 fork, int count,
+                           Rng& rng) {
+    for (int i = 0; i < count; ++i) {
+        const float az = GOLDEN_ANGLE * static_cast<float>(i) + rng.unit();
+        const float d = (i == 0) ? 0.0f : GREAT_OAK_PLATFORM_R * (1.1f + rng.unit());
+        const float r = GREAT_OAK_PLATFORM_R * (0.85f + rng.unit() * 0.5f);
+        const glm::vec3 c = fork
+            + glm::vec3{std::cos(az) * d, 1.0f + rng.unit() * 2.5f, std::sin(az) * d};
+        blob_cluster(m, c, {r, 0.18f, r}, 7, 2, t.twig);
+    }
+}
+
+/// THE GOLDEN CHAIN (user: «на дубе будет золотая цепь, как из сказки
+/// Пушкина»). One loop around the bole with a sag between its anchor points,
+/// which is the whole of what makes a chain read as a chain rather than as a
+/// gold ring: a hoop looks machined, a catenary looks hung.
+void build_golden_chain(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
+                        float y) {
+    if (path.size() < 2) return;
+    size_t k = 0;
+    while (k + 1 < path.size() && path[k + 1].pos.y < y) ++k;
+    const TrunkRing& ring = path[k];
+    const glm::vec3 u = perp_of(ring.dir);
+    const glm::vec3 v = glm::cross(ring.dir, u);
+    const uint32_t gold = pack(CHAIN_GOLD);
+    constexpr int LINKS = 18;
+    const float r = ring.radius * 1.18f;
+    const float sag = ring.radius * 0.42f;
+    glm::vec3 prev{0.0f};
+    for (int i = 0; i <= LINKS; ++i) {
+        const float f = static_cast<float>(i) / static_cast<float>(LINKS);
+        const float az = TAU * f;
+        // Two anchor points (front and back), so the sag is a double swag.
+        const float swag = std::fabs(std::sin(az)) * sag;
+        const glm::vec3 p = glm::vec3{ring.pos.x, y, ring.pos.z}
+            + (u * std::cos(az) + v * std::sin(az)) * r
+            - glm::vec3{0.0f, swag, 0.0f};
+        if (i > 0) {
+            tube_segment(m, prev, p, safe_normalize(p - prev, {1.0f, 0.0f, 0.0f}),
+                         0.09f, 0.09f, 3, gold);
+        }
+        prev = p;
+    }
+}
+
+/// THE GREAT OAK'S CROWN. Recursive ramification (FloraSkeleton's third
+/// grower) instead of space colonization, because what the user asked to see is
+/// the BRANCH SYSTEM: «ветки будут расти как фракталы». The envelope is still
+/// enforced afterwards — the silhouette guarantee of flora.md §3.1 stage D is
+/// not something this species is exempt from, it just is not what SHAPES the
+/// tree here.
+void build_great_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
+                       uint64_t seed) {
+    const SpeciesParams& sp = t.sp;
+    Skeleton sk;
+    seed_trunk_nodes(sk, stem_base, stem_top);
+
+    FractalParams fp;
+    fp.base_y = stem_top.y;
+    fp.trunk_top_r = t.trunk_r;
+    fp.depth = sp.fractal_depth;
+    fp.majors_min = sp.fractal_majors_min;
+    fp.majors_max = sp.fractal_majors_max;
+    fp.children_min = sp.fractal_children_min;
+    fp.children_max = sp.fractal_children_max;
+    fp.major_pitch = sp.fractal_major_pitch;
+    fp.pitch_spread = sp.fractal_pitch_spread;
+    fp.length_decay = sp.fractal_length_decay;
+    fp.droop = sp.droop * 0.5f;
+    fp.phototropism = sp.phototropism;
+    // THE SPREAD TARGET IS THE USER'S RULE, PASSED THROUGH UNCHANGED: the
+    // first-order limbs have to physically reach the crown radius, because on
+    // this species the radius is the point. Inset slightly so the foliage that
+    // hangs off the tips — not the wood — is what touches the envelope, which
+    // is the lesson build_crown() paid for below.
+    fp.spread_target = t.crown_r * (1.0f - sp.cluster_radius_frac * 0.9f);
+    fp.lean = t.shape.lean > 0.0f
+        ? t.shape.lean_dir * (t.shape.lean * 0.8f)
+        : glm::vec2{0.0f};
+    fp.max_nodes = GREAT_OAK_MAX_NODES;
+    fractal_skeleton(sk, fp, seed);
+
+    assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
+    decimate_to(sk, GREAT_OAK_MAX_SEGMENTS);
+    assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
+    emit_skeleton(m, t, sk);
+
+    // ONE FOLIAGE MASS PER TIP, subsampled to the cluster budget — the conifer
+    // rule, and for the same reason: merging leaf sites is right when they form
+    // a few big clouds and wrong when each one is the end of a named limb. On a
+    // tree whose branch system is the subject, merging would hide it.
+    if (!emits_clusters(sp)) return;
+    const size_t n = sk.leaf_sites.size();
+    if (n == 0) return;
+    const size_t want = std::max<size_t>(1, sp.cluster_count);
+    const size_t stride = std::max<size_t>(1, n / want);
+    for (size_t i = 0; i < n; i += stride) {
+        const int a = sk.leaf_anchor[i];
+        if (a < 0 || static_cast<size_t>(a) >= sk.nodes.size()) continue;
+        t.sway_from = sk.nodes[static_cast<size_t>(a)].pos;
+        emit_cluster(m, t, sk.leaf_sites[i], t.crown_r * sp.cluster_radius_frac);
+    }
+    t.sway_from = glm::vec3{t.stem_off.x, t.crown_base, t.stem_off.z};
+}
+
 void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
                  uint64_t seed, float branch_floor) {
     const SpeciesParams& sp = t.sp;
     if (sp.envelope == CrownEnvelope::None) return;
+    if (sp.fractal_depth > 0) {
+        build_great_crown(m, t, stem_base, stem_top, seed);
+        return;
+    }
 
     Skeleton sk;
     // THE GROWTH ENVELOPE IS INSET FROM THE SILHOUETTE ENVELOPE, and getting
@@ -410,17 +612,6 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
                               : -1);
 }
 
-
-/// One sample of the swept trunk axis: where the bole actually IS at a given
-/// parameter, so dead-wood detail (stubs, the broken top) attaches to the real
-/// swept axis instead of to the notional straight one. Attaching to the
-/// notional element instead of the thing that exists is the §3.7 pattern, and
-/// this struct exists so the snag does not become its fifth instance.
-struct TrunkRing {
-    glm::vec3 pos{0.0f};
-    glm::vec3 dir{0.0f, 1.0f, 0.0f};
-    float radius = 0.0f;
-};
 
 /// Trunk with root flare. Returns the top point and its direction.
 glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
@@ -818,14 +1009,19 @@ void build_cone_shell(MeshData& m, Tree& t) {
 /// pre-flora mesh — at that range the silhouette is the entire information.
 void build_silhouette(MeshData& m, Tree& t) {
     glm::vec3 dir{0.0f, 1.0f, 0.0f};
-    build_trunk(m, t, glm::vec3{0.0f}, t.height, t.trunk_r, &dir);
+    const glm::vec3 top =
+        build_trunk(m, t, glm::vec3{0.0f}, t.height, t.trunk_r, &dir);
     if (t.sp.envelope == CrownEnvelope::None) return;
     if (t.sp.envelope == CrownEnvelope::Cone) {
         build_cone_shell(m, t);
         return;
     }
+    // The shell sits over the LEANING bole, like the full crown does. A LOD
+    // whose silhouette is in a different place from the mesh it replaces pops
+    // sideways at the switch distance, which is a worse artefact than any
+    // amount of missing detail.
     const float mid = (t.crown_base + t.crown_top) * 0.5f;
-    blob_cluster(m, glm::vec3{0.0f, mid, 0.0f},
+    blob_cluster(m, glm::vec3{top.x, mid, top.z},
             glm::vec3{t.crown_r, (t.crown_top - t.crown_base) * 0.5f, t.crown_r}, 6, 3,
             t.leaf);
 }
@@ -836,6 +1032,25 @@ uint32_t flora_variant_for(glm::vec2 world_xz) {
     const auto xi = static_cast<uint64_t>(static_cast<int64_t>(std::lround(world_xz.x * 4.0f)));
     const auto zi = static_cast<uint64_t>(static_cast<int64_t>(std::lround(world_xz.y * 4.0f)));
     return static_cast<uint32_t>(mix64(xi * 0x9E3779B1ull ^ mix64(zi)) % FLORA_VARIANTS);
+}
+
+/// GREAT-OAK PREVIEW, A VERIFICATION HOOK AND NEVER A SHIPPING PATH — the same
+/// standing as DFN_FLORA_ONLY above it and render's DFN_NO_SCATTER.
+///
+/// It exists because of a zone boundary, not because of a doubt: WHERE a great
+/// oak stands is core's and design's decision (rarity, the sea cliff, the named
+/// tree), and until `math::ScatterSpecies` carries an ordinal for it there is no
+/// instance in the world to photograph. Rule 27 wants a frame from OUR build,
+/// so this promotes ordinary oaks to great oaks for the length of one capture:
+///   DFN_FLORA_GREAT_OAK=1  one oak in sixteen (what "редкие" looks like)
+///   DFN_FLORA_GREAT_OAK=2  every oak (the close-up: structure and steps)
+///   DFN_FLORA_GREAT_OAK=3  as 1, and the promoted trees carry the chain
+static int great_oak_preview() {
+    static const int mode = [] {
+        const char* e = std::getenv("DFN_FLORA_GREAT_OAK");
+        return e ? std::atoi(e) : 0;
+    }();
+    return mode;
 }
 
 FloraSpecies flora_species_of(math::ScatterSpecies species) {
@@ -939,10 +1154,65 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
                   ^ (static_cast<uint64_t>(variant) + 1) * 0x9E3779B97F4A7C15ull)};
 
     float height = sp.height_min + rng.unit() * (sp.height_max - sp.height_min);
-    height *= std::max(0.2f, shape.maturity);
+    // THE GREAT OAK IS ALREADY THE GIANT TIER, so it does not take the tier
+    // multiplier on top of its own band — 1.5 x 46 m would be a 69 m tree, and
+    // design §5.7's binding rule is that the forest stays under the landmark it
+    // frames. Its variation lives in the 34-46 m band and in the crown, which
+    // is where a viewer reads a great oak's size from anyway.
+    const float maturity = (sp.fractal_depth > 0)
+        ? std::clamp(shape.maturity, 0.92f, 1.10f)
+        : std::max(0.2f, shape.maturity);
+    height *= maturity;
 
     float crown_base_frac = sp.crown_base_frac;
     float crown_width_frac = sp.crown_width_frac;
+    if (flora_control_arm()) {
+        // The two species rows this change moved, restored to their 11.08.2026
+        // values so the control arm differs from the shipped arm in EXACTLY the
+        // things under test and in nothing else.
+        if (species == FloraSpecies::DaleOak) {
+            crown_width_frac = 0.48f;
+            crown_base_frac = 0.40f;
+        } else if (species == FloraSpecies::RiverBirch) {
+            crown_width_frac = 0.34f;
+        }
+    }
+
+    // --- WIDTH: THE ALLOMETRY AND THE TWO INDEPENDENT DRAWS -----------------
+    // The user asked for two things in one sentence — most trees wider, and
+    // small ones still present — and they are not the same lever. Sliding the
+    // mean would grant the first and cancel the second, so width moves on THREE
+    // separate axes here and none of them is a global multiplier:
+    //   1. the species ratio (FloraSpecies.cpp), re-derived from the frames;
+    //   2. ALLOMETRY against maturity, exp > 1, so a giant is wider FOR ITS
+    //      HEIGHT and a sapling narrower for its own — this is the clause that
+    //      widens the spread instead of shifting it;
+    //   3. a per-instance draw on width ALONE, so two trees of equal height are
+    //      still different trees.
+    if (sp.crown_allometry_exp != 1.0f && !flora_control_arm()) {
+        crown_width_frac *=
+            std::pow(maturity, sp.crown_allometry_exp - 1.0f);
+    }
+    if (sp.crown_width_jitter > 0.0f && !flora_control_arm()) {
+        crown_width_frac *= 1.0f + rng.sym() * sp.crown_width_jitter;
+    }
+    crown_width_frac *= std::max(0.2f, shape.crown_width_mult);
+
+    // --- THE BOLE LENGTH ALSO VARIES, and DOWNWARD from the species value.
+    // «Листва пониже» is answered mostly by the bottom-heavy envelope profile
+    // (FloraSkeleton), but a stand where every bole is exactly 0.35 of its own
+    // height still reads as a set: the crowns line up in a band. Drawing the
+    // fraction over the bottom half of design's approved 0.35-0.45 band keeps
+    // every tree inside a ruling that already exists while breaking the band.
+    if (is_canopy_tree(species) && sp.envelope != CrownEnvelope::Cone
+        && !flora_control_arm()) {
+        const auto lo = static_cast<float>(config::CROWN_BASE_FRACTION_MIN);
+        const auto hi = static_cast<float>(config::CROWN_BASE_FRACTION_MAX);
+        crown_base_frac = std::min(crown_base_frac, hi)
+            + rng.unit() * (hi - lo) * 0.5f;
+        crown_base_frac = std::clamp(crown_base_frac, std::min(lo, sp.crown_base_frac),
+                                     hi);
+    }
     if (shape.understory) {
         crown_base_frac = std::min(0.75f, crown_base_frac + 0.10f);
         crown_width_frac *= 0.8f;
@@ -1059,14 +1329,58 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
         const float stem_h = height * trunk_height_frac(sp.envelope) * stem_scale;
         glm::vec3 dir{0.0f, 1.0f, 0.0f};
         std::vector<TrunkRing> path;
-        const bool wants_detail = is_snag && lod != FloraLod::Silhouette;
+        const bool is_great = sp.fractal_depth > 0;
+        const bool wants_detail =
+            (is_snag || is_great) && lod != FloraLod::Silhouette;
         const glm::vec3 top =
             build_trunk(m, t, off, stem_h, t.trunk_r, &dir,
                         wants_detail ? &path : nullptr);
-        if (wants_detail) {
+        if (is_snag && wants_detail) {
             // The broken top and the truncated stubs are what make a snag its
             // own object instead of a pole (docs/specs/flora.md §3.4).
             build_snag_detail(m, t, path, t.rng);
+        }
+        // THE CROWN FOLLOWS THE BOLE IT SITS ON. Extrapolated along the trunk's
+        // own direction up to the crown's mid-height, because branches continue
+        // the lean rather than snapping back to plumb. Without this the trunk
+        // walks out through the side of its own crown at anything past a few
+        // degrees, which is why the lean was capped at 0.12 rad and could not
+        // reach the 15-25 deg the reference frames show.
+        // NOT FOR THE CONIFER, and this is a fact about the whorl grower rather
+        // than a taste: whorl_skeleton() builds its leader on the STRAIGHT stem
+        // axis and ignores the trunk sweep entirely, so moving its envelope onto
+        // the swept top would put the container somewhere the contents are not.
+        // Measured when it was wrong for one run: the pine and the krummholz
+        // lost a quarter of their presented area, because a 1 m axis offset on
+        // a 4 m crown radius clips one whole flank away.
+        if (sp.envelope != CrownEnvelope::Cone) {
+            const float y_mid = (t.crown_base + t.crown_top) * 0.5f;
+            const float span = std::max(top.y - (off.y + t.flare_h), 0.5f);
+            const float k = std::clamp((y_mid - (off.y + t.flare_h)) / span, 0.0f, 1.6f);
+            // ONLY THE LEAN'S SHARE OF THE BEND MOVES THE CROWN. The bole's
+            // own `trunk_sweep` is a CURVE in the stem, and the crown grows off
+            // that stem wherever it went, so following it would double-count:
+            // measured, a plumb birch (sweep 0.18 rad, crown radius 3.4 m) lost
+            // 65 % of its presented area to an axis shift its own branches had
+            // already made. The whole-tree LEAN is different — it tips the
+            // crown bodily downwind — and it is the only part taken here.
+            const float bend = sp.trunk_sweep + t.shape.lean;
+            const float lean_share =
+                (bend > 1e-4f) ? std::clamp(t.shape.lean / bend, 0.0f, 1.0f) : 0.0f;
+            t.crown_axis = glm::vec2{off.x, off.z}
+                + (glm::vec2{top.x, top.z} - glm::vec2{off.x, off.z}) * k * lean_share;
+        }
+        if (is_great && wants_detail) {
+            // Furniture BEFORE the crown, so the treads exist on the bole even
+            // if the crown budget is exhausted: a climbable tree whose steps are
+            // the first thing dropped is a tree that is climbable in the design
+            // document only.
+            build_climb_steps(m, t, path, t.crown_base);
+            build_climb_platforms(m, t, top, static_cast<int>(sp.climb_platforms),
+                                  t.rng);
+            if (shape.chained) {
+                build_golden_chain(m, t, path, std::max(2.0f, t.height * 0.075f));
+            }
         }
 
         if (!sp.has_skeleton) {
@@ -1097,7 +1411,26 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
 void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
                   uint32_t variant, const FloraShape& shape, FloraLod lod,
                   glm::vec3 position, float yaw, FloraSeason season) {
-    const FloraMesh parts = build_flora_mesh(species, variant, shape, lod, season);
+    // The great-oak preview (see great_oak_preview above): a capture-only
+    // promotion, keyed by POSITION so the same oaks are promoted every run and
+    // the frame is re-shootable.
+    FloraSpecies sp_use = species;
+    FloraShape shape_use = shape;
+    if (const int preview = great_oak_preview();
+        preview != 0 && species == FloraSpecies::DaleOak) {
+        const auto xi = static_cast<uint64_t>(
+            static_cast<int64_t>(std::lround(position.x * 0.25f)));
+        const auto zi = static_cast<uint64_t>(
+            static_cast<int64_t>(std::lround(position.z * 0.25f)));
+        const uint64_t h = mix64(xi * 0x9E3779B1ull ^ mix64(zi));
+        const bool pick = (preview == 2) || ((h % 16ull) == 0ull);
+        if (pick) {
+            sp_use = FloraSpecies::GreatOak;
+            shape_use.chained = (preview == 3);
+        }
+    }
+    const FloraMesh parts =
+        build_flora_mesh(sp_use, variant, shape_use, lod, season);
     // Scale 1.0: the generator has ALREADY applied FloraShape::maturity, and a
     // tree does not sink — it stands on its root flare (§3.5).
     // VERIFICATION HOOK, NEVER A SHIPPING PATH (Rule 27/30, the same standing

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 10:08:2026 - 20:32:40
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -38,6 +38,8 @@ UPD:
   NUMBERS.md, 2ffe2c1) instead of carrying their own copies. The tilt
   distribution test passing unchanged against the generated values is the
   cross-check that the rows carry the numbers that were measured.
+- 12:08:2026 - 00:20:00: Tree::crown_axis -- the XZ centre of the crown, which
+  is the top of the leaning bole rather than the stump.
 */
 
 #pragma once
@@ -146,6 +148,11 @@ struct Tree {
     /// anchors in gap units).
     float clearance_floor = 0.0f;
     glm::vec3 stem_off{0.0f}; ///< the stem this geometry belongs to (clumps)
+    /// XZ centre of the CROWN — the top of the leaning bole, not the roots.
+    /// Set once per stem, after the trunk is built and its sweep is known.
+    /// Everything that clips to the envelope reads it, so a leaning tree keeps
+    /// its crown over its own head instead of over its stump.
+    glm::vec2 crown_axis{0.0f};
     /// The point a foliage cluster's sway weight is measured FROM (vertex RED is
     /// 0 here and 1 at the free edge). Under the old envelope-scattered crown
     /// this could only be the crown base, because no cluster knew what it hung

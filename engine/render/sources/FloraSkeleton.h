@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 09:08:2026 - 23:12:44
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.h
 
@@ -33,6 +33,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 23:12:44: Created — space colonization + whorls, replacing the
   recursive branch generator and the envelope-scattered crown.
+- 12:08:2026 - 00:20:00: CrownVolume::axis (the crown follows a leaning bole)
+  and FractalParams / fractal_skeleton() -- the great oak's recursive grower,
+  the third growth model in this file.
 */
 
 #pragma once
@@ -57,6 +60,14 @@ struct CrownVolume {
     float base = 0.0f;   ///< m, lowest foliage height
     float top = 1.0f;    ///< m, crown apex
     float radius = 1.0f; ///< m, crown radius at its widest
+    /// XZ CENTRE OF THE CROWN, and it is not always the stem's base.
+    /// A tree that LEANS carries its crown over the top of its leaning bole,
+    /// not over its roots (LANDSCAPE §10.3, reference frame 16). Before this
+    /// field the envelope was pinned to the local origin, so any lean past a
+    /// few degrees walked the trunk out through the side of its own crown —
+    /// which is why the old lean cap of 0.12 rad was doing structural work it
+    /// was never meant to do.
+    glm::vec2 axis{0.0f};
 };
 
 /// Crown radius at height y. Zero outside [base, top].
@@ -167,6 +178,60 @@ struct WhorlParams {
 /// persist only a few years, so a conifer's foliage lives on the last growth of
 /// each branch and the inboard wood is bare.
 void whorl_skeleton(Skeleton& sk, const WhorlParams& p, uint64_t seed);
+
+/// THE FRACTAL GROWER — the great oak's skeleton, and a THIRD growth model
+/// rather than a big setting on either of the other two (user request
+/// 11.08.2026: «ветки будут расти как фракталы»).
+///
+/// Why neither existing grower answers it. Space colonization derives its
+/// branches from an attractor cloud, so what you see in the finished crown is
+/// the CLOUD's shape; the branch system is a means and it reads as one — fine
+/// for a 28 m forest oak whose limbs are a dark tracery behind foliage, useless
+/// for a tree the user wants to read as STRUCTURE from a kilometre away. The
+/// whorl grower is a conifer's developmental rhythm and says nothing about
+/// ramification. A recursive dichotomy with length and radius decay is the
+/// thing the user actually named, and it has the property the other two lack:
+/// the SAME rule at every scale, so the silhouette carries the same signature
+/// at 5 m and at 500 m.
+///
+/// THE LOBES ARE EMERGENT, NOT AUTHORED. The user asked for great oaks shaped
+/// like two big masses with a saddle between them, for tall ellipses, and for
+/// «много разных». All of those are ONE parameter here — how many major limbs
+/// leave the bole and how far they spread — because each major limb carries its
+/// own sub-crown: two wide limbs give the two-lobed silhouette, one dominant
+/// limb gives the ellipse, four to five give the broad dome. No silhouette is
+/// enumerated anywhere; the shapes are what the parameter does.
+struct FractalParams {
+    float base_y = 0.0f;      ///< m, height of the first fork (top of the bole)
+    float trunk_top_r = 1.0f; ///< m, bole radius where the first fork sits
+    float length0 = 10.0f;    ///< m, length of a first-order limb
+    float length_decay = 0.72f;  ///< child length / parent length
+    float radius_decay = 0.72f;  ///< child radius / parent radius (pipe re-runs)
+    uint32_t depth = 5;          ///< recursion depth (0 = the bole alone)
+    uint32_t majors_min = 2;     ///< first-order limbs: 2 = two lobes, 5 = dome
+    uint32_t majors_max = 5;
+    uint32_t children_min = 2;   ///< limbs per fork beyond the first order
+    uint32_t children_max = 3;
+    float major_pitch = 0.95f;   ///< rad from vertical for the FIRST order
+    float pitch_spread = 0.45f;  ///< rad, per-fork divergence half-angle
+    float pitch_jitter = 0.30f;  ///< rad, per-branch noise on the above
+    float droop = 0.10f;         ///< downward drift accumulated with depth
+    float phototropism = 0.22f;  ///< upward drift, fought by droop
+    /// Horizontal reach the FIRST order must cover, in metres. The user's rule
+    /// for the great oak is «нижняя часть кроны в радиусе равна высоте», i.e.
+    /// the lower crown's RADIUS equals the tree's height — so the first-order
+    /// limbs are not decoration, they are the thing that has to physically span
+    /// it. `length0` is derived from this rather than guessed.
+    float spread_target = 30.0f;
+    float segments_per_limb = 3.0f; ///< nodes along one limb (curvature)
+    uint32_t max_nodes = 600;
+    glm::vec2 lean{0.0f};        ///< XZ drift of the whole crown (wind lean)
+};
+
+/// Grows the fractal crown from the LAST node of `sk` (the bole's top). Every
+/// terminal tip becomes a leaf site anchored to itself, so the attachment
+/// invariant at the top of this file holds by construction here too.
+void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed);
 
 /// Pipe model (Shinozaki et al. 1964), basipetal from the tips:
 /// r^n = r1^n + r2^n. Computed unitless from r0 = 1 and then SCALED so the root

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 09:08:2026 - 23:12:44
+Last updated: 12:08:2026 - 00:24:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -27,6 +27,21 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 23:12:44: Created.
+- 12:08:2026 - 00:20:00: THE CROWN GAINED AN AXIS AND A THIRD GROWER.
+  (a) CrownVolume::axis — the envelope follows the top of a LEANING bole
+  instead of standing over the roots, which is what let the lean band open from
+  0.12 rad to the 15-25 deg the reference frames actually show.
+  (b) The Sphere profile became BOTTOM-HEAVY (widest at u~0.38, not 0.5): the
+  user's «листва должна быть пониже» is a statement about where the crown's
+  MASS sits, and moving the widest ring down answers it without touching the
+  clearance floor that keeps the wood walkable.
+  (c) fractal_skeleton() — the great oak's recursive grower.
+- 12:08:2026 - 00:24:00: CrownVolume::axis honoured in attractor sampling and
+  in the growth clip; the Sphere profile made bottom-heavy (widest ring at 0.42
+  of the crown span, not 0.50) with its minimum radius raised to 0.42 so the
+  narrowed apex does not starve — measured, the first draft pinched the top and
+  the tree topped out at 0.39 of its own height; and fractal_skeleton(), the
+  great oak's recursive grower.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -74,10 +89,42 @@ float envelope_radius_at(const CrownVolume& v, float y) {
     const float u = (y - v.base) / span; // 0 at crown base, 1 at apex
     switch (v.shape) {
     case CrownEnvelope::Sphere:
-        // Widest near mid-crown, closing at both ends. sin gives a rounded mass
+        // Widest BELOW mid-crown, closing at both ends. sin gives a rounded mass
         // rather than a lens, and never reaches exactly 0 at the base so the
         // lowest foliage has somewhere to sit.
-        return v.radius * (0.30f + 0.70f * std::sin(u * 3.14159265f));
+        //
+        // THE EXPONENT IS THE «ЛИСТВА ПОНИЖЕ» FIX, and it is deliberately here
+        // rather than in the crown base. Lowering CROWN_BASE_FRACTION moves the
+        // whole crown down and takes the walkable trunk with it — the fraction
+        // is the one number that has already been raised to fix a proportion
+        // and broken the storey below (NUMBERS, BIRCH_CROWN_BASE_FRACTION_MIN).
+        // The exponent moves only where the crown's WIDEST RING sits: u^0.80
+        // puts the maximum at u = 0.5^(1/0.80) = 0.42 of the crown span instead
+        // of at 0.50, so the mass hangs low and the profile tapers above it —
+        // the umbrella outline of reference frame 16. Clearance is untouched by
+        // construction, because the crown BASE has not moved.
+        // THE MINIMUM FACTOR ROSE WITH THE EXPONENT, and it had to. Moving the
+        // widest ring down narrows everything above it, and the crown's TOP is
+        // where the envelope was already tightest — so the first build of the
+        // bottom-heavy profile pinched its apex, every cluster up there shrank
+        // under the scrap floor and was dropped, and the tree topped out at
+        // 0.39 of its own height (the REJECTION-3 foliage-span test caught it,
+        // which is what that test is for). 0.42 is the same argument the Cone
+        // arm two cases below already carries in this file: an envelope that
+        // closes to a point starves its own tip.
+        {
+            const float lo = flora_control_arm() ? 0.30f : 0.42f;
+            const float p_exp = flora_control_arm() ? 1.0f : 0.80f;
+            return v.radius
+                * (lo + (1.0f - lo) * std::sin(std::pow(u, p_exp) * 3.14159265f));
+        }
+    case CrownEnvelope::GreatCrown:
+        // The great oak's LOWER crown is the widest thing in the world (user:
+        // radius equal to the tree's height). It is widest at its very base and
+        // domes over: an u^1.35 fall-off holds most of the radius over the
+        // bottom half and then closes, so the silhouette is a hill rather than
+        // a ball. Never zero at the top for the same reason the cone is not.
+        return v.radius * (0.16f + 0.84f * std::pow(std::max(0.0f, 1.0f - u), 0.55f));
     case CrownEnvelope::Cone:
         // Widest at the crown base, and DELIBERATELY NOT closing to a point.
         // Design §5.2 requires the top of the cone to stay >= 1.5 m wide so the
@@ -128,7 +175,7 @@ glm::vec3 sample_attractor(const CrownVolume& v, const ColonizeParams& p, Rng& r
         const float align = std::cos(az) * p.shy_dir.x + std::sin(az) * p.shy_dir.y;
         shy = 1.0f - p.shyness * std::max(0.0f, align);
     }
-    return {std::cos(az) * r * shy, y, std::sin(az) * r * shy};
+    return {v.axis.x + std::cos(az) * r * shy, y, v.axis.y + std::sin(az) * r * shy};
 }
 
 } // namespace
@@ -214,7 +261,12 @@ void colonize(Skeleton& sk, const CrownVolume& volume, const ColonizeParams& p,
             float env = (np.y < volume.base) ? volume.radius
                                              : envelope_radius_at(volume, np.y);
             glm::vec3 clipped = np;
-            const float rr = std::sqrt(np.x * np.x + np.z * np.z);
+            // Radial distance from the CROWN AXIS, which is the top of a leaning
+            // bole rather than the local origin. Measuring it from the origin
+            // was correct only while trees stood plumb.
+            const float ox = np.x - volume.axis.x;
+            const float oz = np.z - volume.axis.y;
+            const float rr = std::sqrt(ox * ox + oz * oz);
             // Shyness limits the GROWTH, not only the foliage. Shrinking the
             // attractor cloud alone is not enough: a branch can still overshoot
             // toward a point and be clipped at the full envelope, so the shy
@@ -222,13 +274,13 @@ void colonize(Skeleton& sk, const CrownVolume& volume, const ColonizeParams& p,
             // failure as flora.md §3.7, caught here by the invariant that exists
             // to reject exactly it.
             if (p.shyness > 0.0f && rr > 1e-4f) {
-                const float align = (np.x * p.shy_dir.x + np.z * p.shy_dir.y) / rr;
+                const float align = (ox * p.shy_dir.x + oz * p.shy_dir.y) / rr;
                 env *= 1.0f - p.shyness * std::max(0.0f, align);
             }
             if (np.y > volume.top) clipped.y = volume.top;
             if (rr > env && rr > 1e-4f) {
-                clipped.x = np.x * env / rr;
-                clipped.z = np.z * env / rr;
+                clipped.x = volume.axis.x + ox * env / rr;
+                clipped.z = volume.axis.y + oz * env / rr;
             }
             SkeletonNode child;
             child.pos = clipped;
@@ -464,6 +516,138 @@ void whorl_skeleton(Skeleton& sk, const WhorlParams& p, uint64_t seed) {
             sk.nodes.push_back(n);
             ++sk.nodes[static_cast<size_t>(best)].children;
         }
+    }
+}
+
+void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed) {
+    if (sk.nodes.empty()) return;
+    Rng rng{seed * 0xD1B54A32D192ED03ull + 0x9E3779B9ull};
+
+    // The bole's top is the first fork. Everything below it was seeded by the
+    // caller and stays trunk.
+    const int root = static_cast<int>(sk.nodes.size()) - 1;
+
+    struct Limb {
+        int node;
+        glm::vec3 dir;
+        float len;
+        uint32_t depth;
+    };
+    std::vector<Limb> queue;
+    std::vector<Limb> next;
+
+    const uint32_t majors = p.majors_min
+        + static_cast<uint32_t>(rng.unit()
+                                * static_cast<float>(p.majors_max - p.majors_min + 1));
+    const uint32_t n_major = std::clamp(majors, p.majors_min, p.majors_max);
+
+    // THE FIRST ORDER IS SIZED FROM THE SPREAD IT HAS TO COVER, not chosen.
+    // A limb bends upward as it goes, so its HORIZONTAL reach is less than its
+    // length; summing the geometric series of the decaying children gives the
+    // total run, and length0 is solved from it. Getting this from a number
+    // typed by hand is how a tree ends up with a 30 m crown brief and a 12 m
+    // crown (the pine's own history, NUMBERS: crown_width_frac "calibrated
+    // against the built tree").
+    float chain = 0.0f;
+    float f = 1.0f;
+    for (uint32_t d = 0; d <= p.depth; ++d) {
+        chain += f;
+        f *= p.length_decay;
+    }
+    const float horizontal_fraction = std::max(0.35f, std::sin(p.major_pitch));
+    const float length0 = (chain > 1e-3f)
+        ? p.spread_target / (chain * horizontal_fraction)
+        : p.length0;
+
+    // A deterministic azimuth offset per tree: two great oaks with the same
+    // limb count must still not be the same tree.
+    const float az0 = rng.unit() * TAU_F;
+    // ASYMMETRY IS PER-LIMB AND LARGE. Equal limbs give a rotationally
+    // symmetric dome; the user asked for two-lobed, elliptical AND "many
+    // different", and the difference between those outcomes IS the spread of
+    // this multiplier. A tree whose limbs differ by 40 % reads as an individual.
+    for (uint32_t k = 0; k < n_major; ++k) {
+        const float az = az0 + TAU_F * static_cast<float>(k) / static_cast<float>(n_major)
+            + rng.sym() * (0.9f / static_cast<float>(n_major));
+        const float pitch = p.major_pitch + rng.sym() * p.pitch_jitter;
+        const glm::vec3 dir = norm_or({std::cos(az) * std::sin(pitch), std::cos(pitch),
+                                       std::sin(az) * std::sin(pitch)},
+                                      {0.0f, 1.0f, 0.0f});
+        queue.push_back(Limb{root, dir, length0 * (0.78f + rng.unit() * 0.55f), 0});
+    }
+
+    for (uint32_t depth = 0; depth <= p.depth; ++depth) {
+        // FEWER NODES PER LIMB AS THE LIMBS GET SMALLER, and this is a budget
+        // rule rather than a botanical one: limb COUNT grows geometrically with
+        // depth, so a constant node count per limb spends the whole budget on
+        // the twigs and runs out before the far side of the tree is grown —
+        // which does not look like a cheap tree, it looks like a broken one.
+        // A first-order limb is 14 m long and needs to curve; a fifth-order one
+        // is 2 m and does not.
+        const int seg_count =
+            std::max(1, static_cast<int>(p.segments_per_limb) - static_cast<int>(depth));
+        next.clear();
+        for (const Limb& limb : queue) {
+            if (sk.nodes.size() >= p.max_nodes) break;
+            // Walk the limb in a few steps so it CURVES: a straight segment per
+            // order is a lightning bolt, and the thing that makes an oak limb
+            // read as an oak limb is that it bends up as it goes out.
+            int cur = limb.node;
+            glm::vec3 dir = limb.dir;
+            const float step = limb.len / static_cast<float>(seg_count);
+            for (int s = 0; s < seg_count; ++s) {
+                // Gravity pulls the tip down, light pulls it up, and the wind
+                // lean drifts the whole crown. One vector, as in colonize().
+                const float up = p.phototropism - p.droop * static_cast<float>(depth + 1);
+                dir = norm_or(dir + glm::vec3{p.lean.x, up, p.lean.y} * 0.30f
+                                  + glm::vec3{rng.sym(), rng.sym() * 0.4f, rng.sym()}
+                                      * 0.10f,
+                              dir);
+                SkeletonNode n;
+                n.pos = sk.nodes[static_cast<size_t>(cur)].pos + dir * step;
+                n.parent = cur;
+                n.order = static_cast<uint8_t>(std::min<uint32_t>(255u, depth + 1u));
+                sk.nodes.push_back(n);
+                ++sk.nodes[static_cast<size_t>(cur)].children;
+                cur = static_cast<int>(sk.nodes.size()) - 1;
+            }
+            if (depth == p.depth) {
+                // Terminal tip: this is where foliage may hang, and it names its
+                // own node, so the attachment invariant holds here too.
+                sk.leaf_sites.push_back(sk.nodes[static_cast<size_t>(cur)].pos);
+                sk.leaf_anchor.push_back(cur);
+                continue;
+            }
+            const uint32_t kids = p.children_min
+                + static_cast<uint32_t>(rng.unit()
+                                        * static_cast<float>(p.children_max
+                                                             - p.children_min + 1));
+            const uint32_t n_kids = std::clamp(kids, p.children_min, p.children_max);
+            const glm::vec3 side = norm_or(glm::cross(dir, glm::vec3{0.0f, 1.0f, 0.0f}),
+                                           glm::vec3{1.0f, 0.0f, 0.0f});
+            const glm::vec3 up = glm::cross(side, dir);
+            for (uint32_t c = 0; c < n_kids; ++c) {
+                const float roll = GOLDEN_ANGLE_F * static_cast<float>(c)
+                    + rng.sym() * 0.5f + static_cast<float>(depth) * 1.1f;
+                const float open = p.pitch_spread + rng.sym() * p.pitch_jitter;
+                const glm::vec3 cdir =
+                    norm_or(dir + (side * std::cos(roll) + up * std::sin(roll))
+                                      * std::tan(std::clamp(open, 0.10f, 1.20f)),
+                            dir);
+                next.push_back(Limb{cur, cdir,
+                                    limb.len * p.length_decay * (0.80f + rng.unit() * 0.45f),
+                                    depth + 1});
+            }
+        }
+        queue.swap(next);
+        if (queue.empty()) break;
+    }
+    // Anything still queued when the node budget ran out is a live tip too:
+    // dropping it would leave a branch with no foliage on it, which is the one
+    // failure mode this file exists to prevent, arriving from the other side.
+    for (const Limb& limb : queue) {
+        sk.leaf_sites.push_back(sk.nodes[static_cast<size_t>(limb.node)].pos);
+        sk.leaf_anchor.push_back(limb.node);
     }
 }
 

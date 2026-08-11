@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 10:08:2026 - 02:49:15
+Last updated: 12:08:2026 - 00:20:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -36,6 +36,9 @@ UPD:
 - 10:08:2026 - 02:49:15: Design's acceptance asks: MOSS_TONE_B and the
   GRASS_BAND_REFERENCE proxy — every moss tone asserted a readable step below
   the grass band.
+- 12:08:2026 - 00:20:00: GreatOak, CrownEnvelope::GreatCrown, the crown
+  allometry / width-jitter fields, the fractal-grower parameter block, the
+  climbing-furniture counts, and flora_control_arm().
 */
 
 #pragma once
@@ -82,8 +85,17 @@ enum class FloraSpecies : uint8_t {
     FlowerUmbel = 15,   ///< (d) pale umbel — water margins, birch's ground echo
     Mushroom = 16,      ///< caps; placement rings/clumps via mushroom_ring_offsets
     PebbleCluster = 17, ///< small stones; path borders and scree texture
+    /// THE GREAT OAK (user request 11.08.2026). A separate class, not DaleOak
+    /// with a large maturity, and the difference is structural rather than one
+    /// of degree: its branches are grown by RECURSIVE RAMIFICATION so the tree
+    /// reads as a structure; its lower crown's radius equals its own height;
+    /// people live in it, so it carries stair treads and platforms. Design's
+    /// §5.8 ruling that "the Elder Oak IS the giant tier — one system, not two"
+    /// was made about a tree that differed only in SIZE and it was right about
+    /// that tree. This one differs in what it is made of.
+    GreatOak = 18,
 };
-inline constexpr uint8_t FLORA_SPECIES_COUNT = 18;
+inline constexpr uint8_t FLORA_SPECIES_COUNT = 19;
 
 /// The silhouette intent. Branch target lengths are clipped to this envelope so
 /// the species read at SILHOUETTE_MIN_PX is GUARANTEED rather than emergent —
@@ -94,6 +106,11 @@ enum class CrownEnvelope : uint8_t {
     Cone,    ///< pine: narrow triangle, stacked tiers
     Vase,    ///< birch: narrow below, opening above
     Weeping, ///< willow: wide shoulder, falling skirt
+    /// great oak: widest at the BOTTOM of the crown and doming over. The user's
+    /// rule is «нижняя часть кроны в радиусе равна высоте» — a crown whose
+    /// widest ring is its lowest one is the shape that statement describes, and
+    /// it is not reachable by widening Sphere (which closes at both ends).
+    GreatCrown,
     None,    ///< snag / log / deadfall: no foliage at all
 };
 
@@ -139,6 +156,24 @@ struct SpeciesParams {
     // --- crown envelope -----------------------------------------------------
     float crown_base_frac = 0.40f;   ///< foliage starts here (CROWN_BASE_FRACTION_*)
     float crown_width_frac = 0.45f;  ///< crown DIAMETER / height
+    /// CROWN ALLOMETRY (user request 11.08.2026: «большую часть деревьев
+    /// сделать шире, но мелкие также добавить»). Crown diameter does not scale
+    /// with height: D = D_nominal * maturity^exp while H = H_nominal * maturity,
+    /// so the WIDTH-TO-HEIGHT ratio moves as maturity^(exp-1).
+    ///
+    /// Above 1 by measurement, not by taste. A broadleaf's height growth stops
+    /// decades before its crown stops spreading — that is why a veteran oak is
+    /// famously broader than tall while a pole-stage oak of the same species is
+    /// not. Setting exp > 1 is the single lever that makes the user's two
+    /// clauses one rule instead of two: the giants get much wider and the
+    /// saplings stay narrow, so the SPREAD widens rather than the mean sliding.
+    /// 1.0 = width proportional to height (conifers: a spruce really does hold
+    /// its ratio, and a wide spruce is not a spruce).
+    float crown_allometry_exp = 1.0f;
+    /// Half-width of the per-instance crown-width draw, as a fraction. Width
+    /// gets its OWN random axis: two trees of the same height that are also the
+    /// same width read as one asset used twice, and that is the complaint.
+    float crown_width_jitter = 0.0f;
 
     /// False for bushes: they have no branch skeleton worth growing, they ARE
     /// their foliage. Everything else grows a crown.
@@ -165,6 +200,30 @@ struct SpeciesParams {
     /// well under the foliage line, and a crown that begins exactly where the
     /// branches begin is the palm silhouette. Foliage still obeys crown_base.
     float branch_base_frac = 0.34f;
+
+    // --- branching: FRACTAL (the great oak) ---------------------------------
+    // The third growth model (FloraSkeleton.h, fractal_skeleton). Zero here for
+    // every species that does not use it.
+    uint8_t fractal_depth = 0;       ///< 0 = species does not grow fractally
+    uint8_t fractal_majors_min = 2;  ///< first-order limbs; 2 = two-lobed
+    uint8_t fractal_majors_max = 5;  ///< 5 = broad dome. The silhouette variety
+    uint8_t fractal_children_min = 2;
+    uint8_t fractal_children_max = 3;
+    float fractal_major_pitch = 0.95f;  ///< rad from vertical, first order
+    float fractal_pitch_spread = 0.45f; ///< rad, divergence per fork
+    float fractal_length_decay = 0.72f;
+    /// THE USER'S GREAT-OAK RULE, as one number: lower-crown RADIUS divided by
+    /// tree height. 1.0 means a 40 m oak carries an 80 m wide crown — «редкие и
+    /// очень большие как горы». It replaces crown_width_frac for fractal
+    /// species precisely because it is stated as a radius and against HEIGHT,
+    /// and re-expressing it as a diameter fraction is where a factor of two
+    /// goes missing.
+    float crown_radius_per_height = 0.0f;
+    /// Climbable furniture: stair treads up the bole and platforms at the major
+    /// forks. GEOMETRY ONLY — this zone hands over shapes at usable heights and
+    /// spacings; collision, habitation and ladders belong to sim/core/design.
+    uint8_t climb_steps = 0;      ///< treads spiralling up the bole (0 = none)
+    uint8_t climb_platforms = 0;  ///< decks at the first-order forks
 
     // --- branching: WHORLS (conifers) ---------------------------------------
     // A WHORL IS A YEAR (flora_algorithms.md §3.2). Spacing is the year's height
@@ -270,6 +329,18 @@ inline constexpr float MOSS_TONE_B = 1.18f;
 /// registry row — when render's grass colour lands in NUMBERS.md, this reads
 /// it and the literal dies (Rule 14; flagged in the Task 4 grass report).
 inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
+
+/// THE ZERO-DOSE CONTROL ARM (Rule 30/48), and it lives here because three
+/// files have to agree about it. `DFN_FLORA_CONTROL=1` puts the flora zone back
+/// to its 11.08.2026 behaviour — flat maturity from core's scatter scale, no
+/// crown allometry, no per-instance width draw, no wind lean, the old
+/// mid-crown-widest envelope profile — WITHOUT rebuilding.
+///
+/// A rebuilt binary is not the same control: it also changes the terrain seed
+/// stamp, the shader set, and everything else that moved in between, so a
+/// BEFORE/AFTER pair taken across a rebuild answers "did anything change" and
+/// not "did THIS change". One binary, one pose, one variable.
+[[nodiscard]] bool flora_control_arm();
 
 /// The catalog. Stable reference for the process lifetime.
 [[nodiscard]] const SpeciesParams& species_params(FloraSpecies species);
