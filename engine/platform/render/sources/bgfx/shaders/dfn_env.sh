@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 11:08:2026 - 14:24:26
+Last updated: 11:08:2026 - 14:40:43
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -85,6 +85,14 @@ UPD:
   layer, optical depth peaks at the layer's TOP edge and falls again above it,
   because a higher surface is seen at a steeper angle and a steeper ray spends
   less length inside a horizontal slab.
+- 11:08:2026 - 14:40:43: dfn_cloud_field3 — the SAME field construction read in 3D, for the
+  horizon cumulus (R3.1). Its own measured mean/SD 0.5000/0.1185 against the
+  2D pair's 0.4980/0.1368: reusing the 2D constants would have re-run Rule 31,
+  since the sum is Gaussian and the remap is its own CDF. Needed because the
+  band read the field as a function of AZIMUTH ALONE, which made the silhouette
+  single-valued — no hole was possible in it — and inverting a squared
+  threshold gave vertical sides under a flat top, i.e. a mushroom cap.
+  OWED: no CPU reference in CloudModel.cpp and no test yet, unlike the 2D field.
 */
 
 #ifndef DFN_ENV_SH
@@ -252,6 +260,59 @@ float dfn_cloud_field(vec2 p, float cells_px)
               + (dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) - 0.5) * 0.28 * l1
               + (dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) - 0.5) * 0.17 * l2;
     float z = (raw - DFN_CLOUD_FIELD_MEAN) / DFN_CLOUD_FIELD_SD;
+    return 1.0 / (1.0 + exp(-1.702 * z)); // logistic ~= the normal CDF
+}
+
+// --- THE FIELD IN 3D, for the horizon cumulus (R3) -------------------------
+// SAME construction, SAME octave weights, SAME CDF remap — and its OWN mean and
+// SD, because they are not the 2D ones. Measured over 400k samples the 3D sum
+// sits at mean 0.5000 / sd 0.1185 against 2D's 0.4980 / 0.1368: reusing the 2D
+// pair would have re-run Rule 31 exactly (the sum is Gaussian, the remap is its
+// own CDF, and a wrong SD makes `cover` mean something other than coverage).
+//
+// WHY 3D AT ALL, which is the whole cumulus fix. The band used to threshold a
+// field of AZIMUTH ALONE against a height-rising threshold. For a fixed azimuth
+// that makes alpha monotone in height, so the silhouette was a single-valued
+// function of azimuth: one contiguous mass from the base upward, no holes, no
+// overlap, ever — provably, not incidentally. And solving T(hn) = F for a
+// squared threshold gives hn ~ sqrt(F), which has a VERTICAL tangent where a
+// lobe crosses the threshold and a FLAT top at the lobe's peak. Vertical sides
+// plus a flat top is a MUSHROOM CAP, and that is what the lead saw sitting on
+// the horizon. Neither exponent fixes it — linear was tried before and gave
+// straight-sided tents — because the defect is the dimensionality, not the
+// curve. Sampled in 3D the masses get holes, overhangs and separate towers,
+// which is also what R3 asks for.
+#define DFN_CLOUD_FIELD3_MEAN 0.5000
+#define DFN_CLOUD_FIELD3_SD   0.1185
+
+float dfn_cloud_hash3(vec3 c)
+{
+    return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float dfn_cloud_vnoise3(vec3 p)
+{
+    vec3 c = floor(p);
+    vec3 f = p - c;
+    f = f * f * (3.0 - 2.0 * f);
+    float x00 = mix(dfn_cloud_hash3(c + vec3(0.0, 0.0, 0.0)),
+                    dfn_cloud_hash3(c + vec3(1.0, 0.0, 0.0)), f.x);
+    float x10 = mix(dfn_cloud_hash3(c + vec3(0.0, 1.0, 0.0)),
+                    dfn_cloud_hash3(c + vec3(1.0, 1.0, 0.0)), f.x);
+    float x01 = mix(dfn_cloud_hash3(c + vec3(0.0, 0.0, 1.0)),
+                    dfn_cloud_hash3(c + vec3(1.0, 0.0, 1.0)), f.x);
+    float x11 = mix(dfn_cloud_hash3(c + vec3(0.0, 1.0, 1.0)),
+                    dfn_cloud_hash3(c + vec3(1.0, 1.0, 1.0)), f.x);
+    return mix(mix(x00, x10, f.y), mix(x01, x11, f.y), f.z);
+}
+
+float dfn_cloud_field3(vec3 p)
+{
+    float raw = 0.5
+              + (dfn_cloud_vnoise3(p) - 0.5) * 0.55
+              + (dfn_cloud_vnoise3(p * 2.03 + vec3(17.0, 31.0, 7.0)) - 0.5) * 0.28
+              + (dfn_cloud_vnoise3(p * 4.07 + vec3(47.0, 89.0, 23.0)) - 0.5) * 0.17;
+    float z = (raw - DFN_CLOUD_FIELD3_MEAN) / DFN_CLOUD_FIELD3_SD;
     return 1.0 / (1.0 + exp(-1.702 * z)); // logistic ~= the normal CDF
 }
 

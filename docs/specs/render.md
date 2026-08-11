@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 11:08:2026 - 14:23:04-->
+Last updated: 11:08:2026 - 14:39:40-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -187,6 +187,15 @@ UPD:
   +0.00 above — a BUMP, which no R1 setting can produce. The `profile`
   instrument's first version passed its own control by running off the peak into
   sky; fourth instance of this file's rule, fixed by differencing.
+- 11:08:2026 - 14:39:40: R3.1 — THE HORIZON DOMES REMOVED. Cause was dimensionality: the band
+  read the field as a function of AZIMUTH ALONE, so the silhouette was
+  single-valued and could not hold a hole, and inverting a squared threshold
+  gave vertical sides under a flat top — a mushroom cap. Now read in 3D on the
+  ring (dfn_cloud_field3, its OWN measured mean/SD 0.5000/0.1185 — the 2D pair
+  would have re-run Rule 31), threshold back to linear. Measured: columns with a
+  hole 0 -> 11, and zero was the structural prediction. Owed: no CPU reference
+  or test for the 3D field yet. Flagged: the elevated sky vantage now sits
+  inside the mist band.
 -->
 
 # Spec — render agent
@@ -1587,6 +1596,62 @@ something that was not its subject — after `standout` segmenting by colour,
 `contour` walking into the rock, and `bands` finding the splat's dither.
 Measuring against the control cures it structurally: the sky is identical in both
 arms and subtracts to zero, so only the layer survives.
+
+## R3.1 — THE HORIZON DOMES, WHICH WERE A BUG AND NOT A STYLE
+
+The lead's report on the shipped vista: half a dozen hemispherical caps sitting
+on the horizon like mushroom tops. His reading is the right one — a flat cloud
+reads as a stylistic choice, a dome reads as breakage.
+
+**The cause was DIMENSIONALITY, not tuning.** The band read the coverage field
+on a ring at a fixed distance, so `F` was a function of AZIMUTH ALONE, and the
+threshold rose with height. For a fixed azimuth that makes alpha monotone in
+height: the silhouette was a single-valued function of azimuth, so **no hole and
+no overlap was POSSIBLE anywhere in it, provably rather than incidentally.**
+Then solving `T(hn) = F` for a squared threshold gives `hn ~ sqrt(F)` — a
+vertical tangent where a lobe crosses the threshold, and a flat top at the lobe's
+peak. Vertical sides under a flat top is a mushroom cap. The previous pass had
+already tried the linear exponent and got straight-sided tents; both are
+symptoms of inverting a 1-D function, which is why neither exponent could win.
+
+**Fix:** read the field in 3D at the point where the view ray meets the ring —
+ring position horizontally (continuous all the way round, no azimuth seam),
+altitude vertically, stretched by `CUMULUS_VERTICAL_STRETCH` 1.6 so one field
+cell is about one band tall and 1.6x wider, the proportion a real fair-weather
+cumulus has. The threshold goes back to linear, because in 3D the shape comes
+from the field instead of from the inversion.
+
+`dfn_cloud_field3` reuses the octave weights and the CDF remap of the 2D field
+and **its own mean and SD**: measured over 400k samples the 3D sum is
+0.5000 / **0.1185** against 2D's 0.4980 / 0.1368. Reusing the 2D pair would have
+re-run Rule 31 exactly — the sum is Gaussian, the remap is its own CDF, and a
+wrong SD makes `cover` mean something other than coverage.
+
+**Measured** (`runs` mode, cumulus band y160..204, mask b-r <= 5):
+
+| | columns with cloud | of those, with a HOLE | cloud fraction |
+|---|---|---|---|
+| BEFORE | 196 | **0 (0.0 %)** | 17.6 % |
+| AFTER | 363 | **11 (3.0 %)** | 13.5 % |
+
+Zero is not a small number here, it is the structural prediction: a single-valued
+skyline cannot have a hole. Any positive count proves the silhouette stopped
+being one. The band also went BROADER and THINNER — 363 columns carrying cloud
+against 196, on less total cloud — which is the "nearly continuous along the
+horizon, varying in how much survives with height" the code always claimed.
+
+**Owed:** `CloudModel.cpp` carries the CPU reference for the 2D field and
+`CloudModelTests.cpp` asserts its constants. The 3D field has no CPU reference
+and no test yet; its two constants come from a scratch measurement recorded in
+the shader. That is a real gap, not a footnote.
+
+**A consequence to flag rather than fix:** the tour's elevated sky vantage sits
+at ground+70 m = 84.3 m, and `MIST_BAND` spans 54-86 m — so that standpoint is
+now INSIDE the mist layer and its frames are milky. Physically right (you are
+standing in it) but it makes that vantage a poor acceptance viewpoint for
+anything else, and it is a hint that 70 m may be low for a world whose vantages
+reach 100 m. Not touched: the lead's instruction was to leave the knob alone
+until R3 is done.
 
 ### Acceptance
 

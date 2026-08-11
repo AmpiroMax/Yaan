@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Created: 11:08:2026 - 13:32:12
-Last updated: 11:08:2026 - 14:21:34
+Last updated: 11:08:2026 - 14:37:49
 Module: tools
 File: tools/measure_aerial.py
 
@@ -84,6 +84,13 @@ UPD:
   passed. Fourth instance of the file's own rule. The difference profile is
   immune: sky is identical in both arms and subtracts away, leaving the
   layer's bump — zero at the hem, a maximum partway up, zero above.
+- 11:08:2026 - 14:35:17: `runs` mode for R3 — columns carrying two or more separate runs of
+  cloud. A silhouette that is a single-valued function of azimuth scores
+  exactly zero by construction, so this tells a skyline from a bank.
+- 11:08:2026 - 14:37:49: `runs` mask switched from BRIGHTNESS to NEUTRALITY, after the
+  brightness version called 80 % of the box cloud in BOTH arms — the pale
+  horizon sky is brighter than a cumulus base. Measured: cumulus come back
+  at b-r = 0, sky and the thin sheet at +11..+66.
 """
 
 import sys
@@ -371,6 +378,50 @@ def main(argv):
               f"= {m['steps_p05']:5.2f} steps   median {m['median']:6.2f} "
               f"= {m['steps_median']:5.2f} steps")
         print(f"  H1 {'PASS' if m['steps_min'] >= 2.0 else 'FAIL'} on the minimum")
+        return
+
+    if len(argv) > 1 and argv[1] == "runs":
+        # R3 — DOES THE CLOUD BAND HAVE HOLES? A silhouette that is a
+        # single-valued function of azimuth has, per column, exactly ONE run of
+        # cloud reaching down to its base: no hole can exist above it, ever, by
+        # construction rather than by luck. Counting columns with TWO OR MORE
+        # runs therefore separates "a skyline" from "a bank of cloud with sky
+        # behind it", and a mushroom-cap band scores exactly zero.
+        #
+        # THE MASK IS NEUTRALITY, NOT BRIGHTNESS, and that is measured rather
+        # than assumed: sampled down a column, the cumulus come back at b-r = 0
+        # exactly while the horizon sky and the thin sheet above it sit at
+        # b-r = +11..+66. A luma threshold does not work here at all — the pale
+        # horizon sky is BRIGHTER than the shaded base of a cumulus, so it
+        # classified 80 % of the box as cloud in both arms and the metric said
+        # nothing. (Fifth time in this file: the first classifier was not
+        # looking at the subject.) Neutrality picks out FULLY OPAQUE cloud,
+        # which is what a mass is; the half-blended sheet keeps its blue.
+        w, h, ch, px = read_png(argv[2])
+        x0, y0, x1, y1 = parse_box(argv[3])
+        thr = float(argv[4]) if len(argv) > 4 else 5.0
+        cols = {0: 0, 1: 0, 2: 0}
+        cloud_px = total_px = 0
+        for x in range(max(0, x0), min(w, x1)):
+            runs, prev = 0, False
+            for y in range(max(0, y0), min(h, y1)):
+                i = (y * w + x) * ch
+                cur = (px[i + 2] - px[i]) <= thr
+                if cur and not prev:
+                    runs += 1
+                cloud_px += 1 if cur else 0
+                total_px += 1
+                prev = cur
+            cols[min(runs, 2)] += 1
+        n = sum(cols.values())
+        occupied = cols[1] + cols[2]
+        print(f"{Path(argv[2]).name}  CLOUD RUNS per column (mask: b-r <= {thr:.0f})")
+        print(f"  columns {n}:  empty {cols[0]}   one run {cols[1]}   "
+              f"TWO OR MORE {cols[2]}")
+        print(f"  of the {occupied} columns that carry cloud, "
+              f"{100.0 * cols[2] / max(occupied, 1):.1f} % have a HOLE")
+        print(f"  cloud fraction {100.0 * cloud_px / max(total_px, 1):.1f} % "
+              f"(the confound -- arms comparable only while this holds)")
         return
 
     if len(argv) > 1 and argv[1] == "profile":
