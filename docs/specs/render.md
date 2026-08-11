@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 11:08:2026 - 14:47:30-->
+Last updated: 11:08:2026 - 14:52:34-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -202,6 +202,12 @@ UPD:
   worst coverage error, not a catastrophe — but loses a third of the cloud at
   cover 0.05, the sparse end where cumulus live. Spec corrected to match.
 
+- 11:08:2026 - 14:52:34: R2 band height DERIVED, and the two constraints DO NOT CONVERGE:
+  above the world's highest vantage (99.6 m) and below the crown (135 m) leaves
+  a 1 m crown. Constraint 1 is the wrong one — the reference observer is in
+  clear air because he is in a VALLEY. Player vantages top out at 25.44 m and
+  the shipped 70 m already clears them by 28 m. The SKY PROBE was the fault: it
+  stood 1.6 m inside the layer. Pinned to the band constants at 106 m.
 -->
 
 # Spec — render agent
@@ -1672,6 +1678,60 @@ standing in it) but it makes that vantage a poor acceptance viewpoint for
 anything else, and it is a hint that 70 m may be low for a world whose vantages
 reach 100 m. Not touched: the lead's instruction was to leave the knob alone
 until R3 is done.
+
+## R2 — THE BAND'S HEIGHT, DERIVED. THE TWO CONSTRAINTS DO NOT CONVERGE.
+
+Asked to derive the band height from two constraints — the layer must sit above
+the highest legal vantage, and it must cut the massif between foot and crown —
+and to report rather than fudge if they disagree. **They disagree.**
+
+Every vantage in the world, measured rather than assumed (all four probe sets):
+
+| vantage | eye, m | |
+|---|---|---|
+| river_ford | 14.42 | player |
+| lake_bluff | 16.35 | player |
+| crag_final_approach | 20.36 | player |
+| forest_species | 20.78 | player |
+| hamlet_approach | 21.96 | player |
+| crag_from_vaelmere | 23.23 | player |
+| massif_verdict | **25.44** | player — the highest |
+| sky | 84.43 | inspection camera |
+| overview / cloud_shadows_valley / cumulus_upwind | **99.62** | inspection camera |
+
+Massif: foot ~20 m, crown ~135 m (`L0_RELIEF` 115).
+
+**Taking constraint 1 at the world's highest vantage, 99.62 m:** the band bottom
+must clear ~102 m, and the crown is at 135 m. That leaves 33 m for a band that
+must ALSO leave a readable crown beneath 135 m. At the current 32 m thickness the
+crown would be **1 m tall** — the layer becomes a cap on the summit, which is
+this spec's own named reject ("a band that leaves no crown is just fog").
+Irreconcilable, and not narrowly: the highest vantage sits 69 % of the way up
+the massif's own relief.
+
+**The finding is that constraint 1 is wrong.** Standing inside mist at
+mid-altitude is correct physics, not a defect. In references 02/04/12 the
+observer is in clear air because the observer is standing in a **valley**, not
+because the layer floats above every standpoint in the world. A layer at a fixed
+altitude that no one can ever walk into is a contradiction in terms — and a
+player climbing this massif *should* pass up through it and out onto a clear
+crown, which is the second thing reference 12 shows.
+
+Restated against the vantages players actually occupy, the constraints converge
+easily and **the shipped 70 m already satisfies them**: highest player eye
+25.44 m, band bottom 54 m — 28 m of clear air — band top 86 m, crown 86..135 m,
+49 m of it, 42 % of the relief.
+
+**So the camera moved, not the world.** The sky probe stood at ground+70 =
+84.43 m against a band of 54..86 m: **1.6 m inside the layer**, which is the
+entire reason its frames came back milky. It is now pinned to
+`MIST_BAND_HEIGHT + THICKNESS/2 + 20` = 106 m, absolute rather than
+ground-relative so it cannot drift when those constants move.
+
+Frames: `render-mist-R2-eye-INSIDE-band-84m.png` against
+`render-mist-R2-eye-ABOVE-band-106m-*.png`. The second shows both halves of what
+was asked in one image — the observer's air is clear, and the massif is cut, its
+base buried in the layer and its crown standing dark against the sky.
 
 ### Acceptance
 

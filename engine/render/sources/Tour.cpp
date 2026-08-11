@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 11:08:2026 - 14:10:10
+Last updated: 11:08:2026 - 14:51:20
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -89,6 +89,12 @@ UPD:
   cannot support a claim about how much air stood in front of it. It is also
   what measured the valley floor (9.7-23.3 m over seven vantages) behind
   NUMBERS' HAZE_BASE_HEIGHT.
+- 11:08:2026 - 14:51:20: THE SKY PROBE WAS STANDING INSIDE THE MIST BAND — ground+70 resolved
+  to 84.43 m against a band spanning 54-86 m, so it was 1.6 m inside and every
+  sky frame came back milky. Eye pinned ABOVE the band and derived from
+  MIST_BAND_HEIGHT/_THICKNESS, absolute rather than ground-relative. The band
+  itself is not moved: the seven vantages a player occupies top out at 25.44 m,
+  well under the layer, and being inside mist at mid-altitude is correct.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -344,7 +350,25 @@ std::vector<TourStep> Tour::sky_probe_steps() {
             pitch = parsed;
         }
     }
-    return {{"sky", {pos.x, 70.0f, pos.y}, yaw, pitch, 90, true}};
+    // THE EYE IS PINNED ABOVE THE MIST BAND, and it is ABSOLUTE rather than
+    // ground-relative on purpose. At ground+70 this vantage resolved to 84.43 m
+    // and the band spans 54-86 m, so the camera stood 1.6 m INSIDE the layer and
+    // every sky frame it shot came back milky. The lead read that milkiness as
+    // the band being too low; it is not, and the derivation says so. Two
+    // constraints were proposed: the layer must sit above the observer, and it
+    // must cut the massif leaving a crown. With the highest vantage in the world
+    // at 99.6 m and the crown at 135 m they leave 33 m for a band that must also
+    // leave a readable crown -- they DO NOT CONVERGE, and the reason is that the
+    // first constraint is wrong. Standing inside mist at mid-altitude is correct
+    // physics; in the reference frames the observer is in clear air because the
+    // observer is in a VALLEY. The seven vantages a player actually occupies top
+    // out at 25.44 m, comfortably below the layer. So the camera moves, not the
+    // world. Derived from the band constants so it cannot silently drift when
+    // they change.
+    const float eye_y = static_cast<float>(config::MIST_BAND_HEIGHT)
+                        + 0.5f * static_cast<float>(config::MIST_BAND_THICKNESS)
+                        + 20.0f; // clear-air margin
+    return {{"sky", {pos.x, eye_y, pos.y}, yaw, pitch, 90, false}};
 }
 
 std::vector<TourStep> Tour::cloud_probe_steps() {
