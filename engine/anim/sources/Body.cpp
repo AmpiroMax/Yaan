@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 11:08:2026 - 13:51:09
+Last updated: 11:08:2026 - 15:18:52
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -30,6 +30,15 @@ UPD:
   defaults. A no-op today (the puppet's rotation is never written) and NOT a
   bug fix -- it is the line that stops being a no-op silently on the day it
   is, which is exactly how PreviousCameraPose::fov_scale arrived.
+- 11:08:2026 - 15:18:52: THE ALT LEAN (the user's «словно я шеей вперед двигаю»,
+  three days old). BodyDrive::run_weight now PUBLISHES gait_fade(speed) *
+  gear_weight -- the lean the trunk is actually drawn with -- instead of the
+  eased gear alone. The trunk's lean was already gated by the idle->gait fade
+  through the blend; the eye's, ferried to sim's camera, was not, so holding
+  LEFT_ALT while STANDING STILL moved the camera 66.376 mm forward and
+  7.166 mm down against a body that did not move at all. After: 0.007 mm,
+  which is the zero-dose arm's own number to the last digit.
+  docs/FINDING_CROUCH_AND_ALT_LEAN.md.
 */
 
 #include "engine/anim/sources/Body.h"
@@ -67,6 +76,19 @@ constexpr float JUMP_AIR_S = 0.8f;
 constexpr float JUMP_LAND_S = 0.45f;
 
 [[nodiscard]] float fract(float v) { return v - std::floor(v); }
+
+// ARE THE FEET MOVING AT ALL — the fade out of idle, and the ONE copy of it.
+// It gates the whole gait layer (trunk lean included) in evaluate_body_pose,
+// and update_bodies multiplies the published `run_weight` by it so the EYE
+// cannot lean by a number the trunk is not leaning by. Two copies of this
+// expression is what let a standing player's camera lunge forward on a key
+// press while his body stood upright (docs/FINDING_CROUCH_AND_ALT_LEAN.md) —
+// except there the second copy was not a copy at all, it was a MISSING factor,
+// which is the same defect with nothing to grep for.
+[[nodiscard]] float gait_fade(float speed_mps) {
+    const auto walk_speed = static_cast<float>(config::WALK_SPEED);
+    return std::clamp(speed_mps / (GAIT_FULL_AT_FRAC * walk_speed), 0.0f, 1.0f);
+}
 
 // The showcase double walks "in the air": its phase comes from the CLIP TIME
 // axis, not from a second gameplay stride clock — there is no displacement to
@@ -166,13 +188,16 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
     // (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED), which silently turned
     // jog into a walk leaning 0.286 toward run the day JOG_SPEED 3.0 landed
     // between the two rows the line interpolated across (Rule 37).
-    const auto walk_speed = static_cast<float>(config::WALK_SPEED);
-    const float gait_w =
-        std::clamp(drive.speed_mps / (GAIT_FULL_AT_FRAC * walk_speed), 0.0f, 1.0f);
+    const float gait_w = gait_fade(drive.speed_mps);
     // THE EASED weight, not gait_run_weight(gait) — update_bodies advances it,
     // and the app hands the SAME float to eye_lean_offset so the eye and the
     // trunk lean together at every instant of a transition (see BodyDrive).
-    const float run_w = drive.run_weight;
+    //
+    // `gear_weight`, NOT the published `run_weight`: everything inside
+    // gait_pose is already scaled by `gait_w` through the blend below, and
+    // `run_weight` is exactly that product. Passing the product here would
+    // square the fade and quietly straighten the trunk at low speed.
+    const float run_w = drive.gear_weight;
     LocalPose pose = idle_pose(drive.anim_time_s);
     if (gait_w > 0.0f) {
         pose = blend(pose,
@@ -264,8 +289,17 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         drive.land_dip = std::max(0.0f, drive.land_dip - LAND_DIP_DECAY_PER_S * dt);
         // The gear blend: one eased number, read by the trunk here and by
         // sim's camera through the app's ferry.
-        drive.run_weight += (gait_run_weight(drive.gait) - drive.run_weight)
-                          * (1.0f - std::exp(-dt / GAIT_BLEND_TIME_S));
+        drive.gear_weight += (gait_run_weight(drive.gait) - drive.gear_weight)
+                           * (1.0f - std::exp(-dt / GAIT_BLEND_TIME_S));
+        // THE PUBLISHED LEAN IS THE GEAR TIMES THE FADE, because that product
+        // is what the trunk is actually drawn with (evaluate_body_pose blends
+        // the gait layer in by the same fade). The app ferries THIS to sim's
+        // eye. Before 11:08:2026 it ferried the gear alone, so holding LEFT_ALT
+        // while standing still moved the camera 66.4 mm forward and 7.2 mm down
+        // against a body that did not move at all — measured against a
+        // zero-dose arm that reads 0.01 mm (Rule 48), and the user reported it
+        // as «словно я шеей вперед двигаю». docs/FINDING_CROUCH_AND_ALT_LEAN.md
+        drive.run_weight = gait_fade(drive.speed_mps) * drive.gear_weight;
         if (drive.showcase_clip != SHOWCASE_NONE) {
             drive.showcase_time_s += dt;
         }

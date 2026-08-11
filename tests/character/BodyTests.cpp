@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:34:24
+Last updated: 11:08:2026 - 15:18:52
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 10:08:2026 - 20:31:38: feet-before-chest INVERTED together with its control, now that sim's consumer makes the eye ride the lean: the order holds at every gear and the fixed eye is the case that must fail.
 - 10:08:2026 - 20:41:06: holding a gear is a real act now (spawn, step ticks, arrive), so the steady-state qualifier stops being vacuous; plus the anti-lurch outcome test with the step function as its control.
 - 10:08:2026 - 21:34:24: Rule 40 sweep — every epsilon on a difference (eased-weight residual, eye-offset arrival, mirror identities) replaced by explicit absolute bounds sized against MEASURED residuals, each at least 20x the residual so it cannot go red on correct code.
+- 11:08:2026 - 15:18:52: hold_gear() seeds BodyDrive::gear_weight (the ease's integrator), not the published run_weight: run_weight is now gait_fade(speed) * gear_weight and is rewritten every tick, so seeding it would have left every 'arrive from the furthest gear' case starting from zero and quietly not crossing the transition it exists to cross. docs/FINDING_CROUCH_AND_ALT_LEAN.md.
 */
 
 #include <doctest/doctest.h>
@@ -286,6 +287,11 @@ namespace {
     const auto owner = make_owner(world, {0.0f, 0.0f, 0.0f});
     spawn_body(world, owner, rig, /*hide_head=*/false);
     if (auto* seed = world.get<BodyDrive>(owner)) {
+        // THE INTEGRATOR, not the published product: `run_weight` is now
+        // gait_fade(speed) * gear_weight and update_bodies overwrites it every
+        // tick, so seeding it would leave the ease starting from 0 and this
+        // helper would quietly stop crossing the transition it exists to cross.
+        seed->gear_weight = gait_run_weight(from);
         seed->run_weight = gait_run_weight(from);
     }
     const int ticks =

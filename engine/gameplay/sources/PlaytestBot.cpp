@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 20:32:57
+Last updated: 11:08:2026 - 15:00:03
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -58,12 +58,24 @@ UPD:
                          record, so a forward stamp REORDERS history rather
                          than merely misdating a file (character2's catch,
                          independent of my own).
+- 11:08:2026 - 15:00:03: SCRIPTED KEYS (DFN_PLAYTEST_CROUCH / DFN_PLAYTEST_JOG
+                         / DFN_PLAYTEST_STILL). The bot could hold a GEAR but
+                         never PRESS A KEY at a known moment, so both of the
+                         user's open complaints — the crouch that "goes even
+                         lower" and the ALT that "moves my neck forward" — could
+                         only ever be measured in their SETTLED pose, which is
+                         the one shape a transition complaint is not about. See
+                         key_script() for the argument and
+                         docs/FINDING_RUN_SMEAR.md for what a settled instrument
+                         cost this project. Intents only, same path as a key.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>  // the scripted-key door rejects a malformed window LOUDLY
+#include <cstdlib> // std::getenv: the scripted-key door
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -168,6 +180,71 @@ bool record(PlaytestState& pt, const char* invariant, const glm::vec3& position,
     return {lo.x + (hi.x - lo.x) * u, lo.y + (hi.y - lo.y) * v};
 }
 
+// --- SCRIPTED KEYS (diagnostic door, off unless the variable is set).
+//
+// WHY THIS EXISTS. Two of the user's standing complaints are about a
+// TRANSITION — «присел, стало хуже, ещё ниже камера опустилась словно» and
+// «при нажатии кнопки option, словно я шеей вперед двигаю». A transition is a
+// DIFFERENCE BETWEEN FRAMES, and this project has already paid two days for
+// pointing a settled instrument at one (docs/FINDING_RUN_SMEAR.md). The bot
+// could hold a GEAR but could never PRESS A KEY at a known moment, so every
+// crouch measurement so far was of the settled pose — the one shape of the
+// posture the complaint is not about.
+//
+// It writes INPUT INTENTS ONLY, exactly like the steering above, so the press
+// travels the same path a human's key does (the header's contract).
+//
+//   DFN_PLAYTEST_CROUCH=<t0>:<t1>   hold LEFT_CONTROL for [t0, t1) sim-seconds
+//   DFN_PLAYTEST_JOG=<t0>:<t1>      hold LEFT_ALT for [t0, t1)
+//   DFN_PLAYTEST_STILL=1            no move input and no look: the ZERO-DOSE
+//                                   arm (Rule 48) — a lean that appears here
+//                                   appeared without any locomotion at all
+struct KeyScript {
+    bool parsed = false;
+    bool still = false;
+    bool has_crouch = false;
+    bool has_jog = false;
+    float crouch_from = 0.0f, crouch_to = 0.0f;
+    float jog_from = 0.0f, jog_to = 0.0f;
+};
+
+// LOUD on a malformed window, never a silent default: a run that scripted
+// nothing looks exactly like a run that scripted something and measured no
+// effect, which is the failure this repo has already been burned by twice on
+// the capture path.
+[[nodiscard]] bool parse_window(const char* name, const char* text, float& from, float& to) {
+    float a = 0.0f;
+    float b = 0.0f;
+    if (std::sscanf(text, "%f:%f", &a, &b) != 2 || !(b > a) || a < 0.0f) {
+        std::fprintf(stderr,
+                     "[playtest] %s=\"%s\" REJECTED (want <t0>:<t1> seconds, t1 > t0 >= 0); "
+                     "NOTHING WILL BE SCRIPTED THIS RUN\n",
+                     name, text);
+        return false;
+    }
+    from = a;
+    to = b;
+    return true;
+}
+
+[[nodiscard]] const KeyScript& key_script() {
+    static const KeyScript script = [] {
+        KeyScript s;
+        if (const char* c = std::getenv("DFN_PLAYTEST_CROUCH"); c != nullptr && *c != '\0') {
+            s.has_crouch = parse_window("DFN_PLAYTEST_CROUCH", c, s.crouch_from, s.crouch_to);
+        }
+        if (const char* j = std::getenv("DFN_PLAYTEST_JOG"); j != nullptr && *j != '\0') {
+            s.has_jog = parse_window("DFN_PLAYTEST_JOG", j, s.jog_from, s.jog_to);
+        }
+        if (const char* st = std::getenv("DFN_PLAYTEST_STILL"); st != nullptr && st[0] == '1') {
+            s.still = true;
+        }
+        s.parsed = s.has_crouch || s.has_jog || s.still;
+        return s;
+    }();
+    return script;
+}
+
 } // namespace
 
 PlaytestState make_playtest(const PlaytestConfig& config) {
@@ -266,6 +343,24 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
         state.jog = pt.config.gait == Gait::Jog;
         state.run = pt.config.gait == Gait::Run;
         state.debug_sprint = false; // never: the debug gear is not a playtest
+
+        // --- Scripted keys, LAST, so they overrule the steering above (see
+        // key_script()). `still` zeroes the look as well as the movement: a
+        // scripted press must be the ONLY thing that changes in its arm, or the
+        // measurement cannot attribute what it sees.
+        if (const KeyScript& ks = key_script(); ks.parsed) {
+            if (ks.still) {
+                state.move_axes = {0.0f, 0.0f};
+                state.pending_look = {0.0f, 0.0f};
+            }
+            if (ks.has_crouch) {
+                state.crouch_held =
+                    pt.sim_seconds >= ks.crouch_from && pt.sim_seconds < ks.crouch_to;
+            }
+            if (ks.has_jog) {
+                state.jog = pt.sim_seconds >= ks.jog_from && pt.sim_seconds < ks.jog_to;
+            }
+        }
 
         // --- Occasional jumps (explorer) and the stuck-retry jump.
         pt.jump_cooldown_seconds = std::max(0.0f, pt.jump_cooldown_seconds - DT);

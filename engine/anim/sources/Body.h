@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:41:06
+Last updated: 11:08:2026 - 15:18:52
 Module: engine/anim
 File: engine/anim/sources/Body.h
 
@@ -45,6 +45,7 @@ UPD:
 - 10:08:2026 - 01:56:45: Initial body/puppet systems.
 - 10:08:2026 - 20:00:23: BodyDrive::gait — the ferry target lead's parked switch writes into.
 - 10:08:2026 - 20:41:06: BodyDrive::run_weight — the eased gear weight, read by this zone's trunk lean AND ferried to sim's eye so the two cannot drift.
+- 11:08:2026 - 15:18:52: BodyDrive::gear_weight is the ease's own integrator; run_weight now PUBLISHES gait_fade(speed) * gear_weight, i.e. the lean the trunk is actually drawn with. Not cosmetic: the ferried eye was leaning by a number the body was not (docs/FINDING_CROUCH_AND_ALT_LEAN.md).
 */
 
 #pragma once
@@ -107,7 +108,21 @@ struct BodyDrive {
     // the eye is already back on the axis, and the chest returns to frame for
     // the length of every run->walk. An intermittent defect in one transition
     // direction costs more than a lurch you can see every time.
-    float run_weight = 0.0f;        // eased toward gait_run_weight(gait)
+    // AND IT IS THE LEAN THE TRUNK IS ACTUALLY DRAWN WITH, not the gear alone.
+    // The gear weight is eased into `gear_weight` below; `run_weight` is that
+    // value AFTER the same "are the feet moving at all" fade the trunk lean
+    // gets from the idle->gait blend (`gait_fade`). The two were different
+    // numbers until 11:08:2026 and the difference was a defect the user
+    // reported: holding LEFT_ALT while STANDING STILL leaned nothing on the
+    // body — gait_fade is 0, so gait_pose is not blended in at all — while the
+    // camera rode the full gear weight and lunged 66.4 mm forward and 7.2 mm
+    // down with no locomotion whatsoever («словно я шеей вперед двигаю»).
+    // docs/FINDING_CROUCH_AND_ALT_LEAN.md.
+    float run_weight = 0.0f;        // PUBLISHED: gait_fade(speed) * gear_weight
+    // The eased gear itself (this zone's integrator). Kept separate from the
+    // published value above because an ease must integrate its own state: fold
+    // the fade into it and the fade multiplies every tick instead of once.
+    float gear_weight = 0.0f;       // eased toward gait_run_weight(gait)
     // Showcase override (mirror map techno-demo): SHOWCASE_NONE = live body.
     uint8_t showcase_clip = SHOWCASE_NONE;
     float showcase_time_s = 0.0f;
