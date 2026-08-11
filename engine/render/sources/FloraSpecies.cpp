@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 12:08:2026 - 00:36:00
+Last updated: 12:08:2026 - 00:45:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -52,6 +52,8 @@ UPD:
   out of ONE binary.
 - 12:08:2026 - 00:36:00: Great oak fractal depth 4 -> 5 (foliage count is
   bounded by branch TIPS, not by cluster_count).
+- 12:08:2026 - 00:45:00: card_scrap_floor() defined here; its three call sites
+  now share one definition.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -59,6 +61,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 
 #include <array>
+#include <algorithm>
 #include <cstdlib>
 
 namespace dfn::render {
@@ -794,6 +797,12 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
 }
 
 } // namespace
+
+float card_scrap_floor(const SpeciesParams& sp, float crown_radius) {
+    const float nominal_half_width =
+        crown_radius * sp.cluster_radius_frac * sp.card_width_frac;
+    return std::min(0.22f * crown_radius, 0.55f * nominal_half_width);
+}
 
 bool flora_control_arm() {
     static const bool on = [] {

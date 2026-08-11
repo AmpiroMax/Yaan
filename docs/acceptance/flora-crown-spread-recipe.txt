@@ -1,5 +1,5 @@
 # Created: 12:08:2026 - 00:27:00
-# Last updated: 12:08:2026 - 00:36:00
+# Last updated: 12:08:2026 - 00:45:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-crown-spread-recipe.txt
 #
@@ -32,6 +32,9 @@
 #   verdict as well: with both fixed the giants still do not read as landmarks
 #   at 400 m, because they stand inside a lattice of ordinary oaks -- which is
 #   a placement condition, not a geometry one.
+# - 12:08:2026 - 00:45:00: THE CLEARING ARM (DFN_FLORA_GREAT_OAK=4). The
+#   separating experiment for the question the distant frame left open --
+#   rarity or size -- and it answers rarity, decisively.
 
 WHAT THE USER ASKED (11.08.2026, verbatim)
 
@@ -145,3 +148,37 @@ to place — flora cannot buy it with geometry.
 flora-great-oak-under-669f1a7b.png is the near view with the crown repaired: a
 limb crossing the whole frame overhead and a canopy mass above it. That one is
 the "one convincing mountain" from underneath.
+
+================================================================================
+THE CLEARING ARM — rarity or size? (12.08.2026)
+================================================================================
+
+File: flora-great-oak-clearing-ARM-669f1a7b.png
+
+  DFN_FLORA_GREAT_OAK=4   # promote one oak in sixteen, and DRAW NOTHING for
+                          # the fifteen that were not promoted.
+  # Otherwise identical to the distant frame above: same pose, same seed, same
+  # binary, same wind freeze. One variable.
+
+THE QUESTION. The distant frame showed the giants merging into the canopy, and
+that has exactly two explanations with opposite owners: either a giant is not
+big enough to read (flora's, and the answer is "make it bigger"), or a giant
+cannot read while standing inside a lattice of ordinary trees whose crowns now
+touch (core's and design's, and the answer is a clearing). Guessing between
+them would have cost a day in the wrong zone.
+
+THE ANSWER IS RARITY, AND IT IS NOT MARGINAL. With the ordinary oaks removed
+and NOTHING ELSE CHANGED — same giants, same size, same distance, same haze —
+the great oaks read immediately: broad flat crowns standing clear of each other
+across the whole valley, each one a separate object, trunks legible under them.
+The geometry was sufficient the entire time; the neighbours were the problem.
+
+CONSEQUENCE, and it belongs to placement rather than to geometry: a great oak
+needs a clearing of its own, and GIANT_OAKS §2's "rarity is a consequence, not
+a density setting" is now a measurement rather than an argument. flora cannot
+buy this with size — doubling the tree inside the same lattice would produce a
+bigger thing that still merges.
+
+WHAT THIS ARM IS NOT: a proposal to delete the forest. It is a counterfactual,
+gated behind a capture-only env var, and it exists to attribute a defect to a
+zone. Nothing about it ships.

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 12:08:2026 - 00:36:00
+Last updated: 12:08:2026 - 00:45:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -52,6 +52,8 @@ UPD:
   rejected by the second at 8.8 m, suite fully green, distant frame showing a
   bare branch system towering over a live forest. Both sites now read one
   `scrap_floor`. Rule 32 in the file whose own header states it.
+- 12:08:2026 - 00:45:00: Both floor checks call card_scrap_floor() instead of
+  restating it.
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -275,10 +277,9 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // rejecting foliage that used to be legible, so the change is allowed to
     // RELAX the floor where the old form was absurd (a 40 m crown radius) and
     // never to tighten it anywhere.
-    const float nominal_half_width =
-        t.crown_r * sp.cluster_radius_frac * sp.card_width_frac;
-    const float scrap_floor =
-        std::min(0.22f * t.crown_r, 0.55f * nominal_half_width);
+    // ONE DEFINITION, in FloraSpecies.h, and its docstring is the record of
+    // what having three of it cost.
+    const float scrap_floor = card_scrap_floor(sp, t.crown_r);
     if (p.half_width < scrap_floor) return;
 
     // VERTICAL REACH, not half_height. THIS IS THE SAME MISTAKE A THIRD TIME

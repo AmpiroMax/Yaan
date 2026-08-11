@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 12:08:2026 - 00:45:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -39,6 +39,10 @@ UPD:
 - 12:08:2026 - 00:20:00: GreatOak, CrownEnvelope::GreatCrown, the crown
   allometry / width-jitter fields, the fractal-grower parameter block, the
   climbing-furniture counts, and flora_control_arm().
+- 12:08:2026 - 00:45:00: card_scrap_floor() — the card legibility floor becomes
+  a FUNCTION so that there cannot be two of it. There were three (emitter,
+  emitter's re-check, suite), they diverged, and the great oak emitted zero
+  cards with the suite green.
 */
 
 #pragma once
@@ -341,6 +345,30 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// BEFORE/AFTER pair taken across a rebuild answers "did anything change" and
 /// not "did THIS change". One binary, one pose, one variable.
 [[nodiscard]] bool flora_control_arm();
+
+/// THE CARD SCRAP FLOOR — the smallest half-width a leaf card may be emitted at
+/// before it stops reading as part of a crown and starts reading as a detached
+/// scrap hanging under one.
+///
+/// IT IS A FUNCTION SO THAT THERE CANNOT BE TWO OF IT. There were three: the
+/// emitter checked it, then re-checked it after its own clamps, and the suite
+/// restated it a third time. On 12.08.2026 the first was re-derived for very
+/// large crowns and the other two were not, so the great oak passed one gate
+/// and was rejected by the next — ZERO cards on every variant, a green suite,
+/// and two acceptance frames misread as "sparse foliage" when the crown did
+/// not exist at all. A shared rule that is spelled out per site is a rule with
+/// a countdown on it (Rule 32).
+///
+/// THE MINIMUM OF TWO FORMS, and both terms are load-bearing. `0.22 * crown_r`
+/// is the value measured on the 10 m crowns this floor was written against;
+/// scaled to a 40 m crown it demands a bigger card than the species produces.
+/// `0.55 * nominal cluster half-width` says the same thing about the quantity
+/// that generalises — has containment shrunk this card to a scrap OF WHAT IT
+/// WAS MEANT TO BE — and agrees with the first to two figures where the first
+/// was calibrated. Taking the MINIMUM means the correction can only relax the
+/// floor where the old form was absurd, never tighten it anywhere: swapping
+/// them outright cost the birch 65 % of its foliage in one measured run.
+[[nodiscard]] float card_scrap_floor(const SpeciesParams& sp, float crown_radius);
 
 /// The catalog. Stable reference for the process lifetime.
 [[nodiscard]] const SpeciesParams& species_params(FloraSpecies species);

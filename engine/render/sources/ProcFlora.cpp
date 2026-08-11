@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 12:08:2026 - 00:38:00
+Last updated: 12:08:2026 - 00:45:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -115,6 +115,11 @@ UPD:
   than fitted to: 3500 was this zone's own estimate before the crown existed
   and the accepted tree measures 4180-6982; a revision to 7000 is requested,
   and both ways of "fitting" 3500 would undo a defect the frame just caught.
+- 12:08:2026 - 00:45:00: DFN_FLORA_GREAT_OAK=4, the CLEARING ARM: it attributes
+  the "giants do not read at 400 m" defect to placement rather than to size,
+  and the frame is decisive. Plus the deferred WHITE-TREELINE note at
+  build_silhouette, with two of lead's three suspects eliminated from these
+  files' own evidence.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -1042,6 +1047,29 @@ void build_cone_shell(MeshData& m, Tree& t) {
                  t.crown_r * shy_scale(t, {1.0f, 0.0f, 0.0f}), 0.0f, 6, t.leaf);
 }
 
+/// DEFERRED, NOT MINE TO FIX TODAY, AND TWO OF THE THREE SUSPECTS ARE ALREADY
+/// ELIMINATED HERE (lead, 12.08.2026, off the acceptance frames):
+/// **the distant canopy reads WHITE while the near canopy reads dark green.**
+/// Visible on docs/acceptance/flora-great-oak-far-*.png and on
+/// docs/acceptance/core-A1-lowland-900m-AFTER-*.png, where the treeline is a
+/// row of pale sticks. Too large a gap to be aerial perspective: haze pulls
+/// toward the SKY colour, not toward white.
+/// Lead's three candidates, with what this zone's files say about each:
+///   1. "the LOD substitute's colour has drifted from the real crown's" —
+///      ELIMINATED HERE: build_silhouette() below shades its shell with
+///      `t.leaf`, i.e. pack(sp.foliage_color), the SAME dark green the cards'
+///      atlas tones are built from. The substitute is not white.
+///   2. "the leaf atlas bleeds white where it is transparent" — ELIMINATED in
+///      FloraCards.cpp: texels outside the outline are left at rgb 0 (see the
+///      `continue; // outside the outline: transparent, rgb 0` sites), so mip
+///      averaging can only darken a shrinking card, never whiten it.
+///   3. lighting or haze applied differently to the foliage program at range —
+///      NOT ELIMINATED, and now the only surviving candidate. It is render's.
+/// WHY IT MATTERS MORE THAN IT LOOKS: the user's complaint about the treeline
+/// was «частокол одинаковых деревьев» and it was handed on as a VARIETY task.
+/// If half of that reading is actually this whiteness, variety will land and
+/// the complaint will survive it.
+///
 /// Silhouette LOD: trunk column + one envelope shell. Deliberately close to the
 /// pre-flora mesh — at that range the silhouette is the entire information.
 void build_silhouette(MeshData& m, Tree& t) {
@@ -1082,6 +1110,12 @@ uint32_t flora_variant_for(glm::vec2 world_xz) {
 ///   DFN_FLORA_GREAT_OAK=1  one oak in sixteen (what "редкие" looks like)
 ///   DFN_FLORA_GREAT_OAK=2  every oak (the close-up: structure and steps)
 ///   DFN_FLORA_GREAT_OAK=3  as 1, and the promoted trees carry the chain
+///   DFN_FLORA_GREAT_OAK=4  as 3, and the oaks that were NOT promoted are not
+///                          drawn at all -- the counterfactual for "does a
+///                          giant read as a landmark when it has its own
+///                          clearing", which is the question the 400 m frame
+///                          left open and which decides whether the next move
+///                          is placement's (rarity) or geometry's (size)
 static int great_oak_preview() {
     static const int mode = [] {
         const char* e = std::getenv("DFN_FLORA_GREAT_OAK");
@@ -1463,7 +1497,9 @@ void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
         const bool pick = (preview == 2) || ((h % 16ull) == 0ull);
         if (pick) {
             sp_use = FloraSpecies::GreatOak;
-            shape_use.chained = (preview == 3);
+            shape_use.chained = (preview >= 3);
+        } else if (preview == 4) {
+            return; // the clearing arm: everything that is not a giant is gone
         }
     }
     const FloraMesh parts =

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 12:08:2026 - 00:24:00
+Last updated: 12:08:2026 - 00:45:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -146,6 +146,9 @@ UPD:
   half density stopped failing because the shipped canopy now presents 2.5x the
   floor. Both handed to lead. One open item CLOSED as a side effect: the oak at
   Reduced LOD was 9.2 % under the 229 floor and now presents 583 m^2.
+- 12:08:2026 - 00:45:00: The scrap-floor case calls card_scrap_floor() instead
+  of restating the rule — it was the THIRD copy, and it was asserting a rule
+  the code had stopped implementing while passing.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -865,7 +868,15 @@ TEST_CASE("cards: no card is too small to read (no detached scraps)") {
                     const glm::vec3 c = m.cards.vertices[i + 2].position;
                     // Diagonal of the quad -> half-width, via the card aspect.
                     const float half_diag = glm::length(c - a) * 0.5f;
-                    CHECK(half_diag >= 0.2f * crown_r_v);
+                    // THE SUITE'S OWN COPY OF THIS FLOOR WAS THE THIRD ONE,
+                    // and it is now the same call the emitter makes. It read
+                    // `0.2f * crown_r_v` — the quantity the emitter stopped
+                    // using on 12.08.2026 — so the day the great oak emitted
+                    // ZERO cards, this case was still asserting a rule the
+                    // code did not implement, and passed. A test that restates
+                    // a shared rule instead of calling it can only agree with
+                    // the code by luck.
+                    CHECK(half_diag >= card_scrap_floor(sp, crown_r_v));
                 }
             }
         }
