@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 10:08:2026 - 21:18:30
+Last updated: 11:08:2026 - 15:07:26
 -->
 <!--
 UPD:
@@ -72,6 +72,14 @@ UPD:
 - 10:08:2026 - 21:08:13: §5.10a THE MOSS RULING — flora's GROUND_MOSS_FOREST_PER_M2 0.0263 REFUSED, row stays 0.0040 (40/ha). Settled by arithmetic before definitions: scatter_forest_ground places at most ONE patch per trunk, so per_anchor = per_m2 x 225 m2 is a PROBABILITY and saturates — the requested row realises ~8.4/ha, a 1.4x gain where 6.6x was intended, against a structural ceiling of 41.9/ha that no row raises. Model validated first: E[clump_moss] = 0.1614 derived in closed form from COVERAGE 0.22 / CONTRAST 0.55 predicts 6.45/ha against core's independently measured 6.09/ha. Definitional core: flora's derivation says 2/3 of stems carry a patch (0.667) while CLUMP_COVERAGE_MOSS says moss exists on 0.22 of the ground — contradictory as statements about the same moss, so no row value exists. M-1 moss is ANCHORED, clump_applies -> FALSE same commit (37.7/ha = 0.94x authored). M-2 mushroom keeps the field (flora authored it 'before clumping' — the field IS the look). M-3 the discriminator as a schema column, DensityBasis BASE vs REALISED, since clump_applies is being asked to mean two things and every per_100m row is REALISED by its own contract. M-4 §A7 changes in the SAME commit but not as feared: the count does not rise, so no rings — what 6/ha hid is that every patch sits at a CONSTANT offset (0,-0.6), one azimuth for every trunk in the world, which at 37/ha is A7's forbidden stamp; bearing jittered off a real shade direction (Rule 35 second consumer, named before it bites), distance scaled by trunk size, acceptance = circular variance of bearing (denominator: uniform-bearing control on the same anchors), today's single-azimuth build reads 0 and is the must-fail arm. M-5 ground moss at 263/ha is a legitimate SEPARATE row (assoc Nothing, basis Base, derivation must not mention stem count, must state its relation to §5.10 moss_cover) — filed open, not a blocker. M-6 PathMargin's 2.5-2.7x OVER and ForestFloor's under are ONE defect: rho normalises by INTEGRAL(edge) while placing with max(clump, edge*rich) — numerator weight and denominator normaliser are different functions. The max() STAYS (core's mutation proves it load-bearing for the kept verge); normalise by the integral of the weight actually used. NO ROW MOVES in either habitat, so Rule 44's trap is avoided by fixing the denominator rather than by choosing a composition.
 - 10:08:2026 - 21:11:31: §5.12f-h — THE 20 px JUNCTION THRESHOLD IS WITHDRAWN AND RULE 41 HAS NOW FIRED TWICE ON THE SAME ACCEPTANCE, the second time on the quantity Rule 41 itself installed. Core measured both arms and REPORTED RATHER THAN TUNED, which is the only reason this is rulable: junction 106 px apron-OFF vs 108 px apron-ON (+1.9%), against my proposed 20 px — the real rejected instance clears my threshold by 5.3x, so Rule 30 kills it outright. But the movement is the finding: the junction moved 1.9% where the hidden-fraction it replaced moved 1.1 points, one day apart, and no threshold can be placed between 106 and 108 (below both certifies nothing; between them is the 30a coincidence refused three times here already). WHAT WENT WRONG BOTH TIMES, stated because a rule that catches everyone but its author is not yet a rule: I derived 20 px from LEGIBILITY (the width surviving the palette quantiser) and put it in the slot where a SEPARATION belongs. A legibility floor is derived from the display and answers 'below what can the eye not read this'; a separating threshold can only be derived from two measured arms. The tell is available before any measurement — a threshold whose derivation never mentions the rejected instance is a floor, and a floor in an acceptance's slot passes everything. Forwarded to main for ARCHITECTURE (docs/ is the lead's zone). ANGULAR EXTENT REFUSED as the replacement despite being the quantity that moved (328->357, +8.8%): the defect is VERTICAL and extent is HORIZONTAL, so a massif at 100% width with its bottom third curtained scores perfectly and IS the rejected picture — the same identical-number-opposite-verdicts failure that convicted the fraction, one axis over; it is not monotone in the defect (it keeps improving toward the clearcut 5.12a refused); and it has no accepted arm, so adopting it lands us one measurement later in this same position. THE JUNCTION QUANTITY SURVIVES; ITS AGGREGATION DOES NOT, and the aggregation is where 106 px comes from — 'longest run anywhere along the extent' lets a run at the outer margin, where the massif is at valley level anyway, answer for the centre where the flare and bench are read. New §5.12h acceptance: PRIMARY = CURTAIN HEIGHT, the lowest visible massif pixel per column as a fraction of that column's unoccluded extent; aggregation MEDIAN OVER THE CENTRAL HALF (outer quarters reported, never asserted); denominator the SCATTER-SUPPRESSED frame's own column extent so other terrain's occlusion is divided out rather than counted as canopy; lower is better, 0 = the massif stands on its ground. Junction run retained DEMOTED to canary beside 5.12c's 15/50 band. THRESHOLD STILL NOT PLACED, but this time the placing PROCEDURE has a stopping condition so it cannot return as a threshold argument: three arms (scatter-suppressed — which ALREADY EXISTS, it is the frame that opened §5.12 — apron ON, apron OFF) on the same vantage; BEFORE proposing any number, check that apron-OFF and scatter-suppressed separate by more than the measure's own frame-to-frame noise, and if they do not, REFUSE THIS QUANTITY TOO and write nothing (Rule 41 a third time is a legitimate outcome and beats a fitted number); only then does the threshold go between the two apron arms, and if apron-ON does not land materially closer to scatter-suppressed then the apron is not the whole fix and 5.12d's thinning returns with its bald-lane cost intact.
 - 10:08:2026 - 21:18:30: §1.9 THE BACKWARD SWEEP — 61 pre-existing acceptance rules across LANDSCAPE.md and WEATHER.md read against the aggregation/denominator clause. Handed back twice; it ran now because three things forced it and ALL THREE were found by other zones auditing me. CODE_AUDIT's three shapes are all present in this document. THE INSTRUMENT IS ONE QUESTION and it is the transmissible part: 'what world MAXIMISES this number, and would I ship that world?' Reviewing a rule when you write it asks 'does this measure the thing', which every rule below passed — the denominator defect is invisible to that question and visible to this one. Seconds per rule, no measurement, found S-1 and S-5 immediately; now asked at authoring time and answered in the rule's own text. S-1 C1's DENOMINATOR IS CHOSEN BY THE EFFECT C1 MEASURES, verified in source (WorldgenValidation.cpp:104, 'not inside forest masses (trees occlude)'): the numerator asks whether the landmark is occluded and the denominator has deleted where the dominant occluder lives, with the effect given as the reason — Rule 36 inverted. PLANTING FOREST CAN RAISE C1; FOREST_COVERAGE 0.25-0.40 means the filter is bigger than the 4.3-point margin at the measured 0.6429; and C1 COULD NEVER HAVE CAUGHT §5.12, because the standpoints where the forest eats the mountain are the ones C1 does not look at. Exclusion RETAINED but it becomes a written SCOPE: excluded fraction reported beside every C1 figure, a second figure over ALL walkable ground reported-never-asserted, and the falsifiable clause — C1's denominator must not shrink when the world gains occluders, counterfactual arm = raise FOREST_COVERAGE and confirm C1 does not IMPROVE. If it improves the rule is inverted. Nobody has run it. S-2 I4 HAS NO VALID CONTROL: its must-fail arm (the dome at 33.2%) was footprint-weighted over the WHOLE crag, its passing values (24.2/18.5) are surface-weighted ABOVE THE CLIFFLINE — the audit's two-denominator headline inside an invariant currently cited as holding, and since the surface reading systematically lowers the fullest bin's share on a steep body the control may well PASS once measured right, leaving I4 with no rejected instance at all. I4 is REPORTED NEVER ASSERTED until the dome is re-measured on I4's own denominator, and may not be counted among the invariants a seed passes. S-3 §2.9's spire backdrop rule is a luminance RATIO where §1.3b ruled the quantity a linear DIFFERENCE. Converted on §2.9's own luminances: sky 1.01 steps, mid rock 6.35, canopy 8.58. NO VERDICT FLIPS and the sky case gets STRONGER — it now fails the 2-step floor outright instead of being called '1.10x unusable'. Restated in steps, ratio table kept as superseded provenance. S-4 the rules still missing a half are REPORTED NEVER ASSERTED until it is written — headed by R4 CASTLE_SILHOUETTE_RATIO, whose denominator 'standpoints where BOTH are visible' is S-1's disease inside the rule protecting the landmark hierarchy from the castle, and W3's wind invariant, which is unfalsifiable because its 'stated lag' is never stated. S-5 A FLAT TREELESS WORLD SCORES 1.000 ON C1 — the exact world §1.1 forbids, scoring perfectly on the rule §1.1 leads with. C2-testbed does not bind (a bare plain with one landmark satisfies a coequal-attractor count trivially) and §2.1's concealment clause is a CEILING pointing the same way. The corpus has exactly one global LOWER bound on concealment: §1.4's occlude-and-reveal 30-80%, recorded as 'already validated' with no number anywhere. C1 and occlude-and-reveal are now read as a PAIR and neither is quoted alone; occlude-and-reveal is promoted to a first-class acceptance with aggregation (fraction of stations PLUS a longest-visible-run clause, since 55% in one block and 55% alternating are the reveal and its absence at the same number — §5.12's lesson one rule over) and denominator (stations on BR-2's own cost-optimal route, so the two rules cannot disagree about which path they mean); the flat plain is its control and must fail. AND WHAT THE SWEEP DID NOT FIND, recorded so the corpus is not misrepresented: the large majority name both halves and a dozen name them better than the clause requires — BR-4's per-class normalised control, BR-5's ratio demoted to a difference because its denominator can be zero, BR-6's median-plus-tail, I3/I5's true-surface-area rule, I8's isoperimetric denominator, §4.3's banding criterion, and WEATHER's A1-A7 and W10.4 C1-C3, every one with aggregation, denominator and a control, four of them real shipped rejected instances. The clause works; the pre-existing corpus had simply never been passed under it, and now has.
+- 11:08:2026 - 13:33:12: New §10 (object grammar, D1/D2) from the 16 reference frames. §10.1 — D2 gets an INSTRUMENT: GROUND_RELIEF_SIGMA_20M, detrended height dispersion in a 20 m disc, floor 0.35 m set deliberately below what the approved meso+micro octaves already predict (~0.55-0.7 m) so it catches a MISSING octave rather than re-litigating an approved one; the existing plain bound (+-1.5 m over 400-600 m) is a TREND bound and a smooth dome passes it. Frame-side control: ground must cut itself >=3 times between 5 and 60 m (derived from the 2.4 deg grazing angle at eye height). §10.2 — the sub-4 m band is NOT the heightmap's job: LOD_VOXEL_SIZE_L0 = 1.0 m makes a 2-4 m octave alias, and overhang, hard rim and material-change-at-silhouette are not functions of (x,y); the seam is heightmap >=4 m, objects 0.1-4 m. §10.3 — D1 tilt table by class, with the ruling that TILT IS NOT JITTER (every tilt has an azimuth source; only boulders get a free one; bedding dip azimuth coherent over >=200 m). §10.4 — Rule 33 read-distance ladder (readable = d/30): the flatness complaint is a MID-FIELD complaint, MIDGROUND_OBJECT_COUNT_MIN 5, and a class serves one band only.
+- 11:08:2026 - 13:36:10: §10.5-§10.8 — the placement briefs and their acceptance. Nine briefs (B1 boulders, B2 outcrops, B3 fences, B4 towers/ruins, B5 kerbs/steps/retaining walls, B6 shrub clumps, B7 snag lean, B8 spans, B9 windmill), each with band / size / anchor / tilt / density / cost / a failure statement. Load-bearing clauses: A BOULDER COMES FROM SOMEWHERE (every cluster needs a scarp, outcrop or rock-slope within 60 m uphill; the erratic is the one deliberate exception and is rare and large so it reads as a landmark); BOULDER_BURIAL_FRAC 0.25-0.55 (an unburied rock reads as placed); outcrops go where erosion STRIPS (convex curvature) and never in hollows, and inherit §4.1's ABSOLUTE-height stratum field for free; a fence line is a CONTOUR GAUGE and a straight fence top is a flat-ground report, so B3 is both prop and instrument; Rule 33 corrects 'mid-distance anchor' for towers — a 6 m drum is a 180 m object, 500 m needs >=17 m minor dimension, so site near a route or build a GROUP; inside a settlement pad a level change >=0.4 m must be a built edge, never a grade; B7 is NOT a new class, it is the lean §5.9's snag was missing. Build order: outcrops+boulders (skirts included in the same step), fences, towers. §10.7 lists 45 constants for NUMBERS.md under Rule 35, two of which are SILHOUETTE_MIN_PX restated as siting rules rather than new numbers. §10.8 — five frame pairs A1-A5 with per-frame failure statements; A1 is deliberately shot on the flattest ground we own, and is explicitly barred from certifying render's R1/R3.
+- 11:08:2026 - 13:36:45: Navigation only — a pointer in the conventions block, because §9 is Sources and a reader would stop there; §10 follows it.
+- 11:08:2026 - 13:53:19: §10.9 — the two haze verdicts render is waiting on. (1) LANDMARK_HAZE_ONSET CONFIRMED as a SITING rule, on a structural reason stronger than the reference evidence: exp(-d/L) HAS NO KNEE, so there is nothing at 800 m for a renderer to switch, and a number that cannot be a draw parameter can only be a placement one. But it stops being a tabled 800: the onset becomes a 2x CONTRAST RATIO and its metre value is DERIVED as d_accept(L0) + L*ln2 (§1.6.1's never-tabled rule applied to a second kind of distance), giving 1330 m at L=1400 and 776 m at L=600 — and the tabled 800 I wrote in §1.3a is what a ~600 m scale length produces to within 3%, offered as evidence for the lead's choice and not as the choice. (2) THE PREMISE UNDER HAZE_SCALE_LENGTH 1400 IS MINE AND WAS ALREADY WITHDRAWN: render derived it from §7.1b's 'Ravenscar solid at 287-717 m', but §1.6.1 ruled d_accept = 3R = 360 m for Ravenscar and ruled that a landmark shot beyond its d_accept certifies nothing — I never propagated that into the haze clause, which is a Rule 39 shadow copy wearing the costume of a stale cross-reference. Render read a contract instead of inventing a number, which is what we ask; the contract lied. 'Haze on Ravenscar is a bug' WITHDRAWN and replaced by three clause-specific propositions in units of PALETTE_SHADE_STEP_REF: H1 silhouette-vs-sky >= 2 steps at 360 m, H2 riser/bench >= 1 step at 287 m measured AT THE LOWEST VISIBLE BAND PAIR, H3 depth separation >= 1.7x. Key finding: H3 — the requirement everyone assumes is binding — is satisfied 2.7x BETTER by the SHORT scale length (5.7x vs 2.1x), because §1.3a asked for a RATIO and a shorter scale length is what makes ratios large; the absolute floor on Ravenscar entered only via the withdrawn 717 m. So H3 does not choose between 1400 and 600 — only H1/H2 can, on frames not yet taken. (3) Under the height lever the three propositions move in OPPOSITE directions (H1 easier — a mountain's outline is its crown; H3 unchanged; H2 harder at the hem, since HAZE_HEIGHT_SCALE 250 over L0_RELIEF 115 leaves the crown at 0.63 of the hem's density), which is why H2 must be read at the lowest band pair and never on the flank mean — F7 in the vertical axis. Position stated so the lead can close it: if the pair holds all three at the shorter length I withdraw and will not manufacture an objection; the one non-negotiable is H2 at the hem. §10.9.5 records the propagation §1.6.1 owed.
+- 11:08:2026 - 14:17:59: §10.10 — the haze arms came back and corrected three of my own lines; arm C (L=600/H=40/base 30) shipped. H2 WITHDRAWN from the haze question and accepted as a terrain defect: it scored 0.61 of 1.00 with ZERO air, and that generalises to a rule worth keeping — A CRITERION THAT FAILS ITS OWN ZERO-DOSE CONTROL IS MEASURING THE WRONG SYSTEM (F7's mirror: F7 says a frame must be able to fail, this says a criterion must be able to pass). Diagnosis stated as a hypothesis with a discriminating probe (geometry vs splat), prior on splat and it rests on two things already written: ROCK_STRATUM_* is НЕ ПОСТРОЕНО with no consumer, and MASSIF_ASPECT_MIN's own note already measured Ravenscar at 33 deg mean slope under SLOPE_ROCK_MIN 40 and predicted the shader would win — with SLOPE_GRASS_MAX 30, the HEM is the part most certainly painted pure grass, so the rhythm dies exactly where the slope rule says it must. Third occurrence of one lesson. Ruling that holds either way: A STRATUM THAT ONLY APPEARS ABOVE A SLOPE THRESHOLD IS A SLOPE SHADER — §4.1's bands are absolute-height and global, so the modulation applies to the ground ramp whatever material is painted there (frames 03/06 show bedding at low angles and through soil). H2's fix and B2's brief are THE SAME WORK — the hem is the largest outcrop site in the world and B2's convex-curvature anchor already puts them there; NO new numbers needed. New frame A6. H1 re-derived: conceded that I set 2.00 without ever seeing its control (2.36 no-air = 0.36 steps left for all of aerial perspective) and that a hard min over 105 columns is one pixel column; statistic moves to p05 for EVERY column-wise criterion (ACCEPTANCE_PERCENTILE 5), and H1 splits into a quantiser hard floor (1 x PALETTE_SHADE_STEP_REF, deliberately NOT a new row) plus the binding line, HAZE_SILHOUETTE_RETENTION_MIN 2/3 — derived from the same 2x legibility unit as §10.9.1's onset, then checked: A 0.812 pass, C 0.708 pass by a thin 6%, B 0.610 fail. Two things not papered over: fixing H2 will move H1's control (global absolute strata add value structure to the crown too) so H1 must be re-measured, and a RULE 34 FLAG — I do not know the range those p05 figures were shot at, and H1 is defined at d_accept 360 m while the lowland frames are 900 m. H3 RETIRED, not demoted: it is §10.9.1's d_onset wearing a second hat (any LR beyond d_onset satisfies H3 by construction, 5.7x against its 1.7x), and the replacement is stronger because 'is the LR sited beyond d_onset' is checkable in the generator with no camera and no LR. Frame-2 vantage (581,344) accepted, but the fix is that it stops being a coordinate: four re-derived predicates, and a NEW binding one — the frame must contain the LOWEST band pair, since §10.10.1 makes the hem the subject (F7 in the vertical axis), which may disqualify (581,344) too and that is render's measurement, not mine. §10.10.5 — the two lowland 900 m haze frames ARE A1's BEFORE-STATE: a counterfactual arm shot by another zone for another question, which makes it better evidence than a purpose-shot before-frame; archived as such, Rule 27 pairing satisfied without re-shooting. The lead's four observations mapped onto four separately approved criteria they fail, with owners, so flora's tree-variation problem is not silently absorbed into core's step 1. §10.4.1 was a claim about a frame nobody had taken and has now been seen by a zone that was not looking for it.
+- 11:08:2026 - 14:23:05: §10.11 — haze loop closed and Rule 47 turned on my own criteria. Rule 34 flag DISCHARGED in design's favour: the p05 figures are from 360 m (frames render-haze-H1-360m-{Z,A,B,C}, eye 518,380, box 245,100-350,215), the 900 m lowland set carries a different quantity entirely, so HAZE_SILHOUETTE_RETENTION_MIN is evaluated at H1's own d_accept and arm C's 6% margin is real rather than a range artefact — H1 RATIFIED. Recorded that H1's recipe is Rule 47-compliant BY A SPECIFIC CHOICE (edges fixed on the control arm, all arms read on the same columns) and must not be 'simplified' into per-arm edge finding, which would make heavy haze look like the arm with the least effect. Rule 48 given its POSITIVE form, which is the half a reader needs when their control passes: H1 responds monotonically to the same lever (2.77->2.25->1.96->1.69) just as H2 did, so monotone response cannot be the discriminator — the discriminator is that H1's zero-dose control PASSES and H2's FAILS, hence a criterion measures its dose only if BOTH hold. Then ran Rule 47 across design's own criteria and found THREE exposed, two of which core is measuring this week: MIDGROUND_OBJECT_COUNT_MIN, OUTCROP_IN_VIEW_MIN and A1's crest-line count all locate their subjects by segmenting the frame, so each drops when anything lowers contrast (haze, flat light, a palette revision) with NO change in placement — attributing a render change to core's scatter pass, biased toward 'the objects are not there' exactly when they are hardest to see, and sending core to place more objects to fix a lighting change. RULING covering every count in §10: a count is established in the GENERATOR and verified on the FRAME, never counted on the frame — projected placement list with the 8 px filter applied to computed apparent size, crest-lines by raycast, and where the two disagree THAT disagreement is the finding (about render or light) which a frame-side count destroys by folding it into the number. H2's instrument is named in Rule 47's own text ('нашёл дизеринг сплаттинга вместо полок породы'), so 0.61 may itself be an artefact — this does NOT reopen the withdrawal, since under either reading the criterion failed at zero dose, but it binds the not-yet-run diagnostic probe; and the fix is stronger than Rule 47 asks, because §4.1's ABSOLUTE-height strata make the band rows computable by projection with no image involved, i.e. Rule-47-proof by construction — an unplanned second reason to like a ruling made for geological consistency. No new numbers: the values are unchanged, only where they are read from.
+- 11:08:2026 - 15:05:20: §10.12 — D2's instrument RE-DERIVED after A1 passed sigma (0.353 vs 0.35) and failed F7 in the same frame. Lead's diagnosis accepted and arithmetic verified independently: for a sinusoid, RMS slope = 2*pi*sigma/L, so sigma bounds AMPLITUDE while occlusion is a property of SLOPE, and the two are joined only by WAVELENGTH, which was never in the contract — correctly Rule 41 (aimed at the neighbouring quantity), NOT Rule 48, since sigma's zero-dose control behaves properly at 0.000. GROUND_RELIEF_SIGMA_20M_MIN RETIRED as a gate rather than re-floored (raising it would fit a threshold to a proxy structurally incapable of gating the property — Rule 45); the MAX 1.20 SURVIVES because the ceiling's job genuinely is amplitude. Replacement is not a better proxy but the thing itself: GROUND_OCCLUSION_COUNT, a RAYCAST in the generator — which §10.11.3 had already ruled three messages ago and I failed to connect — floor 3 unchanged, read at ACCEPTANCE_PERCENTILE 5, needing no wavelength constant, and getting the distance-dependence free (the grazing angle is 4.86 deg at 20 m and 1.62 deg at 60 m; my 2.4 deg was its value at 40 m, a simplification I should have flagged, and any area-fraction instrument must pick one angle and is wrong at both ends). Scoped TERRAIN-ONLY so B1's scatter cannot satisfy D2 — §10.2 already named that failure (a flat table with props is a diorama). ACTIONABLE FINDING for core: at the achieved sigma the field clears the 40 m grazing angle only below L ~= 52 m, and GROUND_MESO_WAVELENGTH is approved at 25-60 — the top third of our own band cannot occlude at the amplitude we produce, so A1's failure is probably the meso octave sitting at the wrong end of an unchecked range, not a missing octave; shortening L is strictly better than raising sigma (5.08 deg at L=25, free against the ceiling, corridors and PLAYER_STEP_HEIGHT). §2.7's orphaned fifth octave REMOVED IN THIS EDIT as a reassignment to §10.2/B1/B6. LF-8 rebuilt to locate its subject by CONNECTIVITY TO THE DRAINAGE (reusing §3.1's descent field) before measuring depth — Rule 47-proof by construction, physically truer (a gully DRAINS; an unconnected one was always a modelling error the old detector could not see), and consistent with B2's erosion logic; stays RED until rebuilt. Clearing в9 EXEMPT under a principle that was implicit in the existing exemption list — authored flatness that does work — bounded by AUTHORED_FLAT_RADIUS_MAX 50 m, DERIVED so that non-exempt ground still falls inside the standpoint's own 5-60 m band, which dissolves the conflict instead of waiving it and has teeth: PLAIN_EXTENT 400-600 m is NOT exempt. Mid-ground count 0 -> 8 unoccluded against floor 5 (17 is the placement figure, not the score — fixed now so the margin is not inflated 3.4x at the next retelling), first number produced under §10.11.3's generator-side rule.
+- 11:08:2026 - 15:07:26: §10.13 — wind-down handoff. Records the D2 problem statement standalone so it survives even if every ruling is discarded (sigma passed at 0.353 vs floor 0.35 while F7 failed in the same frame, because RMS slope = 2*pi*sigma/L and wavelength was never in the contract), plus the one derived number worth keeping: at the achieved sigma the field occludes only below L ~= 52 m against an approved GROUND_MESO_WAVELENGTH of 25-60. PROCEDURAL: the lead asked that the three questions be left OPEN with variants and costs; they had already been ruled in §10.12 when the instruction arrived, so rather than tear up the reasoning each ruling now carries its ALTERNATIVE, that alternative's COST, and the condition that would REOPEN it — the lead can reopen any of the three from §10.13.2 alone. Two costs I had not stated and now have: the LF-8 connectivity rebuild ASSUMES §3.1's descent field is queryable at LF-8's scale and I did NOT verify that; and the в9 exemption assumes the clearing is under 50 m, which I also did not check — if either assumption fails, the recorded fallback applies (retire LF-8 honestly rather than loosen it; shrink в9's calm core rather than bend the bound). §2.7's fifth octave marked CLOSED not open — it was withdrawn and reassigned in the §2.7 text itself rather than merely flagged, since a marked-but-present line is still a line someone applies. §10.13.4 carries seven open items forward (meso wavelength flag, H1 re-measure after the banding fix, H2's unrun probe and its projection-not-image constraint, frame-2's fourth predicate, two counts still to migrate generator-side, B3-B9 constants held pending a frame, A1's before-state not yet archived) and §10.13.5 two that are not mine (flora's identical trees, ROCK_STRATUM_* unbuilt). Nothing from this session is held outside §10 of this file.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -91,6 +99,10 @@ Conventions used below:
   worldgen v2 does not paint itself into a corner.
 - Existing constants are cited by NUMBERS.md name (`WALK_SPEED`, `CHUNK_SIZE`,
   `POI_TRAVEL_TIME`, ...). Units per Rule 14: meters, seconds, radians.
+- **Section order note:** §9 is Sources but it is not the end. **§10 — the
+  object grammar (D1/D2, the placement briefs B1–B9, their acceptance
+  frames, and §10.9's haze verdicts) follows it**, appended stage-5 from the
+  reference frames.
 
 ---
 
@@ -2261,8 +2273,12 @@ Replaces the invisible walls. The world ends in geography, Skyrim-style.
 **Everything is slightly uneven.** The complaint is that the land reads flat;
 §2.1's anisotropy gave us hill-scale ridgelets, and this is the layer below
 it. Add a fourth octave, `GROUND_MICRO_WAVELENGTH` = 8–16 m at
-`GROUND_MICRO_AMPLITUDE` = 0.3–0.6 m, plus an optional fifth at 2–4 m /
-0.1–0.2 m for surface tooth **(предложение — утвердить)**. At 0.5 m over a
+`GROUND_MICRO_AMPLITUDE` = 0.3–0.6 m. **THE FIFTH OCTAVE (2–4 m / 0.1–0.2 m,
+«surface tooth») IS WITHDRAWN — REASSIGNED, NOT DELETED (§10.12.4).** §10.2 rules
+that band outside the heightmap's reach: at `LOD_VOXEL_SIZE_L0` = 1.0 m a
+2–4 m period is sampled 2–4 times and aliases rather than reading as relief.
+The work it described is real and is now **objects** — B1's small end, B6's
+tufts, the gravel of reference frame 01. Do not re-propose it as an octave. At 0.5 m over a
 12 m wavelength the local slope is ≈ 5°, so this is free: it never threatens
 `PLAYER_STEP_HEIGHT`, corridors, or building pads, and it kills the
 billiard-table read at eye level. Micro-relief is **suppressed inside
@@ -7471,3 +7487,1690 @@ redistribution, biome lookup, blue-noise scatter, determinism checklist).
 - The Level Design Book — [Landscape](https://book.leveldesignbook.com/process/blockout/massing/landscape)
   (walkable slopes, bowls/ridges vocabulary, water curves, trees as walls,
   rain-shadow reasoning)
+
+
+## 10. THE OBJECT GRAMMAR — what stands on the heightmap (stage-5, from the 16 reference frames)
+
+Source: `docs/REFERENCE_FRAMES.md` and the 16 frames in `images_examples/render/`.
+Ownership per that document's §4: render owns R1–R6, **design owns the object
+grammar and D1–D2**, and this section is where they land. Frame numbers below
+are that document's index. Nothing here is a copied asset; every clause is a
+rule derived by looking.
+
+The two sentences this section exists to satisfy, verbatim:
+
+> надо на нашей земле, что карта высот, множество воксельных объектов
+> расставлять: башни, камни, бордюрчики, и тд. земля — конечно карта высот,
+> **но объекты на ней трехмерные**
+>
+> ничто не ощущается плоским, всё угловатое наклоненное, **даже если равнина,
+> она ухабистая**, нет идеальноплоского мира как в майнкрафте
+
+Read them as one sentence and they already contain the ruling this section
+derives independently in §10.2: **the ground is a heightmap and the thing that
+makes it not flat is not the heightmap.**
+
+---
+
+### 10.1 D2 — «равнина ухабистая» is a DISPERSION, and it is measured DETRENDED
+
+Frame 01 is the load-bearing frame. It is a **plateau** — the flattest thing in
+sixteen frames, the frame that ought to look like our plain — and inside one
+screen it carries rolling metre-scale relief, gravel, scrub clumps and three
+separate rock exposures. It is the direct answer to «нет идеальноплоского мира
+как в майнкрафте», and it answers it *on the flat ground*, which is the only
+place the answer counts.
+
+**This is a different band from `HILL_ANISOTROPY`.** That constant (2.5, §2.1)
+stretches the 128 m octave into ridgelets; it is a SHAPE rule for the hill
+band and it says nothing about the 10–40 m band. A world can satisfy
+`HILL_ANISOTROPY` perfectly and still be a set of smooth elongated ramps —
+which is a Minecraft superflat with a tilt applied, and it fails frame 01
+exactly as hard.
+
+#### 10.1.1 The hole in the current contract
+
+§2.7 already sizes the plain: «flat to ±1.5 m overall» over `PLAIN_EXTENT`
+400–600 m. **That is a bound on the TREND, and a perfectly smooth 1.5 m dome
+600 m across satisfies it.** Nothing in the document currently forbids the
+billiard table; §2.7 asserts micro-relief is «retained», but an assertion with
+no instrument is Rule 30's exact failure, and §2.7 itself records that the
+global micro octave **was backed out and never re-landed** (built on massif
+benches only). So the plain today is defended by a sentence, not by a check.
+
+#### 10.1.2 The instrument: `GROUND_RELIEF_SIGMA_20M`
+
+> **Sample terrain height inside a disc of radius 20 m centred on the
+> standpoint, fit and SUBTRACT a least-squares plane, and take the standard
+> deviation of the residual. That residual σ is the bumpiness.**
+
+Three properties, and each is why a simpler instrument fails:
+
+- **Detrended, so a slope cannot pass as bumpiness.** Peak-to-trough over a
+  window rewards a tilted plane; a tilted plane is the thing we are trying to
+  forbid. Removing the plane is what makes the number mean «ухабистая» rather
+  than «наклонная».
+- **Fixed 20 m radius, so it names a BAND.** The window sets what the number can
+  see: wavelengths well above 40 m are eaten by the plane fit, wavelengths below
+  ~4 m are below the sampling floor (§10.2). The number is therefore about
+  precisely the band that reads as «rolling» at eye height — 8–40 m.
+- **σ of a residual, not a max, so one lucky bump cannot buy a pass.** A single
+  boulder-sized spike in a smooth field barely moves σ; a genuinely rolling
+  surface moves it a lot.
+
+**Proposed value — and it is deliberately set BELOW what our own approved
+octaves already predict, so that it is a floor that catches a MISSING octave
+rather than a re-litigation of an approved one.** Reconciling against
+NUMBERS.md rather than inventing (Rule 34): `GROUND_MESO` is 25–60 m at
+1.5–4 m and `GROUND_MICRO` is 8–16 m at 0.3–0.6 m. Taking mid-range values as
+sinusoids, the meso octave contributes a semi-amplitude near 1.4 m (σ ≈ 0.97 m
+undetrended, and a 40 m window against a ~42 m wavelength loses roughly a third
+to half of that to the plane fit, so ≈ 0.5–0.7 m), the micro octave contributes
+σ ≈ 0.16 m, and in quadrature the design as approved should land near
+**0.55–0.7 m**.
+
+| | value | meaning |
+|---|---|---|
+| `GROUND_RELIEF_SIGMA_20M_MIN` | **0.35 m** | floor. Roughly half of what the approved octaves predict — so a correct build passes with 2× margin, and a build that has silently dropped either octave (which is the state §2.7 records) fails |
+| `GROUND_RELIEF_SIGMA_20M_MAX` | **1.20 m** | ceiling, so the answer to «flat» never becomes unwalkable churn. Non-binding where §2.4 corridors and building pads already flatten by rule |
+
+Where it is measured: **on the flattest legal ground in the world, including
+inside `PLAIN_EXTENT`.** Measuring it on a hillside proves nothing — the
+complaint is about the flat places, so the floor binds where the terrain is
+otherwise most entitled to be smooth. Exempt: corridor masks, building pads,
+the castle terrace, and the shore taper band of §2.7 (water flattens its own
+margins, and that clause stands).
+
+#### 10.1.3 The picture-side control: THE GROUND MUST CUT ITSELF
+
+σ is a probe, and a probe is not a frame (Rule 27). The frame-side test, which
+is what frame 01 actually shows:
+
+> **From eye height on the flattest legal ground, looking level, at least
+> THREE distinct ground crest-lines must cut across the frame between roughly
+> 5 m and 60 m — places where near ground hides ground behind it.**
+
+The geometry behind the threshold, so the number is derived and not chosen:
+from eye height 1.7 m, the line of sight to ground at 40 m depresses by
+atan(1.7/40) ≈ **2.4°**. Any local downslope steeper than that opens a pocket
+of hidden ground with a shadowed lee, and a pocket edge is a crest-line the eye
+reads as an edge. The approved octaves reach 5–18° of local slope, so they clear
+this by a wide margin **if they are running**. Frame 01 shows at least three such
+edges in the near field alone.
+
+**Failure statement (F7).** The frame fails D2 if the ground runs unbroken
+from the player's feet to the tree line — one continuous shaded surface with no
+edge on it. That is what a superflat world looks like from eye height, and it is
+what «плоско как в майнкрафте» describes. A frame that cannot show that
+sentence being true or false is not an acceptance frame for D2.
+
+---
+
+### 10.2 D2b — THE SUB-4-METRE BAND IS NOT THE HEIGHTMAP'S JOB, AND NO NUMBER OF OCTAVES WILL CHANGE THAT
+
+The tempting answer to «flat» is another octave. It is the wrong answer below
+about 4 m, and the reason is arithmetic we have already approved.
+
+**The sampling floor is `LOD_VOXEL_SIZE_L0` = 1.0 m.** The nearest detail level
+carries one height sample per metre. An octave of wavelength 2–4 m is therefore
+sampled 2–4 times per period: it does not render as relief, it renders as
+aliasing that swims when the camera moves — the same class of defect as the
+shimmer render just spent a commit killing. **Anything the eye must read as
+structure below ~4 m of wavelength has to be an object, because the heightmap
+cannot carry it at the resolution we ship.** That is the seam, and it is derived
+from an approved constant rather than asserted:
+
+> **The heightmap owns 4 m and up. Objects own 0.1–4 m.**
+
+And even with infinite resolution the heightmap would still lose, because three
+things visible in the frames are not functions of (x, y):
+
+1. **Overhang and undercut.** Frame 16's foreground boulder dome and frame 15's
+   right-hand boulder wall both go vertical and then tuck back under. A
+   heightfield has exactly one z per column; it can approach vertical and never
+   pass it.
+2. **A hard rim with a shadow line under it.** Frame 03's bedrock slab, left of
+   frame, is read entirely by the dark line beneath its lip. Noise has gradients
+   and no edges — you can make a steep ramp, you cannot make an edge. That
+   shadow line is the single strongest «this is a solid object standing on
+   ground» cue in the whole set, and it is the one thing a splat map can never
+   fake.
+3. **Material change AT the silhouette.** The boulder is grey where the ground
+   is brown, and the change happens across one pixel at the object's own
+   outline. Splat blending changes over metres by construction (§4).
+
+**Therefore the user's sentence is the ruling, and this section only supplies
+its reason:** «земля — конечно карта высот, но объекты на ней трехмерные».
+D2 is satisfied by TWO things that must both be present — the octaves of §10.1
+above 4 m, and the object grammar of §10.5 below it. Either alone fails, and
+they fail in visibly different ways: octaves without objects give smooth dunes
+(a lava lamp), objects without octaves give a flat table with props on it
+(a diorama).
+
+---
+
+### 10.3 D1 — nothing stands on an axis, and TILT IS NOT JITTER
+
+Across sixteen frames the only true vertical lines are man-made stone: the tower
+drums of 06, the retaining wall of 07, the terrace faces of 10 — and even those
+are irregular course by course. Everything else tilts: trunks 15–25° off
+vertical in 16 and further in 15, boulders resting at arbitrary rotations in
+01/05/15/16, roofs as cones and wedges in 02/07, stairs and terraces cutting
+diagonals in 10, the windmill's sail cross sitting at 45° rather than at 0/90
+in 02.
+
+**The composition argument, which is why the vertical exception list must stay
+short: a vertical is only a signal in a world where nothing else is vertical.**
+Frame 05's white spire reads across a whole valley at dusk because it is the
+only straight line in the picture. If our fences, trunks and rocks all stand to
+attention, the tower has nothing to be different from.
+
+#### 10.3.1 The rule that most implementations get wrong
+
+A uniform random ±X° per instance is **not** what the frames show, and shipping
+it produces a world that reads as noisy rather than as weathered.
+
+> **Every tilt has an AZIMUTH SOURCE, and only boulders may use a free one.**
+
+In frame 16 the leaning canopy leans *coherently* — the trees agree about which
+way the wind blows. In frames 03 and 06 the rock slabs share a bedding dip, and
+that shared dip is the entire reason they read as one bedrock instead of as
+scattered props. A field of independently tilted objects reads as debris; a
+field of objects that agree about a direction reads as a place with a history.
+The exception is genuine decay: fence posts in 15 rot and lean independently,
+and *there* independence is the truth.
+
+#### 10.3.2 The tilt table
+
+Tilt is measured from the object's own natural axis (vertical for standing
+things, the bedding plane for rock, level for built horizontals).
+
+| class | tilt | azimuth source | yaw |
+|---|---|---|---|
+| Boulder 0.8–4 m | free, uniform on SO(3) — **but** long axis within 40° of horizontal for ≥ 85% of instances (a rock on end is a menhir, and we already have standing stones as an L2 class) | free | free |
+| Rock slab / outcrop | bedding dip **5–25°** | **regional plane; dip azimuth coherent over ≥ 200 m** | locked to bedding, not free |
+| Standing tree, open ground | 2–6° | wind field (`WIND_FIELD_*`) | free |
+| Standing tree, on slope | 4–12° | downslope + crowding (§5.10) | free |
+| Standing snag / dead tree (§5.9) | **12–30°** | wind azimuth ± 25° | free |
+| Fallen log | lying; long axis across the fall line (§5.10, unchanged) | fall line | free |
+| Fence post | **3–15°, independent per post** | none — this one is decay | ± 10° about the run |
+| Timber prop / brace | 15–35° from vertical, **into** the load | geometry | — |
+| Kerb, step tread | top face ≤ 2° from level | — | plan line follows ground; no straight run > 12 m |
+| Retaining wall face | **3–8° batter, leaning into the bank** | — | — |
+| Tower drum axis | ≤ 1.5° | — | per-block yaw ± 8°, course offset ± 0.15 m |
+| Roof | pitch 35–50°; cones on drums | — | ridge line need not be level: ± 3° sag |
+| Windmill sail cross | axle horizontal ± 5°; cross at **45° ± 15°** from vertical | — | — |
+
+The windmill row is not decoration: frame 02's whole silhouette contribution is
+four diagonals against a mountain, and it gets them by refusing to put a sail at
+twelve o'clock.
+
+#### 10.3.3 The verticals that survive, and what they owe
+
+Man-made stone keeps its axis (≤ 1.5°) and pays for it in irregularity instead:
+per-block yaw ± 8°, course offset ± 0.15 m, and a crown that is never a smooth
+arc (§10.5, B4). Frame 06's drums are plumb and still not one straight edge long
+enough to read as a chess piece. **Plumb axis, ragged surface** is the formula.
+
+---
+
+### 10.4 RULE 33 APPLIED TO SCATTER — the read-distance ladder, and the diagnosis it produces
+
+§1.5/§1.6 fix the instrument: `SILHOUETTE_MIN_PX` = 8 px at `INTERNAL_RES`
+640×360, so **readable size = distance / 30**. Invert it and every scatter class
+gets a hard expiry:
+
+> **An object of size S stops being an OBJECT at d = 30·S. Past that it is
+> texture, and it contributes nothing to «not flat».**
+
+| object | size | reads as an object out to |
+|---|---|---|
+| pebble / cobble | 0.2 m | 6 m |
+| shrub, single | 0.6 m | 18 m |
+| fence post | 1.2 m | 36 m |
+| boulder, small | 1.5 m | 45 m |
+| boulder, large | 4 m | 120 m |
+| shrub clump | 5 m | 150 m |
+| watchtower drum (minor plan dim.) | 6 m | 180 m |
+| rock outcrop, boss | 10 m | 300 m |
+| rock outcrop, large | 25 m | 750 m |
+| civic tower (frame 05) | 30 m | 900 m |
+
+#### 10.4.1 THE FLATNESS COMPLAINT IS A MID-FIELD COMPLAINT
+
+This is the finding the ladder produces, and it is the one I would defend
+hardest.
+
+A world with grass, trees and mountains populates **0–30 m** (grass, near
+trunks) and **1 km +** (the massif) and has *nothing in between*. In the
+60–400 m band the ground is then a smooth shaded ramp with no object silhouette
+standing on it — no edge, no cast shadow, no occlusion of ground by ground. **A
+smooth shaded ramp with nothing on it is exactly what «плоско как в майнкрафте»
+describes**, and it describes the mid field, because the near field always looks
+fine (grass hides everything) and the far field always looks fine (mountains
+carry it).
+
+Count what populates the mid field in frame 01: two or three rock exposures, a
+conifer group, a second conifer group, the plateau lip itself, several scrub
+patches. Five to eight distinct silhouettes, none of them a tree in the near
+field and none of them the mountain.
+
+> **`MIDGROUND_OBJECT_COUNT_MIN` = 5.** From any standpoint on open ground, an
+> acceptance frame must contain at least five distinct object silhouettes that
+> are (a) at least `SILHOUETTE_MIN_PX` across, (b) neither near-field vegetation
+> nor the far massif, and (c) sitting between the near ground and the horizon.
+
+It is deliberately defined by what is *countable on a frame* rather than by a
+distance estimate, because distance in a screenshot is a guess and a count is
+not. Frame 01 scores 5–8 depending on whether the scrub patches clear 8 px; our
+build's count is the number to go and get.
+
+#### 10.4.2 The corollary: A CLASS SERVES ONE BAND ONLY
+
+Boulders at 1–4 m expire at 120 m. They cannot fix the mid field past that
+distance however many you scatter, and scattering more of them is the obvious
+wrong response to a mid-field failure — it costs draw calls and moves nothing in
+the frame. **Each band must be populated by a class sized for it**, which is why
+§10.5 opens with outcrops rather than with boulders: outcrops at 5–25 m are the
+only natural class whose expiry lands in the 150–750 m band.
+
+
+---
+
+### 10.5 THE PLACEMENT BRIEFS
+
+One brief per class. Each states, in this order: **what it is for**, **the band
+it serves** (Rule 33, §10.4), **size**, **anchor** — what in the world decides
+where it goes, **rotation and tilt** (§10.3), **density**, **cost**, and
+**failure statement** — the sentence an acceptance frame must be able to make
+false (F7, §1.6).
+
+The order below is the build order (§10.6), not an alphabet.
+
+---
+
+#### B1 — BOULDERS (валуны), 0.8–4 m
+
+**Evidence:** 01 (scattered on the plateau), 05 (a whole field carrying the
+foreground), 15 (a run of them walling the sunken road), 16 (half-buried domes
+with moss on their crowns).
+
+**For:** the near and near-mid field. This is the class that makes the ground
+under the player's feet three-dimensional, and it is the cheapest thing in this
+document per unit of frame.
+
+**Band:** 15–120 m. A 1.5 m boulder expires at 45 m, a 4 m one at 120 m.
+**It cannot help past 120 m and must not be asked to** (§10.4.2).
+
+**Size:** `BOULDER_SIZE` 0.8–4.0 m, distribution weighted to the small end.
+**Within one cluster, the largest and smallest must differ by ≥ 1.6×** — a
+scatter of same-sized rocks reads as a tiling pattern, which is the failure mode
+we are trying to leave, in a new costume.
+
+**Burial — the single most important number in this brief.**
+`BOULDER_BURIAL_FRAC` = **0.25–0.55** of the boulder's vertical extent sits
+below the ground surface. An unburied boulder rests on the terrain with a
+visible contact ellipse and reads instantly as *placed*; both frame 15 and
+frame 16 show rock **emerging** from the soil, and frame 16's foreground dome
+shows about half of an ellipsoid. Burial also solves the slope-contact problem
+for free: a buried rock cannot float on a hillside.
+
+**Grouping — boulders are NOT blue-noise.** `BOULDER_CLUSTER_SIZE` 3–9 stones,
+cluster span 6–20 m, and `BOULDER_CLUSTERED_FRAC` = 0.60–0.75 of all boulders
+belong to a cluster; the remainder are singletons. Frame 15's boulders run in a
+line along the road bank; frame 05's carpet the bluff. A uniform sprinkle is the
+signature of scatter code and reads as one.
+
+**Anchor — A BOULDER COMES FROM SOMEWHERE.** A rock alone in open grass with no
+source above it reads as a prop; every frame in the set puts its boulders below
+something that could have shed them. Rule: **every cluster must have, within
+60 m uphill, either a scarp (§2.7), a rock outcrop (B2), or ground at slope
+≥ `SLOPE_ROCK_MIN`.** Preferred sites, in order: the toe of an outcrop, below a
+scarp lip, stream banks and the outside of river bends, ridge shoulders.
+
+*One deliberate exception:* the **erratic** — a single 3–4 m stone in open
+ground with no source, rare enough to be an event
+(`BOULDER_ERRATIC_DENSITY` ≤ 0.05 / ha). Because it is rare and large it reads
+as a landmark rather than as debris, which is the opposite of the failure the
+source rule exists to prevent. It is also a legitimate L2 guide.
+
+**Tilt:** free uniform rotation on SO(3) — this is the one class that gets a free
+azimuth (§10.3.1) — with the single constraint from the table: the long axis
+stays within 40° of horizontal for ≥ 85% of instances.
+
+**Density:** `BOULDER_DENSITY_ANCHORED` 1.5–4 / ha near an anchor,
+`BOULDER_DENSITY_OPEN` 0.1–0.4 / ha elsewhere.
+
+**Cost:** a convex blob at 40–80 tris (`ROCK_BLOCK_TRI_BUDGET_MAX` is already 60
+for the massif stacks, and the same asset class serves). At 3 / ha over the full
+120 m read disc — 4.5 ha, an upper bound since the frustum is a quarter of it —
+that is ~14 boulders and **under a thousand triangles for the entire near-field
+population.** This is why B1 and B2 are first: they are the largest change in
+the frame per triangle spent.
+
+**Failure statement:** the frame fails if boulders sit on the ground with a
+visible contact seam, or if two neighbours in one cluster are the same size, or
+if a cluster has no source above it.
+
+---
+
+#### B2 — ROCK OUTCROPS (выходы породы), 3–25 m
+
+**Evidence:** 01 (three separate exposures in one plateau view — the lead's own
+count, and it is right), 03 (a slab, left, plus a cliff mass filling the upper
+right), 06 (bedded shelves stepping into the water and carrying both towers),
+10 (natural rock deliberately left standing inside a built plaza).
+
+**For:** THE MID FIELD, which §10.4.1 identifies as where the flatness complaint
+actually lives. This is the class that literally is the user's sentence: the
+heightmap's bone breaking through the soil.
+
+**Band:** 90–750 m. A 3 m slab expires at 90 m, a 10 m boss at 300 m, a 25 m
+mass at 750 m. **No other natural class covers 150–750 m.**
+
+**Two sub-forms, and the distinction is load-bearing:**
+
+- **Pavement / slab** (03, 01). Near-flat bedrock with soil in pockets, proud of
+  the ground by 0.1–0.6 m, extent 3–15 m. Frame 03's forest floor is *mostly*
+  this — bare rock with soil in the hollows, not a soil texture with rocks on it.
+  **The rim must be geometry even if the face is splat**, because the shadow line
+  under the lip is the entire read (§10.2, point 2). A slab drawn purely as a
+  splat patch is a stain, not a rock.
+- **Boss / tor** (01 far field, 03 upper right, 06). A mass 2–8 m proud and
+  5–25 m across, with visible bedding steps and a broken top.
+
+**Bedding — and this is a free consistency win.** §4.1 already rules that rock
+strata are defined in **absolute world height, globally**, never as a fraction of
+each landform. Outcrops inherit that rule unchanged: the same pale band that
+crosses the massif crosses a 6 m boss on the plain at the same elevation. A
+stratum that lines up across the whole world reads as geology; one that scales to
+each rock reads as paint. It costs nothing because the field already exists.
+Dip 5–25°, dip azimuth coherent over ≥ 200 m (§10.3.2).
+
+**Anchor — outcrops appear where erosion STRIPS, never where it deposits.**
+Implementable directly against the meso field: place where local mean curvature
+is **convex** above a threshold — ridge shoulders, spur noses, scarp lips, the
+outside of river bends. **Forbidden in concavities** (hollows collect soil),
+in the floodplain, and inside building pads. This one rule is the difference
+between rock that explains the terrain and rock sprinkled on it.
+
+**Tilt:** bedding only. No free yaw — the outcrop's fabric *is* the bedding, and
+a randomly spun boss breaks the shared-plane read that makes a group of outcrops
+one bedrock (§10.3.1).
+
+**Density:** `OUTCROP_DENSITY` 0.4–1.2 / ha in open and rocky ground, tapering to
+zero in floodplain and pads. **Plus the frame-01 control: from a standpoint on
+open ground, at least three outcrops in view.** Frame 01 has exactly three, on a
+plateau, and that is the number the lead pointed at.
+
+**Cost:** a boss at 300–600 tris. At 0.8 / ha over a 300 m read disc — 28 ha,
+again an upper bound — that is ~23 bosses at ~9 000 tris, against
+`MASSIF_ROCK_TRI_BUDGET_MAX` = 60 000 for a single massif. Affordable, **but it
+needs LOD**: two levels, full geometry inside ~150 m and a ≤ 60-tri silhouette
+blob beyond, since past 150 m a boss is a shape and not a surface.
+
+**Failure statement:** the frame fails if the mid field contains no rock; if
+neighbouring outcrops disagree about their bedding direction; or if an outcrop
+sits in a hollow.
+
+---
+
+#### B3 — FENCE LINES (изгороди) — the cheapest thing in this document, and it is also an INSTRUMENT
+
+**Evidence:** 15 (posts on both banks of the sunken road, a rail run spanning the
+gap, and the whole thing derelict), 02 (a paddock fence right of the timber hall).
+
+**For:** leading the eye along a road — and, more importantly than that:
+
+> **A fence line is a CONTOUR GAUGE laid on the land.** Post bases sit on the
+> terrain, so the rail line draws the ground's own profile in the air where the
+> eye can see it against the sky. It converts D2's relief from something you must
+> infer out of shading into a visible line.
+
+That is why it ranks second in the build order despite being a prop: it does not
+merely benefit from bumpy ground, it **proves** bumpy ground. It is simultaneously
+set dressing and the acceptance device for §10.1.
+
+**Band:** Rule 33's fourth case in this document. A 1.2 m post expires at 36 m —
+**but the readable unit is the LINE, not the post.** A 40–80 m run of regularly
+spaced posts reads as a dotted line to roughly 300 m, exactly as
+`SPIRE_GROUP_SPAN` argues that the readable unit is the group and not the spire.
+
+**Size:** `FENCE_POST_HEIGHT` 0.9–1.5 m, `FENCE_POST_SPACING` 1.8–3.0 m,
+`FENCE_RUN_LENGTH` 15–80 m.
+
+**Broken by rule:** `FENCE_GAP_FRAC` = 0.10–0.30 of a run has posts or rails
+missing. Frame 15's fence is half gone, and that is what makes it read as an old
+world with a history rather than as a level-designer's arrow. A complete fence is
+a fence; a broken fence is a place.
+
+**Anchor:** parallel to a road or corridor at `FENCE_ROAD_OFFSET` 2–5 m, or
+enclosing a field beside a settlement. Follows the corridor's plan curve, never a
+surveyed straight line.
+
+**Tilt:** each post independent, 3–15° (§10.3.2 — genuine decay, genuinely
+uncorrelated), yaw ± 10° about the run. **The rail sags between posts.** A
+perfectly straight rail is a hairline and is the single tell that gives the asset
+away.
+
+**Cost:** post 8–12 tris, rail 4 tris per bay. A 60 m run at 2.4 m spacing is
+25 posts and 24 bays ≈ **350 triangles.** Essentially free.
+
+**Failure statement — and it is the sharp one:** the frame fails if the fence's
+top line is **straight in screen space** over its whole run. A straight fence top
+means flat ground under it, which means D2 failed and the fence has just reported
+it.
+
+---
+
+#### B4 — TOWERS AND RUINS
+
+**Evidence:** 06 (two stone drums flanking a timber span, standing on an
+outcrop), 05 (a distant white civic spire, the only true vertical in a whole
+valley at dusk).
+
+**For:** a vertical anchor — but Rule 33 says something uncomfortable about how
+far that works, and it corrects a phrase in REFERENCE_FRAMES.md.
+
+**Band — the arithmetic, because it changes the brief:** the readable dimension
+of a vertical mass is its **minor plan dimension**, and it must be ≥ d/30 at the
+distance it is meant to anchor.
+
+| tower | minor plan dim. | anchors out to |
+|---|---|---|
+| watchtower drum (frame 06) | 5–6 m | **150–180 m** |
+| to anchor at 500 m | **≥ 17 m** | — a keep or a group, not a tower |
+| civic spire (frame 05, at ~900 m) | **≥ 30 m** | consistent with what that frame shows |
+
+> **A lone 6 m tower on a distant ridge is a wasted asset.** It is a 180 m
+> object. Either site it within ~180 m of a route the player walks, or build a
+> **group** — frame 06 is two drums plus the span between them, and the readable
+> unit is the whole assembly, gap included. Fifth Rule-33 case in this document.
+
+**Silhouette — the read is the CROWN.** Frame 06's drums are unmistakable at a
+distance because their tops are broken and uneven. A smooth cylinder top is a
+chess piece. Rule: the crown must break the vertical in **at least 3 places**,
+notch depth ≥ 0.5 m, and the crown line must vary by ≥ 1 m across the drum.
+
+**Anchor:** **on rock, not on soil.** Frame 06's towers stand on the bedded
+outcrop, and that is not decoration — outcrop plus tower is one composite mass,
+so it reads further than either alone, and it explains why anyone built there.
+Attach B4 siting to B2 by rule.
+
+**Tilt:** axis ≤ 1.5°, per-block yaw ± 8°, course offset ± 0.15 m (§10.3.3).
+A ruin additionally gets up to 4° of lean on the surviving stub, and a **talus
+skirt of B1 boulders at its foot** — which satisfies B1's source rule by
+construction, since the tower *is* the source.
+
+**Density:** none given deliberately. Towers are L1/L2 siting under §1.3's
+hierarchy and §1.3a's tiers, not scatter, and inventing a per-hectare number here
+would create a second placement authority for the same objects.
+
+**Failure statement:** the frame fails if the crown reads as a smooth arc; if the
+drum's silhouette edge is a single straight line from base to crown; or if the
+tower stands on graded soil with no rock under it.
+
+---
+
+#### B5 — KERBS, STEPS, RETAINING WALLS (бордюрчики)
+
+**Evidence:** 07 (a dry-stone retaining wall holding a level change beside the
+street, cobbles, a two-course brick step at the door), 10 (stairs and terraces
+cutting diagonals across the whole plaza), 14 (a kerb edging a planted bed, a
+low well parapet, steps into the market).
+
+**For:** making a settlement floor read as **built** rather than as a painted
+patch of a natural surface. They do it by putting **horizontal lines at known
+heights** into a frame — and a settlement is the only place in the world where a
+horizontal line is permitted (§10.3.3).
+
+**The ruling this brief exists to produce:**
+
+> **Inside a settlement pad, a level change of ≥ 0.4 m must be resolved by a
+> BUILT EDGE — kerb, step, or retaining wall — and never by a graded slope.**
+
+That single rule is most of the difference between frames 07/10/14 and a village
+dropped onto a heightmap. Graded ground inside a built place says nobody
+built it.
+
+**Size:** `KERB_HEIGHT` 0.15–0.30 m; `STEP_RISE` 0.15–0.20 m with tread
+0.30–0.45 m; `RETAINING_WALL_HEIGHT` 0.8–2.5 m with 3–8° batter into the bank.
+**`STEP_RISE` must agree with `PLAYER_STEP_HEIGHT`** — a step the player cannot
+walk up is a bug that looks like architecture. That is a Rule 35 number: it is
+flagged for NUMBERS.md in §10.7 rather than settled here.
+
+**Band — Rule 33's sixth case.** A 0.25 m kerb expires at 7.5 m as a
+*silhouette*: it is a first-person, walk-past object and it earns nothing in a
+vista. **But the LINE reads far**, because a kerb run is a value edge rather than
+a silhouette — a 20 m run reads to roughly 150 m. This is why settlements in
+frames 10 and 14 read from a distance as a pattern of lines, and it is why kerbs
+are worth building despite the size arithmetic.
+
+**Plan line:** follows the ground contour or the building line. **No straight run
+longer than 12 m without a jog or a change of level** — frame 10 does this
+constantly, and it is what stops a plaza reading as a floor tile.
+
+**Failure statement:** the frame fails if any level change inside the pad is a
+grass ramp; if a kerb runs dead straight for more than 12 m; or if the built floor
+meets natural ground with no edge between them.
+
+---
+
+#### B6 — SHRUB AND SCRUB CLUMPS (куртины кустарника)
+
+**Evidence:** 01 (grey-green clumps on pale tan), 02 (a rust-red mass filling the
+foreground against grey-brown ground — the strongest single colour move in all
+sixteen frames), 14 (yellow-green beds inside the market).
+
+**For:** two jobs, and the first is the one everyone skips.
+
+1. **Breaking the ground-to-object seam.** A boulder standing on bare ground has
+   a hard contact line and reads as placed. A tuft at its foot removes the line.
+   Rule: `SHRUB_SKIRT_FRAC` — **50–80% of all boulders, outcrop rims, posts and
+   trunks carry at least one shrub or grass tuft within 0.5 m of the contact.**
+   This is what separates 15 and 16 from a prop scatter, and it is nearly free.
+2. **Carrying R5's second hue.** Frame 02's rust-red on grey-brown is the extreme
+   case. Flagged to render and flora as the ground-colour partner of R1/R5 —
+   design's part is only that the clumps exist and that their colour is
+   *different from the ground*, not a darker version of it.
+
+**Band:** a 0.6 m shrub expires at 18 m; a 5 m clump reads to 150 m. **The CLUMP
+is the readable unit** (seventh Rule-33 case). `CLUMP_SPAN` 2–6 m, 4–12 plants per
+clump. Consequence handed to render: individual shrubs drawn beyond ~20 m are
+wasted draws and should collapse into the clump's own representation.
+
+**Failure statement:** the frame fails if any placed object meets the ground with
+a visible hard contact line, or if the clumps are the same hue as the ground they
+stand on.
+
+---
+
+#### B7 — LEANING DEAD TREES (наклонённые сухие деревья)
+
+**Evidence:** 15 (a whole stand of them, trunks 20–40° with real curvature —
+this frame is D1's poster), 16 (living canopy leaning 15–25° and leaning
+*together*).
+
+**This is NOT a new class.** §5.9 already approves the **standing snag** with
+densities `SNAG_DENSITY_FOREST` 1.5–3 / ha and `SNAG_DENSITY_OPEN` 0.25–0.5 / ha,
+a material split, and a 30–60 tri asset. Inventing a competing "dead tree" class
+here would create two authorities for one object. **B7 supplies only the property
+§5.9 was missing: the lean.**
+
+- `SNAG_LEAN` = **12–30°** from vertical.
+- Azimuth = the wind field azimuth ± 25° (§10.3.1) — snags in one locality lean
+  *together*, which is what frame 16 shows and what a per-instance random tilt
+  would destroy.
+- Heights and densities: unchanged, §5.9 governs.
+
+**Why it is worth doing early even so:** a bare trunk is 30–60 triangles and it
+draws a diagonal across the sky. Per triangle it is the loudest possible
+statement of «всё угловатое наклоненное», and NUMBERS.md currently records the
+snag constants as **НЕ ПОСТРОЕНО with no consumer at all** — so the asset exists,
+the rule exists, and the world has none.
+
+**Failure statement:** the frame fails if snags stand plumb, or if neighbouring
+snags lean in unrelated directions.
+
+---
+
+#### B8 — TIMBER SPANS AND BRIDGES
+
+**Evidence:** 04 (a low twin-arch stone bridge at ~80 m), 06 (a timber span
+carried on a prop that leans into the water).
+
+Siting belongs to §3 (water) and to core's corridor pass; this brief supplies only
+the two rules the frames enforce.
+
+- **The read of an arch is the HOLES, not the mass.** At 80 m frame 04's bridge
+  is a dark bar with two bright apertures in it, and that is the whole
+  recognition. Rule: **an arch's clear opening must be ≥ d/30 at the distance the
+  bridge is meant to be recognised from** — a 2.5 m opening reads to 75 m. Below
+  that the bridge reads as a wall and stops being a bridge.
+- **The prop is the D1 element.** Frame 06's span rests on a brace 15–35° off
+  vertical, leaning into its load. It is the piece that stops a bridge being two
+  rectangles.
+
+---
+
+#### B9 — WINDMILL / WORKING STRUCTURE
+
+**Evidence:** 02 — a stone drum, timber upper, conical shingle cap, and a sail
+cross at 45°.
+
+At most one per hamlet. Its entire value is that it owns **an axis that is not
+vertical**: the axle is horizontal and the cross sits at 45°, so it throws four
+diagonals against the sky where every other man-made thing throws verticals and
+horizontals. `WINDMILL_SAIL_SPAN` 8–12 m reads to **240–360 m**, which makes it
+the best silhouette a hamlet can buy for its cost. The conical cap is the D1
+element on the roof line (§10.3.2).
+
+**Failure statement:** the frame fails if the sail cross sits at 0/90°, or if the
+mill's cap is a flat disc.
+
+---
+
+### 10.6 BUILD ORDER, AND WHY THIS ORDER
+
+1. **B2 outcrops + B1 boulders, together, with B6 skirts as part of the same
+   step.** Most change in the frame per triangle spent, and — decisively —
+   **outcrops are the only natural class whose read distance covers 150–750 m**,
+   which §10.4.1 identifies as where the flatness complaint actually lives.
+   B6 is not a separate step because boulders and outcrops without skirts have a
+   hard contact seam and read as props; the skirt is part of B1/B2's acceptance,
+   not a later polish pass.
+2. **B3 fences.** ~350 triangles per run, and it doubles as the acceptance
+   instrument for §10.1: a straight fence top is a flat-ground report.
+3. **B4 towers.** Highest value per object in the frame, but the most expensive
+   to author, and its siting depends on B2 (towers stand on outcrops).
+
+B7's lean is a one-line change to an already-approved class and can ride with any
+of the three; B5, B8 and B9 are settlement and water work and follow their own
+passes.
+
+---
+
+### 10.7 NUMBERS REQUESTED (Rule 35 — via lead, to `docs/NUMBERS.md`)
+
+Every value below is **предложение — утвердить**. The "second zone" column names
+who else must agree, which is what makes it a NUMBERS.md row rather than a
+design-local figure.
+
+| constant | proposed | unit | second zone |
+|---|---|---|---|
+| `GROUND_RELIEF_SIGMA_20M_MIN` | 0.35 | m | core (generator + the probe that measures it) |
+| `GROUND_RELIEF_SIGMA_20M_MAX` | 1.20 | m | core |
+| `MIDGROUND_OBJECT_COUNT_MIN` | 5 | silhouettes ≥ 8 px | render (it is counted on a frame at `INTERNAL_RES`) |
+| `BOULDER_SIZE_MIN` / `_MAX` | 0.8 / 4.0 | m | core |
+| `BOULDER_BURIAL_FRAC_MIN` / `_MAX` | 0.25 / 0.55 | fraction | core |
+| `BOULDER_CLUSTER_SIZE_MIN` / `_MAX` | 3 / 9 | stones | core |
+| `BOULDER_CLUSTER_SPAN_MIN` / `_MAX` | 6 / 20 | m | core |
+| `BOULDER_CLUSTERED_FRAC_MIN` / `_MAX` | 0.60 / 0.75 | fraction | core |
+| `BOULDER_SIZE_RATIO_MIN` (within a cluster) | 1.6 | ratio | core |
+| `BOULDER_DENSITY_ANCHORED_MIN` / `_MAX` | 1.5 / 4.0 | per ha | core |
+| `BOULDER_DENSITY_OPEN_MIN` / `_MAX` | 0.1 / 0.4 | per ha | core |
+| `BOULDER_ERRATIC_DENSITY_MAX` | 0.05 | per ha | core |
+| `BOULDER_SOURCE_RADIUS` | 60 | m | core |
+| `OUTCROP_DENSITY_MIN` / `_MAX` | 0.4 / 1.2 | per ha | core |
+| `OUTCROP_PROUD_SLAB_MIN` / `_MAX` | 0.1 / 0.6 | m | core |
+| `OUTCROP_PROUD_BOSS_MIN` / `_MAX` | 2 / 8 | m | core |
+| `OUTCROP_EXTENT_MIN` / `_MAX` | 3 / 25 | m | core |
+| `OUTCROP_IN_VIEW_MIN` | 3 | count, open ground | render (frame-side check) |
+| `BEDDING_DIP_MIN` / `_MAX` | 5 / 25 | ° | core; **reuses §4.1's absolute-height stratum field** |
+| `BEDDING_AZIMUTH_COHERENCE` | 200 | m | core |
+| `OUTCROP_TRI_BUDGET_NEAR` / `_FAR` | 600 / 60 | tris | render (LOD switch ≈ 150 m) |
+| `FENCE_POST_HEIGHT_MIN` / `_MAX` | 0.9 / 1.5 | m | core |
+| `FENCE_POST_SPACING_MIN` / `_MAX` | 1.8 / 3.0 | m | core |
+| `FENCE_RUN_LENGTH_MIN` / `_MAX` | 15 / 80 | m | core |
+| `FENCE_GAP_FRAC_MIN` / `_MAX` | 0.10 / 0.30 | fraction | core |
+| `FENCE_ROAD_OFFSET_MIN` / `_MAX` | 2 / 5 | m | core |
+| `FENCE_POST_LEAN_MIN` / `_MAX` | 3 / 15 | ° | core |
+| `TOWER_MINOR_DIM_PER_DISTANCE` | 1/30 | ratio | render — **it is `SILHOUETTE_MIN_PX` restated as a siting rule** |
+| `TOWER_CROWN_NOTCH_COUNT_MIN` | 3 | notches | core |
+| `TOWER_CROWN_NOTCH_DEPTH_MIN` | 0.5 | m | core |
+| `TOWER_CROWN_LINE_VARIATION_MIN` | 1.0 | m | core |
+| `MASONRY_BLOCK_YAW_MAX` | 8 | ° | core |
+| `MASONRY_COURSE_OFFSET_MAX` | 0.15 | m | core |
+| `KERB_HEIGHT_MIN` / `_MAX` | 0.15 / 0.30 | m | core |
+| `STEP_RISE_MIN` / `_MAX` | 0.15 / 0.20 | m | **core + movement — must agree with `PLAYER_STEP_HEIGHT`** |
+| `STEP_TREAD_MIN` / `_MAX` | 0.30 / 0.45 | m | core |
+| `RETAINING_WALL_HEIGHT_MIN` / `_MAX` | 0.8 / 2.5 | m | core |
+| `RETAINING_WALL_BATTER_MIN` / `_MAX` | 3 / 8 | ° | core |
+| `BUILT_EDGE_LEVEL_CHANGE_MIN` | 0.4 | m | core — above this, a built edge, never a grade |
+| `KERB_STRAIGHT_RUN_MAX` | 12 | m | core |
+| `SHRUB_SKIRT_FRAC_MIN` / `_MAX` | 0.50 / 0.80 | fraction | core + flora |
+| `CLUMP_SPAN_MIN` / `_MAX` | 2 / 6 | m | flora |
+| `SNAG_LEAN_MIN` / `_MAX` | 12 / 30 | ° | flora — **an addition to §5.9's existing class, not a new one** |
+| `SNAG_LEAN_AZIMUTH_SPREAD` | 25 | ° about the wind azimuth | flora + render (`WIND_FIELD_*`) |
+| `ARCH_OPENING_PER_DISTANCE` | 1/30 | ratio | render |
+| `WINDMILL_SAIL_SPAN_MIN` / `_MAX` | 8 / 12 | m | core |
+| `WINDMILL_SAIL_CROSS_ANGLE` | 45 ± 15 | ° from vertical | core |
+
+Two of these are **not new numbers at all** and are listed so nobody re-derives
+them: `TOWER_MINOR_DIM_PER_DISTANCE` and `ARCH_OPENING_PER_DISTANCE` are both
+`SILHOUETTE_MIN_PX` = 8 px at `INTERNAL_RES` restated as siting rules, and if
+that constant ever moves, these move with it rather than being re-argued.
+
+---
+
+### 10.8 ACCEPTANCE — the frame pairs (Rule 27)
+
+Each row is **one frame from our build beside the reference frame it answers**,
+at the same *kind* of viewpoint, archived in `docs/acceptance/` with its recipe,
+shot at or downsampled to `INTERNAL_RES` (F6). Each carries the sentence that
+must be capable of being true, or it is a diagnostic and not a verdict (F7).
+
+| # | ref | our standpoint | what would make it FAIL |
+|---|---|---|---|
+| **A1** | **01** | eye height on the **flattest legal ground** we have, looking level, sun at 25–35° elevation raking across the view | ground runs unbroken from the player's feet to the tree line; fewer than 3 ground crest-lines inside 60 m; fewer than `MIDGROUND_OBJECT_COUNT_MIN` mid-ground silhouettes; fewer than 3 outcrops in view |
+| **A2** | **15** | on a road, looking **along** it, a fence run in frame, low sun | the fence's top line is straight in screen space; posts all plumb; boulders sitting on the surface rather than emerging |
+| **A3** | **06** | 60–100 m from a tower group, low sun across the drums | the crown reads as a smooth arc; the drum's silhouette edge is one straight line; the tower stands on graded soil |
+| **A4** | **03** | forest floor at eye height, dappled light | no bedrock visible through the soil within the near 20 m; every slab drawn as a splat patch with no rim shadow |
+| **A5** | **16** | inside a stand with foreground boulders, warm near fog | snags and trunks plumb; neighbouring leans disagreeing about direction; no half-buried rock in the foreground |
+
+**A1 is the one that answers the user's sentence** and it is the one to shoot
+first, because it is the frame that is allowed to look bad: it is deliberately
+taken on the flattest ground in the world, which is where «нет идеальноплоского
+мира как в майнкрафте» either holds or does not.
+
+**A note on what A1 cannot certify.** A1 proves the *near and mid* field. It says
+nothing about R1 haze or R3 sky, which are render's and are certified on their
+own frames — a plateau frame with a beautiful sky and a flat plateau still fails
+A1, and a bumpy plateau under a bad sky still passes it. Keeping the two apart is
+what stops a good frame from certifying a property it never tested.
+
+---
+
+### 10.9 HAZE — the two verdicts render is waiting on (stage-5)
+
+Render fixed aerial perspective and found it had never run
+(`smoothstep(0.30·CAMERA_FAR, 0.85·CAMERA_FAR, d)` began at 2400 m in a
+1024 m world, so the haze multiplier was identically zero, and measured
+contrast *rose* with distance by 54%). They then derived
+`HAZE_SCALE_LENGTH` = 1400 m from a written design contract rather than
+inventing it, which is the right procedure. **The contract they derived it from
+was stale, and it was stale because of me.** This section is design's half.
+
+#### 10.9.1 Verdict 1 — `LANDMARK_HAZE_ONSET` stays a SITING rule. CONFIRMED, and it stops being a tabled metre value
+
+**Confirmed**, and the reasons escalate:
+
+1. **The evidence.** All sixteen frames show contrast falling continuously over
+   the whole visible range. R1 says so in its own words — «not as a fog wall at
+   the far plane». A switch at 800 m *is* a fog wall, i.e. the precise defect
+   R1 exists to forbid.
+2. **The structural reason, which is stronger: `exp(-d/L)` HAS NO KNEE.** There
+   is nothing at 800 m for a renderer to switch, at any scale length. A number
+   that cannot be a draw parameter can only be a placement parameter, and that
+   settles the question independently of taste.
+3. **So its meaning is fixed:** the distance beyond which a landmark reads as
+   *far goal* rather than as *here*. It is an input to **where the LR and the L0
+   are sited** (§1.3a), never to how either is drawn.
+
+**But it must stop being a tabled 800.** §1.6.1 already ruled, about acceptance
+distances, that they are **derived, never tabled** — «a tabled distance is a
+tabled coordinate wearing a different hat». The same applies here, and it
+applies harder now that there is an exponential model where before there was
+none: under `exp(-d/L)`, 800 m means a different amount of haze at every L, so a
+tabled 800 cannot survive a change to `HAZE_SCALE_LENGTH` without silently
+changing meaning.
+
+> **RULING: the onset is a CONTRAST RATIO of 2× — «hazy» is half the contrast
+> of «solid» — and the metre value is derived from it:**
+> **`d_onset = d_accept(L0) + L · ln 2`.**
+
+With Ravenscar's `d_accept` = 360 m (§1.6.1):
+
+| `HAZE_SCALE_LENGTH` | derived `d_onset` |
+|---|---|
+| 1400 m | **1330 m** |
+| 600 m | **776 m** |
+
+**Recorded as evidence for the lead's choice, not as the choice:** the tabled
+800 m is what a ~600 m scale length produces, to within 3%. That 800 was written
+in §1.3a *before* there was an exponential model — it is an intuition about how
+far away a thing has to be to read as a far goal, and that intuition turns out
+to be consistent with the short scale length and not with the long one. It is
+one data point and it arrives from a completely different direction than
+§10.9.2, which is the only reason it is worth stating.
+
+#### 10.9.2 Verdict 2, part one — THE PREMISE UNDER 1400 IS MINE, AND IT WAS WITHDRAWN BEFORE THIS CONVERSATION STARTED
+
+Render derived 1400 from §7.1b: *«Ravenscar must read SOLID not hazy at
+287–717 m, and haze on it is a bug per §1.3a.»* **That sentence is mine.**
+
+§1.6.1 rules `d_accept = 3·R`, and for Ravenscar (R = 120 m) that is **360 m,
+not 717 m**. The same section rules, in as many words, that **«a landmark
+photographed beyond its own d_accept certifies nothing about its shape»**.
+717 m has not been an acceptance distance for this landmark since §1.6.1
+landed — and **I never propagated that correction into the haze clause.** The
+600 m→360 m correction was written into the acceptance machinery and left
+sitting next to a haze sentence that still quoted the old range.
+
+**Render did nothing wrong. They read a contract instead of inventing a number,
+which is what we ask, and the contract lied to them.** The failure mode is worth
+naming because it will recur: **a correction that lands in one section and not
+in the sections that cite it is a shadow copy** (Rule 39) — the same defect as a
+duplicated constant, wearing the costume of a stale cross-reference.
+
+**WITHDRAWN: «haze on Ravenscar at 287–717 m is a bug».** What survives, and it
+is narrower and checkable: **haze that breaks a CLAUSE at that clause's own
+distance is a bug.** Per §1.6.1 — «the binding distance is always the clause's,
+never the frame's.»
+
+Retention `exp(-d/L)`, recomputed against the corrected distances:
+
+| | 287 m (rhythm clause) | **360 m (verdict clause)** | 717 m (no longer a test) |
+|---|---|---|---|
+| L = 1400 m | 0.82 | **0.77** | 0.60 |
+| L = 600 m | 0.62 | **0.55** | 0.30 |
+
+**The only cell where the short scale length looks alarming is the one that
+stopped being a test.** At the distance that actually binds, 600 m leaves
+Ravenscar at 55% contrast — more than half, which is what «solid» was ever
+meant to mean.
+
+#### 10.9.3 Verdict 2, part two — WHAT I AM OBLIGED TO PROTECT, as three checkable propositions
+
+Not «haze breaks it». Thresholds are in units of `PALETTE_SHADE_STEP_REF` =
+**0.0784**, the frozen ruler, so that design's thresholds and render's band
+construction meet on one number (Rule 35 — that is what the constant is for).
+
+**H1 — SILHOUETTE.** Frame 1, 360 m, backlit low morning sun.
+> Along Ravenscar's outline, |body luminance − adjacent sky luminance| ≥
+> **2 × `PALETTE_SHADE_STEP_REF` = 0.157**, at every point of the outline.
+
+Two steps and not one: §1.5 makes a shade step the finest signal the palette
+carries, so a one-step margin is a margin *equal to* the floor, and this
+document has twice refused zero slack. **Fails when** the crown quantises into
+the sky ramp anywhere along the outline — which is the failure a landmark
+doctrine cannot survive, because §1.5 says landmarks read by value against sky.
+
+**H2 — RHYTHM.** Frame 2, 287 m, raking evening sun behind camera.
+> Riser-to-bench luminance separation ≥ **1 × `PALETTE_SHADE_STEP_REF` =
+> 0.0784**, measured **at the LOWEST band pair visible in the frame, never on
+> the flank mean** (see §10.9.4 for why that clause is load-bearing).
+
+One step suffices here because a rhythm is a *repeated* signal that the eye
+integrates across several bands, and because §7.1b already chooses this frame's
+light to maximise riser/bench separation. **Fails when** the lowest two bands
+read as one value.
+
+**H3 — DEPTH SEPARATION.** §1.3a's actual requirement, and the one everybody
+assumes is the binding constraint.
+> contrast(L0 at 360 m) ≥ **1.7 ×** contrast(LR at its nearest legal siting,
+> 1400 m).
+
+| L | L0 @ 360 | LR @ 1400 | ratio | H3 |
+|---|---|---|---|---|
+| 1400 m | 0.77 | 0.37 | **2.1×** | pass |
+| 600 m | 0.55 | 0.097 | **5.7×** | pass, by 2.7× more |
+
+> **The short scale length satisfies my own §1.3a requirement BETTER, not
+> worse** — because separation is a RATIO, and a shorter scale length is
+> precisely what makes ratios large. §1.3a asked for *depth separation between
+> two landmarks*. It never asked for an absolute contrast floor on Ravenscar.
+> **The absolute floor entered the contract only through the 717 m number, and
+> that number is withdrawn.**
+
+So H3 does not choose between 1400 and 600. Only H1 and H2 can, and both are
+measured on frames nobody has taken yet — which is the correct place for this
+decision to sit.
+
+#### 10.9.4 What the height lever changes — and the one refinement it forces
+
+The lead is right that `HAZE_HEIGHT_SCALE` protects what I protect and relaxes
+what R1 wants, and that frames 02 and 12 show literally that: a hazed base under
+a clean crown. It is also the more physical model — haze is aerosol, aerosol
+settles, and a density that falls with altitude is why real mountains do this.
+
+The three propositions move in **opposite directions** under that lever, which is
+why they had to be separated before it could be discussed at all:
+
+- **H1 gets EASIER.** A mountain's outline *is* its crown — the highest geometry
+  in the frame — and altitude-scaled density protects exactly that.
+- **H3 is unchanged or easier.** The ratio is carried by the valley air between
+  the two landmarks, which is where the density stays high.
+- **H2 gets HARDER at the bottom of the flank and easier at the top**, and this
+  is the refinement the lever forces. With `HAZE_HEIGHT_SCALE` = 250 m and
+  Ravenscar's `L0_RELIEF` = 115 m, the crown sees `exp(-115/250)` = **0.63** of
+  the density at the hem. The band rhythm therefore **survives at the summit and
+  dies at the hem first.**
+
+> **Hence H2's «lowest visible band pair» clause, and it is not fussiness.** A
+> separation averaged over the flank would report a comfortable pass while the
+> failure sat at the bottom of the frame — the property under test varies with
+> elevation, so the measurement must be taken where it is worst. That is F7 in
+> the vertical axis, and it is the same error as measuring banding on a strip at
+> one luminance.
+
+**My position, stated so the lead can close this without another round:**
+
+- **If the height-scale pair comes back and H1, H2 and H3 all hold at the
+  shorter scale length, I withdraw and I will not manufacture a new objection.**
+  My contract asked for depth separation and for two clauses to stay readable;
+  it never asked for a contrast floor on Ravenscar, and the number that looked
+  like one has been withdrawn above.
+- **The one thing I will not trade is H2 measured at the hem.** If the height
+  lever's entire benefit is bought by hazing the base of the mountain, then the
+  base is where the cost lands, and §7.1b's rhythm clause is measured there. That
+  is the check that can still say no, and it is the only one.
+- **And the reference frames get the last word on ties.** Render measured that
+  the far ridge stood out 54% *more* than the near one — our frame asserted the
+  opposite of all sixteen references. Between a rule of mine and sixteen frames
+  the user chose, the frames win; §7.1's oldest clause says so. My job here was
+  to make sure the rule that gets overruled is a real one, and on inspection the
+  strongest-sounding part of it was a stale citation.
+
+#### 10.9.5 Propagation — the correction §1.6.1 owed and never paid
+
+Recorded so this class of failure is closed rather than noted:
+
+- **§7.1b's haze sentence** («287–717 m … haze on it is a bug») is superseded by
+  §10.9.2 and §10.9.3. The frames themselves are unchanged — §1.6.1 already
+  ruled that they now differ by clause and light rather than by range.
+- **§1.3a's `LANDMARK_HAZE_ONSET` = 800 m** is superseded by §10.9.1: it remains
+  a siting rule, its meaning becomes a 2× contrast ratio, and its metre value is
+  derived from `HAZE_SCALE_LENGTH` rather than tabled.
+- **General:** a distance quoted from another section is a **premise, not a
+  fact** (Rule 34). Every acceptance distance in this document is now derived by
+  §1.6.1's `d_accept = 3R`; any section still quoting a metre figure for one is
+  quoting a shadow copy and is wrong by construction.
+
+---
+
+### 10.10 THE ARMS CAME BACK AND MOVED THREE OF MY OWN LINES (stage-5)
+
+Render shot all three arms plus a **control with no air at all**, and the
+control is what did the work. Arm C (`HAZE_SCALE_LENGTH` 600, `HAZE_HEIGHT_SCALE`
+40, `HAZE_BASE_HEIGHT` 30) shipped. Of the three propositions I wrote in §10.9,
+**one was measuring the wrong system, one had a threshold set without its
+control, and one was never a proposition at all.** All three corrections below
+are against my own lines.
+
+*Recorded once and not dwelt on: §10.9.1 predicted that a ~600 m scale length is
+what the tabled 800 m onset encodes, and 600 is the arm that shipped. It was one
+data point offered as evidence; the arm was chosen on render's measurements, not
+on my note, and the prediction is worth exactly what a prediction is worth.*
+
+#### 10.10.1 H2 — WITHDRAWN from the haze question, ACCEPTED as a terrain defect, and it generalises to a rule
+
+**Accepted without reservation.** H2 scored **0.61 against a required 1.00 with
+zero atmosphere in the frame.** The lead's reasoning is correct and it is sharper
+than a concession — it is a rule we did not have:
+
+> **A CRITERION THAT FAILS ITS OWN ZERO-DOSE CONTROL IS MEASURING THE WRONG
+> SYSTEM.** A threshold that cannot be met at dose zero cannot select a dose. It
+> is not a strict criterion; it is a criterion pointed at the wrong subject, and
+> every value it returns is a reading of something else.
+
+That belongs next to F7 in §1.6, and it is why shooting the no-air control was
+worth an arm. F7 says a frame must be *able* to fail; this says a criterion must
+be *able* to pass. **The two together are the same discipline from both ends.**
+
+##### The diagnosis, as a hypothesis with the probe that separates it
+
+Two deaths are possible at the hem, and they are distinguishable by one
+measurement that must be run **before anything is changed**:
+
+- **(a) GEOMETRY** — bench/riser structure fades out before it reaches the hem,
+  so there is nothing there to see.
+- **(b) SPLAT** — the structure exists and is painted **one material**, so a
+  riser and a bench are the same green and their value separation is zero
+  whatever the geometry does.
+
+**The probe:** sample terrain height along a line running from the hem up the
+flank and look for the step signature; independently sample material ID along
+the same line. Steps present + material constant ⇒ (b). Steps absent ⇒ (a).
+
+##### My prior is (b), and it rests on two things already written down, not on speculation
+
+1. **`ROCK_STRATUM_PERIOD/PALE_FRAC` are marked НЕ ПОСТРОЕНО in NUMBERS.md and
+   have no consumer in the engine.** The material half of §4.1's banding has
+   never existed anywhere in the world. Checked, not assumed.
+2. **`MASSIF_ASPECT_MIN`'s own note already measured this failure and named it.**
+   It records Ravenscar at 115 m of relief over 180 m of radius — **mean slope
+   33°, below `SLOPE_ROCK_MIN` = 40°** — and concludes, in its own words, that
+   «материал нарисует травяной холм, что бы ни делала геометрия… правило формы и
+   правило раскраски обязаны сойтись, иначе гора проигрывает спор шейдеру».
+   With `SLOPE_GRASS_MAX` = 30°, **the hem — the shallowest part of the massif —
+   is the region most certainly painted pure grass.** The rhythm dies exactly
+   where the slope rule says it must.
+
+**This is the third occurrence of one lesson** (whole-massif aspect, then the
+summit, now the hem): *a shape rule and a paint rule that disagree are settled by
+the shader, always.* Recording it as recurrence rather than as news, because the
+first two times it was written as a local finding and it clearly is not local.
+
+##### The ruling, which holds under either diagnosis
+
+> **A stratum that only appears above a slope threshold is not a stratum, it is a
+> slope shader.** §4.1 defines the strata in **absolute world height, globally**,
+> precisely so that they do not depend on local geometry. That contract is
+> violated the moment the band is visible only where the ground happens to be
+> steeper than 40°.
+>
+> **RULING: the stratum's value modulation applies to the ground ramp at the
+> same absolute heights whatever material is painted there** — the band crosses
+> the grass at the hem exactly as it crosses the rock above it.
+
+This is not a hack to pass a test. It is what bedrock under thin soil looks
+like, and it is in the reference set: frame 06's bedded shelves run down into the
+water and stay bedded at low angles; frame 03's forest floor is *mostly* bedrock
+with soil in the pockets. **A band that stops at a slope contour reads as paint;
+a band that crosses materials at one elevation reads as geology** — which is
+§4.1's own argument, applied to the axis it had not been applied to.
+
+##### H2's fix and B2's brief are the same work
+
+> **The hem of the massif is the largest rock-outcrop site in the world, and
+> §10.5 B2 already specifies it.** B2's anchor rule places outcrops on convex
+> curvature — ridge shoulders, spur noses, scarp lips — which is exactly the
+> hem-to-flank transition. B2's slab sub-form *is* «bedrock with soil in
+> pockets», and its hard-rim clause is what puts a shadow line back into a
+> surface the splat rule had flattened.
+
+**No new numbers requested.** `ROCK_STRATUM_*` exist and are unbuilt; B2's
+constants are approved as of this stage. The gap here was never a missing value —
+it was a rule about which materials the existing value applies to.
+
+**New acceptance frame, added to §10.8:**
+
+| # | ref | our standpoint | what would make it FAIL |
+|---|---|---|---|
+| **A6** | **06** | the massif hem at the range that puts the lowest three band pairs in frame, raking light | the lowest band pair reads as one value; the banding stops at a slope contour rather than at an elevation; the hem is one uninterrupted material |
+
+#### 10.10.2 H1 — re-derived on p05, with the control known, and it becomes a BUDGET
+
+**Two errors, both mine, and they are different errors.**
+
+- **I set 2.00 without ever seeing its control.** The no-air frame reads 2.36, so
+  I had left aerial perspective a budget of **0.36 shade steps for its entire
+  existence.** This document's own standard — «a generator input must never equal
+  the floor of the invariant that checks it» — applies to a threshold and its
+  control just as much as to a generator and its test, and I broke it.
+- **A hard minimum over 105 columns of a 640×360 frame is ONE PIXEL COLUMN.** A
+  threshold evaluated at the instrument's own resolution has no slack by
+  construction. Accepted, and generalised below rather than patched here.
+
+##### The statistic changes first, and for every column-wise criterion, not just this one
+
+> **`ACCEPTANCE_PERCENTILE` = 5.** Every column-wise or sample-wise acceptance
+> statistic in this document is read at **p05**, never at the hard extremum. A
+> hard extremum over N samples is a single sample, and a single sample at the
+> instrument's resolution is noise wearing a threshold's clothes.
+
+It is one row in NUMBERS.md rather than a convention in prose because design's
+threshold and render's measurement have to meet on the same statistic (Rule 35) —
+the same reason `PALETTE_SHADE_STEP_REF` was frozen.
+
+##### H1 restated as two lines, because it was carrying two jobs
+
+**Line 1 — the hard floor, and it is the quantiser, not a taste:**
+
+> p05 of |body − adjacent sky| ≥ **one `PALETTE_SHADE_STEP_REF`**.
+
+Below one step the outline and the sky can quantise into the same palette entry
+and the silhouette is *gone*, not merely soft. No arm is near this; it is
+recorded as the line that must never be approached. **Deliberately not a new
+constant** — it is `PALETTE_SHADE_STEP_REF` × 1, and a row for it would be a
+Rule 39 shadow copy, the same call as `TOWER_MINOR_DIM_PER_DISTANCE`.
+
+**Line 2 — the budget, which is the line that actually binds:**
+
+> **`HAZE_SILHOUETTE_RETENTION_MIN` = 2/3.**
+> retention = p05(with air) / p05(no air) ≥ 0.667, at the landmark's own
+> `d_accept`.
+
+**Derived, then checked — in that order.** The derivation: at the distance where
+we certify a landmark's *shape*, more of what the frame shows must be the subject
+than is the atmosphere. Retention of 2/3 is exactly the point where surviving
+contrast is 2× the contrast haze consumed. **The 2× is not a new constant** — it
+is the same legibility unit §10.9.1 used for the onset ratio, which is the reason
+to prefer it over any other round fraction.
+
+The check, run afterwards:
+
+| arm | p05 | retention | budget |
+|---|---|---|---|
+| control, no air | 2.77 | 1.000 | — |
+| A (L=1400) | 2.25 | 0.812 | pass |
+| **C (L=600, shipped)** | **1.96** | **0.708** | **pass** |
+| B | 1.69 | 0.610 | **fail** |
+
+**Three things I will not paper over:**
+
+- **C clears the budget by 6%, which is thin, and the thinness is information
+  rather than an embarrassment.** It says the shipped arm sits near the edge of
+  what the budget permits — worth knowing, and not a reason to move the budget
+  to make it comfortable.
+- **Fixing H2 will change H1's control, and H1 must then be re-measured.**
+  §4.1's strata are global and absolute, so building them adds value structure to
+  every rock face including the crown that H1 measures. The denominator moves,
+  therefore the retention moves. **Stated now as a prediction so it is not
+  discovered as a surprise.**
+- **RULE 34 FLAG, and I am not ratifying past it: I do not know the range these
+  p05 figures were shot at.** H1 is defined at Ravenscar's `d_accept` = 360 m.
+  The lowland frames quoted elsewhere are 900 m. If these figures come from 900 m
+  they are a **diagnostic** for H1 and not a verdict on it (§1.6), the budget
+  above stands as written but has not yet been evaluated, and H1 at 360 m has
+  materially more headroom than the table suggests. **One line from render closes
+  this; nothing else depends on it.** I am flagging rather than assuming because
+  the last time a distance travelled between sections unchecked it cost us the
+  entire 1400/600 argument.
+
+#### 10.10.3 H3 — RETIRED, and not as a demotion: it was §10.9.1 wearing a second hat
+
+The lead is right that it gates nothing — no LR exists in the generator and no
+`LR_` row is read — and that **a threshold nothing can fail is Rule 30's exact
+defect.** But «keep it as intent» and «drop it» are both wrong, because the
+content is neither aspirational nor disposable. It is **duplicated**.
+
+§10.9.1 already rules that the LR is sited at or beyond
+`d_onset = d_accept(L0) + L·ln 2`, defined as the distance at which the far
+landmark retains **half** the near one's contrast. H3 asked for **1.7×**. Any
+landmark sited beyond `d_onset` satisfies H3 **by construction**, with margin:
+
+| | | |
+|---|---|---|
+| `d_onset` at L = 600 | 360 + 600·ln2 | **776 m** |
+| LR nearest legal siting | §2.5 | 1400 m |
+| ratio actually delivered there | 0.55 / 0.097 | **5.7×**, against H3's 1.7× |
+
+> **RULING: H3 is retired as an acceptance proposition. Its content lives
+> entirely inside `d_onset`, and keeping both is a Rule 39 shadow copy — two
+> statements of one requirement that will drift the first time either is
+> edited.**
+
+**What replaces it is stronger, not weaker.** H3 needed a camera and an LR that
+does not exist. `d_onset` needs neither: **«is the LR sited at or beyond
+`d_onset`?» is a placement assertion checkable in the generator the moment the LR
+lands**, with no frame and no measurement. A requirement that moved from
+«unshootable» to «checkable at generation time» has been improved by being
+deleted, which is the outcome I would want from every retirement.
+
+#### 10.10.4 The frame-2 vantage — accepted, and the tabled coordinate has now rotted three times
+
+**(581,344) accepted**, same 287 m, same hour. Render re-derived it correctly.
+
+**But the point is not that the coordinate was wrong; it is that it was a
+coordinate.** §7.1b's own rule is that acceptance vantages are **derived, never
+tabled**, and (545,165) is a tabled coordinate that a later flora pass grew a
+pine stand across. That is the third instance of one failure — the 717 m frame's
+bearing, the water-adjacent placements, now this — and a rule broken three times
+in its own document is a rule that needs its predicates written down so nobody
+has to remember it:
+
+> **Frame 2's standpoint is re-derived on every worldgen run from four
+> predicates, and stored nowhere:**
+> 1. **Range** = the clause's distance, not the frame's (§1.6.1). The band-pair
+>    clause is metric — a 28 m pair reads to ~840 m — so 287 m is generous and
+>    the range is not the binding predicate.
+> 2. **Canopy** — transmittance along the ray ≥ `CANOPY_VISIBILITY_MIN` = 0.25
+>    (§1.3's Beer-Lambert rule). This is the predicate (545,165) failed, and it
+>    failed it *later*, which is why the check has to run per-worldgen.
+> 3. **Bearing** — outside the castle sector (§7.1b, unchanged: inside 300 m
+>    §6.1.1 lets the castle fill the view and the frame would be testing the
+>    castle).
+> 4. **NEW — the frame must contain the LOWEST band pair.** §10.10.1 makes the
+>    hem the subject, and §10.9.4 established that the property varies with
+>    elevation. A frame showing only mid-flank bands would report a pass with the
+>    failure sitting below the bottom edge. **F7 in the vertical axis, and it is
+>    now this frame's binding predicate.**
+
+Predicate 4 may well disqualify (581,344) too — I do not know whether it sees the
+hem. **That is render's measurement to take, and the point of writing predicates
+instead of a coordinate is that the answer no longer requires me.**
+
+#### 10.10.5 A1 ALREADY HAS ITS «BEFORE» FRAME, AND IT WAS SHOT FOR ANOTHER QUESTION
+
+The lead looked at `render-haze-lowland-900m-A` and `-C` and described the ground
+as a flat green plane with a visible repeating smoothing pattern, sprinkled with
+identical pebbles, a palisade of identical trees on the horizon, and **nothing at
+all between the near grass and the lone conical mountain.**
+
+> **Those two frames ARE §10.8 A1's before-state.** They are a counterfactual arm
+> that already exists, taken by another zone for another question, which makes
+> them better evidence than a before-frame shot on purpose — nobody composed them
+> to make the after look good. **Archive them into `docs/acceptance/` labelled as
+> A1's before-state**, and A1's pairing under Rule 27 is satisfied without
+> re-shooting anything.
+
+**They fail three separately approved criteria, and naming which ones is what
+turns an impression into an acceptance record:**
+
+| what the lead saw | criterion it fails | owner |
+|---|---|---|
+| nothing between near grass and the mountain | **§10.4.1 `MIDGROUND_OBJECT_COUNT_MIN` = 5** | design → core, step 1 |
+| flat green plane, visible repeating smoothing pattern | **R5 — no readable tile at any scale**, and §10.1's σ floor | render (colour) + core (relief) |
+| identical pebbles | **B1 `BOULDER_SIZE_RATIO_MIN` = 1.6** — no two neighbours in a cluster the same size | core, step 1 |
+| palisade of identical trees | flora's variation problem, not mine — **named so it is not silently absorbed into step 1's scope** | flora |
+
+**§10.4.1 was a claim about a frame nobody had taken. It has now been seen in a
+frame taken for an unrelated purpose, by a zone that was not looking for it.**
+That is the strongest form the confirmation could have arrived in, and it is why
+step 1 goes to outcrops and boulders rather than to more octaves: the missing
+thing is object silhouettes in the mid field, and the frame says so directly.
+
+**A1 is ready to shoot the moment core's first placement pass lands**, on the
+same flat ground, from the same standpoint if render can reproduce it — same
+standpoint turns A1 from a pair of frames into a controlled comparison, and the
+before-frame already exists.
+
+##### Numbers this section asks for (Rule 35, via lead)
+
+| constant | proposed | unit | second zone |
+|---|---|---|---|
+| `HAZE_SILHOUETTE_RETENTION_MIN` | 0.667 | fraction of no-air p05 | render (it measures; design sets the floor) |
+| `ACCEPTANCE_PERCENTILE` | 5 | percentile | render — governs **every** column-wise acceptance statistic, not only H1 |
+
+Retired rather than added: **H3** (subsumed by `d_onset`, §10.10.3), and the
+one-shade-step hard floor of §10.10.2, which is `PALETTE_SHADE_STEP_REF` × 1 and
+must not become a row of its own.
+
+---
+
+### 10.11 CLOSING THE HAZE LOOP — and running Rule 47 across my own criteria (stage-5)
+
+#### 10.11.1 The Rule 34 flag is closed, and H1 is RATIFIED
+
+The p05 figures were shot at **360 m**, not 900 m — recipe verified by the lead
+in `docs/acceptance/README.md`: frames `render-haze-H1-360m-{Z,A,B,C}`, eye at
+`DFN_MASSIF_EYE` = (518,380), measured over box (245,100)–(350,215). The 900 m
+lowland frames are a separate set carrying a separate quantity (`lowland ΔL`) and
+contribute no columns to H1.
+
+> **RATIFIED. `HAZE_SILHOUETTE_RETENTION_MIN` = 0.667 is evaluated at H1's own
+> `d_accept`, arm C sits at 0.708, and the 6% margin is a real margin at the
+> binding distance rather than an artefact of the wrong range.** §10.10.2's
+> conditional is discharged; the conclusion about C stands on what it appeared to
+> stand on.
+
+**And the recipe contains the thing that must not be tidied away later:** the
+silhouette edges are taken **from the control arm** and every arm is read on the
+same columns. That is Rule 47 satisfied by a specific deliberate choice, not by
+luck. Anyone who later "simplifies" H1 by re-finding the outline per arm will
+reintroduce the exact defect Rule 47 was written from, and the frames will report
+that heavy haze has the least effect.
+
+#### 10.11.2 Rule 48 has a POSITIVE form, and it is what licenses H1
+
+The lead's addition to Rule 48 — that the dose response was **real and
+monotone** (0.61 → 0.45 → 0.25 → 0.17), so a monotone response does not prove the
+lever is yours — has a consequence worth making explicit, because it is what
+tells a future reader when *not* to invoke the rule.
+
+**H1 responds monotonically to the same lever:** 2.77 → 2.25 → 1.96 → 1.69.
+Monotone response is common to both criteria, so it cannot be what separates
+them. What separates them is one thing only:
+
+| | zero-dose control | responds to dose | verdict |
+|---|---|---|---|
+| **H1** | **passes** (2.77, far above the one-step floor) | yes | genuinely measures haze |
+| **H2** | **fails** (0.61 of 1.00) | yes | measures something else |
+
+> **Rule 48 read forward: a criterion measures its dose only if BOTH its
+> zero-dose control passes AND it responds to dose.** The negative form tells you
+> when to throw a criterion out; this tells you when you are entitled to keep
+> one, and it is the half a reader needs when their control passes and they want
+> to know whether they are done.
+
+#### 10.11.3 RULE 47 RUN ACROSS MY OWN CRITERIA — three are exposed, and core is measuring two of them this week
+
+Rule 47 is render's finding about render's instruments. **I own criteria too, and
+three of mine have the same defect.** This is urgent rather than academic: core
+is building B1/B2/B6 now and A1 is next.
+
+| criterion | how it finds its subject | Rule 47 |
+|---|---|---|
+| **H1** | outline columns fixed on the control arm | **safe, by deliberate choice** (§10.11.1) |
+| **H2** | band rows found in the image | **exposed** — Rule 47's own text names this instrument: «третий нашёл дизеринг сплаттинга вместо полок породы» |
+| **`MIDGROUND_OBJECT_COUNT_MIN` = 5** | counts silhouettes ≥ 8 px in the frame | **exposed** |
+| **`OUTCROP_IN_VIEW_MIN` = 3** | same | **exposed** |
+| **A1's ≥ 3 ground crest-lines** | counts occlusion edges in the frame | **exposed** |
+
+**H2.** Rule 47's third instrument is H2's instrument, which means **0.61 may
+itself be an artefact** — the true zero-dose value could be lower, or the failure
+differently located. *This does not reopen §10.10.1's withdrawal:* under either
+reading the criterion failed at zero dose, so Rule 48 removes it from the haze
+question regardless. But it binds the **diagnostic probe**, which has not been
+run yet and must not be run on the image.
+
+> **The fix is stronger than Rule 47 asks for, and §4.1 already paid for it.**
+> Rule 47's remedy is to fix the band rows once on the control arm. But if the
+> control arm is itself the frame where the bands are broken, that remedy still
+> reads positions out of a picture that has none. **§4.1 defines the strata in
+> ABSOLUTE WORLD HEIGHT, so their screen rows are computable by projection with
+> no image involved at all.** The absolute-height ruling makes H2 Rule-47-proof
+> **by construction** — an unplanned second reason to like a decision made for
+> geological consistency.
+
+**The three counts.** All of `MIDGROUND_OBJECT_COUNT_MIN`,
+`OUTCROP_IN_VIEW_MIN` and A1's crest-line count locate their subjects by
+segmenting the frame. Each therefore drops when anything lowers contrast — haze,
+flat light, a palette revision — **with no change whatever in placement.** The
+metric would then attribute a render change to core's scatter pass, and it would
+do it in the direction Rule 47 warns about: *systematic bias toward «the objects
+are not there»*, exactly when they are hardest to see. Core would be sent to
+place more objects to fix a lighting change.
+
+> **RULING, and it covers every count in §10 at once: a count is established in
+> the GENERATOR and verified on the FRAME. It is never counted on the frame.**
+>
+> - `MIDGROUND_OBJECT_COUNT_MIN` and `OUTCROP_IN_VIEW_MIN`: count from the
+>   placement list projected into the frustum — which objects are in view, at
+>   what apparent size — and apply the 8 px filter to that *computed* apparent
+>   size, never to measured pixel contrast.
+> - A1's crest-lines: «ground occludes ground» is a **raycast fact** from the
+>   standpoint, computable with no shading at all.
+> - The frame's job in all three cases is to confirm that what the generator says
+>   is there can actually be seen. **If the two disagree, that disagreement is
+>   the finding** — and it is a finding about render or about light, which is
+>   precisely the information a frame-side count destroys by folding it into the
+>   number.
+
+This is a correction to the measurement recipe of constants that were approved
+three messages ago, and I would rather surface it now than after someone measures
+step 1 the wrong way and core is sent to fix a defect it does not have.
+
+**No new numbers.** The values are unchanged; only where they are read from
+changes.
+
+---
+
+### 10.12 σ WAS THE WRONG INSTRUMENT — D2 re-derived on the gradient (stage-5)
+
+A1 came back with **σ = 0.353 against a floor of 0.35, and F7 failed in the same
+frame**: the ground still ran unbroken from the player's feet to the tree line.
+The probe passed and the picture the probe exists to guarantee did not.
+
+**The lead's diagnosis is correct, and I have verified the arithmetic rather than
+accepted it.** For `h = A·sin(2πx/L)`, σ = A/√2 and RMS slope = **2πσ/L** (max
+slope is √2× that). So:
+
+| L | RMS slope at σ = 0.353 | grazing threshold |
+|---|---|---|
+| 20 m | **6.35°** | 4.86° at 20 m — passes |
+| 25 m | 5.08° | |
+| 40 m | **3.18°** | 2.43° at 40 m — passes, barely |
+| **52.2 m** | **2.44°** | **the crossover** |
+| 60 m | **2.12°** | 2.43° at 40 m — **fails** |
+
+> **σ bounds AMPLITUDE. Occlusion is a property of SLOPE. They are related only
+> through wavelength, and wavelength was never in the contract.** A field can
+> hold σ arbitrarily above the floor and remain a shallow swell that hides
+> nothing. My derivation of the 2.4° grazing angle from eye geometry is sound;
+> I then demanded it of a quantity that does not constrain it.
+
+**Correctly classified as Rule 41, not Rule 48** — σ's zero-dose control behaves
+properly (0.000 on flat ground), so the criterion *can* pass and *can* fail. It
+is simply aimed one quantity to the left of the target. **A criterion can be
+sound, falsifiable, well-controlled, and still be pointed at the neighbour of the
+thing you care about**, and that is a distinct failure from the two we already
+have rules for.
+
+#### 10.12.1 σ is RETIRED as a gate — not re-floored
+
+**Do not move 0.35.** Raising it would fit a threshold to a proxy that is
+structurally incapable of gating the property, which is Rule 45's distinction —
+a floor and a separating threshold are different objects, and σ is neither for
+this purpose.
+
+- **`GROUND_RELIEF_SIGMA_20M_MIN` — RETIRED as a gate.** σ stays *reported* as a
+  diagnostic, with no threshold attached.
+- **`GROUND_RELIEF_SIGMA_20M_MAX` = 1.20 SURVIVES UNCHANGED**, and for a
+  principled reason rather than by inertia: **the ceiling's job genuinely is
+  amplitude.** It bounds churn so the answer to «flat» never becomes unwalkable,
+  and a bound on amplitude is exactly what a comfort ceiling wants. The floor's
+  job was slope, which is why only the floor falls.
+
+#### 10.12.2 The replacement is not a better proxy — it is the thing itself
+
+The lead proposes the area fraction in the 5–60 m band where local slope exceeds
+2.4°. That is a strict improvement over σ and I would accept it. **But §10.11.3
+already ruled the sharper answer three messages ago and I did not connect it:
+«ground occludes ground» is a RAYCAST FACT, computable in the generator with no
+shading at all.** There is no reason to gate on a statistical predictor of a
+quantity we can compute directly.
+
+> **`GROUND_OCCLUSION_COUNT` — the D2 gate.** From a standpoint at eye height on
+> non-exempt ground, cast a ray along the view direction and count the distinct
+> intervals where the heightfield occludes heightfield **within 5–60 m**.
+> Evaluate over standpoints × bearings and read the distribution at
+> `ACCEPTANCE_PERCENTILE` = 5. **Floor: 3**, unchanged from §10.1.3 — it is a
+> picture requirement read off frame 01 and the diagnosis does not touch it.
+
+Four properties, each earning its place:
+
+- **It is the frame test, computed instead of photographed.** Exactly what
+  §10.11.3 ruled for every count in §10, now applied to the one count that had
+  been left as a proxy.
+- **It needs no wavelength constant.** Amplitude and wavelength both enter
+  through the geometry that actually matters; one instrument replaces two, and
+  neither can be traded off against the other behind its back.
+- **The distance-dependence comes free, and my 2.4° was a simplification I
+  should have flagged.** The grazing threshold is 4.86° at 20 m and 1.62° at
+  60 m; 2.4° is its value at 40 m, the middle of the band. A raycast uses the
+  true angle at every distance. **Any area-fraction instrument has to pick one
+  angle and is wrong at both ends of the band.**
+- **It is read at p05, so a single lucky bearing cannot buy a pass** — and a
+  single unlucky one cannot fail it.
+
+**Scoping ruling: the raycast is TERRAIN-ONLY. Boulders and outcrops are
+excluded.** Not an arbitrary boundary — §10.2 already named the failure it
+prevents: «objects without octaves give a flat table with props on it — a
+diorama». If B1's scatter could satisfy D2, we could ship a billiard table with
+rocks on it and pass. Objects are counted separately and already are, by
+`MIDGROUND_OBJECT_COUNT_MIN`.
+
+**I am not assigning a value beyond the floor of 3, and the lead is right that
+this is the point.** When core's distribution arrives, the number falls out
+without negotiation: floor 3, read at p05. **The percentile is the margin** —
+that is what `ACCEPTANCE_PERCENTILE` was introduced for, so no additional
+1.6× is taken here.
+
+#### 10.12.3 THE ACTIONABLE FINDING — the approved meso band straddles the failure line
+
+This is the part core can act on today, and it is derived rather than guessed.
+
+> **At the achieved σ = 0.353, the field clears the 40 m grazing angle only if
+> its dominant wavelength is below ≈ 52 m.** `GROUND_MESO_WAVELENGTH` is
+> approved at **25–60 m**. The top third of our own approved band cannot
+> produce occlusion at the amplitude we are producing.
+
+So A1's failure is probably **not** a missing octave — it is the meso octave
+sitting at the wrong end of a range that was never checked against the grazing
+geometry, because the grazing geometry did not exist when the range was written.
+Two levers, and the arithmetic says which is cheaper:
+
+- **Shorten L** toward 25–40 m: at L = 25 the RMS slope is 5.08°, double the
+  requirement, at unchanged amplitude and unchanged walkability.
+- **Raise σ** at fixed L = 60: needs σ ≥ 0.40 for RMS slope alone to reach 2.4°,
+  and that only reaches the *threshold*, with no margin.
+
+**Shortening the wavelength is strictly better** — it buys slope without buying
+amplitude, so it costs nothing against `GROUND_RELIEF_SIGMA_20M_MAX`, against
+corridors, or against `PLAYER_STEP_HEIGHT`. Recommended to core as the first
+knob. Whether `GROUND_MESO_WAVELENGTH_MAX` should come down from 60 is a NUMBERS
+question I raise but do not settle here: **the occlusion count is the gate, and
+if core reaches 3 at p05 with the range as written, the range stays.** I will not
+constrain the mechanism when I have just been corrected for constraining the
+wrong quantity (Rule 38).
+
+#### 10.12.4 §2.7's fifth octave — REASSIGNED, not deleted
+
+The lead is right that a line the document holds and never applies will be
+applied on the next reading — that is a Rule 39 shadow copy with a delay fuse.
+§2.7's «optional fifth octave at 2–4 m / 0.1–0.2 m for surface tooth» is
+**removed from §2.7 in this edit**, and it is removed as a *reassignment* rather
+than as a deletion, because the work it described still has to happen:
+
+**§10.2 ruled that band out of the heightmap's reach** (`LOD_VOXEL_SIZE_L0` = 1.0
+m samples a 2–4 m period 2–4 times, which aliases) **and assigned it to objects.**
+Surface tooth at 0.1–0.2 m is B1's small end, B6's tufts, and the gravel of
+frame 01 — not an octave. §2.7 now says so and points at §10.2, so the next
+reader finds the reassignment instead of the orphaned promise.
+
+#### 10.12.5 LF-8 — REBUILT ON CONNECTIVITY, and the rebuild makes it truer
+
+Core is right that a depth-threshold gully detector is Rule 47 in relief costume:
+it locates its subject by the very local depth it then measures, so on bumpy
+ground the flank of a brow scores like a washout. **I am not abandoning LF-8 and
+I am not moving its threshold.**
+
+> **A gully is not a deep place. It is a place that DRAINS.** What separates a
+> washout from a hollow is topology: a gully's floor descends monotonically and
+> **connects to the drainage network**; a hollow is closed, or drains nowhere.
+>
+> **RULING: LF-8 is rebuilt to locate its subject by CONNECTIVITY TO THE
+> DRAINAGE, and only then to measure depth and profile.** Reuse §3.1's existing
+> descent/pond-and-spill field — no new machinery, and no new constant.
+
+Why this is a genuine improvement rather than a way to get the light green:
+
+- **It is Rule 47-proof by construction.** The subject is located by topology,
+  which is not the property under test; depth is measured afterward, on a set
+  chosen without reference to it.
+- **It makes the feature physically true.** Gullies are erosional and they carry
+  water. A "gully" unconnected to any drainage was always a modelling error that
+  the old detector could not see.
+- **It agrees with the world model we already committed to.** B2 places outcrops
+  where erosion *strips*; LF-8 finds where erosion *cuts*. Same process, same
+  field, two features — which is the kind of consistency that makes a generated
+  world read as one place.
+
+**LF-8 stays RED until rebuilt.** A red light with a known cause and a specified
+fix is worth more than a green one bought by a threshold.
+
+#### 10.12.6 The authored clearing (в9) — EXEMPT, with a derived bound, ruled explicitly rather than by silence
+
+The lead is right to refuse silence here. The clearing's own contract requires
+3.0 m of calm, so meso relief and rock are suppressed and it cannot meet an
+occlusion floor. §10.1.2's exemption list does not name it, and it should.
+
+**It is the same category as the existing exemptions**, which are not an
+administrative list but a principle I had left implicit: corridors, building
+pads, the castle terrace and the shore band are all **flatness that is authored
+and does work**. So is the clearing. But an exemption that is not bounded eats
+the rule, so:
+
+> **An authored flat place is exempt from `GROUND_OCCLUSION_COUNT` when all
+> three hold: (a) the flatness is AUTHORED, not emergent; (b) it is BOUNDED —
+> radius ≤ 50 m; (c) it is SURROUNDED by non-exempt ground.**
+
+**(b) is derived, not chosen.** The criterion is about what is in the *frame*,
+and the band that matters is 5–60 m. At radius ≤ 50 m, a standpoint anywhere in
+the clearing still has non-exempt ground **inside its own 5–60 m band**, so **the
+frame taken in the clearing passes on the ground beyond its edge.** The clearing
+is calm underfoot and the world is still not flat — which is what an authored
+rest beat is supposed to feel like, and the conflict dissolves rather than being
+waived.
+
+**And the bound has teeth, which is how I know it is a rule and not a
+courtesy:** `PLAIN_EXTENT` is 400–600 m, so **the plain is NOT exempt** and
+remains fully bound by §10.1. That was always the intent — §10.1.2 binds
+«including inside `PLAIN_EXTENT`» — and it is now the consequence of a stated
+principle instead of a special case.
+
+*Core should check в9's actual extent against 50 m; if it is larger, the
+exemption does not apply to it as authored and the clearing needs either a
+smaller calm core or a bumpier rim. That is a design question I will take, not a
+number to bend.*
+
+#### 10.12.7 The mid-ground result — and the number to report is 8, not 17
+
+**0 → 17 placed and readable, 8 unoccluded, against a floor of 5, counted in the
+generator by projection with no pixel segmented.** That is §10.4.1 moving from a
+claim about a frame nobody had taken to a measured pass, and it is the first
+number in this document to be produced under §10.11.3's rule.
+
+**One precision so the figure does not drift on its next retelling: the floor of
+5 applies to the UNOCCLUDED count.** §10.4.1's wording is «distinct object
+silhouettes … sitting between the near ground and the horizon» — a silhouette
+hidden behind another object is not a distinct silhouette in the frame. **So the
+result is 8 against 5, and 17 is the placement figure, not the score.** Reporting
+17 would inflate the margin by 3.4× at the next reading, and this is exactly the
+moment such a thing gets fixed cheaply.
+
+##### Numbers (Rule 35, via lead)
+
+| constant | action | note |
+|---|---|---|
+| `GROUND_OCCLUSION_COUNT_MIN` | **new, = 3** | at p05 over standpoints × bearings, 5–60 m band, **heightfield only** |
+| `GROUND_RELIEF_SIGMA_20M_MIN` | **RETIRE as a gate** | σ still reported as a diagnostic, no threshold |
+| `GROUND_RELIEF_SIGMA_20M_MAX` | **unchanged, 1.20** | the ceiling's job is amplitude, and it still does it |
+| `GROUND_MESO_WAVELENGTH_MAX` | **flagged, not changed** | 60 m cannot produce occlusion at the achieved σ; the gate decides, not me |
+| `AUTHORED_FLAT_RADIUS_MAX` | **new, = 50 m** | derived from the 5–60 m band, §10.12.6 |
+
+---
+
+### 10.13 STATE AT WIND-DOWN — handoff, open items, and what would reopen each ruling
+
+Written on the lead's wind-down instruction. **Nothing about today's work lives
+outside this file.** This section exists so the next reader does not have to
+reconstruct anything from a thread.
+
+**Procedural note, stated plainly:** the lead asked that §10.12's three
+questions be left OPEN with variants and costs. **They had already been ruled in
+§10.12 when that instruction arrived.** I have not torn up the reasoning — but a
+ruling made on the last day of a stage deserves its alternative written next to
+it, so this section records what each ruling COST and what would REOPEN it. The
+lead may reopen any of the three by reading this section alone.
+
+#### 10.13.1 The D2 problem statement — recorded standalone, because it is worth a day to whoever reads it next
+
+Even if every ruling below is discarded, **this paragraph should survive**:
+
+> **A1 passed the probe and failed the picture in the same frame.** σ measured
+> **0.353 against a floor of 0.35**; F7 failed — the ground still ran unbroken
+> from the player's feet to the tree line. The cause: for `h = A·sin(2πx/L)`,
+> σ = A/√2 and **RMS slope = 2πσ/L**. **σ bounds AMPLITUDE. Ground-occludes-
+> ground is a property of SLOPE. The two are joined only through WAVELENGTH, and
+> wavelength was never in the contract.** A field can hold σ arbitrarily above
+> any floor and remain a shallow swell that hides nothing. The 2.4° grazing angle
+> was derived correctly from eye geometry and then demanded of a quantity that
+> does not constrain it. Rule 41, not Rule 48 — σ's zero-dose control is well
+> behaved (0.000 on flat ground), so the criterion can pass and can fail; it is
+> simply pointed one quantity to the left of the target.
+
+Full working, the verified arithmetic table, and the replacement instrument are
+in §10.12. The single most useful derived number there, if nothing else is kept:
+**at σ = 0.353 the field clears the 40 m grazing angle only below L ≈ 52 m, and
+`GROUND_MESO_WAVELENGTH` is approved at 25–60 m** — the top third of our own
+approved band cannot produce occlusion at the amplitude we are producing.
+
+#### 10.13.2 The three rulings, with their alternatives and costs
+
+| # | Ruled in §10.12 | The alternative, and what it costs | What would reopen it |
+|---|---|---|---|
+| **D2 instrument** | Retire σ as a gate; gate on `GROUND_OCCLUSION_COUNT` (raycast, floor 3, p05, terrain-only) | **(a)** Keep σ and add a wavelength constant — costs a second constant that can be traded against the first behind the gate's back. **(b)** The lead's slope-area-fraction in 5–60 m — cheaper to compute, but must pick ONE grazing angle and is wrong at both ends of the band (4.86° at 20 m, 1.62° at 60 m). **(c)** Do nothing — σ keeps certifying frames that fail | Raycast cost turning out to be non-trivial over standpoints × bearings. Then (b) is the fallback and its known error is documented above |
+| **LF-8** | Rebuild to locate gullies by CONNECTIVITY to the drainage (reuse §3.1's descent field), then measure depth. Stays RED until rebuilt | **The alternative I rejected: admit LF-8 has no instrument on bumpy ground and retire it.** Cost of retiring: we lose the only check on washouts, and §2.10's landform dictionary keeps an entry nothing verifies. Cost of my rebuild: it assumes §3.1's descent field is queryable at LF-8's scale — **I did not verify that**, and if it is not, the rebuild is more work than it looks | §3.1's field not being usable at this scale. Then retirement becomes the honest option, and it should be a retirement, not a loosened threshold |
+| **Clearing в9** | Exempt, bounded by `AUTHORED_FLAT_RADIUS_MAX` = 50 m (derived so non-exempt ground stays inside the standpoint's own 5–60 m band) | **(a)** Exempt with no bound — costs the rule: an unbounded exemption eventually swallows the plain. **(b)** No exemption, shrink the clearing's calm core — costs в9's authored contract, which is the user's. **(c)** No exemption, lower the floor — costs everything, it is fitting to the achieved | **в9's actual extent exceeding 50 m, which I did not check.** If it does, the exemption as written does not cover it and (b) is the next option — a design question, not a number to bend |
+
+#### 10.13.3 §2.7's fifth octave — done, and done harder than asked
+
+The lead asked for the 2–4 m octave to be marked unapproved and contradicting
+§10.2. **It was instead WITHDRAWN and reassigned in the §2.7 text itself**
+(edit landed this session), naming §10.2's aliasing argument
+(`LOD_VOXEL_SIZE_L0` = 1.0 m samples a 2–4 m period 2–4 times) and pointing the
+work at B1's small end and B6's tufts. A marked-but-present line is still a line
+someone applies; a withdrawn one with its replacement named is not. **This item
+is closed, not open.**
+
+#### 10.13.4 Open items carried forward — the register
+
+Nothing here is a decision. These are things that are TRUE and UNFINISHED:
+
+1. **`GROUND_MESO_WAVELENGTH_MAX` = 60 m cannot occlude at the achieved σ.**
+   Flagged, deliberately not changed — the gate decides, not me (Rule 38). First
+   knob for core: shorten L toward 25–40 m, which buys slope without buying
+   amplitude and so costs nothing against the ceiling, corridors or
+   `PLAYER_STEP_HEIGHT`.
+2. **H1 must be RE-MEASURED after H2's banding is fixed.** §4.1's strata are
+   global and absolute, so building them adds value structure to the crown H1
+   measures; the retention denominator moves. Predicted in §10.10.2, still
+   pending.
+3. **H2's diagnostic probe has not been run**, and when it is it must read band
+   rows from §4.1's absolute world heights by projection — never from the image
+   (§10.11.3, and Rule 47's own text names this instrument).
+4. **The frame-2 vantage (581,344) may fail its new fourth predicate** — the
+   frame must contain the lowest band pair. Render's measurement, not mine.
+5. **Three of my counts still need their measurement recipe migrated** to the
+   generator side per §10.11.3: `MIDGROUND_OBJECT_COUNT_MIN` is done (0 → 8
+   unoccluded vs floor 5), `OUTCROP_IN_VIEW_MIN` and A1's crest-line count are
+   not.
+6. **B3–B9 briefs are written but their constants are deliberately unapproved**,
+   waiting on a frame from step 1 — the lead's НЕ ПОСТРОЕНО reasoning, which I
+   agree with and which is my own argument applied to me.
+7. **A1's before-state exists** (`render-haze-lowland-900m-A`/`-C`) and should be
+   archived into `docs/acceptance/` labelled as such. Not yet done.
+
+#### 10.13.5 Not mine, recorded so it is not lost
+
+- **Identical trees on the horizon** — flora's variation problem, explicitly kept
+  out of core's step-1 scope at the lead's request. No owner has picked it up.
+- **`ROCK_STRATUM_*` is НЕ ПОСТРОЕНО with no consumer**, which is half of H2's
+  likely cause (§10.10.1).
+
+**Nothing else is held anywhere.** Every finding, every number, every open
+question from this session is in §10 of this file.
