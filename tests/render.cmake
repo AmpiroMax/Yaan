@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 10:08:2026 - 12:11:29
+# Last updated: 12:08:2026 - 01:02:15
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -36,11 +36,15 @@
 #   real `date` reading; recorded rather than quietly overwritten, because the
 #   UPD block is this project's ordering record and a silent correction is
 #   indistinguishable from the error never happening.
+# - 12:08:2026 - 01:02:15: Ground tuft tests (density rate with a zero control,
+#   determinism, material and slope filters with their controls, the Rule 33
+#   view cut, and that the clumps are not one stamp in copies).
 
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
 add_dfn_test(render_scatter_batcher render/ScatterBatcherTests.cpp dfn_render)
+add_dfn_test(render_ground_tufts render/GroundTuftsTests.cpp dfn_render)
 add_dfn_test(render_water_mesher render/WaterMesherTests.cpp dfn_render)
 add_dfn_test(render_path_mesher render/PathMesherTests.cpp dfn_render dfn_core)
 add_dfn_test(render_map_screen render/MapScreenTests.cpp dfn_render)
