@@ -22,6 +22,5 @@ void main()
     // Vertex alpha is the sky-visibility channel (1.0 on everything built
     // above ground); dfn_surface_light adds moon and torch on top of sun.
     vec3 lit = v_color0.rgb * dfn_surface_light(v_wpos, n, vis, v_color0.a);
-    float fog = dfn_fog_factor(v_wpos);
-    gl_FragColor = vec4(mix(lit, u_fogColor, fog), 1.0);
+    gl_FragColor = vec4(dfn_aerial(v_wpos, lit), 1.0);
 }

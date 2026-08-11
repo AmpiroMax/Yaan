@@ -28,7 +28,9 @@ void main()
                        + u_sunColor * (max(u_sunDir.y, 0.0)
                                        * dfn_cloud_sun_vis(v_wpos)));
 
-    float fog = dfn_fog_factor(v_wpos);
+    // (R1) a far water sheet loses its edge to the air AND goes flatter,
+    // which is why the alpha rides the same factor rather than a second one.
+    float fog = dfn_aerial_factor(v_wpos);
     float alpha = u_waterColor.a * (1.0 - fog * 0.6);
-    gl_FragColor = vec4(mix(lit, u_fogColor, fog), alpha);
+    gl_FragColor = vec4(dfn_aerial(v_wpos, lit), alpha);
 }

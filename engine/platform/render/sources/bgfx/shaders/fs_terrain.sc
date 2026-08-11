@@ -79,6 +79,5 @@ void main()
     // above ground and the interior falloff the moment core writes it.
     vec3 lit = albedo * dfn_surface_light(v_wpos, n, vis, v_color0.a);
 
-    float fog = dfn_fog_factor(v_wpos);
-    gl_FragColor = vec4(mix(lit, u_fogColor, fog), 1.0);
+    gl_FragColor = vec4(dfn_aerial(v_wpos, lit), 1.0);
 }

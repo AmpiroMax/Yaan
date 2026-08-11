@@ -137,9 +137,10 @@ vec3 dfn_cloud_bright()
 void main()
 {
     vec3 dir = normalize(v_dir);
-    float up = clamp(dir.y, 0.0, 1.0);
-    float horizon_band = pow(1.0 - up, 3.0);
-    vec3 sky = mix(u_skyZenith, u_skyHorizon, horizon_band);
+    // THE GRADIENT MOVED TO dfn_env.sh and did not change: the air in front
+    // of the terrain (dfn_aerial, R1) has to fade into exactly this, so it
+    // may exist once and only once.
+    vec3 sky = dfn_sky_gradient(dir);
 
     // Stars sit BEHIND everything else and only above the horizon; they fade
     // near it so the field does not collide with the horizon haze.

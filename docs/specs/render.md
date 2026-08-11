@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 10:08:2026 - 23:24:48-->
+Last updated: 11:08:2026 - 14:07:31-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -152,6 +152,31 @@ UPD:
   0.819/0.080 and 8x = 4x; +mipped mask +alpha-to-coverage 0.621/0.004
   against 0.864/0.094), the palette-on arm (0.712/0.017), and the evidence
   that the canopy did not thin (mean luma +1.8 % / +0.2 %).
+- 11:08:2026 - 13:44:30: R1 — AERIAL PERSPECTIVE. MEASURED FIRST: fog began at 2400 m
+  (0.30 of CAMERA_FAR) in a world 1024 m across, so the fog factor had been
+  EXACTLY zero everywhere, always. The same crag at 250/500/900 m held its luma
+  (97.4/91.8/91.9) while its standout from the sky ROSE 19.71 -> 30.40, i.e. the
+  frame asserted the opposite of the reference. FIXED: dfn_fog_factor deleted,
+  dfn_aerial() = Beer-Lambert extinction through height-falling density fading
+  into the shared dfn_sky_gradient() at the view direction; env block 36 -> 37
+  (slot 36 = HAZE_SCALE_LENGTH 1400 / HAZE_HEIGHT_SCALE 250, generated-header
+  route); DFN_HAZE override. AFTER: 18.45 -> 20.67 -> 20.45, the rise is gone.
+  HONEST: flat is not yet the reference, which FALLS; the 600 m arm reaches it
+  (-21 %) but contradicts design §1.3a, so that choice goes to the lead as a
+  pair of frames. New instrument tools/measure_aerial.py (its first version
+  broke on the strong arm and the breakage is recorded in it).
+- 11:08:2026 - 14:07:31: §10.9 MEASURED. Three arms + a NO-HAZE CONTROL. The two findings
+  that matter are both about the floors, not about the length: H2 at the hem is
+  failed by the CONTROL (0.61 of 1.00), so it is a terrain deficit and cannot
+  arbitrate haze; and H1's floor leaves 0.36 steps over a haze-free render
+  (control 2.36 of 2.00), so it forbids nearly all aerial perspective at 360 m.
+  The height lever is confirmed independent — C vs B moves H1 +31 %, H2 -32 %,
+  and the lowland NOT AT ALL (+19.78 both), because the valley floor sits inside
+  the clamped layer. C doubles the lowland cue for 0.09 steps of silhouette.
+  Rows NOT flipped: design's condition was that all three hold, and none of them
+  holds at any length. Also: design's §7.1b frame-2 vantage is occluded by
+  forest and H2 was shot from a clear bearing at the same range; and the
+  instrument reproduced its own defect twice more, now stated as a rule in it.
 -->
 
 # Spec — render agent
@@ -1217,6 +1242,273 @@ built only when the target is multi-sampled, because a mipped mask sampled
 through the old 0.5 cutout is the classic distant-canopy dissolve — an off
 switch that shipped a second, different defect would not be a control
 (Rule 30). Verified: `DFN_MSAA=0` reproduces 0.864 % / 0.094 %.
+
+## R1 — AERIAL PERSPECTIVE, AND THE MEASUREMENT THAT SAYS WE HAVE NONE
+
+`docs/REFERENCE_FRAMES.md` R1: in every wide reference frame the far field
+loses contrast and shifts toward the sky colour, CONTINUOUSLY over the whole
+visible range. The user's word for what we have instead is «плоский».
+
+### The finding, in one line
+
+**Fog begins at 2400 m. The world is 1024 m across. Nothing in it is ever
+hazed at all — the fog factor is not small, it is exactly zero everywhere.**
+
+`dfn_env.sh::dfn_fog_factor` is `smoothstep(u_fogStart, u_fogEnd, dist)`, and
+`Materials.h` sets the span from `CAMERA_FAR`:
+
+    fog_start = LOOKDEV_FOG_START_FRAC (0.30) * CAMERA_FAR (8000) = 2400 m
+    fog_end   = LOOKDEV_FOG_END_FRAC   (0.85) * CAMERA_FAR (8000) = 6800 m
+
+`smoothstep` is 0 below its first edge. The testbed is `TESTBED_SIZE` 1024 m
+square, so the longest sightline inside the world is its diagonal, 1448 m —
+40 % of the way to the point where haze switches on. A ridge at 500 m and a
+ridge at 2 km therefore differ by NOTHING, and so do a pebble at 3 m and the
+crag at the world's edge. This is not a tuning error in a working system; the
+system has never run.
+
+The zone's own Tour comment already recorded the symptom without naming the
+cause: "outward aims put the unloaded world edge inside the fog-free range and
+break the horizon". The fog-free range is the entire world.
+
+### The measurement (`tools/measure_aerial.py`)
+
+THE SAME LANDFORM AT THREE RANGES, one variable. The L0 crag (peak 830,200,
+`L0_RELIEF` 115 m) shot from bearing 240 deg at 250 / 500 / 900 m — the widest
+spread of ranges that keeps every standpoint on open ground inside the testbed.
+Noon (`DFN_TIME=0.5`) and `DFN_CLOUD=0`, so the sky behind the crest is a clean
+gradient and rock/sky segmentation cannot be argued with. Luma is the
+quantiser's own metric (0.30/0.59/0.11), 0..255.
+
+| range | L(rock) | L(sky) | SEPARATION \|dL\| | TEXTURE sd(L) |
+|---|---|---|---|---|
+| 250 m | 97.36 | 109.45 | 12.09 | 23.06 |
+| 500 m | 91.76 | 125.83 | 34.07 | 22.76 |
+| 900 m | 91.93 | 138.79 | **46.86** | 21.54 |
+
+Read it twice, because it says two different things:
+
+1. **The crag's own value does not move: 97.4 / 91.8 / 91.9.** Over a 3.6x
+   change of range it varies by 5.4 luma units, and that variation is which
+   faces are turned toward the eye, not distance. Its internal texture contrast
+   falls 23.06 -> 21.54, i.e. 6.6 %, which is what downsampling a 215-px-wide
+   mass to 45 px does on its own. Aerial perspective would have moved both.
+2. **The separation from the sky goes the WRONG WAY — 12.1 -> 46.9, a factor
+   of 3.9.** The far crest stands out nearly four times harder than the near
+   one, because the sky brightens toward the horizon (`fs_sky`'s haze band)
+   while the crest does not brighten at all. In every reference frame the far
+   ridge stands out LESS than the near one. Ours is a dark cut-out pasted on a
+   pale horizon.
+
+The second row is the one to keep: it is not that we are missing an effect, it
+is that the frame currently asserts the OPPOSITE of the reference — distance
+increases contrast here.
+
+### Consequences
+
+- The 0.30/0.85-of-`CAMERA_FAR` span is not a look-dev value that needs
+  retuning. A far-plane fade cannot produce R1 at all: R1 asks for a
+  CONTINUOUS fall from the eye outward, and a `smoothstep` between two
+  distances is by construction flat on both sides of the ramp. It has to be
+  replaced by extinction, not moved.
+- Extinction is `exp(-optical_depth)`, which is never flat anywhere and needs
+  no far plane in it — so it also stops being coupled to `CAMERA_FAR`, which is
+  a depth-buffer number and has no business setting how thick the air is.
+- The in-scatter colour must be the SKY AT THE VIEW DIRECTION, not one flat
+  horizon colour, or a ridge high in the frame melts into a colour the sky
+  above it does not have.
+- Haze density falls with height, or the mountain crown hazes as hard as its
+  foot and the frame gains no vertical information. This is also the cheap half
+  of R2.
+
+Rows landed in NUMBERS.md: `HAZE_SCALE_LENGTH`, `HAZE_HEIGHT_SCALE`.
+
+### After: what the fix did, and what it did not do
+
+`dfn_fog_factor` is gone. `dfn_aerial()` is Beer-Lambert extinction through air
+whose density falls with height, fading into `dfn_sky_gradient()` AT THE VIEW
+DIRECTION — so a ridge high in the frame and a ridge on the horizon each melt
+into the sky that is actually behind them, and the sky's gradient now exists in
+exactly one place because `fs_sky` calls the same function.
+
+`standout` (mean |L - L(sky)| over the whole box, classifying nothing):
+
+| range | BEFORE | AFTER (1400 m) | counterfactual (600 m) |
+|---|---|---|---|
+| 250 m | 19.71 | 18.45 | — |
+| 500 m | 27.19 | 20.67 | — |
+| 900 m | 30.40 | **20.45** | **14.57** |
+| trend | **+54 %** | **+11 %** | **-21 %** |
+
+**The defect is closed and the reference is not yet reached, and those are two
+different sentences.** BEFORE, contrast ROSE with distance — the frame asserted
+the opposite of every reference. AFTER, the column is flat. But flat is not what
+the reference does: in all 16 frames the far ridge stands out LESS than the near
+one, and only the 600 m arm actually gets there (-21 %).
+
+**Why the shipped value is 1400 m and not 600 m, and why that is the lead's call
+rather than mine.** 1400 m is derived FROM design's existing contract, not
+against it: §1.3a separates the two landmarks by depth, §7.1b fixes Ravenscar's
+acceptance ranges at 287-717 m and §2.5 sites the LR at 1.4-1.6 km, so defining
+"hazy" as 1/e puts the scale length at the LR's nearest siting. Ravenscar then
+runs 0.82 -> 0.60 across its whole range (solid, as §1.3a demands) and the LR
+sits at 0.37-0.32. At 600 m Ravenscar would read hazy at its own verdict
+vantage, which §7.1b calls a bug in as many words. So the conflict is real,
+it is between design's approved contract and the user's reference frames
+delivered today, and it is handed over as a PAIR OF FRAMES rather than as an
+argument (`docs/acceptance/render-aerial-STRONG600-900m-*.png`).
+
+**The next lever, and it may dissolve the conflict entirely.**
+`HAZE_HEIGHT_SCALE` is 250 m, and the crag's crown sits at 115-155 m where the
+air is already 0.6 of its ground density — so the height falloff is protecting
+exactly the thing design wants protected while also weakening exactly the thing
+R1 wants strengthened. A SHORTER height scale hazes the low ground and the tree
+line hard (which is the user's «плоский») while leaving a summit comparatively
+clear. That is not a dodge; it is literally what reference frames 02 and 12
+show — a hazed base and a lit crown, cut by the mist band. Untested, and it
+needs a second override before it can be shot as a pair.
+
+**What was NOT touched.** `u_fogColor` / `u_fogStart` / `u_fogEnd` are now read
+by no shader, but the `RenderEnvironment` fields stay: that header is a frozen
+contract (Rule 26) and deleting fields is a request to the lead. Same reason the
+haze rows travel from the generated header rather than through the environment —
+which is fine until WEATHER wants a fog morning, and that IS a contract change
+to ask for.
+
+### The premise under 1400 m was withdrawn by its own author
+
+`HAZE_SCALE_LENGTH` 1400 m was derived from §7.1b's "Ravenscar solid at
+287-717 m". §1.6.1 had already ruled `d_accept` = 3R = **360 m** for Ravenscar,
+and ruled that a landmark shot beyond its `d_accept` certifies nothing about
+shape — but that correction was never propagated into the clause that names
+717 m. So the derivation was sound and the input was a stale cross-reference:
+Rule 39's shadow copy, wearing the costume of a citation rather than of a
+duplicated value. Worth recording as a defect class, because "derive it from the
+contract instead of inventing it" is what this project asks for, and here doing
+exactly that produced a wrong number.
+
+Recomputed on `exp(-d/L)` with the correct verdict distance:
+
+| | 287 m (rhythm) | **360 m (verdict)** | 717 m (no longer a test) |
+|---|---|---|---|
+| L = 1400 | 0.82 | **0.77** | 0.60 |
+| L = 600 | 0.62 | **0.55** | 0.30 |
+
+The only cell where 600 m looked alarming stopped being a test.
+
+### The three propositions, and what each instrument had to be
+
+§10.9 replaced "haze on Ravenscar is a bug" with three clause-specific
+propositions in units of `PALETTE_SHADE_STEP_REF` = 0.0784 (= 20.0 of 255 in
+the quantiser's luma metric):
+
+- **H1 — silhouette.** 360 m, backlit: |body - adjacent sky| >= **2 steps
+  (40.0)** ALONG THE WHOLE CONTOUR.
+- **H2 — band rhythm.** 287 m, raking: riser/bench separation >= **1 step
+  (20.0)**, read AT THE LOWEST VISIBLE BAND PAIR, never on the flank mean.
+- **H3 — depth separation.** contrast(L0 at 360 m) >= **1.7x**
+  contrast(far landmark at 1400 m).
+
+Each got its own instrument and its own boxes, because Rule 41 is exactly the
+trap here: `standout` was aimed at a ridge against sky and cannot accept a claim
+about a valley floor, and neither can accept a claim about the weakest column of
+a contour. So `tools/measure_aerial.py` grew three more modes, and two of them
+report an EXTREMUM rather than a mean on purpose:
+
+- `contour` (H1) reports the **minimum over columns**. A mean would pass a
+  mountain whose shoulder has dissolved as long as its peak stayed dark — which
+  is the precise shape of the failure haze produces.
+- `bands` (H2) lists adjacent extremum pairs **hem-first**. Under the height
+  lever the crown is protected and the hem is starved, so a flank average
+  reports a pass exactly when the failure is sitting at the bottom of the frame.
+- `ground` (the lowland) reports the depth cue between two bands of the SAME
+  surface, because a valley floor stands against no sky and «плоско» means the
+  far ground looks like the ground underfoot.
+
+**H3 does not choose between 1400 and 600**, and that was design's own finding:
+§1.3a asked for a RATIO, and a shorter scale length is what makes ratios large,
+so H3 is satisfied 2.7x better at 600 m. Only H1 and H2 can choose, and both
+live on frames nobody had taken.
+
+### The three propositions, measured — and the two floors nobody can meet yet
+
+Three arms, plus a NO-HAZE CONTROL (Rule 30), all from one binary with only the
+two haze rows moved. `Z` is `DFN_HAZE=100000` — air so thin it is not there.
+
+| arm | scale L | height H | H1 min (need 2.00) | H1 p05 | H2 hem (need 1.00) | lowland dL |
+|---|---|---|---|---|---|---|
+| **Z** control, no haze | — | — | **2.36** | 2.77 | **0.61** | — |
+| A shipped | 1400 | 250 | 1.84 | 2.25 | 0.45 | +10.12 |
+| B one lever | 600 | 250 | 1.34 | 1.69 | 0.25 | **+19.78** |
+| C two levers | 600 | 40 | **1.75** | 1.96 | 0.17 | **+19.78** |
+
+Steps are `PALETTE_SHADE_STEP_REF`; the lowland cue is luma of 255.
+
+**1. H2 IS FAILED BY THE NO-HAZE CONTROL — 0.61 of the 1.00 it needs.** The band
+rhythm at the hem is not there at zero air, so H2 is not currently a fact about
+atmosphere at all and cannot arbitrate between scale lengths. Haze then makes it
+worse (0.61 -> 0.45 -> 0.25 -> 0.17), but the deficit exists before any air is
+added. Design named H2 at the hem as its one non-negotiable; it is unmet by the
+terrain, and no choice of haze can meet it.
+
+**2. H1's floor leaves 0.36 steps of headroom over a haze-free render.** The
+control reaches 2.36 against a floor of 2.00, so H1 as written forbids very
+nearly all aerial perspective at 360 m — every haze arm fails it on the minimum.
+The statistic matters here and design should say which it meant: over 105
+columns of a 640x360 frame, a hard minimum is ONE PIXEL COLUMN, and Rule 30a
+says a threshold at the instrument's resolution has no margin. Read at the 5th
+percentile instead, A passes (2.25), C misses by 2 % (1.96) and B fails (1.69).
+
+**3. THE HEIGHT LEVER IS REAL, AND IT MOVES THE THREE EXACTLY AS DESIGN
+PREDICTED.** C over B: H1 +31 % (1.34 -> 1.75), H2 at the hem worse
+(0.25 -> 0.17), lowland **identical**. That the lowland numbers are not merely
+close but EQUAL is the structural point the pair was shot to establish: with the
+density anchored at `HAZE_BASE_HEIGHT`, the valley floor sits inside the clamped
+full-density layer, so `HAZE_HEIGHT_SCALE` cannot reach it. The two rows are
+independent levers and not two settings of one.
+
+**4. H3 passes everywhere and discriminates nothing — and it is UNSHOOTABLE.**
+The far landmark it compares against does not exist: NUMBERS records that no
+`LR_` row is referenced by the generator. Analytically, ratio T(360)/T(1400) is
+2.1 at L=1400 and 5.6 at L=600 — both over the 1.7 floor, the short length 2.7x
+better, matching design's own arithmetic. Recorded as computed, not as shot.
+
+**Where that leaves the choice.** C buys the user's R1 outcome — the lowland
+depth cue DOUBLES, +10.12 -> +19.78 luma, chroma drop 11.66 -> 24.33 — for
+0.09 steps of silhouette against A (1.84 -> 1.75 on the minimum, 2.25 -> 1.96 on
+p05). That is the pair the lead asked for, and on the evidence it argues for C.
+But design's condition was "all three hold at the shorter length", and they do
+not hold at ANY length, including no haze at all. So the shipped rows are NOT
+flipped here: this goes back with the frames, because the thing that changed is
+not which length wins, it is that two of the three floors are currently
+unreachable and one of them is not about haze.
+
+**A vantage defect found on the way.** Design's own §7.1b frame-2 standpoint
+(545,165) can no longer test band rhythm: the massif is occluded by a pine stand
+that has grown across the sightline, leaving only slivers of flank between
+trunks (`render-haze-H2-287m-DESIGN-VANTAGE-OCCLUDED-*.png`). H2 was therefore
+shot from (581,344) — the same 287 m and the same raking hour, on a bearing with
+a clear sightline. Design owns the vantage and should re-stamp it.
+
+**The instrument failed twice in the same way, and both are recorded in it.**
+`standout`'s first version segmented the landform by colour and, in the strong
+arm, re-found 85 pixels of 328. The `contour` mode was then written with the
+same flaw wearing new clothes — it walked each column down to the first non-sky
+pixel, and in the strong arm the hazed mountain classified AS SKY, so the walk
+continued into the rock and reported a median of 2.61 luma for a mountain
+plainly visible in the frame. `bands` made it a third time, finding the splat's
+dither instead of the benches. The general rule, now written at the top of the
+tool: A METRIC MAY NOT LOCATE ITS SUBJECT BY THE PROPERTY UNDER TEST. Edges and
+band rows are geometry, so both are detected once on the control arm and every
+arm is then read at the same pixels.
+
+### Acceptance
+
+`docs/acceptance/render-aerial-{BEFORE,AFTER}-{250,500,900}m-*.png`, and the
+recipe is in the acceptance README. The three ranges ARE the control (Rule 30):
+a change that makes the picture prettier without making 900 m differ from 250 m
+has not done R1, and this instrument reports that as a flat column.
+
 
 ## What this zone does NOT do
 

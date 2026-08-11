@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 20:10:49
+Last updated: 11:08:2026 - 13:41:41
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -39,6 +39,12 @@ UPD:
   generated constants (SUN_ANGULAR_DIAMETER / SUN_GLARE_ANGULAR_DIAMETER /
   SUN_DISC_LUMA / SUN_GLARE_LUMA_MAX), never through RenderEnvironment — they
   are NUMBERS rows with two consumers and exist once (Rule 35).
+- 11:08:2026 - 13:41:41: Slot 36 packed with THE AIR (HAZE_SCALE_LENGTH / HAZE_HEIGHT_SCALE,
+  REFERENCE_FRAMES.md R1), same generated-header route and same reason.
+  DFN_HAZE overrides the scale length in metres so how thick the air should be
+  is settled by a pair of frames rather than by an argument; it is read once
+  and rejects a bad value LOUDLY, because a counterfactual arm that silently
+  failed to apply is a duplicate of the other arm.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -50,6 +56,8 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace dfn::platform {
@@ -190,6 +198,53 @@ void BgfxRenderer::Impl::update_point_shadows() {
     bgfx::setUniform(u_point_shadow_params, params);
 }
 
+// THE AIR, with diagnostic overrides. Read once: a value that could change
+// between two draws of one frame would put two atmospheres in one picture, and
+// the whole point of R1 is that there is exactly one.
+//
+// These exist so that "how thick is the air" and "how fast does a mountain
+// climb out of it" are settled by a PAIR OF FRAMES rather than by an argument
+// (Rule 27). They are diagnostic knobs like DFN_MSAA, not second homes for the
+// numbers: unset, the generated rows are what ships.
+static float haze_env_override(const char* name, float fallback) {
+    const char* e = std::getenv(name);
+    if (e == nullptr || *e == '\0') {
+        return fallback;
+    }
+    float parsed = 0.0f;
+    if (std::sscanf(e, "%f", &parsed) == 1 && parsed >= 0.0f) {
+        std::fprintf(stderr, "[render] %s=%.1f (default %.1f)\n", name,
+                     static_cast<double>(parsed), static_cast<double>(fallback));
+        return parsed;
+    }
+    // LOUD, never silent (Rule 30): a counterfactual arm that quietly failed to
+    // apply is a DUPLICATE of the other arm, and "the haze made no difference"
+    // would then be concluded from a run where the haze never moved.
+    std::fprintf(stderr,
+                 "[render] %s=\"%s\" REJECTED (want a non-negative number); "
+                 "stays %.1f — the arm was NOT applied\n",
+                 name, e, static_cast<double>(fallback));
+    return fallback;
+}
+
+struct HazeParams {
+    float scale_m;
+    float height_m;
+    float base_m;
+};
+
+static const HazeParams& haze_params() {
+    static const HazeParams p = {
+        haze_env_override("DFN_HAZE",
+                          static_cast<float>(config::HAZE_SCALE_LENGTH)),
+        haze_env_override("DFN_HAZE_H",
+                          static_cast<float>(config::HAZE_HEIGHT_SCALE)),
+        haze_env_override("DFN_HAZE_BASE",
+                          static_cast<float>(config::HAZE_BASE_HEIGHT)),
+    };
+    return p;
+}
+
 // Packs the cached RenderEnvironment into u_envParams; the index layout is
 // the dfn_env.sh contract. Called once per frame in begin_frame — uniform
 // values persist across submits within the frame.
@@ -232,6 +287,19 @@ void BgfxRenderer::Impl::apply_environment() const {
                   0.5f * static_cast<float>(config::SUN_GLARE_ANGULAR_DIAMETER),
                   static_cast<float>(config::SUN_DISC_LUMA),
                   static_cast<float>(config::SUN_GLARE_LUMA_MAX)};
+    // THE AIR (R1). Same route and the same reason as the sun's body: design
+    // derives these from the landmark depth-separation contract and the shader
+    // is what makes the frame obey them, so they have two consumers and may
+    // exist exactly once (Rule 35). They deliberately do NOT come through
+    // RenderEnvironment yet — nothing varies them per frame. The day weather
+    // does (a fog morning is a shorter scale length), and THAT is a contract
+    // change to request from the lead rather than to smuggle in here.
+    // DFN_HAZE overrides the scale length in METRES, and it exists so that
+    // "how thick should the air be" is settled by two frames instead of by an
+    // argument (Rule 27). It is a diagnostic knob like DFN_MSAA, not a second
+    // home for the number: unset, the generated row is what ships.
+    const HazeParams& haze = haze_params();
+    packed[36] = {haze.scale_m, haze.height_m, haze.base_m, 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

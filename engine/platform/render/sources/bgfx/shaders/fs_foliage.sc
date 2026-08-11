@@ -117,7 +117,7 @@ void main()
     lit += albedo * FOLIAGE_TRANSMIT_TINT * u_sunColor
            * (transmit * FOLIAGE_TRANSMIT_STRENGTH);
 
-    float fog = dfn_fog_factor(v_wpos);
+    // (R1) leaves take the air like everything else; alpha is untouched.
     // Alpha carries COVERAGE in coverage mode and 1.0 otherwise (see above).
-    gl_FragColor = vec4(mix(lit, u_fogColor, fog), mix(1.0, alpha, coverage_mode));
+    gl_FragColor = vec4(dfn_aerial(v_wpos, lit), mix(1.0, alpha, coverage_mode));
 }

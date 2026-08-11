@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 10:08:2026 - 20:10:49
+Last updated: 11:08:2026 - 13:38:39
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -11,7 +11,8 @@ Responsibility:
 
 Key items:
 - u_envParams[33]; accessor #defines (sun, ambient, fog, sky, splat, water,
-  moon, stars, point light) + dfn_surface_light() / dfn_fog_factor().
+  moon, stars, point light, haze) + dfn_surface_light() /
+  dfn_sky_gradient() / dfn_aerial() (aerial perspective, R1).
 
 Dependencies:
 - Uses: nothing (included after bgfx_shader.sh).
@@ -64,6 +65,17 @@ UPD:
   design derives those rows and the shader measures the frame with them, so
   they have two consumers and may exist exactly once (Rule 35). Paired with
   apply_environment per this file's own contract notice.
+- 11:08:2026 - 13:38:39: AERIAL PERSPECTIVE (REFERENCE_FRAMES.md R1). env block 36 -> 37
+  vec4s; slot 36 = HAZE_SCALE_LENGTH / HAZE_HEIGHT_SCALE from the generated
+  header. dfn_fog_factor (a smoothstep over 0.30..0.85 of CAMERA_FAR) DELETED
+  and replaced by dfn_aerial(): Beer-Lambert extinction through air whose
+  density falls with height, fading into dfn_sky_gradient() at the view
+  direction rather than into one flat u_fogColor. The old span began at
+  2400 m in a world 1024 m across, so it had never been nonzero anywhere —
+  measured, not inferred (docs/specs/render.md §R1). u_fogColor / u_fogStart /
+  u_fogEnd are now unread by any shader; the RenderEnvironment fields stay
+  because that header is a frozen contract (Rule 26) and removing them is a
+  request to the lead, not a tidy-up.
 */
 
 #ifndef DFN_ENV_SH
@@ -74,7 +86,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[36];
+uniform vec4 u_envParams[37];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -128,6 +140,14 @@ uniform vec4 u_envParams[36];
 #define u_sunGlareRadius  (u_envParams[35].y)
 #define u_sunDiscLuma     (u_envParams[35].z)
 #define u_sunGlareLumaMax (u_envParams[35].w)
+// AERIAL PERSPECTIVE (REFERENCE_FRAMES.md R1). Same route as the sun's body and
+// for the same reason (Rule 35): NUMBERS rows with two consumers — design
+// derives them from the landmark depth-separation contract (§1.3a) and this
+// shader is what makes the frame obey them — so they exist once and the
+// backend hands them over from the generated header.
+#define u_hazeScale       (u_envParams[36].x)
+#define u_hazeHeight      (u_envParams[36].y)
+#define u_hazeBase        (u_envParams[36].z)
 // The quantiser's own luma weights (fs_upscale.sc). Every brightness rule in
 // the sky is written in THIS metric and not in Euclidean RGB, because the
 // palette pass weights the channels and a difference that lives in blue is
@@ -425,11 +445,103 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
     return light;
 }
 
-// Distance fog shared by terrain and water: world-space distance from the eye.
-float dfn_fog_factor(vec3 wpos)
+// THE SKY'S OWN GRADIENT, as a function, because TWO things draw it now: the
+// sky itself (fs_sky) and the air in front of every surface (dfn_aerial). If
+// they were written twice a distant ridge would melt into a colour the sky
+// above it does not have, which is the seam this whole file exists to avoid.
+vec3 dfn_sky_gradient(vec3 dir)
+{
+    float up = clamp(dir.y, 0.0, 1.0);
+    return mix(u_skyZenith, u_skyHorizon, pow(1.0 - up, 3.0));
+}
+
+// AERIAL PERSPECTIVE (REFERENCE_FRAMES.md R1) — HOW MUCH OF A SURFACE SURVIVES
+// THE AIR IN FRONT OF IT. Returns transmittance: 1 = nothing between us, 0 =
+// the surface has become sky.
+//
+// WHY THIS IS NOT A FAR-PLANE FADE, MEASURED RATHER THAN ASSERTED. What stood
+// here was smoothstep(u_fogStart, u_fogEnd, dist) with the span set to
+// 0.30..0.85 of CAMERA_FAR, i.e. 2400..6800 m. The world is TESTBED_SIZE
+// 1024 m across, so its longest sightline is a 1448 m diagonal and the factor
+// was EXACTLY ZERO at every point of it — not weak, never once nonzero. The
+// frame said so: the same crag shot at 250/500/900 m held its luma at
+// 97.4/91.8/91.9 while its separation from the sky ROSE 12.1 -> 46.9, because
+// the sky brightens toward the horizon and the crag did not. The picture was
+// asserting the OPPOSITE of every reference frame. A smoothstep between two
+// distances cannot be the fix at any setting: it is flat on both sides of its
+// ramp by construction, and R1 asks for a fall that is continuous from the eye
+// outward. See docs/specs/render.md §R1.
+//
+// The law is Beer-Lambert through air whose density falls off with height:
+//   density(y) = exp(-max(y - HAZE_BASE_HEIGHT, 0) / HAZE_HEIGHT_SCALE)
+//   transmittance = exp(-(mean density along the ray) * distance / SCALE_LENGTH)
+//
+// THE TWO HEIGHT ROWS ARE ONE MECHANISM AND THE BASE IS THE LOAD-BEARING HALF.
+// Without it the density is anchored at y = 0, which is BELOW the ground the
+// player walks on — and then shortening the height scale thins the valley's own
+// air along with the summit's, so the lever pushes both ends the same way and
+// there is no second lever at all. Anchored at the valley floor instead, with
+// everything below it clamped to full density, the two rows finally separate:
+// SCALE_LENGTH says how thick the air the player stands in is, HEIGHT_SCALE
+// says how fast a mountain climbs out of it. That is the split reference frames
+// 02 and 12 show as a hazed base under a lit crown.
+float dfn_aerial_transmittance(vec3 eye, vec3 wpos)
+{
+    float L = max(u_hazeScale, 1.0);
+    float H = max(u_hazeHeight, 1.0);
+    float B = u_hazeBase;
+    float d = length(wpos - eye);
+
+    // Order the endpoints: the mean over a segment does not care which way it
+    // is travelled, and one ordering removes every sign case below.
+    float ya = min(eye.y, wpos.y);
+    float yb = max(eye.y, wpos.y);
+    float span = yb - ya;
+
+    float mean;
+    if (span < 1.0) {
+        // Level ray: the whole segment sits at one height. Also the limit of
+        // the branch below, so there is no seam along the horizon — which is
+        // exactly where a seam would be seen.
+        mean = exp(-max(0.5 * (ya + yb) - B, 0.0) / H);
+    } else {
+        // EXACT, not approximated, and the split is why. The clamped density
+        // is not exponential along the whole ray — it is flat below B and
+        // exponential above — so feeding clamped endpoints to one exponential
+        // formula understates a ray that starts below B (measured ~10 % at the
+        // massif vantage). Splitting the segment at the crossing costs three
+        // lines and removes the question.
+        float c = clamp(B, ya, yb);
+        float below = (c - ya) / span;        // density is exactly 1 in here
+        float above = 0.0;
+        if (yb > B) {
+            float a = max(ya, B);
+            above = (H / span) * (exp(-(a - B) / H) - exp(-(yb - B) / H));
+        }
+        mean = below + above;
+    }
+    return exp(-mean * d / L);
+}
+
+// The whole of R1 in one call: a lit surface colour, put behind the air that
+// is actually between it and the eye. The colour it fades INTO is the sky in
+// the direction we are looking, never one flat fog colour, so a ridge high in
+// the frame and a ridge on the horizon each melt into the sky that is behind
+// THEM.
+vec3 dfn_aerial(vec3 wpos, vec3 lit)
 {
     vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    return smoothstep(u_fogStart, u_fogEnd, length(wpos - eye));
+    vec3 to = wpos - eye;
+    float t = dfn_aerial_transmittance(eye, wpos);
+    return mix(dfn_sky_gradient(normalize(to)), lit, t);
+}
+
+// The same number as a 0..1 "how gone is it" factor, for the few call sites
+// that need to fade something else with it (water alpha).
+float dfn_aerial_factor(vec3 wpos)
+{
+    vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    return 1.0 - dfn_aerial_transmittance(eye, wpos);
 }
 
 #endif // DFN_ENV_SH

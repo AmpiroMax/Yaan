@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 22:54:58
+Last updated: 11:08:2026 - 14:10:10
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -81,6 +81,14 @@ UPD:
   With DFN_WIND_FREEZE the control arm comes back bit-identical (0.000 %,
   maxL 0) — the first tour route in this file that satisfies Rule 30 outright
   instead of inheriting pngdiff's "certifies nothing" caveat.
+- 11:08:2026 - 14:10:10: post_frame prints the RESOLVED vantage (eye x/y/z, yaw, pitch)
+  next to every shot. Most steps are ground_relative, so their y comes from
+  streamed terrain and appeared in no recipe — an archived frame's
+  standpoint could only ever be quoted as x/z. R1 forced it: haze density
+  is a function of HEIGHT, so a frame that does not report the eye's height
+  cannot support a claim about how much air stood in front of it. It is also
+  what measured the valley floor (9.7-23.3 m over seven vantages) behind
+  NUMBERS' HAZE_BASE_HEIGHT.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -210,6 +218,19 @@ bool Tour::post_frame(platform::IRenderer& renderer) {
     char name[32];
     std::snprintf(name, sizeof(name), "%02u_", step_);
     const std::string path = output_dir_ + "/" + name + step.label + ".png";
+    // THE VANTAGE THAT WAS ACTUALLY SHOT, not the one that was asked for. Most
+    // steps are ground_relative, so their y is resolved from streamed terrain
+    // and is not in any recipe — which means an archived frame's standpoint
+    // could not be quoted, only its x/z. It is quoted now because R1 needs it:
+    // haze density is a function of HEIGHT, so a frame that does not report the
+    // eye's height cannot support a claim about how much air was in front of it.
+    const glm::vec3 p = resolved_position(step);
+    std::fprintf(stderr,
+                 "[tour] %s  eye %.2f %.2f %.2f  yaw %.4f  pitch %.4f\n",
+                 step.label.c_str(), static_cast<double>(p.x),
+                 static_cast<double>(p.y),
+                 static_cast<double>(p.z), static_cast<double>(step.yaw),
+                 static_cast<double>(step.pitch));
     if (!renderer.save_screenshot(path)) {
         // Null backend (headless smoke run): keep walking the route (Rule 3).
         std::fprintf(stderr, "[tour] screenshot unsupported, skipped: %s\n",
