@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 12:08:2026 - 00:36:00
+Last updated: 12:08:2026 - 00:38:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -110,6 +110,11 @@ UPD:
   from 400 m the giants read as DEAD, and the two defects behind that -- zero
   cards, and wood at twice the declared height -- were both invisible from
   underneath and invisible to a green suite.
+- 12:08:2026 - 00:38:00: The great oak's step/platform numbers read their
+  landed NUMBERS rows. The TRIANGLE BUDGET ROW IS RECORDED AS UNDER-SET rather
+  than fitted to: 3500 was this zone's own estimate before the crown existed
+  and the accepted tree measures 4180-6982; a revision to 7000 is requested,
+  and both ways of "fitting" 3500 would undo a defect the frame just caught.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -140,9 +145,21 @@ constexpr float CLEARANCE_MIN = static_cast<float>(config::CANOPY_CLEARANCE_MIN)
 // Spending 6x the ordinary tree on ~1/2000 of the instances is a net saving
 // against drawing it as a forest oak and being asked why the landmark looks
 // like scenery.
-// NUMBERS ROWS REQUESTED FROM LEAD (Rule 14/35), carried locally until they
-// land: GREAT_OAK_TRI_BUDGET 3500, GREAT_OAK_STEP_RISE 0.42 m,
-// GREAT_OAK_STEP_REACH 0.75 m, GREAT_OAK_PLATFORM_RADIUS 2.6 m.
+// THE ROWS LANDED 12.08.2026 and are read from here on (Rule 14).
+//
+// AND THE BUDGET ROW IS UNDER-SET, BECAUSE THE ESTIMATE THIS ZONE GAVE LEAD WAS
+// WRONG. 3500 was asked for before the crown existed; the tree the acceptance
+// frame actually accepts MEASURES 4180 / 6982 / 5878 triangles on variants 0-2
+// (wood 2944-5668, cards 1236-1830). Reported rather than quietly fitted,
+// because both ways of fitting are worse than asking: cutting the cards puts
+// back the bare-skeleton tree the distant frame rejected, and cutting the wood
+// removes the ramification that is the whole point of the species. A REVISION
+// TO 7000 HAS BEEN REQUESTED.
+// Note WHY the usual lever does not work here: decimate_to() can only dissolve
+// chain nodes, and under recursive ramification almost every node is a fork or
+// a tip, so the segment cap does not bind and the node budget is the only real
+// control -- the same property build_crown's comment records for space
+// colonization.
 // RAISED 700 -> 1500 FROM A FRAME, not from a budget calculation. At 700 the
 // grower produced ~156 tips, the foliage path takes ONE mass per tip, and 156
 // masses over an 80 m crown is transparent: photographed from 400 m the great
@@ -155,10 +172,10 @@ constexpr float CLEARANCE_MIN = static_cast<float>(config::CANOPY_CLEARANCE_MIN)
 // buy leaf sites and are then dissolved.
 constexpr uint32_t GREAT_OAK_MAX_NODES = 1500;
 constexpr uint32_t GREAT_OAK_MAX_SEGMENTS = 300;
-constexpr float GREAT_OAK_STEP_RISE = 0.42f;   ///< m of climb per tread
-constexpr float GREAT_OAK_STEP_REACH = 0.75f;  ///< m the tread sticks out
+constexpr auto GREAT_OAK_STEP_RISE = static_cast<float>(config::GREAT_OAK_STEP_RISE);
+constexpr auto GREAT_OAK_STEP_REACH = static_cast<float>(config::GREAT_OAK_STEP_REACH);
 constexpr float GREAT_OAK_STEP_RADIUS = 0.15f; ///< m, half-thickness of a tread
-constexpr float GREAT_OAK_PLATFORM_R = 2.6f;   ///< m, a deck at a major fork
+constexpr auto GREAT_OAK_PLATFORM_R = static_cast<float>(config::GREAT_OAK_PLATFORM_RADIUS);
 /// The golden chain of the user's лукоморье. Its own value band, well above
 /// every bark and leaf tone in the catalog, because the whole point of it is to
 /// be the one bright thing on a dark bole.

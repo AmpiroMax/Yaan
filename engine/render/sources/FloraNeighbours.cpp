@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:44:12
-Last updated: 12:08:2026 - 00:24:00
+Last updated: 12:08:2026 - 00:38:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -38,9 +38,13 @@ UPD:
       TOGETHER, and the magnitude band opened to what reference frame 16 shows.
 - 12:08:2026 - 00:24:00: (see the entry above — the maturity tiers and the wind
   lean; this line exists because the previous one carried a placeholder time.)
+- 12:08:2026 - 00:38:00: The lean band reads TREE_LEAN_WIND_MIN/MAX from the
+  generated constants; the local copies are gone (Rule 14).
 */
 
 #include "engine/render/sources/ProcFlora.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <glm/geometric.hpp>
 
@@ -198,10 +202,10 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
         //     one rather than a competing bearing: a crowded tree leans further
         //     into the gap the wind is already pushing it toward.
         // Magnitude varies per tree (exposure), direction does not.
-        // NUMBERS ROWS REQUESTED FROM LEAD: TREE_LEAN_WIND_MIN 0.14 rad (8 deg),
-        // TREE_LEAN_WIND_MAX 0.35 rad (20 deg).
-        constexpr float LEAN_MIN = 0.14f;
-        constexpr float LEAN_MAX = 0.35f;
+        // The rows landed 12.08.2026 (NUMBERS.md, «Деревья: ширина, наклон,
+        // гигантский дуб»), so the numbers are read, never re-typed (Rule 14).
+        constexpr auto LEAN_MIN = static_cast<float>(config::TREE_LEAN_WIND_MIN);
+        constexpr auto LEAN_MAX = static_cast<float>(config::TREE_LEAN_WIND_MAX);
         const float az = wind_lean_azimuth(pos_xz);
         const glm::vec2 wind_dir{std::cos(az), std::sin(az)};
         const float exposure = static_cast<float>(
