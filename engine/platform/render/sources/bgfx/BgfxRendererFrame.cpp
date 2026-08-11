@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 11:08:2026 - 14:24:26
+Last updated: 12:08:2026 - 00:14:02
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -49,6 +49,14 @@ UPD:
   DFN_MIST_H, DFN_MIST_T) through the same loud-rejection path. Shipped rows
   moved to HAZE_SCALE_LENGTH 600 / HAZE_HEIGHT_SCALE 40 in NUMBERS; nothing
   here changed for that, which is the point of the generated-header route.
+- 11:08:2026 - 23:53:45: DFN_TERRAIN_TILES — the ground tile as a counterfactual
+  arm (R5). Same loud-rejection route. It answers the one question a single
+  frame cannot: whether the repeating pattern on the ground is the MATERIAL
+  tiling or a SCREEN-SPACE pattern (dither / palette / coverage AA).
+  ANSWER: the material. The blob scale moved by exactly 4x in both directions.
+- 12:08:2026 - 00:14:02: DFN_GROUND_TINT — the dose of the R5 ground tint, in
+  slot [8].y. Default 1; 0 is the zero-dose control arm the R5 numbers are
+  read against.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -231,6 +239,26 @@ static float haze_env_override(const char* name, float fallback) {
     return fallback;
 }
 
+// THE GROUND TILE, as a counterfactual arm (Rule 30). `DFN_TERRAIN_TILES`
+// overrides how many times the ground material repeats across one CHUNK_SIZE.
+// It is a DISCRIMINATOR, not a look knob: a pattern in the frame is either
+// world-space (it lives in the material, so its screen scale moves when this
+// moves) or screen-space (dither, palette, coverage AA — it does not move at
+// all). No amount of looking at ONE frame separates those two, and R5 names
+// them as two different defects with two different fixes.
+static float terrain_tiles_override(float fallback) {
+    static const float value = haze_env_override("DFN_TERRAIN_TILES", fallback);
+    return value;
+}
+
+// R5's DOSE, and it exists so the change has a ZERO-DOSE CONTROL (Rule 48).
+// DFN_GROUND_TINT=0 must give back the pre-R5 ground; any R5 number that still
+// looks good at 0 is measuring the light or the terrain, not the material.
+static float ground_tint_dose() {
+    static const float value = haze_env_override("DFN_GROUND_TINT", 1.0f);
+    return value;
+}
+
 struct HazeParams {
     float scale_m;
     float height_m;
@@ -274,7 +302,8 @@ void BgfxRenderer::Impl::apply_environment() const {
         {e.sky_zenith_color, 0.0f},
         {e.sky_horizon_color, 0.0f},
         {e.sand_height_m, e.sand_blend_m, e.rock_slope_start, e.rock_slope_end},
-        {e.terrain_tiles_per_chunk, 0.0f, 0.0f, 0.0f},
+        {terrain_tiles_override(e.terrain_tiles_per_chunk), ground_tint_dose(),
+         0.0f, 0.0f},
         e.water_color,
         {e.water_scroll_uv, 0.0f, 0.0f},
         {e.moon_direction, e.moon_phase},

@@ -14,8 +14,20 @@ $input v_color0, v_normal, v_texcoord0, v_wpos
 // Dynamic sun shadows (в1): one hard tap, dfn_shadow.sh.
 // u_params.x < 0.5 -> flat-color fallback (no atlas resident).
 
+// R5 (REFERENCE_FRAMES.md), two defects and two answers, both below:
+//   (b) A READABLE TILE. Proven to BE the tile and not the dither or the
+//       coverage AA by the DFN_TERRAIN_TILES 8/32/128 arms — the blob scale
+//       moved by exactly the tiling factor in both directions. The answer is
+//       the SECOND grass fetch at an incommensurate scale: the material still
+//       repeats every 8 m, but no 8 m square is a copy of its neighbour any
+//       more, and a repeat you cannot find twice is not readable.
+//   (a) ONE TONE. Measured (tools/measure_ground_colour.py): our ground's
+//       chroma spread is 5.7/3.6/1.8 at fine/mid/coarse scale against 9.3-21.5
+//       / 7.3-17.7 / 2.3-7.5 in reference frames 01, 02 and 15 — lowest at
+//       every scale, and worst at the coarse one. The answer is dfn_ground.sh.
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
+#include "dfn_ground.sh"
 #include "dfn_shadow.sh"
 
 SAMPLER2D(s_texColor, 0);
@@ -41,7 +53,19 @@ void main()
     vec3 n = normalize(v_normal);
     vec2 tuv = v_texcoord0 * u_terrainTiles;
 
-    vec3 grass = atlas_sample(tuv, vec2(0.0, 0.0));
+    // THE TILE, BROKEN WITHOUT BEING REMOVED. Two fetches of the SAME grass
+    // cell at scales whose ratio is not a simple fraction, chosen between by a
+    // field whose own period (11 m) is not a multiple of the tile's 8 m. The
+    // pattern at any point is still one of two known stamps, so nothing is
+    // invented and nothing needs new memory; but which stamp, and at what
+    // phase, changes across the ground, so the eye has nothing to lock onto.
+    // The mix is smooth: a threshold would trade a repeating tile for a
+    // repeating BLOTCH EDGE, which is the same defect with a longer period.
+    float bomb = dfn_gnoise(v_wpos.xz * (1.0 / 11.0));
+    vec3 grass = mix(atlas_sample(tuv, vec2(0.0, 0.0)),
+                     atlas_sample(tuv * 0.41 + vec2(0.19, 0.63), vec2(0.0, 0.0)),
+                     smoothstep(0.30, 0.70, bomb) * clamp(u_groundTint, 0.0, 1.0));
+    grass = dfn_ground_tint(grass, v_wpos.xz, u_groundTint);
     vec3 rock  = atlas_sample(tuv, vec2(1.0, 0.0));
     vec3 sand  = atlas_sample(tuv, vec2(0.0, 1.0));
     vec3 dirt  = atlas_sample(tuv, vec2(1.0, 1.0));

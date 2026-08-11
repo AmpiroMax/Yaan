@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 10:08:2026 - 01:47:53
+# Last updated: 12:08:2026 - 00:11:40
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -39,6 +39,16 @@
 #   added to the shaderc dependency list.
 # - 10:08:2026 - 01:47:53: Rule 21 split of BgfxRenderer.cpp (1424 lines) into
 #   lifecycle / frame / submit / resources over the private BgfxRendererImpl.h.
+# - 12:08:2026 - 00:11:40: dfn_ground.sh (R5 ground colour) added to the shaderc
+#   DEPENDS list, AND IT COST TWO FALSE MEASUREMENTS BEFORE IT WAS ADDED. A new
+#   shared .sh is invisible to this build until it is named here, so editing it
+#   rebuilds NOTHING and the app keeps running the previous shader while the
+#   agent reads the frames as evidence about the new one. Both readings came
+#   back "the change did nothing", which is exactly what a real no-op looks
+#   like. The tell that broke it: a DOSE SWEEP whose three arms were bit
+#   identical -- a uniform needs no rebuild at all, so identical arms could
+#   only mean the binary predated the source. If you add a shared header here,
+#   add it to this list in the same edit.
 
 include(FetchContent)
 
@@ -76,6 +86,7 @@ function(dfn_compile_shader name type profile platform suffix)
                 "${DFN_SHADER_SRC_DIR}/${name}.sc"
                 "${DFN_SHADER_SRC_DIR}/varying.def.sc"
                 "${DFN_SHADER_SRC_DIR}/dfn_env.sh"
+                "${DFN_SHADER_SRC_DIR}/dfn_ground.sh"
                 "${DFN_SHADER_SRC_DIR}/dfn_shadow.sh"
                 "${DFN_SHADER_SRC_DIR}/dfn_pointshadow.sh"
         COMMENT "shaderc ${name} (${profile})"

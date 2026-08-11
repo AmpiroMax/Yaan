@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 11:08:2026 - 14:47:30
+Last updated: 12:08:2026 - 00:14:02
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -100,6 +100,12 @@ UPD:
   a THIRD of the cloud lost at cover 0.05. Rule 31's form at a fifth of its
   size, not its severity. CloudModelTests.cpp now asserts it on coverage --
   by decile error the two pairs barely differ, which is how it hid.
+- 12:08:2026 - 00:14:02: Slot [8].y = u_groundTint, the DOSE of the R5 ground colour
+  (fs_terrain + dfn_ground.sh). It rides in the terrain slot because that is
+  what it is about, and it is a dose rather than a switch so that the value
+  can be swept from the environment (DFN_GROUND_TINT) without a rebuild —
+  and so that 0 is a genuine zero-dose control arm rather than "roughly the
+  old look" (Rule 48).
 */
 
 #ifndef DFN_ENV_SH
@@ -126,6 +132,11 @@ uniform vec4 u_envParams[38];
 #define u_rockSlopeStart (u_envParams[7].z)
 #define u_rockSlopeEnd   (u_envParams[7].w)
 #define u_terrainTiles   (u_envParams[8].x)
+// R5 GROUND TINT DOSE. 1 = shipped, 0 = the zero-dose control arm
+// (DFN_GROUND_TINT=0), which must reproduce the pre-R5 ground exactly — a
+// criterion that still passes at zero dose is measuring the light or the
+// terrain and not the material (Rule 48).
+#define u_groundTint     (u_envParams[8].y)
 #define u_waterColor     (u_envParams[9])
 #define u_waterScroll    (u_envParams[10].xy)
 #define u_moonDir        (u_envParams[11].xyz)
