@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:41:06
+Last updated: 11:08:2026 - 13:51:09
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -25,6 +25,11 @@ UPD:
 - 10:08:2026 - 20:00:23: Clip selection reads BodyDrive::gait; speed now only answers 'are the feet moving at all'.
 - 10:08:2026 - 20:25:17: the showcase reel reads gait_run_weight instead of literal 0.0/1.0 run weights.
 - 10:08:2026 - 20:41:06: the gear weight is eased over GAIT_BLEND_TIME_S in update_bodies; evaluate_body_pose reads the eased value.
+- 11:08:2026 - 13:51:09: Rule 32 sweep after the run smear: the mirror-puppet snapshot
+  copied only `position`, leaving rotation and scale to freeze at their
+  defaults. A no-op today (the puppet's rotation is never written) and NOT a
+  bug fix -- it is the line that stops being a no-op silently on the day it
+  is, which is exactly how PreviousCameraPose::fov_scale arrived.
 */
 
 #include "engine/anim/sources/Body.h"
@@ -279,7 +284,17 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         if (tr == nullptr || prev == nullptr) {
             continue;
         }
+        // ALL THREE, not just the position (Rule 32 sweep after the run smear:
+        // a hand-written shadow copy that omits a field freezes that field at
+        // its default and the renderer then interpolates from the frozen value
+        // every single tick -- docs/FINDING_RUN_SMEAR.md). Today the puppet's
+        // rotation and scale are never written, so copying them is a no-op and
+        // NOT a bug fix; it is the line that stops being a no-op silently on
+        // the day someone gives the puppet a rotation, which is precisely how
+        // the fov_scale case arrived.
         prev->position = tr->position;
+        prev->rotation = tr->rotation;
+        prev->scale = tr->scale;
 
         if (mp.showcase) {
             // The techno-demo double: floats at hover height, cycles clips.

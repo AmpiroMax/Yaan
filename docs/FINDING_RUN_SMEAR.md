@@ -1,6 +1,6 @@
 <!--
 Created: 11:08:2026 - 13:28:15
-Last updated: 11:08:2026 - 13:47:08
+Last updated: 11:08:2026 - 13:56:21
 -->
 <!--
 UPD:
@@ -8,6 +8,14 @@ UPD:
 - 11:08:2026 - 13:39:12: sim ran the falsifying measurement. RESULT BELOW: the candidate
   mechanism is REFUTED. `speed` at run is 6.0000 to within 0.0075 m/s.
 - 11:08:2026 - 13:47:08: РЕШЕНО. Пользователь указал на изъян метода («при беге тряска есть, а в момент скрина картинка статичная») — и он прав: все наши двери съёмки либо морозят тик, либо ждут сброса буфера, а дефект живёт МЕЖДУ кадрами. Новый прибор `DFN_FRAME_LOG` (по строке на предъявленный кадр, без обратного чтения и без отстоя) показал размах `fov_y` 5.951° при беге против 0.0000° на ходьбе и стоя, с разворотом направления в 97.9% пар кадров — то есть меандр в 9.4 пикселя всей картинкой каждый кадр. Причина: `PreviousCameraPose::fov_scale` никто не копирует (PlayerMovement.cpp:339-341), поэтому интерполяция идёт от вечной 1.0 к живой 1.08 каждый тик. Правило 39 на новом ПОЛЕ теневой копии.
+- 11:08:2026 - 13:49:03: sim, after the user's "there is no shake at the moment the
+  screenshot is taken": the probe now logs THE EYE per tick, not just the
+  scalar. NEW CANDIDATE with a measured walk/run discriminator — see the
+  last section. The refutation above stands unchanged.
+- 11:08:2026 - 13:56:21: sim applied the one-line fix, swept its siblings (Rule 32) and
+  measured it before/after with the lead's frame log. 2.9040 deg of
+  per-frame FOV change becomes 0.0022; 98.3 %% direction reversals become
+  2.8 %%. Six frame logs archived in docs/acceptance/.
 -->
 
 # FINDING — the picture smears at run, and `fov_scale` is not inert
@@ -349,3 +357,234 @@ Not a still frame — that is the whole point of this file. The run arm of
 `DFN_FRAME_LOG` must show the `fov_y` span collapse from 5.951° toward the
 walk arm's 0.0000°, with the walk and standing arms unchanged, **and the user
 must confirm on his own build**, because he is the one who can see it.
+
+---
+
+# THE EYE TRACK — a new candidate, with the discriminator the user handed us
+
+Added by `sim`, 11:08:2026 - 13:49:03, after the user's observation:
+
+> я вчера вечером заметил, что при прогоне бега - есть тряска
+> но в момент, когда делается скрин, тряски нет, картинка статичная
+> так что надо по иному скрины делать и искать проблему где-то тут
+
+**The instrument was suppressing the defect.** So the probe stopped being a
+speed probe: it now writes, in the same tick and with nothing stopping to record
+it, everything that moves the picture — `fov_scale`, `bob_amp`, both bob
+offsets, and **the final camera pose**. Binary rebuilt 13:42; same seed, same
+route, live ticks, no tour, no freeze.
+
+## The measurement
+
+45 s of running across real terrain, explorer seed 7, then the SAME route at
+walk. Per-tick change in the camera's vertical position, **grounded on both
+ticks** so no jump or landing is counted:
+
+| | STAND | **WALK 1.8 m/s** | **RUN 6.0 m/s** |
+|---|---|---|---|
+| grounded ticks | 320 | 8326 (138.8 s) | 2189 (36.5 s) |
+| median per-tick eye rise/fall | 0 | 0.00228 m | 0.00509 m |
+| p99 | 0 | 0.00684 m | 0.01598 m |
+| p99.9 | 0 | 0.02673 m | **0.10317 m** |
+| **max, in ONE tick** | 0 | 0.08055 m (4.8 m/s) | **0.16805 m (10.08 m/s)** |
+| jumps > 0.05 m in one tick | 0 | 0.007 /s | **0.192 /s** |
+| jumps > 0.10 m in one tick | 0 | **0** | **0.082 /s** |
+
+Per metre of ground covered (219 m at run, 250 m at walk — comparable, so this
+is not merely "faster means more per second"): **0.032 jumps/m over 5 cm at
+run against 0.004 at walk, an 8x difference, and over 10 cm the walk arm has
+none at all.**
+
+## What it is
+
+Not the bob. Subtracting the bob offsets leaves the residual essentially
+unchanged (sd of the per-tick eye step 0.00857 m, of which the ground track
+contributes 0.00645 and the bob 0.00564), and the extremes survive subtraction
+intact. It is `position.y` — the capsule's own vertical, which
+`player_post_step` hands to `camera.position` **1:1**.
+
+The worst events, all grounded on both sides:
+
+| tick | capsule rise/fall in ONE tick | as a velocity | `speed` that tick |
+|---|---|---|---|
+| 674 | **+0.1731 m** | +10.38 m/s | 6.423 |
+| 2478 | −0.1261 m | −7.57 m/s | 6.001 |
+| 682 | −0.1000 m | −6.00 m/s | 6.000 |
+
+These are **step-ups**: `PLAYER_STEP_HEIGHT` is 0.35 m, and the character
+controller lifts the capsule onto a ledge WITHIN A SINGLE TICK. The camera rides
+it with no smoothing at all. 0.17 m in one tick is **three times the entire
+head-bob amplitude** (`HEADBOB_AMPLITUDE_MAX` 0.06) delivered in 16.7 ms, and
+**33x the median per-tick camera motion** at the same gait.
+
+## Why it is worse at run than at walk, which is the user's own sentence
+
+At 1.8 m/s a tick advances the capsule 0.030 m of ground; at 6.0 m/s it advances
+0.100 m. The controller resolves whatever height change falls inside that span
+in ONE tick. So the same micro-relief that a walker climbs smoothly over three
+ticks is delivered to a runner as a single snap 3.3x taller — and above
+`PLAYER_STEP_HEIGHT`-scale features, as a snap that the walking arm never
+produces at all. Standing there is no ground traversal, so there is nothing to
+snap: `dy` is 0.
+
+**Fine standing, fine walking, the whole picture swimming at run** — measured,
+in that order, on the same terrain.
+
+## And this is why two days of screenshots came back clean
+
+The flat testbed soak ring, the arm every automated frame in this project is
+shot from, has a per-tick `dy` range of **−0.0131 … +0.0071 m** — thirteen times
+smaller than the explorer's worst, and never once above the 0.02 m mark. **The
+artifact cannot occur where the camera has been pointed.** That is Rule 27's
+"a vantage that cannot fail is not evidence", and it had been failing silently
+for two days: the instrument was not only frozen in time, it was also parked on
+the one piece of ground with no relief to snap over.
+
+## The contract question this raises (NOT yet actioned)
+
+The original question — "which velocity should each of the three consumers
+read" — is closed by the refutation above: `speed` is steady, so all three are
+reading a correct number and none of them is the fault.
+
+The question that replaces it is about the EYE, and it is a genuine contract,
+not a tuning value: **should `camera.position.y` ride `position.y` raw?** The
+capsule's vertical is a COLLISION RESULT — it may legitimately teleport, because
+a solver resolving a step is not modelling a body being lifted. A head is not
+attached to a collision capsule; it is attached to legs, and legs cannot raise a
+skull 0.17 m in 16.7 ms. The standard treatment is a step-smoothing offset: the
+capsule snaps, the eye keeps the old height and decays the difference away over
+a short time constant, so the ledge is climbed rather than teleported.
+
+Deliberately NOT implemented in this pass, for two reasons, both of which are
+this file's own lessons:
+
+1. **Rule 27 cannot be satisfied yet.** This is a between-frames artifact, so it
+   closes on a LIVE FRAME SEQUENCE at run speed, before and after. The lead owns
+   `engine/app` and the capture path and is fixing the instrument; shipping a
+   camera change before the instrument that can see it exists would repeat
+   exactly the mistake that cost two days.
+2. **Rule 30 needs the arm that rejects.** The control is already identified and
+   already measured: the flat soak ring, where the artifact is absent, must stay
+   absent, and the explorer arm's 0.192 jumps/s over 5 cm must go to zero. Any
+   before/after must be shot on TERRAIN WITH RELIEF, not on the ring.
+
+Nothing here is a new NUMBERS row yet. If the smoothing lands, its time constant
+is a row and it will be requested from the lead (Rule 14/35), derived from the
+step height and the gait rather than dialled by eye.
+
+---
+
+# THE FIX, AND ITS BEFORE/AFTER (sim, 11:08:2026 - 13:56:21)
+
+## The change
+
+`PlayerMovement.cpp`, in the snapshot block of `player_pre_step`:
+
+    prev_camera.fov_scale = camera.fov_scale;
+
+Placed with the other three copies, so it carries the value `camera.fov_scale`
+held at the END OF THE PREVIOUS TICK — `player_post_step` has not yet
+overwritten it this tick. `prev` = tick N−1, `current` = tick N, which is what
+the app's alpha blend has always assumed it was handed.
+
+## Before/after, measured with `DFN_FRAME_LOG` (the lead's instrument)
+
+Recipe, identical across all six runs: `DFN_STAND=testbed DFN_NULL_AUDIO=1
+DFN_PLAYTEST=soak DFN_PLAYTEST_GAIT=<gait> DFN_PLAYTEST_SEED=1
+DFN_PLAYTEST_SECONDS=12 DFN_FRAME_LOG=<file>`, real renderer (the null renderer
+runs uncapped at ~95 000 fps and would divide the per-frame delta by a thousand
+— **the instrument's own frame rate is part of this measurement**). Standing arm
+uses `DFN_CAPTURE_AFTER=8` instead, since the bot always moves.
+
+**The BEFORE arm is a real control binary, not a recollection**: the same tree
+with that one line commented out, built, run, and then restored and rebuilt. It
+reproduced the lead's run frame-for-frame — 1361 frames — which is the
+determinism check on the comparison.
+
+Startup dropped (30 frames: the world streams in at 100–300 ms per frame and the
+FOV legitimately eases up from 1.0 for the first time).
+
+| arm | frames | mean per-frame Δfov_y | max Δ | direction reversals | edge shift, mean | edge shift, max |
+|---|---|---|---|---|---|---|
+| **BEFORE / run** | 1331 | **2.9040°** | 4.7177° | **98.3 %** | **9.319 px** | 15.833 px |
+| **AFTER / run** | 1333 | **0.0022°** | 0.1627° | **2.8 %** | **0.007 px** | 0.517 px |
+| BEFORE / walk | 1365 | 0.0002° | 0.0024° | — | 0.00 px | 0.01 px |
+| AFTER / walk | 1364 | 0.0000° | 0.0001° | — | 0.00 px | 0.00 px |
+| BEFORE / stand | 825 | **0.0000°** | 0.0000° | 0 % | 0.00 px | 0.00 px |
+| AFTER / stand | 805 | **0.0000°** | 0.0000° | 0 % | 0.00 px | 0.00 px |
+
+**1320x less per-frame FOV motion at run. The meander is gone: 98.3 % of
+consecutive frame pairs reversed direction before, 2.8 % after.** Edge shift is
+the whole image's displacement at the frame edge for a half-height of 180 px,
+`180 · Δtan(fov/2) / tan(fov/2)` — **9.3 pixels every frame becomes 0.007.**
+
+**Both controls are unchanged, and one of them is the point.** Standing measures
+0.0000° in BOTH arms — the fix cannot have "improved" a number that was already
+zero, so the improvement at run is attributable to running and not to the
+binary. Walking was already quiet for the reason the code states (the target is
+1.0 at and below `WALK_SPEED`) and stays quiet.
+
+### The one number that does NOT change, and why that is correct
+
+The RANGE of `fov_y` is ~5.9° in both arms (1.3094…1.4132 before,
+1.3107…1.4137 after). That is not a residual defect — it is the speed coupling
+doing its job. On the soak ring the bot stops to turn and re-accelerates, so the
+FOV legitimately travels its whole span. **Before the fix that span was
+traversed inside every tick, as a meander; after it, once per acceleration,
+monotonically.** Which is exactly why range was the wrong statistic to have
+reasoned from: the five state captures at the top of this file measured RANGE,
+and range is identical on a healthy build and a sick one. The discriminator is
+the per-frame delta and the reversal rate — quantities no single frame, and no
+pair of frames 2.4 seconds apart, can express (Rule 30's mechanical form: no
+threshold on the range separates the accepted build from the rejected one).
+
+Evidence archived (Rule 27), all six runs:
+`docs/acceptance/sim-run-smear-{before,after}-{run,walk,stand}-116a49f.log`.
+The pixel sequence is the lead's, from `engine/app`.
+
+## The sibling sweep (Rule 32) — the defect is a class
+
+Every hand-written shadow copy in the tree, audited:
+
+| site | status |
+|---|---|
+| `PlayerMovement.cpp` per-tick camera snapshot | **THE DEFECT.** Fixed. |
+| `PlayerMovementWorld.cpp:87` spawn `PreviousCameraPose` | `fov_scale` omitted; harmless (spawn value is 1.0 either way) — **now spelled out**, because the omission had the same cause |
+| `Body.cpp` mirror-puppet snapshot | copied only `position`; rotation and scale were freezing at their defaults. A no-op today (the puppet's rotation is never written) and **NOT a bug fix** — it is the line that stops being a no-op silently on the day someone rotates the puppet |
+| `Body.cpp` `write_segments` | complete (all three fields) |
+| `ViewModel.cpp:141` | complete (all three fields) |
+
+**And the structural half, because a mirror maintained by hand will lose the
+next field the same way.** The copy site now carries:
+
+    static_assert(sizeof(components::CameraPose) == 24, ...);
+    static_assert(sizeof(components::PreviousCameraPose) == 24, ...);
+    static_assert(sizeof(components::Transform) == 40, ...);
+    static_assert(sizeof(components::PreviousTransform) == 40, ...);
+
+Sizes of BOTH halves of each pair, deliberately, and **not** a check that the
+two are equal to each other — an equality check would have waved this exact
+defect through, because `fov_scale` was added to both structs in the same edit.
+Any field added to either one now fails the build at the copy that must learn
+about it, with a message naming this file.
+
+The permanent fix belongs one level down — `PreviousCameraPose` should not be a
+separately-declared struct that can drift from `CameraPose` at all. That is
+`Components.h`, which is the lead's zone; **raised, not edited.**
+
+## What this file cost, and the one sentence worth keeping
+
+Two days, and none of it was spent on the defect — one missing assignment, found
+in a single run once an instrument existed that could not be put to sleep. Every
+door this project had for looking at the picture (the tour, the state capture,
+the playtest summary) **quiets the thing it is pointed at**, and the artifact
+lived strictly between frames. The user said so before we measured it: *"при
+прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет"*.
+
+The sim-side numbers in the sections above were all correct and all irrelevant:
+`speed` really is 6.0000 ± 0.0075, `state.fov_scale` really does settle at
+1.0800 and stay there. **The simulation was healthy the whole time; what was
+sick was the copy of it the renderer read.** A probe that logs the value a
+system computes cannot see a defect in the value a system PUBLISHES, and this
+is the second half of the same lesson as Rule 27's — the instrument must sit
+where the consumer sits.

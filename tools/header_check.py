@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 11:08:2026 - 13:31:43
+# Last updated: 11:08:2026 - 13:59:10
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -49,6 +49,11 @@
 #                          added yesterday to catch a wrong-block entry acquired the
 #                          same shape of defect it was written to catch: two checks
 #                          disagreeing about their own subject (Rule 41).
+# - 11:08:2026 - 13:59:10: .log добавлен в исключения: это УЛИКА, а не исходник — вывод пробы,
+#                          сложенный рядом с приёмочными кадрами. Его пишет инструмент
+#                          побайтно, и дописанный руками заголовок делает файл уже не тем,
+#                          что было измерено. Та же причина, по которой пропускаются
+#                          captures/ и playtest_test_artifacts/.
 
 from __future__ import annotations
 
@@ -103,7 +108,13 @@ SKIP_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".wav", ".mp
                    ".ogg", ".opus", ".ttf", ".otf", ".woff", ".woff2", ".dll", ".so",
                    ".dylib", ".exe", ".lock", ".json", ".toml", ".ini", ".pyc",
                    ".gguf", ".onnx", ".bin", ".glb", ".gltf", ".fbx", ".ozz",
-                   ".sc", ".sh.bin", ".dfw", ".dfs"}
+                   ".sc", ".sh.bin", ".dfw", ".dfs",
+                   # .log is EVIDENCE, not source: probe output archived beside
+                   # the acceptance frames it belongs to. It is written by a
+                   # tool, byte for byte, and a hand-added header would make it
+                   # no longer the thing that was measured. Same reason
+                   # captures/ and playtest_test_artifacts/ are skipped by path.
+                   ".log"}
 # feature_requests.md: the user's personal wishlist — user-authored, never
 # agent-edited, exempt from the agent header contract.
 SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc",

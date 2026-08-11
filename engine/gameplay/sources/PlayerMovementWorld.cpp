@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:44:47
+Last updated: 11:08:2026 - 13:51:09
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovementWorld.cpp
 
@@ -40,6 +40,11 @@ UPD:
                          into player_actions_step: the world pausing
                          behind the inventory skips movement, and a
                          preview that turned here would freeze with it.
+- 11:08:2026 - 13:51:09: Rule 32 sweep after the run smear: the spawn-time
+  PreviousCameraPose now spells out `fov_scale` too. Harmless at spawn (the
+  camera also starts at 1.0), listed anyway because the omission had the same
+  cause as the per-tick one that WAS the defect: an initialiser list that
+  reads as complete.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -80,8 +85,13 @@ ecs::EntityId spawn_player(ecs::World& world, platform::IPhysics& physics,
     const glm::vec3 eye =
         spawn_pos + glm::vec3{0.0f, static_cast<float>(config::PLAYER_EYE_HEIGHT), 0.0f};
     world.add(id, components::CameraPose{.position = eye, .yaw = 0.0f, .pitch = 0.0f});
-    world.add(id,
-              components::PreviousCameraPose{.position = eye, .yaw = 0.0f, .pitch = 0.0f});
+    // EVERY FIELD SPELLED OUT, including the one whose default is right anyway.
+    // `fov_scale` was omitted here and in the per-tick snapshot, and while the
+    // omission is harmless at spawn (the camera also starts at 1.0), the two
+    // omissions had the same cause: a designated-initialiser list that reads as
+    // complete. The per-tick one was the run smear (docs/FINDING_RUN_SMEAR.md).
+    world.add(id, components::PreviousCameraPose{
+                      .position = eye, .yaw = 0.0f, .pitch = 0.0f, .fov_scale = 1.0f});
     return id;
 }
 

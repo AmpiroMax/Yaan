@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 22:37:10
+Last updated: 11:08:2026 - 13:51:09
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -79,12 +79,45 @@ UPD:
   the NECK, i.e. inside the chest. It now reads StepContext::crouch_eye from
   anim::crouch_eye_offset (the same ferry as eye_lean) and CROUCH_EYE_HEIGHT
   has no reader here -- flagged to the lead for retirement.
+- 11:08:2026 - 13:31:54: THE PER-TICK SPEED PROBE (DFN_SPEED_PROBE=<path>), off unless
+  the env var names a file. `speed` here drives the FOV, the bob amplitude and
+  the stride clock at once, and it is suspected of jittering FROM TICK TO TICK
+  -- which no single-tick instrument in this repo can see. The F2 capture and
+  the playtest summary both sample it one tick at a time, and five such samples
+  reading 6.000 were read as "steady" by an investigation that had in fact taken
+  five points off an unknown waveform. The probe writes the COMMANDED horizontal
+  speed beside the ACTUAL one, once per fixed tick, because the whole question
+  is whether those two disagree.
+- 11:08:2026 - 13:42:35: THE PROBE NOW LOGS THE EYE, not only the scalar it was named
+  for, and the reason is the user's observation that ends two days of hunting:
+  "there IS shake during the run, but at the moment the screenshot is taken
+  there is no shake, the picture is static". THE INSTRUMENT WAS SUPPRESSING THE
+  DEFECT. So the row moved to the very end of post_step and now carries
+  fov_scale, the bob amplitude and both bob offsets, and the FINAL CAMERA POSE
+  -- everything that moves the picture, in the same tick, with nothing stopping
+  to record it. `speed` being steady exonerates the three consumers that read
+  it; only the eye track can exonerate or convict the camera itself.
+- 11:08:2026 - 13:51:09: THE RUN SMEAR, FIXED — one line: `prev_camera.fov_scale =
+  camera.fov_scale`. `fov_scale` was added to CameraPose and PreviousCameraPose
+  in one edit ("default 1.0 keeps behaviour"); it does, on the side that gets
+  written. This shadow copy was not updated, so the previous pose held 1.0
+  forever and the app's alpha blend swept the presented fov_y from 1.309 to
+  1.413 rad INSIDE EVERY TICK: 5.951 deg of range, 2.93 deg of change per
+  frame, direction reversing on 97.9 % of frame pairs, 0.0000 deg at walk and
+  standing (lead's DFN_FRAME_LOG). Rule 39 on a NEW FIELD -- the default that
+  made the addition safe is what made the omission invisible. Rule 32 sweep:
+  the mirror is now whole-struct with static_asserts pinning the size of both
+  Camera/Transform pairs, so the next field added to EITHER (or, as here, to
+  both) fails the build at the copy that must learn about it.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>  // speed probe (DFN_SPEED_PROBE) only
+#include <cstdlib> // speed probe (DFN_SPEED_PROBE) only
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -187,6 +220,61 @@ constexpr float STOP_SPEED_EPS = 0.1f * WALK_SPEED;
     return !hit.hit;
 }
 
+// --- THE SPEED PROBE (DFN_SPEED_PROBE=<path>), and why it is a permanent door
+// rather than a patch someone applied for an afternoon.
+//
+// `speed` at the bottom of player_post_step is the ACTUAL per-tick displacement
+// the solver granted, and it drives THREE consumers at once (FOV, bob
+// amplitude, stride clock). Every existing instrument samples it ONE TICK AT A
+// TIME: the F2 state capture prints `stride_speed`, the playtest summary prints
+// aggregates. A quantity that is suspected of jittering FROM TICK TO TICK
+// cannot be measured by any number of single-tick samples — five of them, all
+// reading 6.000, were taken by an investigation that then concluded the value
+// was steady. It is not a steadiness measurement; it is five points off an
+// unknown waveform.
+//
+// So the probe writes ONE ROW PER FIXED TICK, and it writes the COMMANDED
+// horizontal speed next to the actual one, because the whole question is
+// whether those two disagree. Off unless the env var names a file: no cost, no
+// behaviour change, and nothing here is read back by the simulation.
+//
+// Rule 9 (systems are near-stateless) is not bent: the only thing that persists
+// is a FILE HANDLE and a tick counter for a diagnostic stream. No simulation
+// value is stored, nothing feeds back into the world, and the run is
+// bit-identical with the probe on or off (Rule 13).
+struct SpeedProbe {
+    std::FILE* file = nullptr;
+    uint64_t tick = 0;
+    float commanded = 0.0f; // written by pre_step, read by post_step
+};
+
+[[nodiscard]] SpeedProbe& speed_probe() {
+    static SpeedProbe probe = [] {
+        SpeedProbe p;
+        const char* path = std::getenv("DFN_SPEED_PROBE");
+        if (path != nullptr && *path != '\0') {
+            p.file = std::fopen(path, "w");
+            if (p.file == nullptr) {
+                // LOUD. A probe that silently wrote nowhere would produce an
+                // empty file that reads exactly like "the run measured zero
+                // ticks" — the failure mode this repo has already paid for
+                // twice on the capture path.
+                std::fprintf(stderr,
+                             "[speed_probe] cannot open \"%s\" — NOTHING WILL BE "
+                             "MEASURED THIS RUN\n",
+                             path);
+            } else {
+                std::fprintf(p.file,
+                             "tick,commanded_mps,actual_mps,dy_m,grounded,"
+                             "stride_phase,fov_scale,bob_amp,bob_vert,bob_lat,"
+                             "eye_x,eye_y,eye_z,eye_yaw,eye_pitch\n");
+            }
+        }
+        return p;
+    }();
+    return probe;
+}
+
 } // namespace
 
 void accumulate_input(const platform::IInput& input, PlayerState& state) {
@@ -257,12 +345,58 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
                      components::PreviousCameraPose& prev_camera,
                      const StepContext& step) {
     // 1. Snapshot discipline (Rule 12 contract): prev <- curr, before anything.
+    //
+    // WRITTEN AS WHOLE-STRUCT INITIALISATION, NOT AS A LIST OF ASSIGNMENTS, and
+    // the static_asserts below are the point of the change. This is where the
+    // run smear came from and it is worth the paragraph.
+    //
+    // `fov_scale` was added to CameraPose AND to PreviousCameraPose in one edit
+    // (Components.h, 10:08 01:52:38) with the note "default 1.0 keeps
+    // behaviour". It does — on the side that gets written. The shadow copy here
+    // was not updated, so PreviousCameraPose::fov_scale held the default 1.0
+    // FOREVER, and the app's render interpolation ran from a frozen 1.0 to the
+    // live 1.08 as alpha swept 0->1 INSIDE EVERY TICK, instead of between two
+    // neighbouring values. Measured by the lead's frame log: the presented
+    // fov_y meanders across 1.309110..1.412968 rad = 5.951 deg, reversing
+    // direction on 97.9 % of consecutive frame pairs, at a mean 2.93 deg PER
+    // FRAME — 9.4 pixels of whole-image shift at the frame edge. Walking and
+    // standing measure 0.0000 deg, because there the target IS 1.0 and the
+    // stale past and the live present agree, so there is nothing to swing.
+    // That is the user's «стою норм, иду норм, но при беге вся картинка плывет»
+    // exactly, and the amplitude of the defect is the amplitude of the coupling,
+    // which is why it switches on with the gear.
+    //
+    // Rule 39 on a NEW FIELD: the very default that made the addition safe is
+    // what made the omission invisible. A hand-maintained mirror will lose the
+    // next field the same way, so the sizes of BOTH structs are pinned. Any
+    // field added to either one — including one added to both, which is what
+    // actually happened and which a sizeof-EQUALITY check would have waved
+    // through — fails the build here, at the copy that must learn about it.
+    static_assert(sizeof(components::CameraPose) == 24,
+                  "CameraPose changed shape: the snapshot below is a HAND-WRITTEN "
+                  "MIRROR and must copy every field. A field left uncopied freezes "
+                  "at its default and the renderer interpolates from that frozen "
+                  "value every tick -- this is the run-smear defect, "
+                  "docs/FINDING_RUN_SMEAR.md. Add the field, then update the size.");
+    static_assert(sizeof(components::PreviousCameraPose) == 24,
+                  "PreviousCameraPose changed shape: see the note above. Adding the "
+                  "field to BOTH structs is exactly the case that hid the last one.");
+    static_assert(sizeof(components::Transform) == 40,
+                  "Transform changed shape: same hand-written mirror, same hazard.");
+    static_assert(sizeof(components::PreviousTransform) == 40,
+                  "PreviousTransform changed shape: see the note above.");
+
     prev_transform.position = transform.position;
     prev_transform.rotation = transform.rotation;
     prev_transform.scale = transform.scale;
     prev_camera.position = camera.position;
     prev_camera.yaw = camera.yaw;
     prev_camera.pitch = camera.pitch;
+    // THE MISSING LINE. Copied here, in the snapshot, so it carries the value
+    // camera.fov_scale held at the END OF THE PREVIOUS TICK — post_step has not
+    // yet overwritten it this tick. prev = tick N-1, current = tick N, which is
+    // what the app's alpha blend has always assumed it was given.
+    prev_camera.fov_scale = camera.fov_scale;
 
     // 2. Look: mouse +x -> +yaw (turn right), mouse +y -> -pitch (look down).
     state.yaw += state.pending_look.x * MOUSE_SENSITIVITY;
@@ -390,6 +524,14 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
     // The latch is cleared whether or not the jump was allowed: a press that
     // arrived mid-air is spent, not banked until landing.
     state.jump_pressed = false;
+
+    // The COMMANDED horizontal speed, taken at the last possible moment: after
+    // the gear, the diagonal normalisation and the wade factor, and from the
+    // very vector handed to the solver. This is the number the player's keys
+    // asked for; post_step logs what came back.
+    if (SpeedProbe& probe = speed_probe(); probe.file != nullptr) {
+        probe.commanded = glm::length(glm::vec2{displacement.x, displacement.z}) / DT;
+    }
 
     physics.move_character(state.character, displacement);
 }
@@ -547,6 +689,37 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     camera.yaw = state.yaw;
     camera.pitch = state.pitch;
     camera.fov_scale = state.fov_scale;
+
+    // --- One row per fixed tick (see SpeedProbe). Written HERE, at the very
+    // end, and not next to the `speed` it is named for, because of what the
+    // user reported after two days of this hunt: "there IS shake during the
+    // run, but at the moment the screenshot is taken there is no shake, the
+    // picture is static". THE INSTRUMENT WAS SUPPRESSING THE DEFECT. So the row
+    // carries not just the suspect scalar but EVERYTHING THAT MOVES THE
+    // PICTURE, sampled in the same tick and with nothing stopping to record it:
+    // the commanded and actual speed, the FOV multiplier the projection is
+    // about to be built from, the bob offsets, and THE FINAL EYE POSITION.
+    //
+    // That last one is the point. `speed` being steady exonerates the three
+    // consumers that read it; only the eye track can exonerate or convict the
+    // camera itself, and no still frame can show a difference between
+    // consecutive eye positions — which is the definition of the artifact.
+    if (SpeedProbe& probe = speed_probe(); probe.file != nullptr) {
+        std::fprintf(probe.file,
+                     "%llu,%.6f,%.6f,%.6f,%d,%.6f,%.6f,%.6f,%.6f,%.6f,"
+                     "%.6f,%.6f,%.6f,%.6f,%.6f\n",
+                     static_cast<unsigned long long>(probe.tick++),
+                     static_cast<double>(probe.commanded), static_cast<double>(speed),
+                     static_cast<double>(position.y - prev_transform.position.y),
+                     grounded ? 1 : 0, static_cast<double>(state.stride_phase),
+                     static_cast<double>(state.fov_scale),
+                     static_cast<double>(state.bob_amplitude),
+                     static_cast<double>(vertical), static_cast<double>(lateral),
+                     static_cast<double>(camera.position.x),
+                     static_cast<double>(camera.position.y),
+                     static_cast<double>(camera.position.z),
+                     static_cast<double>(camera.yaw), static_cast<double>(camera.pitch));
+    }
 }
 
 void player_post_step(PlayerState& state, platform::IPhysics& physics,
