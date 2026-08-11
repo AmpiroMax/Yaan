@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 11:08:2026 - 14:51:20
+Last updated: 12:08:2026 - 00:52:40
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -95,6 +95,15 @@ UPD:
   MIST_BAND_HEIGHT/_THICKNESS, absolute rather than ground-relative. The band
   itself is not moved: the seven vantages a player occupies top out at 25.44 m,
   well under the layer, and being inside mist at mid-altitude is correct.
+- 12:08:2026 - 00:52:40: AN EMPTY DFN_VANTAGE FILTER IS NOW LOUD, and it available-labels
+  itself. `DFN_VANTAGE=01` (which is what the FILES on disk are named) matches
+  no label, so the route came back empty and the app rendered forever with an
+  EMPTY LOG — read from the outside as a hang in the change under test, and it
+  cost ten minutes of wall clock plus a control run to clear the change of a
+  fault it did not have. Absence presenting as neutral (the invisible-castle
+  family). WHAT IS NOT FIXED HERE: the app still does not exit on an empty
+  route. That is engine/app and belongs to the lead; this makes the cause
+  visible in one line instead of requiring a bisect.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -631,6 +640,26 @@ std::vector<TourStep> Tour::vantage_steps(std::span<const math::StandVantage> va
             steps.push_back({v.label,
                              {v.position.x, v.eye_offset, v.position.y},
                              v.yaw, v.pitch, wait, true});
+        }
+    }
+    // A FILTER THAT MATCHED NOTHING IS LOUD, AND THIS COST TEN MINUTES OF WALL
+    // CLOCK TO FIND. `DFN_VANTAGE=01` looks obviously right — the frames on
+    // disk are named 01_path_along_dirt — but the labels have no numeric
+    // prefix, so it admitted zero vantages, the route was empty, and the app
+    // sat there rendering forever with an EMPTY LOG. From the outside that is
+    // indistinguishable from a hang in whatever was changed last, which is
+    // exactly how it was read. Absence presenting as neutral, the same family
+    // as the invisible castle. The available labels are printed too: the useful
+    // half of the message is not "nothing matched" but "here is what you could
+    // have asked for".
+    if (only != nullptr && steps.empty() && !vantages.empty()) {
+        std::fprintf(stderr,
+                     "[tour] DFN_VANTAGE=\"%s\" matched NONE of the %zu "
+                     "vantages this stand publishes — the route is EMPTY and "
+                     "no frame will be shot. Available labels:\n",
+                     only, vantages.size());
+        for (const math::StandVantage& v : vantages) {
+            std::fprintf(stderr, "[tour]   %s\n", v.label.c_str());
         }
     }
     return steps;
