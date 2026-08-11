@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:51:30
+Last updated: 11:08:2026 - 13:48:13
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -96,6 +96,7 @@ UPD:
 - 10:08:2026 - 22:37:21: THE CROUCH FERRY (character's carve): crouch_eye travels back the same way the lean does, so the camera and the posed body agree on how deep a squat is. Plus the two halves of a crouched RESTORE that never worked -- the snapshot's `crouched` is applied and HELD (accumulate_input rewrites it from a keyboard nobody is at), and the feet are derived with the crouch offset instead of the standing eye height.
 - 10:08:2026 - 23:32:21: Настройка msaa в settings.cfg рядом с разрешением и палитрой: это то, что остановило рябь на линии леса, и понижать её — зрительная регрессия, а не только производительность. Неверное значение отвергается ГРОМКО.
 - 10:08:2026 - 23:51:30: Клавиши по запросу пользователя: 1 — вид от третьего лица (стоя мышь вращает камеру ВОКРУГ персонажа и он не поворачивается, в движении камера встаёт за спину), 2 — отладочный экран, 3 — снимок состояния. F2/F3 оставлены псевдонимами, иначе все записанные рецепты съёмки стали бы неверными. В третьем лице возвращается голова — в первом она скрыта намеренно.
+- 11:08:2026 - 13:48:13: DFN_FRAME_LOG — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, без обратного чтения, без отстоя, без заморозки тика. Пользователь нашёл изъян нашего метода раньше нас: «при прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет». Все наши двери съёмки гасят ровно то, на что наведены, поэтому дефект МЕЖДУ кадрами два дня приходил чистым. Первый же прогон дал размах fov_y 5.951° при беге против 0.0000° на ходьбе и стоя.
 */
 
 #include "engine/app/sources/App.h"
@@ -299,6 +300,12 @@ AppConfig AppConfig::from_env() {
     // The rule for whoever adds the next door: if it runs without a human, it
     // belongs in this condition, and the condition is the place to look BEFORE
     // debugging why a frame is wrong.
+    //
+    // `DFN_FRAME_LOG` is deliberately NOT here, and the distinction is the rule
+    // itself: it DRIVES nothing. It observes, so it is used both unattended
+    // (alongside DFN_PLAYTEST, which is already on the list) and by a human
+    // playing with the log running -- and that human wants his menu. Menu
+    // frames simply log speed 0, which is the standing-still control anyway.
     if (std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
         || std::getenv("DFN_CAPTURE_AFTER") != nullptr
         || std::getenv("DFN_BODY_PROBE") != nullptr
@@ -446,6 +453,24 @@ bool App::init(const AppConfig& config) {
     }
     if (const char* ca = std::getenv("DFN_CAPTURE_AFTER"); ca != nullptr) {
         capture_after_s_ = std::strtod(ca, nullptr);
+    }
+
+    // THE FRAME LOG (DFN_FRAME_LOG=<path>). See App.h for why this exists and
+    // is not another screenshot door. It opens LOUDLY: a run that logged
+    // nothing must not be mistakable for a run that logged zeros -- that exact
+    // confusion already cost three probe runs on the line above.
+    if (const char* fl = std::getenv("DFN_FRAME_LOG"); fl != nullptr && *fl != '\0') {
+        frame_log_ = std::fopen(fl, "wb");
+        if (frame_log_ == nullptr) {
+            std::fprintf(stderr, "[frame_log] cannot open \"%s\" for writing\n", fl);
+        } else {
+            std::fprintf(frame_log_,
+                         "# Daggerfall N per-frame log -- one line per PRESENTED frame.\n"
+                         "# No readback, no settle, no cooldown: this instrument cannot\n"
+                         "# quiet the thing it is pointed at. Between-frames motion is\n"
+                         "# arithmetic on adjacent lines.\n"
+                         "# frame dt_ms game_s speed fov_y eye_x eye_y eye_z yaw pitch\n");
+        }
     }
 
     // DFN_RESTORE names a sidecar written by F2. Read BEFORE the world is
@@ -1905,6 +1930,30 @@ int App::run() {
                                    camera_.far_plane());
         }
 
+        // THE FRAME LOG, written HERE and not earlier: every quantity below is
+        // the one this frame is actually about to be drawn with, so a line and
+        // its frame cannot disagree. Logged unconditionally when the door is
+        // open -- filtering by speed here would hide the standing-still control
+        // that tells us whether the instrument itself is steady (Rule 30).
+        if (frame_log_ != nullptr) {
+            const auto eye = camera_.interpolated_pose(alpha);
+            float spd = 0.0f;
+            if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                spd = ps->stride_speed;
+            }
+            std::fprintf(frame_log_,
+                         "%llu %.4f %.6f %.6f %.8f %.6f %.6f %.6f %.6f %.6f\n",
+                         static_cast<unsigned long long>(frame_log_index_++),
+                         frame_dt * 1000.0, game_seconds_,
+                         static_cast<double>(spd),
+                         static_cast<double>(camera_.fov_y()),
+                         static_cast<double>(eye.position.x),
+                         static_cast<double>(eye.position.y),
+                         static_cast<double>(eye.position.z),
+                         static_cast<double>(eye.yaw),
+                         static_cast<double>(eye.pitch));
+        }
+
         // Audio follows the eye; the wind bed follows the ONE wind model the
         // foliage bends to (Rule 35 -- same gust envelope for ear and eye).
         {
@@ -2168,6 +2217,12 @@ int App::run() {
 }
 
 void App::shutdown() {
+    if (frame_log_ != nullptr) {
+        std::fprintf(stderr, "[frame_log] %llu frames written\n",
+                     static_cast<unsigned long long>(frame_log_index_));
+        std::fclose(frame_log_);
+        frame_log_ = nullptr;
+    }
     if (physics_) {
         for (auto& [key, cp] : g_chunk_physics) {
             physics_->destroy_body(cp.body);

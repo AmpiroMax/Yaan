@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:51:30
+Last updated: 11:08:2026 - 13:48:13
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -51,6 +51,7 @@ UPD:
 - 10:08:2026 - 22:37:21: hold_crouch_ -- a restored crouch survives the live keyboard, which is what makes an automated capture at full crouch possible at all (character's carve).
 - 10:08:2026 - 23:32:21: Поле msaa_samples в настройках.
 - 10:08:2026 - 23:51:30: Поля третьего лица и орбиты камеры.
+- 11:08:2026 - 13:48:13: DFN_FRAME_LOG — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, без обратного чтения, без отстоя, без заморозки тика. Пользователь нашёл изъян нашего метода раньше нас: «при прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет». Все наши двери съёмки гасят ровно то, на что наведены, поэтому дефект МЕЖДУ кадрами два дня приходил чистым. Первый же прогон дал размах fov_y 5.951° при беге против 0.0000° на ходьбе и стоя.
 */
 
 #pragma once
@@ -75,6 +76,7 @@ UPD:
 #include <array>
 #include <optional>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -164,6 +166,23 @@ private:
     double capture_after_elapsed_ = 0.0;
     bool capture_then_close_ = false;
     int close_after_flush_ = 0; // frames to keep running so the PNG lands
+    // FRAME LOG (DFN_FRAME_LOG=<path>) -- one line per PRESENTED frame, written
+    // live, with no readback, no settle and no cooldown.
+    //
+    // Why it is not a screenshot: the user found the reason himself. "при
+    // прогоне бега есть тряска, но в момент, когда делается скрин, тряски нет,
+    // картинка статичная." Every capture door we own either freezes the tick
+    // (the tour) or waits for the backend to flush (F2, the body probe's
+    // cooldown of 4). A defect that lives in the DIFFERENCE between consecutive
+    // frames cannot survive any of that -- the instrument settles the thing it
+    // was pointed at. Two days of clean single frames were the instrument
+    // agreeing with itself.
+    //
+    // So this logs the quantities that MOVE THE WHOLE PICTURE, once per frame
+    // actually presented, and the between-frames motion is then arithmetic on
+    // adjacent lines rather than something a still has to show.
+    std::FILE* frame_log_ = nullptr;
+    uint64_t frame_log_index_ = 0;
     // A restore read from DFN_RESTORE, held until enter_world() has built the
     // map it names -- the pose cannot be applied to a world that does not
     // exist yet, and the stand it names decides WHICH world gets built.

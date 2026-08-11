@@ -1,10 +1,13 @@
 <!--
 Created: 11:08:2026 - 13:28:15
-Last updated: 11:08:2026 - 13:28:15
+Last updated: 11:08:2026 - 13:47:08
 -->
 <!--
 UPD:
 - 11:08:2026 - 13:28:15: Recovered from five state captures taken 10:08:2026 23:51-23:52 by the smear investigation, which stalled one sentence before writing them down ("Five samples at full run speed, and they settle it"). The captures survived on disk; this file is them. Owner of the mechanism: sim (engine/gameplay). Written by lead so the finding stops living in a thread.
+- 11:08:2026 - 13:39:12: sim ran the falsifying measurement. RESULT BELOW: the candidate
+  mechanism is REFUTED. `speed` at run is 6.0000 to within 0.0075 m/s.
+- 11:08:2026 - 13:47:08: РЕШЕНО. Пользователь указал на изъян метода («при беге тряска есть, а в момент скрина картинка статичная») — и он прав: все наши двери съёмки либо морозят тик, либо ждут сброса буфера, а дефект живёт МЕЖДУ кадрами. Новый прибор `DFN_FRAME_LOG` (по строке на предъявленный кадр, без обратного чтения и без отстоя) показал размах `fov_y` 5.951° при беге против 0.0000° на ходьбе и стоя, с разворотом направления в 97.9% пар кадров — то есть меандр в 9.4 пикселя всей картинкой каждый кадр. Причина: `PreviousCameraPose::fov_scale` никто не копирует (PlayerMovement.cpp:339-341), поэтому интерполяция идёт от вечной 1.0 к живой 1.08 каждый тик. Правило 39 на новом ПОЛЕ теневой копии.
 -->
 
 # FINDING — the picture smears at run, and `fov_scale` is not inert
@@ -107,3 +110,242 @@ Do not close this on a measurement alone (Rule 27): the acceptance is a
 **frame sequence from our build at run speed**, before and after, archived in
 `docs/acceptance/`, because the thing being fixed is something the user sees
 between frames.
+
+---
+
+# THE FALSIFYING MEASUREMENT — RESULT: THE MECHANISM IS REFUTED
+
+Run by `sim`, 11:08:2026 - 13:39:12. Instrument: `DFN_SPEED_PROBE=<path>` (new, permanent,
+off unless the variable names a file), one CSV row per FIXED TICK written from
+`PlayerMovement.cpp` — the COMMANDED horizontal speed taken from the very
+displacement vector handed to the solver in `player_pre_step`, beside the
+ACTUAL `speed` computed at what is now `PlayerMovement.cpp:496`, plus the
+tick's vertical travel, grounded flag, stride phase and `fov_scale`.
+
+Binary: `build_sim/engine/app/dfn_app`, built from `54bcd15` + this probe,
+13:32:10; newest source 13:31:54 — **the binary is newer than every source it
+contains**, checked by mtime because `verify_fresh.py --app` is tree-wide and
+peers are editing other zones (it flags their stale test binaries, not this
+app). Stand 0, seed 1, null audio, null renderer.
+
+## The four numbers, at run
+
+The instrument the file asked for, on the flat testbed ring, over the longest
+leg where the commanded speed never left 6.0 (603 ticks = 10.05 s):
+
+| | commanded | **actual `speed`** |
+|---|---|---|
+| min | 6.0000 | **5.8975** |
+| max | 6.0000 | **6.0015** |
+| mean | 6.0000 | **5.9987** |
+| per-tick sd | 0.0000 | **0.0075** |
+
+**`speed` is 6.0 m/s. It is not jittering between 2 and 6.** The per-tick
+standard deviation is 0.0075 m/s — **0.12 % of the commanded speed**. In the
+quietest 2-second window of that leg the whole spread is 0.0014 m/s; in the
+worst, 0.104 m/s, and that worst window is the one containing the bot's single
+4-tick turn-in-place stop.
+
+## The three control arms (Rule 30)
+
+| arm | commanded | actual: min / max / mean / sd | `fov_scale` |
+|---|---|---|---|
+| **STAND** (no bot, 320 ticks) | 0.0000, sd 0 | 0.0000 / 0.0280 / 0.0045 / 0.0016 | **1.000000, zero spread** |
+| **WALK** (soak ring, longest 1.8 leg, 634 ticks) | 1.8000, sd 0 | 1.7591 / 1.8003 / 1.7811 / 0.0076 | 1.000000 … 1.001186 |
+| **RUN** (soak ring, longest 6.0 leg, 603 ticks) | 6.0000, sd 0 | 5.8975 / 6.0015 / 5.9987 / 0.0075 | 1.0641 … 1.0800 |
+| **RUN, real terrain** (random explorer, 45 s, commanded 6.0 on every one of 2700 ticks) | 6.0000, sd 0 | **3.3399 / 6.8914 / 5.9915 / 0.0896** | 1.07555 … 1.08000 after settle |
+
+**The standing control does not read exactly zero, and the honest number is
+0.004578 m/s** — after the spawn drop it is not noise but a CONSTANT creep
+(sd 0.000119 over 260 ticks, i.e. 0.076 mm per tick of horizontal slide on the
+ground plane). It is 39x below `STOP_SPEED_EPS` (0.1 x `WALK_SPEED` = 0.18 m/s),
+so `striding` is false and every consumer sees a hard zero: `fov_scale` is
+1.000000 with **zero** spread across the whole arm, `stride_speed` is 0, the bob
+is 0. The instrument is not lying — it is showing a sub-millimetre creep the
+gate already eats. Reporting it rather than rounding it away, because a control
+that reads a suspiciously perfect 0 is the reading this repo has been burned by.
+
+The walking arm behaves as the user describes it: `fov_scale` never leaves
+1.0011, because `fov_scale_target` is 1.0 at and below `WALK_SPEED`.
+
+## What this does to the file's three conclusions
+
+**Conclusion 1 stands.** `fov_scale` is not inert; it moves.
+
+**Conclusion 2 stands, and is now sharper.** The target does move. But it does
+not move because `speed` jitters.
+
+**Conclusion 3 is where the file goes wrong, and the error is an inference, not
+a measurement.** The step "invert the formula, therefore the target function
+sees 2.3–3.2 m/s" assumes `fov_scale` had CONVERGED on its target. It had not.
+`FOV_SCALE_EASE_TIME` is 0.3 s, so 1.0234 is not "the target is 1.0234" — it is
+**0.104 s after the ease started climbing from 1.0**, and 1.0096 is 0.036 s
+after. Measured directly: hold 6.0 m/s and `fov_scale` reaches 1.0800, the full
+clamp, and stays there. The five samples were five points on a rising ease, not
+five points on a moving target.
+
+The mechanism is therefore refuted on its own terms: **the candidate required
+`speed` to jitter roughly 2–6 m/s, and it does not.** Per the file's own
+falsification clause, the five samples now become the control for the next
+hypothesis.
+
+## What the measurement DID find, and it is not nothing
+
+Over 45 s of continuous run across real terrain — commanded 6.0 on every one
+of 2700 ticks — `speed` left the 6.0 band **three times**:
+
+| ticks | duration | actual min…max | vertical in the same ticks | `fov_scale` |
+|---|---|---|---|---|
+| 672–678 | 100 ms | 3.340 … 6.891 | dy up to **+0.173 m** | 1.0800 → 1.0756 |
+| 2235–2239 | 67 ms | 4.953 … 5.581 | dy −0.005 (leaves the ground) | 1.0800 → 1.0770 |
+| 2472–2476 | 67 ms | 3.725 … 5.818 | dy up to +0.044 m | 1.0800 → 1.0766 |
+
+All three are **STEP-UPS**: the capsule climbing terrain or a ledge trades
+horizontal displacement for vertical for a few ticks and then gets it back
+(hence the overshoot to 6.89 — the solver returns the withheld travel). 0.27 %
+of ticks fall below 5.5 m/s; **none** below 3.34.
+
+The FOV consequence is real but small and fast: **0.33° of vertical FOV, over
+100 ms.** That is not 1.257° and it is not two seconds. The whole settled
+45-second run spans 1.07555 … 1.08000 of `fov_scale` = **0.333° total**, against
+the 1.257° the five samples showed.
+
+One structural note worth keeping even though it is not today's defect: at
+`RUN_SPEED` the target is AT its clamp (`t` = 1), so speed jitter at run is
+**rectified** — every dip costs FOV and no rise can return it faster than the
+0.3 s ease. Every step-up is therefore a one-sided sag-and-recover. At 3 events
+per 45 s it is not what the user is reporting.
+
+## What is now excluded by measurement (do not re-run these either)
+
+- **`speed` jitter as the driver of the run smear.** 6.0000 ± 0.0075 m/s per
+  tick over 10 s of steady run; 5.9915 ± 0.0896 over 45 s of real terrain.
+- **A per-frame / per-tick mismatch in the solver call.** Checked in the loop
+  rather than assumed: `App.cpp` calls `physics_->step(step_dt)` INSIDE the
+  fixed-step `for` loop, between `player_pre_step` and `player_post_step`. One
+  solve per tick, always. Excess accumulated time after a stall is DROPPED by
+  `FixedTimestep`, never piled into one solve.
+- **The standing and walking arms.** Both quiet, matching the user's "fine
+  standing, fine walking" exactly, and for a reason the code states: the FOV
+  target is 1.0 at and below `WALK_SPEED`.
+
+## Where the next hypothesis should look
+
+The user's words are «словно 2 секунды прошлые не затираются» — *as if the last
+2 seconds are not being erased*. Everything in this file's chain was about a
+value that changes too much. That chain is now closed. Two seconds of image
+that will not clear is the vocabulary of **accumulation between frames**, not
+of a gameplay scalar: the sim quantity behind the projection is steady to 0.12 %
+and the whole 45-second FOV excursion is a third of a degree, which no player
+sees. The FOV, the bob and the stride are exonerated together, because all three
+read the same `speed` and that `speed` is steady.
+
+Handing that direction to whoever picks this up rather than acting on it: it is
+render's zone, and this file's job was to falsify sim's candidate, which it did.
+
+---
+
+## RESOLVED 11:08:2026 - 13:47:08 — the cause is one missing line, and the instrument was the whole difficulty
+
+The user found the flaw in our method before we did:
+
+> при прогоне бега — есть тряска, но в момент, когда делается скрин, тряски
+> нет, картинка статичная. так что надо по иному скрины делать
+
+He is exactly right, and it explains two days. **Every capture door we own
+either freezes the tick (the tour) or waits for the backend to flush (F2, and
+the body probe's `cooldown = 4`).** A defect that lives in the DIFFERENCE
+between consecutive frames cannot survive any of that. Our clean single frames
+were the instrument agreeing with itself.
+
+So the instrument changed: `DFN_FRAME_LOG=<path>` (lead, `engine/app`) writes
+ONE LINE PER PRESENTED FRAME — frame index, dt, game clock, speed, `fov_y`,
+eye position, yaw, pitch — with no readback, no settle and no cooldown. It
+cannot quiet what it is pointed at. Between-frames motion becomes arithmetic on
+adjacent lines.
+
+### What it says, first run, 1361 frames of live running
+
+| quantity | run (1349 moving frames) |
+|---|---|
+| speed | 5.2808 … 6.0015 m/s, sd 0.0330 |
+| `fov_y` | **1.309110 … 1.412968 rad** |
+| span | **0.103858 rad = 5.951°** |
+| per-frame \|Δfov\| | mean 0.0512 rad (**2.93° every frame**) |
+| **edge pixel shift from FOV alone** | **mean 9.38 px, max 19.81 px** of a 180 px half-height |
+| direction reversals | **97.9%** of changing frame pairs |
+
+97.9% reversals is not drift and not noise. It is a square wave: the projection
+alternates between two values on almost every frame, moving the entire image by
+about nine pixels at the edge, at 118 frames per second. **That is the smear,
+and it is nine pixels of the whole picture, not a subtle one.**
+
+### Controls (Rule 30), same build, same log
+
+| arm | `fov_y` span |
+|---|---|
+| **run** | **5.951°** |
+| walk (883 moving frames) | 1.309000 … 1.309001 — **0.0000°** |
+| standing | **0.0000°** |
+
+Fine standing, fine walking, the whole picture swimming at run. The user's
+sentence, reproduced as three numbers.
+
+### The cause, and it is not a tuning value
+
+The measured range is 1.309110 … 1.412968. `CAMERA_FOV_Y` is 1.309 and
+`CAMERA_FOV_Y` × `FOV_SPEED_SCALE_MAX` is 1.413720. **The observed span is
+exactly [CAMERA_FOV_Y, CAMERA_FOV_Y × 1.08], both ends to four decimals.** The
+projection is not wandering — it is being swept across the FULL coupling range
+and back, once per simulation tick.
+
+`App.cpp` interpolates the eye pose for the render frame:
+
+    const float fs = prev_pose->fov_scale
+                   + (pose->fov_scale - prev_pose->fov_scale) * alpha;
+
+`PlayerMovement.cpp:339-341` publishes the previous pose:
+
+    prev_camera.position = camera.position;
+    prev_camera.yaw      = camera.yaw;
+    prev_camera.pitch    = camera.pitch;
+
+**`fov_scale` is not copied.** `PreviousCameraPose::fov_scale` therefore keeps
+its default 1.0 forever, and the interpolation runs from a constant 1.0 to the
+live 1.08 as `alpha` sweeps 0 → 1 within every tick — instead of running
+between two consecutive `fov_scale` values, which is what interpolation means.
+
+Why nobody saw it: `fov_scale` was added to BOTH components in one change
+(Components.h, UPD 10:08:2026 01:52:38) and the note reads «default 1.0 keeps
+behaviour». It does keep behaviour — on the side that gets written. The
+writer of the shadow copy was never updated, and the default that made the
+change safe is the same default that made the defect invisible. **Rule 39: a
+shadow copy of a chain becomes a defect the moment the original gains a
+branch** — here the branch was a new FIELD, and the rule holds identically.
+
+Why it is run-only, which is the user's own report: at walk `fov_scale_target`
+is 1.0, so the stale previous and the live current AGREE and there is nothing
+to sweep. The bug's amplitude is exactly the speed coupling's amplitude, so it
+switches on with the gear.
+
+### The fix
+
+One line, in `engine/gameplay/sources/PlayerMovement.cpp`, sim's zone:
+
+    prev_camera.fov_scale = camera.fov_scale;   // before camera.fov_scale is rewritten
+
+Placement is the whole care required: it must copy the OLD value, at the same
+point where position/yaw/pitch are copied, and `camera.fov_scale` must be
+written after (line 549 today).
+
+**Then look for siblings, because the defect is a class, not an instance
+(Rule 32).** Any field added to `CameraPose` after this copy was written has
+the same hole. `PreviousCameraPose` should not be able to omit a field
+silently — a copy that must be maintained by hand will be wrong again.
+
+### Acceptance
+
+Not a still frame — that is the whole point of this file. The run arm of
+`DFN_FRAME_LOG` must show the `fov_y` span collapse from 5.951° toward the
+walk arm's 0.0000°, with the walk and standing arms unchanged, **and the user
+must confirm on his own build**, because he is the one who can see it.

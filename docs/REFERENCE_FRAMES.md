@@ -1,10 +1,11 @@
 <!--
 Created: 11:08:2026 - 13:23:37
-Last updated: 11:08:2026 - 13:23:37
+Last updated: 11:08:2026 - 13:38:58
 -->
 <!--
 UPD:
 - 11:08:2026 - 13:23:37: Created from 16 reference frames the user dropped into images_examples/render (Morrowind / Oblivion / Skyrim). Frame index, then the invariants extracted from them, split into render's claims and design's claims. Zones: render and design. Lead owns this file; each zone lands its own consequences in its own docs.
+- 11:08:2026 - 13:38:58: Correction from design, §3 tower row: a 6 m drum reads as an object only to 180 m (Rule 33: readable size = distance/30 from SILHOUETTE_MIN_PX 8 px), so "mid-distance anchor" was wrong -- 500 m needs a 17 m minor plan dimension, and frame 06's readable unit is the two-drum assembly, not one drum. I asserted a distance without doing the arithmetic the project already owns.
 -->
 
 # REFERENCE FRAMES — what the world must look like
@@ -99,7 +100,7 @@ frames contain. Named, with their evidence:
 
 | Object | frames | what it does for the picture |
 |---|---|---|
-| Stone towers / ruins | 06, 05 | mid-distance vertical anchor, breaks the ridge line |
+| Stone towers / ruins | 06, 05 | vertical anchor — but see the correction below: a tower is a NEAR-mid object unless it is big |
 | Timber spans, bridges | 04, 06 | crosses water, gives the eye a route |
 | Boulders (1-4 m, rounded) | 01,05,15,16 | scatter that makes "flat" ground unflat |
 | Rock outcrops through soil | 01, 03, 06 | the heightmap's bones showing |
@@ -116,6 +117,15 @@ off vertical), boulders rest at arbitrary rotations, roofs are pitched cones
 and wedges (02), stairs and terraces cut diagonals (10). The only vertical
 lines in the whole set are man-made walls, and even those are irregular
 courses (06, 07).
+
+**Correction to the tower row (design, from Rule 33 arithmetic).** I wrote
+"mid-distance vertical anchor" without doing the sum. `SILHOUETTE_MIN_PX` = 8 px
+at `INTERNAL_RES` 640x360 makes readable size = distance / 30, so frame 06's
+6 m watchtower drum stops being an object at **180 m**, not at 500 m. To anchor
+at 500 m a tower needs a minor plan dimension of 17 m or more. Frame 06 is not
+a counter-example, it is the answer: its readable unit is the **assembly** --
+two drums plus the timber span -- not any single drum. So a tower either sits
+near a route, or it is built as a group.
 
 **D2 — A plain is bumpy, not flat.** Frame 01 is the direct answer to
 "нет идеальноплоского мира как в майнкрафте": it is a plateau, i.e. the
