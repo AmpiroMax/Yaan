@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 11:08:2026 - 14:07:31-->
+Last updated: 11:08:2026 - 14:23:04-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -177,6 +177,16 @@ UPD:
   holds at any length. Also: design's §7.1b frame-2 vantage is occluded by
   forest and H2 was shot from a clear bearing at the same range; and the
   instrument reproduced its own defect twice more, now stated as a rule in it.
+- 11:08:2026 - 14:23:04: SHIPPED C (HAZE_SCALE_LENGTH 600, HAZE_HEIGHT_SCALE 40) on the lead's
+  decision; default build reproduces arm C exactly. H2 handed to design+core as a
+  terrain defect (it fails at zero dose), H1's floor back to design for
+  re-derivation on p05, H3 recorded as computed and not a gate. THEN R2 — the
+  mist band: a trapezoid-in-altitude second term in the same exact density
+  integral (MIST_BAND_HEIGHT 70 / THICKNESS 32 / DENSITY 4), env block 37 -> 38.
+  Measured against a mist-OFF control: +0.00 at the hem, +32.43 partway up,
+  +0.00 above — a BUMP, which no R1 setting can produce. The `profile`
+  instrument's first version passed its own control by running off the peak into
+  sky; fourth instance of this file's rule, fixed by differencing.
 -->
 
 # Spec — render agent
@@ -1501,6 +1511,82 @@ dither instead of the benches. The general rule, now written at the top of the
 tool: A METRIC MAY NOT LOCATE ITS SUBJECT BY THE PROPERTY UNDER TEST. Edges and
 band rows are geometry, so both are detected once on the control arm and every
 arm is then read at the same pixels.
+
+### SHIPPED: C, and then R2 on top of it
+
+The lead took the decision on the frames rather than on H1's arithmetic, and
+recorded the reason: at 900 m the A and C arms are barely distinguishable by eye,
+while the ground in BOTH is a flat green plane with a visible repeating
+smoothing pattern, identical pebbles and a palisade of identical trees — the
+user's «плоско как в майнкрафте» literally, and none of it atmosphere. So the
+arm with the honest physics and twice the depth cue ships.
+
+`HAZE_SCALE_LENGTH` 1400 -> **600**, `HAZE_HEIGHT_SCALE` 250 -> **40**.
+Verified: the default build with NO overrides reproduces arm C exactly — H1
+1.75 min / 1.96 p05, lowland +19.78 / 24.33, pixel difference 0.050 % (streaming
+jitter, per pngdiff's own caveat).
+
+Closed with it, and none of these are mine to fix:
+- **H2 goes to design and core** as a terrain/splat defect. A threshold that
+  fails at zero dose is not a threshold on the dose.
+- **H1's floor is re-derived by design**, on p05 rather than on a hard minimum
+  over 105 columns — a bound sitting flush against its own control is a
+  coincidence, not a design.
+- **H3 is recorded as computed, never shot, and is not a gate.** A quantity with
+  no counterpart in the generator cannot exclude anything.
+
+## R2 — THE MIST BAND BELOW THE CLOUD LAYER
+
+Reference frames 02, 04 and 12: a horizontal layer of mist INTERSECTS the
+terrain partway up, cutting a mountain into a lit crown and a hazed base. That
+band, not the clouds, is what gives the reference its sense of cloud volume, and
+it costs a few lines against a volumetric renderer.
+
+It is a second term in the SAME density integral, not a second fog pass: a
+trapezoid in altitude (plateau half the extent, quarter-width smoothstep ramps)
+whose antiderivative is closed form, so the mean along a ray stays exact and
+nothing is ray-marched. Rows: `MIST_BAND_HEIGHT` 70 m, `MIST_BAND_THICKNESS`
+32 m, `MIST_BAND_DENSITY` 4.
+
+**Why an altitude slab makes a BAND and not merely more haze up high**, which is
+the part worth keeping: for an eye below the layer, optical depth to a surface
+RISES as the surface climbs through the layer, PEAKS when the surface sits at the
+layer's top — the ray has just crossed the whole layer, at the shallowest angle
+any such ray will — and FALLS again above it, because a higher surface is seen at
+a steeper angle and a steeper ray spends less length inside a horizontal slab.
+Clear base, bright stripe, clearer crown. It emerges from the geometry; nothing
+is painted on.
+
+**Measured** (`profile` mode, flank strip x270..320, mist ON against a mist-OFF
+control, 360 m):
+
+| row (hem first) | ON | control | delta |
+|---|---|---|---|
+| 199 / 191 / 183 | 75.53 / 75.49 / 73.11 | same | **+0.00** |
+| 175 | 69.57 | 69.03 | +0.54 |
+| 167 | 87.66 | 67.88 | +19.78 |
+| **159** | 111.03 | 78.61 | **+32.43** |
+| 151 | 116.52 | 90.75 | +25.77 |
+| 143 | 119.08 | 104.64 | +14.44 |
+| 135 | 123.19 | 117.53 | +5.66 |
+| 119 (sky) | 123.77 | 123.77 | **+0.00** |
+
+**Zero at the hem, +32.43 at row 159, zero again above.** A BUMP — and a bump is
+the one thing no setting of the R1 rows can produce, because a haze change moves
+a whole flank monotonically. `DFN_MIST=0` erases it and nothing else, which is
+the Rule 30 control.
+
+### The instrument's own rule went four for four
+
+`profile`'s first version asked whether the flank's luma profile TURNS AROUND,
+reasoning that haze varies monotonically with height while a layer puts a maximum
+in the middle. True of the mountain, false of the measurement: the strip runs off
+the summit into SKY, sky is the brightest thing in the frame, and the mist-OFF
+CONTROL passed. That is the fourth time in one file that an instrument included
+something that was not its subject — after `standout` segmenting by colour,
+`contour` walking into the rock, and `bands` finding the splat's dither.
+Measuring against the control cures it structurally: the sky is identical in both
+arms and subtracts to zero, so only the layer survives.
 
 ### Acceptance
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 11:08:2026 - 13:38:39
+Last updated: 11:08:2026 - 14:24:26
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -76,6 +76,15 @@ UPD:
   u_fogEnd are now unread by any shader; the RenderEnvironment fields stay
   because that header is a frozen contract (Rule 26) and removing them is a
   request to the lead, not a tidy-up.
+- 11:08:2026 - 14:24:26: THE MIST BAND (R2, reference frames 02/04/12). env block 37 -> 38;
+  slot 37 = MIST_BAND_HEIGHT / _THICKNESS / _DENSITY. A SECOND TERM IN THE SAME
+  DENSITY INTEGRAL, never a second fog pass — a trapezoid in altitude whose
+  smoothstep ramps have a closed-form antiderivative, so the mean along a ray
+  stays exact and nothing is ray-marched. It reads as a BAND rather than as
+  more haze up high for a geometric reason worth keeping: from an eye below the
+  layer, optical depth peaks at the layer's TOP edge and falls again above it,
+  because a higher surface is seen at a steeper angle and a steeper ray spends
+  less length inside a horizontal slab.
 */
 
 #ifndef DFN_ENV_SH
@@ -86,7 +95,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[37];
+uniform vec4 u_envParams[38];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -148,6 +157,13 @@ uniform vec4 u_envParams[37];
 #define u_hazeScale       (u_envParams[36].x)
 #define u_hazeHeight      (u_envParams[36].y)
 #define u_hazeBase        (u_envParams[36].z)
+// THE MIST BAND (REFERENCE_FRAMES.md R2): a horizontal layer of denser air at
+// its own altitude, which is a different thing from the haze above and not a
+// setting of it. Centre / total vertical extent / density in multiples of the
+// ground air.
+#define u_mistHeight      (u_envParams[37].x)
+#define u_mistThickness   (u_envParams[37].y)
+#define u_mistDensity     (u_envParams[37].z)
 // The quantiser's own luma weights (fs_upscale.sc). Every brightness rule in
 // the sky is written in THIS metric and not in Euclidean RGB, because the
 // palette pass weights the channels and a difference that lives in blue is
@@ -485,6 +501,68 @@ vec3 dfn_sky_gradient(vec3 dir)
 // SCALE_LENGTH says how thick the air the player stands in is, HEIGHT_SCALE
 // says how fast a mountain climbs out of it. That is the split reference frames
 // 02 and 12 show as a hazed base under a lit crown.
+// --- THE MIST BAND (R2) ----------------------------------------------------
+// A horizontal layer of denser air with its own altitude, thickness and
+// density. Reference frames 02, 04 and 12 all carry one, and it is what gives
+// their clouds a sense of VOLUME: it intersects the terrain partway up, cutting
+// a mountain into a lit crown and a hazed base. It costs a few lines here
+// against a volumetric renderer for the same picture.
+//
+// WHY THIS PRODUCES A BAND AND NOT JUST MORE HAZE UP HIGH — the geometry is
+// worth stating, because the naive expectation is wrong. For an eye BELOW the
+// layer, the optical depth to a surface RISES as the surface climbs through the
+// layer, peaks when the surface sits at the layer's TOP (the ray has just
+// crossed the whole layer, and it crossed at the shallowest angle any such ray
+// will), and then FALLS again for anything higher, because a higher surface is
+// seen at a steeper angle and a steeper ray spends less length inside a
+// horizontal slab. So the profile is: clear base, a bright stripe at the
+// layer's top edge, a relatively clearer crown. That is the reference picture,
+// and it emerges from the geometry rather than being painted on.
+//
+// The profile in altitude is a trapezoid — plateau half the total extent, a
+// ramp of a quarter on each side — and the ramps are smoothstep, whose
+// antiderivative is closed form. So the mean over a ray is exact here too, the
+// same way the exponential term is exact, and neither needs ray marching.
+float dfn_mist_profile(float y)
+{
+    float T = max(u_mistThickness, 1.0);
+    float lo0 = u_mistHeight - T * 0.5;
+    float lo1 = u_mistHeight - T * 0.25;
+    float hi0 = u_mistHeight + T * 0.25;
+    float hi1 = u_mistHeight + T * 0.5;
+    return smoothstep(lo0, lo1, y) * (1.0 - smoothstep(hi0, hi1, y));
+}
+
+// Antiderivative of the profile, zero below the layer. The smoothstep piece
+// integrates to r*(t^3 - t^4/2), which reaches half the ramp width at t = 1 —
+// the check that keeps the pieces joined.
+float dfn_mist_integral(float y)
+{
+    float T = max(u_mistThickness, 1.0);
+    float r = T * 0.25;
+    float lo0 = u_mistHeight - T * 0.5;
+    float lo1 = u_mistHeight - r;
+    float hi0 = u_mistHeight + r;
+    float hi1 = u_mistHeight + T * 0.5;
+    if (y <= lo0) {
+        return 0.0;
+    }
+    if (y <= lo1) {
+        float t = (y - lo0) / r;
+        return r * (t * t * t - 0.5 * t * t * t * t);
+    }
+    float base = 0.5 * r;               // the whole rising ramp
+    if (y <= hi0) {
+        return base + (y - lo1);
+    }
+    base += (hi0 - lo1);                // the plateau
+    if (y <= hi1) {
+        float u = (y - hi0) / r;
+        return base + (y - hi0) - r * (u * u * u - 0.5 * u * u * u * u);
+    }
+    return base + 0.5 * r;              // the whole falling ramp
+}
+
 float dfn_aerial_transmittance(vec3 eye, vec3 wpos)
 {
     float L = max(u_hazeScale, 1.0);
@@ -519,6 +597,16 @@ float dfn_aerial_transmittance(vec3 eye, vec3 wpos)
             above = (H / span) * (exp(-(a - B) / H) - exp(-(yb - B) / H));
         }
         mean = below + above;
+    }
+
+    // The mist band rides ON TOP of the haze, in the same units (multiples of
+    // the ground air), so one exponential still carries both. Adding it as a
+    // second mix() would double-count the in-scatter and wash the frame.
+    if (u_mistDensity > 0.0) {
+        float mist = span < 1.0
+            ? dfn_mist_profile(0.5 * (ya + yb))
+            : (dfn_mist_integral(yb) - dfn_mist_integral(ya)) / span;
+        mean += u_mistDensity * mist;
     }
     return exp(-mean * d / L);
 }

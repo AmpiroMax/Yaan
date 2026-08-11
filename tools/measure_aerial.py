@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Created: 11:08:2026 - 13:32:12
-Last updated: 11:08:2026 - 14:05:38
+Last updated: 11:08:2026 - 14:21:34
 Module: tools
 File: tools/measure_aerial.py
 
@@ -38,7 +38,8 @@ AI Agents Notice (must follow):
   Haze changes colour, so anything that finds "the mountain" by colour finds a
   DIFFERENT mountain in every arm. It cost `standout` 243 of its 328 pixels in
   the strong arm; it made `contour` report 2.61 luma for a plainly visible peak;
-  it made `bands` measure the splat's dither instead of the benches. Positions —
+  it made `bands` measure the splat's dither; it made `profile` pass its own
+  mist-OFF control, because the strip ran off the peak into sky. Positions —
   silhouette edges, band rows, every box — are GEOMETRY, identical in all arms:
   settle them once on the NO-HAZE control and read every arm at the same pixels.
 - QUOTE `standout`, NOT `separation`. `separation` first segments the landform
@@ -77,6 +78,12 @@ UPD:
   splat's dither and reported 0.05 steps for a no-haze control whose
   bands are plainly visible — the third appearance of one defect: an
   instrument that locates its subject by the property under test.
+- 11:08:2026 - 14:19:06: `profile` mode for R2.
+- 11:08:2026 - 14:21:34: `profile` REWRITTEN to measure against its own control, because
+  the first version ran the strip off the summit into sky and the CONTROL
+  passed. Fourth instance of the file's own rule. The difference profile is
+  immune: sky is identical in both arms and subtracts away, leaving the
+  layer's bump — zero at the hem, a maximum partway up, zero above.
 """
 
 import sys
@@ -364,6 +371,54 @@ def main(argv):
               f"= {m['steps_p05']:5.2f} steps   median {m['median']:6.2f} "
               f"= {m['steps_median']:5.2f} steps")
         print(f"  H1 {'PASS' if m['steps_min'] >= 2.0 else 'FAIL'} on the minimum")
+        return
+
+    if len(argv) > 1 and argv[1] == "profile":
+        # R2 — THE MIST BAND, MEASURED AS A DIFFERENCE AGAINST ITS OWN CONTROL.
+        #
+        # The first version of this mode asked whether the flank's luma profile
+        # TURNS AROUND, on the reasoning that haze can only vary monotonically
+        # with height while a layer puts a maximum in the middle. That is true
+        # of the mountain and false of the measurement: the strip runs off the
+        # summit into SKY, sky is the brightest thing in the frame, and so the
+        # control turned around too. Fourth time in this file that an instrument
+        # included something that was not its subject — see the notice at the
+        # top, which is now four for four.
+        #
+        # The difference against the mist-off control cannot have that fault,
+        # because the sky is IDENTICAL in both arms and subtracts to zero. What
+        # is left is the layer alone, and its signature is unmistakable and
+        # unreachable by any setting of the R1 rows: zero at the hem, a maximum
+        # at the layer's altitude, and back to zero above it. An R1 change moves
+        # the whole flank monotonically; only a layer makes a bump.
+        step = int(argv[5]) if len(argv) > 5 else 8
+        box = parse_box(argv[3])
+        prof = _row_profile(argv[2], box)[::step]
+        ctrl = dict(_row_profile(argv[4], box)) if len(argv) > 4 else None
+        print(f"{Path(argv[2]).name}  FLANK PROFILE, hem first"
+              + (f"  vs control {Path(argv[4]).name}" if ctrl else ""))
+        deltas = []
+        for row, L in prof:
+            if ctrl is None:
+                print(f"  row {row:3d}  L {L:7.2f}")
+                continue
+            d = L - ctrl[row]
+            deltas.append((row, d))
+            print(f"  row {row:3d}  L {L:7.2f}  control {ctrl[row]:7.2f}"
+                  f"  delta {d:+7.2f}  {'#' * int(max(d, 0) / 1.5)}")
+        if ctrl:
+            hem = deltas[0][1]
+            top = deltas[-1][1]
+            peak = max(deltas, key=lambda v: v[1])
+            print(f"  hem delta {hem:+.2f}   PEAK {peak[1]:+.2f} at row {peak[0]}"
+                  f"   top delta {top:+.2f}")
+            bump = (peak[1] > 4.0 and peak[0] != deltas[0][0]
+                    and peak[0] != deltas[-1][0]
+                    and hem < peak[1] * 0.35 and top < peak[1] * 0.35)
+            print("  R2 " + ("PASS — a BUMP: zero at the hem, a maximum partway "
+                             "up, gone again above. No R1 setting can do this"
+                             if bump else
+                             "FAIL — no bump; this is a monotone haze change"))
         return
 
     if len(argv) > 1 and argv[1] == "bands":

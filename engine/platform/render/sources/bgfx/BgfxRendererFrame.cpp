@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 11:08:2026 - 13:41:41
+Last updated: 11:08:2026 - 14:24:26
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -45,6 +45,10 @@ UPD:
   is settled by a pair of frames rather than by an argument; it is read once
   and rejects a bad value LOUDLY, because a counterfactual arm that silently
   failed to apply is a duplicate of the other arm.
+- 11:08:2026 - 14:24:26: Slot 37 = the MIST BAND (R2) and three more overrides (DFN_MIST,
+  DFN_MIST_H, DFN_MIST_T) through the same loud-rejection path. Shipped rows
+  moved to HAZE_SCALE_LENGTH 600 / HAZE_HEIGHT_SCALE 40 in NUMBERS; nothing
+  here changed for that, which is the point of the generated-header route.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -231,6 +235,11 @@ struct HazeParams {
     float scale_m;
     float height_m;
     float base_m;
+    // The mist band (R2) — its own altitude, extent and density, because it is
+    // a different layer of air and not a setting of the haze above it.
+    float mist_height_m;
+    float mist_thickness_m;
+    float mist_density;
 };
 
 static const HazeParams& haze_params() {
@@ -241,6 +250,12 @@ static const HazeParams& haze_params() {
                           static_cast<float>(config::HAZE_HEIGHT_SCALE)),
         haze_env_override("DFN_HAZE_BASE",
                           static_cast<float>(config::HAZE_BASE_HEIGHT)),
+        haze_env_override("DFN_MIST_H",
+                          static_cast<float>(config::MIST_BAND_HEIGHT)),
+        haze_env_override("DFN_MIST_T",
+                          static_cast<float>(config::MIST_BAND_THICKNESS)),
+        haze_env_override("DFN_MIST",
+                          static_cast<float>(config::MIST_BAND_DENSITY)),
     };
     return p;
 }
@@ -300,6 +315,8 @@ void BgfxRenderer::Impl::apply_environment() const {
     // home for the number: unset, the generated row is what ships.
     const HazeParams& haze = haze_params();
     packed[36] = {haze.scale_m, haze.height_m, haze.base_m, 0.0f};
+    packed[37] = {haze.mist_height_m, haze.mist_thickness_m, haze.mist_density,
+                  0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

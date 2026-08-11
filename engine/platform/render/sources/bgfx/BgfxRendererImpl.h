@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 23:24:48
+Last updated: 11:08:2026 - 14:24:26
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -47,6 +47,7 @@ UPD:
   internal target) and Impl::mipped_textures (cutout masks that carry a mip
   chain). Both exist for the coverage-antialiasing fix; see
   BgfxRenderer.cpp's internal-target block and docs/specs/render.md.
+- 11:08:2026 - 14:24:26: ENV_PARAM_VEC4S 37 -> 38 (slot 37 = the MIST BAND, R2).
 */
 
 #pragma once
@@ -182,7 +183,7 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 37; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 38; // layout contract with dfn_env.sh
 inline constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {
