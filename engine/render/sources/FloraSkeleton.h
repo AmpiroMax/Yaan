@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 12:08:2026 - 00:36:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.h
 
@@ -36,6 +36,11 @@ UPD:
 - 12:08:2026 - 00:20:00: CrownVolume::axis (the crown follows a leaning bole)
   and FractalParams / fractal_skeleton() -- the great oak's recursive grower,
   the third growth model in this file.
+- 12:08:2026 - 00:36:00: FractalParams gains a bounding cylinder (top_y,
+  max_radius, axis). Measured: unclipped ramification grew a 46 m great oak's
+  wood to 90.8 m -- twice its declared height -- because every generation adds
+  its length to whatever the last one reached, and the species height band is a
+  cross-zone contract.
 */
 
 #pragma once
@@ -226,6 +231,17 @@ struct FractalParams {
     float segments_per_limb = 3.0f; ///< nodes along one limb (curvature)
     uint32_t max_nodes = 600;
     glm::vec2 lean{0.0f};        ///< XZ drift of the whole crown (wind lean)
+    /// THE BOUNDING CYLINDER, and it is not decoration: the species HEIGHT
+    /// band is a cross-zone contract (core's canopy occlusion envelope and
+    /// design's C4 arithmetic both key off SPECIES_HEIGHT_MAX). Unclipped,
+    /// recursive ramification overshoots badly -- measured, a 46 m great oak
+    /// grew wood to 90.8 m, twice its own declared height, because every
+    /// generation adds its own length to whatever the last one reached. The
+    /// FOLIAGE envelope still governs the crown's SHAPE; this only stops the
+    /// WOOD leaving the world it was sized for.
+    float top_y = 1e9f;      ///< m, absolute ceiling for any node
+    float max_radius = 1e9f; ///< m, from the crown axis
+    glm::vec2 axis{0.0f};    ///< XZ centre the radius is measured from
 };
 
 /// Grows the fractal crown from the LAST node of `sk` (the bole's top). Every

@@ -1,5 +1,5 @@
 # Created: 12:08:2026 - 00:27:00
-# Last updated: 12:08:2026 - 00:27:00
+# Last updated: 12:08:2026 - 00:36:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-crown-spread-recipe.txt
 #
@@ -25,6 +25,13 @@
 #
 # UPD:
 # - 12:08:2026 - 00:27:00: Created with the frames for commit 669f1a7.
+# - 12:08:2026 - 00:36:00: The DISTANT frame section. Shot at the giant's own
+#   read distance on lead's instruction, before repairing anything, and it
+#   found two defects that were invisible from underneath and to a green suite
+#   (zero cards emitted; wood at twice the declared height). Records the honest
+#   verdict as well: with both fixed the giants still do not read as landmarks
+#   at 400 m, because they stand inside a lattice of ordinary oaks -- which is
+#   a placement condition, not a geometry one.
 
 WHAT THE USER ASKED (11.08.2026, verbatim)
 
@@ -91,3 +98,50 @@ WHAT IS NOT IN THESE FRAMES, AND IS OPEN
   - The great oak's crown is thinner than intended: the foliage count is capped
     by the fractal grower's TIP COUNT, not by cluster_count, so a fuller crown
     means more depth or a bigger node budget, not more clusters.
+
+================================================================================
+THE DISTANT FRAME, AND WHAT IT ANSWERED (12.08.2026, added after commit 5b2adcc)
+================================================================================
+
+Files: flora-great-oak-far-BEFORE-5b2adcc.png, flora-great-oak-far-AFTER-669f1a7b.png,
+       flora-great-oak-under-669f1a7b.png
+
+  # 400 m back, 70 m up, looking into the oak mass. One oak in sixteen promoted.
+  DFN_FLORA_GREAT_OAK=1 DFN_RESTORE=<pose> DFN_WIND_FREEZE=120 \
+  DFN_NULL_PHYSICS=1 DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 \
+  DFN_CAPTURE_DIR=<dir> DFN_CAPTURE_AFTER=6 ./build_flora/engine/app/dfn_app
+  # pose = the speckle pose with pos_y = 70, pos_z = 1180, pitch = -0.08.
+
+WHY THIS FRAME WAS TAKEN BEFORE FIXING ANYTHING: at a kilometre a sparse crown
+either reads as a landmark silhouette or reads as nothing, and those are
+different next steps. Shooting first was cheaper than repairing first, and it
+was right — the frame did not say "too sparse", it said something else entirely.
+
+WHAT IT FOUND (two defects, both invisible from under the tree AND to a green
+49/49 suite; both then measured in the generator rather than guessed at):
+
+  1. THE GREAT OAK EMITTED ZERO CARDS. Every variant, no foliage at all. The
+     card legibility floor exists at TWO sites one screen apart in
+     FloraBuild.cpp; the first was re-derived for large crowns and the second
+     still read `0.22 * crown_r`, which on a 40 m crown radius is an 8.8 m
+     minimum half-width against the 8.4 m the species actually produces. The
+     tree that had been photographed twice as "structure with thin foliage" had
+     no foliage whatsoever, and both frames were read as a density problem.
+  2. THE WOOD REACHED TWICE THE DECLARED HEIGHT. Recursive ramification was
+     unclipped, so a 46 m great oak grew to 90.8 m — the species height band is
+     a cross-zone contract (core's canopy occlusion, design's C4). That is what
+     made the giants tower in the BEFORE frame: not size, overshoot.
+
+VERDICT ON "ОЧЕНЬ БОЛЬШИЕ КАК ГОРЫ" — NOT YET, AND THE FRAME SAYS WHY.
+With both fixed, the giants stop towering (correct: they are now 40-45 m against
+a 25-30 m canopy) and at 400 m they MERGE INTO THE CANOPY instead of reading as
+landmarks. Their 60 m crown is wider than anything around them and it still does
+not read, because they stand INSIDE a 12-18 m lattice of ordinary oaks whose
+crowns now touch. This is docs/GIANT_OAKS.md §2 arriving as a measurement: the
+rarity is not a density setting, it is the condition under which the object can
+be seen at all. A giant needs its own clearing, and that is core's and design's
+to place — flora cannot buy it with geometry.
+
+flora-great-oak-under-669f1a7b.png is the near view with the crown repaired: a
+limb crossing the whole frame overhead and a canopy mass above it. That one is
+the "one convincing mountain" from underneath.

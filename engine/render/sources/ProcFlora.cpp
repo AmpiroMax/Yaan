@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 12:08:2026 - 00:36:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -103,6 +103,13 @@ UPD:
   may not follow the bole's own SWEEP (a plumb birch lost 65 % of its presented
   area to a shift its branches had already made), and the conifer is exempt
   from it entirely because whorl_skeleton builds on the straight stem.
+- 12:08:2026 - 00:36:00: The great oak's fractal growth is bounded by the crown
+  volume, its node budget raised to 1500 (the tip count, not cluster_count, is
+  what caps foliage) and its segment cap lowered to 300. FOUND BY SHOOTING THE
+  FRAME AT ITS OWN READ DISTANCE, which is the thing that had never been done:
+  from 400 m the giants read as DEAD, and the two defects behind that -- zero
+  cards, and wood at twice the declared height -- were both invisible from
+  underneath and invisible to a green suite.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -136,8 +143,18 @@ constexpr float CLEARANCE_MIN = static_cast<float>(config::CANOPY_CLEARANCE_MIN)
 // NUMBERS ROWS REQUESTED FROM LEAD (Rule 14/35), carried locally until they
 // land: GREAT_OAK_TRI_BUDGET 3500, GREAT_OAK_STEP_RISE 0.42 m,
 // GREAT_OAK_STEP_REACH 0.75 m, GREAT_OAK_PLATFORM_RADIUS 2.6 m.
-constexpr uint32_t GREAT_OAK_MAX_NODES = 700;
-constexpr uint32_t GREAT_OAK_MAX_SEGMENTS = 400;
+// RAISED 700 -> 1500 FROM A FRAME, not from a budget calculation. At 700 the
+// grower produced ~156 tips, the foliage path takes ONE mass per tip, and 156
+// masses over an 80 m crown is transparent: photographed from 400 m the great
+// oaks towered over the canopy exactly as intended and read as DEAD — bare
+// branch systems against the sky. The node budget was the binding constraint on
+// foliage the whole time and nothing in the code said so, because the count
+// that looks like the foliage lever (cluster_count) is applied after it.
+// Wood cost is unchanged: decimate_to(GREAT_OAK_MAX_SEGMENTS) still caps the
+// skeleton at 400 segments and preserves foliage anchors, so the extra nodes
+// buy leaf sites and are then dissolved.
+constexpr uint32_t GREAT_OAK_MAX_NODES = 1500;
+constexpr uint32_t GREAT_OAK_MAX_SEGMENTS = 300;
 constexpr float GREAT_OAK_STEP_RISE = 0.42f;   ///< m of climb per tread
 constexpr float GREAT_OAK_STEP_REACH = 0.75f;  ///< m the tread sticks out
 constexpr float GREAT_OAK_STEP_RADIUS = 0.15f; ///< m, half-thickness of a tread
@@ -449,6 +466,9 @@ void build_great_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem
     fp.lean = t.shape.lean > 0.0f
         ? t.shape.lean_dir * (t.shape.lean * 0.8f)
         : glm::vec2{0.0f};
+    fp.top_y = t.crown_top;
+    fp.max_radius = t.crown_r;
+    fp.axis = t.crown_axis;
     fp.max_nodes = GREAT_OAK_MAX_NODES;
     fractal_skeleton(sk, fp, seed);
 

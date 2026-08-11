@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 12:08:2026 - 00:24:00
+Last updated: 12:08:2026 - 00:36:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -42,6 +42,9 @@ UPD:
   narrowed apex does not starve — measured, the first draft pinched the top and
   the tree topped out at 0.39 of its own height; and fractal_skeleton(), the
   great oak's recursive grower.
+- 12:08:2026 - 00:36:00: fractal_skeleton clamps every node into the bounding
+  cylinder (see the header entry: the wood was reaching twice the declared
+  height).
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -605,6 +608,17 @@ void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed) {
                               dir);
                 SkeletonNode n;
                 n.pos = sk.nodes[static_cast<size_t>(cur)].pos + dir * step;
+                // The bounding cylinder (FractalParams::top_y / max_radius).
+                n.pos.y = std::min(n.pos.y, p.top_y);
+                {
+                    const float ox = n.pos.x - p.axis.x;
+                    const float oz = n.pos.z - p.axis.y;
+                    const float rr = std::sqrt(ox * ox + oz * oz);
+                    if (rr > p.max_radius && rr > 1e-4f) {
+                        n.pos.x = p.axis.x + ox * p.max_radius / rr;
+                        n.pos.z = p.axis.y + oz * p.max_radius / rr;
+                    }
+                }
                 n.parent = cur;
                 n.order = static_cast<uint8_t>(std::min<uint32_t>(255u, depth + 1u));
                 sk.nodes.push_back(n);

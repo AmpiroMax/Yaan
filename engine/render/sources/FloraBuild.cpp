@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 12:08:2026 - 00:36:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -46,6 +46,12 @@ UPD:
   birch 65 % of its foliage. The old form was a latent bug that a 40 m crown
   detonated: it dropped EVERY card on the great oak and the tree photographed
   as a winter skeleton.
+- 12:08:2026 - 00:36:00: THE SCRAP FLOOR EXISTED IN TWO PLACES AND ONLY ONE WAS
+  RE-DERIVED, one screen apart, and the great oak measured ZERO CARDS on every
+  variant because of it -- passed the first gate at 8.4 m of half-width,
+  rejected by the second at 8.8 m, suite fully green, distant frame showing a
+  bare branch system towering over a live forest. Both sites now read one
+  `scrap_floor`. Rule 32 in the file whose own header states it.
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -271,9 +277,9 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // never to tighten it anywhere.
     const float nominal_half_width =
         t.crown_r * sp.cluster_radius_frac * sp.card_width_frac;
-    if (p.half_width < std::min(0.22f * t.crown_r, 0.55f * nominal_half_width)) {
-        return;
-    }
+    const float scrap_floor =
+        std::min(0.22f * t.crown_r, 0.55f * nominal_half_width);
+    if (p.half_width < scrap_floor) return;
 
     // VERTICAL REACH, not half_height. THIS IS THE SAME MISTAKE A THIRD TIME
     // (§3.7): a card is tilted in elevation and rolled in its own plane, so the
@@ -309,7 +315,16 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
             at.y = floor_y + vertical_reach();
         }
     }
-    if (p.half_width < 0.22f * t.crown_r) return; // re-check after any shrink
+    // RE-CHECK AFTER ANY SHRINK — AND IT IS THE SAME FLOOR, which it was not
+    // until 12.08.2026 and that cost the great oak its entire crown. The floor
+    // was re-derived above and this second site kept the old `0.22 * crown_r`
+    // form, so on a 40 m crown radius the tree passed the first gate at 8.4 m
+    // of half-width and was rejected by the second at 8.8 m: MEASURED ZERO
+    // CARDS on every variant, with the suite green, and the distant frame
+    // showing a bare branch system towering over a live forest.
+    // Rule 32, in the file whose header already says so: fix the mechanism,
+    // then check every consumer of it in the same change. One line apart.
+    if (p.half_width < scrap_floor) return;
     // RADIAL RE-CONTAINMENT, and it is the SAME DEFECT AS §3.7 FOR A FOURTH
     // TIME. emit_cluster clipped this cluster against the envelope at its
     // ORIGINAL height; the two clamps above then MOVE it, and in a cone (or any

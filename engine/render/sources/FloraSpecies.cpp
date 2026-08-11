@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 12:08:2026 - 00:36:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -50,6 +50,8 @@ UPD:
   width jitter, oak crown base at the band floor, and the GreatOak row.
   flora_control_arm() -- the zero-dose control that lets BEFORE and AFTER come
   out of ONE binary.
+- 12:08:2026 - 00:36:00: Great oak fractal depth 4 -> 5 (foliage count is
+  bounded by branch TIPS, not by cluster_count).
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -750,7 +752,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // wide pitch, each carrying its own sub-crown), another an upright ellipse
     // (two majors at a steep pitch), another a broad dome (four or five).
     // Nothing enumerates those outcomes; they are what the parameter does.
-    great.fractal_depth = 4;
+    great.fractal_depth = 5;
     great.fractal_majors_min = 2;
     great.fractal_majors_max = 5;
     great.fractal_children_min = 2;
