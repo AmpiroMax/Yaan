@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 10:08:2026 - 22:17:20
+# Last updated: 11:08:2026 - 13:31:43
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -37,6 +37,18 @@
 #                          night by files it had never touched.
 # - 10:08:2026 - 20:16:01: captures/ и playtest_test_artifacts/ исключены из обхода —
 #                          это ВЫВОД прогонов, и они держали --all вечно красным.
+# - 10:08:2026 - 22:17:20: В режиме --files проверяется то, чего файл-локальная проверка не может в
+#                          принципе: ПОЯВИЛАСЬ ЛИ запись UPD в этом коммите. Всё
+#                          остальное — проверка внутренней согласованности, и файл,
+#                          отредактированный без записи, проходил её безупречно.
+# - 11:08:2026 - 13:31:43: Both gates now share the skip lists. check_file() returned
+#                          clean for formats that cannot carry a header, but the
+#                          HEAD-comparison gate ran on them anyway and demanded a
+#                          UPD entry they had nowhere to put -- .gitignore blocked a
+#                          commit while being named in SKIP_FILENAMES. The gate I
+#                          added yesterday to catch a wrong-block entry acquired the
+#                          same shape of defect it was written to catch: two checks
+#                          disagreeing about their own subject (Rule 41).
 
 from __future__ import annotations
 
@@ -57,10 +69,6 @@ UPD_ENTRY_RE = re.compile(
 # - Build/tooling output (.git, build*, ...).
 # - third_party: vendored dependencies — never hand-edited.
 # - __pycache__/.venv: Python artifacts.
-# - 10:08:2026 - 22:17:20: В режиме --files проверяется то, чего файл-локальная проверка не может в
-#                          принципе: ПОЯВИЛАСЬ ЛИ запись UPD в этом коммите. Всё
-#                          остальное — проверка внутренней согласованности, и файл,
-#                          отредактированный без записи, проходил её безупречно.
 SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
              ".claude", "third_party", "__pycache__", ".venv", "_deps",
              # RUN OUTPUT, not source. These are written BY the tools whose
@@ -255,6 +263,14 @@ def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]
         if _skip_parts(rel.parts):
             continue
         if any(rx.match(rel.as_posix()) for rx in SKIP_PATH_RES):
+            continue
+        # A format that cannot carry a header cannot gain a UPD entry either.
+        # check_file() returns clean for these, but the HEAD comparison below is
+        # a SECOND gate and used to run on them anyway -- so .gitignore, a JSON
+        # asset or a PNG could be edited and then demanded an entry it has
+        # nowhere to put. Same skip lists, both gates (Rule 41: the two gates
+        # answer different questions and must agree on their subject).
+        if path.suffix.lower() in SKIP_EXTENSIONS or path.name in SKIP_FILENAMES:
             continue
         errs = check_file(path)
         # Did this commit actually add an entry? Only answerable against HEAD.

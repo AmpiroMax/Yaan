@@ -9,3 +9,6 @@ settings.cfg
 captures/
 playtest_test_artifacts/
 __pycache__/
+
+# Third-party reference screenshots (Morrowind/Oblivion/Skyrim) — look targets, not ours to ship
+images_examples/
