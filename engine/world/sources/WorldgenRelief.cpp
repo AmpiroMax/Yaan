@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:31:10
-Last updated: 11:08:2026 - 14:31:10
+Last updated: 12:08:2026 - 23:38:00
 Module: engine/world
 File: engine/world/sources/WorldgenRelief.cpp
 
@@ -22,6 +22,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 11:08:2026 - 14:31:10: Created.
+- 12:08:2026 - 23:38:00: DFN_MESO_LAMBDA_MAX — the wavelength sweep door
+  (measurement only). The result is in tests/core/GroundReliefTests.cpp and it
+  is negative: shorter waves buy slope and buy no ground-hiding, so the top of
+  GROUND_MESO_WAVELENGTH should NOT be lowered for F7's sake. The door stays
+  because the next person will have the same idea.
 */
 
 #include "engine/world/sources/WorldgenRelief.h"
@@ -32,10 +37,9 @@ UPD:
 
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <cstddef>
-#include <glm/geometric.hpp>
 #include <cstdlib>
+#include <glm/geometric.hpp>
 
 namespace dfn::world {
 
@@ -53,6 +57,26 @@ float smoothstep01(float t) {
 constexpr float AMP_DRIFT_CELL = 256.0f;
 
 
+/// THE WAVELENGTH SWEEP DOOR (measurement only, never a shipping path — the
+/// same standing as DFN_MESO_ISO below and DFN_NO_RELIEF further down).
+///
+/// `DFN_MESO_LAMBDA_MAX=<m>` replaces the TOP of GROUND_MESO_WAVELENGTH for one
+/// run. It exists because the arithmetic that matters here is about a quantity
+/// the contract never named: at the σ this field produces, RMS slope 2*pi*σ/L
+/// clears the grazing angle only below L ~ 52 m, while the approved band runs
+/// to 60 m — so the top third of our own band cannot hide ground at the
+/// amplitude we make. Shortening the wave is FREE against the σ ceiling,
+/// against corridor slope and against PLAYER_STEP_HEIGHT, where raising the
+/// amplitude is not. Whether the band's top actually moves is design's ruling;
+/// this door is what lets the ruling be made on a measurement.
+float meso_lambda_max() {
+    if (const char* e = std::getenv("DFN_MESO_LAMBDA_MAX")) {
+        const float v = std::strtof(e, nullptr);
+        if (v >= 4.0f && v <= 400.0f) return v;
+    }
+    return static_cast<float>(config::GROUND_MESO_WAVELENGTH_MAX);
+}
+
 /// The meso field BEFORE amplitude: the two ruled wavelengths, averaged, both
 /// sampled along the land's grain.
 float meso_field(uint64_t seed, glm::vec2 world) {
@@ -64,17 +88,13 @@ float meso_field(uint64_t seed, glm::vec2 world) {
     if (std::getenv("DFN_MESO_ISO") != nullptr) {
         return (noise::value_noise(seed, STREAM_GROUND_MESO,
                                    static_cast<float>(config::GROUND_MESO_WAVELENGTH_MIN), world)
-                + noise::value_noise(seed, STREAM_GROUND_MESO + 1,
-                                     static_cast<float>(config::GROUND_MESO_WAVELENGTH_MAX),
-                                     world))
+                + noise::value_noise(seed, STREAM_GROUND_MESO + 1, meso_lambda_max(), world))
              * 0.5f;
     }
     const float a = aniso_octave_sample(seed, STREAM_GROUND_MESO,
                                         static_cast<float>(config::GROUND_MESO_WAVELENGTH_MIN),
                                         world);
-    const float b = aniso_octave_sample(seed, STREAM_GROUND_MESO + 1,
-                                        static_cast<float>(config::GROUND_MESO_WAVELENGTH_MAX),
-                                        world);
+    const float b = aniso_octave_sample(seed, STREAM_GROUND_MESO + 1, meso_lambda_max(), world);
     return (a + b) * 0.5f;
 }
 

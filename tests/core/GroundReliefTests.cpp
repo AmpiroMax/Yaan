@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 11:08:2026 - 14:23:03
+Last updated: 12:08:2026 - 23:35:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -33,6 +33,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 11:08:2026 - 14:23:03: Created — §10.1's floor gets its first consumer.
+- 12:08:2026 - 23:35:00: THE WAVELENGTH SWEEP, and it refutes the prediction this
+  file was carrying: shortening GROUND_MESO_WAVELENGTH's top moves pointwise
+  slope monotonically and moves ground-hiding NOT AT ALL (63-77 %, no trend,
+  never above what the approved band already gives; A1 p5 stays 0 at every
+  wavelength). The table and the reason are in the test body where the wrong
+  prediction used to be.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -416,15 +422,41 @@ TEST_CASE("GROUND_OCCLUSION_COUNT_MIN: how often ground hides ground (§10.1.3 F
     // ruled yet (see below); making the suite red over a contract this pass was
     // never built against would bury the failures it CAN speak to.
     //
-    // THE ACTIONABLE ARITHMETIC, on this world's own numbers. At the σ this
-    // field produces (0.353 m), RMS slope = 2*pi*σ/L clears the 2.434 deg
-    // grazing angle only for L below ~52 m — and GROUND_MESO_WAVELENGTH is
-    // approved as 25-60 m. THE TOP THIRD OF OUR OWN BAND CANNOT OCCLUDE AT THE
-    // AMPLITUDE WE PRODUCE: 2.12 deg at L = 60 m, against 5.08 deg at L = 25 m
-    // with the amplitude UNCHANGED. So the likely fix is a shorter wavelength,
-    // not a bigger one — free against the σ ceiling, against corridor slope and
-    // against PLAYER_STEP_HEIGHT. Whether to lower the top of the band is
-    // design's ruling, not this test's.
+    // THE ARITHMETIC THAT SAID "SHORTEN THE WAVE" — AND THE SWEEP THAT
+    // FALSIFIED IT. At the σ this field produces (0.353 m), RMS slope
+    // 2*pi*σ/L clears the 2.434 deg grazing angle only for L below ~52 m,
+    // while GROUND_MESO_WAVELENGTH is approved as 25-60 m: 2.12 deg at 60 m
+    // against 5.08 deg at 25 m, amplitude unchanged. That predicted a free win
+    // — shorter waves cost nothing against the σ ceiling, corridor slope or
+    // PLAYER_STEP_HEIGHT. It was measured instead of adopted, through
+    // DFN_MESO_LAMBDA_MAX (WorldgenRelief.cpp), one binary, five runs:
+    //
+    //   λmax     slope>graze @2 m   @8 m    columns hiding ground   A1 p5
+    //   60 m     60.7 %             62.9 %  76.6 %                  0
+    //   52 m     —                  —       69.3 %                  1
+    //   40 m     61.7 %             63.9 %  63.5 %                  0
+    //   32 m     —                  —       76.6 %                  0
+    //   25 m     64.2 %             68.6 %  67.7 %                  0
+    //
+    // SLOPE MOVES MONOTONICALLY, EXACTLY AS PREDICTED. THE QUANTITY THE
+    // CONTRACT ASKS FOR DOES NOT MOVE AT ALL: ground-hiding wanders 63-77 %
+    // with no trend, never above the 76.6 % the approved band already gives,
+    // and A1's p5 stays 0 at every wavelength. The frames say the same thing —
+    // docs/acceptance/core-A1-meso-lambda-{60,25}-DIAG-*.png are the same
+    // picture, ground unbroken from the feet to the tree line in both.
+    //
+    // WHY, AND IT IS §8.1's FINDING ONE STEP FURTHER OUT: the derivation went
+    // through RMS SLOPE, which is a POINTWISE quantity, and a pocket needs a
+    // drop that is DIRECTED and SUSTAINED over a run. Shortening the wave
+    // raises the slope and shortens the run by the same factor; the two cancel
+    // in exactly the quantity we are trying to move. The same trap that
+    // retired σ (bounds amplitude, not slope) and then retired slope
+    // exceedance (bounds the point, not the run) — a third proxy, refused on a
+    // measurement rather than on taste (Rule 41/45).
+    //
+    // SO: DO NOT LOWER THE TOP OF THE BAND FOR THIS. The move is not costly,
+    // it is EMPTY, and lowering an approved number for a result it does not
+    // produce would be a fitted constant with a good story.
     WARN(p5 >= static_cast<int>(config::GROUND_OCCLUSION_COUNT_MIN));
 }
 
