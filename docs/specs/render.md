@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 12:08:2026 - 22:49:49-->
+Last updated: 12:08:2026 - 23:01:25-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -261,6 +261,19 @@ UPD:
   +14.02 против +14.01, предсказанных LOOKDEV_SUN_COLOR/LOOKDEV_AMBIENT_COLOR.
   Его первая версия (по децилям) дала -36.5 на тех же камнях — это была
   ТЕКСТУРА, шестой случай правила 47 в этой зоне. Кода не менял.
+- 12:08:2026 - 23:01:25: R6b (ПЯТНИСТАЯ ТЕНЬ) ИЗМЕРЕНА И РАЗМЕЧЕНА, не починена.
+  Прибор `tools/measure_dapple.py` — ЛОКАЛЬНЫЙ контраст в окне, потому что
+  очевидная величина (размах яркости по боксу) даёт нашей подстилке 1.81x против
+  2.28x у рефа 03, то есть 79 % «прохода» для кадра, где пятнистости нет вовсе:
+  этот размах — гладкий градиент по дальности. Синтетический контроль: чистый
+  градиент 1.144x, чередование 4.000x. По локальному контрасту реф 03 = 1.65x,
+  наша подстилка = 1.31x при нуле 1.14x, то есть впятеро меньше НАД нулём. И
+  главное: наша подстилка под лесом набирает столько же, сколько наша ОТКРЫТАЯ
+  трава с одной тенью обелиска. Тени не пропали (крона большого дуба на земле
+  видна, foliage лежит в CUTOUT_PROGRAMS) — пропало ЗЕРНО. Первый подозреваемый
+  арифметический: SHADOW_TEXEL_M 0.156 м при собственном правиле «кастер >= 2
+  текселя ~ 0.31 м» — мы ровно на полу, ближний каскад назван в самом файле.
+  СЛЕДУЮЩЕЕ, ЧЕГО НЕТ: рука нулевой дозы DFN_SUN_SHADOW=0.
 -->
 
 # Spec — render agent
@@ -2171,6 +2184,92 @@ Two things the same table says DO differ, neither of them this claim:
   DAPPLE ALONE.** Ours is 1.66x and all of it is one obelisk shadow across an
   otherwise evenly lit field. That is R6's second half, and it is the half that
   is missing.
+
+## R6b — THE DAPPLE. DIAGNOSED AND SIZED, NOT FIXED.
+
+Instrument: `tools/measure_dapple.py`. **Diagnostic, not acceptance** — no code
+was changed and there is no before/after pair yet.
+
+### The quantity, and why the obvious one is wrong
+
+LOCAL LIGHT/DARK: inside a window of 4x4 blocks, the brightest quarter of the
+blocks over the darkest quarter, averaged over windows.
+
+The obvious quantity — luma range over a ground box — was tried first and is
+**wrong**, in the same family as everything else recorded on this page. Our
+forest floor scores **1.81x** on it against reference 03's 2.28x, a 79 % "pass"
+for a picture with no dapple anywhere in it: the range is a smooth gradient from
+the near ground to the treeline, aerial perspective plus slope shading. **A
+criterion a gradient satisfies is not measuring dapple.** A window removes it —
+a smooth trend is nearly constant across one window and divides out. `selftest`
+puts a 4x gradient at **1.144x** and a 4x interleaved dapple at **4.000x**, on
+synthetic pixels, which is the null this number is read against.
+
+### The gap
+
+Block sizes are fractions of the box width, so a 1200 px reference and our
+640 px frame are read at the same fraction of the surface.
+
+| surface | box_w/80 | box_w/40 | box_w/27 |
+|---|---|---|---|
+| ref 14 Whiterun cobbles | 1.974x | 1.682x | 1.549x |
+| **ref 03 forest floor — the target** | **1.780x** | **1.646x** | **1.591x** |
+| ref 01 plateau ground | 1.706x | 1.495x | 1.488x |
+| *(synthetic pure-gradient null)* | *1.144x* | *1.144x* | *1.144x* |
+| **ours, near forest floor** | **1.275x** | **1.310x** | **1.410x** |
+| **ours, under the great oak** | **1.238x** | **1.350x** | **1.439x** |
+| ours, open grass + the obelisk's shadow | 1.206x | 1.296x | 1.331x |
+
+Measured above the null, reference 03 is **0.64** and ours is **0.13** — about
+**five times**. And the row that settles what kind of defect this is: **our
+forest floor scores the same as our open grass with one obelisk on it.** Standing
+under a canopy currently adds nothing to the ground.
+
+Frames: ref03 `image copy 12.png` box `540,430,1190,600`; ref14
+`image copy 9.png` box `560,330,1010,570`; ref01 `image copy 10.png` box
+`700,400,1180,600`; ours `render-coverage-aa-near-AFTER-c15d930.png` box
+`0,292,640,357`, `flora-great-oak-under-669f1a7b.png` box `0,570,1280,715`,
+`render-mist-R2-360m-ON-3d37ef3+r2.png` box `0,240,400,358`.
+
+### Shadows are NOT missing — looked at, not assumed
+
+The great oak's canopy shadow is plainly on the ground in
+`flora-great-oak-under-669f1a7b.png`, and the obelisk's is in the mist frame.
+The caster path is intact too: `foliage` is in `CUTOUT_PROGRAMS`, so leaf cards
+punch their mask through the depth map via `shadow_cutout`, and `DrawParams::fade`
+defaults to 1 so the `SHADOW_CASTER_MIN_FADE` gate passes. **What is missing is
+not the shadow, it is its GRAIN.**
+
+### Three candidate mechanisms, ranked, none of them measured yet
+
+1. **The shadow map cannot represent dapple, arithmetically.** `SHADOW_TEXEL_M`
+   = 2 x 320 / 4096 = **0.156 m**, and this file's own thin-caster rule
+   (`BgfxRendererImpl.h:96`) is that a caster needs **>= 2 texels ~ 0.31 m** or
+   it flickers out. Reference 03's dapple patches are of that order on the
+   ground, so we sit exactly on the floor: the coarsest dapple can exist and
+   nothing finer can. `SHADOW_NORMAL_OFFSET_M` is a further 0.156 m of receiver
+   push-off, which erodes thin shadows from both sides. The remedy is already
+   named in that file — **a near cascade**; at 40 m half extent the same 4096
+   map gives 0.0195 m per texel, 16x finer, and that is a feature, not a
+   constant.
+2. **The canopy may have too few holes to cast a dapple through.** Leaf cards
+   with large solid mask regions cast large blobs. Not checked; check the leaf
+   mask's hole size against `SHADOW_TEXEL_M` before touching anything else.
+3. **One hard tap, no PCF** (user decision в1). R6's own wording is "shadows are
+   soft AND stable" and reference 03's dapple is soft-edged. Softness at the
+   dapple's scale is a different question from the hard pixel edges the user
+   asked for, and conflating them would be Rule 43.
+
+### What the next step needs and does not have
+
+**A zero-dose arm: the same vantage with the sun shadow OFF.** Ground texture,
+slope shading, material dither and aerial perspective all survive that arm, so
+the absolute numbers above cannot accept a fix — only the DIFFERENCE can (Rule
+47's structural cure, Rule 48's control). There is no such hook today:
+`DFN_NO_POINT_SHADOW` covers carried lights only. A `DFN_SUN_SHADOW` dose in the
+mould of `DFN_GROUND_TINT` is the first thing to build, before any change to the
+shadow path — and it is worth building anyway, because the two standing user
+complaints about shadows need exactly the same control arm.
 
 ## What this zone does NOT do
 
