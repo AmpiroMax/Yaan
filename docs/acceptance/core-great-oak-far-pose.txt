@@ -1,0 +1,92 @@
+# Created: 12:08:2026 - 23:20:00
+# Last updated: 12:08:2026 - 23:24:00
+# Module: docs/acceptance
+# File: docs/acceptance/core-great-oak-far-pose.txt
+#
+# Responsibility:
+# - The DISTANT standpoint for the great oak: 400 m north of its site and 55 m
+#   up, looking level-ish across the oak mass. This is the frame that answers
+#   «очень большие как горы» — the question flora's own distant frame left
+#   open, and which only placement could close.
+#
+# Key items:
+# - Same seed, same layout, same binary as the overhead clearing pair; the
+#   CONTROL arm is DFN_NO_GREAT_OAK=1 (no giant, no clearing).
+#
+# Dependencies:
+# - Uses: App's DFN_RESTORE parser.
+# - Used by: docs/acceptance/core-great-oak-far-*.png.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - DFN_NULL_PHYSICS=1 is mandatory: the eye stands well above the ground.
+#
+# UPD:
+# - 12:08:2026 - 23:20:00: Created.
+# - 12:08:2026 - 23:24:00: Both arms shot at commit 4fbe317 (the frames named
+#   core-great-oak-far-{AFTER,CONTROL}[-ZOOM2x]-4fbe317.png). Settle raised to
+#   14 s after the first pair came back mid-LOD-dissolve on ONE arm only: a
+#   crossfade caught halfway is a difference between the arms that has nothing
+#   to do with the change, and it looked exactly like one.
+captured_at = 12:08:2026 - 23:00:00
+build_commit = core-great-oak-clearing
+stand = 0
+seed = 1
+game_seconds = 886.011789
+day_fraction = 0.500000
+lunar_phase = 0.010987
+pos_x = 916.237000
+pos_y = 160.000000
+pos_z = 763.000000
+yaw = 3.141593
+pitch = -0.798000
+look_x = 0.000000
+look_y = -0.716000
+look_z = 0.698000
+speed_mps = 0.000000
+vertical_velocity = 0.000000
+stride_phase = 0.000000
+gait = 0
+locomotion = 0
+grounded = 1
+crouched = 0
+water_depth = 0.000000
+internal_w = 640
+internal_h = 360
+fov_y_rad = 1.309000
+head_bob = 1.000000
+palette_post = 0
+wind_strength = 0.480618
+cloud_cover = 0.000000
+ambient_darkness = 0.000000
+fps = 120.0
+frame_ms = 8.3
+frame_ms_worst = 8.3
+chunks_resident = 9
+lod_nodes = 0
+
+# ------------------------------------------------------------------------
+# RECIPE, both arms, ONE binary:
+#   DFN_RESTORE=docs/acceptance/core-great-oak-far-pose.txt \
+#   DFN_NULL_PHYSICS=1 DFN_NULL_AUDIO=1 DFN_INTERNAL_RES=640x360 \
+#   DFN_PALETTE=0 DFN_MENU=0 DFN_CAPTURE_DIR=<dir> DFN_CAPTURE_AFTER=14 \
+#   ./build_core/engine/app/dfn_app
+#   # CONTROL arm: the same plus DFN_NO_GREAT_OAK=1
+#   # then: python3 tools/archive_frame.py <src> <dst> 640
+#
+# WHAT TO LOOK FOR (the ZOOM2x pair carries it): in the AFTER arm one object in
+# the middle distance is unmistakably not a tree of the wood — a branching mass
+# far wider than any crown around it, standing in open ground with the canopy
+# held off its rim. In the CONTROL the same ground is lattice, edge to edge.
+# That is «очень большие как горы» arriving, and it arrives from PLACEMENT: the
+# tree is the same tree flora photographed merging into the canopy.
+#
+# TWO THINGS THIS FRAME REPORTS THAT ARE NOT MINE, and both are visible rather
+# than argued:
+#  - the great oak draws as BARE WOOD here while the ordinary oaks around it
+#    carry foliage. Its leaf cards are not reaching this distance (flora's
+#    recipe already records the crown as thinner than intended, capped by the
+#    fractal grower's TIP COUNT rather than by cluster_count);
+#  - the ordinary canopy reads WHITE at this range against dark green up close
+#    — the open item already on the board, and this frame is another instance
+#    of it rather than a new one.
