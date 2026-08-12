@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 10:45:06
-Last updated: 11:08:2026 - 15:07:26
+Last updated: 12:08:2026 - 22:42:19
 -->
 <!--
 UPD:
@@ -80,6 +80,7 @@ UPD:
 - 11:08:2026 - 14:23:05: §10.11 — haze loop closed and Rule 47 turned on my own criteria. Rule 34 flag DISCHARGED in design's favour: the p05 figures are from 360 m (frames render-haze-H1-360m-{Z,A,B,C}, eye 518,380, box 245,100-350,215), the 900 m lowland set carries a different quantity entirely, so HAZE_SILHOUETTE_RETENTION_MIN is evaluated at H1's own d_accept and arm C's 6% margin is real rather than a range artefact — H1 RATIFIED. Recorded that H1's recipe is Rule 47-compliant BY A SPECIFIC CHOICE (edges fixed on the control arm, all arms read on the same columns) and must not be 'simplified' into per-arm edge finding, which would make heavy haze look like the arm with the least effect. Rule 48 given its POSITIVE form, which is the half a reader needs when their control passes: H1 responds monotonically to the same lever (2.77->2.25->1.96->1.69) just as H2 did, so monotone response cannot be the discriminator — the discriminator is that H1's zero-dose control PASSES and H2's FAILS, hence a criterion measures its dose only if BOTH hold. Then ran Rule 47 across design's own criteria and found THREE exposed, two of which core is measuring this week: MIDGROUND_OBJECT_COUNT_MIN, OUTCROP_IN_VIEW_MIN and A1's crest-line count all locate their subjects by segmenting the frame, so each drops when anything lowers contrast (haze, flat light, a palette revision) with NO change in placement — attributing a render change to core's scatter pass, biased toward 'the objects are not there' exactly when they are hardest to see, and sending core to place more objects to fix a lighting change. RULING covering every count in §10: a count is established in the GENERATOR and verified on the FRAME, never counted on the frame — projected placement list with the 8 px filter applied to computed apparent size, crest-lines by raycast, and where the two disagree THAT disagreement is the finding (about render or light) which a frame-side count destroys by folding it into the number. H2's instrument is named in Rule 47's own text ('нашёл дизеринг сплаттинга вместо полок породы'), so 0.61 may itself be an artefact — this does NOT reopen the withdrawal, since under either reading the criterion failed at zero dose, but it binds the not-yet-run diagnostic probe; and the fix is stronger than Rule 47 asks, because §4.1's ABSOLUTE-height strata make the band rows computable by projection with no image involved, i.e. Rule-47-proof by construction — an unplanned second reason to like a ruling made for geological consistency. No new numbers: the values are unchanged, only where they are read from.
 - 11:08:2026 - 15:05:20: §10.12 — D2's instrument RE-DERIVED after A1 passed sigma (0.353 vs 0.35) and failed F7 in the same frame. Lead's diagnosis accepted and arithmetic verified independently: for a sinusoid, RMS slope = 2*pi*sigma/L, so sigma bounds AMPLITUDE while occlusion is a property of SLOPE, and the two are joined only by WAVELENGTH, which was never in the contract — correctly Rule 41 (aimed at the neighbouring quantity), NOT Rule 48, since sigma's zero-dose control behaves properly at 0.000. GROUND_RELIEF_SIGMA_20M_MIN RETIRED as a gate rather than re-floored (raising it would fit a threshold to a proxy structurally incapable of gating the property — Rule 45); the MAX 1.20 SURVIVES because the ceiling's job genuinely is amplitude. Replacement is not a better proxy but the thing itself: GROUND_OCCLUSION_COUNT, a RAYCAST in the generator — which §10.11.3 had already ruled three messages ago and I failed to connect — floor 3 unchanged, read at ACCEPTANCE_PERCENTILE 5, needing no wavelength constant, and getting the distance-dependence free (the grazing angle is 4.86 deg at 20 m and 1.62 deg at 60 m; my 2.4 deg was its value at 40 m, a simplification I should have flagged, and any area-fraction instrument must pick one angle and is wrong at both ends). Scoped TERRAIN-ONLY so B1's scatter cannot satisfy D2 — §10.2 already named that failure (a flat table with props is a diorama). ACTIONABLE FINDING for core: at the achieved sigma the field clears the 40 m grazing angle only below L ~= 52 m, and GROUND_MESO_WAVELENGTH is approved at 25-60 — the top third of our own band cannot occlude at the amplitude we produce, so A1's failure is probably the meso octave sitting at the wrong end of an unchecked range, not a missing octave; shortening L is strictly better than raising sigma (5.08 deg at L=25, free against the ceiling, corridors and PLAYER_STEP_HEIGHT). §2.7's orphaned fifth octave REMOVED IN THIS EDIT as a reassignment to §10.2/B1/B6. LF-8 rebuilt to locate its subject by CONNECTIVITY TO THE DRAINAGE (reusing §3.1's descent field) before measuring depth — Rule 47-proof by construction, physically truer (a gully DRAINS; an unconnected one was always a modelling error the old detector could not see), and consistent with B2's erosion logic; stays RED until rebuilt. Clearing в9 EXEMPT under a principle that was implicit in the existing exemption list — authored flatness that does work — bounded by AUTHORED_FLAT_RADIUS_MAX 50 m, DERIVED so that non-exempt ground still falls inside the standpoint's own 5-60 m band, which dissolves the conflict instead of waiving it and has teeth: PLAIN_EXTENT 400-600 m is NOT exempt. Mid-ground count 0 -> 8 unoccluded against floor 5 (17 is the placement figure, not the score — fixed now so the margin is not inflated 3.4x at the next retelling), first number produced under §10.11.3's generator-side rule.
 - 11:08:2026 - 15:07:26: §10.13 — wind-down handoff. Records the D2 problem statement standalone so it survives even if every ruling is discarded (sigma passed at 0.353 vs floor 0.35 while F7 failed in the same frame, because RMS slope = 2*pi*sigma/L and wavelength was never in the contract), plus the one derived number worth keeping: at the achieved sigma the field occludes only below L ~= 52 m against an approved GROUND_MESO_WAVELENGTH of 25-60. PROCEDURAL: the lead asked that the three questions be left OPEN with variants and costs; they had already been ruled in §10.12 when the instruction arrived, so rather than tear up the reasoning each ruling now carries its ALTERNATIVE, that alternative's COST, and the condition that would REOPEN it — the lead can reopen any of the three from §10.13.2 alone. Two costs I had not stated and now have: the LF-8 connectivity rebuild ASSUMES §3.1's descent field is queryable at LF-8's scale and I did NOT verify that; and the в9 exemption assumes the clearing is under 50 m, which I also did not check — if either assumption fails, the recorded fallback applies (retire LF-8 honestly rather than loosen it; shrink в9's calm core rather than bend the bound). §2.7's fifth octave marked CLOSED not open — it was withdrawn and reassigned in the §2.7 text itself rather than merely flagged, since a marked-but-present line is still a line someone applies. §10.13.4 carries seven open items forward (meso wavelength flag, H1 re-measure after the banding fix, H2's unrun probe and its projection-not-image constraint, frame-2's fourth predicate, two counts still to migrate generator-side, B3-B9 constants held pending a frame, A1's before-state not yet archived) and §10.13.5 two that are not mine (flora's identical trees, ROCK_STRATUM_* unbuilt). Nothing from this session is held outside §10 of this file.
+- 12:08:2026 - 22:42:19: §10.14 — B3-B9 RELEASED (the hold in §10.13.4 item 6 is discharged: step 1's frame exists). Three of my own briefs corrected before release. B3 FENCES: my claim that a fence PROVES bumpy ground was repaired rather than kept — the post TOP is contaminated by the post's own approved 3-15 deg decay lean (0.31 m of lateral swing at 1.2 m, the same order as the relief it would report, Rule 47 in a prop's costume), so the instrument is the RAIL line and FENCE_RAIL_HEIGHT_FRAC 0.75 measured FROM THE BASE is the construction rule that saves it (lean error 0.08 m against a 0.35-0.7 m signal). Even repaired the claim comes down a notch: a fence does not measure relief, it PICTURES it — the raycast already knows, and §10.11.3 assigns the frame the job of confirming what the generator says can actually be SEEN. Keeps its place second: that ordering was argued on triangles per unit of frame and is untouched. Sizes re-derived, not carried: POST_HEIGHT 0.9-1.5 -> 1.1-1.6 (floor from B6's own skirt rule — a 0.9 m post carries 0.3 m of clear timber above a 0.6 m shrub and the rail runs INSIDE the ground cover; ceiling from PLAYER_EYE_HEIGHT); SPACING 1.8-3.0 -> 1.5-2.0, and the ceiling is §10.2's OWN aliasing argument turned on the fence (the run samples terrain at its post bases, GROUND_MICRO_WAVELENGTH_MIN is 8 m, 3.0 m spacing is 2.7 samples/period and the rail line would SWIM as the player walks; 8/4 = 2.0). Two forms, because sixteen frames show two fences and one band is neither: KEPT (frame 02, gap 0.05-0.15, lean 1-6) and DERELICT (frame 15, gap 0.30-0.55, lean 6-25), chosen by the anchor with no constant. FENCE_ROAD_OFFSET withdrawn as a tabled pair and DERIVED from CORRIDOR_WIDTH — and that floor is the load-bearing part: §2.4's relief mask is ZERO inside CORRIDOR_WIDTH/2 and full only at CORRIDOR_WIDTH, so a fence closer stands on authored-flat ground, its rail line is straight BY CONSTRUCTION and the frame can never fail (Rule 48). FENCE_APPROACH_LENGTH derived as 30x the site's tallest built mass — a fence leads the eye to a thing the eye can already see. New FENCE_RAIL_DEVIATION_MIN 0.10 m RMS, generator-side at p05, built like §10.1.2's sigma floor (below what the approved octaves predict, so it catches a MISSING octave or a run sited on the pad) but NOT repeating sigma's mistake: it is the line's own straightness, which IS the property the failure statement names, and its zero-dose control reads 0.000. Cost corrected honestly: 430 tris per 60 m run, not the ~350 both the brief and the instruction quote — that figure was at the aliasing spacing. B5 KERBS/STEPS: the ruling stands, its constant does not — BUILT_EDGE_LEVEL_CHANGE_MIN 0.4 m WITHDRAWN BEFORE APPROVAL as PLAYER_STEP_HEIGHT 0.35 rounded (Rule 39, same call as TOWER_MINOR_DIM_PER_DISTANCE). KERB_HEIGHT ceiling derived (a kerb the player must jump is a wall); KERB_STRAIGHT_RUN_MAX 12 m provenance stated as MEASURED off frame 10 against its doorways (5-6 door-heights), not derived from an unrelated constant. And the consequence core actually needs is a COUNT, not a density: BUILDING_PAD_SLOPE_MAX across HAMLET_COMMON_RADIUS falls 2.7-4.5 m, so at PLAYER_STEP_HEIGHT per edge a hamlet common must carry EIGHT TO THIRTEEN built edges — a consequence of two approved constants, ~300 triangles for the whole settlement floor. B4 TOWERS: I corrected my own correction to REFERENCE_FRAMES.md. Frame 06's readable unit is NOT the two-tower assembly gap included — it is the CONJOINED DRUM CLUSTER, two or three drums sharing wall, 8-10 m contiguous, anchoring to 240-300 m. The timber span is composition and route, not silhouette mass (at 240 m a 0.4 m beam is a tenth of SILHOUETTE_MIN_PX). RULING: a gap joins two masses into one readable mass only if it is filled with material of the same order as the masses — a curtain wall does it, a beam does not. So "build a group" was half an answer; 500 m still needs 17 m CONTIGUOUS. This makes the brief cheaper, not dearer. TOWER_CROWN_LINE_VARIATION_MIN 1.0 m WITHDRAWN: at A3's 60-100 m standoff 1.0 m is 0.5-0.8 PIXELS, so the clause forbidding a smooth-arc crown was untestable at the distance I chose; it becomes d_site/30, i.e. SILHOUETTE_MIN_PX restated, and it produces a real bound — a 12-14 m ruin carries ~4 m of crown variation, so its CROWN reads to 120 m while its MASS reads to 240 m, and the smaller distance binds. A3's 60-100 m CONFIRMED, now for a reason instead of by feel. TOWER_CROWN_NOTCH_DEPTH_MIN 0.5 m re-scoped as a WALK-PAST rule (clears 8 px only inside 15 m) so it stops being cited as a distance guarantee. B8 asks for NOTHING (ARCH_OPENING_PER_DISTANCE is SILHOUETTE_MIN_PX restated and already recorded). B9 released (SiteKind::Hamlet exists, so it has a consumer) plus one asset finding from the frame: frame 02's sails are an open LATTICE, so the cross must be frames not quads — a solid sail at 300 m is a blob and loses the four diagonals the class exists for. DELIBERATELY NOT REQUESTED: SNAG_LEAN_* and SNAG_LEAN_AZIMUTH_SPREAD, because §5.9's snag is НЕ ПОСТРОЕНО with no consumer and a number without a consumer diverges silently. A2 corrected (the RAIL line, and the standpoint predicate names the corridor offset so a fence on the pad cannot pass by construction); A7 added for the settlement floor. §10.15 — the four open items closed, three of them against my own lines. REJECTION 3: FOLIAGE_SPAN_MIN 0.28 RETIRED today, not left standing — it rejects a synthetic rosette and nothing else, and LIMB_SPREAD_MIN 0.15 already does that. Why no single dimension can work, so nobody tries a fourth: the accepted and rejected birch differ in EXACTLY ONE authored input (crown base 0.40 vs 0.58) and crown width was never touched, so no purely horizontal quantity can separate that pair, while the vertical one that does (span, 1.29x) fails only because the oak's widening moved the oak — the separating quantity must be one in which the oak's small span is PAID FOR by its large width. New CROWN_POLE_RATIO = (height of lowest foliage)/(crown width), which is the palm's own definition in plain language: a tree is a pole with a tuft on top when its bare bole is longer than its crown is wide. Predicted oak 0.50-0.60, accepted birch ~1.1-1.2, REJECTED birch ~1.8, palm >>3; CROWN_POLE_RATIO_MAX 1.4 PROPOSED and explicitly NOT A GATE until flora measures it per variant with the rejected birch REBUILT as the control, with the Rule 30 sharpening as the acceptance condition for the constant itself (strictly between highest accepted and the rejected artefact, or the QUANTITY is reported wrong). Watch item my own arithmetic found: if birch width and height are drawn INDEPENDENTLY the worst legal birch lands at 1.65, over the ceiling — TREE_WIDTH_SCALE's note says width is drawn with allometry, and if that is not so the finding is about the draw, not the threshold. Pine EXEMPT (it measures 2.4-3.3, above the rejected birch, and a mature conifer genuinely IS a long bare bole) by the same door CROWN_ASPECT_MAX already uses — with the hole named rather than papered: REJECTION 2's control set must gain a PINE POLE (whorls only in the top 15%) and must reject it; if it does not, the conifer has no palm sentinel at all and THAT is the finding, not a reason to widen the ratio until a cone fits. 229 m2 FLOOR: RETIRED as a gate, kept reported, and explicitly NOT re-baselined — presented area conflates EXTENT and DENSITY and the widening moved extent, so a crown 45% wider presents more area FOR FREE without being fuller; that is §10.12's sigma failure in another zone (Rule 41, aimed one quantity to the left). Replacement FLORA_CROWN_OPTICAL_DEPTH = presented card area / crown's own silhouette area, worst of 36 azimuths, both on built geometry: the half-density control fails BY CONSTRUCTION (numerator halves, denominator does not), width cannot buy it, both existing consumers are served unchanged, and the open reduced-LOD miss (208 vs 229) stops being maskable. PREDICTION recorded before the measurement: the ratio has probably FALLEN, so the 2.5x margin growth may have been reporting a fullness LOSS as safety. Value deliberately unassigned — three measurements set it (pre-widening accepted build as anchor, today's build, half-density control) and none is mine. CROWN_BASE_FRACTION_MIN 0.35 RETIRED as the walkability gate (a fraction proxying an absolute that already exists; fifth instance of "a model change can invalidate a derivation without changing the number" — here the model change was the tree tripling in height); MAX 0.45 SURVIVES because the ceiling's job genuinely IS a fraction, exactly as GROUND_RELIEF_SIGMA_20M_MAX survived. AND THE ABSOLUTE THAT REPLACES IT CANNOT BE 2.2: CANOPY_CLEARANCE_MIN's own NUMBERS row records the rejected artefact at 2.7 m ("игрок шёл СКВОЗЬ листву"), so 2.2 PASSES the build the user rejected — design's own sharpening of Rule 30 landing on design's own constant, and I recommended exactly this to flora about the synthetic palm without running it across my own rows. PROPOSED 2.2 -> 3.6 m, derived then checked: 2 x PLAYER_CAPSULE_HEIGHT is where a ceiling reads as a HALL rather than a DOORWAY, and it sits 33% above the rejected 2.7; one measurement must precede approval (the lowest clear trunk in the accepted catalog on built geometry, including the willow whose height is not in NUMBERS.md and which I did not guess). CLEARING в9: the exemption is WITHDRAWN and AUTHORED_FLAT_RADIUS_MAX 50 m does not move — 80 vs 50 dissolves because в9 never needed the exemption. I read "спокойная" as "ровная"; the code says otherwise (glade_factor multiplies the MESO tier only, §2.7's micro octave passes through untouched) and в9's own dictionary entry LF-1 demands the OPPOSITE of flatness ("waves, not a billiard table", control = the flat plane, which FAILS). Withdrawing it exposes what it would have hidden: в9 measured sigma 0.119 m where its own approved micro octave predicts 0.19-0.38 — under half its specified amplitude, i.e. exactly the missing-octave case §10.1.2 was built to catch, which the exemption would have certified as authored calm. And it is not an exemption in a new costume: at the approved amplitude the micro octave clears its own grazing angle across the whole 8-16 m band by 12-20%, thin in the SAME DIRECTION §10.12.3 found for the meso band — two independent tiers now say the margin lives at the short end of the wavelength range.
 -->
 
 # LANDSCAPE.md — Landscape & World Design Bible
@@ -9174,3 +9175,612 @@ Nothing here is a decision. These are things that are TRUE and UNFINISHED:
 
 **Nothing else is held anywhere.** Every finding, every number, every open
 question from this session is in §10 of this file.
+
+---
+
+### 10.14 THE MAN-MADE MID-GROUND — B3–B9 released, and three of my own briefs corrected on the way
+
+Step 1 landed (`docs/acceptance/core-object-grammar-step1.md`): outcrops,
+boulders, skirts, and a mid-ground count of 8 unoccluded against a floor of 5.
+§10.13.4 item 6 held B3–B9's constants pending that frame. **The frame exists,
+so the hold is discharged and this section releases them.**
+
+The build order the lead confirmed is the one §10.6 derived — **fences, then the
+settlement floor, then towers** — and it survives everything below, but not for
+all of the reasons I originally gave. Two of my own claims did not survive
+contact with the arithmetic, and both corrections are in the direction that
+makes core's job smaller rather than larger.
+
+#### 10.14.1 What step 1 licenses, and the one thing it does not
+
+Step 1 proves the *natural* mid field. Nothing in it says anything about
+man-made objects, and this section must not borrow its pass. What step 1 does
+license is the **method**: §10.11.3's rule produced a number (8, not 17) that
+nobody had to argue about, and every count below is specified the same way —
+**established in the generator, confirmed on the frame.**
+
+---
+
+#### 10.14.2 B3 — FENCE LINES. RELEASED, and my "it is also an INSTRUMENT" claim needed repair before it was true
+
+**B3's original text says the fence «does not merely benefit from bumpy ground,
+it PROVES bumpy ground», and names the failure statement as «the fence's TOP
+line is straight in screen space». Checked, and the top line cannot carry
+that.**
+
+> **The post top is contaminated by the post's own approved lean.** §10.3.2
+> gives fence posts 3–15° of independent decay tilt. A 1.2 m post leaning 15°
+> drops its tip by 1.2·(1 − cos 15°) = **0.041 m** and displaces it laterally by
+> 0.31 m; at 25° the vertical term is 0.11 m and the lateral term 0.51 m. Seen
+> along the run, that lateral swing reads as vertical wander of the top line at
+> the same order as the relief the line is supposed to report. **An instrument
+> whose reading is set by its own decoration is Rule 47 in a prop's costume.**
+
+**The repair is a construction rule, and it saves the instrument rather than
+retiring it:**
+
+> **`FENCE_RAIL_HEIGHT_FRAC` = 0.75 of post height, measured from the post's
+> BASE, never from its tip.** A rail hung at a fixed height above the ground
+> tracks the ground; a rail hung off the post tops tracks the leaning. With the
+> attachment at 0.75 h the lean's vertical error is ≤ 0.08 m at 25°, against a
+> relief signal of σ ≈ 0.35–0.7 m — **an order below the signal instead of level
+> with it.**
+>
+> **The failure statement is therefore about the RAIL line, and the top line is
+> explicitly not the instrument.**
+
+Even repaired, the stronger claim has to come down one notch, and it is worth
+stating precisely because the sentence will be quoted:
+
+> **A fence does not measure relief. It PICTURES it.** §10.11.3 already ruled
+> that the ground profile is a raycast fact established in the generator; the
+> rail line adds no information the raycast does not already have. What it adds
+> is that **a human being can see the answer** — which is exactly the job
+> §10.11.3 assigns to the frame («the frame's job is to confirm that what the
+> generator says is there can actually be seen»), and B3 is the cheapest way in
+> this document to make that confirmation possible with an eye instead of a
+> probe. **It keeps its place second in the build order; the ordering was
+> argued on triangles per unit of frame, and that argument is untouched.**
+
+##### The sizes, all of them re-derived rather than carried over
+
+| constant | was | **now** | why the number is what it is |
+|---|---|---|---|
+| `FENCE_POST_HEIGHT` | 0.9–1.5 m | **1.1–1.6 m** | **Floor from B6, ceiling from the walker.** B6 puts a shrub or tuft within 0.5 m of the contact on 50–80 % of all posts *by rule*, and a single shrub runs to 0.6 m. A 0.9 m post carries 0.3 m of clear timber above its own skirt — the rail line then runs *inside* the ground cover and stops being a line. 1.1 m leaves 0.5 m of clear air under the rail. The ceiling is `PLAYER_EYE_HEIGHT` = 1.7 m: above ~1.6 m a roadside fence stops being something you see over and becomes a wall, which is a different object with a different brief |
+| `FENCE_POST_SPACING` | 1.8–3.0 m | **1.5–2.0 m** | **The ceiling is §10.2's own aliasing argument, turned on the fence.** The run samples the terrain at its post bases, and the shortest band it must report is `GROUND_MICRO_WAVELENGTH_MIN` = 8 m. At 3.0 m spacing that is 2.7 samples per period — §10.2's exact aliasing case, and the rail line would *swim* as the player walks rather than describe the ground. Four samples per period is the floor for a curve, so 8/4 = **2.0 m**. This is a tightening of my own band by an argument the document already owns |
+| `FENCE_RUN_LENGTH` | 15–80 m | **20–80 m** | Floor: a run shorter than one full micro period (16 m max) cannot show an undulation, only a tilt. 20 m carries one period with margin. The ceiling is composition, not read: past 80 m a run must corner, change level or gate, for the same reason `KERB_STRAIGHT_RUN_MAX` exists |
+| `FENCE_RAIL_HEIGHT_FRAC` | — | **0.75** | new, derived above; **from the base** |
+| `FENCE_POST_YAW_MAX` | ± 10° | **± 10°** | unchanged |
+
+##### Two forms, because sixteen frames show two fences and one band cannot be both
+
+Frame 02's paddock beside the timber hall is nearly plumb and nearly complete.
+Frame 15's run is derelict — posts at 20–25°, and well over half the bays have
+lost their rail. **A single band drawn uniformly produces a fence that is
+neither**, which is §10.3.1's failure ("noisy rather than weathered") in a new
+place.
+
+| | **kept** (frame 02) | **derelict** (frame 15) |
+|---|---|---|
+| `FENCE_GAP_FRAC` | **0.05–0.15** | **0.30–0.55** |
+| `FENCE_POST_LEAN` | **1–6°** | **6–25°** |
+| what carries the line | the rail | the **post tops**, as a dotted line |
+
+**The form is chosen by the anchor and needs no constant:** a run that encloses
+a field adjacent to a building pad is *kept*; a run on a corridor verge with no
+pad attached is *derelict*. And the derelict form does not lose the picture —
+§10.5 B4's own precedent applies, a regularly spaced dotted line reads as a line
+long after the dots stop being objects.
+
+##### Where they go — derived siting, no tabled distances (§1.6.1's doctrine)
+
+> **`FENCE_ROAD_OFFSET` is DERIVED, not tabled. The run's near edge sits at or
+> beyond `CORRIDOR_WIDTH` from the corridor centreline, and within
+> `CORRIDOR_WIDTH` + 4 m of it.**
+
+**The floor is a Rule 48 argument and it is the load-bearing part of this
+brief.** §2.4's corridor relief mask (`WorldgenRelief.cpp`) is **zero** inside
+`CORRIDOR_WIDTH`/2 and ramps to full only at `CORRIDOR_WIDTH` from the
+centreline. **A fence closer than that stands on ground that is authored flat,
+so its rail line is straight by construction and the frame can never fail** —
+the criterion would be measuring the corridor's own flattening invariant, not
+the terrain. At today's `CORRIDOR_WIDTH` = 10 m the band is 10–14 m from the
+centreline, i.e. 5–9 m outside the travelled way; **if the corridor narrows, the
+offset follows it without anyone re-arguing a metre value.**
+
+> **`FENCE_APPROACH_LENGTH` is derived too: fence runs line a corridor over the
+> last 30 × (the site's tallest built mass) of its approach** — the distance at
+> which the site is already an object under Rule 33. For a hamlet of 7 m
+> buildings that is ~210 m. A fence leads the eye *to a thing the eye can
+> already see*; a fence leading toward nothing legible is an arrow with no
+> target. Fences are otherwise **sited, not scattered** — same call as B4's, and
+> for the same reason (a per-hectare number here would create a second placement
+> authority).
+
+##### Cost, corrected honestly
+
+A 60 m run at 2.0 m spacing is 31 posts and 30 bays: **31 × 10 + 30 × 4 ≈ 430
+triangles.** The brief and the lead's instruction both quote ~350; that figure
+was taken at 2.4 m spacing, and the anti-aliasing tightening above costs about
+80 triangles per run. **Still the cheapest thing in this document per unit of
+frame, and the number should travel corrected rather than round.**
+
+##### The one number B3 asks for that is not a size
+
+> **`FENCE_RAIL_DEVIATION_MIN` = 0.10 m**, RMS deviation of the rail attachment
+> height from the best-fit straight line over a run, **computed in the generator**
+> from post base heights, read at `ACCEPTANCE_PERCENTILE` = 5 over runs.
+
+**Constructed exactly like §10.1.2's original σ floor and deliberately below
+what the approved octaves predict** — the micro octave alone (0.3–0.6 m over
+8–16 m) leaves ~0.15–0.30 m of residual over a 20 m run, so a correct build
+passes with margin and a run sited on flattened ground fails. **And it does not
+repeat σ's mistake** (§10.12): σ was a proxy for slope; this is the line's own
+straightness, which *is* the property the failure statement names. Its zero-dose
+control is well behaved — a fence on the corridor pad reads exactly 0.000.
+
+---
+
+#### 10.14.3 B5 — KERBS, STEPS, RETAINING WALLS. RELEASED, and one requested row deleted before it was approved
+
+The ruling B5 exists to produce stands unchanged. **Its constant does not.**
+
+> **`BUILT_EDGE_LEVEL_CHANGE_MIN` = 0.4 m is WITHDRAWN as a row before it lands.
+> The rule is `PLAYER_STEP_HEIGHT`.**
+>
+> A level change the player can walk over needs no architecture; a level change
+> the player cannot walk over is exactly the one a built place resolves with a
+> kerb, a step or a wall. `PLAYER_STEP_HEIGHT` = 0.35 m already *is* that
+> boundary, and 0.4 m was a rounded copy of it — Rule 39, the same call as
+> `TOWER_MINOR_DIM_PER_DISTANCE` and the one-shade-step floor of §10.10.2. **A
+> constant that a second constant defines to within 14 % is a shadow copy that
+> will drift the first time either moves.**
+
+##### Sizes, with the derivations attached
+
+| constant | proposed | why |
+|---|---|---|
+| `KERB_HEIGHT` | **0.15–0.30 m** | The ceiling is derived: **a kerb the player must jump is a wall.** `PLAYER_STEP_HEIGHT` = 0.35 m, less a 0.05 m margin so a kerb on a 5° pad (`BUILDING_PAD_SLOPE_MAX` = 0.09 rad) is still steppable at its high end |
+| `STEP_RISE` | **0.15–0.20 m** | Agrees with `PLAYER_STEP_HEIGHT` with 1.75× to spare, which is what §10.5 flagged for Rule 35 and what movement has to co-sign. Frame 10's flights read ~0.19 m rise |
+| `STEP_TREAD` | **0.30–0.45 m** | Frame 10 reads ~0.30 m. Kept wide at the top of the band deliberately: 2R + T lands at 0.70–0.75 m against a real-world comfort figure of ~0.63, i.e. **our stairs are shallower than real ones**, which is the right side to err on for a walker with no stair animation yet (в24) |
+| `RETAINING_WALL_HEIGHT` | **0.8–2.5 m** | Frame 07's dry-stone wall reads ~1.5–2 m at the street |
+| `RETAINING_WALL_BATTER` | **3–8°**, into the bank | unchanged |
+| `KERB_STRAIGHT_RUN_MAX` | **12 m** | **Provenance stated because it is measured, not derived:** scaled against frame 10's doorways (~2.1 m), the longest unbroken straight terrace edge in that plaza is 5–6 door-heights, ≈ 11–13 m. The reference frames are the authority for a composition rule (§7.1's oldest clause), and a measured figure off the reference is stronger than a figure derived from an unrelated constant |
+
+##### The consequence core actually needs, and it is a count rather than a density
+
+**The hamlet common already contains a level change it must resolve.** At
+`BUILDING_PAD_SLOPE_MAX` = 0.09 rad across `HAMLET_COMMON_RADIUS` = 15–25 m, the
+common falls **2.7–4.5 m corner to corner**. At `PLAYER_STEP_HEIGHT` = 0.35 m
+per built edge that is **eight to thirteen kerb, step or wall lines across one
+hamlet common** — not a target, a consequence of two constants that were already
+approved.
+
+That is the number to hand core: **a hamlet floor is not "add some kerbs", it is
+about ten built edges, and a hamlet with two is failing an arithmetic
+requirement rather than a taste one.** Cost: a kerb run is ~2 triangles per
+metre, so ten runs of 15 m ≈ **300 triangles for the entire settlement floor.**
+
+---
+
+#### 10.14.4 B4 — TOWERS. RELEASED, and I have to correct my own correction to `REFERENCE_FRAMES.md`
+
+§10.5 B4 and the correction I filed against `REFERENCE_FRAMES.md` both say frame
+06's readable unit is «the whole assembly, gap included». **I opened the frame
+again and that is not what it shows.**
+
+> **CONJOINED, NOT ADJACENT.** Frame 06 contains **two tower masses ~25 m
+> apart**, and each mass is itself **two or three drums sharing wall** — a
+> contiguous plan extent of roughly 8–10 m, not a single 5–6 m drum. *That* is
+> the assembly that reads, and it anchors to **240–300 m**, not 180.
+>
+> The timber span between the two masses is **composition and route, not
+> silhouette mass.** At 240 m a 0.4 m beam is a tenth of `SILHOUETTE_MIN_PX`; it
+> contributes nothing to the outline and cannot join two masses into one.
+>
+> **RULING: a gap joins two masses into one readable mass only if the gap is
+> filled with material of the same order as the masses.** A curtain wall does
+> it, a shared plinth does it, **a beam does not.** So «build a group» was half
+> an answer: to anchor at 500 m you still need 17 m of *contiguous* plan
+> dimension, and a group delivers that only when the group is contiguous — a
+> keep, a gatehouse block, a walled bailey.
+
+**This makes the brief cheaper, not more expensive:** two conjoined 5 m drums
+buy 240 m of anchor for barely more geometry than one, and that is the whole
+trick frame 06 is doing.
+
+| constant | proposed | why |
+|---|---|---|
+| `TOWER_DRUM_DIAMETER` | **4.5–7.0 m** | frame 06, read against the figure standing on the right mass's platform |
+| `TOWER_DRUM_HEIGHT` | **10–16 m** | same frame |
+| `TOWER_DRUMS_PER_CLUSTER` | **2–3, conjoined** | walls interpenetrating, not tangent — a tangent pair has a re-entrant notch at the join and reads as two |
+| `TOWER_CLUSTER_PLAN_MIN` | **8.0 m** | the contiguous minor plan dimension that makes the cluster a 240 m object. Below it the cluster is a 180 m object wearing a group's costume |
+| `TOWER_CROWN_NOTCH_DEPTH_MIN` | **0.5 m** | **re-scoped: this is a WALK-PAST rule, not a silhouette rule.** 0.5 m clears `SILHOUETTE_MIN_PX` only inside 15 m, and saying so stops it being cited as a distance guarantee |
+| `TOWER_CROWN_NOTCH_COUNT_MIN` | **3** | unchanged |
+| `MASONRY_BLOCK_YAW_MAX` / `MASONRY_COURSE_OFFSET_MAX` | **8° / 0.15 m** | unchanged (§10.3.3) |
+
+##### `TOWER_CROWN_LINE_VARIATION_MIN` becomes DERIVED, and it moves A3's standpoint from taste to arithmetic
+
+The tabled 1.0 m does not survive its own Rule 33 check: **at A3's 60–100 m
+standoff, 1.0 m of crown variation is 0.5–0.8 pixels.** The clause that says
+«the crown must not read as a smooth arc» was untestable at the distance I chose
+to test it.
+
+> **`TOWER_CROWN_LINE_VARIATION_MIN` = d_site / 30**, the same
+> `SILHOUETTE_MIN_PX` unit as everything else — **so it is not a new constant,
+> it is that one restated, exactly like `TOWER_MINOR_DIM_PER_DISTANCE`.**
+
+And it produces a real bound: a 12–14 m ruin can carry about 4 m of crown
+variation before it stops being a tower and becomes a stump, so **its crown
+reads to ~120 m while its mass reads to ~240 m.** Two distances, and the smaller
+binds the frame that tests the crown.
+
+> **A3's 60–100 m standoff is CONFIRMED, and now for a reason instead of by
+> feel.** It was right; it had no derivation until this paragraph.
+
+**Siting stays under §1.3/§1.3a (no density), and B4 keeps its attachment to
+B2**: on rock, never on graded soil, with a talus skirt of B1 boulders that
+satisfies B1's source rule by construction.
+
+---
+
+#### 10.14.5 B8 and B9 — released with **no new numbers for B8 at all**
+
+**B8 (spans and bridges).** Frame 04 at ~80 m is a dark bar with two bright
+apertures, and that is the entire recognition. The rule stands as written and
+its constant is `ARCH_OPENING_PER_DISTANCE` = 1/30, which §10.7 already records
+as `SILHOUETTE_MIN_PX` restated. **So B8 asks for nothing.** The prop at 15–35°
+is already in §10.3.2's table. Siting belongs to §3 and to core's corridor pass.
+
+**B9 (windmill).** `SiteKind::Hamlet` exists in the generator, so this brief has
+a consumer today.
+
+| constant | proposed | why |
+|---|---|---|
+| `WINDMILL_SAIL_SPAN` | **8–12 m** | reads to 240–360 m, the best silhouette a hamlet can buy for its cost |
+| `WINDMILL_SAIL_CROSS_ANGLE` | **45 ± 15°** from vertical | the whole point of the object: four diagonals where everything else built throws verticals |
+
+**One observation from the frame that changes the asset and not the numbers:**
+frame 02's sails are an **open lattice**, not solid vanes. The read is four
+lines, so the cross must be built as frames rather than as quads — a solid sail
+at 300 m is a blob and loses the diagonals the class exists for.
+
+---
+
+#### 10.14.6 What is deliberately NOT requested
+
+**B7's `SNAG_LEAN_*` and `SNAG_LEAN_AZIMUTH_SPREAD` are withheld.** §5.9's snag
+constants are marked **НЕ ПОСТРОЕНО with no consumer**, and a lean angle for an
+object nobody places is a number that will drift silently until the day someone
+builds it. B7's content is unchanged and stays in §10.5; **it enters NUMBERS.md
+on the day the snag has a consumer, not before.** Same call for
+`ROCK_STRATUM_*` (§10.13.5).
+
+---
+
+#### 10.14.7 NUMBERS REQUESTED (Rule 35 — via lead)
+
+Rows superseding §10.7 are marked; **§10.7's superseded values must be replaced,
+not shadowed** (Rule 39).
+
+| constant | proposed | unit | second zone |
+|---|---|---|---|
+| `FENCE_POST_HEIGHT_MIN` / `_MAX` | **1.1 / 1.6** | m | core — *supersedes 0.9 / 1.5* |
+| `FENCE_POST_SPACING_MIN` / `_MAX` | **1.5 / 2.0** | m | core — *supersedes 1.8 / 3.0* |
+| `FENCE_RUN_LENGTH_MIN` / `_MAX` | **20 / 80** | m | core — *supersedes 15 / 80* |
+| `FENCE_RAIL_HEIGHT_FRAC` | **0.75** | fraction of post height, **from the base** | core |
+| `FENCE_GAP_FRAC_KEPT_MIN` / `_MAX` | **0.05 / 0.15** | fraction | core — *supersedes the single 0.10 / 0.30* |
+| `FENCE_GAP_FRAC_DERELICT_MIN` / `_MAX` | **0.30 / 0.55** | fraction | core |
+| `FENCE_POST_LEAN_KEPT_MIN` / `_MAX` | **1 / 6** | ° | core — *supersedes the single 3 / 15* |
+| `FENCE_POST_LEAN_DERELICT_MIN` / `_MAX` | **6 / 25** | ° | core |
+| `FENCE_POST_YAW_MAX` | 10 | ° about the run | core |
+| `FENCE_RAIL_DEVIATION_MIN` | **0.10** | m RMS, generator-side, p05 | core (computes) + render (frame confirms) |
+| `KERB_HEIGHT_MIN` / `_MAX` | 0.15 / 0.30 | m | core |
+| `STEP_RISE_MIN` / `_MAX` | 0.15 / 0.20 | m | **core + movement** (`PLAYER_STEP_HEIGHT`) |
+| `STEP_TREAD_MIN` / `_MAX` | 0.30 / 0.45 | m | core |
+| `RETAINING_WALL_HEIGHT_MIN` / `_MAX` | 0.8 / 2.5 | m | core |
+| `RETAINING_WALL_BATTER_MIN` / `_MAX` | 3 / 8 | ° | core |
+| `KERB_STRAIGHT_RUN_MAX` | 12 | m | core |
+| `TOWER_DRUM_DIAMETER_MIN` / `_MAX` | **4.5 / 7.0** | m | core |
+| `TOWER_DRUM_HEIGHT_MIN` / `_MAX` | **10 / 16** | m | core |
+| `TOWER_DRUMS_PER_CLUSTER_MIN` / `_MAX` | **2 / 3** | drums, conjoined | core |
+| `TOWER_CLUSTER_PLAN_MIN` | **8.0** | m, contiguous | core |
+| `TOWER_CROWN_NOTCH_COUNT_MIN` | 3 | notches | core |
+| `TOWER_CROWN_NOTCH_DEPTH_MIN` | 0.5 | m (**walk-past rule**) | core |
+| `MASONRY_BLOCK_YAW_MAX` | 8 | ° | core |
+| `MASONRY_COURSE_OFFSET_MAX` | 0.15 | m | core |
+| `WINDMILL_SAIL_SPAN_MIN` / `_MAX` | 8 / 12 | m | core |
+| `WINDMILL_SAIL_CROSS_ANGLE` | 45 ± 15 | ° from vertical | core |
+
+**Withdrawn before approval, and each is a Rule 39 shadow copy:**
+
+| withdrawn | because |
+|---|---|
+| `BUILT_EDGE_LEVEL_CHANGE_MIN` = 0.4 m | it is `PLAYER_STEP_HEIGHT` = 0.35 m, rounded |
+| `TOWER_CROWN_LINE_VARIATION_MIN` = 1.0 m | it is `SILHOUETTE_MIN_PX` restated: **d_site / 30** |
+| `FENCE_ROAD_OFFSET_MIN` / `_MAX` = 2 / 5 m | derived from `CORRIDOR_WIDTH`, not tabled (§10.14.2) |
+| `FENCE_RAIL_SAG` (never tabled, and now never will be) | 0.05 m of sag is under a pixel past ~10 m at `INTERNAL_RES`. The readable thing is the **kink at every post**, which a per-bay straight rail gives for free |
+| `SNAG_LEAN_*`, `SNAG_LEAN_AZIMUTH_SPREAD` | **no consumer** (§10.14.6) |
+
+#### 10.14.8 ACCEPTANCE — A2 corrected, A7 added (Rule 27)
+
+| # | ref | our standpoint | what would make it FAIL |
+|---|---|---|---|
+| **A2** *(corrected)* | **15** | on a corridor, looking **along** it, with a fence run in frame **whose posts stand outside `CORRIDOR_WIDTH` from the centreline**, low sun | the fence's **RAIL** line is straight in screen space over the whole run; every post plumb; boulders sitting on the surface rather than emerging |
+| **A7** *(new)* | **07 + 14** | standing on a hamlet common, looking across it, low sun raking the floor | any level change ≥ `PLAYER_STEP_HEIGHT` inside the pad is a grass ramp; a kerb runs dead straight for more than 12 m; the built floor meets natural ground with no edge between them; **fewer built edges than the pad's own slope requires** |
+
+**Two things A2 must not be allowed to certify.** First: the top line is not the
+instrument (§10.14.2) — a frame read on post tips is reading lean. Second, and
+it is the one that would quietly hollow the test out: **a fence sited on the
+corridor pad passes A2 by construction**, which is why the standpoint predicate
+names the offset rather than leaving it to whoever shoots the frame.
+
+---
+
+### 10.15 THE FOUR OPEN ITEMS — closed, and three of the four close against my own lines
+
+The lead is right that these block other zones. Each is ruled here; **none is
+ruled by moving a threshold.**
+
+#### 10.15.1 REJECTION 3 — the span floor is RETIRED today, and the replacement is a ratio, not a new dimension
+
+flora did this correctly: measured, reported, refused to assert. The state is
+that **foliage span no longer separates** (accepted oak 0.32–0.44 against a
+rejected birch bounded at ≤ 0.42), **foliage base does not either** (rejected
+0.58 against an accepted pine at 0.51–0.60), and **limb spread does not either**
+(accepted oak 0.166 *below* the rejected birch's 0.17–0.19).
+
+> **RULING 1: `FOLIAGE_SPAN_MIN` = 0.28 is RETIRED, not left standing.** It
+> rejects a synthetic rosette and nothing else, and the pole-ratio clause below
+> rejects that rosette too. **A weakened threshold that still looks like an
+> invariant is worse than an admitted gap** — flora's own sentence, and it is
+> right. Nothing is lost by the retirement: `LIMB_SPREAD_MIN` = 0.15 still
+> rejects the synthetic palm at 0.06.
+
+##### Why no single dimension can work, stated so nobody tries a fourth
+
+**The accepted birch and the rejected birch differ in exactly one authored
+input** — the crown base, 0.40 against 0.58. Crown *width* was never touched. So
+**no purely horizontal quantity can separate that pair**, and the vertical one
+that does separate it (span, 1.29×) fails only because the oak's widening moved
+the oak. The separating quantity has to be one in which **the oak's small span
+is paid for by its large width** — that is, a quantity carrying both.
+
+##### The quantity, and it is the palm's own definition
+
+> **`CROWN_POLE_RATIO` = (height of the lowest foliage) / (crown width).**
+> Both measured on **built geometry**, never on the authored container.
+>
+> **A tree is a pole with a tuft on top when its bare bole is longer than its
+> crown is wide.** That is the sentence the user's rejection was describing, and
+> it has been sitting in plain language the whole time.
+
+Predicted from approved constants, and these are **predictions, not
+measurements** — the arithmetic is mine, the geometry is flora's:
+
+| | bole / crown width | source |
+|---|---|---|
+| Dale Oak | **0.50–0.60** | base 0.35–0.42, crown/height 0.70 (`TREE_WIDTH_SCALE`) |
+| River Birch, accepted | **≈ 1.1–1.2** | base 0.40–0.45, width 6–8 m on 16–22 m |
+| **River Birch, REJECTED** | **≈ 1.8** | base 0.58, width 5–7 m on 16–22 m |
+| synthetic palm | ≫ 3 | rosette at 0.90 |
+
+> **`CROWN_POLE_RATIO_MAX` = 1.4 — PROPOSED, and it is NOT a gate until flora
+> measures it.** 1.4 sits ~25 % above the highest predicted accepted value and
+> ~25 % below the rejected artefact, which is the same construction that placed
+> `CROWN_ASPECT_MAX` at 2.0 in a 1.29× interval.
+
+**The measurement that must happen before it becomes a gate**, and the acceptance
+condition for the constant itself (Rule 30's sharpening, which is design's own):
+
+1. Measure on built geometry, **per variant, never pooled** (§5's own lesson).
+2. **The rejected birch is rebuilt as the control** — `BIRCH_CROWN_BASE_FRACTION`
+   at 0.58 — because a synthetic control is the easy reject and the artefact the
+   user actually turned down is the hard one.
+3. The threshold must sit **strictly between the highest accepted and the
+   rejected artefact.** If no value does, **the quantity is wrong and it is
+   reported as wrong** rather than shipped with a floor under everything.
+4. **Watch item, flagged because my own arithmetic finds it:** the birch's width
+   band (6–8 m) and height band (16–22 m) drawn *independently* can produce a
+   legal birch at ratio 1.65, over the proposed ceiling. `TREE_WIDTH_SCALE`'s
+   note says width is drawn **with allometry**, i.e. correlated with height, and
+   under that correlation the worst legal birch lands near 1.22. **If width and
+   height are in fact drawn independently, this constant fails on the accepted
+   species and the finding is about the draw, not about the threshold.**
+
+##### The conifer, exempted with the gap named rather than papered
+
+`CROWN_POLE_RATIO` puts our pine at ~2.4–3.3 — **above the rejected birch** —
+and the pine is accepted, because a mature conifer genuinely *is* a long bare
+bole under a crown. **The pine is exempt, by the same door `CROWN_ASPECT_MAX`
+already uses: cone/spire species are exempt by their written brief.**
+
+**But an exemption without a replacement is a hole, so it gets one:**
+
+> **REJECTION 2's control set must gain a «pine pole» — a conifer with whorls
+> only in the top 15 % of its height — and REJECTION 2 must REJECT it.** My
+> reading of its instrument says it will (roughness is mean absolute change in
+> row fill, and a stick with one tuft has almost none), **but that is a
+> prediction and it must be run.** If REJECTION 2 passes the pine pole, **the
+> conifer has no palm sentinel at all**, and that is the finding, not a reason
+> to widen `CROWN_POLE_RATIO` until it fits a cone.
+
+#### 10.15.2 The 229 m² floor — RETIRED as a gate, re-denominated, and the 2.5× margin is probably hiding a LOSS
+
+`FLORA_PRESENTED_AREA_FLOOR_M2` = 229 is an **accepted-sample floor**: the worst
+azimuth of the build the user called «листва прикольная». Its control is «half
+density must fail». **After the crown widening the control passes**, so the
+floor permits a crown with half its leaf material. **A floor whose control can
+no longer fail is a description** (Rule 30), and this one has become one.
+
+**The diagnosis is structural, not a matter of re-baselining:**
+
+> **Presented area conflates EXTENT and DENSITY, and the widening moved extent.**
+> A crown 45 % wider presents more area **for free**, without being any fuller.
+> The quantity therefore responds to a lever that is not the one it exists to
+> guard — which is §10.12's σ failure in a different zone: *a sound,
+> falsifiable, well-controlled criterion aimed one quantity to the left of the
+> target* (Rule 41).
+
+> **RULING: `FLORA_PRESENTED_AREA_FLOOR_M2` is RETIRED as a gate and stays
+> REPORTED as a diagnostic** — the same disposal as `GROUND_RELIEF_SIGMA_20M_MIN`,
+> and for the same reason. **Do not re-baseline it to 2.5× its value:** that
+> fits a threshold to a proxy that is structurally incapable of gating the
+> property (Rule 45's distinction).
+>
+> **The replacement divides the extent out.** `FLORA_CROWN_OPTICAL_DEPTH` =
+> **(presented card area) / (crown's own presented silhouette area)**, both at
+> the **worst of 36 azimuths**, both on built geometry. It is a dimensionless
+> "layers of leaf" number.
+
+Four properties, each earning its place:
+
+- **The control fails by construction.** Halving the cards halves the numerator
+  and leaves the denominator alone, so the half-density arm drops by exactly 2×.
+  **Rule 48's positive form is satisfied by the shape of the quantity, not by a
+  lucky threshold.**
+- **It cannot be bought with width.** Widening raises numerator and denominator
+  together, which is what a fullness measure should do and what the absolute
+  floor did not.
+- **It serves both existing consumers unchanged** (Rule 35): flora checks
+  against it, and render's «cards buy angular coverage, ≥ 3 planes» is still
+  expressible in it, because the worst-azimuth aggregation is unchanged.
+- **It makes the open LOD gap legible instead of maskable.** Reduced detail
+  measured 208 m² against 229 — a 9.2 % miss that a wider crown could have
+  erased without adding a leaf. Under a ratio it cannot.
+
+> **PREDICTION, recorded before the measurement so it is not discovered as a
+> surprise (§10.10.2's discipline): the ratio has probably FALLEN.** Presented
+> area rose ~2.5×; crown silhouette area rose by at least the width factor and
+> the depth factor together. **If the ratio is below the pre-widening build's,
+> the 2.5 × "margin growth" has been reporting a fullness loss as a safety
+> margin.** The anchor for the new floor is that pre-widening build — the one
+> the user approved by eye — measured under the new denominator.
+
+**Value deliberately not assigned.** Three measurements set it and none of them
+is mine: the pre-widening accepted build (the anchor), today's shipped build,
+and the half-density control. **The floor goes between the control and the
+anchor**, and if today's build is under the anchor that is the finding.
+
+#### 10.15.3 `CROWN_BASE_FRACTION_MIN` — the fraction goes, and the absolute that replaces it is NOT 2.2 m
+
+The lead's diagnosis is right and it is my own lesson pointed at me: 0.35 was
+derived on an **8 m** oak (2.8 m of clear trunk) and is applied to a **24–32 m**
+one, where it yields 8.4–11.2 m against a stated requirement of 2.2 m.
+
+> **RULING: `CROWN_BASE_FRACTION_MIN` = 0.35 is RETIRED as the walkability gate.
+> A fraction of height was always a proxy for an absolute clearance, and the
+> absolute exists.** Fifth instance of the family §5 already named — *a model
+> change can invalidate a constant's derivation without changing its number* —
+> and here the model change was the tree tripling in height.
+>
+> **`CROWN_BASE_FRACTION_MAX` = 0.45 survives**, for the same reason
+> `GROUND_RELIEF_SIGMA_20M_MAX` survived: **the ceiling's job genuinely is a
+> fraction.** A crown starting above 45 % of height is a proportion failure at
+> any size, and that is scale-free. Only the floor falls.
+
+##### And the absolute cannot be 2.2 m, because 2.2 passes the artefact the user rejected
+
+**`CANOPY_CLEARANCE_MIN` = 2.2 m sits BELOW the real rejection.** Its own
+NUMBERS row records the complaint: «кроны начинались на **2.7 м**, игрок шёл
+СКВОЗЬ листву». **2.7 > 2.2.** The gate that is supposed to guarantee walking
+*under* the canopy would pass the build in which the player walked *through* it.
+
+> **This is design's own sharpening of Rule 30, and it lands on design's own
+> constant: a floor placed below every real failure is a description, not a
+> test.** I recommended exactly this to flora about the synthetic palm control,
+> and did not run it across my own rows.
+
+> **PROPOSED: `CANOPY_CLEARANCE_MIN` 2.2 → 3.6 m.** Derived, then checked
+> against the rejected sample — in that order. **The derivation:
+> 2 × `PLAYER_CAPSULE_HEIGHT` (1.8 m)** is the point at which a ceiling reads as
+> a *hall* rather than as a *doorway*, and «ходить ПОД пологом» is a request for
+> the first. **The check:** 3.6 m sits **33 % above the rejected 2.7 m**, so the
+> gate now catches the artefact it exists to catch.
+
+**The one measurement that could move it, and it must be taken before approval:**
+the **lowest clear trunk across the whole accepted catalog on built geometry**,
+including the riparian willow (base 0.30–0.35, and its height is not in
+NUMBERS.md — I did not have it and did not guess it). **If any accepted species
+measures below 3.6 m, the floor moves to the symmetric point between it and
+2.7 m; if any accepted species measures below 2.7 m, the quantity is wrong and
+that is the finding.** Predicted safe: birch 0.40 × 16 m = 6.4 m, oak
+0.35 × 24 m = 8.4 m — both clear with 1.8–2.3× to spare.
+
+**Nothing about the giant oak is touched:** its steps and platforms are §5's and
+GIANT_OAKS.md's, and a 3.6 m clearance is a fifth of its bole.
+
+#### 10.15.4 The clearing в9 — the exemption is WITHDRAWN, because I misread the contract I was exempting
+
+Core measured the clearing at **80 m against `AUTHORED_FLAT_RADIUS_MAX` = 50 m**
+and correctly refused to bend either side. **Neither side has to bend, because
+the exemption should never have been granted.**
+
+I read «спокойная» as «ровная». **They are different bands, and the code says
+so:**
+
+- `glade_factor()` multiplies the **meso** tier only — `forest_grive_component`
+  (LF-2's 2–5 m ridge-and-swale field) and `meso_scale` into `ground_relief`.
+- **§2.7's micro octave passes through the clearing untouched**, and
+  `WorldgenForest.cpp`'s own note records the change that made it so.
+- **в9's own dictionary entry demands the opposite of flatness.** §2.10 LF-1:
+  «base field + §2.7 micro-relief (0.3–0.6 m waves), **NO meso hills**»;
+  acceptance «the eye-height horizon frame shows **waves, not a billiard
+  table**»; control «the pre-§2.7 flat plane — the real rejected instance
+  («земля плоская») **fails**».
+
+> **RULING: §10.12.6's exemption for в9 is WITHDRAWN. в9 is bound by
+> `GROUND_OCCLUSION_COUNT_MIN` = 3 like any other legal ground.**
+> `AUTHORED_FLAT_RADIUS_MAX` = 50 m **does not move and does not need to**: it
+> continues to bound the places that genuinely are authored flat — corridors,
+> building pads, the castle terrace, the shore band — and the 80 m clearing was
+> never one of them. **The conflict was mine, and it dissolves rather than being
+> waived or bent.**
+
+**And withdrawing it exposes what the exemption would have hidden**, which is
+why this matters beyond the bookkeeping:
+
+> **в9 measured σ = 0.119 m.** Its micro octave alone, at the approved
+> `GROUND_MICRO_AMPLITUDE` 0.3–0.6 m, predicts a detrended σ near
+> **0.19–0.38 m** — the clearing is delivering **under half of the amplitude its
+> own approved octave specifies.** The exemption would have certified that as
+> authored calm. **This is exactly the failure §10.1.2 was built to catch: «a
+> floor that catches a MISSING octave rather than a re-litigation of an approved
+> one.»**
+
+**Handed to core as a measurement, not as a claim** — the amplitude may be drawn
+from a distribution and 0.119 may be one sample of it. What core should report
+is the micro octave's realised amplitude distribution inside в9 against its own
+approved band.
+
+**And the arithmetic says the clearing can pass on micro relief alone**, so this
+is not a request for an exemption in a new costume. For a wave of length L, the
+crest hides the trough at ranges of order L, where the grazing angle is
+atan(1.7/L):
+
+| L | RMS slope at σ = 0.30 m | grazing angle at d = L | occludes? |
+|---|---|---|---|
+| 8 m | **13.5°** | 12.0° | yes |
+| 12 m | 9.0° | 8.1° | yes |
+| 16 m | **6.8°** | 6.1° | yes, thinly |
+
+**At the approved amplitude the micro octave clears its own grazing angle across
+the whole 8–16 m band, by 12–20 %.** Thin, and thin in the same direction
+§10.12.3 found for the meso band — **the short end of the wavelength range is
+where the margin lives, at both tiers.** That is now two independent bands
+saying the same thing, which is worth more than either alone.
+
+##### Numbers (Rule 35, via lead)
+
+| constant | action | note |
+|---|---|---|
+| `CROWN_POLE_RATIO_MAX` | **new, = 1.4 — PROPOSED, not a gate** | flora measures first; the threshold must sit strictly between the highest accepted and the rebuilt rejected birch, or the quantity is reported wrong (§10.15.1) |
+| `FOLIAGE_SPAN_MIN` = 0.28 | **RETIRE** | separates nothing; the rosette is caught by `LIMB_SPREAD_MIN` and by the pole ratio |
+| `FLORA_PRESENTED_AREA_FLOOR_M2` = 229 | **RETIRE as a gate**, keep reported | its control can no longer fail; do **not** re-baseline it |
+| `FLORA_CROWN_OPTICAL_DEPTH_MIN` | **new, value TBD by three measurements** | presented card area / crown silhouette area, worst of 36 azimuths; floor between the half-density control and the pre-widening accepted build |
+| `CROWN_BASE_FRACTION_MIN` = 0.35 | **RETIRE as the walkability gate** | a fraction proxying an absolute that already exists |
+| `CROWN_BASE_FRACTION_MAX` = 0.45 | **unchanged** | the ceiling's job genuinely is a fraction |
+| `CANOPY_CLEARANCE_MIN` | **2.2 → 3.6** | m; 2 × `PLAYER_CAPSULE_HEIGHT`, and 33 % above the **rejected** 2.7 m the old value passed |
+| `AUTHORED_FLAT_RADIUS_MAX` = 50 m | **unchanged** | в9 is no longer claimed under it (§10.15.4) |
+| `BUILT_EDGE_LEVEL_CHANGE_MIN` = 0.4 m | **WITHDRAW before approval** | it is `PLAYER_STEP_HEIGHT` rounded (Rule 39) |
+| `TOWER_CROWN_LINE_VARIATION_MIN` = 1.0 m | **WITHDRAW before approval** | it is `SILHOUETTE_MIN_PX` restated: d_site / 30 |
