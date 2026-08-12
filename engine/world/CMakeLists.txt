@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 11:08:2026 - 15:15:55
+# Last updated: 12:08:2026 - 22:51:00
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -40,6 +40,8 @@
 #                          between the engine and a save file the user can
 #                          actually write.
 # - 11:08:2026 - 15:15:55: WorldgenRelief.cpp + WorldgenOutcrop.cpp (§2.7 general relief, §10.5 B2 rock).
+# - 12:08:2026 - 22:51:00: WorldgenGreatOak.cpp (GIANT_OAKS §2 placement: the
+#                          clearing, and the rarity derived from read distance).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -55,6 +57,7 @@ add_library(dfn_world STATIC
     sources/WorldgenErosion.cpp
     sources/WorldgenFinds.cpp
     sources/WorldgenForest.cpp
+    sources/WorldgenGreatOak.cpp
     sources/WorldgenHydrology.cpp
     sources/WorldgenMacro.cpp
     sources/WorldgenPaths.cpp

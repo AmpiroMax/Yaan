@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:55:00
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.h
 
@@ -41,6 +41,10 @@ UPD:
   ITS OWN ground, and the acceptance must divide by the area the placement
   multiplied by.
 - 11:08:2026 - 15:15:55: build_scatter takes the whole WorldGenContext instead of six pieces. A signature that cannot express 'some of the passes' cannot drift from the ground that ships.
+- 12:08:2026 - 22:55:00: canopy_height_at takes the CONTEXT. The tallest and by
+  far the widest occluder in the world (a great oak, 48 m tall and 96 m across)
+  stands in a CLEARING — exactly where the forest mask reports open sky — so the
+  old (seed, layout) signature could not have heard about it.
 */
 
 #pragma once
@@ -81,8 +85,14 @@ namespace dfn::world {
 /// raycast (§1.1: the occlusion heightfield is terrain PLUS canopy): the
 /// species' §5 max height inside a forest mass, 0 in clearings, on the crag
 /// treeless band and outside masses. `terrain_h` = terrain height there.
-[[nodiscard]] float canopy_height_at(uint64_t seed, const TestbedLayout& layout,
-                                     glm::vec2 world, float terrain_h);
+///
+/// TAKES THE CONTEXT, not (seed, layout), since 12.08.2026 — because the tallest
+/// and by far the widest occluder in the world is not in the layout: a great
+/// oak stands in a CLEARING, i.e. exactly where the forest mask reports open
+/// sky. Passing the pieces let a caller ask this question without being able to
+/// hear that answer.
+[[nodiscard]] float canopy_height_at(const WorldGenContext& gen, glm::vec2 world,
+                                     float terrain_h);
 
 /// All scatter instances whose positions fall inside [chunk_min, chunk_max)
 /// (world meters, half-open so chunk borders never duplicate instances).

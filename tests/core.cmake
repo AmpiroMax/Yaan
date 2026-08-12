@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 11:08:2026 - 14:23:03
+# Last updated: 12:08:2026 - 22:53:00
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -45,6 +45,11 @@
 #                          plus a trend-ranked (never sigma-ranked) sweep of
 #                          the flattest legal ground. Runs from the repo ROOT
 #                          for the same reason test_layout_load does.
+# - 12:08:2026 - 22:53:00: test_great_oak (docs/GIANT_OAKS.md §2): the landmark
+#                          tree's placement, measured IN THE GENERATOR with its
+#                          zero-dose arm (DFN_NO_GREAT_OAK) in the same binary.
+#                          Runs from the repo ROOT: it opens the shipped layout
+#                          asset the way the app does.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -57,6 +62,7 @@ add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
+add_dfn_test(test_great_oak core/GreatOakTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)
 add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 # Links dfn_render for the SAME reason test_lod_seam does: it checks two zones

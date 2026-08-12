@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:55:00
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -138,6 +138,8 @@ UPD:
   implementation detail". Measured, not fixed; which composition is right is
   design's.
 - 11:08:2026 - 15:15:55: testbed heightmap re-pinned for a deliberate terrain change (DFN_NO_RELIEF=1 reproduces the old digest byte for byte); LF-8's gully detector left RED-as-WARN because it scores by local depth and cannot tell a meso hollow from a boss flank; BR-5's open defect recorded as it worsens in the honest direction; §5.11 cobble/faint demoted with the proof it predates this work.
+- 12:08:2026 - 22:55:00: canopy_height_at's call updated for its new signature (it takes the context, so it can see the great oak standing in a clearing). The stand itself is untouched: place_great_oaks returns nothing on StandId::Forest, on purpose — lifting a hectare of oaks out of a MEASURED stand would move BR-3/BR-5's denominators without anybody asking.
+
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1707,13 +1709,11 @@ TEST_CASE("the canopy occlusion envelope is the GIANT tier, not the nominal heig
     // "half the world" defect one factor further out than the one the OAK/PINE
     // height constants were introduced to fix.
     const world::WorldGenContext& c = forest();
-    const auto& lay = c.params.layout;
     float best = 0.0f;
     for (float z = 100.0f; z < 900.0f; z += 37.0f) {
         for (float x = 100.0f; x < 900.0f; x += 37.0f) {
             const glm::vec2 p{x, z};
-            best = std::max(best, world::canopy_height_at(c.params.seed, lay, p,
-                                                          world::terrain_height(c, p)));
+            best = std::max(best, world::canopy_height_at(c, p, world::terrain_height(c, p)));
         }
     }
     const auto nominal = static_cast<float>(config::OAK_HEIGHT_MAX);

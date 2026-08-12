@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:55:00
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -28,6 +28,9 @@ UPD:
 - 09:08:2026 - 15:36:59: Large-mass guard implemented over the same grouping (filter to large members, then widest coequal window); PX_PER_RAD factored out of the readability threshold.
 - 09:08:2026 - 19:13:01: C1 CORRECTNESS FIX: the landmark's own body is no longer counted as an occluder of itself. The aim point is peak + L0_AIM_ABOVE_PEAK (fixed) while LANDMARK_CLEARANCE_FACTOR multiplies against terrain essentially at peak height, so near-summit ground out-angled the summit once 0.2*(peak - eye) exceeded the aim margin — above a ~60 m peak the test returned 0.000 for EVERY standpoint regardless of the world, and below it the measure was biased down. Seed 1 C1 was 0.621 measured, is 0.776 true. This invalidated the recorded 'raising the peak lowers clearance' finding, which was an artifact of this bug rather than a property of landmarks.
 - 11:08:2026 - 15:15:55: §10.1's detrended bumpiness probe and the standpoint search, which ranks by TREND and never by the sigma it reports. relief_floor_binds' exemption list aligned to WorldgenRelief's masks -- where they disagreed the floor was being read on ground the generator was told to keep flat.
+- 12:08:2026 - 22:55:00: canopy_height_at(ctx, ...) — the C1 raycast now sees the
+  great oak, which stands in a gap in the forest mask; PX_PER_RAD reads
+  WorldgenPlacement's one definition (it had two in this zone).
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -35,6 +38,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenCastle.h"
+#include "engine/world/sources/WorldgenPlacement.h"
 #include "engine/world/sources/WorldgenScatter.h"
 
 #include <algorithm>
@@ -56,13 +60,14 @@ constexpr float COEQUAL_RATIO = static_cast<float>(config::COEQUAL_ANGLE_RATIO);
 // §1.5 readability: a silhouette needs SILHOUETTE_MIN_PX to read as a shape,
 // so an attractor only competes for attention when its apparent size clears
 // that. Vertical angular resolution = INTERNAL_RES_H / CAMERA_FOV_Y.
-constexpr float PX_PER_RAD =
-    static_cast<float>(config::INTERNAL_RES_H) / static_cast<float>(config::CAMERA_FOV_Y);
-constexpr float READABLE_MIN_APPARENT =
-    static_cast<float>(config::SILHOUETTE_MIN_PX) / PX_PER_RAD;
+// PX_PER_RAD lives in WorldgenPlacement.h now (Rule 32: it had three copies,
+// and a read-distance that disagrees with itself is how "readable" comes to
+// mean two things in one build).
+const float READABLE_MIN_APPARENT =
+    static_cast<float>(config::SILHOUETTE_MIN_PX) / screen_px_per_rad();
 // Large-mass guard: above this apparent size an attractor is a mass, not a
 // mark on the horizon, and three of them crowd even though three marks do not.
-constexpr float LARGE_MIN_APPARENT = static_cast<float>(config::COEQUAL_LARGE_PX) / PX_PER_RAD;
+const float LARGE_MIN_APPARENT = static_cast<float>(config::COEQUAL_LARGE_PX) / screen_px_per_rad();
 constexpr float STANDPOINT_GRID_M = 32.0f; // coarse but deterministic sampling
 constexpr float RAY_STEP_M = 4.0f;
 } // namespace
@@ -149,7 +154,7 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
                 // never be the reason the L0 fails C1).
                 const float occ_top =
                     terrain
-                    + std::max(canopy_height_at(ctx.params.seed, layout, q, terrain),
+                    + std::max(canopy_height_at(ctx, q, terrain),
                                castle_occluder_height(ctx.sites.castle, q));
                 const float t_occ = (occ_top - eye_y) / t;
                 if (t_occ * CLEARANCE > t_l0) {
@@ -260,7 +265,7 @@ CastleHierarchy castle_hierarchy(const WorldGenContext& ctx) {
         for (float t = RAY_STEP_M; t < dist - RAY_STEP_M; t += RAY_STEP_M) {
             const glm::vec2 q = from + dir * t;
             const float terrain = terrain_height(ctx, q);
-            float occ = terrain + canopy_height_at(ctx.params.seed, layout, q, terrain);
+            float occ = terrain + canopy_height_at(ctx, q, terrain);
             if (with_castle) {
                 occ = std::max(occ, terrain + castle_occluder_height(castle, q));
             }
@@ -405,8 +410,6 @@ CastleAccess castle_access(const WorldGenContext& ctx) {
     if (!castle.valid) {
         return out;
     }
-    const TestbedLayout& layout = ctx.params.layout;
-
     // --- Access invariant: walk the ramp centreline from its foot up to the
     // gate threshold at fine spacing. Linear grade means the average IS the
     // local slope; the step check catches any discontinuity a later terrace
@@ -457,7 +460,7 @@ CastleAccess castle_access(const WorldGenContext& ctx) {
             const glm::vec2 q = from + dir * t;
             const float terrain = terrain_height(ctx, q);
             const float occ =
-                terrain + canopy_height_at(ctx.params.seed, layout, q, terrain);
+                terrain + canopy_height_at(ctx, q, terrain);
             if ((occ - eye_y) / t > t_target) return false;
         }
         return true;

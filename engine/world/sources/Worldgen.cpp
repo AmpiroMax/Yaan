@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:55:00
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -79,6 +79,10 @@ UPD:
   written, measured against the un-refined arm, found identical to four decimals
   and DROPPED rather than shipped as a fix for nothing.
 - 11:08:2026 - 15:15:55: §2.7 general relief and §10.5 B2 outcrops compose HERE, once, before the works and pads. AND surface_point() was a FOURTH open-coded copy of the pass stack -- the one that classifies the ground's MATERIAL, so its drift would have read as a splat seam rather than as a failing height test. It calls compose_passes now.
+- 12:08:2026 - 22:55:00: place_great_oaks() runs LAST in build_world_context: the
+  giant's gates read the pads, the entrance works and the L0 sight wedges, so it
+  must be sited against the finished world rather than against the field the
+  sites themselves were placed on.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -304,6 +308,11 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
         });
     }
     ctx.sites = build_sites(params.seed, ctx.params.layout, ctx.hydrology);
+    // GIANT_OAKS §2 — LAST, and the order is the whole reason it is here and
+    // not in the scatter pass: the giant's own gates read the pads, the
+    // entrance works and the L0 sight wedges, so it must be sited against the
+    // finished world rather than against the field the sites were placed on.
+    ctx.great_oaks = place_great_oaks(ctx);
     return ctx;
 }
 

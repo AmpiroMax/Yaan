@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 11:51:23
+Last updated: 12:08:2026 - 22:41:00
 Module: engine/core/math
 File: engine/core/math/sources/SurfaceField.h
 
@@ -48,6 +48,12 @@ UPD:
   same silent cross-DAG contract PathClass is — pinned). Until this the meshes
   existed in render and the rules existed in design's document and the forest
   floor in the world was bare earth, eleven NUMBERS rows deep.
+- 12:08:2026 - 22:41:00: ScatterSpecies::GreatOak (18) — the landmark tree of
+  docs/GIANT_OAKS.md gets an ordinal because there is no other channel: the
+  instance struct is frozen and flora overwrites `scale` for canopy trees, so
+  neither a field nor a size can say "this one is the giant". Placement (the
+  clearing and the derived rarity) is core's; the ordinal -> mesh mapping is
+  flora's, and flora_owns()'s exhaustive switch is what names the file.
 */
 
 #pragma once
@@ -123,6 +129,15 @@ enum class ScatterSpecies : uint8_t {
     PebbleCluster = 16,
     /// §5.12 talus apron: the wind-formed dwarf conifer of the scree band.
     StuntedPine = 17,
+    /// --- THE GREAT OAK (docs/GIANT_OAKS.md). NOT a maturity tier of OakTree:
+    /// --- a giant is 40+ m with a crown as wide as it is tall, grown by
+    /// --- recursive ramification, and it reads as an OBJECT past 3 km. It is a
+    /// --- SEPARATE ORDINAL because the world must be able to say "this one is
+    /// --- the landmark" and today it cannot: ScatterInstance is frozen
+    /// --- (Rule 26) and flora REPLACES ScatterInstance::scale for canopy
+    /// --- trees with its own tier draw, so the scale field carries nothing
+    /// --- across this seam. The species is the only channel left.
+    GreatOak = 18,
 };
 
 /// One scattered vegetation/stone instance, produced deterministically per

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:50:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -42,6 +42,7 @@ UPD:
   of a standpoint (measured) — a tree in front of your face obscures a mountain
   too. The radius is an OUTPUT: 162 m at seed 1's tightest bearing.
 - 11:08:2026 - 15:15:55: streams for the §2.7 meso octave, §10.5 B1 boulders and B2 outcrops; aniso_octave_sample published so every octave that must share the land's grain samples it the same way.
+- 12:08:2026 - 22:50:00: STREAM_GREAT_OAK (GIANT_OAKS §2 site search).
 */
 
 #pragma once
@@ -87,6 +88,7 @@ enum WorldgenStream : uint32_t {
     STREAM_FINDS = 76,        // BR-6 find placement draws
     STREAM_SCATTER_FLOOR = 80, // 80..85: §5.10 forest floor lattices
     STREAM_SCATTER_EDGE = 88,  // 88..95: §5.11 rich-edge species per rule row
+    STREAM_GREAT_OAK = 132,    // GIANT_OAKS §2: the landmark tree's site search
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters

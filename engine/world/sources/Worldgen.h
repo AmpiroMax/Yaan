@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:55:00
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -51,6 +51,10 @@ UPD:
   and two of them were never told when the forest stand's branch landed. One
   definition now, called by all three.
 - 11:08:2026 - 15:15:55: compose_passes takes the WaterSample: §2.7's relief tapers across the shore band and needs dist_to_water. No caller pays a field evaluation for it -- all three already held the sample.
+- 12:08:2026 - 22:55:00: WorldGenContext::great_oaks (docs/GIANT_OAKS.md §2). A
+  world-level pass because the giants' spacing is DERIVED from the read distance
+  of a 96 m crown and comes out longer than this world's diagonal: the count is
+  an output, not a density, and it is one giant.
 */
 
 #pragma once
@@ -60,6 +64,7 @@ UPD:
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/WorldgenErosion.h"
 #include "engine/world/sources/WorldgenFinds.h"
+#include "engine/world/sources/WorldgenGreatOak.h"
 #include "engine/world/sources/WorldgenHydrology.h"
 #include "engine/world/sources/WorldgenPaths.h"
 #include "engine/world/sources/WorldgenSites.h"
@@ -97,6 +102,12 @@ struct WorldGenContext {
     PathNetwork paths;
     /// BR-6 find layer (в20). Empty on stands that place no finds.
     std::vector<Find> finds;
+    /// GIANT_OAKS §2: the landmark trees. A WORLD-LEVEL pass and not a scatter
+    /// lattice, because its spacing is derived from the read distance of an
+    /// 96 m crown and comes out LARGER THAN THIS WORLD'S DIAGONAL — the rarity
+    /// is a consequence, so the count is an output. Every chunk must see the
+    /// same list or a clearing would have a seam down the middle of it.
+    std::vector<GreatOakSite> great_oaks;
 };
 
 /// Builds the world-level context (macro field is implicit — position-based).

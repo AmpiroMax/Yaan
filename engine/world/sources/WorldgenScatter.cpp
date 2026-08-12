@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 12:08:2026 - 22:55:00
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -69,6 +69,13 @@ UPD:
   pine annulus came to start at 140 m inside a 120-162 m foot. 88 of 2282 trees
   (3.9%) leave the massif's hem; the annulus keeps its forest.
 - 11:08:2026 - 15:15:55: §10.5 B1 boulders replace the sourceless 120 m outcrop-cluster lattice: buried, sourced, size-spread by construction, with B6 skirts. AND ScatterCtx::ground() was a FIFTH copy of the pass stack -- the ground everything STANDS on -- which never learned about the relief pass: instances floated or sank by up to 0.59 m.
+- 12:08:2026 - 22:55:00: THE GREAT OAK'S CLEARING (GIANT_OAKS §2, measured by
+  flora: same giants, same size, same haze, only the ordinary oaks removed, and
+  they read at once). tree_ok and both snag lattices refuse the clearing; the
+  ground cover does not, because a 0.6 m tuft expires as an object at 18 m and
+  was never in the picture that experiment took. The giants themselves are
+  emitted here from the world-level site list. SightWedges and the two exclusion
+  rings moved to WorldgenPlacement.h the moment a second pass needed them.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -76,7 +83,9 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/core/math/sources/FloraEdgeRules.h"
+#include "engine/world/sources/WorldgenGreatOak.h"
 #include "engine/world/sources/WorldgenNoise.h"
+#include "engine/world/sources/WorldgenPlacement.h"
 #include "engine/world/sources/Worldgen.h"
 
 #include <cmath>
@@ -89,8 +98,6 @@ namespace {
 constexpr float TAU = 6.28318530717958647692f;
 constexpr float TREE_SLOPE = static_cast<float>(config::TREE_SLOPE_MAX);
 constexpr float CORRIDOR_HALF = static_cast<float>(config::CORRIDOR_WIDTH) * 0.5f;
-constexpr float EYE_M = static_cast<float>(config::PLAYER_EYE_HEIGHT);
-constexpr float CLEARANCE = static_cast<float>(config::LANDMARK_CLEARANCE_FACTOR);
 
 // Water clearance margins (scatter-internal placement tuning, meters): keep
 // trunks and boulders clear of the drawn water plane's edge so nothing reads
@@ -132,40 +139,6 @@ constexpr float BIRCH_MAX_H = static_cast<float>(config::BIRCH_HEIGHT_MAX);
 /// "max scale margin" below was a third of the way to the right answer by
 /// accident. Both consumers now read the row.
 constexpr float GIANT_MULT = static_cast<float>(config::TREE_MATURITY_GIANT_MULT_MAX);
-
-/// L0 sight wedges (§1.3 C4 enforcement): 2D wedges from each POI standpoint
-/// to the L0 footprint; trees inside a wedge whose canopy top would subtend
-/// >= L0_angle / LANDMARK_CLEARANCE_FACTOR from the standpoint are rejected.
-/// Angle comparisons use tangents (angles here are < 0.2 rad; documented
-/// small-angle equivalence).
-struct SightWedges {
-    struct Standpoint {
-        glm::vec2 pos;
-        float eye_y;
-        glm::vec2 dir; ///< toward the crag center, normalized
-        float dist;    ///< to the crag center
-        float t_l0;    ///< tangent of the L0's elevation angle
-    };
-    std::vector<Standpoint> points;
-    float crag_radius = 0.0f;
-
-    /// True if a tree of top height `top_y` at `p` would violate the
-    /// clearance factor inside any wedge.
-    [[nodiscard]] bool rejects(glm::vec2 p, float top_y) const {
-        for (const Standpoint& sp : points) {
-            const glm::vec2 rel = p - sp.pos;
-            const float proj = glm::dot(rel, sp.dir);
-            if (proj < 10.0f || proj > sp.dist) continue;
-            const float perp = std::fabs(rel.x * sp.dir.y - rel.y * sp.dir.x);
-            if (perp > crag_radius * proj / sp.dist) continue;
-            const float t_tree = (top_y - sp.eye_y) / proj;
-            if (t_tree * CLEARANCE >= sp.t_l0) {
-                return true;
-            }
-        }
-        return false;
-    }
-};
 
 /// Deterministic rng for one lattice cell of one scatter stream.
 WorldGenRng cell_rng(uint64_t seed, uint32_t stream, int64_t gx, int64_t gz) {
@@ -293,30 +266,15 @@ struct ScatterCtx {
         const float hz = ground({p.x, p.y + d}) - ground({p.x, p.y - d});
         return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d));
     }
-    /// §6.2 exclusion ring: nothing natural grows over an entrance. The mound
-    /// exists to make a silhouette a hole in flat ground cannot have, and a
-    /// stand of oaks on top of it destroys exactly that.
+    /// §6.2 exclusion ring and the §2.4 pad ring. Both moved to
+    /// WorldgenPlacement.h the day a second pass needed them (Rule 32): an
+    /// exclusion rule that exists twice keeps admitting, in its copy, whatever
+    /// the original has learned to reject.
     [[nodiscard]] bool near_entrance(glm::vec2 p) const {
-        const float margin = static_cast<float>(config::ENTRANCE_SCATTER_EXCLUSION_MARGIN);
-        for (const EntranceWorks& w : sites.entrances) {
-            if (!w.valid) continue;
-            if (glm::length(p - w.center) < w.mound_radius + margin) return true;
-            if (glm::length(p - w.portal) < w.forecourt_length + margin) return true;
-        }
-        // Hand-authored entrances have no works; keep their approach clear too.
-        for (std::size_t i = 0; i < sites.entities.size(); ++i) {
-            if (sites.types[i] != SiteType::DungeonEntrance) continue;
-            if (glm::length(p - sites.entities[i].position_xz) < margin + 4.0f) return true;
-        }
-        return false;
+        return near_entrance_works(sites, p);
     }
 
-    [[nodiscard]] bool on_pad(glm::vec2 p) const {
-        for (const BuildingPad& pad : sites.pads) {
-            if (glm::length(p - pad.center) < pad.radius + pad.blend + 2.0f) return true;
-        }
-        return false;
-    }
+    [[nodiscard]] bool on_pad(glm::vec2 p) const { return on_building_pad(sites, p); }
     /// The crag's treeless band (§1.3 C4 knob): no trees above the stamp's
     /// treeline, which sits below the rock splat line.
     [[nodiscard]] bool on_crag_treeless(glm::vec2 p, float h) const {
@@ -375,9 +333,21 @@ struct ScatterCtx {
         }
     }
 
+    /// THE GREAT OAK'S CLEARING (GIANT_OAKS §2, measured by flora in
+    /// docs/acceptance/flora-great-oak-clearing-ARM-669f1a7b.png). Asked of
+    /// every class that carries a SILHOUETTE at the giant's read distance, and
+    /// of nothing else: the arm that answered "rarity" removed the ordinary
+    /// OAKS, and a 0.6 m tuft expires as an object at 18 m (Rule 33), so
+    /// clearing the ground cover would be clearing something that was never in
+    /// the picture the experiment took.
+    [[nodiscard]] bool in_giant_clearing(glm::vec2 p) const {
+        return in_great_oak_clearing(gen.great_oaks, p);
+    }
+
     /// Common tree suitability (§5 global rules + §2.4 corridor protection +
     /// §1.3 sight wedges — `species_max_h` is the §5 species max height).
     [[nodiscard]] bool tree_ok(glm::vec2 p, float min_water_dist, float species_max_h) const {
+        if (in_giant_clearing(p)) return false;
         if (corridor_distance(layout, p) < CORRIDOR_HALF + 2.0f) return false;
         if (on_pad(p) || near_entrance(p)) return false;
         if (!dry_enough(p, min_water_dist)) return false;
@@ -509,6 +479,11 @@ void scatter_forest_floor(ScatterCtx& ctx) {
             WorldGenRng rng = cell_rng(ctx.seed, STREAM_SCATTER_FLOOR + 0, gx, gz);
             const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * cell;
             if (!ctx.inside_chunk(p) || !in_forest_interior(ctx.seed, ctx.layout, p)) return;
+            // A standing snag is a TRUNK SILHOUETTE — the one thing on the
+            // forest floor that competes with the giant at its own distance —
+            // so it obeys the clearing the trees obey (the ground cover below
+            // does not; see ScatterCtx::in_giant_clearing).
+            if (ctx.in_giant_clearing(p)) return;
             if (!floor_ok(ctx, p, 1.5f)) return;
             ctx.add(p, math::ScatterSpecies::Snag, rng.next_float01() * TAU,
                     0.75f + rng.next_float01() * 0.5f);
@@ -522,6 +497,7 @@ void scatter_forest_floor(ScatterCtx& ctx) {
             const glm::vec2 p = corner + glm::vec2{rng.next_float01(), rng.next_float01()} * cell;
             if (!ctx.inside_chunk(p)) return;
             if (!in_open_ground(ctx.seed, ctx.layout, p) || !floor_ok(ctx, p, 2.0f)) return;
+            if (ctx.in_giant_clearing(p)) return; // same rule as the forest snag above
             ctx.add(p, math::ScatterSpecies::SnagPale, rng.next_float01() * TAU,
                     0.8f + rng.next_float01() * 0.5f);
         });
@@ -1166,6 +1142,24 @@ void scatter_entrance_markers(ScatterCtx& ctx) {
     }
 }
 
+/// GIANT_OAKS §2 — the giants themselves. Placed by the world-level pass, not
+/// by a lattice here: their spacing is derived from a 96 m crown's read
+/// distance, which is larger than this world, so "how many" is an OUTPUT and a
+/// per-chunk lattice could not express it. This pass only hands over the ones
+/// whose trunk falls inside this chunk.
+void scatter_great_oaks(ScatterCtx& ctx) {
+    for (const GreatOakSite& site : ctx.gen.great_oaks) {
+        if (!ctx.inside_chunk(site.pos)) continue;
+        WorldGenRng rng = cell_rng(ctx.seed, STREAM_GREAT_OAK,
+                                   static_cast<int64_t>(site.pos.x),
+                                   static_cast<int64_t>(site.pos.y));
+        // Scale 1.0 and it is not a placeholder: this species IS the giant, so
+        // a maturity multiplier on top of it would be the same multiplier
+        // twice — flora's own note on the species row says so.
+        ctx.add(site.pos, math::ScatterSpecies::GreatOak, rng.next_float01() * TAU, 1.0f);
+    }
+}
+
 } // namespace
 
 bool in_forest_mass(const TestbedLayout& layout, glm::vec2 world) {
@@ -1180,8 +1174,18 @@ bool in_open_ground(uint64_t seed, const TestbedLayout& layout, glm::vec2 world)
     return !in_forest_mass(layout, world) || in_clearing(seed, layout, world);
 }
 
-float canopy_height_at(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
-                       float terrain_h) {
+float canopy_height_at(const WorldGenContext& gen, glm::vec2 world, float terrain_h) {
+    const uint64_t seed = gen.params.seed;
+    const TestbedLayout& layout = gen.params.layout;
+    // THE GIANT IS PART OF THE ENVELOPE, AND IT IS FIRST FOR A REASON. It
+    // stands in a CLEARING, and every clause below reads the forest mask —
+    // which says "no canopy" exactly where the tallest and widest occluder in
+    // the world stands. GIANT_OAKS §1 names this consequence in advance
+    // («огибающая загораживания обязана знать этот силуэт»), and the same
+    // defect has already shipped once as a model half the world's height; here
+    // the gap would not be 1.5x in height but 8x in WIDTH.
+    const float giant = great_oak_canopy_at(gen.great_oaks, world);
+    if (giant > 0.0f) return giant;
     if (glm::length(world - layout.crag.center) < layout.crag.radius
         && terrain_h >= layout.crag.treeline) {
         return 0.0f; // the crag's treeless band
@@ -1197,6 +1201,7 @@ float canopy_height_at(uint64_t seed, const TestbedLayout& layout, glm::vec2 wor
     return (pine ? PINE_MAX_H : OAK_MAX_H) * GIANT_MULT;
 }
 
+
 std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
                                                  glm::vec2 chunk_min, glm::vec2 chunk_max) {
     const uint64_t seed = gen.params.seed;
@@ -1208,30 +1213,16 @@ std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
     std::vector<math::ScatterInstance> out;
 
     // §1.3 sight wedges: POI standpoints (sites + watchpoint) -> the L0.
-    SightWedges wedges;
-    wedges.crag_radius = layout.crag.radius;
-    const auto ground_at = [&](glm::vec2 p) {
+    // Built by WorldgenPlacement's one constructor, because the great oak's
+    // pass needs the same wedges and a second construction would be a second
+    // C4 authority.
+    const SightWedges wedges = build_sight_wedges(layout, [&](glm::vec2 p) {
         return water_at(hydro, layout, p, macro_height(seed, layout, p)).height;
-    };
-    const float l0_top =
-        ground_at(layout.crag.center) + L0_AIM_ABOVE_PEAK;
-    const auto add_standpoint = [&](glm::vec2 pos) {
-        const glm::vec2 to_crag = layout.crag.center - pos;
-        const float dist = glm::length(to_crag);
-        if (dist < layout.crag.radius) return; // standing on the L0 itself
-        SightWedges::Standpoint sp;
-        sp.pos = pos;
-        sp.eye_y = ground_at(pos) + EYE_M;
-        sp.dir = to_crag / dist;
-        sp.dist = dist;
-        sp.t_l0 = (l0_top - sp.eye_y) / dist;
-        wedges.points.push_back(sp);
-    };
-    for (const SiteLayout& site : layout.sites) add_standpoint(site.position);
-    add_standpoint(layout.watchpoint);
+    });
 
     ScatterCtx ctx{gen,   seed,  layout, hydro,     sites,     wedges,
                    erosion, paths, chunk_min, chunk_max, out};
+    scatter_great_oaks(ctx);
     scatter_trees(ctx);
     scatter_bushes(ctx);
     scatter_stones(ctx);
