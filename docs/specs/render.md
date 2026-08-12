@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 12:08:2026 - 23:01:25-->
+Last updated: 12:08:2026 - 23:22:28-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -293,6 +293,18 @@ UPD:
   полтени и УНИЧТОЖАЛО направленный сигнал везде, где плотностный был больше —
   тело среднего яруса теряло разброс (СКО 23.87 -> 22.54 при задаче наоборот).
   Знаковый и СЛОЖЕННЫЙ — среднее сохраняется по построению.
+- 12:08:2026 - 23:22:28: R6b: РУКА НУЛЕВОЙ ДОЗЫ ПОСТРОЕНА И СНЯТА, и она решает, какой
+  это дефект. DFN_SUN_SHADOW — доза (dfn_shadow.sh делает mix(1.0, s, доза), при
+  1 кадр побитово прежний); при 0 кастеры ВСЁ РАВНО пишут в карту, останавливается
+  только чтение, поэтому руки отличаются тенью и больше ничем. Один бинарник, обе
+  руки: вся система солнечной тени добавляет к локальному контрасту +0.034 /
+  +0.075 / +0.106 на 8/16/24 px и +0.402 на 40 px. ФОРМА ОБРАТНАЯ референсу: наш
+  вклад РАСТЁТ с масштабом (низкочастотный, размер целой кроны), пятнистость
+  рефа 03 ПАДАЕТ (1.780 -> 1.591, живёт на мелком конце). Два спектра смотрят в
+  разные стороны — значит дело не в «мало тени», а в ЗЕРНЕ, и остаётся
+  подозреваемый 1 (SHADOW_TEXEL_M). Неожиданное: на 8 px руки 1.269 против
+  1.235 — почти весь мелкий контраст нашей подстилки это МАТЕРИАЛ земли, а не
+  тень. Кадры: docs/acceptance/render-R6b-dapple-SHADOW-{ON,OFF}-b7bc7fe+ss.png.
 -->
 
 # Spec — render agent
@@ -2382,16 +2394,47 @@ not the shadow, it is its GRAIN.**
    dapple's scale is a different question from the hard pixel edges the user
    asked for, and conflating them would be Rule 43.
 
-### What the next step needs and does not have
+### THE CONTROLLED ARM — built, shot, and it settles which mechanism
 
-**A zero-dose arm: the same vantage with the sun shadow OFF.** Ground texture,
-slope shading, material dither and aerial perspective all survive that arm, so
-the absolute numbers above cannot accept a fix — only the DIFFERENCE can (Rule
-47's structural cure, Rule 48's control). There is no such hook today:
-`DFN_NO_POINT_SHADOW` covers carried lights only. A `DFN_SUN_SHADOW` dose in the
-mould of `DFN_GROUND_TINT` is the first thing to build, before any change to the
-shadow path — and it is worth building anyway, because the two standing user
-complaints about shadows need exactly the same control arm.
+`DFN_SUN_SHADOW` (dose, default 1; `dfn_shadow.sh` does `mix(1.0, s, dose)` so
+dose 1 is bit-identical to the flag it replaced). At dose 0 the casters STILL
+draw into the map and only the sampling stops, so the two arms differ in the
+shadow and in nothing else.
+
+Recipe — ONE binary, both arms, the sun shadow the only variable:
+
+```
+DFN_TOUR=1 DFN_TOUR_DIR=<dir> DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 \
+DFN_FLORA_PROBE=1 DFN_FLORA_PITCH=-0.30 DFN_WIND_FREEZE=3.0 DFN_CLOUD=0 \
+DFN_SUN_SHADOW=1|0  build_render/engine/app/dfn_app
+then tools/archive_frame.py <shot> <out> 640   (4x4 box average, README rule)
+```
+
+Frames: `docs/acceptance/render-R6b-dapple-SHADOW-{ON,OFF}-b7bc7fe+ss.png`.
+Ground box `0,140,640,355`.
+
+| block px | shadow ON | shadow OFF | **what the shadow ADDS** |
+|---|---|---|---|
+| 8 | 1.269x | 1.235x | **+0.034** |
+| 16 | 1.386x | 1.311x | **+0.075** |
+| 24 | 1.418x | 1.312x | **+0.106** |
+| 40 | 1.694x | 1.292x | **+0.402** |
+
+**The whole sun shadow system adds 0.03-0.11 of local contrast at the scales
+where dapple lives, and only becomes substantial at 40 px — the size of a whole
+canopy blob.** Reference 03 sits about 0.5 above the null at those same fine
+scales.
+
+And the SHAPE is the finding, not the size. Our shadow's contribution RISES with
+block size (0.034 -> 0.402): it is entirely low-frequency. Reference 03's dapple
+FALLS with block size (1.780 -> 1.591): it lives at the fine end. **The two
+spectra point in opposite directions**, which is what tells a canopy-sized blob
+apart from a dapple and rules out "we just need more shadow". Suspect 1 —
+grain, not presence — is the one standing.
+
+Second thing the control says, and it was not expected: at 8 px our ON and OFF
+arms are 1.269 vs 1.235. **Nearly all the fine local contrast on our forest
+floor is the ground MATERIAL, not the shadow at all.**
 
 ## What this zone does NOT do
 

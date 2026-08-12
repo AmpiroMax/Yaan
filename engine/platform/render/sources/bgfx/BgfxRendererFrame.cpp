@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 12:08:2026 - 00:14:02
+Last updated: 12:08:2026 - 23:08:22
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -57,6 +57,16 @@ UPD:
 - 12:08:2026 - 00:14:02: DFN_GROUND_TINT — the dose of the R5 ground tint, in
   slot [8].y. Default 1; 0 is the zero-dose control arm the R5 numbers are
   read against.
+- 12:08:2026 - 23:08:22: DFN_SUN_SHADOW — the dose of the SUN SHADOW, and
+  `haze_env_override` renamed `dose_env_override` because the air stopped being
+  its only caller three knobs ago. Default 1, and at 1 the frame is
+  bit-identical (dfn_shadow.sh does mix(1.0, s, dose)). `shadow_active` is NOT
+  touched at dose 0: the casters still draw into the map and only the SAMPLING
+  stops, so every submit, view and timing is identical between the arms and
+  everything that is not the shadow subtracts to zero in a difference frame
+  (Rule 47's structural cure). Built because two open claims need exactly this
+  arm — R6b's dapple, whose absolute number is unusable without it, and the
+  user's two standing shadow complaints, which live BETWEEN frames.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -210,15 +220,17 @@ void BgfxRenderer::Impl::update_point_shadows() {
     bgfx::setUniform(u_point_shadow_params, params);
 }
 
-// THE AIR, with diagnostic overrides. Read once: a value that could change
-// between two draws of one frame would put two atmospheres in one picture, and
-// the whole point of R1 is that there is exactly one.
-//
-// These exist so that "how thick is the air" and "how fast does a mountain
-// climb out of it" are settled by a PAIR OF FRAMES rather than by an argument
-// (Rule 27). They are diagnostic knobs like DFN_MSAA, not second homes for the
+// A COUNTERFACTUAL ARM AS A NUMBER: one non-negative float, from the
+// environment, defaulting to what ships. Every caller below is a DOSE whose
+// zero is a control arm (Rule 48) or a discriminator whose sweep separates two
+// explanations (Rule 30) — the air, the ground tile, the ground tint, the sun
+// shadow. They are diagnostic knobs like DFN_MSAA, not second homes for the
 // numbers: unset, the generated rows are what ships.
-static float haze_env_override(const char* name, float fallback) {
+//
+// It was called `haze_env_override` when the air was its only caller and kept
+// the name through three more; a helper named after one of its callers is how
+// the next reader concludes the knob is unavailable to them.
+static float dose_env_override(const char* name, float fallback) {
     const char* e = std::getenv(name);
     if (e == nullptr || *e == '\0') {
         return fallback;
@@ -247,7 +259,7 @@ static float haze_env_override(const char* name, float fallback) {
 // all). No amount of looking at ONE frame separates those two, and R5 names
 // them as two different defects with two different fixes.
 static float terrain_tiles_override(float fallback) {
-    static const float value = haze_env_override("DFN_TERRAIN_TILES", fallback);
+    static const float value = dose_env_override("DFN_TERRAIN_TILES", fallback);
     return value;
 }
 
@@ -255,7 +267,7 @@ static float terrain_tiles_override(float fallback) {
 // DFN_GROUND_TINT=0 must give back the pre-R5 ground; any R5 number that still
 // looks good at 0 is measuring the light or the terrain, not the material.
 static float ground_tint_dose() {
-    static const float value = haze_env_override("DFN_GROUND_TINT", 1.0f);
+    static const float value = dose_env_override("DFN_GROUND_TINT", 1.0f);
     return value;
 }
 
@@ -272,17 +284,17 @@ struct HazeParams {
 
 static const HazeParams& haze_params() {
     static const HazeParams p = {
-        haze_env_override("DFN_HAZE",
+        dose_env_override("DFN_HAZE",
                           static_cast<float>(config::HAZE_SCALE_LENGTH)),
-        haze_env_override("DFN_HAZE_H",
+        dose_env_override("DFN_HAZE_H",
                           static_cast<float>(config::HAZE_HEIGHT_SCALE)),
-        haze_env_override("DFN_HAZE_BASE",
+        dose_env_override("DFN_HAZE_BASE",
                           static_cast<float>(config::HAZE_BASE_HEIGHT)),
-        haze_env_override("DFN_MIST_H",
+        dose_env_override("DFN_MIST_H",
                           static_cast<float>(config::MIST_BAND_HEIGHT)),
-        haze_env_override("DFN_MIST_T",
+        dose_env_override("DFN_MIST_T",
                           static_cast<float>(config::MIST_BAND_THICKNESS)),
-        haze_env_override("DFN_MIST",
+        dose_env_override("DFN_MIST",
                           static_cast<float>(config::MIST_BAND_DENSITY)),
     };
     return p;
@@ -411,7 +423,19 @@ void BgfxRenderer::Impl::update_shadow() {
             light_mtx = crop * proj * view;
         }
     }
-    const float params[4] = {enabled, SHADOW_NORMAL_OFFSET_M,
+    // THE ZERO-DOSE ARM (Rule 48). DFN_SUN_SHADOW scales the shadow term the
+    // fragment shaders read; unset it is 1 and the frame is bit-identical to
+    // before this knob existed. `shadow_active` is deliberately NOT touched, so
+    // at dose 0 the casters are still drawn into the map and only the SAMPLING
+    // stops — that keeps every submit, every view and every timing identical
+    // between the arms, and everything that is not the shadow subtracts to zero
+    // in a difference frame (Rule 47's structural cure). Read here rather than
+    // at init so a sweep costs no relaunch.
+    // Read ONCE, like the other doses: it is a property of the run, and a knob
+    // re-read per frame prints its banner per frame and could in principle put
+    // two shadow strengths in one shoot.
+    static const float shadow_dose = dose_env_override("DFN_SUN_SHADOW", 1.0f);
+    const float params[4] = {enabled * shadow_dose, SHADOW_NORMAL_OFFSET_M,
                              SHADOW_DEPTH_BIAS_M / (2.0f * SHADOW_DEPTH_HALF_M),
                              0.0f};
     bgfx::setUniform(u_shadow_params, params);
