@@ -4,7 +4,7 @@ $input v_dir
 // horizon->zenith gradient with a haze band at the horizon (matching the fog
 // color so distant terrain melts into the sky at every hour), the sun disc
 // and glow, a STAR FIELD, a MOON DISC WITH PHASE, and THREE KINDS OF CLOUD —
-// two drifting parallax sheets (planes at DFN_CLOUD_LAYER1/2_M read through
+// two drifting parallax sheets (planes at DFN_CLOUD_DECK_{MID,HIGH}_M read through
 // the ONE coverage field in dfn_env.sh, the same field the ground shadow
 // projects) and cumulus impostors on the horizon ring, upwind-biased so they
 // announce the weather that is coming (W2.3). Clouds blend over stars and
@@ -48,6 +48,18 @@ $input v_dir
 // amplitude (mean 62.7 -> 21.3), which is what a veil at 50 km should look
 // like. The two DFN_CLOUD=0 arms came back BYTE-IDENTICAL before and after.
 
+// UPD 12:08:2026 - 23:12:00: R3.2 — THREE DECKS, drawn BACK TO FRONT so the low
+// one's holes are where the decks behind it show through, and a TONE LADDER in
+// PALETTE UNITS: each rung is one PALETTE_SHADE_STEP_REF, and the load-bearing
+// rung is the low deck's LIT tone sitting a full step BELOW the mid deck's
+// SHADED tone, so no part of the near deck can be confused with any part of the
+// far one. That is what "three strata" has to mean for a 64-colour palette —
+// not three altitudes, three tones that survive quantisation. Measured on
+// per-deck arms (DFN_DECK_ARM): the decks own 36.4 / 56.4 / 45.2 % of the sky
+// box, low-vs-far overlap sits AT chance, holes read 1.74 palette steps
+// brighter than the deck in front of them, and the shade-only difference image
+// has SD 0.65 steps at a mean of -0.06 — a uniform darkening would score SD 0.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -75,6 +87,35 @@ $input v_dir
 // gradient, so aerial perspective applied to the sky is a term applied to
 // itself. Terrain keeps that law; the sky gets its own length.
 #define SHEET_EXTINCTION_M 60000.0
+
+// THE THREE DECKS' TONE LADDER (R3.2), and every rung is ONE PALETTE SHADE
+// STEP. `PALETTE_SHADE_STEP_REF` is 0.0784 of the range, and this file's own
+// PALETTE SIGNAL STRENGTH rule says a brightness step is the WEAKEST signal
+// available and anything under one step becomes dither. So the ladder is built
+// on exactly that unit rather than on taste:
+//
+//   high deck            1.0000   (the brightest thing in the sky)
+//   mid deck, lit        0.9216   = 1 - 1 x 0.0784
+//   mid deck, shaded     0.5800   (cloud_dark, unchanged)
+//   low deck, lit        0.5000   = 0.58 - 1 x 0.0784
+//   low deck, shaded     0.3000
+//
+// The load-bearing pair is the middle one: the low deck's LIT tone sits a full
+// step BELOW the mid deck's SHADED tone, so no part of the near deck can be
+// confused with any part of the deck behind it. That is what "three strata"
+// has to mean for a 64-colour palette — not three altitudes, three tones that
+// survive quantisation.
+#define DECK_TONE_MID_LIT  0.9216
+#define DECK_TONE_LOW_LIT  0.5000
+#define DECK_TONE_LOW_DARK 0.3000
+
+// PER-DECK ACCEPTANCE ARMS (Rule 27/30). "The sky looks deeper" is not a
+// criterion; a deck is PRESENT iff the pixels that change when it ALONE is
+// switched off are a substantial set, and the three sets must be largely
+// disjoint. Set to 1/2/3 to drop the low/mid/high deck, rebuild (~14 s), shoot
+// the same vantage, and read the arms with
+// `tools/measure_aerial.py decks <FULL> <ARM...> <box>`. 0 is the shipped sky.
+#define DFN_DECK_ARM 0
 
 // Horizon cumulus, sized against the distance it is READ from (Rule 33). A
 // bank on a 20 km ring with a 1100 m base and 3400 m tops subtends dir.y
@@ -194,32 +235,71 @@ void main()
     vec3 cloud_bright = dfn_cloud_bright();
     vec3 cloud_dark = cloud_bright * 0.58;
 
-    // Layer 1, the main sheet: view ray onto the low plane. Same field, same
-    // offset the ground shadow projects — one authority (W4). No elevation or
-    // distance gate: the LOD inside dfn_cloud_alpha handles the horizon.
+    // THREE DECKS, drawn BACK TO FRONT (R3.2). Same field, same drift offset
+    // the ground shadow projects — one authority (W4). No elevation or
+    // distance gate: the LOD inside dfn_cloud_alpha handles the horizon and
+    // the extinction above handles the last degree.
     if (dir.y > 0.0005) {
-        float dist1 = (DFN_CLOUD_LAYER1_M - eye.y) / dir.y;
-        vec2 p1 = eye.xz + dir.xz * dist1;
-        float cpx1 = DFN_CLOUD_CELLS_PX(p1);
-        float haze1 = exp(-dist1 / SHEET_EXTINCTION_M);
-        float a1 = dfn_cloud_sheet_alpha(p1, cpx1) * haze1;
-        // Layer 2, high and thin: farther plane = slower apparent drift and
-        // smaller cells — the parallax that makes the sky read as deep. It
-        // gets its OWN distance through the same extinction, which is the
-        // parallax's other half: the far deck fades earlier along the same
-        // bearing, exactly as a farther thing should.
-        float dist2 = (DFN_CLOUD_LAYER2_M - eye.y) / dir.y;
+        // --- HIGH, 4400 m: thin, flat, and THE BRIGHTEST OF THE THREE.
+        // Brightest on purpose and it is the whole point of the ladder: a hole
+        // in the dark low deck then shows the bright high deck behind it,
+        // which is reference 12's "holes that show brighter sky" made literal
+        // instead of approximated. It gets no self-shadowing — a thin veil at
+        // 4.4 km has no depth to shade.
+        float dist2 = (DFN_CLOUD_DECK_HIGH_M - eye.y) / dir.y;
         vec2 p2 = eye.xz + dir.xz * dist2;
         float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX(p2))
                  * exp(-dist2 / SHEET_EXTINCTION_M) * 0.55;
 
-        // Denser core -> darker base: reuse the field so shading and shape
-        // cannot disagree.
-        float core1 = smoothstep(1.0 - u_cloudCover * 0.55, 1.0,
-                                 dfn_cloud_field(p1 + u_cloudOffset, cpx1));
-        vec3 col1 = mix(cloud_bright, cloud_dark, core1);
-        sky = mix(sky, cloud_bright, a2); // thin high sheet first (behind)
+        // --- MID, 2600 m: the main sheet.
+        float dist1 = (DFN_CLOUD_DECK_MID_M - eye.y) / dir.y;
+        vec2 p1 = eye.xz + dir.xz * dist1;
+        float cpx1 = DFN_CLOUD_CELLS_PX(p1);
+        float a1 = dfn_cloud_sheet_alpha(p1, cpx1)
+                 * exp(-dist1 / SHEET_EXTINCTION_M);
+        vec2 q1 = p1 + u_cloudOffset;
+        float f1 = dfn_cloud_field(q1, cpx1);
+        // TWO shading terms and they answer different questions. Density: a
+        // denser core is a thicker core and a thicker core is darker
+        // underneath. Direction: the field's slope toward the sun, which is
+        // what makes the deck read as MODELLED rather than as textured, and
+        // the only one of the two that moves with the hour.
+        // ADDED, never max()'d: the density term says how thick this column
+        // is and the directional term says which way the light comes at it.
+        // max() was measured and rejected — it floored the deck at half-shaded
+        // and deleted the directional signal wherever density was the larger.
+        float core1 = smoothstep(1.0 - u_cloudCover * 0.55, 1.0, f1);
+        float shade1 = dfn_cloud_self_shade(q1, f1, cpx1);
+        vec3 col1 = mix(cloud_bright * DECK_TONE_MID_LIT, cloud_dark,
+                        clamp(core1 + shade1, 0.0, 1.0));
+
+        // --- LOW, 1500 m: sparse, ragged, DARK, and IN FRONT. Its cells
+        // subtend 1.73x the middle deck's, which is what says "nearer".
+        float dist0 = (DFN_CLOUD_DECK_LOW_M - eye.y) / dir.y;
+        vec2 p0 = eye.xz + dir.xz * dist0;
+        float cpx0 = DFN_CLOUD_CELLS_PX(p0);
+        float a0 = dfn_cloud_sheet_low_alpha(p0, cpx0)
+                 * exp(-dist0 / SHEET_EXTINCTION_M);
+        vec2 q0 = p0 + u_cloudOffset + DFN_CLOUD_DECK_LOW_SEED;
+        float shade0 = dfn_cloud_self_shade(q0, dfn_cloud_field(q0, cpx0),
+                                            cpx0);
+        vec3 col0 = mix(cloud_bright * DECK_TONE_LOW_LIT,
+                        cloud_bright * DECK_TONE_LOW_DARK,
+                        clamp(0.5 + shade0 * 0.5, 0.0, 1.0));
+
+        // The acceptance arms: each drops exactly one deck and nothing else.
+#if DFN_DECK_ARM == 1
+        a0 = 0.0;
+#elif DFN_DECK_ARM == 2
+        a1 = 0.0;
+#elif DFN_DECK_ARM == 3
+        a2 = 0.0;
+#endif
+        // BACK TO FRONT. Order is the feature: the low deck is drawn LAST so
+        // its holes are where the two decks behind it show through.
+        sky = mix(sky, cloud_bright, a2);
         sky = mix(sky, col1, a1);
+        sky = mix(sky, col0, a0);
     }
 
     // Cumulus on the horizon ring (в10 third kind): the coverage field read in
@@ -296,7 +376,7 @@ void main()
     float sun_occl = 1.0;
     if (u_sunDir.y > 0.03) {
         vec2 ps = eye.xz
-                + u_sunDir.xz * ((DFN_CLOUD_LAYER1_M - eye.y) / u_sunDir.y);
+                + u_sunDir.xz * ((DFN_CLOUD_DECK_MID_M - eye.y) / u_sunDir.y);
         sun_occl = 1.0 - 0.85 * dfn_cloud_sheet_alpha(ps, 0.0);
     }
     // THE SUN HAS A BODY (W9). What stood here was two glow lobes,

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 12:08:2026 - 22:45:00
+Last updated: 12:08:2026 - 23:20:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -118,6 +118,22 @@ UPD:
   the band 9.4 -> 30.5, and its mean 74.5 -> 47.8, so it also stops being the
   brightest thing in the frame. Rule 31 on the premise, measured first:
   predicted SD tracks measured SD within 0.03 % at every rate.
+- 12:08:2026 - 23:20:00: R3.2 — THE THIRD DECK and DIRECTIONAL SELF-SHADOWING. DFN_CLOUD_DECK_LOW_M
+  1500 (derived: the same wavelength there subtends 2600/1500 = 1.73x the angle
+  of the middle deck, and apparent CELL SIZE is what says "nearer"; no scale
+  factor, only a world-space seed shift, because a scale would destroy exactly
+  that) with its cover a FRACTION of the state's. dfn_cloud_self_shade: one
+  extra field tap along the sun's horizontal bearing, step and gain both DERIVED
+  from the field's measured correlation (SD of F(p+d)-F(p) is 0.190 at 0.25
+  wavelengths against 0.408 for independent samples, so a quarter cell is a
+  gradient and a full cell is noise; the 5/95 percentiles +-0.33 set the gain
+  at 3.04). dfn_cloud_sun_vis gained the low deck — one authority for the field,
+  and a deck that draws in the sky but does not occlude the sun is W4's named
+  reject with its sign flipped. TWO OF MY OWN MISTAKES, both caught by
+  measurement and both written where they happened: the first zero-dose arm was
+  not zero dose (gain 0 pins the term at 0.5 = a flat mid-grey deck), and the
+  term was combined with max() (which floored the deck at half-shaded and
+  deleted the directional signal wherever density was larger).
 */
 
 #ifndef DFN_ENV_SH
@@ -223,12 +239,38 @@ uniform vec4 u_envParams[38];
 // viewing distance and shared), so the SKY's distance to the field is what
 // changes: 2600 m puts ~5 wavelengths of radius above 45 deg and ~9 above 30,
 // which is a picture instead of a coin flip.
-#define DFN_CLOUD_LAYER1_M 2600.0
-#define DFN_CLOUD_LAYER2_M 4400.0
-// Layer 2 samples the SAME field at a coarser scale and a fixed seed shift so
-// the sheets decorrelate without inventing a second field or a second wind.
-#define DFN_CLOUD_LAYER2_SCALE 0.47
-#define DFN_CLOUD_LAYER2_SEED  vec2(310.0, -170.0)
+#define DFN_CLOUD_DECK_MID_M 2600.0
+#define DFN_CLOUD_DECK_HIGH_M 4400.0
+// The high deck samples the SAME field at a coarser scale and a fixed seed
+// shift so the decks decorrelate without inventing a second field or a second
+// wind.
+#define DFN_CLOUD_DECK_HIGH_SCALE 0.47
+#define DFN_CLOUD_DECK_HIGH_SEED  vec2(310.0, -170.0)
+
+// --- THE LOW DECK (R3.2), and its altitude is DERIVED ----------------------
+// Reference frame 12 carries at least three strata. Two decks of one tone at
+// 2600/4400 m are one ceiling with extra opacity, whatever their parallax:
+// what says "nearer" is APPARENT CELL SIZE, and that is set by the plane's
+// distance, not by any tone. The same field wavelength at 1500 m against
+// 2600 m subtends 2600/1500 = 1.73x the angle — a difference the eye reads as
+// depth. The window is narrow at both ends and both ends were checked (Rule
+// 30's "a range is two assertions"): below ~1000 m one cell is wider than half
+// the frame and the deck stops being a deck, and by 2000 m the ratio is 1.3
+// and it merges into the middle one. Real broken stratocumulus bases sit at
+// 600-2000 m, so 1500 m is inside the physical range as well as the visual one.
+//
+// NO SCALE FACTOR HERE, unlike the high deck: a scale would change the
+// apparent cell size and destroy the one thing this deck exists to provide.
+// It gets a world-space SEED SHIFT instead, which decorrelates it from the
+// middle deck without touching how big its cells look.
+#define DFN_CLOUD_DECK_LOW_M    1500.0
+#define DFN_CLOUD_DECK_LOW_SEED vec2(-820.0, 640.0)
+// The low deck's cover is a FRACTION OF THE STATE'S, never the state's own
+// value. Three independent decks at full cover close 1 - (1-c)^3 of the sky =
+// 83 % at c = 0.45, and the holes this whole exercise exists for would be
+// gone. At 0.45 of the state the three close 64 %, against 55 % for the two
+// that shipped before — the sky gains a stratum and keeps its breaks.
+#define DFN_CLOUD_DECK_LOW_COVER 0.45
 // Softness of the coverage threshold, in UNIFORM field units (post-remap).
 // Scale-free: after the remap the field's units are probability, so this is
 // "the softest 10% of the distribution" at every cover value.
@@ -440,10 +482,82 @@ float dfn_cloud_sheet_alpha(vec2 p_on_layer1, float cells_px)
 float dfn_cloud_sheet2_alpha(vec2 p_on_layer2, float cells_px)
 {
     return dfn_cloud_alpha((p_on_layer2 + u_cloudOffset)
-                               * DFN_CLOUD_LAYER2_SCALE
-                           + DFN_CLOUD_LAYER2_SEED,
+                               * DFN_CLOUD_DECK_HIGH_SCALE
+                           + DFN_CLOUD_DECK_HIGH_SEED,
                            u_cloudCover * 0.75,
-                           cells_px * DFN_CLOUD_LAYER2_SCALE);
+                           cells_px * DFN_CLOUD_DECK_HIGH_SCALE);
+}
+
+// The LOW deck (R3.2), third and nearest. Same field, same drift, its own seed
+// and a FRACTION of the state's cover.
+float dfn_cloud_sheet_low_alpha(vec2 p_on_deck_low, float cells_px)
+{
+    return dfn_cloud_alpha(p_on_deck_low + u_cloudOffset
+                               + DFN_CLOUD_DECK_LOW_SEED,
+                           u_cloudCover * DFN_CLOUD_DECK_LOW_COVER,
+                           cells_px);
+}
+
+// --- DIRECTIONAL SELF-SHADOWING (R3.2), ONE TAP ----------------------------
+// Returns -1 (turned to the sun, lighter) .. +1 (behind more cloud, darker) for
+// a point on a deck: the SIGNED slope of the field along
+// the SUN'S HORIZONTAL BEARING. Where the field is thicker toward
+// the sun this point stands behind more cloud and darkens; where it is thinner
+// the point is on a sun-facing slope and lightens.
+//
+// WHY THIS AND NOT MORE DENSITY SHADING. The deck's only shading before was
+// `smoothstep(1 - cover*0.55, 1, F)`, which at the default cover 0.45 is
+// smoothstep(0.7525, 1.0, F) while cloud exists wherever F > 0.55 — so the
+// great majority of every mass was flat and the darkening only ever found the
+// middle of a blob. And it is NON-DIRECTIONAL: it cannot move with the sun, so
+// it cannot read as self-shadowing at any strength. This term costs one sample
+// and moves with the hour for free.
+//
+// THE STEP IS DERIVED FROM THE FIELD'S OWN CORRELATION, not picked. Measured
+// over 200k samples, the SD of F(p + d) - F(p) runs 0.088 / 0.190 / 0.295 /
+// 0.397 at d = 0.10 / 0.25 / 0.50 / 1.00 wavelengths, against 0.408 for two
+// INDEPENDENT samples of a uniform field. At a full cell the term is therefore
+// 97 % noise — the neighbouring cell's shadow, not this one's slope — while at
+// a quarter cell it is 47 %, i.e. the two samples still share most of their
+// structure and the difference is a gradient. 0.25 it is.
+//
+// THE GAIN IS DERIVED FROM THE SAME MEASUREMENT. At 0.25 wavelengths the 5th
+// and 95th percentiles of the difference are -0.324 and +0.329, so 1/0.329 =
+// 3.04 maps the middle 90 % of the distribution onto the full -1..+1 range and
+// clips a tenth of it at each end — which is what gives the deck blacks and
+// whites instead of a grey wash.
+//
+// THE RETURN IS SIGNED, and the first version was not — it returned 0..1
+// centred on 0.5 and each deck took max(density, shade). MEASURED, that was
+// wrong twice over: the max() floored the whole deck at half-shaded (mid deck
+// mean 227.6 -> 207.8 luma, a uniform darkening) and it DELETED the directional
+// signal everywhere the density term was the larger of the two, so the deck's
+// body actually lost variation (SD 23.87 -> 22.54, i.e. -6 % where the whole
+// point was more). Signed and ADDED to the density term instead, the mean is
+// preserved by construction (the difference of two samples of one field is
+// symmetric about zero) and what is added is variation and only variation.
+#define DFN_CLOUD_SHADE_STEP 0.25
+#define DFN_CLOUD_SHADE_GAIN 3.04
+
+// THE ZERO-DOSE ARM, and the FIRST one written for this term was wrong in a way
+// worth keeping (Rule 48). Setting the GAIN to 0 does not remove the term: it
+// pins it at 0.5, i.e. paints every deck a flat mid-grey, which is a different
+// strong effect and not an absence. Measured against that fake control the
+// shading looked like it did nothing (SD 26.15 -> 26.18 on the low deck)
+// because both arms were being shaded, one of them uniformly. A dose of zero
+// has to mean FULLY LIT.
+#define DFN_CLOUD_SHADE_OFF 0
+
+float dfn_cloud_self_shade(vec2 p_on_deck, float field_here, float cells_px)
+{
+#if DFN_CLOUD_SHADE_OFF
+    return 0.0;
+#else
+    vec2 sun_h = normalize(u_sunDir.xz + vec2(1e-5, 0.0));
+    vec2 q = p_on_deck + sun_h * (u_cloudWavelength * DFN_CLOUD_SHADE_STEP);
+    float toward_sun = dfn_cloud_field(q, cells_px);
+    return clamp((toward_sun - field_here) * DFN_CLOUD_SHADE_GAIN, -1.0, 1.0);
+#endif
 }
 
 // Sun visibility through the cloud sheets at a WORLD point: project along the
@@ -463,15 +577,24 @@ float dfn_cloud_sun_vis(vec3 wpos)
     if (low_sun <= 0.0) {
         return 1.0;
     }
+    vec2 p0 = wpos.xz
+            + u_sunDir.xz * ((DFN_CLOUD_DECK_LOW_M - wpos.y) / sun_y);
     vec2 p1 = wpos.xz
-            + u_sunDir.xz * ((DFN_CLOUD_LAYER1_M - wpos.y) / sun_y);
+            + u_sunDir.xz * ((DFN_CLOUD_DECK_MID_M - wpos.y) / sun_y);
     vec2 p2 = wpos.xz
-            + u_sunDir.xz * ((DFN_CLOUD_LAYER2_M - wpos.y) / sun_y);
+            + u_sunDir.xz * ((DFN_CLOUD_DECK_HIGH_M - wpos.y) / sun_y);
     // Fully resolved: the shadow is read at a GROUND point, where one pixel
     // covers metres, not the kilometres a grazing sky ray covers. The sheet's
     // LOD exists for the sky's perspective and would only blur the shadow.
     // The high sheet is thin: half occlusion weight.
-    float transmit = (1.0 - dfn_cloud_sheet_alpha(p1, 0.0))
+    //
+    // ALL THREE DECKS, and the LOW one is not optional (R3.2). This file's
+    // standing rule is one authority for the field, and a deck that draws in
+    // the sky but does not occlude the sun is exactly the "shadow crossing
+    // land with no cloud above it" reject W4 was built to prevent — with the
+    // sign flipped: cloud overhead casting no shadow at all.
+    float transmit = (1.0 - dfn_cloud_sheet_low_alpha(p0, 0.0))
+                   * (1.0 - dfn_cloud_sheet_alpha(p1, 0.0))
                    * (1.0 - 0.5 * dfn_cloud_sheet2_alpha(p2, 0.0));
     return 1.0 - u_cloudShadow * low_sun * (1.0 - transmit);
 }

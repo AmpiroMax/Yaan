@@ -274,6 +274,25 @@ UPD:
   арифметический: SHADOW_TEXEL_M 0.156 м при собственном правиле «кастер >= 2
   текселя ~ 0.31 м» — мы ровно на полу, ближний каскад назван в самом файле.
   СЛЕДУЮЩЕЕ, ЧЕГО НЕТ: рука нулевой дозы DFN_SUN_SHADOW=0.
+- 12:08:2026 - 23:01:25: R3.2 ОТГРУЖЕНА — «облака квадратные и плоские» закрыто со второй стороны: потолок
+  стал ТРЕМЯ ЯРУСАМИ, самозатенёнными, с прорехами, сквозь которые видно более
+  яркое небо. (1) Нижний ярус на 1500 м — редкий, тёмный, рисуется ПОСЛЕДНИМ;
+  высота выведена: та же длина волны на 1500 м против 2600 м подпирает 1.73x
+  угла, и «ближе» говорит именно ВИДИМЫЙ РАЗМЕР ЯЧЕЙКИ, а не тон. (2)
+  Направленное самозатенение одним отсчётом поля в сторону солнца, в общей
+  функции dfn_cloud_self_shade (её читают оба нижних яруса). (3) Лестница тонов
+  в ЕДИНИЦАХ ПАЛИТРЫ: каждая ступень ровно один PALETTE_SHADE_STEP_REF, и
+  несущая пара — освещённый тон нижнего яруса на ступень НИЖЕ затенённого тона
+  среднего, чтобы никакая часть ближнего яруса не путалась ни с какой частью
+  дальнего. (4) dfn_cloud_sun_vis получил третий ярус — иначе облако над землёй
+  не давало бы тени. ДВА СОБСТВЕННЫХ ПРОМАХА, найденных ИЗМЕРЕНИЕМ, а не глазом,
+  и оба записаны в шейдере: (а) первая нулевая доза самозатенения была НЕ нулевой
+  — обнуление УСИЛЕНИЯ прижимает член к 0.5, то есть красит ярус ровным серым,
+  и на фоне такого «контроля» эффект выглядел нулевым (СКО 26.15 -> 26.18);
+  (б) член складывался через max() с плотностным, что клало на весь ярус пол в
+  полтени и УНИЧТОЖАЛО направленный сигнал везде, где плотностный был больше —
+  тело среднего яруса теряло разброс (СКО 23.87 -> 22.54 при задаче наоборот).
+  Знаковый и СЛОЖЕННЫЙ — среднее сохраняется по построению.
 -->
 
 # Spec — render agent
@@ -2078,6 +2097,104 @@ The route is the established one: NUMBERS row → generated header →
 `apply_environment` slot 38 (env block 38 → 39) → `u_cloudDeck*` accessors. The
 draft was written and reverted intact; re-doing it is mechanical.
 
+## R3.2 SHIPPED — THREE DECKS, SELF-SHADOWED, WITH HOLES THAT SHOW BRIGHTER SKY
+
+Built to the design above, with two changes forced by measurement (below). What
+the reference asks for and what the frame now says, claim by claim.
+
+### The three decks are PRESENT and largely DISJOINT
+
+Located by ARM DIFFERENCE — each arm is the same frame with exactly one deck
+dropped by a `#define`, so the subject is found by what changes and never by
+being bright (Rule 47's cure by construction). Sky box `0,0,640,180`:
+
+| deck | owns | mean \|dL\| over the box |
+|---|---|---|
+| low, 1500 m | 36.4 % | 13.76 |
+| mid, 2600 m | 56.4 % | 23.51 |
+| high, 4400 m | 45.2 % | 9.01 |
+
+Overlap / union: low∩mid **30.4 %**, low∩high **27.6 %**, mid∩high **43.6 %**.
+
+**HONEST, and it is the one claim that does not fully pass.** For independent
+sets at these coverages, chance overlap is 28.0 % (low∩mid) and 33.0 %
+(mid∩high). The low deck is therefore genuinely independent of both — measured
+overlap sits *at* chance — but the two FAR decks are correlated well above it.
+That is not new and not the low deck's doing: the mid and high decks read one
+field with only a scale and a seed between them, and both are modulated by the
+same extinction and the same cover, which correlates their envelopes near the
+horizon. Three strata by the operational definition is satisfied where it was
+asked for (a near deck against a far one); "three mutually independent decks"
+is not, and the honest fix would be a second seed axis on the high deck rather
+than anything in this change.
+
+### Holes DO show brighter sky behind
+
+Ownership from the arm, VALUE from the frame. Pixels the front (low) deck owns
+read **146.28** luma; pixels it does not read **180.90** — the not-owned set is
+brighter by **34.62 luma = 1.74 palette shade steps**. The claim passes, and it
+passes by more than the one step below which the palette turns a difference into
+dither.
+
+### The decks are SELF-SHADOWED, and the criterion is the difference image
+
+`SD of luma within the deck's own pixels` was the designed criterion and it
+turned out to measure the wrong thing: the owned set mixes opaque deck with soft
+edges, so its SD reads deck-against-sky contrast more than within-deck
+modelling, and it fell 3–4 % on a change that plainly added shading. Replaced by
+the R3.3 lesson applied again — **the SHADE-ONLY DIFFERENCE image** (shading on
+minus shading off), which is identically zero at zero dose and needs no mask:
+
+- mean signed dL **−0.06** — the term preserves the deck's mean brightness by
+  construction, so it adds modelling rather than just darkening;
+- **SD 12.99 luma = 0.65 palette steps**, and a UNIFORM darkening scores SD 0
+  here by construction — that is the discriminator;
+- 23.0 % of the box darkened, 24.2 % lightened. Both signs at comparable counts
+  is what "the light comes from a direction" means operationally;
+- p90 |dL| **20.89 = 1.04 steps**, max 89 luma = 4.4 steps.
+
+### The ceiling's flattest place
+
+The R3.3 instrument over the whole sky box, against the shared cloud-off arm:
+the **flattest row still carrying cloud** goes from SD **15.93** (row 154) to
+**25.05** (row 164). There is no longer a row anywhere in the sky where the
+cloud layer is one tone.
+
+### Two mistakes of mine that measurement caught, both recorded in the shader
+
+**The zero-dose arm was not zero dose.** Setting `DFN_CLOUD_SHADE_GAIN` to 0
+does not remove the directional term — it pins it at 0.5 and paints every deck a
+flat mid-grey, which is a different strong effect. Against that fake control the
+shading measured as doing nothing at all (low deck SD 26.15 → 26.18). A dose of
+zero has to mean FULLY LIT, and it is now a separate `DFN_CLOUD_SHADE_OFF`.
+
+**`max(density, direction)` deleted the thing it was combining.** It floored the
+whole deck at half-shaded (mid deck mean 227.6 → 207.8 luma, a uniform
+darkening) and discarded the directional signal everywhere the density term was
+the larger — so the mid deck's body LOST variation, SD 23.87 → 22.54, on a
+change whose entire purpose was more. Signed and added instead.
+
+### What did not change, and the proof
+
+The `DFN_CLOUD=0` frame is **byte-identical to the one archived for R3.3**
+(`cmp`). Three decks, a new shading term and a third occluder in
+`dfn_cloud_sun_vis`, and the cloudless world is bit-for-bit the same picture.
+
+### Owed
+
+- `DFN_CLOUD_DECK_{LOW,MID,HIGH}_M` and `DFN_CLOUD_DECK_LOW_COVER` are shader
+  `#define`s. Both of their consumers (`fs_sky` and `dfn_cloud_sun_vis`) live in
+  this one file, so there is exactly one definition and Rule 35 is satisfied
+  today; they become NUMBERS rows the moment anything outside the shaders reads
+  an altitude. `SHEET_EXTINCTION_M` travels with them. **Proposed to the lead,
+  not written by me.**
+- `CloudModel.cpp` has no CPU mirror of `dfn_cloud_self_shade`. It needs none to
+  be correct (it is a difference of two `cloud_field` calls, both mirrored) but
+  the deck ALTITUDES are not asserted anywhere, and the 1.73× ratio that the
+  whole design rests on is arithmetic no test currently reads.
+- The mid∩high correlation above.
+
+
 ## DEFERRED — found on the way, NOT fixed, deliberately left
 
 Recorded per the user's instruction to write new bugs down and close our eyes on
@@ -2085,13 +2202,14 @@ them rather than forget them. None of these was touched.
 
 1. ~~**R3.3 — the hard bright band at the horizon.**~~ **CLOSED 12.08.2026** —
    shipped, see the R3.3 section above for what it measured.
-2. **R3.2 — the sky is one flat speckled ceiling.** Still diagnosed, designed
-   and unwritten. This is now the open half of R3.
-3. **The second flat strip at rows 180–183** — PARTLY closed by R3.3. Its
-   amplitude fell by two thirds (mean 62.7 → 21.3) but its SD did not move
-   (7.6 → 6.2), and it cannot: at `cells_px` ≈ 3.5 there is no field left to
-   have structure. What is owed there is not more field, it is R3.2's decks —
-   a nearer deck at 1500 m is still resolvable at that elevation.
+2. ~~**R3.2 — the sky is one flat speckled ceiling.**~~ **CLOSED 12.08.2026** —
+   three decks, self-shadowed, holes showing brighter sky. See the R3.2 section
+   above, including the two claims it does NOT make.
+3. **The second flat strip at rows 180–183** — PARTLY closed by R3.3, and R3.2
+   moved it further: the flattest row anywhere in the sky now measures SD 25.05
+   against 15.93. Its amplitude had already fallen by two thirds under R3.3
+   (mean 62.7 → 21.3) while its own SD did not move (7.6 → 6.2), and at
+   `cells_px` ≈ 3.5 it cannot — there is no field left there to have structure.
 4. ~~**The cloud-structure instrument lives only in the session scratchpad.**~~
    **CLOSED 12.08.2026** — landed as `tools/measure_aerial.py structure
    <ON> <OFF> <box> [group_rows]`, next to `profile` and `runs`. It prints the
@@ -2099,10 +2217,14 @@ them rather than forget them. None of these was touched.
 5. ~~**`SHEET_HAZE_LO/HI` (0.004..0.030) is a hard cut, not a fade.**~~
    **CLOSED 12.08.2026** — replaced by an exponential extinction in the sheet's
    own distance, in the same change as R3.3 exactly as this entry demanded.
-6. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
+6. **The mid and high decks are correlated above chance** (43.6 % overlap
+   against 33.0 %): they read one field with only a scale and a seed between
+   them. The low deck is independent of both, so R3.2's claim holds where it
+   was made, but "three mutually independent strata" does not.
+7. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
    fixed ring where that was defensible; if the cumulus band ever moves off the
    ring it will alias immediately.
-7. **Other zones' working tree was dirty throughout this session** (core's
+8. **Other zones' working tree was dirty throughout this session** (core's
    worldgen split, new `WorldgenOutcrop`/`WorldgenRelief`/`GroundReliefTests`).
    Nothing of mine touched it and no test of mine depends on it; noted only so
    the next agent does not read a red core test as render's.

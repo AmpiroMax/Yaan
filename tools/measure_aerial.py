@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Created: 11:08:2026 - 13:32:12
-Last updated: 12:08:2026 - 22:45:00
+Last updated: 12:08:2026 - 23:14:00
 Module: tools
 File: tools/measure_aerial.py
 
@@ -97,6 +97,12 @@ UPD:
   all, because everything that is not cloud is bit-identical in the two
   arms and subtracts to zero — and it is zero-dose-safe by construction,
   which the mode prints when it happens.
+- 12:08:2026 - 23:14:00: `decks` mode for R3.2 — a cloud deck is located by its ARM
+  DIFFERENCE (the same frame with exactly that deck dropped), never by
+  brightness, so Rule 47 has nothing to bite; the mode reports how much of the
+  box each deck owns, how disjoint the sets are, and — for the front deck — the
+  luma of pixels it owns against pixels it does not, which is the "holes show
+  brighter sky" claim stated as something a frame can fail.
 """
 
 import sys
@@ -366,6 +372,61 @@ def measure_structure(on_path, off_path, box):
     return rows
 
 
+def _box_luma(path, box):
+    w, h, ch, px = read_png(path)
+    x0, y0, x1, y1 = box
+    out = []
+    for y in range(max(0, y0), min(h, y1)):
+        for x in range(max(0, x0), min(w, x1)):
+            i = (y * w + x) * ch
+            out.append(luma(px[i], px[i + 1], px[i + 2]))
+    return out
+
+
+def measure_decks(full_path, arm_paths, box, thresh=1.0):
+    """Locate each cloud deck by the ARM DIFFERENCE, never by brightness (R3.2).
+
+    "The sky looks deeper" is not a criterion. A deck is PRESENT iff the pixels
+    that change when it ALONE is switched off are a substantial set, and three
+    strata means those sets are largely DISJOINT. Ownership is therefore decided
+    by an arm difference and only the VALUE is read from the frame, which is
+    Rule 47's cure applied before the fact rather than after being caught by it.
+
+    The front deck's claim — "holes show brighter sky behind" — is then a
+    comparison between pixels it owns and pixels it does not, at the same box.
+    """
+    base = _box_luma(full_path, box)
+    arms = []
+    for p in arm_paths:
+        v = _box_luma(p, box)
+        if len(v) != len(base):
+            raise SystemExit(f"{p}: box does not match the full arm")
+        owned = [abs(a - b) > thresh for a, b in zip(base, v)]
+        arms.append({
+            "path": p,
+            "owned": owned,
+            "count": sum(owned),
+            "mean_delta": (sum(abs(a - b) for a, b in zip(base, v))
+                           / max(1, len(base))),
+        })
+    n = len(base)
+    for k, a in enumerate(arms):
+        own = [base[i] for i in range(n) if a["owned"][i]]
+        rest = [base[i] for i in range(n) if not a["owned"][i]]
+        a["frac"] = a["count"] / n
+        a["luma_owned"], a["sd_owned"] = stats(own)
+        a["luma_rest"], _ = stats(rest)
+    overlaps = []
+    for i in range(len(arms)):
+        for j in range(i + 1, len(arms)):
+            both = sum(1 for k in range(n)
+                       if arms[i]["owned"][k] and arms[j]["owned"][k])
+            either = sum(1 for k in range(n)
+                         if arms[i]["owned"][k] or arms[j]["owned"][k])
+            overlaps.append((i, j, both / max(1, either)))
+    return arms, overlaps, n
+
+
 def find_band_rows(path, box, min_prominence=4.0):
     """Rows of the riser/bench extrema, hem first. CONTROL ARM ONLY.
 
@@ -557,6 +618,30 @@ def main(argv):
         if all(abs(r["mean"]) < 1e-6 and r["sd"] < 1e-6 for r in rows):
             print("  ZERO DOSE — the two arms are identical, nothing measured "
                   "(Rule 48's control, and it must look exactly like this)")
+        return
+
+    if len(argv) > 1 and argv[1] == "decks":
+        if len(argv) < 5:
+            raise SystemExit(
+                "usage: measure_aerial.py decks <FULL.png> <ARM.png>[,<ARM.png>...] "
+                "<x0,y0,x1,y1>\n"
+                "  each ARM is the same frame with exactly ONE deck dropped, in "
+                "front-to-back order")
+        full, arm_list, box = argv[2], argv[3].split(","), parse_box(argv[4])
+        arms, overlaps, n = measure_decks(full, arm_list, box)
+        print(f"{Path(full).name}  DECKS, box {argv[4]} ({n} px)")
+        for k, a in enumerate(arms):
+            print(f"  arm {k} ({Path(a['path']).name})")
+            print(f"    OWNS {a['count']:6d} px = {a['frac']:6.2%}   "
+                  f"mean |dL| over the box {a['mean_delta']:6.2f}")
+            print(f"    luma owned {a['luma_owned']:6.2f} (sd {a['sd_owned']:5.2f})"
+                  f"   luma NOT owned {a['luma_rest']:6.2f}"
+                  f"   -> holes are "
+                  f"{'BRIGHTER' if a['luma_rest'] > a['luma_owned'] else 'DARKER'}"
+                  f" by {abs(a['luma_rest'] - a['luma_owned']):.2f}")
+        for i, j, o in overlaps:
+            print(f"  overlap arm{i} n arm{j} / union = {o:6.2%}"
+                  f"   ({'DISJOINT enough' if o < 0.35 else 'NOT disjoint'})")
         return
 
     if len(argv) > 1 and argv[1] == "ground":
