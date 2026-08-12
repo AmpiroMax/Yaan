@@ -305,6 +305,20 @@ UPD:
   подозреваемый 1 (SHADOW_TEXEL_M). Неожиданное: на 8 px руки 1.269 против
   1.235 — почти весь мелкий контраст нашей подстилки это МАТЕРИАЛ земли, а не
   тень. Кадры: docs/acceptance/render-R6b-dapple-SHADOW-{ON,OFF}-b7bc7fe+ss.png.
+- 12:08:2026 - 23:22:28: БЕЛЁСАЯ ДАЛЬНЯЯ ЛИНИЯ ЛЕСА ДИАГНОСТИРОВАНА, И ЭТО НЕ ДЫМКА. Воспроизведено на
+  сегодняшней сборке на пробе DFN_FLORA_PROBE=2, а не разобрано по архивным
+  кадрам. ДЫМКА ПРОВАЛИВАЕТ СОБСТВЕННЫЙ КОНТРОЛЬ НУЛЕВОЙ ДОЗЫ (правило 48):
+  при DFN_HAZE=1e8 линия леса выглядит ТАК ЖЕ. Причина — НАШ СОБСТВЕННЫЙ путь
+  alpha-to-coverage, то есть починка беговой ряби: на документированной
+  бит-точной руке DFN_MSAA=0 та же линия леса выходит СПЛОШНЫМ ТЁМНО-ЗЕЛЁНЫМ
+  лесом. Почему приёмка той починки прошла честно и всё-таки это пропустила:
+  она мерила СРЕДНЕЕ («полог не проредился, +1.8 % люмы»), и среднее
+  действительно сохраняется (77.18 против 76.33), а дефект живёт в
+  РАСПРЕДЕЛЕНИИ — доля пикселей в СРЕДНЕЙ полосе (не лист и не небо) 6.1 % ->
+  13.1 %, и при РАВНОЙ ЯРКОСТИ появляется синесдвинутая популяция, которой у
+  контрольной руки нет (полоса 96..128: 31 -> 172 пикс, b-r -1.32 -> +20.42).
+  Это РАЗМЕН, а не дефект к откату: тот же рычаг купил падение мерцания при
+  беге 0.094 % -> 0.004 %. Решение — ведущему.
 -->
 
 # Spec — render agent
@@ -2207,6 +2221,69 @@ The `DFN_CLOUD=0` frame is **byte-identical to the one archived for R3.3**
 - The mid∩high correlation above.
 
 
+## THE WHITE TREELINE — DIAGNOSED, AND IT IS NOT HAZE. IT IS OURS.
+
+The complaint: the near canopy is dark green and the far one is white as
+hoarfrost, from about 400 m out. Flora eliminated two of the three candidate
+causes from their own files (the placeholder is painted the same dark green;
+texels outside the leaf contour are black, so averaging can only DARKEN). The
+third was handed to render as "light or haze lands on the foliage program
+differently at distance". It is neither light nor haze.
+
+**Reproduced on today's build** at `DFN_FLORA_PROBE=2` (the treeline vantage:
+open ground, forest edge at reading distance), not argued from the archived
+frames.
+
+**Haze FAILS ITS OWN ZERO-DOSE CONTROL (Rule 48).** `DFN_HAZE=100000000` — air
+so thin that `dfn_aerial` is the identity everywhere — renders a treeline that
+is *visually indistinguishable* from the shipped one. A lever that changes
+nothing at zero dose is not the lever. That closes the question the way it
+should be closed, in one run, and it also retires the reasoning that pointed
+here in the first place ("haze goes toward the SKY colour, not white" was a
+correct objection to a cause that was not operating anyway).
+
+**The cause is the ALPHA-TO-COVERAGE path — our own running-shimmer fix.**
+`DFN_MSAA=0` is documented in `BgfxRendererResources.cpp` as a bit-exact control
+arm: it takes the foliage back to the hard alpha cutout. On that arm the same
+treeline, same second, same everything else, is a **solid dark-green forest**.
+The pair at 8x — `render-treeline-ZOOM8-{coverage,cutout}-cf6f4ae.png` — is not
+a subtle comparison: one is a canopy, the other is the same canopy filled with a
+fine grey-white pepper.
+
+**Why the change's own acceptance passed and still missed this, which is the
+part worth keeping.** The coverage fix measured "the canopy did not thin: mean
+luma +1.8 %", and that measurement was honest and is still true — over the tight
+canopy box the two arms read **77.18** and **76.33** luma, 1.1 % apart. The
+defect is not in the mean, it is in the DISTRIBUTION, and preserving a mean is
+not preserving a picture:
+
+- 30 % of pixels fully dark-green over sky, and every pixel a 30 % blend of
+  dark-green with sky, have the SAME mean and are different pictures. The second
+  is a pale wash, and against a bright sky a pale wash is frost.
+- Measured: pixels in the MIDDLE band (80..150 luma — neither leaf nor sky)
+  **6.1 % -> 13.1 %**, a factor of 2.16.
+- And at MATCHED LUMA (so nothing is located by the property under test) a
+  blue-shifted population appears that the cutout arm does not have: in the
+  96..128 band, **31 px -> 172 px**, with b-r **-1.32 -> +20.42**, and in the
+  64..96 band greenness falls **18.80 -> 11.76**. Those are the frost pixels:
+  leaf blended with sky, at leaf-ish luma and sky-ish hue.
+
+**This is a TRADE, not a bug to revert, and the choice is the lead's.** The
+coverage path is the fix for the user's oldest complaint («при беге трясет»,
+«всё дергает и перерисовывается очень рябью») and it bought 0.094 % -> 0.004 %
+of screen flipping per running stride. Reverting it re-opens that. What is now
+established is that the two are the SAME knob, that the treeline's colour is
+what it cost, and that the cost was invisible to the acceptance that shipped it.
+
+**And the reason it matters more than it looks.** The user called the treeline
+«частокол одинаковых деревьев». Half of that report may not be sameness at all
+but this whiteness — variety is being fixed by flora, and the whiteness would
+have remained.
+
+Frames: `docs/acceptance/render-treeline-*-cf6f4ae.png` (shipped, the two
+controls, and the 8x pair), recipe in the acceptance README.
+
+
 ## DEFERRED — found on the way, NOT fixed, deliberately left
 
 Recorded per the user's instruction to write new bugs down and close our eyes on
@@ -2229,14 +2306,18 @@ them rather than forget them. None of these was touched.
 5. ~~**`SHEET_HAZE_LO/HI` (0.004..0.030) is a hard cut, not a fade.**~~
    **CLOSED 12.08.2026** — replaced by an exponential extinction in the sheet's
    own distance, in the same change as R3.3 exactly as this entry demanded.
-6. **The mid and high decks are correlated above chance** (43.6 % overlap
+6. **THE WHITE TREELINE is diagnosed and NOT fixed** — see the section above.
+   It is the alpha-to-coverage path, i.e. a trade against the running-shimmer
+   fix, and which way to take it is the lead's call, not a defect to silently
+   revert.
+7. **The mid and high decks are correlated above chance** (43.6 % overlap
    against 33.0 %): they read one field with only a scale and a seed between
    them. The low deck is independent of both, so R3.2's claim holds where it
    was made, but "three mutually independent strata" does not.
-7. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
+8. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
    fixed ring where that was defensible; if the cumulus band ever moves off the
    ring it will alias immediately.
-8. **Other zones' working tree was dirty throughout this session** (core's
+9. **Other zones' working tree was dirty throughout this session** (core's
    worldgen split, new `WorldgenOutcrop`/`WorldgenRelief`/`GroundReliefTests`).
    Nothing of mine touched it and no test of mine depends on it; noted only so
    the next agent does not read a red core test as render's.
