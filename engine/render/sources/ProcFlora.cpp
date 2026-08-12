@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 12:08:2026 - 00:45:00
+Last updated: 12:08:2026 - 23:20:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -120,6 +120,12 @@ UPD:
   and the frame is decisive. Plus the deferred WHITE-TREELINE note at
   build_silhouette, with two of lead's three suspects eliminated from these
   files' own evidence.
+- 12:08:2026 - 23:20:00: THE GREAT OAK'S ORDINAL IS ROUTED (lead's carve into
+  flora's file, three lines, core's hand): flora_owns and flora_species_of learn
+  math::ScatterSpecies::GreatOak, which core added so a world-level pass could
+  say "this one is the landmark" across a frozen instance struct. Until this the
+  giant was placed, cleared for, carried by the occlusion model — and drawn as
+  nothing, loudly.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -1148,6 +1154,7 @@ FloraSpecies flora_species_of(math::ScatterSpecies species) {
     case math::ScatterSpecies::Mushroom: return FloraSpecies::Mushroom;
     case math::ScatterSpecies::PebbleCluster: return FloraSpecies::PebbleCluster;
     case math::ScatterSpecies::StuntedPine: return FloraSpecies::StuntedPine;
+    case math::ScatterSpecies::GreatOak: return FloraSpecies::GreatOak;
     default: return FloraSpecies::Bush;
     }
 }
@@ -1176,6 +1183,10 @@ bool flora_owns(math::ScatterSpecies species) {
     case math::ScatterSpecies::Mushroom:
     case math::ScatterSpecies::PebbleCluster:
     case math::ScatterSpecies::StuntedPine:
+    // GIANT_OAKS: core places the landmark tree as its own ORDINAL because the
+    // instance struct is frozen and its scale is overwritten here — the species
+    // is the only channel that could carry "this one is the giant".
+    case math::ScatterSpecies::GreatOak:
         return true;
     // Stone is render's own mesh (ProcMesh's boulder path), not a plant.
     // NOTE the trap this predicate exists to keep shut: flora_species_of()

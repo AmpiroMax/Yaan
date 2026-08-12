@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:44:12
-Last updated: 12:08:2026 - 00:38:00
+Last updated: 12:08:2026 - 23:20:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -40,6 +40,10 @@ UPD:
   lean; this line exists because the previous one carried a placeholder time.)
 - 12:08:2026 - 00:38:00: The lean band reads TREE_LEAN_WIND_MIN/MAX from the
   generated constants; the local copies are gone (Rule 14).
+- 12:08:2026 - 23:20:00: The great oak is exempt from the maturity tier draw
+  (lead's carve, core's hand): that species IS the giant, so the 0.4-1.5
+  multiplier would be the same multiplier twice — and on the low tiers it would
+  shrink a landmark the world's occlusion envelope has already promised at 48 m.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -135,7 +139,12 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
                             >> 40)
             / 16777216.0f;
         if (!is_canopy_tree(fs)) continue;
-        if (!flora_control_arm()) sh.maturity = math::flora_maturity_for(pos_xz);
+        // The great oak takes NO tier draw: that species IS the giant (its own
+        // row says so), so a 0.4-1.5 multiplier on top would be the same
+        // multiplier twice — and downward it would shrink core's landmark.
+        if (!flora_control_arm() && fs != FloraSpecies::GreatOak) {
+            sh.maturity = math::flora_maturity_for(pos_xz);
+        }
         // WIDTH GETS ITS OWN DRAW, on a different key from the height tier.
         // Two trees that agreed on height would otherwise agree on width too,
         // and a pair of identical crowns is exactly what "reads as copies"
