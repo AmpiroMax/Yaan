@@ -319,6 +319,20 @@ UPD:
   контрольной руки нет (полоса 96..128: 31 -> 172 пикс, b-r -1.32 -> +20.42).
   Это РАЗМЕН, а не дефект к откату: тот же рычаг купил падение мерцания при
   беге 0.094 % -> 0.004 %. Решение — ведущему.
+- 12:08:2026 - 23:22:28: ДВЕ ЛУНЫ (W9) — ОРБИТАЛЬНАЯ ПОЛОВИНА ОТГРУЖЕНА, ВТОРУЮ ЛУНУ ПОКА НЕЧЕМ
+  НАРИСОВАТЬ. Блок W9 лежал двое суток без единого потребителя; теперь его
+  читает SkyModel (MoonElements/masser/secunda/moon_state_at) и проверяют шесть
+  тестов, у каждого — контроль, названный самой строкой реестра, включая
+  НАСТОЯЩУЮ ОТГРУЖЕННУЮ ИГРУ (отношение 6:5 у Скайрима повторяет конфигурацию
+  пары за 140 суток, у нас внутри 400 не повторяется ни разу). ВЫВЕДЕН ЗНАК
+  ЭПОХИ: при `+эпоха` Массер в первом же кадре под горизонтом — ровно тот дефект,
+  ради которого строка заведена; при `−эпоха` сходятся ПЯТЬ независимо
+  заявленных design чисел сразу. ЧЕСТНО: два из пяти на ОТГРУЖЕННОЙ наклонной
+  дуге смещаются (часовые углы +20.25/+46.65 против +18/+48, разнос 25.54° против
+  30°) — SKY_ARC_TILT 0.45 в плоском выводе design не учтён; строки менять не
+  надо, но эти два числа — идеализация. ЗАБЛОКИРОВАНО КОНТРАКТОМ: в
+  RenderEnvironment одна луна, нужен диф ведущего (форма расписана в спеке).
+  В дереве НИЧЕГО НЕ НЕДОПИСАНО: apply_sky_time не тронут.
 -->
 
 # Spec — render agent
@@ -2284,6 +2298,54 @@ Frames: `docs/acceptance/render-treeline-*-cf6f4ae.png` (shipped, the two
 controls, and the 8x pair), recipe in the acceptance README.
 
 
+## TWO MOONS (W9) — THE ORBITAL HALF IS SHIPPED, THE SECOND MOON CANNOT BE DRAWN YET
+
+**What landed** (`SkyModel.h/.cpp`, 6 tests): `MoonElements`, `masser()`,
+`secunda()`, `moon_state_at(elements, day_fraction, elapsed_days)` — elongation
+from the WORLD CLOCK through each moon's own synodic period, inclination about a
+retrograde node line, the equation of centre, and the apparent radius that swings
+with it. Every constant is an existing NUMBERS row; the W9 block had had no
+consumer for two days.
+
+**The one thing that had to be derived rather than copied: the epoch's sign.**
+With `+ epoch` Masser sits 162 deg from the meridian in the first frame — below
+the horizon — which is the exact defect `MASSER_ELONGATION_EPOCH` was written to
+fix. With `- epoch`, five of design's stated numbers come out at once (lit
+fractions 0.500 / 0.750 exactly, flat-arc hour angles +18 / +48, 30 deg apart),
+and it is the only sign under which moonrise is DELAYED at the row's 53.33
+in-game min/day.
+
+**Two of design's five numbers move on the SHIPPED arc, and no row needs
+changing.** Hour angles read +20.25 / +46.65 and the separation 25.54 deg rather
+than 30, because `SKY_ARC_TILT` 0.45 is not in design's flat derivation. Both
+moons stand at 65 and 41 deg elevation, 2.3x the separation floor. The row's
+claim holds; its two quoted angles are a flat-arc idealisation and should be
+read as such.
+
+**BLOCKED, and the block is a contract, not a difficulty.** `RenderEnvironment`
+carries ONE moon (`moon_direction` / `moon_color` / `moon_phase` /
+`moon_light`). The second needs its own set plus the angular radius and disc
+luma, and `IRenderer.h` is frozen (Rule 26). **Requested of the lead**, with the
+exact shape:
+
+- `moon2_direction`, `moon2_color`, `moon2_phase`, `moon2_light`, and for BOTH
+  moons `moonN_angular_radius` and `moonN_disc_luma` — the last two because
+  `fs_sky.sc`'s `MOON_COS_INNER/OUTER` are hardcoded 2.0/2.45 deg half-angles
+  and the whole point of `MASSER_ANGULAR_DIAMETER` is that the two discs differ
+  by 2.15x. Two more `u_envParams` slots (block 38 -> 40).
+- `apply_sky_time` needs `elapsed_days` as well as `day_fraction`; a defaulted
+  parameter keeps the app compiling, but the app must eventually pass the real
+  world clock or both moons stand still.
+
+**Then the shader half is mechanical**: `dfn_moon()` in `fs_sky.sc` already does
+the phase terminator and the limb; it needs to be called twice with per-moon
+radius and luma, plus `MOON_LIMB_OUTLINE_LUMA`'s 1 px ring (the row exists
+because a daytime moon's luma inevitably CROSSES the sky's, and at that hour the
+separation rule is unsatisfiable by construction — the outline holds the day,
+the disc holds the night) and `MOON_SOLAR_EXCLUSION` (already computed as
+`MoonState::observable`).
+
+
 ## DEFERRED — found on the way, NOT fixed, deliberately left
 
 Recorded per the user's instruction to write new bugs down and close our eyes on
@@ -2306,18 +2368,23 @@ them rather than forget them. None of these was touched.
 5. ~~**`SHEET_HAZE_LO/HI` (0.004..0.030) is a hard cut, not a fade.**~~
    **CLOSED 12.08.2026** — replaced by an exponential extinction in the sheet's
    own distance, in the same change as R3.3 exactly as this entry demanded.
-6. **THE WHITE TREELINE is diagnosed and NOT fixed** — see the section above.
+6. **THE SECOND MOON is computed and cannot be DRAWN** — the orbital half and
+   its tests are shipped; the contract change is requested and listed above.
+   Nothing is half-written in the tree: `apply_sky_time` is untouched and still
+   writes the one moon it always did, so this is dormant code with tests, not a
+   half-finished feature.
+7. **THE WHITE TREELINE is diagnosed and NOT fixed** — see the section above.
    It is the alpha-to-coverage path, i.e. a trade against the running-shimmer
    fix, and which way to take it is the lead's call, not a defect to silently
    revert.
-7. **The mid and high decks are correlated above chance** (43.6 % overlap
+8. **The mid and high decks are correlated above chance** (43.6 % overlap
    against 33.0 %): they read one field with only a scale and a seed between
    them. The low deck is independent of both, so R3.2's claim holds where it
    was made, but "three mutually independent strata" does not.
-8. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
+9. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
    fixed ring where that was defensible; if the cumulus band ever moves off the
    ring it will alias immediately.
-9. **Other zones' working tree was dirty throughout this session** (core's
+10. **Other zones' working tree was dirty throughout this session** (core's
    worldgen split, new `WorldgenOutcrop`/`WorldgenRelief`/`GroundReliefTests`).
    Nothing of mine touched it and no test of mine depends on it; noted only so
    the next agent does not read a red core test as render's.
