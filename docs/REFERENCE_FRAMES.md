@@ -1,11 +1,12 @@
 <!--
 Created: 11:08:2026 - 13:23:37
-Last updated: 11:08:2026 - 13:38:58
+Last updated: 12:08:2026 - 22:47:42
 -->
 <!--
 UPD:
 - 11:08:2026 - 13:23:37: Created from 16 reference frames the user dropped into images_examples/render (Morrowind / Oblivion / Skyrim). Frame index, then the invariants extracted from them, split into render's claims and design's claims. Zones: render and design. Lead owns this file; each zone lands its own consequences in its own docs.
 - 11:08:2026 - 13:38:58: Correction from design, §3 tower row: a 6 m drum reads as an object only to 180 m (Rule 33: readable size = distance/30 from SILHOUETTE_MIN_PX 8 px), so "mid-distance anchor" was wrong -- 500 m needs a 17 m minor plan dimension, and frame 06's readable unit is the two-drum assembly, not one drum. I asserted a distance without doing the arithmetic the project already owns.
+- 12:08:2026 - 22:47:42: Вторая поправка к строке про башни, и снова не моя: читаемая единица кадра 06 — СРОСШАЯСЯ связка барабанов со сплошным габаритом 8–10 м, а не сборка из двух барабанов с пролётом. Балка на 240 м есть десятая доля порога силуэта, поэтому пролёт несёт композицию, а не массу. «Стройте группой» было половиной ответа. Одну строку этого файла пришлось править дважды за два дня, оба раза потому, что я утверждал про дистанцию, не сделав арифметику, которой проект уже владеет.
 -->
 
 # REFERENCE FRAMES — what the world must look like
@@ -123,9 +124,20 @@ courses (06, 07).
 at `INTERNAL_RES` 640x360 makes readable size = distance / 30, so frame 06's
 6 m watchtower drum stops being an object at **180 m**, not at 500 m. To anchor
 at 500 m a tower needs a minor plan dimension of 17 m or more. Frame 06 is not
-a counter-example, it is the answer: its readable unit is the **assembly** --
-two drums plus the timber span -- not any single drum. So a tower either sits
-near a route, or it is built as a group.
+a counter-example, it is the answer -- but not in the way I first wrote it.
+
+**Second correction, also design's, also against me.** I said the readable
+unit was the *assembly*: two drums plus the timber span. Reopening the frame
+says otherwise. The unit is a **FUSED cluster of drums** sharing wall, solid
+girth 8-10 m, readable to 240-300 m. The span is composition and route, not
+silhouette mass: at 240 m a 0.4 m beam is a tenth of `SILHOUETTE_MIN_PX`.
+
+> **A gap fuses two masses into one readable object only if it is filled with
+> material of the same order.** A curtain wall fuses; a beam does not.
+
+So "build it as a group" was half the answer, and 500 m still demands 17 m of
+SOLID. The brief gets cheaper for it: two fused five-metre drums buy a 240 m
+anchor for almost the geometry of one.
 
 **D2 — A plain is bumpy, not flat.** Frame 01 is the direct answer to
 "нет идеальноплоского мира как в майнкрафте": it is a plateau, i.e. the
