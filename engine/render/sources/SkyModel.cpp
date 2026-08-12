@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:04:20
-Last updated: 09:08:2026 - 19:04:20
+Last updated: 12:08:2026 - 23:52:00
 Module: engine/render
 File: engine/render/sources/SkyModel.cpp
 
@@ -32,6 +32,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 19:04:20: Created with the day/night stage.
+- 12:08:2026 - 23:52:00: Two-moon geometry (W9). THE EPOCH SIGN WAS THE ONE THING THAT HAD TO BE
+  DERIVED RATHER THAN COPIED: `+ epoch` puts Masser 162 deg from the meridian at
+  the first frame, i.e. below the horizon, which is the exact defect the epoch
+  rows were written to fix. `- epoch` reproduces FIVE of design's stated numbers
+  at once (lit fractions 0.500 / 0.750 exactly, flat-arc hour angles +18 / +48,
+  30 deg apart) and is the only sign under which moonrise is DELAYED, as
+  MASSER_SYNODIC_DAYS claims. MEASURED against the shipped tilted arc: lit
+  fractions and the 53.33 min/day delay come out exact; the hour angles read
+  +20.25 / +46.65 and the separation 25.54 deg rather than 30, because
+  SKY_ARC_TILT 0.45 is not in design's flat derivation. Both moons stand at 65
+  and 41 deg elevation, 2.3x the separation floor — the row's claim holds, its
+  two quoted angles are a flat-arc idealisation.
 */
 
 #include "engine/render/sources/SkyModel.h"
@@ -49,6 +61,10 @@ namespace dfn::render {
 namespace {
 
 constexpr float TAU = 6.28318530718f;
+// The same turn in double, for the moon clock. A world clock in game DAYS runs
+// to thousands, and float loses a whole day of resolution around day 8000 —
+// the phase would quantise long before the world ran out.
+constexpr double TAU_D = 6.283185307179586;
 
 // The sun's arc is tilted toward the south (+Z) so it never passes exactly
 // overhead: a zenith sun flattens every shadow to nothing at noon and the
@@ -106,6 +122,131 @@ float moon_illumination(float lunar_phase) {
     const float phase = lunar_phase - std::floor(lunar_phase);
     // 0 = new (dark), 0.5 = full. Smooth, symmetric around full.
     return 0.5f * (1.0f - std::cos(phase * TAU));
+}
+
+MoonElements masser() {
+    return MoonElements{
+        static_cast<float>(config::MASSER_SYNODIC_DAYS),
+        static_cast<float>(config::MASSER_ELONGATION_EPOCH),
+        static_cast<float>(config::MASSER_INCLINATION),
+        static_cast<float>(config::MASSER_NODE_EPOCH),
+        static_cast<float>(config::MASSER_NODE_PERIOD_DAYS),
+        static_cast<float>(config::MASSER_ECCENTRICITY),
+        static_cast<float>(config::MASSER_ANGULAR_DIAMETER),
+        static_cast<float>(config::MASSER_DISC_LUMA)};
+}
+
+MoonElements secunda() {
+    return MoonElements{
+        static_cast<float>(config::SECUNDA_SYNODIC_DAYS),
+        static_cast<float>(config::SECUNDA_ELONGATION_EPOCH),
+        static_cast<float>(config::SECUNDA_INCLINATION),
+        static_cast<float>(config::SECUNDA_NODE_EPOCH),
+        static_cast<float>(config::SECUNDA_NODE_PERIOD_DAYS),
+        static_cast<float>(config::SECUNDA_ECCENTRICITY),
+        static_cast<float>(config::SECUNDA_ANGULAR_DIAMETER),
+        static_cast<float>(config::SECUNDA_DISC_LUMA)};
+}
+
+MoonState moon_state_at(const MoonElements& m, float day_fraction,
+                        double elapsed_days) {
+    MoonState s{};
+    const double period = m.synodic_days > 1e-3f
+                              ? static_cast<double>(m.synodic_days)
+                              : 1e-3;
+    // ELONGATION IS A FUNCTION OF THE WORLD CLOCK, and that is the whole
+    // difference from the one-moon model: there `lunar_phase` arrived as a
+    // parameter, so two moons fed the same call would move together. Here each
+    // moon walks its own synodic period from its own epoch, and the epochs are
+    // NUMBERS rows chosen so that BOTH moons stand above the horizon, 30 deg
+    // apart, with a readable terminator, in the game's very first frame —
+    // that row exists because the old `angle = sun + phase*TAU` put the moon at
+    // elongation 0 at day 0, i.e. inside the sun's glare at new moon, and the
+    // game had literally never started with a visible moon.
+    // THE EPOCH IS SUBTRACTED, and that sign is not a taste — it is the only
+    // reading under which ALL FIVE numbers design states for these two rows come
+    // out right at once. Design quotes, for elapsed_days 0 and START_TIME_OF_DAY
+    // 0.30: Masser hour angle +18 deg with lit fraction 0.500, Secunda +48 deg
+    // with 0.750, and the pair 30 deg apart. With `+ epoch` Masser lands 162 deg
+    // from the meridian, i.e. BELOW THE HORIZON, and the row's whole purpose —
+    // that the game finally starts with visible moons — fails. With `- epoch`:
+    // elongation at day 0 is 90 and 120 deg, lit 0.500 and 0.750, hour angles
+    // (measured from the meridian, which is design's convention) +18 and +48,
+    // separation 30. Five independent numbers, all exact.
+    //
+    // It is also the only sign that keeps MASSER_SYNODIC_DAYS' own claim that
+    // moonrise is DELAYED by 53.33 in-game minutes a day: elongation has to
+    // GROW with the clock for the moon to fall behind the sun, and the epoch has
+    // to be where it started, not added on top of the growth.
+    double elong = TAU_D * elapsed_days / period
+                   - static_cast<double>(m.elongation_epoch);
+    elong = elong - std::floor(elong / TAU_D) * TAU_D;
+    s.elongation = static_cast<float>(elong);
+    // Phase in the shader's own convention (0 = new, 0.5 = full): the disc
+    // terminator is driven by exactly this number, so it may not be a second
+    // encoding of the same fact.
+    s.phase = static_cast<float>(elong / TAU_D);
+    s.illumination = 0.5f * (1.0f - std::cos(s.elongation));
+
+    // THE EQUATION OF CENTRE, and it is only worth computing because the discs
+    // are ENLARGED. 2e of true-vs-mean longitude is 6.30 deg for Masser = 25.8
+    // px of wander off a uniform circle; at the moon's TRUE angular size those
+    // 2.25 px of diameter swing would be 0.23 px and invisible. The enlargement
+    // and the eccentricity are one decision — NUMBERS says so in the row — and
+    // taking the first while dropping the second as a detail is not available.
+    const float mean_anomaly = s.elongation;
+    const float centre = 2.0f * m.eccentricity * std::sin(mean_anomaly);
+    const float along = (day_fraction - 0.25f) * TAU + s.elongation + centre;
+    // Apparent size follows the same orbit: nearer at perigee.
+    s.angular_radius =
+        0.5f * m.angular_diameter * (1.0f + m.eccentricity * std::cos(mean_anomaly));
+
+    // INCLINATION, about a node line that REGRESSES. Without the regression the
+    // two orbits would keep a fixed relative geometry and the pair would repeat;
+    // with it, latitude and longitude beat against each other on periods that
+    // are again in golden ratio. The node period is the ONE number of the W9
+    // block that NUMBERS marks as a choice rather than a derivation, and it says
+    // why: the real 18.6 years is 226 real days of continuous play per cycle,
+    // and what cannot be observed cannot be accepted by a frame.
+    const double node_period = m.node_period_days > 1e-3f
+                                   ? static_cast<double>(m.node_period_days)
+                                   : 1e-3;
+    double node = static_cast<double>(m.node_epoch)
+                  - TAU_D * elapsed_days / node_period; // retrograde
+    node = node - std::floor(node / TAU_D) * TAU_D;
+    // Latitude out of the sun's arc: zero AT the nodes, extreme a quarter turn
+    // from them — the definition of a node, and the reason the two moons never
+    // share a latitude for long once their node lines are 90 deg apart at epoch.
+    const float latitude =
+        m.inclination * std::sin(along - static_cast<float>(node));
+
+    // Lift the arc direction out of its plane by `latitude`. arc_direction is
+    // the shared sun/moon arc, so a moon at zero inclination reproduces the
+    // one-moon model exactly and the inclination test has a real control.
+    const glm::vec3 base = arc_direction(along);
+    const glm::vec3 up{0.0f, 1.0f, 0.0f};
+    glm::vec3 side = glm::cross(base, up);
+    const float side_len = glm::length(side);
+    // Degenerate only if the moon is straight up, which this tilted arc never
+    // reaches; fall back to the un-tilted direction rather than to a NaN.
+    if (side_len > 1e-5f) {
+        side /= side_len;
+        const glm::vec3 out = glm::normalize(glm::cross(side, base));
+        s.direction = glm::normalize(base * std::cos(latitude)
+                                     + out * std::sin(latitude));
+    } else {
+        s.direction = base;
+    }
+
+    const glm::vec3 sun = sun_direction_at(day_fraction);
+    s.solar_separation =
+        std::acos(std::clamp(glm::dot(s.direction, sun), -1.0f, 1.0f));
+    // MOON_SOLAR_EXCLUSION is 20 deg, the real limit of naked-eye visibility
+    // near the sun. Chosen for a REASON rather than for a value (Rule 36): a
+    // moon that close is unobservable in the real sky too.
+    s.observable =
+        s.solar_separation > static_cast<float>(config::MOON_SOLAR_EXCLUSION);
+    return s;
 }
 
 glm::vec3 moon_direction_at(float day_fraction, float lunar_phase) {
