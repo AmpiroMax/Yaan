@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 11:08:2026 - 14:43:13
+Last updated: 12:08:2026 - 22:45:00
 Module: engine/render
 File: engine/render/sources/CloudModel.cpp
 
@@ -31,6 +31,10 @@ UPD:
 - 11:08:2026 - 14:43:13: cloud_field3 / cloud_field3_with — the 3-D mirror of dfn_env.sh's
   dfn_cloud_field3 (R3.1), with its own measured mean/SD and an injectable
   pair so the 2-D constants can be shipped as the failing control.
+- 12:08:2026 - 22:45:00: R3.3 — lod_sum() computes the raw sum, mean_lod and sd_lod from
+  ONE set of octave weights so the three cannot disagree; cloud_field
+  remaps through THAT distribution; cloud_alpha converges on the residual.
+  cloud_field_fixed_sd added as the rejected form.
 */
 
 #include "engine/render/sources/CloudModel.h"
@@ -115,27 +119,78 @@ float cloud_field_raw(glm::vec2 p_m, float wavelength_m) {
                  * CLOUD_OCTAVE_W2;
 }
 
-float cloud_field(glm::vec2 p_m, float wavelength_m, float cells_per_pixel) {
-    const float w = wavelength_m > 1.0f ? wavelength_m : 1.0f;
-    const glm::vec2 q{p_m.x / w, p_m.y / w};
+namespace {
+
+// The raw (pre-remap) octave sum at a sampling rate, together with the mean and
+// spread that SURVIVE the LOD at that rate. One function because the three are
+// computed from the same three l_i and must never be able to disagree.
+struct LodSum {
+    float raw;
+    float mean;
+    float sd;
+    float residual;
+};
+
+LodSum lod_sum(glm::vec2 q, float cells_per_pixel) {
     const float l0 = octave_lod(cells_per_pixel, 1.0f);
     const float l1 = octave_lod(cells_per_pixel, CLOUD_OCTAVE_F1);
     const float l2 = octave_lod(cells_per_pixel, CLOUD_OCTAVE_F2);
-    const float raw =
-        0.5f + (cloud_vnoise(q) - 0.5f) * CLOUD_OCTAVE_W0 * l0
-        + (cloud_vnoise({q.x * CLOUD_OCTAVE_F1 + 17.0f,
-                         q.y * CLOUD_OCTAVE_F1 + 31.0f})
-           - 0.5f)
-              * CLOUD_OCTAVE_W1 * l1
-        + (cloud_vnoise({q.x * CLOUD_OCTAVE_F2 + 47.0f,
-                         q.y * CLOUD_OCTAVE_F2 + 89.0f})
-           - 0.5f)
-              * CLOUD_OCTAVE_W2 * l2;
-    // The octave sum is Gaussian; push it through that Gaussian's own CDF and
+    const float w0 = CLOUD_OCTAVE_W0 * l0;
+    const float w1 = CLOUD_OCTAVE_W1 * l1;
+    const float w2 = CLOUD_OCTAVE_W2 * l2;
+    LodSum s{};
+    s.raw = 0.5f + (cloud_vnoise(q) - 0.5f) * w0
+            + (cloud_vnoise({q.x * CLOUD_OCTAVE_F1 + 17.0f,
+                             q.y * CLOUD_OCTAVE_F1 + 31.0f})
+               - 0.5f)
+                  * w1
+            + (cloud_vnoise({q.x * CLOUD_OCTAVE_F2 + 47.0f,
+                             q.y * CLOUD_OCTAVE_F2 + 89.0f})
+               - 0.5f)
+                  * w2;
+    // The octaves are the same construction at incommensurate frequencies:
+    // uncorrelated, equal marginal variance. Then the sum's spread scales with
+    // the quadratic norm of the surviving weights and its mean with their
+    // linear sum. Both are IDENTITIES at full resolution (the weights sum to
+    // 1.0 and their norm to CLOUD_OCTAVE_W_NORM), which is what makes this a
+    // generalisation of the shipped constants rather than a second calibration.
+    s.residual =
+        std::sqrt(w0 * w0 + w1 * w1 + w2 * w2) / CLOUD_OCTAVE_W_NORM;
+    s.sd = CLOUD_FIELD_SD * s.residual;
+    s.mean = 0.5f + (CLOUD_FIELD_MEAN - 0.5f) * (w0 + w1 + w2);
+    return s;
+}
+
+} // namespace
+
+float cloud_lod_residual(float cells_per_pixel) {
+    return lod_sum({0.0f, 0.0f}, cells_per_pixel).residual;
+}
+
+float cloud_field(glm::vec2 p_m, float wavelength_m, float cells_per_pixel) {
+    const float w = wavelength_m > 1.0f ? wavelength_m : 1.0f;
+    const LodSum s = lod_sum({p_m.x / w, p_m.y / w}, cells_per_pixel);
+    // The octave sum is Gaussian; push it through THAT Gaussian's own CDF and
     // what comes out is uniform on [0,1]. The logistic form approximates the
     // normal CDF to under 0.01 absolute and costs one exp — measured deciles
     // land within 0.024 of the ideal across the whole range.
-    const float z = (raw - CLOUD_FIELD_MEAN) / CLOUD_FIELD_SD;
+    //
+    // "That Gaussian" is the load-bearing word and it is what R3.3 got wrong:
+    // the LOD changes the distribution, so the CDF has to change with it. The
+    // floor only guards the division at the dead end, where the outer
+    // convergence in cloud_alpha has long since taken the answer over.
+    const float sd = s.sd > CLOUD_FIELD_SD * 1e-4f ? s.sd : CLOUD_FIELD_SD * 1e-4f;
+    const float z = (s.raw - s.mean) / sd;
+    return 1.0f / (1.0f + std::exp(-1.702f * z));
+}
+
+float cloud_field_fixed_sd(glm::vec2 p_m, float wavelength_m,
+                           float cells_per_pixel) {
+    const float w = wavelength_m > 1.0f ? wavelength_m : 1.0f;
+    const LodSum s = lod_sum({p_m.x / w, p_m.y / w}, cells_per_pixel);
+    // THE CONTROL: the full-resolution mean/SD used at every rate, which is
+    // what shipped until R3.3.
+    const float z = (s.raw - CLOUD_FIELD_MEAN) / CLOUD_FIELD_SD;
     return 1.0f / (1.0f + std::exp(-1.702f * z));
 }
 
@@ -155,9 +210,14 @@ float cloud_alpha(glm::vec2 p_m, float wavelength_m, float cover,
     edge = edge < cover ? edge : cover;
     edge = edge < 1.0f - cover ? edge : 1.0f - cover;
     const float a = smooth_step(1.0f - cover - edge, 1.0f - cover + edge, u);
-    // Below the resolution limit the only defensible value is the area
-    // average, which for a uniform field thresholded at 1-cover is `cover`.
-    return mix1(a, cover, smooth_step(0.20f, 0.60f, cells_per_pixel));
+    // Once the field is DEAD — no octave left, so nothing to threshold — the
+    // only defensible value is the area average, which for a uniform field
+    // thresholded at 1-cover is `cover`. Keyed to the RESIDUAL SPREAD, not to
+    // cells-per-pixel: that is the R3.3 fix, see CLOUD_LOD_RES_LIVE.
+    const float res = cloud_lod_residual(cells_per_pixel);
+    const float dead =
+        1.0f - smooth_step(CLOUD_LOD_RES_DEAD, CLOUD_LOD_RES_LIVE, res);
+    return mix1(a, cover, dead);
 }
 
 namespace {

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 11:08:2026 - 14:43:13
+Last updated: 12:08:2026 - 22:45:00
 Module: engine/render
 File: engine/render/sources/CloudModel.h
 
@@ -60,6 +60,16 @@ UPD:
   2D read made the band's silhouette a single-valued function of azimuth, so a
   hole in it was impossible by construction and the masses came out as
   mushroom caps.
+- 12:08:2026 - 22:45:00: R3.3 — the field is renormalised onto the mean and spread that
+  SURVIVE its own per-octave LOD (cloud_lod_residual / sd_lod / mean_lod),
+  so `cover` means coverage at EVERY sampling rate and not only at full
+  resolution, and the far-field convergence is keyed to how much field is
+  left rather than to cells-per-pixel. cloud_field_fixed_sd is the form
+  that shipped until now, kept as the control: measured at 0.50 cells/px
+  it drew 0.0000 of the plane for a requested cover of 0.15 and 1.0000
+  for 0.60. Rule 31's premise (uncorrelated octaves of equal marginal
+  variance) was MEASURED before it was used — predicted SD tracks measured
+  SD within 0.03 % from 0.0 to 0.80 cells/px.
 */
 
 #pragma once
@@ -145,24 +155,77 @@ inline constexpr float CLOUD_FIELD_SD = 0.1368f;
 /// edge at every cover value.
 inline constexpr float CLOUD_EDGE_U = 0.10f;
 
+/// sqrt(W0^2 + W1^2 + W2^2) — the octave weights' quadratic norm at FULL
+/// resolution, 0.640156. It is the denominator of the residual spread below:
+/// after the LOD has replaced octaves by their mean the surviving weights are
+/// w_i = W_i * l_i, and the sum's spread scales with sqrt(sum w_i^2).
+inline constexpr float CLOUD_OCTAVE_W_NORM = 0.640156f;
+
+/// THE OUTER CONVERGENCE WINDOW, and it is stated on the RESIDUAL SPREAD (the
+/// fraction of the field's full SD that survives the per-octave LOD), not on
+/// cells-per-pixel. That change of quantity IS the R3.3 fix.
+///
+/// What it replaced: `mix(a, cover, smoothstep(0.20, 0.60, cells_px))`, i.e.
+/// the sheet was thrown away for its own area average once one pixel covered
+/// 0.6 wavelengths — while at cells_px 0.60 the base octave's own LOD still
+/// carries 21% of its amplitude, so 21% of a fully resolvable field was being
+/// discarded. The two convergences were redundant and the outer one ran far
+/// ahead of the inner one; the gap between them, projected into the frame, was
+/// the hard bright band at the horizon (per-row SD of the cloud-only
+/// difference collapsing 38..51 -> 8.2..13.0 at rows 144..152 while the mean
+/// stayed the HIGHEST in the frame). See docs/specs/render.md, R3.3.
+///
+/// Driven by the residual instead, the convergence fires only where the field
+/// is genuinely dead: res 0.18 lands at cells_px 0.59 and res 0.04 at 0.68,
+/// against the old window's 0.20..0.60.
+inline constexpr float CLOUD_LOD_RES_LIVE = 0.18f;
+inline constexpr float CLOUD_LOD_RES_DEAD = 0.04f;
+
 /// The RAW octave sum — Gaussian, NOT uniform. Shipped as the Rule 30 control
 /// for the distribution tests: it must FAIL them. Not for drawing.
 [[nodiscard]] float cloud_field_raw(glm::vec2 p_m, float wavelength_m);
 
-/// THE field: uniform on [0,1] by construction, so a threshold at 1-cover
-/// covers exactly `cover` of the plane. `cells_per_pixel` is the sampling rate
-/// at this point (world distance covered by one pixel, in wavelengths, along
-/// the WORST screen axis); octaves that have gone sub-pixel are replaced by
-/// their mean rather than faded out, so detail is lost without the
-/// distribution moving. Pass 0 for an unsampled/analytic query.
+/// The fraction of the field's full standard deviation that survives the
+/// per-octave LOD at this sampling rate: sqrt(sum (W_i*l_i)^2) / 0.640156.
+/// 1 at full resolution, 0 once every octave has been replaced by its mean.
+///
+/// RULE 31 NOTICE. This rests on the octaves being uncorrelated with equal
+/// marginal variance — the same premise the shipped CLOUD_FIELD_MEAN/SD pair
+/// rests on, and NOT assumed here: measured over 200k samples the predicted SD
+/// tracks the measured SD of the LOD'd sum within 0.03% at every rate from 0.0
+/// to 0.80 cells/px (ratio 0.9996..1.0003). CloudModelTests.cpp asserts it.
+[[nodiscard]] float cloud_lod_residual(float cells_per_pixel);
+
+/// THE field: uniform on [0,1] AT EVERY SAMPLING RATE by construction, so a
+/// threshold at 1-cover covers exactly `cover` of the plane whether the field
+/// is fully resolved or down to its last octave. `cells_per_pixel` is the
+/// sampling rate at this point (world distance covered by one pixel, in
+/// wavelengths, along the WORST screen axis); octaves that have gone sub-pixel
+/// are replaced by their mean, and the SURVIVORS are then renormalised onto
+/// their own mean and spread (mean_lod / sd_lod) so the loss of an octave costs
+/// detail and nothing else. Pass 0 for an unsampled/analytic query.
+///
+/// The renormalisation is the R3.3 fix and it is not cosmetic: without it the
+/// spread collapses with the octaves and a fixed threshold walks straight off
+/// the distribution. MEASURED on the shipped form at cells_px 0.50 — cover 0.15
+/// drew 0.0000 of the plane and cover 0.60 drew 1.0000, i.e. both ends of the
+/// range inverted into the two constants a field can be. cloud_field_fixed_sd
+/// is that form, kept as the control the tests reject.
 [[nodiscard]] float cloud_field(glm::vec2 p_m, float wavelength_m,
                                 float cells_per_pixel);
 
+/// The SHIPPED-BEFORE-R3.3 field: same octave LOD, but remapped through the
+/// FULL-RESOLUTION mean/SD at every rate. Rule 30 control — it must fail the
+/// rate-dependent uniformity and coverage assertions. Not for drawing.
+[[nodiscard]] float cloud_field_fixed_sd(glm::vec2 p_m, float wavelength_m,
+                                         float cells_per_pixel);
+
 /// Coverage opacity at a point. cover 0 returns exactly 0 (the pass's control
 /// erases sheet and shadow together); cover 1 returns 1 everywhere. Where the
-/// field is unresolvable the value converges to `cover` itself — the honest
-/// area average — which is what turns the far sheet into a haze veil instead
-/// of a speckle field, with no distance cut-off needed to hide aliasing.
+/// field is DEAD — every octave replaced by its mean, so there is no spread
+/// left to threshold — the value converges to `cover` itself, the honest area
+/// average. The convergence is keyed to CLOUD_LOD_RES_LIVE/DEAD, i.e. to how
+/// much field is actually left, not to cells-per-pixel.
 [[nodiscard]] float cloud_alpha(glm::vec2 p_m, float wavelength_m, float cover,
                                 float cells_per_pixel);
 

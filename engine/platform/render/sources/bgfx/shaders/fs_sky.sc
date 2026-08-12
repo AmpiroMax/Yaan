@@ -37,19 +37,44 @@ $input v_dir
 // prediction, not a small number. Band also broader and thinner (363 columns
 // with cloud against 196, on less total cloud).
 
+// UPD 12:08:2026 - 22:45:00: R3.3 — THE HARD BRIGHT BAND AT THE HORIZON. The field's half of
+// the fix is in dfn_env.sh; this file's half is the SHEET_HAZE_LO/HI hard cut,
+// which was the next visible edge the moment the band above it got its
+// structure back. It spanned 0.23-1.72 deg — about 12 px — and is replaced by
+// an exponential extinction in the sheet's OWN distance, derived from the
+// layer's geometric horizon. Measured on the cloud-only difference image:
+// band rows SD 9.4 -> 30.5 with the mean 74.5 -> 47.8; the strip below the
+// cumulus base keeps its low SD (7.6 -> 6.2) but loses two thirds of its
+// amplitude (mean 62.7 -> 21.3), which is what a veil at 50 km should look
+// like. The two DFN_CLOUD=0 arms came back BYTE-IDENTICAL before and after.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
-// The sheet meets the horizon by CONVERGING TO ITS OWN AREA AVERAGE (the LOD
-// in dfn_cloud_alpha), which is what an unresolvable sheet honestly looks
-// like — a veil. It used to be cut instead: an elevation fade over 0.05..0.18
-// and a distance fade over 8..16 km, which between them deleted 22.4% of the
-// sky's pixels and left a hard horizontal SHELF at dir.y ~ 0.07 with empty sky
-// under it. That shelf, not the projection, is what the first shoot read as
-// "the sheet only materialises near the horizon". All that is left here is the
-// last degree or so, blended into the haze band the sky already draws.
-#define SHEET_HAZE_LO 0.004
-#define SHEET_HAZE_HI 0.030
+// HOW THE SHEET ENDS AT THE HORIZON, and it is an EXTINCTION IN DISTANCE, not
+// a cut in elevation.
+//
+// What was here: `smoothstep(0.004, 0.030, dir.y)`. That spans 0.23-1.72 deg,
+// about 12 px of a 640x360 frame — a hard cut, and it was invisible only
+// because the band ABOVE it was already a flat wash (R3.3). The moment that
+// band got its structure back this became the next visible edge, which is why
+// it is fixed in the same change and not after it.
+//
+// The number is derived from the layer's own geometry rather than picked. A
+// 2600 m deck seen from the valley floor physically ENDS at its geometric
+// horizon, sqrt(2*R_earth*h) = 182 km; so an extinction length of a third of
+// that puts the sheet at 1/e by 60 km, at 5 % by the distance where it ceases
+// to exist at all, and at 96 % overhead — a fall that is continuous from the
+// zenith outward and therefore has no edge anywhere to see.
+//
+// NOT dfn_aerial_transmittance, and the arithmetic is why: HAZE_SCALE_LENGTH
+// is 600 m, calibrated so a ridge at 250-900 m reads its distance. Run over a
+// 20 km sightline the same law gives an optical depth of 4.4 and erases the
+// cumulus bank, and over the 2.6 km straight up it still takes a fifth off the
+// zenith. The sheet is a SKY element: dfn_aerial's target colour IS the sky
+// gradient, so aerial perspective applied to the sky is a term applied to
+// itself. Terrain keeps that law; the sky gets its own length.
+#define SHEET_EXTINCTION_M 60000.0
 
 // Horizon cumulus, sized against the distance it is READ from (Rule 33). A
 // bank on a 20 km ring with a 1100 m base and 3400 m tops subtends dir.y
@@ -176,14 +201,17 @@ void main()
         float dist1 = (DFN_CLOUD_LAYER1_M - eye.y) / dir.y;
         vec2 p1 = eye.xz + dir.xz * dist1;
         float cpx1 = DFN_CLOUD_CELLS_PX(p1);
-        float haze = smoothstep(SHEET_HAZE_LO, SHEET_HAZE_HI, dir.y);
-        float a1 = dfn_cloud_sheet_alpha(p1, cpx1) * haze;
+        float haze1 = exp(-dist1 / SHEET_EXTINCTION_M);
+        float a1 = dfn_cloud_sheet_alpha(p1, cpx1) * haze1;
         // Layer 2, high and thin: farther plane = slower apparent drift and
-        // smaller cells — the parallax that makes the sky read as deep.
+        // smaller cells — the parallax that makes the sky read as deep. It
+        // gets its OWN distance through the same extinction, which is the
+        // parallax's other half: the far deck fades earlier along the same
+        // bearing, exactly as a farther thing should.
         float dist2 = (DFN_CLOUD_LAYER2_M - eye.y) / dir.y;
         vec2 p2 = eye.xz + dir.xz * dist2;
         float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX(p2))
-                 * haze * 0.55;
+                 * exp(-dist2 / SHEET_EXTINCTION_M) * 0.55;
 
         // Denser core -> darker base: reuse the field so shading and shape
         // cannot disagree.

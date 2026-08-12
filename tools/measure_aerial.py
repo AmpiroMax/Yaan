@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Created: 11:08:2026 - 13:32:12
-Last updated: 11:08:2026 - 14:37:49
+Last updated: 12:08:2026 - 22:45:00
 Module: tools
 File: tools/measure_aerial.py
 
@@ -91,6 +91,12 @@ UPD:
   brightness version called 80 % of the box cloud in BOTH arms — the pale
   horizon sky is brighter than a cumulus base. Measured: cumulus come back
   at b-r = 0, sky and the thin sheet at +11..+66.
+- 12:08:2026 - 22:45:00: `structure` mode LANDED (it lived only in a session scratchpad):
+  per-row mean and SD of the CLOUD-ONLY DIFFERENCE image. The first sky
+  instrument here that Rule 47 has nothing to bite — it needs no mask at
+  all, because everything that is not cloud is bit-identical in the two
+  arms and subtracts to zero — and it is zero-dose-safe by construction,
+  which the mode prints when it happens.
 """
 
 import sys
@@ -321,6 +327,45 @@ def _row_profile(path, box, smooth=7):
     return out
 
 
+def measure_structure(on_path, off_path, box):
+    """Per-row mean and SD of the CLOUD-ONLY DIFFERENCE image (R3).
+
+    THE POINT OF THIS MODE, and why it is not `profile` with a different box.
+    The subject is HOW MUCH STRUCTURE the cloud layer has at a given elevation,
+    and every earlier sky instrument in this file found cloud by being bright —
+    which the horizon's pale sky defeats every time (`runs` had to be moved onto
+    a NEUTRALITY mask for exactly this reason, and that is still a colour test).
+    Differencing against the DFN_CLOUD=0 arm needs no mask at all: the gradient,
+    the sun, the haze, the mist band and the terrain are bit-identical in both
+    arms and subtract to ZERO, so what is left IS the cloud. Rule 47's cure as a
+    construction rather than as care taken.
+
+    Rule 48, checked before the measurement rather than after: at zero dose the
+    difference image is identically zero, so every row reads 0.00 and the
+    criterion cannot pass without the subject.
+
+    Read the SD column. A flat strip of cloud tone — the R3.3 defect — has a
+    HIGH mean and a LOW SD, and the mean profile alone declares it absent: it
+    declines smoothly through the band with no step at all.
+    """
+    w, h, ch, px = read_png(on_path)
+    w2, h2, ch2, px2 = read_png(off_path)
+    if (w, h) != (w2, h2):
+        raise SystemExit(f"arms differ in size: {w}x{h} vs {w2}x{h2}")
+    x0, y0, x1, y1 = box
+    rows = []
+    for y in range(max(0, y0), min(h, y1)):
+        vals = []
+        for x in range(max(0, x0), min(w, x1)):
+            i = (y * w + x) * ch
+            j = (y * w2 + x) * ch2
+            vals.append(luma(px[i], px[i + 1], px[i + 2])
+                        - luma(px2[j], px2[j + 1], px2[j + 2]))
+        m, sd = stats(vals)
+        rows.append({"row": y, "mean": m, "sd": sd, "px": len(vals)})
+    return rows
+
+
 def find_band_rows(path, box, min_prominence=4.0):
     """Rows of the riser/bench extrema, hem first. CONTROL ARM ONLY.
 
@@ -484,6 +529,34 @@ def main(argv):
                   f"  = {q['steps']:5.2f} steps{tag}")
         if pairs:
             print(f"  H2 {'PASS' if pairs[0]['steps'] >= 1.0 else 'FAIL'} at the hem")
+        return
+
+    if len(argv) > 1 and argv[1] == "structure":
+        if len(argv) < 5:
+            raise SystemExit(
+                "usage: measure_aerial.py structure <CLOUD_ON.png> "
+                "<CLOUD_OFF.png> <x0,y0,x1,y1> [group_rows]")
+        on, off, box = argv[2], argv[3], parse_box(argv[4])
+        group = int(argv[5]) if len(argv) > 5 else 1
+        rows = measure_structure(on, off, box)
+        print(f"{Path(on).name} minus {Path(off).name}  STRUCTURE of the "
+              f"cloud-only difference, box {argv[4]}")
+        print("  rows        mean      SD    <- read the SD; a flat strip is "
+              "high mean, low SD")
+        for k in range(0, len(rows), group):
+            chunk = rows[k:k + group]
+            r0, r1 = chunk[0]["row"], chunk[-1]["row"]
+            mm = sum(c["mean"] for c in chunk) / len(chunk)
+            ss = sum(c["sd"] for c in chunk) / len(chunk)
+            print(f"  {r0:3d}-{r1:3d}  {mm:9.2f} {ss:7.2f}")
+        live = [r for r in rows if r["mean"] > 5.0]
+        if live:
+            worst = min(live, key=lambda r: r["sd"])
+            print(f"  FLATTEST ROW CARRYING CLOUD: row {worst['row']} "
+                  f"mean {worst['mean']:.2f} SD {worst['sd']:.2f}")
+        if all(abs(r["mean"]) < 1e-6 and r["sd"] < 1e-6 for r in rows):
+            print("  ZERO DOSE — the two arms are identical, nothing measured "
+                  "(Rule 48's control, and it must look exactly like this)")
         return
 
     if len(argv) > 1 and argv[1] == "ground":

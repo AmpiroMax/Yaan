@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 11:08:2026 - 15:08:17-->
+Last updated: 12:08:2026 - 22:52:00-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -233,6 +233,26 @@ UPD:
   directional self-shadowing from one sun-side field tap, the high deck made the
   brightest so holes show it) with its per-deck-arm measurement specified.
   Deferred list added at the end of this file.
+- 12:08:2026 - 22:52:00: R3.3 ОТГРУЖЕНА — жёсткая светлая полоса у горизонта убрана, и вместе с ней
+  жёсткий срез SHEET_HAZE_LO/HI, одной правкой (иначе срез стал бы следующей
+  видимой кромкой ровно после починки — это было записано предшественником и
+  подтвердилось). Диагноз предшественника воспроизвёлся на сегодняшнем дереве
+  ЦЕЛИКОМ, до цифры. (1) Поле перенормировано на среднее и разброс, ПЕРЕЖИВШИЕ
+  собственный LOD; (2) внешняя сходимость переведена с cells_px на остаточный
+  разброс res (окно 0.18 -> 0.04, то есть cells_px 0.59..0.68 вместо
+  0.20..0.60); (3) срез заменён экспоненциальным ослаблением по СОБСТВЕННОЙ
+  дальности листа, длина 60 км выведена из геометрического горизонта слоя
+  2600 м (182 км), а НЕ через dfn_aerial_transmittance — та с длиной 600 м даёт
+  на 20 км оптическую толщу 4.4 и стирает кучевые. Правило 31 выполнено ДО
+  шейдера: посылка о некоррелированных октавах равной дисперсии ИЗМЕРЕНА
+  (предсказание против замера 0.9996..1.0003 на всём диапазоне), и контроль
+  оказался ХУЖЕ, чем говорил диагноз — на 0.50 ячеек/пиксель прежняя форма при
+  запрошенном покрытии 0.15 рисовала 0.0000, а при 0.60 — 1.0000. Кадр:
+  построчное СКО разностного изображения в полосе 9.4 -> 30.5 при среднем
+  74.5 -> 47.8 (полоса перестала быть и самым ярким местом кадра). ЧЕСТНО:
+  вторая плоская полоска на рядах 180-183 структурно НЕ починена (СКО 7.6 ->
+  6.2) — там поля уже нет вовсе; починена её ЗАМЕТНОСТЬ (среднее 62.7 -> 21.3).
+  Прибор `structure` заведён в tools/measure_aerial.py (был только в блокноте).
 -->
 
 # Spec — render agent
@@ -1766,14 +1786,12 @@ a change that makes the picture prettier without making 900 m differ from 250 m
 has not done R1, and this instrument reports that as a flat column.
 
 
-## R3.2 / R3.3 — DIAGNOSED AND MEASURED, NOT SHIPPED (session ended here)
+## R3.2 / R3.3 — DIAGNOSED AND MEASURED. **R3.3 IS NOW SHIPPED** (12.08.2026)
 
-**Status: nothing of this is in the build.** The tree is at HEAD; a half-finished
-env-block change was reverted deliberately (the lead's wrap-up instruction: half
-a shader in a shared tree is worse than nothing). What follows is the whole of
-what was established, in the order a successor needs it. The diagnosis is the
-expensive part and it is finished; the code is the cheap part and it is not
-started.
+**Status: R3.3 is in the build; R3.2 is still only designed.** The diagnosis
+below stood up in full when it was finally acted on — the BEFORE arm, reshot on
+today's tree, reproduced every number of it — so what follows is kept as
+written, with the shipped result appended at the end of the R3.3 section.
 
 ### The instrument, and it is the one thing here worth inheriting
 
@@ -1883,6 +1901,88 @@ the same mechanism at the very bottom of the sheet, just below the cumulus base
 (`CUMULUS_BASE_Y` = 0.055 lands at row 182 at this vantage — the arithmetic
 matches to a row). One fix removes both.
 
+### R3.3 SHIPPED — what was built, what it measured, and what it did not fix
+
+The diagnosis above was acted on unchanged. Three things landed together, and
+the second one is not optional: the moment the band gets its structure back the
+`SHEET_HAZE_LO/HI` cut becomes the next visible edge, so it was fixed in the
+same change rather than after it (deferred item 5, now closed).
+
+**(1) The field is renormalised onto the distribution that survives its LOD.**
+`dfn_cloud_field` / `CloudModel::cloud_field` now compute `w_i = W_i·l_i`,
+`sd_lod = SD·√(Σwᵢ²)/0.6402` and `mean_lod = 0.5 + (MEAN−0.5)·Σwᵢ`, and remap
+through *that* Gaussian's CDF. Both lines are identities at full resolution, so
+this generalises the shipped constants instead of adding a second calibration.
+
+**(2) The outer convergence is keyed to the RESIDUAL SPREAD, not to
+`cells_px`.** `res = √(Σwᵢ²)/0.6402`, window 0.18 → 0.04, which lands at
+`cells_px` 0.59 → 0.68 against the old 0.20 → 0.60.
+
+**(3) `SHEET_HAZE_LO/HI` deleted, replaced by an extinction in the sheet's own
+distance:** `exp(−dist / SHEET_EXTINCTION_M)` with `SHEET_EXTINCTION_M` 60 km.
+Derived, not picked: a 2600 m deck seen from the valley floor physically ends at
+its geometric horizon, √(2·R⊕·h) = 182 km, so a third of that puts the sheet at
+1/e by 60 km, at 5 % where it ceases to exist, and at 96 % overhead — a fall
+that is continuous from the zenith outward and therefore has no edge to see.
+**Explicitly NOT `dfn_aerial_transmittance`, and the arithmetic is the reason:**
+`HAZE_SCALE_LENGTH` is 600 m, calibrated so a ridge at 250–900 m reads its
+distance; over a 20 km sightline the same law gives optical depth 4.4 and erases
+the cumulus bank, and over the 2.6 km straight up it still takes a fifth off the
+zenith. The sheet is a SKY element and `dfn_aerial`'s target colour IS the sky
+gradient, so aerial perspective applied to the sky is a term applied to itself.
+
+**Rule 31, done BEFORE the shader half, and it passed.** The
+uncorrelated-equal-variance premise was measured over 200k samples: predicted
+`sd_lod` against the measured SD of the LOD'd sum comes back at ratio
+0.9996–1.0003 across 0.0–0.80 cells/px. `CloudModelTests.cpp` asserts it by
+inverting the field's own logistic — SD of the recovered z is 1.000 at every
+rate — with the shipped-until-now form as the control, whose z collapses *by the
+residual* (0.63 / 0.39 / 0.17 at rates 0.40 / 0.50 / 0.60), i.e. the control
+does not merely fail, it fails by exactly the amount the diagnosis predicted.
+
+**The control turned out WORSE than the diagnosis claimed.** Measured on the
+shipped form at `cells_px` 0.50: a requested cover of 0.15 drew **0.0000** of the
+plane and 0.60 drew **1.0000** — both ends of the range collapsed into the two
+constants a field can be. That is the bright flat strip, in numbers, before any
+pixel is looked at.
+
+**The frame result** (`structure` mode, box `0,100,640,200`, both arms shot from
+one binary 30 seconds apart, differing only in `DFN_CLOUD`):
+
+| internal rows | what is there | SD before | SD after | mean before | mean after |
+|---|---|---|---|---|---|
+| 108–111 | resolved sheet | 49.8 | 48.7 | 81.1 | 74.4 |
+| 144–147 | band, upper edge | 15.8 | **38.2** | 76.4 | 53.4 |
+| 148–151 | **THE BAND** | **9.4** | **30.5** | **74.5** | **47.8** |
+| 152–155 | band, lower edge | 15.5 | 21.1 | 69.6 | 48.8 |
+| 180–183 | second flat strip | 7.6 | 6.2 | 62.7 | **21.3** |
+| 184–187 | below it | 9.4 | 3.8 | 57.1 | 13.0 |
+
+Two claims, and they are different claims. The band's **structure** is back
+(SD ×3.25 where the collapse was deepest), and the band has also stopped being
+the **brightest** thing in the frame — its mean drops below the resolved
+sheet's, where before it stood above everything. The second was not a separate
+fix: in the converged region the shading term `core1` read a field pinned at
+0.5, so every band pixel was drawn at full `cloud_bright` with no dark core at
+all. Renormalising restores the field's spread and the shading with it.
+
+**HONEST — the second strip at rows 180–183 is NOT structurally fixed.** Its SD
+is still 6.2. There the sheet is genuinely dead (`cells_px` ≈ 3.5, every octave
+past its own LOD), so a uniform veil is the correct answer and no renormalisation
+can produce structure from a field that no longer exists. What changed is its
+amplitude: mean 62.7 → 21.3, and 57.1 → 13.0 in the rows below. It reads as a
+faint veil rather than as a second picture joined to the first, and that is the
+extinction's doing, not the field's.
+
+**The zero-dose arms came back BYTE-IDENTICAL before and after** — `cmp` on the
+two `DFN_CLOUD=0` frames. So a single archived control frame serves both arms,
+and the change provably touches nothing but cloud.
+
+**Owed / flagged.** `SHEET_EXTINCTION_M` is a shader literal like
+`DFN_CLOUD_LAYER1_M`; it has one consumer today, so Rule 35 does not force it
+into NUMBERS yet, but it should travel with the deck altitudes when R3.2 moves
+those (they have two consumers each — `fs_sky` and `dfn_cloud_sun_vis`).
+
 ### R3.2 — THE CEILING IS ONE TONE ON ONE PLANE. What was designed, and why each piece.
 
 Reference 12 carries three claims and we satisfy none of them: at least three
@@ -1962,23 +2062,22 @@ draft was written and reverted intact; re-doing it is mechanical.
 Recorded per the user's instruction to write new bugs down and close our eyes on
 them rather than forget them. None of these was touched.
 
-1. **R3.3 — the hard bright band at the horizon.** Diagnosed to the line, fix
-   designed and unwritten (see above). This is the user-visible one.
-2. **R3.2 — the sky is one flat speckled ceiling.** Same: diagnosed, designed,
-   unwritten.
-3. **The second flat strip at rows 180–183**, same mechanism as (1), same fix.
-4. **The cloud-structure instrument lives only in the session scratchpad.** It
-   should be a mode of `tools/measure_aerial.py` (`structure <ON> <OFF> <box>`)
-   next to `profile` and `runs`, because it is the first sky instrument in this
-   zone that is immune to the horizon's pale sky by construction rather than by
-   a mask, and every future sky claim wants it. Not landed: new code, and the
-   session was wrapping up.
-5. **`SHEET_HAZE_LO/HI` (0.004..0.030) is a hard cut, not a fade.** It spans
-   0.23°–1.72°, about 12 px of a 640×360 frame, and it is what terminates the
-   sheet at rows ~190–193. It is invisible TODAY only because the band above it
-   is already a flat wash; the moment R3.3's fix restores structure down to the
-   horizon, this cut becomes the next visible edge. Fix it in the same change,
-   not after.
+1. ~~**R3.3 — the hard bright band at the horizon.**~~ **CLOSED 12.08.2026** —
+   shipped, see the R3.3 section above for what it measured.
+2. **R3.2 — the sky is one flat speckled ceiling.** Still diagnosed, designed
+   and unwritten. This is now the open half of R3.
+3. **The second flat strip at rows 180–183** — PARTLY closed by R3.3. Its
+   amplitude fell by two thirds (mean 62.7 → 21.3) but its SD did not move
+   (7.6 → 6.2), and it cannot: at `cells_px` ≈ 3.5 there is no field left to
+   have structure. What is owed there is not more field, it is R3.2's decks —
+   a nearer deck at 1500 m is still resolvable at that elevation.
+4. ~~**The cloud-structure instrument lives only in the session scratchpad.**~~
+   **CLOSED 12.08.2026** — landed as `tools/measure_aerial.py structure
+   <ON> <OFF> <box> [group_rows]`, next to `profile` and `runs`. It prints the
+   flattest row still carrying cloud, and it announces its own zero-dose case.
+5. ~~**`SHEET_HAZE_LO/HI` (0.004..0.030) is a hard cut, not a fade.**~~
+   **CLOSED 12.08.2026** — replaced by an exponential extinction in the sheet's
+   own distance, in the same change as R3.3 exactly as this entry demanded.
 6. **`dfn_cloud_field3` still has no LOD term at all.** It was written for a
    fixed ring where that was defensible; if the cumulus band ever moves off the
    ring it will alias immediately.

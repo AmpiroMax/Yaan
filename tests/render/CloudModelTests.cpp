@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 03:13:00
-Last updated: 11:08:2026 - 14:43:44
+Last updated: 12:08:2026 - 22:45:00
 Module: tests
 File: tests/render/CloudModelTests.cpp
 
@@ -29,6 +29,14 @@ UPD:
   constants exists at all. Plus the assertion that the field actually varies
   with HEIGHT, since not varying with height is what made the band's
   silhouette single-valued and produced the mushroom caps.
+- 12:08:2026 - 22:45:00: R3.3 — the LOD's own distribution (Rule 31 one level down: the
+  first pass asserted the field at FULL resolution and left the LOD
+  unasserted, and the LOD moves the distribution). Three cases, each with
+  the shipped-until-now form as the control it rejects: the surviving
+  spread is predicted (SD of the recovered z is 1.000 at every rate, the
+  control collapses BY the residual), cover means coverage at every rate,
+  and the outer convergence fires on the residual instead of on
+  cells-per-pixel (alpha SD at 0.60 cells/px 0.000 -> 0.466).
 */
 
 #include "engine/render/sources/CloudModel.h"
@@ -47,6 +55,7 @@ using dfn::render::apply_clouds;
 using dfn::render::cloud_drift_offset;
 using dfn::render::cloud_alpha;
 using dfn::render::cloud_field;
+using dfn::render::cloud_field_fixed_sd;
 using dfn::render::cloud_field_raw;
 using dfn::render::WIND_FIELD_DRIFT_SPEED_MPS;
 
@@ -249,6 +258,178 @@ TEST_CASE("below the resolution limit the field converges to its AREA MEAN") {
         spread = std::max(spread, std::fabs(a - cover));
     }
     CHECK(spread > 0.5f);
+}
+
+// ===========================================================================
+// THE FIELD AT REDUCED SAMPLING RATES (R3.3). Rule 31 again, one level down:
+// the first pass asserted the distribution at FULL resolution and left the LOD
+// unasserted, and the LOD moves the distribution — replacing an octave by its
+// mean shrinks the sum's spread, so a threshold calibrated on the full-
+// resolution SD walks off the end of it. That is what drew the hard bright
+// band at the horizon: a strip of cloud tone with the structure taken out.
+//
+// Every case below ships cloud_field_fixed_sd — the form that shipped until
+// R3.3 — as the control, and every one of them rejects it.
+// ===========================================================================
+
+namespace {
+
+// The sampling rates the sheet actually occupies between the zenith and the
+// horizon. 0.60 is where the OLD outer convergence had finished throwing the
+// field away; 0.80 is past every octave's own LOD, i.e. genuinely dead.
+constexpr float kRates[] = {0.0f, 0.20f, 0.30f, 0.40f, 0.50f, 0.60f};
+
+// z-score recovered from the field by inverting its own logistic remap. If the
+// renormalisation is right this has mean 0 and SD 1 AT EVERY RATE — which is
+// the uncorrelated-equal-variance premise stated as something a test can read,
+// with no new API and no second copy of the octave sum to drift out of step.
+float field_z(float f) {
+    const float c = std::min(std::max(f, 1e-6f), 1.0f - 1e-6f);
+    return std::log(c / (1.0f - c)) / 1.702f;
+}
+
+float sd_of(const std::vector<float>& v) {
+    double s = 0.0;
+    double s2 = 0.0;
+    for (const float x : v) {
+        s += x;
+        s2 += static_cast<double>(x) * x;
+    }
+    const double m = s / static_cast<double>(v.size());
+    // Clamped at zero: for a CONSTANT array — which is precisely what the
+    // rejected control produces — the two accumulators cancel to a value that
+    // rounds negative, and a NaN would report as "not less than" and let the
+    // control pass by failing to be a number.
+    const double var = std::max(0.0, s2 / static_cast<double>(v.size()) - m * m);
+    return static_cast<float>(std::sqrt(var));
+}
+
+} // namespace
+
+TEST_CASE("Rule 31: the spread that SURVIVES the LOD is predicted, not assumed") {
+    // The renormalisation rests on the three octaves being uncorrelated with
+    // equal marginal variance, so that the surviving spread is
+    // CLOUD_FIELD_SD * sqrt(sum w_i^2) / 0.640156. That is a premise about a
+    // noise field, which is exactly the kind of thing this file has been
+    // wrong about before, so it is MEASURED here rather than reasoned about.
+    const auto pts = field_samples(120000);
+    for (const float rate : kRates) {
+        std::vector<float> z;
+        z.reserve(pts.size());
+        for (const glm::vec2& p : pts) {
+            z.push_back(field_z(
+                cloud_field(p, dfn::render::CLOUD_WAVELENGTH_M, rate)));
+        }
+        const float sd = sd_of(z);
+        INFO("rate ", rate, " -> SD of z = ", sd);
+        // Measured over 200k samples the prediction tracks the truth to within
+        // 0.03 % at every rate; 2 % is two orders of margin and still far
+        // below the control's collapse.
+        CHECK(std::fabs(sd - 1.0f) < 0.02f);
+    }
+
+    // CONTROL — the shipped form. Its z is (raw - full-res mean)/full-res SD,
+    // whose spread IS the residual, so it collapses exactly as far as the LOD
+    // has gone: 0.91 at rate 0.20, 0.39 at 0.50, 0.17 at 0.60. A threshold
+    // held still against a distribution shrinking like that is the defect.
+    for (const float rate : {0.40f, 0.50f, 0.60f}) {
+        std::vector<float> z;
+        z.reserve(pts.size());
+        for (const glm::vec2& p : pts) {
+            z.push_back(field_z(cloud_field_fixed_sd(
+                p, dfn::render::CLOUD_WAVELENGTH_M, rate)));
+        }
+        const float sd = sd_of(z);
+        INFO("CONTROL rate ", rate, " -> SD of z = ", sd);
+        CHECK(sd < 0.70f);
+        // And it collapses BY the residual, which is the diagnosis itself
+        // rather than just a failure: the two agree to a few percent.
+        CHECK(sd == doctest::Approx(dfn::render::cloud_lod_residual(rate))
+                        .epsilon(0.03));
+    }
+}
+
+TEST_CASE("cover MEANS coverage at EVERY sampling rate, not only at full res") {
+    const auto pts = field_samples(120000);
+    for (const float rate : kRates) {
+        std::vector<float> v;
+        v.reserve(pts.size());
+        for (const glm::vec2& p : pts) {
+            v.push_back(cloud_field(p, dfn::render::CLOUD_WAVELENGTH_M, rate));
+        }
+        const float err = worst_decile_error(v);
+        INFO("rate ", rate, " -> worst decile error ", err);
+        CHECK(err < 0.05f); // measures 0.023..0.035 across the whole set
+    }
+
+    // CONTROL — the shipped form, at the rates the horizon band occupies.
+    // MEASURED, and it is worse than the diagnosis claimed: at rate 0.50 a
+    // requested cover of 0.15 drew 0.0000 of the plane and 0.60 drew 1.0000,
+    // i.e. both ends of the range collapsed into the two constants a field can
+    // be. That is the bright flat strip, in numbers, before any pixel.
+    for (const float rate : {0.50f, 0.60f}) {
+        std::vector<float> v;
+        v.reserve(pts.size());
+        for (const glm::vec2& p : pts) {
+            v.push_back(
+                cloud_field_fixed_sd(p, dfn::render::CLOUD_WAVELENGTH_M, rate));
+        }
+        const float err = worst_decile_error(v);
+        INFO("CONTROL rate ", rate, " -> worst decile error ", err);
+        CHECK(err > 0.15f); // 0.19 at 0.50, 0.34 at 0.60
+    }
+}
+
+TEST_CASE("the outer convergence fires on the RESIDUAL, not on cells/pixel") {
+    const auto pts = field_samples(40000);
+    const float cover = 0.45f;
+
+    // The residual is the quantity, and its two ends are both asserted
+    // (Rule 30's "a range is two assertions"): full field at full resolution,
+    // nothing left once every octave is past its own LOD.
+    CHECK(dfn::render::cloud_lod_residual(0.0f) == doctest::Approx(1.0f));
+    CHECK(dfn::render::cloud_lod_residual(0.80f) == doctest::Approx(0.0f));
+    // And the number the whole diagnosis turns on: at cells/px 0.60, where the
+    // old convergence had finished, a sixth of the field is still alive.
+    CHECK(dfn::render::cloud_lod_residual(0.60f)
+          == doctest::Approx(0.1675f).epsilon(0.01));
+
+    std::vector<float> live;
+    live.reserve(pts.size());
+    for (const glm::vec2& p : pts) {
+        live.push_back(
+            cloud_alpha(p, dfn::render::CLOUD_WAVELENGTH_M, cover, 0.60f));
+    }
+    const float sd_live = sd_of(live);
+    INFO("alpha SD at cells/px 0.60 = ", sd_live);
+    // Full resolution measures 0.4747. Structure must SURVIVE here, because
+    // this rate is the middle of the band the user is looking at.
+    CHECK(sd_live > 0.40f);
+
+    // CONTROL — the shipped convergence at the same rate, computed here so the
+    // rejected case is in the test rather than in a comment:
+    // mix(a, cover, smoothstep(0.20, 0.60, cells_px)) is a full replacement by
+    // the area mean at 0.60, i.e. SD exactly 0. A flat strip.
+    float t = (0.60f - 0.20f) / (0.60f - 0.20f);
+    t = t * t * (3.0f - 2.0f * t);
+    std::vector<float> shipped;
+    shipped.reserve(pts.size());
+    for (const glm::vec2& p : pts) {
+        const float a = cloud_alpha(p, dfn::render::CLOUD_WAVELENGTH_M, cover,
+                                    0.60f);
+        shipped.push_back(a + (cover - a) * t);
+    }
+    const float sd_shipped = sd_of(shipped);
+    INFO("CONTROL (shipped window) alpha SD at 0.60 = ", sd_shipped);
+    CHECK(sd_shipped < 0.001f);
+    CHECK(sd_live > sd_shipped * 100.0f);
+
+    // Past the residual window the answer is still exactly the area mean —
+    // the convergence was moved, not deleted.
+    for (const glm::vec2& p : pts) {
+        CHECK(cloud_alpha(p, dfn::render::CLOUD_WAVELENGTH_M, cover, 0.90f)
+              == doctest::Approx(cover));
+    }
 }
 
 // ===========================================================================

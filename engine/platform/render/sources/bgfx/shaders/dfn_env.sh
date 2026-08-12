@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 12:08:2026 - 00:14:02
+Last updated: 12:08:2026 - 22:45:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -106,6 +106,18 @@ UPD:
   can be swept from the environment (DFN_GROUND_TINT) without a rebuild —
   and so that 0 is a genuine zero-dose control arm rather than "roughly the
   old look" (Rule 48).
+- 12:08:2026 - 22:45:00: R3.3 — THE HARD BRIGHT BAND AT THE HORIZON WAS THE SHEET'S OWN
+  AREA MEAN, drawn where the field was still resolvable. dfn_cloud_field now
+  renormalises onto the mean and spread that SURVIVE its per-octave LOD, and
+  dfn_cloud_alpha's outer convergence is keyed to that residual spread instead
+  of to cells_px — so it fires where the field is dead (cells_px 0.59..0.68)
+  rather than while the base octave still carries 21 % of its amplitude
+  (cells_px 0.20..0.60). Two convergences were redundant and the outer one ran
+  far ahead of the inner one; the gap between them, projected into the frame,
+  WAS the band. Measured with the cloud-only difference image: per-row SD at
+  the band 9.4 -> 30.5, and its mean 74.5 -> 47.8, so it also stops being the
+  brightest thing in the frame. Rule 31 on the premise, measured first:
+  predicted SD tracks measured SD within 0.03 % at every rate.
 */
 
 #ifndef DFN_ENV_SH
@@ -227,6 +239,14 @@ uniform vec4 u_envParams[38];
 // Gaussian's own CDF.
 #define DFN_CLOUD_FIELD_MEAN 0.4980
 #define DFN_CLOUD_FIELD_SD   0.1368
+// sqrt(W0^2+W1^2+W2^2) at full resolution. Denominator of the residual spread
+// (see dfn_cloud_lod_residual). Mirrored: CLOUD_OCTAVE_W_NORM.
+#define DFN_CLOUD_W_NORM     0.640156
+// The outer convergence window, stated on the RESIDUAL SPREAD rather than on
+// cells-per-pixel — that change of quantity IS the R3.3 fix. Mirrored:
+// CLOUD_LOD_RES_LIVE / CLOUD_LOD_RES_DEAD.
+#define DFN_CLOUD_RES_LIVE   0.18
+#define DFN_CLOUD_RES_DEAD   0.04
 
 float dfn_cloud_hash(vec2 c)
 {
@@ -267,17 +287,42 @@ float dfn_cloud_octave_lod(float cells_px, float freq)
 // drew 0.19 — the first shoot's empty sky, visible in the numbers before it
 // was visible in a frame. Pushing the sum through its own CDF makes the field
 // uniform, and then the threshold means what it says.
+//
+// AND THE LOD MOVES THAT GAUSSIAN, which is R3.3. Replacing an octave by its
+// mean shrinks the sum's spread, so remapping through the FULL-RESOLUTION
+// mean/SD at a reduced rate walks the threshold straight off the distribution.
+// Measured on that form at cells_px 0.50: cover 0.15 drew 0.0000 of the plane
+// and cover 0.60 drew 1.0000 — both ends collapsed into the two constants a
+// field can be, which is why the horizon needed an outer convergence to hide
+// it. Renormalised onto the surviving mean and spread instead, coverage holds
+// to 0.035 at EVERY rate and the surviving structure keeps its full contrast.
+// Rule 31: the uncorrelated-equal-variance premise the residual rests on was
+// MEASURED, not assumed (CloudModel.cpp / CloudModelTests.cpp).
+float dfn_cloud_lod_residual(float cells_px)
+{
+    float w0 = 0.55 * dfn_cloud_octave_lod(cells_px, 1.00);
+    float w1 = 0.28 * dfn_cloud_octave_lod(cells_px, 2.03);
+    float w2 = 0.17 * dfn_cloud_octave_lod(cells_px, 4.07);
+    return sqrt(w0 * w0 + w1 * w1 + w2 * w2) / DFN_CLOUD_W_NORM;
+}
+
 float dfn_cloud_field(vec2 p, float cells_px)
 {
     vec2 q = p / max(u_cloudWavelength, 1.0);
-    float l0 = dfn_cloud_octave_lod(cells_px, 1.00);
-    float l1 = dfn_cloud_octave_lod(cells_px, 2.03);
-    float l2 = dfn_cloud_octave_lod(cells_px, 4.07);
+    float w0 = 0.55 * dfn_cloud_octave_lod(cells_px, 1.00);
+    float w1 = 0.28 * dfn_cloud_octave_lod(cells_px, 2.03);
+    float w2 = 0.17 * dfn_cloud_octave_lod(cells_px, 4.07);
     float raw = 0.5
-              + (dfn_cloud_vnoise(q) - 0.5) * 0.55 * l0
-              + (dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) - 0.5) * 0.28 * l1
-              + (dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) - 0.5) * 0.17 * l2;
-    float z = (raw - DFN_CLOUD_FIELD_MEAN) / DFN_CLOUD_FIELD_SD;
+              + (dfn_cloud_vnoise(q) - 0.5) * w0
+              + (dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) - 0.5) * w1
+              + (dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) - 0.5) * w2;
+    // Both lines are IDENTITIES at full resolution (the weights sum to 1.0 and
+    // their quadratic norm to DFN_CLOUD_W_NORM), so this generalises the
+    // shipped constants rather than adding a second calibration.
+    float sd_lod = DFN_CLOUD_FIELD_SD
+                 * (sqrt(w0 * w0 + w1 * w1 + w2 * w2) / DFN_CLOUD_W_NORM);
+    float mean_lod = 0.5 + (DFN_CLOUD_FIELD_MEAN - 0.5) * (w0 + w1 + w2);
+    float z = (raw - mean_lod) / max(sd_lod, DFN_CLOUD_FIELD_SD * 1e-4);
     return 1.0 / (1.0 + exp(-1.702 * z)); // logistic ~= the normal CDF
 }
 
@@ -354,12 +399,20 @@ float dfn_cloud_alpha(vec2 p, float cover, float cells_px)
     float u = dfn_cloud_field(p, cells_px);
     float edge = min(DFN_CLOUD_EDGE_U, min(cover, 1.0 - cover));
     float a = smoothstep(1.0 - cover - edge, 1.0 - cover + edge, u);
-    // Past the resolution limit a point sample is noise; the honest value is
-    // the area average, which for a uniform field thresholded at 1-cover is
-    // `cover`. Converging there turns the far sheet into a haze veil instead
-    // of a speckle band, and needs no distance cut-off to hide the aliasing —
-    // the cut-off is what carved the hard shelf across the first shoot's sky.
-    return mix(a, cover, smoothstep(0.20, 0.60, cells_px));
+    // Once the field is DEAD — every octave replaced by its mean, nothing left
+    // to threshold — the honest value is the area average, which for a uniform
+    // field thresholded at 1-cover is `cover`.
+    //
+    // R3.3: this used to read `smoothstep(0.20, 0.60, cells_px)`, i.e. the
+    // sheet was thrown away for its average while the base octave still
+    // carried 21% of its amplitude. Two redundant convergences with the outer
+    // one running far ahead of the inner one, and the gap between them,
+    // projected into the frame, WAS the hard bright band at the horizon.
+    // Keyed to the residual spread it fires only where there is genuinely
+    // nothing left: res 0.18 is cells_px 0.59, res 0.04 is 0.68.
+    float dead = 1.0 - smoothstep(DFN_CLOUD_RES_DEAD, DFN_CLOUD_RES_LIVE,
+                                  dfn_cloud_lod_residual(cells_px));
+    return mix(a, cover, dead);
 }
 
 // How much field one pixel covers, in wavelengths, at a sampled layer point.
