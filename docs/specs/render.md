@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 12:08:2026 - 22:52:00-->
+Last updated: 12:08:2026 - 22:49:49-->
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -253,6 +253,14 @@ UPD:
   вторая плоская полоска на рядах 180-183 структурно НЕ починена (СКО 7.6 ->
   6.2) — там поля уже нет вовсе; починена её ЗАМЕТНОСТЬ (среднее 62.7 -> 21.3).
   Прибор `structure` заведён в tools/measure_aerial.py (был только в блокноте).
+- 12:08:2026 - 22:49:49: R6a (ТЁПЛЫЙ КЛЮЧ / ХОЛОДНАЯ ТЕНЬ) ИЗМЕРЕН НА ЕГО КАДРАХ И
+  ОТКЛОНЁН. Разделение по цвету у нас ЕСТЬ (+14.02) и оно больше, чем у любого
+  из четырёх референсов (-8.55..+0.52, все внутри ±6 — оценки вклада их
+  тонмаппинга). Тень в референсе того же тона, что и солнце, просто темнее.
+  Прибор `tools/measure_light_split.py` калиброван: на нашем кадре он выдаёт
+  +14.02 против +14.01, предсказанных LOOKDEV_SUN_COLOR/LOOKDEV_AMBIENT_COLOR.
+  Его первая версия (по децилям) дала -36.5 на тех же камнях — это была
+  ТЕКСТУРА, шестой случай правила 47 в этой зоне. Кода не менял.
 -->
 
 # Spec — render agent
@@ -2085,6 +2093,84 @@ them rather than forget them. None of these was touched.
    worldgen split, new `WorldgenOutcrop`/`WorldgenRelief`/`GroundReliefTests`).
    Nothing of mine touched it and no test of mine depends on it; noted only so
    the next agent does not read a red core test as render's.
+
+## R6a — WARM KEY / COOL SHADE: MEASURED ON HIS FRAMES, AND REFUSED
+
+Full recipe, boxes and table: `docs/acceptance/render-R6-warm-cool-split.md`.
+Instrument: `tools/measure_light_split.py`. **No code was changed.**
+
+### The finding, in one line
+
+**We already have the warm/cool split, it is the largest in the comparison, and
+the reference frames do not have one at all.**
+
+| | luma range | WARM_SPLIT |
+|---|---|---|
+| OURS, obelisk cast shadow vs sunlit grass | 1.79x | **+14.02** |
+| ref 14, Whiterun cobbles, cast shadow vs sun 1 m away | 1.90x | **+0.32** |
+| ref 03 forest floor / ref 01 plateau / ref 10 plaza | 1.7-4.1x | -8.55 / +0.52 / -0.10 |
+
+`WARM_SPLIT` is the yellow-blue chromaticity, in percent of luma, of the
+per-channel RATIO between a lit and a shaded patch of ONE material — the hue of
+the light the key adds, over the light already there. Zero means the shadow is
+the sunlight's colour and merely darker. A chromaticity DIFFERENCE will not do:
+grass albedo under one white light gives a +27 "split" out of a colourless
+scene, so a difference criterion passes at zero dose (Rule 48).
+
+Ref 14's three channels come back **1.923 / 1.889 / 1.900** — equal to within a
+percent. What separates Skyrim's shadow from its sunlight is depth and edge, not
+colour.
+
+### Why this reading is trustworthy
+
+- **Calibrated against a known answer.** Our renderer has no tonemap and no
+  gamma anywhere, so the 8-bit frame IS the light arithmetic.
+  `LOOKDEV_SUN_COLOR` 1.00/0.96/0.88 and `LOOKDEV_AMBIENT_COLOR` 0.34/0.36/0.40
+  at NdotL 0.62 predict **+14.01**; the instrument reads **+14.02** off the
+  frame. Two decimals on real pixels.
+- **The reference bias is bounded, not ignored.** Reference frames are
+  tonemapped and sRGB-encoded and ours is neither. `selftest` pushes a
+  zero-dose scene through Reinhard + sRGB and gets +6.19 / -1.12 depending on
+  albedo. Every reference number sits inside that band — all consistent with
+  exactly zero. Ours does not: +14.02 is more than twice it.
+- **Two independent modes agree** (`pair` across a cast shadow edge, `scan` over
+  coarse blocks), on four frames and five boxes.
+
+### The instrument's first version was wrong, and it is Rule 47's sixth instance here
+
+Version one binned a box's pixels into luma DECILES and compared the ends. On
+ref 14's cobbles it reported **-36.5** — a large cool-KEY split, the opposite of
+this section and of R6. All of it was the material: within one cobble texture
+the dark pixels are mortar and crevice and the bright ones are stone tops, so
+the two arms were **different albedos** and the delta was a texture statistic
+wearing the light's clothes. The same cobbles across the frame's own cast shadow
+edge gave +0.32.
+
+It survived the Rule 48 zero-dose control because that control was built on ONE
+albedo and the defect needs two. Both facts are written into the tool. The cure
+was Rule 47's own: hold everything that is not the subject identical between the
+arms — here the material — which on a photographed frame means a cast shadow
+edge, or blocks coarse enough to average the texture away. `pair` and `scan`
+also REFUSE any pair whose luma range is under 1.5x, because two boxes that are
+both in sun cannot fail (Rule 27); the first pair tried on our own frame came
+back at 0.99x and would have read +1.20.
+
+### Consequence, and where the frame is actually lost
+
+Warming the key and cooling the fill moves `WARM_SPLIT` further above +14, i.e.
+**further from every reference frame in the set**. Refused under Rule 45's
+stopping condition: refuse the quantity and write nothing rather than fit a
+number through it.
+
+Two things the same table says DO differ, neither of them this claim:
+
+- **Our ground is far more chromatic than any reference ground** — box warmth
+  46.8/51.8 against 24.4-38.5 across the whole reference set. R5's axis, not
+  R6's; belongs to whoever owns the ground material.
+- **Ref 03's forest floor carries a 2.28x luma range at 24 px blocks from
+  DAPPLE ALONE.** Ours is 1.66x and all of it is one obelisk shadow across an
+  otherwise evenly lit field. That is R6's second half, and it is the half that
+  is missing.
 
 ## What this zone does NOT do
 
