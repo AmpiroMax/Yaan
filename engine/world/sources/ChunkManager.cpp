@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 18:40:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 10:08:2026 - 02:05:00: surface_class_at(vec2) — sampled-field point query (sim request; the world->sample decoder stays in this zone, Rule 35).
 - 10:08:2026 - 11:37:17: path_surface() / stand_vantages() storage, flattened once per open.
 - 13:08:2026 - 16:45:00: DFN_DARK_TRACE=<путь> — по строке на КАЖДЫЙ вызов darkness_at (приложение зовёт его раз в кадр) с разложением на ветви через enclosure_trace. Открывается ГРОМКО; выключен, пока переменная не названа. Этим прибором найдено, что ambient_darkness переключается 0↔1 за один кадр 13 раз за проход по тоннелю, каждый раз на пересечении carve_distance нуля в пределах 2 см.
+- 13:08:2026 - 18:40:00: DFN_DARK_TRACE пишет roof_y и open_to_sky вместо above_ground — вслед за воротами, которые теперь судят крышу.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -605,21 +606,22 @@ float ChunkManager::darkness_at(glm::vec3 world) const {
                 std::fprintf(stderr, "[dark_trace] cannot open \"%s\" for writing\n", dt);
             } else {
                 std::fprintf(impl_->dark_trace,
-                             "# call qx qy qz carve_dist ground_y above_ground "
-                             "path_m path_measured darkness\n");
+                             "# call qx qy qz carve_dist ground_y open_to_sky "
+                             "path_m path_measured darkness roof_y\n");
             }
         }
     }
     if (impl_->dark_trace != nullptr) {
         const EnclosureTrace tr = enclosure_trace(ctx.params.layout, {}, ground, world);
-        std::fprintf(impl_->dark_trace, "%llu %.3f %.3f %.3f %+.6f %.3f %d %.3f %d %.6f\n",
+        std::fprintf(impl_->dark_trace,
+                     "%llu %.3f %.3f %.3f %+.6f %.3f %d %.3f %d %.6f %.3f\n",
                      static_cast<unsigned long long>(impl_->dark_trace_call++),
                      static_cast<double>(world.x), static_cast<double>(world.y),
                      static_cast<double>(world.z),
                      static_cast<double>(tr.carve_distance),
-                     static_cast<double>(tr.ground_y), tr.above_ground ? 1 : 0,
+                     static_cast<double>(tr.ground_y), tr.open_to_sky ? 1 : 0,
                      static_cast<double>(tr.path_from_mouth), tr.path_measured ? 1 : 0,
-                     static_cast<double>(tr.darkness));
+                     static_cast<double>(tr.darkness), static_cast<double>(tr.roof_y));
         return tr.darkness;
     }
     return enclosure_darkness(ctx.params.layout, {}, ground, world);

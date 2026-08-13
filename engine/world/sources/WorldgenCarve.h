@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 18:40:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -39,6 +39,7 @@ UPD:
 - 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 - 10:08:2026 - 02:29:54: open_daylight_portals() — endpoints of flagged corridors pushed along their own leg (grade preserved) until the floor stands in open air; capped, and a corridor that cannot reach daylight is left as-is so the acceptance walk stays the alarm.
 - 13:08:2026 - 16:45:00: NEW enclosure_trace() — те же промежуточные величины того же вычисления (какие ворота решили: вхождение, «над землёй», заработанный путь). enclosure_darkness() реализована как .darkness этого вызова, поэтому отладочной копии, способной разойтись с боевой, не существует. Заведено под разбор «темнеет, потом мигает»: результат сам по себе не отличает «не замкнуто» от «замкнуто, но ничего не заработано», а причины и правки у них разные.
+- 13:08:2026 - 18:40:00: EnclosureTrace: above_ground -> open_to_sky + новое поле roof_y. Вторые ворота судят КРЫШУ прорезки против рельефа, а не точку запроса.
 */
 
 #pragma once
@@ -140,7 +141,8 @@ void open_daylight_portals(TestbedLayout& layout, const GroundSampler& ground);
 struct EnclosureTrace {
     float carve_distance = 0.0f;  ///< union carve SDF at the query point; >= 0 rejects
     float ground_y = 0.0f;        ///< surface height over the query column
-    bool above_ground = false;    ///< second rejection: open to the sky
+    float roof_y = 0.0f;          ///< top of the carve containing the point
+    bool open_to_sky = false;     ///< second rejection: the roof is not under the terrain
     float path_from_mouth = 0.0f; ///< metres walked along the corridor, after fallback
     bool path_measured = false;   ///< false = no mouth reachable, fallback used
     float darkness = 0.0f;

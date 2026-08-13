@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 17:12:00
+Last updated: 13:08:2026 - 18:40:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -37,6 +37,7 @@ UPD:
   local edit.
 - 13:08:2026 - 16:45:00: МЕРЦАНИЕ В ПОДЗЕМЕЛЬЕ ПОЧИНЕНО (жалоба пользователя «темнеет в глазах, потом мигает»). Точка запроса поднимается на CARVE_QUERY_LIFT_M = VOXEL_SIZE перед ВСЕМИ проверками вхождения: запрос задаётся о низе капсулы, то есть о точке НА нарисованном полу, а нарисованный пол — реконструкция на решётке вокселя и стоит от аналитической плоскости в пределах вокселя, поэтому точный `>= 0` спрашивал о геометрии тоньше, чем геометрия умеет отвечать. Замер: 13 переключений ambient_darkness 0.000↔1.000 ЗА ОДИН КАДР на проход → 1; доля подземных тиков «по ту сторону границы» 3.6 % → 0.0 %. Подъём, а НЕ допуск на расстояние: изотропный допуск убрал мерцание и зачернил ОТКРЫТУЮ подходную выемку на 51 кадр (поймано дневной рукой). Вторая копия того же вопроса — свои ворота в corridor_path_from_mouth — держала 7 переключений из 13 после починки только первых. Новый enclosure_trace() — те же промежуточные величины ОДНОГО вычисления, чтобы прибор не мог разойтись с боевым кодом. Подробности и приёмка: docs/FINDING_DUNGEON_DARK.md.
 - 13:08:2026 - 17:12:00: ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ЖАЛОБЫ: путь до дневного света меряется от ПОРТАЛА — станции, где поднятый пол коридора пересекает поверхность, — а не от carve_mouth(), который отвечает на другой вопрос («где сомкнулся ПОТОЛОК») и у свитчбэка Равенскара стоит в 45 м ВНУТРИ тоннеля. Из-за этого на входе была чернота с первого шага вместо склона на DARKNESS_DEPTH_MIN, а на сотом метре — полный дневной свет под 12 м скалы (20.5 % подземных кадров); у коридора с двумя дневными концами признавался ровно один. Считаются ВСЕ пересечения, берётся ближайшее; carve_mouth намеренно не тронут (P4 выводит из него метки входов). Плюс берётся наиболее замкнутая из исходной и поднятой точки, иначе подъём выталкивал запрос на высоте глаз через свод 2.6-метрового прохода Бэкбарроу. Живьём: переключений 0↔1 за кадр 13 → 0, наибольшая покадровая ступень 1.000 → 0.0036, день под землёй 23.7 % → 7.4 % (и все они ближе 17 м пути от портала). Регрессия — tests/core/VoxelTests.cpp, рука до правки падает по всем трём проверкам.
+- 13:08:2026 - 18:40:00: ТРЕТИЙ ДЕФЕКТ ТОГО ЖЕ ПРАВИЛА (жалоба пользователя «темнеет снаружи, когда ещё крыши нет никакой»): ворота замкнутости спрашивали про ТОЧКУ ЗАПРОСА, а надо про КРЫШУ. Врезанный в склон коридор — сначала открытая ТРАНШЕЯ: пол уже под поверхностью холма, потолок ещё на свету. Новый carve_roof_over(); тем же предикатом теперь определяется и портал в измерителе пути, иначе два определения «замкнуто» разъедутся (этот файл сегодня дважды платил ровно за это). Замер: из 2730 тиков с потолком ВЫШЕ рельефа 1673 несли тьму, худший — полная чернота при потолке на 1.31 м в воздухе; после правки 0 из 5511. Верный предикат всё это время лежал в carve_mouth этажом выше.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -106,6 +107,63 @@ constexpr float FAR_AWAY = 1e9f;
 /// asks the same containment at `p.y + 1.7` and `p.y - 0.5`, stepping away from
 /// the plane the shipping query stands on — which is why no test ever saw this.
 constexpr float CARVE_QUERY_LIFT_M = static_cast<float>(config::VOXEL_SIZE);
+
+/// THE ROOF OVER A POINT INSIDE A CARVE: the top of the carved volume that
+/// contains it, or -FAR_AWAY when no carve does. This is what "rock overhead"
+/// has to be asked about, and asking it about the POINT instead was the second
+/// half of «темнеет... снаружи, когда ещё крыши нет никакой».
+///
+/// A corridor cut into a hillside starts as an open TRENCH: its floor is below
+/// the hill's surface while its ceiling is still out in the daylight. The
+/// player's feet are then "under the terrain" and the sky is directly overhead.
+/// Measured on a live walk before this fix: of 2730 ticks whose carve ceiling
+/// stood ABOVE the terrain — no roof at all — 1673 (61.3 %) carried non-zero
+/// darkness, and the worst was FULL BLACK where the ceiling stood 1.31 m above
+/// the hillside.
+///
+/// The right predicate was already in this file and already documented, one
+/// function up: `carve_mouth` finds "the first station whose CEILING is under
+/// the terrain" and its comment names what comes before it — "the open approach
+/// cutting". The mouth knew; the darkness gate did not ask.
+[[nodiscard]] inline float carve_roof_over(const TestbedLayout& layout,
+                                           std::span<const CarveCorridor> extra,
+                                           glm::vec3 q) {
+    float roof = -FAR_AWAY;
+    const auto scan = [&](const CarveCorridor& c) {
+        for (int i = 0; i + 1 < c.point_count; ++i) {
+            const glm::vec3 a = c.points[i];
+            const glm::vec3 b = c.points[i + 1];
+            const glm::vec3 ab = b - a;
+            const float len2 = glm::dot(ab, ab);
+            if (len2 < 1e-6f) {
+                continue;
+            }
+            const float t = std::clamp(glm::dot(q - a, ab) / len2, 0.0f, 1.0f);
+            const glm::vec3 cp = a + ab * t;
+            if (std::hypot(q.x - cp.x, q.z - cp.z) > c.half_width) {
+                continue;
+            }
+            const float dy = q.y - cp.y;
+            if (dy < 0.0f || dy > c.height) {
+                continue;
+            }
+            roof = std::max(roof, cp.y + c.height);
+        }
+    };
+    scan(layout.carves.crag_tunnel);
+    scan(layout.carves.barrow_passage);
+    scan(layout.carves.lakeshore_adit);
+    for (const CarveCorridor& c : extra) {
+        scan(c);
+    }
+    const CarveChamber& ch = layout.carves.barrow_chamber;
+    if (ch.half_extent.x > 0.0f && std::fabs(q.x - ch.center.x) <= ch.half_extent.x
+        && std::fabs(q.z - ch.center.z) <= ch.half_extent.z && q.y >= ch.center.y
+        && q.y <= ch.center.y + ch.half_extent.y) {
+        roof = std::max(roof, ch.center.y + ch.half_extent.y);
+    }
+    return roof;
+}
 
 /// The query point as this file must ask about it: lifted off the floor it
 /// rests on. ONE definition, used by every containment test here, so the two
@@ -401,7 +459,14 @@ float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& grou
         for (int s = 0; s <= steps && portal_count < 64; ++s) {
             const float u = static_cast<float>(s) / static_cast<float>(steps);
             const glm::vec3 p = a + (b - a) * u;
-            const bool enclosed = p.y + CARVE_QUERY_LIFT_M < ground({p.x, p.z});
+            // THE SAME PREDICATE AS THE GATE ABOVE, deliberately: a portal is
+            // where the player stops being under the sky, so it is the station
+            // where this corridor's ROOF goes under the terrain. Using the
+            // floor here (as this did) put the ramp's foot 45 m out in the
+            // open cutting, which is the defect the roof test above fixes; two
+            // definitions of "enclosed" would have re-opened it from the side.
+            const float station_roof = p.y + c.height;
+            const bool enclosed = station_roof < ground({p.x, p.z});
             if (have_prev && enclosed != prev_enclosed) {
                 portal_arcs[portal_count++] = run + len * u;
             }
@@ -460,12 +525,19 @@ EnclosureTrace enclosure_trace(const TestbedLayout& layout,
     tr.carve_distance = std::min(carve_distance(layout, extra, world),
                                  carve_distance(layout, extra, probe));
     tr.ground_y = ground({world.x, world.z});
-    tr.above_ground = probe.y >= tr.ground_y;
+    tr.roof_y = carve_roof_over(layout, extra, probe);
+    // THE SECOND GATE ASKS ABOUT THE ROOF, NOT ABOUT THE FEET. A corridor cut
+    // into a hillside is an open TRENCH before it is a tunnel: the floor is
+    // already under the hill's surface while the ceiling is still in daylight.
+    // Testing the query point put the player "inside" there, and the picture
+    // went dark in the open air -- the user's own words, «темнеет снаружи,
+    // когда ещё крыши нет никакой». See carve_roof_over for the measurement.
+    tr.open_to_sky = tr.roof_y >= tr.ground_y;
     if (tr.carve_distance >= 0.0f) {
         return tr; // not in a carve at all -- a valley floor is not a cave
     }
-    if (tr.above_ground) {
-        return tr; // open to the sky through the shaft above
+    if (tr.open_to_sky) {
+        return tr; // no rock overhead: an open cutting, or a shaft to the sky
     }
 
     // Half two: EARNED. Shortest walk back to any mouth, along the corridors.
