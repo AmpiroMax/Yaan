@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 17:00:50
+Last updated: 13:08:2026 - 17:17:04
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -102,6 +102,7 @@ UPD:
 - 13:08:2026 - 16:26:16: Меню чинится двумя правками по находке зоны ui. DFN_MENU_SHOT УБРАНА из списка пропуска меню: это единственная дверь, которой меню НУЖНО, а присвоение show_menu=false стоит ПОСЛЕ разбора DFN_MENU, поэтому дверь, существующая ради снимка стартового экрана, каждый раз уходила в мир и не сняла его ни разу. И новая DFN_MENU_PAGE=root|maps|pause: без неё выбор карты и пауза достижимы только рукой на клавиатуре, то есть два из трёх экранов, которые видит игрок, никогда не были доказательством. Неизвестное значение отвергается вслух — кадр корня, подшитый под именем паузы, хуже отсутствия кадра.
 - 13:08:2026 - 16:43:43: DFN_PLAYTEST_ROUTE добавлена в список пропуска меню — в тот же день, что и заведена. Собственная проверка нашла дыру: «маршрут включает patrol» оказалось мало, потому что блок плейтеста живёт внутри enter_world(), и автоматический прогон с одним маршрутом вечно стоял на СТАРТОВОМ ЭКРАНЕ. Починка молчаливого нуля породила второй молчаливый ноль этажом выше, ровно то, о чём предупреждает комментарий у самого списка, — и увидеть это удалось только прогоном.
 - 13:08:2026 - 17:00:50: Подсказка взаимодействия получила плашку (кусок от зоны ui, применён здесь). Она была последним текстом без подложки, при том что рисуется поверх ЧЕГО УГОДНО, на что смотрит игрок: те же чернила, тот же шрифт, тот же замер — 56.1% чернил не проходят правило двух шагов над светлым фоном. Плашка вынесена ui в ОДНУ функцию до применения: она была уже трижды копией, и эта была бы четвёртой.
+- 13:08:2026 - 17:17:04: НИ ОДИН АВТОМАТИЧЕСКИЙ ПРОГОН БОЛЬШЕ НЕ ЗАБИРАЕТ МЫШЬ. Жалоба пользователя, работавшего за машиной, пока агенты снимали кадры: «когда запускаются визуальные тесты у меня управление компом перехватывается, меня в игру перекидывает, мышью управлять не могу». Освобождение было написано для ОДНОЙ двери (пробы тела), а не для СВОЙСТВА, которое у дверей общее: у автоматического прогона некому целиться, значит ему незачем владеть указателем. Заведён `unattended_run()` — одно определение на двух потребителей, пропуск меню и захват курсора (правило 35). Все четыре места захвата теперь зовут его.
 */
 
 #include "engine/app/sources/App.h"
@@ -186,6 +187,27 @@ static std::unordered_map<uint64_t, ChunkPhysics> g_chunk_physics;
 namespace {
 
 constexpr const char* SETTINGS_PATH = "settings.cfg";
+
+// IS THIS RUN UNATTENDED? One definition, two consumers -- the menu skip and the
+// cursor grab (Rule 35: a value two places must agree on stops belonging to
+// either of them).
+//
+// The second consumer is why this function exists. The user, working at his
+// machine while agents shot frames, reported: "когда запускаются визуальные
+// тесты у меня управление компом перехватывается, меня в игру перекидывает,
+// мышью управлять не могу". Every automated door except the body probe grabbed
+// the desktop pointer, because the exemption had been written for ONE door
+// instead of for the PROPERTY the doors share. An unattended run has nobody to
+// aim, so it has no business owning the mouse.
+[[nodiscard]] bool unattended_run() {
+    return std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
+           || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
+           || std::getenv("DFN_CAPTURE_AFTER") != nullptr
+           || std::getenv("DFN_BODY_PROBE") != nullptr
+           || std::getenv("DFN_MENU_SHOT") != nullptr
+           || std::getenv("DFN_HUD_PROBE") != nullptr
+           || std::getenv("DFN_RESTORE") != nullptr;
+}
 
 // Reads key=value graphics settings; writes a commented default file on first
 // run so the user always has something to edit (sync #3 decision: resolution
@@ -311,25 +333,7 @@ AppConfig AppConfig::from_env() {
     // (alongside DFN_PLAYTEST, which is already on the list) and by a human
     // playing with the log running -- and that human wants his menu. Menu
     // frames simply log speed 0, which is the standing-still control anyway.
-    if (std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
-        // DFN_PLAYTEST_ROUTE joins the list the same day it was added, because
-        // my own verification caught the hole: making the route imply patrol was
-        // not enough, since the playtest block lives inside enter_world() and an
-        // unattended run with only a route sat on the START SCREEN forever. The
-        // fix for a silent no-op produced a second silent no-op one layer up --
-        // which is exactly what this list's own comment warns about, and I still
-        // had to run it to see it.
-        || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
-        || std::getenv("DFN_CAPTURE_AFTER") != nullptr
-        || std::getenv("DFN_BODY_PROBE") != nullptr
-        // DFN_MENU_SHOT is NOT in this list: it is the one door that WANTS the
-        // menu. It was added here with the rest of the unattended doors, and the
-        // assignment below runs AFTER DFN_MENU is parsed, so the door that
-        // exists to photograph the start screen walked past it into the world
-        // every single time and never produced its frame. The list's own comment
-        // says "if it runs without a human, it belongs here" -- and that is
-        // true of every member except the one whose SUBJECT is the menu.
-        || std::getenv("DFN_RESTORE") != nullptr) {
+    if (unattended_run()) {
         cfg.show_menu = false;
     }
     if (const char* na = std::getenv("DFN_NULL_AUDIO"); na && na[0] == '1') {
@@ -1116,9 +1120,13 @@ bool App::enter_world(uint32_t stand) {
                     dir ? dir : "screenshots",
                     [this](glm::vec2 p) { return chunks_.height_at(p).value_or(0.0f); });
     } else {
-        // The body probe drives the look itself; grabbing the cursor for it
-        // would only steal the desktop's pointer for the length of the run.
-        input_->set_cursor_captured(!body_probe_.has_value());
+        // NO UNATTENDED RUN OWNS THE MOUSE. This exemption was written for the
+        // body probe alone, so every other automated door -- tour, playtest,
+        // capture, restore -- still grabbed the desktop pointer and threw the
+        // user into the game while he was working. The exemption belonged to
+        // the PROPERTY (nobody is aiming), not to one door that happened to
+        // have it.
+        input_->set_cursor_captured(!unattended_run());
     }
 
     // A pending restore is applied LAST, once the world it describes exists and
@@ -1577,11 +1585,11 @@ int App::run() {
                     return 1;
                 }
                 mode_ = AppMode::Playing;
-                input_->set_cursor_captured(true);
+                input_->set_cursor_captured(!unattended_run());
                 break;
             case MenuAction::Resume:
                 mode_ = AppMode::Playing;
-                input_->set_cursor_captured(true);
+                input_->set_cursor_captured(!unattended_run());
                 break;
             case MenuAction::Quit:
                 window_->request_close();
@@ -1700,7 +1708,7 @@ int App::run() {
             render_system_.toggle_map();
             // Free the cursor while the map is up: mouse-look under a fullscreen
             // plate spins the world behind it for no reason.
-            input_->set_cursor_captured(!render_system_.map_open());
+            input_->set_cursor_captured(!render_system_.map_open() && !unattended_run());
         }
 
         const auto now = std::chrono::steady_clock::now();
