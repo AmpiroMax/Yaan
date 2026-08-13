@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:35:00
-Last updated: 13:08:2026 - 20:00:00
+Last updated: 13:08:2026 - 20:05:00
 Module: engine/app
 File: engine/app/sources/HudScreen.h
 
@@ -36,6 +36,9 @@ UPD:
   in the middle of a screen with nothing marking the middle).
 - 13:08:2026 - 20:00:00: Прицел прячется в третьем лице и над картой, и условие
   живёт ЗДЕСЬ, а не в вызове: приложение передаёт факты, решение — зоны ui.
+- 13:08:2026 - 20:05:00: Временное умолчание аргумента снято — вызов в App.cpp
+  передаёт факты (правка ведущего). Умолчание стояло ровно один коммит и ровно
+  затем, чтобы дерево шести зон не собирало сломанное между двумя правками.
 */
 
 #pragma once
@@ -73,12 +76,6 @@ struct HudFacts {
 // ray no longer starts at the eye the player is aiming with, while the map is a
 // full-screen plate whose own centre is already the thing being looked at. A
 // crosshair there is a second centre of attention on a screen that has one.
-//
-// THE DEFAULT ARGUMENT IS TEMPORARY AND IT IS HERE FOR THE TREE, NOT FOR THE
-// DESIGN: the call site is the lead's file and lands one patch later, and a
-// signature change that breaks six zones' builds for an hour is a worse thing
-// than a default that shows the mark where the app has not yet said otherwise.
-// It comes out the moment App.cpp passes the facts.
-bool draw_crosshair(render::PixelCanvas& canvas, const HudFacts& facts = {});
+bool draw_crosshair(render::PixelCanvas& canvas, const HudFacts& facts);
 
 } // namespace dfn::app

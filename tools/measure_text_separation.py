@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Created: 13:08:2026 - 16:28:00
-Last updated: 13:08:2026 - 20:35:00
+Last updated: 13:08:2026 - 20:05:00
 Module: tools
 File: tools/measure_text_separation.py
 
@@ -63,10 +63,12 @@ UPD:
   readout-plate acceptance (docs/acceptance/README.md, the ui section).
 - 13:08:2026 - 17:05:00: Header timestamps corrected -- they were written ahead of
   the clock, and this file's own subject is measurements that must not flatter.
-- 13:08:2026 - 20:35:00: --either: ownership without the "drawn lighter" clause,
+- 13:08:2026 - 19:36:00: --either: ownership without the "drawn lighter" clause,
   for the crosshair. Its outline is BLACK, so over a bright sky the arm draws the
   mark darker and the default mask owned nothing -- on precisely the ground the
   outline exists for. The default is unchanged, so every earlier reading stands.
+- 13:08:2026 - 20:05:00: Метка времени записи выше приведена к часам — была написана
+  вперёд, а этот файл о замерах, которые не вправе льстить.
 """
 
 import argparse
