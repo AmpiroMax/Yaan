@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 23:50:00
+Last updated: 14:08:2026 - 00:55:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -231,6 +231,22 @@ UPD:
       x3.5 with wood cut to 40 % at FULL: 0.94, 356 + 246 = 602 tris
   The sign flips on the leaf budget and on nothing else, 25 % over the triangle
   ceiling -- design's call, not this zone's.
+- 14:08:2026 - 00:55:00: CROWN_WOOD_BUDGET_FRAC / CROWN_MASS_MULTIPLIER wired
+  through far_lod_segments (Full branch) and lod_cluster_count, both at their
+  NO-OP values, i.e. the tree is unchanged. They are wired rather than left as
+  rows because the wiring is where the two defects were found.
+  (1) A rule applied at four call sites and connected at three: the Full branch
+  here never called far_lod_segments, so a wood budget moved the pine (which
+  arrives by another route) and left oak, birch and willow untouched.
+  (2) THE POINT THAT MEETS THE TARGET BREAKS THE TRIANGLE CEILING ON THE WORST
+  VARIANT. Grid measured on the MEAN of 12 variants: x3.0 masses at 0.70 wood
+  gives leaf:wood 1.07 for 1200 triangles, comfortably inside 1300. Per variant
+  the same point measures 1358. The budget rule is PER VARIANT and a mean cannot
+  check it -- the same class of mistake this zone spent the day catching
+  elsewhere. Not shipped; reported with the numbers instead.
+  The giant takes neither lever, and for one reason: its crown IS its branch
+  system, so cutting its wood cuts its crown, and tripling its masses worsens a
+  density criterion it already fails (GREAT_OAK_DENSITY_RATIO_MAX, 1.29 today).
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -417,7 +433,21 @@ void seed_trunk_nodes(Skeleton& sk, glm::vec3 stem_base, glm::vec3 stem_top) {
 ///
 /// DFN_FLORA_FARLOD=1 restores the old ladder for a one-variable comparison.
 uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wood) {
-    if (lod == FloraLod::Full) return full_segments;
+    if (lod == FloraLod::Full) {
+        // WOOD PAYS FOR LEAF AT THE NEAR VIEW TOO (CROWN_WOOD_BUDGET_FRAC).
+        // A tree spent four fifths of its triangles on wood at every distance,
+        // and up close that read as bare limbs with a clump of leaf on each
+        // tip. This frees the triangles the masses are bought with.
+        //
+        // AND THE GIANT IS EXEMPT HERE FOR THE REASON IT IS EXEMPT BELOW: for a
+        // species whose crown RADIUS is a property of its ramification, cutting
+        // segments cuts the crown itself, and the near view is where that would
+        // show first.
+        if (crown_is_wood) return full_segments;
+        return std::max(18u, static_cast<uint32_t>(
+                                 static_cast<float>(full_segments)
+                                 * static_cast<float>(config::CROWN_WOOD_BUDGET_FRAC)));
+    }
     // THE GIANT TIER IS EXEMPT, AND IT IS THE WIDTH CLAUSE THAT EXEMPTS IT
     // rather than a wish to be gentle with the landmark. For an ordinary tree
     // the crown is a cloud of foliage masses hung ON the wood, so cutting
@@ -485,10 +515,21 @@ uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wo
 float flora_mass_multiplier() {
     static const float m = [] {
         const char* e = std::getenv("DFN_FLORA_MASSES");
-        const float v = e != nullptr ? static_cast<float>(std::atof(e)) : 1.0f;
-        return v > 0.0f ? v : 1.0f;
+        const float v = e != nullptr ? static_cast<float>(std::atof(e)) : 0.0f;
+        return v > 0.0f ? v : static_cast<float>(config::CROWN_MASS_MULTIPLIER);
     }();
     return m;
+}
+
+/// THE GIANT TAKES NEITHER OF THE TWO NEW LEVERS, and it is one reason for
+/// both: its crown IS its branch system. Cutting its wood cuts its crown, and
+/// tripling its masses makes a species that ALREADY fails design's density
+/// criterion (GREAT_OAK_DENSITY_RATIO_MAX 1.0, measured at 1.29 today) fail it
+/// three times over -- a great oak that is denser per unit of silhouette than
+/// the ordinary oak under it reads as a green hill, which is the one thing
+/// GIANT_OAKS §4 says it must not be.
+float mass_multiplier_for(const SpeciesParams& sp) {
+    return sp.crown_radius_per_height > 0.0f ? 1.0f : flora_mass_multiplier();
 }
 
 uint32_t lod_cluster_count(const SpeciesParams& sp, FloraLod lod) {
@@ -497,11 +538,11 @@ uint32_t lod_cluster_count(const SpeciesParams& sp, FloraLod lod) {
         // IS the object at range, so the far LOD keeps every cluster the near
         // one has and pays for them out of the wood.
         return static_cast<uint32_t>(static_cast<float>(sp.cluster_count)
-                                     * flora_mass_multiplier());
+                                     * mass_multiplier_for(sp));
     }
     return static_cast<uint32_t>(
         static_cast<float>(std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u))
-        * flora_mass_multiplier());
+        * mass_multiplier_for(sp));
 }
 
 /// Hangs one foliage cluster on a node that actually exists. `anchor` is the
@@ -1172,7 +1213,17 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
             nodes = static_cast<uint32_t>(std::atoi(e));
             segs = nodes;
         }
-        if (t.lod == FloraLod::Reduced) {
+        if (t.lod == FloraLod::Full) {
+            // THE FULL-DETAIL WOOD BUDGET APPLIES HERE TOO, and it did not
+            // until it was measured: this site only ever called
+            // far_lod_segments on the FAR branches, so CROWN_WOOD_BUDGET_FRAC
+            // moved the pine (which reaches the function by another route) and
+            // left the oak, birch and willow at their full 802/926/837
+            // triangles of wood. One rule, four call sites, three of them
+            // wired -- the shape of defect this file's header is about.
+            nodes = far_lod_segments(nodes, t.lod, giant);
+            segs = far_lod_segments(segs, t.lod, giant);
+        } else if (t.lod == FloraLod::Reduced) {
             nodes = far_lod_segments(nodes, t.lod, giant);
             segs = far_lod_segments(segs, t.lod, giant);
         } else if (t.lod == FloraLod::Silhouette) {
