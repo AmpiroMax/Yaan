@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 17:54:00
+Last updated: 13:08:2026 - 18:04:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -74,6 +74,10 @@ UPD:
   and rising ground below the eye cannot hide anything whatever is laid on it.
   The forms-off control reads 0/2/2/2/0/16 — i.e. essentially every pocket in
   the frame is made by this pass.
+- 13:08:2026 - 18:04:00: The surface-class census — a pass that steepens banks
+  repaints them (§4 paints Rock above SLOPE_ROCK_MIN), which lands on another
+  zone's material work, so it should arrive as a number and not as a surprise in
+  a frame. Measured small: rock 0.87 % -> 0.99 % of legal open ground.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -87,6 +91,7 @@ UPD:
 #include "engine/world/sources/WorldgenValidation.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <glm/geometric.hpp>
 #include <doctest/doctest.h>
@@ -1054,4 +1059,45 @@ TEST_CASE("diagnostic: how REGULAR are the draws (and what band can this see)") 
     MESSAGE("bank-direction spread (axial, 0 = one axis): shipped " << spread_shipped
             << ", tributaries-parallel " << spread_parallel);
     CHECK(spread_shipped > spread_parallel);
+}
+
+// --- WHAT THE FORMS COST THE SPLAT ------------------------------------------
+//
+// §4 paints Rock where the slope clears SLOPE_ROCK_MIN and the blend where it clears
+// SLOPE_GRASS_MAX, so a pass that steepens banks does not only change the
+// SHAPE of the ground, it repaints it — and that lands on another zone's
+// material work without anyone asking. Reported here because a change of that
+// kind should arrive as a number rather than as a surprise in a frame.
+TEST_CASE("diagnostic: the surface classes the forms repaint") {
+    const auto& ctx = shipped_world();
+    const auto census = [&]() {
+        int n = 0;
+        int grass = 0;
+        int dirt = 0;
+        int rock = 0;
+        for (float z = 200.0f; z < 1800.0f; z += 8.0f) {
+            for (float x = 200.0f; x < 1800.0f; x += 8.0f) {
+                const glm::vec2 p{x, z};
+                if (!world::relief_floor_binds(ctx, p)) continue;
+                ++n;
+                switch (world::surface_point(ctx, p).surface_class) {
+                case math::SurfaceClass::Rock: ++rock; break;
+                case math::SurfaceClass::GrassRockBlend: ++dirt; break;
+                default: ++grass; break;
+                }
+            }
+        }
+        return std::array<float, 3>{100.0f * static_cast<float>(grass) / static_cast<float>(n),
+                                    100.0f * static_cast<float>(dirt) / static_cast<float>(n),
+                                    100.0f * static_cast<float>(rock) / static_cast<float>(n)};
+    };
+    const auto shipped = census();
+    setenv("DFN_TERRACE_STRENGTH", "0", 1);
+    setenv("DFN_DRAW_DEPTH", "0", 1);
+    const auto control = census();
+    unsetenv("DFN_TERRACE_STRENGTH");
+    unsetenv("DFN_DRAW_DEPTH");
+    MESSAGE("legal open ground by class, grass/blend/rock %: shipped " << shipped[0] << "/"
+            << shipped[1] << "/" << shipped[2] << ", forms off " << control[0] << "/"
+            << control[1] << "/" << control[2]);
 }

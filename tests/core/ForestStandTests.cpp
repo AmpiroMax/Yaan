@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 13:08:2026 - 17:56:00
+Last updated: 13:08:2026 - 18:04:00
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -148,6 +148,7 @@ UPD:
 - 13:08:2026 - 17:56:00: Digest re-pinned for the cut banks; the two
   intermediate digests of the same afternoon are recorded beside it so a bisect
   has names to land on.
+- 13:08:2026 - 18:04:00: Digest re-pinned for the back-tilted benches.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -259,7 +260,7 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     serialization::Fnv1a64 h;
     h.update({reinterpret_cast<const std::byte*>(c.heightmap.samples.data()),
               c.heightmap.samples.size() * sizeof(uint16_t)});
-    CHECK(h.digest() == 0x4bc3b48aa42643a6ull);
+    CHECK(h.digest() == 0xb2ddb4a7ee199e9dull);
 }
 
 TEST_CASE("forest stand: deterministic (Rule 13.1) and waterless by declaration") {

@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 17:54:00
+Last updated: 13:08:2026 - 18:04:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -42,6 +42,15 @@ UPD:
   field about its own axis, i.e. the channel's own geometry read one derivative
   further. Columns of the A1 frame carrying at least one pocket went 96.4 % ->
   98.4 % and the frame's WORST column stopped being 1.
+- 13:08:2026 - 18:04:00: THE BACK-TILTED BENCH (оползневая ступень) — the only
+  NON-monotone term in this file, and it was written against a hole the pocket
+  histogram found rather than against a look: 35-45 m carried one pocket in 64
+  columns because that ground RISES, and rising ground below the eye hides
+  nothing whatever is laid on it, since every other form here is a monotone
+  transfer and a monotone transfer of a rising profile still rises. A rotational
+  slump tilts its block BACK into the hill, so behind the lip the ground dips
+  before it climbs — that sign change is the mechanism. Measured: +17 pockets in
+  45-55 m and +2 in 35-45 m, sigma 0.765 -> 0.773 against a 1.20 ceiling.
 */
 
 #include "engine/world/sources/WorldgenForms.h"
@@ -211,6 +220,26 @@ constexpr float CUTBANK_STEEP = 0.55f; ///< exponent on the cut side (<1 = the
 constexpr float CUTBANK_GENTLE = 1.9f; ///< ...and on the slip-off side
 constexpr float CUTBANK_CELL = 132.0f; ///< how often the cut side swaps
 
+/// THE BACK-TILTED BENCH (оползневая ступень), and it is aimed at a hole the
+/// pocket histogram found rather than at a look.
+///
+/// Pockets by distance at the pinned standpoint read 55/37/44/1/34/9 across the
+/// 5-60 m band: the hole is 35-45 m, where that ground turns and begins to
+/// RISE. On ground below the eye that rises, nothing can hide — the sight line
+/// falls away from it faster than it climbs — and no amount of relief laid on
+/// top changes that, because every form so far is a MONOTONE transfer of
+/// elevation and a monotone transfer of a rising profile is still rising.
+///
+/// A rotational slump does not leave a flat bench: the block tilts BACK into
+/// the hill, so behind the lip the ground dips before it climbs again. That
+/// single sign change is the mechanism the histogram is asking for, and it is
+/// the one thing a monotone operator cannot produce — so this term is
+/// deliberately NON-monotone, applied to the bench only and bounded well under
+/// the step so the surface never folds.
+constexpr float SLUMP_SAG = 0.22f;  ///< sag as a fraction of the step
+constexpr float SLUMP_CELL = 156.0f;
+constexpr float SLUMP_FRAC = 0.55f; ///< how many benches are back-tilted
+
 float env_float(const char* name, float lo, float hi, float fallback) {
     if (const char* e = std::getenv(name)) {
         const float v = std::strtof(e, nullptr);
@@ -354,10 +383,25 @@ float terrace_forms(uint64_t seed, glm::vec2 world, float h_in, float mask) {
     const float lo = 0.5f - riser * 0.5f;
     const float g = noise::smoothstep01(std::clamp((f - lo) / riser, 0.0f, 1.0f));
 
-    // The delta of a MONOTONE TRANSFER h -> h + step*strength*(g(f) - f).
-    // Monotone because d/dh = 1 - strength + strength*G'(f) >= 1 - strength > 0
-    // for strength < 1: no overhang, no inverted drainage, contours preserved.
-    return step * strength * (g - f);
+    // THE BACK-TILT, and it is the only non-monotone term in this file. It sags
+    // the bench BEHIND the riser (f past the riser's top) by a parabola whose
+    // peak is SLUMP_SAG of the step, so the profile behind a lip goes down
+    // before it goes up. Bounded well under the step, so the transfer's
+    // derivative stays positive except across the sag itself — the surface dips,
+    // it never folds.
+    const float hi = lo + riser;
+    float sag = 0.0f;
+    if (f > hi
+        && noise::value_noise(seed, STREAM_TERRACE_SLUMP, SLUMP_CELL, world) < SLUMP_FRAC) {
+        const float u = (f - hi) / std::max(1.0f - hi, 1e-3f);
+        sag = env_float("DFN_TERRACE_SAG", 0.0f, 0.6f, SLUMP_SAG) * 4.0f * u * (1.0f - u);
+    }
+
+    // The delta: a MONOTONE TRANSFER h -> h + step*strength*(g(f) - f), plus the
+    // back-tilt above. The transfer alone is monotone because
+    // d/dh = 1 - strength + strength*G'(f) >= 1 - strength > 0 for strength < 1:
+    // no overhang, no inverted drainage, contours preserved.
+    return step * (strength * (g - f) - sag);
 }
 
 } // namespace dfn::world
