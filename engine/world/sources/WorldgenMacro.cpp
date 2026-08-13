@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 16:35:00
+Last updated: 13:08:2026 - 17:28:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -43,6 +43,7 @@ UPD:
   MASSIF_CLIFFLINE_FRAC; no new constant.
 - 11:08:2026 - 15:15:55: aniso_value_noise extracted from aniso_mid_octave and exported as aniso_octave_sample: an isotropic octave laid over the ridgelets ERASES the grain rather than lying beside it (§2.1 anisotropy 3.61 -> 2.22 with HILL_ANISOTROPY untouched).
 - 13:08:2026 - 16:35:00: aniso_value_noise takes the stretch as a parameter.
+- 13:08:2026 - 17:28:00: aniso_value_noise takes the theta offset.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -101,7 +102,7 @@ float valley_curve(float n) {
 /// the grain, it ERASES it — which is §10.3.1's rule about azimuth sources
 /// showing up in the terrain rather than in the props.
 float aniso_value_noise(uint64_t seed, uint32_t stream, float cell, glm::vec2 world,
-                        float stretch) {
+                        float stretch, float theta_offset) {
     const float axis_cell = static_cast<float>(config::WORLDGEN_OCTAVE1_CELL);
     const float cx = world.x / axis_cell;
     const float cz = world.y / axis_cell;
@@ -115,7 +116,8 @@ float aniso_value_noise(uint64_t seed, uint32_t stream, float cell, glm::vec2 wo
         for (int dx = 0; dx <= 1; ++dx) {
             const float theta =
                 noise::lattice_value(seed, STREAM_HILL_AXIS, gx + dx, gz + dz)
-                * 3.14159265358979f;
+                    * 3.14159265358979f
+                + theta_offset;
             const glm::vec2 axis{std::cos(theta), std::sin(theta)};
             const glm::vec2 stretched{
                 glm::dot(world, axis) / stretch,
@@ -132,7 +134,7 @@ float aniso_value_noise(uint64_t seed, uint32_t stream, float cell, glm::vec2 wo
 float aniso_mid_octave(uint64_t seed, glm::vec2 world) {
     return aniso_value_noise(seed, STREAM_OCTAVE_BASE + 1,
                              static_cast<float>(config::WORLDGEN_OCTAVE2_CELL), world,
-                             static_cast<float>(config::HILL_ANISOTROPY));
+                             static_cast<float>(config::HILL_ANISOTROPY), 0.0f);
 }
 
 /// Base gentle-hills fBm in meters, then valley redistribution. Octaves 1
@@ -777,10 +779,11 @@ float lake_stamp(const LakeStamp& lake, float h, glm::vec2 world) {
 } // namespace
 
 float aniso_octave_sample(uint64_t seed, uint32_t stream, float cell, glm::vec2 world,
-                          float stretch) {
+                          float stretch, float theta_offset) {
     return aniso_value_noise(seed, stream, cell, world,
                              stretch > 0.0f ? stretch
-                                            : static_cast<float>(config::HILL_ANISOTROPY));
+                                            : static_cast<float>(config::HILL_ANISOTROPY),
+                             theta_offset);
 }
 
 float ground_micro_relief(uint64_t seed, glm::vec2 world) {

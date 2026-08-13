@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 16:35:00
+Last updated: 13:08:2026 - 17:28:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -47,6 +47,9 @@ UPD:
   a parameter (0 = HILL_ANISOTROPY, the §2.1 grain) so §10.1.3's draws can run
   an order of magnitude longer than a ridgelet through the SAME axis lattice
   rather than through a second copy of it; STREAM_TERRACE_* / STREAM_DRAW_*.
+- 13:08:2026 - 17:28:00: aniso_octave_sample() takes a THETA OFFSET, so a
+  tributary can be read off the same axis lattice at a bearing instead of lying
+  parallel to its trunk; STREAM_DRAW_WANDER / _THRESHOLD / _BEARING.
 */
 
 #pragma once
@@ -101,6 +104,9 @@ enum WorldgenStream : uint32_t {
     STREAM_DRAW_LINE = 141,        // §10.1.3 forms: the draws' channel field
     STREAM_DRAW_DEPTH = 142,       // ...how deep they cut here
     STREAM_DRAW_DENSITY = 143,     // ...where the country is dissected at all
+    STREAM_DRAW_WANDER = 144,      // 144..145: the warp that makes the pitch wander
+    STREAM_DRAW_THRESHOLD = 146,   // ...and the field that lets talwegs end
+    STREAM_DRAW_BEARING = 147,     // 147..148: the angle tributaries enter at
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters
@@ -169,8 +175,15 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// parameter rather than a second copy of this function precisely because the
 /// axis field, the frame blending and the seamlessness argument must stay one
 /// implementation (Rule 32).
+///
+/// `theta_offset` (radians) turns the sampling frame off the local axis. It is
+/// what lets a TRIBUTARY enter its trunk at an angle instead of lying parallel
+/// to it: the frame is still the land's own axis field, read at a bearing, so
+/// the feature keeps the grain's coherence while ceasing to be one more line in
+/// a corduroy. Zero is the axis itself.
 [[nodiscard]] float aniso_octave_sample(uint64_t seed, uint32_t stream, float cell,
-                                        glm::vec2 world, float stretch = 0.0f);
+                                        glm::vec2 world, float stretch = 0.0f,
+                                        float theta_offset = 0.0f);
 
 /// Path-groove carve depth (meters, >= 0) at `world` (micro-relief batch):
 /// PATH_GROOVE_DEPTH on the corridor centerline, smooth fade to 0 at

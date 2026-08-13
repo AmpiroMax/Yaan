@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 17:05:00
+Last updated: 13:08:2026 - 17:20:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -59,12 +59,16 @@ UPD:
   tensor read at four arms on ONE world, because §2.1's probe samples with a
   +-6 m arm on a 12 m lattice and the forms sit at a 15-24 m pitch, which is at
   or past Nyquist.
+- 13:08:2026 - 17:20:00: The regularity measure (gap CV between draws) with the
+  band it resolves stated before the number — 2 m to 120 m against a subject at
+  12-40 m — and read against the pass's own washboard arm.
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/LayoutLoad.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
+#include "engine/world/sources/WorldgenForms.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenOutcrop.h"
 #include "engine/world/sources/WorldgenScatter.h"
@@ -798,4 +802,184 @@ TEST_CASE("diagnostic: the anisotropy ratio as a function of the RULER, not the 
         MESSAGE("arm +-" << arm << " m (probe uses 6): forms ON " << shipped << ", OFF "
                          << control << ", ratio of ratios " << shipped / control);
     }
+}
+
+// --- REGULARITY: THE DEFECT NO INSTRUMENT IN THIS PROJECT NAMES --------------
+//
+// The forms' own first frames named it before any probe did: at a tight pitch
+// the draws read as a WASHBOARD — long, parallel, evenly spaced — and an even
+// pitch is exactly how a generated world gives itself away. It is the same
+// complaint the user opened with about the ground's colour ("repeating large
+// pieces"), one system along.
+//
+// THE BAND THIS MEASURE RESOLVES, STATED BEFORE THE NUMBER (the day's rule: an
+// instrument whose arm is shorter than its subject aliases it instead of
+// measuring it). Transects are marched at 1 m over 240 m, and a gap is the
+// distance between the centres of successive channels:
+//
+//   * shortest gap it can see: 2 m (two marching steps),
+//   * longest: ~120 m (a transect must hold at least two gaps to have one
+//     spacing to compare),
+//   * SUBJECT: a nominal 15-24 m pitch, warped to roughly 12-40 m.
+//
+// The subject sits in the middle third of the resolved band, an order of
+// magnitude off both ends. That is the check §2.1's probe failed.
+//
+// The quantity is the COEFFICIENT OF VARIATION of the gaps. A washboard has one
+// pitch and CV -> 0; country that is dissected irregularly has a broad gap
+// distribution and CV of order 0.5. It needs no absolute floor to be useful,
+// because it is read against the pass's OWN washboard arm through
+// DFN_DRAW_WANDER=0 — the same code path with the warp at zero.
+TEST_CASE("diagnostic: how REGULAR are the draws (and what band can this see)") {
+    const auto& ctx = shipped_world();
+    // Deep enough to be a channel rather than the shoulder of one: a tenth of
+    // the shallowest draw the pass can cut.
+    constexpr float ENTER = 0.12f;
+    const auto gaps_at = [&](std::vector<float>& out) {
+        out.clear();
+        for (float wz = 200.0f; wz < 1800.0f; wz += 220.0f) {
+            for (float wx = 200.0f; wx < 1800.0f; wx += 220.0f) {
+                const glm::vec2 centre{wx, wz};
+                if (!world::relief_floor_binds(ctx, centre)) continue;
+                // THE TRANSECT IS CHOSEN BY THE GROUND, not by us: eight
+                // bearings, keep the one that crosses the MOST channels, which
+                // is the one running across the grain. Pooling all eight would
+                // mix cross-channel spacings with along-channel runs and report
+                // the average of two different things.
+                std::vector<float> best;
+                for (int b = 0; b < 8; ++b) {
+                    const float a = static_cast<float>(b) * 0.3926991f;
+                    const glm::vec2 dir{std::cos(a), std::sin(a)};
+                    std::vector<float> centres;
+                    bool inside = false;
+                    float run_start = 0.0f;
+                    for (float t = -120.0f; t <= 120.0f; t += 1.0f) {
+                        const glm::vec2 p = centre + dir * t;
+                        const float d = -world::draw_forms(ctx.params.seed, p, 1.0f);
+                        if (d > ENTER && !inside) {
+                            inside = true;
+                            run_start = t;
+                        } else if (d <= ENTER && inside) {
+                            inside = false;
+                            centres.push_back((run_start + t) * 0.5f);
+                        }
+                    }
+                    if (centres.size() > best.size()) best = centres;
+                }
+                for (std::size_t i = 1; i < best.size(); ++i) out.push_back(best[i] - best[i - 1]);
+            }
+        }
+    };
+
+    const auto stats = [](const std::vector<float>& g) {
+        double m = 0.0;
+        for (const float v : g) m += v;
+        m /= static_cast<double>(g.size());
+        double s = 0.0;
+        for (const float v : g) s += (v - m) * (v - m);
+        s = std::sqrt(s / static_cast<double>(g.size()));
+        return std::pair<double, double>{m, s / m};
+    };
+
+    std::vector<float> shipped;
+    gaps_at(shipped);
+    setenv("DFN_DRAW_WANDER", "0", 1);
+    std::vector<float> washboard;
+    gaps_at(washboard);
+    unsetenv("DFN_DRAW_WANDER");
+    REQUIRE(shipped.size() > 100);
+    REQUIRE(washboard.size() > 100);
+    const auto [ms, cs] = stats(shipped);
+    const auto [mw, cw] = stats(washboard);
+    MESSAGE("gap between draws, shipped:   mean " << ms << " m, CV " << cs << " over "
+                                                  << shipped.size() << " gaps");
+    MESSAGE("gap between draws, washboard: mean " << mw << " m, CV " << cw << " over "
+                                                  << washboard.size() << " gaps");
+    // The instrument has to be able to tell the two apart, or it is the fifth
+    // surrogate. REPORTED as a comparison rather than gated on a floor nobody
+    // has approved.
+    CHECK(cs > cw);
+
+    // --- AND THE HALF A SPACING MEASURE CANNOT SEE -------------------------
+    //
+    // The two arms above come out IDENTICALLY irregular in spacing, and yet the
+    // frame plainly shows a corduroy. Spacing is not the quantity: "washboard"
+    // is PARALLEL + evenly spaced, and it is the parallelism that reads.
+    //
+    // THE FIRST TRY AT MEASURING IT FAILED AND THE FAILURE IS WORTH THE LINES,
+    // because it is the day's own lesson landing on my own instrument. It
+    // counted channel crossings along twelve bearings and took max/mean, and I
+    // wrote down "it separates lineation directions 15 deg apart" — the BIN
+    // WIDTH. That is not the resolution. Counting crossings along a bearing
+    // integrates over a 240 m line, so a single set of parallel channels
+    // produces a |sin| response whose LOBE is ~90 deg wide, and max/mean
+    // saturates at pi/2 = 1.5708 for ANY set of parallel lines. Measured:
+    // shipped 1.5714 against tributaries-parallel 1.5652 — both pinned at the
+    // saturation value. Driven hard it does move (1.448 at a 69 deg offset,
+    // 1.474 at 89), which locates its real resolution at 60-90 deg, while the
+    // subject is a 19-41 deg tributary. THE INSTRUMENT'S BAND WAS THE LOBE, NOT
+    // THE BIN, and the subject sat under it.
+    //
+    // THE REPLACEMENT IS A POINT MEASURE, so it has no lobe at all: take the
+    // GRADIENT of the draw field wherever the field has a bank, and measure the
+    // circular spread of those directions as AXIAL data (a bank has an
+    // orientation, not a sign, so angles are doubled). One set of parallel
+    // channels puts every gradient on one axis and the spread goes to 0; two
+    // sets 30 deg apart put half the mass 60 deg away in the doubled angle and
+    // the spread rises to ~0.13 by construction.
+    //
+    //   BAND: the gradient arm is 2 m, so it reads the orientation of any bank
+    //   4 m or wider — the draws' banks are 4-10 m. Angular resolution is set
+    //   by sampling noise rather than by binning, and the noise is reported
+    //   beside the number as the parallel-tributary arm.
+    //
+    // AND IT IS READ PER WINDOW, NEVER POOLED OVER THE WORLD — a mistake worth
+    // one more paragraph because it makes the number meaningless rather than
+    // merely weak. The land's axis field turns over 512 m cells, so gradients
+    // pooled across 1600 m carry the WORLD'S rotation, not the local
+    // lineation: pooled, a maximally straight arm (no wander, parallel
+    // tributaries, stretch 20) read 0.743 against an isotropic 0.958 — nearly
+    // all of the range spent on the axis field turning. The grain is a LOCAL
+    // property and has to be measured in local windows, exactly as §2.1's own
+    // probe does with its 7x7.
+    const auto bank_direction_spread = [&]() {
+        std::vector<double> per_window;
+        for (float wz = 200.0f; wz < 1800.0f; wz += 96.0f) {
+            for (float wx = 200.0f; wx < 1800.0f; wx += 96.0f) {
+                double cx = 0.0;
+                double cz = 0.0;
+                double w = 0.0;
+                for (float dz = -36.0f; dz <= 36.0f; dz += 4.0f) {
+                    for (float dx = -36.0f; dx <= 36.0f; dx += 4.0f) {
+                        const glm::vec2 p{wx + dx, wz + dz};
+                        if (!world::relief_floor_binds(ctx, p)) continue;
+                        const float gx =
+                            world::draw_forms(ctx.params.seed, {p.x + 2.0f, p.y}, 1.0f)
+                            - world::draw_forms(ctx.params.seed, {p.x - 2.0f, p.y}, 1.0f);
+                        const float gz =
+                            world::draw_forms(ctx.params.seed, {p.x, p.y + 2.0f}, 1.0f)
+                            - world::draw_forms(ctx.params.seed, {p.x, p.y - 2.0f}, 1.0f);
+                        const float mag = std::sqrt(gx * gx + gz * gz);
+                        if (mag < 0.15f) continue; // flat: no bank to have a direction
+                        const float a2 = 2.0f * std::atan2(gz, gx); // axial: doubled
+                        cx += static_cast<double>(mag) * std::cos(a2);
+                        cz += static_cast<double>(mag) * std::sin(a2);
+                        w += mag;
+                    }
+                }
+                if (w < 2.0) continue; // no banks in this window
+                per_window.push_back(1.0 - std::sqrt(cx * cx + cz * cz) / w);
+            }
+        }
+        std::sort(per_window.begin(), per_window.end());
+        return per_window[per_window.size() / 2];
+    };
+
+    const double spread_shipped = bank_direction_spread();
+    setenv("DFN_DRAW_TRIB_BEARING", "0", 1); // tributaries parallel to the trunk
+    const double spread_parallel = bank_direction_spread();
+    unsetenv("DFN_DRAW_TRIB_BEARING");
+    MESSAGE("bank-direction spread (axial, 0 = one axis): shipped " << spread_shipped
+            << ", tributaries-parallel " << spread_parallel);
+    CHECK(spread_shipped > spread_parallel);
 }

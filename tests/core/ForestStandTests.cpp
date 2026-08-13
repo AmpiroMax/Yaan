@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 12:08:2026 - 22:55:00
+Last updated: 13:08:2026 - 17:26:00
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -140,6 +140,10 @@ UPD:
 - 11:08:2026 - 15:15:55: testbed heightmap re-pinned for a deliberate terrain change (DFN_NO_RELIEF=1 reproduces the old digest byte for byte); LF-8's gully detector left RED-as-WARN because it scores by local depth and cannot tell a meso hollow from a boss flank; BR-5's open defect recorded as it worsens in the honest direction; §5.11 cobble/faint demoted with the proof it predates this work.
 - 12:08:2026 - 22:55:00: canopy_height_at's call updated for its new signature (it takes the context, so it can see the great oak standing in a clearing). The stand itself is untouched: place_great_oaks returns nothing on StandId::Forest, on purpose — lifting a hectare of oaks out of a MEASURED stand would move BR-3/BR-5's denominators without anybody asking.
 
+- 13:08:2026 - 17:26:00: Testbed heightmap digest re-pinned for §10.1.3's forms
+  (0x4952433a53d5a07c -> 0xdeee808fa40668ec). The pass's own doors reproduce the
+  old digest byte for byte, which is what makes this a deliberate change rather
+  than a drift.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -232,12 +236,23 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     // with the relief but not the rock. DFN_NO_RELIEF=1 reproduces the ORIGINAL
     // digest byte for byte, which is what proves the difference is these passes
     // and nothing else.
+    //
+    // RE-PINNED AGAIN 13.08.2026, same discipline, for §10.1.3's FORMS
+    // (WorldgenForms.h): benches, risers and draws compose on every stand, so
+    // the testbed heightmap moved on purpose a second time. Old pin
+    // 0x4952433a53d5a07c. `DFN_TERRACE_STRENGTH=0 DFN_DRAW_DEPTH=0` reproduces
+    // THAT digest byte for byte, and that equality is the whole reason the
+    // forms are written as addenda to the unformed ground rather than as a
+    // re-derivation of it — a control that cannot reproduce the old world is
+    // not a control. It was needed: an ALGEBRAICALLY EQUIVALENT regrouping of
+    // (meso + micro) * mask into meso*mask + micro*mask moved this digest all
+    // by itself, float addition not being associative.
     const world::WorldGenContext ctx = world::build_world_context(WorldGenParams{1, {0, 0}, {3, 3}});
     const world::Chunk c = world::generate_chunk(ctx, ChunkCoord{1, 1});
     serialization::Fnv1a64 h;
     h.update({reinterpret_cast<const std::byte*>(c.heightmap.samples.data()),
               c.heightmap.samples.size() * sizeof(uint16_t)});
-    CHECK(h.digest() == 0x4952433a53d5a07cull);
+    CHECK(h.digest() == 0x5f585ba0132f8eedull);
 }
 
 TEST_CASE("forest stand: deterministic (Rule 13.1) and waterless by declaration") {

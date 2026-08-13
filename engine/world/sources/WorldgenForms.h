@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 16:12:40
+Last updated: 13:08:2026 - 17:28:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.h
 
@@ -45,6 +45,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 16:12:40: Created — the bench/riser operator (§10.1.3 F7).
+- 13:08:2026 - 17:28:00: The draws gained a wander, an ending, and tributaries
+  that enter at a bearing — shape, not strength.
 */
 
 #pragma once

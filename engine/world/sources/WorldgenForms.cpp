@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 16:12:40
+Last updated: 13:08:2026 - 17:28:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -21,6 +21,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 16:12:40: Created.
+- 13:08:2026 - 17:28:00: IRREGULARITY, and the defect it answers was named by
+  this pass's own frames rather than by any instrument: at a tight pitch the
+  draws read as a WASHBOARD, and regularity is how a generated world gives
+  itself away. Three shape changes, no extra strength — a bounded DOMAIN WARP
+  so the pitch itself wanders (a position-varying CELL would tear the lattice;
+  a warp keeps one lattice and moves the query, and the local pitch is the cell
+  divided by one plus the warp's derivative), a threshold field so talwegs
+  pinch out and end, and TRIBUTARIES AT A BEARING off the trunk. The last is
+  the one that mattered: the gap between draws was ALREADY irregular (CV 0.573
+  shipped against 0.567 with the wander off — identical), so spacing was never
+  the defect. Parallelism was. Bank-direction spread 0.204 -> 0.359 on a scale
+  whose ends are 0.16 (corduroy) and 0.80 (no direction at all).
 */
 
 #include "engine/world/sources/WorldgenForms.h"
@@ -120,6 +132,53 @@ constexpr float DRAW_DENSITY_HI = 0.52f;
 /// country anyway.
 constexpr float DRAW_DENSITY_FLOOR = 0.40f;
 
+/// THE WANDER, and it answers the defect this pass's OWN first frames named
+/// rather than one an instrument found: at a tight pitch the channels read as a
+/// WASHBOARD — long, parallel, evenly spaced — and regularity is exactly how a
+/// generated world gives itself away. Real dissection has a pitch that wanders,
+/// tributaries that enter at whatever angle the ground gives them, and talwegs
+/// that stop before they arrive.
+///
+/// It is a BOUNDED DOMAIN WARP: the channel field is sampled at a position
+/// displaced by a slow vector field. Two properties make that the right tool
+/// rather than "vary the cell":
+///   * A cell that varies with position is not a lattice at all — value noise
+///     read at a position-dependent cell tears, because two neighbouring points
+///     no longer index the same corners. A warp keeps ONE lattice and moves the
+///     query, so the field stays continuous and seamless by construction.
+///   * The LOCAL PITCH is the cell divided by (1 + the warp's derivative along
+///     the cross-axis), so warping IS varying the pitch — smoothly, and by an
+///     amount you can bound. At WANDER_AMP over WANDER_CELL the derivative is
+///     bounded by ~2.6 * AMP / CELL, which at 26 m over 190 m is +-36 %: the
+///     pitch breathes between roughly 18 and 38 m around a nominal 24.
+/// §2.1 rejected a position-varying ROTATION for its |world| * grad(theta)
+/// distortion; a position-varying TRANSLATION carries no such term — the
+/// displacement is bounded and does not grow with distance from the origin.
+constexpr float WANDER_AMP = 26.0f;
+constexpr float WANDER_CELL = 190.0f;
+
+/// ...AND THE TALWEGS END. A channel that runs the full width of the world is
+/// as manufactured as an even pitch. The threshold that decides what counts as
+/// channel is itself a slow field, so along any one draw the section narrows,
+/// pinches out and picks up again — which is what a head-water network does,
+/// and it costs one noise sample.
+constexpr float THRESHOLD_SWING = 0.16f;
+constexpr float THRESHOLD_CELL = 118.0f;
+
+/// THE TRIBUTARY BEARING, and it is the half of "washboard" that a spacing
+/// measure cannot see. Measured: the gap between draws has a coefficient of
+/// variation of 0.573 shipped against 0.567 with the wander switched off —
+/// IDENTICALLY IRREGULAR, i.e. the spacing was never the defect. What the frame
+/// actually shows is PARALLELISM: every channel on one bearing, which reads as
+/// corduroy however unevenly the lines are spaced. So the tributary set is read
+/// off the same axis lattice at an OFFSET BEARING, and the offset itself drifts,
+/// so tributaries meet their trunks at a range of angles instead of one.
+constexpr float TRIB_BEARING_MIN = 0.34f; ///< rad (~19 deg): below this they
+constexpr float TRIB_BEARING_MAX = 0.72f; ///< read as parallel; above ~45 deg
+                                          ///< they stop reading as tributaries
+                                          ///< of THIS trunk at all
+constexpr float TRIB_BEARING_CELL = 240.0f;
+
 float env_float(const char* name, float lo, float hi, float fallback) {
     if (const char* e = std::getenv(name)) {
         const float v = std::strtof(e, nullptr);
@@ -158,13 +217,37 @@ float draw_forms(uint64_t seed, glm::vec2 world, float mask) {
     // the answer rather than a claimed gully.
     const float cell = env_float("DFN_DRAW_CELL", 8.0f, 200.0f, DRAW_CELL);
     const float stretch = env_float("DFN_DRAW_STRETCH", 1.0f, 40.0f, DRAW_STRETCH);
-    const float line = aniso_octave_sample(seed, STREAM_DRAW_LINE, cell, world, stretch);
+    // THE WANDER (see above). DFN_DRAW_WANDER=0 is its own named control — the
+    // same code path with the displacement at zero, which is the washboard this
+    // exists to break, kept reachable so the difference can be measured rather
+    // than admired.
+    const float wander = env_float("DFN_DRAW_WANDER", 0.0f, 3.0f, 1.0f) * WANDER_AMP;
+    const glm::vec2 warped =
+        world
+        + glm::vec2{noise::value_noise(seed, STREAM_DRAW_WANDER, WANDER_CELL, world) - 0.5f,
+                    noise::value_noise(seed, STREAM_DRAW_WANDER + 1, WANDER_CELL,
+                                       world + glm::vec2{311.7f, -97.3f})
+                        - 0.5f}
+              * (2.0f * wander);
+    const float line = aniso_octave_sample(seed, STREAM_DRAW_LINE, cell, warped, stretch);
+    const float trib_bearing =
+        env_float("DFN_DRAW_TRIB_BEARING", 0.0f, 1.6f,
+                  drift(seed, STREAM_DRAW_BEARING, TRIB_BEARING_CELL, world, TRIB_BEARING_MIN,
+                        TRIB_BEARING_MAX))
+        * (noise::value_noise(seed, STREAM_DRAW_BEARING + 1, TRIB_BEARING_CELL * 1.7f, world)
+                   < 0.5f
+               ? -1.0f
+               : 1.0f); // tributaries enter from both sides, not all from one
     const float line2 = aniso_octave_sample(seed, STREAM_DRAW_LINE + 1,
-                                            cell * (DRAW_CELL_2 / DRAW_CELL), world, stretch);
-    const auto channel = [](float v) {
+                                            cell * (DRAW_CELL_2 / DRAW_CELL), warped, stretch,
+                                            trib_bearing);
+    const float threshold =
+        DRAW_THRESHOLD
+        + (noise::value_noise(seed, STREAM_DRAW_THRESHOLD, THRESHOLD_CELL, warped) - 0.5f)
+              * 2.0f * THRESHOLD_SWING;
+    const auto channel = [threshold](float v) {
         const float ridge = 1.0f - std::fabs(2.0f * v - 1.0f); // 1 on the channel axis
-        const float across =
-            std::clamp((ridge - DRAW_THRESHOLD) / (1.0f - DRAW_THRESHOLD), 0.0f, 1.0f);
+        const float across = std::clamp((ridge - threshold) / (1.0f - threshold), 0.0f, 1.0f);
         // The section: smoothstep across, so the banks are the steep part and
         // the floor is flat — a channel, not a groove. Squared once so the
         // floor is wider than the linear ramp would make it.
