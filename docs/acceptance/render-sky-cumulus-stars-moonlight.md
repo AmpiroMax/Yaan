@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 19:52:00
-Last updated: 13:08:2026 - 19:52:00
+Last updated: 13:08:2026 - 20:43:42
 File: docs/acceptance/render-sky-cumulus-stars-moonlight.md
 
 Responsibility:
@@ -21,6 +21,8 @@ AI Agents Notice (must follow):
 <!--
 UPD:
 - 13:08:2026 - 19:52:00: Created with the three changes.
+- 13:08:2026 - 20:43:42: Deck thickness (both lower decks), the end-to-end sweep, and the
+  reproducibility finding that came out of it.
 -->
 
 # The sky, three reports closed
@@ -188,6 +190,88 @@ A large *pixel count* at a tiny *amplitude* is what a fraction of a pixel of
 translation always looks like in a difference image. It is not a defect and
 there is nothing there to fix.
 
+## 4. «Всё ещё плоские» — the decks stop being planes
+
+Rule 52 in one line: a deck read at ONE plane intersection has a silhouette from
+below and no vertical dimension, so it can only ever be a lid. Both lower decks
+are SLABS now — three altitudes each, transmission `(1-a)^n` where n is the
+number of field CELLS the chord crosses (`thickness/dir.y` over the cell width),
+which is 1 overhead and 12 at the skyline.
+
+| | thickness | why |
+|---|---|---|
+| middle (main sheet) | 300 m = half a coverage cell | a layer element is wider than it is deep; at the cell width the vertical structure would be as fine as the horizontal and read as noise |
+| low (ragged, near) | 100 m = a third of that | its job in R3.2's ladder is to be SPARSE and show what is behind it, and a near layer as deep as the main sheet loses its gaps once the chord runs along it — the holes are the feature |
+| high (cirrus veil) | none, on purpose | it is a veil at 4.4 km and cirrus have no depth to show. Rule 52 asks that a thing have a SHAPE, not that everything have a thickness |
+
+Measured on the overcast sky probe (absolute eye, so the tour's resolved-height
+drift cannot enter), sky showing through the deck:
+
+| band | THICK | FLAT |
+|---|---|---|
+| near the horizon | 0.7 % | 5.5 % |
+| overhead | 11.5 % | 15.6 % |
+
+The first is the deck CLOSING along the layer, which is what an overcast sky
+does and what a plane cannot do at any opacity. The second is the ray crossing a
+third of a cell horizontally even straight up, so the three slices blend — that
+is the change working too, it is simply not the headline, and the comment
+claiming "it costs nothing overhead" was corrected in place rather than deleted.
+
+**ZERO-DOSE ARM, and it earned its keep twice.** `DFN_DECK_THICK=0` reproduces
+the shipped sheet at 0.002 % of pixels, max 1/255 — `pow(x, 1.0)` rounding — and
+the low deck's own collapse measured 0.001 % / max 1. The first form of the path
+wrote `clamp(1/dir.y, 1, 12)`, which does not contain the thickness at all, so
+the dose-0 arm still closed the deck and came back 54 % different from the
+shipped frame. **A dose that does not appear in the formula is not a dose.**
+
+## 5. The end-to-end sweep, and what it found
+
+Five things changed in the sky in one evening — cumulus volume, deck thickness,
+the star field, the moon's gain, and the clock — and none had been seen with the
+others. Swept together:
+
+- **The pass's own control still holds.** `DFN_CLOUD=0` empties the WHOLE sky in
+  one move: cumulus slab, both deck slabs and the high veil all vanish, leaving a
+  clean gradient (`render-sky-endtoend-CLOUD0-control.png`). A cloud surviving
+  cover 0 would be the two-copies defect made visible.
+- **The standard seven-vantage tour** renders unbroken at every stop, with cloud
+  shadows crossing the meadow from the same field the sky draws
+  (`render-sky-endtoend-eye-level.png`).
+- **Night, everything on**: the moonlight separation holds at 2.07 shade steps,
+  the star field sits in the gaps between moonlit clouds, and the ground is
+  navigable.
+- **Frame cost**: the whole cloud apparatus measures 0.93 ms of median against a
+  `DFN_CLOUD=0` arm from ONE binary (16.385 vs 15.457 ms). HONEST: the instrument
+  is vsync-limited (median 16.4 ms = 60 Hz, p10 1.4 / p90 24), so 0.93 ms is NOT
+  resolvable. What IS resolvable: neither arm misses the 16.7 ms deadline, and at
+  night the two arms have the same median to 0.01 ms.
+
+**AND THE SWEEP FOUND SOMETHING THE PARTS COULD NOT.** Reproducibility of a
+restored recipe collapsed during the evening: two runs of one recipe that had
+matched bit for bit at 19:30 differed by 1.79 % of the frame at 20:05, all of it
+in the sky rows. Measured with the arm that separates the two candidates:
+
+| two runs of ONE binary, one recipe | pixels differing | max |
+|---|---|---|
+| visual clock free | 67.466 % | 137/255 |
+| visual clock pinned (`DFN_VISTIME`+`DFN_WIND_FREEZE`) | **0.000 %** | **0** |
+
+So the geometry is exactly reproducible and the CLOCK is the whole of it. **The
+sky had two clocks**: the sun and moon run off the app's `game_seconds_`, which
+a tour advances by a fixed step per frame precisely so the world is a pure
+function of the frame index, while the cloud drift and the wind envelope ran off
+a `steady_clock` read inside `render()`. One of the two had been fixed and the
+other had not.
+
+**The defect is as old as the field and this evening only made it visible** —
+cumulus went from 2.8 % of the sky to 26.8 % and the decks gained structure, so
+the same few metres of drift now move an order of magnitude more pixels. It is
+worth saying plainly: cloud volume did not break the acceptance method, it
+exposed a hole in it. `RenderSystem::set_visual_time` is the cure (additive and
+latched: until a caller tells the time, the wall-clock path is bit-identical),
+and the app wires it from the same clock the sky is drawn from.
+
 ## Owed
 
 - `CLOUD_CEILING_MIN_M` / `CLOUD_CEILING_MAX_M` / the moon's ground gain want
@@ -197,3 +281,10 @@ there is nothing there to fix.
   not change it, and at 0.33 m per 3 m that claim is false as written.
 - The slab has NO LOD on the 3-D field; it converges to the area mean instead.
   That is honest at the horizon and it is not the same thing as a mip chain.
+- THE PLACE HALF OF THE CEILING STAYS AS IT IS, by the lead's decision, and the
+  reasoning is worth keeping because it is a refusal to fit a threshold: 1.17x
+  is under the 1.30x discrimination bar, but shortening the place wavelength to
+  clear the bar would tell the player that five hundred paces changed his
+  CLIMATE. The world is 1024 m across and climate moves on tens of kilometres.
+  The row says "the line describes a possibility, the behaviour comes from
+  weather alone" and that sentence points at the real cure — a bigger world.
