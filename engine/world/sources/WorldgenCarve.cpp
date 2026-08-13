@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 20:51:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -39,6 +39,7 @@ UPD:
 - 13:08:2026 - 17:12:00: ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ЖАЛОБЫ: путь до дневного света меряется от ПОРТАЛА — станции, где поднятый пол коридора пересекает поверхность, — а не от carve_mouth(), который отвечает на другой вопрос («где сомкнулся ПОТОЛОК») и у свитчбэка Равенскара стоит в 45 м ВНУТРИ тоннеля. Из-за этого на входе была чернота с первого шага вместо склона на DARKNESS_DEPTH_MIN, а на сотом метре — полный дневной свет под 12 м скалы (20.5 % подземных кадров); у коридора с двумя дневными концами признавался ровно один. Считаются ВСЕ пересечения, берётся ближайшее; carve_mouth намеренно не тронут (P4 выводит из него метки входов). Плюс берётся наиболее замкнутая из исходной и поднятой точки, иначе подъём выталкивал запрос на высоте глаз через свод 2.6-метрового прохода Бэкбарроу. Живьём: переключений 0↔1 за кадр 13 → 0, наибольшая покадровая ступень 1.000 → 0.0036, день под землёй 23.7 % → 7.4 % (и все они ближе 17 м пути от портала). Регрессия — tests/core/VoxelTests.cpp, рука до правки падает по всем трём проверкам.
 - 13:08:2026 - 18:40:00: ТРЕТИЙ ДЕФЕКТ ТОГО ЖЕ ПРАВИЛА (жалоба пользователя «темнеет снаружи, когда ещё крыши нет никакой»): ворота замкнутости спрашивали про ТОЧКУ ЗАПРОСА, а надо про КРЫШУ. Врезанный в склон коридор — сначала открытая ТРАНШЕЯ: пол уже под поверхностью холма, потолок ещё на свету. Новый carve_roof_over(); тем же предикатом теперь определяется и портал в измерителе пути, иначе два определения «замкнуто» разъедутся (этот файл сегодня дважды платил ровно за это). Замер: из 2730 тиков с потолком ВЫШЕ рельефа 1673 несли тьму, худший — полная чернота при потолке на 1.31 м в воздухе; после правки 0 из 5511. Верный предикат всё это время лежал в carve_mouth этажом выше.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 20:51:00: ФАКЕЛЫ РАССТАВЛЕНЫ ПО РЕЕСТРУ, А НЕ ПО ЛИТЕРАЛУ. Шаг, высота и отступ настенного факела переехали в NUMBERS.md (WALL_TORCH_SPACING 6, WALL_TORCH_HEIGHT 1.8, WALL_TORCH_INSET 0.25); шаг ВЫВЕДЕН из TORCH_RADIUS_DARK. Прежние 10 м несли опровержение в собственном комментарии: «never more than 5 m from a flame, which is the torch's own useful radius in the dark (TORCH_RADIUS_DARK 4 m)» — 5 > 4 в одном предложении. Замер на боевой сборке: 28.5 % ПОЛНОСТЬЮ ТЁМНЫХ станций оси тоннеля лежали дальше собственной досягаемости света 4.05 м, то есть получали РОВНО НОЛЬ, худшая 5.25 м; три снимка пользователя из пяти стояли в этой полосе (3.76, 3.76, 5.10 м до ближайшего пламени). Дверь дозы DFN_TORCH_SPACING — обе руки из одного бинарника (правило 47). И то, чего эта правка НЕ чинит, записано у кода, а не только в отчёте (правило 38): стоя в 2.79 м от горящего подсвечника, пол под собственными ногами читает РОВНО 0 из 255 при шаге палитры 19.99, положительный контроль DFN_DARK=0 на том же боксе 37. Расстановка решает, ГДЕ пламя, и не решает, насколько далеко оно светит.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -47,6 +48,8 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <glm/geometric.hpp>
 
 namespace dfn::world {
@@ -596,26 +599,79 @@ EnclosureTrace enclosure_trace(const TestbedLayout& layout,
 
 // TORCHES ON THE WALLS OF A CARVED CORRIDOR.
 //
-// SPACING, HEIGHT AND INSET ARE LOOK-DEV AND WANT ROWS (Rule 14). 10 m apart
-// alternating walls means the player is never more than 5 m from a flame, which
-// is the torch's own useful radius in the dark (TORCH_RADIUS_DARK 4 m plus the
-// carried one); 1.8 m is a sconce at head height; 0.25 m keeps the stick clear
-// of the wall it hangs on. Marked as placeholders rather than smuggled in, and
-// requested from the lead with the falloff numbers.
+// SPACING, HEIGHT AND INSET ARE ROWS NOW (Rule 14), AND THE SPACING IS DERIVED
+// RATHER THAN CHOSEN. What stood here was a literal 10 m carrying its own
+// refutation in its own comment:
+//
+//   "10 m apart alternating walls means the player is never more than 5 m from
+//    a flame, which is the torch's own useful radius in the dark
+//    (TORCH_RADIUS_DARK 4 m plus the carried one)"
+//
+// 5 > 4. The justification cited the registry row and then exceeded it by 25 %,
+// in one sentence, and nobody read the two halves against each other. Measured
+// on the shipping build (seed 1, Ravenscar switchback): 28.5 % of the tunnel's
+// PITCH-DARK axis stations were farther from every flame than the light's own
+// effective reach of 4.05 m -- i.e. receiving exactly zero, not merely little --
+// with a worst case of 5.25 m. Three of the five state captures the user sent
+// after walking this tunnel stood in that band (3.76, 3.76 and 5.10 m from the
+// nearest flame). "Факела не работают" was literally true where he was standing.
+//
+// THE DERIVATION, which now lives in the registry row and is restated here
+// because this is the code it constrains: sconces alternate walls, so the
+// darkest station is the midpoint of a span, at S/2 along the corridor from
+// each of its two neighbours. Its distance to a flame is
+//     sqrt((S/2)^2 + lateral^2 + dh^2)
+// with lateral = half_width - WALL_TORCH_INSET and
+//      dh = (WALL_TORCH_HEIGHT + TORCH_FLAME_ABOVE_GRIP) - PLAYER_EYE_HEIGHT.
+// Requiring that to stay inside TORCH_RADIUS_DARK gives S <= 7.11 m. The row
+// takes 6, not 7.11: a generator input equal to the threshold that measures it
+// is a coincidence, not a check (Rule 30a).
+//
+// AND THE HALF THIS DOES NOT FIX, stated here so the next reader does not
+// mistake a necessary fix for a sufficient one (Rule 38): the light does not
+// MEET TORCH_RADIUS_DARK. Measured on the frame, standing 2.79 m from a lit
+// sconce and looking at the floor at one's own feet, that floor reads exactly
+// 0 of 255 against a palette shade step of 19.99 -- with a positive control
+// (DFN_DARK=0, same box, same binary) at 37, so the instrument can see light.
+// Spacing decides WHERE a flame is; it cannot decide how far one carries.
 namespace {
-constexpr float WALL_TORCH_SPACING_M = 10.0f;
-constexpr float WALL_TORCH_HEIGHT_M = 1.8f;
-constexpr float WALL_TORCH_INSET_M = 0.25f;
+constexpr float WALL_TORCH_HEIGHT_M = static_cast<float>(config::WALL_TORCH_HEIGHT);
+constexpr float WALL_TORCH_INSET_M = static_cast<float>(config::WALL_TORCH_INSET);
+
+// THE DOSE DOOR FOR THE SPACING (DFN_TORCH_SPACING=<metres>). The before and
+// the after of a placement change have to come out of ONE BINARY (Rule 47): in
+// a tree eight zones are editing, "the old build" measures the week rather than
+// the edit. Refused loudly when unusable -- a run that silently fell back to the
+// row while reporting a dose is the only failure this door must not have.
+[[nodiscard]] float wall_torch_spacing_m() {
+    static const float value = [] {
+        const auto row = static_cast<float>(config::WALL_TORCH_SPACING);
+        if (const char* e = std::getenv("DFN_TORCH_SPACING"); e != nullptr && *e != '\0') {
+            float s = 0.0f;
+            if (std::sscanf(e, "%f", &s) == 1 && s > 0.0f) {
+                std::fprintf(stderr, "[carve] DFN_TORCH_SPACING=%.3f m (row %.3f)\n",
+                             static_cast<double>(s), static_cast<double>(row));
+                return s;
+            }
+            std::fprintf(stderr, "[carve] DFN_TORCH_SPACING=\"%s\" is not a positive "
+                                 "number -- REFUSED, using the row %.3f m\n",
+                         e, static_cast<double>(row));
+        }
+        return row;
+    }();
+    return value;
+}
 } // namespace
 
 std::vector<CarveLightSite> carve_wall_lights(const TestbedLayout& layout,
                                               const GroundSampler& ground) {
     std::vector<CarveLightSite> out;
+    const float spacing = wall_torch_spacing_m();
     const auto walk = [&](const CarveCorridor& c) {
         if (c.point_count < 2) {
             return;
         }
-        float since = WALL_TORCH_SPACING_M; // the first enclosed station gets one
+        float since = spacing; // the first enclosed station gets one
         bool left = true;
         for (int i = 0; i + 1 < c.point_count; ++i) {
             const glm::vec3 a = c.points[i];
@@ -634,11 +690,11 @@ std::vector<CarveLightSite> carve_wall_lights(const TestbedLayout& layout,
                 // THE SAME PREDICATE AS THE DARKNESS GATE: a torch belongs where
                 // the roof has gone under the terrain, never in the open cutting.
                 if (p.y + c.height >= ground({p.x, p.z})) {
-                    since = WALL_TORCH_SPACING_M; // re-arm: light the first step in
+                    since = spacing; // re-arm: light the first step in
                     continue;
                 }
                 since += len / static_cast<float>(steps);
-                if (since < WALL_TORCH_SPACING_M) {
+                if (since < spacing) {
                     continue;
                 }
                 since = 0.0f;

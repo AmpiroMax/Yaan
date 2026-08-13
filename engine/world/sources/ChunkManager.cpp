@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 21:02:08
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -46,6 +46,8 @@ UPD:
 - 13:08:2026 - 16:45:00: DFN_DARK_TRACE=<путь> — по строке на КАЖДЫЙ вызов darkness_at (приложение зовёт его раз в кадр) с разложением на ветви через enclosure_trace. Открывается ГРОМКО; выключен, пока переменная не названа. Этим прибором найдено, что ambient_darkness переключается 0↔1 за один кадр 13 раз за проход по тоннелю, каждый раз на пересечении carve_distance нуля в пределах 2 см.
 - 13:08:2026 - 18:40:00: DFN_DARK_TRACE пишет roof_y и open_to_sky вместо above_ground — вслед за воротами, которые теперь судят крышу.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 20:58:50: DFN_TORCH_FLAME_UP — дверь дозы на высоту пламени настенного факела над его же сущностью; умолчание теперь строка TORCH_FLAME_ABOVE_GRIP, а не литерал 0.45 (правило 14/35: то же число строит палку в render). Заведена под доказанный замер: пол в 2.79 м от горящего подсвечника читает РОВНО 0 из 255, а с DFN_NO_POINT_SHADOW=1 — 5.71 из того же бинарника и той же точки, то есть свет обнуляет СОБСТВЕННАЯ теневая карта пламени. Единственное, что стоит в точке пламени, — меш самого подсвечника: у заглушки 52 границы -0.2..+0.9 по y, значит пламя на 0.45 сидит ВНУТРИ своей модели. Это правило 35 наоборот: у факела появился МЕШ, и смещение, верное пока он был только светом, стало светом, закопанным в геометрию.
+- 13:08:2026 - 21:02:08: ГИПОТЕЗА ОПРОВЕРГНУТА СОБСТВЕННОЙ ДВЕРЬЮ, и опровержение записано у кода. Подъём пламени на 1.2 м — выше всей заглушки — оставляет пол под ногами РОВНО 0.00, побитово. Значит подсвечник не заслоняет сам себя, и настоящий заслоняющий пока не назван. Замер «тень обнуляет свет» (0.00 против 5.71 при DFN_NO_POINT_SHADOW=1) остаётся в силе со своим нулевым и положительным контролем; объяснение — нет. Правило 34: предпосылку проверяют ДО того, как она войдёт в файл, а если уже вошла — правят там же, где стоит.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -55,6 +57,7 @@ UPD:
 #include "engine/world/sources/WorldgenVantages.h"
 
 #include "engine/core/components/sources/Components.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/SiteComponents.h"
 
 #include <algorithm>
@@ -66,6 +69,61 @@ UPD:
 #include <vector>
 
 namespace dfn::world {
+
+namespace {
+
+// WHERE A SCONCE'S FLAME SITS ABOVE ITS OWN ENTITY, and the dose door on it
+// (DFN_TORCH_FLAME_UP=<metres>).
+//
+// The default is TORCH_FLAME_ABOVE_GRIP, which is the registry's answer to
+// "how far up the stick does the flame burn" and is read by render for the
+// stick's length -- one number, two zones (Rule 35).
+//
+// THE DOOR EXISTS BECAUSE OF A MEASUREMENT, not for tuning -- AND IT THEN
+// REFUTED THE HYPOTHESIS IT WAS OPENED FOR, which is why both halves are
+// written here rather than only the surviving one.
+//
+// The measurement: standing 2.79 m from a lit sconce and looking at the floor
+// at one's own feet, that floor reads EXACTLY 0 of 255 (palette shade step
+// 19.99). Turning the light's cube shadow off with DFN_NO_POINT_SHADOW=1 --
+// same binary, same vantage, same radius -- makes the same floor read 5.71.
+// So the flame's own shadow map is what takes the light to zero rather than
+// merely dimming it. That part stands, with its zero control (the same arm
+// twice: 0.00 and 0.00) and its positive control (DFN_DARK=0 on the same box:
+// 37.00, so the instrument can see light).
+//
+// The hypothesis: the only caster standing AT the flame is the sconce's own
+// mesh -- the placeholder torch's local bounds run -0.2 .. +0.9 in y, so a
+// flame 0.45 up the stick sits inside its own model, and a light inside a
+// closed caster lights nothing. Rule 35's trigger fired in reverse: the torch
+// GAINED A MESH and an offset correct for a bare light became a light buried
+// in geometry.
+//
+// THE DOSE SAYS NO. Lifting the flame to 1.2 m -- clear of the whole mesh, one
+// binary, same vantage -- leaves the floor at 0.00, bit for bit. The sconce is
+// not the occluder, and the real one is still unnamed (measured 13.08.2026,
+// reported to the lead). The door stays because the question it settles is
+// permanent and because the next hypothesis needs the same arm.
+[[nodiscard]] float wall_torch_flame_up() {
+    static const float value = [] {
+        const auto row = static_cast<float>(config::TORCH_FLAME_ABOVE_GRIP);
+        if (const char* e = std::getenv("DFN_TORCH_FLAME_UP"); e != nullptr && *e != '\0') {
+            float v = 0.0f;
+            if (std::sscanf(e, "%f", &v) == 1 && v >= 0.0f) {
+                std::fprintf(stderr, "[torch] DFN_TORCH_FLAME_UP=%.3f m (row %.3f)\n",
+                             static_cast<double>(v), static_cast<double>(row));
+                return v;
+            }
+            std::fprintf(stderr, "[torch] DFN_TORCH_FLAME_UP=\"%s\" is not a "
+                                 "non-negative number -- REFUSED, using %.3f m\n",
+                         e, static_cast<double>(row));
+        }
+        return row;
+    }();
+    return value;
+}
+
+} // namespace
 
 struct ChunkManager::Impl {
     bool opened = false;
@@ -379,8 +437,11 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
                                         .color_rgb = 0,   // render's default warm flame
                                         // Up the stick from the sconce, the same
                                         // way a held torch's flame sits above the
-                                        // grip.
-                                        .offset = {0.0f, 0.45f, 0.0f}});
+                                        // grip. DFN_TORCH_FLAME_UP is the dose
+                                        // door on this one number — see
+                                        // wall_torch_flame_up() for what it was
+                                        // opened to measure.
+                                        .offset = {0.0f, wall_torch_flame_up(), 0.0f}});
                 }
             }
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 13:08:2026 - 19:11:13
+Last updated: 13:08:2026 - 20:42:22
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -42,6 +42,7 @@ UPD:
   FLAME_WARMTH_SWING moved to SkyModel.h beside TORCH_COLOR -- a breathing flame
   makes a torch's colour a BAND, and every caller that asserts one has to read
   the width from where the oscillator reads it.
+- 13:08:2026 - 20:42:22: DFN_TORCH_RADIUS=<metres> — дверь дозы на радиус факела по умолчанию (зона dungeon, по резке ведущего на этот файл и SkyModel.h). Заведена под замер «какой радиус нужен, чтобы пол под ногами читался»: обе руки обязаны выйти из ОДНОГО бинарника (правило 47), а нерабочее значение отвергается ВСЛУХ — молчаливый откат к боевому значению при отчёте о дозе есть единственный отказ, которого этой двери иметь нельзя. Все три места, читавшие TORCH_RADIUS_M как умолчание, теперь зовут одну функцию (правило 32): переносимый свет, ручная проба DFN_TORCH=1 и жаровня DFN_TORCH=2.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -70,6 +71,36 @@ UPD:
 
 namespace dfn::render {
 
+// THE DOSE DOOR FOR A TORCH'S REACH (DFN_TORCH_RADIUS=<metres>, zone dungeon
+// under a cut from the lead on this file and on SkyModel.h).
+//
+// It exists because the two arms of "does a torch light the floor" have to come
+// out of ONE BINARY (Rule 47): the shipping value and the tried value differ by
+// this variable and by nothing else. It overrides the DEFAULT only -- a
+// CarriedLight that names its own radius keeps it, exactly as without the door.
+//
+// The number it names is the NOMINAL radius. What reaches the surface is
+// nominal * (1 - 0.55 * ambient_darkness) (dfn_env.sh), so in a pitch-dark
+// place the effective reach is 0.45 of what is set here.
+[[nodiscard]] float torch_radius_default() {
+    static const float value = [] {
+        if (const char* e = std::getenv("DFN_TORCH_RADIUS"); e != nullptr && *e != '\0') {
+            float r = 0.0f;
+            if (std::sscanf(e, "%f", &r) == 1 && r > 0.0f) {
+                std::fprintf(stderr, "[torch] DFN_TORCH_RADIUS=%.3f m (default %.3f)\n",
+                             static_cast<double>(r), static_cast<double>(TORCH_RADIUS_M));
+                return r;
+            }
+            // Loud, never silent: a run that fell back to the shipping value
+            // while reporting a dose is the one failure this door must not have.
+            std::fprintf(stderr, "[torch] DFN_TORCH_RADIUS=\"%s\" is not a positive "
+                                 "number -- REFUSED, using %.3f m\n",
+                         e, static_cast<double>(TORCH_RADIUS_M));
+        }
+        return TORCH_RADIUS_M;
+    }();
+    return value;
+}
 
 // FLAME FLICKER (the user asked for it by name: «анимацию пламени на факеле»).
 // A carried flame is not a light bulb: it breathes. This modulates INTENSITY
@@ -198,7 +229,7 @@ void RenderSystem::collect_point_lights(ecs::World& world,
             // the feet and 0.35 m to the right, and rotating it by the body
             // yaw is what makes the shadows swing when the player turns.
             const float radius = light.radius_m > 0.0f ? light.radius_m
-                                                       : TORCH_RADIUS_M;
+                                                       : torch_radius_default();
             glm::vec3 color = TORCH_COLOR;
             if (light.color_rgb != 0u) {
                 color = {static_cast<float>((light.color_rgb >> 16) & 0xFFu) / 255.0f,
@@ -236,7 +267,7 @@ void RenderSystem::collect_point_lights(ecs::World& world,
             glm::vec3 bc = TORCH_COLOR * fb.intensity;
             bc.g *= 1.0f - fb.warmth * 0.5f;
             bc.b *= 1.0f - fb.warmth;
-            add(pose.position + flat * torch_ahead_m_, TORCH_RADIUS_M, bc);
+            add(pose.position + flat * torch_ahead_m_, torch_radius_default(), bc);
             publish_point_lights(candidates);
             if (dark_frozen_) {
                 environment_.ambient_darkness = frozen_darkness_;
@@ -254,7 +285,7 @@ void RenderSystem::collect_point_lights(ecs::World& world,
         hc.b *= 1.0f - fh.warmth;
         add(pose.position + right * 0.35f + flat * 0.15f
                 - glm::vec3{0.0f, 0.25f, 0.0f},
-            TORCH_RADIUS_M, hc);
+            torch_radius_default(), hc);
     }
     publish_point_lights(candidates);
     if (dark_frozen_) {
