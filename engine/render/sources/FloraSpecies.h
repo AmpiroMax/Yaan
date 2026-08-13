@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 21:00:00
+Last updated: 13:08:2026 - 20:05:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -55,6 +55,10 @@ UPD:
   A SECOND table on purpose: SpeciesParams says what a species IS to every
   consumer, this says what one GENERATOR needs, and mixing the two is what made
   the old growers' parameters so hard to tell from the species itself.
+- 13:08:2026 - 20:05:00: flora_far_lod_arm() -- a FOURTH zero-dose door, for
+  the far level of detail alone (DFN_FLORA_FARLOD=1 restores the ladder of this
+  morning). Same reason as the other three, Rule 48: a control binds only the
+  measurements in which it itself moves.
 */
 
 #pragma once
@@ -394,6 +398,19 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// taken across a rebuild would answer "what happened today" (Rule 47), and
 /// today an unusual amount happened.
 [[nodiscard]] bool flora_weber_arm();
+
+/// THE ZERO-DOSE ARM FOR THE FAR LEVEL OF DETAIL, and a FOURTH door for the
+/// same reason as the other three (Rule 48). `DFN_FLORA_FARLOD=1` puts the
+/// Reduced LOD back to the ladder of 13.08.2026 morning: skeleton decimated to
+/// 45 % of the segment budget and the foliage budget cut to 3/5 with it.
+///
+/// WHAT THE SHIPPED ARM DOES INSTEAD, in one sentence, because the sentence is
+/// the whole argument: a level of detail exists to drop what has stopped being
+/// RESOLVABLE, and at the distance Reduced is drawn a twig is under a pixel
+/// while the crown is the entire object — so wood falls and foliage does not.
+/// Everything else about the tree is identical between the arms: species rows,
+/// widths, heights, leans, card sizes, the atlas, the Full LOD.
+[[nodiscard]] bool flora_far_lod_arm();
 
 /// THE CARD SCRAP FLOOR — the smallest half-width a leaf card may be emitted at
 /// before it stops reading as part of a crown and starts reading as a detached

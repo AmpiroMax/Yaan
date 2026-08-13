@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 19:26:00
+Last updated: 13:08:2026 - 20:05:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -171,6 +171,32 @@ UPD:
   with the accepted one to the bit; and it still obeys the ceiling every shipped
   tree obeys, because a control exempt from a rule the ship follows is not a
   control.
+- 13:08:2026 - 20:05:00: THE FAR LEVEL OF DETAIL STOPS THINNING THE CROWN.
+  far_lod_segments() and lod_cluster_count() -- one definition each, replacing
+  the same expression written out in four places. The ladder they replace cut
+  the skeleton to 45 % and the foliage to 3/5 TOGETHER, so the BALANCE never
+  moved and four fifths of a tree's triangles were wood at every distance; a
+  level of detail exists to drop what has stopped being resolvable, and at that
+  range the twig has and the crown has not. Target NAMED BEFORE THE CHANGE and
+  it is not the triangle share: optical depth at Reduced >= optical depth at
+  Full, per species, on the worst variant -- with built crown DIAMETER asserted
+  beside it, because depth is an area over an area and can be raised by
+  shrinking the tree (measured: at a quarter of the wood budget the oak loses
+  13 % of its width and its depth "improves"). Wood lands at 40 % by sweep, not
+  by eye; the sweep is at the function. Cost falls too: a Reduced oak is 579
+  triangles against 1000 at Full.
+  TWO THINGS THIS DOES NOT DO, both recorded rather than framed away.
+  (1) IT IS NOT VISIBLE IN ANY FRAME TODAY, because ScatterBatcher.cpp:197
+  passes FloraLod::Full for every instance at every range and Reduced is never
+  drawn. Caught by the frame pair coming out inside the run-to-run noise (455
+  px differ between arms, 242 px between two runs of the SAME arm) -- the door
+  works and has nothing to move.
+  (2) The palisade of trunks in the treeline frame is therefore a FULL-LOD
+  property and is untouched here.
+  DFN_FLORA_FARLOD=1 is the zero-dose arm; DFN_FLORA_FARSEG a verification-only
+  sweep hook. The first attempt at this change moved the wood budget and the
+  foliage budget in one step and the reading went the wrong way with no way to
+  say which lever did it -- hence the hook.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -321,6 +347,96 @@ void seed_trunk_nodes(Skeleton& sk, glm::vec3 stem_base, glm::vec3 stem_top) {
         sk.nodes.push_back(n);
         ++sk.nodes[static_cast<size_t>(n.parent)].children;
     }
+}
+
+/// --- THE FAR LEVEL OF DETAIL, IN ONE PLACE (13.08.2026) --------------------
+///
+/// A LEVEL OF DETAIL EXISTS TO DROP WHAT HAS STOPPED BEING RESOLVABLE, and the
+/// ladder this replaces dropped both streams together: Reduced kept 45 % of the
+/// skeleton and 3/5 of the foliage, so the BALANCE never moved and four fifths
+/// of a tree's triangles were wood at every distance. At the range Reduced is
+/// drawn a branch of the shadow-caster minimum (0.35 m) is about half a pixel
+/// while the crown is the whole object, so that ladder spends its budget
+/// precisely on the part that has already left the eye.
+///
+/// THE TARGET WAS NAMED BEFORE THE CHANGE AND IT IS NOT THE TRIANGLE SHARE
+/// (Rule 45 — a number fitted to a frame is a number fitted to a frame):
+///
+///     A CROWN MAY NOT BE MORE TRANSPARENT AT RANGE THAN IT IS NEAR.
+///     FLORA_CROWN_OPTICAL_DEPTH(Reduced) >= the same at Full, per species.
+///
+/// Optical depth is design's own quantity (§10.15.2) — presented card area over
+/// the crown's own presented silhouette, "layers of leaf", and it cannot be
+/// bought with width. The argument for the direction is legibility and not
+/// taste: a near viewer resolves single leaves and the gaps between them, so
+/// transparency there is DETAIL; a distant viewer resolves neither, so every
+/// bit of transparency at range is spent showing what is BEHIND the crown —
+/// its own bole, and its neighbours' — and buys the eye nothing. Measured
+/// before: Reduced ran at 0.72-0.74 of Full on all four species (oak 5.23 ->
+/// 3.76, pine 3.98 -> 2.52, birch 3.07 -> 2.20, willow 4.92 -> 3.65), i.e. the
+/// far crown was a QUARTER more see-through than the near one, which is
+/// backwards.
+///
+/// The cost side is a target too, so this is not a licence to spend: Reduced
+/// must stay well under Full in total triangles. It does, and by more than
+/// before, because wood is the expensive stream.
+///
+/// DFN_FLORA_FARLOD=1 restores the old ladder for a one-variable comparison.
+uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod) {
+    if (lod == FloraLod::Full) return full_segments;
+    if (flora_far_lod_arm()) return std::max(24u, full_segments * 45u / 100u);
+    // VERIFICATION HOOK, NEVER A SHIPPING PATH (the same standing as
+    // DFN_FLORA_NODES above it): sweep the far LOD's wood budget as a
+    // percentage. It exists because the first attempt at this change moved the
+    // wood budget AND the foliage budget in one step and the reading went the
+    // wrong way — with no way to say which lever did it. One variable.
+    static const uint32_t pct = [] {
+        const char* e = std::getenv("DFN_FLORA_FARSEG");
+        const int v = e != nullptr ? std::atoi(e) : 0;
+        return v > 0 && v <= 100 ? static_cast<uint32_t>(v) : 40u;
+    }();
+    // WOOD IS WHAT A DISTANT TREE MAY LOSE, AND 40 % IS WHERE THE SWEEP PUT IT
+    // — not where a frame looked best. How much wood may go is NOT free to
+    // choose downward, which is the finding this hook bought: the foliage
+    // budget is capped by the number of shoot ends (emit_shoot_foliage's
+    // `carried`), so cutting the skeleton ALSO cuts the crown, and past a point
+    // the far LOD gets thinner instead of denser.
+    //
+    // THE SWEEP (12 variants, worst of 36 azimuths; Full is the bar to clear):
+    //
+    //   budget   oak depth/dia/tris   birch              willow             cost
+    //   Full     5.23 / 15.2 / 1000   3.07 / 4.8 / 1112  4.92 / 8.7 / 1011   —
+    //   old 45%  3.76 / 14.9 /  519   2.20 / 4.4 /  507  3.65 / 8.3 /  497  52 %
+    //   25 %     3.60 / 13.3 /  350   2.17 / 4.0 /  349  3.60 / 7.6 /  343  35 %
+    //   40 %     6.09 / 15.2 /  579   3.14 / 4.6 /  571  6.79 / 8.4 /  572  58 %
+    //   55 %     5.79 / 15.2 /  698   2.68 / 4.6 /  665  5.23 / 8.5 /  666  69 %
+    //   70 %     5.03 / 15.4 /  766   3.06 / 4.7 /  828  4.99 / 8.6 /  761  79 %
+    //
+    // 40 % is the only row where the named target holds on all four species on
+    // the WORST variant as well as the mean, and it costs less than 55 % or
+    // 70 % do. 25 % clears nothing and is the reason the second criterion
+    // exists: it reaches its depth by SHRINKING THE CROWN (oak 15.2 -> 13.3 m,
+    // -13 %), and optical depth is card area over crown silhouette, so a
+    // smaller crown raises it for free. A distant tree that is a size smaller
+    // is not a level of detail, it is a different tree — and built crown
+    // diameter is a cross-zone contract besides (design derived
+    // TREE_SPACING_FOREST from it). At 40 % the oak and the pine hold their
+    // Full diameter to three figures and the birch and willow are within 4 %,
+    // which is better than the ladder this replaces managed.
+    return std::max(18u, full_segments * pct / 100u);
+}
+
+/// The foliage budget at a given LOD. THE ONE DEFINITION: this expression stood
+/// in three places, which is how this zone has twice lost a rule to a copy that
+/// stopped being updated (the card scrap floor, three times in two days).
+uint32_t lod_cluster_count(const SpeciesParams& sp, FloraLod lod) {
+    if (lod == FloraLod::Full || !flora_far_lod_arm()) {
+        // THE CROWN DOES NOT THIN WITH DISTANCE. See the target above: the mass
+        // IS the object at range, so the far LOD keeps every cluster the near
+        // one has and pays for them out of the wood.
+        return sp.cluster_count;
+    }
+    return std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u);
 }
 
 /// Hangs one foliage cluster on a node that actually exists. `anchor` is the
@@ -551,9 +667,7 @@ void emit_shoot_foliage(MeshData& m, Tree& t, const Skeleton& sk, uint64_t seed,
     // than Reduced does — a level that is cheaper in wood and dearer in cards
     // is not a level, it is a different tree.
     const bool thin = t.lod != FloraLod::Full;
-    const uint32_t clusters = thin
-        ? std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u)
-        : sp.cluster_count;
+    const uint32_t clusters = lod_cluster_count(sp, t.lod);
     const int card_count = thin ? std::max(3, sp.cards_per_cluster - 1) : -1;
     const float r = t.crown_r * sp.cluster_radius_frac;
     (void)card_reach_frac;
@@ -828,9 +942,7 @@ void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
     emit_skeleton(m, t, sk);
 
     if (!emits_clusters(sp)) return;
-    const uint32_t clusters = (t.lod == FloraLod::Reduced)
-        ? std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u)
-        : sp.cluster_count;
+    const uint32_t clusters = lod_cluster_count(sp, t.lod);
     const int card_count =
         (t.lod == FloraLod::Reduced) ? std::max(3, sp.cards_per_cluster - 1) : -1;
     const float r = t.crown_r * sp.cluster_radius_frac;
@@ -973,8 +1085,8 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
             segs = nodes;
         }
         if (t.lod == FloraLod::Reduced) {
-            nodes = std::max(24u, nodes * 45u / 100u);
-            segs = std::max(24u, segs * 45u / 100u);
+            nodes = far_lod_segments(nodes, t.lod);
+            segs = far_lod_segments(segs, t.lod);
         } else if (t.lod == FloraLod::Silhouette) {
             // Only the giant reaches this path (build_silhouette sends it here
             // rather than drawing a shell, Rule 52). An eighth of the budget
@@ -1107,9 +1219,7 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         // Reduced spends its saving on the SKELETON, which is what stops
         // resolving first: at that range the crown mass still reads and the
         // individual limbs do not.
-        cp.max_nodes = std::max(24u, (t.lod == FloraLod::Reduced)
-                                         ? max_crown_segments(sp) * 45u / 100u
-                                         : max_crown_segments(sp));
+        cp.max_nodes = far_lod_segments(max_crown_segments(sp), t.lod);
         // Eq. (3)'s g: phototropism up, gravity down, and the open side for an
         // edge tree. One vector carries all three, which is why the paper needs
         // no separate tropism stage.
@@ -1141,17 +1251,14 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
     // species, every variant and every maturity tier under TREE_TRI_BUDGET_MAX
     // by construction, instead of by a per-species step size that is green when
     // it is written and red two sizes later.
-    uint32_t max_segments = max_crown_segments(sp);
-    if (t.lod == FloraLod::Reduced) max_segments = max_segments * 45u / 100u;
+    const uint32_t max_segments = far_lod_segments(max_crown_segments(sp), t.lod);
     decimate_to(sk, max_segments);
     // Radii are recomputed AFTER decimation: the pipe model counts supported
     // tips, and dissolving a chain node does not change the tip count while
     // re-parenting does change which node carries which.
     assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
     emit_skeleton(m, t, sk);
-    const uint32_t clusters = (t.lod == FloraLod::Reduced)
-        ? std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u)
-        : sp.cluster_count;
+    const uint32_t clusters = lod_cluster_count(sp, t.lod);
     // THREE PLANES IS THE FLOOR AT EVERY CARD LOD (render-spec constraint,
     // 10.08.2026). The edge-on failure is a property of viewing ANGLE, not of
     // viewing distance, so Reduced may not spend its saving on plane count —

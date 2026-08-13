@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 21:00:00
+Last updated: 13:08:2026 - 20:05:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -67,6 +67,8 @@ UPD:
   Quaking Aspen, Weeping Willow), transcribed from docs/WEBER_PENN_PARAMS.md.
   What is ours and says so: the mapping onto our species, the height, and the
   great oak's two deviated numbers. Plus flora_weber_arm(), the generator door.
+- 13:08:2026 - 20:05:00: flora_far_lod_arm(), the zero-dose door for the far
+  LOD's wood/foliage balance.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -952,6 +954,14 @@ bool flora_weber_arm() {
 bool flora_envelope_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_CROWN");
+        return e != nullptr && e[0] == '1';
+    }();
+    return on;
+}
+
+bool flora_far_lod_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_FARLOD");
         return e != nullptr && e[0] == '1';
     }();
     return on;

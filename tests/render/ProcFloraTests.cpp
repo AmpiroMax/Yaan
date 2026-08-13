@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 13:08:2026 - 19:26:00
+Last updated: 13:08:2026 - 20:05:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -181,6 +181,15 @@ UPD:
   LEAD's go-ahead): presented area conflates extent with density, the widening
   moved extent, and its own control stopped being able to fail. Not
   re-baselined, per design's explicit instruction.
+- 13:08:2026 - 20:05:00: "the far crown is never MORE TRANSPARENT than the near
+  one" -- the target this zone named BEFORE touching the far LOD, asserted so it
+  cannot rot back, with the built crown WIDTH asserted beside it because optical
+  depth is an area over an area and can be raised by shrinking the tree. It
+  fails on all five card species in the DFN_FLORA_FARLOD zero-dose arm, i.e. it
+  is an instrument that can fail and not a description. Presented-area rows
+  re-recorded a second time the same evening: the far LOD stopped thinning, so
+  every Reduced row rose and the two conifers now measure exactly their own Full
+  figure. Note recorded in the case: nothing draws Reduced today.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2489,16 +2498,32 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     // 583 was already stale on the ZERO-DOSE arm (490), i.e. some of this gap
     // predates today and was never re-measured; the recorded column below is
     // today's figure for every row, not just the moved ones.
+    //
+    // RE-RECORDED AGAIN THE SAME EVENING, AND THE UPPER BOUND IS WHAT CAUGHT IT
+    // — which is the whole reason a tripwire records its measurement and not
+    // only its floor. The far LOD stopped thinning the crown (ProcFlora's
+    // far_lod_segments / lod_cluster_count: a level of detail may drop what has
+    // stopped being resolvable, and at that range the twig has and the crown has
+    // not), so every Reduced row ROSE, and the two conifers now measure exactly
+    // their own Full figure because for them "keep every cluster" is the whole
+    // change. Both arms off one binary through DFN_FLORA_FARLOD:
+    //
+    //     oak     Reduced   412.5 -> 725.7      pine    Reduced 108.0 -> 197.9
+    //     birch   Reduced    34.7 ->  72.3      willow  Reduced 114.7 -> 245.3
+    //     stunted Reduced    11.9 ->  16.1      every Full row: unchanged
+    //
+    // The Full rows are byte-identical across the door, which is the check that
+    // says the door moves the far level and nothing else.
     const Row ROWS[] = {
-        {FloraSpecies::DaleOak, FloraLod::Reduced, 350.0f, 412.5f},
+        {FloraSpecies::DaleOak, FloraLod::Reduced, 616.0f, 725.7f},
         {FloraSpecies::HighlandPine, FloraLod::Full, 168.0f, 197.9f},
-        {FloraSpecies::HighlandPine, FloraLod::Reduced, 91.0f, 108.0f},
+        {FloraSpecies::HighlandPine, FloraLod::Reduced, 168.0f, 197.9f},
         {FloraSpecies::RiverBirch, FloraLod::Full, 53.0f, 63.2f},
-        {FloraSpecies::RiverBirch, FloraLod::Reduced, 29.0f, 34.7f},
+        {FloraSpecies::RiverBirch, FloraLod::Reduced, 61.0f, 72.3f},
         {FloraSpecies::ValeWillow, FloraLod::Full, 170.0f, 200.6f},
-        {FloraSpecies::ValeWillow, FloraLod::Reduced, 97.0f, 114.7f},
+        {FloraSpecies::ValeWillow, FloraLod::Reduced, 208.0f, 245.3f},
         {FloraSpecies::StuntedPine, FloraLod::Full, 13.0f, 16.1f},
-        {FloraSpecies::StuntedPine, FloraLod::Reduced, 10.0f, 11.9f},
+        {FloraSpecies::StuntedPine, FloraLod::Reduced, 13.0f, 16.1f},
     };
     for (const Row& r : ROWS) {
         const float m2 = fleet_worst_m2(fleet_of(r.s, r.lod));
@@ -3479,6 +3504,156 @@ TEST_CASE("edge rule densities carry one unit, and the empty rows are named") {
     }
     // The §5.12 set: PebbleCluster, MossPatch, StuntedPine on the apron.
     CHECK(unauthored == 3);
+}
+
+TEST_CASE("lod: the far crown is never MORE TRANSPARENT than the near one") {
+    // THE TARGET THIS ZONE NAMED BEFORE CHANGING THE FAR LOD, kept here so it
+    // cannot rot back (Rule 45 — the whole point of naming it in advance was
+    // that it not be a number fitted to a frame afterwards):
+    //
+    //     FLORA_CROWN_OPTICAL_DEPTH(Reduced) >= the same at Full, per species,
+    //     on the WORST variant and not only on the mean.
+    //
+    // Optical depth is design's own quantity (§10.15.2): presented card area
+    // over the crown's own presented silhouette, "layers of leaf", and it
+    // cannot be bought with width. The direction is an argument about
+    // LEGIBILITY, not taste. A near viewer resolves single leaves and the gaps
+    // between them, so transparency there is DETAIL. A distant viewer resolves
+    // neither, so every bit of transparency at range is spent showing what is
+    // BEHIND the crown — its own bole, and its neighbours' — and buys the eye
+    // nothing. A level of detail exists to drop what has stopped being
+    // resolvable, and at that range the twig has stopped and the crown has not.
+    //
+    // Before the change the ladder ran the other way on all four species
+    // (Reduced at 0.72-0.74 of Full: oak 5.23 -> 3.76, pine 3.98 -> 2.52,
+    // birch 3.07 -> 2.20, willow 4.92 -> 3.65).
+    //
+    // AND THE SECOND CLAUSE IS NOT A DETAIL, IT IS WHAT STOPS THE FIRST BEING
+    // CHEATED. Optical depth is an area over an area, so it can be raised by
+    // SHRINKING THE CROWN — measured, a far LOD at a quarter of the wood budget
+    // "improved" its depth while the oak lost 13 % of its built diameter. A
+    // distant tree one size smaller is not a level of detail, it is a different
+    // tree, and built crown diameter is a cross-zone contract besides (design
+    // derived TREE_SPACING_FOREST from it). So the width is asserted too.
+    //
+    // NOTE FOR WHOEVER READS THIS AFTER A FRAME: NOTHING DRAWS Reduced TODAY.
+    // ScatterBatcher passes FloraLod::Full for every instance at every range,
+    // so this case guards geometry the renderer does not yet ask for. That is
+    // recorded rather than used as a reason to skip it: the day the ladder is
+    // wired, the far tree has to be right on arrival.
+    struct Plane {
+        glm::vec3 n;
+        float a;
+    };
+    // Silhouette by rasterising the cards orthographically. Coarse on purpose
+    // (8 bearings, 96x128) — the quantity is a ratio of areas and the bound is
+    // a factor of 1, so a few percent of raster noise cannot flip it, and a
+    // fine raster would cost the suite seconds for nothing.
+    constexpr int RW = 96;
+    constexpr int RH = 128;
+    auto depth_of = [](FloraSpecies s, uint32_t v, FloraLod lod) {
+        const FloraMesh m = build_flora_mesh(s, v, FloraShape{}, lod);
+        float y1 = 0.1f;
+        float hw = 0.1f;
+        for (const platform::Vertex& p : m.cards.vertices) {
+            y1 = std::max(y1, p.position.y);
+            hw = std::max(hw, std::max(std::fabs(p.position.x), std::fabs(p.position.z)));
+        }
+        y1 *= 1.02f;
+        hw *= 1.05f;
+        const float px_m2 = (2.0f * hw / RW) * (y1 / RH);
+        float worst = 1e9f;
+        for (int a = 0; a < 8; ++a) {
+            const float az = 6.2831853f * static_cast<float>(a) / 8.0f;
+            const float c = std::cos(az);
+            const float sn = std::sin(az);
+            std::vector<uint8_t> buf(RW * RH, 0);
+            float area = 0.0f;
+            const glm::vec3 d{c, 0.0f, sn};
+            for (size_t i = 0; i + 4 <= m.cards.vertices.size(); i += 4) {
+                const glm::vec3 e1 =
+                    m.cards.vertices[i + 1].position - m.cards.vertices[i].position;
+                const glm::vec3 e2 =
+                    m.cards.vertices[i + 3].position - m.cards.vertices[i].position;
+                area += std::fabs(glm::dot(glm::cross(e1, e2), d));
+                // The quad's own footprint, both triangles, by its corners.
+                glm::vec2 q[4];
+                for (int k = 0; k < 4; ++k) {
+                    const glm::vec3 p = m.cards.vertices[i + k].position;
+                    q[k] = {(p.x * c + p.z * sn + hw) / (2.0f * hw) * RW,
+                            (1.0f - p.y / y1) * RH};
+                }
+                const int lx = std::max(0, static_cast<int>(std::floor(
+                                               std::min({q[0].x, q[1].x, q[2].x, q[3].x}))));
+                const int hx = std::min(RW - 1, static_cast<int>(std::ceil(
+                                                    std::max({q[0].x, q[1].x, q[2].x, q[3].x}))));
+                const int ly = std::max(0, static_cast<int>(std::floor(
+                                               std::min({q[0].y, q[1].y, q[2].y, q[3].y}))));
+                const int hy = std::min(RH - 1, static_cast<int>(std::ceil(
+                                                    std::max({q[0].y, q[1].y, q[2].y, q[3].y}))));
+                for (int y = ly; y <= hy; ++y) {
+                    for (int x = lx; x <= hx; ++x) {
+                        const glm::vec2 pt{static_cast<float>(x) + 0.5f,
+                                           static_cast<float>(y) + 0.5f};
+                        bool in = false;
+                        for (int t = 0; t < 2 && !in; ++t) {
+                            const glm::vec2 A = q[0];
+                            const glm::vec2 B = q[t + 1];
+                            const glm::vec2 C = q[t + 2];
+                            const float d0 = (B.x - A.x) * (pt.y - A.y) - (B.y - A.y) * (pt.x - A.x);
+                            const float d1 = (C.x - B.x) * (pt.y - B.y) - (C.y - B.y) * (pt.x - B.x);
+                            const float d2 = (A.x - C.x) * (pt.y - C.y) - (A.y - C.y) * (pt.x - C.x);
+                            in = (d0 >= 0 && d1 >= 0 && d2 >= 0) || (d0 <= 0 && d1 <= 0 && d2 <= 0);
+                        }
+                        if (in) buf[static_cast<size_t>(y) * RW + static_cast<size_t>(x)] = 1;
+                    }
+                }
+            }
+            long lit = 0;
+            for (uint8_t b : buf) lit += b;
+            const float sil = static_cast<float>(lit) * px_m2;
+            if (sil > 0.01f) worst = std::min(worst, area / sil);
+        }
+        return worst;
+    };
+    auto width_of = [](FloraSpecies s, uint32_t v, FloraLod lod) {
+        const FloraMesh m = build_flora_mesh(s, v, FloraShape{}, lod);
+        float xlo = 1e9f;
+        float xhi = -1e9f;
+        float zlo = 1e9f;
+        float zhi = -1e9f;
+        for (const platform::Vertex& p : m.cards.vertices) {
+            xlo = std::min(xlo, p.position.x);
+            xhi = std::max(xhi, p.position.x);
+            zlo = std::min(zlo, p.position.z);
+            zhi = std::max(zhi, p.position.z);
+        }
+        return 0.5f * ((xhi - xlo) + (zhi - zlo));
+    };
+    for (const FloraSpecies s : ALL) {
+        if (!is_canopy_tree(s) && s != FloraSpecies::StuntedPine) continue;
+        if (!has_leaf_cards(s)) continue;
+        float full_worst = 1e9f;
+        float red_worst = 1e9f;
+        float full_w = 0.0f;
+        float red_w = 0.0f;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            full_worst = std::min(full_worst, depth_of(s, v, FloraLod::Full));
+            red_worst = std::min(red_worst, depth_of(s, v, FloraLod::Reduced));
+            full_w += width_of(s, v, FloraLod::Full);
+            red_w += width_of(s, v, FloraLod::Reduced);
+        }
+        MESSAGE("species " << static_cast<int>(s) << ": worst optical depth Full " << full_worst
+                           << " -> Reduced " << red_worst << ", built crown width "
+                           << full_w / FLORA_VARIANTS << " -> " << red_w / FLORA_VARIANTS << " m");
+        // THE TARGET. A little slack for the coarse raster and for the fact
+        // that the two LODs do not rasterise the same geometry — 5 %, which is
+        // an order of magnitude under the 26-28 % shortfall this replaced, so
+        // it cannot readmit the thing it was written against.
+        CHECK(red_worst >= full_worst * 0.95f);
+        // ...and it was not reached by shrinking the tree.
+        CHECK(red_w >= full_w * 0.92f);
+    }
 }
 
 TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO does not separate (§10.15.1)") {
