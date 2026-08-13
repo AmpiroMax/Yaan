@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:20:00
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 16:55:00
 Module: tests
 File: tests/sim/FloraCollisionTests.cpp
 
@@ -39,6 +39,9 @@ UPD:
 - 13:08:2026 - 16:45:00: The chunk-seam case for the drag query's chunk filter:
                          a shrub rooted at a border still reaches the walker on
                          the far side of it.
+- 13:08:2026 - 16:55:00: The "built once" case: a propless chunk must not
+                         rebuild its geometry every tick waiting for a body it
+                         will never get.
 */
 
 #include <doctest/doctest.h>
@@ -435,4 +438,38 @@ TEST_CASE("brush reaches across the chunk seam it is rooted next to") {
     // entry in every respect but the one that matters — how far away it is.
     CHECK(gameplay::brush_density_at(field, {chunk_size + 40.0f, 0.5f, 32.0f}, r) ==
           doctest::Approx(0.0f));
+}
+
+TEST_CASE("a chunk with nothing solid in it is built once, not every tick") {
+    // The residency marker is the BRUSH FIELD, not the body map, and this is
+    // the case that says why. A chunk gets a brush entry unconditionally and a
+    // body only if it holds something solid, so gating the build on "has a
+    // body" makes every propless chunk rebuild its geometry on every tick,
+    // forever, waiting for a body that is never going to appear. The symptom
+    // would be a per-tick cost that grows with the number of EMPTY chunks —
+    // the least likely place anybody would look.
+    Rig rig;
+    rig.build_props();
+    const std::size_t bodies_after_first = rig.ecs.resource<gameplay::PropCollisionState>()
+                                               .bodies.size();
+    const auto& cache_before = rig.ecs.resource<gameplay::PropCollisionState>().flora_cache;
+    const uint32_t hits_before = cache_before.hits;
+    const uint64_t solids_before =
+        rig.ecs.resource<gameplay::PropCollisionState>().solid_plants;
+
+    // Ten more ticks with nothing changing.
+    for (int i = 0; i < 10; ++i) {
+        rig.build_props();
+    }
+    const auto& state = rig.ecs.resource<gameplay::PropCollisionState>();
+    CHECK(state.bodies.size() == bodies_after_first);
+    // NOT ONE plant was classified again: the counters and the memo are frozen.
+    // Comparing counters rather than timing keeps this a behavioural assertion
+    // instead of a wall-clock threshold (Rule 38).
+    CHECK(state.solid_plants == solids_before);
+    CHECK(state.flora_cache.hits == hits_before);
+    // Every resident chunk is represented in the field, including any that has
+    // no body — that is what makes the marker complete.
+    CHECK(rig.ecs.resource<gameplay::BrushField>().chunks.size() ==
+          rig.chunks.loaded_chunks().size());
 }

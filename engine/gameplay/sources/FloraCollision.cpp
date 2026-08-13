@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:05:00
-Last updated: 13:08:2026 - 16:40:00
+Last updated: 13:08:2026 - 16:50:00
 Module: engine/gameplay
 File: engine/gameplay/sources/FloraCollision.cpp
 
@@ -31,6 +31,11 @@ UPD:
   TRUNK_COLLISION_HEIGHT: people are meant to live in it, and a stair tread
   with no collision is a painted stair. 241 triangles for the whole bole --
   a landmark's budget, and there is one per region.
+- 13:08:2026 - 16:50:00: Written down: why the collider is built at LOD Full
+  and why it takes no season. Both are decisions a reader will otherwise
+  re-litigate -- collision must match the tree you are standing next to, and
+  season moves only the leaf CARDS, so a collider that changed with it would be
+  announcing a difference the wood does not have.
 */
 
 #include "engine/gameplay/sources/FloraCollision.h"
@@ -220,6 +225,18 @@ const FloraSolid& flora_solid(FloraCollisionCache& cache, math::ScatterSpecies s
         const float mat = std::max(bucketed(maturity), FLORA_COLLISION_MATURITY_STEP);
         render::FloraShape shape;
         shape.maturity = mat;
+        // LOD FULL, AND NO SEASON ARGUMENT, and both are decisions.
+        //
+        // Full: collision must match the geometry you are standing next to, and
+        // the reduced levels exist for trees too far away to touch. A collider
+        // built from the silhouette level would be a different tree from the one
+        // on screen at exactly the distance where the difference is visible.
+        //
+        // No season: this reads only the WOOD stream, and season changes only
+        // the CARDS (deciduous species emit none in winter — flora's one
+        // boolean). A bare tree and a leafy one have the same bole, so a
+        // collider that changed with the season would be announcing a
+        // difference that does not exist.
         const render::FloraMesh drawn =
             render::build_flora_mesh(fs, variant, shape, render::FloraLod::Full);
 

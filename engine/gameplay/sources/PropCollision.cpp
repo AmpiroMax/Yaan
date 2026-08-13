@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 16:55:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PropCollision.cpp
 
@@ -34,6 +34,16 @@ UPD:
                          PLANTS became solid and draggy — "one body per chunk"
                          says nothing about how many trees are in it, and the
                          trees are what the budget argument is about.
+- 13:08:2026 - 16:55:00: THE RESIDENCY MARKER IS THE BRUSH FIELD, not the body
+                         map. Every resident chunk gets a brush entry; only a
+                         chunk with something solid gets a BODY, so gating the
+                         build on the body map rebuilt every propless chunk's
+                         geometry on every tick, forever, waiting for a body
+                         that was never coming. Caught reading my own diff, not
+                         by a measurement -- the testbed happens to give every
+                         chunk a body, which is exactly why it would have
+                         shipped. Case: "a chunk with nothing solid in it is
+                         built once, not every tick".
 */
 
 #include "engine/gameplay/sources/PropCollision.h"
@@ -197,14 +207,17 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
     for (const world::ChunkCoord coord : chunks.loaded_chunks()) {
         const uint64_t key = world::chunk_group(coord);
         resident.push_back(key);
-        // THE BRUSH FIELD IS KEYED ON ITSELF, not on the body map. A chunk can
-        // legitimately have brush and no body (a meadow of shrubs on bare
-        // ground), and reading residency off `bodies` would have skipped it —
-        // the same "absence presents as a neutral state" failure that hid the
-        // missing site meshes for a stage.
-        const bool need_brush = !brush_field.chunks.contains(key);
-        const bool need_body = !state.bodies.contains(key);
-        if (!need_brush && !need_body) {
+        // THE BRUSH FIELD IS THE "ALREADY BUILT" MARKER, and the body map is
+        // not, which is a correctness point and not a style one. Every resident
+        // chunk gets a brush entry, even an empty one; a chunk gets a BODY only
+        // if it has something solid in it. Gating on the body map therefore
+        // rebuilds every propless chunk's geometry on EVERY TICK, forever,
+        // because the thing it is waiting for is never going to appear. (The
+        // same read also loses a meadow of shrubs on bare ground: brush and no
+        // body is a legitimate chunk, and reading residency off `bodies` would
+        // silently skip it — absence presenting as a neutral state, the failure
+        // that hid the missing site meshes for a whole stage.)
+        if (brush_field.chunks.contains(key)) {
             continue;
         }
         BrushField::Chunk brush;
@@ -213,9 +226,7 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
         append_sites(mesh, world, coord);
         append_plants(mesh, brush, state, chunks, coord);
         append_boulders(mesh, chunks, coord);
-        if (need_brush) {
-            brush_field.chunks.emplace(key, std::move(brush));
-        }
+        brush_field.chunks.emplace(key, std::move(brush));
         state.last_chunk_triangles = mesh.indices.size() / 3;
         if (mesh.indices.size() < 3) {
             continue; // a chunk with no props needs no body; not an error
@@ -265,6 +276,7 @@ float brush_density_at(const BrushField& field, const glm::vec3& feet, float bod
     // an ordinary hedge row impassable while each bush in it stayed gentle. The
     // player's experience of "how deep in this am I" is the deepest single
     // thing they are in, so max() is the honest reduction.
+    //
     // The tallest brush in the world is a few metres wide, so a chunk whose
     // footprint the walker is not standing within (plus that margin) cannot
     // hold a shrub they are inside. Measured at 0.0014 ms/query without this
