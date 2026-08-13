@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 22:14:05
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -54,6 +54,7 @@ UPD:
 - 11:08:2026 - 13:48:13: DFN_FRAME_LOG — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, без обратного чтения, без отстоя, без заморозки тика. Пользователь нашёл изъян нашего метода раньше нас: «при прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет». Все наши двери съёмки гасят ровно то, на что наведены, поэтому дефект МЕЖДУ кадрами два дня приходил чистым. Первый же прогон дал размах fov_y 5.951° при беге против 0.0000° на ходьбе и стоя.
 - 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 22:14:05: capture_after_frames_ — вторая единица счёта для той же двери снимка. Секунды несравнимы побитово: две руки одного рецепта на разной загрузке машины успевают разное число кадров.
 */
 
 #pragma once
@@ -172,6 +173,15 @@ private:
     std::string capture_dir_;
     double capture_after_s_ = 0.0;      // DFN_CAPTURE_AFTER, 0 = off
     double capture_after_elapsed_ = 0.0;
+    // DFN_CAPTURE_AFTER_FRAMES, 0 = off. The SAME door counted in frames
+    // instead of seconds, because the seconds door cannot be compared bit for
+    // bit: two runs of one recipe reach different frame numbers under different
+    // machine load, and everything derived from the frame counter then diverges.
+    // Measured by ui: 4125 differing pixels between two runs on the same keys,
+    // down to 412 once the sky's clocks were pinned -- and the remainder was
+    // this. Frames are the unit the rest of the loop already runs on.
+    uint64_t capture_after_frames_ = 0;
+    uint64_t capture_after_frames_seen_ = 0;
     bool capture_then_close_ = false;
     int close_after_flush_ = 0; // frames to keep running so the PNG lands
     // FRAME LOG (DFN_FRAME_LOG=<path>) -- one line per PRESENTED frame, written

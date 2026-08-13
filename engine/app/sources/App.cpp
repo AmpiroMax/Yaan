@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 21:48:30
+Last updated: 13:08:2026 - 22:14:05
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -112,6 +112,7 @@ UPD:
 - 13:08:2026 - 20:41:07: Экран настроек и прицел (четвёртый кусок зоны ui, применён здесь). set_settings() при старте: страница открывается на том, с чем игра ЗАПУЩЕНА, и эта вторая копия — то, против чего отвечает needs_restart(). SettingsDone применяет живьём ТОЛЬКО живьём применимое: покачивание — множитель, который шаговый контекст читает каждый кадр, а разрешение, сглаживание и палитра проглатываются рендером ПРИ ИНИЦИАЛИЗАЦИИ, поэтому пишутся в файл и вступают со следующим запуском. LEFT/RIGHT зовут menu_.adjust() без проверки страницы — на страницах без строк-значений adjust() пуст по построению. DFN_MENU_PAGE принимает settings, довод тот же, что у calibrate. И ПРИЦЕЛ: подсказка взаимодействия рисуется по центру экрана, у которого центр ничем не отмечен; дверь дозы DFN_CROSSHAIR живёт внутри функции, поэтому обе руки приёмки выходят из ОДНОГО бинарника.
 - 13:08:2026 - 21:05:12: Прицел спрашивает у приложения ФАКТЫ, а решает сам (HudFacts, зона ui). `any = true` убрано намеренно: слой, числящийся видимым, будучи пустым, делает лживым любой позднейший вопрос «есть ли что-нибудь на экране» — а он у нас задаётся приборами. Правило («метка называет, куда смотрит ЛУЧ КАМЕРЫ»: в третьем лице луч не выходит из глаза, которым целятся; карта — плита, у которой центр уже занят) живёт в draw_crosshair, а не здесь. Приложение сообщает, что ЗНАЕТ, и не решает, что из этого следует.
 - 13:08:2026 - 21:48:30: У НЕБА БЫЛО ДВОЕ ЧАСОВ, и починены были только одни. Солнце и луна идут от номера кадра (game_seconds_ += SIM_DT выше — ровно про это), а дрейф облачного поля и огибающая ветра читали СТЕННЫЕ часы каждый кадр, поэтому DFN_RESTORE восстанавливал небо, но не погоду в нём. Найдено зоной ui приёмкой прицела: два прогона ОДНОГО рецепта разошлись на 1.79 % пикселей, все — небо и верхушки деревьев (строки 0–186, ниже 190-й пусто), при том что мерить надо было 72 пикселя метки. Локализовано зоной render: с приколотыми часами та же пара выходит ПОБИТОВО равной. И причина, почему вылезло сегодня, — не поломка, а то, что небо стало содержательнее: кучевые выросли с 2.8 % кадра до 26.8 %, и тот же дрейф двигает на порядок больше пикселей. Теперь часы одни, из тех же секунд, из которых выведено всё остальное здесь.
+- 13:08:2026 - 22:14:05: Лента-компас и три полосы (зона ui, применено здесь) — состав выбран пользователем лично. Лента берёт yaw из позы КАМЕРЫ на том же alpha, что и картинка: лента, идущая от позы тела, разошлась бы с тем, что нарисовано, и врала бы тем сильнее, чем быстрее поворот. Полосы стоят полными и убыль НЕ изображают — тратить их пока нечем, а полоса, ползущая для вида, учит читать пустое число. И новая дверь DFN_CAPTURE_AFTER_FRAMES=<N> рядом с секундной: прогон, снимающий по стенной секунде, на загруженной машине успевает другое число кадров, поэтому две руки одного рецепта НЕЛЬЗЯ сравнить побитово — а на этом стоит приёмка всех зон. Запрошена зоной ui после того, как она померила остаток: 4125 расходящихся пикселей упали до 412, когда приколотили часы неба, и вот этим 412 и были. Кривое значение отвергается ВСЛУХ.
 */
 
 #include "engine/app/sources/App.h"
@@ -213,6 +214,7 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
     return std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
            || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
            || std::getenv("DFN_CAPTURE_AFTER") != nullptr
+           || std::getenv("DFN_CAPTURE_AFTER_FRAMES") != nullptr
            || std::getenv("DFN_BODY_PROBE") != nullptr
            || std::getenv("DFN_MENU_SHOT") != nullptr
            || std::getenv("DFN_HUD_PROBE") != nullptr
@@ -568,6 +570,23 @@ bool App::init(const AppConfig& config) {
     }
     if (const char* ca = std::getenv("DFN_CAPTURE_AFTER"); ca != nullptr) {
         capture_after_s_ = std::strtod(ca, nullptr);
+    }
+    // The same door counted in FRAMES. A run that fires on a wall-clock second
+    // reaches a different frame number on a loaded machine than on an idle one,
+    // so two arms of one recipe cannot be compared bit for bit -- which is the
+    // whole method every zone's acceptance rests on. Requested by ui after it
+    // measured the residue: 412 pixels still differed between identical runs
+    // once the sky's own clocks were pinned, and this was all of it.
+    if (const char* cf = std::getenv("DFN_CAPTURE_AFTER_FRAMES"); cf != nullptr) {
+        capture_after_frames_ = std::strtoull(cf, nullptr, 10);
+        if (capture_after_frames_ == 0) {
+            std::fprintf(stderr,
+                         "[capture] DFN_CAPTURE_AFTER_FRAMES=\"%s\" is not a positive "
+                         "frame count -- REFUSING to run, because a door that "
+                         "silently does nothing is worse than no door\n",
+                         cf);
+            return false;
+        }
     }
 
     // THE FRAME LOG (DFN_FRAME_LOG=<path>). See App.h for why this exists and
@@ -1857,6 +1876,17 @@ int App::run() {
                 capture_then_close_ = true;
             }
         }
+        // ...and the same door counted in frames, which IS comparable bit for
+        // bit. Counted here rather than in the render block so it advances once
+        // per loop iteration, exactly like the frame the log names.
+        if (capture_after_frames_ > 0) {
+            ++capture_after_frames_seen_;
+            if (capture_after_frames_seen_ >= capture_after_frames_) {
+                capture_pending_ = true;
+                capture_after_frames_ = 0;
+                capture_then_close_ = true;
+            }
+        }
         if (input_->was_pressed(platform::Key::M)) {
             render_system_.toggle_map();
             // Free the cursor while the map is up: mouse-look under a fullscreen
@@ -2365,6 +2395,16 @@ int App::run() {
             HudFacts facts;
             facts.third_person = third_person_;
             facts.map_open = render_system_.map_open();
+            facts.debug_readout = debug_overlay_ || capture_pending_;
+            // КУДА СМОТРИТ ГЛАЗ, а не куда стоит тело: лента обязана совпасть
+            // с картинкой, а картинка нарисована из позы КАМЕРЫ — той же, из
+            // которой снимок состояния берёт свой yaw.
+            facts.yaw_rad = camera_.interpolated_pose(alpha).yaw;
+            facts.fov_y_rad = camera_.fov_y();
+            // Здоровье/силы/магия остаются единицами: тратить их пока нечем, и
+            // полоса, которая ползёт для вида, учит читать пустое число.
+            any = draw_compass_ribbon(hud, facts) || any;
+            any = draw_condition_bars(hud, facts) || any;
             any = draw_crosshair(hud, facts) || any;
             if (world_.has_resource<components::HoverTarget>()) {
                 const auto& hover = world_.resource<components::HoverTarget>();
