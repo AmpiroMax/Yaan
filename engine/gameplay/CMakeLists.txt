@@ -27,6 +27,10 @@
 #                          solid, built from the triangles render draws (hence
 #                          the new dfn_render link; those builders are pure
 #                          geometry and pull in no third-party library).
+# - 13:08:2026 - 17:20:00: InteractableMesh.cpp — placeholder geometry for the
+#                          props, so a thing the crosshair can name is a thing
+#                          the player can see (all three demo props drew as
+#                          nothing; ui's find).
 # - 13:08:2026 - 16:35:00: FloraCollision.cpp — a plant's collider MEASURED out
 #                          of the mesh flora draws for it, so trunks stop you
 #                          and brush slows you (user's complaint that trees and
@@ -42,6 +46,7 @@ add_library(dfn_gameplay STATIC
     sources/GameplaySave.cpp
     sources/GameplaySaveRegistration.cpp
     sources/HeldItem.cpp
+    sources/InteractableMesh.cpp
     sources/InteractableSpawn.cpp
     sources/InteractionSystem.cpp
     sources/Inventory.cpp

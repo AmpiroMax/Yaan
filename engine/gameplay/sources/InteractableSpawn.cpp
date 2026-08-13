@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 13:08:2026 - 17:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.cpp
 
@@ -23,24 +23,68 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial implementation.
+- 13:08:2026 - 17:20:00: The prop is drawn: RenderMesh (the verb's placeholder
+  unless content named one), PreviousTransform (without which render's view
+  does not select the entity at all), LocalBounds, and Transform.scale =
+  half_extents so the drawn cube IS the ray box.
 */
 
 #include "engine/gameplay/sources/InteractableSpawn.h"
 
+#include <algorithm>
+
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/Interaction.h"
+#include "engine/gameplay/sources/InteractableMesh.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
 namespace dfn::gameplay {
+
+uint32_t interactable_mesh_for(InteractableKind kind) {
+    // Exhaustive, no `default`: a new verb must fail to COMPILE here rather
+    // than fall through to the "draw nothing" sentinel, which is exactly how
+    // the three props that already existed came to be invisible.
+    switch (kind) {
+    case InteractableKind::Pickup:
+        return INTERACTABLE_MESH_TORCH;
+    case InteractableKind::Openable:
+        return INTERACTABLE_MESH_DOOR;
+    case InteractableKind::Usable:
+        return INTERACTABLE_MESH_LEVER;
+    }
+    return INTERACTABLE_MESH_TORCH;
+}
 
 ecs::EntityId spawn_interactable(ecs::World& world, platform::IPhysics& physics,
                                  const InteractableDesc& desc) {
     const ecs::EntityId id = world.spawn();
 
-    world.add(id, components::Transform{.position = desc.position,
-                                        .rotation = {1.0f, 0.0f, 0.0f, 0.0f},
-                                        .scale = {1.0f, 1.0f, 1.0f}});
+    // SCALE IS THE HALF-EXTENTS, and that one line is what makes the drawn prop
+    // and the solid prop the same object. Every placeholder mesh is authored in
+    // the cube [-1, 1]^3 (InteractableMesh.h), so scaling by the half-extents
+    // maps the artist's cube onto the box the crosshair ray hits: the door is
+    // EXACTLY its box, and the two shapes cannot drift apart later because
+    // there is only one set of numbers.
+    const glm::vec3 scale = desc.half_extents;
+    const components::Transform transform{.position = desc.position,
+                                          .rotation = {1.0f, 0.0f, 0.0f, 0.0f},
+                                          .scale = scale};
+    world.add(id, transform);
+    // PreviousTransform is NOT optional decoration: render's ECS pass selects on
+    // Transform + PreviousTransform + RenderMesh, so a prop without it is
+    // invisible however good its mesh is. A static prop's previous transform is
+    // its current one — it never moves, so the interpolation is a no-op and the
+    // prop is rock steady rather than smeared toward an origin it never had.
+    world.add(id, components::PreviousTransform{.position = transform.position,
+                                                .rotation = transform.rotation,
+                                                .scale = transform.scale});
+    const uint32_t mesh_asset =
+        desc.mesh_asset != 0 ? desc.mesh_asset : interactable_mesh_for(desc.kind);
+    world.add(id, components::RenderMesh{mesh_asset, 0});
+    // Model-space bounds are the authored cube, by construction.
+    world.add(id, components::LocalBounds{.min = {-1.0f, -1.0f, -1.0f},
+                                          .max = {1.0f, 1.0f, 1.0f}});
     world.add(id, Highlightable{.prompt_key = desc.prompt_key,
                                 .max_use_distance = 0.0f}); // 0 = INTERACT_DISTANCE
 

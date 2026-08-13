@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 10:08:2026 - 02:30:08
+Last updated: 13:08:2026 - 17:25:00
 Module: engine/render
 File: engine/render/sources/ProcMesh.h
 
@@ -56,6 +56,14 @@ UPD:
   zones picking the same number is a bug nobody finds until it draws.
 - 10:08:2026 - 02:30:08: Id map: 34..49 blessed for the character zone's body
   segments (registered via RenderSystem::register_mesh, never built here).
+- 13:08:2026 - 17:25:00: Id map: 50..63 blessed for sim's interactable
+  placeholders (50 door, 51 lever, 52 torch; 53..63 spare). COMMENT ONLY, by
+  the lead's carve — not one line of executable code in this zone changed.
+  Written down here because the range those props would naturally have taken,
+  64..127, is RESERVED for sim and simultaneously REFUSED by register_mesh, so
+  nothing has ever been uploaded into it — the same root as the view-model hand
+  that "drew as nothing". Reported to the lead as a separate finding; not fixed
+  here, because it is render's code and render's call.
 */
 
 #pragma once
@@ -122,6 +130,10 @@ inline constexpr uint32_t SITE_MESH_ID_LAST = 12;
 ///            34..48 used = 34 + bone index, 49 spare). Geometry is authored
 ///            in engine/anim and enters through RenderSystem::register_mesh
 ///            (app ferry) — render never builds these.
+///   50..63   interactable placeholders (sim; engine/gameplay/sources/
+///            InteractableMesh.h). 50 = door, 51 = lever, 52 = torch; 53..63
+///            spare. Same shape as the body segments: authored in gameplay,
+///            uploaded through register_mesh by the app ferry.
 ///   64..127  RESERVED for item meshes (sim; ids live in content ItemDef, so
 ///            the range is reserved rather than enumerated here). The torch is
 ///            both a held item and the view-model item and reuses 33 rather

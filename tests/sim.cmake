@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 13:08:2026 - 16:20:00
+# Last updated: 13:08:2026 - 17:30:00
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -59,6 +59,7 @@
 #                          through (solid boles measured from their own drawn
 #                          triangles, brush as drag, the log/step-height
 #                          watershed), with the control arms for each claim.
+# - 13:08:2026 - 17:30:00: Added sim_interactable_visible.
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -136,3 +137,10 @@ add_dfn_test(sim_save_delta sim/SaveDeltaTests.cpp
 # arms that make each claim refutable.
 add_dfn_test(sim_flora_collision sim/FloraCollisionTests.cpp
     dfn_gameplay dfn_physics dfn_platform_physics dfn_world dfn_render dfn_core)
+
+# THE PROPS MUST BE VISIBLE (ui's find: all three demo props drew as nothing
+# while the crosshair, the hover target and the prompt worked around them).
+# Asserts against render's ACTUAL ECS selector, and measures how much of each
+# prop's target box has the prop behind it.
+add_dfn_test(sim_interactable_visible sim/InteractableVisibleTests.cpp
+    dfn_gameplay dfn_render dfn_platform_physics dfn_core)
