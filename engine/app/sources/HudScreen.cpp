@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:38:00
-Last updated: 13:08:2026 - 20:45:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -22,6 +22,9 @@ UPD:
   горизонтали там же, где предмет на экране. Полосы: плита под ними — не вкус, а
   замер (без неё здоровье подходило к фону на 0.86 шага); цвета разведены ПО
   ЯРКОСТИ на 2.3 и 2.1 шага, чтобы три полосы различались и без цветового зрения.
+- 13:08:2026 - 20:55:00: Двери дозы DFN_HUD_RIBBON и DFN_HUD_BARS, одним читателем
+  на три двери: правило «читать ОДИН раз» у них общее, а три его копии — три
+  возможности написать его по-разному.
 */
 
 #include "engine/app/sources/HudScreen.h"
@@ -148,11 +151,28 @@ constexpr render::Color BAR_EMPTY{24, 24, 28};
 
 } // namespace
 
+namespace {
+// One reader for three doors: the rule "read ONCE, a door polled every frame is
+// a switch" is the same for all of them, and three copies of it would be three
+// chances to write it differently.
+[[nodiscard]] bool door(const char* name) {
+    const char* e = std::getenv(name);
+    return !(e != nullptr && e[0] == '0');
+}
+} // namespace
+
 bool crosshair_enabled() {
-    static const bool on = [] {
-        const char* e = std::getenv("DFN_CROSSHAIR");
-        return !(e != nullptr && e[0] == '0');
-    }();
+    static const bool on = door("DFN_CROSSHAIR");
+    return on;
+}
+
+bool compass_ribbon_enabled() {
+    static const bool on = door("DFN_HUD_RIBBON");
+    return on;
+}
+
+bool condition_bars_enabled() {
+    static const bool on = door("DFN_HUD_BARS");
     return on;
 }
 
@@ -199,6 +219,9 @@ bool draw_crosshair(render::PixelCanvas& canvas, const HudFacts& facts) {
 }
 
 bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
+    if (!compass_ribbon_enabled()) {
+        return false;
+    }
     // The map carries north on its own plate, and the readout OWNS the top-left
     // and names the direction in words. In both cases the ribbon would be a
     // second answer drawn over the first.
@@ -267,6 +290,9 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
 }
 
 bool draw_condition_bars(render::PixelCanvas& canvas, const HudFacts& facts) {
+    if (!condition_bars_enabled()) {
+        return false;
+    }
     // Over the map the world is not what the player is acting in, and the bars
     // describe acting in it.
     if (facts.map_open) {

@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:35:00
-Last updated: 13:08:2026 - 20:40:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/app
 File: engine/app/sources/HudScreen.h
 
@@ -48,6 +48,8 @@ UPD:
   предложенного). Лента растянута на СОБСТВЕННЫЙ угол обзора камеры, а не на
   условные 180°, чтобы метка на ленте стояла там же по горизонтали, где предмет
   на экране. Полосы полны и убыль не изображают: тратить их пока нечем.
+- 13:08:2026 - 20:55:00: Двери дозы DFN_HUD_RIBBON=0 и DFN_HUD_BARS=0 — обе руки
+  приёмки ленты и полос обязаны выходить из ОДНОГО бинарника, как у прицела.
 */
 
 #pragma once
@@ -96,6 +98,12 @@ struct HudFacts {
 // caveat). Read once, like the plate's door -- a switch polled every frame lets
 // two frames of one run disagree about what was measured.
 [[nodiscard]] bool crosshair_enabled();
+// The same door for the other two elements, one each and read the same way.
+// Three doors of one shape rather than one door with a syntax: the arm of an
+// acceptance pair must be readable in a shell line by whoever repeats it, and
+// `DFN_HUD_RIBBON=0` is readable in a way that `DFN_HUD=cb` is not.
+[[nodiscard]] bool compass_ribbon_enabled();
+[[nodiscard]] bool condition_bars_enabled();
 
 // Draws the aiming mark at the centre of `canvas` (the HUD layer, which the
 // caller has already cleared). Returns whether anything was drawn, so the
