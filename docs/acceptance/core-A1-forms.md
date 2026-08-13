@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 18:38:00
+Last updated: 13:08:2026 - 18:40:00
 -->
 <!--
 UPD:
@@ -21,6 +21,9 @@ UPD:
   p5 3 against a floor of 3. Shipped pairs are `+f3` and `+p2` (9888746).
 - 13:08:2026 - 18:38:00: The four-minute soak across water margins, corridors
   and the massif hem, and connectivity on two seeds nobody tuned this on.
+- 13:08:2026 - 18:40:00: ...and the three open items written down here rather
+  than left in a message: BR-5's proposed floor, the ungated band under 5 m, and
+  the draws' lack of connectivity to a drainage.
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
@@ -269,3 +272,44 @@ Measured by `sim_tunnel_walk`'s own affordability case, 16 collision chunks:
 The pass adds six to eight noise samples per height query and costs under one
 percent of generation, because the cost of a height sample was always the macro
 fBm underneath it.
+
+## A four-minute soak over the ground where the forms meet other rules
+
+The 90 s run above is open plain. This one is routed deliberately through the
+places where the forms are MASKED, and therefore where a seam would show: the
+lake margin, the graded corridor, the river trough, and the massif hem where the
+mask fades in over a quarter of the stamp radius.
+
+    DFN_PLAYTEST=patrol DFN_PLAYTEST_GAIT=jog DFN_PLAYTEST_SECONDS=240 \
+    DFN_PLAYTEST_ROUTE="400,700;300,600;250,560;400,555;600,420;700,300;750,250;600,420;400,700"
+
+**703.7 m jogged, 27 incidents, every one of them `frame_budget`.** No stuck, no
+fall-through; airborne fraction 0.125 %; worst landing dip 35.97 mm — the same
+figure as every other run, i.e. a property of the landing model and not of this
+ground. Crossing a mask boundary at a jog produced nothing at all.
+
+## Connectivity on worlds nobody tuned this on
+
+Occlusion is what the player judges with his eyes; connectivity is what he would
+judge with his feet, and until now it had only ever been read on seed 1.
+
+| | forms on | forms off |
+|---|---|---|
+| seed 1 | 99.758 % | 99.663 % |
+| seed 7 | 99.965 % | 99.663 % |
+| seed 23 | 99.753 % | 99.415 % |
+
+On every world the FORMED ground is at least as reachable as the unformed one.
+The forms sever nothing anywhere — not merely nowhere we happened to look.
+
+## What is NOT closed, recorded so it is not rediscovered
+
+- **BR-5's floor of 0.25** was proposed by this zone and approved by the lead in
+  design's absence; it is flagged re-openable by design.
+- **The band under 5 m has no contract.** The ground underfoot went from 0.034 m
+  to 0.204 m of detrended σ, and nothing in the project gates it. §10.2's seam
+  says the heightmap owns 4 m and up, so a floor there is design's to write.
+- **The draws are not connected to a drainage.** They run along §2.1's valley
+  axis, which is where water would run, but they do not know where the river is.
+  On a stand that declares the LF-8 erosion pass, that pass is the better source;
+  the testbed declares `erosion: false`, so nothing else here cuts at all.
