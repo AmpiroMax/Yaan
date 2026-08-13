@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 13:08:2026 - 23:48:00
+Last updated: 14:08:2026 - 00:30:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -208,6 +208,11 @@ UPD:
   РАЗДЕЛЯТЬ (отвергнутая берёза 2.86 > максимум принятых 2.54) — переписан на
   утверждение разрыва; розетка-синтетика отставлена как выродившаяся под
   пачками (базовая доля читается отрицательной), с записью.
+- 14:08:2026 - 00:30:00: Строки-растяжки площади пересняты ЕДИНОЖДЫ на
+  финальной геометрии ночи (после правки дуги стволов): прямая наклонённая
+  боль сдвигает все якоря над собой, фигуры 00:00 уплыли на 2–22 % за час.
+  Урок записан в комментарии строк: дрейф-строки снимаются на ПОСЛЕДНЕЙ
+  правке ночи, не на каждой промежуточной.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2561,14 +2566,20 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     // species tripled INCLUDING the conifers — the multiplier always applied
     // to them and at 1.0 that was invisible; recorded, not hidden: the pine
     // sleeve is x3.9 denser than the confetti build the 229-era user saw.
+    // ...RE-TAKEN ONE LAST TIME the same night at the FINAL geometry (the
+    // trunk-arc unstacking, DFN_FLORA_TRUNKARC — a straight tipped bole moves
+    // every anchor above it, so the 00:00 figures drifted 2-22 % within the
+    // hour). One lesson, recorded so the next multi-change night does not
+    // re-buy it: DRIFT ROWS ARE RECORDED ONCE, AT THE NIGHT'S LAST CHANGE,
+    // not per intermediate landing.
     const Row ROWS[] = {
-        {FloraSpecies::DaleOak, FloraLod::Reduced, 1692.0f, 1991.4f},
+        {FloraSpecies::DaleOak, FloraLod::Reduced, 1652.0f, 1944.0f},
         {FloraSpecies::HighlandPine, FloraLod::Full, 652.0f, 767.4f},
         {FloraSpecies::HighlandPine, FloraLod::Reduced, 652.0f, 767.4f},
-        {FloraSpecies::RiverBirch, FloraLod::Full, 158.0f, 186.9f},
-        {FloraSpecies::RiverBirch, FloraLod::Reduced, 246.0f, 290.1f},
-        {FloraSpecies::ValeWillow, FloraLod::Full, 720.0f, 847.5f},
-        {FloraSpecies::ValeWillow, FloraLod::Reduced, 631.0f, 742.9f},
+        {FloraSpecies::RiverBirch, FloraLod::Full, 131.0f, 154.4f},
+        {FloraSpecies::RiverBirch, FloraLod::Reduced, 194.0f, 228.6f},
+        {FloraSpecies::ValeWillow, FloraLod::Full, 881.0f, 1036.9f},
+        {FloraSpecies::ValeWillow, FloraLod::Reduced, 535.0f, 629.7f},
         {FloraSpecies::StuntedPine, FloraLod::Full, 72.0f, 85.5f},
         {FloraSpecies::StuntedPine, FloraLod::Reduced, 72.0f, 85.5f},
     };

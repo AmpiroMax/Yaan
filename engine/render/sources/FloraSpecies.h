@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 23:45:00
+Last updated: 14:08:2026 - 00:14:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -75,6 +75,8 @@ UPD:
   Rule 48 shape as the other doors: one door, one moved quantity.
 - 13:08:2026 - 23:45:00: flora_pack_arm() — дверь листовых «пачек»
   (DFN_FLORA_PACKS=0 — нулевая рука: конфетти 36-40×0.22-0.25 как было).
+- 14:08:2026 - 00:14:00: flora_trunk_arc_arm() — дверь дуги стволов
+  (DFN_FLORA_TRUNKARC=1 — старая складывающаяся дуга).
 */
 
 #pragma once
@@ -444,6 +446,14 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// Derivation of both numbers: docs/TREE_MODELS_RESEARCH.md §1.1/§1.2/§1.7
 /// and the two NUMBERS rows. Same Rule 48 shape as every other door here.
 [[nodiscard]] bool flora_pack_arm();
+
+/// THE ZERO-DOSE ARM FOR THE TRUNK ARC. `DFN_FLORA_TRUNKARC=1` restores the
+/// stacking bole bend (species sweep + wind lean accumulated one way from the
+/// stump — the 15-33 deg banana the user rejected as «стволы жесть кривые»).
+/// Unset is the unstacked law: rigid lower third, lean above it, sweep as
+/// Weber's sign-alternating wander. Canopy species only; dead and wind-formed
+/// wood keeps its arc on both arms.
+[[nodiscard]] bool flora_trunk_arc_arm();
 
 /// WHETHER THE WEBER LEVEL-0 WALKS THE DRAWN BOLE. `DFN_FLORA_ONEBOLE=0` is
 /// the zero-dose arm — the growth of 13.08.2026 evening, where the model grew

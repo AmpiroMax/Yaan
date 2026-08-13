@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 23:45:00
+Last updated: 14:08:2026 - 00:14:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -85,6 +85,7 @@ UPD:
   LEAF_CLUSTERS_PER_CROWN (12) и LEAF_CLUSTER_RADIUS_FRAC (0.45) из реестра за
   дверью flora_pack_arm(); гигант, сосна и стланик не тронуты, у каждого своя
   записанная причина. Вывод обоих чисел — docs/TREE_MODELS_RESEARCH.md.
+- 14:08:2026 - 00:14:00: flora_trunk_arc_arm() defined.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -1070,6 +1071,14 @@ bool flora_pack_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_PACKS");
         return e == nullptr || e[0] != '0';
+    }();
+    return on;
+}
+
+bool flora_trunk_arc_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_TRUNKARC");
+        return e != nullptr && e[0] == '1';
     }();
     return on;
 }

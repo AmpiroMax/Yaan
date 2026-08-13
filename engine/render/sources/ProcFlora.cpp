@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 23:26:00
+Last updated: 14:08:2026 - 00:14:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -256,6 +256,13 @@ UPD:
   94-100 % of first-order branch bases outside the drawn bole's surface (oak
   mean 5.30 m, worst 13.78 m) — the user's «ветки своими углами из основания
   торчат». DFN_FLORA_ONEBOLE=0 is the zero-dose arm (flora_united_bole_arm).
+- 14:08:2026 - 00:14:00: THE BANANA UNSTACKED (претензия 3, «стволы жесть
+  кривые»): для живых кроновых пород sweep перестаёт складываться с lean —
+  наклон (полоса референса 16 нетронута) начинается выше жёсткой нижней трети
+  (TRUNK_RIGID_FRACTION), видовой sweep становится знакопеременным блужданием
+  Вебера (Curve=0 у ствола всех пород статьи), хэш вместо rng, чтобы не
+  сдвинуть чужие потоки. Снаг/стланик/брёвна держат дугу — она их сигнал.
+  DFN_FLORA_TRUNKARC=1 — нулевая рука (старая дуга).
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -1477,14 +1484,60 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
             ? safe_normalize(glm::vec3{t.shape.lean_dir.x, 0.0f, t.shape.lean_dir.y},
                              glm::vec3{1.0f, 0.0f, 0.0f})
             : glm::vec3{1.0f, 0.0f, 0.0f};
-    const float bend = sp.trunk_sweep + t.shape.lean;
+    // THE BANANA, UNSTACKED (14.08.2026 — the user's «стволы жесть кривые»).
+    // `trunk_sweep + lean` accumulated in ONE direction over every segment:
+    // 7-12.6 deg of species sweep PLUS 8-20 deg of wind lean, all as one arc
+    // from the ground up — 15-33 deg of banana. THE DEFECT IS THE ARC, NOT
+    // THE TILT: the user's own frame-16 reference shows boles at 15-25 deg,
+    // and they are STRAIGHT AND TIPPED, not curved — while Weber & Penn give
+    // every species trunk Curve = 0 with only a SIGN-ALTERNATING wander
+    // (0CurveV) that partially cancels itself, and every studied open model
+    // holds its bole near its own chord (docs/TREE_MODELS_RESEARCH.md
+    // §1.7/§1.8). So, for the LIVE CANOPY species only:
+    //   - the wind LEAN becomes a RIGID-BODY TILT of the whole bole (the
+    //     band TREE_LEAN_WIND is untouched and now arrives at the top as
+    //     itself instead of as the top half of an arc);
+    //   - the species SWEEP becomes the wander it always was in the model:
+    //     alternating sign per segment, zero mean, hashed off the segment and
+    //     the stem base so no rng stream downstream is disturbed.
+    // Dead and wind-formed wood keeps the arc — a snag's heavy lean and the
+    // krummholz's wind-written sweep are their SIGNALS, not defects — and so
+    // do logs (laid horizontal; the arc is their sag).
+    // DFN_FLORA_TRUNKARC=1 is the zero-dose arm (the old stacking arc).
+    const bool unstacked = is_canopy_tree(t.species) && !flora_trunk_arc_arm();
+    const float bend = unstacked ? 0.0f : (sp.trunk_sweep + t.shape.lean);
+    if (unstacked && t.shape.lean > 0.0f) {
+        const float c = std::cos(t.shape.lean);
+        const float sn = std::sin(t.shape.lean);
+        d = safe_normalize(glm::vec3{sweep_dir.x * sn, c, sweep_dir.z * sn}, d);
+    }
+    const uint32_t wob_seed =
+        static_cast<uint32_t>(base.x * 73.0f) * 0x9E3779B9u
+        ^ static_cast<uint32_t>(base.z * 57.0f) * 0x85EBCA6Bu
+        ^ static_cast<uint32_t>(t.height * 128.0f);
 
     const float path_floor_r = SHADOW_MIN_DIAMETER * 0.5f;
     if (out_path) {
         out_path->push_back(TrunkRing{p, d, std::max(radius, path_floor_r)});
     }
     for (int s = 0; s < segments; ++s) {
-        d = safe_normalize(d + sweep_dir * (bend / static_cast<float>(segments)), d);
+        glm::vec3 step =
+            sweep_dir * (bend / static_cast<float>(segments));
+        if (unstacked && sp.trunk_sweep > 1e-4f) {
+            // The wander: +/- trunk_sweep per segment about a hashed sign and
+            // a hashed transverse direction, zero-mean by construction.
+            uint32_t h = wob_seed ^ (static_cast<uint32_t>(s) + 1u) * 0x27D4EB2Fu;
+            h = (h ^ (h >> 13)) * 0xC2B2AE35u;
+            const float sign = (h & 1u) ? 1.0f : -1.0f;
+            const float mag = 0.5f + static_cast<float>((h >> 8) & 0xFFu) / 255.0f;
+            const glm::vec3 side =
+                safe_normalize(glm::cross(glm::vec3{0.0f, 1.0f, 0.0f}, sweep_dir),
+                               glm::vec3{0.0f, 0.0f, 1.0f});
+            const glm::vec3 wob_dir = ((h >> 1) & 1u) ? side : sweep_dir;
+            step += wob_dir
+                * (sign * mag * sp.trunk_sweep / static_cast<float>(segments));
+        }
+        d = safe_normalize(d + step, d);
         const float t0 = static_cast<float>(s) / static_cast<float>(segments);
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(segments);
         const float r0 = radius * std::pow(1.0f - t0 * 0.92f, sp.taper_exp);
@@ -2419,9 +2472,17 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
             // 65 % of its presented area to an axis shift its own branches had
             // already made. The whole-tree LEAN is different — it tips the
             // crown bodily downwind — and it is the only part taken here.
+            // ...AND ON THE UNSTACKED ARM THE SHARE IS 1: the bole is straight
+            // and TIPPED, its sweep is a zero-mean wander, so the top's offset
+            // IS the lean and there is no curve left to double-count.
+            const bool unstacked =
+                is_canopy_tree(t.species) && !flora_trunk_arc_arm();
             const float bend = sp.trunk_sweep + t.shape.lean;
-            const float lean_share =
-                (bend > 1e-4f) ? std::clamp(t.shape.lean / bend, 0.0f, 1.0f) : 0.0f;
+            const float lean_share = unstacked
+                ? 1.0f
+                : ((bend > 1e-4f)
+                       ? std::clamp(t.shape.lean / bend, 0.0f, 1.0f)
+                       : 0.0f);
             t.crown_axis = glm::vec2{off.x, off.z}
                 + (glm::vec2{top.x, top.z} - glm::vec2{off.x, off.z}) * k * lean_share;
             // The crown axis is only KNOWN once the bole has been swept, so the
