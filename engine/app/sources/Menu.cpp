@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 13:08:2026 - 18:52:00
+Last updated: 13:08:2026 - 19:45:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -31,6 +31,14 @@ UPD:
   через обратную кривую подъёма, иначе мишень занижена до 0.56 шага). Левый квадрат —
   КОНТРОЛЬ в ноль шагов: он неотличим от поля при любой настройке, и игрок, «видящий»
   все три, читает своё ожидание, а не экран.
+- 13:08:2026 - 19:45:00: СТРАНИЦА НАСТРОЕК (просьба пользователя): разрешение,
+  сглаживание, палитра, покачивание камеры и переход на калибровку — пять строк
+  settings.cfg, которые до сих пор менялись только текстовым редактором. Каждая
+  строка — ЛЕСТНИЦА ЗНАЧЕНИЙ, а не поле ввода: 640x360 движок принимает, а 641x361
+  игрок мог вписать в файл руками. Вторая строка корня стала «Настройки», яркость
+  живёт внутри них, и выход со страницы калибровки возвращается туда, откуда пришёл.
+  Enter на строке значения делает то же, что стрелка вправо, — страница работает на
+  клавишах, которые приложение уже шлёт.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -38,6 +46,8 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iterator>
+#include <string>
 
 #include "engine/core/config/sources/Constants.h"
 
@@ -116,6 +126,60 @@ std::string_view loc(std::string_view key) {
     return localized(serialization::fnv1a64(key));
 }
 
+// THE SETTINGS PAGE IS A LIST OF LADDERS, not a set of fields, and that is what
+// lets it replace the text editor safely: every rung is a value the engine is
+// known to accept. 640x360 is a resolution the upscale is exact for; 641x361 is
+// a resolution the player could type into settings.cfg today and get a picture
+// nobody has ever looked at. A menu that cannot express the broken state is
+// worth more than a menu that validates it afterwards.
+constexpr uint32_t RES_W[] = {320, 640, 960, 1280};
+constexpr uint32_t RES_H[] = {180, 360, 540, 720};
+constexpr uint32_t MSAA_STEPS[] = {0, 2, 4, 8};
+// 0 is the motion-sickness setting the research mandated and it is a FULL stop
+// of the motion, not a small one -- so it is a rung of its own, not the bottom
+// of a slider the player has to hunt for.
+constexpr float BOB_STEPS[] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f};
+
+// The rows of the settings page, named once. Their ORDER is the order of the
+// picture: what the frame is drawn on, then what is done to it, then how it
+// moves, then how dark it is allowed to get.
+enum SettingsRow : size_t {
+    RowResolution = 0,
+    RowMsaa,
+    RowPalette,
+    RowHeadBob,
+    RowBrightness, // opens the calibration page, which is where an EYE decides
+    RowBack,
+    RowCount,
+};
+
+// Nearest rung to a value that may have come from a hand-edited settings.cfg.
+// Never fails: a file saying msaa=3 has to land somewhere, and landing on the
+// nearest legal rung is the only answer that keeps the page honest about what
+// the game will actually run with.
+template <typename T, size_t N>
+size_t nearest_rung(const T (&rungs)[N], T value) {
+    size_t best = 0;
+    double best_d = -1.0;
+    for (size_t i = 0; i < N; ++i) {
+        const double d = std::abs(static_cast<double>(rungs[i]) - static_cast<double>(value));
+        if (best_d < 0.0 || d < best_d) {
+            best_d = d;
+            best = i;
+        }
+    }
+    return best;
+}
+
+size_t cycle(size_t index, size_t count, int delta) {
+    const int n = static_cast<int>(count);
+    int next = (static_cast<int>(index) + delta) % n;
+    if (next < 0) {
+        next += n;
+    }
+    return static_cast<size_t>(next);
+}
+
 void draw_centered(render::PixelCanvas& canvas, int y, std::string_view text,
                    render::Color color) {
     const int x = (static_cast<int>(canvas.width()) - render::text_width_px(text)) / 2;
@@ -129,6 +193,22 @@ float black_floor_adjust_step() { return SHADE_STEP / 8.0f; }
 
 void MenuModel::set_black_floor(float value) {
     black_floor_ = std::clamp(value, 0.0f, black_floor_max());
+}
+
+void MenuModel::set_settings(const MenuSettings& value) {
+    settings_ = value;
+    launched_ = value;
+}
+
+bool MenuModel::needs_restart() const {
+    // ONLY the three rows the renderer swallows at init. head_bob and the
+    // brightness floor are handed to a live frame, so listing them here would
+    // be a warning about nothing -- and a warning that fires when it need not
+    // is how players learn to ignore the one that matters.
+    return settings_.internal_w != launched_.internal_w
+        || settings_.internal_h != launched_.internal_h
+        || settings_.msaa != launched_.msaa
+        || settings_.palette != launched_.palette;
 }
 
 void MenuModel::set_maps(std::vector<MapEntry> maps) {
@@ -153,8 +233,41 @@ size_t MenuModel::item_count() const {
         return 2; // resume, quit
     case MenuPage::Calibrate:
         return 0; // no list: up/down turn the dial itself
+    case MenuPage::Settings:
+        return RowCount;
     }
     return 0;
+}
+
+void MenuModel::adjust(int delta) {
+    if (page_ != MenuPage::Settings || delta == 0) {
+        return;
+    }
+    switch (selection_) {
+    case RowResolution: {
+        const size_t i = cycle(nearest_rung(RES_W, settings_.internal_w),
+                               std::size(RES_W), delta);
+        settings_.internal_w = RES_W[i];
+        settings_.internal_h = RES_H[i];
+        // The two are ONE row on purpose: the grid is an aspect the whole
+        // look is drawn for, and a page that lets width and height be turned
+        // apart is a page that can produce a picture nobody has ever seen.
+        break;
+    }
+    case RowMsaa:
+        settings_.msaa = MSAA_STEPS[cycle(nearest_rung(MSAA_STEPS, settings_.msaa),
+                                          std::size(MSAA_STEPS), delta)];
+        break;
+    case RowPalette:
+        settings_.palette = !settings_.palette; // two rungs: either direction flips
+        break;
+    case RowHeadBob:
+        settings_.head_bob = BOB_STEPS[cycle(nearest_rung(BOB_STEPS, settings_.head_bob),
+                                             std::size(BOB_STEPS), delta)];
+        break;
+    default:
+        break; // brightness and back are not values: Enter is their only verb
+    }
 }
 
 void MenuModel::move(int delta) {
@@ -187,7 +300,12 @@ MenuAction MenuModel::activate() {
             return MenuAction::None;
         }
         if (selection_ == 1) {
-            open(MenuPage::Calibrate);
+            // THE ROOT'S SECOND ROW IS NOW SETTINGS, NOT BRIGHTNESS. The dial
+            // did not move away from the player -- it is the settings page's
+            // own row, one press further in, and it stopped being the only
+            // setting in the game that had a screen while resolution,
+            // antialiasing, palette and camera bob had none.
+            open(MenuPage::Settings);
             return MenuAction::None;
         }
         return MenuAction::Quit;
@@ -206,8 +324,25 @@ MenuAction MenuModel::activate() {
         // that traps the player the moment the handler is missing -- and the
         // handler landing later than the page is exactly the order these two
         // halves shipped in.
-        open(MenuPage::Root);
+        open(calibrate_return_);
         return MenuAction::CalibrationDone;
+    case MenuPage::Settings:
+        if (selection_ == RowBrightness) {
+            calibrate_return_ = MenuPage::Settings;
+            open(MenuPage::Calibrate);
+            return MenuAction::None;
+        }
+        if (selection_ == RowBack) {
+            open(MenuPage::Root);
+            return MenuAction::SettingsDone;
+        }
+        // ENTER IS THE SAME VERB AS RIGHT on a value row. The app routes up,
+        // down, Enter and Escape today; left and right are a patch in its
+        // file, and a page that needs a key nobody sends is a page that ships
+        // dead. With this line it works on the keys that already exist and
+        // gets nicer when the other two arrive.
+        adjust(+1);
+        return MenuAction::None;
     }
     return MenuAction::None;
 }
@@ -224,8 +359,14 @@ MenuAction MenuModel::back() {
     case MenuPage::Calibrate:
         // Escape SAVES too. A brightness the player turned until he could see
         // and then lost by leaving the wrong way is worse than no dial.
-        open(MenuPage::Root);
+        open(calibrate_return_);
         return MenuAction::CalibrationDone;
+    case MenuPage::Settings:
+        // And so does Escape here, for the same reason and with the same
+        // guarantee: both exits from this page emit SettingsDone, so there is
+        // no way out that silently discards what the player just turned.
+        open(MenuPage::Root);
+        return MenuAction::SettingsDone;
     }
     return MenuAction::None;
 }
@@ -298,6 +439,96 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
     draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("menu.calibrate.keys"), BLURB);
 }
 
+// THE SETTINGS PAGE (the user's request: settings.cfg had five rows describing
+// the picture and no way to change any of them except a text editor).
+//
+// IT IS TWO COLUMNS, not the centred list the other pages use, and that is the
+// one layout decision here worth defending: a settings row is a PAIR (what it
+// is, what it is set to), and centring each pair separately makes the values
+// jitter left and right as the player turns them, which reads as the page
+// twitching rather than the value changing. Labels left, values right-aligned
+// against one edge, so only the value that changed moves.
+void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    const MenuSettings& s = model.settings();
+
+    canvas.clear(BACKGROUND);
+
+    // Values built once, into storage that outlives the two passes below --
+    // the block is MEASURED before it is drawn, and measuring text that is not
+    // the text drawn is the mistake the pause plate was fixed for.
+    const std::string off(loc("menu.settings.off"));
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%ux%u", s.internal_w, s.internal_h);
+    const std::string res(buf);
+    std::snprintf(buf, sizeof(buf), "%ux", s.msaa);
+    const std::string msaa = (s.msaa <= 1) ? off : std::string(buf);
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.head_bob) * 100.0);
+    const std::string bob = (s.head_bob <= 0.0f) ? off : std::string(buf);
+    // The floor in STEPS, the same ruler the calibration page is built on: the
+    // number the player saw while turning it is the number he reads here.
+    std::snprintf(buf, sizeof(buf), "%.2f",
+                  static_cast<double>(model.black_floor() / SHADE_STEP));
+    const std::string bright = (model.black_floor() <= 0.0f) ? off : std::string(buf);
+
+    struct Row {
+        std::string_view label;
+        std::string_view value;
+    };
+    const Row rows[RowCount] = {
+        {loc("menu.settings.resolution"), res},
+        {loc("menu.settings.msaa"), msaa},
+        {loc("menu.settings.palette"),
+         s.palette ? loc("menu.settings.on") : loc("menu.settings.off")},
+        {loc("menu.settings.bob"), bob},
+        {loc("menu.settings.brightness"), bright},
+        {loc("menu.back"), {}},
+    };
+
+    int label_w = 0;
+    int value_w = 0;
+    for (const Row& r : rows) {
+        label_w = std::max(label_w, render::text_width_px(r.label));
+        value_w = std::max(value_w, render::text_width_px(r.value));
+    }
+    const int gap = render::FONT_CELL_W * 3;
+    const int block = label_w + gap + value_w;
+    const int x0 = (w - block) / 2;
+
+    const int title_y = h / 6;
+    draw_centered(canvas, title_y, loc("menu.settings.title"), TITLE);
+    canvas.fill_rect(w / 4, title_y + render::FONT_CELL_H + 4, w / 2, 1, RULE_LINE);
+
+    int y = title_y + render::FONT_CELL_H + 16;
+    for (size_t i = 0; i < RowCount; ++i) {
+        const bool sel = (i == model.selection());
+        const render::Color color = sel ? ITEM_SELECTED : ITEM;
+        if (sel) {
+            render::draw_text(canvas, x0 - render::FONT_CELL_W * 2, y, ">", ITEM_SELECTED,
+                              true);
+        }
+        render::draw_text(canvas, x0, y, rows[i].label, color, /*shadow=*/true);
+        if (!rows[i].value.empty()) {
+            render::draw_text(canvas, x0 + block - render::text_width_px(rows[i].value), y,
+                              rows[i].value, color, /*shadow=*/true);
+        }
+        y += render::FONT_CELL_H + 4;
+        if (i == RowBrightness) {
+            y += 4; // the two rows below are verbs, not values
+        }
+    }
+
+    // SAID OUT LOUD, and only when it is true: three of these rows are
+    // swallowed by the renderer at init, so turning them changes the file and
+    // not the frame in front of the player. A page that lets that happen
+    // silently teaches the player that the settings do nothing.
+    if (model.needs_restart()) {
+        draw_centered(canvas, h - render::FONT_CELL_H * 4, loc("menu.settings.restart"), BLURB);
+    }
+    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("menu.settings.keys"), BLURB);
+}
+
 void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
@@ -316,7 +547,7 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
             if (i == 0) {
                 return {loc("menu.play"), {}};
             }
-            return {(i == 1) ? loc("menu.calibrate") : loc("menu.quit"), {}};
+            return {(i == 1) ? loc("menu.settings") : loc("menu.quit"), {}};
         case MenuPage::Maps:
             if (i < model.maps().size()) {
                 return {loc(model.maps()[i].name_key), loc(model.maps()[i].blurb_key)};
@@ -325,7 +556,8 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
         case MenuPage::Pause:
             return {(i == 0) ? loc("menu.resume") : loc("menu.quit"), {}};
         case MenuPage::Calibrate:
-            return {}; // drawn by draw_calibration, which has no list
+        case MenuPage::Settings:
+            return {}; // drawn by their own functions, which have their own layout
         }
         return {};
     };
@@ -333,6 +565,10 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     canvas.resize(canvas.width(), canvas.height());
     if (model.page() == MenuPage::Calibrate) {
         draw_calibration(canvas, model);
+        return;
+    }
+    if (model.page() == MenuPage::Settings) {
+        draw_settings(canvas, model);
         return;
     }
     if (pause) {

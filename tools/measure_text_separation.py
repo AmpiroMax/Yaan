@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Created: 13:08:2026 - 16:28:00
-Last updated: 13:08:2026 - 17:05:00
+Last updated: 13:08:2026 - 20:35:00
 Module: tools
 File: tools/measure_text_separation.py
 
@@ -63,6 +63,10 @@ UPD:
   readout-plate acceptance (docs/acceptance/README.md, the ui section).
 - 13:08:2026 - 17:05:00: Header timestamps corrected -- they were written ahead of
   the clock, and this file's own subject is measurements that must not flatter.
+- 13:08:2026 - 20:35:00: --either: ownership without the "drawn lighter" clause,
+  for the crosshair. Its outline is BLACK, so over a bright sky the arm draws the
+  mark darker and the default mask owned nothing -- on precisely the ground the
+  outline exists for. The default is unchanged, so every earlier reading stands.
 """
 
 import argparse
@@ -143,8 +147,18 @@ def chan_diff(a, b, i):
     return max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
 
 
-def ink_mask(w, h, ch, ctrl, test, noise, gate):
-    """Pixels the text OWNS and draws lighter, decided by the arm alone."""
+def ink_mask(w, h, ch, ctrl, test, noise, gate, either=False):
+    """Pixels the mark OWNS, decided by the arm alone.
+
+    By default ownership also requires the pixel to be drawn LIGHTER, because
+    every text in this project is pale ink and that condition throws out the
+    world's own darkening. --either drops it, for a mark that is legitimately
+    DARKER than what it covers: the crosshair carries a black outline, and over
+    a bright sky the outline is the half of it that does the work. Without the
+    flag such a mark owns nothing over bright ground -- and "nothing owned" on
+    exactly the background the mark exists to survive would read as a passing
+    frame while measuring an empty set.
+    """
     ink = set()
     unstable = 0
     for y in range(h):
@@ -156,7 +170,7 @@ def ink_mask(w, h, ch, ctrl, test, noise, gate):
                 continue
             if chan_diff(ctrl, test, i) < gate:
                 continue
-            if luma(test, i) > luma(ctrl, i):
+            if either or luma(test, i) > luma(ctrl, i):
                 ink.add((x, y))
     return ink, unstable
 
@@ -224,6 +238,8 @@ def main():
     ap.add_argument("--noise", help="third run with the CONTROL's own keys")
     ap.add_argument("--gate", type=int, default=16,
                     help="per-channel difference that counts as drawn (default 16)")
+    ap.add_argument("--either", action="store_true",
+                    help="own pixels drawn DARKER too (an outlined mark, not text)")
     args = ap.parse_args()
 
     w, h, ch, ctrl = read_png(args.control)
@@ -236,7 +252,7 @@ def main():
         if (w, h) != (w3, h3):
             raise SystemExit("noise arm differs in size")
 
-    ink, unstable = ink_mask(w, h, ch, ctrl, test, noise, args.gate)
+    ink, unstable = ink_mask(w, h, ch, ctrl, test, noise, args.gate, args.either)
     print(f"frame {w}x{h}  gate {args.gate}  "
           f"unstable pixels dropped by name: {unstable}")
     if not ink:
