@@ -1,5 +1,5 @@
 # Created: 13:08:2026 - 19:35:00
-# Last updated: 13:08:2026 - 19:35:00
+# Last updated: 13:08:2026 - 21:25:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-forest-density-recipe.txt
 #
@@ -27,6 +27,10 @@
 #
 # UPD:
 # - 13:08:2026 - 19:35:00: Created with the pair for the 5-7 m ruling.
+# - 13:08:2026 - 21:25:00: THE COLONNADE RUN TO GROUND. Four hypotheses tested
+#   by measurement and three refuted; the surviving explanation is arithmetic
+#   and needs no hypothesis. Three material frames archived
+#   (flora-colonnade-*-3353b17.png).
 
 THE QUESTION
 
@@ -143,3 +147,96 @@ WHAT THESE FRAMES DO NOT CERTIFY
     defect already recorded in flora-leaves-from-branches-recipe.txt (2.5x too
     bright at 400 m, hue surviving, identical in both flora arms). It is
     render's, it is not caused by spacing, and it is visible in both frames.
+
+
+================================================================================
+THE COLONNADE, RUN TO GROUND (13.08.2026) — flora-colonnade-*-3353b17.png
+================================================================================
+
+The frames above showed the treeline reading as a palisade of dark poles. Four
+explanations were tested. THREE WERE REFUTED BY MEASUREMENT and are written down
+in full, because the refutations cost more than the answer and the next agent
+will otherwise have them again.
+
+THE INSTRUMENT FIRST, BECAUSE THE FIRST VERSION OF IT WAS WRONG AND THAT MATTERS
+
+  The first reading — "the band is 75 % dark wood" — classified pixels by
+  BRIGHTNESS (channel sum < 210). The shipped near-canopy foliage measures
+  rgb 39/54/32, i.e. a sum of 125. IT WAS COUNTING DARK FOLIAGE AS WOOD. Rule 41
+  inside my own instrument, and it was reported to LEAD before it was caught.
+
+  The sound instrument is the MATERIAL door, which the engine already had:
+  DFN_FLORA_ONLY=1 draws wood only, =2 draws cards only. Shoot all three (both
+  materials and the composite) from one binary at one pose, then a pixel belongs
+  to whichever material frame the composite MATCHES — that is who stands in
+  front, which is the thing the eye is arguing about. All three are archived.
+
+  Recipe: the massif-verdict command above, plus DFN_FLORA_ONLY=1 and =2.
+
+  today, whole treeline band:  sky 23.7 %  WOOD in front 58.6 %
+                               CARD in front 4.8 %  ambiguous 12.9 %
+  ...and per row, wood outweighs foliage at EVERY height of the frame: 35 %
+  against 15 % in the middle of the canopy mass, 60-100 % below it.
+
+REFUTED 1 — "the LOD ladder halves both streams together"
+
+  True of the tree and irrelevant to the frame. Forcing the whole scatter to the
+  far LOD (DFN_FLORA_FORCE_LOD, ScatterBatcher) moves the band by nothing:
+      wood coverage  Full 72.1 %  far 73.1 %      card coverage  41.0 % / 41.0 %
+  Cutting 60 % of every tree's branch segments does not thin the stand by a
+  percentage point.
+
+REFUTED 2 — "so the fix is the far LOD; wire the ladder"
+
+  Same measurement, and it is the reason no selection machinery was written. The
+  far LOD is still worth wiring for COST (579 triangles against 1000, on 13446
+  trees), and the switch distance is derived and handed over: the finest wood
+  the generator emits is SHADOW_MIN_DIAMETER = 0.35 m, which subtends one pixel
+  at 0.35 x 234.6 = 82 m, so a swap there cannot pop BY CONSTRUCTION. What stops
+  it being a one-line change is that scatter batches are baked once per chunk at
+  ChunkLoaded (App.cpp) and the batcher never sees the camera.
+
+REFUTED 3 — "the edge effect: our edge trees have 8-11 m of bare bole"
+
+  A real forest reads as canopy from outside because its edge trees carry
+  foliage nearly to the ground. Ours are built the same at the edge as in the
+  middle. Measured with DFN_FLORA_CROWNBASE, it goes the WRONG WAY:
+      crown base 0.45-0.53 (today)  sky 23.7 %  wood 58.6 %  card 4.8 %
+      crown base 0.30               sky 26.1 %  wood 57.1 %  card 3.4 %
+      crown base 0.18               sky 28.7 %  wood 55.5 %  card 2.7 %
+  The foliage budget is a fixed cluster count, so a lower base spreads the same
+  leaf over a taller crown and thins it.
+
+WHAT IS ACTUALLY TRUE, AND IT IS ARITHMETIC
+
+  Trunk coverage of a view through a stand of depth D at spacing s with boles d
+  across is 1 - (1 - d/s)^(D/s). At d = 0.6 m:
+
+      spacing   250 m of forest      120 m       60 m
+      15 m           49 %
+      10 m           79 %
+       8 m           91 %
+       6 m           99 %              88 %       65 %
+
+  At 6 m the BOLES ALONE tile the view within about forty rows, whatever the
+  crowns do. The colonnade is a direct consequence of the spacing the user
+  asked for, not a defect inside the tree, and no rearrangement of a tree's own
+  budget can touch it.
+
+  Note the 15 m row: the colonnade was already there at half strength and nobody
+  named it. The new spacing did not create it, it completed it.
+
+  Three levers exist and only one of them takes nothing away from the user:
+  the spacing (his request), the bole diameter, or THE DEPTH OF THE VIEW. In a
+  real forest forty rows are not visible because the air and the near crowns eat
+  the sight line within tens of metres; ours is nearly clear at 250 m. That is
+  render/light's air, or a design rule about view depth in woodland — and at 6 m
+  spacing it only has to bring the visible depth down to about 60 m for the
+  trunks to fall from 99 % to 65 %.
+
+ONE SENTENCE WORTH KEEPING, FROM THE FAR-LOD WORK RATHER THAN FROM THESE FRAMES
+
+  A DISTANT TREE ONE SIZE SMALLER IS NOT A LEVEL OF DETAIL, IT IS A DIFFERENT
+  TREE. Optical depth is card area over crown silhouette, so it can always be
+  "improved" by shrinking the crown; any far-LOD criterion written on it needs
+  the built width asserted beside it or it will be met by making the tree small.
