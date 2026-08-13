@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 17:20:00
-Last updated: 13:08:2026 - 17:20:00
+Last updated: 13:08:2026 - 17:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableMesh.cpp
 
@@ -27,6 +27,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 17:20:00: Created.
+- 13:08:2026 - 17:30:00: WRITTEN AFTER THE FIRST ACCEPTANCE FRAME, which is
+  the point of shooting one. (a) BOTH large faces of the door are panelled: only
+  the -Z face was, and the app stands the door with that side facing AWAY from
+  the spawn, so the side the player walks up to was blank and the door read as a
+  flat dark rectangle at 7 m. (b) The handle is on the same WORLD side of both
+  faces -- mirroring it per face put it on the same SCREEN side from both, which
+  is a door hinged on the right and on the left at once. (c) Iron, stone, brass
+  and the planks lifted: a 0.5 m prop in shadow at 7 m was a grey lump.
 */
 
 #include "engine/gameplay/sources/InteractableMesh.h"
@@ -98,31 +106,50 @@ void box(MeshData& m, glm::vec3 lo, glm::vec3 hi, uint32_t color,
 // 2.5 m this one stands at.
 MeshData door_mesh() {
     MeshData m;
-    const uint32_t plank_a = pack({0.32f, 0.20f, 0.11f});
-    const uint32_t plank_b = pack({0.26f, 0.16f, 0.09f});
-    const uint32_t frame = pack({0.18f, 0.11f, 0.06f});
-    const uint32_t handle = pack({0.72f, 0.60f, 0.22f});
+    const uint32_t plank_a = pack({0.46f, 0.29f, 0.15f});
+    const uint32_t plank_b = pack({0.37f, 0.23f, 0.12f});
+    const uint32_t frame = pack({0.26f, 0.16f, 0.08f});
+    const uint32_t handle = pack({0.80f, 0.66f, 0.24f});
 
-    // The slab minus its front face; the front is tiled below.
+    // The slab minus BOTH large faces; both are tiled below.
     box(m, {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, frame,
-        static_cast<uint8_t>(FACE_ALL & ~FACE_NEG_Z));
+        static_cast<uint8_t>(FACE_ALL & ~FACE_NEG_Z & ~FACE_POS_Z));
 
-    // The front face, tiled 3 x 4. One tile is the handle: a colour, not a
-    // knob, because a knob is geometry outside the box.
+    // BOTH FACES ARE PANELLED, and the first acceptance frame is why. Only the
+    // -Z face was, and the app stands this door with its -Z side pointing AWAY
+    // from the spawn — so the side the player walks up to was the blank one and
+    // the door read as a flat dark rectangle at 7 m. A door has two sides and
+    // is approached from both; panelling one of them is a coin flip.
+    //
+    // The handle is a COLOURED TILE, not a knob: a knob is geometry outside the
+    // cube, and outside the cube is outside the box the ray hits.
     constexpr int COLS = 3;
     constexpr int ROWS = 4;
-    for (int c = 0; c < COLS; ++c) {
-        for (int r = 0; r < ROWS; ++r) {
-            const float x0 = -1.0f + 2.0f * static_cast<float>(c) / COLS;
-            const float x1 = -1.0f + 2.0f * static_cast<float>(c + 1) / COLS;
-            const float y0 = -1.0f + 2.0f * static_cast<float>(r) / ROWS;
-            const float y1 = -1.0f + 2.0f * static_cast<float>(r + 1) / ROWS;
-            uint32_t color = ((c + r) % 2 == 0) ? plank_a : plank_b;
-            if (c == COLS - 1 && r == 2) {
-                color = handle;
+    for (const float z : {-1.0f, 1.0f}) {
+        for (int c = 0; c < COLS; ++c) {
+            for (int r = 0; r < ROWS; ++r) {
+                const float x0 = -1.0f + 2.0f * static_cast<float>(c) / COLS;
+                const float x1 = -1.0f + 2.0f * static_cast<float>(c + 1) / COLS;
+                const float y0 = -1.0f + 2.0f * static_cast<float>(r) / ROWS;
+                const float y1 = -1.0f + 2.0f * static_cast<float>(r + 1) / ROWS;
+                uint32_t color = ((c + r) % 2 == 0) ? plank_a : plank_b;
+                // The handle is on the same side of the WORLD on both faces,
+                // which is what makes it a door rather than two doors back to
+                // back: come at it from one side and the handle is on your
+                // right, from the other and it is on your left, exactly as a
+                // real one hinged on that edge behaves. (Written after the
+                // acceptance frame: mirroring the column per face put a handle
+                // on the same screen side from both, which reads as a door
+                // hinged on the right AND on the left.)
+                if (c == COLS - 1 && r == 2) {
+                    color = handle;
+                }
+                if (z < 0.0f) {
+                    quad(m, {x0, y0, z}, {x0, y1, z}, {x1, y1, z}, {x1, y0, z}, color);
+                } else {
+                    quad(m, {x0, y0, z}, {x1, y0, z}, {x1, y1, z}, {x0, y1, z}, color);
+                }
             }
-            quad(m, {x0, y0, -1.0f}, {x0, y1, -1.0f}, {x1, y1, -1.0f}, {x1, y0, -1.0f},
-                 color);
         }
     }
     return m;
@@ -135,9 +162,9 @@ MeshData door_mesh() {
 // where the crosshair says there is a prop.
 MeshData lever_mesh() {
     MeshData m;
-    const uint32_t iron = pack({0.20f, 0.21f, 0.24f});
-    const uint32_t rim = pack({0.13f, 0.14f, 0.16f});
-    const uint32_t brass = pack({0.62f, 0.45f, 0.16f});
+    const uint32_t iron = pack({0.34f, 0.36f, 0.40f});
+    const uint32_t rim = pack({0.22f, 0.23f, 0.26f});
+    const uint32_t brass = pack({0.78f, 0.58f, 0.20f});
 
     // Back plate: the whole cross-section, and MOST of the depth. It is thick
     // rather than thin on purpose — these props are seen from an angle far more
@@ -166,7 +193,7 @@ MeshData lever_mesh() {
 MeshData torch_mesh() {
     MeshData m;
     const uint32_t wood = pack({0.24f, 0.16f, 0.09f});
-    const uint32_t stone = pack({0.30f, 0.30f, 0.31f});
+    const uint32_t stone = pack({0.42f, 0.42f, 0.44f});
     const uint32_t flame = pack({0.95f, 0.52f, 0.13f});
     const uint32_t ember = pack({0.85f, 0.24f, 0.06f});
 

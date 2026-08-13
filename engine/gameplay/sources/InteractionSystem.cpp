@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 13:08:2026 - 17:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractionSystem.cpp
 
@@ -24,11 +24,19 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 18:56:32: Initial implementation of the four verbs.
+- 13:08:2026 - 17:30:00: THE HOVER PROBE (DFN_HOVER_PROBE). "The prompt appears
+  when the prop is in front of you and not before" is a claim about a
+  TRANSITION, and no still frame can show a transition. One row per fixed tick:
+  eye, ray hit, distance, verb, prompt key. A tick that found nothing writes a
+  row saying so, because a gap and a zero read the same and only one of them is
+  information.
 */
 
 #include "engine/gameplay/sources/InteractionSystem.h"
 
 #include <cmath>
+#include <cstdio>  // hover probe (DFN_HOVER_PROBE) only
+#include <cstdlib> // hover probe (DFN_HOVER_PROBE) only
 
 #include <glm/geometric.hpp>
 
@@ -46,6 +54,48 @@ namespace {
 
 // The reach of every verb unless a Highlightable overrides it.
 constexpr float DEFAULT_REACH = static_cast<float>(config::INTERACT_DISTANCE);
+
+// THE HOVER PROBE (DFN_HOVER_PROBE=<path>): one row per fixed tick saying where
+// the eye was, what the crosshair ray found, and how far away it was.
+//
+// Why a probe and not a screenshot. "The prompt appears when the prop is in
+// front of you and not before" is a claim about a TRANSITION, and no still
+// frame can show a transition -- the same lesson the run-smear investigation
+// paid for with three clean captures of a defect that lives between frames. A
+// row per tick shows the empty rows, the first hit, and the distance at which
+// it happened, which is the whole claim.
+//
+// Off unless the env var names a file; nothing here feeds back into the world,
+// so a run is bit-identical with the probe on or off (Rule 13).
+struct HoverProbe {
+    std::FILE* file = nullptr;
+    uint64_t tick = 0;
+};
+
+[[nodiscard]] HoverProbe& hover_probe() {
+    static HoverProbe probe = [] {
+        HoverProbe p;
+        const char* path = std::getenv("DFN_HOVER_PROBE");
+        if (path != nullptr && *path != '\0') {
+            p.file = std::fopen(path, "w");
+            if (p.file == nullptr) {
+                // LOUD: an empty file reads exactly like "the run measured zero
+                // hovers", which is the answer this probe exists to distinguish
+                // from "the run measured nothing at all".
+                std::fprintf(stderr,
+                             "[hover_probe] cannot open \"%s\" -- NOTHING WILL BE "
+                             "MEASURED THIS RUN\n",
+                             path);
+            } else {
+                std::fprintf(p.file,
+                             "tick,eye_x,eye_y,eye_z,yaw,pitch,hit,distance_m,"
+                             "verb,prompt_key,entity\n");
+            }
+        }
+        return p;
+    }();
+    return probe;
+}
 
 // View direction from the fixed-tick camera pose. Matches PlayerMovement's
 // conventions: yaw 0 faces -Z, positive yaw clockwise from above, +pitch up.
@@ -107,14 +157,28 @@ void update_hover(ecs::World& world, const platform::IPhysics& physics) {
     auto& hover = world.resource<components::HoverTarget>();
     hover = components::HoverTarget{}; // cleared unless the ray finds something
 
+    // The probe writes the row for THIS tick when the pass is over, whichever
+    // way it left, so a tick that found nothing is a row saying so rather than
+    // a gap. Gaps and zeros read the same and only one of them is information.
+    struct ProbeRow {
+        components::CameraPose camera{};
+        bool had_player = false;
+        bool hit = false;
+        float distance = 0.0f;
+    } row;
+
     for (auto [id, state, camera] :
          world.view<PlayerState, components::CameraPose>()) {
         (void)id;
         (void)state;
+        row.camera = camera;
+        row.had_player = true;
         const glm::vec3 direction = view_direction(camera.yaw, camera.pitch);
         const platform::RayHit hit =
             physics.raycast(camera.position, direction, DEFAULT_REACH,
                             physics::LAYER_INTERACTABLE);
+        row.hit = hit.hit;
+        row.distance = hit.distance;
         if (!hit.hit || hit.user_data == 0) {
             break;
         }
@@ -139,6 +203,19 @@ void update_hover(ecs::World& world, const platform::IPhysics& physics) {
         hover.verb = static_cast<uint8_t>(offer.verb);
         hover.prompt_key = offer.prompt_key;
         break; // one player
+    }
+
+    if (HoverProbe& probe = hover_probe(); probe.file != nullptr && row.had_player) {
+        std::fprintf(probe.file, "%llu,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%u,%llu,%u\n",
+                     static_cast<unsigned long long>(probe.tick++),
+                     static_cast<double>(row.camera.position.x),
+                     static_cast<double>(row.camera.position.y),
+                     static_cast<double>(row.camera.position.z),
+                     static_cast<double>(row.camera.yaw),
+                     static_cast<double>(row.camera.pitch), row.hit ? 1 : 0,
+                     static_cast<double>(row.distance), hover.verb,
+                     static_cast<unsigned long long>(hover.prompt_key),
+                     hover.entity.index);
     }
 }
 
