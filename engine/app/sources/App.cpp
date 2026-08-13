@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 21:05:12
+Last updated: 13:08:2026 - 21:48:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -111,6 +111,7 @@ UPD:
 - 13:08:2026 - 19:14:43: DFN_MENU_PAGE принимает calibrate. Единственный экран, ради которого заведена вся ручка яркости, не снимался ни разу и снят быть не мог. И ui нашла, почему в settings.cfg оказался min_brightness=0: ручка всегда открывалась на нуле, потому что меню не засевалось сохранённым значением, а любой выход со страницы сохранял то, что на ней стояло.
 - 13:08:2026 - 20:41:07: Экран настроек и прицел (четвёртый кусок зоны ui, применён здесь). set_settings() при старте: страница открывается на том, с чем игра ЗАПУЩЕНА, и эта вторая копия — то, против чего отвечает needs_restart(). SettingsDone применяет живьём ТОЛЬКО живьём применимое: покачивание — множитель, который шаговый контекст читает каждый кадр, а разрешение, сглаживание и палитра проглатываются рендером ПРИ ИНИЦИАЛИЗАЦИИ, поэтому пишутся в файл и вступают со следующим запуском. LEFT/RIGHT зовут menu_.adjust() без проверки страницы — на страницах без строк-значений adjust() пуст по построению. DFN_MENU_PAGE принимает settings, довод тот же, что у calibrate. И ПРИЦЕЛ: подсказка взаимодействия рисуется по центру экрана, у которого центр ничем не отмечен; дверь дозы DFN_CROSSHAIR живёт внутри функции, поэтому обе руки приёмки выходят из ОДНОГО бинарника.
 - 13:08:2026 - 21:05:12: Прицел спрашивает у приложения ФАКТЫ, а решает сам (HudFacts, зона ui). `any = true` убрано намеренно: слой, числящийся видимым, будучи пустым, делает лживым любой позднейший вопрос «есть ли что-нибудь на экране» — а он у нас задаётся приборами. Правило («метка называет, куда смотрит ЛУЧ КАМЕРЫ»: в третьем лице луч не выходит из глаза, которым целятся; карта — плита, у которой центр уже занят) живёт в draw_crosshair, а не здесь. Приложение сообщает, что ЗНАЕТ, и не решает, что из этого следует.
+- 13:08:2026 - 21:48:30: У НЕБА БЫЛО ДВОЕ ЧАСОВ, и починены были только одни. Солнце и луна идут от номера кадра (game_seconds_ += SIM_DT выше — ровно про это), а дрейф облачного поля и огибающая ветра читали СТЕННЫЕ часы каждый кадр, поэтому DFN_RESTORE восстанавливал небо, но не погоду в нём. Найдено зоной ui приёмкой прицела: два прогона ОДНОГО рецепта разошлись на 1.79 % пикселей, все — небо и верхушки деревьев (строки 0–186, ниже 190-й пусто), при том что мерить надо было 72 пикселя метки. Локализовано зоной render: с приколотыми часами та же пара выходит ПОБИТОВО равной. И причина, почему вылезло сегодня, — не поломка, а то, что небо стало содержательнее: кучевые выросли с 2.8 % кадра до 26.8 %, и тот же дрейф двигает на порядок больше пикселей. Теперь часы одни, из тех же секунд, из которых выведено всё остальное здесь.
 */
 
 #include "engine/app/sources/App.h"
@@ -1903,6 +1904,15 @@ int App::run() {
         const double lunar = days / static_cast<double>(config::LUNAR_MONTH_DAYS);
         const float lunar_phase = static_cast<float>(lunar - std::floor(lunar));
         render::apply_sky_time(render_system_.environment(), day_fraction, lunar_phase);
+        // THE SKY HAD TWO CLOCKS. The sun and the moon have run off the frame
+        // counter for days -- that is what the `game_seconds_ += SIM_DT` above
+        // is for -- but the cloud drift and the wind envelope kept reading the
+        // wall clock every frame, so a restore restored the sky and not the
+        // weather in it. Measured by ui and localised by render: two runs of ONE
+        // recipe differed on 1.79% of pixels, all of it sky and treetops, and
+        // pinning the visual clock made the same pair bit-identical. One clock
+        // now, from the same seconds everything else here is derived from.
+        render_system_.set_visual_time(game_seconds_);
 
         // Authored darkness (LANDSCAPE §6.3). The rule has two halves —
         // ENCLOSED (rock actually overhead, so a shaft open to the sky is not
