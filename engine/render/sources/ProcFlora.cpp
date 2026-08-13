@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 20:05:00
+Last updated: 13:08:2026 - 22:00:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -197,6 +197,15 @@ UPD:
   sweep hook. The first attempt at this change moved the wood budget and the
   foliage budget in one step and the reading went the wrong way with no way to
   say which lever did it -- hence the hook.
+- 13:08:2026 - 22:00:00: THE GIANT TIER IS EXEMPT FROM THE FAR LOD'S WOOD CUT,
+  and the width clause is what exempts it. For an ordinary tree the crown is a
+  cloud of masses hung ON the wood, so cutting segments costs branches and not
+  crown span; for a species whose crown radius is a property of its ramification
+  (crown_radius_per_height > 0 — the great oak, whose crown IS its branch
+  system), cutting segments cuts the crown. Measured: the far LOD was handing
+  back a giant 17 % narrower under the OLD ladder and 22 % narrower under the
+  new one, against a Full diameter of 61.0 m -- silently, on the one species
+  whose read distance is kilometres. Both now 61.0.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -382,8 +391,21 @@ void seed_trunk_nodes(Skeleton& sk, glm::vec3 stem_base, glm::vec3 stem_top) {
 /// before, because wood is the expensive stream.
 ///
 /// DFN_FLORA_FARLOD=1 restores the old ladder for a one-variable comparison.
-uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod) {
+uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wood) {
     if (lod == FloraLod::Full) return full_segments;
+    // THE GIANT TIER IS EXEMPT, AND IT IS THE WIDTH CLAUSE THAT EXEMPTS IT
+    // rather than a wish to be gentle with the landmark. For an ordinary tree
+    // the crown is a cloud of foliage masses hung ON the wood, so cutting
+    // segments costs branches and not crown span. For a species whose crown
+    // radius is a property of its ramification (crown_radius_per_height > 0 —
+    // the great oak, whose crown IS its branch structure, Rule 52's reason for
+    // sending it down the structural path), cutting segments cuts the crown
+    // itself. Measured: at 45 % the giant lost 17 % of its built diameter and
+    // at 40 % it lost 22 %, both against a Full of 61.0 m — so the far LOD was
+    // quietly delivering a smaller landmark, which is the exact thing the
+    // second clause exists to forbid. It cost nothing to find and would have
+    // cost a frame at 2 km to notice.
+    if (crown_is_wood) return full_segments;
     if (flora_far_lod_arm()) return std::max(24u, full_segments * 45u / 100u);
     // VERIFICATION HOOK, NEVER A SHIPPING PATH (the same standing as
     // DFN_FLORA_NODES above it): sweep the far LOD's wood budget as a
@@ -1085,8 +1107,8 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
             segs = nodes;
         }
         if (t.lod == FloraLod::Reduced) {
-            nodes = far_lod_segments(nodes, t.lod);
-            segs = far_lod_segments(segs, t.lod);
+            nodes = far_lod_segments(nodes, t.lod, giant);
+            segs = far_lod_segments(segs, t.lod, giant);
         } else if (t.lod == FloraLod::Silhouette) {
             // Only the giant reaches this path (build_silhouette sends it here
             // rather than drawing a shell, Rule 52). An eighth of the budget
@@ -1219,7 +1241,8 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         // Reduced spends its saving on the SKELETON, which is what stops
         // resolving first: at that range the crown mass still reads and the
         // individual limbs do not.
-        cp.max_nodes = far_lod_segments(max_crown_segments(sp), t.lod);
+        cp.max_nodes = far_lod_segments(max_crown_segments(sp), t.lod,
+                                        sp.crown_radius_per_height > 0.0f);
         // Eq. (3)'s g: phototropism up, gravity down, and the open side for an
         // edge tree. One vector carries all three, which is why the paper needs
         // no separate tropism stage.
@@ -1251,7 +1274,8 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
     // species, every variant and every maturity tier under TREE_TRI_BUDGET_MAX
     // by construction, instead of by a per-species step size that is green when
     // it is written and red two sizes later.
-    const uint32_t max_segments = far_lod_segments(max_crown_segments(sp), t.lod);
+    const uint32_t max_segments = far_lod_segments(max_crown_segments(sp), t.lod,
+                                                   sp.crown_radius_per_height > 0.0f);
     decimate_to(sk, max_segments);
     // Radii are recomputed AFTER decimation: the pipe model counts supported
     // tips, and dissolving a chain node does not change the tip count while

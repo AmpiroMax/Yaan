@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 13:08:2026 - 20:05:00
+Last updated: 13:08:2026 - 22:00:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -190,6 +190,10 @@ UPD:
   re-recorded a second time the same evening: the far LOD stopped thinning, so
   every Reduced row rose and the two conifers now measure exactly their own Full
   figure. Note recorded in the case: nothing draws Reduced today.
+- 13:08:2026 - 22:00:00: The far-LOD case covers the GREAT OAK, which `ALL`
+  does not contain -- so every loop in this file walked past the one species
+  that spends its whole life at the far LOD. That gap is what let a 17 %
+  narrower giant ship unnoticed since before today.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -3630,7 +3634,17 @@ TEST_CASE("lod: the far crown is never MORE TRANSPARENT than the near one") {
         }
         return 0.5f * ((xhi - xlo) + (zhi - zlo));
     };
-    for (const FloraSpecies s : ALL) {
+    // GreatOak IS NOT IN `ALL` and this case is the reason that matters. Every
+    // loop in this file walks that array, so the giant — the one species whose
+    // read distance is kilometres, i.e. the one that spends its whole life at
+    // the far LOD — was covered by nothing. Measured when it was added: the far
+    // LOD was handing back a giant 17 % narrower under the old ladder and 22 %
+    // narrower under the new one, silently, on a landmark. Named explicitly
+    // here rather than pushed into ALL, because ALL feeds cases with their own
+    // reasons to exclude a 41 m tree.
+    std::vector<FloraSpecies> subjects{FloraSpecies::GreatOak};
+    for (const FloraSpecies s : ALL) subjects.push_back(s);
+    for (const FloraSpecies s : subjects) {
         if (!is_canopy_tree(s) && s != FloraSpecies::StuntedPine) continue;
         if (!has_leaf_cards(s)) continue;
         float full_worst = 1e9f;
