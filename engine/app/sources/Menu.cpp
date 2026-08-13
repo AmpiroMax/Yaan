@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 13:08:2026 - 20:25:00
+Last updated: 13:08:2026 - 20:00:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -39,10 +39,15 @@ UPD:
   живёт внутри них, и выход со страницы калибровки возвращается туда, откуда пришёл.
   Enter на строке значения делает то же, что стрелка вправо, — страница работает на
   клавишах, которые приложение уже шлёт.
-- 13:08:2026 - 20:25:00: Настройки достижимы С ПАУЗЫ (третья строка), и выход с них
+- 13:08:2026 - 19:50:00: Настройки достижимы С ПАУЗЫ (третья строка), и выход с них
   возвращает туда, откуда пришли. Настройка, которая нужна ПОСРЕДИ игры, — порог
   яркости: игрок узнаёт, что ничего не видит, стоя в пещере, а страница, живущая
   только на стартовом экране, отвечает на это «выйди из игры».
+- 13:08:2026 - 20:00:00: 320×180 — разрешение, которое страница настроек ПРЕДЛАГАЕТ, и
+  в котором она сама переставала читаться: длинные строки уходили за оба края
+  (замер: 5 и 10 чернильных пикселей в крайних столбцах, стало 0). Строка выбирается
+  ЗАМЕРОМ нарисованной ширины (`fits`), а не веткой по числу 320: ветка починила бы
+  сегодняшний русский и сломалась бы на первом переводе шире него.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -182,6 +187,20 @@ size_t cycle(size_t index, size_t count, int delta) {
         next += n;
     }
     return static_cast<size_t>(next);
+}
+
+// THE LINE THAT FITS, CHOSEN BY MEASURING RATHER THAN BY BRANCHING ON A
+// RESOLUTION. The settings page offers 320x180 as a rung, and at 320 px the
+// long instruction lines ran off BOTH edges -- the screen that exists to be
+// read was the screen that stopped being readable, one keypress away. A test
+// on the number 320 would have fixed today and broken on the first
+// translation that is wider than Russian; measuring the drawn width fixes
+// both, and it costs one comparison per line.
+[[nodiscard]] std::string_view fits(int w, std::string_view full,
+                                    std::string_view brief) {
+    // A cell of air on each side: a line that ENDS on the last pixel column
+    // reads as clipped even when it is whole.
+    return render::text_width_px(full) <= w - 2 * render::FONT_CELL_W ? full : brief;
 }
 
 void draw_centered(render::PixelCanvas& canvas, int y, std::string_view text,
@@ -418,8 +437,10 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
     canvas.clear(render::Color{0, 0, 0});
 
     draw_centered(canvas, h / 8, loc("menu.calibrate.title"), TITLE);
-    draw_centered(canvas, h / 8 + render::FONT_CELL_H * 2, loc("menu.calibrate.line1"), ITEM);
-    draw_centered(canvas, h / 8 + render::FONT_CELL_H * 3 + 2, loc("menu.calibrate.line2"), BLURB);
+    draw_centered(canvas, h / 8 + render::FONT_CELL_H * 2,
+                  fits(w, loc("menu.calibrate.line1"), loc("menu.calibrate.line1.short")), ITEM);
+    draw_centered(canvas, h / 8 + render::FONT_CELL_H * 3 + 2,
+                  fits(w, loc("menu.calibrate.line2"), loc("menu.calibrate.line2.short")), BLURB);
 
     // Squares big enough that the eye judges a TONE rather than a thin edge:
     // a one-step difference on a 4 px sliver is a different perceptual task
@@ -454,7 +475,8 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
     render::draw_text(canvas, vx + render::text_width_px(level) + render::FONT_CELL_W, vy,
                       value, ITEM_SELECTED, true);
 
-    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("menu.calibrate.keys"), BLURB);
+    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4,
+                  fits(w, loc("menu.calibrate.keys"), loc("menu.calibrate.keys.short")), BLURB);
 }
 
 // THE SETTINGS PAGE (the user's request: settings.cfg had five rows describing
@@ -542,9 +564,12 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     // not the frame in front of the player. A page that lets that happen
     // silently teaches the player that the settings do nothing.
     if (model.needs_restart()) {
-        draw_centered(canvas, h - render::FONT_CELL_H * 4, loc("menu.settings.restart"), BLURB);
+        draw_centered(canvas, h - render::FONT_CELL_H * 4,
+                      fits(w, loc("menu.settings.restart"), loc("menu.settings.restart.short")),
+                      BLURB);
     }
-    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("menu.settings.keys"), BLURB);
+    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4,
+                  fits(w, loc("menu.settings.keys"), loc("menu.settings.keys.short")), BLURB);
 }
 
 void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
@@ -670,7 +695,7 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
 
     // The control hint. On the pause page it stands on the world like the rest,
     // so it gets the same treatment as the block above -- a plate its own size.
-    const std::string_view hint = loc("menu.hint");
+    const std::string_view hint = fits(w, loc("menu.hint"), loc("menu.hint.short"));
     const int hint_y = h - render::FONT_CELL_H * 2 - 4;
     if (pause) {
         const int hw = render::text_width_px(hint);
