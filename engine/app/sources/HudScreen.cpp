@@ -1,6 +1,6 @@
 /*
-Created: 13:08:2026 - 20:08:00
-Last updated: 13:08:2026 - 20:08:00
+Created: 13:08:2026 - 19:38:00
+Last updated: 13:08:2026 - 20:00:00
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -12,9 +12,11 @@ AI Agents Notice (must follow):
 */
 /*
 UPD:
-- 13:08:2026 - 20:08:00: Created (user request). Four ticks with a hole in the
+- 13:08:2026 - 19:38:00: Created (user request). Four ticks with a hole in the
   middle, outlined; the hole and the outline are each a measured decision, see
   the comments at the constants.
+- 13:08:2026 - 20:00:00: Прячется в третьем лице и над картой; возвращает, было ли
+  что нарисовано, чтобы слой HUD не числился видимым, будучи пустым.
 */
 
 #include "engine/app/sources/HudScreen.h"
@@ -62,14 +64,18 @@ bool crosshair_enabled() {
     return on;
 }
 
-void draw_crosshair(render::PixelCanvas& canvas) {
+bool draw_crosshair(render::PixelCanvas& canvas, const HudFacts& facts) {
     if (!crosshair_enabled()) {
-        return;
+        return false;
+    }
+    // See the header for why this rule lives here and not at the call site.
+    if (facts.third_person || facts.map_open) {
+        return false;
     }
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
     if (w <= 0 || h <= 0) {
-        return;
+        return false;
     }
     // THE CENTRE IS THE CENTRE OF THE CAMERA RAY, and on an even-sized grid
     // that falls BETWEEN pixels. Rounding down puts the mark half a pixel up
@@ -97,6 +103,7 @@ void draw_crosshair(render::PixelCanvas& canvas) {
     for (const auto& t : ticks) {
         canvas.fill_rect(t.x, t.y, t.w, t.h, INK);
     }
+    return true;
 }
 
 } // namespace dfn::app
