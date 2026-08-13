@@ -1,0 +1,145 @@
+# Created: 13:08:2026 - 19:35:00
+# Last updated: 13:08:2026 - 19:35:00
+# Module: docs/acceptance
+# File: docs/acceptance/flora-forest-density-recipe.txt
+#
+# Responsibility:
+# - The recipe and the readings behind flora-forest-density-massif-*-9d79c6b.png:
+#   the pair LEAD asked for when TREE_SPACING_FOREST went 12-18 -> 5-7 m and
+#   core's §5.12 regression guard went red. The question the pair answers is
+#   ONE question and it is his: has the mountain stopped reading as a mountain.
+#
+# Key items:
+# - The vantage (§5.12's own), the two arms, the answer, and the SECOND finding
+#   the frames forced, which is larger than the one they were shot for.
+#
+# Dependencies:
+# - Uses: build_flora/engine/app/dfn_app, Tour's massif_probe (DFN_MASSIF_PROBE),
+#   tools/archive_frame.py.
+# - Used by: LEAD's ruling on the spacing; design, if §5.12 is re-derived.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - READ "WHY THIS PAIR IS NOT ONE BINARY" BELOW BEFORE QUOTING IT. Spacing is a
+#   compile-time constant with no dose door, so the arms are two builds. What
+#   makes the pair a controlled comparison instead of two pictures is written
+#   out and was verified, not assumed.
+#
+# UPD:
+# - 13:08:2026 - 19:35:00: Created with the pair for the 5-7 m ruling.
+
+THE QUESTION
+
+  The user: «леса должны быть плотнее, расстояние между деревьями нужно
+  уменьшить в 2-3 раза». 15 / 2.5 = 6 m, so TREE_SPACING_FOREST 12-18 -> 5-7
+  (the placement lattice reads the band's MEAN).
+
+  That turns core's §5.12 guard red — the share of the massif's LOW silhouette
+  hidden by trees from 350 m west goes 0.317 -> 0.580 against a < 0.50 ceiling.
+  Measured across the band, one variable:
+
+      band (mean)     trees    §5.12 hidden fraction
+      12-18 (15 m)     2144        0.317   <- the guard was written here
+       9-11 (10 m)     4723        0.495
+       7-9  (8 m)      7417        0.530
+       5-7  (6 m)     13446        0.580   <- red
+
+  The guard is a SURROGATE for "the massif reads as a massif and not as
+  something growing out of the forest". It was written when the forest stood
+  three times thinner and its 0.50 was never derived against today's request —
+  so the guard cannot be lowered to fit us, and it cannot be the verdict either.
+  The frame is the verdict (Rule 27).
+
+THE VANTAGE IS §5.12'S OWN
+
+  §5.12 judges from crag.center - {350, 0} = (480, 200) at PLAYER_EYE_HEIGHT,
+  looking at the crag (830, 200). Tour's massif_verdict step is exactly that
+  aim, so the shoot is the guard's own standpoint rather than a flattering one.
+
+  DFN_MASSIF_PROBE=1 DFN_MASSIF_EYE=480,200 DFN_TIME=0.30 \
+  DFN_TOUR=1 DFN_TOUR_DIR=<dir> DFN_WIND_FREEZE=120 DFN_NULL_PHYSICS=1 \
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 DFN_CLOUD=0 DFN_MENU=0 \
+  ./build_flora/engine/app/dfn_app | tee <dir>/run.log
+  then: python3 tools/archive_frame.py <src> <dst> 640
+
+  DFN_TIME=0.30 is design's own choice for this frame and it is the right
+  instrument here: a landmark reads by VALUE AGAINST SKY (§1.5), so a backlit
+  dark mass is the purest form of the question.
+
+WHY THIS PAIR IS NOT ONE BINARY, AND WHAT WAS DONE INSTEAD
+
+  TREE_SPACING_FOREST is a generated compile-time constant read by
+  WorldgenScatter, which is not this zone's file, so there is no dose door to
+  open and the arms are two builds. The danger that rule guards against is a
+  tree that six agents are committing to: a rebuild picks up everything else
+  that landed in between, and the pair then answers "did anything change".
+
+  So it was verified rather than hoped. Immediately before each build:
+    git rev-parse HEAD                     -> 9d79c6b, identical
+    shasum over every .cpp/.h/.json in engine/ and games/, sorted, hashed
+                                           -> 3f7f9c68..., identical
+  The only difference between the two binaries is the two NUMBERS rows. Both
+  builds ran inside four minutes of each other. State this whenever the pair is
+  quoted; do not quietly present it as a single-binary pair.
+
+THE ANSWER: THE MOUNTAIN STILL READS
+
+  Measured on the archived frames, over the massif's own 186 columns (x 285-470
+  at 640x360), classifying each column's topmost non-sky pixel as rock, wood or
+  leaf:
+
+      skyline owned by the MOUNTAIN     15 m: 154 of 186 (83 %)
+                                         6 m: 153 of 186 (82 %)
+      columns the trees took over        11
+      crest line pixel-IDENTICAL         91 of the mountain's 154 columns
+
+  The peak, the ridge and the whole right flank stand against the sky unchanged.
+  What the denser forest eats is the TOE — the low silhouette below the
+  cliffline, which is precisely the quantity §5.12 measures and precisely what a
+  closed forest in front of a mountain does. The guard is not broken; it is
+  measuring the thing it says it measures, and that thing is now allowed to be
+  bigger. Re-deriving it is design's, not ours to lower.
+
+THE SECOND FINDING, WHICH IS LARGER THAN THE ONE THE FRAMES WERE SHOT FOR
+
+  In the forest band of the same frames (x 0-280, y 95-200, i.e. the treeline at
+  roughly 70-250 m):
+
+                        share of band that is SKY   share that is DARK WOOD
+      15 m                        66 %                       25 %
+       6 m                        23 %                       75 %
+
+  At 6 m the treeline is three quarters TRUNK. The forest does not read as a
+  canopy that has closed up; it reads as a palisade of bare dark poles carrying
+  pale specks. Denser spacing did not create this — it multiplied it.
+
+  THE CAUSE IS IN THE GEOMETRY, NOT IN THE PLACEMENT, and it is measured
+  (triangles per tree, mean of 12 variants, wood stream vs card stream):
+
+      species  LOD        wood   cards   cards' share
+      oak      Full        802     198       0.20
+      oak      Reduced     396     123       0.24
+      pine     Full        619     179       0.22
+      pine     Reduced     442     102       0.19
+      birch    Full        926     185       0.17
+      birch    Reduced     409      98       0.19
+      willow   Full        837     174       0.17
+      willow   Reduced     397      99       0.20
+
+  A tree spends FOUR FIFTHS of its budget on wood at every distance, and the
+  LOD ladder halves both streams together — it never shifts the BALANCE. That is
+  the wrong shape for a level of detail: at 200 m a twig is sub-pixel and the
+  crown is the whole object, so a distant tree should shed WOOD and keep
+  FOLIAGE. Ours does the opposite by construction, and the frame is what that
+  looks like.
+
+WHAT THESE FRAMES DO NOT CERTIFY
+
+  - They do not certify the near canopy: at this vantage every tree is at
+    Reduced LOD. The near frames are flora-leaves-from-branches-near-*.
+  - They do not certify §5.12's ceiling. They answer whether the mountain reads;
+    whether 0.50 is still the right number is design's to re-derive.
+  - The pale, desaturated look of the foliage at this range is the canopy VALUE
+    defect already recorded in flora-leaves-from-branches-recipe.txt (2.5x too
+    bright at 400 m, hue surviving, identical in both flora arms). It is
+    render's, it is not caused by spacing, and it is visible in both frames.
