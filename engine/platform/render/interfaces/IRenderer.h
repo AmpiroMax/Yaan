@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 22:28:39
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -71,6 +71,9 @@ UPD:
                          that shipped, byte for byte.
 - 10:08:2026 - 23:32:21: RendererInitParams::msaa_samples — число выборок покрытия на внутренней цели как ПОЛЬЗОВАТЕЛЬСКАЯ настройка (синк №3), а не переменная окружения.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 22:28:39: DrawParams::casts_in_point_shadows -- stand-ins and light
+  holders opt out of the carried-light cube pass (see the field's comment for
+  the measured defect: floor at 2.79 m from a burning sconce read 0 of 255).
 */
 
 #pragma once
@@ -157,6 +160,16 @@ struct DrawParams {
     float highlight = 0.0f; // 0 = none; interaction hover and similar
     float aux0 = 0.0f;      // reserved, meaning is the program's
     float aux1 = 0.0f;
+    // False for STAND-IN geometry that disagrees with the fine world by
+    // construction — the coarse far-terrain LOD is built without the carves,
+    // so inside a tunnel it is solid rock through the very air the player
+    // walks. Such a draw may never enter a carried light's shadow cube: a
+    // torch only shadows within its few-metre radius, where the fine world is
+    // resident by definition, so the stand-in can only ever ADD occluders
+    // that do not exist. Found as "the whole frame reads 0 of 255 at 2.79 m
+    // from a burning sconce": every texel of every cube face held the LOD
+    // mountain's interior at centimetres from the flame.
+    bool casts_in_point_shadows = true;
 };
 
 // Per-frame environment + shared material parameters (atmosphere, splat

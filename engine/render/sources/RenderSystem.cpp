@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 20:37:12
+Last updated: 13:08:2026 - 22:28:39
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -115,6 +115,14 @@ UPD:
 - 13:08:2026 - 20:37:12: render() prefers the TOLD visual time over its own steady_clock read.
   See RenderSystem.h, set_visual_time, for the measurement (67.466 % of the sky
   between two runs of one recipe, 0.000 % with the clock pinned).
+- 13:08:2026 - 22:28:39: An entity with an ACTIVE CarriedLight no longer casts into
+  point shadows (casts_in_point_shadows = false): the sconce's own mesh holds
+  the flame, its head filled all six cube faces at 0.11-0.64 m, and the floor
+  2.79 m from a burning torch read 0 of 255 across the whole frame. With the
+  exemption the same box reads 4.49 luma; the defect arm
+  (DFN_SELF_POINT_CAST=1, same binary) reproduces the black frame exactly
+  (131312 lit pixels twice, bit for bit). The holder's true silhouette was
+  degenerate in the map anyway -- centimetres from its own light.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -820,7 +828,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // init); drawn lit+fogged via "prop".
     world.view<components::Transform, components::PreviousTransform,
                components::RenderMesh>()
-        .each([&](ecs::EntityId, components::Transform& curr,
+        .each([&](ecs::EntityId id, components::Transform& curr,
                   components::PreviousTransform& prev, components::RenderMesh& rm) {
             // Map discovery: a site is remembered as soon as its chunk is
             // resident, BEFORE the mesh lookup, so a site with no mesh is
@@ -857,8 +865,39 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             if (tex_it != texture_cache_.end()) {
                 texture.id = tex_it->second;
             }
+            platform::DrawParams params;
+            // A MESH THAT HOLDS A FLAME NEVER SHADOWS IT. The entity that
+            // carries an active CarriedLight (sconce, held torch, lantern)
+            // stands AT its own light, inside the light's near field, and the
+            // cube map cannot represent an occluder that surrounds its own
+            // origin: whatever fraction of the sphere the holder covers goes
+            // to zero for the whole frame. Measured on the wall sconce: the
+            // flame sits inside the mesh's head, every texel of all six faces
+            // held the head's surfaces at 0.11-0.64 m, and the floor 2.79 m
+            // from a burning torch read 0 of 255 across 230 400 pixels. The
+            // cost of the exemption is only ever the holder's own silhouette
+            // -- centimetres from the flame, degenerate in the map anyway.
+            // DFN_SELF_POINT_CAST=1 is the counterfactual arm: the holder
+            // casts again and the defect comes back, from this same binary
+            // (Rule 47). Loud, like every dose door here.
+            static const bool self_cast = [] {
+                const char* e = std::getenv("DFN_SELF_POINT_CAST");
+                const bool on = e != nullptr && *e == '1';
+                if (on) {
+                    std::fprintf(stderr,
+                                 "[render] DFN_SELF_POINT_CAST=1: light "
+                                 "holders cast into their own point shadows "
+                                 "again (the defect arm)\n");
+                }
+                return on;
+            }();
+            if (const auto* cl = world.get<components::CarriedLight>(id);
+                cl != nullptr && cl->active && !self_cast) {
+                params.casts_in_point_shadows = false;
+            }
             renderer.submit(platform::MeshHandle{mesh_it->second}, prop,
-                            interpolated_transform(prev, curr, alpha), texture);
+                            interpolated_transform(prev, curr, alpha), texture,
+                            params);
         });
 
     // Water: transparent, so submitted after all opaques (the backend renders

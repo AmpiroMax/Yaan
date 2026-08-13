@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:28:29
-Last updated: 09:08:2026 - 20:28:29
+Last updated: 13:08:2026 - 21:31:37
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_pointshadow.sh
 
@@ -34,6 +34,11 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 20:28:29: Created for interior lighting: cube shadows for the
   carried torch (up to MAX_SHADOW_POINT_LIGHTS lights).
+- 13:08:2026 - 21:31:37: Diagnostic doses on u_pointShadowParams.w (DFN_PS_DEBUG): 1 = sampled
+  atlas value, 2 = compare value dist/radius, 3 = uv-in-own-tile check. Ships
+  as 0.0 -- every branch dead, zero-dose arm is the shipping shader bit for
+  bit. Opened to split the "factor 0 with clear air" dungeon defect into
+  writer / sampler / compare without a GPU debugger.
 */
 
 #ifndef DFN_POINTSHADOW_SH
@@ -87,6 +92,32 @@ float dfn_point_shadow_factor(int index, vec3 wpos, vec3 n, vec3 lpos, float rad
     }
     vec2 uv = vec2(px, py) / pw;
     float stored = texture2D(s_pointShadow, uv).x;
+    // DIAGNOSTIC DOSES (u_pointShadowParams.w = DFN_PS_DEBUG, ships as 0.0 and
+    // every branch below is then dead, so the zero-dose arm is the shipping
+    // shader bit for bit). They split the "factor is 0 with clear air" defect
+    // into its only three hiding places without a GPU debugger:
+    //   3 = does uv land inside ITS OWN atlas tile? (1 = yes). The 4-column,
+    //       3-row atlas shape is the same two-file contract as the rows above.
+    //   2 = return the COMPARE value dist/radius (positive control: must show
+    //       a radial gradient, or the debug channel itself is broken).
+    //   1 = return the SAMPLED atlas value: ~1.0 everywhere means the tiles
+    //       are empty-and-clear and the compare is at fault; ~0.0 means the
+    //       tiles hold near-zero distances, i.e. the WRITER side is at fault.
+    if (u_pointShadowParams.w > 2.5) {
+        float tf = float(index * 6 + face);
+        float rowf = floor((tf + 0.5) / 4.0);
+        float colf = tf - 4.0 * rowf;
+        vec2 lo = vec2(colf / 4.0, rowf / 3.0);
+        vec2 hi = vec2((colf + 1.0) / 4.0, (rowf + 1.0) / 3.0);
+        return (uv.x >= lo.x && uv.x <= hi.x && uv.y >= lo.y && uv.y <= hi.y)
+                   ? 1.0 : 0.0;
+    }
+    if (u_pointShadowParams.w > 1.5) {
+        return clamp(dist / radius, 0.0, 1.0);
+    }
+    if (u_pointShadowParams.w > 0.5) {
+        return stored;
+    }
     // Nothing was rendered into this texel -> cleared to 1.0 -> lit.
     float bias = u_pointShadowParams.z;
     return (dist / radius) - bias <= stored ? 1.0 : 0.0;

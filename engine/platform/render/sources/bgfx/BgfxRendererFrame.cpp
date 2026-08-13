@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 20:19:19
+Last updated: 13:08:2026 - 22:29:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -110,6 +110,14 @@ UPD:
 - 13:08:2026 - 20:19:19: packed[38].z = the middle deck's thickness, 0.5 * WIND_FIELD_WAVELENGTH
   from the generated header, with DFN_DECK_THICK as its dose. Derivation and the
   measurement at dfn_env.sh, u_deckThick.
+- 13:08:2026 - 21:32:37: DFN_PS_DEBUG dose on u_pointShadowParams.w (was shipped unused): 1/2/3
+  select dfn_pointshadow.sh's diagnostic returns (sampled atlas value, compare
+  value, uv-in-own-tile). Default 0.0 keeps the shipping compare bit for bit.
+  Opened for the dungeon "point shadow factor is 0 with clear air" defect.
+- 13:08:2026 - 22:29:00: DFN_DUMP_POINT_ATLAS=<path> -- one-shot blit + readTexture of the cube
+  atlas, raw R32F. It is what convicted the culprit: every texel of all six
+  faces held 0.11-0.64 m, the light holder's own mesh, drawn UNSCALED (unit
+  space, Transform.scale 1) around its flame.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -124,6 +132,7 @@ UPD:
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 namespace dfn::platform {
 
@@ -219,6 +228,21 @@ void BgfxRenderer::Impl::touch_point_shadow_views() {
     }
 }
 
+// Defined below (the counterfactual-arm helper); declared here because the
+// point-shadow debug dose needs it before its definition.
+static float dose_env_override(const char* name, float fallback);
+
+// THE POINT-SHADOW DEBUG DOSE (DFN_PS_DEBUG), riding u_pointShadowParams.w,
+// which shipped unused. 0 (the default) is the shipping compare, bit for bit
+// — dfn_pointshadow.sh's debug branches are all dead at 0. 1/2/3 select the
+// shader's diagnostic returns (sampled atlas value / compare value /
+// uv-in-own-tile), opened to split the "shadow factor is 0 with clear air"
+// dungeon defect into writer, sampler and compare without a GPU debugger.
+static float point_shadow_debug() {
+    static const float value = dose_env_override("DFN_PS_DEBUG", 0.0f);
+    return value;
+}
+
 // Builds the six 90-degree face views for each shadow-casting light and
 // uploads the matrices the receivers sample with. Each face is a rectangle
 // of ONE atlas framebuffer, so the tile scale/offset is baked into the
@@ -276,7 +300,7 @@ void BgfxRenderer::Impl::update_point_shadows() {
                      MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES * 4);
     const float params[4] = {static_cast<float>(shadow_light_count),
                              POINT_SHADOW_NORMAL_OFFSET_M,
-                             POINT_SHADOW_BIAS_FRAC, 0.0f};
+                             POINT_SHADOW_BIAS_FRAC, point_shadow_debug()};
     bgfx::setUniform(u_point_shadow_params, params);
 }
 
@@ -805,7 +829,53 @@ void BgfxRenderer::end_frame() {
         im.pending_screenshot.clear();
     }
 
-    bgfx::frame();
+    // POINT-SHADOW ATLAS READBACK (DFN_DUMP_POINT_ATLAS=<path>): one-shot blit
+    // + readTexture of the cube-face atlas, written as raw R32F once ready.
+    // Diagnostic door in the same family as DFN_PS_DEBUG: it answers "what do
+    // the tiles actually HOLD" when the frame and the CPU-side geometry
+    // disagree about what the map should contain. Unset, this whole block is
+    // three loads and a branch.
+    {
+        static const char* dump_path = std::getenv("DFN_DUMP_POINT_ATLAS");
+        static uint32_t dump_state = 0; // 0 idle, 1 scheduled, 2 done
+        static uint32_t ready_frame = 0;
+        static bgfx::TextureHandle dump_tex = BGFX_INVALID_HANDLE;
+        static std::vector<float> dump_data;
+        static uint32_t frame_no = 0;
+        ++frame_no;
+        if (dump_path != nullptr && *dump_path != '\0'
+            && bgfx::isValid(im.point_shadow_atlas)) {
+            // Wait until the world has streamed in and the captured pose has
+            // settled: half the capture door's counted frames.
+            if (dump_state == 0 && frame_no >= 300) {
+                dump_tex = bgfx::createTexture2D(
+                    POINT_SHADOW_ATLAS_W, POINT_SHADOW_ATLAS_H, false, 1,
+                    bgfx::TextureFormat::R32F,
+                    BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK);
+                dump_data.resize(static_cast<std::size_t>(POINT_SHADOW_ATLAS_W)
+                                 * POINT_SHADOW_ATLAS_H);
+                bgfx::blit(VIEW_UPSCALE, dump_tex, 0, 0, im.point_shadow_atlas);
+                ready_frame = bgfx::readTexture(dump_tex, dump_data.data());
+                dump_state = 1;
+                std::fprintf(stderr,
+                             "[render] point atlas dump scheduled frame %u, "
+                             "ready %u -> %s\n", frame_no, ready_frame, dump_path);
+            }
+        }
+        const uint32_t done = bgfx::frame();
+        if (dump_state == 1 && done >= ready_frame) {
+            if (FILE* f = std::fopen(dump_path, "wb")) {
+                std::fwrite(dump_data.data(), sizeof(float), dump_data.size(), f);
+                std::fclose(f);
+                std::fprintf(stderr, "[render] point atlas dump written: %s "
+                                     "(%ux%u R32F)\n", dump_path,
+                             POINT_SHADOW_ATLAS_W, POINT_SHADOW_ATLAS_H);
+            }
+            bgfx::destroy(dump_tex);
+            dump_tex = BGFX_INVALID_HANDLE;
+            dump_state = 2;
+        }
+    }
     im.in_frame = false;
 }
 

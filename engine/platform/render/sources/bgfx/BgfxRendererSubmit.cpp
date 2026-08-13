@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 16:10:00
+Last updated: 13:08:2026 - 22:28:39
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -52,6 +52,12 @@ UPD:
   pending setTexture with the preceding submit, and a leaf card that punched a
   solid rectangle into the near map would raise the 40 px reading and lower the
   8 px one, i.e. produce the exact opposite of the claim under test.
+- 13:08:2026 - 22:28:39: The carried-light cube pass now honours
+  DrawParams::casts_in_point_shadows (the "фонарь не заслоняет собственное
+  пламя" defect: every cube texel held the light holder's own mesh at
+  0.11-0.64 m and the sconce lit NOTHING). DFN_LOD_POINT_CAST=1 and
+  DFN_SELF_POINT_CAST=1 are the counterfactual arms; DFN_PS_LOG=1 names every
+  draw entering a cube face -- the door that found the culprit.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -60,6 +66,8 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 namespace dfn::platform {
 
@@ -178,7 +186,26 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // Carried-light cube faces. Cutout casters are deliberately skipped: a leaf
     // card would punch its RECTANGLE into torchlight, and a canopy that casts
     // nothing under a torch is far less wrong than a canopy that casts boxes.
-    if (im.shadow_light_count > 0 && !is_transparent && !is_cutout) {
+    // STAND-IN geometry is skipped by the caller's own word
+    // (DrawParams::casts_in_point_shadows, see IRenderer.h): the coarse LOD
+    // terrain is built without the carves, and drawn into these faces it was
+    // solid rock through the tunnel's air — every texel of every face held
+    // "occluder at centimetres" and the sconce lit NOTHING (floor at 2.79 m
+    // read 0 of 255 across the whole frame). DFN_LOD_POINT_CAST=1 is the
+    // counterfactual arm: it restores the defect from this same binary, so
+    // the fix's before/after is a dose pair rather than two builds (Rule 47).
+    static const bool lod_point_cast = [] {
+        const char* e = std::getenv("DFN_LOD_POINT_CAST");
+        const bool on = e != nullptr && *e == '1';
+        if (on) {
+            std::fprintf(stderr, "[render] DFN_LOD_POINT_CAST=1: stand-in "
+                                 "geometry casts into point shadows again "
+                                 "(the defect arm)\n");
+        }
+        return on;
+    }();
+    if (im.shadow_light_count > 0 && !is_transparent && !is_cutout
+        && (params_in.casts_in_point_shadows || lod_point_cast)) {
         const glm::vec3 wcenter = world_center;
         const float wradius = world_radius;
         for (uint32_t li = 0; li < im.shadow_light_count; ++li) {
@@ -213,6 +240,26 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
                 }
                 if (outside) {
                     continue;
+                }
+                // DIAGNOSTIC (DFN_PS_LOG=1): name every draw that enters a
+                // cube face. Same family as DFN_PS_DEBUG — the atlas dump
+                // showed a surface 0.15-0.30 m under the flame that exists in
+                // no world mesh, so the writer's inputs are the question.
+                static const bool ps_log = [] {
+                    const char* e = std::getenv("DFN_PS_LOG");
+                    return e != nullptr && *e == '1';
+                }();
+                if (ps_log) {
+                    static int ps_log_count = 0;
+                    if (ps_log_count < 400) {
+                        ++ps_log_count;
+                        std::fprintf(stderr,
+                                     "[ps_log] li %u f %u mesh %u center "
+                                     "(%.2f %.2f %.2f) r %.2f dist %.2f\n",
+                                     li, f, mesh.id, world_center.x,
+                                     world_center.y, world_center.z,
+                                     world_radius, glm::length(to_center));
+                    }
                 }
                 bgfx::setUniform(im.u_point_caster, caster_params);
                 bgfx::setTransform(glm::value_ptr(transform));

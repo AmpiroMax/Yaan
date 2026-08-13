@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 13:08:2026 - 22:28:39
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -28,6 +28,9 @@ UPD:
   resident rectangle, update() re-ships stale clips through pending(), and
   node bounds are measured over INDEXED vertices only (a clipped mesh keeps
   its full vertex grid but must not cull as if it drew all of it).
+- 13:08:2026 - 22:28:39: LOD draws set casts_in_point_shadows = false: the coarse
+  stand-in is built without carves, so inside a tunnel it is rock through the
+  corridor's air, and a torch's cube map filled with it lights nothing.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -211,6 +214,16 @@ size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frus
         }
         platform::DrawParams params;
         params.fade = draw_node.fade;
+        // A COARSE STAND-IN NEVER CASTS INTO A CARRIED LIGHT'S CUBE. These
+        // nodes are built from the heightfield WITHOUT the carves, so inside
+        // a tunnel their geometry is solid rock through the corridor's own
+        // air; drawn into a torch's shadow faces they put "an occluder at
+        // centimetres" in every direction and the torch lights nothing at
+        // all (measured: floor at 2.79 m from a sconce read 0 of 255, whole
+        // frame). A torch's radius is metres, and within metres of a flame
+        // the FINE world is resident by definition — this flag can only
+        // remove occluders that do not exist.
+        params.casts_in_point_shadows = false;
         renderer.submit(platform::MeshHandle{it->second.mesh_id}, program, identity,
                         atlas, params);
         ++last_draw_count_;
