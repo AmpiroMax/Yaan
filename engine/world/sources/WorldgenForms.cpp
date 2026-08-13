@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 18:27:00
+Last updated: 13:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -57,6 +57,7 @@ UPD:
   says why it took a pitch rather than a strength: the 35-45 m hole that the
   back-tilted bench could only dent went from 1 pocket to 54, because at this
   pitch a crossing lands in that band instead of skipping it.
+- 13:08:2026 - 00:40:00: THE COMB IS RETIRED. draw_forms defaults to depth 0: a fixed 14 m pitch put 9.2 % of the ground's relief energy into the 8-20 m band where real land carries 0.00-0.05 %. Retired rather than deleted, and reachable at DFN_DRAW_DEPTH=1, because the rejected sample has to stay reproducible (Rule 51).
 */
 
 #include "engine/world/sources/WorldgenForms.h"
@@ -263,7 +264,22 @@ float drift(uint64_t seed, uint32_t stream, float cell, glm::vec2 world, float l
 
 float draw_forms(uint64_t seed, glm::vec2 world, float mask) {
     if (mask <= 0.0f) return 0.0f;
-    const float depth_scale = env_float("DFN_DRAW_DEPTH", 0.0f, 6.0f, -1.0f);
+    // THE COMB IS RETIRED, AND IT IS RETIRED RATHER THAN DELETED ON PURPOSE.
+    //
+    // This lattice bought the first non-zero GROUND_OCCLUSION_COUNT this project
+    // ever read, and the price is now measured: a fixed 14 m pitch put 9.2 % of
+    // the ground's relief energy into the 8-20 m band where real land carries
+    // 0.00-0.05 %, which is the "scratched with claws" the user is looking at.
+    // Its replacement is WorldgenFlow: valleys cut where the landform actually
+    // sends its water, at a spacing that comes out of a channel-head support
+    // area instead of being named.
+    //
+    // DEFAULT IS NOW OFF, and `DFN_DRAW_DEPTH=1` brings it back through this
+    // same code path. That is deliberate under Rule 51: the REJECTED SAMPLE has
+    // to stay reproducible, or the next zone to re-derive a threshold will have
+    // nothing to fail against. Everything below this line is the comb exactly as
+    // it shipped at 9888746 -- do not tidy it, it is evidence.
+    const float depth_scale = env_float("DFN_DRAW_DEPTH", 0.0f, 6.0f, 0.0f);
     if (depth_scale == 0.0f) return 0.0f; // the pass's own named control
 
     // WHERE A DRAW RUNS, AND IT IS NOT A NEW DIRECTION FIELD. The channel

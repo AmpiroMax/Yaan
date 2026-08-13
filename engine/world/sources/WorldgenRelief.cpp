@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:31:10
-Last updated: 13:08:2026 - 16:35:00
+Last updated: 13:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/WorldgenRelief.cpp
 
@@ -29,6 +29,7 @@ UPD:
   because the next person will have the same idea.
 - 13:08:2026 - 16:35:00: ground_relief() is now (meso + micro) * mask read off
   ground_relief_tiers() — one definition of the mask, one of each tier.
+- 13:08:2026 - 00:40:00: DFN_MESO_SCALE / DFN_MICRO_SCALE sweep doors (measurement only, exact no-ops at 1.0). They exist to APPORTION the 8-20 m band between the passes that fill it before any is changed: draws 56.5 %, this tier 39.6 %, terraces 3.8 %, macro landform 0.0 % -- and that last figure redirected the work, because it says the landform is not the problem.
 */
 
 #include "engine/world/sources/WorldgenRelief.h"
@@ -57,6 +58,18 @@ float smoothstep01(float t) {
 /// ground_micro_relief already uses for the same job — one drift scale for both
 /// tiers, so the roughness varies together rather than beating against itself.
 constexpr float AMP_DRIFT_CELL = 256.0f;
+
+/// A tier's amplitude multiplier for ONE RUN, read from the environment.
+/// Measurement only, never a shipping path: absent, it is exactly 1.0, so the
+/// shipped field is the same expression with no branch taken. Bounded at both
+/// ends so a typo cannot silently produce a world nobody meant to look at.
+float tier_scale(const char* name) {
+    if (const char* e = std::getenv(name)) {
+        const float v = std::strtof(e, nullptr);
+        if (v >= 0.0f && v <= 4.0f) return v;
+    }
+    return 1.0f;
+}
 
 
 /// THE WAVELENGTH SWEEP DOOR (measurement only, never a shipping path — the
@@ -207,8 +220,20 @@ ReliefTiers ground_relief_tiers(uint64_t seed, const TestbedLayout& layout, glm:
     ReliefTiers t;
     t.mask = relief_mask(layout, world, dist_to_water);
     if (t.mask <= 0.0f) return t;
-    t.meso = ground_meso_relief(seed, world) * std::clamp(meso_scale, 0.0f, 1.0f);
-    t.micro = ground_micro_relief(seed, world);
+    // TIER SWEEP DOORS (measurement only, never a shipping path — the same
+    // standing as DFN_MESO_ISO and DFN_MESO_LAMBDA_MAX above).
+    //
+    // They exist because the 8-20 m band has to be apportioned between the
+    // passes that fill it before any of them is changed, and differencing whole
+    // dumps is the only way to do that without trusting a model of the sum.
+    // Measured with them (docs/design/TERRAIN_REFERENCE.md): of the shipped
+    // 8-20 m band, the draws carried 56.5 %, THIS TIER 39.6 %, the terraces
+    // 3.8 % and the macro landform 0.0 %. That last figure is the one that
+    // redirected the work: the landform is not the problem and must not be
+    // touched — everything wrong with the fine band was laid ON it.
+    t.meso = ground_meso_relief(seed, world) * std::clamp(meso_scale, 0.0f, 1.0f)
+           * tier_scale("DFN_MESO_SCALE");
+    t.micro = ground_micro_relief(seed, world) * tier_scale("DFN_MICRO_SCALE");
     return t;
 }
 

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 13:08:2026 - 18:27:00
+Last updated: 13:08:2026 - 00:40:00
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -150,6 +150,7 @@ UPD:
   has names to land on.
 - 13:08:2026 - 18:04:00: Digest re-pinned for the back-tilted benches.
 - 13:08:2026 - 18:27:00: Digest re-pinned at the approved 14 m draw pitch.
+- 13:08:2026 - 00:40:00: testbed digest RE-PINNED to 0xf28a4e5d2d93ed0f for the drainage pass and the retired comb. `DFN_DRAW_DEPTH=1 DFN_FLOW_OFF=1` reproduces the old pin 0xbb0f8c74d3980922 byte for byte -- the equality that proves the new pass is an addendum and that the rejected sample is still reachable.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -249,7 +250,21 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     // 0x4952433a53d5a07c. (Intermediate states of the same afternoon, kept only so
     // a bisect has names to land on: 0x5f585ba0132f8eed at a 24 m draw pitch,
     // 0x010c93920abf2860 at 18 m before the cut banks.)
-    // `DFN_TERRACE_STRENGTH=0 DFN_DRAW_DEPTH=0` reproduces
+    // RE-PINNED A THIRD TIME 13.08.2026, and this one RETIRES a pass rather
+    // than adding one. The 14 m draw comb is off by default (WorldgenForms.cpp)
+    // and WorldgenFlow's drainage is on: valleys cut where the landform sends
+    // its water, at a channel-head support area of 20000 m^2 (~280 m spacing)
+    // instead of a named 14 m pitch. Old pin 0xbb0f8c74d3980922.
+    //
+    // THE CONTROL FOR THIS ONE IS `DFN_DRAW_DEPTH=1 DFN_FLOW_OFF=1`, and it
+    // reproduces 0xbb0f8c74d3980922 BYTE FOR BYTE. That equality is the whole
+    // argument that the drainage is an ADDENDUM: it proves the new pass did not
+    // disturb the plumbing, that the tier sweep doors are exact no-ops at 1.0,
+    // and that the rejected sample — the ground the user called "scratched with
+    // claws" — is still reachable from this binary for the next zone that has to
+    // fail a threshold against it (Rule 51).
+    //
+    // `DFN_TERRACE_STRENGTH=0 DFN_DRAW_DEPTH=0 DFN_FLOW_OFF=1` reproduces
     // THAT digest byte for byte, and that equality is the whole reason the
     // forms are written as addenda to the unformed ground rather than as a
     // re-derivation of it — a control that cannot reproduce the old world is
@@ -261,7 +276,7 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     serialization::Fnv1a64 h;
     h.update({reinterpret_cast<const std::byte*>(c.heightmap.samples.data()),
               c.heightmap.samples.size() * sizeof(uint16_t)});
-    CHECK(h.digest() == 0xbb0f8c74d3980922ull);
+    CHECK(h.digest() == 0xf28a4e5d2d93ed0full);
 }
 
 TEST_CASE("forest stand: deterministic (Rule 13.1) and waterless by declaration") {

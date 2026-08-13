@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -97,6 +97,7 @@ UPD:
   became a floor rather than a guard and silently deleted every cut in the
   world.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 00:40:00: the drainage is built on the MACRO landform (the same field hydrology solved on, so valleys and rivers agree which way the country drains) and applied in compose_passes BEFORE the draws and benches, carrying the same mask, so those two operators bank the valley instead of competing with it. It does NOT feed back into pond levels, ford depths or pads -- those were solved against the un-incised field, exactly the rule the forms went in under.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -306,6 +307,25 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
         return ctx;
     }
     ctx.hydrology = build_hydrology(params.seed, params.layout, domain_min, domain_max);
+    // THE DRAINAGE, and the position in this sequence is a decision rather than
+    // a convenience. It is built on the MACRO LANDFORM — the same field
+    // hydrology solved on — because the valleys have to agree with the rivers
+    // about which way this country drains; building it on the post-carve field
+    // would let the carve's own trench recruit the whole catchment into itself.
+    //
+    // It is built AFTER hydrology and applied only in compose_passes, i.e. it
+    // does NOT feed back into pond levels, ford depths or site pads. That is
+    // deliberate for today: the flat-reach and ford contracts were solved
+    // against the un-incised field, and a pass that moved them would have to
+    // re-derive all of them in the same commit. The forms went in under exactly
+    // this rule and it held.
+    {
+        const uint64_t seed = params.seed;
+        const TestbedLayout& lay = ctx.params.layout;
+        ctx.flow = build_flow(seed, domain_min, domain_max, FlowParams{},
+                              [&](glm::vec2 p) { return macro_height(seed, lay, p); },
+                              std::getenv("DFN_FLOW_OFF") == nullptr);
+    }
     // Re-validate placements that sit on the L0's slopes BEFORE anything is
     // sited against them (design's durable rule: re-validation is part of a
     // landmark change, not a follow-up).
@@ -432,10 +452,19 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
     // than be ironed into it. Reading a different height from the one it is
     // added to is deliberate and is why the identity above still holds.
     const float structural = ground + tiers.meso * tiers.mask + rock;
+    // THE DRAINAGE INCISION. It carries the SAME mask the forms carry, so the
+    // shore band, the graded corridors, the massif hem and в9's authored glade
+    // are exempt from a valley exactly as they are exempt from a bench — one
+    // exemption list, not two that have to be kept in step.
+    //
+    // It is applied BEFORE the draws and the benches on purpose: those two
+    // operators sharpen whatever relief they are given, so running them on the
+    // incised ground makes them bank the valley instead of competing with it.
+    const float d_flow = ctx.flow.sample(world) * form_mask;
     const float d_draw = draw_forms(ctx.params.seed, world, form_mask);
     const float d_terrace =
-        terrace_forms(ctx.params.seed, world, structural + d_draw, form_mask);
-    float benched = unformed + d_draw + d_terrace;
+        terrace_forms(ctx.params.seed, world, structural + d_flow + d_draw, form_mask);
+    float benched = unformed + d_flow + d_draw + d_terrace;
 
     // A FORM NEVER CUTS THE GROUND BELOW THE WATER STANDING BESIDE IT.
     //

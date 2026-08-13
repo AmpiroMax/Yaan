@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 12:08:2026 - 22:55:00
+Last updated: 13:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -55,6 +55,7 @@ UPD:
   world-level pass because the giants' spacing is DERIVED from the read distance
   of a 96 m crown and comes out longer than this world's diagonal: the count is
   an output, not a density, and it is one giant.
+- 13:08:2026 - 00:40:00: WorldGenContext::flow -- the drainage grid. A world-level pass because drainage area is a catchment quantity: a chunk computing its own would make channels that stop at its border.
 */
 
 #pragma once
@@ -63,6 +64,7 @@ UPD:
 #include "engine/world/sources/TestbedLayout.h"
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/WorldgenErosion.h"
+#include "engine/world/sources/WorldgenFlow.h"
 #include "engine/world/sources/WorldgenFinds.h"
 #include "engine/world/sources/WorldgenGreatOak.h"
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -96,6 +98,12 @@ struct WorldGenContext {
     /// sampling an empty grid returns 0, so the query is unconditional and only
     /// the BUILD is gated — one code path, per Rule 32.
     ErosionGrid erosion;
+    /// THE DRAINAGE (docs/design/TERRAIN_REFERENCE.md §6). Valleys cut where
+    /// the landform actually sends its water, baked once per world and sampled
+    /// as a delta. It is a WORLD-LEVEL pass and cannot be anything else:
+    /// drainage area is a catchment quantity, so a chunk computing its own
+    /// would produce channels that stop at its border.
+    FlowGrid flow;
     /// §8.1 path network (в7/в24). Empty on stands that do not declare paths;
     /// sampling an empty network reports "far from any path", so consumers
     /// need no stand check.

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 12:08:2026 - 22:51:00
+# Last updated: 13:08:2026 - 00:40:00
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -44,6 +44,7 @@
 #                          operator — the ground gets FORMS, after three noise
 #                          parameters in a row failed to make it hide itself).
 # - 12:08:2026 - 22:51:00: WorldgenGreatOak.cpp (GIANT_OAKS §2 placement: the
+# - 13:08:2026 - 00:40:00: WorldgenFlow.cpp -- the drainage pass that replaces the fixed-pitch draw comb.
 #                          clearing, and the rarity derived from read distance).
 
 add_library(dfn_world STATIC
@@ -58,6 +59,7 @@ add_library(dfn_world STATIC
     sources/WorldgenCarve.cpp
     sources/WorldgenCastle.cpp
     sources/WorldgenErosion.cpp
+    sources/WorldgenFlow.cpp
     sources/WorldgenFinds.cpp
     sources/WorldgenForest.cpp
     sources/WorldgenForms.cpp

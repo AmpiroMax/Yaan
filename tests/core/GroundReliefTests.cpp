@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 18:32:00
+Last updated: 13:08:2026 - 00:40:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -93,6 +93,7 @@ UPD:
   would judge with his FEET — the one quantity where being wrong is felt rather
   than seen, and it had only ever been read on seed 1. On all three worlds the
   formed ground is at least as reachable as the unformed.
+- 13:08:2026 - 00:40:00: the draw-spacing and bank-direction case now opens DFN_DRAW_DEPTH=1 for its own duration. It measures the RETIRED comb, so without the door it measured an empty field and tripped its own vacuity guard -- correctly. Kept running because it documents the rejected sample.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -965,6 +966,19 @@ TEST_CASE("diagnostic: how REGULAR are the draws (and what band can this see)") 
         return std::pair<double, double>{m, s / m};
     };
 
+    // THE COMB IS RETIRED AND THIS TEST NOW DOCUMENTS THE REJECTED SAMPLE.
+    //
+    // Everything below measures `draw_forms`, the fixed-pitch lattice that
+    // WorldgenFlow's drainage replaced (docs/design/TERRAIN_REFERENCE.md). That
+    // pass is off by default from 13.08.2026, so the door has to be opened here
+    // or the test measures an empty field and fails on its own vacuity guard —
+    // which is exactly what it did, and the guard was right to fire.
+    //
+    // It is kept RUNNING rather than deleted, and the reason is Rule 51: a
+    // threshold is only worth what its rejected sample is worth, and this is the
+    // ground the user called "scratched with claws". The next zone to re-derive
+    // GROUND_OCCLUSION_COUNT has to be able to fail against it.
+    setenv("DFN_DRAW_DEPTH", "1", 1);
     std::vector<float> shipped;
     gaps_at(shipped);
     setenv("DFN_DRAW_WANDER", "0", 1);
@@ -1071,6 +1085,7 @@ TEST_CASE("diagnostic: how REGULAR are the draws (and what band can this see)") 
     setenv("DFN_DRAW_TRIB_BEARING", "0", 1); // tributaries parallel to the trunk
     const double spread_parallel = bank_direction_spread();
     unsetenv("DFN_DRAW_TRIB_BEARING");
+    unsetenv("DFN_DRAW_DEPTH"); // the comb closes again with the case
     MESSAGE("bank-direction spread (axial, 0 = one axis): shipped " << spread_shipped
             << ", tributaries-parallel " << spread_parallel);
     CHECK(spread_shipped > spread_parallel);
