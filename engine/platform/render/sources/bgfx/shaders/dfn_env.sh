@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 18:10:00
+Last updated: 13:08:2026 - 18:18:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -150,6 +150,18 @@ UPD:
   98.18, a 10 % brightening of the world under a claim of preservation. Now
   divided by the fill a straight-up normal gets, so the surface u_ambientColor
   was calibrated on is the one that does not move.
+- 13:08:2026 - 18:18:00: CORRECTION TO THE SHAPE ABOVE, WITHIN THE HOUR, because
+  the first shipped form ANSWERED THE COMPLAINT BY DARKENING THE THING
+  COMPLAINED ABOUT. Referencing the fill to an up-facing normal is physically
+  right and artistically backwards here: every normal that is not up can then
+  only lose light, and measured it did — bole mean 22.18 -> 19.42, crown
+  68.21 -> 59.72, i.e. 12 % darker, for a bole p90/p10 of 1.01x -> 1.05x. The
+  user is looking at trees that read as absences; a fix that dims them is not
+  one. Now: min(n.y, 0.0) so only UNDERSIDES lose, and the sun term uses the
+  sun's AZIMUTH with its vertical component removed, so it is exactly 0 on
+  level ground and sweeps +-u_fillSun around a bole with zero mean. Measured,
+  one binary two arms: bole 1.01x -> 1.16x with its mean going UP 22.18 ->
+  23.25, whole frame 3.75x -> 4.19x with the mean held (83.22 -> 82.59).
 */
 
 #ifndef DFN_ENV_SH
@@ -725,23 +737,42 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
     //                    horizontal, and it is what turns a black stick back
     //                    into a cylinder.
     //
-    // REFERENCED TO A SURFACE FACING STRAIGHT UP, WHICH IS NOT COSMETIC. The
-    // first version was zero-mean over a SPHERE of normals and I wrote that it
-    // therefore could not move the frame's average. It moved it: a frame is not
-    // a sphere of normals, it is mostly GROUND, and ground faces up. Measured,
-    // the honest way, one binary two arms: whole-frame mean 84.81 -> 87.27 and
-    // the open-ground patch 88.90 -> 98.18, i.e. a 10 % brightening of the
-    // world smuggled in under a claim of preservation. So: divide by the fill a
-    // straight-up normal gets. u_ambientColor was calibrated against a world
-    // where every normal received it equally, and the ground is the surface it
-    // was judged on, so the ground is what must not move — everything else is
-    // now stated RELATIVE to it and the change is a pure redistribution.
+    // THE SHAPE OF THE TWO TERMS IS SET BY ONE REQUIREMENT: NEITHER MAY DARKEN
+    // THE THING THE USER IS COMPLAINING ABOUT. He is looking at trees that read
+    // as absences — "словно их нет" — so a fill that adds form by taking light
+    // away answers the letter of the complaint and not one word of its point.
+    // Two earlier shapes were built and measured and both failed on exactly
+    // that, which is why they are written down instead of quietly replaced:
     //
-    // The clamp is not decoration either: a hand-set DFN_FILL_* can exceed 1,
-    // and a negative fill would make the ambient SUBTRACT light.
-    float fill_ref = 1.0 + u_fillUp + u_fillSun * max(u_sunDir.y, 0.0);
-    float fill = (1.0 + u_fillUp * n.y + u_fillSun * dot(n, u_sunDir))
-               / max(fill_ref, 1e-3);
+    //   1 + up*n.y + sun*dot(n,s)          zero-mean over a SPHERE of normals,
+    //   and I claimed it therefore could not move the frame mean. A frame is
+    //   not a sphere of normals, it is mostly GROUND and ground faces up:
+    //   whole-frame mean 84.81 -> 87.27, open ground 88.90 -> 98.18. A 10 %
+    //   brightening of the world under a claim of preservation.
+    //
+    //   the same over fill(up)             fixes that by referencing the
+    //   surface u_ambientColor was calibrated on — and then every normal that
+    //   is NOT up can only lose: the bole went 22.18 -> 19.42 mean and the
+    //   crown 68.21 -> 59.72, i.e. 12 % darker, while the bole's p90/p10 moved
+    //   1.01x -> 1.05x. Physically defensible, and backwards for the defect.
+    //
+    // What is here now cannot darken an up-facing surface OR a vertical one:
+    //   min(n.y, 0.0)          only UNDERSIDES lose light. That is the sky-over-
+    //                          ground cue, and an overhang is the one place it
+    //                          should read as shade.
+    //   dot(n, sun_horizontal) the sun's AZIMUTH only, its vertical component
+    //                          removed. On the ground this is exactly 0, so the
+    //                          calibration surface does not move at all; around
+    //                          a bole it sweeps +-u_fillSun and averages to
+    //                          zero, so the trunk gains a lit side and a dark
+    //                          side without losing a single luma of its mean.
+    //
+    // The clamp is not decoration: a hand-set DFN_FILL_* can exceed 1, and a
+    // negative fill would make the ambient SUBTRACT light.
+    vec3 sun_h = vec3(u_sunDir.x, 0.0, u_sunDir.z);
+    float sun_h_len = length(sun_h);
+    sun_h = sun_h_len > 1e-4 ? sun_h / sun_h_len : vec3(0.0, 0.0, 0.0);
+    float fill = 1.0 + u_fillUp * min(n.y, 0.0) + u_fillSun * dot(n, sun_h);
     vec3 light = u_ambientColor * (sky * max(fill, 0.0));
     // Cloud shadow (W4): the same coverage field the sky draws, projected
     // along the sun. Lives HERE so every surface-lit thing — terrain, props,

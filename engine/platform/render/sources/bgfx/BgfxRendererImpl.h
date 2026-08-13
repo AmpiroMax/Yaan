@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:10:00
+Last updated: 13:08:2026 - 18:18:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -61,6 +61,9 @@ UPD:
   touched: a bole standing in its own canopy's shadow ran p90/p10 = 1.01x over
   228 pixels — one colour — because dfn_surface_light's shadow half-space had no
   surface normal in it at all. Paired with dfn_env.sh per the layout contract.
+- 13:08:2026 - 18:18:00: FILL_SUN_DEFAULT 0.25 -> 0.30 with the corrected fill
+  shape (see dfn_env.sh): the sun term is now the ONLY one a vertical bole can
+  use, the up term having been narrowed to undersides so it cannot dim a trunk.
 */
 
 #pragma once
@@ -321,8 +324,8 @@ inline constexpr uint16_t ENV_PARAM_VEC4S = 39; // layout contract with dfn_env.
 // shifts the mean would be indistinguishable from simply turning the ambient
 // up, and this zone has already been burned twice this week by a number whose
 // mean and distribution said different things.
-inline constexpr float FILL_UP_DEFAULT = 0.35f;   // up:down = 1.35/0.65 = 2.08x
-inline constexpr float FILL_SUN_DEFAULT = 0.25f;  // sunward:away = 1.25/0.75 = 1.67x
+inline constexpr float FILL_UP_DEFAULT = 0.35f;   // undersides only: 1.00 -> 0.65
+inline constexpr float FILL_SUN_DEFAULT = 0.30f;  // around a bole: 1.30/0.70 = 1.86x
 inline constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {
