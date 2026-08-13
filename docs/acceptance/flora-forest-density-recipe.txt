@@ -1,5 +1,5 @@
 # Created: 13:08:2026 - 19:35:00
-# Last updated: 13:08:2026 - 21:35:00
+# Last updated: 13:08:2026 - 23:45:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-forest-density-recipe.txt
 #
@@ -38,6 +38,10 @@
 #   withdrawn (forcing the far LOD moves the band 72.1 -> 73.1 %); and "at this
 #   vantage every tree is at Reduced LOD" was assumed and is false -- nothing
 #   has ever drawn Reduced.
+# - 13:08:2026 - 23:45:00: THE AIR MEASURED AND THE THIRD LEVER REFUTED, and
+#   every number in this file re-taken with the CLOCKS PINNED
+#   (DFN_VISTIME + DFN_WIND_FREEZE) after the sky was found to have two clocks.
+#   Conclusions unchanged; the readings moved by 1-2 points and are restated.
 
 THE QUESTION
 
@@ -264,3 +268,73 @@ ONE SENTENCE WORTH KEEPING, FROM THE FAR-LOD WORK RATHER THAN FROM THESE FRAMES
   TREE. Optical depth is card area over crown silhouette, so it can always be
   "improved" by shrinking the crown; any far-LOD criterion written on it needs
   the built width asserted beside it or it will be met by making the tree small.
+
+
+================================================================================
+THE AIR (13.08.2026) — THE THIRD LEVER, MEASURED AND REFUTED
+================================================================================
+
+FIRST, THE CLOCKS. Every reading in this file was re-taken with
+
+    DFN_VISTIME=100 DFN_WIND_FREEZE=100
+
+after the sky was found to run on two clocks (sun and moon from the frame
+number, cloud drift and the wind envelope from the wall clock), which put 1.79 %
+of pixels in play — all of it in the sky and the treetops, i.e. exactly the band
+these measurements read. With the clocks pinned, two runs of one recipe are
+BYTE-IDENTICAL (verified here: same sha over the archived frame). Pin them in
+any flora recipe that has sky in it.
+
+The conclusions did not move. The readings did, by a point or two, and these are
+the pinned ones:
+
+    treeline band, Full (shipped)   wood coverage 74.4 %   card coverage 42.1 %
+    treeline band, forced far LOD   wood coverage 75.5 %   card coverage 42.1 %
+    who stands in front, shipped    sky 21.2 %  WOOD 60.9 %  CARD 4.9 %
+
+THE HYPOTHESIS. In a real forest forty rows are not visible, because the air and
+the near crowns eat the sight line within tens of metres. Ours is nearly clear at
+250 m. So: give the woodland its share of air and the colonnade becomes a mass.
+
+REFUTED, AND FOR A REASON THAT SHOULD HAVE BEEN OBVIOUS BEFOREHAND — WHICH IS
+WHY IT WAS MEASURED. Sweeping the haze scale length (DFN_HAZE), one variable,
+clocks pinned, material door for the ownership:
+
+    haze L        sky    WOOD in front   CARD in front   wood:card
+    airless      20.2 %      61.0 %          5.1 %         11.9
+    600 m today  21.2 %      60.9 %          4.9 %         12.4
+    300 m        23.1 %      59.9 %          4.5 %         13.4
+    150 m        42.3 %      43.4 %          3.4 %         12.7
+    80 m         95.1 %       3.0 %          0.7 %          4.5
+
+THE RATIO DOES NOT MOVE. Haze is a per-pixel blend toward the sky colour by
+DEPTH; it cannot change WHICH SURFACE IS IN FRONT. The wood that owns these
+pixels is the NEAR trunk rows, and a near surface is exactly what depth-fog
+cannot remove. Past 150 m of scale length the forest stops being wood by
+dissolving into the sky, which is not the same thing as reading as canopy.
+
+AND IT COSTS THE LANDMARK FAST. The massif's own 186 columns, mean luminance
+step across the crest, against the airless control:
+
+    haze L        crest contrast    retention
+    airless             84.4          1.000
+    600 m (today)       50.5          0.598
+    300 m               34.9          0.414
+    150 m               33.6          0.398
+    80 m                25.5          0.302
+
+Design's HAZE_SILHOUETTE_RETENTION_MIN is 0.667. (Stated with its caveat: that
+constant was written for design's own verdict vantage, and this is §5.12's at
+350 m, so the FLOOR may not transfer — the DIRECTION does, and it is steep.)
+The air fades the mountain faster than it merges the trunks.
+
+AND THE AIR CANNOT GREEN §5.12 IN ANY CASE. That guard is a geometric ray trace
+over tree positions and heights in the generator; it never renders a pixel. No
+change to haze, or to any other render term, can move it by a thousandth.
+
+SO THERE IS NO LEVER INSIDE FLORA AT THIS SPACING. Ownership is decided by the
+nearest surface, and within the first 60 m alone the boles cover 65 % of the
+view at 6 m spacing. Bringing that to 30 % would need a bole of 0.21 m — a
+sapling. The three levers named earlier reduce to one: d/s, the bole over the
+spacing. The picture IS the spacing, and what to do about that is the user's
+call, not ours.
