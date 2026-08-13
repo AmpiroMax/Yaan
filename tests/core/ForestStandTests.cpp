@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 13:08:2026 - 17:32:00
+Last updated: 13:08:2026 - 17:56:00
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -145,6 +145,9 @@ UPD:
   old digest byte for byte, which is what makes this a deliberate change rather
   than a drift.
 - 13:08:2026 - 17:32:00: Digest re-pinned at the approved 18 m draw pitch.
+- 13:08:2026 - 17:56:00: Digest re-pinned for the cut banks; the two
+  intermediate digests of the same afternoon are recorded beside it so a bisect
+  has names to land on.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -241,8 +244,9 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     // RE-PINNED AGAIN 13.08.2026, same discipline, for §10.1.3's FORMS
     // (WorldgenForms.h): benches, risers and draws compose on every stand, so
     // the testbed heightmap moved on purpose a second time. Old pin
-    // 0x4952433a53d5a07c (and 0x5f585ba0132f8eed for the few minutes the draws sat
-    // at a 24 m pitch instead of the approved 18).
+    // 0x4952433a53d5a07c. (Intermediate states of the same afternoon, kept only so
+    // a bisect has names to land on: 0x5f585ba0132f8eed at a 24 m draw pitch,
+    // 0x010c93920abf2860 at 18 m before the cut banks.)
     // `DFN_TERRACE_STRENGTH=0 DFN_DRAW_DEPTH=0` reproduces
     // THAT digest byte for byte, and that equality is the whole reason the
     // forms are written as addenda to the unformed ground rather than as a
@@ -255,7 +259,7 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     serialization::Fnv1a64 h;
     h.update({reinterpret_cast<const std::byte*>(c.heightmap.samples.data()),
               c.heightmap.samples.size() * sizeof(uint16_t)});
-    CHECK(h.digest() == 0x010c93920abf2860ull);
+    CHECK(h.digest() == 0x4bc3b48aa42643a6ull);
 }
 
 TEST_CASE("forest stand: deterministic (Rule 13.1) and waterless by declaration") {

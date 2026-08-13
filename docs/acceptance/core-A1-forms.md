@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 17:34:00
+Last updated: 13:08:2026 - 17:56:00
 -->
 <!--
 UPD:
@@ -12,6 +12,9 @@ UPD:
   18 m draw pitch, the wander, the ending talwegs and the angled tributaries.
   The `+f1` pair stays as the first-light state — the frame in which this
   contract first read anything but zero.
+- 13:08:2026 - 17:56:00: The PLAIN pair — eye height on flat open ground away
+  from the tree line, which is the viewpoint the complaint is made from — plus
+  the pocket-by-distance histogram that moved the diagnosis.
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
@@ -145,3 +148,54 @@ manufactured look and a real objection, but it is not a loss of direction.
 reading rises.** Under either explanation — aliasing, or a genuine loss of fine-
 scale gradient coherence — the property §2.1 names is untouched at the scale it
 names it. Handed to design as evidence; the row and its instrument are theirs.
+
+
+---
+
+# THE PLAIN — the viewpoint the complaint is actually made from
+
+`core-plain-1301x149-{BEFORE,AFTER}-6cb99f7+p1.png`
+
+A1 is a haze frame that happens to stand on flat ground and aims at a mountain.
+This pair does not: **eye height, flat open legal ground, away from the tree
+line** — the ground the user means by «плоско как в майнкрафте». Same recipe as
+the A1 pair with `DFN_MASSIF_EYE=1301,149`; both arms one binary, the BEFORE arm
+being that binary with the operator at identity. (Shot from the tree at
+`6cb99f7` plus the cut-bank commit that carries this file's entry.)
+
+What has to be visible for the pair to mean anything:
+
+- **BEFORE**: a smooth green table with rocks and trees standing ON it. This is
+  §10.2's own phrase — «a flat table with props is a diorama» — arrived at from
+  the other side: the props were already there and the table is what makes the
+  frame fail.
+- **AFTER**: a swale crossing the middle distance with a shadowed edge, a dip
+  left of centre with a bank in it, and ground that rolls and breaks between
+  the feet and the outcrops.
+
+## Where the pockets actually are — the histogram that moved the diagnosis
+
+Counted on the drawn 2 m field at the pinned A1 standpoint, per 10 m of range,
+over all 64 frame columns:
+
+| | 5–15 | 15–25 | 25–35 | 35–45 | 45–55 | 55–60 m |
+|---|---|---|---|---|---|---|
+| forms off | 0 | 2 | 2 | 2 | 0 | 16 |
+| shipped | **55** | 37 | 44 | **1** | 34 | 9 |
+
+Two things fall out of it and neither was the expected one:
+
+1. **The near band was the assumption and it is the richest.** 5–15 m carries 55
+   pockets over 64 columns — the band whose grazing angle is 19° down to 6.5°,
+   i.e. the hardest one to satisfy — because a draw crossing at that range
+   throws a long shadow.
+2. **The hole is 35–45 m, and it is not a missing form.** That is where this
+   standpoint's own ground turns and begins to rise, and *rising ground below
+   eye level cannot hide anything, whatever is laid on top of it* — the sight
+   line falls away from it faster than the ground climbs. No density of forms
+   fixes that band at this standpoint; a different standpoint has the hole
+   somewhere else.
+
+And the control line is worth reading on its own: with the forms off, the frame
+contains **20 pockets in total and 16 of them are at the horizon** (55–60 m).
+Essentially every break in the shipped frame is made by this pass.
