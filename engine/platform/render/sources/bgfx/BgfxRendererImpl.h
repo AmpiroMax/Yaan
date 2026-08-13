@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:18:00
+Last updated: 13:08:2026 - 18:52:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -64,6 +64,12 @@ UPD:
 - 13:08:2026 - 18:18:00: FILL_SUN_DEFAULT 0.25 -> 0.30 with the corrected fill
   shape (see dfn_env.sh): the sun term is now the ONLY one a vertical bole can
   use, the up term having been narrowed to undersides so it cannot dim a trunk.
+- 13:08:2026 - 18:52:00: ENV_PARAM_VEC4S 39 -> 40 (slot 39 = THE CLOUD DECK
+  ALTITUDES, R3.4). Raised in its OWN step, before any shader reads the slot:
+  a fragment shader that indexes past the declared array is undefined, and the
+  half of this contract that lives in dfn_env.sh is one line away from the half
+  that lives here. This file's own history shows the pattern (33->35, 35->36,
+  36->37, 37->38, 38->39) and today it was broken once already.
 */
 
 #pragma once
@@ -127,6 +133,53 @@ inline constexpr float SHADOW_TEXEL_M =
 // birch trunk's whole shadow — and is now 0.156 m).
 inline constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
 inline constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
+
+// THE LIGHT DIRECTION'S ANGULAR GRID (user: "тени пока двигается солнце, себя
+// очень тяжело ведут, дергаются, колеблются, мерцают по краям").
+//
+// THE TEXEL SNAP ABOVE WAS HALF A FIX AND THE MISSING HALF IS HERE. The volume
+// centre is floor()ed onto the texel lattice IN LIGHT SPACE — and light space
+// turns with the sun, so the lattice itself rotates under every receiver. The
+// eye's light-space coordinate is an ABSOLUTE world position (~1050 m out at
+// the testbed's centre), so a rotation of 1.8e-5 rad — one frame of sun at
+// DAY_LENGTH_SECONDS 2880 — slides that coordinate by 1050 x 1.8e-5 = 19 mm,
+// an eighth of a texel, and the floor() crosses a boundary every few frames.
+// Each crossing moves the ENTIRE shadow map one texel, 0.156 m, at once.
+//
+// MEASURED, and not on frames — the defect lives BETWEEN two frames of ONE run
+// and every capture door here takes one frame per process. Two IDENTICAL runs
+// disagree by 32.8 % of the shadow mask because streaming and LOD state differ
+// every launch, which is ten times the effect under test, so a frame pair
+// cannot carry this claim at all. It is measured on the arithmetic instead —
+// same glm, same floats, same floor(), the same azimuth/elevation snap that is
+// written below — as the slide of the texel grid under a FIXED world point,
+// over 1200 frames (10 s) with receivers at 5..80 m:
+//
+//   quantum        mean slide/frame   median    jumps >= half a texel
+//   0 (shipped)      0.1720 texels    0.0938        11.5 per second
+//   0.00182 rad      0.0037 texels    0.0000         0.1 per second
+//
+// For scale, the sun's OWN motion in one frame displaces a 20 m caster's shadow
+// by 0.36 mm. The grid was sliding SEVENTY-FIVE TIMES that, and stepping a full
+// 0.156 m texel eleven times a second. That is the wobble, and it is arithmetic
+// rather than resolution: removing it costs nothing.
+//
+// WHY THIS VALUE, DERIVED RATHER THAN FITTED, and it is the one number here
+// that could have been fitted: at a snap the shadow steps by the quantum ITSELF
+// in angle, so a receiver r metres away steps r x quantum metres — which
+// subtends the quantum from the eye no matter what r is. Budget it at HALF A
+// PIXEL of the internal target and the value falls out:
+//   0.5 x CAMERA fov_y 1.309 / 360 rows = 0.00182 rad
+// The sweep agrees rather than choosing: 0.0005 / 0.001 / 0.002 / 0.005 rad all
+// take the median to zero and land between 0.1 and 2.1 events per second
+// against 11.5, so the pick is the derivation's and not the luckiest row's.
+//
+// WHAT THIS DOES NOT TOUCH is the third thing the same sentence complained
+// about — "они из сильно больших квадратных блоков рисуются". That is
+// SHADOW_TEXEL_M, 0.156 m, a resolution question with a frame-time price (see
+// the near cascade above), not an arithmetic one. Snapping is free; blocks are
+// not. DFN_SHADOW_SNAP=0 is the control arm and restores the previous frame.
+inline constexpr float SHADOW_DIR_SNAP_RAD = 0.00182f;
 
 // --- THE NEAR CASCADE (R6b: the dapple's GRAIN) ------------------------------
 //
@@ -292,7 +345,7 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 39; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 40; // layout contract with dfn_env.sh
 
 // SLOT 38 — THE FILL'S DIRECTION (user: "тёмные деревья, словно их нет, как
 // чёрное пятно ... она должна быть темнее переда, но цвет одинаковый").

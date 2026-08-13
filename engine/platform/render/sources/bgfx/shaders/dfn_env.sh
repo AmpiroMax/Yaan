@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 18:18:00
+Last updated: 13:08:2026 - 18:52:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -162,6 +162,13 @@ UPD:
   level ground and sweeps +-u_fillSun around a bole with zero mean. Measured,
   one binary two arms: bole 1.01x -> 1.16x with its mean going UP 22.18 ->
   23.25, whole frame 3.75x -> 4.19x with the mean held (83.22 -> 82.59).
+- 13:08:2026 - 18:52:00: env block 39 -> 40, and NOTHING ELSE. Slot 39 will carry
+  the CLOUD DECK ALTITUDES (R3.4), which stop being #defines because the user
+  asked for the ceiling's height to be a FIELD with a legal range — that is how
+  a place's weather and climate will be read off the sky. The size is raised in
+  its own commit, ahead of the first read: this contract is two lines in two
+  files (here and BgfxRendererImpl.h) and a shader indexing past the declared
+  array is undefined behaviour that surfaces as somebody else's broken build.
 */
 
 #ifndef DFN_ENV_SH
@@ -172,7 +179,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[39];
+uniform vec4 u_envParams[40];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
