@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 18:19:00
+Last updated: 13:08:2026 - 18:21:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -83,6 +83,11 @@ UPD:
   was built against and the world every frame was shot in. Forms off reads p5 0
   and median 0-1 on all three; with the forms, median 2-3. The family is not a
   property of one draw of the dice.
+- 13:08:2026 - 18:21:00: The ground UNDERFOOT (5 m disc), because §10.1 reads a
+  20 m disc and §10.1.3's band starts at 5 m — every other number in this file
+  is about ground the player is looking AT, and nothing measured the ground he
+  stands ON. It reads 0.034 m median with the forms off, i.e. a table, and
+  0.179 m with them; the flattest tenth goes 0.017 -> 0.050 m.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1153,4 +1158,70 @@ TEST_CASE("diagnostic: the forms across seeds, each at its own flattest ground")
                         << per_column[per_column.size() / 2] << " max " << per_column.back()
                         << ", sigma " << gr.sigma);
     }
+}
+
+// --- THE GROUND UNDERFOOT, WHICH NO CONTRACT IN THIS PROJECT MEASURES --------
+//
+// §10.1's instrument reads a 20 m disc and §10.1.3's band starts at 5 m, so
+// every number in this file is about ground the player is LOOKING AT. The
+// ground he is STANDING ON — the first few metres, the part in the bottom third
+// of every frame he will ever see — is measured by nothing, and the complaint
+// that started this work ("flat like Minecraft") is at least partly about it.
+//
+// Reported, not gated: the band belongs to §10.2's seam (the heightmap owns 4 m
+// and up, objects own what is finer) and a floor on it is design's to set. The
+// question this answers is narrower and worth an answer: DO THE FORMS REACH IT?
+TEST_CASE("diagnostic: what the forms do to the ground underfoot (5 m disc)") {
+    const auto& ctx = shipped_world();
+    // The same detrended-sigma construction §10.1.2 uses, at a 5 m radius on the
+    // 2 m lattice the ground is built on: fit a plane, take the residual.
+    const auto sigma5 = [&](glm::vec2 c) {
+        constexpr float S = static_cast<float>(config::HEIGHTMAP_STEP);
+        std::vector<glm::vec3> pts;
+        for (float dz = -4.0f; dz <= 4.0f; dz += S) {
+            for (float dx = -4.0f; dx <= 4.0f; dx += S) {
+                if (dx * dx + dz * dz > 25.0f) continue;
+                pts.push_back({dx, dz, world::terrain_height(ctx, c + glm::vec2{dx, dz})});
+            }
+        }
+        double sx = 0, sz = 0, sh = 0, sxx = 0, szz = 0, sxz = 0, sxh = 0, szh = 0;
+        const auto n = static_cast<double>(pts.size());
+        for (const auto& p : pts) {
+            sx += p.x; sz += p.y; sh += p.z;
+            sxx += p.x * p.x; szz += p.y * p.y; sxz += p.x * p.y;
+            sxh += p.x * p.z; szh += p.y * p.z;
+        }
+        const double dxx = sxx - sx * sx / n, dzz = szz - sz * sz / n, dxz = sxz - sx * sz / n;
+        const double dxh = sxh - sx * sh / n, dzh = szh - sz * sh / n;
+        const double det = dxx * dzz - dxz * dxz;
+        const double a = det != 0.0 ? (dxh * dzz - dzh * dxz) / det : 0.0;
+        const double b = det != 0.0 ? (dzh * dxx - dxh * dxz) / det : 0.0;
+        const double c0 = (sh - a * sx - b * sz) / n;
+        double ss = 0.0;
+        for (const auto& p : pts) {
+            const double r = p.z - (a * p.x + b * p.y + c0);
+            ss += r * r;
+        }
+        return std::sqrt(ss / n);
+    };
+    const auto census = [&]() {
+        std::vector<double> v;
+        for (float z = 300.0f; z < 1700.0f; z += 64.0f) {
+            for (float x = 300.0f; x < 1700.0f; x += 64.0f) {
+                const glm::vec2 p{x, z};
+                if (world::relief_floor_binds(ctx, p)) v.push_back(sigma5(p));
+            }
+        }
+        std::sort(v.begin(), v.end());
+        return std::pair<double, double>{v[v.size() / 2], v[v.size() / 10]};
+    };
+    const auto [med_on, p10_on] = census();
+    setenv("DFN_TERRACE_STRENGTH", "0", 1);
+    setenv("DFN_DRAW_DEPTH", "0", 1);
+    const auto [med_off, p10_off] = census();
+    unsetenv("DFN_TERRACE_STRENGTH");
+    unsetenv("DFN_DRAW_DEPTH");
+    MESSAGE("detrended sigma over a 5 m disc, legal open ground: shipped median " << med_on
+            << " (p10 " << p10_on << "), forms off median " << med_off << " (p10 " << p10_off
+            << ")");
 }
