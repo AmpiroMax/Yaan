@@ -1,0 +1,77 @@
+# Created: 13:08:2026 - 23:33:00
+# Last updated: 13:08:2026 - 23:33:00
+# Module: docs/acceptance
+# File: docs/acceptance/flora-united-bole-recipe.txt
+#
+# Responsibility:
+# - The recipe and readings behind flora-united-bole-*-ea605cd.png and
+#   flora-bole-closeup-AFTER-ea605cd.png: the two-trunk defect («ветки своими
+#   углами из основания торчат») measured, fixed, and photographed.
+#
+# Key items:
+# - The probe numbers (both arms, one binary), the shoot commands, and what
+#   the pair may and may not certify.
+#
+# Dependencies:
+# - Uses: build_flora/engine/app/dfn_app @ ea605cd, tools/archive_frame.py,
+#   docs/TREE_MODELS_RESEARCH.md (the diagnosis this fix answers).
+# - Used by: LEAD's report to the user on complaint 1 (branch joints).
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly. Both arms are ONE binary; the door
+#   is DFN_FLORA_ONEBOLE (=0 restores the invisible-trunk growth).
+#
+# UPD:
+# - 13:08:2026 - 23:33:00: Created with the ea605cd pair and the close-up.
+
+THE DEFECT, AS A NUMBER (probe: per level-1 branch base, distance from its
+start point to the drawn wood; 12 variants x 3 broadleaves, Full, one binary)
+
+  arm            oak                     birch                   willow
+  zero dose      53.6 % off any drawn    100 % off the drawn     60.6 % off any
+                 wood, worst 2.12 m      bole surface, mean      drawn wood,
+                 (vs bole surface:       2.62 m                  worst 0.50 m
+                 97 % at mean 5.30 m,
+                 worst 13.78 m)
+  UNITED (ship)  0 %                     0 %                     0 %
+
+  Mechanism: the Weber grower raised base_splits+1 invisible trunk axes from
+  the base (outward lean 0.16 rad + curve wander) and hung every limb on them,
+  while the mesh drew ONE different, swept bole. The fix pins level 0 to the
+  drawn trunk's polyline and forks the leaders, DRAWN, at its end.
+
+THE SHOOT (both frames; the arm is the only variable)
+
+  DFN_CAPTURE_AFTER_FRAMES=600 DFN_FLORA_PROBE=1 \
+  DFN_TOUR=1 DFN_TOUR_DIR=<dir> DFN_NULL_PHYSICS=1 \
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 DFN_TIME=0.5 DFN_MENU=0 \
+  DFN_VISTIME=100 DFN_WIND_FREEZE=100 \
+  ./build_flora/engine/app/dfn_app
+  ...zero-dose arm: the same command with DFN_FLORA_ONEBOLE=0.
+  ...the bole close-up (the MANDATORY frame from the 13.08 ruling):
+     the same command plus DFN_FLORA_EYE=622,769 DFN_FLORA_PITCH=0.55.
+  then: python3 tools/archive_frame.py <src> <dst> 640
+
+  flora-united-bole-AFTER-ea605cd.png     shipped arm, the probe's own vantage
+  flora-united-bole-CONTROL-ea605cd.png   zero dose, same binary
+  flora-bole-closeup-AFTER-ea605cd.png    at the bole, pitched up the trunk
+
+WHAT THE PAIR SHOWS
+
+  Control: whole branch systems hang in mid-air beside bare poles (centre
+  right of the frame), horizontal limbs float with no tree under them (top
+  left) — the invisible axes, seen. Shipped: every limb leaves a bole or a
+  drawn leader; the close-up follows one trunk from the flare into the crown
+  with the branches growing out of IT.
+
+WHAT THESE FRAMES DO NOT CERTIFY
+
+  - The crowns are still bare-limbed with sparse tufts: that is the leaf
+    CLUSTER defect (complaint 2, «наждачка»), the next change, and these
+    frames are its BEFORE.
+  - The boles still bend as one arc (complaint 3) — untouched by this change.
+  - Suite standing at ea605cd: 47/51 shipped arm, and the four reds predate
+    the change (the 1300->2600 ceiling; DFN_FLORA_NODES=90 -> 51/51). One
+    assertion inside the far-LOD case changed sides because the willow's Full
+    crown got DEEPER (2.65 -> 4.21) and Reduced now lags it; re-measured with
+    the cluster change, which moves both arms.
