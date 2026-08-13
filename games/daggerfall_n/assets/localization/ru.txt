@@ -44,6 +44,19 @@ debug.compass.s=юг
 debug.compass.sw=юго-запад
 debug.compass.w=запад
 debug.compass.nw=северо-запад
+
+# Метки ЛЕНТЫ-КОМПАСА. Порядок и соглашение те же, что у слов выше (0 = север =
+# -Z, по часовой стрелке), но это ОДНО-ДВУХБУКВЕННЫЕ метки, а не проза: на ленте
+# восемь меток сразу, и «северо-восток» на полосе в 426 px — это стена. Правило
+# для переводчика: не длиннее двух знаков.
+hud.compass.n=С
+hud.compass.ne=СВ
+hud.compass.e=В
+hud.compass.se=ЮВ
+hud.compass.s=Ю
+hud.compass.sw=ЮЗ
+hud.compass.w=З
+hud.compass.nw=СЗ
 debug.gait.walk=шаг
 debug.gait.jog=трусца
 debug.gait.run=бег
