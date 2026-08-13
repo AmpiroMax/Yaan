@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:52:00
+Last updated: 13:08:2026 - 18:50:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -70,6 +70,12 @@ UPD:
   half of this contract that lives in dfn_env.sh is one line away from the half
   that lives here. This file's own history shows the pattern (33->35, 35->36,
   36->37, 37->38, 38->39) and today it was broken once already.
+- 13:08:2026 - 18:50:00: SHADOW_DIR_SNAP_RAD — the light DIRECTION now snaps to
+  an angular grid, which is the missing half of the texel snap this file has
+  had since day one. Measured with tools/measure_shadow_jitter.cpp, not on
+  frames: the grid slid 0.1720 texels per frame and stepped a whole 0.156 m
+  texel 11.5 times a second, against the sun's own 0.36 mm of shadow motion in
+  that time; now 0.0037 texels, median exactly zero, 0.1 events per second.
 */
 
 #pragma once

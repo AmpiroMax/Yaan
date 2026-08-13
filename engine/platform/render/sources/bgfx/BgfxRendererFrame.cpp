@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:10:00
+Last updated: 13:08:2026 - 18:50:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -78,6 +78,10 @@ UPD:
   material that moved under us this week" — and both come out of one binary.
 - 13:08:2026 - 18:10:00: packed[38] = the fill's direction (DFN_FILL_UP /
   DFN_FILL_SUN, both doses, both 0 restoring the previous frame exactly).
+- 13:08:2026 - 18:50:00: update_shadow snaps the light direction (azimuth and
+  elevation, floor onto SHADOW_DIR_SNAP_RAD) before building the light view,
+  AFTER the elevation test so a snap can never flick shadows on and off across
+  the horizon. DFN_SHADOW_SNAP is its dose and 0 restores the previous frame.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -413,6 +417,30 @@ void BgfxRenderer::Impl::update_shadow() {
         if (dir.y > SHADOW_MIN_SUN_ELEVATION) {
             shadow_active = true;
             enabled = 1.0f;
+            // THE LIGHT DIRECTION IS SNAPPED TO AN ANGULAR GRID, and this is the
+            // other half of the texel snapping below — without it that snap
+            // cannot work at all. Derivation and numbers in the constant's own
+            // block (SHADOW_DIR_SNAP_RAD, BgfxRendererImpl.h). Short form: the
+            // volume centre is snapped in LIGHT space, and light space turns
+            // with the sun, so the whole world-space lattice rotates under
+            // every receiver even though the sun moves 0.36 mm per frame.
+            // Freezing the direction between steps makes the lattice genuinely
+            // stationary, which is what the eye-centre snap was written to
+            // assume.
+            //
+            // AFTER the elevation test on purpose: whether the sun is up at all
+            // is decided by the real sun, so a snap can never flick shadows on
+            // and off across the horizon.
+            static const float dir_snap =
+                dose_env_override("DFN_SHADOW_SNAP", SHADOW_DIR_SNAP_RAD);
+            if (dir_snap > 0.0f) {
+                const float az = std::atan2(dir.x, dir.z);
+                const float el = std::asin(std::clamp(dir.y, -1.0f, 1.0f));
+                const float qaz = std::floor(az / dir_snap) * dir_snap;
+                const float qel = std::floor(el / dir_snap) * dir_snap;
+                const float ce = std::cos(qel);
+                dir = glm::vec3(ce * std::sin(qaz), std::sin(qel), ce * std::cos(qaz));
+            }
             constexpr float H = SHADOW_HALF_EXTENT_M;
             constexpr float D = SHADOW_DEPTH_HALF_M;
             // Orientation-only light view; the volume center (the camera
