@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 17:30:00
+Last updated: 13:08:2026 - 18:10:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractionSystem.cpp
 
@@ -30,6 +30,14 @@ UPD:
   eye, ray hit, distance, verb, prompt key. A tick that found nothing writes a
   row saying so, because a gap and a zero read the same and only one of them is
   information.
+- 13:08:2026 - 18:10:00: THE FIRST ENTITY A WORLD SPAWNS COULD NOT BE
+  INTERACTED WITH. `packed()` is `index << 32 | generation`, so entity {0,0}
+  packs to 0, and update_hover threw away every hit whose user_data was 0 as
+  "no entity". The ray found the prop, the hit was discarded, and no prompt
+  appeared however carefully you aimed. Surfaced by a probe where the torch
+  happened to be entity 0 and the geometrically identical lever beside it
+  hovered perfectly. The running game escapes it only because the app spawns
+  the player and the chunk entities first — luck, not design.
 */
 
 #include "engine/gameplay/sources/InteractionSystem.h"
@@ -179,11 +187,28 @@ void update_hover(ecs::World& world, const platform::IPhysics& physics) {
                             physics::LAYER_INTERACTABLE);
         row.hit = hit.hit;
         row.distance = hit.distance;
-        if (!hit.hit || hit.user_data == 0) {
+        if (!hit.hit) {
             break;
         }
 
         // user_data carries the EntityId bits (packed()); rebuild and validate.
+        //
+        // THERE IS NO `user_data == 0` TEST HERE, AND THAT IS A FIX. It used to
+        // read `if (!hit.hit || hit.user_data == 0) break;` on the reasonable-
+        // looking ground that 0 means "no entity" — but `packed()` is
+        // `index << 32 | generation`, so the entity {index 0, generation 0}
+        // packs to EXACTLY 0. The first entity a World ever spawns is therefore
+        // invisible to the crosshair: the ray hits its box, the hit is thrown
+        // away as "nothing", and no prompt appears however carefully you aim.
+        // Found by a probe that spawned the props into a fresh world, where the
+        // torch WAS entity 0 and the identical lever beside it hovered fine.
+        //
+        // It does not bite the running game today only by accident — the app
+        // spawns the player and a great many chunk entities before any prop —
+        // which is exactly the kind of luck that stops holding the day someone
+        // reorders startup. `world.alive()` below is the real validation, and
+        // every body on LAYER_INTERACTABLE is created by spawn_interactable
+        // (checked repo-wide), so a hit here always carries a real id.
         const ecs::EntityId target{static_cast<uint32_t>(hit.user_data >> 32),
                                    static_cast<uint32_t>(hit.user_data & 0xFFFFFFFFull)};
         if (!world.alive(target)) {

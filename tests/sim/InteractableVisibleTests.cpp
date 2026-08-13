@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 17:30:00
-Last updated: 13:08:2026 - 17:30:00
+Last updated: 13:08:2026 - 18:10:00
 Module: tests
 File: tests/sim/InteractableVisibleTests.cpp
 
@@ -30,6 +30,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 17:30:00: Created with the three placeholder meshes.
+- 13:08:2026 - 18:10:00: The entity-{0,0} case: the first prop a world spawns
+                         packs to user_data 0 and used to be untargetable.
 */
 
 #include <doctest/doctest.h>
@@ -44,7 +46,10 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/InteractableMesh.h"
 #include "engine/gameplay/sources/InteractableSpawn.h"
+#include "engine/gameplay/sources/InteractionSystem.h"
+#include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/Interaction.h"
+#include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
 
 namespace {
@@ -366,4 +371,40 @@ TEST_CASE("the ids stay inside the range render blessed for this zone") {
         CHECK(id >= 50);
         CHECK(id <= 63);
     }
+}
+
+TEST_CASE("the FIRST entity a world spawns can still be interacted with") {
+    // `EntityId::packed()` is `index << 32 | generation`, so entity {0, 0} packs
+    // to exactly 0 — and update_hover used to discard every ray hit whose
+    // user_data was 0 as "no entity". The first prop in a fresh world was
+    // therefore untargetable: the ray found its box, the hit was thrown away,
+    // and no prompt appeared however carefully the player aimed.
+    //
+    // The running game escaped it only because the app spawns the player and
+    // hundreds of chunk entities before any prop. This case removes the luck.
+    auto physics = platform::create_jolt_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+    world.add_resource(components::HoverTarget{});
+
+    gameplay::InteractableDesc desc;
+    desc.kind = gameplay::InteractableKind::Usable;
+    desc.position = {2.0f, 1.5f, 0.0f};
+    desc.prompt_key = "prompt.use";
+    const dfn::ecs::EntityId first = gameplay::spawn_interactable(world, *physics, desc);
+    // The precondition the case is about. If the ECS ever stops handing out
+    // index 0 first, this REQUIRE says so instead of the case quietly passing
+    // for a reason that has nothing to do with the bug.
+    REQUIRE(first.index == 0u);
+    REQUIRE(first.generation == 0u);
+    REQUIRE(first.packed() == 0u);
+
+    const dfn::ecs::EntityId player = world.spawn();
+    world.add(player, gameplay::PlayerState{});
+    world.add(player, components::CameraPose{{0.0f, 1.5f, 0.0f}, 1.5707963f, 0.0f});
+
+    gameplay::update_hover(world, *physics);
+    CHECK(world.resource<components::HoverTarget>().entity == first);
+    CHECK(world.resource<components::HoverTarget>().verb ==
+          static_cast<uint8_t>(gameplay::InteractionVerb::Use));
 }

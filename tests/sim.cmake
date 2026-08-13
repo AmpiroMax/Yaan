@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 13:08:2026 - 17:45:00
+# Last updated: 13:08:2026 - 18:10:00
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -61,6 +61,8 @@
 #                          watershed), with the control arms for each claim.
 # - 13:08:2026 - 17:30:00: Added sim_interactable_visible.
 # - 13:08:2026 - 17:45:00: Added sim_great_oak_stair (RED on purpose; label known-defect).
+# - 13:08:2026 - 18:10:00: sim_interactable_visible links dfn_physics (the
+#                          entity-{0,0} targeting case needs the Jolt backend).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -144,7 +146,7 @@ add_dfn_test(sim_flora_collision sim/FloraCollisionTests.cpp
 # Asserts against render's ACTUAL ECS selector, and measures how much of each
 # prop's target box has the prop behind it.
 add_dfn_test(sim_interactable_visible sim/InteractableVisibleTests.cpp
-    dfn_gameplay dfn_render dfn_platform_physics dfn_core)
+    dfn_gameplay dfn_render dfn_physics dfn_platform_physics dfn_core)
 
 # THE GREAT OAK'S STAIR -- THE GATE, AND IT IS RED ON PURPOSE TODAY.
 # Climbs the tread pairs with the real character controller against the real

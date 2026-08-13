@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 11:08:2026 - 15:00:03
+Last updated: 13:08:2026 - 18:10:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -68,6 +68,27 @@ UPD:
                          key_script() for the argument and
                          docs/FINDING_RUN_SMEAR.md for what a settled instrument
                          cost this project. Intents only, same path as a key.
+- 13:08:2026 - 18:00:00: THE BOT PRESSES THE VERB (user: «ни с чем
+                         взаимодействовать не могу, хотя текст появляется»).
+                         No automated run had ever pressed one, so the report
+                         could not be reproduced without a human at the
+                         keyboard. It writes `interact_pressed`, the same latch
+                         a human's E sets, and the world is CENSUSED every tick
+                         -- interactables alive, doors open, levers used, items
+                         carried -- printed first -> last beside the press
+                         count. The suspicion worth testing was never "the
+                         press is lost"; it was "the press arrives, the verb
+                         fires, and nothing is different for it", and only a
+                         count can say that.
+- 13:08:2026 - 18:10:00: THE CENSUS COUNTS TRANSITIONS, not endpoints, and the
+                         first version cost a wrong diagnosis to find out. A
+                         door TOGGLES: sixteen opens and sixteen shuts leave
+                         "doors_open 0 -> 0", which reads as "the verb never
+                         fires" -- the opposite of the truth, and it was one
+                         cross-check away from being reported as the answer.
+                         Endpoints cannot see a toggle. Both are printed now,
+                         and the transition counts are the ones that answer the
+                         question.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -82,6 +103,8 @@ UPD:
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/gameplay/sources/Interaction.h"
+#include "engine/gameplay/sources/Inventory.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/StepFeel.h" // step_length: the slip bound scales with the stride
 
@@ -254,13 +277,71 @@ PlaytestState make_playtest(const PlaytestConfig& config) {
     return pt;
 }
 
+// Seconds between two presses of the verb key. Not a NUMBERS row: it is a
+// tool's pacing, and nothing outside this file has to agree with it. Long
+// enough that a door is not toggled twice in the same doorway, short enough
+// that a bot walking past a prop still gets one press in.
+constexpr float INTERACT_COOLDOWN_SECONDS = 1.0f;
+
+// Everything the world can show for a verb having been pressed. Cheap (a few
+// dozen entities), taken every tick, and printed first -> last: the question
+// "did anything change" cannot be answered by a single sample, and the one
+// thing worse than an unanswered question here is a confident wrong answer.
+struct WorldCensus {
+    uint32_t interactables = 0;
+    uint32_t doors_open = 0;
+    uint32_t levers_used = 0;
+    uint32_t inventory_items = 0;
+};
+
+[[nodiscard]] WorldCensus census_of(ecs::World& world) {
+    WorldCensus c;
+    for (auto [id, h] : world.view<Highlightable>()) {
+        (void)id;
+        (void)h;
+        ++c.interactables;
+    }
+    for (auto [id, o] : world.view<Openable>()) {
+        (void)id;
+        c.doors_open += o.open ? 1u : 0u;
+    }
+    for (auto [id, u] : world.view<Usable>()) {
+        (void)id;
+        c.levers_used += u.used ? 1u : 0u;
+    }
+    for (auto [id, inv] : world.view<Inventory>()) {
+        (void)id;
+        for (const ItemStack& stack : inv.stacks) {
+            c.inventory_items += stack.count;
+        }
+    }
+    return c;
+}
+
 void playtest_drive(PlaytestState& pt, ecs::World& world) {
+    // THE VERB. Pressed on the same latch a human's E key sets, so the whole
+    // path downstream is the real one (the bot must only ever write input
+    // intents -- see this file's notice).
+    pt.interact_cooldown_s = std::max(0.0f, pt.interact_cooldown_s - DT);
+    const bool prompt_up =
+        world.has_resource<components::HoverTarget>()
+        && world.alive(world.resource<components::HoverTarget>().entity)
+        && world.resource<components::HoverTarget>().verb != 0;
+
     for (auto [id, state, transform] :
          world.view<PlayerState, components::Transform>()) {
         (void)id;
         if (pt.finished) {
             state.move_axes = {0.0f, 0.0f};
             return;
+        }
+        if (prompt_up) {
+            ++pt.hover_ticks;
+            if (pt.interact_cooldown_s <= 0.0f) {
+                state.interact_pressed = true;
+                pt.interact_cooldown_s = INTERACT_COOLDOWN_SECONDS;
+                ++pt.interact_presses;
+            }
         }
         pt.sim_seconds += DT;
         if (pt.config.duration_seconds > 0.0f
@@ -382,6 +463,35 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
 size_t playtest_check(PlaytestState& pt, ecs::World& world,
                       const PlaytestCheckEnv& env) {
     size_t new_incidents = 0;
+    // The census, before any invariant: it must be taken whether or not this
+    // tick has a player to check, or a run that ended oddly would report a
+    // "last" that is really a "some time ago".
+    {
+        const WorldCensus c = census_of(world);
+        if (!pt.census_seeded) {
+            pt.census_seeded = true;
+            pt.interactables_first = c.interactables;
+            pt.doors_open_first = c.doors_open;
+            pt.levers_used_first = c.levers_used;
+            pt.inventory_first = c.inventory_items;
+        } else {
+            // TRANSITIONS, not endpoints. See the note on these fields: a door
+            // that opens and shuts an even number of times is indistinguishable
+            // from a door nobody touched, if you only look at the ends.
+            pt.door_state_changes += (c.doors_open != pt.doors_open_last) ? 1u : 0u;
+            pt.lever_state_changes += (c.levers_used != pt.levers_used_last) ? 1u : 0u;
+            if (c.interactables < pt.interactables_last) {
+                pt.interactables_removed += pt.interactables_last - c.interactables;
+            }
+            if (c.inventory_items > pt.inventory_last) {
+                pt.inventory_gained += c.inventory_items - pt.inventory_last;
+            }
+        }
+        pt.interactables_last = c.interactables;
+        pt.doors_open_last = c.doors_open;
+        pt.levers_used_last = c.levers_used;
+        pt.inventory_last = c.inventory_items;
+    }
     for (auto [id, state, transform] :
          world.view<PlayerState, components::Transform>()) {
         (void)id;
@@ -568,6 +678,24 @@ void playtest_write_artifacts(const PlaytestState& pt, const std::string& run_di
     for (const auto& [name, count] : by_invariant) {
         summary << "  " << name << ' ' << count << '\n';
     }
+    // THE VERB LINE. Presses next to everything the world can show for them:
+    // if the presses are non-zero and every first -> last pair is unchanged,
+    // the chain reaches the last step and stops there, and that is a statement
+    // about CONSEQUENCE rather than about wiring.
+    summary << "hover_ticks " << pt.hover_ticks << '\n'
+            << "interact_presses " << pt.interact_presses << '\n'
+            << "interactables_alive " << pt.interactables_first << " -> "
+            << pt.interactables_last << '\n'
+            << "doors_open " << pt.doors_open_first << " -> " << pt.doors_open_last
+            << '\n'
+            << "levers_used " << pt.levers_used_first << " -> " << pt.levers_used_last
+            << '\n'
+            << "inventory_items " << pt.inventory_first << " -> " << pt.inventory_last
+            << '\n'
+            << "door_state_changes " << pt.door_state_changes << '\n'
+            << "lever_state_changes " << pt.lever_state_changes << '\n'
+            << "interactables_removed " << pt.interactables_removed << '\n'
+            << "inventory_gained " << pt.inventory_gained << '\n';
     summary << "distance_walked_m " << pt.distance_walked << '\n'
             << "sim_seconds " << pt.sim_seconds << '\n'
             << "ticks " << pt.tick << '\n'
