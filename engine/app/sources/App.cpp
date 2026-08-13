@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 11:08:2026 - 13:48:13
+Last updated: 13:08:2026 - 15:56:20
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -97,6 +97,7 @@ UPD:
 - 10:08:2026 - 23:32:21: Настройка msaa в settings.cfg рядом с разрешением и палитрой: это то, что остановило рябь на линии леса, и понижать её — зрительная регрессия, а не только производительность. Неверное значение отвергается ГРОМКО.
 - 10:08:2026 - 23:51:30: Клавиши по запросу пользователя: 1 — вид от третьего лица (стоя мышь вращает камеру ВОКРУГ персонажа и он не поворачивается, в движении камера встаёт за спину), 2 — отладочный экран, 3 — снимок состояния. F2/F3 оставлены псевдонимами, иначе все записанные рецепты съёмки стали бы неверными. В третьем лице возвращается голова — в первом она скрыта намеренно.
 - 11:08:2026 - 13:48:13: DFN_FRAME_LOG — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, без обратного чтения, без отстоя, без заморозки тика. Пользователь нашёл изъян нашего метода раньше нас: «при прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет». Все наши двери съёмки гасят ровно то, на что наведены, поэтому дефект МЕЖДУ кадрами два дня приходил чистым. Первый же прогон дал размах fov_y 5.951° при беге против 0.0000° на ходьбе и стоя.
+- 13:08:2026 - 15:56:20: DFN_PLAYTEST_ROUTE — маршрут бота абсолютными мировыми координатами. Запрошен зоной dungeon: маршрут patrol был зашит на четыре точки в двух метрах от спавна, притом что PLAYTEST.md сам называет его назначением «scripted acceptance walks (the crag tunnel, the castle ford)». То есть ни один автоматический прогон никогда не был ВНУТРИ чего-либо, а подземелья стоят в 500 м. Кривое значение отвергается ВСЛУХ: молчаливый откат на кольцо у спавна дал бы прогон, отчитывающийся «ходил по тоннелю» и померивший лужайку.
 */
 
 #include "engine/app/sources/App.h"
@@ -928,6 +929,69 @@ bool App::enter_world(uint32_t stand) {
                              g, g);
                 return false;
             }
+        }
+        // DFN_PLAYTEST_ROUTE="x,z;x,z;..." -- ABSOLUTE world coordinates.
+        //
+        // Why this door exists: patrol's route was hardwired to four points two
+        // metres around the spawn, and PLAYTEST.md names patrol's own purpose as
+        // "scripted acceptance walks (the crag tunnel, the castle ford)". The
+        // route was always meant to be given; it simply was never exposed, so no
+        // automated run has ever been INSIDE anything -- explorer picks random
+        // goals, soak circles the spawn, and the dungeons sit 500 m away.
+        //
+        // REFUSED OUT LOUD on a malformed value, for the same reason as
+        // DFN_PLAYTEST_GAIT above and one degree worse: folding a typo back to
+        // the spawn ring would produce a run that reports "walked the tunnel"
+        // having measured a lawn. A wrong measurement that looks like a right
+        // one is the failure mode this whole harness is built against.
+        if (const char* rt = std::getenv("DFN_PLAYTEST_ROUTE");
+            rt != nullptr && *rt != '\0') {
+            std::vector<glm::vec2> route;
+            const std::string spec(rt);
+            size_t pos = 0;
+            bool ok = true;
+            while (pos < spec.size() && ok) {
+                const size_t end = std::min(spec.find(';', pos), spec.size());
+                const std::string pair = spec.substr(pos, end - pos);
+                pos = end + 1;
+                if (pair.empty()) {
+                    continue; // a trailing ';' is not an error
+                }
+                const size_t comma = pair.find(',');
+                if (comma == std::string::npos) {
+                    ok = false;
+                    break;
+                }
+                char* xe = nullptr;
+                char* ze = nullptr;
+                const std::string xs = pair.substr(0, comma);
+                const std::string zs = pair.substr(comma + 1);
+                const float x = std::strtof(xs.c_str(), &xe);
+                const float z = std::strtof(zs.c_str(), &ze);
+                // strtof reports "no conversion" by leaving the end pointer at
+                // the start -- checking that is what separates "0" from "oops".
+                if (xe == xs.c_str() || ze == zs.c_str()) {
+                    ok = false;
+                    break;
+                }
+                route.push_back({x, z});
+            }
+            if (!ok || route.empty()) {
+                std::fprintf(stderr,
+                             "[playtest] DFN_PLAYTEST_ROUTE=\"%s\" is not "
+                             "\"x,z;x,z;...\" -- REFUSING to run, because a run "
+                             "that quietly walked the spawn ring would be "
+                             "reported as walking that route\n",
+                             rt);
+                return false;
+            }
+            ptc.mode = gameplay::BotMode::WaypointPatrol;
+            ptc.waypoints = std::move(route);
+            ptc.loop_waypoints = true;
+            std::fprintf(stderr, "[playtest] route: %zu waypoints, first (%.1f, %.1f)\n",
+                         ptc.waypoints.size(),
+                         static_cast<double>(ptc.waypoints.front().x),
+                         static_cast<double>(ptc.waypoints.front().y));
         }
         const glm::vec4 wbz = chunks_.world_bounds_xz();
         ptc.world_min = {wbz.x + 16.0f, wbz.y + 16.0f};
