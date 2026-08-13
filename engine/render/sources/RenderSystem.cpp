@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 20:37:12
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -112,6 +112,9 @@ UPD:
   place term's wavelength is two world widths, so this is a slow trend across
   the map, not something a walking player can watch move.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 20:37:12: render() prefers the TOLD visual time over its own steady_clock read.
+  See RenderSystem.h, set_visual_time, for the measurement (67.466 % of the sky
+  between two runs of one recipe, 0.000 % with the clock pinned).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -586,8 +589,17 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
 
     // Frame environment: visual clock drives water/UV animation only (never
     // simulation — Rule 12 keeps gameplay off the wall clock; this is render).
-    environment_.time_seconds = std::chrono::duration<float>(
-        std::chrono::steady_clock::now() - clock_start_).count();
+    // ONE CLOCK IF THE CALLER HAS ONE, the wall clock if not. See
+    // RenderSystem::set_visual_time for the measurement: with the app's own
+    // frame-deterministic clock told to us, two runs of a recipe come out byte
+    // for byte; with this steady_clock read they differed by 67.5 % of the sky.
+    // The wall-clock branch stays because a caller that never says anything
+    // must keep the behaviour it had.
+    environment_.time_seconds =
+        visual_time_told_
+            ? told_visual_time_
+            : std::chrono::duration<float>(
+                  std::chrono::steady_clock::now() - clock_start_).count();
     // DFN_VISTIME pins the visual clock: wind envelope, water scroll and the
     // cloud drift all become pure functions of the pinned value, which is
     // what makes the two-timestamp drift pair deterministic evidence.

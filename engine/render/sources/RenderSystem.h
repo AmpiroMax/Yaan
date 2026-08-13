@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 20:37:12
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -114,6 +114,16 @@ UPD:
   DFN_NO_TUFTS=1 is the counterfactual arm.
 - 13:08:2026 - 16:45:00: DFN_ENV_LOG (env_log_) — покадровый лог потреблённого окружения; см. .cpp.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 20:37:12: set_visual_time — THE SKY HAD TWO CLOCKS and only one of them was fixed.
+  The sun and moon run off the app's game clock, which a tour advances by a fixed
+  step per frame; the cloud drift and the wind envelope ran off a steady_clock
+  read in render(). Measured, two runs of ONE binary on ONE recipe (sky probe):
+  67.466 % of pixels differed with that clock free and 0.000 %, byte for byte,
+  with it pinned. The defect is as old as the field; it SURFACED now because the
+  sky gained enough structure for a few metres of drift to move a majority of it,
+  which is worth stating plainly so nobody concludes that cloud volume broke the
+  acceptance method. Additive and latched: until a caller tells the time, the
+  wall-clock path is bit-identical to what shipped.
 */
 
 #pragma once
@@ -309,6 +319,32 @@ public:
     // time_seconds is overwritten each frame from the render-side visual clock.
     [[nodiscard]] platform::RenderEnvironment& environment() { return environment_; }
 
+    /// THE VISUAL CLOCK, TOLD FROM OUTSIDE — and it exists because this project
+    /// had TWO of them and fixed only one.
+    ///
+    /// Everything animated in a frame runs off a clock: the sun and moon off the
+    /// app's `game_seconds_`, the cloud drift and the wind envelope off
+    /// `environment_.time_seconds`, which this class reads from `steady_clock`.
+    /// The app already made the FIRST one frame-deterministic during a tour
+    /// (game_seconds_ += SIM_DT, with the reasoning written beside it: "a
+    /// machine that runs the tour faster photographs a world at a different
+    /// hour"). The second was left on the wall clock, so the same recipe run
+    /// twice photographed the same hour with the CLOUDS SOMEWHERE ELSE.
+    ///
+    /// MEASURED, two runs of one binary on one recipe, sky probe: 67.466 % of
+    /// pixels differ (max 137/255) with the clock free, and 0.000 % — byte for
+    /// byte — with it pinned. The defect had been latent since the field was
+    /// built; it surfaced when the sky gained enough structure for a few metres
+    /// of drift to move a majority of it.
+    ///
+    /// Call once per frame with the same clock the sky is drawn from. Until a
+    /// caller does, behaviour is bit-identical to before: the steady clock is
+    /// used exactly as it was. DFN_VISTIME still overrides both.
+    void set_visual_time(double seconds) {
+        visual_time_told_ = true;
+        told_visual_time_ = static_cast<float>(seconds);
+    }
+
     // Water plane capability (stage 3) -----------------------------------------
     // Creates (or replaces) a flat water plane at world height `height_m`
     // covering the square [center - half_extent, center + half_extent] on x/z.
@@ -497,6 +533,11 @@ private:
     // drift): the deterministic half of the drift acceptance pair.
     bool vis_time_frozen_ = false;
     float frozen_vis_time_ = 0.0f;
+    // set_visual_time's latch. Two members and not an optional: this is read
+    // once per frame in the hot path and the flag is what keeps the "nobody
+    // told me" case bit-identical to the wall-clock behaviour that shipped.
+    bool visual_time_told_ = false;
+    float told_visual_time_ = 0.0f;
     // Verification hooks for the interior shoot (Rule 27), NOT the feature.
     // DFN_TORCH=1 lights a carried flame at the CAMERA's hand position, because
     // the tour freezes the player and no gameplay entity carries a torch during

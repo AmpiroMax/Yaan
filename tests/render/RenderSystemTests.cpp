@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 13:08:2026 - 19:11:13
+Last updated: 13:08:2026 - 20:37:12
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -57,6 +57,10 @@ UPD:
   1.45 Hz, and the pair measured 0.0057 where it needed 0.01.
   Shadow casters back to MAX_SHADOW_POINT_LIGHTS (the backend's double-append
   is fixed), so that assertion stands as written.
+- 13:08:2026 - 20:37:12: set_visual_time's two cases — what is told is what is used, the same
+  time gives the same cloud field back, and an untold system still runs on the
+  wall clock (the additive half). The control is the +30 s arm: without it the
+  reproducibility assertion would pass on a clock that was never read.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -449,6 +453,66 @@ TEST_CASE("the flame breathes, and a dead flame is what the band cannot catch") 
     const glm::vec3 a2 = light_at("0.0");
     unsetenv("DFN_VISTIME");
     CHECK(a2.r == doctest::Approx(a.r));
+}
+
+TEST_CASE("the visual clock can be TOLD, and a told clock is reproducible") {
+    // THE SKY HAD TWO CLOCKS. The sun and moon run off the app's game clock,
+    // which a tour advances by a fixed step per frame so the world is a pure
+    // function of the frame index; the cloud drift and the wind envelope ran
+    // off a steady_clock read in here. Measured on the sky probe, two runs of
+    // one binary on one recipe: 67.466 % of pixels differed with the clock
+    // free and 0.000 % — byte for byte — with it pinned. This case is the unit
+    // half of that: what is told is what is used, and telling the same thing
+    // twice gives the same frame environment.
+    NullRenderer renderer;
+    REQUIRE(renderer.init({}));
+    RenderSystem system;
+    REQUIRE(system.init(renderer));
+    dfn::ecs::World world;
+    dfn::render::FirstPersonCamera camera;
+    camera.set_projection(1.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+
+    system.set_visual_time(1234.5);
+    system.render(world, renderer, camera, 1.0f);
+    CHECK(system.environment().time_seconds == doctest::Approx(1234.5f));
+    const glm::vec2 drift_a = system.environment().cloud_offset_m;
+
+    // A DIFFERENT time must move the cloud field — otherwise the assertion
+    // below would pass on a clock that was never read at all (Rule 30).
+    system.set_visual_time(1264.5); // +30 s, the drift pair's own interval
+    system.render(world, renderer, camera, 1.0f);
+    const glm::vec2 drift_b = system.environment().cloud_offset_m;
+    CHECK(glm::distance(drift_a, drift_b) > 1.0f);
+
+    // ...and the same time gives the same field back, which is the property
+    // the whole project's acceptance method rests on.
+    system.set_visual_time(1234.5);
+    system.render(world, renderer, camera, 1.0f);
+    CHECK(system.environment().time_seconds == doctest::Approx(1234.5f));
+    CHECK(system.environment().cloud_offset_m.x == doctest::Approx(drift_a.x));
+    CHECK(system.environment().cloud_offset_m.y == doctest::Approx(drift_a.y));
+
+    system.shutdown(renderer);
+}
+
+TEST_CASE("a RenderSystem nobody tells the time still reads the wall clock") {
+    // The additive half: until a caller says anything, behaviour is what
+    // shipped. Two frames of an untold system advance the visual clock on
+    // their own, which is exactly the property that made the recipe
+    // irreproducible — and it stays, because a caller that never opted in must
+    // not have its behaviour changed underneath it.
+    NullRenderer renderer;
+    REQUIRE(renderer.init({}));
+    RenderSystem system;
+    REQUIRE(system.init(renderer));
+    dfn::ecs::World world;
+    dfn::render::FirstPersonCamera camera;
+    camera.set_projection(1.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+    system.render(world, renderer, camera, 1.0f);
+    const float first = system.environment().time_seconds;
+    CHECK(first >= 0.0f);
+    CHECK(first < 60.0f); // seconds since this object was constructed
+    system.shutdown(renderer);
 }
 
 TEST_CASE("site entities with blessed mesh ids 1..7 are submitted") {
