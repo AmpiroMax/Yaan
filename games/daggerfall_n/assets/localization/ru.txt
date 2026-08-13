@@ -49,3 +49,11 @@ debug.loco.wade=вброд
 debug.loco.swim=вплавь
 debug.loco.unknown=среда?
 debug.hint.capture=3 — снимок состояния
+
+# Экран калибровки яркости (просьба пользователя: «как в скайриме/думе»)
+menu.calibrate=Яркость
+menu.calibrate.title=Настройка яркости
+menu.calibrate.line1=Поднимайте, пока средний квадрат не станет ЕДВА заметен
+menu.calibrate.line2=Левый не виден никогда, правый виден всегда — это проверка
+menu.calibrate.level=порог
+menu.calibrate.keys=Стрелки — ярче и темнее, Enter — принять
