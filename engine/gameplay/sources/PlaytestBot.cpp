@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 13:08:2026 - 18:10:00
+Last updated: 13:08:2026 - 18:35:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -89,6 +89,14 @@ UPD:
                          Endpoints cannot see a toggle. Both are printed now,
                          and the transition counts are the ones that answer the
                          question.
+- 13:08:2026 - 18:35:00: The bot GLANCES DOWN when nothing is in the crosshair.
+                         With its pitch nailed to zero it could only ever find
+                         props at chest height: a 0.5 m prop standing at 1.3 m
+                         sits 11.3 deg below the eye at conversational range,
+                         and the first run with the verb wired hovered ONE of
+                         three props in ninety seconds for that reason alone. A
+                         harness that can only exercise one of three verbs
+                         reports on one of three verbs.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -283,6 +291,14 @@ PlaytestState make_playtest(const PlaytestConfig& config) {
 // that a bot walking past a prop still gets one press in.
 constexpr float INTERACT_COOLDOWN_SECONDS = 1.0f;
 
+// How far down the bot glances while it has nothing in the crosshair, and how
+// long one sweep takes. Tool pacing, not a NUMBERS row. 0.45 rad (26 deg) is a
+// little past the 11.3 deg a waist-height prop sits at, so the sweep passes
+// THROUGH the angle rather than stopping at it, and 1.6 s is slow enough that
+// a prop is inside INTERACT_DISTANCE for several ticks on the way past.
+constexpr float GLANCE_MAX_RADIANS = 0.45f;
+constexpr float GLANCE_PERIOD_SECONDS = 1.6f;
+
 // Everything the world can show for a verb having been pressed. Cheap (a few
 // dozen entities), taken every tick, and printed first -> last: the question
 // "did anything change" cannot be answered by a single sample, and the one
@@ -415,7 +431,35 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
         const float delta = wrap_angle(desired_yaw - state.yaw);
         const float turn = std::clamp(delta, -MAX_TURN_RATE * DT, MAX_TURN_RATE * DT);
         state.pending_look.x += turn / SENSITIVITY;
-        state.pending_look.y = 0.0f;
+
+        // THE BOT LOOKS DOWN A LITTLE WHEN IT SEES NOTHING, and this is not
+        // decoration: it is the difference between a harness that can exercise
+        // three verbs and one that can only ever exercise the one at chest
+        // height. A prop 0.5 m across standing at 1.3 m sits 11.3 degrees below
+        // the eye at conversational range -- a glance for a human, and
+        // unreachable for a bot whose pitch is nailed to zero. The first run
+        // with the verb wired hovered ONE of the three props in ninety seconds
+        // for exactly that reason, and I nearly reported "Take and Use do not
+        // fire" on the strength of it.
+        //
+        // A slow sweep rather than a fixed angle, because the right angle
+        // depends on the prop's height and the bot does not know it; and it
+        // stops the moment something IS hovered, so the press below aims at
+        // what the sweep found.
+        if (prompt_up) {
+            pt.glance_seconds = 0.0f;
+            state.pending_look.y = 0.0f;
+        } else {
+            pt.glance_seconds += DT;
+            const float phase = std::fmod(pt.glance_seconds, 2.0f * GLANCE_PERIOD_SECONDS);
+            const float want = (phase < GLANCE_PERIOD_SECONDS)
+                                   ? -GLANCE_MAX_RADIANS * (phase / GLANCE_PERIOD_SECONDS)
+                                   : -GLANCE_MAX_RADIANS
+                                         * (2.0f - phase / GLANCE_PERIOD_SECONDS);
+            // Mouse +y is DOWN-pitch (see accumulate_input), so a lower target
+            // pitch is a positive y.
+            state.pending_look.y = (state.pitch - want) / SENSITIVITY;
+        }
         // Walk when roughly facing the target; turn in place otherwise.
         state.move_axes = std::abs(delta) < 0.5f * PI ? glm::vec2{0.0f, 1.0f}
                                                       : glm::vec2{0.0f, 0.0f};

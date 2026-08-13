@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 13:08:2026 - 18:10:00
+Last updated: 13:08:2026 - 18:35:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -80,6 +80,8 @@ UPD:
                          a toggling door is invisible to endpoints, and the
                          first version of it said so in a way that read as "the
                          verb never fires" (see the field note).
+- 13:08:2026 - 18:35:00: glance_seconds — the bot's look-down sweep, without
+                         which it can only find props at chest height.
 */
 
 #pragma once
@@ -221,6 +223,7 @@ struct PlaytestState {
     uint64_t hover_ticks = 0;       // ticks with a live prompt on screen
     uint64_t interact_presses = 0;  // times the bot pressed the verb key
     float interact_cooldown_s = 0.0f;
+    float glance_seconds = 0.0f;    // sweep clock for the look-down scan
     // World census, sampled every tick. FIRST -> LAST IS NOT ENOUGH and the
     // first version of this counter proved it the expensive way: a door toggles,
     // so an even number of presses leaves it exactly as it started, and the

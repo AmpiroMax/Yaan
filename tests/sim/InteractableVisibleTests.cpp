@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 17:30:00
-Last updated: 13:08:2026 - 18:25:00
+Last updated: 13:08:2026 - 18:40:00
 Module: tests
 File: tests/sim/InteractableVisibleTests.cpp
 
@@ -35,6 +35,8 @@ UPD:
 - 13:08:2026 - 18:15:00: The ray box must die with its prop.
 - 13:08:2026 - 18:25:00: The verb must have a VISIBLE consequence — the door
                          swings, the lever throws, and the ray target follows.
+- 13:08:2026 - 18:40:00: A settled leaf must have prev == curr, or it sweeps
+                         between its last two frames for ever (the run smear).
 */
 
 #include <doctest/doctest.h>
@@ -545,4 +547,42 @@ TEST_CASE("a lever throws its handle when used") {
     // A lever turns on its own body: its centre stays put, unlike a door leaf.
     CHECK(glm::length(world.get<components::Transform>(id)->position - lever.position) <
           1.0e-4f);
+}
+
+TEST_CASE("a settled door is STILL, not sweeping between its last two frames") {
+    // The run-smear defect, one component over
+    // (docs/FINDING_RUN_SMEAR.md). Render interpolates PreviousTransform ->
+    // Transform with alpha sweeping 0..1 inside every tick, so a pair left
+    // DISAGREEING is not a still object: it is an object that sweeps between
+    // two poses for ever, at whatever the frame rate is. The swing's final tick
+    // leaves exactly such a pair, and the at-rest branch used to return before
+    // reconciling it.
+    auto physics = platform::create_null_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+
+    gameplay::InteractableDesc door;
+    door.kind = gameplay::InteractableKind::Openable;
+    door.position = {0.0f, 1.0f, -2.5f};
+    door.half_extents = {0.9f, 1.0f, 0.1f};
+    door.prompt_key = "prompt.open";
+    const dfn::ecs::EntityId leaf = gameplay::spawn_interactable(world, *physics, door);
+
+    world.get<gameplay::Openable>(leaf)->open = true;
+    for (int t = 0; t < 120; ++t) { // two seconds: long past the 0.28 s swing
+        gameplay::update_interactable_motion(world, *physics);
+    }
+    const components::Transform& curr = *world.get<components::Transform>(leaf);
+    const components::PreviousTransform& prev =
+        *world.get<components::PreviousTransform>(leaf);
+    CHECK(glm::length(curr.position - prev.position) < 1.0e-6f);
+    CHECK(std::abs(curr.rotation.w - prev.rotation.w) < 1.0e-6f);
+    CHECK(std::abs(curr.rotation.y - prev.rotation.y) < 1.0e-6f);
+    // And the same must hold for a door nobody ever touched.
+    const dfn::ecs::EntityId shut = gameplay::spawn_interactable(world, *physics, door);
+    for (int t = 0; t < 10; ++t) {
+        gameplay::update_interactable_motion(world, *physics);
+    }
+    CHECK(glm::length(world.get<components::Transform>(shut)->position -
+                      world.get<components::PreviousTransform>(shut)->position) < 1.0e-6f);
 }

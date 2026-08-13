@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:25:00
+Last updated: 13:08:2026 - 18:40:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.cpp
 
@@ -31,6 +31,12 @@ UPD:
   entity dies. It was discarded at creation, so no box could ever be destroyed.
 - 13:08:2026 - 18:25:00: update_interactable_motion — the door swings on its
   hinge and the lever throws its handle, and the ray box moves with them.
+- 13:08:2026 - 18:40:00: A SETTLED LEAF SNAPS ITS TRANSFORM PAIR TOGETHER.
+  Caught reading my own diff, not by a test: the swing's last tick left
+  prev != curr and then the at-rest branch returned early, so render would have
+  interpolated between two poses that never change again — a door sweeping
+  between its final two frames for ever. That is the run smear, one component
+  over.
 */
 
 #include "engine/gameplay/sources/InteractableSpawn.h"
@@ -196,7 +202,16 @@ void update_interactable_motion(ecs::World& world, platform::IPhysics& physics) 
             std::clamp(motion.blend + std::clamp(target - motion.blend, -step, step),
                        0.0f, 1.0f);
         if (blend == motion.blend) {
-            continue; // at rest: nothing to write, nothing to move
+            // AT REST, AND THE PAIR MUST AGREE. Leaving prev != curr here is the
+            // run-smear defect exactly (docs/FINDING_RUN_SMEAR.md): render
+            // interpolates prev -> curr with alpha sweeping 0..1 INSIDE EVERY
+            // TICK, so two poses that never change again are not a still door —
+            // they are a door that sweeps between its last two frames for ever.
+            // The swing's final tick leaves precisely that pair behind.
+            previous.position = transform.position;
+            previous.rotation = transform.rotation;
+            previous.scale = transform.scale;
+            continue;
         }
         motion.blend = blend;
 
