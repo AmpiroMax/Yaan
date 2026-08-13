@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 13:08:2026 - 22:00:00
+Last updated: 13:08:2026 - 20:55:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -164,7 +164,7 @@ UPD:
   conifers byte-identical, so the loss is the accepted rule "the leaf budget
   follows the wood" and not a regression. The 229 m^2 row, the only one with
   user provenance, is untouched; the oak clears it at 412.5.
-- 13:08:2026 - 19:26:00: CROWN_POLE_RATIO MEASURED AND REPORTED AS NOT A GATE
+- 13:08:2026 - 19:20:00: CROWN_POLE_RATIO MEASURED AND REPORTED AS NOT A GATE
   (design §10.15.1's own condition 3), plus the control door it needed. Accepted
   1.53-2.45 (birch, the highest broadleaf) against the rebuilt rejected birch's
   1.97-2.74: an OVERLAP. The proposed 3.1 admits the rebuilt artefact on 12
@@ -181,7 +181,7 @@ UPD:
   LEAD's go-ahead): presented area conflates extent with density, the widening
   moved extent, and its own control stopped being able to fail. Not
   re-baselined, per design's explicit instruction.
-- 13:08:2026 - 20:05:00: "the far crown is never MORE TRANSPARENT than the near
+- 13:08:2026 - 19:56:00: "the far crown is never MORE TRANSPARENT than the near
   one" -- the target this zone named BEFORE touching the far LOD, asserted so it
   cannot rot back, with the built crown WIDTH asserted beside it because optical
   depth is an area over an area and can be raised by shrinking the tree. It
@@ -190,10 +190,16 @@ UPD:
   re-recorded a second time the same evening: the far LOD stopped thinning, so
   every Reduced row rose and the two conifers now measure exactly their own Full
   figure. Note recorded in the case: nothing draws Reduced today.
-- 13:08:2026 - 22:00:00: The far-LOD case covers the GREAT OAK, which `ALL`
+- 13:08:2026 - 20:24:00: The far-LOD case covers the GREAT OAK, which `ALL`
   does not contain -- so every loop in this file walked past the one species
   that spends its whole life at the far LOD. That gap is what let a 17 %
   narrower giant ship unnoticed since before today.
+- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
+  this session's own UPD entries above were written AHEAD of the wall clock (one
+  said 22:00 for work committed at 20:24) and are corrected against the commit
+  times. Recorded rather than done silently -- a record whose stamps are
+  invented cannot be put in order afterwards, and the entries it would mislead
+  are this zone's own.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"

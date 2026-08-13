@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 13:08:2026 - 20:45:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -45,7 +45,7 @@ UPD:
 - 10:08:2026 - 12:12:40: routing asks flora_owns() instead of a hand-written three-tree
   predicate — that predicate is why §5.10's floor and §5.11's edge set drew as
   bare earth while every suite was green.
-- 13:08:2026 - 20:45:00: DFN_FLORA_FORCE_LOD -- a verification hook at the one
+- 13:08:2026 - 20:10:00: DFN_FLORA_FORCE_LOD -- a verification hook at the one
   line that selects a flora LOD, added by the FLORA agent under an explicit
   lead-granted Rule 25 cut (render notified; the file's 09.08 entry records the
   same arrangement). NO SHIPPING BEHAVIOUR CHANGES: the default is still
@@ -65,6 +65,12 @@ UPD:
   uncover the tree behind it. A union of many sparse sets saturates.
   The far LOD remains worth wiring for COST -- 579 triangles against 1000, on
   13446 trees -- and that is render's call, not this hook's.
+- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
+  this session's own UPD entries above were written AHEAD of the wall clock (one
+  said 22:00 for work committed at 20:24) and are corrected against the commit
+  times. Recorded rather than done silently -- a record whose stamps are
+  invented cannot be put in order afterwards, and the entries it would mislead
+  are this zone's own.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"

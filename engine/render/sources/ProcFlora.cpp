@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 22:00:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -171,7 +171,7 @@ UPD:
   with the accepted one to the bit; and it still obeys the ceiling every shipped
   tree obeys, because a control exempt from a rule the ship follows is not a
   control.
-- 13:08:2026 - 20:05:00: THE FAR LEVEL OF DETAIL STOPS THINNING THE CROWN.
+- 13:08:2026 - 19:56:00: THE FAR LEVEL OF DETAIL STOPS THINNING THE CROWN.
   far_lod_segments() and lod_cluster_count() -- one definition each, replacing
   the same expression written out in four places. The ladder they replace cut
   the skeleton to 45 % and the foliage to 3/5 TOGETHER, so the BALANCE never
@@ -197,7 +197,7 @@ UPD:
   sweep hook. The first attempt at this change moved the wood budget and the
   foliage budget in one step and the reading went the wrong way with no way to
   say which lever did it -- hence the hook.
-- 13:08:2026 - 22:00:00: THE GIANT TIER IS EXEMPT FROM THE FAR LOD'S WOOD CUT,
+- 13:08:2026 - 20:24:00: THE GIANT TIER IS EXEMPT FROM THE FAR LOD'S WOOD CUT,
   and the width clause is what exempts it. For an ordinary tree the crown is a
   cloud of masses hung ON the wood, so cutting segments costs branches and not
   crown span; for a species whose crown radius is a property of its ramification
@@ -206,6 +206,12 @@ UPD:
   back a giant 17 % narrower under the OLD ladder and 22 % narrower under the
   new one, against a Full diameter of 61.0 m -- silently, on the one species
   whose read distance is kilometres. Both now 61.0.
+- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
+  this session's own UPD entries above were written AHEAD of the wall clock (one
+  said 22:00 for work committed at 20:24) and are corrected against the commit
+  times. Recorded rather than done silently -- a record whose stamps are
+  invented cannot be put in order afterwards, and the entries it would mislead
+  are this zone's own.
 */
 
 #include "engine/render/sources/ProcFlora.h"

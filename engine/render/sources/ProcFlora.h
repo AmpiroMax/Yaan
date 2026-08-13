@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 13:08:2026 - 19:26:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -65,7 +65,7 @@ UPD:
   rather than a shy one.
 - 13:08:2026 - 21:40:00: FloraShape::crowding -- how crowded this tree grew
   up, 0 open-grown .. 1 closed-forest.
-- 13:08:2026 - 19:26:00: FloraShape::crown_base_override -- THE CONTROL DOOR FOR A
+- 13:08:2026 - 19:20:00: FloraShape::crown_base_override -- THE CONTROL DOOR FOR A
   REJECTED ARTEFACT. design §10.15.1 makes rebuilding the rejected birch a
   PRECONDITION of the palm gate, and no door existed to rebuild it with. This
   one replaces the crown base AFTER the per-instance spread is drawn, so the
@@ -73,6 +73,12 @@ UPD:
   struct field and not an env var on purpose: the env arms are read once per
   process, and a separating threshold is a claim about two populations measured
   in ONE run.
+- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
+  this session's own UPD entries above were written AHEAD of the wall clock (one
+  said 22:00 for work committed at 20:24) and are corrected against the commit
+  times. Recorded rather than done silently -- a record whose stamps are
+  invented cannot be put in order afterwards, and the entries it would mislead
+  are this zone's own.
 */
 
 #pragma once

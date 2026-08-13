@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 20:05:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -55,10 +55,16 @@ UPD:
   A SECOND table on purpose: SpeciesParams says what a species IS to every
   consumer, this says what one GENERATOR needs, and mixing the two is what made
   the old growers' parameters so hard to tell from the species itself.
-- 13:08:2026 - 20:05:00: flora_far_lod_arm() -- a FOURTH zero-dose door, for
+- 13:08:2026 - 19:56:00: flora_far_lod_arm() -- a FOURTH zero-dose door, for
   the far level of detail alone (DFN_FLORA_FARLOD=1 restores the ladder of this
   morning). Same reason as the other three, Rule 48: a control binds only the
   measurements in which it itself moves.
+- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
+  this session's own UPD entries above were written AHEAD of the wall clock (one
+  said 22:00 for work committed at 20:24) and are corrected against the commit
+  times. Recorded rather than done silently -- a record whose stamps are
+  invented cannot be put in order afterwards, and the entries it would mislead
+  are this zone's own.
 */
 
 #pragma once

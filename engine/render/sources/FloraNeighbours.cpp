@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:44:12
-Last updated: 13:08:2026 - 21:15:00
+Last updated: 13:08:2026 - 20:55:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -54,7 +54,7 @@ UPD:
   its channel only where the canopy is actually closing. Both are the same
   closeness curve on purpose: two numbers for "how closed is it here" that could
   disagree are two numbers that eventually will.
-- 13:08:2026 - 21:15:00: DFN_FLORA_CROWNBASE -- a verification hook for the
+- 13:08:2026 - 20:17:00: DFN_FLORA_CROWNBASE -- a verification hook for the
   EDGE-EFFECT hypothesis, and the hypothesis is REFUTED, which is why the hook
   is worth keeping. Real forests read as canopy from outside because their edge
   trees carry foliage nearly to the ground; ours are built the same at the edge
@@ -79,6 +79,12 @@ UPD:
   height of the frame, 35 % against 15 % even in the middle of the canopy mass.
   So the colonnade is not a defect in the tree and cannot be fixed by moving a
   budget inside it.
+- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
+  this session's own UPD entries above were written AHEAD of the wall clock (one
+  said 22:00 for work committed at 20:24) and are corrected against the commit
+  times. Recorded rather than done silently -- a record whose stamps are
+  invented cannot be put in order afterwards, and the entries it would mislead
+  are this zone's own.
 */
 
 #include "engine/render/sources/ProcFlora.h"

@@ -1,5 +1,5 @@
-# Created: 13:08:2026 - 19:35:00
-# Last updated: 13:08:2026 - 23:45:00
+# Created: 13:08:2026 - 19:36:00
+# Last updated: 13:08:2026 - 20:55:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-forest-density-recipe.txt
 #
@@ -26,22 +26,27 @@
 #   out and was verified, not assumed.
 #
 # UPD:
-# - 13:08:2026 - 19:35:00: Created with the pair for the 5-7 m ruling.
-# - 13:08:2026 - 21:25:00: THE COLONNADE RUN TO GROUND. Four hypotheses tested
+# - 13:08:2026 - 19:36:00: Created with the pair for the 5-7 m ruling.
+# - 13:08:2026 - 20:19:00: THE COLONNADE RUN TO GROUND. Four hypotheses tested
 #   by measurement and three refuted; the surviving explanation is arithmetic
 #   and needs no hypothesis. Three material frames archived
 #   (flora-colonnade-*-3353b17.png).
-# - 13:08:2026 - 21:35:00: TWO CLAIMS IN THE 19:35 SECTION CORRECTED IN PLACE,
+# - 13:08:2026 - 20:20:00: TWO CLAIMS IN THE 19:35 SECTION CORRECTED IN PLACE,
 #   with the original text left visible so the correction can be checked rather
 #   than trusted: the "dark wood" column measured BRIGHTNESS and counted dark
 #   leaves as trunk; "the frame is what that looks like" about the LOD ladder is
 #   withdrawn (forcing the far LOD moves the band 72.1 -> 73.1 %); and "at this
 #   vantage every tree is at Reduced LOD" was assumed and is false -- nothing
 #   has ever drawn Reduced.
-# - 13:08:2026 - 23:45:00: THE AIR MEASURED AND THE THIRD LEVER REFUTED, and
+# - 13:08:2026 - 20:49:00: THE AIR MEASURED AND THE THIRD LEVER REFUTED, and
 #   every number in this file re-taken with the CLOCKS PINNED
 #   (DFN_VISTIME + DFN_WIND_FREEZE) after the sky was found to have two clocks.
 #   Conclusions unchanged; the readings moved by 1-2 points and are restated.
+# - 13:08:2026 - 20:55:00: THE NINTH HYPOTHESIS NAMED WITH ITS INSTRUMENT for
+#   whoever picks this up next (LEAD's, not measured — say so). Plus: several UPD
+#   stamps in this file and in the flora sources were written AHEAD of the wall
+#   clock earlier this session and have been corrected against the commit times.
+#   A record whose stamps are invented is a record nobody can put in order.
 
 THE QUESTION
 
@@ -338,3 +343,41 @@ view at 6 m spacing. Bringing that to 30 % would need a bole of 0.21 m — a
 sapling. The three levers named earlier reduce to one: d/s, the bole over the
 spacing. The picture IS the spacing, and what to do about that is the user's
 call, not ours.
+
+
+================================================================================
+THE NINTH HYPOTHESIS — NAMED, NOT MEASURED (LEAD, 13.08.2026)
+================================================================================
+
+WRITTEN DOWN SO TOMORROW DOES NOT START FROM ZERO, AND LABELLED SO NOBODY MOVES
+A CONSTANT AGAINST IT: this one has NOT been measured. Eight hypotheses were
+tested today and seven refuted; this is the ninth and it is untested.
+
+THE OBSERVATION IT COMES FROM is the finding that killed the air: ownership is
+decided by the NEAREST surface, so anything that works by depth cannot touch it.
+Shade is not such a thing.
+
+    IN A REAL DENSE FOREST THE INSIDE IS DARK. The canopy does not pass light,
+    so the boles behind the first rows fall into shadow while the crowns above
+    stay lit. Ours lights the inside of the wood exactly as it lights the edge.
+
+Why it is a different lever from haze, stated precisely because that distinction
+is what the whole evening turned on: haze changes the COLOUR of a surface by its
+distance and therefore cannot change which surface is in front. Shade changes
+the BRIGHTNESS of the surface that IS in front. It works exactly where haze is
+powerless — and it costs the landmark nothing, because the mountain is not under
+a canopy.
+
+THE INSTRUMENT ALREADY EXISTS AND IS THE ONE USED THROUGHOUT THIS FILE: the
+material door (DFN_FLORA_ONLY 1 and 2) plus the composite, clocks pinned, and a
+per-pixel match to decide ownership. It needs ONE addition — the VALUE of the
+owned pixel. Today wood owns 60.9 % of the treeline band; the question is how
+much of that reads as SILHOUETTE and how much as lit bark. If the boles under
+the canopy drop two or three palette steps, twelve-to-one by area may still read
+as "a dark wood with lit crowns", which is what the user's own screenshots show.
+
+WHAT WOULD FALSIFY IT: if the boles that own those pixels are mostly in the
+FIRST row or two — the sunlit edge, which no canopy shades — then shade cannot
+reach them either, and the ninth hypothesis dies the same death as the eighth.
+That is measurable before any lighting work is done, by bucketing owned wood
+pixels by their DEPTH, and it is where to start.
