@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:20:00
-Last updated: 13:08:2026 - 16:40:00
+Last updated: 13:08:2026 - 16:45:00
 Module: tests
 File: tests/sim/FloraCollisionTests.cpp
 
@@ -36,6 +36,9 @@ UPD:
                          to its crown base, and the case says so. The stair
                          itself is NOT walkable and that is measured, not
                          guessed -- see the case's note.
+- 13:08:2026 - 16:45:00: The chunk-seam case for the drag query's chunk filter:
+                         a shrub rooted at a border still reaches the walker on
+                         the far side of it.
 */
 
 #include <doctest/doctest.h>
@@ -403,4 +406,33 @@ TEST_CASE("the great oak is solid for its whole bole, treads included") {
     CHECK(oak.max_radius < render::species_crown_radius(fs) * 0.5f);
     // A landmark's budget, not a forest's: one tree per region.
     CHECK(oak.mesh.indices.size() / 3 < 600);
+}
+
+TEST_CASE("brush reaches across the chunk seam it is rooted next to") {
+    // The drag query skips chunks the walker cannot be standing in, which is
+    // what makes its cost independent of CHUNK_LOAD_RADIUS. This is the case
+    // that filter could break: a shrub rooted at the very edge of its chunk
+    // leans over the border, and a walker on the far side is genuinely inside
+    // it. Silently dropping that is a seam-shaped hole in the world — the kind
+    // that shows up as "the bushes sometimes don't work" and never as a crash.
+    const auto chunk_size = static_cast<float>(config::CHUNK_SIZE);
+    const auto r = static_cast<float>(config::PLAYER_CAPSULE_RADIUS);
+
+    gameplay::BrushField field;
+    gameplay::BrushField::Chunk chunk;
+    chunk.coord = {0, 0};
+    // Rooted 0.2 m inside chunk (0,0)'s eastern edge, with a 1.8 m reach.
+    chunk.discs.push_back(gameplay::BrushDisc{.center = {chunk_size - 0.2f, 32.0f},
+                                              .radius = 1.8f,
+                                              .top = 3.0f,
+                                              .base = 0.0f});
+    field.chunks.emplace(world::chunk_group(world::ChunkCoord{0, 0}), std::move(chunk));
+
+    // A walker one metre EAST of the border stands in chunk (1,0) and is inside
+    // a shrub that belongs to chunk (0,0).
+    CHECK(gameplay::brush_density_at(field, {chunk_size + 1.0f, 0.5f, 32.0f}, r) > 0.0f);
+    // CONTROL: far side of the same chunk, same distance from the field's only
+    // entry in every respect but the one that matters — how far away it is.
+    CHECK(gameplay::brush_density_at(field, {chunk_size + 40.0f, 0.5f, 32.0f}, r) ==
+          doctest::Approx(0.0f));
 }

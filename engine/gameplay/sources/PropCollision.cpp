@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PropCollision.cpp
 
@@ -26,6 +26,14 @@ UPD:
 - 09:08:2026 - 22:21:30: Created — buildings and boulders become solid.
 - 13:08:2026 - 16:20:00: Boles and downed logs join the merged body; bushes and
                          brushwood fill BrushField instead of costing bodies.
+- 13:08:2026 - 16:45:00: The drag query skips chunks the walker cannot be
+                         standing in (what BrushField::Chunk::coord is for):
+                         0.0014 -> 0.0006 ms, and, more to the point, the cost
+                         stops being linear in CHUNK_LOAD_RADIUS, which is a
+                         number somebody will raise. Counters now say how many
+                         PLANTS became solid and draggy — "one body per chunk"
+                         says nothing about how many trees are in it, and the
+                         trees are what the budget argument is about.
 */
 
 #include "engine/gameplay/sources/PropCollision.h"
@@ -56,6 +64,13 @@ namespace {
 // of its scale, so a boulder sits IN the slope rather than on it. Collision
 // must use the same value or the solid rock floats above the visible one.
 constexpr float SCATTER_SINK = static_cast<float>(config::SCATTER_GROUND_SINK_FRAC);
+
+// How far outside a chunk's footprint a shrub rooted inside it can still reach.
+// An engine internal, not a tuning row: the widest drag disc measured off any
+// drawn shrub is 1.80 m (BigBush), so 4 m is that with the slack a measurement
+// deserves. Too large only costs a few extra distance checks; too small would
+// silently drop the brush on a chunk seam, which is the failure worth avoiding.
+constexpr float BRUSH_QUERY_MARGIN = 4.0f;
 
 // Appends `src` transformed by a full Transform (translation, rotation, uniform
 // scale). Used for site entities, whose drawn orientation is the QUATERNION on
@@ -109,8 +124,9 @@ void append_sites(render::MeshData& out, const ecs::World& world, world::ChunkCo
 // world — the exact mirror of the boulder bug SCATTER_GROUND_SINK_FRAC exists
 // to prevent.
 void append_plants(render::MeshData& out, BrushField::Chunk& brush,
-                  FloraCollisionCache& cache, const world::ChunkManager& chunks,
-                  world::ChunkCoord coord) {
+                   PropCollisionState& state, const world::ChunkManager& chunks,
+                   world::ChunkCoord coord) {
+    FloraCollisionCache& cache = state.flora_cache;
     for (const math::ScatterInstance& inst : chunks.scatter(coord)) {
         // The cheap question first. Three quarters of a chunk's scatter is
         // boulders and ground cover, and every one of them used to pay for a
@@ -131,12 +147,14 @@ void append_plants(render::MeshData& out, BrushField::Chunk& brush,
             break;
         case FloraSolidKind::Solid:
             render::append_transformed(out, solid.mesh, inst.position, inst.yaw, 1.0f);
+            ++state.solid_plants;
             break;
         case FloraSolidKind::Drag:
             brush.discs.push_back(BrushDisc{.center = xz,
                                             .radius = solid.drag_radius,
                                             .top = inst.position.y + solid.drag_top,
                                             .base = inst.position.y});
+            ++state.drag_plants;
             break;
         }
     }
@@ -193,7 +211,7 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
         brush.coord = coord;
         render::MeshData mesh;
         append_sites(mesh, world, coord);
-        append_plants(mesh, brush, state.flora_cache, chunks, coord);
+        append_plants(mesh, brush, state, chunks, coord);
         append_boulders(mesh, chunks, coord);
         if (need_brush) {
             brush_field.chunks.emplace(key, std::move(brush));
@@ -218,7 +236,6 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
         if (body.valid()) {
             state.bodies.emplace(key, body);
             state.resident_triangles += mesh.indices.size() / 3;
-            ++state.resident_solids;
         }
     }
 
@@ -234,7 +251,6 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
         }
         physics.destroy_body(it->second);
         it = state.bodies.erase(it);
-        state.resident_solids -= (state.resident_solids > 0) ? 1u : 0u;
     }
     for (auto it = brush_field.chunks.begin(); it != brush_field.chunks.end();) {
         const bool still_resident =
@@ -249,9 +265,23 @@ float brush_density_at(const BrushField& field, const glm::vec3& feet, float bod
     // an ordinary hedge row impassable while each bush in it stayed gentle. The
     // player's experience of "how deep in this am I" is the deepest single
     // thing they are in, so max() is the honest reduction.
+    // The tallest brush in the world is a few metres wide, so a chunk whose
+    // footprint the walker is not standing within (plus that margin) cannot
+    // hold a shrub they are inside. Measured at 0.0014 ms/query without this
+    // filter over 2 725 discs, which is already nothing -- but the cost is
+    // LINEAR in the resident set, and CHUNK_LOAD_RADIUS is a number somebody
+    // will raise. This is what `BrushField::Chunk::coord` is for.
+    constexpr float CHUNK = static_cast<float>(config::CHUNK_SIZE);
+    const float margin = BRUSH_QUERY_MARGIN + body_radius;
     float density = 0.0f;
     for (const auto& [key, chunk] : field.chunks) {
         (void)key;
+        const float x0 = static_cast<float>(chunk.coord.x) * CHUNK - margin;
+        const float z0 = static_cast<float>(chunk.coord.z) * CHUNK - margin;
+        if (feet.x < x0 || feet.x > x0 + CHUNK + 2.0f * margin || feet.z < z0 ||
+            feet.z > z0 + CHUNK + 2.0f * margin) {
+            continue;
+        }
         for (const BrushDisc& disc : chunk.discs) {
             // Vertically: the legs must be in it. Above the foliage top there
             // is nothing to push through; below the base the walker is under

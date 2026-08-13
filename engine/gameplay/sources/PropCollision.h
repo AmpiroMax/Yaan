@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PropCollision.h
 
@@ -72,6 +72,14 @@ UPD:
                          downed logs are appended to the same merged chunk body
                          from their own drawn triangles; bushes and brushwood
                          go into BrushField, which costs no bodies at all.
+- 13:08:2026 - 16:45:00: The drag query skips chunks the walker cannot be
+                         standing in (what BrushField::Chunk::coord is for):
+                         0.0014 -> 0.0006 ms, and, more to the point, the cost
+                         stops being linear in CHUNK_LOAD_RADIUS, which is a
+                         number somebody will raise. Counters now say how many
+                         PLANTS became solid and draggy — "one body per chunk"
+                         says nothing about how many trees are in it, and the
+                         trees are what the budget argument is about.
 */
 
 #pragma once
@@ -110,7 +118,12 @@ struct PropCollisionState {
     // these are counted in the same triangles the body is made of.
     uint64_t last_chunk_triangles = 0;
     uint64_t resident_triangles = 0;
-    uint32_t resident_solids = 0;
+    // Plant instances that became SOLID geometry, and shrubs that became drag
+    // discs. Counted rather than inferred from the body count: "one body per
+    // chunk" says nothing about how many trees are in it, and the trees are
+    // what the budget argument is about.
+    uint64_t solid_plants = 0;
+    uint64_t drag_plants = 0;
 };
 
 // One shrub, as physics sees it: a vertical disc you walk INTO, not around.
