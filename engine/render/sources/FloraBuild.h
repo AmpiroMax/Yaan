@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 13:08:2026 - 18:30:00
+Last updated: 13:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -43,6 +43,8 @@ UPD:
 - 13:08:2026 - 18:30:00: Tree::structure -- the collision side-channel, filled by
   the same emitters that draw the wood, so what a body hits cannot drift from
   what the player sees.
+- 13:08:2026 - 21:00:00: Tree::species — the enum, at the END of the struct
+  because the one caller uses a positional aggregate initializer.
 */
 
 #pragma once
@@ -170,6 +172,14 @@ struct Tree {
     /// purpose: two derivations of one geometry diverge, and this zone has
     /// already paid for that lesson three times over one shared constant.
     FloraStructure* structure = nullptr;
+    /// WHICH species, as the enum. `sp` is what a species IS; this is which one
+    /// it is, and a generator table keyed by the enum (species_weber) needs the
+    /// name rather than the values. Deliberately at the END of the struct: the
+    /// one caller builds a Tree with a POSITIONAL aggregate initializer, so a
+    /// field inserted anywhere else silently shifts every value after it into
+    /// the wrong member — which is what happened on the first attempt, and the
+    /// compiler only caught it because two of the shifted types disagreed.
+    FloraSpecies species = FloraSpecies::DaleOak;
 };
 
 [[nodiscard]] CrownVolume crown_volume(const Tree& t);

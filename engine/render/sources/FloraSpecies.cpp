@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 19:55:00
+Last updated: 13:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -63,9 +63,15 @@ UPD:
   willow 15 of 20). Corner reach is now a third of the crown radius and the
   count rises to match, paid for out of the wood by max_crown_segments().
 - 13:08:2026 - 19:55:00: flora_shyness_arm() defined.
+- 13:08:2026 - 21:00:00: THE PUBLISHED WEBER & PENN ROWS (CA Black Oak,
+  Quaking Aspen, Weeping Willow), transcribed from docs/WEBER_PENN_PARAMS.md.
+  What is ours and says so: the mapping onto our species, the height, and the
+  great oak's two deviated numbers. Plus flora_weber_arm(), the generator door.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
+
+#include "engine/render/sources/FloraWeber.h"
 
 #include "engine/core/config/sources/Constants.h"
 
@@ -935,12 +941,167 @@ bool flora_shyness_arm() {
     return on;
 }
 
+bool flora_weber_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_GEN");
+        return e == nullptr || e[0] != '0';
+    }();
+    return on;
+}
+
 bool flora_envelope_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_CROWN");
         return e != nullptr && e[0] == '1';
     }();
     return on;
+}
+
+// --- WEBER & PENN ROWS ------------------------------------------------------
+// THE MODEL IS THE PAPER'S AND SO ARE THESE NUMBERS. They are transcribed from
+// docs/WEBER_PENN_PARAMS.md, which the lead extracted from the paper itself
+// (SIGGRAPH 1995, Appendix, p.126) after this zone refused to reproduce them
+// from memory. That refusal was the right call and it is worth keeping the
+// reason visible: a number with the wrong provenance is worse than a missing
+// one, because "Weber-Penn parameters" would have lent someone else's authority
+// to our guesses.
+//
+// WHAT IS OURS AND SAYS SO: the MAPPING of their four species onto our four,
+// the height (our band is a cross-zone contract, their `Scale` is not), and
+// `base_size` where our crown-base band and CANOPY_CLEARANCE_MIN bind. Nothing
+// else has been adjusted — where a value looks wrong for us it is left alone
+// and reported, because the first thing anyone does with a published table is
+// start "improving" it, and then it is no longer a published table.
+//
+// THREE THINGS THE REAL TABLE SETTLED THAT WE HAD ARGUED ABOUT:
+//  1. `CA Black Oak` has `0BaseSplits` 2 and `0SegSplits` 0.4 — the bole splits
+//     at the ground AND keeps splitting. That is where an oak's several main
+//     limbs come from, and it means the two-lobed veteran silhouette is a
+//     property of STRUCTURE, not of an envelope. docs/GIANT_OAKS.md §4 argued
+//     exactly that from first principles; this is the published confirmation.
+//  2. `PruneRatio` is 1 for the WILLOW ALONE. Envelope pruning is an OPTIONAL
+//     part of the model that three of four species do not use — and our old
+//     crown envelope was that mechanism applied to every species as the primary
+//     one. We took the exception and made it the rule.
+//  3. `Levels` 3-4 with `nBranches` up to 300: density comes from the NUMBER of
+//     branches per level, not from finer steps. At our 700-triangle budget that
+//     is where our own seam has to be, and the authors have no equivalent of it.
+WeberParams species_weber(FloraSpecies species, float height) {
+    WeberParams w;
+    w.height = height;
+
+    switch (species) {
+    case FloraSpecies::GreatOak: {
+        // CA BLACK OAK, WITH TWO NUMBERS CHANGED, AND THEY ARE OURS.
+        //
+        // The great oak is not a published species — it is the user's, and it
+        // comes with an explicit geometric rule that no real tree obeys:
+        // «нижняя часть кроны в радиусе равна высоте». Verbatim CA Black Oak
+        // builds it 34.8 m across against the 82 m that rule demands, because
+        // its limbs leave at 30 deg from the trunk and run 0.8 of its length —
+        // proportions for a tree whose crown is about its own height WIDE, not
+        // twice it.
+        //
+        // So two numbers move and both are marked: the first order leaves at
+        // 72 deg instead of 30 (limbs go OUT, which is the whole silhouette),
+        // and runs 1.0 of the trunk instead of 0.8. Everything else is the
+        // published row. Deviating knowingly from a published table on a
+        // species that does not exist is legitimate; doing it silently, or on a
+        // species that DOES exist, would not be.
+        w.levels = 3;
+        w.shape = WeberShape::Hemispherical;
+        w.base_size = 0.05f;
+        w.ratio = 0.018f;
+        w.ratio_power = 1.3f;
+        w.flare = 1.2f;
+        w.attraction_up = 0.8f;
+        w.base_splits = 2;
+        w.level[0] = {0.0f,  0.0f,  0.0f,  0.0f, 1.00f, 0.00f, 0.95f,  0.0f,   0.0f,  90.0f, 8, 0.40f, 10.0f,  0.0f,   0};
+        w.level[1] = {72.0f,-30.0f, 80.0f,  0.0f, 1.00f, 0.10f, 1.00f, 40.0f, -70.0f, 150.0f,10, 0.20f, 10.0f, 10.0f,  40};
+        w.level[2] = {45.0f, 10.0f,140.0f,  0.0f, 0.20f, 0.05f, 1.00f,  0.0f,   0.0f, -30.0f, 3, 0.10f, 10.0f, 10.0f, 120};
+        w.level[3] = {45.0f, 10.0f,140.0f,  0.0f, 0.40f, 0.00f, 1.00f,  0.0f,   0.0f,   0.0f, 1, 0.00f,  0.0f,  0.0f,   0};
+        break;
+    }
+    case FloraSpecies::DaleOak: {
+        // CA BLACK OAK, verbatim. Ours is an oak and so is theirs.
+        w.levels = 3;
+        w.shape = WeberShape::Hemispherical; // Shape 2
+        w.base_size = 0.05f;
+        w.ratio = 0.018f;
+        w.ratio_power = 1.3f;
+        w.flare = 1.2f;
+        w.attraction_up = 0.8f;
+        w.base_splits = 2;
+        //          down  downV  rot  rotV   len  lenV  taper  curve  cBack  curveV res split splitA splitAV branches
+        w.level[0] = {0.0f,  0.0f,  0.0f,  0.0f, 1.00f, 0.00f, 0.95f,  0.0f,   0.0f,  90.0f, 8, 0.40f, 10.0f,  0.0f,   0};
+        w.level[1] = {30.0f,-30.0f, 80.0f,  0.0f, 0.80f, 0.10f, 1.00f, 40.0f, -70.0f, 150.0f,10, 0.20f, 10.0f, 10.0f,  40};
+        w.level[2] = {45.0f, 10.0f,140.0f,  0.0f, 0.20f, 0.05f, 1.00f,  0.0f,   0.0f, -30.0f, 3, 0.10f, 10.0f, 10.0f, 120};
+        w.level[3] = {45.0f, 10.0f,140.0f,  0.0f, 0.40f, 0.00f, 1.00f,  0.0f,   0.0f,   0.0f, 1, 0.00f,  0.0f,  0.0f,   0};
+        break;
+    }
+    case FloraSpecies::RiverBirch: {
+        // QUAKING ASPEN, verbatim — AND THE MAPPING IS OURS AND IMPERFECT, so
+        // it is stated rather than hidden: Populus tremuloides is not Betula.
+        // It is the closest of the four published species to what our birch has
+        // to be (a slender pale-boled broadleaf with a high open crown), and
+        // the alternative was inventing numbers, which is what the whole
+        // exercise exists to stop. If a real Betula table is ever obtained it
+        // replaces this one.
+        w.levels = 3;
+        w.shape = WeberShape::TendFlame; // Shape 7
+        w.base_size = 0.40f;
+        w.ratio = 0.015f;
+        w.ratio_power = 1.2f;
+        w.flare = 0.6f;
+        w.attraction_up = 0.5f;
+        w.base_splits = 0;
+        w.level[0] = {0.0f,  0.0f,  0.0f, 0.0f, 1.00f, 0.00f, 1.00f,   0.0f, 0.0f, 20.0f, 3, 0.0f, 0.0f, 0.0f,  0};
+        w.level[1] = {60.0f,-50.0f,140.0f, 0.0f, 0.30f, 0.00f, 1.00f, -40.0f, 0.0f, 50.0f, 5, 0.0f, 0.0f, 0.0f, 50};
+        w.level[2] = {45.0f, 10.0f,140.0f, 0.0f, 0.60f, 0.00f, 1.00f, -40.0f, 0.0f, 75.0f, 3, 0.0f, 0.0f, 0.0f, 30};
+        w.level[3] = {45.0f, 10.0f, 77.0f, 0.0f, 0.00f, 0.00f, 1.00f,   0.0f, 0.0f,  0.0f, 1, 0.0f, 0.0f, 0.0f, 10};
+        break;
+    }
+    case FloraSpecies::ValeWillow: {
+        // WEEPING WILLOW, verbatim. Note `AttractionUp` -3: the model's upward
+        // tug run BACKWARDS is the whole of what makes a willow weep, and it is
+        // the only negative value in the published table. Note also that this
+        // is the one species with `PruneRatio` 1 — see the header note.
+        w.levels = 4;
+        w.shape = WeberShape::Cylindrical; // Shape 3
+        w.base_size = 0.05f;
+        w.ratio = 0.03f;
+        w.ratio_power = 2.0f;
+        w.flare = 0.75f;
+        w.attraction_up = -3.0f;
+        w.base_splits = 2;
+        w.level[0] = { 0.0f,  0.0f,   0.0f,  0.0f, 0.80f, 0.00f, 1.00f,  0.0f, 20.0f, 120.0f, 8, 0.10f,  3.0f,  0.0f,   0};
+        w.level[1] = {20.0f, 10.0f,-120.0f, 30.0f, 0.50f, 0.10f, 1.00f, 40.0f, 80.0f,  90.0f,16, 0.20f, 30.0f, 10.0f,  25};
+        w.level[2] = {30.0f, 10.0f,-120.0f, 30.0f, 1.50f, 0.00f, 1.00f,  0.0f,  0.0f,   0.0f,12, 0.20f, 45.0f, 20.0f,  10};
+        w.level[3] = {20.0f, 10.0f, 140.0f,  0.0f, 0.10f, 0.00f, 1.00f,  0.0f,  0.0f,   0.0f, 1, 0.00f,  0.0f,  0.0f, 300};
+        break;
+    }
+    default:
+        // Conifers are NOT on this path and that is a positive statement: a
+        // spruce is monopodial and rhythmic, its whorls are a developmental
+        // pattern rather than a branching law, and whorl_skeleton already
+        // models that. The published set has no conifer either.
+        //
+        // BLACK TUPELO is transcribed in docs/WEBER_PENN_PARAMS.md and unused:
+        // Levels 4, Shape 4, a tall straight forest broadleaf. It is the row to
+        // reach for when the catalog gains the dense-stand species the user
+        // asked for, and it is recorded here so the next agent does not go
+        // looking for a fifth table that already exists.
+        w.levels = 0;
+        break;
+    }
+    // OURS: the clear bole. Their `BaseSize` is a species trait; our crown base
+    // is a design band with a walkability floor under it, and the two disagree
+    // (CA Black Oak clears 5 % of its height, our band starts at 35 %). The
+    // contract wins, because CANOPY_CLEARANCE_MIN is a rule about the player.
+    // Recorded rather than silently overwritten: it means our oaks carry their
+    // lowest limbs higher than the published oak does, and that is a knowing
+    // deviation, not a transcription error.
+    return w;
 }
 
 const SpeciesParams& species_params(FloraSpecies species) {

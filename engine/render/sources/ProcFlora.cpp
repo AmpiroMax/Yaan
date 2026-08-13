@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 19:45:00
+Last updated: 13:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -142,6 +142,15 @@ UPD:
   broadleaf to ramification left the wood ignoring its neighbours entirely while
   only the foliage clusters were still scaled -- the clause-implemented-in-half
   failure of flora.md §3.7, rebuilt in a new place.
+- 13:08:2026 - 21:00:00: WEBER & PENN builds the crown where the budget can
+  afford it (measured gate, 150 nodes), and the great oak crosses it today. RULE
+  52 arrives in two places the user pointed at: the fallen log's root plate was
+  two flat discs and is now several closed roots — his own recipe, a plane that
+  DEPICTS a thing replaced by instances of the thing — and the snag's splinters
+  were two-sided triangles and are now closed wedges. The giant no longer
+  degrades to one 50 m ellipsoid at Silhouette: it keeps a cheap version of its
+  own branch system, and its foliage, because a landmark whose LOD removes what
+  identifies it has no LOD.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -149,6 +158,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/FloraBuild.h"
 #include "engine/render/sources/FloraSkeleton.h"
+#include "engine/render/sources/FloraWeber.h"
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
@@ -197,7 +207,25 @@ constexpr float CLEARANCE_MIN = static_cast<float>(config::CANOPY_CLEARANCE_MIN)
 // Wood cost is unchanged: decimate_to(GREAT_OAK_MAX_SEGMENTS) still caps the
 // skeleton at 400 segments and preserves foliage anchors, so the extra nodes
 // buy leaf sites and are then dissolved.
-constexpr uint32_t GREAT_OAK_MAX_NODES = 1500;
+// RE-DERIVED 13.08.2026 FOR WEBER & PENN, and it FALLS because the model is
+// more efficient with a node than the ramified grower was. 1500 was the number
+// that fed the fractal grower enough tips to carry foliage; Weber & Penn get
+// their density from branch COUNT per level, so 700 nodes now buy a fuller
+// crown than 1500 did — measured 4760 wood + 1435 card triangles, i.e. 6195
+// against GREAT_OAK_TRI_BUDGET 7000, with no request for more.
+//
+// WHAT THE SAME BUDGET NOW BUYS (Weber-Penn against the ramified grower it
+// replaces, both at their budget):
+//     leaf-to-wood gap      0.91 m -> 0.75 m
+//     silhouette ambiguity  0.318  -> 0.447
+//     layers of leaf        19.96  -> 6.43
+//     built crown diameter  49.6 m -> 62.9 m
+// The third line is the one that matters: the giant is now as dense PER UNIT OF
+// SILHOUETTE as an ordinary oak (6.43 against 6.27, a ratio of 1.02), where it
+// was 3.2x denser this morning and 13x denser yesterday. That ratio was the
+// criterion this zone proposed for "does the giant read as a structure", and it
+// is met without spending a triangle more.
+constexpr uint32_t GREAT_OAK_MAX_NODES = 700;
 constexpr uint32_t GREAT_OAK_MAX_SEGMENTS = 300;
 constexpr auto GREAT_OAK_STEP_RISE = static_cast<float>(config::GREAT_OAK_STEP_RISE);
 constexpr auto GREAT_OAK_STEP_REACH = static_cast<float>(config::GREAT_OAK_STEP_REACH);
@@ -489,6 +517,59 @@ void build_golden_chain(MeshData& m, Tree& t, const std::vector<TrunkRing>& path
     }
 }
 
+/// FOLIAGE ON THE SHOOTS, shared by every grower that produces a Skeleton.
+/// Factored out when Weber & Penn arrived, because "leaves grow out of
+/// branches" is a property of THIS step and must not be re-implemented per
+/// generator — that is how a shared rule acquires copies, and this zone has
+/// paid for that three times in two days over one constant.
+void emit_shoot_foliage(MeshData& m, Tree& t, const Skeleton& sk, uint64_t seed,
+                        float card_reach_frac) {
+    const SpeciesParams& sp = t.sp;
+    if (!emits_clusters(sp)) return;
+    // Silhouette is only reached by the giant (Rule 52 sends it down the
+    // structural path instead of a shell), and it may not cost MORE foliage
+    // than Reduced does — a level that is cheaper in wood and dearer in cards
+    // is not a level, it is a different tree.
+    const bool thin = t.lod != FloraLod::Full;
+    const uint32_t clusters = thin
+        ? std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u)
+        : sp.cluster_count;
+    const int card_count = thin ? std::max(3, sp.cards_per_cluster - 1) : -1;
+    const float r = t.crown_r * sp.cluster_radius_frac;
+    (void)card_reach_frac;
+    // Every mass sits on a branch segment, displaced by
+    // at most HALF ITS OWN RADIUS, so it always overlaps the wood it grows on —
+    // the rule the conifer's pendulous shoots have obeyed since 09.08 («a shoot
+    // that falls further than its own card is wide reads as detached foliage»),
+    // now the rule for every species instead of for one.
+    //
+    // AND IT UNCOUPLES FULLNESS FROM THE NODE BUDGET, which is the second
+    // defect the great oak's distant frame found and could not fix: masses are
+    // spread along the eligible shoot LENGTH, so a crown can be filled without
+    // growing more wood. `fractal_depth` buys structure; `cluster_count` buys
+    // fullness; they were the same lever before and neither could be set.
+    ShootFoliage f;
+    f.target_count = clusters;
+    f.base_y = t.crown_base;
+    f.stand_off = r * 0.5f;
+    // LEAVES GROW ON SHOOTS, NOT ON LIMBS. Wood over 45 % of the bole's own
+    // radius is structure; hanging a leaf mass on it puts foliage where a real
+    // crown has bare wood, and reintroduces the complaint one metre further in.
+    f.outer_radius = t.trunk_r * 0.45f;
+    f.axis = t.crown_axis;
+    std::vector<glm::vec3> centres;
+    std::vector<int> anchors;
+    gather_shoot_anchors(sk, f, seed ^ 0x5DEECE66Dull, centres, anchors);
+    for (size_t i = 0; i < centres.size(); ++i) {
+        const int a = anchors[i];
+        if (a < 0 || static_cast<size_t>(a) >= sk.nodes.size()) continue;
+        t.sway_from = sk.nodes[static_cast<size_t>(a)].pos;
+        emit_cluster(m, t, centres[i],
+                     r * shy_scale(t, centres[i] - t.stem_off), card_count);
+    }
+    t.sway_from = glm::vec3{t.stem_off.x, t.crown_base, t.stem_off.z};
+}
+
 /// THE RAMIFIED CROWN, AND IT IS NO LONGER THE GREAT OAK'S ALONE.
 ///
 /// The user, 13.08.2026: «крона от ствола отходит, значит листья и ствол живут
@@ -705,37 +786,78 @@ void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
         return;
     }
 
-    // FOLIAGE ON THE SHOOTS. Every mass sits on a branch segment, displaced by
-    // at most HALF ITS OWN RADIUS, so it always overlaps the wood it grows on —
-    // the rule the conifer's pendulous shoots have obeyed since 09.08 («a shoot
-    // that falls further than its own card is wide reads as detached foliage»),
-    // now the rule for every species instead of for one.
-    //
-    // AND IT UNCOUPLES FULLNESS FROM THE NODE BUDGET, which is the second
-    // defect the great oak's distant frame found and could not fix: masses are
-    // spread along the eligible shoot LENGTH, so a crown can be filled without
-    // growing more wood. `fractal_depth` buys structure; `cluster_count` buys
-    // fullness; they were the same lever before and neither could be set.
-    ShootFoliage f;
-    f.target_count = clusters;
-    f.base_y = t.crown_base;
-    f.stand_off = r * 0.5f;
-    // LEAVES GROW ON SHOOTS, NOT ON LIMBS. Wood over 45 % of the bole's own
-    // radius is structure; hanging a leaf mass on it puts foliage where a real
-    // crown has bare wood, and reintroduces the complaint one metre further in.
-    f.outer_radius = t.trunk_r * 0.45f;
-    f.axis = t.crown_axis;
-    std::vector<glm::vec3> centres;
-    std::vector<int> anchors;
-    gather_shoot_anchors(sk, f, seed ^ 0x5DEECE66Dull, centres, anchors);
-    for (size_t i = 0; i < centres.size(); ++i) {
-        const int a = anchors[i];
-        if (a < 0 || static_cast<size_t>(a) >= sk.nodes.size()) continue;
-        t.sway_from = sk.nodes[static_cast<size_t>(a)].pos;
-        emit_cluster(m, t, centres[i],
-                     r * shy_scale(t, centres[i] - t.stem_off), card_count);
-    }
+    emit_shoot_foliage(m, t, sk, seed, card_reach_frac);
     t.sway_from = glm::vec3{t.stem_off.x, t.crown_base, t.stem_off.z};
+}
+
+/// THE WEBER & PENN CROWN. The user, 13.08.2026: «неужели в инете нет никаких
+/// алгоритмов… чтобы размеры веток / число веток / листья по-живому строились».
+/// There are, this is the standard one, and Arbaro and Blender's sapling
+/// generator are both implementations of it.
+///
+/// WHAT IT BUYS OVER THE RAMIFIED GROWER IT REPLACES, in one sentence each:
+///   - LEVELS OBEY DIFFERENT LAWS. A self-similar fractal applies one rule at
+///     every scale, which is why it reads as a fractal; a real tree's trunk,
+///     limbs, secondaries and shoots each have their own declination, rotation,
+///     length and curvature laws, and the model is built on that observation.
+///   - THE CROWN'S SHAPE COMES FROM BRANCH LENGTHS. `WeberShape` decides how
+///     long a limb is as a function of where it leaves the bole, so the outline
+///     emerges from branches being the right size instead of from anything
+///     being clipped to fit.
+///   - STEMS SPLIT. A broadleaf crown forks; our previous growers could only
+///     branch, and a tree that never forks has no crown structure to read.
+///   - THE POSITIONAL DECLINATION (a negative `down_angle_v`) makes low limbs
+///     reach out and high ones climb, from one minus sign.
+///
+/// EVERYTHING DOWNSTREAM IS UNCHANGED AND THAT IS DELIBERATE: the pipe radii,
+/// the decimation, the shyness boundaries, the envelope clip, the foliage on
+/// shoots and the collision side-channel all operate on a Skeleton and do not
+/// care which grower filled it. The contracts other zones hold — foliage grows
+/// from branches, `build_flora_structure` reports the drawn wood — are properties
+/// of those steps, not of the generator, so replacing the generator cannot
+/// break them.
+void build_weber_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
+                       uint64_t seed, uint32_t max_nodes, uint32_t max_segments) {
+    const SpeciesParams& sp = t.sp;
+    const float card_reach_frac =
+        sp.cluster_radius_frac
+        * ((sp.foliage == FoliageShape::Card)
+               ? sp.card_width_frac * std::sqrt(1.0f + sp.card_aspect * sp.card_aspect)
+               : 1.0f);
+    const float foliage_inset = std::clamp(1.0f - card_reach_frac, 0.40f, 0.92f);
+
+    WeberParams w = species_weber(t.species, t.height);
+    w.base = stem_base;
+    w.max_nodes = max_nodes;
+    // The bole's clear length is the species' crown base, so CANOPY_CLEARANCE
+    // and design's crown-base band bind the model's own `base_size` rather than
+    // being enforced afterwards on geometry that already exists.
+    w.base_size = std::clamp((t.crown_base - stem_base.y)
+                                 / std::max(t.height - stem_base.y, 0.01f),
+                             0.05f, 0.75f);
+    w.top_y = t.crown_top;
+    w.max_radius = t.crown_r * foliage_inset;
+    w.axis = t.crown_axis;
+    w.lean = t.shape.lean > 0.0f ? t.shape.lean_dir * (t.shape.lean * 0.8f)
+                                 : glm::vec2{0.0f};
+    if (flora_shyness_arm() && t.shape.crowd_count > 0) {
+        w.crowd = static_cast<const void*>(t.shape.crowd);
+        w.crowd_count = t.shape.crowd_count;
+        w.crowd_origin = t.crown_axis;
+        w.crowd_jitter = t.crown_r * 0.10f;
+        w.crowd_inset = t.crown_r * card_reach_frac;
+        w.crowd_floor = t.crown_r * 0.25f;
+    }
+
+    Skeleton sk;
+    weber_skeleton(sk, w, seed);
+    if (sk.nodes.size() < 2) return;
+
+    assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
+    decimate_to(sk, max_segments);
+    assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
+    emit_skeleton(m, t, sk);
+    emit_shoot_foliage(m, t, sk, seed, card_reach_frac);
 }
 
 void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
@@ -757,11 +879,57 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         const bool giant = sp.crown_radius_per_height > 0.0f;
         uint32_t nodes = giant ? GREAT_OAK_MAX_NODES : max_crown_segments(sp);
         uint32_t segs = giant ? GREAT_OAK_MAX_SEGMENTS : max_crown_segments(sp);
+        if (const char* e = std::getenv("DFN_FLORA_NODES")) {
+            nodes = static_cast<uint32_t>(std::atoi(e));
+            segs = nodes;
+        }
         if (t.lod == FloraLod::Reduced) {
             nodes = std::max(24u, nodes * 45u / 100u);
             segs = std::max(24u, segs * 45u / 100u);
+        } else if (t.lod == FloraLod::Silhouette) {
+            // Only the giant reaches this path (build_silhouette sends it here
+            // rather than drawing a shell, Rule 52). An eighth of the budget
+            // still buys the bole and its major limbs, which is the part of a
+            // landmark that is legible at a kilometre.
+            nodes = std::max(24u, nodes / 8u);
+            segs = std::max(24u, segs / 8u);
         }
-        build_fractal_crown(m, t, stem_base, stem_top, seed, nodes, segs);
+        // WEBER & PENN WHERE THE BUDGET CAN AFFORD IT, and the gate is measured
+        // rather than chosen. The model gets its density from the NUMBER of
+        // branches per level — `CA Black Oak` carries 40 main limbs and 120
+        // secondaries on each — so starved of nodes it does not degrade into a
+        // simpler tree, it degrades into a SKETCH of a complex one: a trunk, a
+        // few limbs, and foliage with nothing under it.
+        //
+        // THAT IS NOT A MATTER OF TASTE, IT BREAKS A CONTRACT. At the 35 nodes
+        // TREE_TRI_BUDGET_MAX affords an ordinary crown, the REJECTION-1 suite
+        // case — every leaf cluster hangs off a branch that exists — fails at
+        // 5.24 m against its 4.17 m bound, because the foliage budget is
+        // unchanged while the wood it is supposed to hang on is not there.
+        // Measured on the oak, over the node budget, against the ramified
+        // grower it would replace (gap mean / silhouette ambiguity):
+        //     35 nodes   1.45 m / 0.342     <- REJECTION 1 red
+        //     80         0.76  / 0.354
+        //    150         0.62  / 0.424      <- parity in gap, better structure
+        //    300         0.53  / 0.502      <- better on both
+        //    (ramified, 35 nodes: 0.60 / 0.386)
+        // So 150 is where the model stops costing more than it buys, and that
+        // is the gate. It is expressed against the NODE budget rather than as a
+        // species list, so the day TREE_TRI_BUDGET_MAX rises every species
+        // crosses over on its own and nobody has to remember to move them.
+        //
+        // THE ASK THAT GOES WITH IT (lead's, not mine to set): 700 buys 35
+        // nodes and a sketch; 1300 buys parity; 2500 buys a tree measurably
+        // better than anything this zone has produced. The giant already has
+        // its own budget and is over the gate today, which is why it is the
+        // species that switched.
+        constexpr uint32_t WEBER_MIN_NODES = 150;
+        if (flora_weber_arm() && nodes >= WEBER_MIN_NODES
+            && species_weber(t.species, t.height).levels > 0) {
+            build_weber_crown(m, t, stem_base, stem_top, seed, nodes, segs);
+        } else {
+            build_fractal_crown(m, t, stem_base, stem_top, seed, nodes, segs);
+        }
         return;
     }
 
@@ -1132,8 +1300,25 @@ void build_snag_detail(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
         const float shard_h = 0.4f + rng.unit() * 0.4f;
         const glm::vec3 tip = (rim_a + rim_b) * 0.5f + top.dir * shard_h
             + (u * rng.sym() + v * rng.sym()) * 0.08f;
-        tri(m, rim_a, tip, rim_b, t.wood);
-        tri(m, rim_b, tip, rim_a, t.wood); // two-sided: a shard is a sliver
+        // A SPLINTER IS A CLOSED WEDGE, NOT A TWO-SIDED TRIANGLE (Rule 52).
+        // It was a sliver here — one triangle emitted twice with opposite
+        // winding — which is a plane pretending to be a piece of wood and reads
+        // as a razor edge from the side, exactly what the user objected to on
+        // the fallen log's root discs. Four faces cost three more triangles and
+        // the shard has a thickness at every bearing.
+        const glm::vec3 mid = (rim_a + rim_b) * 0.5f;
+        const glm::vec3 thick = top.dir * 0.0f
+            + safe_normalize(glm::cross(rim_b - rim_a, top.dir), u) * (top.radius * 0.16f);
+        const glm::vec3 a0 = rim_a + thick;
+        const glm::vec3 b0 = rim_b + thick;
+        const glm::vec3 a1 = rim_a - thick;
+        const glm::vec3 b1 = rim_b - thick;
+        tri(m, a0, tip, b0, t.wood);
+        tri(m, b1, tip, a1, t.wood);
+        tri(m, a1, tip, a0, t.wood);
+        tri(m, b0, tip, b1, t.wood);
+        tri(m, a0, b0, mid, t.wood);
+        tri(m, b1, a1, mid, t.wood);
     }
 
     // Truncated limb stubs over the upper two thirds of the bole. The FIRST one
@@ -1188,32 +1373,86 @@ void build_fallen_log(MeshData& m, Tree& t, Rng& rng) {
     }
 
     if (t.lod != FloraLod::Silhouette) {
-        // The upturned ROOT PLATE: a fallen tree tore out of the ground, and
-        // the disc of roots and earth standing on the butt is the single
-        // strongest "this fell" signal the medium has. Two fans, front and
-        // back, jagged rim; big class only (deadfall is shed wood, it never
-        // had roots).
+        // THE ROOT MASS — and it is ROOTS now, not a disc. RULE 52, and the
+        // user found it here, on this object, looking at this geometry:
+        //
+        //   «прикольные, но видно плоские острые полигоны у корней, два диска,
+        //    это портит ощущение реальности»
+        //   «никаких плоских частей на объектах, всё только объёмное
+        //    замкнутое. если делаем диск, что корни представляет, то мы делаем
+        //    несколько корней из пары полигонов и после добавляем их к итоговой
+        //    фигуре»
+        //
+        // WHAT WAS HERE was exactly the thing he named: two triangle fans a
+        // few centimetres apart, i.e. two flat discs, seen edge-on as a sharp
+        // line. It read as a disc from the front and as a razor from the side,
+        // which is what a flat plate standing in for a volume always does.
+        //
+        // AND THE RECIPE IS HIS, GENERALISED: a plane that DEPICTS something is
+        // replaced by SEVERAL INSTANCES OF THE THING IT DEPICTED. So the disc
+        // of roots becomes roots — each a closed tapered prism torn out of the
+        // butt, splaying and curving, a few of them forking once. The
+        // silhouette then comes from STRUCTURE rather than from an outline,
+        // which is why it survives every bearing instead of collapsing at one.
+        //
+        // It is the same defect this zone has now found four times in four
+        // different places (the crown envelope that could not open a gap, the
+        // cloud dome that could not have a hole, the giant's silhouette LOD
+        // that is one ellipsoid, and this): a CONTOUR standing in for a
+        // STRUCTURE. Rule 52 is that lesson stated once so it stops being
+        // rediscovered.
         if (sp.root_plate) {
             const glm::vec3 c{-len * 0.5f, y0, 0.0f};
-            const glm::vec3 n = safe_normalize(glm::vec3{-1.0f, 0.22f + rng.sym() * 0.1f,
+            // The tear-out direction: up and back off the butt, as a root plate
+            // stands when a tree goes over.
+            const glm::vec3 n = safe_normalize(glm::vec3{-1.0f, 0.55f + rng.sym() * 0.15f,
                                                          rng.sym() * 0.15f},
                                                glm::vec3{-1.0f, 0.0f, 0.0f});
             const glm::vec3 pu = perp_of(n);
             const glm::vec3 pv = glm::cross(n, pu);
-            const float rp = r * (1.9f + rng.unit() * 0.4f);
-            constexpr int SPOKES = 8;
-            glm::vec3 rim[SPOKES];
-            for (int k = 0; k < SPOKES; ++k) {
-                const float az = TAU * static_cast<float>(k) / SPOKES;
-                const float rk = rp * (0.68f + rng.unit() * 0.45f);
-                rim[k] = c + (pu * std::cos(az) + pv * std::sin(az)) * rk;
-            }
-            const glm::vec3 off = n * (r * 0.10f);
-            for (int k = 0; k < SPOKES; ++k) {
-                const glm::vec3& a = rim[k];
-                const glm::vec3& b = rim[(k + 1) % SPOKES];
-                tri(m, c + off, a + off, b + off, t.twig); // face away from the log
-                tri(m, c - off, b - off, a - off, t.wood); // face toward it
+            const int roots = 6 + static_cast<int>(rng.unit() * 3.0f);
+            for (int k = 0; k < roots; ++k) {
+                const float az = TAU * (static_cast<float>(k) + rng.sym() * 0.35f)
+                    / static_cast<float>(roots);
+                const glm::vec3 out = pu * std::cos(az) + pv * std::sin(az);
+                // Roots leave the butt splayed, not radial-flat: the mix of the
+                // tear-out normal and the outward fan is what gives the mass
+                // depth along the log's axis as well as across it.
+                glm::vec3 dir = safe_normalize(out * (0.72f + rng.unit() * 0.5f)
+                                                   + n * (0.45f + rng.unit() * 0.4f),
+                                               out);
+                const float rlen = r * (1.5f + rng.unit() * 1.5f);
+                const float r0 = r * (0.28f + rng.unit() * 0.22f);
+                glm::vec3 p0 = c + dir * (r * 0.35f);
+                // Two segments so the root CURVES — a straight spike is the
+                // other half of what made the old plate read as manufactured.
+                const int segs = 2;
+                for (int sgi = 0; sgi < segs; ++sgi) {
+                    const float f0 = static_cast<float>(sgi) / static_cast<float>(segs);
+                    const float f1 = static_cast<float>(sgi + 1) / static_cast<float>(segs);
+                    const glm::vec3 nd = safe_normalize(
+                        dir + glm::vec3{0.0f, -0.30f, 0.0f} * f1
+                            + glm::vec3{rng.sym(), 0.0f, rng.sym()} * 0.18f,
+                        dir);
+                    const glm::vec3 p1 = p0 + nd * (rlen / static_cast<float>(segs));
+                    tube_segment(m, p0, p1, nd,
+                                 std::max(r0 * (1.0f - 0.55f * f0),
+                                          SHADOW_MIN_DIAMETER * 0.5f),
+                                 std::max(r0 * (1.0f - 0.55f * f1),
+                                          SHADOW_MIN_DIAMETER * 0.5f),
+                                 4, (sgi == 0) ? t.wood : t.twig);
+                    // A third of the roots fork once, which is what a root
+                    // system does and what stops the mass reading as a broom.
+                    if (sgi + 1 == segs && rng.unit() < 0.34f) {
+                        const glm::vec3 fd = safe_normalize(
+                            nd + (pu * rng.sym() + pv * rng.sym()) * 0.7f, nd);
+                        tube_segment(m, p1, p1 + fd * (rlen * 0.45f), fd,
+                                     std::max(r0 * 0.42f, SHADOW_MIN_DIAMETER * 0.5f),
+                                     SHADOW_MIN_DIAMETER * 0.5f, 3, t.twig);
+                    }
+                    p0 = p1;
+                    dir = nd;
+                }
             }
         }
 
@@ -1322,6 +1561,18 @@ void build_silhouette(MeshData& m, Tree& t) {
     if (t.sp.envelope == CrownEnvelope::None) return;
     if (t.sp.envelope == CrownEnvelope::Cone) {
         build_cone_shell(m, t);
+        return;
+    }
+    // THE GIANT DOES NOT GET A SHELL (Rule 52). One 50 m ellipsoid standing in
+    // for a tree readable as an OBJECT to 2.4 km is a contour replacing a
+    // structure, which is the failure the rule names — and it was measured
+    // before the rule existed: at this level the great oak emitted 66 wood
+    // triangles and ZERO cards, i.e. a green hill. It gets a cheap version of
+    // its OWN branch system instead: the same grower at a small node budget, so
+    // what recedes is detail rather than identity.
+    if (t.sp.crown_radius_per_height > 0.0f) {
+        build_crown(m, t, glm::vec3{0.0f, t.height * t.sp.branch_base_frac, 0.0f},
+                    top, mix64(0x51EA5EDull), t.height * t.sp.branch_base_frac);
         return;
     }
     // The shell sits over the LEANING bole, like the full crown does. A LOD
@@ -1589,6 +1840,7 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
                       : std::clamp(height * 0.08f, 0.08f, 0.4f),
            woody_tree ? FLARE_DEPTH : std::clamp(height * 0.10f, 0.10f, 0.4f)};
 
+    t.species = species;
     t.structure = out_structure;
     if (out_structure != nullptr) {
         out_structure->branches.clear();
@@ -1607,7 +1859,16 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
     // The Silhouette LOD deliberately keeps its solid shell: at that range the
     // silhouette is the entire information and a cutout buys nothing but
     // shimmer and overdraw.
-    if (sp.foliage == FoliageShape::Card && lod != FloraLod::Silhouette
+    // THE GIANT KEEPS ITS FOLIAGE AT EVERY LEVEL (Rule 52). Dropping cards at
+    // Silhouette is right for a 28 m oak that is four pixels wide by then; it
+    // is wrong for a tree that is still an OBJECT at 2.4 km, and it is half of
+    // why the giant photographed as bare wood at range while its neighbours
+    // read as green. A landmark whose LOD removes the thing that identifies it
+    // has no LOD, it has a substitute.
+    const bool giant_keeps_cards =
+        sp.crown_radius_per_height > 0.0f && lod == FloraLod::Silhouette;
+    if (sp.foliage == FoliageShape::Card
+        && (lod != FloraLod::Silhouette || giant_keeps_cards)
         && leaf_tone_has_foliage(sp.tone_first, season)) {
         t.cards = &parts.cards;
     }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 19:55:00
+Last updated: 13:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -51,6 +51,10 @@ UPD:
   (DFN_FLORA_SHY=0), for crown shyness alone. DFN_FLORA_CROWN reverts how the
   crown is BUILT, so a pair taken across it would answer two questions at once
   and the canopy-overlap number is about one of them (Rule 48).
+- 13:08:2026 - 21:00:00: species_weber() — the Weber & Penn row for a species.
+  A SECOND table on purpose: SpeciesParams says what a species IS to every
+  consumer, this says what one GENERATOR needs, and mixing the two is what made
+  the old growers' parameters so hard to tell from the species itself.
 */
 
 #pragma once
@@ -381,6 +385,16 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// own quantity has its own arm.
 [[nodiscard]] bool flora_shyness_arm();
 
+/// WHICH GENERATOR BUILDS THE CROWN. `DFN_FLORA_GEN=0` is the zero-dose arm —
+/// the ramified grower of this morning; unset or `=1` is Weber & Penn.
+///
+/// The fourth door, and the last one this zone should need: it is the door for
+/// "we replaced the generator", which is the largest change that can be made
+/// here and therefore the one that most needs a same-binary control. A pair
+/// taken across a rebuild would answer "what happened today" (Rule 47), and
+/// today an unusual amount happened.
+[[nodiscard]] bool flora_weber_arm();
+
 /// THE CARD SCRAP FLOOR — the smallest half-width a leaf card may be emitted at
 /// before it stops reading as part of a crown and starts reading as a detached
 /// scrap hanging under one.
@@ -404,6 +418,25 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// floor where the old form was absurd, never tighten it anywhere: swapping
 /// them outright cost the birch 65 % of its foliage in one measured run.
 [[nodiscard]] float card_scrap_floor(const SpeciesParams& sp, float crown_radius);
+
+struct WeberParams; // FloraWeber.h — forward-declared to keep the include
+                    // graph acyclic (FloraWeber.h needs the species enum).
+
+/// THE WEBER & PENN ROW for a species, at a given built height.
+///
+/// It is a SEPARATE table from SpeciesParams on purpose and the reason is worth
+/// stating, because "a species is one table row" is this zone's doctrine and
+/// this looks like a second row. It is not a second description of the same
+/// thing: SpeciesParams says what a species IS to every consumer (size bands,
+/// values, card sizes, clearances, what sim and core read), while these are the
+/// parameters of one GENERATOR. When the generator is replaced the model
+/// parameters go with it and nothing else moves — which is exactly what is
+/// happening today, and what made the old growers' parameters, mixed into
+/// SpeciesParams, so expensive to tell apart from the species itself.
+///
+/// Height is an argument because Weber & Penn's lengths are relative and our
+/// height band is an absolute cross-zone contract.
+[[nodiscard]] WeberParams species_weber(FloraSpecies species, float height);
 
 /// The catalog. Stable reference for the process lifetime.
 [[nodiscard]] const SpeciesParams& species_params(FloraSpecies species);
