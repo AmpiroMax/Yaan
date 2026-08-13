@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 10:08:2026 - 21:27:14
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -35,6 +35,7 @@ UPD:
   DARKNESS_FALLOFF_MAX has zero references anywhere. One of three orphaned
   range halves found in the constants census; needs a design ruling, not a
   local edit.
+- 13:08:2026 - 16:45:00: МЕРЦАНИЕ В ПОДЗЕМЕЛЬЕ ПОЧИНЕНО (жалоба пользователя «темнеет в глазах, потом мигает»). Точка запроса поднимается на CARVE_QUERY_LIFT_M = VOXEL_SIZE перед ВСЕМИ проверками вхождения: запрос задаётся о низе капсулы, то есть о точке НА нарисованном полу, а нарисованный пол — реконструкция на решётке вокселя и стоит от аналитической плоскости в пределах вокселя, поэтому точный `>= 0` спрашивал о геометрии тоньше, чем геометрия умеет отвечать. Замер: 13 переключений ambient_darkness 0.000↔1.000 ЗА ОДИН КАДР на проход → 1; доля подземных тиков «по ту сторону границы» 3.6 % → 0.0 %. Подъём, а НЕ допуск на расстояние: изотропный допуск убрал мерцание и зачернил ОТКРЫТУЮ подходную выемку на 51 кадр (поймано дневной рукой). Вторая копия того же вопроса — свои ворота в corridor_path_from_mouth — держала 7 переключений из 13 после починки только первых. Новый enclosure_trace() — те же промежуточные величины ОДНОГО вычисления, чтобы прибор не мог разойтись с боевым кодом. Подробности и приёмка: docs/FINDING_DUNGEON_DARK.md.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -50,6 +51,67 @@ namespace dfn::world {
 namespace {
 
 constexpr float FAR_AWAY = 1e9f;
+
+/// HOW FAR A QUERY POINT RESTING ON THE FLOOR IS LIFTED before this file is
+/// asked which side of a carve boundary it is on. This is the fix for
+/// «темнеет, потом мигает», and it is the width of the question the
+/// representation can answer rather than a fudge.
+///
+/// A player's position is the bottom of the capsule (IPhysics::
+/// character_position — "the capsule bottom point"), i.e. a point ON THE FLOOR.
+/// The floor the feet rest on is the DRAWN one: a surface-nets reconstruction
+/// of this carve on a VOXEL_SIZE lattice. The floor in this file is the
+/// ANALYTIC plane the carve was cut with. The two agree only to the lattice's
+/// reconstruction error, so the SDF at the feet is a number hovering around
+/// zero, and an exact `>= 0` test asks the geometry something finer than the
+/// geometry can answer. Whichever side of zero the last bits land on, the whole
+/// world is declared "cave" or "open daylight" for that frame.
+///
+/// MEASURED, live, walking the crag tunnel (8031 ticks, DFN_DARK_TRACE): with
+/// the feet more than 1 m under the terrain surface, |carve_distance| is
+/// 0.0302 m median, 0.4011 m at p90, 0.6904 m at worst — never as much as one
+/// voxel, exactly as the reconstruction argument predicts — and 53.2 % of those
+/// ticks sit within 5 cm of the boundary. 3.6 % land on the wrong side, and
+/// each is a frame in which ambient light returns at FULL strength 18 m inside
+/// a mountain: `ambient_darkness` stepped 0.000 <-> 1.000 in a SINGLE frame 13
+/// times in one walk, at |carve_distance| between 0.0002 and 0.0108 m.
+///
+/// One voxel is how far the drawn surface can stand from the analytic one — the
+/// same derivation and the same approved constant as render's
+/// PATH_SURFACE_LIFT_M (Materials.h), which lifts drawn path quads for exactly
+/// this reason. Not a new number and not a tuned one.
+///
+/// IT IS A LIFT AND NOT A TOLERANCE ON THE DISTANCE, and that distinction is
+/// measured, not stylistic. The first version of this fix widened the carve by
+/// one voxel in EVERY direction (`carve_distance >= tol`). It removed the
+/// underground flicker and then produced a NEW defect on open ground: walking
+/// the tunnel's outer approach cutting, where the feet read exactly at terrain
+/// height and the corridor wall is 0.34…0.99 m away through air, the place was
+/// declared enclosed and the picture went FULL BLACK for 51 frames in broad
+/// daylight (arm `out_fixed`, 6185 frames, against 0.000000 darkness in the
+/// control arm on the same route). Lifting the point instead widens nothing:
+/// under a roof the lifted point is in the corridor's air, and in the open it
+/// is in the sky, which is where the second gate then rejects it.
+///
+/// BOTH CONTAINMENT TESTS TAKE THE LIFTED POINT, and the second one is why the
+/// first fix was not enough (Rule 32): `corridor_path_from_mouth` carries its
+/// own `corridor_distance(...) > 0` gate, so a point one centimetre "outside"
+/// its own floor was dropped from its own corridor and fell through to the
+/// unmeasurable-mouth fallback — which answers with a straight line to a
+/// DIFFERENT dungeon's mouth. Measured after fixing only the first test: 7 of
+/// the 13 full-scale flips survived, every one of them this path.
+///
+/// The third copy of the question is in a GREEN TEST: tests/core/VoxelTests.cpp
+/// asks the same containment at `p.y + 1.7` and `p.y - 0.5`, stepping away from
+/// the plane the shipping query stands on — which is why no test ever saw this.
+constexpr float CARVE_QUERY_LIFT_M = static_cast<float>(config::VOXEL_SIZE);
+
+/// The query point as this file must ask about it: lifted off the floor it
+/// rests on. ONE definition, used by every containment test here, so the two
+/// gates cannot drift apart again.
+inline glm::vec3 lifted(glm::vec3 world) {
+    return {world.x, world.y + CARVE_QUERY_LIFT_M, world.z};
+}
 
 /// Signed distance to one corridor segment's box cross-section. Negative
 /// inside. `a`/`b` carry the FLOOR level; the box rises `height` above it.
@@ -269,8 +331,8 @@ float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& grou
     if (c.point_count < 2) {
         return 1e9f;
     }
-    if (corridor_distance(c, world) > 0.0f) {
-        return 1e9f; // not inside this corridor
+    if (corridor_distance(c, lifted(world)) > 0.0f) {
+        return 1e9f; // not inside this corridor (see CARVE_QUERY_LIFT_M)
     }
     const auto mouth = carve_mouth(c, ground);
     if (!mouth) {
@@ -306,12 +368,29 @@ float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& grou
 
 float enclosure_darkness(const TestbedLayout& layout, std::span<const CarveCorridor> extra,
                          const GroundSampler& ground, glm::vec3 world) {
+    return enclosure_trace(layout, extra, ground, world).darkness;
+}
+
+EnclosureTrace enclosure_trace(const TestbedLayout& layout,
+                               std::span<const CarveCorridor> extra,
+                               const GroundSampler& ground, glm::vec3 world) {
+    EnclosureTrace tr;
     // Half one: ENCLOSED. Inside carved air, with rock actually overhead.
-    if (carve_distance(layout, extra, world) >= 0.0f) {
-        return 0.0f; // not in a carve at all -- a valley floor is not a cave
+    //
+    // Every test below asks about the LIFTED point (CARVE_QUERY_LIFT_M): the
+    // caller's position is a point resting ON the drawn floor, and the drawn
+    // floor stands within one voxel of this analytic one rather than on it.
+    // Asking about the surface a body touches instead of the air it stands in
+    // is what made this a coin flip, once per frame, underground.
+    const glm::vec3 probe = lifted(world);
+    tr.carve_distance = carve_distance(layout, extra, probe);
+    tr.ground_y = ground({world.x, world.z});
+    tr.above_ground = probe.y >= tr.ground_y;
+    if (tr.carve_distance >= 0.0f) {
+        return tr; // not in a carve at all -- a valley floor is not a cave
     }
-    if (world.y >= ground({world.x, world.z})) {
-        return 0.0f; // open to the sky through the shaft above
+    if (tr.above_ground) {
+        return tr; // open to the sky through the shaft above
     }
 
     // Half two: EARNED. Shortest walk back to any mouth, along the corridors.
@@ -322,6 +401,9 @@ float enclosure_darkness(const TestbedLayout& layout, std::span<const CarveCorri
     for (const CarveCorridor& c : extra) {
         path = std::min(path, corridor_path_from_mouth(c, ground, world));
     }
+    // (corridor_path_from_mouth lifts the point itself, so the containment test
+    // there and the one above are the same test.)
+    tr.path_measured = path <= 1e8f;
     if (path > 1e8f) {
         // Inside carved air but reachable from no mouth we can measure -- the
         // barrow CHAMBER is the real case: it hangs off the end of its
@@ -330,7 +412,9 @@ float enclosure_darkness(const TestbedLayout& layout, std::span<const CarveCorri
         const CarveCorridor& psg = layout.carves.barrow_passage;
         const auto mouth = carve_mouth(psg, ground);
         if (!mouth || psg.point_count < 2) {
-            return 1.0f; // sealed and unmeasurable: dark is the safe answer
+            tr.path_from_mouth = path;
+            tr.darkness = 1.0f; // sealed and unmeasurable: dark is the safe answer
+            return tr;
         }
         path = glm::length(world - mouth->position);
     }
@@ -356,7 +440,9 @@ float enclosure_darkness(const TestbedLayout& layout, std::span<const CarveCorri
     const float falloff = static_cast<float>(config::DARKNESS_FALLOFF_MIN);
     // Ramp UP TO full darkness at DARKNESS_DEPTH_MIN, so the threshold is
     // where it becomes pitch black rather than where it starts to dim.
-    return std::clamp((path - (depth_min - falloff)) / falloff, 0.0f, 1.0f);
+    tr.path_from_mouth = path;
+    tr.darkness = std::clamp((path - (depth_min - falloff)) / falloff, 0.0f, 1.0f);
+    return tr;
 }
 
 } // namespace dfn::world

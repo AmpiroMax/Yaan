@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 12:08:2026 - 00:52:40
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -112,6 +112,7 @@ UPD:
   blades would spend tens of megabytes to draw a hundredth of them. Every
   setting is derived from an approved row (tuft_params(), Rule 14).
   DFN_NO_TUFTS=1 is the counterfactual arm.
+- 13:08:2026 - 16:45:00: DFN_ENV_LOG (env_log_) — покадровый лог потреблённого окружения; см. .cpp.
 */
 
 #pragma once
@@ -128,6 +129,7 @@ UPD:
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <glm/vec2.hpp>
 #include <span>
 #include <unordered_map>
@@ -508,6 +510,13 @@ private:
     bool scatter_off_ = false;
     bool dark_frozen_ = false;
     float frozen_darkness_ = 0.0f;
+    // DFN_ENV_LOG=<path>: one line per PRESENTED frame, written at the
+    // set_environment() call — what the frame was actually DRAWN with, not what
+    // some system computed. Between-frames motion of the lighting becomes
+    // arithmetic on adjacent lines. Off unless the variable names a file; the
+    // handle is closed in shutdown().
+    std::FILE* env_log_ = nullptr;
+    uint64_t env_log_frame_ = 0;
     MapScreen map_;
     PixelCanvas hud_;              // transparent HUD layer, drawn by the caller
     bool hud_visible_ = false;

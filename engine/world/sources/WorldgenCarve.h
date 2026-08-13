@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 10:08:2026 - 02:29:54
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -38,6 +38,7 @@ UPD:
 - 09:08:2026 - 17:36:42: §6.2: carve_mouth / site_carve_mouth (entrance markers derived from the mouth, never scored) and carve overloads taking derived corridors.
 - 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
 - 10:08:2026 - 02:29:54: open_daylight_portals() — endpoints of flagged corridors pushed along their own leg (grade preserved) until the floor stands in open air; capped, and a corridor that cannot reach daylight is left as-is so the acceptance walk stays the alarm.
+- 13:08:2026 - 16:45:00: NEW enclosure_trace() — те же промежуточные величины того же вычисления (какие ворота решили: вхождение, «над землёй», заработанный путь). enclosure_darkness() реализована как .darkness этого вызова, поэтому отладочной копии, способной разойтись с боевой, не существует. Заведено под разбор «темнеет, потом мигает»: результат сам по себе не отличает «не замкнуто» от «замкнуто, но ничего не заработано», а причины и правки у них разные.
 */
 
 #pragma once
@@ -127,5 +128,26 @@ void open_daylight_portals(TestbedLayout& layout, const GroundSampler& ground);
 [[nodiscard]] float enclosure_darkness(const TestbedLayout& layout,
                                        std::span<const CarveCorridor> extra,
                                        const GroundSampler& ground, glm::vec3 world);
+
+/// The intermediates of the SAME evaluation, so a caller can say WHICH half
+/// decided. Written for the "темнеет, потом мигает" investigation: the result
+/// alone cannot distinguish "not enclosed" from "enclosed but nothing earned",
+/// and those two have different causes and different fixes.
+///
+/// `enclosure_darkness()` is implemented as `.darkness` of this call — there is
+/// ONE evaluation, not a debug copy that can drift from the shipping one
+/// (Rule 32).
+struct EnclosureTrace {
+    float carve_distance = 0.0f;  ///< union carve SDF at the query point; >= 0 rejects
+    float ground_y = 0.0f;        ///< surface height over the query column
+    bool above_ground = false;    ///< second rejection: open to the sky
+    float path_from_mouth = 0.0f; ///< metres walked along the corridor, after fallback
+    bool path_measured = false;   ///< false = no mouth reachable, fallback used
+    float darkness = 0.0f;
+};
+
+[[nodiscard]] EnclosureTrace enclosure_trace(const TestbedLayout& layout,
+                                             std::span<const CarveCorridor> extra,
+                                             const GroundSampler& ground, glm::vec3 world);
 
 } // namespace dfn::world

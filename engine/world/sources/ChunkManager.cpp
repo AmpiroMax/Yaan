@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 11:37:17
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -43,6 +43,7 @@ UPD:
 - 09:08:2026 - 23:49:27: LOD STREAMING HALF. Coarse node residency (requested -> the one active build -> held until release_coarse_node), nearest-to-focus first, advanced only in updates that admitted NO chunk so two budgets never land in one frame. world_bounds_xz reports the extent the generator was OPENED with. Nothing leaves the held set on its own -- an eviction render did not ask for pulls the ground out from under a mesh it is still drawing.
 - 10:08:2026 - 02:05:00: surface_class_at(vec2) — sampled-field point query (sim request; the world->sample decoder stays in this zone, Rule 35).
 - 10:08:2026 - 11:37:17: path_surface() / stand_vantages() storage, flattened once per open.
+- 13:08:2026 - 16:45:00: DFN_DARK_TRACE=<путь> — по строке на КАЖДЫЙ вызов darkness_at (приложение зовёт его раз в кадр) с разложением на ветви через enclosure_trace. Открывается ГРОМКО; выключен, пока переменная не названа. Этим прибором найдено, что ambient_darkness переключается 0↔1 за один кадр 13 раз за проход по тоннелю, каждый раз на пересечении carve_distance нуля в пределах 2 см.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -57,6 +58,7 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstdio>
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
 #include <vector>
@@ -81,6 +83,12 @@ struct ChunkManager::Impl {
     std::vector<math::StandVantage> vantages;      // stand_vantages() storage
     std::unordered_map<uint64_t, Chunk> resident; // key = chunk_group(coord)
     std::vector<ChunkCoord> loaded_coords;        // cache for loaded_chunks()
+
+    // DFN_DARK_TRACE (see darkness_at): opened on first use, closed with the
+    // manager. mutable-by-pointer: darkness_at is const and stays const.
+    std::FILE* dark_trace = nullptr;
+    bool dark_trace_tried = false;
+    uint64_t dark_trace_call = 0;
 
     // --- Coarse LOD nodes ----------------------------------------------------
     // Three states, and the split is the contract with render: `requested` is
@@ -176,7 +184,12 @@ namespace {
 } // namespace
 
 ChunkManager::ChunkManager() : impl_(std::make_unique<Impl>()) {}
-ChunkManager::~ChunkManager() = default;
+ChunkManager::~ChunkManager() {
+    if (impl_ && impl_->dark_trace != nullptr) {
+        std::fclose(impl_->dark_trace);
+        impl_->dark_trace = nullptr;
+    }
+}
 
 bool ChunkManager::open(const std::filesystem::path& world_file, const SaveDelta* delta,
                         ChunkStreamingParams params) {
@@ -578,6 +591,37 @@ float ChunkManager::darkness_at(glm::vec3 world) const {
     // than the app assembling the call itself.
     const WorldGenContext& ctx = impl_->gen_ctx;
     const GroundSampler ground = [&ctx](glm::vec2 p) { return terrain_height(ctx, p); };
+    // DFN_DARK_TRACE=<path>: one line per CALL (the app calls this once per
+    // frame), naming WHICH half of the rule decided. The result alone cannot
+    // tell "not enclosed" from "enclosed but nothing earned" apart, and the
+    // "темнеет, потом мигает" run needs exactly that split. Off unless the
+    // variable names a file; opens loudly, and the shipping path below is the
+    // SAME evaluation, not a second one.
+    if (!impl_->dark_trace_tried) {
+        impl_->dark_trace_tried = true;
+        if (const char* dt = std::getenv("DFN_DARK_TRACE"); dt != nullptr && *dt != '\0') {
+            impl_->dark_trace = std::fopen(dt, "wb");
+            if (impl_->dark_trace == nullptr) {
+                std::fprintf(stderr, "[dark_trace] cannot open \"%s\" for writing\n", dt);
+            } else {
+                std::fprintf(impl_->dark_trace,
+                             "# call qx qy qz carve_dist ground_y above_ground "
+                             "path_m path_measured darkness\n");
+            }
+        }
+    }
+    if (impl_->dark_trace != nullptr) {
+        const EnclosureTrace tr = enclosure_trace(ctx.params.layout, {}, ground, world);
+        std::fprintf(impl_->dark_trace, "%llu %.3f %.3f %.3f %+.6f %.3f %d %.3f %d %.6f\n",
+                     static_cast<unsigned long long>(impl_->dark_trace_call++),
+                     static_cast<double>(world.x), static_cast<double>(world.y),
+                     static_cast<double>(world.z),
+                     static_cast<double>(tr.carve_distance),
+                     static_cast<double>(tr.ground_y), tr.above_ground ? 1 : 0,
+                     static_cast<double>(tr.path_from_mouth), tr.path_measured ? 1 : 0,
+                     static_cast<double>(tr.darkness));
+        return tr.darkness;
+    }
     return enclosure_darkness(ctx.params.layout, {}, ground, world);
 }
 

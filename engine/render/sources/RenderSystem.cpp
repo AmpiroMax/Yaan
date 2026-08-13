@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 12:08:2026 - 00:52:40
+Last updated: 13:08:2026 - 16:45:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -106,6 +106,7 @@ UPD:
   blades would spend tens of megabytes to draw a hundredth of them. Every
   setting is derived from an approved row (tuft_params(), Rule 14).
   DFN_NO_TUFTS=1 is the counterfactual arm.
+- 13:08:2026 - 16:45:00: DFN_ENV_LOG=<путь> — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, снимается сразу ПОСЛЕ set_environment(), то есть пишет то, чем кадр РЕАЛЬНО нарисован: заливка (ambient_darkness), число точечных источников, солнце, общий свет, луна, глаз. Тот же класс прибора, что DFN_FRAME_LOG ведущего, и по той же причине: дефект «в подземелье темнеет, потом мигает» живёт в РАЗНОСТИ соседних кадров, а все наши двери съёмки его гасят.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -402,6 +403,30 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     if (const char* ns = std::getenv("DFN_NO_SCATTER"); ns != nullptr && ns[0] == '1') {
         scatter_off_ = true;
     }
+    // THE ENVIRONMENT LOG (DFN_ENV_LOG=<path>) — one line per PRESENTED frame,
+    // written where the CONSUMER sits: immediately after set_environment(), so
+    // it records the values this frame was actually drawn with rather than the
+    // values some system computed. No readback, no settle, no freeze; it cannot
+    // quiet what it is pointed at. Same instrument class as the lead's
+    // DFN_FRAME_LOG (docs/FINDING_RUN_SMEAR.md) and for the same reason: the
+    // defect this was opened for ("темнеет, потом мигает" underground) lives in
+    // the DIFFERENCE between consecutive frames, and every capture door we own
+    // either freezes the tick or waits for a flush.
+    //
+    // It opens LOUDLY: a run that logged nothing must not be mistakable for a
+    // run that logged zeros.
+    if (const char* el = std::getenv("DFN_ENV_LOG"); el != nullptr && *el != '\0') {
+        env_log_ = std::fopen(el, "wb");
+        if (env_log_ == nullptr) {
+            std::fprintf(stderr, "[env_log] cannot open \"%s\" for writing\n", el);
+        } else {
+            std::fprintf(env_log_,
+                         "# Daggerfall N per-frame ENVIRONMENT log -- one line per\n"
+                         "# PRESENTED frame, taken at the set_environment() call.\n"
+                         "# frame dark lights sun_x sun_y sun_z sun_lum amb_lum "
+                         "moon_light eye_x eye_y eye_z\n");
+        }
+    }
     // DFN_NO_TUFTS=1 — the ground-tuft layer's counterfactual arm (Rule 30).
     // It has to exist before the layer is worth measuring: "the grass helps"
     // and "the grass costs shimmer" are both claims about a DIFFERENCE, and a
@@ -483,6 +508,10 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
                      static_cast<unsigned long long>(uploads_.scatter_chunks),
                      static_cast<unsigned long long>(uploads_.scatter_meshes),
                      static_cast<unsigned long long>(uploads_.failed));
+    }
+    if (env_log_ != nullptr) {
+        std::fclose(env_log_);
+        env_log_ = nullptr;
     }
     clear_water(renderer);
     clear_water_bodies(renderer);
@@ -629,6 +658,24 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // this frame's cube faces around a stale flame.
     collect_point_lights(world, camera, alpha);
     renderer.set_environment(environment_);
+    if (env_log_ != nullptr) {
+        const glm::vec3 eye = camera.interpolated_pose(alpha).position;
+        const glm::vec3& sc = environment_.sun_color;
+        const glm::vec3& ac = environment_.ambient_color;
+        std::fprintf(env_log_,
+                     "%llu %.6f %u %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f\n",
+                     static_cast<unsigned long long>(env_log_frame_++),
+                     static_cast<double>(environment_.ambient_darkness),
+                     environment_.point_light_count,
+                     static_cast<double>(environment_.sun_direction.x),
+                     static_cast<double>(environment_.sun_direction.y),
+                     static_cast<double>(environment_.sun_direction.z),
+                     static_cast<double>(0.2126f * sc.x + 0.7152f * sc.y + 0.0722f * sc.z),
+                     static_cast<double>(0.2126f * ac.x + 0.7152f * ac.y + 0.0722f * ac.z),
+                     static_cast<double>(environment_.moon_light),
+                     static_cast<double>(eye.x), static_cast<double>(eye.y),
+                     static_cast<double>(eye.z));
+    }
 
     // Frustum culling (core's math). Culling is NOT free of consequences here:
     // see visible_or_casting — off-screen meshes near the eye are kept because
