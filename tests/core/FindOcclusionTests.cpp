@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 20:06:10
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 13:08:2026 - 17:41:00
 Module: tests
 File: tests/core/FindOcclusionTests.cpp
 
@@ -46,6 +46,17 @@ UPD:
   instrument's own result, which is the direction a flattering error moves when
   it is fixed. The near ring's failure is now larger, not smaller.
 - 11:08:2026 - 15:15:55: build_scatter's new context-taking signature.
+- 13:08:2026 - 17:41:00: BR-5's siting claim, THIRD FORM, and the first two died
+  of the same disease one level in: a RATIO whose denominator went to 0.0000,
+  then a DIFFERENCE whose base moved when §10.1.3's forms made the ground hide
+  things. It is now the share of the openness THE GROUND LEFT that the scatter
+  closes — invariant to within 0.017 across two worlds whose bare-ground
+  occlusion differs by up to 0.25, which is the evidence that neither earlier
+  form was ever measuring the scatter. The bare-terrain control is RETIRED with
+  a headstone rather than weakened: it fired exactly as its author said it would
+  and its premise ("bare ground hides nothing") was true only while the ground
+  was flat. And the near ring's known-open pin is FLIPPED — the ground closed it
+  without a find moving.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -170,42 +181,103 @@ TEST_CASE("BR-5: the composed scene occludes, and bare terrain is the must-fail 
         float radius;
         float composed;
         float bare;
+        float closed;   ///< the scatter's share of the openness the GROUND LEFT
     };
     std::vector<Ring> rings;
     for (const float r : {40.0f, 60.0f, 80.0f}) {
         std::vector<float> composed;
         std::vector<float> bare;
+        std::vector<float> closed;
         composed.reserve(c.finds.size());
         bare.reserve(c.finds.size());
+        closed.reserve(c.finds.size());
         for (const world::Find& f : c.finds) {
-            composed.push_back(world::occluded_fraction_at(height, discs, f.position, r, 24));
-            bare.push_back(world::occluded_fraction_at(height, {}, f.position, r, 24));
+            const float cf = world::occluded_fraction_at(height, discs, f.position, r, 24);
+            const float bf = world::occluded_fraction_at(height, {}, f.position, r, 24);
+            composed.push_back(cf);
+            bare.push_back(bf);
+            // NORMALISED PER FIND, not as a ratio of the two medians: both
+            // readings are taken at the SAME find, so the pairing is real and
+            // throwing it away to divide two summaries would be a coarser
+            // instrument for no reason.
+            closed.push_back(bf >= 0.999f ? 1.0f : (cf - bf) / (1.0f - bf));
         }
-        rings.push_back({r, median(composed), median(bare)});
+        rings.push_back({r, median(composed), median(bare), median(closed)});
     }
 
     const auto BAR = static_cast<float>(config::FIND_OCCLUSION_FRAC);
     for (const Ring& r : rings) {
-        INFO("ring ", r.radius, " m: composed median ", r.composed, ", bare-terrain control ",
-             r.bare, ", bar ", BAR);
-        // THE CONTROL, WHICH IS THE PERMANENT HALF OF THIS CASE. Design kept
-        // the bare-terrain reading forever as the must-fail arm: it is the
-        // literal "forest with the forest deleted". If it ever climbs toward
-        // the bar, the terrain has quietly grown a job it was not given, and
-        // the ruling's premise needs re-checking rather than a shrug.
-        CHECK(r.bare < BAR);
-        // THE SITING CLAIM AS A DIFFERENCE, NOT A RATIO (design's amendment,
-        // 10.08.2026). The old canary read "siting beats the bare-ground
-        // control 3-4x", and this measurement puts that ratio's denominator at
-        // EXACTLY 0.0000 at the 40 m ring — so at the near ring no threshold on
-        // that quantity separates working siting from broken siting. Rule 30's
-        // own words: if no value on a quantity separates the accepted cases
-        // from the rejected ones, the QUANTITY is wrong, not the threshold.
+        INFO("ring ", r.radius, " m: composed median ", r.composed, ", bare-terrain ", r.bare,
+             ", scatter closes ", r.closed, " of what the ground left, bar ", BAR);
+        MESSAGE("ring " << r.radius << " m: composed " << r.composed << ", bare " << r.bare
+                        << ", scatter closes " << r.closed << " of the remaining openness");
+        // THE BARE-TERRAIN CONTROL IS RETIRED HERE, AND THIS NOTE IS ITS
+        // HEADSTONE — it is not being weakened, it FIRED and its work is done.
         //
-        // Measured differences: 40 m -> 0.3333, 60 m -> 0.5000, 80 m -> 0.4167.
-        // Note that the ring the ratio CANNOT express at all is where the
-        // scatter does its largest work — which is what the ratio was hiding.
-        CHECK(r.composed - r.bare > 0.3f);
+        // It read: "if the bare-terrain reading ever climbs toward the bar, the
+        // terrain has quietly grown a job it was not given, and the ruling's
+        // premise needs re-checking rather than a shrug." On 13.08.2026 it
+        // climbed — 0.000/0.167/0.333 to 0.167/0.375/0.500 — because §10.1.3's
+        // forms landed and the ground genuinely began to hide things. That is
+        // the premise changing, not a regression, and the sentinel caught it
+        // days after it was written, which is the whole reason a control is
+        // kept "forever". The premise it guarded ("bare ground hides nothing")
+        // was TRUE ONLY BECAUSE THE GROUND WAS FLAT.
+        //
+        // The reading stays REPORTED (above) because it is now a fact about the
+        // terrain worth watching; it is no longer an assertion about the finds.
+        //
+        // ALSO WORTH RECORDING, because it arrived as the good half of the same
+        // event: the 40 m ring, pinned below as KNOWN-OPEN with "flip when the
+        // lever lands" and an expected cure of density-aware find placement,
+        // CLOSED — 0.375 -> 0.500, and it was the GROUND that closed it. The
+        // density lever does not have to be spent.
+        // THE SITING CLAIM, THIRD FORM, AND EACH FORM DIED OF THE SAME DISEASE
+        // ONE LEVEL FURTHER IN. It was a RATIO (siting beats bare ground 3-4x)
+        // until the denominator went to exactly 0.0000 at the near ring. It
+        // became a DIFFERENCE (composed - bare > 0.3) until the ground started
+        // hiding things: an occluded FRACTION is capped at 1, so the more the
+        // ground hides, the less there is LEFT for the scatter to hide, and a
+        // threshold on a difference with a moving base slides on its own. It
+        // read 0.333 / 0.292 / 0.250 and failed two rings while the scatter had
+        // not changed at all.
+        //
+        // Now it is the share of the openness THE GROUND LEFT that the scatter
+        // closes: (composed - bare) / (1 - bare), per find. Two properties earn
+        // it the place: at bare = 0 it is IDENTICAL to the old clause (so the
+        // world it was accepted on is still described by it), and it is nearly
+        // INVARIANT to the terrain change that broke the other two — measured
+        // across worlds whose bare-ground occlusion differs threefold:
+        //
+        //   ring   forms OFF (the world BR-5 was accepted on)   forms ON
+        //   40 m   0.3043                                       0.3158
+        //   60 m   0.4545                                       0.4375
+        //   80 m   0.5333                                       0.5385
+        //
+        // The scatter's own contribution moves by at most 0.017 across two
+        // worlds whose BARE-GROUND occlusion differs by 0.25, 0.25 and 0.17 at
+        // the three rings — i.e. the base tripled and this quantity did not
+        // move. That invariance is the evidence that the ratio and the
+        // difference were failing on the BASE and never on the scatter.
+        //
+        // THE FLOOR AND WHAT IT STANDS ON (proposed by core, approved by the
+        // lead in design's absence and flagged re-openable by design):
+        //   * 0.25 is below every ring of the world the clause was ACCEPTED on
+        //     (lowest 0.3043), not below today's build — a bar fitted to today
+        //     would read 0.30, and the point of quoting the accepted world is
+        //     that it is the one arm nobody can have tuned after the fact.
+        //   * It is failed by the retired control's OWN must-fail artefact,
+        //     which carries over exactly: "the forest with the forest deleted"
+        //     reads 0.000 here BY CONSTRUCTION, since composed == bare with no
+        //     discs. The rejected case survives the change of quantity, and
+        //     that is what makes this a re-definition rather than a retreat.
+        //   * It does NOT inherit FIND_OCCLUSION_FRAC's 0.5. On flat ground the
+        //     two clauses coincide, and the near ring has never met 0.5 on
+        //     either — it was pinned known-open at 0.375 in the accepted world.
+        //     Setting the floor at 0.5 would retroactively fail the build the
+        //     clause was written against, which is a different claim from the
+        //     one being made here.
+        CHECK(r.closed > 0.25f);
     }
 
     // THE GATE ITSELF, REPORTED PER RING RATHER THAN ASSERTED AS ONE NUMBER.
@@ -225,7 +297,13 @@ TEST_CASE("BR-5: the composed scene occludes, and bare terrain is the must-fail 
     // suite that the next reader weakens (Rule 38's expensive failure mode).
     const Ring& near_ring = rings.front();
     INFO("near ring ", near_ring.radius, " m reads ", near_ring.composed, " against bar ", BAR);
-    CHECK(near_ring.composed < BAR); // pinned as OPEN: flip when the lever lands
+    // FLIPPED 13.08.2026 — "flip when the lever lands", and it landed from a
+    // direction nobody had listed. The near ring was pinned known-open at 0.375
+    // with an expected cure of density-aware find placement; §10.1.3's ground
+    // forms took it to 0.500 without a single find moving. The cure was not
+    // needed and the density lever is unspent. Now asserted the right way up,
+    // so a regression in it goes red instead of quietly passing a "< bar".
+    CHECK(near_ring.composed >= BAR);
     for (std::size_t i = 1; i < rings.size(); ++i) {
         INFO("ring ", rings[i].radius, " m reads ", rings[i].composed);
         CHECK(rings[i].composed > BAR);
