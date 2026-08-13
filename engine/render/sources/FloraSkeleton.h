@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 19:45:00
+Last updated: 13:08:2026 - 23:50:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.h
 
@@ -59,6 +59,12 @@ UPD:
   the channel (or the crown closes what the wood respected), and a crown floor,
   without which a dense stand vetoes every limb on its first step and grows a
   forest of foliage COLUMNS.
+- 13:08:2026 - 23:50:00: ShootFoliage::leaf_span_frac -- the outer fraction of
+  a branch that may carry leaf, measured ALONG THE BRANCH instead of through the
+  node radius that stood in for it. The proxy is what the frame caught: leaf on
+  the last twig of every branch and nothing inboard. MEASURED AND REFUTED as a
+  cure, see FloraSkeleton.cpp; the field stays because it measures the right
+  quantity, and it ships at 1.0, which is no restriction.
 */
 
 #pragma once
@@ -389,7 +395,30 @@ struct ShootFoliage {
     /// Only wood THINNER than this carries leaves. A bole does not: leaves grow
     /// on shoots, and hanging a leaf mass on a 0.6 m limb is the same defect as
     /// hanging one in the air, one metre closer in.
+    ///
+    /// KEPT AS A BACKSTOP, NO LONGER THE RULE (13.08.2026). Radius was a PROXY
+    /// for "how far out along the branch am I" — the pipe model thickens wood
+    /// toward the base, so a thin node is usually an outer one. Usually. The
+    /// proxy is only as good as the branching pattern, and this zone has spent
+    /// the day being wrong in exactly that way three times, so the quantity the
+    /// rule is about is now measured directly (leaf_span_frac below) and this
+    /// stays only to keep a leaf off the authored bole.
     float outer_radius = 1e9f;
+    /// THE OUTER FRACTION OF EVERY BRANCH THAT CARRIES LEAF, measured along the
+    /// branch itself: a site is eligible when its distance to its own branch
+    /// TIP is within this fraction of that branch's whole length.
+    ///
+    /// WHY IT EXISTS (user, 13.08.2026, on a frame of our own build): «сначала
+    /// деревья сделать с правильной генерацией кроны». Foliage was placed on
+    /// shoot ENDS, so the near view showed bare dark limbs with a clump of leaf
+    /// at each tip and every branch traceable from bole to tip through open
+    /// air. Measured on that frame, pitched up INTO the canopy where a
+    /// broadleaf should be solid leaf: wood in front 28.6 %, foliage in front
+    /// 20.5 %. A real tree carries leaf along the outer part of every branch,
+    /// and the interior of that zone is what makes the crown a MASS.
+    ///
+    /// 1.0 puts leaf along the whole branch; 0.33 is the outer third.
+    float leaf_span_frac = 1.0f;
     /// XZ centre of the crown, so the stand-off can be biased OUTWARD from it.
     /// Not a flourish and not free width taken dishonestly: a leaf spray sits on
     /// the OUTSIDE of the twig that carries it, toward the light, and the

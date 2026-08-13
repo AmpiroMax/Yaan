@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 21:50:00
+Last updated: 13:08:2026 - 23:50:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -220,6 +220,17 @@ UPD:
       pine   6 m  8.5 m | 10 m  8.8 m | 15 m  8.9 m | open  8.9 m   (96 % .. 100 %)
   which is the user's own sentence as a table: the conifer is one radius, the
   broadleaf is not.
+- 13:08:2026 - 23:50:00: Three verification hooks, no shipping path among them:
+  DFN_FLORA_LEAFSPAN (the branch-span lever), DFN_FLORA_OUTERR (the radius
+  backstop, added to find which of the two gates actually binds) and
+  DFN_FLORA_MASSES (the leaf budget, fenced off from this change on purpose and
+  therefore MEASURED rather than shipped). What they found, on the frame:
+      masses x1.0  leaf:wood 0.64   oak  802 wood + 198 cards = 1000 tris
+      masses x2.0            0.83        802 + 368 = 1170
+      masses x3.5            1.06        802 + 827 = 1629   (budget is 1300)
+      x3.5 with wood cut to 40 % at FULL: 0.94, 356 + 246 = 602 tris
+  The sign flips on the leaf budget and on nothing else, 25 % over the triangle
+  ceiling -- design's call, not this zone's.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -465,14 +476,32 @@ uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wo
 /// The foliage budget at a given LOD. THE ONE DEFINITION: this expression stood
 /// in three places, which is how this zone has twice lost a rule to a copy that
 /// stopped being updated (the card scrap floor, three times in two days).
+/// VERIFICATION HOOK (DFN_FLORA_MASSES=<multiplier>), never a shipping path.
+/// The leaf BUDGET is the quantity the crown's fullness actually rides on, and
+/// it was fenced off from the branch-span change on purpose (one lever at a
+/// time). This exists so the fenced question can be COSTED rather than argued:
+/// what does a fuller crown buy on the frame, and what does it cost in
+/// triangles. It multiplies the mass count and nothing else.
+float flora_mass_multiplier() {
+    static const float m = [] {
+        const char* e = std::getenv("DFN_FLORA_MASSES");
+        const float v = e != nullptr ? static_cast<float>(std::atof(e)) : 1.0f;
+        return v > 0.0f ? v : 1.0f;
+    }();
+    return m;
+}
+
 uint32_t lod_cluster_count(const SpeciesParams& sp, FloraLod lod) {
     if (lod == FloraLod::Full || !flora_far_lod_arm()) {
         // THE CROWN DOES NOT THIN WITH DISTANCE. See the target above: the mass
         // IS the object at range, so the far LOD keeps every cluster the near
         // one has and pays for them out of the wood.
-        return sp.cluster_count;
+        return static_cast<uint32_t>(static_cast<float>(sp.cluster_count)
+                                     * flora_mass_multiplier());
     }
-    return std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u);
+    return static_cast<uint32_t>(
+        static_cast<float>(std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u))
+        * flora_mass_multiplier());
 }
 
 /// Hangs one foliage cluster on a node that actually exists. `anchor` is the
@@ -767,7 +796,30 @@ void emit_shoot_foliage(MeshData& m, Tree& t, const Skeleton& sk, uint64_t seed,
     // `trunk_r * 0.45` on any species we build. The mechanism is real and it is
     // not this one. Reported to the lead rather than left as a confident
     // comment on an inert change.
-    f.outer_radius = t.trunk_r * 0.45f;
+    // VERIFICATION HOOK (DFN_FLORA_OUTERR), never a shipping path: the backstop
+    // as a fraction of the bole. It exists because the FIRST sweep of the span
+    // lever came out FLAT from 1.0 to 0.20 — the span gate was not binding at
+    // all, because this radius gate had already excluded every inboard shoot
+    // before it. Two gates on one quantity, and the one I meant to test was
+    // downstream of the one that decides. Measure which gate binds before
+    // sweeping the one you wrote.
+    static const float outer_frac = [] {
+        const char* e = std::getenv("DFN_FLORA_OUTERR");
+        const float v = e != nullptr ? static_cast<float>(std::atof(e)) : 0.0f;
+        return v > 0.0f ? v : 0.45f;
+    }();
+    f.outer_radius = t.trunk_r * outer_frac;
+    // THE LEAFY SPAN OF A BRANCH, and it is the one lever of this change.
+    // DFN_FLORA_LEAFSPAN=<fraction> sweeps it; =1.0 is the zero-dose arm in the
+    // only sense that matters here, because at 1.0 the span gate admits every
+    // shoot and what is left deciding the crown is the radius backstop — i.e.
+    // the rule as it stood this morning.
+    static const float leaf_span = [] {
+        const char* e = std::getenv("DFN_FLORA_LEAFSPAN");
+        const float v = e != nullptr ? static_cast<float>(std::atof(e)) : 0.0f;
+        return (v > 0.0f && v <= 1.0f) ? v : static_cast<float>(config::FOLIAGE_BRANCH_SPAN);
+    }();
+    f.leaf_span_frac = leaf_span;
     f.axis = t.crown_axis;
     std::vector<glm::vec3> centres;
     std::vector<int> anchors;

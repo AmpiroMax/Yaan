@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 22:00:00
+Last updated: 13:08:2026 - 23:50:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -58,6 +58,17 @@ UPD:
   TREE_TRI_BUDGET_MAX went 700 -> 1300: the wood did not move a centimetre and
   the lowest foliage rose 7.77 m -> 13.24 m on a birch. Tips are capped at half
   the budget and subsampled by stride above it.
+- 13:08:2026 - 23:50:00: gather_shoot_anchors gates on DISTANCE TO THE BRANCH
+  TIP over that branch's own length (two passes: dist_to_tip backward, branch_len
+  forward), not on the node's radius. THE LEVER WAS MEASURED ACROSS ITS RANGE ON
+  THE FRAME AND IT MOVES THE TARGET THE WRONG WAY: span 1.00 gives wood 28.8 % /
+  leaf 18.6 %, span 0.30 gives 30.1 % / 15.4 %. Restricting leaf to the outer
+  third THINS the crown, because the mass budget is fixed and the same masses
+  pack into fewer places. Ships at 1.0, i.e. no restriction.
+  AND THE FIRST SWEEP OF IT WAS A DUD, recorded because it is the day's own
+  mistake again: flat from 1.0 to 0.20, because the radius gate excluded every
+  inboard shoot BEFORE this gate saw it. Two gates on one quantity, and the one
+  under test sat downstream of the one that decides.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -953,13 +964,62 @@ void gather_shoot_anchors(const Skeleton& sk, const ShootFoliage& p, uint64_t se
     std::vector<Shoot> shoots;
     shoots.reserve(sk.nodes.size());
     double total_len = 0.0;
+
+    // --- HOW FAR OUT ALONG ITS OWN BRANCH IS THIS NODE ----------------------
+    // The rule is "leaf lives on the outer part of a branch", and until
+    // 13.08.2026 it was enforced through the node's RADIUS, which is a proxy:
+    // the pipe model thickens wood toward the base, so a thin node is usually
+    // an outer one. The frame showed what "usually" buys — leaf sat on the last
+    // twig of each branch and nowhere else, so every limb was traceable through
+    // open air and the crown was not a mass. Measure the quantity the rule is
+    // about instead.
+    //
+    // dist_to_tip: the shortest distance along the wood from this node to any
+    // tip beyond it. One reverse pass, and it is exact rather than iterative
+    // because a skeleton node's parent always has the lower index (every
+    // grower here appends children after their parent).
+    std::vector<float> dist_to_tip(sk.nodes.size(), 0.0f);
+    for (size_t k = sk.nodes.size(); k-- > 0;) {
+        const SkeletonNode& n = sk.nodes[k];
+        if (n.parent < 0) continue;
+        const auto par = static_cast<size_t>(n.parent);
+        const float len = glm::length(n.pos - sk.nodes[par].pos);
+        const float through = dist_to_tip[k] + len;
+        // A fork takes the SHORTEST way out, because the leafy zone of a branch
+        // is measured from the nearest tip it carries, not from the farthest.
+        if (dist_to_tip[par] <= 0.0f || through < dist_to_tip[par]) {
+            dist_to_tip[par] = through;
+        }
+    }
+    // branch_len: the whole length of the branch this node belongs to, taken at
+    // the node where that branch LEAVES THE BOLE. Forward pass, parents first.
+    std::vector<float> branch_len(sk.nodes.size(), 0.0f);
+    for (size_t k = 0; k < sk.nodes.size(); ++k) {
+        const SkeletonNode& n = sk.nodes[k];
+        if (n.parent < 0) {
+            branch_len[k] = dist_to_tip[k];
+            continue;
+        }
+        const auto par = static_cast<size_t>(n.parent);
+        // A node whose parent is still bole starts a new branch.
+        branch_len[k] = (sk.nodes[par].trunk && !n.trunk) ? dist_to_tip[k]
+                                                          : branch_len[par];
+    }
+
     for (size_t i = 0; i < sk.nodes.size(); ++i) {
         const SkeletonNode& n = sk.nodes[i];
         if (n.parent < 0) continue;
         const SkeletonNode& par = sk.nodes[static_cast<size_t>(n.parent)];
         if (n.trunk && par.trunk) continue;
         if (n.pos.y < p.base_y) continue;
+        // THE BACKSTOP, not the rule: keep leaf off the authored bole. The
+        // gate that decides the crown is the SPAN one below it.
         if (n.radius > p.outer_radius) continue;
+        // THE OUTER FRACTION OF THIS BRANCH. A branch too short to have an
+        // inside is all outside — without the floor a 1-node branch measures
+        // branch_len 0 and would be excluded from its own leafy zone.
+        const float span = std::max(p.leaf_span_frac, 0.0f) * branch_len[i];
+        if (branch_len[i] > 1e-3f && dist_to_tip[i] > span) continue;
         const float len = glm::length(n.pos - par.pos);
         if (len < 1e-3f) continue;
         shoots.push_back(Shoot{static_cast<int>(i), par.pos, n.pos, len,
