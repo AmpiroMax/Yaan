@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 13:08:2026 - 21:50:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -65,6 +65,11 @@ UPD:
   times. Recorded rather than done silently -- a record whose stamps are
   invented cannot be put in order afterwards, and the entries it would mislead
   are this zone's own.
+- 13:08:2026 - 21:50:00: SpeciesParams::crown_plasticity -- how much of its
+  open-grown WIDTH a species gives up in a closed stand, and it is a SPECIES
+  property because the user said so before the literature did: a conifer holds
+  one radius whatever crowds it, a broadleaf spreads in the open and folds up in
+  a crowd. Was a literal 0.38 in ProcFlora applied to every species alike.
 */
 
 #pragma once
@@ -200,6 +205,28 @@ struct SpeciesParams {
     /// gets its OWN random axis: two trees of the same height that are also the
     /// same width read as one asset used twice, and that is the complaint.
     float crown_width_jitter = 0.0f;
+    /// CROWN PLASTICITY: how much of its open-grown WIDTH this species gives up
+    /// when it grows in a closed stand. 0 = a tree of one radius whatever it
+    /// stands next to; 0.45 = a closed-forest crown a little over half the
+    /// open-grown one.
+    ///
+    /// IT IS A SPECIES PROPERTY AND NOT A GLOBAL MULTIPLIER, and the user said
+    /// so before the literature did (13.08.2026): «на 6м кроны будут узенькие,
+    /// на 15м широкие… показывать примеры на хвое, чья крона всегда +- одного
+    /// радиуса, и на лиственнице, от которой как раз хотим получить эффекта
+    /// стеснительной кроны». The mechanism is architectural and it is the
+    /// standard one: STRONG APICAL DOMINANCE gives the monopodial, determinate
+    /// crown typical of conifers, which holds its cone whatever crowds it;
+    /// WEAK apical control gives the branched sympodial crown of the
+    /// angiosperms, which fills whatever room it is given and folds up when
+    /// there is none. A slim-crowned conifer beside a wide-crowned broadleaf is
+    /// the textbook pair (Eur. J. Forest Research 10.1007/s10342-023-01584-7;
+    /// Forest Ecology and Management, canopy space filling in mixed stands).
+    ///
+    /// The two rows live in NUMBERS (CROWN_PLASTICITY_BROADLEAF /
+    /// _CONIFER) because a second consumer will want them and because the
+    /// derivation is longer than a line: see there.
+    float crown_plasticity = 0.0f;
 
     /// False for bushes: they have no branch skeleton worth growing, they ARE
     /// their foliage. Everything else grows a crown.

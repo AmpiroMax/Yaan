@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 13:08:2026 - 21:50:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -212,6 +212,14 @@ UPD:
   times. Recorded rather than done silently -- a record whose stamps are
   invented cannot be put in order afterwards, and the entries it would mislead
   are this zone's own.
+- 13:08:2026 - 21:50:00: The crowding width response reads
+  SpeciesParams::crown_plasticity instead of a literal 0.38 for every species.
+  Measured end to end on a 7x7 lattice through analyse_neighbourhood, built
+  crown diameter of the centre tree:
+      oak    6 m  6.4 m | 10 m  9.0 m | 15 m 12.9 m | open 16.4 m   (39 % .. 100 %)
+      pine   6 m  8.5 m | 10 m  8.8 m | 15 m  8.9 m | open  8.9 m   (96 % .. 100 %)
+  which is the user's own sentence as a table: the conifer is one radius, the
+  broadleaf is not.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -2038,8 +2046,20 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
     // that below ~8 m the binding constraint is crown WIDTH, not shyness. This
     // is the other half of that finding, and the two together are what let the
     // forest close up without becoming felt.
+    // AND THE COEFFICIENT IS THE SPECIES', NOT ONE NUMBER FOR THE CATALOG
+    // (user, 13.08.2026, who put it better than the file did: «на 6м кроны
+    // будут узенькие, на 15м широкие… на хвое крона всегда +- одного радиуса, а
+    // на лиственной как раз хотим эффекта стеснительной кроны»). It stood here
+    // as a literal 0.38 applied to every species, which says a spruce folds up
+    // in a crowd exactly as an oak does — and a spruce does not; its crown is
+    // monopodial and determinate, and a cone stays a cone. The two rows are in
+    // NUMBERS with their derivations (broadleaf 0.45 out of this catalog's own
+    // open-grown/closed-forest Quercus figures, conifer 0.05 out of the user's
+    // rule plus the architecture, and labelled as a rule rather than a paired
+    // measurement because no paired conifer figure was found to cite).
     if (!flora_control_arm() && shape.crowding > 0.0f) {
-        crown_width_frac *= 1.0f - 0.38f * std::clamp(shape.crowding, 0.0f, 1.0f);
+        crown_width_frac *=
+            1.0f - sp.crown_plasticity * std::clamp(shape.crowding, 0.0f, 1.0f);
     }
 
     // --- THE BOLE LENGTH ALSO VARIES, and DOWNWARD from the species value.

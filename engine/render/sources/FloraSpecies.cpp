@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 13:08:2026 - 21:50:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -75,6 +75,10 @@ UPD:
   times. Recorded rather than done silently -- a record whose stamps are
   invented cannot be put in order afterwards, and the entries it would mislead
   are this zone's own.
+- 13:08:2026 - 21:50:00: crown_plasticity per species: broadleaf 0.45 (oak,
+  birch, willow), conifer 0.05 (pine, krummholz), and 0 for the great oak, which
+  is the open-grown case by definition -- nothing crowds it, so a plasticity it
+  could never express would be a number with no consumer.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -177,6 +181,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // guard is left with more slack, not less, which is the only relationship
     // a guard is allowed to have with the thing it guards.
     oak.crown_width_frac = 0.70f;
+    oak.crown_plasticity = f(config::CROWN_PLASTICITY_BROADLEAF);
     // A veteran oak spreads long after it stops climbing: exp 1.35 makes a
     // giant (x1.5) 15 % wider FOR ITS HEIGHT and a sapling (x0.4) 27 % narrower
     // for its own, so the same rule delivers both halves of the user's
@@ -338,6 +343,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // WIDER. The two move together and tuning one alone is how the pine went to
     // 11 m against a 6-9 m brief.
     pine.crown_width_frac = 0.25f;
+    pine.crown_plasticity = f(config::CROWN_PLASTICITY_CONIFER);
     // NO ALLOMETRY FOR THE CONIFER, and that is a positive statement rather
     // than an omission: a spruce really does hold its width-to-height ratio
     // through its life, and «шире» applied to the anti-oak would delete the one
@@ -439,6 +445,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // contract and no further, and the difference is reported rather than
     // smoothed over.
     birch.crown_width_frac = 0.35f;
+    birch.crown_plasticity = f(config::CROWN_PLASTICITY_BROADLEAF);
     birch.crown_allometry_exp = 1.22f;
     birch.crown_width_jitter = 0.08f;
     // Betula pendula's two-part branch rule, and it is the whole silhouette:
@@ -518,6 +525,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     willow.trunk_sweep = 0.22f;
     willow.crown_base_frac = 0.30f;
     willow.crown_width_frac = 0.72f; // wide shoulder
+    willow.crown_plasticity = f(config::CROWN_PLASTICITY_BROADLEAF);
     willow.phototropism = 0.06f;
     // The paper is explicit that it could NOT generate strongly pendulous forms
     // with the growth bias alone, so the droop stays an explicit force rather
@@ -622,6 +630,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // must never read as (saplings are «очень редкие» by user ruling, and a
     // scree full of them would be a nursery). Squat is the krummholz read.
     kp.crown_width_frac = 0.78f;
+    kp.crown_plasticity = f(config::CROWN_PLASTICITY_CONIFER);
     kp.whorl_count = 5;
     kp.whorl_branches_min = 3;
     kp.whorl_branches_max = 5;
@@ -866,6 +875,10 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // THE HEADLINE RULE, verbatim: lower crown radius = tree height.
     great.crown_radius_per_height = 1.0f;
     great.crown_width_frac = 2.0f; // = 2 x radius/height; kept in sync, see above
+    // THE GIANT IS THE OPEN-GROWN CASE BY DEFINITION: its own row says nothing
+    // crowds it (shyness 0) and design sites it in a clearing. A plasticity it
+    // can never express would be a number with no consumer.
+    great.crown_plasticity = 0.0f;
     great.crown_allometry_exp = 1.0f; // the rule is absolute, not maturity-scaled
     great.crown_width_jitter = 0.10f;
     // FRACTAL RAMIFICATION. Depth 5 with 2-5 majors and 2-3 children gives
