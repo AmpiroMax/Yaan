@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 17:17:04
+Last updated: 13:08:2026 - 17:21:38
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -103,6 +103,7 @@ UPD:
 - 13:08:2026 - 16:43:43: DFN_PLAYTEST_ROUTE добавлена в список пропуска меню — в тот же день, что и заведена. Собственная проверка нашла дыру: «маршрут включает patrol» оказалось мало, потому что блок плейтеста живёт внутри enter_world(), и автоматический прогон с одним маршрутом вечно стоял на СТАРТОВОМ ЭКРАНЕ. Починка молчаливого нуля породила второй молчаливый ноль этажом выше, ровно то, о чём предупреждает комментарий у самого списка, — и увидеть это удалось только прогоном.
 - 13:08:2026 - 17:00:50: Подсказка взаимодействия получила плашку (кусок от зоны ui, применён здесь). Она была последним текстом без подложки, при том что рисуется поверх ЧЕГО УГОДНО, на что смотрит игрок: те же чернила, тот же шрифт, тот же замер — 56.1% чернил не проходят правило двух шагов над светлым фоном. Плашка вынесена ui в ОДНУ функцию до применения: она была уже трижды копией, и эта была бы четвёртой.
 - 13:08:2026 - 17:17:04: НИ ОДИН АВТОМАТИЧЕСКИЙ ПРОГОН БОЛЬШЕ НЕ ЗАБИРАЕТ МЫШЬ. Жалоба пользователя, работавшего за машиной, пока агенты снимали кадры: «когда запускаются визуальные тесты у меня управление компом перехватывается, меня в игру перекидывает, мышью управлять не могу». Освобождение было написано для ОДНОЙ двери (пробы тела), а не для СВОЙСТВА, которое у дверей общее: у автоматического прогона некому целиться, значит ему незачем владеть указателем. Заведён `unattended_run()` — одно определение на двух потребителей, пропуск меню и захват курсора (правило 35). Все четыре места захвата теперь зовут его.
+- 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
 */
 
 #include "engine/app/sources/App.h"
@@ -764,6 +765,22 @@ bool App::enter_world(uint32_t stand) {
         // Three props, not one: take, open and use are three different verb
         // paths, and a lone pickup would leave two of them as untested in the
         // real game as they were before this block existed.
+        // THE PROPS' PLACEHOLDER MESHES (sim's geometry, app ferry -- the same
+        // shape as the body-segment ferry below). Without this the three demo
+        // props spawn with a RenderMesh id nothing has uploaded and draw as
+        // NOTHING, which is how a 1.8 x 2.0 m door stood invisible 2.5 m in
+        // front of the spawn with the whole hover chain working correctly
+        // around it: the ray hit its physics box, HoverTarget filled honestly,
+        // and "Открыть" was drawn over empty grass.
+        for (const gameplay::InteractableMesh& m : gameplay::interactable_meshes()) {
+            if (!render_system_.register_mesh(*renderer_, m.mesh_asset, m.vertices,
+                                              m.indices)) {
+                std::fprintf(stderr,
+                             "[app] interactable mesh %u refused by the registry -- "
+                             "that prop will be INVISIBLE\n", m.mesh_asset);
+            }
+        }
+
         gameplay::InteractableDesc take;
         take.kind = gameplay::InteractableKind::Pickup;
         take.position = spawn + glm::vec3{2.0f, 0.5f, 0.0f};
