@@ -111,6 +111,27 @@ $input v_dir
 // individual stars swing 0.90 of full brightness. See dfn_stars for the sweep
 // the 0.8 px radius is read off.
 
+// UPD 13:08:2026 - 20:19:19: THE MIDDLE DECK HAS A THICKNESS — the last flat thing
+// in the sky, and rule 52 in one line: a deck read at ONE plane intersection
+// has a silhouette from below and no vertical dimension, so it can only be a
+// lid. It is a SLAB now (u_deckThick, half a coverage cell = 300 m), read at
+// three altitudes, with transmission (1-a)^n where n is the number of field
+// CELLS the chord crosses — u_deckThick/dir.y divided by the cell width, which
+// is 1 overhead and 12 at the skyline. Measured on the overcast probe, sky
+// showing through the deck: 5.5 % -> 0.7 % near the horizon (the deck CLOSES
+// along the layer, which is what overcast does and what a plane cannot do) and
+// 15.6 % -> 11.5 % overhead (the ray crosses a third of a cell horizontally
+// even straight up, so the three slices blend). ZERO-DOSE ARM: DFN_DECK_THICK=0
+// reproduces the shipped sheet at 0.002 % of pixels, max 1/255 — `pow(x,1.0)`
+// rounding and nothing else. THE CONTROL EARNED ITS KEEP: the first form wrote
+// the path as clamp(1/dir.y, 1, 12), which does not contain the thickness at
+// all, so the dose-0 arm still closed the deck and came back 54 % different
+// from the shipped frame. A dose that does not appear in the formula is not a
+// dose. The 2-D field is kept deliberately — dfn_cloud_field carries R3.3's
+// per-octave LOD and the renormalisation that stopped the horizon band, and
+// dfn_cloud_field3 has none; the vertical structure here comes from the
+// SEPARATION of the samples, not from a third noise dimension.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -201,6 +222,15 @@ $input v_dir
 // The slab is bracketed by the two decks (u_cloudDeckLow..u_cloudDeckMid) so it
 // moves with the ceiling (R3.4) and cannot drift into or through them.
 #define CUMULUS_TAPS 4
+// The mid deck's own vertical sampling. THREE slices, because two cannot show a
+// core (only a top and a bottom) and four buys a fourth field tap for a
+// structure the 640x360 raster cannot resolve. The path cap is where the chord
+// through the slab reaches the layer's own geometric horizon: beyond it the
+// extinction owns the pixel anyway, and an uncapped 1/dir.y is a division by
+// nothing at the skyline. DECK_PATH_REF is the chord at 30 degrees of
+// elevation.
+#define DECK_SLICES    3
+#define DECK_PATH_MAX  12.0
 // Extinction per slab-thickness of FULLY dense cloud. Derived from the one
 // case the slab has to get right on its own: looking straight up through a
 // solid column the ray crosses exactly one thickness, and a cumulus directly
@@ -404,14 +434,84 @@ void main()
         float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX(p2))
                  * exp(-dist2 / SHEET_EXTINCTION_M) * 0.55;
 
-        // --- MID, 2600 m: the main sheet.
+        // --- MID: the main sheet, AND IT HAS A THICKNESS NOW.
+        //
+        // This is the last flat thing in the sky and it was rule 52 in one
+        // line: a deck read at ONE intersection has a silhouette from below
+        // and no vertical dimension at all, so it can only ever be a lid. It
+        // is now a SLAB of thickness u_deckThick, read at three altitudes, and
+        // two things fall out of that which no amount of shading a plane could
+        // produce:
+        //
+        //   1. PATH. The chord through a slab at elevation th is T/sin(th), so
+        //      the same deck is 1 thickness deep overhead and 11 at 5 degrees.
+        //      Opacity follows: 1-(1-a)^path. Overhead the holes stay open and
+        //      near the horizon the deck closes — which is what an overcast
+        //      sky actually does, and it used to be faked by nothing at all.
+        //   2. STRUCTURE. The three altitudes are met at three world points
+        //      separated by T/(3*dir.y) horizontally, so overhead they are the
+        //      same cloud (the coverage is unchanged, by construction) and at
+        //      a grazing angle they are DIFFERENT cloud — the ray passes
+        //      through several cells of the layer and the silhouette gets an
+        //      inside.
+        //
+        // WHAT IS AND IS NOT UNCHANGED OVERHEAD, and the first version of this
+        // comment got it wrong in the direction that flatters the change, so it
+        // is corrected rather than deleted. The OPACITY LAW is the old one at
+        // high elevation — 300 m of thickness against a 600 m cell puts the
+        // path under 1 above about 30 deg, where it clamps, and 1-(1-a)^1 = a.
+        // The SAMPLES are not: even straight up the ray crosses 200 m of the
+        // layer horizontally between the first slice and the last, a third of a
+        // cell, so the three do not coincide and their mean is smoother than one
+        // sample. Measured on the overcast probe, sky showing through the deck:
+        // 15.6 % -> 11.5 % overhead (the layer blending its own depth) against
+        // 5.5 % -> 0.7 % near the horizon (the path closing it). Both are the
+        // change working; only the second is the headline.
+        // The zero-dose arm (DFN_DECK_THICK=0) IS the shipped sheet, and that
+        // one is exact: measured 0.002 % of pixels differing by at most 1/255,
+        // which is `pow(x, 1.0)` rounding.
+        //
+        // The 2-D field is kept ON PURPOSE and the 3-D one is not used here:
+        // dfn_cloud_field carries R3.3's per-octave LOD and its renormalisation
+        // onto the surviving mean and spread, which is what stopped the hard
+        // bright band at the horizon. dfn_cloud_field3 has no LOD at all. The
+        // vertical structure here comes from the SEPARATION of the samples, not
+        // from a third noise dimension, so nothing is given back for it.
         float dist1 = (u_cloudDeckMid - eye.y) / dir.y;
         vec2 p1 = eye.xz + dir.xz * dist1;
         float cpx1 = DFN_CLOUD_CELLS_PX(p1);
-        float a1 = dfn_cloud_sheet_alpha(p1, cpx1)
-                 * exp(-dist1 / SHEET_EXTINCTION_M);
+        // THE PATH IS A COUNT OF CELLS CROSSED, not 1/dir.y, and the zero-dose
+        // arm is what forced the correction. The first form read
+        // `clamp(1/dir.y, 1, 12)`, which does not contain the thickness at all
+        // — so at DFN_DECK_THICK=0 the deck still closed toward the horizon and
+        // the control came back 54.4 % different from the shipped frame instead
+        // of identical. A dose that does not appear in the formula is not a
+        // dose.
+        //
+        // The honest quantity: the field's cells are u_cloudWavelength wide, the
+        // chord through the slab travels u_deckThick/dir.y HORIZONTALLY, so the
+        // ray meets that distance divided by the cell width in independent
+        // cells, each cloud with probability `cover`. Transmission is therefore
+        // (1-a)^n. It is 1 at the zenith by arithmetic (300 m of travel against
+        // a 600 m cell) and 1 at zero thickness by construction, so both the old
+        // frame and the control fall out of the same expression.
+        float path1 = clamp((u_deckThick / max(dir.y, 0.001))
+                            / max(u_cloudWavelength, 1.0),
+                            1.0, DECK_PATH_MAX);
+        float a1_mean = 0.0;
+        float f1 = 0.0;
+        for (int si = 0; si < DECK_SLICES; ++si) {
+            float sf = (float(si) + 0.5) / float(DECK_SLICES);
+            float alt = u_cloudDeckMid + u_deckThick * sf;
+            vec2 ps = eye.xz + dir.xz * ((alt - eye.y) / dir.y);
+            a1_mean += dfn_cloud_sheet_alpha(ps, cpx1);
+            f1 += dfn_cloud_field(ps + u_cloudOffset, cpx1);
+        }
+        a1_mean /= float(DECK_SLICES);
+        f1 /= float(DECK_SLICES);
         vec2 q1 = p1 + u_cloudOffset;
-        float f1 = dfn_cloud_field(q1, cpx1);
+        float a1 = (1.0 - pow(max(1.0 - a1_mean, 0.0), path1))
+                 * exp(-dist1 / SHEET_EXTINCTION_M);
         // TWO shading terms and they answer different questions. Density: a
         // denser core is a thicker core and a thicker core is darker
         // underneath. Direction: the field's slope toward the sun, which is
@@ -421,6 +521,13 @@ void main()
         // is and the directional term says which way the light comes at it.
         // max() was measured and rejected — it floored the deck at half-shaded
         // and deleted the directional signal wherever density was the larger.
+        // The density term is UNCHANGED, and that is deliberate after the
+        // control: the first cut multiplied it by path/2, which is 0.5 at the
+        // zenith — it would have made the deck LIGHTER overhead than the sheet
+        // it replaced, under a claim of adding depth. The slab already speaks
+        // through the alpha and through f1 being a three-slice mean; a second
+        // knob on the same effect is how two copies of one number start
+        // disagreeing.
         float core1 = smoothstep(1.0 - u_cloudCover * 0.55, 1.0, f1);
         float shade1 = dfn_cloud_self_shade(q1, f1, cpx1);
         vec3 col1 = mix(cloud_bright * DECK_TONE_MID_LIT, cloud_dark,

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 19:49:07
+Last updated: 13:08:2026 - 20:19:19
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -192,6 +192,12 @@ UPD:
   1.09 steps apart. The moon term is zero at new moon by construction, and the
   DFN_MOON_GROUND=0 arm came back IDENTICAL to the new-moon frame, so a
   moonless night is untouched and the ambient floor was not raised.
+- 13:08:2026 - 20:19:19: u_deckThick (slot 38.z) — the middle deck's THICKNESS in metres, so the
+  main sheet stops being a plane. Half a coverage cell, derived from the field's
+  own scale rather than from meteorology (a layer element is wider than it is
+  deep; at the cell width the vertical structure would be as fine as the
+  horizontal and read as noise). DFN_DECK_THICK is the dose and 0 gives the
+  shipped sheet back to within 1/255.
 */
 
 #ifndef DFN_ENV_SH
@@ -280,6 +286,19 @@ uniform vec4 u_envParams[40];
 // the constants in BgfxRendererImpl.h.
 #define u_fillUp          (u_envParams[38].x)
 #define u_fillSun         (u_envParams[38].y)
+// THE MIDDLE DECK'S THICKNESS, metres. A deck read at ONE plane intersection is
+// rule 52 exactly — a silhouette from below with no vertical dimension — and
+// fs_sky now reads it as a slab. The value is derived from the FIELD's own
+// scale rather than from meteorology: one coverage cell is
+// WIND_FIELD_WAVELENGTH across, a layer element is wider than it is deep (real
+// stratocumulus run 2-5 km across against 0.5-1 km of depth), and half the cell
+// puts the deck's aspect at 2:1 — wide, which is what a deck is. Anything near
+// the cell width would make the vertical structure as fine as the horizontal
+// and read as noise instead of as thickness.
+// DFN_DECK_THICK is its dose; at 0 the slab collapses to the plane that
+// shipped, byte for byte, which is the zero-dose arm this change is read
+// against (Rule 48).
+#define u_deckThick       (u_envParams[38].z)
 // The quantiser's own luma weights (fs_upscale.sc). Every brightness rule in
 // the sky is written in THIS metric and not in Euclidean RGB, because the
 // palette pass weights the channels and a difference that lives in blue is

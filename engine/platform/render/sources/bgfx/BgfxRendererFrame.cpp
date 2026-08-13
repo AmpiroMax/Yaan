@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 20:05:20
+Last updated: 13:08:2026 - 20:19:19
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -107,6 +107,9 @@ UPD:
 - 13:08:2026 - 20:05:20: MOON_GROUND_GAIN got its NUMBERS row, so the moon's ground gain stops
   being a literal here and arrives through the generated header like every other
   number with two consumers (Rule 35). DFN_MOON_GROUND still overrides it.
+- 13:08:2026 - 20:19:19: packed[38].z = the middle deck's thickness, 0.5 * WIND_FIELD_WAVELENGTH
+  from the generated header, with DFN_DECK_THICK as its dose. Derivation and the
+  measurement at dfn_env.sh, u_deckThick.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -356,6 +359,16 @@ static float moon_ground_gain() {
     return value;
 }
 
+// THE MIDDLE DECK'S THICKNESS, metres: half of WIND_FIELD_WAVELENGTH, i.e. the
+// coverage field's own cell at a 2:1 width-to-depth aspect. Derived at
+// u_deckThick in dfn_env.sh; read from the generated header because the
+// wavelength is a NUMBERS row with two consumers already.
+static float deck_thickness_m() {
+    static const float value = dose_env_override(
+        "DFN_DECK_THICK", 0.5f * static_cast<float>(config::WIND_FIELD_WAVELENGTH));
+    return value;
+}
+
 struct HazeParams {
     float scale_m;
     float height_m;
@@ -452,7 +465,10 @@ void BgfxRenderer::Impl::apply_environment() const {
     static const float fill_up = dose_env_override("DFN_FILL_UP", FILL_UP_DEFAULT);
     static const float fill_sun =
         dose_env_override("DFN_FILL_SUN", FILL_SUN_DEFAULT);
-    packed[38] = {fill_up, fill_sun, 0.0f, 0.0f};
+    // .z = THE MIDDLE DECK'S THICKNESS in metres, half a coverage cell (see
+    // dfn_env.sh, u_deckThick). DFN_DECK_THICK is the dose and 0 restores the
+    // flat sheet exactly.
+    packed[38] = {fill_up, fill_sun, deck_thickness_m(), 0.0f};
     // THE CLOUD DECK ALTITUDES (slot 39), low / mid / high, meters. They were
     // shader #defines; the ceiling's HEIGHT is now a field of weather and place
     // (R3.4), so it arrives per frame. It travels as ONE slot because its two
