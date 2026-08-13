@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Created: 13:08:2026 - 17:12:00
-Last updated: 13:08:2026 - 17:12:00
+Created: 13:08:2026 - 16:28:00
+Last updated: 13:08:2026 - 17:05:00
 Module: tools
 File: tools/measure_text_separation.py
 
@@ -59,8 +59,10 @@ AI Agents Notice (must follow):
 """
 """
 UPD:
-- 13:08:2026 - 17:12:00: Created by zone ui, at the lead's approval, out of the
+- 13:08:2026 - 16:28:00: Created by zone ui, at the lead's approval, out of the
   readout-plate acceptance (docs/acceptance/README.md, the ui section).
+- 13:08:2026 - 17:05:00: Header timestamps corrected -- they were written ahead of
+  the clock, and this file's own subject is measurements that must not flatter.
 """
 
 import argparse
