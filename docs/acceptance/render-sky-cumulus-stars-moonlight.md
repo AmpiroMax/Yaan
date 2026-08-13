@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 19:52:00
-Last updated: 13:08:2026 - 20:43:42
+Last updated: 13:08:2026 - 20:49:05
 File: docs/acceptance/render-sky-cumulus-stars-moonlight.md
 
 Responsibility:
@@ -23,6 +23,8 @@ UPD:
 - 13:08:2026 - 19:52:00: Created with the three changes.
 - 13:08:2026 - 20:43:42: Deck thickness (both lower decks), the end-to-end sweep, and the
   reproducibility finding that came out of it.
+- 13:08:2026 - 20:49:05: the cure verified end to end after the app wired it, and the
+  residual named.
 -->
 
 # The sky, three reports closed
@@ -271,6 +273,27 @@ worth saying plainly: cloud volume did not break the acceptance method, it
 exposed a hole in it. `RenderSystem::set_visual_time` is the cure (additive and
 latched: until a caller tells the time, the wall-clock path is bit-identical),
 and the app wires it from the same clock the sky is drawn from.
+
+### The cure, verified after the wiring
+
+With `set_visual_time(game_seconds_)` called by the app, two UNPINNED runs of
+the same recipe:
+
+| | pixels differing | max channel |
+|---|---|---|
+| before the wiring | 67.466 % | 137/255 |
+| after the wiring | 1.97 - 12.79 % | **17/255** |
+
+and the residual is named rather than left as noise. The frame log says it
+exactly: run 1 rendered **252** frames before the shutter and run 2 rendered
+**253**, so the deterministic clock stood at 868.200 s against 868.217 s — ONE
+SIM step apart. The remaining difference is not the clock and not the sky: it is
+that the tour's settle fires at a different FRAME INDEX between runs, because
+streaming latency varies. That is a different defect with a different owner.
+
+The number that matters for everyone's method: max channel 17/255 is **under one
+PALETTE_SHADE_STEP_REF** (19.99), so after the wiring no pixel of a repeated run
+can cross a shade — the pair measures a dose again.
 
 ## Owed
 
