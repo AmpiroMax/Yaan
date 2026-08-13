@@ -1,5 +1,5 @@
 # Created: 13:08:2026 - 23:33:00
-# Last updated: 13:08:2026 - 23:33:00
+# Last updated: 14:08:2026 - 00:04:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-united-bole-recipe.txt
 #
@@ -23,6 +23,10 @@
 #
 # UPD:
 # - 13:08:2026 - 23:33:00: Created with the ea605cd pair and the close-up.
+# - 14:08:2026 - 00:04:00: THE LEAF-PACKS SHIPMENT (e562363) appended: the
+#   pair flora-leaf-packs-*-e562363.png and the new close-up. The «what these
+#   frames do not certify» clause of 23:33 is now half-answered: the crowns
+#   are masses. The bole arc (complaint 3) remains.
 
 THE DEFECT, AS A NUMBER (probe: per level-1 branch base, distance from its
 start point to the drawn wood; 12 variants x 3 broadleaves, Full, one binary)
@@ -75,3 +79,36 @@ WHAT THESE FRAMES DO NOT CERTIFY
     assertion inside the far-LOD case changed sides because the willow's Full
     crown got DEEPER (2.65 -> 4.21) and Reduced now lags it; re-measured with
     the cluster change, which moves both arms.
+
+
+================================================================================
+THE LEAF PACKS + THE SIGN FLIP (14.08.2026) — flora-leaf-packs-*-e562363.png
+================================================================================
+
+THE SHOOT: the same near-canopy command as above, head e562363.
+  AFTER    = shipped (packs 12/14/18 per envelope, radius 0.45 crown radii,
+             CROWN_MASS_MULTIPLIER 3.0)
+  CONTROL  = DFN_FLORA_PACKS=0 DFN_FLORA_MASSES=1 — the confetti medium off
+             the SAME binary (both doors zero-dosed)
+  close-up = + DFN_FLORA_EYE=622,769 DFN_FLORA_PITCH=0.55
+             (flora-bole-closeup-PACKS-e562363.png)
+
+THE NUMBERS ON THE FRAME (material door, ownership per pixel, tol 18):
+    medium               WOOD in front   CARD in front   leaf:wood
+    confetti x1 (ctrl)       28.5 %          14.3 %         0.50
+    packs x2                 25.5 %          19.8 %         0.78
+    packs x3 (SHIPPED)       24.3 %          24.5 %         1.01   <- the flip
+Worst variant 2436 of 2600 triangles (birch v6). Suite 50/51; the 1 red
+predates the change (birch Reduced width 0.90 vs 0.92, was 0.84 at head).
+
+WHAT THE PAIR SHOWS: the CONTROL is the sandpaper the user rejected — pale
+speckle riding on bare limbs. The AFTER carries the foliage as LARGE DARK
+MASSES on trees whose branches leave their own boles.
+
+WHAT THESE FRAMES DO NOT CERTIFY
+  - Bare leader "antlers" still stand proud of the packs on some crowns —
+    the next lever (foliage on the leaders' outer span, or fewer leaders).
+  - The bole arc (complaint 3, «стволы жесть кривые») is UNTOUCHED: sweep and
+    wind lean still stack one way (ProcFlora.cpp bend = sweep + lean).
+  - The pack card still shows ONE leaf-blob mask; the multi-leaf «пачка»
+    TEXTURE (internal value structure) is a separate, unstarted change.
