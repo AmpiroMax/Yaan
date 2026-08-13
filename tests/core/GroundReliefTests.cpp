@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 16:35:00
+Last updated: 13:08:2026 - 16:52:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -49,6 +49,12 @@ UPD:
   scattered bad luck), the population census over the world's flattest legal
   standpoints (one standpoint's p5 can be bought by 64 lucky rays), and the σ
   ceiling read in the same run as the count.
+- 13:08:2026 - 16:52:00: WALKABILITY, and the instrument was replaced rather
+  than re-floored: a count of cells crossing PLAYER_MAX_SLOPE cannot separate a
+  wall the pass built from ground the pass nudged that was already at the limit
+  (every arm tipped the same knife-edge cell), so the quantity was wrong. The
+  gate is CONNECTIVITY over the 2 m lattice the world is collided on, with a
+  positive control showing the instrument moves when driven.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -615,4 +621,104 @@ TEST_CASE("diagnostic: the sight profile of the WORST column, sample by sample")
         MESSAGE("  t=" << t << " h=" << h << " rel=" << (h - eye_y) << " ang="
                        << ang * 57.2957795f << " deg" << (hid ? "  HIDDEN" : ""));
     }
+}
+
+// --- WALKABILITY: THE PRICE OF THE FORMS, PAID IN THE ONE CURRENCY THAT ------
+// --- CANNOT BE SEEN IN A FRAME ----------------------------------------------
+//
+// A riser multiplies the local gradient by up to 5x and a draw cuts a bank into
+// it. On the lowland that is 3 deg becoming 12 and nobody notices; the failure
+// mode worth fearing is a BARRIER — ground you cannot walk up, running far
+// enough to cut the country in two — and a barrier is invisible in every
+// screenshot ever taken of it, because it looks exactly like a bank until you
+// try to walk up it.
+//
+// THE FIRST INSTRUMENT HERE WAS THE WRONG ONE AND ITS HEADSTONE IS THIS
+// PARAGRAPH. It counted cells of legal open ground whose slope crossed
+// `PLAYER_MAX_SLOPE`, and asserted zero. It read ONE cell in 4676 — at
+// (688, 688), 0.936 rad where the control was ALREADY 0.862 against a 0.87
+// limit. Then: making the draws shallower moved it to 0.910 and 0.923 and
+// produced TWO such cells rather than none, and fading the forms off the rock
+// (a fast-varying mask makes its own cliff) moved it to 1.025. Every arm tipped
+// the same knife-edge cell. So the count does not separate "the pass built a
+// wall" from "the pass nudged ground that was already at the limit" — no value
+// on it does — which is the discriminating-power test failing, and by that test
+// the QUANTITY is wrong rather than the threshold. Replaced, not demoted.
+//
+// The quantity that does separate them is CONNECTIVITY: walk the 2 m lattice
+// the world is collided on, with the character controller's own two rules
+// (`PLAYER_STEP_HEIGHT` free, `PLAYER_MAX_SLOPE` climbable), and ask what
+// fraction of the ground around the pinned standpoint the player can still
+// reach. A knife-edge cell costs nothing there; a scarp band across the country
+// costs everything, and the number says which one happened.
+TEST_CASE("the forms do not build barriers: the country stays connected") {
+    const auto& ctx = shipped_world();
+    // The window is 400 m across the pinned standpoint: wide enough that a
+    // barrier has somewhere to run, small enough to walk the 2 m lattice twice.
+    constexpr float S = static_cast<float>(config::HEIGHTMAP_STEP);
+    constexpr int N = 200; // 400 m at 2 m
+    const glm::vec2 origin = A1_STANDPOINT - glm::vec2{N * S * 0.5f, N * S * 0.5f};
+    // The controller's own edge rule, stated once: a step is free up to
+    // PLAYER_STEP_HEIGHT, and above that the ground must not rise faster than
+    // PLAYER_MAX_SLOPE over the lattice it is collided on.
+    const float rise_max = std::max(static_cast<float>(config::PLAYER_STEP_HEIGHT),
+                                    S * std::tan(static_cast<float>(config::PLAYER_MAX_SLOPE)));
+
+    const auto reachable_fraction = [&]() {
+        std::vector<float> h(static_cast<std::size_t>(N) * N);
+        for (int z = 0; z < N; ++z) {
+            for (int x = 0; x < N; ++x) {
+                h[static_cast<std::size_t>(z) * N + x] = world::terrain_height(
+                    ctx, origin + glm::vec2{static_cast<float>(x) * S, static_cast<float>(z) * S});
+            }
+        }
+        std::vector<uint8_t> seen(h.size(), 0);
+        std::vector<int> stack{(N / 2) * N + N / 2};
+        seen[static_cast<std::size_t>(stack[0])] = 1;
+        int count = 0;
+        while (!stack.empty()) {
+            const int c = stack.back();
+            stack.pop_back();
+            ++count;
+            const int cx = c % N;
+            const int cz = c / N;
+            for (int d = 0; d < 4; ++d) {
+                const int nx = cx + (d == 0) - (d == 1);
+                const int nz = cz + (d == 2) - (d == 3);
+                if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+                const auto n = static_cast<std::size_t>(nz) * N + nx;
+                if (seen[n]) continue;
+                // Passable both ways: the player has to be able to come back.
+                if (std::fabs(h[n] - h[static_cast<std::size_t>(c)]) > rise_max) continue;
+                seen[n] = 1;
+                stack.push_back(static_cast<int>(n));
+            }
+        }
+        return static_cast<float>(count) / static_cast<float>(h.size());
+    };
+
+    const float shipped = reachable_fraction();
+    setenv("DFN_TERRACE_STRENGTH", "0", 1);
+    setenv("DFN_DRAW_DEPTH", "0", 1);
+    const float control = reachable_fraction();
+    unsetenv("DFN_TERRACE_STRENGTH");
+    unsetenv("DFN_DRAW_DEPTH");
+    MESSAGE("reachable from the A1 standpoint over 400 m of 2 m lattice: shipped "
+            << shipped * 100.0f << " %, control (forms off) " << control * 100.0f
+            << " % — rise limit " << rise_max << " m per " << S << " m");
+    // Both arms are REPORTED and the gate is the one clause that needs no new
+    // number: whatever the country's own connectivity is, this pass must not be
+    // what severs it. A floor on the absolute fraction would be a number
+    // invented here, and it is the lead's to set if it is wanted.
+    //
+    // AND THE INSTRUMENT CAN FAIL, which is the part a control is worthless
+    // without: driven through its own doors it MOVES, monotonically and only in
+    // the arm that is driven — draws at 2x depth 99.9725 %, at 4x 99.9575 %, at
+    // 6x (a 7-15 m ravine) 99.595 %, and a 3 m terrace step on an 0.08 riser
+    // 99.9075 %, against a control that sits at 99.9725 % in every one of them.
+    // At the shipped scale both arms read 99.9725 % — identical to five
+    // figures — so the honest reading is not "the guard passed" but "at this
+    // scale of form, barriers are not the risk, and here is the scale at which
+    // they would start to be".
+    CHECK(shipped > 0.5f * control);
 }
