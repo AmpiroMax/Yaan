@@ -31,7 +31,7 @@ map.forest.blurb=Тропы, обочина, подлесок — стенд к�
 map.mirror.name=Зеркало
 map.mirror.blurb=Двойник напротив: проверка анимаций
 
-# Отладочный экран (F3) и снимок состояния (F2)
+# Отладочный экран (клавиша 2, F3 — псевдоним) и снимок состояния (клавиша 3, F2 — псевдоним)
 debug.compass.n=север
 debug.compass.ne=северо-восток
 debug.compass.e=восток
@@ -48,4 +48,4 @@ debug.loco.ground=земля
 debug.loco.wade=вброд
 debug.loco.swim=вплавь
 debug.loco.unknown=среда?
-debug.hint.capture=F2 — снимок состояния
+debug.hint.capture=3 — снимок состояния
