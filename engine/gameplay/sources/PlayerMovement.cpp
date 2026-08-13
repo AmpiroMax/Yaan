@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 11:08:2026 - 13:51:09
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.cpp
 
@@ -109,6 +109,13 @@ UPD:
   the mirror is now whole-struct with static_asserts pinning the size of both
   Camera/Transform pairs, so the next field added to EITHER (or, as here, to
   both) fails the build at the copy that must learn about it.
+- 13:08:2026 - 16:20:00: THE MEDIUM YOU ARE IN, AS ONE FACTOR. Brush drag joins
+  wading on the same multiplier (BRUSH_FACTOR, a proposed NUMBERS row at 0.65 --
+  deliberately gentler than water's 0.6, because brush catches the legs and
+  water is a medium the whole body is in). The speed probe grows
+  brush_density/medium_factor/pos_x/pos_z columns: "the bush slowed me down" is
+  a claim about the speed AND about what the walker was standing in, and a row
+  carrying only the speed cannot tell a bush from a hill or a released key.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -165,6 +172,20 @@ constexpr float SWIM_ENTER_DEPTH = static_cast<float>(config::SWIM_ENTER_DEPTH);
 constexpr float SWIM_EXIT_DEPTH = static_cast<float>(config::SWIM_EXIT_DEPTH);
 constexpr float SWIM_EYE_ABOVE = static_cast<float>(config::SWIM_FLOAT_EYE_ABOVE_WATER);
 constexpr float WADE_FACTOR = static_cast<float>(config::WADE_SPEED_FACTOR);
+
+// Horizontal speed multiplier in the THICKEST part of brush; the density ramps
+// it linearly from 1.0 at the outermost leaf, so a walker feels themselves push
+// in rather than hit a wall at the rim.
+//
+// PROPOSED NUMBERS ROW (`BRUSH_SPEED_FACTOR`), not yet approved — reported to
+// the lead with the rest of today's numbers. It is LESS punishing than
+// `WADE_SPEED_FACTOR` 0.6 and that ordering is the argument for the value:
+// water is a medium your whole body is in, brush catches your legs, so a shrub
+// that cost more than a river would read as a bug. 0.65 takes a walk from
+// 1.80 m/s to 1.17 m/s at the heart of a thicket — unmistakable in the frame
+// log and in the hands, without turning a hedge into terrain.
+// Deliberately NOT the wade number: two media, two rows, one mechanism.
+constexpr float BRUSH_FACTOR = 0.65f;
 
 // DERIVED, never stored twice (the lead's ruling and the reason only
 // JUMP_HEIGHT is a row): the takeoff speed that reaches exactly JUMP_HEIGHT
@@ -246,6 +267,12 @@ struct SpeedProbe {
     std::FILE* file = nullptr;
     uint64_t tick = 0;
     float commanded = 0.0f; // written by pre_step, read by post_step
+    // WHY THE MEDIUM IS IN THE PROBE. "The bush slowed me down" is a claim
+    // about two quantities at once — the speed AND what the walker was standing
+    // in — and a row with only the speed cannot tell a bush from a hill, a
+    // wall, or a released key. Logged next to the speed it explains.
+    float brush = 0.0f;
+    float medium = 1.0f;
 };
 
 [[nodiscard]] SpeedProbe& speed_probe() {
@@ -267,7 +294,8 @@ struct SpeedProbe {
                 std::fprintf(p.file,
                              "tick,commanded_mps,actual_mps,dy_m,grounded,"
                              "stride_phase,fov_scale,bob_amp,bob_vert,bob_lat,"
-                             "eye_x,eye_y,eye_z,eye_yaw,eye_pitch\n");
+                             "eye_x,eye_y,eye_z,eye_yaw,eye_pitch,"
+                             "brush_density,medium_factor,pos_x,pos_z\n");
             }
         }
         return p;
@@ -455,6 +483,10 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
     }
 
     glm::vec3 displacement{0.0f};
+    // The medium multiplier, declared out here only so the diagnostic probe can
+    // read it; swimming leaves it at 1.0 because SWIM_SPEED is its own row and
+    // is not a fraction of a walk.
+    float medium_factor = 1.0f;
     if (swimming) {
         // Entering the water kills the fall: without this, a dive carries the
         // accumulated fall speed and drives the player straight into the bed.
@@ -501,9 +533,28 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
             speed = CROUCH_SPEED;
             state.gait = Gait::Walk;
         }
+        // THE MEDIUM YOU ARE IN, AS ONE FACTOR. Water and brush are two media,
+        // not two slowdown systems: both end here, on the same multiplier, so
+        // there is exactly one place that answers "why am I slow" (Rule 35).
+        // The user asked for brush that costs speed rather than brush that
+        // blocks — «кусты могли бы замедлять» — and this is the mechanism
+        // wading already had, reused rather than duplicated.
+        //
+        // THE SLOWEST MEDIUM WINS, they do not multiply. Wading through a
+        // willow thicket at the water's edge is common ground here, and
+        // 0.6 x 0.55 = 0.33 would make the most atmospheric place in the world
+        // the one where the player cannot move — an accidental difficulty
+        // spike produced by two reasonable numbers meeting.
+        float& medium = medium_factor;
         if (state.locomotion == Locomotion::Wade) {
-            speed *= WADE_FACTOR; // water drags, even when you can still stand
+            medium = WADE_FACTOR; // water drags, even when you can still stand
         }
+        if (step.brush_density > 0.0f) {
+            const float brush =
+                1.0f + std::clamp(step.brush_density, 0.0f, 1.0f) * (BRUSH_FACTOR - 1.0f);
+            medium = std::min(medium, brush);
+        }
+        speed *= medium;
         displacement = (right * axes.x + forward * axes.y) * speed * DT;
 
         // Jump. Grounded only, and never while crouched: a crouch-jump is the
@@ -531,6 +582,8 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
     // asked for; post_step logs what came back.
     if (SpeedProbe& probe = speed_probe(); probe.file != nullptr) {
         probe.commanded = glm::length(glm::vec2{displacement.x, displacement.z}) / DT;
+        probe.brush = step.brush_density;
+        probe.medium = medium_factor;
     }
 
     physics.move_character(state.character, displacement);
@@ -707,7 +760,7 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     if (SpeedProbe& probe = speed_probe(); probe.file != nullptr) {
         std::fprintf(probe.file,
                      "%llu,%.6f,%.6f,%.6f,%d,%.6f,%.6f,%.6f,%.6f,%.6f,"
-                     "%.6f,%.6f,%.6f,%.6f,%.6f\n",
+                     "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
                      static_cast<unsigned long long>(probe.tick++),
                      static_cast<double>(probe.commanded), static_cast<double>(speed),
                      static_cast<double>(position.y - prev_transform.position.y),
@@ -718,7 +771,9 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
                      static_cast<double>(camera.position.x),
                      static_cast<double>(camera.position.y),
                      static_cast<double>(camera.position.z),
-                     static_cast<double>(camera.yaw), static_cast<double>(camera.pitch));
+                     static_cast<double>(camera.yaw), static_cast<double>(camera.pitch),
+                     static_cast<double>(probe.brush), static_cast<double>(probe.medium),
+                     static_cast<double>(position.x), static_cast<double>(position.z));
     }
 }
 

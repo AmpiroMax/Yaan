@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 10:08:2026 - 21:33:52
+# Last updated: 13:08:2026 - 16:20:00
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -55,6 +55,10 @@
 #                          its physics world — the rig built terrain collision
 #                          only, and the wall is a prop — so eight charges were
 #                          running through open ground and reporting success.
+# - 13:08:2026 - 16:20:00: Added sim_flora_collision — the world you cannot walk
+#                          through (solid boles measured from their own drawn
+#                          triangles, brush as drag, the log/step-height
+#                          watershed), with the control arms for each claim.
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -125,3 +129,10 @@ target_compile_definitions(sim_save_format PRIVATE
 # The .dfs codec (engine/world), implemented by sim under a lead carve.
 add_dfn_test(sim_save_delta sim/SaveDeltaTests.cpp
     dfn_world dfn_gameplay dfn_core)
+
+# THE WORLD YOU CANNOT WALK THROUGH (user: «деревья — не объекты физики… кусты,
+# поваленные деревья пропускают героя»). Trunks solid from their own drawn
+# triangles, brush as drag, the log/step-height watershed — with the control
+# arms that make each claim refutable.
+add_dfn_test(sim_flora_collision sim/FloraCollisionTests.cpp
+    dfn_gameplay dfn_physics dfn_platform_physics dfn_world dfn_render dfn_core)

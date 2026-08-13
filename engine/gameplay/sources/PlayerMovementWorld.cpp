@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 11:08:2026 - 13:51:09
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovementWorld.cpp
 
@@ -45,6 +45,14 @@ UPD:
   camera also starts at 1.0), listed anyway because the omission had the same
   cause as the per-tick one that WAS the defect: an initialiser list that
   reads as complete.
+- 13:08:2026 - 16:20:00: The wrapper reads the brush drag out of the World's
+  BrushField and ferries it on StepContext. NOT a new parameter, and the
+  asymmetry with water is the point: where water is belongs to engine/world, so
+  its depth arrives as a callback the app binds; where brush is belongs to THIS
+  zone -- update_prop_collision built the drag field from the same scatter it
+  built the trunk bodies from. Asking the app to ferry a number gameplay
+  already owns would be a wire with no information on it, and one more thing
+  for a caller to forget. It also means engine/app is untouched by today's work.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -54,6 +62,7 @@ UPD:
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/InventoryScreen.h"
+#include "engine/gameplay/sources/PropCollision.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
 namespace dfn::gameplay {
@@ -120,6 +129,15 @@ void player_pre_step(ecs::World& world, platform::IPhysics& physics,
                 depth = std::max(0.0f, *surface - transform.position.y);
             }
         }
+        // BRUSH IS READ HERE, not passed in, and the asymmetry with water is
+        // deliberate. Where water is belongs to engine/world, so its depth
+        // arrives as a callback the app binds; where brush is belongs to THIS
+        // zone — update_prop_collision built the drag field from the same
+        // scatter it built the trunk bodies from, in the same reconcile. Asking
+        // the app to ferry a number gameplay already owns would be a wire with
+        // no information on it, and one more thing for a caller to forget.
+        ctx.brush_density = brush_density_at(
+            world, transform.position, static_cast<float>(config::PLAYER_CAPSULE_RADIUS));
         player_pre_step(state, physics, depth, transform, prev_transform, camera,
                         prev_camera, ctx);
     }

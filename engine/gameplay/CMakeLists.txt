@@ -27,6 +27,10 @@
 #                          solid, built from the triangles render draws (hence
 #                          the new dfn_render link; those builders are pure
 #                          geometry and pull in no third-party library).
+# - 13:08:2026 - 16:35:00: FloraCollision.cpp — a plant's collider MEASURED out
+#                          of the mesh flora draws for it, so trunks stop you
+#                          and brush slows you (user's complaint that trees and
+#                          bushes are not physical objects at all).
 # - 10:08:2026 - 21:13:08: GameplaySaveRegistration.cpp — the codec
 #                          registration split out of GameplaySave.cpp so that
 #                          using a save SECTION no longer drags in the
@@ -34,6 +38,7 @@
 
 add_library(dfn_gameplay STATIC
     sources/Dice.cpp
+    sources/FloraCollision.cpp
     sources/GameplaySave.cpp
     sources/GameplaySaveRegistration.cpp
     sources/HeldItem.cpp

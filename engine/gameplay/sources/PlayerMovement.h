@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 22:37:10
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -94,6 +94,14 @@ UPD:
 - 10:08:2026 - 22:37:10: StepContext::crouch_eye -- the crouched eye placement,
   FERRIED from character (anim::crouch_eye_offset) exactly as eye_lean is.
   character's lead carve; see the .cpp entry for the 0.4081 m.
+- 13:08:2026 - 16:20:00: StepContext::brush_density -- HOW DEEP IN BRUSH the
+  walker is, ferried in exactly as eye_lean and crouch_eye are. The user's
+  complaint that bushes let the hero straight through is answered with his own
+  proposal (slow, do not block), and it lands on the SAME speed multiplier
+  wading already used rather than beside it: one place answers "why am I slow"
+  (Rule 35). The slowest medium wins instead of the two multiplying -- water
+  0.6 x brush 0.65 = 0.39 would make a willow thicket at the water's edge, the
+  most atmospheric place in the world, the one the player cannot cross.
 */
 
 #pragma once
@@ -272,6 +280,19 @@ struct StepContext {
     // as far as the camera is concerned, exactly as it leans not at all. It is
     // also why standing frames are bit-for-bit unchanged by this.
     glm::vec2 crouch_eye{0.0f, 0.0f};
+
+    // HOW DEEP IN BRUSH THE WALKER IS, 0 clear .. 1 the heart of the thickest
+    // shrub they are standing in. Ferried in, exactly as the two offsets above
+    // are, and for the same reason: WHERE the bushes are is the world's
+    // knowledge (PropCollision::brush_density_at reads the drag field built
+    // from the drawn scatter), and WHAT being in one costs is movement's. The
+    // wrapper binds it; the ref-based core takes it as data so a test can put
+    // the player in a thicket with no world at all.
+    //
+    // ZERO IS THE HONEST DEFAULT: a caller that ferries nothing is standing in
+    // the open, which is why every existing test and frame is unchanged by
+    // this field's arrival.
+    float brush_density = 0.0f;
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------

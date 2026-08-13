@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:21:30
-Last updated: 09:08:2026 - 22:21:30
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PropCollision.cpp
 
@@ -24,10 +24,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 22:21:30: Created — buildings and boulders become solid.
+- 13:08:2026 - 16:20:00: Boles and downed logs join the merged body; bushes and
+                         brushwood fill BrushField instead of costing bodies.
 */
 
 #include "engine/gameplay/sources/PropCollision.h"
 
+#include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include <glm/gtc/quaternion.hpp>
@@ -36,7 +40,9 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/gameplay/sources/FloraCollision.h"
 #include "engine/physics/sources/CollisionLayers.h"
+#include "engine/render/sources/ProcFlora.h"
 #include "engine/render/sources/ProcMesh.h"
 #include "engine/world/sources/Chunk.h"
 #include "engine/world/sources/ChunkManager.h"
@@ -91,8 +97,52 @@ void append_sites(render::MeshData& out, const ecs::World& world, world::ChunkCo
     }
 }
 
-// Boulders. Trees are deliberately absent — see the header note on why an
-// approximate trunk radius is worse than none.
+// PLANTS: the ones that stop you go into the merged mesh, the ones that only
+// slow you down go into the drag field. One walk over the chunk's scatter feeds
+// both, because they are the same question asked of every instance — "what is
+// this thing, physically" — and asking it twice is how the two lists drift.
+//
+// NO GROUND SINK ON THIS PATH, and that is not an omission: flora's contract is
+// that a plant mesh already stands on its own root flare and buries its own
+// lower half, so the batcher draws it at `inst.position` untouched. Sinking it
+// here would put solid bark 12 cm below visible bark on every tree in the
+// world — the exact mirror of the boulder bug SCATTER_GROUND_SINK_FRAC exists
+// to prevent.
+void append_plants(render::MeshData& out, BrushField::Chunk& brush,
+                  FloraCollisionCache& cache, const world::ChunkManager& chunks,
+                  world::ChunkCoord coord) {
+    for (const math::ScatterInstance& inst : chunks.scatter(coord)) {
+        // The cheap question first. Three quarters of a chunk's scatter is
+        // boulders and ground cover, and every one of them used to pay for a
+        // variant lookup and a maturity draw before being thrown away.
+        if (flora_solid_kind(inst.species) == FloraSolidKind::None) {
+            continue;
+        }
+        const glm::vec2 xz{inst.position.x, inst.position.z};
+        // Variant and maturity are asked of the SAME two functions the batcher
+        // asks, so the collider is built for the tree that is drawn and not for
+        // a sibling of it (Rule 35).
+        const uint32_t variant = render::flora_variant_for(xz);
+        const float maturity =
+            flora_collision_maturity(inst.species, xz, inst.scale);
+        const FloraSolid& solid = flora_solid(cache, inst.species, variant, maturity);
+        switch (solid.kind) {
+        case FloraSolidKind::None:
+            break;
+        case FloraSolidKind::Solid:
+            render::append_transformed(out, solid.mesh, inst.position, inst.yaw, 1.0f);
+            break;
+        case FloraSolidKind::Drag:
+            brush.discs.push_back(BrushDisc{.center = xz,
+                                            .radius = solid.drag_radius,
+                                            .top = inst.position.y + solid.drag_top,
+                                            .base = inst.position.y});
+            break;
+        }
+    }
+}
+
+// Boulders, which are not flora and keep their own drawn mesh + ground sink.
 void append_boulders(render::MeshData& out, const world::ChunkManager& chunks,
                      world::ChunkCoord coord) {
     const render::MeshData stone = render::build_scatter_mesh(math::ScatterSpecies::Stone);
@@ -117,7 +167,11 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
     if (!world.has_resource<PropCollisionState>()) {
         world.add_resource(PropCollisionState{});
     }
+    if (!world.has_resource<BrushField>()) {
+        world.add_resource(BrushField{});
+    }
     auto& state = world.resource<PropCollisionState>();
+    auto& brush_field = world.resource<BrushField>();
 
     // 1. Create what is resident and missing. Iterating the resident list (not
     //    the body map) keeps creation order tied to the streaming order.
@@ -125,12 +179,26 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
     for (const world::ChunkCoord coord : chunks.loaded_chunks()) {
         const uint64_t key = world::chunk_group(coord);
         resident.push_back(key);
-        if (state.bodies.contains(key)) {
+        // THE BRUSH FIELD IS KEYED ON ITSELF, not on the body map. A chunk can
+        // legitimately have brush and no body (a meadow of shrubs on bare
+        // ground), and reading residency off `bodies` would have skipped it —
+        // the same "absence presents as a neutral state" failure that hid the
+        // missing site meshes for a stage.
+        const bool need_brush = !brush_field.chunks.contains(key);
+        const bool need_body = !state.bodies.contains(key);
+        if (!need_brush && !need_body) {
             continue;
         }
+        BrushField::Chunk brush;
+        brush.coord = coord;
         render::MeshData mesh;
         append_sites(mesh, world, coord);
+        append_plants(mesh, brush, state.flora_cache, chunks, coord);
         append_boulders(mesh, chunks, coord);
+        if (need_brush) {
+            brush_field.chunks.emplace(key, std::move(brush));
+        }
+        state.last_chunk_triangles = mesh.indices.size() / 3;
         if (mesh.indices.size() < 3) {
             continue; // a chunk with no props needs no body; not an error
         }
@@ -149,10 +217,14 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
         const platform::PhysicsBodyHandle body = physics.create_terrain_mesh(desc);
         if (body.valid()) {
             state.bodies.emplace(key, body);
+            state.resident_triangles += mesh.indices.size() / 3;
+            ++state.resident_solids;
         }
     }
 
-    // 2. Destroy what is no longer resident.
+    // 2. Destroy what is no longer resident. Bodies and brush go together: they
+    //    were built from the same chunk in the same pass, and a drag disc that
+    //    survived its chunk would slow a player standing in an empty field.
     for (auto it = state.bodies.begin(); it != state.bodies.end();) {
         const bool still_resident =
             std::find(resident.begin(), resident.end(), it->first) != resident.end();
@@ -162,7 +234,52 @@ void update_prop_collision(ecs::World& world, platform::IPhysics& physics,
         }
         physics.destroy_body(it->second);
         it = state.bodies.erase(it);
+        state.resident_solids -= (state.resident_solids > 0) ? 1u : 0u;
     }
+    for (auto it = brush_field.chunks.begin(); it != brush_field.chunks.end();) {
+        const bool still_resident =
+            std::find(resident.begin(), resident.end(), it->first) != resident.end();
+        it = still_resident ? std::next(it) : brush_field.chunks.erase(it);
+    }
+}
+
+float brush_density_at(const BrushField& field, const glm::vec3& feet, float body_radius) {
+    // THE THICKEST SHRUB DECIDES, rather than the sum of them. Brush overlaps
+    // constantly — that is what a thicket is — and adding densities would make
+    // an ordinary hedge row impassable while each bush in it stayed gentle. The
+    // player's experience of "how deep in this am I" is the deepest single
+    // thing they are in, so max() is the honest reduction.
+    float density = 0.0f;
+    for (const auto& [key, chunk] : field.chunks) {
+        (void)key;
+        for (const BrushDisc& disc : chunk.discs) {
+            // Vertically: the legs must be in it. Above the foliage top there
+            // is nothing to push through; below the base the walker is under
+            // the shrub, in a hole or on the far side of a ledge.
+            if (feet.y >= disc.top || feet.y + body_radius < disc.base) {
+                continue;
+            }
+            const float dx = feet.x - disc.center.x;
+            const float dz = feet.z - disc.center.y;
+            const float dist = std::sqrt(dx * dx + dz * dz);
+            const float reach = disc.radius + body_radius;
+            if (reach <= 0.0f || dist >= reach) {
+                continue;
+            }
+            // Linear from the rim to the middle: entering a bush costs nothing
+            // at the first leaf and everything at its heart, so the player feels
+            // themselves push IN rather than hit a speed wall at the edge.
+            density = std::max(density, 1.0f - dist / reach);
+        }
+    }
+    return std::clamp(density, 0.0f, 1.0f);
+}
+
+float brush_density_at(const ecs::World& world, const glm::vec3& feet, float body_radius) {
+    if (!world.has_resource<BrushField>()) {
+        return 0.0f; // a world with no brush field has no brush: not a failure
+    }
+    return brush_density_at(world.resource<BrushField>(), feet, body_radius);
 }
 
 } // namespace dfn::gameplay
