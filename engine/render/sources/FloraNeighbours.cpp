@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:44:12
-Last updated: 13:08:2026 - 21:40:00
+Last updated: 13:08:2026 - 21:15:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -54,6 +54,31 @@ UPD:
   its channel only where the canopy is actually closing. Both are the same
   closeness curve on purpose: two numbers for "how closed is it here" that could
   disagree are two numbers that eventually will.
+- 13:08:2026 - 21:15:00: DFN_FLORA_CROWNBASE -- a verification hook for the
+  EDGE-EFFECT hypothesis, and the hypothesis is REFUTED, which is why the hook
+  is worth keeping. Real forests read as canopy from outside because their edge
+  trees carry foliage nearly to the ground; ours are built the same at the edge
+  as in the middle, so the guess was that a lower crown would close the view.
+  Measured on the frame, per material (composite against wood-only and
+  cards-only), share of the treeline band each material stands IN FRONT of:
+        crown base            sky     WOOD    CARD
+        today (0.45-0.53)    23.7 %  58.6 %   4.8 %
+        forced 0.30          26.1 %  57.1 %   3.4 %
+        forced 0.18          28.7 %  55.5 %   2.7 %
+  It goes the WRONG WAY. The foliage budget is a fixed cluster count, so
+  lowering the base only spreads the same leaf over a taller crown and thins
+  it -- more sky, not less. Eighth hypothesis about this crown, eighth
+  measurement, and the first seven are in the files above.
+  WHAT THE MEASUREMENT FOUND INSTEAD IS ARITHMETIC AND NEEDS NO HYPOTHESIS.
+  Trunk coverage of a view through a stand of depth D at spacing s with boles d
+  across is 1-(1-d/s)^(D/s):
+        15 m spacing, 250 m of forest -> 49 %      8 m -> 91 %
+        10 m                          -> 79 %      6 m -> 99 %
+  At 6 m the boles ALONE tile the view within about forty rows, whatever the
+  crowns do, and the per-row profile agrees: wood outweighs foliage at every
+  height of the frame, 35 % against 15 % even in the middle of the canopy mass.
+  So the colonnade is not a defect in the tree and cannot be fixed by moving a
+  budget inside it.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -64,6 +89,7 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace dfn::render {
 
@@ -364,6 +390,22 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
         // out and reaching, not a scale model of a mature one.
         const float own_h = species_nominal_height(fs) * sh.maturity;
         sh.understory = sh.maturity < 0.75f && tallest_neighbour > own_h * 1.5f;
+        // VERIFICATION HOOK, NEVER A SHIPPING PATH (same standing as
+        // DFN_FLORA_NODES): DFN_FLORA_CROWNBASE=<fraction> puts every crown's
+        // base at that fraction of height, so the question "would a forest
+        // whose crowns come lower stop reading as a colonnade" can be answered
+        // by a frame instead of by argument. It is the counterfactual for the
+        // EDGE-EFFECT hypothesis: measured, wood stands in front of foliage in
+        // the treeline band by twelve to one, while a single tree is 80 % crown
+        // by outline — so what the eye meets is the 8-11 m of clear bole that
+        // CANOPY_CLEARANCE_MIN and the crown-base fraction jointly buy, seen
+        // through forty rows of it. Real forests read as canopy from outside
+        // because their EDGE trees carry foliage nearly to the ground; ours are
+        // built the same at the edge as in the middle.
+        if (const char* e = std::getenv("DFN_FLORA_CROWNBASE")) {
+            const float f = static_cast<float>(std::atof(e));
+            if (f > 0.0f && f < 1.0f) sh.crown_base_override = f;
+        }
     }
     return out;
 }
