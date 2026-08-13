@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 13:08:2026 - 17:30:00
+# Last updated: 13:08:2026 - 17:45:00
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -60,6 +60,7 @@
 #                          triangles, brush as drag, the log/step-height
 #                          watershed), with the control arms for each claim.
 # - 13:08:2026 - 17:30:00: Added sim_interactable_visible.
+# - 13:08:2026 - 17:45:00: Added sim_great_oak_stair (RED on purpose; label known-defect).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -144,3 +145,16 @@ add_dfn_test(sim_flora_collision sim/FloraCollisionTests.cpp
 # prop's target box has the prop behind it.
 add_dfn_test(sim_interactable_visible sim/InteractableVisibleTests.cpp
     dfn_gameplay dfn_render dfn_platform_physics dfn_core)
+
+# THE GREAT OAK'S STAIR -- THE GATE, AND IT IS RED ON PURPOSE TODAY.
+# Climbs the tread pairs with the real character controller against the real
+# collider and reports the fraction a walker can take; NUMBERS.md
+# (GREAT_OAK_STEP_RISE) says that fraction must be 1.0. The defect is in flora's
+# geometry, but the measurement needs a controller, so the instrument lives
+# here. Labelled so a runner can ask for the tree's state WITHOUT it
+# (`ctest -LE known-defect`) -- what must never happen is the assertion being
+# relaxed to make the suite green, because the suite going green is the event
+# this test exists to announce.
+add_dfn_test(sim_great_oak_stair sim/GreatOakStairTests.cpp
+    dfn_gameplay dfn_physics dfn_platform_physics dfn_render dfn_core)
+set_tests_properties(sim_great_oak_stair PROPERTIES LABELS "known-defect")
