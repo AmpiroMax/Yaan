@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 18:04:00
+Last updated: 13:08:2026 - 18:19:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -78,6 +78,11 @@ UPD:
   repaints them (§4 paints Rock above SLOPE_ROCK_MIN), which lands on another
   zone's material work, so it should arrive as a number and not as a surprise in
   a frame. Measured small: rock 0.87 % -> 0.99 % of legal open ground.
+- 13:08:2026 - 18:19:00: Three seeds, each at its OWN flattest legal standpoint,
+  because every number in this file until now was seed 1 — the world the pass
+  was built against and the world every frame was shot in. Forms off reads p5 0
+  and median 0-1 on all three; with the forms, median 2-3. The family is not a
+  property of one draw of the dice.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1100,4 +1105,52 @@ TEST_CASE("diagnostic: the surface classes the forms repaint") {
     MESSAGE("legal open ground by class, grass/blend/rock %: shipped " << shipped[0] << "/"
             << shipped[1] << "/" << shipped[2] << ", forms off " << control[0] << "/"
             << control[1] << "/" << control[2]);
+}
+
+// --- DOES IT HOLD ON A WORLD NOBODY TUNED IT ON? -----------------------------
+//
+// Every number in this file is seed 1, which is the world the pass was built
+// against and the world every frame was shot in. A form family that only works
+// there is a family fitted to a draw of the dice, and it would look exactly
+// like a working one until the day someone changes the seed. The massif work
+// answered the same question with twelve seeds; three is what this costs.
+//
+// The standpoint cannot be A1 on another seed — those coordinates mean nothing
+// there — so each world is measured at ITS OWN flattest legal standpoint, found
+// by the search that ranks on TREND and is blind to the quantity being reported.
+TEST_CASE("diagnostic: the forms across seeds, each at its own flattest ground") {
+    for (const uint64_t seed : {1ull, 7ull, 23ull}) {
+        WorldGenParams p;
+        p.seed = seed;
+        p.min_chunk = {0, 0};
+        p.max_chunk = {static_cast<int>(config::WORLD_EXTENT_CHUNKS) - 1,
+                       static_cast<int>(config::WORLD_EXTENT_CHUNKS) - 1};
+        REQUIRE(world::load_layout_file("games/daggerfall_n/assets/world/testbed_layout.json",
+                                        p.layout)
+                    .ok);
+        const world::WorldGenContext ctx = world::build_world_context(p);
+        const std::vector<glm::vec2> sps = world::flattest_legal_standpoints(ctx, 1, 64.0f);
+        REQUIRE(!sps.empty());
+        const glm::vec2 sp = sps.front();
+        const float eye = drawn_height(ctx, sp) + static_cast<float>(config::PLAYER_EYE_HEIGHT);
+        std::vector<int> per_column;
+        for (int c = 0; c < 64; ++c) {
+            const float a = static_cast<float>(c) * 0.0981748f; // 64 columns over 2*pi/... one turn
+            const glm::vec2 d{std::cos(a), std::sin(a)};
+            per_column.push_back(hidden_pockets_of(
+                [&](glm::vec2 q) { return drawn_height(ctx, q); }, sp, eye, d, 5.0f, 60.0f));
+        }
+        std::sort(per_column.begin(), per_column.end());
+        const world::GroundRelief gr = world::ground_relief_20m(ctx, sp);
+        // STATED WITH THE NUMBER, because it is the caveat that makes it honest:
+        // the standpoint is FOUND, not pinned, so it moves between arms as the
+        // terrain moves under the search. These rows compare WORLDS, not
+        // standpoints; A1 on seed 1 is the only pinned, arm-to-arm comparable
+        // reading in this file.
+        MESSAGE("seed " << seed << " at its flattest legal standpoint (" << sp.x << ", " << sp.y
+                        << "): min " << per_column.front() << " p5 "
+                        << per_column[per_column.size() / 20] << " median "
+                        << per_column[per_column.size() / 2] << " max " << per_column.back()
+                        << ", sigma " << gr.sigma);
+    }
 }
