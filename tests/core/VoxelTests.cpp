@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 13:08:2026 - 17:05:00
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -42,6 +42,7 @@ UPD:
   replaced `mat <= Dirt` with a named-enumerator check; that bound was a fact
   about declaration order in an APPEND-ONLY enum and went red on the append.
 - 11:08:2026 - 15:15:55: props-sit-on-the-ground restated for §10.5 B1: a boulder is DUG IN, so the invariant is one-sided -- never floating, never deeper than BOULDER_BURIAL_FRAC_MAX of its own extent.
+- 13:08:2026 - 17:05:00: РЕГРЕССИЯ §6.3 (зона dungeon): тьма как ФУНКЦИЯ МЕСТА, проверенная в той самой точке, которой спрашивает игра — НА полу. Существующий случай про тоннель задаёт тот же вопрос о вхождении, но в p.y+1.7 и p.y-0.5, то есть ОТСТУПАЕТ от плоскости, на которой стоит боевой запрос, и потому не мог увидеть особенность: ambient_darkness переключалась 0.000↔1.000 ЗА ОДИН КАДР, 13 раз за проход, под 18 м породы. Три проверки, каждая падает на функции до правки: пол и колено не расходятся (граница не сингулярна), соседние станции не меняются быстрее собственного склона рампы (склон, а не выключатель), и станция, до которой от обоих порталов больше DEPTH_MIN+рампа при реальной толще над головой, — полная тьма. Разбор: docs/FINDING_DUNGEON_DARK.md.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -656,4 +657,89 @@ TEST_CASE("§6.2 live-play fixes: entrances open outward, props sit on the groun
             }
         }
     }
+}
+
+TEST_CASE("§6.3 darkness is a FUNCTION OF THE PLACE, not of the last bit of a "
+          "float — the regression for «темнеет, потом мигает»") {
+    // THE ARM THIS SUITE DID NOT HAVE, and its absence is the finding.
+    //
+    // The tunnel case above asks the same containment question the shipping
+    // darkness query asks, but at `p.y + 1.7` and `p.y - 0.5` — it steps AWAY
+    // from the floor plane. The game asks AT the floor, because a player's
+    // position is the bottom of the capsule, and there the analytic carve
+    // boundary and the drawn floor differ by the voxel lattice's own
+    // reconstruction error. So `darkness_at(feet)` was a coin flip decided by
+    // rounding: measured live, `ambient_darkness` stepped 0.000 <-> 1.000 in a
+    // SINGLE frame 13 times in one walk through this tunnel, under as much as
+    // 18 m of rock. See docs/FINDING_DUNGEON_DARK.md.
+    //
+    // Every check below is stated on the shipping query point (the floor), and
+    // every one of them fails on the pre-fix function.
+    const auto& ctx = testbed();
+    const auto& layout = ctx.params.layout;
+    const auto& tun = layout.carves.crag_tunnel;
+    REQUIRE(tun.point_count >= 4);
+    const world::GroundSampler ground = [&ctx](glm::vec2 p) {
+        return world::terrain_height(ctx, p);
+    };
+    const auto dark = [&](glm::vec3 p) {
+        return world::enclosure_darkness(layout, {}, ground, p);
+    };
+
+    float total = 0.0f;
+    for (int i = 0; i + 1 < tun.point_count; ++i) {
+        total += glm::length(tun.points[i + 1] - tun.points[i]);
+    }
+
+    constexpr float STEP_M = 0.25f;
+    const float ramp = static_cast<float>(config::DARKNESS_FALLOFF_MIN);
+    // The ramp's own slope is the fastest darkness may legally change: it
+    // spans DARKNESS_FALLOFF_MIN metres of walk from 0 to 1. Anything steeper
+    // than one step's worth of that is a switch, and a switch between frames is
+    // what the player sees as a flash.
+    const float legal_step = STEP_M / ramp + 1e-3f;
+
+    float arc = 0.0f;
+    float prev = -1.0f;
+    int stations = 0;
+    int knife_edge = 0;     // floor and knee disagree: the boundary is singular
+    int steps_too_fast = 0; // a switch rather than a ramp
+    int deep_but_lit = 0;   // walked in from both ends and still full daylight
+    for (int i = 0; i + 1 < tun.point_count; ++i) {
+        const glm::vec3 a = tun.points[i];
+        const glm::vec3 b = tun.points[i + 1];
+        const float len = glm::length(b - a);
+        const int count = std::max(1, static_cast<int>(len / STEP_M));
+        for (int s = 0; s < count; ++s) {
+            const float u = static_cast<float>(s) / static_cast<float>(count);
+            const glm::vec3 floor_pt = a + (b - a) * u;
+            const float here = arc + len * u;
+            const float d_floor = dark(floor_pt);
+            const float d_knee = dark(floor_pt + glm::vec3{0.0f, 0.5f, 0.0f});
+            ++stations;
+            if (std::fabs(d_floor - d_knee) > 0.02f) {
+                ++knife_edge;
+            }
+            if (prev >= 0.0f && std::fabs(d_floor - prev) > legal_step) {
+                ++steps_too_fast;
+            }
+            prev = d_floor;
+            // Both ends of this corridor stand in daylight (daylight_portals),
+            // so the walk from the nearest opening is at most min(arc, L-arc).
+            // A station that is further in than DEPTH_MIN + the ramp, with real
+            // rock overhead, is what §6.3 calls pitch black.
+            const float from_ends = std::min(here, total - here);
+            const float cover = ground({floor_pt.x, floor_pt.z}) - floor_pt.y;
+            if (from_ends > static_cast<float>(config::DARKNESS_DEPTH_MIN) + ramp
+                && cover > 3.0f && d_floor < 0.999f) {
+                ++deep_but_lit;
+            }
+        }
+        arc += len;
+    }
+
+    REQUIRE(stations > 400);
+    CHECK(knife_edge == 0);
+    CHECK(steps_too_fast == 0);
+    CHECK(deep_but_lit == 0);
 }

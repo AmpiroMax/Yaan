@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 17:12:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -36,6 +36,7 @@ UPD:
   range halves found in the constants census; needs a design ruling, not a
   local edit.
 - 13:08:2026 - 16:45:00: МЕРЦАНИЕ В ПОДЗЕМЕЛЬЕ ПОЧИНЕНО (жалоба пользователя «темнеет в глазах, потом мигает»). Точка запроса поднимается на CARVE_QUERY_LIFT_M = VOXEL_SIZE перед ВСЕМИ проверками вхождения: запрос задаётся о низе капсулы, то есть о точке НА нарисованном полу, а нарисованный пол — реконструкция на решётке вокселя и стоит от аналитической плоскости в пределах вокселя, поэтому точный `>= 0` спрашивал о геометрии тоньше, чем геометрия умеет отвечать. Замер: 13 переключений ambient_darkness 0.000↔1.000 ЗА ОДИН КАДР на проход → 1; доля подземных тиков «по ту сторону границы» 3.6 % → 0.0 %. Подъём, а НЕ допуск на расстояние: изотропный допуск убрал мерцание и зачернил ОТКРЫТУЮ подходную выемку на 51 кадр (поймано дневной рукой). Вторая копия того же вопроса — свои ворота в corridor_path_from_mouth — держала 7 переключений из 13 после починки только первых. Новый enclosure_trace() — те же промежуточные величины ОДНОГО вычисления, чтобы прибор не мог разойтись с боевым кодом. Подробности и приёмка: docs/FINDING_DUNGEON_DARK.md.
+- 13:08:2026 - 17:12:00: ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ЖАЛОБЫ: путь до дневного света меряется от ПОРТАЛА — станции, где поднятый пол коридора пересекает поверхность, — а не от carve_mouth(), который отвечает на другой вопрос («где сомкнулся ПОТОЛОК») и у свитчбэка Равенскара стоит в 45 м ВНУТРИ тоннеля. Из-за этого на входе была чернота с первого шага вместо склона на DARKNESS_DEPTH_MIN, а на сотом метре — полный дневной свет под 12 м скалы (20.5 % подземных кадров); у коридора с двумя дневными концами признавался ровно один. Считаются ВСЕ пересечения, берётся ближайшее; carve_mouth намеренно не тронут (P4 выводит из него метки входов). Плюс берётся наиболее замкнутая из исходной и поднятой точки, иначе подъём выталкивал запрос на высоте глаз через свод 2.6-метрового прохода Бэкбарроу. Живьём: переключений 0↔1 за кадр 13 → 0, наибольшая покадровая ступень 1.000 → 0.0036, день под землёй 23.7 % → 7.4 % (и все они ближе 17 м пути от портала). Регрессия — tests/core/VoxelTests.cpp, рука до правки падает по всем трём проверкам.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -321,9 +322,9 @@ std::pair<float, float> carve_column_range(const TestbedLayout& layout,
     return {lo, hi};
 }
 
-/// Walk distance from a corridor's MOUTH to the point on its polyline nearest
-/// `world`, measured along the corridor. Returns a large value when the point
-/// is not in this corridor at all.
+/// Walk distance along a corridor from the NEAREST place it opens to daylight
+/// to the point on its polyline nearest `world`. Returns a large value when the
+/// point is not in this corridor at all.
 namespace {
 
 float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& ground,
@@ -331,15 +332,10 @@ float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& grou
     if (c.point_count < 2) {
         return 1e9f;
     }
-    if (corridor_distance(c, lifted(world)) > 0.0f) {
+    if (std::min(corridor_distance(c, world), corridor_distance(c, lifted(world))) > 0.0f) {
         return 1e9f; // not inside this corridor (see CARVE_QUERY_LIFT_M)
     }
-    const auto mouth = carve_mouth(c, ground);
-    if (!mouth) {
-        return 1e9f; // never goes under rock: not an entrance, so nothing is earned
-    }
-    // Arc length to the projection of `world`, and to the mouth, both measured
-    // from point 0; the walk between them is the difference.
+    // Arc length to the projection of `q`, measured from point 0.
     const auto arc_to = [&](glm::vec3 q) {
         float best = 0.0f;
         float best_d2 = 1e30f;
@@ -361,7 +357,76 @@ float corridor_path_from_mouth(const CarveCorridor& c, const GroundSampler& grou
         }
         return best;
     };
-    return std::fabs(arc_to(world) - arc_to(mouth->position));
+
+    // WHERE THE DAYLIGHT IS, and this is the second defect of «темнеет в
+    // глазах, потом мигает» — the half that is not the flicker.
+    //
+    // What stood here measured the walk from carve_mouth(), which answers a
+    // DIFFERENT question: the first station whose CEILING has gone under the
+    // terrain, i.e. where the hill has closed over the corridor. On the
+    // Ravenscar switchback that station is 109.7 m along the polyline, while a
+    // player walks under rock at 63 m — so the walk was measured from a point
+    // 45 m INSIDE the tunnel, unsigned. Two consequences, both measured on a
+    // live walk and both exactly what the user described:
+    //   - at the entrance the "walk" is already 45 m, so the picture goes
+    //     PITCH BLACK on the first step instead of ramping over
+    //     DARKNESS_DEPTH_MIN (25 m), which is what §6.3 promises;
+    //   - walking DEEPER approaches that point, so the walk falls to zero and
+    //     the tunnel returns to FULL DAYLIGHT under 12 m of rock. 20.5 % of
+    //     underground frames on the fixed build were full daylight, 761 of them
+    //     under more than 5 m of rock.
+    // And a corridor with two daylight ends (`daylight_portals`) had only ONE
+    // of them recognised at all, so standing two metres inside the far exit
+    // counted as 150 m deep, in sight of the sky.
+    //
+    // A PORTAL is where the corridor stops being enclosed for the player: the
+    // station where the LIFTED floor crosses the terrain surface — the same
+    // enclosure test the caller applies to the player, so the ramp starts
+    // exactly where the darkness gate starts. Every crossing counts (both ends,
+    // and any shaft the polyline pops out of), and the walk is measured from
+    // the NEAREST one. carve_mouth() is deliberately left alone: P4 derives the
+    // entrance MARKERS from it, and "where the roof closes" is the right answer
+    // for a marker even though it is the wrong one for a walk.
+    constexpr float STEP_M = 0.5f;
+    float portal_arcs[64];
+    int portal_count = 0;
+    float run = 0.0f;
+    bool prev_enclosed = false;
+    bool have_prev = false;
+    for (int i = 0; i + 1 < c.point_count && portal_count < 64; ++i) {
+        const glm::vec3 a = c.points[i];
+        const glm::vec3 b = c.points[i + 1];
+        const float len = glm::length(b - a);
+        const int steps = std::max(1, static_cast<int>(len / STEP_M));
+        for (int s = 0; s <= steps && portal_count < 64; ++s) {
+            const float u = static_cast<float>(s) / static_cast<float>(steps);
+            const glm::vec3 p = a + (b - a) * u;
+            const bool enclosed = p.y + CARVE_QUERY_LIFT_M < ground({p.x, p.z});
+            if (have_prev && enclosed != prev_enclosed) {
+                portal_arcs[portal_count++] = run + len * u;
+            }
+            prev_enclosed = enclosed;
+            have_prev = true;
+        }
+        run += len;
+    }
+    const float here = arc_to(world);
+    if (portal_count == 0) {
+        // The corridor never crosses the surface inside its own length: it
+        // begins already under rock (the barrow passage does). Its own start is
+        // then the deepest thing we can honestly call an entrance, which is
+        // what carve_mouth reports for such a corridor.
+        const auto mouth = carve_mouth(c, ground);
+        if (!mouth) {
+            return 1e9f; // never goes under rock: not an entrance, nothing earned
+        }
+        return std::fabs(here - arc_to(mouth->position));
+    }
+    float best = 1e9f;
+    for (int i = 0; i < portal_count; ++i) {
+        best = std::min(best, std::fabs(here - portal_arcs[i]));
+    }
+    return best;
 }
 
 } // namespace
@@ -382,8 +447,18 @@ EnclosureTrace enclosure_trace(const TestbedLayout& layout,
     // floor stands within one voxel of this analytic one rather than on it.
     // Asking about the surface a body touches instead of the air it stands in
     // is what made this a coin flip, once per frame, underground.
+    // THE MOST ENCLOSED OF THE TWO, so the query is robust at BOTH ends of a
+    // corridor's cross-section. The lift alone answers "is the air above my
+    // feet carved", which is the question for a point resting on the floor —
+    // but it pushes a query taken at EYE height (1.7 m) through the ceiling of
+    // the 2.6 m barrow passage, and that caller would then be told the barrow
+    // is open daylight. Taking the minimum keeps the floor's answer stable
+    // without inventing enclosure anywhere: outside a carve BOTH distances are
+    // positive, and the second gate below still rejects on the LIFTED point, so
+    // the open-ground blackout this fix's first version produced cannot return.
     const glm::vec3 probe = lifted(world);
-    tr.carve_distance = carve_distance(layout, extra, probe);
+    tr.carve_distance = std::min(carve_distance(layout, extra, world),
+                                 carve_distance(layout, extra, probe));
     tr.ground_y = ground({world.x, world.z});
     tr.above_ground = probe.y >= tr.ground_y;
     if (tr.carve_distance >= 0.0f) {
