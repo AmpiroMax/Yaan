@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 22:14:05
+Last updated: 13:08:2026 - 23:12:40
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -113,6 +113,7 @@ UPD:
 - 13:08:2026 - 21:05:12: Прицел спрашивает у приложения ФАКТЫ, а решает сам (HudFacts, зона ui). `any = true` убрано намеренно: слой, числящийся видимым, будучи пустым, делает лживым любой позднейший вопрос «есть ли что-нибудь на экране» — а он у нас задаётся приборами. Правило («метка называет, куда смотрит ЛУЧ КАМЕРЫ»: в третьем лице луч не выходит из глаза, которым целятся; карта — плита, у которой центр уже занят) живёт в draw_crosshair, а не здесь. Приложение сообщает, что ЗНАЕТ, и не решает, что из этого следует.
 - 13:08:2026 - 21:48:30: У НЕБА БЫЛО ДВОЕ ЧАСОВ, и починены были только одни. Солнце и луна идут от номера кадра (game_seconds_ += SIM_DT выше — ровно про это), а дрейф облачного поля и огибающая ветра читали СТЕННЫЕ часы каждый кадр, поэтому DFN_RESTORE восстанавливал небо, но не погоду в нём. Найдено зоной ui приёмкой прицела: два прогона ОДНОГО рецепта разошлись на 1.79 % пикселей, все — небо и верхушки деревьев (строки 0–186, ниже 190-й пусто), при том что мерить надо было 72 пикселя метки. Локализовано зоной render: с приколотыми часами та же пара выходит ПОБИТОВО равной. И причина, почему вылезло сегодня, — не поломка, а то, что небо стало содержательнее: кучевые выросли с 2.8 % кадра до 26.8 %, и тот же дрейф двигает на порядок больше пикселей. Теперь часы одни, из тех же секунд, из которых выведено всё остальное здесь.
 - 13:08:2026 - 22:14:05: Лента-компас и три полосы (зона ui, применено здесь) — состав выбран пользователем лично. Лента берёт yaw из позы КАМЕРЫ на том же alpha, что и картинка: лента, идущая от позы тела, разошлась бы с тем, что нарисовано, и врала бы тем сильнее, чем быстрее поворот. Полосы стоят полными и убыль НЕ изображают — тратить их пока нечем, а полоса, ползущая для вида, учит читать пустое число. И новая дверь DFN_CAPTURE_AFTER_FRAMES=<N> рядом с секундной: прогон, снимающий по стенной секунде, на загруженной машине успевает другое число кадров, поэтому две руки одного рецепта НЕЛЬЗЯ сравнить побитово — а на этом стоит приёмка всех зон. Запрошена зоной ui после того, как она померила остаток: 4125 расходящихся пикселей упали до 412, когда приколотили часы неба, и вот этим 412 и были. Кривое значение отвергается ВСЛУХ.
+- 13:08:2026 - 23:12:40: СЧЁТНЫЕ ЧАСЫ БЫЛИ ВЫДАНЫ ТОЛЬКО ТУРУ, и это моя недоделка, дожившая до сегодня. game_seconds_ рос на СТЕННУЮ дельту кадра во всех остальных автоматических дверях — DFN_CAPTURE_AFTER, DFN_RESTORE, DFN_PLAYTEST, — то есть ровно в тех прогонах, кадры которых зоны кладут в приёмку. Проверка «это доказательство?» была написана как «это тур?». Найдено тем, что дверь DFN_CAPTURE_AFTER_FRAMES, отгруженная часом раньше, НЕ ДАЛА обещанного: две руки, приколотые к одним и тем же 600 отрисованным кадрам, пришли к game_seconds 893.719 и 890.615 — три секунды солнца и ветра врозь, потому что 600 кадров стенных часов не есть длительность. После правки обе руки дают 882.007285 РОВНО. Правило 35, третий потребитель: unattended_run() уже отвечает «за этим никто не играет» пропуску меню и захвату курсора; на этот вопрос он отвечает тоже.
 */
 
 #include "engine/app/sources/App.h"
@@ -1919,12 +1920,27 @@ int App::run() {
         // different gust phase, and the diff is dominated by sky and foliage
         // rather than by anything the change under test touched.
         //
-        // A fixed increment per rendered frame makes the tour's world a pure
-        // function of the frame INDEX, which is what an acceptance instrument
-        // has to be. It changes nothing outside a tour: play still runs on the
-        // wall clock, because play is not evidence.
-        game_seconds_ += tour_.active() ? static_cast<double>(config::SIM_DT)
-                                        : frame_dt * time_scale;
+        // A fixed increment per rendered frame makes the world a pure function
+        // of the frame INDEX, which is what an acceptance instrument has to be.
+        // Play still runs on the wall clock, because play is not evidence.
+        //
+        // AND THE TEST FOR "IS THIS EVIDENCE" IS NOT "IS THIS A TOUR". That was
+        // the flaw here, and it survived because the tour was the only door that
+        // had been measured. Every other unattended door -- DFN_CAPTURE_AFTER,
+        // DFN_RESTORE, DFN_PLAYTEST -- photographs frames that zones then put in
+        // acceptance, and every one of them was advancing this clock by the WALL
+        // delta. Measured tonight, and measured only because a door I had just
+        // shipped failed to deliver what it promised: two runs pinned to the
+        // same 600 rendered frames still reached game_seconds 893.719 and
+        // 890.615, three seconds of sun and wind apart, because 600 frames of a
+        // wall clock is not a duration.
+        //
+        // Rule 35, third consumer: `unattended_run()` already answers "nobody is
+        // playing this" for the menu skip and the cursor grab. It answers this
+        // question too, and answering it in one place is the point.
+        game_seconds_ += (tour_.active() || unattended_run())
+                             ? static_cast<double>(config::SIM_DT)
+                             : frame_dt * time_scale;
         const double day_len = static_cast<double>(config::DAY_LENGTH_SECONDS);
         const double days = game_seconds_ / day_len;
         const float day_fraction = static_cast<float>(days - std::floor(days));
