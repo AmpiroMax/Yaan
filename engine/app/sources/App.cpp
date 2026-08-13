@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 19:13:36
+Last updated: 13:08:2026 - 19:14:43
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -108,6 +108,7 @@ UPD:
 - 13:08:2026 - 18:30:23: Факел в стартовый инвентарь — ПОМЕЧЕННЫЙ КОСТЫЛЬ СТЕНДА. sim замерила, что вся цепочка факела работает от начала до конца, а в мире ровно ОДИН факел — подбираемый в двух метрах от спавна, то есть примерно в 600 м от устья тоннеля, при пустом стартовом инвентаре. Пользователь пошёл в гору с пустыми руками, и другого исхода у него не было. В настоящей игре «найди чем светить» — это содержание и место ему на подходе к подземелью; здесь это разница между местом, в которое можно играть, и местом, в которое нельзя.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 13:08:2026 - 19:13:36: Пол яркости доходит до кадра ПРИ СТАРТЕ, а не только при закрытии страницы калибровки — мой пропуск, найденный зоной ui приёмочным прогоном: настройка сохранялась, перечитывалась, писалась обратно и НИКОГДА НЕ РИСОВАЛАСЬ. Замерено на шести кадрах: день и тоннель сдвинулись на 0.0002 и 0.025 шага между полом 0 и полом в полтора шага, то есть на собственный шум прогона, а контроль против контроля давал шум в 6–20 раз больше обеих рук. Плюс живой предпросмотр на самой странице: без него она показывает квадраты, занижённые ровно на отсутствующий подъём, то есть врёт тем сильнее, чем выше повёрнута ручка.
+- 13:08:2026 - 19:14:43: DFN_MENU_PAGE принимает calibrate. Единственный экран, ради которого заведена вся ручка яркости, не снимался ни разу и снят быть не мог. И ui нашла, почему в settings.cfg оказался min_brightness=0: ручка всегда открывалась на нуле, потому что меню не засевалось сохранённым значением, а любой выход со страницы сохранял то, что на ней стояло.
 */
 
 #include "engine/app/sources/App.h"
@@ -482,7 +483,8 @@ bool App::init(const AppConfig& config) {
                      "map.valley.name", "map.valley.blurb"},
                     {static_cast<uint32_t>(world::StandId::Forest),
                      "map.forest.name", "map.forest.blurb"}});
-    // DFN_MENU_PAGE=root|maps|pause -- which page an unattended run opens on.
+    // DFN_MENU_PAGE=root|maps|pause|calibrate -- which page an unattended run
+    // opens on.
     // Without it only the root page is photographable, because the map picker
     // and the pause page can be reached ONLY by a hand on the keyboard, so two
     // of the three screens the player actually sees have never been evidence.
@@ -496,9 +498,16 @@ bool App::init(const AppConfig& config) {
             menu_.open(MenuPage::Maps);
         } else if (page == "pause") {
             menu_.open(MenuPage::Pause);
+        } else if (page == "calibrate") {
+            // The calibration page is reachable only through the root by hand,
+            // exactly as the map picker and the pause page were. Same argument
+            // as the branches above: a screen the player sees and a run cannot
+            // photograph is not evidence -- and this is the one screen the whole
+            // brightness dial exists for.
+            menu_.open(MenuPage::Calibrate);
         } else {
             std::fprintf(stderr,
-                         "[menu] DFN_MENU_PAGE=\"%s\" is not root|maps|pause -- "
+                         "[menu] DFN_MENU_PAGE=\"%s\" is not root|maps|pause|calibrate -- "
                          "REFUSING to run, because a root frame filed under "
                          "\"%s\" is worse than no frame\n",
                          mp, mp);
