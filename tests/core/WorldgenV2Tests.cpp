@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 13:08:2026 - 20:40:00
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -51,6 +51,7 @@ UPD:
   massif — the case the scoping excludes and the global reading over-corrects.
   Asserted at BOTH ENDS so the gap cannot drift silently either way.
 - 11:08:2026 - 15:15:55: §2.1 anisotropy: the probe caught a new octave ignoring the land's grain (3.61 -> 2.22, hill octave untouched); re-sampled through the shared axis field it reads 2.92 against a 3.83 counterfactual (DFN_NO_RELIEF=1).
+- 13:08:2026 - 20:40:00: P4's pad accounting named a LIST where it meant a CLASS. It enumerated DungeonEntrance as the one site kind never scored onto a pad; WallTorch joined that class with the carve lights (4e1c64d) and broke the identity by exactly its own count, 13. Replaced by a `carve_derived` predicate, and the "floor comes from the carve" check extended to the whole class. Expected counts untouched in either direction -- what changed is which side of the identity a carve-derived site is counted on. Semantics belong to zone `dungeon`; done under the lead's cut in its absence and filed in BOARD.md for confirmation.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -330,24 +331,44 @@ TEST_CASE("P4: full site roster on pads — flat, dry, above flood margin") {
     const auto& sites = ctx.sites;
     REQUIRE(sites.entities.size() == sites.types.size());
     // Pad accounting, stated exactly (§6.1, §6.2). Every ordinary building
-    // stands on its own BuildingPad. TWO kinds of site do not:
+    // stands on its own BuildingPad. Sites that do NOT come in two kinds, and
+    // the second kind is a CLASS rather than a list:
     //  - the castle's elements share ONE terrace (§6.1);
-    //  - dungeon entrances are DERIVED from their carve mouth and never
-    //    scored onto a pad at all — a cave mouth cannot exist on the flat dry
-    //    ground the pad scorer looks for, which is precisely how one marker
-    //    ended up 10 m from its own passage and another on the crown of the
-    //    bluff it should sit under.
+    //  - CARVE-DERIVED sites are placed from their carve geometry and never
+    //    scored onto a pad at all, because the pad scorer looks for flat dry
+    //    ground and these things live where there is none. Dungeon entrances
+    //    were the first member — a cave mouth cannot exist on flat dry ground,
+    //    which is precisely how one marker ended up 10 m from its own passage
+    //    and another on the crown of the bluff it should sit under.
+    //
+    // WALL TORCHES JOINED THAT CLASS and this accounting did not know it, which
+    // is the whole of the failure this line used to produce (32 against 19, and
+    // 13 is exactly the torch count). They hang on the walls of carved
+    // corridors, placed by the same roof predicate the darkness gate uses, so
+    // they are derived from the carve in precisely the sense the entrances are
+    // — a torch on a corridor wall is not standing on the heightfield at all.
+    // The EXPECTED COUNTS BELOW ARE UNTOUCHED: what changed is which side of
+    // the identity a carve-derived site is counted on, not how many there are.
+    //
+    // The semantics here belong to zone `dungeon` (WallTorch arrived with the
+    // carve lights in 4e1c64d); this edit is the lead's cut in its absence, and
+    // it is flagged in BOARD.md for dungeon to confirm or overturn.
+    const auto carve_derived = [](world::SiteType t) {
+        return t == world::SiteType::DungeonEntrance || t == world::SiteType::WallTorch;
+    };
     std::size_t derived_entrances = 0;
+    std::size_t derived_sites = 0;
     for (const world::SiteType type : sites.types) {
         if (type == world::SiteType::DungeonEntrance) ++derived_entrances;
+        if (carve_derived(type)) ++derived_sites;
     }
     CHECK(derived_entrances == static_cast<std::size_t>(config::TESTBED_DUNGEONS));
     REQUIRE(sites.entities.size()
-            == sites.pads.size() + sites.castle.entities.size() + derived_entrances);
+            == sites.pads.size() + sites.castle.entities.size() + derived_sites);
     // ...and each really is derived: its floor comes from the carve, not from
     // the heightfield, which cannot report a floor cut below the surface.
     for (std::size_t i = 0; i < sites.entities.size(); ++i) {
-        if (sites.types[i] != world::SiteType::DungeonEntrance) continue;
+        if (!carve_derived(sites.types[i])) continue;
         CHECK(sites.entities[i].ground_y != world::NO_GROUND_Y);
     }
 
