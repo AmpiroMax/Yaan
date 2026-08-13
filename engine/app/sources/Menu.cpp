@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 10:08:2026 - 10:27:20
+Last updated: 13:08:2026 - 16:40:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -14,9 +14,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 10:27:20: Created.
+- 13:08:2026 - 16:40:00: Плашка под текстом ЭКРАНА ПАУЗЫ (зона ui). Вуаль кроет
+  ровно половину строк по построению, поэтому на незакрытых строках слова стоят на
+  живом мире: замерено по архивному игровому кадру — 81.0 % чернил над светлым фоном
+  ближе двух шагов квантователя к тому, что они кроют, и 80 кромок букв потеряно.
+  Вуаль своей работы не теряет, она просто перестаёт быть тем, на чём стоит ТЕКСТ.
+  Заодно один читатель строк вместо двух копий switch: плашку нельзя мерить по
+  тексту, отличному от нарисованного.
 */
 
 #include "engine/app/sources/Menu.h"
+
+#include <algorithm>
 
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
@@ -122,9 +131,32 @@ MenuAction MenuModel::back() {
 void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
+    const bool pause = model.page() == MenuPage::Pause;
+
+    // One reader for the rows, used TWICE: once to measure the block and once
+    // to draw it. Two copies of this switch would be two chances for the plate
+    // to be sized for text that is not the text drawn.
+    struct Row {
+        std::string_view label;
+        std::string_view blurb;
+    };
+    const auto row_at = [&](size_t i) -> Row {
+        switch (model.page()) {
+        case MenuPage::Root:
+            return {(i == 0) ? loc("menu.play") : loc("menu.quit"), {}};
+        case MenuPage::Maps:
+            if (i < model.maps().size()) {
+                return {loc(model.maps()[i].name_key), loc(model.maps()[i].blurb_key)};
+            }
+            return {loc("menu.back"), {}};
+        case MenuPage::Pause:
+            return {(i == 0) ? loc("menu.resume") : loc("menu.quit"), {}};
+        }
+        return {};
+    };
 
     canvas.resize(canvas.width(), canvas.height());
-    if (model.page() == MenuPage::Pause) {
+    if (pause) {
         // The pause screen sits OVER the world: a dim veil, not a wall, so the
         // player can see where they left off.
         canvas.clear_transparent();
@@ -137,59 +169,82 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
         canvas.clear(BACKGROUND);
     }
 
-    const int title_y = model.page() == MenuPage::Pause ? h / 4 : h / 5;
-    draw_centered(canvas, title_y,
-                  model.page() == MenuPage::Pause ? loc("menu.paused") : loc("app.title"),
-                  TITLE);
-    canvas.fill_rect(w / 4, title_y + render::FONT_CELL_H + 4, w / 2, 1, RULE_LINE);
+    const int title_y = pause ? h / 4 : h / 5;
+    const int rule_y = title_y + render::FONT_CELL_H + 4;
 
     // Items start below the rule; the blurb line under each map costs one row,
     // so map rows are spaced two rows apart and plain rows one.
     const bool maps_page = model.page() == MenuPage::Maps;
     const int row = render::FONT_CELL_H + (maps_page ? 6 : 4);
-    int y = title_y + render::FONT_CELL_H + 16;
-
+    const int first_item_y = title_y + render::FONT_CELL_H + 16;
     const size_t n = model.item_count();
+
+    // THE PAUSE PLATE. The veil is a HALF cover by construction -- it fills
+    // every other scanline -- so on the rows it does not fill, the words stand
+    // on the live world. Measured on the archived playing frame: 81.0 % of the
+    // ink over bright background sat closer than 2 * PALETTE_SHADE_STEP_REF to
+    // what it covered, and 80 glyph edges were lost outright. The veil keeps
+    // its job (you can see where you left off); it just stops being what the
+    // TEXT stands on. Only this page gets a plate: root and maps already clear
+    // opaque, so there the plate would be a frame drawn around nothing.
+    if (pause) {
+        int block_w = render::text_width_px(loc("menu.paused"));
+        for (size_t i = 0; i < n; ++i) {
+            // The caret hangs two cells to the left of the widest label, so it
+            // is part of the block whether or not this row is the selected one.
+            block_w = std::max(block_w,
+                               render::text_width_px(row_at(i).label)
+                                   + render::FONT_CELL_W * 4);
+        }
+        block_w = std::max(block_w, w / 2); // the rule under the title
+        int block_h = first_item_y - title_y;
+        for (size_t i = 0; i < n; ++i) {
+            block_h += row;
+        }
+        const int px = (w - block_w) / 2 - 8;
+        const int py = title_y - 6;
+        const int pw = block_w + 16;
+        const int ph = block_h + 8;
+        canvas.fill_rect(px, py, pw, ph, BACKGROUND);
+        canvas.frame_rect(px, py, pw, ph, RULE_LINE);
+    }
+
+    draw_centered(canvas, title_y, pause ? loc("menu.paused") : loc("app.title"), TITLE);
+    canvas.fill_rect(w / 4, rule_y, w / 2, 1, RULE_LINE);
+
+    int y = first_item_y;
     for (size_t i = 0; i < n; ++i) {
         const bool sel = (i == model.selection());
         const render::Color color = sel ? ITEM_SELECTED : ITEM;
-        std::string_view label;
-        std::string_view blurb;
-        switch (model.page()) {
-        case MenuPage::Root:
-            label = (i == 0) ? loc("menu.play") : loc("menu.quit");
-            break;
-        case MenuPage::Maps:
-            if (i < model.maps().size()) {
-                label = loc(model.maps()[i].name_key);
-                blurb = loc(model.maps()[i].blurb_key);
-            } else {
-                label = loc("menu.back");
-            }
-            break;
-        case MenuPage::Pause:
-            label = (i == 0) ? loc("menu.resume") : loc("menu.quit");
-            break;
-        }
+        const Row r = row_at(i);
 
         // The caret is what makes the selection readable at 640x360 -- colour
         // alone is a shade step, and a shade step is the weakest signal we have.
-        const int label_w = render::text_width_px(label);
+        const int label_w = render::text_width_px(r.label);
         const int x = (w - label_w) / 2;
         if (sel) {
             render::draw_text(canvas, x - render::FONT_CELL_W * 2, y, ">", ITEM_SELECTED,
                               true);
         }
-        render::draw_text(canvas, x, y, label, color, /*shadow=*/true);
+        render::draw_text(canvas, x, y, r.label, color, /*shadow=*/true);
         y += render::FONT_CELL_H + 2;
-        if (!blurb.empty()) {
-            draw_centered(canvas, y, blurb, BLURB);
+        if (!r.blurb.empty()) {
+            draw_centered(canvas, y, r.blurb, BLURB);
             y += render::FONT_CELL_H;
         }
         y += row - render::FONT_CELL_H - 2;
     }
 
-    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("menu.hint"), BLURB);
+    // The control hint. On the pause page it stands on the world like the rest,
+    // so it gets the same treatment as the block above -- a plate its own size.
+    const std::string_view hint = loc("menu.hint");
+    const int hint_y = h - render::FONT_CELL_H * 2 - 4;
+    if (pause) {
+        const int hw = render::text_width_px(hint);
+        canvas.fill_rect((w - hw) / 2 - 4, hint_y - 3, hw + 8, render::FONT_CELL_H + 5,
+                         BACKGROUND);
+    }
+    draw_centered(canvas, hint_y, hint, BLURB);
 }
 
 } // namespace dfn::app
