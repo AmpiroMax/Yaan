@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 19:55:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -47,6 +47,10 @@ UPD:
   crown's CONSTRUCTION alone (DFN_FLORA_CROWN=1), separate from
   flora_control_arm() because a control binds only the measurements in which it
   itself moves (Rule 48).
+- 13:08:2026 - 19:55:00: flora_shyness_arm() -- a THIRD zero-dose door
+  (DFN_FLORA_SHY=0), for crown shyness alone. DFN_FLORA_CROWN reverts how the
+  crown is BUILT, so a pair taken across it would answer two questions at once
+  and the canopy-overlap number is about one of them (Rule 48).
 */
 
 #pragma once
@@ -365,6 +369,17 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// so a BEFORE/AFTER pair off one binary answers "did leaves-from-branches do
 /// this" and nothing else.
 [[nodiscard]] bool flora_envelope_arm();
+
+/// THE ZERO-DOSE ARM FOR CROWN SHYNESS ALONE. `DFN_FLORA_SHY=0` turns off the
+/// neighbour boundaries and nothing else.
+///
+/// A THIRD DOOR, AND THE REASON IS THE SAME EACH TIME (Rule 48): a control
+/// binds only the measurements in which it itself moves. `DFN_FLORA_CROWN`
+/// reverts how the crown is BUILT, so a before/after taken across it answers
+/// "did ramification plus shyness do this" — which is two questions, and the
+/// canopy-overlap number is about one of them. Shyness has its own door so its
+/// own quantity has its own arm.
+[[nodiscard]] bool flora_shyness_arm();
 
 /// THE CARD SCRAP FLOOR — the smallest half-width a leaf card may be emitted at
 /// before it stops reading as part of a crown and starts reading as a detached

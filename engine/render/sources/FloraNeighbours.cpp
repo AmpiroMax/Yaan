@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:44:12
-Last updated: 12:08:2026 - 23:20:00
+Last updated: 13:08:2026 - 19:45:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -44,6 +44,12 @@ UPD:
   (lead's carve, core's hand): that species IS the giant, so the 0.4-1.5
   multiplier would be the same multiplier twice — and on the low tiers it would
   shrink a landmark the world's occlusion envelope has already promised at 48 m.
+- 13:08:2026 - 19:45:00: The crowding neighbours are kept INDIVIDUALLY (up to
+  eight) instead of being collapsed into one worst bearing, and each carries the
+  radius at which this tree's wood must stop: the two crowns split the gap in
+  proportion to their radii and both back off by half a channel. The channel
+  width is derived from the read rule (a gap under distance/30 is one grey
+  pixel, Rule 33) at the 30 m the near-canopy vantage looks from.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -166,6 +172,16 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
         glm::vec2 worst_dir{0.0f};
         float worst_overlap = 0.0f;
         float tallest_neighbour = 0.0f;
+        // The crowding neighbours, kept individually rather than summed. See
+        // FloraShape::crowd: a tree with three neighbours grows three FLATS,
+        // and the flats are where the sky channels between crowns are.
+        struct Crowder {
+            glm::vec2 dir;
+            float limit;
+            float overlap;
+        };
+        Crowder crowders[FloraShape::CROWD_MAX]{};
+        int crowder_count = 0;
 
         for (size_t j = 0; j < all.size(); ++j) {
             if (j == i) continue;
@@ -182,6 +198,36 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
             if (overlap <= 0.0f) continue;
             const glm::vec2 dir = d / dist;
             pressure += dir / (dist * dist);
+            // WHERE THIS TREE'S WOOD MUST STOP along that bearing. The two
+            // crowns meet at the point that splits the gap in proportion to
+            // their radii — a big tree is not pushed back by a sapling as far
+            // as the sapling is pushed by it — and then BOTH back off by half
+            // the shy gap, which is what leaves a channel rather than a seam.
+            //
+            // THE GAP IS DERIVED FROM THE READ RULE, not chosen. A channel
+            // narrower than distance/30 is not a channel at that distance, it
+            // is one grey pixel (Rule 33, SILHOUETTE_MIN_PX). The near-canopy
+            // vantage this is judged from stands 5-30 m under the crowns, so
+            // the gap has to survive 30 m: 30/30 = 1.0 m. Expressed against the
+            // crown so it scales with the tree instead of being a metre that
+            // is right for an oak and absurd for a krummholz.
+            const float gap = std::max(1.0f, r_a * 0.12f);
+            const float share = r_a / std::max(r_a + r_b, 0.01f);
+            const float limit = std::max(dist * share - gap * 0.5f, r_a * 0.25f);
+            if (crowder_count < FloraShape::CROWD_MAX) {
+                crowders[crowder_count++] = Crowder{dir, limit, overlap};
+            } else {
+                // Keep the WORST four: a fifth neighbour that crowds less than
+                // the four already held cannot be the one that decides the
+                // silhouette.
+                int weakest = 0;
+                for (int k = 1; k < FloraShape::CROWD_MAX; ++k) {
+                    if (crowders[k].overlap < crowders[weakest].overlap) weakest = k;
+                }
+                if (overlap > crowders[weakest].overlap) {
+                    crowders[weakest] = Crowder{dir, limit, overlap};
+                }
+            }
             if (overlap > worst_overlap) {
                 worst_overlap = overlap;
                 worst_dir = dir;
@@ -192,6 +238,16 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
         }
 
         const SpeciesParams& sp = species_params(fs);
+        // A species that does not hold back gets no boundaries at all: nothing
+        // crowds a great oak (its own row says shyness 0), and a conifer's
+        // narrow crown rarely touches its neighbour's.
+        if (sp.shyness > 0.0f) {
+            for (int k = 0; k < crowder_count; ++k) {
+                sh.crowd[sh.crowd_count].dir = crowders[k].dir;
+                sh.crowd[sh.crowd_count].limit = crowders[k].limit;
+                ++sh.crowd_count;
+            }
+        }
         if (worst_overlap > 0.0f) {
             sh.shy_dir = worst_dir;
             sh.shyness = std::min(sp.shyness, worst_overlap / (2.0f * std::max(r_a, 0.1f)));

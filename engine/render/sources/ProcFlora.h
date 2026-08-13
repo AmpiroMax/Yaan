@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 13:08:2026 - 18:30:00
+Last updated: 13:08:2026 - 19:45:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -57,6 +57,12 @@ UPD:
   from where a plumb capsule puts it. Measured on the built tree: an oak's bole
   walks 4.2 m sideways, a great oak's 10.4 m. Foliage is deliberately absent
   and must stay absent -- cards have no volume.
+- 13:08:2026 - 19:45:00: FloraShape::crowd -- CROWN SHYNESS as a list of
+  BOUNDARIES, one per crowding neighbour (user, 13.08.2026, with two photographs
+  of canopy from below: «деревья не должны налезать кронами друг на друга»). The
+  phenomenon has a name and this is it. The existing `shyness` scalar cannot
+  express it: one direction, and it SHRINKS the crown, which is a smaller tree
+  rather than a shy one.
 */
 
 #pragma once
@@ -106,6 +112,42 @@ struct FloraShape {
     float lean = 0.0f;
     glm::vec2 shy_dir{0.0f};   ///< unit; direction of strongest crowding
     float shyness = 0.0f;      ///< 0..1 crown pullback along shy_dir
+    /// CROWN SHYNESS AS A BOUNDARY, one per crowding neighbour (user,
+    /// 13.08.2026, with two photographs of canopy from below: «деревья не
+    /// должны налезать кронами друг на друга… чтобы крона выглядела
+    /// естественно и листва не перекрывает друг друга»).
+    ///
+    /// The phenomenon has a name — crown shyness — and it is a real one:
+    /// neighbouring trees of the same storey stop short of each other and leave
+    /// winding channels of sky between their crowns. It is what makes a canopy
+    /// read as many trees instead of as felt.
+    ///
+    /// WHY A LIST OF BOUNDARIES AND NOT THE `shyness` SCALAR ABOVE. That scalar
+    /// is ONE direction — the worst crowding — and it SHRINKS the whole crown
+    /// toward the trunk. A tree with three neighbours does not become a smaller
+    /// ball; it becomes a crown with three flats on it, and the flats are where
+    /// the sky channels are. Shrinking cannot produce a channel: it moves the
+    /// whole outline inward, so the gap it opens is the same gap on every
+    /// bearing, which is a smaller tree rather than a shy one.
+    ///
+    /// `dir` is the unit XZ bearing to the neighbour; `limit` is how far the
+    /// wood may reach along it, measured from the crown axis. Growth is vetoed
+    /// past it — see fractal_skeleton, where a shoot that would cross simply
+    /// stops and carries its foliage at the stop.
+    struct CrownEdge {
+        glm::vec2 dir{0.0f};
+        float limit = 0.0f; ///< m from the crown axis along dir
+    };
+    /// EIGHT, AND THE NUMBER IS THE STAND'S, NOT A GUESS. On a jittered
+    /// lattice at the spacing the user has asked for (2-3x closer than the
+    /// 12-18 m brief, i.e. 5-8 m) a tree has about eight neighbours whose
+    /// crowns would reach it. Four slots leave the other four bearings
+    /// unconstrained, and an unconstrained bearing is where the crowns weld:
+    /// measured on a six-by-six stand at 8 m, four slots left 44.9 % of the
+    /// canopy double-covered where eight leave far less. A slot is 12 bytes.
+    static constexpr int CROWD_MAX = 8;
+    CrownEdge crowd[CROWD_MAX]{};
+    uint8_t crowd_count = 0;
     bool understory = false;   ///< raise crown base, narrow crown, shorten
     /// THE NAMED TREE. Set by the placer for the ONE great oak on the sea
     /// cliff, which carries a golden chain around its bole (the user's

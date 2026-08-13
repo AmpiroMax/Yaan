@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 19:45:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.h
 
@@ -50,6 +50,15 @@ UPD:
   a Dale Oak's cards a mean 1.39 m and a worst 4.59 m from the nearest wood).
   Plus FractalParams::major_base_drop -- the first-order limbs leave the bole
   over a length of it instead of all from its tip (a wine glass).
+- 13:08:2026 - 19:45:00: FractalParams gains the shyness boundaries -- a shoot
+  that would cross one STOPS and carries its foliage at the stop. This is space
+  colonization's kill rule arriving in the other grower: suppression where the
+  space is taken is why shyness fell out of that algorithm for free, and it is
+  the property this file gave up when ramification replaced it. Plus the two
+  numbers that stop the rule degenerating: the wood stops one leaf-mass SHORT of
+  the channel (or the crown closes what the wood respected), and a crown floor,
+  without which a dense stand vetoes every limb on its first step and grows a
+  forest of foliage COLUMNS.
 */
 
 #pragma once
@@ -259,6 +268,53 @@ struct FractalParams {
     /// over several metres of its length, and that stagger is most of what
     /// makes the fork read as a tree rather than as a wine glass.
     float major_base_drop = 0.0f;
+    /// CROWN SHYNESS, AS A GROWTH RULE (user, 13.08.2026). Each entry is a
+    /// bearing and how far the wood may reach along it; a shoot that would step
+    /// past one simply STOPS, and its foliage hangs at the stop.
+    ///
+    /// THIS IS THE SPACE-COLONIZATION KILL RULE, ARRIVING IN THE OTHER GROWER.
+    /// The paper's algorithm suppresses growth where the space is already
+    /// taken; that is why shyness falls out of it for free, and it is the one
+    /// property this file gave up when the great oak's fractal grower replaced
+    /// it for structure. It comes back here as a veto instead of an attractor
+    /// cloud, which keeps the ramification that made the grower worth having.
+    ///
+    /// WHY A VETO AND NOT A SCALE. Scaling the crown toward its trunk moves the
+    /// whole outline inward by the same amount on every bearing — that is a
+    /// SMALLER tree, not a shy one, and it cannot produce the winding channel
+    /// of sky the user photographed. A veto flattens the crown only where the
+    /// neighbour is, so a tree with three neighbours grows three flats and the
+    /// channels are what is left between them.
+    const void* crowd = nullptr; ///< FloraShape::CrownEdge[], borrowed
+    uint32_t crowd_count = 0;
+    glm::vec2 crowd_origin{0.0f}; ///< XZ the limits are measured from
+    /// Half-width of the per-shoot wobble on every limit, in metres. A boundary
+    /// enforced exactly is a RAZOR CUT down the canopy, and a straight edge is
+    /// the one thing a real shyness gap never has — the channels wander. Cheap
+    /// to add here and impossible to add later without regrowing the tree.
+    float crowd_jitter = 0.0f;
+    /// How far SHORT of every boundary the wood must stop, in metres — the
+    /// foliage's own reach. THE SAME LESSON AS THE SILHOUETTE ENVELOPE, and it
+    /// had to be learned twice: a limb stopped exactly ON the channel still
+    /// hangs its leaf mass a card-reach past it, so the WOOD respects the gap
+    /// and the CROWN closes it anyway. Measured on a six-by-six stand at 6 m
+    /// spacing: vetoing the wood alone left 88.8 % of the canopy double-
+    /// covered, because a 2.4 m card over a 3 m half-gap crosses it entirely.
+    float crowd_inset = 0.0f;
+    /// A CROWN THIS TREE KEEPS WHATEVER ITS NEIGHBOURS DO, in metres from the
+    /// axis. Without it the rule degenerates the moment the stand is dense
+    /// enough that the boundaries fall inside the inset: every limb is vetoed
+    /// on its first step, every leaf site collapses onto the bole, and the tree
+    /// becomes a COLUMN of foliage. Measured at 5 m spacing before this floor
+    /// existed — 91 % of the canopy still double-covered, because a stand of
+    /// columns overlaps just as happily as a stand of balls.
+    ///
+    /// AND THE DEGENERACY IS A MESSAGE, NOT ONLY A BUG. It fires exactly when
+    /// the species' crown is too wide for the spacing it is planted at, and no
+    /// shyness rule can fix that: crowns that cannot fit must be NARROWER, which
+    /// is what forest-grown trees actually are (this catalog's own oak row
+    /// records crown/height 0.4-0.5 closed-forest against 0.8-1.0 open-grown).
+    float crowd_floor = 0.0f;
 };
 
 /// Grows the fractal crown from the LAST node of `sk` (the bole's top). Every

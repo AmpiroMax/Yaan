@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 19:55:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -62,6 +62,7 @@ UPD:
   could not exist and 7 of them were being dropped in silence (birch 16 of 20,
   willow 15 of 20). Corner reach is now a third of the crown radius and the
   count rises to match, paid for out of the wood by max_crown_segments().
+- 13:08:2026 - 19:55:00: flora_shyness_arm() defined.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -922,6 +923,14 @@ bool flora_control_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_CONTROL");
         return e != nullptr && e[0] == '1';
+    }();
+    return on;
+}
+
+bool flora_shyness_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_SHY");
+        return e == nullptr || e[0] != '0';
     }();
     return on;
 }

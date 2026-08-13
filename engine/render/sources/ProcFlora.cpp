@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 19:45:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -136,6 +136,12 @@ UPD:
   apex and foot. DFN_FLORA_CROWN=1 is the zero-dose arm for all of it. Two tests
   that read `fractal_depth > 0` as "is the giant" now read
   crown_radius_per_height, which is the number that means it.
+- 13:08:2026 - 19:45:00: CROWN SHYNESS is wired into the ramified crown, and its
+  ABSENCE was a regression this morning's change introduced: the colonizing
+  grower shrank its attractor cloud on the crowded side, so moving every
+  broadleaf to ramification left the wood ignoring its neighbours entirely while
+  only the foliage clusters were still scaled -- the clause-implemented-in-half
+  failure of flora.md §3.7, rebuilt in a new place.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -614,6 +620,29 @@ void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
     fp.max_radius = flora_envelope_arm() ? t.crown_r : t.crown_r * foliage_inset;
     fp.axis = t.crown_axis;
     fp.max_nodes = max_nodes;
+    // CROWN SHYNESS. Its absence from this path was a REGRESSION this change
+    // introduced earlier today and it is worth naming: the colonizing grower
+    // took `shy_dir`/`shyness` and shrank its attractor cloud, so when every
+    // broadleaf moved to ramification the wood stopped holding back from its
+    // neighbours at all, and only the foliage CLUSTERS were still scaled — the
+    // exact "clause implemented in half" that flora.md §3.7 is about, rebuilt.
+    if (!flora_envelope_arm() && flora_shyness_arm() && t.shape.crowd_count > 0) {
+        fp.crowd = static_cast<const void*>(t.shape.crowd);
+        fp.crowd_count = t.shape.crowd_count;
+        fp.crowd_origin = t.crown_axis;
+        // A tenth of the crown of wander on the channel. Enough that no edge is
+        // a straight line at 640x360 (a 10 m crown gives 1 m of wander, which
+        // is a full readable feature at 30 m by Rule 33), small enough that the
+        // channel does not close.
+        fp.crowd_jitter = t.crown_r * 0.10f;
+        // The wood stops one leaf-mass short of the channel, so it is the
+        // FOLIAGE that ends at the boundary — which is the thing the user is
+        // looking at when he says the crowns must not overlap.
+        fp.crowd_inset = t.crown_r * card_reach_frac;
+        // A quarter of its own crown is this tree's regardless. Below that the
+        // rule stops describing shyness and starts describing a pole.
+        fp.crowd_floor = t.crown_r * 0.25f;
+    }
     fractal_skeleton(sk, fp, seed);
 
     // AND THE CLIP IS THE ENVELOPE'S PROFILE, NOT A CYLINDER. FractalParams

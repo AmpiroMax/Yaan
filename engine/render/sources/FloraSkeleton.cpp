@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 19:45:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -49,9 +49,16 @@ UPD:
   weighted to the outer end of every shoot, every tip carrying one. And the
   majors now leave the seeded bole over `major_base_drop` metres of it rather
   than from its last node.
+- 13:08:2026 - 19:45:00: The shyness veto in fractal_skeleton, with the wobble
+  that keeps a channel from being a razor cut.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
+
+// For FloraShape::CrownEdge, the shyness boundaries. Deliberately included in
+// the .cpp and held as `const void*` in the header: the skeleton must not
+// depend on the public flora API, it is the layer under it.
+#include "engine/render/sources/ProcFlora.h"
 
 #include <glm/geometric.hpp>
 
@@ -628,6 +635,7 @@ void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed) {
             int cur = limb.node;
             glm::vec3 dir = limb.dir;
             const float step = limb.len / static_cast<float>(seg_count);
+            bool vetoed = false;
             for (int s = 0; s < seg_count; ++s) {
                 // Gravity pulls the tip down, light pulls it up, and the wind
                 // lean drifts the whole crown. One vector, as in colonize().
@@ -649,11 +657,46 @@ void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed) {
                         n.pos.z = p.axis.y + oz * p.max_radius / rr;
                     }
                 }
+                // CROWN SHYNESS: does this step cross a neighbour's boundary?
+                // Checked on the PROPOSED position, so the shoot stops at the
+                // channel instead of poking through it and being pulled back —
+                // a clipped branch still points at the neighbour and still
+                // reads as contact.
+                if (p.crowd != nullptr && p.crowd_count > 0) {
+                    const auto* edges =
+                        static_cast<const FloraShape::CrownEdge*>(p.crowd);
+                    const float ox = n.pos.x - p.crowd_origin.x;
+                    const float oz = n.pos.z - p.crowd_origin.y;
+                    for (uint32_t e = 0; e < p.crowd_count; ++e) {
+                        const float along = ox * edges[e].dir.x + oz * edges[e].dir.y;
+                        // The wobble is keyed to the LIMB, not to the step, so
+                        // one shoot stops on one line rather than zig-zagging
+                        // along its own length — the channel wanders between
+                        // branches, which is what a real one does.
+                        const float wobble = p.crowd_jitter * rng.sym();
+                        const float bound = std::max(edges[e].limit - p.crowd_inset,
+                                                     p.crowd_floor);
+                        if (along > bound + wobble) {
+                            vetoed = true;
+                            break;
+                        }
+                    }
+                    if (vetoed) break;
+                }
                 n.parent = cur;
                 n.order = static_cast<uint8_t>(std::min<uint32_t>(255u, depth + 1u));
                 sk.nodes.push_back(n);
                 ++sk.nodes[static_cast<size_t>(cur)].children;
                 cur = static_cast<int>(sk.nodes.size()) - 1;
+            }
+            if (vetoed) {
+                // The shoot died back at the channel. It is still a live tip —
+                // a branch that stops growing toward its neighbour does not
+                // shed its leaves — so it carries foliage here and spawns no
+                // children.
+                sk.leaf_sites.push_back(sk.nodes[static_cast<size_t>(cur)].pos);
+                sk.leaf_anchor.push_back(cur);
+                continue;
             }
             if (depth == p.depth) {
                 // Terminal tip: this is where foliage may hang, and it names its
