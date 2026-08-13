@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 12:08:2026 - 22:45:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/CloudModel.cpp
 
@@ -35,6 +35,14 @@ UPD:
   ONE set of octave weights so the three cannot disagree; cloud_field
   remaps through THAT distribution; cloud_alpha converges on the residual.
   cloud_field_fixed_sd added as the rejected form.
+- 13:08:2026 - 19:20:00: R3.4 — cloud_ceiling_m / cloud_decks_m: THE CEILING'S HEIGHT
+  IS A FIELD. Driven half by the weather state's own cloud_cover (heavy cover =
+  a low wet ceiling) and half by PLACE, read from THE coverage field at a
+  wavelength of two world widths — the same construction asked a different
+  question, never a second weather source (Rule 35). Range [400, 2000] m, both
+  ends derived rather than picked (see the header). apply_clouds now takes the
+  eye, because place is one of its two arguments.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/CloudModel.h"
@@ -60,10 +68,12 @@ glm::vec2 cloud_drift_offset(glm::vec2 direction, float wind_mult,
     return dir * (-WIND_FIELD_DRIFT_SPEED_MPS * wind_mult * seconds);
 }
 
-void apply_clouds(platform::RenderEnvironment& env, float seconds) {
+void apply_clouds(platform::RenderEnvironment& env, float seconds,
+                  glm::vec2 eye_xz) {
     env.cloud_offset_m =
         cloud_drift_offset(env.wind_direction, env.weather_wind_mult, seconds);
     env.cloud_wavelength_m = CLOUD_WAVELENGTH_M;
+    env.cloud_deck_m = cloud_decks_m(cloud_ceiling_m(env.cloud_cover, eye_xz));
 }
 
 namespace {
@@ -268,6 +278,39 @@ float cloud_field3_with(glm::vec3 q, float mean, float sd) {
 
 float cloud_field3(glm::vec3 q) {
     return cloud_field3_with(q, CLOUD_FIELD3_MEAN, CLOUD_FIELD3_SD);
+}
+
+// --- THE CEILING'S HEIGHT (R3.4) -------------------------------------------
+
+float cloud_ceiling_m(float cover, glm::vec2 eye_xz) {
+    const float c = cover < 0.0f ? 0.0f : (cover > 1.0f ? 1.0f : cover);
+    // WEATHER. Heavy cover is a low wet ceiling; a clear day is a high one.
+    // Linear in cover, and linear on purpose: the mapping has to reach BOTH
+    // ends of the range at the ends of cover's own range, or the range is a
+    // claim nothing exercises (Rule 30 — a range is two assertions).
+    const float weather = 1.0f - c;
+    // PLACE. THE coverage field, read at a wavelength two world-widths long, so
+    // it trends across the map rather than flickering under a walking player.
+    // NO DRIFT OFFSET, and that is the load-bearing omission: the wind moves the
+    // cloud PATTERN, and a ceiling that slid with it would mean the sky changed
+    // altitude every time the weather blew past, which is not what altitude is.
+    // Full resolution (cells_per_pixel 0) because this is one CPU sample per
+    // frame, not a pixel.
+    const float place =
+        cloud_field(eye_xz, CLOUD_CEILING_PLACE_WAVELENGTH_M, 0.0f);
+    const float t = CLOUD_CEILING_WEATHER_SHARE * weather
+                    + (1.0f - CLOUD_CEILING_WEATHER_SHARE) * place;
+    return CLOUD_CEILING_MIN_M + (CLOUD_CEILING_MAX_M - CLOUD_CEILING_MIN_M) * t;
+}
+
+glm::vec3 cloud_decks_m(float ceiling_m) {
+    // ONE multiplier, so the R3.2 ratio ladder (1 : 1.733 : 2.933) cannot be
+    // broken by a caller that moves one deck and forgets the others. The ratios
+    // are what produce the parallax between decks and the apparent-cell-size
+    // cue that says which deck is nearer; they are derived, the altitudes are
+    // not sacred.
+    const float m = ceiling_m / CLOUD_DECK_LOW_M;
+    return {CLOUD_DECK_LOW_M * m, CLOUD_DECK_MID_M * m, CLOUD_DECK_HIGH_M * m};
 }
 
 } // namespace dfn::render

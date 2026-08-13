@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 17:30:00
-Last updated: 13:08:2026 - 18:40:00
+Last updated: 13:08:2026 - 18:59:13
 Module: tests
 File: tests/sim/InteractableVisibleTests.cpp
 
@@ -37,6 +37,9 @@ UPD:
                          swings, the lever throws, and the ray target follows.
 - 13:08:2026 - 18:40:00: A settled leaf must have prev == curr, or it sweeps
                          between its last two frames for ever (the run smear).
+- 13:08:2026 - 18:55:00: A mesh authored in metres must still fill its own ray
+                         box (scale = half_extents / mesh_model_half_extents).
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include <doctest/doctest.h>
@@ -585,4 +588,52 @@ TEST_CASE("a settled door is STILL, not sweeping between its last two frames") {
     }
     CHECK(glm::length(world.get<components::Transform>(shut)->position -
                       world.get<components::PreviousTransform>(shut)->position) < 1.0e-6f);
+}
+
+TEST_CASE("a mesh authored in metres still fills its own ray box") {
+    // The promise this file exists for — the drawn prop and the box the
+    // crosshair hits are the SAME object — held today only because every
+    // placeholder is authored in the cube [-1,1]^3. A content mesh authored at
+    // its real size would be scaled by half_extents too and come out stretched
+    // by whatever those metres happen to be.
+    //
+    // The scale is half_extents / mesh_model_half_extents, so both cases are
+    // one rule rather than two sets of numbers that have to agree.
+    auto physics = platform::create_null_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+
+    // (a) A placeholder: mesh space IS the unit cube, so scale == half_extents,
+    //     exactly as before this field existed.
+    gameplay::InteractableDesc unit;
+    unit.kind = gameplay::InteractableKind::Openable;
+    unit.half_extents = {0.9f, 1.0f, 0.1f};
+    unit.prompt_key = "prompt.open";
+    const dfn::ecs::EntityId a = gameplay::spawn_interactable(world, *physics, unit);
+    const glm::vec3 sa = world.get<components::Transform>(a)->scale;
+    CHECK(sa.x == doctest::Approx(0.9f));
+    CHECK(sa.y == doctest::Approx(1.0f));
+    CHECK(sa.z == doctest::Approx(0.1f));
+
+    // (b) A mesh already modelled at 1.8 x 2.0 x 0.2 m declares its own
+    //     half-extents and comes out at scale 1: drawn at its authored size,
+    //     and the box is that size because it is the same set of numbers.
+    gameplay::InteractableDesc metres = unit;
+    metres.mesh_asset = 4321; // an id from outside this zone's range
+    metres.mesh_model_half_extents = {0.9f, 1.0f, 0.1f};
+    const dfn::ecs::EntityId b = gameplay::spawn_interactable(world, *physics, metres);
+    const glm::vec3 sb = world.get<components::Transform>(b)->scale;
+    CHECK(sb.x == doctest::Approx(1.0f));
+    CHECK(sb.y == doctest::Approx(1.0f));
+    CHECK(sb.z == doctest::Approx(1.0f));
+
+    // (c) HALF the box, and the drawn thing halves with it — the ratio is what
+    //     makes the two shapes one object rather than two that agree today.
+    gameplay::InteractableDesc half = metres;
+    half.half_extents = {0.45f, 0.5f, 0.05f};
+    const dfn::ecs::EntityId c = gameplay::spawn_interactable(world, *physics, half);
+    const glm::vec3 sc = world.get<components::Transform>(c)->scale;
+    CHECK(sc.x == doctest::Approx(0.5f));
+    CHECK(sc.y == doctest::Approx(0.5f));
+    CHECK(sc.z == doctest::Approx(0.5f));
 }

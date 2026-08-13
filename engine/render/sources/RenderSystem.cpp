@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -107,6 +107,11 @@ UPD:
   setting is derived from an approved row (tuft_params(), Rule 14).
   DFN_NO_TUFTS=1 is the counterfactual arm.
 - 13:08:2026 - 16:45:00: DFN_ENV_LOG=<путь> — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, снимается сразу ПОСЛЕ set_environment(), то есть пишет то, чем кадр РЕАЛЬНО нарисован: заливка (ambient_darkness), число точечных источников, солнце, общий свет, луна, глаз. Тот же класс прибора, что DFN_FRAME_LOG ведущего, и по той же причине: дефект «в подземелье темнеет, потом мигает» живёт в РАЗНОСТИ соседних кадров, а все наши двери съёмки его гасят.
+- 13:08:2026 - 19:20:00: apply_clouds now receives the EYE. The cloud ceiling's height
+  is a field of weather AND place (R3.4), and place needs a position; the
+  place term's wavelength is two world widths, so this is a slow trend across
+  the map, not something a walking player can watch move.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -424,7 +429,7 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
                          "# Daggerfall N per-frame ENVIRONMENT log -- one line per\n"
                          "# PRESENTED frame, taken at the set_environment() call.\n"
                          "# frame dark lights sun_x sun_y sun_z sun_lum amb_lum "
-                         "moon_light eye_x eye_y eye_z\n");
+                         "moon_light eye_x eye_y eye_z light0_lum\n");
         }
     }
     // DFN_NO_TUFTS=1 — the ground-tuft layer's counterfactual arm (Rule 30).
@@ -651,7 +656,15 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             environment_.cloud_cumulus = 0.0f;
         }
     }
-    apply_clouds(environment_, environment_.time_seconds);
+    // THE EYE IS AN ARGUMENT NOW, because the ceiling's HEIGHT is a field of
+    // place as well as of weather (R3.4, the user's own framing: «на разных
+    // локациях будут на разных высотах, и в разную погоду на разных, будем
+    // таким образом погоду и климат отображать»). The place term's wavelength
+    // is two world widths, so this is a slow trend across the map and not
+    // something a walking player can see move.
+    const glm::vec3 cloud_eye = camera.interpolated_pose(alpha).position;
+    apply_clouds(environment_, environment_.time_seconds,
+                 glm::vec2(cloud_eye.x, cloud_eye.z));
     // Carried lights (the torch) are gathered from the ECS every frame, AFTER
     // the sky: apply_sky_time never touches the light array, and the light has
     // to be in the environment before set_environment or the backend builds
@@ -663,7 +676,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         const glm::vec3& sc = environment_.sun_color;
         const glm::vec3& ac = environment_.ambient_color;
         std::fprintf(env_log_,
-                     "%llu %.6f %u %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f\n",
+                     "%llu %.6f %u %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f %.5f\n",
                      static_cast<unsigned long long>(env_log_frame_++),
                      static_cast<double>(environment_.ambient_darkness),
                      environment_.point_light_count,
@@ -674,7 +687,15 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                      static_cast<double>(0.2126f * ac.x + 0.7152f * ac.y + 0.0722f * ac.z),
                      static_cast<double>(environment_.moon_light),
                      static_cast<double>(eye.x), static_cast<double>(eye.y),
-                     static_cast<double>(eye.z));
+                     static_cast<double>(eye.z),
+                     // The first point light's own brightness: without it a
+                     // breathing flame can only be argued for by eye.
+                     static_cast<double>(
+                         environment_.point_light_count > 0
+                             ? 0.2126f * environment_.point_lights[0].color.x
+                                   + 0.7152f * environment_.point_lights[0].color.y
+                                   + 0.0722f * environment_.point_lights[0].color.z
+                             : 0.0f));
     }
 
     // Frustum culling (core's math). Culling is NOT free of consequences here:

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 19:33:58
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/world
 File: engine/world/sources/SiteComponents.h
 
@@ -34,6 +34,7 @@ UPD:
   archetype table (§6 silhouettes, provisional mesh ids).
 - 09:08:2026 - 15:18:34: Castle (§6.1.3 hall-castle): SiteTypes CastleHall/Wall/Gatehouse/Solar with lead-blessed mesh ids 8..11; archetype lookup bound extended to the new types.
 - 09:08:2026 - 19:33:58: Fortress revision: SiteType::CastleTower reinstated (mesh id 12); solar envelope raised to 20 m.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -64,6 +65,13 @@ enum class SiteType : uint8_t {
     CastleGatehouse = 9,
     CastleSolar = 10,     ///< the tall vertical on the oldest ward
     CastleTower = 11,     ///< corner tower, REINSTATED by the fortress revision
+    /// A torch in a sconce on a carved corridor's wall (the user's ruling:
+    /// «факела точно должны висеть в той пещере»). Placed by worldgen wherever
+    /// a corridor is ENCLOSED — the same roof predicate the darkness gate uses,
+    /// so a torch appears exactly where the place goes dark and nowhere else.
+    /// It is a site entity because that is the only path a generated chunk has
+    /// for placing things; ChunkManager gives this type its light.
+    WallTorch = 12,
 };
 
 /// ECS component attached to every P4 site entity at chunk spawn. Derived
@@ -107,6 +115,11 @@ struct SiteArchetype {
          {4.0f, 20.0f, 4.0f}},
         {SiteType::CastleTower, "site.castle_tower", 12, {-3.5f, 0.0f, -3.5f},
          {3.5f, 15.0f, 3.5f}},
+        // Mesh 52 is sim's placeholder torch, ferried into render's registry by
+        // the lead (a976569). 32/33 are NOT built and the registrar refuses
+        // them -- do not "fix" this id to those.
+        {SiteType::WallTorch, "site.wall_torch", 52, {-0.2f, -0.2f, -0.2f},
+         {0.2f, 0.9f, 0.2f}},
     };
     return TABLE[static_cast<uint8_t>(type)];
 }
@@ -115,7 +128,7 @@ struct SiteArchetype {
 /// chunk entities from GeneratedEntityRecords). nullopt for non-site
 /// archetypes (future content kinds pass through untouched).
 [[nodiscard]] inline std::optional<SiteType> site_type_from_archetype(uint64_t archetype) {
-    for (uint8_t t = 0; t <= static_cast<uint8_t>(SiteType::CastleTower); ++t) {
+    for (uint8_t t = 0; t <= static_cast<uint8_t>(SiteType::WallTorch); ++t) {
         const SiteArchetype& a = site_archetype(static_cast<SiteType>(t));
         if (serialization::fnv1a64(a.content_id) == archetype) {
             return a.type;

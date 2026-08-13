@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 18:40:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -45,6 +45,7 @@ UPD:
 - 10:08:2026 - 11:37:17: path_surface() / stand_vantages() storage, flattened once per open.
 - 13:08:2026 - 16:45:00: DFN_DARK_TRACE=<путь> — по строке на КАЖДЫЙ вызов darkness_at (приложение зовёт его раз в кадр) с разложением на ветви через enclosure_trace. Открывается ГРОМКО; выключен, пока переменная не названа. Этим прибором найдено, что ambient_darkness переключается 0↔1 за один кадр 13 раз за проход по тоннелю, каждый раз на пересечении carve_distance нуля в пределах 2 см.
 - 13:08:2026 - 18:40:00: DFN_DARK_TRACE пишет roof_y и open_to_sky вместо above_ground — вслед за воротами, которые теперь судят крышу.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -360,6 +361,27 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
                 ecs.add_batch<components::LocalBounds>(
                     ids, std::span<const components::LocalBounds>{bounds});
                 ecs.add_batch<SiteMarker>(ids, std::span<const SiteMarker>{markers});
+                // A WALL TORCH IS A LIGHT, and this is where it gets one.
+                // components::CarriedLight is the only thing render collects
+                // into the frame's point-light array; the name says "carried"
+                // but the contract is "a flame at an entity", which a sconce is
+                // (IRenderer's own list: "torch, braziers, lit windows").
+                // Added after the batches on purpose: only some records are
+                // torches, so this is not a batch (Rule 9's structural-change
+                // discipline is satisfied — the view above has been consumed).
+                for (std::size_t i = 0; i < n; ++i) {
+                    if (markers[i].type != SiteType::WallTorch) {
+                        continue;
+                    }
+                    ecs.add(ids[i], components::CarriedLight{
+                                        .active = true,
+                                        .radius_m = 0.0f, // render's default torch radius
+                                        .color_rgb = 0,   // render's default warm flame
+                                        // Up the stick from the sconce, the same
+                                        // way a held torch's flame sits above the
+                                        // grip.
+                                        .offset = {0.0f, 0.45f, 0.0f}});
+                }
             }
 
             impl_->resident.emplace(key, std::move(chunk));

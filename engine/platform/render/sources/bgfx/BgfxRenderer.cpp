@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 16:10:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -109,6 +109,7 @@ UPD:
   Allocated SEPARATELY from the far map and separately validated: if this one
   fails the far map still ships, because "no dapple" is a far better failure
   than "no shadows".
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -384,6 +385,7 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
     im.u_env_params =
         bgfx::createUniform("u_envParams", bgfx::UniformType::Vec4, ENV_PARAM_VEC4S);
     im.u_post_params = bgfx::createUniform("u_postParams", bgfx::UniformType::Vec4);
+    im.u_black_floor = bgfx::createUniform("u_blackFloor", bgfx::UniformType::Vec4);
     im.u_palette =
         bgfx::createUniform("u_palette", bgfx::UniformType::Vec4, PALETTE_SIZE);
     im.quad_vb = bgfx::createVertexBuffer(
@@ -558,6 +560,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);
     if (bgfx::isValid(im.u_env_params)) bgfx::destroy(im.u_env_params);
     if (bgfx::isValid(im.u_post_params)) bgfx::destroy(im.u_post_params);
+    if (bgfx::isValid(im.u_black_floor)) bgfx::destroy(im.u_black_floor);
     if (bgfx::isValid(im.u_palette)) bgfx::destroy(im.u_palette);
     if (bgfx::isValid(im.s_tex_color)) bgfx::destroy(im.s_tex_color);
     if (bgfx::isValid(im.internal_fb)) bgfx::destroy(im.internal_fb);

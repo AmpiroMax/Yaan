@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 03:13:00
-Last updated: 12:08:2026 - 22:45:00
+Last updated: 13:08:2026 - 18:59:13
 Module: tests
 File: tests/render/CloudModelTests.cpp
 
@@ -37,6 +37,7 @@ UPD:
   control collapses BY the residual), cover means coverage at every rate,
   and the outer convergence fires on the residual instead of on
   cells-per-pixel (alpha SD at 0.60 cells/px 0.000 -> 0.466).
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/CloudModel.h"
@@ -108,7 +109,10 @@ TEST_CASE("apply_clouds writes drift + wavelength and NOTHING else") {
     const float cover = env.cloud_cover;
     const float cumulus = env.cloud_cumulus;
     const float shadow = env.cloud_shadow;
-    apply_clouds(env, 5.0f);
+    // eye_xz joined the signature when the decks got a real altitude:
+    // the field is sampled where the view ray MEETS the deck, so the
+    // eye is now an input. Origin here keeps this case about drift.
+    apply_clouds(env, 5.0f, glm::vec2(0.0f, 0.0f));
     // Offset: -dir * speed * mult * t.
     CHECK(env.cloud_offset_m.x == doctest::Approx(0.0f));
     CHECK(env.cloud_offset_m.y

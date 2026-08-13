@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:50:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -76,6 +76,7 @@ UPD:
   frames: the grid slid 0.1720 texels per frame and stepped a whole 0.156 m
   texel 11.5 times a second, against the sun's own 0.36 mm of shadow motion in
   that time; now 0.0037 texels, median exactly zero, 0.1 events per second.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -416,6 +417,7 @@ struct BgfxRenderer::Impl {
     bgfx::UniformHandle u_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_env_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_post_params = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_black_floor = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_palette = BGFX_INVALID_HANDLE;
     bgfx::VertexBufferHandle quad_vb = BGFX_INVALID_HANDLE;
     bgfx::IndexBufferHandle quad_ib = BGFX_INVALID_HANDLE;

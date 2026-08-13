@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 13:08:2026 - 16:45:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -113,6 +113,7 @@ UPD:
   setting is derived from an approved row (tuft_params(), Rule 14).
   DFN_NO_TUFTS=1 is the counterfactual arm.
 - 13:08:2026 - 16:45:00: DFN_ENV_LOG (env_log_) — покадровый лог потреблённого окружения; см. .cpp.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -368,6 +369,14 @@ private:
     // ones get a shadow map. The flame sits at CarriedLight::offset in CARRIER
     // space — a light at the eye casts no visible shadow by construction, so
     // the offset is the feature, not a detail.
+    /// One flame gathered this frame, before the eight slots are handed out.
+    struct PointLightCandidate {
+        glm::vec3 position;
+        glm::vec3 color;
+        float radius;
+        float d2; ///< squared distance to the eye — the only thing slots are sorted by
+    };
+    void publish_point_lights(std::vector<PointLightCandidate>& candidates);
     void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,
                               float alpha);
 

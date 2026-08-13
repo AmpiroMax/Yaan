@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 18:30:23
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -106,6 +106,7 @@ UPD:
 - 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
 - 13:08:2026 - 18:13:27: Факел и рычаг подняты с 0.5 м на 1.3 м. Замер sim: глаз на 1.7 м, предмет на 0.5 м, расстояние 2.3 м — прицел проходит на 31° ВЫШЕ обоих, поэтому игрок, идущий и смотрящий вперёд, не получает даже подсказки; их бот за 90 секунд ни разу не навёл ни один из двух по той же причине. Дверь на 15.6° вниз ловилась всегда — отсюда «дверь работает, остальные два нет», два разных отказа в одной фразе пользователя. Высота — часть расстановки, и 0.5 м были ниже игры.
 - 13:08:2026 - 18:30:23: Факел в стартовый инвентарь — ПОМЕЧЕННЫЙ КОСТЫЛЬ СТЕНДА. sim замерила, что вся цепочка факела работает от начала до конца, а в мире ровно ОДИН факел — подбираемый в двух метрах от спавна, то есть примерно в 600 м от устья тоннеля, при пустом стартовом инвентаре. Пользователь пошёл в гору с пустыми руками, и другого исхода у него не было. В настоящей игре «найди чем светить» — это содержание и место ему на подходе к подземелью; здесь это разница между местом, в которое можно играть, и местом, в которое нельзя.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/app/sources/App.h"
@@ -215,10 +216,11 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
 // Reads key=value graphics settings; writes a commented default file on first
 // run so the user always has something to edit (sync #3 decision: resolution
 // and palette are user settings, not constants).
-void load_or_create_settings(AppConfig& cfg) {
-    std::ifstream in(SETTINGS_PATH);
-    if (!in.is_open()) {
-        std::ofstream out(SETTINGS_PATH);
+// The settings file is written from TWO places -- first run, and the moment
+// the player leaves the calibration page. A setting that cannot be saved is
+// not a setting, and two copies of this text would be two files that drift.
+void write_settings(const AppConfig& cfg) {
+    std::ofstream out(SETTINGS_PATH);
         out << "# Daggerfall N graphics settings (auto-generated; edit freely)\n"
             << "# internal_resolution: rendering pixel grid, integer-upscaled to the\n"
             << "#   window. Presets: 640x360 (fine retro), 320x180 (chunky Daggerfall).\n"
@@ -234,9 +236,21 @@ void load_or_create_settings(AppConfig& cfg) {
             << "# head_bob: bob/dip/settle motion scale; 0 disables the motion\n"
             << "# entirely (footstep sound and animation still fire).\n"
             << "head_bob=" << cfg.head_bob << "\n"
+            << "# min_brightness: the darkest the picture ever gets, in the\n"
+            << "#   palette's own shade steps (0.0784 = one step). 0 = honest\n"
+            << "#   black: in an unlit cave you see NOTHING, which is correct\n"
+            << "#   and unplayable on most monitors. The start menu has a\n"
+            << "#   calibration page that sets this by eye.\n"
+            << "min_brightness=" << cfg.black_floor << "\n"
             << "# show_menu: 1 = start in the menu and pick a demo map,\n"
             << "#            0 = drop straight into the world.\n"
             << "show_menu=" << (cfg.show_menu ? 1 : 0) << '\n';
+}
+
+void load_or_create_settings(AppConfig& cfg) {
+    std::ifstream in(SETTINGS_PATH);
+    if (!in.is_open()) {
+        write_settings(cfg);
         return;
     }
     std::string line;
@@ -275,6 +289,11 @@ void load_or_create_settings(AppConfig& cfg) {
             float v = 1.0f;
             if (std::sscanf(value.c_str(), "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
                 cfg.head_bob = v;
+            }
+        } else if (key == "min_brightness") {
+            float v = 0.0f;
+            if (std::sscanf(value.c_str(), "%f", &v) == 1 && v >= 0.0f && v <= 0.25f) {
+                cfg.black_floor = v;
             }
         }
     }
@@ -344,6 +363,16 @@ AppConfig AppConfig::from_env() {
     }
     if (const char* np = std::getenv("DFN_NULL_PHYSICS"); np && np[0] == '1') {
         cfg.use_null_physics = true;
+    }
+    // The harness needs its own door: settings.cfg is shared by every zone and
+    // a run must not edit it to take a frame.
+    if (const char* bf = std::getenv("DFN_BLACK_FLOOR"); bf != nullptr && *bf != '\0') {
+        float v = 0.0f;
+        if (std::sscanf(bf, "%f", &v) == 1 && v >= 0.0f && v <= 0.25f) {
+            cfg.black_floor = v;
+        } else {
+            std::fprintf(stderr, "[config] DFN_BLACK_FLOOR=\"%s\" REJECTED (want 0..0.25)\n", bf);
+        }
     }
     if (const char* pal = std::getenv("DFN_PALETTE"); pal && pal[0] == '1') {
         cfg.palette_post = true;
@@ -811,14 +840,14 @@ bool App::enter_world(uint32_t stand) {
         // always caught, which is why the complaint read as "the door works,
         // the other two do nothing" -- two different failures wearing one
         // sentence. 1.3 m is where a wall sconce and a wall lever live anyway.
-        take.position = spawn + glm::vec3{2.0f, 1.3f, 0.0f};
+        take.position = spawn + glm::vec3{2.0f, 1.45f, 0.0f};
         take.prompt_key = "prompt.take";
         take.item = torch.id;
         (void)gameplay::spawn_interactable(world_, *physics_, take);
 
         gameplay::InteractableDesc lever;
         lever.kind = gameplay::InteractableKind::Usable;
-        lever.position = spawn + glm::vec3{-2.0f, 1.3f, 0.0f};
+        lever.position = spawn + glm::vec3{-2.0f, 1.45f, 0.0f};
         lever.prompt_key = "prompt.use";
         lever.action = serialization::fnv1a64("use.testbed.lever");
         (void)gameplay::spawn_interactable(world_, *physics_, lever);
@@ -1639,6 +1668,13 @@ int App::run() {
             case MenuAction::Quit:
                 window_->request_close();
                 break;
+            case MenuAction::CalibrationDone:
+                // The page navigates itself (ui's model owns that); this arm
+                // only persists the value the player just dialled in.
+                config_.black_floor = menu_.black_floor();
+                render_system_.environment().black_floor = config_.black_floor;
+                write_settings(config_);
+                break;
             case MenuAction::ToRoot:
             case MenuAction::None:
                 break;
@@ -2062,6 +2098,19 @@ int App::run() {
                 // tick is in hand this tick rather than next.
                 gameplay::update_view_model(world_);
                 bus_.pump(); // deliver the interaction events published above
+                // ENTITIES QUEUED FOR DESTRUCTION ACTUALLY DIE HERE. World.h
+                // says this belongs to the app loop, "once per simulation tick,
+                // after all systems have run" -- and nothing called it, so every
+                // destroy_deferred() in the project was a no-op. The one
+                // production caller is TAKE: the item went into the bag and the
+                // prop stayed standing, takeable again, for ever, which the user
+                // reads as "I pressed it and nothing happened" because the torch
+                // is still there.
+                //
+                // The suite was green throughout because three tests call this
+                // themselves. A test that performs a step the application does
+                // not perform is testing a game that does not exist.
+                world_.flush_destroyed();
             }
         }
 

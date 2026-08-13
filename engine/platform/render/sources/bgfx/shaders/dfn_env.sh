@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 18:52:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -169,6 +169,18 @@ UPD:
   its own commit, ahead of the first read: this contract is two lines in two
   files (here and BgfxRendererImpl.h) and a shader indexing past the declared
   array is undefined behaviour that surfaces as somebody else's broken build.
+- 13:08:2026 - 19:20:00: R3.4 — THE DECK ALTITUDES ARE A FIELD, NOT #defines. The user
+  asked for the cloud ceiling to have a legal RANGE and to sit at different
+  heights in different weather and different places, because that is how the
+  weather and climate of a place get shown. So DFN_CLOUD_DECK_{LOW,MID,HIGH}_M
+  become u_cloudDeck{Low,Mid,High} in slot 39, written per frame by
+  engine/render's CloudModel from cloud_cover and the observer's position. They
+  ride in ONE slot because fs_sky intersects the VIEW ray with these planes
+  while dfn_cloud_sun_vis projects along the SUN to the same planes: two numbers
+  that disagree slide the ground shadow out from under the cloud casting it.
+  The shipped 1500/2600/4400 survive as RenderEnvironment's DEFAULT, which is
+  this change's zero-dose arm (Rule 48).
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #ifndef DFN_ENV_SH
@@ -278,8 +290,23 @@ uniform vec4 u_envParams[40];
 // viewing distance and shared), so the SKY's distance to the field is what
 // changes: 2600 m puts ~5 wavelengths of radius above 45 deg and ~9 above 30,
 // which is a picture instead of a coin flip.
-#define DFN_CLOUD_DECK_MID_M 2600.0
-#define DFN_CLOUD_DECK_HIGH_M 4400.0
+//
+// THE ALTITUDES ARE NO LONGER #defines (R3.4). The user asked for the ceiling's
+// height to be a FIELD with a legal range — «должен быть диапазон где им можно
+// быть... в разную погоду на разных, будем таким образом погоду и климат
+// отображать» — so the three altitudes are computed per frame by
+// engine/render's CloudModel from the weather state and the observer's place,
+// and arrive in slot 39. The numbers below survive as the DEFAULT of
+// RenderEnvironment::cloud_deck_m, which is what makes an unchanged caller draw
+// the sky that shipped, byte for byte.
+//
+// They ride in ONE slot because their two consumers must never disagree: fs_sky
+// intersects the VIEW ray with these planes, dfn_cloud_sun_vis projects along
+// the SUN to the same planes, and if those read different numbers the ground
+// shadow slides out from under the cloud casting it.
+#define u_cloudDeckLow  (u_envParams[39].x)
+#define u_cloudDeckMid  (u_envParams[39].y)
+#define u_cloudDeckHigh (u_envParams[39].z)
 // The high deck samples the SAME field at a coarser scale and a fixed seed
 // shift so the decks decorrelate without inventing a second field or a second
 // wind.
@@ -298,11 +325,23 @@ uniform vec4 u_envParams[40];
 // and it merges into the middle one. Real broken stratocumulus bases sit at
 // 600-2000 m, so 1500 m is inside the physical range as well as the visual one.
 //
+// R3.4 MOVED THIS ALTITUDE INTO A RANGE and both of the bounds above became the
+// bounds of that range: CLOUD_CEILING_MIN_M 400 (where one cell subtends the
+// WHOLE frame rather than half of it, at CAMERA_FOV_Y = 75 deg) and
+// CLOUD_CEILING_MAX_M 2000 (the 1.3 ratio, unchanged). 1500 is now the middle
+// of the window and the value an unwritten env field still carries.
+//
+// THE LOW END STOPPED BEING A PROBLEM WHEN THE DRIVER ARRIVED, and this is
+// worth writing down because the note above reads like an objection to it: a
+// deck at 400 m is one cell wide, i.e. a lid with no masses in it — but the
+// SAME weather state that puts the ceiling at 400 m is heavy cover, and a
+// lid is what heavy cover looks like from underneath. The two co-vary by
+// construction because both are driven by cloud_cover.
+//
 // NO SCALE FACTOR HERE, unlike the high deck: a scale would change the
 // apparent cell size and destroy the one thing this deck exists to provide.
 // It gets a world-space SEED SHIFT instead, which decorrelates it from the
 // middle deck without touching how big its cells look.
-#define DFN_CLOUD_DECK_LOW_M    1500.0
 #define DFN_CLOUD_DECK_LOW_SEED vec2(-820.0, 640.0)
 // The low deck's cover is a FRACTION OF THE STATE'S, never the state's own
 // value. Three independent decks at full cover close 1 - (1-c)^3 of the sky =
@@ -617,11 +656,11 @@ float dfn_cloud_sun_vis(vec3 wpos)
         return 1.0;
     }
     vec2 p0 = wpos.xz
-            + u_sunDir.xz * ((DFN_CLOUD_DECK_LOW_M - wpos.y) / sun_y);
+            + u_sunDir.xz * ((u_cloudDeckLow - wpos.y) / sun_y);
     vec2 p1 = wpos.xz
-            + u_sunDir.xz * ((DFN_CLOUD_DECK_MID_M - wpos.y) / sun_y);
+            + u_sunDir.xz * ((u_cloudDeckMid - wpos.y) / sun_y);
     vec2 p2 = wpos.xz
-            + u_sunDir.xz * ((DFN_CLOUD_DECK_HIGH_M - wpos.y) / sun_y);
+            + u_sunDir.xz * ((u_cloudDeckHigh - wpos.y) / sun_y);
     // Fully resolved: the shadow is read at a GROUND point, where one pixel
     // covers metres, not the kilometres a grazing sky ray covers. The sheet's
     // LOD exists for the sky's perspective and would only blur the shadow.

@@ -60,6 +60,21 @@ $input v_dir
 // brighter than the deck in front of them, and the shade-only difference image
 // has SD 0.65 steps at a mean of -0.06 — a uniform darkening would score SD 0.
 
+// UPD 13:08:2026 - 19:20:00: R3.4 — THE DECK ALTITUDES ARRIVE IN A UNIFORM, because the
+// user asked for the ceiling's HEIGHT to be a field with a legal range: «они
+// должны на разных высотах находиться, должен быть диапазон где им можно быть...
+// на разных локациях будут на разных высотах, и в разную погоду на разных, будем
+// таким образом погоду и климат отображать». DFN_CLOUD_DECK_{LOW,MID,HIGH}_M are
+// now u_cloudDeck{Low,Mid,High} (slot 39), written per frame by
+// engine/render's CloudModel from cloud_cover and the observer's place, range
+// [400, 2000] m for the ceiling with the other two riding one multiplier so
+// R3.2's derived 1 : 1.73 : 2.93 ladder survives.
+//
+// NOTHING ELSE IN THIS FILE HAD TO CHANGE, and that is the point worth keeping:
+// the three decks were already drawn by intersecting the view ray with a plane
+// at a real altitude, so an altitude that MOVES is expressible. A sky drawn as a
+// function of view direction would have had nothing to move.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -246,13 +261,13 @@ void main()
         // which is reference 12's "holes that show brighter sky" made literal
         // instead of approximated. It gets no self-shadowing — a thin veil at
         // 4.4 km has no depth to shade.
-        float dist2 = (DFN_CLOUD_DECK_HIGH_M - eye.y) / dir.y;
+        float dist2 = (u_cloudDeckHigh - eye.y) / dir.y;
         vec2 p2 = eye.xz + dir.xz * dist2;
         float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX(p2))
                  * exp(-dist2 / SHEET_EXTINCTION_M) * 0.55;
 
         // --- MID, 2600 m: the main sheet.
-        float dist1 = (DFN_CLOUD_DECK_MID_M - eye.y) / dir.y;
+        float dist1 = (u_cloudDeckMid - eye.y) / dir.y;
         vec2 p1 = eye.xz + dir.xz * dist1;
         float cpx1 = DFN_CLOUD_CELLS_PX(p1);
         float a1 = dfn_cloud_sheet_alpha(p1, cpx1)
@@ -275,7 +290,7 @@ void main()
 
         // --- LOW, 1500 m: sparse, ragged, DARK, and IN FRONT. Its cells
         // subtend 1.73x the middle deck's, which is what says "nearer".
-        float dist0 = (DFN_CLOUD_DECK_LOW_M - eye.y) / dir.y;
+        float dist0 = (u_cloudDeckLow - eye.y) / dir.y;
         vec2 p0 = eye.xz + dir.xz * dist0;
         float cpx0 = DFN_CLOUD_CELLS_PX(p0);
         float a0 = dfn_cloud_sheet_low_alpha(p0, cpx0)
@@ -376,7 +391,7 @@ void main()
     float sun_occl = 1.0;
     if (u_sunDir.y > 0.03) {
         vec2 ps = eye.xz
-                + u_sunDir.xz * ((DFN_CLOUD_DECK_MID_M - eye.y) / u_sunDir.y);
+                + u_sunDir.xz * ((u_cloudDeckMid - eye.y) / u_sunDir.y);
         sun_occl = 1.0 - 0.85 * dfn_cloud_sheet_alpha(ps, 0.0);
     }
     // THE SUN HAS A BODY (W9). What stood here was two glow lobes,

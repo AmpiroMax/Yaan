@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:50:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -82,6 +82,14 @@ UPD:
   elevation, floor onto SHADOW_DIR_SNAP_RAD) before building the light view,
   AFTER the elevation test so a snap can never flick shadows on and off across
   the horizon. DFN_SHADOW_SNAP is its dose and 0 restores the previous frame.
+- 13:08:2026 - 19:20:00: packed[39] = the CLOUD DECK ALTITUDES (R3.4). They stop
+  being shader #defines because the user asked for the ceiling's height to be a
+  field with a legal range — that is how a place's weather and climate get shown
+  — so engine/render computes them per frame and they arrive here. One slot, not
+  three: fs_sky intersects the view ray with these planes and dfn_cloud_sun_vis
+  projects along the sun to the same planes, and a disagreement between the two
+  slides the ground shadow out from under the cloud casting it.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -383,6 +391,14 @@ void BgfxRenderer::Impl::apply_environment() const {
     static const float fill_sun =
         dose_env_override("DFN_FILL_SUN", FILL_SUN_DEFAULT);
     packed[38] = {fill_up, fill_sun, 0.0f, 0.0f};
+    // THE CLOUD DECK ALTITUDES (slot 39), low / mid / high, meters. They were
+    // shader #defines; the ceiling's HEIGHT is now a field of weather and place
+    // (R3.4), so it arrives per frame. It travels as ONE slot because its two
+    // consumers must never disagree: fs_sky intersects the VIEW ray with these
+    // planes and dfn_cloud_sun_vis projects along the SUN to the same planes,
+    // and a disagreement slides the ground shadow out from under the cloud
+    // casting it.
+    packed[39] = {e.cloud_deck_m, 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};
@@ -685,6 +701,13 @@ void BgfxRenderer::end_frame() {
                                static_cast<float>(im.internal_width),
                                static_cast<float>(im.internal_height)};
         bgfx::setUniform(im.u_post_params, post);
+        // The floor rides the environment (it changes while the player turns
+        // the calibration dial), the falloff is a project constant, so the two
+        // halves of the curve come from the two places that own them.
+        const float floor_params[4] = {im.environment.black_floor,
+                                       static_cast<float>(config::BLACK_FLOOR_FALLOFF),
+                                       0.0f, 0.0f};
+        bgfx::setUniform(im.u_black_floor, floor_params);
         if (im.palette_post) {
             bgfx::setUniform(im.u_palette, im.palette.data(), PALETTE_SIZE);
         }

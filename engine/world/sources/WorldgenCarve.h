@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 18:40:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -40,6 +40,7 @@ UPD:
 - 10:08:2026 - 02:29:54: open_daylight_portals() — endpoints of flagged corridors pushed along their own leg (grade preserved) until the floor stands in open air; capped, and a corridor that cannot reach daylight is left as-is so the acceptance walk stays the alarm.
 - 13:08:2026 - 16:45:00: NEW enclosure_trace() — те же промежуточные величины того же вычисления (какие ворота решили: вхождение, «над землёй», заработанный путь). enclosure_darkness() реализована как .darkness этого вызова, поэтому отладочной копии, способной разойтись с боевой, не существует. Заведено под разбор «темнеет, потом мигает»: результат сам по себе не отличает «не замкнуто» от «замкнуто, но ничего не заработано», а причины и правки у них разные.
 - 13:08:2026 - 18:40:00: EnclosureTrace: above_ground -> open_to_sky + новое поле roof_y. Вторые ворота судят КРЫШУ прорезки против рельефа, а не точку запроса.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -49,6 +50,7 @@ UPD:
 #include <functional>
 #include <glm/vec3.hpp>
 #include <optional>
+#include <vector>
 #include <span>
 #include <utility>
 
@@ -151,5 +153,24 @@ struct EnclosureTrace {
 [[nodiscard]] EnclosureTrace enclosure_trace(const TestbedLayout& layout,
                                              std::span<const CarveCorridor> extra,
                                              const GroundSampler& ground, glm::vec3 world);
+
+/// One wall torch: where it hangs and which way it faces.
+struct CarveLightSite {
+    glm::vec3 position{0.0f}; ///< the sconce, world space (y is explicit — a
+                              ///< carved floor is not on the heightfield)
+    float yaw = 0.0f;         ///< faces across the corridor, away from its wall
+};
+
+/// Torches on the walls of every carved corridor, wherever it is ENCLOSED.
+///
+/// The user's ruling, not a proposal: «факела точно должны висеть в той
+/// пещере». Placement uses the SAME roof predicate as the darkness gate, so a
+/// torch exists exactly where the place goes dark and nowhere along the open
+/// approach cutting — one definition, two consumers (Rule 35).
+///
+/// `ground` must be the sampler the darkness query uses, or the lights and the
+/// dark would be derived from two different worlds.
+[[nodiscard]] std::vector<CarveLightSite> carve_wall_lights(const TestbedLayout& layout,
+                                                            const GroundSampler& ground);
 
 } // namespace dfn::world

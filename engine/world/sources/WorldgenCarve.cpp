@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 18:40:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -38,6 +38,7 @@ UPD:
 - 13:08:2026 - 16:45:00: МЕРЦАНИЕ В ПОДЗЕМЕЛЬЕ ПОЧИНЕНО (жалоба пользователя «темнеет в глазах, потом мигает»). Точка запроса поднимается на CARVE_QUERY_LIFT_M = VOXEL_SIZE перед ВСЕМИ проверками вхождения: запрос задаётся о низе капсулы, то есть о точке НА нарисованном полу, а нарисованный пол — реконструкция на решётке вокселя и стоит от аналитической плоскости в пределах вокселя, поэтому точный `>= 0` спрашивал о геометрии тоньше, чем геометрия умеет отвечать. Замер: 13 переключений ambient_darkness 0.000↔1.000 ЗА ОДИН КАДР на проход → 1; доля подземных тиков «по ту сторону границы» 3.6 % → 0.0 %. Подъём, а НЕ допуск на расстояние: изотропный допуск убрал мерцание и зачернил ОТКРЫТУЮ подходную выемку на 51 кадр (поймано дневной рукой). Вторая копия того же вопроса — свои ворота в corridor_path_from_mouth — держала 7 переключений из 13 после починки только первых. Новый enclosure_trace() — те же промежуточные величины ОДНОГО вычисления, чтобы прибор не мог разойтись с боевым кодом. Подробности и приёмка: docs/FINDING_DUNGEON_DARK.md.
 - 13:08:2026 - 17:12:00: ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ЖАЛОБЫ: путь до дневного света меряется от ПОРТАЛА — станции, где поднятый пол коридора пересекает поверхность, — а не от carve_mouth(), который отвечает на другой вопрос («где сомкнулся ПОТОЛОК») и у свитчбэка Равенскара стоит в 45 м ВНУТРИ тоннеля. Из-за этого на входе была чернота с первого шага вместо склона на DARKNESS_DEPTH_MIN, а на сотом метре — полный дневной свет под 12 м скалы (20.5 % подземных кадров); у коридора с двумя дневными концами признавался ровно один. Считаются ВСЕ пересечения, берётся ближайшее; carve_mouth намеренно не тронут (P4 выводит из него метки входов). Плюс берётся наиболее замкнутая из исходной и поднятой точки, иначе подъём выталкивал запрос на высоте глаз через свод 2.6-метрового прохода Бэкбарроу. Живьём: переключений 0↔1 за кадр 13 → 0, наибольшая покадровая ступень 1.000 → 0.0036, день под землёй 23.7 % → 7.4 % (и все они ближе 17 м пути от портала). Регрессия — tests/core/VoxelTests.cpp, рука до правки падает по всем трём проверкам.
 - 13:08:2026 - 18:40:00: ТРЕТИЙ ДЕФЕКТ ТОГО ЖЕ ПРАВИЛА (жалоба пользователя «темнеет снаружи, когда ещё крыши нет никакой»): ворота замкнутости спрашивали про ТОЧКУ ЗАПРОСА, а надо про КРЫШУ. Врезанный в склон коридор — сначала открытая ТРАНШЕЯ: пол уже под поверхностью холма, потолок ещё на свету. Новый carve_roof_over(); тем же предикатом теперь определяется и портал в измерителе пути, иначе два определения «замкнуто» разъедутся (этот файл сегодня дважды платил ровно за это). Замер: из 2730 тиков с потолком ВЫШЕ рельефа 1673 несли тьму, худший — полная чернота при потолке на 1.31 м в воздухе; после правки 0 из 5511. Верный предикат всё это время лежал в carve_mouth этажом выше.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -590,6 +591,73 @@ EnclosureTrace enclosure_trace(const TestbedLayout& layout,
     tr.path_from_mouth = path;
     tr.darkness = std::clamp((path - (depth_min - falloff)) / falloff, 0.0f, 1.0f);
     return tr;
+}
+
+
+// TORCHES ON THE WALLS OF A CARVED CORRIDOR.
+//
+// SPACING, HEIGHT AND INSET ARE LOOK-DEV AND WANT ROWS (Rule 14). 10 m apart
+// alternating walls means the player is never more than 5 m from a flame, which
+// is the torch's own useful radius in the dark (TORCH_RADIUS_DARK 4 m plus the
+// carried one); 1.8 m is a sconce at head height; 0.25 m keeps the stick clear
+// of the wall it hangs on. Marked as placeholders rather than smuggled in, and
+// requested from the lead with the falloff numbers.
+namespace {
+constexpr float WALL_TORCH_SPACING_M = 10.0f;
+constexpr float WALL_TORCH_HEIGHT_M = 1.8f;
+constexpr float WALL_TORCH_INSET_M = 0.25f;
+} // namespace
+
+std::vector<CarveLightSite> carve_wall_lights(const TestbedLayout& layout,
+                                              const GroundSampler& ground) {
+    std::vector<CarveLightSite> out;
+    const auto walk = [&](const CarveCorridor& c) {
+        if (c.point_count < 2) {
+            return;
+        }
+        float since = WALL_TORCH_SPACING_M; // the first enclosed station gets one
+        bool left = true;
+        for (int i = 0; i + 1 < c.point_count; ++i) {
+            const glm::vec3 a = c.points[i];
+            const glm::vec3 b = c.points[i + 1];
+            const glm::vec3 ab = b - a;
+            const float len = glm::length(ab);
+            if (len < 1e-3f) {
+                continue;
+            }
+            const glm::vec2 dir = glm::normalize(glm::vec2{ab.x, ab.z});
+            const glm::vec2 side{-dir.y, dir.x};
+            const int steps = std::max(1, static_cast<int>(len / 0.5f));
+            for (int s = 0; s < steps; ++s) {
+                const float u = static_cast<float>(s) / static_cast<float>(steps);
+                const glm::vec3 p = a + ab * u;
+                // THE SAME PREDICATE AS THE DARKNESS GATE: a torch belongs where
+                // the roof has gone under the terrain, never in the open cutting.
+                if (p.y + c.height >= ground({p.x, p.z})) {
+                    since = WALL_TORCH_SPACING_M; // re-arm: light the first step in
+                    continue;
+                }
+                since += len / static_cast<float>(steps);
+                if (since < WALL_TORCH_SPACING_M) {
+                    continue;
+                }
+                since = 0.0f;
+                const float lat = c.half_width - WALL_TORCH_INSET_M;
+                const glm::vec2 at = glm::vec2{p.x, p.z} + side * (left ? lat : -lat);
+                CarveLightSite site;
+                site.position = {at.x, p.y + WALL_TORCH_HEIGHT_M, at.y};
+                // Faces across the corridor, i.e. away from its own wall.
+                const glm::vec2 face = left ? -side : side;
+                site.yaw = std::atan2(face.x, face.y);
+                out.push_back(site);
+                left = !left;
+            }
+        }
+    };
+    walk(layout.carves.crag_tunnel);
+    walk(layout.carves.barrow_passage);
+    walk(layout.carves.lakeshore_adit);
+    return out;
 }
 
 } // namespace dfn::world

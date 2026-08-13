@@ -1,0 +1,69 @@
+# Created: 13:08:2026 - 18:50:00
+# Last updated: 13:08:2026 - 18:50:00
+# Module: docs/acceptance
+# File: docs/acceptance/ui-tunnel-restore.txt
+#
+# Responsibility:
+# - THE DARK POSE, and the recipe that produced it. Every arm of the brightness
+#   floor's acceptance stands HERE, so the three frames differ in the setting and
+#   in nothing else. ambient_darkness is 1.000 at this spot: it is the switchback
+#   tunnel in the crag, 43.5 m up, the place the user walked when he wrote
+#   "при полной темноте не видно ровно ничего".
+#
+# Key items:
+# - Shoot an arm with:
+#     DFN_RESTORE=docs/acceptance/ui-tunnel-restore.txt DFN_NULL_AUDIO=1 \
+#     DFN_BLACK_FLOOR=<0 | 0.0784 | 0.1176> DFN_CAPTURE_AFTER=8 \
+#     DFN_CAPTURE_DIR=<NEW dir> DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 \
+#     build_ui/engine/app/dfn_app
+#   then box-average the 2560x1440 capture back to 640x360.
+# - HOW THIS POSE WAS FOUND, because a hand cannot walk here: restore at the
+#   mouth (797.5, 26.4, 299.0) + DFN_PLAYTEST_ROUTE along the tunnel's centre
+#   line, waypoints lifted from the dungeon zone's own env log
+#   (dungeon-dark-env-portalfix-207cc07.log, every 400th frame), 70 seconds in.
+#   The route door and the env log are that zone's; this file is the pose they
+#   led to.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly. This is a RECORD: do not edit the
+#   values, the frames beside it were rendered from exactly these numbers.
+#
+# UPD:
+# - 13:08:2026 - 18:50:00: Created for the brightness-floor acceptance (zone ui).
+#
+captured_at = 13:08:2026 - 18:23:11
+build_commit = d654f64+dirty
+stand = 0
+seed = 1
+game_seconds = 942.009348
+day_fraction = 0.327087
+lunar_phase = 0.011682
+pos_x = 775.992310
+pos_y = 43.502502
+pos_z = 257.960236
+yaw = 0.687438
+pitch = 0.000000
+look_x = 0.634559
+look_y = 0.000000
+look_z = -0.772874
+speed_mps = 0.000000
+vertical_velocity = -0.327000
+stride_phase = 0.076330
+gait = 0
+locomotion = 0
+grounded = 0
+crouched = 0
+water_depth = 0.000000
+internal_w = 640
+internal_h = 360
+fov_y_rad = 1.309001
+head_bob = 1.000000
+palette_post = 0
+wind_strength = 0.641034
+cloud_cover = 0.450000
+ambient_darkness = 1.000000
+fps = 297.104
+frame_ms = 3.366
+frame_ms_worst = 7.345
+chunks_resident = 21
+lod_nodes = 0

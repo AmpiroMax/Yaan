@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 12:08:2026 - 22:45:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/CloudModel.h
 
@@ -70,6 +70,18 @@ UPD:
   for 0.60. Rule 31's premise (uncorrelated octaves of equal marginal
   variance) was MEASURED before it was used — predicted SD tracks measured
   SD within 0.03 % from 0.0 to 0.80 cells/px.
+- 13:08:2026 - 19:20:00: R3.4 — THE CEILING'S HEIGHT IS A FIELD WITH A RANGE, at the
+  user's instruction: «должен быть диапазон где им можно быть... на разных
+  локациях будут на разных высотах, и в разную погоду на разных, будем таким
+  образом погоду и климат отображать». CLOUD_CEILING_MIN_M 400 is derived from
+  CAMERA_FOV_Y (below it one field cell subtends more than the whole frame and
+  the deck stops being a deck), CLOUD_CEILING_MAX_M 2000 from R3.2's own 1.3
+  merge ratio against the middle deck. The range is split half/half between
+  weather and place, and the half is derived too: at 30 % the place term's swing
+  would move apparent cell size by 1.23x, under the 1.3 threshold, i.e. it would
+  be invisible. Expressible at all only because R3.2 draws the decks by
+  intersecting the view ray with a plane at a real altitude.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -104,11 +116,90 @@ inline constexpr float CLOUD_WAVELENGTH_M =
 [[nodiscard]] glm::vec2 cloud_drift_offset(glm::vec2 direction, float wind_mult,
                                            float seconds);
 
-/// Writes cloud_offset_m and cloud_wavelength_m into `env` from the wind
-/// fields already present (call AFTER apply_wind). Every other field is
-/// untouched — the state tuple (cover/cumulus/shadow/mult) stays whatever
-/// the app or the defaults put there.
-void apply_clouds(platform::RenderEnvironment& env, float seconds);
+// ===========================================================================
+// THE CEILING'S HEIGHT IS A FIELD, NOT A CONSTANT (R3.4).
+//
+// The user's own words: «они должны на разных высотах находиться, должен быть
+// диапазон где им можно быть... на разных локациях будут на разных высотах, и
+// в разную погоду на разных, будем таким образом погоду и климат отображать».
+// So the deck altitude is a QUANTITY WITH A RANGE, driven by the weather state
+// and by where you are standing — a low ceiling is what wet weather looks like
+// from underneath, and that is the point of it.
+//
+// This is only expressible at all because the decks are drawn by intersecting
+// the view ray with a plane at a real altitude (R3.2). A cloud drawn as a
+// function of view direction has no height to change.
+// ---------------------------------------------------------------------------
+
+/// The LOWEST altitude a deck may be placed at, meters. DERIVED FROM THE FRAME,
+/// not chosen: one field cell is CLOUD_WAVELENGTH_M across, so overhead it
+/// subtends 2*atan(wavelength/2 / h), and that equals CAMERA_FOV_Y (1.309 rad,
+/// 75 deg) at h = 300/tan(37.5 deg) = 391 m. Below that ONE CELL IS WIDER THAN
+/// THE WHOLE FRAME and the deck stops being a deck — it becomes a single blob,
+/// which is the criterion dfn_env.sh's own low-deck note already wrote down
+/// ("below ~1000 m one cell is wider than half the frame"). 400 rounds up off
+/// the boundary.
+///
+/// The lead's constraint — never below the world's highest legal vantage, ~100 m
+/// — is satisfied 3.8x over, and it is NOT the binding one. The binding physical
+/// constraint is the MASSIF CROWN at 135 m: a deck under it puts a cap on the
+/// world's landmark, which is R2's own named reject ("a band that leaves no
+/// crown is just fog"), and 106 m is exactly where the sky probe's camera is
+/// pinned, so that floor would have re-run the milky-frame accident one storey
+/// up. At 400 m the deck stands 265 m clear of the crown and 15.7x above the
+/// highest place a player can stand (25.44 m).
+inline constexpr float CLOUD_CEILING_MIN_M = 400.0f;
+
+/// The HIGHEST altitude the low deck may be placed at, meters. From R3.2: the
+/// near deck reads as NEAR only through its apparent cell size, and at a ratio
+/// under 1.3 against the middle deck the two merge into one ceiling. The middle
+/// deck sits at CLOUD_DECK_MID_M, so 2600 / 1.3 = 2000.
+inline constexpr float CLOUD_CEILING_MAX_M = 2000.0f;
+
+/// The shipped R3.2 ladder. The three altitudes move by ONE multiplier so their
+/// RATIOS survive: 1 : 1.733 : 2.933 is what produces the parallax between the
+/// decks and the apparent-cell-size ladder that says which is nearer, and it is
+/// derived (see dfn_env.sh). Scaling all three keeps that intact while the whole
+/// sky comes down in wet weather and lifts in dry.
+inline constexpr float CLOUD_DECK_LOW_M = 1500.0f;
+inline constexpr float CLOUD_DECK_MID_M = 2600.0f;
+inline constexpr float CLOUD_DECK_HIGH_M = 4400.0f;
+
+/// Feature size of the PLACE term, meters. Two world widths (the testbed is
+/// 1024 m across), so the ceiling trends smoothly from one end of the map to the
+/// other instead of flickering as the player walks: half a cell spans the whole
+/// world. It reads THE coverage field — the same construction, asked a different
+/// question at a different scale — rather than inventing a second weather source
+/// (Rule 35). It is the seam core's per-region weather plugs into.
+inline constexpr float CLOUD_CEILING_PLACE_WAVELENGTH_M = 2048.0f;
+
+/// How the range is SPLIT between the two drivers, weather and place. Half each,
+/// and that is derived rather than halved for symmetry: the visible cue for
+/// "the ceiling moved" is the apparent size of one cell, and R3.2 measured that
+/// two decks stop being distinguishable below a ratio of 1.3. If PLACE owned
+/// only 30 % of [400, 2000], its swing about a 1200 m ceiling would be
+/// 960..1440 m = a cell-size ratio of 1.23 — UNDER the threshold, i.e. invisible.
+/// At half each, the worst point in the range still gives 1.64x (1200 -> 2000)
+/// and the best 2.62x (400 -> 1200). Both drivers are visible everywhere.
+/// Asserted in CloudModelTests.cpp, where it is a claim that can fail.
+inline constexpr float CLOUD_CEILING_WEATHER_SHARE = 0.5f;
+
+/// The ceiling (the LOW deck's altitude) for a weather state at a place, meters.
+/// Pure. `cover` is the weather model's own cloud_cover — heavy cover means a
+/// low wet ceiling, a clear day means a high one. `eye_xz` is where the observer
+/// stands; the place term moves slowly enough that walking does not change it.
+[[nodiscard]] float cloud_ceiling_m(float cover, glm::vec2 eye_xz);
+
+/// The three deck altitudes for a ceiling, low/mid/high, meters. One multiplier
+/// so the derived ratio ladder cannot be broken by a caller.
+[[nodiscard]] glm::vec3 cloud_decks_m(float ceiling_m);
+
+/// Writes cloud_offset_m, cloud_wavelength_m and cloud_deck_m into `env` from
+/// the wind and weather fields already present (call AFTER apply_wind). Every
+/// other field is untouched — the state tuple (cover/cumulus/shadow/mult) stays
+/// whatever the app or the defaults put there.
+void apply_clouds(platform::RenderEnvironment& env, float seconds,
+                  glm::vec2 eye_xz);
 
 // ===========================================================================
 // THE COVERAGE FIELD — reference implementation.

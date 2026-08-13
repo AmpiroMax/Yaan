@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 17:21:38
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -53,6 +53,7 @@ UPD:
 - 10:08:2026 - 23:51:30: Поля третьего лица и орбиты камеры.
 - 11:08:2026 - 13:48:13: DFN_FRAME_LOG — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, без обратного чтения, без отстоя, без заморозки тика. Пользователь нашёл изъян нашего метода раньше нас: «при прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет». Все наши двери съёмки гасят ровно то, на что наведены, поэтому дефект МЕЖДУ кадрами два дня приходил чистым. Первый же прогон дал размах fov_y 5.951° при беге против 0.0000° на ходьбе и стоя.
 - 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -111,6 +112,11 @@ struct AppConfig {
                                // grid (0/1 off, 2, 4, 8). What stopped the
                                // treeline shimmer; DFN_MSAA overrides for tooling
     bool palette_post = false; // Q9b palette quantization (DFN_PALETTE=1)
+    // settings.cfg min_brightness: the floor the final image never goes below
+    // (0 = honest black). Turned live by the calibration screen. Default is one
+    // palette shade step, because a default of zero would show the player, on
+    // his first launch, exactly the darkness this setting exists to answer.
+    float black_floor = static_cast<float>(config::BLACK_FLOOR_LEVEL);
     std::string title_key = "app.title"; // localization key (Rule 5)
 
     // Populates the fields above from settings.cfg (auto-generated with

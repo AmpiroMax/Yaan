@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:04:20
-Last updated: 12:08:2026 - 23:52:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/SkyModel.cpp
 
@@ -44,6 +44,7 @@ UPD:
   SKY_ARC_TILT 0.45 is not in design's flat derivation. Both moons stand at 65
   and 41 deg elevation, 2.3x the separation floor — the row's claim holds, its
   two quoted angles are a flat-arc idealisation.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/SkyModel.h"
@@ -100,6 +101,54 @@ glm::vec3 mix3(const glm::vec3& a, const glm::vec3& b, float t) {
     return a + (b - a) * t;
 }
 
+// THE MOON'S ECLIPTIC LONGITUDE, and why the sun's is zero.
+//
+// A body's arc across the sky is set by its DECLINATION, and declination comes
+// from ecliptic longitude through the obliquity. This world has no year: there
+// is no seasonal constant anywhere in the registry and the SUN rides a fixed
+// look-dev arc (SKY_ARC_TILT) chosen so shadows always have a direction. So
+// the sun is placed at ecliptic longitude 0 — a permanent equinox — and the
+// moon's longitude is measured from it, which is exactly what elongation is.
+//
+// The consequence is the point of the whole change: the sun's arc is CONSTANT
+// and the moon's is not. Over one synodic month the moon's longitude walks the
+// full ecliptic, so its declination sweeps +-(OBLIQUITY +- inclination) and its
+// path swings between an arc that clears 55 deg and one that barely leaves the
+// southern horizon — at OBSERVER_LATITUDE, the difference between a night you
+// can see by and a night you cannot. That is «её траектория должна отличаться»
+// in one sentence.
+//
+// NOT AN EPHEMERIS, and deliberately not: no perturbations, no parallax, no
+// year. The behaviours this owes the player are the arc, the delay, the phase
+// and daylight visibility, and each of them is one term below.
+float moon_declination(float longitude, float latitude_out_of_plane) {
+    const float sb = std::sin(latitude_out_of_plane);
+    const float cb = std::cos(latitude_out_of_plane);
+    return std::asin(std::clamp(sb * std::cos(ECLIPTIC_OBLIQUITY)
+                                    + cb * std::sin(ECLIPTIC_OBLIQUITY)
+                                          * std::sin(longitude),
+                                -1.0f, 1.0f));
+}
+
+// Right ascension for the same pair. The moon's hour angle is the SUN'S hour
+// angle minus this, and that subtraction is where the whole rise delay lives:
+// right ascension grows one turn per synodic month, so the moon's hour angle
+// advances at TAU*(1 - 1/P) per day and the interval between two moonrises is
+// P/(P-1) days = DAY_LENGTH/(P-1) = 53.33 in-world minutes of delay a day.
+// THAT IS `MASSER_SYNODIC_DAYS`' OWN ROW, arrived at from the geometry rather
+// than applied as a correction — and the sign is the half the shipped model
+// had backwards: it ADDED elongation to the arc angle, which made the moon
+// rise 49.7 minutes EARLIER every day, the wrong direction with a plausible
+// magnitude (Rule 36's trap, and the registry row warns about this exact
+// family of near-miss).
+float moon_right_ascension(float longitude, float latitude_out_of_plane) {
+    const float cb = std::cos(latitude_out_of_plane);
+    const float y = std::sin(longitude) * std::cos(ECLIPTIC_OBLIQUITY)
+                    - (cb > 1e-6f ? std::tan(latitude_out_of_plane) : 0.0f)
+                          * std::sin(ECLIPTIC_OBLIQUITY);
+    return std::atan2(y, std::cos(longitude));
+}
+
 // Direction on the tilted arc for an angle where 0 = below (midnight) and
 // pi/2 = due east horizon... expressed directly: `angle` runs with the clock.
 glm::vec3 arc_direction(float angle) {
@@ -111,6 +160,27 @@ glm::vec3 arc_direction(float angle) {
 }
 
 } // namespace
+
+glm::vec3 horizon_direction(float hour_angle, float declination) {
+    // The textbook equatorial -> horizontal rotation, written as a vector so
+    // there is no altitude/azimuth round trip to lose a quadrant in. Hour
+    // angle 0 is the meridian and grows westward; at declination 0 this puts
+    // the body due south at altitude 90 - OBSERVER_LATITUDE, and six hours
+    // earlier (H = -pi/2) due east on the horizon, whatever the declination —
+    // which is the sanity pair worth keeping in mind while reading it.
+    const float sd = std::sin(declination);
+    const float cd = std::cos(declination);
+    const float sh = std::sin(hour_angle);
+    const float ch = std::cos(hour_angle);
+    const float sp = std::sin(OBSERVER_LATITUDE);
+    const float cp = std::cos(OBSERVER_LATITUDE);
+    const float east = -cd * sh;
+    const float north = sd * cp - cd * ch * sp;
+    const float up = sd * sp + cd * ch * cp;
+    // Engine frame: +X east, +Y up, +Z SOUTH (arc_direction's own convention —
+    // "rises in the east (+X) ... culminating south (+Z)").
+    return glm::normalize(glm::vec3{east, up, -north});
+}
 
 glm::vec3 sun_direction_at(float day_fraction) {
     // 0.25 -> east horizon (elevation 0), 0.5 -> highest, 0.75 -> west horizon.
@@ -163,23 +233,26 @@ MoonState moon_state_at(const MoonElements& m, float day_fraction,
     // that row exists because the old `angle = sun + phase*TAU` put the moon at
     // elongation 0 at day 0, i.e. inside the sun's glare at new moon, and the
     // game had literally never started with a visible moon.
-    // THE EPOCH IS SUBTRACTED, and that sign is not a taste — it is the only
-    // reading under which ALL FIVE numbers design states for these two rows come
-    // out right at once. Design quotes, for elapsed_days 0 and START_TIME_OF_DAY
-    // 0.30: Masser hour angle +18 deg with lit fraction 0.500, Secunda +48 deg
-    // with 0.750, and the pair 30 deg apart. With `+ epoch` Masser lands 162 deg
-    // from the meridian, i.e. BELOW THE HORIZON, and the row's whole purpose —
-    // that the game finally starts with visible moons — fails. With `- epoch`:
-    // elongation at day 0 is 90 and 120 deg, lit 0.500 and 0.750, hour angles
-    // (measured from the meridian, which is design's convention) +18 and +48,
-    // separation 30. Five independent numbers, all exact.
+    // THE EPOCH IS ADDED — CORRECTED 13:08, and the correction is the whole
+    // reason this file's geometry changed. The entry below used to argue for
+    // `- epoch` because it reproduced design's five numbers. It did, but only
+    // in company with a SECOND sign error that cancelled it: the old arc added
+    // elongation to the arc angle, i.e. it put the moon WEST of the sun by its
+    // elongation, and two wrongs agreed on the hour angles while agreeing on
+    // nothing else. What the pair could not reproduce was the DIRECTION of the
+    // rise delay: it made moonrise 49.7 minutes EARLIER each day where
+    // MASSER_SYNODIC_DAYS' own row derives 53.33 minutes LATER. A waxing
+    // crescent stood in the morning sky, where only a waning one belongs.
     //
-    // It is also the only sign that keeps MASSER_SYNODIC_DAYS' own claim that
-    // moonrise is DELAYED by 53.33 in-game minutes a day: elongation has to
-    // GROW with the clock for the moon to fall behind the sun, and the epoch has
-    // to be where it started, not added on top of the growth.
+    // With the hour angle taken properly (sun's hour angle MINUS the moon's
+    // right ascension, below) `+ epoch` is what the row's name says it is —
+    // the elongation AT the epoch — and design's five numbers come back at the
+    // same time as the delay: elongation at day 0 is 270 and 240 deg, lit
+    // 0.500 and 0.750, hour angles at START_TIME_OF_DAY 0.30 +18 and +48 deg,
+    // the pair 30 deg apart, and moonrise 53.33 in-world minutes later each
+    // day. Six numbers now, and the sixth is the one that was wrong.
     double elong = TAU_D * elapsed_days / period
-                   - static_cast<double>(m.elongation_epoch);
+                   + static_cast<double>(m.elongation_epoch);
     elong = elong - std::floor(elong / TAU_D) * TAU_D;
     s.elongation = static_cast<float>(elong);
     // Phase in the shader's own convention (0 = new, 0.5 = full): the disc
@@ -196,7 +269,9 @@ MoonState moon_state_at(const MoonElements& m, float day_fraction,
     // taking the first while dropping the second as a detail is not available.
     const float mean_anomaly = s.elongation;
     const float centre = 2.0f * m.eccentricity * std::sin(mean_anomaly);
-    const float along = (day_fraction - 0.25f) * TAU + s.elongation + centre;
+    // ECLIPTIC LONGITUDE, measured from a sun that sits at zero (see the note
+    // on moon_declination): mean elongation plus the equation of centre.
+    const float longitude = s.elongation + centre;
     // Apparent size follows the same orbit: nearer at perigee.
     s.angular_radius =
         0.5f * m.angular_diameter * (1.0f + m.eccentricity * std::cos(mean_anomaly));
@@ -214,29 +289,27 @@ MoonState moon_state_at(const MoonElements& m, float day_fraction,
     double node = static_cast<double>(m.node_epoch)
                   - TAU_D * elapsed_days / node_period; // retrograde
     node = node - std::floor(node / TAU_D) * TAU_D;
-    // Latitude out of the sun's arc: zero AT the nodes, extreme a quarter turn
-    // from them — the definition of a node, and the reason the two moons never
-    // share a latitude for long once their node lines are 90 deg apart at epoch.
+    // Ecliptic LATITUDE: zero AT the nodes, extreme a quarter turn from them —
+    // the definition of a node, and the reason the two moons never share a
+    // latitude for long once their node lines are 90 deg apart at epoch. It is
+    // measured from the LONGITUDE now, not from a position on the sun's arc,
+    // because latitude is an orbital quantity and has nothing to do with the
+    // time of day the old expression mixed into it.
     const float latitude =
-        m.inclination * std::sin(along - static_cast<float>(node));
+        m.inclination * std::sin(longitude - static_cast<float>(node));
 
-    // Lift the arc direction out of its plane by `latitude`. arc_direction is
-    // the shared sun/moon arc, so a moon at zero inclination reproduces the
-    // one-moon model exactly and the inclination test has a real control.
-    const glm::vec3 base = arc_direction(along);
-    const glm::vec3 up{0.0f, 1.0f, 0.0f};
-    glm::vec3 side = glm::cross(base, up);
-    const float side_len = glm::length(side);
-    // Degenerate only if the moon is straight up, which this tilted arc never
-    // reaches; fall back to the un-tilted direction rather than to a NaN.
-    if (side_len > 1e-5f) {
-        side /= side_len;
-        const glm::vec3 out = glm::normalize(glm::cross(side, base));
-        s.direction = glm::normalize(base * std::cos(latitude)
-                                     + out * std::sin(latitude));
-    } else {
-        s.direction = base;
-    }
+    // THE ARC. Declination decides its shape, hour angle where along it the
+    // moon stands right now, and OBSERVER_LATITUDE turns the pair into a
+    // direction. This is the line the user's complaint is about: the sun's
+    // arc comes from arc_direction and never changes; this one is a different
+    // curve every night because `declination` is a different number every
+    // night.
+    s.declination = moon_declination(longitude, latitude);
+    s.right_ascension = moon_right_ascension(longitude, latitude);
+    // Hour angle: the sun's (zero at local noon, one turn a day) minus the
+    // moon's right ascension. The subtraction IS the rise delay.
+    s.hour_angle = (day_fraction - 0.5f) * TAU - s.right_ascension;
+    s.direction = horizon_direction(s.hour_angle, s.declination);
 
     const glm::vec3 sun = sun_direction_at(day_fraction);
     s.solar_separation =
@@ -252,17 +325,42 @@ MoonState moon_state_at(const MoonElements& m, float day_fraction,
 glm::vec3 moon_direction_at(float day_fraction, float lunar_phase) {
     // Elongation from the sun IS the phase angle: full (0.5) sits opposite the
     // sun and therefore rises at sunset; new (0) rides with the sun and is
-    // invisible in daylight. Same arc, offset in time.
+    // invisible in daylight. NOT "the same arc offset in time" any more — that
+    // sentence was the defect. A moon at elongation E stands at ecliptic
+    // longitude E, and a body at longitude E has a declination, and the
+    // declination is what makes its path across the sky a DIFFERENT CURVE from
+    // the sun's rather than the same one an hour later.
+    //
+    // Zero inclination here, so this entry point is the flat, node-free
+    // reading of the same geometry moon_state_at uses: one model in this file,
+    // read two ways, rather than two models that can disagree (Rule 35).
     const float phase = lunar_phase - std::floor(lunar_phase);
-    const float angle = (day_fraction - 0.25f) * TAU + phase * TAU;
-    return arc_direction(angle);
+    const float longitude = phase * TAU;
+    const float dec = moon_declination(longitude, 0.0f);
+    const float ra = moon_right_ascension(longitude, 0.0f);
+    return horizon_direction((day_fraction - 0.5f) * TAU - ra, dec);
 }
 
 void apply_sky_time(platform::RenderEnvironment& env, float day_fraction,
-                    float lunar_phase) {
+                    float lunar_phase, double elapsed_days) {
     const float day = day_fraction - std::floor(day_fraction);
     const glm::vec3 sun = sun_direction_at(day);
-    const glm::vec3 moon = moon_direction_at(day, lunar_phase);
+    // THE SHIPPED MOON IS MASSER, AND IT IS THE ORBITAL MODEL — the W9 half
+    // that has sat unused since 12.08 because nothing called it. The user's
+    // «луна двигается за солнцем, почти одинаково» was a report on the OTHER
+    // half: apply_sky_time drove the moon from a phase parameter along the
+    // sun's own arc, so it was the sun's path with a delay, by construction.
+    //
+    // See the header on `elapsed_days`: a negative value means the caller has
+    // not been taught the world clock yet and it is reconstructed from the
+    // phase, exact for everything except the node regression.
+    const double clock = elapsed_days >= 0.0
+                             ? elapsed_days
+                             : static_cast<double>(lunar_phase
+                                                   - std::floor(lunar_phase))
+                                   * config::MASSER_SYNODIC_DAYS;
+    const MoonState masser_state = moon_state_at(masser(), day, clock);
+    const glm::vec3 moon = masser_state.direction;
 
     // Everything below is keyed off sun ELEVATION, never off the clock, so the
     // palette is identical at a given sun height whatever the day length.
@@ -300,11 +398,13 @@ void apply_sky_time(platform::RenderEnvironment& env, float day_fraction,
 
     // Moon: the disc is drawn whenever it is up; its LIGHT also scales with
     // how much of it is lit (user decision: phases change real brightness).
+    // Phase and illumination come from the SAME state the direction came from,
+    // so the disc's terminator and its light cannot describe different moons.
     env.moon_direction = moon;
-    env.moon_phase = lunar_phase - std::floor(lunar_phase);
+    env.moon_phase = masser_state.phase;
     env.moon_color = MOON_DISC_COLOR;
     const float moon_up = smooth01(-0.05f, 0.20f, moon.y);
-    env.moon_light = moon_illumination(lunar_phase) * moon_up * night_t;
+    env.moon_light = masser_state.illumination * moon_up * night_t;
 
     // Stars: out only once the sun is properly down, and washed out by a bright
     // moon. Explicit field, so overcast can later zero it without touching

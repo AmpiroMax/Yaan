@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:25:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.h
 
@@ -67,6 +67,11 @@ UPD:
   from the verb's boolean because the boolean is saved game state and a pose is
   not; and the ray box moves with the leaf, or the drawn door and the touchable
   door are two different objects.
+- 13:08:2026 - 18:55:00: InteractableDesc::mesh_model_half_extents — the scale
+  is `half_extents / mesh_model_half_extents`, so "the drawn prop IS the ray
+  box" survives a mesh this zone did not author. The default is the unit cube
+  the placeholders use, so nothing about them changes.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -108,6 +113,23 @@ struct InteractableDesc {
     // The failure mode is then "a generic door" instead of "no door", which is
     // the right way round for something a player is meant to walk up to.
     uint32_t mesh_asset = 0;
+
+    // THE MODEL-SPACE HALF-EXTENTS OF THAT MESH, and the field exists to keep
+    // one promise true for meshes this zone did not author.
+    //
+    // The promise is that the drawn prop and the box the crosshair hits are the
+    // SAME object. Today it holds because every placeholder is authored in the
+    // cube [-1, 1]^3 and the entity's scale is set to `half_extents` — so the
+    // artist's cube lands exactly on the ray box. A content mesh authored at
+    // its real size in metres would be scaled by `half_extents` too and come
+    // out distorted by whatever those metres happen to be.
+    //
+    // So the scale is `half_extents / mesh_model_half_extents`. The default
+    // {1,1,1} is the unit cube the placeholders use, which is why nothing
+    // changes for them; a mesh authored at 1.8 x 2.0 x 0.2 m declares
+    // {0.9, 1.0, 0.1} and comes out at scale 1. One rule, both cases, and no
+    // second set of numbers that has to agree with the first.
+    glm::vec3 mesh_model_half_extents{1.0f};
 
     // Pickup payload.
     ItemId item{};

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 16:35:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -96,6 +96,7 @@ UPD:
   conditioned on the ground having been DRY — written without that clause it
   became a floor rather than a guard and silently deleted every cut in the
   world.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -327,6 +328,31 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
     // entrance works and the L0 sight wedges, so it must be sited against the
     // finished world rather than against the field the sites were placed on.
     ctx.great_oaks = place_great_oaks(ctx);
+    // TORCHES ON THE CORRIDOR WALLS (the user's ruling). LAST, and against the
+    // FINISHED height field: they are placed by the same roof predicate the
+    // darkness gate uses, and that gate reads terrain_height(ctx, ...), so
+    // deriving them from anything earlier would light a different world than
+    // the one that goes dark.
+    {
+        const auto lights = carve_wall_lights(ctx.params.layout, [&ctx](glm::vec2 p) {
+            return terrain_height(ctx, p);
+        });
+        const uint64_t archetype = serialization::fnv1a64(
+            site_archetype(SiteType::WallTorch).content_id);
+        for (const CarveLightSite& l : lights) {
+            GeneratedEntityRecord rec;
+            rec.world_id = static_cast<WorldEntityId>(ctx.sites.entities.size() + 1);
+            rec.archetype = archetype;
+            rec.position_xz = {l.position.x, l.position.z};
+            rec.yaw = l.yaw;
+            // EXPLICIT Y, and this is the case that field exists for: a sconce
+            // hangs on a wall inside the rock, and the heightfield does not
+            // know carves exist.
+            rec.ground_y = l.position.y;
+            ctx.sites.entities.push_back(rec);
+            ctx.sites.types.push_back(SiteType::WallTorch);
+        }
+    }
     return ctx;
 }
 

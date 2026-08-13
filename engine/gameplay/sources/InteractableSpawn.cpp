@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:40:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.cpp
 
@@ -31,19 +31,25 @@ UPD:
   entity dies. It was discarded at creation, so no box could ever be destroyed.
 - 13:08:2026 - 18:25:00: update_interactable_motion — the door swings on its
   hinge and the lever throws its handle, and the ray box moves with them.
+- 13:08:2026 - 18:55:00: The scale is half_extents / mesh_model_half_extents,
+  and a foreign mesh that left the latter at the unit cube is reported LOUDLY —
+  a guess about a mesh's size draws the prop nowhere near its own ray box.
 - 13:08:2026 - 18:40:00: A SETTLED LEAF SNAPS ITS TRANSFORM PAIR TOGETHER.
   Caught reading my own diff, not by a test: the swing's last tick left
   prev != curr and then the at-rest branch returned early, so render would have
   interpolated between two poses that never change again — a door sweeping
   between its final two frames for ever. That is the run smear, one component
   over.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/gameplay/sources/InteractableSpawn.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
+#include <glm/common.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include "engine/core/components/sources/Components.h"
@@ -100,7 +106,12 @@ ecs::EntityId spawn_interactable(ecs::World& world, platform::IPhysics& physics,
     // maps the artist's cube onto the box the crosshair ray hits: the door is
     // EXACTLY its box, and the two shapes cannot drift apart later because
     // there is only one set of numbers.
-    const glm::vec3 scale = desc.half_extents;
+    // SCALE MAPS THE MESH'S OWN SPACE ONTO THE RAY BOX. For this zone's
+    // placeholders the mesh space IS the unit cube, so this is `half_extents`
+    // exactly, as it has been; for a content mesh authored in metres it is the
+    // ratio, and the promise survives either way (InteractableSpawn.h).
+    const glm::vec3 model = glm::max(desc.mesh_model_half_extents, glm::vec3{1.0e-4f});
+    const glm::vec3 scale = desc.half_extents / model;
     const components::Transform transform{.position = desc.position,
                                           .rotation = {1.0f, 0.0f, 0.0f, 0.0f},
                                           .scale = scale};
@@ -115,6 +126,22 @@ ecs::EntityId spawn_interactable(ecs::World& world, platform::IPhysics& physics,
                                                 .scale = transform.scale});
     const uint32_t mesh_asset =
         desc.mesh_asset != 0 ? desc.mesh_asset : interactable_mesh_for(desc.kind);
+    // A FOREIGN MESH WITH AN UNDECLARED SIZE IS A GUESS, AND IT SAYS SO. This
+    // zone knows the extents of its own ids (the unit cube); for anything else
+    // the default {1,1,1} means "assume it was authored in a unit cube", which
+    // is true of nothing but placeholders. Silence here would produce a prop
+    // stretched by whatever its real metres happen to be, drawn nowhere near
+    // the box that answers the crosshair — the exact promise this file spends
+    // its comments on.
+    if ((mesh_asset < INTERACTABLE_MESH_DOOR || mesh_asset > 63)
+        && desc.mesh_model_half_extents == glm::vec3{1.0f}) {
+        std::fprintf(stderr,
+                     "[interactable] mesh %u is not one of this zone's placeholders and "
+                     "its mesh_model_half_extents were left at the unit cube -- the prop "
+                     "will be scaled by its collision half-extents and will NOT match "
+                     "the box the crosshair hits\n",
+                     mesh_asset);
+    }
     world.add(id, components::RenderMesh{mesh_asset, 0});
     // Model-space bounds are the authored cube, by construction.
     world.add(id, components::LocalBounds{.min = {-1.0f, -1.0f, -1.0f},

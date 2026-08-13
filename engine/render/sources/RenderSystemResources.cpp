@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 10:08:2026 - 02:30:08
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -35,6 +35,7 @@ UPD:
 - 10:08:2026 - 02:30:08: register_mesh — the seam for caller-authored geometry
   (character zone's body segments, ids 34..49, app-ferried). Refuses loudly:
   collisions, foreign id ranges, empty geometry.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -50,6 +51,7 @@ UPD:
 #include "engine/render/sources/WaterMesher.h"
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -62,26 +64,111 @@ UPD:
 
 namespace dfn::render {
 
+
+// FLAME FLICKER (the user asked for it by name: «анимацию пламени на факеле»).
+// A carried flame is not a light bulb: it breathes. This modulates INTENSITY
+// and COLOUR only -- never the radius -- and the reason is the defect this zone
+// spent the day on: a moving radius makes the lit patch's EDGE crawl across the
+// floor every frame, which is the same class of between-frames artefact as the
+// darkness meander, delivered by the fix for something else.
+//
+// Two incommensurate sines, no state, no random: a flame reads as alive because
+// it never repeats, and 5.7/9.1 Hz have a beat period of 0.29 s, which is long
+// enough not to read as a buzz. Driven by the VISUAL clock (env.time_seconds),
+// which DFN_VISTIME and DFN_WIND_FREEZE already pin -- so every screenshot
+// recipe in the project stays deterministic, and a flame that broke the tour's
+// determinism would be a fix that costs four zones their acceptance.
+//
+// The phase is offset per light index so a corridor of wall torches breathes
+// out of step rather than pulsing as one lamp.
+//
+// AMPLITUDE IS LOOK-DEV AND WANTS A ROW (Rule 14): 0.12 of intensity and 0.05
+// of warmth are placeholders chosen to sit under the eye's flicker-fusion
+// threshold for a light source of this size, and they are marked as such rather
+// than smuggled in. Requested from the lead with the falloff numbers.
+namespace {
+constexpr float FLAME_INTENSITY_SWING = 0.12f;
+constexpr float FLAME_WARMTH_SWING = 0.05f;
+
+struct Flame {
+    float intensity;
+    float warmth; // >0 = toward the ember, <0 = toward the pale tip
+};
+
+[[nodiscard]] Flame flame_at(float t, uint32_t index) {
+    const float phase = static_cast<float>(index) * 1.7f;
+    const float a = std::sin((t + phase) * 5.7f * 6.2831853f * 0.1591549f);
+    const float b = std::sin((t + phase) * 9.1f * 6.2831853f * 0.1591549f + 2.399f);
+    const float mix = 0.6f * a + 0.4f * b;
+    return {1.0f + FLAME_INTENSITY_SWING * mix, FLAME_WARMTH_SWING * mix};
+}
+} // namespace
+
+
+// The frame's eight slots, given to the nearest flames. Kept out of
+// collect_point_lights so the shadow rule is stated exactly once: the two
+// NEAREST casters get cube maps, which after the sort means the light the
+// player is standing next to -- the carried torch, when he holds one.
+void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candidates) {
+    const uint32_t budget = platform::MAX_POINT_LIGHTS;
+    if (candidates.size() > budget) {
+        std::nth_element(candidates.begin(), candidates.begin() + budget, candidates.end(),
+                         [](const PointLightCandidate& a, const PointLightCandidate& b) {
+                             return a.d2 < b.d2;
+                         });
+        candidates.resize(budget);
+    }
+    std::sort(candidates.begin(), candidates.end(),
+              [](const PointLightCandidate& a, const PointLightCandidate& b) {
+                  return a.d2 < b.d2;
+              });
+    uint32_t count = 0;
+    for (const PointLightCandidate& c : candidates) {
+        platform::PointLight& out = environment_.point_lights[count];
+        out.position = c.position;
+        out.radius_m = c.radius;
+        out.color = c.color;
+        // ONE CASTER, NOT TWO, AND THIS IS A WORKAROUND WITH AN EXPIRY.
+        //
+        // The backend crashes with a SECOND shadow-casting light, and the world
+        // never had one until the wall torches below: the player's carried
+        // torch was the only flame that ever asked. Pinned, not guessed —
+        // BgfxRendererFrame.cpp:129, `order_lights()`. Its two passes recompute
+        // `shadowing` per light, so once `shadow_light_count` hits the cap the
+        // casters it ALREADY added stop looking like casters in pass 1 and are
+        // appended a SECOND time; with 8 incoming lights and 2 casters
+        // `light_count` reaches 10 and writes past `std::array<PointLight, 8>`.
+        // Crash report: byte-write translation fault, that line, every run.
+        //
+        // Capping the request to one caster keeps the arm the backend has
+        // always exercised. It is render's file and render's fix (raised, not
+        // edited); when it lands, this line goes back to
+        // MAX_SHADOW_POINT_LIGHTS and the nearest TWO flames cast.
+        constexpr uint32_t CASTERS_UNTIL_ORDER_LIGHTS_IS_FIXED = 1;
+        out.casts_shadow = count < CASTERS_UNTIL_ORDER_LIGHTS_IS_FIXED && !point_shadows_off_;
+        ++count;
+    }
+    environment_.point_light_count = count;
+}
+
 void RenderSystem::collect_point_lights(ecs::World& world,
                                         const FirstPersonCamera& camera,
                                         float alpha) {
-    uint32_t count = 0;
+    // THE BUDGET IS EIGHT AND A CORRIDOR NOW HAS MORE THAN EIGHT TORCHES, so
+    // the slots go to the NEAREST flames rather than to whichever the ECS
+    // happened to walk first. Collection order was a fair rule while the player
+    // owned the only light in the world; with sconces down a tunnel it would
+    // hand the budget to the far end and leave the player in the dark beside a
+    // burning torch. Gathered, then partially sorted by distance to the eye.
+    std::vector<PointLightCandidate> candidates;
+    const glm::vec3 eye = camera.interpolated_pose(alpha).position;
     const auto add = [&](const glm::vec3& position, float radius,
                          const glm::vec3& color) {
-        if (count >= platform::MAX_POINT_LIGHTS || radius <= 0.0f) {
+        if (radius <= 0.0f) {
             return;
         }
-        platform::PointLight& out = environment_.point_lights[count];
-        out.position = position;
-        out.radius_m = radius;
-        out.color = color;
-        // WHICH lights cast is render's decision, never gameplay's: the first
-        // MAX_SHADOW_POINT_LIGHTS get a cube map and the rest light without
-        // one. Ordering is collection order, i.e. the carried torch — the one
-        // light the player owns — is always among the shadowed ones.
-        out.casts_shadow = count < platform::MAX_SHADOW_POINT_LIGHTS
-                        && !point_shadows_off_;
-        ++count;
+        const glm::vec3 to = position - eye;
+        candidates.push_back({position, color, radius, glm::dot(to, to)});
     };
 
     world.view<components::CarriedLight, components::Transform>().each(
@@ -109,6 +196,12 @@ void RenderSystem::collect_point_lights(ecs::World& world,
                          static_cast<float>((light.color_rgb >> 8) & 0xFFu) / 255.0f,
                          static_cast<float>(light.color_rgb & 0xFFu) / 255.0f};
             }
+            // The flame breathes: intensity and warmth, never the radius.
+            const Flame f = flame_at(environment_.time_seconds,
+                                     static_cast<uint32_t>(candidates.size()));
+            color *= f.intensity;
+            color.g *= 1.0f - f.warmth * 0.5f; // toward ember / toward pale tip
+            color.b *= 1.0f - f.warmth;
             add(position + rotation * light.offset, radius, color);
         });
 
@@ -116,7 +209,7 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     // entity carries a torch during a screenshot run, so DFN_TORCH=1 lights
     // one at the camera's hand. It stands down the moment a real CarriedLight
     // exists, so it can never quietly become the shipping path.
-    if (torch_debug_ && count == 0) {
+    if (torch_debug_ && candidates.empty()) {
         const CameraPose pose = camera.interpolated_pose(alpha);
         const glm::vec3 right = camera.right(alpha);
         if (torch_ahead_m_ > 0.0f) {
@@ -130,8 +223,12 @@ void RenderSystem::collect_point_lights(ecs::World& world,
             const glm::vec3 fwd = camera.forward(alpha);
             const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
                                                   + glm::vec3{1e-4f, 0.0f, 0.0f});
-            add(pose.position + flat * torch_ahead_m_, TORCH_RADIUS_M, TORCH_COLOR);
-            environment_.point_light_count = count;
+            const Flame fb = flame_at(environment_.time_seconds, 0u);
+            glm::vec3 bc = TORCH_COLOR * fb.intensity;
+            bc.g *= 1.0f - fb.warmth * 0.5f;
+            bc.b *= 1.0f - fb.warmth;
+            add(pose.position + flat * torch_ahead_m_, TORCH_RADIUS_M, bc);
+            publish_point_lights(candidates);
             if (dark_frozen_) {
                 environment_.ambient_darkness = frozen_darkness_;
             }
@@ -142,11 +239,15 @@ void RenderSystem::collect_point_lights(ecs::World& world,
         const glm::vec3 fwd = camera.forward(alpha);
         const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
                                               + glm::vec3{1e-4f, 0.0f, 0.0f});
+        const Flame fh = flame_at(environment_.time_seconds, 0u);
+        glm::vec3 hc = TORCH_COLOR * fh.intensity;
+        hc.g *= 1.0f - fh.warmth * 0.5f;
+        hc.b *= 1.0f - fh.warmth;
         add(pose.position + right * 0.35f + flat * 0.15f
                 - glm::vec3{0.0f, 0.25f, 0.0f},
-            TORCH_RADIUS_M, TORCH_COLOR);
+            TORCH_RADIUS_M, hc);
     }
-    environment_.point_light_count = count;
+    publish_point_lights(candidates);
     if (dark_frozen_) {
         environment_.ambient_darkness = frozen_darkness_;
     }

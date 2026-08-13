@@ -10,7 +10,8 @@ $input v_texcoord0
 #include <bgfx_shader.sh>
 
 SAMPLER2D(s_texColor, 0);
-uniform vec4 u_postParams; // x: palette on, y: palette size, zw: internal res
+uniform vec4 u_postParams;
+uniform vec4 u_blackFloor; // x: floor (0 = off), y: falloff exponent
 uniform vec4 u_palette[64];
 
 float bayer2(vec2 p) // [[0,2],[3,1]] as arithmetic: 2x + 3y - 4xy
@@ -21,7 +22,16 @@ float bayer2(vec2 p) // [[0,2],[3,1]] as arithmetic: 2x + 3y - 4xy
 void main()
 {
     vec4 src = texture2D(s_texColor, v_texcoord0);
-    vec4 result = src;
+    // BLACK FLOOR, and it goes BEFORE the palette on purpose: applied after
+    // quantization it would produce colours the 64-entry palette does not
+    // contain, and applied to the palette's own entries it would round back
+    // into the black it is lifting off. The clamp guards pow() from a negative
+    // base; the exponent keeps the day still (docs/NUMBERS.md).
+    vec3 base = src.rgb + u_blackFloor.x
+              * pow(clamp(vec3(1.0, 1.0, 1.0) - src.rgb, 0.0, 1.0),
+                    vec3(u_blackFloor.y, u_blackFloor.y, u_blackFloor.y));
+    base = clamp(base, 0.0, 1.0);
+    vec4 result = vec4(base, src.a);
     if (u_postParams.x > 0.5)
     {
         // Dither computed per internal pixel so every upscaled block of the
@@ -30,7 +40,7 @@ void main()
         vec2 f1 = mod(ip, 2.0);
         vec2 f2 = mod(floor(ip * 0.5), 2.0);
         float bayer = (bayer2(f1) * 4.0 + bayer2(f2)) / 16.0; // 0..15/16
-        vec3 c = src.rgb + (bayer - 0.46875) * 0.05;
+        vec3 c = base + (bayer - 0.46875) * 0.05;
 
         float best = 1.0e9;
         vec3 best_color = vec3(0.0, 0.0, 0.0);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:58:10
-Last updated: 12:08:2026 - 23:52:00
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/SkyModel.h
 
@@ -49,6 +49,19 @@ UPD:
   row from a block that had had no consumer for two days. NOT DONE AND NOT MINE:
   RenderEnvironment carries ONE moon, so the second cannot reach the shader
   until the lead lands the fields (Rule 26).
+- 13:08:2026 - 19:40:00: THE MOON IS OFF THE SUN'S ARC AND ONTO ITS OWN, and the orbital
+  half is AWAKE: apply_sky_time now drives the shipped moon through
+  moon_state_at(masser()). The user's complaint verbatim: «луна двигается за
+  солнцем, почти одинаково, хотя её траектория должна отличаться». It did:
+  moon_direction_at put the moon on arc_direction — the SAME curve the sun
+  rides, offset in time — so the two could never differ in SHAPE, only in
+  phase. Replaced by hour angle + declination at OBSERVER_LATITUDE (the user
+  set the latitude himself: «55-60 градусах»), which is the one model in which
+  a body's arc is a function of its DECLINATION and therefore changes from
+  night to night. apply_sky_time gains `elapsed_days` (defaulted, so no caller
+  breaks) because the node regression is the one term that is not periodic in
+  the synodic month.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -76,8 +89,30 @@ inline constexpr float TORCH_RADIUS_M = 9.0f;
 /// never passes exactly overhead and shadows always have a direction.
 [[nodiscard]] glm::vec3 sun_direction_at(float day_fraction);
 
+/// The observer's latitude, radians. 57.5 deg — the middle of the band the
+/// user named for this world («считаем что мы на постоянной широте +- парижа /
+/// варшавы / москвы 55-60 градусах»): Paris 48.9, Warsaw 52.2, Moscow 55.8.
+/// It is a real parameter and not decoration: the azimuth at which a body of
+/// declination d rises is cos A = sin d / cos(latitude), so the SHAPE of every
+/// arc in the sky is a function of this number.
+inline constexpr float OBSERVER_LATITUDE = 1.00356f;
+
+/// Tilt of the ecliptic to the equator, radians (23.44 deg). The moon's
+/// declination is the obliquity PLUS OR MINUS its own inclination, which is
+/// why its arc swings between a high summer-sun path and a low winter-sun one
+/// inside a single month instead of inside a year.
+inline constexpr float ECLIPTIC_OBLIQUITY = 0.40910f;
+
+/// Direction TOWARD a body at hour angle `hour_angle` (0 = on the meridian,
+/// growing westward, one turn per day) and declination `declination`, seen
+/// from OBSERVER_LATITUDE. Engine frame: +X east, +Y up, +Z south.
+[[nodiscard]] glm::vec3 horizon_direction(float hour_angle, float declination);
+
 /// Direction TOWARD the moon. Its elongation from the sun IS the phase angle:
-/// lunar_phase 0.5 (full) puts it opposite the sun, 0 (new) beside it.
+/// lunar_phase 0.5 (full) puts it opposite the sun, 0 (new) beside it. Kept as
+/// the one-moon entry point (tests, gameplay questions); it now reads the SAME
+/// geometry apply_sky_time does, so there is one moon model in this file and
+/// not two.
 [[nodiscard]] glm::vec3 moon_direction_at(float day_fraction, float lunar_phase);
 
 /// Fraction of the moon's disc that is lit, 0 (new) .. 1 (full).
@@ -135,6 +170,9 @@ struct MoonState {
     float phase = 0.0f;        ///< 0 = new, 0.5 = full, wraps at 1 (shader form)
     float illumination = 0.0f; ///< lit fraction of the disc, 0..1
     float angular_radius = 0.0f; ///< HALF the apparent diameter now, radians
+    float declination = 0.0f;  ///< the number that decides the ARC's shape
+    float right_ascension = 0.0f; ///< eastward position; the rise delay's cause
+    float hour_angle = 0.0f;   ///< 0 = on the meridian, grows westward
     float solar_separation = 0.0f; ///< angle to the sun, radians
     bool observable = false;   ///< outside MOON_SOLAR_EXCLUSION of the sun
 };
@@ -151,7 +189,17 @@ struct MoonState {
 /// moon direction, sun/ambient/fog/sky colours, moonlight and stars. Every
 /// other field of `env` (splat thresholds, water, point light) is untouched,
 /// so the app may override any single value after the call.
+///
+/// `elapsed_days` is the world clock in game days. IT IS DEFAULTED AND THE
+/// DEFAULT IS AN APPROXIMATION, named here rather than hidden: passed
+/// negative, the clock is reconstructed as `lunar_phase * MASSER_SYNODIC_DAYS`,
+/// which is EXACT for every term that is periodic in the synodic month
+/// (elongation, phase, illumination, the equation of centre) and WRONG only
+/// for the node regression, whose period is MASSER_NODE_PERIOD_DAYS = 200 —
+/// under the reconstruction the node line steps back once every 28 days
+/// instead of creeping. The default exists so that adding this parameter
+/// cannot break a caller mid-session; the app should pass its own `days`.
 void apply_sky_time(platform::RenderEnvironment& env, float day_fraction,
-                    float lunar_phase);
+                    float lunar_phase, double elapsed_days = -1.0);
 
 } // namespace dfn::render

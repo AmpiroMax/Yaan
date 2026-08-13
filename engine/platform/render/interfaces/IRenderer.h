@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 10:08:2026 - 23:32:21
+Last updated: 13:08:2026 - 18:59:13
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -60,7 +60,17 @@ UPD:
                          and cloth — one wind for the world. Render's diff,
                          lead-authored per Rule 26.
 - 10:08:2026 - 02:56:25: Weather cloud slice: six additive RenderEnvironment fields (render's diff, Rule 26 sync). Defaults = the scattered state; cloud_offset_m is the ONE drift both sky and ground shadow read.
+- 13:08:2026 - 19:05:00: RenderEnvironment::cloud_deck_m — the three cloud deck
+                         ALTITUDES (render's diff, Rule 26 sync). They were
+                         shader #defines; the user asked for the ceiling's
+                         height to be a FIELD with a legal range, because that
+                         is how the weather and climate of a place will be read
+                         off the sky. The DEFAULT is the shipped R3.2 ladder
+                         1500/2600/4400, so this field is its own zero-dose
+                         control: a caller that never writes it gets the sky
+                         that shipped, byte for byte.
 - 10:08:2026 - 23:32:21: RendererInitParams::msaa_samples — число выборок покрытия на внутренней цели как ПОЛЬЗОВАТЕЛЬСКАЯ настройка (синк №3), а не переменная окружения.
+- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once
@@ -220,6 +230,18 @@ struct RenderEnvironment {
     // the boundary, so it is deliberately NOT per-vertex.
     float ambient_darkness = 0.0f;
 
+    // BLACK FLOOR -- the user's minimum brightness ("абсолютно чёрным рисовать
+    // хорошо, но в таких местах надо сделать их видными"). Applied in the
+    // UPSCALE pass as out = c + black_floor * (1 - c)^BLACK_FLOOR_FALLOFF, per
+    // channel, BEFORE the dither and the palette lookup -- after them the floor
+    // would round into the entry it was meant to lift off. 0 = off, honest
+    // black, and that is the control arm of its own acceptance.
+    //
+    // IT RIDES IN THE PER-FRAME BLOCK AND NOT IN RendererInitParams because the
+    // calibration screen turns it live; a second home for a setting that
+    // changes in play is how two copies of one number start disagreeing.
+    float black_floor = 0.0f;
+
     // Weather state tuple, cloud slice (W1/W4 of WEATHER.md; render's diff,
     // lead-authored). Defaults are the "scattered" state so the sky is alive
     // before core's schedule function exists; the app will later write these
@@ -234,6 +256,22 @@ struct RenderEnvironment {
                                     // value, which is what makes two drifting copies impossible
                                     // (W4's named reject).
     float cloud_wavelength_m = 600.0f; // coverage feature size (NUMBERS WIND_FIELD_WAVELENGTH)
+    // THE THREE DECK ALTITUDES, in meters, low -> mid -> high. They were shader
+    // #defines until the user asked for the ceiling's HEIGHT to be a field:
+    // "должен быть диапазон где им можно быть... в разную погоду на разных,
+    // будем таким образом погоду и климат отображать". A #define cannot carry
+    // that, so the altitude is computed per frame by render (CloudModel) from
+    // the weather state already in this struct and handed to the shaders in one
+    // slot — ONE definition, which matters more here than anywhere else in this
+    // struct: fs_sky intersects the view ray with these planes and
+    // dfn_cloud_sun_vis projects along the SUN to the same planes, and if those
+    // two ever read different numbers the ground shadow slides out from under
+    // the cloud casting it.
+    //
+    // THE DEFAULT IS THE SHIPPED R3.2 LADDER, so a caller that never writes it
+    // draws exactly the sky that shipped — the zero-dose arm of this change is
+    // the struct's own default (Rule 48).
+    glm::vec3 cloud_deck_m{1500.0f, 2600.0f, 4400.0f};
 };
 
 class IRenderer {
