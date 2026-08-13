@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 17:30:00
-Last updated: 13:08:2026 - 18:15:00
+Last updated: 13:08:2026 - 18:25:00
 Module: tests
 File: tests/sim/InteractableVisibleTests.cpp
 
@@ -33,6 +33,8 @@ UPD:
 - 13:08:2026 - 18:10:00: The entity-{0,0} case: the first prop a world spawns
                          packs to user_data 0 and used to be untargetable.
 - 13:08:2026 - 18:15:00: The ray box must die with its prop.
+- 13:08:2026 - 18:25:00: The verb must have a VISIBLE consequence — the door
+                         swings, the lever throws, and the ray target follows.
 */
 
 #include <doctest/doctest.h>
@@ -45,6 +47,7 @@ UPD:
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/core/events/sources/EventBus.h"
 #include "engine/gameplay/sources/InteractableMesh.h"
 #include "engine/gameplay/sources/InteractableSpawn.h"
 #include "engine/gameplay/sources/InteractionSystem.h"
@@ -66,6 +69,15 @@ namespace physics_layer = dfn::physics;
 constexpr uint32_t ALL_IDS[3] = {gameplay::INTERACTABLE_MESH_DOOR,
                                  gameplay::INTERACTABLE_MESH_LEVER,
                                  gameplay::INTERACTABLE_MESH_TORCH};
+
+// Angle between two orientations, in degrees. Written out rather than reached
+// for in glm/gtx: that header is an EXPERIMENTAL extension and including it
+// would put a compile-time gate on this suite that has nothing to do with what
+// it measures.
+[[nodiscard]] float turn_degrees(const glm::quat& from, const glm::quat& to) {
+    const glm::quat d = glm::normalize(to * glm::inverse(from));
+    return 2.0f * std::acos(std::clamp(std::abs(d.w), 0.0f, 1.0f)) * 57.29577951f;
+}
 
 // Moller-Trumbore. Returns the ray parameter of the nearest hit, or -1, and
 // (optionally) the winding normal of the triangle that was hit first.
@@ -449,4 +461,88 @@ TEST_CASE("a prop's ray box dies with the prop") {
     gameplay::reap_interactable_bodies(world, *physics);
     CHECK(world.resource<gameplay::InteractableBodies>().bodies.empty());
     CHECK_FALSE(physics->raycast(eye, dir, 5.0f, physics_layer::LAYER_INTERACTABLE).hit);
+}
+
+TEST_CASE("pressing the verb has a VISIBLE consequence") {
+    // The user's complaint, stated as a test: «ни с чем взаимодействовать не
+    // могу, хотя текст появляется». The chain was intact all the way to a last
+    // step that changed a boolean nothing read — press, state changed, screen
+    // identical. This asserts the screen is not identical.
+    auto physics = platform::create_jolt_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+    world.add_resource(components::HoverTarget{});
+    dfn::events::EventBus bus;
+
+    gameplay::InteractableDesc door;
+    door.kind = gameplay::InteractableKind::Openable;
+    door.position = {0.0f, 1.0f, -2.5f};
+    door.half_extents = {0.9f, 1.0f, 0.1f};
+    door.prompt_key = "prompt.open";
+    const dfn::ecs::EntityId leaf = gameplay::spawn_interactable(world, *physics, door);
+
+    const glm::vec3 shut_pos = world.get<components::Transform>(leaf)->position;
+    const glm::quat shut_rot = world.get<components::Transform>(leaf)->rotation;
+
+    // CONTROL ARM (Rule 30): ticks with the door left shut must move nothing.
+    for (int t = 0; t < 60; ++t) {
+        gameplay::update_interactable_motion(world, *physics);
+    }
+    CHECK(glm::length(world.get<components::Transform>(leaf)->position - shut_pos) <
+          1.0e-4f);
+
+    // Open it the way the verb does.
+    world.get<gameplay::Openable>(leaf)->open = true;
+    for (int t = 0; t < 60; ++t) { // a second, well past the swing time
+        gameplay::update_interactable_motion(world, *physics);
+    }
+    const components::Transform& now = *world.get<components::Transform>(leaf);
+
+    // IT MOVED, and by an amount a player cannot miss. A door 1.8 m wide
+    // hinged on its edge sweeps its centre through most of a metre.
+    const float travel = glm::length(now.position - shut_pos);
+    const float turned = turn_degrees(shut_rot, now.rotation);
+    MESSAGE("the leaf's centre travelled " << travel << " m and turned " << turned
+                                           << " deg");
+    CHECK(travel > 0.5f);
+    // AND IT TURNED A QUARTER: a door that slid sideways without turning would
+    // pass the check above.
+    CHECK(turned == doctest::Approx(90.0f).epsilon(0.02));
+
+    // THE RAY TARGET WENT WITH IT. A door you can see but cannot aim at is the
+    // same defect as a trunk you can see but walk through.
+    const glm::vec3 eye{0.0f, 1.0f, 0.0f};
+    const platform::RayHit at_the_doorway =
+        physics->raycast(eye, {0.0f, 0.0f, -1.0f}, 3.0f, physics_layer::LAYER_INTERACTABLE);
+    const glm::vec3 to_leaf = now.position - eye;
+    const platform::RayHit at_the_leaf =
+        physics->raycast(eye, glm::normalize(to_leaf), 4.0f, physics_layer::LAYER_INTERACTABLE);
+    CHECK(at_the_leaf.hit);
+    CHECK_FALSE(at_the_doorway.hit); // the leaf is not across the opening any more
+    (void)bus;
+}
+
+TEST_CASE("a lever throws its handle when used") {
+    auto physics = platform::create_jolt_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+
+    gameplay::InteractableDesc lever;
+    lever.kind = gameplay::InteractableKind::Usable;
+    lever.position = {-2.0f, 1.3f, 0.0f};
+    lever.prompt_key = "prompt.use";
+    const dfn::ecs::EntityId id = gameplay::spawn_interactable(world, *physics, lever);
+    const glm::quat rest = world.get<components::Transform>(id)->rotation;
+
+    world.get<gameplay::Usable>(id)->used = true;
+    for (int t = 0; t < 60; ++t) {
+        gameplay::update_interactable_motion(world, *physics);
+    }
+    const glm::quat thrown = world.get<components::Transform>(id)->rotation;
+    const float turned = turn_degrees(rest, thrown);
+    MESSAGE("the handle turned " << turned << " deg");
+    CHECK(turned > 30.0f);
+    // A lever turns on its own body: its centre stays put, unlike a door leaf.
+    CHECK(glm::length(world.get<components::Transform>(id)->position - lever.position) <
+          1.0e-4f);
 }

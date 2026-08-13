@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:18:17
+Last updated: 13:08:2026 - 18:20:00
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -34,6 +34,8 @@ UPD:
                          backend has no geometry, so a resize is never
                          obstructed — it records the height so crouch
                          logic is testable headless (Rule 3).
+- 13:08:2026 - 18:20:00: set_body_transform: a no-op here, like every other
+                         body call — there is no geometry to move.
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
@@ -87,6 +89,10 @@ public:
             return {};
         }
         return make_body();
+    }
+    // The null backend has no geometry to move, so a move is a no-op — the
+    // same shape as every other body call here. Deterministic and inert.
+    void set_body_transform(PhysicsBodyHandle, const glm::vec3&, const glm::quat&) override {
     }
     void destroy_body(PhysicsBodyHandle body) override { bodies_.erase(body.id); }
 

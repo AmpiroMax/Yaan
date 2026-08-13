@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:15:00
+Last updated: 13:08:2026 - 18:25:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.cpp
 
@@ -29,19 +29,45 @@ UPD:
   half_extents so the drawn cube IS the ray box.
 - 13:08:2026 - 18:15:00: The ray box's handle is KEPT and reaped when its
   entity dies. It was discarded at creation, so no box could ever be destroyed.
+- 13:08:2026 - 18:25:00: update_interactable_motion — the door swings on its
+  hinge and the lever throws its handle, and the ray box moves with them.
 */
 
 #include "engine/gameplay/sources/InteractableSpawn.h"
 
 #include <algorithm>
+#include <cmath>
+
+#include <glm/gtc/quaternion.hpp>
 
 #include "engine/core/components/sources/Components.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/Interaction.h"
 #include "engine/gameplay/sources/InteractableMesh.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
 namespace dfn::gameplay {
+
+namespace {
+
+// How far a door leaf swings, and how long it takes. Look-dev constants, kept
+// HERE with their reasons rather than in NUMBERS: nothing outside this file has
+// to agree with either yet, and the registry is for numbers two zones share
+// (Rule 35). They move the day a door's opening arc matters to level design.
+//
+// A quarter turn is the smallest angle that cannot be mistaken for a wobble at
+// the 2.5 m a player stands at, and 0.28 s is about the time a hand takes to
+// push one — fast enough to feel like a response to the key, slow enough that
+// the eye sees it MOVE rather than teleport, which is the whole point.
+constexpr float DOOR_SWING_RADIANS = 1.5707963f;
+constexpr float DOOR_SWING_SECONDS = 0.28f;
+// A lever's handle throws through less than a right angle and much faster: it
+// is a snap, not a swing, and a slow lever reads as a stuck one.
+constexpr float LEVER_THROW_RADIANS = 0.9f;
+constexpr float LEVER_THROW_SECONDS = 0.12f;
+
+} // namespace
 
 uint32_t interactable_mesh_for(InteractableKind kind) {
     // Exhaustive, no `default`: a new verb must fail to COMPILE here rather
@@ -98,11 +124,29 @@ ecs::EntityId spawn_interactable(ecs::World& world, platform::IPhysics& physics,
         world.add(id, Openable{.open = desc.starts_open,
                                .locked = desc.locked,
                                .lock_level = 0});
+        // A DOOR TURNS ON ITS EDGE, not on its middle. The hinge is the leaf's
+        // own -X edge, which after the scale-by-half-extents mapping is exactly
+        // half_extents.x away from the centre — one more thing that follows
+        // from the drawn cube being the collision box rather than needing a
+        // number of its own.
+        world.add(id, InteractableMotion{.blend = desc.starts_open ? 1.0f : 0.0f,
+                                         .rest_position = transform.position,
+                                         .rest_rotation = transform.rotation,
+                                         .hinge_offset = desc.half_extents.x,
+                                         .swing_radians = DOOR_SWING_RADIANS,
+                                         .seconds = DOOR_SWING_SECONDS});
         break;
     case InteractableKind::Usable:
         world.add(id, Usable{.action = desc.action,
                              .repeatable = desc.repeatable,
                              .used = false});
+        // A lever turns about its own body, so no hinge offset.
+        world.add(id, InteractableMotion{.blend = 0.0f,
+                                         .rest_position = transform.position,
+                                         .rest_rotation = transform.rotation,
+                                         .hinge_offset = 0.0f,
+                                         .swing_radians = LEVER_THROW_RADIANS,
+                                         .seconds = LEVER_THROW_SECONDS});
         break;
     }
 
@@ -125,6 +169,69 @@ ecs::EntityId spawn_interactable(ecs::World& world, platform::IPhysics& physics,
     }
 
     return id;
+}
+
+void update_interactable_motion(ecs::World& world, platform::IPhysics& physics) {
+    const auto dt = static_cast<float>(config::SIM_DT);
+    InteractableBodies* bodies =
+        world.has_resource<InteractableBodies>() ? &world.resource<InteractableBodies>()
+                                                 : nullptr;
+
+    for (auto [id, motion, transform, previous] :
+         world.view<InteractableMotion, components::Transform,
+                    components::PreviousTransform>()) {
+        // WHERE THE POSE COMES FROM: the verb's own boolean. A lever that is
+        // repeatable never un-uses itself, so its handle stays thrown — which
+        // is honest, and the moment content wants it to spring back the target
+        // below is the one line that changes.
+        float target = 0.0f;
+        if (const auto* openable = world.get<Openable>(id); openable != nullptr) {
+            target = openable->open ? 1.0f : 0.0f;
+        } else if (const auto* usable = world.get<Usable>(id); usable != nullptr) {
+            target = usable->used ? 1.0f : 0.0f;
+        }
+
+        const float step = motion.seconds > 0.0f ? dt / motion.seconds : 1.0f;
+        const float blend =
+            std::clamp(motion.blend + std::clamp(target - motion.blend, -step, step),
+                       0.0f, 1.0f);
+        if (blend == motion.blend) {
+            continue; // at rest: nothing to write, nothing to move
+        }
+        motion.blend = blend;
+
+        // SNAPSHOT FIRST, THEN WRITE — the same discipline the player's own
+        // transform pair follows (Rule 12). Render interpolates prev -> curr,
+        // so a leaf that wrote only `curr` would jump a whole tick's worth of
+        // arc every frame instead of sweeping.
+        previous.position = transform.position;
+        previous.rotation = transform.rotation;
+        previous.scale = transform.scale;
+
+        // Smoothstep, so the leaf eases out of the frame and into its stop
+        // rather than starting and ending at full speed.
+        const float eased = blend * blend * (3.0f - 2.0f * blend);
+        const glm::quat turn =
+            glm::angleAxis(motion.swing_radians * eased, glm::vec3{0.0f, 1.0f, 0.0f});
+        // The hinge, in world space, from the REST pose: deriving from the
+        // current pose would accumulate its own error and walk the door out of
+        // its frame over a session.
+        const glm::vec3 hinge =
+            motion.rest_position
+            + motion.rest_rotation * glm::vec3{-motion.hinge_offset, 0.0f, 0.0f};
+        transform.rotation = turn * motion.rest_rotation;
+        transform.position = hinge + turn * (motion.rest_position - hinge);
+
+        // THE RAY TARGET GOES WITH THE LEAF. A door you can see but cannot aim
+        // at is the same defect as a trunk you can see but walk through.
+        if (bodies != nullptr) {
+            const auto it = bodies->bodies.find(id.packed());
+            if (it != bodies->bodies.end()) {
+                physics.set_body_transform(it->second, transform.position,
+                                           transform.rotation);
+            }
+        }
+    }
 }
 
 void reap_interactable_bodies(ecs::World& world, platform::IPhysics& physics) {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 22:18:17
+Last updated: 13:08:2026 - 18:20:00
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -68,6 +68,12 @@ UPD:
                          foreign code has to change. Rationale for a real
                          capsule resize rather than a camera-only crouch is in
                          the declaration.
+- 13:08:2026 - 18:20:00: ADDITIVE: set_body_transform() — a static body may be
+                         MOVED (a swinging door leaf carries its own ray
+                         target; leaving the box behind makes the drawn door
+                         and the touchable door two different objects). Every
+                         existing signature and semantic is untouched, and the
+                         only implementers are the two backends in this zone.
 */
 
 #pragma once
@@ -171,6 +177,23 @@ public:
     // CANNOT represent overhangs, so voxel terrain must use create_terrain_mesh.
     [[nodiscard]] virtual PhysicsBodyHandle create_terrain(const TerrainDesc& desc) = 0;
     [[nodiscard]] virtual PhysicsBodyHandle create_static_box(const StaticBoxDesc& desc) = 0;
+
+    // Moves a static body. Its SHAPE is unchanged; only where it stands.
+    //
+    // WHY A STATIC BODY MOVES AT ALL. A door leaf swings, and its ray target is
+    // the leaf, not the doorway: leave the box behind and the player aims at
+    // the drawn door and hits nothing, while empty air answers the crosshair.
+    // That is the same "what you see is not what you touch" defect a whole day
+    // went into removing from the trees, arriving through the other door.
+    // Kinematic bodies are the general answer to moving collision and this is
+    // not that: a door leaf has no velocity anything needs to read, and giving
+    // it one would put it in the solver's integration for nothing.
+    //
+    // A no-op on an invalid handle (a caller that never got a body is not an
+    // error; it has nothing to move).
+    virtual void set_body_transform(PhysicsBodyHandle body, const glm::vec3& position,
+                                    const glm::quat& rotation) = 0;
+
     virtual void destroy_body(PhysicsBodyHandle body) = 0;
 
     // Character controller -----------------------------------------------------

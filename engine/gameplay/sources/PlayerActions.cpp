@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:29:52
-Last updated: 13:08:2026 - 18:15:00
+Last updated: 13:08:2026 - 18:25:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerActions.cpp
 
@@ -31,6 +31,8 @@ UPD:
                          see InteractableSpawn.h. Placed at the END of the pass
                          and not inside interact(), because destruction is
                          deferred and a reap there would never find anything.
+- 13:08:2026 - 18:25:00: Advances the visible half of a verb
+                         (update_interactable_motion) before the reap.
 */
 
 #include "engine/gameplay/sources/PlayerActions.h"
@@ -196,6 +198,11 @@ void player_actions_step(ecs::World& world, events::EventBus& events,
         // tick while open so a count can never go stale on screen.
         refresh_inventory_screen(world, p.actor);
     }
+
+    // The visible half of every verb pressed above (and of any that content or
+    // a quest flipped). Before the reap, so a prop that dies this tick is not
+    // posed on its way out.
+    update_interactable_motion(world, physics);
 
     // A prop taken last tick has been flushed by now, so its ray box is a
     // target with nothing behind it. Reaped here rather than at the point of

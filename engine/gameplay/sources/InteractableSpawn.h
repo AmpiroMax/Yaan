@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:15:00
+Last updated: 13:08:2026 - 18:25:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.h
 
@@ -61,6 +61,12 @@ UPD:
   box handle was DISCARDED at spawn, so no prop's box could ever be destroyed:
   taking an item left an invisible ray target standing where it had been, and
   every drop added another for the length of the session.
+- 13:08:2026 - 18:25:00: InteractableMotion + update_interactable_motion — the
+  VISIBLE half of a verb. `Openable::open` and `Usable::used` were booleans
+  nothing read: press, state changed, screen identical. The pose lives apart
+  from the verb's boolean because the boolean is saved game state and a pose is
+  not; and the ray box moves with the leaf, or the drawn door and the touchable
+  door are two different objects.
 */
 
 #pragma once
@@ -69,6 +75,7 @@ UPD:
 #include <map>
 #include <string>
 
+#include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
 #include "engine/core/ecs/sources/EntityId.h"
@@ -131,6 +138,42 @@ struct InteractableDesc {
 struct InteractableBodies {
     std::map<uint64_t, platform::PhysicsBodyHandle> bodies;
 };
+
+// THE VISIBLE HALF OF A VERB. `Openable::open` and `Usable::used` are booleans
+// that, until now, NOTHING read: the player pressed the key, the state changed,
+// and the screen was identical before and after. The user's report was exactly
+// that — «ни с чем взаимодействовать не могу, хотя текст появляется» — and the
+// chain turned out to be intact all the way to a last step that had no
+// consequence.
+//
+// `blend` is that consequence's clock: 0 = at rest, 1 = fully swung. It is
+// SEPARATE from the verb's boolean on purpose. The boolean is game state and is
+// saved; this is a pose, it is derived, and a save that restored a half-open
+// door mid-swing would be restoring an animation frame as if it were a fact.
+//
+// WHAT IT IS NOT: an answer to "what does the lever DO". That is content, and
+// it is the user's to decide. This answers the smaller question the complaint
+// was actually about — can you see that you pulled it.
+struct InteractableMotion {
+    float blend = 0.0f;
+    // The pose at rest, kept so the swung pose is derived from the placement
+    // rather than accumulated onto itself: applying a rotation to the CURRENT
+    // transform every tick drifts, and drift in a door is a door that walks out
+    // of its frame over a session.
+    glm::vec3 rest_position{0.0f};
+    glm::quat rest_rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    // Metres from the prop's centre to the hinge, along its own local -X. Zero
+    // for anything that turns about its own middle.
+    float hinge_offset = 0.0f;
+    float swing_radians = 0.0f; // how far it turns when fully open
+    float seconds = 0.25f;      // time from rest to fully swung
+};
+
+// Once per tick from player_actions_step: advances every prop's swing toward
+// what its verb says, writes the Transform pair render interpolates, and MOVES
+// THE RAY BOX WITH IT — a door leaf you can see but not aim at is the same
+// defect as a trunk you can see but walk through, arriving by another door.
+void update_interactable_motion(ecs::World& world, platform::IPhysics& physics);
 
 // Destroys the ray box of every prop whose entity is gone, and forgets it.
 // Cheap when nothing died (a map walk). Called from player_actions_step, which

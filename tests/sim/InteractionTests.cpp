@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 10:08:2026 - 21:06:27
+Last updated: 13:08:2026 - 18:25:00
 Module: tests
 File: tests/sim/InteractionTests.cpp
 
@@ -37,6 +37,11 @@ UPD:
                          the implementation existed and by a different pass,
                          which is what makes them evidence rather than a
                          restatement of the code.
+- 13:08:2026 - 18:25:00: The three spawn descs use DESIGNATED initialisers.
+  They were positional, so `InteractableDesc` gaining a field in the middle
+  (mesh_asset) silently re-aimed every argument after it -- the compiler caught
+  it this time only because the types happened to disagree. A positional
+  aggregate of nine fields is a trap that fires quietly the once it does not.
 */
 
 #include <doctest/doctest.h>
@@ -124,16 +129,26 @@ TEST_CASE("LOOK: offer_for resolves each verb and its prompt key") {
     Rig rig;
     const EntityId apple = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Pickup, {0, 0, -2}, {0.1f, 0.1f, 0.1f},
-         "interact.take", APPLE, 2});
+        {.kind = gameplay::InteractableKind::Pickup,
+         .position = {0, 0, -2},
+         .half_extents = {0.1f, 0.1f, 0.1f},
+         .prompt_key = "interact.take",
+         .item = APPLE,
+         .count = 2});
     const EntityId chest = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Openable, {2, 0, -2}, {0.5f, 0.35f, 0.35f},
-         "interact.open"});
+        {.kind = gameplay::InteractableKind::Openable,
+         .position = {2, 0, -2},
+         .half_extents = {0.5f, 0.35f, 0.35f},
+         .prompt_key = "interact.open"});
     const EntityId lever = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Usable, {-2, 0, -2}, {0.1f, 0.4f, 0.1f},
-         "interact.use", {}, 1, false, false, serialization::fnv1a64("use.testbed.lever")});
+        {.kind = gameplay::InteractableKind::Usable,
+         .position = {-2, 0, -2},
+         .half_extents = {0.1f, 0.4f, 0.1f},
+         .prompt_key = "interact.use",
+         .action = serialization::fnv1a64("use.testbed.lever"),
+         .repeatable = false});
 
     CHECK(gameplay::offer_for(rig.world, apple).verb == gameplay::InteractionVerb::Take);
     CHECK(gameplay::offer_for(rig.world, chest).verb == gameplay::InteractionVerb::Open);
@@ -166,8 +181,12 @@ TEST_CASE("TAKE: the item lands in the inventory and the pickup is gone") {
     Rig rig;
     const EntityId apple = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Pickup, {0, 0, -2}, {0.1f, 0.1f, 0.1f},
-         "interact.take", APPLE, 2});
+        {.kind = gameplay::InteractableKind::Pickup,
+         .position = {0, 0, -2},
+         .half_extents = {0.1f, 0.1f, 0.1f},
+         .prompt_key = "interact.take",
+         .item = APPLE,
+         .count = 2});
 
     std::vector<gameplay::ItemTaken> taken;
     rig.events.subscribe<gameplay::ItemTaken>(
@@ -192,8 +211,12 @@ TEST_CASE("TAKE: an actor without an inventory fails cleanly") {
     const EntityId bystander = rig.world.spawn(); // no Inventory component
     const EntityId apple = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Pickup, {0, 0, -2}, {0.1f, 0.1f, 0.1f},
-         "interact.take", APPLE, 1});
+        {.kind = gameplay::InteractableKind::Pickup,
+         .position = {0, 0, -2},
+         .half_extents = {0.1f, 0.1f, 0.1f},
+         .prompt_key = "interact.take",
+         .item = APPLE,
+         .count = 1});
 
     std::vector<gameplay::InteractionFailed> failures;
     rig.events.subscribe<gameplay::InteractionFailed>(
@@ -213,8 +236,10 @@ TEST_CASE("OPEN: the door state machine toggles and reports each change") {
     Rig rig;
     const EntityId door = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Openable, {0, 0, -2}, {0.6f, 1.0f, 0.1f},
-         "interact.open"});
+        {.kind = gameplay::InteractableKind::Openable,
+         .position = {0, 0, -2},
+         .half_extents = {0.6f, 1.0f, 0.1f},
+         .prompt_key = "interact.open"});
 
     std::vector<gameplay::OpenStateChanged> changes;
     rig.events.subscribe<gameplay::OpenStateChanged>(
@@ -240,8 +265,12 @@ TEST_CASE("OPEN: a locked door refuses before and after the press") {
     Rig rig;
     const EntityId door = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Openable, {0, 0, -2}, {0.6f, 1.0f, 0.1f},
-         "interact.open", {}, 1, /*starts_open=*/false, /*locked=*/true});
+        {.kind = gameplay::InteractableKind::Openable,
+         .position = {0, 0, -2},
+         .half_extents = {0.6f, 1.0f, 0.1f},
+         .prompt_key = "interact.open",
+         .starts_open = false,
+         .locked = true});
 
     // The refusal is visible in the OFFER, so the reticle can show it before
     // the player presses anything.
@@ -269,8 +298,12 @@ TEST_CASE("USE: a repeatable lever fires every time, carrying its action id") {
     const uint64_t action = serialization::fnv1a64("use.testbed.lever");
     const EntityId lever = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Usable, {0, 0, -2}, {0.1f, 0.4f, 0.1f},
-         "interact.use", {}, 1, false, false, action, /*repeatable=*/true});
+        {.kind = gameplay::InteractableKind::Usable,
+         .position = {0, 0, -2},
+         .half_extents = {0.1f, 0.4f, 0.1f},
+         .prompt_key = "interact.use",
+         .action = action,
+         .repeatable = true});
 
     std::vector<gameplay::Used> uses;
     rig.events.subscribe<gameplay::Used>(
@@ -291,9 +324,12 @@ TEST_CASE("USE: a one-shot usable refuses the second time") {
     Rig rig;
     const EntityId shrine = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Usable, {0, 0, -2}, {0.3f, 0.3f, 0.3f},
-         "interact.use", {}, 1, false, false, serialization::fnv1a64("use.shrine.once"),
-         /*repeatable=*/false});
+        {.kind = gameplay::InteractableKind::Usable,
+         .position = {0, 0, -2},
+         .half_extents = {0.3f, 0.3f, 0.3f},
+         .prompt_key = "interact.use",
+         .action = serialization::fnv1a64("use.shrine.once"),
+         .repeatable = false});
 
     rig.look_at(shrine);
     REQUIRE(rig.act());
@@ -357,8 +393,12 @@ TEST_CASE("torch: taken, held and lit; the light state is reported") {
     rig.world.add(rig.player, gameplay::HeldItem{});
     const EntityId torch = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Pickup, {0, 0, -2}, {0.15f, 0.3f, 0.15f},
-         "interact.take", TORCH, 1});
+        {.kind = gameplay::InteractableKind::Pickup,
+         .position = {0, 0, -2},
+         .half_extents = {0.15f, 0.3f, 0.15f},
+         .prompt_key = "interact.take",
+         .item = TORCH,
+         .count = 1});
 
     std::vector<gameplay::HeldLightChanged> lights;
     rig.events.subscribe<gameplay::HeldLightChanged>(
@@ -489,12 +529,18 @@ TEST_CASE("save sections round-trip inventory and interactable state") {
 
     const EntityId door = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Openable, {0, 0, -2}, {0.6f, 1.0f, 0.1f},
-         "interact.open"});
+        {.kind = gameplay::InteractableKind::Openable,
+         .position = {0, 0, -2},
+         .half_extents = {0.6f, 1.0f, 0.1f},
+         .prompt_key = "interact.open"});
     const EntityId lever = gameplay::spawn_interactable(
         rig.world, *rig.physics,
-        {gameplay::InteractableKind::Usable, {2, 0, -2}, {0.1f, 0.4f, 0.1f},
-         "interact.use", {}, 1, false, false, 7, /*repeatable=*/false});
+        {.kind = gameplay::InteractableKind::Usable,
+         .position = {2, 0, -2},
+         .half_extents = {0.1f, 0.4f, 0.1f},
+         .prompt_key = "interact.use",
+         .action = 7,
+         .repeatable = false});
     rig.look_at(door);
     REQUIRE(rig.act()); // door now open
     rig.look_at(lever);

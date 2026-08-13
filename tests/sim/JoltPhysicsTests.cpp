@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 21:24:32
+Last updated: 13:08:2026 - 18:30:00
 Module: tests
 File: tests/sim/JoltPhysicsTests.cpp
 
@@ -38,6 +38,8 @@ UPD:
   terrain coverage used a flat chunk, on which the two splits are identically
   equal — so it could not have failed. That flat-chunk blindness is now its own
   executable case rather than a remark.
+- 13:08:2026 - 18:30:00: The spawn desc uses designated initialisers; see the
+  note in InteractionTests.cpp on why a positional aggregate is a trap.
 */
 
 #include <doctest/doctest.h>
@@ -311,8 +313,10 @@ TEST_CASE("LOOK: the crosshair ray finds an interactable and resolves its entity
     // A chest 2 m ahead, inside INTERACT_DISTANCE.
     const auto chest = dfn::gameplay::spawn_interactable(
         world, *physics,
-        {dfn::gameplay::InteractableKind::Openable, {0.0f, 1.7f, -2.0f},
-         {0.5f, 0.35f, 0.35f}, "interact.open"});
+        {.kind = dfn::gameplay::InteractableKind::Openable,
+         .position = {0.0f, 1.7f, -2.0f},
+         .half_extents = {0.5f, 0.35f, 0.35f},
+         .prompt_key = "interact.open"});
 
     dfn::gameplay::update_hover(world, *physics);
     const auto& hover = world.resource<dfn::components::HoverTarget>();

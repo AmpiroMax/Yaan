@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 10:08:2026 - 22:39:13
+Last updated: 13:08:2026 - 18:25:00
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -33,6 +33,8 @@ UPD:
                          swim hysteresis against the one-threshold design it
                          exists to reject.
 - 10:08:2026 - 22:39:13: The crouch case no longer asserts the camera arrives at CROUCH_EYE_HEIGHT — it asserts the eye follows the FERRIED crouch offset (character's carve; the old assertion was faithful to a camera sitting inside the body's chest). Control: halve the ferried drop and the eye must halve with it, which a camera holding a constant of its own cannot do.
+- 13:08:2026 - 18:25:00: RecordingPhysics forwards set_body_transform (the
+                         interface gained it for the swinging door leaf).
 */
 
 #include <doctest/doctest.h>
@@ -326,6 +328,10 @@ public:
     platform::PhysicsBodyHandle create_static_box(
         const platform::StaticBoxDesc& d) override {
         return inner->create_static_box(d);
+    }
+    void set_body_transform(platform::PhysicsBodyHandle b, const glm::vec3& p,
+                            const glm::quat& r) override {
+        inner->set_body_transform(b, p, r);
     }
     void destroy_body(platform::PhysicsBodyHandle b) override { inner->destroy_body(b); }
     platform::CharacterHandle create_character(const platform::CharacterDesc& d) override {

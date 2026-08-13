@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 22:18:17
+Last updated: 13:08:2026 - 18:20:00
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -59,6 +59,11 @@ UPD:
                          capsule is rebuilt via a shared make_capsule()
                          and stays anchored at its BOTTOM point, so
                          crouching moves the head and not the feet.
+- 13:08:2026 - 18:20:00: set_body_transform: a static body may be MOVED, for a
+                         door leaf that carries its own ray target. Static, not
+                         kinematic, on purpose — nothing reads a door leaf's
+                         velocity, and giving it one would put it in the
+                         solver's integration for nothing.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -365,6 +370,21 @@ public:
                                  desc.rotation.w};
         return add_static_body(new JPH::BoxShape(half), JPH::RVec3(to_jph(desc.center)),
                                rotation, desc.layer, desc.user_data);
+    }
+
+    void set_body_transform(PhysicsBodyHandle body, const glm::vec3& position,
+                            const glm::quat& rotation) override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end()) {
+            return; // a caller with no body has nothing to move; not an error
+        }
+        // DontActivate: these are static bodies, and there is nothing to wake.
+        // The broad phase is told about the move by SetPositionAndRotation
+        // itself, which is the whole reason it must not be done by hand.
+        system_->GetBodyInterface().SetPositionAndRotation(
+            it->second, JPH::RVec3(to_jph(position)),
+            JPH::Quat{rotation.x, rotation.y, rotation.z, rotation.w},
+            JPH::EActivation::DontActivate);
     }
 
     void destroy_body(PhysicsBodyHandle body) override {
