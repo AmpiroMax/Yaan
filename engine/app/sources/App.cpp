@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 18:13:27
+Last updated: 13:08:2026 - 18:30:23
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -105,6 +105,7 @@ UPD:
 - 13:08:2026 - 17:17:04: НИ ОДИН АВТОМАТИЧЕСКИЙ ПРОГОН БОЛЬШЕ НЕ ЗАБИРАЕТ МЫШЬ. Жалоба пользователя, работавшего за машиной, пока агенты снимали кадры: «когда запускаются визуальные тесты у меня управление компом перехватывается, меня в игру перекидывает, мышью управлять не могу». Освобождение было написано для ОДНОЙ двери (пробы тела), а не для СВОЙСТВА, которое у дверей общее: у автоматического прогона некому целиться, значит ему незачем владеть указателем. Заведён `unattended_run()` — одно определение на двух потребителей, пропуск меню и захват курсора (правило 35). Все четыре места захвата теперь зовут его.
 - 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
 - 13:08:2026 - 18:13:27: Факел и рычаг подняты с 0.5 м на 1.3 м. Замер sim: глаз на 1.7 м, предмет на 0.5 м, расстояние 2.3 м — прицел проходит на 31° ВЫШЕ обоих, поэтому игрок, идущий и смотрящий вперёд, не получает даже подсказки; их бот за 90 секунд ни разу не навёл ни один из двух по той же причине. Дверь на 15.6° вниз ловилась всегда — отсюда «дверь работает, остальные два нет», два разных отказа в одной фразе пользователя. Высота — часть расстановки, и 0.5 м были ниже игры.
+- 13:08:2026 - 18:30:23: Факел в стартовый инвентарь — ПОМЕЧЕННЫЙ КОСТЫЛЬ СТЕНДА. sim замерила, что вся цепочка факела работает от начала до конца, а в мире ровно ОДИН факел — подбираемый в двух метрах от спавна, то есть примерно в 600 м от устья тоннеля, при пустом стартовом инвентаре. Пользователь пошёл в гору с пустыми руками, и другого исхода у него не было. В настоящей игре «найди чем светить» — это содержание и место ему на подходе к подземелью; здесь это разница между местом, в которое можно играть, и местом, в которое нельзя.
 */
 
 #include "engine/app/sources/App.h"
@@ -738,6 +739,24 @@ bool App::enter_world(uint32_t stand) {
 
         world_.add(player_, gameplay::Inventory{});
         world_.add(player_, gameplay::HeldItem{});
+        // A TORCH IN HAND AT SPAWN -- and this is a TESTBED CROSSBAR, marked as
+        // one so nobody mistakes it for design.
+        //
+        // The user walked into the mountain tunnel and reported "абсолютная
+        // тьма, ничего совершенно не видно". sim measured that the whole torch
+        // chain works end to end -- pick up, hold, light, carried light, point
+        // light in the frame -- and that the world contains exactly ONE torch,
+        // a pickup two metres from the spawn, roughly 600 m from the tunnel
+        // mouth, with the inventory starting empty. He went in empty-handed
+        // because there was no other outcome available to him.
+        //
+        // In a shipped game "find something to burn" is CONTENT and belongs in
+        // the dungeon's approach. Here it is the difference between a place
+        // that can be played and one that cannot, so the stand hands him one.
+        if (auto* inv = world_.get<gameplay::Inventory>(player_)) {
+            const auto& db = world_.resource<gameplay::ItemDatabase>();
+            (void)gameplay::add_item(*inv, db, torch.id, 1);
+        }
         // THE VIEW MODEL'S HAND IS DECLARED ABSENT, ON PURPOSE, and this line
         // is a fix rather than a disabling.
         //
