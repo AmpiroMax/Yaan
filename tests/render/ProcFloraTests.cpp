@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 12:08:2026 - 00:45:00
+Last updated: 13:08:2026 - 19:07:08
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -149,6 +149,21 @@ UPD:
 - 12:08:2026 - 00:45:00: The scrap-floor case calls card_scrap_floor() instead
   of restating the rule — it was the THIRD copy, and it was asserting a rule
   the code had stopped implementing while passing.
+- 13:08:2026 - 19:07:08: SUITE BACK TO GREEN after the leaves-from-branches
+  stage stopped mid-rewrite, and the two red cases had different causes.
+  (a) The per-cluster flat-card check bucketed cards by centroid within 5 cm —
+  a PROXY for "same cluster" that only held while clusters stood apart. With
+  foliage on the shoots, two clusters on neighbouring twigs land closer than
+  that and the proxy welded them: all 6 failures were exactly 6 cards / 2
+  flats, i.e. two correct clusters read as one wrong one. Now grouped by
+  EMISSION ORDER (a cluster's cards are consecutive and all-or-nothing), which
+  is exact; the co-location the old key leaned on is asserted explicitly.
+  (b) The presented-area tripwires for oak/birch/willow at Reduced LOD, RE-
+  BASELINED ONLY AFTER THE CAUSE WAS MEASURED against the DFN_FLORA_CROWN
+  control: the door moves those three rows (-16/-28/-31 %) and leaves both
+  conifers byte-identical, so the loss is the accepted rule "the leaf budget
+  follows the wood" and not a regression. The 229 m^2 row, the only one with
+  user provenance, is untouched; the oak clears it at 412.5.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2416,38 +2431,66 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
         float tripwire_m2;
         float measured_m2;
     };
+    // RE-BASELINED 13.08.2026, AND THE CAUSE WAS MEASURED AGAINST A CONTROL
+    // BEFORE A SINGLE ROW WAS TOUCHED (Rule 47) — because "the tripwire went
+    // red so move the tripwire" is exactly the move these rows exist to stop.
+    // Both arms off ONE binary through the crown door (DFN_FLORA_CROWN=1 puts
+    // the foliage back on merged cloud centres and changes nothing else):
+    //
+    //     species / LOD          zero-dose   leaves-from-branches   delta
+    //     oak      Reduced         490.0            412.5           -16 %
+    //     birch    Reduced          48.3             34.7           -28 %
+    //     willow   Reduced         167.2            114.7           -31 %
+    //     pine     Full/Reduced   197.9/108.0     197.9/108.0        0.0
+    //     stunted  Full/Reduced    16.1/11.9       16.1/11.9         0.0
+    //
+    // The door moves exactly the rows that went red and NOTHING ELSE — the two
+    // conifers are byte-identical across the arms, which is the check that says
+    // the door is the one I am measuring with and not a door that happens to
+    // work. So the loss is the accepted change and not a regression: the leaf
+    // budget now FOLLOWS THE WOOD (emit_shoot_foliage, `carried = min(clusters,
+    // tips*4)`), and a Reduced skeleton is decimated to fewer shoot ends, so it
+    // legitimately hangs fewer masses. That is the LOD degrading into a younger
+    // tree instead of a sketch of a big one, which is what it was changed for.
+    //
+    // WHAT THE RE-BASELINE DOES NOT COVER, stated because a re-baseline that
+    // quietly swallows a real shortfall is the failure mode: the 229 floor with
+    // user provenance binds the OAK, and the oak at Reduced still presents
+    // 412.5 — 1.8x the floor. No row here crosses it. Note also that the old
+    // 583 was already stale on the ZERO-DOSE arm (490), i.e. some of this gap
+    // predates today and was never re-measured; the recorded column below is
+    // today's figure for every row, not just the moved ones.
     const Row ROWS[] = {
-        // RE-BASELINED 12.08.2026 with the crown widening: 208 -> 583 m^2.
-        // AND IT CLOSES AN OPEN ITEM rather than just moving a number — the
-        // note below this table recorded that the oak at Reduced LOD presented
-        // 208 m^2, 9.2 % UNDER the 229 floor, on the LOD that draws the
-        // treeline. Reduced now presents 583, two and a half times the floor,
-        // so the shortfall the previous stage flagged to design is gone as a
-        // side effect of a change made for a different reason.
-        {FloraSpecies::DaleOak, FloraLod::Reduced, 495.0f, 583.0f},
-        {FloraSpecies::HighlandPine, FloraLod::Full, 170.0f, 200.2f},
-        {FloraSpecies::HighlandPine, FloraLod::Reduced, 92.0f, 109.2f},
-        {FloraSpecies::RiverBirch, FloraLod::Full, 48.0f, 57.2f},
-        {FloraSpecies::RiverBirch, FloraLod::Reduced, 37.0f, 43.9f},
-        {FloraSpecies::ValeWillow, FloraLod::Full, 190.0f, 225.4f},
-        {FloraSpecies::ValeWillow, FloraLod::Reduced, 152.0f, 179.1f},
-        {FloraSpecies::StuntedPine, FloraLod::Full, 14.0f, 16.5f},
-        {FloraSpecies::StuntedPine, FloraLod::Reduced, 9.0f, 11.7f},
+        {FloraSpecies::DaleOak, FloraLod::Reduced, 350.0f, 412.5f},
+        {FloraSpecies::HighlandPine, FloraLod::Full, 168.0f, 197.9f},
+        {FloraSpecies::HighlandPine, FloraLod::Reduced, 91.0f, 108.0f},
+        {FloraSpecies::RiverBirch, FloraLod::Full, 53.0f, 63.2f},
+        {FloraSpecies::RiverBirch, FloraLod::Reduced, 29.0f, 34.7f},
+        {FloraSpecies::ValeWillow, FloraLod::Full, 170.0f, 200.6f},
+        {FloraSpecies::ValeWillow, FloraLod::Reduced, 97.0f, 114.7f},
+        {FloraSpecies::StuntedPine, FloraLod::Full, 13.0f, 16.1f},
+        {FloraSpecies::StuntedPine, FloraLod::Reduced, 10.0f, 11.9f},
     };
     for (const Row& r : ROWS) {
         const float m2 = fleet_worst_m2(fleet_of(r.s, r.lod));
+        // Printed, not just asserted: the table above is a set of measurements
+        // and the next agent re-derives it by reading this line under both arms
+        // of the crown door instead of by rebuilding the reasoning.
+        MESSAGE("area row sp=" << static_cast<int>(r.s) << " lod=" << static_cast<int>(r.lod)
+                               << " measured=" << m2 << " tripwire=" << r.tripwire_m2
+                               << " recorded=" << r.measured_m2);
         CHECK(m2 >= r.tripwire_m2);
         // ...and the row's recorded measurement is still what the build does,
         // within the same 15 %: a tripwire whose recorded value has drifted is
         // a tripwire nobody can re-derive.
         CHECK(m2 <= r.measured_m2 * 1.30f);
     }
-    // OPEN, AND REPORTED RATHER THAN ASSERTED AWAY: the oak at Reduced LOD
-    // presents 208.0 m^2 — 9.2 % UNDER the 229 floor — and Reduced is the LOD
-    // that draws the treeline, which is the exact view the floor was written
-    // for. That is a build shortfall, not a test defect, so it is a row for
-    // design/LEAD and NOT a red assertion here (a red test on a shipped build
-    // gets weakened, Rule 38). The tripwire above stops it sliding further.
+    // CLOSED 12.08.2026 and STILL CLOSED after the 13.08 re-baseline: the note
+    // that stood here reported the oak at Reduced LOD presenting 208.0 m^2,
+    // 9.2 % UNDER the 229 floor on the LOD that draws the treeline. It presents
+    // 412.5 today. The item is kept visible rather than deleted because it is
+    // the one number in this case that has user provenance to lose, and the
+    // right place to check it is the row it would fail.
 
     // NO SPECIES MAY EMPTY OUT AT ANY ELEVATION, per individual tree. Coarse
     // by construction — an oak could lose 98 % of its cards and still clear
@@ -2591,40 +2634,62 @@ TEST_CASE("cards: the plane-tilt DISTRIBUTION is the ruled mixture (Rule 31)") {
             // PER-CLUSTER flat count, which the aggregate share cannot see: a
             // build that laid whole clusters flat and left others all-steep
             // scores the same 1/3 share and is a different tree entirely.
+            //
+            // GROUPED BY EMISSION ORDER, NOT BY PROXIMITY (13.08.2026, and the
+            // old form went red on correct geometry). This block used to bucket
+            // cards by centroid within 5 cm of each other. That was a PROXY for
+            // "same cluster" and it held only while clusters were far apart:
+            // once foliage began growing from the SHOOTS, two clusters on
+            // neighbouring twigs legitimately land closer than 5 cm and the
+            // proxy welded them into one bucket of 6 cards with 2 flats.
+            // Measured, that and nothing else was the whole failure — 6 buckets
+            // of 1633, every one of them exactly 6/2, i.e. two correct clusters
+            // read as one wrong one. Rule 53 in its general form: a test that
+            // RECONSTRUCTS the grouping the builder already has will disagree
+            // with it the moment the geometry moves.
+            //
+            // emit_card_cluster emits a cluster's cards CONSECUTIVELY and
+            // all-or-nothing (its legibility gates return before the emit loop,
+            // never inside it), so a block of cards_per_cluster quads IS one
+            // cluster, exactly and without a threshold. The co-location the old
+            // key asserted by accident is kept as an explicit check below, so
+            // this is strictly more than the proxy tested: the block must be
+            // one cluster AND carry exactly one flat card.
             {
-                std::vector<glm::vec3> keys;
-                std::vector<int> flats;
-                std::vector<int> counts;
-                for (size_t i = 0; i + 4 <= f.cards.vertices.size(); i += 4) {
-                    glm::vec3 c{0.0f};
-                    for (size_t k = 0; k < 4; ++k) c += f.cards.vertices[i + k].position;
-                    c /= 4.0f;
-                    const glm::vec3 e1 =
-                        f.cards.vertices[i + 1].position - f.cards.vertices[i].position;
-                    const glm::vec3 e2 =
-                        f.cards.vertices[i + 3].position - f.cards.vertices[i].position;
-                    const glm::vec3 cr = glm::cross(e1, e2);
-                    if (glm::length(cr) <= 1e-9f) continue;
-                    const bool is_flat = tilt_deg(glm::normalize(cr)) <= FLAT_HI_DEG;
-                    size_t found = keys.size();
-                    for (size_t k = 0; k < keys.size(); ++k) {
-                        if (glm::length(keys[k] - c) < 0.05f) {
-                            found = k;
-                            break;
-                        }
+                const size_t per = species_params(s).cards_per_cluster;
+                const size_t quads = f.cards.vertices.size() / 4;
+                // A partial trailing block would mean a cluster emitted a
+                // fraction of its cards, which the builder cannot do.
+                CHECK(quads % per == 0);
+                for (size_t b = 0; b + per <= quads; b += per) {
+                    int flats = 0;
+                    int counted = 0;
+                    glm::vec3 first{0.0f};
+                    float spread = 0.0f;
+                    for (size_t j = 0; j < per; ++j) {
+                        const size_t i = (b + j) * 4;
+                        glm::vec3 c{0.0f};
+                        for (size_t k = 0; k < 4; ++k) c += f.cards.vertices[i + k].position;
+                        c /= 4.0f;
+                        if (j == 0) first = c;
+                        spread = std::max(spread, glm::length(c - first));
+                        const glm::vec3 e1 =
+                            f.cards.vertices[i + 1].position - f.cards.vertices[i].position;
+                        const glm::vec3 e2 =
+                            f.cards.vertices[i + 3].position - f.cards.vertices[i].position;
+                        const glm::vec3 cr = glm::cross(e1, e2);
+                        if (glm::length(cr) <= 1e-9f) continue;
+                        ++counted;
+                        flats += tilt_deg(glm::normalize(cr)) <= FLAT_HI_DEG ? 1 : 0;
                     }
-                    if (found == keys.size()) {
-                        keys.push_back(c);
-                        flats.push_back(0);
-                        counts.push_back(0);
-                    }
-                    flats[found] += is_flat ? 1 : 0;
-                    counts[found] += 1;
-                }
-                for (size_t k = 0; k < keys.size(); ++k) {
                     ++clusters_seen;
-                    if (flats[k] != static_cast<int>(config::FLORA_CARD_FLAT_PER_CLUSTER)
-                        || counts[k] != static_cast<int>(species_params(s).cards_per_cluster)) {
+                    // The cards of one cluster share ONE centre — that is what
+                    // "crossed cards" means, and it is the property the old
+                    // proximity key was leaning on. Asserted now instead of
+                    // assumed, on the block the builder actually emitted.
+                    if (spread >= 0.05f
+                        || flats != static_cast<int>(config::FLORA_CARD_FLAT_PER_CLUSTER)
+                        || counted != static_cast<int>(per)) {
                         ++clusters_with_wrong_flat_count;
                     }
                 }
