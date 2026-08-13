@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:57:10
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 20:04:45
 Module: engine/render
 File: engine/render/sources/CloudModel.h
 
@@ -82,6 +82,17 @@ UPD:
   be invisible. Expressible at all only because R3.2 draws the decks by
   intersecting the view ray with a plane at a real altitude.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 20:04:45: CLOUD_CEILING_MIN_M / MAX_M have their NUMBERS rows and come from the
+  generated header now. With them, the MEASUREMENT the lead asked for — is the
+  range a BEHAVIOUR or a possibility? WEATHER is a behaviour (1270 m clear ->
+  470 m overcast, apparent cell size 2.70x against a 1.30x discrimination
+  threshold). PLACE IS NOT, and it is said out loud: at fixed weather the whole
+  1024 m testbed spans 1.17x, UNDER that threshold, because the place
+  wavelength is two world widths and the map fits in half a cell — the term
+  realises 145 m of the 800 the share gave it. And cloud_ceiling_m's header
+  CLAIMED walking does not change the ceiling; it does (0.029 m per frame of
+  walking, 97.6 m per 300 m), so the false sentence is replaced by the numbers
+  and by what they actually mean: it reads as place, not as jitter.
 */
 
 #pragma once
@@ -148,13 +159,15 @@ inline constexpr float CLOUD_WAVELENGTH_M =
 /// pinned, so that floor would have re-run the milky-frame accident one storey
 /// up. At 400 m the deck stands 265 m clear of the crown and 15.7x above the
 /// highest place a player can stand (25.44 m).
-inline constexpr float CLOUD_CEILING_MIN_M = 400.0f;
+inline constexpr float CLOUD_CEILING_MIN_M =
+    static_cast<float>(config::CLOUD_CEILING_MIN_M);
 
 /// The HIGHEST altitude the low deck may be placed at, meters. From R3.2: the
 /// near deck reads as NEAR only through its apparent cell size, and at a ratio
 /// under 1.3 against the middle deck the two merge into one ceiling. The middle
 /// deck sits at CLOUD_DECK_MID_M, so 2600 / 1.3 = 2000.
-inline constexpr float CLOUD_CEILING_MAX_M = 2000.0f;
+inline constexpr float CLOUD_CEILING_MAX_M =
+    static_cast<float>(config::CLOUD_CEILING_MAX_M);
 
 /// The shipped R3.2 ladder. The three altitudes move by ONE multiplier so their
 /// RATIOS survive: 1 : 1.733 : 2.933 is what produces the parallax between the
@@ -187,7 +200,28 @@ inline constexpr float CLOUD_CEILING_WEATHER_SHARE = 0.5f;
 /// The ceiling (the LOW deck's altitude) for a weather state at a place, meters.
 /// Pure. `cover` is the weather model's own cloud_cover — heavy cover means a
 /// low wet ceiling, a clear day means a high one. `eye_xz` is where the observer
-/// stands; the place term moves slowly enough that walking does not change it.
+/// stands.
+///
+/// WALKING DOES CHANGE IT, and this line used to claim it does not. Measured,
+/// worst over 64 bearings from 25 standpoints: 0.029 m of ceiling per 0.1 m
+/// walked (a frame), 0.882 m per 3 m, 97.6 m per 300 m. So the claim is false
+/// as it was written and TRUE as the player experiences it, which is a
+/// different sentence and worth the two lines: per FRAME the ceiling moves
+/// 3e-5 of its own range, which projects into the sky as far less than one
+/// PALETTE_SHADE_STEP_REF anywhere (the whole place term contributes 0.5
+/// percentage points of the pixels that cross a step over a 3 m walk, against
+/// the 3.4 the honest parallax of the decks contributes). Over 300 m it moves
+/// 97 m, which is a visibly different sky. It reads as PLACE, not as jitter —
+/// but that is a measurement, not the definition of the function, and the
+/// header may not assert the conclusion as though it were the mechanism.
+///
+/// AND THE PLACE TERM IS BELOW ITS OWN THRESHOLD ON THIS WORLD. At a fixed
+/// weather state the whole 1024 m testbed spans 863.5..1008.7 m of ceiling =
+/// 1.17x of apparent cell size, under the 1.30x that R3.2 derived as the point
+/// where two decks stop reading as different distances. The share is not the
+/// problem (weather alone gives 2.70x): CLOUD_CEILING_PLACE_WAVELENGTH_M is two
+/// world widths, so the entire map fits in half a field cell and the term
+/// realises 145 m of the 800 it was given. The row in NUMBERS says so.
 [[nodiscard]] float cloud_ceiling_m(float cover, glm::vec2 eye_xz);
 
 /// The three deck altitudes for a ceiling, low/mid/high, meters. One multiplier

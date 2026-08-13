@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 19:49:07
+Last updated: 13:08:2026 - 20:05:20
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -104,6 +104,9 @@ UPD:
   let both arms of its measurement come out of ONE binary while seven other
   agents were editing this tree. Derivation and numbers: dfn_env.sh,
   u_moonGround.
+- 13:08:2026 - 20:05:20: MOON_GROUND_GAIN got its NUMBERS row, so the moon's ground gain stops
+  being a literal here and arrives through the generated header like every other
+  number with two consumers (Rule 35). DFN_MOON_GROUND still overrides it.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -340,16 +343,16 @@ static float ground_tint_dose() {
 // frame came back with 37.79. A gain that the frame answers linearly can be
 // solved for; one that saturates cannot.
 //
-// LOOK-DEV, AND IT WANTS A NUMBERS ROW (Rule 14) — requested from the lead with
-// the measurement above. It cannot come from the generated header yet because it
-// has no row; it may not live in engine/render because the platform layer may
-// not depend on it (the DAG), so it lives beside its dose.
+// IT HAS ITS ROW NOW (`MOON_GROUND_GAIN`, approved with the measurement above),
+// so it arrives through the generated header like every other number with two
+// consumers — never as a literal here and a literal there (Rule 35).
 //
 // DFN_MOON_GROUND is that dose, and 0 is the zero-dose control: at 0 the moon
 // stops lighting the ground and only the night ambient is left, which is the arm
 // the 7.43 above was read from.
 static float moon_ground_gain() {
-    static const float value = dose_env_override("DFN_MOON_GROUND", 1.234f);
+    static const float value = dose_env_override("DFN_MOON_GROUND",
+                          static_cast<float>(config::MOON_GROUND_GAIN));
     return value;
 }
 
