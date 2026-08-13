@@ -1,0 +1,96 @@
+# Created: 13:08:2026 - 22:10:00
+# Last updated: 13:08:2026 - 22:10:00
+# Module: docs/acceptance
+# File: docs/acceptance/flora-crown-plasticity-recipe.txt
+#
+# Responsibility:
+# - CROWN PLASTICITY as a species property (the user's ruling of 13.08.2026),
+#   the table that shows it working, and the NEAR frame that answers the
+#   question LEAD actually asked: after today's nine commits, does our tree read
+#   as a broadleaf tree up close? It does not, and this file says so.
+#
+# Key items:
+# - The measured crown-width-versus-spacing table per species; the near-canopy
+#   frame at the shipped 10 m with its two material arms; the diagnosis.
+#
+# Dependencies:
+# - Uses: build_flora/engine/app/dfn_app at 85e3558, Tour's DFN_FLORA_PROBE=1,
+#   DFN_FLORA_ONLY, tools/archive_frame.py.
+# - Used by: LEAD and the user, for the decision about what to fix next.
+#
+# AI Agents Notice (must follow):
+# - Follow docs/ARCHITECTURE.md strictly.
+# - THE FRAME IN THIS FILE IS A BAD FRAME AND IS PUBLISHED AS ONE. It is not a
+#   choice being offered; it is evidence that the tree is the problem. Do not
+#   quote it as a spacing verdict.
+#
+# UPD:
+# - 13:08:2026 - 22:10:00: Created with the plasticity table and the near frame.
+
+WHAT THE USER RULED (13.08.2026, verbatim)
+
+  «сначала деревья сделать с правильной генерацией кроны. т.е. на 6м кроны
+  будут узенькие, на 15м широкие, даже друг до друга доставать не будут. надо
+  будет показывать примеры на хвое, чья крона всегда +- одного радиуса, и на
+  лиственнице, от которой как раз хотим получить эффекта стеснительной кроны»
+
+He is describing crown plasticity, and he split it by species before we did.
+
+PLASTICITY, MEASURED END TO END AND NOT ASSERTED
+
+  Instrument: a 7x7 lattice of ONE species at spacing s, through the real
+  analyse_neighbourhood, into build_flora_mesh; the centre tree is the subject
+  because a tree inside a stand has neighbours on every bearing. Built crown
+  diameter of that tree, cards only.
+
+      species          6 m     10 m     15 m     open (40 m)   at 6 m
+      oak (broadleaf)  6.4 m    9.0 m   12.9 m      16.4 m       39 %
+      pine (conifer)   8.5 m    8.8 m    8.9 m       8.9 m       96 %
+
+  That is his sentence as a table: the conifer holds one radius, the broadleaf
+  does not. CROWN_PLASTICITY_BROADLEAF 0.45 / _CONIFER 0.05, derivations in
+  NUMBERS.
+
+  THE BIRCH SHOWS NOTHING, AND THAT IS CORRECT RATHER THAN BROKEN. Its crown is
+  6-10 m across (which is the real silver birch: Woodland Trust / Van den Berk
+  give 15-25 m tall and 6-10 m of spread), and at a 10 m lattice two birches do
+  not reach each other at all — so nothing crowds them and nothing should. The
+  species that demonstrates shyness at our spacing is the OAK, whose open crown
+  is 16.4 m. Tuning the birch until it demonstrated the effect would have been
+  fitting the tree to the demo.
+
+THE NEAR FRAME, AND IT IS THE ANSWER TO THE REAL QUESTION
+
+  DFN_CAPTURE_AFTER_FRAMES=600 DFN_FLORA_PROBE=1 \
+  DFN_TOUR=1 DFN_TOUR_DIR=<dir> DFN_NULL_PHYSICS=1 \
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 DFN_TIME=0.5 DFN_MENU=0 \
+  ./build_flora/engine/app/dfn_app
+  ...and the same twice more with DFN_FLORA_ONLY=1 and =2 for the material arms.
+
+  flora-near-canopy-10m-85e3558.png                (composite)
+  flora-near-canopy-10m-WOOD-ONLY-85e3558.png
+  flora-near-canopy-10m-CARDS-ONLY-85e3558.png
+
+  WHAT IT SHOWS: bare dark limbs with clumps of leaf at their ENDS. You can
+  follow every branch from the bole to its tip through open air, and the leaf
+  sits on the last stretch of it like a bud. A broadleaf crown is a MASS — from
+  underneath you should not be able to trace the branch system at all.
+
+  Measured on the frame, per material, pitched UP into the crowns:
+      background 47.6 %   WOOD in front 28.6 %   FOLIAGE in front 20.5 %
+      wood : foliage = 1.4 : 1
+
+  In a view aimed into a broadleaf canopy at eye level, wood outweighing leaf
+  is the whole complaint in one number.
+
+WHY IT IS THIS WAY, AND IT IS TODAY'S OWN DOING
+
+  "Leaves grow out of branches" (the user, this morning) was implemented as
+  foliage masses hung on SHOOT ENDS — gather_shoot_anchors, and the leaf budget
+  capped by the tip count. That fixed the leaf-to-wood gap it was written for
+  (oak 1.39 -> 0.37 m) and it put every leaf at the end of a twig. A real tree
+  carries leaves along the OUTER THIRD of every branch, not at its tip; the
+  interior of the crown is what fills the mass.
+
+  This is a diagnosis with a mechanism and it has NOT been tried, so it is
+  written as the next thing to test and not as the answer.
