@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 21:40:00
+Last updated: 13:08:2026 - 22:20:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -158,6 +158,12 @@ UPD:
   cost a third of the canopy), and the crowding response: a tree that grew up in
   a crowd is narrower, which is the user's «7-10 видов для тесноты, 5 для
   простора» as one law with two ends rather than fifteen hand-fitted sets.
+- 13:08:2026 - 22:20:00: The Weber gate re-tested after the leaf-budget fix and
+  LEFT WHERE IT WAS, with the residual diagnosed at its site: the ordinary oak
+  still misses REJECTION 1 by 1-10 %, and not because of the stand-off but
+  because emit_cluster slides a mass to fit an envelope the model disagrees
+  with — the published CA Black Oak declares Shape 2 (hemispherical) where our
+  table carries CrownEnvelope::Sphere.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -999,6 +1005,19 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         // better than anything this zone has produced. The giant already has
         // its own budget and is over the gate today, which is why it is the
         // species that switched.
+        // RE-TESTED after the leaf budget was made to follow the wood, because
+        // that fix addressed exactly what was failing — and it is NOT enough:
+        // the ordinary oak at 90 nodes still misses REJECTION 1 by 1-10 %.
+        // WHERE THE RESIDUAL COMES FROM, diagnosed and left for tomorrow: it is
+        // not the stand-off (0.35 of a mass radius, far under the bound) but
+        // emit_cluster SLIDING a mass to fit the species envelope after
+        // gather_shoot_anchors put it on wood. And the envelope disagrees with
+        // the model: the published CA Black Oak row declares Shape 2,
+        // HEMISPHERICAL, while our table's DaleOak carries CrownEnvelope
+        // ::Sphere. A crown shaped by one rule and contained by another has to
+        // be pushed, and the push is the gap. The fix is to make a species'
+        // envelope agree with its own Weber shape, which touches the ramified
+        // path too and is not a thing to start at the end of a session.
         constexpr uint32_t WEBER_MIN_NODES = 150;
         if (flora_weber_arm() && nodes >= WEBER_MIN_NODES
             && species_weber(t.species, t.height).levels > 0) {
