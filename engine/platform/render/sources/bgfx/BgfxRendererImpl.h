@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 16:10:00
+Last updated: 13:08:2026 - 18:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -56,6 +56,11 @@ UPD:
   canopy and passes only the blob. 4096 over 40 m = 0.0195 m fixes the
   bandwidth, not the amount — the dose arms say the amount was never the
   problem.
+- 13:08:2026 - 18:10:00: ENV_PARAM_VEC4S 38 -> 39 (slot 38 = THE FILL'S
+  DIRECTION) plus FILL_UP_DEFAULT / FILL_SUN_DEFAULT. Measured before it was
+  touched: a bole standing in its own canopy's shadow ran p90/p10 = 1.01x over
+  228 pixels — one colour — because dfn_surface_light's shadow half-space had no
+  surface normal in it at all. Paired with dfn_env.sh per the layout contract.
 */
 
 #pragma once
@@ -284,7 +289,40 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 38; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 39; // layout contract with dfn_env.sh
+
+// SLOT 38 — THE FILL'S DIRECTION (user: "тёмные деревья, словно их нет, как
+// чёрное пятно ... она должна быть темнее переда, но цвет одинаковый").
+//
+// MEASURED BEFORE IT WAS TOUCHED. A tree bole standing in its own canopy's
+// shadow, 228 pixels strictly inside the bark: p10 21.8, p50 21.8, p90 22.1 —
+// **p90/p10 = 1.01x, sixteen distinct luma values in 228 pixels.** Open sunlit
+// ground in the same frame runs 3.26x over 233 values and a lit crown 3.75x
+// over 364. The shadow side is not "darker", it is ONE COLOUR.
+//
+// And it could not have been anything else. In dfn_surface_light the whole
+// shadow half-space collapses to
+//     light = u_ambientColor * sky_vis
+// with no surface normal in it anywhere, so every normal returns the same
+// number and what survives is the albedo texture times a constant. Sixteen
+// tones is the BARK, not the tree.
+//
+// x = FILL_UP: the sky above is brighter than the ground below, so n.y earns
+//     a face its top and bottom back. Does nothing for a vertical bole, whose
+//     normals are horizontal — which is why there is a second term.
+// y = FILL_SUN: the sky is brightest around the sun and the sunlit ground
+//     bounces from that side, so dot(n, sun) gives a VERTICAL cylinder an
+//     azimuth: the side facing the sun is lighter than the side away. That is
+//     the user's sentence — "darker than the front" — as arithmetic.
+//
+// BOTH TERMS HAVE ZERO MEAN OVER A SPHERE OF NORMALS, deliberately, so this
+// moves the DISTRIBUTION of the fill and cannot move its AVERAGE. That is the
+// property that makes the acceptance readable at all: any change that also
+// shifts the mean would be indistinguishable from simply turning the ambient
+// up, and this zone has already been burned twice this week by a number whose
+// mean and distribution said different things.
+inline constexpr float FILL_UP_DEFAULT = 0.35f;   // up:down = 1.35/0.65 = 2.08x
+inline constexpr float FILL_SUN_DEFAULT = 0.25f;  // sunward:away = 1.25/0.75 = 1.67x
 inline constexpr uint16_t PALETTE_SIZE = 64;
 
 struct DebugVertex {

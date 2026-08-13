@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 12:08:2026 - 23:20:00
+Last updated: 13:08:2026 - 18:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -134,6 +134,22 @@ UPD:
   not zero dose (gain 0 pins the term at 0.5 = a flat mid-grey deck), and the
   term was combined with max() (which floored the deck at half-shaded and
   deleted the directional signal wherever density was larger).
+- 13:08:2026 - 18:10:00: THE FILL HAS A DIRECTION (env block 38 -> 39, slot 38).
+  The user: "тёмные деревья, словно их нет, как чёрное пятно ... она должна быть
+  темнее переда, но цвет одинаковый". He is right and the number is p90/p10 =
+  1.01x across a shadowed bole: every term in this function was gated on the
+  sun, the moon or a lamp, so by day the shadow half-space reduced to
+  `u_ambientColor * sky_vis` — a constant with no normal in it, leaving the
+  albedo texture times a number. Two zero-mean directions restore it: n.y (sky
+  over ground, which gives a crown its top and bottom) and dot(n, sunDir) (the
+  sky is brightest around the sun, the only one of the two a VERTICAL bole can
+  use). MY OWN OVERCLAIM, CAUGHT BY MEASURING IT: the first version was
+  zero-mean over a SPHERE of normals and I wrote that it therefore could not
+  move the frame mean. A frame is not a sphere of normals, it is mostly ground
+  and ground faces up — whole-frame mean 84.81 -> 87.27, open ground 88.90 ->
+  98.18, a 10 % brightening of the world under a claim of preservation. Now
+  divided by the fill a straight-up normal gets, so the surface u_ambientColor
+  was calibrated on is the one that does not move.
 */
 
 #ifndef DFN_ENV_SH
@@ -144,7 +160,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[38];
+uniform vec4 u_envParams[39];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -218,6 +234,10 @@ uniform vec4 u_envParams[38];
 #define u_mistHeight      (u_envParams[37].x)
 #define u_mistThickness   (u_envParams[37].y)
 #define u_mistDensity     (u_envParams[37].z)
+// THE FILL'S DIRECTION. Slot 38; see dfn_surface_light and the derivation with
+// the constants in BgfxRendererImpl.h.
+#define u_fillUp          (u_envParams[38].x)
+#define u_fillSun         (u_envParams[38].y)
 // The quantiser's own luma weights (fs_upscale.sc). Every brightness rule in
 // the sky is written in THIS metric and not in Euclidean RGB, because the
 // palette pass weights the channels and a difference that lives in blue is
@@ -687,7 +707,42 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
     // authoring should not have to describe a cave's shape.
     float dark = clamp(u_ambientDarkness, 0.0, 1.0);
     float sky = sky_vis * (1.0 - dark);
-    vec3 light = u_ambientColor * sky;
+    // THE FILL HAS A DIRECTION, AND WITHOUT ONE THE SHADOW SIDE HAS NO SHAPE.
+    // Every term below this line is gated on the sun, the moon or a lamp, so in
+    // the shadow half-space by day the whole function used to reduce to
+    // `u_ambientColor * sky` — a constant with no surface normal in it. Measured
+    // consequence, on a bole standing in its own canopy's shadow: p90/p10 of
+    // luma across 228 pixels of bark = 1.01x, sixteen distinct tones, i.e. the
+    // bark texture times a number. The user's words for it were "как чёрное
+    // пятно ... она должна быть темнее переда, но цвет одинаковый".
+    //
+    // Two directions, because they answer two different shapes:
+    //   n.y            — the sky above outshines the ground below. This is what
+    //                    gives a boulder or a crown a top and a bottom.
+    //   dot(n, sunDir) — the sky is brightest around the sun and the sunlit
+    //                    ground bounces from that side. This is the only one of
+    //                    the two that a VERTICAL bole can use, its normals being
+    //                    horizontal, and it is what turns a black stick back
+    //                    into a cylinder.
+    //
+    // REFERENCED TO A SURFACE FACING STRAIGHT UP, WHICH IS NOT COSMETIC. The
+    // first version was zero-mean over a SPHERE of normals and I wrote that it
+    // therefore could not move the frame's average. It moved it: a frame is not
+    // a sphere of normals, it is mostly GROUND, and ground faces up. Measured,
+    // the honest way, one binary two arms: whole-frame mean 84.81 -> 87.27 and
+    // the open-ground patch 88.90 -> 98.18, i.e. a 10 % brightening of the
+    // world smuggled in under a claim of preservation. So: divide by the fill a
+    // straight-up normal gets. u_ambientColor was calibrated against a world
+    // where every normal received it equally, and the ground is the surface it
+    // was judged on, so the ground is what must not move — everything else is
+    // now stated RELATIVE to it and the change is a pure redistribution.
+    //
+    // The clamp is not decoration either: a hand-set DFN_FILL_* can exceed 1,
+    // and a negative fill would make the ambient SUBTRACT light.
+    float fill_ref = 1.0 + u_fillUp + u_fillSun * max(u_sunDir.y, 0.0);
+    float fill = (1.0 + u_fillUp * n.y + u_fillSun * dot(n, u_sunDir))
+               / max(fill_ref, 1e-3);
+    vec3 light = u_ambientColor * (sky * max(fill, 0.0));
     // Cloud shadow (W4): the same coverage field the sky draws, projected
     // along the sun. Lives HERE so every surface-lit thing — terrain, props,
     // foliage — darkens under the same crawling shadow (Rule 32).

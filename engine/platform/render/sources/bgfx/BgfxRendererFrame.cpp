@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 16:10:00
+Last updated: 13:08:2026 - 18:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -76,6 +76,8 @@ UPD:
   DFN_SUN_SHADOW=0 asks "is there any shadow", DFN_SHADOW_NEAR=0 asks the
   question this change makes — "is the new grain the cascade, or the ground
   material that moved under us this week" — and both come out of one binary.
+- 13:08:2026 - 18:10:00: packed[38] = the fill's direction (DFN_FILL_UP /
+  DFN_FILL_SUN, both doses, both 0 restoring the previous frame exactly).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -367,6 +369,16 @@ void BgfxRenderer::Impl::apply_environment() const {
     packed[36] = {haze.scale_m, haze.height_m, haze.base_m, 0.0f};
     packed[37] = {haze.mist_height_m, haze.mist_thickness_m, haze.mist_density,
                   0.0f};
+    // THE FILL'S DIRECTION (slot 38). Derivation and the before-number with the
+    // constants in BgfxRendererImpl.h. Both doses read ONCE, and setting BOTH to
+    // 0 restores the shipped-before-this frame exactly — 1 + 0*n.y + 0*dot() is
+    // 1, so the ambient line is bit-identical to `u_ambientColor * sky`. That is
+    // the control arm this claim is measured against, and it comes out of the
+    // same binary as the shipped one.
+    static const float fill_up = dose_env_override("DFN_FILL_UP", FILL_UP_DEFAULT);
+    static const float fill_sun =
+        dose_env_override("DFN_FILL_SUN", FILL_SUN_DEFAULT);
+    packed[38] = {fill_up, fill_sun, 0.0f, 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};
