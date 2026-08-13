@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 12:08:2026 - 00:36:00
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.h
 
@@ -41,6 +41,15 @@ UPD:
   wood to 90.8 m -- twice its declared height -- because every generation adds
   its length to whatever the last one reached, and the species height band is a
   cross-zone contract.
+- 13:08:2026 - 16:20:00: LEAVES GROW OUT OF BRANCHES (user, 13.08.2026:
+  «листья должны из веток расти»). gather_shoot_anchors() places every foliage
+  mass ON a branch segment with a bounded stand-off, and gather_foliage_anchors
+  is demoted to the zero-dose arm with a note on what it really did — its
+  cluster centres are cloud CENTROIDS, so they are on no branch, and the
+  attachment invariant this file declares was satisfied in name only (measured:
+  a Dale Oak's cards a mean 1.39 m and a worst 4.59 m from the nearest wood).
+  Plus FractalParams::major_base_drop -- the first-order limbs leave the bole
+  over a length of it instead of all from its tip (a wine glass).
 */
 
 #pragma once
@@ -242,6 +251,14 @@ struct FractalParams {
     float top_y = 1e9f;      ///< m, absolute ceiling for any node
     float max_radius = 1e9f; ///< m, from the crown axis
     glm::vec2 axis{0.0f};    ///< XZ centre the radius is measured from
+    /// HOW MUCH OF THE BOLE THE FIRST-ORDER LIMBS LEAVE FROM, in metres below
+    /// its top. Zero puts every major limb on one point, which is a candelabra
+    /// — the exact silhouette seed_trunk_nodes() exists to prevent for the
+    /// colonizing species, and the fractal grower inherited the defect by
+    /// starting from the LAST seeded node only. A real bole sheds its majors
+    /// over several metres of its length, and that stagger is most of what
+    /// makes the fork read as a tree rather than as a wine glass.
+    float major_base_drop = 0.0f;
 };
 
 /// Grows the fractal crown from the LAST node of `sk` (the bole's top). Every
@@ -283,8 +300,69 @@ void soften_forks(Skeleton& sk, float amount);
 
 /// Merges leaf sites into `target_count` foliage clusters, each still anchored
 /// to a real node. Returns cluster centres and their anchor node indices.
+///
+/// SUPERSEDED FOR EVERY CARD SPECIES, AND KEPT ONLY AS THE ZERO-DOSE ARM
+/// (FloraSpecies.h, flora_envelope_arm()). Read what it does, not what it is
+/// called: a cluster centre is the MEAN of the leaf sites that merged into it,
+/// and those sites are attractor points sampled through the crown VOLUME. The
+/// mean of a cloud is not on any branch, the merge radius grows by 1.32x per
+/// pass until the count fits, and the anchor is then re-chosen as whatever node
+/// happens to be nearest. The attachment invariant at the top of this file is
+/// therefore satisfied in NAME (every cluster names a node) and not in FACT
+/// (measured 12.08.2026 on the shipped build: a Dale Oak's leaf cards sit a
+/// mean 1.99 m and a worst 6.03 m from the nearest wood). That is the user's
+/// «крона от ствола отходит… листья и ствол живут разной жизнью», and it is a
+/// property of the CONSTRUCTION rather than of any parameter in it.
 void gather_foliage_anchors(const Skeleton& sk, uint32_t target_count,
                             std::vector<glm::vec3>& centres,
                             std::vector<int>& anchors, std::vector<float>& reach);
+
+/// Where foliage may sit on a shoot, and how far off it. All distances in
+/// metres so the caller has to state them against the tree it is building.
+struct ShootFoliage {
+    uint32_t target_count = 24; ///< how many masses the budget affords
+    float base_y = 0.0f;        ///< no foliage below this (the crown base)
+    /// THE ATTACHMENT BOUND, and the whole point of this path. A mass may stand
+    /// at most this far off the wood it grows on, so the leaf-to-branch
+    /// distance is capped BY CONSTRUCTION rather than measured after the fact.
+    /// Set it to half the mass's own radius and the mass always overlaps its
+    /// twig — the rule whorl_skeleton() already states for pendulous shoots
+    /// («a shoot that falls further than its own card is wide reads as
+    /// detached foliage»), applied to every species instead of to one.
+    float stand_off = 0.0f;
+    /// Only wood THINNER than this carries leaves. A bole does not: leaves grow
+    /// on shoots, and hanging a leaf mass on a 0.6 m limb is the same defect as
+    /// hanging one in the air, one metre closer in.
+    float outer_radius = 1e9f;
+    /// XZ centre of the crown, so the stand-off can be biased OUTWARD from it.
+    /// Not a flourish and not free width taken dishonestly: a leaf spray sits on
+    /// the OUTSIDE of the twig that carries it, toward the light, and the
+    /// stand-off is bounded either way — biasing its DIRECTION cannot increase
+    /// the leaf-to-wood distance by a millimetre. What it does buy is the
+    /// crown's built WIDTH, which is a cross-zone contract (design derived
+    /// TREE_SPACING_FOREST from it) and which foliage grown on inboard wood
+    /// otherwise gives up: measured, the oak's built diameter fell 16 % on the
+    /// day its leaves stopped being scattered through the volume.
+    glm::vec2 axis{0.0f};
+};
+
+/// LEAVES GROW OUT OF BRANCHES — the user's sentence, as a construction.
+///
+/// Every site returned lies ON a branch segment (a point between a node and its
+/// parent), displaced by at most `stand_off`. Nothing is sampled from a volume,
+/// nothing is averaged, and no site can exist where no wood does, so the
+/// leaf-to-wood distance is bounded before anything is measured. Sites are
+/// weighted toward the OUTER end of each shoot and every tip gets one, because
+/// that is where a real crown's leaf mass is (the same fact whorl_skeleton()
+/// uses for needles: the inboard length of every branch is bare wood).
+///
+/// WHAT THIS REPLACES AND WHY IT IS NOT A TUNING. The merged-cloud path above
+/// places a mass at the centroid of a cluster of volume points. That centroid
+/// is not on a branch — it cannot be, it is a mean — so the gap between leaf
+/// and wood is whatever the cloud's shape makes it, and no parameter bounds it.
+/// This path cannot express the defect at all.
+void gather_shoot_anchors(const Skeleton& sk, const ShootFoliage& p, uint64_t seed,
+                          std::vector<glm::vec3>& centres,
+                          std::vector<int>& anchors);
 
 } // namespace dfn::render

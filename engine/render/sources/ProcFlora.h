@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 13:08:2026 - 18:30:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -49,6 +49,14 @@ UPD:
   axis, or trees of equal height are still copies), FloraShape::chained (the
   named лукоморье oak), and the lean's docstring restated as a WIND response
   with an azimuth source rather than a per-tree jitter.
+- 13:08:2026 - 18:30:00: FloraStructure / build_flora_structure() -- the wood as
+  STRUCTURE for sim and collide (requested by collide the same day). Until now
+  this zone published three scalars and a triangle soup, so a body could only
+  collide with a plumb capsule at the stump; the lean band has since opened to
+  15-25 deg and a bole is a SWEPT axis, so at crown height the wood is metres
+  from where a plumb capsule puts it. Measured on the built tree: an oak's bole
+  walks 4.2 m sideways, a great oak's 10.4 m. Foliage is deliberately absent
+  and must stay absent -- cards have no volume.
 */
 
 #pragma once
@@ -120,6 +128,66 @@ struct FloraMesh {
     MeshData wood;  ///< trunk, branches, cone tiers, silhouette shells ("prop")
     MeshData cards; ///< alpha-cutout leaf cards ("foliage" + the leaf atlas)
 };
+
+/// --- THE WOOD AS STRUCTURE, FOR THE ZONES THAT HAVE TO TOUCH IT -----------
+///
+/// Requested by `collide` 13.08.2026 and it is a real gap rather than a
+/// convenience: until now flora handed out three scalars (trunk radius, crown
+/// base, crown radius) and a triangle soup, so a body could only ever collide
+/// with a VERTICAL CAPSULE at the stump. That was adequate while every tree
+/// stood plumb. It is not adequate now — the lean band opened to 15-25 deg and
+/// the bole is a SWEPT axis, so at crown height the wood is metres away from
+/// where a plumb capsule puts it, and no test either zone could write would
+/// catch the divergence: both would be self-consistent and disagree about the
+/// world. The user also asked to CLIMB the great oak, and there is nothing to
+/// climb without branch positions and radii.
+///
+/// IT IS THE SAME WOOD THAT IS DRAWN, BY CONSTRUCTION. The structure is filled
+/// by the same emitters that produce the mesh, on the same pass, from the same
+/// (species, variant, shape, seed) — not rebuilt by a parallel routine. A second
+/// derivation of the same geometry is a divergence with a date on it, and this
+/// zone has spent two days on exactly that failure in a smaller place (the card
+/// legibility floor, which existed in three copies).
+struct FloraBranch {
+    glm::vec3 a{0.0f};      ///< parent end, TREE-LOCAL (y = 0 at the root flare)
+    glm::vec3 b{0.0f};      ///< child end
+    float radius_a = 0.0f;  ///< m
+    float radius_b = 0.0f;  ///< m
+    bool trunk = false;     ///< part of the authored bole
+    uint8_t order = 0;      ///< 0 on the trunk axis, +1 past every fork
+};
+
+/// Climbing furniture (the great oak only). GEOMETRY, and whether a body may
+/// stand on it is sim's to decide — flora states where the shapes are.
+struct FloraFurniture {
+    glm::vec3 centre{0.0f}; ///< tread root / platform centre, tree-local
+    glm::vec3 out{0.0f};    ///< tread direction and length; zero for a platform
+    float radius = 0.0f;    ///< tread half-thickness, or platform radius
+    bool platform = false;
+};
+
+struct FloraStructure {
+    std::vector<FloraBranch> branches;
+    std::vector<FloraFurniture> furniture;
+    float height = 0.0f;
+    float crown_base = 0.0f;
+    float crown_top = 0.0f;
+    float crown_radius = 0.0f;
+    float trunk_radius = 0.0f; ///< at the base, EXCLUDING the flare
+    /// XZ centre of the crown. NOT the origin once a tree leans (LANDSCAPE
+    /// §10.3): a leaning tree carries its crown over the top of its bole.
+    glm::vec2 crown_axis{0.0f};
+};
+
+/// The wood of one tree, in the same local frame as build_flora_mesh().
+///
+/// FOLIAGE IS DELIBERATELY ABSENT AND MUST STAY ABSENT: leaf cards are
+/// alpha-cutout quads with no volume, and colliding with them would put a wall
+/// where the player can see sky. Nothing in this struct is foliage.
+[[nodiscard]] FloraStructure build_flora_structure(FloraSpecies species,
+                                                   uint32_t variant,
+                                                   const FloraShape& shape,
+                                                   FloraLod lod = FloraLod::Full);
 
 /// The canonical builder. Deterministic in every argument.
 ///

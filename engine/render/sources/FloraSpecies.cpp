@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 12:08:2026 - 00:45:00
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -54,6 +54,14 @@ UPD:
   bounded by branch TIPS, not by cluster_count).
 - 12:08:2026 - 00:45:00: card_scrap_floor() defined here; its three call sites
   now share one definition.
+- 13:08:2026 - 16:20:00: EVERY BROADLEAF RAMIFIES (user, 13.08.2026). Fractal
+  rows for the oak, the birch and the willow -- the great oak's grower was never
+  great-oak-specific. And the cluster sizes are RE-DERIVED from the containment
+  arithmetic rather than nudged: a mass is contained by its card CORNER reach,
+  the oak's was 0.56 of the whole crown radius, so a crown of 26 such masses
+  could not exist and 7 of them were being dropped in silence (birch 16 of 20,
+  willow 15 of 20). Corner reach is now a third of the crown radius and the
+  count rises to match, paid for out of the wood by max_crown_segments().
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -180,6 +188,38 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     oak.branch_base_frac = 0.30f; // limbs leave the bole below the foliage line
     oak.phototropism = 0.26f;
     oak.droop = 0.14f;
+    // RAMIFICATION, and it replaces the colonizer above as what BUILDS this
+    // crown (the colonizer's rows are left in place because DFN_FLORA_CROWN=1
+    // is the zero-dose arm and has to be able to rebuild the old tree from the
+    // same binary).
+    //
+    // THE USER'S DIAGNOSIS, 13.08.2026: «крона от ствола отходит… листья
+    // должны из веток расти», and the reason he could see it is structural.
+    // The Quercus text above is still true — a decurrent crown with a few heavy
+    // sinuous limbs — but space colonization DERIVES those limbs from a cloud,
+    // so what the finished tree shows is the cloud's shape, and the foliage was
+    // placed at cloud CENTROIDS that are on no branch at all. Recursive
+    // ramification states the limbs directly, and the same rule at every scale
+    // is what makes an oak's silhouette read as an oak at 8 px and at 8 m.
+    //
+    // NO NEW TRIANGLES. The node budget handed to the grower is
+    // max_crown_segments(), the identical ceiling the colonizer was given, so
+    // this is a change of WHAT the wood is, not of how much (measured: oak wood
+    // 287 -> 297 triangles a tree, inside the same TREE_TRI_BUDGET_MAX 700).
+    //
+    // 2-4 MAJORS, not the great oak's 2-5: at a 43-node budget five first-order
+    // limbs leaves eight nodes each and every one of them is a stub. The count
+    // is what the budget affords, not a style — and the two-lobed / elliptical /
+    // domed variety the great oak gets from this same number survives, one
+    // notch narrower.
+    oak.fractal_depth = 4;
+    oak.fractal_majors_min = 2;
+    oak.fractal_majors_max = 4;
+    oak.fractal_children_min = 2;
+    oak.fractal_children_max = 3;
+    oak.fractal_major_pitch = 0.88f;  // ~50 deg off vertical: an oak goes OUT
+    oak.fractal_pitch_spread = 0.46f;
+    oak.fractal_length_decay = 0.72f;
     // Card foliage: FEW and LARGE. The user asked for «большими плоскими
     // наборами листочков», and the arithmetic agrees — a crown reads as one
     // mass only when its elements are a sizeable fraction of it (the lesson
@@ -193,8 +233,36 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // and spending the widening on COUNT is what makes the extra width read as
     // more crown rather than as a zoomed-in crown. 28 x 3 x 2 = 168 card
     // triangles, still a fifth of TREE_TRI_BUDGET_MAX.
-    oak.cluster_count = 26;
-    oak.cluster_radius_frac = 0.40f;
+    // RE-DERIVED 13.08.2026, AND IT IS A DERIVATION RATHER THAN A NUDGE.
+    // A leaf mass is contained by its CARD CORNER reach,
+    // `cluster_radius_frac * card_width_frac * hypot(1, card_aspect)`, and a
+    // mass hung on a branch tip is allowed only what is left between that tip
+    // and the envelope. At 0.40 the oak's corner reach was 0.56 of the whole
+    // crown radius: a crown "made of 26 such masses" cannot exist, there is
+    // room for about four, and the rest were being SILENTLY DROPPED by the
+    // scrap floor — measured 19 of 26 kept on the oak, 4 of 20 on the birch,
+    // 5 of 20 on the willow. That is what «их просто малюют» looks like from
+    // inside the generator: the table describes a crown of twenty masses and
+    // the geometry can only hold four, so the tree really is a handful of
+    // painted billboards.
+    //
+    // THE RULE: the wood gets two thirds of the crown radius to ramify in and
+    // the foliage shell gets the outer third, so corner reach = 0.33 and
+    // cluster_radius_frac = 0.33 / (card_width_frac * hypot(1, card_aspect)).
+    // For the oak that is 0.33 / 1.409 = 0.234.
+    //
+    // COUNT RISES SO THE CROWN IS NOT EMPTIER, and the triangle budget pays for
+    // it out of the WOOD by construction: max_crown_segments() subtracts the
+    // card commitment from TREE_TRI_BUDGET_MAX, so 40 clusters buy themselves
+    // 240 card triangles and leave 35 branch segments instead of 43. Nothing
+    // here can overrun the budget; the two halves trade inside it.
+    //
+    // WHAT IS NOT CLAIMED: this is not the user's «большими плоскими наборами
+    // листочков» being withdrawn. The masses that SURVIVED were that big; the
+    // ones that did not exist were not any size at all. Total surviving card
+    // area is held, and the crown stops being four blobs.
+    oak.cluster_count = 40;
+    oak.cluster_radius_frac = 0.24f;
     oak.tone_first = LeafTone::OakMid;
     oak.tone_count = 3; // mid / deep / sunlit — one crown carries all three
     oak.card_shape_a = LeafShape::RoundLobed;
@@ -374,13 +442,33 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     birch.branch_base_frac = 0.28f;
     birch.phototropism = 0.46f;
     birch.droop = 0.30f;
+    // RAMIFICATION. The birch's difference from the oak is entirely in these
+    // four numbers and that is the point of a table: a STEEP first order (0.52
+    // rad, ~30 deg off vertical) with a narrow divergence gives the high open
+    // crown of the Vase envelope, where the oak's 0.88 rad gives a spreading
+    // one. Two majors at most, because a birch really does carry one dominant
+    // axis with a second competing — three would be an oak with white bark.
+    birch.fractal_depth = 4;
+    birch.fractal_majors_min = 2;
+    birch.fractal_majors_max = 3;
+    birch.fractal_children_min = 2;
+    birch.fractal_children_max = 3;
+    birch.fractal_major_pitch = 0.52f;
+    birch.fractal_pitch_spread = 0.38f;
+    birch.fractal_length_decay = 0.76f; // slender: the taper is slow
     // The birch is the species that twice read as STACKED PLATES (§3.7.4/5).
     // Both cures were the same one: elements about as wide as the crown, and
     // never allowed to slide onto the axis. Cards inherit that discipline —
     // seven cluster centres, each carrying cards nearly as wide as the whole
     // crown, so no arrangement of them can look like a pile of discs.
-    birch.cluster_count = 20;
-    birch.cluster_radius_frac = 0.42f;
+    // Re-derived on the same rule as the oak (see its block): corner reach a
+    // third of the crown radius, so cluster_radius_frac = 0.33 / (1.05 * 1.257)
+    // = 0.25. The birch was the worst case of the defect that rule fixes — 4
+    // clusters of 20 survived the scrap floor, i.e. a crown of four leaves —
+    // and it is the species whose treeline the user called «частокол
+    // одинаковых деревьев».
+    birch.cluster_count = 36;
+    birch.cluster_radius_frac = 0.25f;
     birch.tone_first = LeafTone::BirchLight;
     birch.tone_count = 2;
     birch.card_shape_a = LeafShape::OvalSpray;
@@ -427,8 +515,24 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     willow.kill_d = 2.3f;
     willow.surface_bias = 0.50f;
     willow.branch_base_frac = 0.26f;
-    willow.cluster_count = 20;
-    willow.cluster_radius_frac = 0.42f;
+    // RAMIFICATION. A willow's signature is that its limbs LEAVE horizontally
+    // and its shoots then fall, so the first order is the flattest in the
+    // catalog (1.12 rad, ~64 deg off vertical) and `droop` 0.40 above already
+    // outweighs a phototropism of 0.06 — the grower adds -droop*(depth+1)
+    // against +phototropism per step, so each generation hangs lower than its
+    // parent without a single weeping-specific line of code.
+    willow.fractal_depth = 4;
+    willow.fractal_majors_min = 2;
+    willow.fractal_majors_max = 4;
+    willow.fractal_children_min = 2;
+    willow.fractal_children_max = 3;
+    willow.fractal_major_pitch = 1.12f;
+    willow.fractal_pitch_spread = 0.50f;
+    willow.fractal_length_decay = 0.70f;
+    // Same derivation: 0.33 / (1.15 * 1.281) = 0.224. Five clusters of 20 were
+    // surviving before it.
+    willow.cluster_count = 38;
+    willow.cluster_radius_frac = 0.22f;
     willow.tone_first = LeafTone::WillowDark;
     willow.tone_count = 2;
     willow.card_shape_a = LeafShape::OvalSpray;
@@ -787,8 +891,18 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // is dead weight and the real lever is the grower's depth and node budget.
     // Recorded rather than quietly tuned: the next agent who wants a fuller
     // great oak should raise `fractal_depth` / GREAT_OAK_MAX_NODES, not this.
-    great.cluster_count = 190;
-    great.cluster_radius_frac = 0.19f;
+    // THE GIANT'S MASSES ARE SMALLER AND THERE ARE MORE OF THEM, and the
+    // reason is the measurement GIANT_OAKS.md §4 predicted in words. At 190
+    // masses of 7.6 m radius the crown's own optical depth measured 81 LAYERS
+    // OF LEAF and its silhouette ambiguity 0.078 — i.e. the giant was a solid
+    // green hill with no sky between its limbs, which is exactly the failure
+    // the fractal grower was introduced to prevent, arriving through the
+    // FOLIAGE after the WOOD had been fixed. Smaller masses on the same
+    // ramification let the structure show through it.
+    // 240 AND NOT MORE: `cluster_count` is a uint8_t, so 300 silently becomes
+    // 44. Caught by the warning gauntlet on the first build of this row.
+    great.cluster_count = 240;
+    great.cluster_radius_frac = 0.06f;
     great.attractors = 0;    // it does not colonize; the fractal grower supplies
     great.shyness = 0.0f;    // nothing crowds a great oak
     great.lean_response = 0.04f;
@@ -807,6 +921,14 @@ float card_scrap_floor(const SpeciesParams& sp, float crown_radius) {
 bool flora_control_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_CONTROL");
+        return e != nullptr && e[0] == '1';
+    }();
+    return on;
+}
+
+bool flora_envelope_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_CROWN");
         return e != nullptr && e[0] == '1';
     }();
     return on;

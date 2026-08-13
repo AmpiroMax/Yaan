@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 12:08:2026 - 00:20:00
+Last updated: 13:08:2026 - 18:30:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -40,6 +40,9 @@ UPD:
   cross-check that the rows carry the numbers that were measured.
 - 12:08:2026 - 00:20:00: Tree::crown_axis -- the XZ centre of the crown, which
   is the top of the leaning bole rather than the stump.
+- 13:08:2026 - 18:30:00: Tree::structure -- the collision side-channel, filled by
+  the same emitters that draw the wood, so what a body hits cannot drift from
+  what the player sees.
 */
 
 #pragma once
@@ -160,6 +163,13 @@ struct Tree {
     /// the leaves actually grow on — physically right, and a better rustle.
     glm::vec3 sway_from{0.0f};
     float phase = 0.0f; ///< per-instance wind phase -> vertex GREEN
+    /// WHERE THE WOOD IS, for the zones that collide with it (sim/collide).
+    /// Non-null only when the caller asked for a FloraStructure; the emitters
+    /// then record every segment they draw INTO IT, on the same pass. It is a
+    /// side-channel on the drawing code rather than a second builder on
+    /// purpose: two derivations of one geometry diverge, and this zone has
+    /// already paid for that lesson three times over one shared constant.
+    FloraStructure* structure = nullptr;
 };
 
 [[nodiscard]] CrownVolume crown_volume(const Tree& t);

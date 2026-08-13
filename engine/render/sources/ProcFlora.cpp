@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 12:08:2026 - 23:20:00
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -126,6 +126,16 @@ UPD:
   say "this one is the landmark" across a frozen instance struct. Until this the
   giant was placed, cleared for, carried by the occlusion model — and drawn as
   nothing, loudly.
+- 13:08:2026 - 16:20:00: THE CROWN IS BUILT, NOT PAINTED (user, 13.08.2026:
+  «крона от ствола отходит… листья должны из веток расти; их просто малюют, а не
+  строят 3д модели»). build_great_crown() becomes build_fractal_crown() and
+  every card broadleaf goes down it; foliage is placed on the SHOOTS by
+  gather_shoot_anchors() instead of at merged cloud centroids; the grower's
+  bound becomes the envelope PROFILE inset by the card's own corner reach, which
+  is what stops foliage being shrunk under the scrap floor at the crown's rim,
+  apex and foot. DFN_FLORA_CROWN=1 is the zero-dose arm for all of it. Two tests
+  that read `fractal_depth > 0` as "is the giant" now read
+  crown_radius_per_height, which is the number that means it.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -223,6 +233,11 @@ void emit_skeleton(MeshData& m, Tree& t, const Skeleton& sk) {
         const float r0 = parent.radius;
         const float r1 = child.radius;
         const int sides = (r0 > t.trunk_r * 0.45f) ? 5 : (r0 > t.trunk_r * 0.20f ? 4 : 3);
+        // The collision side-channel: the SAME segment, recorded as it is drawn.
+        if (t.structure != nullptr) {
+            t.structure->branches.push_back(
+                FloraBranch{a, b, r0, r1, child.trunk && parent.trunk, child.order});
+        }
         // Thin wood takes the TWIG value, not the bole's. §3.10's measurement is
         // that the tracery reads by value contrast against the foliage, so a
         // pale-boled species whose twigs are also pale has no tracery — it has
@@ -409,6 +424,10 @@ void build_climb_steps(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
         const glm::vec3 dir = safe_normalize(out - glm::vec3{0.0f, 0.08f, 0.0f}, out);
         tube_segment(m, base, base + dir * GREAT_OAK_STEP_REACH, dir,
                      GREAT_OAK_STEP_RADIUS, GREAT_OAK_STEP_RADIUS * 0.8f, 4, t.wood);
+        if (t.structure != nullptr) {
+            t.structure->furniture.push_back(FloraFurniture{
+                base, dir * GREAT_OAK_STEP_REACH, GREAT_OAK_STEP_RADIUS, false});
+        }
     }
 }
 
@@ -424,6 +443,10 @@ void build_climb_platforms(MeshData& m, Tree& t, glm::vec3 fork, int count,
         const glm::vec3 c = fork
             + glm::vec3{std::cos(az) * d, 1.0f + rng.unit() * 2.5f, std::sin(az) * d};
         blob_cluster(m, c, {r, 0.18f, r}, 7, 2, t.twig);
+        if (t.structure != nullptr) {
+            t.structure->furniture.push_back(
+                FloraFurniture{c, glm::vec3{0.0f}, r, true});
+        }
     }
 }
 
@@ -460,14 +483,40 @@ void build_golden_chain(MeshData& m, Tree& t, const std::vector<TrunkRing>& path
     }
 }
 
-/// THE GREAT OAK'S CROWN. Recursive ramification (FloraSkeleton's third
-/// grower) instead of space colonization, because what the user asked to see is
-/// the BRANCH SYSTEM: «ветки будут расти как фракталы». The envelope is still
-/// enforced afterwards — the silhouette guarantee of flora.md §3.1 stage D is
-/// not something this species is exempt from, it just is not what SHAPES the
-/// tree here.
-void build_great_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
-                       uint64_t seed) {
+/// THE RAMIFIED CROWN, AND IT IS NO LONGER THE GREAT OAK'S ALONE.
+///
+/// The user, 13.08.2026: «крона от ствола отходит, значит листья и ствол живут
+/// разной жизнью — плохо, листья должны из веток расти; деревья — не объекты
+/// физики, значит их просто малюют, а не строят 3д модели». He named the
+/// mechanism before we did, and he named it exactly: a crown that is built by
+/// filling an ENVELOPE has no relation between its leaves and its wood, because
+/// the envelope is what decides where the leaves go and the wood is not
+/// consulted. It is a function that draws a thing rather than a thing that is
+/// built.
+///
+/// WHAT THE OLD PATH ACTUALLY DID, since its own comments said otherwise. Space
+/// colonization does grow branches toward attractor points, and a point does
+/// die only when a node reaches it — that part is honest. But the FOLIAGE was
+/// then placed at the CENTROID of a merged cluster of those points, and a
+/// centroid is on nothing. Measured on the shipped build, 12.08.2026: a Dale
+/// Oak's leaf cards sat a mean 1.99 m and a worst 6.03 m from the nearest wood,
+/// with a crown radius of 9.8 m. That IS «листья и ствол живут разной жизнью»,
+/// as a number.
+///
+/// WHAT THIS PATH DOES INSTEAD, and why it cannot express the defect: the
+/// branches ramify recursively (the same grower the great oak already proved),
+/// and every leaf mass is placed ON a branch segment by gather_shoot_anchors(),
+/// displaced by at most half its own radius. The gap is bounded before anything
+/// is measured, and the crown's outline becomes MULTI-VALUED in azimuth — sky
+/// above and below foliage in one column — which is the property GIANT_OAKS.md
+/// §4 says an envelope cannot have at all.
+///
+/// The envelope survives as a CLIP (flora.md §3.1 stage D: the silhouette
+/// guarantee at SILHOUETTE_MIN_PX is not something a species may opt out of).
+/// It stops being what SHAPES the tree and goes back to being what BOUNDS it.
+void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
+                         glm::vec3 stem_top, uint64_t seed, uint32_t max_nodes,
+                         uint32_t max_segments) {
     const SpeciesParams& sp = t.sp;
     Skeleton sk;
     seed_trunk_nodes(sk, stem_base, stem_top);
@@ -476,6 +525,23 @@ void build_great_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem
     fp.base_y = stem_top.y;
     fp.trunk_top_r = t.trunk_r;
     fp.depth = sp.fractal_depth;
+    // THE MAJORS LEAVE OVER HALF THE SEEDED BOLE, not from its tip. Starting
+    // every first-order limb at one node is a wine glass, and it is the same
+    // candelabra defect seed_trunk_nodes() exists to prevent — the fractal
+    // grower simply was not reading the seeds it was handed. Behind the dose
+    // door with everything else this change did, so the great oak's control arm
+    // is the tree of 12.08.2026 and not a third thing.
+    // THE WHOLE SEEDED BOLE IS ELIGIBLE, not its top half. Half was the first
+    // draft and it is measurably too little: foliage can only exist where wood
+    // is, so the height at which the LOWEST major leaves the trunk is the floor
+    // of the crown's vertical span, and at half the bole the built foliage span
+    // measured 0.25 of tree height against the REJECTION-3 floor of 0.28 — the
+    // bare-pole-with-a-tuft test, which is the shape the user rejected on the
+    // birch. `stem_base` is already `branch_base_frac` (0.26-0.30 of height,
+    // deliberately BELOW the foliage line), so the eligible span is the one the
+    // species table has always declared and this simply stops ignoring it.
+    fp.major_base_drop =
+        flora_envelope_arm() ? 0.0f : std::max(0.0f, stem_top.y - stem_base.y);
     fp.majors_min = sp.fractal_majors_min;
     fp.majors_max = sp.fractal_majors_max;
     fp.children_min = sp.fractal_children_min;
@@ -490,35 +556,155 @@ void build_great_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem
     // this species the radius is the point. Inset slightly so the foliage that
     // hangs off the tips — not the wood — is what touches the envelope, which
     // is the lesson build_crown() paid for below.
-    fp.spread_target = t.crown_r * (1.0f - sp.cluster_radius_frac * 0.9f);
+    const float card_reach_frac =
+        sp.cluster_radius_frac
+        * ((sp.foliage == FoliageShape::Card)
+               ? sp.card_width_frac * std::sqrt(1.0f + sp.card_aspect * sp.card_aspect)
+               : 1.0f);
+    const float foliage_inset = std::clamp(1.0f - card_reach_frac, 0.40f, 0.92f);
+
+    // AIM PAST THE CLIP AND LET THE CLIP DECIDE. `spread_target` is solved
+    // OPEN-LOOP: length0 comes out of a geometric series times
+    // sin(major_pitch), and a limb that then bends upward under phototropism
+    // covers less ground than that arithmetic promised. Measured, aiming
+    // exactly at the target left the built crown at 0.70 of its own nominal
+    // diameter where the old path reached 0.84 — a silent 16 % narrowing of a
+    // number design derived TREE_SPACING_FOREST from.
+    //
+    // THE FIRST FIX FOR THAT WAS WRONG AND IS RECORDED BECAUSE IT WAS
+    // TEMPTING: widen `crown_width_frac` until the built mean came back. That
+    // compensates a shortfall instead of removing it — it holds the MEAN and
+    // pushes the widest variants of the distribution straight through design's
+    // ceiling (the suite caught it: oak past 26 m). Over-driving the target
+    // cannot do that, because the envelope clip above is a HARD bound: the wood
+    // physically cannot pass it, so aiming 60 % beyond it converts an open-loop
+    // guess into a closed-loop one and the species' declared width is what
+    // decides the answer.
+    fp.spread_target = t.crown_r * foliage_inset * 1.6f;
     fp.lean = t.shape.lean > 0.0f
         ? t.shape.lean_dir * (t.shape.lean * 0.8f)
         : glm::vec2{0.0f};
+    // THE WOOD STOPS ONE CARD SHORT OF THE SILHOUETTE, AND THE INSET IS THE
+    // CARD'S OWN CORNER REACH RATHER THAN A FRACTION THAT RESEMBLES IT.
+    //
+    // This is build_crown()'s lesson below ("THE ENVELOPE IS WHERE THE FOLIAGE
+    // ENDS, NOT WHERE THE WOOD ENDS") restated on the quantity that actually
+    // decides it. emit_cluster() contains a cluster by its CARD CORNER reach —
+    // `cluster_radius_frac * card_width_frac * hypot(1, card_aspect)` — and
+    // when a mass sits at radius `len` inside an envelope of `env` it is
+    // allowed exactly `env - len`. So a mass hung on a tip that reached
+    // `inset * env` is allowed `(1 - inset) * env`, and if that is under its
+    // own reach the card is shrunk, then dropped by the scrap floor. Insetting
+    // by a fraction that merely LOOKS like the reach leaves the difference as
+    // silent foliage loss.
+    //
+    // MEASURED, WHICH IS HOW IT WAS FOUND: with the cylinder at the full
+    // radius the willow fell to 19 card triangles a tree from 54 — two thirds
+    // of its crown gone, nothing else changed, and no test red. The birch was
+    // dropping 16 of every 20 clusters at reach 0.61 m against a 0.73 m floor,
+    // and it had been doing so before this change as well.
+    // THE TOP IS NOT INSET, and the first draft of this block inset it by half
+    // a card reach "for symmetry with the radius". It is not symmetric:
+    // emit_card_cluster ALREADY clamps a cluster so its corner stays under
+    // crown_top, so insetting here subtracts the same allowance twice and the
+    // crown loses vertical span it is entitled to — measured, the foliage span
+    // fell to 0.245 of tree height against the REJECTION-3 floor of 0.28, i.e.
+    // the bare-pole-with-a-tuft test that exists to catch exactly this.
     fp.top_y = t.crown_top;
-    fp.max_radius = t.crown_r;
+    fp.max_radius = flora_envelope_arm() ? t.crown_r : t.crown_r * foliage_inset;
     fp.axis = t.crown_axis;
-    fp.max_nodes = GREAT_OAK_MAX_NODES;
+    fp.max_nodes = max_nodes;
     fractal_skeleton(sk, fp, seed);
 
+    // AND THE CLIP IS THE ENVELOPE'S PROFILE, NOT A CYLINDER. FractalParams
+    // bounds growth with a cylinder because that was enough to stop the great
+    // oak's wood leaving its own height band; it is not enough here, because a
+    // Sphere closes to 0.42 of its radius at the apex and a Vase to 0.25 at its
+    // foot. Wood that pokes out of the profile there gets its foliage pulled in
+    // and shrunk by exactly the amount it overshot — the same loss, arriving at
+    // the top and the bottom of the crown instead of at its rim. Clipping the
+    // grown nodes onto the inset profile costs one pass and keeps every segment
+    // connected, because a node and its parent both move.
+    if (!flora_envelope_arm()) {
+        for (SkeletonNode& n : sk.nodes) {
+            if (n.trunk || n.pos.y < t.crown_base) continue;
+            const float env = envelope_radius(t, n.pos.y) * foliage_inset;
+            if (env <= 0.0f) continue;
+            const float ox = n.pos.x - t.crown_axis.x;
+            const float oz = n.pos.z - t.crown_axis.y;
+            const float rr = std::sqrt(ox * ox + oz * oz);
+            if (rr > env && rr > 1e-4f) {
+                n.pos.x = t.crown_axis.x + ox * env / rr;
+                n.pos.z = t.crown_axis.y + oz * env / rr;
+            }
+        }
+    }
+
     assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
-    decimate_to(sk, GREAT_OAK_MAX_SEGMENTS);
+    decimate_to(sk, max_segments);
     assign_pipe_radii(sk, t.trunk_r, sp.pipe_exponent, SHADOW_MIN_DIAMETER * 0.5f);
     emit_skeleton(m, t, sk);
 
-    // ONE FOLIAGE MASS PER TIP, subsampled to the cluster budget — the conifer
-    // rule, and for the same reason: merging leaf sites is right when they form
-    // a few big clouds and wrong when each one is the end of a named limb. On a
-    // tree whose branch system is the subject, merging would hide it.
     if (!emits_clusters(sp)) return;
-    const size_t n = sk.leaf_sites.size();
-    if (n == 0) return;
-    const size_t want = std::max<size_t>(1, sp.cluster_count);
-    const size_t stride = std::max<size_t>(1, n / want);
-    for (size_t i = 0; i < n; i += stride) {
-        const int a = sk.leaf_anchor[i];
+    const uint32_t clusters = (t.lod == FloraLod::Reduced)
+        ? std::max<uint32_t>(3u, sp.cluster_count * 3u / 5u)
+        : sp.cluster_count;
+    const int card_count =
+        (t.lod == FloraLod::Reduced) ? std::max(3, sp.cards_per_cluster - 1) : -1;
+    const float r = t.crown_r * sp.cluster_radius_frac;
+
+    if (flora_envelope_arm()) {
+        // THE ZERO-DOSE ARM (FloraSpecies.h, flora_envelope_arm): one foliage
+        // mass per grower TIP, subsampled to the cluster budget. This is what
+        // the great oak shipped with on 12.08.2026 and it is kept BYTE-FOR-BYTE
+        // so that the before/after pair off one binary differs in the foliage
+        // rule alone. Note what is wrong with it, which is why it is the arm
+        // and not the ship: the count of masses is capped by the TIP COUNT, so
+        // the crown's fullness is hostage to the node budget, and everything
+        // that is not a tip carries no leaf at all.
+        const size_t n = sk.leaf_sites.size();
+        if (n == 0) return;
+        const size_t want = std::max<size_t>(1, clusters);
+        const size_t stride = std::max<size_t>(1, n / want);
+        for (size_t i = 0; i < n; i += stride) {
+            const int a = sk.leaf_anchor[i];
+            if (a < 0 || static_cast<size_t>(a) >= sk.nodes.size()) continue;
+            t.sway_from = sk.nodes[static_cast<size_t>(a)].pos;
+            emit_cluster(m, t, sk.leaf_sites[i], r, card_count);
+        }
+        t.sway_from = glm::vec3{t.stem_off.x, t.crown_base, t.stem_off.z};
+        return;
+    }
+
+    // FOLIAGE ON THE SHOOTS. Every mass sits on a branch segment, displaced by
+    // at most HALF ITS OWN RADIUS, so it always overlaps the wood it grows on —
+    // the rule the conifer's pendulous shoots have obeyed since 09.08 («a shoot
+    // that falls further than its own card is wide reads as detached foliage»),
+    // now the rule for every species instead of for one.
+    //
+    // AND IT UNCOUPLES FULLNESS FROM THE NODE BUDGET, which is the second
+    // defect the great oak's distant frame found and could not fix: masses are
+    // spread along the eligible shoot LENGTH, so a crown can be filled without
+    // growing more wood. `fractal_depth` buys structure; `cluster_count` buys
+    // fullness; they were the same lever before and neither could be set.
+    ShootFoliage f;
+    f.target_count = clusters;
+    f.base_y = t.crown_base;
+    f.stand_off = r * 0.5f;
+    // LEAVES GROW ON SHOOTS, NOT ON LIMBS. Wood over 45 % of the bole's own
+    // radius is structure; hanging a leaf mass on it puts foliage where a real
+    // crown has bare wood, and reintroduces the complaint one metre further in.
+    f.outer_radius = t.trunk_r * 0.45f;
+    f.axis = t.crown_axis;
+    std::vector<glm::vec3> centres;
+    std::vector<int> anchors;
+    gather_shoot_anchors(sk, f, seed ^ 0x5DEECE66Dull, centres, anchors);
+    for (size_t i = 0; i < centres.size(); ++i) {
+        const int a = anchors[i];
         if (a < 0 || static_cast<size_t>(a) >= sk.nodes.size()) continue;
         t.sway_from = sk.nodes[static_cast<size_t>(a)].pos;
-        emit_cluster(m, t, sk.leaf_sites[i], t.crown_r * sp.cluster_radius_frac);
+        emit_cluster(m, t, centres[i],
+                     r * shy_scale(t, centres[i] - t.stem_off), card_count);
     }
     t.sway_from = glm::vec3{t.stem_off.x, t.crown_base, t.stem_off.z};
 }
@@ -527,8 +713,26 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
                  uint64_t seed, float branch_floor) {
     const SpeciesParams& sp = t.sp;
     if (sp.envelope == CrownEnvelope::None) return;
-    if (sp.fractal_depth > 0) {
-        build_great_crown(m, t, stem_base, stem_top, seed);
+    // RAMIFICATION IS THE DEFAULT FOR EVERY BROADLEAF NOW. The great oak's
+    // grower was never great-oak-specific — it was written for it because that
+    // was the species whose brief said «ветки будут расти как фракталы» out
+    // loud. The same sentence is true of every tree the user has looked at.
+    //
+    // The zero-dose arm sends the species that HAVE a colonizing fallback back
+    // down it (`attractors > 0`); the great oak has none by construction
+    // (`attractors = 0`, its crown is the ramification), so for it the arm
+    // changes the FOLIAGE rule only. That is what makes it a control rather
+    // than a second variable: each species differs from its own arm in exactly
+    // the thing this change did to it.
+    if (sp.fractal_depth > 0 && !(flora_envelope_arm() && sp.attractors > 0)) {
+        const bool giant = sp.crown_radius_per_height > 0.0f;
+        uint32_t nodes = giant ? GREAT_OAK_MAX_NODES : max_crown_segments(sp);
+        uint32_t segs = giant ? GREAT_OAK_MAX_SEGMENTS : max_crown_segments(sp);
+        if (t.lod == FloraLod::Reduced) {
+            nodes = std::max(24u, nodes * 45u / 100u);
+            segs = std::max(24u, segs * 45u / 100u);
+        }
+        build_fractal_crown(m, t, stem_base, stem_top, seed, nodes, segs);
         return;
     }
 
@@ -708,6 +912,10 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
         const float floor_r = SHADOW_MIN_DIAMETER * 0.5f;
         tube_segment(m, p, next, d, std::max(r0, floor_r), std::max(r1, floor_r), sides,
                      t.wood);
+        if (t.structure != nullptr) {
+            t.structure->branches.push_back(FloraBranch{
+                p, next, std::max(r0, floor_r), std::max(r1, floor_r), true, 0});
+        }
         p = next;
         if (out_path) {
             out_path->push_back(TrunkRing{p, d, std::max(r1, floor_r)});
@@ -1219,9 +1427,13 @@ float species_trunk_radius(FloraSpecies s) {
     return species_nominal_height(s) * sp.trunk_radius_frac * FLARE_WIDEN;
 }
 
-FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
-                           const FloraShape& shape, FloraLod lod,
-                           FloraSeason season) {
+/// The one builder. `out_structure`, when given, is filled with the WOOD as it
+/// is drawn (ProcFlora.h, FloraStructure) — same pass, same seed, same
+/// geometry, so collision cannot drift from what the player sees.
+namespace {
+FloraMesh build_tree(FloraSpecies species, uint32_t variant,
+                     const FloraShape& shape, FloraLod lod, FloraSeason season,
+                     FloraStructure* out_structure) {
     const SpeciesParams& sp = species_params(species);
     FloraMesh parts;
     MeshData& m = parts.wood;
@@ -1241,7 +1453,16 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
     // design §5.7's binding rule is that the forest stays under the landmark it
     // frames. Its variation lives in the 34-46 m band and in the crown, which
     // is where a viewer reads a great oak's size from anyway.
-    const float maturity = (sp.fractal_depth > 0)
+    // THE GIANT IS IDENTIFIED BY ITS OWN RULE, NOT BY ITS GROWER. This used to
+    // read `fractal_depth > 0`, which was a correct test only while exactly one
+    // species ramified. Every broadleaf ramifies now (13.08.2026), and the
+    // clamp below belongs to the species whose SIZE is already the giant tier —
+    // `crown_radius_per_height`, the user's «нижняя часть кроны в радиусе равна
+    // высоте», which no ordinary tree carries. Left as a test on a number that
+    // means what the clause means, so the next species to ramify cannot
+    // accidentally lose its maturity spread the way this one nearly did.
+    const bool giant_tier = sp.crown_radius_per_height > 0.0f;
+    const float maturity = giant_tier
         ? std::clamp(shape.maturity, 0.92f, 1.10f)
         : std::max(0.2f, shape.maturity);
     height *= maturity;
@@ -1339,6 +1560,18 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
                       : std::clamp(height * 0.08f, 0.08f, 0.4f),
            woody_tree ? FLARE_DEPTH : std::clamp(height * 0.10f, 0.10f, 0.4f)};
 
+    t.structure = out_structure;
+    if (out_structure != nullptr) {
+        out_structure->branches.clear();
+        out_structure->furniture.clear();
+        out_structure->height = t.height;
+        out_structure->crown_base = t.crown_base;
+        out_structure->crown_top = t.crown_top;
+        out_structure->crown_radius = t.crown_r;
+        out_structure->trunk_radius = t.trunk_r;
+        out_structure->crown_axis = t.crown_axis;
+    }
+
     // Card foliage exists unless winter has stripped it. WINTER IS ONE BOOLEAN
     // (LANDSCAPE §5.11): do not emit the cards and the already-generated
     // skeleton IS the bare tree. Conifers keep their needles.
@@ -1396,6 +1629,10 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
                                       static_cast<int>(sp.trunk_count_max));
 
     for (int k = 0; k < stem_count; ++k) {
+        // Named BEFORE the crown-axis block below, which declares its own float
+        // `k` and would otherwise shadow this loop's index — the structure's
+        // crown axis was silently never written because of exactly that.
+        const bool lead_stem = (k == 0);
         const float ang = TAU * static_cast<float>(k) / static_cast<float>(stem_count)
             + t.rng.unit() * 0.6f;
         const glm::vec3 off = stem_count > 1
@@ -1411,7 +1648,9 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
         const float stem_h = height * trunk_height_frac(sp.envelope) * stem_scale;
         glm::vec3 dir{0.0f, 1.0f, 0.0f};
         std::vector<TrunkRing> path;
-        const bool is_great = sp.fractal_depth > 0;
+        // Climbing furniture belongs to the GIANT, not to everything that
+        // ramifies — same correction as the maturity clamp above.
+        const bool is_great = giant_tier;
         const bool wants_detail =
             (is_snag || is_great) && lod != FloraLod::Silhouette;
         const glm::vec3 top =
@@ -1451,6 +1690,11 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
                 (bend > 1e-4f) ? std::clamp(t.shape.lean / bend, 0.0f, 1.0f) : 0.0f;
             t.crown_axis = glm::vec2{off.x, off.z}
                 + (glm::vec2{top.x, top.z} - glm::vec2{off.x, off.z}) * k * lean_share;
+            // The crown axis is only KNOWN once the bole has been swept, so the
+            // structure's copy is written here rather than at construction —
+            // handing out the stump's XZ would be handing out the very error
+            // this field exists to correct.
+            if (t.structure != nullptr && lead_stem) t.structure->crown_axis = t.crown_axis;
         }
         if (is_great && wants_detail) {
             // Furniture BEFORE the crown, so the treads exist on the bole even
@@ -1488,6 +1732,25 @@ FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
                     branch_base.y);
     }
     return parts;
+}
+
+} // namespace
+
+FloraMesh build_flora_mesh(FloraSpecies species, uint32_t variant,
+                           const FloraShape& shape, FloraLod lod,
+                           FloraSeason season) {
+    return build_tree(species, variant, shape, lod, season, nullptr);
+}
+
+FloraStructure build_flora_structure(FloraSpecies species, uint32_t variant,
+                                     const FloraShape& shape, FloraLod lod) {
+    FloraStructure out;
+    // Season is Summer because the WOOD does not have one: winter drops the
+    // cards and nothing else, so asking for a season here would offer a
+    // parameter that cannot change the answer (and would invite a caller to
+    // believe collision differs between seasons, which it must not).
+    (void)build_tree(species, variant, shape, lod, FloraSeason::Summer, &out);
+    return out;
 }
 
 void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,

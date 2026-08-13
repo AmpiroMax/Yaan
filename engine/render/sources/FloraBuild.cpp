@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 12:08:2026 - 00:45:00
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -54,6 +54,12 @@ UPD:
   `scrap_floor`. Rule 32 in the file whose own header states it.
 - 12:08:2026 - 00:45:00: Both floor checks call card_scrap_floor() instead of
   restating it.
+- 13:08:2026 - 16:20:00: THE THIRD COPY OF THE CARD LEGIBILITY FLOOR (Rule 32).
+  The re-containment block still carried `0.18 * crown_r`, the retired form, one
+  screen below the two sites unified on 12.08. It cost the great oak its entire
+  crown a second time -- zero cards on every variant the moment its cluster
+  fraction went under 0.18 -- and it now calls card_scrap_floor() like the
+  others.
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -234,6 +240,28 @@ glm::vec3 clip_to_envelope(const Tree& t, glm::vec3 p) {
 /// `reach` is the CORNER radius of a card (not its half-width): a card's far
 /// corner, not its edge midpoint, is what the species width band and the
 /// envelope actually have to contain.
+/// THE CROWN RADIUS THE SCRAP FLOOR IS MEASURED AGAINST, and it is the LARGER
+/// of the two definitions in the tree because there are two and they disagree.
+///
+/// The emitter knows this INSTANCE's crown radius: the species ratio after
+/// crown allometry, the per-instance width draw and the maturity tier. The
+/// suite (and anything else reading a finished mesh) can only recover the
+/// SPECIES' nominal — built height times `crown_width_frac` — because
+/// allometry and the width draw are not recoverable from triangles. At the
+/// sapling tier those differ by 1 / 0.4^0.35 = 1.39, so a card emitted exactly
+/// at the instance floor sits 28 % under the nominal one.
+///
+/// Taking the max means a card that survives is legible under EITHER reading.
+/// It can only ever drop more scraps, never admit one, so it cannot resurrect
+/// the defect this floor exists to prevent — and it removes a disagreement
+/// about one quantity, which is the third such disagreement this file has been
+/// bitten by in two days. The right end state is one definition both sides
+/// CALL; that needs the suite, which is not this zone's file, and it is
+/// reported rather than worked around silently.
+[[nodiscard]] static float crown_r_for_floor(const Tree& t) {
+    return std::max(t.crown_r, t.height * t.sp.crown_width_frac * 0.5f);
+}
+
 void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     if (t.cards == nullptr || reach <= 0.05f) return;
     const SpeciesParams& sp = t.sp;
@@ -279,7 +307,7 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
     // never to tighten it anywhere.
     // ONE DEFINITION, in FloraSpecies.h, and its docstring is the record of
     // what having three of it cost.
-    const float scrap_floor = card_scrap_floor(sp, t.crown_r);
+    const float scrap_floor = card_scrap_floor(sp, crown_r_for_floor(t));
     if (p.half_width < scrap_floor) return;
 
     // VERTICAL REACH, not half_height. THIS IS THE SAME MISTAKE A THIRD TIME
@@ -363,7 +391,23 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
                 }
             }
         }
-        if (p.half_width < 0.18f * t.crown_r) return;
+        // THE THIRD COPY OF THE CARD LEGIBILITY FLOOR, found 13.08.2026, and it
+        // was still in the RETIRED FORM. On 12.08 the floor was re-derived and
+        // "its three call sites now share one definition" — two of them did.
+        // This one, twenty lines below the second and inside the re-containment
+        // block so it only fires on clusters that were re-contained, kept
+        // `0.18 * crown_r`: a species-independent fraction of the crown, which
+        // is the exact form card_scrap_floor() exists to replace because it
+        // does not survive a crown eight times the size.
+        //
+        // WHAT IT COST, MEASURED THE SAME DAY: taking the great oak's cluster
+        // fraction from 0.19 to 0.12 (to open sky between its limbs) put its
+        // card half-width at 0.132 of the crown radius, under this gate's 0.18,
+        // and the species emitted ZERO CARDS on every variant — the identical
+        // symptom, from the identical mechanism, that the 12.08 entry describes
+        // as fixed. A shared rule spelled out per site is a rule with a
+        // countdown on it, and this is the second time the countdown expired.
+        if (p.half_width < card_scrap_floor(sp, crown_r_for_floor(t))) return;
     }
     // The attachment (sway weight 0) is the stem at the base of the crown, so
     // the whole crown's sway grows outward and upward from the trunk exactly

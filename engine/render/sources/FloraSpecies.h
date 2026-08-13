@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 12:08:2026 - 00:45:00
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -43,6 +43,10 @@ UPD:
   a FUNCTION so that there cannot be two of it. There were three (emitter,
   emitter's re-check, suite), they diverged, and the great oak emitted zero
   cards with the suite green.
+- 13:08:2026 - 16:20:00: flora_envelope_arm() -- the zero-dose door for the
+  crown's CONSTRUCTION alone (DFN_FLORA_CROWN=1), separate from
+  flora_control_arm() because a control binds only the measurements in which it
+  itself moves (Rule 48).
 */
 
 #pragma once
@@ -345,6 +349,22 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// BEFORE/AFTER pair taken across a rebuild answers "did anything change" and
 /// not "did THIS change". One binary, one pose, one variable.
 [[nodiscard]] bool flora_control_arm();
+
+/// THE ZERO-DOSE ARM FOR THE CROWN'S CONSTRUCTION, and it is a SECOND door on
+/// purpose (Rule 48: a control binds only the measurements in which it itself
+/// moves). `flora_control_arm()` above puts back the width, the maturity draw,
+/// the lean and the envelope profile all at once — it answers "did the
+/// 11.08.2026 stage change this", which is not the question here.
+///
+/// `DFN_FLORA_CROWN=1` changes exactly ONE thing: the card species go back to
+/// growing their crowns by space colonization into the envelope and hanging
+/// their foliage on MERGED CLOUD CENTRES (FloraSkeleton's
+/// gather_foliage_anchors), instead of ramifying and hanging their foliage on
+/// the SHOOTS (gather_shoot_anchors). Everything else — species widths, heights,
+/// leans, card sizes, tone bands, budgets — is byte-identical between the arms,
+/// so a BEFORE/AFTER pair off one binary answers "did leaves-from-branches do
+/// this" and nothing else.
+[[nodiscard]] bool flora_envelope_arm();
 
 /// THE CARD SCRAP FLOOR — the smallest half-width a leaf card may be emitted at
 /// before it stops reading as part of a crown and starts reading as a detached

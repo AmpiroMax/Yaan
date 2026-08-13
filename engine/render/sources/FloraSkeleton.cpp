@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 12:08:2026 - 00:36:00
+Last updated: 13:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -45,6 +45,10 @@ UPD:
 - 12:08:2026 - 00:36:00: fractal_skeleton clamps every node into the bounding
   cylinder (see the header entry: the wood was reaching twice the declared
   height).
+- 13:08:2026 - 16:20:00: gather_shoot_anchors() -- foliage sites ON the wood,
+  weighted to the outer end of every shoot, every tip carrying one. And the
+  majors now leave the seeded bole over `major_base_drop` metres of it rather
+  than from its last node.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -529,6 +533,23 @@ void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed) {
     // The bole's top is the first fork. Everything below it was seeded by the
     // caller and stays trunk.
     const int root = static_cast<int>(sk.nodes.size()) - 1;
+    // THE MAJORS LEAVE THE BOLE OVER A LENGTH OF IT, NOT AT ONE POINT.
+    // `major_base_drop` metres of the seeded trunk are eligible, so limb k
+    // starts from a different height. Without this every first-order limb
+    // radiates from a single node and the tree is a wine glass — which is the
+    // candelabra failure seed_trunk_nodes() was written to avoid, arriving in
+    // the grower that did not read the seeds.
+    std::vector<int> bole;
+    {
+        const float top_y = sk.nodes[static_cast<size_t>(root)].pos.y;
+        for (size_t i = 0; i < sk.nodes.size(); ++i) {
+            if (!sk.nodes[i].trunk) continue;
+            if (sk.nodes[i].pos.y >= top_y - p.major_base_drop - 1e-3f) {
+                bole.push_back(static_cast<int>(i));
+            }
+        }
+    }
+    if (bole.empty()) bole.push_back(root);
 
     struct Limb {
         int node;
@@ -576,7 +597,16 @@ void fractal_skeleton(Skeleton& sk, const FractalParams& p, uint64_t seed) {
         const glm::vec3 dir = norm_or({std::cos(az) * std::sin(pitch), std::cos(pitch),
                                        std::sin(az) * std::sin(pitch)},
                                       {0.0f, 1.0f, 0.0f});
-        queue.push_back(Limb{root, dir, length0 * (0.78f + rng.unit() * 0.55f), 0});
+        // Walk DOWN the eligible bole as k rises, so the limbs are staggered in
+        // height as well as in azimuth. The topmost limb keeps the apex.
+        const size_t bi = (bole.size() > 1)
+            ? std::min(bole.size() - 1,
+                       static_cast<size_t>(static_cast<float>(k)
+                                           / static_cast<float>(n_major)
+                                           * static_cast<float>(bole.size())))
+            : 0;
+        const int from = bole[bole.size() - 1 - bi];
+        queue.push_back(Limb{from, dir, length0 * (0.78f + rng.unit() * 0.55f), 0});
     }
 
     for (uint32_t depth = 0; depth <= p.depth; ++depth) {
@@ -847,6 +877,149 @@ void gather_foliage_anchors(const Skeleton& sk, uint32_t target_count,
         centres.push_back(centre);
         anchors.push_back(anchor);
         reach.push_back(std::max(r, merge * 0.5f));
+    }
+}
+
+void gather_shoot_anchors(const Skeleton& sk, const ShootFoliage& p, uint64_t seed,
+                          std::vector<glm::vec3>& centres,
+                          std::vector<int>& anchors) {
+    centres.clear();
+    anchors.clear();
+    if (sk.nodes.empty() || p.target_count == 0) return;
+    Rng rng{seed * 0x2545F4914F6CDD1Dull + 0xA24BAull};
+
+    // --- The shoots ---------------------------------------------------------
+    // A shoot is an EDGE: the segment between a node and its parent. Eligible
+    // edges are the ones a leaf could actually grow on — above the foliage
+    // line, thin enough to be a shoot rather than a limb, and not a piece of
+    // the authored bole.
+    struct Shoot {
+        int node;      ///< the child end (the anchor)
+        glm::vec3 a;   ///< parent position
+        glm::vec3 b;   ///< child position
+        float len;
+        bool tip;
+    };
+    std::vector<Shoot> shoots;
+    shoots.reserve(sk.nodes.size());
+    double total_len = 0.0;
+    for (size_t i = 0; i < sk.nodes.size(); ++i) {
+        const SkeletonNode& n = sk.nodes[i];
+        if (n.parent < 0) continue;
+        const SkeletonNode& par = sk.nodes[static_cast<size_t>(n.parent)];
+        if (n.trunk && par.trunk) continue;
+        if (n.pos.y < p.base_y) continue;
+        if (n.radius > p.outer_radius) continue;
+        const float len = glm::length(n.pos - par.pos);
+        if (len < 1e-3f) continue;
+        shoots.push_back(Shoot{static_cast<int>(i), par.pos, n.pos, len,
+                               n.children == 0});
+        total_len += len;
+    }
+    // NOTHING ELIGIBLE IS NOT NOTHING TO DRAW. A young or heavily decimated
+    // crown can have every surviving node above the thickness gate; refusing to
+    // leaf it would ship a bare tree, which is the failure mode this file's
+    // header is about, arriving from the other side. Relax the gate rather than
+    // return empty.
+    if (shoots.empty()) {
+        for (size_t i = 0; i < sk.nodes.size(); ++i) {
+            const SkeletonNode& n = sk.nodes[i];
+            if (n.parent < 0 || n.pos.y < p.base_y) continue;
+            const SkeletonNode& par = sk.nodes[static_cast<size_t>(n.parent)];
+            const float len = glm::length(n.pos - par.pos);
+            if (len < 1e-3f) continue;
+            shoots.push_back(Shoot{static_cast<int>(i), par.pos, n.pos, len,
+                                   n.children == 0});
+            total_len += len;
+        }
+    }
+    if (shoots.empty() || total_len <= 0.0) return;
+
+    // --- Sites --------------------------------------------------------------
+    // EVERY TIP CARRIES FOLIAGE FIRST. A branch that ends in nothing is the
+    // «winter tree» reading, and it is the failure the great oak's own frame
+    // caught; spending the budget on tips before anything else makes it
+    // impossible by construction. The remainder is spread over the eligible
+    // length, so a long shoot carries more masses than a short one — which is
+    // simply what more shoot means.
+    const auto want = static_cast<size_t>(p.target_count);
+    size_t tips = 0;
+    for (const Shoot& s : shoots) {
+        if (s.tip) ++tips;
+    }
+    const double spare = (want > tips) ? static_cast<double>(want - tips) : 0.0;
+
+    auto place = [&](const Shoot& s, float u) {
+        // Toward the OUTER end of the shoot: needles and leaves live on the
+        // last growth, and the inboard wood shows daylight.
+        const glm::vec3 axis = norm_or(s.b - s.a, glm::vec3{0.0f, 1.0f, 0.0f});
+        glm::vec3 at = s.a + (s.b - s.a) * u;
+        if (p.stand_off > 0.0f) {
+            // Roll the offset around the shoot at the golden angle: consecutive
+            // masses on one branch never stack on the same side.
+            const float roll = GOLDEN_ANGLE_F * static_cast<float>(centres.size())
+                + rng.sym() * 0.4f;
+            const glm::vec3 side =
+                norm_or(glm::cross(axis, glm::vec3{0.0f, 1.0f, 0.0f}),
+                        glm::vec3{1.0f, 0.0f, 0.0f});
+            const glm::vec3 up = glm::cross(side, axis);
+            // AND IT DOES NOT LEAN OUTWARD, which was tried and measured.
+            // Pushing the mass toward the light looks right on paper and is
+            // right botanically, but it moves the mass into the envelope
+            // containment: the willow lost 49 % of its cards and 1.7 m of crown
+            // TOP in one run, because a card shoved outward is a card the
+            // containment shrinks and the scrap floor then drops. The crown's
+            // built width has to come from where the WOOD reaches, not from
+            // leaning its leaves off the end.
+            const glm::vec3 dir = side * std::cos(roll) + up * std::sin(roll);
+            at += dir * (p.stand_off * (0.35f + 0.65f * rng.unit()));
+        }
+        centres.push_back(at);
+        anchors.push_back(s.node);
+    };
+
+    // NO TWO MASSES IN THE SAME PLACE. Foliage on shoots puts sites where the
+    // WOOD is, and wood forks — so two sites can land centimetres apart, which
+    // is not a leaf spray, it is one spray drawn twice at full overdraw. The
+    // separation is 0.12 m: below that two card clusters are the same object by
+    // any reading, including the suite's, which groups cards into clusters by a
+    // 0.05 m proximity key and reported a "cluster of six cards with two flat
+    // ones" for every coincident pair.
+    constexpr float MIN_SEP = 0.12f;
+    auto too_close = [&](const glm::vec3& q) {
+        for (const glm::vec3& c : centres) {
+            if (glm::dot(c - q, c - q) < MIN_SEP * MIN_SEP) return true;
+        }
+        return false;
+    };
+    auto place_spaced = [&](const Shoot& s, float u) {
+        // A TIP GETS THREE TRIES BEFORE IT IS GIVEN UP, walking back down its
+        // own shoot, because a branch that ends in nothing is the winter-tree
+        // reading and that is the more expensive of the two failures.
+        for (int attempt = 0; attempt < 3; ++attempt) {
+            const float uu = u * (1.0f - 0.18f * static_cast<float>(attempt));
+            const glm::vec3 probe = s.a + (s.b - s.a) * uu;
+            if (!too_close(probe)) {
+                place(s, uu);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    for (const Shoot& s : shoots) {
+        if (!s.tip) continue;
+        place_spaced(s, 1.0f);
+    }
+    if (spare > 0.0) {
+        double carry = 0.0;
+        for (const Shoot& s : shoots) {
+            carry += spare * (static_cast<double>(s.len) / total_len);
+            while (carry >= 1.0 && centres.size() < want * 2) {
+                carry -= 1.0;
+                place_spaced(s, 0.42f + rng.unit() * 0.58f);
+            }
+        }
     }
 }
 
