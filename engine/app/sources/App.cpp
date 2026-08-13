@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 16:43:43
+Last updated: 13:08:2026 - 17:00:50
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -101,6 +101,7 @@ UPD:
 - 13:08:2026 - 16:14:09: DFN_PLAYTEST_ROUTE теперь САМ включает patrol. Разбор маршрута лежал внутри ветки DFN_PLAYTEST, поэтому маршрут без режима тихо не делал ничего — зона dungeon потеряла на этом прогон в 150 секунд, простояв на месте. Это ровно тот молчаливый ноль, против которого построена вся эта оснастка; у «вот маршрут, иди по нему» второго прочтения нет, значит значение несёт намерение, а режим следует за ним. Сообщение печатается вслух.
 - 13:08:2026 - 16:26:16: Меню чинится двумя правками по находке зоны ui. DFN_MENU_SHOT УБРАНА из списка пропуска меню: это единственная дверь, которой меню НУЖНО, а присвоение show_menu=false стоит ПОСЛЕ разбора DFN_MENU, поэтому дверь, существующая ради снимка стартового экрана, каждый раз уходила в мир и не сняла его ни разу. И новая DFN_MENU_PAGE=root|maps|pause: без неё выбор карты и пауза достижимы только рукой на клавиатуре, то есть два из трёх экранов, которые видит игрок, никогда не были доказательством. Неизвестное значение отвергается вслух — кадр корня, подшитый под именем паузы, хуже отсутствия кадра.
 - 13:08:2026 - 16:43:43: DFN_PLAYTEST_ROUTE добавлена в список пропуска меню — в тот же день, что и заведена. Собственная проверка нашла дыру: «маршрут включает patrol» оказалось мало, потому что блок плейтеста живёт внутри enter_world(), и автоматический прогон с одним маршрутом вечно стоял на СТАРТОВОМ ЭКРАНЕ. Починка молчаливого нуля породила второй молчаливый ноль этажом выше, ровно то, о чём предупреждает комментарий у самого списка, — и увидеть это удалось только прогоном.
+- 13:08:2026 - 17:00:50: Подсказка взаимодействия получила плашку (кусок от зоны ui, применён здесь). Она была последним текстом без подложки, при том что рисуется поверх ЧЕГО УГОДНО, на что смотрит игрок: те же чернила, тот же шрифт, тот же замер — 56.1% чернил не проходят правило двух шагов над светлым фоном. Плашка вынесена ui в ОДНУ функцию до применения: она была уже трижды копией, и эта была бы четвёртой.
 */
 
 #include "engine/app/sources/App.h"
@@ -2180,9 +2181,17 @@ int App::run() {
                     const std::string_view text = localized(hover.prompt_key);
                     const int w = static_cast<int>(hud.width());
                     const int h = static_cast<int>(hud.height());
-                    render::draw_text(hud, (w - render::text_width_px(text)) / 2,
-                                      h - 40, text, render::Color{232, 228, 214},
-                                      /*shadow=*/true);
+                    // The prompt stands on the same ground as the readout: same
+                    // ink, same font, same 5 px letters, so ui's measurement
+                    // applies to it word for word -- 56.1% of that ink fails the
+                    // two-step separation rule wherever the background is bright,
+                    // and this line is drawn over whatever the player happens to
+                    // be facing. It was the only text left without a plate.
+                    const int tw = render::text_width_px(text);
+                    const int tx = (w - tw) / 2;
+                    draw_text_plate(hud, tx, h - 40, tw, render::FONT_INK_H);
+                    render::draw_text(hud, tx, h - 40, text,
+                                      render::Color{232, 228, 214}, /*shadow=*/true);
                     any = true;
                 }
             }
