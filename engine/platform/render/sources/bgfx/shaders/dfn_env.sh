@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 20:19:19
+Last updated: 14:08:2026 - 02:12:30
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -193,6 +193,7 @@ UPD:
   DFN_MOON_GROUND=0 arm came back IDENTICAL to the new-moon frame, so a
   moonless night is untouched and the ambient floor was not raised.
 - 13:08:2026 - 20:19:19: u_deckThick (slot 38.z) — the middle deck's THICKNESS in metres, so the
+- 14:08:2026 - 02:12:30: Точечный свет: снято укорачивание reach = 1 − 0.55·dark и atten² заменён smoothstep на том же линейном окне. Довод — строка реестра TORCH_RADIUS_DARK, предсказавшая ровно это прочтение («лишь клочок» — атмосфера, «не видно ног» — управление): с укорачиванием пол в 2.79 м от пламени читал 4.49 luma при шаге палитры 19.99, то есть контракт не выполнялся на ПОЛОВИНЕ контрактной дистанции. С atten² контракт недостижим при номинале 9 вовсе (нужен R ≥ 11.7 по нормировке того же бокса). После: 47.22 / 54.78 / 62.56, две руки побитово равны. Метод — две сборки одного HEAD 3403375, разница только в этих строках (двери в шейдерном пути нет); прибор — бокс feet0 из FINDING_DUNGEON_DARK, сверен с независимым замером до сотой (4.49). Тьма места остаётся тьмой потому, что ambient там закрыт, а не потому, что лампа сломана.
   main sheet stops being a plane. Half a coverage cell, derived from the field's
   own scale rather than from meteorology (a layer element is wider than it is
   deep; at the cell width the vertical structure would be as fine as the
@@ -897,11 +898,25 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
     // sun, and a second cascade for the moon is not worth the frame.
     light += u_moonColor * (u_moonLight * u_moonGround
                             * max(dot(n, u_moonDir), 0.0) * sky);
-    // Point lights (torch, braziers, lit windows). Radius 0 = off. Smooth
-    // quadratic falloff. Authored darkness SHORTENS them, which is what makes
-    // a torch light "лишь мелкий клочок" in a black-void place instead of
-    // simply making the room grey.
-    float reach = 1.0 - 0.55 * dark;
+    // Point lights (torch, braziers, lit windows). Radius 0 = off.
+    //
+    // WHAT STOOD HERE, AND WHY IT IS GONE. `reach = 1.0 - 0.55 * dark` — the
+    // darker the place, the SHORTER every lamp, defended by "лишь мелкий
+    // клочок". The registry row it fought predicted this exact reading and
+    // rejected it in advance: TORCH_RADIUS_DARK is the MINIMUM useful radius
+    // IN THE DARK — «освещает лишь клочок» — атмосфера, «не видно собственных
+    // ног» — проблема управления. Measured on the feet0 box (one instrument,
+    // FINDING_DUNGEON_DARK): with the shortening plus quadratic falloff the
+    // floor 2.79 m from a burning flame read 4.49 luma against a palette step
+    // of 19.99 — a quarter of the threshold of visibility, i.e. the contract
+    // was unmet at HALF the contract distance. The dark place stays dark
+    // because ambient is gated to zero there, not because the lamp is broken.
+    //
+    // The falloff is smoothstep on the same linear window, not atten², for a
+    // measured reason: with atten² a nominal radius of 9 m cannot reach one
+    // palette step at the 4 m contract distance at all (it needs R >= 11.7 by
+    // the same box's own normalisation), while smoothstep clears it with
+    // margin and still lands at zero slope at the radius edge.
     for (int i = 0; i < DFN_MAX_LIGHTS; ++i)
     {
         if (float(i) >= u_lightCount) {
@@ -910,7 +925,7 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         vec4 pos_rad = u_lightPosRad(i);
         vec3 to_light = pos_rad.xyz - wpos;
         float dist = length(to_light);
-        float atten = clamp(1.0 - dist / max(pos_rad.w * reach, 0.0001), 0.0, 1.0);
+        float atten = clamp(1.0 - dist / max(pos_rad.w, 0.0001), 0.0, 1.0);
         // Shadow-casting lights are packed FIRST (BgfxRenderer orders them), so
         // the slot index IS the cube-atlas index and no second lookup table
         // exists to fall out of sync.
@@ -918,7 +933,7 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         if (float(i) < u_pointShadowParams.x && atten > 0.0) {
             occl = dfn_point_shadow_factor(i, wpos, n, pos_rad.xyz, pos_rad.w);
         }
-        light += u_lightColor(i).rgb * (atten * atten * occl
+        light += u_lightColor(i).rgb * (atten * atten * (3.0 - 2.0 * atten) * occl
                     * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
     }
     return light;
