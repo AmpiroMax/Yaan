@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 18:16:00
+Last updated: 13:08:2026 - 18:30:00
 -->
 <!--
 UPD:
@@ -17,11 +17,19 @@ UPD:
   the pocket-by-distance histogram that moved the diagnosis.
 - 13:08:2026 - 18:16:00: The bot walked it. 90 s of jogging over formed ground
   against the same 90 s with the forms off, plus the generation cost.
+- 13:08:2026 - 18:30:00: THE CONTRACT IS MET. Draw pitch 14 m approved; A1 reads
+  p5 3 against a floor of 3. Shipped pairs are `+f3` and `+p2` (9888746).
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
 
-**Shipped pair: `core-A1-forms-{BEFORE,AFTER}-aa55c1c+f2.png`.**
+**Shipped pair: `core-A1-forms-{BEFORE,AFTER}-9888746+f3.png`** — the approved
+14 m draw pitch, the wander, the ending talwegs, the angled tributaries, the cut
+banks and the back-tilted benches. **At this build `GROUND_OCCLUSION_COUNT` reads
+p5 = 3 against a floor of 3: the contract is MET.**
+Earlier pairs are kept as the record of how it got there: `+f2` (aa55c1c, 18 m
+pitch, p5 2) and `+f1` (0f0dfad, 24 m pitch, p5 1 — first light).
+Old shipped pair line:
 `+f1` (0f0dfad) is kept beside it as the FIRST-LIGHT state — the frame in which
 `GROUND_OCCLUSION_COUNT` first read anything but zero, before the draw pitch was
 approved at 18 m and before the draws stopped being a washboard.
@@ -72,23 +80,40 @@ drawn and collided on**:
 |---|---|---|---|---|
 | BEFORE (forms at identity) | 0 | 0 | 0 | 1 |
 | `+f1`, first light (24 m pitch) | 1 | 1 | 2 | 4 |
-| **AFTER, shipped (`+f2`, 18 m pitch)** | **2** | **2** | **3** | **6** |
+| `+f2` (18 m pitch) | 2 | 2 | 3 | 6 |
+| **AFTER, shipped (`+f3`, 14 m pitch)** | **2** | **3** | **4** | **7** |
 
-Floor is `GROUND_OCCLUSION_COUNT_MIN` = 3 read at percentile 5. **p5 = 2 is not
-a pass.** It is what three surrogates and one direct wavelength sweep could not
-produce at all: every one of them read zero.
+Floor is `GROUND_OCCLUSION_COUNT_MIN` = 3 read at percentile 5. **p5 = 3 meets
+it.** For the whole life of this contract it read ZERO — three surrogates and a
+five-point wavelength sweep, all zero — and it read 1 for the first time this
+morning.
 
-All four order statistics move together between `+f1` and `+f2`, which is what
-separates a real shift from one column's speckle — that is the ground the pitch
-change was approved on.
+All four order statistics move together at each step, which is what separates a
+real shift from one column's speckle; that is the ground each pitch change was
+approved on.
+
+**Why it took a PITCH and not a strength**, from the pocket histogram (pockets
+by distance over 64 columns, drawn field):
+
+| | 5–15 | 15–25 | 25–35 | 35–45 | 45–55 | 55–60 m |
+|---|---|---|---|---|---|---|
+| forms off | 0 | 2 | 2 | 2 | 0 | 16 |
+| 18 m pitch | 55 | 37 | 44 | **1** | 34 | 9 |
+| 14 m pitch | 81 | 60 | 32 | **54** | 34 | 18 |
+
+The 35–45 m hole — the band where this standpoint's ground turns and starts
+rising, the one the back-tilted bench could only dent — went from one pocket to
+54, because at this pitch a crossing lands inside it instead of stepping over
+it.
 
 Beside it, same run, same build:
 
 | quantity | before | after | bound |
 |---|---|---|---|
-| detrended σ over 20 m at A1 | 0.353 m | 0.678 m | ≤ 1.20 m (ceiling holds, 1.8× margin) |
+| detrended σ over 20 m at A1 | 0.353 m | 0.660 m | ≤ 1.20 m (ceiling holds, 1.8× margin) |
+| detrended σ over a **5 m** disc (the ground underfoot) | 0.034 m | 0.204 m | nothing measures this band — reported, see below |
 | hill-band anisotropy (§2.1) | 3.13 | 2.64 | ≥ 2.50 — and see «THE GRAIN QUESTION» below: the floor does not bind at this scale, ruled on the ruler measurement |
-| columns hiding any ground, 12 flattest legal standpoints × 16 azimuths | 76.6 % | **96.4 %** | — |
+| columns hiding any ground, 12 flattest legal standpoints × 16 azimuths | 76.6 % | **98.4 %** | — |
 | reachable ground over 400 m of the 2 m lattice | 99.9725 % | 99.9725 % | identical to five figures |
 | bank-direction spread (axial, per window) | — | 0.408 | 0.16 is corduroy, 0.80 is no direction at all |
 
