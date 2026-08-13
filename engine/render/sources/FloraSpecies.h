@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 23:27:00
+Last updated: 13:08:2026 - 23:45:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -73,6 +73,8 @@ UPD:
 - 13:08:2026 - 23:27:00: flora_united_bole_arm() — the dose door for the
   united bole (DFN_FLORA_ONEBOLE=0 restores the invisible-trunk growth). Same
   Rule 48 shape as the other doors: one door, one moved quantity.
+- 13:08:2026 - 23:45:00: flora_pack_arm() — дверь листовых «пачек»
+  (DFN_FLORA_PACKS=0 — нулевая рука: конфетти 36-40×0.22-0.25 как было).
 */
 
 #pragma once
@@ -434,6 +436,14 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// taken across a rebuild would answer "what happened today" (Rule 47), and
 /// today an unusual amount happened.
 [[nodiscard]] bool flora_weber_arm();
+
+/// WHETHER THE BROADLEAF CARD SPECIES CARRY LEAF PACKS — few, large clusters
+/// (LEAF_CLUSTERS_PER_CROWN of LEAF_CLUSTER_RADIUS_FRAC crown radii) instead
+/// of the 36-40 confetti clusters of 0.22-0.25 that were the mechanism of the
+/// user's «листва как наждачка». `DFN_FLORA_PACKS=0` is the zero-dose arm.
+/// Derivation of both numbers: docs/TREE_MODELS_RESEARCH.md §1.1/§1.2/§1.7
+/// and the two NUMBERS rows. Same Rule 48 shape as every other door here.
+[[nodiscard]] bool flora_pack_arm();
 
 /// WHETHER THE WEBER LEVEL-0 WALKS THE DRAWN BOLE. `DFN_FLORA_ONEBOLE=0` is
 /// the zero-dose arm — the growth of 13.08.2026 evening, where the model grew

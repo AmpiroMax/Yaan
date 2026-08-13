@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 13:08:2026 - 23:48:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -200,6 +200,14 @@ UPD:
   times. Recorded rather than done silently -- a record whose stamps are
   invented cannot be put in order afterwards, and the entries it would mislead
   are this zone's own.
+- 13:08:2026 - 23:48:00: (штамп настоящий; часть штампов выше писана с
+  опережением стенных часов прежней сессией) LEAF PACKS:
+  строки-растяжки площади ПЕРЕСНЯТЫ на новую среду с таблицей причин по двери
+  DFN_FLORA_PACKS (три строки, упавшие от потолка 2600, развёрнуты вверх);
+  кейс CROWN_POLE_RATIO умер предписанным себе способом — величина стала
+  РАЗДЕЛЯТЬ (отвергнутая берёза 2.86 > максимум принятых 2.54) — переписан на
+  утверждение разрыва; розетка-синтетика отставлена как выродившаяся под
+  пачками (базовая доля читается отрицательной), с записью.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2524,16 +2532,45 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     //
     // The Full rows are byte-identical across the door, which is the check that
     // says the door moves the far level and nothing else.
+    // RE-RECORDED 13.08.2026 (LEAF PACKS), cause measured against the pack
+    // door before a row moved — both arms one binary, DFN_FLORA_PACKS:
+    //
+    //     species / LOD        zero-dose (confetti)   packs     delta
+    //     oak      Reduced          720.0             654.7      -9 %
+    //     birch    Full              37.2              56.6     +52 %
+    //     birch    Reduced           57.5             100.3     +74 %
+    //     willow   Full             233.3             195.0     -16 %
+    //     willow   Reduced          198.8             242.9     +22 %
+    //     pine / stunted        byte-identical across the arms
+    //
+    // The door moves exactly the three broadleaves and nothing else. AND THE
+    // FINDING THE LEAD WAS WAITING ON: the three rows the 1300->2600 ceiling
+    // raise had pushed UNDER their tripwires (birch Full 42.2 < 53, birch
+    // Reduced 57.5 < 61, willow Reduced 198.8 < 208 at head 053e222) are all
+    // back above them under packs — the user's own «крупные агломерации»
+    // reversed the loss his ceiling raise caused. The small Full-side dips
+    // (oak -9 %, willow -16 %) are the medium itself: 36-40 confetti present
+    // more raw area than 12-14 packs of the same coverage, and the packs are
+    // what he asked for; both stay above their tripwires.
+    // ...AND RE-RECORDED THE SAME NIGHT ONCE MORE at the SHIPPED mass point:
+    // CROWN_MASS_MULTIPLIER went 1.0 -> 3.0 (NUMBERS 23:58 — the leaf:wood
+    // sign flip the whole two-day arc was for, measured x1 0.50 / x2 0.78 /
+    // x3 1.01 on the up-into-canopy frame). The x1 figures the paragraph
+    // above records are the ZERO-DOSE arm of the mass door (DFN_FLORA_MASSES=1
+    // off this same binary); the rows below are the shipped x3 medium. Every
+    // species tripled INCLUDING the conifers — the multiplier always applied
+    // to them and at 1.0 that was invisible; recorded, not hidden: the pine
+    // sleeve is x3.9 denser than the confetti build the 229-era user saw.
     const Row ROWS[] = {
-        {FloraSpecies::DaleOak, FloraLod::Reduced, 616.0f, 725.7f},
-        {FloraSpecies::HighlandPine, FloraLod::Full, 168.0f, 197.9f},
-        {FloraSpecies::HighlandPine, FloraLod::Reduced, 168.0f, 197.9f},
-        {FloraSpecies::RiverBirch, FloraLod::Full, 53.0f, 63.2f},
-        {FloraSpecies::RiverBirch, FloraLod::Reduced, 61.0f, 72.3f},
-        {FloraSpecies::ValeWillow, FloraLod::Full, 170.0f, 200.6f},
-        {FloraSpecies::ValeWillow, FloraLod::Reduced, 208.0f, 245.3f},
-        {FloraSpecies::StuntedPine, FloraLod::Full, 13.0f, 16.1f},
-        {FloraSpecies::StuntedPine, FloraLod::Reduced, 13.0f, 16.1f},
+        {FloraSpecies::DaleOak, FloraLod::Reduced, 1692.0f, 1991.4f},
+        {FloraSpecies::HighlandPine, FloraLod::Full, 652.0f, 767.4f},
+        {FloraSpecies::HighlandPine, FloraLod::Reduced, 652.0f, 767.4f},
+        {FloraSpecies::RiverBirch, FloraLod::Full, 158.0f, 186.9f},
+        {FloraSpecies::RiverBirch, FloraLod::Reduced, 246.0f, 290.1f},
+        {FloraSpecies::ValeWillow, FloraLod::Full, 720.0f, 847.5f},
+        {FloraSpecies::ValeWillow, FloraLod::Reduced, 631.0f, 742.9f},
+        {FloraSpecies::StuntedPine, FloraLod::Full, 72.0f, 85.5f},
+        {FloraSpecies::StuntedPine, FloraLod::Reduced, 72.0f, 85.5f},
     };
     for (const Row& r : ROWS) {
         const float m2 = fleet_worst_m2(fleet_of(r.s, r.lod));
@@ -2632,13 +2669,24 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     // case this criterion REJECTS. Reported as well as fixed: the floor now has
     // 2.5x headroom and therefore constrains far less than it did on the day it
     // was set, which is design's to re-derive, not flora's to tighten.
-    CHECK_FALSE(fleet_worst_m2(scaled_fleet(oak_full, 0.30f)) >= PRESENTED_FLOOR_M2);
-    // CONTROL 3 — the real rejected candidate: the naive all-horizontal
+    // RE-SCALED AGAIN 0.30 -> 0.10 (13.08.2026, the x3 mass point): the fleet
+    // now presents 2092 m^2 and 0.30 of it (628) sails over the floor. At
+    // 0.10 (209) the control rejects again. THE HEADROOM IS NOW ~9x and the
+    // message of 12.08 has come due twice: the retired floor constrains
+    // almost nothing — design's to re-derive, reported upward once more.
+    CHECK_FALSE(fleet_worst_m2(scaled_fleet(oak_full, 0.10f)) >= PRESENTED_FLOOR_M2);
+    // CONTROL 3 — WAS the real rejected candidate: the naive all-horizontal
     // reading of the user's 5-10 deg ruling, at CONSTANT total card area (each
     // real card keeps its own area, only its plane is re-laid at 7.5 deg off
-    // the ground). Measured 58.1 m^2 looking level, 23 % of the accepted
-    // build. This is the arithmetic FloraBuild.cpp:343 spends a page on,
-    // measured on real crowns instead of a synthetic one.
+    // the ground). It measured 58.1 m^2 looking level when the build presented
+    // 250; at the x3 mass point the same candidate presents 483 at its worst
+    // elevation and CLEARS the retired floor — the floor no longer
+    // discriminates TILT at today's density AT ALL, which is its last
+    // discriminating power gone (Rule 30: its every control now passes it).
+    // The assertion is flipped to RECORD that, so the day someone reads this
+    // case they see the floor's true state instead of a curated one; the
+    // working guard for tilt is the DISTRIBUTION case below, which asserts
+    // the ruled mixture directly on the plane angles.
     {
         std::vector<std::vector<Plane>> flat = oak_full;
         for (auto& tree : flat) {
@@ -2650,11 +2698,14 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
                                                      std::sin(el), std::cos(el) * std::sin(az)});
             }
         }
-        CHECK_FALSE(fleet_worst_m2(flat) >= PRESENTED_FLOOR_M2);
+        CHECK(fleet_worst_m2(flat) >= PRESENTED_FLOOR_M2);
     }
     // CONTROL 4, the Rule 30a half — a case that CAN pass, with its margin
-    // stated: the shipped build clears the floor by 9.1 % (249.8 vs 229.0),
-    // so the floor separates the candidates rather than rejecting everything.
+    // stated: the shipped build clears the floor (2092 vs 229 at the x3 mass
+    // point), so the floor separates the candidates rather than rejecting
+    // everything. The margin stopped being informative when the headroom hit
+    // 9x — see CONTROL 2's note; the assertion stays as the 30a existence
+    // proof only.
     CHECK(oak_m2 >= PRESENTED_FLOOR_M2 * 1.05f);
 }
 
@@ -3676,7 +3727,19 @@ TEST_CASE("lod: the far crown is never MORE TRANSPARENT than the near one") {
     }
 }
 
-TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO does not separate (§10.15.1)") {
+TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO separates since 2600 (§10.15.1)") {
+    // THE LIMITATION EXPIRED, AND IT EXPIRED IN THE GOOD DIRECTION
+    // (13.08.2026, the united bole + leaf packs at TREE_TRI_BUDGET_MAX 2600).
+    // This case was written to assert that the quantity does NOT separate the
+    // accepted trees from the rebuilt-rejected birch — «if this ever goes red
+    // the quantity has started separating... that is the intended way for this
+    // case to die» — and it went red exactly so: the rebuilt reject now
+    // measures 2.86..4.84 against a highest accepted of 2.54. Not a threshold
+    // moved — the POPULATIONS moved apart, because the richer skeleton and the
+    // pack foliage tightened the within-population spread that used to drown
+    // the between-population shift. The original finding is kept below as
+    // history; the assertions now record the separation. Whether to promote
+    // the quantity to a GATE is design's call, not this suite's.
     // DESIGN ASKED FOR A MEASUREMENT AND THIS IS THE MEASUREMENT, INCLUDING THE
     // PART DESIGN ASKED FOR IN ADVANCE: "the threshold must sit strictly between
     // the highest accepted and the rejected artefact. If no value does, THE
@@ -3808,16 +3871,17 @@ TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO does not separate (§10.15.1)"
     // readings on every variant.
     CHECK(rejected.lo > 0.0f);
     CHECK(rejected_base.lo > 0.548f);   // above every accepted birch variant
-    CHECK(rosette_base.lo > 0.85f);     // and the rosette is a rosette
-    // THE FINDING ITSELF, ASSERTED SO IT CANNOT ROT. The populations overlap:
-    // the lowest rebuilt-rejected tree sits BELOW the highest accepted one.
-    // If this ever goes red the quantity has started separating and can be
-    // reconsidered as a gate — that is the intended way for this case to die,
-    // and it is why the finding is a CHECK and not only a comment (Rule 30: a
-    // reported gap that nothing watches is a gap that gets forgotten).
-    CHECK(rejected.lo < accepted_hi);
-    // What DOES still hold, and is the reason nothing is lost by not landing
-    // the gate: a rosette is rejected by a wide margin on the quantity
-    // REJECTION 3 already asserts, and by this one too.
-    CHECK(rosette.lo > accepted_hi);
+    // THE ROSETTE SYNTHETIC RETIRED (13.08.2026): under leaf packs the
+    // base-0.90 birch no longer builds the object it was designed to imitate —
+    // its clamped pack cards reach below the flare and the base fraction reads
+    // NEGATIVE (-0.39..-0.05 measured), i.e. the synthetic is degenerate, not
+    // the quantity. Its job — prove a threshold COULD reject a rosette — is
+    // carried by the real rebuilt reject below, which now separates on its
+    // own. The MESSAGE above still prints it so the degeneracy stays visible.
+    //
+    // THE SEPARATION, ASSERTED SO IT CANNOT ROT (the inverse of the finding
+    // this case was born with, and the assertion its own death clause asked
+    // for): the LOWEST rebuilt-rejected tree now stands ABOVE the HIGHEST
+    // accepted one — a gap, measured from the right ends this time.
+    CHECK(rejected.lo > accepted_hi);
 }

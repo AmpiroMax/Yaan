@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 23:27:00
+Last updated: 13:08:2026 - 23:45:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -81,6 +81,10 @@ UPD:
   could never express would be a number with no consumer.
 - 13:08:2026 - 23:27:00: flora_united_bole_arm() defined (DFN_FLORA_ONEBOLE,
   default on; =0 is the zero-dose arm).
+- 13:08:2026 - 23:45:00: LEAF PACKS: дуб/берёза/ива читают
+  LEAF_CLUSTERS_PER_CROWN (12) и LEAF_CLUSTER_RADIUS_FRAC (0.45) из реестра за
+  дверью flora_pack_arm(); гигант, сосна и стланик не тронуты, у каждого своя
+  записанная причина. Вывод обоих чисел — docs/TREE_MODELS_RESEARCH.md.
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -937,6 +941,72 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     great.shyness = 0.0f;    // nothing crowds a great oak
     great.lean_response = 0.04f;
 
+    // --- LEAF PACKS (13.08.2026, the user's «пачки текстур»). ---------------
+    // The broadleaf card species carried 36-40 clusters of 0.22-0.25 crown
+    // radii — confetti, the mechanism of his «листва как наждачка». Every
+    // studied model does the opposite (docs/TREE_MODELS_RESEARCH.md §1.7:
+    // 5-15 elements of 0.4-0.9 crown radii; SpeedTree §1.1: the SMALLER the
+    // budget the BIGGER the cluster). The two registry rows carry the
+    // derivation; the species keep their own card shapes, tones and aspect.
+    // THE GIANT IS EXEMPT by its own contract (its 240 small masses at 0.06
+    // are the measured answer to a crown that must show structure through
+    // foliage — see the block above), the krummholz already sits at 0.52, and
+    // the PINE is a different doctrine (needle sprays on shoots, one per
+    // whorl branch) and is not touched by this change.
+    // DFN_FLORA_PACKS=0 is the zero-dose arm (flora_pack_arm).
+    if (flora_pack_arm()) {
+        // VERIFICATION HOOKS, never a shipping path (the standing of
+        // DFN_FLORA_NODES): sweep the pack count and radius from one binary.
+        // They exist because the first landing of the rows was uniform across
+        // three envelopes and the VASE (birch) lost half its card area to
+        // containment while the SPHERE (oak) gained a third — one number, three
+        // containers, and the sweep is how the per-envelope factors below were
+        // measured rather than argued.
+        static const auto pack_n = [] {
+            const char* e = std::getenv("DFN_FLORA_PACKN");
+            const int v = e != nullptr ? std::atoi(e) : 0;
+            return (v >= 3 && v <= 64)
+                ? static_cast<uint8_t>(v)
+                : static_cast<uint8_t>(config::LEAF_CLUSTERS_PER_CROWN);
+        }();
+        static const auto pack_r = [] {
+            const char* e = std::getenv("DFN_FLORA_PACKR");
+            const float v =
+                e != nullptr ? static_cast<float>(std::atof(e)) : 0.0f;
+            return (v > 0.05f && v < 1.0f)
+                ? v
+                : static_cast<float>(config::LEAF_CLUSTER_RADIUS_FRAC);
+        }();
+        // PER-ENVELOPE COUNT FACTORS, measured rather than argued (the sweep
+        // hooks above, R=0.45 throughout, fleet presented area in m^2):
+        //   SPHERE (oak) counts the registry row VERBATIM: at 12 the fleet
+        //     presents 654 and the half-density control still fails the
+        //     retired 229 floor (0.3x654=196); at 14 the control PASSES it
+        //     (229.4) and stops being a control (Rule 30). 12 is the ceiling
+        //     the control leaves the sphere, not a taste.
+        //   VASE (birch) x3/2 = 18: the narrow container CLAMPS a big pack to
+        //     ~0.30 of its envelope at the rim (emit_cluster's shrink-to-fit),
+        //     so the vase holds its area by COUNT where the sphere holds it by
+        //     SIZE: 12 -> 28.5 m^2 (half the confetti build), 16 -> 44.5,
+        //     18 -> 56.6 (above the confetti build's own 53 tripwire).
+        //   WEEPING (willow) x7/6 = 14: the skirt spreads its packs along the
+        //     fall; 12 leaves the Reduced fleet at 242.9 and Full at 195 —
+        //     14 clears both old tripwires (195->229 Full) without touching
+        //     the sphere's control arithmetic.
+        struct PackRow {
+            FloraSpecies s;
+            uint32_t num, den;
+        };
+        for (const PackRow& pr : {PackRow{FloraSpecies::DaleOak, 1u, 1u},
+                                  PackRow{FloraSpecies::RiverBirch, 3u, 2u},
+                                  PackRow{FloraSpecies::ValeWillow, 7u, 6u}}) {
+            SpeciesParams& sp = t[static_cast<size_t>(pr.s)];
+            sp.cluster_count = static_cast<uint8_t>(
+                std::min(64u, static_cast<uint32_t>(pack_n) * pr.num / pr.den));
+            sp.cluster_radius_frac = pack_r;
+        }
+    }
+
     return t;
 }
 
@@ -991,6 +1061,14 @@ bool flora_far_lod_arm() {
 bool flora_united_bole_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_ONEBOLE");
+        return e == nullptr || e[0] != '0';
+    }();
+    return on;
+}
+
+bool flora_pack_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_PACKS");
         return e == nullptr || e[0] != '0';
     }();
     return on;
