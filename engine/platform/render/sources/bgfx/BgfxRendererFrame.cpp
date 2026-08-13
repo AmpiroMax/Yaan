@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 19:11:13
+Last updated: 13:08:2026 - 19:49:07
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -97,6 +97,13 @@ UPD:
   casters wrote 10 entries into `std::array<PointLight, 8>`. RenderSystem had
   capped the world at ONE shadowing flame to dodge it; that cap is gone with
   the cause.
+- 13:08:2026 - 19:49:07: packed[39].w = THE MOON'S GROUND GAIN, in the deck slot's spare
+  component rather than in a fortieth vec4 (the array's size is a two-file
+  contract and resizing it stopped this project's build twice in one day).
+  DFN_MOON_GROUND is its dose and 0 is the zero-dose control -- which is what
+  let both arms of its measurement come out of ONE binary while seven other
+  agents were editing this tree. Derivation and numbers: dfn_env.sh,
+  u_moonGround.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -318,6 +325,34 @@ static float ground_tint_dose() {
     return value;
 }
 
+// HOW BRIGHT A FULL MOON LIGHTS THE GROUND, as a multiple of moon_color. The
+// derivation is written out where the term is applied (dfn_env.sh, u_moonGround)
+// and it is a MEASUREMENT solved for the gain, not a taste: at 0.30 a full moon
+// left the ground 9.72 luma above a moonless night IN THE QUANTISER'S METRIC
+// (0.30/0.59/0.11, fs_upscale.sc), and 9.72 of 255 is 0.49 of one
+// PALETTE_SHADE_STEP_REF — half the quantiser's own cell, i.e. under this
+// project's stated threshold for two things being told apart. Two steps of
+// separation need 0.30 * 39.98/9.72 = 1.234.
+//
+// SOLVING FOR IT IS LEGITIMATE BECAUSE THE RESPONSE IS LINEAR, and that was
+// CHECKED rather than assumed: the first pass shipped 1.166 (derived from the
+// Rec.709 luma, the wrong metric) and predicted 37.8 luma of separation. The
+// frame came back with 37.79. A gain that the frame answers linearly can be
+// solved for; one that saturates cannot.
+//
+// LOOK-DEV, AND IT WANTS A NUMBERS ROW (Rule 14) — requested from the lead with
+// the measurement above. It cannot come from the generated header yet because it
+// has no row; it may not live in engine/render because the platform layer may
+// not depend on it (the DAG), so it lives beside its dose.
+//
+// DFN_MOON_GROUND is that dose, and 0 is the zero-dose control: at 0 the moon
+// stops lighting the ground and only the night ambient is left, which is the arm
+// the 7.43 above was read from.
+static float moon_ground_gain() {
+    static const float value = dose_env_override("DFN_MOON_GROUND", 1.234f);
+    return value;
+}
+
 struct HazeParams {
     float scale_m;
     float height_m;
@@ -422,7 +457,11 @@ void BgfxRenderer::Impl::apply_environment() const {
     // planes and dfn_cloud_sun_vis projects along the SUN to the same planes,
     // and a disagreement slides the ground shadow out from under the cloud
     // casting it.
-    packed[39] = {e.cloud_deck_m, 0.0f};
+    // .w is the MOON'S GROUND GAIN, riding in the deck slot's spare component
+    // rather than in a fortieth vec4: the array's size is a two-file contract
+    // and resizing it has stopped this project's build twice in one day, so a
+    // free component is worth more than a tidy grouping.
+    packed[39] = {e.cloud_deck_m, moon_ground_gain()};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

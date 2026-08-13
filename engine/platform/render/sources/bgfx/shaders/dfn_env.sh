@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 19:49:07
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -181,6 +181,17 @@ UPD:
   The shipped 1500/2600/4400 survive as RenderEnvironment's DEFAULT, which is
   this change's zero-dose arm (Rule 48).
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 19:49:07: THE MOON'S GROUND GAIN IS A UNIFORM (slot 39.w) and its value is
+  a measurement solved for the gain. At the shipped 0.30 a FULL MOON left the
+  ground 9.72 luma above a moonless night -- 0.49 of ONE palette shade step,
+  i.e. half the quantiser's own cell, so «ночью темно и вообще ничего не видно»
+  was literally true in this project's units. Worse, the moonlit ground spanned
+  p10 13.13 to p90 19.98, 0.34 of a step from its darkest tenth to its
+  brightest: ONE palette entry, no shape at all. 1.234 buys exactly two steps
+  of separation, verified on the frame (39.99 luma) and with p10/p90 now
+  1.09 steps apart. The moon term is zero at new moon by construction, and the
+  DFN_MOON_GROUND=0 arm came back IDENTICAL to the new-moon frame, so a
+  moonless night is untouched and the ambient floor was not raised.
 */
 
 #ifndef DFN_ENV_SH
@@ -743,11 +754,49 @@ void dfn_screen_door(float fade, vec2 pixel)
     }
 }
 
-// Ground brightness of a FULL moon, as a fraction of moon_color. A full moon
-// is ~400,000x dimmer than the sun; the art value that reads as "navigable
-// night, not a second daylight" is this. Look-dev — the only such number in a
-// shader, and it lives here because it pairs with the u_moonLight contract.
-#define DFN_MOON_GROUND_MAX 0.30
+// Ground brightness of a FULL moon, as a multiple of moon_color. A full moon is
+// ~400,000x dimmer than the sun, so this is a look-dev number and not a
+// physical one; what it has to satisfy is that a full moon can be TOLD APART
+// from a moonless night, and until now it could not.
+//
+// IT IS A UNIFORM NOW (slot 39.w) rather than the 0.30 that stood here. Two
+// reasons, and the second is why it moved rather than just changing value:
+// retuning it must not recompile shaders (this zone's rule), and the two arms
+// of its own measurement have to come out of ONE BINARY (Rule 47) — with a
+// #define they would be two builds an edit apart, and this tree has seven other
+// agents editing it. DFN_MOON_GROUND is the dose; the default is derived below.
+//
+// MEASURED, at the player's eye (1.7 m over the treeline vantage), midnight,
+// the moon on the meridian at 32.5 deg — ground rows only, mean luma of 255:
+//     new moon  (moon_light 0)   7.01
+//     full moon (moon_light 1)  16.73   -> the moon's own contribution 9.72
+// and 9.72 of 255 is 0.49 of ONE PALETTE_SHADE_STEP_REF (0.0784 = 19.99).
+// So a FULL MOON WAS HALF A SHADE STEP BRIGHTER THAN NO MOON AT ALL. This
+// project's own rule (NUMBERS, SUN_GLARE_LUMA_MAX) is that one step IS the
+// quantiser's cell and a one-step difference may round into the same palette
+// entry, so a claim needs TWO. The moon was a factor of four under the
+// threshold of being visible at all, which is «ночью темно и вообще ничего не
+// видно» in the units this project measures light in.
+//
+// The default is that requirement solved for the gain: two steps of separation
+// = 39.98 luma where 0.30 bought 9.72, i.e. 0.30 * 39.98/9.72 = 1.234. It is
+// a number the frame HANDS BACK, not one picked to look right.
+//
+// AND THE GROUND HAD NO SHAPE, WHICH IS THE STRONGER HALF OF THE REPORT: the
+// ground rows spanned p10 13.13 to p90 19.98, i.e. 0.34 of a shade step from
+// the darkest tenth to the brightest. Under the palette that is ONE ENTRY —
+// the moonlit ground was a single flat colour, and no amount of staring at it
+// resolves a slope. After: p10 33.69, p90 55.43, 1.09 steps of internal
+// contrast.
+//
+// NOT THE AMBIENT FLOOR, and the decomposition says why: of the 16.73 a full
+// moon leaves on the ground, 9.72 is the moon and 7.01 is the night ambient.
+// The moon is already the larger half — it is not missing, it is small, and so
+// is everything else at night. Raising the FLOOR would brighten moonless nights
+// too, which is the opposite of what a moon is for (and the floor is the
+// light zone's). This term is zero at new moon by construction, so a moonless
+// night is byte-identical before and after.
+#define u_moonGround (u_envParams[39].w)
 
 // Surface lighting shared by terrain and props, so night, moonlight and the
 // carried torch can never disagree between them.
@@ -827,7 +876,7 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
                            * dfn_cloud_sun_vis(wpos));
     // Moonlight: directional and unshadowed — the shadow map belongs to the
     // sun, and a second cascade for the moon is not worth the frame.
-    light += u_moonColor * (u_moonLight * DFN_MOON_GROUND_MAX
+    light += u_moonColor * (u_moonLight * u_moonGround
                             * max(dot(n, u_moonDir), 0.0) * sky);
     // Point lights (torch, braziers, lit windows). Radius 0 = off. Smooth
     // quadratic falloff. Authored darkness SHORTENS them, which is what makes

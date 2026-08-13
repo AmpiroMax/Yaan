@@ -75,6 +75,42 @@ $input v_dir
 // at a real altitude, so an altitude that MOVES is expressible. A sky drawn as a
 // function of view direction would have had nothing to move.
 
+// UPD 13:08:2026 - 19:49:07: THE CUMULUS STOPPED BEING A RING AND THE STARS STOPPED
+// FLICKERING. Two user reports, two sampling defects, both measured before a
+// pixel moved.
+//
+// (1) «я не приближаюсь к облакам» / «бело-серые кучки». The band read the
+// field on a cylinder of radius 20 km CENTRED ON THE EYE. Its parallax was
+// correct — for something 20 km away, which is a distance this world does not
+// contain: the whole walkable testbed subtends 0.86 deg of bearing on it, and
+// every cumulus pixel had the SAME range, so the bank could only ever translate
+// rigidly. Re-anchoring a 20 km ring answers nothing; the masses had to move to
+// where clouds are. They now live in a SLAB between the low and middle deck,
+// four taps along the view ray, Beer-Lambert. Measured against the ring in one
+// process (both arms, a zero-walk arm at exactly 0.00 %):
+//     range to cloud, per cloud-bearing pixel   bearing swing per 300 m walked
+//       RING  p10/median/p90  20.0/20.0/20.0 km    0.86 / 0.86 / 0.86 deg
+//       SLAB  p10/median/p90   3.2/ 5.6/21.2 km    5.45 / 3.07 / 0.81 deg
+// The ring had ONE number three times — no differential parallax anywhere in
+// the frame, which is «стоят как декорация» stated as geometry. The slab's
+// nearest tenth swings 6.7x the farthest, and cloud went from 2.8 % of the sky
+// to 26.8 %. Path length does the rest for free: a ray at 2 deg crosses ~28x
+// more slab than one straight up, so the horizon reads as a solid bank and the
+// zenith as separate masses, from the same field and the same threshold.
+// TWO OF MY OWN MISTAKES, both caught by the frame and both fixed here rather
+// than left: the first cut had no LOD on the 3-D field and laid a speckled
+// stripe over the horizon (fixed by converging to the field's own area average,
+// 1-T, exactly as R3.3 does for the sheets), and the second applied the veil
+// extinction INSIDE the integral, where path length saturates opacity faster
+// than distance can fade it — a 40 km bank came out as an opaque grey WALL.
+//
+// (2) «звёзды дёргаются». Measured: the star field is a function of `dir` alone,
+// so walking moves it by 0.00 %. TURNING moves it, and at 640x360 the disc was
+// 0.55 px in RADIUS — smaller than the sample spacing, so one frame of a slow
+// 30 deg/s look changed the WHOLE FIELD's brightness by -16.9 % and made
+// individual stars swing 0.90 of full brightness. See dfn_stars for the sweep
+// the 0.8 px radius is read off.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -132,18 +168,47 @@ $input v_dir
 // `tools/measure_aerial.py decks <FULL> <ARM...> <box>`. 0 is the shipped sky.
 #define DFN_DECK_ARM 0
 
-// Horizon cumulus, sized against the distance it is READ from (Rule 33). A
-// bank on a 20 km ring with a 1100 m base and 3400 m tops subtends dir.y
-// 0.055..0.170 — a band about 6.6 deg tall, ~85 px of a 640x360 frame at the
-// tour's 45 deg FOV, so an individual mass is legible rather than a pixel of
-// texture. The previous ring was 6.5 km with a base BELOW the horizon, which
-// put the whole body under the terrain line and left only the tapering tips
-// showing: the "floating funnels" of the first shoot.
-#define CUMULUS_RING_M   20000.0
-#define CUMULUS_BASE_M    1100.0
-#define CUMULUS_TOP_M     3800.0
-#define CUMULUS_BASE_Y   (CUMULUS_BASE_M / CUMULUS_RING_M)
-#define CUMULUS_TOP_Y    (CUMULUS_TOP_M / CUMULUS_RING_M)
+// CUMULUS ARE A SLAB NOW, NOT A RING AROUND THE EYE, and that is the fix for
+// «я не приближаюсь к облакам» / «бело-серые кучки, стоят как декорация».
+//
+// WHAT WAS WRONG, and it was NOT the anchoring. The band sampled the field at
+// `eye.xz + dh * 20000`, so its parallax response was exactly that of something
+// 20 km away — which is CORRECT geometry for a thing 20 km away, and that is
+// the whole problem: 20 km is a distance this world does not contain. The
+// testbed is about 1 km across, so the entire walkable world subtends 3 deg of
+// bearing change on a 20 km bank. Nothing the player can do moves it. The
+// complaint is about DISTANCE, and no amount of re-anchoring a 20 km ring
+// answers it.
+//
+// So the masses go where clouds actually are: in a SLAB between the low and the
+// middle deck, sampled along the view ray. The geometry then hands the whole
+// look back for free, because distance becomes a function of where you look:
+//   straight up      the slab is 0.9-1.6 km away — a cloud you are UNDER
+//   45 degrees       ~1.3-2.3 km
+//   6 deg elevation  ~9-16 km
+//   2 deg            ~27-46 km — the far bank on the horizon
+// Walking 500 m swings the bearing of the nearest masses by 30 deg and the far
+// bank by 1 deg, which is what an approach IS: differential parallax between
+// near and far cloud. The ring had one distance and therefore no differential.
+//
+// AND THE PATH LENGTH IS WHAT MAKES THE HORIZON A BANK. A ray at 2 deg crosses
+// 20 km of slab and a ray straight up crosses 700 m, so opacity accumulates ~28x
+// faster toward the horizon: the same field, the same threshold, and the
+// horizon still reads as a solid bank while the zenith reads as separate
+// masses. That was the ring's job and it is now a consequence rather than a
+// setting.
+//
+// The slab is bracketed by the two decks (u_cloudDeckLow..u_cloudDeckMid) so it
+// moves with the ceiling (R3.4) and cannot drift into or through them.
+#define CUMULUS_TAPS 4
+// Extinction per slab-thickness of FULLY dense cloud. Derived from the one
+// case the slab has to get right on its own: looking straight up through a
+// solid column the ray crosses exactly one thickness, and a cumulus directly
+// overhead should be nearly opaque but not black — 0.85 of the way there, so
+// 1 - exp(-k) = 0.85 and k = 1.90. Everything else follows from the path
+// length, which is geometry: at 2 deg of elevation the same law reaches full
+// opacity on a fifth of that density, which is what a horizon bank is.
+#define CUMULUS_DENSITY 1.90
 // The ONE field, read coarser on the ring. THE NUMBER IS AN ASPECT RATIO, not
 // a taste: the band is CUMULUS_TOP_Y - CUMULUS_BASE_Y = 0.135 of a radian tall,
 // i.e. 7.7 deg, and a cumulus mass is WIDER THAN IT IS TALL — a fair-weather
@@ -171,19 +236,86 @@ $input v_dir
 // is hashed, and only the rare high hashes become stars, at a pseudo-random
 // point inside their cell. NO time term: a twinkle at 640x360 under the
 // 64-colour palette reads as sensor noise, not as sky.
+//
+// THE STARS DID NOT MOVE AND STILL FLICKERED, and this is the fix for the
+// user's «звёзды дёргаются». Two measured facts, from a CPU mirror of this
+// function (one process, a zero-rotation arm that comes out identically 0):
+//
+//  1. The star field is a function of `dir` ALONE, so WALKING cannot move it —
+//     measured 0.00 % of pixels changed. What moves it is TURNING, and turning
+//     is what a first-person player does constantly: 30 deg/s at 120 fps is
+//     1.2 px of image per frame.
+//  2. At 640x360 the shipped disc is 0.55 px in RADIUS. A point smaller than
+//     the sample spacing is captured or missed depending on where the pixel
+//     centre happens to fall inside it, so ONE FRAME of that slow turn moved
+//     the WHOLE FIELD's brightness by -16.9 %, with individual stars swinging
+//     0.90 of full brightness — appearing and vanishing between adjacent
+//     frames. That is the flicker, and it is a sampling defect, not a twinkle.
+//
+// The cure for a sub-pixel point is not "antialias its edge" — there is no
+// edge to antialias, the whole star is inside one sample. It is to spread the
+// SAME ENERGY over at least one pixel, so sub-pixel motion redistributes light
+// between neighbours instead of switching it on and off. So the radius is now
+// in PIXELS (from the screen derivative, exactly as the sun disc below takes
+// its own AA) and the brightness is divided by the area, which holds each
+// star's emitted light fixed: this is a change of SHAPE, not of dose.
+//
+// 0.8 px IS READ OFF THE SWEEP, not chosen. Whole-field swing per 1.2 px turn,
+// energy held constant, radius in pixels:
+//     0.55 px (shipped) -16.93 %   |  133 px at >=1 palette step, 97 at >=2
+//     0.83 px            -1.34 %   |  360                       , 153
+//     1.10 px            +0.86 %   |  442                       ,  69
+//     1.83 px            +0.49 %   |   26                       ,   0
+// The swing falls 12.6x from 0.55 to 0.83 px and only 1.6x more by 1.10, while
+// the BRIGHTEST stars (the ones that survive two palette steps) start
+// collapsing past 0.83 — 153 -> 69 -> 0. Both curves are still good at 0.83 px
+// and one of them is not past it: that is the knee, and it is where this sits.
+// Note the second column: the field gets MORE visible, not less. The widening
+// recovers light the raster was throwing away (captured 43.3 -> 76.8 units of
+// an emitted 167), so the stars are steadier AND there are more of them.
+//
+// AND THE 3x3x3 READ IS PART OF THE SAME FIX. A disc of radius R spills into
+// the neighbouring cells, and the single-cell read CLIPPED it — measured, that
+// clipping alone cost 17 % of the field's light and contributed 5.4 points of
+// the swing (a star crossing a cell boundary was being cut into a crescent).
+// Night-only: the caller gates on u_starIntensity.
+#define STAR_CELLS       150.0
+#define STAR_RADIUS_BASE 0.30
+#define STAR_RADIUS_PX   0.80
+
+float dfn_star_hash(vec3 cell)
+{
+    return fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+}
+
 float dfn_stars(vec3 dir)
 {
-    vec3 g = dir * 150.0;
-    vec3 cell = floor(g);
-    vec3 f = g - cell;
-    float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-    if (h < 0.9860) {
-        return 0.0;
-    }
-    vec3 p = vec3(fract(h * 17.0), fract(h * 31.0), fract(h * 57.0));
-    float d = length(f - p);
-    float brightness = 0.35 + 0.65 * fract(h * 91.0);
-    return smoothstep(0.30, 0.0, d) * brightness;
+    vec3 g = dir * STAR_CELLS;
+    // How many cells one pixel spans, from the raster itself. A constant would
+    // be right at exactly one internal resolution and wrong at the other, and
+    // this project ships two (640x360 and 320x180).
+    float cells_px = max(length(fwidth(g)), 1e-4);
+    float R = clamp(max(STAR_RADIUS_BASE, STAR_RADIUS_PX * cells_px),
+                    STAR_RADIUS_BASE, 1.0);
+    // Energy, not peak: a wider disc carries the same total light.
+    float scale = (STAR_RADIUS_BASE * STAR_RADIUS_BASE) / (R * R);
+
+    vec3 c0 = floor(g);
+    float sum = 0.0;
+    for (int k = -1; k <= 1; ++k) {
+    for (int j = -1; j <= 1; ++j) {
+    for (int i = -1; i <= 1; ++i) {
+        vec3 cell = c0 + vec3(float(i), float(j), float(k));
+        float h = dfn_star_hash(cell);
+        if (h < 0.9860) {
+            continue;
+        }
+        vec3 p = cell + vec3(fract(h * 17.0), fract(h * 31.0), fract(h * 57.0));
+        float d = length(g - p);
+        float brightness = 0.35 + 0.65 * fract(h * 91.0);
+        sum += smoothstep(R, 0.0, d) * brightness * scale;
+    }}}
+    return sum;
 }
 
 // Moon disc with a phase terminator. Builds a basis on the moon direction,
@@ -249,6 +381,12 @@ void main()
     vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 cloud_bright = dfn_cloud_bright();
     vec3 cloud_dark = cloud_bright * 0.58;
+    // THE LOW DECK IS COMPOSITED AFTER THE CUMULUS, so its alpha and colour are
+    // carried out of the deck block. The cumulus slab STARTS at the low deck's
+    // own altitude, so the deck is the nearest thing in the sky and has to be
+    // able to occlude the bank behind it; drawn in the deck block it could not.
+    float a0 = 0.0;
+    vec3 col0 = vec3(0.0, 0.0, 0.0);
 
     // THREE DECKS, drawn BACK TO FRONT (R3.2). Same field, same drift offset
     // the ground shadow projects — one authority (W4). No elevation or
@@ -293,14 +431,14 @@ void main()
         float dist0 = (u_cloudDeckLow - eye.y) / dir.y;
         vec2 p0 = eye.xz + dir.xz * dist0;
         float cpx0 = DFN_CLOUD_CELLS_PX(p0);
-        float a0 = dfn_cloud_sheet_low_alpha(p0, cpx0)
-                 * exp(-dist0 / SHEET_EXTINCTION_M);
+        a0 = dfn_cloud_sheet_low_alpha(p0, cpx0)
+           * exp(-dist0 / SHEET_EXTINCTION_M);
         vec2 q0 = p0 + u_cloudOffset + DFN_CLOUD_DECK_LOW_SEED;
         float shade0 = dfn_cloud_self_shade(q0, dfn_cloud_field(q0, cpx0),
                                             cpx0);
-        vec3 col0 = mix(cloud_bright * DECK_TONE_LOW_LIT,
-                        cloud_bright * DECK_TONE_LOW_DARK,
-                        clamp(0.5 + shade0 * 0.5, 0.0, 1.0));
+        col0 = mix(cloud_bright * DECK_TONE_LOW_LIT,
+                   cloud_bright * DECK_TONE_LOW_DARK,
+                   clamp(0.5 + shade0 * 0.5, 0.0, 1.0));
 
         // The acceptance arms: each drops exactly one deck and nothing else.
 #if DFN_DECK_ARM == 1
@@ -311,77 +449,125 @@ void main()
         a2 = 0.0;
 #endif
         // BACK TO FRONT. Order is the feature: the low deck is drawn LAST so
-        // its holes are where the two decks behind it show through.
+        // its holes are where everything behind it shows through — and "behind
+        // it" now includes the cumulus slab, so its composite waits below.
         sky = mix(sky, cloud_bright, a2);
         sky = mix(sky, col1, a1);
-        sky = mix(sky, col0, a0);
     }
 
-    // Cumulus on the horizon ring (в10 third kind): the coverage field read in
-    // 3D on a far ring, drifting with the same offset, against a threshold that
-    // rises with elevation so the tops are rationed and the base is broad.
-    // Biased UPWIND so the densest bank stands where the weather is coming from
-    // (W2.3 — the announcement).
+    // CUMULUS (в10's third kind): the coverage field read in 3D through a SLAB
+    // between the low and the middle deck, drifting with the same offset, with
+    // a threshold that rises through the slab so the tops are rationed and the
+    // base is broad. Biased UPWIND so the densest bank stands where the weather
+    // is coming from (W2.3 — the announcement).
     //
-    // THE ROUNDED DOMES THIS ONCE AIMED FOR WERE THE DEFECT, not the goal. Read
-    // in 2-D the field is a function of AZIMUTH ALONE, so alpha was monotone in
-    // height for every azimuth and the silhouette was a single-valued skyline:
-    // no holes and no overlaps were POSSIBLE, provably. Inverting a squared
-    // threshold then gave height ~ sqrt(field) — vertical where a lobe crosses
-    // the threshold, flat at the lobe's peak — and vertical sides under a flat
-    // top is a mushroom cap. Half a dozen of them sitting on the horizon is
-    // what the lead reported, and he was right that it reads as breakage rather
-    // than as style. The dimensionality was the defect; the exponent was not.
-    if (u_cloudCumulus > 0.0 && dir.y < CUMULUS_TOP_Y + 0.02
-        && dir.y > CUMULUS_BASE_Y - 0.004) {
+    // THE 3-D READ IS KEPT AND IT IS LOAD-BEARING (R3.1). Read in 2-D the field
+    // was a function of AZIMUTH ALONE, so alpha was monotone in height for every
+    // azimuth and the silhouette was a single-valued skyline: no holes and no
+    // overlaps were POSSIBLE, provably, and inverting the threshold gave
+    // vertical sides under a flat top — the mushroom caps the lead reported.
+    // WHAT CHANGED IS WHERE THE THIRD COORDINATE COMES FROM: it used to be
+    // dir.y * 20000, the altitude at which the ray crossed a ring GLUED TO THE
+    // EYE, and it is now the real altitude of a real world point on the ray.
+    // THE GATE IS WHERE THE VEIL HAS ALREADY GONE, not where it is still worth
+    // drawing, and the first cut of this got it wrong: at dir.y 0.004 the
+    // converged veil is still 0.83 opaque, so the gate WAS the horizon line —
+    // a dead straight edge across the frame. The extinction does the fade on
+    // its own once it is allowed to finish: entry distance is 845/dir.y metres,
+    // so at 0.002 the veil is 0.10 and by 0.001 it is 0.0002. The gate now sits
+    // below that, where it can only ever remove a zero.
+    if (u_cloudCumulus > 0.0 && dir.y > 0.0008) {
         vec2 dh = normalize(dir.xz + vec2(1e-5, 0.0));
         float upwind = 0.5 - 0.5 * dot(dh, u_windDir);
-        // THE TWO NUMBERS ARE COVERAGE FRACTIONS AT THE TWO ENDS OF THE BAND.
+        // THE TWO NUMBERS ARE COVERAGE FRACTIONS AT THE TWO ENDS OF THE SLAB.
         // The field is remapped through its own CDF, so it is uniform on [0,1]
-        // and a threshold of 1-c admits exactly c of the band. A bank of cumulus
-        // at 20 km is nearly CONTINUOUS along the horizon; what varies is how
-        // much of it survives with height. So the base is broad and only the
-        // tops are rationed.
+        // and a threshold of 1-c admits exactly c of the volume. A cumulus deck
+        // is broad at its base and rationed at its tops, which is the one thing
+        // that makes a cauliflower rather than a brick.
         float base_cover = clamp(u_cloudCumulus * (0.55 + 0.40 * upwind), 0.0, 0.92);
         float top_cover = base_cover * 0.10;
-        float hn = clamp((dir.y - CUMULUS_BASE_Y)
-                         / (CUMULUS_TOP_Y - CUMULUS_BASE_Y), 0.0, 1.0);
-        // THE FIELD IS READ IN 3D NOW, and that is the whole fix for the domes.
-        // The point is where this view ray meets the ring: horizontally the ring
-        // position (continuous all the way round — no azimuth seam), vertically
-        // the altitude it meets it at. Altitude is stretched by
-        // CUMULUS_VERTICAL_STRETCH so one field cell is about as tall as the
-        // band and about 1.6x wider, which is the proportion a bank of cumulus
-        // actually has.
-        vec3 ring3 = vec3(eye.x + dh.x * CUMULUS_RING_M + u_cloudOffset.x,
-                          dir.y * CUMULUS_RING_M * CUMULUS_VERTICAL_STRETCH,
-                          eye.z + dh.y * CUMULUS_RING_M + u_cloudOffset.y)
-                   / (max(u_cloudWavelength, 1.0) * CUMULUS_SCALE);
-        float F = dfn_cloud_field3(ring3);
-        // LINEAR again, and it is allowed to be now. The squared exponent was
-        // there to bend the shape of an inverted 1-D function; in 3D the shape
-        // comes from the field itself, so the threshold only has to ration how
-        // much cloud survives with height — which is what thins the tops.
-        float T = mix(1.0 - base_cover, 1.0 - top_cover, hn);
-        // The flat base stays a hard gate: a cumulus bank's defining line is
-        // that every mass in it begins at the SAME altitude.
-        float cum = smoothstep(T, T + 0.06, F)
-                  * smoothstep(CUMULUS_BASE_Y - 0.004, CUMULUS_BASE_Y + 0.006,
-                               dir.y);
-        // SHADED BASES ARE WHAT SEPARATE A BANK FROM THE HAZE. A cumulus is lit
-        // from above and its flat base is the darkest thing in the sky near the
-        // horizon — and near the horizon the SKY is the pale horizon colour, so
-        // a white-to-the-bottom mass has nothing to read against and dissolves
-        // upward into a floating tooth. Held dark through the lower third, then
-        // climbing. The field's own local density adds the second half of the
-        // self-shadowing: a denser core is a thicker core, and a thicker core is
-        // darker underneath.
-        vec3 cum_col = mix(cloud_dark * 0.78, cloud_bright,
-                           smoothstep(0.10, 0.75, hn));
-        cum_col *= mix(1.0, 0.82, smoothstep(T + 0.06, T + 0.28, F)
-                                      * (1.0 - hn));
-        sky = mix(sky, cum_col, cum);
+
+        float slab_base = u_cloudDeckLow;
+        float slab_top = u_cloudDeckMid;
+        float t0 = (slab_base - eye.y) / dir.y;
+        float t1 = (slab_top - eye.y) / dir.y;
+        // Path through the slab, in units of its own THICKNESS. 1 looking
+        // straight up, ~28 at 2 degrees of elevation — this ratio is the whole
+        // reason the horizon reads as a solid bank and the zenith as separate
+        // masses, and it is geometry rather than a second set of constants.
+        float path = (t1 - t0) / max(slab_top - slab_base, 1.0);
+
+        // THE FIELD RUNS OUT OF RESOLUTION BEFORE THE SLAB RUNS OUT OF SKY, and
+        // the first frame of this said so loudly: a speckled stripe a few
+        // degrees tall sat above the horizon, where one pixel spans kilometres
+        // ALONG the ray and consecutive taps land in unrelated cells. Same
+        // defect the sheets had (R3.3) and the same cure — converge to the
+        // honest area average once there is nothing left to resolve. The field
+        // is uniform on [0,1] by construction, so the average above a threshold
+        // T is exactly 1-T and no second constant is needed.
+        //
+        // The derivative is taken ONCE, at the middle of the slab, and outside
+        // the tap loop: screen derivatives inside a loop are the kind of thing
+        // that is fine until a driver disagrees.
+        vec3 w_mid = eye + dir * mix(t0, t1, 0.5);
+        float cum_cells_px = max(length(dFdx(w_mid)), length(dFdy(w_mid)))
+                           / (max(u_cloudWavelength, 1.0) * CUMULUS_SCALE);
+        float cum_dead = smoothstep(0.35, 0.75, cum_cells_px);
+
+        float transmit = 1.0;
+        float lit_sum = 0.0;
+        float dens_sum = 0.0;
+        for (int i = 0; i < CUMULUS_TAPS; ++i) {
+            float f = (float(i) + 0.5) / float(CUMULUS_TAPS);
+            float t = mix(t0, t1, f);
+            vec3 w = eye + dir * t;
+            // The SAME field, at the real world point, with altitude stretched
+            // so one cell is about as tall as the slab and ~1.6x wider — the
+            // proportion a fair-weather cumulus actually has.
+            vec3 q3 = vec3(w.x + u_cloudOffset.x,
+                           w.y * CUMULUS_VERTICAL_STRETCH,
+                           w.z + u_cloudOffset.y)
+                    / (max(u_cloudWavelength, 1.0) * CUMULUS_SCALE);
+            float F = dfn_cloud_field3(q3);
+            float T = mix(1.0 - base_cover, 1.0 - top_cover, f);
+            float d = mix(smoothstep(T, T + 0.06, F), 1.0 - T, cum_dead);
+            // Beer-Lambert through this segment: the segment is path/N slab
+            // thicknesses long.
+            float seg = d * (path / float(CUMULUS_TAPS));
+            float take = transmit * (1.0 - exp(-CUMULUS_DENSITY * seg));
+            // The colour is accumulated with the SAME weights the opacity is,
+            // so a mass shows the tone of the part of it that is actually in
+            // front — a base-lit sample cannot tint a body the ray never
+            // reached.
+            lit_sum += take * f;
+            dens_sum += take * smoothstep(T + 0.06, T + 0.28, F) * (1.0 - f);
+            transmit *= exp(-CUMULUS_DENSITY * seg);
+        }
+        // THE VEIL LAW GOES ON THE FINISHED ALPHA, not inside the integral, and
+        // the frame that made me move it showed why: with the extinction applied
+        // per segment, the path length near the horizon saturates the opacity
+        // faster than the distance can fade it, so a 40 km bank came out as an
+        // opaque grey WALL standing on the horizon instead of melting into it.
+        // Applied once, on the slab's own entry distance, it is the same
+        // 60 km law the two sheets use and the bank fades into the sky the way
+        // everything else at that range does.
+        float cum = (1.0 - transmit) * exp(-t0 / SHEET_EXTINCTION_M);
+        if (cum > 0.001) {
+            float hn = clamp(lit_sum / max(cum, 1e-4), 0.0, 1.0);
+            // SHADED BASES ARE WHAT SEPARATE A BANK FROM THE HAZE. A cumulus is
+            // lit from above and its flat base is the darkest thing in the sky
+            // near the horizon — and near the horizon the SKY is the pale
+            // horizon colour, so a white-to-the-bottom mass has nothing to read
+            // against and dissolves upward into a floating tooth.
+            vec3 cum_col = mix(cloud_dark * 0.78, cloud_bright,
+                               smoothstep(0.10, 0.75, hn));
+            cum_col *= mix(1.0, 0.82, clamp(dens_sum / max(cum, 1e-4), 0.0, 1.0));
+            sky = mix(sky, cum_col, cum);
+        }
     }
+
+    // ...and NOW the low deck, in front of everything including the bank.
+    sky = mix(sky, col0, a0);
 
     // The sun disc is gated by its own colour, which apply_sky_time drives to
     // black below the horizon — no separate "is it day" flag needed. Drawn
