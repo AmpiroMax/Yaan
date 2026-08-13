@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 20:20:00
-Last updated: 13:08:2026 - 21:00:00
+Last updated: 13:08:2026 - 23:35:00
 Module: engine/render
 File: engine/render/sources/FloraWeber.cpp
 
@@ -27,6 +27,12 @@ UPD:
   and depth-first recursion build a BROKEN tree, not a cheap one), base splits,
   and the record of a level-dropping heuristic that was implemented, measured
   and removed.
+- 13:08:2026 - 23:35:00: THE UNITED BOLE. When WeberParams::bole is set, level
+  0 walks the drawn trunk's polyline (no own curvature/lean/splits on the
+  guided run), the free run past its end is the DRAWN central leader, and
+  base_splits fork at the bole's end as drawn leaders instead of fanning
+  invisibly from the ground. Fix for the measured two-trunk defect (94-100 %
+  of L1 branch bases off the drawn bole, oak mean 5.30 m).
 */
 
 #include "engine/render/sources/FloraWeber.h"
@@ -102,6 +108,12 @@ struct StemCtx {
     float radius;         ///< m at the base of this stem
     uint32_t level;
     bool trunk;
+    /// THE AUTHORED-BOLE GUIDE (WeberParams::bole). While a level-0 stem still
+    /// has guide ahead of it, its segments WALK the polyline instead of obeying
+    /// curvature/lean — the drawn trunk and the branch-carrying trunk are one
+    /// object. Children never inherit it (they are real, drawn wood).
+    const glm::vec3* guide = nullptr;
+    uint32_t guide_count = 0;
 };
 
 struct Grower {
@@ -200,57 +212,141 @@ void Grower::grow(StemCtx c, std::vector<StemCtx>& out) {
     // running error makes "one segment in five" exact rather than a coin toss.
     float split_error = 0.0f;
 
+    // --- THE AUTHORED-BOLE GUIDE (StemCtx::guide). Arc-parameterised: while
+    // guide remains, a segment WALKS the drawn trunk and takes no curvature,
+    // no lean and no splits of its own — the authored bole already carries the
+    // sweep and the wind lean, and adding the model's on top is exactly the
+    // double-count that put 94-100 % of branch bases off the drawn surface.
+    const bool has_guide = c.guide != nullptr && c.guide_count >= 2;
+    float guide_total = 0.0f;
+    if (has_guide) {
+        for (uint32_t i = 1; i < c.guide_count; ++i) {
+            guide_total += glm::length(c.guide[i] - c.guide[i - 1]);
+        }
+    }
+    auto guide_point = [&c](float a, glm::vec3& out_dir) {
+        float acc = 0.0f;
+        for (uint32_t i = 1; i < c.guide_count; ++i) {
+            const glm::vec3 seg = c.guide[i] - c.guide[i - 1];
+            const float l = glm::length(seg);
+            if ((acc + l >= a && l > 1e-6f) || i + 1 == c.guide_count) {
+                out_dir = l > 1e-6f ? seg / l : glm::vec3{0.0f, 1.0f, 0.0f};
+                const float t = l > 1e-6f ? std::clamp((a - acc) / l, 0.0f, 1.0f)
+                                          : 0.0f;
+                return c.guide[i - 1] + seg * t;
+            }
+            acc += l;
+        }
+        out_dir = glm::vec3{0.0f, 1.0f, 0.0f};
+        return c.guide[c.guide_count - 1];
+    };
+    float arc = 0.0f;
+    bool on_guide = has_guide && guide_total > 1e-3f;
+    bool base_forked = false;
+
     for (uint32_t s = 0; s < segs; ++s) {
         if (sk.nodes.size() >= p.max_nodes) break;
         const float u = static_cast<float>(s) / static_cast<float>(segs);
 
-        // Declination change for this segment.
-        float turn = 0.0f;
-        if (s_curve) {
-            turn = (u < 0.5f) ? (L.curve * DEG / (static_cast<float>(segs) * 0.5f))
-                              : (L.curve_back * DEG / (static_cast<float>(segs) * 0.5f));
+        glm::vec3 next;
+        const bool seg_guided = on_guide;
+        if (on_guide) {
+            const float want = arc + seg_len;
+            if (want < guide_total) {
+                next = guide_point(want, dir);
+            } else {
+                // The bole ends inside this segment: finish it as FREE, DRAWN
+                // wood continuing the bole's own direction.
+                glm::vec3 end_dir;
+                const glm::vec3 end = guide_point(guide_total, end_dir);
+                dir = end_dir;
+                next = clip(end + dir * (want - guide_total));
+                on_guide = false;
+            }
+            arc = want;
         } else {
-            turn = L.curve * DEG / static_cast<float>(segs);
-        }
-        turn += L.curve_v * DEG * rng.sym() / static_cast<float>(segs);
-        dir = norm_or(rotate_about(dir, side, turn), dir);
+            // Declination change for this segment.
+            float turn = 0.0f;
+            if (s_curve) {
+                turn = (u < 0.5f)
+                    ? (L.curve * DEG / (static_cast<float>(segs) * 0.5f))
+                    : (L.curve_back * DEG / (static_cast<float>(segs) * 0.5f));
+            } else {
+                turn = L.curve * DEG / static_cast<float>(segs);
+            }
+            turn += L.curve_v * DEG * rng.sym() / static_cast<float>(segs);
+            dir = norm_or(rotate_about(dir, side, turn), dir);
 
-        // ATTRACTION UP (the paper's AttractionUp). Applied from level 2 down,
-        // because the trunk does not need persuading and the main limbs carry
-        // the declination the species asked for. It is what turns a drooping
-        // limb up at its end — the single cheapest cue that a branch is alive.
-        if (c.level >= 2 && p.attraction_up != 0.0f) {
-            const glm::vec3 up{0.0f, 1.0f, 0.0f};
-            const float declination = std::acos(std::clamp(dir.y, -1.0f, 1.0f));
-            const float orient = std::sin(declination);
-            const float curve_up =
-                p.attraction_up * declination * orient / static_cast<float>(segs);
-            const glm::vec3 axis_up = norm_or(glm::cross(dir, up), side);
-            dir = norm_or(rotate_about(dir, axis_up, -curve_up), dir);
-        }
-        // The whole-tree wind lean, as in the other growers.
-        if (p.lean.x != 0.0f || p.lean.y != 0.0f) {
-            dir = norm_or(dir + glm::vec3{p.lean.x, 0.0f, p.lean.y}
-                                    * (0.30f / static_cast<float>(segs)),
-                          dir);
-        }
+            // ATTRACTION UP (the paper's AttractionUp). Applied from level 2
+            // down, because the trunk does not need persuading and the main
+            // limbs carry the declination the species asked for. It is what
+            // turns a drooping limb up at its end — the single cheapest cue
+            // that a branch is alive.
+            if (c.level >= 2 && p.attraction_up != 0.0f) {
+                const glm::vec3 up{0.0f, 1.0f, 0.0f};
+                const float declination = std::acos(std::clamp(dir.y, -1.0f, 1.0f));
+                const float orient = std::sin(declination);
+                const float curve_up =
+                    p.attraction_up * declination * orient / static_cast<float>(segs);
+                const glm::vec3 axis_up = norm_or(glm::cross(dir, up), side);
+                dir = norm_or(rotate_about(dir, axis_up, -curve_up), dir);
+            }
+            // The whole-tree wind lean, as in the other growers. NOT past the
+            // guide either: a united stem's free run is the LEADER of a bole
+            // that already leans, and re-applying the lean bends the tree
+            // twice (the banana the user rejected on the boles).
+            if (!has_guide && (p.lean.x != 0.0f || p.lean.y != 0.0f)) {
+                dir = norm_or(dir + glm::vec3{p.lean.x, 0.0f, p.lean.y}
+                                        * (0.30f / static_cast<float>(segs)),
+                              dir);
+            }
 
-        const glm::vec3 next = clip(pos + dir * seg_len);
+            next = clip(pos + dir * seg_len);
+        }
         if (c.level > 0 && vetoed(next)) break; // shy: the stem stops here
 
         // TAPER along the stem, the paper's `nTaper`: 0 leaves a cylinder, 1
         // closes to a point, and the in-between is what a real stem does.
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(segs);
         const float r1 = c.radius * std::max(0.05f, 1.0f - L.taper * t1);
-        node = push(next, node, c.level, c.trunk, r1);
+        // On a guided stem only the GUIDED run is trunk (skipped by the mesh
+        // side as already-drawn bole); the free run past the bole's end is the
+        // central leader, which is real drawn wood.
+        node = push(next, node, c.level, c.trunk && (!has_guide || seg_guided), r1);
         pos = next;
         side = norm_or(glm::cross(dir, glm::vec3{0.0f, 1.0f, 0.0f}), side);
+
+        // --- BASE SPLITS AT THE BOLE'S END, DRAWN (united-bole path only). --
+        // The paper forks the trunk at its base; our clear-bole contract never
+        // allowed a ground fork, and the old answer — grow the forks invisibly
+        // from the ground — is the two-trunk defect. The fork now happens
+        // where the drawn bole ends, and the leaders are ordinary drawn wood.
+        // The 0.16 rad floor is the old axes' outward lean, kept so a species
+        // whose split_angle is small (willow, 3 deg) still opens visibly.
+        if (has_guide && !on_guide && !base_forked) {
+            base_forked = true;
+            for (uint32_t b = 0; b < p.base_splits; ++b) {
+                if (sk.nodes.size() >= p.max_nodes) break;
+                const float ang = std::max(
+                    (L.split_angle + L.split_angle_v * rng.sym()) * DEG, 0.16f);
+                const float roll =
+                    6.2831853f
+                    * (static_cast<float>(b + 1) + rng.sym() * 0.25f)
+                    / static_cast<float>(p.base_splits + 1);
+                glm::vec3 cd = rotate_about(dir, side, ang);
+                cd = norm_or(rotate_about(cd, dir, roll), cd);
+                clones.push_back(StemCtx{node, pos, cd,
+                                         c.length * (1.0f - t1) * 0.92f,
+                                         r1 * 0.86f, c.level, false});
+            }
+        }
 
         // --- STEM SPLITTING -------------------------------------------------
         // The mechanism that gives a broadleaf its forked crown, and the one
         // our earlier growers had no equivalent of: a stem does not always
         // carry children, sometimes it BECOMES two stems of its own level.
-        if (L.seg_splits > 0.0f && s + 1 < segs) {
+        // Not on the guided run: the drawn bole cannot fork below its own top.
+        if (L.seg_splits > 0.0f && s + 1 < segs && !seg_guided) {
             const float want = L.seg_splits + split_error;
             const auto n_split = static_cast<int>(std::floor(want + 0.5f));
             split_error = want - static_cast<float>(n_split);
@@ -414,7 +510,18 @@ void weber_skeleton(Skeleton& sk, const WeberParams& p, uint64_t seed) {
 
     g.levels = levels;
     std::vector<StemCtx> current;
-    {
+    if (p.bole != nullptr && p.bole_count >= 2) {
+        // THE UNITED BOLE (WeberParams::bole): ONE level-0 axis, walking the
+        // drawn trunk; base_splits fork at its end inside grow(), as drawn
+        // leaders. The branch-carrying trunk and the trunk the eye sees are
+        // one object — the whole point of the field.
+        StemCtx c{0, p.base,
+                  norm_or(p.bole[1] - p.bole[0], glm::vec3{0.0f, 1.0f, 0.0f}),
+                  p.height, root.radius, 0, true};
+        c.guide = p.bole;
+        c.guide_count = p.bole_count;
+        current.push_back(c);
+    } else {
         const uint32_t axes = p.base_splits + 1;
         const float lean_out = (axes > 1) ? 0.16f : 0.0f;
         for (uint32_t a = 0; a < axes; ++a) {

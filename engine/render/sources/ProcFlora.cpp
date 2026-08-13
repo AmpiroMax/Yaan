@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 14:08:2026 - 00:55:00
+Last updated: 13:08:2026 - 23:26:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -247,6 +247,15 @@ UPD:
   The giant takes neither lever, and for one reason: its crown IS its branch
   system, so cutting its wood cuts its crown, and tripling its masses worsens a
   density criterion it already fails (GREAT_OAK_DENSITY_RATIO_MAX, 1.29 today).
+- 13:08:2026 - 23:26:00: THE UNITED BOLE (stamp REAL and therefore out of
+  order: the two entries above were written ahead of the wall clock by an
+  earlier session and are left as they stand). build_trunk's swept path is
+  handed to build_weber_crown, which slices it from the branch base up and
+  passes it as WeberParams::bole — the Weber level 0 walks the DRAWN trunk
+  instead of growing invisible axes of its own. Measured before the fix:
+  94-100 % of first-order branch bases outside the drawn bole's surface (oak
+  mean 5.30 m, worst 13.78 m) — the user's «ветки своими углами из основания
+  торчат». DFN_FLORA_ONEBOLE=0 is the zero-dose arm (flora_united_bole_arm).
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -1130,7 +1139,8 @@ void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
 /// of those steps, not of the generator, so replacing the generator cannot
 /// break them.
 void build_weber_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
-                       uint64_t seed, uint32_t max_nodes, uint32_t max_segments) {
+                       uint64_t seed, uint32_t max_nodes, uint32_t max_segments,
+                       const std::vector<TrunkRing>* bole = nullptr) {
     const SpeciesParams& sp = t.sp;
     const float card_reach_frac =
         sp.cluster_radius_frac
@@ -1172,6 +1182,33 @@ void build_weber_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem
         w.crowd_floor = t.crown_r * 0.25f;
     }
 
+    // THE UNITED BOLE. The drawn trunk's path, sliced from the branch base up,
+    // becomes the model's level-0 axis (WeberParams::bole): the trunk the
+    // branches hang on IS the trunk the eye sees. The first point is
+    // interpolated AT stem_base.y so the eligible branch span starts exactly
+    // where the species table says it does.
+    std::vector<glm::vec3> bole_pts;
+    if (bole != nullptr && bole->size() >= 2) {
+        for (size_t i = 0; i + 1 < bole->size(); ++i) {
+            const TrunkRing& r0 = (*bole)[i];
+            const TrunkRing& r1 = (*bole)[i + 1];
+            if (r1.pos.y <= stem_base.y) continue;
+            if (bole_pts.empty()) {
+                const float span = r1.pos.y - r0.pos.y;
+                const float f = span > 1e-5f
+                    ? std::clamp((stem_base.y - r0.pos.y) / span, 0.0f, 1.0f)
+                    : 0.0f;
+                bole_pts.push_back(r0.pos + (r1.pos - r0.pos) * f);
+            }
+            bole_pts.push_back(r1.pos);
+        }
+        if (bole_pts.size() >= 2) {
+            w.base = bole_pts.front();
+            w.bole = bole_pts.data();
+            w.bole_count = static_cast<uint32_t>(bole_pts.size());
+        }
+    }
+
     Skeleton sk;
     weber_skeleton(sk, w, seed);
     if (sk.nodes.size() < 2) return;
@@ -1184,7 +1221,8 @@ void build_weber_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem
 }
 
 void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
-                 uint64_t seed, float branch_floor) {
+                 uint64_t seed, float branch_floor,
+                 const std::vector<TrunkRing>* bole = nullptr) {
     const SpeciesParams& sp = t.sp;
     if (sp.envelope == CrownEnvelope::None) return;
     // RAMIFICATION IS THE DEFAULT FOR EVERY BROADLEAF NOW. The great oak's
@@ -1279,7 +1317,7 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         constexpr uint32_t WEBER_MIN_NODES = 150;
         if (flora_weber_arm() && nodes >= WEBER_MIN_NODES
             && species_weber(t.species, t.height).levels > 0) {
-            build_weber_crown(m, t, stem_base, stem_top, seed, nodes, segs);
+            build_weber_crown(m, t, stem_base, stem_top, seed, nodes, segs, bole);
         } else {
             build_fractal_crown(m, t, stem_base, stem_top, seed, nodes, segs);
         }
@@ -2338,9 +2376,20 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
         const bool is_great = giant_tier;
         const bool wants_detail =
             (is_snag || is_great) && lod != FloraLod::Silhouette;
+        // THE UNITED BOLE (13.08.2026): the Weber crown grows its level 0 ALONG
+        // this drawn path instead of growing an invisible trunk of its own —
+        // measured before the fix, 94-100 % of first-order branch bases sat
+        // outside the drawn bole's surface (oak mean 5.30 m, worst 13.78 m),
+        // which is the user's «ветки своими углами из основания торчат» as a
+        // number. The path costs nothing to record; DFN_FLORA_ONEBOLE=0 is the
+        // zero-dose arm and simply does not hand it over.
+        const bool wants_bole_path = sp.has_skeleton
+            && sp.envelope != CrownEnvelope::Cone
+            && sp.envelope != CrownEnvelope::None && !is_snag
+            && flora_united_bole_arm();
         const glm::vec3 top =
             build_trunk(m, t, off, stem_h, t.trunk_r, &dir,
-                        wants_detail ? &path : nullptr);
+                        (wants_detail || wants_bole_path) ? &path : nullptr);
         if (is_snag && wants_detail) {
             // The broken top and the truncated stubs are what make a snag its
             // own object instead of a pole (docs/specs/flora.md §3.4).
@@ -2414,7 +2463,7 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
                     mix64(static_cast<uint64_t>(variant) * 977ull
                           + static_cast<uint64_t>(species) * 31ull
                           + static_cast<uint64_t>(k) * 7919ull),
-                    branch_base.y);
+                    branch_base.y, wants_bole_path ? &path : nullptr);
     }
     return parts;
 }

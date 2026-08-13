@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:24:10
-Last updated: 13:08:2026 - 21:50:00
+Last updated: 13:08:2026 - 23:27:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -79,6 +79,8 @@ UPD:
   birch, willow), conifer 0.05 (pine, krummholz), and 0 for the great oak, which
   is the open-grown case by definition -- nothing crowds it, so a plasticity it
   could never express would be a number with no consumer.
+- 13:08:2026 - 23:27:00: flora_united_bole_arm() defined (DFN_FLORA_ONEBOLE,
+  default on; =0 is the zero-dose arm).
 */
 
 #include "engine/render/sources/FloraSpecies.h"
@@ -982,6 +984,14 @@ bool flora_far_lod_arm() {
     static const bool on = [] {
         const char* e = std::getenv("DFN_FLORA_FARLOD");
         return e != nullptr && e[0] == '1';
+    }();
+    return on;
+}
+
+bool flora_united_bole_arm() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_FLORA_ONEBOLE");
+        return e == nullptr || e[0] != '0';
     }();
     return on;
 }

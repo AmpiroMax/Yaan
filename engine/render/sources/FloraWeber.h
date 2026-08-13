@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 20:10:00
-Last updated: 13:08:2026 - 21:00:00
+Last updated: 13:08:2026 - 23:30:00
 Module: engine/render
 File: engine/render/sources/FloraWeber.h
 
@@ -40,6 +40,13 @@ UPD:
   because the refusal is the reusable part: the numbers arrived because someone
   asked for them, not because anyone guessed well. Plus `base_splits` — the
   paper's `0BaseSplits`, which is where an oak's several main axes come from.
+- 13:08:2026 - 23:30:00: WeberParams::bole — the authored bole polyline, the
+  fix for the TWO-TRUNK defect the user saw as «ветки своими углами из
+  основания торчат»: level 0 walks the drawn trunk instead of growing an
+  invisible one (measured before: 94-100 % of L1 branch bases off the drawn
+  bole surface, oak mean 5.30 m). base_splits move from the ground to the
+  polyline's end and become DRAWN leaders. Dose door: DFN_FLORA_ONEBOLE=0
+  restores the old growth (door read in ProcFlora; this file stays pure).
 */
 
 #pragma once
@@ -157,6 +164,22 @@ struct WeberParams {
     float crowd_jitter = 0.0f;
     float crowd_inset = 0.0f;
     float crowd_floor = 0.0f;
+    /// THE AUTHORED BOLE — ours, and it is the fix for the two-trunk defect
+    /// (13.08.2026). The mesh side draws a swept, leaning bole (build_trunk)
+    /// and then this model grew its own level-0 axes from the base: 94-100 %
+    /// of first-order branch bases measured OUTSIDE the drawn bole's surface
+    /// (oak mean 5.30 m, worst 13.78 m off) — «ветки своими углами из
+    /// основания торчат» is that number seen from below. When `bole` is set,
+    /// level 0 WALKS this polyline instead of growing its own: the trunk the
+    /// branches hang on and the trunk the eye sees are one object. Past the
+    /// polyline's end the stem continues free — and `base_splits` fork THERE,
+    /// as DRAWN leaders (trunk=false), instead of fanning invisibly from the
+    /// ground: a bole that splits into leaders at the crown is what an oak
+    /// does, and our clear-bole contract (CANOPY_CLEARANCE_MIN) never allowed
+    /// ground-level splits anyway. The caller passes it only through its dose
+    /// door (flora_united_bole_arm); this struct stays env-free and pure.
+    const glm::vec3* bole = nullptr;
+    uint32_t bole_count = 0;
 };
 
 /// Grows the whole tree into `sk`, which must be empty. The trunk's nodes are

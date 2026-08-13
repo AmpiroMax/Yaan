@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:22:41
-Last updated: 13:08:2026 - 21:50:00
+Last updated: 13:08:2026 - 23:27:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -70,6 +70,9 @@ UPD:
   property because the user said so before the literature did: a conifer holds
   one radius whatever crowds it, a broadleaf spreads in the open and folds up in
   a crowd. Was a literal 0.38 in ProcFlora applied to every species alike.
+- 13:08:2026 - 23:27:00: flora_united_bole_arm() — the dose door for the
+  united bole (DFN_FLORA_ONEBOLE=0 restores the invisible-trunk growth). Same
+  Rule 48 shape as the other doors: one door, one moved quantity.
 */
 
 #pragma once
@@ -431,6 +434,19 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// taken across a rebuild would answer "what happened today" (Rule 47), and
 /// today an unusual amount happened.
 [[nodiscard]] bool flora_weber_arm();
+
+/// WHETHER THE WEBER LEVEL-0 WALKS THE DRAWN BOLE. `DFN_FLORA_ONEBOLE=0` is
+/// the zero-dose arm — the growth of 13.08.2026 evening, where the model grew
+/// its own invisible trunk axes from the base while the mesh drew a different
+/// bole (measured: 94-100 % of first-order branch bases outside the drawn
+/// bole's surface; oak mean 5.30 m, worst 13.78 m — the user's «ветки своими
+/// углами из основания торчат»). Unset or `=1` is the united bole.
+///
+/// A door of its own for the standing Rule 48 reason: a control binds only
+/// the measurements in which it itself moves, and this change moves exactly
+/// one thing — WHERE wood attaches — while widths, heights, budgets, cards
+/// and the drawn bole itself stay byte-identical between the arms.
+[[nodiscard]] bool flora_united_bole_arm();
 
 /// THE ZERO-DOSE ARM FOR THE FAR LEVEL OF DETAIL, and a FOURTH door for the
 /// same reason as the other three (Rule 48). `DFN_FLORA_FARLOD=1` puts the
