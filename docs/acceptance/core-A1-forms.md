@@ -1,11 +1,13 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 16:52:00
+Last updated: 13:08:2026 - 17:06:00
 -->
 <!--
 UPD:
 - 13:08:2026 - 16:52:00: Created — the recipe and the numbers for the first
   non-zero GROUND_OCCLUSION_COUNT this project has read.
+- 13:08:2026 - 17:06:00: The grain question — the anisotropy ratio measured at
+  four rulers on one world, plus the frame at the pitch the probe scores worst.
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
@@ -82,3 +84,51 @@ Beside it, same run, same build:
 2. **The population row changes its own sample.** `flattest_legal_standpoints`
    ranks by trend over the terrain being measured, so the twelve standpoints are
    not the same twelve in both arms. A1 is pinned and is the comparable one.
+
+---
+
+# THE GRAIN QUESTION — evidence, not a ruling (§2.1's row is design's)
+
+Switching this pass on drops §2.1's anisotropy probe from **3.13 to 2.64**
+against a 2.50 floor. The obvious reading is that the forms erase the land's
+grain — an isotropic octave did exactly that once before (3.61 → 2.22). Two
+independent measurements say that is NOT what is happening here.
+
+## 1. The ratio as a function of the RULER, on ONE world
+
+§2.1's probe takes gradients with a **±6 m arm on a 12 m lattice**. The draws sit
+at a **15–24 m pitch** — one to two samples per cycle, at or past Nyquist, where
+a regular lineation aliases into a beat whose direction is arbitrary. So the
+same structure tensor was read at four arms, varying the ruler instead of the
+world (`test_ground_relief`, "…as a function of the RULER"):
+
+| arm | forms ON | forms OFF | ON/OFF |
+|---|---|---|---|
+| ±6 m (**the probe's own arm**) | 2.636 | 3.128 | **0.843** |
+| ±12 m | 2.135 | 2.361 | 0.904 |
+| ±24 m | 1.928 | 1.940 | **0.993** |
+| ±48 m | 1.717 | 1.776 | 0.967 |
+
+**The cost is confined to the scale band of the forms themselves.** At every
+ruler long enough to see the hill band — which is what §2.1's clause is about,
+«холмы — вытянутые гряды, не круглые бугры» — the forms cost between 0.7 % and
+3 %. The 16 % appears only at the arm that cannot resolve them.
+
+The world-side sweep says the same thing from the other side: the ratio recovers
+monotonically as the draw pitch moves away from the sampling pitch — 14 m: 2.18,
+16 m: 2.42, 24 m: 2.64, 29 m: 2.89, 36 m: 2.95.
+
+## 2. What the eye says, on the arm the probe likes least
+
+`core-A1-grain-DRAWPITCH14-DIAG-0f0dfad.png` — the pinned A1 standpoint, same
+binary, one variable (`DFN_DRAW_CELL=14`), the setting the probe scores **2.18**,
+its worst. Against the shipped frame (2.64) that ground reads **MORE** lineated,
+not less: long parallel bands run across the whole mid field, where the shipped
+frame has fewer and more isolated edges. If anything the 2.18 frame's fault is
+the opposite one — the lineation is too REGULAR, a washboard, which is a
+manufactured look and a real objection, but it is not a loss of direction.
+
+**Both lines point the same way: the probe's reading falls where the eye's
+reading rises.** Under either explanation — aliasing, or a genuine loss of fine-
+scale gradient coherence — the property §2.1 names is untouched at the scale it
+names it. Handed to design as evidence; the row and its instrument are theirs.

@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 16:52:00
+Last updated: 13:08:2026 - 17:05:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -55,12 +55,17 @@ UPD:
   (every arm tipped the same knife-edge cell), so the quantity was wrong. The
   gate is CONNECTIVITY over the 2 m lattice the world is collided on, with a
   positive control showing the instrument moves when driven.
+- 13:08:2026 - 17:05:00: The anisotropy ruler diagnostic — the same structure
+  tensor read at four arms on ONE world, because §2.1's probe samples with a
+  +-6 m arm on a 12 m lattice and the forms sit at a 15-24 m pitch, which is at
+  or past Nyquist.
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/LayoutLoad.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
+#include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenOutcrop.h"
 #include "engine/world/sources/WorldgenScatter.h"
 #include "engine/world/sources/WorldgenValidation.h"
@@ -721,4 +726,76 @@ TEST_CASE("the forms do not build barriers: the country stays connected") {
     // scale of form, barriers are not the risk, and here is the scale at which
     // they would start to be".
     CHECK(shipped > 0.5f * control);
+}
+
+// --- IS THE GRAIN LOST, OR IS THE RULER TOO SHORT TO SEE IT? -----------------
+//
+// §2.1's anisotropy probe reads the structure-tensor eigenvalue ratio over open
+// meadow and falls 3.13 -> 2.64 (floor 2.50) when this pass is switched on. The
+// obvious reading is that the forms erase the land's grain, which is what an
+// isotropic octave did to it once before — and that reading has a competing
+// explanation with a MECHANISM, so it is measurable rather than arguable.
+//
+// THE PROBE SAMPLES GRADIENTS WITH A +-6 m ARM ON A 12 m LATTICE. The draws sit
+// at a 15-24 m pitch. That is one to two samples per cycle: AT OR PAST NYQUIST,
+// where a regular lineation aliases into a long-wavelength beat whose direction
+// is essentially arbitrary — which lowers an eigenvalue ratio no matter which
+// way the real lineation runs. The prediction that separates the two readings:
+// if the grain is genuinely gone, it is gone at EVERY scale; if the ruler is too
+// short, the ratio recovers as the arm grows past the forms and the HILL band
+// (the 128 m octave the contract is actually about) reads unchanged.
+//
+// The sweep already hints at it — the ratio recovers monotonically as the draw
+// pitch moves away from the sampling pitch (14 m: 2.18, 16: 2.42, 24: 2.64,
+// 29: 2.89, 36: 2.95) — but that varies the WORLD. This varies the RULER, on
+// one world, which is the arm that settles it.
+//
+// REPORTED ONLY. §2.1's row and its instrument belong to design; this is
+// evidence for that ruling, not a second opinion shipped beside it.
+TEST_CASE("diagnostic: the anisotropy ratio as a function of the RULER, not the world") {
+    const auto& ctx = shipped_world();
+    const auto ratio_at = [&](float arm) {
+        std::vector<float> ratios;
+        for (float wz = 100.0f; wz < 950.0f; wz += 110.0f) {
+            for (float wx = 60.0f; wx < 700.0f; wx += 110.0f) {
+                if (world::crag_distance(ctx.params.layout, {wx, wz})
+                    < ctx.params.layout.crag.radius + 60.0f) continue;
+                if (world::surface_point(ctx, {wx, wz}).dist_to_water < 40.0f) continue;
+                float jxx = 0.0f, jzz = 0.0f, jxz = 0.0f;
+                // The window keeps its 7x7 shape and its span scales with the
+                // arm, so what changes is the RESOLUTION of the ruler and not
+                // how much country it looks at.
+                for (int iz = -3; iz <= 3; ++iz) {
+                    for (int ix = -3; ix <= 3; ++ix) {
+                        const glm::vec2 p{wx + static_cast<float>(ix) * arm * 2.0f,
+                                          wz + static_cast<float>(iz) * arm * 2.0f};
+                        const float gx = world::terrain_height(ctx, {p.x + arm, p.y})
+                                       - world::terrain_height(ctx, {p.x - arm, p.y});
+                        const float gz = world::terrain_height(ctx, {p.x, p.y + arm})
+                                       - world::terrain_height(ctx, {p.x, p.y - arm});
+                        jxx += gx * gx;
+                        jzz += gz * gz;
+                        jxz += gx * gz;
+                    }
+                }
+                const float tr = jxx + jzz;
+                const float disc = std::sqrt(std::max(0.0f, tr * tr - 4.0f * (jxx * jzz
+                                                                             - jxz * jxz)));
+                ratios.push_back(((tr + disc) * 0.5f) / std::max((tr - disc) * 0.5f, 1e-6f));
+            }
+        }
+        std::sort(ratios.begin(), ratios.end());
+        return ratios[ratios.size() / 2];
+    };
+
+    for (const float arm : {6.0f, 12.0f, 24.0f, 48.0f}) {
+        const float shipped = ratio_at(arm);
+        setenv("DFN_TERRACE_STRENGTH", "0", 1);
+        setenv("DFN_DRAW_DEPTH", "0", 1);
+        const float control = ratio_at(arm);
+        unsetenv("DFN_TERRACE_STRENGTH");
+        unsetenv("DFN_DRAW_DEPTH");
+        MESSAGE("arm +-" << arm << " m (probe uses 6): forms ON " << shipped << ", OFF "
+                         << control << ", ratio of ratios " << shipped / control);
+    }
 }
