@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 17:06:00
+Last updated: 13:08:2026 - 17:34:00
 -->
 <!--
 UPD:
@@ -8,11 +8,18 @@ UPD:
   non-zero GROUND_OCCLUSION_COUNT this project has read.
 - 13:08:2026 - 17:06:00: The grain question — the anisotropy ratio measured at
   four rulers on one world, plus the frame at the pitch the probe scores worst.
+- 13:08:2026 - 17:34:00: THE SHIPPED PAIR IS NOW `+f2` (aa55c1c): the approved
+  18 m draw pitch, the wander, the ending talwegs and the angled tributaries.
+  The `+f1` pair stays as the first-light state — the frame in which this
+  contract first read anything but zero.
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
 
-`docs/acceptance/core-A1-forms-{BEFORE,AFTER}-0f0dfad+f1.png`
+**Shipped pair: `core-A1-forms-{BEFORE,AFTER}-aa55c1c+f2.png`.**
+`+f1` (0f0dfad) is kept beside it as the FIRST-LIGHT state — the frame in which
+`GROUND_OCCLUSION_COUNT` first read anything but zero, before the draw pitch was
+approved at 18 m and before the draws stopped being a washboard.
 
 **Both arms are the SAME BINARY.** The "before" arm is not an older build and not
 an archived frame: it is this build with the pass held at identity through its
@@ -59,20 +66,26 @@ drawn and collided on**:
 | | min | p5 | median | max |
 |---|---|---|---|---|
 | BEFORE (forms at identity) | 0 | 0 | 0 | 1 |
-| AFTER (shipped) | 1 | **1** | 2 | 4 |
+| `+f1`, first light (24 m pitch) | 1 | 1 | 2 | 4 |
+| **AFTER, shipped (`+f2`, 18 m pitch)** | **2** | **2** | **3** | **6** |
 
-Floor is `GROUND_OCCLUSION_COUNT_MIN` = 3 read at percentile 5. **p5 = 1 is not
-a pass.** It is the first non-zero this contract has ever read, after three
-surrogates and one direct sweep produced zero.
+Floor is `GROUND_OCCLUSION_COUNT_MIN` = 3 read at percentile 5. **p5 = 2 is not
+a pass.** It is what three surrogates and one direct wavelength sweep could not
+produce at all: every one of them read zero.
+
+All four order statistics move together between `+f1` and `+f2`, which is what
+separates a real shift from one column's speckle — that is the ground the pitch
+change was approved on.
 
 Beside it, same run, same build:
 
 | quantity | before | after | bound |
 |---|---|---|---|
-| detrended σ over 20 m at A1 | 0.353 m | 0.50 m | ≤ 1.20 m (ceiling holds, 2.4× margin) |
-| hill-band anisotropy (§2.1) | 3.13 | 2.64 | ≥ 2.50 — **margin thinned to 5.6 %** |
-| columns hiding any ground, 12 flattest legal standpoints × 16 azimuths | 76.6 % | 95.3 % | — |
+| detrended σ over 20 m at A1 | 0.353 m | 0.678 m | ≤ 1.20 m (ceiling holds, 1.8× margin) |
+| hill-band anisotropy (§2.1) | 3.13 | 2.64 | ≥ 2.50 — and see «THE GRAIN QUESTION» below: the floor does not bind at this scale, ruled on the ruler measurement |
+| columns hiding any ground, 12 flattest legal standpoints × 16 azimuths | 76.6 % | **96.4 %** | — |
 | reachable ground over 400 m of the 2 m lattice | 99.9725 % | 99.9725 % | identical to five figures |
+| bank-direction spread (axial, per window) | — | 0.408 | 0.16 is corduroy, 0.80 is no direction at all |
 
 ## Two warnings that belong ON this pair
 
