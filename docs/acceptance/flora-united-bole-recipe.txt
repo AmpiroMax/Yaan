@@ -1,5 +1,5 @@
 # Created: 13:08:2026 - 23:33:00
-# Last updated: 14:08:2026 - 00:04:00
+# Last updated: 14:08:2026 - 00:42:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-united-bole-recipe.txt
 #
@@ -27,6 +27,9 @@
 #   pair flora-leaf-packs-*-e562363.png and the new close-up. The «what these
 #   frames do not certify» clause of 23:33 is now half-answered: the crowns
 #   are masses. The bole arc (complaint 3) remains.
+# - 14:08:2026 - 00:42:00: THE TRUNK-ARC SHIPMENT (3877876) appended: the arc
+#   pair, the new close-up, and the treeline frame that NAMES the top
+#   residual (bare-leader antlers own the skyline).
 
 THE DEFECT, AS A NUMBER (probe: per level-1 branch base, distance from its
 start point to the drawn wood; 12 variants x 3 broadleaves, Full, one binary)
@@ -112,3 +115,45 @@ WHAT THESE FRAMES DO NOT CERTIFY
     wind lean still stack one way (ProcFlora.cpp bend = sweep + lean).
   - The pack card still shows ONE leaf-blob mask; the multi-leaf «пачка»
     TEXTURE (internal value structure) is a separate, unstarted change.
+
+
+================================================================================
+THE TRUNK ARC (14.08.2026) — flora-trunk-arc-*-3877876.png
+================================================================================
+
+THE SHOOT: the near-canopy command, head 3877876; the arm is the only variable
+(DFN_FLORA_TRUNKARC=1 restores the stacking arc). Close-up as before
+(flora-bole-closeup-ARC-3877876.png); plus DFN_FLORA_PROBE=2 for the treeline.
+
+THE NUMBERS (probe over trunk rings, worst of 12 variants x 4 canopy species,
+at the TOP of the lean band, both arms one binary):
+    quantity                        old arc      unstacked (SHIPPED)
+    tangent-vs-chord (curvature)    9.1-12.3     0.4-3.1 deg   <- the target,
+                                                 TRUNK_CHORD_DEVIATION_MAX 5
+    base->top lean at band top      12.5-18.3    20.1-20.7 deg (the frame-16
+                                                 band arrives as ITSELF)
+The first cut (rigid lower third FROM VERTICAL) was withdrawn by its own
+probe within the hour: it ate the lean band (5.8-7.6 at the top). NUMBERS'
+UPD carries the withdrawal.
+
+PINE AT x3 MASSES, CHECKED BY EYE AND BY NUMBER (lead's flag): not a dark
+ball — its worst optical depth is 2.34 layers against the oak's 3.04, and in
+the frames it reads spiky, not solid. Left at the shared multiplier.
+
+WHAT THESE FRAMES DO NOT CERTIFY — THE NAMED RESIDUALS, IN PRIORITY ORDER
+  1. THE ANTLER SKYLINE (flora-treeline-antlers-3877876.png): bare drawn
+     leaders stand above the packs on most crowns, and at the treeline the
+     SKYLINE is owned by them — the stand reads scorched at range. Mechanism:
+     base-split leaders carry foliage only via the single apex cluster;
+     their tips need sprays (or fewer leaders). This is tomorrow's first
+     change, and this frame is its BEFORE.
+  2. The multi-leaf PACK TEXTURE (the user's literal «пачки текстур для
+     экономии места»): one card still shows one leaf-blob mask. Research is
+     done (TREE_MODELS_RESEARCH §1.1 — SpeedTree cluster textures carry a
+     branch system with many leaves, 2-4 twig levels IN THE TEXTURE, denser
+     the smaller the budget); the change is FloraCards' atlas + card count
+     arithmetic. Named, not started.
+  3. The far-LOD ladder is still fitted to the confetti medium: suite 50/51,
+     the red case carries birch Reduced width 62.7 vs 63.5 (0.92 guard) and
+     two depth parities (8.38 vs 9.06x0.95, 8.07 vs 10.63x0.95). Rides with
+     the first Reduced-side change.
