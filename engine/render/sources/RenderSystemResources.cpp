@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 19:11:13
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -36,6 +36,12 @@ UPD:
   (character zone's body segments, ids 34..49, app-ferried). Refuses loudly:
   collisions, foreign id ranges, empty geometry.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 19:11:13: The one-caster workaround REMOVED, its cause fixed in
+  BgfxRendererFrame.cpp (order_lights appended a caster twice past the cap):
+  the nearest MAX_SHADOW_POINT_LIGHTS flames cast again. FLAME_INTENSITY_SWING /
+  FLAME_WARMTH_SWING moved to SkyModel.h beside TORCH_COLOR -- a breathing flame
+  makes a torch's colour a BAND, and every caller that asserts one has to read
+  the width from where the oscillator reads it.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -73,8 +79,16 @@ namespace dfn::render {
 // darkness meander, delivered by the fix for something else.
 //
 // Two incommensurate sines, no state, no random: a flame reads as alive because
-// it never repeats, and 5.7/9.1 Hz have a beat period of 0.29 s, which is long
-// enough not to read as a buzz. Driven by the VISUAL clock (env.time_seconds),
+// it never repeats. THE RATES ARE NOT IN HERTZ, and this line used to say they
+// were: `5.7f * 6.2831853f * 0.1591549f` multiplies by tau and by 1/tau, which
+// CANCEL, so the argument is 5.7 rad/s and the flame breathes at 0.91 and
+// 1.45 Hz with a beat of 1.85 s, not at 5.7/9.1 Hz with a beat of 0.29 s. Found
+// by a test that predicted a sample pair from the numbers written here and
+// measured half what it predicted (RenderSystemTests, the breathing case).
+// LEFT AS MEASURED rather than "corrected" to the documented rates: whether a
+// torch should flutter at 1 Hz or at 6 is a look-dev decision with an owner,
+// and the two swings below are already on the same list. Driven by the VISUAL
+// clock (env.time_seconds),
 // which DFN_VISTIME and DFN_WIND_FREEZE already pin -- so every screenshot
 // recipe in the project stays deterministic, and a flame that broke the tour's
 // determinism would be a fix that costs four zones their acceptance.
@@ -86,9 +100,10 @@ namespace dfn::render {
 // of warmth are placeholders chosen to sit under the eye's flicker-fusion
 // threshold for a light source of this size, and they are marked as such rather
 // than smuggled in. Requested from the lead with the falloff numbers.
+// The two swings MOVED to SkyModel.h, beside TORCH_COLOR: with a breathing
+// flame a torch's colour is a BAND, and every caller that asserts one has to
+// read the band's width from the same place the oscillator does.
 namespace {
-constexpr float FLAME_INTENSITY_SWING = 0.12f;
-constexpr float FLAME_WARMTH_SWING = 0.05f;
 
 struct Flame {
     float intensity;
@@ -128,24 +143,18 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         out.position = c.position;
         out.radius_m = c.radius;
         out.color = c.color;
-        // ONE CASTER, NOT TWO, AND THIS IS A WORKAROUND WITH AN EXPIRY.
+        // THE NEAREST TWO FLAMES CAST, and the cap is the contract's own.
         //
-        // The backend crashes with a SECOND shadow-casting light, and the world
-        // never had one until the wall torches below: the player's carried
-        // torch was the only flame that ever asked. Pinned, not guessed —
-        // BgfxRendererFrame.cpp:129, `order_lights()`. Its two passes recompute
-        // `shadowing` per light, so once `shadow_light_count` hits the cap the
-        // casters it ALREADY added stop looking like casters in pass 1 and are
-        // appended a SECOND time; with 8 incoming lights and 2 casters
-        // `light_count` reaches 10 and writes past `std::array<PointLight, 8>`.
-        // Crash report: byte-write translation fault, that line, every run.
-        //
-        // Capping the request to one caster keeps the arm the backend has
-        // always exercised. It is render's file and render's fix (raised, not
-        // edited); when it lands, this line goes back to
-        // MAX_SHADOW_POINT_LIGHTS and the nearest TWO flames cast.
-        constexpr uint32_t CASTERS_UNTIL_ORDER_LIGHTS_IS_FIXED = 1;
-        out.casts_shadow = count < CASTERS_UNTIL_ORDER_LIGHTS_IS_FIXED && !point_shadows_off_;
+        // This line stood at one caster, not two, for as long as the backend
+        // crashed on the second: `order_lights()` recomputed each light's
+        // caster flag from a counter its own first pass advanced, so past the
+        // cap the casters already emitted were appended a SECOND time and
+        // `light_count` ran off the end of `std::array<PointLight, 8>`. That
+        // defect is fixed at its source (BgfxRendererFrame.cpp, the predicate
+        // is now decided once), so the workaround is gone rather than
+        // documented: capping HERE would have kept the world at one shadowing
+        // flame forever, in a file that has no idea why.
+        out.casts_shadow = count < platform::MAX_SHADOW_POINT_LIGHTS && !point_shadows_off_;
         ++count;
     }
     environment_.point_light_count = count;

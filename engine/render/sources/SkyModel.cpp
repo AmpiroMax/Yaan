@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:04:20
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 19:11:13
 Module: engine/render
 File: engine/render/sources/SkyModel.cpp
 
@@ -45,6 +45,13 @@ UPD:
   and 41 deg elevation, 2.3x the separation floor — the row's claim holds, its
   two quoted angles are a flat-arc idealisation.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 19:11:13: THE EPOCH CAME OFF THE CLOCK RECONSTRUCTION, and it was a real
+  defect and not a rounding: elongation is TAU*days/P + epoch, so the fallback
+  `days = phase*P` landed at `phase*TAU + MASSER_ELONGATION_EPOCH`, i.e. 270 deg
+  off. A caller asking for a FULL moon (phase 0.5) with no world clock got a
+  HALF-LIT one -- moon_light 0.4998 where the test demands > 0.5 and the
+  geometry demands 1.0 -- while the header claimed the reconstruction was exact
+  for elongation, phase and illumination. It is now.
 */
 
 #include "engine/render/sources/SkyModel.h"
@@ -354,12 +361,25 @@ void apply_sky_time(platform::RenderEnvironment& env, float day_fraction,
     // See the header on `elapsed_days`: a negative value means the caller has
     // not been taught the world clock yet and it is reconstructed from the
     // phase, exact for everything except the node regression.
-    const double clock = elapsed_days >= 0.0
-                             ? elapsed_days
-                             : static_cast<double>(lunar_phase
-                                                   - std::floor(lunar_phase))
-                                   * config::MASSER_SYNODIC_DAYS;
-    const MoonState masser_state = moon_state_at(masser(), day, clock);
+    //
+    // THE EPOCH COMES OFF THE RECONSTRUCTION, and leaving it on was a real
+    // defect rather than a rounding: elongation is `TAU*days/P + epoch`, so
+    // `days = phase*P` lands at `phase*TAU + epoch`, and with
+    // MASSER_ELONGATION_EPOCH = 4.712 rad (270 deg) the caller's FULL moon
+    // (phase 0.5) came out at elongation 270 deg — a HALF-LIT moon, and the
+    // reconstruction quietly meant something different from its own
+    // documentation ("exact for elongation, phase, illumination"). Measured:
+    // moon_light 0.4998 where a full moon must give 1. The subtraction is what
+    // makes `lunar_phase` mean the phase for a caller that has no world clock;
+    // a caller that HAS one passes it and never reaches this branch.
+    const MoonElements masser_elements = masser();
+    const double clock =
+        elapsed_days >= 0.0
+            ? elapsed_days
+            : (static_cast<double>(lunar_phase - std::floor(lunar_phase))
+               - static_cast<double>(masser_elements.elongation_epoch) / TAU_D)
+                  * config::MASSER_SYNODIC_DAYS;
+    const MoonState masser_state = moon_state_at(masser_elements, day, clock);
     const glm::vec3 moon = masser_state.direction;
 
     // Everything below is keyed off sun ELEVATION, never off the clock, so the

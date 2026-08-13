@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 19:11:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -90,6 +90,13 @@ UPD:
   projects along the sun to the same planes, and a disagreement between the two
   slides the ground shadow out from under the cloud casting it.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 19:11:13: order_lights: THE CASTER PREDICATE IS DECIDED ONCE. It was
+  recomputed inside both passes from `shadow_light_count`, a counter pass 0
+  advances, so past MAX_SHADOW_POINT_LIGHTS the casters already emitted read as
+  non-casters in pass 1 and were appended a SECOND time -- 8 lights with 2
+  casters wrote 10 entries into `std::array<PointLight, 8>`. RenderSystem had
+  capped the world at ONE shadowing flame to dodge it; that cap is gone with
+  the cause.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -127,22 +134,39 @@ void BgfxRenderer::Impl::order_lights() {
                                   : MAX_POINT_LIGHTS;
     const bool maps_ok = bgfx::isValid(point_shadow_fb)
                       && bgfx::isValid(point_shadow_program);
+    // THE PREDICATE IS DECIDED ONCE, AND THAT IS THE WHOLE FIX. It used to be
+    // recomputed inside both passes from `shadow_light_count`, i.e. from a
+    // counter the first pass had already advanced — so once the cap was
+    // reached, the casters ALREADY EMITTED in pass 0 stopped reading as casters
+    // in pass 1 and were appended a SECOND time. With 8 incoming lights and 2
+    // casters `light_count` reached 10 and wrote past
+    // `std::array<PointLight, MAX_POINT_LIGHTS>`: a byte-write translation
+    // fault, every run, which is why RenderSystem capped the world at one
+    // caster. A membership test may not be a function of the emission it
+    // controls.
+    bool shadowing[MAX_POINT_LIGHTS]{};
+    for (uint32_t i = 0; i < incoming; ++i) {
+        const PointLight& l = environment.point_lights[i];
+        if (l.radius_m <= 0.0f) {
+            continue; // radius 0 = off (contract)
+        }
+        if (maps_ok && l.casts_shadow
+            && shadow_light_count < MAX_SHADOW_POINT_LIGHTS) {
+            shadowing[i] = true;
+            ++shadow_light_count;
+        }
+    }
     for (uint32_t pass = 0; pass < 2; ++pass) {
         for (uint32_t i = 0; i < incoming; ++i) {
             const PointLight& l = environment.point_lights[i];
             if (l.radius_m <= 0.0f) {
                 continue; // radius 0 = off (contract)
             }
-            const bool shadowing = maps_ok && l.casts_shadow
-                                && shadow_light_count < MAX_SHADOW_POINT_LIGHTS;
-            if ((pass == 0) != shadowing) {
+            if ((pass == 0) != shadowing[i]) {
                 continue;
             }
             lights[light_count] = l;
             ++light_count;
-            if (pass == 0) {
-                ++shadow_light_count;
-            }
         }
     }
 }

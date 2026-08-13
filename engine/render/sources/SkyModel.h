@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:58:10
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 19:11:13
 Module: engine/render
 File: engine/render/sources/SkyModel.h
 
@@ -62,6 +62,9 @@ UPD:
   breaks) because the node regression is the one term that is not periodic in
   the synodic month.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 19:11:13: FLAME_INTENSITY_SWING / FLAME_WARMTH_SWING arrive here from
+  RenderSystemResources.cpp: the carried light's colour is a band now, and the
+  band's width belongs beside the colour it is a band around.
 */
 
 #pragma once
@@ -82,6 +85,16 @@ inline constexpr float SKY_DAY_ELEVATION = 0.22f;
 /// RenderEnvironment::point_light_* so no numbers are hardcoded there.
 inline constexpr glm::vec3 TORCH_COLOR{1.00f, 0.62f, 0.28f};
 inline constexpr float TORCH_RADIUS_M = 9.0f;
+
+/// The flame BREATHES: every carried light's colour is multiplied by an
+/// intensity that swings by this fraction, and its warmth (green/blue trim)
+/// by the second. They live in the header and not beside the oscillator
+/// because the light's colour is now a BAND rather than a value, and anything
+/// that asserts a torch's colour has to know how wide the band is — a test
+/// carrying its own copy of 0.12 would pass a flame that had stopped moving.
+/// Look-dev, on the NUMBERS.md migration list with TORCH_COLOR.
+inline constexpr float FLAME_INTENSITY_SWING = 0.12f;
+inline constexpr float FLAME_WARMTH_SWING = 0.05f;
 
 /// Direction TOWARD the sun for a normalized time of day.
 /// day_fraction: 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset.

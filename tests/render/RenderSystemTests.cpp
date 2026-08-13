@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 10:08:2026 - 21:12:53
+Last updated: 13:08:2026 - 19:11:13
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -43,6 +43,20 @@ UPD:
   through the real render path: the origin light and the right distance
   in the wrong direction must both FAIL, and the second also PASSES the
   magnitude assertion, which is why direction needed its own line.
+- 13:08:2026 - 19:11:13: THE FLAME BREATHES, so two assertions that read a torch's
+  colour as a VALUE were hidden clock reads -- green only while the sine sat
+  near zero, and red at the wall-clock instant the suite happened to reach
+  them. Both are bands now (width from SkyModel.h, not a second copy of 0.12),
+  each with the control the band alone cannot fail: b/r for the warm default,
+  g/r for the explicit colour. Plus a new case for the thing a band CANNOT
+  catch -- that the flame moves at all -- swept over 2 s of PINNED visual clock
+  (DFN_VISTIME) with the same-second repeat as its determinism control. Its
+  first version sampled two instants 0.145 s apart, from the oscillator's own
+  claim of '5.7/9.1 Hz, beat 0.29 s': the rates are not in hertz (the code
+  multiplies by tau and by 1/tau, which cancel), the real rates are 0.91 and
+  1.45 Hz, and the pair measured 0.0057 where it needed 0.01.
+  Shadow casters back to MAX_SHADOW_POINT_LIGHTS (the backend's double-append
+  is fixed), so that assertion stands as written.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -58,7 +72,9 @@ UPD:
 #include <glm/gtc/quaternion.hpp>
 #include <glm/geometric.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <utility>
 #include <vector>
@@ -243,7 +259,23 @@ TEST_CASE("a carried light becomes a point light at the HAND, not at the origin"
     REQUIRE(env.point_light_count == 1);
     // Defaults applied for radius 0 / colour 0.
     CHECK(env.point_lights[0].radius_m == doctest::Approx(dfn::render::TORCH_RADIUS_M));
-    CHECK(env.point_lights[0].color.r == doctest::Approx(dfn::render::TORCH_COLOR.r));
+    // THE COLOUR IS A BAND, NOT A VALUE, since the flame breathes: intensity
+    // swings by FLAME_INTENSITY_SWING about the look-dev colour and warmth
+    // trims green and blue. `color.r == Approx(TORCH_COLOR.r)` was written
+    // before that and failed on a correct flame at a wall-clock time it never
+    // controlled — the assertion was a HIDDEN CLOCK READ, green only while
+    // the sine happened to be near zero.
+    //
+    // What survives the flicker is the band on r (warmth does not touch it)...
+    CHECK(std::fabs(env.point_lights[0].color.r - dfn::render::TORCH_COLOR.r)
+          <= dfn::render::FLAME_INTENSITY_SWING * dfn::render::TORCH_COLOR.r);
+    // ...and the HUE, which is the thing the default is actually for: a torch
+    // is warm. b/r is the torch's ratio up to the warmth swing, where a
+    // white default (the failure this line guards) would read 1.0.
+    const float torch_br = dfn::render::TORCH_COLOR.b / dfn::render::TORCH_COLOR.r;
+    const float lit_br = env.point_lights[0].color.b / env.point_lights[0].color.r;
+    CHECK(std::fabs(lit_br - torch_br) <= dfn::render::FLAME_WARMTH_SWING * torch_br);
+    CHECK(lit_br < 0.5f); // the control the band alone cannot fail: not white
     // THE POINT OF THE TEST: the flame is above the feet and displaced
     // sideways, and the sideways part ROTATED with the body — a light left at
     // the carrier origin (or at the eye) casts no visible shadow at all, which
@@ -334,13 +366,89 @@ TEST_CASE("only MAX_SHADOW_POINT_LIGHTS carried lights get a shadow map") {
     uint32_t shadowed = 0;
     for (uint32_t i = 0; i < env.point_light_count; ++i) {
         CHECK(env.point_lights[i].radius_m == doctest::Approx(6.0f));
-        // Explicit colour is honoured (0x00RRGGBB), the default is not.
-        CHECK(env.point_lights[i].color.r == doctest::Approx(1.0f));
+        // Explicit colour is honoured (0x00RRGGBB), the default is not — and
+        // the assertion is a band because the flame breathes (see the hand
+        // case above). 0xFF8040 is r 1.000 / g 0.502 / b 0.251.
+        CHECK(std::fabs(env.point_lights[i].color.r - 1.0f)
+              <= dfn::render::FLAME_INTENSITY_SWING);
+        // g/r separates the REQUESTED colour (128/255) from the torch default
+        // (0.620) by 0.118, which is 9.4x the widest the warmth trim can move
+        // it (g *= 1 - warmth*0.5, so +-0.0126) — so this line fails if the
+        // explicit colour is dropped, and the default cannot satisfy it at any
+        // phase of the flicker.
+        const float asked_gr = 128.0f / 255.0f;
+        const float gr = env.point_lights[i].color.g / env.point_lights[i].color.r;
+        CHECK(std::fabs(gr - asked_gr)
+              <= 0.5f * dfn::render::FLAME_WARMTH_SWING * asked_gr);
         shadowed += env.point_lights[i].casts_shadow ? 1u : 0u;
     }
     CHECK(shadowed == dfn::platform::MAX_SHADOW_POINT_LIGHTS);
 
     system.shutdown(renderer);
+}
+
+TEST_CASE("the flame breathes, and a dead flame is what the band cannot catch") {
+    // THE COMPANION TO THE TWO BAND ASSERTIONS ABOVE. A band admits a flame
+    // that has stopped moving — it is the widest possible pass — so the fact
+    // that the light MOVES needs its own case, and it needs a pinned clock:
+    // the flicker is a function of env.time_seconds, which is wall time unless
+    // DFN_VISTIME says otherwise. Same hook the cloud-drift pair uses; it is
+    // read in init(), so it is set before each system is built.
+    const auto light_at = [](const char* seconds) {
+        setenv("DFN_VISTIME", seconds, 1);
+        NullRenderer renderer;
+        REQUIRE(renderer.init({}));
+        RenderSystem system;
+        REQUIRE(system.init(renderer));
+        dfn::ecs::World world;
+        const auto e = world.spawn();
+        world.add(e, dfn::components::Transform{
+                         {0.0f, 0.0f, 0.0f},
+                         glm::quat{1.0f, 0.0f, 0.0f, 0.0f}, glm::vec3{1.0f}});
+        dfn::components::CarriedLight light;
+        light.active = true;
+        world.add(e, std::move(light));
+        dfn::render::FirstPersonCamera camera;
+        camera.set_projection(1.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+        system.render(world, renderer, camera, 1.0f);
+        REQUIRE(system.environment().point_light_count == 1);
+        const glm::vec3 c = system.environment().point_lights[0].color;
+        system.shutdown(renderer);
+        return c;
+    };
+    // SWEPT, NOT SAMPLED TWICE, and the first version of this case is why: two
+    // instants 0.145 s apart differed by 0.0057, which I had predicted would
+    // clear 0.01 from the oscillator's stated "5.7/9.1 Hz, beat period 0.29 s".
+    // The rates are NOT in hertz — `5.7f * 6.2831853f * 0.1591549f` multiplies
+    // by tau and by 1/tau, which cancel — so the flame breathes at 0.91 and
+    // 1.45 Hz and beats every 1.85 s, and a pair chosen from the documented
+    // period lands wherever it happens to land. A sweep over two seconds
+    // cannot be defeated by that; it also states the real claim, which is
+    // about the SPAN the flame covers and not about any two instants.
+    float lo = 2.0f;
+    float hi = 0.0f;
+    for (int i = 0; i <= 10; ++i) {
+        char t[16];
+        std::snprintf(t, sizeof(t), "%.2f", static_cast<float>(i) * 0.2f);
+        const float r = light_at(t).r;
+        lo = std::min(lo, r);
+        hi = std::max(hi, r);
+        // Every sample is inside the band the other two cases assert.
+        CHECK(std::fabs(r - dfn::render::TORCH_COLOR.r)
+              <= dfn::render::FLAME_INTENSITY_SWING * dfn::render::TORCH_COLOR.r);
+    }
+    unsetenv("DFN_VISTIME");
+    // Half the band is the claim: a flame that had stopped would give 0.
+    CHECK(hi - lo > 0.5f * dfn::render::FLAME_INTENSITY_SWING
+                        * dfn::render::TORCH_COLOR.r);
+    const glm::vec3 a = light_at("0.0");
+    // THE CLOCK IS PINNED, NOT IGNORED: the same pinned second gives the same
+    // colour twice. Without this a flicker driven by an unpinned wall clock
+    // would pass the line above and break every screenshot recipe in the
+    // project, which is the reason the oscillator reads the visual clock.
+    const glm::vec3 a2 = light_at("0.0");
+    unsetenv("DFN_VISTIME");
+    CHECK(a2.r == doctest::Approx(a.r));
 }
 
 TEST_CASE("site entities with blessed mesh ids 1..7 are submitted") {
