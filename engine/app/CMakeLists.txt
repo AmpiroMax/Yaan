@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 10:08:2026 - 19:57:06
+# Last updated: 13:08:2026 - 20:41:07
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -21,6 +21,7 @@
 #                          uses it instead of hand-filling TerrainDesc.
 # - 10:08:2026 - 19:26:40: DebugOverlay.cpp в сборке; хэш коммита штампуется в бинарник (DFN_BUILD_COMMIT) — снимок состояния обязан называть сборку, иначе он невоспроизводим.
 # - 10:08:2026 - 19:57:06: Хэш коммита штампуется во время СБОРКИ через tools/stamp_build_commit.cmake, с пометкой +dirty для незакоммиченного дерева.
+# - 13:08:2026 - 20:41:07: HudScreen.cpp в сборке — прицел и будущий игровой интерфейс зоны ui.
 
 set(DFN_APP_DEPS
     dfn_core
@@ -51,6 +52,7 @@ if(DFN_APP_READY)
         sources/Main.cpp
         sources/App.cpp
         sources/DebugOverlay.cpp
+        sources/HudScreen.cpp
         sources/Localization.cpp
         sources/Menu.cpp)
     target_link_libraries(dfn_app PRIVATE dfn_headers ${DFN_APP_DEPS})

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 19:14:43
+Last updated: 13:08:2026 - 20:41:07
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -109,10 +109,12 @@ UPD:
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 13:08:2026 - 19:13:36: Пол яркости доходит до кадра ПРИ СТАРТЕ, а не только при закрытии страницы калибровки — мой пропуск, найденный зоной ui приёмочным прогоном: настройка сохранялась, перечитывалась, писалась обратно и НИКОГДА НЕ РИСОВАЛАСЬ. Замерено на шести кадрах: день и тоннель сдвинулись на 0.0002 и 0.025 шага между полом 0 и полом в полтора шага, то есть на собственный шум прогона, а контроль против контроля давал шум в 6–20 раз больше обеих рук. Плюс живой предпросмотр на самой странице: без него она показывает квадраты, занижённые ровно на отсутствующий подъём, то есть врёт тем сильнее, чем выше повёрнута ручка.
 - 13:08:2026 - 19:14:43: DFN_MENU_PAGE принимает calibrate. Единственный экран, ради которого заведена вся ручка яркости, не снимался ни разу и снят быть не мог. И ui нашла, почему в settings.cfg оказался min_brightness=0: ручка всегда открывалась на нуле, потому что меню не засевалось сохранённым значением, а любой выход со страницы сохранял то, что на ней стояло.
+- 13:08:2026 - 20:41:07: Экран настроек и прицел (четвёртый кусок зоны ui, применён здесь). set_settings() при старте: страница открывается на том, с чем игра ЗАПУЩЕНА, и эта вторая копия — то, против чего отвечает needs_restart(). SettingsDone применяет живьём ТОЛЬКО живьём применимое: покачивание — множитель, который шаговый контекст читает каждый кадр, а разрешение, сглаживание и палитра проглатываются рендером ПРИ ИНИЦИАЛИЗАЦИИ, поэтому пишутся в файл и вступают со следующим запуском. LEFT/RIGHT зовут menu_.adjust() без проверки страницы — на страницах без строк-значений adjust() пуст по построению. DFN_MENU_PAGE принимает settings, довод тот же, что у calibrate. И ПРИЦЕЛ: подсказка взаимодействия рисуется по центру экрана, у которого центр ничем не отмечен; дверь дозы DFN_CROSSHAIR живёт внутри функции, поэтому обе руки приёмки выходят из ОДНОГО бинарника.
 */
 
 #include "engine/app/sources/App.h"
 
+#include "engine/app/sources/HudScreen.h"
 #include "engine/app/sources/Localization.h"
 // Generated at BUILD time by tools/stamp_build_commit.cmake; carries
 // DFN_BUILD_COMMIT into every state capture. See that script for why the
@@ -471,6 +473,17 @@ bool App::init(const AppConfig& config) {
     // And the dial opens where the player left it, for the same reason.
     menu_.set_black_floor(config.black_floor);
 
+    // Страница настроек открывается на том, с чем игра ЗАПУЩЕНА, и это же
+    // значение отвечает на вопрос «какая строка применится лишь после
+    // перезапуска»: модель хранит вторую копию и сравнивает с ней.
+    MenuSettings ms;
+    ms.internal_w = config.internal_width;
+    ms.internal_h = config.internal_height;
+    ms.msaa = config.msaa_samples;
+    ms.palette = config.palette_post;
+    ms.head_bob = config.head_bob;
+    menu_.set_settings(ms);
+
     // Rule 5: every user-facing string comes from here and nowhere else.
     // A missing file is loud and the game still runs, with every string drawn
     // as a visible placeholder rather than as nothing.
@@ -505,9 +518,11 @@ bool App::init(const AppConfig& config) {
             // photograph is not evidence -- and this is the one screen the whole
             // brightness dial exists for.
             menu_.open(MenuPage::Calibrate);
+        } else if (page == "settings") {
+            menu_.open(MenuPage::Settings);
         } else {
             std::fprintf(stderr,
-                         "[menu] DFN_MENU_PAGE=\"%s\" is not root|maps|pause|calibrate -- "
+                         "[menu] DFN_MENU_PAGE=\"%s\" is not root|maps|pause|calibrate|settings -- "
                          "REFUSING to run, because a root frame filed under "
                          "\"%s\" is worse than no frame\n",
                          mp, mp);
@@ -1667,6 +1682,14 @@ int App::run() {
             if (input_->was_pressed(platform::Key::DOWN)) {
                 menu_.move(1);
             }
+            // Value rows turn sideways. adjust() is a no-op by construction on
+            // every page that has no values, so this needs no page test.
+            if (input_->was_pressed(platform::Key::LEFT)) {
+                menu_.adjust(-1);
+            }
+            if (input_->was_pressed(platform::Key::RIGHT)) {
+                menu_.adjust(1);
+            }
             MenuAction action = MenuAction::None;
             if (input_->was_pressed(platform::Key::ENTER)) {
                 action = menu_.activate();
@@ -1695,6 +1718,23 @@ int App::run() {
                 render_system_.environment().black_floor = config_.black_floor;
                 write_settings(config_);
                 break;
+            case MenuAction::SettingsDone: {
+                // Живьём применяется ТОЛЬКО то, что живьём применимо:
+                // покачивание — это множитель, который шаговый контекст читает
+                // каждый кадр. Разрешение, сглаживание и палитра
+                // проглатываются рендером при инициализации, поэтому они
+                // пишутся в файл и вступают со следующим запуском — страница
+                // говорит об этом игроку сама (needs_restart()).
+                const MenuSettings& s = menu_.settings();
+                config_.internal_width = s.internal_w;
+                config_.internal_height = s.internal_h;
+                config_.msaa_samples = s.msaa;
+                config_.palette_post = s.palette;
+                config_.head_bob = s.head_bob;
+                step_ctx_.bob_scale = config_.head_bob;
+                write_settings(config_);
+                break;
+            }
             case MenuAction::ToRoot:
             case MenuAction::None:
                 break;
@@ -2307,6 +2347,12 @@ int App::run() {
             render::PixelCanvas& hud = render_system_.hud();
             hud.clear_transparent();
             bool any = false;
+            // ПРИЦЕЛ. Подсказка взаимодействия рисуется по центру экрана, у
+            // которого центр ничем не отмечен, — это и была жалоба на кадре
+            // ui-ingame. Дверь дозы DFN_CROSSHAIR=0 живёт внутри функции: обе
+            // руки приёмки из одного бинарника.
+            draw_crosshair(hud);
+            any = true;
             if (world_.has_resource<components::HoverTarget>()) {
                 const auto& hover = world_.resource<components::HoverTarget>();
                 if (hover.prompt_key != 0) {
