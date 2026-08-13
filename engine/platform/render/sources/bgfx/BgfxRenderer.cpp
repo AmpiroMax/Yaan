@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 23:32:21
+Last updated: 13:08:2026 - 16:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -104,6 +104,11 @@ UPD:
   discarded, so the fix had to reach the MASK. Details and the palette-on
   numbers in docs/specs/render.md.
 - 10:08:2026 - 23:32:21: Число выборок берётся из параметров запуска, DFN_MSAA остаётся перекрытием для инструментов. Врезка лида в одну строку: оставить настройку неподключённой значило бы отгрузить немой ноль ровно того класса, который этот файл сегодня и чинил.
+- 13:08:2026 - 16:10:00: The NEAR CASCADE's resources — a second depth target
+  (SHADOW_NEAR_MAP_SIZE) with its own framebuffer, sampler and light matrix.
+  Allocated SEPARATELY from the far map and separately validated: if this one
+  fails the far map still ships, because "no dapple" is a far better failure
+  than "no shadows".
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -406,6 +411,24 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             im.shadow_map = bgfx::createTexture2D(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE,
                                                   false, 1, depth_fmt, depth_flags);
             im.shadow_fb = bgfx::createFrameBuffer(1, &im.shadow_map, false);
+            // THE NEAR CASCADE (R6b). Deliberately a SEPARATE allocation with
+            // its own validity: if this one fails the far map still ships, and
+            // "no dapple" is a better failure than "no shadows".
+            //
+            // 4x4 WHEN DISABLED, which is the default. The sampler must stay
+            // bound (Metal wants a real texture behind every declared sampler)
+            // but the 33 MB and the second full-resolution pass must not be
+            // paid for a feature the measurement says is not worth its frame
+            // time yet. Nothing reads this stub: update_shadow parks the near
+            // light matrix outside the unit box.
+            const uint16_t near_size =
+                shadow_near_enabled() ? SHADOW_NEAR_MAP_SIZE : uint16_t{4};
+            im.shadow_map_near = bgfx::createTexture2D(
+                near_size, near_size, false, 1, depth_fmt, depth_flags);
+            if (bgfx::isValid(im.shadow_map_near)) {
+                im.shadow_fb_near =
+                    bgfx::createFrameBuffer(1, &im.shadow_map_near, false);
+            }
         } else {
             std::fprintf(stderr, "[render] no depth format for the shadow map; "
                                  "sun shadows disabled\n");
@@ -417,6 +440,10 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
         im.u_light_mtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
         im.u_shadow_params =
             bgfx::createUniform("u_shadowParams", bgfx::UniformType::Vec4);
+        im.s_shadow_map_near =
+            bgfx::createUniform("s_shadowMapNear", bgfx::UniformType::Sampler);
+        im.u_light_mtx_near =
+            bgfx::createUniform("u_lightMtxNear", bgfx::UniformType::Mat4);
     }
 
     // Carried-light cube shadows: one colour atlas (linear distance / radius)
@@ -511,6 +538,8 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.shadow_cutout_program)) bgfx::destroy(im.shadow_cutout_program);
     if (bgfx::isValid(im.shadow_fb)) bgfx::destroy(im.shadow_fb);
     if (bgfx::isValid(im.shadow_map)) bgfx::destroy(im.shadow_map);
+    if (bgfx::isValid(im.shadow_fb_near)) bgfx::destroy(im.shadow_fb_near);
+    if (bgfx::isValid(im.shadow_map_near)) bgfx::destroy(im.shadow_map_near);
     if (bgfx::isValid(im.point_shadow_program)) bgfx::destroy(im.point_shadow_program);
     if (bgfx::isValid(im.point_shadow_fb)) bgfx::destroy(im.point_shadow_fb);
     if (bgfx::isValid(im.point_shadow_atlas)) bgfx::destroy(im.point_shadow_atlas);
@@ -522,6 +551,8 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.s_shadow_map)) bgfx::destroy(im.s_shadow_map);
     if (bgfx::isValid(im.u_light_mtx)) bgfx::destroy(im.u_light_mtx);
     if (bgfx::isValid(im.u_shadow_params)) bgfx::destroy(im.u_shadow_params);
+    if (bgfx::isValid(im.s_shadow_map_near)) bgfx::destroy(im.s_shadow_map_near);
+    if (bgfx::isValid(im.u_light_mtx_near)) bgfx::destroy(im.u_light_mtx_near);
     if (bgfx::isValid(im.quad_ib)) bgfx::destroy(im.quad_ib);
     if (bgfx::isValid(im.quad_vb)) bgfx::destroy(im.quad_vb);
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);

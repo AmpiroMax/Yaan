@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 11:08:2026 - 14:24:26
+Last updated: 13:08:2026 - 16:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -48,6 +48,14 @@ UPD:
   chain). Both exist for the coverage-antialiasing fix; see
   BgfxRenderer.cpp's internal-target block and docs/specs/render.md.
 - 11:08:2026 - 14:24:26: ENV_PARAM_VEC4S 37 -> 38 (slot 37 = the MIST BAND, R2).
+- 13:08:2026 - 16:10:00: THE NEAR CASCADE (SHADOW_NEAR_*), and the view ids
+  shifted by one to make room for it (VIEW_SHADOW_NEAR = 1, point shadows now
+  from 2). It is the remedy this file had already named for itself and R6b
+  finally sized: the far map's 0.156 m texel is 2-3x COARSER than the leaf
+  mask's own texel (0.047-0.086 m), so the map is a 0.31 m low-pass on the
+  canopy and passes only the blob. 4096 over 40 m = 0.0195 m fixes the
+  bandwidth, not the amount — the dose arms say the amount was never the
+  problem.
 */
 
 #pragma once
@@ -59,6 +67,7 @@ UPD:
 #include <glm/glm.hpp>
 
 #include <array>
+#include <cstdlib>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -67,10 +76,11 @@ UPD:
 namespace dfn::platform {
 
 inline constexpr bgfx::ViewId VIEW_SHADOW = 0;  // -> sun shadow map (depth only)
+inline constexpr bgfx::ViewId VIEW_SHADOW_NEAR = 1; // -> near cascade (depth only)
 // Carried-light cube shadows: MAX_SHADOW_POINT_LIGHTS x 6 faces, each face one
 // view into a shared atlas. Views render in id order, so every face is
 // finished before the scene samples it.
-inline constexpr bgfx::ViewId VIEW_POINT_SHADOW_FIRST = 1;
+inline constexpr bgfx::ViewId VIEW_POINT_SHADOW_FIRST = 2;
 inline constexpr uint32_t POINT_SHADOW_FACES = 6;
 inline constexpr uint32_t POINT_SHADOW_VIEWS =
     MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES;
@@ -109,6 +119,97 @@ inline constexpr float SHADOW_TEXEL_M =
 // birch trunk's whole shadow — and is now 0.156 m).
 inline constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
 inline constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
+
+// --- THE NEAR CASCADE (R6b: the dapple's GRAIN) ------------------------------
+//
+// The far map above is sized for TRUNKS and it is exactly at its own floor for
+// them (birch 0.28 m = 1.8 texels). The canopy dapple lives two scales below
+// that, and the arithmetic says it cannot exist at all on that map:
+//
+//   SHADOW_TEXEL_M                        = 2 x 320 / 4096 = 0.1563 m
+//   thin-caster floor (>= 2 texels)       = 0.3125 m
+//   + SHADOW_NORMAL_OFFSET_M, both sides  -> a hole must clear ~0.31 m to
+//                                            survive the receiver push-off too
+//   leaf MASK texel (FloraCards: 64 px tile on a 3.0-5.5 m card)
+//                                         = 0.047-0.086 m
+//
+// The last line is the finding, and it is stronger than "we sit on the floor":
+// THE SHADOW MAP UNDERSAMPLES THE LEAF MASK BY 2-3x. The mask is a 64x64 image
+// and the map cannot resolve one of its texels, so nothing the mask draws at
+// its own resolution — the ragged rim of every lobe — reaches the ground. What
+// still casts is only what flora AUTHORED above the floor on purpose: rim bites
+// of 0.4-0.9 m (2.6-5.8 far texels) and the one or two 1 m interior gaps
+// (6.4 texels). That is why the measured shadow contribution RISES with block
+// size: the map is a low-pass filter with a 0.31 m cutoff, and it passes exactly
+// the canopy-sized blob and nothing finer.
+//
+// So the near cascade is not "more shadow", it is BANDWIDTH. 4096 over 40 m:
+//   SHADOW_NEAR_TEXEL_M = 2 x 40 / 4096 = 0.0195 m, 8x finer
+//   thin-caster floor                   = 0.039 m, below the leaf mask's own
+//                                          texel — the mask is now oversampled
+//                                          rather than undersampled
+// 40 m is chosen by what the cascade must COVER, not by what looks fine: it is
+// the ground the near-canopy vantage actually stands on, and the far map keeps
+// everything past it unchanged, so this can only add grain and can never remove
+// a shadow that was already there.
+//
+// THE PRICE IS A SECOND DEPTH PASS for every caster within 40 m of the eye, and
+// it was paid in the frame log, not in a comment.
+//
+// AND IT IS OFF BY DEFAULT, BECAUSE THE MEASUREMENT SAID SO. All of the above
+// is correct and none of it pays yet. Three arms out of one binary at the near
+// canopy (docs/acceptance/render-R6b-near-cascade.md), n=3 each, the cascade's
+// OWN contribution to local contrast over the far map alone:
+//   8 px +0.010 | 16 px +0.000 | 24 px +0.010 | 40 px +0.046   (run spread
+//   0.003-0.016, so the two middle numbers are not distinguishable from zero)
+// against a cost of +22 % mean frame time — the vantage held the 120 Hz cap in
+// 3/7 runs with the cascade on and 6/7 with it off. Trading a vsync tier at the
+// exact vantage the user's running-stutter complaint lives at, for a tenth of
+// what the far map already delivers, is not a trade to ship.
+//
+// WHY IT BUYS SO LITTLE, and this is the finding that outlives the feature: the
+// near forest floor has NO SUN ON IT TO INTERRUPT. Threshold-free, over the
+// near band of the same frames, p90/p10 of luma:
+//   reference 03's forest floor   3.23x   (36 -> 116: light and shade interleave
+//                                          continuously across the whole range)
+//   ours, sun shadow ON           1.15x   (27.5 -> 31.7: a flat DARK sheet)
+//   ours, sun shadow OFF          1.15x   (49.6 -> 57.3: a flat BRIGHT sheet)
+// Our canopy shadow is binary and total — it takes an evenly lit floor to an
+// evenly dark one with nothing in between. No shadow-map resolution can invent
+// a middle tone that has no source. The gate has MOVED, from this map's
+// bandwidth (render, fixed here) to how much sun the canopy lets through
+// (flora) and to how much tone the floor material carries (ground).
+//
+// TURN IT ON WITH DFN_SHADOW_NEAR=1 the day the canopy opens: the day our near
+// floor stops reading 1.15x, the grain that comes through it will need this
+// bandwidth, and the arithmetic at the top of this block will be waiting.
+inline constexpr uint16_t SHADOW_NEAR_MAP_SIZE = 4096;
+inline constexpr float SHADOW_NEAR_HALF_EXTENT_M = 40.0f;
+inline constexpr float SHADOW_NEAR_TEXEL_M =
+    2.0f * SHADOW_NEAR_HALF_EXTENT_M / static_cast<float>(SHADOW_NEAR_MAP_SIZE);
+// Same texel-denominated push-off as the far map, which is the whole point:
+// at 0.0195 m it stops eroding the features the cascade exists to carry.
+inline constexpr float SHADOW_NEAR_NORMAL_OFFSET_M = 1.0f * SHADOW_NEAR_TEXEL_M;
+// The near volume shares SHADOW_DEPTH_HALF_M so that both cascades normalise
+// depth identically and ONE u_shadowParams.z bias serves both. Making the near
+// range shallower would buy depth precision the D16 map does not need here
+// (1400 m / 65536 = 0.021 m, far under the 0.25 m compare bias) and would cost
+// a second bias slot plus a second way to get it wrong.
+
+// THE DOSE, read ONCE and read by BOTH init and the frame path — which is why
+// it lives here and not beside the other doses. Default 0 (see the block
+// above). At 0 the near target is allocated at 4x4 instead of 4096x4096, so a
+// disabled cascade costs no VRAM while the sampler stays legally bound (Metal
+// wants a real texture behind every sampler a program declares); nothing ever
+// samples it, because update_shadow parks u_lightMtxNear outside the unit box
+// and the shader's own in-volume test rejects it.
+[[nodiscard]] inline bool shadow_near_enabled() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_SHADOW_NEAR");
+        return e != nullptr && e[0] != '\0' && e[0] != '0';
+    }();
+    return on;
+}
 
 // A DISSOLVING DRAW IS HALF PRESENT ON SCREEN AND WAS FULLY PRESENT IN THE
 // SHADOW MAP. DrawParams::fade drives a screen-door dither in the scene
@@ -241,6 +342,17 @@ struct BgfxRenderer::Impl {
     // reach the volume (see update_shadow).
     glm::mat4 shadow_view{1.0f};
     glm::vec3 frame_eye{0.0f};    // camera position, from begin_frame's view
+
+    // The NEAR CASCADE (R6b). Same three things as above at 8x the texel
+    // density over 40 m; `near_shadow_active` is separately false when its
+    // resources failed or its dose is 0, so the far map alone is always a valid
+    // frame and a valid control arm.
+    bgfx::TextureHandle shadow_map_near = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle shadow_fb_near = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle s_shadow_map_near = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_light_mtx_near = BGFX_INVALID_HANDLE;
+    bool shadow_near_active = false;
+    glm::mat4 shadow_view_near{1.0f};
 
     // Carried-light cube shadows: one atlas, one program, per-face view state.
     bgfx::TextureHandle point_shadow_atlas = BGFX_INVALID_HANDLE;

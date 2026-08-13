@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 14:11:37
-Last updated: 12:08:2026 - 23:08:22
+Last updated: 13:08:2026 - 16:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_shadow.sh
 
@@ -12,6 +12,7 @@ Responsibility:
 
 Key items:
 - s_shadowMap (stage 1, compare sampler), u_lightMtx, u_shadowParams,
+  s_shadowMapNear (stage 3) + u_lightMtxNear (the near cascade),
   dfn_shadow_factor().
 
 Dependencies:
@@ -35,6 +36,14 @@ UPD:
   settled without it: R6b (the dapple is five times short of the reference, and
   its absolute number is unusable without a shadow-off control) and the user's
   two standing complaints about shadows, which live BETWEEN frames.
+- 13:08:2026 - 16:10:00: THE NEAR CASCADE (s_shadowMapNear / u_lightMtxNear /
+  u_shadowParams.w). R6b's dose arms proved the defect is BANDWIDTH and not
+  amount: the far map's 0.156 m texel is 2-3x coarser than the leaf mask's own
+  texel, so the canopy reaches the ground through a 0.31 m low-pass and only
+  the blob survives — which is why our shadow's contribution RISES with block
+  size (+0.034 at 8 px, +0.402 at 40 px) while reference 03's dapple FALLS.
+  The near map is 0.0195 m and is consulted FIRST, never blended with the far
+  one: blending would put the 0.31 m low-pass straight back on top of it.
 */
 
 #ifndef DFN_SHADOW_SH
@@ -58,11 +67,36 @@ uniform mat4 u_lightMtx;
 // map is simply not read.
 uniform vec4 u_shadowParams;
 
+// THE NEAR CASCADE (R6b — the dapple's GRAIN, not its amount). Same light, same
+// depth bracket, 8x the texel density over a 40 m box around the eye.
+SAMPLER2DSHADOW(s_shadowMapNear, 3);
+uniform mat4 u_lightMtxNear;
+
 // 1.0 = fully sunlit, 0.0 = in shadow. `n` is the unit surface normal.
 float dfn_shadow_factor(vec3 wpos, vec3 n)
 {
     if (u_shadowParams.x <= 0.0) {
         return 1.0;
+    }
+    // THE NEAR CASCADE FIRST, and the ORDER is the contract: wherever the fine
+    // map covers the fragment it is strictly better information about the same
+    // casters, so the coarse map is not consulted at all rather than blended
+    // in. Blending the two would put a 0.156 m-cutoff low-pass BACK on top of
+    // the 0.0195 m one over the whole near ground, i.e. it would average away
+    // exactly the grain this cascade exists to deliver.
+    //
+    // The margin is why there is no seam. The test rejects the outer texel-ish
+    // rim of the near map, so a fragment only takes the near answer when its
+    // whole neighbourhood is inside; the handover happens at 40 m, where the
+    // two maps disagree about EDGE SHARPNESS and never about presence — both
+    // are fed by the same caster list and the same depth bracket.
+    vec4 scn = mul(u_lightMtxNear, vec4(wpos + n * u_shadowParams.w, 1.0));
+    vec2 uvn = scn.xy;
+    vec2 bordern = max(abs(uvn - vec2(0.5, 0.5)) - vec2(0.498, 0.498),
+                       vec2(0.0, 0.0));
+    if (max(bordern.x, bordern.y) <= 0.0) {
+        float sn = shadow2D(s_shadowMapNear, vec3(uvn, scn.z - u_shadowParams.z));
+        return mix(1.0, sn, min(u_shadowParams.x, 1.0));
     }
     vec4 sc = mul(u_lightMtx, vec4(wpos + n * u_shadowParams.y, 1.0));
     // Orthographic light: w == 1, no perspective divide needed.

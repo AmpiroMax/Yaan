@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 23:24:48
+Last updated: 13:08:2026 - 16:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -46,6 +46,12 @@ UPD:
   digits — the residual pixels are not partially covered, they are written or
   discarded, so the fix had to reach the MASK. Details and the palette-on
   numbers in docs/specs/render.md.
+- 13:08:2026 - 16:10:00: Casters inside 40 m also draw into VIEW_SHADOW_NEAR.
+  The cull against the near volume is what keeps this from being a second full
+  shadow pass, and the cutout mask is BOUND AGAIN for it — bgfx consumes the
+  pending setTexture with the preceding submit, and a leaf card that punched a
+  solid rectangle into the near map would raise the 40 px reading and lower the
+  8 px one, i.e. produce the exact opposite of the claim under test.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -133,6 +139,40 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         bgfx::setIndexBuffer(mesh_it->second.ib);
         bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
         bgfx::submit(VIEW_SHADOW, caster);
+
+        // THE NEAR CASCADE'S OWN PASS (R6b). Same caster, same state, a volume
+        // 8x smaller — and that ratio is the whole cost story: the cull below
+        // is what keeps this from being a second full shadow pass. At 40 m the
+        // set is the chunk under the eye, its neighbours' near corners and the
+        // trees you are standing in, against 320 m for the far map. The texture
+        // bind is deliberately re-issued: bgfx consumes the pending setTexture
+        // with the submit above, so the cutout mask must be bound again or leaf
+        // cards punch solid rectangles into the map this change exists to
+        // sharpen — which would raise the 40 px reading and lower the 8 px one,
+        // the exact opposite of the claim.
+        if (im.shadow_near_active) {
+            const glm::vec3 lsn =
+                glm::vec3(im.shadow_view_near * glm::vec4(world_center, 1.0f));
+            const float r = world_radius;
+            if (std::fabs(lsn.x) <= SHADOW_NEAR_HALF_EXTENT_M + r
+                && std::fabs(lsn.y) <= SHADOW_NEAR_HALF_EXTENT_M + r
+                && std::fabs(lsn.z) <= SHADOW_DEPTH_HALF_M + r) {
+                if (caster.idx == im.shadow_cutout_program.idx) {
+                    const auto near_tex = im.textures.find(texture.id);
+                    if (near_tex != im.textures.end()) {
+                        bgfx::setTexture(0, im.s_tex_color, near_tex->second,
+                                         BGFX_SAMPLER_MIN_POINT
+                                             | BGFX_SAMPLER_MAG_POINT
+                                             | BGFX_SAMPLER_MIP_POINT);
+                    }
+                }
+                bgfx::setTransform(glm::value_ptr(transform));
+                bgfx::setVertexBuffer(0, mesh_it->second.vb);
+                bgfx::setIndexBuffer(mesh_it->second.ib);
+                bgfx::setState(BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS);
+                bgfx::submit(VIEW_SHADOW_NEAR, caster);
+            }
+        }
     }
 
     // Carried-light cube faces. Cutout casters are deliberately skipped: a leaf
@@ -225,6 +265,13 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         // Compare-sampler flags come from the texture creation; stage 1 is the
         // dfn_shadow.sh contract (unused by shaders that do not sample it).
         bgfx::setTexture(1, im.s_shadow_map, im.shadow_map);
+    }
+    if (bgfx::isValid(im.shadow_map_near)) {
+        // Stage 3 is the near cascade half of the dfn_shadow.sh contract.
+        // Bound unconditionally for the same reason as the point atlas: Metal
+        // wants a real texture behind every sampler the program declares, and
+        // it is the in-volume test in the shader that turns the lookup off.
+        bgfx::setTexture(3, im.s_shadow_map_near, im.shadow_map_near);
     }
     if (bgfx::isValid(im.point_shadow_atlas)) {
         // Stage 2 is the dfn_pointshadow.sh contract. Bound unconditionally:

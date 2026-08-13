@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 12:08:2026 - 23:22:28-->
+Last updated: 13:08:2026 - 16:30:00
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -333,6 +333,40 @@ UPD:
   надо, но эти два числа — идеализация. ЗАБЛОКИРОВАНО КОНТРАКТОМ: в
   RenderEnvironment одна луна, нужен диф ведущего (форма расписана в спеке).
   В дереве НИЧЕГО НЕ НЕДОПИСАНО: apply_sky_time не тронут.
+- 13:08:2026 - 16:30:00: R6b, ВТОРОЙ ЗАХОД: БЛИЖНИЙ КАСКАД ПОСТРОЕН, ИЗМЕРЕН И
+  ОСТАВЛЕН ВЫКЛЮЧЕННЫМ — а ВОРОТА ДЕФЕКТА УЕХАЛИ ИЗ ЗОНЫ. Арифметика суспекта 1
+  подтверждена и в более резкой форме, чем была: дело не в том, что мы «на полу»
+  0.31 м, а в том, что КАРТА ТЕНИ НЕДОСЭМПЛИРУЕТ МАСКУ ЛИСТА В 2-3 РАЗА —
+  собственный тексель маски 0.047-0.086 м (тайл 64 px на карточке 3.0-5.5 м)
+  против SHADOW_TEXEL_M 0.156 м, поэтому всё, что маска рисует на своём
+  разрешении, до земли не доходит вовсе; отбрасывает только то, что flora
+  СПЕЦИАЛЬНО нарисовала выше нашего пола (надрезы 0.4-0.9 м, дыры ~1 м). Каскад
+  4096 на 40 м = 0.0195 м, пол 0.039 м — маска стала пересэмплированной.
+  И ОН ПОКУПАЕТ +0.010 ЗА +22 % КАДРА. Три руки из ОДНОГО бинарника, n=3:
+  собственный вклад каскада +0.010 / +0.000 / +0.010 / +0.046 на 8/16/24/40 px
+  при разбросе прогонов 0.003-0.016 (две из четырёх неотличимы от нуля), и его
+  СОБСТВЕННЫЙ спектр тоже РАСТЁТ с масштабом — ровно та форма, которую он
+  строился перевернуть. Цена: точка держала потолок 120 Гц в 3/7 прогонов с ним
+  и в 6/7 без. По умолчанию ВЫКЛЮЧЕН (DFN_SHADOW_NEAR=1 включает; при 0 карта
+  создаётся 4x4, вид не трогается, кадр — прежний отгруженный).
+  ПОЧЕМУ, И ЭТО РЕЗУЛЬТАТ, А НЕ ФИЧА: НА НАШЕЙ ПОДСТИЛКЕ НЕТ СОЛНЦА, КОТОРОЕ
+  МОЖНО БЫЛО БЫ ПРЕРВАТЬ. Беспороговое p90/p10 по ближней полосе: реф 03 —
+  3.23x (36 -> 116, свет и тень перемешаны по всему диапазону), у нас с тенью
+  1.15x (27.5 -> 31.7, ровный ТЁМНЫЙ лист), без тени 1.15x (49.6 -> 57.3, ровный
+  СВЕТЛЫЙ). Наша тень кроны ДВОИЧНАЯ И ПОЛНАЯ: 97.3 % полосы выше люмы 45 без
+  тени и 4.6 % с тенью. Никакое разрешение карты не выдумает средний тон, у
+  которого нет источника; каскад поднял освещённую долю 4.6 % -> 5.2 % — это
+  арифметика, работающая ровно как обещано, и это всё ещё не пятнистость.
+  Остаток R6b — НЕ РЕНДЕРА: (а) сколько солнца пропускает полог (flora; и
+  FloraCards мерил свои детали против «пола 0.31 м», который эта правка делает
+  устаревшим), (б) собственный тон материала земли, плоский на 1.15x.
+  ПРАВИЛО 47 ЧУТЬ НЕ ВЗЯЛО СЕДЬМОЙ СКАЛЬП: первое чтение было до/после между
+  двумя бинарниками с разницей в час и выглядело как перелом спектра
+  (8 px 1.259 -> 1.441) — а всё это была чужая работа по кроне, прилетевшая в ту
+  же пересборку: рука DFN_SHADOW_NEAR=0 из ТОГО ЖЕ бинарника давала уже 1.417.
+  Разрешённая высота глаза за день ездила 17.42 -> 17.54 -> 16.23 м. В ЭТОМ
+  ДЕРЕВЕ ДО/ПОСЛЕ МЕЖДУ БИНАРНИКАМИ МЕРЯЕТ НЕДЕЛЮ, А НЕ ПРАВКУ. Кадры и обе
+  таблицы: docs/acceptance/render-R6b-near-cascade.md.
 -->
 
 # Spec — render agent
@@ -2583,6 +2617,55 @@ grain, not presence — is the one standing.
 Second thing the control says, and it was not expected: at 8 px our ON and OFF
 arms are 1.269 vs 1.235. **Nearly all the fine local contrast on our forest
 floor is the ground MATERIAL, not the shadow at all.**
+
+## R6b, SECOND PASS — THE NEAR CASCADE IS BUILT, AND THE GATE HAS MOVED
+
+Full recipe, the three arms, both tables and the cost:
+`docs/acceptance/render-R6b-near-cascade.md`. Frames
+`docs/acceptance/render-R6b-cascade-{NULL,FAR,NEAR}-d9aeb0e+nc.png`.
+
+**Suspect 1 was right about the arithmetic and it is now fixed.** The sharp form
+of the finding is not "we sit on the 0.31 m floor" but: **the shadow map
+undersamples the leaf mask by 2-3x.** The mask's own texel is 0.047-0.086 m
+(64 px tile on a 3.0-5.5 m card) against `SHADOW_TEXEL_M` 0.156 m, so nothing
+the mask draws at its own resolution can reach the ground; what casts is only
+what flora authored above render's floor on purpose (0.4-0.9 m rim bites, 1 m
+interior gaps). The near cascade — 4096 over 40 m = 0.0195 m, floor 0.039 m —
+puts the mask from undersampled to oversampled.
+
+**And it is off by default, because it buys +0.010 for +22 % of the frame.**
+Cascade's own contribution to local contrast, three arms out of ONE binary,
+n=3: **+0.010 / +0.000 / +0.010 / +0.046** at 8/16/24/40 px, against a run-to-run
+spread of 0.003-0.016 — two of the four are not distinguishable from zero, and
+the cascade's own spectrum RISES with block size, which is the shape it was
+built to invert. Cost: the vantage held the 120 Hz cap in 3/7 runs with it on
+against 6/7 with it off. `DFN_SHADOW_NEAR=1` turns it on; at the default the
+near target is 4x4, its view is never touched, and the frame is the shipped one.
+
+**WHY, and this is the result rather than the feature. There is no sun on our
+forest floor to interrupt.** Threshold-free, luma p90/p10 over the near band:
+reference 03's floor **3.23x** (36 -> 116, light and shade interleaved
+throughout); ours with the shadow ON **1.15x** (27.5 -> 31.7, a flat DARK
+sheet); ours with it OFF **1.15x** (49.6 -> 57.3, a flat BRIGHT sheet). Our
+canopy shadow is binary and total — an evenly lit floor becomes an evenly dark
+one with nothing between. 97.3 % of that band is above luma 45 unshadowed and
+4.6 % shadowed. **No shadow-map resolution can invent a middle tone that has no
+source**; the cascade moved the sunlit fraction 4.6 % -> 5.2 %, which is the
+arithmetic working exactly as predicted and is still not a dapple.
+
+So R6b's remaining half is NOT render's. It is (a) how much sun the canopy lets
+through — flora's card density and stand spacing, and `FloraCards.cpp` sized
+its mask features against "render's ~0.31 m mask-feature floor", a premise this
+change makes stale — and (b) the floor material's own tone, flat at 1.15x.
+
+**RULE 47 ALMOST TOOK A SEVENTH SCALP HERE.** The first reading of this change
+was a before/after across two binaries an hour apart and it looked like the
+break in the spectrum: 8 px 1.259 -> 1.441. All of it was someone else's canopy
+work landing in the same rebuild — the `DFN_SHADOW_NEAR=0` arm out of the SAME
+binary already scored 1.417. The eye's own resolved height moved 17.42 ->
+17.54 -> 16.23 m across three rebuilds in one afternoon. **In this tree a
+before/after across binaries measures the week, not the change.** The control
+has to vary inside one binary, which is the only thing `DFN_SHADOW_NEAR` is for.
 
 ## What this zone does NOT do
 

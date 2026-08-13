@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 12:08:2026 - 23:08:22
+Last updated: 13:08:2026 - 16:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -67,6 +67,15 @@ UPD:
   (Rule 47's structural cure). Built because two open claims need exactly this
   arm — R6b's dapple, whose absolute number is unusable without it, and the
   user's two standing shadow complaints, which live BETWEEN frames.
+- 13:08:2026 - 16:10:00: update_shadow builds a SECOND, NEAR light volume
+  (40 m half extent, same light orientation and same depth bracket, snapped to
+  its OWN texel grid) and uploads u_lightMtxNear; u_shadowParams.w stopped
+  being unused and now carries the near push-off, which has to be its own
+  number or a 0.156 m offset on a 0.0195 m map would erode eight texels of
+  every hole and spend the whole gain. DFN_SHADOW_NEAR is its dose:
+  DFN_SUN_SHADOW=0 asks "is there any shadow", DFN_SHADOW_NEAR=0 asks the
+  question this change makes — "is the new grain the cascade, or the ground
+  material that moved under us this week" — and both come out of one binary.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -374,8 +383,16 @@ void BgfxRenderer::Impl::apply_environment() const {
 // render, last call wins).
 void BgfxRenderer::Impl::update_shadow() {
     shadow_active = false;
+    shadow_near_active = false;
     float enabled = 0.0f;
     glm::mat4 light_mtx(1.0f);
+    // The near cascade's matrix is INVALID until proven otherwise, and
+    // "invalid" has to mean "sampled by nobody": a zero matrix would map every
+    // fragment to uv 0 and shadow the world with one texel. Pushed far outside
+    // the unit box instead, so the shader's own in-volume test rejects it even
+    // if the dose ever gets out of step with the matrix.
+    glm::mat4 light_mtx_near = glm::translate(glm::mat4(1.0f),
+                                              glm::vec3(1e6f, 1e6f, 1e6f));
     glm::vec3 dir = environment.sun_direction;
     const float len = glm::length(dir);
     if (bgfx::isValid(shadow_fb) && bgfx::isValid(shadow_program)
@@ -421,6 +438,43 @@ void BgfxRenderer::Impl::update_shadow() {
             crop[3] = glm::vec4(0.5f, 0.5f,
                                 caps.homogeneousDepth ? 0.5f : 0.0f, 1.0f);
             light_mtx = crop * proj * view;
+
+            // THE NEAR CASCADE (R6b). Same light orientation, same depth
+            // bracket, same crop — only the lateral extent shrinks, so the two
+            // maps agree about what is in front of what and differ only in how
+            // finely they say it. Snapped to its OWN texel grid: snapping to
+            // the far one would leave the near map free to slide by up to a far
+            // texel, which is 8 near texels of crawl on the very edges this
+            // exists to sharpen.
+            //
+            // ITS OWN DOOR, and it is not decoration — it is what let this
+            // change be judged at all. DFN_SUN_SHADOW=0 answers "is there any
+            // shadow here at all"; DFN_SHADOW_NEAR=1 answers the question the
+            // cascade actually makes — "is the new grain the cascade, or the
+            // flora and the ground that moved under us this week". Both arms
+            // come out of ONE binary, and they had to: between two rebuilds an
+            // hour apart the far-map-only arm moved by more than the cascade
+            // was worth, so a before/after across binaries would have credited
+            // this change with someone else's canopy. DEFAULT OFF — see the
+            // measurement with the constants.
+            if (bgfx::isValid(shadow_fb_near) && shadow_near_enabled()) {
+                shadow_near_active = true;
+                constexpr float HN = SHADOW_NEAR_HALF_EXTENT_M;
+                glm::vec3 cn = glm::vec3(rot * glm::vec4(frame_eye, 1.0f));
+                cn.x = std::floor(cn.x / SHADOW_NEAR_TEXEL_M) * SHADOW_NEAR_TEXEL_M;
+                cn.y = std::floor(cn.y / SHADOW_NEAR_TEXEL_M) * SHADOW_NEAR_TEXEL_M;
+                const glm::mat4 view_near =
+                    glm::translate(glm::mat4(1.0f), -cn) * rot;
+                shadow_view_near = view_near;
+                const glm::mat4 proj_near =
+                    caps.homogeneousDepth
+                        ? glm::orthoRH_NO(-HN, HN, -HN, HN, -D, D)
+                        : glm::orthoRH_ZO(-HN, HN, -HN, HN, -D, D);
+                bgfx::setViewTransform(VIEW_SHADOW_NEAR,
+                                       glm::value_ptr(view_near),
+                                       glm::value_ptr(proj_near));
+                light_mtx_near = crop * proj_near * view_near;
+            }
         }
     }
     // THE ZERO-DOSE ARM (Rule 48). DFN_SUN_SHADOW scales the shadow term the
@@ -435,11 +489,17 @@ void BgfxRenderer::Impl::update_shadow() {
     // re-read per frame prints its banner per frame and could in principle put
     // two shadow strengths in one shoot.
     static const float shadow_dose = dose_env_override("DFN_SUN_SHADOW", 1.0f);
+    // w carries the NEAR push-off. It has to be its own number rather than the
+    // far one reused: the offset is denominated in texels precisely so that it
+    // never eats more than the map can resolve, and a 0.156 m push-off applied
+    // to a 0.0195 m map would erode eight texels of every hole — it would spend
+    // the cascade's whole gain before the first fragment.
     const float params[4] = {enabled * shadow_dose, SHADOW_NORMAL_OFFSET_M,
                              SHADOW_DEPTH_BIAS_M / (2.0f * SHADOW_DEPTH_HALF_M),
-                             0.0f};
+                             SHADOW_NEAR_NORMAL_OFFSET_M};
     bgfx::setUniform(u_shadow_params, params);
     bgfx::setUniform(u_light_mtx, glm::value_ptr(light_mtx));
+    bgfx::setUniform(u_light_mtx_near, glm::value_ptr(light_mtx_near));
 }
 
 // Largest integer factor of the internal target fitting the framebuffer,
@@ -491,6 +551,15 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
         bgfx::setViewRect(VIEW_SHADOW, 0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
         bgfx::setViewClear(VIEW_SHADOW, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
         bgfx::touch(VIEW_SHADOW);
+    }
+    // Skipped entirely when the cascade is off: an untouched view is a view
+    // bgfx never submits, so a disabled cascade does not even pay a clear.
+    if (bgfx::isValid(im.shadow_fb_near) && shadow_near_enabled()) {
+        bgfx::setViewFrameBuffer(VIEW_SHADOW_NEAR, im.shadow_fb_near);
+        bgfx::setViewRect(VIEW_SHADOW_NEAR, 0, 0, SHADOW_NEAR_MAP_SIZE,
+                          SHADOW_NEAR_MAP_SIZE);
+        bgfx::setViewClear(VIEW_SHADOW_NEAR, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+        bgfx::touch(VIEW_SHADOW_NEAR);
     }
     // Every empty draw of the frame happens HERE, before the first setUniform:
     // bgfx attaches pending uniforms to the next submitted draw, and a touch is
