@@ -1,5 +1,5 @@
 # Created: 13:08:2026 - 19:00:00
-# Last updated: 13:08:2026 - 19:00:00
+# Last updated: 13:08:2026 - 19:35:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-leaves-from-branches-recipe.txt
 #
@@ -29,6 +29,11 @@
 #
 # UPD:
 # - 13:08:2026 - 19:00:00: Created with the frames for commit 8319d17.
+# - 13:08:2026 - 19:35:00: THE DISTANT FRAME and what it actually found. Shot to
+#   chase "the giant draws as bare wood at range"; it is not that. The whole
+#   canopy is 2.5x too bright at 400 m, giants and ordinary oaks alike, and the
+#   HUE survives — so it is a lighting term at range, not haze and not the
+#   atlas. Identical in both arms.
 
 WHAT THE USER SAID (13.08.2026, verbatim)
 
@@ -209,3 +214,50 @@ WHAT THESE FRAMES DO NOT CERTIFY
     and it is not addressed here.
   - Placement, spacing and rarity are core's and design's; every great oak in
     these frames is DFN_FLORA_GREAT_OAK, a capture-only promotion.
+
+================================================================================
+THE DISTANT FRAME (added 13.08.2026, same commit) — flora-great-oak-far-*-8319d17
+================================================================================
+
+  # 400 m back, 70 m up, one oak in sixteen promoted to a great oak.
+  DFN_RESTORE=<the speckle pose with pos_y=70, pos_z=1180, pitch=-0.08> \
+  DFN_CAPTURE_DIR=<dir> DFN_CAPTURE_AFTER=6 DFN_FLORA_GREAT_OAK=1 \
+  [DFN_FLORA_CROWN=1 for BEFORE] DFN_WIND_FREEZE=120 DFN_NULL_PHYSICS=1 \
+  DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 DFN_TIME=0.5 DFN_MENU=0 \
+  ./build_flora/engine/app/dfn_app
+
+WHY IT WAS TAKEN: this zone's brief carried a defect nobody had a number for —
+"at the far frame the giant draws as bare wood while the ordinary oaks around it
+carry foliage". It was worth shooting because it is the giant's own read
+distance (Rule 33 puts an 80 m crown at 2.4 km) and because the LOD ladder
+measured suspicious: at Silhouette the great oak emits 66 wood triangles and
+ZERO cards, i.e. one green ellipsoid 50 m wide, which is precisely the "green
+hill instead of an oak" that GIANT_OAKS §4 predicts.
+
+WHAT IT ACTUALLY SHOWS, AND IT IS NOT WHAT THE BRIEF SAID: the giants are not
+bare. THE WHOLE CANOPY IS THREE TIMES TOO BRIGHT AT THIS RANGE, and everything
+in the band — giants and ordinary oaks alike — is pale. Measured on these
+frames, the greenest tenth of each band (the part that is unambiguously
+foliage rather than sky between trunks):
+
+    near canopy, 5-30 m     rgb  39  54  32     (the shipped foliage value)
+    treeline, 70-200 m      rgb  48  63  41
+    distant canopy, 400 m   rgb 115 135 121     <- 2.5x the value, same hue
+
+AND THE HUE SURVIVES: green still leads blue by +14 at 400 m against +22 near.
+That distinction is the diagnosis, and it eliminates the remaining candidate's
+first half. Haze LERPs toward the SKY colour, and the sky in this frame measures
+rgb 153 165 181 — a canopy pulled toward it would gain BLUE fastest. This one
+keeps its hue and multiplies its VALUE. So the distant canopy is not being
+hazed and it is not being whitened by the atlas (already eliminated in
+FloraCards.cpp: texels outside the outline stay at rgb 0). It is being LIT
+differently, multiplicatively, at range — render's, and now with a number on it.
+
+IDENTICAL IN BOTH ARMS (115/135/121 against 114/135/120), so it is neither
+caused nor cured by leaves growing from branches. Recorded here because these
+are the frames that carry it, not because it is this zone's to fix.
+
+STILL NOT ANSWERED BY THIS FRAME: whether a great oak reads as a landmark at its
+own distance. It cannot be answered while every crown in the band is at 2.5x its
+value — the giants are as pale as their neighbours, so the comparison the frame
+was taken to make is not available in it. Re-take after the value defect.
