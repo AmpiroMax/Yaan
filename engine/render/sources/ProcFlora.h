@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 13:08:2026 - 19:45:00
+Last updated: 13:08:2026 - 21:40:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -63,6 +63,8 @@ UPD:
   phenomenon has a name and this is it. The existing `shyness` scalar cannot
   express it: one direction, and it SHRINKS the crown, which is a smaller tree
   rather than a shy one.
+- 13:08:2026 - 21:40:00: FloraShape::crowding -- how crowded this tree grew
+  up, 0 open-grown .. 1 closed-forest.
 */
 
 #pragma once
@@ -148,6 +150,20 @@ struct FloraShape {
     static constexpr int CROWD_MAX = 8;
     CrownEdge crowd[CROWD_MAX]{};
     uint8_t crowd_count = 0;
+    /// HOW CROWDED THIS TREE GREW UP, 0 open-grown .. 1 closed-forest.
+    ///
+    /// The user asked for «7-10 видов лиственных для ПЛОТНОГО стояния и ещё 5
+    /// для свободного роста». This is that request answered as ONE LAW with two
+    /// ends instead of fifteen hand-fitted sets, and the law is not invented —
+    /// it is the botany already written into this catalog's own oak row: an
+    /// open-grown Quercus carries a crown 0.8-1.0 of its height across, a
+    /// closed-forest one 0.4-0.5. A tree that grew up in a crowd IS a different
+    /// shape, and it is the SAME species.
+    ///
+    /// It also resolves what looked like two contradictory requests two days
+    /// apart — «сделать деревья шире» and «лес плотнее» — into one rule that
+    /// grants both: room makes a tree wide, crowding makes it narrow.
+    float crowding = 0.0f;
     bool understory = false;   ///< raise crown base, narrow crown, shorten
     /// THE NAMED TREE. Set by the placer for the ONE great oak on the sea
     /// cliff, which carries a golden chain around its bole (the user's

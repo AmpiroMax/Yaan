@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 21:40:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -60,6 +60,14 @@ UPD:
   crown a second time -- zero cards on every variant the moment its cluster
   fraction went under 0.18 -- and it now calls card_scrap_floor() like the
   others.
+- 13:08:2026 - 21:40:00: RADIAL VERTEX NORMALS on all wood, at the light
+  zone's request and at zero triangle cost. A flat-shaded five-sided prism gives
+  light at most two facets, so a trunk in shadow measured a luminance spread of
+  1.01x against lit ground's 3.26x — the user's «тёмные деревья, словно их нет,
+  как чёрное пятно» — and raising the shading term only produced two plateaus
+  with a seam. No lighting term can draw a cylinder on geometry that has none.
+  Per-face vertices are KEPT (this zone recolours whole faces); only the normals
+  changed, and the cone's taper tilts them.
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -101,6 +109,34 @@ glm::vec3 perp_of(glm::vec3 n) {
 }
 
 /// One tapered tube segment ring-to-ring. Flat-shaded (faces own vertices).
+/// One tapered tube segment ring-to-ring, WITH RADIAL VERTEX NORMALS.
+///
+/// THE NORMALS ARE THE WHOLE OF THIS FUNCTION'S RECENT HISTORY AND THEY COST
+/// NOTHING. The mesh was flat-shaded — every face carried its own geometric
+/// normal — so a five-sided bole presented at most two flat facets to any
+/// viewer, and light could only ever paint two plateaus on it. The zone of
+/// light measured the shaded side of a trunk at a luminance spread of 1.01x
+/// (p10 21.8, p50 21.8, p90 22.1) against lit ground at 3.26x in the same
+/// frame: a trunk in shadow was a FLAT BLOB, which is the user's «тёмные
+/// деревья, словно их нет, как чёрное пятно». They then raised their own
+/// shading term to its ceiling and got exactly what a faceted prism can give —
+/// two plateaus, 21.1 and 28.2, with a hard seam between them.
+///
+///     No lighting term can draw a cylinder on geometry that has no cylinder
+///     in it.
+///
+/// A five-sided prism with RADIAL normals reads as a cylinder, and the change
+/// is one vector per vertex: the same triangles, the same vertex count, the
+/// same draw. It is Rule 52's argument arriving one step later than the rule
+/// states it — we made the object closed and volumetric and then let the
+/// LIGHTING see a faceted post, so the volume was thrown away at the last step.
+///
+/// FLAT SHADING IS KEPT FOR COLOUR, and that is why the vertices are still not
+/// shared between faces: this zone recolours whole faces after the fact (the
+/// fallen log's moss picks its faces by normal, and the twig/bole value split
+/// is per segment). Sharing vertices to smooth the normals would silently make
+/// every one of those bleed across a face boundary. Per-face vertices, radial
+/// normals: both properties, no cost.
 void tube_segment(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis,
                   float r0, float r1, int sides, uint32_t color) {
     const glm::vec3 u = perp_of(axis);
@@ -110,10 +146,30 @@ void tube_segment(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis,
         const float a1 = TAU * static_cast<float>(i + 1) / static_cast<float>(sides);
         const glm::vec3 d0 = u * std::cos(a0) + v * std::sin(a0);
         const glm::vec3 d1 = u * std::cos(a1) + v * std::sin(a1);
+        // The normal of a CONE is not its radial direction — it tilts by the
+        // taper, or a sharply tapering limb lights as though it were a
+        // cylinder and its end cap glows. One term, and it is exact.
+        const float dr = r0 - r1;
+        const float len = glm::length(p1 - p0);
+        const float slope = (len > 1e-5f) ? (dr / len) : 0.0f;
+        const glm::vec3 n0 = safe_normalize(d0 + axis * slope, d0);
+        const glm::vec3 n1 = safe_normalize(d1 + axis * slope, d1);
+        const auto base = static_cast<uint32_t>(m.vertices.size());
         if (r1 <= 1e-4f) {
-            tri(m, p0 + d0 * r0, p1, p0 + d1 * r0, color);
+            // A cone to a point: the tip takes the mean of its two rim normals,
+            // which is what a rounded tip does and is stable as sides -> many.
+            const glm::vec3 nt = safe_normalize(n0 + n1, axis);
+            m.vertices.push_back({p0 + d0 * r0, n0, {0.0f, 0.0f}, color});
+            m.vertices.push_back({p1, nt, {0.0f, 0.0f}, color});
+            m.vertices.push_back({p0 + d1 * r0, n1, {0.0f, 0.0f}, color});
+            m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
         } else {
-            quad(m, p0 + d0 * r0, p1 + d0 * r1, p1 + d1 * r1, p0 + d1 * r0, color);
+            m.vertices.push_back({p0 + d0 * r0, n0, {0.0f, 0.0f}, color});
+            m.vertices.push_back({p1 + d0 * r1, n0, {0.0f, 0.0f}, color});
+            m.vertices.push_back({p1 + d1 * r1, n1, {0.0f, 0.0f}, color});
+            m.vertices.push_back({p0 + d1 * r0, n1, {0.0f, 0.0f}, color});
+            m.indices.insert(m.indices.end(),
+                             {base, base + 1, base + 2, base, base + 2, base + 3});
         }
     }
 }

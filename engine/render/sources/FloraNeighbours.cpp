@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:44:12
-Last updated: 13:08:2026 - 19:45:00
+Last updated: 13:08:2026 - 21:40:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -50,6 +50,10 @@ UPD:
   proportion to their radii and both back off by half a channel. The channel
   width is derived from the read rule (a gap under distance/30 is one grey
   pixel, Rule 33) at the 30 m the near-canopy vantage looks from.
+- 13:08:2026 - 21:40:00: FloraShape::crowding, and crown shyness now opens
+  its channel only where the canopy is actually closing. Both are the same
+  closeness curve on purpose: two numbers for "how closed is it here" that could
+  disagree are two numbers that eventually will.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -179,6 +183,7 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
             glm::vec2 dir;
             float limit;
             float overlap;
+            float gap_ratio; ///< dist / (r_a + r_b): 1 = crowns just touch
         };
         Crowder crowders[FloraShape::CROWD_MAX]{};
         int crowder_count = 0;
@@ -211,11 +216,26 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
             // the gap has to survive 30 m: 30/30 = 1.0 m. Expressed against the
             // crown so it scales with the tree instead of being a metre that
             // is right for an oak and absurd for a krummholz.
-            const float gap = std::max(1.0f, r_a * 0.12f);
+            // AND THE CHANNEL OPENS ONLY WHERE THE CANOPY IS ACTUALLY CLOSING.
+            // Crown shyness is a phenomenon of CLOSED canopies — trees whose
+            // crowns are nowhere near each other do not hold back, and neither
+            // should ours. Without this the rule fires at any spacing where the
+            // NOMINAL crowns overlap, which at our 12-18 m brief they do while
+            // the BUILT ones barely touch: measured, canopy cover fell 0.692 ->
+            // 0.468 at 12 m, i.e. a third of the forest given up to answer a
+            // question about dense stands.
+            //
+            // Same closeness curve as `crowding` below, and deliberately the
+            // same: two numbers describing "how closed is it here" that could
+            // disagree are two numbers that eventually will.
+            const float gap_ratio = dist / std::max(r_a + r_b, 0.01f);
+            const float closeness = std::clamp((0.70f - gap_ratio) / 0.45f, 0.0f, 1.0f);
+            const float gap = std::max(1.0f, r_a * 0.12f) * closeness;
             const float share = r_a / std::max(r_a + r_b, 0.01f);
             const float limit = std::max(dist * share - gap * 0.5f, r_a * 0.25f);
             if (crowder_count < FloraShape::CROWD_MAX) {
-                crowders[crowder_count++] = Crowder{dir, limit, overlap};
+                crowders[crowder_count++] =
+                    Crowder{dir, limit, overlap, gap_ratio};
             } else {
                 // Keep the WORST four: a fifth neighbour that crowds less than
                 // the four already held cannot be the one that decides the
@@ -225,7 +245,8 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
                     if (crowders[k].overlap < crowders[weakest].overlap) weakest = k;
                 }
                 if (overlap > crowders[weakest].overlap) {
-                    crowders[weakest] = Crowder{dir, limit, overlap};
+                    crowders[weakest] =
+                        Crowder{dir, limit, overlap, gap_ratio};
                 }
             }
             if (overlap > worst_overlap) {
@@ -238,6 +259,38 @@ std::vector<FloraShape> analyse_neighbourhood(std::span<const math::ScatterInsta
         }
 
         const SpeciesParams& sp = species_params(fs);
+        // HOW CROWDED, as a number this tree can be BUILT from. Derived from
+        // the same neighbour sweep that produces the shyness boundaries, so it
+        // costs nothing extra and cannot disagree with them: the share of this
+        // tree's own crown circle that its neighbours' crowns reach into,
+        // saturating at one crown's worth. Two neighbours pressing halfway in
+        // is a closed-forest tree; none is an open-grown one.
+        // The first form of this SATURATED EVERYWHERE and is recorded because
+        // it looked reasonable: the summed overlap over eight neighbours,
+        // divided by a crown. At any spacing we ship it came out at 1, so every
+        // tree in the world narrowed by the full amount and the canopy fell
+        // from 0.538 cover to 0.177 — the whole forest thinned to answer a
+        // question about dense stands. The quantity has to be a RATIO of
+        // spacing to crown, not a sum of overlaps, or it stops discriminating
+        // exactly where it is supposed to.
+        //
+        // CALIBRATED AGAINST THE TWO ENDS WE HAVE MEASUREMENTS FOR, which is
+        // the only honest way to place a curve with two free numbers: at the
+        // shipped 12-18 m spacing the canopy is not closed and a tree there
+        // should keep the width the user asked for (crowding ~0.2), and at the
+        // 5-6 m the user is asking for the stand sweep says width must fall to
+        // 0.65 (crowding ~0.9). Between them it is linear because nothing we
+        // measured says otherwise, and a curve invented past the evidence is
+        // the thing Rule 31 is about.
+        {
+            float sum = 0.0f;
+            for (int k = 0; k < crowder_count; ++k) {
+                sum += std::clamp((0.70f - crowders[k].gap_ratio) / 0.45f, 0.0f, 1.0f);
+            }
+            sh.crowding = (crowder_count > 0)
+                ? sum / static_cast<float>(crowder_count)
+                : 0.0f;
+        }
         // A species that does not hold back gets no boundaries at all: nothing
         // crowds a great oak (its own row says shyness 0), and a conifer's
         // narrow crown rarely touches its neighbour's.

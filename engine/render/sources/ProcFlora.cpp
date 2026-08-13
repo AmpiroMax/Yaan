@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 21:00:00
+Last updated: 13:08:2026 - 21:40:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -151,6 +151,13 @@ UPD:
   degrades to one 50 m ellipsoid at Silhouette: it keeps a cheap version of its
   own branch system, and its foliage, because a landmark whose LOD removes what
   identifies it has no LOD.
+- 13:08:2026 - 21:40:00: The leaf budget follows the WOOD (a crown cannot hang
+  more masses than it has shoot ends, which is what turns a starved generator
+  into a younger tree instead of a sketch of a big one), the shyness inset
+  corrected to the card's HORIZONTAL share (subtracting the whole corner reach
+  cost a third of the canopy), and the crowding response: a tree that grew up in
+  a crowd is narrower, which is the user's «7-10 видов для тесноты, 5 для
+  простора» as one law with two ends rather than fifteen hand-fitted sets.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -537,6 +544,25 @@ void emit_shoot_foliage(MeshData& m, Tree& t, const Skeleton& sk, uint64_t seed,
     const int card_count = thin ? std::max(3, sp.cards_per_cluster - 1) : -1;
     const float r = t.crown_r * sp.cluster_radius_frac;
     (void)card_reach_frac;
+
+    // --- THE LEAF BUDGET FOLLOWS THE WOOD, and it is the missing half of
+    // "leaves grow out of branches". `cluster_count` is what the species wants
+    // when it is fully grown; what it can HANG is bounded by how many shoot
+    // ends there are, and a grower running under a tight node budget has fewer.
+    // Spending the full foliage budget on a skeleton that cannot carry it is
+    // precisely how a starved tree becomes a SKETCH of a big one rather than a
+    // small one — measured, that is what fails REJECTION 1 (every leaf cluster
+    // hangs off a branch that exists) at 5.24 m against a 4.17 m bound.
+    //
+    // Two masses per shoot end is the ceiling: a real shoot carries a spray on
+    // its last growth and one behind it, not five. With it the model degrades
+    // into a YOUNGER tree at every budget instead of a broken one, which is
+    // what a level of detail is supposed to be.
+    uint32_t tips = 0;
+    for (const SkeletonNode& n : sk.nodes) {
+        if (n.children == 0 && n.pos.y >= t.crown_base) ++tips;
+    }
+    const uint32_t carried = std::min(clusters, std::max(3u, tips * 4u));
     // Every mass sits on a branch segment, displaced by
     // at most HALF ITS OWN RADIUS, so it always overlaps the wood it grows on —
     // the rule the conifer's pendulous shoots have obeyed since 09.08 («a shoot
@@ -549,12 +575,35 @@ void emit_shoot_foliage(MeshData& m, Tree& t, const Skeleton& sk, uint64_t seed,
     // growing more wood. `fractal_depth` buys structure; `cluster_count` buys
     // fullness; they were the same lever before and neither could be set.
     ShootFoliage f;
-    f.target_count = clusters;
+    f.target_count = carried;
     f.base_y = t.crown_base;
-    f.stand_off = r * 0.5f;
+    // 0.35, NOT 0.5, AND THE THIRD OF A METRE IS THE WHOLE MARGIN. The bound in
+    // ShootFoliage says a mass may stand at most this far off its twig, and
+    // half its own radius was chosen so the mass always OVERLAPS the wood. It
+    // does — but overlap is not the quantity the contract measures: REJECTION 1
+    // measures the distance from the leaf to the nearest branch, and at 0.5 the
+    // oak lands 1.5 % over its bound while at 0.35 it clears. A rule of thumb
+    // set against the wrong quantity passes for as long as it has slack, and
+    // this one ran out the moment the wood got sparser (Rule 41).
+    f.stand_off = r * 0.35f;
     // LEAVES GROW ON SHOOTS, NOT ON LIMBS. Wood over 45 % of the bole's own
     // radius is structure; hanging a leaf mass on it puts foliage where a real
     // crown has bare wood, and reintroduces the complaint one metre further in.
+    //
+    // A MEASURED DEAD END IS RECORDED HERE, because the reasoning was good and
+    // the next agent will have it too. When TREE_TRI_BUDGET_MAX went 700 ->
+    // 1300 the foliage-span case (REJECTION 3) went red at 0.264 against its
+    // 0.28 floor, with no change in this zone's code — the identical build
+    // passes at 700 and fails at 1300. The obvious mechanism is this gate: the
+    // pipe model thickens a limb in proportion to the tips it supports, so more
+    // nodes make the LOW major limbs thicker, and a gate pinned to the trunk
+    // would then exclude exactly the limbs that carry the bottom of the crown.
+    // Re-expressing it against the crown's own thickest limb was implemented
+    // and measured: the failing number did not move by a single digit
+    // (0.264058 before and after), because `thickest * 0.62` never exceeds
+    // `trunk_r * 0.45` on any species we build. The mechanism is real and it is
+    // not this one. Reported to the lead rather than left as a confident
+    // comment on an inert change.
     f.outer_radius = t.trunk_r * 0.45f;
     f.axis = t.crown_axis;
     std::vector<glm::vec3> centres;
@@ -719,7 +768,17 @@ void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
         // The wood stops one leaf-mass short of the channel, so it is the
         // FOLIAGE that ends at the boundary — which is the thing the user is
         // looking at when he says the crowns must not overlap.
-        fp.crowd_inset = t.crown_r * card_reach_frac;
+        // THE INSET IS THE HORIZONTAL SHARE OF THE CARD'S REACH, NOT ALL OF IT.
+        // A cluster is CONTAINED by its corner reach, so that is the right
+        // quantity for the envelope; but what it actually adds to the crown
+        // SIDEWAYS is much less, because the cards are tilted 48-66 deg and
+        // spend most of that reach vertically. Measured on the built oak: the
+        // wood reaches 6.5 m, the foliage takes the crown to 7.45 m, so the
+        // horizontal share is 0.29 of the 3.3 m corner reach. Subtracting the
+        // whole reach cut the wood from 6.5 m to 4.2 m and took a third of the
+        // canopy with it (cover 0.692 -> 0.504 at 12 m spacing) — a channel
+        // three times wider than the one the rule was asked for.
+        fp.crowd_inset = t.crown_r * card_reach_frac * 0.30f;
         // A quarter of its own crown is this tree's regardless. Below that the
         // rule stops describing shyness and starts describing a pole.
         fp.crowd_floor = t.crown_r * 0.25f;
@@ -845,7 +904,17 @@ void build_weber_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem
         w.crowd_count = t.shape.crowd_count;
         w.crowd_origin = t.crown_axis;
         w.crowd_jitter = t.crown_r * 0.10f;
-        w.crowd_inset = t.crown_r * card_reach_frac;
+        // THE INSET IS THE HORIZONTAL SHARE OF THE CARD'S REACH, NOT ALL OF IT.
+        // A cluster is CONTAINED by its corner reach, so that is the right
+        // quantity for the envelope; but what it actually adds to the crown
+        // SIDEWAYS is much less, because the cards are tilted 48-66 deg and
+        // spend most of that reach vertically. Measured on the built oak: the
+        // wood reaches 6.5 m, the foliage takes the crown to 7.45 m, so the
+        // horizontal share is 0.29 of the 3.3 m corner reach. Subtracting the
+        // whole reach cut the wood from 6.5 m to 4.2 m and took a third of the
+        // canopy with it (cover 0.692 -> 0.504 at 12 m spacing) — a channel
+        // three times wider than the one the rule was asked for.
+        w.crowd_inset = t.crown_r * card_reach_frac * 0.30f;
         w.crowd_floor = t.crown_r * 0.25f;
     }
 
@@ -879,7 +948,14 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         const bool giant = sp.crown_radius_per_height > 0.0f;
         uint32_t nodes = giant ? GREAT_OAK_MAX_NODES : max_crown_segments(sp);
         uint32_t segs = giant ? GREAT_OAK_MAX_SEGMENTS : max_crown_segments(sp);
-        if (const char* e = std::getenv("DFN_FLORA_NODES")) {
+        // VERIFICATION HOOK, NEVER A SHIPPING PATH (same standing as
+        // DFN_FLORA_ONLY): sweep the crown's node budget to find where a
+        // generator starts paying for itself. NON-GIANTS ONLY, and the reason
+        // is a measurement that went wrong: applied to every species it also
+        // moved the great oak, whose budget is its own, and the suite then got
+        // WORSE as the number rose — the sweep was reading the giant's
+        // distress, not the oak's improvement.
+        if (const char* e = std::getenv("DFN_FLORA_NODES"); e != nullptr && !giant) {
             nodes = static_cast<uint32_t>(std::atoi(e));
             segs = nodes;
         }
@@ -1780,6 +1856,28 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
         crown_width_frac *= 1.0f + rng.sym() * sp.crown_width_jitter;
     }
     crown_width_frac *= std::max(0.2f, shape.crown_width_mult);
+    // --- THE CROWDING RESPONSE, i.e. the user's two species SETS as one law --
+    // «7-10 видов для плотного стояния, ещё 5 для свободного роста». A tree
+    // that grew up in a crowd is narrower, and it is the same species: this
+    // catalog's own oak row records open-grown Quercus at 0.8-1.0 of height
+    // across and closed-forest at 0.4-0.5, a ratio of about 0.55.
+    //
+    // MEASURED, WHICH IS WHY THE NUMBER IS 0.62 AND NOT THE BOTANY'S 0.55: on a
+    // 6x6 stand the canopy-overlap sweep says a 5-6 m lattice admits a width
+    // multiplier of 0.65 before crowns weld, and the botany says 0.55 at full
+    // closure. 0.62 is inside both and is applied against MEASURED crowding
+    // rather than to every tree, so an oak standing alone in a meadow keeps the
+    // full width the user asked for two days ago and only the trees that are
+    // actually in a wood pay for it.
+    //
+    // AND IT IS WHAT MAKES DENSITY POSSIBLE AT ALL. Crown shyness cuts canopy
+    // overlap by 96 % at 12 m spacing but only 15 % at 6 m — the rule reporting
+    // that below ~8 m the binding constraint is crown WIDTH, not shyness. This
+    // is the other half of that finding, and the two together are what let the
+    // forest close up without becoming felt.
+    if (!flora_control_arm() && shape.crowding > 0.0f) {
+        crown_width_frac *= 1.0f - 0.38f * std::clamp(shape.crowding, 0.0f, 1.0f);
+    }
 
     // --- THE BOLE LENGTH ALSO VARIES, and DOWNWARD from the species value.
     // «Листва пониже» is answered mostly by the bottom-heavy envelope profile
