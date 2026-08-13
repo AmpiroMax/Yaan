@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 10:08:2026 - 19:11:04
+Last updated: 13:08:2026 - 16:30:00
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -25,6 +25,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 19:11:04: Created (user request: debug readout + restorable state capture).
+- 13:08:2026 - 16:30:00: Плашка под обеими надписями (зона ui). Не вкусовая правка:
+  над небом 55.4 % чернил стояли ближе двух шагов квантователя к фону, над тёмной
+  землёй — 0.0 %, а угол, в котором живёт вывод, — это угол, в котором живёт небо.
+  Плашка непрозрачная и постоянная; обоснование отказа от дизеринга и от условной
+  плашки — в комментарии у самого кода.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
@@ -173,6 +178,10 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     const render::Color ink{232, 228, 214};
     const render::Color dim{168, 164, 152};
     const render::Color warn{232, 168, 96};
+    // THE PLATE'S TWO COLOURS ARE THE MENU'S TWO COLOURS on purpose: one
+    // interface, one ground. See the plate note below the line table.
+    const render::Color plate{18, 20, 26};
+    const render::Color plate_edge{54, 56, 64};
 
     const std::string_view compass = localized(compass_key_for_yaw(snap.yaw));
     const std::string_view gait = localized(serialization::fnv1a64(gait_key(snap.gait)));
@@ -206,34 +215,77 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
         fmt("chunks %u  lod %u", snap.chunks_resident, snap.lod_nodes),
     };
 
+    // The words go on their own line in the readout's own colour: they are the
+    // fields most likely to be WRONG (gait selection is a live seam), so they
+    // are the ones that must not be scanned past.
+    const Line words =
+        fmt("%.*s  %.*s  %.*s%s", static_cast<int>(compass.size()), compass.data(),
+            static_cast<int>(gait.size()), gait.data(),
+            static_cast<int>(loco.size()), loco.data(), snap.grounded ? "" : " (air)");
+    const Line water = fmt("water %.2f m", static_cast<double>(snap.water_depth));
+
+    // THE PLATE. Measured, not chosen: with the readout drawn straight onto the
+    // world, 18.7 % of its glyph EDGES separated from what they sat on by less
+    // than 2 * PALETTE_SHADE_STEP_REF (0.157 in the quantizer's metric), and
+    // 55.4 % of its ink failed the same rule wherever the background was sky --
+    // against 0.0 % over dark ground. The corner the readout lives in is the
+    // corner the sky lives in, so the failure is the NORMAL case, not an edge
+    // one. A conditional plate (only over bright backgrounds) was rejected
+    // before it was written: it would flicker as clouds drift past, which is a
+    // worse defect than the one being fixed.
+    //
+    // Opaque, not a dither veil like the pause page: half-covered white cloud
+    // is still white on every other pixel, so the ruler fails on half the
+    // edges, and half a rule is what this fix exists to end. The plate is sized
+    // to the text and pinned to the corner, so it hides 12 % of the frame and
+    // no more.
+    const auto plate_for = [&](int x0, int y0, int text_w, int lines) {
+        const int pw = text_w + 4;
+        const int ph = lines * line_h + 3;
+        canvas.fill_rect(x0, y0, pw, ph, plate);
+        // One lit edge on the two sides that face the world, so the plate reads
+        // as a panel rather than as a hole punched in the frame.
+        canvas.hline(x0, y0 + ph, pw + 1, plate_edge);
+        canvas.vline(x0 + pw, y0, ph + 1, plate_edge);
+    };
+
+    int widest = 0;
+    int line_count = 0;
+    for (const auto& l : left) {
+        widest = std::max(widest, render::text_width_px(l.text));
+        ++line_count;
+    }
+    widest = std::max(widest, render::text_width_px(words.text));
+    ++line_count;
+    if (snap.water_depth > 0.0f) {
+        widest = std::max(widest, render::text_width_px(water.text));
+        ++line_count;
+    }
+    plate_for(0, 0, widest + 3, line_count);
+
     int y = 3;
     for (const auto& l : left) {
         render::draw_text(canvas, 3, y, l.text, ink, /*shadow=*/true);
         y += line_h;
     }
-
-    // The words go on their own line in the readout's own colour: they are the
-    // fields most likely to be WRONG (gait selection is a live seam), so they
-    // are the ones that must not be scanned past.
-    {
-        Line l = fmt("%.*s  %.*s  %.*s%s", static_cast<int>(compass.size()), compass.data(),
-                     static_cast<int>(gait.size()), gait.data(),
-                     static_cast<int>(loco.size()), loco.data(),
-                     snap.grounded ? "" : " (air)");
-        render::draw_text(canvas, 3, y, l.text, snap.grounded ? ink : warn, true);
-        y += line_h;
-    }
+    render::draw_text(canvas, 3, y, words.text, snap.grounded ? ink : warn, true);
+    y += line_h;
     if (snap.water_depth > 0.0f) {
-        Line l = fmt("water %.2f m", static_cast<double>(snap.water_depth));
-        render::draw_text(canvas, 3, y, l.text, warn, true);
+        render::draw_text(canvas, 3, y, water.text, warn, true);
         y += line_h;
     }
 
     // The capture hint sits bottom-right so it never overlaps the readout,
-    // and it is drawn dim: it is an instruction, not a measurement.
+    // and it is drawn dim: it is an instruction, not a measurement. It gets the
+    // same plate for the same reason -- the bottom of the frame is ground
+    // today, but ground is snow, sand and water elsewhere.
     const std::string_view hint = localized(serialization::fnv1a64("debug.hint.capture"));
-    render::draw_text(canvas, w - render::text_width_px(hint) - 3,
-                      static_cast<int>(canvas.height()) - line_h - 2, hint, dim, true);
+    const int hint_w = render::text_width_px(hint);
+    const int hint_y = static_cast<int>(canvas.height()) - line_h - 2;
+    canvas.fill_rect(w - hint_w - 5, hint_y - 2, hint_w + 5, line_h + 3, plate);
+    canvas.hline(w - hint_w - 6, hint_y - 2, 1, plate_edge);
+    canvas.vline(w - hint_w - 6, hint_y - 2, line_h + 3, plate_edge);
+    render::draw_text(canvas, w - hint_w - 3, hint_y, hint, dim, true);
 }
 
 // ---------------------------------------------------------------------------
