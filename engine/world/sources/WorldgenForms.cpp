@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 17:28:00
+Last updated: 13:08:2026 - 17:32:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -33,6 +33,9 @@ UPD:
   shipped against 0.567 with the wander off — identical), so spacing was never
   the defect. Parallelism was. Bank-direction spread 0.204 -> 0.359 on a scale
   whose ends are 0.16 (corduroy) and 0.80 (no direction at all).
+- 13:08:2026 - 17:32:00: Draw pitch 24 -> 18 m (approved). It moves ALL FOUR of
+  A1's order statistics at once — min 1->2, p5 1->2, median 2->3, max 5->6 —
+  which is what separates a real shift from one column's speckle.
 */
 
 #include "engine/world/sources/WorldgenForms.h"
@@ -104,8 +107,10 @@ constexpr float BREACH_HI = 0.30f;
 /// reads as manufactured from any standpoint. Two incommensurate pitches on the
 /// same axis field interleave into long channels with short tributaries between
 /// them, which is what a dissected slope looks like and what frame 03 shows.
-constexpr float DRAW_CELL = 24.0f;     ///< across-grain spacing, the main set
-constexpr float DRAW_CELL_2 = 15.0f;   ///< ...and the tributary set
+constexpr float DRAW_CELL = 18.0f;     ///< across-grain spacing, the main set
+constexpr float DRAW_CELL_2 = 11.25f;  ///< ...and the tributary set (the RATIO
+                                       ///< is what carries the interleaving, so
+                                       ///< it is held while the pitch moves)
 constexpr float DRAW_MIX_2 = 0.45f;    ///< its share
 constexpr float DRAW_STRETCH = 9.0f;  ///< along-grain compression: a draw is an
                                       ///< order of magnitude longer than wide,
@@ -150,7 +155,7 @@ constexpr float DRAW_DENSITY_FLOOR = 0.40f;
 ///     the cross-axis), so warping IS varying the pitch — smoothly, and by an
 ///     amount you can bound. At WANDER_AMP over WANDER_CELL the derivative is
 ///     bounded by ~2.6 * AMP / CELL, which at 26 m over 190 m is +-36 %: the
-///     pitch breathes between roughly 18 and 38 m around a nominal 24.
+///     pitch breathes between roughly 13 and 28 m around a nominal 18.
 /// §2.1 rejected a position-varying ROTATION for its |world| * grad(theta)
 /// distortion; a position-varying TRANSLATION carries no such term — the
 /// displacement is bounded and does not grow with distance from the origin.

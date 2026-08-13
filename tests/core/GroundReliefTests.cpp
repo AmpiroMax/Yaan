@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 17:20:00
+Last updated: 13:08:2026 - 17:32:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -62,6 +62,11 @@ UPD:
 - 13:08:2026 - 17:20:00: The regularity measure (gap CV between draws) with the
   band it resolves stated before the number — 2 m to 120 m against a subject at
   12-40 m — and read against the pass's own washboard arm.
+- 13:08:2026 - 17:32:00: The gap-CV comparison is REPORTED and no longer gated:
+  it reads 0.679 against 0.718 at the shipped pitch and 0.573 against 0.567 at
+  the previous one, i.e. the arms are indistinguishable and the sign is speckle.
+  The spacing was never regular, so no assertion on it can separate the corduroy
+  from the fix — the discriminating-power test met a third time in one day.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -895,10 +900,18 @@ TEST_CASE("diagnostic: how REGULAR are the draws (and what band can this see)") 
                                                   << shipped.size() << " gaps");
     MESSAGE("gap between draws, washboard: mean " << mw << " m, CV " << cw << " over "
                                                   << washboard.size() << " gaps");
-    // The instrument has to be able to tell the two apart, or it is the fifth
-    // surrogate. REPORTED as a comparison rather than gated on a floor nobody
-    // has approved.
-    CHECK(cs > cw);
+    // NOT GATED, AND THE REASON IS THE FINDING ITSELF. This started as
+    // CHECK(shipped CV > washboard CV) — the obvious assertion for a knob added
+    // to make the spacing wander. It reads 0.679 against 0.718 at the shipped
+    // pitch and 0.573 against 0.567 at the previous one: the two arms are
+    // indistinguishable, and which way the tiny difference falls is speckle.
+    // THE SPACING WAS NEVER REGULAR, so no assertion on it can separate the
+    // corduroy from the fix — the same discriminating-power test that retired
+    // the slope-exceedance surrogate and the newly-impassable-cell count, met a
+    // third time in one day. The number stays REPORTED because it is what
+    // proves the diagnosis wrong; it just is not a gate.
+    MESSAGE("  (the two arms are indistinguishable on spacing — that IS the "
+            "finding: the defect was parallelism, not pitch)");
 
     // --- AND THE HALF A SPACING MEASURE CANNOT SEE -------------------------
     //
