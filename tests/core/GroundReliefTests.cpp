@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 18:21:00
+Last updated: 13:08:2026 - 18:32:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -88,6 +88,11 @@ UPD:
   is about ground the player is looking AT, and nothing measured the ground he
   stands ON. It reads 0.034 m median with the forms off, i.e. a table, and
   0.179 m with them; the flattest tenth goes 0.017 -> 0.050 m.
+- 13:08:2026 - 18:32:00: CONNECTIVITY across the same three seeds, because
+  occlusion is what the player judges with his eyes and connectivity is what he
+  would judge with his FEET — the one quantity where being wrong is felt rather
+  than seen, and it had only ever been read on seed 1. On all three worlds the
+  formed ground is at least as reachable as the unformed.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1147,6 +1152,51 @@ TEST_CASE("diagnostic: the forms across seeds, each at its own flattest ground")
         }
         std::sort(per_column.begin(), per_column.end());
         const world::GroundRelief gr = world::ground_relief_20m(ctx, sp);
+        // CONNECTIVITY ON A WORLD NOBODY TUNED THIS ON. Occlusion is what the
+        // player judges with his EYES; connectivity is what he would judge with
+        // his FEET, and it had only ever been read on seed 1 — which is the one
+        // quantity where being wrong is felt rather than seen. Same walk as the
+        // barrier case: the 2 m lattice the world is collided on, the
+        // controller's own two rules, from this world's own standpoint.
+        {
+            constexpr float S = static_cast<float>(config::HEIGHTMAP_STEP);
+            constexpr int N = 200;
+            const float rise_max =
+                std::max(static_cast<float>(config::PLAYER_STEP_HEIGHT),
+                         S * std::tan(static_cast<float>(config::PLAYER_MAX_SLOPE)));
+            const glm::vec2 origin = sp - glm::vec2{N * S * 0.5f, N * S * 0.5f};
+            std::vector<float> hh(static_cast<std::size_t>(N) * N);
+            for (int z = 0; z < N; ++z) {
+                for (int x = 0; x < N; ++x) {
+                    hh[static_cast<std::size_t>(z) * N + x] = world::terrain_height(
+                        ctx, origin + glm::vec2{static_cast<float>(x) * S,
+                                                static_cast<float>(z) * S});
+                }
+            }
+            std::vector<uint8_t> seen(hh.size(), 0);
+            std::vector<int> stack{(N / 2) * N + N / 2};
+            seen[static_cast<std::size_t>(stack[0])] = 1;
+            int reached = 0;
+            while (!stack.empty()) {
+                const int cc = stack.back();
+                stack.pop_back();
+                ++reached;
+                for (int d = 0; d < 4; ++d) {
+                    const int nx = cc % N + (d == 0) - (d == 1);
+                    const int nz = cc / N + (d == 2) - (d == 3);
+                    if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+                    const auto nn = static_cast<std::size_t>(nz) * N + nx;
+                    if (seen[nn]) continue;
+                    if (std::fabs(hh[nn] - hh[static_cast<std::size_t>(cc)]) > rise_max) continue;
+                    seen[nn] = 1;
+                    stack.push_back(static_cast<int>(nn));
+                }
+            }
+            MESSAGE("seed " << seed << " reachable over 400 m of the 2 m lattice: "
+                            << 100.0f * static_cast<float>(reached)
+                                   / static_cast<float>(hh.size())
+                            << " %");
+        }
         // STATED WITH THE NUMBER, because it is the caveat that makes it honest:
         // the standpoint is FOUND, not pinned, so it moves between arms as the
         // terrain moves under the search. These rows compare WORLDS, not
