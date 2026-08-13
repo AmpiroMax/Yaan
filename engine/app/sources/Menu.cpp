@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 13:08:2026 - 16:40:00
+Last updated: 13:08:2026 - 16:50:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -21,11 +21,14 @@ UPD:
   Вуаль своей работы не теряет, она просто перестаёт быть тем, на чём стоит ТЕКСТ.
   Заодно один читатель строк вместо двух копий switch: плашку нельзя мерить по
   тексту, отличному от нарисованного.
+- 13:08:2026 - 16:50:00: Дверь дозы DFN_UI_PLATE=0 — обе руки приёмки из ОДНОЙ сборки
+  (правило 47, оговорка, заведённая ведущим сегодня). Тот же ключ читает DebugOverlay.cpp.
 */
 
 #include "engine/app/sources/Menu.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
@@ -44,6 +47,21 @@ constexpr render::Color ITEM{176, 172, 160};
 constexpr render::Color ITEM_SELECTED{244, 226, 160};
 constexpr render::Color BLURB{120, 118, 112};
 constexpr render::Color RULE_LINE{54, 56, 64};
+
+// THE DOSE DOOR (Rule 47, the one-binary clause). `DFN_UI_PLATE=0` draws the
+// pause page's words with NO plate under them -- what shipped before c4c63e2 --
+// so the before arm and the after arm of the acceptance come out of the SAME
+// binary. In a shared tree, a before/after across two builds measures the day's
+// other zones. The same name is read by DebugOverlay.cpp: one door, one meaning
+// ("text without its ground"), wherever the interface draws text. Read once,
+// because an instrument that can change mid-run is not an instrument.
+[[nodiscard]] bool plates_enabled() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_UI_PLATE");
+        return !(e != nullptr && e[0] == '0');
+    }();
+    return on;
+}
 
 std::string_view loc(std::string_view key) {
     return localized(serialization::fnv1a64(key));
@@ -187,7 +205,7 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     // its job (you can see where you left off); it just stops being what the
     // TEXT stands on. Only this page gets a plate: root and maps already clear
     // opaque, so there the plate would be a frame drawn around nothing.
-    if (pause) {
+    if (pause && plates_enabled()) {
         int block_w = render::text_width_px(loc("menu.paused"));
         for (size_t i = 0; i < n; ++i) {
             // The caret hangs two cells to the left of the widest label, so it
@@ -239,7 +257,7 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     // so it gets the same treatment as the block above -- a plate its own size.
     const std::string_view hint = loc("menu.hint");
     const int hint_y = h - render::FONT_CELL_H * 2 - 4;
-    if (pause) {
+    if (pause && plates_enabled()) {
         const int hw = render::text_width_px(hint);
         canvas.fill_rect((w - hw) / 2 - 4, hint_y - 3, hw + 8, render::FONT_CELL_H + 5,
                          BACKGROUND);

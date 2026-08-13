@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 13:08:2026 - 16:30:00
+Last updated: 13:08:2026 - 16:48:00
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -30,6 +30,10 @@ UPD:
   землёй — 0.0 %, а угол, в котором живёт вывод, — это угол, в котором живёт небо.
   Плашка непрозрачная и постоянная; обоснование отказа от дизеринга и от условной
   плашки — в комментарии у самого кода.
+- 13:08:2026 - 16:48:00: Дверь дозы DFN_UI_PLATE=0 (правило 47, оговорка про один
+  бинарник, заведена ведущим сегодня): обе руки приёмки обязаны выходить из ОДНОЙ
+  сборки, иначе в общем дереве меряется чужая работа за день. Тот же ключ читает
+  Menu.cpp.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
@@ -90,6 +94,23 @@ constexpr const char* COMPASS_KEYS[8] = {
     case 2: return "debug.loco.swim";
     default: return "debug.loco.unknown";
     }
+}
+
+// THE DOSE DOOR (Rule 47, the one-binary clause). `DFN_UI_PLATE=0` draws the
+// interface text with NO plate under it -- the state this project shipped
+// before 22a603b. It exists so the before arm and the after arm come out of the
+// SAME binary: in a shared tree with six zones building all day, a before/after
+// across two builds measures the week rather than the change (render lost a
+// whole reading to exactly that, an hour before this was written). Read once,
+// not per frame: an instrument that can change mid-run is not an instrument.
+// The same name is read by Menu.cpp -- one door, one meaning: "text without its
+// ground", wherever the interface draws text.
+[[nodiscard]] bool plates_enabled() {
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_UI_PLATE");
+        return !(e != nullptr && e[0] == '0');
+    }();
+    return on;
 }
 
 // Trims ASCII spaces and tabs from both ends.
@@ -240,6 +261,9 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     // to the text and pinned to the corner, so it hides 12 % of the frame and
     // no more.
     const auto plate_for = [&](int x0, int y0, int text_w, int lines) {
+        if (!plates_enabled()) {
+            return;
+        }
         const int pw = text_w + 4;
         const int ph = lines * line_h + 3;
         canvas.fill_rect(x0, y0, pw, ph, plate);
@@ -282,9 +306,11 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     const std::string_view hint = localized(serialization::fnv1a64("debug.hint.capture"));
     const int hint_w = render::text_width_px(hint);
     const int hint_y = static_cast<int>(canvas.height()) - line_h - 2;
-    canvas.fill_rect(w - hint_w - 5, hint_y - 2, hint_w + 5, line_h + 3, plate);
-    canvas.hline(w - hint_w - 6, hint_y - 2, 1, plate_edge);
-    canvas.vline(w - hint_w - 6, hint_y - 2, line_h + 3, plate_edge);
+    if (plates_enabled()) {
+        canvas.fill_rect(w - hint_w - 5, hint_y - 2, hint_w + 5, line_h + 3, plate);
+        canvas.hline(w - hint_w - 6, hint_y - 2, 1, plate_edge);
+        canvas.vline(w - hint_w - 6, hint_y - 2, line_h + 3, plate_edge);
+    }
     render::draw_text(canvas, w - hint_w - 3, hint_y, hint, dim, true);
 }
 
