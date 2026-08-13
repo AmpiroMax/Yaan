@@ -132,6 +132,20 @@ $input v_dir
 // dfn_cloud_field3 has none; the vertical structure here comes from the
 // SEPARATION of the samples, not from a third noise dimension.
 
+// UPD 13:08:2026 - 20:27:38: THE NEAR DECK GETS ITS THICKNESS TOO, at a THIRD of the
+// main sheet's. Not a taste: this is the ragged deck whose job in R3.2's tone
+// ladder is to be sparse and let what is behind it through, and a near layer as
+// deep as the main one loses its gaps the moment the chord runs along it — the
+// holes ARE the feature here. A third of the cell also puts the near deck's
+// aspect near 6:1 against the main sheet's 2:1, which is scud against
+// stratocumulus. Same construction, same dose, and the same control: with
+// DFN_DECK_THICK=0 the frame comes back at 0.001 % of pixels and max 1/255
+// against the previous shader — the slab collapses to the plane it replaced.
+// With it, 60.2 % of the frame moves at max 189/255 on the scattered probe.
+// EVERY FLAT THING IN THIS FILE IS NOW ACCOUNTED FOR: the two lower decks are
+// slabs, the cumulus are a slab, and the HIGH deck stays a plane on purpose —
+// it is a cirrus veil at 4.4 km and cirrus have no depth to show.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -230,6 +244,8 @@ $input v_dir
 // nothing at the skyline. DECK_PATH_REF is the chord at 30 degrees of
 // elevation.
 #define DECK_SLICES    3
+// The near deck is a THIRD as deep as the main one — see its block for why.
+#define DECK_LOW_THICK_FRAC 0.3333
 #define DECK_PATH_MAX  12.0
 // Extinction per slab-thickness of FULLY dense cloud. Derived from the one
 // case the slab has to get right on its own: looking straight up through a
@@ -535,10 +551,29 @@ void main()
 
         // --- LOW, 1500 m: sparse, ragged, DARK, and IN FRONT. Its cells
         // subtend 1.73x the middle deck's, which is what says "nearer".
+        //
+        // IT HAS A THICKNESS TOO, and it is a THIRD of the middle deck's. Not a
+        // taste: this is the RAGGED deck, the one whose job in R3.2's ladder is
+        // to be sparse and let the sky behind it through, and a layer as deep as
+        // the main sheet stops having gaps once the chord runs along it — the
+        // holes are the feature here. A third of the cell also keeps the near
+        // deck's aspect nearer 6:1, which is what scud looks like against
+        // stratocumulus at 2:1.
         float dist0 = (u_cloudDeckLow - eye.y) / dir.y;
         vec2 p0 = eye.xz + dir.xz * dist0;
         float cpx0 = DFN_CLOUD_CELLS_PX(p0);
-        a0 = dfn_cloud_sheet_low_alpha(p0, cpx0)
+        float thick0 = u_deckThick * DECK_LOW_THICK_FRAC;
+        float path0 = clamp((thick0 / max(dir.y, 0.001))
+                            / max(u_cloudWavelength, 1.0), 1.0, DECK_PATH_MAX);
+        float a0_mean = 0.0;
+        for (int sj = 0; sj < DECK_SLICES; ++sj) {
+            float sf0 = (float(sj) + 0.5) / float(DECK_SLICES);
+            vec2 ps0 = eye.xz
+                     + dir.xz * ((u_cloudDeckLow + thick0 * sf0 - eye.y) / dir.y);
+            a0_mean += dfn_cloud_sheet_low_alpha(ps0, cpx0);
+        }
+        a0_mean /= float(DECK_SLICES);
+        a0 = (1.0 - pow(max(1.0 - a0_mean, 0.0), path0))
            * exp(-dist0 / SHEET_EXTINCTION_M);
         vec2 q0 = p0 + u_cloudOffset + DFN_CLOUD_DECK_LOW_SEED;
         float shade0 = dfn_cloud_self_shade(q0, dfn_cloud_field(q0, cpx0),
