@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 17:21:38
+Last updated: 13:08:2026 - 18:13:27
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -104,6 +104,7 @@ UPD:
 - 13:08:2026 - 17:00:50: Подсказка взаимодействия получила плашку (кусок от зоны ui, применён здесь). Она была последним текстом без подложки, при том что рисуется поверх ЧЕГО УГОДНО, на что смотрит игрок: те же чернила, тот же шрифт, тот же замер — 56.1% чернил не проходят правило двух шагов над светлым фоном. Плашка вынесена ui в ОДНУ функцию до применения: она была уже трижды копией, и эта была бы четвёртой.
 - 13:08:2026 - 17:17:04: НИ ОДИН АВТОМАТИЧЕСКИЙ ПРОГОН БОЛЬШЕ НЕ ЗАБИРАЕТ МЫШЬ. Жалоба пользователя, работавшего за машиной, пока агенты снимали кадры: «когда запускаются визуальные тесты у меня управление компом перехватывается, меня в игру перекидывает, мышью управлять не могу». Освобождение было написано для ОДНОЙ двери (пробы тела), а не для СВОЙСТВА, которое у дверей общее: у автоматического прогона некому целиться, значит ему незачем владеть указателем. Заведён `unattended_run()` — одно определение на двух потребителей, пропуск меню и захват курсора (правило 35). Все четыре места захвата теперь зовут его.
 - 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
+- 13:08:2026 - 18:13:27: Факел и рычаг подняты с 0.5 м на 1.3 м. Замер sim: глаз на 1.7 м, предмет на 0.5 м, расстояние 2.3 м — прицел проходит на 31° ВЫШЕ обоих, поэтому игрок, идущий и смотрящий вперёд, не получает даже подсказки; их бот за 90 секунд ни разу не навёл ни один из двух по той же причине. Дверь на 15.6° вниз ловилась всегда — отсюда «дверь работает, остальные два нет», два разных отказа в одной фразе пользователя. Высота — часть расстановки, и 0.5 м были ниже игры.
 */
 
 #include "engine/app/sources/App.h"
@@ -783,14 +784,22 @@ bool App::enter_world(uint32_t stand) {
 
         gameplay::InteractableDesc take;
         take.kind = gameplay::InteractableKind::Pickup;
-        take.position = spawn + glm::vec3{2.0f, 0.5f, 0.0f};
+        // HEIGHT IS PART OF PLACEMENT, and 0.5 m was below the game. sim
+        // measured it: eye at 1.7 m, prop at 0.5 m, 2.3 m away -- the crosshair
+        // sits 31 degrees ABOVE both, so a player walking and looking ahead
+        // never even gets the prompt. Its bot never once hovered them in 90
+        // seconds for the same reason. The door, at 15.6 degrees down, was
+        // always caught, which is why the complaint read as "the door works,
+        // the other two do nothing" -- two different failures wearing one
+        // sentence. 1.3 m is where a wall sconce and a wall lever live anyway.
+        take.position = spawn + glm::vec3{2.0f, 1.3f, 0.0f};
         take.prompt_key = "prompt.take";
         take.item = torch.id;
         (void)gameplay::spawn_interactable(world_, *physics_, take);
 
         gameplay::InteractableDesc lever;
         lever.kind = gameplay::InteractableKind::Usable;
-        lever.position = spawn + glm::vec3{-2.0f, 0.5f, 0.0f};
+        lever.position = spawn + glm::vec3{-2.0f, 1.3f, 0.0f};
         lever.prompt_key = "prompt.use";
         lever.action = serialization::fnv1a64("use.testbed.lever");
         (void)gameplay::spawn_interactable(world_, *physics_, lever);
