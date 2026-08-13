@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 19:45:00
+Last updated: 13:08:2026 - 22:00:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -51,6 +51,13 @@ UPD:
   than from its last node.
 - 13:08:2026 - 19:45:00: The shyness veto in fractal_skeleton, with the wobble
   that keeps a channel from being a razor cut.
+- 13:08:2026 - 22:00:00: TIPS MAY NOT TAKE THE WHOLE LEAF BUDGET. Every branch
+  end gets a mass, but the tip COUNT rises with the node budget while the leaf
+  budget does not, so past a certain skeleton size the tips exhaust it and the
+  long low shoots that carry the BOTTOM of the crown get nothing. Measured when
+  TREE_TRI_BUDGET_MAX went 700 -> 1300: the wood did not move a centimetre and
+  the lowest foliage rose 7.77 m -> 13.24 m on a birch. Tips are capped at half
+  the budget and subsampled by stride above it.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -990,7 +997,8 @@ void gather_shoot_anchors(const Skeleton& sk, const ShootFoliage& p, uint64_t se
     for (const Shoot& s : shoots) {
         if (s.tip) ++tips;
     }
-    const double spare = (want > tips) ? static_cast<double>(want - tips) : 0.0;
+    const double spare =
+        static_cast<double>(want) - static_cast<double>(std::min(tips, want / 2 + 1));
 
     auto place = [&](const Shoot& s, float u) {
         // Toward the OUTER end of the shoot: needles and leaves live on the
@@ -1050,8 +1058,34 @@ void gather_shoot_anchors(const Skeleton& sk, const ShootFoliage& p, uint64_t se
         return false;
     };
 
+    // TIPS FIRST, BUT TIPS MAY NOT TAKE THE WHOLE BUDGET, and the second half
+    // of that sentence was missing until it was measured.
+    //
+    // Giving every tip a mass is right: a branch that ends in nothing is the
+    // winter-tree reading. But the tip COUNT rises with the node budget while
+    // the leaf budget does not, so past a certain skeleton size the tips alone
+    // exhaust it and nothing is left for the shoots BELOW them — which are the
+    // long, low, non-terminal ones that carry the bottom of the crown.
+    //
+    // MEASURED WHEN TREE_TRI_BUDGET_MAX WENT 700 -> 1300: the wood did not move
+    // by a centimetre (a birch's lowest off-bole limb sat at 9.04 m in both
+    // builds) and its lowest FOLIAGE rose from 7.77 m to 13.24 m. The crown
+    // emptied from below, the foliage-span case went red at 0.264 against its
+    // 0.28 floor, and the tree became the bare-pole-with-a-tuft that REJECTION
+    // 3 exists to reject — from a budget INCREASE, with no code change at all.
+    //
+    // So tips get at most half. Above that they are subsampled by stride (the
+    // same reasoning as everywhere else in this file: keeping the first N
+    // leaves one furnished region and one bald one, keeping every k-th leaves a
+    // thinner crown that is still a crown), and the remainder is spread along
+    // the eligible shoot LENGTH, which is what reaches the bottom of the crown.
+    const size_t tip_budget = std::max<size_t>(1, want / 2);
+    const size_t tip_stride =
+        (tips > tip_budget) ? (tips + tip_budget - 1) / tip_budget : 1;
+    size_t tip_seen = 0;
     for (const Shoot& s : shoots) {
         if (!s.tip) continue;
+        if ((tip_seen++ % tip_stride) != 0) continue;
         place_spaced(s, 1.0f);
     }
     if (spare > 0.0) {
