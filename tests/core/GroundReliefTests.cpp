@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 17:32:00
+Last updated: 13:08:2026 - 17:54:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -67,6 +67,13 @@ UPD:
   the previous one, i.e. the arms are indistinguishable and the sign is speckle.
   The spacing was never regular, so no assertion on it can separate the corduroy
   from the fix — the discriminating-power test met a third time in one day.
+- 13:08:2026 - 17:54:00: Pockets BY DISTANCE, and it moved the diagnosis on
+  sight: the near band was the assumed problem and is in fact the richest
+  (5-15 m carries 55 pockets over 64 columns), while 35-45 m carries ONE. The
+  deficit is a band where this standpoint's own ground turns and starts rising,
+  and rising ground below the eye cannot hide anything whatever is laid on it.
+  The forms-off control reads 0/2/2/2/0/16 — i.e. essentially every pocket in
+  the frame is made by this pass.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -404,6 +411,37 @@ int hidden_pockets_of(const HeightFn& height, glm::vec2 eye, float eye_y, glm::v
     return pockets;
 }
 
+/// The same march, reporting WHERE each pocket opens. §10.1.3's band is 5-60 m,
+/// and the grazing angle across it runs from 19 deg at 5 m to 1.6 deg at 60 —
+/// an order of magnitude — so "how many pockets" and "where they are" are
+/// different facts, and a count that is short can be short for two completely
+/// different reasons.
+template <typename HeightFn>
+std::vector<float> pocket_starts(const HeightFn& height, glm::vec2 eye, float eye_y,
+                                 glm::vec2 dir, float near_m, float far_m) {
+    constexpr float STEP = 0.5f;
+    float envelope = -1e9f;
+    bool hidden = false;
+    float run = 0.0f;
+    float start = 0.0f;
+    std::vector<float> out;
+    for (float t = 1.0f; t <= far_m; t += STEP) {
+        const float ang = (height(eye + dir * t) - eye_y) / t;
+        if (ang >= envelope) {
+            envelope = ang;
+            if (hidden && run >= 1.5f && t >= near_m) out.push_back(start);
+            hidden = false;
+            run = 0.0f;
+        } else {
+            if (!hidden) start = t;
+            hidden = true;
+            run += STEP;
+        }
+    }
+    if (hidden && run >= 1.5f) out.push_back(start);
+    return out;
+}
+
 int hidden_pockets(const world::WorldGenContext& ctx, glm::vec2 eye, float eye_y, glm::vec2 dir,
                    float near_m, float far_m) {
     return hidden_pockets_of([&](glm::vec2 p) { return world::terrain_height(ctx, p); }, eye,
@@ -527,6 +565,27 @@ TEST_CASE("GROUND_OCCLUSION_COUNT_MIN: how often ground hides ground (§10.1.3 F
                                                     << pop[pop.size() / 2] << " p95 "
                                                     << pop[pop.size() * 19 / 20] << " over "
                                                     << pop.size() << " columns");
+    }
+    {
+        // WHERE THE POCKETS ARE ALONG THE RAY, which is a different fact from
+        // how many there are: the grazing angle runs from 19 deg at 5 m to
+        // 1.6 deg at 60, so the near band is an order of magnitude harder to
+        // satisfy than the far one and a short count says nothing about which
+        // end is empty.
+        int bins[6] = {0, 0, 0, 0, 0, 0}; // 5-15, 15-25, 25-35, 35-45, 45-55, 55-60
+        for (const glm::vec2& dir : dirs) {
+            for (const float t : pocket_starts([&](glm::vec2 p) { return drawn_height(ctx, p); },
+                                               eye, drawn_height(ctx, eye)
+                                                        + static_cast<float>(
+                                                            config::PLAYER_EYE_HEIGHT),
+                                               dir, 5.0f, 60.0f)) {
+                const int b = std::min(5, std::max(0, static_cast<int>((t - 5.0f) / 10.0f)));
+                ++bins[b];
+            }
+        }
+        MESSAGE("pockets by distance (drawn field) 5-15/15-25/25-35/35-45/45-55/55-60 m: "
+                << bins[0] << " " << bins[1] << " " << bins[2] << " " << bins[3] << " "
+                << bins[4] << " " << bins[5] << " over 64 columns");
     }
     {
         // WHICH COLUMNS FAIL, AND WHERE THEY POINT. A percentile hides the

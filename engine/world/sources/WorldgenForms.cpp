@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 17:32:00
+Last updated: 13:08:2026 - 17:54:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -36,6 +36,12 @@ UPD:
 - 13:08:2026 - 17:32:00: Draw pitch 24 -> 18 m (approved). It moves ALL FOUR of
   A1's order statistics at once — min 1->2, p5 1->2, median 2->3, max 5->6 —
   which is what separates a real shift from one column's speckle.
+- 13:08:2026 - 17:54:00: THE CUT BANK — the channel section is asymmetric and
+  the undercut side swaps along its length, which is what a stream does at every
+  bend. It needs no new direction source: the side is the sign of the channel
+  field about its own axis, i.e. the channel's own geometry read one derivative
+  further. Columns of the A1 frame carrying at least one pocket went 96.4 % ->
+  98.4 % and the frame's WORST column stopped being 1.
 */
 
 #include "engine/world/sources/WorldgenForms.h"
@@ -184,6 +190,27 @@ constexpr float TRIB_BEARING_MAX = 0.72f; ///< read as parallel; above ~45 deg
                                           ///< of THIS trunk at all
 constexpr float TRIB_BEARING_CELL = 240.0f;
 
+/// THE CUT BANK (подрез) — the channel's section is ASYMMETRIC, and which side
+/// is cut alternates along its length.
+///
+/// It is the one thing in this file that is a landform rather than a field: a
+/// stream undercuts the outer bank of every bend and leaves a slip-off slope
+/// opposite, so a real channel is steep on one side and gentle on the other,
+/// and the sides SWAP at every inflection. Two reasons it earns its place here
+/// beyond looking right — both about the eye rather than about the metre:
+///   * a steep rim holds a longer shadow than a symmetric groove of the same
+///     depth, because what a pocket costs is the angle at the CREST;
+///   * the gentle side gives the eye a lit face against the shaded one, which
+///     is what makes a channel read as a channel from across a field instead of
+///     as a dark line.
+/// The side comes from the sign of the channel field about its own axis, and
+/// the swap from a slow field along it, so it needs no new direction source —
+/// it is the channel's own geometry read one derivative further.
+constexpr float CUTBANK_STEEP = 0.55f; ///< exponent on the cut side (<1 = the
+                                       ///< section rises fast off the floor)
+constexpr float CUTBANK_GENTLE = 1.9f; ///< ...and on the slip-off side
+constexpr float CUTBANK_CELL = 132.0f; ///< how often the cut side swaps
+
 float env_float(const char* name, float lo, float hi, float fallback) {
     if (const char* e = std::getenv(name)) {
         const float v = std::strtof(e, nullptr);
@@ -250,13 +277,20 @@ float draw_forms(uint64_t seed, glm::vec2 world, float mask) {
         DRAW_THRESHOLD
         + (noise::value_noise(seed, STREAM_DRAW_THRESHOLD, THRESHOLD_CELL, warped) - 0.5f)
               * 2.0f * THRESHOLD_SWING;
-    const auto channel = [threshold](float v) {
+    // Which side is undercut here, and it swaps along the channel's length.
+    const float swap = noise::value_noise(seed, STREAM_DRAW_CUTBANK, CUTBANK_CELL, warped) < 0.5f
+                           ? -1.0f
+                           : 1.0f;
+    const auto channel = [threshold, swap](float v) {
         const float ridge = 1.0f - std::fabs(2.0f * v - 1.0f); // 1 on the channel axis
         const float across = std::clamp((ridge - threshold) / (1.0f - threshold), 0.0f, 1.0f);
         // The section: smoothstep across, so the banks are the steep part and
-        // the floor is flat — a channel, not a groove. Squared once so the
-        // floor is wider than the linear ramp would make it.
-        return noise::smoothstep01(across) * noise::smoothstep01(across);
+        // the floor is flat — a channel, not a groove. Then the two sides are
+        // given different exponents, which is the cut bank / slip-off pair.
+        const float sym = noise::smoothstep01(across) * noise::smoothstep01(across);
+        const float side = (v - 0.5f) * swap; // >0 on the undercut side
+        const float e = side > 0.0f ? CUTBANK_STEEP : CUTBANK_GENTLE;
+        return std::pow(sym, e);
     };
     // The two sets combine as the DEEPER of the two, never as a sum: channels
     // MEET AND MERGE where they cross, they do not add their depths. The

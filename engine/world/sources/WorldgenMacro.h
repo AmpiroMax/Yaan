@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 17:28:00
+Last updated: 13:08:2026 - 17:54:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -50,6 +50,7 @@ UPD:
 - 13:08:2026 - 17:28:00: aniso_octave_sample() takes a THETA OFFSET, so a
   tributary can be read off the same axis lattice at a bearing instead of lying
   parallel to its trunk; STREAM_DRAW_WANDER / _THRESHOLD / _BEARING.
+- 13:08:2026 - 17:54:00: STREAM_DRAW_CUTBANK.
 */
 
 #pragma once
@@ -107,6 +108,7 @@ enum WorldgenStream : uint32_t {
     STREAM_DRAW_WANDER = 144,      // 144..145: the warp that makes the pitch wander
     STREAM_DRAW_THRESHOLD = 146,   // ...and the field that lets talwegs end
     STREAM_DRAW_BEARING = 147,     // 147..148: the angle tributaries enter at
+    STREAM_DRAW_CUTBANK = 149,     // ...which side of the channel is undercut
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters
