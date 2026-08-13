@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 15:56:20
+Last updated: 13:08:2026 - 16:43:43
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -98,6 +98,9 @@ UPD:
 - 10:08:2026 - 23:51:30: Клавиши по запросу пользователя: 1 — вид от третьего лица (стоя мышь вращает камеру ВОКРУГ персонажа и он не поворачивается, в движении камера встаёт за спину), 2 — отладочный экран, 3 — снимок состояния. F2/F3 оставлены псевдонимами, иначе все записанные рецепты съёмки стали бы неверными. В третьем лице возвращается голова — в первом она скрыта намеренно.
 - 11:08:2026 - 13:48:13: DFN_FRAME_LOG — по строке на каждый ПРЕДЪЯВЛЕННЫЙ кадр, без обратного чтения, без отстоя, без заморозки тика. Пользователь нашёл изъян нашего метода раньше нас: «при прогоне бега тряска есть, а в момент, когда делается скрин, тряски нет». Все наши двери съёмки гасят ровно то, на что наведены, поэтому дефект МЕЖДУ кадрами два дня приходил чистым. Первый же прогон дал размах fov_y 5.951° при беге против 0.0000° на ходьбе и стоя.
 - 13:08:2026 - 15:56:20: DFN_PLAYTEST_ROUTE — маршрут бота абсолютными мировыми координатами. Запрошен зоной dungeon: маршрут patrol был зашит на четыре точки в двух метрах от спавна, притом что PLAYTEST.md сам называет его назначением «scripted acceptance walks (the crag tunnel, the castle ford)». То есть ни один автоматический прогон никогда не был ВНУТРИ чего-либо, а подземелья стоят в 500 м. Кривое значение отвергается ВСЛУХ: молчаливый откат на кольцо у спавна дал бы прогон, отчитывающийся «ходил по тоннелю» и померивший лужайку.
+- 13:08:2026 - 16:14:09: DFN_PLAYTEST_ROUTE теперь САМ включает patrol. Разбор маршрута лежал внутри ветки DFN_PLAYTEST, поэтому маршрут без режима тихо не делал ничего — зона dungeon потеряла на этом прогон в 150 секунд, простояв на месте. Это ровно тот молчаливый ноль, против которого построена вся эта оснастка; у «вот маршрут, иди по нему» второго прочтения нет, значит значение несёт намерение, а режим следует за ним. Сообщение печатается вслух.
+- 13:08:2026 - 16:26:16: Меню чинится двумя правками по находке зоны ui. DFN_MENU_SHOT УБРАНА из списка пропуска меню: это единственная дверь, которой меню НУЖНО, а присвоение show_menu=false стоит ПОСЛЕ разбора DFN_MENU, поэтому дверь, существующая ради снимка стартового экрана, каждый раз уходила в мир и не сняла его ни разу. И новая DFN_MENU_PAGE=root|maps|pause: без неё выбор карты и пауза достижимы только рукой на клавиатуре, то есть два из трёх экранов, которые видит игрок, никогда не были доказательством. Неизвестное значение отвергается вслух — кадр корня, подшитый под именем паузы, хуже отсутствия кадра.
+- 13:08:2026 - 16:43:43: DFN_PLAYTEST_ROUTE добавлена в список пропуска меню — в тот же день, что и заведена. Собственная проверка нашла дыру: «маршрут включает patrol» оказалось мало, потому что блок плейтеста живёт внутри enter_world(), и автоматический прогон с одним маршрутом вечно стоял на СТАРТОВОМ ЭКРАНЕ. Починка молчаливого нуля породила второй молчаливый ноль этажом выше, ровно то, о чём предупреждает комментарий у самого списка, — и увидеть это удалось только прогоном.
 */
 
 #include "engine/app/sources/App.h"
@@ -308,9 +311,23 @@ AppConfig AppConfig::from_env() {
     // playing with the log running -- and that human wants his menu. Menu
     // frames simply log speed 0, which is the standing-still control anyway.
     if (std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
+        // DFN_PLAYTEST_ROUTE joins the list the same day it was added, because
+        // my own verification caught the hole: making the route imply patrol was
+        // not enough, since the playtest block lives inside enter_world() and an
+        // unattended run with only a route sat on the START SCREEN forever. The
+        // fix for a silent no-op produced a second silent no-op one layer up --
+        // which is exactly what this list's own comment warns about, and I still
+        // had to run it to see it.
+        || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
         || std::getenv("DFN_CAPTURE_AFTER") != nullptr
         || std::getenv("DFN_BODY_PROBE") != nullptr
-        || std::getenv("DFN_MENU_SHOT") != nullptr
+        // DFN_MENU_SHOT is NOT in this list: it is the one door that WANTS the
+        // menu. It was added here with the rest of the unattended doors, and the
+        // assignment below runs AFTER DFN_MENU is parsed, so the door that
+        // exists to photograph the start screen walked past it into the world
+        // every single time and never produced its frame. The list's own comment
+        // says "if it runs without a human, it belongs here" -- and that is
+        // true of every member except the one whose SUBJECT is the menu.
         || std::getenv("DFN_RESTORE") != nullptr) {
         cfg.show_menu = false;
     }
@@ -417,6 +434,29 @@ bool App::init(const AppConfig& config) {
                      "map.valley.name", "map.valley.blurb"},
                     {static_cast<uint32_t>(world::StandId::Forest),
                      "map.forest.name", "map.forest.blurb"}});
+    // DFN_MENU_PAGE=root|maps|pause -- which page an unattended run opens on.
+    // Without it only the root page is photographable, because the map picker
+    // and the pause page can be reached ONLY by a hand on the keyboard, so two
+    // of the three screens the player actually sees have never been evidence.
+    // Refused out loud on an unknown value, like every other tooling door here:
+    // falling back to root would archive a root frame under a pause filename.
+    if (const char* mp = std::getenv("DFN_MENU_PAGE"); mp != nullptr && *mp != '\0') {
+        const std::string page(mp);
+        if (page == "root") {
+            menu_.open(MenuPage::Root);
+        } else if (page == "maps") {
+            menu_.open(MenuPage::Maps);
+        } else if (page == "pause") {
+            menu_.open(MenuPage::Pause);
+        } else {
+            std::fprintf(stderr,
+                         "[menu] DFN_MENU_PAGE=\"%s\" is not root|maps|pause -- "
+                         "REFUSING to run, because a root frame filed under "
+                         "\"%s\" is worse than no frame\n",
+                         mp, mp);
+            return false;
+        }
+    }
     {
         const auto fb = window_->framebuffer_size();
         camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
@@ -880,7 +920,22 @@ bool App::enter_world(uint32_t stand) {
     // AUTONOMOUS PLAYTEST (sim's spec, engine/gameplay/docs/PLAYTEST.md).
     // DFN_PLAYTEST=patrol|explore|soak. The bot writes the same input intents
     // human keys write; incidents screenshot and gate the exit code.
-    if (const char* pt = std::getenv("DFN_PLAYTEST"); pt != nullptr && *pt != '\0') {
+    // A ROUTE IMPLIES A PLAYTEST. Naming waypoints and getting a still player is
+    // the silent-no-op failure this harness exists to prevent: the dungeon zone
+    // lost a 150-second run to exactly that, standing on the spawn while the
+    // route sat parsed and unused inside a branch it never entered. There is no
+    // second reading of "here is the route to walk", so the value carries the
+    // intent and the mode follows it.
+    const char* route_env = std::getenv("DFN_PLAYTEST_ROUTE");
+    const bool route_given = route_env != nullptr && *route_env != '\0';
+    const char* pt_env = std::getenv("DFN_PLAYTEST");
+    if (route_given && (pt_env == nullptr || *pt_env == '\0')) {
+        std::fprintf(stderr, "[playtest] DFN_PLAYTEST_ROUTE given without "
+                             "DFN_PLAYTEST -- running patrol\n");
+    }
+    if (const char* pt = (pt_env != nullptr && *pt_env != '\0') ? pt_env
+                                                                : (route_given ? "patrol" : nullptr);
+        pt != nullptr && *pt != '\0') {
         gameplay::PlaytestConfig ptc;
         const std::string mode(pt);
         if (mode == "patrol") {
