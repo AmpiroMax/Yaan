@@ -1,5 +1,5 @@
 # Created: 13:08:2026 - 19:35:00
-# Last updated: 13:08:2026 - 21:25:00
+# Last updated: 13:08:2026 - 21:35:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-forest-density-recipe.txt
 #
@@ -31,6 +31,13 @@
 #   by measurement and three refuted; the surviving explanation is arithmetic
 #   and needs no hypothesis. Three material frames archived
 #   (flora-colonnade-*-3353b17.png).
+# - 13:08:2026 - 21:35:00: TWO CLAIMS IN THE 19:35 SECTION CORRECTED IN PLACE,
+#   with the original text left visible so the correction can be checked rather
+#   than trusted: the "dark wood" column measured BRIGHTNESS and counted dark
+#   leaves as trunk; "the frame is what that looks like" about the LOD ladder is
+#   withdrawn (forcing the far LOD moves the band 72.1 -> 73.1 %); and "at this
+#   vantage every tree is at Reduced LOD" was assumed and is false -- nothing
+#   has ever drawn Reduced.
 
 THE QUESTION
 
@@ -109,13 +116,21 @@ THE SECOND FINDING, WHICH IS LARGER THAN THE ONE THE FRAMES WERE SHOT FOR
   In the forest band of the same frames (x 0-280, y 95-200, i.e. the treeline at
   roughly 70-250 m):
 
-                        share of band that is SKY   share that is DARK WOOD
+  *** CORRECTED THE SAME EVENING — READ THE COLONNADE SECTION BELOW BEFORE
+  QUOTING THIS TABLE. *** The "dark wood" column was measured by BRIGHTNESS
+  (channel sum < 210) and the shipped foliage value is rgb 39/54/32, a sum of
+  125: it was counting dark LEAVES as trunk. The sound instrument is the
+  material door and it is used below. The observation survives the correction —
+  wood does stand in front of foliage by twelve to one — but this table does not
+  measure it and the number 75 % is not a wood fraction.
+
+                        share of band that is SKY   share that is DARK (SEE ABOVE)
       15 m                        66 %                       25 %
        6 m                        23 %                       75 %
 
-  At 6 m the treeline is three quarters TRUNK. The forest does not read as a
-  canopy that has closed up; it reads as a palisade of bare dark poles carrying
-  pale specks. Denser spacing did not create this — it multiplied it.
+  At 6 m the treeline reads as a palisade of bare dark poles carrying pale
+  specks rather than as a canopy that has closed up. Denser spacing did not
+  create this — it multiplied it.
 
   THE CAUSE IS IN THE GEOMETRY, NOT IN THE PLACEMENT, and it is measured
   (triangles per tree, mean of 12 variants, wood stream vs card stream):
@@ -134,13 +149,22 @@ THE SECOND FINDING, WHICH IS LARGER THAN THE ONE THE FRAMES WERE SHOT FOR
   LOD ladder halves both streams together — it never shifts the BALANCE. That is
   the wrong shape for a level of detail: at 200 m a twig is sub-pixel and the
   crown is the whole object, so a distant tree should shed WOOD and keep
-  FOLIAGE. Ours does the opposite by construction, and the frame is what that
-  looks like.
+  FOLIAGE. Ours did the opposite by construction, and it was fixed the same
+  evening (ProcFlora's far_lod_segments / lod_cluster_count).
+  *** BUT THE LAST CLAUSE OF THIS PARAGRAPH WAS WRONG AND IS WITHDRAWN: "and the
+  frame is what that looks like". *** The frame is NOT what that looks like.
+  Forcing the whole scatter to the far LOD moves the band's wood coverage from
+  72.1 % to 73.1 % — nothing. The colonnade has a different cause and it is
+  below.
 
 WHAT THESE FRAMES DO NOT CERTIFY
 
-  - They do not certify the near canopy: at this vantage every tree is at
-    Reduced LOD. The near frames are flora-leaves-from-branches-near-*.
+  - They do not certify the near canopy. NOTE THE FLAT ERROR THIS LINE USED TO
+    CARRY — "at this vantage every tree is at Reduced LOD" — which was assumed
+    and is false: ScatterBatcher passes FloraLod::Full for every instance at
+    every range, so every tree in every frame in this file is at FULL detail and
+    Reduced has never been drawn at all. The near frames are
+    flora-leaves-from-branches-near-*.
   - They do not certify §5.12's ceiling. They answer whether the mountain reads;
     whether 0.50 is still the right number is design's to re-derive.
   - The pale, desaturated look of the foliage at this range is the canopy VALUE
