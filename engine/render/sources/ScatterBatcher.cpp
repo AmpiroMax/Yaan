@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 10:08:2026 - 12:12:40
+Last updated: 13:08:2026 - 20:45:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -45,6 +45,26 @@ UPD:
 - 10:08:2026 - 12:12:40: routing asks flora_owns() instead of a hand-written three-tree
   predicate — that predicate is why §5.10's floor and §5.11's edge set drew as
   bare earth while every suite was green.
+- 13:08:2026 - 20:45:00: DFN_FLORA_FORCE_LOD -- a verification hook at the one
+  line that selects a flora LOD, added by the FLORA agent under an explicit
+  lead-granted Rule 25 cut (render notified; the file's 09.08 entry records the
+  same arrangement). NO SHIPPING BEHAVIOUR CHANGES: the default is still
+  FloraLod::Full, byte for byte.
+  WHY IT EXISTS. This line passes Full unconditionally and always has, so
+  Reduced and Silhouette have never been drawn -- across the engine FloraLod
+  appears outside flora's files exactly twice and both are Full. The hook makes
+  the ladder's effect answerable BY A FRAME before any selection machinery is
+  written, and the answer it gave is why no machinery was written: forcing the
+  whole scatter to the far LOD moves the treeline's composition by nothing.
+  Measured with the MATERIAL door (DFN_FLORA_ONLY), not a value threshold:
+      wood coverage of the band   Full 72.1 %   far LOD 73.1 %
+      card coverage of the band   Full 41.0 %   far LOD 41.0 %
+  Cutting 60 % of every tree's branch segments does not thin the stand at all,
+  because coverage is a UNION OVER DEPTH: at 6 m spacing there are dozens of
+  trunk rows in any line of sight, so branches removed from one tree only
+  uncover the tree behind it. A union of many sparse sets saturates.
+  The far LOD remains worth wiring for COST -- 579 triangles against 1000, on
+  13446 trees -- and that is render's call, not this hook's.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -57,6 +77,7 @@ UPD:
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <set>
 #include <vector>
 
@@ -193,8 +214,29 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
             // Sinking them again would put the moss under the terrain, and
             // "the moss did not draw" and "the moss drew 12 cm underground"
             // are the same screenshot.
+            // VERIFICATION HOOK, NEVER A SHIPPING PATH (the standing of
+            // DFN_NO_SCATTER above and of flora's DFN_FLORA_ONLY): build the
+            // whole scatter at the FAR level of detail, so the question "would
+            // wiring the LOD ladder change the treeline at all" can be answered
+            // by a frame before any selection machinery is written.
+            //
+            // IT EXISTS BECAUSE THE LADDER IS NOT WIRED AND THAT WAS NOT KNOWN.
+            // This call site passes Full unconditionally, and across the whole
+            // engine FloraLod appears outside flora's own files exactly twice,
+            // both Full — so Reduced and Silhouette have never been drawn. A
+            // flora change measured against the far LOD produced a before/after
+            // pair INSIDE THE RUN-TO-RUN NOISE (455 px of 230400 between arms,
+            // 242 px between two runs of the same arm), which is how it
+            // surfaced. Ask a door not whether it works but whether it moves
+            // the quantity you are measuring with.
+            static const FloraLod forced = [] {
+                const char* e = std::getenv("DFN_FLORA_FORCE_LOD");
+                if (e == nullptr) return FloraLod::Full;
+                return e[0] == '1' ? FloraLod::Reduced
+                                   : (e[0] == '2' ? FloraLod::Silhouette : FloraLod::Full);
+            }();
             append_flora(out.trees, out.foliage, fs, variant, shapes[i],
-                         FloraLod::Full, inst.position, inst.yaw);
+                         forced, inst.position, inst.yaw);
             continue;
         }
         const MeshData& src = mesh_of(inst.species);
