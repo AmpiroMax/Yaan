@@ -40,6 +40,9 @@
 #                          between the engine and a save file the user can
 #                          actually write.
 # - 11:08:2026 - 15:15:55: WorldgenRelief.cpp + WorldgenOutcrop.cpp (§2.7 general relief, §10.5 B2 rock).
+# - 13:08:2026 - 16:20:00: WorldgenForms.cpp (§10.1.3: the bench/riser
+#                          operator — the ground gets FORMS, after three noise
+#                          parameters in a row failed to make it hide itself).
 # - 12:08:2026 - 22:51:00: WorldgenGreatOak.cpp (GIANT_OAKS §2 placement: the
 #                          clearing, and the rarity derived from read distance).
 
@@ -57,6 +60,7 @@ add_library(dfn_world STATIC
     sources/WorldgenErosion.cpp
     sources/WorldgenFinds.cpp
     sources/WorldgenForest.cpp
+    sources/WorldgenForms.cpp
     sources/WorldgenGreatOak.cpp
     sources/WorldgenHydrology.cpp
     sources/WorldgenMacro.cpp

@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:31:10
-Last updated: 11:08:2026 - 14:31:10
+Last updated: 13:08:2026 - 16:35:00
 Module: engine/world
 File: engine/world/sources/WorldgenRelief.h
 
@@ -42,6 +42,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 11:08:2026 - 14:31:10: Created — §2.7's general pass, §10.1's subject.
+- 13:08:2026 - 16:35:00: relief_mask() and ground_relief_tiers() published —
+  the mask gained a second consumer (§10.1.3's bench/riser operator inherits the
+  same exemption list) and the tiers had to be split because that operator sits
+  BETWEEN them.
 */
 
 #pragma once
@@ -81,5 +85,30 @@ namespace dfn::world {
 /// factor through it, so the ONE authored calm plain stays calm.
 [[nodiscard]] float ground_relief(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
                                   float dist_to_water, float meso_scale = 1.0f);
+
+/// THE §2.7 MASK, published because it has a SECOND consumer and a second copy
+/// of it would be a second opinion about which ground an approved rule keeps
+/// flat (Rule 32). shore x corridor x massif, in [0, 1]; ground_relief() is
+/// this multiplied onto its own two octaves, and §10.1.3's bench/riser
+/// operator (WorldgenForms.h) inherits exactly the same exemption list —
+/// terraces ARE ground relief, so a place the corridor rule grades flat must
+/// not grow a scarp across it.
+[[nodiscard]] float relief_mask(const TestbedLayout& layout, glm::vec2 world,
+                                float dist_to_water);
+
+/// The general relief SPLIT INTO ITS TIERS, because the bench/riser operator
+/// sits BETWEEN them: it reshapes the meso tier (and the macro under it) into
+/// flats and steps, and the micro tier is added on top of the result. Folding
+/// micro in first would iron §2.7's "flat, not sterile" clause into the
+/// benches — the operator multiplies a bench's gradient by (1 - strength), and
+/// that would apply to the 8-16 m octave as much as to the 40 m one.
+struct ReliefTiers {
+    float mask = 0.0f;  ///< relief_mask() at this position
+    float meso = 0.0f;  ///< §2.7 meso tier, already scaled by meso_scale, PRE-mask
+    float micro = 0.0f; ///< §2.7 micro tier, PRE-mask
+};
+[[nodiscard]] ReliefTiers ground_relief_tiers(uint64_t seed, const TestbedLayout& layout,
+                                              glm::vec2 world, float dist_to_water,
+                                              float meso_scale = 1.0f);
 
 } // namespace dfn::world

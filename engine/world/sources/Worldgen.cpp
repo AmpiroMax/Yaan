@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 12:08:2026 - 22:55:00
+Last updated: 13:08:2026 - 16:35:00
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -83,6 +83,19 @@ UPD:
   giant's gates read the pads, the entrance works and the L0 sight wedges, so it
   must be sited against the finished world rather than against the field the
   sites themselves were placed on.
+- 13:08:2026 - 16:35:00: §10.1.3 THE FORMS composed here (WorldgenForms.h),
+  between the meso tier and the micro tier, with two clauses that were both
+  bought by a measurement. (1) The forms are ADDENDA to the unformed ground and
+  never a re-derivation of it, so at strength 0 the expression collapses to the
+  old one BIT FOR BIT and the pinned testbed digest still holds — regrouping
+  (meso+micro)*mask into meso*mask+micro*mask moved that digest by itself, and a
+  control that has already moved certifies nothing. (2) The forms' mask is the
+  relief mask TIMES meso_scale, because meso_scale is where в9's authored glade
+  taper lives and a calm plain is exactly where a scarp must not grow (measured
+  when it did: glade relief 3.18 m against a 3.0 bound). Plus the flood guard,
+  conditioned on the ground having been DRY — written without that clause it
+  became a floor rather than a guard and silently deleted every cut in the
+  world.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -91,6 +104,7 @@ UPD:
 #include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/WorldgenMacro.h"
 #include "engine/world/sources/WorldgenForest.h"
+#include "engine/world/sources/WorldgenForms.h"
 #include "engine/world/sources/WorldgenOutcrop.h"
 #include "engine/world/sources/WorldgenRelief.h"
 #include "engine/world/sources/WorldgenNoise.h"
@@ -331,8 +345,22 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
     const float meso_scale = ctx.params.layout.stand == StandId::Forest
                                  ? glade_factor(ctx.params.layout, world)
                                  : 1.0f;
-    float relief = ground_relief(ctx.params.seed, ctx.params.layout, world,
-                                 water.dist_to_water, meso_scale);
+    // SPLIT INTO TIERS because §10.1.3's bench/riser operator goes BETWEEN
+    // them (WorldgenForms.h): it reshapes the meso tier and the macro under it,
+    // and the micro tier is laid on the result. `relief` below is the
+    // structural half — meso + rock — and micro is added after the forms.
+    const ReliefTiers tiers = ground_relief_tiers(ctx.params.seed, ctx.params.layout, world,
+                                                  water.dist_to_water, meso_scale);
+    // GROUPED EXACTLY AS ground_relief() GROUPS IT — (meso + micro) * mask, one
+    // multiply — and that is a bit-level requirement rather than a style: with
+    // the forms at identity this function must reproduce the pinned testbed
+    // heightmap BYTE FOR BYTE, which is the only thing that proves a terrain
+    // difference belongs to the forms and not to the plumbing. Regrouping it as
+    // meso*mask + micro*mask moved the digest by itself (float addition is not
+    // associative), and a control that has already moved cannot certify
+    // anything.
+    float relief = (tiers.meso + tiers.micro) * tiers.mask;
+    float rock = 0.0f;
     // §10.5 B2 — the rock. It is terrain and not scatter (§10.2's seam: the
     // heightmap owns 4 m and up), so it composes here with everything else that
     // decides what the ground IS. Multiplied by the same shore mask the relief
@@ -346,8 +374,65 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
         // ONE authored calm plain is exactly what that plain exists not to be,
         // and §10.1.2's own exemption logic says a place an approved rule keeps
         // flat is not where the bumpiness contract binds.
-        relief +=
-            outcrop_height(ctx.params.seed, ctx.params.layout, world) * shore_ok * meso_scale;
+        rock = outcrop_height(ctx.params.seed, ctx.params.layout, world) * shore_ok * meso_scale;
+        relief += rock;
+    }
+
+    // §10.1.3 THE FORMS — benches and their risers. It is applied to the
+    // STRUCTURAL ground (everything that decides where the land lies) and
+    // BEFORE the micro tier, the works and the pads: an authored flat still
+    // wins, and §2.7's "flat, not sterile" octave survives on top of a bench
+    // instead of being ironed into it. One application site, exactly as the
+    // relief it reshapes has one.
+    //
+    // THE FORMS' MASK IS THE RELIEF MASK **TIMES meso_scale**, and the second
+    // factor is not decoration: meso_scale carries в9's authored glade taper,
+    // and a glade that an approved rule keeps calm is exactly where a scarp
+    // must not appear. Measured when it did — the forest stand's glade relief
+    // read 3.18 m against its own 3.0 m bound and the LF-2 control 2.50 against
+    // 2.00, i.e. the calm plain stopped being calm. §10.1.2's exemption list
+    // and this mask are the same list, which is the property that has to hold.
+    const float form_mask = tiers.mask * std::clamp(meso_scale, 0.0f, 1.0f);
+    const float ground = ctx.params.layout.stand == StandId::Forest
+                             ? macro + ctx.erosion.sample(world)
+                             : water.height;
+    // THE UNFORMED GROUND — the world exactly as it was before this pass. The
+    // two forms are ADDENDA to it, never a re-derivation of it, so that at
+    // strength 0 the sum collapses to this expression unchanged.
+    const float unformed = ground + relief;
+    // What the bench operator READS is the structural half without the micro
+    // tier: the operator multiplies a bench's gradient by (1 - strength), and
+    // §2.7's "flat, not sterile" octave must survive on top of a bench rather
+    // than be ironed into it. Reading a different height from the one it is
+    // added to is deliberate and is why the identity above still holds.
+    const float structural = ground + tiers.meso * tiers.mask + rock;
+    const float d_draw = draw_forms(ctx.params.seed, world, form_mask);
+    const float d_terrace =
+        terrace_forms(ctx.params.seed, world, structural + d_draw, form_mask);
+    float benched = unformed + d_draw + d_terrace;
+
+    // A FORM NEVER CUTS THE GROUND BELOW THE WATER STANDING BESIDE IT.
+    //
+    // The shore mask tapers the forms out across SHORE_SAND_DIST, which is the
+    // right rule for AMPLITUDE and not a sufficient one for a CUT: a 2.6 m
+    // incision seven metres from a bank reaches under the surface, and the
+    // result is not a subtle one — it is a scatter instance standing in water
+    // and a pond with a trench leaving it (measured: WorldgenV2Tests' "nothing
+    // scattered stands in water" went red with exactly one instance under a
+    // plane). So the clamp is stated against the water level itself rather
+    // than against a distance that only correlates with it.
+    //
+    // THE GUARD IS CONDITIONED ON THE GROUND HAVING BEEN DRY, and that clause is
+    // the whole rule rather than a refinement of it. Written without it — as a
+    // plain max() against the nearest body's level — it stopped being a flood
+    // guard and became a FLOOR: near_level is reported for the nearest body
+    // whatever the distance, so every point of a lowland lying below the lake's
+    // surface got raised to its own unformed height, which is to say every cut
+    // in the world was deleted. It read as the pass having no effect at all
+    // (A1 median fell 2 -> 0 with the operator at full strength), and it took a
+    // re-measure to catch, because nothing about it looks wrong.
+    if (water.near_level != math::NO_WATER && unformed > water.near_level) {
+        benched = std::max(benched, water.near_level);
     }
 
     if (ctx.params.layout.stand == StandId::Forest) {
@@ -355,10 +440,9 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
         // path flatten. No water carve, no entrance works, no pads — that stand
         // declares none of them, and running their no-ops here would only
         // invite one to stop being a no-op unnoticed.
-        const float eroded = macro + ctx.erosion.sample(world) + relief;
-        return std::clamp(eroded + ctx.paths.flatten_at(world, eroded), 0.0f, MAX_HEIGHT_M);
+        return std::clamp(benched + ctx.paths.flatten_at(world, benched), 0.0f, MAX_HEIGHT_M);
     }
-    const float worked = entrance_works_height(ctx.sites, world, water.height + relief);
+    const float worked = entrance_works_height(ctx.sites, world, benched);
     const float padded = pads_height(ctx.sites, world, worked);
     return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
 }

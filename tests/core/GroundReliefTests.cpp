@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:23:03
-Last updated: 12:08:2026 - 23:35:00
+Last updated: 13:08:2026 - 16:35:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -39,6 +39,16 @@ UPD:
   never above what the approved band already gives; A1 p5 stays 0 at every
   wavelength). The table and the reason are in the test body where the wrong
   prediction used to be.
+- 13:08:2026 - 16:35:00: THE DRAWN ARM, and it changed a conclusion the same
+  hour it landed. Every reading is now taken on the 2 m heightmap the world is
+  actually built from as well as on the continuous field, because the two
+  disagree: at a 0.35 m terrace step the continuous field reads p5 = 3 (a pass)
+  and the drawn ground reads p5 = 0. A form finer than a few samples exists in
+  the field and not in the world. Plus the per-column dump (a percentile hides
+  the shape of its own tail — the failing columns are a contiguous SECTOR, not
+  scattered bad luck), the population census over the world's flattest legal
+  standpoints (one standpoint's p5 can be bought by 64 lucky rays), and the σ
+  ceiling read in the same run as the count.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -53,6 +63,7 @@ UPD:
 #include <cmath>
 #include <glm/geometric.hpp>
 #include <doctest/doctest.h>
+#include <string>
 #include <vector>
 
 using namespace dfn;
@@ -317,18 +328,48 @@ float grazing(float d) {
     return std::atan(static_cast<float>(config::PLAYER_EYE_HEIGHT) / d);
 }
 
+/// THE GROUND AS IT IS DRAWN AND COLLIDED, and it is a SEPARATE FIELD from the
+/// one above — this is the whole reason it exists.
+///
+/// `terrain_height` is the continuous field; the world the player sees and
+/// walks on is a heightmap sampled every HEIGHTMAP_STEP (2 m) and interpolated
+/// between those samples. A form narrower than a few samples exists in the
+/// first field and NOT in the second, so a pocket count taken only on the
+/// continuous field can certify a picture that was never drawn — the exact
+/// failure Rule 27 pairs a frame against a number to catch, one level lower
+/// down. Bilinear on the 2 m lattice, world-aligned, so it is the same lattice
+/// generate_chunk writes.
+float drawn_height(const world::WorldGenContext& ctx, glm::vec2 p) {
+    constexpr float S = static_cast<float>(config::HEIGHTMAP_STEP);
+    const float gx = std::floor(p.x / S);
+    const float gz = std::floor(p.y / S);
+    const float tx = p.x / S - gx;
+    const float tz = p.y / S - gz;
+    const auto h = [&](float ix, float iz) {
+        return world::terrain_height(ctx, {ix * S, iz * S});
+    };
+    const float h00 = h(gx, gz), h10 = h(gx + 1.0f, gz);
+    const float h01 = h(gx, gz + 1.0f), h11 = h(gx + 1.0f, gz + 1.0f);
+    return (h00 + (h10 - h00) * tx) * (1.0f - tz) + (h01 + (h11 - h01) * tx) * tz;
+}
+
 /// F7 by raycast, for one column. Returns the number of distinct stretches of
 /// ground between `near` and `far` that sit below the sight-line envelope —
 /// i.e. how many times the ground cuts across this column.
-int hidden_pockets(const world::WorldGenContext& ctx, glm::vec2 eye, float eye_y, glm::vec2 dir,
-                   float near_m, float far_m) {
+///
+/// Takes the height field as a FUNCTION so the continuous field and the drawn
+/// heightmap are marched by one implementation rather than by two that could
+/// disagree about the counting rule (Rule 32).
+template <typename HeightFn>
+int hidden_pockets_of(const HeightFn& height, glm::vec2 eye, float eye_y, glm::vec2 dir,
+                      float near_m, float far_m) {
     constexpr float STEP = 0.5f;
     float envelope = -1e9f; // running max elevation angle
     bool hidden = false;
     int pockets = 0;
     float run = 0.0f;
     for (float t = 1.0f; t <= far_m; t += STEP) {
-        const float ang = (world::terrain_height(ctx, eye + dir * t) - eye_y) / t;
+        const float ang = (height(eye + dir * t) - eye_y) / t;
         if (ang >= envelope) {
             envelope = ang;
             if (hidden && run >= 1.5f && t >= near_m) ++pockets; // a pocket that closed
@@ -341,6 +382,30 @@ int hidden_pockets(const world::WorldGenContext& ctx, glm::vec2 eye, float eye_y
     }
     if (hidden && run >= 1.5f) ++pockets; // still hidden at the far edge
     return pockets;
+}
+
+int hidden_pockets(const world::WorldGenContext& ctx, glm::vec2 eye, float eye_y, glm::vec2 dir,
+                   float near_m, float far_m) {
+    return hidden_pockets_of([&](glm::vec2 p) { return world::terrain_height(ctx, p); }, eye,
+                             eye_y, dir, near_m, far_m);
+}
+
+/// The 64 columns of the A1 frame as directions — one definition, because the
+/// continuous arm, the drawn arm and the per-column dump must be the same 64
+/// columns or their numbers are not comparable.
+std::vector<glm::vec2> a1_columns(glm::vec2 eye) {
+    const glm::vec2 fwd = glm::normalize(A1_AIM - eye);
+    const float aspect = static_cast<float>(config::INTERNAL_RES_W)
+                       / static_cast<float>(config::INTERNAL_RES_H);
+    const float half_h = std::atan(std::tan(static_cast<float>(config::CAMERA_FOV_Y) * 0.5f)
+                                   * aspect);
+    std::vector<glm::vec2> dirs;
+    for (int c = 0; c < 64; ++c) {
+        const float a = -half_h + 2.0f * half_h * (static_cast<float>(c) + 0.5f) / 64.0f;
+        dirs.push_back({fwd.x * std::cos(a) - fwd.y * std::sin(a),
+                        fwd.x * std::sin(a) + fwd.y * std::cos(a)});
+    }
+    return dirs;
 }
 
 } // namespace
@@ -375,17 +440,27 @@ TEST_CASE("GROUND_OCCLUSION_COUNT_MIN: how often ground hides ground (§10.1.3 F
     const glm::vec2 eye = A1_STANDPOINT;
     const float eye_y = world::terrain_height(ctx, eye)
                       + static_cast<float>(config::PLAYER_EYE_HEIGHT);
-    const glm::vec2 fwd = glm::normalize(A1_AIM - eye);
-    const float aspect = static_cast<float>(config::INTERNAL_RES_W)
-                       / static_cast<float>(config::INTERNAL_RES_H);
-    const float half_h = std::atan(std::tan(static_cast<float>(config::CAMERA_FOV_Y) * 0.5f)
-                                   * aspect);
+    const std::vector<glm::vec2> dirs = a1_columns(eye);
     std::vector<int> per_column;
-    for (int c = 0; c < 64; ++c) {
-        const float a = -half_h + 2.0f * half_h * (static_cast<float>(c) + 0.5f) / 64.0f;
-        const glm::vec2 dir{fwd.x * std::cos(a) - fwd.y * std::sin(a),
-                            fwd.x * std::sin(a) + fwd.y * std::cos(a)};
+    std::vector<int> per_column_drawn;
+    for (const glm::vec2& dir : dirs) {
         per_column.push_back(hidden_pockets(ctx, eye, eye_y, dir, 5.0f, 60.0f));
+        per_column_drawn.push_back(hidden_pockets_of(
+            [&](glm::vec2 p) { return drawn_height(ctx, p); }, eye,
+            drawn_height(ctx, eye) + static_cast<float>(config::PLAYER_EYE_HEIGHT), dir, 5.0f,
+            60.0f));
+    }
+    {
+        // THE DRAWN ARM. Same 64 columns, same counting rule, the field the
+        // player actually sees: the 2 m heightmap. A count here materially
+        // below the continuous one means the forms are finer than the mesh
+        // that carries them, and the frame would not show what the field
+        // contains.
+        std::vector<int> d = per_column_drawn;
+        std::sort(d.begin(), d.end());
+        MESSAGE("A1 on the DRAWN 2 m heightmap: min " << d.front() << " p5 " << d[d.size() / 20]
+                                                      << " median " << d[d.size() / 2] << " max "
+                                                      << d.back());
     }
     // The same question over MANY standpoints, because one standpoint's answer
     // is one standpoint's answer: fraction of frame columns carrying at least
@@ -393,19 +468,66 @@ TEST_CASE("GROUND_OCCLUSION_COUNT_MIN: how often ground hides ground (§10.1.3 F
     {
         int cols = 0;
         int with = 0;
+        std::vector<int> counts;
+        std::string dump;
         for (const glm::vec2 sp : world::flattest_legal_standpoints(ctx, 12, 64.0f)) {
-            const float sy = world::terrain_height(ctx, sp)
+            dump += " (" + std::to_string(static_cast<int>(sp.x)) + ","
+                  + std::to_string(static_cast<int>(sp.y)) + ")";
+            const float sy = drawn_height(ctx, sp)
                            + static_cast<float>(config::PLAYER_EYE_HEIGHT);
             for (int c = 0; c < 16; ++c) {
                 const float a = static_cast<float>(c) * 0.3926991f;
                 const glm::vec2 d{std::cos(a), std::sin(a)};
                 ++cols;
-                if (hidden_pockets(ctx, sp, sy, d, 5.0f, 60.0f) > 0) ++with;
+                // ON THE DRAWN FIELD, like every other reading in this test
+                // now: the population number and the frame number must be
+                // about the same ground.
+                const int n = hidden_pockets_of([&](glm::vec2 q) { return drawn_height(ctx, q); },
+                                                sp, sy, d, 5.0f, 60.0f);
+                counts.push_back(n);
+                dump += static_cast<char>('0' + std::min(n, 9));
+                if (n > 0) ++with;
             }
         }
         MESSAGE("flattest legal ground, all azimuths: " << with << "/" << cols << " = "
                 << 100.0f * static_cast<float>(with) / static_cast<float>(cols)
                 << " % of columns hide any ground at all in 5-60 m");
+        // THE POPULATION READING, and it exists to stop this pass being tuned
+        // to one standpoint. A1 is 64 columns of ONE eye: its p5 is the 4th
+        // worst of 64 rays through one patch of ground, and a parameter sweep
+        // read on it alone will find the setting whose speckle happens to
+        // favour those 64 rays — fitting to a sample, one level down from
+        // fitting a threshold (Rule 45's shape, not its letter). This is the
+        // same count over the flattest legal standpoints in the world at every
+        // azimuth, so a setting has to work on the LAND rather than on a view.
+        MESSAGE("  per standpoint, 16 azimuths each:" << dump);
+        std::vector<int> pop = counts;
+        std::sort(pop.begin(), pop.end());
+        MESSAGE("  ...and their pocket COUNTS: p5 " << pop[pop.size() / 20] << " median "
+                                                    << pop[pop.size() / 2] << " p95 "
+                                                    << pop[pop.size() * 19 / 20] << " over "
+                                                    << pop.size() << " columns");
+    }
+    {
+        // WHICH COLUMNS FAIL, AND WHERE THEY POINT. A percentile hides the
+        // shape of its own tail: without this dump "p5 = 1" cannot distinguish
+        // "one awkward bearing" from "the whole left half of the frame".
+        std::string row;
+        for (const int n : per_column) row += static_cast<char>('0' + std::min(n, 9));
+        MESSAGE("per column, left to right: " << row);
+    }
+    {
+        // THE CEILING, READ IN THE SAME BREATH AS THE COUNT. §10.1.2's floor
+        // was withdrawn; its MAX 1.20 m survived, because the ceiling's job
+        // really is amplitude — "the answer to flat must not become unwalkable
+        // churn". Any pass that buys occlusion has to be read against it in
+        // the same run, or the two contracts get satisfied on different days
+        // against different builds.
+        const world::GroundRelief gr = world::ground_relief_20m(ctx, A1_STANDPOINT);
+        MESSAGE("A1 detrended sigma over 20 m: " << gr.sigma << " m (ceiling "
+                                                 << config::GROUND_RELIEF_SIGMA_20M_MAX
+                                                 << ", trend " << gr.trend_slope << ")");
+        CHECK(gr.sigma <= static_cast<float>(config::GROUND_RELIEF_SIGMA_20M_MAX));
     }
     std::sort(per_column.begin(), per_column.end());
     // THE GATE, as NUMBERS.md defines it: the 5th percentile across columns, so
@@ -460,12 +582,29 @@ TEST_CASE("GROUND_OCCLUSION_COUNT_MIN: how often ground hides ground (§10.1.3 F
     WARN(p5 >= static_cast<int>(config::GROUND_OCCLUSION_COUNT_MIN));
 }
 
-TEST_CASE("diagnostic: the A1 sight profile, sample by sample") {
+TEST_CASE("diagnostic: the sight profile of the WORST column, sample by sample") {
+    // Aimed at the tail rather than at the middle: the frame's failing columns
+    // are a contiguous sector, and the profile of one of THEM is what says
+    // whether the shortfall is a form that is missing or a bearing where the
+    // geometry cannot pay.
     const auto& ctx = shipped_world();
     const glm::vec2 eye = A1_STANDPOINT;
     const float eye_y = world::terrain_height(ctx, eye)
                       + static_cast<float>(config::PLAYER_EYE_HEIGHT);
-    const glm::vec2 dir = glm::normalize(A1_AIM - eye);
+    const std::vector<glm::vec2> dirs = a1_columns(eye);
+    int worst = 0;
+    int worst_n = 1 << 30;
+    for (int c = 0; c < static_cast<int>(dirs.size()); ++c) {
+        const int n = hidden_pockets(ctx, eye, eye_y, dirs[c], 5.0f, 60.0f);
+        if (n < worst_n) {
+            worst_n = n;
+            worst = c;
+        }
+    }
+    MESSAGE("worst column " << worst << " of " << dirs.size() << " with " << worst_n
+                            << " pockets, bearing (" << dirs[worst].x << ", " << dirs[worst].y
+                            << ")");
+    const glm::vec2 dir = dirs[worst];
     MESSAGE("eye ground " << world::terrain_height(ctx, eye) << " m, eye_y " << eye_y);
     float env = -1e9f;
     for (float t = 2.0f; t <= 60.0f; t += 2.0f) {

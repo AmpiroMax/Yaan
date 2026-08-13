@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 12:08:2026 - 22:50:00
+Last updated: 13:08:2026 - 16:35:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -43,6 +43,10 @@ UPD:
   too. The radius is an OUTPUT: 162 m at seed 1's tightest bearing.
 - 11:08:2026 - 15:15:55: streams for the §2.7 meso octave, §10.5 B1 boulders and B2 outcrops; aniso_octave_sample published so every octave that must share the land's grain samples it the same way.
 - 12:08:2026 - 22:50:00: STREAM_GREAT_OAK (GIANT_OAKS §2 site search).
+- 13:08:2026 - 16:35:00: aniso_octave_sample() takes the along-axis STRETCH as
+  a parameter (0 = HILL_ANISOTROPY, the §2.1 grain) so §10.1.3's draws can run
+  an order of magnitude longer than a ridgelet through the SAME axis lattice
+  rather than through a second copy of it; STREAM_TERRACE_* / STREAM_DRAW_*.
 */
 
 #pragma once
@@ -89,6 +93,14 @@ enum WorldgenStream : uint32_t {
     STREAM_SCATTER_FLOOR = 80, // 80..85: §5.10 forest floor lattices
     STREAM_SCATTER_EDGE = 88,  // 88..95: §5.11 rich-edge species per rule row
     STREAM_GREAT_OAK = 132,    // GIANT_OAKS §2: the landmark tree's site search
+    STREAM_TERRACE_STEP = 136,     // §10.1.3 forms: bench-to-bench rise
+    STREAM_TERRACE_DATUM = 137,    // ...where the level pile is anchored
+    STREAM_TERRACE_STRENGTH = 138, // ...how much gradient moves into the riser
+    STREAM_TERRACE_RISER = 139,    // ...the riser's share of one level band
+    STREAM_TERRACE_BREACH = 140,   // ...the ramps that keep a scarp walkable
+    STREAM_DRAW_LINE = 141,        // §10.1.3 forms: the draws' channel field
+    STREAM_DRAW_DEPTH = 142,       // ...how deep they cut here
+    STREAM_DRAW_DENSITY = 143,     // ...where the country is dissected at all
 };
 
 /// Where visibility rays and sight wedges AIM on the L0: this many meters
@@ -149,8 +161,16 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// meso octave first went in isotropically — open-meadow structure-tensor
 /// anisotropy 3.61 -> 2.22 against a 2.5 floor, with the hill octave and
 /// HILL_ANISOTROPY both untouched.
+///
+/// `stretch` is how hard the along-axis input is compressed; 0 (the default)
+/// means HILL_ANISOTROPY, the §2.1 grain every hill-band octave shares. A
+/// caller passes its own only when the FORM it is drawing is longer than a
+/// ridgelet — §10.1.3's draws run tens of times their own width — and it is a
+/// parameter rather than a second copy of this function precisely because the
+/// axis field, the frame blending and the seamlessness argument must stay one
+/// implementation (Rule 32).
 [[nodiscard]] float aniso_octave_sample(uint64_t seed, uint32_t stream, float cell,
-                                        glm::vec2 world);
+                                        glm::vec2 world, float stretch = 0.0f);
 
 /// Path-groove carve depth (meters, >= 0) at `world` (micro-relief batch):
 /// PATH_GROOVE_DEPTH on the corridor centerline, smooth fade to 0 at

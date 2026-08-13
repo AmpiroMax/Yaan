@@ -1,6 +1,6 @@
 /*
 Created: 11:08:2026 - 14:31:10
-Last updated: 12:08:2026 - 23:38:00
+Last updated: 13:08:2026 - 16:35:00
 Module: engine/world
 File: engine/world/sources/WorldgenRelief.cpp
 
@@ -27,6 +27,8 @@ UPD:
   is negative: shorter waves buy slope and buy no ground-hiding, so the top of
   GROUND_MESO_WAVELENGTH should NOT be lowered for F7's sake. The door stays
   because the next person will have the same idea.
+- 13:08:2026 - 16:35:00: ground_relief() is now (meso + micro) * mask read off
+  ground_relief_tiers() — one definition of the mask, one of each tier.
 */
 
 #include "engine/world/sources/WorldgenRelief.h"
@@ -162,8 +164,7 @@ float ground_meso_relief(uint64_t seed, glm::vec2 world) {
 }
 
 
-float ground_relief(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
-                    float dist_to_water, float meso_scale) {
+float relief_mask(const TestbedLayout& layout, glm::vec2 world, float dist_to_water) {
     // --- The shore mask (§2.7's ruling) --------------------------------------
     // Zero at the waterline, full at SHORE_SAND_DIST. §3.3 already sizes that
     // band as the deposited margin, so the taper reuses it rather than naming a
@@ -198,13 +199,23 @@ float ground_relief(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
             : 1.0f;
 
     if (std::getenv("DFN_NO_RELIEF") != nullptr) return 0.0f;
-    const float mask = shore * corridor * massif;
-    if (mask <= 0.0f) {
-        return 0.0f;
-    }
-    return (ground_meso_relief(seed, world) * std::clamp(meso_scale, 0.0f, 1.0f)
-            + ground_micro_relief(seed, world))
-         * mask;
+    return shore * corridor * massif;
+}
+
+ReliefTiers ground_relief_tiers(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
+                                float dist_to_water, float meso_scale) {
+    ReliefTiers t;
+    t.mask = relief_mask(layout, world, dist_to_water);
+    if (t.mask <= 0.0f) return t;
+    t.meso = ground_meso_relief(seed, world) * std::clamp(meso_scale, 0.0f, 1.0f);
+    t.micro = ground_micro_relief(seed, world);
+    return t;
+}
+
+float ground_relief(uint64_t seed, const TestbedLayout& layout, glm::vec2 world,
+                    float dist_to_water, float meso_scale) {
+    const ReliefTiers t = ground_relief_tiers(seed, layout, world, dist_to_water, meso_scale);
+    return (t.meso + t.micro) * t.mask;
 }
 
 } // namespace dfn::world

@@ -1,0 +1,241 @@
+/*
+Created: 13:08:2026 - 16:12:40
+Last updated: 13:08:2026 - 16:12:40
+Module: engine/world
+File: engine/world/sources/WorldgenForms.cpp
+
+Responsibility:
+- Implementation of the bench/riser operator (§10.1.3 F7's subject).
+
+Key items:
+- terrace_forms.
+
+Dependencies:
+- Uses: WorldgenForms.h, WorldgenMacro.h (stream ids), WorldgenNoise.h.
+- Used by: Worldgen.cpp.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Deterministic and position-based (Rule 13.1).
+*/
+/*
+UPD:
+- 13:08:2026 - 16:12:40: Created.
+*/
+
+#include "engine/world/sources/WorldgenForms.h"
+
+#include "engine/world/sources/WorldgenMacro.h"
+#include "engine/world/sources/WorldgenNoise.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+
+namespace dfn::world {
+
+namespace {
+
+/// REQUESTED NUMBERS ROWS (Rule 35 — stated here beside the term each one
+/// scales, measured before they are asked for). Every one of them is DERIVED
+/// against §10.1.3's own geometry, which is the only arithmetic in this file
+/// that matters:
+///
+///   a pocket of hidden ground opens behind a crest at distance d exactly when
+///   the ground beyond it falls faster than atan(EYE / d) — 9.7 deg at 10 m,
+///   4.9 deg at 20 m, 3.2 deg at 30 m, 1.6 deg at 60 m.
+///
+/// So a riser must clear ~10 deg to work at the near end of the 5-60 m band,
+/// and the numbers below are chosen to put the TYPICAL riser at 12-20 deg on
+/// the ground this world actually has.
+constexpr float STEP_MIN = 0.9f;   ///< bench-to-bench rise (m), low end
+constexpr float STEP_MAX = 1.8f;   ///< ...and high end. A step under ~0.8 m is
+                                   ///< eaten by the 2 m heightmap the world is
+                                   ///< DRAWN from; a step over ~2 m starts
+                                   ///< building walls out of the lowland.
+constexpr float STEP_CELL = 320.0f; ///< the step height drifts on this cell, so
+                                    ///< the country changes character slowly
+constexpr float DATUM_CELL = 512.0f; ///< where the level pile is anchored. Same
+                                     ///< cell as WORLDGEN_OCTAVE1, so the datum
+                                     ///< drifts with the landform rather than
+                                     ///< against it; over any 60 m sight line it
+                                     ///< is effectively constant, which is what
+                                     ///< keeps a riser on ONE contour
+constexpr float STRENGTH_MIN = 0.45f; ///< how much of the bench's gradient is
+constexpr float STRENGTH_MAX = 0.88f; ///< moved into its riser
+constexpr float STRENGTH_CELL = 112.0f;
+constexpr float RISER_MIN = 0.26f;  ///< riser share of one level band. 0.26 is
+constexpr float RISER_MAX = 0.52f;  ///< a 3.8x gradient multiplier, 0.52 a 2.4x
+constexpr float RISER_CELL = 144.0f;
+/// THE RAMPS. A scarp with no way up it is a fence, and the reference frames
+/// (01, 06) are full of benches you can walk onto. This field opens the riser
+/// back out to the plain slope over ~15% of its length — measured as area, so
+/// it is a property of the world and not of one crossing.
+constexpr float BREACH_CELL = 88.0f;
+constexpr float BREACH_LO = 0.10f;
+constexpr float BREACH_HI = 0.30f;
+
+/// THE DRAWS (промоины) — REQUESTED NUMBERS ROWS, same standing as above.
+///
+/// Why a second form exists at all, and it is a measurement rather than a
+/// preference: the bench operator is a MONOTONE TRANSFER, so it can only
+/// re-shape relief that is already there. Measured at A1 with the terraces
+/// alone, the frame's per-column counts came out as one contiguous failing
+/// SECTOR — the bearings along which the country has ~2 m of relief in 60 m —
+/// while every other bearing reached 2-3. No setting of step, riser or
+/// strength moved that sector (24-point sweep), and the settings that moved
+/// the CONTINUOUS field (a 0.35 m step reads p5 = 3) read p5 = 0 on the 2 m
+/// heightmap the world is actually drawn from. So the shortfall is not a
+/// tuning of the first form; it is ground with nothing in it to re-shape.
+/// TWO SPACINGS, NOT ONE, and the reason is a shape rather than a number: a
+/// single cell draws PARALLEL channels at one pitch, which is a washboard and
+/// reads as manufactured from any standpoint. Two incommensurate pitches on the
+/// same axis field interleave into long channels with short tributaries between
+/// them, which is what a dissected slope looks like and what frame 03 shows.
+constexpr float DRAW_CELL = 24.0f;     ///< across-grain spacing, the main set
+constexpr float DRAW_CELL_2 = 15.0f;   ///< ...and the tributary set
+constexpr float DRAW_MIX_2 = 0.45f;    ///< its share
+constexpr float DRAW_STRETCH = 9.0f;  ///< along-grain compression: a draw is an
+                                      ///< order of magnitude longer than wide,
+                                      ///< which is what makes it a FORM and not
+                                      ///< a dimple — the run is the point
+constexpr float DRAW_THRESHOLD = 0.70f; ///< how much of the band is channel
+constexpr float DRAW_DEPTH_MIN = 1.2f;  ///< incision (m). The floor is set by
+constexpr float DRAW_DEPTH_MAX = 2.6f;  ///< the 2 m heightmap and the grazing
+                                        ///< geometry: a 0.7 m cut with a ~5 m
+                                        ///< bank is 8 deg, which opens a pocket
+                                        ///< beyond 12 m; below that it is a
+                                        ///< texture, not a landform
+constexpr float DRAW_DEPTH_CELL = 208.0f;
+constexpr float DRAW_DENSITY_CELL = 272.0f; ///< dissected country comes in tracts,
+constexpr float DRAW_DENSITY_LO = 0.18f;    ///< not uniformly
+constexpr float DRAW_DENSITY_HI = 0.52f;
+/// ...BUT IT NEVER REACHES ZERO, and that floor is the contract rather than a
+/// taste. §10.1.2 binds on the FLATTEST LEGAL GROUND — the complaint is about
+/// the flat places — so a form that switches off over tracts leaves exactly the
+/// ground the contract is about with nothing on it. Measured before the floor
+/// went in: over the world's twelve flattest legal standpoints the pocket count
+/// read p5 0 / median 1, and the zeros were tracts, not bearings. Variety
+/// survives as a difference of DEGREE (0.4x to 1x), which is what varies in
+/// country anyway.
+constexpr float DRAW_DENSITY_FLOOR = 0.40f;
+
+float env_float(const char* name, float lo, float hi, float fallback) {
+    if (const char* e = std::getenv(name)) {
+        const float v = std::strtof(e, nullptr);
+        if (v >= lo && v <= hi) return v;
+    }
+    return fallback;
+}
+
+/// Drifting field in [lo, hi] on `cell`.
+float drift(uint64_t seed, uint32_t stream, float cell, glm::vec2 world, float lo, float hi) {
+    return lo + noise::value_noise(seed, stream, cell, world) * (hi - lo);
+}
+
+} // namespace
+
+float draw_forms(uint64_t seed, glm::vec2 world, float mask) {
+    if (mask <= 0.0f) return 0.0f;
+    const float depth_scale = env_float("DFN_DRAW_DEPTH", 0.0f, 6.0f, -1.0f);
+    if (depth_scale == 0.0f) return 0.0f; // the pass's own named control
+
+    // WHERE A DRAW RUNS, AND IT IS NOT A NEW DIRECTION FIELD. The channel
+    // field is sampled through §2.1's OWN per-valley axis lattice — the same
+    // frames, the same blending, the same seamlessness argument the ridgelet
+    // octave uses — only compressed harder along the axis. So a draw runs
+    // along the grain of the land it is cut into, which is where water would
+    // run, and it inherits §2.1's coherence rather than inventing a second
+    // opinion about which way this country lies.
+    //
+    // STATED PLAINLY BECAUSE IT MATTERS LATER: this gives a draw a DIRECTION
+    // and a RUN, which is what §10.1.3 needs and what a noise field cannot
+    // have. It does NOT give it CONNECTIVITY TO A DRAINAGE — these channels do
+    // not know where the river is, and on a stand that declares the LF-8
+    // erosion pass that pass is the better source. The testbed declares
+    // `erosion: false`, so nothing else in this world is producing incision at
+    // all, and a draw that runs along the valley axis is the honest half of
+    // the answer rather than a claimed gully.
+    const float cell = env_float("DFN_DRAW_CELL", 8.0f, 200.0f, DRAW_CELL);
+    const float stretch = env_float("DFN_DRAW_STRETCH", 1.0f, 40.0f, DRAW_STRETCH);
+    const float line = aniso_octave_sample(seed, STREAM_DRAW_LINE, cell, world, stretch);
+    const float line2 = aniso_octave_sample(seed, STREAM_DRAW_LINE + 1,
+                                            cell * (DRAW_CELL_2 / DRAW_CELL), world, stretch);
+    const auto channel = [](float v) {
+        const float ridge = 1.0f - std::fabs(2.0f * v - 1.0f); // 1 on the channel axis
+        const float across =
+            std::clamp((ridge - DRAW_THRESHOLD) / (1.0f - DRAW_THRESHOLD), 0.0f, 1.0f);
+        // The section: smoothstep across, so the banks are the steep part and
+        // the floor is flat — a channel, not a groove. Squared once so the
+        // floor is wider than the linear ramp would make it.
+        return noise::smoothstep01(across) * noise::smoothstep01(across);
+    };
+    // The two sets combine as the DEEPER of the two, never as a sum: channels
+    // MEET AND MERGE where they cross, they do not add their depths. The
+    // tributary set is the shallower one, which is the same statement about
+    // stream order made in metres.
+    const float section = std::max(channel(line), DRAW_MIX_2 * channel(line2));
+    if (section <= 0.0f) return 0.0f;
+
+    const float dissected =
+        DRAW_DENSITY_FLOOR
+        + (1.0f - DRAW_DENSITY_FLOOR)
+              * noise::smoothstep01(std::clamp(
+                  (noise::value_noise(seed, STREAM_DRAW_DENSITY, DRAW_DENSITY_CELL, world)
+                   - DRAW_DENSITY_LO)
+                      / (DRAW_DENSITY_HI - DRAW_DENSITY_LO),
+                  0.0f, 1.0f));
+    const float depth = drift(seed, STREAM_DRAW_DEPTH, DRAW_DEPTH_CELL, world, DRAW_DEPTH_MIN,
+                              DRAW_DEPTH_MAX)
+                      * (depth_scale > 0.0f ? depth_scale : 1.0f);
+
+    return -depth * section * dissected * mask;
+}
+
+float terrace_forms(uint64_t seed, glm::vec2 world, float h_in, float mask) {
+    if (mask <= 0.0f) return 0.0f;
+
+    const float step =
+        env_float("DFN_TERRACE_STEP", 0.2f, 8.0f,
+                  drift(seed, STREAM_TERRACE_STEP, STEP_CELL, world, STEP_MIN, STEP_MAX));
+
+    // The RAMP field multiplies the strength, so a breach is the operator
+    // relaxing toward identity rather than a hole cut in the ground: the
+    // surface stays continuous across it and you walk up the plain slope.
+    const float breach = std::clamp(
+        (noise::value_noise(seed, STREAM_TERRACE_BREACH, BREACH_CELL, world) - BREACH_LO)
+            / (BREACH_HI - BREACH_LO),
+        0.0f, 1.0f);
+    const float strength =
+        env_float("DFN_TERRACE_STRENGTH", 0.0f, 0.95f,
+                  drift(seed, STREAM_TERRACE_STRENGTH, STRENGTH_CELL, world, STRENGTH_MIN,
+                        STRENGTH_MAX))
+        * noise::smoothstep01(breach) * mask;
+    if (strength <= 0.0f) return 0.0f;
+
+    const float riser =
+        env_float("DFN_TERRACE_RISER", 0.05f, 0.95f,
+                  drift(seed, STREAM_TERRACE_RISER, RISER_CELL, world, RISER_MIN, RISER_MAX));
+
+    // The level pile: a datum that drifts slowly, so the world is not one
+    // machined stack of world-height contours, and does not drift fast, so a
+    // riser stays on its contour for as far as the eye follows it.
+    const float datum =
+        drift(seed, STREAM_TERRACE_DATUM, DATUM_CELL, world, -0.5f, 0.5f) * step;
+
+    const float u = (h_in - datum) / step;
+    const float f = u - std::floor(u);
+
+    // G: the monotone step. Flat over both benches, one smoothstep across the
+    // riser, centred in the band so the delta is odd about the middle and the
+    // operator neither raises nor lowers the country on average.
+    const float lo = 0.5f - riser * 0.5f;
+    const float g = noise::smoothstep01(std::clamp((f - lo) / riser, 0.0f, 1.0f));
+
+    // The delta of a MONOTONE TRANSFER h -> h + step*strength*(g(f) - f).
+    // Monotone because d/dh = 1 - strength + strength*G'(f) >= 1 - strength > 0
+    // for strength < 1: no overhang, no inverted drainage, contours preserved.
+    return step * strength * (g - f);
+}
+
+} // namespace dfn::world
