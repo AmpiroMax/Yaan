@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 13:08:2026 - 16:48:00
+Last updated: 13:08:2026 - 17:05:00
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -34,6 +34,10 @@ UPD:
   бинарник, заведена ведущим сегодня): обе руки приёмки обязаны выходить из ОДНОЙ
   сборки, иначе в общем дереве меряется чужая работа за день. Тот же ключ читает
   Menu.cpp.
+- 13:08:2026 - 17:05:00: Плашка стала ОДНОЙ функцией на весь интерфейс (draw_text_plate)
+  вместо копии на каждое место: земля под текстом — одно решение. Кромка панели
+  запрашивается со всех четырёх сторон и сама отсекается на границе кадра, поэтому
+  прижатая к углу плашка теряет ровно те две стороны, которые и должна.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
@@ -96,22 +100,9 @@ constexpr const char* COMPASS_KEYS[8] = {
     }
 }
 
-// THE DOSE DOOR (Rule 47, the one-binary clause). `DFN_UI_PLATE=0` draws the
-// interface text with NO plate under it -- the state this project shipped
-// before 22a603b. It exists so the before arm and the after arm come out of the
-// SAME binary: in a shared tree with six zones building all day, a before/after
-// across two builds measures the week rather than the change (render lost a
-// whole reading to exactly that, an hour before this was written). Read once,
-// not per frame: an instrument that can change mid-run is not an instrument.
-// The same name is read by Menu.cpp -- one door, one meaning: "text without its
-// ground", wherever the interface draws text.
-[[nodiscard]] bool plates_enabled() {
-    static const bool on = [] {
-        const char* e = std::getenv("DFN_UI_PLATE");
-        return !(e != nullptr && e[0] == '0');
-    }();
-    return on;
-}
+// The plate's two colours ARE THE MENU'S two colours: one interface, one ground.
+constexpr render::Color PLATE{18, 20, 26};
+constexpr render::Color PLATE_EDGE{54, 56, 64};
 
 // Trims ASCII spaces and tabs from both ends.
 [[nodiscard]] std::string_view trim(std::string_view s) {
@@ -190,6 +181,36 @@ uint64_t compass_key_for_yaw(float yaw_radians) {
 }
 
 // ---------------------------------------------------------------------------
+// The interface's ground (see the header for the measurement it comes from)
+// ---------------------------------------------------------------------------
+
+bool ui_plates_enabled() {
+    // Read ONCE. A door polled every frame is a switch, and a switch inside an
+    // instrument means two frames of one run can disagree about what was tested.
+    static const bool on = [] {
+        const char* e = std::getenv("DFN_UI_PLATE");
+        return !(e != nullptr && e[0] == '0');
+    }();
+    return on;
+}
+
+void draw_text_plate(render::PixelCanvas& canvas, int text_x, int text_y, int text_w,
+                     int text_h, int pad) {
+    if (!ui_plates_enabled() || text_w <= 0 || text_h <= 0) {
+        return;
+    }
+    const int x = text_x - pad;
+    const int y = text_y - pad;
+    const int w = text_w + 2 * pad;
+    const int h = text_h + 2 * pad;
+    canvas.fill_rect(x, y, w, h, PLATE);
+    // All four sides are asked for; the ones outside the canvas clip away in
+    // PixelCanvas::put, which is exactly what makes a corner-pinned plate read
+    // as pinned rather than as a box floating against the frame border.
+    canvas.frame_rect(x, y, w, h, PLATE_EDGE);
+}
+
+// ---------------------------------------------------------------------------
 // Readout
 // ---------------------------------------------------------------------------
 
@@ -199,10 +220,6 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     const render::Color ink{232, 228, 214};
     const render::Color dim{168, 164, 152};
     const render::Color warn{232, 168, 96};
-    // THE PLATE'S TWO COLOURS ARE THE MENU'S TWO COLOURS on purpose: one
-    // interface, one ground. See the plate note below the line table.
-    const render::Color plate{18, 20, 26};
-    const render::Color plate_edge{54, 56, 64};
 
     const std::string_view compass = localized(compass_key_for_yaw(snap.yaw));
     const std::string_view gait = localized(serialization::fnv1a64(gait_key(snap.gait)));
@@ -260,19 +277,6 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     // edges, and half a rule is what this fix exists to end. The plate is sized
     // to the text and pinned to the corner, so it hides 12 % of the frame and
     // no more.
-    const auto plate_for = [&](int x0, int y0, int text_w, int lines) {
-        if (!plates_enabled()) {
-            return;
-        }
-        const int pw = text_w + 4;
-        const int ph = lines * line_h + 3;
-        canvas.fill_rect(x0, y0, pw, ph, plate);
-        // One lit edge on the two sides that face the world, so the plate reads
-        // as a panel rather than as a hole punched in the frame.
-        canvas.hline(x0, y0 + ph, pw + 1, plate_edge);
-        canvas.vline(x0 + pw, y0, ph + 1, plate_edge);
-    };
-
     int widest = 0;
     int line_count = 0;
     for (const auto& l : left) {
@@ -285,7 +289,7 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
         widest = std::max(widest, render::text_width_px(water.text));
         ++line_count;
     }
-    plate_for(0, 0, widest + 3, line_count);
+    draw_text_plate(canvas, 3, 3, widest, line_count * line_h - 1);
 
     int y = 3;
     for (const auto& l : left) {
@@ -306,11 +310,7 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     const std::string_view hint = localized(serialization::fnv1a64("debug.hint.capture"));
     const int hint_w = render::text_width_px(hint);
     const int hint_y = static_cast<int>(canvas.height()) - line_h - 2;
-    if (plates_enabled()) {
-        canvas.fill_rect(w - hint_w - 5, hint_y - 2, hint_w + 5, line_h + 3, plate);
-        canvas.hline(w - hint_w - 6, hint_y - 2, 1, plate_edge);
-        canvas.vline(w - hint_w - 6, hint_y - 2, line_h + 3, plate_edge);
-    }
+    draw_text_plate(canvas, w - hint_w - 3, hint_y, hint_w, render::FONT_INK_H);
     render::draw_text(canvas, w - hint_w - 3, hint_y, hint, dim, true);
 }
 

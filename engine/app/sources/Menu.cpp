@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 13:08:2026 - 16:50:00
+Last updated: 13:08:2026 - 17:06:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -23,13 +23,19 @@ UPD:
   тексту, отличному от нарисованного.
 - 13:08:2026 - 16:50:00: Дверь дозы DFN_UI_PLATE=0 — обе руки приёмки из ОДНОЙ сборки
   (правило 47, оговорка, заведённая ведущим сегодня). Тот же ключ читает DebugOverlay.cpp.
+- 13:08:2026 - 17:06:00: Своя копия двери и своя плашка сняты — обе взяты из общей
+  draw_text_plate(). Земля под текстом одна на весь интерфейс, и вторая копия правила
+  была бы теневой (правило 39).
 */
 
 #include "engine/app/sources/Menu.h"
 
 #include <algorithm>
-#include <cstdlib>
 
+// For the shared text plate and its dose door. The pause page stands on the
+// SAME ground as the readout because it is the same decision, and a second copy
+// of a six-line getenv would be a shadow copy of a rule (Rule 39).
+#include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/render/sources/BitmapFont.h"
@@ -47,21 +53,6 @@ constexpr render::Color ITEM{176, 172, 160};
 constexpr render::Color ITEM_SELECTED{244, 226, 160};
 constexpr render::Color BLURB{120, 118, 112};
 constexpr render::Color RULE_LINE{54, 56, 64};
-
-// THE DOSE DOOR (Rule 47, the one-binary clause). `DFN_UI_PLATE=0` draws the
-// pause page's words with NO plate under them -- what shipped before c4c63e2 --
-// so the before arm and the after arm of the acceptance come out of the SAME
-// binary. In a shared tree, a before/after across two builds measures the day's
-// other zones. The same name is read by DebugOverlay.cpp: one door, one meaning
-// ("text without its ground"), wherever the interface draws text. Read once,
-// because an instrument that can change mid-run is not an instrument.
-[[nodiscard]] bool plates_enabled() {
-    static const bool on = [] {
-        const char* e = std::getenv("DFN_UI_PLATE");
-        return !(e != nullptr && e[0] == '0');
-    }();
-    return on;
-}
 
 std::string_view loc(std::string_view key) {
     return localized(serialization::fnv1a64(key));
@@ -205,7 +196,7 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     // its job (you can see where you left off); it just stops being what the
     // TEXT stands on. Only this page gets a plate: root and maps already clear
     // opaque, so there the plate would be a frame drawn around nothing.
-    if (pause && plates_enabled()) {
+    if (pause) {
         int block_w = render::text_width_px(loc("menu.paused"));
         for (size_t i = 0; i < n; ++i) {
             // The caret hangs two cells to the left of the widest label, so it
@@ -219,12 +210,9 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
         for (size_t i = 0; i < n; ++i) {
             block_h += row;
         }
-        const int px = (w - block_w) / 2 - 8;
-        const int py = title_y - 6;
-        const int pw = block_w + 16;
-        const int ph = block_h + 8;
-        canvas.fill_rect(px, py, pw, ph, BACKGROUND);
-        canvas.frame_rect(px, py, pw, ph, RULE_LINE);
+        // A block of lines wants more air than a single line, which is the one
+        // thing the shared plate takes as an argument.
+        draw_text_plate(canvas, (w - block_w) / 2, title_y, block_w, block_h, /*pad=*/6);
     }
 
     draw_centered(canvas, title_y, pause ? loc("menu.paused") : loc("app.title"), TITLE);
@@ -257,10 +245,9 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     // so it gets the same treatment as the block above -- a plate its own size.
     const std::string_view hint = loc("menu.hint");
     const int hint_y = h - render::FONT_CELL_H * 2 - 4;
-    if (pause && plates_enabled()) {
+    if (pause) {
         const int hw = render::text_width_px(hint);
-        canvas.fill_rect((w - hw) / 2 - 4, hint_y - 3, hw + 8, render::FONT_CELL_H + 5,
-                         BACKGROUND);
+        draw_text_plate(canvas, (w - hw) / 2, hint_y, hw, render::FONT_INK_H);
     }
     draw_centered(canvas, hint_y, hint, BLURB);
 }

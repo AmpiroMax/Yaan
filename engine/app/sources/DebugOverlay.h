@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 10:08:2026 - 19:11:04
+Last updated: 13:08:2026 - 17:02:00
 Module: engine/app
 File: engine/app/sources/DebugOverlay.h
 
@@ -43,6 +43,10 @@ UPD:
 - 10:08:2026 - 19:11:04: Created -- user request: a debug key showing where I look, fps,
                           speed and coordinates, plus a screenshot that carries the state
                           so the world can be rebuilt from it.
+- 13:08:2026 - 17:02:00: ui_plates_enabled() + draw_text_plate() вынесены наружу: ЗЕМЛЯ
+  ПОД ТЕКСТОМ — одно решение, а не четыре копии. Потребители: отладочный вывод, его
+  подсказка, экран паузы и подсказка взаимодействия в App.cpp. Замер, из которого
+  выросла плашка, записан у объявления.
 */
 
 #pragma once
@@ -142,6 +146,39 @@ private:
 // Draws the readout into the HUD canvas. Does not clear it: the caller owns
 // the layer and may have drawn a prompt already.
 void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap);
+
+// ---------------------------------------------------------------------------
+// THE INTERFACE'S GROUND. Every string the app draws over the world stands on
+// one of these, and they are one function rather than four copies because they
+// are one decision: text on our palette does not separate from a bright sky.
+// Measured on the readout, which is the worst case only because it is the
+// biggest: without a plate, 18.1 % of its glyph edges sat closer than
+// 2 * PALETTE_SHADE_STEP_REF to what they abutted, 56.1 % of its ink failed the
+// same rule wherever the background was sky, and 0.0 % failed over dark ground.
+// With it, inside the readout's own rectangle, the count of lost edges is ZERO
+// at BOTH palette settings.
+//
+// `text_plate` takes the TEXT box (the same x, y and width you pass to
+// draw_text) and grows it by the margin the readout uses, so no caller has to
+// re-derive the padding and no two plates end up different sizes.
+// ---------------------------------------------------------------------------
+
+// The dose door, Rule 47's one-binary clause: DFN_UI_PLATE=0 draws every
+// interface string with no ground under it -- the state that shipped before
+// 22a603b -- so a before/after pair comes out of ONE binary instead of two
+// builds an hour apart in a tree six zones are compiling. Read once per
+// process: an instrument that can change mid-run is not an instrument.
+[[nodiscard]] bool ui_plates_enabled();
+
+// Fills the plate for one line of text, plus a lit edge on the sides that face
+// the world. No-op when the door is closed. `line_h` is the row pitch, not the
+// glyph height, so a multi-line block passes lines * pitch.
+// `pad` is the margin around the text: the default suits a single line, and a
+// block of lines wants more air (the pause page passes 6). Sides that fall
+// outside the canvas simply clip, so a plate pinned to a corner loses the two
+// edges facing the frame border -- which is what makes it read as pinned.
+void draw_text_plate(render::PixelCanvas& canvas, int text_x, int text_y, int text_w,
+                     int text_h, int pad = 3);
 
 // The sidecar text written next to the screenshot.
 [[nodiscard]] std::string format_snapshot(const DebugSnapshot& snap);
