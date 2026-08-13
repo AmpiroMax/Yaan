@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:05:00
-Last updated: 13:08:2026 - 16:05:00
+Last updated: 13:08:2026 - 16:40:00
 Module: engine/gameplay
 File: engine/gameplay/sources/FloraCollision.cpp
 
@@ -27,6 +27,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 16:05:00: Created.
+- 13:08:2026 - 16:40:00: The great oak is cut at its CROWN BASE, not at
+  TRUNK_COLLISION_HEIGHT: people are meant to live in it, and a stair tread
+  with no collision is a painted stair. 241 triangles for the whole bole --
+  a landmark's budget, and there is one per region.
 */
 
 #include "engine/gameplay/sources/FloraCollision.h"
@@ -99,6 +103,16 @@ constexpr float STEP_HEIGHT = static_cast<float>(config::PLAYER_STEP_HEIGHT);
 // here.
 [[nodiscard]] float cut_height(render::FloraSpecies fs, float maturity) {
     const float crown_base = render::species_crown_base(fs) * maturity;
+    // THE GREAT OAK IS SOLID FOR ITS WHOLE BOLE, not for the first four metres,
+    // and the reason is that people are supposed to LIVE in it: flora carries
+    // stair treads up the swept axis and decks at the first forks, and a tread
+    // with no collision is a painted stair. TRUNK_COLLISION_HEIGHT is a reach
+    // for a walker on the GROUND; on this one species the reach is the climb.
+    // There is one great oak per region, so the triangles are a landmark's
+    // budget and not a forest's.
+    if (fs == render::FloraSpecies::GreatOak) {
+        return std::max(crown_base, TRUNK_COLLISION_HEIGHT);
+    }
     // A crown base of zero (a shrub-shaped species) would cut everything away;
     // a plant that low is not on the Solid path anyway, but the clamp keeps the
     // function total rather than trusting the caller.

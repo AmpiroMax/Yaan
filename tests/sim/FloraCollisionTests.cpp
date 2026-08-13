@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:20:00
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 13:08:2026 - 16:40:00
 Module: tests
 File: tests/sim/FloraCollisionTests.cpp
 
@@ -32,6 +32,10 @@ AI Agents Notice (must follow):
 UPD:
 - 13:08:2026 - 16:20:00: Created with solid trunks, drag brush and the log
                          step-height watershed.
+- 13:08:2026 - 16:40:00: The great oak's whole bole (treads included) is solid
+                         to its crown base, and the case says so. The stair
+                         itself is NOT walkable and that is measured, not
+                         guessed -- see the case's note.
 */
 
 #include <doctest/doctest.h>
@@ -352,4 +356,51 @@ TEST_CASE("plants cost no physics bodies at all") {
         discs += chunk.discs.size();
     }
     CHECK(discs > 0);
+}
+
+TEST_CASE("the great oak is solid for its whole bole, treads included") {
+    // The user wants to climb this tree and live in it. Today's honest state:
+    // the SURFACES exist — the bole and every tread flora draws are solid all
+    // the way to the crown base — but the STAIR does not, and that is a
+    // geometry finding, not a physics one. Measured off the drawn mesh:
+    // 28 treads, every consecutive pair 0.42 m apart vertically
+    // (GREAT_OAK_STEP_RISE, against PLAYER_STEP_HEIGHT 0.35) and 2.40 m apart
+    // HORIZONTALLY, because they spiral by the golden angle around a ~2.2 m
+    // bole. Zero of the 27 pairs can be taken by a walker, and no collision
+    // work can change that: it is a row of pegs, not a staircase. Reported to
+    // the lead for flora/design; when the spacing is fixed, climbing works with
+    // no change here, which is what this case pins.
+    gameplay::FloraCollisionCache cache;
+    const gameplay::FloraSolid& oak =
+        gameplay::flora_solid(cache, math::ScatterSpecies::GreatOak, 0, 1.0f);
+    REQUIRE(oak.kind == gameplay::FloraSolidKind::Solid);
+
+    const render::FloraSpecies fs = render::flora_species_of(math::ScatterSpecies::GreatOak);
+    const float crown_base = render::species_crown_base(fs);
+    // Solid all the way up to where the crown starts — not to the 4 m a walker
+    // on the ground would need.
+    CHECK(oak.top >= crown_base);
+    CHECK(oak.top > gameplay::TRUNK_COLLISION_HEIGHT * 2.0f);
+
+    // The treads are IN the collider: they stand clear of the bole, so the
+    // collider's widest reach must exceed the bole's own radius by about the
+    // tread's length. Without this the case would pass on a bare column.
+    render::FloraShape shape;
+    const render::FloraMesh drawn =
+        render::build_flora_mesh(fs, 0, shape, render::FloraLod::Full);
+    float bole = 1.0e9f;
+    for (const platform::Vertex& v : drawn.wood.vertices) {
+        if (std::abs(v.position.y - 3.0f) > 0.25f) {
+            continue;
+        }
+        bole = std::min(bole, std::sqrt(v.position.x * v.position.x +
+                                        v.position.z * v.position.z));
+    }
+    REQUIRE(bole < 1.0e8f);
+    CHECK(oak.max_radius > bole + static_cast<float>(config::GREAT_OAK_STEP_REACH) * 0.5f);
+    // Still no CROWN, though: a great oak's crown is as wide as the tree is
+    // tall, so anything approaching that would mean the cut had failed.
+    CHECK(oak.max_radius < render::species_crown_radius(fs) * 0.5f);
+    // A landmark's budget, not a forest's: one tree per region.
+    CHECK(oak.mesh.indices.size() / 3 < 600);
 }
