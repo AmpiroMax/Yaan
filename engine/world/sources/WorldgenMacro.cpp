@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 17:28:00
+Last updated: 13:08:2026 - 01:15:00
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 11:08:2026 - 15:15:55: aniso_value_noise extracted from aniso_mid_octave and exported as aniso_octave_sample: an isotropic octave laid over the ridgelets ERASES the grain rather than lying beside it (§2.1 anisotropy 3.61 -> 2.22 with HILL_ANISOTROPY untouched).
 - 13:08:2026 - 16:35:00: aniso_value_noise takes the stretch as a parameter.
 - 13:08:2026 - 17:28:00: aniso_value_noise takes the theta offset.
+- 13:08:2026 - 01:15:00: DFN_OCT1_AMP / DFN_OCT2_AMP sweep doors (measurement only, exact no-ops at 1.0 -- the pinned testbed digest is unchanged absent the env, and moves with it). They were opened to raise the LONG-WAVE half of the ground, and what they found is that this lever SATURATES: base_height clamps h/BASE_AMPLITUDE_M into [0,1] before valley_curve, so past ~1.6x the field flattens into a plateau and Dh(200 m) FALLS -- 4.33 m at 1.0x, 4.68 at 1.6x, 2.51 at 1.6x with octave 2 doubled, 1.16 at 3.0x. Amplitude alone cannot make bigger hills; the clamp has to move with it. Left in place because the next attempt needs them.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -54,6 +55,7 @@ UPD:
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <glm/geometric.hpp>
 
 namespace dfn::world {
@@ -141,11 +143,24 @@ float aniso_mid_octave(uint64_t seed, glm::vec2 world) {
 /// (macro rolls) and 3 (fine texture) are isotropic; octave 2 is the
 /// anisotropic ridgelet layer above.
 float base_height(uint64_t seed, glm::vec2 world) {
+    // OCTAVE AMPLITUDE SWEEP DOORS (measurement only, never a shipping path).
+    // These two octaves are the world's LANDFORM -- 512 m and 128 m -- and they
+    // are the only remaining lever on the long-wave half of the ground, which is
+    // the half the ratio Dh(200)/Dh(4) is short on. Absent, both are exactly 1.0
+    // and the expression is the shipped one with no branch taken.
+    const auto amp_scale = [](const char* name) {
+        if (const char* e = std::getenv(name)) {
+            const float v = std::strtof(e, nullptr);
+            if (v >= 0.0f && v <= 6.0f) return v;
+        }
+        return 1.0f;
+    };
     float h = 0.0f;
     h += value_noise(seed, STREAM_OCTAVE_BASE + 0,
                      static_cast<float>(config::WORLDGEN_OCTAVE1_CELL), world)
-         * static_cast<float>(config::WORLDGEN_OCTAVE1_AMP);
-    h += aniso_mid_octave(seed, world) * static_cast<float>(config::WORLDGEN_OCTAVE2_AMP);
+         * static_cast<float>(config::WORLDGEN_OCTAVE1_AMP) * amp_scale("DFN_OCT1_AMP");
+    h += aniso_mid_octave(seed, world) * static_cast<float>(config::WORLDGEN_OCTAVE2_AMP)
+         * amp_scale("DFN_OCT2_AMP");
     h += value_noise(seed, STREAM_OCTAVE_BASE + 2,
                      static_cast<float>(config::WORLDGEN_OCTAVE3_CELL), world)
          * static_cast<float>(config::WORLDGEN_OCTAVE3_AMP);
