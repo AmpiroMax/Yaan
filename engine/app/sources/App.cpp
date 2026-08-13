@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 13:08:2026 - 19:13:36
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -107,6 +107,7 @@ UPD:
 - 13:08:2026 - 18:13:27: Факел и рычаг подняты с 0.5 м на 1.3 м. Замер sim: глаз на 1.7 м, предмет на 0.5 м, расстояние 2.3 м — прицел проходит на 31° ВЫШЕ обоих, поэтому игрок, идущий и смотрящий вперёд, не получает даже подсказки; их бот за 90 секунд ни разу не навёл ни один из двух по той же причине. Дверь на 15.6° вниз ловилась всегда — отсюда «дверь работает, остальные два нет», два разных отказа в одной фразе пользователя. Высота — часть расстановки, и 0.5 м были ниже игры.
 - 13:08:2026 - 18:30:23: Факел в стартовый инвентарь — ПОМЕЧЕННЫЙ КОСТЫЛЬ СТЕНДА. sim замерила, что вся цепочка факела работает от начала до конца, а в мире ровно ОДИН факел — подбираемый в двух метрах от спавна, то есть примерно в 600 м от устья тоннеля, при пустом стартовом инвентаре. Пользователь пошёл в гору с пустыми руками, и другого исхода у него не было. В настоящей игре «найди чем светить» — это содержание и место ему на подходе к подземелью; здесь это разница между местом, в которое можно играть, и местом, в которое нельзя.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 13:08:2026 - 19:13:36: Пол яркости доходит до кадра ПРИ СТАРТЕ, а не только при закрытии страницы калибровки — мой пропуск, найденный зоной ui приёмочным прогоном: настройка сохранялась, перечитывалась, писалась обратно и НИКОГДА НЕ РИСОВАЛАСЬ. Замерено на шести кадрах: день и тоннель сдвинулись на 0.0002 и 0.025 шага между полом 0 и полом в полтора шага, то есть на собственный шум прогона, а контроль против контроля давал шум в 6–20 раз больше обеих рук. Плюс живой предпросмотр на самой странице: без него она показывает квадраты, занижённые ровно на отсутствующий подъём, то есть врёт тем сильнее, чем выше повёрнута ручка.
 */
 
 #include "engine/app/sources/App.h"
@@ -458,6 +459,16 @@ bool App::init(const AppConfig& config) {
     // The map canvas rasterizes in internal-resolution pixels, so it must know
     // the settings.cfg-driven resolution to stay pixel-exact (render's note).
     render_system_.set_internal_resolution(config.internal_width, config.internal_height);
+    // THE BLACK FLOOR REACHES THE FRAME AT STARTUP, not only when the
+    // calibration page closes. Without this line min_brightness is a value the
+    // game stores, re-reads and writes back and NEVER DRAWS -- measured on six
+    // acceptance frames: day and tunnel moved 0.0002 and 0.025 of a shade step
+    // between a floor of zero and a floor of one and a half steps, which is the
+    // run's own noise and nothing else. The control-against-control noise floor
+    // was six to twenty times larger than either arm.
+    render_system_.environment().black_floor = config.black_floor;
+    // And the dial opens where the player left it, for the same reason.
+    menu_.set_black_floor(config.black_floor);
 
     // Rule 5: every user-facing string comes from here and nowhere else.
     // A missing file is loud and the game still runs, with every string drawn
@@ -1686,6 +1697,16 @@ int App::run() {
             // clear() writes alpha 255, so a fully cleared canvas covers the
             // frame exactly like an opaque screen, and the pause page clears
             // transparent to keep the world visible underneath.
+            // LIVE PREVIEW: the calibration page draws its squares through the
+            // INVERSE curve, on the assumption that the lift is applied to the
+            // glass. If the floor does not live in the environment while the
+            // player turns the dial, the page shows squares understated by
+            // exactly the lift that is missing -- so it lies harder the further
+            // the dial is turned, which is the worst possible direction for a
+            // control that exists to be believed.
+            if (menu_.page() == MenuPage::Calibrate) {
+                render_system_.environment().black_floor = menu_.black_floor();
+            }
             draw_menu(render_system_.hud(), menu_);
             render_system_.set_hud_visible(true);
             render_system_.render(world_, *renderer_, camera_, 0.0f);
