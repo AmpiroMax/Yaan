@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 13:08:2026 - 21:40:00
+Last updated: 13:08:2026 - 19:26:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -65,6 +65,14 @@ UPD:
   rather than a shy one.
 - 13:08:2026 - 21:40:00: FloraShape::crowding -- how crowded this tree grew
   up, 0 open-grown .. 1 closed-forest.
+- 13:08:2026 - 19:26:00: FloraShape::crown_base_override -- THE CONTROL DOOR FOR A
+  REJECTED ARTEFACT. design §10.15.1 makes rebuilding the rejected birch a
+  PRECONDITION of the palm gate, and no door existed to rebuild it with. This
+  one replaces the crown base AFTER the per-instance spread is drawn, so the
+  control tree and the accepted tree differ in THE BOLE AND NOTHING ELSE. A
+  struct field and not an env var on purpose: the env arms are read once per
+  process, and a separating threshold is a claim about two populations measured
+  in ONE run.
 */
 
 #pragma once
@@ -165,6 +173,25 @@ struct FloraShape {
     /// grants both: room makes a tree wide, crowding makes it narrow.
     float crowding = 0.0f;
     bool understory = false;   ///< raise crown base, narrow crown, shorten
+    /// THE REJECTED ARTEFACT, REBUILDABLE — the control design §10.15.1 makes a
+    /// PRECONDITION of the palm gate, not an optional extra: "the rejected
+    /// birch is rebuilt as the control, because a synthetic control is the easy
+    /// reject and the artefact the user actually turned down is the hard one."
+    ///
+    /// 0 means "the species' own value" and every shipped caller leaves it
+    /// there; a positive value replaces the crown base fraction AFTER the
+    /// per-instance spread is drawn, so the rng stream is untouched and the
+    /// control tree differs from the accepted one in THE BOLE LENGTH AND
+    /// NOTHING ELSE — same width draw, same lean, same variant. That is the
+    /// whole point: the accepted birch and the rejected birch differ in exactly
+    /// one authored input, and a control that also reshuffles the draw answers
+    /// "did anything change" instead of "did THIS change".
+    ///
+    /// A door and not an env var ON PURPOSE. The env arms in FloraSpecies.h are
+    /// read once per process, so a test cannot hold both arms side by side —
+    /// and a separating threshold is a statement about two populations measured
+    /// in ONE run, on one binary, from one build of the geometry.
+    float crown_base_override = 0.0f;
     /// THE NAMED TREE. Set by the placer for the ONE great oak on the sea
     /// cliff, which carries a golden chain around its bole (the user's
     /// лукоморье). Everything about WHERE it stands is core's and design's;

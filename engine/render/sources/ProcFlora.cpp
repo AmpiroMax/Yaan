@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 13:08:2026 - 22:20:00
+Last updated: 13:08:2026 - 19:26:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -164,6 +164,13 @@ UPD:
   because emit_cluster slides a mass to fit an envelope the model disagrees
   with — the published CA Black Oak declares Shape 2 (hemispherical) where our
   table carries CrownEnvelope::Sphere.
+- 13:08:2026 - 19:26:00: FloraShape::crown_base_override honoured, applied AFTER
+  the per-instance crown-base spread and BEFORE the aspect ceiling. That
+  placement is the whole of what makes it a one-variable control: the rng draws
+  have already happened, so the control tree shares its width, lean and jitter
+  with the accepted one to the bit; and it still obeys the ceiling every shipped
+  tree obeys, because a control exempt from a rule the ship follows is not a
+  control.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -1916,6 +1923,17 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
     if (shape.understory) {
         crown_base_frac = std::min(0.75f, crown_base_frac + 0.10f);
         crown_width_frac *= 0.8f;
+    }
+    // THE CONTROL DOOR (FloraShape::crown_base_override). Applied HERE, after
+    // the per-instance spread and before the aspect ceiling, which is the only
+    // placement that makes it a one-variable control: the rng draws above have
+    // already happened, so the control birch and the accepted birch share their
+    // width, lean and jitter to the bit and differ in the bole alone. Putting
+    // it earlier would have the spread clause draw over it; putting it later
+    // would let it escape the aspect ceiling that every shipped tree obeys, and
+    // a control exempt from a rule the ship obeys is not a control.
+    if (shape.crown_base_override > 0.0f) {
+        crown_base_frac = shape.crown_base_override;
     }
     // CROWN ASPECT CEILING (design's ruling, §5). The crown's container is
     // (1 - crown_base_frac) tall by crown_width_frac wide, both in units of

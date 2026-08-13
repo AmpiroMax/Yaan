@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 13:08:2026 - 19:07:08
+Last updated: 13:08:2026 - 19:26:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -164,6 +164,23 @@ UPD:
   conifers byte-identical, so the loss is the accepted rule "the leaf budget
   follows the wood" and not a regression. The 229 m^2 row, the only one with
   user provenance, is untouched; the oak clears it at 412.5.
+- 13:08:2026 - 19:26:00: CROWN_POLE_RATIO MEASURED AND REPORTED AS NOT A GATE
+  (design §10.15.1's own condition 3), plus the control door it needed. Accepted
+  1.53-2.45 (birch, the highest broadleaf) against the rebuilt rejected birch's
+  1.97-2.74: an OVERLAP. The proposed 3.1 admits the rebuilt artefact on 12
+  variants of 12. The "gap 2.57..3.77" is the highest accepted against the
+  highest REJECTED — the top half of the rejected population's own spread read
+  as clearance; a gap runs to the LOWEST rejected. The second candidate,
+  foliage base / height, fails the other way: the accepted OAK reaches 0.630
+  above the rejected birch's 0.587-0.608. Under all of it: the artefact CANNOT
+  BE REBUILT any more — what made that birch a palm was an attractor cloud
+  confined to the top 42 %, and that generator has been replaced twice. A
+  rejected sample must be REPRODUCIBLE, not remembered. The finding is asserted
+  (rejected.lo < accepted.hi) so it cannot rot silently.
+  AND THE 229 m^2 FLOOR IS RETIRED AS A GATE, KEPT AS A REPORT (§10.15.2, with
+  LEAD's go-ahead): presented area conflates extent with density, the widening
+  moved extent, and its own control stopped being able to fail. Not
+  re-baselined, per design's explicit instruction.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2407,16 +2424,28 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     const auto oak_full = fleet_of(FloraSpecies::DaleOak, FloraLod::Full);
     const float oak_m2 = fleet_worst_m2(oak_full);
     MESSAGE("oak Full, fleet worst presented area: " << oak_m2 << " m^2/tree");
-    // THE ACCEPTED FLOOR. Measured today: 249.8 m^2 at its worst elevation
-    // (5 deg, i.e. the treeline view), 9.1 % over the floor. This is the one
-    // assertion here with user provenance — «листва прикольная» about a build
-    // that measured 229, so nothing may be thinner than the thinnest he blessed.
-    // The floor is a NUMBERS row now (LEAD landed it 10.08.2026 carrying the
-    // aggregation recovered above) — two consumers, so Rule 35 says it does
-    // not live in this file.
+    // THE 229 FLOOR, RETIRED AS A GATE AND KEPT AS A REPORT (design §10.15.2,
+    // applied here 13.08.2026 with LEAD's go-ahead). It had user provenance —
+    // «листва прикольная» about a build that measured 229 — which is why it was
+    // a CHECK for three days and why the row itself stays in NUMBERS untouched.
+    //
+    // What retires it is design's diagnosis, and it is structural rather than a
+    // matter of the number: PRESENTED AREA CONFLATES EXTENT WITH DENSITY. A
+    // crown 45 % wider presents more area for free without being any fuller, so
+    // the quantity responds to a lever that is not the one it guards, and its
+    // own control — "half density must fail" — stopped failing after the crown
+    // widening. A floor whose control cannot fail is a description (Rule 30).
+    //
+    // AND THE RETIREMENT IS COMPLETE RATHER THAN A WITHDRAWAL, which is the
+    // condition for taking a guard down at all: design has landed the
+    // replacement (FLORA_CROWN_OPTICAL_DEPTH) and it is being measured. Note
+    // design's explicit instruction, followed here: DO NOT re-baseline this to
+    // 2.5x its value — that would fit a threshold to a proxy structurally
+    // incapable of gating the property (Rule 45).
     const auto PRESENTED_FLOOR_M2 =
         static_cast<float>(config::FLORA_PRESENTED_AREA_FLOOR_M2);
-    CHECK(oak_m2 >= PRESENTED_FLOOR_M2);
+    MESSAGE("...against the RETIRED 229 floor (§10.15.2, reported not gated): "
+            << oak_m2 / PRESENTED_FLOOR_M2 << "x");
 
     // The other card species were never in the 229 derivation (it is an oak
     // crown of ~20 m), so their floors are REGRESSION TRIPWIRES and are named
@@ -3450,4 +3479,150 @@ TEST_CASE("edge rule densities carry one unit, and the empty rows are named") {
     }
     // The §5.12 set: PebbleCluster, MossPatch, StuntedPine on the apron.
     CHECK(unauthored == 3);
+}
+
+TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO does not separate (§10.15.1)") {
+    // DESIGN ASKED FOR A MEASUREMENT AND THIS IS THE MEASUREMENT, INCLUDING THE
+    // PART DESIGN ASKED FOR IN ADVANCE: "the threshold must sit strictly between
+    // the highest accepted and the rejected artefact. If no value does, THE
+    // QUANTITY IS WRONG AND IT IS REPORTED AS WRONG rather than shipped with a
+    // floor under everything" (§10.15.1, condition 3). It is wrong. This case
+    // exists so the next agent reads the numbers instead of re-deriving them,
+    // and so the finding stays falsifiable.
+    //
+    // THE QUANTITY, design's own definition:
+    //     CROWN_POLE_RATIO = (height of the lowest foliage) / (crown width),
+    // both on BUILT GEOMETRY, never on the authored container, per variant and
+    // never pooled. Width here is the mean of the foliage bounding box's two
+    // horizontal spans — a diameter, so a value of 1 means "the bare bole is as
+    // long as the crown is wide", which is the sentence the ratio is FOR.
+    //
+    // MEASURED, 13.08.2026, 12 variants per row:
+    //     accepted   oak     0.63 - 1.22
+    //                pine    2.04 - 2.54
+    //                birch   1.53 - 2.45   <- highest accepted broadleaf
+    //                willow  0.58 - 0.86
+    //     rejected   birch rebuilt per §10.15.1 (crown base 0.58, the ONE
+    //                authored input that differed)      1.97 - 2.74
+    //                the same, plus the pre-widening narrow crown (x0.81)
+    //                                                   2.44 - 3.63
+    //     synthetic  birch at crown base 0.90 (a rosette) 3.53 - 5.93
+    //
+    // 2.45 against 1.97 IS AN OVERLAP, NOT A GAP. The proposed threshold 3.1
+    // admits the rebuilt artefact on 12 variants of 12 (9 of 12 with the narrow
+    // crown): a gate that passes the object it was written to reject.
+    //
+    // HOW A GAP APPEARED WHERE THERE IS NONE, because the arithmetic error is
+    // worth more than the number: a gap runs from the highest ACCEPTED to the
+    // lowest REJECTED. Comparing the highest accepted (2.45) to the highest
+    // rejected (3.63) measures the top half of the rejected population's own
+    // spread and reads as clearance. The tell is visible in the rows above —
+    // the rejected band STARTS below the accepted band ends.
+    //
+    // AND THE REASON IT CANNOT BE FIXED BY A BETTER THRESHOLD: the within-
+    // population spread is larger than the between-population shift. One birch
+    // variant to the next moves the ratio by 0.9; moving the authored crown
+    // base from 0.42 to 0.58 moves it by 0.3. No scalar separates two clouds
+    // when the thing that is supposed to separate them is a third of the noise.
+    //
+    // THE SECOND CANDIDATE WAS MEASURED TOO, so nobody spends a session on it:
+    // foliage BASE / height. Accepted oak reaches 0.630 while the rebuilt
+    // rejected birch lies in 0.587-0.608 — the accepted oak sits ABOVE the
+    // rejected birch — and it holds at maturity 0.5, 0.7 and 1.3.
+    //
+    // *** THE FINDING UNDER THE FINDING, and it outlives this quantity: THE
+    // REJECTED ARTEFACT CANNOT BE REBUILT ANY MORE. *** NUMBERS.md's own row
+    // for BIRCH_CROWN_BASE_FRACTION_MIN records what made that birch a palm:
+    // the attractor cloud could only fill the top 42 % of the tree, so no
+    // growth rule could bring the crown down. That generator has since been
+    // replaced twice (Weber & Penn, then foliage on the shoots). Setting the
+    // same authored base today produces a legible narrow birch with a high
+    // crown — 2.74 against the accepted 2.45, twelve per cent — not a pole with
+    // a tuft. So §10.15.1's condition 2 ("the rejected birch is rebuilt as the
+    // control") is UNSATISFIABLE, and any threshold measured against that
+    // rebuild is measuring our memory of the defect rather than the defect.
+    // A rejected sample has to be REPRODUCIBLE, not remembered.
+    auto foliage_of = [](const FloraMesh& f) {
+        return f.cards.vertices.empty() ? f.wood.vertices : f.cards.vertices;
+    };
+    struct Band {
+        float lo = 1e9f;
+        float hi = -1e9f;
+    };
+    auto measure = [&](FloraSpecies s, float base_override, float width_mult) {
+        Band pole;
+        Band base;
+        for (uint32_t v = 0; v < FLORA_VARIANTS; ++v) {
+            FloraShape sh{};
+            sh.crown_base_override = base_override;
+            sh.crown_width_mult = width_mult;
+            const FloraMesh f = build_flora_mesh(s, v, sh, FloraLod::Full);
+            const auto& vs = foliage_of(f);
+            REQUIRE_FALSE(vs.empty());
+            float lo_y = 1e9f;
+            float xlo = 1e9f;
+            float xhi = -1e9f;
+            float zlo = 1e9f;
+            float zhi = -1e9f;
+            for (const platform::Vertex& vv : vs) {
+                lo_y = std::min(lo_y, vv.position.y);
+                xlo = std::min(xlo, vv.position.x);
+                xhi = std::max(xhi, vv.position.x);
+                zlo = std::min(zlo, vv.position.z);
+                zhi = std::max(zhi, vv.position.z);
+            }
+            float top = 0.0f;
+            for (const platform::Vertex& vv : f.wood.vertices) {
+                top = std::max(top, vv.position.y);
+            }
+            const float w = 0.5f * ((xhi - xlo) + (zhi - zlo));
+            REQUIRE(w > 0.1f);
+            REQUIRE(top > 1.0f);
+            pole.lo = std::min(pole.lo, lo_y / w);
+            pole.hi = std::max(pole.hi, lo_y / w);
+            base.lo = std::min(base.lo, lo_y / top);
+            base.hi = std::max(base.hi, lo_y / top);
+        }
+        return std::pair<Band, Band>{pole, base};
+    };
+
+    float accepted_hi = -1e9f;
+    for (const FloraSpecies s : ALL) {
+        if (!is_canopy_tree(s)) continue;
+        const auto [pole, base] = measure(s, 0.0f, 1.0f);
+        MESSAGE("pole ratio, accepted sp=" << static_cast<int>(s) << ": " << pole.lo << ".."
+                                           << pole.hi << " (foliage base frac " << base.lo << ".."
+                                           << base.hi << ")");
+        accepted_hi = std::max(accepted_hi, pole.hi);
+    }
+    // THE CONTROL, and it is a control rather than a synthetic reject: the door
+    // replaces the crown base AFTER the per-instance spread is drawn, so this
+    // tree and the accepted one share their width, lean and jitter to the bit.
+    const auto [rejected, rejected_base] = measure(FloraSpecies::RiverBirch, 0.58f, 1.0f);
+    const auto [narrow, narrow_base] = measure(FloraSpecies::RiverBirch, 0.58f, 0.81f);
+    const auto [rosette, rosette_base] = measure(FloraSpecies::RiverBirch, 0.90f, 1.0f);
+    MESSAGE("pole ratio, REBUILT REJECTED birch: " << rejected.lo << ".." << rejected.hi
+                                                   << " (foliage base frac " << rejected_base.lo
+                                                   << ".." << rejected_base.hi << ")");
+    MESSAGE("pole ratio, rebuilt + pre-widening crown: " << narrow.lo << ".." << narrow.hi);
+    MESSAGE("pole ratio, synthetic rosette (base 0.90): " << rosette.lo << ".." << rosette.hi);
+
+    // THE DOOR DOES MOVE THE QUANTITY IT IS MEASURED WITH — asserted, because a
+    // control that turns out not to move the reading has been mistaken for
+    // evidence twice in this zone in one day. A longer bole must raise both
+    // readings on every variant.
+    CHECK(rejected.lo > 0.0f);
+    CHECK(rejected_base.lo > 0.548f);   // above every accepted birch variant
+    CHECK(rosette_base.lo > 0.85f);     // and the rosette is a rosette
+    // THE FINDING ITSELF, ASSERTED SO IT CANNOT ROT. The populations overlap:
+    // the lowest rebuilt-rejected tree sits BELOW the highest accepted one.
+    // If this ever goes red the quantity has started separating and can be
+    // reconsidered as a gate — that is the intended way for this case to die,
+    // and it is why the finding is a CHECK and not only a comment (Rule 30: a
+    // reported gap that nothing watches is a gap that gets forgotten).
+    CHECK(rejected.lo < accepted_hi);
+    // What DOES still hold, and is the reason nothing is lost by not landing
+    // the gate: a rosette is rejected by a wide margin on the quantity
+    // REJECTION 3 already asserts, and by this one too.
+    CHECK(rosette.lo > accepted_hi);
 }
