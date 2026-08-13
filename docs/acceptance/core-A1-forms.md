@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 17:56:00
+Last updated: 13:08:2026 - 18:16:00
 -->
 <!--
 UPD:
@@ -15,6 +15,8 @@ UPD:
 - 13:08:2026 - 17:56:00: The PLAIN pair — eye height on flat open ground away
   from the tree line, which is the viewpoint the complaint is made from — plus
   the pocket-by-distance histogram that moved the diagnosis.
+- 13:08:2026 - 18:16:00: The bot walked it. 90 s of jogging over formed ground
+  against the same 90 s with the forms off, plus the generation cost.
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
@@ -199,3 +201,44 @@ Two things fall out of it and neither was the expected one:
 And the control line is worth reading on its own: with the forms off, the frame
 contains **20 pockets in total and 16 of them are at the horizon** (55–60 m).
 Essentially every break in the shipped frame is made by this pass.
+
+
+---
+
+# THE BOT WALKED IT — the end-to-end half of the walkability question
+
+The connectivity measure above walks a lattice with the controller's two rules.
+This walks the actual controller, over the actual collision mesh, for 90 seconds
+of jogging on open plain — one binary, the control being the same binary with
+the operator at identity.
+
+    DFN_PLAYTEST=patrol DFN_PLAYTEST_ROUTE="1240,120;1360,190;1240,190;1360,120;1240,120" \
+    DFN_PLAYTEST_SECONDS=90 DFN_PLAYTEST_GAIT=jog DFN_PLAYTEST_DIR=<dir> \
+    DFN_INTERNAL_RES=640x360 DFN_PALETTE=0 DFN_TIME=0.5 DFN_MENU=0 DFN_NULL_AUDIO=1
+
+| | forms on | forms off |
+|---|---|---|
+| distance jogged | 262.9 m | 266.4 m |
+| incidents | 3, **all `frame_budget`** | 14, **all `frame_budget`** |
+| stuck / fall-through | **none** | none |
+| airborne fraction | 0.46 % | 0.39 % |
+| worst landing dip | 35.97 mm | 35.97 mm |
+
+**The forms cost 1.3 % of distance covered and produced no incident of any other
+kind.** Every incident in both arms is a streaming hitch, and the control had
+more of them than the shipped arm — which is the tell that they are machine
+load and not terrain.
+
+## And what the forms cost to BUILD, since it lands on streaming
+
+Measured by `sim_tunnel_walk`'s own affordability case, 16 collision chunks:
+
+| | forms on | forms off |
+|---|---|---|
+| generate + extract | 1282 ms | 1271 ms (**+0.9 %**) |
+| triangles | 2 554 156 | 2 421 474 (+5.5 %) |
+| Jolt MeshShape build | 1985 ms | 1952 ms (+1.7 %) |
+
+The pass adds six to eight noise samples per height query and costs under one
+percent of generation, because the cost of a height sample was always the macro
+fBm underneath it.
