@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 13:08:2026 - 19:40:00
+Last updated: 13:08:2026 - 20:25:00
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -41,6 +41,8 @@ UPD:
   покачивание камеры и яркость существовали как настройки и не существовали как экран.
   Страница держит черновик и то, с чем игра ЗАПУЩЕНА, — вторая копия нужна, чтобы
   сказать вслух, какая строка применится лишь после перезапуска.
+- 13:08:2026 - 20:25:00: Вторая точка входа на страницу настроек — пауза; модель
+  помнит, куда возвращаться, тем же способом, что и страница калибровки.
 */
 
 #pragma once
@@ -160,6 +162,11 @@ private:
     // from the root AND from settings, and a page that always returns to one
     // of its two callers loses the player's place in the other.
     MenuPage calibrate_return_ = MenuPage::Root;
+    // Same question for the settings page, and it has a second caller for a
+    // reason: PAUSE. The setting the player most wants mid-game is the one he
+    // discovers he needs while standing in the dark, and a page that always
+    // returns to the start screen would answer that by leaving the world.
+    MenuPage settings_return_ = MenuPage::Root;
     size_t selection_ = 0;
     uint32_t chosen_stand_ = 0;
     float black_floor_ = 0.0f;

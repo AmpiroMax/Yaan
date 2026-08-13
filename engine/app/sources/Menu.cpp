@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 13:08:2026 - 19:45:00
+Last updated: 13:08:2026 - 20:25:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -39,6 +39,10 @@ UPD:
   живёт внутри них, и выход со страницы калибровки возвращается туда, откуда пришёл.
   Enter на строке значения делает то же, что стрелка вправо, — страница работает на
   клавишах, которые приложение уже шлёт.
+- 13:08:2026 - 20:25:00: Настройки достижимы С ПАУЗЫ (третья строка), и выход с них
+  возвращает туда, откуда пришли. Настройка, которая нужна ПОСРЕДИ игры, — порог
+  яркости: игрок узнаёт, что ничего не видит, стоя в пещере, а страница, живущая
+  только на стартовом экране, отвечает на это «выйди из игры».
 */
 
 #include "engine/app/sources/Menu.h"
@@ -230,7 +234,7 @@ size_t MenuModel::item_count() const {
     case MenuPage::Maps:
         return maps_.size() + 1; // maps + back
     case MenuPage::Pause:
-        return 2; // resume, quit
+        return 3; // resume, settings, quit
     case MenuPage::Calibrate:
         return 0; // no list: up/down turn the dial itself
     case MenuPage::Settings:
@@ -305,6 +309,7 @@ MenuAction MenuModel::activate() {
             // own row, one press further in, and it stopped being the only
             // setting in the game that had a screen while resolution,
             // antialiasing, palette and camera bob had none.
+            settings_return_ = MenuPage::Root;
             open(MenuPage::Settings);
             return MenuAction::None;
         }
@@ -317,7 +322,20 @@ MenuAction MenuModel::activate() {
         open(MenuPage::Root);
         return MenuAction::None;
     case MenuPage::Pause:
-        return selection_ == 0 ? MenuAction::Resume : MenuAction::Quit;
+        if (selection_ == 0) {
+            return MenuAction::Resume;
+        }
+        if (selection_ == 1) {
+            // SETTINGS ARE REACHABLE FROM THE PAUSE SCREEN, and that is not a
+            // convenience. The one setting the player is most likely to want
+            // MID-GAME is the brightness floor -- he learns he cannot see in
+            // the cave while standing in the cave -- and a settings screen that
+            // is only on the start menu answers that with "quit the game".
+            settings_return_ = MenuPage::Pause;
+            open(MenuPage::Settings);
+            return MenuAction::None;
+        }
+        return MenuAction::Quit;
     case MenuPage::Calibrate:
         // THE PAGE CLOSES ITSELF, and the action only asks the app to SAVE. A
         // page whose exit depends on the app handling a new action is a page
@@ -333,7 +351,7 @@ MenuAction MenuModel::activate() {
             return MenuAction::None;
         }
         if (selection_ == RowBack) {
-            open(MenuPage::Root);
+            open(settings_return_);
             return MenuAction::SettingsDone;
         }
         // ENTER IS THE SAME VERB AS RIGHT on a value row. The app routes up,
@@ -365,7 +383,7 @@ MenuAction MenuModel::back() {
         // And so does Escape here, for the same reason and with the same
         // guarantee: both exits from this page emit SettingsDone, so there is
         // no way out that silently discards what the player just turned.
-        open(MenuPage::Root);
+        open(settings_return_);
         return MenuAction::SettingsDone;
     }
     return MenuAction::None;
@@ -554,7 +572,10 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
             }
             return {loc("menu.back"), {}};
         case MenuPage::Pause:
-            return {(i == 0) ? loc("menu.resume") : loc("menu.quit"), {}};
+            if (i == 0) {
+                return {loc("menu.resume"), {}};
+            }
+            return {(i == 1) ? loc("menu.settings") : loc("menu.quit"), {}};
         case MenuPage::Calibrate:
         case MenuPage::Settings:
             return {}; // drawn by their own functions, which have their own layout

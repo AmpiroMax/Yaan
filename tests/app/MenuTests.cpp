@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 20:20:00
-Last updated: 13:08:2026 - 20:20:00
+Last updated: 13:08:2026 - 20:25:00
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -31,6 +31,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 20:20:00: Created with the settings page.
+- 13:08:2026 - 20:25:00: Случай про паузу: настройки достижимы с неё и возвращают
+  в неё, контроль — вход с корня.
 */
 
 #include <doctest/doctest.h>
@@ -210,4 +212,32 @@ TEST_CASE("the brightness dial cannot leave its range from either side") {
         m.move(+1);
     }
     CHECK(m.black_floor() == doctest::Approx(0.0f));
+}
+
+TEST_CASE("settings are reachable from pause, and come back to pause") {
+    MenuModel m;
+    m.set_settings(MenuSettings{});
+    m.open(MenuPage::Pause);
+    CHECK(m.item_count() == 3); // resume, settings, quit
+    m.move(1);
+    CHECK(m.activate() == MenuAction::None);
+    CHECK(m.page() == MenuPage::Settings);
+    CHECK(m.back() == MenuAction::SettingsDone);
+    CHECK(m.page() == MenuPage::Pause); // NOT the start screen: the world is still there
+
+    // And the pause page's other two rows still do what they did.
+    m.open(MenuPage::Pause);
+    CHECK(m.activate() == MenuAction::Resume);
+    m.move(2);
+    CHECK(m.activate() == MenuAction::Quit);
+
+    // THE CONTROL: entered from the root, it still returns to the root.
+    MenuModel r;
+    r.set_settings(MenuSettings{});
+    r.open(MenuPage::Root);
+    r.move(1);
+    CHECK(r.activate() == MenuAction::None);
+    CHECK(r.page() == MenuPage::Settings);
+    CHECK(r.back() == MenuAction::SettingsDone);
+    CHECK(r.page() == MenuPage::Root);
 }
