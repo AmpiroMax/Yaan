@@ -1,6 +1,6 @@
 <!--
 Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 18:30:00
+Last updated: 13:08:2026 - 18:38:00
 -->
 <!--
 UPD:
@@ -19,6 +19,8 @@ UPD:
   against the same 90 s with the forms off, plus the generation cost.
 - 13:08:2026 - 18:30:00: THE CONTRACT IS MET. Draw pitch 14 m approved; A1 reads
   p5 3 against a floor of 3. Shipped pairs are `+f3` and `+p2` (9888746).
+- 13:08:2026 - 18:38:00: The four-minute soak across water margins, corridors
+  and the massif hem, and connectivity on two seeds nobody tuned this on.
 -->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
