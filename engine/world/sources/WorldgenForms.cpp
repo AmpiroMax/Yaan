@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 18:04:00
+Last updated: 13:08:2026 - 18:27:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -51,6 +51,12 @@ UPD:
   slump tilts its block BACK into the hill, so behind the lip the ground dips
   before it climbs — that sign change is the mechanism. Measured: +17 pockets in
   45-55 m and +2 in 35-45 m, sigma 0.765 -> 0.773 against a 1.20 ceiling.
+- 13:08:2026 - 18:27:00: Draw pitch 18 -> 14 m (approved), and with it the
+  contract is MET: A1 reads p5 3 against GROUND_OCCLUSION_COUNT_MIN 3 on the
+  drawn 2 m heightmap (min 2 / p5 3 / median 4 / max 7). The pocket histogram
+  says why it took a pitch rather than a strength: the 35-45 m hole that the
+  back-tilted bench could only dent went from 1 pocket to 54, because at this
+  pitch a crossing lands in that band instead of skipping it.
 */
 
 #include "engine/world/sources/WorldgenForms.h"
@@ -122,8 +128,8 @@ constexpr float BREACH_HI = 0.30f;
 /// reads as manufactured from any standpoint. Two incommensurate pitches on the
 /// same axis field interleave into long channels with short tributaries between
 /// them, which is what a dissected slope looks like and what frame 03 shows.
-constexpr float DRAW_CELL = 18.0f;     ///< across-grain spacing, the main set
-constexpr float DRAW_CELL_2 = 11.25f;  ///< ...and the tributary set (the RATIO
+constexpr float DRAW_CELL = 14.0f;     ///< across-grain spacing, the main set
+constexpr float DRAW_CELL_2 = 8.75f;   ///< ...and the tributary set (the RATIO
                                        ///< is what carries the interleaving, so
                                        ///< it is held while the pitch moves)
 constexpr float DRAW_MIX_2 = 0.45f;    ///< its share
@@ -170,7 +176,7 @@ constexpr float DRAW_DENSITY_FLOOR = 0.40f;
 ///     the cross-axis), so warping IS varying the pitch — smoothly, and by an
 ///     amount you can bound. At WANDER_AMP over WANDER_CELL the derivative is
 ///     bounded by ~2.6 * AMP / CELL, which at 26 m over 190 m is +-36 %: the
-///     pitch breathes between roughly 13 and 28 m around a nominal 18.
+///     pitch breathes between roughly 10 and 22 m around a nominal 14.
 /// §2.1 rejected a position-varying ROTATION for its |world| * grad(theta)
 /// distortion; a position-varying TRANSLATION carries no such term — the
 /// displacement is bounded and does not grow with distance from the origin.
