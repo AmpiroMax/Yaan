@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 17:20:00
+Last updated: 13:08:2026 - 18:15:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.h
 
@@ -57,11 +57,16 @@ UPD:
   PreviousTransform + LocalBounds, and Transform.scale becomes `half_extents`
   so the drawn mesh and the ray box are the same cube. `mesh_asset` defaults to
   the verb's placeholder rather than to the "draw nothing" sentinel.
+- 13:08:2026 - 18:15:00: InteractableBodies + reap_interactable_bodies. The ray
+  box handle was DISCARDED at spawn, so no prop's box could ever be destroyed:
+  taking an item left an invisible ray target standing where it had been, and
+  every drop added another for the length of the session.
 */
 
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 
 #include <glm/vec3.hpp>
@@ -109,6 +114,28 @@ struct InteractableDesc {
     uint64_t action = 0;    // hashed content action id
     bool repeatable = true;
 };
+
+// World RESOURCE: the ray-target body of every prop, keyed by the packed id of
+// the entity that owns it.
+//
+// IT EXISTS BECAUSE THE HANDLE WAS BEING THROWN AWAY. `spawn_interactable`
+// created the box and discarded what came back, so nothing could ever destroy
+// one. Taking an item despawns its ENTITY and leaves its box standing: an
+// invisible ray target at the spot where the thing used to be, which stops the
+// crosshair before whatever is actually behind it. Every drop spawns another,
+// and they accumulate for the length of the session against a world sized for
+// 16 384 bodies.
+//
+// Ordered, never hashed: bodies are destroyed in the same order on every run
+// (Rule 13.2).
+struct InteractableBodies {
+    std::map<uint64_t, platform::PhysicsBodyHandle> bodies;
+};
+
+// Destroys the ray box of every prop whose entity is gone, and forgets it.
+// Cheap when nothing died (a map walk). Called from player_actions_step, which
+// is where an interaction can have killed one — no new call site for the app.
+void reap_interactable_bodies(ecs::World& world, platform::IPhysics& physics);
 
 // The placeholder mesh a verb gets when the content did not name one.
 [[nodiscard]] uint32_t interactable_mesh_for(InteractableKind kind);

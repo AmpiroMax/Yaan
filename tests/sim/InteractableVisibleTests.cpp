@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 17:30:00
-Last updated: 13:08:2026 - 18:10:00
+Last updated: 13:08:2026 - 18:15:00
 Module: tests
 File: tests/sim/InteractableVisibleTests.cpp
 
@@ -32,6 +32,7 @@ UPD:
 - 13:08:2026 - 17:30:00: Created with the three placeholder meshes.
 - 13:08:2026 - 18:10:00: The entity-{0,0} case: the first prop a world spawns
                          packs to user_data 0 and used to be untargetable.
+- 13:08:2026 - 18:15:00: The ray box must die with its prop.
 */
 
 #include <doctest/doctest.h>
@@ -49,6 +50,7 @@ UPD:
 #include "engine/gameplay/sources/InteractionSystem.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/Interaction.h"
+#include "engine/physics/sources/CollisionLayers.h"
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
 
@@ -59,6 +61,7 @@ namespace gameplay = dfn::gameplay;
 namespace platform = dfn::platform;
 namespace render = dfn::render;
 namespace components = dfn::components;
+namespace physics_layer = dfn::physics;
 
 constexpr uint32_t ALL_IDS[3] = {gameplay::INTERACTABLE_MESH_DOOR,
                                  gameplay::INTERACTABLE_MESH_LEVER,
@@ -407,4 +410,43 @@ TEST_CASE("the FIRST entity a world spawns can still be interacted with") {
     CHECK(world.resource<components::HoverTarget>().entity == first);
     CHECK(world.resource<components::HoverTarget>().verb ==
           static_cast<uint8_t>(gameplay::InteractionVerb::Use));
+}
+
+TEST_CASE("a prop's ray box dies with the prop") {
+    // The handle used to be discarded at creation — `(void)create_static_box` —
+    // so no prop's box could ever be destroyed. Taking an item despawned its
+    // ENTITY and left an invisible ray target standing where it had been, which
+    // stops the crosshair before whatever is actually behind it; every dropped
+    // item added another, for the length of the session, against a world sized
+    // for 16 384 bodies.
+    auto physics = platform::create_jolt_physics();
+    REQUIRE(physics->init());
+    dfn::ecs::World world;
+    world.add_resource(components::HoverTarget{});
+
+    gameplay::InteractableDesc desc;
+    desc.kind = gameplay::InteractableKind::Pickup;
+    desc.position = {2.0f, 1.5f, 0.0f};
+    desc.prompt_key = "prompt.take";
+    desc.item = gameplay::ItemId{1234};
+    const dfn::ecs::EntityId prop = gameplay::spawn_interactable(world, *physics, desc);
+    REQUIRE(world.has_resource<gameplay::InteractableBodies>());
+    REQUIRE(world.resource<gameplay::InteractableBodies>().bodies.size() == 1);
+
+    // A ray finds the box while the prop lives.
+    const glm::vec3 eye{0.0f, 1.5f, 0.0f};
+    const glm::vec3 dir{1.0f, 0.0f, 0.0f};
+    REQUIRE(physics->raycast(eye, dir, 5.0f, physics_layer::LAYER_INTERACTABLE).hit);
+
+    // The prop dies the way taking one kills it: deferred, then flushed.
+    world.destroy_deferred(prop);
+    world.flush_destroyed();
+    REQUIRE_FALSE(world.alive(prop));
+    // Still standing until something reaps it — that IS the defect, stated so
+    // the case cannot pass by the box having never existed.
+    CHECK(physics->raycast(eye, dir, 5.0f, physics_layer::LAYER_INTERACTABLE).hit);
+
+    gameplay::reap_interactable_bodies(world, *physics);
+    CHECK(world.resource<gameplay::InteractableBodies>().bodies.empty());
+    CHECK_FALSE(physics->raycast(eye, dir, 5.0f, physics_layer::LAYER_INTERACTABLE).hit);
 }

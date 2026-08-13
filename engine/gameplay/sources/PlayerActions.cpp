@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:29:52
-Last updated: 09:08:2026 - 22:44:47
+Last updated: 13:08:2026 - 18:15:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerActions.cpp
 
@@ -27,6 +27,10 @@ UPD:
 - 09:08:2026 - 22:44:47: Drop (Q) spawns a real loose prop at the hand;
                          quest items refused loudly; preview rotation
                          moved here so it survives the world pause.
+- 13:08:2026 - 18:15:00: Reaps the ray boxes of props that have been taken —
+                         see InteractableSpawn.h. Placed at the END of the pass
+                         and not inside interact(), because destruction is
+                         deferred and a reap there would never find anything.
 */
 
 #include "engine/gameplay/sources/PlayerActions.h"
@@ -192,6 +196,13 @@ void player_actions_step(ecs::World& world, events::EventBus& events,
         // tick while open so a count can never go stale on screen.
         refresh_inventory_screen(world, p.actor);
     }
+
+    // A prop taken last tick has been flushed by now, so its ray box is a
+    // target with nothing behind it. Reaped here rather than at the point of
+    // taking, because destruction is DEFERRED: the entity is still alive inside
+    // interact(), and a reap that ran there would find nothing to reap and be
+    // green forever.
+    reap_interactable_bodies(world, physics);
 }
 
 } // namespace dfn::gameplay

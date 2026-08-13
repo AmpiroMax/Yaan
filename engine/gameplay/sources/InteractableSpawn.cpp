@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 17:20:00
+Last updated: 13:08:2026 - 18:15:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.cpp
 
@@ -27,6 +27,8 @@ UPD:
   unless content named one), PreviousTransform (without which render's view
   does not select the entity at all), LocalBounds, and Transform.scale =
   half_extents so the drawn cube IS the ray box.
+- 13:08:2026 - 18:15:00: The ray box's handle is KEPT and reaped when its
+  entity dies. It was discarded at creation, so no box could ever be destroyed.
 */
 
 #include "engine/gameplay/sources/InteractableSpawn.h"
@@ -111,9 +113,35 @@ ecs::EntityId spawn_interactable(ecs::World& world, platform::IPhysics& physics,
     box.rotation = {1.0f, 0.0f, 0.0f, 0.0f};
     box.layer = physics::LAYER_INTERACTABLE;
     box.user_data = id.packed();
-    (void)physics.create_static_box(box);
+    const platform::PhysicsBodyHandle body = physics.create_static_box(box);
+    // THE HANDLE IS KEPT. It used to be dropped on the floor — `(void)` — which
+    // made the box immortal: taking an item despawned its entity and left the
+    // ray target behind it forever, and every dropped item added one more.
+    if (body.valid()) {
+        if (!world.has_resource<InteractableBodies>()) {
+            world.add_resource(InteractableBodies{});
+        }
+        world.resource<InteractableBodies>().bodies.emplace(id.packed(), body);
+    }
 
     return id;
+}
+
+void reap_interactable_bodies(ecs::World& world, platform::IPhysics& physics) {
+    if (!world.has_resource<InteractableBodies>()) {
+        return;
+    }
+    auto& state = world.resource<InteractableBodies>();
+    for (auto it = state.bodies.begin(); it != state.bodies.end();) {
+        const ecs::EntityId owner{static_cast<uint32_t>(it->first >> 32),
+                                  static_cast<uint32_t>(it->first & 0xFFFFFFFFull)};
+        if (world.alive(owner)) {
+            ++it;
+            continue;
+        }
+        physics.destroy_body(it->second);
+        it = state.bodies.erase(it);
+    }
 }
 
 } // namespace dfn::gameplay
