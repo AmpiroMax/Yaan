@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 22:28:39
+Last updated: 14:08:2026 - 17:58:55
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -123,6 +123,14 @@ UPD:
   (DFN_SELF_POINT_CAST=1, same binary) reproduces the black frame exactly
   (131312 lit pixels twice, bit for bit). The holder's true silhouette was
   degenerate in the map anyway -- centimetres from its own light.
+- 14:08:2026 - 17:58:55: В28 pick_id STAMP — the ECS entity submit now sets
+  DrawParams::pick_id = EntityId.index + 1, so center_pick() can NAME the
+  entity under the crosshair (it was always 0 = "unnamed"). Index is the
+  stable, mappable half of {index, generation}: a live pick's slot maps back
+  to the entity via World's current generation, and generation only matters
+  across destroy+reuse. +1 keeps a real slot-0 entity out of the "0 = unnamed"
+  sentinel; the overlay inverts with (id-1). World geometry (terrain, scatter,
+  water, path, tufts) and the viewmodel path — none currently — stay 0.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -866,6 +874,18 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                 texture.id = tex_it->second;
             }
             platform::DrawParams params;
+            // В28 CROSSHAIR PICK: name THIS entity under the reticle. The pick
+            // id is a single uint32_t, but EntityId is {index, generation} — 64
+            // bits — so it cannot carry both. It carries the INDEX, which is the
+            // slot: for a thing under the crosshair RIGHT NOW (alive by
+            // construction) the index alone maps back to the entity via World's
+            // current generation for that slot; the generation only ever matters
+            // across a destroy+reuse, which a live pick is not. STAMPED +1 so a
+            // real entity is never mistaken for the "0 = unnamed" sentinel the
+            // contract reserves — entity index 0 is a real slot, and letting it
+            // collide with "unnamed" is exactly the absence-reads-as-neutral bug
+            // this codebase keeps paying for. The overlay maps back with (id-1).
+            params.pick_id = id.index + 1u;
             // A MESH THAT HOLDS A FLAME NEVER SHADOWS IT. The entity that
             // carries an active CarriedLight (sconce, held torch, lantern)
             // stands AT its own light, inside the light's near field, and the

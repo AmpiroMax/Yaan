@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 12:08:2026 - 22:45:00-->
+Last updated: 14:08:2026 - 18:04:27-->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: public headers only (camera, render system, tour, debug draw).
@@ -14,6 +14,7 @@ UPD:
 - 09:08:2026 - 22:23:29: TERRAIN LOD, THE DRAWING HALF (LodTerrain.{h,cpp}) — node mesh residency over LodResidency, coarse nodes meshed from core's HeightFieldView (129 samples at the level's voxel size: the seam with core, agreed in session, so no second mesh format exists), border SKIRTS sized from the field's own worst border step, frustum culling, and cross-faded submission through DrawParams::fade. The RESIDENT RECTANGLE is now an input to selection: a level-0 node is 1 m voxels where a chunk heightfield is 2 m, so nodes inside the streamed ring are dropped and nodes straddling its border are split — without that the two systems draw the same ground twice and interleave per pixel. Terrain UVs became WORLD-referenced (world xz / CHUNK_SIZE) in the same change: identical to the old formula for any chunk- or node-aligned field, and the fix for an 8 km node that used to stretch one texture set across itself. Also Tour::crag_acceptance_steps (DFN_CRAG_PROBE) and the sun caster cull in the bgfx backend. RenderSystem.cpp split into RenderSystemResources.cpp at the 800-line limit (Rule 21).
 - 10:08:2026 - 00:00:47: BitmapFont (the project's first glyphs: fixed-cell 6x9 atlas, ASCII + Cyrillic, a solid block for anything unmapped) + the transparent HUD layer that carries a prompt over the world. Also: water bodies merged into world-grid buckets after 17336 one-mesh-per-pond uploads exhausted bgfx's handle pool and crashed the game at exit, and GPU mesh-handle accounting so that budget is visible before it is spent.
 - 12:08:2026 - 22:45:00: CloudModel entered the key types (it had never been listed) with the R3.3 change: `cloud_lod_residual` and the renormalisation of the coverage field onto the mean/SD that SURVIVE its own LOD. `cloud_field_fixed_sd` is the shipped-until-now form, kept as the control the distribution tests reject — measured, at 0.50 cells/px it drew 0.0000 of the plane for a requested cover of 0.15 and 1.0000 for 0.60.
+- 14:08:2026 - 18:04:27: В28 pick_id — the ECS entity submit now stamps `DrawParams::pick_id = EntityId.index + 1`, so `center_pick()` names the entity under the crosshair (was always 0). Index is the stable, mappable half of {index, generation}; +1 keeps a real slot-0 entity out of the `0 = unnamed` sentinel, and the editor overlay inverts with (id-1). World geometry and any viewmodel draw stay 0.
 -->
 
 # engine/render
