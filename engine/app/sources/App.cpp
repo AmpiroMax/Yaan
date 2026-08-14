@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 19:14:02
+Last updated: 14:08:2026 - 19:30:06
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -121,10 +121,12 @@ UPD:
 - 14:08:2026 - 18:03:08: ЖИВОЙ ЧАТ-ОВЕРЛЕЙ (В28, вторым коммитом поверх дебаг-оверлеев editor'а). Окно ввода открывается клавишей '/' (Enter уже роняет снимок, 4/F4 — каркас editor'а, T — часы), печать через input_->text_input() (UTF-8/кириллица), Backspace удаляет целый символ, Enter ОТПРАВЛЯЕТ (замечание + снимок кадра через тот же write_pending_chat), Escape закрывает. Пока окно открыто, оно ЗАБИРАЕТ КЛАВИАТУРУ: физические клавиши всё равно шлют was_pressed(), поэтому все игровые клавиши и движение под флагом !chat_typing, иначе набор сообщения переключал бы вид/каркас/карту и водил камеру. Оверлей ChatOverlay рисуется последним в HUD-блоке.
 - 14:08:2026 - 18:57:57: РАЗВЕДЕНЫ ДВА ОВЕРЛЕЯ, ДЕЛИВШИЕ ОДИН УГОЛ (жалоба пользователя: «накладывается телеметрия рыжая с текстом трисс и та что открывается по кнопке 2»). Отладочный вывод рисуется в (3,3), блок редактора был прибит в (4,4): каждый верен поодиночке, вместе нечитаемы, а оба сразу — это РАБОЧИЙ режим пользователя, а не редкий случай. Блок переехал ПОД вывод, и координата берётся из debug_overlay_bottom_y(), а не из литерала: высота вывода непостоянна (в воде он на строку выше), поэтому прибитый отступ был бы той же ошибкой с задержкой. Сама компоновка строк вынесена в engine/app/sources/EditorHud.{h,cpp} — и это не уборка: App.cpp держит окно, поэтому НИЧТО, собранное здесь, не может быть измерено тестом, и наложение прожило ровно столько, сколько не было прибора. Тексты строк перенесены дословно, чтобы правка осталась чисто геометрической. Дверь дозы DFN_EDITOR_HUD_PINNED=1 возвращает блок в старый угол — обе руки приёмки из ОДНОГО бинарника (правило 47).
 - 14:08:2026 - 19:14:02: КЛАВИША 5 — СНИМОК ЭКРАНА (просьба пользователя: «я хочу чтобы был скриншот... по нажатию кнопки 5... он должен к чату добавляться и трейсам»). Снимается ФРЕЙМБУФЕР как он показан — вместе с оверлеями, потому что HUD в него скомпонован, — а не экран ОС. И ПОПРАВКА К ПОСЫЛКЕ ЗАДАЧИ, проверенная, а не принятая на слово: клавиша 3 никогда не снимала «только состояние» — write_capture с самого начала пишет .png через save_screenshot ПЛЮС сайдкар .txt; кадры приёмки этой правки сами это доказывают. Реально не хватало не второго конвейера снимков, а трёх вещей: самой клавиши, попадания снимка в ТРЕЙС и двери дозы. Поэтому клавиша 5 идёт по СУЩЕСТВУЮЩЕМУ пути (правило 32): те же write_pending_chat/write_capture, что и у замечания по Enter, — разница только в том, что человек имел в виду (Enter — «замечание, вот кадр»; 5 — «вот этот кадр, без слов»). Ориентир в трейсе положен в write_capture, а не рядом с клавишей: снимки делают ЧЕТЫРЕ пути (3, 5, замечание, двери), и трейс, знающий про один из них, отвечал бы на «был ли снят этот момент» верно для одного и неверно для трёх. Дверь дозы DFN_SHOT_AFTER=<кадров> — в кадрах, а не в секундах (стенная секунда вмещает разное число кадров на загруженной машине), считается в unattended_run(), ноль отвергается вслух; закрытие переиспользует chat_then_close_. Приёмка: чат и строка трейса называют ОДИН момент (t = game_s = 865.500000), контроль с закрытой дверью строки чата не добавляет.
+- 14:08:2026 - 19:30:06: ЗВУК ВЫКЛЮЧЕН ПО УМОЛЧАНИЮ — ВРЕМЕННО, прямая просьба пользователя дословно: «выключи звук в игре на время / и пусть все кто запускает игру запускались без звука». Умолчание перевёрнуто для ВСЕХ запусков, человеческих и агентских, а не только для автоматических. Обратно — дверь DFN_AUDIO=1. Старая DFN_NULL_AUDIO оставлена и значит ровно то же: она вписана в рецепты, лежащие на диске, и дверь, тихо переставшая существовать, делает ложью каждый рецепт с её именем. Чтобы ВЕРНУТЬ звук насовсем — снять переворот здесь, а не искать, кто заглушил движок. И при старте пишется строка в stderr: движок, который молчит и молчит о том, что молчит, — это тот самый молчаливый ноль, против которого построена вся оснастка, и следующий человек завёл бы «сломался звук» на то, чего никто не ломал.
 */
 
 #include "engine/app/sources/App.h"
 
+#include "engine/app/sources/Controls.h"
 #include "engine/app/sources/EditorHud.h"
 #include "engine/app/sources/HudScreen.h"
 #include "engine/app/sources/Localization.h"
@@ -400,8 +402,34 @@ AppConfig AppConfig::from_env() {
     if (unattended_run()) {
         cfg.show_menu = false;
     }
+    // SILENCE IS THE DEFAULT, AND THIS IS A TEMPORARY INVERSION. The user asked
+    // for it in as many words on 14.08.2026: "выключи звук в игре на время / и
+    // пусть все кто запускает игру запускались без звука" -- everyone, humans
+    // and agents alike, not just the automated runs.
+    //
+    // TO GIVE THE SOUND BACK, DELETE THIS INVERSION. Do not go looking for who
+    // muted the engine: it was muted here, on purpose, on that date, and the
+    // whole reason this paragraph is longer than the code is that a default
+    // nobody remembers choosing costs somebody an hour a week from now.
+    //
+    // DFN_NULL_AUDIO stays and still means what it always meant. It is written
+    // into recipes already on disk, and a door that quietly stops existing
+    // makes every recipe naming it a lie.
+    cfg.use_null_audio = true;
     if (const char* na = std::getenv("DFN_NULL_AUDIO"); na && na[0] == '1') {
         cfg.use_null_audio = true;
+    }
+    if (const char* a = std::getenv("DFN_AUDIO"); a && a[0] == '1') {
+        cfg.use_null_audio = false;
+    }
+    // SAID OUT LOUD, because an engine that is silent AND silent about being
+    // silent is the mute zero this whole harness exists to refuse: the next
+    // person to notice would file "the audio is broken" against something
+    // nobody broke, and would be right to.
+    if (cfg.use_null_audio) {
+        std::fprintf(stderr,
+                     "[audio] SILENT by default (user request, 14.08.2026) -- "
+                     "set DFN_AUDIO=1 for sound\n");
     }
     if (const char* np = std::getenv("DFN_NULL_PHYSICS"); np && np[0] == '1') {
         cfg.use_null_physics = true;
@@ -576,10 +604,16 @@ bool App::init(const AppConfig& config) {
             menu_.open(MenuPage::Calibrate);
         } else if (page == "settings") {
             menu_.open(MenuPage::Settings);
+        } else if (page == "controls") {
+            // The key list, and it is reachable only two levels in by hand
+            // (settings -> controls) -- the same argument as every branch
+            // above. It is also the page most likely to be quietly WRONG, so
+            // being able to photograph it is worth more here than elsewhere.
+            menu_.open(MenuPage::Controls);
         } else {
             std::fprintf(stderr,
                          "[menu] DFN_MENU_PAGE=\"%s\" is not "
-                         "root|categories|category_maps|pause|calibrate|settings -- "
+                         "root|categories|category_maps|pause|calibrate|settings|controls -- "
                          "REFUSING to run, because a root frame filed under "
                          "\"%s\" is worse than no frame\n",
                          mp, mp);
@@ -1761,6 +1795,18 @@ DebugSnapshot App::collect_snapshot(float alpha) {
     return s;
 }
 
+// A KEY EDGE, ASKED FOR BY ACTION RATHER THAN BY KEY. This is what keeps the
+// controls screen honest (Controls.h): the handlers below name what they DO,
+// the table says which key does it, and the screen draws the same table -- so
+// a key cannot be dispatched without a row, and a row cannot exist without a
+// description. Writing `Key::NUM_4` in a handler would restore the old split,
+// where the screen was a copy of the bindings instead of the bindings.
+bool App::action_pressed(Action action) const {
+    const Binding& b = binding_for(action);
+    return input_->was_pressed(b.key)
+           || (b.alias != platform::Key::UNKNOWN && input_->was_pressed(b.alias));
+}
+
 void App::write_capture(const DebugSnapshot& snap) {
     char stem[64];
     std::snprintf(stem, sizeof(stem), "capture_%03d", captures_written_);
@@ -2232,7 +2278,7 @@ int App::run() {
                 chat_overlay_.close();
             }
         } else if ((mode_ == AppMode::Playing || mode_ == AppMode::Editor)
-                   && input_->was_pressed(platform::Key::SLASH)) {
+                   && action_pressed(Action::ChatWindow)) {
             chat_overlay_.open();
         }
 
@@ -2246,7 +2292,7 @@ int App::run() {
         // survived review because each half is correct on its own; only the
         // pair is wrong, which is why the fix is deleting a handler rather
         // than reordering them (Rule 32).
-        if (!chat_typing && input_->was_pressed(platform::Key::ESCAPE)) {
+        if (!chat_typing && action_pressed(Action::MenuPause)) {
             if (render_system_.map_open()) {
                 render_system_.set_map_open(false);
             } else {
@@ -2261,7 +2307,7 @@ int App::run() {
         // eyes, in the same field"). From the editor it possesses the player at
         // the free camera; from Playing it lifts back out into the free camera
         // at the current eye. A no-op in any other mode by construction.
-        if (!chat_typing && input_->was_pressed(platform::Key::TAB)) {
+        if (!chat_typing && action_pressed(Action::ToggleBody)) {
             if (mode_ == AppMode::Editor) {
                 become_player_from_editor();
                 input_->set_cursor_captured(!unattended_run());
@@ -2282,7 +2328,7 @@ int App::run() {
         // and recipes already archived, and silently moving a key would make
         // every recipe on disk wrong.
         if (!chat_typing && mode_ == AppMode::Playing
-            && input_->was_pressed(platform::Key::NUM_1)) {
+            && action_pressed(Action::ThirdPerson)) {
             third_person_ = !third_person_;
             orbit_yaw_ = 0.0f;
             orbit_pitch_ = 0.0f;
@@ -2300,21 +2346,18 @@ int App::run() {
             }
         }
         if (!chat_typing
-            && (input_->was_pressed(platform::Key::NUM_2)
-                || input_->was_pressed(platform::Key::F3))) {
+            && action_pressed(Action::DebugReadout)) {
             debug_overlay_ = !debug_overlay_;
         }
         if (!chat_typing
-            && (input_->was_pressed(platform::Key::NUM_3)
-                || input_->was_pressed(platform::Key::F2))) {
+            && action_pressed(Action::StateCapture)) {
             capture_pending_ = true;
         }
         // WIREFRAME (В28), key 4 / F4. A whole-scene toggle straight to the
         // backend; works in both modes but is aimed at the editor's "why is this
         // object so heavy" question. set_wireframe is a no-op cost when off.
         if (!chat_typing
-            && (input_->was_pressed(platform::Key::NUM_4)
-                || input_->was_pressed(platform::Key::F4))) {
+            && action_pressed(Action::Wireframe)) {
             wireframe_ = !wireframe_;
             renderer_->set_wireframe(wireframe_);
         }
@@ -2333,7 +2376,7 @@ int App::run() {
         // frame", 5 is "this frame, no words" -- and the trace landmark now
         // comes from write_capture, so it is attached to both.
         if (!chat_typing && (mode_ == AppMode::Playing || mode_ == AppMode::Editor)
-            && input_->was_pressed(platform::Key::NUM_5)) {
+            && action_pressed(Action::Screenshot)) {
             chat_pending_entry_ = ChatEntry{};
             chat_pending_entry_.who = "human";
             chat_pending_ = true;
@@ -2345,7 +2388,7 @@ int App::run() {
         // is the branch above; Enter there SENDS). Guarded by !chat_typing so
         // the two Enter roles never collide. Menu mode is handled earlier.
         if (!chat_typing && (mode_ == AppMode::Playing || mode_ == AppMode::Editor)
-            && input_->was_pressed(platform::Key::ENTER)) {
+            && action_pressed(Action::QuickRemark)) {
             chat_pending_entry_ = ChatEntry{};
             chat_pending_entry_.who = "human";
             chat_pending_ = true;
@@ -2356,7 +2399,7 @@ int App::run() {
         // deterministic, bit-for-bit-checkable paths are the DFN_TRAJ_REC /
         // DFN_TRAJ_PLAY doors (Rule 27); these keys are the human's version.
         if (!chat_typing && mode_ == AppMode::Editor
-            && input_->was_pressed(platform::Key::R)) {
+            && action_pressed(Action::TrajectoryRecord)) {
             if (traj_rec_.active()) {
                 char stem[64];
                 std::snprintf(stem, sizeof(stem), "/trajectory_%03d.dftraj",
@@ -2371,7 +2414,7 @@ int App::run() {
             }
         }
         if (!chat_typing && mode_ == AppMode::Editor
-            && input_->was_pressed(platform::Key::P) && !traj_last_path_.empty()) {
+            && action_pressed(Action::TrajectoryReplay) && !traj_last_path_.empty()) {
             TrajectoryPlayer pl;
             if (pl.load(traj_last_path_)) {
                 traj_play_then_close_ = false; // interactive replay just stops
@@ -2422,7 +2465,7 @@ int App::run() {
                 capture_then_close_ = true;
             }
         }
-        if (!chat_typing && input_->was_pressed(platform::Key::M)) {
+        if (!chat_typing && action_pressed(Action::Map)) {
             render_system_.toggle_map();
             // Free the cursor while the map is up: mouse-look under a fullscreen
             // plate spins the world behind it for no reason.
