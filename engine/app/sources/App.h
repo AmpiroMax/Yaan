@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:11:00
+Last updated: 14:08:2026 - 16:50:36
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -56,6 +56,7 @@ UPD:
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 13:08:2026 - 22:14:05: capture_after_frames_ — вторая единица счёта для той же двери снимка. Секунды несравнимы побитово: две руки одного рецепта на разной загрузке машины успевают разное число кадров.
 - 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера (EditorCamera). Новый режим летающей камеры (запрос пользователя В39/Л1): облёт мира не игроком; Tab вселяет камеру в игрока и обратно. Дверь DFN_EDITOR=1 (+DFN_EDITOR_CAM=x,y,z,yaw,pitch) — авто-прогон через дверь, не забирающий мышь.
+- 14:08:2026 - 16:50:36: Браузер карт (контракт docs/MAP_LAYOUT.md): MapCatalog + current_manifest() (сим для зоны chat — путь чата из category/file_stem). Вход в Играть/Редактор открывает браузер; open_map() разрешает source (stand:/dfw:). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (взамен прежней DFN_EDITOR-в-мир; DFN_MAP занят render'ом), DFN_EDITOR=1 без карты открывает браузер редактора.
 */
 
 #pragma once
@@ -143,6 +144,15 @@ public:
     int run();
     void shutdown();
 
+    // The map currently loaded (whichever .map the browser opened, or the door
+    // resolved). Carries category + file_stem + zone, from which a consumer
+    // derives sibling paths -- the chat log lives at
+    // assets/maps/<category>/<file_stem>.chat.jsonl (Rule 26 seam for the chat
+    // zone). nullptr before any map is opened.
+    [[nodiscard]] const MapManifest* current_manifest() const {
+        return current_map_ ? &*current_map_ : nullptr;
+    }
+
 private:
     void pump_chunk_events(); // ferry ChunkLoaded/Unloaded -> render + physics
 
@@ -168,7 +178,20 @@ private:
     // the eyes, in the same field").
     void enter_editor_mode();
     void become_player_from_editor();
+    // Resolves a browser-chosen .map to a world and builds it (source
+    // stand:<id> -> the generator stand; source dfw:<file> -> the baked map,
+    // which does not exist until the baker lands -- an honest on-screen status,
+    // never a silent nothing, per docs/MAP_LAYOUT.md). Returns true when a
+    // world was built; false leaves a browser_status for the player and stays
+    // in the menu.
+    [[nodiscard]] bool open_map(const MapManifest& manifest);
     MenuModel menu_;
+    // The map browser's catalog, scanned from assets/maps at startup and
+    // handed to the menu (which only reads it). App owns it; the menu borrows.
+    MapCatalog catalog_;
+    // The map that was actually opened (a copy of the chosen manifest), exposed
+    // through current_manifest() for the chat zone's path derivation.
+    std::optional<MapManifest> current_map_;
     uint32_t active_stand_ = 0;
     int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter
     void body_probe_drive();  // fixed tick: pose the camera for the probe

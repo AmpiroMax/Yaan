@@ -40,6 +40,25 @@ map.forest.blurb=Тропы, обочина, подлесок — стенд к�
 map.mirror.name=Зеркало
 map.mirror.blurb=Двойник напротив: проверка анимаций
 
+# Браузер карт (docs/MAP_LAYOUT.md): заголовок, пустая папка, ошибки источника
+map.browser.title=Выбор карты
+map.empty=пусто
+map.err.source=Источник карты не распознан:
+map.err.stand=Неизвестный стенд:
+map.err.build=Не удалось построить мир
+map.err.nobake=Печёной карты ещё нет (пекарь не готов):
+
+# Категории карт (папки на диске, docs/MAP_LAYOUT.md, в40)
+map.category.landscape=Ландшафт
+map.category.trees=Деревья
+map.category.bushes=Кусты
+map.category.fallen-tree=Поваленное дерево
+map.category.houses=Дома
+map.category.light=Свет и факелы
+map.category.water=Вода
+map.category.mountain=Горы
+map.category.caves=Пещеры
+
 # Отладочный экран (клавиша 2, F3 — псевдоним) и снимок состояния (клавиша 3, F2 — псевдоним)
 debug.compass.n=север
 debug.compass.ne=северо-восток

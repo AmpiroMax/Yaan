@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:11:00
+Last updated: 14:08:2026 - 16:50:36
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -115,6 +115,7 @@ UPD:
 - 13:08:2026 - 22:14:05: Лента-компас и три полосы (зона ui, применено здесь) — состав выбран пользователем лично. Лента берёт yaw из позы КАМЕРЫ на том же alpha, что и картинка: лента, идущая от позы тела, разошлась бы с тем, что нарисовано, и врала бы тем сильнее, чем быстрее поворот. Полосы стоят полными и убыль НЕ изображают — тратить их пока нечем, а полоса, ползущая для вида, учит читать пустое число. И новая дверь DFN_CAPTURE_AFTER_FRAMES=<N> рядом с секундной: прогон, снимающий по стенной секунде, на загруженной машине успевает другое число кадров, поэтому две руки одного рецепта НЕЛЬЗЯ сравнить побитово — а на этом стоит приёмка всех зон. Запрошена зоной ui после того, как она померила остаток: 4125 расходящихся пикселей упали до 412, когда приколотили часы неба, и вот этим 412 и были. Кривое значение отвергается ВСЛУХ.
 - 13:08:2026 - 23:12:40: СЧЁТНЫЕ ЧАСЫ БЫЛИ ВЫДАНЫ ТОЛЬКО ТУРУ, и это моя недоделка, дожившая до сегодня. game_seconds_ рос на СТЕННУЮ дельту кадра во всех остальных автоматических дверях — DFN_CAPTURE_AFTER, DFN_RESTORE, DFN_PLAYTEST, — то есть ровно в тех прогонах, кадры которых зоны кладут в приёмку. Проверка «это доказательство?» была написана как «это тур?». Найдено тем, что дверь DFN_CAPTURE_AFTER_FRAMES, отгруженная часом раньше, НЕ ДАЛА обещанного: две руки, приколотые к одним и тем же 600 отрисованным кадрам, пришли к game_seconds 893.719 и 890.615 — три секунды солнца и ветра врозь, потому что 600 кадров стенных часов не есть длительность. После правки обе руки дают 882.007285 РОВНО. Правило 35, третий потребитель: unattended_run() уже отвечает «за этим никто не играет» пропуску меню и захвату курсора; на этот вопрос он отвечает тоже.
 - 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера. Новый режим летающей камеры (запрос В39/Л1): камера отвязана от тела и физики (EditorCamera, WASD+E/Q/Space/Ctrl+мышь+колесо-скорость), сим продолжает тикать ради стриминга/неба/тела, но ввод игрока изъят и кадр рисуется из свободной позы. Tab вселяет камеру в игрока (teleport_character под камеру) и обратно. Вход: пункт меню «Редактор» (attended, курсор захвачен) и дверь DFN_EDITOR=1 (unattended, курсор свободен) + DFN_EDITOR_CAM=x,y,z,yaw,pitch для приёмочного кадра с любой точки. Оверлей — баннер режима со скоростью полёта; отладочный вывод (F3) уже отражает свободную камеру, т.к. camera_ и есть свободный глаз. Wireframe/счётчик треугольников/LOD-цифра/пикинг центра упираются в render (IRenderer не отдаёт статистику/каркас/луч) — вынесено лиду списком.
+- 14:08:2026 - 16:50:36: БРАУЗЕР КАРТ (контракт docs/MAP_LAYOUT.md). Вход в Играть и в Редактор открывает не карту, а браузер: категории (папки) → карты (.map) → открыть — прыжок сразу в карту был названной ошибкой первого каркаса. Каталог сканируется из assets/maps (MapCatalog), меню его только читает. open_map() разрешает source: stand:Testbed/Forest грузит стенд (мост до пекаря), dfw:<файл> — честная ошибка на экран (пекаря нет). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (не DFN_MAP — то занято render'ом), DFN_EDITOR=1 без карты открывает браузер редактора. current_manifest() — сим для зоны chat (путь чата из category/file_stem). Плюс погашена призрачная подсказка «Открыть» в редакторе (hover заморожённого игрока — у летящего глаза нет взаимодействия).
 */
 
 #include "engine/app/sources/App.h"
@@ -221,12 +222,14 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
            || std::getenv("DFN_MENU_SHOT") != nullptr
            || std::getenv("DFN_HUD_PROBE") != nullptr
            || std::getenv("DFN_RESTORE") != nullptr
-           // The editor DOOR is automated: it exists so a free-camera vantage
-           // is photographable without a hand on the keyboard, so it skips the
-           // menu, does NOT grab the pointer, and runs the counted clock like
-           // every other evidence door. The INTERACTIVE editor is the menu's
-           // "Редактор" button, which does grab the pointer for mouse-look.
-           || std::getenv("DFN_EDITOR") != nullptr;
+           // DFN_OPEN_MAP=<category>/<map> is the automated map door: it loads a
+           // concrete .map bypassing the browser, so a demo frame needs no hand
+           // on the keyboard -- menu skipped, pointer free, counted clock. (NOT
+           // named DFN_MAP: that is render's map-SCREEN probe and Tour's gate,
+           // and reusing it would collapse a route to one frame.) DFN_EDITOR
+           // alone is deliberately NOT here: with no concrete map it opens the
+           // browser, which IS the menu and frees the cursor itself.
+           || std::getenv("DFN_OPEN_MAP") != nullptr;
 }
 
 // Reads key=value graphics settings; writes a commented default file on first
@@ -501,13 +504,12 @@ bool App::init(const AppConfig& config) {
     // as a visible placeholder rather than as nothing.
     (void)load_localization("games/daggerfall_n/assets/localization/ru.txt");
 
-    // The demo-map table. Adding a stand is one row here plus two localization
-    // lines -- the menu itself never changes, which is the point of a table.
-    // Stand ids belong to core's WorldGenParams; 0 is today's valley.
-    menu_.set_maps({{static_cast<uint32_t>(world::StandId::Testbed),
-                     "map.valley.name", "map.valley.blurb"},
-                    {static_cast<uint32_t>(world::StandId::Forest),
-                     "map.forest.name", "map.forest.blurb"}});
+    // THE MAP BROWSER'S CATALOG. Scanned from disk (assets/maps/<category>/
+    // <map>.map) instead of a code table: adding a map is a data file, not a
+    // recompile (Rule 6), and the browser two-levels it category -> map
+    // (docs/MAP_LAYOUT.md). The menu only reads the catalog; the app owns it.
+    catalog_ = scan_map_catalog("assets/maps");
+    menu_.set_catalog(&catalog_);
     // DFN_MENU_PAGE=root|maps|pause|calibrate -- which page an unattended run
     // opens on.
     // Without it only the root page is photographable, because the map picker
@@ -519,8 +521,10 @@ bool App::init(const AppConfig& config) {
         const std::string page(mp);
         if (page == "root") {
             menu_.open(MenuPage::Root);
-        } else if (page == "maps") {
-            menu_.open(MenuPage::Maps);
+        } else if (page == "maps" || page == "categories") {
+            // The browser's first level. Play target by default; DFN_EDITOR
+            // below re-opens it as the editor browser if set.
+            menu_.open_browser(BrowseTarget::Play);
         } else if (page == "pause") {
             menu_.open(MenuPage::Pause);
         } else if (page == "calibrate") {
@@ -640,37 +644,72 @@ bool App::init(const AppConfig& config) {
         }
     }
 
-    // The world itself is NOT built here. Menu-first launch means the player
-    // picks a demo map before any terrain exists, so world construction lives
-    // in enter_world() and init() only raises the engine.
+    const bool editor_door = std::getenv("DFN_EDITOR") != nullptr;
+
+    // (A) THE CONCRETE-MAP DOOR (DFN_OPEN_MAP=<category>/<map>). Automated: load
+    // exactly this .map, bypassing the browser, and enter Editor if DFN_EDITOR
+    // is set or Playing otherwise. A miss is loud and fatal -- an automated run
+    // that silently loaded the wrong world is worse than one that stops.
+    if (const char* om = std::getenv("DFN_OPEN_MAP"); om != nullptr && *om != '\0') {
+        const std::string addr(om);
+        const size_t slash = addr.find('/');
+        const MapManifest* m =
+            slash == std::string::npos
+                ? nullptr
+                : catalog_.find(addr.substr(0, slash), addr.substr(slash + 1));
+        if (m == nullptr) {
+            std::fprintf(stderr,
+                         "[maps] DFN_OPEN_MAP=\"%s\" not found under assets/maps "
+                         "-- REFUSING to run (want <category>/<map>)\n",
+                         om);
+            return false;
+        }
+        if (!open_map(*m)) {
+            return false; // open_map reported the reason
+        }
+        if (editor_door) {
+            enter_editor_mode();
+            if (const char* cam = std::getenv("DFN_EDITOR_CAM");
+                cam != nullptr && *cam != '\0') {
+                float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
+                if (std::sscanf(cam, "%f,%f,%f,%f,%f", &x, &y, &z, &yaw, &pitch) == 5) {
+                    editor_cam_.set_pose({x, y, z}, yaw, pitch);
+                } else {
+                    std::fprintf(stderr,
+                                 "[editor] DFN_EDITOR_CAM=\"%s\" is not "
+                                 "x,y,z,yaw,pitch -- keeping the player-eye seed\n",
+                                 cam);
+                }
+            }
+        } else {
+            mode_ = AppMode::Playing;
+        }
+        input_->set_cursor_captured(!unattended_run());
+        return true;
+    }
+
+    // (B) THE EDITOR BROWSER BOOT (DFN_EDITOR=1, no concrete map). Opens the
+    // editor's map browser rather than a world -- the whole point of the browser
+    // is that entering the editor does NOT jump into a map. A menu page picked
+    // by DFN_MENU_PAGE above is respected.
+    if (editor_door) {
+        mode_ = AppMode::Menu;
+        input_->set_cursor_captured(false);
+        if (std::getenv("DFN_MENU_PAGE") == nullptr) {
+            menu_.open_browser(BrowseTarget::Editor);
+        }
+        return true;
+    }
+
+    // (C) NORMAL LAUNCH. Menu-first: the engine is up but no world exists until
+    // a map is chosen in the browser. The legacy DFN_MENU=0 path still builds a
+    // stand directly for the older tooling doors (tour, capture, restore).
     if (config_.show_menu) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
     } else {
         if (!enter_world(config_.start_stand)) {
             return false;
-        }
-    }
-
-    // THE EDITOR DOOR (DFN_EDITOR=1). Automated free-camera vantage: it makes
-    // the run unattended (see unattended_run above), so the world is built and
-    // the cursor stays free. The free camera is seeded from the player eye for
-    // a seamless toggle; DFN_EDITOR_CAM="x,y,z,yaw,pitch" then places it at an
-    // explicit vantage so an aerial acceptance frame needs no keyboard -- the
-    // pose lives in the recipe, not in a hardcoded constant.
-    if (const char* ed = std::getenv("DFN_EDITOR");
-        ed != nullptr && ed[0] == '1' && mode_ == AppMode::Playing) {
-        enter_editor_mode();
-        if (const char* cam = std::getenv("DFN_EDITOR_CAM"); cam != nullptr && *cam != '\0') {
-            float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
-            if (std::sscanf(cam, "%f,%f,%f,%f,%f", &x, &y, &z, &yaw, &pitch) == 5) {
-                editor_cam_.set_pose({x, y, z}, yaw, pitch);
-            } else {
-                std::fprintf(stderr,
-                             "[editor] DFN_EDITOR_CAM=\"%s\" is not x,y,z,yaw,pitch "
-                             "-- keeping the player-eye seed\n",
-                             cam);
-            }
         }
     }
     return true;
@@ -1717,6 +1756,68 @@ void App::apply_restore(const DebugSnapshot& snap) {
                  snap.build_commit.c_str());
 }
 
+// Resolve a browser-chosen .map to a world. `source` is the transit bridge
+// until the baker lands (docs/MAP_LAYOUT.md): "stand:<id>" builds the generator
+// stand, "dfw:<file>" will load a baked map and today reports honestly that no
+// baker has produced one. Every failure path leaves a status the browser draws
+// -- never a silent nothing (Rule 27).
+bool App::open_map(const MapManifest& manifest) {
+    const auto status = [&](std::string_view key, std::string_view detail) {
+        std::string s(localized(serialization::fnv1a64(key)));
+        if (!detail.empty()) {
+            s += " ";
+            s += detail;
+        }
+        menu_.set_browser_status(s);
+    };
+
+    std::string scheme;
+    std::string value;
+    if (!split_map_source(manifest.source, scheme, value)) {
+        status("map.err.source", manifest.source);
+        std::fprintf(stderr, "[maps] %s: source \"%s\" is not scheme:value\n",
+                     manifest.file_stem.c_str(), manifest.source.c_str());
+        return false;
+    }
+    if (scheme == "stand") {
+        // The two stands core ships today. New stands add a row here AND in
+        // core's StandId; a name the manifest carries but core does not know is
+        // reported rather than silently mapped to the default.
+        std::optional<uint32_t> stand;
+        if (value == "Testbed") {
+            stand = static_cast<uint32_t>(world::StandId::Testbed);
+        } else if (value == "Forest") {
+            stand = static_cast<uint32_t>(world::StandId::Forest);
+        }
+        if (!stand) {
+            status("map.err.stand", value);
+            std::fprintf(stderr, "[maps] %s: unknown stand \"%s\"\n",
+                         manifest.file_stem.c_str(), value.c_str());
+            return false;
+        }
+        if (!enter_world(*stand)) {
+            status("map.err.build", {});
+            return false;
+        }
+        current_map_ = manifest; // for current_manifest() (chat path derivation)
+        return true;
+    }
+    if (scheme == "dfw") {
+        // The baker is a later cut; a .dfw source is a legitimate future map
+        // with no file yet, so this is a stated "not ready", not a crash.
+        status("map.err.nobake", value);
+        std::fprintf(stderr,
+                     "[maps] %s: source dfw:%s -- the baker has not produced this "
+                     "map yet\n",
+                     manifest.file_stem.c_str(), value.c_str());
+        return false;
+    }
+    status("map.err.source", manifest.source);
+    std::fprintf(stderr, "[maps] %s: unknown source scheme \"%s\"\n",
+                 manifest.file_stem.c_str(), scheme.c_str());
+    return false;
+}
+
 // THE FREE CAMERA IS SEEDED FROM THE EYE, NOT THE FEET, so entering the editor
 // does not jump the view: the player was looking from CameraPose, and that is
 // exactly where the fly begins. Falls back to the Transform + eye height only
@@ -1807,24 +1908,23 @@ int App::run() {
                 action = menu_.back();
             }
             switch (action) {
-            case MenuAction::EnterWorld:
-                if (!enter_world(menu_.chosen_stand())) {
-                    return 1;
+            case MenuAction::OpenMap: {
+                // The browser chose a map. Resolve its source and build the
+                // world; on a source that cannot open yet (a .dfw with no baker)
+                // open_map leaves a status on the browser and we stay in it,
+                // rather than jumping into nothing (docs/MAP_LAYOUT.md).
+                const MapManifest* m = menu_.chosen_map();
+                if (m != nullptr && open_map(*m)) {
+                    // BOTH buttons run this browser; the target decides the mode.
+                    if (menu_.browse_target() == BrowseTarget::Editor) {
+                        enter_editor_mode();
+                    } else {
+                        mode_ = AppMode::Playing;
+                    }
+                    input_->set_cursor_captured(!unattended_run());
                 }
-                mode_ = AppMode::Playing;
-                input_->set_cursor_captured(!unattended_run());
                 break;
-            case MenuAction::EnterEditor:
-                // В39's second button. Loads the testbed for now (the map
-                // picker is a Playing path; a stand chooser for the editor is a
-                // later cut, per the brief). enter_editor_mode() seeds the free
-                // camera from the freshly spawned player's eye.
-                if (!enter_world(static_cast<uint32_t>(world::StandId::Testbed))) {
-                    return 1;
-                }
-                enter_editor_mode();
-                input_->set_cursor_captured(!unattended_run());
-                break;
+            }
             case MenuAction::Resume:
                 // Back to whichever mode paused: pausing the editor and resuming
                 // must not silently possess the body.
@@ -2560,7 +2660,11 @@ int App::run() {
             any = draw_compass_ribbon(hud, facts) || any;
             any = draw_condition_bars(hud, facts) || any;
             any = draw_crosshair(hud, facts) || any;
-            if (world_.has_resource<components::HoverTarget>()) {
+            // NOT IN THE EDITOR: the free camera has no reach and does not
+            // interact, so the player's last hover ("Открыть") would hang under
+            // the crosshair as a verb the flying eye cannot perform -- a ghost
+            // of the possessed body, which the user flagged on the first cut.
+            if (!editor && world_.has_resource<components::HoverTarget>()) {
                 const auto& hover = world_.resource<components::HoverTarget>();
                 if (hover.prompt_key != 0) {
                     const std::string_view text = localized(hover.prompt_key);

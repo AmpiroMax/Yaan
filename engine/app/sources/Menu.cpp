@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 14:08:2026 - 16:11:00
+Last updated: 14:08:2026 - 16:50:36
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -50,6 +50,10 @@ UPD:
   сегодняшний русский и сломалась бы на первом переводе шире него.
 - 14:08:2026 - 16:11:00: Кнопка «Редактор» — вторая строка корня (запрос В39). Корень
   теперь Играть / Редактор / Настройки / Выход; activate и row_at обновлены.
+- 14:08:2026 - 16:50:36: БРАУЗЕР КАРТ (контракт docs/MAP_LAYOUT.md). Страница Maps
+  разбита на два уровня: Categories (папки) и CategoryMaps (.map в папке). Обе кнопки
+  корня зовут open_browser() с целью Play/Editor; выбор карты — OpenMap. Отрисовка
+  категорий/карт, заголовок по странице, строка статуса (напр. «печёной карты нет»).
 */
 
 #include "engine/app/sources/Menu.h"
@@ -236,24 +240,36 @@ bool MenuModel::needs_restart() const {
         || settings_.palette != launched_.palette;
 }
 
-void MenuModel::set_maps(std::vector<MapEntry> maps) {
-    maps_ = std::move(maps);
-    if (selection_ >= item_count()) {
-        selection_ = 0;
-    }
+void MenuModel::open_browser(BrowseTarget target) {
+    target_ = target;
+    open(MenuPage::Categories);
 }
 
 void MenuModel::open(MenuPage page) {
     page_ = page;
     selection_ = 0;
+    // Any navigation clears a stale browser message: a "no baked file" warning
+    // from a previous pick must not linger over a different category.
+    browser_status_.clear();
 }
 
 size_t MenuModel::item_count() const {
     switch (page_) {
     case MenuPage::Root:
         return 4; // play, editor, settings, quit
-    case MenuPage::Maps:
-        return maps_.size() + 1; // maps + back
+    case MenuPage::Categories:
+        // Every category is shown (empty ones included, per the contract), plus
+        // a Back row. Without a catalog it is just Back -- still navigable.
+        return (catalog_ != nullptr ? catalog_->categories.size() : 0) + 1;
+    case MenuPage::CategoryMaps: {
+        // The maps in the entered category, plus Back. Empty categories show
+        // only Back, which is how "this folder has no maps yet" reads.
+        size_t maps = 0;
+        if (catalog_ != nullptr && chosen_category_ < catalog_->categories.size()) {
+            maps = catalog_->categories[chosen_category_].maps.size();
+        }
+        return maps + 1;
+    }
     case MenuPage::Pause:
         return 3; // resume, settings, quit
     case MenuPage::Calibrate:
@@ -320,16 +336,17 @@ void MenuModel::move(int delta) {
 MenuAction MenuModel::activate() {
     switch (page_) {
     case MenuPage::Root:
+        // BOTH buttons open the SAME browser (В39: play changes map through the
+        // same picker, editor flies it). The difference is only the target the
+        // app reads back -- neither jumps straight into a map, which was the
+        // first cut's named mistake (docs/MAP_LAYOUT.md).
         if (selection_ == 0) {
-            open(MenuPage::Maps);
+            open_browser(BrowseTarget::Play);
             return MenuAction::None;
         }
         if (selection_ == 1) {
-            // THE SECOND ROW IS THE EDITOR (user В39: two buttons, play and
-            // editor). The app loads the testbed and enters the free camera;
-            // it does not go through the map picker, because a stand chooser
-            // for the editor is a later cut.
-            return MenuAction::EnterEditor;
+            open_browser(BrowseTarget::Editor);
+            return MenuAction::None;
         }
         if (selection_ == 2) {
             // SETTINGS. The dial did not move away from the player -- it is the
@@ -339,13 +356,31 @@ MenuAction MenuModel::activate() {
             return MenuAction::None;
         }
         return MenuAction::Quit;
-    case MenuPage::Maps:
-        if (selection_ < maps_.size()) {
-            chosen_stand_ = maps_[selection_].stand;
-            return MenuAction::EnterWorld;
+    case MenuPage::Categories: {
+        // A category row descends into its maps; the last row is Back to Root.
+        const size_t ncats =
+            (catalog_ != nullptr ? catalog_->categories.size() : 0);
+        if (selection_ < ncats) {
+            chosen_category_ = selection_;
+            open(MenuPage::CategoryMaps);
+            return MenuAction::None;
         }
         open(MenuPage::Root);
         return MenuAction::None;
+    }
+    case MenuPage::CategoryMaps: {
+        // A map row opens it; the last row is Back to the category list.
+        size_t nmaps = 0;
+        if (catalog_ != nullptr && chosen_category_ < catalog_->categories.size()) {
+            nmaps = catalog_->categories[chosen_category_].maps.size();
+        }
+        if (selection_ < nmaps) {
+            chosen_map_ = &catalog_->categories[chosen_category_].maps[selection_];
+            return MenuAction::OpenMap;
+        }
+        open(MenuPage::Categories);
+        return MenuAction::None;
+    }
     case MenuPage::Pause:
         if (selection_ == 0) {
             return MenuAction::Resume;
@@ -394,8 +429,11 @@ MenuAction MenuModel::back() {
     switch (page_) {
     case MenuPage::Root:
         return MenuAction::Quit;
-    case MenuPage::Maps:
+    case MenuPage::Categories:
         open(MenuPage::Root);
+        return MenuAction::None;
+    case MenuPage::CategoryMaps:
+        open(MenuPage::Categories);
         return MenuAction::None;
     case MenuPage::Pause:
         return MenuAction::Resume;
@@ -603,11 +641,33 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
             default:
                 return {loc("menu.quit"), {}};
             }
-        case MenuPage::Maps:
-            if (i < model.maps().size()) {
-                return {loc(model.maps()[i].name_key), loc(model.maps()[i].blurb_key)};
+        case MenuPage::Categories: {
+            const MapCatalog* cat = model.catalog();
+            const size_t ncats = (cat != nullptr ? cat->categories.size() : 0);
+            if (i < ncats) {
+                // Category label is localized ("map.category.<slug>"); the empty
+                // note is a stable loc string so an empty folder still reads as
+                // deliberate rather than as a bug.
+                const std::string key = "map.category." + cat->categories[i].slug;
+                const std::string_view blurb =
+                    cat->categories[i].maps.empty() ? loc("map.empty") : std::string_view{};
+                return {loc(key), blurb};
             }
             return {loc("menu.back"), {}};
+        }
+        case MenuPage::CategoryMaps: {
+            const MapCatalog* cat = model.catalog();
+            if (cat != nullptr && model.chosen_category() < cat->categories.size()) {
+                const auto& maps = cat->categories[model.chosen_category()].maps;
+                if (i < maps.size()) {
+                    // name and description come straight from the .map manifest
+                    // (content, Rule 5); the std::strings outlive this call
+                    // because the catalog outlives the model.
+                    return {maps[i].name, maps[i].description};
+                }
+            }
+            return {loc("menu.back"), {}};
+        }
         case MenuPage::Pause:
             if (i == 0) {
                 return {loc("menu.resume"), {}};
@@ -646,8 +706,10 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     const int rule_y = title_y + render::FONT_CELL_H + 4;
 
     // Items start below the rule; the blurb line under each map costs one row,
-    // so map rows are spaced two rows apart and plain rows one.
-    const bool maps_page = model.page() == MenuPage::Maps;
+    // so map rows are spaced two rows apart and plain rows one. Both browser
+    // levels carry blurbs (a category's empty note, a map's description).
+    const bool maps_page = model.page() == MenuPage::Categories
+                           || model.page() == MenuPage::CategoryMaps;
     const int row = render::FONT_CELL_H + (maps_page ? 6 : 4);
     const int first_item_y = title_y + render::FONT_CELL_H + 16;
     const size_t n = model.item_count();
@@ -679,7 +741,23 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
         draw_text_plate(canvas, (w - block_w) / 2, title_y, block_w, block_h, /*pad=*/6);
     }
 
-    draw_centered(canvas, title_y, pause ? loc("menu.paused") : loc("app.title"), TITLE);
+    // TITLE per page: the two browser levels name themselves (the picker, then
+    // the category), so the player always knows which of the two levels he is
+    // on. Everything else keeps the game title / pause word.
+    std::string_view title = loc("app.title");
+    std::string cat_title_key; // storage kept alive until draw_centered below
+    if (pause) {
+        title = loc("menu.paused");
+    } else if (model.page() == MenuPage::Categories) {
+        title = loc("map.browser.title");
+    } else if (model.page() == MenuPage::CategoryMaps) {
+        const MapCatalog* cat = model.catalog();
+        if (cat != nullptr && model.chosen_category() < cat->categories.size()) {
+            cat_title_key = "map.category." + cat->categories[model.chosen_category()].slug;
+            title = loc(cat_title_key);
+        }
+    }
+    draw_centered(canvas, title_y, title, TITLE);
     canvas.fill_rect(w / 4, rule_y, w / 2, 1, RULE_LINE);
 
     int y = first_item_y;
@@ -703,6 +781,17 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
             y += render::FONT_CELL_H;
         }
         y += row - render::FONT_CELL_H - 2;
+    }
+
+    // BROWSER STATUS: a non-fatal message the app handed in, e.g. a map whose
+    // source is a .dfw the baker has not produced yet. Drawn above the hint, in
+    // the selected-item colour so it reads as a live notice rather than chrome.
+    // Honest-failure surface (docs/MAP_LAYOUT.md): a source that cannot open
+    // says so on screen instead of doing nothing.
+    if (!model.browser_status().empty()) {
+        draw_centered(canvas, h - render::FONT_CELL_H * 4,
+                      fits(w, model.browser_status(), model.browser_status()),
+                      ITEM_SELECTED);
     }
 
     // The control hint. On the pause page it stands on the world like the rest,

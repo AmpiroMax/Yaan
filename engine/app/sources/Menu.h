@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 14:08:2026 - 16:11:00
+Last updated: 14:08:2026 - 16:50:36
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -11,14 +11,14 @@ Responsibility:
   without a window.
 
 Key items:
-- MapEntry: one selectable demo map (loc key + the stand it opens).
 - MenuSettings: the settings.cfg rows the player can turn on the settings page.
-- MenuModel: page + selection + the map list; move()/adjust()/activate() return
-  Actions.
+- MenuModel: page + selection + the map BROWSER (categories -> maps); the app
+  hands in a MapCatalog and reads an Action + the chosen map out.
 - draw_menu(): renders the current page into a PixelCanvas through BitmapFont.
 
 Dependencies:
-- Uses: engine/render (PixelCanvas, BitmapFont), engine/app Localization.
+- Uses: engine/render (PixelCanvas, BitmapFont), engine/app Localization,
+  engine/app MapCatalog.
 - Used by: App only.
 
 Notes:
@@ -47,9 +47,16 @@ UPD:
 - 14:08:2026 - 16:11:00: Кнопка «Редактор» на корневом экране (запрос В39: две кнопки,
   игра и редактор) → MenuAction::EnterEditor. Корень стал четырёхстрочным: Играть,
   Редактор, Настройки, Выход.
+- 14:08:2026 - 16:50:36: БРАУЗЕР КАРТ (контракт docs/MAP_LAYOUT.md). Вход в Играть и в
+  Редактор открывает не карту, а браузер: категории (папки) → карты (.map) → открыть.
+  MenuPage::Maps заменён на Categories + CategoryMaps; MenuAction::EnterWorld/EnterEditor
+  свёрнуты в один OpenMap (режим решает browse_target). MapEntry/set_maps/chosen_stand
+  сняты — их место занял MapCatalog. Пустые категории показываются пустыми.
 */
 
 #pragma once
+
+#include "engine/app/sources/MapCatalog.h"
 
 #include <cstdint>
 #include <string>
@@ -61,32 +68,27 @@ class PixelCanvas;
 
 namespace dfn::app {
 
-// One selectable demo map. `stand` is the worldgen stand id the app passes to
-// core; 0 is the testbed valley that exists today. New stands (forest, river,
-// sea, town, mirror) append here as core lands them -- the menu needs no code
-// change, which is the point of the table.
-struct MapEntry {
-    uint32_t stand = 0;
-    std::string name_key;  // localization key, never a literal
-    std::string blurb_key; // one line under the title
-};
+// Whether the browser was opened by "Играть" or "Редактор". OpenMap carries no
+// mode of its own -- both buttons run the SAME browser (В39: play changes map
+// through the same picker, only without the debug tools), and this is what the
+// app reads back to decide whether to possess the body or fly the free camera.
+enum class BrowseTarget : uint8_t { Play, Editor };
 
 enum class MenuPage : uint8_t {
-    Root = 0,        // start screen
-    Maps = 1,        // map picker
-    Pause = 2,       // in-game
-    Calibrate = 3,   // brightness calibration (Skyrim/Doom's first-run screen)
-    Settings = 4,    // the settings.cfg rows, turnable without a text editor
+    Root = 0,          // start screen
+    Categories = 1,    // the browser's first level: category folders
+    CategoryMaps = 2,  // the browser's second level: .map files in one category
+    Pause = 3,         // in-game
+    Calibrate = 4,     // brightness calibration (Skyrim/Doom's first-run screen)
+    Settings = 5,      // the settings.cfg rows, turnable without a text editor
 };
 
 enum class MenuAction : uint8_t {
     None = 0,
-    EnterWorld, // `chosen_stand` carries which
-    // The root's "Редактор" button (user В39: two buttons, play and editor).
-    // Loads the testbed and enters the free-camera editor; a stand chooser for
-    // it is a later cut. Distinct from EnterWorld so the app knows to fly rather
-    // than to possess the body.
-    EnterEditor,
+    // A map was chosen in the browser. chosen_map() is the manifest; the app
+    // resolves its source and enters browse_target()'s mode (Play or Editor).
+    // One action for both buttons: the browser is shared (В39).
+    OpenMap,
     Resume,
     ToRoot,
     Quit,
@@ -122,8 +124,28 @@ struct MenuSettings {
 
 class MenuModel {
 public:
-    void set_maps(std::vector<MapEntry> maps);
-    [[nodiscard]] const std::vector<MapEntry>& maps() const { return maps_; }
+    // THE MAP BROWSER'S DATA. Handed in by the app (which scanned the disk) and
+    // only read here, so the menu stays testable without a filesystem: a test
+    // builds a MapCatalog in memory and drives the pages. The pointer must
+    // outlive the model (App owns both).
+    void set_catalog(const MapCatalog* catalog) { catalog_ = catalog; }
+
+    // Open the browser at its first level (categories). `target` is remembered
+    // and returned by browse_target(), which is how the app knows whether the
+    // chosen map should be played or flown.
+    void open_browser(BrowseTarget target);
+    [[nodiscard]] BrowseTarget browse_target() const { return target_; }
+    // Valid immediately after activate() returns OpenMap: the manifest chosen.
+    [[nodiscard]] const MapManifest* chosen_map() const { return chosen_map_; }
+    // For draw_menu: the catalog it browses and which category is open.
+    [[nodiscard]] const MapCatalog* catalog() const { return catalog_; }
+    [[nodiscard]] size_t chosen_category() const { return chosen_category_; }
+
+    // A non-fatal browser message (e.g. a .dfw source with no baked file yet).
+    // The app composes it from localization and hands it in; the browser draws
+    // it and any navigation clears it. Empty = nothing to say.
+    void set_browser_status(std::string text) { browser_status_ = std::move(text); }
+    [[nodiscard]] const std::string& browser_status() const { return browser_status_; }
 
     void open(MenuPage page);
     [[nodiscard]] MenuPage page() const { return page_; }
@@ -137,8 +159,6 @@ public:
     // Escape: from a sub-page it goes back, from the root it quits, from pause
     // it resumes. One key, no dead ends.
     [[nodiscard]] MenuAction back();
-
-    [[nodiscard]] uint32_t chosen_stand() const { return chosen_stand_; }
 
     // BRIGHTNESS FLOOR (the user's "minimum brightness"), in quantizer luma.
     // The menu owns it only while the calibration page is up: the app hands the
@@ -165,7 +185,13 @@ public:
     void adjust(int delta);
 
 private:
-    std::vector<MapEntry> maps_;
+    // The browser's data and where it is in it. catalog_ is borrowed (App owns
+    // it); the two indices are only meaningful on the browser pages.
+    const MapCatalog* catalog_ = nullptr;
+    BrowseTarget target_ = BrowseTarget::Play;
+    size_t chosen_category_ = 0;          // which category CategoryMaps lists
+    const MapManifest* chosen_map_ = nullptr; // set on OpenMap
+    std::string browser_status_;          // non-fatal message, drawn then cleared
     MenuPage page_ = MenuPage::Root;
     // Where Escape/Enter returns from the calibration page. It is reachable
     // from the root AND from settings, and a page that always returns to one
@@ -177,7 +203,6 @@ private:
     // returns to the start screen would answer that by leaving the world.
     MenuPage settings_return_ = MenuPage::Root;
     size_t selection_ = 0;
-    uint32_t chosen_stand_ = 0;
     float black_floor_ = 0.0f;
     MenuSettings settings_{};
     MenuSettings launched_{};
