@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 00:24:00
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -24,6 +24,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 14:08:2026 - 23:36:19: Created with TreeForge.h.
+- 15:08:2026 - 00:24:00: v2 — скелет виден сквозь крону: каркасные ветви + вторичные ёлочкой,
+  лапы-якоря на кончиках и серединах ветвей, КРЕСТ-накрест пары карточек на якорь
+  (стандарт SpeedTree: одинокая плоскость исчезает в собственный профиль и мерцает
+  при облёте), ядро — малая тёмная глубина за просветами, а не крона. Плотность
+  поднята после первого же кадра v2: редкие помпоны — не референс.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -131,105 +136,144 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         bole.push_back({pos, dir, std::max(r1, 0.05f)});
     }
 
-    // --- SCAFFOLDS: order-1 branches, each STARTING ON THE DRAWN BOLE with a
-    // thickened, embedded base (§1.5: the joint is a swelling, not a butt).
-    // They curve upward and END INSIDE the crown masses — nothing pokes out
-    // bare, which retires «витые палки» structurally.
+    // --- THE BRANCH HIERARCHY, DRAWN. The user's Skyrim references rule this
+    // stage: the skeleton is VISIBLE THROUGH the crown — scaffolds and second-
+    // order branches are real geometry, and the foliage hangs ON them as
+    // ragged sprays with sky in between. Not a solid ball (v1's verdict:
+    // «мультяшный стиль»), not confetti (the old generator's verdict).
+    //
+    // Every branch remembers its outer points; the sprays attach THERE, so
+    // foliage placement is the skeleton's own statement (§3 of the research:
+    // leaves that do not grow from branches are the original complaint).
+    struct SprayAnchor {
+        glm::vec3 pos;
+        glm::vec3 dir; ///< outward direction of the branch at the anchor
+    };
+    std::vector<SprayAnchor> anchors;
+
+    const float phase = rng.unit();
     for (int b = 0; b < p.scaffold_count; ++b) {
-        // Attachment: spiral azimuths (golden step + jitter), heights spread
-        // over the crown's lower half — where real scaffolds live.
         const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;
-        const float hy = crown_base + crown_ry * (0.05f + 0.75f * rng.unit()) - crown_ry;
-        const float attach_y = std::clamp(hy + crown_ry * 0.5f, FLARE_HEIGHT + 1.0f,
-                                          bole_top_y - 0.5f);
-        // Find the bole ring at that height and root the branch INSIDE it.
+        const float attach_span = bole_top_y - (crown_base * 0.85f);
+        const float attach_y = crown_base * 0.85f
+                             + attach_span * (0.15f + 0.8f * rng.unit());
         const Ring* at = &bole.front();
         for (const Ring& r : bole) {
             if (r.pos.y <= attach_y) at = &r;
         }
         const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
         const glm::vec3 root = at->pos + out * (at->radius * 0.4f); // embedded
-        // Elevation: steep low scaffolds, flatter high ones — the classic vase.
-        const float k = (attach_y - crown_base + crown_ry) / (2.0f * crown_ry);
-        const float elev = 0.9f - 0.55f * k + rng.sym() * 0.1f;
+        const float k = std::clamp((attach_y - crown_base) / std::max(attach_span, 0.1f),
+                                   0.0f, 1.0f);
+        // Low scaffolds reach out flat, high ones climb — the vase profile the
+        // references show; the very top continues the leader.
+        const float elev = 0.25f + 0.85f * k + rng.sym() * 0.12f;
         glm::vec3 bd = safe_normalize(
             out * std::cos(elev) + glm::vec3{0.0f, std::sin(elev), 0.0f}, out);
-        const float branch_r = at->radius * (0.55f + rng.unit() * 0.15f);
-        const float reach = p.crown_radius * (0.75f + rng.unit() * 0.35f);
+        const float branch_r = at->radius * (0.5f + rng.unit() * 0.12f);
+        const float reach = p.crown_radius * (0.85f + rng.unit() * 0.35f);
         glm::vec3 bp = root;
-        float br = branch_r * 1.35f; // §1.5's inflate: the base is a swelling
+        glm::vec3 cur = bd;
+        float br = branch_r * 1.35f; // §1.5's inflate at the joint
         const int segs = 3;
-        for (int s = 0; s < segs; ++s) {
-            const float tt = static_cast<float>(s + 1) / segs;
-            // Curve upward as it goes (AttractionUp of the model, spent here
-            // as a per-segment pull instead of a parameter).
-            bd = safe_normalize(bd + glm::vec3{0.0f, 0.28f * tt, 0.0f}, bd);
-            const glm::vec3 np = bp + bd * (reach / segs);
-            const float nr = branch_r * (1.0f - 0.75f * tt);
-            tube_segment(obj.wood, bp, np, bd, br, std::max(nr, 0.04f), 5, bark);
+        for (int sgi = 0; sgi < segs; ++sgi) {
+            const float tt = static_cast<float>(sgi + 1) / segs;
+            // Weber's sign-alternating wander plus a mild upward pull.
+            const glm::vec3 side = safe_normalize(
+                glm::cross(cur, glm::vec3{0.0f, 1.0f, 0.0f}), out);
+            cur = safe_normalize(cur + glm::vec3{0.0f, 0.16f, 0.0f}
+                                     + side * (rng.sym() * 0.25f), cur);
+            const glm::vec3 np = bp + cur * (reach / segs);
+            const float nr = branch_r * (1.0f - 0.68f * tt);
+            tube_segment(obj.wood, bp, np, cur, br, std::max(nr, 0.035f), 5, bark);
+
+            // SECOND-ORDER BRANCHES leave the outer two segments alternately
+            // left/right — the herringbone every reference crown shows.
+            if (sgi >= 1) {
+                for (int c = 0; c < p.secondary_per_scaffold; ++c) {
+                    if (rng.unit() < 0.12f) continue; // uneven, never a comb
+                    const float lr = ((c + sgi) % 2 == 0) ? 1.0f : -1.0f;
+                    const glm::vec3 sdir = safe_normalize(
+                        cur + side * (lr * (0.7f + rng.unit() * 0.5f))
+                            + glm::vec3{0.0f, 0.25f + rng.unit() * 0.3f, 0.0f},
+                        side);
+                    const float slen = reach * (0.3f + rng.unit() * 0.25f);
+                    const glm::vec3 sp0 = bp + cur * (reach / segs) * (0.4f + 0.4f * rng.unit());
+                    const glm::vec3 sp1 = sp0 + sdir * slen;
+                    tube_segment(obj.wood, sp0, sp1, sdir, std::max(nr, 0.035f) * 0.6f,
+                                 0.02f, 4, bark);
+                    anchors.push_back({sp1, sdir});
+                    if (rng.unit() < 0.9f) { // a mid-branch tuft anchor too
+                        anchors.push_back({sp0 + sdir * (slen * 0.55f), sdir});
+                    }
+                }
+            }
             bp = np;
-            br = std::max(nr, 0.04f);
+            br = std::max(nr, 0.035f);
         }
+        anchors.push_back({bp, cur}); // the scaffold tip itself
+    }
+    // The leader's top carries a crown of its own.
+    anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.4f, 0.0f},
+                       glm::vec3{0.0f, 1.0f, 0.0f}});
+
+    // --- INNER SHADOW CORE: small and DARK — the depth glimpsed between the
+    // sprays, not the crown itself. What the references show through the gaps
+    // is shadow, and without this the gaps show SKY straight through the
+    // middle of the tree, which reads hollow.
+    if (p.core_frac > 0.0f) {
+        MeshData core;
+        blob_cluster(core, glm::vec3{0.0f},
+                     {p.crown_radius * p.core_frac, crown_ry * p.core_frac * 0.9f,
+                      p.crown_radius * p.core_frac},
+                     6, 4, 0xFFFFFFFFu);
+        const glm::vec3 shade = tone * 0.5f; // deep-shadow leaf value
+        for (platform::Vertex& v : core.vertices) {
+            v.color_rgba = pack(shade);
+        }
+        append_transformed(obj.wood, core, crown_c, 0.0f, 1.0f);
     }
 
-    // --- CROWN MASSES: the core plus satellites — camp (а) of §1.7, where the
-    // measured models spend 87-91 % of their triangles on SOLID leaf masses.
-    // Faceted on purpose (the reference look), top-lit by baked colour.
-    const auto mass = [&](glm::vec3 c, glm::vec3 radii, int slices, int bands) {
-        MeshData blob;
-        blob_cluster(blob, glm::vec3{0.0f}, radii, slices, bands, 0xFFFFFFFFu);
-        // Re-colour per vertex by the DOME rule before merging: normal.y of a
-        // faceted blob is its facet's tilt, and lighting-by-colour survives the
-        // palette where lighting-by-normal alone dies at this pixel scale.
-        const float jit = 0.92f + rng.unit() * 0.16f; // narrow: §3's verdict on
-                                                      // inter-card noise
-        for (platform::Vertex& v : blob.vertices) {
-            const float ny01 = std::clamp(v.normal.y * 0.5f + 0.5f, 0.0f, 1.0f);
-            const float local = 0.9f + 0.2f * std::clamp(v.position.y / (radii.y + 1e-3f)
-                                                             * 0.5f + 0.5f,
-                                                         0.0f, 1.0f);
-            v.color_rgba = dome_color(tone, ny01 * local * 0.9f, jit);
+    // --- LEAF SPRAYS ON THE ANCHORS. Each card is a ragged leafy branch tuft
+    // (the atlas' spray masks), sized in crown fractions, its normal blended
+    // between the branch's own outward direction and the radial from the crown
+    // centre — enough dome for one light (the «наждачка» cure held from v1),
+    // enough per-branch identity that sprays read as HANGING on their branch.
+    for (const SprayAnchor& a : anchors) {
+        const int sprays = p.spray_per_branch;
+        for (int i = 0; i < sprays; ++i) {
+            const glm::vec3 jitter{rng.sym() * 0.5f, rng.sym() * 0.35f,
+                                   rng.sym() * 0.5f};
+            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.12f);
+            const glm::vec3 radial = safe_normalize(c - crown_c, a.dir);
+            const glm::vec3 n = safe_normalize(radial * 0.55f + a.dir * 0.45f, radial);
+            LeafCardParams card;
+            card.center = c;
+            card.normal = n;
+            card.half_width = p.crown_radius * p.spray_frac * (0.85f + rng.unit() * 0.45f);
+            card.half_height = card.half_width * (0.65f + rng.unit() * 0.25f);
+            card.roll = rng.sym() * 0.9f; // near-upright sprays, never fully spun
+            card.shape = p.card_shape;
+            card.tone = p.tone;
+            card.value_jitter = 0.42f + rng.unit() * 0.22f; // narrow: v1's cure
+            card.phase = phase;
+            card.sway_origin = glm::vec3{0.0f, crown_base, 0.0f};
+            card.sway_span = p.crown_radius * 1.8f;
+            emit_leaf_card(obj.cards, card);
+            // THE CROSSED PARTNER (SpeedTree's standard pair): the same tuft
+            // seen edge-on stops vanishing — a lone plane disappears at its
+            // own profile, and a sparse crown of lone planes flickers as the
+            // camera orbits. Slightly smaller, rotated off the first.
+            LeafCardParams cross = card;
+            cross.normal = safe_normalize(glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f})
+                                              + glm::vec3{0.0f, 0.3f * rng.sym(), 0.0f},
+                                          a.dir);
+            cross.half_width *= 0.85f;
+            cross.half_height *= 0.85f;
+            cross.roll = rng.sym() * 0.9f;
+            cross.value_jitter = 0.42f + rng.unit() * 0.22f;
+            emit_leaf_card(obj.cards, cross);
         }
-        append_transformed(obj.wood, blob, c, 0.0f, 1.0f);
-    };
-    mass(crown_c, {p.crown_radius * 0.62f, crown_ry * 0.72f, p.crown_radius * 0.62f}, 7, 5);
-    for (int i = 0; i < p.mass_count; ++i) {
-        const glm::vec3 d = fib_dir(i, p.mass_count);
-        const glm::vec3 c = crown_c
-                          + glm::vec3{d.x * p.crown_radius * 0.55f, d.y * crown_ry * 0.55f,
-                                      d.z * p.crown_radius * 0.55f};
-        const float s = 0.34f + rng.unit() * 0.16f; // 0.34-0.50 of the crown —
-                                                    // Marc Solà's clump scale
-        mass(c, {p.crown_radius * s, crown_ry * s * (0.8f + rng.unit() * 0.3f),
-                 p.crown_radius * s}, 6, 4);
-    }
-
-    // --- BIG RIM CARDS: SpeedTree clusters at our budget mean each card is a
-    // BRANCH-WITH-LEAVES, roughly half the crown across (§1.1, §1.6, §2's
-    // element-size row). Normals point FROM the crown centre — the Airborn
-    // projection — so every card shades as part of one dome.
-    const float phase = rng.unit();
-    for (int i = 0; i < p.card_count; ++i) {
-        const glm::vec3 d = fib_dir(i, p.card_count);
-        const glm::vec3 dir3 = safe_normalize(
-            glm::vec3{d.x, d.y * 0.8f, d.z}, glm::vec3{0.0f, 1.0f, 0.0f});
-        LeafCardParams card;
-        card.center = crown_c + glm::vec3{dir3.x * p.crown_radius * 0.78f,
-                                          dir3.y * crown_ry * 0.78f,
-                                          dir3.z * p.crown_radius * 0.78f};
-        card.normal = dir3; // FROM the centre: the projected-normal dome
-        card.half_width = p.crown_radius * (0.5f + rng.unit() * 0.12f);
-        card.half_height = p.crown_radius * (0.4f + rng.unit() * 0.1f);
-        card.roll = rng.unit() * TAU;
-        card.shape = p.card_shape;
-        card.tone = p.tone;
-        // NARROW value band (§3: inter-card noise at card frequency IS the
-        // «наждачка»; variation belongs INSIDE the texture, not between cards).
-        card.value_jitter = 0.45f + rng.unit() * 0.2f;
-        card.phase = phase;
-        card.sway_origin = glm::vec3{0.0f, crown_base, 0.0f};
-        card.sway_span = p.crown_radius * 1.8f;
-        emit_leaf_card(obj.cards, card);
     }
 
     obj.content_hash = object_content_hash(obj);

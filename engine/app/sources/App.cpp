@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 00:24:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -134,6 +134,9 @@ UPD:
   к востоку от спавна, каждый на своей высоте земли; собранные потоки уходят в
   upload_prebuilt_scatter. Гейт тестбедных пропсов и восточный спавн переведены
   на stand_is_inspection() — семейство вместо перечня.
+- 15:08:2026 - 00:24:00: Ряд галереи разносится по ЗАМЕРЕННОМУ габариту объекта (max |x,z| вершин),
+  а не фиксированным шагом: в реестре теперь и берёза 4 м, и гигант 17 м —
+  фиксированный шаг либо тратит прогулку, либо хоронит берёзу в кроне гиганта.
 */
 
 #include "engine/app/sources/App.h"
@@ -1068,7 +1071,12 @@ bool App::enter_world(uint32_t stand) {
         std::sort(files.begin(), files.end());
         render::MeshData row_wood;
         render::MeshData row_cards;
-        float x = mid + 14.0f;
+        // The row is spaced by each object's OWN measured footprint, because
+        // the registry holds both a birch and a settlement-scale giant: a
+        // fixed step either wastes the walk or buries the birch in the
+        // giant's crown. The mesh is the truth about how wide an object is.
+        float cursor = mid + 8.0f;
+        float prev_half = 0.0f;
         int shown = 0;
         for (const fs::path& f : files) {
             const auto obj = render::read_object(f);
@@ -1077,15 +1085,27 @@ bool App::enter_world(uint32_t stand) {
                              f.string().c_str());
                 continue;
             }
+            float half = 3.0f;
+            for (const platform::Vertex& v : obj->wood.vertices) {
+                half = std::max(half, std::max(std::fabs(v.position.x),
+                                               std::fabs(v.position.z)));
+            }
+            for (const platform::Vertex& v : obj->cards.vertices) {
+                half = std::max(half, std::max(std::fabs(v.position.x),
+                                               std::fabs(v.position.z)));
+            }
+            const float x = cursor + prev_half + half + 5.0f;
+            cursor = x;
+            prev_half = half;
             const float y = chunks_.height_at({x, mid}).value_or(ground);
             const glm::vec3 at{x, y, mid};
             render::append_transformed(row_wood, obj->wood, at, 0.0f, 1.0f);
             render::append_transformed(row_wood, obj->ground, at, 0.0f, 1.0f);
             render::append_transformed(row_cards, obj->cards, at, 0.0f, 1.0f);
-            std::fprintf(stderr, "[gallery] %s at x=%.0f (hash %016llx)\n",
+            std::fprintf(stderr, "[gallery] %s at x=%.0f (half %.1f m, hash %016llx)\n",
                          obj->name.c_str(), static_cast<double>(x),
+                         static_cast<double>(half),
                          static_cast<unsigned long long>(obj->content_hash));
-            x += 14.0f;
             ++shown;
         }
         if (shown > 0) {

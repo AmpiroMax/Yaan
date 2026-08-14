@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 00:24:00
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -47,6 +47,10 @@ AI Agents Notice (must follow):
 UPD:
 - 14:08:2026 - 23:36:19: Created — the forge, first cut: bole + embedded
   scaffolds + mass-and-card crown with projected normals.
+- 15:08:2026 - 00:24:00: v2 ПО РЕФЕРЕНСАМ ПОЛЬЗОВАТЕЛЯ (Skyrim): вердикт по v1 — «мультяшный стиль,
+  шарик сплошной». Сплошные массы заменены НАРИСОВАННЫМ ветвлением двух порядков
+  с листовыми лапами НА ветвях: spray_frac/spray_per_branch/secondary_per_scaffold
+  вместо mass_count/card_count; ядро ужато до тени (core_frac 0.24).
 */
 
 #pragma once
@@ -73,8 +77,17 @@ struct TreeForgeParams {
     LeafTone tone = LeafTone::OakMid;
     LeafShape card_shape = LeafShape::RoundLobed;
     int scaffold_count = 5;        ///< order-1 branches off the bole
-    int mass_count = 7;            ///< satellite crown masses around the core
-    int card_count = 12;           ///< big rim cards (SpeedTree cluster scale)
+    int secondary_per_scaffold = 4;///< order-2 branches per scaffold
+    int spray_per_branch = 2;      ///< leafy spray cards per outer branch
+    /// Spray card half-size as a fraction of the crown radius. The Skyrim
+    /// reference the user ruled by: dozens of MEDIUM ragged sprays hanging on
+    /// visible branches with sky between them — not a solid ball (v1's camp),
+    /// not confetti (the old generator's camp).
+    float spray_frac = 0.20f;
+    /// Inner shadow core as a fraction of the crown radius. Small and DARK:
+    /// it is the depth behind the sprays (Airborn's blob demoted to a shadow),
+    /// not the crown itself. 0 disables.
+    float core_frac = 0.24f;
 };
 
 /// Forges one tree. The returned object carries its content hash and is ready

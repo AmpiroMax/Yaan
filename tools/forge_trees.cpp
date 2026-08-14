@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 00:24:00
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -27,6 +27,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 14:08:2026 - 23:36:19: Created — first gallery: three oaks, two birches.
+- 15:08:2026 - 00:24:00: Гигант great-forge-oak в галерее (референс пользователя — дерево-поселение:
+  «мне вот таких размеров деревья тоже нужны»): 46 м, крона 20 м радиуса, 10
+  каркасных ветвей; лапы в АБСОЛЮТНЫХ метрах почти как у обычного дуба — листья
+  гиганта не растут вместе с ним.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -77,9 +81,30 @@ int main(int argc, char** argv) {
         birch.tone = LeafTone::BirchLight;
         birch.card_shape = LeafShape::OvalSpray;
         birch.scaffold_count = 4;
-        birch.mass_count = 5;
-        birch.card_count = 10;
+        birch.secondary_per_scaffold = 3;
+        birch.spray_frac = 0.24f; // birch: fewer, slightly larger airy sprays
         gallery.push_back(birch);
+    }
+    {
+        // THE GIANT — the user's settlement-tree reference: «очень большое
+        // дерево, на котором живут... мне вот таких размеров деревья тоже
+        // нужны». Same recipe, landmark proportions; the dwellings are
+        // gameplay's story, the TREE is the forge's.
+        TreeForgeParams giant;
+        giant.seed = 777;
+        giant.name = "great-forge-oak";
+        giant.height = 46.0f;
+        giant.crown_radius = 20.0f;
+        giant.crown_base_frac = 0.30f;
+        giant.trunk_radius = 2.6f;
+        giant.tone = LeafTone::OakDeep;
+        giant.card_shape = LeafShape::RoundLobed;
+        giant.scaffold_count = 10;
+        giant.secondary_per_scaffold = 4;
+        giant.spray_per_branch = 2;
+        giant.spray_frac = 0.18f; // absolute sprays ~2.7 m: giant leaves do not scale
+        giant.core_frac = 0.30f;
+        gallery.push_back(giant);
     }
 
     std::string index;
