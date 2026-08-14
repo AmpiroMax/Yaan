@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:50:36
+Last updated: 14:08:2026 - 17:36:02
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -116,6 +116,7 @@ UPD:
 - 13:08:2026 - 23:12:40: СЧЁТНЫЕ ЧАСЫ БЫЛИ ВЫДАНЫ ТОЛЬКО ТУРУ, и это моя недоделка, дожившая до сегодня. game_seconds_ рос на СТЕННУЮ дельту кадра во всех остальных автоматических дверях — DFN_CAPTURE_AFTER, DFN_RESTORE, DFN_PLAYTEST, — то есть ровно в тех прогонах, кадры которых зоны кладут в приёмку. Проверка «это доказательство?» была написана как «это тур?». Найдено тем, что дверь DFN_CAPTURE_AFTER_FRAMES, отгруженная часом раньше, НЕ ДАЛА обещанного: две руки, приколотые к одним и тем же 600 отрисованным кадрам, пришли к game_seconds 893.719 и 890.615 — три секунды солнца и ветра врозь, потому что 600 кадров стенных часов не есть длительность. После правки обе руки дают 882.007285 РОВНО. Правило 35, третий потребитель: unattended_run() уже отвечает «за этим никто не играет» пропуску меню и захвату курсора; на этот вопрос он отвечает тоже.
 - 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера. Новый режим летающей камеры (запрос В39/Л1): камера отвязана от тела и физики (EditorCamera, WASD+E/Q/Space/Ctrl+мышь+колесо-скорость), сим продолжает тикать ради стриминга/неба/тела, но ввод игрока изъят и кадр рисуется из свободной позы. Tab вселяет камеру в игрока (teleport_character под камеру) и обратно. Вход: пункт меню «Редактор» (attended, курсор захвачен) и дверь DFN_EDITOR=1 (unattended, курсор свободен) + DFN_EDITOR_CAM=x,y,z,yaw,pitch для приёмочного кадра с любой точки. Оверлей — баннер режима со скоростью полёта; отладочный вывод (F3) уже отражает свободную камеру, т.к. camera_ и есть свободный глаз. Wireframe/счётчик треугольников/LOD-цифра/пикинг центра упираются в render (IRenderer не отдаёт статистику/каркас/луч) — вынесено лиду списком.
 - 14:08:2026 - 16:50:36: БРАУЗЕР КАРТ (контракт docs/MAP_LAYOUT.md). Вход в Играть и в Редактор открывает не карту, а браузер: категории (папки) → карты (.map) → открыть — прыжок сразу в карту был названной ошибкой первого каркаса. Каталог сканируется из assets/maps (MapCatalog), меню его только читает. open_map() разрешает source: stand:Testbed/Forest грузит стенд (мост до пекаря), dfw:<файл> — честная ошибка на экран (пекаря нет). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (не DFN_MAP — то занято render'ом), DFN_EDITOR=1 без карты открывает браузер редактора. current_manifest() — сим для зоны chat (путь чата из category/file_stem). Плюс погашена призрачная подсказка «Открыть» в редакторе (hover заморожённого игрока — у летящего глаза нет взаимодействия).
+- 14:08:2026 - 17:36:02: ЧАТ+СНИМОК+ТЕЛЕМЕТРИЯ+ЗАПИСЬ/ПОВТОР (В28/O-серия). Чат — JSONL-лог рядом с картой (путь из current_manifest(): assets/maps/<category>/<file_stem>.chat.jsonl): Enter роняет снимок кадра замечанием, дверь DFN_CHAT_MSG="text" (+DFN_CHAT_WHO=<zone> для самодок демки, O1) пишет запись и закрывается. Снимок ПЕРЕИСПОЛЬЗУЕТ существующий DFN_CAPTURE/write_capture. Телеметрия (item 3): кольцо TELEMETRY_LOG_HZ/_RING_SAMPLES по счётным часам, только в редакторе (В39), сброс в <карта>.telemetry.log на выходе. O3: запись позы/game_seconds/fov по кадрам (TrajectoryRecord, бинарный секционный формат на core BinaryWriter/Reader), детерминированный повтор — камера и счётные часы из файла, два проигрывания бит-в-бит (правило 53); клавиши R/P в редакторе, двери DFN_TRAJ_REC/DFN_TRAJ_PLAY. Резолвер чат-пути на current_manifest() editor'а. Живой ввод (text_input()) — следующим коммитом (полировка оверлея).
 */
 
 #include "engine/app/sources/App.h"
@@ -222,6 +223,13 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
            || std::getenv("DFN_MENU_SHOT") != nullptr
            || std::getenv("DFN_HUD_PROBE") != nullptr
            || std::getenv("DFN_RESTORE") != nullptr
+           // The chat verification door writes one entry and closes; nobody is
+           // at the keyboard, so it skips the menu and does not grab the mouse.
+           || std::getenv("DFN_CHAT_MSG") != nullptr
+           // Trajectory replay DRIVES the camera from a file and closes when the
+           // file is spent -- an evidence door, so it runs the counted clock,
+           // skips the menu and leaves the pointer alone.
+           || std::getenv("DFN_TRAJ_PLAY") != nullptr
            // DFN_OPEN_MAP=<category>/<map> is the automated map door: it loads a
            // concrete .map bypassing the browser, so a demo frame needs no hand
            // on the keyboard -- menu skipped, pointer free, counted clock. (NOT
@@ -421,7 +429,11 @@ AppConfig AppConfig::from_env() {
     return cfg;
 }
 
-App::App() : timestep_(config::SIM_DT, static_cast<uint32_t>(config::SIM_MAX_CATCHUP_STEPS)) {}
+App::App()
+    // Declaration order: telemetry_ is declared before timestep_ in App.h, so it
+    // is initialised first (keeps -Wreorder-ctor quiet).
+    : telemetry_(static_cast<size_t>(config::TELEMETRY_RING_SAMPLES)),
+      timestep_(config::SIM_DT, static_cast<uint32_t>(config::SIM_MAX_CATCHUP_STEPS)) {}
 
 App::~App() = default;
 
@@ -617,6 +629,47 @@ bool App::init(const AppConfig& config) {
                          "# arithmetic on adjacent lines.\n"
                          "# frame dt_ms game_s speed fov_y eye_x eye_y eye_z yaw pitch\n");
         }
+    }
+
+    // THE CHAT VERIFICATION DOOR (DFN_CHAT_MSG="text"). Writes one entry into
+    // the active map's chat, with the frame's capture attached, and closes --
+    // so the chat path is provable without a hand on the keyboard, exactly as
+    // DFN_CAPTURE_AFTER proves the capture path (Rule 27). DFN_CHAT_WHO sets the
+    // role: default "human" (a player remark), or a ZONE NAME to write a demo
+    // self-doc line (O1, e.g. DFN_CHAT_WHO=flora). Serviced after render().
+    if (const char* msg = std::getenv("DFN_CHAT_MSG"); msg != nullptr && *msg != '\0') {
+        ChatEntry e;
+        const char* who = std::getenv("DFN_CHAT_WHO");
+        e.who = (who != nullptr && *who != '\0') ? who : "human";
+        e.text = msg;
+        chat_pending_entry_ = std::move(e);
+        chat_pending_ = true;
+        chat_then_close_ = true;
+    }
+
+    // TRAJECTORY REPLAY DOOR (DFN_TRAJ_PLAY=<file>). Loaded BEFORE the world is
+    // built, because the file names WHICH stand it was recorded in -- replaying
+    // into a different world would be a coincidence, not a reproduction. The
+    // replay then drives the camera and the counted clock in run(), so two
+    // playbacks render bit-for-bit (Rule 53). Closes when the file is spent.
+    if (const char* tp = std::getenv("DFN_TRAJ_PLAY"); tp != nullptr && *tp != '\0') {
+        TrajectoryPlayer pl;
+        if (!pl.load(tp)) {
+            std::fprintf(stderr, "[traj] cannot play %s\n", tp);
+        } else {
+            config_.start_stand = pl.stand();
+            config_.show_menu = false;
+            traj_play_then_close_ = true;
+            traj_play_ = std::move(pl);
+        }
+    }
+    // TRAJECTORY RECORD DOOR (DFN_TRAJ_REC=<file>). Arms recording for the whole
+    // run and writes on stop -- pair it with DFN_EDITOR/DFN_OPEN_MAP (free
+    // camera) or DFN_PLAYTEST_ROUTE (a scripted walk) to record hands-free.
+    // Interactive recording is the R key in the editor.
+    if (const char* tr = std::getenv("DFN_TRAJ_REC"); tr != nullptr && *tr != '\0') {
+        traj_rec_out_ = tr;
+        traj_rec_arm_ = true;
     }
 
     // DFN_RESTORE names a sidecar written by F2. Read BEFORE the world is
@@ -1336,6 +1389,13 @@ bool App::enter_world(uint32_t stand) {
         apply_restore(*restore_);
         restore_.reset();
     }
+
+    // A DFN_TRAJ_REC run begins recording as soon as the world (and the stand it
+    // stamps into the file) exists. The seed is this function's fixed worldgen
+    // seed, recorded so a replay is checked against the world it was taken in.
+    if (traj_rec_arm_ && !traj_rec_.active()) {
+        traj_rec_.begin(active_stand_, 1u);
+    }
     return true;
 }
 
@@ -1655,6 +1715,48 @@ void App::write_capture(const DebugSnapshot& snap) {
     // manager.
     std::fprintf(stderr, "[capture] %s.png + .txt\n%s", base.c_str(), text.c_str());
     ++captures_written_;
+}
+
+std::string App::chat_path_for_current_map() const {
+    const MapManifest* m = current_manifest();
+    if (m == nullptr) {
+        return {};
+    }
+    // docs/MAP_LAYOUT.md: the chat is a JSONL log beside the map's own manifest,
+    // so a remark "knows its map" and therefore its owner zone. The catalog was
+    // scanned from "assets/maps" (init), so the path is category/file_stem there.
+    return "assets/maps/" + m->category + "/" + m->file_stem + ".chat.jsonl";
+}
+
+void App::write_pending_chat(float alpha) {
+    const std::string chat_path = chat_path_for_current_map();
+    if (chat_path.empty()) {
+        std::fprintf(stderr, "[chat] no map open; entry dropped\n");
+        return;
+    }
+    const DebugSnapshot snap = collect_snapshot(alpha);
+    ChatEntry entry = chat_pending_entry_;
+    if (entry.who.empty()) {
+        entry.who = "human";
+    }
+    // ATTACH A CAPTURE VIA THE EXISTING DFN_CAPTURE PATH -- reuse, not a second
+    // screenshot pipeline (Rule 32/35, the lead's "переиспользуй снимок").
+    // write_capture writes capture_NNN.{png,txt} into capture_dir_ and bumps
+    // captures_written_ only on success, so the pre-call index names the files.
+    const int idx = captures_written_;
+    write_capture(snap);
+    if (captures_written_ > idx) {
+        char stem[64];
+        std::snprintf(stem, sizeof(stem), "capture_%03d.png", idx);
+        entry.capture = capture_dir_ + "/" + stem;
+    }
+    // Best-effort wall date: the same local-time stamp collect_snapshot already
+    // reads (a tooling path, not the deterministic sim), an EXTRA field never the
+    // order key (MAP_LAYOUT.md).
+    const std::optional<std::string> date =
+        snap.captured_at.empty() ? std::nullopt
+                                 : std::optional<std::string>(snap.captured_at);
+    (void)append_chat_entry(chat_path, snap.game_seconds, entry, date);
 }
 
 void App::apply_restore(const DebugSnapshot& snap) {
@@ -2077,6 +2179,45 @@ int App::run() {
             || input_->was_pressed(platform::Key::F2)) {
             capture_pending_ = true;
         }
+        // CHAT (the user named Enter/T). Enter drops the current frame's capture
+        // into the active map's chat as a human remark. Live Russian TYPING of
+        // the message is the follow-up overlay commit (input_->text_input() now
+        // exists); until then the remark's text is filled in the file. Menu mode
+        // is handled earlier and never reaches here, so Enter keeps its menu
+        // meaning there.
+        if ((mode_ == AppMode::Playing || mode_ == AppMode::Editor)
+            && input_->was_pressed(platform::Key::ENTER)) {
+            chat_pending_entry_ = ChatEntry{};
+            chat_pending_entry_.who = "human";
+            chat_pending_ = true;
+        }
+        // TRAJECTORY RECORD/REPLAY (O3), editor tooling (В39: full set in the
+        // editor). R starts/stops recording the walk -- on stop it writes a
+        // .dftraj and remembers it; P replays that last recording. The
+        // deterministic, bit-for-bit-checkable paths are the DFN_TRAJ_REC /
+        // DFN_TRAJ_PLAY doors (Rule 27); these keys are the human's version.
+        if (mode_ == AppMode::Editor && input_->was_pressed(platform::Key::R)) {
+            if (traj_rec_.active()) {
+                char stem[64];
+                std::snprintf(stem, sizeof(stem), "/trajectory_%03d.dftraj",
+                              traj_written_);
+                const std::string w = traj_rec_.stop_and_write(capture_dir_ + stem);
+                if (!w.empty()) {
+                    traj_last_path_ = w;
+                    ++traj_written_;
+                }
+            } else {
+                traj_rec_.begin(active_stand_, 1u);
+            }
+        }
+        if (mode_ == AppMode::Editor && input_->was_pressed(platform::Key::P)
+            && !traj_last_path_.empty()) {
+            TrajectoryPlayer pl;
+            if (pl.load(traj_last_path_)) {
+                traj_play_then_close_ = false; // interactive replay just stops
+                traj_play_ = std::move(pl);
+            }
+        }
         // TOOLING DOOR for the same capture (DFN_CAPTURE_AFTER=<seconds>):
         // fires one capture and closes. This is how the capture path itself is
         // verified -- an F2 that only a human can press is a feature nobody can
@@ -2127,6 +2268,26 @@ int App::run() {
             editor_cam_.update(*input_, static_cast<float>(frame_dt));
         }
 
+        // TRAJECTORY REPLAY (O3): consume one recorded frame per PRESENTED
+        // frame. The eye pose and the counted clock come from the FILE, so two
+        // playbacks render bit-for-bit (Rule 53). Set here, before the clock and
+        // the streaming focus below read it; the camera is overridden from it in
+        // the pose block. When the file is spent the replay ends (and the
+        // DFN_TRAJ_PLAY door closes).
+        replaying_ = false;
+        if (traj_play_ && traj_play_->active()) {
+            if (const TrajectoryFrame* f = traj_play_->advance()) {
+                replay_frame_ = *f;
+                replaying_ = true;
+            }
+        }
+        if (traj_play_ && !traj_play_->active()) {
+            if (traj_play_then_close_ && close_after_flush_ == 0) {
+                close_after_flush_ = 8; // let the last frame's capture flush
+            }
+            traj_play_.reset();
+        }
+
         // In-game clock (в67): DAY_LENGTH_SECONDS per day, with a debug key that
         // runs it DEBUG_TIME_SCALE faster so shadows can be watched sweeping.
         const double time_scale = input_->is_down(platform::Key::T)
@@ -2166,6 +2327,13 @@ int App::run() {
         game_seconds_ += (tour_.active() || unattended_run())
                              ? static_cast<double>(config::SIM_DT)
                              : frame_dt * time_scale;
+        // REPLAY OVERRIDES THE CLOCK with the recorded value, so the sky, sun,
+        // wind and everything else derived below is the recorded moment --
+        // identical on every playback (Rule 53). Set after the increment so the
+        // overwrite wins.
+        if (replaying_) {
+            game_seconds_ = replay_frame_.game_seconds;
+        }
         const double day_len = static_cast<double>(config::DAY_LENGTH_SECONDS);
         const double days = game_seconds_ / day_len;
         const float day_fraction = static_cast<float>(days - std::floor(days));
@@ -2300,7 +2468,9 @@ int App::run() {
             // are one tick stale, or the player falls through terrain that has
             // not been created yet.
             glm::vec3 focus{0.0f};
-            if (tour_.active()) {
+            if (replaying_) {
+                focus = replay_frame_.position; // stream around the replayed eye
+            } else if (tour_.active()) {
                 focus = tour_.focus_position();
             } else if (editor) {
                 focus = editor_cam_.position(); // stream around the flying eye
@@ -2471,7 +2641,16 @@ int App::run() {
         const float alpha = static_cast<float>(timestep_.alpha());
         const auto* pose = world_.get<components::CameraPose>(player_);
         const auto* prev_pose = world_.get<components::PreviousCameraPose>(player_);
-        if (editor) {
+        if (replaying_) {
+            // TRAJECTORY REPLAY drives the eye from the file. prev == curr so any
+            // alpha reproduces the recorded pose exactly, and the recorded fov is
+            // applied (the run fov-kick changes the image, so it is reproduced,
+            // not derived). This is what makes two playbacks bit-identical.
+            camera_.set_poses({replay_frame_.position, replay_frame_.yaw, replay_frame_.pitch},
+                              {replay_frame_.position, replay_frame_.yaw, replay_frame_.pitch});
+            camera_.set_projection(replay_frame_.fov_y, camera_.aspect_ratio(),
+                                   camera_.near_plane(), camera_.far_plane());
+        } else if (editor) {
             // The app owns the free pose outright: prev == curr, so any alpha
             // the loop computes below reproduces it exactly and the frame log,
             // audio and culling all read the flown eye.
@@ -2583,7 +2762,9 @@ int App::run() {
             // Same focus the streaming loop used this frame: the tour drives it
             // during a tour, the player otherwise.
             glm::vec3 lod_focus{0.0f};
-            if (tour_.active()) {
+            if (replaying_) {
+                lod_focus = replay_frame_.position;
+            } else if (tour_.active()) {
                 lod_focus = tour_.focus_position();
             } else if (editor) {
                 lod_focus = editor_cam_.position();
@@ -2739,6 +2920,45 @@ int App::run() {
 
         render_system_.render(world_, *renderer_, camera_, alpha);
 
+        // TRAJECTORY RECORDING (O3): every PRESENTED frame's eye pose + counted
+        // clock + fov, so replay reproduces the image exactly. Recording is an
+        // editor action, but a DFN_TRAJ_REC door (armed at enter_world) records
+        // any mode, so this is gated on the recorder, not the mode.
+        if (traj_rec_.active()) {
+            const auto eye = camera_.interpolated_pose(alpha);
+            TrajectoryFrame tf;
+            tf.game_seconds = game_seconds_;
+            tf.position = eye.position;
+            tf.yaw = eye.yaw;
+            tf.pitch = eye.pitch;
+            tf.fov_y = camera_.fov_y();
+            traj_rec_.push(tf);
+        }
+
+        // TELEMETRY RING (item 3), EDITOR ONLY -- in-game stays light (В39: no
+        // continuous log). One sample every 1/TELEMETRY_LOG_HZ of COUNTED time,
+        // so the log of a given walk has the same length on any machine. Reuses
+        // collect_snapshot. Flushed beside the map on stop.
+        if (mode_ == AppMode::Editor) {
+            const double period = 1.0 / static_cast<double>(config::TELEMETRY_LOG_HZ);
+            if (game_seconds_ - telemetry_last_s_ >= period) {
+                telemetry_last_s_ = game_seconds_;
+                const DebugSnapshot s = collect_snapshot(alpha);
+                TelemetrySample t;
+                t.game_seconds = s.game_seconds;
+                t.position = s.position;
+                t.yaw = s.yaw;
+                t.pitch = s.pitch;
+                t.fps = s.fps;
+                t.frame_ms = s.frame_ms;
+                t.chunks_resident = s.chunks_resident;
+                t.lod_nodes = s.lod_nodes;
+                // triangles / aim_target: render seam, left 0/"" until a hook
+                // fills them (read-if-present, never a block here).
+                telemetry_.push(t);
+            }
+        }
+
         // CAPTURE AFTER RENDER, so the .png and the sidecar are the same frame.
         // The snapshot is collected a second time here rather than reused from
         // the overlay above -- one frame of drift between the image and its
@@ -2755,6 +2975,17 @@ int App::run() {
             // the tooling door waits for the flush; the same reason the body
             // probe holds a 4-frame cooldown between shots.
             if (capture_then_close_) {
+                close_after_flush_ = 8;
+            }
+        }
+        // CHAT ENTRY AFTER RENDER, same reason as the capture: the attached
+        // capture and the entry must describe the same frame. The DFN_CHAT_MSG
+        // door waits for the backend flush before closing (the png lands over
+        // the following frames), like F2.
+        if (chat_pending_) {
+            chat_pending_ = false;
+            write_pending_chat(alpha);
+            if (chat_then_close_) {
                 close_after_flush_ = 8;
             }
         }
@@ -2851,6 +3082,24 @@ int App::run() {
             gameplay::playtest_write_artifacts(*playtest_, pt_dir_);
             pt_artifacts_pending_ = false;
             window_->request_close();
+        }
+    }
+    // STOP -> flush the telemetry ring beside the map (item 3). Empty in any run
+    // that never entered the editor, which is not an error. The file sits next
+    // to the map's chat, named `<map>.telemetry.log`, so a chat line can point
+    // at it via its `trajectory` field.
+    if (!telemetry_.empty()) {
+        const std::string chat_path = chat_path_for_current_map();
+        if (!chat_path.empty()) {
+            const std::string suf = ".chat.jsonl";
+            std::string tp = chat_path;
+            if (tp.size() >= suf.size()
+                && tp.compare(tp.size() - suf.size(), suf.size(), suf) == 0) {
+                tp = tp.substr(0, tp.size() - suf.size()) + ".telemetry.log";
+            } else {
+                tp += ".telemetry.log";
+            }
+            (void)telemetry_.flush(tp);
         }
     }
     // Gate: a playtest run with incidents exits nonzero (Main passes it through).

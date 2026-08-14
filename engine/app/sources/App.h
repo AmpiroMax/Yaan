@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:50:36
+Last updated: 14:08:2026 - 17:36:02
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -57,13 +57,16 @@ UPD:
 - 13:08:2026 - 22:14:05: capture_after_frames_ — вторая единица счёта для той же двери снимка. Секунды несравнимы побитово: две руки одного рецепта на разной загрузке машины успевают разное число кадров.
 - 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера (EditorCamera). Новый режим летающей камеры (запрос пользователя В39/Л1): облёт мира не игроком; Tab вселяет камеру в игрока и обратно. Дверь DFN_EDITOR=1 (+DFN_EDITOR_CAM=x,y,z,yaw,pitch) — авто-прогон через дверь, не забирающий мышь.
 - 14:08:2026 - 16:50:36: Браузер карт (контракт docs/MAP_LAYOUT.md): MapCatalog + current_manifest() (сим для зоны chat — путь чата из category/file_stem). Вход в Играть/Редактор открывает браузер; open_map() разрешает source (stand:/dfw:). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (взамен прежней DFN_EDITOR-в-мир; DFN_MAP занят render'ом), DFN_EDITOR=1 без карты открывает браузер редактора.
+- 14:08:2026 - 17:36:02: Поля/методы чата, телеметрии и записи/повтора траектории (В28/O-серия): chat_pending_/chat_pending_entry_, write_pending_chat()+chat_path_for_current_map() (путь из current_manifest()), TelemetryRing telemetry_, TrajectoryRecorder/Player (O3). Включены ChatLog.h и TrajectoryRecord.h.
 */
 
 #pragma once
 
 #include "engine/anim/sources/Rig.h"
+#include "engine/app/sources/ChatLog.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
+#include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/app/sources/Menu.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
@@ -203,6 +206,14 @@ private:
     [[nodiscard]] DebugSnapshot collect_snapshot(float alpha);
     void write_capture(const DebugSnapshot& snap);
     void apply_restore(const DebugSnapshot& snap);
+    // CHAT BOX (В28/O-серия): writes the pending entry, with the current frame's
+    // capture attached, into the map's chat. Serviced after render() for the
+    // same reason F2 is -- the image and its record must be the same frame.
+    void write_pending_chat(float alpha);
+    // The chat file beside the ACTIVE map (docs/MAP_LAYOUT.md), derived from the
+    // browser's current_manifest() (category/file_stem). "" when no map is open
+    // (chat disabled, said once).
+    [[nodiscard]] std::string chat_path_for_current_map() const;
     // THIRD PERSON (key 1), his request: a debug view from behind. Standing
     // still the mouse orbits the camera and the body does NOT turn; moving, the
     // camera locks behind him -- the Skyrim behaviour he named.
@@ -244,6 +255,32 @@ private:
     // adjacent lines rather than something a still has to show.
     std::FILE* frame_log_ = nullptr;
     uint64_t frame_log_index_ = 0;
+    // CHAT BOX (В28/O-серия; docs/MAP_LAYOUT.md). The chat is a JSONL append-log
+    // beside the active map; the pending entry is written after render() so its
+    // attached capture and the entry describe the same frame.
+    bool chat_pending_ = false;
+    ChatEntry chat_pending_entry_{};
+    bool chat_then_close_ = false;       // the DFN_CHAT_MSG verification door closes
+    // TELEMETRY RING (item 3): sampled on the COUNTED clock in the editor and
+    // flushed beside the map on stop. In-game stays light (В39: no continuous
+    // log). Constructed in App() from config::TELEMETRY_RING_SAMPLES.
+    TelemetryRing telemetry_;
+    double telemetry_last_s_ = -1.0e18;  // counted-clock time of the last sample
+
+    // TRAJECTORY RECORD + DETERMINISTIC REPLAY (O3, the key item of В28). Record
+    // a walk/look per presented frame; replay drives the camera and the counted
+    // clock from the file so two replays render bit-for-bit (Rule 53). Recording
+    // is an editor action; replay is driven by R/P keys or the
+    // DFN_TRAJ_REC / DFN_TRAJ_PLAY doors.
+    TrajectoryRecorder traj_rec_;
+    std::optional<TrajectoryPlayer> traj_play_;
+    TrajectoryFrame replay_frame_{};      // the frame being replayed this iteration
+    bool replaying_ = false;              // set per frame while a replay is live
+    bool traj_play_then_close_ = false;   // the DFN_TRAJ_PLAY door closes when spent
+    std::string traj_last_path_;          // last recording written (P replays it)
+    std::string traj_rec_out_;            // DFN_TRAJ_REC target, "" = off
+    bool traj_rec_arm_ = false;           // begin recording when the world is entered
+    int traj_written_ = 0;                // names trajectory_NNN.dftraj
     // A restore read from DFN_RESTORE, held until enter_world() has built the
     // map it names -- the pose cannot be applied to a world that does not
     // exist yet, and the stand it names decides WHICH world gets built.

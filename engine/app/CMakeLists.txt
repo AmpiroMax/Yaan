@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 14:08:2026 - 16:50:36
+# Last updated: 14:08:2026 - 17:36:02
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -24,6 +24,7 @@
 # - 13:08:2026 - 20:41:07: HudScreen.cpp в сборке — прицел и будущий игровой интерфейс зоны ui.
 # - 14:08:2026 - 16:11:00: EditorCamera.cpp в сборке — свободная камера режима AppMode::Editor.
 # - 14:08:2026 - 16:50:36: MapCatalog.cpp в сборке — каталог карт браузера редактора (docs/MAP_LAYOUT.md).
+# - 14:08:2026 - 17:36:02: ChatLog.cpp + TrajectoryRecord.cpp в сборке — ящик chat/<карта>.chat.jsonl (замечание человека + самодокументация демки, В28/O1), кольцевая телеметрия и запись/детерминированный повтор траектории (O3).
 
 set(DFN_APP_DEPS
     dfn_core
@@ -53,12 +54,14 @@ if(DFN_APP_READY)
     add_executable(dfn_app
         sources/Main.cpp
         sources/App.cpp
+        sources/ChatLog.cpp
         sources/DebugOverlay.cpp
         sources/EditorCamera.cpp
         sources/HudScreen.cpp
         sources/Localization.cpp
         sources/MapCatalog.cpp
-        sources/Menu.cpp)
+        sources/Menu.cpp
+        sources/TrajectoryRecord.cpp)
     target_link_libraries(dfn_app PRIVATE dfn_headers ${DFN_APP_DEPS})
 
     # The commit the binary was built from, stamped into every state capture.
