@@ -19,6 +19,14 @@ item.tool.torch.name=Факел
 editor.banner=РЕДАКТОР — Tab: игрок — скорость
 editor.speed_unit=м/с
 
+# Отладочные оверлеи редактора (В28): статистика кадра и что под прицелом
+editor.hud.tris=трис
+editor.hud.draws=дро
+editor.hud.wire=каркас
+editor.hud.aim=прицел
+editor.hud.aim_none=пусто
+editor.hud.m=м
+
 # Меню
 menu.play=Играть
 menu.editor=Редактор

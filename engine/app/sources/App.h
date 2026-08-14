@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 17:36:02
+Last updated: 14:08:2026 - 17:51:15
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -58,6 +58,7 @@ UPD:
 - 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера (EditorCamera). Новый режим летающей камеры (запрос пользователя В39/Л1): облёт мира не игроком; Tab вселяет камеру в игрока и обратно. Дверь DFN_EDITOR=1 (+DFN_EDITOR_CAM=x,y,z,yaw,pitch) — авто-прогон через дверь, не забирающий мышь.
 - 14:08:2026 - 16:50:36: Браузер карт (контракт docs/MAP_LAYOUT.md): MapCatalog + current_manifest() (сим для зоны chat — путь чата из category/file_stem). Вход в Играть/Редактор открывает браузер; open_map() разрешает source (stand:/dfw:). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (взамен прежней DFN_EDITOR-в-мир; DFN_MAP занят render'ом), DFN_EDITOR=1 без карты открывает браузер редактора.
 - 14:08:2026 - 17:36:02: Поля/методы чата, телеметрии и записи/повтора траектории (В28/O-серия): chat_pending_/chat_pending_entry_, write_pending_chat()+chat_path_for_current_map() (путь из current_manifest()), TelemetryRing telemetry_, TrajectoryRecorder/Player (O3). Включены ChatLog.h и TrajectoryRecord.h.
+- 14:08:2026 - 17:51:15: Поле wireframe_ (клавиша 4/F4, каркас В28). Оверлеи редактора читают renderer_->frame_stats()/center_pick() напрямую.
 */
 
 #pragma once
@@ -221,6 +222,10 @@ private:
     float orbit_yaw_ = 0.0f;
     float orbit_pitch_ = 0.0f;
     bool debug_overlay_ = false;    // key 2 (F3 alias)
+    // Whole-scene wireframe (В28), key 4 / F4. Toggles IRenderer::set_wireframe;
+    // the editor overlay reads it back to label the mode. Off by default, zero
+    // cost off (render's contract).
+    bool wireframe_ = false;
     bool capture_pending_ = false;  // F2, serviced after render()
     FrameClock frame_clock_{};
     int captures_written_ = 0;

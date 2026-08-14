@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 17:36:02
+Last updated: 14:08:2026 - 17:51:15
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -117,6 +117,7 @@ UPD:
 - 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера. Новый режим летающей камеры (запрос В39/Л1): камера отвязана от тела и физики (EditorCamera, WASD+E/Q/Space/Ctrl+мышь+колесо-скорость), сим продолжает тикать ради стриминга/неба/тела, но ввод игрока изъят и кадр рисуется из свободной позы. Tab вселяет камеру в игрока (teleport_character под камеру) и обратно. Вход: пункт меню «Редактор» (attended, курсор захвачен) и дверь DFN_EDITOR=1 (unattended, курсор свободен) + DFN_EDITOR_CAM=x,y,z,yaw,pitch для приёмочного кадра с любой точки. Оверлей — баннер режима со скоростью полёта; отладочный вывод (F3) уже отражает свободную камеру, т.к. camera_ и есть свободный глаз. Wireframe/счётчик треугольников/LOD-цифра/пикинг центра упираются в render (IRenderer не отдаёт статистику/каркас/луч) — вынесено лиду списком.
 - 14:08:2026 - 16:50:36: БРАУЗЕР КАРТ (контракт docs/MAP_LAYOUT.md). Вход в Играть и в Редактор открывает не карту, а браузер: категории (папки) → карты (.map) → открыть — прыжок сразу в карту был названной ошибкой первого каркаса. Каталог сканируется из assets/maps (MapCatalog), меню его только читает. open_map() разрешает source: stand:Testbed/Forest грузит стенд (мост до пекаря), dfw:<файл> — честная ошибка на экран (пекаря нет). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (не DFN_MAP — то занято render'ом), DFN_EDITOR=1 без карты открывает браузер редактора. current_manifest() — сим для зоны chat (путь чата из category/file_stem). Плюс погашена призрачная подсказка «Открыть» в редакторе (hover заморожённого игрока — у летящего глаза нет взаимодействия).
 - 14:08:2026 - 17:36:02: ЧАТ+СНИМОК+ТЕЛЕМЕТРИЯ+ЗАПИСЬ/ПОВТОР (В28/O-серия). Чат — JSONL-лог рядом с картой (путь из current_manifest(): assets/maps/<category>/<file_stem>.chat.jsonl): Enter роняет снимок кадра замечанием, дверь DFN_CHAT_MSG="text" (+DFN_CHAT_WHO=<zone> для самодок демки, O1) пишет запись и закрывается. Снимок ПЕРЕИСПОЛЬЗУЕТ существующий DFN_CAPTURE/write_capture. Телеметрия (item 3): кольцо TELEMETRY_LOG_HZ/_RING_SAMPLES по счётным часам, только в редакторе (В39), сброс в <карта>.telemetry.log на выходе. O3: запись позы/game_seconds/fov по кадрам (TrajectoryRecord, бинарный секционный формат на core BinaryWriter/Reader), детерминированный повтор — камера и счётные часы из файла, два проигрывания бит-в-бит (правило 53); клавиши R/P в редакторе, двери DFN_TRAJ_REC/DFN_TRAJ_PLAY. Резолвер чат-пути на current_manifest() editor'а. Живой ввод (text_input()) — следующим коммитом (полировка оверлея).
+- 14:08:2026 - 17:51:15: Дверь снимка браузера + оверлеи В28. (1) DFN_MENU_PAGE/DFN_MENU_SHOT принудительно ПОКАЗЫВАЮТ меню в init (регрессия: их снова затянуло в menu-skip через unattended_run(); дверь снимка меню должна меню показать, а не пропустить) — теперь снимаются categories/category_maps/pause/calibrate/settings без клавиатуры; +ветка category_maps (второй уровень) и предохранитель-комментарий у unattended_run(). (2) Оверлеи редактора: frame_stats() (scene_triangles + backend_draws), center_pick() под прицелом (треугольники выбранного LOD + дистанция; id — когда render застемпит pick_id), каркас по клавише 4/F4 + дверь DFN_WIREFRAME=1. Штамп pick_id=EntityId — за render (их сабмиттер, зона engine/render); HUD поверх каркаса render не композитит (present пропущен) — вынесено им.
 */
 
 #include "engine/app/sources/App.h"
@@ -214,6 +215,15 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
 // the desktop pointer, because the exemption had been written for ONE door
 // instead of for the PROPERTY the doors share. An unattended run has nobody to
 // aim, so it has no business owning the mouse.
+// DFN_MENU_SHOT IS HERE ON PURPOSE AND IT IS A TRAP FOR THE NEXT REFACTOR: it
+// gates the CURSOR and the counted clock (nobody is playing), but it must NOT
+// gate the MENU -- a door that exists to photograph a menu screen needs the menu
+// SHOWN, the opposite of every other door here. This has been swept into the
+// menu-SKIP twice already (a fix in the morning, undone by a predicate merge in
+// the afternoon, and again). The menu is re-asserted for DFN_MENU_SHOT and
+// DFN_MENU_PAGE in init()'s branch (C) precisely so this predicate can stay one
+// honest "nobody is aiming" without owning the menu question too. Do not "clean
+// up" by acting on DFN_MENU_SHOT/DFN_MENU_PAGE for the menu here.
 [[nodiscard]] bool unattended_run() {
     return std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
            || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
@@ -537,6 +547,19 @@ bool App::init(const AppConfig& config) {
             // The browser's first level. Play target by default; DFN_EDITOR
             // below re-opens it as the editor browser if set.
             menu_.open_browser(BrowseTarget::Play);
+        } else if (page == "category_maps") {
+            // The browser's SECOND level, so the map list is photographable too
+            // (Rule 27). Lands on the first category that actually has maps --
+            // an empty list would prove nothing.
+            menu_.open_browser(BrowseTarget::Play);
+            size_t first_with_maps = 0;
+            for (size_t i = 0; i < catalog_.categories.size(); ++i) {
+                if (!catalog_.categories[i].maps.empty()) {
+                    first_with_maps = i;
+                    break;
+                }
+            }
+            menu_.open_category(first_with_maps);
         } else if (page == "pause") {
             menu_.open(MenuPage::Pause);
         } else if (page == "calibrate") {
@@ -550,7 +573,8 @@ bool App::init(const AppConfig& config) {
             menu_.open(MenuPage::Settings);
         } else {
             std::fprintf(stderr,
-                         "[menu] DFN_MENU_PAGE=\"%s\" is not root|maps|pause|calibrate|settings -- "
+                         "[menu] DFN_MENU_PAGE=\"%s\" is not "
+                         "root|categories|category_maps|pause|calibrate|settings -- "
                          "REFUSING to run, because a root frame filed under "
                          "\"%s\" is worse than no frame\n",
                          mp, mp);
@@ -572,6 +596,14 @@ bool App::init(const AppConfig& config) {
     if (const char* dbg = std::getenv("DFN_DEBUG_OVERLAY");
         dbg != nullptr && *dbg == '1') {
         debug_overlay_ = true;
+    }
+    // WIREFRAME DOOR (В28), the key-4 toggle's Rule 27 twin. The bgfx backend
+    // already honours DFN_WIREFRAME=1 itself (render's acceptance recipe); this
+    // mirrors the flag app-side so the editor overlay's [каркас] tag agrees with
+    // what is on screen, and so a frame of wireframe is reachable without a key.
+    if (const char* wf = std::getenv("DFN_WIREFRAME"); wf != nullptr && *wf == '1') {
+        wireframe_ = true;
+        renderer_->set_wireframe(true);
     }
 
     // STATE CAPTURE destination and STATE RESTORE source.
@@ -757,7 +789,20 @@ bool App::init(const AppConfig& config) {
     // (C) NORMAL LAUNCH. Menu-first: the engine is up but no world exists until
     // a map is chosen in the browser. The legacy DFN_MENU=0 path still builds a
     // stand directly for the older tooling doors (tour, capture, restore).
-    if (config_.show_menu) {
+    //
+    // THE MENU-SHOT DOORS WANT THE MENU SHOWN, NOT SKIPPED -- the exact opposite
+    // of the world-target doors. `unattended_run()` forced show_menu off for
+    // them (they gate the cursor and the counted clock like any evidence door),
+    // so re-assert the menu here: DFN_MENU_PAGE names a screen to photograph,
+    // DFN_MENU_SHOT shoots one. Without this the browser -- the new screen this
+    // whole cut exists for -- was unphotographable by a door (Rule 27), and it
+    // only worked earlier because DFN_EDITOR forced the menu in branch B. This
+    // is the third time a refactor swept a menu-shot door into the menu-SKIP: it
+    // gates the cursor, it does NOT gate the menu (see the note at
+    // unattended_run()).
+    const bool wants_menu_screen = std::getenv("DFN_MENU_PAGE") != nullptr
+                                   || std::getenv("DFN_MENU_SHOT") != nullptr;
+    if (config_.show_menu || wants_menu_screen) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
     } else {
@@ -2179,6 +2224,14 @@ int App::run() {
             || input_->was_pressed(platform::Key::F2)) {
             capture_pending_ = true;
         }
+        // WIREFRAME (В28), key 4 / F4. A whole-scene toggle straight to the
+        // backend; works in both modes but is aimed at the editor's "why is this
+        // object so heavy" question. set_wireframe is a no-op cost when off.
+        if (input_->was_pressed(platform::Key::NUM_4)
+            || input_->was_pressed(platform::Key::F4)) {
+            wireframe_ = !wireframe_;
+            renderer_->set_wireframe(wireframe_);
+        }
         // CHAT (the user named Enter/T). Enter drops the current frame's capture
         // into the active map's chat as a human remark. Live Russian TYPING of
         // the message is the follow-up overlay commit (input_->text_input() now
@@ -2913,6 +2966,47 @@ int App::run() {
                 render::draw_text(hud, cx, 4, spd, ink, true);
                 cx += render::text_width_px(spd) + gap;
                 render::draw_text(hud, cx, 4, unit, ink, true);
+
+                // В28 INTROSPECTION. frame_stats() and center_pick() describe the
+                // LAST completed frame (read before this frame's render), which
+                // is one frame of lag on a readout -- imperceptible and the only
+                // honest option, since the numbers do not exist until end_frame.
+                const auto L = [](const char* k) {
+                    return std::string(localized(serialization::fnv1a64(k)));
+                };
+                const platform::RenderFrameStats& fs = renderer_->frame_stats();
+                const platform::RenderPick& pk = renderer_->center_pick();
+                // Line 2: scene triangles + all-view draw calls, and a wireframe
+                // tag when it is on -- the frame-cost half of "why is this heavy".
+                std::string l2 = L("editor.hud.tris") + " "
+                               + std::to_string(fs.scene_triangles) + "   "
+                               + L("editor.hud.draws") + " "
+                               + std::to_string(fs.backend_draws);
+                if (wireframe_) {
+                    l2 += "   [" + L("editor.hud.wire") + "]";
+                }
+                // Line 3: what the crosshair is on -- the SELECTED LOD's triangle
+                // count and range, the "вот ЭТОТ объект столько треугольников"
+                // the user asked for. id is shown only once render stamps it.
+                std::string l3;
+                if (pk.hit) {
+                    char d[24];
+                    std::snprintf(d, sizeof(d), "%.1f", static_cast<double>(pk.distance_m));
+                    l3 = L("editor.hud.aim") + ": " + std::to_string(pk.triangles)
+                       + " " + L("editor.hud.tris") + "   " + d + " " + L("editor.hud.m");
+                    if (pk.pick_id != 0) {
+                        l3 += "   id " + std::to_string(pk.pick_id);
+                    }
+                } else {
+                    l3 = L("editor.hud.aim") + ": " + L("editor.hud.aim_none");
+                }
+                const int row = render::FONT_CELL_H + 2;
+                const int y2 = 4 + row;
+                const int y3 = 4 + row * 2;
+                draw_text_plate(hud, 4, y2, render::text_width_px(l2), render::FONT_INK_H);
+                render::draw_text(hud, 4, y2, l2, ink, true);
+                draw_text_plate(hud, 4, y3, render::text_width_px(l3), render::FONT_INK_H);
+                render::draw_text(hud, 4, y3, l3, ink, true);
                 any = true;
             }
             render_system_.set_hud_visible(any);

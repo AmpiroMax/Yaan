@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 14:08:2026 - 16:50:36
+Last updated: 14:08:2026 - 17:51:15
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -52,6 +52,8 @@ UPD:
   MenuPage::Maps заменён на Categories + CategoryMaps; MenuAction::EnterWorld/EnterEditor
   свёрнуты в один OpenMap (режим решает browse_target). MapEntry/set_maps/chosen_stand
   сняты — их место занял MapCatalog. Пустые категории показываются пустыми.
+- 14:08:2026 - 17:51:15: open_category() — прямой спуск во второй уровень браузера
+  (дверь снимка DFN_MENU_PAGE=category_maps, чтобы список карт тоже снимался, правило 27).
 */
 
 #pragma once
@@ -134,6 +136,11 @@ public:
     // and returned by browse_target(), which is how the app knows whether the
     // chosen map should be played or flown.
     void open_browser(BrowseTarget target);
+    // Descend to a category's map list directly (the DFN_MENU_PAGE=category_maps
+    // door, so the SECOND browser level is photographable without a keyboard,
+    // Rule 27). The app passes a valid category index; out-of-range is clamped
+    // to 0 so the door never lands on a page that cannot draw.
+    void open_category(size_t category_index);
     [[nodiscard]] BrowseTarget browse_target() const { return target_; }
     // Valid immediately after activate() returns OpenMap: the manifest chosen.
     [[nodiscard]] const MapManifest* chosen_map() const { return chosen_map_; }

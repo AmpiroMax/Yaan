@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 14:08:2026 - 16:50:36
+Last updated: 14:08:2026 - 17:51:15
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -54,6 +54,8 @@ UPD:
   разбита на два уровня: Categories (папки) и CategoryMaps (.map в папке). Обе кнопки
   корня зовут open_browser() с целью Play/Editor; выбор карты — OpenMap. Отрисовка
   категорий/карт, заголовок по странице, строка статуса (напр. «печёной карты нет»).
+- 14:08:2026 - 17:51:15: open_category() — прямой вход в список карт категории (дверь
+  снимка второго уровня браузера, правило 27); индекс вне диапазона зажат в 0.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -243,6 +245,12 @@ bool MenuModel::needs_restart() const {
 void MenuModel::open_browser(BrowseTarget target) {
     target_ = target;
     open(MenuPage::Categories);
+}
+
+void MenuModel::open_category(size_t category_index) {
+    const size_t ncats = (catalog_ != nullptr ? catalog_->categories.size() : 0);
+    chosen_category_ = (category_index < ncats) ? category_index : 0;
+    open(MenuPage::CategoryMaps);
 }
 
 void MenuModel::open(MenuPage page) {
