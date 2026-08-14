@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 19:34:00
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -132,6 +132,7 @@ UPD:
   sentinel; the overlay inverts with (id-1). World geometry (terrain, scatter,
   water, path, tufts) and the viewmodel path — none currently — stay 0.
 - 14:08:2026 - 19:34:00: ЛЕСТНИЦА ДЕТАЛИЗАЦИИ ФЛОРЫ НАКОНЕЦ ПОДКЛЮЧЕНА (рез ведущего на зону render). refresh_scatter_lod печёт НЕ БОЛЕЕ ОДНОГО чанка за кадр, ближний первым: перепечка стоит ровно столько же, сколько первая печь, поэтому проход без бюджета обменял бы ровный кадр на тот самый многосекундный ступор, от которого стриминг уже научился уходить. Якорь дистанции — БЛИЖАЙШАЯ ТОЧКА чанка, и это не деталь: CHUNK_SIZE 256 м, центр чанка может стоять в 181 м, когда ближний край под ногами, и банда по центру испекла бы дерево в пяти метрах силуэтом — тот самый дефект, ради предотвращения которого проход и написан, в одежде выигрыша. Чанк рождается сразу на своём уровне, а не печётся полным и потом понижается: полная печь для земли, до которой игроку далеко, платилась бы ровно во время стриминга, когда кадр и так нагружен. Замер на лесной демке, один бинарник: 7 695 612 → 2 396 252 треугольника, 600 кадров 75 с → 20 с (~8 → ~30 кадров/с), кадры расходятся на 0.265 % пикселей одним пятном дальнего древостоя при НУЛЕВОМ шуме — два прогона одной руки побитово равны. Кадры docs/acceptance/flora-lod-{before-full,after-banded}.png.
+- 14:08:2026 - 23:36:19: Тело upload_prebuilt_scatter — ChunkScatterRes из готовых потоков.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1314,6 +1315,36 @@ void RenderSystem::bake_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_
         }
     }
     if (res.trees_mesh_id != 0 || res.foliage_mesh_id != 0 || !res.micro.empty()) {
+        scatter_meshes_.emplace(chunk_coord, std::move(res));
+    }
+}
+
+void RenderSystem::upload_prebuilt_scatter(platform::IRenderer& renderer,
+                                           glm::ivec2 chunk_coord,
+                                           const MeshData& trees,
+                                           const MeshData& foliage) {
+    drop_scatter(renderer, chunk_coord);
+    ChunkScatterRes res;
+    res.bounds.expand(bounds_of(trees.vertices));
+    res.bounds.expand(bounds_of(foliage.vertices));
+    ++uploads_.scatter_chunks;
+    const auto upload_batch = [&](const MeshData& mesh) -> uint32_t {
+        const platform::MeshHandle handle = renderer.create_mesh(mesh.vertices, mesh.indices);
+        if (!handle.valid()) {
+            ++uploads_.failed;
+            report_upload_failure("prebuilt scatter batch");
+            return 0;
+        }
+        ++uploads_.scatter_meshes;
+        return handle.id;
+    };
+    if (!trees.vertices.empty()) {
+        res.trees_mesh_id = upload_batch(trees);
+    }
+    if (!foliage.vertices.empty()) {
+        res.foliage_mesh_id = upload_batch(foliage);
+    }
+    if (res.trees_mesh_id != 0 || res.foliage_mesh_id != 0) {
         scatter_meshes_.emplace(chunk_coord, std::move(res));
     }
 }

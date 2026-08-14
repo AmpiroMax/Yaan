@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 13:08:2026 - 21:00:00
+# Last updated: 14:08:2026 - 23:36:19
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -48,6 +48,9 @@
 # - 13:08:2026 - 21:00:00: sources/FloraWeber.cpp — the Weber & Penn generator, at
 #   flora's request and with the lead's leave (Rule 21: it does not fit in
 #   FloraSkeleton.cpp, already over the 800-line limit).
+# - 14:08:2026 - 23:36:19: ObjectRegistry.cpp (.dfo реестра объектов) + TreeForge.cpp
+#                          (кузница деревьев по индустриальной схеме) — третий
+#                          инструмент разворота в1.
 
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
@@ -63,6 +66,7 @@ add_library(dfn_render STATIC
     sources/GroundTufts.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
+    sources/ObjectRegistry.cpp
     sources/PixelCanvas.cpp
     sources/ProcFlora.cpp
     sources/ProcMesh.cpp
@@ -70,6 +74,7 @@ add_library(dfn_render STATIC
     sources/RenderSystem.cpp
     sources/RenderSystemResources.cpp
     sources/ScatterBatcher.cpp
+    sources/TreeForge.cpp
     sources/SkyModel.cpp
     sources/TerrainLod.cpp
     sources/TerrainMesher.cpp

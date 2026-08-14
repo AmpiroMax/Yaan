@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 22:27:28
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -55,6 +55,9 @@ UPD:
   (пользователь: «стенд с деревом, ровно одним») и предикат семейства флоры
   вместо рассыпанных сравнений == Forest — пропущенное сравнение дало бы новому
   стенду массив тестбеда на карте, которая его не объявляла (правило 32).
+- 14:08:2026 - 23:36:19: StandId::Gallery + stand_is_inspection(). Галерея реестра: земля стенда
+  одного дерева, экспонаты — из .dfo. Предикат «смотровой стенд» вместо перечня,
+  чтобы «дверь-пропс здесь не спавнится» держалось для всего семейства (правило 32).
 */
 
 #pragma once
@@ -81,6 +84,10 @@ enum class StandId : uint8_t {
     /// Exists because a defect named on a single tree is actionable, while the
     /// same defect named on a forest is an argument about which tree was meant.
     OneTree = 2,
+    /// The REGISTRY GALLERY: the same calm ground as OneTree, but the exhibits
+    /// come from assets/objects (.dfo) — nothing scattered, everything placed.
+    /// The stand that shows what the forge made.
+    Gallery = 3,
 };
 
 /// The flora-family stands: no water landform, no P4 sites, no carve works —
@@ -89,7 +96,14 @@ enum class StandId : uint8_t {
 /// is missed the new stand gets the testbed's massif on a map that never
 /// declared one, and nothing goes red anywhere near the edit (Rule 32).
 [[nodiscard]] constexpr bool stand_is_floral(StandId s) {
-    return s == StandId::Forest || s == StandId::OneTree;
+    return s == StandId::Forest || s == StandId::OneTree || s == StandId::Gallery;
+}
+
+/// The inspection stands: calm ground, no testbed props, exhibits only. One
+/// predicate, because "the door prop does not spawn here" must hold for every
+/// stand of this family, not for the ones somebody remembered (Rule 32).
+[[nodiscard]] constexpr bool stand_is_inspection(StandId s) {
+    return s == StandId::OneTree || s == StandId::Gallery;
 }
 struct CragStamp {
     glm::vec2 center{830.0f, 200.0f}; ///< peak (§7.1)

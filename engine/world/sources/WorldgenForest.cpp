@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 14:08:2026 - 22:27:28
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/WorldgenForest.cpp
 
@@ -40,6 +40,7 @@ UPD:
 - 14:08:2026 - 22:27:28: one_tree_stand_layout() строится РАЗНИЦЕЙ от forest_stand_layout(), а не с
   нуля: новая нейтрализация тестбедного штампа, добавленная там, наследуется,
   а не пропускается здесь.
+- 14:08:2026 - 23:36:19: gallery_stand_layout() — разницей от one_tree_stand_layout, тот же довод.
 */
 
 #include "engine/world/sources/WorldgenForest.h"
@@ -235,6 +236,15 @@ TestbedLayout one_tree_stand_layout() {
     // No LF-8: erosion gullies are terrain detail, and terrain detail is the
     // other stand's subject.
     l.erosion = false;
+    return l;
+}
+
+TestbedLayout gallery_stand_layout() {
+    // The gallery IS the one-tree stand's ground; only the stand id differs,
+    // and with it what stands on the ground (nothing from the generator — the
+    // exhibits arrive from the object registry, placed by the app).
+    TestbedLayout l = one_tree_stand_layout();
+    l.stand = StandId::Gallery;
     return l;
 }
 

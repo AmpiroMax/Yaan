@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 22:27:28
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -129,6 +129,11 @@ UPD:
   (дверь/рычаг/подбор) на этом стенде НЕ спавнятся: первый же кадр стенда показал
   дверь во весь экран с «Открыть» поверх и деревом за кадром. Факел остаётся в
   инвентаре — он не стоит в мире.
+- 14:08:2026 - 23:36:19: Стенд Gallery: раскладка галереи, экспонаты из assets/objects/trees/*.dfo
+  (сортировка по имени — порядок ряда равен порядку INDEX), по одному через 14 м
+  к востоку от спавна, каждый на своей высоте земли; собранные потоки уходят в
+  upload_prebuilt_scatter. Гейт тестбедных пропсов и восточный спавн переведены
+  на stand_is_inspection() — семейство вместо перечня.
 */
 
 #include "engine/app/sources/App.h"
@@ -163,6 +168,7 @@ UPD:
 #include "engine/gameplay/sources/PropCollision.h"
 #include "engine/gameplay/sources/ViewModel.h"
 #include "engine/render/sources/BitmapFont.h"
+#include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/SkyModel.h"
 #include "engine/render/sources/TerrainLod.h"
 #include "engine/gameplay/sources/StepEvents.h"
@@ -934,6 +940,9 @@ bool App::enter_world(uint32_t stand) {
         // tree and name defects; seven more chunks of empty calm ground would
         // only add load time to a map whose whole point is opening instantly.
         gp.max_chunk = {0, 0};
+    } else if (stand == static_cast<uint32_t>(world::StandId::Gallery)) {
+        gp.layout = world::gallery_stand_layout();
+        gp.max_chunk = {0, 0}; // same argument as OneTree: opens instantly
     }
     chunks_.open_generated(gp, sp);
 
@@ -1038,6 +1047,56 @@ bool App::enter_world(uint32_t stand) {
     const float ground = chunks_.height_at({mid, mid}).value_or(0.0f);
     const glm::vec3 spawn{mid, ground + 0.2f, mid};
 
+    // THE GALLERY'S EXHIBITS: registry objects (.dfo), read and PLACED — the
+    // world generated bare ground and knows nothing about them (в1: the game
+    // only reads). A row east of the spawn, one object every GALLERY_STEP_M,
+    // each standing on the ground the streamer just built. Assembled into two
+    // combined streams and handed to the ordinary scatter draw, so a registry
+    // tree gets the same programs, atlas and wind as a scattered one — the
+    // gallery judges the OBJECT, not a special-case renderer.
+    if (stand == static_cast<uint32_t>(world::StandId::Gallery)) {
+        namespace fs = std::filesystem;
+        std::vector<fs::path> files;
+        std::error_code gec;
+        for (const auto& e : fs::directory_iterator("assets/objects/trees", gec)) {
+            if (e.path().extension() == ".dfo") {
+                files.push_back(e.path());
+            }
+        }
+        // Sorted by name: the row order must be the INDEX's order, not the
+        // directory iterator's mood.
+        std::sort(files.begin(), files.end());
+        render::MeshData row_wood;
+        render::MeshData row_cards;
+        float x = mid + 14.0f;
+        int shown = 0;
+        for (const fs::path& f : files) {
+            const auto obj = render::read_object(f);
+            if (!obj) {
+                std::fprintf(stderr, "[gallery] %s refused (see [dfo] above)\n",
+                             f.string().c_str());
+                continue;
+            }
+            const float y = chunks_.height_at({x, mid}).value_or(ground);
+            const glm::vec3 at{x, y, mid};
+            render::append_transformed(row_wood, obj->wood, at, 0.0f, 1.0f);
+            render::append_transformed(row_wood, obj->ground, at, 0.0f, 1.0f);
+            render::append_transformed(row_cards, obj->cards, at, 0.0f, 1.0f);
+            std::fprintf(stderr, "[gallery] %s at x=%.0f (hash %016llx)\n",
+                         obj->name.c_str(), static_cast<double>(x),
+                         static_cast<unsigned long long>(obj->content_hash));
+            x += 14.0f;
+            ++shown;
+        }
+        if (shown > 0) {
+            render_system_.upload_prebuilt_scatter(*renderer_, {0, 0}, row_wood,
+                                                   row_cards);
+        } else {
+            std::fprintf(stderr, "[gallery] no readable objects in "
+                                 "assets/objects/trees -- run dfn_forge first\n");
+        }
+    }
+
     player_ = gameplay::spawn_player(world_, *physics_, spawn);
     if (!world_.alive(player_)) {
         return false;
@@ -1046,9 +1105,9 @@ bool App::enter_world(uint32_t stand) {
     // spawn (ONE_TREE_STAND_X/Z); yaw 0 looks north (forward = {sin, 0, -cos}),
     // so without this the stand opens on empty grass and the first act of every
     // inspection is hunting for the exhibit.
-    if (stand == static_cast<uint32_t>(world::StandId::OneTree)) {
+    if (world::stand_is_inspection(static_cast<world::StandId>(stand))) {
         if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-            ps->yaw = glm::half_pi<float>(); // east, straight at the tree
+            ps->yaw = glm::half_pi<float>(); // east, straight at the exhibits
         }
     }
 
@@ -1142,7 +1201,7 @@ bool App::enter_world(uint32_t stand) {
         // stand's first capture was a door filling the view, «Открыть» over
         // it, tree off-screen). The torch stays IN THE INVENTORY above: it is
         // not standing in the world.
-        if (stand != static_cast<uint32_t>(world::StandId::OneTree)) {
+        if (!world::stand_is_inspection(static_cast<world::StandId>(stand))) {
         gameplay::InteractableDesc take;
         take.kind = gameplay::InteractableKind::Pickup;
         // HEIGHT IS PART OF PLACEMENT, and 0.5 m was below the game. sim
@@ -2064,6 +2123,8 @@ bool App::open_map(const MapManifest& manifest) {
             stand = static_cast<uint32_t>(world::StandId::Forest);
         } else if (value == "OneTree") {
             stand = static_cast<uint32_t>(world::StandId::OneTree);
+        } else if (value == "Gallery") {
+            stand = static_cast<uint32_t>(world::StandId::Gallery);
         }
         if (!stand) {
             status("map.err.stand", value);

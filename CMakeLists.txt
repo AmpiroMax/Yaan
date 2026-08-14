@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 14:08:2026 - 20:47:52
+# Last updated: 14:08:2026 - 23:36:19
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -34,6 +34,7 @@
 #                          инструменты офлайн-выпечка есть НОРМАЛЬНЫЙ способ
 #                          произвести мир, а нормальный способ обязан
 #                          собираться вместе со всем остальным.
+# - 14:08:2026 - 23:36:19: dfn_forge — CLI кузницы деревьев в реестр .dfo.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -118,3 +119,9 @@ endforeach()
 # normal way has to build with everything else or it rots.
 add_executable(dfn_bake tools/bake_world.cpp)
 target_link_libraries(dfn_bake PRIVATE dfn_world dfn_core)
+
+# THE TREE FORGE CLI (dfn_forge): builds registry objects offline and writes
+# .dfo files. Same standing as dfn_bake — part of the pipeline, not an
+# instrument, so it builds with everything else.
+add_executable(dfn_forge tools/forge_trees.cpp)
+target_link_libraries(dfn_forge PRIVATE dfn_render dfn_core)

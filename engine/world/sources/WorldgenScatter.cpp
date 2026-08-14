@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 22:27:28
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -80,6 +80,8 @@ UPD:
   ONE_TREE_STAND_X/Z) и ничего больше — ни кустов, ни камней, ни подлеска.
   Жалоба, названная на ОДНОМ дереве, действенна; лишний куст у корня читался бы
   частью силуэта самого дерева.
+- 14:08:2026 - 23:36:19: Ветка Gallery: скаттер не даёт НИЧЕГО — экспонаты приходят из реестра,
+  и куст между ними судился бы как изделие кузницы.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -1233,6 +1235,13 @@ std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
     // for the defect being inspected: a complaint about THE tree must not turn
     // into an argument about WHICH tree, and a stray bush at its root would be
     // read as part of the tree's own silhouette.
+    if (layout.stand == StandId::Gallery) {
+        // The gallery's exhibits come from the OBJECT REGISTRY (.dfo), placed
+        // by the app. The generator contributes bare calm ground and nothing
+        // else — a scattered bush between the exhibits would be judged as if
+        // the forge had made it.
+        return out;
+    }
     if (layout.stand == StandId::OneTree) {
         const glm::vec2 p{static_cast<float>(config::ONE_TREE_STAND_X),
                           static_cast<float>(config::ONE_TREE_STAND_Z)};

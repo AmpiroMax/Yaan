@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 14:08:2026 - 19:34:00
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -125,6 +125,11 @@ UPD:
   acceptance method. Additive and latched: until a caller tells the time, the
   wall-clock path is bit-identical to what shipped.
 - 14:08:2026 - 19:34:00: ChunkScatterRes помнит свой уровень детализации и экземпляры, из которых испечён (рез ведущего). Экземпляры держим потому, что перепечка на смене полосы должна откуда-то взяться, а породившие их данные живут в engine/world — зоне, в которую render не может дотянуться назад; 24 байта на экземпляр против мегабайтов вершин, которые они заменяют.
+- 14:08:2026 - 23:36:19: upload_prebuilt_scatter() — путь галереи реестра: приложение собирает
+  потоки из .dfo и отдаёт сюда, чтобы объект реестра ехал ОБЫЧНОЙ отрисовкой
+  скаттера (те же программы, атлас, ветер). Экземпляры не хранятся — банда
+  детализации пропускает такой чанк по построению: уровни объекта реестра —
+  дело КУЗНИЦЫ, запечённое в реестр, а не пересборка в кадре (в1).
 */
 
 #pragma once
@@ -511,6 +516,19 @@ private:
     /// copies of this would drift the day one of them learned something.
     void bake_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord,
                       std::span<const math::ScatterInstance> instances, FloraLod lod);
+
+public:
+    /// Uploads PREBUILT scatter streams for a chunk — the object-registry
+    /// gallery's path: the app assembles wood/foliage buffers from .dfo
+    /// objects and hands them here to ride the ordinary scatter draw (same
+    /// programs, same leaf atlas, same wind). No instances are kept, so the
+    /// LOD banding pass skips these by construction: a registry object's
+    /// levels are the FORGE's business, baked into the registry, not re-baked
+    /// in the frame (в1).
+    void upload_prebuilt_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord,
+                                 const MeshData& trees, const MeshData& foliage);
+
+private:
 
     std::unordered_map<glm::ivec2, std::vector<TuftSpot>, ChunkKeyHash> tuft_spots_;
     uint32_t tuft_mesh_id_ = 0;

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 14:08:2026 - 16:45:00
+# Last updated: 14:08:2026 - 23:36:19
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -55,6 +55,7 @@
 #                          что было измерено. Та же причина, по которой пропускаются
 #                          captures/ и playtest_test_artifacts/.
 # - 14:08:2026 - 16:45:00: assets/maps/ добавлена в SKIP_PATH_RES — раскладка карт/демок (docs/MAP_LAYOUT.md): .map манифесты, .chat.jsonl, .gitkeep. Это ДАННЫЕ конвейера карт, не исходники; контракт живёт в doc, не в пофайловом заголовке.
+# - 14:08:2026 - 23:36:19: assets/objects/ в SKIP_PATH_RES — реестр объектов (.dfo, INDEX.md): печёные данные, адресуемые content-hash; у бинарника нет шапки, его identity — хэш.
 
 from __future__ import annotations
 
@@ -107,6 +108,10 @@ SKIP_PATH_RES = (
     # docs/MAP_LAYOUT.md. The contract for these files lives in that doc, not
     # in a per-file header the format cannot carry.
     re.compile(r"^assets/maps/"),
+    # assets/objects/ is the OBJECT REGISTRY (.dfo binaries + INDEX.md): baked
+    # data addressed by content hash. A binary cannot carry a comment header,
+    # and its identity lives in the hash, not in a timestamp.
+    re.compile(r"^assets/objects/"),
 )
 # Extensions excluded because the format cannot carry a leading source-header comment
 # (binary, strict JSON, model weights) or is generated output.

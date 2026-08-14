@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 14:08:2026 - 22:27:28
+Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/WorldgenForest.h
 
@@ -50,6 +50,8 @@ UPD:
   ЗЕМЛЮ (поляна кроет весь пролёт, эрозия выключена, дубовой массы нет);
   само дерево ставит скаттер-проход, потому что раскладка говорит про землю,
   а что на ней стоит — не её слово.
+- 14:08:2026 - 23:36:19: gallery_stand_layout() — земля OneTree, id Gallery; что стоит на земле,
+  решает не генератор, а реестр объектов через приложение.
 */
 
 #pragma once
@@ -99,6 +101,10 @@ inline constexpr float FOREST_BASE_ELEV = 20.0f;
 /// scatter pass (its position derives from the domain, not from this table —
 /// the layout declares GROUND, the scatter pass declares what stands on it).
 [[nodiscard]] TestbedLayout one_tree_stand_layout();
+
+/// The registry gallery: OneTree's calm ground, no scattered tree at all —
+/// the exhibits are .dfo objects the app places (world knows nothing of them).
+[[nodiscard]] TestbedLayout gallery_stand_layout();
 
 /// The stand's P1 height: base rolls + LF-2 grives (tapered inside the glade)
 /// + §2.7 micro-relief. Pure function of (seed, world); the LF-8 erosion
