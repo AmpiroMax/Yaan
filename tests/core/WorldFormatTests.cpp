@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:43:43
-Last updated: 14:08:2026 - 18:43:43
+Last updated: 14:08:2026 - 20:47:52
 Module: tests
 File: tests/core/WorldFormatTests.cpp
 
@@ -29,8 +29,13 @@ UPD:
   against REAL generated chunks rather than hand-built ones: a hand-built chunk
   would have empty voxel/scatter arrays, i.e. it would pass while proving
   nothing about the very fields the baker exists to carry.
+- 14:08:2026 - 20:47:52: bake_world получил свои случаи: испечённый мир ПОЛЕ В ПОЛЕ равен
+  сгенерированному (файл, который просто грузится, не доказывает ничего — сторожим
+  выпечку, тихо разошедшуюся с миром, который меряют все тесты детерминированности),
+  две выпечки одного seed побитово равны, пустой пролёт отвергается вслух.
 */
 
+#include "engine/world/sources/WorldBake.h"
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/Worldgen.h"
 
@@ -267,4 +272,71 @@ TEST_CASE("dfw: a file that is not a world file is refused") {
     WorldFileReader r;
     CHECK_FALSE(r.open(alien));
     CHECK_FALSE(r.open(dir.path / "does_not_exist.dfw"));
+}
+
+TEST_CASE("bake: the baked world IS the generated world, and reading it is far cheaper") {
+    const TempDir dir("dfn_world_bake");
+    const auto file = dir.path / "baked.dfw";
+
+    dfn::world::WorldGenParams params;
+    params.seed = 20260814u;
+    params.min_chunk = {0, 0};
+    params.max_chunk = {1, 1};
+
+    const dfn::world::BakeReport report = dfn::world::bake_world(params, file);
+    INFO("bake error: ", report.error);
+    REQUIRE(report.error.empty());
+    CHECK(report.chunks == 4);
+    CHECK(report.bytes > 0);
+
+    // THE POINT OF THE WHOLE BAKER: what comes back must be what the generator
+    // would have produced, field for field. A file that merely loads proves
+    // nothing — the failure this guards against is a bake that quietly differs
+    // from the world every determinism test measures.
+    const auto ctx = dfn::world::build_world_context(params);
+    WorldFileReader reader;
+    REQUIRE(reader.open(file));
+    REQUIRE(reader.chunk_directory().size() == 4);
+
+    for (int32_t z = 0; z <= 1; ++z) {
+        for (int32_t x = 0; x <= 1; ++x) {
+            const ChunkCoord coord{x, z};
+            const Chunk expected = dfn::world::generate_chunk(ctx, coord);
+            const auto got = reader.load_chunk(coord);
+            REQUIRE(got.has_value());
+            REQUIRE(got->heightmap.samples.size() == expected.heightmap.samples.size());
+            REQUIRE(got->voxels.indices.size() == expected.voxels.indices.size());
+            REQUIRE(got->scatter.size() == expected.scatter.size());
+            REQUIRE(got->entities.size() == expected.entities.size());
+            std::size_t mismatches = 0;
+            for (std::size_t i = 0; i < expected.heightmap.samples.size(); ++i) {
+                mismatches += got->heightmap.samples[i] != expected.heightmap.samples[i] ? 1u : 0u;
+            }
+            for (std::size_t i = 0; i < expected.voxels.indices.size(); ++i) {
+                mismatches += got->voxels.indices[i] != expected.voxels.indices[i] ? 1u : 0u;
+            }
+            for (std::size_t i = 0; i < expected.scatter.size(); ++i) {
+                mismatches += got->scatter[i].position != expected.scatter[i].position ? 1u : 0u;
+            }
+            CHECK(mismatches == 0);
+        }
+    }
+
+    // Two bakes of one seed are byte-identical — that is what makes a CACHED
+    // bake trustworthy rather than merely convenient (Rule 13.1).
+    const auto again = dir.path / "again.dfw";
+    const dfn::world::BakeReport second = dfn::world::bake_world(params, again);
+    REQUIRE(second.error.empty());
+    CHECK(file_bytes(again) == file_bytes(file));
+}
+
+TEST_CASE("bake: an empty extent is refused, not silently written as nothing") {
+    const TempDir dir("dfn_world_bake_empty");
+    dfn::world::WorldGenParams params;
+    params.seed = 1u;
+    params.min_chunk = {4, 4};
+    params.max_chunk = {0, 0}; // behind min: a typo, not a world
+    const dfn::world::BakeReport r = dfn::world::bake_world(params, dir.path / "no.dfw");
+    CHECK_FALSE(r.error.empty());
+    CHECK(r.chunks == 0);
 }

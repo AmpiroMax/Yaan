@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 09:08:2026 - 16:32:08
+# Last updated: 14:08:2026 - 20:47:52
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -29,6 +29,11 @@
 # - 09:08:2026 - 16:32:08: Default CMAKE_BUILD_TYPE=RelWithDebInfo when unset —
 #                          an unset type compiles with no optimization at all.
 #                          root (core's report, note 3).
+# - 14:08:2026 - 20:47:52: dfn_bake — CLI выпечки мира в .dfw. Настоящая цель, а не
+#                          инструмент, собираемый руками: после разворота на
+#                          инструменты офлайн-выпечка есть НОРМАЛЬНЫЙ способ
+#                          произвести мир, а нормальный способ обязан
+#                          собираться вместе со всем остальным.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -104,3 +109,12 @@ foreach(layer IN LISTS DFN_LAYERS)
         add_subdirectory(${layer})
     endif()
 endforeach()
+
+# ---------------------------------------------------------------------------
+# THE BAKE CLI (dfn_bake). Part of the pipeline, not an instrument, so it is a
+# real target rather than a hand-compiled measuring tool like
+# tools/dump_heightmap.cpp: the tooling pivot (в1) makes "the generator writes
+# offline, the game only reads" the normal way the world is produced, and the
+# normal way has to build with everything else or it rots.
+add_executable(dfn_bake tools/bake_world.cpp)
+target_link_libraries(dfn_bake PRIVATE dfn_world dfn_core)

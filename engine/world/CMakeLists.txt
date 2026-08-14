@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 14:08:2026 - 18:38:33
+# Last updated: 14:08:2026 - 20:47:52
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -50,6 +50,11 @@
 #                          days after its contract. The first half of the
 #                          tooling pivot's baker: worldgen writes offline, the
 #                          game only reads (в1).
+# - 14:08:2026 - 20:47:52: WorldBake.cpp -- the generator's offline caller. A
+#                          library function and not only a CLI, because the app
+#                          bakes a map on its first run and a composition root
+#                          shelling out to a binary would be a second way to do
+#                          one thing.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -59,6 +64,7 @@ add_library(dfn_world STATIC
     sources/SaveDelta.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
+    sources/WorldBake.cpp
     sources/WorldFormat.cpp
     sources/Worldgen.cpp
     sources/WorldgenCarve.cpp
