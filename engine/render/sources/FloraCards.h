@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 15:08:2026 - 01:04:30
 Module: engine/render
 File: engine/render/sources/FloraCards.h
 
@@ -35,6 +35,9 @@ UPD:
 - 09:08:2026 - 20:21:13: Created — leaf mask atlas + card emitter (user
   direction «листву плоскими прозрачными большими плоскими наборами
   листочков»; render's SHAPE x COLOUR atlas ruling).
+- 15:08:2026 - 01:04:30: LEAF_ATLAS_TILE_PX 64 → 128 (вердикт: «фигуры сильно пиксельные, не надо
+  пикселить»): 64px на 3-метровой лапе — ~5 см/тексель НА ОБЪЕКТЕ, зубец
+  листа на таком шаге не существует.
 */
 
 #pragma once
@@ -70,7 +73,11 @@ enum class FloraSeason : uint8_t {
 /// (docs/specs/flora.md §3.10).
 inline constexpr uint32_t LEAF_ATLAS_SHAPES = 4;
 inline constexpr uint32_t LEAF_ATLAS_TONES = 8;
-inline constexpr uint32_t LEAF_ATLAS_TILE_PX = 64;
+/// 128, doubled from 64 on the user's gallery verdict («фигуры сильно
+/// пиксельные, надо мельче делать детализацию, не надо пикселить»): a 64 px
+/// tile stretched over a 3 m spray is ~5 cm per texel ON THE OBJECT, and the
+/// leaf-scale serration the reference shows simply cannot exist at that pitch.
+inline constexpr uint32_t LEAF_ATLAS_TILE_PX = 128;
 
 /// Leaf shape columns. A species names the band it may draw from; the SHAPE is
 /// silhouette work, the TONE is value work, and they are deliberately free to

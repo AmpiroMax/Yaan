@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 00:45:20
+Last updated: 15:08:2026 - 01:04:30
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -37,6 +37,12 @@ UPD:
   вверх, каждый четвёртый провисает. Шар-ядро удалён. Хвойный путь: бола во всю
   высоту, мутовки по конусу, лапы ВДОЛЬ ветви (ель — не палка с помпоном), нормали
   лап следуют ветви сильнее купола.
+- 15:08:2026 - 01:04:30: КОРА И МОХ пост-проходом по вершинам wood/ground (референсы-крупняки:
+  вертикальные борозды чередованием гребень/борозда с блужданием по высоте, мох
+  зелёным налётом до ~4 м и на корнях, пятнами по азимуту). ПОРЯДОК ЛИСТВЫ по
+  §4.3 исследования: лапы ложатся почти горизонтальными ярусами — нормаль
+  кланяется ВВЕРХ (лиственные 0.45 up, хвоя 0.8 up), roll ±0.25 вместо ±0.9
+  («у нас снова беспорядок» снят направлением, не плотностью).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -308,17 +314,22 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                    rng.sym() * 0.5f};
             const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.1f);
             const glm::vec3 radial = safe_normalize(c - crown_c, a.dir);
-            // Conifer sprays follow their BRANCH more than the dome: a frond
-            // is a thing lying along a limb, not a patch of one big ball.
-            const float dome_w = p.conifer ? 0.3f : 0.55f;
-            const glm::vec3 n = safe_normalize(radial * dome_w
-                                                   + a.dir * (1.0f - dome_w), radial);
+            // THE GROWTH DIRECTION (research §4.3, the user's aspen and pine
+            // frames): foliage lies in near-HORIZONTAL layers along its branch
+            // with an upward pull — broadleaf clumps face up-and-out, conifer
+            // fronds lie almost flat and sag at the tip. The chaos the user
+            // called out was the roll and the dome-heavy normals; both bow to
+            // UP now.
+            const glm::vec3 up{0.0f, 1.0f, 0.0f};
+            const glm::vec3 n = p.conifer
+                ? safe_normalize(up * 0.8f + a.dir * 0.15f + radial * 0.05f, up)
+                : safe_normalize(up * 0.45f + radial * 0.3f + a.dir * 0.25f, up);
             LeafCardParams card;
             card.center = c;
             card.normal = n;
             card.half_width = p.crown_radius * p.spray_frac * (0.85f + rng.unit() * 0.45f);
             card.half_height = card.half_width * (p.conifer ? 0.55f : 0.7f);
-            card.roll = rng.sym() * 0.9f;
+            card.roll = rng.sym() * 0.25f; // layers, not chaos (§4.3)
             card.shape = p.card_shape;
             card.tone = p.tone;
             card.value_jitter = 0.42f + rng.unit() * 0.22f;
@@ -332,11 +343,41 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                           a.dir);
             cross.half_width *= 0.85f;
             cross.half_height *= 0.85f;
-            cross.roll = rng.sym() * 0.9f;
+            cross.roll = rng.sym() * 0.25f;
             cross.value_jitter = 0.42f + rng.unit() * 0.22f;
             emit_leaf_card(obj.cards, cross);
         }
     }
+
+    // --- BARK AND MOSS, AS A POST-PASS OVER THE WOOD (user, with the Skyrim
+    // close-ups: «поработать над текстурой стволов... мох, корни у ствола
+    // снизу»). The references show two things at trunk scale: deep VERTICAL
+    // furrows (alternating lit ridge / dark groove) and a green moss film
+    // creeping up the butt and over the root spurs. Both are value work, and
+    // flat-shaded faces own their vertices — so the texture is painted into
+    // vertex colour, which survives our palette where a normal map would not.
+    const auto bark_pass = [&](MeshData& mesh) {
+        for (platform::Vertex& v : mesh.vertices) {
+            const uint32_t col = v.color_rgba;
+            // Only wood-coloured vertices: crown masses (leaf tones) pass through.
+            if (col != bark) continue;
+            const float az = std::atan2(v.position.z, v.position.x);
+            // FURROWS: value stripes around the circumference, wandering
+            // slightly with height so the grooves read as grain, not as paint.
+            const float stripe = std::sin(az * 9.0f + v.position.y * 0.35f)
+                               + 0.5f * std::sin(az * 23.0f - v.position.y * 0.2f);
+            const float furrow = 0.86f + 0.17f * std::clamp(stripe, -1.0f, 1.0f);
+            // MOSS: strongest at the ground, gone by ~4 m, patchy by azimuth.
+            const float moss_h = std::clamp(1.0f - v.position.y / 4.0f, 0.0f, 1.0f);
+            const float patch = 0.5f + 0.5f * std::sin(az * 3.0f + 1.7f);
+            const float moss = moss_h * patch * 0.55f;
+            glm::vec3 c = p.bark * furrow;
+            c = c * (1.0f - moss) + glm::vec3{0.22f, 0.34f, 0.13f} * moss;
+            v.color_rgba = pack(glm::clamp(c, glm::vec3{0.0f}, glm::vec3{1.0f}));
+        }
+    };
+    bark_pass(obj.wood);
+    bark_pass(obj.ground); // the root spurs wear the same moss
 
     obj.content_hash = object_content_hash(obj);
     return obj;

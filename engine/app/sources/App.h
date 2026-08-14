@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 19:41:18
+Last updated: 15:08:2026 - 01:04:30
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -62,6 +62,7 @@ UPD:
 - 14:08:2026 - 18:03:08: ChatOverlay chat_overlay_ (живое окно чата, В28) + include ChatOverlay.h. Открытие '/', ввод text_input(), Enter — отправка через write_pending_chat.
 - 14:08:2026 - 19:14:02: Поля двери снимка (shot_after_frames_/_seen_) рядом с capture_after_*: та же единица счёта и тот же довод — кадры сравнимы побитово, стенные секунды нет. Отдельного флага закрытия не заведено, переиспользован chat_then_close_: снимок клавиши 5 И ЕСТЬ запись чата, значит и выключение то же.
 - 14:08:2026 - 19:41:18: action_pressed() + include Controls.h — обработчики клавиш спрашивают привязку ПО ДЕЙСТВИЮ, а не называют Key здесь. Это и есть то, что не даёт экрану управления разъехаться с кодом. Половина от 83ef021: уехала в рабочем дереве, доезжает отдельно.
+- 15:08:2026 - 01:04:30: gallery_objects_dir_ + gallery_bodies_ (полка реестра и твёрдые стволы).
 */
 
 #pragma once
@@ -358,6 +359,12 @@ private:
     double game_seconds_ = static_cast<double>(config::START_TIME_OF_DAY)
                            * static_cast<double>(config::DAY_LENGTH_SECONDS);
     std::array<platform::PhysicsBodyHandle, 4> world_edge_{}; // extent walls
+    /// Registry directory the NEXT Gallery open loads from (set by open_map
+    /// from the manifest; default = the tree shelf) and the exhibits' static
+    /// trunk bodies (user: «сделать деревья физичными, не давать сквозь них
+    /// ходить»), destroyed on the next gallery load.
+    std::string gallery_objects_dir_ = "assets/objects/trees";
+    std::vector<platform::PhysicsBodyHandle> gallery_bodies_;
 
     // Step feel + audio (sim's zone, wired here).
     platform::BusHandle sfx_bus_{};

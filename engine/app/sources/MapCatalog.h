@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:50:36
-Last updated: 14:08:2026 - 16:50:36
+Last updated: 15:08:2026 - 01:04:30
 Module: engine/app
 File: engine/app/sources/MapCatalog.h
 
@@ -33,6 +33,8 @@ AI Agents Notice (must follow):
 UPD:
 - 14:08:2026 - 16:50:36: Created -- the map browser's catalog (categories ->
                          .map manifests), per docs/MAP_LAYOUT.md.
+- 15:08:2026 - 01:04:30: MapManifest::objects — карта выбирает свою полку реестра (галерея
+  колосса живёт на своей карте, не тесня общую).
 */
 
 #pragma once
@@ -53,6 +55,10 @@ struct MapManifest {
     std::string zone;        // 'zone' -- the owning zone
     std::string source;      // 'source' -- "stand:Testbed" | "dfw:<file>"
     std::string description; // 'description' -- shown under the name
+    /// 'objects' -- registry directory the map's exhibits load from (Gallery
+    /// stands). Empty = the stand's default. A MAP chooses its shelf, so a
+    /// colossus can live on its own map without crowding the tree gallery.
+    std::string objects;
     int size_chunks = 0;     // 'size_chunks'
 };
 

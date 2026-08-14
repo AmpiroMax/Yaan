@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 00:45:20
+Last updated: 15:08:2026 - 01:04:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -141,6 +141,10 @@ UPD:
   уходят... за границу не ставь»): ряды заполняются на восток и переносятся на
   север, когда следующий экспонат пересёк бы кромку; северная кромка — жёсткая
   стена, за ней отказ ВСЛУХ, а не дерево наполовину вне мира.
+- 15:08:2026 - 01:04:30: Галерея: полка реестра выбирается манифестом (objects), стволы экспонатов
+  ТВЁРДЫЕ (статический бокс из замера меша: широчайшая древесина на высоте
+  досягаемости; крона не тело — под ней ходят), тела прошлой галереи рушатся при
+  следующей загрузке.
 */
 
 #include "engine/app/sources/App.h"
@@ -1065,7 +1069,11 @@ bool App::enter_world(uint32_t stand) {
         namespace fs = std::filesystem;
         std::vector<fs::path> files;
         std::error_code gec;
-        for (const auto& e : fs::directory_iterator("assets/objects/trees", gec)) {
+        for (auto& body : gallery_bodies_) { // the previous gallery's trunks
+            physics_->destroy_body(body);
+        }
+        gallery_bodies_.clear();
+        for (const auto& e : fs::directory_iterator(gallery_objects_dir_, gec)) {
             if (e.path().extension() == ".dfo") {
                 files.push_back(e.path());
             }
@@ -1130,6 +1138,31 @@ bool App::enter_world(uint32_t stand) {
             render::append_transformed(row_wood, obj->wood, at, 0.0f, 1.0f);
             render::append_transformed(row_wood, obj->ground, at, 0.0f, 1.0f);
             render::append_transformed(row_cards, obj->cards, at, 0.0f, 1.0f);
+            // A SOLID TRUNK (user: «не давать сквозь них ходить»). The body is
+            // sized from the MESH — the widest wood within reach height — the
+            // same "the mesh is the truth" rule the row spacing follows. A box,
+            // not the crown: walking under a canopy is the point of a tree.
+            {
+                float trunk_r = 0.15f;
+                float wood_top = 2.0f;
+                for (const platform::Vertex& v : obj->wood.vertices) {
+                    wood_top = std::max(wood_top, v.position.y);
+                    if (v.position.y > 0.4f && v.position.y < 2.2f) {
+                        trunk_r = std::max(trunk_r,
+                                           std::sqrt(v.position.x * v.position.x
+                                                     + v.position.z * v.position.z));
+                    }
+                }
+                platform::StaticBoxDesc trunk;
+                const float bh = std::min(wood_top, 12.0f);
+                trunk.center = {at.x, at.y + bh * 0.5f, at.z};
+                trunk.half_extents = {trunk_r * 0.75f, bh * 0.5f, trunk_r * 0.75f};
+                trunk.layer = physics::LAYER_STATIC;
+                const auto body = physics_->create_static_box(trunk);
+                if (body.valid()) {
+                    gallery_bodies_.push_back(body);
+                }
+            }
             std::fprintf(stderr, "[gallery] %s at (%.0f, %.0f) half %.1f m hash %016llx\n",
                          obj->name.c_str(), static_cast<double>(x),
                          static_cast<double>(row_z), static_cast<double>(half),
@@ -2180,6 +2213,10 @@ bool App::open_map(const MapManifest& manifest) {
                          manifest.file_stem.c_str(), value.c_str());
             return false;
         }
+        // The Gallery stand reads its shelf during enter_world, so the choice
+        // must land BEFORE the call; every other stand ignores it.
+        gallery_objects_dir_ = manifest.objects.empty() ? "assets/objects/trees"
+                                                        : manifest.objects;
         if (!enter_world(*stand)) {
             status("map.err.build", {});
             return false;

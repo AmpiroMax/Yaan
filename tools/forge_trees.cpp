@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 00:45:20
+Last updated: 15:08:2026 - 01:04:30
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -33,6 +33,11 @@ UPD:
   гиганта не растут вместе с ним.
 - 15:08:2026 - 00:45:20: Две ели (spruce-forge-a/b, запрошены дословно: «добавь на демку елки») —
   юбка почти до земли, 10-12 мутовок, хвойный тон; лапы ели крупнее (0.42).
+- 15:08:2026 - 01:04:30: ЛИНЕЙКА РАЗМЕРОВ по docs/SKYRIM_TREES_RESEARCH.md §3: juniper 4.5 м,
+  aspen 14 м, две лесные СОСНЫ 28/36 м с голой нижней болой (crown_base 0.45 —
+  сосна, не большая ель), и КОЛОСС 200 м / крона 140 м (просьба «раза в 4-5
+  больше гиганта») на собственной полке assets/objects/colossus и карте
+  trees/colossus.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -109,6 +114,63 @@ int main(int argc, char** argv) {
         gallery.push_back(spruce);
     }
     {
+        // JUNIPER — the Reach's crooked shrub-tree (research §3: 4-6 m), the
+        // small end of the ladder the user asked for («несколько мелких»).
+        TreeForgeParams juniper;
+        juniper.seed = 401;
+        juniper.name = "juniper-forge-a";
+        juniper.height = 4.5f;
+        juniper.crown_radius = 2.6f;
+        juniper.crown_base_frac = 0.30f;
+        juniper.trunk_radius = 0.16f;
+        juniper.bark = {0.42f, 0.40f, 0.38f}; // pale twisted grey
+        juniper.tone = LeafTone::ConiferDark;
+        juniper.card_shape = LeafShape::NeedleFan;
+        juniper.scaffold_count = 4;
+        juniper.spray_frac = 0.42f;
+        gallery.push_back(juniper);
+    }
+    {
+        // ASPEN — the Rift's tree (research §3: 12-18 m, pale bole, golden
+        // shimmer). BirchPale is the closest ratified tone band.
+        TreeForgeParams aspen;
+        aspen.seed = 411;
+        aspen.name = "aspen-forge-a";
+        aspen.height = 14.0f;
+        aspen.crown_radius = 3.6f;
+        aspen.crown_base_frac = 0.4f;
+        aspen.trunk_radius = 0.24f;
+        aspen.bark = {0.74f, 0.74f, 0.68f};
+        aspen.tone = LeafTone::BirchPale;
+        aspen.card_shape = LeafShape::OvalSpray;
+        aspen.scaffold_count = 5;
+        aspen.spray_frac = 0.26f;
+        gallery.push_back(aspen);
+    }
+    for (int i = 0; i < 2; ++i) {
+        // TALL FOREST PINES (research §3: the vanilla forest pine is 25-40 m,
+        // and «таких деревьев должно быть много»). Conifer grammar with a BARE
+        // LOWER BOLE: the crown starts near half height, which is what makes a
+        // forest pine a pine and not a big spruce.
+        TreeForgeParams pine;
+        pine.seed = 421 + static_cast<uint64_t>(i);
+        pine.name = "pine-forge-" + std::string(1, static_cast<char>('a' + i));
+        pine.height = 28.0f + static_cast<float>(i) * 8.0f;
+        pine.crown_radius = 4.6f + static_cast<float>(i) * 0.6f;
+        pine.crown_base_frac = 0.45f;
+        pine.trunk_radius = 0.55f + static_cast<float>(i) * 0.1f;
+        pine.bark = {0.30f, 0.19f, 0.12f}; // red-brown plated pine bark
+        pine.tone = LeafTone::ConiferDark;
+        pine.card_shape = LeafShape::NeedleFan;
+        pine.conifer = true;
+        pine.whorl_count = 8;
+        pine.whorl_branches = 5;
+        pine.droop = 0.22f;
+        pine.spray_per_branch = 1;
+        pine.spray_frac = 0.34f;
+        gallery.push_back(pine);
+    }
+    {
         // THE GIANT — the user's settlement-tree reference: «очень большое
         // дерево, на котором живут... мне вот таких размеров деревья тоже
         // нужны». Same recipe, landmark proportions; the dwellings are
@@ -168,6 +230,41 @@ int main(int argc, char** argv) {
                       leaf_tris, share);
         index += row;
     }
+    {
+        // THE COLOSSUS — the user's ask, verbatim: «надо сделать прям
+        // гигантское дерево, которое будет раза в 4-5 ещё больше чем это»
+        // (settlement-scale, the Eldergleam class of research §3). Its crown
+        // is wider than half the chunk, so it lives on its OWN SHELF and its
+        // own map (trees/colossus) instead of crowding the gallery.
+        TreeForgeParams colossus;
+        colossus.seed = 999;
+        colossus.name = "colossus-oak";
+        colossus.height = 200.0f;
+        colossus.crown_radius = 70.0f;
+        colossus.crown_base_frac = 0.32f;
+        colossus.trunk_radius = 9.0f;
+        colossus.tone = LeafTone::OakDeep;
+        colossus.card_shape = LeafShape::RoundLobed;
+        colossus.scaffold_count = 14;
+        colossus.secondary_per_scaffold = 4;
+        colossus.spray_per_branch = 2;
+        colossus.spray_frac = 0.10f; // ~7 m packs: a colossus' leaves stay leaves
+        const fs::path shelf = out_dir.parent_path() / "colossus";
+        std::error_code cec;
+        fs::create_directories(shelf, cec);
+        const RegistryObject obj = forge_tree(colossus);
+        const fs::path file = shelf / (colossus.name + ".dfo");
+        if (!write_object(obj, file) || !read_object(file)) {
+            std::fprintf(stderr, "[forge] colossus: FAILED\n");
+            all_ok = false;
+        } else {
+            std::printf("[forge] %-14s %6zu wood+ground  %4zu card  -> %s\n",
+                        colossus.name.c_str(),
+                        obj.wood.indices.size() / 3 + obj.ground.indices.size() / 3,
+                        obj.cards.indices.size() / 3, shelf.string().c_str());
+        }
+    }
+
     const fs::path index_path = out_dir / "INDEX.md";
     {
         FILE* f = std::fopen(index_path.string().c_str(), "w");

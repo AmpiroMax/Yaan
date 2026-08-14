@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 00:45:20
+Last updated: 15:08:2026 - 01:04:30
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -36,6 +36,10 @@ UPD:
   видимым в окнах между ними, у каждой массы свой светлый-верх/тёмный-низ.
   Кромочная эрозия §3.10 сохранена, в кадре покадровой рамки блоба. NeedleFan
   наконец получил потребителя — хвойную лапу кузницы (7 узких масс).
+- 15:08:2026 - 01:04:30: ХВОЙНОЕ ПЕРО (дословно: «у хвои листочки — иголочки... прозрачную
+  текстуру мелкой ёлочки») — тайл NeedleFan рисуется напрямую: центральный
+  прут, парные иголки-зубцы с прозрачностью между ними, укорачивающиеся к
+  кончику; лиственные пачки — на массу больше при 128px.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -261,7 +265,10 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                 uint32_t seed;
             };
             const bool needle = static_cast<LeafShape>(shape_i) == LeafShape::NeedleFan;
-            const int blob_count = needle ? 7 : ((sd.ax * sd.ay > 0.8f) ? 4 : 3);
+            // More masses per pack since the 128 px tile can resolve them —
+            // finer detail is drawn, not dithered (the user's «более точно
+            // рисовать»).
+            const int blob_count = needle ? 7 : ((sd.ax * sd.ay > 0.8f) ? 5 : 4);
             PackBlob blobs[8];
             const glm::vec2 axis{cs, sn};
             for (int bi = 0; bi < blob_count; ++bi) {
@@ -283,6 +290,44 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                 for (uint32_t px = 0; px < atlas.tile_px; ++px) {
                     const float x = (static_cast<float>(px) + 0.5f) / n * 2.0f - 1.0f;
                     const float y = 1.0f - (static_cast<float>(py) + 0.5f) / n * 2.0f;
+
+                    // --- THE CONIFER FEATHER (user: «у хвои листочки —
+                    // иголочки... сделать местами прозрачную текстуру мелкой
+                    // ёлочки зелёной»): a needle tile is not leaf masses at
+                    // all — it is a central twig with short BARBS either side,
+                    // barbs shortening toward the tip, gaps between them
+                    // transparent. Drawn directly, not through the blob union.
+                    if (needle) {
+                        const float along = x * axis.x + y * axis.y;   // -1..1
+                        const float across = -x * axis.y + y * axis.x; // signed
+                        const size_t on = (static_cast<size_t>(tone_i * atlas.tile_px + py)
+                                           * atlas.width + shape_i * atlas.tile_px + px) * 4u;
+                        if (along < -0.92f || along > 0.95f) continue;
+                        const float tipness = std::clamp((along + 0.92f) / 1.87f, 0.0f, 1.0f);
+                        // Barb envelope: long at the butt, short at the tip.
+                        const float reach = 0.34f * (1.0f - 0.75f * tipness);
+                        // Barb comb: paired needles leave the twig at ~55 deg,
+                        // BARB_PITCH apart; between them — transparency.
+                        constexpr float BARB_PITCH = 0.085f;
+                        const float phase_b = along / BARB_PITCH;
+                        const float comb = std::fabs(phase_b - std::round(phase_b)) * BARB_PITCH;
+                        const float slant = std::fabs(across) * 0.55f; // rake toward tip
+                        const bool on_barb = std::fabs(across) < reach
+                                          && comb + slant * 0.12f < 0.022f
+                                          && hash01(static_cast<int>(std::round(phase_b)),
+                                                    across > 0.0f ? 3 : 5, sd.seed) > 0.12f;
+                        const bool on_stem = std::fabs(across) < 0.018f && along < 0.85f;
+                        if (!on_barb && !on_stem) continue;
+                        const float lit = on_stem ? 0.55f
+                                        : 0.85f + 0.35f * std::clamp(across * 2.0f + 0.5f, 0.0f, 1.0f)
+                                          - 0.25f * tipness;
+                        const glm::vec3 c = glm::clamp(base * lit, glm::vec3{0.0f}, glm::vec3{1.0f});
+                        atlas.pixels[on + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
+                        atlas.pixels[on + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
+                        atlas.pixels[on + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
+                        atlas.pixels[on + 3] = 255u;
+                        continue;
+                    }
 
                     // Nearest pack blob, in each blob's own lobed metric.
                     float best = 1e9f;      // r / outline of the best blob
