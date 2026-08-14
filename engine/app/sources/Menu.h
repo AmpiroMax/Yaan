@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 14:08:2026 - 17:51:15
+Last updated: 14:08:2026 - 19:37:40
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -54,6 +54,10 @@ UPD:
   сняты — их место занял MapCatalog. Пустые категории показываются пустыми.
 - 14:08:2026 - 17:51:15: open_category() — прямой спуск во второй уровень браузера
   (дверь снимка DFN_MENU_PAGE=category_maps, чтобы список карт тоже снимался, правило 27).
+- 14:08:2026 - 19:37:40: MenuPage::Controls — страница управления (просьба
+  пользователя). Read-only: просили ПОСМОТРЕТЬ, а список, который выглядит
+  редактируемым и не редактируется, хуже списка. Живёт внутри настроек, значит
+  достижима и с паузы — не выходя из мира.
 */
 
 #pragma once
@@ -83,6 +87,7 @@ enum class MenuPage : uint8_t {
     Pause = 3,         // in-game
     Calibrate = 4,     // brightness calibration (Skyrim/Doom's first-run screen)
     Settings = 5,      // the settings.cfg rows, turnable without a text editor
+    Controls = 6,      // the key list -- READ ONLY, drawn from the binding table
 };
 
 enum class MenuAction : uint8_t {

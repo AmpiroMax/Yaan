@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 14:08:2026 - 18:57:03
+# Last updated: 14:08:2026 - 19:22:10
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -28,6 +28,7 @@
 # - 14:08:2026 - 18:03:08: ChatOverlay.cpp в сборке — живое окно чата (ввод UTF-8 через text_input(), В28).
 # - 14:08:2026 - 18:57:03: EditorHud.cpp в сборке — редакторский блок оверлея, вынесенный из App.cpp. Вынос не косметический: App.cpp держит окно и потому не тестируется, из-за чего наложение блока на отладочный вывод не мог поймать ни один прибор (tests/app/EditorHudTests.cpp ловит).
 
+# - 14:08:2026 - 19:22:10: Controls.cpp в сборке — таблица привязок клавиш. Из неё И диспатчатся клавиши, И рисуется экран управления, поэтому список не может разъехаться с кодом: клавиша без строки в таблице просто не диспатчится.
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
@@ -58,6 +59,7 @@ if(DFN_APP_READY)
         sources/App.cpp
         sources/ChatLog.cpp
         sources/ChatOverlay.cpp
+        sources/Controls.cpp
         sources/DebugOverlay.cpp
         sources/EditorCamera.cpp
         sources/EditorHud.cpp

@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 14:08:2026 - 18:37:45
+Last updated: 14:08:2026 - 19:37:40
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -45,6 +45,9 @@ UPD:
   открывающая страницы: без неё корень, выросший с КОНЦА, оставил бы все
   проверки зелёными, потому что каждая по-прежнему приходит на свою страницу.
   Теперь следующая перестановка корня падает одной строкой у причины.
+- 14:08:2026 - 19:37:40: ROW_BACK уехал с 5 на 6: на странице настроек появилась
+  строка «Управление» перед «Назад». Ровно тот дрейф индексов, который прошлая
+  запись сделала видимым, — и на этот раз он всплыл сразу и у причины.
 */
 
 #include <doctest/doctest.h>
@@ -91,7 +94,8 @@ constexpr int ROW_MSAA = 1;
 constexpr int ROW_PALETTE = 2;
 constexpr int ROW_HEAD_BOB = 3;
 constexpr int ROW_BRIGHTNESS = 4;
-constexpr int ROW_BACK = 5;
+constexpr int ROW_CONTROLS = 5;
+constexpr int ROW_BACK = 6;
 
 void select(MenuModel& m, int row) {
     m.open(MenuPage::Settings); // selection resets to 0

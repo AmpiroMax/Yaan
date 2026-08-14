@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 14:08:2026 - 18:57:57
+Last updated: 14:08:2026 - 19:37:40
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -61,6 +61,14 @@ UPD:
   завели, когда потребитель был один; второй потребитель (блок редактора) — это ровно
   тот момент, когда копия правила становится теневой (правило 39). Поведение страницы
   не менялось: локальное имя fits() сохранено и зовёт общее.
+- 14:08:2026 - 19:37:40: draw_controls() — страница управления, нарисованная ИЗ
+  ТАБЛИЦЫ ПРИВЯЗОК (Controls.h), а не из списка, написанного здесь: рукописный
+  список верен в день написания и молча неверен потом, потому что неправильный
+  экран помощи выглядит как правильный. Строка «Управление» встала на странице
+  настроек перед «Назад». Раскладка считается в controls_layout(), а не здесь:
+  первая версия ужимала шаг строк по высоте и на 320x180 роняла две последние
+  строки за край — проверить это было нечем, пока арифметика жила внутри
+  отрисовки.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -70,12 +78,14 @@ UPD:
 #include <cstdio>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include "engine/core/config/sources/Constants.h"
 
 // For the shared text plate and its dose door. The pause page stands on the
 // SAME ground as the readout because it is the same decision, and a second copy
 // of a six-line getenv would be a shadow copy of a rule (Rule 39).
+#include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
@@ -171,6 +181,7 @@ enum SettingsRow : size_t {
     RowPalette,
     RowHeadBob,
     RowBrightness, // opens the calibration page, which is where an EYE decides
+    RowControls,   // opens the key list (read-only; rebinding is not a thing yet)
     RowBack,
     RowCount,
 };
@@ -288,6 +299,8 @@ size_t MenuModel::item_count() const {
         return 0; // no list: up/down turn the dial itself
     case MenuPage::Settings:
         return RowCount;
+    case MenuPage::Controls:
+        return 0; // nothing to select: it is a list to READ, Esc leaves
     }
     return 0;
 }
@@ -416,10 +429,21 @@ MenuAction MenuModel::activate() {
         // halves shipped in.
         open(calibrate_return_);
         return MenuAction::CalibrationDone;
+    case MenuPage::Controls:
+        open(MenuPage::Settings); // the only way in, so the only way out
+        return MenuAction::None;
     case MenuPage::Settings:
         if (selection_ == RowBrightness) {
             calibrate_return_ = MenuPage::Settings;
             open(MenuPage::Calibrate);
+            return MenuAction::None;
+        }
+        if (selection_ == RowControls) {
+            // READ-ONLY, AND THAT IS THE WHOLE FEATURE. The request was "я
+            // должен уметь посмотреть на это" -- look at it. Rebinding is a
+            // different thing needing a different page, and shipping a list
+            // that looks editable and is not would be worse than a list.
+            open(MenuPage::Controls);
             return MenuAction::None;
         }
         if (selection_ == RowBack) {
@@ -454,6 +478,9 @@ MenuAction MenuModel::back() {
         // and then lost by leaving the wrong way is worse than no dial.
         open(calibrate_return_);
         return MenuAction::CalibrationDone;
+    case MenuPage::Controls:
+        open(MenuPage::Settings);
+        return MenuAction::None;
     case MenuPage::Settings:
         // And so does Escape here, for the same reason and with the same
         // guarantee: both exits from this page emit SettingsDone, so there is
@@ -579,6 +606,7 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
          s.palette ? loc("menu.settings.on") : loc("menu.settings.off")},
         {loc("menu.settings.bob"), bob},
         {loc("menu.settings.brightness"), bright},
+        {loc("menu.controls"), {}},
         {loc("menu.back"), {}},
     };
 
@@ -626,6 +654,103 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     }
     draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4,
                   fits(w, loc("menu.settings.keys"), loc("menu.settings.keys.short")), BLURB);
+}
+
+// THE CONTROLS PAGE (the user's request: "я должен уметь посмотреть на это в
+// настройках управления"). It is DRAWN FROM THE BINDING TABLE, not from a list
+// written here, and that is the entire design: a hand-written help screen is
+// correct on the day it is written and silently wrong afterwards, because a
+// wrong one looks exactly like a right one. App dispatches through the same
+// table, so a key that exists is a key with a row.
+//
+// Two columns for the same reason the settings page has two: a row is a PAIR
+// (which key, what it does), and centring each pair separately makes the list
+// read as ragged rather than as a table.
+void draw_controls(render::PixelCanvas& canvas) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+
+    canvas.clear(BACKGROUND);
+
+    // Key names are built first and kept alive: the block is MEASURED before it
+    // is drawn, and measuring text other than the text drawn is the mistake the
+    // pause plate was fixed for.
+    struct Row {
+        std::string keys;
+        std::string_view what;
+        std::string_view note; // scope, when it is not everywhere
+    };
+    std::vector<Row> rows;
+    rows.reserve(control_bindings().size() + movement_rows().size() + 2);
+
+    for (const Binding& b : control_bindings()) {
+        std::string keys = key_name(b.key);
+        if (b.alias != platform::Key::UNKNOWN) {
+            keys += ", ";
+            keys += key_name(b.alias);
+        }
+        std::string_view note;
+        if (b.scope == Scope::EditorOnly) {
+            note = loc("controls.scope.editor");
+        } else if (b.scope == Scope::PlayingOnly) {
+            note = loc("controls.scope.playing");
+        }
+        rows.push_back({std::move(keys), loc(b.what), note});
+    }
+    for (const MovementRow& m : movement_rows()) {
+        rows.push_back({std::string(loc(m.keys)), loc(m.what), {}});
+    }
+
+    int keys_w = 0;
+    for (const Row& r : rows) {
+        keys_w = std::max(keys_w, render::text_width_px(r.keys));
+    }
+    const int gap = render::FONT_CELL_W * 2;
+
+    // THE LAYOUT IS COMPUTED NEXT DOOR (Controls.h controls_layout) so a test
+    // can read it. The first cut of this page did its arithmetic here, inline,
+    // and did not fit at 320x180 -- the last rows ran off the bottom and the
+    // footer sat on top of a row. Nothing could have caught that but a frame,
+    // and a frame only catches the resolutions somebody remembers to shoot.
+    const ControlsLayout L = controls_layout(w, h);
+    const int title_y = L.title_y;
+    const int row_h = L.row_h;
+
+    draw_centered(canvas, title_y, loc("controls.title"), TITLE);
+    canvas.fill_rect(w / 4, title_y + render::FONT_CELL_H + 2, w / 2, 1, RULE_LINE);
+
+    const int x_keys = std::max(render::FONT_CELL_W, (w - (keys_w + gap + 200)) / 2);
+    const int x_what = x_keys + keys_w + gap;
+
+    int y = L.first_y;
+    const size_t key_rows = control_bindings().size();
+    for (size_t i = 0; i < rows.size(); ++i) {
+        // The two headings mark where dispatched keys end and the fly camera's
+        // continuous inputs begin -- they behave differently and the screen
+        // should not imply otherwise. They are the first thing given up when
+        // the frame is too short, because the rows they group are already
+        // adjacent and the ROWS are the thing nobody may lose.
+        if (L.headings && i == 0) {
+            render::draw_text(canvas, x_keys, y, loc("controls.section.keys"), BLURB, true);
+            y += row_h;
+        } else if (L.headings && i == key_rows) {
+            render::draw_text(canvas, x_keys, y, loc("controls.section.fly"), BLURB, true);
+            y += row_h;
+        }
+        render::draw_text(canvas, x_keys, y, rows[i].keys, ITEM_SELECTED, /*shadow=*/true);
+        render::draw_text(canvas, x_what, y, rows[i].what, ITEM, true);
+        if (!rows[i].note.empty()) {
+            const int nx = x_what + render::text_width_px(rows[i].what) + render::FONT_CELL_W;
+            if (nx + render::text_width_px(rows[i].note) < w) {
+                render::draw_text(canvas, nx, y, rows[i].note, BLURB, true);
+            }
+        }
+        y += row_h;
+    }
+
+    if (L.footer) {
+        draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("controls.keys"), BLURB);
+    }
 }
 
 void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
@@ -687,6 +812,7 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
             return {(i == 1) ? loc("menu.settings") : loc("menu.quit"), {}};
         case MenuPage::Calibrate:
         case MenuPage::Settings:
+        case MenuPage::Controls:
             return {}; // drawn by their own functions, which have their own layout
         }
         return {};
@@ -699,6 +825,10 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     }
     if (model.page() == MenuPage::Settings) {
         draw_settings(canvas, model);
+        return;
+    }
+    if (model.page() == MenuPage::Controls) {
+        draw_controls(canvas);
         return;
     }
     if (pause) {

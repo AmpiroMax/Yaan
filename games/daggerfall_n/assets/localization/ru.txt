@@ -120,6 +120,42 @@ debug.loco.swim=вплавь
 debug.loco.unknown=среда?
 debug.hint.capture=3 — снимок состояния, 5 — снимок экрана в чат
 
+# ЭКРАН УПРАВЛЕНИЯ (просьба пользователя: «я должен уметь посмотреть на это в
+# настройках управления»). Ярлыки — предложения, потому что экран отвечает на
+# «что делает эта клавиша». ИМЕНА КЛАВИШ здесь не переводятся и живут в коде
+# (key_name): «F3» и «Tab» — это то, что физически написано на клавише, и
+# читается одинаково в любом языке. Переводятся только имена НЕклавишных
+# устройств (мышь, колесо) — они прозой и являются.
+controls.title=Управление
+controls.section.keys=Клавиши
+controls.section.fly=В режиме облёта
+controls.scope.editor=только в редакторе
+controls.scope.playing=только в игре
+controls.third_person=Вид от третьего лица
+controls.debug_readout=Отладочный вывод
+controls.state_capture=Снимок состояния в файл
+controls.wireframe=Каркас
+controls.screenshot=Снимок экрана — в чат карты и в трейс
+controls.toggle_body=Тело или свободный облёт
+controls.traj_record=Запись траектории: старт и стоп
+controls.traj_replay=Повтор последней записи
+controls.chat=Окно чата
+controls.quick_remark=Быстрый коммент со снимком
+controls.map=Карта
+controls.menu=Меню и пауза
+controls.fly.move.keys=WASD
+controls.fly.move=Вперёд, назад и вбок
+controls.fly.up.keys=E, Space
+controls.fly.up=Вверх
+controls.fly.down.keys=Q, Ctrl
+controls.fly.down=Вниз
+controls.fly.look.keys=мышь
+controls.fly.look=Обзор
+controls.fly.speed.keys=колесо
+controls.fly.speed=Скорость полёта
+controls.keys=Esc — назад
+menu.controls=Управление
+
 # Экран калибровки яркости (просьба пользователя: «как в скайриме/думе»)
 menu.calibrate=Яркость
 menu.calibrate.title=Настройка яркости

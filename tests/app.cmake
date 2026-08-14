@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 14:08:2026 - 18:57:03
+# Last updated: 14:08:2026 - 19:22:10
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -22,6 +22,7 @@
 # - 13:08:2026 - 23:06:40: app_menu и app_hud_screen в ctest (зона ui гоняла их руками). Тест ленты доказывает то, чего кадр не может: компас, едущий не в ту сторону, выглядит правильным на ЛЮБОМ снимке, поэтому знак проверяется поворотом в обе стороны.
 # - 14:08:2026 - 18:57:03: app_editor_hud — раскладка редакторского блока. Он мерит то, чего не мерил никто: два оверлея делили верхний левый угол и печатались друг сквозь друга, а проверить это было нечем, потому что блок собирался прямо в App.cpp (окно, не тестируется). Файл порезан ведущим зоне editor ровно на эту регистрацию.
 
+# - 14:08:2026 - 19:22:10: app_controls — таблица привязок клавиш; Controls.cpp добавлен и в app_menu (страница управления рисуется из той же таблицы). Файл порезан ведущим зоне editor на эту регистрацию, как и в прошлый раз.
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
     target_sources(app_debug_overlay PRIVATE
@@ -30,6 +31,7 @@ if(TARGET dfn_render AND TARGET dfn_core)
 
     add_dfn_test(app_menu app/MenuTests.cpp dfn_render dfn_core)
     target_sources(app_menu PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/Controls.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Menu.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
@@ -44,6 +46,15 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_editor_hud PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorHud.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # THE BINDING TABLE, and this suite is the reason the controls screen is
+    # worth more than a paragraph of documentation: it holds the table TOTAL and
+    # UNAMBIGUOUS, so a key added to App.cpp without a row cannot be dispatched
+    # and a row without a description cannot be drawn.
+    add_dfn_test(app_controls app/ControlsTests.cpp dfn_render dfn_core)
+    target_sources(app_controls PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/Controls.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
 
     # The HUD's tests earn their place by proving what a FRAME CANNOT: a compass
