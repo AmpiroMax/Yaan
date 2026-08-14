@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 18:58:10
-Last updated: 13:08:2026 - 19:11:13
+Last updated: 14:08:2026 - 18:30:20
 Module: engine/render
 File: engine/render/sources/SkyModel.h
 
@@ -65,6 +65,16 @@ UPD:
 - 13:08:2026 - 19:11:13: FLAME_INTENSITY_SWING / FLAME_WARMTH_SWING arrive here from
   RenderSystemResources.cpp: the carried light's colour is a band now, and the
   band's width belongs beside the colour it is a band around.
+- 13:08:2026 - 23:47:28: POINT_LIGHT_DISSOLVE_WINDOW_M (zone dungeon, under the
+  lead's cut on this file) — the width over which the budget-edge point light
+  fades to zero, so a flame crossing the "nearest eight" boundary ramps rather
+  than pops. Answers the user's «свет мигает, иногда снова в глазах темнеет».
+  Provisional 2.0 m pending the flicker-pass measurement; DFN_LIGHT_DISSOLVE=0
+  is the control arm (hard cutoff).
+- 14:08:2026 - 18:30:20: Приземлено ведущим за оборвавшуюся зону. Значение остаётся
+  2.0 м, но читать его как «мигание вылечено» нельзя: на текущем содержимом окно
+  не взводится (в радиусе ≤4 факелов при бюджете 8), то есть сегодня оно инертно
+  и снимает разрыв на будущее. Обоснование — в UPD RenderSystemResources.cpp.
 */
 
 #pragma once
@@ -95,6 +105,21 @@ inline constexpr float TORCH_RADIUS_M = 9.0f;
 /// Look-dev, on the NUMBERS.md migration list with TORCH_COLOR.
 inline constexpr float FLAME_INTENSITY_SWING = 0.12f;
 inline constexpr float FLAME_WARMTH_SWING = 0.05f;
+
+/// DISSOLVE WINDOW at the point-light budget boundary (metres). The frame has
+/// only MAX_POINT_LIGHTS slots; past that a flame contributes exactly zero, so
+/// walking a corridor with more torches than slots makes the "nearest eight"
+/// set change discretely and the marginal flame POPS from full to nothing in
+/// one frame — the flicker the user reported as «свет мигает». This is the
+/// width over which the farthest KEPT light fades to zero as its distance
+/// approaches the budget edge: a flame crossing the boundary now RAMPS instead
+/// of appearing, because it is already dark at the instant it swaps in.
+///
+/// Not chosen by taste — measured (see NUMBERS.md and the dungeon-flicker
+/// acceptance). Dose door: DFN_LIGHT_DISSOLVE=<metres>, 0 = the hard cutoff
+/// (the control arm). Look-dev, on the NUMBERS.md migration list with
+/// TORCH_COLOR.
+inline constexpr float POINT_LIGHT_DISSOLVE_WINDOW_M = 2.0f;
 
 /// Direction TOWARD the sun for a normalized time of day.
 /// day_fraction: 0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset.

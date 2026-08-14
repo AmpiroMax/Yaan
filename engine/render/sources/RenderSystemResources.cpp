@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 13:08:2026 - 20:42:22
+Last updated: 14:08:2026 - 18:30:20
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -43,6 +43,9 @@ UPD:
   makes a torch's colour a BAND, and every caller that asserts one has to read
   the width from where the oscillator reads it.
 - 13:08:2026 - 20:42:22: DFN_TORCH_RADIUS=<metres> — дверь дозы на радиус факела по умолчанию (зона dungeon, по резке ведущего на этот файл и SkyModel.h). Заведена под замер «какой радиус нужен, чтобы пол под ногами читался»: обе руки обязаны выйти из ОДНОГО бинарника (правило 47), а нерабочее значение отвергается ВСЛУХ — молчаливый откат к боевому значению при отчёте о дозе есть единственный отказ, которого этой двери иметь нельзя. Все три места, читавшие TORCH_RADIUS_M как умолчание, теперь зовут одну функцию (правило 32): переносимый свет, ручная проба DFN_TORCH=1 и жаровня DFN_TORCH=2.
+- 13:08:2026 - 23:49:31: РАСТВОРЕНИЕ НА ГРАНИЦЕ БЮДЖЕТА (зона dungeon, та же резка) — правка жалобы «свет мигает, иногда снова в глазах темнеет». publish_point_lights больше не делает жёсткую отсечку nth_element+resize(8): у восьмёрки ближайших пламён самое дальнее ГАСНЕТ гладким окном POINT_LIGHT_DISSOLVE_WINDOW_M по мере приближения к границе, так что факел, пересекающий границу «ближайших восьми», НАРАСТАЕТ, а не появляется скачком. Окно взводится только при конкуренции (кандидатов ≥ бюджета). Дверь дозы DFN_LIGHT_DISSOLVE=<м>, 0 = прежняя жёсткая отсечка (контрольная рука, правило 47). Плюс прибор DFN_LIGHT_PROBE=<путь>: по строке на кадр — luma пола от точечного света у ступней, ровно как считает dfn_env.sh; дефект — СТУПЕНЬ между соседними строками (правило 53), невидимая снимку. Точечный свет НЕ гейтится тьмой (в шейдере добавляется сыро), поэтому проба и есть то, что пол реально получает. ЗАМЕРЕНО: растворение на тоннеле НЕ СВЯЗЫВАЕТ (одновременно в радиусе ≤4 факелов при бюджете 8; своп за границей касается факелов за радиусом → 0). Диагноз «мигание от отсечки-8» опровергнут контролем; правка в дереве, НЕ в main.
+- 14:08:2026 - 00:23:18: DFN_SHADOW_CASTERS=<n> — дверь дозы на число теневых casters (зона dungeon, резка ведущего на теневой путь). Заведена под ПИКСЕЛЬНЫЙ замер «мигает»: как player идёт, набор «двух ближайших» casters свопится, и своп перекидывает тень стены за кадр. Частоту померил (у близких факелов ~0.3/с), а МАГНИТУДУ (виден ли прыжок в пикселях) — нет; эта дверь её меряет: n=1 изолирует всю тень 2-го caster'а (его наличие/отсутствие ограничивает величину свопа), n=2 боевое, n=0 = DFN_NO_POINT_SHADOW. Обе руки один бинарник (правило 47), кривое значение отвергается вслух.
+- 14:08:2026 - 18:30:20: ПРИЗЕМЛЕНО ВЕДУЩИМ — работа зоны dungeon висела в дереве без коммита (агент оборвался посреди замера). Что именно приземляется и в каком виде, чтобы никто не прочитал это как «мигание починено». (1) РАСТВОРЕНИЕ — не починка жалобы, а снятие разрыва в самом отборе: ранг 8 светит полностью, ранг 9 — ровно нулём, и своп между ними есть скачок ПО ПОСТРОЕНИЮ. На сегодняшнем содержимом окно НЕ ВЗВОДИТСЯ (замер зоны: одновременно в радиусе ≤4 факелов при бюджете 8), поэтому кадр не меняется ни на пиксель; разрыв снят на то время, когда факелов станет больше слотов. (2) Три двери дозы — DFN_LIGHT_DISSOLVE, DFN_SHADOW_CASTERS, DFN_LIGHT_PROBE — приборы, ради которых замер вообще возможен, и они ценнее правки. (3) ЧЕСТНО ОБ ОТКРЫТОМ: диагноз «мигание от отсечки-8» ОПРОВЕРГНУТ контролем самой зоны, а магнитуда свопа теневых casters (частота у близких факелов ~0.3/с) НЕ ЗАМЕРЕНА — дверь DFN_SHADOW_CASTERS заведена ровно под неё и осталась неиспользованной; жалоба «свет мигает» остаётся ОТКРЫТОЙ. Сборка зелёная, новых падений в наборе нет.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -102,6 +105,125 @@ namespace dfn::render {
     return value;
 }
 
+// THE DOSE DOOR FOR THE BUDGET-EDGE DISSOLVE (DFN_LIGHT_DISSOLVE=<metres>).
+//
+// The frame has MAX_POINT_LIGHTS slots and a corridor has more torches than
+// that, so a flame past the budget contributes exactly zero and the "nearest
+// eight" set changes discretely as the player walks — the marginal flame pops
+// from full to nothing in one frame. That pop is the user's «свет мигает».
+//
+// The two arms — hard cutoff and dissolve — MUST come from one binary
+// (Rule 47): 0 is the control (the shipping-before behaviour), a positive
+// value is the ramp width. A malformed value is refused OUT LOUD, never a
+// silent fall back to the shipping default while a dose is being reported.
+[[nodiscard]] float point_light_dissolve_window() {
+    static const float value = [] {
+        if (const char* e = std::getenv("DFN_LIGHT_DISSOLVE"); e != nullptr && *e != '\0') {
+            float w = -1.0f;
+            if (std::sscanf(e, "%f", &w) == 1 && w >= 0.0f) {
+                std::fprintf(stderr, "[light] DFN_LIGHT_DISSOLVE=%.3f m (default %.3f)\n",
+                             static_cast<double>(w),
+                             static_cast<double>(POINT_LIGHT_DISSOLVE_WINDOW_M));
+                return w;
+            }
+            std::fprintf(stderr, "[light] DFN_LIGHT_DISSOLVE=\"%s\" is not a "
+                                 "non-negative number -- REFUSED, using %.3f m\n",
+                         e, static_cast<double>(POINT_LIGHT_DISSOLVE_WINDOW_M));
+        }
+        return POINT_LIGHT_DISSOLVE_WINDOW_M;
+    }();
+    return value;
+}
+
+// THE DOSE DOOR FOR THE SHADOW-CASTER COUNT (DFN_SHADOW_CASTERS=<n>).
+//
+// The scene casts point shadows from the MAX_SHADOW_POINT_LIGHTS nearest flames.
+// As the player walks, WHICH two those are swaps, and a swap flips a wall from
+// one flame's shadow to another's in one frame — the candidate for «свет
+// мигает». To measure whether that flip is VISIBLE (Rule 41: the frequency is
+// not the magnitude), this caps how many flames cast: n=2 is shipping, n=1
+// isolates the SECOND caster's whole shadow footprint (its presence vs absence
+// bounds the swap's magnitude), n=0 is DFN_NO_POINT_SHADOW. Both arms out of one
+// binary (Rule 47); a malformed value is refused out loud.
+[[nodiscard]] uint32_t shadow_caster_cap() {
+    static const uint32_t value = [] {
+        if (const char* e = std::getenv("DFN_SHADOW_CASTERS"); e != nullptr && *e != '\0') {
+            int n = -1;
+            if (std::sscanf(e, "%d", &n) == 1 && n >= 0
+                && static_cast<uint32_t>(n) <= platform::MAX_SHADOW_POINT_LIGHTS) {
+                std::fprintf(stderr, "[shadow] DFN_SHADOW_CASTERS=%d (default %u)\n",
+                             n, platform::MAX_SHADOW_POINT_LIGHTS);
+                return static_cast<uint32_t>(n);
+            }
+            std::fprintf(stderr, "[shadow] DFN_SHADOW_CASTERS=\"%s\" is not an "
+                                 "integer in [0, %u] -- REFUSED, using %u\n",
+                         e, platform::MAX_SHADOW_POINT_LIGHTS,
+                         platform::MAX_SHADOW_POINT_LIGHTS);
+        }
+        return platform::MAX_SHADOW_POINT_LIGHTS;
+    }();
+    return value;
+}
+
+// FLOOR-ILLUMINATION PROBE (DFN_LIGHT_PROBE=<path>) — one line per PRESENTED
+// frame, no readback, no settle, no freeze. It measures the quantity the flicker
+// LIVES IN (Rule 47): the sum of the published point lights' contribution at the
+// player's feet, exactly as dfn_env.sh evaluates it (smoothstep on 1 - d/radius,
+// times the up-facing floor's N.L), reduced to luma. Occlusion is taken as 1 —
+// only the two nearest flames cast, and in a wall-torch pass none is carried, so
+// the far sconces whose SWAP causes the flicker are unshadowed. The point-light
+// term is NOT gated by ambient darkness (it is added raw in the shader), so this
+// value is what the floor actually receives, and its FRAME-TO-FRAME STEP is the
+// flicker — invisible to any single screenshot (Rule 53, count the transitions).
+void light_floor_probe(const platform::RenderEnvironment& env, const glm::vec3& eye,
+                       std::FILE* out) {
+    static uint64_t frame = 0;
+    const glm::vec3 feet = eye - glm::vec3{0.0f,
+        static_cast<float>(config::PLAYER_EYE_HEIGHT), 0.0f};
+    const glm::vec3 n{0.0f, 1.0f, 0.0f}; // the floor faces up
+    float lum = 0.0f;
+    float min_dist = 1e9f;
+    uint32_t reaching = 0;
+    for (uint32_t i = 0; i < env.point_light_count; ++i) {
+        const platform::PointLight& L = env.point_lights[i];
+        const glm::vec3 to = L.position - feet;
+        const float dist = glm::length(to);
+        if (dist < min_dist) { min_dist = dist; }
+        const float atten = std::clamp(1.0f - dist / std::max(L.radius_m, 1e-4f), 0.0f, 1.0f);
+        if (atten > 0.0f) { ++reaching; }
+        const float smooth = atten * atten * (3.0f - 2.0f * atten);
+        const float ndl = std::max(n.x * to.x + n.y * to.y + n.z * to.z, 0.0f)
+                          / std::max(dist, 1e-4f);
+        const glm::vec3 c = L.color * (smooth * ndl);
+        lum += 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z;
+    }
+    // The shadow casters are the first MAX_SHADOW_POINT_LIGHTS published lights
+    // (sorted nearest-first, casts_shadow set on them). Log their positions so
+    // an offline pass can count how often the CASTER SET swaps as the player
+    // walks — the candidate for «свет мигает» the floor-luma probe is blind to,
+    // because shadows are near-binary and the probe assumes occl = 1.
+    auto caster = [&](uint32_t i) -> glm::vec3 {
+        return i < env.point_light_count ? env.point_lights[i].position
+                                         : glm::vec3{0.0f};
+    };
+    const glm::vec3 c0 = caster(0);
+    const glm::vec3 c1 = caster(1);
+    const float c0d = env.point_light_count > 0 ? glm::length(c0 - feet) : -1.0f;
+    const float c1d = env.point_light_count > 1 ? glm::length(c1 - feet) : -1.0f;
+    // luma on a 0..255 scale, the same unit the feet0 box and PALETTE_SHADE_STEP
+    // are quoted in. Trailing diagnostic columns: nearest light distance, how
+    // many of the published lights actually reach the feet, feet height, then the
+    // two shadow casters' (x z dist) for the swap count.
+    std::fprintf(out, "%llu %u %.5f %.4f %.3f %u %.3f  %.2f %.2f %.2f  %.2f %.2f %.2f\n",
+                 static_cast<unsigned long long>(frame), env.point_light_count,
+                 static_cast<double>(lum * 255.0f), static_cast<double>(lum),
+                 static_cast<double>(min_dist), reaching,
+                 static_cast<double>(feet.y),
+                 static_cast<double>(c0.x), static_cast<double>(c0.z), static_cast<double>(c0d),
+                 static_cast<double>(c1.x), static_cast<double>(c1.z), static_cast<double>(c1d));
+    ++frame;
+}
+
 // FLAME FLICKER (the user asked for it by name: «анимацию пламени на факеле»).
 // A carried flame is not a light bulb: it breathes. This modulates INTENSITY
 // and COLOUR only -- never the radius -- and the reason is the defect this zone
@@ -157,23 +279,45 @@ struct Flame {
 // player is standing next to -- the carried torch, when he holds one.
 void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candidates) {
     const uint32_t budget = platform::MAX_POINT_LIGHTS;
-    if (candidates.size() > budget) {
-        std::nth_element(candidates.begin(), candidates.begin() + budget, candidates.end(),
-                         [](const PointLightCandidate& a, const PointLightCandidate& b) {
-                             return a.d2 < b.d2;
-                         });
-        candidates.resize(budget);
-    }
+    // Full sort: the dissolve needs the budget-edge distance, and the kept set is
+    // at most a few dozen candidates, so the nth_element optimisation buys
+    // nothing over sorting them all.
     std::sort(candidates.begin(), candidates.end(),
               [](const PointLightCandidate& a, const PointLightCandidate& b) {
                   return a.d2 < b.d2;
               });
+
+    // THE BUDGET DISSOLVE (the fix for «свет мигает»). With more flames than
+    // slots, the "nearest eight" set changes discretely as the player walks: the
+    // flame at rank 8 and the flame at rank 9 swap when their distances cross,
+    // and rank 9 contributes ZERO while rank 8 contributes fully — a one-frame
+    // pop. The cure is to fade the farthest KEPT light to zero as its distance
+    // approaches the crossover, so a flame swapping across the boundary is
+    // already dark at the instant it enters. The window is armed only when there
+    // is competition (as many candidates as slots — a ninth may cross in next
+    // frame); with slots to spare no light is at risk and none is dimmed.
+    const float window = point_light_dissolve_window();
+    const bool arm_fade = window > 0.0f && candidates.size() >= budget;
+    // The edge is the distance of the last kept flame; at the swap instant it
+    // equals the distance of the first dropped one, which is why fading toward
+    // zero here makes the swap invisible.
+    const float edge = arm_fade ? std::sqrt(candidates[budget - 1].d2) : 0.0f;
+
+    if (candidates.size() > budget) {
+        candidates.resize(budget);
+    }
     uint32_t count = 0;
     for (const PointLightCandidate& c : candidates) {
         platform::PointLight& out = environment_.point_lights[count];
         out.position = c.position;
         out.radius_m = c.radius;
         out.color = c.color;
+        if (arm_fade) {
+            // smoothstep: 1 at edge-window (full brightness), 0 at the edge.
+            const float d = std::sqrt(c.d2);
+            const float t = std::clamp((edge - d) / window, 0.0f, 1.0f);
+            out.color *= t * t * (3.0f - 2.0f * t);
+        }
         // THE NEAREST TWO FLAMES CAST, and the cap is the contract's own.
         //
         // This line stood at one caster, not two, for as long as the backend
@@ -185,7 +329,7 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         // is now decided once), so the workaround is gone rather than
         // documented: capping HERE would have kept the world at one shadowing
         // flame forever, in a file that has no idea why.
-        out.casts_shadow = count < platform::MAX_SHADOW_POINT_LIGHTS && !point_shadows_off_;
+        out.casts_shadow = count < shadow_caster_cap() && !point_shadows_off_;
         ++count;
     }
     environment_.point_light_count = count;
@@ -290,6 +434,25 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     publish_point_lights(candidates);
     if (dark_frozen_) {
         environment_.ambient_darkness = frozen_darkness_;
+    }
+    // Flicker instrument (DFN_LIGHT_PROBE=<path>): one line per presented frame,
+    // the floor's point-light luma at the feet. Opened once; the defect is the
+    // STEP between adjacent lines, which no screenshot can show (Rule 53).
+    if (const char* p = std::getenv("DFN_LIGHT_PROBE"); p != nullptr && *p != '\0') {
+        static std::FILE* probe = [p] {
+            std::FILE* f = std::fopen(p, "w");
+            if (f != nullptr) {
+                std::fprintf(f, "# frame point_light_count floor_luma_0_255 floor_luma_frac\n");
+            } else {
+                std::fprintf(stderr, "[light] DFN_LIGHT_PROBE=\"%s\" could not be "
+                                     "opened for writing\n", p);
+            }
+            return f;
+        }();
+        if (probe != nullptr) {
+            light_floor_probe(environment_, eye, probe);
+            std::fflush(probe);
+        }
     }
 }
 
