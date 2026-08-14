@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 14:08:2026 - 21:33:00
+Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -312,6 +312,17 @@ UPD:
   только правкой NUMBERS.md, нельзя оценить в ОДНОМ бинарнике — прошлый свип по
   нему читался с двух сборок с разницей в час, что правило 47 прямо запрещает.
   Замер зоной не закончен: агент оборвался на нём.
+- 14:08:2026 - 23:12:28: ДВА ФИКСА СО СТЕНДА ОДНОГО ДЕРЕВА, оба — дословные жалобы пользователя.
+  (1) «дерево отрезано от пня»: комель строился вертикальным, а жёсткий наклон
+  болы начинался с его верхнего кольца — колено со швом сдвига на самом видном
+  месте ствола. Теперь комель наклоняется ВМЕСТЕ с болой: одна ось, один стык,
+  общие центр/ось/радиус колец — шва нет по построению. Контрольная рука
+  DFN_FLORA_TRUNKARC=1 не тронута (там наклон копится по сегментам, комель
+  вертикален, как был). (2) «корни из-под земли вокруг вылезают»: ROOT_SPUR_COUNT
+  радиальных лап от комля — гребень чуть над землёй, кончик закопан; неравномерность
+  по хэшу, никогда не звезда. Только Full (на 48 м корень — пара пикселей,
+  в Silhouette бюджете 54 треугольника ему нет места). Корни идут в поток
+  FloraMesh::ground: в кадр — вместе с wood, в твёрдую болу — никогда.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -1640,14 +1651,6 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
                                               : sp.trunk_segments);
     const int sides = sp.trunk_sides;
 
-    // Root flare: widen and sink so the skirt buries itself in whatever the
-    // terrain does. Kept above the shadow-caster floor at its narrowest.
-    const float flare_r = std::max(radius * FLARE_WIDEN, SHADOW_MIN_DIAMETER * 0.5f);
-    tube_segment(m, base + glm::vec3{0.0f, -t.flare_depth, 0.0f},
-                 base + glm::vec3{0.0f, t.flare_h, 0.0f},
-                 glm::vec3{0.0f, 1.0f, 0.0f}, flare_r,
-                 std::max(radius, SHADOW_MIN_DIAMETER * 0.5f), sides, t.wood);
-
     glm::vec3 p = base + glm::vec3{0.0f, t.flare_h, 0.0f};
     glm::vec3 d{0.0f, 1.0f, 0.0f};
     const float span = std::max(height - t.flare_h, 0.5f);
@@ -1683,6 +1686,62 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
         const float c = std::cos(t.shape.lean);
         const float sn = std::sin(t.shape.lean);
         d = safe_normalize(glm::vec3{sweep_dir.x * sn, c, sweep_dir.z * sn}, d);
+    }
+
+    // Root flare: widen and sink so the skirt buries itself in whatever the
+    // terrain does. Kept above the shadow-caster floor at its narrowest.
+    //
+    // THE FLARE TILTS WITH THE BOLE (user, on the one-tree stand: «дерево
+    // отрезано от пня»). It used to be built vertical while the rigid-body
+    // tilt above started at its top ring — a knee with a visible shear seam at
+    // the widest, most eye-level part of the tree. A leaning tree's butt swell
+    // is the bottom of the SAME axis, not a pedestal the bole sits on: one
+    // axis, one joint, and the seam is gone by construction (the flare's top
+    // ring and the bole's first ring now share centre, axis and radius). The
+    // buried end still buries: the sink runs along -d, and 1 m of depth at the
+    // lean cap keeps the whole skirt below any ground the slope rules allow.
+    const float flare_r = std::max(radius * FLARE_WIDEN, SHADOW_MIN_DIAMETER * 0.5f);
+    tube_segment(m, base + glm::vec3{0.0f, t.flare_h, 0.0f} - d * (t.flare_h + t.flare_depth),
+                 base + glm::vec3{0.0f, t.flare_h, 0.0f},
+                 d, flare_r, std::max(radius, SHADOW_MIN_DIAMETER * 0.5f), sides, t.wood);
+
+    // ROOT SPURS — Full LOD only. At FLORA_LOD_REDUCED_M a 1.5 m root is a
+    // couple of pixels, and the Silhouette budget is 54 triangles for the
+    // whole tree. Two tube segments per root: flare -> crest just above the
+    // ground, crest -> a buried tip; the crest is what the eye reads as "the
+    // root comes OUT of the ground", and the buried ends are what keep every
+    // root readable on the micro-relief this ground is allowed to have.
+    if (t.lod == FloraLod::Full && t.ground != nullptr) {
+        MeshData& gm = *t.ground;
+        uint32_t rh = static_cast<uint32_t>(base.x * 91.0f) * 0x9E3779B9u
+                    ^ static_cast<uint32_t>(base.z * 47.0f) * 0x85EBCA6Bu;
+        for (int k = 0; k < ROOT_SPUR_COUNT; ++k) {
+            rh = (rh ^ (rh >> 13)) * 0xC2B2AE35u;
+            // Even sectors, uneven roots: each takes its slice of the circle
+            // plus up to half a slice of hashed jitter — never the star of a
+            // model kit, never two roots fused into one.
+            const float jitter =
+                (static_cast<float>(rh & 0xFFu) / 255.0f - 0.5f) * (TAU / ROOT_SPUR_COUNT);
+            const float az =
+                TAU * (static_cast<float>(k) + 0.5f) / ROOT_SPUR_COUNT + jitter * 0.5f;
+            const glm::vec3 dir{std::cos(az), 0.0f, std::sin(az)};
+            const float len_scale =
+                0.75f + static_cast<float>((rh >> 8) & 0xFFu) / 255.0f * 0.5f;
+            const float reach = flare_r * ROOT_SPUR_LEN_FRAC * len_scale;
+            const float r0 = std::max(radius * ROOT_SPUR_R_FRAC, 0.05f);
+            // Rooted INSIDE the flare (the same GREAT_OAK_STEP_BASE_FRAC
+            // argument: grown into the wood, not stuck onto it).
+            const glm::vec3 start = base + dir * (flare_r * 0.6f)
+                                  + glm::vec3{0.0f, t.flare_h * 0.25f, 0.0f};
+            const glm::vec3 crest = base + dir * (flare_r + reach * 0.35f)
+                                  + glm::vec3{0.0f, ROOT_SPUR_RISE, 0.0f};
+            const glm::vec3 tip = base + dir * (flare_r + reach)
+                                + glm::vec3{0.0f, -ROOT_SPUR_SINK, 0.0f};
+            tube_segment(gm, start, crest, safe_normalize(crest - start, dir), r0,
+                         r0 * 0.65f, 4, t.wood);
+            tube_segment(gm, crest, tip, safe_normalize(tip - crest, dir), r0 * 0.65f,
+                         0.0f, 4, t.wood);
+        }
     }
     const uint32_t wob_seed =
         static_cast<uint32_t>(base.x * 73.0f) * 0x9E3779B9u
@@ -2531,6 +2590,7 @@ FloraMesh build_tree(FloraSpecies species, uint32_t variant,
         && leaf_tone_has_foliage(sp.tone_first, season)) {
         t.cards = &parts.cards;
     }
+    t.ground = &parts.ground;
     t.phase = shape.wind_phase;
 
     // HARD FLOOR (§3.5): canopy species keep CANOPY_CLEARANCE_MIN of clear
@@ -2784,7 +2844,14 @@ void append_flora(MeshData& wood, MeshData& cards, FloraSpecies species,
         const char* e = std::getenv("DFN_FLORA_ONLY");
         return e ? std::atoi(e) : 0;
     }();
-    if (only != 2) append_transformed(wood, parts.wood, position, yaw, 1.0f);
+    if (only != 2) {
+        append_transformed(wood, parts.wood, position, yaw, 1.0f);
+        // The root spurs ride the wood stream INTO THE FRAME (same program,
+        // same batch) — the split into FloraMesh::ground exists for collision,
+        // which reads parts.wood and must never sweep an ankle-high root cone
+        // into the solid bole.
+        append_transformed(wood, parts.ground, position, yaw, 1.0f);
+    }
     if (only != 1) append_transformed(cards, parts.cards, position, yaw, 1.0f);
 }
 

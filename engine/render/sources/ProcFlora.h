@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:26:55
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -79,6 +79,12 @@ UPD:
   times. Recorded rather than done silently -- a record whose stamps are
   invented cannot be put in order afterwards, and the entries it would mislead
   are this zone's own.
+- 14:08:2026 - 23:12:28: FloraMesh::ground — прижатая к земле древесина (корневые лапы). Рисуется
+  той же программой, что wood (батчер сливает), но ОТДЕЛЬНЫМ потоком, потому что
+  коллизия вырезает твёрдую болу из wood по высоте, и щиколоточный корневой конус
+  внутри твёрдого тела (а) рвал бюджет «бола, не крона» и (б) превращал землю
+  вокруг каждого дерева в поле спотыканий. Ходок ПЕРЕШАГИВАЕТ корни; разница
+  нарисовано/твёрдо заявлена структурно.
 */
 
 #pragma once
@@ -218,6 +224,14 @@ struct FloraShape {
 struct FloraMesh {
     MeshData wood;  ///< trunk, branches, cone tiers, silhouette shells ("prop")
     MeshData cards; ///< alpha-cutout leaf cards ("foliage" + the leaf atlas)
+    /// GROUND-HUGGING wood: the root spurs. Drawn with the same "prop" program
+    /// as `wood` (the batcher merges the two), but a SEPARATE stream because
+    /// collision cuts its solid bole out of `wood` by height, and an
+    /// ankle-high root cone inside the solid would (a) blow the "a bole, not a
+    /// crown" triangle budget and (b) turn the ground around every tree into a
+    /// stumble field. A walker steps OVER surface roots; the drawn/solid split
+    /// is the step, stated structurally.
+    MeshData ground;
 };
 
 /// --- THE WOOD AS STRUCTURE, FOR THE ZONES THAT HAVE TO TOUCH IT -----------

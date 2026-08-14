@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 13:08:2026 - 21:00:00
+Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -45,6 +45,9 @@ UPD:
   what the player sees.
 - 13:08:2026 - 21:00:00: Tree::species — the enum, at the END of the struct
   because the one caller uses a positional aggregate initializer.
+- 14:08:2026 - 23:12:28: ROOT_SPUR_* (пользователь на стенде одного дерева: «надо ещё у пня корни
+  добавить, что из-под земли вокруг вылезают») и Tree::ground. RISE ужат 0.22 →
+  0.10 по кадру: просвет под дугой читался паучьими ногами, а не корнями.
 */
 
 #pragma once
@@ -76,6 +79,25 @@ constexpr float FLARE_DEPTH = 1.0f;
 // Render's constraint: the flare must stay above the shadow-caster floor all
 // the way down, or the tree reads as hovering even while correctly buried.
 constexpr float SHADOW_MIN_DIAMETER = 0.35f;
+
+// ROOT SPURS (user, on the one-tree stand: «надо ещё у пня корни добавить,
+// что из-под земли вокруг вылезают»). Radial surface roots that emerge from
+// the flare, crest just above the ground and dive back under — the detail
+// that makes the trunk-ground contact read as GROWN rather than placed; the
+// same argument as the boulder burial, one object earlier.
+//
+// Proportions follow the buttress-root literature the tree docs already cite
+// (TREE_MODELS_RESEARCH: surface roots run 1-2 trunk diameters before
+// submerging): length is quoted in FLARE RADII and thickness in fractions of
+// the trunk radius, so every species and every maturity gets roots that fit
+// its own butt without a second table.
+constexpr int ROOT_SPUR_COUNT = 5;         ///< uneven by hashed jitter, never a star
+constexpr float ROOT_SPUR_LEN_FRAC = 1.9f; ///< of flare radius, beyond the flare edge
+constexpr float ROOT_SPUR_RISE = 0.10f;    ///< m, crest height above the ground line
+                                           ///< (0.22 measured: an air gap under the
+                                           ///< arc read as spider legs, not roots)
+constexpr float ROOT_SPUR_SINK = 0.45f;    ///< m, tip depth below the ground line
+constexpr float ROOT_SPUR_R_FRAC = 0.30f;  ///< of trunk radius, at the flare
 
 // CARD PLANE TILT FROM THE GROUND, radians (0 = the plane lies flat on the
 // ground, pi/2 = it stands perpendicular to it). The user ruled the band
@@ -142,6 +164,9 @@ struct Tree {
     float flare_depth = FLARE_DEPTH;
     /// Null when the species has no card foliage, or winter has stripped it.
     MeshData* cards = nullptr;
+    /// Root spurs land here (FloraMesh::ground) — kept out of the wood stream
+    /// so the collision cut cannot sweep them into the solid bole.
+    MeshData* ground = nullptr;
     /// The walkability floor THIS tree's foliage obeys. CANOPY_CLEARANCE_MIN
     /// for canopy species, 0 for everything else — a krummholz pine and a bush
     /// carry foliage to the ground BY DESIGN (obstacles you walk around, §3.5
