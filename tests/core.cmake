@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 12:08:2026 - 22:53:00
+# Last updated: 14:08:2026 - 18:43:43
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -50,6 +50,12 @@
 #                          zero-dose arm (DFN_NO_GREAT_OAK) in the same binary.
 #                          Runs from the repo ROOT: it opens the shipped layout
 #                          asset the way the app does.
+# - 14:08:2026 - 18:43:43: test_world_format — the .dfw container's round trip,
+#                          byte-identical rewrite (Rule 13.1) and its SOFT
+#                          failures. Built on really generated chunks, because
+#                          a hand-built chunk has empty voxel and scatter
+#                          arrays and would pass while proving nothing about
+#                          the fields the baker exists to carry.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -60,6 +66,7 @@ add_dfn_test(test_worldgen_v2 core/WorldgenV2Tests.cpp dfn_world)
 add_dfn_test(test_forest_stand core/ForestStandTests.cpp dfn_world)
 add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
+add_dfn_test(test_world_format core/WorldFormatTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_great_oak core/GreatOakTests.cpp dfn_world)

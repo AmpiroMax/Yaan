@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 13:08:2026 - 00:40:00
+# Last updated: 14:08:2026 - 18:38:33
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -46,6 +46,10 @@
 # - 12:08:2026 - 22:51:00: WorldgenGreatOak.cpp (GIANT_OAKS §2 placement: the
 # - 13:08:2026 - 00:40:00: WorldgenFlow.cpp -- the drainage pass that replaces the fixed-pitch draw comb.
 #                          clearing, and the rarity derived from read distance).
+# - 14:08:2026 - 18:38:33: WorldFormat.cpp -- the .dfw container's bodies, five
+#                          days after its contract. The first half of the
+#                          tooling pivot's baker: worldgen writes offline, the
+#                          game only reads (в1).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -55,6 +59,7 @@ add_library(dfn_world STATIC
     sources/SaveDelta.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
+    sources/WorldFormat.cpp
     sources/Worldgen.cpp
     sources/WorldgenCarve.cpp
     sources/WorldgenCastle.cpp
