@@ -8,6 +8,8 @@ UPD:
   running-shimmer fix (0.094 -> 0.004 % of screen flipping per stride).
   u_params.x == 2 selects the mode so DFN_MSAA=0 keeps the old hard cutout
   and stays a bit-exact control arm.
+- 15:08:2026 - 01:46:53: transmit gated by sway weight (v_color0.r) — bark
+  tiles ride this program opaque with wind zeroed, and wood must not glow.
 */
 
 // Foliage fragment shader: ALPHA CUTOUT (discard), never blending — cutout
@@ -113,7 +115,13 @@ void main()
     float forward = pow(max(dot(view_dir, -u_sunDir), 0.0), FOLIAGE_TRANSMIT_SHARPNESS);
     float back_lit = max(-dot(n, u_sunDir), 0.0);
     float transmit = forward * back_lit
-                   * mix(FOLIAGE_TRANSMIT_SHADOW_FLOOR, 1.0, vis);
+                   * mix(FOLIAGE_TRANSMIT_SHADOW_FLOOR, 1.0, vis)
+                   // BARK RIDES THIS PROGRAM NOW (opaque tiles, wind zeroed) and
+                   // wood does not transmit light: the sway weight doubles as
+                   // the translucency gate — what cannot sway cannot glow. A
+                   // leaf card's attachment corner (r=0) loses its glow over a
+                   // couple of centimetres, which no frame can see.
+                   * smoothstep(0.0, 0.15, v_color0.r);
     lit += albedo * FOLIAGE_TRANSMIT_TINT * u_sunColor
            * (transmit * FOLIAGE_TRANSMIT_STRENGTH);
 

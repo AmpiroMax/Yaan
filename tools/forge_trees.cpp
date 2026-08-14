@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 15:08:2026 - 02:14:30
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -38,6 +38,8 @@ UPD:
   сосна, не большая ель), и КОЛОСС 200 м / крона 140 м (просьба «раза в 4-5
   больше гиганта») на собственной полке assets/objects/colossus и карте
   trees/colossus.
+- 15:08:2026 - 02:14:30: ели ×2 плотнее (мутовки 15-18, ветви 9, лапы 2×0.5) — «антенна»; колосс —
+  ДУБ: 150 м под кроной 170 м, ветви с 22 м (наука дуба из чата колосса).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -106,11 +108,11 @@ int main(int argc, char** argv) {
         spruce.tone = LeafTone::ConiferDark;
         spruce.card_shape = LeafShape::NeedleFan;
         spruce.conifer = true;
-        spruce.whorl_count = 10 + i * 2;
-        spruce.whorl_branches = 6;
+        spruce.whorl_count = 15 + i * 3;
+        spruce.whorl_branches = 9;
         spruce.droop = 0.30f;
-        spruce.spray_per_branch = 1; // anchors are dense along fronds already
-        spruce.spray_frac = 0.42f;
+        spruce.spray_per_branch = 2;
+        spruce.spray_frac = 0.5f;
         gallery.push_back(spruce);
     }
     {
@@ -164,9 +166,9 @@ int main(int argc, char** argv) {
         pine.card_shape = LeafShape::NeedleFan;
         pine.conifer = true;
         pine.whorl_count = 8;
-        pine.whorl_branches = 5;
+        pine.whorl_branches = 7;
         pine.droop = 0.22f;
-        pine.spray_per_branch = 1;
+        pine.spray_per_branch = 2;
         pine.spray_frac = 0.34f;
         gallery.push_back(pine);
     }
@@ -239,13 +241,17 @@ int main(int argc, char** argv) {
         TreeForgeParams colossus;
         colossus.seed = 999;
         colossus.name = "colossus-oak";
-        colossus.height = 200.0f;
-        colossus.crown_radius = 70.0f;
-        colossus.crown_base_frac = 0.32f;
-        colossus.trunk_radius = 9.0f;
+        // OAK PROPORTIONS (the colossus chat, 01:35: «колосс хочется чтобы был
+        // дубом, а у них крона низко начинается»; oak habit: crown WIDER than
+        // the tree is tall, dome from lateral scaffolds, base low): 150 m tall
+        // under a 170 m crown, branches from 22 m up.
+        colossus.height = 150.0f;
+        colossus.crown_radius = 85.0f;
+        colossus.crown_base_frac = 0.15f;
+        colossus.trunk_radius = 10.0f;
         colossus.tone = LeafTone::OakDeep;
         colossus.card_shape = LeafShape::RoundLobed;
-        colossus.scaffold_count = 14;
+        colossus.scaffold_count = 16;
         colossus.secondary_per_scaffold = 4;
         colossus.spray_per_branch = 2;
         colossus.spray_frac = 0.10f; // ~7 m packs: a colossus' leaves stay leaves

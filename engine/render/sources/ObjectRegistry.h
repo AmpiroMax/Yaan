@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 01:46:53
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.h
 
@@ -40,6 +40,8 @@ UPD:
 - 14:08:2026 - 23:36:19: Created — the .dfo container (user: «инструмент,
   который будет деревья делать и их сохранять, как мы обсуждали и
   договаривались, в реестр объектов»).
+- 15:08:2026 - 01:46:53: bark stream + формат v2 (секция BARK; хэш
+  версионирован: файл v1 сверяется по правилу v1, без bark).
 */
 
 #pragma once
@@ -65,6 +67,11 @@ struct RegistryObject {
     MeshData wood;
     MeshData cards;
     MeshData ground;
+    /// TEXTURED wood: trunk and heavy limbs with bark UVs into the leaf
+    /// atlas' BarkPlate column. Drawn with the foliage program (albedo from
+    /// the texture, real lighting), wind zeroed — a separate stream because
+    /// the plain "prop" wood has no UVs and collision reads neither.
+    MeshData bark;
     /// fnv1a64 over the payload streams (see object_content_hash). Stored in
     /// the file AND recomputed on read; a mismatch is a refused file, because
     /// a registry whose identities cannot be trusted indexes nothing.

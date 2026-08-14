@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 15:08:2026 - 02:14:30
 Module: engine/render
 File: engine/render/sources/FloraCards.h
 
@@ -38,6 +38,9 @@ UPD:
 - 15:08:2026 - 01:04:30: LEAF_ATLAS_TILE_PX 64 → 128 (вердикт: «фигуры сильно пиксельные, не надо
   пикселить»): 64px на 3-метровой лапе — ~5 см/тексель НА ОБЪЕКТЕ, зубец
   листа на таком шаге не существует.
+- 15:08:2026 - 02:14:30: LeafShape::BarkPlate (5-я колонка атласа: 8 колорвеев коры) и
+  LEAF_ATLAS_REVISION в ключ дискового кэша — кэш 4-колоночного атласа под
+  5-колоночными uv красил хвою берёзовыми тайлами В БЕЛЫЙ, при верном коде везде.
 */
 
 #pragma once
@@ -71,8 +74,13 @@ enum class FloraSeason : uint8_t {
 /// to shape — the same shape can appear light and dark in one crown, which is
 /// what a crown that is 79-86 % leaf in its core needs to read as volume
 /// (docs/specs/flora.md §3.10).
-inline constexpr uint32_t LEAF_ATLAS_SHAPES = 4;
+inline constexpr uint32_t LEAF_ATLAS_SHAPES = 5;
 inline constexpr uint32_t LEAF_ATLAS_TONES = 8;
+/// Bumped on every change to the tiles' ART (masks, packs, bark) — the disk
+/// cache key must change when the pixels would, or the game paints with the
+/// previous session's atlas (measured: the 4-column cache under 5-column uvs
+/// painted the conifers white with birch tiles).
+inline constexpr uint32_t LEAF_ATLAS_REVISION = 3;
 /// 128, doubled from 64 on the user's gallery verdict («фигуры сильно
 /// пиксельные, надо мельче делать детализацию, не надо пикселить»): a 64 px
 /// tile stretched over a 3 m spray is ~5 cm per texel ON THE OBJECT, and the
@@ -86,7 +94,14 @@ enum class LeafShape : uint8_t {
     RoundLobed = 0, ///< broad lobed mass — the broadleaf default
     OvalSpray = 1,  ///< elongated leaning spray — clump and rim fill
     RaggedTip = 2,  ///< tapering wedge — branch tips and crown top
-    NeedleFan = 3,  ///< conifer spray (reserved; pine still uses cone tiers)
+    NeedleFan = 3,  ///< conifer feather (needle barbs on a twig)
+    /// BARK — fully opaque tiles for TEXTURED trunks and limbs (user, on the
+    /// gallery: «текстур на деревьях нет... нужны текстуры и учёт
+    /// освещённости»). The tone ROW selects the bark colourway, not a leaf
+    /// tone: oak furrows, birch paper with lenticels, pine plates, mossy oak
+    /// and so on — see bark_palette() in the rasteriser. Rides the foliage
+    /// program (albedo from the atlas, real lighting), wind zeroed.
+    BarkPlate = 4,
 };
 
 /// Global foliage tone table. Rows are shared by every species in a chunk

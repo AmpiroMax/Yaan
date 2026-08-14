@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 02:14:30
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -133,6 +133,7 @@ UPD:
   water, path, tufts) and the viewmodel path — none currently — stay 0.
 - 14:08:2026 - 19:34:00: ЛЕСТНИЦА ДЕТАЛИЗАЦИИ ФЛОРЫ НАКОНЕЦ ПОДКЛЮЧЕНА (рез ведущего на зону render). refresh_scatter_lod печёт НЕ БОЛЕЕ ОДНОГО чанка за кадр, ближний первым: перепечка стоит ровно столько же, сколько первая печь, поэтому проход без бюджета обменял бы ровный кадр на тот самый многосекундный ступор, от которого стриминг уже научился уходить. Якорь дистанции — БЛИЖАЙШАЯ ТОЧКА чанка, и это не деталь: CHUNK_SIZE 256 м, центр чанка может стоять в 181 м, когда ближний край под ногами, и банда по центру испекла бы дерево в пяти метрах силуэтом — тот самый дефект, ради предотвращения которого проход и написан, в одежде выигрыша. Чанк рождается сразу на своём уровне, а не печётся полным и потом понижается: полная печь для земли, до которой игроку далеко, платилась бы ровно во время стриминга, когда кадр и так нагружен. Замер на лесной демке, один бинарник: 7 695 612 → 2 396 252 треугольника, 600 кадров 75 с → 20 с (~8 → ~30 кадров/с), кадры расходятся на 0.265 % пикселей одним пятном дальнего древостоя при НУЛЕВОМ шуме — два прогона одной руки побитово равны. Кадры docs/acceptance/flora-lod-{before-full,after-banded}.png.
 - 14:08:2026 - 23:36:19: Тело upload_prebuilt_scatter — ChunkScatterRes из готовых потоков.
+- 15:08:2026 - 02:14:30: ревизия атласа в ключе кэша текстур (см. FloraCards.h).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -340,7 +341,13 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             generate_leaf_atlas(LEAF_ATLAS_TILE_PX, FloraSeason::Summer);
         leaf_texture_asset_ = procedural_texture_asset(
             renderer,
-            proc_key(PROC_KEY_LEAF_ATLAS, LEAF_ATLAS_TILE_PX,
+            // The SHAPE COUNT is part of the key: adding the bark column
+            // changed every tile's uv rect, and a cached 4-column atlas under
+            // 5-column uvs painted the conifers with birch tiles — foliage
+            // went white while the code was correct everywhere.
+            proc_key(PROC_KEY_LEAF_ATLAS,
+                     LEAF_ATLAS_TILE_PX * 10000u + LEAF_ATLAS_SHAPES * 100u
+                         + LEAF_ATLAS_REVISION,
                      static_cast<uint32_t>(FloraSeason::Summer)),
             leaves.width, leaves.height, leaves.pixels.data());
     }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 15:08:2026 - 02:14:41
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -63,6 +63,7 @@ UPD:
 - 14:08:2026 - 19:14:02: Поля двери снимка (shot_after_frames_/_seen_) рядом с capture_after_*: та же единица счёта и тот же довод — кадры сравнимы побитово, стенные секунды нет. Отдельного флага закрытия не заведено, переиспользован chat_then_close_: снимок клавиши 5 И ЕСТЬ запись чата, значит и выключение то же.
 - 14:08:2026 - 19:41:18: action_pressed() + include Controls.h — обработчики клавиш спрашивают привязку ПО ДЕЙСТВИЮ, а не называют Key здесь. Это и есть то, что не даёт экрану управления разъехаться с кодом. Половина от 83ef021: уехала в рабочем дереве, доезжает отдельно.
 - 15:08:2026 - 01:04:30: gallery_objects_dir_ + gallery_bodies_ (полка реестра и твёрдые стволы).
+- 15:08:2026 - 02:14:41: gallery_size_chunks_ — пролёт галереи из манифеста (колоссу нужен 2×2).
 */
 
 #pragma once
@@ -364,6 +365,7 @@ private:
     /// trunk bodies (user: «сделать деревья физичными, не давать сквозь них
     /// ходить»), destroyed on the next gallery load.
     std::string gallery_objects_dir_ = "assets/objects/trees";
+    int gallery_size_chunks_ = 1; // Gallery extent, from the manifest
     std::vector<platform::PhysicsBodyHandle> gallery_bodies_;
 
     // Step feel + audio (sim's zone, wired here).

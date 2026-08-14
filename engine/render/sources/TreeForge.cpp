@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 15:08:2026 - 02:14:30
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -43,6 +43,14 @@ UPD:
   §4.3 исследования: лапы ложатся почти горизонтальными ярусами — нормаль
   кланяется ВВЕРХ (лиственные 0.45 up, хвоя 0.8 up), roll ±0.25 вместо ±0.9
   («у нас снова беспорядок» снят направлением, не плотностью).
+- 15:08:2026 - 02:14:30: СТВОЛЫ И СУЧЬЯ В ТЕКСТУРЕ (вердикт: «текстур на деревьях нет... мох —
+  просто зеленушка»): bark_tube кладёт UV зеркальным повтором внутри тайла коры,
+  комель и корни носят МШИСТЫЙ колорвей, бола и ветви — чистый; ветер занулён,
+  просвечивание глушится весом качания в шейдере (дерево не светится насквозь).
+  Дубовый габитус (низкие ветви горизонтальны всю длину), центр кроны заполнен
+  внутренними якорями, изнанка кроны снизу смотрит вниз, roll свободный (параллельные
+  линии убиты вращением В плоскости), лапы прибиты к веткам (джиттер 0.035),
+  корни — дуга четырьмя хордами (колено невидимо в плоском тонировании).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -79,6 +87,66 @@ namespace {
     return {r * std::cos(az), y, r * std::sin(az)};
 }
 
+/// Vertex colour for NON-SWAYING textured wood on the foliage program:
+/// r (sway) = 0, g (phase) = 0, b (value jitter) = 0.5 neutral, a (sky vis)
+/// = 0.55 — the mid openness of standing under a crown.
+[[nodiscard]] uint32_t pack_wind_neutral() {
+    // 0xAABBGGRR: a=0x8C (sky vis 0.55), b=0x80 (jitter 0.5), g=0, r=0.
+    return 0x8C800000u;
+}
+
+/// One tapered tube segment with BARK UVs. Same geometry as tube_segment, but
+/// each face maps into the given atlas tile rect: u runs around the
+/// circumference, v along the segment's own length, both through a TRIANGLE
+/// WAVE so the mapping mirror-repeats inside the tile and never crosses its
+/// border into a neighbouring leaf tile (the atlas cannot wrap). The tile is
+/// drawn mirror-symmetric, so the fold line is invisible by construction.
+void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0,
+               float r1, int sides, glm::vec4 uv_rect, float v0_m, float circum_m,
+               uint32_t wind_color) {
+    const glm::vec3 u_axis = perp_of(axis);
+    const glm::vec3 v_axis = glm::cross(axis, u_axis);
+    const float len = glm::length(p1 - p0);
+    const auto tri_wave = [](float t) { return 1.0f - std::fabs(1.0f - 2.0f * (t - std::floor(t))); };
+    // Metres of trunk surface one full tile covers. ~2.6 m keeps the furrow
+    // pitch believable on a 0.4 m oak and a 10 m colossus alike.
+    constexpr float TILE_SPAN_M = 2.6f;
+    const float du = uv_rect.z - uv_rect.x;
+    const float dv = uv_rect.w - uv_rect.y;
+    for (int i = 0; i < sides; ++i) {
+        const float a0 = TAU * static_cast<float>(i) / static_cast<float>(sides);
+        const float a1 = TAU * static_cast<float>(i + 1) / static_cast<float>(sides);
+        const glm::vec3 d0 = u_axis * std::cos(a0) + v_axis * std::sin(a0);
+        const glm::vec3 d1 = u_axis * std::cos(a1) + v_axis * std::sin(a1);
+        const float dr = r0 - r1;
+        const float slope = (len > 1e-5f) ? (dr / len) : 0.0f;
+        const glm::vec3 n0 = safe_normalize(d0 + axis * slope, d0);
+        const glm::vec3 n1 = safe_normalize(d1 + axis * slope, d1);
+        // Texture coordinates: circumference and height in METRES, folded.
+        const float cu0 = uv_rect.x + du * tri_wave(circum_m * (static_cast<float>(i)
+                              / static_cast<float>(sides)) / TILE_SPAN_M);
+        const float cu1 = uv_rect.x + du * tri_wave(circum_m * (static_cast<float>(i + 1)
+                              / static_cast<float>(sides)) / TILE_SPAN_M);
+        const float cv0 = uv_rect.y + dv * tri_wave(v0_m / TILE_SPAN_M);
+        const float cv1 = uv_rect.y + dv * tri_wave((v0_m + len) / TILE_SPAN_M);
+        const auto base = static_cast<uint32_t>(m.vertices.size());
+        if (r1 <= 1e-4f) {
+            const glm::vec3 nt = safe_normalize(n0 + n1, axis);
+            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_color});
+            m.vertices.push_back({p1, nt, {(cu0 + cu1) * 0.5f, cv1}, wind_color});
+            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_color});
+            m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
+        } else {
+            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_color});
+            m.vertices.push_back({p1 + d0 * r1, n0, {cu0, cv1}, wind_color});
+            m.vertices.push_back({p1 + d1 * r1, n1, {cu1, cv1}, wind_color});
+            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_color});
+            m.indices.insert(m.indices.end(),
+                             {base, base + 1, base + 2, base, base + 2, base + 3});
+        }
+    }
+}
+
 } // namespace
 
 RegistryObject forge_tree(const TreeForgeParams& p) {
@@ -90,6 +158,19 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     Rng rng(p.seed * 0x9E3779B97F4A7C15ull + 0x243F6A8885A308D3ull);
     const uint32_t bark = pack(p.bark);
     const glm::vec3 tone = leaf_tone_color(p.tone, FloraSeason::Summer);
+
+    // BARK TILES (the textured-trunk wave): the clean colourway for the upper
+    // bole and limbs, the MOSSY one for the flare and roots — moss lives where
+    // the ground's damp does, which is the reference's own vertical story.
+    // Wind colour: r=0 kills both sway and the leaf transmit (wood does not
+    // glow); b=0.5 is the neutral value-jitter midpoint; a=0.55 mid sky-vis.
+    const LeafTone bark_row = p.bark.r > 0.6f ? LeafTone::BirchLight
+                             : (p.conifer ? LeafTone::ConiferDark : LeafTone::OakMid);
+    const LeafTone bark_moss_row = p.bark.r > 0.6f ? LeafTone::BirchPale
+                                                    : LeafTone::OakSunlit;
+    const glm::vec4 bark_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_row);
+    const glm::vec4 bark_moss_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_moss_row);
+    const uint32_t wind0 = pack_wind_neutral();
 
     const float crown_base = p.height * p.crown_base_frac;
     const float crown_top = p.height;
@@ -112,22 +193,34 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // Root flare + spurs, one axis with the bole (the one-tree stand's first
     // finding: a flare that does not share the bole's axis is a visible knee).
     const float flare_r = p.trunk_radius * 1.6f;
-    tube_segment(obj.wood, glm::vec3{0.0f, -FLARE_DEPTH, 0.0f}, pos, dir, flare_r,
-                 p.trunk_radius, 6, bark);
+    bark_tube(obj.bark, glm::vec3{0.0f, -FLARE_DEPTH, 0.0f}, pos, dir, flare_r,
+              p.trunk_radius, 7, bark_moss_uv, 0.0f, TAU * flare_r, wind0);
     for (int k = 0; k < ROOT_SPUR_COUNT; ++k) {
         const float az = TAU * (static_cast<float>(k) + 0.5f + rng.sym() * 0.3f)
                        / static_cast<float>(ROOT_SPUR_COUNT);
         const glm::vec3 rd{std::cos(az), 0.0f, std::sin(az)};
         const float reach = flare_r * (1.6f + rng.unit() * 1.0f);
         const float r0 = std::max(p.trunk_radius * ROOT_SPUR_R_FRAC, 0.05f);
-        const glm::vec3 start = rd * (flare_r * 0.6f) + glm::vec3{0.0f, 0.3f, 0.0f};
-        const glm::vec3 crest = rd * (flare_r + reach * 0.35f)
-                              + glm::vec3{0.0f, ROOT_SPUR_RISE, 0.0f};
-        const glm::vec3 tip = rd * (flare_r + reach) - glm::vec3{0.0f, ROOT_SPUR_SINK, 0.0f};
-        tube_segment(obj.ground, start, crest, safe_normalize(crest - start, rd), r0,
-                     r0 * 0.6f, 4, bark);
-        tube_segment(obj.ground, crest, tip, safe_normalize(tip - crest, rd), r0 * 0.6f,
-                     0.0f, 4, bark);
+        // A smooth arc in FOUR short chords whose directions change a little
+        // at a time (user: «корни снова отрезаны местами от своих частей и
+        // дерева» — the old two-tube crest was a visible knee; short chords
+        // keep every joint's rings nearly parallel, which is what makes a
+        // joint invisible in flat shading). Rooted DEEP in the flare.
+        const glm::vec3 pts[5] = {
+            rd * (flare_r * 0.35f) + glm::vec3{0.0f, 0.45f, 0.0f},
+            rd * (flare_r * 0.95f) + glm::vec3{0.0f, 0.22f, 0.0f},
+            rd * (flare_r + reach * 0.35f) + glm::vec3{0.0f, ROOT_SPUR_RISE, 0.0f},
+            rd * (flare_r + reach * 0.7f) + glm::vec3{0.0f, -0.05f, 0.0f},
+            rd * (flare_r + reach) - glm::vec3{0.0f, ROOT_SPUR_SINK, 0.0f}};
+        float rr = r0;
+        for (int seg = 0; seg < 4; ++seg) {
+            const float nr = seg == 3 ? 0.0f : r0 * (1.0f - 0.28f * static_cast<float>(seg + 1));
+            bark_tube(obj.ground, pts[seg], pts[seg + 1],
+                      safe_normalize(pts[seg + 1] - pts[seg], rd), rr,
+                      std::max(nr, 0.0f), 4, bark_moss_uv,
+                      reach * 0.25f * static_cast<float>(seg), TAU * rr, wind0);
+            rr = std::max(nr, 0.02f);
+        }
     }
 
     struct Ring {
@@ -148,7 +241,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         const glm::vec3 next = pos + dir * seg_len;
         const float r0 = p.trunk_radius * std::pow(1.0f - (t1 - 1.0f / bole_segments) * 0.85f, 1.1f);
         const float r1 = p.trunk_radius * std::pow(1.0f - t1 * 0.85f, 1.1f);
-        tube_segment(obj.wood, pos, next, dir, r0, std::max(r1, 0.05f), 6, bark);
+        bark_tube(obj.bark, pos, next, dir, r0, std::max(r1, 0.05f), 7, bark_uv,
+                  pos.y, TAU * r0, wind0);
         pos = next;
         bole.push_back({pos, dir, std::max(r1, 0.05f)});
     }
@@ -177,6 +271,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             uint32_t bark;
             glm::vec3 crown_c;
             float crown_rx, crown_ry;
+            glm::vec4 bark_uv;
+            uint32_t wind0;
 
             void run(glm::vec3 pos, glm::vec3 dir, float len, float radius, int level) {
                 const int segs = level == 0 ? 5 : (level == 1 ? 4 : 3);
@@ -187,10 +283,19 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                     // THE TURN, per segment: side wander always; up pull that
                     // fades with level (twigs stop caring about the sky); and
                     // one segment in ~4 dips DOWN — the sag real limbs show.
+                    //
+                    // THE OAK CLAUSE (user, on the colossus stand: «у дуба
+                    // ветки не только вверх, ещё и вбок сильно... низкие ветки
+                    // почти по всей длине параллельно земле идут»): a LOW
+                    // scaffold keeps almost no upward pull for its whole
+                    // length — the dome comes from the high scaffolds climbing
+                    // while the low ones REACH.
                     const glm::vec3 side = safe_normalize(
                         glm::cross(d, glm::vec3{0.0f, 1.0f, 0.0f}),
                         glm::vec3{1.0f, 0.0f, 0.0f});
-                    const float up_pull = 0.22f / static_cast<float>(1 + level);
+                    const bool low_limb = level == 0 && dir.y < 0.45f;
+                    const float up_pull = (low_limb ? 0.05f : 0.22f)
+                                        / static_cast<float>(1 + level);
                     const float dip = rng.unit() < 0.25f ? -0.18f : 0.0f;
                     d = safe_normalize(d + side * (rng.sym() * 0.30f)
                                          + glm::vec3{0.0f, up_pull + dip, 0.0f}, d);
@@ -199,7 +304,12 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                                        / static_cast<float>(segs));
                     const float nr = std::max(radius * taper, 0.025f);
                     const int sides = level == 0 ? 5 : (level == 1 ? 4 : 3);
-                    tube_segment(obj.wood, pos, np, d, r, nr, sides, bark);
+                    if (level <= 1) { // heavy limbs wear the bark texture
+                        bark_tube(obj.bark, pos, np, d, r, nr, sides, bark_uv,
+                                  pos.y, TAU * r, wind0);
+                    } else {
+                        tube_segment(obj.wood, pos, np, d, r, nr, sides, bark);
+                    }
 
                     // CHILDREN leave mid-branch, alternating sides — from the
                     // second segment on, so the joint zone stays clean.
@@ -226,8 +336,17 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 if (level == 2 && rng.unit() < 0.7f) {
                     anchors.push_back({pos - d * (len * 0.4f), d});
                 }
+                // THE CROWN'S INTERIOR (user: «в центре нет листвы... в центре
+                // пустота»): foliage also grows along the INNER run of every
+                // branch, not only at the rim its tips reach — an oak's crown
+                // is full because leaves sprout wherever light does, and ours
+                // sprouted only where recursion terminated.
+                if (level >= 1 && rng.unit() < 0.6f) {
+                    anchors.push_back({pos - d * (len * 0.75f), d});
+                }
             }
-        } grow{obj, rng, anchors, bark, crown_c, p.crown_radius, crown_ry};
+        } grow{obj, rng, anchors, bark, crown_c, p.crown_radius, crown_ry,
+               bark_uv, wind0};
 
         for (int b = 0; b < p.scaffold_count; ++b) {
             const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;
@@ -271,7 +390,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             const int count = p.whorl_branches;
             const float az0 = rng.unit() * TAU;
             for (int b = 0; b < count; ++b) {
-                if (rng.unit() < 0.15f) continue; // ragged whorls, not a fan
+                if (rng.unit() < 0.06f) continue; // ragged whorls, not a fan
                 const float az = az0 + TAU * static_cast<float>(b)
                                      / static_cast<float>(count)
                                + rng.sym() * 0.3f;
@@ -287,13 +406,12 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                          + out * 0.2f, d);
                     const glm::vec3 np = bp + d * (reach / segs);
                     const float nr = std::max(r * 0.55f, 0.02f);
-                    tube_segment(obj.wood, bp, np, d, r, nr, 3, bark);
+                    bark_tube(obj.bark, bp, np, d, r, nr, 3, bark_uv,
+                              bp.y, TAU * std::max(r, 0.05f), wind0);
                     // Needle sprays sit ALONG the branch's outer segments, not
                     // only at the tip — a spruce limb is a frond, not a stick
                     // with a pom-pom.
-                    if (si >= 1) {
-                        anchors.push_back({(bp + np) * 0.5f, d});
-                    }
+                    anchors.push_back({(bp + np) * 0.5f, d});
                     bp = np;
                     r = nr;
                 }
@@ -312,7 +430,11 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         for (int i = 0; i < sprays; ++i) {
             const glm::vec3 jitter{rng.sym() * 0.5f, rng.sym() * 0.35f,
                                    rng.sym() * 0.5f};
-            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.1f);
+            // Jitter small enough that the card always OVERLAPS its anchor
+            // (user: «часть листка летает в воздухе, ни к чему не
+            // присоединено» — the old jitter could carry a spray clear of its
+            // twig).
+            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.035f);
             const glm::vec3 radial = safe_normalize(c - crown_c, a.dir);
             // THE GROWTH DIRECTION (research §4.3, the user's aspen and pine
             // frames): foliage lies in near-HORIZONTAL layers along its branch
@@ -321,15 +443,28 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             // called out was the roll and the dome-heavy normals; both bow to
             // UP now.
             const glm::vec3 up{0.0f, 1.0f, 0.0f};
+            // THE CANOPY HAS AN UNDERSIDE (user, looking up the colossus: «вектор
+            // взгляда лежит в плоскости листьев, а должен быть перпендикулярен» —
+            // from below he was seeing every layer edge-on). Cards on the lower
+            // hemisphere of the crown bow DOWNWARD instead of up: a viewer under
+            // the tree now faces leaf planes, exactly as a real canopy shows its
+            // underleaves.
+            const float below = std::clamp((crown_c.y - c.y)
+                                               / std::max(crown_ry, 0.1f), 0.0f, 1.0f);
+            const glm::vec3 vertical = below > 0.35f ? -up : up;
             const glm::vec3 n = p.conifer
-                ? safe_normalize(up * 0.8f + a.dir * 0.15f + radial * 0.05f, up)
-                : safe_normalize(up * 0.45f + radial * 0.3f + a.dir * 0.25f, up);
+                ? safe_normalize(vertical * 0.8f + a.dir * 0.15f + radial * 0.05f, vertical)
+                : safe_normalize(vertical * 0.45f + radial * 0.3f + a.dir * 0.25f, vertical);
             LeafCardParams card;
             card.center = c;
             card.normal = n;
             card.half_width = p.crown_radius * p.spray_frac * (0.85f + rng.unit() * 0.45f);
             card.half_height = card.half_width * (p.conifer ? 0.55f : 0.7f);
-            card.roll = rng.sym() * 0.25f; // layers, not chaos (§4.3)
+            // FULL free roll (user: «слишком много параллельных линий, видно
+            // что искусственное; линии под разными углами»): roll spins the
+            // card IN its plane, so the layering the normals build survives —
+            // the ±14° cap was killing the edge-angle variety, not the chaos.
+            card.roll = rng.unit() * TAU;
             card.shape = p.card_shape;
             card.tone = p.tone;
             card.value_jitter = 0.42f + rng.unit() * 0.22f;
@@ -343,7 +478,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                           a.dir);
             cross.half_width *= 0.85f;
             cross.half_height *= 0.85f;
-            cross.roll = rng.sym() * 0.25f;
+            cross.roll = rng.unit() * TAU;
             cross.value_jitter = 0.42f + rng.unit() * 0.22f;
             emit_leaf_card(obj.cards, cross);
         }
@@ -376,8 +511,9 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             v.color_rgba = pack(glm::clamp(c, glm::vec3{0.0f}, glm::vec3{1.0f}));
         }
     };
-    bark_pass(obj.wood);
-    bark_pass(obj.ground); // the root spurs wear the same moss
+    bark_pass(obj.wood); // only the flat-colour twigs remain in this stream;
+                         // the textured bark/ground streams carry their own
+                         // furrows and moss in the atlas tiles
 
     obj.content_hash = object_content_hash(obj);
     return obj;

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 15:08:2026 - 02:14:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -145,6 +145,10 @@ UPD:
   ТВЁРДЫЕ (статический бокс из замера меша: широчайшая древесина на высоте
   досягаемости; крона не тело — под ней ходят), тела прошлой галереи рушатся при
   следующей загрузке.
+- 15:08:2026 - 02:14:30: Галерея: пролёт из манифеста (size_chunks — колоссу нужен 2×2), одиночный
+  экспонат встаёт в ЦЕНТР МИРА (прогулка от спавна — и есть выставка), корни
+  физичны низким диском (шагаешь НА корневой развал, не спотыкаешься о конусы),
+  поток bark едет текстурной партией.
 */
 
 #include "engine/app/sources/App.h"
@@ -953,7 +957,9 @@ bool App::enter_world(uint32_t stand) {
         gp.max_chunk = {0, 0};
     } else if (stand == static_cast<uint32_t>(world::StandId::Gallery)) {
         gp.layout = world::gallery_stand_layout();
-        gp.max_chunk = {0, 0}; // same argument as OneTree: opens instantly
+        // The manifest sizes the stand: the tree gallery fits one chunk, the
+        // colossus' branches reach ~120 m from its axis and need four.
+        gp.max_chunk = {gallery_size_chunks_ - 1, gallery_size_chunks_ - 1};
     }
     chunks_.open_generated(gp, sp);
 
@@ -1091,8 +1097,10 @@ bool App::enter_world(uint32_t stand) {
         // с карты уходят... за границу не ставь»): rows fill eastward from the
         // spawn and wrap north when the next exhibit would cross the margin.
         // Spacing is still each object's measured footprint.
+        const float world_span = static_cast<float>(config::CHUNK_SIZE)
+                               * static_cast<float>(gallery_size_chunks_);
         const float row_min_x = mid + 8.0f;
-        const float edge_max = static_cast<float>(config::CHUNK_SIZE) - 12.0f;
+        const float edge_max = world_span - 12.0f;
         float cursor = row_min_x;
         float row_z = mid;
         float prev_half = 0.0f;
@@ -1115,6 +1123,12 @@ bool App::enter_world(uint32_t stand) {
                                                std::fabs(v.position.z)));
             }
             float x = cursor + prev_half + half + 5.0f;
+            if (files.size() == 1) {
+                // One exhibit owns the map: it stands at the WORLD's centre,
+                // and the walk from the spawn to it is the exhibition.
+                x = world_span * 0.5f;
+                row_z = world_span * 0.5f;
+            }
             if (x + half > edge_max && shown > 0) {
                 // Wrap north: the new row clears the tallest crown of the last.
                 row_z -= row_max_half + half + 8.0f;
@@ -1136,8 +1150,11 @@ bool App::enter_world(uint32_t stand) {
             const float y = chunks_.height_at({x, row_z}).value_or(ground);
             const glm::vec3 at{x, y, row_z};
             render::append_transformed(row_wood, obj->wood, at, 0.0f, 1.0f);
-            render::append_transformed(row_wood, obj->ground, at, 0.0f, 1.0f);
             render::append_transformed(row_cards, obj->cards, at, 0.0f, 1.0f);
+            // Textured wood (bark + rooted ground) rides the FOLIAGE batch:
+            // its albedo lives in the atlas and its wind weights are zero.
+            render::append_transformed(row_cards, obj->bark, at, 0.0f, 1.0f);
+            render::append_transformed(row_cards, obj->ground, at, 0.0f, 1.0f);
             // A SOLID TRUNK (user: «не давать сквозь них ходить»). The body is
             // sized from the MESH — the widest wood within reach height — the
             // same "the mesh is the truth" rule the row spacing follows. A box,
@@ -1145,6 +1162,14 @@ bool App::enter_world(uint32_t stand) {
             {
                 float trunk_r = 0.15f;
                 float wood_top = 2.0f;
+                for (const platform::Vertex& v : obj->bark.vertices) {
+                    wood_top = std::max(wood_top, v.position.y);
+                    if (v.position.y > 0.4f && v.position.y < 2.2f) {
+                        trunk_r = std::max(trunk_r,
+                                           std::sqrt(v.position.x * v.position.x
+                                                     + v.position.z * v.position.z));
+                    }
+                }
                 for (const platform::Vertex& v : obj->wood.vertices) {
                     wood_top = std::max(wood_top, v.position.y);
                     if (v.position.y > 0.4f && v.position.y < 2.2f) {
@@ -1162,6 +1187,28 @@ bool App::enter_world(uint32_t stand) {
                 if (body.valid()) {
                     gallery_bodies_.push_back(body);
                 }
+                // THE ROOTS ARE SOLID TOO (user: «ствол может и физичен, а
+                // корни нет») — as a LOW disc of ground, not as thin cones: a
+                // walker STEPS UP onto the root spread and off again, which is
+                // what boots on real roots do; per-cone bodies would be a
+                // stumble field, the argument that kept them out of the solid
+                // bole originally.
+                float root_reach = 0.0f;
+                for (const platform::Vertex& v : obj->ground.vertices) {
+                    root_reach = std::max(root_reach,
+                                          std::sqrt(v.position.x * v.position.x
+                                                    + v.position.z * v.position.z));
+                }
+                if (root_reach > 0.5f) {
+                    platform::StaticBoxDesc roots;
+                    roots.center = {at.x, at.y + 0.14f, at.z};
+                    roots.half_extents = {root_reach * 0.8f, 0.14f, root_reach * 0.8f};
+                    roots.layer = physics::LAYER_STATIC;
+                    const auto rb = physics_->create_static_box(roots);
+                    if (rb.valid()) {
+                        gallery_bodies_.push_back(rb);
+                    }
+                }
             }
             std::fprintf(stderr, "[gallery] %s at (%.0f, %.0f) half %.1f m hash %016llx\n",
                          obj->name.c_str(), static_cast<double>(x),
@@ -1173,8 +1220,8 @@ bool App::enter_world(uint32_t stand) {
             render_system_.upload_prebuilt_scatter(*renderer_, {0, 0}, row_wood,
                                                    row_cards);
         } else {
-            std::fprintf(stderr, "[gallery] no readable objects in "
-                                 "assets/objects/trees -- run dfn_forge first\n");
+            std::fprintf(stderr, "[gallery] no readable objects in %s -- run "
+                                 "dfn_forge first\n", gallery_objects_dir_.c_str());
         }
     }
 
@@ -2217,6 +2264,7 @@ bool App::open_map(const MapManifest& manifest) {
         // must land BEFORE the call; every other stand ignores it.
         gallery_objects_dir_ = manifest.objects.empty() ? "assets/objects/trees"
                                                         : manifest.objects;
+        gallery_size_chunks_ = std::max(1, manifest.size_chunks);
         if (!enter_world(*stand)) {
             status("map.err.build", {});
             return false;

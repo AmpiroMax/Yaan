@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 01:46:53
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.cpp
 
@@ -23,6 +23,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 14:08:2026 - 23:36:19: Created with ObjectRegistry.h.
+- 15:08:2026 - 01:46:53: формат v2 — секция BARK; хэш файла v1 сверяется
+  правилом v1 (версия — обещание о том, как ЧИТАТЬ, включая как сверять).
+
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -39,13 +42,14 @@ namespace {
 
 /// 'DFNO' — Daggerfall N object file (.dfo).
 inline constexpr uint32_t OBJECT_MAGIC = serialization::make_tag('D', 'F', 'N', 'O');
-inline constexpr uint32_t OBJECT_FORMAT_VERSION = 1;
+inline constexpr uint32_t OBJECT_FORMAT_VERSION = 2; // v2: + BARK stream
 
 namespace section {
 inline constexpr serialization::SectionTag INFO = serialization::make_tag('I', 'N', 'F', 'O');
 inline constexpr serialization::SectionTag WOOD = serialization::make_tag('W', 'O', 'O', 'D');
 inline constexpr serialization::SectionTag CARD = serialization::make_tag('C', 'A', 'R', 'D');
 inline constexpr serialization::SectionTag GRND = serialization::make_tag('G', 'R', 'N', 'D');
+inline constexpr serialization::SectionTag BARK = serialization::make_tag('B', 'A', 'R', 'K');
 } // namespace section
 
 inline constexpr uint16_t SECTION_VERSION = 1;
@@ -134,6 +138,18 @@ uint64_t object_content_hash(const RegistryObject& obj) {
     hash_stream(h, obj.wood);
     hash_stream(h, obj.cards);
     hash_stream(h, obj.ground);
+    hash_stream(h, obj.bark);
+    return h.digest();
+}
+
+/// The v1 identity: computed WITHOUT the bark stream, exactly as every v1
+/// file stored it. A version is a promise about how to READ, and that includes
+/// how to verify (Rule 7's migration clause applied to the hash).
+[[nodiscard]] static uint64_t object_content_hash_v1(const RegistryObject& obj) {
+    serialization::Fnv1a64 h;
+    hash_stream(h, obj.wood);
+    hash_stream(h, obj.cards);
+    hash_stream(h, obj.ground);
     return h.digest();
 }
 
@@ -156,6 +172,7 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
     write_stream(w, section::WOOD, obj.wood);
     write_stream(w, section::CARD, obj.cards);
     write_stream(w, section::GRND, obj.ground);
+    write_stream(w, section::BARK, obj.bark);
     if (!w.ok()) {
         return false;
     }
@@ -185,6 +202,8 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
             streams_ok = read_stream(r, obj.cards) && streams_ok;
         } else if (s->tag == section::GRND) {
             streams_ok = read_stream(r, obj.ground) && streams_ok;
+        } else if (s->tag == section::BARK) {
+            streams_ok = read_stream(r, obj.bark) && streams_ok;
         }
         // Unknown tags: next_section() steps over them (Rule 7).
     }
@@ -195,7 +214,8 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
     // identities; an object whose bytes disagree with its stored identity is
     // refused whole, because "mostly the object you asked for" is not a thing
     // a registry can return and stay a registry.
-    obj.content_hash = object_content_hash(obj);
+    obj.content_hash = r.container_version() >= 2 ? object_content_hash(obj)
+                                                   : object_content_hash_v1(obj);
     if (obj.content_hash != stored_hash) {
         std::fprintf(stderr, "[dfo] \"%s\": content hash mismatch (stored %llx, "
                              "computed %llx) -- REFUSED\n",

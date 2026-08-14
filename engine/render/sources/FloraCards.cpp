@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 15:08:2026 - 02:14:30
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -40,6 +40,12 @@ UPD:
   текстуру мелкой ёлочки») — тайл NeedleFan рисуется напрямую: центральный
   прут, парные иголки-зубцы с прозрачностью между ними, укорачивающиеся к
   кончику; лиственные пачки — на массу больше при 128px.
+- 15:08:2026 - 02:14:30: Тайлы коры (борозды зеркально-симметричные — треугольная развёртка трубы
+  не встречает шва; берёста с чечевичками; мшистые ряды растят плёнку В БОРОЗДАХ —
+  мох живёт где вода). Пачки листвы УКРУПНЕНЫ (масса 0.29→0.46, разброс шире):
+  дамп атласа показал ~15% заполнения тайла — кроны были призрачными, потому что
+  mip-альфа на дистанции стремилась к нулю. Перо хвои: гребёнка 0.07/скважность
+  0.021 — первая правка слила иголки в сплошной клин (порог шире полушага).
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -134,8 +140,12 @@ struct ShapeDef {
 
 const ShapeDef& shape_def(LeafShape s) {
     static const std::array<ShapeDef, LEAF_ATLAS_SHAPES> defs{{
-        // RoundLobed — the broadleaf default: a wide mass with six soft lobes.
-        {0.97f, 0.90f, 0.00f, 6, 0.20f, 11, 0.09f, 0.0f, 1.7f, 0.00f, 101u},
+        // RoundLobed — the broadleaf default. Deepened after the colossus
+        // inspection (user: «не делать вообще квадратами... линии под разными
+        // углами, погугли картинки листьев, особенно дуба»): an oak leaf is
+        // round LOBES with deep sinuses — lobe depth up 0.20 -> 0.34, and the
+        // second harmonic up so no two lobes repeat at the same angle.
+        {0.97f, 0.90f, 0.00f, 7, 0.34f, 13, 0.14f, 0.0f, 1.7f, 0.00f, 101u},
         // OvalSpray — narrow and leaning: rim fill and clump crowns.
         {0.64f, 0.98f, 0.38f, 5, 0.23f, 9, 0.10f, 0.9f, 2.4f, 0.20f, 211u},
         // RaggedTip — a wedge for branch tips and the crown top.
@@ -143,6 +153,9 @@ const ShapeDef& shape_def(LeafShape s) {
         // NeedleFan — flatter and spikier (conifer; pine still uses cone tiers,
         // so this column is generated but not yet placed).
         {1.00f, 0.66f, 0.10f, 9, 0.28f, 17, 0.11f, 0.5f, 1.1f, 0.15f, 457u},
+        // BarkPlate — parameters unused (the bark rasteriser is its own path);
+        // the seed feeds its noise.
+        {1.00f, 1.00f, 0.00f, 1, 0.00f, 1, 0.00f, 0.0f, 0.0f, 0.00f, 601u},
     }};
     return defs[static_cast<size_t>(s) % LEAF_ATLAS_SHAPES];
 }
@@ -268,7 +281,7 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
             // More masses per pack since the 128 px tile can resolve them —
             // finer detail is drawn, not dithered (the user's «более точно
             // рисовать»).
-            const int blob_count = needle ? 7 : ((sd.ax * sd.ay > 0.8f) ? 5 : 4);
+            const int blob_count = needle ? 7 : ((sd.ax * sd.ay > 0.8f) ? 6 : 5);
             PackBlob blobs[8];
             const glm::vec2 axis{cs, sn};
             for (int bi = 0; bi < blob_count; ++bi) {
@@ -276,12 +289,12 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                              / static_cast<float>(blob_count);
                 // Off-axis scatter: leaves clump on SIDES of a twig, not on it.
                 const float off = (hash01(bi + 3, 7, sd.seed) - 0.5f)
-                                * (needle ? 0.24f : 0.42f);
+                                * (needle ? 0.24f : 0.62f);
                 blobs[bi].c = axis * (t * 0.92f)
                             + glm::vec2{-axis.y, axis.x} * off;
                 // Outer blobs shrink — the tip of a spray is its youngest wood.
                 const float shrink = 1.0f - 0.45f * std::fabs(t + 0.1f);
-                blobs[bi].r = (needle ? 0.20f : 0.34f) * sd.ax * shrink
+                blobs[bi].r = (needle ? 0.20f : 0.46f) * sd.ax * shrink
                             * (0.8f + 0.4f * hash01(bi + 9, 13, sd.seed));
                 blobs[bi].seed = sd.seed + static_cast<uint32_t>(bi) * 977u;
             }
@@ -290,6 +303,71 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                 for (uint32_t px = 0; px < atlas.tile_px; ++px) {
                     const float x = (static_cast<float>(px) + 0.5f) / n * 2.0f - 1.0f;
                     const float y = 1.0f - (static_cast<float>(py) + 0.5f) / n * 2.0f;
+
+                    // --- BARK TILES (user: «нужны текстуры и учёт
+                    // освещённости на них; мох — просто зеленушка... надо
+                    // текстурами рисовать»): a fully OPAQUE tile per tone row,
+                    // each row its own colourway. Vertical furrows: ridge/
+                    // groove value noise stretched tall, MIRROR-SYMMETRIC in
+                    // both axes so the tube mapping's triangle-wave wrap never
+                    // meets a seam. Moss rows grow their film in the grooves
+                    // first — moss lives where water does.
+                    if (static_cast<LeafShape>(shape_i) == LeafShape::BarkPlate) {
+                        const size_t ob = (static_cast<size_t>(tone_i * atlas.tile_px + py)
+                                           * atlas.width + shape_i * atlas.tile_px + px) * 4u;
+                        // Mirrored coordinates: the tile is its own reflection,
+                        // so mirror-repeat mapping is seamless by construction.
+                        const float mx = 1.0f - std::fabs(x);
+                        const float my = 1.0f - std::fabs(y);
+                        // Furrow field: tall narrow ridges (x compressed) with
+                        // slow wander (y stretched), two octaves.
+                        const float fur =
+                            value_noise(mx * 9.0f, my * 1.6f, 811u + sd.seed) * 0.65f
+                            + value_noise(mx * 21.0f, my * 4.0f, 977u + sd.seed) * 0.35f;
+                        const float ridge = std::clamp(fur, 0.0f, 1.0f);
+                        // Colourways by row: {base, groove-dark, moss amount}.
+                        glm::vec3 bark_base;
+                        float moss_amt = 0.0f;
+                        switch (static_cast<LeafTone>(tone_i)) {
+                        case LeafTone::OakMid:    bark_base = {0.32f, 0.24f, 0.16f}; break;
+                        case LeafTone::OakDeep:   bark_base = {0.30f, 0.23f, 0.15f}; moss_amt = 0.55f; break;
+                        case LeafTone::OakSunlit: bark_base = {0.36f, 0.27f, 0.18f}; moss_amt = 0.9f; break;
+                        case LeafTone::BirchLight: bark_base = {0.86f, 0.85f, 0.80f}; break;
+                        case LeafTone::BirchPale: bark_base = {0.78f, 0.77f, 0.70f}; break;
+                        case LeafTone::WillowDark: bark_base = {0.38f, 0.36f, 0.33f}; break;
+                        case LeafTone::WillowOlive: bark_base = {0.44f, 0.40f, 0.34f}; moss_amt = 0.35f; break;
+                        case LeafTone::ConiferDark: default:
+                            bark_base = {0.42f, 0.26f, 0.16f}; break; // pine plates
+                        }
+                        const bool birch = tone_i == static_cast<uint32_t>(LeafTone::BirchLight)
+                                        || tone_i == static_cast<uint32_t>(LeafTone::BirchPale);
+                        float shade;
+                        if (birch) {
+                            // Birch: smooth paper, dark horizontal lenticels.
+                            const float lent = value_noise(mx * 2.5f, my * 17.0f, 449u);
+                            shade = lent > 0.72f ? 0.30f : 0.95f + 0.12f * ridge;
+                        } else {
+                            // Furrows: groove dark, ridge lit — the value
+                            // relief IS the texture's light accounting; the
+                            // program's real lighting multiplies on top.
+                            shade = 0.52f + 0.62f * ridge * ridge;
+                        }
+                        glm::vec3 c = bark_base * shade;
+                        if (moss_amt > 0.0f) {
+                            // Moss film: strongest in grooves, patchy.
+                            const float patch = value_noise(mx * 5.0f, my * 5.0f, 733u);
+                            const float moss = moss_amt * (1.0f - ridge)
+                                             * std::clamp(patch * 1.6f - 0.3f, 0.0f, 1.0f);
+                            c = c * (1.0f - moss)
+                              + glm::vec3{0.20f, 0.33f, 0.12f} * (moss * shade * 1.3f);
+                        }
+                        c = glm::clamp(c, glm::vec3{0.0f}, glm::vec3{1.0f});
+                        atlas.pixels[ob + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
+                        atlas.pixels[ob + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
+                        atlas.pixels[ob + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
+                        atlas.pixels[ob + 3] = 255u; // OPAQUE: bark, not cutout
+                        continue;
+                    }
 
                     // --- THE CONIFER FEATHER (user: «у хвои листочки —
                     // иголочки... сделать местами прозрачную текстуру мелкой
@@ -305,18 +383,18 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         if (along < -0.92f || along > 0.95f) continue;
                         const float tipness = std::clamp((along + 0.92f) / 1.87f, 0.0f, 1.0f);
                         // Barb envelope: long at the butt, short at the tip.
-                        const float reach = 0.34f * (1.0f - 0.75f * tipness);
+                        const float reach = 0.46f * (1.0f - 0.7f * tipness);
                         // Barb comb: paired needles leave the twig at ~55 deg,
                         // BARB_PITCH apart; between them — transparency.
-                        constexpr float BARB_PITCH = 0.085f;
+                        constexpr float BARB_PITCH = 0.07f;
                         const float phase_b = along / BARB_PITCH;
                         const float comb = std::fabs(phase_b - std::round(phase_b)) * BARB_PITCH;
                         const float slant = std::fabs(across) * 0.55f; // rake toward tip
                         const bool on_barb = std::fabs(across) < reach
-                                          && comb + slant * 0.12f < 0.022f
+                                          && comb + slant * 0.10f < 0.021f
                                           && hash01(static_cast<int>(std::round(phase_b)),
                                                     across > 0.0f ? 3 : 5, sd.seed) > 0.12f;
-                        const bool on_stem = std::fabs(across) < 0.018f && along < 0.85f;
+                        const bool on_stem = std::fabs(across) < 0.03f && along < 0.85f;
                         if (!on_barb && !on_stem) continue;
                         const float lit = on_stem ? 0.55f
                                         : 0.85f + 0.35f * std::clamp(across * 2.0f + 0.5f, 0.0f, 1.0f)
