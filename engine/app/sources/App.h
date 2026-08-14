@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 19:14:02
+Last updated: 14:08:2026 - 19:41:18
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -61,6 +61,7 @@ UPD:
 - 14:08:2026 - 17:51:15: Поле wireframe_ (клавиша 4/F4, каркас В28). Оверлеи редактора читают renderer_->frame_stats()/center_pick() напрямую.
 - 14:08:2026 - 18:03:08: ChatOverlay chat_overlay_ (живое окно чата, В28) + include ChatOverlay.h. Открытие '/', ввод text_input(), Enter — отправка через write_pending_chat.
 - 14:08:2026 - 19:14:02: Поля двери снимка (shot_after_frames_/_seen_) рядом с capture_after_*: та же единица счёта и тот же довод — кадры сравнимы побитово, стенные секунды нет. Отдельного флага закрытия не заведено, переиспользован chat_then_close_: снимок клавиши 5 И ЕСТЬ запись чата, значит и выключение то же.
+- 14:08:2026 - 19:41:18: action_pressed() + include Controls.h — обработчики клавиш спрашивают привязку ПО ДЕЙСТВИЮ, а не называют Key здесь. Это и есть то, что не даёт экрану управления разъехаться с кодом. Половина от 83ef021: уехала в рабочем дереве, доезжает отдельно.
 */
 
 #pragma once
@@ -68,6 +69,7 @@ UPD:
 #include "engine/anim/sources/Rig.h"
 #include "engine/app/sources/ChatLog.h"
 #include "engine/app/sources/ChatOverlay.h"
+#include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
 #include "engine/app/sources/TrajectoryRecord.h"
@@ -203,6 +205,12 @@ private:
     int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter
     void body_probe_drive();  // fixed tick: pose the camera for the probe
     void body_probe_frame(float alpha, float frame_dt); // after render: shoot
+
+    // A KEY EDGE BY ACTION, resolved through the binding table (Controls.h)
+    // instead of by naming a key here. That indirection is what keeps the
+    // controls screen from drifting: a handler names what it DOES, the table
+    // says which key does it, and the screen draws the same table.
+    [[nodiscard]] bool action_pressed(Action action) const;
 
     // DEBUG READOUT + STATE CAPTURE (user request). collect_snapshot() reads
     // the world; write_capture() saves the .png and its sidecar; apply_restore()
