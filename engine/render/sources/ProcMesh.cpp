@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:29:52
+Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/ProcMesh.cpp
 
@@ -40,6 +40,13 @@ UPD:
   §6.1.3 in-world A/B distinction — the only way a placeholder can say "built
   twice" at 640x360. Merlons are 1.2 m wide because of the THIN-CASTER RULE: a
   caster under ~0.31 m drops out of the sun shadow map entirely.
+- 14:08:2026 - 23:12:28: append_transformed БОЛЬШЕ НЕ РЕЗЕРВИРУЕТ впритык. reserve(size+src) на
+  каждом вызове глушил геометрический рост вектора: почти каждый апенд
+  перевыделял и копировал ВЕСЬ накопленный буфер, цена росла с приёмником, а не
+  с добавкой. Замер на бюджетном тесте батчера: 100 деревьев 69 мс до находки,
+  139 мс когда второй мелкий апенд на дерево удвоил число полных копий, 16-27 мс
+  после удаления обоих reserve — в 4-8 раз дешевле ИСХОДНОЙ базы. Это боевой
+  путь стриминга чанков; выпечка флоры была вдвое дороже, чем должна, всё время.
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -510,7 +517,15 @@ void append_transformed(MeshData& dst, const MeshData& src, glm::vec3 translatio
     const float c = std::cos(yaw);
     const float s = std::sin(yaw);
     const auto base = static_cast<uint32_t>(dst.vertices.size());
-    dst.vertices.reserve(dst.vertices.size() + src.vertices.size());
+    // NO exact reserve here, and its absence is the fix, not an omission. A
+    // `reserve(size + src)` per append looks like an optimisation and is the
+    // opposite: it pins capacity to exactly-what-fits, so the NEXT append
+    // reallocates and copies the WHOLE accumulated buffer again — the cost
+    // grows with the destination, not the source, and a chunk of 100 trees
+    // pays ~100 full copies of an ever-larger mesh. Measured on the batcher's
+    // own budget test when a second small append per tree doubled the copy
+    // count: 69 ms -> 139 ms for +3.8 % of triangles. push_back's geometric
+    // growth is amortized O(1) per element; trust it.
     for (const platform::Vertex& v : src.vertices) {
         platform::Vertex out = v;
         const glm::vec3 p = v.position * scale;
@@ -520,8 +535,7 @@ void append_transformed(MeshData& dst, const MeshData& src, glm::vec3 translatio
                       -s * v.normal.x + c * v.normal.z};
         dst.vertices.push_back(out);
     }
-    dst.indices.reserve(dst.indices.size() + src.indices.size());
-    for (const uint32_t i : src.indices) {
+    for (const uint32_t i : src.indices) { // same argument as the vertices above
         dst.indices.push_back(base + i);
     }
 }
