@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 13:08:2026 - 20:41:07
+# Last updated: 14:08:2026 - 16:11:00
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -22,6 +22,7 @@
 # - 10:08:2026 - 19:26:40: DebugOverlay.cpp в сборке; хэш коммита штампуется в бинарник (DFN_BUILD_COMMIT) — снимок состояния обязан называть сборку, иначе он невоспроизводим.
 # - 10:08:2026 - 19:57:06: Хэш коммита штампуется во время СБОРКИ через tools/stamp_build_commit.cmake, с пометкой +dirty для незакоммиченного дерева.
 # - 13:08:2026 - 20:41:07: HudScreen.cpp в сборке — прицел и будущий игровой интерфейс зоны ui.
+# - 14:08:2026 - 16:11:00: EditorCamera.cpp в сборке — свободная камера режима AppMode::Editor.
 
 set(DFN_APP_DEPS
     dfn_core
@@ -52,6 +53,7 @@ if(DFN_APP_READY)
         sources/Main.cpp
         sources/App.cpp
         sources/DebugOverlay.cpp
+        sources/EditorCamera.cpp
         sources/HudScreen.cpp
         sources/Localization.cpp
         sources/Menu.cpp)

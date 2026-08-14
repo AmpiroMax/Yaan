@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 13:08:2026 - 20:00:00
+Last updated: 14:08:2026 - 16:11:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -48,6 +48,8 @@ UPD:
   (замер: 5 и 10 чернильных пикселей в крайних столбцах, стало 0). Строка выбирается
   ЗАМЕРОМ нарисованной ширины (`fits`), а не веткой по числу 320: ветка починила бы
   сегодняшний русский и сломалась бы на первом переводе шире него.
+- 14:08:2026 - 16:11:00: Кнопка «Редактор» — вторая строка корня (запрос В39). Корень
+  теперь Играть / Редактор / Настройки / Выход; activate и row_at обновлены.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -249,7 +251,7 @@ void MenuModel::open(MenuPage page) {
 size_t MenuModel::item_count() const {
     switch (page_) {
     case MenuPage::Root:
-        return 3; // play, brightness, quit
+        return 4; // play, editor, settings, quit
     case MenuPage::Maps:
         return maps_.size() + 1; // maps + back
     case MenuPage::Pause:
@@ -323,11 +325,15 @@ MenuAction MenuModel::activate() {
             return MenuAction::None;
         }
         if (selection_ == 1) {
-            // THE ROOT'S SECOND ROW IS NOW SETTINGS, NOT BRIGHTNESS. The dial
-            // did not move away from the player -- it is the settings page's
-            // own row, one press further in, and it stopped being the only
-            // setting in the game that had a screen while resolution,
-            // antialiasing, palette and camera bob had none.
+            // THE SECOND ROW IS THE EDITOR (user В39: two buttons, play and
+            // editor). The app loads the testbed and enters the free camera;
+            // it does not go through the map picker, because a stand chooser
+            // for the editor is a later cut.
+            return MenuAction::EnterEditor;
+        }
+        if (selection_ == 2) {
+            // SETTINGS. The dial did not move away from the player -- it is the
+            // settings page's own row, one press further in.
             settings_return_ = MenuPage::Root;
             open(MenuPage::Settings);
             return MenuAction::None;
@@ -587,10 +593,16 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     const auto row_at = [&](size_t i) -> Row {
         switch (model.page()) {
         case MenuPage::Root:
-            if (i == 0) {
+            switch (i) {
+            case 0:
                 return {loc("menu.play"), {}};
+            case 1:
+                return {loc("menu.editor"), {}};
+            case 2:
+                return {loc("menu.settings"), {}};
+            default:
+                return {loc("menu.quit"), {}};
             }
-            return {(i == 1) ? loc("menu.settings") : loc("menu.quit"), {}};
         case MenuPage::Maps:
             if (i < model.maps().size()) {
                 return {loc(model.maps()[i].name_key), loc(model.maps()[i].blurb_key)};

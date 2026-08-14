@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 22:14:05
+Last updated: 14:08:2026 - 16:11:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -55,12 +55,14 @@ UPD:
 - 13:08:2026 - 17:21:38: Переправа мешей демо-предметов (геометрия sim, переправа здесь). Без неё три предмета появлялись с идентификатором меша, который никто не загрузил, и рисовались НИЧЕМ: дверь 1.8 × 2.0 м стояла невидимой в 2.5 м перед точкой старта, при том что луч попадал в её физическую коробку, наведение заполнялось честно и «Открыть» рисовалось поверх пустой травы.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 13:08:2026 - 22:14:05: capture_after_frames_ — вторая единица счёта для той же двери снимка. Секунды несравнимы побитово: две руки одного рецепта на разной загрузке машины успевают разное число кадров.
+- 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера (EditorCamera). Новый режим летающей камеры (запрос пользователя В39/Л1): облёт мира не игроком; Tab вселяет камеру в игрока и обратно. Дверь DFN_EDITOR=1 (+DFN_EDITOR_CAM=x,y,z,yaw,pitch) — авто-прогон через дверь, не забирающий мышь.
 */
 
 #pragma once
 
 #include "engine/anim/sources/Rig.h"
 #include "engine/app/sources/DebugOverlay.h"
+#include "engine/app/sources/EditorCamera.h"
 #include "engine/app/sources/Menu.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
@@ -145,9 +147,27 @@ private:
     void pump_chunk_events(); // ferry ChunkLoaded/Unloaded -> render + physics
 
     // Menu-first launch: the engine is up but no world exists until a map is
-    // chosen. Playing is the only mode that ticks the simulation.
-    enum class AppMode : uint8_t { Menu, Playing };
+    // chosen. Playing ticks the sim and drives the camera from the player's
+    // CameraPose. Editor still ticks the sim (so streaming, sky and the body
+    // keep living) but withholds the player's input and drives the camera from
+    // a free EditorCamera instead -- a flying eye detached from the body.
+    enum class AppMode : uint8_t { Menu, Playing, Editor };
     AppMode mode_ = AppMode::Playing;
+    // Where Escape returns to when it opens the pause page: Playing or Editor.
+    // Without it Resume always dropped back into Playing, so pausing the editor
+    // and resuming would silently possess the body.
+    AppMode paused_from_ = AppMode::Playing;
+    // FREE CAMERA of the editor mode. Driven directly by the app each render
+    // frame; never interpolated (the app owns the pose outright). Seeded from
+    // the player eye on entry so the toggle in and out of the body is seamless.
+    EditorCamera editor_cam_;
+    // Enters the editor: seeds the free camera from the player's current eye
+    // and switches mode. become_player_from_editor() does the reverse -- it
+    // teleports the body's feet under the free camera and hands control back to
+    // the Playing controller (the user's В39/Л1: "and the fly-over, and out of
+    // the eyes, in the same field").
+    void enter_editor_mode();
+    void become_player_from_editor();
     MenuModel menu_;
     uint32_t active_stand_ = 0;
     int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter

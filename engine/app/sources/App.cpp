@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 23:12:40
+Last updated: 14:08:2026 - 16:11:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -114,6 +114,7 @@ UPD:
 - 13:08:2026 - 21:48:30: У НЕБА БЫЛО ДВОЕ ЧАСОВ, и починены были только одни. Солнце и луна идут от номера кадра (game_seconds_ += SIM_DT выше — ровно про это), а дрейф облачного поля и огибающая ветра читали СТЕННЫЕ часы каждый кадр, поэтому DFN_RESTORE восстанавливал небо, но не погоду в нём. Найдено зоной ui приёмкой прицела: два прогона ОДНОГО рецепта разошлись на 1.79 % пикселей, все — небо и верхушки деревьев (строки 0–186, ниже 190-й пусто), при том что мерить надо было 72 пикселя метки. Локализовано зоной render: с приколотыми часами та же пара выходит ПОБИТОВО равной. И причина, почему вылезло сегодня, — не поломка, а то, что небо стало содержательнее: кучевые выросли с 2.8 % кадра до 26.8 %, и тот же дрейф двигает на порядок больше пикселей. Теперь часы одни, из тех же секунд, из которых выведено всё остальное здесь.
 - 13:08:2026 - 22:14:05: Лента-компас и три полосы (зона ui, применено здесь) — состав выбран пользователем лично. Лента берёт yaw из позы КАМЕРЫ на том же alpha, что и картинка: лента, идущая от позы тела, разошлась бы с тем, что нарисовано, и врала бы тем сильнее, чем быстрее поворот. Полосы стоят полными и убыль НЕ изображают — тратить их пока нечем, а полоса, ползущая для вида, учит читать пустое число. И новая дверь DFN_CAPTURE_AFTER_FRAMES=<N> рядом с секундной: прогон, снимающий по стенной секунде, на загруженной машине успевает другое число кадров, поэтому две руки одного рецепта НЕЛЬЗЯ сравнить побитово — а на этом стоит приёмка всех зон. Запрошена зоной ui после того, как она померила остаток: 4125 расходящихся пикселей упали до 412, когда приколотили часы неба, и вот этим 412 и были. Кривое значение отвергается ВСЛУХ.
 - 13:08:2026 - 23:12:40: СЧЁТНЫЕ ЧАСЫ БЫЛИ ВЫДАНЫ ТОЛЬКО ТУРУ, и это моя недоделка, дожившая до сегодня. game_seconds_ рос на СТЕННУЮ дельту кадра во всех остальных автоматических дверях — DFN_CAPTURE_AFTER, DFN_RESTORE, DFN_PLAYTEST, — то есть ровно в тех прогонах, кадры которых зоны кладут в приёмку. Проверка «это доказательство?» была написана как «это тур?». Найдено тем, что дверь DFN_CAPTURE_AFTER_FRAMES, отгруженная часом раньше, НЕ ДАЛА обещанного: две руки, приколотые к одним и тем же 600 отрисованным кадрам, пришли к game_seconds 893.719 и 890.615 — три секунды солнца и ветра врозь, потому что 600 кадров стенных часов не есть длительность. После правки обе руки дают 882.007285 РОВНО. Правило 35, третий потребитель: unattended_run() уже отвечает «за этим никто не играет» пропуску меню и захвату курсора; на этот вопрос он отвечает тоже.
+- 14:08:2026 - 16:11:00: AppMode::Editor + свободная камера. Новый режим летающей камеры (запрос В39/Л1): камера отвязана от тела и физики (EditorCamera, WASD+E/Q/Space/Ctrl+мышь+колесо-скорость), сим продолжает тикать ради стриминга/неба/тела, но ввод игрока изъят и кадр рисуется из свободной позы. Tab вселяет камеру в игрока (teleport_character под камеру) и обратно. Вход: пункт меню «Редактор» (attended, курсор захвачен) и дверь DFN_EDITOR=1 (unattended, курсор свободен) + DFN_EDITOR_CAM=x,y,z,yaw,pitch для приёмочного кадра с любой точки. Оверлей — баннер режима со скоростью полёта; отладочный вывод (F3) уже отражает свободную камеру, т.к. camera_ и есть свободный глаз. Wireframe/счётчик треугольников/LOD-цифра/пикинг центра упираются в render (IRenderer не отдаёт статистику/каркас/луч) — вынесено лиду списком.
 */
 
 #include "engine/app/sources/App.h"
@@ -219,7 +220,13 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
            || std::getenv("DFN_BODY_PROBE") != nullptr
            || std::getenv("DFN_MENU_SHOT") != nullptr
            || std::getenv("DFN_HUD_PROBE") != nullptr
-           || std::getenv("DFN_RESTORE") != nullptr;
+           || std::getenv("DFN_RESTORE") != nullptr
+           // The editor DOOR is automated: it exists so a free-camera vantage
+           // is photographable without a hand on the keyboard, so it skips the
+           // menu, does NOT grab the pointer, and runs the counted clock like
+           // every other evidence door. The INTERACTIVE editor is the menu's
+           // "Редактор" button, which does grab the pointer for mouse-look.
+           || std::getenv("DFN_EDITOR") != nullptr;
 }
 
 // Reads key=value graphics settings; writes a commented default file on first
@@ -642,6 +649,28 @@ bool App::init(const AppConfig& config) {
     } else {
         if (!enter_world(config_.start_stand)) {
             return false;
+        }
+    }
+
+    // THE EDITOR DOOR (DFN_EDITOR=1). Automated free-camera vantage: it makes
+    // the run unattended (see unattended_run above), so the world is built and
+    // the cursor stays free. The free camera is seeded from the player eye for
+    // a seamless toggle; DFN_EDITOR_CAM="x,y,z,yaw,pitch" then places it at an
+    // explicit vantage so an aerial acceptance frame needs no keyboard -- the
+    // pose lives in the recipe, not in a hardcoded constant.
+    if (const char* ed = std::getenv("DFN_EDITOR");
+        ed != nullptr && ed[0] == '1' && mode_ == AppMode::Playing) {
+        enter_editor_mode();
+        if (const char* cam = std::getenv("DFN_EDITOR_CAM"); cam != nullptr && *cam != '\0') {
+            float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
+            if (std::sscanf(cam, "%f,%f,%f,%f,%f", &x, &y, &z, &yaw, &pitch) == 5) {
+                editor_cam_.set_pose({x, y, z}, yaw, pitch);
+            } else {
+                std::fprintf(stderr,
+                             "[editor] DFN_EDITOR_CAM=\"%s\" is not x,y,z,yaw,pitch "
+                             "-- keeping the player-eye seed\n",
+                             cam);
+            }
         }
     }
     return true;
@@ -1688,6 +1717,65 @@ void App::apply_restore(const DebugSnapshot& snap) {
                  snap.build_commit.c_str());
 }
 
+// THE FREE CAMERA IS SEEDED FROM THE EYE, NOT THE FEET, so entering the editor
+// does not jump the view: the player was looking from CameraPose, and that is
+// exactly where the fly begins. Falls back to the Transform + eye height only
+// before the first step has published a pose.
+void App::enter_editor_mode() {
+    glm::vec3 eye{0.0f};
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+    if (const auto* pose = world_.get<components::CameraPose>(player_)) {
+        eye = pose->position;
+        yaw = pose->yaw;
+        pitch = pose->pitch;
+    } else if (const auto* tr = world_.get<components::Transform>(player_)) {
+        eye = tr->position
+              + glm::vec3{0.0f, static_cast<float>(config::PLAYER_EYE_HEIGHT), 0.0f};
+        if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+            yaw = ps->yaw;
+            pitch = ps->pitch;
+        }
+    }
+    editor_cam_.reset(eye, yaw, pitch);
+    mode_ = AppMode::Editor;
+}
+
+// POSSESS THE PLAYER at the free camera. The inverse of apply_restore's eye ->
+// feet transform, and it reuses the SAME two offsets (PLAYER_EYE_HEIGHT and
+// PLAYER_EYE_FORWARD) rather than a third idea of where the eye sits (Rule 35):
+// the eye is above AND forward of the feet, so undoing only the height would
+// place the body a fixed step behind where the camera looked. teleport_character
+// is a placement, not a walk (the same call apply_restore uses); if the camera
+// was high, the body simply falls to the ground under it, which is what "teleport
+// the body under the camera" means.
+void App::become_player_from_editor() {
+    auto* ps = world_.get<gameplay::PlayerState>(player_);
+    if (ps == nullptr) {
+        mode_ = AppMode::Playing;
+        return;
+    }
+    const float yaw = editor_cam_.yaw();
+    const glm::vec3 eye = editor_cam_.position();
+    const float eye_h = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const float fwd = static_cast<float>(config::PLAYER_EYE_FORWARD);
+    const glm::vec3 facing{std::sin(yaw), 0.0f, -std::cos(yaw)};
+    const glm::vec3 feet{eye.x - facing.x * fwd, eye.y - eye_h, eye.z - facing.z * fwd};
+    physics_->teleport_character(ps->character, feet);
+    if (auto* tr = world_.get<components::Transform>(player_)) {
+        tr->position = feet;
+    }
+    const float limit = static_cast<float>(config::CAMERA_PITCH_LIMIT);
+    ps->yaw = yaw;
+    ps->pitch = std::clamp(editor_cam_.pitch(), -limit, limit);
+    ps->vertical_velocity = 0.0f; // a possessed player is not mid-fall
+    mode_ = AppMode::Playing;
+    std::fprintf(stderr,
+                 "[editor] possessed player: feet %.2f %.2f %.2f  yaw %.4f\n",
+                 static_cast<double>(feet.x), static_cast<double>(feet.y),
+                 static_cast<double>(feet.z), static_cast<double>(yaw));
+}
+
 int App::run() {
     auto last = std::chrono::steady_clock::now();
     while (!window_->should_close()) {
@@ -1726,8 +1814,21 @@ int App::run() {
                 mode_ = AppMode::Playing;
                 input_->set_cursor_captured(!unattended_run());
                 break;
+            case MenuAction::EnterEditor:
+                // В39's second button. Loads the testbed for now (the map
+                // picker is a Playing path; a stand chooser for the editor is a
+                // later cut, per the brief). enter_editor_mode() seeds the free
+                // camera from the freshly spawned player's eye.
+                if (!enter_world(static_cast<uint32_t>(world::StandId::Testbed))) {
+                    return 1;
+                }
+                enter_editor_mode();
+                input_->set_cursor_captured(!unattended_run());
+                break;
             case MenuAction::Resume:
-                mode_ = AppMode::Playing;
+                // Back to whichever mode paused: pausing the editor and resuming
+                // must not silently possess the body.
+                mode_ = paused_from_;
                 input_->set_cursor_captured(!unattended_run());
                 break;
             case MenuAction::Quit:
@@ -1820,10 +1921,24 @@ int App::run() {
             if (render_system_.map_open()) {
                 render_system_.set_map_open(false);
             } else {
+                paused_from_ = mode_; // Resume returns here (Playing or Editor)
                 menu_.open(MenuPage::Pause);
                 mode_ = AppMode::Menu;
                 input_->set_cursor_captured(false);
                 continue;
+            }
+        }
+        // TAB TOGGLES THE BODY (user В39/Л1: "and the fly-over, and out of the
+        // eyes, in the same field"). From the editor it possesses the player at
+        // the free camera; from Playing it lifts back out into the free camera
+        // at the current eye. A no-op in any other mode by construction.
+        if (input_->was_pressed(platform::Key::TAB)) {
+            if (mode_ == AppMode::Editor) {
+                become_player_from_editor();
+                input_->set_cursor_captured(!unattended_run());
+            } else if (mode_ == AppMode::Playing) {
+                enter_editor_mode();
+                input_->set_cursor_captured(!unattended_run());
             }
         }
         // DEBUG READOUT (F3) and STATE CAPTURE (F2). User request: "нужна
@@ -1837,7 +1952,7 @@ int App::run() {
         // 3 the state capture. F3/F2 stay as aliases -- they are in the frames
         // and recipes already archived, and silently moving a key would make
         // every recipe on disk wrong.
-        if (input_->was_pressed(platform::Key::NUM_1)) {
+        if (mode_ == AppMode::Playing && input_->was_pressed(platform::Key::NUM_1)) {
             third_person_ = !third_person_;
             orbit_yaw_ = 0.0f;
             orbit_pitch_ = 0.0f;
@@ -1901,6 +2016,16 @@ int App::run() {
         frame_clock_.push(static_cast<float>(frame_dt));
         // Cleared before the tick that may set it again (the chunk ferry does).
         world_changed_this_frame_ = false;
+
+        // FREE CAMERA of the editor. Advanced from live input every render
+        // frame. The sim still ticks below -- streaming, sky and the body keep
+        // living so the flown world is the real one -- but the player's input
+        // is withheld (the !editor guard on the look block) and the frame is
+        // drawn from this pose instead of the player's CameraPose.
+        const bool editor = mode_ == AppMode::Editor;
+        if (editor) {
+            editor_cam_.update(*input_, static_cast<float>(frame_dt));
+        }
 
         // In-game clock (в67): DAY_LENGTH_SECONDS per day, with a debug key that
         // runs it DEBUG_TIME_SCALE faster so shadows can be watched sweeping.
@@ -1972,7 +2097,7 @@ int App::run() {
             render_system_.environment().ambient_darkness = chunks_.darkness_at(t->position);
         }
 
-        if (!playtest_) {
+        if (!playtest_ && !editor) {
             // THIRD-PERSON ORBIT (his request, and the Skyrim rule he named):
             // standing still, the mouse swings the camera AROUND the character
             // and the character does not turn; moving, the camera locks behind
@@ -2077,6 +2202,8 @@ int App::run() {
             glm::vec3 focus{0.0f};
             if (tour_.active()) {
                 focus = tour_.focus_position();
+            } else if (editor) {
+                focus = editor_cam_.position(); // stream around the flying eye
             } else if (const auto* t = world_.get<components::Transform>(player_)) {
                 focus = t->position;
             }
@@ -2244,7 +2371,16 @@ int App::run() {
         const float alpha = static_cast<float>(timestep_.alpha());
         const auto* pose = world_.get<components::CameraPose>(player_);
         const auto* prev_pose = world_.get<components::PreviousCameraPose>(player_);
-        if (pose != nullptr && prev_pose != nullptr) {
+        if (editor) {
+            // The app owns the free pose outright: prev == curr, so any alpha
+            // the loop computes below reproduces it exactly and the frame log,
+            // audio and culling all read the flown eye.
+            const auto ep = editor_cam_.pose();
+            camera_.set_poses(ep, ep);
+            camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
+                                   camera_.aspect_ratio(), camera_.near_plane(),
+                                   camera_.far_plane());
+        } else if (pose != nullptr && prev_pose != nullptr) {
             // THIRD PERSON: the eye pulls back along the orbit direction. The
             // character's own yaw is untouched -- the camera moves, he does not
             // turn -- which is what makes standing-still orbiting read right.
@@ -2349,6 +2485,8 @@ int App::run() {
             glm::vec3 lod_focus{0.0f};
             if (tour_.active()) {
                 lod_focus = tour_.focus_position();
+            } else if (editor) {
+                lod_focus = editor_cam_.position();
             } else if (const auto* t = world_.get<components::Transform>(player_)) {
                 lod_focus = t->position;
             }
@@ -2463,6 +2601,33 @@ int App::run() {
             // debug view.
             if (debug_overlay_ || capture_pending_) {
                 draw_debug_overlay(hud, collect_snapshot(alpha));
+                any = true;
+            }
+            // EDITOR BANNER: names the mode and shows the wheel-driven fly
+            // speed, so the one overlay that MUST work in this first cut says
+            // both "you are flying" and "how fast". Localised (Rule 5); the
+            // speed is a number and the debug readout above already reports the
+            // free camera's coordinates and look (camera_ IS the free eye here).
+            if (editor) {
+                const std::string_view banner =
+                    localized(serialization::fnv1a64("editor.banner"));
+                char spd[24];
+                std::snprintf(spd, sizeof(spd), "%.1f",
+                              static_cast<double>(editor_cam_.speed()));
+                const std::string_view unit =
+                    localized(serialization::fnv1a64("editor.speed_unit"));
+                const int gap = render::FONT_CELL_W;
+                const int bw = render::text_width_px(banner) + gap
+                             + render::text_width_px(spd) + gap
+                             + render::text_width_px(unit);
+                draw_text_plate(hud, 4, 4, bw, render::FONT_INK_H);
+                const render::Color ink{244, 226, 160};
+                int cx = 4;
+                render::draw_text(hud, cx, 4, banner, ink, /*shadow=*/true);
+                cx += render::text_width_px(banner) + gap;
+                render::draw_text(hud, cx, 4, spd, ink, true);
+                cx += render::text_width_px(spd) + gap;
+                render::draw_text(hud, cx, 4, unit, ink, true);
                 any = true;
             }
             render_system_.set_hud_visible(any);

@@ -15,8 +15,13 @@ prompt.look=Осмотреть
 
 item.tool.torch.name=Факел
 
+# Редактор (свободная камера, AppMode::Editor)
+editor.banner=РЕДАКТОР — Tab: игрок — скорость
+editor.speed_unit=м/с
+
 # Меню
 menu.play=Играть
+menu.editor=Редактор
 menu.quit=Выход
 menu.back=Назад
 menu.resume=Продолжить

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 13:08:2026 - 20:05:00
+Last updated: 14:08:2026 - 16:11:00
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -44,6 +44,9 @@ UPD:
 - 13:08:2026 - 19:50:00: Вторая точка входа на страницу настроек — пауза; модель
   помнит, куда возвращаться, тем же способом, что и страница калибровки.
 - 13:08:2026 - 20:05:00: Метки времени приведены к часам — были написаны вперёд.
+- 14:08:2026 - 16:11:00: Кнопка «Редактор» на корневом экране (запрос В39: две кнопки,
+  игра и редактор) → MenuAction::EnterEditor. Корень стал четырёхстрочным: Играть,
+  Редактор, Настройки, Выход.
 */
 
 #pragma once
@@ -79,6 +82,11 @@ enum class MenuPage : uint8_t {
 enum class MenuAction : uint8_t {
     None = 0,
     EnterWorld, // `chosen_stand` carries which
+    // The root's "Редактор" button (user В39: two buttons, play and editor).
+    // Loads the testbed and enters the free-camera editor; a stand chooser for
+    // it is a later cut. Distinct from EnterWorld so the app knows to fly rather
+    // than to possess the body.
+    EnterEditor,
     Resume,
     ToRoot,
     Quit,
