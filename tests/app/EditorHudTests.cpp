@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 18:57:03
+Last updated: 14:08:2026 - 19:05:56
 Module: tests/app
 File: tests/app/EditorHudTests.cpp
 
@@ -34,6 +34,11 @@ AI Agents Notice (must follow):
 UPD:
 - 14:08:2026 - 18:57:03: Создан вместе с модулем EditorHud — разведение
   редакторского блока и отладочного вывода по жалобе пользователя.
+- 14:08:2026 - 19:05:56: Случай про формулировки. Приёмка тут не «влезло» —
+  старое «трис 1758233» влезало прекрасно, — а «строка называет, ЧТО посчитано».
+  Контроль обязателен и он неочевиден: короткие формы существуют, поэтому набор,
+  проверяющий только 640, зелен и для модуля, который сокращает ВСЕГДА. Поэтому
+  те же числа спрашиваются ещё и на 320 и обязаны вернуться сокращёнными.
 */
 
 #include <doctest/doctest.h>
@@ -41,6 +46,7 @@ UPD:
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorHud.h"
 #include "engine/app/sources/Localization.h"
+#include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/render/sources/BitmapFont.h"
 
 #include <algorithm>
@@ -142,12 +148,6 @@ TEST_CASE("the editor block starts below the readout, wet or dry") {
 TEST_CASE("both blocks fit inside the frame at every internal resolution") {
     REQUIRE(strings().loaded); // measuring "?<0x...>?" would measure nothing
     const EditorHudSnapshot ed = widest_editor();
-    const std::vector<std::string> lines = dfn::app::editor_hud_lines(ed);
-    REQUIRE_FALSE(lines.empty());
-
-    const int block_w = widest_line_px(lines);
-    const int block_h = dfn::app::editor_hud_block_height_px(lines.size());
-
     struct Res {
         int w;
         int h;
@@ -160,6 +160,12 @@ TEST_CASE("both blocks fit inside the frame at every internal resolution") {
 
     for (const Res r : {Res{W_640, H_360}, Res{W_320, H_180}}) {
         CAPTURE(r.w);
+        // NARROWED FOR THIS FRAME, then measured. Asking for the lines at one
+        // width and checking them against another would test nothing.
+        const std::vector<std::string> lines = dfn::app::editor_hud_lines(ed, r.w);
+        REQUIRE_FALSE(lines.empty());
+        const int block_w = widest_line_px(lines);
+        const int block_h = dfn::app::editor_hud_block_height_px(lines.size());
         // HORIZONTALLY: measured with the same text_width_px the frame draws
         // with, on the same assembled strings -- not on a guess about how long
         // a translated word is.
@@ -173,6 +179,58 @@ TEST_CASE("both blocks fit inside the frame at every internal resolution") {
         CHECK(top + block_h <= r.h);
         CHECK(top + block_h <= dfn::app::debug_overlay_hint_top_y(r.h));
     }
+}
+
+TEST_CASE("at the resolution he plays, the lines are sentences and not mnemonics") {
+    REQUIRE(strings().loaded);
+
+    // THE COMPLAINT THIS ANSWERS was "с текстом трисс (что это такое)", so the
+    // acceptance is not "it fits" -- the old "трис 1758233" fitted fine. It is
+    // that at 640x360, the resolution he actually runs, the line SAYS which
+    // count it is: the whole frame, or the one object under the crosshair.
+    EditorHudSnapshot s;
+    s.fly_speed_mps = 8.0f;
+    s.frame_triangles = 1758233;
+    s.frame_draws = 122;
+    s.aim_hit = true;
+    s.aim_triangles = 1476;
+    s.aim_distance_m = 0.8f;
+    s.aim_pick_id = 42;
+
+    const std::vector<std::string> full = dfn::app::editor_hud_lines(s, W_640);
+    REQUIRE(full.size() == 3);
+    // The frame line names the frame; the aim line names the crosshair. Asserted
+    // through localization rather than against a literal, because a literal here
+    // would be the Rule 5 violation this module exists to avoid -- and it would
+    // pass just as well if the table were never loaded.
+    const auto has = [](const std::string& line, const char* key) {
+        const std::string_view want =
+            dfn::app::localized(dfn::serialization::fnv1a64(key));
+        return line.find(std::string(want)) != std::string::npos;
+    };
+    CHECK(has(full[1], "editor.hud.frame"));
+    CHECK(has(full[1], "editor.hud.draws"));
+    CHECK(has(full[2], "editor.hud.aim"));
+    CHECK(has(full[2], "editor.hud.distance")); // "where the distance", his words
+    CHECK(has(full[2], "editor.hud.object"));
+
+    // THE CONTROL, AND IT IS THE ONE THAT MATTERS: the short forms exist, so a
+    // suite that only checks 640 would pass a module that ALWAYS abbreviates.
+    // At 320x180 the same numbers must come back shortened -- proving the two
+    // tiers are really two, and that the choice is made by measuring.
+    const std::vector<std::string> narrow = dfn::app::editor_hud_lines(s, W_320);
+    REQUIRE(narrow.size() == 3);
+    CHECK(narrow[1] != full[1]);
+    CHECK(narrow[2] != full[2]);
+    CHECK_FALSE(has(narrow[1], "editor.hud.frame"));
+    CHECK_FALSE(has(narrow[2], "editor.hud.aim"));
+
+    // ...and the miss branch is a sentence too, not a bare "пусто".
+    EditorHudSnapshot miss;
+    miss.aim_hit = false;
+    const std::vector<std::string> none = dfn::app::editor_hud_lines(miss, W_640);
+    REQUIRE(none.size() == 3);
+    CHECK(has(none[2], "editor.hud.aim.none"));
 }
 
 TEST_CASE("the block's reported height is the height it draws") {

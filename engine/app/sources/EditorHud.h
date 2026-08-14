@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 18:57:03
+Last updated: 14:08:2026 - 19:05:56
 Module: engine/app
 File: engine/app/sources/EditorHud.h
 
@@ -11,7 +11,7 @@ Responsibility:
 
 Key items:
 - EditorHudSnapshot: the numbers the block reports, as plain values.
-- editor_hud_lines(): the block's text, localized, in draw order.
+- editor_hud_lines(): the block's text, localized and narrowed to a width.
 - editor_hud_block_height_px() / draw_editor_hud(): its layout and its draw.
 
 Dependencies:
@@ -45,6 +45,12 @@ UPD:
   пользователя — оба сразу. Блок переехал ПОД вывод, отступ считается от его
   настоящей высоты (она непостоянна: в воде вывод на строку выше), и ширина
   каждой строки теперь ЗАМЕРЯЕТСЯ тестом, а не глазами.
+- 14:08:2026 - 19:05:56: Строки названы по-человечески (жалоба пользователя: «с
+  текстом трисс (что это такое)»). editor_hud_lines() снова принимает ширину:
+  у каждой строки теперь ПОЛНАЯ форма-предложение и КОРОТКАЯ, и выбор между
+  ними — замер собранной строки, а не ветка по разрешению. Полная существует
+  потому, что на вопрос «что это такое» мнемоника не отвечает; короткая —
+  потому, что 320x180 страница настроек предлагает соседней строкой.
 */
 
 #pragma once
@@ -82,8 +88,18 @@ struct EditorHudSnapshot {
     uint32_t aim_pick_id = 0;
 };
 
-// THE BLOCK'S LINES, localized, in draw order, top to bottom. Never empty.
-[[nodiscard]] std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap);
+// THE BLOCK'S LINES, localized and narrowed to `width_px`, in draw order, top
+// to bottom. Never empty.
+//
+// EACH LINE EXISTS IN A FULL AND A SHORT FORM, and which one comes back is
+// decided by MEASURING the assembled string, not by branching on a resolution.
+// The full form is a sentence because the user asked what the abbreviation
+// meant; the short form exists because 320x180 is a rung the settings page
+// offers one keypress away and a sentence does not fit in it. Measuring the
+// assembled string rather than the wording is what makes the choice account
+// for the numbers, which are unbounded and translated by nobody.
+[[nodiscard]] std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap,
+                                                        int width_px);
 
 // Row pitch and total height of a block of `line_count` lines, plate included.
 // Published so the caller can ask whether the block clears what is under it

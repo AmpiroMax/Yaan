@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 18:57:03
+Last updated: 14:08:2026 - 19:05:56
 Module: engine/app
 File: engine/app/sources/EditorHud.cpp
 
@@ -17,6 +17,13 @@ UPD:
   разведение с отладочным выводом. Тексты строк перенесены БЕЗ ИЗМЕНЕНИЙ:
   правка геометрическая, и смешивать её с правкой формулировок значило бы
   сдавать два изменения под одним доказательством.
+- 14:08:2026 - 19:05:56: Формулировки. «трис 1758233   дро 122» стало «В кадре:
+  треугольников 1758233   вызовов отрисовки 122», а «прицел: 1476 трис 0.8 м» —
+  «Под прицелом: треугольников 1476   до него 0.8 м   объект 42»: пользователь
+  спрашивал, что это такое, и теперь строка сама говорит, ЧТО именно считается —
+  весь кадр или один объект под прицелом — и где дистанция. Числительное после
+  существительного не по вкусу, а из-за русской счётной формы: «%d треугольник»
+  сломался бы на 2 и на 5.
 */
 
 #include "engine/app/sources/EditorHud.h"
@@ -83,56 +90,81 @@ int editor_hud_block_height_px(size_t line_count) {
          + render::FONT_INK_H + 2 * PLATE_PAD;
 }
 
-std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap) {
+std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap,
+                                          int width_px) {
+    // The width every line has to live inside: the frame, less the block's own
+    // left margin and the plate's margin on the right.
+    const int budget = width_px - BLOCK_X - PLATE_PAD;
+
     std::vector<std::string> lines;
     lines.reserve(3);
 
     char num[32];
+    const std::string tri_short = loc_str("editor.hud.tris.short");
 
-    // LINE 1 -- the banner. Says which mode this is and how fast the free
-    // camera moves, which are the two things that are not visible from the
-    // picture itself.
+    // EACH LINE IS BUILT TWICE, FULL AND SHORT, AND CHOSEN BY MEASURING. The
+    // full form is a sentence -- it exists because the user asked what "трис"
+    // meant, and an abbreviation cannot answer that. The short form exists
+    // because 320x180 is a rung the settings page offers one keypress away,
+    // and a sentence does not fit there. Which one is drawn is decided by
+    // fits_width on the ASSEMBLED string, so the answer accounts for the
+    // numbers too, not just the words.
+
+    // LINE 1 -- the banner: which mode this is and how fast the camera flies.
     std::snprintf(num, sizeof(num), "%.1f", static_cast<double>(snap.fly_speed_mps));
-    lines.push_back(loc_str("editor.banner") + " " + num + " "
-                    + loc_str("editor.speed_unit"));
+    const std::string speed = std::string(" ") + num + " " + loc_str("editor.speed_unit");
+    lines.push_back(std::string(
+        fits_width(budget, loc_str("editor.banner") + speed,
+                   loc_str("editor.banner.short") + speed)));
 
-    // LINE 2 -- the frame's cost.
-    std::string frame = loc_str("editor.hud.tris") + " "
-                      + std::to_string(snap.frame_triangles) + "   "
-                      + loc_str("editor.hud.draws") + " "
-                      + std::to_string(snap.frame_draws);
-    if (snap.wireframe) {
-        frame += "   [" + loc_str("editor.hud.wire") + "]";
-    }
-    lines.push_back(std::move(frame));
+    // LINE 2 -- what the WHOLE FRAME costs.
+    const std::string tag =
+        snap.wireframe ? "   [" + loc_str("editor.hud.wire") + "]" : std::string{};
+    const std::string tris = std::to_string(snap.frame_triangles);
+    const std::string draws = std::to_string(snap.frame_draws);
+    lines.push_back(std::string(fits_width(
+        budget,
+        loc_str("editor.hud.frame") + " " + tris + "   " + loc_str("editor.hud.draws")
+            + " " + draws + tag,
+        loc_str("editor.hud.frame.short") + " " + tris + " " + tri_short + "   " + draws
+            + " " + loc_str("editor.hud.draws.short") + tag)));
 
-    // LINE 3 -- what the crosshair is on.
-    std::string aim = loc_str("editor.hud.aim") + ": ";
+    // LINE 3 -- what the ONE OBJECT under the crosshair costs, and how far off
+    // it is. These are the two halves the user asked to be told apart.
     if (snap.aim_hit) {
         std::snprintf(num, sizeof(num), "%.1f", static_cast<double>(snap.aim_distance_m));
-        aim += std::to_string(snap.aim_triangles) + " " + loc_str("editor.hud.tris")
-             + "   " + num + " " + loc_str("editor.hud.m");
+        const std::string dist = num;
+        const std::string m = loc_str("editor.hud.m");
+        const std::string at = std::to_string(snap.aim_triangles);
+        // The id run is present only when the draw carried one: terrain, sky
+        // and the LOD nodes submit unnamed, and "объект 0" would name a slot
+        // that is not the one being looked at.
+        std::string id_full;
+        std::string id_short;
         if (snap.aim_pick_id != 0) {
-            aim += "   id " + std::to_string(snap.aim_pick_id);
+            const std::string id = std::to_string(snap.aim_pick_id);
+            id_full = "   " + loc_str("editor.hud.object") + " " + id;
+            id_short = "   #" + id;
         }
+        lines.push_back(std::string(fits_width(
+            budget,
+            loc_str("editor.hud.aim") + " " + at + "   " + loc_str("editor.hud.distance")
+                + " " + dist + " " + m + id_full,
+            loc_str("editor.hud.aim.short") + " " + at + " " + tri_short + "   " + dist
+                + " " + m + id_short)));
     } else {
-        aim += loc_str("editor.hud.aim_none");
+        lines.push_back(std::string(fits_width(budget, loc_str("editor.hud.aim.none"),
+                                               loc_str("editor.hud.aim.none.short"))));
     }
-    lines.push_back(std::move(aim));
 
-    // NOT NARROWED, AND SAID OUT LOUD RATHER THAN LEFT TO BE ASSUMED. These
-    // three lines are short enough today at every resolution the settings page
-    // offers, which the test measures rather than asserts by eye -- but "short
-    // enough" is a property of this wording, and the wording is about to
-    // change. When it does, the short variants land with it and this is where
-    // fits_width() goes.
     return lines;
 }
 
 int draw_editor_hud(render::PixelCanvas& canvas, const EditorHudSnapshot& snap,
                     int top_y) {
     const render::Color ink{244, 226, 160};
-    const std::vector<std::string> lines = editor_hud_lines(snap);
+    const std::vector<std::string> lines =
+        editor_hud_lines(snap, static_cast<int>(canvas.width()));
 
     int y = top_y;
     for (const std::string& line : lines) {
