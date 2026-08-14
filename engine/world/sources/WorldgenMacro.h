@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 18:04:00
+Last updated: 14:08:2026 - 20:30:18
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -52,6 +52,9 @@ UPD:
   parallel to its trunk; STREAM_DRAW_WANDER / _THRESHOLD / _BEARING.
 - 13:08:2026 - 17:54:00: STREAM_DRAW_CUTBANK.
 - 13:08:2026 - 18:04:00: STREAM_TERRACE_SLUMP.
+- 14:08:2026 - 20:30:18: regional_massif() published: §2.5's LR as a derived stamp rather than a
+  layout row, so classify_surface can ask where its rockline is from a layout
+  alone. massif_height's shape seed documented at the call site that needs it.
 */
 
 #pragma once
@@ -124,6 +127,28 @@ inline constexpr float L0_AIM_ABOVE_PEAK = 8.0f;
 /// Distance from `world` to the crag stamp center (meters). The stamp
 /// footprint is d < layout.crag.radius (classification: rock above rockline).
 [[nodiscard]] float crag_distance(const TestbedLayout& layout, glm::vec2 world);
+
+/// §2.5 THE REGIONAL MASSIF (LR) — the second instance of §2.8's shape
+/// operator, at the ruled regional size, and the answer to "more big
+/// mountains" that is a FORM rather than an amplitude.
+///
+/// It is a query rather than a layout row because its position is DERIVED
+/// (§7.1a): the corner of the largest square its own lobed footprint fits
+/// inside, taken farthest from the valley landmark. So the ~1.4–1.6 km
+/// separation §2.5 asks for is an OUTPUT of the world's size and the
+/// mountain's girth, and the stamp cannot be clipped by the world edge.
+///
+/// Pure function of the layout — no seed — because `classify_surface` must be
+/// able to ask where the rockline is and is handed a layout only. The radius
+/// is therefore the LR_BASE_RADIUS band's midpoint rather than a draw: the
+/// position is solved FROM the radius, so drawing it would move the mountain.
+///
+/// LR_RIDGE_COUNT (4–7) is NOT honoured, and that is reported rather than
+/// chosen: on §2.8's support-polygon cross-section a near-regular n-gon caps
+/// its lobe ratio at n·tan(π/n)/π — 1.27 at n=4, 1.16 at n=5 — against I8's
+/// floor of 1.35, so 4–7 ridges is arithmetically excluded. The count is
+/// L0_ARETE_COUNT, the value a 12-seed sweep measured.
+[[nodiscard]] CragStamp regional_massif(const TestbedLayout& layout);
 
 /// §5.12 / LF-4 — THE APRON RULE, AND IT IS DERIVED, NEVER A TABLED RADIUS.
 ///

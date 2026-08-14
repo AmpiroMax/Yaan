@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 01:15:00
+Last updated: 14:08:2026 - 20:30:18
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -45,6 +45,41 @@ UPD:
 - 13:08:2026 - 16:35:00: aniso_value_noise takes the stretch as a parameter.
 - 13:08:2026 - 17:28:00: aniso_value_noise takes the theta offset.
 - 13:08:2026 - 01:15:00: DFN_OCT1_AMP / DFN_OCT2_AMP sweep doors (measurement only, exact no-ops at 1.0 -- the pinned testbed digest is unchanged absent the env, and moves with it). They were opened to raise the LONG-WAVE half of the ground, and what they found is that this lever SATURATES: base_height clamps h/BASE_AMPLITUDE_M into [0,1] before valley_curve, so past ~1.6x the field flattens into a plateau and Dh(200 m) FALLS -- 4.33 m at 1.0x, 4.68 at 1.6x, 2.51 at 1.6x with octave 2 doubled, 1.16 at 3.0x. Amplitude alone cannot make bigger hills; the clamp has to move with it. Left in place because the next attempt needs them.
+- 14:08:2026 - 20:30:18: §2.5 THE REGIONAL MASSIF IS BUILT, and it is the same shape operator
+  instantiated twice rather than an amplitude. LR_RELIEF/LR_BASE_RADIUS_* were
+  approved 09.08 and had ZERO references in the generator; measured reason to
+  build them now: the whole 2x2 km world reads 2-28 m of ground outside
+  Ravenscar's own stamp, i.e. 13 m/km against 29.6 m/km for Iowa farmland, the
+  flattest cultivated plain in docs/design/TERRAIN_REFERENCE.md's reference set.
+  Three parts. (1) massif_height() gained a SHAPE SEED separate from the world
+  seed: every §2.8 field keys on (seed, stream, index) with no dependence on
+  where its stamp stands, so two stamps sharing a seed are one mountain twice --
+  fine at one massif, a defect at two. The DATUM keeps the world seed, or the
+  stamp would sit on a step. (2) regional_massif() derives its position instead
+  of tabling it (§7.1a): the corner of the largest square its own lobed
+  footprint fits inside, farthest from the valley landmark. Output on seed 1:
+  (1606, 1606), 1605 m from Ravenscar -- inside §2.5's own "~1.4-1.6 km out"
+  band, which nobody typed. (3) Its named control is the stamp at radius 0
+  reached through the SAME max(), because massif_height returns 0 beyond
+  radius*(1+amp) and the line above already does max(h, 0) everywhere off
+  Ravenscar -- so DFN_LR_OFF=1 is this expression at identity, and it
+  reproduces the pre-change horizon read to the last digit.
+  Measured, one binary, two arms, skyline angle over a fixed unfiltered 5x5
+  standpoint lattice at r_min 143 m (the acceptance distance of the smallest
+  landform this project calls a massif): p90 2.21 -> 6.51 deg, max 30.61 ->
+  53.15, share of bearings carrying a mountain 12.3 -> 22.4 %. Built relief
+  279.3 m against the ruled 280. Zero new red tests, the pinned testbed digest
+  included: the stamp lands in the outer half NUMBERS.md itself calls
+  authorless backdrop.
+  REPORTED, NOT CHOSEN: LR_RIDGE_COUNT 4-7 is not honoured. On §2.8's
+  support-polygon cross-section a near-regular n-gon caps its lobe ratio at
+  n*tan(pi/n)/pi = 1.27 (n=4) and 1.16 (n=5) against I8's floor of 1.35, so
+  4-7 ridges is arithmetically excluded before a seed is drawn; the count is
+  L0_ARETE_COUNT, the value the 12-seed sweep measured. That row needs design.
+  ALSO OPEN: §2.8's I1-I11 exist in NUMBERS.md and in NO CODE ANYWHERE (grep:
+  MASSIF_LOBE_RATIO, MASSIF_STEEP_FRACTION_MIN and MASSIF_SILHOUETTE_BREAKS_MIN
+  have zero readers in the tree), so this massif is UNVALIDATED against the
+  shape language it is built from -- as is Ravenscar.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -453,7 +488,16 @@ float summit_tor(uint64_t seed, const CragStamp& crag, glm::vec2 world, float to
 
 /// Everything here is a pure function of position; nothing touches the voxel
 /// pipeline.
-float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
+///
+/// `shape_seed` KEYS THE SHAPE, `seed` KEYS THE GROUND. Every §2.8 field in
+/// here -- profile exponent, facet polygon, band spacing, riser class, tor --
+/// draws from (seed, stream, index) with NO dependence on where the stamp
+/// stands, so two stamps sharing a seed are the SAME MOUNTAIN twice, scaled.
+/// That is fine while a world has one massif and is a defect the moment it has
+/// two, so the shape draws take their own key. The DATUM does not: it is
+/// `base_height(seed, ...)`, the ground that would be here without the massif,
+/// and reading it from a different field would leave a step at the foot.
+float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world, uint64_t shape_seed) {
     const glm::vec2 rel = world - crag.center;
     const float d = glm::length(rel);
     if (d >= crag.radius * (1.0f + static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX))) {
@@ -473,7 +517,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     // --- Field 1: per-bearing profile exponent ---------------------------------
     const float lobes = static_cast<float>(crag.arete_count);
     const float p = static_cast<float>(config::MASSIF_PROFILE_EXPONENT_MIN)
-                  + bearing_field(seed, STREAM_MASSIF_PROFILE, dir, lobes, 0)
+                  + bearing_field(shape_seed, STREAM_MASSIF_PROFILE, dir, lobes, 0)
                         * static_cast<float>(config::MASSIF_PROFILE_EXPONENT_MAX
                                              - config::MASSIF_PROFILE_EXPONENT_MIN);
 
@@ -488,7 +532,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     // RISES with height rather than a self-similar cone.
     const float theta = std::atan2(dir.y, dir.x);
     float notch = 0.0f;
-    const float r_poly = polygon_radius(seed, crag, theta, notch);
+    const float r_poly = polygon_radius(shape_seed, crag, theta, notch);
     float R_solved = 0.0f;
     const auto solve = [&](float k_raw) {
         const float k = std::clamp(k_raw, 0.0f, 1.0f);
@@ -527,8 +571,8 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     // slabs rise from there, so the tor REPLACES the top SUMMIT_TOR_HEIGHT
     // rather than being piled on top of it -- the peak stays at the ruled
     // L0_RELIEF and nothing downstream (R3, C1, the skyline budget) shifts.
-    const float tor_base = H - summit_tor_height(seed);
-    const float tor = summit_tor(seed, crag, world, tor_base);
+    const float tor_base = H - summit_tor_height(shape_seed);
+    const float tor = summit_tor(shape_seed, crag, world, tor_base);
     if (tor > -1e8f) {
         // Inside the stack: the cone is CAPPED at the tor's base and the slabs
         // stand on it, so the tor replaces the top rather than piling onto it
@@ -572,7 +616,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
     const int band_limit = static_cast<int>((H - cliffline) / std::max(band_min, 1e-3f)) + 2;
     for (int k = 0; k < band_limit; ++k) {
         const float span = band_min
-                         + noise::lattice_value(seed, STREAM_MASSIF_BAND,
+                         + noise::lattice_value(shape_seed, STREAM_MASSIF_BAND,
                                                 static_cast<int64_t>(k), 0)
                                * (band_max - band_min);
         const float hi = lo + span;
@@ -588,7 +632,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         //
         // The 0.5 split is not taste: I5 wants >= 3 cliff/bench ALTERNATIONS
         // per radial, and alternation probability p(1-p) is maximised at 0.5.
-        const bool cliff = bearing_field(seed, STREAM_MASSIF_RISER, dir, lobes, k) < 0.5f;
+        const bool cliff = bearing_field(shape_seed, STREAM_MASSIF_RISER, dir, lobes, k) < 0.5f;
         // Cliff: a flat bench holding the walkable part of the band, then a
         // steep riser. Constant OUTPUT over a range of input height is what
         // makes ground flat; a fast rise over a short range is what makes it
@@ -612,7 +656,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         // spikes and fails I4 for a reason that has nothing to do with shape.
         const float tan_bench = std::tan(
             static_cast<float>(config::MASSIF_BENCH_SLOPE_MAX)
-            * bearing_field(seed, STREAM_MASSIF_BAND, dir, lobes, k + 64));
+            * bearing_field(shape_seed, STREAM_MASSIF_BAND, dir, lobes, k + 64));
         const float squash = std::min(1.0f, tan_bench / grad);
 
         // The riser is a CLIFF FACE, so it is planar: its angle is drawn
@@ -641,7 +685,7 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world) {
         // which cancels the 1/cos weighting exactly and flattens the histogram
         // in the units the invariant actually reads. No new constant -- it is
         // the same range, sampled in the measure I4 uses.
-        const float u_r = bearing_field(seed, STREAM_MASSIF_BAND, dir, lobes, k + 128);
+        const float u_r = bearing_field(shape_seed, STREAM_MASSIF_BAND, dir, lobes, k + 128);
         const float s_lo = std::sin(riser_lo);
         const float s_hi = std::sin(riser_hi);
         const float tan_riser =
@@ -815,6 +859,62 @@ float ground_micro_relief(uint64_t seed, glm::vec2 world) {
     return amp * 0.5f * (a + b);
 }
 
+CragStamp regional_massif(const TestbedLayout& layout) {
+    CragStamp lr;
+    // NOT BUILT UNTIL NOW: LR_RELIEF, LR_BASE_RADIUS_* and LR_RIDGE_COUNT_* were
+    // approved on 09.08 and had ZERO references in the generator. §2.5's massif
+    // is the only ruled landform in this project that raises the world's whole
+    // vertical range, and the world it was ruled for measures 2-28 m of ground
+    // outside Ravenscar's own stamp.
+    //
+    // THE RADIUS IS THE BAND'S MIDPOINT, NOT A DRAW. Two reasons, both load
+    // bearing: the position below is solved FROM the radius, so a seeded radius
+    // would move the mountain; and this function must be callable from
+    // classify_surface(), which is handed a layout and no seed. L0_BASE_RADIUS
+    // is a fixed number for the same reason.
+    lr.radius = 0.5f * static_cast<float>(config::LR_BASE_RADIUS_MIN
+                                          + config::LR_BASE_RADIUS_MAX);
+    lr.peak_height = static_cast<float>(config::LR_RELIEF);
+    lr.rockline = lr.peak_height * 0.65f;
+    lr.treeline = lr.peak_height * 0.50f;
+    // ARETE COUNT IS L0's, NOT LR_RIDGE_COUNT (4-7), AND THAT IS A REPORTED
+    // CONFLICT RATHER THAN A CHOICE. §2.8 supersedes §2.5's item 5 and governs
+    // EVERY massif; on §2.8's support-polygon cross-section a near-regular
+    // n-gon's lobe ratio is capped at n*tan(pi/n)/pi = 1.27 at n=4 and 1.16 at
+    // n=5, against I8's floor of 1.35 -- so 4-7 ridges is arithmetically
+    // excluded before a seed is drawn. The 12-seed sweep that chose 3 over 4
+    // and 5 is the live measurement. LR_RIDGE_COUNT_MIN/MAX is stale and needs
+    // design to retire it.
+    lr.arete_count = static_cast<int>(config::L0_ARETE_COUNT_MIN);
+
+    // THE POSITION IS DERIVED, NOT TABLED (§7.1a). §2.5 asks for the regional
+    // massif "at least LANDMARK_HAZE_ONSET from the valley, in practice the far
+    // corner, ~1.4-1.6 km out". Both halves of that sentence come out of one
+    // construction: take the largest square the massif's own footprint fits
+    // inside, and stand it in whichever corner of that square is FARTHEST from
+    // the valley landmark. The distance is then an OUTPUT of the world's size
+    // and the mountain's own girth -- nobody picks a coordinate, and the
+    // mountain cannot be clipped by the world edge by construction.
+    const float world_m =
+        static_cast<float>(config::WORLD_EXTENT_CHUNKS) * static_cast<float>(config::CHUNK_SIZE);
+    // 1.15x the lobed footprint: the outline reaches radius*(1 + LOBE_AMP_MAX)
+    // at its widest arete, and the extra 15% keeps the talus apron inside the
+    // generated domain rather than ending at a chunk boundary.
+    const float margin = lr.radius
+                       * (1.0f + static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX)) * 1.15f;
+    float best = -1.0f;
+    for (int i = 0; i < 4; ++i) {
+        const glm::vec2 c{(i & 1) ? world_m - margin : margin,
+                          (i & 2) ? world_m - margin : margin};
+        const float d = glm::length(c - layout.crag.center);
+        if (d > best) {
+            best = d;
+            lr.center = c;
+        }
+    }
+    return lr;
+}
+
 float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) {
     if (layout.stand == StandId::Forest) {
         // §8.1: the forest stand is a different landform composition, not a
@@ -826,7 +926,28 @@ float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) 
     for (const ValleyTrough& trough : layout.troughs) {
         h = trough_shape(trough, h, world);
     }
-    h = std::max(h, massif_height(seed, layout.crag, world));
+    h = std::max(h, massif_height(seed, layout.crag, world, seed));
+    // §2.5 THE REGIONAL MASSIF. A SECOND INSTANCE OF THE SAME SHAPE OPERATOR,
+    // not an octave and not an amplitude: §2.8's banded contour massif is
+    // already an object taking a stamp, so "more big mountains" is that object
+    // instantiated again at the ruled regional size, with its own shape key.
+    //
+    // ITS NAMED CONTROL IS THE STAMP AT RADIUS 0 (Rule 30), reached through
+    // this same max(): massif_height returns 0 for any point at or beyond
+    // radius*(1+amp), which at radius 0 is every point, and max(h, 0) is what
+    // the line above already does everywhere off Ravenscar's footprint. So
+    // DFN_LR_OFF=1 is this expression with the operator at identity, bit for
+    // bit -- not a branch around it.
+    {
+        CragStamp lr = regional_massif(layout);
+        if (std::getenv("DFN_LR_OFF") != nullptr) {
+            lr.radius = 0.0f;
+        }
+        // The shape key. Without it the regional massif is Ravenscar again,
+        // scaled 2.4x -- every §2.8 field keys on (seed, stream, index) and
+        // none of them knows where its stamp stands.
+        h = std::max(h, massif_height(seed, lr, world, noise::mix64(seed ^ 0x1A55'1F2Bull)));
+    }
     h += bump_height(layout.knoll, world);
     h += bump_height(layout.bluff, world);
     h = lake_stamp(layout.lake, h, world);
@@ -839,7 +960,7 @@ bool breaks_massif_apron(uint64_t seed, const CragStamp& crag, glm::vec2 world,
     // Off the massif's own stamp there is no apron. massif_height returns 0
     // outside the lobed footprint, which is the seed's real extent rather than
     // a radius anyone chose.
-    if (massif_height(seed, crag, world) <= 0.0f) {
+    if (massif_height(seed, crag, world, seed) <= 0.0f) {
         return false;
     }
     const float cliffline = base_height(seed, crag.center)

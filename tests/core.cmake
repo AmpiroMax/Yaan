@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 14:08:2026 - 18:43:43
+# Last updated: 14:08:2026 - 20:18:30
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -56,6 +56,10 @@
 #                          a hand-built chunk has empty voxel and scatter
 #                          arrays and would pass while proving nothing about
 #                          the fields the baker exists to carry.
+# - 14:08:2026 - 20:18:30: test_mountain_horizon (the HORIZON PROFILE:
+#                          skyline elevation angle per bearing from a fixed,
+#                          unfiltered standpoint lattice -- the view-side read
+#                          of "how much mountain does this world have").
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -69,6 +73,7 @@ add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_world_format core/WorldFormatTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
+add_dfn_test(test_mountain_horizon core/MountainHorizonTests.cpp dfn_world)
 add_dfn_test(test_great_oak core/GreatOakTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)
 add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
