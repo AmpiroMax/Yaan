@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:43:03
-Last updated: 14:08:2026 - 16:48:45
+Last updated: 14:08:2026 - 19:14:02
 Module: engine/app
 File: engine/app/sources/ChatLog.cpp
 
@@ -20,6 +20,9 @@ UPD:
 - 14:08:2026 - 16:43:03: Created.
 - 14:08:2026 - 16:48:45: Rewrote to the MAP_LAYOUT.md JSONL contract; added the
   stand->map bridge and JSON string escaping.
+- 14:08:2026 - 19:14:02: Столбец `capture` в выгрузке кольца (и в шапке-легенде):
+  снимок оставляет в трейсе ориентир. Пустое значение пишется как «-», как и у
+  соседнего aim, — читателю столбцов нужен непустой токен, иначе колонки едут.
 */
 
 #include "engine/app/sources/ChatLog.h"
@@ -212,7 +215,7 @@ bool TelemetryRing::flush(const std::string& path) const {
                  "# Daggerfall N telemetry ring -- the last %zu samples, oldest first.\n"
                  "# Sampled on the counted clock; render columns (tris, aim) are 0/empty\n"
                  "# until a render hook fills them.\n"
-                 "# game_s pos_x pos_y pos_z yaw pitch fps frame_ms chunks lod tris aim\n",
+                 "# game_s pos_x pos_y pos_z yaw pitch fps frame_ms chunks lod tris aim capture\n",
                  count_);
     // Oldest-first: when the ring has wrapped, the oldest live sample sits at
     // `next_`; before it wraps, the oldest is index 0.
@@ -220,13 +223,14 @@ bool TelemetryRing::flush(const std::string& path) const {
     for (size_t i = 0; i < count_; ++i) {
         const TelemetrySample& s = buf_[(start + i) % capacity_];
         std::fprintf(f,
-                     "%.6f %.3f %.3f %.3f %.5f %.5f %.2f %.3f %u %u %u %s\n",
+                     "%.6f %.3f %.3f %.3f %.5f %.5f %.2f %.3f %u %u %u %s %s\n",
                      s.game_seconds, static_cast<double>(s.position.x),
                      static_cast<double>(s.position.y), static_cast<double>(s.position.z),
                      static_cast<double>(s.yaw), static_cast<double>(s.pitch),
                      static_cast<double>(s.fps), static_cast<double>(s.frame_ms),
                      s.chunks_resident, s.lod_nodes, s.triangles,
-                     s.aim_target.empty() ? "-" : s.aim_target.c_str());
+                     s.aim_target.empty() ? "-" : s.aim_target.c_str(),
+                     s.capture.empty() ? "-" : s.capture.c_str());
     }
     std::fclose(f);
     std::fprintf(stderr, "[telemetry] flushed %zu samples to %s\n", count_, path.c_str());

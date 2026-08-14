@@ -118,7 +118,7 @@ debug.loco.ground=земля
 debug.loco.wade=вброд
 debug.loco.swim=вплавь
 debug.loco.unknown=среда?
-debug.hint.capture=3 — снимок состояния
+debug.hint.capture=3 — снимок состояния, 5 — снимок экрана в чат
 
 # Экран калибровки яркости (просьба пользователя: «как в скайриме/думе»)
 menu.calibrate=Яркость

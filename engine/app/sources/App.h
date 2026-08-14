@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 18:03:08
+Last updated: 14:08:2026 - 19:14:02
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -60,6 +60,7 @@ UPD:
 - 14:08:2026 - 17:36:02: Поля/методы чата, телеметрии и записи/повтора траектории (В28/O-серия): chat_pending_/chat_pending_entry_, write_pending_chat()+chat_path_for_current_map() (путь из current_manifest()), TelemetryRing telemetry_, TrajectoryRecorder/Player (O3). Включены ChatLog.h и TrajectoryRecord.h.
 - 14:08:2026 - 17:51:15: Поле wireframe_ (клавиша 4/F4, каркас В28). Оверлеи редактора читают renderer_->frame_stats()/center_pick() напрямую.
 - 14:08:2026 - 18:03:08: ChatOverlay chat_overlay_ (живое окно чата, В28) + include ChatOverlay.h. Открытие '/', ввод text_input(), Enter — отправка через write_pending_chat.
+- 14:08:2026 - 19:14:02: Поля двери снимка (shot_after_frames_/_seen_) рядом с capture_after_*: та же единица счёта и тот же довод — кадры сравнимы побитово, стенные секунды нет. Отдельного флага закрытия не заведено, переиспользован chat_then_close_: снимок клавиши 5 И ЕСТЬ запись чата, значит и выключение то же.
 */
 
 #pragma once
@@ -244,6 +245,13 @@ private:
     uint64_t capture_after_frames_ = 0;
     uint64_t capture_after_frames_seen_ = 0;
     bool capture_then_close_ = false;
+    // DFN_SHOT_AFTER=<frames>: the dose door for the key-5 screenshot. Counted
+    // in frames for the same reason its neighbour above is -- a wall second
+    // holds a different number of frames on a loaded machine, so two runs of
+    // one recipe would not be comparable. It reuses chat_then_close_ to exit:
+    // the shot IS a chat entry, so it is the same shutdown.
+    uint64_t shot_after_frames_ = 0;
+    uint64_t shot_after_frames_seen_ = 0;
     int close_after_flush_ = 0; // frames to keep running so the PNG lands
     // FRAME LOG (DFN_FRAME_LOG=<path>) -- one line per PRESENTED frame, written
     // live, with no readback, no settle and no cooldown.

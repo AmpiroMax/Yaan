@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 18:57:57
+Last updated: 14:08:2026 - 19:14:02
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -120,6 +120,7 @@ UPD:
 - 14:08:2026 - 17:51:15: Дверь снимка браузера + оверлеи В28. (1) DFN_MENU_PAGE/DFN_MENU_SHOT принудительно ПОКАЗЫВАЮТ меню в init (регрессия: их снова затянуло в menu-skip через unattended_run(); дверь снимка меню должна меню показать, а не пропустить) — теперь снимаются categories/category_maps/pause/calibrate/settings без клавиатуры; +ветка category_maps (второй уровень) и предохранитель-комментарий у unattended_run(). (2) Оверлеи редактора: frame_stats() (scene_triangles + backend_draws), center_pick() под прицелом (треугольники выбранного LOD + дистанция; id — когда render застемпит pick_id), каркас по клавише 4/F4 + дверь DFN_WIREFRAME=1. Штамп pick_id=EntityId — за render (их сабмиттер, зона engine/render); HUD поверх каркаса render не композитит (present пропущен) — вынесено им.
 - 14:08:2026 - 18:03:08: ЖИВОЙ ЧАТ-ОВЕРЛЕЙ (В28, вторым коммитом поверх дебаг-оверлеев editor'а). Окно ввода открывается клавишей '/' (Enter уже роняет снимок, 4/F4 — каркас editor'а, T — часы), печать через input_->text_input() (UTF-8/кириллица), Backspace удаляет целый символ, Enter ОТПРАВЛЯЕТ (замечание + снимок кадра через тот же write_pending_chat), Escape закрывает. Пока окно открыто, оно ЗАБИРАЕТ КЛАВИАТУРУ: физические клавиши всё равно шлют was_pressed(), поэтому все игровые клавиши и движение под флагом !chat_typing, иначе набор сообщения переключал бы вид/каркас/карту и водил камеру. Оверлей ChatOverlay рисуется последним в HUD-блоке.
 - 14:08:2026 - 18:57:57: РАЗВЕДЕНЫ ДВА ОВЕРЛЕЯ, ДЕЛИВШИЕ ОДИН УГОЛ (жалоба пользователя: «накладывается телеметрия рыжая с текстом трисс и та что открывается по кнопке 2»). Отладочный вывод рисуется в (3,3), блок редактора был прибит в (4,4): каждый верен поодиночке, вместе нечитаемы, а оба сразу — это РАБОЧИЙ режим пользователя, а не редкий случай. Блок переехал ПОД вывод, и координата берётся из debug_overlay_bottom_y(), а не из литерала: высота вывода непостоянна (в воде он на строку выше), поэтому прибитый отступ был бы той же ошибкой с задержкой. Сама компоновка строк вынесена в engine/app/sources/EditorHud.{h,cpp} — и это не уборка: App.cpp держит окно, поэтому НИЧТО, собранное здесь, не может быть измерено тестом, и наложение прожило ровно столько, сколько не было прибора. Тексты строк перенесены дословно, чтобы правка осталась чисто геометрической. Дверь дозы DFN_EDITOR_HUD_PINNED=1 возвращает блок в старый угол — обе руки приёмки из ОДНОГО бинарника (правило 47).
+- 14:08:2026 - 19:14:02: КЛАВИША 5 — СНИМОК ЭКРАНА (просьба пользователя: «я хочу чтобы был скриншот... по нажатию кнопки 5... он должен к чату добавляться и трейсам»). Снимается ФРЕЙМБУФЕР как он показан — вместе с оверлеями, потому что HUD в него скомпонован, — а не экран ОС. И ПОПРАВКА К ПОСЫЛКЕ ЗАДАЧИ, проверенная, а не принятая на слово: клавиша 3 никогда не снимала «только состояние» — write_capture с самого начала пишет .png через save_screenshot ПЛЮС сайдкар .txt; кадры приёмки этой правки сами это доказывают. Реально не хватало не второго конвейера снимков, а трёх вещей: самой клавиши, попадания снимка в ТРЕЙС и двери дозы. Поэтому клавиша 5 идёт по СУЩЕСТВУЮЩЕМУ пути (правило 32): те же write_pending_chat/write_capture, что и у замечания по Enter, — разница только в том, что человек имел в виду (Enter — «замечание, вот кадр»; 5 — «вот этот кадр, без слов»). Ориентир в трейсе положен в write_capture, а не рядом с клавишей: снимки делают ЧЕТЫРЕ пути (3, 5, замечание, двери), и трейс, знающий про один из них, отвечал бы на «был ли снят этот момент» верно для одного и неверно для трёх. Дверь дозы DFN_SHOT_AFTER=<кадров> — в кадрах, а не в секундах (стенная секунда вмещает разное число кадров на загруженной машине), считается в unattended_run(), ноль отвергается вслух; закрытие переиспользует chat_then_close_. Приёмка: чат и строка трейса называют ОДИН момент (t = game_s = 865.500000), контроль с закрытой дверью строки чата не добавляет.
 */
 
 #include "engine/app/sources/App.h"
@@ -232,6 +233,7 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
            || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
            || std::getenv("DFN_CAPTURE_AFTER") != nullptr
            || std::getenv("DFN_CAPTURE_AFTER_FRAMES") != nullptr
+           || std::getenv("DFN_SHOT_AFTER") != nullptr
            || std::getenv("DFN_BODY_PROBE") != nullptr
            || std::getenv("DFN_MENU_SHOT") != nullptr
            || std::getenv("DFN_HUD_PROBE") != nullptr
@@ -644,6 +646,28 @@ bool App::init(const AppConfig& config) {
                          "frame count -- REFUSING to run, because a door that "
                          "silently does nothing is worse than no door\n",
                          cf);
+            return false;
+        }
+    }
+
+    // THE DOSE DOOR FOR THE SCREENSHOT KEY (DFN_SHOT_AFTER=<frames>). Key 5 is
+    // reachable only by a human hand, and a feature only a hand can reach is a
+    // feature nobody can prove works (Rule 27) -- so the same act is available
+    // without one, and the acceptance run checks all three artifacts it is
+    // supposed to leave: the .png, the chat line carrying "capture", and the
+    // capture column in the flushed trace.
+    //
+    // REFUSES A ZERO OUT LOUD, like its neighbour above and for the reason that
+    // neighbour records: a door that silently does nothing produces a run that
+    // is indistinguishable from a run where the feature is broken.
+    if (const char* sf = std::getenv("DFN_SHOT_AFTER"); sf != nullptr) {
+        shot_after_frames_ = std::strtoull(sf, nullptr, 10);
+        if (shot_after_frames_ == 0) {
+            std::fprintf(stderr,
+                         "[shot] DFN_SHOT_AFTER=\"%s\" is not a positive frame "
+                         "count -- REFUSING to run, because a door that silently "
+                         "does nothing is worse than no door\n",
+                         sf);
             return false;
         }
     }
@@ -1763,6 +1787,30 @@ void App::write_capture(const DebugSnapshot& snap) {
     // manager.
     std::fprintf(stderr, "[capture] %s.png + .txt\n%s", base.c_str(), text.c_str());
     ++captures_written_;
+
+    // A LANDMARK IN THE TRACE, and it is written HERE rather than beside the
+    // key that asked for it (Rule 32). Four things take captures -- key 3, key
+    // 5, a chat remark, and the DFN_* doors -- and a trace that only knew about
+    // one of them would answer "was this moment shot?" correctly for that one
+    // and wrongly for the other three. The ring is the editor's; in Playing it
+    // is empty and this costs a branch.
+    //
+    // The sample carries THIS moment's pose, not an interpolated one: it is
+    // built from the same snapshot the .txt sidecar was written from, so the
+    // trace line, the image and the state file all name one frame.
+    if (mode_ == AppMode::Editor) {
+        TelemetrySample t;
+        t.game_seconds = snap.game_seconds;
+        t.position = snap.position;
+        t.yaw = snap.yaw;
+        t.pitch = snap.pitch;
+        t.fps = snap.fps;
+        t.frame_ms = snap.frame_ms;
+        t.chunks_resident = snap.chunks_resident;
+        t.lod_nodes = snap.lod_nodes;
+        t.capture = base + ".png";
+        telemetry_.push(t);
+    }
 }
 
 std::string App::chat_path_for_current_map() const {
@@ -2270,6 +2318,26 @@ int App::run() {
             wireframe_ = !wireframe_;
             renderer_->set_wireframe(wireframe_);
         }
+        // SCREENSHOT (key 5, the user's request: "я хочу чтобы был скриншот... по
+        // нажатию кнопки 5... он должен к чату добавляться и трейсам"). It is
+        // the FRAMEBUFFER as presented -- overlays and all, since the HUD is
+        // composited into it -- not an OS screen grab, and it lands in three
+        // places: a .png beside its state sidecar, a line in the map's chat
+        // carrying "capture", and a landmark row in the telemetry trace.
+        //
+        // IT ROUTES THROUGH THE EXISTING PATH ON PURPOSE (Rule 32). The Enter
+        // remark already wrote a frame and attached it to the chat; a second
+        // screenshot pipeline beside it would be two things to keep correct and
+        // two places for the file naming to drift. The difference between the
+        // two keys is what the human MEANT -- Enter is "a remark, here is the
+        // frame", 5 is "this frame, no words" -- and the trace landmark now
+        // comes from write_capture, so it is attached to both.
+        if (!chat_typing && (mode_ == AppMode::Playing || mode_ == AppMode::Editor)
+            && input_->was_pressed(platform::Key::NUM_5)) {
+            chat_pending_entry_ = ChatEntry{};
+            chat_pending_entry_.who = "human";
+            chat_pending_ = true;
+        }
         // QUICK CHAT SNAPSHOT (Enter, window CLOSED). Enter drops the current
         // frame's capture into the active map's chat as a human remark with no
         // text -- a one-key "look at this" that the player can annotate in the
@@ -2323,6 +2391,24 @@ int App::run() {
                 capture_pending_ = true;
                 capture_after_s_ = 0.0;
                 capture_then_close_ = true;
+            }
+        }
+        // THE DOSE DOOR FOR KEY 5 (DFN_SHOT_AFTER=<frames>), and it exists for
+        // the same reason DFN_CAPTURE_AFTER does: a feature only a human hand
+        // can reach is a feature nobody can prove works. Counted in FRAMES
+        // rather than seconds so two runs of one recipe are comparable bit for
+        // bit -- a wall second fits a different number of frames on a loaded
+        // machine, which is the defect DFN_CAPTURE_AFTER_FRAMES was added for.
+        // Fires once, then closes the app, so the run's artifacts are complete
+        // when it exits: the .png, the chat line and the flushed trace.
+        if (shot_after_frames_ > 0) {
+            ++shot_after_frames_seen_;
+            if (shot_after_frames_seen_ >= shot_after_frames_) {
+                chat_pending_entry_ = ChatEntry{};
+                chat_pending_entry_.who = "human";
+                chat_pending_ = true;
+                shot_after_frames_ = 0;
+                chat_then_close_ = true; // the existing flag: the shot IS a chat entry
             }
         }
         // ...and the same door counted in frames, which IS comparable bit for
