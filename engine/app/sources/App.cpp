@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 17:51:15
+Last updated: 14:08:2026 - 18:03:08
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -118,6 +118,7 @@ UPD:
 - 14:08:2026 - 16:50:36: БРАУЗЕР КАРТ (контракт docs/MAP_LAYOUT.md). Вход в Играть и в Редактор открывает не карту, а браузер: категории (папки) → карты (.map) → открыть — прыжок сразу в карту был названной ошибкой первого каркаса. Каталог сканируется из assets/maps (MapCatalog), меню его только читает. open_map() разрешает source: stand:Testbed/Forest грузит стенд (мост до пекаря), dfw:<файл> — честная ошибка на экран (пекаря нет). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (не DFN_MAP — то занято render'ом), DFN_EDITOR=1 без карты открывает браузер редактора. current_manifest() — сим для зоны chat (путь чата из category/file_stem). Плюс погашена призрачная подсказка «Открыть» в редакторе (hover заморожённого игрока — у летящего глаза нет взаимодействия).
 - 14:08:2026 - 17:36:02: ЧАТ+СНИМОК+ТЕЛЕМЕТРИЯ+ЗАПИСЬ/ПОВТОР (В28/O-серия). Чат — JSONL-лог рядом с картой (путь из current_manifest(): assets/maps/<category>/<file_stem>.chat.jsonl): Enter роняет снимок кадра замечанием, дверь DFN_CHAT_MSG="text" (+DFN_CHAT_WHO=<zone> для самодок демки, O1) пишет запись и закрывается. Снимок ПЕРЕИСПОЛЬЗУЕТ существующий DFN_CAPTURE/write_capture. Телеметрия (item 3): кольцо TELEMETRY_LOG_HZ/_RING_SAMPLES по счётным часам, только в редакторе (В39), сброс в <карта>.telemetry.log на выходе. O3: запись позы/game_seconds/fov по кадрам (TrajectoryRecord, бинарный секционный формат на core BinaryWriter/Reader), детерминированный повтор — камера и счётные часы из файла, два проигрывания бит-в-бит (правило 53); клавиши R/P в редакторе, двери DFN_TRAJ_REC/DFN_TRAJ_PLAY. Резолвер чат-пути на current_manifest() editor'а. Живой ввод (text_input()) — следующим коммитом (полировка оверлея).
 - 14:08:2026 - 17:51:15: Дверь снимка браузера + оверлеи В28. (1) DFN_MENU_PAGE/DFN_MENU_SHOT принудительно ПОКАЗЫВАЮТ меню в init (регрессия: их снова затянуло в menu-skip через unattended_run(); дверь снимка меню должна меню показать, а не пропустить) — теперь снимаются categories/category_maps/pause/calibrate/settings без клавиатуры; +ветка category_maps (второй уровень) и предохранитель-комментарий у unattended_run(). (2) Оверлеи редактора: frame_stats() (scene_triangles + backend_draws), center_pick() под прицелом (треугольники выбранного LOD + дистанция; id — когда render застемпит pick_id), каркас по клавише 4/F4 + дверь DFN_WIREFRAME=1. Штамп pick_id=EntityId — за render (их сабмиттер, зона engine/render); HUD поверх каркаса render не композитит (present пропущен) — вынесено им.
+- 14:08:2026 - 18:03:08: ЖИВОЙ ЧАТ-ОВЕРЛЕЙ (В28, вторым коммитом поверх дебаг-оверлеев editor'а). Окно ввода открывается клавишей '/' (Enter уже роняет снимок, 4/F4 — каркас editor'а, T — часы), печать через input_->text_input() (UTF-8/кириллица), Backspace удаляет целый символ, Enter ОТПРАВЛЯЕТ (замечание + снимок кадра через тот же write_pending_chat), Escape закрывает. Пока окно открыто, оно ЗАБИРАЕТ КЛАВИАТУРУ: физические клавиши всё равно шлют was_pressed(), поэтому все игровые клавиши и движение под флагом !chat_typing, иначе набор сообщения переключал бы вид/каркас/карту и водил камеру. Оверлей ChatOverlay рисуется последним в HUD-блоке.
 */
 
 #include "engine/app/sources/App.h"
@@ -2154,6 +2155,37 @@ int App::run() {
                                    static_cast<float>(fb.x) / static_cast<float>(fb.y),
                                    camera_.near_plane(), camera_.far_plane());
         }
+        // CHAT OVERLAY (В28): the typed-chat window. Opened with '/' -- Enter
+        // already drops a snapshot, 4/F4 are the editor's wireframe, and T is the
+        // time scale, so none of those is free. WHILE THE WINDOW IS OPEN IT EATS
+        // THE KEYBOARD: the physical keys still fire was_pressed() even as
+        // text_input() collects the codepoints, so every gameplay key and the
+        // movement below is guarded by !chat_typing -- otherwise typing a message
+        // would toggle third person, drop snapshots and steer the camera. Enter
+        // SENDS (a remark with the frame's snapshot attached, through the same
+        // write_pending_chat the DFN_CHAT_MSG door uses); Escape closes.
+        const bool chat_typing = chat_overlay_.is_open();
+        if (chat_typing) {
+            chat_overlay_.feed_text(input_->text_input());
+            if (input_->was_pressed(platform::Key::BACKSPACE)) {
+                chat_overlay_.backspace();
+            }
+            if (input_->was_pressed(platform::Key::ENTER)
+                && !chat_overlay_.input_empty()) {
+                chat_overlay_.push_history("you", chat_overlay_.input());
+                chat_pending_entry_ = ChatEntry{};
+                chat_pending_entry_.who = "human";
+                chat_pending_entry_.text = chat_overlay_.take_input();
+                chat_pending_ = true; // serviced after render(): attaches the snapshot
+            }
+            if (input_->was_pressed(platform::Key::ESCAPE)) {
+                chat_overlay_.close();
+            }
+        } else if ((mode_ == AppMode::Playing || mode_ == AppMode::Editor)
+                   && input_->was_pressed(platform::Key::SLASH)) {
+            chat_overlay_.open();
+        }
+
         // ESC pauses. Cursor is released so the pointer is usable, and the
         // world stops ticking because Menu mode skips the whole simulation.
         //
@@ -2164,7 +2196,7 @@ int App::run() {
         // survived review because each half is correct on its own; only the
         // pair is wrong, which is why the fix is deleting a handler rather
         // than reordering them (Rule 32).
-        if (input_->was_pressed(platform::Key::ESCAPE)) {
+        if (!chat_typing && input_->was_pressed(platform::Key::ESCAPE)) {
             if (render_system_.map_open()) {
                 render_system_.set_map_open(false);
             } else {
@@ -2179,7 +2211,7 @@ int App::run() {
         // eyes, in the same field"). From the editor it possesses the player at
         // the free camera; from Playing it lifts back out into the free camera
         // at the current eye. A no-op in any other mode by construction.
-        if (input_->was_pressed(platform::Key::TAB)) {
+        if (!chat_typing && input_->was_pressed(platform::Key::TAB)) {
             if (mode_ == AppMode::Editor) {
                 become_player_from_editor();
                 input_->set_cursor_captured(!unattended_run());
@@ -2199,7 +2231,8 @@ int App::run() {
         // 3 the state capture. F3/F2 stay as aliases -- they are in the frames
         // and recipes already archived, and silently moving a key would make
         // every recipe on disk wrong.
-        if (mode_ == AppMode::Playing && input_->was_pressed(platform::Key::NUM_1)) {
+        if (!chat_typing && mode_ == AppMode::Playing
+            && input_->was_pressed(platform::Key::NUM_1)) {
             third_person_ = !third_person_;
             orbit_yaw_ = 0.0f;
             orbit_pitch_ = 0.0f;
@@ -2216,29 +2249,32 @@ int App::run() {
                 }
             }
         }
-        if (input_->was_pressed(platform::Key::NUM_2)
-            || input_->was_pressed(platform::Key::F3)) {
+        if (!chat_typing
+            && (input_->was_pressed(platform::Key::NUM_2)
+                || input_->was_pressed(platform::Key::F3))) {
             debug_overlay_ = !debug_overlay_;
         }
-        if (input_->was_pressed(platform::Key::NUM_3)
-            || input_->was_pressed(platform::Key::F2)) {
+        if (!chat_typing
+            && (input_->was_pressed(platform::Key::NUM_3)
+                || input_->was_pressed(platform::Key::F2))) {
             capture_pending_ = true;
         }
         // WIREFRAME (В28), key 4 / F4. A whole-scene toggle straight to the
         // backend; works in both modes but is aimed at the editor's "why is this
         // object so heavy" question. set_wireframe is a no-op cost when off.
-        if (input_->was_pressed(platform::Key::NUM_4)
-            || input_->was_pressed(platform::Key::F4)) {
+        if (!chat_typing
+            && (input_->was_pressed(platform::Key::NUM_4)
+                || input_->was_pressed(platform::Key::F4))) {
             wireframe_ = !wireframe_;
             renderer_->set_wireframe(wireframe_);
         }
-        // CHAT (the user named Enter/T). Enter drops the current frame's capture
-        // into the active map's chat as a human remark. Live Russian TYPING of
-        // the message is the follow-up overlay commit (input_->text_input() now
-        // exists); until then the remark's text is filled in the file. Menu mode
-        // is handled earlier and never reaches here, so Enter keeps its menu
-        // meaning there.
-        if ((mode_ == AppMode::Playing || mode_ == AppMode::Editor)
+        // QUICK CHAT SNAPSHOT (Enter, window CLOSED). Enter drops the current
+        // frame's capture into the active map's chat as a human remark with no
+        // text -- a one-key "look at this" that the player can annotate in the
+        // file, or send with text by opening the window ('/') and typing (which
+        // is the branch above; Enter there SENDS). Guarded by !chat_typing so
+        // the two Enter roles never collide. Menu mode is handled earlier.
+        if (!chat_typing && (mode_ == AppMode::Playing || mode_ == AppMode::Editor)
             && input_->was_pressed(platform::Key::ENTER)) {
             chat_pending_entry_ = ChatEntry{};
             chat_pending_entry_.who = "human";
@@ -2249,7 +2285,8 @@ int App::run() {
         // .dftraj and remembers it; P replays that last recording. The
         // deterministic, bit-for-bit-checkable paths are the DFN_TRAJ_REC /
         // DFN_TRAJ_PLAY doors (Rule 27); these keys are the human's version.
-        if (mode_ == AppMode::Editor && input_->was_pressed(platform::Key::R)) {
+        if (!chat_typing && mode_ == AppMode::Editor
+            && input_->was_pressed(platform::Key::R)) {
             if (traj_rec_.active()) {
                 char stem[64];
                 std::snprintf(stem, sizeof(stem), "/trajectory_%03d.dftraj",
@@ -2263,8 +2300,8 @@ int App::run() {
                 traj_rec_.begin(active_stand_, 1u);
             }
         }
-        if (mode_ == AppMode::Editor && input_->was_pressed(platform::Key::P)
-            && !traj_last_path_.empty()) {
+        if (!chat_typing && mode_ == AppMode::Editor
+            && input_->was_pressed(platform::Key::P) && !traj_last_path_.empty()) {
             TrajectoryPlayer pl;
             if (pl.load(traj_last_path_)) {
                 traj_play_then_close_ = false; // interactive replay just stops
@@ -2297,7 +2334,7 @@ int App::run() {
                 capture_then_close_ = true;
             }
         }
-        if (input_->was_pressed(platform::Key::M)) {
+        if (!chat_typing && input_->was_pressed(platform::Key::M)) {
             render_system_.toggle_map();
             // Free the cursor while the map is up: mouse-look under a fullscreen
             // plate spins the world behind it for no reason.
@@ -2317,7 +2354,7 @@ int App::run() {
         // is withheld (the !editor guard on the look block) and the frame is
         // drawn from this pose instead of the player's CameraPose.
         const bool editor = mode_ == AppMode::Editor;
-        if (editor) {
+        if (editor && !chat_typing) { // typing must not fly the free camera
             editor_cam_.update(*input_, static_cast<float>(frame_dt));
         }
 
@@ -2343,7 +2380,7 @@ int App::run() {
 
         // In-game clock (в67): DAY_LENGTH_SECONDS per day, with a debug key that
         // runs it DEBUG_TIME_SCALE faster so shadows can be watched sweeping.
-        const double time_scale = input_->is_down(platform::Key::T)
+        const double time_scale = (input_->is_down(platform::Key::T) && !chat_typing)
                                       ? static_cast<double>(config::DEBUG_TIME_SCALE)
                                       : 1.0;
         // THE TOUR RUNS ON A COUNTED CLOCK, NOT A WALL CLOCK, and this is the
@@ -2418,7 +2455,7 @@ int App::run() {
             render_system_.environment().ambient_darkness = chunks_.darkness_at(t->position);
         }
 
-        if (!playtest_ && !editor) {
+        if (!playtest_ && !editor && !chat_typing) { // typing must not walk/turn
             // THIRD-PERSON ORBIT (his request, and the Skyrim rule he named):
             // standing still, the mouse swings the camera AROUND the character
             // and the character does not turn; moving, the camera locks behind
@@ -3009,6 +3046,9 @@ int App::run() {
                 render::draw_text(hud, 4, y3, l3, ink, true);
                 any = true;
             }
+            // THE CHAT WINDOW draws last so it sits over everything else on the
+            // HUD (it is the thing the player is interacting with when it is up).
+            any = chat_overlay_.draw(hud) || any;
             render_system_.set_hud_visible(any);
         }
 

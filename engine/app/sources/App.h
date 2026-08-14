@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 17:51:15
+Last updated: 14:08:2026 - 18:03:08
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -59,12 +59,14 @@ UPD:
 - 14:08:2026 - 16:50:36: Браузер карт (контракт docs/MAP_LAYOUT.md): MapCatalog + current_manifest() (сим для зоны chat — путь чата из category/file_stem). Вход в Играть/Редактор открывает браузер; open_map() разрешает source (stand:/dfw:). Двери: DFN_OPEN_MAP=<кат>/<карта> грузит карту минуя браузер (взамен прежней DFN_EDITOR-в-мир; DFN_MAP занят render'ом), DFN_EDITOR=1 без карты открывает браузер редактора.
 - 14:08:2026 - 17:36:02: Поля/методы чата, телеметрии и записи/повтора траектории (В28/O-серия): chat_pending_/chat_pending_entry_, write_pending_chat()+chat_path_for_current_map() (путь из current_manifest()), TelemetryRing telemetry_, TrajectoryRecorder/Player (O3). Включены ChatLog.h и TrajectoryRecord.h.
 - 14:08:2026 - 17:51:15: Поле wireframe_ (клавиша 4/F4, каркас В28). Оверлеи редактора читают renderer_->frame_stats()/center_pick() напрямую.
+- 14:08:2026 - 18:03:08: ChatOverlay chat_overlay_ (живое окно чата, В28) + include ChatOverlay.h. Открытие '/', ввод text_input(), Enter — отправка через write_pending_chat.
 */
 
 #pragma once
 
 #include "engine/anim/sources/Rig.h"
 #include "engine/app/sources/ChatLog.h"
+#include "engine/app/sources/ChatOverlay.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
 #include "engine/app/sources/TrajectoryRecord.h"
@@ -266,6 +268,9 @@ private:
     bool chat_pending_ = false;
     ChatEntry chat_pending_entry_{};
     bool chat_then_close_ = false;       // the DFN_CHAT_MSG verification door closes
+    // The typed-chat window (В28): opened with '/', it captures the keyboard for
+    // live UTF-8 input; Enter sends (through write_pending_chat), Escape closes.
+    ChatOverlay chat_overlay_;
     // TELEMETRY RING (item 3): sampled on the COUNTED clock in the editor and
     // flushed beside the map on stop. In-game stays light (В39: no continuous
     // log). Constructed in App() from config::TELEMETRY_RING_SAMPLES.
