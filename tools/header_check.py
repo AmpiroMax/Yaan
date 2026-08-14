@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 11:08:2026 - 13:59:10
+# Last updated: 14:08:2026 - 16:45:00
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -54,6 +54,7 @@
 #                          побайтно, и дописанный руками заголовок делает файл уже не тем,
 #                          что было измерено. Та же причина, по которой пропускаются
 #                          captures/ и playtest_test_artifacts/.
+# - 14:08:2026 - 16:45:00: assets/maps/ добавлена в SKIP_PATH_RES — раскладка карт/демок (docs/MAP_LAYOUT.md): .map манифесты, .chat.jsonl, .gitkeep. Это ДАННЫЕ конвейера карт, не исходники; контракт живёт в doc, не в пофайловом заголовке.
 
 from __future__ import annotations
 
@@ -101,6 +102,11 @@ def _skip_parts(parts: tuple[str, ...]) -> bool:
 SKIP_PATH_RES = (
     re.compile(r"^games/[^/]+/(assets|save|logs|screenshots)/"),
     re.compile(r"^tests/golden/"),
+    # assets/maps/ holds DATA authored by the map pipeline, not source code:
+    # .map manifests, .chat.jsonl sidecars, .gitkeep markers. See
+    # docs/MAP_LAYOUT.md. The contract for these files lives in that doc, not
+    # in a per-file header the format cannot carry.
+    re.compile(r"^assets/maps/"),
 )
 # Extensions excluded because the format cannot carry a leading source-header comment
 # (binary, strict JSON, model weights) or is generated output.

@@ -1,0 +1,6 @@
+name = Лес (стенд флоры)
+zone = flora
+size_chunks = 4
+source = stand:Forest
+description = Плотный лес — рабочий стенд зоны флоры.
+built_commit =

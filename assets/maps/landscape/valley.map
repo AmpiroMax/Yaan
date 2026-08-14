@@ -1,0 +1,6 @@
+name = Долина у скалы-храма
+zone = terrain
+size_chunks = 4
+source = stand:Testbed
+description = Базовый ландшафт: долина, скала-храм, деревни, вода.
+built_commit =
