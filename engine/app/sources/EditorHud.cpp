@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 19:05:56
+Last updated: 14:08:2026 - 19:39:08
 Module: engine/app
 File: engine/app/sources/EditorHud.cpp
 
@@ -24,6 +24,10 @@ UPD:
   весь кадр или один объект под прицелом — и где дистанция. Числительное после
   существительного не по вкусу, а из-за русской счётной формы: «%d треугольник»
   сломался бы на 2 и на 5.
+- 14:08:2026 - 19:39:08: Инверсия штампа pick_id на строке прицела. Сентинел 0
+  (рельеф, небо, узлы LOD сабмитятся без имени) не показывается ВОВСЕ — это
+  обычный случай, прицел большую часть времени стоит на земле, и «объект 0»
+  назвал бы настоящий слот, на который никто не смотрит.
 */
 
 #include "engine/app/sources/EditorHud.h"
@@ -75,6 +79,14 @@ constexpr int PLATE_PAD = 3; // draw_text_plate's default
 }
 
 } // namespace
+
+bool aim_entity_index(uint32_t pick_id, uint32_t& out_index) {
+    if (pick_id == 0) {
+        return false; // the contract's "unnamed": not an entity at all
+    }
+    out_index = pick_id - 1u;
+    return true;
+}
 
 int editor_hud_row_h() { return render::FONT_CELL_H + 2; }
 
@@ -141,8 +153,9 @@ std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap,
         // that is not the one being looked at.
         std::string id_full;
         std::string id_short;
-        if (snap.aim_pick_id != 0) {
-            const std::string id = std::to_string(snap.aim_pick_id);
+        uint32_t index = 0;
+        if (aim_entity_index(snap.aim_pick_id, index)) {
+            const std::string id = std::to_string(index);
             id_full = "   " + loc_str("editor.hud.object") + " " + id;
             id_short = "   #" + id;
         }

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 19:05:56
+Last updated: 14:08:2026 - 19:39:08
 Module: tests/app
 File: tests/app/EditorHudTests.cpp
 
@@ -39,6 +39,10 @@ UPD:
   Контроль обязателен и он неочевиден: короткие формы существуют, поэтому набор,
   проверяющий только 640, зелен и для модуля, который сокращает ВСЕГДА. Поэтому
   те же числа спрашиваются ещё и на 320 и обязаны вернуться сокращёнными.
+- 14:08:2026 - 19:39:08: Случай про номер объекта. Проверяется и сама инверсия, и
+  СТРОКА, которую рисует кадр: верный обратный ход в отрыве ничего не значит,
+  если строка по-прежнему форматирует сырое поле. Контроль — сентинел: объект
+  не показывается вовсе, а не показывается неправильно.
 */
 
 #include <doctest/doctest.h>
@@ -287,4 +291,50 @@ TEST_CASE("fits_width narrows by measuring, and only when it must") {
     const int exact = dfn::render::text_width_px(long_line) + 2 * dfn::render::FONT_CELL_W;
     CHECK(dfn::app::fits_width(exact, long_line, short_line) == long_line);
     CHECK(dfn::app::fits_width(exact - 1, long_line, short_line) == short_line);
+}
+
+TEST_CASE("the object number under the crosshair is the entity, not the stamp") {
+    REQUIRE(strings().loaded);
+
+    // engine/render stamps pick_id = EntityId.index + 1 so that entity slot 0 --
+    // a real slot -- cannot collide with the contract's "0 = unnamed" sentinel.
+    // The overlay printed the stamp raw, so every object in the world was named
+    // one higher than it is. Nothing about that looks wrong on screen, which is
+    // exactly why it needed a test rather than a second pair of eyes.
+    uint32_t index = 0;
+    CHECK(dfn::app::aim_entity_index(1u, index));
+    CHECK(index == 0u); // THE SLOT THE +1 EXISTS FOR: stamp 1 is entity 0
+    CHECK(dfn::app::aim_entity_index(43u, index));
+    CHECK(index == 42u);
+
+    // THE SENTINEL IS NOT AN ENTITY. Terrain, sky and the LOD nodes all submit
+    // unnamed, and this is the case that must not return a number at all --
+    // under-flowing to 4294967295 or naming slot 0 would both be a confident
+    // lie about something nobody is looking at.
+    index = 12345u;
+    CHECK_FALSE(dfn::app::aim_entity_index(0u, index));
+    CHECK(index == 12345u); // untouched: the caller's value is not clobbered
+
+    // ...AND IT REACHES THE DRAWN LINE. The inversion being right in isolation
+    // proves nothing if the line still formats the raw field, so the assertion
+    // is made against the string the frame draws.
+    EditorHudSnapshot s;
+    s.aim_hit = true;
+    s.aim_triangles = 1476;
+    s.aim_distance_m = 0.8f;
+    s.aim_pick_id = 43u; // entity 42
+    const std::vector<std::string> lines = dfn::app::editor_hud_lines(s, W_640);
+    REQUIRE(lines.size() == 3);
+    CHECK(lines[2].find(" 42") != std::string::npos);
+    CHECK(lines[2].find(" 43") == std::string::npos);
+
+    // The unnamed draw shows no object at all rather than a wrong one -- the
+    // control for the line above, and the common case: the crosshair spends
+    // most of its time on terrain.
+    s.aim_pick_id = 0u;
+    const std::vector<std::string> unnamed = dfn::app::editor_hud_lines(s, W_640);
+    REQUIRE(unnamed.size() == 3);
+    const std::string_view object_word =
+        dfn::app::localized(dfn::serialization::fnv1a64("editor.hud.object"));
+    CHECK(unnamed[2].find(std::string(object_word)) == std::string::npos);
 }

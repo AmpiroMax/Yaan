@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 19:05:56
+Last updated: 14:08:2026 - 19:39:08
 Module: engine/app
 File: engine/app/sources/EditorHud.h
 
@@ -51,6 +51,12 @@ UPD:
   ними — замер собранной строки, а не ветка по разрешению. Полная существует
   потому, что на вопрос «что это такое» мнемоника не отвечает; короткая —
   потому, что 320x180 страница настроек предлагает соседней строкой.
+- 14:08:2026 - 19:39:08: aim_entity_index() — обратный ход штампа. render ставит
+  pick_id = EntityId.index + 1 (единица, чтобы слот 0 не совпал с сентинелом
+  «0 = без имени»), а оверлей печатал сырое значение: каждый объект в мире
+  назывался на единицу больше, чем он есть, и число при этом выглядело
+  совершенно правдоподобно. Возвращает bool, а не число: значение «вне
+  диапазона» было бы той же путаницей с сентинелом этажом выше.
 */
 
 #pragma once
@@ -80,13 +86,28 @@ struct EditorHudSnapshot {
     bool wireframe = false;
 
     // WHAT THE CROSSHAIR IS ON. `aim_pick_id` is RAW, exactly as the renderer
-    // stamped it; 0 is the contract's "unnamed" sentinel (terrain, sky and the
-    // LOD nodes all submit without a name).
+    // stamped it -- pass it in unmodified and let aim_entity_index() undo the
+    // stamp, so the inversion has one home instead of one per caller.
     bool aim_hit = false;
     uint32_t aim_triangles = 0;
     float aim_distance_m = 0.0f;
     uint32_t aim_pick_id = 0;
 };
+
+// THE PICK ID, UNDONE. engine/render stamps DrawParams::pick_id =
+// EntityId.index + 1 (RenderSystem.cpp): the +1 keeps entity slot 0 -- a real
+// slot -- from colliding with the "0 = unnamed" sentinel the IRenderer contract
+// reserves. So the raw value is one MORE than the entity it names, and the
+// overlay printed it raw: every object in the world was reported under the
+// wrong number, and the number looked entirely plausible, which is why nobody
+// caught it by reading the screen.
+//
+// Returns false for the sentinel, which is not an entity and must not be shown
+// as one: terrain, sky and the LOD nodes all submit unnamed, and "объект -1"
+// (or "объект 0", naming a real slot nobody is looking at) is worse than saying
+// nothing. THIS IS WHY THE FUNCTION RETURNS A BOOL rather than a number -- an
+// out-of-band value would be exactly the sentinel confusion one level up.
+[[nodiscard]] bool aim_entity_index(uint32_t pick_id, uint32_t& out_index);
 
 // THE BLOCK'S LINES, localized and narrowed to `width_px`, in draw order, top
 // to bottom. Never empty.
