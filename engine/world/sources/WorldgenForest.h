@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/WorldgenForest.h
 
@@ -46,6 +46,10 @@ UPD:
   not taste. Below it the floors are disconnected potholes at every noise
   tuning.
 - 11:08:2026 - 15:15:55: glade_factor published with the measurement that forced it (glade relief 3.43 m against the stand's own 3.0 m budget).
+- 14:08:2026 - 22:27:28: one_tree_stand_layout() — смотровой стенд одного дерева. Слой объявляет
+  ЗЕМЛЮ (поляна кроет весь пролёт, эрозия выключена, дубовой массы нет);
+  само дерево ставит скаттер-проход, потому что раскладка говорит про землю,
+  а что на ней стоит — не её слово.
 */
 
 #pragma once
@@ -88,6 +92,13 @@ inline constexpr float FOREST_BASE_ELEV = 20.0f;
 /// features neutralized, oak mass covering the stand, the authored glade
 /// (в9's one preserved calm plain) as the forced clearing.
 [[nodiscard]] TestbedLayout forest_stand_layout();
+
+/// The ONE-TREE inspection stand: the forest stand's neutralized layout with
+/// no oak mass, no erosion, and the forced clearing covering the whole domain
+/// so the grives go calm everywhere. The single tree itself is emitted by the
+/// scatter pass (its position derives from the domain, not from this table —
+/// the layout declares GROUND, the scatter pass declares what stands on it).
+[[nodiscard]] TestbedLayout one_tree_stand_layout();
 
 /// The stand's P1 height: base rolls + LF-2 grives (tapered inside the glade)
 /// + §2.7 micro-relief. Pure function of (seed, world); the LF-8 erosion

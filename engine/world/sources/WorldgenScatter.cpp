@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 12:08:2026 - 22:55:00
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -76,6 +76,10 @@ UPD:
   was never in the picture that experiment took. The giants themselves are
   emitted here from the world-level site list. SightWedges and the two exclusion
   rings moved to WorldgenPlacement.h the moment a second pass needed them.
+- 14:08:2026 - 22:27:28: Ветка OneTree в build_scatter: РОВНО один номинальный дуб (yaw 0, масштаб 1,
+  ONE_TREE_STAND_X/Z) и ничего больше — ни кустов, ни камней, ни подлеска.
+  Жалоба, названная на ОДНОМ дереве, действенна; лишний куст у корня читался бы
+  частью силуэта самого дерева.
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -1222,6 +1226,25 @@ std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
 
     ScatterCtx ctx{gen,   seed,  layout, hydro,     sites,     wedges,
                    erosion, paths, chunk_min, chunk_max, out};
+
+    // THE ONE-TREE INSPECTION STAND emits exactly one instance and nothing
+    // else — no bushes, no stones, no ground cover. "Ровно одно дерево" is the
+    // stand's whole contract, and every extra instance would be a candidate
+    // for the defect being inspected: a complaint about THE tree must not turn
+    // into an argument about WHICH tree, and a stray bush at its root would be
+    // read as part of the tree's own silhouette.
+    if (layout.stand == StandId::OneTree) {
+        const glm::vec2 p{static_cast<float>(config::ONE_TREE_STAND_X),
+                          static_cast<float>(config::ONE_TREE_STAND_Z)};
+        if (ctx.inside_chunk(p)) {
+            // Yaw 0 and scale 1 on purpose: the NOMINAL tree of the species,
+            // reproducible from the manifest alone. A randomized specimen
+            // would make every complaint frame-specific.
+            ctx.add(p, math::ScatterSpecies::OakTree, 0.0f, 1.0f);
+        }
+        return out;
+    }
+
     scatter_great_oaks(ctx);
     scatter_trees(ctx);
     scatter_bushes(ctx);

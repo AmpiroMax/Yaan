@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 10:40:28
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -51,6 +51,10 @@ UPD:
 - 10:08:2026 - 10:40:28: TestbedLayout::erosion — LF-8 is DECLARED by the stand (§2.10
   rule 4), default false; setting it false on a stand that declares it is that
   landform's named control, which is why the switch lives in the layout.
+- 14:08:2026 - 22:27:28: StandId::OneTree + stand_is_floral(). Смотровой стенд одного дерева
+  (пользователь: «стенд с деревом, ровно одним») и предикат семейства флоры
+  вместо рассыпанных сравнений == Forest — пропущенное сравнение дало бы новому
+  стенду массив тестбеда на карте, которая его не объявляла (правило 32).
 */
 
 #pragma once
@@ -72,7 +76,21 @@ namespace dfn::world {
 enum class StandId : uint8_t {
     Testbed = 0, ///< the §7.1 testbed — today's world, byte-identical default
     Forest = 1,  ///< §8.1 «лесок»: LF-1, LF-2, LF-5, LF-7, LF-8 — no massif, no water
+    /// ONE tree on calm ground — the inspection stand (user, 14.08: «стенд с
+    /// деревом, ровно одним, я покажу все детали, какие мне не нравятся»).
+    /// Exists because a defect named on a single tree is actionable, while the
+    /// same defect named on a forest is an argument about which tree was meant.
+    OneTree = 2,
 };
+
+/// The flora-family stands: no water landform, no P4 sites, no carve works —
+/// the generator serves them all through its Forest path. A PREDICATE rather
+/// than four scattered `== Forest` comparisons, because the day a comparison
+/// is missed the new stand gets the testbed's massif on a map that never
+/// declared one, and nothing goes red anywhere near the edit (Rule 32).
+[[nodiscard]] constexpr bool stand_is_floral(StandId s) {
+    return s == StandId::Forest || s == StandId::OneTree;
+}
 struct CragStamp {
     glm::vec2 center{830.0f, 200.0f}; ///< peak (§7.1)
     /// Footprint (§7.1). Governed by MASSIF_ASPECT_MIN now that I10 exists, so

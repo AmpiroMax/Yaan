@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 19:30:06
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -122,6 +122,13 @@ UPD:
 - 14:08:2026 - 18:57:57: РАЗВЕДЕНЫ ДВА ОВЕРЛЕЯ, ДЕЛИВШИЕ ОДИН УГОЛ (жалоба пользователя: «накладывается телеметрия рыжая с текстом трисс и та что открывается по кнопке 2»). Отладочный вывод рисуется в (3,3), блок редактора был прибит в (4,4): каждый верен поодиночке, вместе нечитаемы, а оба сразу — это РАБОЧИЙ режим пользователя, а не редкий случай. Блок переехал ПОД вывод, и координата берётся из debug_overlay_bottom_y(), а не из литерала: высота вывода непостоянна (в воде он на строку выше), поэтому прибитый отступ был бы той же ошибкой с задержкой. Сама компоновка строк вынесена в engine/app/sources/EditorHud.{h,cpp} — и это не уборка: App.cpp держит окно, поэтому НИЧТО, собранное здесь, не может быть измерено тестом, и наложение прожило ровно столько, сколько не было прибора. Тексты строк перенесены дословно, чтобы правка осталась чисто геометрической. Дверь дозы DFN_EDITOR_HUD_PINNED=1 возвращает блок в старый угол — обе руки приёмки из ОДНОГО бинарника (правило 47).
 - 14:08:2026 - 19:14:02: КЛАВИША 5 — СНИМОК ЭКРАНА (просьба пользователя: «я хочу чтобы был скриншот... по нажатию кнопки 5... он должен к чату добавляться и трейсам»). Снимается ФРЕЙМБУФЕР как он показан — вместе с оверлеями, потому что HUD в него скомпонован, — а не экран ОС. И ПОПРАВКА К ПОСЫЛКЕ ЗАДАЧИ, проверенная, а не принятая на слово: клавиша 3 никогда не снимала «только состояние» — write_capture с самого начала пишет .png через save_screenshot ПЛЮС сайдкар .txt; кадры приёмки этой правки сами это доказывают. Реально не хватало не второго конвейера снимков, а трёх вещей: самой клавиши, попадания снимка в ТРЕЙС и двери дозы. Поэтому клавиша 5 идёт по СУЩЕСТВУЮЩЕМУ пути (правило 32): те же write_pending_chat/write_capture, что и у замечания по Enter, — разница только в том, что человек имел в виду (Enter — «замечание, вот кадр»; 5 — «вот этот кадр, без слов»). Ориентир в трейсе положен в write_capture, а не рядом с клавишей: снимки делают ЧЕТЫРЕ пути (3, 5, замечание, двери), и трейс, знающий про один из них, отвечал бы на «был ли снят этот момент» верно для одного и неверно для трёх. Дверь дозы DFN_SHOT_AFTER=<кадров> — в кадрах, а не в секундах (стенная секунда вмещает разное число кадров на загруженной машине), считается в unattended_run(), ноль отвергается вслух; закрытие переиспользует chat_then_close_. Приёмка: чат и строка трейса называют ОДИН момент (t = game_s = 865.500000), контроль с закрытой дверью строки чата не добавляет.
 - 14:08:2026 - 19:30:06: ЗВУК ВЫКЛЮЧЕН ПО УМОЛЧАНИЮ — ВРЕМЕННО, прямая просьба пользователя дословно: «выключи звук в игре на время / и пусть все кто запускает игру запускались без звука». Умолчание перевёрнуто для ВСЕХ запусков, человеческих и агентских, а не только для автоматических. Обратно — дверь DFN_AUDIO=1. Старая DFN_NULL_AUDIO оставлена и значит ровно то же: она вписана в рецепты, лежащие на диске, и дверь, тихо переставшая существовать, делает ложью каждый рецепт с её именем. Чтобы ВЕРНУТЬ звук насовсем — снять переворот здесь, а не искать, кто заглушил движок. И при старте пишется строка в stderr: движок, который молчит и молчит о том, что молчит, — это тот самый молчаливый ноль, против которого построена вся оснастка, и следующий человек завёл бы «сломался звук» на то, чего никто не ломал.
+- 14:08:2026 - 22:27:28: Стенд OneTree в композиции: source stand:OneTree в браузере, раскладка
+  one_tree_stand_layout(), пролёт ОДИН чанк (стенд обязан открываться мгновенно),
+  спавн смотрит на восток — прямо на дерево (yaw 0 глядел на север, и первым
+  действием каждого осмотра была бы охота за экспонатом), и три тестбедных пропса
+  (дверь/рычаг/подбор) на этом стенде НЕ спавнятся: первый же кадр стенда показал
+  дверь во весь экран с «Открыть» поверх и деревом за кадром. Факел остаётся в
+  инвентаре — он не стоит в мире.
 */
 
 #include "engine/app/sources/App.h"
@@ -921,6 +928,12 @@ bool App::enter_world(uint32_t stand) {
     // The chosen demo map. Stand ids are core's; the app only selects.
     if (stand == static_cast<uint32_t>(world::StandId::Forest)) {
         gp.layout = world::forest_stand_layout();
+    } else if (stand == static_cast<uint32_t>(world::StandId::OneTree)) {
+        gp.layout = world::one_tree_stand_layout();
+        // ONE chunk. The stand exists so the user can walk around a single
+        // tree and name defects; seven more chunks of empty calm ground would
+        // only add load time to a map whose whole point is opening instantly.
+        gp.max_chunk = {0, 0};
     }
     chunks_.open_generated(gp, sp);
 
@@ -1029,6 +1042,15 @@ bool App::enter_world(uint32_t stand) {
     if (!world_.alive(player_)) {
         return false;
     }
+    // THE INSPECTION STAND OPENS ON ITS SUBJECT. The tree stands east of the
+    // spawn (ONE_TREE_STAND_X/Z); yaw 0 looks north (forward = {sin, 0, -cos}),
+    // so without this the stand opens on empty grass and the first act of every
+    // inspection is hunting for the exhibit.
+    if (stand == static_cast<uint32_t>(world::StandId::OneTree)) {
+        if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+            ps->yaw = glm::half_pi<float>(); // east, straight at the tree
+        }
+    }
 
     // TESTBED CONTENT (Rule 5 exception, same standing as the fixed seed and
     // the extent walls above): items and placements are data and move to the
@@ -1114,6 +1136,13 @@ bool App::enter_world(uint32_t stand) {
             }
         }
 
+        // NOT ON THE INSPECTION STAND. Its contract is "exactly one tree and
+        // nothing else": the door prop spawns 2.5 m from the eye and is the
+        // first thing the frame shows instead of the exhibit (measured — the
+        // stand's first capture was a door filling the view, «Открыть» over
+        // it, tree off-screen). The torch stays IN THE INVENTORY above: it is
+        // not standing in the world.
+        if (stand != static_cast<uint32_t>(world::StandId::OneTree)) {
         gameplay::InteractableDesc take;
         take.kind = gameplay::InteractableKind::Pickup;
         // HEIGHT IS PART OF PLACEMENT, and 0.5 m was below the game. sim
@@ -1142,6 +1171,7 @@ bool App::enter_world(uint32_t stand) {
         door.half_extents = {0.9f, 1.0f, 0.1f};
         door.prompt_key = "prompt.open";
         (void)gameplay::spawn_interactable(world_, *physics_, door);
+        } // stand != OneTree (the three testbed props)
     }
 
     // FIRST-PERSON BODY (character's zone, wired here). Rigid segments through
@@ -2032,6 +2062,8 @@ bool App::open_map(const MapManifest& manifest) {
             stand = static_cast<uint32_t>(world::StandId::Testbed);
         } else if (value == "Forest") {
             stand = static_cast<uint32_t>(world::StandId::Forest);
+        } else if (value == "OneTree") {
+            stand = static_cast<uint32_t>(world::StandId::OneTree);
         }
         if (!stand) {
             status("map.err.stand", value);

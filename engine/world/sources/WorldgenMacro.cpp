@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 21:10:18
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -106,6 +106,9 @@ UPD:
   before removal and recorded rather than dropped in silence, because §2.5's
   own text still asks for "ridged noise, not fBm" and a reader will come
   looking.
+- 14:08:2026 - 22:27:28: Ветка macro_height на stand_is_floral(): OneTree едет полем леса, чья
+  раскладка успокаивает гривы, — отдельная функция высоты была бы вторым P1,
+  который пришлось бы держать правдивым.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -965,10 +968,12 @@ CragStamp regional_massif(const TestbedLayout& layout) {
 }
 
 float macro_height(uint64_t seed, const TestbedLayout& layout, glm::vec2 world) {
-    if (layout.stand == StandId::Forest) {
-        // §8.1: the forest stand is a different landform composition, not a
-        // re-tune of the testbed — it branches whole here so the testbed path
+    if (stand_is_floral(layout.stand)) {
+        // §8.1: the floral stands are a different landform composition, not a
+        // re-tune of the testbed — they branch whole here so the testbed path
         // below stays byte-identical (guarded by the pinned-heightmap test).
+        // OneTree rides the same field with its layout turning the grives
+        // calm; a separate height function would be a second P1 to keep true.
         return forest_stand_height(seed, layout, world);
     }
     float h = base_height(seed, world);

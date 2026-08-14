@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/WorldgenForest.cpp
 
@@ -37,6 +37,9 @@ UPD:
   instead of shrinking. Derivation table in the header.
 - 10:08:2026 - 10:40:28: Forest stand declares LF-8 (в17).
 - 11:08:2026 - 15:15:55: glade_factor exported (§2.7's meso tier must taper through в9's authored calm plain too); the stand stops applying the micro octave itself now that compose_passes applies relief generally.
+- 14:08:2026 - 22:27:28: one_tree_stand_layout() строится РАЗНИЦЕЙ от forest_stand_layout(), а не с
+  нуля: новая нейтрализация тестбедного штампа, добавленная там, наследуется,
+  а не пропускается здесь.
 */
 
 #include "engine/world/sources/WorldgenForest.h"
@@ -204,6 +207,34 @@ TestbedLayout forest_stand_layout() {
 
     // LF-8 is in this stand's declared composition (§8.1) — в17.
     l.erosion = true;
+    return l;
+}
+
+TestbedLayout one_tree_stand_layout() {
+    // The inspection stand IS the forest stand's ground with everything that
+    // is not ground turned off — built by DIFFERENCE from forest_stand_layout
+    // rather than from scratch, so a future neutralization added there (a new
+    // testbed stamp zeroed out) is inherited instead of missed here.
+    TestbedLayout l = forest_stand_layout();
+    l.stand = StandId::OneTree;
+
+    // No oak mass: the stand's one tree is emitted by the scatter pass, and
+    // ZERO regions is what guarantees "exactly one" — a shrunken region would
+    // still scatter however many trees its lattice happens to fit.
+    l.forests.oak_rects[0] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // The clearing covers the WHOLE domain (a chunk is 256 m; 512 m of radius
+    // covers any extent this stand will ever open at), which drives the LF-2
+    // grive amplitude to zero everywhere: the ground under an inspected tree
+    // must not be a variable of the inspection. The ~2 % base rolls stay —
+    // perfectly flat ground reads as a test grid, and the complaint list this
+    // stand exists for is about the TREE.
+    l.forests.forced_clearing_center = {0.0f, 0.0f};
+    l.forests.forced_clearing_radius = 512.0f;
+
+    // No LF-8: erosion gullies are terrain detail, and terrain detail is the
+    // other stand's subject.
+    l.erosion = false;
     return l;
 }
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 00:40:00
+Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -98,6 +98,11 @@ UPD:
   world.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 13:08:2026 - 00:40:00: the drainage is built on the MACRO landform (the same field hydrology solved on, so valleys and rivers agree which way the country drains) and applied in compose_passes BEFORE the draws and benches, carrying the same mask, so those two operators bank the valley instead of competing with it. It does NOT feed back into pond levels, ford depths or pads -- those were solved against the un-incised field, exactly the rule the forms went in under.
+- 14:08:2026 - 22:27:28: Ветки Forest переведены на stand_is_floral() (OneTree едет тем же путём);
+  для OneTree контекст возвращается сразу после пустой гидрологии — без эрозии,
+  троп и находок: пустые результаты — валидные результаты этого стенда, и ни
+  одному потребителю не нужна проверка стенда (правило 32). Тестбед побитово
+  не тронут (страж — закреплённый дайджест карты высот).
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -266,15 +271,23 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
                                static_cast<float>(params.min_chunk.z) * CHUNK_SIZE_M};
     const glm::vec2 domain_max{static_cast<float>(params.max_chunk.x + 1) * CHUNK_SIZE_M,
                                static_cast<float>(params.max_chunk.z + 1) * CHUNK_SIZE_M};
-    if (params.layout.stand == StandId::Forest) {
-        // §8.1: the forest stand declares NO water landform (LF-3/LF-6 absent
-        // from its composition), so P2 stays empty — water_at then passes
+    if (stand_is_floral(params.layout.stand)) {
+        // §8.1: the floral stands declare NO water landform (LF-3/LF-6 absent
+        // from their composition), so P2 stays empty — water_at then passes
         // heights through and reports far-field distance everywhere. ok=true
-        // because an empty hydrology is this stand's VALID hydrology, not a
-        // failed trace. P4 sites stay empty too: the stand's goals belong to
-        // the §8.1 path network (built in the stand passes below), not to the
-        // testbed site table.
+        // because an empty hydrology is these stands' VALID hydrology, not a
+        // failed trace. P4 sites stay empty too: the forest stand's goals
+        // belong to the §8.1 path network (built in the stand passes below),
+        // not to the testbed site table.
         ctx.hydrology.ok = true;
+        if (params.layout.stand == StandId::OneTree) {
+            // The inspection stand keeps nothing else: no erosion (declared
+            // off in its layout — the zero grid answers 0), no paths, no
+            // finds (the empty network answers "far from any path"). Empty
+            // results are this stand's VALID results, so no consumer needs a
+            // stand check (Rule 32).
+            return ctx;
+        }
         // LF-8 (в17): the overlay runs against the stand's P1 field, ONCE, and
         // is baked. `layout.erosion == false` returns the zero grid from the
         // same entry point — the dictionary's named control.
@@ -388,7 +401,7 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
     // shoreline; after the carve it cannot, and the shore taper keeps the bank
     // itself flat. Before the works and the pads, so anything cut flat on
     // purpose still wins (§10.1.2 exempts exactly that list from the σ floor).
-    const float meso_scale = ctx.params.layout.stand == StandId::Forest
+    const float meso_scale = stand_is_floral(ctx.params.layout.stand)
                                  ? glade_factor(ctx.params.layout, world)
                                  : 1.0f;
     // SPLIT INTO TIERS because §10.1.3's bench/riser operator goes BETWEEN
@@ -439,7 +452,7 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
     // 2.00, i.e. the calm plain stopped being calm. §10.1.2's exemption list
     // and this mask are the same list, which is the property that has to hold.
     const float form_mask = tiers.mask * std::clamp(meso_scale, 0.0f, 1.0f);
-    const float ground = ctx.params.layout.stand == StandId::Forest
+    const float ground = stand_is_floral(ctx.params.layout.stand)
                              ? macro + ctx.erosion.sample(world)
                              : water.height;
     // THE UNFORMED GROUND — the world exactly as it was before this pass. The
@@ -490,11 +503,12 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
         benched = std::max(benched, water.near_level);
     }
 
-    if (ctx.params.layout.stand == StandId::Forest) {
-        // The stand's own pass stack: P1 + LF-8 erosion + §2.7 relief + the
-        // path flatten. No water carve, no entrance works, no pads — that stand
-        // declares none of them, and running their no-ops here would only
-        // invite one to stop being a no-op unnoticed.
+    if (stand_is_floral(ctx.params.layout.stand)) {
+        // The floral pass stack: P1 + LF-8 erosion + §2.7 relief + the path
+        // flatten. No water carve, no entrance works, no pads — these stands
+        // declare none of them, and running their no-ops here would only
+        // invite one to stop being a no-op unnoticed. For OneTree every term
+        // but P1 is the empty pass answering zero, by construction.
         return std::clamp(benched + ctx.paths.flatten_at(world, benched), 0.0f, MAX_HEIGHT_M);
     }
     const float worked = entrance_works_height(ctx.sites, world, benched);
