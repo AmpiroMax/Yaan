@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 00:24:00
+Last updated: 15:08:2026 - 00:45:20
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -29,6 +29,14 @@ UPD:
   (стандарт SpeedTree: одинокая плоскость исчезает в собственный профиль и мерцает
   при облёте), ядро — малая тёмная глубина за просветами, а не крона. Плотность
   поднята после первого же кадра v2: редкие помпоны — не референс.
+- 15:08:2026 - 00:45:20: v3 — РЕКУРСИВНЫЙ гровер по пунктам пользователя: «ветки должны идти от
+  ствола И от других веток» — дети покидают болу и родительские ветви с середины
+  сегментов; «уменьшаться пропорционально» — трубная модель, ребёнок несёт ~половину
+  радиуса родителя; «расти небольшими сегментами, каждый чуть в сторону, а может
+  вниз» — каждый сегмент поворачивает: боковое блуждание, слабеющая с уровнем тяга
+  вверх, каждый четвёртый провисает. Шар-ядро удалён. Хвойный путь: бола во всю
+  высоту, мутовки по конусу, лапы ВДОЛЬ ветви (ель — не палка с помпоном), нормали
+  лап следуют ветви сильнее купола.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -87,7 +95,10 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // sign-alternating and partially cancels). The lower third is rigid — the
     // measured boles hold their chord and bend only above (§1.7, frame 16).
     const int bole_segments = 7;
-    const float bole_top_y = crown_base + crown_ry * 0.7f; // ends inside the crown
+    // A broadleaf bole ends inside its crown; a CONIFER's runs the whole
+    // height — the leader IS the tree's spine, and every whorl hangs off it.
+    const float bole_top_y = p.conifer ? p.height * 0.97f
+                                       : crown_base + crown_ry * 0.7f;
     glm::vec3 pos{0.0f, FLARE_HEIGHT, 0.0f};
     glm::vec3 dir{0.0f, 1.0f, 0.0f};
     const float seg_len = (bole_top_y - FLARE_HEIGHT) / static_cast<float>(bole_segments);
@@ -136,134 +147,185 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         bole.push_back({pos, dir, std::max(r1, 0.05f)});
     }
 
-    // --- THE BRANCH HIERARCHY, DRAWN. The user's Skyrim references rule this
-    // stage: the skeleton is VISIBLE THROUGH the crown — scaffolds and second-
-    // order branches are real geometry, and the foliage hangs ON them as
-    // ragged sprays with sky in between. Not a solid ball (v1's verdict:
-    // «мультяшный стиль»), not confetti (the old generator's verdict).
-    //
-    // Every branch remembers its outer points; the sprays attach THERE, so
-    // foliage placement is the skeleton's own statement (§3 of the research:
-    // leaves that do not grow from branches are the original complaint).
+    // --- THE BRANCH HIERARCHY, GROWN. The user's v2 verdict, point by point:
+    // «ветки прямые, и их отсилы штуки 4-5» — branches now RECURSE (children
+    // leave the bole AND other branches), each level thinner in proportion
+    // (the pipe model: a child carries a fraction of its parent's section);
+    // «должны расти небольшими сегментами, каждый чуть в сторону, а может и
+    // вниз» — every branch walks in short segments, and every segment turns:
+    // sideways wander, an upward pull that weakens with level, and an
+    // occasional sag — which is how the referenced crowns actually move.
     struct SprayAnchor {
         glm::vec3 pos;
-        glm::vec3 dir; ///< outward direction of the branch at the anchor
+        glm::vec3 dir;
     };
     std::vector<SprayAnchor> anchors;
-
     const float phase = rng.unit();
-    for (int b = 0; b < p.scaffold_count; ++b) {
-        const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;
-        const float attach_span = bole_top_y - (crown_base * 0.85f);
-        const float attach_y = crown_base * 0.85f
-                             + attach_span * (0.15f + 0.8f * rng.unit());
-        const Ring* at = &bole.front();
-        for (const Ring& r : bole) {
-            if (r.pos.y <= attach_y) at = &r;
-        }
-        const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
-        const glm::vec3 root = at->pos + out * (at->radius * 0.4f); // embedded
-        const float k = std::clamp((attach_y - crown_base) / std::max(attach_span, 0.1f),
-                                   0.0f, 1.0f);
-        // Low scaffolds reach out flat, high ones climb — the vase profile the
-        // references show; the very top continues the leader.
-        const float elev = 0.25f + 0.85f * k + rng.sym() * 0.12f;
-        glm::vec3 bd = safe_normalize(
-            out * std::cos(elev) + glm::vec3{0.0f, std::sin(elev), 0.0f}, out);
-        const float branch_r = at->radius * (0.5f + rng.unit() * 0.12f);
-        const float reach = p.crown_radius * (0.85f + rng.unit() * 0.35f);
-        glm::vec3 bp = root;
-        glm::vec3 cur = bd;
-        float br = branch_r * 1.35f; // §1.5's inflate at the joint
-        const int segs = 3;
-        for (int sgi = 0; sgi < segs; ++sgi) {
-            const float tt = static_cast<float>(sgi + 1) / segs;
-            // Weber's sign-alternating wander plus a mild upward pull.
-            const glm::vec3 side = safe_normalize(
-                glm::cross(cur, glm::vec3{0.0f, 1.0f, 0.0f}), out);
-            cur = safe_normalize(cur + glm::vec3{0.0f, 0.16f, 0.0f}
-                                     + side * (rng.sym() * 0.25f), cur);
-            const glm::vec3 np = bp + cur * (reach / segs);
-            const float nr = branch_r * (1.0f - 0.68f * tt);
-            tube_segment(obj.wood, bp, np, cur, br, std::max(nr, 0.035f), 5, bark);
 
-            // SECOND-ORDER BRANCHES leave the outer two segments alternately
-            // left/right — the herringbone every reference crown shows.
-            if (sgi >= 1) {
-                for (int c = 0; c < p.secondary_per_scaffold; ++c) {
-                    if (rng.unit() < 0.12f) continue; // uneven, never a comb
-                    const float lr = ((c + sgi) % 2 == 0) ? 1.0f : -1.0f;
-                    const glm::vec3 sdir = safe_normalize(
-                        cur + side * (lr * (0.7f + rng.unit() * 0.5f))
-                            + glm::vec3{0.0f, 0.25f + rng.unit() * 0.3f, 0.0f},
-                        side);
-                    const float slen = reach * (0.3f + rng.unit() * 0.25f);
-                    const glm::vec3 sp0 = bp + cur * (reach / segs) * (0.4f + 0.4f * rng.unit());
-                    const glm::vec3 sp1 = sp0 + sdir * slen;
-                    tube_segment(obj.wood, sp0, sp1, sdir, std::max(nr, 0.035f) * 0.6f,
-                                 0.02f, 4, bark);
-                    anchors.push_back({sp1, sdir});
-                    if (rng.unit() < 0.9f) { // a mid-branch tuft anchor too
-                        anchors.push_back({sp0 + sdir * (slen * 0.55f), sdir});
+    if (!p.conifer) {
+        // Recursive broadleaf grower. Levels: 0 scaffold, 1 branch, 2 twig.
+        struct Grow {
+            RegistryObject& obj;
+            Rng& rng;
+            std::vector<SprayAnchor>& anchors;
+            uint32_t bark;
+            glm::vec3 crown_c;
+            float crown_rx, crown_ry;
+
+            void run(glm::vec3 pos, glm::vec3 dir, float len, float radius, int level) {
+                const int segs = level == 0 ? 5 : (level == 1 ? 4 : 3);
+                const float seg = len / static_cast<float>(segs);
+                glm::vec3 d = dir;
+                float r = radius;
+                for (int si = 0; si < segs; ++si) {
+                    // THE TURN, per segment: side wander always; up pull that
+                    // fades with level (twigs stop caring about the sky); and
+                    // one segment in ~4 dips DOWN — the sag real limbs show.
+                    const glm::vec3 side = safe_normalize(
+                        glm::cross(d, glm::vec3{0.0f, 1.0f, 0.0f}),
+                        glm::vec3{1.0f, 0.0f, 0.0f});
+                    const float up_pull = 0.22f / static_cast<float>(1 + level);
+                    const float dip = rng.unit() < 0.25f ? -0.18f : 0.0f;
+                    d = safe_normalize(d + side * (rng.sym() * 0.30f)
+                                         + glm::vec3{0.0f, up_pull + dip, 0.0f}, d);
+                    const glm::vec3 np = pos + d * seg;
+                    const float taper = 1.0f - 0.6f * (static_cast<float>(si + 1)
+                                                       / static_cast<float>(segs));
+                    const float nr = std::max(radius * taper, 0.025f);
+                    const int sides = level == 0 ? 5 : (level == 1 ? 4 : 3);
+                    tube_segment(obj.wood, pos, np, d, r, nr, sides, bark);
+
+                    // CHILDREN leave mid-branch, alternating sides — from the
+                    // second segment on, so the joint zone stays clean.
+                    if (level < 2 && si >= 1) {
+                        const int kids = level == 0 ? 2 : 1;
+                        for (int c = 0; c < kids; ++c) {
+                            if (rng.unit() < 0.3f) continue;
+                            const float lr = ((si + c) % 2 == 0) ? 1.0f : -1.0f;
+                            const glm::vec3 cd = safe_normalize(
+                                d + side * (lr * (0.8f + rng.unit() * 0.6f))
+                                  + glm::vec3{0.0f, rng.sym() * 0.35f, 0.0f}, side);
+                            // The pipe model: the child takes ~half the parent's
+                            // radius, and its length follows its section.
+                            run(np, cd, len * (0.5f + rng.unit() * 0.16f),
+                                nr * (0.52f + rng.unit() * 0.1f), level + 1);
+                        }
                     }
+                    pos = np;
+                    r = nr;
+                }
+                if (level >= 1) {
+                    anchors.push_back({pos, d}); // tips of branches and twigs
+                }
+                if (level == 2 && rng.unit() < 0.7f) {
+                    anchors.push_back({pos - d * (len * 0.4f), d});
                 }
             }
-            bp = np;
-            br = std::max(nr, 0.035f);
-        }
-        anchors.push_back({bp, cur}); // the scaffold tip itself
-    }
-    // The leader's top carries a crown of its own.
-    anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.4f, 0.0f},
-                       glm::vec3{0.0f, 1.0f, 0.0f}});
+        } grow{obj, rng, anchors, bark, crown_c, p.crown_radius, crown_ry};
 
-    // --- INNER SHADOW CORE: small and DARK — the depth glimpsed between the
-    // sprays, not the crown itself. What the references show through the gaps
-    // is shadow, and without this the gaps show SKY straight through the
-    // middle of the tree, which reads hollow.
-    if (p.core_frac > 0.0f) {
-        MeshData core;
-        blob_cluster(core, glm::vec3{0.0f},
-                     {p.crown_radius * p.core_frac, crown_ry * p.core_frac * 0.9f,
-                      p.crown_radius * p.core_frac},
-                     6, 4, 0xFFFFFFFFu);
-        const glm::vec3 shade = tone * 0.5f; // deep-shadow leaf value
-        for (platform::Vertex& v : core.vertices) {
-            v.color_rgba = pack(shade);
+        for (int b = 0; b < p.scaffold_count; ++b) {
+            const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;
+            const float attach_span = bole_top_y - crown_base * 0.85f;
+            const float attach_y = crown_base * 0.85f
+                                 + attach_span * (0.1f + 0.8f * rng.unit());
+            const Ring* at = &bole.front();
+            for (const Ring& ring : bole) {
+                if (ring.pos.y <= attach_y) at = &ring;
+            }
+            const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+            const float k = std::clamp((attach_y - crown_base)
+                                           / std::max(attach_span, 0.1f), 0.0f, 1.0f);
+            const float elev = 0.3f + 0.75f * k + rng.sym() * 0.12f;
+            const glm::vec3 bd = safe_normalize(
+                out * std::cos(elev) + glm::vec3{0.0f, std::sin(elev), 0.0f}, out);
+            // Rooted INSIDE the bole ring, base thickened (§1.5's inflate).
+            grow.run(at->pos + out * (at->radius * 0.4f), bd,
+                     p.crown_radius * (0.9f + rng.unit() * 0.35f),
+                     at->radius * (0.5f + rng.unit() * 0.12f), 0);
         }
-        append_transformed(obj.wood, core, crown_c, 0.0f, 1.0f);
+        anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.4f, 0.0f},
+                           glm::vec3{0.0f, 1.0f, 0.0f}});
+    } else {
+        // --- THE CONIFER (ёлка): whorls of near-horizontal branches down a
+        // cone, drooping as they reach, needle sprays along the outer half.
+        // The bole for a conifer runs the WHOLE height (built above), and the
+        // crown starts low — crown_base_frac is the skirt, not a canopy base.
+        for (int w = 0; w < p.whorl_count; ++w) {
+            const float t = (static_cast<float>(w) + 0.5f)
+                          / static_cast<float>(p.whorl_count);
+            const float y = crown_base + (p.height - crown_base) * t;
+            // Branch reach follows the cone: long at the skirt, short at the top.
+            const float reach = p.crown_radius * (1.0f - 0.85f * t)
+                              * (0.9f + rng.unit() * 0.2f);
+            if (reach < 0.4f) continue;
+            const Ring* at = &bole.front();
+            for (const Ring& ring : bole) {
+                if (ring.pos.y <= y) at = &ring;
+            }
+            const int count = p.whorl_branches;
+            const float az0 = rng.unit() * TAU;
+            for (int b = 0; b < count; ++b) {
+                if (rng.unit() < 0.15f) continue; // ragged whorls, not a fan
+                const float az = az0 + TAU * static_cast<float>(b)
+                                     / static_cast<float>(count)
+                               + rng.sym() * 0.3f;
+                const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+                glm::vec3 bp = at->pos + out * (at->radius * 0.5f);
+                glm::vec3 d = safe_normalize(
+                    out + glm::vec3{0.0f, 0.15f - p.droop * 0.5f, 0.0f}, out);
+                float r = std::max(at->radius * 0.32f, 0.03f);
+                const int segs = 3;
+                for (int si = 0; si < segs; ++si) {
+                    // Droop grows toward the tip — the spruce sag.
+                    d = safe_normalize(d + glm::vec3{0.0f, -p.droop / segs, 0.0f}
+                                         + out * 0.2f, d);
+                    const glm::vec3 np = bp + d * (reach / segs);
+                    const float nr = std::max(r * 0.55f, 0.02f);
+                    tube_segment(obj.wood, bp, np, d, r, nr, 3, bark);
+                    // Needle sprays sit ALONG the branch's outer segments, not
+                    // only at the tip — a spruce limb is a frond, not a stick
+                    // with a pom-pom.
+                    if (si >= 1) {
+                        anchors.push_back({(bp + np) * 0.5f, d});
+                    }
+                    bp = np;
+                    r = nr;
+                }
+                anchors.push_back({bp, d});
+            }
+        }
+        // The leader spike above the last whorl, and its own small crown.
+        anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.3f, 0.0f},
+                           glm::vec3{0.0f, 1.0f, 0.0f}});
     }
 
-    // --- LEAF SPRAYS ON THE ANCHORS. Each card is a ragged leafy branch tuft
-    // (the atlas' spray masks), sized in crown fractions, its normal blended
-    // between the branch's own outward direction and the radial from the crown
-    // centre — enough dome for one light (the «наждачка» cure held from v1),
-    // enough per-branch identity that sprays read as HANGING on their branch.
+    // --- LEAF SPRAYS ON THE ANCHORS: crossed pairs, dome-blended normals —
+    // held from v2 (its cure for card flicker and for the «наждачка»).
     for (const SprayAnchor& a : anchors) {
         const int sprays = p.spray_per_branch;
         for (int i = 0; i < sprays; ++i) {
             const glm::vec3 jitter{rng.sym() * 0.5f, rng.sym() * 0.35f,
                                    rng.sym() * 0.5f};
-            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.12f);
+            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.1f);
             const glm::vec3 radial = safe_normalize(c - crown_c, a.dir);
-            const glm::vec3 n = safe_normalize(radial * 0.55f + a.dir * 0.45f, radial);
+            // Conifer sprays follow their BRANCH more than the dome: a frond
+            // is a thing lying along a limb, not a patch of one big ball.
+            const float dome_w = p.conifer ? 0.3f : 0.55f;
+            const glm::vec3 n = safe_normalize(radial * dome_w
+                                                   + a.dir * (1.0f - dome_w), radial);
             LeafCardParams card;
             card.center = c;
             card.normal = n;
             card.half_width = p.crown_radius * p.spray_frac * (0.85f + rng.unit() * 0.45f);
-            card.half_height = card.half_width * (0.65f + rng.unit() * 0.25f);
-            card.roll = rng.sym() * 0.9f; // near-upright sprays, never fully spun
+            card.half_height = card.half_width * (p.conifer ? 0.55f : 0.7f);
+            card.roll = rng.sym() * 0.9f;
             card.shape = p.card_shape;
             card.tone = p.tone;
-            card.value_jitter = 0.42f + rng.unit() * 0.22f; // narrow: v1's cure
+            card.value_jitter = 0.42f + rng.unit() * 0.22f;
             card.phase = phase;
             card.sway_origin = glm::vec3{0.0f, crown_base, 0.0f};
             card.sway_span = p.crown_radius * 1.8f;
             emit_leaf_card(obj.cards, card);
-            // THE CROSSED PARTNER (SpeedTree's standard pair): the same tuft
-            // seen edge-on stops vanishing — a lone plane disappears at its
-            // own profile, and a sparse crown of lone planes flickers as the
-            // camera orbits. Slightly smaller, rotated off the first.
             LeafCardParams cross = card;
             cross.normal = safe_normalize(glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f})
                                               + glm::vec3{0.0f, 0.3f * rng.sym(), 0.0f},

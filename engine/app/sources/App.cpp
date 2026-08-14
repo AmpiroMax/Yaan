@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 00:24:00
+Last updated: 15:08:2026 - 00:45:20
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -137,6 +137,10 @@ UPD:
 - 15:08:2026 - 00:24:00: Ряд галереи разносится по ЗАМЕРЕННОМУ габариту объекта (max |x,z| вершин),
   а не фиксированным шагом: в реестре теперь и берёза 4 м, и гигант 17 м —
   фиксированный шаг либо тратит прогулку, либо хоронит берёзу в кроне гиганта.
+- 15:08:2026 - 00:45:20: Галерея — СЕТКА С ПЕРЕНОСОМ вместо ряда (пользователь: «деревья с карты
+  уходят... за границу не ставь»): ряды заполняются на восток и переносятся на
+  север, когда следующий экспонат пересёк бы кромку; северная кромка — жёсткая
+  стена, за ней отказ ВСЛУХ, а не дерево наполовину вне мира.
 */
 
 #include "engine/app/sources/App.h"
@@ -1075,8 +1079,16 @@ bool App::enter_world(uint32_t stand) {
         // the registry holds both a birch and a settlement-scale giant: a
         // fixed step either wastes the walk or buries the birch in the
         // giant's crown. The mesh is the truth about how wide an object is.
-        float cursor = mid + 8.0f;
+        // A WRAPPING GRID, and it stays INSIDE the chunk (user: «твои деревья
+        // с карты уходят... за границу не ставь»): rows fill eastward from the
+        // spawn and wrap north when the next exhibit would cross the margin.
+        // Spacing is still each object's measured footprint.
+        const float row_min_x = mid + 8.0f;
+        const float edge_max = static_cast<float>(config::CHUNK_SIZE) - 12.0f;
+        float cursor = row_min_x;
+        float row_z = mid;
         float prev_half = 0.0f;
+        float row_max_half = 0.0f;
         int shown = 0;
         for (const fs::path& f : files) {
             const auto obj = render::read_object(f);
@@ -1094,17 +1106,33 @@ bool App::enter_world(uint32_t stand) {
                 half = std::max(half, std::max(std::fabs(v.position.x),
                                                std::fabs(v.position.z)));
             }
-            const float x = cursor + prev_half + half + 5.0f;
+            float x = cursor + prev_half + half + 5.0f;
+            if (x + half > edge_max && shown > 0) {
+                // Wrap north: the new row clears the tallest crown of the last.
+                row_z -= row_max_half + half + 8.0f;
+                cursor = row_min_x;
+                prev_half = 0.0f;
+                row_max_half = 0.0f;
+                x = cursor + half;
+            }
+            // The chunk's north edge is a hard wall too; past it, refuse loudly
+            // rather than plant a tree half off the world.
+            if (row_z - half < 12.0f) {
+                std::fprintf(stderr, "[gallery] %s SKIPPED: the grid is out of "
+                                     "room inside the chunk\n", f.string().c_str());
+                continue;
+            }
             cursor = x;
             prev_half = half;
-            const float y = chunks_.height_at({x, mid}).value_or(ground);
-            const glm::vec3 at{x, y, mid};
+            row_max_half = std::max(row_max_half, half);
+            const float y = chunks_.height_at({x, row_z}).value_or(ground);
+            const glm::vec3 at{x, y, row_z};
             render::append_transformed(row_wood, obj->wood, at, 0.0f, 1.0f);
             render::append_transformed(row_wood, obj->ground, at, 0.0f, 1.0f);
             render::append_transformed(row_cards, obj->cards, at, 0.0f, 1.0f);
-            std::fprintf(stderr, "[gallery] %s at x=%.0f (half %.1f m, hash %016llx)\n",
+            std::fprintf(stderr, "[gallery] %s at (%.0f, %.0f) half %.1f m hash %016llx\n",
                          obj->name.c_str(), static_cast<double>(x),
-                         static_cast<double>(half),
+                         static_cast<double>(row_z), static_cast<double>(half),
                          static_cast<unsigned long long>(obj->content_hash));
             ++shown;
         }

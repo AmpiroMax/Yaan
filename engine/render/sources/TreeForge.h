@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 00:24:00
+Last updated: 15:08:2026 - 00:45:20
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -51,6 +51,9 @@ UPD:
   шарик сплошной». Сплошные массы заменены НАРИСОВАННЫМ ветвлением двух порядков
   с листовыми лапами НА ветвях: spray_frac/spray_per_branch/secondary_per_scaffold
   вместо mass_count/card_count; ядро ужато до тени (core_frac 0.24).
+- 15:08:2026 - 00:45:20: v3 по вердикту: core_frac по умолчанию 0 («всё ещё шарик в центре»),
+  режим conifer (ёлки: мутовки, провис, конус) — другая ГРАММАТИКА, не
+  перекрученный лиственный; spray_frac 0.26.
 */
 
 #pragma once
@@ -83,11 +86,18 @@ struct TreeForgeParams {
     /// reference the user ruled by: dozens of MEDIUM ragged sprays hanging on
     /// visible branches with sky between them — not a solid ball (v1's camp),
     /// not confetti (the old generator's camp).
-    float spray_frac = 0.20f;
-    /// Inner shadow core as a fraction of the crown radius. Small and DARK:
-    /// it is the depth behind the sprays (Airborn's blob demoted to a shadow),
-    /// not the crown itself. 0 disables.
-    float core_frac = 0.24f;
+    float spray_frac = 0.26f;
+    /// Inner shadow core as a fraction of the crown radius. 0 (the default)
+    /// disables — the user's v2 verdict: «всё ещё какой-то шарик в центре».
+    /// Depth now comes from spray density, not from a ball behind them.
+    float core_frac = 0.0f;
+    /// CONIFER MODE (ёлки): the crown is whorls of drooping branches down a
+    /// cone, needle sprays along them — a different GRAMMAR, not a re-tuned
+    /// broadleaf, exactly as Weber's own pine differs from his oak.
+    bool conifer = false;
+    int whorl_count = 9;          ///< branch rings down the cone
+    int whorl_branches = 6;       ///< branches per ring
+    float droop = 0.28f;          ///< rad, how far below horizontal a branch sags
 };
 
 /// Forges one tree. The returned object carries its content hash and is ready

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 09:08:2026 - 20:21:13
+Last updated: 15:08:2026 - 00:45:20
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -30,6 +30,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 20:21:13: Created — mask atlas rasteriser + card emitter.
+- 15:08:2026 - 00:45:20: ТАЙЛ СТАЛ ПАЧКОЙ (вердикт пользователя по галерее: «листва — всё ещё
+  прямоугольники»; SpeedTree Cluster, исследование §1.1): вместо одного
+  лопастного кома — 3-7 листовых масс вдоль оси-веточки с ТЁМНЫМ ПРУТОМ,
+  видимым в окнах между ними, у каждой массы свой светлый-верх/тёмный-низ.
+  Кромочная эрозия §3.10 сохранена, в кадре покадровой рамки блоба. NeedleFan
+  наконец получил потребителя — хвойную лапу кузницы (7 узких масс).
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -242,84 +248,112 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
             const ShapeDef& sd = shape_def(static_cast<LeafShape>(shape_i));
             const float cs = std::cos(sd.rot);
             const float sn = std::sin(sd.rot);
-            // Interior gaps: a wide shape can carry two, a narrow one only one
-            // before the gap eats the mass it is supposed to be a gap IN.
-            const int gap_count = (sd.ax * sd.ay > 0.8f) ? 2 : 1;
-            glm::vec2 gap[2]{};
-            for (int g = 0; g < gap_count; ++g) {
-                const float ga = hash01(g + 11, 2, sd.seed) * 6.28318531f;
-                const float grad = 0.10f + 0.22f * hash01(g + 21, 4, sd.seed);
-                // Chosen in the shape's own (unscaled) frame, then mapped back
-                // into tile space, so a gap sits inside the outline whatever
-                // the shape's aspect and rotation are.
-                const float sx = std::cos(ga) * grad * sd.ax;
-                const float sy = std::sin(ga) * grad * sd.ay;
-                gap[g] = {sx * cs - sy * sn, sx * sn + sy * cs};
+
+            // --- THE PACK (user ruling on the forge gallery: «листва — всё ещё
+            // прямоугольники»; SpeedTree's Cluster doctrine, research §1.1): a
+            // tile is not ONE leaf mass, it is a BRANCH WITH SEVERAL, laid
+            // along a diagonal axis with a visible dark twig under them. The
+            // blob count and sizes come from the shape row, so the four shapes
+            // stay four different silhouettes rather than one pack recolored.
+            struct PackBlob {
+                glm::vec2 c;   ///< centre, tile space
+                float r;       ///< base radius before lobing
+                uint32_t seed;
+            };
+            const bool needle = static_cast<LeafShape>(shape_i) == LeafShape::NeedleFan;
+            const int blob_count = needle ? 7 : ((sd.ax * sd.ay > 0.8f) ? 4 : 3);
+            PackBlob blobs[8];
+            const glm::vec2 axis{cs, sn};
+            for (int bi = 0; bi < blob_count; ++bi) {
+                const float t = -0.62f + 1.35f * (static_cast<float>(bi) + 0.5f)
+                                             / static_cast<float>(blob_count);
+                // Off-axis scatter: leaves clump on SIDES of a twig, not on it.
+                const float off = (hash01(bi + 3, 7, sd.seed) - 0.5f)
+                                * (needle ? 0.24f : 0.42f);
+                blobs[bi].c = axis * (t * 0.92f)
+                            + glm::vec2{-axis.y, axis.x} * off;
+                // Outer blobs shrink — the tip of a spray is its youngest wood.
+                const float shrink = 1.0f - 0.45f * std::fabs(t + 0.1f);
+                blobs[bi].r = (needle ? 0.20f : 0.34f) * sd.ax * shrink
+                            * (0.8f + 0.4f * hash01(bi + 9, 13, sd.seed));
+                blobs[bi].seed = sd.seed + static_cast<uint32_t>(bi) * 977u;
             }
+
             for (uint32_t py = 0; py < atlas.tile_px; ++py) {
                 for (uint32_t px = 0; px < atlas.tile_px; ++px) {
-                    // Tile space: x right, y UP, row 0 is the card's top.
                     const float x = (static_cast<float>(px) + 0.5f) / n * 2.0f - 1.0f;
                     const float y = 1.0f - (static_cast<float>(py) + 0.5f) / n * 2.0f;
-                    const float qx = (x * cs + y * sn) / sd.ax;
-                    const float qy = (-x * sn + y * cs) / sd.ay;
-                    const float r = std::sqrt(qx * qx + qy * qy);
-                    const float th = std::atan2(qy, qx);
 
-                    float outline =
-                        1.0f - sd.d1 * (0.5f + 0.5f * std::cos(static_cast<float>(sd.n1) * th + sd.p1))
-                             - sd.d2 * (0.5f + 0.5f * std::cos(static_cast<float>(sd.n2) * th + sd.p2));
-                    // Wedge taper: narrow at the bottom, full at the top.
-                    outline *= 1.0f - sd.taper * (0.5f - 0.5f * qy);
-                    outline = std::max(outline, 0.05f);
+                    // Nearest pack blob, in each blob's own lobed metric.
+                    float best = 1e9f;      // r / outline of the best blob
+                    float best_local_y = 0.0f;
+                    uint32_t best_seed = sd.seed;
+                    for (int bi = 0; bi < blob_count; ++bi) {
+                        const float bx = (x - blobs[bi].c.x) / blobs[bi].r;
+                        const float by = (y - blobs[bi].c.y) / blobs[bi].r
+                                       / (needle ? 0.62f : 0.88f);
+                        const float r = std::sqrt(bx * bx + by * by);
+                        const float th = std::atan2(by, bx);
+                        float outline =
+                            1.0f - sd.d1 * (0.5f + 0.5f * std::cos(static_cast<float>(sd.n1) * th + sd.p1))
+                                 - sd.d2 * (0.5f + 0.5f * std::cos(static_cast<float>(sd.n2) * th + sd.p2));
+                        outline = std::max(outline, 0.2f);
+                        const float d = r / outline;
+                        if (d < best) {
+                            best = d;
+                            best_local_y = by;
+                            best_seed = blobs[bi].seed;
+                        }
+                    }
+
+                    // The TWIG: a thin dark line along the pack axis, visible
+                    // in the windows between blobs — the internal structure a
+                    // cluster texture carries (§1.1: leaves WITH their twig).
+                    const float along = x * axis.x + y * axis.y;
+                    const float perp = std::fabs(-x * axis.y + y * axis.x
+                                                 - 0.02f * std::sin(along * 9.0f));
+                    const bool on_twig = !needle
+                        && perp < 0.035f * (1.0f - 0.5f * std::fabs(along))
+                        && along > -0.68f && along < 0.55f;
 
                     const size_t o =
                         (static_cast<size_t>(tone_i * atlas.tile_px + py) * atlas.width
                          + shape_i * atlas.tile_px + px) * 4u;
-                    if (r >= outline) {
-                        continue; // outside the outline: transparent, rgb 0
+
+                    if (best >= 1.0f) {
+                        if (on_twig) { // bare twig between the leaf masses
+                            const glm::vec3 tw = base * 0.30f;
+                            atlas.pixels[o + 0] = static_cast<uint8_t>(tw.r * 255.0f + 0.5f);
+                            atlas.pixels[o + 1] = static_cast<uint8_t>(tw.g * 255.0f + 0.5f);
+                            atlas.pixels[o + 2] = static_cast<uint8_t>(tw.b * 255.0f + 0.5f);
+                            atlas.pixels[o + 3] = 255u;
+                        }
+                        continue; // outside every blob: sky through the pack
                     }
 
-                    const float depth = r / outline; // 0 = core, 1 = outline
-                    // Holes concentrate toward the EDGE. This single ramp is
-                    // the whole porosity model, and it reproduces the measured
-                    // profile (§3.10) instead of the "porous everywhere" guess
-                    // that the measurement refuted.
-                    const float rim = std::clamp((depth - RIM_START) / (1.0f - RIM_START),
+                    // Edge-concentrated erosion per blob — the measured §3.10
+                    // porosity profile, unchanged in spirit from the one-mass
+                    // tile, applied in the blob's own frame.
+                    const float rim = std::clamp((best - RIM_START) / (1.0f - RIM_START),
                                                  0.0f, 1.0f);
                     const float threshold =
                         HOLE_T_CORE + (HOLE_T_RIM - HOLE_T_CORE) * smooth5(rim);
                     const float hole = value_noise(
                         (x + 1.0f) * 0.5f * static_cast<float>(HOLE_LATTICE),
-                        (y + 1.0f) * 0.5f * static_cast<float>(HOLE_LATTICE), sd.seed);
+                        (y + 1.0f) * 0.5f * static_cast<float>(HOLE_LATTICE), best_seed);
                     if (hole > threshold) {
-                        continue; // bitten out of the outline
-                    }
-                    bool in_gap = false;
-                    for (int g = 0; g < gap_count; ++g) {
-                        const float gx = x - gap[g].x;
-                        const float gy = y - gap[g].y;
-                        if (gx * gx + gy * gy < GAP_RADIUS * GAP_RADIUS) {
-                            in_gap = true;
-                            break;
-                        }
-                    }
-                    if (in_gap) {
-                        continue; // a real hole you can see sky through
+                        continue;
                     }
 
-                    // --- Baked form. The card must read as a MASS with its own
-                    // light, because that is what the reference actually shows:
-                    // luminous foliage with the dark skeleton in front of it.
-                    // Quantized to three flat shades (LANDSCAPE §5's "2-3 flat
-                    // colors"): a smooth ramp would only become Bayer dither on
-                    // few-pixel geometry, which reads as noise, not as light.
+                    // Baked form, now PER BLOB: each mass carries its own
+                    // lit-top / dark-under ramp, so the pack reads as several
+                    // clumps under one light instead of one flat sticker.
                     const float form = value_noise(
                         (x + 1.0f) * 0.5f * static_cast<float>(FORM_LATTICE) + 11.0f,
                         (y + 1.0f) * 0.5f * static_cast<float>(FORM_LATTICE) + 7.0f,
-                        sd.seed ^ 0x5BD1u);
-                    const float k = std::clamp(0.34f * (0.5f + 0.5f * qy)
-                                                   + 0.34f * depth + 0.32f * form,
+                        best_seed ^ 0x5BD1u);
+                    const float k = std::clamp(0.38f * (0.5f + 0.5f * best_local_y)
+                                                   + 0.30f * best + 0.32f * form,
                                                0.0f, 0.999f);
                     static constexpr float SHADES[3] = {0.72f, 0.94f, 1.18f};
                     const float shade = SHADES[static_cast<int>(k * 3.0f)];
@@ -328,7 +362,7 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                     atlas.pixels[o + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
                     atlas.pixels[o + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
                     atlas.pixels[o + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
-                    atlas.pixels[o + 3] = 255u; // binary alpha: this is a TEST
+                    atlas.pixels[o + 3] = 255u; // binary alpha (cutout program)
                 }
             }
         }

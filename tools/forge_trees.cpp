@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 00:24:00
+Last updated: 15:08:2026 - 00:45:20
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -31,6 +31,8 @@ UPD:
   «мне вот таких размеров деревья тоже нужны»): 46 м, крона 20 м радиуса, 10
   каркасных ветвей; лапы в АБСОЛЮТНЫХ метрах почти как у обычного дуба — листья
   гиганта не растут вместе с ним.
+- 15:08:2026 - 00:45:20: Две ели (spruce-forge-a/b, запрошены дословно: «добавь на демку елки») —
+  юбка почти до земли, 10-12 мутовок, хвойный тон; лапы ели крупнее (0.42).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -82,8 +84,29 @@ int main(int argc, char** argv) {
         birch.card_shape = LeafShape::OvalSpray;
         birch.scaffold_count = 4;
         birch.secondary_per_scaffold = 3;
-        birch.spray_frac = 0.24f; // birch: fewer, slightly larger airy sprays
+        birch.spray_frac = 0.28f; // birch: fewer, slightly larger airy sprays
         gallery.push_back(birch);
+    }
+    for (int i = 0; i < 2; ++i) {
+        // ЁЛКИ — the user's reference frames are half conifer forest, and he
+        // asked for them by name («добавь на демку елки, как ты их видишь»).
+        TreeForgeParams spruce;
+        spruce.seed = 301 + static_cast<uint64_t>(i);
+        spruce.name = "spruce-forge-" + std::string(1, static_cast<char>('a' + i));
+        spruce.height = 17.0f + static_cast<float>(i) * 3.0f;
+        spruce.crown_radius = 3.1f + static_cast<float>(i) * 0.4f;
+        spruce.crown_base_frac = 0.10f; // the skirt nearly reaches the ground
+        spruce.trunk_radius = 0.30f;
+        spruce.bark = {0.23f, 0.16f, 0.11f}; // red-brown spruce bark
+        spruce.tone = LeafTone::ConiferDark;
+        spruce.card_shape = LeafShape::NeedleFan;
+        spruce.conifer = true;
+        spruce.whorl_count = 10 + i * 2;
+        spruce.whorl_branches = 6;
+        spruce.droop = 0.30f;
+        spruce.spray_per_branch = 1; // anchors are dense along fronds already
+        spruce.spray_frac = 0.42f;
+        gallery.push_back(spruce);
     }
     {
         // THE GIANT — the user's settlement-tree reference: «очень большое
@@ -102,7 +125,7 @@ int main(int argc, char** argv) {
         giant.scaffold_count = 10;
         giant.secondary_per_scaffold = 4;
         giant.spray_per_branch = 2;
-        giant.spray_frac = 0.18f; // absolute sprays ~2.7 m: giant leaves do not scale
+        giant.spray_frac = 0.15f; // absolute sprays ~2.7 m: giant leaves do not scale
         giant.core_frac = 0.30f;
         gallery.push_back(giant);
     }
