@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 13:08:2026 - 21:02:08
+Last updated: 14:08:2026 - 21:03:06
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -48,6 +48,7 @@ UPD:
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 13:08:2026 - 20:58:50: DFN_TORCH_FLAME_UP — дверь дозы на высоту пламени настенного факела над его же сущностью; умолчание теперь строка TORCH_FLAME_ABOVE_GRIP, а не литерал 0.45 (правило 14/35: то же число строит палку в render). Заведена под доказанный замер: пол в 2.79 м от горящего подсвечника читает РОВНО 0 из 255, а с DFN_NO_POINT_SHADOW=1 — 5.71 из того же бинарника и той же точки, то есть свет обнуляет СОБСТВЕННАЯ теневая карта пламени. Единственное, что стоит в точке пламени, — меш самого подсвечника: у заглушки 52 границы -0.2..+0.9 по y, значит пламя на 0.45 сидит ВНУТРИ своей модели. Это правило 35 наоборот: у факела появился МЕШ, и смещение, верное пока он был только светом, стало светом, закопанным в геометрию.
 - 13:08:2026 - 21:02:08: ГИПОТЕЗА ОПРОВЕРГНУТА СОБСТВЕННОЙ ДВЕРЬЮ, и опровержение записано у кода. Подъём пламени на 1.2 м — выше всей заглушки — оставляет пол под ногами РОВНО 0.00, побитово. Значит подсвечник не заслоняет сам себя, и настоящий заслоняющий пока не назван. Замер «тень обнуляет свет» (0.00 против 5.71 при DFN_NO_POINT_SHADOW=1) остаётся в силе со своим нулевым и положительным контролем; объяснение — нет. Правило 34: предпосылку проверяют ДО того, как она войдёт в файл, а если уже вошла — правят там же, где стоит.
+- 14:08:2026 - 21:03:06: Transform.scale И PreviousTransform.scale ставятся site-плейсхолдерам (резка ведущего на этот файл, только это). Первая половина — site_placeholder_scale(), см. SiteComponents.h. Вторая найдена ЗАМЕРОМ первой и стоит отдельного упоминания: render рисует mix(prev.scale, curr.scale, alpha), а PreviousTransform::scale по умолчанию 1 — поэтому 0.2 факела приезжали как 0.6 при alpha 0.5 и, хуже, ДЫШАЛИ вместе с коэффициентом интерполяции каждый кадр. Правило 39 в точной форме: теневая копия структуры верна ровно до того дня, когда у оригинала появляется поле. Поймано тем, что кадр «до/после» дал усадку 0.6× там, где арифметика обещала 0.2×.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -401,6 +402,15 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
                         glm::angleAxis(rec.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
                     if (const auto type = site_type_from_archetype(rec.archetype)) {
                         const SiteArchetype& a = site_archetype(*type);
+                        // SCALE MAPS THE MESH'S OWN SPACE ONTO ITS DECLARED
+                        // BOX, and its absence is why a wall sconce was a 2 m
+                        // cube standing half inside the rock. Every row
+                        // authored in metres returns exactly 1, so nothing but
+                        // the torch moves (SiteComponents.h). Same line as
+                        // InteractableSpawn.cpp's, and for the same reason:
+                        // the drawn prop and the declared prop are one object
+                        // or they are two that will drift.
+                        transforms[i].scale = site_placeholder_scale(a);
                         meshes[i] = components::RenderMesh{a.mesh_id, 0};
                         bounds[i] = components::LocalBounds{a.bounds_min, a.bounds_max};
                         markers[i] = SiteMarker{*type};
@@ -411,6 +421,15 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
                 for (std::size_t i = 0; i < n; ++i) {
                     prev[i].position = transforms[i].position;
                     prev[i].rotation = transforms[i].rotation;
+                    // AND THE SCALE, which this loop had no reason to copy
+                    // until one line above gave a placeholder a scale at all.
+                    // render draws mix(prev.scale, curr.scale, alpha), and
+                    // PreviousTransform::scale defaults to 1 — so the torch's
+                    // 0.2 arrived as 0.6 at alpha 0.5 and, worse, BREATHED
+                    // with the interpolation factor every frame. Rule 39 in
+                    // its exact shape: a shadow copy of a struct is correct
+                    // until the original gains a field.
+                    prev[i].scale = transforms[i].scale;
                 }
                 ecs.add_batch<components::PreviousTransform>(
                     ids, std::span<const components::PreviousTransform>{prev});
