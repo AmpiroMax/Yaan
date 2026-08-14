@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:02:17
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -36,6 +36,9 @@ UPD:
   renumbered.
 - 09:08:2026 - 21:02:17: DrawParams sync: submit takes per-draw params (fade
   drives the screen-door dither, highlight reserved for sim's hover).
+- 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe / frame_stats /
+  center_pick overrides for the new IRenderer contract (definitions in
+  BgfxRendererFrame.cpp; accumulation in BgfxRendererSubmit.cpp).
 */
 
 #pragma once
@@ -84,6 +87,10 @@ public:
 
     bool save_screenshot(const std::string& path) override;
     void reload_shaders() override; // debug no-op this stage (embedded shaders)
+
+    void set_wireframe(bool enabled) override;
+    [[nodiscard]] const RenderFrameStats& frame_stats() const override;
+    [[nodiscard]] const RenderPick& center_pick() const override;
 
 private:
     struct Impl; // all bgfx types live here (.cpp only)

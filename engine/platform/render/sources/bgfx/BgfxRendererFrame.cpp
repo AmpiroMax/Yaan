@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 22:29:00
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -118,6 +118,14 @@ UPD:
   atlas, raw R32F. It is what convicted the culprit: every texel of all six
   faces held 0.11-0.64 m, the light holder's own mesh, drawn UNSCALED (unit
   space, Transform.scale 1) around its flame.
+- 14:08:2026 - 16:35:53: В28 debug/editor hooks. begin_frame sets the global
+  wireframe flag (DFN_WIREFRAME door), resets the frame-stat/pick accumulators
+  and builds the centre-screen pick ray; in wireframe mode the scene view is
+  retargeted at the backbuffer (the global flag would line-draw the upscale
+  quad). end_frame skips the present in wireframe, and latches frame_stats
+  (scene draws/tris ours, backend_draws from bgfx after frame()) + center_pick.
+  set_wireframe / frame_stats / center_pick / Impl::wireframe_on defined here.
+  DFN_FRAME_STATS=1 is the acceptance door for the two read-back hooks.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -683,9 +691,30 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
         return;
     }
     im.in_frame = true;
-    bgfx::setViewFrameBuffer(VIEW_SCENE, im.internal_fb);
-    bgfx::setViewRect(VIEW_SCENE, 0, 0, static_cast<uint16_t>(im.internal_width),
-                      static_cast<uint16_t>(im.internal_height));
+
+    // В28 WIREFRAME + the per-frame stats/pick reset. The wireframe flag is
+    // GLOBAL in bgfx (it would also line-draw the fullscreen upscale quad, i.e.
+    // present a black screen with two diagonals), so in wireframe mode the scene
+    // view is retargeted at the backbuffer here and the upscale is skipped in
+    // end_frame. The app's projection already carries the framebuffer aspect
+    // (App.cpp), so the full-backbuffer scene is aspect-correct with no fix.
+    const bool wire = im.wireframe_on();
+    bgfx::setDebug(wire ? BGFX_DEBUG_WIREFRAME : BGFX_DEBUG_NONE);
+    im.scene_draws_accum = 0;
+    im.scene_tris_accum = 0;
+    im.pick_accum = RenderPick{};
+    im.pick_best_t = 3.0e38f; // ~FLT_MAX; any real hit distance is nearer
+
+    if (wire) {
+        bgfx::setViewFrameBuffer(VIEW_SCENE, BGFX_INVALID_HANDLE);
+        bgfx::setViewRect(VIEW_SCENE, 0, 0, static_cast<uint16_t>(im.fb_width),
+                          static_cast<uint16_t>(im.fb_height));
+    } else {
+        bgfx::setViewFrameBuffer(VIEW_SCENE, im.internal_fb);
+        bgfx::setViewRect(VIEW_SCENE, 0, 0,
+                          static_cast<uint16_t>(im.internal_width),
+                          static_cast<uint16_t>(im.internal_height));
+    }
     // REVERSED-Z: the far plane is depth 0 and the near plane depth 1, so the
     // buffer clears to 0 and comparisons are GREATER. With CAMERA_FAR at 8 km
     // against a 0.1 m near plane this is what stops distant mountains from
@@ -707,7 +736,13 @@ void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
     bgfx::touch(VIEW_SCENE); // clear even on an empty frame
 
     // Shadow view: renders (view id order) before the scene consumes the map.
-    im.frame_eye = glm::vec3(glm::inverse(view)[3]);
+    const glm::mat4 inv_view = glm::inverse(view);
+    im.frame_eye = glm::vec3(inv_view[3]);
+    // В28 centre-of-screen pick ray: camera eye + forward (view space -Z). Set
+    // here, consumed per draw in submit.
+    im.pick_ray_origin = im.frame_eye;
+    im.pick_ray_dir =
+        glm::normalize(glm::vec3(inv_view * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
     if (bgfx::isValid(im.shadow_fb)) {
         bgfx::setViewFrameBuffer(VIEW_SHADOW, im.shadow_fb);
         bgfx::setViewRect(VIEW_SHADOW, 0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
@@ -768,6 +803,9 @@ void BgfxRenderer::end_frame() {
     if (!im.initialized || !im.in_frame) {
         return;
     }
+    // В28: in wireframe mode the scene already rendered to the backbuffer
+    // (begin_frame), so the letterbox + upscale present is skipped below.
+    const bool wire = im.wireframe_on();
 
     // One-frame debug lines (accumulated by debug_line).
     if (!im.debug_lines.empty() && bgfx::isValid(im.debug_program)) {
@@ -786,42 +824,46 @@ void BgfxRenderer::end_frame() {
     im.debug_lines.clear();
 
     // Letterbox clear, then the integer-scaled point-sampled upscale (Q9).
-    bgfx::setViewFrameBuffer(VIEW_BACKBUFFER, BGFX_INVALID_HANDLE);
-    bgfx::setViewRect(VIEW_BACKBUFFER, 0, 0, static_cast<uint16_t>(im.fb_width),
-                      static_cast<uint16_t>(im.fb_height));
-    bgfx::setViewClear(VIEW_BACKBUFFER, BGFX_CLEAR_COLOR, 0x000000ff, 1.0f, 0);
-    bgfx::touch(VIEW_BACKBUFFER);
+    // Skipped whole in wireframe mode: the scene is already on the backbuffer
+    // and the upscale quad would be line-drawn by the global wireframe flag.
+    if (!wire) {
+        bgfx::setViewFrameBuffer(VIEW_BACKBUFFER, BGFX_INVALID_HANDLE);
+        bgfx::setViewRect(VIEW_BACKBUFFER, 0, 0, static_cast<uint16_t>(im.fb_width),
+                          static_cast<uint16_t>(im.fb_height));
+        bgfx::setViewClear(VIEW_BACKBUFFER, BGFX_CLEAR_COLOR, 0x000000ff, 1.0f, 0);
+        bgfx::touch(VIEW_BACKBUFFER);
 
-    if (bgfx::isValid(im.upscale_program)) {
-        uint32_t dx = 0;
-        uint32_t dy = 0;
-        uint32_t dw = 0;
-        uint32_t dh = 0;
-        im.dest_rect(dx, dy, dw, dh);
-        bgfx::setViewFrameBuffer(VIEW_UPSCALE, BGFX_INVALID_HANDLE);
-        bgfx::setViewRect(VIEW_UPSCALE, static_cast<uint16_t>(dx),
-                          static_cast<uint16_t>(dy), static_cast<uint16_t>(dw),
-                          static_cast<uint16_t>(dh));
-        const float post[4] = {im.palette_post ? 1.0f : 0.0f,
-                               static_cast<float>(PALETTE_SIZE),
-                               static_cast<float>(im.internal_width),
-                               static_cast<float>(im.internal_height)};
-        bgfx::setUniform(im.u_post_params, post);
-        // The floor rides the environment (it changes while the player turns
-        // the calibration dial), the falloff is a project constant, so the two
-        // halves of the curve come from the two places that own them.
-        const float floor_params[4] = {im.environment.black_floor,
-                                       static_cast<float>(config::BLACK_FLOOR_FALLOFF),
-                                       0.0f, 0.0f};
-        bgfx::setUniform(im.u_black_floor, floor_params);
-        if (im.palette_post) {
-            bgfx::setUniform(im.u_palette, im.palette.data(), PALETTE_SIZE);
+        if (bgfx::isValid(im.upscale_program)) {
+            uint32_t dx = 0;
+            uint32_t dy = 0;
+            uint32_t dw = 0;
+            uint32_t dh = 0;
+            im.dest_rect(dx, dy, dw, dh);
+            bgfx::setViewFrameBuffer(VIEW_UPSCALE, BGFX_INVALID_HANDLE);
+            bgfx::setViewRect(VIEW_UPSCALE, static_cast<uint16_t>(dx),
+                              static_cast<uint16_t>(dy), static_cast<uint16_t>(dw),
+                              static_cast<uint16_t>(dh));
+            const float post[4] = {im.palette_post ? 1.0f : 0.0f,
+                                   static_cast<float>(PALETTE_SIZE),
+                                   static_cast<float>(im.internal_width),
+                                   static_cast<float>(im.internal_height)};
+            bgfx::setUniform(im.u_post_params, post);
+            // The floor rides the environment (it changes while the player turns
+            // the calibration dial), the falloff is a project constant, so the two
+            // halves of the curve come from the two places that own them.
+            const float floor_params[4] = {im.environment.black_floor,
+                                           static_cast<float>(config::BLACK_FLOOR_FALLOFF),
+                                           0.0f, 0.0f};
+            bgfx::setUniform(im.u_black_floor, floor_params);
+            if (im.palette_post) {
+                bgfx::setUniform(im.u_palette, im.palette.data(), PALETTE_SIZE);
+            }
+            bgfx::setTexture(0, im.s_tex_color, bgfx::getTexture(im.internal_fb, 0));
+            bgfx::setVertexBuffer(0, im.quad_vb);
+            bgfx::setIndexBuffer(im.quad_ib);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+            bgfx::submit(VIEW_UPSCALE, im.upscale_program);
         }
-        bgfx::setTexture(0, im.s_tex_color, bgfx::getTexture(im.internal_fb, 0));
-        bgfx::setVertexBuffer(0, im.quad_vb);
-        bgfx::setIndexBuffer(im.quad_ib);
-        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
-        bgfx::submit(VIEW_UPSCALE, im.upscale_program);
     }
 
     if (!im.pending_screenshot.empty()) {
@@ -876,6 +918,37 @@ void BgfxRenderer::end_frame() {
             dump_state = 2;
         }
     }
+
+    // В28: LATCH the frame stats and the centre pick for the frame just
+    // submitted. scene_draws/triangles are our own CPU counters; backend_draws
+    // is read from bgfx AFTER frame() above, so it reflects the frame that was
+    // just rendered (all views — shadows, sky, scene, upscale). bgfx exposes no
+    // primitive count, which is why the triangle number is ours, not its.
+    im.frame_stats.scene_draws = im.scene_draws_accum;
+    im.frame_stats.scene_triangles = im.scene_tris_accum;
+    im.frame_stats.backend_draws = bgfx::getStats()->numDraw;
+    im.pick = im.pick_accum;
+
+    // THE ACCEPTANCE DOOR for hooks 1 and 3 (Rule 27): DFN_FRAME_STATS=1 prints
+    // the latched stats and pick every 30 frames, so both are checkable from the
+    // shipped binary without an app-side overlay yet.
+    static const bool stats_log = [] {
+        const char* e = std::getenv("DFN_FRAME_STATS");
+        return e != nullptr && e[0] != '\0' && e[0] != '0';
+    }();
+    if (stats_log) {
+        static uint32_t sl_frame = 0;
+        if ((sl_frame++ % 30) == 0) {
+            std::fprintf(stderr,
+                         "[render] frame_stats: scene_draws %u scene_tris %u "
+                         "backend_draws %u | center_pick hit=%d id=%u tris=%u "
+                         "dist=%.2f m\n",
+                         im.frame_stats.scene_draws, im.frame_stats.scene_triangles,
+                         im.frame_stats.backend_draws, im.pick.hit ? 1 : 0,
+                         im.pick.pick_id, im.pick.triangles,
+                         static_cast<double>(im.pick.distance_m));
+        }
+    }
     im.in_frame = false;
 }
 
@@ -905,6 +978,30 @@ bool BgfxRenderer::save_screenshot(const std::string& path) {
 void BgfxRenderer::reload_shaders() {
     // Debug no-op this stage: shaders are embedded at build time. Disk-based
     // hot-reload (Q50) arrives with the stage-3 material work.
+}
+
+// В28 debug / editor introspection -------------------------------------------
+
+// DFN_WIREFRAME=1 forces wireframe on regardless of set_wireframe (read once):
+// the shipped app/tour binary is verifiable without an app change (Rule 27).
+bool BgfxRenderer::Impl::wireframe_on() const {
+    static const bool env = [] {
+        const char* e = std::getenv("DFN_WIREFRAME");
+        return e != nullptr && e[0] != '\0' && e[0] != '0';
+    }();
+    return wireframe || env;
+}
+
+void BgfxRenderer::set_wireframe(bool enabled) {
+    impl_->wireframe = enabled;
+}
+
+const RenderFrameStats& BgfxRenderer::frame_stats() const {
+    return impl_->frame_stats;
+}
+
+const RenderPick& BgfxRenderer::center_pick() const {
+    return impl_->pick;
 }
 
 } // namespace dfn::platform

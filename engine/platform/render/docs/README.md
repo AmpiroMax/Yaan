@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 21:08:00
+Last updated: 14:08:2026 - 16:35:53
 -->
 <!--
 UPD:
@@ -11,6 +11,7 @@ UPD:
 - 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0 (views renumbered), depth-only "shadow" program, dfn_shadow.sh sampling in terrain/prop; terrain fragment v4 (surface-class-only splat — legacy height-sand and dirt dryness removed per design ruling).
 - 09:08:2026 - 20:50:00: Interior lighting: CUBE SHADOWS for carried lights (12 face views into one distance atlas, "point_shadow" program, dfn_pointshadow.sh), caster culling from mesh bounds measured at create_mesh, and the touch-order rule that empty draws must precede every setUniform of the frame.
 - 09:08:2026 - 21:08:00: DrawParams sync (lead-authored): submit takes per-draw params; both backends implement the five-argument form, bgfx forwards fade/highlight into u_params.yz and dfn_screen_door dissolves by an ordered 4x4 pattern.
+- 14:08:2026 - 16:35:53: В28 debug/editor introspection sync (render's diff at the lead's direction): frame_stats(), set_wireframe(bool), center_pick() + DrawParams::pick_id. Verification recipe and the honest bgfx limits below.
 -->
 
 # engine/platform/render
@@ -136,6 +137,34 @@ Stage-3 additions in the bgfx backend:
   PARAMETER. `dfn_env.sh` is included by vertex shaders (wind), where
   `gl_FragCoord` does not exist; naming it inside the function broke every
   vertex shader in the tree.
+
+- **Debug / editor introspection (В28)**: three additive contract hooks for the
+  editor's debug overlays, verified from one binary (control vs wireframe):
+  - `frame_stats()` -> `RenderFrameStats{scene_draws, scene_triangles,
+    backend_draws}`. HONEST ABOUT bgfx: `bgfx::getStats()` gives a draw-call
+    count (`numDraw`, all views) but NO primitive count, so `scene_triangles` is
+    summed CPU-side from index counts of the SCENE submits (exact for indexed
+    meshes; excludes the shadow re-draws). `backend_draws` is bgfx's all-views
+    total, which is why it is larger than `scene_draws` (e.g. 122 vs 53 in the
+    testbed: + sun/near shadow, cube faces, sky, upscale).
+  - `set_wireframe(bool)` -> `bgfx::setDebug(BGFX_DEBUG_WIREFRAME)`. The flag is
+    GLOBAL and would line-draw the fullscreen upscale quad (a black present), so
+    in wireframe mode the scene view is retargeted at the backbuffer and the
+    upscale is skipped; the app's projection already carries the framebuffer
+    aspect, so no correction. Default off, zero cost off. HUD/post are skipped in
+    this mode (a geometry-inspection view).
+  - `center_pick()` -> `RenderPick{hit, pick_id, mesh, triangles, distance_m,
+    position}`. Variant A: a CPU ray from screen centre vs the per-draw bounding
+    spheres already kept for the shadow cull, nearest hit. `triangles` is the
+    SELECTED LOD's count (read off the real draw); the LOD LEVEL label and the
+    entity are the caller's to map from `pick_id` (stamped in
+    `DrawParams::pick_id`, default 0). Loose on heavy overlap; an id-buffer pass
+    (variant B) is the escalation.
+  - **How to verify** (Rule 27, no app change needed): `DFN_FRAME_STATS=1`
+    prints the latched stats + pick every 30 frames; `DFN_WIREFRAME=1` forces
+    wireframe on. Recipe: `DFN_WIREFRAME=1 DFN_FRAME_STATS=1
+    DFN_CAPTURE_AFTER_FRAMES=200 DFN_CAPTURE_DIR=<dir> ./dfn_app`. Cited frame:
+    `docs/acceptance/render-B28-wireframe.png`.
 
 ### Logical program name -> render state (backend convention)
 

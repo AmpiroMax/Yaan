@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 22:28:39
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -58,6 +58,9 @@ UPD:
   0.11-0.64 m and the sconce lit NOTHING). DFN_LOD_POINT_CAST=1 and
   DFN_SELF_POINT_CAST=1 are the counterfactual arms; DFN_PS_LOG=1 names every
   draw entering a cube face -- the door that found the culprit.
+- 14:08:2026 - 16:35:53: В28: each scene submit accumulates scene_draws_accum /
+  scene_tris_accum and runs the centre-of-screen ray against its bounding
+  sphere for center_pick (nearest hit). Reuses world_center / world_radius.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -352,6 +355,40 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     }
     bgfx::setState(state);
     bgfx::submit(VIEW_SCENE, prog_it->second);
+
+    // --- В28 FRAME STATS + CENTRE PICK -------------------------------------
+    // Counted for every real scene draw — the early returns above already
+    // dropped the misses, and this sits after the one scene submit so it
+    // matches it one-to-one (transparents included: they are drawn too).
+    // Triangles come from the mesh's own index count because bgfx exposes a
+    // draw-call count but NO primitive count (see RenderFrameStats).
+    ++im.scene_draws_accum;
+    im.scene_tris_accum += mesh_it->second.tri_count;
+    // Centre-of-screen ray against this draw's world bounding sphere (variant
+    // A) — the same world_center / world_radius the shadow culls just used, so
+    // the pick costs a handful of flops and no extra bounds. Nearest hit wins.
+    {
+        const glm::vec3 oc = im.pick_ray_origin - world_center;
+        const float b = glm::dot(oc, im.pick_ray_dir);
+        const float c = glm::dot(oc, oc) - world_radius * world_radius;
+        const float disc = b * b - c;
+        if (disc >= 0.0f) {
+            const float s = std::sqrt(disc);
+            float t = -b - s;          // near intersection
+            if (t < 0.0f) {
+                t = -b + s;            // eye inside the sphere: take the far side
+            }
+            if (t >= 0.0f && t < im.pick_best_t) {
+                im.pick_best_t = t;
+                im.pick_accum.hit = true;
+                im.pick_accum.pick_id = params_in.pick_id;
+                im.pick_accum.mesh = mesh;
+                im.pick_accum.triangles = mesh_it->second.tri_count;
+                im.pick_accum.distance_m = t;
+                im.pick_accum.position = im.pick_ray_origin + im.pick_ray_dir * t;
+            }
+        }
+    }
 }
 
 } // namespace dfn::platform

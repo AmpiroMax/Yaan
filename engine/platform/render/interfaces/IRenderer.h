@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 13:08:2026 - 22:28:39
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -74,6 +74,20 @@ UPD:
 - 13:08:2026 - 22:28:39: DrawParams::casts_in_point_shadows -- stand-ins and light
   holders opt out of the carried-light cube pass (see the field's comment for
   the measured defect: floor at 2.79 m from a burning sconce read 0 of 255).
+- 14:08:2026 - 16:35:53: DEBUG / EDITOR INTROSPECTION SYNC (В28, render's diff at
+  the lead's direction per Rule 26 — a devlog entry is owed in docs/devlog/,
+  which is lead-owned). Three additive hooks for the editor's debug overlays,
+  none of which changes or reorders an existing field, so both backends keep
+  compiling and every existing call site is untouched:
+    1. RenderFrameStats + frame_stats(): per-frame draw/triangle counters.
+       HONEST about bgfx — it reports draw calls (numDraw) but NOT a primitive
+       count, so triangles are summed CPU-side from index counts (see the
+       struct's own comment).
+    2. set_wireframe(bool): whole-scene wireframe, default off, zero cost off.
+    3. RenderPick + center_pick() + DrawParams::pick_id: a CPU centre-of-screen
+       ray pick (variant A) against the per-draw bounding spheres the backend
+       already keeps; returns the submitter's stamped id, the drawn mesh and its
+       (selected-LOD) triangle count. Pure addition to DrawParams's tail.
 */
 
 #pragma once
@@ -170,6 +184,55 @@ struct DrawParams {
     // from a burning sconce": every texel of every cube face held the LOD
     // mountain's interior at centimetres from the flame.
     bool casts_in_point_shadows = true;
+    // OPAQUE PICK ID for the centre-screen pick (В28, RenderPick). The submitter
+    // stamps whatever it wants the crosshair overlay to name — an EntityId, an
+    // object-type tag — and center_pick() hands the winner's value straight
+    // back. 0 = "unnamed" (the default): the draw still participates in the pick
+    // and reports its geometry, it just has no id to surface. Deliberately here
+    // and not a submit() argument — DrawParams is the per-draw metadata bag, and
+    // the header of this struct already argues that inventing a special case per
+    // feature is how this ends up three incompatible hacks.
+    uint32_t pick_id = 0;
+};
+
+// ---- Debug / editor introspection (В28) -------------------------------------
+
+// Per-frame draw statistics for the editor's debug overlay. Valid after
+// end_frame; describes the LAST completed frame.
+//
+// HONEST ABOUT WHAT bgfx GIVES: bgfx::getStats() reports a DRAW-CALL count
+// (numDraw, covering every view — sun + near cascades, the carried-light cube
+// faces, sky, scene, the upscale) but it does NOT report a primitive/triangle
+// count. So `scene_triangles` is summed CPU-side from the index counts of the
+// meshes submitted into the SCENE view (exact for indexed meshes). That sum is
+// the geometry the crosshair overlay is about and deliberately EXCLUDES the
+// shadow re-draws of the same meshes; `backend_draws` is the honest all-views
+// total straight from bgfx for when the whole GPU cost is the question.
+struct RenderFrameStats {
+    uint32_t scene_draws = 0;      // draws issued into the scene view this frame
+    uint32_t scene_triangles = 0;  // triangles in those scene draws (indices / 3)
+    uint32_t backend_draws = 0;    // bgfx total draw calls, ALL views/passes
+};
+
+// Result of the centre-of-screen pick (В28: "what is under the crosshair").
+// Valid after end_frame; describes the LAST completed frame.
+//
+// VARIANT A: a CPU ray from the camera centre tested against the per-draw
+// bounding spheres the backend already measures at create_mesh (the same
+// spheres the shadow culls use), nearest hit wins. `mesh` is the exact geometry
+// that was drawn, so `triangles` is the SELECTED LOD's triangle count — the LOD
+// selection happens per frame at submit time and this reads it off the real
+// draw. The LOD LEVEL LABEL (0/1/2…) is engine/render's to map from `pick_id`
+// or `mesh`; the platform has no LOD vocabulary and does not invent one.
+// Spheres are loose, so under heavy overlap this is approximate; an id-buffer
+// readback (variant B) is the escalation if that is ever shown to mislead.
+struct RenderPick {
+    bool hit = false;
+    uint32_t pick_id = 0;       // DrawParams::pick_id of the winning draw (0 = unnamed)
+    MeshHandle mesh;            // the drawn mesh (== selected LOD's mesh)
+    uint32_t triangles = 0;     // that mesh's triangle count
+    float distance_m = 0.0f;    // ray distance to the sphere hit, meters
+    glm::vec3 position{0.0f};   // world-space hit point
 };
 
 // Per-frame environment + shared material parameters (atmosphere, splat
@@ -346,6 +409,15 @@ public:
     // Hot-reloads shader programs from the compiled artifacts on disk (Q50).
     // Debug-build convenience; a backend may implement it as a no-op.
     virtual void reload_shaders() = 0;
+
+    // Debug / editor introspection (В28) --------------------------------------
+    // Cheap, always available. frame_stats() and center_pick() report the LAST
+    // completed frame (valid after end_frame); the null backend returns
+    // zeroed/empty values (Rule 3). set_wireframe toggles a whole-scene
+    // wireframe overlay; default off, and off costs nothing.
+    virtual void set_wireframe(bool enabled) = 0;
+    [[nodiscard]] virtual const RenderFrameStats& frame_stats() const = 0;
+    [[nodiscard]] virtual const RenderPick& center_pick() const = 0;
 };
 
 } // namespace dfn::platform

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:02:17
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.h
 
@@ -28,6 +28,8 @@ UPD:
   the contract sync 10:48).
 - 09:08:2026 - 21:02:17: DrawParams sync: submit takes per-draw params;
   accepted and ignored here (Rule 3 — inert but valid, never a crash).
+- 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe (no-op),
+  frame_stats / center_pick (zeroed/no-hit refs). Inert but valid (Rule 3).
 */
 
 #pragma once
@@ -67,6 +69,13 @@ public:
     bool save_screenshot(const std::string& path) override; // always false
     void reload_shaders() override;
 
+    // В28 debug/editor hooks: inert but valid (Rule 3). Wireframe is a no-op;
+    // stats and the pick stay zeroed — a headless run draws no pixels to
+    // introspect.
+    void set_wireframe(bool enabled) override;
+    [[nodiscard]] const RenderFrameStats& frame_stats() const override;
+    [[nodiscard]] const RenderPick& center_pick() const override;
+
     // Introspection for tests (backend-local, not part of IRenderer).
     [[nodiscard]] uint32_t live_meshes() const { return live_meshes_; }
     [[nodiscard]] uint32_t live_textures() const { return live_textures_; }
@@ -77,6 +86,8 @@ private:
     uint32_t live_meshes_ = 0;
     uint32_t live_textures_ = 0;
     uint32_t frame_submits_ = 0;
+    RenderFrameStats frame_stats_{}; // always zero (Rule 3: inert but valid)
+    RenderPick pick_{};              // always "no hit"
 };
 
 } // namespace dfn::platform

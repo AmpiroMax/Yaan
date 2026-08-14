@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 21:02:17
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.cpp
 
@@ -22,6 +22,8 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 09:08:2026 - 10:59:00: Stage 3 — set_environment no-op.
 - 09:08:2026 - 21:02:17: DrawParams sync: submit signature; params ignored.
+- 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe no-op;
+  frame_stats / center_pick return zeroed/no-hit refs.
 */
 
 #include "engine/platform/render/sources/null/NullRenderer.h"
@@ -92,6 +94,18 @@ bool NullRenderer::save_screenshot(const std::string&) {
 }
 
 void NullRenderer::reload_shaders() {}
+
+void NullRenderer::set_wireframe(bool) {
+    // No-op: a headless run has no pixels to line-draw (Rule 3).
+}
+
+const RenderFrameStats& NullRenderer::frame_stats() const {
+    return frame_stats_; // always zero — nothing was drawn
+}
+
+const RenderPick& NullRenderer::center_pick() const {
+    return pick_; // always "no hit"
+}
 
 std::unique_ptr<IRenderer> create_null_renderer() {
     return std::make_unique<NullRenderer>();

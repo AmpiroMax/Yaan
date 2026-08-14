@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 10:08:2026 - 23:24:48
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererResources.cpp
 
@@ -43,6 +43,8 @@ UPD:
   digits — the residual pixels are not partially covered, they are written or
   discarded, so the fix had to reach the MASK. Details and the palette-on
   numbers in docs/specs/render.md.
+- 14:08:2026 - 16:35:53: create_mesh records MeshRes::tri_count (index_count / 3)
+  for the В28 frame-stats and centre-pick hooks.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -104,6 +106,9 @@ MeshHandle BgfxRenderer::create_mesh(std::span<const Vertex> vertices,
         res.center = (lo + hi) * 0.5f;
         res.radius = glm::length(hi - res.center);
     }
+    // Triangle count for the В28 frame-stats / pick hooks. The scene meshes are
+    // indexed triangle lists, so index_count / 3 is exact.
+    res.tri_count = static_cast<uint32_t>(indices.size() / 3);
     // NEVER STORE THE RESULT OF A FAILED CREATE. bgfx returns
     // BGFX_INVALID_HANDLE (idx 0xFFFF) when its handle pool is exhausted; that
     // value used to be stored in the mesh record and handed back as a VALID

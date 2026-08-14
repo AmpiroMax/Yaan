@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -77,6 +77,9 @@ UPD:
   texel 11.5 times a second, against the sun's own 0.36 mm of shadow motion in
   that time; now 0.0037 texels, median exactly zero, 0.1 events per second.
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 14:08:2026 - 16:35:53: В28 hooks state: MeshRes::tri_count, and the Impl block
+  for wireframe + frame stats + the centre pick (accumulated in submit, latched
+  in end_frame). wireframe_on() folds in the DFN_WIREFRAME door.
 */
 
 #pragma once
@@ -484,6 +487,11 @@ struct BgfxRenderer::Impl {
         // every vertex, so the one place that already has the data keeps it.
         glm::vec3 center{0.0f};
         float radius = 0.0f;
+        // Triangle count (index_count / 3), kept for the В28 frame-stats and
+        // pick hooks. Measured at upload for the same reason as the sphere: the
+        // frozen submit carries no counts, and create_mesh is the one place that
+        // sees the index span.
+        uint32_t tri_count = 0;
     };
     std::unordered_map<uint32_t, MeshRes> meshes;
     // GPU BUFFER BUDGET. bgfx hands out at most BGFX_MESH_HANDLE_BUDGET
@@ -503,6 +511,32 @@ struct BgfxRenderer::Impl {
     std::vector<DebugVertex> debug_lines; // flushed each end_frame
     std::string pending_screenshot;       // scheduled into the next end_frame
     bool in_frame = false;
+
+    // --- В28 DEBUG / EDITOR INTROSPECTION ------------------------------------
+    // Whole-scene wireframe (bgfx::setDebug(BGFX_DEBUG_WIREFRAME)). The global
+    // flag would also wireframe the fullscreen UPSCALE quad, turning the present
+    // into a couple of edge lines over a black screen — so in wireframe mode the
+    // scene view is retargeted straight at the backbuffer and the upscale is
+    // skipped (begin_frame / end_frame). The app's projection is already built
+    // from the FRAMEBUFFER aspect (App.cpp), so drawing to the full backbuffer
+    // is aspect-correct with no correction.
+    bool wireframe = false;
+    // Frame stats and the centre pick for the LAST COMPLETED frame (latched in
+    // end_frame). The `_accum` members build the pending frame; frame_stats()
+    // and center_pick() only ever read the latched copies.
+    RenderFrameStats frame_stats{};
+    RenderPick pick{};
+    uint32_t scene_draws_accum = 0;
+    uint32_t scene_tris_accum = 0;
+    RenderPick pick_accum{};
+    float pick_best_t = 0.0f;             // nearest hit distance so far this frame
+    glm::vec3 pick_ray_origin{0.0f};      // camera eye (from begin_frame's view)
+    glm::vec3 pick_ray_dir{0.0f, 0.0f, -1.0f}; // camera forward, world space, unit
+
+    // DFN_WIREFRAME=1 forces wireframe on regardless of set_wireframe, so the
+    // shipped app/tour binary can be verified without an app change (Rule 27).
+    // Read once; ORed with the set_wireframe flag by begin_frame.
+    [[nodiscard]] bool wireframe_on() const;
 
     // Embedded-shader lookup by logical name (BgfxRenderer.cpp — the table and
     // the generated headers live with the lifecycle code).
