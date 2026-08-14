@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 14:08:2026 - 00:14:00
+Last updated: 14:08:2026 - 20:31:26
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -263,6 +263,47 @@ UPD:
   Вебера (Curve=0 у ствола всех пород статьи), хэш вместо rng, чтобы не
   сдвинуть чужие потоки. Снаг/стланик/брёвна держат дугу — она их сигнал.
   DFN_FLORA_TRUNKARC=1 — нулевая рука (старая дуга).
+- 14:08:2026 - 20:31:26: TWO RED CASES ADJUDICATED, AND IN BOTH THE TEST WAS RIGHT.
+  (1) THE STAIR IS A STAIR. `build_climb_steps` advanced by the GOLDEN ANGLE,
+  which exists to put successive organs as FAR APART as an angle can — the
+  exact opposite of a staircase. Measured by sim_great_oak_stair with the real
+  character controller: 0 of 18 consecutive pairs walkable, worst surface gap
+  3.99 m. Replaced by an advance of one PLAYER_CAPSULE_RADIUS at the ring's own
+  walking line, accumulated rather than multiplied by the index so a tapering
+  bole keeps the GOING constant instead of the angle. Now 25 of 25 walkable,
+  worst gap 0.188 m, and the detector resolves 25 bands where it resolved 18
+  (the treads no longer land among the limbs). DFN_FLORA_STEPAZ=1 is the
+  zero-dose arm and it still reads 0 of 18 from THIS binary — the rejected
+  sample keeps failing (Rules 47, 51).
+  (2) THE FAR LEVEL WAS A DIFFERENT TREE, NOT A COARSER ONE, and the cause is
+  Rule 37 verbatim: `WEBER_MIN_NODES` is written on the node budget, the far
+  LOD cuts the node budget, so when the user's `TREE_TRI_BUDGET_MAX` 1300 ->
+  2600 landed (14.08 02:24) the gate came to sit BETWEEN the two levels — Full
+  ~208 nodes and Weber & Penn, Reduced ~83 and the fractal grower. Nothing went
+  red at the gate; what went red was the crown-density ladder in another file.
+  The grower gate now reads the FULL budget, so which generator a species uses
+  is a property of the species and not of the viewing distance. Second half:
+  the leaf allowance per shoot end scales as the inverse of the wood cut
+  (`far_lod_wood_pct`, now one name read by both sides), because a ceiling
+  written per shoot end follows the skeleton down and took the crown with it —
+  the willow carried 89 card quads at Reduced against 108 at Full on the one
+  level whose whole target is that the far crown may not thin.
+  MEASURED, worst-of-12-variants optical depth Reduced/Full: oak 0.879 ->
+  1.038, birch 1.133 -> 1.404, pine 1.000, willow 0.721 -> 0.759. Three red
+  assertions became one. The willow is NOT closed and is reported rather than
+  fitted: its masses string along the shoot instead of clumping at the tip, so
+  at Reduced it presents 96 % of the area over a 26 % larger silhouette.
+  The attribution is free and exact: every FULL row of the card-area registry
+  is byte-identical across the change (767.372 / 154.398 / 1036.92 / 85.4609),
+  i.e. the change is confined to the far level by construction.
+  Also: the instrument was checked before it was believed (Rule 50) — 8, 16 and
+  32 azimuths move the statistic by under 3.5 %, so the ladder's 5 % bound is
+  not reading its own sampling; and the whole 12-variant distribution was read
+  rather than the min alone (Rule 46), which is what showed oak and willow down
+  on 11 of 12 and 12 of 12 variants instead of on one unlucky argmin.
+  Plus two pre-existing warnings silenced at their sites, both from the same
+  night's landings (`build_golden_chain`'s tree, `build_weber_crown`'s
+  stem_top, which the united bole made inert).
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -342,6 +383,11 @@ constexpr uint32_t GREAT_OAK_MAX_SEGMENTS = 300;
 constexpr auto GREAT_OAK_STEP_RISE = static_cast<float>(config::GREAT_OAK_STEP_RISE);
 constexpr auto GREAT_OAK_STEP_REACH = static_cast<float>(config::GREAT_OAK_STEP_REACH);
 constexpr float GREAT_OAK_STEP_RADIUS = 0.15f; ///< m, half-thickness of a tread
+/// Where a tread is rooted, as a fraction of the bole's radius at that height:
+/// inside the surface, so the tread is grown INTO the wood rather than stuck on
+/// it. Was written out twice (the mesh and the structure disagreeing about it
+/// would be a divergence with a date on it), so it is one name.
+constexpr float GREAT_OAK_STEP_BASE_FRAC = 0.75f;
 constexpr auto GREAT_OAK_PLATFORM_R = static_cast<float>(config::GREAT_OAK_PLATFORM_RADIUS);
 /// The golden chain of the user's лукоморье. Its own value band, well above
 /// every bark and leaf tone in the catalog, because the whole point of it is to
@@ -448,6 +494,26 @@ void seed_trunk_nodes(Skeleton& sk, glm::vec3 stem_base, glm::vec3 stem_top) {
 /// before, because wood is the expensive stream.
 ///
 /// DFN_FLORA_FARLOD=1 restores the old ladder for a one-variable comparison.
+///
+/// HOW MUCH WOOD THE FAR LEVEL KEEPS, AS ONE NAME. It is read in two places —
+/// here, where the skeleton is cut, and in emit_shoot_foliage, where the crown
+/// has to be paid back what the cut would otherwise take from it. Those two
+/// have to be the same number or the level is not a level (Rule 39: a second
+/// copy is a divergence with a date on it).
+/// VERIFICATION HOOK, NEVER A SHIPPING PATH (the same standing as
+/// DFN_FLORA_NODES): sweep the far LOD's wood budget as a percentage. It exists
+/// because the first attempt at this change moved the wood budget AND the
+/// foliage budget in one step and the reading went the wrong way — with no way
+/// to say which lever did it. One variable.
+uint32_t far_lod_wood_pct() {
+    static const uint32_t pct = [] {
+        const char* e = std::getenv("DFN_FLORA_FARSEG");
+        const int v = e != nullptr ? std::atoi(e) : 0;
+        return v > 0 && v <= 100 ? static_cast<uint32_t>(v) : 40u;
+    }();
+    return pct;
+}
+
 uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wood) {
     if (lod == FloraLod::Full) {
         // WOOD PAYS FOR LEAF AT THE NEAR VIEW TOO (CROWN_WOOD_BUDGET_FRAC).
@@ -478,16 +544,7 @@ uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wo
     // cost a frame at 2 km to notice.
     if (crown_is_wood) return full_segments;
     if (flora_far_lod_arm()) return std::max(24u, full_segments * 45u / 100u);
-    // VERIFICATION HOOK, NEVER A SHIPPING PATH (the same standing as
-    // DFN_FLORA_NODES above it): sweep the far LOD's wood budget as a
-    // percentage. It exists because the first attempt at this change moved the
-    // wood budget AND the foliage budget in one step and the reading went the
-    // wrong way — with no way to say which lever did it. One variable.
-    static const uint32_t pct = [] {
-        const char* e = std::getenv("DFN_FLORA_FARSEG");
-        const int v = e != nullptr ? std::atoi(e) : 0;
-        return v > 0 && v <= 100 ? static_cast<uint32_t>(v) : 40u;
-    }();
+    const uint32_t pct = far_lod_wood_pct();
     // WOOD IS WHAT A DISTANT TREE MAY LOSE, AND 40 % IS WHERE THE SWEEP PUT IT
     // — not where a frame looked best. How much wood may go is NOT free to
     // choose downward, which is the finding this hook bought: the foliage
@@ -548,6 +605,30 @@ float mass_multiplier_for(const SpeciesParams& sp) {
     return sp.crown_radius_per_height > 0.0f ? 1.0f : flora_mass_multiplier();
 }
 
+/// A MEASURED DEAD END, RECORDED SO THE NEXT AGENT DOES NOT RE-BUY IT
+/// (14.08.2026). The obvious remaining lever for the far crown's density is the
+/// user's own «группировать листву в крупные агломерации»: at range a single
+/// mass is under a pixel and only the aggregate resolves, so trade COUNT for
+/// SIZE at constant area — count x0.60, radius x1/sqrt(0.60) — and the same
+/// area then covers a smaller silhouette, which is exactly what optical depth
+/// measures. It was implemented and measured and it goes the WRONG WAY on every
+/// species:
+///
+///     optical depth Reduced/Full   oak 1.038 -> 0.887   pine 1.000 -> 0.536
+///                                  birch 1.404 -> 0.758  willow 0.759 -> 0.727
+///     presented card area          pine 767 -> 491, birch 209 -> 114, all
+///                                  three straight through their own tripwires
+///
+/// THE PREMISE IS WHAT FAILED, not the tuning: area is NOT preserved, because
+/// emit_cluster contains a cluster by SHRINKING IT to `env - len` when it would
+/// cross the species envelope. A bigger mass sits further out for the same
+/// anchor, so the bigger it is asked to be the more of it is cut, and 60 % of
+/// the masses at 129 % of the radius delivered 64 % of the area. Rule 43 again,
+/// one floor down: the containment bounds the RADIUS while the thing being
+/// traded is the AREA, and the two are the same number only while nothing is
+/// near the envelope. Whoever wants this trade has to move the containment
+/// first — and that is the same envelope-versus-structure seam the crown
+/// rebuild is about, not a knob.
 uint32_t lod_cluster_count(const SpeciesParams& sp, FloraLod lod) {
     if (lod == FloraLod::Full || !flora_far_lod_arm()) {
         // THE CROWN DOES NOT THIN WITH DISTANCE. See the target above: the mass
@@ -686,16 +767,40 @@ uint32_t max_crown_segments(const SpeciesParams& sp) {
 ///   - core/design own who lives up there and what they build;
 ///   - render owns how they are lit and batched.
 /// The contract flora offers outward is: a tread every GREAT_OAK_STEP_RISE of
-/// climb, spiralling by the golden angle so no two are stacked; a deck of
-/// GREAT_OAK_PLATFORM_R at each first-order fork; both centred on the bole axis
-/// at their own height, so anything that wants to snap to them can find them by
-/// re-walking the trunk path this function was handed.
+/// climb, advancing around the bole by ONE STEP OF THE WALKER rather than by an
+/// angle; a deck of GREAT_OAK_PLATFORM_R at each first-order fork; both centred
+/// on the bole axis at their own height, so anything that wants to snap to them
+/// can find them by re-walking the trunk path this function was handed.
+///
+/// THE GOLDEN ANGLE WAS THE WRONG ANGLE, AND THE INSTRUMENT SAID SO IN ONE
+/// NUMBER (sim_great_oak_stair, red since 13.08). Phyllotaxis exists to put
+/// successive organs as FAR APART on the axis as an angle can — that is what it
+/// is for, and it is the exact opposite of what a stair needs. At 137.5 deg
+/// around a 2.2 m bole two treads one rise apart stood 3.99 m of surface from
+/// each other, and 0 of 18 consecutive pairs could be taken by the real
+/// character controller: a row of pegs on a helix, not a staircase.
+///
+/// WHAT REPLACES IT NEEDS NO ROW OF ITS OWN, and that is the point rather than
+/// a saving: a stair's going is a property of THE BODY THAT CLIMBS IT. The
+/// advance is one `PLAYER_CAPSULE_RADIUS` measured at the walking line, so the
+/// horizontal distance between consecutive treads is never more than the body
+/// that has to bridge it — on this bole, on a thicker one, or on a species that
+/// gains treads tomorrow. Re-derived per ring rather than fixed, because the
+/// bole tapers and a constant ANGLE would lengthen the step lower down, which
+/// is the same defect one order smaller.
+///
+/// DFN_FLORA_STEPAZ=1 is the zero-dose arm (the golden angle as it stood).
 void build_climb_steps(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
                        float top_y) {
     const SpeciesParams& sp = t.sp;
     if (sp.climb_steps == 0 || path.size() < 2) return;
+    static const bool golden_arm = [] {
+        const char* e = std::getenv("DFN_FLORA_STEPAZ");
+        return e != nullptr && *e == '1';
+    }();
     const float y0 = std::max(1.2f, path.front().pos.y + 0.6f);
     const int n = static_cast<int>(sp.climb_steps);
+    float az = 0.0f;
     for (int i = 0; i < n; ++i) {
         const float y = y0 + GREAT_OAK_STEP_RISE * static_cast<float>(i);
         if (y > top_y - 0.5f) break;
@@ -704,12 +809,17 @@ void build_climb_steps(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
         size_t k = 0;
         while (k + 1 < path.size() && path[k + 1].pos.y < y) ++k;
         const TrunkRing& ring = path[k];
-        const float az = GOLDEN_ANGLE * static_cast<float>(i);
+        // The walking line: the middle of the tread, out from the bole surface.
+        const float walk_r =
+            ring.radius * GREAT_OAK_STEP_BASE_FRAC + GREAT_OAK_STEP_REACH * 0.5f;
+        if (golden_arm) {
+            az = GOLDEN_ANGLE * static_cast<float>(i);
+        }
         const glm::vec3 u = perp_of(ring.dir);
         const glm::vec3 v = glm::cross(ring.dir, u);
         const glm::vec3 out = u * std::cos(az) + v * std::sin(az);
         const glm::vec3 base = glm::vec3{ring.pos.x, y, ring.pos.z}
-            + out * (ring.radius * 0.75f);
+            + out * (ring.radius * GREAT_OAK_STEP_BASE_FRAC);
         // Slight downward slope outward: a tread you can stand on reads as one
         // only if it is not a spike, and 4 sides at 0.30 m across is 4 px of
         // silhouette at 20 m — the distance this tree is climbed from.
@@ -720,6 +830,11 @@ void build_climb_steps(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
             t.structure->furniture.push_back(FloraFurniture{
                 base, dir * GREAT_OAK_STEP_REACH, GREAT_OAK_STEP_RADIUS, false});
         }
+        // ONE STEP OF THE WALKER, at this ring's own walking line. Accumulated
+        // rather than multiplied by `i`, so a tapering bole keeps the GOING
+        // constant instead of the angle.
+        az += static_cast<float>(config::PLAYER_CAPSULE_RADIUS)
+            / std::max(0.35f, walk_r);
     }
 }
 
@@ -748,6 +863,10 @@ void build_climb_platforms(MeshData& m, Tree& t, glm::vec3 fork, int count,
 /// gold ring: a hoop looks machined, a catenary looks hung.
 void build_golden_chain(MeshData& m, Tree& t, const std::vector<TrunkRing>& path,
                         float y) {
+    // The chain carries its own value band (CHAIN_GOLD) rather than the tree's
+    // wood tone — that is the whole point of it — so the tree is unused here and
+    // stays in the signature to match every other emitter in this file.
+    (void)t;
     if (path.size() < 2) return;
     size_t k = 0;
     while (k + 1 < path.size() && path[k + 1].pos.y < y) ++k;
@@ -811,7 +930,24 @@ void emit_shoot_foliage(MeshData& m, Tree& t, const Skeleton& sk, uint64_t seed,
     for (const SkeletonNode& n : sk.nodes) {
         if (n.children == 0 && n.pos.y >= t.crown_base) ++tips;
     }
-    const uint32_t carried = std::min(clusters, std::max(3u, tips * 4u));
+    // ...AND AT RANGE THE WOOD PAYS IT BACK, which is the half that was missing
+    // and the half the far-LOD target is about. The ceiling above is written per
+    // SHOOT END, and the far level cuts the skeleton to far_lod_wood_pct(), so
+    // it cuts the shoot ends in the same proportion and the crown quietly went
+    // with them: measured on the willow, 108 card quads at Full against 89 at
+    // Reduced, i.e. the far crown lost a fifth of its foliage while the target
+    // says the far crown is the ONE thing that may not thin.
+    //
+    // So the allowance per shoot end is the inverse of the wood cut: the crown
+    // carries the same number of masses at every level, on fewer and therefore
+    // fuller shoots. That is what a distant crown IS — a near viewer resolves
+    // the spray on each twig, a far one resolves only the mass, so paying for
+    // the mass out of the twig is the trade a level of detail exists to make.
+    // Derived from far_lod_wood_pct() rather than written as a second number,
+    // because the day the wood cut moves this has to move with it.
+    const uint32_t per_tip =
+        (t.lod == FloraLod::Full) ? 4u : std::max(4u, 400u / far_lod_wood_pct());
+    const uint32_t carried = std::min(clusters, std::max(3u, tips * per_tip));
     // Every mass sits on a branch segment, displaced by
     // at most HALF ITS OWN RADIUS, so it always overlaps the wood it grows on —
     // the rule the conifer's pendulous shoots have obeyed since 09.08 («a shoot
@@ -1148,6 +1284,11 @@ void build_fractal_crown(MeshData& m, Tree& t, glm::vec3 stem_base,
 void build_weber_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
                        uint64_t seed, uint32_t max_nodes, uint32_t max_segments,
                        const std::vector<TrunkRing>* bole = nullptr) {
+    // Kept in the signature although the united bole made it inert: the crown's
+    // top comes from the BOLE PATH now, and the day a species arrives without
+    // one this is where it comes back from. Named, not deleted, so the two
+    // growers keep the same call shape.
+    (void)stem_top;
     const SpeciesParams& sp = t.sp;
     const float card_reach_frac =
         sp.cluster_radius_frac
@@ -1258,6 +1399,18 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
             nodes = static_cast<uint32_t>(std::atoi(e));
             segs = nodes;
         }
+        // WHICH GROWER A SPECIES USES IS A PROPERTY OF THE SPECIES, NOT OF THE
+        // DISTANCE — and it stopped being one silently. The Weber gate below is
+        // written on the NODE budget, and the node budget is what the LOD cuts,
+        // so the day `TREE_TRI_BUDGET_MAX` went 1300 -> 2600 the gate landed
+        // BETWEEN the two levels: Full got ~208 nodes and grew a Weber & Penn
+        // tree, Reduced got ~83 and grew a fractal one. Two generators, one
+        // species, and the far tree was therefore not a coarser version of the
+        // near tree but a DIFFERENT TREE. Nothing went red at the gate; what
+        // went red was the crown-density ladder two files away, which is Rule 37
+        // exactly — a range gained an interior point and the code that broke was
+        // nowhere near the row that moved.
+        const uint32_t gate_nodes = nodes;
         if (t.lod == FloraLod::Full) {
             // THE FULL-DETAIL WOOD BUDGET APPLIES HERE TOO, and it did not
             // until it was measured: this site only ever called
@@ -1322,7 +1475,7 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         // envelope agree with its own Weber shape, which touches the ramified
         // path too and is not a thing to start at the end of a session.
         constexpr uint32_t WEBER_MIN_NODES = 150;
-        if (flora_weber_arm() && nodes >= WEBER_MIN_NODES
+        if (flora_weber_arm() && gate_nodes >= WEBER_MIN_NODES
             && species_weber(t.species, t.height).levels > 0) {
             build_weber_crown(m, t, stem_base, stem_top, seed, nodes, segs, bole);
         } else {

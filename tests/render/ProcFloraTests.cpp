@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 14:08:2026 - 00:30:00
+Last updated: 14:08:2026 - 20:31:26
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -213,6 +213,14 @@ UPD:
   боль сдвигает все якоря над собой, фигуры 00:00 уплыли на 2–22 % за час.
   Урок записан в комментарии строк: дрейф-строки снимаются на ПОСЛЕДНЕЙ
   правке ночи, не на каждой промежуточной.
+- 14:08:2026 - 20:31:26: The card-area registry's REDUCED rows re-recorded (oak 1944 ->
+  2444.5, birch 228.6 -> 209.2, willow 629.7 -> 993.9) after the far level
+  stopped being built by a different generator than the near one. TRIPWIRES
+  UNTOUCHED, deliberately: they are the floors of the world these rows were
+  accepted on (Rule 51), and a re-record that also moves its floor is not a
+  re-record. Every FULL row is byte-identical across the change, which is the
+  door check for free — the change is confined to the far level by
+  construction and the table says so instead of the commit message.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -2572,14 +2580,40 @@ TEST_CASE("cards: the canopy presents 229 m^2/tree of ABSOLUTE area (Rule 43)") 
     // hour). One lesson, recorded so the next multi-change night does not
     // re-buy it: DRIFT ROWS ARE RECORDED ONCE, AT THE NIGHT'S LAST CHANGE,
     // not per intermediate landing.
+    // ...RE-RECORDED 14.08.2026, REDUCED ROWS ONLY, and the reason the reader
+    // should trust the attribution is that the FULL rows did not move by a
+    // digit: 767.372 / 154.398 / 1036.92 / 85.4609 are byte-identical before and
+    // after. That is the door check (Rule 47, both arms one binary), and here it
+    // is free — the change is confined to the far level by construction and the
+    // table says so rather than the commit message.
+    //
+    //     species / LOD      before    after     what moved it
+    //     oak      Reduced   1944.0    2444.5    +26 %
+    //     birch    Reduced    228.6     209.2     -8 %
+    //     willow   Reduced    629.7     993.9    +58 %
+    //     every Full row, and both conifers, unchanged
+    //
+    // TWO CAUSES, both of them repairs to the far level rather than gifts to it:
+    // (1) the grower gate stopped being a function of DISTANCE. WEBER_MIN_NODES
+    // is written on the node budget, the far LOD cuts the node budget, and when
+    // TREE_TRI_BUDGET_MAX went 1300 -> 2600 the gate landed BETWEEN the levels
+    // — Full grew a Weber & Penn tree, Reduced grew a fractal one. The far tree
+    // was a different tree, not a coarser one. (2) the leaf allowance per shoot
+    // end now scales as the inverse of the wood cut, so cutting the skeleton no
+    // longer cuts the crown with it (measured on the willow: 89 card quads at
+    // Reduced against 108 at Full, on the level whose whole target is that the
+    // far crown may not thin).
+    // The tripwires below are NOT touched and must not be: they are the floors
+    // of the world these rows were accepted on (Rule 51), and a re-record that
+    // also moves its floor is not a re-record.
     const Row ROWS[] = {
-        {FloraSpecies::DaleOak, FloraLod::Reduced, 1652.0f, 1944.0f},
+        {FloraSpecies::DaleOak, FloraLod::Reduced, 1652.0f, 2444.5f},
         {FloraSpecies::HighlandPine, FloraLod::Full, 652.0f, 767.4f},
         {FloraSpecies::HighlandPine, FloraLod::Reduced, 652.0f, 767.4f},
         {FloraSpecies::RiverBirch, FloraLod::Full, 131.0f, 154.4f},
-        {FloraSpecies::RiverBirch, FloraLod::Reduced, 194.0f, 228.6f},
+        {FloraSpecies::RiverBirch, FloraLod::Reduced, 194.0f, 209.2f},
         {FloraSpecies::ValeWillow, FloraLod::Full, 881.0f, 1036.9f},
-        {FloraSpecies::ValeWillow, FloraLod::Reduced, 535.0f, 629.7f},
+        {FloraSpecies::ValeWillow, FloraLod::Reduced, 535.0f, 993.9f},
         {FloraSpecies::StuntedPine, FloraLod::Full, 72.0f, 85.5f},
         {FloraSpecies::StuntedPine, FloraLod::Reduced, 72.0f, 85.5f},
     };
