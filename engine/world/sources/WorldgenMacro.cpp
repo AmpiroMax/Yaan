@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 20:30:18
+Last updated: 14:08:2026 - 21:10:18
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -80,6 +80,32 @@ UPD:
   MASSIF_LOBE_RATIO, MASSIF_STEEP_FRACTION_MIN and MASSIF_SILHOUETTE_BREAKS_MIN
   have zero readers in the tree), so this massif is UNVALIDATED against the
   shape language it is built from -- as is Ravenscar.
+- 14:08:2026 - 21:10:18: THE COULOIR DEPTH FIX WAS WRITTEN, ARGUED FOR IN FOUR
+  PARAGRAPHS, AND NEVER WIRED UP -- found because the lead asked why this file
+  had unused variables, and the answer was that one of them was not litter but
+  a lost computation. Two rulings disagree about the couloir's unit: §2.8.2
+  (09.08) says CLIFF-BAND scale, 8-15 m, quoting "32-63 m insets are wider than
+  the upper mountain"; the Rule 33 paragraph sitting directly above the code
+  (13.08) says MASSIF scale, quoting I11 breaks collapsing from 5/8/12/4 at
+  300 m to 1/1/0/0 at 600 m because 8-15 m is below the readable size there.
+  The code computed BOTH and used the older one; the newer value survived only
+  as an unused `amp_d`, and only the compiler knew. Not resolved here and not
+  switched on: it becomes the dose door DFN_COULOIR_MASSIF_SCALE, so both arms
+  come out of ONE binary and design rules on a measurement rather than on two
+  paragraphs. Default is the shipped value, so terrain is bit-identical and the
+  pinned testbed digest holds. It bears directly on the regional massif, whose
+  acceptance distance is 3R = 855 m -- past the ~700 m the Rule 33 paragraph
+  says the massif-scale couloir clears. First read is a NON-RESULT and is
+  recorded as one: at one bearing, 857 m, the two arms are near-identical to
+  the eye, and a real verdict needs I11, which does not exist in this tree.
+  Two genuine leftovers removed rather than silenced: amp_lo/amp_hi in
+  massif_height (the amplitude moved INTO polygon_radius when the support
+  polygon replaced the circle-sampled lobe field; both rows are still consumed
+  one call down) and bearing_ridged() (lost its last caller to the same
+  replacement -- aretes are facet CORNERS now, not ridged peaks). Both checked
+  before removal and recorded rather than dropped in silence, because §2.5's
+  own text still asks for "ridged noise, not fBm" and a reader will come
+  looking.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"
@@ -97,7 +123,6 @@ namespace dfn::world {
 
 namespace {
 
-using noise::ridged_noise;
 using noise::smoothstep01;
 using noise::value_noise;
 
@@ -348,16 +373,34 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
         // the MASSIF, so the couloir keeps a constant angular size whatever
         // the massif's own angular size is. At L0_BASE_RADIUS 120 it gives
         // 22-42 m, which clears the readable floor out to ~700 m.
-        const float amp_d =
-            static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN)
-            + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
-                  * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX
-                                       - config::MASSIF_RADIAL_LOBE_AMP_MIN);
-        const float depth =
+        //
+        // TWO RULINGS DISAGREE HERE AND THE CODE FOLLOWS THE OLDER ONE. The
+        // paragraph above (Rule 33, the summit-tor lesson a second time) argues
+        // for the MASSIF scale and quotes the measurement that bought it; the
+        // §2.8.2 unit ruling four days earlier argues for the CLIFF-BAND scale
+        // and quotes a measurement too ("32-63 m insets, wider than the upper
+        // mountain, so the clamp binds everywhere"). Shipped is the cliff band.
+        // The massif-scale value was computed, left unused, and survived only
+        // as an unused-variable warning -- which is how it was found. It is
+        // NOT deleted and it is NOT switched on: it becomes a dose door, so
+        // both arms come out of ONE binary (Rule 47) and design can rule on a
+        // measurement instead of on two paragraphs.
+        //
+        // The two draws share lattice slot 2 on purpose: same draw, two units,
+        // so the door changes the SCALE and nothing else.
+        const float draw =
+            noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2);
+        const float depth_band =
             static_cast<float>(config::MASSIF_CLIFF_BAND_MIN)
-            + noise::lattice_value(seed, STREAM_MASSIF_LOBE, static_cast<int64_t>(i), 2)
-                  * static_cast<float>(config::MASSIF_CLIFF_BAND_MAX
-                                       - config::MASSIF_CLIFF_BAND_MIN);
+            + draw * static_cast<float>(config::MASSIF_CLIFF_BAND_MAX
+                                        - config::MASSIF_CLIFF_BAND_MIN);
+        const float depth_massif =
+            (static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN)
+             + draw * static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX
+                                         - config::MASSIF_RADIAL_LOBE_AMP_MIN))
+            * crag.radius;
+        const float depth =
+            std::getenv("DFN_COULOIR_MASSIF_SCALE") != nullptr ? depth_massif : depth_band;
         const float r_lo = convex_at(alpha - half_w);
         const float r_hi = convex_at(alpha + half_w);
         const float r_apex = std::max(convex_at(alpha) - depth, 1.0f);
@@ -372,11 +415,15 @@ float polygon_radius(uint64_t seed, const CragStamp& crag, float theta, float& n
     return best;
 }
 
-/// Ridged version of the same: sharp crests are aretes, the troughs between
-/// them are couloirs.
-float bearing_ridged(uint64_t seed, uint32_t stream, glm::vec2 unit_dir, float lobes, int band) {
-    return 1.0f - std::fabs(2.0f * bearing_field(seed, stream, unit_dir, lobes, band) - 1.0f);
-}
+// bearing_ridged() lived here and is DELETED, not silenced. It was the ridged
+// read of bearing_field ("sharp crests are aretes, the troughs between them are
+// couloirs") and it lost its last caller when polygon_radius replaced the
+// circle-sampled lobe field with a support polygon: aretes are now FACET
+// CORNERS and couloirs are facet PAIRS, which is a different construction, not
+// a different tuning of this one. Checked before removing that its bounds are
+// not consumed anywhere else. Recorded rather than dropped in silence because
+// §2.5's own text still asks for "ridged noise, not fBm" and a reader may come
+// looking for this function.
 
 /// Banded contour massif (LANDSCAPE §2.8). Four seeded per-sample fields:
 ///   1. a per-bearing PROFILE EXPONENT p in [1.3, 2.2] applied as
@@ -522,10 +569,12 @@ float massif_height(uint64_t seed, const CragStamp& crag, glm::vec2 world, uint6
                                              - config::MASSIF_PROFILE_EXPONENT_MIN);
 
     // --- Field 2: per-bearing radial extent, lobes growing with elevation ------
-    // Elevation is what we are solving for, so take one cheap pass at the mean
-    // amplitude, then re-solve with the amplitude that height implies.
-    const float amp_lo = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MIN);
-    const float amp_hi = static_cast<float>(config::MASSIF_RADIAL_LOBE_AMP_MAX);
+    // MASSIF_RADIAL_LOBE_AMP_MIN/MAX were read here and are not any more: the
+    // amplitude moved INTO polygon_radius when the support polygon replaced the
+    // circle-sampled lobe field, and "eps increasing with elevation" is carried
+    // by the circle->polygon blend `k` below rather than by an amplitude. Both
+    // bounds are still consumed, one call down, from the same rows -- nothing
+    // was lost, unlike the couloir depth this same sweep uncovered.
     // The outline BECOMES the polygon as it rises: round talus at the foot,
     // sharp faceted aretes at the summit. This is §2.8.2's "eps increasing
     // with elevation", and it is also exactly what I8 asks for -- lobing that
