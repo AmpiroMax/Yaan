@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 14:08:2026 - 16:59:44
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.cpp
 
@@ -25,6 +25,9 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation (raw mouse motion
   when captured, scroll via callback, snapshot edge detection).
+- 14:08:2026 - 16:59:44: Added the GLFW char callback feeding text_accum_, the
+  per-frame text snapshot in update(), text_input() accessor, and the
+  DFN_TEXT_INPUT_LOG=1 stderr door-probe.
 */
 
 #include "engine/platform/input/sources/glfw/GlfwInput.h"
@@ -35,6 +38,8 @@ UPD:
 #include <GLFW/glfw3.h>
 
 #include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 
 namespace dfn::platform {
@@ -152,12 +157,32 @@ void glfw_input_scroll_callback(GLFWwindow* window, double dx, double dy) {
     }
 }
 
+// Befriended char callback: GLFW hands us finished Unicode codepoints already
+// resolved through the OS keyboard layout and IME (so Cyrillic arrives here
+// directly — we never touch UTF-8 bytes or scancodes). Accumulate; update()
+// snapshots and clears, exactly like scroll.
+void glfw_input_char_callback(GLFWwindow* window, unsigned int codepoint) {
+    auto* self = static_cast<GlfwInput*>(glfwGetWindowUserPointer(window));
+    if (self == nullptr) {
+        return;
+    }
+    self->text_accum_.push_back(static_cast<uint32_t>(codepoint));
+    // Door-probe (Rule 27): with DFN_TEXT_INPUT_LOG=1 set, echo every accepted
+    // codepoint to stderr so a live keystroke is observable end-to-end.
+    static const bool log_enabled = std::getenv("DFN_TEXT_INPUT_LOG") != nullptr;
+    if (log_enabled) {
+        std::fprintf(stderr, "[DFN_TEXT_INPUT] codepoint U+%04X (%u)\n",
+                     codepoint, codepoint);
+    }
+}
+
 GlfwInput::GlfwInput(GLFWwindow* window) : window_(window) {
     assert(window_ != nullptr);
     // Callback policy (zone-internal agreement): input owns the user pointer
     // and the scroll callback; GlfwWindow claims neither.
     glfwSetWindowUserPointer(window_, this);
     glfwSetScrollCallback(window_, &glfw_input_scroll_callback);
+    glfwSetCharCallback(window_, &glfw_input_char_callback);
 }
 
 GlfwInput::~GlfwInput() {
@@ -165,6 +190,7 @@ GlfwInput::~GlfwInput() {
     // if it is still alive (app wiring destroys input before window).
     if (window_ != nullptr) {
         glfwSetScrollCallback(window_, nullptr);
+        glfwSetCharCallback(window_, nullptr);
         glfwSetWindowUserPointer(window_, nullptr);
     }
 }
@@ -195,6 +221,11 @@ void GlfwInput::update() {
 
     scroll_delta_ = scroll_accum_;
     scroll_accum_ = {0.0f, 0.0f};
+
+    // Snapshot the codepoints entered since the previous update() (the char
+    // callbacks fired during IWindow::poll_events), then clear for next frame.
+    text_curr_.swap(text_accum_);
+    text_accum_.clear();
 }
 
 bool GlfwInput::is_down(Key key) const {
@@ -244,6 +275,10 @@ void GlfwInput::set_cursor_captured(bool captured) {
 
 bool GlfwInput::is_cursor_captured() const {
     return captured_;
+}
+
+const std::vector<uint32_t>& GlfwInput::text_input() const {
+    return text_curr_;
 }
 
 std::unique_ptr<IInput> create_glfw_input(IWindow& window) {

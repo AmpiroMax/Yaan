@@ -1,18 +1,19 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 14:08:2026 - 16:59:44
 Module: engine/platform/input
 File: engine/platform/input/interfaces/IInput.h
 
 Responsibility:
 - The platform input contract (Rule 0): keyboard/mouse polling for first-person
-  control — per-frame key/button state, mouse delta, cursor capture. GLFW lives
-  only behind it.
+  control — per-frame key/button state, mouse delta, cursor capture, plus the
+  per-frame stream of entered Unicode codepoints (layout/IME aware) for live
+  text entry. GLFW lives only behind it.
 
 Key items:
 - Key / MouseButton: engine-owned device codes (never backend scancodes).
 - IInput: update, is_down / was_pressed / was_released, mouse position/delta,
-  scroll, cursor capture.
+  scroll, cursor capture, text_input (per-frame Unicode codepoints).
 
 Dependencies:
 - Uses: C++ stdlib, glm (Rule 2). Nothing else.
@@ -27,6 +28,13 @@ Notes:
   (Rule 26) — additive, nothing existing breaks.
 - Polling model: the app calls update() once per frame AFTER IWindow::poll_events;
   was_pressed/was_released are edge flags valid until the next update().
+- Text input: text_input() returns the Unicode codepoints ENTERED during the
+  frame just closed by update() — already resolved through the OS keyboard
+  layout and IME, so this is the channel for live Cyrillic/UTF-8 typing (the
+  physical Key enum cannot express it). The backend accumulates codepoints as
+  they arrive and update() snapshots them; the span is valid until the next
+  update(). This is text, not physical keys: editing keys (Backspace, Enter,
+  arrows) do NOT appear here — read those via the Key queries above.
 - Mouse delta is reported in pixels, sign convention: +x right, +y down; the
   camera layer applies sensitivity and inversion (degrees/radians never appear
   here — deltas are raw device units).
@@ -41,11 +49,17 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
+- 14:08:2026 - 16:59:44: Added text_input() — per-frame Unicode codepoint stream
+  for live text entry (tool B28 chat overlay). Additive, appended after the
+  existing queries; all prior call-sites unchanged (Rule 26 sync per lead
+  directive).
 */
 
 #pragma once
 
 #include <cstdint>
+#include <vector>
+
 #include <glm/vec2.hpp>
 
 namespace dfn::platform {
@@ -116,6 +130,23 @@ public:
     // (first-person mode). Uncaptured = normal OS cursor (menus, editor).
     virtual void set_cursor_captured(bool captured) = 0;
     [[nodiscard]] virtual bool is_cursor_captured() const = 0;
+
+    // Text input ---------------------------------------------------------------
+    // Unicode codepoints entered during the frame just closed by update(), in
+    // arrival order (already resolved through keyboard layout / IME). This is
+    // the live-typing channel — Cyrillic and any other script arrive here as
+    // finished codepoints, which the physical Key enum cannot represent. Empty
+    // on frames with no text. The returned reference is valid until the next
+    // update(); the app copies out what it needs (Rule 9: never stored).
+    //
+    // Defaulted to an empty stream (not = 0) so this contract addition is purely
+    // additive: every existing implementer — the GLFW/null backends and any test
+    // mock (e.g. sim's FakeInput) — keeps compiling and reports "no text" until
+    // it chooses to override. A backend with a real keyboard (GlfwInput) does.
+    [[nodiscard]] virtual const std::vector<uint32_t>& text_input() const {
+        static const std::vector<uint32_t> none;
+        return none;
+    }
 };
 
 } // namespace dfn::platform

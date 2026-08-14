@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 14:08:2026 - 16:59:44
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.h
 
@@ -28,6 +28,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 14:08:2026 - 16:59:44: Added text_input() — codepoints accumulated by a GLFW
+  char callback (mirrors the scroll-callback policy), snapshotted per frame in
+  update(). DFN_TEXT_INPUT_LOG=1 prints accepted codepoints to stderr.
 */
 
 #pragma once
@@ -37,6 +40,8 @@ UPD:
 #include <array>
 #include <bitset>
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 struct GLFWwindow; // GLFW's C handle — safe to forward-declare (Rule 1)
 
@@ -67,6 +72,8 @@ public:
     void set_cursor_captured(bool captured) override;
     [[nodiscard]] bool is_cursor_captured() const override;
 
+    [[nodiscard]] const std::vector<uint32_t>& text_input() const override;
+
 private:
     static constexpr size_t KEY_COUNT = static_cast<size_t>(Key::COUNT);
     static constexpr size_t BUTTON_COUNT = static_cast<size_t>(MouseButton::COUNT);
@@ -80,10 +87,13 @@ private:
     glm::vec2 mouse_delta_{0.0f, 0.0f};
     glm::vec2 scroll_delta_{0.0f, 0.0f};    // snapshot for the current frame
     glm::vec2 scroll_accum_{0.0f, 0.0f};    // fed by the GLFW scroll callback
+    std::vector<uint32_t> text_curr_;       // codepoints entered this frame (snapshot)
+    std::vector<uint32_t> text_accum_;       // fed by the GLFW char callback
     bool captured_ = false;
     bool have_prev_pos_ = false;
 
     friend void glfw_input_scroll_callback(GLFWwindow*, double, double);
+    friend void glfw_input_char_callback(GLFWwindow*, unsigned int);
 };
 
 } // namespace dfn::platform
