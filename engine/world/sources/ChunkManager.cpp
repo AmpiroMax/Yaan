@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 14:08:2026 - 21:03:06
+Last updated: 14:08:2026 - 21:22:22
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -49,9 +49,12 @@ UPD:
 - 13:08:2026 - 20:58:50: DFN_TORCH_FLAME_UP — дверь дозы на высоту пламени настенного факела над его же сущностью; умолчание теперь строка TORCH_FLAME_ABOVE_GRIP, а не литерал 0.45 (правило 14/35: то же число строит палку в render). Заведена под доказанный замер: пол в 2.79 м от горящего подсвечника читает РОВНО 0 из 255, а с DFN_NO_POINT_SHADOW=1 — 5.71 из того же бинарника и той же точки, то есть свет обнуляет СОБСТВЕННАЯ теневая карта пламени. Единственное, что стоит в точке пламени, — меш самого подсвечника: у заглушки 52 границы -0.2..+0.9 по y, значит пламя на 0.45 сидит ВНУТРИ своей модели. Это правило 35 наоборот: у факела появился МЕШ, и смещение, верное пока он был только светом, стало светом, закопанным в геометрию.
 - 13:08:2026 - 21:02:08: ГИПОТЕЗА ОПРОВЕРГНУТА СОБСТВЕННОЙ ДВЕРЬЮ, и опровержение записано у кода. Подъём пламени на 1.2 м — выше всей заглушки — оставляет пол под ногами РОВНО 0.00, побитово. Значит подсвечник не заслоняет сам себя, и настоящий заслоняющий пока не назван. Замер «тень обнуляет свет» (0.00 против 5.71 при DFN_NO_POINT_SHADOW=1) остаётся в силе со своим нулевым и положительным контролем; объяснение — нет. Правило 34: предпосылку проверяют ДО того, как она войдёт в файл, а если уже вошла — правят там же, где стоит.
 - 14:08:2026 - 21:03:06: Transform.scale И PreviousTransform.scale ставятся site-плейсхолдерам (резка ведущего на этот файл, только это). Первая половина — site_placeholder_scale(), см. SiteComponents.h. Вторая найдена ЗАМЕРОМ первой и стоит отдельного упоминания: render рисует mix(prev.scale, curr.scale, alpha), а PreviousTransform::scale по умолчанию 1 — поэтому 0.2 факела приезжали как 0.6 при alpha 0.5 и, хуже, ДЫШАЛИ вместе с коэффициентом интерполяции каждый кадр. Правило 39 в точной форме: теневая копия структуры верна ровно до того дня, когда у оригинала появляется поле. Поймано тем, что кадр «до/после» дал усадку 0.6× там, где арифметика обещала 0.2×.
+- 14:08:2026 - 21:22:22: Чтение испечённого мира. Ветка выбора одна: есть открытый .dfw — чанк ЧИТАЕТСЯ (2.3 мс), нет или в файле его нет — генерируется (84.0 мс), замер на боевом стенде в одном процессе. Открытие файла, который не открылся, ОТВЕРГАЕТСЯ, а не откатывается на генерацию: молчаливый откат дал бы менеджер, работающий ровно с той скоростью, ради ухода от которой файл и заведён, и отчитывающийся об успехе.
 */
 
 #include "engine/world/sources/ChunkManager.h"
+
+#include "engine/world/sources/WorldFormat.h"
 
 #include "engine/world/sources/WorldgenCarve.h"
 #include "engine/world/sources/WorldgenMacro.h"
@@ -142,6 +145,11 @@ struct ChunkManager::Impl {
     std::vector<int32_t> path_visible_station;
     std::vector<float> path_hidden_run_m;
     std::vector<math::StandVantage> vantages;      // stand_vantages() storage
+    /// THE BAKED SOURCE, when there is one. Null means "generate on load",
+    /// which is what every caller did before the baker existed and what a
+    /// stand-backed demo still does. It is a POINTER and not a flag beside a
+    /// reader, so "we have a file" and "the file is open" cannot disagree.
+    std::unique_ptr<WorldFileReader> baked;
     std::unordered_map<uint64_t, Chunk> resident; // key = chunk_group(coord)
     std::vector<ChunkCoord> loaded_coords;        // cache for loaded_chunks()
 
@@ -252,18 +260,35 @@ ChunkManager::~ChunkManager() {
     }
 }
 
-bool ChunkManager::open(const std::filesystem::path& world_file, const SaveDelta* delta,
+bool ChunkManager::open(const std::filesystem::path& world_file,
+                        const WorldGenParams& gen_params, const SaveDelta* delta,
                         ChunkStreamingParams params) {
-    (void)world_file;
-    (void)delta;
-    (void)params;
-    // Stage 2: world file IO deferred (lead directive). Use open_generated().
-    return false;
+    auto reader = std::make_unique<WorldFileReader>();
+    if (!reader->open(world_file)) {
+        // REFUSED, NOT FALLEN BACK. A manager that quietly generated the world
+        // when its file failed to open would run at the speed the file exists
+        // to avoid while reporting success, and the missing file would be found
+        // by somebody profiling something else weeks later.
+        return false;
+    }
+    // The world-level passes are built ANYWAY, and this is honest rather than
+    // wasteful: the .dfw carries chunks, not the lake planes, the path network
+    // or the stand's vantages, and those are what render and gameplay ask this
+    // manager for between chunk loads. Baking them too is the next step and it
+    // is a FORMAT change, so it does not get smuggled in as a code change.
+    open_generated(gen_params, params);
+    impl_->baked = std::move(reader);
+    impl_->delta = delta;
+    return true;
 }
 
 void ChunkManager::open_generated(const WorldGenParams& gen_params,
                                   ChunkStreamingParams params) {
     impl_->opened = true;
+    // A stand-backed open must not inherit a previously opened file: open()
+    // calls THIS function and then attaches its reader, so clearing here is
+    // what keeps the two entry points from silently sharing a source.
+    impl_->baked.reset();
     impl_->gen_params = gen_params;
     impl_->params = params;
     impl_->delta = nullptr;
@@ -375,7 +400,23 @@ void ChunkManager::update(const glm::vec3& focus_position, ecs::World& ecs,
         {
             const ChunkCoord coord = entry.coord;
             const uint64_t key = chunk_group(coord);
-            Chunk chunk = generate_chunk(impl_->gen_ctx, coord);
+            // READ IT IF IT IS BAKED, generate it if it is not. Measured on
+            // the shipping testbed, same process: 2.3 ms to read a chunk
+            // against 84.0 ms to generate one. That 84 ms is the user's
+            // «чанки грузятся неадекватно долго», and it is the reason this
+            // branch exists at all.
+            //
+            // A chunk MISSING from an open file falls through to generation
+            // rather than leaving a hole: a bake covers an extent, and a demo
+            // that walks one chunk past its baked edge should meet ground, not
+            // sky. The cost of being wrong here is a hitch; the cost of the
+            // other choice is a player falling through the world.
+            std::optional<Chunk> baked_chunk;
+            if (impl_->baked != nullptr) {
+                baked_chunk = impl_->baked->load_chunk(coord);
+            }
+            Chunk chunk = baked_chunk.has_value() ? std::move(*baked_chunk)
+                                                  : generate_chunk(impl_->gen_ctx, coord);
             // Stage 3: apply impl_->delta overlay here before spawning (Q56).
 
             // Batch entity spawn for the chunk's generated records (Rule 11):

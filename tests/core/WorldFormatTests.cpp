@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:43:43
-Last updated: 14:08:2026 - 20:47:52
+Last updated: 14:08:2026 - 21:22:22
 Module: tests
 File: tests/core/WorldFormatTests.cpp
 
@@ -33,8 +33,17 @@ UPD:
   сгенерированному (файл, который просто грузится, не доказывает ничего — сторожим
   выпечку, тихо разошедшуюся с миром, который меряют все тесты детерминированности),
   две выпечки одного seed побитово равны, пустой пролёт отвергается вслух.
+- 14:08:2026 - 21:22:22: Случай на ЧТЕНИЕ испечённого через ChunkManager, и он контрольная рука,
+  а не дымовой тест: одни и те же параметры стримятся дважды в одном процессе —
+  из файла и из генератора, — и земля обязана выйти одинаковой. «Игра только
+  читает» верно ровно настолько, насколько чтение и генерация дают ОДИН мир.
+  Плюс отказ несуществующего файла: молчаливый откат на генерацию дал бы сборку,
+  работающую на скорости генерации и отчитывающуюся об открытии выпечки.
 */
 
+#include "engine/core/ecs/sources/World.h"
+#include "engine/core/events/sources/EventBus.h"
+#include "engine/world/sources/ChunkManager.h"
 #include "engine/world/sources/WorldBake.h"
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/Worldgen.h"
@@ -339,4 +348,51 @@ TEST_CASE("bake: an empty extent is refused, not silently written as nothing") {
     const dfn::world::BakeReport r = dfn::world::bake_world(params, dir.path / "no.dfw");
     CHECK_FALSE(r.error.empty());
     CHECK(r.chunks == 0);
+}
+
+TEST_CASE("streaming: a baked chunk and a generated chunk are the same ground") {
+    const TempDir dir("dfn_world_stream_baked");
+    const auto file = dir.path / "streamed.dfw";
+    dfn::world::WorldGenParams params;
+    params.seed = 20260814u;
+    params.min_chunk = {0, 0};
+    params.max_chunk = {1, 1};
+    REQUIRE(dfn::world::bake_world(params, file).error.empty());
+
+    dfn::world::ChunkStreamingParams streaming;
+    streaming.load_radius = 1;
+    streaming.unload_radius = 2;
+
+    // The manager reads the file; the same manager on the same params without a
+    // file generates. The two must agree, because "the game only reads" is only
+    // true if reading and generating produce one world (Rule 30: the control
+    // arm is the other way of getting the same thing).
+    dfn::ecs::World ecs_baked;
+    dfn::events::EventBus bus_baked;
+    dfn::world::ChunkManager baked;
+    REQUIRE(baked.open(file, params, nullptr, streaming));
+    baked.update({128.0f, 0.0f, 128.0f}, ecs_baked, bus_baked);
+    bus_baked.pump();
+
+    dfn::ecs::World ecs_gen;
+    dfn::events::EventBus bus_gen;
+    dfn::world::ChunkManager generated;
+    generated.open_generated(params, streaming);
+    generated.update({128.0f, 0.0f, 128.0f}, ecs_gen, bus_gen);
+    bus_gen.pump();
+
+    REQUIRE(baked.is_loaded(ChunkCoord{0, 0}));
+    REQUIRE(generated.is_loaded(ChunkCoord{0, 0}));
+    const auto a = baked.heightfield(ChunkCoord{0, 0});
+    const auto b = generated.heightfield(ChunkCoord{0, 0});
+    REQUIRE(a.has_value());
+    REQUIRE(b.has_value());
+    CHECK(baked.height_at({128.0f, 128.0f}).value_or(-1.0f)
+          == generated.height_at({128.0f, 128.0f}).value_or(-2.0f));
+
+    // A file that does not exist is a REFUSAL, not a quiet fall back to the
+    // generator — the failure mode this guards is a build that runs at
+    // generation speed while reporting that it opened a bake.
+    dfn::world::ChunkManager missing;
+    CHECK_FALSE(missing.open(dir.path / "not_here.dfw", params, nullptr, streaming));
 }

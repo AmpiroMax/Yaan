@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 10:08:2026 - 11:37:17
+Last updated: 14:08:2026 - 21:22:22
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -50,6 +50,13 @@ UPD:
   open, exactly like water_bodies(). Render owns the Tour and cannot see
   dfn::world; without these a tour on DFN_MAP=forest shot the TESTBED's
   coordinates.
+- 14:08:2026 - 21:22:22: open() ПЕРЕСТАЛ БЫТЬ ЗАГЛУШКОЙ — чанки читаются из испечённого .dfw
+  (2.3 мс против 84.0 мс на генерацию, замер на боевом стенде в одном процессе).
+  Подпись выросла на WorldGenParams, и это честно, а не временно: файл несёт
+  чанки, но не результаты уровня мира (озёра, сеть троп, точки съёмки стенда),
+  которые менеджер отдаёт между загрузками. Отсутствующий в файле чанк
+  ГЕНЕРИРУЕТСЯ, а не пропускается: выпечка покрывает пролёт, и шаг за его край
+  обязан встретить землю, а не небо.
 */
 
 #pragma once
@@ -108,11 +115,24 @@ public:
     ChunkManager(const ChunkManager&) = delete;
     ChunkManager& operator=(const ChunkManager&) = delete;
 
-    /// Opens the world file and (optionally) a save delta to overlay (Q56).
-    /// No chunks are loaded yet — the first update() does that. False on error.
-    /// STAGE 2: world file IO is deferred (lead directive); this returns false
-    /// until stage 3 — use open_generated() for the skeleton.
+    /// Opens a BAKED world (.dfw) and (optionally) a save delta to overlay
+    /// (Q56). No chunks are loaded yet — the first update() does that. False
+    /// when the file cannot be opened, and that is a REFUSAL, not a fallback: a
+    /// manager that quietly generated the world instead would run at exactly
+    /// the speed the file exists to avoid while reporting success.
+    ///
+    /// `gen_params` is still required, and the reason is worth knowing rather
+    /// than working around: the .dfw carries CHUNKS, not the world-level
+    /// results — lake planes, the path network, the stand's vantages — which
+    /// render and gameplay ask this manager for between chunk loads. Baking
+    /// those too is a FORMAT change and gets its own changeset.
+    ///
+    /// A chunk absent from the file is GENERATED rather than skipped: a bake
+    /// covers an extent, and walking one chunk past its edge should meet
+    /// ground. Measured cost of the difference, shipping testbed, one process:
+    /// 2.3 ms to read a chunk against 84.0 ms to generate one.
     [[nodiscard]] bool open(const std::filesystem::path& world_file,
+                            const WorldGenParams& gen_params,
                             const SaveDelta* delta,
                             ChunkStreamingParams params);
 
