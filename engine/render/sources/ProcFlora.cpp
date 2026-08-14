@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 14:08:2026 - 20:31:26
+Last updated: 14:08:2026 - 21:33:00
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -304,6 +304,14 @@ UPD:
   Plus two pre-existing warnings silenced at their sites, both from the same
   night's landings (`build_golden_chain`'s tree, `build_weber_crown`'s
   stem_top, which the united bole made inert).
+- 14:08:2026 - 21:33:00: ПРИЗЕМЛЕНО ВЕДУЩИМ за оборвавшуюся зону flora: дверь дозы
+  DFN_FLORA_NEARWOOD=<pct> на БЛИЖНИЙ бюджет древесины. Прибор, не правка —
+  умолчание берётся из CROWN_WOOD_BUDGET_FRAC, то есть кадр не меняется ни на
+  пиксель. Заведена под находку зоны «крона СВЕРХУ на 50.5 % древесина против
+  22.9 % листвы»: у этого числа не было двери вообще, а число, которое двигается
+  только правкой NUMBERS.md, нельзя оценить в ОДНОМ бинарнике — прошлый свип по
+  нему читался с двух сборок с разницей в час, что правило 47 прямо запрещает.
+  Замер зоной не закончен: агент оборвался на нём.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -526,9 +534,21 @@ uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wo
         // segments cuts the crown itself, and the near view is where that would
         // show first.
         if (crown_is_wood) return full_segments;
-        return std::max(18u, static_cast<uint32_t>(
-                                 static_cast<float>(full_segments)
-                                 * static_cast<float>(config::CROWN_WOOD_BUDGET_FRAC)));
+        // VERIFICATION HOOK, NEVER A SHIPPING PATH (DFN_FLORA_NEARWOOD=<pct>):
+        // sweep the NEAR wood budget, which is the only lever on the finding
+        // that the canopy seen FROM ABOVE is 50.5 % wood against 22.9 % leaf.
+        // `CROWN_WOOD_BUDGET_FRAC` has no env door, and a number that can only
+        // be moved by an edit to NUMBERS.md cannot be priced in one binary —
+        // which is the whole reason the last sweep of it was read off two
+        // builds an hour apart (Rule 47).
+        static const uint32_t near_pct = [] {
+            const char* e = std::getenv("DFN_FLORA_NEARWOOD");
+            const int v = e != nullptr ? std::atoi(e) : 0;
+            return v > 0 && v <= 100 ? static_cast<uint32_t>(v)
+                                     : static_cast<uint32_t>(
+                                           config::CROWN_WOOD_BUDGET_FRAC * 100.0 + 0.5);
+        }();
+        return std::max(18u, full_segments * near_pct / 100u);
     }
     // THE GIANT TIER IS EXEMPT, AND IT IS THE WIDTH CLAUSE THAT EXEMPTS IT
     // rather than a wish to be gentle with the landmark. For an ordinary tree
