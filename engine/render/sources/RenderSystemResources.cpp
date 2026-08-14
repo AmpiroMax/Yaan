@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 14:08:2026 - 18:30:20
+Last updated: 14:08:2026 - 20:33:26
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 13:08:2026 - 23:49:31: РАСТВОРЕНИЕ НА ГРАНИЦЕ БЮДЖЕТА (зона dungeon, та же резка) — правка жалобы «свет мигает, иногда снова в глазах темнеет». publish_point_lights больше не делает жёсткую отсечку nth_element+resize(8): у восьмёрки ближайших пламён самое дальнее ГАСНЕТ гладким окном POINT_LIGHT_DISSOLVE_WINDOW_M по мере приближения к границе, так что факел, пересекающий границу «ближайших восьми», НАРАСТАЕТ, а не появляется скачком. Окно взводится только при конкуренции (кандидатов ≥ бюджета). Дверь дозы DFN_LIGHT_DISSOLVE=<м>, 0 = прежняя жёсткая отсечка (контрольная рука, правило 47). Плюс прибор DFN_LIGHT_PROBE=<путь>: по строке на кадр — luma пола от точечного света у ступней, ровно как считает dfn_env.sh; дефект — СТУПЕНЬ между соседними строками (правило 53), невидимая снимку. Точечный свет НЕ гейтится тьмой (в шейдере добавляется сыро), поэтому проба и есть то, что пол реально получает. ЗАМЕРЕНО: растворение на тоннеле НЕ СВЯЗЫВАЕТ (одновременно в радиусе ≤4 факелов при бюджете 8; своп за границей касается факелов за радиусом → 0). Диагноз «мигание от отсечки-8» опровергнут контролем; правка в дереве, НЕ в main.
 - 14:08:2026 - 00:23:18: DFN_SHADOW_CASTERS=<n> — дверь дозы на число теневых casters (зона dungeon, резка ведущего на теневой путь). Заведена под ПИКСЕЛЬНЫЙ замер «мигает»: как player идёт, набор «двух ближайших» casters свопится, и своп перекидывает тень стены за кадр. Частоту померил (у близких факелов ~0.3/с), а МАГНИТУДУ (виден ли прыжок в пикселях) — нет; эта дверь её меряет: n=1 изолирует всю тень 2-го caster'а (его наличие/отсутствие ограничивает величину свопа), n=2 боевое, n=0 = DFN_NO_POINT_SHADOW. Обе руки один бинарник (правило 47), кривое значение отвергается вслух.
 - 14:08:2026 - 18:30:20: ПРИЗЕМЛЕНО ВЕДУЩИМ — работа зоны dungeon висела в дереве без коммита (агент оборвался посреди замера). Что именно приземляется и в каком виде, чтобы никто не прочитал это как «мигание починено». (1) РАСТВОРЕНИЕ — не починка жалобы, а снятие разрыва в самом отборе: ранг 8 светит полностью, ранг 9 — ровно нулём, и своп между ними есть скачок ПО ПОСТРОЕНИЮ. На сегодняшнем содержимом окно НЕ ВЗВОДИТСЯ (замер зоны: одновременно в радиусе ≤4 факелов при бюджете 8), поэтому кадр не меняется ни на пиксель; разрыв снят на то время, когда факелов станет больше слотов. (2) Три двери дозы — DFN_LIGHT_DISSOLVE, DFN_SHADOW_CASTERS, DFN_LIGHT_PROBE — приборы, ради которых замер вообще возможен, и они ценнее правки. (3) ЧЕСТНО ОБ ОТКРЫТОМ: диагноз «мигание от отсечки-8» ОПРОВЕРГНУТ контролем самой зоны, а магнитуда свопа теневых casters (частота у близких факелов ~0.3/с) НЕ ЗАМЕРЕНА — дверь DFN_SHADOW_CASTERS заведена ровно под неё и осталась неиспользованной; жалоба «свет мигает» остаётся ОТКРЫТОЙ. Сборка зелёная, новых падений в наборе нет.
+- 14:08:2026 - 20:33:26: DFN_CASTER_SKIP=<k> — дверь дозы на то, КАКОЕ пламя владеет вторым теневым слотом, и она заведена потому, что DFN_SHADOW_CASTERS не смогла ответить на свой собственный вопрос. Своп не УБИРАЕТ второй caster, он его ЗАМЕНЯЕТ: набор идёт {ближайший, ранг 1} → {ближайший, ранг 2} за один кадр. n=1 меряет первый набор против {ближайший} — это ВЕРХНЯЯ ГРАНИЦА свопа, а не своп. Попытка померить своп двумя позами в 0.66 м ПРОВАЛИЛАСЬ и записана как провал (правило 50): контрольная рука «тот же набор, 0.6 м врозь» дала средний |ΔL| 11.61 против 11.61→12.35 у рабочей, то есть плечо прибора длиннее предмета. Обе руки обязаны сниматься с ОДНОЙ позы, и k=0 побитово боевой. ЗАМЕРЕНО (одна поза, один бинарник, 600 кадров): нулевая доза (k=0 дважды) — средний |ΔL| 0.141, 1.65 % кадра; своп ранг1→ранг2 — 3.798 и 37.41 % кадра, p90 16.04 люмы при шаге палитры 19.99; ранг1→ранг3 — 3.294 и 29.60 %. Глазами: пол ПОД НОГАМИ игрока при k=0 абсолютно чёрный, при k=1 — видимый освещённый. Своп идёт 30 раз за 13234 кадра живого прохода (0.25/с). Это и есть «мигает» в оставшейся форме, и оно ИЗМЕРЕНО, а не предположено.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -161,6 +162,39 @@ namespace dfn::render {
                          platform::MAX_SHADOW_POINT_LIGHTS);
         }
         return platform::MAX_SHADOW_POINT_LIGHTS;
+    }();
+    return value;
+}
+
+// THE DOSE DOOR FOR *WHICH* FLAME OWNS THE SECOND CASTER SLOT
+// (DFN_CASTER_SKIP=<k>), and it exists because DFN_SHADOW_CASTERS could not
+// answer the question it was opened for.
+//
+// A swap does not REMOVE the second caster, it REPLACES it: the set goes from
+// {nearest, rank 1} to {nearest, rank 2} in one frame. DFN_SHADOW_CASTERS=1
+// measures the first set against {nearest} alone, which bounds the swap from
+// above but is not the swap. Measuring the swap by standing 0.66 m apart —
+// where the sets really do differ — FAILED, and the failure is the reason this
+// door exists: the parallax control (same set, 0.6 m apart) moved the frame by
+// mean 11.61 luma against the swap arm's 12.35, i.e. the instrument's own arm
+// was longer than the subject (Rule 50). Both sets have to be photographed
+// from ONE pose.
+//
+// k = 0 is shipping, bit for bit. k = 1 hands the second slot to the flame
+// that would own it one frame after the swap. Both arms out of one binary
+// (Rule 47); a malformed value is refused OUT LOUD.
+[[nodiscard]] uint32_t caster_skip() {
+    static const uint32_t value = [] {
+        if (const char* e = std::getenv("DFN_CASTER_SKIP"); e != nullptr && *e != '\0') {
+            int k = -1;
+            if (std::sscanf(e, "%d", &k) == 1 && k >= 0 && k <= 8) {
+                std::fprintf(stderr, "[shadow] DFN_CASTER_SKIP=%d (default 0)\n", k);
+                return static_cast<uint32_t>(k);
+            }
+            std::fprintf(stderr, "[shadow] DFN_CASTER_SKIP=\"%s\" is not an "
+                                 "integer in [0, 8] -- REFUSED, using 0\n", e);
+        }
+        return 0u;
     }();
     return value;
 }
@@ -329,7 +363,14 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         // is now decided once), so the workaround is gone rather than
         // documented: capping HERE would have kept the world at one shadowing
         // flame forever, in a file that has no idea why.
-        out.casts_shadow = count < shadow_caster_cap() && !point_shadows_off_;
+        // Rank 0 always casts; the SECOND slot goes to rank 1 + DFN_CASTER_SKIP,
+        // which is 1 in every shipping frame and is the whole instrument for
+        // the swap (see caster_skip()).
+        const uint32_t second = 1u + caster_skip();
+        out.casts_shadow = !point_shadows_off_
+                           && (count == 0u ? shadow_caster_cap() > 0u
+                                           : (count == second
+                                              && shadow_caster_cap() > 1u));
         ++count;
     }
     environment_.point_light_count = count;
