@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 14:08:2026 - 19:34:00
 Module: tests
 File: tests/render/ScatterBatcherTests.cpp
 
@@ -25,6 +25,7 @@ UPD:
   geometry) as a regression guard against the chunk streaming budget.
 - 10:08:2026 - 01:47:53: Measured tile radius cases; the deleted species_radius
   table's values kept as the failing control (Rule 30).
+- 14:08:2026 - 19:34:00: случай на банду детализации. Проверяет не таблицу порогов, а ДЕФЕКТ, ради которого перехлёст заведён: игрок, переходящий край полосы и возвращающийся, обязан дать РОВНО две смены уровня. Без перехлёста этот же цикл щёлкает на каждом шаге, и экономия превращается в худший рывок в игре.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -211,4 +212,55 @@ TEST_CASE("a species mesh's real reach exceeds its dead table entry") {
         reach = std::max(reach, glm::length(glm::vec2{v.position.x, v.position.z}));
     }
     CHECK(reach > 0.5f); // the deleted table entry under-covered this mesh
+}
+
+TEST_CASE("flora lod banding: the hysteresis is what stops a band edge thrashing") {
+    using dfn::render::FloraLod;
+    using dfn::render::flora_lod_for_distance;
+    const auto reduced = static_cast<float>(dfn::config::FLORA_LOD_REDUCED_M);
+    const auto silhouette = static_cast<float>(dfn::config::FLORA_LOD_SILHOUETTE_M);
+    const auto h = static_cast<float>(dfn::config::FLORA_LOD_HYSTERESIS_M);
+    REQUIRE(h > 0.0f);
+    REQUIRE(silhouette > reduced + 2.0f * h);
+
+    // Far from every edge the answer is the plain band, whatever the chunk is
+    // baked at now.
+    for (const FloraLod from : {FloraLod::Full, FloraLod::Reduced, FloraLod::Silhouette}) {
+        CHECK(flora_lod_for_distance(0.0f, from) == FloraLod::Full);
+        CHECK(flora_lod_for_distance((reduced + silhouette) * 0.5f, from) == FloraLod::Reduced);
+        CHECK(flora_lod_for_distance(silhouette * 4.0f, from) == FloraLod::Silhouette);
+    }
+
+    // ON the edge the answer depends on where we came from, and that is the
+    // whole point: a chunk sitting exactly on the band keeps what it has.
+    CHECK(flora_lod_for_distance(reduced, FloraLod::Full) == FloraLod::Full);
+    CHECK(flora_lod_for_distance(reduced, FloraLod::Reduced) == FloraLod::Reduced);
+    CHECK(flora_lod_for_distance(silhouette, FloraLod::Reduced) == FloraLod::Reduced);
+    CHECK(flora_lod_for_distance(silhouette, FloraLod::Silhouette) == FloraLod::Silhouette);
+
+    // THE DEFECT THE HYSTERESIS EXISTS FOR, stated as a walk: a player crossing
+    // the band and coming back must not produce a re-bake at every step. Step
+    // the eye across the edge in half-hysteresis increments and count the level
+    // changes — without overlap this loop flips on every crossing.
+    FloraLod level = FloraLod::Full;
+    int changes = 0;
+    for (int i = -4; i <= 4; ++i) {
+        const float d = reduced + static_cast<float>(i) * (h * 0.5f);
+        const FloraLod want = flora_lod_for_distance(d, level);
+        if (want != level) {
+            ++changes;
+            level = want;
+        }
+    }
+    for (int i = 4; i >= -4; --i) { // ...and back
+        const float d = reduced + static_cast<float>(i) * (h * 0.5f);
+        const FloraLod want = flora_lod_for_distance(d, level);
+        if (want != level) {
+            ++changes;
+            level = want;
+        }
+    }
+    // One drop going out, one climb coming back. A third change would mean the
+    // overlap is not wide enough to hold a walking player.
+    CHECK(changes == 2);
 }

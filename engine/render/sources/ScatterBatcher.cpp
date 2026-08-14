@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 14:08:2026 - 19:34:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -71,6 +71,7 @@ UPD:
   times. Recorded rather than done silently -- a record whose stamps are
   invented cannot be put in order afterwards, and the entries it would mislead
   are this zone's own.
+- 14:08:2026 - 19:34:00: build_scatter_batches принимает FloraLod, и DFN_FLORA_FORCE_LOD из ЗАТЫЧКИ стала КОНТРОЛЬНОЙ РУКОЙ: раньше она подменяла отсутствующий выбор, теперь перекрывает настоящий, то есть меряет банду против «весь мир одним уровнем» из одного бинарника (правило 47). Сюда же переехал сам выбор полосы flora_lod_for_distance — он чистая функция и должен проверяться без рендера, окна и мира (тест в ScatterBatcherTests.cpp ходит по краю полосы туда и обратно и требует РОВНО двух смен уровня).
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -131,9 +132,79 @@ void report_missing_species(size_t ordinal) {
 
 } // namespace
 
+namespace {
+
+/// The bands, as doses (DFN_FLORA_LOD_BANDS="<reduced_m>,<silhouette_m>"). The
+/// shipping values are the generated constants; the door exists because the
+/// numbers were PINNED BY MEASUREMENT and the measurement has to be repeatable
+/// without a rebuild (Rule 47, both arms out of one binary). A malformed value
+/// is refused out loud rather than falling back in silence.
+struct FloraBands {
+    float reduced_m;
+    float silhouette_m;
+};
+
+[[nodiscard]] const FloraBands& flora_bands() {
+    static const FloraBands bands = [] {
+        FloraBands b{static_cast<float>(config::FLORA_LOD_REDUCED_M),
+                     static_cast<float>(config::FLORA_LOD_SILHOUETTE_M)};
+        if (const char* e = std::getenv("DFN_FLORA_LOD_BANDS"); e != nullptr && *e != '\0') {
+            float r = -1.0f;
+            float s = -1.0f;
+            if (std::sscanf(e, "%f,%f", &r, &s) == 2 && r > 0.0f && s >= r) {
+                std::fprintf(stderr, "[flora] DFN_FLORA_LOD_BANDS reduced=%.1f m "
+                                     "silhouette=%.1f m (defaults %.1f / %.1f)\n",
+                             static_cast<double>(r), static_cast<double>(s),
+                             static_cast<double>(b.reduced_m),
+                             static_cast<double>(b.silhouette_m));
+                b.reduced_m = r;
+                b.silhouette_m = s;
+            } else {
+                std::fprintf(stderr, "[flora] DFN_FLORA_LOD_BANDS=\"%s\" is not "
+                                     "\"<reduced>,<silhouette>\" with 0 < reduced <= "
+                                     "silhouette -- REFUSED, using %.1f / %.1f\n",
+                             e, static_cast<double>(b.reduced_m),
+                             static_cast<double>(b.silhouette_m));
+            }
+        }
+        return b;
+    }();
+    return bands;
+}
+
+} // namespace
+
+FloraLod flora_lod_for_distance(float distance_m, FloraLod current) {
+    const FloraBands& b = flora_bands();
+    const auto h = static_cast<float>(config::FLORA_LOD_HYSTERESIS_M);
+    const auto level = [](FloraLod l) { return static_cast<int>(l); };
+    // Coarsest level whose entry distance is behind us, measured with the edge
+    // pushed AWAY from the level we are already at.
+    const float reduced_in = level(current) >= level(FloraLod::Reduced)
+                                 ? b.reduced_m - h : b.reduced_m + h;
+    const float silhouette_in = level(current) >= level(FloraLod::Silhouette)
+                                    ? b.silhouette_m - h : b.silhouette_m + h;
+    if (distance_m >= silhouette_in) {
+        return FloraLod::Silhouette;
+    }
+    if (distance_m >= reduced_in) {
+        return FloraLod::Reduced;
+    }
+    return FloraLod::Full;
+}
+
+
+bool flora_lod_forced() {
+    static const bool forced = [] {
+        const char* e = std::getenv("DFN_FLORA_FORCE_LOD");
+        return e != nullptr && *e != '\0';
+    }();
+    return forced;
+}
+
 ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> instances,
                                      glm::vec2 chunk_origin, float chunk_size,
-                                     uint32_t micro_tiles_per_axis) {
+                                     uint32_t micro_tiles_per_axis, FloraLod lod) {
     ScatterBatches out;
     if (instances.empty() || micro_tiles_per_axis == 0 || chunk_size <= 0.0f) {
         return out;
@@ -235,6 +306,13 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
             // 242 px between two runs of the same arm), which is how it
             // surfaced. Ask a door not whether it works but whether it moves
             // the quantity you are measuring with.
+            // THE DOOR NOW OVERRIDES A REAL CHOICE instead of standing in for
+            // a missing one: `lod` arrives from RenderSystem's distance banding,
+            // and DFN_FLORA_FORCE_LOD pins the WHOLE world to one level. That
+            // makes it the control arm of the banding measurement (Rule 47,
+            // both arms out of one binary): "banded" against "everything Full"
+            // against "everything Silhouette", same build, same seed.
+            const bool force_set = flora_lod_forced();
             static const FloraLod forced = [] {
                 const char* e = std::getenv("DFN_FLORA_FORCE_LOD");
                 if (e == nullptr) return FloraLod::Full;
@@ -242,7 +320,7 @@ ScatterBatches build_scatter_batches(std::span<const math::ScatterInstance> inst
                                    : (e[0] == '2' ? FloraLod::Silhouette : FloraLod::Full);
             }();
             append_flora(out.trees, out.foliage, fs, variant, shapes[i],
-                         forced, inst.position, inst.yaw);
+                         force_set ? forced : lod, inst.position, inst.yaw);
             continue;
         }
         const MeshData& src = mesh_of(inst.species);

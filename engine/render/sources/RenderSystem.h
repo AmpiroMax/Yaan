@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 13:08:2026 - 20:37:12
+Last updated: 14:08:2026 - 19:34:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -124,6 +124,7 @@ UPD:
   which is worth stating plainly so nobody concludes that cloud volume broke the
   acceptance method. Additive and latched: until a caller tells the time, the
   wall-clock path is bit-identical to what shipped.
+- 14:08:2026 - 19:34:00: ChunkScatterRes помнит свой уровень детализации и экземпляры, из которых испечён (рез ведущего). Экземпляры держим потому, что перепечка на смене полосы должна откуда-то взяться, а породившие их данные живут в engine/world — зоне, в которую render не может дотянуться назад; 24 байта на экземпляр против мегабайтов вершин, которые они заменяют.
 */
 
 #pragma once
@@ -137,6 +138,7 @@ UPD:
 #include "engine/render/sources/GroundTufts.h"
 #include "engine/render/sources/LodTerrain.h"
 #include "engine/render/sources/MapScreen.h"
+#include "engine/render/sources/ScatterBatcher.h" // FloraLod, per-chunk bake level
 
 #include <chrono>
 #include <cstdint>
@@ -446,6 +448,15 @@ private:
         uint32_t foliage_mesh_id = 0; // alpha-cutout leaf cards ("foliage")
         math::Aabb bounds{};          // trees + cards, for frustum culling
         std::vector<MicroTileRes> micro;
+        /// The detail level THIS chunk's flora is currently baked at, and the
+        /// instances it was baked from. The instances are kept because a band
+        /// crossing re-bakes the chunk and the world data that produced it lives
+        /// in engine/world, a zone render cannot reach back into. They are
+        /// small — a ScatterInstance is 24 bytes and the whole forest stand is
+        /// ~13 500 of them — against the megabytes of vertex data they replace.
+        FloraLod lod = FloraLod::Full;
+        std::vector<math::ScatterInstance> instances;
+        glm::vec2 center_xz{0.0f}; ///< chunk centre, the banding's distance anchor
     };
 
     // True if the box should be drawn: inside the frustum, OR close enough to
@@ -461,6 +472,11 @@ private:
     // Resource bookkeeping only — never game state (Rule 10).
     std::unordered_map<glm::ivec2, TerrainRes, ChunkKeyHash> terrain_meshes_;
     std::unordered_map<glm::ivec2, ChunkScatterRes, ChunkKeyHash> scatter_meshes_;
+    /// Last eye position the scatter banding saw, horizontal only. Held because
+    /// upload_scatter is called from the chunk ferry, which has no camera: a
+    /// chunk arriving mid-walk must be born at the level its distance calls
+    /// for, not at Full and then walked down over the next frames.
+    glm::vec2 scatter_eye_{0.0f};
 
     // GROUND TUFTS (GroundTufts.h): the sparse near-field grass. Two halves,
     // and the split is the whole design.
@@ -476,6 +492,25 @@ private:
     [[nodiscard]] static GroundTuftParams tuft_params();
     /// Regrows the eye-local tuft mesh if the eye has moved far enough.
     void refresh_ground_tufts(platform::IRenderer& renderer, glm::vec3 eye);
+
+    /// Re-bakes AT MOST ONE resident scatter chunk per frame at the detail
+    /// level its distance now calls for (FLORA_LOD_REDUCED_M /
+    /// FLORA_LOD_SILHOUETTE_M, with FLORA_LOD_HYSTERESIS_M of overlap so a
+    /// player standing on a band edge does not re-bake every frame).
+    ///
+    /// ONE PER FRAME IS THE WHOLE SAFETY ARGUMENT. A re-bake costs what the
+    /// chunk's first bake cost, so an unbudgeted pass that re-levelled a ring
+    /// at once would trade a steady frame cost for exactly the multi-second
+    /// freeze chunk streaming already learned to spread out. Nearest first,
+    /// for the same reason streaming admits nearest first: the chunk the
+    /// player is looking at is the one whose detail is wrong most visibly.
+    void refresh_scatter_lod(platform::IRenderer& renderer, glm::vec3 eye);
+
+    /// Bakes and uploads one chunk's scatter at `lod`, replacing whatever was
+    /// there. The shared body of the first upload and of every re-bake — two
+    /// copies of this would drift the day one of them learned something.
+    void bake_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord,
+                      std::span<const math::ScatterInstance> instances, FloraLod lod);
 
     std::unordered_map<glm::ivec2, std::vector<TuftSpot>, ChunkKeyHash> tuft_spots_;
     uint32_t tuft_mesh_id_ = 0;

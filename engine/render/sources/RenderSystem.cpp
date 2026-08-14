@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 17:58:55
+Last updated: 14:08:2026 - 19:34:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -131,6 +131,7 @@ UPD:
   across destroy+reuse. +1 keeps a real slot-0 entity out of the "0 = unnamed"
   sentinel; the overlay inverts with (id-1). World geometry (terrain, scatter,
   water, path, tufts) and the viewmodel path — none currently — stay 0.
+- 14:08:2026 - 19:34:00: ЛЕСТНИЦА ДЕТАЛИЗАЦИИ ФЛОРЫ НАКОНЕЦ ПОДКЛЮЧЕНА (рез ведущего на зону render). refresh_scatter_lod печёт НЕ БОЛЕЕ ОДНОГО чанка за кадр, ближний первым: перепечка стоит ровно столько же, сколько первая печь, поэтому проход без бюджета обменял бы ровный кадр на тот самый многосекундный ступор, от которого стриминг уже научился уходить. Якорь дистанции — БЛИЖАЙШАЯ ТОЧКА чанка, и это не деталь: CHUNK_SIZE 256 м, центр чанка может стоять в 181 м, когда ближний край под ногами, и банда по центру испекла бы дерево в пяти метрах силуэтом — тот самый дефект, ради предотвращения которого проход и написан, в одежде выигрыша. Чанк рождается сразу на своём уровне, а не печётся полным и потом понижается: полная печь для земли, до которой игроку далеко, платилась бы ровно во время стриминга, когда кадр и так нагружен. Замер на лесной демке, один бинарник: 7 695 612 → 2 396 252 треугольника, 600 кадров 75 с → 20 с (~8 → ~30 кадров/с), кадры расходятся на 0.265 % пикселей одним пятном дальнего древостоя при НУЛЕВОМ шуме — два прогона одной руки побитово равны. Кадры docs/acceptance/flora-lod-{before-full,after-banded}.png.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -794,6 +795,10 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // inside a 12 m ball around the eye, so the cull would cost more than the
     // draw it saves, and the shadow pass wants it anyway.
     refresh_ground_tufts(renderer, eye);
+    // FLORA DETAIL BANDING. Sits beside the tuft refresh because it is the same
+    // kind of thing — geometry re-grown around the eye — and because both must
+    // see the eye of the frame being drawn, not the one before it.
+    refresh_scatter_lod(renderer, eye);
     if (tuft_mesh_id_ != 0) {
         renderer.submit(platform::MeshHandle{tuft_mesh_id_}, prop, identity);
     }
@@ -1117,6 +1122,81 @@ GroundTuftParams RenderSystem::tuft_params() {
 // one stood and only the SET changes at the rim of the view distance.
 constexpr float TUFT_REBUILD_STEP_M = 2.0f;
 
+namespace {
+
+/// Horizontal centre of a chunk, in world metres. Kept for the record a chunk
+/// carries; the BANDING does not use it — see chunk_distance_xz.
+[[nodiscard]] glm::vec2 chunk_center_xz(glm::ivec2 chunk_coord) {
+    const auto size = static_cast<float>(config::CHUNK_SIZE);
+    return {(static_cast<float>(chunk_coord.x) + 0.5f) * size,
+            (static_cast<float>(chunk_coord.y) + 0.5f) * size};
+}
+
+/// Distance from the eye to the NEAREST POINT of a chunk's footprint (0 when
+/// standing on it), horizontal only.
+///
+/// THE NEAREST POINT AND NOT THE CENTRE, and the difference is not a detail:
+/// CHUNK_SIZE is 256 m, so a chunk's centre can be 181 m away while its near
+/// edge is under the player's feet. Banding on the centre would bake a tree
+/// five metres in front of the player as a silhouette because the rest of its
+/// chunk is far — the exact defect this whole pass exists to avoid, wearing a
+/// performance win's clothes. Anchoring on the nearest point makes the level a
+/// chunk is baked at never coarser than its CLOSEST tree can afford.
+///
+/// The cost of that honesty is coarseness: one level per 256 m chunk means a
+/// chunk keeps full detail because of its nearest corner while its far corner
+/// pays for it. Finer granularity (per micro tile, 64 m) is the next step and
+/// is deliberately not taken here — it multiplies draw calls, and draw calls
+/// are the other half of the frame's budget.
+[[nodiscard]] float chunk_distance_xz(glm::vec2 eye_xz, glm::ivec2 chunk_coord) {
+    const auto size = static_cast<float>(config::CHUNK_SIZE);
+    const glm::vec2 lo{static_cast<float>(chunk_coord.x) * size,
+                       static_cast<float>(chunk_coord.y) * size};
+    const glm::vec2 hi = lo + glm::vec2{size, size};
+    const glm::vec2 nearest{std::clamp(eye_xz.x, lo.x, hi.x),
+                            std::clamp(eye_xz.y, lo.y, hi.y)};
+    return glm::distance(eye_xz, nearest);
+}
+
+} // namespace
+
+void RenderSystem::refresh_scatter_lod(platform::IRenderer& renderer, glm::vec3 eye) {
+    scatter_eye_ = {eye.x, eye.z};
+    if (scatter_off_ || flora_lod_forced()) {
+        return; // the force door is a CONTROL arm: banding must not run under it
+    }
+    // Pick the NEAREST chunk whose baked level disagrees with its distance, and
+    // re-bake that one. Nearest first because the mismatch that matters is the
+    // one in front of the player; one per frame because a re-bake costs a bake.
+    const glm::ivec2* worst = nullptr;
+    float worst_distance = 0.0f;
+    FloraLod worst_lod = FloraLod::Full;
+    for (const auto& [coord, res] : scatter_meshes_) {
+        if (res.instances.empty()) {
+            continue;
+        }
+        const float d = chunk_distance_xz(scatter_eye_, coord);
+        const FloraLod want = flora_lod_for_distance(d, res.lod);
+        if (want == res.lod) {
+            continue;
+        }
+        if (worst == nullptr || d < worst_distance) {
+            worst = &coord;
+            worst_distance = d;
+            worst_lod = want;
+        }
+    }
+    if (worst == nullptr) {
+        return;
+    }
+    // The instances have to be COPIED out before the re-bake: bake_scatter
+    // drops the chunk's entry first, and the span would then point into a
+    // destroyed vector. This is the one place the kept instances are paid for.
+    const glm::ivec2 coord = *worst;
+    std::vector<math::ScatterInstance> instances = scatter_meshes_.at(coord).instances;
+    bake_scatter(renderer, coord, instances, worst_lod);
+}
+
 void RenderSystem::refresh_ground_tufts(platform::IRenderer& renderer, glm::vec3 eye) {
     if (tufts_off_) {
         return;
@@ -1184,12 +1264,29 @@ void RenderSystem::upload_scatter(platform::IRenderer& renderer,
     if (scatter_off_ || instances.empty()) {
         return;
     }
+    // The level a chunk is BORN at is the level its distance already calls for.
+    // Baking every new chunk at Full and letting the pass below walk it down
+    // would pay the most expensive bake for ground the player is nowhere near —
+    // and pay it exactly during streaming, when the frame is already loaded.
+    bake_scatter(renderer, chunk_coord, instances,
+                 flora_lod_for_distance(chunk_distance_xz(scatter_eye_, chunk_coord),
+                                        FloraLod::Full));
+}
+
+void RenderSystem::bake_scatter(platform::IRenderer& renderer, glm::ivec2 chunk_coord,
+                                std::span<const math::ScatterInstance> instances,
+                                FloraLod lod) {
+    drop_scatter(renderer, chunk_coord); // idempotent per coord; also the re-bake path
     const auto chunk_size = static_cast<float>(config::CHUNK_SIZE);
     const glm::vec2 origin{static_cast<float>(chunk_coord.x) * chunk_size,
                            static_cast<float>(chunk_coord.y) * chunk_size};
-    ScatterBatches batches = build_scatter_batches(instances, origin, chunk_size);
+    ScatterBatches batches = build_scatter_batches(instances, origin, chunk_size,
+                                                   /*micro_tiles_per_axis=*/4, lod);
 
     ChunkScatterRes res;
+    res.lod = lod;
+    res.center_xz = chunk_center_xz(chunk_coord);
+    res.instances.assign(instances.begin(), instances.end());
     res.bounds.expand(bounds_of(batches.trees.vertices));
     res.bounds.expand(bounds_of(batches.foliage.vertices));
     ++uploads_.scatter_chunks;
