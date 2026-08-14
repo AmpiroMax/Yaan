@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 13:08:2026 - 17:05:00
+Last updated: 14:08:2026 - 18:57:57
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -38,6 +38,11 @@ UPD:
   вместо копии на каждое место: земля под текстом — одно решение. Кромка панели
   запрашивается со всех четырёх сторон и сама отсекается на границе кадра, поэтому
   прижатая к углу плашка теряет ровно те две стороны, которые и должна.
+- 14:08:2026 - 18:57:57: Угол вывода назван константами, число строк считает одна
+  функция, и draw проверяет свой массив против неё static_assert'ом: добавить строку
+  в вывод, не сдвинув то, что под ним, теперь ОШИБКА КОМПИЛЯЦИИ, а не наложение,
+  которое кто-то должен заметить. Подсказка снимка берёт свой y из той же функции,
+  что и запрос снаружи, — иначе это две арифметики про одну строку.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
@@ -103,6 +108,28 @@ constexpr const char* COMPASS_KEYS[8] = {
 // The plate's two colours ARE THE MENU'S two colours: one interface, one ground.
 constexpr render::Color PLATE{18, 20, 26};
 constexpr render::Color PLATE_EDGE{54, 56, 64};
+
+// THE READOUT'S CORNER, named once. It is the top-left one, it is shared with
+// the editor's own block, and the two used to disagree about it by a pixel
+// while overlapping completely -- see debug_overlay_bottom_y in the header.
+constexpr int READOUT_X = 3;
+constexpr int READOUT_Y = 3;
+// draw_text_plate's default margin. Named here because the block BELOW the
+// readout has to clear the plate, not the text.
+constexpr int READOUT_PLATE_PAD = 3;
+
+// The rows drawn unconditionally. Kept as a constant so the height query and
+// the draw cannot drift apart: the draw static_asserts its array against it,
+// so adding a line to the readout without moving what sits under it is a
+// COMPILE error rather than an overlap somebody has to notice (Rule 39).
+constexpr int READOUT_FIXED_LINES = 10;
+
+[[nodiscard]] int readout_line_count(const DebugSnapshot& snap) {
+    // The fixed rows, plus the words row, plus the water row when there is
+    // water. The water row is the whole reason this is a function: it makes
+    // the readout's height a property of the MOMENT, not of the build.
+    return READOUT_FIXED_LINES + 1 + (snap.water_depth > 0.0f ? 1 : 0);
+}
 
 // Trims ASCII spaces and tabs from both ends.
 [[nodiscard]] std::string_view trim(std::string_view s) {
@@ -277,29 +304,34 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     // edges, and half a rule is what this fix exists to end. The plate is sized
     // to the text and pinned to the corner, so it hides 12 % of the frame and
     // no more.
+    // The row count is READ from the shared counter, not recounted here, so
+    // whatever sits under this block cannot be told a different height than the
+    // one actually drawn. The assert is what keeps that true when a row is
+    // added: it fails at COMPILE time, in this file, next to the array.
+    static_assert(static_cast<int>(std::size(left)) == READOUT_FIXED_LINES,
+                  "readout_line_count() and the left[] array must agree -- "
+                  "whatever is laid out below the readout is positioned from "
+                  "the count, and a silent disagreement is an overlap");
     int widest = 0;
-    int line_count = 0;
     for (const auto& l : left) {
         widest = std::max(widest, render::text_width_px(l.text));
-        ++line_count;
     }
     widest = std::max(widest, render::text_width_px(words.text));
-    ++line_count;
     if (snap.water_depth > 0.0f) {
         widest = std::max(widest, render::text_width_px(water.text));
-        ++line_count;
     }
-    draw_text_plate(canvas, 3, 3, widest, line_count * line_h - 1);
+    draw_text_plate(canvas, READOUT_X, READOUT_Y, widest,
+                    readout_line_count(snap) * line_h - 1);
 
-    int y = 3;
+    int y = READOUT_Y;
     for (const auto& l : left) {
-        render::draw_text(canvas, 3, y, l.text, ink, /*shadow=*/true);
+        render::draw_text(canvas, READOUT_X, y, l.text, ink, /*shadow=*/true);
         y += line_h;
     }
-    render::draw_text(canvas, 3, y, words.text, snap.grounded ? ink : warn, true);
+    render::draw_text(canvas, READOUT_X, y, words.text, snap.grounded ? ink : warn, true);
     y += line_h;
     if (snap.water_depth > 0.0f) {
-        render::draw_text(canvas, 3, y, water.text, warn, true);
+        render::draw_text(canvas, READOUT_X, y, water.text, warn, true);
         y += line_h;
     }
 
@@ -309,9 +341,32 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     // today, but ground is snow, sand and water elsewhere.
     const std::string_view hint = localized(serialization::fnv1a64("debug.hint.capture"));
     const int hint_w = render::text_width_px(hint);
-    const int hint_y = static_cast<int>(canvas.height()) - line_h - 2;
+    const int hint_y = debug_overlay_hint_top_y(static_cast<int>(canvas.height()))
+                     + READOUT_PLATE_PAD;
     draw_text_plate(canvas, w - hint_w - 3, hint_y, hint_w, render::FONT_INK_H);
     render::draw_text(canvas, w - hint_w - 3, hint_y, hint, dim, true);
+}
+
+int debug_overlay_bottom_y(const DebugSnapshot& snap) {
+    const int line_h = render::FONT_CELL_H + 1;
+    // The text block's height is `lines * pitch - 1` (the last row carries no
+    // trailing gap), which is exactly what the plate above is sized to. Add the
+    // plate's own margin, because what sits below has to clear the PLATE -- a
+    // block that clears only the ink lands on the plate's lit edge and reads as
+    // one panel cut in half.
+    const int text_h = readout_line_count(snap) * line_h - 1;
+    return READOUT_Y + text_h + READOUT_PLATE_PAD;
+}
+
+int debug_overlay_hint_top_y(int canvas_height) {
+    const int line_h = render::FONT_CELL_H + 1;
+    return canvas_height - line_h - 2 - READOUT_PLATE_PAD;
+}
+
+std::string_view fits_width(int width_px, std::string_view full,
+                            std::string_view brief) {
+    return render::text_width_px(full) <= width_px - 2 * render::FONT_CELL_W ? full
+                                                                            : brief;
 }
 
 // ---------------------------------------------------------------------------

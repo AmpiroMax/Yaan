@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 13:08:2026 - 17:02:00
+Last updated: 14:08:2026 - 18:57:57
 Module: engine/app
 File: engine/app/sources/DebugOverlay.h
 
@@ -47,6 +47,13 @@ UPD:
   ПОД ТЕКСТОМ — одно решение, а не четыре копии. Потребители: отладочный вывод, его
   подсказка, экран паузы и подсказка взаимодействия в App.cpp. Замер, из которого
   выросла плашка, записан у объявления.
+- 14:08:2026 - 18:57:57: Вывод теперь СООБЩАЕТ СВОЮ ГЕОМЕТРИЮ: debug_overlay_bottom_y()
+  и debug_overlay_hint_top_y(). Углом владели двое — вывод в (3,3) и блок редактора
+  в (4,4), — и печатались они друг сквозь друга (жалоба пользователя). Литеральный
+  отступ был бы той же ошибкой с задержкой (правило 39): высота вывода НЕ постоянна,
+  в воде он на строку выше. Сюда же переехало fits_width() — правило «какой вариант
+  строки влезает» было приватной копией в Menu.cpp, а копия правила перестаёт быть
+  правилом ровно тогда, когда его понадобилось применить второму потребителю.
 */
 
 #pragma once
@@ -146,6 +153,41 @@ private:
 // Draws the readout into the HUD canvas. Does not clear it: the caller owns
 // the layer and may have drawn a prompt already.
 void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap);
+
+// THE FIRST FREE ROW UNDER THE READOUT, plate included. Published because the
+// readout is not the only thing that wants the top-left corner, and until this
+// existed the second tenant guessed: the editor banner was pinned at (4, 4)
+// while the readout starts at (3, 3), so with both on -- the user's normal
+// working state -- they printed through each other and neither could be read.
+//
+// A LITERAL OFFSET WOULD HAVE BEEN THE SAME BUG WITH A DELAY (Rule 39): the
+// readout's height is not a constant, it grows a row whenever the player is in
+// water, so anything that hardcodes "the readout is N pixels tall" is correct
+// on dry land and wrong the moment he wades in. This is computed from the same
+// line count the draw uses, and a row added to the readout moves both.
+[[nodiscard]] int debug_overlay_bottom_y(const DebugSnapshot& snap);
+
+// The top of the capture hint's plate, which the readout pins to the BOTTOM of
+// the frame. Published for the same reason as the function above: it is the
+// other thing already occupying the frame's edges, so anything that grows
+// downward has to be able to ask where it stops.
+[[nodiscard]] int debug_overlay_hint_top_y(int canvas_height);
+
+// THE LINE THAT FITS, CHOSEN BY MEASURING RATHER THAN BY BRANCHING ON A
+// RESOLUTION. `full` when it fits inside `width_px` with a cell of air on each
+// side, `brief` otherwise -- a line that ENDS on the last pixel column reads as
+// clipped even when it is whole.
+//
+// SHARED BECAUSE THE DECISION IS SHARED, not because two callers happened to
+// want the same three lines. The settings page learned this the expensive way:
+// 320x180 is a rung the page itself OFFERS, and at 320 px its own instruction
+// lines ran off both edges -- the screen that exists to be read stopped being
+// readable one keypress away. A branch on the number 320 would have fixed that
+// day's Russian and broken on the first translation wider than it. Every
+// overlay in this zone now narrows through this one function, so a new panel
+// cannot reintroduce the defect by not knowing about it.
+[[nodiscard]] std::string_view fits_width(int width_px, std::string_view full,
+                                          std::string_view brief);
 
 // ---------------------------------------------------------------------------
 // THE INTERFACE'S GROUND. Every string the app draws over the world stands on

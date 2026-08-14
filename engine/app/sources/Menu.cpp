@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 14:08:2026 - 17:51:15
+Last updated: 14:08:2026 - 18:57:57
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -56,6 +56,11 @@ UPD:
   категорий/карт, заголовок по странице, строка статуса (напр. «печёной карты нет»).
 - 14:08:2026 - 17:51:15: open_category() — прямой вход в список карт категории (дверь
   снимка второго уровня браузера, правило 27); индекс вне диапазона зажат в 0.
+- 14:08:2026 - 18:57:57: Приватная копия fits() снята — правило «какой вариант строки
+  влезает» живёт теперь один раз, рядом с draw_text_plate (DebugOverlay.h). Копию
+  завели, когда потребитель был один; второй потребитель (блок редактора) — это ровно
+  тот момент, когда копия правила становится теневой (правило 39). Поведение страницы
+  не менялось: локальное имя fits() сохранено и зовёт общее.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -197,18 +202,17 @@ size_t cycle(size_t index, size_t count, int delta) {
     return static_cast<size_t>(next);
 }
 
-// THE LINE THAT FITS, CHOSEN BY MEASURING RATHER THAN BY BRANCHING ON A
-// RESOLUTION. The settings page offers 320x180 as a rung, and at 320 px the
-// long instruction lines ran off BOTH edges -- the screen that exists to be
-// read was the screen that stopped being readable, one keypress away. A test
-// on the number 320 would have fixed today and broken on the first
-// translation that is wider than Russian; measuring the drawn width fixes
-// both, and it costs one comparison per line.
+// THE LINE THAT FITS. The rule and the measurement that produced it now live
+// beside draw_text_plate in DebugOverlay.h, next to the other decision every
+// overlay in this zone shares; this is the local name the page reads with.
+//
+// IT WAS A PRIVATE COPY HERE UNTIL THE EDITOR'S BLOCK NEEDED THE SAME RULE,
+// and a second copy is how a rule stops being a rule (Rule 39): the settings
+// page would have kept narrowing correctly while the new panel ran off the
+// edge at exactly the resolution this page OFFERS as a rung.
 [[nodiscard]] std::string_view fits(int w, std::string_view full,
                                     std::string_view brief) {
-    // A cell of air on each side: a line that ENDS on the last pixel column
-    // reads as clipped even when it is whole.
-    return render::text_width_px(full) <= w - 2 * render::FONT_CELL_W ? full : brief;
+    return fits_width(w, full, brief);
 }
 
 void draw_centered(render::PixelCanvas& canvas, int y, std::string_view text,

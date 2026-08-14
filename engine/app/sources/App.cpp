@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 18:03:08
+Last updated: 14:08:2026 - 18:57:57
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -119,10 +119,12 @@ UPD:
 - 14:08:2026 - 17:36:02: ЧАТ+СНИМОК+ТЕЛЕМЕТРИЯ+ЗАПИСЬ/ПОВТОР (В28/O-серия). Чат — JSONL-лог рядом с картой (путь из current_manifest(): assets/maps/<category>/<file_stem>.chat.jsonl): Enter роняет снимок кадра замечанием, дверь DFN_CHAT_MSG="text" (+DFN_CHAT_WHO=<zone> для самодок демки, O1) пишет запись и закрывается. Снимок ПЕРЕИСПОЛЬЗУЕТ существующий DFN_CAPTURE/write_capture. Телеметрия (item 3): кольцо TELEMETRY_LOG_HZ/_RING_SAMPLES по счётным часам, только в редакторе (В39), сброс в <карта>.telemetry.log на выходе. O3: запись позы/game_seconds/fov по кадрам (TrajectoryRecord, бинарный секционный формат на core BinaryWriter/Reader), детерминированный повтор — камера и счётные часы из файла, два проигрывания бит-в-бит (правило 53); клавиши R/P в редакторе, двери DFN_TRAJ_REC/DFN_TRAJ_PLAY. Резолвер чат-пути на current_manifest() editor'а. Живой ввод (text_input()) — следующим коммитом (полировка оверлея).
 - 14:08:2026 - 17:51:15: Дверь снимка браузера + оверлеи В28. (1) DFN_MENU_PAGE/DFN_MENU_SHOT принудительно ПОКАЗЫВАЮТ меню в init (регрессия: их снова затянуло в menu-skip через unattended_run(); дверь снимка меню должна меню показать, а не пропустить) — теперь снимаются categories/category_maps/pause/calibrate/settings без клавиатуры; +ветка category_maps (второй уровень) и предохранитель-комментарий у unattended_run(). (2) Оверлеи редактора: frame_stats() (scene_triangles + backend_draws), center_pick() под прицелом (треугольники выбранного LOD + дистанция; id — когда render застемпит pick_id), каркас по клавише 4/F4 + дверь DFN_WIREFRAME=1. Штамп pick_id=EntityId — за render (их сабмиттер, зона engine/render); HUD поверх каркаса render не композитит (present пропущен) — вынесено им.
 - 14:08:2026 - 18:03:08: ЖИВОЙ ЧАТ-ОВЕРЛЕЙ (В28, вторым коммитом поверх дебаг-оверлеев editor'а). Окно ввода открывается клавишей '/' (Enter уже роняет снимок, 4/F4 — каркас editor'а, T — часы), печать через input_->text_input() (UTF-8/кириллица), Backspace удаляет целый символ, Enter ОТПРАВЛЯЕТ (замечание + снимок кадра через тот же write_pending_chat), Escape закрывает. Пока окно открыто, оно ЗАБИРАЕТ КЛАВИАТУРУ: физические клавиши всё равно шлют was_pressed(), поэтому все игровые клавиши и движение под флагом !chat_typing, иначе набор сообщения переключал бы вид/каркас/карту и водил камеру. Оверлей ChatOverlay рисуется последним в HUD-блоке.
+- 14:08:2026 - 18:57:57: РАЗВЕДЕНЫ ДВА ОВЕРЛЕЯ, ДЕЛИВШИЕ ОДИН УГОЛ (жалоба пользователя: «накладывается телеметрия рыжая с текстом трисс и та что открывается по кнопке 2»). Отладочный вывод рисуется в (3,3), блок редактора был прибит в (4,4): каждый верен поодиночке, вместе нечитаемы, а оба сразу — это РАБОЧИЙ режим пользователя, а не редкий случай. Блок переехал ПОД вывод, и координата берётся из debug_overlay_bottom_y(), а не из литерала: высота вывода непостоянна (в воде он на строку выше), поэтому прибитый отступ был бы той же ошибкой с задержкой. Сама компоновка строк вынесена в engine/app/sources/EditorHud.{h,cpp} — и это не уборка: App.cpp держит окно, поэтому НИЧТО, собранное здесь, не может быть измерено тестом, и наложение прожило ровно столько, сколько не было прибора. Тексты строк перенесены дословно, чтобы правка осталась чисто геометрической. Дверь дозы DFN_EDITOR_HUD_PINNED=1 возвращает блок в старый угол — обе руки приёмки из ОДНОГО бинарника (правило 47).
 */
 
 #include "engine/app/sources/App.h"
 
+#include "engine/app/sources/EditorHud.h"
 #include "engine/app/sources/HudScreen.h"
 #include "engine/app/sources/Localization.h"
 // Generated at BUILD time by tools/stamp_build_commit.cmake; carries
@@ -2974,8 +2976,18 @@ int App::run() {
             // occluded by a prompt, and it forces the layer visible: a debug
             // view that can be hidden by whatever else is on screen is not a
             // debug view.
-            if (debug_overlay_ || capture_pending_) {
-                draw_debug_overlay(hud, collect_snapshot(alpha));
+            //
+            // AND IT PUBLISHES WHERE IT ENDED. The editor's block stacks under
+            // it rather than beside it, so the two blocks are laid out by ONE
+            // arithmetic instead of being pinned to the same corner by two --
+            // which is what they were, at (3,3) and (4,4), printing through
+            // each other for anyone running with both on.
+            int overlay_bottom = 0;
+            const bool readout = debug_overlay_ || capture_pending_;
+            if (readout) {
+                const DebugSnapshot snap = collect_snapshot(alpha);
+                draw_debug_overlay(hud, snap);
+                overlay_bottom = debug_overlay_bottom_y(snap);
                 any = true;
             }
             // EDITOR BANNER: names the mode and shows the wheel-driven fly
@@ -2984,66 +2996,35 @@ int App::run() {
             // speed is a number and the debug readout above already reports the
             // free camera's coordinates and look (camera_ IS the free eye here).
             if (editor) {
-                const std::string_view banner =
-                    localized(serialization::fnv1a64("editor.banner"));
-                char spd[24];
-                std::snprintf(spd, sizeof(spd), "%.1f",
-                              static_cast<double>(editor_cam_.speed()));
-                const std::string_view unit =
-                    localized(serialization::fnv1a64("editor.speed_unit"));
-                const int gap = render::FONT_CELL_W;
-                const int bw = render::text_width_px(banner) + gap
-                             + render::text_width_px(spd) + gap
-                             + render::text_width_px(unit);
-                draw_text_plate(hud, 4, 4, bw, render::FONT_INK_H);
-                const render::Color ink{244, 226, 160};
-                int cx = 4;
-                render::draw_text(hud, cx, 4, banner, ink, /*shadow=*/true);
-                cx += render::text_width_px(banner) + gap;
-                render::draw_text(hud, cx, 4, spd, ink, true);
-                cx += render::text_width_px(spd) + gap;
-                render::draw_text(hud, cx, 4, unit, ink, true);
-
-                // В28 INTROSPECTION. frame_stats() and center_pick() describe the
-                // LAST completed frame (read before this frame's render), which
-                // is one frame of lag on a readout -- imperceptible and the only
-                // honest option, since the numbers do not exist until end_frame.
-                const auto L = [](const char* k) {
-                    return std::string(localized(serialization::fnv1a64(k)));
-                };
+                // В28 INTROSPECTION, laid out by EditorHud. frame_stats() and
+                // center_pick() describe the LAST completed frame (read before
+                // this frame's render), which is one frame of lag on a readout
+                // -- imperceptible, and the only honest option, since the
+                // numbers do not exist until end_frame.
+                //
+                // THE BLOCK IS COMPOSED IN A MODULE, NOT HERE, and that is the
+                // point rather than tidiness: this file owns a window, so
+                // nothing built inside it can be measured by a test, and the
+                // overlap the user reported (this block at (4,4) on top of the
+                // readout at (3,3)) survived precisely because no instrument
+                // could see it. App now only ferries numbers and a y.
                 const platform::RenderFrameStats& fs = renderer_->frame_stats();
                 const platform::RenderPick& pk = renderer_->center_pick();
-                // Line 2: scene triangles + all-view draw calls, and a wireframe
-                // tag when it is on -- the frame-cost half of "why is this heavy".
-                std::string l2 = L("editor.hud.tris") + " "
-                               + std::to_string(fs.scene_triangles) + "   "
-                               + L("editor.hud.draws") + " "
-                               + std::to_string(fs.backend_draws);
-                if (wireframe_) {
-                    l2 += "   [" + L("editor.hud.wire") + "]";
-                }
-                // Line 3: what the crosshair is on -- the SELECTED LOD's triangle
-                // count and range, the "вот ЭТОТ объект столько треугольников"
-                // the user asked for. id is shown only once render stamps it.
-                std::string l3;
-                if (pk.hit) {
-                    char d[24];
-                    std::snprintf(d, sizeof(d), "%.1f", static_cast<double>(pk.distance_m));
-                    l3 = L("editor.hud.aim") + ": " + std::to_string(pk.triangles)
-                       + " " + L("editor.hud.tris") + "   " + d + " " + L("editor.hud.m");
-                    if (pk.pick_id != 0) {
-                        l3 += "   id " + std::to_string(pk.pick_id);
-                    }
-                } else {
-                    l3 = L("editor.hud.aim") + ": " + L("editor.hud.aim_none");
-                }
-                const int row = render::FONT_CELL_H + 2;
-                const int y2 = 4 + row;
-                const int y3 = 4 + row * 2;
-                draw_text_plate(hud, 4, y2, render::text_width_px(l2), render::FONT_INK_H);
-                render::draw_text(hud, 4, y2, l2, ink, true);
-                draw_text_plate(hud, 4, y3, render::text_width_px(l3), render::FONT_INK_H);
-                render::draw_text(hud, 4, y3, l3, ink, true);
+                EditorHudSnapshot ed;
+                ed.fly_speed_mps = editor_cam_.speed();
+                ed.frame_triangles = fs.scene_triangles;
+                ed.frame_draws = fs.backend_draws;
+                ed.wireframe = wireframe_;
+                ed.aim_hit = pk.hit;
+                ed.aim_triangles = pk.triangles;
+                ed.aim_distance_m = pk.distance_m;
+                ed.aim_pick_id = pk.pick_id;
+                // Under the readout when it is up, at the top of the frame when
+                // it is not -- so the block does not sit in the middle of an
+                // empty corner just because the other panel is switched off.
+                (void)draw_editor_hud(
+                    hud, ed,
+                    readout ? editor_hud_top_y(overlay_bottom) : editor_hud_top_y(0));
                 any = true;
             }
             // THE CHAT WINDOW draws last so it sits over everything else on the
