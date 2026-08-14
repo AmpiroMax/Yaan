@@ -10,5 +10,15 @@ captures/
 playtest_test_artifacts/
 __pycache__/
 
+# Baked maps and their cache: the manifest is the recipe and lives in git, the
+# bake is derived and weighs tens to hundreds of MB (docs/MAP_LAYOUT.md, в35).
+*.dfw
+cache/
+
+# Per-run telemetry beside a map: one line per event of ONE session. The chat
+# log next to it (<map>.chat.jsonl) IS tracked — it is the demo's own
+# explanation of itself — but the telemetry is the run, not the demo.
+*.telemetry.log
+
 # Third-party reference screenshots (Morrowind/Oblivion/Skyrim) — look targets, not ours to ship
 images_examples/
