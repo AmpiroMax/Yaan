@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 15:54:46
+Last updated: 15:08:2026 - 16:02:49
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -47,6 +47,7 @@ UPD:
   mip-альфа на дистанции стремилась к нулю. Перо хвои: гребёнка 0.07/скважность
   0.021 — первая правка слила иголки в сплошной клин (порог шире полушага).
 - 15:08:2026 - 15:54:46: v6: хвойный тайл — ПЕРИСТЫЙ ФРОНД (стержень + 24 веточки с гребёнками иголок, градиентная альфа на кончиках; иголки короче полушага веточек — иначе клин, ловится gap/ragged-тестом); листовые пачки: градиентная кромка к той же изъеденной границе + маргин; калибровка по фотосканам (паспорта §1): хвоя олива {0.26 0.31 0.17}, кора сосны {0.27 0.22 0.16}.
+- 15:08:2026 - 16:02:49: Кора двухслойная ОТ ПОЛЯ ВЫСОТ (паспорта §1: пластины F2-F1 с трещинами + зерно 1.5-3 см; берёста — бумага с ямками чечевичек): цвет затеняется полем, нормал-атлас дифференцирует ТО ЖЕ поле — трещина в цвете и в свете не может разойтись. Мох растёт в трещинах.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -207,6 +208,81 @@ glm::vec3 tone_winter(LeafTone t) {
     }
 }
 
+// --- BARK: one HEIGHT FIELD drives both sheets --------------------------------
+// The colour tile shades from this field and the normal tile differentiates
+// it, so a crack is dark exactly where the light says it is deep. Coordinates
+// are the MIRRORED tile coords (the tube mapping's triangle wave never meets
+// a seam). Passports §1: real bark is TWO-LAYER — fine grain (1.5-3 cm) under
+// large plates split by deep cracks; birch is smooth paper with lenticel dips.
+struct BarkStyle {
+    glm::vec3 base;    ///< colourway albedo
+    float moss;        ///< 0..1 moss film budget (grows in the cracks)
+    bool birch;        ///< paper-with-lenticels instead of plates
+    float plate_nx;    ///< plate cells across the tile
+    float plate_ny;    ///< ...and along it (fewer = taller plates)
+    float plate_depth; ///< how deep the cracks cut, in height units
+};
+
+BarkStyle bark_style(LeafTone row) {
+    switch (row) {
+    case LeafTone::OakMid:    return {{0.32f, 0.24f, 0.16f}, 0.0f, false, 7.0f, 2.2f, 0.55f};
+    case LeafTone::OakDeep:   return {{0.30f, 0.23f, 0.15f}, 0.55f, false, 7.0f, 2.2f, 0.55f};
+    case LeafTone::OakSunlit: return {{0.36f, 0.27f, 0.18f}, 0.9f, false, 6.0f, 2.0f, 0.50f};
+    case LeafTone::BirchLight: return {{0.86f, 0.85f, 0.80f}, 0.0f, true, 0.0f, 0.0f, 0.0f};
+    case LeafTone::BirchPale: return {{0.78f, 0.77f, 0.70f}, 0.0f, true, 0.0f, 0.0f, 0.0f};
+    case LeafTone::WillowDark: return {{0.38f, 0.36f, 0.33f}, 0.0f, false, 5.0f, 1.6f, 0.35f};
+    case LeafTone::WillowOlive: return {{0.44f, 0.40f, 0.34f}, 0.35f, false, 5.0f, 1.6f, 0.35f};
+    // Pine: rounded plates in a dark desaturated brown (scan-calibrated,
+    // passports §1 — V-median 0.24, warm hue, S≈0.3).
+    case LeafTone::ConiferDark: default:
+        return {{0.27f, 0.22f, 0.16f}, 0.0f, false, 5.0f, 3.0f, 0.60f};
+    }
+}
+
+/// Height in [0,1]: plate body high, cracks low, grain everywhere.
+float bark_height(float mx, float my, const BarkStyle& st, uint32_t seed) {
+    // The fine grain layer (1.5-2.8 cm at trunk scale — the scan's own pitch).
+    float h = 0.22f * (value_noise(mx * 9.0f, my * 1.6f, 811u + seed) * 0.65f
+                       + value_noise(mx * 21.0f, my * 4.0f, 977u + seed) * 0.35f);
+    if (st.birch) {
+        // Paper: nearly flat, with shallow horizontal lenticel dips.
+        const float lent = value_noise(mx * 2.5f, my * 17.0f, 449u);
+        h += 0.55f - (lent > 0.72f ? 0.35f : 0.0f);
+        return std::clamp(h, 0.0f, 1.0f);
+    }
+    // The plate layer: jittered cells; the height falls into the crack where
+    // two nearest features come close (F2-F1), and each plate sits at its own
+    // level so neighbouring plates never merge visually.
+    const float gx = mx * st.plate_nx;
+    const float gy = my * st.plate_ny;
+    const int cx = static_cast<int>(std::floor(gx));
+    const int cy = static_cast<int>(std::floor(gy));
+    float d1 = 9.0f, d2 = 9.0f;
+    int best_cx = cx, best_cy = cy;
+    for (int oy = -1; oy <= 1; ++oy) {
+        for (int ox = -1; ox <= 1; ++ox) {
+            const int px = cx + ox;
+            const int py = cy + oy;
+            const float fx = static_cast<float>(px) + 0.5f
+                           + (hash01(px, py, seed ^ 0x51u) - 0.5f) * 0.8f;
+            const float fy = static_cast<float>(py) + 0.5f
+                           + (hash01(px, py, seed ^ 0x77u) - 0.5f) * 0.8f;
+            const float dx = (gx - fx);
+            const float dy = (gy - fy) * 1.15f; // cracks bias vertical
+            const float d = std::sqrt(dx * dx + dy * dy);
+            if (d < d1) {
+                d2 = d1; d1 = d; best_cx = px; best_cy = py;
+            } else if (d < d2) {
+                d2 = d;
+            }
+        }
+    }
+    const float crack = std::clamp((d2 - d1) * 2.6f, 0.0f, 1.0f);
+    const float plate_level = 0.55f + 0.35f * hash01(best_cx, best_cy, seed ^ 0x9Bu);
+    h += st.plate_depth * (smooth5(crack) * 0.8f + 0.2f) * plate_level;
+    return std::clamp(h, 0.0f, 1.0f);
+}
+
 } // namespace
 
 glm::vec3 leaf_tone_color(LeafTone tone, FloraSeason season) {
@@ -322,50 +398,23 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         // so mirror-repeat mapping is seamless by construction.
                         const float mx = 1.0f - std::fabs(x);
                         const float my = 1.0f - std::fabs(y);
-                        // Furrow field: tall narrow ridges (x compressed) with
-                        // slow wander (y stretched), two octaves.
-                        const float fur =
-                            value_noise(mx * 9.0f, my * 1.6f, 811u + sd.seed) * 0.65f
-                            + value_noise(mx * 21.0f, my * 4.0f, 977u + sd.seed) * 0.35f;
-                        const float ridge = std::clamp(fur, 0.0f, 1.0f);
-                        // Colourways by row: {base, groove-dark, moss amount}.
-                        glm::vec3 bark_base;
-                        float moss_amt = 0.0f;
-                        switch (static_cast<LeafTone>(tone_i)) {
-                        case LeafTone::OakMid:    bark_base = {0.32f, 0.24f, 0.16f}; break;
-                        case LeafTone::OakDeep:   bark_base = {0.30f, 0.23f, 0.15f}; moss_amt = 0.55f; break;
-                        case LeafTone::OakSunlit: bark_base = {0.36f, 0.27f, 0.18f}; moss_amt = 0.9f; break;
-                        case LeafTone::BirchLight: bark_base = {0.86f, 0.85f, 0.80f}; break;
-                        case LeafTone::BirchPale: bark_base = {0.78f, 0.77f, 0.70f}; break;
-                        case LeafTone::WillowDark: bark_base = {0.38f, 0.36f, 0.33f}; break;
-                        case LeafTone::WillowOlive: bark_base = {0.44f, 0.40f, 0.34f}; moss_amt = 0.35f; break;
-                        case LeafTone::ConiferDark: default:
-                            // Calibrated: the pine scan's trunk reads a DARK
-                            // desaturated brown (V-median 0.24, S≈0.34) — the
-                            // old {0.42 0.26 0.16} was a brick, not a pine.
-                            bark_base = {0.27f, 0.22f, 0.16f}; break;
-                        }
-                        const bool birch = tone_i == static_cast<uint32_t>(LeafTone::BirchLight)
-                                        || tone_i == static_cast<uint32_t>(LeafTone::BirchPale);
-                        float shade;
-                        if (birch) {
-                            // Birch: smooth paper, dark horizontal lenticels.
-                            const float lent = value_noise(mx * 2.5f, my * 17.0f, 449u);
-                            shade = lent > 0.72f ? 0.30f : 0.95f + 0.12f * ridge;
-                        } else {
-                            // Furrows: groove dark, ridge lit — the value
-                            // relief IS the texture's light accounting; the
-                            // program's real lighting multiplies on top.
-                            shade = 0.52f + 0.62f * ridge * ridge;
-                        }
-                        glm::vec3 c = bark_base * shade;
-                        if (moss_amt > 0.0f) {
-                            // Moss film: strongest in grooves, patchy.
+                        // TWO-LAYER HEIGHT FIELD (passports §1): plates split
+                        // by cracks over fine grain. The colour below and the
+                        // normal sheet both read THIS field — they cannot
+                        // disagree about where a crack runs.
+                        const BarkStyle st = bark_style(static_cast<LeafTone>(tone_i));
+                        const float h = bark_height(mx, my, st, sd.seed);
+                        // Shade FROM the height: plate tops lit, cracks dark.
+                        const float shade = st.birch ? 0.30f + 0.95f * h
+                                                     : 0.34f + 0.88f * h;
+                        glm::vec3 c = st.base * shade;
+                        if (st.moss > 0.0f) {
+                            // Moss film: grows in the cracks, patchy.
                             const float patch = value_noise(mx * 5.0f, my * 5.0f, 733u);
-                            const float moss = moss_amt * (1.0f - ridge)
+                            const float moss = st.moss * (1.0f - h)
                                              * std::clamp(patch * 1.6f - 0.3f, 0.0f, 1.0f);
                             c = c * (1.0f - moss)
-                              + glm::vec3{0.20f, 0.33f, 0.12f} * (moss * shade * 1.3f);
+                              + glm::vec3{0.20f, 0.33f, 0.12f} * (moss * (0.3f + 0.9f * h));
                         }
                         c = glm::clamp(c, glm::vec3{0.0f}, glm::vec3{1.0f});
                         atlas.pixels[ob + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
@@ -566,6 +615,62 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                     atlas.pixels[o + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
                     atlas.pixels[o + 3] = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
                 }
+            }
+        }
+    }
+    return atlas;
+}
+
+LeafAtlas generate_leaf_normal_atlas(uint32_t tile_px) {
+    LeafAtlas atlas;
+    atlas.tile_px = std::max<uint32_t>(tile_px, 16);
+    atlas.shapes = LEAF_ATLAS_SHAPES;
+    atlas.tones = LEAF_ATLAS_TONES;
+    atlas.width = atlas.tile_px * LEAF_ATLAS_SHAPES;
+    atlas.height = atlas.tile_px * LEAF_ATLAS_TONES;
+    // NEUTRAL EVERYWHERE FIRST (lead's contract: transparent texels and
+    // non-bark columns are the flat normal, so "no relief" is a value, not a
+    // branch in the shader).
+    atlas.pixels.assign(static_cast<size_t>(atlas.width) * atlas.height * 4u, 0u);
+    for (size_t i = 0; i < atlas.pixels.size(); i += 4) {
+        atlas.pixels[i + 0] = 128u;
+        atlas.pixels[i + 1] = 128u;
+        atlas.pixels[i + 2] = 255u;
+        atlas.pixels[i + 3] = 255u;
+    }
+
+    const auto n = static_cast<float>(atlas.tile_px);
+    const uint32_t bark_i = LEAF_ATLAS_SHAPES - 1; // BarkPlate column
+    const ShapeDef& sd = shape_def(LeafShape::BarkPlate);
+    // RELIEF_SCALE converts the [0,1] height field into a slope. 1.6 puts the
+    // crack walls near 60 deg at 512 px — bark, not corrugated iron; if the
+    // light reads inverted in the frame, flip the sign HERE, not in the
+    // shader (one producer, one convention).
+    constexpr float RELIEF_SCALE = 1.6f;
+    for (uint32_t tone_i = 0; tone_i < LEAF_ATLAS_TONES; ++tone_i) {
+        const BarkStyle st = bark_style(static_cast<LeafTone>(tone_i));
+        for (uint32_t py = 0; py < atlas.tile_px; ++py) {
+            for (uint32_t px = 0; px < atlas.tile_px; ++px) {
+                const float x = (static_cast<float>(px) + 0.5f) / n * 2.0f - 1.0f;
+                const float y = 1.0f - (static_cast<float>(py) + 0.5f) / n * 2.0f;
+                const float e = 2.0f / n; // one texel, tile space
+                // Central differences THROUGH the mirror transform, so the
+                // normals fold seamlessly exactly where the colour does.
+                const auto h_at = [&](float sx, float sy) {
+                    return bark_height(1.0f - std::fabs(sx), 1.0f - std::fabs(sy),
+                                       st, sd.seed);
+                };
+                const float dhdx = (h_at(x + e, y) - h_at(x - e, y)) / (2.0f * e);
+                const float dhdy = (h_at(x, y + e) - h_at(x, y - e)) / (2.0f * e);
+                glm::vec3 nrm{-dhdx * RELIEF_SCALE, -dhdy * RELIEF_SCALE, 1.0f};
+                const float len = std::sqrt(nrm.x * nrm.x + nrm.y * nrm.y + nrm.z * nrm.z);
+                nrm /= len;
+                const size_t o = (static_cast<size_t>(tone_i * atlas.tile_px + py)
+                                  * atlas.width + bark_i * atlas.tile_px + px) * 4u;
+                atlas.pixels[o + 0] = static_cast<uint8_t>((nrm.x * 0.5f + 0.5f) * 255.0f + 0.5f);
+                atlas.pixels[o + 1] = static_cast<uint8_t>((nrm.y * 0.5f + 0.5f) * 255.0f + 0.5f);
+                atlas.pixels[o + 2] = static_cast<uint8_t>((nrm.z * 0.5f + 0.5f) * 255.0f + 0.5f);
+                atlas.pixels[o + 3] = 255u;
             }
         }
     }

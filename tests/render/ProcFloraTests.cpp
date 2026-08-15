@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 15:08:2026 - 15:54:46
+Last updated: 15:08:2026 - 16:02:49
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -222,6 +222,7 @@ UPD:
   door check for free — the change is confined to the far level by
   construction and the table says so instead of the commit message.
 - 15:08:2026 - 15:54:46: Контракт альфы атласа: бинарная -> градиентная кромка (контроль правила 30 — бинарный атлас проваливает пол mid-текселей); BarkPlate исключён из теста листовых масок (непрозрачен по контракту, его непрозрачность утверждает градиентный тест).
+- 15:08:2026 - 16:02:49: Тест нормал-атласа: кора несёт рельеф (контроль правила 30 — плоский нейтральный лист даёт ноль и падает), все не-коровые тексели — строго нейтраль.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1074,6 +1075,41 @@ TEST_CASE("atlas: deterministic; leaf alpha is a rim GRADIENT inside a hard shap
     CHECK(mid > leaf_texels / 100);
     // ...and it is a RIM, not a wash: the body stays mostly opaque.
     CHECK(solid > mid);
+}
+
+TEST_CASE("normal atlas: bark carries relief, everything else is exactly neutral") {
+    const LeafAtlas a = generate_leaf_normal_atlas(64);
+    const LeafAtlas b = generate_leaf_normal_atlas(64);
+    REQUIRE(a.pixels.size() == b.pixels.size());
+    CHECK(a.pixels == b.pixels);
+    const uint32_t tile = a.tile_px;
+    size_t bark_relief = 0;
+    for (uint32_t tone = 0; tone < LEAF_ATLAS_TONES; ++tone) {
+        for (uint32_t shape = 0; shape < LEAF_ATLAS_SHAPES; ++shape) {
+            const bool bark = shape + 1 == LEAF_ATLAS_SHAPES;
+            for (uint32_t y = 0; y < tile; ++y) {
+                for (uint32_t x = 0; x < tile; ++x) {
+                    const size_t o = (static_cast<size_t>(tone * tile + y) * a.width
+                                      + shape * tile + x) * 4u;
+                    if (!bark) {
+                        // The lead's contract: "no relief" is the neutral
+                        // VALUE (128,128,255), not a shader branch.
+                        CHECK(a.pixels[o + 0] == 128u);
+                        CHECK(a.pixels[o + 1] == 128u);
+                        CHECK(a.pixels[o + 2] == 255u);
+                        continue;
+                    }
+                    const int dx = std::abs(static_cast<int>(a.pixels[o + 0]) - 128);
+                    const int dy = std::abs(static_cast<int>(a.pixels[o + 1]) - 128);
+                    if (dx > 8 || dy > 8) ++bark_relief;
+                }
+            }
+        }
+    }
+    // The Rule-30 control is the all-neutral sheet (what a disconnected or
+    // flat generator produces): it scores ZERO here and fails. Real bark must
+    // tilt a solid share of its texels.
+    CHECK(bark_relief > static_cast<size_t>(LEAF_ATLAS_TONES) * tile * tile / 20);
 }
 
 TEST_CASE("atlas: mostly opaque body, ragged eroded edge, a few real gaps") {
