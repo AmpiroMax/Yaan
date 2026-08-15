@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 16:02:49
+Last updated: 15:08:2026 - 16:08:30
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -48,6 +48,7 @@ UPD:
   0.021 — первая правка слила иголки в сплошной клин (порог шире полушага).
 - 15:08:2026 - 15:54:46: v6: хвойный тайл — ПЕРИСТЫЙ ФРОНД (стержень + 24 веточки с гребёнками иголок, градиентная альфа на кончиках; иголки короче полушага веточек — иначе клин, ловится gap/ragged-тестом); листовые пачки: градиентная кромка к той же изъеденной границе + маргин; калибровка по фотосканам (паспорта §1): хвоя олива {0.26 0.31 0.17}, кора сосны {0.27 0.22 0.16}.
 - 15:08:2026 - 16:02:49: Кора двухслойная ОТ ПОЛЯ ВЫСОТ (паспорта §1: пластины F2-F1 с трещинами + зерно 1.5-3 см; берёста — бумага с ямками чечевичек): цвет затеняется полем, нормал-атлас дифференцирует ТО ЖЕ поле — трещина в цвете и в свете не может разойтись. Мох растёт в трещинах.
+- 15:08:2026 - 16:08:30: ШТАМПЫ ЛИСТЬЕВ: пачка — решётка отдельных лопастных силуэтов со своим светом (верхний лист решает тексель), край пачки зубрится кончиками листьев, непокрытая внутренность — тёмная глубина между листьями (интерьер кроны 79-86% лист, не небо). Кляксы v5 умерли.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -79,7 +80,6 @@ constexpr float HOLE_T_RIM = 0.500f;
 // caster/feature floor. Raising this number is how you would accidentally build
 // the lace this file exists to refuse.
 constexpr int HOLE_LATTICE = 7;
-constexpr int FORM_LATTICE = 4;
 // See-through comes from the windows BETWEEN pack blobs and the erosion above;
 // the old explicit-gap constant died with the one-mass tile.
 
@@ -581,18 +581,67 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         continue;
                     }
 
-                    // Baked form, now PER BLOB: each mass carries its own
-                    // lit-top / dark-under ramp, so the pack reads as several
-                    // clumps under one light instead of one flat sticker.
-                    const float form = value_noise(
-                        (x + 1.0f) * 0.5f * static_cast<float>(FORM_LATTICE) + 11.0f,
-                        (y + 1.0f) * 0.5f * static_cast<float>(FORM_LATTICE) + 7.0f,
-                        best_seed ^ 0x5BD1u);
-                    const float k = std::clamp(0.38f * (0.5f + 0.5f * best_local_y)
-                                                   + 0.30f * best + 0.32f * form,
-                                               0.0f, 0.999f);
-                    static constexpr float SHADES[3] = {0.72f, 0.94f, 1.18f};
-                    const float shade = SHADES[static_cast<int>(k * 3.0f)];
+                    // INDIVIDUAL LEAF STAMPS (the Skyrim reset: a pack is a
+                    // painted picture of MANY LEAVES, not a shaded blob). A
+                    // jittered lattice of oriented lobed silhouettes fills the
+                    // blob; the TOP leaf at a texel decides its value, leaves
+                    // poking past the outline serrate the rim, and texels no
+                    // leaf covers read as the dark shadowed depth between
+                    // leaves — which is what a real crown interior is.
+                    constexpr float LEAF_CELL = 0.17f;
+                    float leaf_hit = 2.0f;  // best r/outline over the stamps
+                    float leaf_val = 0.0f;
+                    for (int cj = -1; cj <= 1; ++cj) {
+                        for (int ci = -1; ci <= 1; ++ci) {
+                            const int gx = static_cast<int>(std::floor(x / LEAF_CELL))
+                                         + ci;
+                            const int gy = static_cast<int>(std::floor(y / LEAF_CELL))
+                                         + cj;
+                            const float jx = (hash01(gx, gy, 0x11u + sd.seed) - 0.5f)
+                                           * 0.9f;
+                            const float jy = (hash01(gx, gy, 0x29u + sd.seed) - 0.5f)
+                                           * 0.9f;
+                            const float lx = x - (static_cast<float>(gx) + 0.5f + jx)
+                                                     * LEAF_CELL;
+                            const float ly = y - (static_cast<float>(gy) + 0.5f + jy)
+                                                     * LEAF_CELL;
+                            const float rot = hash01(gx, gy, 0x3Du + sd.seed)
+                                            * 6.2831853f;
+                            const float R = LEAF_CELL
+                                          * (0.72f + 0.5f * hash01(gx, gy, 0x55u));
+                            const float rr = std::sqrt(lx * lx + ly * ly) / R;
+                            if (rr > 1.3f) continue;
+                            const float th = std::atan2(ly, lx) - rot;
+                            // The leaf silhouette: deep lobes, slight taper —
+                            // the same vocabulary as the big shapes, one
+                            // octave down.
+                            const float outline = std::max(
+                                1.0f - 0.30f * (0.5f + 0.5f * std::cos(5.0f * th))
+                                     - 0.10f * (0.5f + 0.5f * std::cos(11.0f * th + 1.3f)),
+                                0.25f);
+                            const float d = rr / outline;
+                            if (d < leaf_hit) {
+                                leaf_hit = d;
+                                // Per-leaf light: its own facing plus the
+                                // blob's top-lit ramp — neighbours differ,
+                                // the mass still reads as one lit clump.
+                                leaf_val = 0.62f
+                                    + 0.55f * hash01(gx, gy, 0x71u + sd.seed)
+                                    + 0.22f * best_local_y;
+                            }
+                        }
+                    }
+                    float shade;
+                    if (leaf_hit <= 1.0f) {
+                        shade = std::clamp(leaf_val, 0.30f, 1.35f);
+                    } else if (best < 0.9f) {
+                        // Uncovered interior: the shadowed depth BETWEEN
+                        // leaves — dark and opaque, never sky (measured crown
+                        // interiors are 79-86 % leaf).
+                        shade = 0.34f;
+                    } else {
+                        continue; // outer rim: no leaf, no fill — serrated edge
+                    }
                     const glm::vec3 c = glm::clamp(base * shade, glm::vec3{0.0f},
                                                    glm::vec3{1.0f});
                     // GRADIENT RIM (Full HD contract): alpha fades over the
