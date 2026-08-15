@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 16:08:30
+Last updated: 15:08:2026 - 16:15:28
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -49,6 +49,7 @@ UPD:
 - 15:08:2026 - 15:54:46: v6: хвойный тайл — ПЕРИСТЫЙ ФРОНД (стержень + 24 веточки с гребёнками иголок, градиентная альфа на кончиках; иголки короче полушага веточек — иначе клин, ловится gap/ragged-тестом); листовые пачки: градиентная кромка к той же изъеденной границе + маргин; калибровка по фотосканам (паспорта §1): хвоя олива {0.26 0.31 0.17}, кора сосны {0.27 0.22 0.16}.
 - 15:08:2026 - 16:02:49: Кора двухслойная ОТ ПОЛЯ ВЫСОТ (паспорта §1: пластины F2-F1 с трещинами + зерно 1.5-3 см; берёста — бумага с ямками чечевичек): цвет затеняется полем, нормал-атлас дифференцирует ТО ЖЕ поле — трещина в цвете и в свете не может разойтись. Мох растёт в трещинах.
 - 15:08:2026 - 16:08:30: ШТАМПЫ ЛИСТЬЕВ: пачка — решётка отдельных лопастных силуэтов со своим светом (верхний лист решает тексель), край пачки зубрится кончиками листьев, непокрытая внутренность — тёмная глубина между листьями (интерьер кроны 79-86% лист, не небо). Кляксы v5 умерли.
+- 15:08:2026 - 16:15:28: Штампы стали ПЕР-ВИДОВЫМИ (паспорта §2.3-2.4): OvalSpray — осиновые монетки (мелкие, почти круглые), RaggedTip — берёзовые ромбики, RoundLobed — дубовые лопасти. Три вида перестали делить один лист.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -588,7 +589,14 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                     // poking past the outline serrate the rim, and texels no
                     // leaf covers read as the dark shadowed depth between
                     // leaves — which is what a real crown interior is.
-                    constexpr float LEAF_CELL = 0.17f;
+                    // The stamp is PER-SPECIES (passports §2): the broadleaf
+                    // column carries lobed oak leaves, OvalSpray the aspen's
+                    // small round coins, RaggedTip the birch's little
+                    // diamonds — three species stop sharing one leaf.
+                    const auto shape_e = static_cast<LeafShape>(shape_i);
+                    const float LEAF_CELL = shape_e == LeafShape::OvalSpray ? 0.11f
+                                          : (shape_e == LeafShape::RaggedTip ? 0.13f
+                                                                             : 0.17f);
                     float leaf_hit = 2.0f;  // best r/outline over the stamps
                     float leaf_val = 0.0f;
                     for (int cj = -1; cj <= 1; ++cj) {
@@ -612,13 +620,23 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                             const float rr = std::sqrt(lx * lx + ly * ly) / R;
                             if (rr > 1.3f) continue;
                             const float th = std::atan2(ly, lx) - rot;
-                            // The leaf silhouette: deep lobes, slight taper —
-                            // the same vocabulary as the big shapes, one
-                            // octave down.
-                            const float outline = std::max(
-                                1.0f - 0.30f * (0.5f + 0.5f * std::cos(5.0f * th))
-                                     - 0.10f * (0.5f + 0.5f * std::cos(11.0f * th + 1.3f)),
-                                0.25f);
+                            float outline;
+                            if (shape_e == LeafShape::OvalSpray) {
+                                // Aspen coin: nearly circular, faint scallop.
+                                outline = 1.0f - 0.07f * (0.5f + 0.5f * std::cos(7.0f * th));
+                            } else if (shape_e == LeafShape::RaggedTip) {
+                                // Birch diamond: two-pointed, slightly ragged.
+                                outline = std::max(
+                                    1.0f - 0.30f * (0.5f + 0.5f * std::cos(2.0f * th + 0.6f))
+                                         - 0.08f * (0.5f + 0.5f * std::cos(9.0f * th)),
+                                    0.30f);
+                            } else {
+                                // Oak: deep round lobes, no two at one angle.
+                                outline = std::max(
+                                    1.0f - 0.30f * (0.5f + 0.5f * std::cos(5.0f * th))
+                                         - 0.10f * (0.5f + 0.5f * std::cos(11.0f * th + 1.3f)),
+                                    0.25f);
+                            }
                             const float d = rr / outline;
                             if (d < leaf_hit) {
                                 leaf_hit = d;
