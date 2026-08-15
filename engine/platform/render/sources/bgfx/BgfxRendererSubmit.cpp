@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 15:08:2026 - 15:23:22
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -61,6 +61,8 @@ UPD:
 - 14:08:2026 - 16:35:53: В28: each scene submit accumulates scene_draws_accum /
   scene_tris_accum and runs the centre-of-screen ray against its bounding
   sphere for center_pick (nearest hit). Reuses world_center / world_radius.
+- 15:08:2026 - 15:23:22: привязка DrawParams::aux_texture к стадии 4 с нейтральной подменой;
+  u_params.w — признак «лист есть» (был «зарезервировано»).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -283,7 +285,7 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     bgfx::setIndexBuffer(mesh_it->second.ib);
 
     // u_params: x = texture bound, y = fade (screen-door dither below 1),
-    // z = highlight, w = reserved. Per DRAW, unlike u_envParams which is per
+    // z = highlight, w = an aux material sheet is bound (bark normals). Per DRAW, unlike u_envParams which is per
     // frame — that split is the whole reason the DrawParams sync happened.
     float params[4] = {0.0f, params_in.fade, params_in.highlight, params_in.aux0};
     const auto tex_it = im.textures.find(texture.id);
@@ -309,6 +311,25 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         // 2 == "mipped mask into an alpha-to-coverage draw"; fs_foliage reads
         // the distinction, every other shader only tests > 0.5.
         params[0] = coverage ? 2.0f : 1.0f;
+    }
+    // THE AUX SHEET (DrawParams::aux_texture — bark normals today). Bound at
+    // stage 4 always: the neutral 1x1 stands in when the draw supplies none,
+    // so Metal always has a real texture behind the sampler and the shader
+    // needs no branch. params.w carries "a real sheet is bound", which is what
+    // lets a program skip the perturbation entirely.
+    {
+        bgfx::TextureHandle aux = im.neutral_normal;
+        if (params_in.aux_texture.valid()) {
+            const auto aux_it = im.textures.find(params_in.aux_texture.id);
+            if (aux_it != im.textures.end()) {
+                aux = aux_it->second;
+                params[3] = 1.0f;
+            }
+        }
+        if (bgfx::isValid(aux)) {
+            bgfx::setTexture(4, im.s_tex_aux, aux,
+                             BGFX_SAMPLER_MIN_ANISOTROPIC | BGFX_SAMPLER_MAG_POINT);
+        }
     }
     bgfx::setUniform(im.u_params, params);
     if (bgfx::isValid(im.shadow_map)) {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 15:08:2026 - 15:23:22
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -88,6 +88,9 @@ UPD:
        ray pick (variant A) against the per-draw bounding spheres the backend
        already keeps; returns the submitter's stamped id, the drawn mesh and its
        (selected-LOD) triangle count. Pure addition to DrawParams's tail.
+- 15:08:2026 - 15:23:22: DrawParams::aux_texture — второй материальный лист на дро (сейчас
+  нормали коры, запрос зоны flora). Аддитивно к замороженному контракту
+  (правило 26): пустой по умолчанию, никто, кроме просящего, не платит.
 */
 
 #pragma once
@@ -193,6 +196,21 @@ struct DrawParams {
     // the header of this struct already argues that inventing a special case per
     // feature is how this ends up three incompatible hacks.
     uint32_t pick_id = 0;
+    // SECOND MATERIAL SHEET for this draw — today the BARK NORMAL MAP (flora,
+    // 15.08.2026: at 1920x1080 the furrows are read per pixel, and no vertex
+    // colour can stand in for that). Empty by default, so nothing that does
+    // not ask for it pays anything.
+    //
+    // WHY HERE AND NOT A SECOND submit() ARGUMENT: DrawParams is the per-draw
+    // metadata bag by construction (see the pick_id note above), and a second
+    // texture argument would have to be threaded through every call site in
+    // the engine to serve one material.
+    //
+    // WHY NOT A TANGENT IN THE VERTEX: platform::Vertex is frozen and shared
+    // by terrain, water, paths, bodies and flora alike — a tangent would cost
+    // every mesh producer bytes for one material's benefit. The backend's
+    // shaders build the basis from screen-space derivatives instead.
+    TextureHandle aux_texture{};
 };
 
 // ---- Debug / editor introspection (В28) -------------------------------------

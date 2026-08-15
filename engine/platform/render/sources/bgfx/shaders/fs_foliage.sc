@@ -10,6 +10,12 @@ UPD:
   and stays a bit-exact control arm.
 - 15:08:2026 - 01:46:53: transmit gated by sway weight (v_color0.r) — bark
   tiles ride this program opaque with wind zeroed, and wood must not glow.
+- 15:08:2026 - 15:18:00: материал берётся из КОЛОНКИ АТЛАСА (u >= 0.8 = кора),
+  а не из веса качания: гейт по весу тратил ветровой канал на вопрос о
+  материале, и зона flora получила канал обратно для движения стволов.
+- 15:08:2026 - 15:23:22: нормали коры из s_texAux (стадия 4), базис TBN из
+  ЭКРАННЫХ ДЕРИВАТИВ — вершинный формат заморожен и общий для всех
+  производителей мешей, тангенс стоил бы байт каждому ради одного материала.
 */
 
 // Foliage fragment shader: ALPHA CUTOUT (discard), never blending — cutout
@@ -21,6 +27,7 @@ UPD:
 #include "dfn_shadow.sh"
 
 SAMPLER2D(s_texColor, 0);
+SAMPLER2D(s_texAux, 4); // DrawParams::aux_texture — bark normals (stage 4)
 uniform vec4 u_params; // x: texture bound
 
 #define FOLIAGE_ALPHA_CUTOFF 0.5
@@ -28,6 +35,12 @@ uniform vec4 u_params; // x: texture bound
 // depth over the sky. Deliberately far below the 0.5 cutout threshold — every
 // value BETWEEN the two is now a real partial coverage the target can express.
 #define FOLIAGE_ALPHA_EMPTY 0.02
+
+// Where the atlas' BARK column begins in u. The leaf atlas is SHAPES columns
+// wide and bark is the last one, so this is (SHAPES-1)/SHAPES = 4/5. Written
+// as one number in one place because the shader cannot include the C++ header
+// that owns the layout; flora's contract is to warn before changing it.
+#define FLORA_BARK_COLUMN_U 0.8
 
 // --- Leaf translucency (в: the user's three reference photos are ALL shot
 // into the light, and in every one the back-lit leaves are BRIGHTER than the
@@ -106,6 +119,34 @@ void main()
     // Flip toward the viewer: a flat card has no meaningful back face.
     n = dot(n, eye - v_wpos) < 0.0 ? -n : n;
 
+    // --- BARK NORMALS (u_params.w = an aux sheet is bound). At 1920x1080 a
+    // trunk's furrows are read PER PIXEL, and no vertex colour can stand in
+    // for that — so the sheet perturbs the surface normal here.
+    //
+    // THE BASIS COMES FROM SCREEN-SPACE DERIVATIVES, not from a vertex
+    // tangent, and that is a deliberate trade: platform::Vertex is frozen and
+    // shared by terrain, water, paths, bodies and flora, so a tangent would
+    // cost every mesh producer bytes to serve one material. Derivatives cost a
+    // few ALU in the fragment and nothing anywhere else. The degenerate case
+    // (a triangle with no uv gradient) falls back to the geometric normal
+    // rather than producing NaNs.
+    if (u_params.w > 0.5) {
+        vec3 dp1 = dFdx(v_wpos);
+        vec3 dp2 = dFdy(v_wpos);
+        vec2 du1 = dFdx(v_texcoord0);
+        vec2 du2 = dFdy(v_texcoord0);
+        float det = du1.x * du2.y - du2.x * du1.y;
+        if (abs(det) > 1e-12) {
+            vec3 tangent = normalize((dp1 * du2.y - dp2 * du1.y) / det);
+            // Gram-Schmidt against the (already view-flipped) normal keeps the
+            // basis orthonormal on curved wood.
+            tangent = normalize(tangent - n * dot(n, tangent));
+            vec3 bitangent = cross(n, tangent);
+            vec3 tn = texture2D(s_texAux, v_texcoord0).xyz * 2.0 - 1.0;
+            n = normalize(tangent * tn.x + bitangent * tn.y + n * tn.z);
+        }
+    }
+
     float vis = dfn_shadow_factor(v_wpos, n);
     vec3 lit = albedo * dfn_surface_light(v_wpos, n, vis, v_color0.a);
 
@@ -116,12 +157,17 @@ void main()
     float back_lit = max(-dot(n, u_sunDir), 0.0);
     float transmit = forward * back_lit
                    * mix(FOLIAGE_TRANSMIT_SHADOW_FLOOR, 1.0, vis)
-                   // BARK RIDES THIS PROGRAM NOW (opaque tiles, wind zeroed) and
-                   // wood does not transmit light: the sway weight doubles as
-                   // the translucency gate — what cannot sway cannot glow. A
-                   // leaf card's attachment corner (r=0) loses its glow over a
-                   // couple of centimetres, which no frame can see.
-                   * smoothstep(0.0, 0.15, v_color0.r);
+                   // THE MATERIAL COMES FROM THE ATLAS LAYOUT, not from a vertex
+                   // channel. Bark is the LAST column of the leaf atlas, so a
+                   // fragment whose u lands there is wood and wood does not
+                   // transmit light. This replaces the sway-weight gate, which
+                   // was correct but expensive in the wrong currency: it spent
+                   // the wind channel on a material question, and flora needed
+                   // that channel back to move trunks (dfn_env.sh's three
+                   // bands). Zero vertex bytes, zero contract change — the
+                   // column boundary is FLORA_BARK_COLUMN_U, and flora warns
+                   // before it ever moves the layout.
+                   * (1.0 - step(FLORA_BARK_COLUMN_U, v_texcoord0.x));
     lit += albedo * FOLIAGE_TRANSMIT_TINT * u_sunColor
            * (transmit * FOLIAGE_TRANSMIT_STRENGTH);
 

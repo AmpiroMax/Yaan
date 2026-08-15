@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 15:08:2026 - 15:23:22
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -80,6 +80,8 @@ UPD:
 - 14:08:2026 - 16:35:53: В28 hooks state: MeshRes::tri_count, and the Impl block
   for wireframe + frame stats + the centre pick (accumulated in submit, latched
   in end_frame). wireframe_on() folds in the DFN_WIREFRAME door.
+- 15:08:2026 - 15:23:22: s_tex_aux (стадия 4) и нейтральная нормаль 1×1 — хранилище второго
+  материального листа дро (нормали коры, запрос зоны flora).
 */
 
 #pragma once
@@ -417,6 +419,13 @@ struct BgfxRenderer::Impl {
 
     bgfx::FrameBufferHandle internal_fb = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_tex_color = BGFX_INVALID_HANDLE;
+    /// Stage 4: DrawParams::aux_texture (the bark normal sheet). Stages 1-3
+    /// are the shadow contracts; 4 is the first free one.
+    bgfx::UniformHandle s_tex_aux = BGFX_INVALID_HANDLE;
+    /// A 1x1 neutral tangent normal (128,128,255): Metal wants a real texture
+    /// behind every sampler a program declares, and a program must not have to
+    /// know whether this draw supplied one.
+    bgfx::TextureHandle neutral_normal = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_env_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_post_params = BGFX_INVALID_HANDLE;

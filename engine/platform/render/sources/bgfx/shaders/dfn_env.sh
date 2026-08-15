@@ -22,6 +22,11 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Index layout is a contract with BgfxRenderer.cpp::apply_environment — change
   both together or not at all.
+- 15:08:2026 - 15:18:00: dfn_wind_offset: три полосы движения выведены ИЗ ВЕСА
+  качания, а не из нового вершинного канала — вес уже означает «насколько эта
+  вершина далеко от того, что её держит», поэтому частота растёт с весом, а
+  флаттер гейтится им квадратично: ствол качается медленно и широко, лист
+  трепещет. Запрошено зоной flora после разделения материала (см. fs_foliage).
 */
 /*
 UPD:
@@ -724,8 +729,17 @@ vec3 dfn_wind_offset(vec3 wpos, float sway_weight, float phase)
     // Gusts TRAVEL along the wind direction: without this term every tree in
     // a stand peaks at the same instant and the forest breathes as one object.
     float travel = dot(wpos.xz, u_windDir) * 0.06;
-    float sway = sin(u_envTime * 1.1 + phase * tau + travel);
-    float flutter = sin(u_envTime * 4.3 + phase * tau * 2.0) * 0.35 * u_windFlutter;
+    // THREE BANDS FROM ONE WEIGHT (flora's ask, 15.08.2026: trunk low, branch
+    // mid, leaf flutter). The band is not a new vertex channel — it is the
+    // sway weight itself, which already means "how far this vertex is from
+    // what holds it": a trunk vertex is near its root and sways slowly through
+    // a big arc, a leaf is far from everything and flutters. Frequency
+    // therefore RISES with the weight and the flutter term is gated by it, so
+    // a bole cannot buzz.
+    float band = clamp(sway_weight, 0.0, 1.0);
+    float sway = sin(u_envTime * (0.75 + 0.55 * band) + phase * tau + travel);
+    float flutter = sin(u_envTime * (2.6 + 2.4 * band) + phase * tau * 2.0)
+                  * 0.35 * u_windFlutter * band * band;
     float amp = u_windStrength * sway_weight;
     vec2 horizontal = u_windDir * (amp * (sway + flutter) * 0.6);
     // A pushed card also DIPS. Pure horizontal translation reads as the card

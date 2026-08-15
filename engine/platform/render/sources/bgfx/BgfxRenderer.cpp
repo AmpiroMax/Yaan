@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 13:08:2026 - 18:59:13
+Last updated: 15:08:2026 - 15:23:22
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -110,6 +110,8 @@ UPD:
   fails the far map still ships, because "no dapple" is a far better failure
   than "no shadows".
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
+- 15:08:2026 - 15:23:22: s_texAux (стадия 4) + нейтральная нормаль 1×1 — второй материальный
+  лист дро; «листа нет» становится значением, а не ветвью в каждой программе.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -381,6 +383,16 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
     im.internal_fb = bgfx::createFrameBuffer(2, attachments, true);
 
     im.s_tex_color = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
+    im.s_tex_aux = bgfx::createUniform("s_texAux", bgfx::UniformType::Sampler);
+    {
+        // The neutral normal, created once: flat tangent space, so a shader
+        // that samples it perturbs nothing. This is what makes "no aux texture
+        // on this draw" a value rather than a branch in every program.
+        static const uint8_t flat[4] = {128u, 128u, 255u, 255u};
+        im.neutral_normal = bgfx::createTexture2D(
+            1, 1, false, 1, bgfx::TextureFormat::RGBA8, 0,
+            bgfx::copy(flat, sizeof(flat)));
+    }
     im.u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
     im.u_env_params =
         bgfx::createUniform("u_envParams", bgfx::UniformType::Vec4, ENV_PARAM_VEC4S);
