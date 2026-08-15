@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 14:08:2026 - 23:36:19
+# Last updated: 15:08:2026 - 16:24:04
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -56,6 +56,7 @@
 #                          captures/ и playtest_test_artifacts/.
 # - 14:08:2026 - 16:45:00: assets/maps/ добавлена в SKIP_PATH_RES — раскладка карт/демок (docs/MAP_LAYOUT.md): .map манифесты, .chat.jsonl, .gitkeep. Это ДАННЫЕ конвейера карт, не исходники; контракт живёт в doc, не в пофайловом заголовке.
 # - 14:08:2026 - 23:36:19: assets/objects/ в SKIP_PATH_RES — реестр объектов (.dfo, INDEX.md): печёные данные, адресуемые content-hash; у бинарника нет шапки, его identity — хэш.
+# - 15:08:2026 - 16:24:04: assets/scenes/ в SKIP_PATH_RES — файлы композиции карт (данные конвейера, контракт в Scene.h).
 
 from __future__ import annotations
 
@@ -112,6 +113,11 @@ SKIP_PATH_RES = (
     # data addressed by content hash. A binary cannot carry a comment header,
     # and its identity lives in the hash, not in a timestamp.
     re.compile(r"^assets/objects/"),
+    # assets/scenes/ holds COMPOSITIONS (.scene): what stands where on a map,
+    # edited by humans and agents and judged by dfn_scene_check. Data of the
+    # composition pipeline, not source; its contract lives in
+    # engine/world/sources/Scene.h.
+    re.compile(r"^assets/scenes/"),
 )
 # Extensions excluded because the format cannot carry a leading source-header comment
 # (binary, strict JSON, model weights) or is generated output.

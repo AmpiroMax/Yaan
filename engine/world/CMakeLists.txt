@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 14:08:2026 - 20:47:52
+# Last updated: 15:08:2026 - 16:24:04
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -55,6 +55,8 @@
 #                          bakes a map on its first run and a composition root
 #                          shelling out to a binary would be a second way to do
 #                          one thing.
+# - 15:08:2026 - 16:24:04: Scene.cpp — файл композиции .scene и правила, которыми он
+#                          проверяется (инструмент оформления мира).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -62,6 +64,7 @@ add_library(dfn_world STATIC
     sources/CoarseTerrain.cpp
     sources/LayoutLoad.cpp
     sources/SaveDelta.cpp
+    sources/Scene.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
     sources/WorldBake.cpp

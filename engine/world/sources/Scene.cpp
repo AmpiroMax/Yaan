@@ -1,0 +1,287 @@
+/*
+Created: 15:08:2026 - 16:24:04
+Last updated: 15:08:2026 - 16:24:04
+Module: engine/world
+File: engine/world/sources/Scene.cpp
+
+Responsibility:
+- The .scene text format's reader/writer and the rule checker declared in
+  Scene.h.
+
+Dependencies:
+- Uses: Scene.h, std.
+- Used by: tools/check_scene.cpp, the app, tests.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- The format is TEXT and its field order is fixed, because this file lives in
+  git next to the map it composes: a human reads the diff, an agent rewrites
+  the file, and both must see the same thing move.
+- Every rule measures the OBJECT through SceneWorld, never a constant guessed
+  here. A rule that invents a size is a rule that passes a tree and fails a
+  boulder for no stated reason.
+*/
+/*
+UPD:
+- 15:08:2026 - 16:24:04: Created with Scene.h.
+*/
+
+#include "engine/world/sources/Scene.h"
+
+#include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <sstream>
+
+namespace dfn::world {
+namespace {
+
+[[nodiscard]] std::string trim(std::string_view v) {
+    while (!v.empty() && (v.front() == ' ' || v.front() == '\t')) v.remove_prefix(1);
+    while (!v.empty() && (v.back() == ' ' || v.back() == '\t' || v.back() == '\r')) {
+        v.remove_suffix(1);
+    }
+    return std::string(v);
+}
+
+/// Parses a float and says so. A silent 0 here would place an object at the
+/// world origin and look like a composition decision.
+[[nodiscard]] bool parse_float(const std::string& text, float& out) {
+    try {
+        size_t used = 0;
+        const float v = std::stof(text, &used);
+        if (used == 0) {
+            return false;
+        }
+        out = v;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+} // namespace
+
+bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& error) {
+    std::ifstream in(path);
+    if (!in) {
+        error = "cannot open " + path.string();
+        return false;
+    }
+    out = SceneDoc{};
+    std::string line;
+    int line_no = 0;
+    Placement current;
+    bool in_placement = false;
+    const auto flush = [&] {
+        if (in_placement && !current.object.empty()) {
+            out.placements.push_back(current);
+        }
+        current = Placement{};
+    };
+    while (std::getline(in, line)) {
+        ++line_no;
+        const std::string t = trim(line);
+        if (t.empty() || t[0] == '#') {
+            continue;
+        }
+        if (t == "[place]") {
+            flush();
+            in_placement = true;
+            continue;
+        }
+        const auto eq = t.find('=');
+        if (eq == std::string::npos) {
+            error = "line " + std::to_string(line_no) + ": expected key = value";
+            return false;
+        }
+        const std::string key = trim(t.substr(0, eq));
+        const std::string value = trim(t.substr(eq + 1));
+        const auto number = [&](float& dst) {
+            if (!parse_float(value, dst)) {
+                error = "line " + std::to_string(line_no) + ": \"" + value
+                      + "\" is not a number";
+                return false;
+            }
+            return true;
+        };
+        if (!in_placement) {
+            if (key == "map") {
+                out.map = value;
+            } else if (key == "world_span_m") {
+                if (!number(out.world_span_m)) return false;
+            }
+            // Unknown header keys are skipped: the format will grow, and a
+            // reader that refuses tomorrow's key cannot read today's file
+            // written by a newer tool (Rule 7's spirit, in text).
+            continue;
+        }
+        if (key == "object") {
+            current.object = value;
+        } else if (key == "note") {
+            current.note = value;
+        } else if (key == "yaw") {
+            if (!number(current.yaw)) return false;
+        } else if (key == "scale") {
+            if (!number(current.scale)) return false;
+        } else if (key == "pos") {
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+            if (std::sscanf(value.c_str(), "%f %f %f", &x, &y, &z) != 3) {
+                error = "line " + std::to_string(line_no)
+                      + ": pos wants three numbers \"x y z\"";
+                return false;
+            }
+            current.position = {x, y, z};
+        }
+    }
+    flush();
+    return true;
+}
+
+bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
+    std::ostringstream out;
+    out << "# Daggerfall N scene — what stands where on this map.\n"
+        << "# Edited by hand and by agents; checked by dfn_scene_check.\n"
+        << "map = " << doc.map << "\n"
+        << "world_span_m = " << doc.world_span_m << "\n";
+    for (const Placement& p : doc.placements) {
+        out << "\n[place]\n"
+            << "object = " << p.object << "\n"
+            << "pos = " << p.position.x << ' ' << p.position.y << ' ' << p.position.z
+            << "\n"
+            << "yaw = " << p.yaw << "\n"
+            << "scale = " << p.scale << "\n";
+        if (!p.note.empty()) {
+            out << "note = " << p.note << "\n";
+        }
+    }
+    const std::string text = out.str();
+    // Atomic: a half-written scene is a map that opens to nothing.
+    const std::filesystem::path tmp = path.string() + ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+        if (!f) {
+            return false;
+        }
+        f.write(text.data(), static_cast<std::streamsize>(text.size()));
+        if (!f) {
+            return false;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    return !ec;
+}
+
+std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& world,
+                                      const SceneLimits& limits) {
+    std::vector<SceneFinding> found;
+    if (world.ground_at == nullptr || world.object_extent == nullptr) {
+        found.push_back({SceneRule::KnownObject, 0, "",
+                         0.0f, "the checker was given no world to measure against"});
+        return found;
+    }
+    struct Sized {
+        float radius = 0.0f;
+        float bottom = 0.0f;
+        bool known = false;
+    };
+    std::vector<Sized> sizes(doc.placements.size());
+
+    for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+        const Placement& p = doc.placements[i];
+        Sized& s = sizes[i];
+        s.known = world.object_extent(world.ctx, p.object, s.radius, s.bottom);
+        s.radius *= p.scale;
+        s.bottom *= p.scale;
+        if (!s.known) {
+            found.push_back({SceneRule::KnownObject, i, p.object, 0.0f,
+                             "no object by this name in the registry"});
+            continue; // every other rule needs its size
+        }
+
+        // ON THE GROUND. The rule the user asked this tool for: an object
+        // whose origin is not where the terrain is hovers or is buried, and
+        // both look like a modelling defect from inside the game.
+        const float ground = world.ground_at(world.ctx, {p.position.x, p.position.z});
+        const float gap = p.position.y - ground;
+        if (std::fabs(gap) > limits.ground_tolerance_m) {
+            found.push_back({SceneRule::OnGround, i, p.object, gap,
+                             gap > 0.0f ? "hovers above the ground"
+                                        : "is buried in the ground"});
+        }
+
+        // INSIDE THE MAP, measured with the object's own footprint — an oak
+        // whose origin is inside but whose crown hangs over the edge is still
+        // half off the world.
+        if (doc.world_span_m > 0.0f) {
+            const float lo = limits.edge_margin_m + s.radius;
+            const float hi = doc.world_span_m - limits.edge_margin_m - s.radius;
+            const float over_x = std::max(lo - p.position.x, p.position.x - hi);
+            const float over_z = std::max(lo - p.position.z, p.position.z - hi);
+            const float over = std::max(over_x, over_z);
+            if (over > 0.0f) {
+                found.push_back({SceneRule::InsideBounds, i, p.object, over,
+                                 "reaches past the map edge"});
+            }
+        }
+    }
+
+    // NOT INSIDE EACH OTHER. Slack because crowns legitimately mingle in a
+    // wood; what this catches is two trunks in one hole.
+    for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+        if (!sizes[i].known) continue;
+        for (std::size_t j = i + 1; j < doc.placements.size(); ++j) {
+            if (!sizes[j].known) continue;
+            const glm::vec2 a{doc.placements[i].position.x, doc.placements[i].position.z};
+            const glm::vec2 b{doc.placements[j].position.x, doc.placements[j].position.z};
+            const float dx = a.x - b.x;
+            const float dz = a.y - b.y;
+            const float d = std::sqrt(dx * dx + dz * dz);
+            const float want = sizes[i].radius + sizes[j].radius - limits.overlap_slack_m;
+            if (d < want) {
+                found.push_back({SceneRule::NoOverlap, i, doc.placements[i].object,
+                                 want - d,
+                                 "stands inside " + doc.placements[j].object});
+            }
+        }
+    }
+    return found;
+}
+
+std::size_t fix_scene_ground(SceneDoc& doc, const SceneWorld& world,
+                             const SceneLimits& limits) {
+    if (world.ground_at == nullptr) {
+        return 0;
+    }
+    std::size_t moved = 0;
+    for (Placement& p : doc.placements) {
+        const float ground = world.ground_at(world.ctx, {p.position.x, p.position.z});
+        if (std::fabs(p.position.y - ground) > limits.ground_tolerance_m) {
+            p.position.y = ground;
+            ++moved;
+        }
+    }
+    return moved;
+}
+
+std::string describe(const SceneFinding& f) {
+    const char* rule = "?";
+    switch (f.rule) {
+    case SceneRule::OnGround: rule = "on-ground"; break;
+    case SceneRule::InsideBounds: rule = "inside-bounds"; break;
+    case SceneRule::NoOverlap: rule = "no-overlap"; break;
+    case SceneRule::KnownObject: rule = "known-object"; break;
+    }
+    char buf[256];
+    std::snprintf(buf, sizeof(buf), "[%s] #%zu %s: %s (%+.2f m)", rule,
+                  f.placement_index, f.object.c_str(), f.detail.c_str(),
+                  static_cast<double>(f.amount_m));
+    return buf;
+}
+
+} // namespace dfn::world

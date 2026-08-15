@@ -1,0 +1,34 @@
+# Daggerfall N scene — what stands where on this map.
+# Edited by hand and by agents; checked by dfn_scene_check.
+map = trees/gallery
+world_span_m = 256
+
+[place]
+object = aspen-forge-a
+pos = 147 25.5752 128
+yaw = 0
+scale = 1
+
+[place]
+object = birch-forge-a
+pos = 164 25.2393 128
+yaw = 0
+scale = 1
+
+[place]
+object = birch-forge-b
+pos = 183 24.9429 128
+yaw = 0
+scale = 1
+
+[place]
+object = great-forge-oak
+pos = 179 25.2801 70
+yaw = 0
+scale = 1
+
+[place]
+object = juniper-forge-a
+pos = 232 24.2364 70
+yaw = 0
+scale = 1

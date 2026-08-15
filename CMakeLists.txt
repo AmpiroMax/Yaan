@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 14:08:2026 - 23:36:19
+# Last updated: 15:08:2026 - 16:24:04
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -35,6 +35,7 @@
 #                          произвести мир, а нормальный способ обязан
 #                          собираться вместе со всем остальным.
 # - 14:08:2026 - 23:36:19: dfn_forge — CLI кузницы деревьев в реестр .dfo.
+# - 15:08:2026 - 16:24:04: dfn_scene_check — проверка композиции карты по правилам.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -125,3 +126,9 @@ target_link_libraries(dfn_bake PRIVATE dfn_world dfn_core)
 # instrument, so it builds with everything else.
 add_executable(dfn_forge tools/forge_trees.cpp)
 target_link_libraries(dfn_forge PRIVATE dfn_render dfn_core)
+
+# THE SCENE CHECKER (dfn_scene_check): judges a composed map against the rules
+# in engine/world/sources/Scene.h. A pipeline tool like dfn_bake and dfn_forge,
+# so it builds with everything else and cannot rot.
+add_executable(dfn_scene_check tools/check_scene.cpp)
+target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
