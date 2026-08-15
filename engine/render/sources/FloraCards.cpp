@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 02:14:30
+Last updated: 15:08:2026 - 15:54:46
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -46,6 +46,7 @@ UPD:
   дамп атласа показал ~15% заполнения тайла — кроны были призрачными, потому что
   mip-альфа на дистанции стремилась к нулю. Перо хвои: гребёнка 0.07/скважность
   0.021 — первая правка слила иголки в сплошной клин (порог шире полушага).
+- 15:08:2026 - 15:54:46: v6: хвойный тайл — ПЕРИСТЫЙ ФРОНД (стержень + 24 веточки с гребёнками иголок, градиентная альфа на кончиках; иголки короче полушага веточек — иначе клин, ловится gap/ragged-тестом); листовые пачки: градиентная кромка к той же изъеденной границе + маргин; калибровка по фотосканам (паспорта §1): хвоя олива {0.26 0.31 0.17}, кора сосны {0.27 0.22 0.16}.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -78,17 +79,8 @@ constexpr float HOLE_T_RIM = 0.500f;
 // the lace this file exists to refuse.
 constexpr int HOLE_LATTICE = 7;
 constexpr int FORM_LATTICE = 4;
-// INTERIOR GAPS are placed EXPLICITLY, one or two per tile, rather than left to
-// a noise threshold. Two reasons, and both are the point of this file:
-//   1) size is then guaranteed — a gap is ~0.19 of the card, about 1 m on a
-//      5.5 m oak card, five times render's ~0.31 m floor. A noise threshold
-//      tuned for 2-3 % coverage produces gaps at whatever size the noise
-//      happens to give, which is how "a few real holes" degenerates into lace.
-//   2) the measured budget is tiny — reference crown interiors are 1.6-2.9 %
-//      sky — and at that budget "a couple of holes" is literally what it is.
-// This is the only place the canopy is see-through in the sense the user asked
-// for; the rest of «сквозь листву можно смотреть» is the gaps BETWEEN cards.
-constexpr float GAP_RADIUS = 0.095f;
+// See-through comes from the windows BETWEEN pack blobs and the erosion above;
+// the old explicit-gap constant died with the one-mass tile.
 
 uint32_t hash2(int x, int y, uint32_t seed) {
     uint32_t h = seed + 0x9E3779B9u;
@@ -175,7 +167,11 @@ glm::vec3 tone_summer(LeafTone t) {
     case LeafTone::BirchPale: return {0.62f, 0.68f, 0.34f};
     case LeafTone::WillowDark: return {0.16f, 0.27f, 0.19f};
     case LeafTone::WillowOlive: return {0.24f, 0.34f, 0.18f};
-    case LeafTone::ConiferDark: default: return {0.12f, 0.22f, 0.19f};
+    // Calibrated against the fir photoscan's needle sheet (passports §1):
+    // live needles are warm OLIVE (H≈0.18, V-median 0.38), not blue-green
+    // murk — the old {0.12 0.22 0.19} was both too dark and too cold. Value
+    // order vs oak (the §5.11 invariant) still holds: L=0.28 vs oak 0.36.
+    case LeafTone::ConiferDark: default: return {0.26f, 0.31f, 0.17f};
     }
 }
 
@@ -190,7 +186,7 @@ glm::vec3 tone_autumn(LeafTone t) {
     case LeafTone::WillowOlive: return {0.34f, 0.29f, 0.13f};
     // Measured: conifers stay green in all three autumn reference frames, so
     // the pine's only seasonal delta is snow — which is render's and core's.
-    case LeafTone::ConiferDark: default: return {0.12f, 0.22f, 0.19f};
+    case LeafTone::ConiferDark: default: return {0.26f, 0.31f, 0.17f};
     }
 }
 
@@ -207,7 +203,7 @@ glm::vec3 tone_winter(LeafTone t) {
     case LeafTone::BirchPale: return {0.64f, 0.59f, 0.48f};
     case LeafTone::WillowDark: return {0.18f, 0.17f, 0.13f};
     case LeafTone::WillowOlive: return {0.26f, 0.23f, 0.17f};
-    case LeafTone::ConiferDark: default: return {0.11f, 0.20f, 0.18f};
+    case LeafTone::ConiferDark: default: return {0.20f, 0.26f, 0.16f};
     }
 }
 
@@ -296,6 +292,13 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                 const float shrink = 1.0f - 0.45f * std::fabs(t + 0.1f);
                 blobs[bi].r = (needle ? 0.20f : 0.46f) * sd.ax * shrink
                             * (0.8f + 0.4f * hash01(bi + 9, 13, sd.seed));
+                // THE TILE MARGIN (user: «полоски по краям листвы, словно
+                // полигон недорезали»): a blob clipped by the tile border
+                // rasterises as a dead-straight cut. Every mass dies out
+                // before the margin band by construction.
+                const float head_room = 1.0f - 2.0f * LEAF_TILE_MARGIN
+                    - std::max(std::fabs(blobs[bi].c.x), std::fabs(blobs[bi].c.y));
+                blobs[bi].r = std::clamp(blobs[bi].r, 0.05f, std::max(head_room, 0.05f));
                 blobs[bi].seed = sd.seed + static_cast<uint32_t>(bi) * 977u;
             }
 
@@ -337,7 +340,10 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         case LeafTone::WillowDark: bark_base = {0.38f, 0.36f, 0.33f}; break;
                         case LeafTone::WillowOlive: bark_base = {0.44f, 0.40f, 0.34f}; moss_amt = 0.35f; break;
                         case LeafTone::ConiferDark: default:
-                            bark_base = {0.42f, 0.26f, 0.16f}; break; // pine plates
+                            // Calibrated: the pine scan's trunk reads a DARK
+                            // desaturated brown (V-median 0.24, S≈0.34) — the
+                            // old {0.42 0.26 0.16} was a brick, not a pine.
+                            bark_base = {0.27f, 0.22f, 0.16f}; break;
                         }
                         const bool birch = tone_i == static_cast<uint32_t>(LeafTone::BirchLight)
                                         || tone_i == static_cast<uint32_t>(LeafTone::BirchPale);
@@ -369,41 +375,99 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         continue;
                     }
 
-                    // --- THE CONIFER FEATHER (user: «у хвои листочки —
-                    // иголочки... сделать местами прозрачную текстуру мелкой
-                    // ёлочки зелёной»): a needle tile is not leaf masses at
-                    // all — it is a central twig with short BARBS either side,
-                    // barbs shortening toward the tip, gaps between them
-                    // transparent. Drawn directly, not through the blob union.
+                    // --- THE FROND SHEET (passports §2.1; the fir photoscan's
+                    // twig material): a conifer tile is not a twig with barbs —
+                    // it is a PINNATE BRANCH. A central stem, side branchlets
+                    // leaving it alternately, each branchlet carrying its own
+                    // needle comb; needle tips fade through GRADIENT alpha
+                    // (the backend resolves it via alpha-to-coverage, lead's
+                    // Full HD contract 15.08).
                     if (needle) {
                         const float along = x * axis.x + y * axis.y;   // -1..1
                         const float across = -x * axis.y + y * axis.x; // signed
                         const size_t on = (static_cast<size_t>(tone_i * atlas.tile_px + py)
                                            * atlas.width + shape_i * atlas.tile_px + px) * 4u;
-                        if (along < -0.92f || along > 0.95f) continue;
-                        const float tipness = std::clamp((along + 0.92f) / 1.87f, 0.0f, 1.0f);
-                        // Barb envelope: long at the butt, short at the tip.
-                        const float reach = 0.46f * (1.0f - 0.7f * tipness);
-                        // Barb comb: paired needles leave the twig at ~55 deg,
-                        // BARB_PITCH apart; between them — transparency.
-                        constexpr float BARB_PITCH = 0.07f;
-                        const float phase_b = along / BARB_PITCH;
-                        const float comb = std::fabs(phase_b - std::round(phase_b)) * BARB_PITCH;
-                        const float slant = std::fabs(across) * 0.55f; // rake toward tip
-                        const bool on_barb = std::fabs(across) < reach
-                                          && comb + slant * 0.10f < 0.021f
-                                          && hash01(static_cast<int>(std::round(phase_b)),
-                                                    across > 0.0f ? 3 : 5, sd.seed) > 0.12f;
-                        const bool on_stem = std::fabs(across) < 0.03f && along < 0.85f;
-                        if (!on_barb && !on_stem) continue;
-                        const float lit = on_stem ? 0.55f
-                                        : 0.85f + 0.35f * std::clamp(across * 2.0f + 0.5f, 0.0f, 1.0f)
-                                          - 0.25f * tipness;
+                        const float lim = 1.0f - 2.0f * LEAF_TILE_MARGIN;
+                        float alpha = 0.0f;
+                        float lit = 0.0f;
+                        // The stem: butt to tip, tapering.
+                        const float stem_t = (along + 0.82f) / 1.68f; // 0 butt, 1 tip
+                        if (along > -0.82f && along < 0.86f && stem_t >= 0.0f) {
+                            const float w = 0.024f * (1.0f - 0.55f * stem_t);
+                            if (std::fabs(across) < w) {
+                                alpha = 1.0f;
+                                lit = 0.42f; // bare wood, darker than needles
+                            }
+                        }
+                        // Branchlets, alternating sides, shorter toward the tip
+                        // and RAKED toward it — the fir frame's own geometry.
+                        constexpr int PINNAE = 12;
+                        for (int side = -1; side <= 1 && alpha < 1.0f; side += 2) {
+                            for (int pi = 0; pi < PINNAE; ++pi) {
+                                const float t0 = -0.76f
+                                    + 1.55f * (static_cast<float>(pi)
+                                               + (side > 0 ? 0.5f : 0.0f))
+                                          / static_cast<float>(PINNAE);
+                                if (t0 > 0.80f) continue;
+                                const float tip01 = (t0 + 0.76f) / 1.55f;
+                                const float len = 0.42f * (1.0f - 0.72f * tip01)
+                                    * (0.75f + 0.5f * hash01(pi, side + 7, sd.seed));
+                                if (len < 0.05f) continue;
+                                // Branchlet frame: u along it, v across.
+                                const float rake = 0.42f + 0.18f * tip01;
+                                float bu_x = rake, bu_y = static_cast<float>(side) * (1.0f - rake);
+                                const float bl = std::sqrt(bu_x * bu_x + bu_y * bu_y);
+                                bu_x /= bl; bu_y /= bl;
+                                const float dx = along - t0;
+                                const float dy = across;
+                                const float u = dx * bu_x + dy * bu_y;
+                                const float v = -dx * bu_y + dy * bu_x;
+                                if (u < 0.0f || u > len) continue;
+                                const float u01 = u / len;
+                                // Needle length: longest mid-branchlet. Kept
+                                // UNDER half the branchlet spacing (0.129), or
+                                // neighbouring branchlets merge into a solid
+                                // wedge and the frond stops being pinnate
+                                // (caught by the gap/ragged suite on sight).
+                                const float nl = 0.058f * (1.0f - 0.5f * u01)
+                                               * (0.7f + 0.6f * (1.0f - std::fabs(u01 - 0.35f)));
+                                const float av = std::fabs(v);
+                                if (av > nl && av > 0.012f) continue;
+                                // The comb: needles PITCH apart along the
+                                // branchlet, a few missing; sky between them.
+                                constexpr float PITCH = 0.030f;
+                                const float ph = u / PITCH;
+                                const int ni = static_cast<int>(std::round(ph));
+                                if (hash01(ni, pi * 2 + (side > 0 ? 1 : 0), sd.seed) < 0.10f
+                                    && av > 0.012f) continue;
+                                const float comb = std::fabs(ph - std::round(ph)) * PITCH
+                                                 + av * 0.16f; // needles rake tipward
+                                float a_here = 0.0f;
+                                if (av < 0.012f && u01 < 0.9f) {
+                                    a_here = 1.0f; // the branchlet spine itself
+                                } else if (comb < 0.0055f) {
+                                    // Gradient at the needle's own tip.
+                                    a_here = std::clamp((nl - av) / (0.30f * nl + 1e-4f),
+                                                        0.0f, 1.0f);
+                                }
+                                if (a_here <= alpha) continue;
+                                alpha = a_here;
+                                // Needles read lighter than wood; outer half of
+                                // the frond catches more sky.
+                                lit = 0.78f + 0.45f * std::clamp(v * 3.0f + 0.4f, 0.0f, 1.0f)
+                                    - 0.22f * tip01;
+                            }
+                        }
+                        if (alpha <= 0.0f) continue;
+                        // The margin band kills everything near the border.
+                        const float border = std::min(1.0f - std::fabs(x), 1.0f - std::fabs(y));
+                        alpha *= std::clamp((border - (1.0f - lim)) / (1.0f - lim), 0.0f, 1.0f);
+                        if (alpha <= 0.004f) continue;
                         const glm::vec3 c = glm::clamp(base * lit, glm::vec3{0.0f}, glm::vec3{1.0f});
                         atlas.pixels[on + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
                         atlas.pixels[on + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
                         atlas.pixels[on + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
-                        atlas.pixels[on + 3] = 255u;
+                        atlas.pixels[on + 3] = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
                         continue;
                     }
 
@@ -482,10 +546,25 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                     const float shade = SHADES[static_cast<int>(k * 3.0f)];
                     const glm::vec3 c = glm::clamp(base * shade, glm::vec3{0.0f},
                                                    glm::vec3{1.0f});
+                    // GRADIENT RIM (Full HD contract): alpha fades over the
+                    // outer quarter of the blob toward the SAME bitten
+                    // boundary the erosion draws — the shape stays ragged,
+                    // only its edge texels soften for alpha-to-coverage.
+                    float alpha = 0.35f + 0.65f
+                        * std::clamp((1.0f - best) / (1.0f - RIM_START) * 2.0f,
+                                     0.0f, 1.0f);
+                    const float border = std::min(1.0f - std::fabs(x),
+                                                  1.0f - std::fabs(y));
+                    alpha *= std::clamp((border - 2.0f * LEAF_TILE_MARGIN)
+                                            / (2.0f * LEAF_TILE_MARGIN),
+                                        0.0f, 1.0f);
+                    if (alpha <= 0.004f) {
+                        continue;
+                    }
                     atlas.pixels[o + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
                     atlas.pixels[o + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
                     atlas.pixels[o + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
-                    atlas.pixels[o + 3] = 255u; // binary alpha (cutout program)
+                    atlas.pixels[o + 3] = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
                 }
             }
         }

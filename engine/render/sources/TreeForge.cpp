@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 02:14:30
+Last updated: 15:08:2026 - 15:54:46
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -51,6 +51,7 @@ UPD:
   внутренними якорями, изнанка кроны снизу смотрит вниз, roll свободный (параллельные
   линии убиты вращением В плоскости), лапы прибиты к веткам (джиттер 0.035),
   корни — дуга четырьмя хордами (колено невидимо в плоском тонировании).
+- 15:08:2026 - 15:54:46: v6: хвоя пересобрана на ФРОНДЫ-ЛЕНТЫ (провисающая лента 4 сегментов, кончик вверх, голое дерево только внутренняя четверть); ЮБКА мёртвых сучьев 0.10-0.40h (оба фотоскана); корни — КОНТРФОРСЫ (старт внутри наплыва, выше и толще, медленный сбег); ветер честный: bark_tube несёт вес на обоих кольцах (иначе стык рвётся), вес = дистанция от опоры (лид 09f75eb: транзмит теперь по колонке UV).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -65,34 +66,16 @@ UPD:
 namespace dfn::render {
 namespace {
 
-/// Vertical value gradient baked into the crown masses: dark under, lit top —
-/// the polycount/Airborn "one dome of light" carried per vertex, so the flat-
-/// shaded masses read as one volume under any sun (§1.2 bent normals, §1.3
-/// projected normals; we bake the same statement into colour, which the prop
-/// program already honours).
-[[nodiscard]] uint32_t dome_color(glm::vec3 tone, float ny01, float jitter) {
-    const float lit = 0.62f + 0.48f * ny01; // 0.62 under -> 1.10 sunward
-    return pack(tone * lit * jitter);
-}
-
-/// Fibonacci direction k of n over the upper-biased sphere: even coverage
-/// with no rings, no poles-first ordering (the reference masses sit uneven).
-[[nodiscard]] glm::vec3 fib_dir(int k, int n) {
-    const float t = (static_cast<float>(k) + 0.5f) / static_cast<float>(n);
-    // Bias against the underside: y in [-0.25, 1) — a crown has a floor, and
-    // masses hanging fully below centre belong to willows, not to this recipe.
-    const float y = 1.0f - t * 1.25f;
-    const float r = std::sqrt(std::max(0.0f, 1.0f - y * y));
-    const float az = GOLDEN_ANGLE * static_cast<float>(k);
-    return {r * std::cos(az), y, r * std::sin(az)};
-}
-
-/// Vertex colour for NON-SWAYING textured wood on the foliage program:
-/// r (sway) = 0, g (phase) = 0, b (value jitter) = 0.5 neutral, a (sky vis)
-/// = 0.55 — the mid openness of standing under a crown.
-[[nodiscard]] uint32_t pack_wind_neutral() {
-    // 0xAABBGGRR: a=0x8C (sky vis 0.55), b=0x80 (jitter 0.5), g=0, r=0.
-    return 0x8C800000u;
+/// Vertex colour for textured wood on the foliage program: r = sway weight
+/// (honest distance-from-support — the lead's 09f75eb shader derives all
+/// three wind bands from this one weight), g = per-tree phase, b (value
+/// jitter) = 0.5 neutral, a (sky vis) = 0.55.
+[[nodiscard]] uint32_t pack_wind(float sway, float phase) {
+    const auto to_byte = [](float v) {
+        return static_cast<uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
+    };
+    // 0xAABBGGRR: a=0x8C (sky vis 0.55), b=0x80 (jitter 0.5).
+    return 0x8C800000u | (to_byte(phase) << 8) | to_byte(sway);
 }
 
 /// One tapered tube segment with BARK UVs. Same geometry as tube_segment, but
@@ -101,9 +84,12 @@ namespace {
 /// WAVE so the mapping mirror-repeats inside the tile and never crosses its
 /// border into a neighbouring leaf tile (the atlas cannot wrap). The tile is
 /// drawn mirror-symmetric, so the fold line is invisible by construction.
+/// wind_c0 colours the p0 ring, wind_c1 the p1 ring (and the tip vertex):
+/// the sway weight must be CONTINUOUS along a limb, or adjacent segments
+/// translate by different amounts under wind and the joint cracks open.
 void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0,
                float r1, int sides, glm::vec4 uv_rect, float v0_m, float circum_m,
-               uint32_t wind_color) {
+               uint32_t wind_c0, uint32_t wind_c1) {
     const glm::vec3 u_axis = perp_of(axis);
     const glm::vec3 v_axis = glm::cross(axis, u_axis);
     const float len = glm::length(p1 - p0);
@@ -132,15 +118,15 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
         const auto base = static_cast<uint32_t>(m.vertices.size());
         if (r1 <= 1e-4f) {
             const glm::vec3 nt = safe_normalize(n0 + n1, axis);
-            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_color});
-            m.vertices.push_back({p1, nt, {(cu0 + cu1) * 0.5f, cv1}, wind_color});
-            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_color});
+            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_c0});
+            m.vertices.push_back({p1, nt, {(cu0 + cu1) * 0.5f, cv1}, wind_c1});
+            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_c0});
             m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
         } else {
-            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_color});
-            m.vertices.push_back({p1 + d0 * r1, n0, {cu0, cv1}, wind_color});
-            m.vertices.push_back({p1 + d1 * r1, n1, {cu1, cv1}, wind_color});
-            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_color});
+            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_c0});
+            m.vertices.push_back({p1 + d0 * r1, n0, {cu0, cv1}, wind_c1});
+            m.vertices.push_back({p1 + d1 * r1, n1, {cu1, cv1}, wind_c1});
+            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_c0});
             m.indices.insert(m.indices.end(),
                              {base, base + 1, base + 2, base, base + 2, base + 3});
         }
@@ -157,20 +143,27 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
 
     Rng rng(p.seed * 0x9E3779B97F4A7C15ull + 0x243F6A8885A308D3ull);
     const uint32_t bark = pack(p.bark);
-    const glm::vec3 tone = leaf_tone_color(p.tone, FloraSeason::Summer);
 
     // BARK TILES (the textured-trunk wave): the clean colourway for the upper
     // bole and limbs, the MOSSY one for the flare and roots — moss lives where
     // the ground's damp does, which is the reference's own vertical story.
-    // Wind colour: r=0 kills both sway and the leaf transmit (wood does not
-    // glow); b=0.5 is the neutral value-jitter midpoint; a=0.55 mid sky-vis.
+    // Wind: since the lead's 09f75eb the transmit gate is the atlas COLUMN
+    // (u >= 0.8 is wood), so wood may carry an honest sway weight without
+    // glowing — r is only sway now, all three wind bands derive from it.
     const LeafTone bark_row = p.bark.r > 0.6f ? LeafTone::BirchLight
                              : (p.conifer ? LeafTone::ConiferDark : LeafTone::OakMid);
     const LeafTone bark_moss_row = p.bark.r > 0.6f ? LeafTone::BirchPale
                                                     : LeafTone::OakSunlit;
     const glm::vec4 bark_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_row);
     const glm::vec4 bark_moss_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_moss_row);
-    const uint32_t wind0 = pack_wind_neutral();
+    const float phase = rng.unit(); // one wind phase per tree
+    const uint32_t wind_still = pack_wind(0.0f, phase);
+    // Honest sway weight of a point on the wood: how far it stands from the
+    // ground anchor, normalised by the tree's own height.
+    const auto wood_sway = [&p](float y) {
+        return 0.28f * std::pow(std::clamp(y / std::max(p.height, 1.0f), 0.0f, 1.0f),
+                                1.6f);
+    };
 
     const float crown_base = p.height * p.crown_base_frac;
     const float crown_top = p.height;
@@ -194,31 +187,35 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // finding: a flare that does not share the bole's axis is a visible knee).
     const float flare_r = p.trunk_radius * 1.6f;
     bark_tube(obj.bark, glm::vec3{0.0f, -FLARE_DEPTH, 0.0f}, pos, dir, flare_r,
-              p.trunk_radius, 7, bark_moss_uv, 0.0f, TAU * flare_r, wind0);
+              p.trunk_radius, 7, bark_moss_uv, 0.0f, TAU * flare_r, wind_still,
+              wind_still);
     for (int k = 0; k < ROOT_SPUR_COUNT; ++k) {
         const float az = TAU * (static_cast<float>(k) + 0.5f + rng.sym() * 0.3f)
                        / static_cast<float>(ROOT_SPUR_COUNT);
         const glm::vec3 rd{std::cos(az), 0.0f, std::sin(az)};
         const float reach = flare_r * (1.6f + rng.unit() * 1.0f);
-        const float r0 = std::max(p.trunk_radius * ROOT_SPUR_R_FRAC, 0.05f);
-        // A smooth arc in FOUR short chords whose directions change a little
-        // at a time (user: «корни снова отрезаны местами от своих частей и
-        // дерева» — the old two-tube crest was a visible knee; short chords
-        // keep every joint's rings nearly parallel, which is what makes a
-        // joint invisible in flat shading). Rooted DEEP in the flare.
+        // BUTTRESS profile (passports §2, frame copy 8: the root is a RIDGE
+        // of the flare that runs out along the ground, not a pipe leaning on
+        // it). The spur starts INSIDE the flare, high and thick, and its
+        // first chord is steep — the silhouette reads as one continuous
+        // surface from bole to ground.
+        const float r0 = std::max(p.trunk_radius * ROOT_SPUR_R_FRAC * 1.35f, 0.06f);
         const glm::vec3 pts[5] = {
-            rd * (flare_r * 0.35f) + glm::vec3{0.0f, 0.45f, 0.0f},
-            rd * (flare_r * 0.95f) + glm::vec3{0.0f, 0.22f, 0.0f},
+            rd * (flare_r * 0.15f) + glm::vec3{0.0f, 0.62f, 0.0f},
+            rd * (flare_r * 0.85f) + glm::vec3{0.0f, 0.26f, 0.0f},
             rd * (flare_r + reach * 0.35f) + glm::vec3{0.0f, ROOT_SPUR_RISE, 0.0f},
             rd * (flare_r + reach * 0.7f) + glm::vec3{0.0f, -0.05f, 0.0f},
             rd * (flare_r + reach) - glm::vec3{0.0f, ROOT_SPUR_SINK, 0.0f}};
         float rr = r0;
         for (int seg = 0; seg < 4; ++seg) {
-            const float nr = seg == 3 ? 0.0f : r0 * (1.0f - 0.28f * static_cast<float>(seg + 1));
+            // Slow taper: a buttress keeps its section while it runs.
+            const float nr = seg == 3 ? 0.0f
+                                      : r0 * (1.0f - 0.22f * static_cast<float>(seg + 1));
             bark_tube(obj.ground, pts[seg], pts[seg + 1],
                       safe_normalize(pts[seg + 1] - pts[seg], rd), rr,
                       std::max(nr, 0.0f), 4, bark_moss_uv,
-                      reach * 0.25f * static_cast<float>(seg), TAU * rr, wind0);
+                      reach * 0.25f * static_cast<float>(seg), TAU * rr, wind_still,
+                      wind_still);
             rr = std::max(nr, 0.02f);
         }
     }
@@ -242,7 +239,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         const float r0 = p.trunk_radius * std::pow(1.0f - (t1 - 1.0f / bole_segments) * 0.85f, 1.1f);
         const float r1 = p.trunk_radius * std::pow(1.0f - t1 * 0.85f, 1.1f);
         bark_tube(obj.bark, pos, next, dir, r0, std::max(r1, 0.05f), 7, bark_uv,
-                  pos.y, TAU * r0, wind0);
+                  pos.y, TAU * r0, pack_wind(wood_sway(pos.y), phase),
+                  pack_wind(wood_sway(next.y), phase));
         pos = next;
         bole.push_back({pos, dir, std::max(r1, 0.05f)});
     }
@@ -260,7 +258,6 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         glm::vec3 dir;
     };
     std::vector<SprayAnchor> anchors;
-    const float phase = rng.unit();
 
     if (!p.conifer) {
         // Recursive broadleaf grower. Levels: 0 scaffold, 1 branch, 2 twig.
@@ -272,7 +269,26 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             glm::vec3 crown_c;
             float crown_rx, crown_ry;
             glm::vec4 bark_uv;
-            uint32_t wind0;
+            float phase;
+            float height;
+
+            // A limb's sway weight: height plus horizontal reach from the
+            // bole, both against the tree's own scale — the tip of a long
+            // low oak limb sways as much as the crown top does.
+            [[nodiscard]] uint32_t wind_at(glm::vec3 q) const {
+                const float horiz = std::sqrt(q.x * q.x + q.z * q.z)
+                                  / std::max(crown_rx, 0.5f);
+                const float sway = std::clamp(
+                    0.28f * std::pow(std::clamp(q.y / std::max(height, 1.0f),
+                                                0.0f, 1.0f), 1.6f)
+                        + 0.30f * horiz,
+                    0.0f, 0.60f);
+                const auto to_byte = [](float v) {
+                    return static_cast<uint32_t>(std::clamp(v, 0.0f, 1.0f)
+                                                 * 255.0f + 0.5f);
+                };
+                return 0x8C800000u | (to_byte(phase) << 8) | to_byte(sway);
+            }
 
             void run(glm::vec3 pos, glm::vec3 dir, float len, float radius, int level) {
                 const int segs = level == 0 ? 5 : (level == 1 ? 4 : 3);
@@ -306,7 +322,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                     const int sides = level == 0 ? 5 : (level == 1 ? 4 : 3);
                     if (level <= 1) { // heavy limbs wear the bark texture
                         bark_tube(obj.bark, pos, np, d, r, nr, sides, bark_uv,
-                                  pos.y, TAU * r, wind0);
+                                  pos.y, TAU * r, wind_at(pos), wind_at(np));
                     } else {
                         tube_segment(obj.wood, pos, np, d, r, nr, sides, bark);
                     }
@@ -346,7 +362,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 }
             }
         } grow{obj, rng, anchors, bark, crown_c, p.crown_radius, crown_ry,
-               bark_uv, wind0};
+               bark_uv, phase, p.height};
 
         for (int b = 0; b < p.scaffold_count; ++b) {
             const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;
@@ -371,15 +387,64 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.4f, 0.0f},
                            glm::vec3{0.0f, 1.0f, 0.0f}});
     } else {
-        // --- THE CONIFER (ёлка): whorls of near-horizontal branches down a
-        // cone, drooping as they reach, needle sprays along the outer half.
-        // The bole for a conifer runs the WHOLE height (built above), and the
-        // crown starts low — crown_base_frac is the skirt, not a canopy base.
+        // --- THE CONIFER, v6 (passports §2.1-2.2): whorls down the cone, but
+        // a branch is DRESSED AS A FROND RIBBON — a bent strip carrying the
+        // painted branch-with-needles sheet (the Skyrim construction; the
+        // fir/pine photoscans' own «twig» material) — not tubes with flat
+        // cards pinned to anchors. Bare wood shows only near the trunk, in
+        // the windows between tiers.
+        const glm::vec4 needle_uv = leaf_tile_uv(LeafShape::NeedleFan, p.tone);
+        const float phase_c = phase; // fronds share the tree's wind phase
+        // One frond ribbon: sagging centre-line, tip lifting back up (the
+        // frame-6 silhouette), stem of the sheet running along the strip.
+        const auto emit_frond = [&](glm::vec3 pos0, glm::vec3 dir0, float len,
+                                    float half_w, float droop_rad) {
+            const int segs = 4;
+            glm::vec3 fpos = pos0;
+            glm::vec3 fd = dir0;
+            const glm::vec3 up{0.0f, 1.0f, 0.0f};
+            const glm::vec3 side = safe_normalize(glm::cross(up, fd),
+                                                  glm::vec3{1.0f, 0.0f, 0.0f});
+            const float jit = 0.40f + rng.unit() * 0.26f;
+            const auto base_v = static_cast<uint32_t>(obj.cards.vertices.size());
+            for (int s = 0; s <= segs; ++s) {
+                const float t = static_cast<float>(s) / static_cast<float>(segs);
+                if (s > 0) {
+                    // Sag per segment; the LAST segment lifts — spruce tips
+                    // turn up (frame 6).
+                    const float sag = (s == segs ? 0.55f : -1.0f) * droop_rad
+                                    / static_cast<float>(segs);
+                    fd = safe_normalize(fd + up * sag + side * (rng.sym() * 0.05f), fd);
+                    fpos += fd * (len / static_cast<float>(segs));
+                }
+                // Width: narrow butt, widest mid, tapering tip.
+                const float ww = half_w
+                    * (0.30f + 0.70f * std::sin(std::min(3.1416f * (0.18f + 0.82f * t),
+                                                         3.1416f)));
+                const float uu = needle_uv.x
+                    + (needle_uv.z - needle_uv.x) * (0.04f + 0.92f * t);
+                const glm::vec3 n = safe_normalize(up * 0.85f + fd * 0.15f, up);
+                const float sway = 0.15f + 0.85f * t; // honest: distance from support
+                obj.cards.vertices.push_back(
+                    {fpos - side * ww, n,
+                     {uu, needle_uv.y + (needle_uv.w - needle_uv.y) * 0.06f},
+                     pack({sway, phase_c, jit})});
+                obj.cards.vertices.push_back(
+                    {fpos + side * ww, n,
+                     {uu, needle_uv.y + (needle_uv.w - needle_uv.y) * 0.94f},
+                     pack({sway, phase_c, jit})});
+            }
+            for (int s = 0; s < segs; ++s) {
+                const uint32_t a0 = base_v + static_cast<uint32_t>(s) * 2u;
+                obj.cards.indices.insert(obj.cards.indices.end(),
+                                         {a0, a0 + 2u, a0 + 3u, a0, a0 + 3u, a0 + 1u});
+            }
+        };
+
         for (int w = 0; w < p.whorl_count; ++w) {
             const float t = (static_cast<float>(w) + 0.5f)
                           / static_cast<float>(p.whorl_count);
             const float y = crown_base + (p.height - crown_base) * t;
-            // Branch reach follows the cone: long at the skirt, short at the top.
             const float reach = p.crown_radius * (1.0f - 0.85f * t)
                               * (0.9f + rng.unit() * 0.2f);
             if (reach < 0.4f) continue;
@@ -395,29 +460,51 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                      / static_cast<float>(count)
                                + rng.sym() * 0.3f;
                 const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
-                glm::vec3 bp = at->pos + out * (at->radius * 0.5f);
-                glm::vec3 d = safe_normalize(
-                    out + glm::vec3{0.0f, 0.15f - p.droop * 0.5f, 0.0f}, out);
-                float r = std::max(at->radius * 0.32f, 0.03f);
-                const int segs = 3;
-                for (int si = 0; si < segs; ++si) {
-                    // Droop grows toward the tip — the spruce sag.
-                    d = safe_normalize(d + glm::vec3{0.0f, -p.droop / segs, 0.0f}
-                                         + out * 0.2f, d);
-                    const glm::vec3 np = bp + d * (reach / segs);
-                    const float nr = std::max(r * 0.55f, 0.02f);
-                    bark_tube(obj.bark, bp, np, d, r, nr, 3, bark_uv,
-                              bp.y, TAU * std::max(r, 0.05f), wind0);
-                    // Needle sprays sit ALONG the branch's outer segments, not
-                    // only at the tip — a spruce limb is a frond, not a stick
-                    // with a pom-pom.
-                    anchors.push_back({(bp + np) * 0.5f, d});
-                    bp = np;
-                    r = nr;
-                }
-                anchors.push_back({bp, d});
+                const glm::vec3 bp = at->pos + out * (at->radius * 0.5f);
+                const glm::vec3 d = safe_normalize(
+                    out + glm::vec3{0.0f, 0.14f - p.droop * 0.45f, 0.0f}, out);
+                // Bare wood: the inner quarter only — the rest is frond.
+                const float r0 = std::max(at->radius * 0.30f, 0.03f);
+                const float wood_len = reach * 0.28f;
+                const glm::vec3 wp = bp + d * wood_len;
+                bark_tube(obj.bark, bp, wp, d, r0, std::max(r0 * 0.55f, 0.02f), 4,
+                          bark_uv, bp.y, TAU * std::max(r0, 0.05f),
+                          pack_wind(wood_sway(bp.y), phase),
+                          pack_wind(std::min(wood_sway(bp.y) + 0.12f, 0.6f), phase));
+                // The ribbon overlaps the wood so the joint never shows.
+                emit_frond(bp + d * (wood_len * 0.55f), d, reach * 0.9f,
+                           std::min(reach * 0.30f, 1.7f) * (0.85f + rng.unit() * 0.3f),
+                           p.droop * (0.8f + rng.unit() * 0.4f));
             }
         }
+
+        // THE DEAD-BRANCH SKIRT (both photoscans, every variant: bare broken
+        // stubs at 0.10-0.40 of height, under the live crown). Only where the
+        // live crown starts high enough to leave the band exposed.
+        const float skirt_top = std::min(crown_base * 0.95f, p.height * 0.40f);
+        const float skirt_bot = p.height * 0.10f;
+        if (skirt_top - skirt_bot > 0.5f) {
+            const int stubs = 6 + static_cast<int>(p.height * 0.35f);
+            for (int s = 0; s < stubs; ++s) {
+                const float y = skirt_bot + (skirt_top - skirt_bot) * rng.unit();
+                const float az = rng.unit() * TAU;
+                const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+                const Ring* at = &bole.front();
+                for (const Ring& ring : bole) {
+                    if (ring.pos.y <= y) at = &ring;
+                }
+                const float len = p.crown_radius * (0.12f + rng.unit() * 0.22f);
+                const glm::vec3 d = safe_normalize(
+                    out + glm::vec3{0.0f, -0.15f - rng.unit() * 0.25f, 0.0f}, out);
+                const float rr = std::max(at->radius * 0.12f, 0.015f);
+                bark_tube(obj.bark, at->pos + out * (at->radius * 0.5f),
+                          at->pos + out * (at->radius * 0.5f) + d * len, d, rr,
+                          0.0f, 3, bark_uv, y, TAU * rr,
+                          pack_wind(wood_sway(y), phase),
+                          pack_wind(std::min(wood_sway(y) + 0.08f, 0.5f), phase));
+            }
+        }
+
         // The leader spike above the last whorl, and its own small crown.
         anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.3f, 0.0f},
                            glm::vec3{0.0f, 1.0f, 0.0f}});

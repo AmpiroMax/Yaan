@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 02:14:30
+Last updated: 15:08:2026 - 15:54:46
 Module: engine/render
 File: engine/render/sources/FloraCards.h
 
@@ -41,6 +41,7 @@ UPD:
 - 15:08:2026 - 02:14:30: LeafShape::BarkPlate (5-я колонка атласа: 8 колорвеев коры) и
   LEAF_ATLAS_REVISION в ключ дискового кэша — кэш 4-колоночного атласа под
   5-колоночными uv красил хвою берёзовыми тайлами В БЕЛЫЙ, при верном коде везде.
+- 15:08:2026 - 15:54:46: v6 (FullHD-пивот, лид 552d9ab/09f75eb): тайл 128->512 (~5 мм/тексель на 2.5 м фронде), LEAF_TILE_MARGIN 0.055 (поле прозрачности по периметру — «полоски по краям» умирают по построению), REVISION 3->4, контракт альфы: градиентная кромка внутри рваной формы (A2C бэкенда).
 */
 
 #pragma once
@@ -80,12 +81,19 @@ inline constexpr uint32_t LEAF_ATLAS_TONES = 8;
 /// cache key must change when the pixels would, or the game paints with the
 /// previous session's atlas (measured: the 4-column cache under 5-column uvs
 /// painted the conifers white with birch tiles).
-inline constexpr uint32_t LEAF_ATLAS_REVISION = 3;
-/// 128, doubled from 64 on the user's gallery verdict («фигуры сильно
-/// пиксельные, надо мельче делать детализацию, не надо пикселить»): a 64 px
-/// tile stretched over a 3 m spray is ~5 cm per texel ON THE OBJECT, and the
-/// leaf-scale serration the reference shows simply cannot exist at that pitch.
-inline constexpr uint32_t LEAF_ATLAS_TILE_PX = 128;
+inline constexpr uint32_t LEAF_ATLAS_REVISION = 4;
+/// 512 under the Full HD pivot (lead, 552d9ab: internal res 1920x1080, bake
+/// density for it; frame cost measured independent of texture density). A
+/// 512 px tile over a ~2.5 m frond is ~5 mm per texel on the object — leaf
+/// serration and needle combs exist at that pitch. 128 was sized for the
+/// retired 640x360 target.
+inline constexpr uint32_t LEAF_ATLAS_TILE_PX = 512;
+/// Transparent margin around every LEAF tile, as a fraction of the tile side.
+/// The masses of a pack must DIE OUT before the tile border: a blob clipped by
+/// the border rasterises as a dead-straight cut, which the user read as
+/// «полоски по краям листвы, словно полигон недорезали». Alpha ramps to zero
+/// across the inner half of this band; nothing solid may touch the border.
+inline constexpr float LEAF_TILE_MARGIN = 0.055f;
 
 /// Leaf shape columns. A species names the band it may draw from; the SHAPE is
 /// silhouette work, the TONE is value work, and they are deliberately free to
@@ -129,13 +137,14 @@ struct LeafAtlas {
     uint32_t tones = LEAF_ATLAS_TONES;
 };
 
-/// Generates the mask atlas. `tile_px` is the side of one tile (>= 16; 64 is
-/// the default and gives a 256x512 image).
+/// Generates the mask atlas. `tile_px` is the side of one tile (>= 16).
 ///
-/// ALPHA IS BINARY (0 or 255) BY DESIGN: the material is an alpha TEST, the
-/// target is 640x360 point-sampled, and a soft edge under the palette post
-/// becomes dither, i.e. noise on few-pixel geometry (render's PALETTE SIGNAL
-/// STRENGTH rule). Hard edges are also the project's look.
+/// ALPHA IS A GRADIENT AT THE RIM, OPAQUE IN THE BODY (Full HD pivot). The
+/// backend builds alpha-weighted mips and resolves coverage through
+/// alpha-to-coverage under MSAA (lead's contract, 15.08); the single-sample
+/// path keeps a 0.5 alpha test as the control arm. The SHAPE boundary is
+/// still the bitten, eroded outline — the gradient fades WITHIN the shape
+/// toward that boundary, it does not smooth the boundary itself.
 [[nodiscard]] LeafAtlas generate_leaf_atlas(uint32_t tile_px = LEAF_ATLAS_TILE_PX,
                                             FloraSeason season = FloraSeason::Summer);
 

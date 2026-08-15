@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 14:08:2026 - 20:31:26
+Last updated: 15:08:2026 - 15:54:46
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -221,6 +221,7 @@ UPD:
   re-record. Every FULL row is byte-identical across the change, which is the
   door check for free — the change is confined to the far level by
   construction and the table says so instead of the commit message.
+- 15:08:2026 - 15:54:46: Контракт альфы атласа: бинарная -> градиентная кромка (контроль правила 30 — бинарный атлас проваливает пол mid-текселей); BarkPlate исключён из теста листовых масок (непрозрачен по контракту, его непрозрачность утверждает градиентный тест).
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1035,16 +1036,44 @@ TEST_CASE("cards: every uv lands inside a real atlas tile") {
     CHECK(atlas.height == LEAF_ATLAS_TILE_PX * LEAF_ATLAS_TONES);
 }
 
-TEST_CASE("atlas: generation is deterministic and alpha is binary") {
-    const LeafAtlas a = generate_leaf_atlas(32, FloraSeason::Summer);
-    const LeafAtlas b = generate_leaf_atlas(32, FloraSeason::Summer);
+TEST_CASE("atlas: deterministic; leaf alpha is a rim GRADIENT inside a hard shape") {
+    const LeafAtlas a = generate_leaf_atlas(64, FloraSeason::Summer);
+    const LeafAtlas b = generate_leaf_atlas(64, FloraSeason::Summer);
     REQUIRE(a.pixels.size() == b.pixels.size());
     CHECK(a.pixels == b.pixels);
-    for (size_t i = 3; i < a.pixels.size(); i += 4) {
-        // The material is an alpha TEST at 640x360 under a 64-colour palette
-        // post: a soft edge becomes dither, i.e. noise on few-pixel geometry.
-        CHECK((a.pixels[i] == 0u || a.pixels[i] == 255u));
+    // FULL HD CONTRACT (lead, 15.08, commit 552d9ab): the backend resolves
+    // leaf masks through alpha-to-coverage with alpha-weighted mips, so the
+    // tile must carry a GRADIENT rim — intermediate alpha texels — while the
+    // body stays opaque. The RULE-30 CONTROL is the retired all-binary atlas:
+    // it contains zero intermediate texels and FAILS the `mid` floor below by
+    // construction (that is the exact property that changed hands).
+    const uint32_t tile = a.tile_px;
+    size_t mid = 0, solid = 0, leaf_texels = 0;
+    for (uint32_t tone = 0; tone < LEAF_ATLAS_TONES; ++tone) {
+        for (uint32_t shape = 0; shape < LEAF_ATLAS_SHAPES; ++shape) {
+            const bool bark = shape + 1 == LEAF_ATLAS_SHAPES; // BarkPlate column
+            for (uint32_t y = 0; y < tile; ++y) {
+                for (uint32_t x = 0; x < tile; ++x) {
+                    const uint8_t al =
+                        a.pixels[(static_cast<size_t>(tone * tile + y) * a.width
+                                  + shape * tile + x) * 4u + 3u];
+                    if (bark) {
+                        // Bark is not a cutout: fully opaque, no gradient.
+                        CHECK(al == 255u);
+                        continue;
+                    }
+                    if (al == 0u) continue;
+                    ++leaf_texels;
+                    (al == 255u ? solid : mid) += 1;
+                }
+            }
+        }
     }
+    REQUIRE(leaf_texels > 0);
+    // The gradient rim exists (the binary control scores mid == 0 here)...
+    CHECK(mid > leaf_texels / 100);
+    // ...and it is a RIM, not a wash: the body stays mostly opaque.
+    CHECK(solid > mid);
 }
 
 TEST_CASE("atlas: mostly opaque body, ragged eroded edge, a few real gaps") {
@@ -1067,6 +1096,13 @@ TEST_CASE("atlas: mostly opaque body, ragged eroded edge, a few real gaps") {
     const uint32_t px = 64;
     const LeafAtlas atlas = generate_leaf_atlas(px, FloraSeason::Summer);
     for (uint32_t shape_i = 0; shape_i < LEAF_ATLAS_SHAPES; ++shape_i) {
+        if (shape_i + 1 == LEAF_ATLAS_SHAPES) {
+            // BarkPlate is OPAQUE BY CONTRACT (a bark sheet, not a cutout):
+            // a full square scores ragged = 1.273 by construction, which is
+            // this test measuring a tile it was never about. Its opacity is
+            // asserted by the gradient-alpha test above.
+            continue;
+        }
         auto solid = [&](uint32_t x, uint32_t y) {
             return atlas.pixels[(static_cast<size_t>(y) * atlas.width
                                  + shape_i * px + x) * 4u + 3u] != 0u;
