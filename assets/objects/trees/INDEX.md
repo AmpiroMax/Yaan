@@ -12,4 +12,5 @@ juniper-forge-a | juniper-forge-a.dfo | b0944844d955484b | 1076 | 1240 | 0.54
 aspen-forge-a | aspen-forge-a.dfo | a1976ea48cdea02d | 1058 | 1256 | 0.54
 pine-forge-a | pine-forge-a.dfo | e6e4c731676d21ca | 140 | 440 | 0.76
 pine-forge-b | pine-forge-b.dfo | a16926f18177e4e7 | 140 | 440 | 0.76
+larch-forge-a | larch-forge-a.dfo | 4b893c02cbac8986 | 140 | 568 | 0.80
 great-forge-oak | great-forge-oak.dfo | 7c1354d686d0387f | 2264 | 2776 | 0.55
