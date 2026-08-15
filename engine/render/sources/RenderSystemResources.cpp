@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 14:08:2026 - 20:33:26
+Last updated: 15:08:2026 - 14:07:36
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -47,6 +47,13 @@ UPD:
 - 14:08:2026 - 00:23:18: DFN_SHADOW_CASTERS=<n> — дверь дозы на число теневых casters (зона dungeon, резка ведущего на теневой путь). Заведена под ПИКСЕЛЬНЫЙ замер «мигает»: как player идёт, набор «двух ближайших» casters свопится, и своп перекидывает тень стены за кадр. Частоту померил (у близких факелов ~0.3/с), а МАГНИТУДУ (виден ли прыжок в пикселях) — нет; эта дверь её меряет: n=1 изолирует всю тень 2-го caster'а (его наличие/отсутствие ограничивает величину свопа), n=2 боевое, n=0 = DFN_NO_POINT_SHADOW. Обе руки один бинарник (правило 47), кривое значение отвергается вслух.
 - 14:08:2026 - 18:30:20: ПРИЗЕМЛЕНО ВЕДУЩИМ — работа зоны dungeon висела в дереве без коммита (агент оборвался посреди замера). Что именно приземляется и в каком виде, чтобы никто не прочитал это как «мигание починено». (1) РАСТВОРЕНИЕ — не починка жалобы, а снятие разрыва в самом отборе: ранг 8 светит полностью, ранг 9 — ровно нулём, и своп между ними есть скачок ПО ПОСТРОЕНИЮ. На сегодняшнем содержимом окно НЕ ВЗВОДИТСЯ (замер зоны: одновременно в радиусе ≤4 факелов при бюджете 8), поэтому кадр не меняется ни на пиксель; разрыв снят на то время, когда факелов станет больше слотов. (2) Три двери дозы — DFN_LIGHT_DISSOLVE, DFN_SHADOW_CASTERS, DFN_LIGHT_PROBE — приборы, ради которых замер вообще возможен, и они ценнее правки. (3) ЧЕСТНО ОБ ОТКРЫТОМ: диагноз «мигание от отсечки-8» ОПРОВЕРГНУТ контролем самой зоны, а магнитуда свопа теневых casters (частота у близких факелов ~0.3/с) НЕ ЗАМЕРЕНА — дверь DFN_SHADOW_CASTERS заведена ровно под неё и осталась неиспользованной; жалоба «свет мигает» остаётся ОТКРЫТОЙ. Сборка зелёная, новых падений в наборе нет.
 - 14:08:2026 - 20:33:26: DFN_CASTER_SKIP=<k> — дверь дозы на то, КАКОЕ пламя владеет вторым теневым слотом, и она заведена потому, что DFN_SHADOW_CASTERS не смогла ответить на свой собственный вопрос. Своп не УБИРАЕТ второй caster, он его ЗАМЕНЯЕТ: набор идёт {ближайший, ранг 1} → {ближайший, ранг 2} за один кадр. n=1 меряет первый набор против {ближайший} — это ВЕРХНЯЯ ГРАНИЦА свопа, а не своп. Попытка померить своп двумя позами в 0.66 м ПРОВАЛИЛАСЬ и записана как провал (правило 50): контрольная рука «тот же набор, 0.6 м врозь» дала средний |ΔL| 11.61 против 11.61→12.35 у рабочей, то есть плечо прибора длиннее предмета. Обе руки обязаны сниматься с ОДНОЙ позы, и k=0 побитово боевой. ЗАМЕРЕНО (одна поза, один бинарник, 600 кадров): нулевая доза (k=0 дважды) — средний |ΔL| 0.141, 1.65 % кадра; своп ранг1→ранг2 — 3.798 и 37.41 % кадра, p90 16.04 люмы при шаге палитры 19.99; ранг1→ранг3 — 3.294 и 29.60 %. Глазами: пол ПОД НОГАМИ игрока при k=0 абсолютно чёрный, при k=1 — видимый освещённый. Своп идёт 30 раз за 13234 кадра живого прохода (0.25/с). Это и есть «мигает» в оставшейся форме, и оно ИЗМЕРЕНО, а не предположено.
+- 15:08:2026 - 14:07:36: У ИНТЕРФЕЙСА СВОЯ СЕТКА. Холст HUD больше не повторяет цель сцены
+  один в один: глиф 5×7 читается на 640×360 и не читается на 1920×1080, потому
+  что мерится ТЕКСЕЛЯМИ, а экран вырос вокруг него в девять раз (жалоба «че с
+  текстом произошло» при подъёме умолчания до Full HD). Оверлей рисуется
+  полноэкранным квадом, поэтому число пикселей холста решает только КРУПНОСТЬ
+  интерфейса, а не его размер. Делитель ЦЕЛЫЙ — тексели интерфейса ложатся на
+  целые пиксели сцены, и текст не мерцает при ходьбе.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -500,10 +507,24 @@ void RenderSystem::collect_point_lights(ecs::World& world,
 void RenderSystem::set_internal_resolution(uint32_t width, uint32_t height) {
     if (width > 0 && height > 0) {
         internal_res_ = {width, height};
-        // The HUD is in screen pixels, so it follows the internal target. Its
-        // contents are the caller's and are undefined after a resize; the
-        // caller redraws it every frame anyway.
-        hud_.resize(width, height);
+        // THE HUD KEEPS ITS OWN GRID, and this is the fix for the user's «че с
+        // текстом произошло» when the default rose to 1920x1080.
+        //
+        // The HUD used to follow the scene target one-for-one. That was right
+        // while the scene target WAS the design grid: a 5x7 bitmap glyph is
+        // legible at 640x360 and illegible at 1920x1080, because the glyph is
+        // measured in TEXELS and the screen grew nine times around it. The
+        // overlay is drawn as a full-screen quad textured with this canvas, so
+        // the canvas' pixel count decides only how CHUNKY the interface is,
+        // never how big — which means the interface can hold the grid it was
+        // authored in while the world renders at full detail.
+        //
+        // An integer divisor (not a fixed 640x360) so the HUD's texels still
+        // land on whole scene pixels: no resampling shimmer on text that the
+        // player reads while walking.
+        const auto design_w = static_cast<uint32_t>(config::DESIGN_RES_W);
+        const uint32_t divisor = std::max(1u, (width + design_w / 2u) / design_w);
+        hud_.resize(std::max(1u, width / divisor), std::max(1u, height / divisor));
         hud_.clear_transparent();
     }
 }

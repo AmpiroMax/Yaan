@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 02:14:30
+Last updated: 15:08:2026 - 14:07:36
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -149,6 +149,8 @@ UPD:
   экспонат встаёт в ЦЕНТР МИРА (прогулка от спавна — и есть выставка), корни
   физичны низким диском (шагаешь НА корневой развал, не спотыкаешься о конусы),
   поток bark едет текстурной партией.
+- 15:08:2026 - 14:07:36: Комментарий settings.cfg о разрешении: умолчание 1920×1080, ретро-пресеты
+  названы пресетами. Сама величина живёт в NUMBERS (INTERNAL_RES).
 */
 
 #include "engine/app/sources/App.h"
@@ -295,7 +297,8 @@ void write_settings(const AppConfig& cfg) {
     std::ofstream out(SETTINGS_PATH);
         out << "# Daggerfall N graphics settings (auto-generated; edit freely)\n"
             << "# internal_resolution: rendering pixel grid, integer-upscaled to the\n"
-            << "#   window. Presets: 640x360 (fine retro), 320x180 (chunky Daggerfall).\n"
+            << "#   window. Default 1920x1080 (full detail). Retro presets:\n"
+            << "#   640x360 (fine retro), 320x180 (chunky Daggerfall).\n"
             << "internal_resolution=" << cfg.internal_width << 'x' << cfg.internal_height
             << "\n"
             << "# msaa: coverage samples on the internal grid (0 = off, 2, 4, 8).\n"

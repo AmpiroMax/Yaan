@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 15:08:2026 - 14:07:36
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -126,6 +126,9 @@ UPD:
   (scene draws/tris ours, backend_draws from bgfx after frame()) + center_pick.
   set_wireframe / frame_stats / center_pick / Impl::wireframe_on defined here.
   DFN_FRAME_STATS=1 is the acceptance door for the two read-back hooks.
+- 15:08:2026 - 14:07:36: dest_rect: целочисленный масштаб только для РЕТРО-сетки
+  (множитель >= 2); при полнодетальной сетке картинка ВПИСЫВАЕТСЯ в окно —
+  множитель 1 рамкой в чёрное был жалобой «че за черные края» при Full HD.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -678,9 +681,33 @@ void BgfxRenderer::Impl::dest_rect(uint32_t& x, uint32_t& y, uint32_t& w,
                                    uint32_t& h) const {
     const uint32_t fx = internal_width > 0 ? fb_width / internal_width : 1;
     const uint32_t fy = internal_height > 0 ? fb_height / internal_height : 1;
-    const uint32_t factor = std::max(1u, std::min(fx, fy));
-    w = std::min(internal_width * factor, fb_width);
-    h = std::min(internal_height * factor, fb_height);
+    const uint32_t factor = std::min(fx, fy);
+    if (factor >= 2) {
+        // RETRO GRID: an integer factor, because that is the whole point of a
+        // small internal target — every texel becomes an exact square block
+        // and the pixel art stays pixel art.
+        w = std::min(internal_width * factor, fb_width);
+        h = std::min(internal_height * factor, fb_height);
+    } else {
+        // FULL-DETAIL GRID (internal ~ the window, e.g. the 1920x1080 default
+        // since 15.08.2026): there is no pixel grid left to preserve, so the
+        // image FITS the window instead. The integer rule here produced factor
+        // 1 and framed a 1920x1080 picture in a 2560x1440 window with black
+        // bars — the user's «че за черные края». Aspect is still preserved:
+        // the letterbox exists for a mismatched aspect, not for a rounding
+        // rule that stopped applying.
+        const uint64_t by_w = static_cast<uint64_t>(internal_height) * fb_width;
+        const uint64_t by_h = static_cast<uint64_t>(internal_width) * fb_height;
+        if (by_w <= by_h) { // window is taller than the image: fill width
+            w = fb_width;
+            h = static_cast<uint32_t>(by_w / std::max<uint32_t>(internal_width, 1u));
+        } else {            // window is wider: fill height
+            h = fb_height;
+            w = static_cast<uint32_t>(by_h / std::max<uint32_t>(internal_height, 1u));
+        }
+        w = std::min(w, fb_width);
+        h = std::min(h, fb_height);
+    }
     x = (fb_width - w) / 2;
     y = (fb_height - h) / 2;
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 02:14:30
+Last updated: 15:08:2026 - 14:07:36
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -134,6 +134,10 @@ UPD:
 - 14:08:2026 - 19:34:00: ЛЕСТНИЦА ДЕТАЛИЗАЦИИ ФЛОРЫ НАКОНЕЦ ПОДКЛЮЧЕНА (рез ведущего на зону render). refresh_scatter_lod печёт НЕ БОЛЕЕ ОДНОГО чанка за кадр, ближний первым: перепечка стоит ровно столько же, сколько первая печь, поэтому проход без бюджета обменял бы ровный кадр на тот самый многосекундный ступор, от которого стриминг уже научился уходить. Якорь дистанции — БЛИЖАЙШАЯ ТОЧКА чанка, и это не деталь: CHUNK_SIZE 256 м, центр чанка может стоять в 181 м, когда ближний край под ногами, и банда по центру испекла бы дерево в пяти метрах силуэтом — тот самый дефект, ради предотвращения которого проход и написан, в одежде выигрыша. Чанк рождается сразу на своём уровне, а не печётся полным и потом понижается: полная печь для земли, до которой игроку далеко, платилась бы ровно во время стриминга, когда кадр и так нагружен. Замер на лесной демке, один бинарник: 7 695 612 → 2 396 252 треугольника, 600 кадров 75 с → 20 с (~8 → ~30 кадров/с), кадры расходятся на 0.265 % пикселей одним пятном дальнего древостоя при НУЛЕВОМ шуме — два прогона одной руки побитово равны. Кадры docs/acceptance/flora-lod-{before-full,after-banded}.png.
 - 14:08:2026 - 23:36:19: Тело upload_prebuilt_scatter — ChunkScatterRes из готовых потоков.
 - 15:08:2026 - 02:14:30: ревизия атласа в ключе кэша текстур (см. FloraCards.h).
+- 15:08:2026 - 14:07:36: HUD и экран карты рисуются в СВОЕЙ сетке (см.
+  RenderSystemResources): проверка показа спрашивает «есть ли у интерфейса
+  холст», а не «совпадает ли он со сценой» — равенство прятало бы весь
+  интерфейс на любом разрешении, кроме эталонного.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -964,9 +968,12 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // EMPTY with nothing anywhere saying the hook had been switched off. A
     // verification hook a peer's correct change can silently disable is a hook
     // that will lie to the next agent who trusts it.
-    const bool show_hud = (hud_visible_ || font_probe_)
-                          && hud_.width() == internal_res_.x
-                          && hud_.height() == internal_res_.y;
+    // The guard asks whether the HUD HAS a grid, not whether it matches the
+    // scene's: since the interface keeps its own (see set_internal_resolution),
+    // demanding equality here would hide the whole interface at any resolution
+    // but the design one.
+    const bool show_hud = (hud_visible_ || font_probe_) && hud_.width() > 0
+                          && hud_.height() > 0;
     if (show_hud) {
         if (font_probe_) {
             hud_.clear_transparent();
@@ -981,7 +988,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     if (map_.open()) {
         const CameraPose pose = camera.interpolated_pose(alpha);
         draw_overlay(renderer,
-                     map_.compose(internal_res_.x, internal_res_.y, pose.position,
+                     map_.compose(hud_.width(), hud_.height(), pose.position,
                                   pose.yaw),
                      camera, alpha);
     }

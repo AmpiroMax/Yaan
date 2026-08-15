@@ -1,6 +1,6 @@
 /*
 Created: 12:08:2026 - 22:52:00
-Last updated: 12:08:2026 - 22:54:00
+Last updated: 15:08:2026 - 14:07:36
 Module: engine/world
 File: engine/world/sources/WorldgenPlacement.h
 
@@ -34,6 +34,8 @@ UPD:
   wedge struct, its construction and the two exclusion rings, unchanged.
 - 12:08:2026 - 22:54:00: screen_px_per_rad / readable_distance_m — the same
   extraction for the read-distance ladder, which had two copies in this zone.
+- 15:08:2026 - 14:07:36: screen_px_per_rad() читает DESIGN_RES_H вместо INTERNAL_RES_H —
+  форма мира не зависит от графической настройки игрока (см. строку NUMBERS).
 */
 
 #pragma once
@@ -61,7 +63,15 @@ namespace dfn::world {
 /// means — a Rule 32 shadow copy wearing a trigonometric costume. Render's is
 /// still render's; the two in this zone are gone.
 [[nodiscard]] inline float screen_px_per_rad() {
-    return static_cast<float>(config::INTERNAL_RES_H) / static_cast<float>(config::CAMERA_FOV_Y);
+    // DESIGN_RES_H, NOT the user's INTERNAL_RES — and the difference is a
+    // rule, not a detail. Resolution became a graphics SETTING (sync #3, and
+    // the default rose to 1920x1080 on 15.08.2026); the shape of the world
+    // must not change when a player picks a different one. With the shared
+    // constant, raising the default added a third co-equal landmark beside
+    // the crag and turned the §1.3 hierarchy test red — a settings slider was
+    // rewriting the landscape. The thresholds here were derived and filmed in
+    // a 360-line frame, so that frame is what they keep measuring in.
+    return static_cast<float>(config::DESIGN_RES_H) / static_cast<float>(config::CAMERA_FOV_Y);
 }
 
 /// Distance (m) at which an object `size_m` across stops being an OBJECT and
