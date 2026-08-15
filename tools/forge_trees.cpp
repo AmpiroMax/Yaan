@@ -1,12 +1,12 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 02:14:30
+Last updated: 15:08:2026 - 16:17:07
 Module: tools
 File: tools/forge_trees.cpp
 
 Responsibility:
 - The forge CLI (dfn_forge): builds the gallery of registry trees offline and
-  writes them to assets/objects/trees/*.dfo, plus the human-readable index
+  writes them to assets/objects/trees (.dfo files), plus the human-readable index
   the registry contract asks for (manifests in git, в35). Prints per-object
   stats — wood/leaf triangles and the leaf share — because the research table
   (TREE_MODELS_RESEARCH §2) states its targets in exactly those columns.
@@ -40,6 +40,7 @@ UPD:
   trees/colossus.
 - 15:08:2026 - 02:14:30: ели ×2 плотнее (мутовки 15-18, ветви 9, лапы 2×0.5) — «антенна»; колосс —
   ДУБ: 150 м под кроной 170 м, ветви с 22 м (наука дуба из чата колосса).
+- 15:08:2026 - 16:17:07: ЛИСТВЕННИЦА larch-forge-a (просьба пользователя дважды): фрондовая грамматика, светлая перистая хвоя WillowOlive, тонкие ленты 0.55, провис 0.14, крона прозрачная с 0.20h. Плюс снят древний -Wcomment в шапке.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -171,6 +172,29 @@ int main(int argc, char** argv) {
         pine.spray_per_branch = 2;
         pine.spray_frac = 0.34f;
         gallery.push_back(pine);
+    }
+    {
+        // LARCH — asked for by name, twice («хвойные деревья, листвинница»).
+        // Same frond grammar as the spruce, different dress (passports queue):
+        // LIGHT feathery needles (WillowOlive row — the warm light olive),
+        // thin fronds, small droop, a crown the sky shows through.
+        TreeForgeParams larch;
+        larch.seed = 431;
+        larch.name = "larch-forge-a";
+        larch.height = 21.0f;
+        larch.crown_radius = 4.4f;
+        larch.crown_base_frac = 0.20f;
+        larch.trunk_radius = 0.38f;
+        larch.bark = {0.34f, 0.22f, 0.14f}; // reddish larch bark
+        larch.tone = LeafTone::WillowOlive;
+        larch.card_shape = LeafShape::NeedleFan;
+        larch.conifer = true;
+        larch.whorl_count = 13;
+        larch.whorl_branches = 6;
+        larch.droop = 0.14f;
+        larch.spray_per_branch = 2;
+        larch.frond_width = 0.55f;
+        gallery.push_back(larch);
     }
     {
         // THE GIANT — the user's settlement-tree reference: «очень большое

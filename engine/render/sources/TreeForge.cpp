@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 15:54:46
+Last updated: 15:08:2026 - 16:17:07
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -52,6 +52,7 @@ UPD:
   линии убиты вращением В плоскости), лапы прибиты к веткам (джиттер 0.035),
   корни — дуга четырьмя хордами (колено невидимо в плоском тонировании).
 - 15:08:2026 - 15:54:46: v6: хвоя пересобрана на ФРОНДЫ-ЛЕНТЫ (провисающая лента 4 сегментов, кончик вверх, голое дерево только внутренняя четверть); ЮБКА мёртвых сучьев 0.10-0.40h (оба фотоскана); корни — КОНТРФОРСЫ (старт внутри наплыва, выше и толще, медленный сбег); ветер честный: bark_tube несёт вес на обоих кольцах (иначе стык рвётся), вес = дистанция от опоры (лид 09f75eb: транзмит теперь по колонке UV).
+- 15:08:2026 - 16:17:07: emit_frond умножает ширину на p.frond_width (лиственница).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -473,7 +474,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                           pack_wind(std::min(wood_sway(bp.y) + 0.12f, 0.6f), phase));
                 // The ribbon overlaps the wood so the joint never shows.
                 emit_frond(bp + d * (wood_len * 0.55f), d, reach * 0.9f,
-                           std::min(reach * 0.30f, 1.7f) * (0.85f + rng.unit() * 0.3f),
+                           std::min(reach * 0.30f, 1.7f) * (0.85f + rng.unit() * 0.3f)
+                               * p.frond_width,
                            p.droop * (0.8f + rng.unit() * 0.4f));
             }
         }

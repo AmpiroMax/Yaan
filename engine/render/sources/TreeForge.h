@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 00:45:20
+Last updated: 15:08:2026 - 16:17:07
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -54,6 +54,7 @@ UPD:
 - 15:08:2026 - 00:45:20: v3 по вердикту: core_frac по умолчанию 0 («всё ещё шарик в центре»),
   режим conifer (ёлки: мутовки, провис, конус) — другая ГРАММАТИКА, не
   перекрученный лиственный; spray_frac 0.26.
+- 15:08:2026 - 16:17:07: frond_width: ширина ленты фронда долей от еловой — лиственница носит ту же грамматику тоньше (0.55).
 */
 
 #pragma once
@@ -98,6 +99,10 @@ struct TreeForgeParams {
     int whorl_count = 9;          ///< branch rings down the cone
     int whorl_branches = 6;       ///< branches per ring
     float droop = 0.28f;          ///< rad, how far below horizontal a branch sags
+    /// Frond ribbon width as a fraction of the default. 1.0 is the spruce's
+    /// full lapa; a LARCH (passports queue: light feathery needles, a crown
+    /// you can see the sky through) runs ~0.55 — same grammar, thinner dress.
+    float frond_width = 1.0f;
 };
 
 /// Forges one tree. The returned object carries its content hash and is ready
