@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 15:08:2026 - 16:10:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -130,6 +130,8 @@ UPD:
   скаттера (те же программы, атлас, ветер). Экземпляры не хранятся — банда
   детализации пропускает такой чанк по построению: уровни объекта реестра —
   дело КУЗНИЦЫ, запечённое в реестр, а не пересборка в кадре (в1).
+- 15:08:2026 - 16:10:00: leaf_normal_asset_ — лист нормалей коры зоны flora, отдаётся дро листвы
+  через DrawParams::aux_texture.
 */
 
 #pragma once
@@ -565,6 +567,11 @@ private:
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)
     uint32_t water_texture_asset_ = 0; // water surface texture (engine asset id)
     uint32_t leaf_texture_asset_ = 0;  // leaf mask atlas (engine asset id)
+    /// The BARK NORMAL sheet, same layout as the mask atlas (flora bakes both
+    /// from one field, so a crack in the light cannot part company with the
+    /// crack in the colour). Handed to every foliage draw as
+    /// DrawParams::aux_texture; 0 until the atlas is built.
+    uint32_t leaf_normal_asset_ = 0;
     uint32_t path_atlas_asset_ = 0;    // §8.1 path surface atlas (engine asset id)
     uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no debug water plane
     uint32_t overlay_mesh_ = 0;        // MeshHandle.id, screen-filling quad

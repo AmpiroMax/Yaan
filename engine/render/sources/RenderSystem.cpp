@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 14:07:36
+Last updated: 15:08:2026 - 16:10:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -138,6 +138,10 @@ UPD:
   RenderSystemResources): проверка показа спрашивает «есть ли у интерфейса
   холст», а не «совпадает ли он со сценой» — равенство прятало бы весь
   интерфейс на любом разрешении, кроме эталонного.
+- 15:08:2026 - 16:10:00: лист нормалей коры (generate_leaf_normal_atlas зоны flora) грузится
+  рядом с масочным атласом, тем же ключом ревизии — два листа пекутся вместе и
+  не должны кэшироваться порознь, — и отдаётся каждому дро листвы через
+  aux_texture. Один лист на весь атлас: тайл сам говорит, какой это материал.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -175,6 +179,7 @@ namespace {
 constexpr uint64_t PROC_KEY_TERRAIN_ATLAS = 0x01;
 constexpr uint64_t PROC_KEY_WATER = 0x02;
 constexpr uint64_t PROC_KEY_LEAF_ATLAS = 0x03;
+constexpr uint64_t PROC_KEY_LEAF_NORMALS = 0x07; // bark relief, same layout
 constexpr uint64_t PROC_KEY_PATH_ATLAS = 0x04;
 
 uint64_t proc_key(uint64_t kind, uint32_t size, uint32_t seed) {
@@ -354,6 +359,21 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
                          + LEAF_ATLAS_REVISION,
                      static_cast<uint32_t>(FloraSeason::Summer)),
             leaves.width, leaves.height, leaves.pixels.data());
+
+        // THE BARK NORMAL SHEET, from the same producer and the same layout
+        // (flora, 15.08.2026). One sheet for the whole atlas rather than one
+        // per object: the tile a fragment lands in already says which material
+        // it is, so the sampler needs no per-draw bookkeeping at all. Its key
+        // carries the same revision — the two sheets are baked together and
+        // must never be cached apart.
+        const LeafAtlas normals = generate_leaf_normal_atlas(LEAF_ATLAS_TILE_PX);
+        leaf_normal_asset_ = procedural_texture_asset(
+            renderer,
+            proc_key(PROC_KEY_LEAF_NORMALS,
+                     LEAF_ATLAS_TILE_PX * 10000u + LEAF_ATLAS_SHAPES * 100u
+                         + LEAF_ATLAS_REVISION,
+                     0u),
+            normals.width, normals.height, normals.pixels.data());
     }
 
     // Screen overlay quad (map screen now, menus later): a unit quad in model
@@ -596,6 +616,7 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     atlas_texture_asset_ = 0;
     water_texture_asset_ = 0;
     leaf_texture_asset_ = 0;
+    leaf_normal_asset_ = 0;
     next_texture_asset_ = 1;
     renderer.destroy_program(platform::ProgramHandle{terrain_program_});
     renderer.destroy_program(platform::ProgramHandle{unlit_program_});
@@ -821,6 +842,14 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         it != texture_cache_.end()) {
         leaf_atlas.id = it->second;
     }
+    // The bark relief rides every foliage draw as the aux sheet. Neutral
+    // everywhere but the bark column, so leaves are untouched by construction
+    // and this needs no per-draw decision.
+    platform::DrawParams foliage_params;
+    if (const auto it = texture_cache_.find(leaf_normal_asset_);
+        it != texture_cache_.end()) {
+        foliage_params.aux_texture.id = it->second;
+    }
     for (const auto& [coord, scatter] : scatter_meshes_) {
         const bool chunk_visible =
             visible_or_casting(frustum, scatter.bounds, cull_eye);
@@ -834,7 +863,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         // depth map instead of casting solid rectangles.
         if (chunk_visible && scatter.foliage_mesh_id != 0 && foliage_program_ != 0) {
             renderer.submit(platform::MeshHandle{scatter.foliage_mesh_id}, foliage,
-                            identity, leaf_atlas);
+                            identity, leaf_atlas, foliage_params);
         }
         for (const MicroTileRes& tile : scatter.micro) {
             if (!chunk_visible) {
