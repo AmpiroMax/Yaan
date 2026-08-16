@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 16:15:28
+Last updated: 16:08:2026 - 20:23:55
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -50,6 +50,7 @@ UPD:
 - 15:08:2026 - 16:02:49: Кора двухслойная ОТ ПОЛЯ ВЫСОТ (паспорта §1: пластины F2-F1 с трещинами + зерно 1.5-3 см; берёста — бумага с ямками чечевичек): цвет затеняется полем, нормал-атлас дифференцирует ТО ЖЕ поле — трещина в цвете и в свете не может разойтись. Мох растёт в трещинах.
 - 15:08:2026 - 16:08:30: ШТАМПЫ ЛИСТЬЕВ: пачка — решётка отдельных лопастных силуэтов со своим светом (верхний лист решает тексель), край пачки зубрится кончиками листьев, непокрытая внутренность — тёмная глубина между листьями (интерьер кроны 79-86% лист, не небо). Кляксы v5 умерли.
 - 15:08:2026 - 16:15:28: Штампы стали ПЕР-ВИДОВЫМИ (паспорта §2.3-2.4): OvalSpray — осиновые монетки (мелкие, почти круглые), RaggedTip — берёзовые ромбики, RoundLobed — дубовые лопасти. Три вида перестали делить один лист.
+- 16:08:2026 - 20:23:55: КОРА v3 ПО ФОТО (вердикт: «вырвиглазные... прямоугольнички»; решение пользователя: сверяться с фото-эталоном, не выдумывать): (1) шум стал ПЕРИОДИЧЕСКИМ (pnoise, тор) — тайл повторяется frac'ом, зеркальный калейдоскоп мёртв; (2) частоты СНЯТЫ с Bark012 автокорреляцией (борозды 4-6 и 8-10 см, макро 20 см -> 44/88 + 12 на тайл 2.6 м) — v2 рисовала волны 40 см; (3) три октавы ridged + пер-колоночная светлота + сколы-хлопья; (4) диапазон светлот подогнан к фото (p5-p95 0.41-0.65). Эталоны в docs/reference/, сверка A/B глазами на каждой итерации.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -218,69 +219,112 @@ glm::vec3 tone_winter(LeafTone t) {
 struct BarkStyle {
     glm::vec3 base;    ///< colourway albedo
     float moss;        ///< 0..1 moss film budget (grows in the cracks)
-    bool birch;        ///< paper-with-lenticels instead of plates
-    float plate_nx;    ///< plate cells across the tile
-    float plate_ny;    ///< ...and along it (fewer = taller plates)
-    float plate_depth; ///< how deep the cracks cut, in height units
+    bool birch;        ///< paper-with-lenticels instead of ridges
+    float freq_x;      ///< ridge frequency across the trunk (ridges per tile)
+    float freq_y;      ///< ...and along it (lower = longer unbroken ridges)
+    float depth;       ///< how deep the fissures cut, in height units
+    float crest;       ///< <1 widens ridge tops (narrow cracks), >1 narrows them
 };
 
 BarkStyle bark_style(LeafTone row) {
+    // Frequencies are CYCLES PER TILE (2.6 m of trunk), FITTED to the CC0
+    // photo references, not chosen: Bark012 (oak, 1 m) autocorrelates at
+    // 4-6 cm and 8-10 cm furrows under ~20 cm macro columns -> primary 44/tile;
+    // the pine photoscan's plates run 10-25 cm -> primary 12/tile. The v2
+    // frequencies (6.5/tile = 40 cm waves) were the «вырвиглазные волны».
     switch (row) {
-    case LeafTone::OakMid:    return {{0.32f, 0.24f, 0.16f}, 0.0f, false, 7.0f, 2.2f, 0.55f};
-    case LeafTone::OakDeep:   return {{0.30f, 0.23f, 0.15f}, 0.55f, false, 7.0f, 2.2f, 0.55f};
-    case LeafTone::OakSunlit: return {{0.36f, 0.27f, 0.18f}, 0.9f, false, 6.0f, 2.0f, 0.50f};
-    case LeafTone::BirchLight: return {{0.86f, 0.85f, 0.80f}, 0.0f, true, 0.0f, 0.0f, 0.0f};
-    case LeafTone::BirchPale: return {{0.78f, 0.77f, 0.70f}, 0.0f, true, 0.0f, 0.0f, 0.0f};
-    case LeafTone::WillowDark: return {{0.38f, 0.36f, 0.33f}, 0.0f, false, 5.0f, 1.6f, 0.35f};
-    case LeafTone::WillowOlive: return {{0.44f, 0.40f, 0.34f}, 0.35f, false, 5.0f, 1.6f, 0.35f};
-    // Pine: rounded plates in a dark desaturated brown (scan-calibrated,
-    // passports §1 — V-median 0.24, warm hue, S≈0.3).
+    case LeafTone::OakMid:    return {{0.38f, 0.31f, 0.23f}, 0.0f, false, 44.0f, 4.0f, 0.60f, 0.45f};
+    case LeafTone::OakDeep:   return {{0.35f, 0.28f, 0.21f}, 0.55f, false, 44.0f, 4.0f, 0.60f, 0.45f};
+    case LeafTone::OakSunlit: return {{0.41f, 0.33f, 0.24f}, 0.9f, false, 40.0f, 4.0f, 0.55f, 0.45f};
+    case LeafTone::BirchLight: return {{0.86f, 0.85f, 0.80f}, 0.0f, true, 0.0f, 0.0f, 0.0f, 0.0f};
+    case LeafTone::BirchPale: return {{0.78f, 0.77f, 0.70f}, 0.0f, true, 0.0f, 0.0f, 0.0f, 0.0f};
+    case LeafTone::WillowDark: return {{0.38f, 0.36f, 0.33f}, 0.0f, false, 24.0f, 3.0f, 0.40f, 0.60f};
+    case LeafTone::WillowOlive: return {{0.44f, 0.40f, 0.34f}, 0.35f, false, 24.0f, 3.0f, 0.40f, 0.60f};
+    // Pine: plate-scale ridges in a dark desaturated brown (photoscan
+    // calibration, passports §1 — V-median 0.24, warm hue, S≈0.3).
     case LeafTone::ConiferDark: default:
-        return {{0.27f, 0.22f, 0.16f}, 0.0f, false, 5.0f, 3.0f, 0.60f};
+        return {{0.30f, 0.24f, 0.18f}, 0.0f, false, 12.0f, 5.0f, 0.65f, 0.55f};
     }
 }
 
-/// Height in [0,1]: plate body high, cracks low, grain everywhere.
-float bark_height(float mx, float my, const BarkStyle& st, uint32_t seed) {
+/// PERIODIC value noise: the lattice wraps at (px, py), so any field built
+/// from it tiles the tile as a TORUS. This is what lets the bark tile repeat
+/// by plain frac() instead of mirror-repeat — the mirror made every feature
+/// a kaleidoscope pair, and at ridge scale the eye finds the symmetry
+/// instantly (the user's «вырвиглазные... прямоугольнички» frame).
+float pnoise(float x, float y, int px, int py, uint32_t seed) {
+    const float fx = std::floor(x);
+    const float fy = std::floor(y);
+    const auto wrap = [](int v, int p) { return ((v % p) + p) % p; };
+    const int ix = static_cast<int>(fx);
+    const int iy = static_cast<int>(fy);
+    const float tx = smooth5(x - fx);
+    const float ty = smooth5(y - fy);
+    const float a = hash01(wrap(ix, px), wrap(iy, py), seed);
+    const float b = hash01(wrap(ix + 1, px), wrap(iy, py), seed);
+    const float c = hash01(wrap(ix, px), wrap(iy + 1, py), seed);
+    const float d = hash01(wrap(ix + 1, px), wrap(iy + 1, py), seed);
+    return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+}
+
+/// Height in [0,1] over TORUS coordinates tx, ty in [0,1): ridge crests high,
+/// the fissure web low, grain everywhere.
+///
+/// v2, after the user's verdict on v1 («видно искусственные просто
+/// прямоугольнички»): the F2-F1 cell field IS a lattice however you jitter
+/// it, and the eye finds the lattice. Replaced with anisotropic RIDGED noise
+/// over domain-warped coordinates — vertical crests that wander, fork and
+/// interlock, valleys forming a connected crack net. No cells anywhere in
+/// the construction, no mirror anywhere in the mapping.
+float bark_height(float tx, float ty, const BarkStyle& st, uint32_t seed) {
     // The fine grain layer (1.5-2.8 cm at trunk scale — the scan's own pitch).
-    float h = 0.22f * (value_noise(mx * 9.0f, my * 1.6f, 811u + seed) * 0.65f
-                       + value_noise(mx * 21.0f, my * 4.0f, 977u + seed) * 0.35f);
+    const float grain = 0.18f * (pnoise(tx * 9.0f, ty * 2.0f, 9, 2, 811u + seed) * 0.65f
+                                 + pnoise(tx * 21.0f, ty * 5.0f, 21, 5, 977u + seed) * 0.35f);
     if (st.birch) {
         // Paper: nearly flat, with shallow horizontal lenticel dips.
-        const float lent = value_noise(mx * 2.5f, my * 17.0f, 449u);
-        h += 0.55f - (lent > 0.72f ? 0.35f : 0.0f);
-        return std::clamp(h, 0.0f, 1.0f);
+        const float lent = pnoise(tx * 3.0f, ty * 17.0f, 3, 17, 449u);
+        return std::clamp(grain + 0.55f - (lent > 0.72f ? 0.35f : 0.0f), 0.0f, 1.0f);
     }
-    // The plate layer: jittered cells; the height falls into the crack where
-    // two nearest features come close (F2-F1), and each plate sits at its own
-    // level so neighbouring plates never merge visually.
-    const float gx = mx * st.plate_nx;
-    const float gy = my * st.plate_ny;
-    const int cx = static_cast<int>(std::floor(gx));
-    const int cy = static_cast<int>(std::floor(gy));
-    float d1 = 9.0f, d2 = 9.0f;
-    int best_cx = cx, best_cy = cy;
-    for (int oy = -1; oy <= 1; ++oy) {
-        for (int ox = -1; ox <= 1; ++ox) {
-            const int px = cx + ox;
-            const int py = cy + oy;
-            const float fx = static_cast<float>(px) + 0.5f
-                           + (hash01(px, py, seed ^ 0x51u) - 0.5f) * 0.8f;
-            const float fy = static_cast<float>(py) + 0.5f
-                           + (hash01(px, py, seed ^ 0x77u) - 0.5f) * 0.8f;
-            const float dx = (gx - fx);
-            const float dy = (gy - fy) * 1.15f; // cracks bias vertical
-            const float d = std::sqrt(dx * dx + dy * dy);
-            if (d < d1) {
-                d2 = d1; d1 = d; best_cx = px; best_cy = py;
-            } else if (d < d2) {
-                d2 = d;
-            }
-        }
+    // Domain warp: coordinates drift by ~0.06 of the tile before any
+    // structure is drawn, so nothing straight survives to be seen. The warp
+    // fields are periodic, so warped noise at integer frequencies still
+    // tiles: u(t+1) = u(t) + 1.
+    const float wx = pnoise(tx * 2.0f, ty * 2.0f, 2, 2, seed ^ 0x2Fu) * 2.0f - 1.0f;
+    const float wy = pnoise(tx * 2.0f + 0.37f, ty * 2.0f + 0.61f, 2, 2, seed ^ 0x53u)
+                       * 2.0f - 1.0f;
+    const float ux = tx + wx * 0.06f;
+    const float uy = ty + wy * 0.06f;
+    // THREE OCTAVES OF RIDGE WEB, each anisotropic (x-frequency >> y, crests
+    // run vertically and wander), weights fitted to the photo's own spectrum:
+    // macro columns (~20 cm) under primary furrows (~5 cm) under fine
+    // sub-furrows. The ridged transform pins valleys to mid-level contours —
+    // the crack net is connected by construction; crest < 1 broadens tops.
+    const int fxi = static_cast<int>(st.freq_x);
+    const int fyi = static_cast<int>(st.freq_y);
+    const float nm = pnoise(ux * 12.0f, uy * 2.0f, 12, 2, seed ^ 0x17u);
+    const float rm = 1.0f - std::fabs(2.0f * nm - 1.0f);
+    const float n1 = pnoise(ux * st.freq_x, uy * st.freq_y, fxi, fyi, seed);
+    const float r1 = std::pow(1.0f - std::fabs(2.0f * n1 - 1.0f), st.crest);
+    const float n2 = pnoise(ux * st.freq_x * 2.0f, uy * st.freq_y * 2.0f,
+                            fxi * 2, fyi * 2, seed ^ 0x99u);
+    const float r2 = std::pow(1.0f - std::fabs(2.0f * n2 - 1.0f), 1.2f);
+    // Per-column value variety: neighbouring ridge columns sit at slightly
+    // different heights, the way the photo's columns alternate light/dark.
+    const float col = 0.85f + 0.30f * pnoise(tx * 16.0f, ty * 2.0f, 16, 2, seed ^ 0xE3u);
+    // Rare horizontal breaks crossing the ridges — bark is not endless.
+    const float hb = pnoise(uy * 7.0f, ux * 1.0f, 7, 1, seed ^ 0xC1u);
+    const float hbreak = std::clamp((hb - 0.70f) * 5.0f, 0.0f, 1.0f);
+    float h = 0.10f
+            + st.depth * col * (0.30f * rm + 0.50f * r1 + 0.20f * r2)
+            + grain;
+    h *= 1.0f - 0.5f * hbreak;
+    // Sparse bright CHIPS on ridge tops — the photo's granular sparkle.
+    // Smooth threshold: a chip is a flake, not a square texel.
+    const float chip = pnoise(tx * 64.0f, ty * 16.0f, 64, 16, seed ^ 0xF1u);
+    if (h > 0.40f) {
+        const float k = std::clamp((chip - 0.74f) / 0.12f, 0.0f, 1.0f);
+        h = std::min(h + 0.24f * smooth5(k), 1.0f);
     }
-    const float crack = std::clamp((d2 - d1) * 2.6f, 0.0f, 1.0f);
-    const float plate_level = 0.55f + 0.35f * hash01(best_cx, best_cy, seed ^ 0x9Bu);
-    h += st.plate_depth * (smooth5(crack) * 0.8f + 0.2f) * plate_level;
     return std::clamp(h, 0.0f, 1.0f);
 }
 
@@ -395,23 +439,28 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                     if (static_cast<LeafShape>(shape_i) == LeafShape::BarkPlate) {
                         const size_t ob = (static_cast<size_t>(tone_i * atlas.tile_px + py)
                                            * atlas.width + shape_i * atlas.tile_px + px) * 4u;
-                        // Mirrored coordinates: the tile is its own reflection,
-                        // so mirror-repeat mapping is seamless by construction.
-                        const float mx = 1.0f - std::fabs(x);
-                        const float my = 1.0f - std::fabs(y);
-                        // TWO-LAYER HEIGHT FIELD (passports §1): plates split
+                        // TORUS coordinates: the height field is periodic, so
+                        // the tile repeats by plain frac() — no mirror, no
+                        // kaleidoscope pairs (the v1 mirror was what the eye
+                        // caught as «прямоугольнички» symmetry).
+                        const float tx = (x + 1.0f) * 0.5f;
+                        const float ty = (1.0f - y) * 0.5f;
+                        // TWO-LAYER HEIGHT FIELD (passports §1): ridges split
                         // by cracks over fine grain. The colour below and the
                         // normal sheet both read THIS field — they cannot
                         // disagree about where a crack runs.
                         const BarkStyle st = bark_style(static_cast<LeafTone>(tone_i));
-                        const float h = bark_height(mx, my, st, sd.seed);
-                        // Shade FROM the height: plate tops lit, cracks dark.
+                        const float h = bark_height(tx, ty, st, sd.seed);
+                        // Shade FROM the height: ridge tops lit, cracks dark.
+                        // The ramp is fitted to the photo's value spread
+                        // (Bark012: p5 0.41 -> p95 0.65 over a 0.55 median):
+                        // tops reach base*1.35, fissures fall to base*0.40.
                         const float shade = st.birch ? 0.30f + 0.95f * h
-                                                     : 0.34f + 0.88f * h;
+                                                     : 0.40f + 0.95f * h;
                         glm::vec3 c = st.base * shade;
                         if (st.moss > 0.0f) {
                             // Moss film: grows in the cracks, patchy.
-                            const float patch = value_noise(mx * 5.0f, my * 5.0f, 733u);
+                            const float patch = pnoise(tx * 5.0f, ty * 5.0f, 5, 5, 733u);
                             const float moss = st.moss * (1.0f - h)
                                              * std::clamp(patch * 1.6f - 0.3f, 0.0f, 1.0f);
                             c = c * (1.0f - moss)
@@ -709,26 +758,26 @@ LeafAtlas generate_leaf_normal_atlas(uint32_t tile_px) {
     const auto n = static_cast<float>(atlas.tile_px);
     const uint32_t bark_i = LEAF_ATLAS_SHAPES - 1; // BarkPlate column
     const ShapeDef& sd = shape_def(LeafShape::BarkPlate);
-    // RELIEF_SCALE converts the [0,1] height field into a slope. 1.6 puts the
-    // crack walls near 60 deg at 512 px — bark, not corrugated iron; if the
-    // light reads inverted in the frame, flip the sign HERE, not in the
-    // shader (one producer, one convention).
-    constexpr float RELIEF_SCALE = 1.6f;
+    // RELIEF_SCALE converts the [0,1] height field into a slope. The v3
+    // photo-fitted frequencies are ~7x higher than v2's, so the gradients
+    // grew with them — 0.35 keeps crack walls near 60 deg instead of
+    // saturating every texel; if the light reads inverted in the frame, flip
+    // the sign HERE, not in the shader (one producer, one convention).
+    constexpr float RELIEF_SCALE = 0.35f;
     for (uint32_t tone_i = 0; tone_i < LEAF_ATLAS_TONES; ++tone_i) {
         const BarkStyle st = bark_style(static_cast<LeafTone>(tone_i));
         for (uint32_t py = 0; py < atlas.tile_px; ++py) {
             for (uint32_t px = 0; px < atlas.tile_px; ++px) {
-                const float x = (static_cast<float>(px) + 0.5f) / n * 2.0f - 1.0f;
-                const float y = 1.0f - (static_cast<float>(py) + 0.5f) / n * 2.0f;
-                const float e = 2.0f / n; // one texel, tile space
-                // Central differences THROUGH the mirror transform, so the
-                // normals fold seamlessly exactly where the colour does.
+                const float tx = (static_cast<float>(px) + 0.5f) / n;
+                const float ty = (static_cast<float>(py) + 0.5f) / n;
+                const float e = 1.0f / n; // one texel, torus space
+                // Central differences on the TORUS: the field is periodic, so
+                // the normals wrap seamlessly exactly where the colour does.
                 const auto h_at = [&](float sx, float sy) {
-                    return bark_height(1.0f - std::fabs(sx), 1.0f - std::fabs(sy),
-                                       st, sd.seed);
+                    return bark_height(sx, sy, st, sd.seed);
                 };
-                const float dhdx = (h_at(x + e, y) - h_at(x - e, y)) / (2.0f * e);
-                const float dhdy = (h_at(x, y + e) - h_at(x, y - e)) / (2.0f * e);
+                const float dhdx = (h_at(tx + e, ty) - h_at(tx - e, ty)) / (2.0f * e);
+                const float dhdy = (h_at(tx, ty + e) - h_at(tx, ty - e)) / (2.0f * e);
                 glm::vec3 nrm{-dhdx * RELIEF_SCALE, -dhdy * RELIEF_SCALE, 1.0f};
                 const float len = std::sqrt(nrm.x * nrm.x + nrm.y * nrm.y + nrm.z * nrm.z);
                 nrm /= len;

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 15:08:2026 - 16:15:28
+Last updated: 16:08:2026 - 20:23:55
 Module: engine/render
 File: engine/render/sources/FloraCards.h
 
@@ -45,6 +45,7 @@ UPD:
 - 15:08:2026 - 16:02:49: generate_leaf_normal_atlas(): лист нормалей под aux_texture лида (09f75eb) — та же раскладка, xyz->RGB, нейтраль (128,128,255) на прозрачном и не-коре. REVISION 4->5 (арт коры).
 - 15:08:2026 - 16:08:30: REVISION 5->6 (штампы листьев — арт пачек).
 - 15:08:2026 - 16:15:28: REVISION 6->7 (пер-видовые штампы).
+- 16:08:2026 - 20:23:55: REVISION 7->8 (кора v3 по фото, периодический тайл).
 */
 
 #pragma once
@@ -84,7 +85,7 @@ inline constexpr uint32_t LEAF_ATLAS_TONES = 8;
 /// cache key must change when the pixels would, or the game paints with the
 /// previous session's atlas (measured: the 4-column cache under 5-column uvs
 /// painted the conifers white with birch tiles).
-inline constexpr uint32_t LEAF_ATLAS_REVISION = 7;
+inline constexpr uint32_t LEAF_ATLAS_REVISION = 8;
 /// 512 under the Full HD pivot (lead, 552d9ab: internal res 1920x1080, bake
 /// density for it; frame cost measured independent of texture density). A
 /// 512 px tile over a ~2.5 m frond is ~5 mm per texel on the object — leaf

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 16:17:07
+Last updated: 16:08:2026 - 20:23:55
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -53,6 +53,7 @@ UPD:
   корни — дуга четырьмя хордами (колено невидимо в плоском тонировании).
 - 15:08:2026 - 15:54:46: v6: хвоя пересобрана на ФРОНДЫ-ЛЕНТЫ (провисающая лента 4 сегментов, кончик вверх, голое дерево только внутренняя четверть); ЮБКА мёртвых сучьев 0.10-0.40h (оба фотоскана); корни — КОНТРФОРСЫ (старт внутри наплыва, выше и толще, медленный сбег); ветер честный: bark_tube несёт вес на обоих кольцах (иначе стык рвётся), вес = дистанция от опоры (лид 09f75eb: транзмит теперь по колонке UV).
 - 15:08:2026 - 16:17:07: emit_frond умножает ширину на p.frond_width (лиственница).
+- 16:08:2026 - 20:23:55: Развёртка трубы: зеркальная волна -> прямой повтор (тайл коры теперь торо-периодический).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -94,7 +95,10 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
     const glm::vec3 u_axis = perp_of(axis);
     const glm::vec3 v_axis = glm::cross(axis, u_axis);
     const float len = glm::length(p1 - p0);
-    const auto tri_wave = [](float t) { return 1.0f - std::fabs(1.0f - 2.0f * (t - std::floor(t))); };
+    // PLAIN WRAP, not mirror: the bark tile is torus-periodic since the
+    // FloraCards v2 field (mirror-repeat made every ridge a kaleidoscope
+    // pair, which is what the user's «прямоугольнички» frame was showing).
+    const auto tri_wave = [](float t) { return t - std::floor(t); };
     // Metres of trunk surface one full tile covers. ~2.6 m keeps the furrow
     // pitch believable on a 0.4 m oak and a 10 m colossus alike.
     constexpr float TILE_SPAN_M = 2.6f;
