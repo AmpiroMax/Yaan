@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>План полянки — Daggerfall N</title>
+<style>
+:root {
+  --ground: #F2F1E8; --panel: #EAEADD; --ink: #232A1E; --muted: #6B7261;
+  --line: #C9CBB8; --accent: #8A5A22;
+  --meadow: #E3EACB; --band: #CBD8B2; --corridor: #EDEEDE;
+  --birch: #7CA455; --pine: #2F5C44; --oakcrown: #4C7A33; --oaktrunk: #8A5A22;
+  --grasspath: #7E9E5B; --dirtpath: #A0724A; --stonepath: #85888F;
+  --fl-white: #FBFBF4; --fl-pink: #C86E8F; --fl-yellow: #C9A227;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #161911; --panel: #1D2117; --ink: #E6E9DC; --muted: #98A08C;
+    --line: #3A4030; --accent: #D8A051;
+    --meadow: #2A331D; --band: #222B18; --corridor: #1A1E13;
+    --birch: #8FB868; --pine: #4E8266; --oakcrown: #6A9A4A; --oaktrunk: #D8A051;
+    --fl-white: #EDEDDF; --fl-pink: #D98BA8; --fl-yellow: #D9B95A;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #161911; --panel: #1D2117; --ink: #E6E9DC; --muted: #98A08C;
+  --line: #3A4030; --accent: #D8A051;
+  --meadow: #2A331D; --band: #222B18; --corridor: #1A1E13;
+  --birch: #8FB868; --pine: #4E8266; --oakcrown: #6A9A4A; --oaktrunk: #D8A051;
+  --fl-white: #EDEDDF; --fl-pink: #D98BA8; --fl-yellow: #D9B95A;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); margin: 0;
+  font: 16px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1020px; margin: 0 auto; padding: 32px 20px 80px; }
+header.stamp { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: baseline;
+  border: 2px solid var(--ink); padding: 14px 18px; margin-bottom: 30px; }
+header.stamp h1 { font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+header.stamp .meta { font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--muted); }
+h2 { font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 19px; letter-spacing: 0.10em; text-transform: uppercase;
+  border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 44px 0 14px; }
+p { max-width: 68ch; }
+figure { margin: 18px 0; }
+figure svg { max-width: 100%; height: auto; display: block; }
+figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; max-width: 76ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 13px;
+  margin: 10px 0 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.sw.sq { border-radius: 2px; width: 18px; height: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px;
+  font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+td.num { font-family: ui-monospace, Menlo, monospace; }
+.qs { counter-reset: q; }
+.qs li { margin: 10px 0; }
+.note { background: var(--panel); border-left: 3px solid var(--accent);
+  padding: 12px 16px; font-size: 14px; max-width: 76ch; }
+.twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 760px) { .twocol { grid-template-columns: 1fr; } }
+.scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<main>
+<header class="stamp">
+  <h1>Полянка с цветами — план</h1>
+  <span class="meta">Daggerfall N · зона flora · лист 1 · мир 256×256 м · М 1:2 (2 px = 1 м)</span>
+  <span class="meta">черновик на утверждение — стройка после фидбека</span>
+</header>
+
+<p><strong>Замысел одной фразой:</strong> плотная стена леса прячет поляну; три
+извилистые тропы прорезают её с трёх сторон, и каждая выводит точно к
+дубу-старейшине — он выше кольца и открывается из-за кромки уже с тропы.
+Цветы лежат кольцом куртин у его подножия, тропы вливаются в круговую
+дорожку вокруг цветов.</p>
+
+<h2>1. План — вид сверху</h2>
+<figure>
+<svg viewBox="0 0 560 580" role="img" aria-label="План полянки сверху: кольцо плотного леса, три извилистые тропы, сходящиеся к дубу в центре">
+  <g transform="translate(24,44)">
+    <!-- map ground -->
+    <rect x="0" y="0" width="512" height="512" fill="var(--corridor)" stroke="var(--ink)" stroke-width="1.5"/>
+    <!-- forest band r 33..104 m -->
+    <circle cx="256" cy="256" r="137" fill="none" stroke="var(--band)" stroke-width="142"/>
+    <!-- meadow r 30 m -->
+    <circle cx="256" cy="256" r="60" fill="var(--meadow)"/>
+    <!-- grid each 32 m -->
+    <g stroke="var(--line)" stroke-width="0.6" opacity="0.7">
+      <path d="M64 0V512 M128 0V512 M192 0V512 M256 0V512 M320 0V512 M384 0V512 M448 0V512
+               M0 64H512 M0 128H512 M0 192H512 M0 256H512 M0 320H512 M0 384H512 M0 448H512" fill="none"/>
+    </g>
+    <!-- coordinates -->
+    <g font-size="9" fill="var(--muted)" font-family="ui-monospace, Menlo, monospace">
+      <text x="2" y="-6">x=0</text><text x="120" y="-6">64</text><text x="248" y="-6">128</text><text x="376" y="-6">192</text><text x="492" y="-6">256</text>
+      <text x="-22" y="12">z=0</text><text x="-18" y="132">64</text><text x="-22" y="260">128</text><text x="-22" y="388">192</text><text x="-22" y="510">256</text>
+    </g>
+    <!-- forest scatter: birch then pine -->
+    <g fill="var(--birch)" opacity="0.9"><circle cx="345" cy="310" r="4.2"/><circle cx="153" cy="88" r="4.2"/><circle cx="374" cy="285" r="4.2"/><circle cx="372" cy="103" r="4.2"/><circle cx="258" cy="57" r="4.2"/><circle cx="411" cy="216" r="4.2"/><circle cx="93" cy="176" r="4.2"/><circle cx="211" cy="311" r="4.2"/><circle cx="260" cy="432" r="4.2"/><circle cx="229" cy="169" r="4.2"/><circle cx="163" cy="149" r="4.2"/><circle cx="247" cy="147" r="4.2"/><circle cx="100" cy="202" r="4.2"/><circle cx="157" cy="325" r="4.2"/><circle cx="251" cy="399" r="4.2"/><circle cx="341" cy="276" r="4.2"/><circle cx="165" cy="120" r="4.2"/><circle cx="452" cy="277" r="4.2"/><circle cx="332" cy="130" r="4.2"/><circle cx="300" cy="194" r="4.2"/><circle cx="193" cy="199" r="4.2"/><circle cx="204" cy="377" r="4.2"/><circle cx="156" cy="227" r="4.2"/><circle cx="131" cy="335" r="4.2"/><circle cx="383" cy="208" r="4.2"/><circle cx="360" cy="332" r="4.2"/><circle cx="305" cy="337" r="4.2"/><circle cx="151" cy="261" r="4.2"/><circle cx="70" cy="237" r="4.2"/><circle cx="380" cy="122" r="4.2"/><circle cx="306" cy="130" r="4.2"/><circle cx="376" cy="318" r="4.2"/><circle cx="304" cy="410" r="4.2"/><circle cx="369" cy="226" r="4.2"/><circle cx="189" cy="251" r="4.2"/><circle cx="266" cy="403" r="4.2"/><circle cx="166" cy="407" r="4.2"/><circle cx="174" cy="322" r="4.2"/><circle cx="319" cy="370" r="4.2"/><circle cx="122" cy="128" r="4.2"/><circle cx="326" cy="205" r="4.2"/><circle cx="261" cy="382" r="4.2"/><circle cx="105" cy="376" r="4.2"/><circle cx="247" cy="97" r="4.2"/><circle cx="453" cy="211" r="4.2"/><circle cx="368" cy="86" r="4.2"/><circle cx="94" cy="224" r="4.2"/><circle cx="372" cy="240" r="4.2"/><circle cx="346" cy="431" r="4.2"/><circle cx="173" cy="232" r="4.2"/><circle cx="252" cy="163" r="4.2"/><circle cx="176" cy="167" r="4.2"/><circle cx="197" cy="159" r="4.2"/><circle cx="397" cy="241" r="4.2"/><circle cx="370" cy="430" r="4.2"/><circle cx="180" cy="372" r="4.2"/><circle cx="59" cy="210" r="4.2"/><circle cx="277" cy="385" r="4.2"/><circle cx="365" cy="298" r="4.2"/><circle cx="424" cy="323" r="4.2"/><circle cx="344" cy="141" r="4.2"/><circle cx="236" cy="63" r="4.2"/><circle cx="208" cy="84" r="4.2"/><circle cx="65" cy="301" r="4.2"/><circle cx="123" cy="104" r="4.2"/><circle cx="213" cy="429" r="4.2"/><circle cx="300" cy="395" r="4.2"/><circle cx="380" cy="184" r="4.2"/><circle cx="127" cy="255" r="4.2"/><circle cx="446" cy="316" r="4.2"/><circle cx="159" cy="356" r="4.2"/><circle cx="394" cy="262" r="4.2"/><circle cx="72" cy="353" r="4.2"/><circle cx="222" cy="410" r="4.2"/><circle cx="341" cy="372" r="4.2"/><circle cx="274" cy="346" r="4.2"/><circle cx="220" cy="181" r="4.2"/><circle cx="249" cy="132" r="4.2"/><circle cx="398" cy="313" r="4.2"/><circle cx="415" cy="335" r="4.2"/><circle cx="177" cy="342" r="4.2"/><circle cx="104" cy="165" r="4.2"/><circle cx="385" cy="359" r="4.2"/><circle cx="152" cy="408" r="4.2"/><circle cx="197" cy="102" r="4.2"/><circle cx="342" cy="91" r="4.2"/><circle cx="75" cy="199" r="4.2"/><circle cx="195" cy="231" r="4.2"/><circle cx="246" cy="443" r="4.2"/><circle cx="438" cy="295" r="4.2"/><circle cx="350" cy="401" r="4.2"/><circle cx="218" cy="119" r="4.2"/><circle cx="429" cy="244" r="4.2"/><circle cx="421" cy="182" r="4.2"/><circle cx="423" cy="265" r="4.2"/><circle cx="297" cy="444" r="4.2"/><circle cx="340" cy="390" r="4.2"/><circle cx="177" cy="108" r="4.2"/><circle cx="430" cy="337" r="4.2"/><circle cx="326" cy="239" r="4.2"/><circle cx="328" cy="185" r="4.2"/><circle cx="406" cy="171" r="4.2"/><circle cx="137" cy="93" r="4.2"/><circle cx="121" cy="148" r="4.2"/><circle cx="203" cy="215" r="4.2"/><circle cx="377" cy="155" r="4.2"/><circle cx="114" cy="181" r="4.2"/><circle cx="378" cy="265" r="4.2"/><circle cx="435" cy="159" r="4.2"/><circle cx="222" cy="461" r="4.2"/><circle cx="259" cy="84" r="4.2"/><circle cx="302" cy="157" r="4.2"/><circle cx="220" cy="135" r="4.2"/><circle cx="136" cy="180" r="4.2"/><circle cx="265" cy="332" r="4.2"/><circle cx="240" cy="377" r="4.2"/><circle cx="197" cy="126" r="4.2"/><circle cx="394" cy="291" r="4.2"/><circle cx="196" cy="70" r="4.2"/><circle cx="305" cy="361" r="4.2"/><circle cx="87" cy="274" r="4.2"/><circle cx="256" cy="364" r="4.2"/><circle cx="448" cy="263" r="4.2"/><circle cx="159" cy="207" r="4.2"/><circle cx="217" cy="73" r="4.2"/><circle cx="308" cy="207" r="4.2"/><circle cx="75" cy="171" r="4.2"/></g>
+    <g fill="var(--pine)" opacity="0.95"><circle cx="289" cy="349" r="3.4"/><circle cx="198" cy="354" r="3.4"/><circle cx="234" cy="330" r="3.4"/><circle cx="218" cy="345" r="3.4"/><circle cx="184" cy="214" r="3.4"/><circle cx="150" cy="431" r="3.4"/><circle cx="329" cy="356" r="3.4"/><circle cx="139" cy="369" r="3.4"/><circle cx="323" cy="269" r="3.4"/><circle cx="387" cy="171" r="3.4"/><circle cx="221" cy="198" r="3.4"/><circle cx="258" cy="345" r="3.4"/><circle cx="287" cy="412" r="3.4"/><circle cx="321" cy="117" r="3.4"/><circle cx="200" cy="440" r="3.4"/><circle cx="106" cy="131" r="3.4"/><circle cx="288" cy="460" r="3.4"/><circle cx="237" cy="355" r="3.4"/><circle cx="144" cy="237" r="3.4"/><circle cx="292" cy="173" r="3.4"/><circle cx="103" cy="331" r="3.4"/><circle cx="219" cy="100" r="3.4"/><circle cx="195" cy="311" r="3.4"/><circle cx="92" cy="357" r="3.4"/><circle cx="108" cy="402" r="3.4"/><circle cx="217" cy="396" r="3.4"/><circle cx="83" cy="247" r="3.4"/><circle cx="361" cy="162" r="3.4"/><circle cx="312" cy="220" r="3.4"/><circle cx="150" cy="134" r="3.4"/><circle cx="61" cy="278" r="3.4"/><circle cx="325" cy="401" r="3.4"/><circle cx="107" cy="250" r="3.4"/><circle cx="443" cy="185" r="3.4"/><circle cx="144" cy="208" r="3.4"/><circle cx="320" cy="146" r="3.4"/><circle cx="351" cy="254" r="3.4"/><circle cx="335" cy="256" r="3.4"/><circle cx="152" cy="341" r="3.4"/><circle cx="205" cy="145" r="3.4"/><circle cx="344" cy="232" r="3.4"/><circle cx="355" cy="103" r="3.4"/><circle cx="365" cy="406" r="3.4"/><circle cx="407" cy="255" r="3.4"/><circle cx="291" cy="326" r="3.4"/><circle cx="138" cy="223" r="3.4"/><circle cx="345" cy="175" r="3.4"/><circle cx="424" cy="359" r="3.4"/><circle cx="202" cy="298" r="3.4"/><circle cx="283" cy="433" r="3.4"/><circle cx="177" cy="265" r="3.4"/><circle cx="175" cy="89" r="3.4"/><circle cx="391" cy="225" r="3.4"/><circle cx="244" cy="180" r="3.4"/><circle cx="323" cy="96" r="3.4"/><circle cx="108" cy="116" r="3.4"/><circle cx="404" cy="275" r="3.4"/><circle cx="353" cy="210" r="3.4"/><circle cx="136" cy="404" r="3.4"/><circle cx="389" cy="98" r="3.4"/><circle cx="338" cy="70" r="3.4"/><circle cx="149" cy="193" r="3.4"/><circle cx="310" cy="171" r="3.4"/><circle cx="356" cy="268" r="3.4"/><circle cx="124" cy="377" r="3.4"/><circle cx="171" cy="190" r="3.4"/><circle cx="317" cy="64" r="3.4"/><circle cx="277" cy="367" r="3.4"/><circle cx="121" cy="239" r="3.4"/><circle cx="333" cy="163" r="3.4"/><circle cx="199" cy="178" r="3.4"/><circle cx="330" cy="444" r="3.4"/><circle cx="183" cy="144" r="3.4"/><circle cx="444" cy="238" r="3.4"/><circle cx="233" cy="425" r="3.4"/><circle cx="411" cy="199" r="3.4"/><circle cx="51" cy="246" r="3.4"/><circle cx="143" cy="157" r="3.4"/><circle cx="412" cy="130" r="3.4"/><circle cx="399" cy="156" r="3.4"/><circle cx="158" cy="379" r="3.4"/><circle cx="422" cy="380" r="3.4"/><circle cx="427" cy="142" r="3.4"/></g>
+    <!-- fallen logs -->
+    <g fill="var(--oaktrunk)" opacity="0.85">
+      <rect x="180" y="140" width="16" height="4" transform="rotate(28 188 142)"/>
+      <rect x="330" y="150" width="14" height="4" transform="rotate(-40 337 152)"/>
+      <rect x="120" y="300" width="16" height="4" transform="rotate(70 128 302)"/>
+      <rect x="352" y="330" width="15" height="4" transform="rotate(15 359 332)"/>
+      <rect x="240" y="400" width="14" height="4" transform="rotate(-25 247 402)"/>
+      <rect x="150" y="215" width="13" height="4" transform="rotate(50 156 217)"/>
+    </g>
+    <!-- three paths, each sinuous, ENDING on the flower ring -->
+    <path d="M 292 4 C 300 60, 262 90, 276 140 S 300 180, 282 214" fill="none"
+          stroke="var(--grasspath)" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M 500 480 C 430 470, 430 420, 386 396 S 330 330, 296 296" fill="none"
+          stroke="var(--dirtpath)" stroke-width="4.6" stroke-linecap="round"/>
+    <path d="M 18 388 C 80 392, 90 350, 140 336 S 200 300, 218 282" fill="none"
+          stroke="var(--stonepath)" stroke-width="5.6" stroke-linecap="round"/>
+    <!-- ring walk around the flower drifts -->
+    <circle cx="256" cy="256" r="40" fill="none" stroke="var(--dirtpath)"
+            stroke-width="2.6" stroke-dasharray="7 4" opacity="0.9"/>
+    <!-- flower drifts -->
+    <ellipse cx="238" cy="270" rx="21" ry="15" fill="var(--fl-white)" stroke="var(--fl-pink)" stroke-width="0.8" opacity="0.95"/>
+    <ellipse cx="274" cy="248" rx="19" ry="14" fill="var(--fl-pink)" opacity="0.85"/>
+    <ellipse cx="250" cy="234" rx="17" ry="12" fill="var(--fl-yellow)" opacity="0.85"/>
+    <!-- glade rim young trees -->
+    <g fill="var(--birch)" stroke="var(--ink)" stroke-width="0.4">
+      <circle cx="256" cy="196" r="3"/><circle cx="300" cy="212" r="3"/>
+      <circle cx="316" cy="252" r="3"/><circle cx="304" cy="300" r="3"/>
+      <circle cx="262" cy="318" r="3"/><circle cx="212" cy="308" r="3"/>
+      <circle cx="196" cy="262" r="3"/><circle cx="206" cy="218" r="3"/>
+      <circle cx="232" cy="200" r="3"/>
+    </g>
+    <!-- the elder oak -->
+    <circle cx="256" cy="256" r="27" fill="var(--oakcrown)" opacity="0.92"/>
+    <circle cx="256" cy="256" r="3.4" fill="var(--oaktrunk)" stroke="var(--ink)" stroke-width="0.7"/>
+    <!-- spawn -->
+    <g transform="translate(500,480)">
+      <circle r="5" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+      <circle r="1.6" fill="var(--accent)"/>
+    </g>
+    <!-- labels -->
+    <g font-size="11" fill="var(--ink)">
+      <text x="262" y="250">дуб</text>
+      <text x="296" y="10">травяная</text>
+      <text x="400" y="500">земляная · спавн</text>
+      <text x="4" y="378">каменная</text>
+      <text x="150" y="34">кольцо леса · шаг 7–9 м</text>
+      <text x="216" y="180">молодняк кромки</text>
+      <text x="292" y="286" font-size="9">кольцевая дорожка</text>
+    </g>
+    <!-- compass + scale -->
+    <g transform="translate(478,20)" stroke="var(--ink)" fill="var(--ink)">
+      <line x1="0" y1="14" x2="0" y2="-8" stroke-width="1.4"/>
+      <polygon points="0,-14 -4,-4 4,-4"/>
+      <text x="-4" y="28" font-size="11" stroke="none">С</text>
+    </g>
+    <g transform="translate(10,498)">
+      <line x1="0" y1="0" x2="64" y2="0" stroke="var(--ink)" stroke-width="2"/>
+      <line x1="0" y1="-4" x2="0" y2="4" stroke="var(--ink)" stroke-width="1.4"/>
+      <line x1="64" y1="-4" x2="64" y2="4" stroke="var(--ink)" stroke-width="1.4"/>
+      <text x="20" y="-6" font-size="10" fill="var(--ink)">32 м</text>
+    </g>
+  </g>
+</svg>
+<figcaption>Каждая точка — настоящее дерево из будущей сцены (210 стволов,
+рассев с шагом 7–9 м, коридоры троп выдержаны). Все три тропы кончаются не
+«где-то», а на кольцевой дорожке вокруг цветочных куртин — от неё до ствола
+дуба 7–8 м газона.</figcaption>
+</figure>
+<div class="legend">
+  <span><i class="sw" style="background:var(--birch)"></i>берёза (127)</span>
+  <span><i class="sw" style="background:var(--pine)"></i>сосна (83)</span>
+  <span><i class="sw" style="background:var(--oakcrown)"></i>крона дуба Ø26 м</span>
+  <span><i class="sw" style="background:var(--fl-white); border:1px solid var(--fl-pink)"></i><i class="sw" style="background:var(--fl-pink)"></i><i class="sw" style="background:var(--fl-yellow)"></i>куртины цветов</span>
+  <span><i class="sw sq" style="background:var(--grasspath)"></i>травяная 1.6 м</span>
+  <span><i class="sw sq" style="background:var(--dirtpath)"></i>земляная 2.2 м</span>
+  <span><i class="sw sq" style="background:var(--stonepath)"></i>каменная 2.8 м</span>
+  <span><i class="sw sq" style="background:var(--oaktrunk)"></i>валежник</span>
+  <span><i class="sw" style="border:1.5px solid var(--accent); background:none"></i>спавн игрока</span>
+</div>
+
+<h2>2. Разрез — по земляной тропе (ЮВ → центр)</h2>
+<figure>
+<svg viewBox="0 0 900 250" role="img" aria-label="Разрез: стена леса 18-28 м, просвет, поляна с цветами и дуб 30 м в центре">
+  <!-- height ruler -->
+  <g stroke="var(--line)" font-size="10" fill="var(--muted)" font-family="ui-monospace, Menlo, monospace">
+    <line x1="40" y1="210" x2="880" y2="210" stroke="var(--ink)" stroke-width="1.6"/>
+    <line x1="40" y1="210" x2="40" y2="60"/>
+    <line x1="36" y1="165" x2="44" y2="165"/><text x="8" y="169">10 м</text>
+    <line x1="36" y1="120" x2="44" y2="120"/><text x="8" y="124">20 м</text>
+    <line x1="36" y1="75"  x2="44" y2="75"/><text x="8" y="79">30 м</text>
+  </g>
+  <!-- forest wall right (entry side) -->
+  <g fill="var(--pine)" opacity="0.9">
+    <polygon points="700,210 716,100 732,210"/>
+    <polygon points="762,210 780,88 798,210"/>
+    <polygon points="836,210 852,105 868,210"/>
+  </g>
+  <g fill="var(--birch)" opacity="0.9">
+    <ellipse cx="745" cy="132" rx="17" ry="26"/><rect x="742" y="150" width="6" height="60"/>
+    <ellipse cx="815" cy="122" rx="19" ry="30"/><rect x="812" y="146" width="6" height="64"/>
+  </g>
+  <!-- forest wall far left (behind the oak) -->
+  <g fill="var(--pine)" opacity="0.55">
+    <polygon points="60,210 74,110 88,210"/>
+    <polygon points="118,210 134,96 150,210"/>
+  </g>
+  <g fill="var(--birch)" opacity="0.55">
+    <ellipse cx="102" cy="138" rx="15" ry="24"/><rect x="99" y="156" width="5" height="54"/>
+  </g>
+  <!-- the elder oak: 30 m, crown wider than tall half -->
+  <g>
+    <ellipse cx="330" cy="105" rx="88" ry="52" fill="var(--oakcrown)"/>
+    <rect x="322" y="140" width="16" height="70" fill="var(--oaktrunk)"/>
+    <path d="M322 210 L306 210 L322 196 M338 210 L354 210 L338 196" fill="var(--oaktrunk)"/>
+  </g>
+  <!-- young rim tree -->
+  <g fill="var(--birch)"><ellipse cx="560" cy="178" rx="10" ry="15"/><rect x="558" y="188" width="4" height="22" /></g>
+  <!-- flower drifts + ring walk -->
+  <g>
+    <circle cx="420" cy="206" r="2.2" fill="var(--fl-white)" stroke="var(--fl-pink)" stroke-width="0.6"/>
+    <circle cx="434" cy="205" r="2.2" fill="var(--fl-pink)"/>
+    <circle cx="449" cy="206" r="2.2" fill="var(--fl-yellow)"/>
+    <circle cx="463" cy="205" r="2.2" fill="var(--fl-white)" stroke="var(--fl-pink)" stroke-width="0.6"/>
+    <rect x="475" y="207" width="26" height="4" fill="var(--dirtpath)"/>
+  </g>
+  <!-- path along the ground -->
+  <rect x="520" y="208" width="360" height="4" fill="var(--dirtpath)"/>
+  <!-- sightline: the reveal -->
+  <line x1="700" y1="196" x2="418" y2="72" stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <g font-size="12" fill="var(--ink)">
+    <text x="700" y="236">вход тропы · стена леса 18–28 м</text>
+    <text x="600" y="52" fill="var(--accent)">взгляд с тропы: дуб открывается над кромкой</text>
+    <text x="404" y="232">куртины · кольцевая дорожка</text>
+    <text x="296" y="60">дуб 30 м</text>
+    <text x="60" y="236">лес за поляной</text>
+  </g>
+</svg>
+<figcaption>Композиция «раскрытия»: дуб выше кольца на 4–10 м, поэтому его
+крону видно из-за кромки леса ещё с тропы — путь всегда «ведёт к дереву»
+визуально, а не только геометрически.</figcaption>
+</figure>
+
+<div class="twocol">
+<div>
+<h2>3. Состав</h2>
+<div class="scroll"><table>
+<tr><th>Что</th><th>Сколько</th><th>Высота</th><th>Роль</th></tr>
+<tr><td>Дуб-старейшина</td><td class="num">1</td><td class="num">30 м</td><td>сердце, виден с троп</td></tr>
+<tr><td>Берёзы (4 роста)</td><td class="num">127</td><td class="num">17–24 м</td><td>светлая стена кольца</td></tr>
+<tr><td>Сосны (3 роста)</td><td class="num">83</td><td class="num">25–31 м</td><td>тёмные акценты кольца</td></tr>
+<tr><td>Молодняк кромки</td><td class="num">9</td><td class="num">3.5–7 м</td><td>мягкий край поляны</td></tr>
+<tr><td>Малые деревья в лесу</td><td class="num">14</td><td class="num">4–7 м</td><td>второй ярус</td></tr>
+<tr><td>Кусты</td><td class="num">30</td><td class="num">1.2–1.9 м</td><td>подлесок, кромки</td></tr>
+<tr><td>Валежник</td><td class="num">6–8</td><td class="num">4.5–7.5 м длина</td><td>возраст леса</td></tr>
+<tr><td>Высокая трава</td><td class="num">~120</td><td class="num">0.6–1.1 м</td><td>лес + кромка поляны</td></tr>
+<tr><td>Куртины цветов</td><td class="num">~45 кустиков</td><td class="num">0.35 м</td><td>3 цвета кольцом у дуба</td></tr>
+<tr><td>Грибы</td><td class="num">~10 семей</td><td class="num">0.1–0.2 м</td><td>у комля и валежника</td></tr>
+</table></div>
+</div>
+<div>
+<h2>4. Правила числом</h2>
+<div class="scroll"><table>
+<tr><th>Параметр</th><th>Значение</th></tr>
+<tr><td>Центр мира / дуб</td><td class="num">(128, 128)</td></tr>
+<tr><td>Крона дуба</td><td class="num">Ø 26 м, низ на 6.6 м</td></tr>
+<tr><td>Куртины цветов</td><td class="num">кольцо r 6–19 м</td></tr>
+<tr><td>Кольцевая дорожка</td><td class="num">r 20 м, полотно 1.2 м</td></tr>
+<tr><td>Поляна (луг)</td><td class="num">r 30 м</td></tr>
+<tr><td>Кольцо леса</td><td class="num">r 33–104 м, шаг 7–9 м</td></tr>
+<tr><td>Тропа травяная</td><td class="num">пеленг 10°, полотно 1.6 м, A6/λ40</td></tr>
+<tr><td>Тропа земляная</td><td class="num">пеленг 135°, 2.2 м, канавка 8 см, A8/λ55</td></tr>
+<tr><td>Тропа каменная</td><td class="num">пеленг 250°, 2.8 м, +3 см, A5/λ70</td></tr>
+<tr><td>Коридоры троп в лесу</td><td class="num">полуширина 6 м</td></tr>
+<tr><td>Спавн игрока</td><td class="num">(250, 240), на земляной тропе</td></tr>
+</table></div>
+</div>
+</div>
+
+<h2>5. Вопросы на фидбек</h2>
+<ol class="qs">
+<li><strong>Дуб 30 м</strong> — оставить, или поднять до 36–40 м, чтобы над кольцом
+торчал сильнее? (Стена леса 24–31 м — сейчас дуб выше на 4–6 м.)</li>
+<li><strong>Кольцевая дорожка вокруг куртин</strong> — моё предложение, чтобы все
+три тропы честно «приходили к дубу» и стыковались красиво. Ок, или тропы
+должны дорезать прямо до ствола сквозь цветы?</li>
+<li><strong>Плотность кольца</strong> — шаг 7–9 м это уже стена (210 деревьев).
+Гуще (5–7 м, ~350) — мрачнее и дороже; реже — прозрачнее. Куда крутить?</li>
+<li><strong>Спавн</strong> — на земляной тропе у ЮВ края, чтобы первый кадр был
+«тропа уходит в лес, над лесом крона дуба». Так?</li>
+<li><strong>Цветы</strong> — три куртины тремя цветами (как на плане), или сплошной
+смешанный ковёр по всей поляне?</li>
+</ol>
+
+<p class="note">После твоего «ок» этот план один в один становится сценой:
+рассев уже посчитан теми же координатами (каждая точка плана — строка
+<code>[place]</code>), тропы уйдут лиду ровно этими полилиниями и ширинами.
+Что не нравится — говори по номерам зон/вопросов, поправлю лист и только
+потом строим.</p>
+</main>
+
+</body>
+</html>
