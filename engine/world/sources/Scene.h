@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 22:40:23
+Last updated: 16:08:2026 - 22:45:34
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -58,6 +58,10 @@ UPD:
 - 16:08:2026 - 22:40:23: split_shelves() — разбор списка полок реестра. ОДНО определение: три
   инструмента уже разбирали его своей копией, а список полок, означающий в игре
   и в её судье разное, — это судья другого мира (правило 35).
+- 16:08:2026 - 22:45:34: check_panel_solid/SolidReport — прибор сплошной ПАНЕЛИ (сборки
+  пользователя: «из мелких деталей собирать большие, чтобы меньше дырок»).
+  Голая геометрия на входе — заголовок остаётся без engine/render; одна
+  функция, двое зовущих: судья (--solid) и пекарь сборок (--require-solid).
 */
 
 #pragma once
@@ -194,5 +198,36 @@ struct SceneLimits {
 /// Human-readable one-liner for a finding (the tool's output, and the text an
 /// agent pastes into a map chat).
 [[nodiscard]] std::string describe(const SceneFinding& finding);
+
+/// Report of the panel-solidity grid (check_panel_solid). Carries the COUNT
+/// and the ADDRESS, not a verdict: «дыра на x=1.93 y=0.46» is actionable,
+/// «панель дырявая» is an opinion (the gable lesson, in the instrument).
+struct SolidReport {
+    int rays_cast = 0;
+    int rays_through = 0;        ///< 0 = solid
+    uint8_t normal_axis = 0;     ///< 0=x 1=y 2=z: the thinnest bbox axis
+    /// World-space point where the FIRST through-ray crossed the panel slab's
+    /// mid-plane — where to look for the hole.
+    glm::vec3 first_hole{0.0f};
+};
+
+/// THE PANEL INSTRUMENT. A flat assembly (wall panel, floor deck) has no
+/// interior to stand a probe in, so the sealed-hull fan cannot judge it; what
+/// a panel promises is NO DAYLIGHT STRAIGHT THROUGH. Casts a grid of parallel
+/// rays across the triangles' THINNEST bounding-box axis (the panel's normal,
+/// found from geometry, never from the property under test), one ray per
+/// `step_m`; the default 0.01 m is set by the narrowest real hole this zone
+/// has shipped — a 0.017 m board gap — which a coarser grid would certify as
+/// solid. `rim_m` trims the border, where the panel's edge is the frame's
+/// business and a boundary ray measures floating point, not wood.
+///
+/// Takes BARE world-space triangles (positions + indices) so this header
+/// stays free of engine/render: the scene judge and the assembly baker each
+/// build the soup from the shelves they already read, and both call THIS
+/// function — one instrument, two callers, no second opinion.
+[[nodiscard]] SolidReport check_panel_solid(const std::vector<glm::vec3>& positions,
+                                            const std::vector<uint32_t>& indices,
+                                            float step_m = 0.01f,
+                                            float rim_m = 0.02f);
 
 } // namespace dfn::world

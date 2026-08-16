@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 22:40:23
+Last updated: 16:08:2026 - 22:45:34
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -36,9 +36,17 @@ UPD:
   инструментом. Та же позиция, что у неизвестного КЛЮЧА, — и она обязана быть
   той же, иначе обещание сдержано наполовину.
 - 16:08:2026 - 22:40:23: split_shelves() реализован здесь же.
+- 16:08:2026 - 22:45:34: check_panel_solid — сетка лучей поперёк тончайшей оси габарита,
+  шаг 0.01 м (правило 50: самая узкая реальная дыра зоны — щель доски
+  0.017 м; сетка грубее объявила бы стену из швов сплошной). Пересечение —
+  math::ray_vs_triangle (тыльные грани сообщаются по контракту Intersect).
+  Отчёт несёт СЧЁТ и АДРЕС первой дыры, не вердикт.
 */
 
 #include "engine/world/sources/Scene.h"
+
+#include "engine/core/math/sources/Intersect.h"
+#include "engine/core/math/sources/Ray.h"
 
 #include <algorithm>
 #include <charconv>
@@ -433,6 +441,70 @@ std::string describe(const SceneFinding& f) {
                   f.placement_index, f.object.c_str(), f.detail.c_str(),
                   static_cast<double>(f.amount_m));
     return buf;
+}
+
+SolidReport check_panel_solid(const std::vector<glm::vec3>& positions,
+                              const std::vector<uint32_t>& indices, float step_m,
+                              float rim_m) {
+    SolidReport report;
+    if (positions.empty() || indices.size() < 3) {
+        return report;
+    }
+    glm::vec3 lo{1e9f};
+    glm::vec3 hi{-1e9f};
+    for (const glm::vec3& p : positions) {
+        lo = glm::min(lo, p);
+        hi = glm::max(hi, p);
+    }
+    const glm::vec3 ext = hi - lo;
+    int n_axis = 0;
+    if (ext.y < ext[static_cast<glm::length_t>(n_axis)]) {
+        n_axis = 1;
+    }
+    if (ext.z < ext[static_cast<glm::length_t>(n_axis)]) {
+        n_axis = 2;
+    }
+    report.normal_axis = static_cast<uint8_t>(n_axis);
+    const int a_axis = n_axis == 0 ? 1 : 0;
+    const int b_axis = n_axis == 2 ? 1 : 2;
+    glm::vec3 dir{0.0f};
+    dir[static_cast<glm::length_t>(n_axis)] = 1.0f;
+    const float t_max = ext[static_cast<glm::length_t>(n_axis)] + 2.0f;
+    const float a0 = lo[static_cast<glm::length_t>(a_axis)] + rim_m;
+    const float a1 = hi[static_cast<glm::length_t>(a_axis)] - rim_m;
+    const float b0 = lo[static_cast<glm::length_t>(b_axis)] + rim_m;
+    const float b1 = hi[static_cast<glm::length_t>(b_axis)] - rim_m;
+    for (float a = a0; a <= a1; a += step_m) {
+        for (float b = b0; b <= b1; b += step_m) {
+            math::Ray ray;
+            ray.origin[static_cast<glm::length_t>(n_axis)] =
+                lo[static_cast<glm::length_t>(n_axis)] - 1.0f;
+            ray.origin[static_cast<glm::length_t>(a_axis)] = a;
+            ray.origin[static_cast<glm::length_t>(b_axis)] = b;
+            ray.direction = dir;
+            ++report.rays_cast;
+            bool hit = false;
+            for (std::size_t k = 0; k + 2 < indices.size(); k += 3) {
+                if (math::ray_vs_triangle(ray, positions[indices[k]],
+                                          positions[indices[k + 1]],
+                                          positions[indices[k + 2]], t_max)) {
+                    hit = true;
+                    break;
+                }
+            }
+            if (!hit) {
+                if (report.rays_through == 0) {
+                    glm::vec3 at = ray.origin;
+                    at[static_cast<glm::length_t>(n_axis)] =
+                        (lo[static_cast<glm::length_t>(n_axis)]
+                         + hi[static_cast<glm::length_t>(n_axis)]) * 0.5f;
+                    report.first_hole = at;
+                }
+                ++report.rays_through;
+            }
+        }
+    }
+    return report;
 }
 
 } // namespace dfn::world

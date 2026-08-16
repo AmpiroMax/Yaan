@@ -1,0 +1,101 @@
+# Daggerfall N scene — СБОРКА: стеновая панель сруба, 16u (4 м) x 2.78 м.
+# Печётся в один объект: dfn_assemble ... --group asm-wall-log-16u
+# Судится: dfn_scene_check ... --solid asm-wall-log-16u (просвет насквозь = дефект)
+map = panels/wall-log-16u
+world_span_m = 256
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 25.62 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 1 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 25.85 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 2 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 26.08 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 3 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 26.31 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 4 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 26.54 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 5 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 26.77 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 6 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 27.00 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 7 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 27.23 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 8 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 27.46 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 9 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 27.69 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 10 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 27.92 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 11 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 134 28.15 128
+yaw = 0
+scale = 1
+group = asm-wall-log-16u
+note = венец 12 из 12, шаг 0.23 (нахлёст 0.02 больше макс. прогиба w03)

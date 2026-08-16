@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 22:11:51
+Last updated: 16:08:2026 - 22:45:34
 Module: tools
 File: tools/check_scene.cpp
 
@@ -50,6 +50,9 @@ UPD:
   (.dfo с полок, с yaw/scale размещения), а не имена и не габариты: щель в
   1.7 см между досками прибор видит, а глаз на кадре с одной стены — нет.
   Лучи ниже горизонта на -0.15 не пускаются: земляной пол — не дыра.
+- 16:08:2026 - 22:45:34: --solid <группа> — просвет насквозь для сборок-панелей; сама
+  проверка живёт в engine/world (check_panel_solid), судья лишь собирает
+  суп с полок и печатает счёт и адрес дыры.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -309,6 +312,56 @@ int check_shell(Ctx* ctx, const dfn::world::SceneDoc& doc) {
     return leaks_total;
 }
 
+/// THE PANEL INSTRUMENT (--solid <group>). A flat ASSEMBLY — a wall panel, a
+/// floor deck — has no room to stand a probe in, so the hull fan is the wrong
+/// instrument for it; what a panel promises is NO DAYLIGHT STRAIGHT THROUGH.
+/// A grid of parallel rays is cast across the group's THINNEST axis (that is
+/// the panel's normal, found from the bounding box, not from any property
+/// under test — Rule 47), one ray per centimetre: the narrowest hole this
+/// zone has ever shipped was a 1.7 cm board gap, and a coarser grid would
+/// certify a wall of open seams (Rule 50). Zero rays through = solid.
+int check_solid(Ctx* ctx, const dfn::world::SceneDoc& doc, const std::string& group) {
+    using dfn::render::MeshData;
+    std::map<std::string, MeshData> cache;
+    MeshData soup;
+    for (const auto& p : doc.placements) {
+        if (p.group != group) {
+            continue;
+        }
+        const auto merged = read_merged(ctx, p.object, cache);
+        if (!merged) {
+            std::fprintf(stderr, "[solid] %s: no such object on the shelves\n",
+                         p.object.c_str());
+            return -1;
+        }
+        dfn::render::append_transformed(soup, *merged, p.position, p.yaw, p.scale);
+    }
+    if (soup.vertices.empty()) {
+        std::fprintf(stderr, "[solid] group \"%s\": nothing in it\n", group.c_str());
+        return -1;
+    }
+    // ONE instrument, TWO callers (this judge and dfn_assemble's
+    // --require-solid): the function lives in engine/world, and neither
+    // caller holds an opinion of its own about what "solid" means.
+    std::vector<glm::vec3> positions;
+    positions.reserve(soup.vertices.size());
+    for (const auto& v : soup.vertices) {
+        positions.push_back(v.position);
+    }
+    const dfn::world::SolidReport r =
+        dfn::world::check_panel_solid(positions, soup.indices);
+    std::printf("[solid] group \"%s\": %d ray(s) across axis %c, %d through%s\n",
+                group.c_str(), r.rays_cast, "xyz"[r.normal_axis], r.rays_through,
+                r.rays_through == 0 ? " — solid" : "");
+    if (r.rays_through > 0) {
+        std::printf("[solid]   first daylight at (%.3f, %.3f, %.3f)\n",
+                    static_cast<double>(r.first_hole.x),
+                    static_cast<double>(r.first_hole.y),
+                    static_cast<double>(r.first_hole.z));
+    }
+    return r.rays_through;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -325,6 +378,7 @@ int main(int argc, char** argv) {
     std::string objects_dir = "assets/objects/trees";
     bool fix = false;
     bool shell = false;
+    std::string solid_group;
     bool ground_query = false;
     float query_x = 0.0f;
     float query_z = 0.0f;
@@ -334,6 +388,8 @@ int main(int argc, char** argv) {
             fix = true;
         } else if (std::strcmp(argv[i], "--shell") == 0) {
             shell = true;
+        } else if (std::strcmp(argv[i], "--solid") == 0 && i + 1 < argc) {
+            solid_group = argv[++i];
         } else if (std::strcmp(argv[i], "--ground") == 0 && i + 2 < argc) {
             ground_query = true;
             query_x = std::strtof(argv[++i], nullptr);
@@ -455,6 +511,12 @@ int main(int argc, char** argv) {
     if (shell) {
         leaks = check_shell(&ctx, doc);
         if (leaks < 0) {
+            return 1;
+        }
+    }
+    if (!solid_group.empty()) {
+        const int through = check_solid(&ctx, doc, solid_group);
+        if (through != 0) {
             return 1;
         }
     }
