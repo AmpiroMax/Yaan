@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 16:08:2026 - 22:16:30
+Last updated: 16:08:2026 - 22:40:03
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -40,10 +40,28 @@ UPD:
   тенями и перестали быть отверстиями; (5) дверное полотно — сплошная
   подложка с тыльной стороны. Мера — прибор dfn_scene_check --shell: до
   правки 216/18842 лучей наружу на хуторе.
+- 16:08:2026 - 22:28:22: Мешер бруса (Rng/Material/tone/hewn_bar/block) вынесен ДОСЛОВНО
+  в HewnBar.h — у кузницы утвари (PropForge) те же брусья, а вторая копия
+  мешера — правило 39. Контроль: перепечка набора после выноса не изменила
+  ни одного .dfo (git diff пуст) — геометрия та же до байта.
+- 16:08:2026 - 22:40:03: ВТОРАЯ ПОЛОВИНА дырок — тёмный провал (лид, пункт 2: «дыра — это
+  и то, что ЧИТАЕТСЯ как отверстие»). Найдено прибором measure_bay_contrast:
+  стеновая панель была ОДНОСТОРОННЕЙ, и восточные стены хутора показывали
+  улице голое тёмное ядро (yaw −90° разворачивает «наружную» плоскость
+  внутрь), а подложка дверного полотна легла с УЛИЧНОЙ стороны досок. Теперь:
+  доски двумя кожами у ОБЕИХ плоскостей стены (стену видно с улицы и из
+  комнаты — интерьеры 1к1), ядро между ними; штукатурка — плита во всю
+  толщину; подложка двери — со стороны накладок. Тёмные доски подмешивают
+  0.60 тона рамы и несут широкий разброс: светлая рама вокруг ровно-тёмного
+  поля — графический признак ОТВЕРСТИЯ. Числа (кадр восточной стены, обе
+  руки из одного кадра): провал был 0.357 от рамы (до запечатывания 0.555),
+  принятый пролёт 0.606; пол приёмки 0.50; стало 0.798 при принятом 0.945,
+  оболочка осталась 0/18842.
 */
 
 #include "engine/render/sources/PartForge.h"
 
+#include "engine/render/sources/HewnBar.h"
 #include "engine/render/sources/ProcMesh.h"
 
 #include <algorithm>
@@ -57,33 +75,13 @@ UPD:
 namespace dfn::render {
 namespace {
 
-constexpr float TAU = 6.28318530718f;
-
-/// Deterministic, cheap, and NOT std::mt19937: the same params must give the
-/// same bytes on every machine that ever rebuilds this kit (Rule 13.1's spirit
-/// applied to objects).
-struct Rng {
-    uint64_t s;
-    explicit Rng(uint64_t seed) : s(seed * 6364136223846793005ull + 1442695040888963407ull) {}
-    float unit() {
-        s ^= s << 13;
-        s ^= s >> 7;
-        s ^= s << 17;
-        return static_cast<float>((s >> 40) & 0xFFFFFF) / 16777216.0f;
-    }
-    /// Symmetric around zero: the wobble a timber gets must be as likely to
-    /// bend one way as the other, or a wall of studs leans.
-    float sym(float amount) { return (unit() * 2.0f - 1.0f) * amount; }
-};
+// The bar mesher, its material record and its rng live in HewnBar.h since the
+// furniture forge was born — one builder, two forges, zero copies (Rule 39).
+// The short local names keep every make_* below reading as it always did.
+using Rng = HewnRng;
+using Material = HewnMaterial;
 
 [[nodiscard]] float m_of(int units) { return static_cast<float>(units) * BUILD_GRID_M; }
-
-struct Material {
-    glm::vec3 color;
-    float jitter;   ///< per-face tone spread at wear = 1
-    float chamfer;  ///< fraction of the half-section cut off the corners
-    float wobble;   ///< how far a section ring wanders at wear = 1, metres
-};
 
 [[nodiscard]] Material material_of(PartMaterial m) {
     switch (m) {
@@ -131,103 +129,14 @@ constexpr int STAIR_RISE_U = 1;
 constexpr int STAIR_GOING_U = 2;
 
 [[nodiscard]] uint32_t tone(const Material& mat, float wear, Rng& rng) {
-    // Wear darkens (weather greys wood down, it never brightens it) and widens
-    // the spread, so a worn wall's boards differ from each other and a new
-    // one's do not.
-    const float dark = 1.0f - 0.22f * wear;
-    const float j = 1.0f + rng.sym(mat.jitter * (0.35f + 0.65f * wear));
-    glm::vec3 c = mat.color * dark * j;
-    c = glm::clamp(c, glm::vec3{0.02f}, glm::vec3{1.0f});
-    return pack(c);
+    return hewn_tone(mat, wear, rng);
 }
 
-[[nodiscard]] glm::vec3 perp_of(const glm::vec3& axis) {
-    const glm::vec3 ref = std::fabs(axis.y) > 0.9f ? glm::vec3{1.0f, 0.0f, 0.0f}
-                                                   : glm::vec3{0.0f, 1.0f, 0.0f};
-    return glm::normalize(glm::cross(ref, axis));
-}
-
-/// THE ONE BUILDER. A closed chamfered prism of half-width `hw` (across `side`)
-/// and half-height `hh` (across `up`), swept `len` metres along `along` from
-/// `origin`, which sits at the CENTRE of the starting face. Split into
-/// `segments` so wear can bend it; capped at both ends so it is a volume and
-/// not a tube (Rule 52).
-void hewn_bar(MeshData& m, glm::vec3 origin, glm::vec3 along, glm::vec3 up, float len,
-              float hw, float hh, const Material& mat, float wear, Rng& rng,
-              int segments = 2, float taper = 1.0f) {
-    along = glm::normalize(along);
-    glm::vec3 side = glm::cross(up, along);
-    if (glm::length(side) < 1e-4f) {
-        side = perp_of(along);
-    }
-    side = glm::normalize(side);
-    up = glm::normalize(glm::cross(along, side));
-
-    const float c = mat.chamfer;
-    // Section as (u, v) fractions of (hw, hh). Eight points when chamfered,
-    // four when not: a zero chamfer through the eight-point path would emit
-    // four degenerate quads whose normals are undefined.
-    std::vector<glm::vec2> sec;
-    if (c > 0.01f) {
-        sec = {{-1.0f + c, -1.0f}, {1.0f - c, -1.0f}, {1.0f, -1.0f + c}, {1.0f, 1.0f - c},
-               {1.0f - c, 1.0f},   {-1.0f + c, 1.0f}, {-1.0f, 1.0f - c}, {-1.0f, -1.0f + c}};
-    } else {
-        sec = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
-    }
-    const int n = static_cast<int>(sec.size());
-    segments = std::max(1, segments);
-
-    const float wob = mat.wobble * wear;
-    std::vector<std::vector<glm::vec3>> rings(static_cast<std::size_t>(segments) + 1);
-    std::vector<glm::vec3> centres(static_cast<std::size_t>(segments) + 1);
-    for (int s = 0; s <= segments; ++s) {
-        const float t = static_cast<float>(s) / static_cast<float>(segments);
-        // Ends stay put: two bars butted end to end must still meet, so the
-        // wobble is zero at t=0 and t=1 and largest in the middle.
-        const float bend = std::sin(t * TAU * 0.5f);
-        const glm::vec3 centre = origin + along * (len * t)
-                               + side * (rng.sym(wob) * bend)
-                               + up * (rng.sym(wob) * bend);
-        centres[static_cast<std::size_t>(s)] = centre;
-        const float scale = 1.0f + (taper - 1.0f) * t;
-        auto& ring = rings[static_cast<std::size_t>(s)];
-        ring.resize(static_cast<std::size_t>(n));
-        for (int i = 0; i < n; ++i) {
-            ring[static_cast<std::size_t>(i)] =
-                centre + side * (sec[static_cast<std::size_t>(i)].x * hw * scale)
-                       + up * (sec[static_cast<std::size_t>(i)].y * hh * scale);
-        }
-    }
-
-    for (int s = 0; s < segments; ++s) {
-        const auto& p = rings[static_cast<std::size_t>(s)];
-        const auto& q = rings[static_cast<std::size_t>(s) + 1];
-        for (int i = 0; i < n; ++i) {
-            const int k = (i + 1) % n;
-            quad(m, p[static_cast<std::size_t>(i)], p[static_cast<std::size_t>(k)],
-                 q[static_cast<std::size_t>(k)], q[static_cast<std::size_t>(i)],
-                 tone(mat, wear, rng));
-        }
-    }
-    const auto& first = rings.front();
-    const auto& last = rings.back();
-    const uint32_t cap = tone(mat, wear, rng);
-    for (int i = 0; i < n; ++i) {
-        const int k = (i + 1) % n;
-        tri(m, centres.front(), first[static_cast<std::size_t>(k)],
-            first[static_cast<std::size_t>(i)], cap);
-        tri(m, centres.back(), last[static_cast<std::size_t>(i)],
-            last[static_cast<std::size_t>(k)], cap);
-    }
-}
-
-/// An axis-aligned block from its min corner. Just the bar with no chamfer and
-/// no bend, named for what a composer thinks he is placing.
+/// An axis-aligned block from its min corner (HewnBar's shorthand, kept under
+/// the name every make_* below was written against).
 void block(MeshData& m, glm::vec3 min, glm::vec3 size, const Material& mat, float wear,
            Rng& rng, int segments = 1) {
-    hewn_bar(m, min + glm::vec3{size.x * 0.5f, size.y * 0.5f, 0.0f},
-             {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, size.z, size.x * 0.5f, size.y * 0.5f,
-             mat, wear, rng, segments);
+    hewn_block(m, min, size, mat, wear, rng, segments);
 }
 
 // ---------------------------------------------------------------------------
@@ -288,34 +197,54 @@ void make_wall(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) 
     if (in_w <= 0.0f || in_h <= 0.0f) {
         return;
     }
+    // A WALL IS SEEN FROM BOTH SIDES — the street and the room (interiors are
+    // built 1:1 inside the same box), and half the placements in a real scene
+    // turn the part's back to the camera (yaw flips which face is "outer").
+    // A one-sided bay was measured doing exactly that: the farmhouse's east
+    // walls showed their naked dark core to the street and read as pits while
+    // the boards faced the furniture.
+    //
     // Solid infill or boarded, decided by the MATERIAL and not by comparing
     // colours: two materials may one day share a tone, and a wall that quietly
     // changed construction because of that would be very hard to explain.
-    // EITHER WAY THE BAY SITS AT THE FRAME'S OUTER PLANE, not sunk mid-depth:
-    // a recessed bay lights as a pit and reads as a hole even where none is
-    // (the user's farmhouse frame, both complaints at once).
     if (p.material == PartMaterial::Plaster || p.material == PartMaterial::Stone) {
-        block(m, {fs, fs, t - INFILL_THICK_M}, {in_w, in_h, INFILL_THICK_M}, mat,
-              p.wear, rng, 2);
+        // Full-depth slab, faces just shy of both wall planes: plaster set
+        // into its frame, readable from either side, no through gap.
+        block(m, {fs, fs, 0.02f}, {in_w, in_h, t - 0.04f}, mat, p.wear, rng, 2);
         return;
     }
     // THE SEALED CORE, Rule 52 + the zone's sealed-hull rule: a closed slab
-    // BEHIND the boards, so the shadow gap between two boards stays a shadow
-    // and stops being a through-hole. Its tone is the wall's own, darkened —
-    // what the eye reads in a real board gap is the dark of the board behind.
+    // BETWEEN the two board skins, so the shadow gap between two boards stays
+    // a shadow and stops being a through-hole. Its tone is the wall's own,
+    // darkened — what the eye reads in a real board gap is dark depth.
     Material core = mat;
     core.color *= 0.55f;
     core.wobble = 0.0f;
-    block(m, {fs, fs, t - INFILL_THICK_M - WALL_CORE_M},
+    block(m, {fs, fs, t * 0.5f - WALL_CORE_M * 0.5f},
           {in_w, in_h, WALL_CORE_M}, core, p.wear * 0.5f, rng, 2);
+    // THE DARK-PIT HALF of the user's complaint: a bay much darker than its
+    // own frame reads as an opening before the eye finds the boards — a light
+    // frame around a flat dark field is the graphic signature of a HOLE. So
+    // infill boards lean toward the frame's tone (measured on the farmhouse
+    // east wall: pure TimberDark sat at 0.36 of the frame's luminance, the
+    // accepted timber bay at 0.61, acceptance floor 0.50) and carry a wider
+    // per-board spread so the field never reads as one flat pit.
+    Material bmat = mat;
+    bmat.color = glm::mix(mat.color, frame.color, 0.60f);
+    bmat.jitter = mat.jitter * 1.6f;
     const int boards = std::max(2, static_cast<int>(in_w / BOARD_W_M + 0.5f));
     const float bw = in_w / static_cast<float>(boards);
     for (int i = 0; i < boards; ++i) {
         const float x = fs + static_cast<float>(i) * bw;
         const float gap = BOARD_GAP_M * (0.3f + 0.7f * p.wear);
+        // One skin at each wall plane; the same board pattern on both, the
+        // way a clad timber wall is actually built.
         hewn_bar(m, {x + bw * 0.5f, fs, t - INFILL_THICK_M * 0.5f}, {0.0f, 1.0f, 0.0f},
                  {0.0f, 0.0f, 1.0f}, in_h, (bw - gap) * 0.5f, INFILL_THICK_M * 0.5f,
-                 mat, p.wear, rng, 2);
+                 bmat, p.wear, rng, 2);
+        hewn_bar(m, {x + bw * 0.5f, fs, INFILL_THICK_M * 0.5f}, {0.0f, 1.0f, 0.0f},
+                 {0.0f, 0.0f, 1.0f}, in_h, (bw - gap) * 0.5f, INFILL_THICK_M * 0.5f,
+                 bmat, p.wear, rng, 2);
     }
 }
 
@@ -478,13 +407,15 @@ void make_door_leaf(MeshData& m, const PartParams& p, const Material& mat, Rng& 
     const float w = m_of(p.length_u);
     const float h = m_of(p.height_u);
     // THE SEALED CORE: board gaps on a door are through-holes too. A closed
-    // backing plate on the leaf's inner face — the side a visitor never
-    // studies — keeps the plank read outside and the hull sealed.
+    // backing plate on the LEDGER side (between boards and ledgers, hidden by
+    // both) keeps the plank read on the street face and the hull sealed. It
+    // was first placed at z<0 — which is the STREET side of this part — and
+    // hid the whole plank front behind a flat dark plate.
     {
         Material core = mat;
         core.color *= 0.6f;
         core.wobble = 0.0f;
-        block(m, {0.0f, 0.0f, -0.03f}, {w, h, 0.03f}, core, p.wear * 0.5f, rng, 1);
+        block(m, {0.0f, 0.0f, LEAF_THICK_M}, {w, h, 0.03f}, core, p.wear * 0.5f, rng, 1);
     }
     const int boards = std::max(2, static_cast<int>(w / BOARD_W_M + 0.5f));
     const float bw = w / static_cast<float>(boards);
