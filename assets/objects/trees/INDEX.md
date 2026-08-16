@@ -1,16 +1,16 @@
 # Реестр объектов: деревья кузницы
 #
 # name | file | content_hash | wood_tris | leaf_tris | leaf_share
-oak-forge-a | oak-forge-a.dfo | 181e1bef60de1579 | 1328 | 1776 | 0.57
-oak-forge-b | oak-forge-b.dfo | 09e1779d4cde01f3 | 1364 | 1720 | 0.56
-oak-forge-c | oak-forge-c.dfo | 45ae5ac37ce06824 | 1418 | 1776 | 0.56
-birch-forge-a | birch-forge-a.dfo | 7fe9c2ffd140511d | 1112 | 1344 | 0.55
-birch-forge-b | birch-forge-b.dfo | ae54007a26c66229 | 1040 | 1264 | 0.55
-spruce-forge-a | spruce-forge-a.dfo | f736821a6a2ec1e5 | 140 | 1040 | 0.88
-spruce-forge-b | spruce-forge-b.dfo | f05856c4ff0b36e1 | 140 | 1240 | 0.90
-juniper-forge-a | juniper-forge-a.dfo | ff1a8ab927efc97b | 1076 | 1272 | 0.54
-aspen-forge-a | aspen-forge-a.dfo | 20bcfd662649988c | 1058 | 1296 | 0.55
-pine-forge-a | pine-forge-a.dfo | 5eccf8c015726074 | 140 | 440 | 0.76
-pine-forge-b | pine-forge-b.dfo | e1852ff57fecbaed | 140 | 440 | 0.76
-larch-forge-a | larch-forge-a.dfo | 237ac111b17b395f | 140 | 568 | 0.80
-great-forge-oak | great-forge-oak.dfo | 01b070a1be2fbd60 | 2264 | 2856 | 0.56
+oak-forge-a | oak-forge-a.dfo | 2e197d6747803ed0 | 1268 | 1200 | 0.49
+oak-forge-b | oak-forge-b.dfo | 21cd11276297fde6 | 1676 | 1704 | 0.50
+oak-forge-c | oak-forge-c.dfo | d988b16b36e5523d | 1820 | 1680 | 0.48
+birch-forge-a | birch-forge-a.dfo | 5c98faf967e77e98 | 1580 | 1488 | 0.49
+birch-forge-b | birch-forge-b.dfo | 0228a4e614a0f453 | 1532 | 1384 | 0.47
+spruce-forge-a | spruce-forge-a.dfo | d83452779e0fbbf3 | 140 | 1048 | 0.88
+spruce-forge-b | spruce-forge-b.dfo | d298e84b32121719 | 140 | 1224 | 0.90
+juniper-forge-a | juniper-forge-a.dfo | 234be0d264d426f1 | 1340 | 1352 | 0.50
+aspen-forge-a | aspen-forge-a.dfo | 10ef4d1bea78e8e9 | 1892 | 1768 | 0.48
+pine-forge-a | pine-forge-a.dfo | 949eb40a17783a28 | 140 | 424 | 0.75
+pine-forge-b | pine-forge-b.dfo | 8b5a8fd8d4d773e2 | 140 | 456 | 0.77
+larch-forge-a | larch-forge-a.dfo | 15fdb1654ff3934e | 140 | 592 | 0.81
+great-forge-oak | great-forge-oak.dfo | 5b4bb9f0f8c1ecfa | 3044 | 3120 | 0.51
