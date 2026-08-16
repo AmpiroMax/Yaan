@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 20:31:39
+Last updated: 16:08:2026 - 20:36:57
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -159,6 +159,12 @@ UPD:
   ридбека. Предупреждение, а НЕ зажим: смотреть на мир снизу — законное желание,
   а дверь, тихо сдвинувшая камеру, врала бы о позе, которую сама же пишет в
   сайдкар.
+- 16:08:2026 - 20:36:57: DFN_EDITOR_CAM_REL=x,высота_НАД_ЗЕМЛЁЙ,z,yaw,pitch — запрошена зоной
+  flora после потери двух дней на камере под миром. Те же пять полей, но вторая
+  величина мерится ОТ ЗЕМЛИ, поэтому рецепт остаётся верным на любом стенде:
+  земля галереи на ~25 м, у стенда одного дерева иная, и знать это наизусть
+  автор кадра не должен. Читается ПЕРЕД абсолютной дверью — рецепт, несущий обе,
+  получает ту, которую выписал буквами.
 */
 
 #include "engine/app/sources/App.h"
@@ -854,6 +860,34 @@ bool App::init(const AppConfig& config) {
         }
         if (editor_door) {
             enter_editor_mode();
+            // THE RELATIVE DOOR (DFN_EDITOR_CAM_REL=x,height_above_ground,z,
+            // yaw,pitch), asked for by the flora zone after it lost two days
+            // to a camera 11.8 m under the world. Same five fields, but the
+            // second is measured FROM THE GROUND, so a recipe stays right on
+            // any stand: the gallery's terrain sits at ~25 m, the one-tree
+            // stand's elsewhere, and no author should have to know either to
+            // frame a picture. Read BEFORE the absolute door so a recipe
+            // carrying both gets the absolute one it spelled out.
+            if (const char* rel = std::getenv("DFN_EDITOR_CAM_REL");
+                rel != nullptr && *rel != '\0') {
+                float x = 0, above = 0, z = 0, yaw = 0, pitch = 0;
+                if (std::sscanf(rel, "%f,%f,%f,%f,%f", &x, &above, &z, &yaw, &pitch)
+                    == 5) {
+                    const float ground = chunks_.height_at({x, z}).value_or(0.0f);
+                    editor_cam_.set_pose({x, ground + above, z}, yaw, pitch);
+                    std::fprintf(stderr,
+                                 "[editor] DFN_EDITOR_CAM_REL: ground %.2f m + %.2f = "
+                                 "eye at %.2f m\n",
+                                 static_cast<double>(ground), static_cast<double>(above),
+                                 static_cast<double>(ground + above));
+                } else {
+                    std::fprintf(stderr,
+                                 "[editor] DFN_EDITOR_CAM_REL=\"%s\" is not "
+                                 "x,height_above_ground,z,yaw,pitch -- REFUSED, "
+                                 "keeping the player-eye seed\n",
+                                 rel);
+                }
+            }
             if (const char* cam = std::getenv("DFN_EDITOR_CAM");
                 cam != nullptr && *cam != '\0') {
                 float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
