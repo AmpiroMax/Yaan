@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 22:38:52
-Last updated: 16:08:2026 - 22:38:52
+Last updated: 16:08:2026 - 22:50:41
 Module: tools
 File: tools/assemble_object.cpp
 
@@ -37,6 +37,14 @@ UPD:
   мелких деталей будет собирать большие, чтобы меньше дырок было... стены пусть
   соберет, как панели, панели для пола соберет из нескольких брёвен... и
   зафиксируется как единый объект».
+- 16:08:2026 - 22:50:41: --require-solid — печь только СПЛОШНУЮ сборку. Зовёт ту же
+  check_panel_solid, что и судья ключом --solid: одна функция, двое зовущих,
+  ни у одного своего мнения. Отказ стоит У ПЕЧИ, а не только у судьи, потому
+  что мимо судьи можно испечь, а с этого момента течь перестаёт быть одним
+  дефектом и становится по одному на каждую копию панели в городе — ровно то,
+  ради чего пользователь и просил сборки. Поток cards в проверку НЕ идёт:
+  листовые карточки альфа-вырезаны, и прибор объявил бы дырой каждую; сборка,
+  которая держится замкнутой за счёт листвы, не замкнута.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -68,6 +76,7 @@ int main(int argc, char** argv) {
     fs::path out_path;
     std::string shelves_arg = "assets/objects/parts";
     std::string handle;
+    bool require_solid = false;
     for (int i = 2; i < argc; ++i) {
         const auto next = [&](const char* what) -> const char* {
             if (i + 1 >= argc) {
@@ -84,6 +93,8 @@ int main(int argc, char** argv) {
             shelves_arg = next("--objects");
         } else if (std::strcmp(argv[i], "--name") == 0) {
             handle = next("--name");
+        } else if (std::strcmp(argv[i], "--require-solid") == 0) {
+            require_solid = true;
         } else {
             std::fprintf(stderr, "[assemble] unknown argument \"%s\" -- REFUSED\n", argv[i]);
             return 2;
@@ -180,6 +191,46 @@ int main(int argc, char** argv) {
         append_transformed(out.cards, obj.cards, at, p->yaw, p->scale);
         append_transformed(out.ground, obj.ground, at, p->yaw, p->scale);
         append_transformed(out.bark, obj.bark, at, p->yaw, p->scale);
+    }
+
+    // SOLID OR NOT BAKED, when asked. The same check the judge runs under
+    // --solid, called here through its ONE definition in engine/world: a
+    // panel that leaks must not become a .dfo, because from that moment the
+    // leak stops being one defect and becomes one per copy placed in the town.
+    // Refusing at the oven is the whole reason the user asked for assemblies
+    // («чтобы меньше дырок было»); refusing only in the judge would leave a
+    // way to bake past him.
+    if (require_solid) {
+        std::vector<glm::vec3> positions;
+        std::vector<uint32_t> indices;
+        const auto feed = [&](const MeshData& mesh) {
+            const uint32_t base = static_cast<uint32_t>(positions.size());
+            for (const dfn::platform::Vertex& v : mesh.vertices) {
+                positions.push_back(v.position);
+            }
+            for (const uint32_t i : mesh.indices) {
+                indices.push_back(base + i);
+            }
+        };
+        feed(out.wood);
+        feed(out.bark);
+        feed(out.ground);
+        // `cards` is deliberately NOT fed: leaf cards are alpha-cut sheets and
+        // a solidity test would call every one of them a hole. An assembly
+        // that leans on foliage to be closed is not closed.
+        const SolidReport r = check_panel_solid(positions, indices);
+        if (r.rays_through > 0) {
+            std::fprintf(stderr,
+                         "[assemble] %s LEAKS: %d of %d ray(s) pass through "
+                         "(axis %u), first hole at (%.2f, %.2f, %.2f) -- REFUSED, "
+                         "nothing written\n", group.c_str(), r.rays_through,
+                         r.rays_cast, static_cast<unsigned>(r.normal_axis),
+                         static_cast<double>(r.first_hole.x),
+                         static_cast<double>(r.first_hole.y),
+                         static_cast<double>(r.first_hole.z));
+            return 1;
+        }
+        std::printf("[assemble]   solid: 0 of %d ray(s) through\n", r.rays_cast);
     }
 
     std::error_code ec;
