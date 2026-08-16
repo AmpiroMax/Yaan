@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 16:08:2026 - 21:08:52
+# Last updated: 16:08:2026 - 22:40:23
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -40,6 +40,10 @@
 #                          столб, доска, стена, фронтон, скат, лестница, дверь,
 #                          окно, фундамент, забор) в реестр .dfo, чтобы агент
 #                          СОБИРАЛ дома из готового, а не писал дом кодом.
+# - 16:08:2026 - 22:40:23: dfn_assemble — группа деталей .scene спекается в ОДИН
+#                          объект реестра. Второй уровень набора: из ста блоков
+#                          стены собирается неограниченное число панелей, и
+#                          запечатанная один раз панель не может протечь заново.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -142,3 +146,9 @@ target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
 # would be discovered by a builder mid-house.
 add_executable(dfn_kit tools/forge_kit.cpp)
 target_link_libraries(dfn_kit PRIVATE dfn_render dfn_core)
+
+# THE ASSEMBLER (dfn_assemble): freezes a GROUP of a .scene into one registry
+# object — the kit's second level, where small parts become a wall panel. Same
+# standing as the rest of the pipeline.
+add_executable(dfn_assemble tools/assemble_object.cpp)
+target_link_libraries(dfn_assemble PRIVATE dfn_world dfn_render dfn_core)

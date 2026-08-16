@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 16:08:2026 - 22:40:23
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -55,6 +55,9 @@ UPD:
   забор «стоял внутри» дома через три метра пустой травы. И асимметричный
   допуск bury_tolerance_m: постройка ВРЕЗАЕТСЯ в склон подошвой (так кладут
   камень), а висит в воздухе — всегда ошибка; одинокому дереву поблажки нет.
+- 16:08:2026 - 22:40:23: split_shelves() — разбор списка полок реестра. ОДНО определение: три
+  инструмента уже разбирали его своей копией, а список полок, означающий в игре
+  и в её судье разное, — это судья другого мира (правило 35).
 */
 
 #pragma once
@@ -181,6 +184,12 @@ struct SceneLimits {
 /// that repairs is a checker whose report nobody reads.
 [[nodiscard]] std::size_t fix_scene_ground(SceneDoc& doc, const SceneWorld& world,
                                            const SceneLimits& limits = {});
+
+/// Splits a shelf list ("a;b;c") into its directories, trimmed, empties
+/// dropped. ONE definition because three tools already need it — the app, the
+/// checker and the assembler — and a shelf list that means different things in
+/// the game and in its judge is a judge of a different world (Rule 35).
+[[nodiscard]] std::vector<std::string> split_shelves(const std::string& list);
 
 /// Human-readable one-liner for a finding (the tool's output, and the text an
 /// agent pastes into a map chat).

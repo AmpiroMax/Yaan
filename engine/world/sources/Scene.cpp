@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 21:50:43
+Last updated: 16:08:2026 - 22:40:23
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -35,6 +35,7 @@ UPD:
   завтрашней секции, не прочтёт сегодняшний файл, написанный более новым
   инструментом. Та же позиция, что у неизвестного КЛЮЧА, — и она обязана быть
   той же, иначе обещание сдержано наполовину.
+- 16:08:2026 - 22:40:23: split_shelves() реализован здесь же.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -400,6 +401,23 @@ std::size_t fix_scene_ground(SceneDoc& doc, const SceneWorld& world,
         }
     }
     return moved;
+}
+
+std::vector<std::string> split_shelves(const std::string& list) {
+    std::vector<std::string> out;
+    for (std::size_t at = 0; at <= list.size();) {
+        const std::size_t sep = list.find(';', at);
+        const std::size_t end = sep == std::string::npos ? list.size() : sep;
+        std::string one = trim(std::string_view(list).substr(at, end - at));
+        if (!one.empty()) {
+            out.push_back(std::move(one));
+        }
+        if (sep == std::string::npos) {
+            break;
+        }
+        at = sep + 1;
+    }
+    return out;
 }
 
 std::string describe(const SceneFinding& f) {
