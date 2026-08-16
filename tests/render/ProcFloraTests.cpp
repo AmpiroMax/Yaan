@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 15:08:2026 - 16:02:49
+Last updated: 16:08:2026 - 20:42:17
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -223,6 +223,7 @@ UPD:
   construction and the table says so instead of the commit message.
 - 15:08:2026 - 15:54:46: Контракт альфы атласа: бинарная -> градиентная кромка (контроль правила 30 — бинарный атлас проваливает пол mid-текселей); BarkPlate исключён из теста листовых масок (непрозрачен по контракту, его непрозрачность утверждает градиентный тест).
 - 15:08:2026 - 16:02:49: Тест нормал-атласа: кора несёт рельеф (контроль правила 30 — плоский нейтральный лист даёт ноль и падает), все не-коровые тексели — строго нейтраль.
+- 16:08:2026 - 20:42:17: Полоса просветов NeedleFan отвязана от лиственной (у еловой лапы небо между иголками — строение, скан ~30%): frond cap 0.38, контроль слипшегося клина остаётся на ragged.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -1187,8 +1188,15 @@ TEST_CASE("atlas: mostly opaque body, ragged eroded edge, a few real gaps") {
         }
         REQUIRE(body > 200);
         const double gap_frac = static_cast<double>(gaps) / static_cast<double>(body);
-        // Mostly opaque: a handful of gaps, never lace.
-        CHECK(gap_frac <= 0.08);
+        // Mostly opaque: a handful of gaps, never lace — for LEAF MASSES,
+        // whose measured porosity lives at the rim (§3.10). The CONIFER FROND
+        // is a different object with a different truth: the Picea abies scan
+        // (docs/reference/spruce) runs ~30 % sky BETWEEN its needles, and a
+        // dense comb necessarily encloses that sky. Its cap is set from the
+        // scan, not inherited from broadleaf; the merged-wedge failure mode
+        // is still caught below — a solid wedge scores ragged ~1.6 and fails.
+        const bool frond = shape_i == static_cast<uint32_t>(LeafShape::NeedleFan);
+        CHECK(gap_frac <= (frond ? 0.38 : 0.08));
         // ...and the ragged edge is real. A smooth digital ellipse scores
         // ~1.62 on this ratio (64 / 4*pi^2, and it is scale-free); anything
         // near that means somebody smoothed the outline into a blob, which is

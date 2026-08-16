@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 16:08:2026 - 20:31:55
+Last updated: 16:08:2026 - 20:42:17
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -52,6 +52,7 @@ UPD:
 - 15:08:2026 - 16:15:28: Штампы стали ПЕР-ВИДОВЫМИ (паспорта §2.3-2.4): OvalSpray — осиновые монетки (мелкие, почти круглые), RaggedTip — берёзовые ромбики, RoundLobed — дубовые лопасти. Три вида перестали делить один лист.
 - 16:08:2026 - 20:23:55: КОРА v3 ПО ФОТО (вердикт: «вырвиглазные... прямоугольнички»; решение пользователя: сверяться с фото-эталоном, не выдумывать): (1) шум стал ПЕРИОДИЧЕСКИМ (pnoise, тор) — тайл повторяется frac'ом, зеркальный калейдоскоп мёртв; (2) частоты СНЯТЫ с Bark012 автокорреляцией (борозды 4-6 и 8-10 см, макро 20 см -> 44/88 + 12 на тайл 2.6 м) — v2 рисовала волны 40 см; (3) три октавы ridged + пер-колоночная светлота + сколы-хлопья; (4) диапазон светлот подогнан к фото (p5-p95 0.41-0.65). Эталоны в docs/reference/, сверка A/B глазами на каждой итерации.
 - 16:08:2026 - 20:31:55: ШТАМПЫ ПО ГЕРБАРНЫМ СКАНАМ (docs/reference, правило сверки): дуб — вытянутый 1.75:1 с лопастями ПО БОКАМ и узким основанием (Quercus robur), берёза — дельтоид с одним острым носиком и пильчатым краем (Betula pendula), осина — круглая с крупной волной-кренатурой (Populus tremula); у всех светлая центральная ЖИЛКА. Круглый радиальный цветок v1 не был ничьим листом.
+- 16:08:2026 - 20:42:17: ФРОНД ПО СКАНУ Picea abies: стержень ОДЕТ иголками (не голый рахис с перьями), гребёнки веточек плотнее (скан ~70% иголка/просвет — было 45%, «рыбий скелет»), каждая иголка со своим светом; тон хвои — тёплый средне-зелёный по скану. Порог просветов фронда в тесте — от скана (~30% неба между иголками), не от лиственных крон; слипшийся клин по-прежнему валится по ragged.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -171,11 +172,11 @@ glm::vec3 tone_summer(LeafTone t) {
     case LeafTone::BirchPale: return {0.62f, 0.68f, 0.34f};
     case LeafTone::WillowDark: return {0.16f, 0.27f, 0.19f};
     case LeafTone::WillowOlive: return {0.24f, 0.34f, 0.18f};
-    // Calibrated against the fir photoscan's needle sheet (passports §1):
-    // live needles are warm OLIVE (H≈0.18, V-median 0.38), not blue-green
-    // murk — the old {0.12 0.22 0.19} was both too dark and too cold. Value
-    // order vs oak (the §5.11 invariant) still holds: L=0.28 vs oak 0.36.
-    case LeafTone::ConiferDark: default: return {0.26f, 0.31f, 0.17f};
+    // Calibrated against the fir photoscan AND the Picea abies herbarium
+    // scan (docs/reference/spruce): live needles are a warm MID-GREEN
+    // (the old {0.12 0.22 0.19} was murk, the olive first fit still a shade
+    // too brown). Value order vs oak (§5.11): L=0.31 vs oak 0.36 — holds.
+    case LeafTone::ConiferDark: default: return {0.28f, 0.35f, 0.19f};
     }
 }
 
@@ -499,6 +500,34 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 lit = 0.42f; // bare wood, darker than needles
                             }
                         }
+                        // NEEDLES ON THE STEM ITSELF (the Picea scan: the
+                        // twig is CLOTHED in needles, not a bare rachis with
+                        // side plumes) — a comb radiating forward from the
+                        // stem band, denser than the branchlet combs.
+                        if (alpha < 1.0f && along > -0.80f && along < 0.84f) {
+                            const float av0 = std::fabs(across);
+                            const float nl0 = 0.085f;
+                            if (av0 < nl0) {
+                                constexpr float PITCH0 = 0.026f;
+                                const float ph0 = (along + across * 0.55f) / PITCH0;
+                                const int ni0 = static_cast<int>(std::round(ph0));
+                                const float comb0 =
+                                    std::fabs(ph0 - std::round(ph0)) * PITCH0;
+                                if (comb0 < 0.0085f
+                                    && hash01(ni0, across > 0.0f ? 21 : 23, sd.seed)
+                                           > 0.12f) {
+                                    const float a0 = std::clamp(
+                                        (nl0 - av0) / (0.30f * nl0), 0.0f, 1.0f);
+                                    if (a0 > alpha) {
+                                        alpha = a0;
+                                        lit = (0.80f
+                                               + 0.40f * std::clamp(-across * 3.0f + 0.4f,
+                                                                    0.0f, 1.0f))
+                                            * (0.85f + 0.30f * hash01(ni0, 29, sd.seed));
+                                    }
+                                }
+                            }
+                        }
                         // Branchlets, alternating sides, shorter toward the tip
                         // and RAKED toward it — the fir frame's own geometry.
                         constexpr int PINNAE = 12;
@@ -529,12 +558,14 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 // neighbouring branchlets merge into a solid
                                 // wedge and the frond stops being pinnate
                                 // (caught by the gap/ragged suite on sight).
-                                const float nl = 0.058f * (1.0f - 0.5f * u01)
+                                const float nl = 0.066f * (1.0f - 0.5f * u01)
                                                * (0.7f + 0.6f * (1.0f - std::fabs(u01 - 0.35f)));
                                 const float av = std::fabs(v);
                                 if (av > nl && av > 0.012f) continue;
                                 // The comb: needles PITCH apart along the
-                                // branchlet, a few missing; sky between them.
+                                // branchlet, a few missing. DENSE (the Picea
+                                // scan runs ~70 % needle over gap — the first
+                                // cut's 45 % read as a fish skeleton).
                                 constexpr float PITCH = 0.030f;
                                 const float ph = u / PITCH;
                                 const int ni = static_cast<int>(std::round(ph));
@@ -545,7 +576,7 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 float a_here = 0.0f;
                                 if (av < 0.012f && u01 < 0.9f) {
                                     a_here = 1.0f; // the branchlet spine itself
-                                } else if (comb < 0.0055f) {
+                                } else if (comb < 0.0085f) {
                                     // Gradient at the needle's own tip.
                                     a_here = std::clamp((nl - av) / (0.30f * nl + 1e-4f),
                                                         0.0f, 1.0f);
@@ -553,9 +584,11 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 if (a_here <= alpha) continue;
                                 alpha = a_here;
                                 // Needles read lighter than wood; outer half of
-                                // the frond catches more sky.
-                                lit = 0.78f + 0.45f * std::clamp(v * 3.0f + 0.4f, 0.0f, 1.0f)
-                                    - 0.22f * tip01;
+                                // the frond catches more sky, and EACH NEEDLE
+                                // carries its own catch (the scan's sparkle).
+                                lit = (0.78f + 0.45f * std::clamp(v * 3.0f + 0.4f, 0.0f, 1.0f)
+                                       - 0.22f * tip01)
+                                    * (0.85f + 0.30f * hash01(ni, pi + 31, sd.seed));
                             }
                         }
                         if (alpha <= 0.0f) continue;
