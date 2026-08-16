@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 01:26:10
+Last updated: 17:08:2026 - 02:31:45
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -61,6 +61,7 @@ UPD:
 - 16:08:2026 - 22:40:39: ФРОНД СЛОЖЕН ДОМИКОМ (V-сечение, края ниже хребта, нормали половинок врозь): плоская горизонтальная лента с уровня глаз — линия в пиксель, ВЕСЬ хвойный ряд стоял голым (геометрия была в .dfo — найдено дампом + логом расстановки; три раза принимал снаги рассыпки за свои ели). Ленты шире (0.42 reach), листов на якорь больше при spray_per_branch>2 (колосс «листвы мало»), жёлуди крупнее и ниже листа.
 - 16:08:2026 - 22:48:45: Реализация forge_bush/forge_fallen_log/forge_ground_prop (этап полянки).
 - 17:08:2026 - 01:26:10: Пучку травы — крошечный корневой пенёк в потоке древесины: объект из одних карт расстановщик сцены не мог поставить (стояло 111 из 195).
+- 17:08:2026 - 02:31:45: Ягоды на кончиках стволиков (двухконусные, 5.5-6.5 см, у листовой кромки); стелющийся хабитус; папоротник V-перьями; ЖЁЛУДИ-ЯБЛОКИ 11 см двухцветные с черешком («дуб волшебный»).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -476,21 +477,31 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         // ACORNS, oaks only: little bipyramids in twos under the sheets —
         // readable up close, invisible at range, exactly like the real thing.
         if (p.card_shape == LeafShape::RoundLobed) {
-            const uint32_t acorn_c = pack(glm::vec3{0.45f, 0.36f, 0.16f});
+            // APPLE-SIZED acorns (user, 17.08: «жёлуди как яблоки, дуб
+            // волшебный и большой»): 11 cm two-tone fruit — ochre-green body
+            // under a brown cap — hung well below the sheets so they read
+            // against the sky, not against the leaves.
+            const uint32_t body_c = pack(glm::vec3{0.62f, 0.55f, 0.20f});
+            const uint32_t cap_c = pack(glm::vec3{0.38f, 0.26f, 0.12f});
             for (const SprayAnchor& a : anchors) {
-                if (rng.unit() > 0.14f) continue;
+                if (rng.unit() > 0.18f) continue;
                 for (int k = 0; k < 3; ++k) {
-                    // Big enough to SEE (16.08: «желудей не вижу нигде») and
-                    // hung below the sheet's rim rather than inside it.
                     const glm::vec3 ap = a.pos
-                        + glm::vec3{rng.sym() * 0.30f, -0.30f - rng.unit() * 0.20f,
-                                    rng.sym() * 0.30f};
-                    const float ar = 0.06f;
+                        + glm::vec3{rng.sym() * 0.35f, -0.42f - rng.unit() * 0.25f,
+                                    rng.sym() * 0.35f};
+                    const float ar = 0.11f;
                     const glm::vec3 upv{0.0f, 1.0f, 0.0f};
-                    tube_segment(obj.wood, ap - upv * (ar * 1.5f), ap, upv,
-                                 0.012f, ar, 3, acorn_c);
-                    tube_segment(obj.wood, ap, ap + upv * (ar * 1.2f), upv,
-                                 ar, 0.0f, 3, acorn_c);
+                    // Stemlet, fruit body (two cones), brown cap on top.
+                    tube_segment(obj.wood, ap + upv * (ar * 1.1f),
+                                 ap + upv * (ar * 1.6f), upv, 0.012f, 0.008f, 3,
+                                 cap_c);
+                    tube_segment(obj.wood, ap - upv * (ar * 1.4f), ap, upv,
+                                 0.02f, ar, 4, body_c);
+                    tube_segment(obj.wood, ap, ap + upv * (ar * 0.9f), upv,
+                                 ar, ar * 0.55f, 4, body_c);
+                    tube_segment(obj.wood, ap + upv * (ar * 0.9f),
+                                 ap + upv * (ar * 1.15f), upv, ar * 0.58f, 0.0f, 4,
+                                 cap_c);
                 }
             }
         }
@@ -815,20 +826,26 @@ RegistryObject forge_bush(const BushForgeParams& p) {
             }
         }
     };
+    std::vector<glm::vec3> tips; // stem ends — where the berries hang
     for (int s = 0; s < p.stems; ++s) {
         const float az = TAU * (static_cast<float>(s) + rng.unit() * 0.5f)
                        / static_cast<float>(p.stems);
         const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
         glm::vec3 pos = out * (p.radius * 0.12f);
-        glm::vec3 d = safe_normalize(out * 0.55f + up, up);
+        // A CREEPING bush (можжевельник) hugs the ground: stems run nearly
+        // flat; an upright bush fountains.
+        glm::vec3 d = p.creeping ? safe_normalize(out + up * 0.18f, out)
+                                 : safe_normalize(out * 0.55f + up, up);
         float r = 0.028f + rng.unit() * 0.014f;
-        const float stem_len = p.height * (0.75f + rng.unit() * 0.35f);
+        const float stem_len = (p.creeping ? p.radius * 1.1f : p.height)
+                             * (0.75f + rng.unit() * 0.35f);
         glm::vec3 frame = perp_of(d);
         float arc = 0.0f;
         const int segs = 3;
         for (int si = 0; si < segs; ++si) {
-            // The stem arcs OUTWARD as it rises — a bush is a fountain.
-            d = safe_normalize(d + out * 0.18f + up * (si == 0 ? 0.1f : -0.05f), d);
+            d = p.creeping
+                ? safe_normalize(d + out * 0.25f + up * (si == 0 ? 0.02f : -0.10f), d)
+                : safe_normalize(d + out * 0.18f + up * (si == 0 ? 0.1f : -0.05f), d);
             const glm::vec3 np = pos + d * (stem_len / segs);
             const float nr = std::max(r * 0.6f, 0.012f);
             bark_tube(obj.bark, pos, np, d, r, nr, 3, bark_uv, arc, TAU * r,
@@ -843,6 +860,24 @@ RegistryObject forge_bush(const BushForgeParams& p) {
             r = nr;
         }
         sheet(pos, p.radius * (0.5f + rng.unit() * 0.2f));
+        tips.push_back(pos);
+    }
+    // BERRIES (user: «крупными и их должно быть видно»): closed bipyramids in
+    // little clusters at the stem tips, hanging just under the sheet rims —
+    // against the leaf mass, not buried in it.
+    if (p.berry_count > 0) {
+        const uint32_t berry_c = pack(p.berry);
+        for (int bi = 0; bi < p.berry_count; ++bi) {
+            const glm::vec3& tip = tips[static_cast<size_t>(bi) % tips.size()];
+            const glm::vec3 at = tip
+                + glm::vec3{rng.sym() * 0.22f, -0.10f - rng.unit() * 0.12f,
+                            rng.sym() * 0.22f};
+            const float br = p.berry_r * (0.8f + rng.unit() * 0.4f);
+            tube_segment(obj.wood, at - up * br, at, up, br * 0.25f, br * 0.95f, 4,
+                         berry_c);
+            tube_segment(obj.wood, at, at + up * (br * 0.8f), up, br * 0.95f, 0.0f,
+                         4, berry_c);
+        }
     }
     obj.content_hash = object_content_hash(obj);
     return obj;
@@ -984,6 +1019,62 @@ RegistryObject forge_ground_prop(const GroundPropParams& p) {
             tube_segment(obj.wood, head, head + up * 0.02f, up, 0.016f, 0.012f, 3,
                          heart_c);
         }
+    } else if (p.kind == GroundPropKind::Fern) {
+        // FERN: a fan of 7-9 arcing V-folded fronds from one crown point —
+        // the pinnate needle sheet reads as a fern leaf at this scale, and
+        // the fold keeps it visible edge-on (the same lesson the conifer
+        // lapa taught). Leaf material: sways, transmits backlight.
+        const glm::vec4 uv = leaf_tile_uv(LeafShape::NeedleFan, LeafTone::WillowOlive);
+        const int fronds = 7 + static_cast<int>(rng.unit() * 3.0f);
+        for (int f = 0; f < fronds; ++f) {
+            const float az = TAU * static_cast<float>(f) / fronds + rng.sym() * 0.25f;
+            const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+            const glm::vec3 side = safe_normalize(glm::cross(up, out),
+                                                  glm::vec3{1.0f, 0.0f, 0.0f});
+            glm::vec3 fpos{out.x * 0.03f, 0.04f, out.z * 0.03f};
+            glm::vec3 fd = safe_normalize(out * 0.55f + up, up); // rises, then arcs
+            const float len = p.height * (0.85f + rng.unit() * 0.4f);
+            const float half_w = len * 0.16f;
+            const float fold = 0.45f;
+            const int fsegs = 3;
+            const float v_mid = uv.y + (uv.w - uv.y) * 0.5f;
+            const auto base_v = static_cast<uint32_t>(obj.cards.vertices.size());
+            for (int s2 = 0; s2 <= fsegs; ++s2) {
+                const float t = static_cast<float>(s2) / fsegs;
+                if (s2 > 0) {
+                    fd = safe_normalize(fd + out * 0.30f - up * (0.42f * t), fd);
+                    fpos += fd * (len / fsegs);
+                }
+                const float ww = half_w
+                    * (0.35f + 0.65f * std::sin(std::min(3.1416f * (0.2f + 0.8f * t),
+                                                         3.1416f)));
+                const float uu = uv.x + (uv.z - uv.x) * (0.06f + 0.88f * t);
+                const float drop = ww * fold;
+                const uint32_t col = pack({0.3f + 0.7f * t, phase, 0.5f});
+                const glm::vec3 nl = safe_normalize(up * 0.8f - side * fold, up);
+                const glm::vec3 nr = safe_normalize(up * 0.8f + side * fold, up);
+                obj.cards.vertices.push_back(
+                    {fpos - side * ww - up * drop, nl,
+                     {uu, uv.y + (uv.w - uv.y) * 0.06f}, col});
+                obj.cards.vertices.push_back(
+                    {fpos, safe_normalize(nl + nr, up), {uu, v_mid}, col});
+                obj.cards.vertices.push_back(
+                    {fpos + side * ww - up * drop, nr,
+                     {uu, uv.y + (uv.w - uv.y) * 0.94f}, col});
+            }
+            for (int s2 = 0; s2 < fsegs; ++s2) {
+                const uint32_t a0 = base_v + static_cast<uint32_t>(s2) * 3u;
+                obj.cards.indices.insert(obj.cards.indices.end(),
+                                         {a0, a0 + 3u, a0 + 4u, a0, a0 + 4u, a0 + 1u,
+                                          a0 + 1u, a0 + 4u, a0 + 5u,
+                                          a0 + 1u, a0 + 5u, a0 + 2u});
+            }
+        }
+        // The rootstock nub (same reason as the grass tuft: the scene placer
+        // needs a solid footprint).
+        tube_segment(obj.wood, glm::vec3{0.0f, -0.02f, 0.0f},
+                     glm::vec3{0.0f, 0.08f, 0.0f}, up, 0.03f, 0.02f, 3,
+                     pack(glm::vec3{0.25f, 0.20f, 0.12f}));
     } else {
         // MUSHROOMS: stem + cap, both closed volumes (rule 52 has no
         // exemption for a mushroom). A family of 3-5, sizes staggered.

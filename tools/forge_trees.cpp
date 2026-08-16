@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 22:48:45
+Last updated: 17:08:2026 - 02:31:45
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 16:08:2026 - 22:06:42: Листы гиганта/колосса не растут с деревом: spray_frac 0.15->0.09 и 0.10->0.05 — лист размером с крону штампует листья-одеяла.
 - 16:08:2026 - 22:40:39: Ель 7 ветвей на мутовку (складка ×2 трисов); колосс/гигант spray_per_branch 3.
 - 16:08:2026 - 22:48:45: ПОЛКА ПОЛЯНКИ assets/objects/glade: дуб-старейшина 30 м, берёзы/сосны кольца в 4/3 ростах, саженцы и молодняк, кусты, брёвна, пучки травы трёх высот, цветы трёх цветов, грибы. 25 объектов под сцену trees-glade.
+- 17:08:2026 - 02:31:45: Пресеты видов кустов: орешник, ягодник красный/тёмный (крупные ягоды), можжевельник стелющийся, папоротник — полка glade.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -418,6 +419,62 @@ int main(int argc, char** argv) {
             bu.radius = 0.9f + static_cast<float>(i) * 0.28f;
             bu.stems = 4 + i;
             bake(forge_bush(bu));
+        }
+        // BUSH SPECIES (user, 17.08: «кустики разные, с разными листиками и
+        // разными ягодами; ягоды крупные и видные»).
+        {
+            BushForgeParams hz; // ОРЕШНИК: tall, broad oak-ish leaves, no fruit
+            hz.seed = 1721;
+            hz.name = "glade-hazel";
+            hz.height = 2.5f;
+            hz.radius = 1.6f;
+            hz.stems = 7;
+            hz.tone = LeafTone::OakMid;
+            hz.card_shape = LeafShape::RoundLobed;
+            bake(forge_bush(hz));
+            BushForgeParams rb; // ЯГОДНИК КРАСНЫЙ: oval leaves, big red berries
+            rb.seed = 1731;
+            rb.name = "glade-berry-red";
+            rb.height = 1.4f;
+            rb.radius = 1.1f;
+            rb.stems = 6;
+            rb.tone = LeafTone::BirchLight;
+            rb.card_shape = LeafShape::OvalSpray;
+            rb.berry_count = 26;
+            rb.berry_r = 0.065f;
+            rb.berry = {0.78f, 0.12f, 0.10f};
+            bake(forge_bush(rb));
+            BushForgeParams db; // ЯГОДНИК ТЁМНЫЙ: dark leaves, blue-black fruit
+            db.seed = 1741;
+            db.name = "glade-berry-dark";
+            db.height = 1.0f;
+            db.radius = 0.85f;
+            db.stems = 5;
+            db.tone = LeafTone::WillowDark;
+            db.card_shape = LeafShape::RaggedTip;
+            db.berry_count = 20;
+            db.berry_r = 0.055f;
+            db.berry = {0.16f, 0.14f, 0.30f};
+            bake(forge_bush(db));
+            BushForgeParams jc; // МОЖЖЕВЕЛЬНИК СТЕЛЮЩИЙСЯ: flat, sizy berries
+            jc.seed = 1751;
+            jc.name = "glade-juniper-creep";
+            jc.height = 0.5f;
+            jc.radius = 1.5f;
+            jc.stems = 6;
+            jc.creeping = true;
+            jc.tone = LeafTone::ConiferDark;
+            jc.card_shape = LeafShape::NeedleFan;
+            jc.berry_count = 14;
+            jc.berry_r = 0.04f;
+            jc.berry = {0.35f, 0.42f, 0.48f};
+            bake(forge_bush(jc));
+            GroundPropParams fern; // ПАПОРОТНИК: веер гнутых перьев
+            fern.seed = 1761;
+            fern.name = "glade-fern";
+            fern.kind = GroundPropKind::Fern;
+            fern.height = 0.7f;
+            bake(forge_ground_prop(fern));
         }
         for (int i = 0; i < 2; ++i) {
             LogForgeParams lg;

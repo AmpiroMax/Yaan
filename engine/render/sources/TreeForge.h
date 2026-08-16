@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 22:48:45
+Last updated: 17:08:2026 - 02:31:45
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -56,6 +56,7 @@ UPD:
   перекрученный лиственный; spray_frac 0.26.
 - 15:08:2026 - 16:17:07: frond_width: ширина ленты фронда долей от еловой — лиственница носит ту же грамматику тоньше (0.55).
 - 16:08:2026 - 22:48:45: Кузница мелкой флоры: forge_bush (стволики от земли, крона до земли — куст без болы), forge_fallen_log (лежащий ствол с рваным сломом и корневой ПЛИТОЙ — правило 52), forge_ground_prop (пучок травы из гнутых лезвий / цветы с лепестками вершинного цвета / грибы объёмом ножка+шляпка). Этап «полянка» пользователя, 16.08.
+- 17:08:2026 - 02:31:45: Кусты-ВИДЫ: berry_count/berry_r/berry (ягоды — крупные закрытые объёмы, «должно быть видно»), creeping (стелющийся можжевельник); GroundPropKind::Fern (веер гнутых перьев).
 */
 
 #pragma once
@@ -121,6 +122,15 @@ struct BushForgeParams {
     glm::vec3 bark{0.24f, 0.18f, 0.12f};
     LeafTone tone = LeafTone::OakMid;
     LeafShape card_shape = LeafShape::RoundLobed;
+    /// BERRIES (user, 17.08: «ягоды должны быть! крупными и их должно быть
+    /// видно»): closed bipyramid volumes hung at the sheet rims. berry_count
+    /// 0 disables; berry_r is the fruit's half-height in metres — 0.05-0.07
+    /// reads at a glance, which is the point.
+    int berry_count = 0;
+    float berry_r = 0.06f;
+    glm::vec3 berry{0.75f, 0.12f, 0.10f};
+    /// Creeping habit (можжевельник): stems hug the ground instead of rising.
+    bool creeping = false;
 };
 [[nodiscard]] RegistryObject forge_bush(const BushForgeParams& params);
 
@@ -139,7 +149,8 @@ struct LogForgeParams {
 /// Small ground flora, one object per clump: a tall-grass tuft (folded
 /// blades), a flower cluster (stems + petal crowns, petals vertex-coloured),
 /// or a mushroom family (stem + cap volumes, rule 52).
-enum class GroundPropKind : uint8_t { GrassTuft = 0, Flowers = 1, Mushrooms = 2 };
+enum class GroundPropKind : uint8_t { GrassTuft = 0, Flowers = 1, Mushrooms = 2,
+                                      Fern = 3 };
 struct GroundPropParams {
     uint64_t seed = 1;
     std::string name = "prop";
