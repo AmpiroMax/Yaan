@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 20:23:55
+Last updated: 16:08:2026 - 20:44:08
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -54,6 +54,7 @@ UPD:
 - 15:08:2026 - 15:54:46: v6: хвоя пересобрана на ФРОНДЫ-ЛЕНТЫ (провисающая лента 4 сегментов, кончик вверх, голое дерево только внутренняя четверть); ЮБКА мёртвых сучьев 0.10-0.40h (оба фотоскана); корни — КОНТРФОРСЫ (старт внутри наплыва, выше и толще, медленный сбег); ветер честный: bark_tube несёт вес на обоих кольцах (иначе стык рвётся), вес = дистанция от опоры (лид 09f75eb: транзмит теперь по колонке UV).
 - 15:08:2026 - 16:17:07: emit_frond умножает ширину на p.frond_width (лиственница).
 - 16:08:2026 - 20:23:55: Развёртка трубы: зеркальная волна -> прямой повтор (тайл коры теперь торо-периодический).
+- 16:08:2026 - 20:44:08: Якорь листвы на конце КАЖДОЙ ветви, включая скелетные (уровень 0): их концы оставались голыми крюками — видно на первом верном наземном кадре.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -351,9 +352,12 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                     pos = np;
                     r = nr;
                 }
-                if (level >= 1) {
-                    anchors.push_back({pos, d}); // tips of branches and twigs
-                }
+                // EVERY branch end carries foliage, INCLUDING the scaffold's
+                // own tip: level 0 ended bare, and on the first correct
+                // ground frame the scaffold tips read as naked hooks poking
+                // out of the crown — the exact defect the header promises
+                // dies by construction.
+                anchors.push_back({pos, d});
                 if (level == 2 && rng.unit() < 0.7f) {
                     anchors.push_back({pos - d * (len * 0.4f), d});
                 }
