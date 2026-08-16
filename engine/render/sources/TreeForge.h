@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 16:17:07
+Last updated: 16:08:2026 - 22:48:45
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -55,6 +55,7 @@ UPD:
   режим conifer (ёлки: мутовки, провис, конус) — другая ГРАММАТИКА, не
   перекрученный лиственный; spray_frac 0.26.
 - 15:08:2026 - 16:17:07: frond_width: ширина ленты фронда долей от еловой — лиственница носит ту же грамматику тоньше (0.55).
+- 16:08:2026 - 22:48:45: Кузница мелкой флоры: forge_bush (стволики от земли, крона до земли — куст без болы), forge_fallen_log (лежащий ствол с рваным сломом и корневой ПЛИТОЙ — правило 52), forge_ground_prop (пучок травы из гнутых лезвий / цветы с лепестками вершинного цвета / грибы объёмом ножка+шляпка). Этап «полянка» пользователя, 16.08.
 */
 
 #pragma once
@@ -108,5 +109,44 @@ struct TreeForgeParams {
 /// Forges one tree. The returned object carries its content hash and is ready
 /// for write_object().
 [[nodiscard]] RegistryObject forge_tree(const TreeForgeParams& params);
+
+/// A BUSH has no bole (rule 52 + the zone brief): several stems leave the
+/// GROUND, arc outward, and carry curved leaf sheets down to the grass.
+struct BushForgeParams {
+    uint64_t seed = 1;
+    std::string name = "bush";
+    float height = 1.4f;         ///< tallest stem tip
+    float radius = 1.1f;         ///< footprint half-extent
+    int stems = 5;
+    glm::vec3 bark{0.24f, 0.18f, 0.12f};
+    LeafTone tone = LeafTone::OakMid;
+    LeafShape card_shape = LeafShape::RoundLobed;
+};
+[[nodiscard]] RegistryObject forge_bush(const BushForgeParams& params);
+
+/// A FALLEN LOG: the trunk chain lying along +X with a ragged broken end and
+/// a root plate (flare + radial spurs) standing at the butt — the pine_forest
+/// photoscans' dead_tree_trunk, as a registry object.
+struct LogForgeParams {
+    uint64_t seed = 1;
+    std::string name = "log";
+    float length = 7.0f;
+    float radius = 0.45f;
+    bool mossy = true;
+};
+[[nodiscard]] RegistryObject forge_fallen_log(const LogForgeParams& params);
+
+/// Small ground flora, one object per clump: a tall-grass tuft (folded
+/// blades), a flower cluster (stems + petal crowns, petals vertex-coloured),
+/// or a mushroom family (stem + cap volumes, rule 52).
+enum class GroundPropKind : uint8_t { GrassTuft = 0, Flowers = 1, Mushrooms = 2 };
+struct GroundPropParams {
+    uint64_t seed = 1;
+    std::string name = "prop";
+    GroundPropKind kind = GroundPropKind::GrassTuft;
+    float height = 0.8f;              ///< tuft/stem height, cap height for mushrooms
+    glm::vec3 accent{0.85f, 0.82f, 0.9f}; ///< petal / cap colour
+};
+[[nodiscard]] RegistryObject forge_ground_prop(const GroundPropParams& params);
 
 } // namespace dfn::render

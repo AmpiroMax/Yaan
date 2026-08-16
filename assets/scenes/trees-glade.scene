@@ -1,0 +1,1568 @@
+# Daggerfall N scene — the flower glade (user brief 16.08, verbatim goals:
+#   поляна с цветами и мелкими тонкими деревьями, огромный дуб в центре,
+#   кольцо высокого (не гигантского) леса берёз и сосен с маленькими
+#   деревьями, поваленными стволами и высокой травой; три извилистых
+#   тропинки с трёх сторон — трава/земля/камень — прокладывает лид).
+# Composed by flora; validated by dfn_scene_check (--fix seats on ground).
+map = trees/glade
+world_span_m = 256
+
+[place]
+object = glade-oak-elder
+pos = 128.00 0 128.00
+yaw = 0.7
+scale = 1
+group = glade
+note = сердце полянки
+
+[place]
+object = glade-birch-b
+pos = 161.26 0 97.51
+yaw = 2.819
+scale = 1.042
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 154.69 0 60.87
+yaw = 4.910
+scale = 1.015
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 211.49 0 155.39
+yaw = 5.596
+scale = 1.012
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 88.65 0 126.55
+yaw = 0.504
+scale = 0.947
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-b
+pos = 191.21 0 137.67
+yaw = 4.105
+scale = 1.056
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 105.69 0 164.65
+yaw = 4.131
+scale = 1.067
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-b
+pos = 115.13 0 188.40
+yaw = 3.992
+scale = 1.068
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 154.55 0 173.48
+yaw = 1.771
+scale = 0.992
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 192.69 0 88.93
+yaw = 5.499
+scale = 0.959
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 101.34 0 178.42
+yaw = 5.940
+scale = 1.031
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 177.36 0 68.35
+yaw = 3.299
+scale = 1.041
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 74.87 0 135.13
+yaw = 4.571
+scale = 0.935
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 147.17 0 206.13
+yaw = 2.480
+scale = 1.070
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 177.64 0 141.80
+yaw = 3.731
+scale = 1.084
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 109.54 0 59.52
+yaw = 0.649
+scale = 1.015
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 196.20 0 167.15
+yaw = 1.729
+scale = 1.043
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 61.50 0 107.42
+yaw = 0.371
+scale = 1.077
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 88.72 0 191.60
+yaw = 0.763
+scale = 0.973
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 194.15 0 118.49
+yaw = 1.949
+scale = 0.936
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 158.20 0 213.67
+yaw = 1.076
+scale = 0.989
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 178.85 0 190.27
+yaw = 1.749
+scale = 1.067
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 167.03 0 196.09
+yaw = 2.026
+scale = 0.975
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 167.86 0 57.33
+yaw = 0.176
+scale = 0.944
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 134.12 0 177.98
+yaw = 5.436
+scale = 0.970
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 81.69 0 76.67
+yaw = 2.350
+scale = 1.101
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 152.11 0 84.10
+yaw = 1.102
+scale = 0.956
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 128.58 0 42.58
+yaw = 1.797
+scale = 1.002
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 89.56 0 152.77
+yaw = 6.262
+scale = 1.085
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-b
+pos = 75.14 0 104.38
+yaw = 3.042
+scale = 1.109
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 96.03 0 105.89
+yaw = 0.425
+scale = 1.042
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 59.34 0 176.17
+yaw = 0.992
+scale = 1.007
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 174.85 0 90.84
+yaw = 1.877
+scale = 1.010
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 196.43 0 151.03
+yaw = 0.406
+scale = 1.071
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 122.90 0 167.26
+yaw = 6.043
+scale = 0.923
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 165.63 0 147.86
+yaw = 0.404
+scale = 0.976
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 122.44 0 86.26
+yaw = 3.456
+scale = 1.075
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 60.79 0 85.13
+yaw = 2.375
+scale = 0.984
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 96.34 0 75.46
+yaw = 6.216
+scale = 1.099
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-b
+pos = 185.59 0 56.86
+yaw = 5.162
+scale = 1.088
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 67.36 0 122.91
+yaw = 1.492
+scale = 1.011
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 40.54 0 132.80
+yaw = 1.672
+scale = 0.947
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 168.02 0 128.53
+yaw = 0.215
+scale = 1.110
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 70.20 0 62.75
+yaw = 5.125
+scale = 1.039
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 50.33 0 117.23
+yaw = 4.601
+scale = 0.937
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 83.93 0 174.30
+yaw = 5.875
+scale = 0.990
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 85.11 0 62.57
+yaw = 4.581
+scale = 1.107
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 191.94 0 68.97
+yaw = 6.231
+scale = 1.070
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-c
+pos = 208.22 0 137.11
+yaw = 4.452
+scale = 1.015
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 69.99 0 196.73
+yaw = 4.148
+scale = 1.043
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 108.20 0 90.37
+yaw = 0.800
+scale = 0.951
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 172.82 0 105.65
+yaw = 2.320
+scale = 1.112
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 89.49 0 49.70
+yaw = 5.486
+scale = 1.008
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-d
+pos = 205.00 0 105.59
+yaw = 0.549
+scale = 0.927
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 144.09 0 161.10
+yaw = 1.475
+scale = 1.059
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 127.94 0 206.70
+yaw = 0.066
+scale = 1.093
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 60.68 0 141.99
+yaw = 5.918
+scale = 1.112
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 115.27 0 42.18
+yaw = 1.515
+scale = 0.990
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 211.29 0 118.16
+yaw = 1.412
+scale = 0.949
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-c
+pos = 177.65 0 205.38
+yaw = 3.213
+scale = 1.050
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-a
+pos = 87.30 0 94.50
+yaw = 1.367
+scale = 1.021
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 183.02 0 168.44
+yaw = 1.345
+scale = 1.093
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-b
+pos = 182.93 0 125.17
+yaw = 2.166
+scale = 0.970
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-pine-a
+pos = 42.44 0 97.48
+yaw = 1.636
+scale = 1.013
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-birch-b
+pos = 174.68 0 157.21
+yaw = 1.447
+scale = 1.029
+group = forest
+note = кольцо леса
+
+[place]
+object = glade-sapling-birch-a
+pos = 153.07 0 120.25
+yaw = 2.985
+scale = 1.014
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 100.68 0 121.13
+yaw = 0.077
+scale = 1.049
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-a
+pos = 92.06 0 205.19
+yaw = 3.926
+scale = 0.948
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 53.90 0 93.31
+yaw = 5.408
+scale = 1.040
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-a
+pos = 66.43 0 168.83
+yaw = 2.705
+scale = 0.955
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 168.91 0 185.37
+yaw = 0.847
+scale = 0.962
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 124.95 0 154.72
+yaw = 5.846
+scale = 1.011
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 192.46 0 107.37
+yaw = 4.603
+scale = 0.970
+group = understory
+note = малый ярус
+
+[place]
+object = glade-young-oak
+pos = 159.02 0 111.33
+yaw = 0.788
+scale = 0.924
+group = understory
+note = малый ярус
+
+[place]
+object = glade-young-oak
+pos = 156.74 0 125.02
+yaw = 3.868
+scale = 1.103
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-a
+pos = 166.12 0 116.38
+yaw = 0.252
+scale = 0.987
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 84.64 0 115.84
+yaw = 2.492
+scale = 1.081
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-a
+pos = 117.60 0 105.85
+yaw = 0.180
+scale = 1.025
+group = understory
+note = малый ярус
+
+[place]
+object = glade-sapling-birch-b
+pos = 102.96 0 50.98
+yaw = 3.445
+scale = 1.091
+group = understory
+note = малый ярус
+
+[place]
+object = glade-bush-c
+pos = 106.79 0 146.60
+yaw = 1.307
+scale = 1.109
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-c
+pos = 114.30 0 72.05
+yaw = 5.420
+scale = 0.984
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 54.11 0 167.55
+yaw = 5.315
+scale = 1.076
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-c
+pos = 158.39 0 71.29
+yaw = 3.767
+scale = 0.928
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-c
+pos = 47.61 0 147.05
+yaw = 4.155
+scale = 1.035
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 83.48 0 85.48
+yaw = 2.996
+scale = 1.065
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 87.55 0 163.43
+yaw = 4.992
+scale = 1.045
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-c
+pos = 140.63 0 103.64
+yaw = 3.115
+scale = 0.972
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 147.65 0 109.27
+yaw = 4.715
+scale = 1.033
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 119.11 0 69.75
+yaw = 1.999
+scale = 1.006
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-a
+pos = 178.06 0 113.50
+yaw = 6.014
+scale = 0.996
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 123.76 0 96.56
+yaw = 0.064
+scale = 1.116
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-a
+pos = 143.47 0 78.50
+yaw = 3.605
+scale = 1.101
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 125.72 0 181.85
+yaw = 2.067
+scale = 1.064
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-a
+pos = 82.39 0 165.66
+yaw = 4.248
+scale = 1.082
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 154.19 0 137.36
+yaw = 6.205
+scale = 1.112
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-a
+pos = 102.79 0 148.45
+yaw = 5.931
+scale = 0.959
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 190.60 0 78.29
+yaw = 5.343
+scale = 1.046
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-c
+pos = 72.30 0 77.85
+yaw = 2.473
+scale = 1.080
+group = understory
+note = подлесок
+
+[place]
+object = glade-bush-b
+pos = 158.94 0 135.54
+yaw = 4.844
+scale = 1.059
+group = understory
+note = подлесок
+
+[place]
+object = glade-grass-a
+pos = 86.07 0 110.70
+yaw = 3.825
+scale = 1.117
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 150.84 0 101.42
+yaw = 0.178
+scale = 1.047
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 155.76 0 45.49
+yaw = 1.366
+scale = 0.955
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 45.90 0 139.55
+yaw = 3.883
+scale = 0.938
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 80.25 0 188.70
+yaw = 4.787
+scale = 1.050
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 146.76 0 67.70
+yaw = 3.432
+scale = 1.077
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 78.67 0 154.22
+yaw = 1.372
+scale = 1.117
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 103.03 0 101.44
+yaw = 4.678
+scale = 0.983
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 112.61 0 140.22
+yaw = 4.790
+scale = 1.059
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 65.43 0 74.08
+yaw = 2.886
+scale = 0.978
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 70.18 0 176.19
+yaw = 5.166
+scale = 1.119
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 140.59 0 195.96
+yaw = 2.373
+scale = 0.959
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 100.54 0 193.61
+yaw = 1.590
+scale = 1.052
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 119.45 0 111.75
+yaw = 4.475
+scale = 0.996
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 116.15 0 157.18
+yaw = 0.347
+scale = 0.983
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 190.66 0 126.94
+yaw = 1.411
+scale = 0.993
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 106.53 0 102.27
+yaw = 3.002
+scale = 0.986
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 156.33 0 146.61
+yaw = 5.053
+scale = 0.965
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 145.92 0 170.25
+yaw = 3.779
+scale = 0.942
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 98.07 0 95.29
+yaw = 2.638
+scale = 1.073
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 120.84 0 159.61
+yaw = 3.881
+scale = 0.945
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 122.07 0 214.35
+yaw = 0.952
+scale = 1.039
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 129.59 0 145.01
+yaw = 3.462
+scale = 1.068
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 114.21 0 143.33
+yaw = 3.102
+scale = 1.071
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 104.34 0 72.61
+yaw = 2.506
+scale = 1.036
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 206.52 0 145.20
+yaw = 1.730
+scale = 1.046
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 122.71 0 75.48
+yaw = 4.395
+scale = 1.066
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 107.33 0 47.86
+yaw = 0.840
+scale = 0.931
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 134.00 0 164.11
+yaw = 0.386
+scale = 1.060
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 120.10 0 155.61
+yaw = 1.797
+scale = 1.011
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 139.04 0 170.40
+yaw = 3.866
+scale = 0.936
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 202.97 0 78.61
+yaw = 0.310
+scale = 1.023
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 96.21 0 201.37
+yaw = 0.275
+scale = 1.048
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 131.37 0 151.45
+yaw = 3.831
+scale = 1.107
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 56.29 0 123.67
+yaw = 6.102
+scale = 0.926
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 180.60 0 85.43
+yaw = 5.667
+scale = 0.931
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 165.55 0 157.41
+yaw = 3.945
+scale = 1.056
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 49.35 0 86.24
+yaw = 0.928
+scale = 0.998
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 152.93 0 182.51
+yaw = 5.204
+scale = 0.982
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 191.37 0 173.84
+yaw = 5.051
+scale = 0.983
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 55.23 0 161.60
+yaw = 4.551
+scale = 1.106
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 206.83 0 164.93
+yaw = 3.365
+scale = 1.081
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 200.56 0 95.39
+yaw = 1.257
+scale = 1.051
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 110.72 0 113.44
+yaw = 4.706
+scale = 1.119
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 150.88 0 126.50
+yaw = 4.219
+scale = 1.018
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 161.99 0 80.15
+yaw = 1.934
+scale = 0.939
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 128.36 0 151.04
+yaw = 5.717
+scale = 0.997
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 104.92 0 117.34
+yaw = 0.553
+scale = 1.056
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 148.24 0 134.80
+yaw = 0.500
+scale = 0.961
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 106.40 0 120.51
+yaw = 4.590
+scale = 1.096
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 75.67 0 178.35
+yaw = 2.706
+scale = 0.943
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 120.97 0 63.87
+yaw = 1.473
+scale = 0.927
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 124.02 0 57.00
+yaw = 1.016
+scale = 0.928
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 94.17 0 163.87
+yaw = 1.250
+scale = 0.990
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 127.87 0 192.40
+yaw = 1.948
+scale = 1.117
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 152.92 0 130.54
+yaw = 0.841
+scale = 1.013
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 110.73 0 175.85
+yaw = 2.089
+scale = 0.964
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 115.32 0 53.55
+yaw = 1.599
+scale = 0.930
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 146.16 0 179.55
+yaw = 3.004
+scale = 1.096
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 199.37 0 139.67
+yaw = 2.323
+scale = 0.961
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 111.34 0 120.46
+yaw = 4.973
+scale = 0.921
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 140.78 0 88.40
+yaw = 2.597
+scale = 0.982
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 102.44 0 188.73
+yaw = 3.176
+scale = 1.052
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 125.70 0 149.07
+yaw = 0.168
+scale = 1.115
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 79.55 0 123.43
+yaw = 5.666
+scale = 1.034
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 118.28 0 150.47
+yaw = 3.257
+scale = 0.933
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 186.97 0 112.83
+yaw = 1.236
+scale = 1.086
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 102.40 0 44.37
+yaw = 5.178
+scale = 1.021
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 212.16 0 128.89
+yaw = 4.180
+scale = 1.004
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 97.04 0 185.39
+yaw = 0.135
+scale = 0.973
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 111.07 0 76.33
+yaw = 1.661
+scale = 0.997
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 108.34 0 156.01
+yaw = 0.750
+scale = 0.922
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 201.75 0 114.35
+yaw = 1.988
+scale = 1.103
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 162.69 0 89.72
+yaw = 3.020
+scale = 0.940
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 159.35 0 181.26
+yaw = 4.476
+scale = 0.995
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 41.25 0 140.68
+yaw = 1.914
+scale = 0.999
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 131.95 0 146.54
+yaw = 4.611
+scale = 1.119
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 128.00 0 69.34
+yaw = 3.169
+scale = 1.038
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 148.28 0 121.43
+yaw = 2.950
+scale = 0.961
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 72.63 0 167.09
+yaw = 0.985
+scale = 0.966
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-b
+pos = 113.66 0 171.62
+yaw = 1.985
+scale = 1.002
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 103.97 0 125.41
+yaw = 4.742
+scale = 1.006
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-c
+pos = 62.57 0 97.23
+yaw = 6.031
+scale = 0.936
+group = floor
+note = высокая трава
+
+[place]
+object = glade-grass-a
+pos = 135.09 0 151.08
+yaw = 5.824
+scale = 0.948
+group = floor
+note = высокая трава
+
+[place]
+object = glade-flowers-white
+pos = 119.81 0 136.82
+yaw = 3.112
+scale = 0.964
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-white
+pos = 121.21 0 141.63
+yaw = 1.698
+scale = 1.107
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-pink
+pos = 136.05 0 122.53
+yaw = 3.941
+scale = 1.006
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-pink
+pos = 137.75 0 119.46
+yaw = 1.561
+scale = 0.978
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-pink
+pos = 139.18 0 127.86
+yaw = 6.257
+scale = 0.926
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-pink
+pos = 140.10 0 124.08
+yaw = 2.562
+scale = 0.947
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-pink
+pos = 143.07 0 127.04
+yaw = 3.600
+scale = 0.948
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-yellow
+pos = 120.24 0 116.97
+yaw = 2.777
+scale = 0.940
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-yellow
+pos = 123.49 0 115.78
+yaw = 5.247
+scale = 1.103
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-yellow
+pos = 124.20 0 111.43
+yaw = 3.271
+scale = 0.931
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-yellow
+pos = 118.96 0 116.33
+yaw = 4.594
+scale = 1.020
+group = glade
+note = цветочный ковёр
+
+[place]
+object = glade-flowers-yellow
+pos = 114.42 0 123.48
+yaw = 2.146
+scale = 0.972
+group = glade
+note = цветочный ковёр

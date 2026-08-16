@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 22:40:39
+Last updated: 16:08:2026 - 22:48:45
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -59,6 +59,7 @@ UPD:
 - 16:08:2026 - 21:45:26: По восьми замечаниям 21:05-21:20: ГНУТЫЕ ЛИСТЫ (дизайн пользователя, п.4) — 3×3-патч куполом с провисшими углами и помятостью, драпирован ПО ветке (п.1: сидит на ветке, не ниже), без плоской оси (п.2), один лист вместо пары карт (п.3: меньше и крупнее, якоря прорежены); рамка коры ПАРАЛЛЕЛЬНО ПЕРЕНОСИТСЯ вдоль ветви (п.6: борозды идут прямо по росту, не крутятся на стыках); веточки 2-го уровня в текстуре коры (п.7: чёрные концы на белой берёзе умерли); обломанные СУЧЬЯ на боле и ЖЁЛУДИ у дубов (п.5; дупло в очереди — нужен свой тёмный тайл).
 - 16:08:2026 - 22:06:42: По пачке 21:50-57: (а) «узкие линии» оказались ВЕТОЧКАМИ-ВОЛОСКАМИ тоньше пикселя — пол радиуса 0.025->0.05 и последний уровень короче (0.7) — провода за листвой умерли; (б) кора по ветвям: v-координата = ДЛИНА ДУГИ вдоль ветви, не мировая высота (на горизонтальной ветви борозды мазались вбок — «в разные стороны растёт»); (в) чёрные палки берёзы — те же волоски. Прозрачность при движении и голые ели — полоса фейда лида 0.08/0.22, сужение запрошено (0.03/0.08 + ручки).
 - 16:08:2026 - 22:40:39: ФРОНД СЛОЖЕН ДОМИКОМ (V-сечение, края ниже хребта, нормали половинок врозь): плоская горизонтальная лента с уровня глаз — линия в пиксель, ВЕСЬ хвойный ряд стоял голым (геометрия была в .dfo — найдено дампом + логом расстановки; три раза принимал снаги рассыпки за свои ели). Ленты шире (0.42 reach), листов на якорь больше при spray_per_branch>2 (колосс «листвы мало»), жёлуди крупнее и ниже листа.
+- 16:08:2026 - 22:48:45: Реализация forge_bush/forge_fallen_log/forge_ground_prop (этап полянки).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -751,6 +752,252 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                          // the textured bark/ground streams carry their own
                          // furrows and moss in the atlas tiles
 
+    obj.content_hash = object_content_hash(obj);
+    return obj;
+}
+
+RegistryObject forge_bush(const BushForgeParams& p) {
+    RegistryObject obj;
+    obj.name = p.name;
+    obj.kind = "bush";
+    obj.source = "forge:bush seed=" + std::to_string(p.seed);
+    Rng rng(p.seed * 0x9E3779B97F4A7C15ull + 0xB5297A4D3F84D5B5ull);
+    const LeafTone bark_row = LeafTone::OakMid;
+    const glm::vec4 bark_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_row);
+    const glm::vec4 leaf_uv = leaf_tile_uv(p.card_shape, p.tone);
+    const float phase = rng.unit();
+    const glm::vec3 up{0.0f, 1.0f, 0.0f};
+    // Curved sheet helper, small: 3x3 patch, corners sagging.
+    const auto sheet = [&](glm::vec3 c, float half_w) {
+        const float yaw = rng.unit() * TAU;
+        glm::vec3 e1{std::cos(yaw), 0.0f, std::sin(yaw)};
+        glm::vec3 e2{-std::sin(yaw), 0.0f, std::cos(yaw)};
+        e1 = safe_normalize(e1 + up * (rng.sym() * 0.25f), e1);
+        e2 = safe_normalize(e2 + up * (rng.sym() * 0.25f), e2);
+        const float droop = half_w * (0.30f + rng.unit() * 0.2f);
+        const float jit = 0.40f + rng.unit() * 0.26f;
+        glm::vec3 vp[3][3];
+        for (int gj = 0; gj < 3; ++gj) {
+            for (int gi = 0; gi < 3; ++gi) {
+                const float fx = static_cast<float>(gi - 1);
+                const float fz = static_cast<float>(gj - 1);
+                glm::vec3 q = c + e1 * (fx * half_w) + e2 * (fz * half_w);
+                q.y -= droop * std::pow((fx * fx + fz * fz) * 0.5f, 1.3f);
+                q.y += rng.sym() * 0.05f * half_w;
+                if (q.y < 0.05f) q.y = 0.05f; // the ground is not fair game
+                vp[gj][gi] = q;
+            }
+        }
+        const auto base_v = static_cast<uint32_t>(obj.cards.vertices.size());
+        for (int gj = 0; gj < 3; ++gj) {
+            for (int gi = 0; gi < 3; ++gi) {
+                const glm::vec3 du = vp[gj][std::min(gi + 1, 2)]
+                                   - vp[gj][std::max(gi - 1, 0)];
+                const glm::vec3 dv = vp[std::min(gj + 1, 2)][gi]
+                                   - vp[std::max(gj - 1, 0)][gi];
+                glm::vec3 n = safe_normalize(glm::cross(dv, du), up);
+                if (n.y < 0.0f) n = -n;
+                const float sway = std::clamp(vp[gj][gi].y / std::max(p.height, 0.3f),
+                                              0.1f, 1.0f);
+                obj.cards.vertices.push_back(
+                    {vp[gj][gi], n,
+                     {leaf_uv.x + (leaf_uv.z - leaf_uv.x) * (static_cast<float>(gi) * 0.5f),
+                      leaf_uv.y + (leaf_uv.w - leaf_uv.y) * (static_cast<float>(gj) * 0.5f)},
+                     pack({sway, phase, jit})}); // b is PER SHEET by contract
+            }
+        }
+        for (int gj = 0; gj < 2; ++gj) {
+            for (int gi = 0; gi < 2; ++gi) {
+                const uint32_t v00 = base_v + static_cast<uint32_t>(gj * 3 + gi);
+                obj.cards.indices.insert(obj.cards.indices.end(),
+                                         {v00, v00 + 3u, v00 + 4u, v00, v00 + 4u, v00 + 1u});
+            }
+        }
+    };
+    for (int s = 0; s < p.stems; ++s) {
+        const float az = TAU * (static_cast<float>(s) + rng.unit() * 0.5f)
+                       / static_cast<float>(p.stems);
+        const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+        glm::vec3 pos = out * (p.radius * 0.12f);
+        glm::vec3 d = safe_normalize(out * 0.55f + up, up);
+        float r = 0.028f + rng.unit() * 0.014f;
+        const float stem_len = p.height * (0.75f + rng.unit() * 0.35f);
+        glm::vec3 frame = perp_of(d);
+        float arc = 0.0f;
+        const int segs = 3;
+        for (int si = 0; si < segs; ++si) {
+            // The stem arcs OUTWARD as it rises — a bush is a fountain.
+            d = safe_normalize(d + out * 0.18f + up * (si == 0 ? 0.1f : -0.05f), d);
+            const glm::vec3 np = pos + d * (stem_len / segs);
+            const float nr = std::max(r * 0.6f, 0.012f);
+            bark_tube(obj.bark, pos, np, d, r, nr, 3, bark_uv, arc, TAU * r,
+                      pack_wind(0.2f + 0.5f * si / segs, phase),
+                      pack_wind(0.2f + 0.5f * (si + 1) / segs, phase), &frame);
+            arc += stem_len / segs;
+            // Sheets ride the OUTER half of every stem, down to the grass.
+            if (si >= 1 || rng.unit() < 0.5f) {
+                sheet((pos + np) * 0.5f, p.radius * (0.42f + rng.unit() * 0.2f));
+            }
+            pos = np;
+            r = nr;
+        }
+        sheet(pos, p.radius * (0.5f + rng.unit() * 0.2f));
+    }
+    obj.content_hash = object_content_hash(obj);
+    return obj;
+}
+
+RegistryObject forge_fallen_log(const LogForgeParams& p) {
+    RegistryObject obj;
+    obj.name = p.name;
+    obj.kind = "log";
+    obj.source = "forge:log seed=" + std::to_string(p.seed);
+    Rng rng(p.seed * 0x9E3779B97F4A7C15ull + 0x94D049BB133111EBull);
+    const glm::vec4 uv = leaf_tile_uv(LeafShape::BarkPlate,
+                                      p.mossy ? LeafTone::OakDeep : LeafTone::OakMid);
+    const uint32_t still = pack_wind(0.0f, rng.unit());
+    // The trunk lies along +X, one third sunk (design §5.10: half-sunk), with
+    // a gentle sag where it meets the ground mid-span.
+    const int segs = 6;
+    glm::vec3 pos{0.0f, p.radius * 0.62f, 0.0f};
+    glm::vec3 d{1.0f, 0.0f, 0.0f};
+    glm::vec3 frame{0.0f, 1.0f, 0.0f};
+    float r = p.radius;
+    float arc = 0.0f;
+    for (int s = 0; s < segs; ++s) {
+        const float t1 = static_cast<float>(s + 1) / segs;
+        d = safe_normalize(glm::vec3{1.0f, -0.02f + 0.03f * rng.sym(),
+                                     rng.sym() * 0.12f}, d);
+        const glm::vec3 np = pos + d * (p.length / segs);
+        // The BROKEN END: the last segment collapses to a ragged point.
+        const float nr = s == segs - 1 ? 0.06f : p.radius * (1.0f - 0.35f * t1);
+        bark_tube(obj.ground, pos, np, d, r, nr, 6, uv, arc, TAU * r, still, still,
+                  &frame);
+        arc += p.length / segs;
+        pos = np;
+        r = nr;
+    }
+    // The ROOT PLATE at the butt: a short flare stub + radial spurs — the
+    // «несколько корней из пары многоугольников» recipe of rule 52, standing
+    // upright the way a downed tree presents its plate.
+    for (int k = 0; k < 6; ++k) {
+        const float az = TAU * (static_cast<float>(k) + 0.5f + rng.sym() * 0.2f) / 6.0f;
+        // Spurs fan in the Y/Z plane (the plate faces -X).
+        const glm::vec3 rd{-0.18f, std::sin(az), std::cos(az)};
+        const glm::vec3 base{0.0f, p.radius * 0.62f, 0.0f};
+        const float reach = p.radius * (1.5f + rng.unit() * 0.9f);
+        glm::vec3 f2 = perp_of(safe_normalize(rd, {0, 1, 0}));
+        bark_tube(obj.ground, base, base + safe_normalize(rd, {0.0f, 1.0f, 0.0f}) * reach,
+                  safe_normalize(rd, {0.0f, 1.0f, 0.0f}),
+                  p.radius * 0.34f, 0.02f, 4, uv, 0.0f,
+                  TAU * p.radius * 0.34f, still, still, &f2);
+    }
+    obj.content_hash = object_content_hash(obj);
+    return obj;
+}
+
+RegistryObject forge_ground_prop(const GroundPropParams& p) {
+    RegistryObject obj;
+    obj.name = p.name;
+    obj.kind = "prop";
+    obj.source = "forge:prop seed=" + std::to_string(p.seed);
+    Rng rng(p.seed * 0x9E3779B97F4A7C15ull + 0xDA3E39CB94B95BDBull);
+    const glm::vec3 up{0.0f, 1.0f, 0.0f};
+    const float phase = rng.unit();
+    if (p.kind == GroundPropKind::GrassTuft) {
+        // A tuft: 10-14 folded BLADES fanning from one root — rule 52's
+        // small-flora exemption, with a concrete shape (a bent taper, not a
+        // rectangle). Leaf material: it sways and it transmits.
+        const glm::vec4 uv = leaf_tile_uv(LeafShape::RaggedTip, LeafTone::BirchLight);
+        const int blades = 10 + static_cast<int>(rng.unit() * 5.0f);
+        for (int b = 0; b < blades; ++b) {
+            const float az = TAU * static_cast<float>(b) / blades + rng.sym() * 0.3f;
+            const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+            const float h = p.height * (0.6f + rng.unit() * 0.5f);
+            const float w0 = 0.020f + rng.unit() * 0.012f;
+            glm::vec3 pos{out.x * 0.03f, 0.0f, out.z * 0.03f};
+            glm::vec3 d = safe_normalize(up + out * (0.15f + rng.unit() * 0.25f), up);
+            const glm::vec3 side = safe_normalize(glm::cross(up, out),
+                                                  glm::vec3{1.0f, 0.0f, 0.0f});
+            const auto base_v = static_cast<uint32_t>(obj.cards.vertices.size());
+            const int segs = 3;
+            for (int s = 0; s <= segs; ++s) {
+                const float t = static_cast<float>(s) / segs;
+                if (s > 0) {
+                    d = safe_normalize(d + out * 0.35f * t, d); // the blade bows
+                    pos += d * (h / segs);
+                }
+                const float w = w0 * (1.0f - 0.85f * t);
+                const glm::vec3 n = safe_normalize(glm::cross(d, side), up);
+                const uint32_t col = pack({0.25f + 0.75f * t, phase, 0.5f});
+                const float uu = uv.x + (uv.z - uv.x) * (0.15f + 0.7f * t);
+                obj.cards.vertices.push_back({pos - side * w, n,
+                                              {uu, uv.y + (uv.w - uv.y) * 0.30f}, col});
+                obj.cards.vertices.push_back({pos + side * w, n,
+                                              {uu, uv.y + (uv.w - uv.y) * 0.70f}, col});
+            }
+            for (int s = 0; s < segs; ++s) {
+                const uint32_t a0 = base_v + static_cast<uint32_t>(s) * 2u;
+                obj.cards.indices.insert(obj.cards.indices.end(),
+                                         {a0, a0 + 2u, a0 + 3u, a0, a0 + 3u, a0 + 1u});
+            }
+        }
+    } else if (p.kind == GroundPropKind::Flowers) {
+        // 3-5 stems, each a thin green tube crowned by a petal fan: petals
+        // are vertex-coloured little quads on the PROP program (the atlas has
+        // no petal hue), the head a tiny dark heart.
+        const uint32_t stem_c = pack(glm::vec3{0.22f, 0.34f, 0.12f});
+        const uint32_t petal_c = pack(p.accent);
+        const uint32_t heart_c = pack(glm::vec3{0.55f, 0.42f, 0.10f});
+        const int stems = 3 + static_cast<int>(rng.unit() * 3.0f);
+        for (int s = 0; s < stems; ++s) {
+            const float az = TAU * rng.unit();
+            const glm::vec3 at{std::cos(az) * 0.14f * (1.0f + rng.unit()), 0.0f,
+                               std::sin(az) * 0.14f * (1.0f + rng.unit())};
+            const float h = p.height * (0.7f + rng.unit() * 0.5f);
+            tube_segment(obj.wood, at, at + up * h, up, 0.008f, 0.005f, 3, stem_c);
+            const glm::vec3 head = at + up * h;
+            const int petals = 5 + (rng.unit() < 0.4f ? 1 : 0);
+            for (int q = 0; q < petals; ++q) {
+                const float pa = TAU * static_cast<float>(q) / petals + phase;
+                const glm::vec3 pd{std::cos(pa), 0.35f, std::sin(pa)};
+                const glm::vec3 pu = safe_normalize(pd, up) * 0.055f;
+                const glm::vec3 pv = safe_normalize(glm::cross(up, pd),
+                                                    glm::vec3{1.0f, 0.0f, 0.0f}) * 0.028f;
+                const auto b = static_cast<uint32_t>(obj.wood.vertices.size());
+                const glm::vec3 n = safe_normalize(up + pd * 0.3f, up);
+                obj.wood.vertices.push_back({head + pv * 0.4f, n, {0, 0}, petal_c});
+                obj.wood.vertices.push_back({head - pv * 0.4f, n, {0, 1}, petal_c});
+                obj.wood.vertices.push_back({head + pu - pv, n, {1, 1}, petal_c});
+                obj.wood.vertices.push_back({head + pu + pv, n, {1, 0}, petal_c});
+                obj.wood.indices.insert(obj.wood.indices.end(),
+                                        {b, b + 1u, b + 2u, b, b + 2u, b + 3u});
+            }
+            tube_segment(obj.wood, head, head + up * 0.02f, up, 0.016f, 0.012f, 3,
+                         heart_c);
+        }
+    } else {
+        // MUSHROOMS: stem + cap, both closed volumes (rule 52 has no
+        // exemption for a mushroom). A family of 3-5, sizes staggered.
+        const uint32_t stem_c = pack(glm::vec3{0.78f, 0.72f, 0.60f});
+        const uint32_t cap_c = pack(p.accent);
+        const int caps = 3 + static_cast<int>(rng.unit() * 3.0f);
+        for (int m = 0; m < caps; ++m) {
+            const float az = TAU * rng.unit();
+            const float dist = 0.05f + rng.unit() * 0.16f;
+            const glm::vec3 at{std::cos(az) * dist, 0.0f, std::sin(az) * dist};
+            const float h = p.height * (0.5f + rng.unit() * 0.6f);
+            const float cap_r = h * (0.55f + rng.unit() * 0.3f);
+            tube_segment(obj.wood, at, at + up * h, up, cap_r * 0.28f, cap_r * 0.22f,
+                         4, stem_c);
+            // The cap: a squat cone down over the stem head, then a tip cone.
+            tube_segment(obj.wood, at + up * (h + cap_r * 0.42f), at + up * (h - cap_r * 0.10f),
+                         -up, 0.02f, cap_r, 5, cap_c);
+            tube_segment(obj.wood, at + up * (h - cap_r * 0.10f),
+                         at + up * (h - cap_r * 0.16f), -up, cap_r, cap_r * 0.5f, 5,
+                         cap_c);
+        }
+    }
     obj.content_hash = object_content_hash(obj);
     return obj;
 }

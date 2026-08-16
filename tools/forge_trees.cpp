@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 22:40:39
+Last updated: 16:08:2026 - 22:48:45
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -43,6 +43,7 @@ UPD:
 - 15:08:2026 - 16:17:07: ЛИСТВЕННИЦА larch-forge-a (просьба пользователя дважды): фрондовая грамматика, светлая перистая хвоя WillowOlive, тонкие ленты 0.55, провис 0.14, крона прозрачная с 0.20h. Плюс снят древний -Wcomment в шапке.
 - 16:08:2026 - 22:06:42: Листы гиганта/колосса не растут с деревом: spray_frac 0.15->0.09 и 0.10->0.05 — лист размером с крону штампует листья-одеяла.
 - 16:08:2026 - 22:40:39: Ель 7 ветвей на мутовку (складка ×2 трисов); колосс/гигант spray_per_branch 3.
+- 16:08:2026 - 22:48:45: ПОЛКА ПОЛЯНКИ assets/objects/glade: дуб-старейшина 30 м, берёзы/сосны кольца в 4/3 ростах, саженцы и молодняк, кусты, брёвна, пучки травы трёх высот, цветы трёх цветов, грибы. 25 объектов под сцену trees-glade.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -294,6 +295,168 @@ int main(int argc, char** argv) {
                         colossus.name.c_str(),
                         obj.wood.indices.size() / 3 + obj.ground.indices.size() / 3,
                         obj.cards.indices.size() / 3, shelf.string().c_str());
+        }
+    }
+
+    // --- THE GLADE SHELF (user, 16.08: «полянка с цветами, мелкими тонкими
+    // деревьями, с огромным дубом в центре, окружённая высоким, но не
+    // гигантским лесом берёз и сосен... маленькие деревья, поваленные
+    // деревья, трава высокая») — every species the glade scene composes,
+    // baked to its own shelf assets/objects/glade.
+    {
+        const fs::path shelf = out_dir.parent_path() / "glade";
+        std::error_code gec2;
+        fs::create_directories(shelf, gec2);
+        const auto bake = [&](const RegistryObject& obj) {
+            const fs::path file = shelf / (obj.name + ".dfo");
+            const bool ok = write_object(obj, file) && read_object(file).has_value();
+            if (!ok) {
+                std::fprintf(stderr, "[forge] glade %s: FAILED\n", obj.name.c_str());
+                all_ok = false;
+            } else {
+                std::printf("[forge] glade/%-18s %5zu tris\n", obj.name.c_str(),
+                            (obj.wood.indices.size() + obj.ground.indices.size()
+                             + obj.bark.indices.size() + obj.cards.indices.size()) / 3);
+            }
+        };
+        // The elder oak at the heart of the glade: big, lush, not a giant.
+        TreeForgeParams elder;
+        elder.seed = 1301;
+        elder.name = "glade-oak-elder";
+        elder.height = 30.0f;
+        elder.crown_radius = 13.0f;
+        elder.crown_base_frac = 0.22f;
+        elder.trunk_radius = 1.35f;
+        elder.tone = LeafTone::OakDeep;
+        elder.scaffold_count = 9;
+        elder.spray_per_branch = 3;
+        elder.spray_frac = 0.12f;
+        bake(forge_tree(elder));
+        // The surrounding forest: tall (not giant) birches and pines,
+        // four maturity/size steps each — «разного роста и пышности».
+        for (int i = 0; i < 4; ++i) {
+            TreeForgeParams b;
+            b.seed = 1401 + static_cast<uint64_t>(i);
+            b.name = "glade-birch-" + std::string(1, static_cast<char>('a' + i));
+            b.height = 17.0f + static_cast<float>(i) * 2.2f;
+            b.crown_radius = 3.4f + static_cast<float>(i) * 0.5f;
+            b.crown_base_frac = 0.42f;
+            b.trunk_radius = 0.26f + static_cast<float>(i) * 0.05f;
+            b.bark = {0.80f, 0.79f, 0.74f};
+            b.tone = LeafTone::BirchLight;
+            b.card_shape = LeafShape::RaggedTip;
+            b.scaffold_count = 4 + (i > 1 ? 1 : 0);
+            b.spray_frac = 0.26f;
+            bake(forge_tree(b));
+        }
+        for (int i = 0; i < 3; ++i) {
+            TreeForgeParams pi;
+            pi.seed = 1501 + static_cast<uint64_t>(i);
+            pi.name = "glade-pine-" + std::string(1, static_cast<char>('a' + i));
+            pi.height = 25.0f + static_cast<float>(i) * 3.0f;
+            pi.crown_radius = 4.4f + static_cast<float>(i) * 0.5f;
+            pi.crown_base_frac = 0.45f;
+            pi.trunk_radius = 0.52f + static_cast<float>(i) * 0.08f;
+            pi.bark = {0.30f, 0.19f, 0.12f};
+            pi.tone = LeafTone::ConiferDark;
+            pi.card_shape = LeafShape::NeedleFan;
+            pi.conifer = true;
+            pi.whorl_count = 8 + i;
+            pi.whorl_branches = 7;
+            pi.droop = 0.22f;
+            bake(forge_tree(pi));
+        }
+        // The thin young trees of the glade itself, and the small tier of the
+        // wood — «мелкие тонкие деревья... в лесу должны и маленькие быть».
+        for (int i = 0; i < 2; ++i) {
+            TreeForgeParams s;
+            s.seed = 1601 + static_cast<uint64_t>(i);
+            s.name = "glade-sapling-birch-" + std::string(1, static_cast<char>('a' + i));
+            s.height = 3.6f + static_cast<float>(i) * 1.2f;
+            s.crown_radius = 0.9f + static_cast<float>(i) * 0.3f;
+            s.crown_base_frac = 0.35f;
+            s.trunk_radius = 0.07f;
+            s.bark = {0.80f, 0.79f, 0.74f};
+            s.tone = LeafTone::BirchLight;
+            s.card_shape = LeafShape::RaggedTip;
+            s.scaffold_count = 3;
+            s.spray_frac = 0.30f;
+            bake(forge_tree(s));
+        }
+        {
+            TreeForgeParams y;
+            y.seed = 1611;
+            y.name = "glade-young-aspen";
+            y.height = 7.0f;
+            y.crown_radius = 1.7f;
+            y.crown_base_frac = 0.4f;
+            y.trunk_radius = 0.13f;
+            y.bark = {0.74f, 0.74f, 0.68f};
+            y.tone = LeafTone::BirchPale;
+            y.card_shape = LeafShape::OvalSpray;
+            y.scaffold_count = 4;
+            y.spray_frac = 0.28f;
+            bake(forge_tree(y));
+            TreeForgeParams yo = y;
+            yo.seed = 1612;
+            yo.name = "glade-young-oak";
+            yo.height = 6.0f;
+            yo.crown_radius = 2.3f;
+            yo.crown_base_frac = 0.3f;
+            yo.trunk_radius = 0.17f;
+            yo.bark = {0.16f, 0.12f, 0.09f};
+            yo.tone = LeafTone::OakMid;
+            yo.card_shape = LeafShape::RoundLobed;
+            bake(forge_tree(yo));
+        }
+        // Bushes, logs, grass, flowers, mushrooms.
+        for (int i = 0; i < 3; ++i) {
+            BushForgeParams bu;
+            bu.seed = 1701 + static_cast<uint64_t>(i);
+            bu.name = "glade-bush-" + std::string(1, static_cast<char>('a' + i));
+            bu.height = 1.2f + static_cast<float>(i) * 0.35f;
+            bu.radius = 0.9f + static_cast<float>(i) * 0.28f;
+            bu.stems = 4 + i;
+            bake(forge_bush(bu));
+        }
+        for (int i = 0; i < 2; ++i) {
+            LogForgeParams lg;
+            lg.seed = 1801 + static_cast<uint64_t>(i);
+            lg.name = "glade-log-" + std::string(1, static_cast<char>('a' + i));
+            lg.length = i == 0 ? 7.5f : 4.5f;
+            lg.radius = i == 0 ? 0.5f : 0.34f;
+            bake(forge_fallen_log(lg));
+        }
+        for (int i = 0; i < 3; ++i) {
+            GroundPropParams t;
+            t.seed = 1901 + static_cast<uint64_t>(i);
+            t.name = "glade-grass-" + std::string(1, static_cast<char>('a' + i));
+            t.kind = GroundPropKind::GrassTuft;
+            t.height = 0.65f + static_cast<float>(i) * 0.25f;
+            bake(forge_ground_prop(t));
+        }
+        const glm::vec3 petal[3] = {{0.92f, 0.90f, 0.85f},   // white
+                                    {0.85f, 0.45f, 0.60f},   // pink
+                                    {0.90f, 0.78f, 0.25f}};  // yellow
+        const char* petal_name[3] = {"white", "pink", "yellow"};
+        for (int i = 0; i < 3; ++i) {
+            GroundPropParams f;
+            f.seed = 2001 + static_cast<uint64_t>(i);
+            f.name = std::string("glade-flowers-") + petal_name[i];
+            f.kind = GroundPropKind::Flowers;
+            f.height = 0.35f;
+            f.accent = petal[i];
+            bake(forge_ground_prop(f));
+        }
+        for (int i = 0; i < 2; ++i) {
+            GroundPropParams m;
+            m.seed = 2101 + static_cast<uint64_t>(i);
+            m.name = i == 0 ? "glade-mushrooms-brown" : "glade-mushrooms-red";
+            m.kind = GroundPropKind::Mushrooms;
+            m.height = 0.16f;
+            m.accent = i == 0 ? glm::vec3{0.48f, 0.34f, 0.18f}
+                              : glm::vec3{0.70f, 0.16f, 0.10f};
+            bake(forge_ground_prop(m));
         }
     }
 
