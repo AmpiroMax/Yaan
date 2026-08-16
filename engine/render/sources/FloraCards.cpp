@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 16:08:2026 - 20:23:55
+Last updated: 16:08:2026 - 20:31:55
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -51,6 +51,7 @@ UPD:
 - 15:08:2026 - 16:08:30: ШТАМПЫ ЛИСТЬЕВ: пачка — решётка отдельных лопастных силуэтов со своим светом (верхний лист решает тексель), край пачки зубрится кончиками листьев, непокрытая внутренность — тёмная глубина между листьями (интерьер кроны 79-86% лист, не небо). Кляксы v5 умерли.
 - 15:08:2026 - 16:15:28: Штампы стали ПЕР-ВИДОВЫМИ (паспорта §2.3-2.4): OvalSpray — осиновые монетки (мелкие, почти круглые), RaggedTip — берёзовые ромбики, RoundLobed — дубовые лопасти. Три вида перестали делить один лист.
 - 16:08:2026 - 20:23:55: КОРА v3 ПО ФОТО (вердикт: «вырвиглазные... прямоугольнички»; решение пользователя: сверяться с фото-эталоном, не выдумывать): (1) шум стал ПЕРИОДИЧЕСКИМ (pnoise, тор) — тайл повторяется frac'ом, зеркальный калейдоскоп мёртв; (2) частоты СНЯТЫ с Bark012 автокорреляцией (борозды 4-6 и 8-10 см, макро 20 см -> 44/88 + 12 на тайл 2.6 м) — v2 рисовала волны 40 см; (3) три октавы ridged + пер-колоночная светлота + сколы-хлопья; (4) диапазон светлот подогнан к фото (p5-p95 0.41-0.65). Эталоны в docs/reference/, сверка A/B глазами на каждой итерации.
+- 16:08:2026 - 20:31:55: ШТАМПЫ ПО ГЕРБАРНЫМ СКАНАМ (docs/reference, правило сверки): дуб — вытянутый 1.75:1 с лопастями ПО БОКАМ и узким основанием (Quercus robur), берёза — дельтоид с одним острым носиком и пильчатым краем (Betula pendula), осина — круглая с крупной волной-кренатурой (Populus tremula); у всех светлая центральная ЖИЛКА. Круглый радиальный цветок v1 не был ничьим листом.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -666,26 +667,50 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                             * 6.2831853f;
                             const float R = LEAF_CELL
                                           * (0.72f + 0.5f * hash01(gx, gy, 0x55u));
-                            const float rr = std::sqrt(lx * lx + ly * ly) / R;
-                            if (rr > 1.3f) continue;
-                            const float th = std::atan2(ly, lx) - rot;
+                            // LEAF-LOCAL frame: u along the leaf axis (tip at
+                            // +u), v across. The reference scans, not taste,
+                            // set every silhouette below (docs/reference/,
+                            // сверка по правилу LEAF_REFERENCES).
+                            const float cr = std::cos(rot);
+                            const float sr = std::sin(rot);
+                            const float u = (lx * cr + ly * sr);
+                            const float v = (-lx * sr + ly * cr);
                             float outline;
+                            float rr;
+                            float th;
                             if (shape_e == LeafShape::OvalSpray) {
-                                // Aspen coin: nearly circular, faint scallop.
-                                outline = 1.0f - 0.07f * (0.5f + 0.5f * std::cos(7.0f * th));
+                                // ASPEN (Populus tremula scan): nearly round,
+                                // CRENATE margin — big rounded waves, deeper
+                                // than a coin's scallop.
+                                rr = std::sqrt(u * u + v * v) / R;
+                                th = std::atan2(v, u);
+                                outline = 1.0f - 0.11f * (0.5f + 0.5f * std::cos(14.0f * th))
+                                               - 0.04f * (0.5f + 0.5f * std::cos(5.0f * th + 0.9f));
                             } else if (shape_e == LeafShape::RaggedTip) {
-                                // Birch diamond: two-pointed, slightly ragged.
-                                outline = std::max(
-                                    1.0f - 0.30f * (0.5f + 0.5f * std::cos(2.0f * th + 0.6f))
-                                         - 0.08f * (0.5f + 0.5f * std::cos(9.0f * th)),
-                                    0.30f);
+                                // BIRCH (Betula pendula scan): deltoid — one
+                                // sharp APEX, broad rounded base, serrated
+                                // edge. Not a diamond: one point, not two.
+                                rr = std::sqrt(u * u + v * v) / R;
+                                th = std::atan2(v, u);
+                                const float tipward = std::max(0.0f, std::cos(th));
+                                outline = 0.92f + 0.55f * tipward * tipward * tipward
+                                        - 0.05f * (0.5f + 0.5f * std::cos(19.0f * th));
                             } else {
-                                // Oak: deep round lobes, no two at one angle.
+                                // OAK (Quercus robur scan): ELONGATED 1.75:1,
+                                // 4-5 rounded lobe pairs on the SIDES, deep
+                                // sinuses, narrow base — the round radial
+                                // flower of v1 was nobody's oak.
+                                const float uu = u / 1.75f;
+                                rr = std::sqrt(uu * uu + v * v) / (R * 0.78f);
+                                th = std::atan2(v, uu);
+                                const float side = std::sin(th) * std::sin(th);
+                                const float baseward = std::max(0.0f, -std::cos(th));
                                 outline = std::max(
-                                    1.0f - 0.30f * (0.5f + 0.5f * std::cos(5.0f * th))
-                                         - 0.10f * (0.5f + 0.5f * std::cos(11.0f * th + 1.3f)),
-                                    0.25f);
+                                    1.0f - 0.26f * side * (0.5f + 0.5f * std::cos(9.0f * th + 0.7f))
+                                         - 0.22f * baseward, // tapering base
+                                    0.30f);
                             }
+                            if (rr > 1.6f) continue;
                             const float d = rr / outline;
                             if (d < leaf_hit) {
                                 leaf_hit = d;
@@ -695,6 +720,13 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 leaf_val = 0.62f
                                     + 0.55f * hash01(gx, gy, 0x71u + sd.seed)
                                     + 0.22f * best_local_y;
+                                // The MIDVEIN, which every scan shows lighter
+                                // than the blade: a thin bright streak along
+                                // the leaf axis, fading before the tip.
+                                if (std::fabs(v) < R * 0.045f && u > -R * 0.85f
+                                    && u < R * 0.75f) {
+                                    leaf_val *= 1.14f;
+                                }
                             }
                         }
                     }
