@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 15:08:2026 - 16:24:04
+Last updated: 16:08:2026 - 21:08:52
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -24,12 +24,19 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 15:08:2026 - 16:24:04: Created with Scene.h.
+- 16:08:2026 - 21:08:52: Реализация групп: опора = земля ИЛИ верх другого члена группы, чей след
+  пересекается в плане; отдельная ветвь «ВСТАВЛЕНО В» (окно несёт стена, а не
+  то, что под ним — иначе каждое окно мира висит); след считается
+  прямоугольником, когда object_box есть, и кругом, когда нет (дерево круглое,
+  и старый вызывающий код обязан работать как раньше). fix_scene_ground НЕ
+  трогает членов групп: посадить стропила на землю — снести дом.
 */
 
 #include "engine/world/sources/Scene.h"
 
 #include <algorithm>
 #include <charconv>
+#include <glm/common.hpp>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -122,6 +129,8 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             current.object = value;
         } else if (key == "note") {
             current.note = value;
+        } else if (key == "group") {
+            current.group = value;
         } else if (key == "yaw") {
             if (!number(current.yaw)) return false;
         } else if (key == "scale") {
@@ -155,6 +164,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
             << "\n"
             << "yaw = " << p.yaw << "\n"
             << "scale = " << p.scale << "\n";
+        if (!p.group.empty()) {
+            out << "group = " << p.group << "\n";
+        }
         if (!p.note.empty()) {
             out << "note = " << p.note << "\n";
         }
@@ -188,31 +200,129 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
     struct Sized {
         float radius = 0.0f;
         float bottom = 0.0f;
+        float top = 0.0f;
+        /// The WORLD-space footprint: min/max in x and z, already scaled,
+        /// turned by yaw and moved into place.
+        glm::vec2 lo{0.0f};
+        glm::vec2 hi{0.0f};
         bool known = false;
+        bool has_top = false;
     };
     std::vector<Sized> sizes(doc.placements.size());
-
     for (std::size_t i = 0; i < doc.placements.size(); ++i) {
         const Placement& p = doc.placements[i];
         Sized& s = sizes[i];
         s.known = world.object_extent(world.ctx, p.object, s.radius, s.bottom);
         s.radius *= p.scale;
         s.bottom *= p.scale;
+        if (s.known && world.object_top != nullptr
+            && world.object_top(world.ctx, p.object, s.top)) {
+            s.top *= p.scale;
+            s.has_top = true;
+        }
+        glm::vec2 blo{0.0f};
+        glm::vec2 bhi{0.0f};
+        if (s.known && world.object_box != nullptr
+            && world.object_box(world.ctx, p.object, blo, bhi)) {
+            // Turn the four corners and take what encloses them: a turned box
+            // is not a box, and the enclosing one is the honest conservative
+            // reading — it never lets an overlap through unseen.
+            const float c = std::cos(p.yaw);
+            const float sn = std::sin(p.yaw);
+            s.lo = glm::vec2{1e30f};
+            s.hi = glm::vec2{-1e30f};
+            for (int k = 0; k < 4; ++k) {
+                const float lx = (k & 1) ? bhi.x : blo.x;
+                const float lz = (k & 2) ? bhi.y : blo.y;
+                const glm::vec2 w{p.position.x + (lx * c + lz * sn) * p.scale,
+                                  p.position.z + (-lx * sn + lz * c) * p.scale};
+                s.lo = glm::min(s.lo, w);
+                s.hi = glm::max(s.hi, w);
+            }
+        } else {
+            // The circle, as before: right for a tree, and the only thing a
+            // caller that predates boxes can supply.
+            s.lo = {p.position.x - s.radius, p.position.z - s.radius};
+            s.hi = {p.position.x + s.radius, p.position.z + s.radius};
+        }
+    }
+
+    /// How deep two footprints interpenetrate in xz, metres. <= 0 = apart.
+    const auto penetration = [&sizes](std::size_t a, std::size_t b) {
+        const float x = std::min(sizes[a].hi.x, sizes[b].hi.x)
+                      - std::max(sizes[a].lo.x, sizes[b].lo.x);
+        const float z = std::min(sizes[a].hi.y, sizes[b].hi.y)
+                      - std::max(sizes[a].lo.y, sizes[b].lo.y);
+        return std::min(x, z);
+    };
+
+    for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+        const Placement& p = doc.placements[i];
+        const Sized& s = sizes[i];
         if (!s.known) {
             found.push_back({SceneRule::KnownObject, i, p.object, 0.0f,
                              "no object by this name in the registry"});
             continue; // every other rule needs its size
         }
 
-        // ON THE GROUND. The rule the user asked this tool for: an object
-        // whose origin is not where the terrain is hovers or is buried, and
-        // both look like a modelling defect from inside the game.
+        // STANDS ON SOMETHING. The rule the user asked this tool for: an
+        // object whose bottom is not where its support is hovers or is buried,
+        // and both look like a modelling defect from inside the game.
+        //
+        // The support is the TERRAIN, or — for a member of a group — the top
+        // of another member it sits over. Without that second half a house
+        // could never pass: every beam above the sill would read as hovering,
+        // the report would be all noise, and a report nobody reads is a rule
+        // that guards nothing.
+        //
+        // The ORIGIN is what is measured, not the lowest vertex: an object's
+        // origin is its footing by convention (a tree's roots dive below it on
+        // purpose, a beam's origin is its bottom face). Measuring the lowest
+        // vertex instead would report every rooted tree as buried.
         const float ground = world.ground_at(world.ctx, {p.position.x, p.position.z});
-        const float gap = p.position.y - ground;
-        if (std::fabs(gap) > limits.ground_tolerance_m) {
+        const float bottom = p.position.y;
+        float support = ground;
+        std::string on = "the ground";
+        if (!p.group.empty()) {
+            for (std::size_t j = 0; j < doc.placements.size(); ++j) {
+                if (j == i || doc.placements[j].group != p.group || !sizes[j].known
+                    || !sizes[j].has_top) {
+                    continue;
+                }
+                const float top_j = doc.placements[j].position.y + sizes[j].top;
+                // SET INTO, not standing on. A window is carried by the wall
+                // it is cut into, not by anything beneath it; so is a door, and
+                // so is a beam let into a post. When another member's own
+                // vertical span contains this part's foot, that member holds
+                // it — asking what is UNDER a window would report every window
+                // in the world as hovering.
+                if (doc.placements[j].position.y <= bottom && top_j > bottom
+                    && penetration(i, j) > 0.0f) {
+                    support = bottom;
+                    on = doc.placements[j].object;
+                    break;
+                }
+                if (top_j > bottom + limits.ground_tolerance_m || top_j <= support) {
+                    continue; // above this part, or lower than what we have
+                }
+                // ANY footprint contact counts as support, deliberately
+                // generous: a beam that spans two posts must count as resting
+                // on them, and the cost of being generous is a missed hover,
+                // while the cost of being strict is every carpentry joint
+                // reported as a defect.
+                if (penetration(i, j) > 0.0f) {
+                    support = top_j;
+                    on = doc.placements[j].object;
+                }
+            }
+        }
+        const float gap = bottom - support;
+        const float allow_down = (!p.group.empty() && on == "the ground")
+                                   ? limits.bury_tolerance_m
+                                   : limits.ground_tolerance_m;
+        if (gap > limits.ground_tolerance_m || gap < -allow_down) {
             found.push_back({SceneRule::OnGround, i, p.object, gap,
-                             gap > 0.0f ? "hovers above the ground"
-                                        : "is buried in the ground"});
+                             (gap > 0.0f ? "hovers above " : "is buried in ") + on});
         }
 
         // INSIDE THE MAP, measured with the object's own footprint — an oak
@@ -237,15 +347,17 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
         if (!sizes[i].known) continue;
         for (std::size_t j = i + 1; j < doc.placements.size(); ++j) {
             if (!sizes[j].known) continue;
-            const glm::vec2 a{doc.placements[i].position.x, doc.placements[i].position.z};
-            const glm::vec2 b{doc.placements[j].position.x, doc.placements[j].position.z};
-            const float dx = a.x - b.x;
-            const float dz = a.y - b.y;
-            const float d = std::sqrt(dx * dx + dz * dz);
-            const float want = sizes[i].radius + sizes[j].radius - limits.overlap_slack_m;
-            if (d < want) {
+            // Two members of one built thing are ALLOWED to interpenetrate:
+            // that is what a joint is. The rule still guards everything else,
+            // including one house standing inside another.
+            if (!doc.placements[i].group.empty()
+                && doc.placements[i].group == doc.placements[j].group) {
+                continue;
+            }
+            const float deep = penetration(i, j);
+            if (deep > limits.overlap_slack_m) {
                 found.push_back({SceneRule::NoOverlap, i, doc.placements[i].object,
-                                 want - d,
+                                 deep - limits.overlap_slack_m,
                                  "stands inside " + doc.placements[j].object});
             }
         }
@@ -260,6 +372,12 @@ std::size_t fix_scene_ground(SceneDoc& doc, const SceneWorld& world,
     }
     std::size_t moved = 0;
     for (Placement& p : doc.placements) {
+        // NEVER a member of a group: sitting a house's rafters on the terrain
+        // would demolish the house. What rests on what inside a built thing is
+        // the composer's design, and a repair tool does not get a vote on it.
+        if (!p.group.empty()) {
+            continue;
+        }
         const float ground = world.ground_at(world.ctx, {p.position.x, p.position.z});
         if (std::fabs(p.position.y - ground) > limits.ground_tolerance_m) {
             p.position.y = ground;

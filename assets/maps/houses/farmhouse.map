@@ -1,0 +1,14 @@
+name = Хутор: дом из набора деталей
+zone = lead
+size_chunks = 1
+# ИСТОЧНИК: земля — генератор (спокойная площадка галереи), а ДОМ читается из
+# файла композиции assets/scenes/house-farm.scene. В коде дома нет: каждая его
+# часть — деталь строительного набора (assets/objects/parts/*.dfo, испечены
+# dfn_kit), а файл сцены говорит, где какая стоит. Проверяется правилами:
+#   dfn_scene_check assets/scenes/house-farm.scene --stand Gallery \
+#                   --objects assets/objects/parts
+source = stand:Gallery
+objects = assets/objects/parts
+scene = assets/scenes/house-farm.scene
+description = 39 деталей: фундамент, столбы, стены, фронтоны, соломенная кровля, дверь, окно, крыльцо и забор.
+built_commit =

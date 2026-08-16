@@ -1,0 +1,312 @@
+# Daggerfall N scene — what stands where on this map.
+# Edited by hand and by agents; checked by dfn_scene_check.
+map = houses/farmhouse
+world_span_m = 256
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 126 25.679 124.75
+yaw = 0
+scale = 1
+group = farmhouse
+note = south base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 126 25.679 130.75
+yaw = 0
+scale = 1
+group = farmhouse
+note = north base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 128 25.679 124.75
+yaw = 0
+scale = 1
+group = farmhouse
+note = south base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 128 25.679 130.75
+yaw = 0
+scale = 1
+group = farmhouse
+note = north base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 125.75 25.679 125
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = west base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 130.25 25.679 125
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = east base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 125.75 25.679 127
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = west base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 130.25 25.679 127
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = east base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 125.75 25.679 129
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = west base course
+
+[place]
+object = footing-stone-8x2x2-w08
+pos = 130.25 25.679 129
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = east base course
+
+[place]
+object = post-timber-12x2x2-w08
+pos = 126 26.179 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = corner post
+
+[place]
+object = post-timber-12x2x2-w08
+pos = 129.5 26.179 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = corner post
+
+[place]
+object = post-timber-12x2x2-w08
+pos = 126 26.179 130.5
+yaw = 0
+scale = 1
+group = farmhouse
+note = corner post
+
+[place]
+object = post-timber-12x2x2-w08
+pos = 129.5 26.179 130.5
+yaw = 0
+scale = 1
+group = farmhouse
+note = corner post
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 126 26.179 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = south wall, west of the door
+
+[place]
+object = doorframe-timber-4x1x10-w08
+pos = 128.25 26.179 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = the doorway
+
+[place]
+object = door-timber-3x1x7-w08
+pos = 128.35 26.179 125.12
+yaw = 0
+scale = 1
+group = farmhouse
+note = the door itself
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 126 26.179 131
+yaw = 0
+scale = 1
+group = farmhouse
+note = north wall
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 128 26.179 131
+yaw = 0
+scale = 1
+group = farmhouse
+note = north wall
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 126 26.179 125
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = west wall
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 130 26.179 125
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = east wall
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 126 26.179 127
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = west wall
+
+[place]
+object = wall-timber-8x1x10-w08
+pos = 130 26.179 127
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = east wall, the lit bay
+
+[place]
+object = window-timber-4x1x4-w05
+pos = 130.05 27.429 127.5
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = window onto the yard
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 126 26.179 129
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = west wall
+
+[place]
+object = wall-dark-8x1x10-w08
+pos = 130 26.179 129
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = east wall
+
+[place]
+object = gable-timber-16x1x8-w08
+pos = 126 28.679 124.95
+yaw = 0
+scale = 1
+group = farmhouse
+note = south gable
+
+[place]
+object = gable-timber-16x1x8-w08
+pos = 126 28.679 131
+yaw = 0
+scale = 1
+group = farmhouse
+note = north gable
+
+[place]
+object = roof-thatch-8x8x8-w08
+pos = 125.7 28.679 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = west roof slope
+
+[place]
+object = roof-thatch-8x8x8-w08
+pos = 130.3 28.679 127
+yaw = 3.14159
+scale = 1
+group = farmhouse
+note = east roof slope
+
+[place]
+object = roof-thatch-8x8x8-w08
+pos = 125.7 28.679 127
+yaw = 0
+scale = 1
+group = farmhouse
+note = west roof slope
+
+[place]
+object = roof-thatch-8x8x8-w08
+pos = 130.3 28.679 129
+yaw = 3.14159
+scale = 1
+group = farmhouse
+note = east roof slope
+
+[place]
+object = roof-thatch-8x8x8-w08
+pos = 125.7 28.679 129
+yaw = 0
+scale = 1
+group = farmhouse
+note = west roof slope
+
+[place]
+object = roof-thatch-8x8x8-w08
+pos = 130.3 28.679 131
+yaw = 3.14159
+scale = 1
+group = farmhouse
+note = east roof slope
+
+[place]
+object = stair-timber-1x4x2-w08
+pos = 128 25.679 124
+yaw = -1.5708
+scale = 1
+group = farmhouse
+note = the porch steps
+
+[place]
+object = fence-timber-8x1x4-w08
+pos = 122 25.887 122
+yaw = 0
+scale = 1
+note = yard fence
+
+[place]
+object = fence-timber-8x1x4-w08
+pos = 124 25.8387 122
+yaw = 0
+scale = 1
+note = yard fence
+
+[place]
+object = fence-timber-8x1x4-w08
+pos = 126 25.7937 122
+yaw = 0
+scale = 1
+note = yard fence
+
+[place]
+object = fence-timber-8x1x4-w08
+pos = 128 25.7614 122
+yaw = 0
+scale = 1
+note = yard fence

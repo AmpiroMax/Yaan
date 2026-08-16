@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 02:14:41
+Last updated: 16:08:2026 - 21:08:52
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -64,6 +64,8 @@ UPD:
 - 14:08:2026 - 19:41:18: action_pressed() + include Controls.h — обработчики клавиш спрашивают привязку ПО ДЕЙСТВИЮ, а не называют Key здесь. Это и есть то, что не даёт экрану управления разъехаться с кодом. Половина от 83ef021: уехала в рабочем дереве, доезжает отдельно.
 - 15:08:2026 - 01:04:30: gallery_objects_dir_ + gallery_bodies_ (полка реестра и твёрдые стволы).
 - 15:08:2026 - 02:14:41: gallery_size_chunks_ — пролёт галереи из манифеста (колоссу нужен 2×2).
+- 16:08:2026 - 21:08:52: gallery_scene_ — файл композиции следующей карты (пусто = старая
+  автосетка).
 */
 
 #pragma once
@@ -365,6 +367,9 @@ private:
     /// trunk bodies (user: «сделать деревья физичными, не давать сквозь них
     /// ходить»), destroyed on the next gallery load.
     std::string gallery_objects_dir_ = "assets/objects/trees";
+    /// The map's .scene, if it has one: WHERE things stand, as an edited file
+    /// instead of a grid this code invents. Empty = the auto-grid, as before.
+    std::string gallery_scene_;
     int gallery_size_chunks_ = 1; // Gallery extent, from the manifest
     std::vector<platform::PhysicsBodyHandle> gallery_bodies_;
 

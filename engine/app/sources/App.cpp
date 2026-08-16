@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 20:36:57
+Last updated: 16:08:2026 - 21:08:52
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -165,6 +165,13 @@ UPD:
   земля галереи на ~25 м, у стенда одного дерева иная, и знать это наизусть
   автор кадра не должен. Читается ПЕРЕД абсолютной дверью — рецепт, несущий обе,
   получает ту, которую выписал буквами.
+- 16:08:2026 - 21:08:52: КАРТА ЧИТАЕТ ФАЙЛ КОМПОЗИЦИИ. Ключ манифеста scene = <файл>.scene —
+  и объекты стоят там, где сказал ФАЙЛ, а не там, куда их разложила сетка в этом
+  коде. Это и есть смысл инструмента: композицию правят человек и агент, судит
+  dfn_scene_check, а игра только читает (в1). Автосетка галереи осталась для
+  полок без композиции. Каждая деталь получает статичное тело по СВОЕЙ сетке,
+  расширенное под поворот: StaticBoxDesc осезависим, и коробка, ужавшаяся при
+  повороте, пропускала бы ходока сквозь угол каждой повёрнутой стены.
 */
 
 #include "engine/app/sources/App.h"
@@ -182,6 +189,7 @@ UPD:
 #include "engine/world/sources/CoarseTerrain.h"
 #include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/LayoutLoad.h"
+#include "engine/world/sources/Scene.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/physics/sources/CollisionLayers.h"
@@ -1150,6 +1158,94 @@ bool App::enter_world(uint32_t stand) {
             physics_->destroy_body(body);
         }
         gallery_bodies_.clear();
+        // THE COMPOSITION FILE WINS. When the map names a .scene, the objects
+        // stand where that file says — the same file dfn_scene_check judges and
+        // a human edits in git. The auto-grid below stays for the shelves that
+        // have no composition yet: a gallery is "show me everything on this
+        // shelf", a scene is "this is the place I built".
+        if (!gallery_scene_.empty()) {
+            world::SceneDoc doc;
+            std::string serr;
+            if (!world::read_scene(gallery_scene_, doc, serr)) {
+                // LOUD, and the map still opens: an empty world with a reason
+                // printed beats a world that silently arranged itself.
+                std::fprintf(stderr, "[scene] %s: %s -- NOTHING PLACED\n",
+                             gallery_scene_.c_str(), serr.c_str());
+            }
+            render::MeshData scene_wood;
+            render::MeshData scene_cards;
+            std::map<std::string, render::RegistryObject> loaded;
+            int placed = 0;
+            for (const world::Placement& p : doc.placements) {
+                auto it = loaded.find(p.object);
+                if (it == loaded.end()) {
+                    auto obj = render::read_object(fs::path(gallery_objects_dir_)
+                                                   / (p.object + ".dfo"));
+                    if (!obj) {
+                        std::fprintf(stderr, "[scene] no object \"%s\" on shelf %s "
+                                             "-- SKIPPED\n", p.object.c_str(),
+                                     gallery_objects_dir_.c_str());
+                        continue;
+                    }
+                    it = loaded.emplace(p.object, std::move(*obj)).first;
+                }
+                const render::RegistryObject& obj = it->second;
+                render::append_transformed(scene_wood, obj.wood, p.position, p.yaw,
+                                           p.scale);
+                render::append_transformed(scene_cards, obj.cards, p.position, p.yaw,
+                                           p.scale);
+                render::append_transformed(scene_cards, obj.bark, p.position, p.yaw,
+                                           p.scale);
+                render::append_transformed(scene_cards, obj.ground, p.position, p.yaw,
+                                           p.scale);
+                // SOLID BY DEFAULT (user: «сделать деревья физичными, не давать
+                // сквозь них ходить» — a house wall owes the same). One box per
+                // placement, sized from the object's own mesh and widened to
+                // the yaw-rotated footprint, because StaticBoxDesc is axis
+                // aligned and a box that shrank under rotation would let a
+                // walker through the corner of every turned wall.
+                glm::vec3 lo{1e9f};
+                glm::vec3 hi{-1e9f};
+                const auto grow = [&](const render::MeshData& m) {
+                    for (const platform::Vertex& v : m.vertices) {
+                        lo = glm::min(lo, v.position);
+                        hi = glm::max(hi, v.position);
+                    }
+                };
+                grow(obj.wood);
+                grow(obj.bark);
+                if (hi.x < lo.x) {
+                    continue;
+                }
+                const float cs = std::fabs(std::cos(p.yaw));
+                const float sn = std::fabs(std::sin(p.yaw));
+                const glm::vec3 half = (hi - lo) * 0.5f * p.scale;
+                const glm::vec3 mid_local = (hi + lo) * 0.5f * p.scale;
+                platform::StaticBoxDesc box;
+                box.center = {p.position.x + mid_local.x * std::cos(p.yaw)
+                                  + mid_local.z * std::sin(p.yaw),
+                              p.position.y + mid_local.y,
+                              p.position.z - mid_local.x * std::sin(p.yaw)
+                                  + mid_local.z * std::cos(p.yaw)};
+                box.half_extents = {half.x * cs + half.z * sn, half.y,
+                                    half.x * sn + half.z * cs};
+                box.layer = physics::LAYER_STATIC;
+                const auto body = physics_->create_static_box(box);
+                if (body.valid()) {
+                    gallery_bodies_.push_back(body);
+                }
+                ++placed;
+            }
+            if (placed > 0) {
+                render_system_.upload_prebuilt_scatter(*renderer_, {0, 0}, scene_wood,
+                                                       scene_cards);
+            }
+            std::fprintf(stderr, "[scene] %s: %d of %zu placement(s) standing, "
+                                 "%zu distinct object(s)\n", gallery_scene_.c_str(),
+                         placed, doc.placements.size(), loaded.size());
+            player_ = gameplay::spawn_player(world_, *physics_, spawn);
+            return world_.alive(player_);
+        }
         for (const auto& e : fs::directory_iterator(gallery_objects_dir_, gec)) {
             if (e.path().extension() == ".dfo") {
                 files.push_back(e.path());
@@ -2335,6 +2431,7 @@ bool App::open_map(const MapManifest& manifest) {
         // must land BEFORE the call; every other stand ignores it.
         gallery_objects_dir_ = manifest.objects.empty() ? "assets/objects/trees"
                                                         : manifest.objects;
+        gallery_scene_ = manifest.scene;
         gallery_size_chunks_ = std::max(1, manifest.size_chunks);
         if (!enter_world(*stand)) {
             status("map.err.build", {});

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:50:36
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 16:08:2026 - 21:08:52
 Module: engine/app
 File: engine/app/sources/MapCatalog.cpp
 
@@ -14,6 +14,7 @@ AI Agents Notice (must follow):
 UPD:
 - 14:08:2026 - 16:50:36: Created.
 - 15:08:2026 - 01:04:30: разбор ключа objects — карта выбирает свою полку реестра.
+- 16:08:2026 - 21:08:52: разбор ключа scene.
 */
 
 #include "engine/app/sources/MapCatalog.h"
@@ -82,6 +83,8 @@ MapManifest parse_map_manifest(std::string_view text) {
             m.description = std::string(value);
         } else if (key == "objects") {
             m.objects = std::string(value);
+        } else if (key == "scene") {
+            m.scene = std::string(value);
         } else if (key == "size_chunks") {
             int v = 0;
             if (std::sscanf(std::string(value).c_str(), "%d", &v) == 1) {

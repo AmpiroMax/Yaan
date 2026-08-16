@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 15:08:2026 - 16:24:04
+Last updated: 16:08:2026 - 21:08:52
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -42,6 +42,19 @@ UPD:
 - 15:08:2026 - 16:24:04: Создан по заданию пользователя: «надо сделать
   приложение, где агенты смогут объекты и пространство оформлять по внутренним
   правилам... чтобы инструментом могли как агенты, так и человек пользоваться».
+- 16:08:2026 - 21:08:52: ГРУППЫ И ОПОРА — по заданию пользователя про инструмент, где агенты
+  СОБИРАЮТ ДОМА из готовых деталей. Placement::group («farmhouse») меняет два
+  правила: члены одной постройки могут пересекаться (это стык, а не дефект) и
+  могут стоять ДРУГ НА ДРУГЕ, а не только на земле — без второго дома нельзя
+  проверить в принципе: каждая балка выше подошвы читалась бы как висящая, и
+  отчёт стал бы шумом. SceneWorld дорос двумя необязательными крюками (правило
+  26, только добавления): object_top — насколько деталь возвышается над своим
+  началом (то, на что встаёт следующая), object_box — СЛЕД детали как
+  прямоугольник. Второй куплен ошибкой: начало строительной детали лежит у её
+  КРАЯ, поэтому круг радиуса от начала у фронтона 4 м даёт 4.5 м вокруг угла, и
+  забор «стоял внутри» дома через три метра пустой травы. И асимметричный
+  допуск bury_tolerance_m: постройка ВРЕЗАЕТСЯ в склон подошвой (так кладут
+  камень), а висит в воздухе — всегда ошибка; одинокому дереву поблажки нет.
 */
 
 #pragma once
@@ -67,6 +80,15 @@ struct Placement {
     /// Free-text note from whoever placed it — the human's «зачем оно тут».
     /// Carried through read/write untouched, so a tool never eats a comment.
     std::string note;
+    /// WHAT THIS PART BELONGS TO, e.g. "farmhouse". Empty = it stands alone.
+    /// A group is one built thing, and it changes two rules:
+    ///   - members may INTERSECT each other (a beam sits in a notch; a rafter
+    ///     passes through a wall plate — that is carpentry, not a defect);
+    ///   - a member may rest on ANOTHER MEMBER instead of on the terrain, so
+    ///     the second storey of a house is not reported as hovering.
+    /// Without groups the checker could only ever judge things standing on
+    /// open ground, which is trees and nothing else.
+    std::string group;
 };
 
 /// One composed scene: the placements of one map.
@@ -107,6 +129,21 @@ struct SceneWorld {
     /// rules measure the OBJECT, never a guessed size.
     bool (*object_extent)(void* ctx, const std::string& name, float& radius_m,
                           float& bottom_m) = nullptr;
+    /// How tall the object is above its own origin, metres. OPTIONAL: when it
+    /// is null nothing can rest on anything and the ground rule measures
+    /// against the terrain alone, exactly as before groups existed. Supplied
+    /// separately rather than as a fourth out-parameter of object_extent so
+    /// that every caller written against the old shape keeps compiling
+    /// (Rule 26: contracts grow, they do not change).
+    bool (*object_top)(void* ctx, const std::string& name, float& top_m) = nullptr;
+    /// The object's FOOTPRINT as a box in its own local space, relative to its
+    /// origin. OPTIONAL: without it the checker falls back to the radius
+    /// circle above, which is right for a tree — round, centred on its trunk —
+    /// and badly wrong for a building part, whose origin is at one END. A 4 m
+    /// gable measured as a circle claims a 4.5 m radius about its corner and
+    /// then "stands inside" everything in the yard.
+    bool (*object_box)(void* ctx, const std::string& name, glm::vec2& min_xz,
+                       glm::vec2& max_xz) = nullptr;
     void* ctx = nullptr;
 };
 
@@ -114,6 +151,13 @@ struct SceneWorld {
 /// caller may tighten them, and the checker reports which value it used.
 struct SceneLimits {
     float ground_tolerance_m = 0.05f; ///< hover/bury beyond this is a finding
+    /// How far a GROUP MEMBER may be dug into the terrain before it counts.
+    /// Asymmetric with the hover tolerance on purpose: a building sits on a
+    /// slope by burying the uphill side of its footing course — that is how
+    /// masonry works — while a part hovering by the same amount is always a
+    /// mistake. Loose objects (no group) get no such licence: a tree buried
+    /// half a metre is a defect, not a design.
+    float bury_tolerance_m = 0.5f;
     float edge_margin_m = 2.0f;       ///< keep this much of the map beyond it
     float overlap_slack_m = 0.5f;     ///< crowns may mingle by this much
 };

@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 15:08:2026 - 16:24:04
+Last updated: 16:08:2026 - 21:08:52
 Module: tools
 File: tools/check_scene.cpp
 
@@ -35,6 +35,11 @@ UPD:
 - 15:08:2026 - 16:24:04: Created — the composition tool's first half (the
   rules), per the user's ask for an application where agents and humans lay
   out the world by its own rules.
+- 16:08:2026 - 21:08:52: Мерка детали расширена до верха и следа (object_top/object_box) — из той
+  же сетки, что и всё остальное: высота опоры, вписанная руками, протухает
+  первой при перековке детали. И --ground <x> <z> [<пролёт>]: строителю нужна
+  земля ДО того, как он напишет, где лежит подошва, а --fix ему не поможет — он
+  членов групп не двигает.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -44,8 +49,10 @@ UPD:
 #include "engine/world/sources/WorldgenForest.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <glm/common.hpp>
 #include <map>
 #include <string>
 
@@ -54,9 +61,17 @@ namespace {
 struct Ctx {
     const dfn::world::WorldGenContext* gen = nullptr;
     std::filesystem::path objects_dir;
-    /// name -> (radius, bottom). Memoised: a scene of 200 trees would
-    /// otherwise read and hash the same .dfo two hundred times.
-    std::map<std::string, std::pair<float, float>> extents;
+    /// name -> (radius, bottom, top). Memoised: a scene of 200 trees — or of
+    /// 200 identical beams in one house — would otherwise read and hash the
+    /// same .dfo two hundred times.
+    struct Extent {
+        float radius = 0.0f;
+        float bottom = 0.0f;
+        float top = 0.0f;
+        glm::vec2 lo{0.0f};   ///< local xz footprint, about the origin
+        glm::vec2 hi{0.0f};
+    };
+    std::map<std::string, Extent> extents;
 };
 
 float ground_at(void* ctx, glm::vec2 p) {
@@ -64,33 +79,64 @@ float ground_at(void* ctx, glm::vec2 p) {
     return dfn::world::terrain_height(*c->gen, p);
 }
 
-bool object_extent(void* ctx, const std::string& name, float& radius, float& bottom) {
-    auto* c = static_cast<Ctx*>(ctx);
+const Ctx::Extent* measure(Ctx* c, const std::string& name) {
     if (const auto it = c->extents.find(name); it != c->extents.end()) {
-        radius = it->second.first;
-        bottom = it->second.second;
-        return true;
+        return &it->second;
     }
     const auto obj = dfn::render::read_object(c->objects_dir / (name + ".dfo"));
     if (!obj) {
-        return false;
+        return nullptr;
     }
-    float r = 0.0f;
-    float b = 0.0f;
+    Ctx::Extent e;
     const auto scan = [&](const dfn::render::MeshData& mesh) {
         for (const dfn::platform::Vertex& v : mesh.vertices) {
-            r = std::max(r, std::sqrt(v.position.x * v.position.x
-                                      + v.position.z * v.position.z));
-            b = std::min(b, v.position.y);
+            e.radius = std::max(e.radius, std::sqrt(v.position.x * v.position.x
+                                                    + v.position.z * v.position.z));
+            e.bottom = std::min(e.bottom, v.position.y);
+            e.top = std::max(e.top, v.position.y);
+            e.lo = glm::min(e.lo, glm::vec2{v.position.x, v.position.z});
+            e.hi = glm::max(e.hi, glm::vec2{v.position.x, v.position.z});
         }
     };
     scan(obj->wood);
     scan(obj->cards);
     scan(obj->ground);
     scan(obj->bark);
-    c->extents.emplace(name, std::make_pair(r, b));
-    radius = r;
-    bottom = b;
+    return &c->extents.emplace(name, e).first->second;
+}
+
+bool object_extent(void* ctx, const std::string& name, float& radius, float& bottom) {
+    const Ctx::Extent* e = measure(static_cast<Ctx*>(ctx), name);
+    if (e == nullptr) {
+        return false;
+    }
+    radius = e->radius;
+    bottom = e->bottom;
+    return true;
+}
+
+/// The object's footprint about its own origin. A building part's origin is at
+/// one END of it, so this is the only measurement that tells the truth about
+/// where the part actually sits.
+bool object_box(void* ctx, const std::string& name, glm::vec2& lo, glm::vec2& hi) {
+    const Ctx::Extent* e = measure(static_cast<Ctx*>(ctx), name);
+    if (e == nullptr) {
+        return false;
+    }
+    lo = e->lo;
+    hi = e->hi;
+    return true;
+}
+
+/// How tall the object stands above its own origin — what another part rests
+/// on. Measured from the same mesh as everything else: a support height typed
+/// in by hand is the first thing to go stale when a part is re-forged.
+bool object_top(void* ctx, const std::string& name, float& top) {
+    const Ctx::Extent* e = measure(static_cast<Ctx*>(ctx), name);
+    if (e == nullptr) {
+        return false;
+    }
+    top = e->top;
     return true;
 }
 
@@ -100,16 +146,29 @@ int main(int argc, char** argv) {
     using namespace dfn::world;
     if (argc < 2) {
         std::fprintf(stderr, "usage: dfn_scene_check <file.scene> [--stand <id>] "
-                             "[--objects <dir>] [--fix]\n");
+                             "[--objects <dir>] [--fix]\n"
+                             "       dfn_scene_check - --ground <x> <z> [<span>] "
+                             "[--stand <id>]\n");
         return 2;
     }
     const std::filesystem::path scene_path = argv[1];
     std::string stand = "Gallery";
     std::filesystem::path objects_dir = "assets/objects/trees";
     bool fix = false;
+    bool ground_query = false;
+    float query_x = 0.0f;
+    float query_z = 0.0f;
+    float query_span = 8.0f;
     for (int i = 2; i < argc; ++i) {
         if (std::strcmp(argv[i], "--fix") == 0) {
             fix = true;
+        } else if (std::strcmp(argv[i], "--ground") == 0 && i + 2 < argc) {
+            ground_query = true;
+            query_x = std::strtof(argv[++i], nullptr);
+            query_z = std::strtof(argv[++i], nullptr);
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                query_span = std::strtof(argv[++i], nullptr);
+            }
         } else if (std::strcmp(argv[i], "--stand") == 0 && i + 1 < argc) {
             stand = argv[++i];
         } else if (std::strcmp(argv[i], "--objects") == 0 && i + 1 < argc) {
@@ -122,7 +181,7 @@ int main(int argc, char** argv) {
 
     SceneDoc doc;
     std::string error;
-    if (!read_scene(scene_path, doc, error)) {
+    if (!ground_query && !read_scene(scene_path, doc, error)) {
         std::fprintf(stderr, "[scene] %s: %s\n", scene_path.string().c_str(),
                      error.c_str());
         return 1;
@@ -150,12 +209,43 @@ int main(int argc, char** argv) {
     }
     const WorldGenContext gen = build_world_context(params);
 
+    // ASKING THE WORLD A QUESTION, before there is a scene to check. A builder
+    // needs to know the ground before he can write down where a footing goes,
+    // and the alternative — placing at a guessed height and letting --fix
+    // correct it — cannot work for a house, whose parts rest on each other and
+    // are never sat down by the fixer.
+    if (ground_query) {
+        float lo = 1e9f;
+        float hi = -1e9f;
+        constexpr int STEPS = 16;
+        for (int iz = 0; iz <= STEPS; ++iz) {
+            for (int ix = 0; ix <= STEPS; ++ix) {
+                const glm::vec2 at{
+                    query_x + query_span * (static_cast<float>(ix) / STEPS - 0.5f),
+                    query_z + query_span * (static_cast<float>(iz) / STEPS - 0.5f)};
+                const float h = terrain_height(gen, at);
+                lo = std::min(lo, h);
+                hi = std::max(hi, h);
+            }
+        }
+        std::printf("[ground] (%.2f, %.2f) = %.3f m; over %.1f m: %.3f..%.3f "
+                    "(spread %.3f m)\n", static_cast<double>(query_x),
+                    static_cast<double>(query_z),
+                    static_cast<double>(terrain_height(gen, {query_x, query_z})),
+                    static_cast<double>(query_span), static_cast<double>(lo),
+                    static_cast<double>(hi), static_cast<double>(hi - lo));
+        return 0;
+    }
+
+
     Ctx ctx;
     ctx.gen = &gen;
     ctx.objects_dir = objects_dir;
     SceneWorld world;
     world.ground_at = &ground_at;
     world.object_extent = &object_extent;
+    world.object_top = &object_top;
+    world.object_box = &object_box;
     world.ctx = &ctx;
 
     if (fix) {

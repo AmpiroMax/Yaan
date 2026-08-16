@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:50:36
-Last updated: 15:08:2026 - 01:04:30
+Last updated: 16:08:2026 - 21:08:52
 Module: engine/app
 File: engine/app/sources/MapCatalog.h
 
@@ -35,6 +35,7 @@ UPD:
                          .map manifests), per docs/MAP_LAYOUT.md.
 - 15:08:2026 - 01:04:30: MapManifest::objects — карта выбирает свою полку реестра (галерея
   колосса живёт на своей карте, не тесня общую).
+- 16:08:2026 - 21:08:52: MapManifest::scene — карта называет свой файл композиции.
 */
 
 #pragma once
@@ -59,6 +60,12 @@ struct MapManifest {
     /// stands). Empty = the stand's default. A MAP chooses its shelf, so a
     /// colossus can live on its own map without crowding the tree gallery.
     std::string objects;
+    /// 'scene' -- a .scene composition file (engine/world/sources/Scene.h).
+    /// When set, the map's objects stand WHERE THE FILE SAYS instead of on an
+    /// auto-generated grid: the composition becomes data a human and an agent
+    /// edit and dfn_scene_check judges, which is the whole point of the tool.
+    /// Empty = the stand's own arrangement, as before.
+    std::string scene;
     int size_chunks = 0;     // 'size_chunks'
 };
 

@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 16:08:2026 - 20:16:09
+Last updated: 16:08:2026 - 21:08:52
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -27,6 +27,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 16:08:2026 - 20:16:09: Создан вместе с инструментом композиции.
+- 16:08:2026 - 21:08:52: Правила групп с обеих сторон: деталь на детали законна, она же на 0.6 м
+  выше — нет (и число названо), опора требует стоять НАД, а не рядом, опора не
+  ходит между группами, без крюка object_top всё остаётся как было (правило 26),
+  члены одной группы пересекаться могут — а контроль в разных группах ловится.
+  Плюс врезка в склон: постройке можно, дереву нельзя, и висеть нельзя никому.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -71,10 +76,48 @@ bool two_objects(void*, const std::string& name, float& radius, float& bottom) {
     return false;
 }
 
+/// The kit half of the fixture: a 4 m beam, 1 m wide, 2 m tall. Height matters
+/// here in a way it never did for the tree rules — it is what the NEXT part
+/// rests on.
+bool object_top(void*, const std::string& name, float& top) {
+    if (name == "tree") {
+        top = 8.0f;
+        return true;
+    }
+    if (name == "giant") {
+        top = 40.0f;
+        return true;
+    }
+    if (name == "beam") {
+        top = 2.0f;
+        return true;
+    }
+    return false;
+}
+
+bool three_objects(void* ctx, const std::string& name, float& radius, float& bottom) {
+    if (name == "beam") {
+        radius = 2.0f;
+        bottom = 0.0f;
+        return true;
+    }
+    return two_objects(ctx, name, radius, bottom);
+}
+
 [[nodiscard]] SceneWorld test_world() {
     SceneWorld w;
     w.ground_at = &flat_ground;
-    w.object_extent = &two_objects;
+    w.object_extent = &three_objects;
+    w.object_top = &object_top;
+    return w;
+}
+
+/// The world as it was BEFORE parts could rest on parts. Kept so the stacking
+/// tests can prove the old behaviour is what you still get without the new
+/// hook — a contract that grew, not one that changed (Rule 26).
+[[nodiscard]] SceneWorld world_without_tops() {
+    SceneWorld w = test_world();
+    w.object_top = nullptr;
     return w;
 }
 
@@ -169,6 +212,111 @@ TEST_CASE("scene: every rule goes red on the defect it was written for") {
         REQUIRE(found.size() == 1);
         CHECK(found[0].rule == SceneRule::KnownObject);
     }
+}
+
+TEST_CASE("scene: a built thing stands on itself") {
+    // The house case the kit exists for: a beam on the ground, a second beam
+    // resting on the first. Both are members of one group.
+    const auto beam = [](float x, float y, const char* group) {
+        Placement p = at("beam", x, y, 100.0f);
+        p.group = group;
+        return p;
+    };
+
+    SUBCASE("a part resting on another part is legal") {
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        doc.placements = {beam(100.0f, GROUND_Y, "house"),
+                          beam(100.0f, GROUND_Y + 2.0f, "house")};
+        const auto found = check_scene(doc, test_world());
+        for (const SceneFinding& f : found) {
+            INFO(describe(f));
+        }
+        CHECK(found.empty());
+    }
+
+    SUBCASE("...and one resting on NOTHING is still caught, by how much") {
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        doc.placements = {beam(100.0f, GROUND_Y, "house"),
+                          beam(100.0f, GROUND_Y + 2.6f, "house")};
+        const auto found = check_scene(doc, test_world());
+        REQUIRE(found.size() == 1);
+        CHECK(found[0].rule == SceneRule::OnGround);
+        CHECK(found[0].amount_m == doctest::Approx(0.6f)); // above the 2 m beam
+    }
+
+    SUBCASE("support needs the parts to be OVER each other, not merely near") {
+        // Same heights, but 20 m apart: nothing holds the upper beam up. This
+        // is the rule the whole feature is for — «висящие в воздухе тропинки».
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        doc.placements = {beam(100.0f, GROUND_Y, "house"),
+                          beam(120.0f, GROUND_Y + 2.0f, "house")};
+        CHECK(has(check_scene(doc, test_world()), SceneRule::OnGround));
+    }
+
+    SUBCASE("a building may be dug into its slope; a tree may not") {
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        // A footing 0.3 m into the hill: how a wall meets a slope.
+        doc.placements = {beam(100.0f, GROUND_Y - 0.3f, "house")};
+        CHECK_FALSE(has(check_scene(doc, test_world()), SceneRule::OnGround));
+        // CONTROL 1: the same beam standing loose is a beam sunk in the mud.
+        doc.placements[0].group.clear();
+        CHECK(has(check_scene(doc, test_world()), SceneRule::OnGround));
+        // CONTROL 2: the licence is for burying only. A house part hovering by
+        // the same 0.3 m is still a defect, because nothing holds it up.
+        doc.placements = {beam(100.0f, GROUND_Y + 0.3f, "house")};
+        CHECK(has(check_scene(doc, test_world()), SceneRule::OnGround));
+    }
+
+    SUBCASE("support does not cross group boundaries") {
+        // Two different buildings: one may not lean on the other's roof by
+        // accident, or a composer would never learn that he mis-typed a group.
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        doc.placements = {beam(100.0f, GROUND_Y, "barn"),
+                          beam(100.0f, GROUND_Y + 2.0f, "house")};
+        CHECK(has(check_scene(doc, test_world()), SceneRule::OnGround));
+    }
+
+    SUBCASE("without the object_top hook, nothing rests on anything") {
+        // The old contract, unchanged: a caller that never supplied heights
+        // gets exactly the behaviour it had before groups existed.
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        doc.placements = {beam(100.0f, GROUND_Y, "house"),
+                          beam(100.0f, GROUND_Y + 2.0f, "house")};
+        CHECK(has(check_scene(doc, world_without_tops()), SceneRule::OnGround));
+    }
+
+    SUBCASE("members of one group may interpenetrate; two buildings may not") {
+        SceneDoc doc;
+        doc.world_span_m = 256.0f;
+        doc.placements = {beam(100.0f, GROUND_Y, "house"),
+                          beam(100.5f, GROUND_Y, "house")};
+        CHECK_FALSE(has(check_scene(doc, test_world()), SceneRule::NoOverlap));
+
+        // CONTROL: the same two beams in DIFFERENT groups are two things in
+        // one place, which is the defect the rule was written for.
+        doc.placements[1].group = "barn";
+        CHECK(has(check_scene(doc, test_world()), SceneRule::NoOverlap));
+    }
+}
+
+TEST_CASE("scene: --fix never touches a built thing") {
+    // A house's upper storey is hovering BY DESIGN as far as the terrain is
+    // concerned. A fixer that sat it down would demolish the house.
+    SceneDoc doc;
+    doc.world_span_m = 256.0f;
+    doc.placements = {at("tree", 60.0f, GROUND_Y + 3.0f, 60.0f),
+                      at("beam", 100.0f, GROUND_Y + 2.0f, 100.0f)};
+    doc.placements[1].group = "house";
+    const std::size_t moved = fix_scene_ground(doc, test_world());
+    CHECK(moved == 1); // the loose tree, and only it
+    CHECK(doc.placements[0].position.y == doctest::Approx(GROUND_Y));
+    CHECK(doc.placements[1].position.y == doctest::Approx(GROUND_Y + 2.0f));
 }
 
 TEST_CASE("scene: --fix sits objects down and changes nothing else") {
