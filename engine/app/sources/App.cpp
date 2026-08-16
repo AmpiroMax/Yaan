@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 22:11:47
+Last updated: 16:08:2026 - 22:27:28
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -193,6 +193,13 @@ UPD:
   Нового поля в .dfo не потребовалось. И число печатается вслух на каждый
   экспонат: «корни твёрдые» — заявление, «диск корней 11.19 м» — измерение, а
   молчаливый ноль здесь ровно тем и был, что гигант ходился насквозь незаметно.
+- 16:08:2026 - 22:27:28: ДВЕРЬ КАМЕРЫ БЕЗ DFN_EDITOR=1 больше не молчит. Раньше она просто
+  не применялась, и кадр снимался ОТ СПАВНА ИГРОКА — на карте дома это
+  внутри дома. Зона домов потеряла на этом снимок и выясняла причину по
+  картинке. Дверь, которая выставлена и проигнорирована, хуже
+  несуществующей: рецепт выглядит верным, кадр — неверным, и связать их
+  нечем. Теперь режим редактора включается ЗА автора и об этом говорится
+  вслух: включить молча — та же ложь в другую сторону.
 */
 
 #include "engine/app/sources/App.h"
@@ -865,7 +872,7 @@ bool App::init(const AppConfig& config) {
         }
     }
 
-    const bool editor_door = std::getenv("DFN_EDITOR") != nullptr;
+    bool editor_door = std::getenv("DFN_EDITOR") != nullptr;
 
     // (A) THE CONCRETE-MAP DOOR (DFN_OPEN_MAP=<category>/<map>). Automated: load
     // exactly this .map, bypassing the browser, and enter Editor if DFN_EDITOR
@@ -887,6 +894,27 @@ bool App::init(const AppConfig& config) {
         }
         if (!open_map(*m)) {
             return false; // open_map reported the reason
+        }
+        // A CAMERA DOOR SET WITHOUT DFN_EDITOR=1 USED TO DO NOTHING, SILENTLY,
+        // and the frame that came out was taken from the player's spawn — which
+        // on a house map is INSIDE the house. The houses zone lost a capture to
+        // exactly that and had to work out why from the picture. A door that is
+        // set and ignored is worse than one that does not exist: the recipe
+        // looks right, the frame looks wrong, and nothing connects them. So the
+        // editor mode is entered FOR the author here, and the substitution is
+        // announced — silently entering it would be the same lie in the other
+        // direction.
+        if (!editor_door) {
+            const char* cam = std::getenv("DFN_EDITOR_CAM");
+            const char* rel = std::getenv("DFN_EDITOR_CAM_REL");
+            if ((cam != nullptr && *cam != '\0') || (rel != nullptr && *rel != '\0')) {
+                std::fprintf(stderr,
+                             "[maps] DFN_EDITOR_CAM%s is set but DFN_EDITOR is not "
+                             "-- entering the editor anyway, or the frame would be "
+                             "taken from the PLAYER SPAWN and the door would look "
+                             "broken\n", rel != nullptr && *rel != '\0' ? "_REL" : "");
+                editor_door = true;
+            }
         }
         if (editor_door) {
             enter_editor_mode();
