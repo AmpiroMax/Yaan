@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 16:08:2026 - 21:50:43
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -172,6 +172,14 @@ UPD:
   полок без композиции. Каждая деталь получает статичное тело по СВОЕЙ сетке,
   расширенное под поворот: StaticBoxDesc осезависим, и коробка, ужавшаяся при
   повороте, пропускала бы ходока сквозь угол каждой повёрнутой стены.
+- 16:08:2026 - 21:50:43: НЕСКОЛЬКО ПОЛОК у одной карты (ключ objects через ';'): город стоит
+  на деталях, уличной утвари и деревьях flora ОДНОВРЕМЕННО, а одна полка на
+  карту заставила бы композитора копировать .dfo между папками — ровно так две
+  копии одного объекта начинают расходиться под одним именем. Список бьётся
+  ОДИН раз при открытии карты, а не на каждом поиске: сцена на две тысячи
+  деталей иначе разбирала бы ту же строку две тысячи раз. Автосетка галереи
+  показывает ПЕРВУЮ полку — она значит «покажи всё отсюда», а карта с
+  несколькими полками и без композиции не сказала, откуда.
 */
 
 #include "engine/app/sources/App.h"
@@ -1179,11 +1187,21 @@ bool App::enter_world(uint32_t stand) {
             for (const world::Placement& p : doc.placements) {
                 auto it = loaded.find(p.object);
                 if (it == loaded.end()) {
-                    auto obj = render::read_object(fs::path(gallery_objects_dir_)
-                                                   / (p.object + ".dfo"));
+                    // SEVERAL SHELVES, in the manifest's order: a town stands
+                    // on building parts, street props and flora's trees at
+                    // once, and one shelf per map would mean copying .dfo
+                    // files between directories — which is how two copies of
+                    // one object start drifting under the same name.
+                    std::optional<render::RegistryObject> obj;
+                    for (const std::string& shelf : gallery_shelves_) {
+                        obj = render::read_object(fs::path(shelf) / (p.object + ".dfo"));
+                        if (obj) {
+                            break;
+                        }
+                    }
                     if (!obj) {
-                        std::fprintf(stderr, "[scene] no object \"%s\" on shelf %s "
-                                             "-- SKIPPED\n", p.object.c_str(),
+                        std::fprintf(stderr, "[scene] no object \"%s\" on any shelf "
+                                             "of %s -- SKIPPED\n", p.object.c_str(),
                                      gallery_objects_dir_.c_str());
                         continue;
                     }
@@ -1246,7 +1264,11 @@ bool App::enter_world(uint32_t stand) {
             player_ = gameplay::spawn_player(world_, *physics_, spawn);
             return world_.alive(player_);
         }
-        for (const auto& e : fs::directory_iterator(gallery_objects_dir_, gec)) {
+        // The auto-grid shows ONE shelf: it is "show me everything here", and
+        // a multi-shelf map without a composition has not said which "here".
+        const std::string grid_shelf = gallery_shelves_.empty()
+                                         ? gallery_objects_dir_ : gallery_shelves_.front();
+        for (const auto& e : fs::directory_iterator(grid_shelf, gec)) {
             if (e.path().extension() == ".dfo") {
                 files.push_back(e.path());
             }
@@ -2432,6 +2454,29 @@ bool App::open_map(const MapManifest& manifest) {
         gallery_objects_dir_ = manifest.objects.empty() ? "assets/objects/trees"
                                                         : manifest.objects;
         gallery_scene_ = manifest.scene;
+        // The shelf list is split ONCE, here, not at every lookup: a scene of
+        // two thousand parts would otherwise re-split the same string two
+        // thousand times.
+        gallery_shelves_.clear();
+        for (std::size_t at = 0; at <= gallery_objects_dir_.size();) {
+            const std::size_t sep = gallery_objects_dir_.find(';', at);
+            const std::size_t end = sep == std::string::npos
+                                      ? gallery_objects_dir_.size() : sep;
+            std::string one = gallery_objects_dir_.substr(at, end - at);
+            while (!one.empty() && (one.front() == ' ' || one.front() == '\t')) {
+                one.erase(one.begin());
+            }
+            while (!one.empty() && (one.back() == ' ' || one.back() == '\t')) {
+                one.pop_back();
+            }
+            if (!one.empty()) {
+                gallery_shelves_.push_back(std::move(one));
+            }
+            if (sep == std::string::npos) {
+                break;
+            }
+            at = sep + 1;
+        }
         gallery_size_chunks_ = std::max(1, manifest.size_chunks);
         if (!enter_world(*stand)) {
             status("map.err.build", {});

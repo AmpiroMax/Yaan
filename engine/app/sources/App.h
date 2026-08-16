@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 16:08:2026 - 21:50:43
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -66,6 +66,7 @@ UPD:
 - 15:08:2026 - 02:14:41: gallery_size_chunks_ — пролёт галереи из манифеста (колоссу нужен 2×2).
 - 16:08:2026 - 21:08:52: gallery_scene_ — файл композиции следующей карты (пусто = старая
   автосетка).
+- 16:08:2026 - 21:50:43: gallery_shelves_ — полки карты, уже разобранные из objects.
 */
 
 #pragma once
@@ -370,6 +371,8 @@ private:
     /// The map's .scene, if it has one: WHERE things stand, as an edited file
     /// instead of a grid this code invents. Empty = the auto-grid, as before.
     std::string gallery_scene_;
+    /// The shelf list from `objects`, already split on ';' and trimmed.
+    std::vector<std::string> gallery_shelves_;
     int gallery_size_chunks_ = 1; // Gallery extent, from the manifest
     std::vector<platform::PhysicsBodyHandle> gallery_bodies_;
 

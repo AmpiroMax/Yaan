@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 16:08:2026 - 21:50:43
 Module: tools
 File: tools/check_scene.cpp
 
@@ -40,6 +40,8 @@ UPD:
   первой при перековке детали. И --ground <x> <z> [<пролёт>]: строителю нужна
   земля ДО того, как он напишет, где лежит подошва, а --fix ему не поможет — он
   членов групп не двигает.
+- 16:08:2026 - 21:50:43: --objects принимает список полок через ';' — судья обязан видеть ровно
+  те же полки, что и игра, иначе он судит другую сцену.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -54,13 +56,17 @@ UPD:
 #include <filesystem>
 #include <glm/common.hpp>
 #include <map>
+#include <optional>
+#include <vector>
 #include <string>
 
 namespace {
 
 struct Ctx {
     const dfn::world::WorldGenContext* gen = nullptr;
-    std::filesystem::path objects_dir;
+    /// Shelves, in the order the caller gave them; first hit wins. Several,
+    /// because a town scene stands on parts, props and trees at once.
+    std::vector<std::filesystem::path> shelves;
     /// name -> (radius, bottom, top). Memoised: a scene of 200 trees — or of
     /// 200 identical beams in one house — would otherwise read and hash the
     /// same .dfo two hundred times.
@@ -83,7 +89,13 @@ const Ctx::Extent* measure(Ctx* c, const std::string& name) {
     if (const auto it = c->extents.find(name); it != c->extents.end()) {
         return &it->second;
     }
-    const auto obj = dfn::render::read_object(c->objects_dir / (name + ".dfo"));
+    std::optional<dfn::render::RegistryObject> obj;
+    for (const auto& shelf : c->shelves) {
+        obj = dfn::render::read_object(shelf / (name + ".dfo"));
+        if (obj) {
+            break;
+        }
+    }
     if (!obj) {
         return nullptr;
     }
@@ -146,14 +158,14 @@ int main(int argc, char** argv) {
     using namespace dfn::world;
     if (argc < 2) {
         std::fprintf(stderr, "usage: dfn_scene_check <file.scene> [--stand <id>] "
-                             "[--objects <dir>] [--fix]\n"
+                             "[--objects <dir>[;<dir>...]] [--fix]\n"
                              "       dfn_scene_check - --ground <x> <z> [<span>] "
                              "[--stand <id>]\n");
         return 2;
     }
     const std::filesystem::path scene_path = argv[1];
     std::string stand = "Gallery";
-    std::filesystem::path objects_dir = "assets/objects/trees";
+    std::string objects_dir = "assets/objects/trees";
     bool fix = false;
     bool ground_query = false;
     float query_x = 0.0f;
@@ -240,7 +252,24 @@ int main(int argc, char** argv) {
 
     Ctx ctx;
     ctx.gen = &gen;
-    ctx.objects_dir = objects_dir;
+    for (std::size_t at = 0; at <= objects_dir.size();) {
+        const std::size_t sep = objects_dir.find(';', at);
+        const std::size_t end = sep == std::string::npos ? objects_dir.size() : sep;
+        std::string one = objects_dir.substr(at, end - at);
+        while (!one.empty() && (one.front() == ' ' || one.front() == '\t')) {
+            one.erase(one.begin());
+        }
+        while (!one.empty() && (one.back() == ' ' || one.back() == '\t')) {
+            one.pop_back();
+        }
+        if (!one.empty()) {
+            ctx.shelves.emplace_back(one);
+        }
+        if (sep == std::string::npos) {
+            break;
+        }
+        at = sep + 1;
+    }
     SceneWorld world;
     world.ground_at = &ground_at;
     world.object_extent = &object_extent;

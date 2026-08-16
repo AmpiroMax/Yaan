@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 16:08:2026 - 21:50:43
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -30,6 +30,11 @@ UPD:
   прямоугольником, когда object_box есть, и кругом, когда нет (дерево круглое,
   и старый вызывающий код обязан работать как раньше). fix_scene_ground НЕ
   трогает членов групп: посадить стропила на землю — снести дом.
+- 16:08:2026 - 21:50:43: неизвестная СЕКЦИЯ пропускается, а не роняет чтение. Формат растёт
+  (зона домов вносит [portal] под интерьеры), и читатель, умирающий на
+  завтрашней секции, не прочтёт сегодняшний файл, написанный более новым
+  инструментом. Та же позиция, что у неизвестного КЛЮЧА, — и она обязана быть
+  той же, иначе обещание сдержано наполовину.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -97,6 +102,16 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         if (t == "[place]") {
             flush();
             in_placement = true;
+            continue;
+        }
+        // ANY OTHER SECTION IS SKIPPED, not fatal. The format grows — the
+        // interior work is adding a [portal] section right now — and a reader
+        // that dies on tomorrow's section cannot read today's file written by
+        // a newer tool. Same stance the unknown-KEY rule already takes, and it
+        // has to be the same stance or the promise is only half kept.
+        if (t.front() == '[' && t.back() == ']') {
+            flush();
+            in_placement = false;
             continue;
         }
         const auto eq = t.find('=');

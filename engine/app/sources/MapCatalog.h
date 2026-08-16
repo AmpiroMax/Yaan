@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:50:36
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 16:08:2026 - 21:50:43
 Module: engine/app
 File: engine/app/sources/MapCatalog.h
 
@@ -36,6 +36,7 @@ UPD:
 - 15:08:2026 - 01:04:30: MapManifest::objects — карта выбирает свою полку реестра (галерея
   колосса живёт на своей карте, не тесня общую).
 - 16:08:2026 - 21:08:52: MapManifest::scene — карта называет свой файл композиции.
+- 16:08:2026 - 21:50:43: objects — список полок через ';', по порядку, побеждает первая.
 */
 
 #pragma once
@@ -59,6 +60,11 @@ struct MapManifest {
     /// 'objects' -- registry directory the map's exhibits load from (Gallery
     /// stands). Empty = the stand's default. A MAP chooses its shelf, so a
     /// colossus can live on its own map without crowding the tree gallery.
+    /// SEVERAL SHELVES, separated by ';' — "assets/objects/parts;assets/objects/trees".
+    /// Searched in order, first hit wins. A town scene needs building parts,
+    /// street props and flora's trees at once, and one shelf per map would
+    /// force whoever composes it to copy .dfo files between directories — which
+    /// is exactly how two copies of an object drift apart under one name.
     std::string objects;
     /// 'scene' -- a .scene composition file (engine/world/sources/Scene.h).
     /// When set, the map's objects stand WHERE THE FILE SAYS instead of on an
