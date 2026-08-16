@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 21:50:43
+Last updated: 16:08:2026 - 22:11:47
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -180,6 +180,19 @@ UPD:
   деталей иначе разбирала бы ту же строку две тысячи раз. Автосетка галереи
   показывает ПЕРВУЮ полку — она значит «покажи всё отсюда», а карта с
   несколькими полками и без композиции не сказала, откуда.
+- 16:08:2026 - 22:11:47: КОРНИ ЭКСПОНАТА МЕРЯЮТСЯ ПО ВСЕМ ПОТОКАМ, а не по одному. Жалоба
+  пользователя через зону flora: «корни у большого дерева — не физический
+  объект, прохожу насквозь». Разлёт корней читался только из потока ground, а
+  колосс несёт контрфорсы в потоке bark — разлёт выходил 0, и тело не
+  создавалось ВООВСЕ. Ходок наступает на любое дерево у земли, каким бы потоком
+  оно ни рисовалось, поэтому сканируются все три: ground ЦЕЛИКОМ (он и есть
+  корни по построению — контрфорс, забравшийся на два метра по стволу, всё ещё
+  корень, и полоса мерила бы талию вместо ступни), bark и wood — в полосе 1 м,
+  иначе тот же скан вернул бы крону. Диск стал 0.5 м высотой (половина
+  0.25 м <= PLAYER_STEP_HEIGHT: на развал НАСТУПАЮТ, в него не проваливаются).
+  Нового поля в .dfo не потребовалось. И число печатается вслух на каждый
+  экспонат: «корни твёрдые» — заявление, «диск корней 11.19 м» — измерение, а
+  молчаливый ноль здесь ровно тем и был, что гигант ходился насквозь незаметно.
 */
 
 #include "engine/app/sources/App.h"
@@ -236,6 +249,7 @@ UPD:
 #include <chrono>
 #include <ctime>
 #include <filesystem>
+#include <limits>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -1382,22 +1396,52 @@ bool App::enter_world(uint32_t stand) {
                 // what boots on real roots do; per-cone bodies would be a
                 // stumble field, the argument that kept them out of the solid
                 // bole originally.
+                // THE SPREAD IS MEASURED, NOT DERIVED. It used to be read from
+                // the `ground` stream alone, and that was the bug the user hit
+                // on the giant («корни у большого дерева — не физический
+                // объект, прохожу насквозь»): the colossus carries its buttress
+                // roots in the BARK stream, so the reach came out 0 and no body
+                // was made at all. What a walker steps on is every piece of
+                // wood near the ground, whichever stream drew it — so all three
+                // are scanned, below ROOT_BAND_M, and flora needs no new field
+                // in the .dfo for it.
+                constexpr float ROOT_BAND_M = 1.0f;
+                constexpr float ROOT_STEP_M = 0.25f; // half-height; <= PLAYER_STEP_HEIGHT
                 float root_reach = 0.0f;
-                for (const platform::Vertex& v : obj->ground.vertices) {
-                    root_reach = std::max(root_reach,
-                                          std::sqrt(v.position.x * v.position.x
-                                                    + v.position.z * v.position.z));
-                }
+                const auto reach_of = [&](const render::MeshData& mesh, float band) {
+                    for (const platform::Vertex& v : mesh.vertices) {
+                        if (v.position.y > band) {
+                            continue;
+                        }
+                        root_reach = std::max(root_reach,
+                                              std::sqrt(v.position.x * v.position.x
+                                                        + v.position.z * v.position.z));
+                    }
+                };
+                // The `ground` stream IS the root spread by construction, so it
+                // is taken WHOLE: a buttress that climbs two metres up the bole
+                // is still a root, and banding it would measure the tree's
+                // waist instead of its feet. The bole streams are banded,
+                // because there the same scan would return the crown.
+                reach_of(obj->ground, std::numeric_limits<float>::max());
+                reach_of(obj->bark, ROOT_BAND_M);
+                reach_of(obj->wood, ROOT_BAND_M);
                 if (root_reach > 0.5f) {
                     platform::StaticBoxDesc roots;
-                    roots.center = {at.x, at.y + 0.14f, at.z};
-                    roots.half_extents = {root_reach * 0.8f, 0.14f, root_reach * 0.8f};
+                    roots.center = {at.x, at.y + ROOT_STEP_M, at.z};
+                    roots.half_extents = {root_reach * 0.8f, ROOT_STEP_M, root_reach * 0.8f};
                     roots.layer = physics::LAYER_STATIC;
                     const auto rb = physics_->create_static_box(roots);
                     if (rb.valid()) {
                         gallery_bodies_.push_back(rb);
                     }
                 }
+                // SAY THE NUMBER, both ways. "The roots are solid" is a claim;
+                // "the root disc is 8.7 m" is a measurement, and a silent zero
+                // here is exactly how the giant went walk-through unnoticed.
+                std::fprintf(stderr, "[gallery] %s root disc %.2f m%s\n",
+                             obj->name.c_str(), static_cast<double>(root_reach * 0.8f),
+                             root_reach > 0.5f ? "" : " -- NONE (no wood near the ground)");
             }
             std::fprintf(stderr, "[gallery] %s at (%.0f, %.0f) half %.1f m hash %016llx\n",
                          obj->name.c_str(), static_cast<double>(x),

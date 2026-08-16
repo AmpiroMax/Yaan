@@ -64,6 +64,12 @@ UPD:
 - 13:08:2026 - 18:18:00: FILL_SUN_DEFAULT 0.25 -> 0.30 with the corrected fill
   shape (see dfn_env.sh): the sun term is now the ONLY one a vertical bole can
   use, the up term having been narrowed to undersides so it cannot dim a trunk.
+- 16:08:2026 - 22:07:38: ENV_PARAM_VEC4S 40 -> 41 (slot 40 = THE FOLIAGE EDGE
+  FADE band, lo/hi in |dot(N, V)|). Взят НОВЫЙ слот, а не свободная компонента
+  36.w/37.w вопреки заметке ниже: величины ДВЕ и они пара, а пара, разложенная
+  по двум чужим слотам («воздух» и «полоса тумана»), — это ровно то соседство,
+  которое через месяц никто не объяснит. Обе стороны контракта правятся здесь и
+  в dfn_env.sh одним заходом и сразу собираются.
 - 13:08:2026 - 18:52:00: ENV_PARAM_VEC4S 39 -> 40 (slot 39 = THE CLOUD DECK
   ALTITUDES, R3.4). Raised in its OWN step, before any shader reads the slot:
   a fragment shader that indexes past the declared array is undefined, and the
@@ -357,7 +363,7 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 40; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 41; // layout contract with dfn_env.sh
 
 // SLOT 38 — THE FILL'S DIRECTION (user: "тёмные деревья, словно их нет, как
 // чёрное пятно ... она должна быть темнее переда, но цвет одинаковый").

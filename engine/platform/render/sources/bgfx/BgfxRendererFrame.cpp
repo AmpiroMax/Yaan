@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 15:08:2026 - 14:07:36
+Last updated: 16:08:2026 - 22:11:47
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -129,6 +129,8 @@ UPD:
 - 15:08:2026 - 14:07:36: dest_rect: целочисленный масштаб только для РЕТРО-сетки
   (множитель >= 2); при полнодетальной сетке картинка ВПИСЫВАЕТСЯ в окно —
   множитель 1 рамкой в чёрное был жалобой «че за черные края» при Full HD.
+- 16:08:2026 - 22:11:47: packed[40] — полоса фейда листвы, умолчание 0.03/0.08 (см.
+  foliage_edge_band: первая догадка 0.08/0.22 растворяла ели целиком).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -404,6 +406,18 @@ static float deck_thickness_m() {
     return value;
 }
 
+// THE FOLIAGE EDGE-FADE BAND, in |dot(N, V)|. Defaults 0.03/0.08 — kill only
+// razor angles under ~5 degrees. The first shipped guess (0.08/0.22) came from
+// reasoning about leaf cards and was wrong for a real tree: a spruce's fronds
+// lie near-horizontal, so from eye level their whole area sits at |dot| ~ 0 and
+// the fade took the ENTIRE canopy. Measured by flora on a frame, not argued.
+// lo >= hi disables the fade out of the same binary (Rule 47's control arm).
+static glm::vec2 foliage_edge_band() {
+    static const glm::vec2 band = {dose_env_override("DFN_FOLIAGE_EDGE_LO", 0.03f),
+                                   dose_env_override("DFN_FOLIAGE_EDGE_HI", 0.08f)};
+    return band;
+}
+
 struct HazeParams {
     float scale_m;
     float height_m;
@@ -516,6 +530,8 @@ void BgfxRenderer::Impl::apply_environment() const {
     // and resizing it has stopped this project's build twice in one day, so a
     // free component is worth more than a tidy grouping.
     packed[39] = {e.cloud_deck_m, moon_ground_gain()};
+    // Slot 40: the foliage edge-fade band (see foliage_edge_band).
+    packed[40] = {foliage_edge_band().x, foliage_edge_band().y, 0.0f, 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

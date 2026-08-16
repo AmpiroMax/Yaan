@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 13:08:2026 - 23:18:00
+Last updated: 16:08:2026 - 22:11:47
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -205,6 +205,8 @@ UPD:
   shipped sheet back to within 1/255.
 - 13:08:2026 - 22:44:30: Точечный свет: снято укорачивание reach = 1 − 0.55·dark и atten² заменён smoothstep на том же линейном окне. Довод — строка реестра TORCH_RADIUS_DARK, предсказавшая ровно это прочтение («лишь клочок» — атмосфера, «не видно ног» — управление): с укорачиванием пол в 2.79 м от пламени читал 4.49 luma при шаге палитры 19.99, то есть контракт не выполнялся на ПОЛОВИНЕ контрактной дистанции. С atten² контракт недостижим при номинале 9 вовсе (нужен R ≥ 11.7 по нормировке того же бокса). После: 47.22 / 54.78 / 62.56, две руки побитово равны. Метод — две сборки одного HEAD 3403375, разница только в этих строках (двери в шейдерном пути нет); прибор — бокс feet0 из FINDING_DUNGEON_DARK, сверен с независимым замером до сотой (4.49). Тьма места остаётся тьмой потому, что ambient там закрыт, а не потому, что лампа сломана.
 - 13:08:2026 - 23:18:00: Правка ЗАПИСИ, не кода: предыдущая запись была датирована завтрашним числом (14:08 02:12 при стенных 22:44) и вклинена МЕЖДУ первой и второй строками записи про толщину яруса — один документ читался как два, и ни один не читался верно. Блок UPD есть собственная хронология файла: запись, датированная позже тех, что за ней последовали, или вложенная внутрь чужой, делает порядок событий нечитаемым, а за порядком в него и приходят.
+- 16:08:2026 - 22:11:47: слот 40 — ПОЛОСА ФЕЙДА ЛИСТВЫ ПО РАКУРСУ (lo/hi в |dot(N,V)|), двери
+  DFN_FOLIAGE_EDGE_LO / DFN_FOLIAGE_EDGE_HI.
 */
 
 #ifndef DFN_ENV_SH
@@ -215,7 +217,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[40];
+uniform vec4 u_envParams[41];
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -832,6 +834,18 @@ void dfn_screen_door(float fade, vec2 pixel)
 // light zone's). This term is zero at new moon by construction, so a moonless
 // night is byte-identical before and after.
 #define u_moonGround (u_envParams[39].w)
+
+// THE FOLIAGE EDGE FADE (slot 40): the band over which a leaf card is dissolved
+// as it turns edge-on to the eye, in |dot(N, V)|. A LIVE KNOB and not a shader
+// #define because its right value is a LOOK judgement flora has to make against
+// real frames, and the first guess was already wrong in a way no reasoning
+// would have caught: at 0.08/0.22 a spruce's near-horizontal fronds read ~0
+// from eye level over their whole area and the tree stood BARE. Rebuilding the
+// shader per guess would have made that loop cost minutes instead of seconds.
+// Doors: DFN_FOLIAGE_EDGE_LO / DFN_FOLIAGE_EDGE_HI. lo >= hi disables the fade
+// entirely, which is the control arm out of the same binary (Rule 47).
+#define u_foliageEdgeLo (u_envParams[40].x)
+#define u_foliageEdgeHi (u_envParams[40].y)
 
 // Surface lighting shared by terrain and props, so night, moonlight and the
 // carried torch can never disagree between them.

@@ -31,6 +31,16 @@ UPD:
   карточка, всё ещё закрывающая небо, — дырка в кроне). Всё это под
   coverage_mode: при DFN_MSAA=0 частичного покрытия нет, фейду не во что
   растворяться, и контрольная рука остаётся бит-в-бит той же (правило 47).
+- 16:08:2026 - 22:11:47: полоса фейда стала ЖИВОЙ РУЧКОЙ (u_foliageEdgeLo/Hi, слот 40
+  dfn_env.sh) вместо константы, и умолчание сужено до 0.03/0.08 — гасим только
+  бритвенные ракурсы, меньше ~5°. Первая догадка 0.08/0.22 была выведена
+  рассуждением о карточках и оказалась неверной для настоящего дерева: лапы ели
+  лежат почти горизонтально, поэтому с уровня глаз у них |dot(N,V)| ~ 0 ПО ВСЕЙ
+  ПЛОЩАДИ, и фейд снимал крону целиком — ели стояли голыми (замерила зона flora
+  на кадре, а не в споре). Ручка нужна не под «вкл/выкл», а потому, что верное
+  значение — это суждение о ВИДЕ, которое принимают по кадрам: пересборка на
+  каждую догадку стоила бы минут вместо секунд. lo >= hi гасит фейд начисто —
+  контрольная рука из того же бинарника (правило 47).
 */
 
 // Foliage fragment shader: ALPHA CUTOUT (discard), never blending — cutout
@@ -99,8 +109,9 @@ uniform vec4 u_params; // x: texture bound
 // trunk must never fade — it is a solid volume, not a card, and its silhouette
 // is the tree. Same material test as the transmission above, for the same
 // reason: the column IS the material.
-#define FOLIAGE_EDGE_FADE_LO 0.08
-#define FOLIAGE_EDGE_FADE_HI 0.22
+// The band is a LIVE UNIFORM (u_foliageEdgeLo/Hi, dfn_env.sh slot 40), not a
+// constant here: its right value is a look judgement made against frames, and
+// the first constant guessed in this file dissolved every spruce in the world.
 
 void main()
 {
@@ -122,8 +133,11 @@ void main()
     // perturbation: |dot| is already sign-blind, and a normal bent by the bark
     // sheet would answer a question about the surface, not about the card.
     float squareness = abs(dot(normalize(v_normal), normalize(eye - v_wpos)));
-    float edge_fade = smoothstep(FOLIAGE_EDGE_FADE_LO, FOLIAGE_EDGE_FADE_HI,
-                                 squareness);
+    // lo >= hi means "no fade": smoothstep would be a step function there, so
+    // the disable is stated rather than left to the edge case.
+    float edge_fade = u_foliageEdgeLo < u_foliageEdgeHi
+                        ? smoothstep(u_foliageEdgeLo, u_foliageEdgeHi, squareness)
+                        : 1.0;
     // Applied BEFORE the discard, so a card turned fully edge-on stops writing
     // depth as well as colour — a fully transparent card that still occludes
     // is a hole in the crown. Gated by coverage_mode so that DFN_MSAA=0 stays
