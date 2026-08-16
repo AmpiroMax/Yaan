@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 14:07:36
+Last updated: 16:08:2026 - 20:31:39
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -151,6 +151,14 @@ UPD:
   поток bark едет текстурной партией.
 - 15:08:2026 - 14:07:36: Комментарий settings.cfg о разрешении: умолчание 1920×1080, ретро-пресеты
   названы пресетами. Сама величина живёт в NUMBERS (INTERNAL_RES).
+- 16:08:2026 - 20:31:39: DFN_EDITOR_CAM говорит ВСЛУХ, когда глаз оказался НИЖЕ земли. y —
+  абсолютная высота, а земля стенда там, где её положил рельеф (галерея ~25 м,
+  не ноль); камера под ней рисует изнанку мира — зелень сверху, небо снизу и
+  совершенно прямой HUD поверх. Такой кадр читается как «снимок перевёрнут», и
+  зоне flora он стоил двух дней и шести воспроизведений несуществующего бага
+  ридбека. Предупреждение, а НЕ зажим: смотреть на мир снизу — законное желание,
+  а дверь, тихо сдвинувшая камеру, врала бы о позе, которую сама же пишет в
+  сайдкар.
 */
 
 #include "engine/app/sources/App.h"
@@ -851,6 +859,32 @@ bool App::init(const AppConfig& config) {
                 float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
                 if (std::sscanf(cam, "%f,%f,%f,%f,%f", &x, &y, &z, &yaw, &pitch) == 5) {
                     editor_cam_.set_pose({x, y, z}, yaw, pitch);
+                    // SAY IT WHEN THE EYE IS UNDERGROUND. The y here is an
+                    // ABSOLUTE world height, and a stand's ground is wherever
+                    // its terrain put it — the gallery sits at ~25 m, not at
+                    // zero. A camera below that renders the UNDERSIDE of the
+                    // world: green above, sky below, and a perfectly upright
+                    // HUD over it. That frame reads as "the capture is flipped
+                    // vertically", and it cost the flora zone two days and six
+                    // reproductions of a renderer bug that does not exist.
+                    //
+                    // Warned, NOT clamped: looking at the world from beneath is
+                    // a legitimate thing to want, and a door that silently
+                    // moved the camera would be lying about the pose its own
+                    // sidecar records.
+                    if (const auto ground = chunks_.height_at({x, z})) {
+                        if (y < *ground) {
+                            std::fprintf(stderr,
+                                         "[editor] DFN_EDITOR_CAM y=%.2f is BELOW the "
+                                         "ground here (%.2f m): the frame will show the "
+                                         "world from underneath, which looks like an "
+                                         "upside-down capture. Raise y above %.2f to "
+                                         "stand on it.\n",
+                                         static_cast<double>(y),
+                                         static_cast<double>(*ground),
+                                         static_cast<double>(*ground));
+                        }
+                    }
                 } else {
                     std::fprintf(stderr,
                                  "[editor] DFN_EDITOR_CAM=\"%s\" is not "
