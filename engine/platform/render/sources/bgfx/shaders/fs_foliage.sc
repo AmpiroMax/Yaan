@@ -16,6 +16,21 @@ UPD:
 - 15:08:2026 - 15:23:22: нормали коры из s_texAux (стадия 4), базис TBN из
   ЭКРАННЫХ ДЕРИВАТИВ — вершинный формат заморожен и общий для всех
   производителей мешей, тангенс стоил бы байт каждому ради одного материала.
+- 16:08:2026 - 21:46:53: ФЕЙД ПО РАКУРСУ (запрос зоны flora против замечания 3
+  пользователя в чате галереи: «прямые полоски у листочков на краях»). Карточка
+  листвы — ПЛОСКОСТЬ, а плоскость точно с ребра рисуется линией в пиксель,
+  пунктирной, потому что альфа листа вдоль ребра чередуется. Геометрией flora
+  случай проредила (крест-пары с 90° на ~65°), но убрать не может: любая
+  плоскость откуда-нибудь видна с ребра. Лекарство отраслевое (SpeedTree):
+  alpha *= smoothstep(0.08, 0.22, |dot(N, V)|). Нормаль берётся ГЕОМЕТРИЧЕСКАЯ,
+  до разворота к зрителю и до возмущения листом коры: |dot| и так без знака, а
+  нормаль, погнутая картой коры, отвечала бы на вопрос о поверхности, а не о
+  карточке. Только листовые колонки (u < 0.8): кора едет этой же программой, и
+  ствол — объём, а не карточка; его силуэт и есть дерево. Умножение стоит ДО
+  discard, чтобы карточка с ребра переставала писать и ГЛУБИНУ (прозрачная
+  карточка, всё ещё закрывающая небо, — дырка в кроне). Всё это под
+  coverage_mode: при DFN_MSAA=0 частичного покрытия нет, фейду не во что
+  растворяться, и контрольная рука остаётся бит-в-бит той же (правило 47).
 */
 
 // Foliage fragment shader: ALPHA CUTOUT (discard), never blending — cutout
@@ -69,6 +84,24 @@ uniform vec4 u_params; // x: texture bound
 // exactly the leaves that make the crown luminous. Deliberate physical fudge.
 #define FOLIAGE_TRANSMIT_SHADOW_FLOOR 0.45
 
+// --- EDGE-ON FADE (flora's request, 16.08.2026, against the user's note 3 in
+// the gallery chat: «прямые полоски у листочков на краях»). A leaf card is a
+// PLANE, and a plane seen exactly edge-on is drawn as a line one pixel thick —
+// dashed, because the leaf alpha along that edge alternates. Geometry can make
+// the case rarer (flora spread the cross-pairs from 90 to ~65 degrees) but not
+// impossible: every plane is edge-on from somewhere.
+//
+// So the card is faded out as it turns edge-on, which is what SpeedTree and
+// every foliage renderer since has done. |dot(N, V)| is the cosine of how
+// square-on we see it: 1 = flat to the eye, 0 = perfectly edge-on.
+//
+// LEAVES ONLY. Bark rides this same program (the atlas' last column) and a
+// trunk must never fade — it is a solid volume, not a card, and its silhouette
+// is the tree. Same material test as the transmission above, for the same
+// reason: the column IS the material.
+#define FOLIAGE_EDGE_FADE_LO 0.08
+#define FOLIAGE_EDGE_FADE_HI 0.22
+
 void main()
 {
     dfn_screen_door(u_params.y, gl_FragCoord.xy); // LOD cross-fade / per-draw dissolve
@@ -84,6 +117,22 @@ void main()
     // only representable answer, so DFN_MSAA=0 stays a true control arm
     // instead of quietly rendering a thicker canopy.
     float coverage_mode = step(1.5, u_params.x);
+    vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    // The GEOMETRIC card normal, before the view flip and before any bark
+    // perturbation: |dot| is already sign-blind, and a normal bent by the bark
+    // sheet would answer a question about the surface, not about the card.
+    float squareness = abs(dot(normalize(v_normal), normalize(eye - v_wpos)));
+    float edge_fade = smoothstep(FOLIAGE_EDGE_FADE_LO, FOLIAGE_EDGE_FADE_HI,
+                                 squareness);
+    // Applied BEFORE the discard, so a card turned fully edge-on stops writing
+    // depth as well as colour — a fully transparent card that still occludes
+    // is a hole in the crown. Gated by coverage_mode so that DFN_MSAA=0 stays
+    // a bit-exact control arm (Rule 47: both arms out of ONE binary): under
+    // the hard cutout there is no partial coverage to fade INTO, and a fade
+    // there would only move the dashed line rather than dissolve it.
+    alpha *= mix(1.0, mix(1.0, edge_fade,
+                          1.0 - step(FLORA_BARK_COLUMN_U, v_texcoord0.x)),
+                 coverage_mode);
     // COVERAGE, NOT A CUTOFF — and the distinction is the user's oldest
     // complaint («при беге трясет», «всё дергает и перерисовывается очень
     // рябью»). At the treeline a leaf mask is minified ~30:1, so `alpha` here
@@ -114,7 +163,6 @@ void main()
     // that away. Flora jitters this per card.
     albedo *= mix(0.78, 1.26, v_color0.b);
 
-    vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 n = normalize(v_normal);
     // Flip toward the viewer: a flat card has no meaningful back face.
     n = dot(n, eye - v_wpos) < 0.0 ? -n : n;
