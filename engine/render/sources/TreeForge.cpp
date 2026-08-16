@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 20:52:47
+Last updated: 16:08:2026 - 21:45:26
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -56,6 +56,7 @@ UPD:
 - 16:08:2026 - 20:23:55: Развёртка трубы: зеркальная волна -> прямой повтор (тайл коры теперь торо-периодический).
 - 16:08:2026 - 20:44:08: Якорь листвы на конце КАЖДОЙ ветви, включая скелетные (уровень 0): их концы оставались голыми крюками — видно на первом верном наземном кадре.
 - 16:08:2026 - 20:52:47: По трём замечаниям галереи 20:42-44: (1) конусы вдвое короче (бола 7->12 сегментов, ветви 8/6/4) и обхват НА КАЖДОЕ КОЛЬЦО — кора перестала тянуться к тонкому концу и рваться на стыках; (2) листва ВИСИТ: верхняя кромка карты на веточке, плоскость почти вертикальна, азимут наружу кроны, ролл малый — «кучка мух» снята корреляцией ориентаций; (3) крест-пары 90°->~65° — рёберный пунктир реже; полный фейд по углу взгляда запрошен у лида (fs_foliage).
+- 16:08:2026 - 21:45:26: По восьми замечаниям 21:05-21:20: ГНУТЫЕ ЛИСТЫ (дизайн пользователя, п.4) — 3×3-патч куполом с провисшими углами и помятостью, драпирован ПО ветке (п.1: сидит на ветке, не ниже), без плоской оси (п.2), один лист вместо пары карт (п.3: меньше и крупнее, якоря прорежены); рамка коры ПАРАЛЛЕЛЬНО ПЕРЕНОСИТСЯ вдоль ветви (п.6: борозды идут прямо по росту, не крутятся на стыках); веточки 2-го уровня в текстуре коры (п.7: чёрные концы на белой берёзе умерли); обломанные СУЧЬЯ на боле и ЖЁЛУДИ у дубов (п.5; дупло в очереди — нужен свой тёмный тайл).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -91,10 +92,22 @@ namespace {
 /// wind_c0 colours the p0 ring, wind_c1 the p1 ring (and the tip vertex):
 /// the sway weight must be CONTINUOUS along a limb, or adjacent segments
 /// translate by different amounts under wind and the joint cracks open.
+/// u_hint PARALLEL-TRANSPORTS the texture frame along a limb (user, gallery
+/// 21:18: «текстуры не прямые, везде по-разному идут; дерево растёт в одном
+/// направлении, кора соответственно»): pass the previous segment's frame and
+/// the furrows run straight down the limb instead of twisting at every joint
+/// (perp_of() alone picks an arbitrary frame per segment).
 void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0,
                float r1, int sides, glm::vec4 uv_rect, float v0_m, float circum_m,
-               uint32_t wind_c0, uint32_t wind_c1) {
-    const glm::vec3 u_axis = perp_of(axis);
+               uint32_t wind_c0, uint32_t wind_c1, glm::vec3* u_hint = nullptr) {
+    glm::vec3 u_axis;
+    if (u_hint != nullptr && glm::length(*u_hint) > 1e-4f) {
+        const glm::vec3 proj = *u_hint - axis * glm::dot(*u_hint, axis);
+        u_axis = safe_normalize(proj, perp_of(axis));
+        *u_hint = u_axis; // hand the transported frame back to the caller
+    } else {
+        u_axis = perp_of(axis);
+    }
     const glm::vec3 v_axis = glm::cross(axis, u_axis);
     const float len = glm::length(p1 - p0);
     // PLAIN WRAP, not mirror: the bark tile is torus-periodic since the
@@ -246,6 +259,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     };
     std::vector<Ring> bole;
     bole.push_back({pos, dir, p.trunk_radius});
+    glm::vec3 bole_frame = perp_of(dir); // transported: furrows run straight
     for (int s = 0; s < bole_segments; ++s) {
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(bole_segments);
         if (s >= 2) { // the rigid lower third: wander only above it
@@ -259,7 +273,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         const float r1 = p.trunk_radius * std::pow(1.0f - t1 * 0.85f, 1.1f);
         bark_tube(obj.bark, pos, next, dir, r0, std::max(r1, 0.05f), 7, bark_uv,
                   pos.y, TAU * r0, pack_wind(wood_sway(pos.y), phase),
-                  pack_wind(wood_sway(next.y), phase));
+                  pack_wind(wood_sway(next.y), phase), &bole_frame);
         pos = next;
         bole.push_back({pos, dir, std::max(r1, 0.05f)});
     }
@@ -314,6 +328,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 const int segs = level == 0 ? 8 : (level == 1 ? 6 : 4);
                 const float seg = len / static_cast<float>(segs);
                 glm::vec3 d = dir;
+                glm::vec3 limb_frame = perp_of(d); // straight furrows per limb
                 float r = radius;
                 for (int si = 0; si < segs; ++si) {
                     // THE TURN, per segment: side wander always; up pull that
@@ -340,12 +355,12 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                                        / static_cast<float>(segs));
                     const float nr = std::max(radius * taper, 0.025f);
                     const int sides = level == 0 ? 5 : (level == 1 ? 4 : 3);
-                    if (level <= 1) { // heavy limbs wear the bark texture
-                        bark_tube(obj.bark, pos, np, d, r, nr, sides, bark_uv,
-                                  pos.y, TAU * r, wind_at(pos), wind_at(np));
-                    } else {
-                        tube_segment(obj.wood, pos, np, d, r, nr, sides, bark);
-                    }
+                    // EVERY level wears the bark texture — the vertex-coloured
+                    // twigs read as BLACK sticks poking out of the birch's
+                    // white limbs (user, gallery 21:20).
+                    bark_tube(obj.bark, pos, np, d, r, nr, sides, bark_uv,
+                              pos.y, TAU * r, wind_at(pos), wind_at(np),
+                              &limb_frame);
 
                     // CHILDREN leave mid-branch, alternating sides — from the
                     // second segment on, so the joint zone stays clean.
@@ -372,7 +387,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 // out of the crown — the exact defect the header promises
                 // dies by construction.
                 anchors.push_back({pos, d});
-                if (level == 2 && rng.unit() < 0.7f) {
+                if (level == 2 && rng.unit() < 0.45f) {
                     anchors.push_back({pos - d * (len * 0.4f), d});
                 }
                 // THE CROWN'S INTERIOR (user: «в центре нет листвы... в центре
@@ -380,7 +395,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 // branch, not only at the rim its tips reach — an oak's crown
                 // is full because leaves sprout wherever light does, and ours
                 // sprouted only where recursion terminated.
-                if (level >= 1 && rng.unit() < 0.6f) {
+                if (level >= 1 && rng.unit() < 0.35f) {
                     anchors.push_back({pos - d * (len * 0.75f), d});
                 }
             }
@@ -409,6 +424,56 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         }
         anchors.push_back({bole.back().pos + glm::vec3{0.0f, 0.4f, 0.0f},
                            glm::vec3{0.0f, 1.0f, 0.0f}});
+
+        // NATURAL ORNAMENTS (user, gallery 21:15: «жёлуди... пару обломленных
+        // веток, дупло и такие украшения естественные»; дупло queued — needs
+        // its own dark tile). BROKEN STUBS: short snags low on the bole,
+        // ending in a jagged kink — the scars a real crown leaves behind.
+        {
+            const int stubs = 2 + (rng.unit() < 0.5f ? 1 : 0);
+            for (int s = 0; s < stubs; ++s) {
+                const float y = crown_base * (0.50f + 0.55f * rng.unit());
+                const Ring* at = &bole.front();
+                for (const Ring& ring : bole) {
+                    if (ring.pos.y <= y) at = &ring;
+                }
+                const float az = rng.unit() * TAU;
+                const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
+                const glm::vec3 d1 = safe_normalize(
+                    out + glm::vec3{0.0f, -0.10f - 0.30f * rng.unit(), 0.0f}, out);
+                const float len = 0.25f + 0.45f * rng.unit();
+                const float rr = std::max(at->radius * 0.16f, 0.03f);
+                const glm::vec3 base_p = at->pos + out * (at->radius * 0.5f);
+                const glm::vec3 mid = base_p + d1 * len;
+                const uint32_t wsy = pack_wind(wood_sway(y), phase);
+                bark_tube(obj.bark, base_p, mid, d1, rr, rr * 0.7f, 4, bark_uv,
+                          y, TAU * rr, wsy, wsy);
+                const glm::vec3 d2 = safe_normalize(
+                    d1 + glm::vec3{rng.sym() * 0.6f, 0.4f * rng.sym(),
+                                   rng.sym() * 0.6f}, d1);
+                bark_tube(obj.bark, mid, mid + d2 * (len * 0.25f), d2, rr * 0.7f,
+                          0.0f, 3, bark_uv, y + len, TAU * rr, wsy, wsy);
+            }
+        }
+        // ACORNS, oaks only: little bipyramids in twos under the sheets —
+        // readable up close, invisible at range, exactly like the real thing.
+        if (p.card_shape == LeafShape::RoundLobed) {
+            const uint32_t acorn_c = pack(glm::vec3{0.45f, 0.36f, 0.16f});
+            for (const SprayAnchor& a : anchors) {
+                if (rng.unit() > 0.10f) continue;
+                for (int k = 0; k < 2; ++k) {
+                    const glm::vec3 ap = a.pos
+                        + glm::vec3{rng.sym() * 0.25f, -0.16f - rng.unit() * 0.14f,
+                                    rng.sym() * 0.25f};
+                    const float ar = 0.035f;
+                    const glm::vec3 upv{0.0f, 1.0f, 0.0f};
+                    tube_segment(obj.wood, ap - upv * (ar * 1.5f), ap, upv,
+                                 0.012f, ar, 3, acorn_c);
+                    tube_segment(obj.wood, ap, ap + upv * (ar * 1.2f), upv,
+                                 ar, 0.0f, 3, acorn_c);
+                }
+            }
+        }
     } else {
         // --- THE CONIFER, v6 (passports §2.1-2.2): whorls down the cone, but
         // a branch is DRESSED AS A FROND RIBBON — a bent strip carrying the
@@ -534,10 +599,11 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                            glm::vec3{0.0f, 1.0f, 0.0f}});
     }
 
-    // --- LEAF SPRAYS ON THE ANCHORS: crossed pairs, dome-blended normals —
-    // held from v2 (its cure for card flicker and for the «наждачка»).
+    // --- CURVED LEAF SHEETS ON THE ANCHORS (the user's 21:14 design). One
+    // sheet per anchor, occasionally a second smaller one — NOT a count per
+    // branch: fewer, bigger masses (21:12).
     for (const SprayAnchor& a : anchors) {
-        const int sprays = p.spray_per_branch;
+        const int sprays = rng.unit() < 0.30f ? 2 : 1;
         for (int i = 0; i < sprays; ++i) {
             const glm::vec3 jitter{rng.sym() * 0.5f, rng.sym() * 0.35f,
                                    rng.sym() * 0.5f};
@@ -545,59 +611,74 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             // (user: «часть листка летает в воздухе, ни к чему не
             // присоединено» — the old jitter could carry a spray clear of its
             // twig).
-            // HANGING FOLIAGE (user, gallery 20:43: «они по всей окружности в
-            // разные стороны растут и пересекаются — кучка мух; должны вниз
-            // свисать»). A spray is a curtain of leaves HANGING off its twig:
-            // the card's top edge sits at the anchor, the plane stands
-            // near-vertical, its azimuth faces outward from the crown with a
-            // modest scatter, and the roll stays small so leaf tips point
-            // down. Orientations are now CORRELATED — neighbouring sprays
-            // hang the same way instead of sampling the whole sphere.
+            // THE CURVED LEAF SHEET — the user's own design, gallery 21:14:
+            // «не надо плоскими делать пачки листвы, пусть они будут как
+            // ландшафт земли разных уровней, не плоскими, а изгибающимися».
+            // One BENT 3x3 patch drapes OVER its twig (centre on the anchor —
+            // 21:05: foliage must sit ON the branch, not hang below it), lies
+            // near-horizontal with a free yaw and a modest tilt, its corners
+            // sag, its surface undulates per-vertex. A curved sheet has no
+            // edge-on bearing (the «полоски» die), no flat symmetry axis
+            // (21:08), and ONE sheet replaces the old pair of crossed cards
+            // (21:12: fewer, bigger masses — not a swarm of flies).
             const glm::vec3 up{0.0f, 1.0f, 0.0f};
             const float half_w = p.crown_radius * p.spray_frac
-                               * (0.85f + rng.unit() * 0.45f);
-            const float half_h = half_w * 0.75f;
-            glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.035f);
-            c.y -= half_h * 0.55f; // hang below the twig, top edge on it
-            const glm::vec3 out_xz = safe_normalize(
-                glm::vec3{c.x - crown_c.x, 0.0f, c.z - crown_c.z},
-                glm::vec3{1.0f, 0.0f, 0.0f});
-            const float az_jit = rng.sym() * 0.55f;
-            const glm::vec3 az{out_xz.x * std::cos(az_jit) - out_xz.z * std::sin(az_jit),
-                               0.0f,
-                               out_xz.x * std::sin(az_jit) + out_xz.z * std::cos(az_jit)};
-            // Near-vertical plane: normal mostly horizontal, a touch of
-            // face-up so the crown's top still catches the sun.
-            const float tilt = -0.10f + 0.35f * rng.unit();
-            const glm::vec3 n = safe_normalize(az + up * tilt, az);
-            LeafCardParams card;
-            card.center = c;
-            card.normal = n;
-            card.half_width = half_w;
-            card.half_height = half_h;
-            card.roll = rng.sym() * 0.35f; // tips keep pointing DOWN
-            card.shape = p.card_shape;
-            card.tone = p.tone;
-            card.value_jitter = 0.42f + rng.unit() * 0.22f;
-            card.phase = phase;
-            card.sway_origin = glm::vec3{0.0f, crown_base, 0.0f};
-            card.sway_span = p.crown_radius * 1.8f;
-            emit_leaf_card(obj.cards, card);
-            // The partner turns ~65 deg, NOT 90: still kills the vanishing-
-            // in-profile flicker, but the pair is never exactly edge-on
-            // together — the perpendicular partner was the «прямые полоски»
-            // dotted rectangles of the 20:44 frame.
-            LeafCardParams cross = card;
-            const float ca = (1.05f + rng.unit() * 0.25f)
-                           * (rng.unit() < 0.5f ? 1.0f : -1.0f);
-            const glm::vec3 az2{az.x * std::cos(ca) - az.z * std::sin(ca), 0.0f,
-                                az.x * std::sin(ca) + az.z * std::cos(ca)};
-            cross.normal = safe_normalize(az2 + up * (-0.05f + 0.3f * rng.unit()), az2);
-            cross.half_width *= 0.85f;
-            cross.half_height *= 0.85f;
-            cross.roll = rng.sym() * 0.35f;
-            cross.value_jitter = 0.42f + rng.unit() * 0.22f;
-            emit_leaf_card(obj.cards, cross);
+                               * (1.25f + rng.unit() * 0.55f)
+                               * (i == 0 ? 1.0f : 0.6f);
+            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.025f);
+            const float yaw = rng.unit() * TAU;
+            glm::vec3 e1{std::cos(yaw), 0.0f, std::sin(yaw)};
+            glm::vec3 e2{-std::sin(yaw), 0.0f, std::cos(yaw)};
+            // Tilt the whole sheet a little toward the branch direction, so
+            // canopy pads follow their limbs instead of a global plane.
+            const float tilt = rng.sym() * 0.30f;
+            e1 = safe_normalize(e1 + up * (tilt * 0.5f), e1);
+            e2 = safe_normalize(e2 + up * (rng.sym() * 0.22f), e2);
+            const float droop = half_w * (0.28f + rng.unit() * 0.18f);
+            const float jit_v = 0.42f + rng.unit() * 0.22f;
+            const glm::vec3 sway_origin{0.0f, crown_base, 0.0f};
+            const float sway_span = p.crown_radius * 1.8f;
+            const glm::vec4 uvr = leaf_tile_uv(p.card_shape, p.tone);
+            glm::vec3 vp[3][3];
+            for (int gj = 0; gj < 3; ++gj) {
+                for (int gi = 0; gi < 3; ++gi) {
+                    const float fx = static_cast<float>(gi - 1);
+                    const float fz = static_cast<float>(gj - 1);
+                    glm::vec3 q = c + e1 * (fx * half_w) + e2 * (fz * half_w);
+                    const float r2 = (fx * fx + fz * fz) * 0.5f; // 0 centre, 1 corner
+                    q.y -= droop * std::pow(r2, 1.3f); // corners sag — the dome
+                    q.y += (gi == 1 && gj == 1 ? 0.10f : 0.0f) * half_w;
+                    q.y += rng.sym() * 0.06f * half_w; // the terraced undulation
+                    vp[gj][gi] = q;
+                }
+            }
+            const auto sheet_base = static_cast<uint32_t>(obj.cards.vertices.size());
+            for (int gj = 0; gj < 3; ++gj) {
+                for (int gi = 0; gi < 3; ++gi) {
+                    // Per-vertex normal from the curved surface itself.
+                    const glm::vec3 du = vp[gj][std::min(gi + 1, 2)]
+                                       - vp[gj][std::max(gi - 1, 0)];
+                    const glm::vec3 dv = vp[std::min(gj + 1, 2)][gi]
+                                       - vp[std::max(gj - 1, 0)][gi];
+                    glm::vec3 n = safe_normalize(glm::cross(dv, du), up);
+                    if (n.y < 0.0f) n = -n; // sheets face the sky
+                    const float sway = std::clamp(
+                        glm::length(vp[gj][gi] - sway_origin) / sway_span, 0.0f, 1.0f);
+                    obj.cards.vertices.push_back(
+                        {vp[gj][gi], n,
+                         {uvr.x + (uvr.z - uvr.x) * (static_cast<float>(gi) * 0.5f),
+                          uvr.y + (uvr.w - uvr.y) * (static_cast<float>(gj) * 0.5f)},
+                         pack({sway, phase, jit_v})});
+                }
+            }
+            for (int gj = 0; gj < 2; ++gj) {
+                for (int gi = 0; gi < 2; ++gi) {
+                    const uint32_t v00 = sheet_base + static_cast<uint32_t>(gj * 3 + gi);
+                    obj.cards.indices.insert(obj.cards.indices.end(),
+                                             {v00, v00 + 3u, v00 + 4u,
+                                              v00, v00 + 4u, v00 + 1u});
+                }
+            }
         }
     }
 
