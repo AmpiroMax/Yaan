@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 21:45:26
+Last updated: 16:08:2026 - 22:06:42
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -57,6 +57,7 @@ UPD:
 - 16:08:2026 - 20:44:08: Якорь листвы на конце КАЖДОЙ ветви, включая скелетные (уровень 0): их концы оставались голыми крюками — видно на первом верном наземном кадре.
 - 16:08:2026 - 20:52:47: По трём замечаниям галереи 20:42-44: (1) конусы вдвое короче (бола 7->12 сегментов, ветви 8/6/4) и обхват НА КАЖДОЕ КОЛЬЦО — кора перестала тянуться к тонкому концу и рваться на стыках; (2) листва ВИСИТ: верхняя кромка карты на веточке, плоскость почти вертикальна, азимут наружу кроны, ролл малый — «кучка мух» снята корреляцией ориентаций; (3) крест-пары 90°->~65° — рёберный пунктир реже; полный фейд по углу взгляда запрошен у лида (fs_foliage).
 - 16:08:2026 - 21:45:26: По восьми замечаниям 21:05-21:20: ГНУТЫЕ ЛИСТЫ (дизайн пользователя, п.4) — 3×3-патч куполом с провисшими углами и помятостью, драпирован ПО ветке (п.1: сидит на ветке, не ниже), без плоской оси (п.2), один лист вместо пары карт (п.3: меньше и крупнее, якоря прорежены); рамка коры ПАРАЛЛЕЛЬНО ПЕРЕНОСИТСЯ вдоль ветви (п.6: борозды идут прямо по росту, не крутятся на стыках); веточки 2-го уровня в текстуре коры (п.7: чёрные концы на белой берёзе умерли); обломанные СУЧЬЯ на боле и ЖЁЛУДИ у дубов (п.5; дупло в очереди — нужен свой тёмный тайл).
+- 16:08:2026 - 22:06:42: По пачке 21:50-57: (а) «узкие линии» оказались ВЕТОЧКАМИ-ВОЛОСКАМИ тоньше пикселя — пол радиуса 0.025->0.05 и последний уровень короче (0.7) — провода за листвой умерли; (б) кора по ветвям: v-координата = ДЛИНА ДУГИ вдоль ветви, не мировая высота (на горизонтальной ветви борозды мазались вбок — «в разные стороны растёт»); (в) чёрные палки берёзы — те же волоски. Прозрачность при движении и голые ели — полоса фейда лида 0.08/0.22, сужение запрошено (0.03/0.08 + ручки).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -323,7 +324,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 return 0x8C800000u | (to_byte(phase) << 8) | to_byte(sway);
             }
 
-            void run(glm::vec3 pos, glm::vec3 dir, float len, float radius, int level) {
+            void run(glm::vec3 pos, glm::vec3 dir, float len, float radius, int level,
+                     float arc = 0.0f) {
                 // Shorter, more numerous cones (the same 20:42 remark).
                 const int segs = level == 0 ? 8 : (level == 1 ? 6 : 4);
                 const float seg = len / static_cast<float>(segs);
@@ -353,14 +355,22 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                     const glm::vec3 np = pos + d * seg;
                     const float taper = 1.0f - 0.6f * (static_cast<float>(si + 1)
                                                        / static_cast<float>(segs));
-                    const float nr = std::max(radius * taper, 0.025f);
+                    // 0.05 floor, up from 0.025: a twig thinner than the
+                    // frame's own pixel renders as an aliased HAIRLINE — the
+                    // user's «узкие линии у листов» (21:53) were these wires,
+                    // not card edges, and no foliage shader can fade geometry.
+                    const float nr = std::max(radius * taper, 0.05f);
                     const int sides = level == 0 ? 5 : (level == 1 ? 4 : 3);
                     // EVERY level wears the bark texture — the vertex-coloured
                     // twigs read as BLACK sticks poking out of the birch's
-                    // white limbs (user, gallery 21:20).
+                    // white limbs (user, gallery 21:20). The v-coordinate is
+                    // ARC LENGTH along the limb, not world height (21:57: on a
+                    // HORIZONTAL limb the height barely moves, so the furrows
+                    // smeared sideways — «в разные стороны растёт»).
                     bark_tube(obj.bark, pos, np, d, r, nr, sides, bark_uv,
-                              pos.y, TAU * r, wind_at(pos), wind_at(np),
+                              arc, TAU * r, wind_at(pos), wind_at(np),
                               &limb_frame);
+                    arc += seg;
 
                     // CHILDREN leave mid-branch, alternating sides — from the
                     // second segment on, so the joint zone stays clean.
@@ -373,8 +383,13 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                 d + side * (lr * (0.8f + rng.unit() * 0.6f))
                                   + glm::vec3{0.0f, rng.sym() * 0.35f, 0.0f}, side);
                             // The pipe model: the child takes ~half the parent's
-                            // radius, and its length follows its section.
-                            run(np, cd, len * (0.5f + rng.unit() * 0.16f),
+                            // radius, and its length follows its section. The
+                            // last level runs SHORTER (0.7): a long thin twig
+                            // outruns its own leaf sheet and turns back into a
+                            // bare wire past the foliage.
+                            run(np, cd,
+                                len * (0.5f + rng.unit() * 0.16f)
+                                    * (level == 1 ? 0.7f : 1.0f),
                                 nr * (0.52f + rng.unit() * 0.1f), level + 1);
                         }
                     }

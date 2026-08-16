@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 16:17:07
+Last updated: 16:08:2026 - 22:06:42
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -41,6 +41,7 @@ UPD:
 - 15:08:2026 - 02:14:30: ели ×2 плотнее (мутовки 15-18, ветви 9, лапы 2×0.5) — «антенна»; колосс —
   ДУБ: 150 м под кроной 170 м, ветви с 22 м (наука дуба из чата колосса).
 - 15:08:2026 - 16:17:07: ЛИСТВЕННИЦА larch-forge-a (просьба пользователя дважды): фрондовая грамматика, светлая перистая хвоя WillowOlive, тонкие ленты 0.55, провис 0.14, крона прозрачная с 0.20h. Плюс снят древний -Wcomment в шапке.
+- 16:08:2026 - 22:06:42: Листы гиганта/колосса не растут с деревом: spray_frac 0.15->0.09 и 0.10->0.05 — лист размером с крону штампует листья-одеяла.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -213,7 +214,7 @@ int main(int argc, char** argv) {
         giant.scaffold_count = 10;
         giant.secondary_per_scaffold = 4;
         giant.spray_per_branch = 2;
-        giant.spray_frac = 0.15f; // absolute sprays ~2.7 m: giant leaves do not scale
+        giant.spray_frac = 0.09f; // sheets stay leaf-scaled: giant leaves do not grow with the giant
         giant.core_frac = 0.30f;
         gallery.push_back(giant);
     }
@@ -278,7 +279,7 @@ int main(int argc, char** argv) {
         colossus.scaffold_count = 16;
         colossus.secondary_per_scaffold = 4;
         colossus.spray_per_branch = 2;
-        colossus.spray_frac = 0.10f; // ~7 m packs: a colossus' leaves stay leaves
+        colossus.spray_frac = 0.05f; // sheets ~4 m: a colossus' leaves stay leaves
         const fs::path shelf = out_dir.parent_path() / "colossus";
         std::error_code cec;
         fs::create_directories(shelf, cec);
