@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 14:08:2026 - 20:18:30
+# Last updated: 16:08:2026 - 20:16:09
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -60,6 +60,10 @@
 #                          skyline elevation angle per bearing from a fixed,
 #                          unfiltered standpoint lattice -- the view-side read
 #                          of "how much mountain does this world have").
+# - 16:08:2026 - 20:16:09: test_scene — правила композиции (.scene): каждое правило проверено
+#                          С ОБЕИХ СТОРОН — чистая сцена его проходит, подложенный
+#                          дефект валит. Правило, которое не умеет покраснеть,
+#                          ничего не охраняет.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -71,6 +75,7 @@ add_dfn_test(test_forest_stand core/ForestStandTests.cpp dfn_world)
 add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_world_format core/WorldFormatTests.cpp dfn_world)
+add_dfn_test(test_scene core/SceneTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_mountain_horizon core/MountainHorizonTests.cpp dfn_world)
