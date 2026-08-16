@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 15:08:2026 - 16:24:04
+# Last updated: 16:08:2026 - 21:08:52
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -36,6 +36,10 @@
 #                          собираться вместе со всем остальным.
 # - 14:08:2026 - 23:36:19: dfn_forge — CLI кузницы деревьев в реестр .dfo.
 # - 15:08:2026 - 16:24:04: dfn_scene_check — проверка композиции карты по правилам.
+# - 16:08:2026 - 21:08:52: dfn_kit — CLI строительного набора: 508 деталей (брус,
+#                          столб, доска, стена, фронтон, скат, лестница, дверь,
+#                          окно, фундамент, забор) в реестр .dfo, чтобы агент
+#                          СОБИРАЛ дома из готового, а не писал дом кодом.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -132,3 +136,9 @@ target_link_libraries(dfn_forge PRIVATE dfn_render dfn_core)
 # so it builds with everything else and cannot rot.
 add_executable(dfn_scene_check tools/check_scene.cpp)
 target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
+
+# THE BUILDING KIT CLI (dfn_kit): forges the construction parts an agent
+# assembles houses out of. Same standing again — a kit that stopped compiling
+# would be discovered by a builder mid-house.
+add_executable(dfn_kit tools/forge_kit.cpp)
+target_link_libraries(dfn_kit PRIVATE dfn_render dfn_core)

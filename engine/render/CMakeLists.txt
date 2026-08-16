@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 14:08:2026 - 23:36:19
+# Last updated: 16:08:2026 - 20:55:43
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -51,6 +51,10 @@
 # - 14:08:2026 - 23:36:19: ObjectRegistry.cpp (.dfo реестра объектов) + TreeForge.cpp
 #                          (кузница деревьев по индустриальной схеме) — третий
 #                          инструмент разворота в1.
+# - 16:08:2026 - 20:55:43: sources/PartForge.cpp — СТРОИТЕЛЬНЫЙ НАБОР (брус,
+#   столб, доска, стена, фронтон, скат, лестница, дверь, окно, фундамент,
+#   забор) в тот же реестр .dfo. Запрос пользователя: агент собирает дом из
+#   готовых деталей, а не пишет дом кодом.
 
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
@@ -67,6 +71,7 @@ add_library(dfn_render STATIC
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
     sources/ObjectRegistry.cpp
+    sources/PartForge.cpp
     sources/PixelCanvas.cpp
     sources/ProcFlora.cpp
     sources/ProcMesh.cpp
