@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 22:48:45
+Last updated: 17:08:2026 - 01:26:10
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -60,6 +60,7 @@ UPD:
 - 16:08:2026 - 22:06:42: По пачке 21:50-57: (а) «узкие линии» оказались ВЕТОЧКАМИ-ВОЛОСКАМИ тоньше пикселя — пол радиуса 0.025->0.05 и последний уровень короче (0.7) — провода за листвой умерли; (б) кора по ветвям: v-координата = ДЛИНА ДУГИ вдоль ветви, не мировая высота (на горизонтальной ветви борозды мазались вбок — «в разные стороны растёт»); (в) чёрные палки берёзы — те же волоски. Прозрачность при движении и голые ели — полоса фейда лида 0.08/0.22, сужение запрошено (0.03/0.08 + ручки).
 - 16:08:2026 - 22:40:39: ФРОНД СЛОЖЕН ДОМИКОМ (V-сечение, края ниже хребта, нормали половинок врозь): плоская горизонтальная лента с уровня глаз — линия в пиксель, ВЕСЬ хвойный ряд стоял голым (геометрия была в .dfo — найдено дампом + логом расстановки; три раза принимал снаги рассыпки за свои ели). Ленты шире (0.42 reach), листов на якорь больше при spray_per_branch>2 (колосс «листвы мало»), жёлуди крупнее и ниже листа.
 - 16:08:2026 - 22:48:45: Реализация forge_bush/forge_fallen_log/forge_ground_prop (этап полянки).
+- 17:08:2026 - 01:26:10: Пучку травы — крошечный корневой пенёк в потоке древесины: объект из одних карт расстановщик сцены не мог поставить (стояло 111 из 195).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -908,6 +909,13 @@ RegistryObject forge_ground_prop(const GroundPropParams& p) {
         // A tuft: 10-14 folded BLADES fanning from one root — rule 52's
         // small-flora exemption, with a concrete shape (a bent taper, not a
         // rectangle). Leaf material: it sways and it transmits.
+        // A TINY ROOT NUB in the wood stream: a cards-only object has no
+        // solid footprint, and the scene placer refused to stand all 84
+        // tufts of the glade («111 of 195 standing») — the nub is buried in
+        // the blades and gives the mesh its truth about where it stands.
+        tube_segment(obj.wood, glm::vec3{0.0f, -0.02f, 0.0f},
+                     glm::vec3{0.0f, 0.06f, 0.0f}, up, 0.025f, 0.015f, 3,
+                     pack(glm::vec3{0.20f, 0.24f, 0.10f}));
         const glm::vec4 uv = leaf_tile_uv(LeafShape::RaggedTip, LeafTone::BirchLight);
         const int blades = 10 + static_cast<int>(rng.unit() * 5.0f);
         for (int b = 0; b < blades; ++b) {
