@@ -64,6 +64,13 @@ td.num { font-family: ui-monospace, Menlo, monospace; }
 .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 @media (max-width: 760px) { .twocol { grid-template-columns: 1fr; } }
 .scroll { overflow-x: auto; }
+
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.shots figure { margin: 0; background: var(--panel); border: 1px solid var(--line); padding: 8px; }
+.shots img { width: 100%; height: 150px; object-fit: cover; display: block; }
+.shots figcaption { margin-top: 6px; font-size: 12.5px; }
+.shots figcaption b { color: var(--ink); }
+
 .done { color: var(--muted); }
 </style>
 </head>
@@ -241,7 +248,27 @@ td.num { font-family: ui-monospace, Menlo, monospace; }
 </div>
 </div>
 
-<h2>5. Вопросы (остались с листа 1 + один новый)</h2>
+
+<h2>5. Примеры объектов — кадры с текущего билда</h2>
+<p>Все кадры сняты в игре на витрине полки (карта <code>trees/catalog</code>),
+рост и вид — ровно те, что встанут в сцену. Что пойдёт в полировку, подписано
+честно.</p>
+<div class="shots">
+<figure><img src="plan-img/oak-elder.jpg" alt="Дуб-старейшина"><figcaption><b>Дуб-старейшина</b> · 30 м · сердце поляны. В полировке: гуще крона.</figcaption></figure>
+<figure><img src="plan-img/birch-c.jpg" alt="Берёза"><figcaption><b>Берёза</b> · 17–24 м, 4 роста · светлая стена кольца.</figcaption></figure>
+<figure><img src="plan-img/pine-b.jpg" alt="Сосна"><figcaption><b>Сосна</b> · 25–31 м · тёмные акценты; лапы-перья, голая бола.</figcaption></figure>
+<figure><img src="plan-img/sapling-birch.jpg" alt="Саженец берёзы"><figcaption><b>Саженец берёзы</b> · 3.6–4.8 м · кромка поляны.</figcaption></figure>
+<figure><img src="plan-img/young-oak.jpg" alt="Молодой дуб"><figcaption><b>Молодой дуб</b> · 6 м · малый ярус чащи.</figcaption></figure>
+<figure><img src="plan-img/bush-a.jpg" alt="Куст"><figcaption><b>Куст</b> · 1.2–1.9 м · стволики от земли, крона до травы. Новые виды (орешник, ягодник, можжевельник, папоротник) — строятся по этой же кузнице.</figcaption></figure>
+<figure><img src="plan-img/bush-c.jpg" alt="Куст крупный"><figcaption><b>Куст крупный</b> · 1.9 м · опушки и просеки.</figcaption></figure>
+<figure><img src="plan-img/log-a.jpg" alt="Валежник"><figcaption><b>Валежник</b> · 7.5 м · лежит поперёк склона, корневая плита.</figcaption></figure>
+<figure><img src="plan-img/grass-b.jpg" alt="Трава средняя"><figcaption><b>Трава средняя</b> · 0.5 м · пучки; высокая 0.9 м — та же кузница.</figcaption></figure>
+<figure><img src="plan-img/flowers-white.jpg" alt="Цветы белые"><figcaption><b>Цветы белые</b> · 0.35 м · читаются с 2–3 м; в полировке: крупнее венчики, чтобы куртина читалась с поляны.</figcaption></figure>
+<figure><img src="plan-img/flowers-pink.jpg" alt="Цветы розовые"><figcaption><b>Цветы розовые</b> · 0.35 м · вторая куртина; есть и жёлтые.</figcaption></figure>
+<figure><img src="plan-img/mushrooms-red.jpg" alt="Грибы"><figcaption><b>Грибы красные</b> · 0.15 м · семейками у комля и валежника; есть бурые.</figcaption></figure>
+</div>
+
+<h2>6. Вопросы (остались с листа 1 + один новый)</h2>
 <ol class="qs">
 <li><strong>Дуб 30 м</strong> — оставить, или 36–40 м, чтобы сильнее торчал над чащей?</li>
 <li><strong>Кольцевая дорожка вокруг куртин</strong> — ок, или тропы дорезать до самого ствола?</li>
