@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 20:44:08
+Last updated: 16:08:2026 - 20:52:47
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -55,6 +55,7 @@ UPD:
 - 15:08:2026 - 16:17:07: emit_frond умножает ширину на p.frond_width (лиственница).
 - 16:08:2026 - 20:23:55: Развёртка трубы: зеркальная волна -> прямой повтор (тайл коры теперь торо-периодический).
 - 16:08:2026 - 20:44:08: Якорь листвы на конце КАЖДОЙ ветви, включая скелетные (уровень 0): их концы оставались голыми крюками — видно на первом верном наземном кадре.
+- 16:08:2026 - 20:52:47: По трём замечаниям галереи 20:42-44: (1) конусы вдвое короче (бола 7->12 сегментов, ветви 8/6/4) и обхват НА КАЖДОЕ КОЛЬЦО — кора перестала тянуться к тонкому концу и рваться на стыках; (2) листва ВИСИТ: верхняя кромка карты на веточке, плоскость почти вертикальна, азимут наружу кроны, ролл малый — «кучка мух» снята корреляцией ориентаций; (3) крест-пары 90°->~65° — рёберный пунктир реже; полный фейд по углу взгляда запрошен у лида (fs_foliage).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -105,6 +106,12 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
     constexpr float TILE_SPAN_M = 2.6f;
     const float du = uv_rect.z - uv_rect.x;
     const float dv = uv_rect.w - uv_rect.y;
+    // EACH RING WEARS ITS OWN CIRCUMFERENCE (user, gallery 20:42: «кора везде
+    // разная, где-то вытянута, где-то сжата»): a taper mapped with the butt
+    // ring's girth stretches the tile toward the thin end, and the stretch
+    // jumps at every joint. circum_m is the BUTT ring's girth; the tip ring
+    // scales it by r1/r0, which is continuous across joints by construction.
+    const float circum1_m = circum_m * ((r0 > 1e-5f) ? (r1 / r0) : 1.0f);
     for (int i = 0; i < sides; ++i) {
         const float a0 = TAU * static_cast<float>(i) / static_cast<float>(sides);
         const float a1 = TAU * static_cast<float>(i + 1) / static_cast<float>(sides);
@@ -115,23 +122,25 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
         const glm::vec3 n0 = safe_normalize(d0 + axis * slope, d0);
         const glm::vec3 n1 = safe_normalize(d1 + axis * slope, d1);
         // Texture coordinates: circumference and height in METRES, folded.
-        const float cu0 = uv_rect.x + du * tri_wave(circum_m * (static_cast<float>(i)
-                              / static_cast<float>(sides)) / TILE_SPAN_M);
-        const float cu1 = uv_rect.x + du * tri_wave(circum_m * (static_cast<float>(i + 1)
-                              / static_cast<float>(sides)) / TILE_SPAN_M);
+        const float s0 = static_cast<float>(i) / static_cast<float>(sides);
+        const float s1 = static_cast<float>(i + 1) / static_cast<float>(sides);
+        const float cu0 = uv_rect.x + du * tri_wave(circum_m * s0 / TILE_SPAN_M);
+        const float cu1 = uv_rect.x + du * tri_wave(circum_m * s1 / TILE_SPAN_M);
+        const float cu0b = uv_rect.x + du * tri_wave(circum1_m * s0 / TILE_SPAN_M);
+        const float cu1b = uv_rect.x + du * tri_wave(circum1_m * s1 / TILE_SPAN_M);
         const float cv0 = uv_rect.y + dv * tri_wave(v0_m / TILE_SPAN_M);
         const float cv1 = uv_rect.y + dv * tri_wave((v0_m + len) / TILE_SPAN_M);
         const auto base = static_cast<uint32_t>(m.vertices.size());
         if (r1 <= 1e-4f) {
             const glm::vec3 nt = safe_normalize(n0 + n1, axis);
             m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_c0});
-            m.vertices.push_back({p1, nt, {(cu0 + cu1) * 0.5f, cv1}, wind_c1});
+            m.vertices.push_back({p1, nt, {(cu0b + cu1b) * 0.5f, cv1}, wind_c1});
             m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_c0});
             m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
         } else {
             m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_c0});
-            m.vertices.push_back({p1 + d0 * r1, n0, {cu0, cv1}, wind_c1});
-            m.vertices.push_back({p1 + d1 * r1, n1, {cu1, cv1}, wind_c1});
+            m.vertices.push_back({p1 + d0 * r1, n0, {cu0b, cv1}, wind_c1});
+            m.vertices.push_back({p1 + d1 * r1, n1, {cu1b, cv1}, wind_c1});
             m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_c0});
             m.indices.insert(m.indices.end(),
                              {base, base + 1, base + 2, base, base + 2, base + 3});
@@ -180,7 +189,11 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // --- BOLE: near-vertical, zero-mean wander (§1.8: Curve=0, the wander is
     // sign-alternating and partially cancels). The lower third is rigid — the
     // measured boles hold their chord and bend only above (§1.7, frame 16).
-    const int bole_segments = 7;
+    // 12, up from 7 (user, gallery 20:42: «видно в каких точках куски дерева
+    // растут, вот эти конусы — надо чаще делать эти конусы, не такие
+    // длинные»): shorter cones bend in smaller steps and the taper per
+    // segment shrinks, so the joints stop reading as joints.
+    const int bole_segments = 12;
     // A broadleaf bole ends inside its crown; a CONIFER's runs the whole
     // height — the leader IS the tree's spine, and every whorl hangs off it.
     const float bole_top_y = p.conifer ? p.height * 0.97f
@@ -297,7 +310,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             }
 
             void run(glm::vec3 pos, glm::vec3 dir, float len, float radius, int level) {
-                const int segs = level == 0 ? 5 : (level == 1 ? 4 : 3);
+                // Shorter, more numerous cones (the same 20:42 remark).
+                const int segs = level == 0 ? 8 : (level == 1 ? 6 : 4);
                 const float seg = len / static_cast<float>(segs);
                 glm::vec3 d = dir;
                 float r = radius;
@@ -335,7 +349,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
 
                     // CHILDREN leave mid-branch, alternating sides — from the
                     // second segment on, so the joint zone stays clean.
-                    if (level < 2 && si >= 1) {
+                    if (level < 2 && si >= 1 && si % 2 == 1) {
                         const int kids = level == 0 ? 2 : 1;
                         for (int c = 0; c < kids; ++c) {
                             if (rng.unit() < 0.3f) continue;
@@ -531,37 +545,37 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             // (user: «часть листка летает в воздухе, ни к чему не
             // присоединено» — the old jitter could carry a spray clear of its
             // twig).
-            const glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.035f);
-            const glm::vec3 radial = safe_normalize(c - crown_c, a.dir);
-            // THE GROWTH DIRECTION (research §4.3, the user's aspen and pine
-            // frames): foliage lies in near-HORIZONTAL layers along its branch
-            // with an upward pull — broadleaf clumps face up-and-out, conifer
-            // fronds lie almost flat and sag at the tip. The chaos the user
-            // called out was the roll and the dome-heavy normals; both bow to
-            // UP now.
+            // HANGING FOLIAGE (user, gallery 20:43: «они по всей окружности в
+            // разные стороны растут и пересекаются — кучка мух; должны вниз
+            // свисать»). A spray is a curtain of leaves HANGING off its twig:
+            // the card's top edge sits at the anchor, the plane stands
+            // near-vertical, its azimuth faces outward from the crown with a
+            // modest scatter, and the roll stays small so leaf tips point
+            // down. Orientations are now CORRELATED — neighbouring sprays
+            // hang the same way instead of sampling the whole sphere.
             const glm::vec3 up{0.0f, 1.0f, 0.0f};
-            // THE CANOPY HAS AN UNDERSIDE (user, looking up the colossus: «вектор
-            // взгляда лежит в плоскости листьев, а должен быть перпендикулярен» —
-            // from below he was seeing every layer edge-on). Cards on the lower
-            // hemisphere of the crown bow DOWNWARD instead of up: a viewer under
-            // the tree now faces leaf planes, exactly as a real canopy shows its
-            // underleaves.
-            const float below = std::clamp((crown_c.y - c.y)
-                                               / std::max(crown_ry, 0.1f), 0.0f, 1.0f);
-            const glm::vec3 vertical = below > 0.35f ? -up : up;
-            const glm::vec3 n = p.conifer
-                ? safe_normalize(vertical * 0.8f + a.dir * 0.15f + radial * 0.05f, vertical)
-                : safe_normalize(vertical * 0.45f + radial * 0.3f + a.dir * 0.25f, vertical);
+            const float half_w = p.crown_radius * p.spray_frac
+                               * (0.85f + rng.unit() * 0.45f);
+            const float half_h = half_w * 0.75f;
+            glm::vec3 c = a.pos + jitter * (p.crown_radius * 0.035f);
+            c.y -= half_h * 0.55f; // hang below the twig, top edge on it
+            const glm::vec3 out_xz = safe_normalize(
+                glm::vec3{c.x - crown_c.x, 0.0f, c.z - crown_c.z},
+                glm::vec3{1.0f, 0.0f, 0.0f});
+            const float az_jit = rng.sym() * 0.55f;
+            const glm::vec3 az{out_xz.x * std::cos(az_jit) - out_xz.z * std::sin(az_jit),
+                               0.0f,
+                               out_xz.x * std::sin(az_jit) + out_xz.z * std::cos(az_jit)};
+            // Near-vertical plane: normal mostly horizontal, a touch of
+            // face-up so the crown's top still catches the sun.
+            const float tilt = -0.10f + 0.35f * rng.unit();
+            const glm::vec3 n = safe_normalize(az + up * tilt, az);
             LeafCardParams card;
             card.center = c;
             card.normal = n;
-            card.half_width = p.crown_radius * p.spray_frac * (0.85f + rng.unit() * 0.45f);
-            card.half_height = card.half_width * (p.conifer ? 0.55f : 0.7f);
-            // FULL free roll (user: «слишком много параллельных линий, видно
-            // что искусственное; линии под разными углами»): roll spins the
-            // card IN its plane, so the layering the normals build survives —
-            // the ±14° cap was killing the edge-angle variety, not the chaos.
-            card.roll = rng.unit() * TAU;
+            card.half_width = half_w;
+            card.half_height = half_h;
+            card.roll = rng.sym() * 0.35f; // tips keep pointing DOWN
             card.shape = p.card_shape;
             card.tone = p.tone;
             card.value_jitter = 0.42f + rng.unit() * 0.22f;
@@ -569,13 +583,19 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             card.sway_origin = glm::vec3{0.0f, crown_base, 0.0f};
             card.sway_span = p.crown_radius * 1.8f;
             emit_leaf_card(obj.cards, card);
+            // The partner turns ~65 deg, NOT 90: still kills the vanishing-
+            // in-profile flicker, but the pair is never exactly edge-on
+            // together — the perpendicular partner was the «прямые полоски»
+            // dotted rectangles of the 20:44 frame.
             LeafCardParams cross = card;
-            cross.normal = safe_normalize(glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f})
-                                              + glm::vec3{0.0f, 0.3f * rng.sym(), 0.0f},
-                                          a.dir);
+            const float ca = (1.05f + rng.unit() * 0.25f)
+                           * (rng.unit() < 0.5f ? 1.0f : -1.0f);
+            const glm::vec3 az2{az.x * std::cos(ca) - az.z * std::sin(ca), 0.0f,
+                                az.x * std::sin(ca) + az.z * std::cos(ca)};
+            cross.normal = safe_normalize(az2 + up * (-0.05f + 0.3f * rng.unit()), az2);
             cross.half_width *= 0.85f;
             cross.half_height *= 0.85f;
-            cross.roll = rng.unit() * TAU;
+            cross.roll = rng.sym() * 0.35f;
             cross.value_jitter = 0.42f + rng.unit() * 0.22f;
             emit_leaf_card(obj.cards, cross);
         }
