@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 16:08:2026 - 20:42:17
+Last updated: 16:08:2026 - 22:40:39
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -53,6 +53,7 @@ UPD:
 - 16:08:2026 - 20:23:55: КОРА v3 ПО ФОТО (вердикт: «вырвиглазные... прямоугольнички»; решение пользователя: сверяться с фото-эталоном, не выдумывать): (1) шум стал ПЕРИОДИЧЕСКИМ (pnoise, тор) — тайл повторяется frac'ом, зеркальный калейдоскоп мёртв; (2) частоты СНЯТЫ с Bark012 автокорреляцией (борозды 4-6 и 8-10 см, макро 20 см -> 44/88 + 12 на тайл 2.6 м) — v2 рисовала волны 40 см; (3) три октавы ridged + пер-колоночная светлота + сколы-хлопья; (4) диапазон светлот подогнан к фото (p5-p95 0.41-0.65). Эталоны в docs/reference/, сверка A/B глазами на каждой итерации.
 - 16:08:2026 - 20:31:55: ШТАМПЫ ПО ГЕРБАРНЫМ СКАНАМ (docs/reference, правило сверки): дуб — вытянутый 1.75:1 с лопастями ПО БОКАМ и узким основанием (Quercus robur), берёза — дельтоид с одним острым носиком и пильчатым краем (Betula pendula), осина — круглая с крупной волной-кренатурой (Populus tremula); у всех светлая центральная ЖИЛКА. Круглый радиальный цветок v1 не был ничьим листом.
 - 16:08:2026 - 20:42:17: ФРОНД ПО СКАНУ Picea abies: стержень ОДЕТ иголками (не голый рахис с перьями), гребёнки веточек плотнее (скан ~70% иголка/просвет — было 45%, «рыбий скелет»), каждая иголка со своим светом; тон хвои — тёплый средне-зелёный по скану. Порог просветов фронда в тесте — от скана (~30% неба между иголками), не от лиственных крон; слипшийся клин по-прежнему валится по ragged.
+- 16:08:2026 - 22:40:39: Хвоя гуще: иголки длиннее (0.074/0.105) и гребёнка плотнее (порог 0.0115) — призрачные ярусы стали лапами.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -506,14 +507,14 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         // stem band, denser than the branchlet combs.
                         if (alpha < 1.0f && along > -0.80f && along < 0.84f) {
                             const float av0 = std::fabs(across);
-                            const float nl0 = 0.085f;
+                            const float nl0 = 0.105f;
                             if (av0 < nl0) {
                                 constexpr float PITCH0 = 0.026f;
                                 const float ph0 = (along + across * 0.55f) / PITCH0;
                                 const int ni0 = static_cast<int>(std::round(ph0));
                                 const float comb0 =
                                     std::fabs(ph0 - std::round(ph0)) * PITCH0;
-                                if (comb0 < 0.0085f
+                                if (comb0 < 0.0115f
                                     && hash01(ni0, across > 0.0f ? 21 : 23, sd.seed)
                                            > 0.12f) {
                                     const float a0 = std::clamp(
@@ -558,7 +559,7 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 // neighbouring branchlets merge into a solid
                                 // wedge and the frond stops being pinnate
                                 // (caught by the gap/ragged suite on sight).
-                                const float nl = 0.066f * (1.0f - 0.5f * u01)
+                                const float nl = 0.074f * (1.0f - 0.5f * u01)
                                                * (0.7f + 0.6f * (1.0f - std::fabs(u01 - 0.35f)));
                                 const float av = std::fabs(v);
                                 if (av > nl && av > 0.012f) continue;
@@ -576,7 +577,7 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                 float a_here = 0.0f;
                                 if (av < 0.012f && u01 < 0.9f) {
                                     a_here = 1.0f; // the branchlet spine itself
-                                } else if (comb < 0.0085f) {
+                                } else if (comb < 0.0115f) {
                                     // Gradient at the needle's own tip.
                                     a_here = std::clamp((nl - av) / (0.30f * nl + 1e-4f),
                                                         0.0f, 1.0f);

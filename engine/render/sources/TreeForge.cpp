@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 16:08:2026 - 22:06:42
+Last updated: 16:08:2026 - 22:40:39
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -58,6 +58,7 @@ UPD:
 - 16:08:2026 - 20:52:47: По трём замечаниям галереи 20:42-44: (1) конусы вдвое короче (бола 7->12 сегментов, ветви 8/6/4) и обхват НА КАЖДОЕ КОЛЬЦО — кора перестала тянуться к тонкому концу и рваться на стыках; (2) листва ВИСИТ: верхняя кромка карты на веточке, плоскость почти вертикальна, азимут наружу кроны, ролл малый — «кучка мух» снята корреляцией ориентаций; (3) крест-пары 90°->~65° — рёберный пунктир реже; полный фейд по углу взгляда запрошен у лида (fs_foliage).
 - 16:08:2026 - 21:45:26: По восьми замечаниям 21:05-21:20: ГНУТЫЕ ЛИСТЫ (дизайн пользователя, п.4) — 3×3-патч куполом с провисшими углами и помятостью, драпирован ПО ветке (п.1: сидит на ветке, не ниже), без плоской оси (п.2), один лист вместо пары карт (п.3: меньше и крупнее, якоря прорежены); рамка коры ПАРАЛЛЕЛЬНО ПЕРЕНОСИТСЯ вдоль ветви (п.6: борозды идут прямо по росту, не крутятся на стыках); веточки 2-го уровня в текстуре коры (п.7: чёрные концы на белой берёзе умерли); обломанные СУЧЬЯ на боле и ЖЁЛУДИ у дубов (п.5; дупло в очереди — нужен свой тёмный тайл).
 - 16:08:2026 - 22:06:42: По пачке 21:50-57: (а) «узкие линии» оказались ВЕТОЧКАМИ-ВОЛОСКАМИ тоньше пикселя — пол радиуса 0.025->0.05 и последний уровень короче (0.7) — провода за листвой умерли; (б) кора по ветвям: v-координата = ДЛИНА ДУГИ вдоль ветви, не мировая высота (на горизонтальной ветви борозды мазались вбок — «в разные стороны растёт»); (в) чёрные палки берёзы — те же волоски. Прозрачность при движении и голые ели — полоса фейда лида 0.08/0.22, сужение запрошено (0.03/0.08 + ручки).
+- 16:08:2026 - 22:40:39: ФРОНД СЛОЖЕН ДОМИКОМ (V-сечение, края ниже хребта, нормали половинок врозь): плоская горизонтальная лента с уровня глаз — линия в пиксель, ВЕСЬ хвойный ряд стоял голым (геометрия была в .dfo — найдено дампом + логом расстановки; три раза принимал снаги рассыпки за свои ели). Ленты шире (0.42 reach), листов на якорь больше при spray_per_branch>2 (колосс «листвы мало»), жёлуди крупнее и ниже листа.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -475,12 +476,14 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         if (p.card_shape == LeafShape::RoundLobed) {
             const uint32_t acorn_c = pack(glm::vec3{0.45f, 0.36f, 0.16f});
             for (const SprayAnchor& a : anchors) {
-                if (rng.unit() > 0.10f) continue;
-                for (int k = 0; k < 2; ++k) {
+                if (rng.unit() > 0.14f) continue;
+                for (int k = 0; k < 3; ++k) {
+                    // Big enough to SEE (16.08: «желудей не вижу нигде») and
+                    // hung below the sheet's rim rather than inside it.
                     const glm::vec3 ap = a.pos
-                        + glm::vec3{rng.sym() * 0.25f, -0.16f - rng.unit() * 0.14f,
-                                    rng.sym() * 0.25f};
-                    const float ar = 0.035f;
+                        + glm::vec3{rng.sym() * 0.30f, -0.30f - rng.unit() * 0.20f,
+                                    rng.sym() * 0.30f};
+                    const float ar = 0.06f;
                     const glm::vec3 upv{0.0f, 1.0f, 0.0f};
                     tube_segment(obj.wood, ap - upv * (ar * 1.5f), ap, upv,
                                  0.012f, ar, 3, acorn_c);
@@ -498,8 +501,14 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         // the windows between tiers.
         const glm::vec4 needle_uv = leaf_tile_uv(LeafShape::NeedleFan, p.tone);
         const float phase_c = phase; // fronds share the tree's wind phase
-        // One frond ribbon: sagging centre-line, tip lifting back up (the
-        // frame-6 silhouette), stem of the sheet running along the strip.
+        // One frond: a V-FOLDED sagging strip — spine down the middle, both
+        // halves tilted DOWN like a real lapa's needle sheets. The flat
+        // ribbon of the first cut vanished from eye level BY CONSTRUCTION
+        // (a horizontal zero-thickness plane seen from its own height is a
+        // one-pixel line: the whole conifer row read as naked poles, found
+        // via the placement log + .dfo dump — the geometry was always there,
+        // only the bearing was impossible). A folded sheet shows a face from
+        // every bearing.
         const auto emit_frond = [&](glm::vec3 pos0, glm::vec3 dir0, float len,
                                     float half_w, float droop_rad) {
             const int segs = 4;
@@ -509,7 +518,11 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             const glm::vec3 side = safe_normalize(glm::cross(up, fd),
                                                   glm::vec3{1.0f, 0.0f, 0.0f});
             const float jit = 0.40f + rng.unit() * 0.26f;
+            // Dihedral: how far the edges drop below the spine (rad-ish
+            // fraction of the half-width). 0.35-0.55 reads as a living lapa.
+            const float fold = 0.35f + rng.unit() * 0.20f;
             const auto base_v = static_cast<uint32_t>(obj.cards.vertices.size());
+            const float v_mid = needle_uv.y + (needle_uv.w - needle_uv.y) * 0.5f;
             for (int s = 0; s <= segs; ++s) {
                 const float t = static_cast<float>(s) / static_cast<float>(segs);
                 if (s > 0) {
@@ -526,21 +539,28 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                                                          3.1416f)));
                 const float uu = needle_uv.x
                     + (needle_uv.z - needle_uv.x) * (0.04f + 0.92f * t);
-                const glm::vec3 n = safe_normalize(up * 0.85f + fd * 0.15f, up);
+                const float drop = ww * fold;
                 const float sway = 0.15f + 0.85f * t; // honest: distance from support
+                const uint32_t col = pack({sway, phase_c, jit});
+                // Half-plane normals face up-and-outward on each side, so the
+                // two faces shade differently — the fold reads even in flat light.
+                const glm::vec3 nl = safe_normalize(up * 0.8f - side * fold, up);
+                const glm::vec3 nr = safe_normalize(up * 0.8f + side * fold, up);
                 obj.cards.vertices.push_back(
-                    {fpos - side * ww, n,
-                     {uu, needle_uv.y + (needle_uv.w - needle_uv.y) * 0.06f},
-                     pack({sway, phase_c, jit})});
+                    {fpos - side * ww - up * drop, nl,
+                     {uu, needle_uv.y + (needle_uv.w - needle_uv.y) * 0.06f}, col});
                 obj.cards.vertices.push_back(
-                    {fpos + side * ww, n,
-                     {uu, needle_uv.y + (needle_uv.w - needle_uv.y) * 0.94f},
-                     pack({sway, phase_c, jit})});
+                    {fpos, safe_normalize(nl + nr, up), {uu, v_mid}, col});
+                obj.cards.vertices.push_back(
+                    {fpos + side * ww - up * drop, nr,
+                     {uu, needle_uv.y + (needle_uv.w - needle_uv.y) * 0.94f}, col});
             }
             for (int s = 0; s < segs; ++s) {
-                const uint32_t a0 = base_v + static_cast<uint32_t>(s) * 2u;
+                const uint32_t a0 = base_v + static_cast<uint32_t>(s) * 3u;
                 obj.cards.indices.insert(obj.cards.indices.end(),
-                                         {a0, a0 + 2u, a0 + 3u, a0, a0 + 3u, a0 + 1u});
+                                         {a0, a0 + 3u, a0 + 4u, a0, a0 + 4u, a0 + 1u,
+                                          a0 + 1u, a0 + 4u, a0 + 5u,
+                                          a0 + 1u, a0 + 5u, a0 + 2u});
             }
         };
 
@@ -576,7 +596,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                           pack_wind(std::min(wood_sway(bp.y) + 0.12f, 0.6f), phase));
                 // The ribbon overlaps the wood so the joint never shows.
                 emit_frond(bp + d * (wood_len * 0.55f), d, reach * 0.9f,
-                           std::min(reach * 0.30f, 1.7f) * (0.85f + rng.unit() * 0.3f)
+                           std::min(reach * 0.42f, 2.0f) * (0.85f + rng.unit() * 0.3f)
                                * p.frond_width,
                            p.droop * (0.8f + rng.unit() * 0.4f));
             }
@@ -618,7 +638,10 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // sheet per anchor, occasionally a second smaller one — NOT a count per
     // branch: fewer, bigger masses (21:12).
     for (const SprayAnchor& a : anchors) {
-        const int sprays = rng.unit() < 0.30f ? 2 : 1;
+        // spray_per_branch > 2 asks for a LUSHER crown (the colossus: «листвы
+        // мало» — more sheets per anchor, leaves stay leaf-sized).
+        const int sprays = std::max(1, p.spray_per_branch - 1)
+                         + (rng.unit() < 0.30f ? 1 : 0);
         for (int i = 0; i < sprays; ++i) {
             const glm::vec3 jitter{rng.sym() * 0.5f, rng.sym() * 0.35f,
                                    rng.sym() * 0.5f};
