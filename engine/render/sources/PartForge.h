@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 16:08:2026 - 20:52:00
+Last updated: 16:08:2026 - 22:16:30
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -41,6 +41,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 16:08:2026 - 20:52:00: Создан — набор строительных деталей для агента-строителя.
+- 16:08:2026 - 22:16:30: PartMaterial::Pane — глухая вставка окна. Правило зоны с этого
+  дня (пользователь про хутор: «стены несплошные, дырки в доме... окна глухие,
+  с имитацией вида насквозь»): деталь ограждения ЗАМКНУТА, сквозных просветов
+  не оставляет.
 */
 
 #pragma once
@@ -84,6 +88,11 @@ enum class PartMaterial : uint8_t {
     Stone,
     Thatch,
     Shingle,
+    /// A BLIND window pane: the closed dark-warm insert that IMITATES a view
+    /// into the house (user: «окна глухие, без сплошного просвета, с имитацией
+    /// вида насквозь»). Its own material so the registry can tell an insert
+    /// from wood and a later real-interior pass can find and replace it.
+    Pane,
 };
 
 struct PartParams {

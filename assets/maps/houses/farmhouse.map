@@ -10,5 +10,5 @@ size_chunks = 1
 source = stand:Gallery
 objects = assets/objects/parts
 scene = assets/scenes/house-farm.scene
-description = 39 деталей: фундамент, столбы, стены, фронтоны, соломенная кровля, дверь, окно, крыльцо и забор.
+description = 41 деталь: фундамент, столбы, стены, фронтоны, соломенная кровля, дверь с притвором, глухое окно, крыльцо и забор. Оболочка замкнута: dfn_scene_check --shell даёт 0 из 18842 лучей наружу.
 built_commit =

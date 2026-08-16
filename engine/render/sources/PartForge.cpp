@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 16:08:2026 - 20:52:00
+Last updated: 16:08:2026 - 22:16:30
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -29,6 +29,17 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 16:08:2026 - 20:52:00: Создан вместе с PartForge.h.
+- 16:08:2026 - 22:16:30: ЗАМКНУТАЯ ОБОЛОЧКА (пользователь по хутору: «дырки в доме, стены
+  несплошные, окна глухие с имитацией вида насквозь») — механизм, не
+  экземпляры: (1) дощатая стена получила сплошную подложку за досками, а весь
+  пролёт вынесен к НАРУЖНОЙ плоскости рамы — утопленный пролёт читался чёрным
+  провалом даже там, где дырки не было; (2) фронтон — замкнутая треугольная
+  призма-ядро точно по линиям ската, ступени досок больше не сквозят; (3) окно
+  — глухая тёпло-тёмная вставка PartMaterial::Pane за переплётом, с нахлёстом
+  на раму; (4) цоколь — сплошная плита внутри кладки, швы камней остались
+  тенями и перестали быть отверстиями; (5) дверное полотно — сплошная
+  подложка с тыльной стороны. Мера — прибор dfn_scene_check --shell: до
+  правки 216/18842 лучей наружу на хуторе.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -86,6 +97,10 @@ struct Material {
     case PartMaterial::Stone: return {{0.45f, 0.45f, 0.43f}, 0.13f, 0.30f, 0.030f};
     case PartMaterial::Thatch: return {{0.66f, 0.56f, 0.33f}, 0.18f, 0.10f, 0.020f};
     case PartMaterial::Shingle: return {{0.33f, 0.30f, 0.27f}, 0.15f, 0.08f, 0.006f};
+    // The blind pane: dark and WARM — firelight-side-of-black, not void-black.
+    // It imitates an interior; a neutral dark grey reads as a hole, which is
+    // the exact complaint this material exists to close.
+    case PartMaterial::Pane: return {{0.15f, 0.10f, 0.055f}, 0.10f, 0.0f, 0.0f};
     }
     return {{0.5f, 0.5f, 0.5f}, 0.1f, 0.1f, 0.0f};
 }
@@ -99,6 +114,8 @@ constexpr float INFILL_THICK_M = 0.08f;  ///< what fills a wall bay
 constexpr float BOARD_W_M = 0.30f;       ///< one cladding board's width
 constexpr float BOARD_GAP_M = 0.02f;     ///< the shadow line between two
 constexpr float LEAF_THICK_M = 0.07f;    ///< a door leaf
+constexpr float WALL_CORE_M = 0.08f;     ///< the sealed slab behind a boarded bay
+constexpr float PANE_THICK_M = 0.05f;    ///< a window's blind insert
 constexpr float THATCH_DEEP_M = 0.35f;   ///< straw is DEEP; that is its whole read
 constexpr float SHINGLE_DEEP_M = 0.10f;
 constexpr float COURSE_M = 0.60f;        ///< one roof course up the slope
@@ -274,18 +291,31 @@ void make_wall(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) 
     // Solid infill or boarded, decided by the MATERIAL and not by comparing
     // colours: two materials may one day share a tone, and a wall that quietly
     // changed construction because of that would be very hard to explain.
+    // EITHER WAY THE BAY SITS AT THE FRAME'S OUTER PLANE, not sunk mid-depth:
+    // a recessed bay lights as a pit and reads as a hole even where none is
+    // (the user's farmhouse frame, both complaints at once).
     if (p.material == PartMaterial::Plaster || p.material == PartMaterial::Stone) {
-        block(m, {fs, fs, t * 0.5f - INFILL_THICK_M * 0.5f},
-              {in_w, in_h, INFILL_THICK_M}, mat, p.wear, rng, 2);
+        block(m, {fs, fs, t - INFILL_THICK_M}, {in_w, in_h, INFILL_THICK_M}, mat,
+              p.wear, rng, 2);
         return;
     }
+    // THE SEALED CORE, Rule 52 + the zone's sealed-hull rule: a closed slab
+    // BEHIND the boards, so the shadow gap between two boards stays a shadow
+    // and stops being a through-hole. Its tone is the wall's own, darkened —
+    // what the eye reads in a real board gap is the dark of the board behind.
+    Material core = mat;
+    core.color *= 0.55f;
+    core.wobble = 0.0f;
+    block(m, {fs, fs, t - INFILL_THICK_M - WALL_CORE_M},
+          {in_w, in_h, WALL_CORE_M}, core, p.wear * 0.5f, rng, 2);
     const int boards = std::max(2, static_cast<int>(in_w / BOARD_W_M + 0.5f));
     const float bw = in_w / static_cast<float>(boards);
     for (int i = 0; i < boards; ++i) {
         const float x = fs + static_cast<float>(i) * bw;
         const float gap = BOARD_GAP_M * (0.3f + 0.7f * p.wear);
-        hewn_bar(m, {x + bw * 0.5f, fs, t * 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
-                 in_h, (bw - gap) * 0.5f, INFILL_THICK_M * 0.5f, mat, p.wear, rng, 2);
+        hewn_bar(m, {x + bw * 0.5f, fs, t - INFILL_THICK_M * 0.5f}, {0.0f, 1.0f, 0.0f},
+                 {0.0f, 0.0f, 1.0f}, in_h, (bw - gap) * 0.5f, INFILL_THICK_M * 0.5f,
+                 mat, p.wear, rng, 2);
     }
 }
 
@@ -295,6 +325,30 @@ void make_gable(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     const float w = m_of(p.length_u);
     const float rise = m_of(p.height_u);
     const float t = m_of(p.width_u);
+    // THE SEALED CORE: a closed triangular prism filling the gable exactly to
+    // its rake lines. The boards in front are cut in whole-board steps, so
+    // between each board's top and the roof line there was a triangular
+    // through-hole (the user's farmhouse, hole class #3); the core is what the
+    // eye now finds there — infill, not sky.
+    {
+        Material core = mat;
+        core.color *= 0.75f;
+        core.wobble = 0.0f;
+        const float z0 = t * 0.30f;
+        const float z1 = t * 0.70f;
+        const glm::vec3 a0{0.0f, 0.0f, z0};
+        const glm::vec3 b0{w, 0.0f, z0};
+        const glm::vec3 c0{w * 0.5f, rise, z0};
+        const glm::vec3 a1{0.0f, 0.0f, z1};
+        const glm::vec3 b1{w, 0.0f, z1};
+        const glm::vec3 c1{w * 0.5f, rise, z1};
+        const uint32_t tn = tone(core, p.wear * 0.5f, rng);
+        tri(m, a1, b1, c1, tn);            // front, +z
+        tri(m, a0, c0, b0, tn);            // back, -z
+        quad(m, a0, b0, b1, a1, tn);       // underside
+        quad(m, a0, a1, c1, c0, tn);       // left rake
+        quad(m, b0, c0, c1, b1, tn);       // right rake
+    }
     const int boards = std::max(3, static_cast<int>(w / BOARD_W_M + 0.5f));
     const float bw = w / static_cast<float>(boards);
     for (int i = 0; i < boards; ++i) {
@@ -423,6 +477,15 @@ void make_door_frame(MeshData& m, const PartParams& p, const Material& mat, Rng&
 void make_door_leaf(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
     const float w = m_of(p.length_u);
     const float h = m_of(p.height_u);
+    // THE SEALED CORE: board gaps on a door are through-holes too. A closed
+    // backing plate on the leaf's inner face — the side a visitor never
+    // studies — keeps the plank read outside and the hull sealed.
+    {
+        Material core = mat;
+        core.color *= 0.6f;
+        core.wobble = 0.0f;
+        block(m, {0.0f, 0.0f, -0.03f}, {w, h, 0.03f}, core, p.wear * 0.5f, rng, 1);
+    }
     const int boards = std::max(2, static_cast<int>(w / BOARD_W_M + 0.5f));
     const float bw = w / static_cast<float>(boards);
     for (int i = 0; i < boards; ++i) {
@@ -461,6 +524,13 @@ void make_window(MeshData& m, const PartParams& p, const Material& mat, Rng& rng
              j * 0.3f, t * 0.4f, mat, p.wear, rng, 2);
     hewn_bar(m, {0.0f, h * 0.5f, t * 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, w,
              t * 0.4f, j * 0.3f, mat, p.wear, rng, 2);
+    // THE BLIND PANE (user: «окна глухие... с имитацией вида насквозь»): a
+    // closed warm-dark insert behind the mullions, overlapping the frame all
+    // round, so the window has an inside without having a hole. Its material
+    // is Pane on purpose — findable, replaceable when real interiors arrive.
+    block(m, {-j * 0.25f, -j * 0.25f, t * 0.30f - PANE_THICK_M * 0.5f},
+          {w + j * 0.5f, h + j * 0.5f, PANE_THICK_M},
+          material_of(PartMaterial::Pane), p.wear * 0.3f, rng, 1);
 }
 
 /// A course of field stones, origin at its near-bottom-left. Individual
@@ -470,6 +540,16 @@ void make_footing(MeshData& m, const PartParams& p, const Material& mat, Rng& rn
     const float len = m_of(p.length_u);
     const float h = m_of(p.height_u);
     const float d = m_of(p.width_u);
+    // THE SEALED CORE: the joints between stones read by their shadows, but
+    // they must not read THROUGH — a footing is the bottom of the hull. Same
+    // remedy as the boarded wall: a closed slab inside the course.
+    {
+        Material core = mat;
+        core.color *= 0.55f;
+        core.wobble = 0.0f;
+        block(m, {0.0f, 0.0f, d * 0.25f}, {len, h, d * 0.5f}, core, p.wear * 0.5f,
+              rng, 1);
+    }
     const int rows = std::max(1, p.height_u / 2);
     const float rh = h / static_cast<float>(rows);
     for (int r = 0; r < rows; ++r) {
@@ -536,6 +616,7 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     case PartMaterial::Stone: return "stone";
     case PartMaterial::Thatch: return "thatch";
     case PartMaterial::Shingle: return "shingle";
+    case PartMaterial::Pane: return "pane";
     }
     return "mat";
 }

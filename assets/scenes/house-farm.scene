@@ -84,7 +84,7 @@ group = farmhouse
 note = east base course
 
 [place]
-object = post-timber-12x2x2-w08
+object = post-timber-10x2x2-w08
 pos = 126 26.179 125
 yaw = 0
 scale = 1
@@ -92,24 +92,24 @@ group = farmhouse
 note = corner post
 
 [place]
-object = post-timber-12x2x2-w08
-pos = 129.5 26.179 125
+object = post-timber-10x2x2-w08
+pos = 130 26.179 125
 yaw = 0
 scale = 1
 group = farmhouse
 note = corner post
 
 [place]
-object = post-timber-12x2x2-w08
-pos = 126 26.179 130.5
+object = post-timber-10x2x2-w08
+pos = 126 26.179 131
 yaw = 0
 scale = 1
 group = farmhouse
 note = corner post
 
 [place]
-object = post-timber-12x2x2-w08
-pos = 129.5 26.179 130.5
+object = post-timber-10x2x2-w08
+pos = 130 26.179 131
 yaw = 0
 scale = 1
 group = farmhouse
@@ -125,19 +125,35 @@ note = south wall, west of the door
 
 [place]
 object = doorframe-timber-4x1x10-w08
-pos = 128.25 26.179 125
+pos = 128.2 26.179 125
 yaw = 0
 scale = 1
 group = farmhouse
 note = the doorway
 
 [place]
-object = door-timber-3x1x7-w08
-pos = 128.35 26.179 125.12
+object = door-timber-5x1x9-w08
+pos = 128.1 26.179 125.12
 yaw = 0
 scale = 1
 group = farmhouse
-note = the door itself
+note = the door itself, tall enough to fill its own frame
+
+[place]
+object = beam-dark-8x1x1-w08
+pos = 128 28.429 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = header over the door, seals frame-top to wall-top
+
+[place]
+object = post-dark-10x2x2-w08
+pos = 129.6 26.179 125
+yaw = 0
+scale = 1
+group = farmhouse
+note = door-side post, closes the strip between jamb and corner
 
 [place]
 object = wall-dark-8x1x10-w08
@@ -229,7 +245,7 @@ note = north gable
 
 [place]
 object = roof-thatch-8x8x8-w08
-pos = 125.7 28.679 125
+pos = 126 28.679 125
 yaw = 0
 scale = 1
 group = farmhouse
@@ -237,7 +253,7 @@ note = west roof slope
 
 [place]
 object = roof-thatch-8x8x8-w08
-pos = 130.3 28.679 127
+pos = 130 28.679 127
 yaw = 3.14159
 scale = 1
 group = farmhouse
@@ -245,7 +261,7 @@ note = east roof slope
 
 [place]
 object = roof-thatch-8x8x8-w08
-pos = 125.7 28.679 127
+pos = 126 28.679 127
 yaw = 0
 scale = 1
 group = farmhouse
@@ -253,7 +269,7 @@ note = west roof slope
 
 [place]
 object = roof-thatch-8x8x8-w08
-pos = 130.3 28.679 129
+pos = 130 28.679 129
 yaw = 3.14159
 scale = 1
 group = farmhouse
@@ -261,7 +277,7 @@ note = east roof slope
 
 [place]
 object = roof-thatch-8x8x8-w08
-pos = 125.7 28.679 129
+pos = 126 28.679 129
 yaw = 0
 scale = 1
 group = farmhouse
@@ -269,7 +285,7 @@ note = west roof slope
 
 [place]
 object = roof-thatch-8x8x8-w08
-pos = 130.3 28.679 131
+pos = 130 28.679 131
 yaw = 3.14159
 scale = 1
 group = farmhouse

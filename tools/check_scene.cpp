@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 21:50:43
+Last updated: 16:08:2026 - 22:11:51
 Module: tools
 File: tools/check_scene.cpp
 
@@ -42,17 +42,28 @@ UPD:
   членов групп не двигает.
 - 16:08:2026 - 21:50:43: --objects принимает список полок через ';' — судья обязан видеть ровно
   те же полки, что и игра, иначе он судит другую сцену.
+- 16:08:2026 - 22:11:51: --shell — прибор ЗАМКНУТОЙ ОБОЛОЧКИ (правило зоны домов по
+  замечанию пользователя: «стены несплошные, дырки в доме»). Из пробной точки
+  ВНУТРИ каждой группы пускается веер лучей по сфере Фибоначчи; луч, ушедший
+  из габарита постройки, не встретив ни одного треугольника её же деталей, —
+  это сквозная дыра. Ноль ушедших — зелено. Меряется НАСТОЯЩАЯ геометрия
+  (.dfo с полок, с yaw/scale размещения), а не имена и не габариты: щель в
+  1.7 см между досками прибор видит, а глаз на кадре с одной стены — нет.
+  Лучи ниже горизонта на -0.15 не пускаются: земляной пол — не дыра.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
+#include "engine/render/sources/ProcMesh.h"
 #include "engine/world/sources/LayoutLoad.h"
 #include "engine/world/sources/Scene.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <glm/geometric.hpp>
 #include <filesystem>
 #include <glm/common.hpp>
 #include <map>
@@ -152,6 +163,152 @@ bool object_top(void* ctx, const std::string& name, float& top) {
     return true;
 }
 
+/// One placed object's triangles in WORLD space, merged into a soup. The
+/// meshes are memoised per name — a house is two hundred copies of forty parts.
+std::optional<dfn::render::MeshData> read_merged(Ctx* c, const std::string& name,
+                                                 std::map<std::string, dfn::render::MeshData>& cache) {
+    if (const auto it = cache.find(name); it != cache.end()) {
+        return it->second;
+    }
+    std::optional<dfn::render::RegistryObject> obj;
+    for (const auto& shelf : c->shelves) {
+        obj = dfn::render::read_object(shelf / (name + ".dfo"));
+        if (obj) {
+            break;
+        }
+    }
+    if (!obj) {
+        return std::nullopt;
+    }
+    dfn::render::MeshData merged = obj->wood;
+    dfn::render::append_transformed(merged, obj->bark, {0.0f, 0.0f, 0.0f}, 0.0f, 1.0f);
+    dfn::render::append_transformed(merged, obj->cards, {0.0f, 0.0f, 0.0f}, 0.0f, 1.0f);
+    dfn::render::append_transformed(merged, obj->ground, {0.0f, 0.0f, 0.0f}, 0.0f, 1.0f);
+    cache.emplace(name, merged);
+    return merged;
+}
+
+/// Moller-Trumbore. Returns true when the ray from `o` along unit `d` crosses
+/// the triangle at t in (1e-4, t_max).
+bool ray_hits_tri(const glm::vec3& o, const glm::vec3& d, const glm::vec3& a,
+                  const glm::vec3& b, const glm::vec3& c, float t_max) {
+    const glm::vec3 e1 = b - a;
+    const glm::vec3 e2 = c - a;
+    const glm::vec3 p = glm::cross(d, e2);
+    const float det = glm::dot(e1, p);
+    if (std::fabs(det) < 1e-9f) {
+        return false;
+    }
+    const float inv = 1.0f / det;
+    const glm::vec3 s = o - a;
+    const float u = glm::dot(s, p) * inv;
+    if (u < 0.0f || u > 1.0f) {
+        return false;
+    }
+    const glm::vec3 q = glm::cross(s, e1);
+    const float v = glm::dot(d, q) * inv;
+    if (v < 0.0f || u + v > 1.0f) {
+        return false;
+    }
+    const float t = glm::dot(e2, q) * inv;
+    return t > 1e-4f && t < t_max;
+}
+
+/// THE SEALED-HULL INSTRUMENT. A probe inside the group casts a Fibonacci fan
+/// of rays; every ray must die on the building's own triangles. An escaped ray
+/// IS a through-hole — the count is the measurement, the directions name where
+/// to look. Rays steeper than -0.15 down are not cast (an earthen floor is not
+/// a hole); everything else must be roof, wall, gable, door or blind window.
+int check_shell(Ctx* ctx, const dfn::world::SceneDoc& doc) {
+    using dfn::render::MeshData;
+    std::map<std::string, MeshData> cache;
+    std::map<std::string, MeshData> soup_by_group;
+    for (const auto& p : doc.placements) {
+        if (p.group.empty()) {
+            continue;
+        }
+        const auto merged = read_merged(ctx, p.object, cache);
+        if (!merged) {
+            std::fprintf(stderr, "[shell] %s: no such object on the shelves\n",
+                         p.object.c_str());
+            return -1;
+        }
+        dfn::render::append_transformed(soup_by_group[p.group], *merged, p.position,
+                                        p.yaw, p.scale);
+    }
+    if (soup_by_group.empty()) {
+        std::printf("[shell] no groups in this scene — nothing to seal\n");
+        return 0;
+    }
+    int leaks_total = 0;
+    for (const auto& [group, soup] : soup_by_group) {
+        glm::vec3 lo{1e9f};
+        glm::vec3 hi{-1e9f};
+        for (const auto& v : soup.vertices) {
+            lo = glm::min(lo, v.position);
+            hi = glm::max(hi, v.position);
+        }
+        // The probe stands where a person would: group centre, eye height
+        // over the ground the scene is judged against — the same generator
+        // ground every other rule measures, not a guessed floor.
+        const float cx = (lo.x + hi.x) * 0.5f;
+        const float cz = (lo.z + hi.z) * 0.5f;
+        const float ground_y = dfn::world::terrain_height(*ctx->gen, {cx, cz});
+        const glm::vec3 probe{cx, ground_y + 1.4f, cz};
+        const float t_max = glm::length(hi - lo) + 1.0f;
+        // Rule 50: the fan's step must resolve the narrowest hole the rule is
+        // about — a 1.7 cm board gap seen from ~2.3 m is ~0.4 deg wide but
+        // 2 m long, so what matters is rays per SLIT, not per degree. 32768
+        // rays put ~4 rays through each such slit; 4096 put 0.3 and the
+        // instrument answered "sealed" about a wall of open seams.
+        constexpr int RAYS = 32768;
+        constexpr float MIN_DY = -0.15f;
+        const float golden = 2.399963230f; // golden-angle increment
+        int cast = 0;
+        int escaped = 0;
+        std::vector<glm::vec3> samples;
+        for (int i = 0; i < RAYS; ++i) {
+            const float y = 1.0f - 2.0f * (static_cast<float>(i) + 0.5f) / RAYS;
+            if (y < MIN_DY) {
+                continue;
+            }
+            const float r = std::sqrt(std::max(0.0f, 1.0f - y * y));
+            const float ang = golden * static_cast<float>(i);
+            const glm::vec3 d{r * std::cos(ang), y, r * std::sin(ang)};
+            ++cast;
+            bool hit = false;
+            const auto& idx = soup.indices;
+            for (std::size_t k = 0; k + 2 < idx.size(); k += 3) {
+                if (ray_hits_tri(probe, d, soup.vertices[idx[k]].position,
+                                 soup.vertices[idx[k + 1]].position,
+                                 soup.vertices[idx[k + 2]].position, t_max)) {
+                    hit = true;
+                    break;
+                }
+            }
+            if (!hit) {
+                ++escaped;
+                if (samples.size() < 8) {
+                    samples.push_back(d);
+                }
+            }
+        }
+        leaks_total += escaped;
+        std::printf("[shell] group \"%s\": %d ray(s) cast from (%.2f, %.2f, %.2f), "
+                    "%d escaped%s\n", group.c_str(), cast,
+                    static_cast<double>(probe.x), static_cast<double>(probe.y),
+                    static_cast<double>(probe.z), escaped,
+                    escaped == 0 ? " — sealed" : "");
+        for (const glm::vec3& d : samples) {
+            std::printf("[shell]   through-hole toward azimuth %.0f deg, "
+                        "elevation %+.0f deg\n",
+                        static_cast<double>(std::atan2(d.z, d.x) * 57.2957795f),
+                        static_cast<double>(std::asin(d.y) * 57.2957795f));
+        }
+    }
+    return leaks_total;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -167,6 +324,7 @@ int main(int argc, char** argv) {
     std::string stand = "Gallery";
     std::string objects_dir = "assets/objects/trees";
     bool fix = false;
+    bool shell = false;
     bool ground_query = false;
     float query_x = 0.0f;
     float query_z = 0.0f;
@@ -174,6 +332,8 @@ int main(int argc, char** argv) {
     for (int i = 2; i < argc; ++i) {
         if (std::strcmp(argv[i], "--fix") == 0) {
             fix = true;
+        } else if (std::strcmp(argv[i], "--shell") == 0) {
+            shell = true;
         } else if (std::strcmp(argv[i], "--ground") == 0 && i + 2 < argc) {
             ground_query = true;
             query_x = std::strtof(argv[++i], nullptr);
@@ -291,8 +451,16 @@ int main(int argc, char** argv) {
     for (const SceneFinding& f : findings) {
         std::printf("%s\n", describe(f).c_str());
     }
-    std::printf("[scene] %s: %zu placement(s), %zu finding(s)\n",
+    int leaks = 0;
+    if (shell) {
+        leaks = check_shell(&ctx, doc);
+        if (leaks < 0) {
+            return 1;
+        }
+    }
+    std::printf("[scene] %s: %zu placement(s), %zu finding(s)%s\n",
                 scene_path.filename().string().c_str(), doc.placements.size(),
-                findings.size());
-    return findings.empty() ? 0 : 1;
+                findings.size(),
+                shell ? (leaks == 0 ? ", hull sealed" : ", hull LEAKS") : "");
+    return findings.empty() && leaks == 0 ? 0 : 1;
 }
