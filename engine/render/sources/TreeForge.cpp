@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 07:04:26
+Last updated: 17:08:2026 - 09:14:19
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -65,6 +65,7 @@ UPD:
 - 17:08:2026 - 02:51:54: Ягоды v2: каждый плод ВИСИТ на веточке (не парит), стили шарик/гроздь-рябина/капля, крапинка бусинками, полоски рёбрами, чашелистик-попка снизу.
 - 17:08:2026 - 03:51:22: forge_path_light: факел — башмак/столб/железный обруч/бочонок обмотки/двухконусное пламя с горячим ядром; фонарь — столб с кронштейном и раскосом, подвесной короб: плиты, ТЁПЛОЕ стекло, клетка из четырёх стоек, колпак. Всё в wood-стриме: мебель не качается и не просвечивает.
 - 17:08:2026 - 07:04:26: Читаемость мелкой флоры (утро 17.08): лезвия травы 3.4-5.2 см и 13-18 на пучок, венчики цветов от p.bloom (лепесток 14 см, сердцевина конусом), стебли толще.
+- 17:08:2026 - 09:14:19: Баги красоты: (1) bark_tube режет грань по границам тайла — ёлочка-шевроны на стволах толще ~0.8 м умирают (frac по вершинам зеркалил грань, пересёкшую границу); (2) корни-контрфорсы короче (reach 1.05-1.5 flare — «шипы» берёз); (3) шапка сосны: изогнутые хвойные листы на верхних 3 мутовках поднятых хвойников — сверху зонт, не антенна.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -133,6 +134,31 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
     // jumps at every joint. circum_m is the BUTT ring's girth; the tip ring
     // scales it by r1/r0, which is continuous across joints by construction.
     const float circum1_m = circum_m * ((r0 > 1e-5f) ? (r1 / r0) : 1.0f);
+    // A vertex-folded frac CANNOT survive a tile boundary crossing INSIDE a
+    // face: the face between u=0.76 and u=frac(1.52)=0.52 renders mirrored
+    // and compressed, and on any trunk thicker than ~0.8 m (girth > tile)
+    // every other face crosses — which is exactly the herringbone the 50 m
+    // oak wore (user, 17.08: «ёлочка» on thick boles). The cure is to SPLIT
+    // each face at every tile boundary in u and v, so every emitted cell maps
+    // one monotonic in-tile span. Thin branches (girth and segment under one
+    // tile) emit the same single quad they always did.
+    const auto lerp_wind = [](uint32_t c0, uint32_t c1, float t) {
+        const auto mix = [&](int shift) {
+            const float a = static_cast<float>((c0 >> shift) & 0xFFu);
+            const float b = static_cast<float>((c1 >> shift) & 0xFFu);
+            return static_cast<uint32_t>(a + (b - a) * t + 0.5f) & 0xFFu;
+        };
+        return (c0 & 0xFF000000u) | (mix(16) << 16) | (mix(8) << 8) | mix(0);
+    };
+    const auto breaks_of = [](float b0, float b1, std::vector<float>& out) {
+        out.clear();
+        out.push_back(b0);
+        for (float k = std::floor(b0) + 1.0f; k < b1; k += 1.0f) {
+            if (k > b0) out.push_back(k);
+        }
+        out.push_back(b1);
+    };
+    std::vector<float> ub, vb;
     for (int i = 0; i < sides; ++i) {
         const float a0 = TAU * static_cast<float>(i) / static_cast<float>(sides);
         const float a1 = TAU * static_cast<float>(i + 1) / static_cast<float>(sides);
@@ -142,31 +168,73 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
         const float slope = (len > 1e-5f) ? (dr / len) : 0.0f;
         const glm::vec3 n0 = safe_normalize(d0 + axis * slope, d0);
         const glm::vec3 n1 = safe_normalize(d1 + axis * slope, d1);
-        // Texture coordinates: circumference and height in METRES, folded.
         const float s0 = static_cast<float>(i) / static_cast<float>(sides);
         const float s1 = static_cast<float>(i + 1) / static_cast<float>(sides);
-        const float cu0 = uv_rect.x + du * tri_wave(circum_m * s0 / TILE_SPAN_M);
-        const float cu1 = uv_rect.x + du * tri_wave(circum_m * s1 / TILE_SPAN_M);
-        const float cu0b = uv_rect.x + du * tri_wave(circum1_m * s0 / TILE_SPAN_M);
-        const float cu1b = uv_rect.x + du * tri_wave(circum1_m * s1 / TILE_SPAN_M);
-        const float cv0 = uv_rect.y + dv * tri_wave(v0_m / TILE_SPAN_M);
-        const float cv1 = uv_rect.y + dv * tri_wave((v0_m + len) / TILE_SPAN_M);
-        const auto base = static_cast<uint32_t>(m.vertices.size());
-        if (r1 <= 1e-4f) {
-            const glm::vec3 nt = safe_normalize(n0 + n1, axis);
-            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_c0});
-            m.vertices.push_back({p1, nt, {(cu0b + cu1b) * 0.5f, cv1}, wind_c1});
-            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_c0});
-            m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
-        } else {
-            m.vertices.push_back({p0 + d0 * r0, n0, {cu0, cv0}, wind_c0});
-            m.vertices.push_back({p1 + d0 * r1, n0, {cu0b, cv1}, wind_c1});
-            m.vertices.push_back({p1 + d1 * r1, n1, {cu1b, cv1}, wind_c1});
-            m.vertices.push_back({p0 + d1 * r0, n1, {cu1, cv0}, wind_c0});
-            m.indices.insert(m.indices.end(),
-                             {base, base + 1, base + 2, base, base + 2, base + 3});
+        // Tile-space spans of this face (butt girth rules the split lines;
+        // the taper's top-ring scale stays as a shear WITHIN cells, which is
+        // the same joint-continuity contract as before).
+        const float U0 = circum_m * s0 / TILE_SPAN_M;
+        const float U1 = circum_m * s1 / TILE_SPAN_M;
+        const float V0 = v0_m / TILE_SPAN_M;
+        const float V1 = (v0_m + len) / TILE_SPAN_M;
+        breaks_of(U0, U1, ub);
+        breaks_of(V0, V1, vb);
+        // Corner positions of the whole face; cells interpolate bilinearly,
+        // which keeps every cell exactly in the original face plane.
+        const glm::vec3 c00 = p0 + d0 * r0;             // (u0, v0)
+        const glm::vec3 c10 = p0 + d1 * r0;             // (u1, v0)
+        const glm::vec3 c01 = (r1 <= 1e-4f) ? p1 : p1 + d0 * r1;
+        const glm::vec3 c11 = (r1 <= 1e-4f) ? p1 : p1 + d1 * r1;
+        const float uspan = std::max(U1 - U0, 1e-6f);
+        const float vspan = std::max(V1 - V0, 1e-6f);
+        for (size_t vi = 0; vi + 1 < vb.size(); ++vi) {
+            for (size_t uix = 0; uix + 1 < ub.size(); ++uix) {
+                const float fa = (ub[uix] - U0) / uspan;
+                const float fb = (ub[uix + 1] - U0) / uspan;
+                const float ta = (vb[vi] - V0) / vspan;
+                const float tb = (vb[vi + 1] - V0) / vspan;
+                // In-tile uv: monotonic inside the cell by construction.
+                const float ubase = std::floor(ub[uix]);
+                const float vbase = std::floor(vb[vi]);
+                const float va_t = vb[vi] - vbase, vb_t = vb[vi + 1] - vbase;
+                // The taper's per-ring girth: scale the top edge's u toward
+                // circum1 inside the cell (shear, never a fold).
+                const float taper = (circum_m > 1e-5f) ? circum1_m / circum_m
+                                                       : 1.0f;
+                const auto uv_at = [&](float f, float t) {
+                    // Absolute tile-space u, the top ring sheared toward the
+                    // taper's girth; the cell's own tile origin subtracted.
+                    const float scale = 1.0f + (taper - 1.0f) * t;
+                    const float u_in = std::clamp(
+                        (U0 + uspan * f) * scale - ubase, 0.0f, 1.0f);
+                    const float v_in = std::clamp(
+                        va_t + (vb_t - va_t)
+                            * ((t - ta) / std::max(tb - ta, 1e-6f)),
+                        0.0f, 1.0f);
+                    return glm::vec2{uv_rect.x + du * u_in, uv_rect.y + dv * v_in};
+                };
+                const auto pos_at = [&](float f, float t) {
+                    const glm::vec3 bot = c00 + (c10 - c00) * f;
+                    const glm::vec3 top = c01 + (c11 - c01) * f;
+                    return bot + (top - bot) * t;
+                };
+                const auto n_at = [&](float f) {
+                    return safe_normalize(n0 + (n1 - n0) * f, n0);
+                };
+                const auto w_at = [&](float t) {
+                    return lerp_wind(wind_c0, wind_c1, t);
+                };
+                const auto base = static_cast<uint32_t>(m.vertices.size());
+                m.vertices.push_back({pos_at(fa, ta), n_at(fa), uv_at(fa, ta), w_at(ta)});
+                m.vertices.push_back({pos_at(fa, tb), n_at(fa), uv_at(fa, tb), w_at(tb)});
+                m.vertices.push_back({pos_at(fb, tb), n_at(fb), uv_at(fb, tb), w_at(tb)});
+                m.vertices.push_back({pos_at(fb, ta), n_at(fb), uv_at(fb, ta), w_at(ta)});
+                m.indices.insert(m.indices.end(),
+                                 {base, base + 1, base + 2, base, base + 2, base + 3});
+            }
         }
     }
+    (void)tri_wave;
 }
 
 } // namespace
@@ -233,7 +301,9 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         const float az = TAU * (static_cast<float>(k) + 0.5f + rng.sym() * 0.3f)
                        / static_cast<float>(ROOT_SPUR_COUNT);
         const glm::vec3 rd{std::cos(az), 0.0f, std::sin(az)};
-        const float reach = flare_r * (1.6f + rng.unit() * 1.0f);
+        // Short buttresses (user, 17.08: birch roots read as SPIKES): the
+        // spur hugs the flare and dives, it does not stride across the lawn.
+        const float reach = flare_r * (1.05f + rng.unit() * 0.45f);
         // BUTTRESS profile (passports §2, frame copy 8: the root is a RIDGE
         // of the flare that runs out along the ground, not a pipe leaning on
         // it). The spur starts INSIDE the flare, high and thick, and its
@@ -615,6 +685,15 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                            std::min(reach * 0.42f, 2.0f) * (0.85f + rng.unit() * 0.3f)
                                * p.frond_width,
                            p.droop * (0.8f + rng.unit() * 0.4f));
+                // PINE CAP (user, 17.08: from above the pines read as
+                // antennas — spokes, no canopy). Lifted-branch conifers get
+                // curved needle sheets on the top three whorls: an umbrella
+                // the sky camera can land on. Drooping spruces and the airy
+                // larch keep their honest spike.
+                if (p.droop < 0.20f && p.frond_width > 0.8f
+                    && w >= p.whorl_count - 3) {
+                    anchors.push_back({bp + d * (wood_len + reach * 0.45f), d});
+                }
             }
         }
 
