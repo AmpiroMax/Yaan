@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 14:06:40
+Last updated: 17:08:2026 - 18:29:30
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -165,6 +165,8 @@ UPD:
   доказать. Теперь цена платится по ОТКРЫТОЙ ДВЕРИ (DFN_DEBUG_LINES=1, и
   DFN_DRAW_COLLIDERS открывает её сам), а не по типу сборки: дверь закрыта —
   те же два сравнения, что были; открыта — работает там, где нужно.
+- 17:08:2026 - 18:29:30: линии можно включить в рантайме (g_debug_lines_forced); только вверх — два
+  прибора могут хотеть линий, и закрытие одного не должно гасить другой.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -188,6 +190,13 @@ namespace {
 /// Whether debug lines are recorded at all. Read once. Any door that wants
 /// lines may open this one — DFN_DRAW_COLLIDERS does, because a view whose
 /// whole purpose is lines must not need a second switch to work.
+/// RAISED AT RUNTIME by a tool that needs lines and cannot know at startup
+/// that it will. The build hand is the case: the palette opens on a keypress
+/// halfway through a session, and a door read once at launch would answer for
+/// a decision that had not been made yet. Env doors still open it, so nothing
+/// that worked before needs changing.
+bool g_debug_lines_forced = false;
+
 [[nodiscard]] bool debug_lines_enabled() {
     static const bool on = [] {
         for (const char* name : {"DFN_DEBUG_LINES", "DFN_DRAW_COLLIDERS"}) {
@@ -198,6 +207,9 @@ namespace {
         }
         return false;
     }();
+    if (g_debug_lines_forced) {
+        return true;
+    }
     return on;
 }
 
@@ -1199,6 +1211,16 @@ bool BgfxRenderer::Impl::wireframe_on() const {
         return e != nullptr && e[0] != '\0' && e[0] != '0';
     }();
     return wireframe || env;
+}
+
+void BgfxRenderer::set_debug_lines(bool enabled) {
+    // ONE-WAY UP within a session, deliberately: two tools may both want lines
+    // (the build ghost and the collider view), and letting one of them switch
+    // the other off on close would make the bug look like "lines stopped
+    // working" rather than "somebody turned them off".
+    if (enabled) {
+        g_debug_lines_forced = true;
+    }
 }
 
 void BgfxRenderer::set_wireframe(bool enabled) {

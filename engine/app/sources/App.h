@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:35:20
+Last updated: 17:08:2026 - 18:32:56
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -76,6 +76,8 @@ UPD:
 - 17:08:2026 - 14:48:55: draw_bake_progress — экран первого запуска.
 - 17:08:2026 - 16:27:55: AppConfig::fullscreen — режим, в котором рождается окно (settings.cfg).
 - 17:08:2026 - 16:35:20: scene_dirty_ — правил ли кто-нибудь композицию в этой сессии.
+- 17:08:2026 - 18:32:56: состояние руки строителя: палитра, призрак, приговор, цель удаления,
+  запомненные мерки деталей. Решения — в BuildTool.{h,cpp}, здесь только провода.
 */
 
 #pragma once
@@ -83,6 +85,7 @@ UPD:
 #include "engine/anim/sources/Rig.h"
 #include "engine/app/sources/ChatLog.h"
 #include "engine/app/sources/ChatOverlay.h"
+#include "engine/app/sources/BuildTool.h"
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
@@ -415,6 +418,30 @@ private:
     /// comments — so "save" with nothing to save must be a refusal that says
     /// so, not a no-op and not a rewrite.
     bool scene_dirty_ = false;
+
+    // ---- THE BUILD HAND (editor). Decisions live in BuildTool.{h,cpp}; what
+    // is here is the state and the wiring to the world.
+    bool build_open_ = false;
+    std::vector<BuildGroup> build_groups_;
+    std::size_t build_group_ = 0;
+    std::size_t build_item_ = 0;
+    float build_yaw_ = 0.0f;
+    BuildGhost build_ghost_;
+    BuildVerdict build_verdict_;
+    /// Which placement the crosshair is on, for DELETING. npos = none. Kept as
+    /// an index into scene_doc_.placements, resolved fresh every frame: an
+    /// index remembered across an edit would delete the wrong thing.
+    std::size_t build_target_ = static_cast<std::size_t>(-1);
+    /// Measured sizes, memoised. Same ruler as the judge and the tools
+    /// (render::measure_object), never a second copy.
+    std::map<std::string, render::ObjectExtent> build_extents_;
+    void update_build_tool();
+    [[nodiscard]] bool build_place();
+    [[nodiscard]] bool build_delete();
+    /// Re-bakes the ONE tile a placement falls in. An edit must not cost a
+    /// whole-map re-bake: the builder places a part every few seconds.
+    void rebake_tile_at(glm::vec2 world_xz);
+    [[nodiscard]] const std::string& build_selected() const;
     /// DFN_DRAW_COLLIDERS=1: the collision triangles kept so the debug pass can
     /// draw them. Requested by the user after three separate "I cannot walk
     /// here" reports that all turned out to be one wrong collider — a shape

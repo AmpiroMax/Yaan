@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 17:08:2026 - 18:29:30
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -39,6 +39,7 @@ UPD:
 - 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe / frame_stats /
   center_pick overrides for the new IRenderer contract (definitions in
   BgfxRendererFrame.cpp; accumulation in BgfxRendererSubmit.cpp).
+- 17:08:2026 - 18:29:30: set_debug_lines.
 */
 
 #pragma once
@@ -89,6 +90,7 @@ public:
     void reload_shaders() override; // debug no-op this stage (embedded shaders)
 
     void set_wireframe(bool enabled) override;
+    void set_debug_lines(bool enabled) override;
     [[nodiscard]] const RenderFrameStats& frame_stats() const override;
     [[nodiscard]] const RenderPick& center_pick() const override;
 

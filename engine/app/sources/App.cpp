@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 17:52:42
+Last updated: 17:08:2026 - 18:29:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -334,6 +334,9 @@ UPD:
 - 17:08:2026 - 17:52:42: DFN_HUD=0 — кадр без единого оверлея, из ТОГО ЖЕ бинарника. Для кадров,
   которые смотрит человек (приёмка, README): панель поверх картинки там не
   информация, а мусор.
+- 17:08:2026 - 18:29:30: РУКА СТРОИТЕЛЯ в кадре: призрак под прицелом, приговор судьи цветом,
+  постановка ЛКМ и удаление Delete; луч ищет ЗЕМЛЮ и уже стоящее сам, деталь
+  палитры догружается с полки по требованию. Дверь DFN_BUILD=1 — палитра без клавиши.
 */
 
 #include "engine/app/sources/App.h"
@@ -404,6 +407,13 @@ UPD:
 namespace dfn::app {
 
 namespace {
+
+/// THE SCENE TILE GRID. Spelled once here and used by the loader and by the
+/// build hand: an edit re-bakes ONE tile, and it can only find it if it
+/// divides the world the same way the loader did.
+constexpr float SCENE_TILE_M = 32.0f;
+constexpr int SCENE_TILE_KEY_BASE = 1000;
+
 
 // Per-chunk physics state owned by the ferry: TerrainDesc does not promise the
 // backend copies the height data, so the float conversion buffer stays alive
@@ -1679,13 +1689,11 @@ bool App::enter_world(uint32_t stand) {
             // The tile is 32 m: small enough that a wall of trees behind the
             // camera is actually rejected, large enough that a 256 m map is 64
             // meshes rather than thousands of draw calls.
-            constexpr float SCENE_TILE_M = 32.0f;
             scene_tiles_.clear();
             scene_objects_.clear();
             // Keyed away from the streamer's own chunk coordinates: these are
             // SCENE tiles, not world chunks, and a collision would have the
             // streamer's next bake silently drop half the composition.
-            constexpr int SCENE_TILE_KEY_BASE = 1000;
             struct Tile {
                 std::vector<world::Placement> parts;
             };
@@ -3305,6 +3313,314 @@ void App::enter_editor_mode() {
 // is a placement, not a walk (the same call apply_restore uses); if the camera
 // was high, the body simply falls to the ground under it, which is what "teleport
 // the body under the camera" means.
+// ============================ THE BUILD HAND ================================
+// Everything below serves ONE promise: the colour the builder sees is the
+// scene judge's answer about HIS ghost. So the hooks here hand the judge the
+// same facts the tool hands it -- ground from the streamed chunks, sizes from
+// render::measure_object -- and nothing decides anything on its own.
+
+namespace {
+
+struct BuildJudgeCtx {
+    const world::ChunkManager* chunks = nullptr;
+    /// MUTABLE ON PURPOSE. The map keeps resident only what its composition
+    /// already uses — some forty objects out of a shelf of two thousand. The
+    /// builder picks from the whole shelf, so the part he is holding has to be
+    /// brought in on demand; without this the ghost measures nothing, draws
+    /// nothing, and the tool looks broken while being merely empty-handed.
+    std::map<std::string, render::RegistryObject>* objects = nullptr;
+    std::map<std::string, render::ObjectExtent>* extents = nullptr;
+    const std::vector<std::string>* shelves = nullptr;
+};
+
+const render::ObjectExtent* build_extent(void* ctx, const std::string& name) {
+    auto* c = static_cast<BuildJudgeCtx*>(ctx);
+    if (const auto it = c->extents->find(name); it != c->extents->end()) {
+        return &it->second;
+    }
+    auto obj = c->objects->find(name);
+    if (obj == c->objects->end() && c->shelves != nullptr) {
+        for (const std::string& shelf : *c->shelves) {
+            if (auto loaded = render::read_object(std::filesystem::path(shelf)
+                                                  / (name + ".dfo"))) {
+                obj = c->objects->emplace(name, std::move(*loaded)).first;
+                break;
+            }
+        }
+    }
+    if (obj == c->objects->end()) {
+        return nullptr; // not on any shelf: the judge's KnownObject says so
+    }
+    return &c->extents->emplace(name, render::measure_object(obj->second)).first->second;
+}
+
+float build_ground_at(void* ctx, glm::vec2 p) {
+    auto* c = static_cast<BuildJudgeCtx*>(ctx);
+    // THE GROUND THE PLAYER STANDS ON, not the generator's ideal: the map may
+    // carry authored pads and river beds, and a ghost judged against the
+    // untouched height field would be called "hovering" on every terrace.
+    return c->chunks->height_at(p).value_or(0.0f);
+}
+
+bool build_object_extent(void* ctx, const std::string& name, float& radius,
+                         float& bottom) {
+    const render::ObjectExtent* e = build_extent(ctx, name);
+    if (e == nullptr) {
+        return false;
+    }
+    radius = e->radius;
+    bottom = e->bottom;
+    return true;
+}
+
+bool build_object_top(void* ctx, const std::string& name, float& top) {
+    const render::ObjectExtent* e = build_extent(ctx, name);
+    if (e == nullptr) {
+        return false;
+    }
+    top = e->top;
+    return true;
+}
+
+bool build_object_box(void* ctx, const std::string& name, glm::vec2& lo,
+                      glm::vec2& hi) {
+    const render::ObjectExtent* e = build_extent(ctx, name);
+    if (e == nullptr) {
+        return false;
+    }
+    lo = e->lo;
+    hi = e->hi;
+    return true;
+}
+
+bool build_object_box_solid(void* ctx, const std::string& name, glm::vec2& lo,
+                            glm::vec2& hi) {
+    const render::ObjectExtent* e = build_extent(ctx, name);
+    if (e == nullptr) {
+        return false;
+    }
+    lo = e->slo;
+    hi = e->shi;
+    return true;
+}
+
+bool build_object_solid(void* ctx, const std::string& name) {
+    const render::ObjectExtent* e = build_extent(ctx, name);
+    // UNKNOWN COUNTS AS SOLID. An object the map does not carry is judged by
+    // KnownObject anyway; answering "not an obstacle" here would additionally
+    // let it overlap anything, turning one honest finding into a silent pass.
+    return e == nullptr || e->solid;
+}
+
+} // namespace
+
+const std::string& App::build_selected() const {
+    static const std::string none;
+    if (build_group_ >= build_groups_.size()) {
+        return none;
+    }
+    const BuildGroup& g = build_groups_[build_group_];
+    return build_item_ < g.names.size() ? g.names[build_item_] : none;
+}
+
+void App::update_build_tool() {
+    build_ghost_ = {};
+    build_verdict_ = {};
+    build_target_ = static_cast<std::size_t>(-1);
+    if (!build_open_ || gallery_scene_.empty()) {
+        return;
+    }
+
+    // WHERE THE EYE MEETS THE GROUND. The renderer's centre pick is NOT the
+    // answer: it reports whatever surface the picker sampled — on the frames
+    // this was first tried it read 1.2 m while the camera looked across open
+    // grass, which put the ghost inside the near plane and made it invisible.
+    // A build tool places things ON THE GROUND, so it asks the ground.
+    //
+    // March, then bisect: the height field is not analytic, and a closed-form
+    // intersection would have to assume a plane the terrain is not.
+    const float yaw = editor_cam_.yaw();
+    const float pitch = editor_cam_.pitch();
+    const glm::vec3 fwd{std::sin(yaw) * std::cos(pitch), std::sin(pitch),
+                        -std::cos(yaw) * std::cos(pitch)};
+    const glm::vec3 origin = editor_cam_.position();
+    constexpr float MAX_REACH_M = 80.0f; // further than a builder can judge anyway
+    constexpr float STEP_M = 0.5f;
+    float hit_t = MAX_REACH_M;
+    float prev_t = 0.0f;
+    float prev_gap = origin.y - chunks_.height_at({origin.x, origin.z}).value_or(origin.y);
+    bool found = false;
+    BuildJudgeCtx ctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
+    // WHAT THE RAY MEETS FIRST — ground OR something already standing. Marching
+    // terrain alone sends the ghost THROUGH a wall and out the far side, where
+    // the builder cannot see it and would swear the tool is broken. A house is
+    // as much a surface to build against as the hill it stands on.
+    const auto blocked_by_placement = [&](const glm::vec3& at) {
+        for (const world::Placement& p : scene_doc_.placements) {
+            const render::ObjectExtent* e = build_extent(&ctx, p.object);
+            if (e == nullptr || !e->solid) {
+                continue;
+            }
+            if (at.y < p.position.y + e->bottom || at.y > p.position.y + e->top) {
+                continue;
+            }
+            const float dx = at.x - p.position.x;
+            const float dz = at.z - p.position.z;
+            if (dx * dx + dz * dz <= e->radius * e->radius) {
+                return true;
+            }
+        }
+        return false;
+    };
+    for (float t = STEP_M; t <= MAX_REACH_M; t += STEP_M) {
+        const glm::vec3 at = origin + fwd * t;
+        if (blocked_by_placement(at)) {
+            hit_t = t;
+            found = true;
+            break;
+        }
+        const float gap = at.y - chunks_.height_at({at.x, at.z}).value_or(at.y);
+        if (gap <= 0.0f && prev_gap > 0.0f) {
+            // Crossed the surface between prev_t and t: close in. Eight halvings
+            // put the answer inside a millimetre, well under the 25 cm grid the
+            // result is snapped to anyway.
+            float lo = prev_t;
+            float hi = t;
+            for (int i = 0; i < 8; ++i) {
+                const float mid = 0.5f * (lo + hi);
+                const glm::vec3 m = origin + fwd * mid;
+                const float g = m.y - chunks_.height_at({m.x, m.z}).value_or(m.y);
+                (g <= 0.0f ? hi : lo) = mid;
+            }
+            hit_t = hi;
+            found = true;
+            break;
+        }
+        prev_t = t;
+        prev_gap = gap;
+    }
+    // LOOKING AT THE SKY is not an error, it is a builder turning around. The
+    // ghost goes to arm's length and the judge will call it hovering, which is
+    // the truth and is visible.
+    const glm::vec3 aim = origin + fwd * (found ? hit_t : 8.0f);
+
+    // WHAT IS UNDER THE CROSSHAIR, for deleting. Nearest placement within its
+    // own measured reach, so a small prop wins over the big house it stands
+    // in front of instead of the other way round.
+    float best = std::numeric_limits<float>::max();
+    for (std::size_t i = 0; i < scene_doc_.placements.size(); ++i) {
+        const world::Placement& p = scene_doc_.placements[i];
+        const render::ObjectExtent* e = build_extent(&ctx, p.object);
+        if (e == nullptr) {
+            continue;
+        }
+        const glm::vec2 d{aim.x - p.position.x, aim.z - p.position.z};
+        const float dist = std::sqrt(d.x * d.x + d.y * d.y);
+        if (dist <= std::max(e->radius, 0.35f) && dist < best) {
+            best = dist;
+            build_target_ = i;
+        }
+    }
+
+    const std::string& name = build_selected();
+    if (name.empty()) {
+        return;
+    }
+    build_ghost_.object = name;
+    build_ghost_.yaw = build_yaw_;
+    glm::vec3 at = snap_to_grid(aim);
+    // SIT IT ON THE GROUND. The judge's OnGround rule would otherwise refuse
+    // every ghost for hovering, which is true and useless: the builder is
+    // pointing at a place, not at a height.
+    at.y = chunks_.height_at({at.x, at.z}).value_or(at.y);
+    if (const render::ObjectExtent* e = build_extent(&ctx, name); e != nullptr) {
+        at.y -= e->bottom;
+    }
+    build_ghost_.position = at;
+
+    // THE JUDGE ITSELF, on a copy of the composition with the ghost appended.
+    // Costs one pass per frame and buys the only property worth having: the
+    // editor cannot allow what the judge forbids.
+    world::SceneDoc probe = scene_doc_;
+    world::Placement cand;
+    cand.object = name;
+    cand.position = build_ghost_.position;
+    cand.yaw = build_yaw_;
+    probe.placements.push_back(cand);
+    world::SceneWorld jw;
+    jw.ground_at = &build_ground_at;
+    jw.object_extent = &build_object_extent;
+    jw.object_top = &build_object_top;
+    jw.object_box = &build_object_box;
+    jw.object_solid = &build_object_solid;
+    jw.object_box_solid = &build_object_box_solid;
+    jw.ctx = &ctx;
+    build_verdict_ = verdict_from_findings(world::check_scene(probe, jw),
+                                           probe.placements.size() - 1);
+}
+
+void App::rebake_tile_at(glm::vec2 world_xz) {
+    const glm::ivec2 key{
+        SCENE_TILE_KEY_BASE + static_cast<int>(std::floor(world_xz.x / SCENE_TILE_M)),
+        SCENE_TILE_KEY_BASE + static_cast<int>(std::floor(world_xz.y / SCENE_TILE_M))};
+    for (SceneTile& st : scene_tiles_) {
+        if (st.key == key) {
+            bake_scene_tile(st, st.far_form);
+            return;
+        }
+    }
+    // NO TILE THERE YET is not an error: the builder may place the first thing
+    // in an empty corner of the map. It appears on the next map load; saying
+    // so out loud beats a part that silently does not draw.
+    std::fprintf(stderr, "[build] плитки в (%.1f, %.1f) ещё нет — деталь появится "
+                         "после перезагрузки карты\n",
+                 static_cast<double>(world_xz.x), static_cast<double>(world_xz.y));
+}
+
+bool App::build_place() {
+    if (!build_ghost_.valid() || !build_verdict_.allowed) {
+        return false;
+    }
+    world::Placement p;
+    p.object = build_ghost_.object;
+    p.position = build_ghost_.position;
+    p.yaw = build_ghost_.yaw;
+    scene_doc_.placements.push_back(p);
+    scene_dirty_ = true;
+    for (SceneTile& st : scene_tiles_) {
+        if (p.position.x >= st.min_xz.x && p.position.x < st.max_xz.x &&
+            p.position.z >= st.min_xz.y && p.position.z < st.max_xz.y) {
+            st.parts.push_back(p);
+            break;
+        }
+    }
+    rebake_tile_at({p.position.x, p.position.z});
+    return true;
+}
+
+bool App::build_delete() {
+    if (build_target_ >= scene_doc_.placements.size()) {
+        return false;
+    }
+    const world::Placement gone = scene_doc_.placements[build_target_];
+    scene_doc_.placements.erase(scene_doc_.placements.begin()
+                                + static_cast<std::ptrdiff_t>(build_target_));
+    scene_dirty_ = true;
+    build_target_ = static_cast<std::size_t>(-1);
+    for (SceneTile& st : scene_tiles_) {
+        for (std::size_t i = 0; i < st.parts.size(); ++i) {
+            const world::Placement& q = st.parts[i];
+            if (q.object == gone.object && q.position == gone.position &&
+                q.yaw == gone.yaw) {
+                st.parts.erase(st.parts.begin() + static_cast<std::ptrdiff_t>(i));
+                break;
+            }
+        }
+    }
+    rebake_tile_at({gone.position.x, gone.position.z});
+    return true;
+}
+
 void App::become_player_from_editor() {
     auto* ps = world_.get<gameplay::PlayerState>(player_);
     if (ps == nullptr) {
@@ -3643,6 +3959,95 @@ int App::run() {
             && action_pressed(Action::Wireframe)) {
             wireframe_ = !wireframe_;
             renderer_->set_wireframe(wireframe_);
+        }
+        // THE BUILD HAND (editor only, keys B and G, left mouse to place,
+        // Delete to remove). The palette is read from the map's own shelves the
+        // first time it is opened: a list typed here would go stale the first
+        // time the kit grew, and it would go stale silently.
+        if (!chat_typing && mode_ == AppMode::Editor
+            && action_pressed(Action::BuildMenu)) {
+            build_open_ = !build_open_;
+            if (build_open_) {
+                // The ghost IS lines, so opening the palette opens that door.
+                // Asking the builder to set an environment variable before the
+                // tool can show him anything would be a tool that does not work.
+                renderer_->set_debug_lines(true);
+            }
+            if (build_open_ && build_groups_.empty()) {
+                build_groups_ = build_palette(gallery_objects_dir_);
+                std::fprintf(stderr, "[build] палитра: %zu семейств(а) с полок %s\n",
+                             build_groups_.size(), gallery_objects_dir_.c_str());
+            }
+        }
+        if (!chat_typing && build_open_ && mode_ == AppMode::Editor) {
+            if (action_pressed(Action::BuildRotate)) {
+                // A QUARTER TURN, not a free spin: the kit's square joints only
+                // hand out four directions, and a part turned 37 degrees would
+                // be refused by the judge for a reason the builder cannot see.
+                build_yaw_ += glm::half_pi<float>();
+                if (build_yaw_ >= glm::two_pi<float>()) {
+                    build_yaw_ -= glm::two_pi<float>();
+                }
+            }
+            // The palette IS a menu, so it is walked with the arrows: families
+            // up and down, parts left and right.
+            if (!build_groups_.empty()) {
+                const auto step = [](std::size_t& v, std::size_t n, int d) {
+                    if (n == 0) { v = 0; return; }
+                    v = (v + n + static_cast<std::size_t>(d % static_cast<int>(n))) % n;
+                };
+                if (input_->was_pressed(platform::Key::DOWN)) {
+                    step(build_group_, build_groups_.size(), 1);
+                    build_item_ = 0;
+                }
+                if (input_->was_pressed(platform::Key::UP)) {
+                    step(build_group_, build_groups_.size(), -1);
+                    build_item_ = 0;
+                }
+                const std::size_t items = build_groups_[build_group_].names.size();
+                if (input_->was_pressed(platform::Key::RIGHT)) {
+                    step(build_item_, items, 1);
+                }
+                if (input_->was_pressed(platform::Key::LEFT)) {
+                    step(build_item_, items, -1);
+                }
+            }
+            if (input_->was_pressed(platform::MouseButton::LEFT) && build_place()) {
+                std::fprintf(stderr, "[build] поставлено %s (%.2f %.2f %.2f)\n",
+                             scene_doc_.placements.back().object.c_str(),
+                             static_cast<double>(scene_doc_.placements.back().position.x),
+                             static_cast<double>(scene_doc_.placements.back().position.y),
+                             static_cast<double>(scene_doc_.placements.back().position.z));
+            }
+            // DELETE IS A KEY, NOT THE OTHER MOUSE BUTTON. Removing is the one
+            // action here that cannot be undone yet, and putting it under a
+            // button the hand is already resting on would make it the easiest
+            // thing in the tool to do by accident.
+            if (input_->was_pressed(platform::Key::DELETE) && build_delete()) {
+                std::fprintf(stderr, "[build] удалено; в композиции %zu расстановок\n",
+                             scene_doc_.placements.size());
+            }
+        }
+        // The ghost is recomputed every frame from THIS tick's aim: a ghost
+        // remembered across a frame would lag the crosshair, and a lagging
+        // ghost placed on click puts the part where the builder was looking a
+        // moment ago.
+        if (mode_ == AppMode::Editor) {
+            // DOOR: DFN_BUILD=1 opens the palette without a keypress, so the
+            // ghost can be photographed by an unattended run. Same binary, same
+            // world — the frame shows what a builder sees, not a mock-up.
+            static const bool build_door = [] {
+                const char* v = std::getenv("DFN_BUILD");
+                return v != nullptr && *v != '\0' && *v != '0';
+            }();
+            if (build_door && !build_open_) {
+                build_open_ = true;
+                renderer_->set_debug_lines(true);
+                if (build_groups_.empty()) {
+                    build_groups_ = build_palette(gallery_objects_dir_);
+                }
+            }
+            update_build_tool();
         }
         // SCREENSHOT (key 5, the user's request: "я хочу чтобы был скриншот... по
         // нажатию кнопки 5... он должен к чату добавляться и трейсам"). It is
@@ -4525,6 +4930,56 @@ int App::run() {
         // own idea of the shape would agree with the code that built it and
         // disagree with the body that is actually there, which is worse than
         // no view at all.
+        // THE GHOST. Drawn as the part's MEASURED box (render::measure_object,
+        // the same ruler the judge uses), green when the judge allows it and
+        // red when it does not — and the red one is still drawn, because
+        // hiding it would leave the builder aiming at nothing and guessing.
+        // The part it would delete is outlined too, in the same red: what is
+        // about to be destroyed must be visible before the key is pressed.
+        if (build_open_ && mode_ == AppMode::Editor) {
+            BuildJudgeCtx gctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
+            const auto outline = [&](const world::Placement& p, uint32_t colour) {
+                const render::ObjectExtent* e = build_extent(&gctx, p.object);
+                if (e == nullptr) {
+                    return;
+                }
+                // Turned with the part: an axis-aligned box around a rotated
+                // wall would claim a footprint the wall does not have, and the
+                // builder would trust the box over the rules.
+                const float c = std::cos(p.yaw);
+                const float sn = std::sin(p.yaw);
+                const glm::vec2 corner[4] = {{e->lo.x, e->lo.y}, {e->hi.x, e->lo.y},
+                                             {e->hi.x, e->hi.y}, {e->lo.x, e->hi.y}};
+                glm::vec3 low[4];
+                glm::vec3 high[4];
+                for (int i = 0; i < 4; ++i) {
+                    const glm::vec2 q = corner[i];
+                    const glm::vec3 w{p.position.x + c * q.x + sn * q.y, 0.0f,
+                                      p.position.z - sn * q.x + c * q.y};
+                    low[i] = {w.x, p.position.y + e->bottom, w.z};
+                    high[i] = {w.x, p.position.y + e->top, w.z};
+                }
+                for (int i = 0; i < 4; ++i) {
+                    const int j = (i + 1) % 4;
+                    renderer_->debug_line(low[i], low[j], colour);
+                    renderer_->debug_line(high[i], high[j], colour);
+                    renderer_->debug_line(low[i], high[i], colour);
+                }
+            };
+            constexpr uint32_t OK_GREEN = 0xFF44FF44u;  // 0xAABBGGRR
+            constexpr uint32_t NO_RED = 0xFF4444FFu;
+            constexpr uint32_t DOOMED = 0xFF44AAFFu;    // orange: about to go
+            if (build_ghost_.valid()) {
+                world::Placement g;
+                g.object = build_ghost_.object;
+                g.position = build_ghost_.position;
+                g.yaw = build_ghost_.yaw;
+                outline(g, build_verdict_.allowed ? OK_GREEN : NO_RED);
+            }
+            if (build_target_ < scene_doc_.placements.size()) {
+                outline(scene_doc_.placements[build_target_], DOOMED);
+            }
+        }
         if (collider_debug_) {
             constexpr uint32_t WIRE = 0xFF44FF44u; // 0xAABBGGRR: green
             // NEAR THE EYE ONLY, and with a budget. A town's colliders are

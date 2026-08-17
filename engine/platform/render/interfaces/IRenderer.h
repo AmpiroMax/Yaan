@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 15:08:2026 - 15:23:22
+Last updated: 17:08:2026 - 18:29:30
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -91,6 +91,8 @@ UPD:
 - 15:08:2026 - 15:23:22: DrawParams::aux_texture — второй материальный лист на дро (сейчас
   нормали коры, запрос зоны flora). Аддитивно к замороженному контракту
   (правило 26): пустой по умолчанию, никто, кроме просящего, не платит.
+- 17:08:2026 - 18:29:30: set_debug_lines — дверь линий открывается В РАНТАЙМЕ: призрак решает нужны ли
+  они по нажатию клавиши, а переменная окружения читается один раз при запуске.
 */
 
 #pragma once
@@ -416,6 +418,13 @@ public:
     }
 
     // Immediate debug line in world space, lives one frame. No-op in release builds.
+    // TURN LINE RECORDING ON FOR THIS SESSION. debug_line() costs nothing when
+    // the door is shut, and the door is normally an environment variable read
+    // at launch. A tool that decides mid-session that it needs lines — the
+    // editor's build ghost, opened by a keypress — raises it here instead.
+    // Default false; env doors still open it.
+    virtual void set_debug_lines(bool enabled) = 0;
+
     virtual void debug_line(const glm::vec3& from, const glm::vec3& to,
                             uint32_t color_rgba) = 0;
 

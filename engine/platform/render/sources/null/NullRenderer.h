@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 17:08:2026 - 18:29:30
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.h
 
@@ -30,6 +30,7 @@ UPD:
   accepted and ignored here (Rule 3 — inert but valid, never a crash).
 - 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe (no-op),
   frame_stats / center_pick (zeroed/no-hit refs). Inert but valid (Rule 3).
+- 17:08:2026 - 18:29:30: set_debug_lines — пусто, здесь ничего не рисуется.
 */
 
 #pragma once
@@ -73,6 +74,7 @@ public:
     // stats and the pick stay zeroed — a headless run draws no pixels to
     // introspect.
     void set_wireframe(bool enabled) override;
+    void set_debug_lines(bool /*enabled*/) override {} // nothing draws here
     [[nodiscard]] const RenderFrameStats& frame_stats() const override;
     [[nodiscard]] const RenderPick& center_pick() const override;
 
