@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 17:08:2026 - 20:00:35
 Module: engine/editor
 File: engine/editor/sources/EditorUi.h
 
@@ -56,6 +56,20 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 19:17:13: Создан — каркас интерфейса редактора (ImGui), контракт
   панелей, два признака захвата, отдача текстур.
+- 17:08:2026 - 20:00:35: ПАНЕЛЬ НЕ ПОЯВЛЯЛАСЬ У ПОЛЬЗОВАТЕЛЯ, и виноват этот файл. Каркас
+  имел ДВА выключателя — visible_ (общий) и open у панели, — и общий по
+  умолчанию стоял в false. Лид открыл панель set_panel_open(), как и написано в
+  контракте, и не нарисовалось НИЧЕГО: у пользователя рука строителя работала,
+  камера послушно замирала по wants_mouse(), а меню не было — управление отняли,
+  взамен не дали. Теперь visible_ по умолчанию ИСТИНЕН и означает общее
+  СКРЫТИЕ (чистый кадр мира), а не общий показ.
+  ПОЧЕМУ ЭТОГО НЕ ПОЙМАЛИ МОИ КАДРЫ — и это вторая половина находки: дверь
+  DFN_UI_PROBE САМА ставила visible_ = true. То есть каждый мой снимок шёл путём,
+  которым не идёт ни одна настоящая панель, и «интерфейс работает» было правдой
+  ровно про пробу. Дверь больше не срезает угол: она делает то же и только то же,
+  что делает сосед, — add_panel(open=false) плюс set_panel_open(id, true).
+  Точка съёмки, которой доступен путь, недоступный настоящему вызывающему, не
+  проверяет ничего (правило 27).
 */
 
 #pragma once
@@ -150,8 +164,20 @@ public:
     /// end_frame immediately before the render call.
     void end_frame();
 
-    /// The whole interface on/off (the editor's own key). Panels keep their
-    /// open/closed state across this.
+    /// A MASTER HIDE, AND IT IS ON BY DEFAULT. Turning it off blanks every
+    /// panel at once — for a clean screenshot of the world, the way DFN_HUD=0
+    /// blanks the game's overlays. Panels keep their own open/closed state
+    /// across it.
+    ///
+    /// IT DEFAULTS TO VISIBLE BECAUSE THE OTHER WAY ROUND COST A USER HIS
+    /// EVENING. It started as an opt-in switch, so a panel opened with
+    /// set_panel_open() drew NOTHING until somebody also called this — and the
+    /// somebody could not know, because opening a panel is the obvious and
+    /// complete-looking action. What the user got was the build hand active,
+    /// the camera correctly frozen by wants_mouse(), and no menu: his controls
+    /// taken away with nothing given back. Two switches where one will do is a
+    /// trap for whoever wires the second one, and the person who pays is the
+    /// one holding the tool.
     void set_visible(bool on) { visible_ = on; }
     [[nodiscard]] bool visible() const { return visible_; }
 
@@ -237,7 +263,7 @@ private:
 
     platform::IRenderer* renderer_ = nullptr;
     bool ready_ = false;
-    bool visible_ = false;
+    bool visible_ = true; // master HIDE, not a master show — see set_visible()
     bool wants_mouse_ = false;
     bool wants_keyboard_ = false;
     bool frame_open_ = false;

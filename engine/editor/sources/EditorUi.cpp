@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 19:54:38
+Last updated: 17:08:2026 - 20:00:35
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -40,6 +40,20 @@ UPD:
   отвечает из подменного глифа и все «есть» выше ничего не стоят.
   Числа: глифов 307 -> 327 (только расширение диапазона) -> 411 (с домесом),
   атлас 512x512 -> 512x1024. Все семь знаков на кадре, контроль отсутствует.
+- 17:08:2026 - 20:00:35: ПАНЕЛЬ НЕ ПОЯВЛЯЛАСЬ У ПОЛЬЗОВАТЕЛЯ, и виноват этот файл. Каркас
+  имел ДВА выключателя — visible_ (общий) и open у панели, — и общий по
+  умолчанию стоял в false. Лид открыл панель set_panel_open(), как и написано в
+  контракте, и не нарисовалось НИЧЕГО: у пользователя рука строителя работала,
+  камера послушно замирала по wants_mouse(), а меню не было — управление отняли,
+  взамен не дали. Теперь visible_ по умолчанию ИСТИНЕН и означает общее
+  СКРЫТИЕ (чистый кадр мира), а не общий показ.
+  ПОЧЕМУ ЭТОГО НЕ ПОЙМАЛИ МОИ КАДРЫ — и это вторая половина находки: дверь
+  DFN_UI_PROBE САМА ставила visible_ = true. То есть каждый мой снимок шёл путём,
+  которым не идёт ни одна настоящая панель, и «интерфейс работает» было правдой
+  ровно про пробу. Дверь больше не срезает угол: она делает то же и только то же,
+  что делает сосед, — add_panel(open=false) плюс set_panel_open(id, true).
+  Точка съёмки, которой доступен путь, недоступный настоящему вызывающему, не
+  проверяет ничего (правило 27).
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -408,7 +422,12 @@ bool EditorUi::init(platform::IRenderer& renderer) {
         [this] { draw_probe_panel(); }});
     if (const char* door = std::getenv("DFN_UI_PROBE");
         door != nullptr && *door != '\0' && *door != '0') {
-        visible_ = true;
+        // NOTHING BUT set_panel_open, and that is now part of what this door
+        // tests. It used to also flip visible_, which is exactly what hid the
+        // defect: every frame I shot came up through a path no other panel
+        // uses, so "the interface works" was true only of the probe. A door
+        // that takes a shortcut the real caller cannot take is a door that
+        // photographs a feature nobody else has (Rule 27).
         set_panel_open("ui.probe", true);
     }
     return true;
