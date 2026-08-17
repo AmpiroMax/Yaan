@@ -1525,3 +1525,149 @@ yaw = 0.000000
 scale = 1
 group = house-stone
 note = паспорт дома: что это, почему такая архитектура и материалы
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 28.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+note = пята: лежень на стойках, с него свод начинается
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 28.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+note = пята: лежень на стойках, с него свод начинается
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 30.500 137.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 30.500 143.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 31.500 140.000
+yaw = 0.000000
+scale = 1
+group = arch
+note = замок свода: на нём сходятся верхние грани обоих верхних звеньев
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 162.000 25.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 164.000 25.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 166.000 25.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 162.000 25.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 164.000 25.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 166.000 25.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 162.000 28.750 145.000
+yaw = 1.570796
+scale = 1
+group = arch
+note = звено 1: уклон 45.0°
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 164.000 28.750 145.000
+yaw = 1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 162.000 30.750 143.000
+yaw = 1.570796
+scale = 1
+group = arch
+note = звено 2: уклон 18.4°
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 164.000 30.750 143.000
+yaw = 1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 164.000 28.750 135.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 166.000 28.750 135.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 164.000 30.750 137.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 166.000 30.750 137.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = passport-arch
+pos = 164.000 25.500 147.500
+yaw = 0.000000
+scale = 1
+group = arch
+note = паспорт навеса: из чего он и почему такой формы
