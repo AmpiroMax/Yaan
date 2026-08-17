@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:37:50
+Last updated: 17:08:2026 - 19:41:13
 Module: tests/app
 File: tests/app/EditorPaletteTests.cpp
 
@@ -35,6 +35,11 @@ UPD:
 - 17:08:2026 - 19:37:50: рукав на index_of. Держит не только ответ, но и ПРЕДПОСЫЛКУ двоичного
   поиска — что полка отсортирована по имени; иначе поиск начнёт тихо промахиваться,
   а не тихо тормозить. Контроль: отсутствующее имя даёт part_count(), а не 0.
+- 17:08:2026 - 19:41:13: два рукава на ЦЕЛОЕ. Первый нажимает КАЖДУЮ фишку настоящей полки
+  (52 на 2411) и сверяет обещанный счёт с полученным — это единственное число
+  в меню, которое человек не может проверить сам. Второй проходит фразу
+  пользователя целиком: открыл, набрал, нажал фишку, взял, отметил, ушёл на
+  другую карту, вернулся, перезапустил — деталь в руке.
 */
 
 #include <doctest/doctest.h>
@@ -623,4 +628,113 @@ TEST_CASE("a keystroke over the whole shelf is measured, not hoped for") {
         MESSAGE("«" << typed.substr(0, n) << "» -> " << got << " деталей, " << us << " мкс");
     }
     CHECK(worst_us < 50000.0);
+}
+
+// ---------------------------------------------------------------------------
+// The two arms that check the whole thing rather than a piece of it
+// ---------------------------------------------------------------------------
+
+TEST_CASE("every chip's count is the number of rows clicking it actually leaves") {
+    // THE CHIP COUNT IS A PROMISE, and it is the one number in this menu that a
+    // human cannot check for himself: he sees "wall (768)" and either trusts it
+    // or stops reading the numbers. So it is not spot-checked here — EVERY chip
+    // of EVERY kind is clicked and the result counted, on the real shelf.
+    //
+    // This is also the arm that would catch the facet-count skip being applied
+    // to the wrong kind: a count computed with its own selection left IN reads
+    // as the already-shown list, which is right for the chip you just ticked
+    // and wrong for all its siblings.
+    std::vector<std::string> names = shelf_names();
+    const bool real_shelf = !names.empty();
+    if (!real_shelf) {
+        names = toy_shelf();
+        MESSAGE("полка не испечена — рукав идёт по игрушечной");
+    }
+    PaletteModel m;
+    m.set_parts(names);
+
+    std::size_t chips = 0;
+    for (std::size_t k = 0; k < static_cast<std::size_t>(FacetKind::Count); ++k) {
+        const FacetKind kind = static_cast<FacetKind>(k);
+        // Copied, not referenced: ticking a chip recomputes the vector's counts
+        // underneath us, and the values we are walking must be the ones we read.
+        const std::vector<FacetValue> values = m.facet_values(kind);
+        for (const FacetValue& v : values) {
+            const std::size_t promised = v.count;
+            m.set_facet(kind, v.value, true);
+            const std::size_t got = m.result_count();
+            m.set_facet(kind, v.value, false);
+            ++chips;
+            if (promised != got) {
+                MESSAGE("фишка врёт: " << v.value << " обещала " << promised << ", дала " << got);
+            }
+            CHECK(promised == got);
+        }
+    }
+    REQUIRE(chips > 0);
+    MESSAGE("проверено фишек: " << chips << " на " << m.part_count() << " деталях");
+
+    // THE CONTROL, and it is what makes the run above a test rather than a
+    // tautology: a chip that is NOT ticked must not equal the current result,
+    // or "the count matches" would hold for any implementation that simply
+    // reported the list length. Two chips of one kind cannot both be the whole.
+    const std::vector<FacetValue> fam = m.facet_values(FacetKind::Family);
+    if (fam.size() >= 2) {
+        CHECK(fam[0].count + fam[1].count <= m.part_count());
+        CHECK(fam[0].count < m.part_count());
+    }
+}
+
+TEST_CASE("the user's own sentence, start to finish") {
+    // «когда я его открываю я стою на месте, а мышкой кликаю по меню и выбираю
+    // блок, которым буду строить» — the pieces are each held by an arm above;
+    // this one holds that they COMPOSE, which is the property that breaks when
+    // two correct pieces disagree about whose job something is.
+    std::vector<std::string> names = shelf_names();
+    if (names.empty()) {
+        names = toy_shelf();
+    }
+    PaletteModel session;
+    session.set_parts(names);
+    session.set_map_id("houses/demo");
+
+    // He opens it, types the word he has in his head, and narrows by clicking.
+    session.set_search("wall");
+    const std::size_t after_word = session.result_count();
+    REQUIRE(after_word > 0);
+    session.set_facet(FacetKind::Material, "timber", true);
+    const std::size_t after_chip = session.result_count();
+    CHECK(after_chip > 0);
+    CHECK(after_chip <= after_word); // a chip narrows; it never widens
+
+    // He picks the first one, stars it, and puts it on the quick key.
+    const std::string picked = session.part(session.results().front()).name;
+    session.select(picked);
+    session.toggle_favourite(picked);
+    session.set_quick_slot(1, picked);
+    CHECK(session.selected() == picked);
+    CHECK(session.recents().front() == picked);
+
+    // He builds with it, wanders off to another map, comes back.
+    session.note_used(picked);
+    session.set_map_id("trees/glade");
+    CHECK(session.selected().empty());
+    session.set_map_id("houses/demo");
+    CHECK(session.selected() == picked);
+
+    // He quits. Tomorrow the editor starts cold, reads the file, and the part
+    // is still in his hand — WITHOUT him touching the search box, which is the
+    // half that would go unnoticed: a menu that remembers the favourite and
+    // forgets the selection looks like it remembered.
+    const std::string saved = session.state_text();
+    PaletteModel tomorrow;
+    tomorrow.set_parts(names);
+    tomorrow.load_state_text(saved);
+    tomorrow.set_map_id("houses/demo");
+    CHECK(tomorrow.selected() == picked);
+    CHECK(tomorrow.is_favourite(picked));
+    CHECK(tomorrow.quick_slot(1) == picked);
+    CHECK(tomorrow.take_quick_slot(1));
+    // And the shelf came back whole: yesterday's filter is not still applied.
+    CHECK(tomorrow.result_count() == tomorrow.part_count());
 }
