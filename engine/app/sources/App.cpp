@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:13:47
+Last updated: 17:08:2026 - 11:24:31
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -273,6 +273,18 @@ UPD:
   И самосветящаяся геометрия: объекты kind == "emissive" НЕ попадают в плитки
   вовсе — плитка перепекается при смене формы, и пламя множилось бы на каждой
   перепечке по мере ходьбы игрока.
+- 17:08:2026 - 11:24:31: ТРИ ПОЧИНКИ ВИТРИН, все три — молчаливые потери. (1) КАРТА С
+  КОМПОЗИЦИЕЙ БОЛЬШЕ НЕ ПОЛУЧАЕТ ЕЩЁ И АВТОСЕТКУ: ветка сцены раньше
+  спавнила игрока и ВОЗВРАЩАЛА, а когда ранний выход убрали (он пропускал
+  риг персонажа), сетка ниже перестала быть недостижимой — и всякая
+  composed-карта тихо обзавелась вторым, незваным рядом всех объектов полки
+  ПОВЕРХ композиции. Флаг, а не ещё один return: возврат и был причиной
+  прошлой беды. (2) Сетка занимала ПОЛОВИНУ карты (от mid+8): 108 м из 256,
+  и три дуба галереи с частью каталога полянки уезжали за край и
+  ПРОПУСКАЛИСЬ — так полка молча становилась короче. Теперь вся ширина.
+  (3) Близнец `-far` — это ТОТ ЖЕ экспонат подешевле, а не второй: показ
+  обоих удваивал полку и выталкивал настоящие объекты за край.
+  Проверено: SKIPPED = 0 на glade, catalog, gallery и colossus.
 */
 
 #include "engine/app/sources/App.h"
@@ -1395,6 +1407,15 @@ bool App::enter_world(uint32_t stand) {
     // gallery judges the OBJECT, not a special-case renderer.
     if (stand == static_cast<uint32_t>(world::StandId::Gallery)) {
         namespace fs = std::filesystem;
+        // A MAP WITH A COMPOSITION DOES NOT ALSO GET THE AUTO-GRID, and this
+        // flag is what says so. The hole was mine: the scene branch used to
+        // spawn the player and RETURN, and when the early return went (it was
+        // skipping the character rig) the grid below stopped being
+        // unreachable — so every composed map quietly grew a second, uninvited
+        // row of every object on its shelf, standing on top of the
+        // composition. A flag rather than another return: returning is exactly
+        // what caused the previous bug.
+        const bool composed = !gallery_scene_.empty();
         std::vector<fs::path> files;
         std::error_code gec;
         for (auto& body : gallery_bodies_) { // the previous gallery's trunks
@@ -1406,7 +1427,7 @@ bool App::enter_world(uint32_t stand) {
         // a human edits in git. The auto-grid below stays for the shelves that
         // have no composition yet: a gallery is "show me everything on this
         // shelf", a scene is "this is the place I built".
-        if (!gallery_scene_.empty()) {
+        if (composed) {
             world::SceneDoc doc;
             std::string serr;
             if (!world::read_scene(gallery_scene_, doc, serr)) {
@@ -1659,10 +1680,19 @@ bool App::enter_world(uint32_t stand) {
         // a multi-shelf map without a composition has not said which "here".
         const std::string grid_shelf = gallery_shelves_.empty()
                                          ? gallery_objects_dir_ : gallery_shelves_.front();
-        for (const auto& e : fs::directory_iterator(grid_shelf, gec)) {
-            if (e.path().extension() == ".dfo") {
-                files.push_back(e.path());
+        for (const auto& e :
+             composed ? fs::directory_iterator() : fs::directory_iterator(grid_shelf, gec)) {
+            if (e.path().extension() != ".dfo") {
+                continue;
             }
+            // A `-far` twin is the SAME exhibit made cheaper, not another one.
+            // Showing both doubled the shelf and pushed the real objects off
+            // the end of the grid.
+            const std::string stem = e.path().stem().string();
+            if (stem.size() > 4 && stem.compare(stem.size() - 4, 4, "-far") == 0) {
+                continue;
+            }
+            files.push_back(e.path());
         }
         // Sorted by name: the row order must be the INDEX's order, not the
         // directory iterator's mood.
@@ -1679,10 +1709,16 @@ bool App::enter_world(uint32_t stand) {
         // Spacing is still each object's measured footprint.
         const float world_span = static_cast<float>(config::CHUNK_SIZE)
                                * static_cast<float>(gallery_size_chunks_);
-        const float row_min_x = mid + 8.0f;
+        // THE WHOLE WIDTH OF THE MAP, not the half east of the spawn. The grid
+        // used to start at mid + 8 and so had 108 m of the 256 to work with;
+        // three oaks of the tree gallery and several of the glade catalogue ran
+        // off the end and were SKIPPED — which is how a shelf silently became a
+        // shorter shelf. Rows still march NORTH of the spawn (the user's own
+        // arrangement: he walks out and the exhibits are ahead of him).
+        const float row_min_x = 12.0f;
         const float edge_max = world_span - 12.0f;
         float cursor = row_min_x;
-        float row_z = mid;
+        float row_z = mid - 8.0f;
         float prev_half = 0.0f;
         float row_max_half = 0.0f;
         int shown = 0;
@@ -1829,7 +1865,7 @@ bool App::enter_world(uint32_t stand) {
         if (shown > 0) {
             render_system_.upload_prebuilt_scatter(*renderer_, {0, 0}, row_wood,
                                                    row_cards);
-        } else {
+        } else if (!composed) {
             std::fprintf(stderr, "[gallery] no readable objects in %s -- run "
                                  "dfn_forge first\n", gallery_objects_dir_.c_str());
         }
