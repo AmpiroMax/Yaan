@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 17:08:2026 - 15:12:10
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -57,6 +57,12 @@ UPD:
   панели: atan(((w_f - T)/2) / r_in), а грань уже панели — дефект на любом
   угле. Панель/стойка узнаются по имени (wall-*, joint-*-dNN-nX-*).
 - 17:08:2026 - 13:14:56: чтение и запись [river].
+- 17:08:2026 - 15:12:10: yaw больше полного оборота — ВСЛУХ. Зона домов потеряла заход на том,
+  что генератор писал ГРАДУСЫ в поле, объявленное радианами: сцена читалась,
+  все объекты вставали, и неверна она была так, что по числам этого не видно
+  (90 радиан — четырнадцать оборотов). Читатель мог сказать это одной строкой
+  и теперь говорит. ПРЕДУПРЕЖДЕНИЕ, а не отказ: многооборотное значение
+  законно, и читатель, отвергающий его, ошибался бы чаще, чем ловил.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -373,6 +379,27 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             current.group = value;
         } else if (key == "yaw") {
             if (!number(current.yaw)) return false;
+            // A YAW BIGGER THAN A FULL TURN IS ALMOST CERTAINLY DEGREES.
+            // The field is radians and says so, but a generator that wrote 90
+            // instead of 1.5708 produces a scene that PARSES, places every
+            // object, and is wrong in a way no one can see from the numbers —
+            // 90 radians is fourteen turns, and it lands wherever it lands.
+            // It cost a whole session to find, on a hand-built control box,
+            // and the reader could have said it in one line.
+            //
+            // A WARNING, NOT A REFUSAL: a turntable animation or a deliberate
+            // multi-turn value is legal, and a reader that refused it would be
+            // wrong more often than the mistake it guards against.
+            if (std::fabs(current.yaw) > 6.2832f) {
+                std::fprintf(stderr,
+                             "[scene] line %d: yaw = %g. The field is RADIANS "
+                             "(%.0f full turns). Did you mean %g degrees, i.e. "
+                             "%g radians?\n", line_no,
+                             static_cast<double>(current.yaw),
+                             static_cast<double>(std::fabs(current.yaw) / 6.2832f),
+                             static_cast<double>(current.yaw),
+                             static_cast<double>(current.yaw * 3.14159265f / 180.0f));
+            }
         } else if (key == "scale") {
             if (!number(current.scale)) return false;
         } else if (key == "pos") {
