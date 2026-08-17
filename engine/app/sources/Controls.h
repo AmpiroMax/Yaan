@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 16:59:23
+Last updated: 17:08:2026 - 22:32:14
 Module: engine/app
 File: engine/app/sources/Controls.h
 
@@ -50,6 +50,16 @@ UPD:
   ДЕЙСТВИЮ, поэтому новая клавиша без строки в таблице просто не диспатчится.
 - 17:08:2026 - 16:27:55: Action::Fullscreen — строка таблицы, без неё клавишу не разослать.
 - 17:08:2026 - 16:59:23: строки постройки (B, G) и раскладка в ДВЕ КОЛОНКИ, когда список не влезает.
+- 17:08:2026 - 22:32:14: ПЯТЬ РЕЖИМОВ РЕДАКТОРА НА КЛАВИШАХ 1..5 и поле alias_scope.
+  Цифры в редакторе выбирают инструмент, в теле делают то же, что делали; их
+  прежние действия сохранены на F-клавишах, и снимку (5) добавлен алиас F5,
+  которого у него не было. Строка теперь может иметь РАЗНУЮ область у клавиши и
+  у алиаса — одной областью это невыразимо, а выбор «потерять F3 в редакторе
+  или дать 2 два хозяина» плох обоими концами: драка двух хозяев за клавишу
+  невидима, щелчок делает то одно, то другое.
+  И область СТАЛА ДЕЙСТВОВАТЬ: до сегодня App::action_pressed её не читал
+  вовсе — область была комментарием, который экран управления показывал
+  человеку, а код не соблюдал.
 */
 
 #pragma once
@@ -84,8 +94,20 @@ enum class Action : uint8_t {
     // this table. Placing is the left mouse button, which is not here because
     // the table binds keys. The controls screen made this call for me — four
     // rows pushed the list off a 320x180 frame and app_controls went red.
+    CursorToggle,      // R — курсор: смотреть камерой или указывать мышью
     BuildMenu,         // B
     BuildRotate,       // G
+    // ПЯТЬ РЕЖИМОВ РЕДАКТОРА, номерами САМОГО ПОЛЬЗОВАТЕЛЯ (17.08): 1 высота,
+    // 2 поверхность, 3 выбор, 4 постройка, 5 «просто смотрю». Полоса фишек
+    // показывает те же номера, поэтому «нажми 3» и «третья фишка» — одно и то
+    // же. Отдельные строки, а не одна с параметром: экран управления рисуется
+    // ИЗ ЭТОЙ ТАБЛИЦЫ, и режим без строки был бы режимом, о котором человеку
+    // никто не скажет.
+    ToolHeight,        // 1 (редактор)
+    ToolPaint,         // 2 (редактор)
+    ToolSelect,        // 3 (редактор)
+    ToolPlace,         // 4 (редактор)
+    ToolLook,          // 5 (редактор)
     Count,
 };
 
@@ -108,6 +130,24 @@ struct Binding {
     platform::Key alias;
     const char* what;  // localization key: what the action DOES
     Scope scope;
+    // WHERE THE ALIAS APPLIES, which is not always where the row does.
+    //
+    // WHY IT IS A SEPARATE FIELD (17.08.2026). The digits 1..5 became the
+    // editor's five modes, and the four actions that already held them —
+    // третье лицо, отладочный вывод, снимок состояния, каркас — kept their
+    // F-keys. So those rows are PLAYING-ONLY on their digit and ANYWHERE on
+    // their F-alias, and one scope cannot say both. Without this the choice
+    // would have been between losing F3 in the editor and having 2 mean two
+    // things in one place — and the second is invisible: the click does one or
+    // the other depending on which handler ran first.
+    //
+    // Anywhere by default because that is what an alias is FOR: F2/F3/F4
+    // appear in frames and recipes already archived, and narrowing them
+    // silently would make every recipe on disk wrong. A row that wants its
+    // alias narrowed says so, and the ambiguity test reads THIS field — so an
+    // alias widened into a collision fails there rather than on a user's
+    // keyboard.
+    Scope alias_scope = Scope::Anywhere;
 };
 
 // The table, indexed so that control_bindings()[i].action == Action(i).

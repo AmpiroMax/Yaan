@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 22:01:29
+Last updated: 17:08:2026 - 22:32:14
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -362,6 +362,14 @@ UPD:
   расстановка обязана стоять на земле. Призрак судится ТОЙ ЖЕ группой, что и
   ставится. Рукав — tests/app/HouseScenarioTests.cpp; там же вторая находка,
   кольцо конёк-фронтон, которое чинить не мне.
+- 17:08:2026 - 22:32:14: КЛАВИШИ 1..5 ВЫБИРАЮТ РЕЖИМ, и вместе с ними action_pressed
+  НАКОНЕЦ ЧИТАЕТ ОБЛАСТЬ привязки. Scope лежал в таблице с рождения, экран
+  управления показывал его человеку, а эта функция его игнорировала — охрана
+  жила по местам вызова руками. Пока клавиша не была занята дважды, это сходило
+  с рук; 2 обязана значить кисть поверхности в редакторе и вывод в теле.
+  Кисть «ровно» больше не молчит: её [pad] уходит в композицию, и она говорит,
+  что земля примет его при следующей загрузке карты, — режим, который молча
+  ничего не делает, и есть жалоба, с которой начался день.
 */
 
 #include "engine/app/sources/App.h"
@@ -3038,9 +3046,31 @@ DebugSnapshot App::collect_snapshot(float alpha) {
 // description. Writing `Key::NUM_4` in a handler would restore the old split,
 // where the screen was a copy of the bindings instead of the bindings.
 bool App::action_pressed(Action action) const {
+    // THE SCOPE IS NOW OBEYED, AND UNTIL TODAY IT WAS NOT. Every row of the
+    // binding table has carried a Scope since the table was written, the
+    // controls screen has been SHOWING it to the user, and this function
+    // ignored it — the guard lived at each call site as `mode_ == Editor &&`,
+    // written by hand, sometimes forgotten. That was survivable while no two
+    // rows shared a key. It stopped being survivable the moment the digits
+    // 1..5 became the editor's five modes: 2 must mean the surface brush in
+    // the editor and the readout in the body, and one keypress cannot ask two
+    // handlers to sort that out between them.
+    const auto listening = [this](Scope scope) {
+        switch (scope) {
+        case Scope::Anywhere:    return true;
+        case Scope::EditorOnly:  return mode_ == AppMode::Editor;
+        case Scope::PlayingOnly: return mode_ == AppMode::Playing;
+        }
+        return false;
+    };
     const Binding& b = binding_for(action);
-    return input_->was_pressed(b.key)
-           || (b.alias != platform::Key::UNKNOWN && input_->was_pressed(b.alias));
+    if (listening(b.scope) && input_->was_pressed(b.key)) {
+        return true;
+    }
+    // The alias answers to its OWN scope: F3 has meant the readout everywhere
+    // since it existed, and archived recipes say so on disk.
+    return b.alias != platform::Key::UNKNOWN && listening(b.alias_scope)
+           && input_->was_pressed(b.alias);
 }
 
 void App::write_capture(const DebugSnapshot& snap) {
@@ -4061,11 +4091,33 @@ void App::update_editor_tools(float dt_s) {
         // go, so dragging the size off the panel edge cannot start digging
         // halfway through the drag.
         const bool dab = stroke_step(brush_stroke_, down, ui_mouse);
-        if (dab) {
+        if (dab && terrain_brush_.mode == BrushMode::Flatten) {
+            // FLATTEN'S OUTPUT IS A [pad], NOT SAMPLES (EditorBrush.h says so,
+            // and a second way of saying "here the ground is this high" is the
+            // drift Rule 32 forbids). A pad enters the world through the
+            // generation parameters, which are fixed at map load — so it lands
+            // in the composition and takes effect on the next load. SAYING SO
+            // is the whole point: a mode that silently does nothing is the
+            // complaint this day started with.
+            // ONE PAD PER STROKE, not one per frame the button is held: a pad
+            // is a STATEMENT the composer can move and re-read, and sixty of
+            // them a second would bury the file he has to live in.
+            if (!flatten_written_) {
+                flatten_written_ = true;
+                const glm::vec3 at = editor_aim_point();
+                scene_doc_.pads.push_back(flatten_pad(terrain_brush_, {at.x, at.z}));
+                scene_dirty_ = true;
+                std::fprintf(stderr, "[кисть] «ровно»: [pad] на (%.1f, %.1f) записан в "
+                                     "композицию — земля примет его при следующей "
+                                     "загрузке карты\n",
+                             static_cast<double>(at.x), static_cast<double>(at.z));
+            }
+        } else if (dab) {
             const glm::vec3 at = editor_aim_point();
             (void)apply_terrain_dab({at.x, at.z}, dt_s);
         }
         if (brush_stroke_.just_ended) {
+            flatten_written_ = false;
             finish_stroke();
         }
         break;
@@ -4463,6 +4515,30 @@ int App::run() {
         // ни действия, ни строки. Клавиша, молчащая в одном из режимов, читается
         // как сломанная, а не как неприменимая: человек не обязан помнить, в
         // каком он режиме, чтобы понять, почему кнопка мертва.
+        // ПЯТЬ РЕЖИМОВ НА 1..5. Клавиша идёт через ту же таблицу, что и экран
+        // управления, поэтому нарисованное там и работающее здесь не могут
+        // разъехаться; область строки (EditorOnly) теперь СОБЛЮДАЕТСЯ, а не
+        // только показывается.
+        if (!chat_typing && mode_ == AppMode::Editor) {
+            struct ToolKey {
+                Action action;
+                EditorTool tool;
+            };
+            static constexpr ToolKey TOOL_KEYS[] = {
+                {Action::ToolHeight, EditorTool::HeightBrush},
+                {Action::ToolPaint, EditorTool::SurfacePaint},
+                {Action::ToolSelect, EditorTool::SelectObject},
+                {Action::ToolPlace, EditorTool::PlaceObject},
+                {Action::ToolLook, EditorTool::Look},
+            };
+            for (const ToolKey& tk : TOOL_KEYS) {
+                if (action_pressed(tk.action)) {
+                    editor_ui_.set_tool(tk.tool);
+                    std::fprintf(stderr, "[editor] режим: %s\n",
+                                 EditorUi::tool_name(tk.tool));
+                }
+            }
+        }
         if (!chat_typing && action_pressed(Action::CursorToggle)) {
             cursor_free_ = !cursor_free_;
             std::fprintf(stderr, "[editor] курсор: %s\n",

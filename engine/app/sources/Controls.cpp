@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 16:59:23
+Last updated: 17:08:2026 - 22:32:14
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -16,6 +16,9 @@ UPD:
   и диспатчатся клавиши, и рисуется экран управления.
 - 17:08:2026 - 16:27:55: F11 в таблице и в key_name (тест поймал отсутствие подписи).
 - 17:08:2026 - 16:59:23: порядок жертв: подписи -> подвал -> вторая колонка. Строки не выбрасываются никогда.
+- 17:08:2026 - 22:32:14: Пять строк режимов редактора на 1..5 и разводка цифр с F-клавишами
+  через alias_scope (довод — в шапке Controls.h). Снимок получил алиас F5,
+  которого у него не было: иначе клавиша 5 в редакторе отняла бы его совсем.
 */
 
 #include "engine/app/sources/Controls.h"
@@ -38,21 +41,37 @@ using K = platform::Key;
 // grouped the way the user learns them: what you look at, then what you record,
 // then where you are, then how you leave.
 constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
+    // ЦИФРЫ ПРИНАДЛЕЖАТ РЕДАКТОРУ, F-КЛАВИШИ — ВСЕМ. Пользователь занял 1..5
+    // под пять режимов редактора (17.08), а эти четыре действия жили на тех же
+    // цифрах. Разводка: строка судится по ТЕЛУ, алиас — везде, поэтому F3 в
+    // редакторе по-прежнему включает вывод, а 2 в редакторе выбирает кисть
+    // поверхности. Снимку добавлен F5: он был единственным из пяти без алиаса,
+    // и без него клавиша 5 в редакторе отняла бы у человека снимок.
     {Action::ThirdPerson, K::NUM_1, K::UNKNOWN, "controls.third_person", Scope::PlayingOnly},
-    {Action::DebugReadout, K::NUM_2, K::F3, "controls.debug_readout", Scope::Anywhere},
-    {Action::StateCapture, K::NUM_3, K::F2, "controls.state_capture", Scope::Anywhere},
-    {Action::Wireframe, K::NUM_4, K::F4, "controls.wireframe", Scope::Anywhere},
-    {Action::Screenshot, K::NUM_5, K::UNKNOWN, "controls.screenshot", Scope::Anywhere},
+    {Action::DebugReadout, K::NUM_2, K::F3, "controls.debug_readout", Scope::PlayingOnly,
+     Scope::Anywhere},
+    {Action::StateCapture, K::NUM_3, K::F2, "controls.state_capture", Scope::PlayingOnly,
+     Scope::Anywhere},
+    {Action::Wireframe, K::NUM_4, K::F4, "controls.wireframe", Scope::PlayingOnly,
+     Scope::Anywhere},
+    {Action::Screenshot, K::NUM_5, K::F5, "controls.screenshot", Scope::PlayingOnly,
+     Scope::Anywhere},
     {Action::ToggleBody, K::TAB, K::UNKNOWN, "controls.toggle_body", Scope::Anywhere},
-    {Action::TrajectoryRecord, K::R, K::UNKNOWN, "controls.traj_record", Scope::EditorOnly},
+    {Action::TrajectoryRecord, K::K, K::UNKNOWN, "controls.traj_record", Scope::EditorOnly},
     {Action::TrajectoryReplay, K::P, K::UNKNOWN, "controls.traj_replay", Scope::EditorOnly},
     {Action::ChatWindow, K::SLASH, K::UNKNOWN, "controls.chat", Scope::Anywhere},
     {Action::QuickRemark, K::ENTER, K::UNKNOWN, "controls.quick_remark", Scope::Anywhere},
     {Action::Map, K::M, K::UNKNOWN, "controls.map", Scope::Anywhere},
     {Action::MenuPause, K::ESCAPE, K::UNKNOWN, "controls.menu", Scope::Anywhere},
     {Action::Fullscreen, K::F11, K::UNKNOWN, "controls.fullscreen", Scope::Anywhere},
+    {Action::CursorToggle, K::R, K::UNKNOWN, "controls.cursor", Scope::Anywhere},
     {Action::BuildMenu, K::B, K::UNKNOWN, "controls.build_menu", Scope::EditorOnly},
     {Action::BuildRotate, K::G, K::UNKNOWN, "controls.build_rotate", Scope::EditorOnly},
+    {Action::ToolHeight, K::NUM_1, K::UNKNOWN, "controls.tool_height", Scope::EditorOnly},
+    {Action::ToolPaint, K::NUM_2, K::UNKNOWN, "controls.tool_paint", Scope::EditorOnly},
+    {Action::ToolSelect, K::NUM_3, K::UNKNOWN, "controls.tool_select", Scope::EditorOnly},
+    {Action::ToolPlace, K::NUM_4, K::UNKNOWN, "controls.tool_place", Scope::EditorOnly},
+    {Action::ToolLook, K::NUM_5, K::UNKNOWN, "controls.tool_look", Scope::EditorOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -142,6 +161,7 @@ const char* key_name(platform::Key key) {
     case K::F2: return "F2";
     case K::F3: return "F3";
     case K::F4: return "F4";
+    case K::F5: return "F5";
     case K::F11: return "F11";
     case K::TAB: return "Tab";
     case K::ENTER: return "Enter";
@@ -151,6 +171,7 @@ const char* key_name(platform::Key key) {
     case K::P: return "P";
     case K::R: return "R";
     case K::B: return "B";
+    case K::K: return "K";
     case K::G: return "G";
     default: return "?"; // loud, not blank: a nameless key is a table bug
     }

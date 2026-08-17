@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 16:59:23
+Last updated: 17:08:2026 - 22:32:14
 Module: tests/app
 File: tests/app/ControlsTests.cpp
 
@@ -35,6 +35,10 @@ UPD:
 - 14:08:2026 - 19:22:10: Создан вместе с таблицей привязок — экран управления
   (просьба пользователя) и защита от его расхождения с кодом.
 - 17:08:2026 - 16:59:23: «каждая строка нарисована» считается ПО ВСЕМ колонкам, а не по одной.
+- 17:08:2026 - 22:32:14: Пять режимов редактора на 1..5, R стал курсором, запись траектории
+  уехала на K, снимок получил F5. Проверка неоднозначности теперь судит АЛИАС по
+  его собственной области: судя его по области строки, она пропустила бы
+  настоящее столкновение и завалила бы законную пару «F3 против редакторской 2».
 */
 
 #include <doctest/doctest.h>
@@ -105,14 +109,29 @@ TEST_CASE("no two actions answer to the same key in the same place") {
             CAPTURE(i);
             CAPTURE(j);
             CHECK(rows[i].key != rows[j].key);
-            // Aliases collide just as hard as primaries: F3 firing two actions
-            // is the same defect as 2 firing two actions.
-            if (rows[i].alias != dfn::platform::Key::UNKNOWN) {
-                CHECK(rows[i].alias != rows[j].key);
-                CHECK(rows[i].alias != rows[j].alias);
+        }
+    }
+
+    // AND THE ALIASES, JUDGED BY THEIR OWN SCOPE. F3 firing two actions is the
+    // same defect as 2 firing two actions, but an alias no longer shares its
+    // row's scope: the digits went to the editor's modes and the F-keys stayed
+    // everywhere. Checking an alias against the ROW's scope would now pass a
+    // real collision (two aliases both Anywhere on rows that never overlap) and
+    // fail a legal pair (F3 vs the editor's 2). So the pair is compared on the
+    // scopes that actually decide who is listening.
+    for (size_t i = 0; i < rows.size(); ++i) {
+        for (size_t j = 0; j < rows.size(); ++j) {
+            if (i == j || rows[i].alias == dfn::platform::Key::UNKNOWN) {
+                continue;
             }
-            if (rows[j].alias != dfn::platform::Key::UNKNOWN) {
-                CHECK(rows[j].alias != rows[i].key);
+            CAPTURE(i);
+            CAPTURE(j);
+            if (scopes_overlap(rows[i].alias_scope, rows[j].scope)) {
+                CHECK(rows[i].alias != rows[j].key);
+            }
+            if (rows[j].alias != dfn::platform::Key::UNKNOWN
+                && scopes_overlap(rows[i].alias_scope, rows[j].alias_scope)) {
+                CHECK(rows[i].alias != rows[j].alias);
             }
         }
     }
@@ -169,8 +188,14 @@ TEST_CASE("the keys the user named are the keys the table binds") {
     CHECK(dfn::app::binding_for(Action::Wireframe).key == K::NUM_4);
     CHECK(dfn::app::binding_for(Action::Wireframe).alias == K::F4);
     CHECK(dfn::app::binding_for(Action::Screenshot).key == K::NUM_5);
+    CHECK(dfn::app::binding_for(Action::Screenshot).alias == K::F5);
     CHECK(dfn::app::binding_for(Action::ToggleBody).key == K::TAB);
-    CHECK(dfn::app::binding_for(Action::TrajectoryRecord).key == K::R);
+    // R IS THE CURSOR NOW, and recording moved to K. The two shared R while the
+    // cursor toggle was editor-only in spirit and Anywhere in the table; the
+    // user pressed R inside a body and got neither. Written out here rather
+    // than derived, like every other row in this case.
+    CHECK(dfn::app::binding_for(Action::CursorToggle).key == K::R);
+    CHECK(dfn::app::binding_for(Action::TrajectoryRecord).key == K::K);
     CHECK(dfn::app::binding_for(Action::TrajectoryReplay).key == K::P);
     CHECK(dfn::app::binding_for(Action::ChatWindow).key == K::SLASH);
     CHECK(dfn::app::binding_for(Action::QuickRemark).key == K::ENTER);
@@ -182,6 +207,33 @@ TEST_CASE("the keys the user named are the keys the table binds") {
     CHECK(dfn::app::binding_for(Action::TrajectoryRecord).scope == Scope::EditorOnly);
     CHECK(dfn::app::binding_for(Action::TrajectoryReplay).scope == Scope::EditorOnly);
     CHECK(dfn::app::binding_for(Action::ThirdPerson).scope == Scope::PlayingOnly);
+
+    // ПЯТЬ РЕЖИМОВ НА ЕГО СОБСТВЕННЫХ НОМЕРАХ (17.08): 1 высота, 2 поверхность,
+    // 3 выбор, 4 постройка, 5 «просто смотрю». Полоса фишек показывает те же
+    // номера, поэтому «нажми 3» и «третья фишка» обязаны быть одним и тем же —
+    // и это проверяется здесь, против списка, а не против таблицы.
+    CHECK(dfn::app::binding_for(Action::ToolHeight).key == K::NUM_1);
+    CHECK(dfn::app::binding_for(Action::ToolPaint).key == K::NUM_2);
+    CHECK(dfn::app::binding_for(Action::ToolSelect).key == K::NUM_3);
+    CHECK(dfn::app::binding_for(Action::ToolPlace).key == K::NUM_4);
+    CHECK(dfn::app::binding_for(Action::ToolLook).key == K::NUM_5);
+    for (const Action tool : {Action::ToolHeight, Action::ToolPaint, Action::ToolSelect,
+                              Action::ToolPlace, Action::ToolLook}) {
+        CHECK(dfn::app::binding_for(tool).scope == Scope::EditorOnly);
+    }
+
+    // THE OTHER HALF OF THE SAME DEAL, and the half that is easy to lose: the
+    // four actions that USED to own the digits keep them in the body and keep
+    // their F-keys EVERYWHERE. A recipe on disk that says DFN... F3 must go on
+    // meaning the readout inside the editor, which is exactly what alias_scope
+    // is for.
+    for (const Action moved : {Action::DebugReadout, Action::StateCapture,
+                               Action::Wireframe, Action::Screenshot}) {
+        CAPTURE(static_cast<int>(moved));
+        CHECK(dfn::app::binding_for(moved).scope == Scope::PlayingOnly);
+        CHECK(dfn::app::binding_for(moved).alias_scope == Scope::Anywhere);
+        CHECK(dfn::app::binding_for(moved).alias != K::UNKNOWN);
+    }
 }
 
 TEST_CASE("the whole list fits on every screen the settings page offers") {

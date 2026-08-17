@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 22:01:29
+Last updated: 17:08:2026 - 22:32:14
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -87,6 +87,9 @@ UPD:
   текущей постройки build_group_name_. Решения — в EditorBrush/EditorPlant/
   BuildTool; здесь только провода, потому что этот файл держит окно и ничего
   собранного в нём измерить нельзя.
+- 17:08:2026 - 22:32:14: flatten_written_ — один [pad] на МАЗОК, а не на кадр: pad это
+  утверждение, которое композитор перечитывает, и шестьдесят штук в секунду
+  похоронили бы файл, в котором ему жить.
 */
 
 #pragma once
@@ -487,6 +490,10 @@ private:
     int last_dab_samples_ = 0;
     float last_dab_worst_m_ = 0.0f;
     bool brush_wired_ = false;
+    /// One [pad] per stroke for the flatten brush, not one per frame the button
+    /// is held: a pad is a statement the composer re-reads, and sixty a second
+    /// would bury the file he has to live in.
+    bool flatten_written_ = false;
     /// Species the map's shelves carry, read once — a directory listing per
     /// frame is a directory listing per frame.
     std::vector<std::string> plant_species_;
