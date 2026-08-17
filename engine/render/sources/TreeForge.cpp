@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 10:02:06
+Last updated: 17:08:2026 - 10:06:05
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -69,6 +69,7 @@ UPD:
 - 17:08:2026 - 09:50:47: Хвоя по скайримскому референсу (image copy 8): СИГМОИДНЫЙ хребет лапы (нырок у ствола, ровно, кончик вверх), наклон по ярусам (верх +, юбка −), РАЗМЫТЫЕ мутовки (ветви на случайных высотах), веер из двух боковых перьев (одно выше, одно ниже — закрывают межъярусный прогал), медленное сужение кроны (0.62 вместо 0.85 — середина держит длинные ветви).
 - 17:08:2026 - 09:54:18: Ворота far_lod: веера перьев, юбка сухих сучьев, украшения (обломки, жёлуди) и множественные листы на якорь выключаются — высота/крона/мутовки нетронуты, силуэт держится.
 - 17:08:2026 - 10:02:06: forge_bush: ворота far_lod на ягодный блок.
+- 17:08:2026 - 10:06:05: Третья партия far: грани трубок дешевле вдали (бола 7->5, каркас 5->4, ветви 4->3) — по расчёту лида разброс силуэта n-угольника на дистанции подмены — треть пикселя.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -297,9 +298,12 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // Root flare + spurs, one axis with the bole (the one-tree stand's first
     // finding: a flare that does not share the bole's axis is a visible knee).
     const float flare_r = p.trunk_radius * 1.6f;
+    // Третья партия far-форм (математика лида: пятигранник на стволе 0.15 м
+    // за 44 м — треть пикселя разброса силуэта): 7 -> 5 граней вдали.
+    const int bole_sides = p.far_lod ? 5 : 7;
     bark_tube(obj.bark, glm::vec3{0.0f, -FLARE_DEPTH, 0.0f}, pos, dir, flare_r,
-              p.trunk_radius, 7, bark_moss_uv, 0.0f, TAU * flare_r, wind_still,
-              wind_still);
+              p.trunk_radius, bole_sides, bark_moss_uv, 0.0f, TAU * flare_r,
+              wind_still, wind_still);
     for (int k = 0; k < ROOT_SPUR_COUNT; ++k) {
         const float az = TAU * (static_cast<float>(k) + 0.5f + rng.sym() * 0.3f)
                        / static_cast<float>(ROOT_SPUR_COUNT);
@@ -352,7 +356,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         const glm::vec3 next = pos + dir * seg_len;
         const float r0 = p.trunk_radius * std::pow(1.0f - (t1 - 1.0f / bole_segments) * 0.85f, 1.1f);
         const float r1 = p.trunk_radius * std::pow(1.0f - t1 * 0.85f, 1.1f);
-        bark_tube(obj.bark, pos, next, dir, r0, std::max(r1, 0.05f), 7, bark_uv,
+        bark_tube(obj.bark, pos, next, dir, r0, std::max(r1, 0.05f), bole_sides,
+                  bark_uv,
                   pos.y, TAU * r0, pack_wind(wood_sway(pos.y), phase),
                   pack_wind(wood_sway(next.y), phase), &bole_frame);
         pos = next;
@@ -385,6 +390,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             glm::vec4 bark_uv;
             float phase;
             float height;
+            bool far = false;   ///< дальняя форма: грани трубок дешевле
 
             // A limb's sway weight: height plus horizontal reach from the
             // bole, both against the tree's own scale — the tip of a long
@@ -440,7 +446,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                     // user's «узкие линии у листов» (21:53) were these wires,
                     // not card edges, and no foliage shader can fade geometry.
                     const float nr = std::max(radius * taper, 0.05f);
-                    const int sides = level == 0 ? 5 : (level == 1 ? 4 : 3);
+                    const int sides = far ? (level == 0 ? 4 : 3)
+                                      : (level == 0 ? 5 : (level == 1 ? 4 : 3));
                     // EVERY level wears the bark texture — the vertex-coloured
                     // twigs read as BLACK sticks poking out of the birch's
                     // white limbs (user, gallery 21:20). The v-coordinate is
@@ -495,7 +502,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 }
             }
         } grow{obj, rng, anchors, bark, crown_c, p.crown_radius, crown_ry,
-               bark_uv, phase, p.height};
+               bark_uv, phase, p.height, p.far_lod};
 
         for (int b = 0; b < p.scaffold_count; ++b) {
             const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;
@@ -694,7 +701,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 const float r0 = std::max(at->radius * 0.30f, 0.03f);
                 const float wood_len = reach * 0.28f;
                 const glm::vec3 wp = bp + d * wood_len;
-                bark_tube(obj.bark, bp, wp, d, r0, std::max(r0 * 0.55f, 0.02f), 4,
+                bark_tube(obj.bark, bp, wp, d, r0, std::max(r0 * 0.55f, 0.02f),
+                          p.far_lod ? 3 : 4,
                           bark_uv, bp.y, TAU * std::max(r0, 0.05f),
                           pack_wind(wood_sway(bp.y), phase),
                           pack_wind(std::min(wood_sway(bp.y) + 0.12f, 0.6f), phase));
