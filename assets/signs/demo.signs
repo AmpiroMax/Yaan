@@ -1,0 +1,61 @@
+#
+# Created: 17:08:2026 - 14:46:25
+# Last updated: 17:08:2026 - 14:46:25
+# Module: assets
+# File: assets/signs/demo.signs
+#
+# Responsibility:
+# - Паспорта трёх домов демки. Текст — КОНТЕНТ (правило 5): что это за
+#   дом, ПОЧЕМУ такая архитектура, ПОЧЕМУ такие материалы.
+#
+# Dependencies:
+# - Uses: dfn_signs (печёт .dfo). Used by: assets/scenes/demo.scene.
+#
+# AI Agents Notice (must follow):
+# - СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки в генератор, иначе
+#   следующий прогон их сотрёт.
+#
+# UPD:
+# - 17:08:2026 - 14:46:25: Создан генератором вместе с demo.scene.
+#
+
+[sign]
+name = passport-log
+shape = post
+cap = 0.04
+board = timber
+ink = dark
+wear = 0.3
+line = ДОМ ОДНОЭТАЖНЫЙ, СРУБ
+line = стена 13u = 3.25 м, потолок 2.90
+line = бревно держит стену и тепло сразу
+line = цоколь камень: бревно не в земле
+line = солома: её кроют своими руками
+
+[sign]
+name = passport-frame
+shape = post
+cap = 0.04
+board = timber
+ink = dark
+wear = 0.3
+line = ПОЛУТОРАЭТАЖНЫЙ, ФАХВЕРК
+line = каркас несёт, глина заполняет
+line = дерева мало, а лес далеко
+line = крутой марш 45: этаж за свою длину
+line = антресоль под коньком, тепло вверху
+
+[sign]
+name = passport-stone
+shape = post
+cap = 0.04
+board = timber
+ink = dark
+wear = 0.3
+line = ДВУХЭТАЖНЫЙ, КАМЕНЬ И ДЕРЕВО
+line = низ тёсаный камень: сырость, удар
+line = верх фахверк: легче и теплее
+line = камень внизу, дерево вверху —
+line = тяжёлое стоит на земле
+line = черепица: дом побогаче соседей
+

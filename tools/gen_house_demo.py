@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 14:46:25
-# Last updated: 17:08:2026 - 14:46:25
+# Last updated: 17:08:2026 - 14:48:55
 # Module: tools
 # File: tools/gen_house_demo.py
 #
@@ -39,6 +39,8 @@
 #
 # UPD:
 # - 17:08:2026 - 14:46:25: Создан — работы 5-6 заказа 17.08 (демка этажности + паспорта домов).
+# - 17:08:2026 - 14:48:55: .signs получил шапку по правилу 17 — файл в git, значит у него есть
+#   происхождение и журнал.
 #
 
 import argparse
@@ -245,9 +247,24 @@ def main():
     args = ap.parse_args()
     scene = build()
     body = HEADER + scene.text()
-    signs = ["# Паспорта домов демки — СГЕНЕРИРОВАНО tools/gen_house_demo.py.",
-             "# Текст — контент (правило 5): что это за дом, почему такая",
-             "# архитектура, почему такие материалы.", ""]
+    stamp = "17:08:2026 - 14:46:25"
+    signs = ["#", f"# Created: {stamp}", f"# Last updated: {stamp}",
+             "# Module: assets", "# File: assets/signs/demo.signs",
+             "#",
+             "# Responsibility:",
+             "# - Паспорта трёх домов демки. Текст — КОНТЕНТ (правило 5): что это за",
+             "#   дом, ПОЧЕМУ такая архитектура, ПОЧЕМУ такие материалы.",
+             "#",
+             "# Dependencies:",
+             "# - Uses: dfn_signs (печёт .dfo). Used by: assets/scenes/demo.scene.",
+             "#",
+             "# AI Agents Notice (must follow):",
+             "# - СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки в генератор, иначе",
+             "#   следующий прогон их сотрёт.",
+             "#",
+             "# UPD:",
+             f"# - {stamp}: Создан генератором вместе с demo.scene.",
+             "#", ""]
     for key, lines in PASSPORTS.items():
         signs += ["[sign]", f"name = passport-{key}", "shape = post", "cap = 0.04",
                   "board = timber", "ink = dark", "wear = 0.3"]
