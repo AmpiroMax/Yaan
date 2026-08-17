@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 17:08:2026 - 19:38:49
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -340,6 +340,14 @@ UPD:
 - 17:08:2026 - 18:41:51: предпросмотр САМОЙ деталью вместо рамки; стрелки ПОВОРАЧИВАЮТ (90 и 15 град.),
   поворот идёт вокруг ЦЕНТРА детали, а не вокруг угла-начала; G ставит прямо.
 - 17:08:2026 - 19:17:13: ЗАЦЕПКА ИНТЕРФЕЙСА РЕДАКТОРА, ровно одна: editor_ui_.init() после подъёма рендерера, пара begin_frame/end_frame перед render_system_.render(), shutdown() до остановки рендерера (интерфейс держит ресурсы bgfx). Всё остальное живёт в EditorUi.cpp.
+- 17:08:2026 - 19:38:49: ПРЕДОХРАНИТЕЛЬ ПРАВИЛА 3 у зацепки интерфейса: на нулевом рендерере
+  EditorUi не поднимается вовсе. Мост ImGui живёт рядом с бэкендом bgfx и зовёт
+  bgfx напрямую, а при нулевом рендерере bgfx не инициализирован — то есть
+  интерфейс убивал бы РОВНО ту конфигурацию, которая существует ради работы без
+  графического устройства. Измерено обеими руками из одного исходника, разница
+  в одном условии: DFN_NULL_RENDER=1 без предохранителя даёт exit=139 (SIGSEGV)
+  сразу после строки о загруженном шрифте, с предохранителем — exit=0 и честное
+  «screenshot FAILED» от нулевого бэкенда.
 */
 
 #include "engine/app/sources/App.h"
@@ -826,7 +834,14 @@ bool App::init(const AppConfig& config) {
     EditorUi::set_text_source([](const char* key) -> std::string_view {
         return localized(serialization::fnv1a64(key));
     });
-    if (!editor_ui_.init(*renderer_)) {
+    // NOT ON THE NULL BACKEND, and this guard is Rule 3 itself rather than
+    // caution. The ImGui bridge lives beside the bgfx backend and calls bgfx
+    // directly; with the null renderer bgfx was never initialised, so bringing
+    // the interface up would crash the ONE configuration that exists to run
+    // without a graphics device — headless tests and DFN_NULL_RENDER=1. A
+    // feature that dies under a null backend is a bug, so it simply does not
+    // start there, and the editor behaves exactly as it did before this module.
+    if (!config.use_null_renderer && !editor_ui_.init(*renderer_)) {
         std::fprintf(stderr, "[editor-ui] интерфейс редактора не поднялся — "
                              "редактор работает как раньше\n");
     }
@@ -4230,7 +4245,26 @@ int App::run() {
         // drawn from this pose instead of the player's CameraPose.
         const bool editor = mode_ == AppMode::Editor;
         if (editor && !chat_typing) { // typing must not fly the free camera
-            editor_cam_.update(*input_, static_cast<float>(frame_dt));
+            // КАМЕРА ЗАМИРАЕТ, ПОКА УКАЗАТЕЛЬ НАД ПАНЕЛЬЮ. Пользователь просил
+            // ровно это: «когда я открываю меню, я стою на месте, а мышкой
+            // кликаю по меню». Без такой проверки движение мыши по списку
+            // одновременно крутило бы мир, и выбрать деталь было бы нельзя.
+            // wants_keyboard отдельно: пока каретка в поиске, W/A/S/D — это
+            // ТЕКСТ, иначе набрать «wall» значит уехать вперёд и влево.
+            const bool ui_mouse = editor_ui_.wants_mouse();
+            const bool ui_keys = editor_ui_.wants_keyboard();
+            if (ui_mouse || ui_keys) {
+                // Курсор отдаётся интерфейсу, иначе он невидим и заперт в
+                // центре окна — кликать было бы нечем.
+                input_->set_cursor_captured(false);
+                // Камера НЕ обновляется вовсе: и поворот, и полёт читают один
+                // и тот же ввод, который сейчас принадлежит интерфейсу.
+            } else {
+                if (!unattended_run()) {
+                    input_->set_cursor_captured(true);
+                }
+                editor_cam_.update(*input_, static_cast<float>(frame_dt));
+            }
         }
 
         // TRAJECTORY REPLAY (O3): consume one recorded frame per PRESENTED
