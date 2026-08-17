@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 17:08:2026 - 16:53:03
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -93,6 +93,12 @@ UPD:
   стойка узнаются по ИМЕНИ реестра (wall-*, joint-*-dNN-nX-*) — имя несёт
   рабочие свойства по правилу самого набора.
 - 17:08:2026 - 13:14:56: секция [river] — точки «x z отметка_воды», ширина, глубина, берег.
+- 17:08:2026 - 16:53:03: ЧЕТЫРЕ ЗНАЧЕНИЯ SceneRule заказа 17.08 (зона домов, HOUSES.md §8):
+  WallTwoJoints, JointCapacity, DeckOnJoints, RoofSeat. Только ДОБАВЛЕНИЕ
+  (правило 26): существующие значения не сдвинуты, чужие сцены читаются как
+  читались. Сами правила живут в SceneHouseRules.cpp — Scene.cpp перерос
+  правило 21 (1052 строки) ещё до того, как заказ удвоил число соединительных
+  правил, и поэтому вынос сделан ПЕРЕД тем, как писать новое.
 */
 
 #pragma once
@@ -235,6 +241,25 @@ enum class SceneRule : uint8_t {
     /// arris, atan(((w_f - T)/2) / r_in). A facet narrower than the panel is
     /// itself a finding — that post cannot carry that panel at ANY angle.
     JointAngle,
+    /// МОДУЛЬ СТЕНЫ ВИСИТ НА ДВУХ ШАРНИРАХ (HOUSES.md §8). The user, 17.08:
+    /// «каждый модуль стены должен быть присоединён к ДВУМ шарнирам-столбам,
+    /// обязательно». Both ends inside ONE post satisfies JointSeat twice over
+    /// and is still not a wall: it has an angle but no span.
+    WallTwoJoints,
+    /// СКОЛЬКО У ШАРНИРА ГРАНЕЙ — СТОЛЬКО ПАНЕЛЕЙ ОН НЕСЁТ (§8). No budget was
+    /// chosen here: a panel seats FLUSH ON A FACET, so a facet already
+    /// carrying one has nothing left for the next. Round joints have no limit.
+    JointCapacity,
+    /// ПОЛ И ПОТОЛОК НЕ ВИСЯТ В ПРОСТРАНСТВЕ (§8): a deck is let into 2 to 4
+    /// horizontal joints — two at the least, always; four at the most, which
+    /// is a rectangle framed on every side.
+    DeckOnJoints,
+    /// КРЫША ДЕРЖИТСЯ ЗА ГОРИЗОНТАЛЬНЫЕ ШАРНИРЫ (§8). A sloped panel whose
+    /// lower edge is parallel to its upper spans TWO of them (that is what
+    /// makes arches and canopies, not only triangles); a triangular one hangs
+    /// by its APEX on one. The exception is the КОЗЫРЁК — an eaves edge out
+    /// past the building's own posts, over open ground, seats on nothing.
+    RoofSeat,
 };
 
 /// One violation. Carries the NUMBER, not just a verdict — "hovers" is an

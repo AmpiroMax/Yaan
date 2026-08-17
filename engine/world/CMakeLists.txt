@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 15:08:2026 - 16:24:04
+# Last updated: 17:08:2026 - 16:30:25
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -57,6 +57,10 @@
 #                          one thing.
 # - 15:08:2026 - 16:24:04: Scene.cpp — файл композиции .scene и правила, которыми он
 #                          проверяется (инструмент оформления мира).
+# - 17:08:2026 - 16:30:25: SceneHouseRules.cpp — правила ПОСТРОЙКИ (зона домов,
+#                          HOUSES.md §3-5 и §8). Вынесены из Scene.cpp, который
+#                          перерос правило 21 (1052 строки) ещё до того, как
+#                          заказ 17.08 удвоил число правил соединителей.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -65,6 +69,7 @@ add_library(dfn_world STATIC
     sources/LayoutLoad.cpp
     sources/SaveDelta.cpp
     sources/Scene.cpp
+    sources/SceneHouseRules.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
     sources/WorldBake.cpp
