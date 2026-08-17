@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 19:22:54
+Last updated: 17:08:2026 - 21:04:27
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.h
 
@@ -45,6 +45,9 @@ UPD:
   ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
   (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
   по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
+- 17:08:2026 - 21:04:27: у крючка миниатюры появился size_px — ПОЖЕЛАНИЕ, не требование, и кэш по
+  ИМЕНИ: иначе одна деталь легла бы в атлас трижды (44 в полосе, 96 в плитке,
+  192 в предпросмотре).
 */
 
 #pragma once
@@ -61,10 +64,19 @@ namespace dfn::app {
 /// the panel fall back to a name-only row, which is a poorer menu and still a
 /// working one.
 struct PaletteHooks {
-    /// A picture of this part, or 0 while it is not ready. Called at most once
-    /// per visible row per frame — the app is expected to cache, because the
-    /// panel will ask again next frame.
-    std::function<EditorTexture(const std::string& name)> thumbnail;
+    /// A picture of this part, or 0 while it is not ready.
+    ///
+    /// `size_px` is a WISH, not a demand: the panel asks for what it is about
+    /// to draw and will scale whatever it gets. Cache by NAME alone — caching
+    /// by (name, size) would put one part in the atlas three times, at 44 in
+    /// the strips, 96 in the tiles and 192 in the preview.
+    ///
+    /// RETURNING 0 IS NORMAL, not an error: it means "not ready yet", and the
+    /// panel asks again next frame. Keep a per-frame budget on the app side —
+    /// the list is clipped, so only visible rows ask, but the first frame after
+    /// the menu opens has two or three dozen of them visible at once, and that
+    /// is exactly the frame a builder is watching.
+    std::function<EditorTexture(const std::string& name, int size_px)> thumbnail;
 
     /// The part's measured extent and triangle count (render::measure_object).
     /// Same contract as PaletteModel::MeasureFn; wired straight through.

@@ -151,6 +151,7 @@ controls.quick_remark=Быстрый коммент со снимком
 controls.map=Карта
 controls.menu=Меню и пауза
 controls.fullscreen=Полный экран
+controls.cursor=Курсор: камера или мышь
 controls.build_menu=Меню постройки
 controls.build_prev=Предыдущая деталь
 controls.build_next=Следующая деталь
@@ -413,3 +414,26 @@ editor.tool.paint=Поверхность
 editor.tool.select=Выбор
 editor.tool.place=Постройка
 editor.tool.look=Смотрю
+
+# ВЫБОР ПО СЕМЕЙСТВУ И СВОЙСТВАМ (заказ пользователя 17.08, п.4). Сначала
+# семейство, потом его свойства; предпросмотр меняется, пока крутишь.
+# Названия осей — интерфейс, значения осей — словарь набора (см. выше).
+palette.families.hint=Выбери, что строишь. Свойства — на следующем шаге.
+palette.back=< Назад
+palette.preview.waiting=Рисую…
+palette.only_fav.mark=В избранное
+palette.repaired=Чтобы такая деталь существовала, пришлось изменить:
+palette.axis.none=нет
+palette.axis.unreachable=Такой детали на полке нет. Нажми — подберу ближайшую и скажу, что изменил.
+palette.axis.material=Материал
+palette.axis.style=Кладка
+palette.axis.tags=Проём и особенности
+palette.axis.faces=Грани стойки
+palette.axis.diameter=Диаметр, м
+palette.axis.box=Габарит, клеток
+palette.axis.height=Высота, м
+palette.axis.length=Длина, м
+palette.axis.width=Ширина марша, м
+palette.axis.steps=Ступеней
+palette.axis.wear=Износ
+palette.axis.other=Свойство

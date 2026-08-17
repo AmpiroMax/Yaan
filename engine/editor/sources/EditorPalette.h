@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 20:58:32
+Last updated: 17:08:2026 - 21:04:27
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.h
 
@@ -66,6 +66,9 @@ UPD:
   объявляет её внутри тройки, которая не коробка, и потому что она НЕ имеет права
   попасть в span_m: 1.5 м ширины, названные размахом 4.6-метрового марша, это ложь
   там, где молчание всего лишь пробел.
+- 17:08:2026 - 21:04:27: PartAxis, AxisValue и семейный выбор — оси выводятся С ПОЛКИ, а не
+  объявляются; плюс first_of_family() для семейной сетки (восемнадцать плиток —
+  восемнадцать проходов по 2411 строкам на кадр без него).
 */
 
 #pragma once
@@ -202,6 +205,49 @@ enum class PaletteSort : std::uint8_t {
 
 enum class PaletteView : std::uint8_t { Grid = 0, List = 1 };
 
+/// ONE PROPERTY A PART CAN VARY ALONG, INSIDE ITS FAMILY. The user asked to
+/// choose a family first and then turn its properties («основное разбиение
+/// должно быть по СЕМЕЙСТВУ... я выбрал что-то и могу поменять свойство»), so
+/// these are the knobs.
+///
+/// WHICH OF THEM A FAMILY OFFERS IS MEASURED, NOT DECLARED: an axis appears
+/// only where the shelf actually holds two or more values for it. A post turns
+/// material/wear/facets/diameter/height; a wall turns material/bond/wear/size/
+/// opening; a smoke vent turns material and length and nothing else. An axis
+/// with one value is shown as a FACT, never as a control — a dial with one
+/// notch tells the builder he has a choice he does not have.
+enum class PartAxis : std::uint8_t {
+    Material = 0,
+    Style = 1,     ///< the bond/construction word: ashlar, boardv, framex, log
+    Tags = 2,      ///< the COMBINATION of post-size words, as one value:
+                   ///< {blind}/{win1}/{win2}/{door} on a wall, {}/{cap} on a
+                   ///< post. Combinations rather than individual flags because
+                   ///< telling an opening from a flag would need a dictionary,
+                   ///< and the shelf already knows which combinations exist.
+    Faces = 3,
+    Diameter = 4,
+    Box = 5,       ///< the AxBxC triple, as written
+    Height = 6,
+    Length = 7,
+    Width = 8,     ///< the flight's width
+    Steps = 9,
+    Wear = 10,
+    Count = 11
+};
+
+/// One position of one axis.
+struct AxisValue {
+    std::string value;      ///< the raw token; "" is LEGAL (no bond, no tags)
+    float number = 0.0f;    ///< ordering key for the numeric axes
+    /// How many parts remain if this position is chosen, with the OTHER axes
+    /// where they stand. Zero means the shelf has no such part — and it is
+    /// shown as unreachable BEFORE it is clicked, because the shelf is not a
+    /// full cross: a wall's bond and material are tied (framex only with clay
+    /// and plaster), and tile, clay and turf are baked in ONE wear.
+    std::size_t count = 0;
+    bool on = false;
+};
+
 /// WHICH CHIPS ONE PART ANSWERS, as indices into the model's facet lists. Built
 /// once per shelf so that a keystroke compares integers instead of rebuilding
 /// six vectors of strings per row — at 2411 rows the string form cost 2.6 ms
@@ -298,6 +344,13 @@ public:
     /// thumbnails. The shelf is kept sorted by name precisely so this is cheap.
     [[nodiscard]] std::size_t index_of(std::string_view name) const;
 
+    /// The first part of a family, or part_count() when the shelf has none.
+    /// The family grid needs one representative per family EVERY FRAME, and a
+    /// scan would be eighteen passes over 2411 rows to draw eighteen tiles.
+    /// Cheap for the same reason index_of is: the shelf is sorted by name and a
+    /// family is its leading token, so a family is a contiguous run.
+    [[nodiscard]] std::size_t first_of_family(std::string_view family) const;
+
     // -- what the builder keeps (PER MAP) -------------------------------------
 
     /// THE MAP THIS SESSION IS BUILDING. Favourites and recents are kept per
@@ -325,6 +378,36 @@ public:
     /// Selects whatever slot `slot` holds. False if the slot is empty.
     bool take_quick_slot(int slot);
 
+    // -- the family-first chooser (the user's main path) ----------------------
+
+    /// Enters the property chooser for one family; "" leaves it and returns to
+    /// the flat list. The axes are seeded from the part currently in hand when
+    /// it belongs to this family, so entering does not throw away the choice.
+    void choose_family(std::string_view family);
+    [[nodiscard]] const std::string& family() const { return family_; }
+    [[nodiscard]] bool in_family() const { return !family_.empty(); }
+
+    /// Does this family vary along this axis at all (two or more values)?
+    [[nodiscard]] bool axis_offered(PartAxis axis) const;
+    /// The axis' positions, ordered, with live counts. Empty when the family
+    /// does not carry the axis.
+    [[nodiscard]] const std::vector<AxisValue>& axis_values(PartAxis axis) const;
+
+    /// Turns one axis. THIS IS THE WHOLE FEATURE: the chosen position is held,
+    /// every other axis that has become impossible is moved to its nearest
+    /// reachable position, the result is re-resolved, and the part in hand
+    /// changes — so the ghost in the world changes in the same frame.
+    void choose_axis(PartAxis axis, std::string_view value);
+
+    /// Which axes the last choose_axis had to MOVE. The panel must say this out
+    /// loud: a choice silently replaced is worse than an empty result, because
+    /// the builder carries the wrong part out of the menu and finds out on the
+    /// map.
+    [[nodiscard]] const std::vector<PartAxis>& repaired_axes() const { return repaired_; }
+
+    /// The part the axes currently resolve to, or part_count() if none.
+    [[nodiscard]] std::size_t resolved_index() const;
+
     // -- persistence ----------------------------------------------------------
 
     /// Reads the state file. Missing file is not an error: a first run has no
@@ -348,6 +431,10 @@ private:
     };
 
     void rebuild_facets();
+    void rebuild_axes() const;
+    [[nodiscard]] std::string axis_value_of(std::size_t index, PartAxis axis,
+                                            float& number) const;
+    [[nodiscard]] bool axis_match(std::size_t part, PartAxis axis, std::string_view value) const;
     void invalidate();
     void recompute() const;
     [[nodiscard]] MapState& state();
@@ -374,6 +461,16 @@ private:
     mutable std::vector<std::size_t> results_;
     mutable bool dirty_ = true;
     std::size_t cursor_ = 0;
+
+    // THE FAMILY-FIRST STATE. family_ empty means the flat list, which is still
+    // there: the user asked to change the MAIN path, not the only one.
+    std::string family_;
+    std::vector<std::size_t> family_parts_;
+    std::string axis_pick_[static_cast<std::size_t>(PartAxis::Count)];
+    bool axis_set_[static_cast<std::size_t>(PartAxis::Count)] = {};
+    mutable std::vector<AxisValue> axis_values_[static_cast<std::size_t>(PartAxis::Count)];
+    mutable bool axes_dirty_ = true;
+    std::vector<PartAxis> repaired_;
 
     std::string map_id_;
     std::string selected_;

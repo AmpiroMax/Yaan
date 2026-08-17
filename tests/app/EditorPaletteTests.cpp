@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 20:58:32
+Last updated: 17:08:2026 - 21:04:27
 Module: tests/app
 File: tests/app/EditorPaletteTests.cpp
 
@@ -46,6 +46,9 @@ UPD:
   прежние рукава — чего он не может, так это оставить детали РАЗЛИЧИМЫМИ. Нашёл
   два таких токена в первый же прогон. Контроль: подпись без меток обязана
   сталкиваться (858 столкновений).
+- 17:08:2026 - 21:04:27: разрез по правилу 21 (был 1031). Семейный выбор уехал в
+  EditorPaletteAxesTests.cpp, общие полки — в EditorPaletteFixture.h (копия
+  toy_shelf в двух наборах разошлась бы молча, правило 39).
 */
 
 #include <doctest/doctest.h>
@@ -64,49 +67,8 @@ UPD:
 using namespace dfn;
 using namespace dfn::app;
 
-namespace {
+#include "tests/app/EditorPaletteFixture.h"
 
-namespace fs = std::filesystem;
-
-constexpr const char* SHELF = "assets/objects/parts";
-
-/// The shelf's names, or an empty vector when nothing has been baked yet.
-std::vector<std::string> shelf_names() {
-    std::vector<std::string> out;
-    std::error_code ec;
-    if (!fs::is_directory(SHELF, ec)) {
-        return out;
-    }
-    for (const auto& e : fs::directory_iterator(SHELF, ec)) {
-        if (e.path().extension() != ".dfo") {
-            continue;
-        }
-        std::string n = e.path().stem().string();
-        if (n.size() > 4 && n.compare(n.size() - 4, 4, "-far") == 0) {
-            continue;
-        }
-        out.push_back(std::move(n));
-    }
-    std::sort(out.begin(), out.end());
-    return out;
-}
-
-/// A small hand-made shelf. Every arm that does not need the real kit runs on
-/// this one, so the suite discriminates on a machine that has never baked.
-std::vector<std::string> toy_shelf() {
-    return {
-        "wall-log-timber-12x1x13-blind-w03",
-        "wall-log-timber-12x1x13-door-w08",
-        "wall-ashlar-stone-16x1x11-win1-w05",
-        "joint-timber-d50-n4-h13-w03",
-        "joint-stone-d75-n8-h13-cap-w05",
-        "joint-timber-d35-nr-h11-w08",
-        "beam-dark-4x1x1-w03",
-        "stair-steep-timber-1x4x13-w03",
-    };
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 // The grammar

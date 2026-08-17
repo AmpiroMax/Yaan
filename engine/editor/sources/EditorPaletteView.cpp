@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 19:43:57
+Last updated: 17:08:2026 - 21:04:27
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.cpp
 
@@ -43,6 +43,9 @@ UPD:
   пустым квадратом. Найдено перебором ВСЕХ кодпойнтов таблицы по атласу
   (1012 штук, без глифа ровно один). И отметка выбранного перестала быть
   литералом в C++ — литерал не виден ни правилу 5, ни этой проверке.
+- 17:08:2026 - 21:04:27: главный путь — семейный. Пустая строка поиска ведёт в сетку семейств и
+  дальше в свойства; любой набранный символ проваливается в прежний плоский
+  список. Меняется главный путь, а не единственный.
 */
 
 #include "engine/editor/sources/EditorPaletteView.h"
@@ -68,7 +71,7 @@ constexpr float ROW_PX = 34.0f;
 /// vocabulary: a material baked this morning has no row yet, and showing the
 /// builder "?0x8fa1?" instead of "clay" tells him the editor is broken when the
 /// only thing missing is a translation.
-[[nodiscard]] const char* token_text(const char* prefix, const std::string& token) {
+[[nodiscard]] const char* token_text_impl(const char* prefix, const std::string& token) {
     if (token.empty()) {
         return "";
     }
@@ -119,10 +122,10 @@ void draw_tooltip(const PartFacets& f, const PartMeasure& m) {
         ImGui::EndTooltip();
         return;
     }
-    ImGui::Text("%s · %s", token_text("palette.family.", f.family),
-                token_text("palette.material.", f.material));
+    ImGui::Text("%s · %s", token_text_impl("palette.family.", f.family),
+                token_text_impl("palette.material.", f.material));
     if (!f.style.empty()) {
-        ImGui::TextDisabled("%s", token_text("palette.style.", f.style));
+        ImGui::TextDisabled("%s", token_text_impl("palette.style.", f.style));
     }
     if (f.wear_pct >= 0) {
         ImGui::Text("%s %d%%", EditorUi::tr("palette.tip.wear"), f.wear_pct);
@@ -136,7 +139,7 @@ void draw_tooltip(const PartFacets& f, const PartMeasure& m) {
         ImGui::Text("%s %d", EditorUi::tr("palette.tip.steps"), f.steps);
     }
     for (const std::string& t : f.tags) {
-        ImGui::TextDisabled("%s", token_text("palette.tag.", t));
+        ImGui::TextDisabled("%s", token_text_impl("palette.tag.", t));
     }
     // THE MEASURED BOX, IN METRES, from render::measure_object — the same ruler
     // the judge and the build ghost use, so what the tooltip promises is what
@@ -167,7 +170,8 @@ bool draw_part(PaletteModel& model, const PaletteHooks& hooks, std::size_t index
     ImGui::PushID(static_cast<int>(index));
     bool took = false;
 
-    const EditorTexture tex = hooks.thumbnail ? hooks.thumbnail(f.name) : 0;
+    const EditorTexture tex =
+        hooks.thumbnail ? hooks.thumbnail(f.name, static_cast<int>(grid ? thumb : ROW_PX)) : 0;
     if (grid) {
         ImGui::BeginGroup();
         if (tex != 0) {
@@ -177,7 +181,7 @@ bool draw_part(PaletteModel& model, const PaletteHooks& hooks, std::size_t index
         } else {
             // NO PICTURE YET IS NOT AN EMPTY SLOT. A blank square reads as a
             // broken part; the family's own word reads as "still drawing".
-            if (ImGui::Button(token_text("palette.family.", f.family), ImVec2(thumb, thumb))) {
+            if (ImGui::Button(token_text_impl("palette.family.", f.family), ImVec2(thumb, thumb))) {
                 took = true;
             }
         }
@@ -305,7 +309,7 @@ void draw_facet_group(PaletteModel& model, FacetKind kind, const char* title_key
         // menu is unpredictable.
         std::snprintf(label, sizeof(label), "%s (%zu)",
                       value_prefix == nullptr ? v.value.c_str()
-                                              : token_text(value_prefix, v.value),
+                                              : token_text_impl(value_prefix, v.value),
                       v.count);
         const float w = ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 4.0f;
         if (used > 0.0f && used + w < avail) {
@@ -323,6 +327,18 @@ void draw_facet_group(PaletteModel& model, FacetKind kind, const char* title_key
 }
 
 } // namespace
+
+// THE FAMILY PAGE lives in EditorPaletteFamily.cpp (Rule 21) and borrows these
+// two: one file draws a part, one vocabulary translates the kit's tokens.
+const char* palette_token_text(const char* prefix, const std::string& token) {
+    return token_text_impl(prefix, token);
+}
+bool palette_draw_part(PaletteModel& model, const PaletteHooks& hooks, std::size_t index,
+                       bool grid, float thumb) {
+    return draw_part(model, hooks, index, grid, thumb);
+}
+void draw_family_grid(PaletteModel& model, const PaletteHooks& hooks);
+void draw_family_page(PaletteModel& model, const PaletteHooks& hooks);
 
 // ---------------------------------------------------------------------------
 
@@ -408,7 +424,20 @@ void draw_parts_panel(PaletteModel& model, const PaletteHooks& hooks) {
         model.set_view(grid ? PaletteView::List : PaletteView::Grid);
     }
 
-    // -- the facets -----------------------------------------------------------
+    // -- THE MAIN PATH (user, 17.08): family first, then its properties. The
+    //    flat list is not gone — typing anything at all falls through to it,
+    //    because somebody who knows the name should not have to walk the tree.
+    if (model.search().empty()) {
+        ImGui::Separator();
+        if (model.in_family()) {
+            draw_family_page(model, hooks);
+        } else {
+            draw_family_grid(model, hooks);
+        }
+        return;
+    }
+
+    // -- the facets (the search path) -----------------------------------------
     draw_facet_group(model, FacetKind::Family, "palette.facet.family", "palette.family.");
     draw_facet_group(model, FacetKind::Material, "palette.facet.material", "palette.material.");
     draw_facet_group(model, FacetKind::Style, "palette.facet.style", "palette.style.");

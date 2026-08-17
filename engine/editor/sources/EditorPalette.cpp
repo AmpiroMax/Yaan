@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 20:58:32
+Last updated: 17:08:2026 - 21:04:27
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.cpp
 
@@ -34,6 +34,8 @@ UPD:
   то есть меню держало восемь пар неотличимых строк. Теперь метка.
   (2) ширина марша выбрасывалась вместе со всей тройкой — все 76 лестниц
   схлопывались в 38 неотличимых пар. Теперь width_m.
+- 17:08:2026 - 21:04:27: first_of_family() — двоичный поиск по началу имени: семейство это ведущий
+  токен, значит на отсортированной полке оно непрерывно.
 */
 
 #include "engine/editor/sources/EditorPalette.h"
@@ -651,5 +653,15 @@ std::size_t PaletteModel::index_of(std::string_view name) const {
 }
 
 std::size_t PaletteModel::selected_index() const { return index_of(selected_); }
+
+std::size_t PaletteModel::first_of_family(std::string_view family) const {
+    const std::string prefix = std::string(family) + "-";
+    const auto it = std::lower_bound(
+        parts_.begin(), parts_.end(), prefix,
+        [](const PartFacets& p, const std::string& n) { return p.name < n; });
+    return (it != parts_.end() && it->family == family)
+               ? static_cast<std::size_t>(it - parts_.begin())
+               : parts_.size();
+}
 
 } // namespace dfn::app
