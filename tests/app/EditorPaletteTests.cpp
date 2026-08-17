@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:22:54
+Last updated: 17:08:2026 - 19:37:50
 Module: tests/app
 File: tests/app/EditorPaletteTests.cpp
 
@@ -32,6 +32,9 @@ UPD:
   ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
   (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
   по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
+- 17:08:2026 - 19:37:50: рукав на index_of. Держит не только ответ, но и ПРЕДПОСЫЛКУ двоичного
+  поиска — что полка отсортирована по имени; иначе поиск начнёт тихо промахиваться,
+  а не тихо тормозить. Контроль: отсутствующее имя даёт part_count(), а не 0.
 */
 
 #include <doctest/doctest.h>
@@ -472,6 +475,29 @@ TEST_CASE("quick slots take 1..9 and silently ignore anything else") {
     m.set_quick_slot(0, "joint-timber-d50-n4-h13-w03");
     m.set_quick_slot(10, "joint-timber-d50-n4-h13-w03");
     CHECK(m.quick_slot(1) == "wall-log-timber-12x1x13-blind-w03");
+}
+
+TEST_CASE("a name is found on the shelf without scanning it") {
+    // The favourites and recents strips resolve a dozen names EVERY FRAME. A
+    // scan would be thirty thousand string compares a frame at 2411 rows, for
+    // two rows of thumbnails — so index_of binary-searches, which is only
+    // correct while the shelf is sorted by name. This arm holds that invariant.
+    PaletteModel m;
+    m.set_parts(toy_shelf());
+    for (std::size_t i = 0; i < m.part_count(); ++i) {
+        CHECK(m.index_of(m.part(i).name) == i);
+        if (i > 0) {
+            // The precondition the binary search rests on, asserted rather than
+            // assumed: set_parts sorts, and a future edit that stops sorting
+            // would make index_of quietly miss instead of quietly slow.
+            CHECK(m.part(i - 1).name < m.part(i).name);
+        }
+    }
+    // THE CONTROL: a name that is not there answers part_count(), not 0 — the
+    // strips draw a greyed-out row on that answer, and a 0 would silently show
+    // the first part of the shelf as somebody's favourite.
+    CHECK(m.index_of("nothing-of-the-sort-w03") == m.part_count());
+    CHECK(m.index_of("") == m.part_count());
 }
 
 TEST_CASE("the cursor clamps at both ends and Enter takes what it points at") {

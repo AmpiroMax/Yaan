@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 19:22:54
+Last updated: 17:08:2026 - 19:37:50
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.cpp
 
@@ -28,6 +28,11 @@ UPD:
   ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
   (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
   по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
+- 17:08:2026 - 19:37:50: СТОЛКНОВЕНИЕ ID У ФИШЕК ФАСЕТОВ. ImGui берёт личность виджета из
+  ПОДПИСИ, а разные группы предлагают одно слово: «brick» это и материал, и
+  кладка, «door» — и семейство, и проём. Без PushID по группе две фишки были
+  ОДНИМ виджетом, и нажатие любой отвечало за обе. Плюс полосы перешли на
+  index_of вместо просмотра полки на каждый кадр.
 */
 
 #include "engine/editor/sources/EditorPaletteView.h"
@@ -245,13 +250,7 @@ void draw_strip(PaletteModel& model, const PaletteHooks& hooks,
     const float avail = ImGui::GetContentRegionAvail().x;
     float used = 0.0f;
     for (std::size_t i = 0; i < names.size(); ++i) {
-        std::size_t at = model.part_count();
-        for (std::size_t k = 0; k < model.part_count(); ++k) {
-            if (model.part(k).name == names[i]) {
-                at = k;
-                break;
-            }
-        }
+        const std::size_t at = model.index_of(names[i]);
         // A KEPT NAME THAT IS NO LONGER ON THE SHELF is shown greyed rather than
         // dropped: the builder swapped map or the kit was re-baked, and silently
         // losing his favourites would look like the editor forgetting.
@@ -280,6 +279,12 @@ void draw_facet_group(PaletteModel& model, FacetKind kind, const char* title_key
     if (!ImGui::CollapsingHeader(EditorUi::tr(title_key))) {
         return;
     }
+    // ONE ID SCOPE PER GROUP, and it is a correctness fix rather than tidiness:
+    // ImGui derives a widget's identity from its LABEL, and two groups can offer
+    // the same word — "brick" is both a material and a bond, "door" is both a
+    // family and an opening. Without this, the two chips would be ONE widget and
+    // ticking either would answer for both.
+    ImGui::PushID(static_cast<int>(kind));
     const float avail = ImGui::GetContentRegionAvail().x;
     float used = 0.0f;
     for (const FacetValue& v : values) {
@@ -304,6 +309,7 @@ void draw_facet_group(PaletteModel& model, FacetKind kind, const char* title_key
             model.set_facet(kind, v.value, on);
         }
     }
+    ImGui::PopID();
 }
 
 } // namespace

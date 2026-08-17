@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:22:54
+Last updated: 17:08:2026 - 19:37:50
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.cpp
 
@@ -28,6 +28,7 @@ UPD:
   ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
   (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
   по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
+- 17:08:2026 - 19:37:50: index_of() и selected_index() через него — один поиск на всех.
 */
 
 #include "engine/editor/sources/EditorPalette.h"
@@ -622,13 +623,15 @@ void PaletteModel::select(std::string_view name) {
     }
 }
 
-std::size_t PaletteModel::selected_index() const {
-    for (std::size_t i = 0; i < parts_.size(); ++i) {
-        if (parts_[i].name == selected_) {
-            return i;
-        }
-    }
-    return parts_.size();
+std::size_t PaletteModel::index_of(std::string_view name) const {
+    const auto it = std::lower_bound(
+        parts_.begin(), parts_.end(), name,
+        [](const PartFacets& p, std::string_view n) { return p.name < n; });
+    return (it != parts_.end() && it->name == name)
+               ? static_cast<std::size_t>(it - parts_.begin())
+               : parts_.size();
 }
+
+std::size_t PaletteModel::selected_index() const { return index_of(selected_); }
 
 } // namespace dfn::app

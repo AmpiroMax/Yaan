@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:22:54
+Last updated: 17:08:2026 - 19:37:50
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.h
 
@@ -59,6 +59,9 @@ UPD:
   ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
   (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
   по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
+- 17:08:2026 - 19:37:50: index_of() — двоичный поиск по имени. Полосы избранного и недавних
+  разрешают дюжину имён КАЖДЫЙ кадр, а это тридцать тысяч сравнений строк на
+  кадр при 2411 строках ради двух рядов миниатюр.
 */
 
 #pragma once
@@ -274,6 +277,13 @@ public:
     [[nodiscard]] const std::string& selected() const { return selected_; }
     /// Index of the selection on the shelf, or part_count() if it is not there.
     [[nodiscard]] std::size_t selected_index() const;
+
+    /// WHERE A NAME SITS ON THE SHELF, or part_count() when it is not there.
+    /// A binary search rather than a scan, and that is not premature: the
+    /// favourites and recents strips resolve a dozen names EVERY FRAME, which
+    /// at 2411 rows is thirty thousand string compares a frame for two rows of
+    /// thumbnails. The shelf is kept sorted by name precisely so this is cheap.
+    [[nodiscard]] std::size_t index_of(std::string_view name) const;
 
     // -- what the builder keeps (PER MAP) -------------------------------------
 
