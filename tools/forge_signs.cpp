@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:46:25
+Last updated: 17:08:2026 - 14:55:07
 Module: tools
 File: tools/forge_signs.cpp
 
@@ -20,7 +20,8 @@ forge takes a string and this tool reads the strings from a file — adding a
 sign is editing a text file, never a rebuild.
 
 File format (the .scene family's own syntax, so an agent who can read one can
-read the other):
+read the other). THE PARSER IS NOT HERE: it is render::read_signs_file(), so
+that the game's first-run bake reads exactly what this tool reads.
 
     [sign]
     shape = post | hanging | wall      # how it is held up
@@ -45,6 +46,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 14:46:25: Создан — работа 4 заказа 17.08 (таблички; текст приходит файлом).
+- 17:08:2026 - 14:55:07: Разбор .signs уехал в библиотеку (read_signs_file) — печь приложения
+  не может заглянуть в инструмент, а второй разбор разошёлся бы с этим.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -59,84 +62,6 @@ UPD:
 
 namespace fs = std::filesystem;
 using namespace dfn::render;
-
-namespace {
-
-[[nodiscard]] std::string trim(std::string_view s) {
-    size_t a = 0;
-    size_t b = s.size();
-    while (a < b && (s[a] == ' ' || s[a] == '\t' || s[a] == '\r')) {
-        ++a;
-    }
-    while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t' || s[b - 1] == '\r')) {
-        --b;
-    }
-    return std::string(s.substr(a, b - a));
-}
-
-[[nodiscard]] PartMaterial material_by_name(const std::string& n, PartMaterial fallback) {
-    if (n == "timber") return PartMaterial::Timber;
-    if (n == "dark") return PartMaterial::TimberDark;
-    if (n == "stone") return PartMaterial::Stone;
-    if (n == "plaster") return PartMaterial::Plaster;
-    if (n == "brick") return PartMaterial::Brick;
-    return fallback;
-}
-
-[[nodiscard]] std::vector<SignParams> read_signs(const fs::path& path, bool& ok) {
-    std::vector<SignParams> out;
-    std::ifstream in(path);
-    if (!in) {
-        ok = false;
-        return out;
-    }
-    std::string raw;
-    uint64_t seed = 1;
-    while (std::getline(in, raw)) {
-        const std::string line = trim(raw);
-        if (line.empty() || line[0] == '#') {
-            continue;
-        }
-        if (line == "[sign]") {
-            out.emplace_back();
-            out.back().seed = seed++;
-            continue;
-        }
-        const size_t eq = line.find('=');
-        if (eq == std::string::npos || out.empty()) {
-            std::fprintf(stderr, "[signs] %s: stray line \"%s\"\n",
-                         path.string().c_str(), line.c_str());
-            ok = false;
-            continue;
-        }
-        const std::string key = trim(line.substr(0, eq));
-        const std::string value = trim(line.substr(eq + 1));
-        SignParams& s = out.back();
-        if (key == "line") {
-            s.lines.push_back(value);
-        } else if (key == "shape") {
-            s.shape = value == "hanging" ? SignShape::Hanging
-                      : (value == "wall" ? SignShape::Wall : SignShape::Post);
-        } else if (key == "cap") {
-            s.cap_height_m = std::strtof(value.c_str(), nullptr);
-        } else if (key == "board") {
-            s.board = material_by_name(value, PartMaterial::Timber);
-        } else if (key == "ink") {
-            s.ink = material_by_name(value, PartMaterial::TimberDark);
-        } else if (key == "wear") {
-            s.wear = std::strtof(value.c_str(), nullptr);
-        } else if (key == "name") {
-            s.name = value;
-        } else {
-            std::fprintf(stderr, "[signs] %s: unknown key \"%s\"\n",
-                         path.string().c_str(), key.c_str());
-            ok = false;
-        }
-    }
-    return out;
-}
-
-} // namespace
 
 int main(int argc, char** argv) {
     bool list_only = false;
@@ -162,8 +87,10 @@ int main(int argc, char** argv) {
     const fs::path out_dir = args.size() > 1 ? fs::path(args[1])
                                              : fs::path("assets/objects/signs");
 
-    bool ok = true;
-    std::vector<SignParams> signs = read_signs(input, ok);
+    // ONE PARSER FOR TWO CONSUMERS (Rule 32): this tool and the game's own
+    // first-run bake read the same .signs through read_signs_file().
+    std::vector<SignParams> signs;
+    const bool ok = read_signs_file(input.string(), signs);
     for (SignParams& s : signs) {
         s.textured = !flat;
     }

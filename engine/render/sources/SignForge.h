@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:46:25
+Last updated: 17:08:2026 - 14:55:07
 Module: engine/render
 File: engine/render/sources/SignForge.h
 
@@ -49,6 +49,8 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 14:46:25: Создан — работа 4 заказа 17.08 (таблички навесные / на столбике /
   настенные, текст — параметр).
+- 17:08:2026 - 14:55:07: read_signs_file() — разбор .signs переехал сюда из dfn_signs: одна
+  функция на двоих потребителей (инструмент и печь приложения).
 */
 
 #pragma once
@@ -146,5 +148,21 @@ struct GlyphRect {
 /// bracket. A composer needs it to leave room, and the suite needs it to check
 /// that the text fits INSIDE the board it was given.
 [[nodiscard]] glm::vec2 sign_board_size(const SignParams& params);
+
+/// Reads a `.signs` file — the format documented in tools/forge_signs.cpp —
+/// into one SignParams per `[sign]` block, in file order, seeds 1..n.
+///
+/// WHY THE PARSER LIVES IN THE LIBRARY AND NOT IN THE TOOL (Rule 32, lead's
+/// ruling 17.08). Two consumers read this format: the CLI dfn_signs and the
+/// first-run bake in engine/app, which cannot call into a tool. Two copies of
+/// a parser is two answers to "what does `board = stone` mean", and the copy
+/// that drifts is always the one nobody tests.
+///
+/// Returns false if ANY line is not understood (stray line, unknown key,
+/// unreadable file) and says which on stderr; `out` then holds what was read
+/// before the refusal. `textured` is left at its default — the caller decides
+/// which arm it is baking.
+[[nodiscard]] bool read_signs_file(const std::string& path,
+                                   std::vector<SignParams>& out);
 
 } // namespace dfn::render

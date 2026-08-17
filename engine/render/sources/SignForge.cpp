@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:46:25
+Last updated: 17:08:2026 - 14:55:07
 Module: engine/render
 File: engine/render/sources/SignForge.cpp
 
@@ -26,6 +26,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 14:46:25: Создан вместе с SignForge.h.
+- 17:08:2026 - 14:55:07: read_signs_file() — разбор файла .signs, перенесён из tools/forge_signs.cpp.
 */
 
 #include "engine/render/sources/SignForge.h"
@@ -37,7 +38,10 @@ UPD:
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
+#include <fstream>
+#include <string_view>
 
 namespace dfn::render {
 namespace {
@@ -299,6 +303,87 @@ RegistryObject forge_sign(const SignParams& p) {
     }
     }
     return obj;
+}
+
+namespace {
+
+[[nodiscard]] std::string trim(std::string_view s) {
+    size_t a = 0;
+    size_t b = s.size();
+    while (a < b && (s[a] == ' ' || s[a] == '\t' || s[a] == '\r')) {
+        ++a;
+    }
+    while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t' || s[b - 1] == '\r')) {
+        --b;
+    }
+    return std::string(s.substr(a, b - a));
+}
+
+/// The file's word for a material. Only the kit's own names, and an unknown
+/// word falls back rather than refusing: a board is still a board.
+[[nodiscard]] PartMaterial material_by_name(const std::string& n,
+                                            PartMaterial fallback) {
+    if (n == "timber") return PartMaterial::Timber;
+    if (n == "dark") return PartMaterial::TimberDark;
+    if (n == "stone") return PartMaterial::Stone;
+    if (n == "plaster") return PartMaterial::Plaster;
+    if (n == "brick") return PartMaterial::Brick;
+    return fallback;
+}
+
+} // namespace
+
+bool read_signs_file(const std::string& path, std::vector<SignParams>& out) {
+    std::ifstream in(path);
+    if (!in) {
+        std::fprintf(stderr, "[signs] %s: cannot open\n", path.c_str());
+        return false;
+    }
+    bool ok = true;
+    std::string raw;
+    uint64_t seed = 1;
+    while (std::getline(in, raw)) {
+        const std::string line = trim(raw);
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        if (line == "[sign]") {
+            out.emplace_back();
+            out.back().seed = seed++;
+            continue;
+        }
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos || out.empty()) {
+            std::fprintf(stderr, "[signs] %s: stray line \"%s\"\n", path.c_str(),
+                         line.c_str());
+            ok = false;
+            continue;
+        }
+        const std::string key = trim(line.substr(0, eq));
+        const std::string value = trim(line.substr(eq + 1));
+        SignParams& s = out.back();
+        if (key == "line") {
+            s.lines.push_back(value);
+        } else if (key == "shape") {
+            s.shape = value == "hanging" ? SignShape::Hanging
+                      : (value == "wall" ? SignShape::Wall : SignShape::Post);
+        } else if (key == "cap") {
+            s.cap_height_m = std::strtof(value.c_str(), nullptr);
+        } else if (key == "board") {
+            s.board = material_by_name(value, PartMaterial::Timber);
+        } else if (key == "ink") {
+            s.ink = material_by_name(value, PartMaterial::TimberDark);
+        } else if (key == "wear") {
+            s.wear = std::strtof(value.c_str(), nullptr);
+        } else if (key == "name") {
+            s.name = value;
+        } else {
+            std::fprintf(stderr, "[signs] %s: unknown key \"%s\"\n", path.c_str(),
+                         key.c_str());
+            ok = false;
+        }
+    }
+    return ok;
 }
 
 } // namespace dfn::render

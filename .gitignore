@@ -31,7 +31,12 @@ images_examples/
 # показывает полоску (engine/app/sources/AssetBake.h).
 #
 # Печётся сама: assets/objects/parts.
+# Таблички (assets/objects/signs) — тот же случай: разбор .signs переехал в
+# библиотеку (render::read_signs_file), значит печь приложения может испечь их
+# сама; шаг в AssetBake за лидом (17.08). До него на чистом клоне паспорта
+# домов печёт `./build_lead/dfn_signs --flat assets/signs/demo.signs`.
 # ЕЩЁ НЕ ПЕЧЁТСЯ и потому пока ОСТАЁТСЯ в git: trees, glade, colossus, panels —
 # их каталоги живут в tools/, а не в библиотеке, и приложение их не видит.
 # Перенести каталоги в библиотеку и вычистить — следующий шаг.
 assets/objects/parts/
+assets/objects/signs/
