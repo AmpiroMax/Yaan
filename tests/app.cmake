@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 17:08:2026 - 19:25:28
+# Last updated: 17:08:2026 - 22:01:29
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -27,6 +27,20 @@
 # - 17:08:2026 - 19:18:24: app_editor_palette — модель меню объектов (фасеты, фильтр, избранное).
 # - 17:08:2026 - 19:25:28: пути меню объектов — engine/editor (переезд под исключение про ImGui).
 #   двойник правил в редакторе; тест держит именно это свойство.
+# - 17:08:2026 - 19:38:10: app_editor_brush — кисть рельефа и посадка растительности (зона
+# - 17:08:2026 - 21:06:32: оси и семейства меню объектов в наборе рукавов.
+#   кистей). Две проверки, которых кадр сделать не может: пустой слой правок не
+#   двигает землю НИ НА БИТ (вместе с рукой, которая её ДВИГАЕТ, иначе
+#   утверждение непроверяемо), и отказ посадить дерево приходит из
+#   world::check_scene, а не из второй копии правил в редакторе.
+# - 17:08:2026 - 22:01:29: app_house_scenario — РУКАВ ПОСТРОЙКИ ДОМА БЕЗ ОКНА (заказ 17.08
+#   п.3). Он держит то, чего кадр держать не может: кадр готового дома
+#   доказывает, что дом СУЩЕСТВУЕТ, а вопрос был про ПОСЛЕДОВАТЕЛЬНОСТЬ —
+#   пускает ли судья каждый промежуточный шаг. Три числа: дом демки судится
+#   начисто (контроль модели земли), без группы рука получает 21 отказ из 46,
+#   с группой по одной детали встают 38 из 46. Восемь оставшихся — КОЛЬЦО
+#   конёк-фронтон, находка, а не недоделка.
+
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
     target_sources(app_debug_overlay PRIVATE
@@ -56,8 +70,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # что имя РАЗОБРАНО, а не угадано, что счётчик на фишке значит «сколько
     # останется, если нажму», и что размер из имени сходится с меркой меша.
     add_dfn_test(app_editor_palette app/EditorPaletteTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_editor_palette PRIVATE ${CMAKE_SOURCE_DIR}/tests/app/EditorPaletteAxesTests.cpp)
     target_sources(app_editor_palette PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPalette.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteAxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteFamily.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteState.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
 
@@ -69,10 +86,31 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_build_tool PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
 
+    # THE EDITOR'S HAND ON THE GROUND. It links dfn_world for the same reason
+    # the build hand's suite does — the properties worth holding are about the
+    # JUDGE and about the WORLD's pass stack, and neither can be faked here.
+    # Two of its claims are invisible in any screenshot: that an empty edit
+    # layer moves the terrain by nothing at all (with the arm that DOES move
+    # it, or the claim is untestable), and that a plant's refusal comes from
+    # world::check_scene rather than from a second copy of its rules.
+    add_dfn_test(app_editor_brush app/EditorBrushTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_editor_brush PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorPlant.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorBrush.cpp)
+
     # THE BINDING TABLE, and this suite is the reason the controls screen is
     # worth more than a paragraph of documentation: it holds the table TOTAL and
     # UNAMBIGUOUS, so a key added to App.cpp without a row cannot be dispatched
     # and a row without a description cannot be drawn.
+    # THE HOUSE, BUILT PART BY PART. Links dfn_world for the judge and
+    # dfn_render for the ruler — the same two the build hand uses, because a
+    # sleeve with its own rules or its own tape measure would be judging a
+    # different world than the editor does.
+    add_dfn_test(app_house_scenario app/HouseScenarioTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_house_scenario PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
+
     add_dfn_test(app_controls app/ControlsTests.cpp dfn_render dfn_core)
     target_sources(app_controls PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Controls.cpp

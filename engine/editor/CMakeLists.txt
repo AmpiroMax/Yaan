@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 19:22:32
-# Last updated: 17:08:2026 - 19:25:46
+# Last updated: 17:08:2026 - 22:01:29
 # File: engine/editor/CMakeLists.txt
 #
 # Responsibility:
@@ -33,11 +33,35 @@
 #   из engine/app, потому что dag_check (правильно) не пускает imgui.h в app, а
 #   архитектура давно назвала engine/editor тем самым местом, где он разрешён.
 
+# - 17:08:2026 - 20:06:29: EditorBrush.cpp и EditorBrushView.cpp — кисть земли и её панель
+#                          (зона кистей рельефа). Механика кисти живёт ЗДЕСЬ, а не в
+#                          engine/app, потому что панель, которая её правит, обязана
+#                          быть в engine/editor (Dear ImGui разрешён только тут), а
+#                          editor не имеет права смотреть вверх на app. Судейская
+#                          половина посадки осталась в app/EditorPlant.cpp: ей нужен
+#                          перевод вердикта из BuildTool. И dfn_world стал PUBLIC —
+#                          EditorBrush.h называет его типы в СВОЁМ интерфейсе.
+
+# - 17:08:2026 - 21:06:32: EditorPaletteAxes/Family — выбор детали по СВОЙСТВАМ внутри семейства
+#   (заказ 17.08: «основное разбиение по семейству, свойства для каждого материала»).
+
+# - 17:08:2026 - 22:01:29: EditorPropsView.cpp — колонка свойств выбранной расстановки
+#   (заказ 17.08: «справа должно окно рисоваться с его характеристиками, я должен
+#   уметь их менять»). Режим «Выбор» до сих пор не показывал НИЧЕГО.
+
 add_library(dfn_editor STATIC
+    sources/EditorBrush.cpp
+    sources/EditorBrushView.cpp
     sources/EditorUi.cpp
     sources/EditorPalette.cpp
+    sources/EditorPaletteAxes.cpp
+    sources/EditorPaletteFamily.cpp
     sources/EditorPaletteState.cpp
-    sources/EditorPaletteView.cpp)
+    sources/EditorPaletteView.cpp
+    sources/EditorPropsView.cpp)
 target_link_libraries(dfn_editor
-    PUBLIC dfn_headers
+    # dfn_world is PUBLIC because EditorBrush.h names its types in its own
+    # interface (ReliefLayer, ScenePad): anyone who includes the brush needs
+    # them too, and a PRIVATE link would compile here and fail at the caller.
+    PUBLIC dfn_headers dfn_world
     PRIVATE dfn_imgui dfn_platform_render)

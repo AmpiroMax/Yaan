@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 20:55:00
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 17:08:2026 - 22:01:29
 Module: tests/app
 File: tests/app/HudScreenTests.cpp
 
@@ -30,6 +30,11 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 13:08:2026 - 20:55:00: Created with the ribbon and the bars.
+- 17:08:2026 - 22:01:29: Три случая про пристыкованную полосу интерфейса: лента из-под неё
+  выходит (с контрольной рукой, которая ОБЯЗАНА в неё печатать), прицел НЕ
+  выходит и остаётся побитово тем же кадром (он называет луч, а не остаток), и
+  подпись инструмента у прицела — с парой зелёный/красный, где меняется одно
+  поле и не выживает ни один зелёный пиксель.
 */
 
 #include <doctest/doctest.h>
@@ -209,4 +214,136 @@ TEST_CASE("the aiming mark leaves its own centre unpainted") {
     // The hole is the design: the pixel being aimed at must survive the mark
     // that names it.
     CHECK(px[centre + 3] == 0);
+}
+
+// ===========================================================================
+// THE DOCKED STRIP, AND WHAT MUST STEP OUT OF IT
+// ===========================================================================
+//
+// The user's complaint, 17.08.2026: «кнопки сверху пересекаются с дебаг
+// текстом». The editor docks a toolbar along the top edge; four painters share
+// the frame and each used to find a free corner by hand. EditorUi now counts
+// the taken strips and everybody else asks — this suite is what makes the
+// asking provable.
+//
+// EVERY CASE BELOW CARRIES ITS OWN COUNTERFACTUAL, in the same TEST_CASE and
+// from the same call: the arm that does NOT declare the strip MUST paint
+// inside it. An instrument that reports "no overlap" on a layout that cannot
+// overlap keeps reporting it after the layout breaks (Rule 30b).
+
+namespace {
+
+// Painted rows inside [0, top): the overlap with a strip docked along the top,
+// counted in PIXELS ACTUALLY DRAWN rather than in a declared rectangle. A
+// declaration can be right while the draw is wrong; ink cannot.
+int ink_above(const dfn::render::PixelCanvas& c, int top) {
+    const auto px = c.pixels();
+    int n = 0;
+    for (int y = 0; y < top; ++y) {
+        for (int x = 0; x < W; ++x) {
+            const size_t i = (static_cast<size_t>(y) * W + static_cast<size_t>(x)) * 4;
+            if (px[i + 3] != 0) {
+                ++n;
+            }
+        }
+    }
+    return n;
+}
+
+// The toolbar's strip on this canvas. 44.0 logical units of a 1080-tall
+// display is 4.07 % of the height, which on a 360-tall canvas is 15 rows —
+// the number App computes from world_rect_norm() rather than types.
+constexpr int STRIP = 15;
+
+} // namespace
+
+TEST_CASE("the direction ribbon steps out from under a docked toolbar") {
+    HudFacts facts;
+    facts.yaw_rad = 0.0f;
+
+    auto clear = fresh();
+    facts.world_x = 0;
+    facts.world_y = STRIP;
+    facts.world_w = W;
+    facts.world_h = H - STRIP;
+    REQUIRE(dfn::app::draw_compass_ribbon(clear, facts));
+    CHECK(ink_above(clear, STRIP) == 0);
+
+    // THE CONTROL, and it is the same call with one number changed: told
+    // nothing about the strip, the ribbon paints inside it. Without this arm
+    // the case above would pass just as well against a ribbon that draws
+    // nothing at all.
+    auto over = fresh();
+    HudFacts blind = facts;
+    blind.world_w = 0;
+    blind.world_h = 0;
+    REQUIRE(dfn::app::draw_compass_ribbon(over, blind));
+    CHECK(ink_above(over, STRIP) > 0);
+}
+
+TEST_CASE("the aiming mark stays on the camera ray, strip or no strip") {
+    // THE ONE ELEMENT THAT MUST NOT FOLLOW THE STRIPS. They take space from the
+    // panel layout, not from the projection: the world is still drawn across
+    // the whole frame, so a mark moved into "what is left" would name a ray it
+    // is not on. Held as a test because it is the kind of tidiness a later
+    // reader would happily "fix".
+    HudFacts plain;
+    auto a = fresh();
+    REQUIRE(dfn::app::draw_crosshair(a, plain));
+
+    HudFacts docked;
+    docked.world_x = 0;
+    docked.world_y = STRIP;
+    docked.world_w = W - 200; // a parts column on the right
+    docked.world_h = H - STRIP;
+    auto b = fresh();
+    REQUIRE(dfn::app::draw_crosshair(b, docked));
+
+    CHECK(plain.world_w == 0);    // the game's arm declares no strip...
+    CHECK(docked.world_w != 0);   // ...the editor's arm does...
+    CHECK(docked.world_y == STRIP);
+    // ...and the two frames are the same ink in the same places.
+    const auto pa = a.pixels();
+    const auto pb = b.pixels();
+    REQUIRE(pa.size() == pb.size());
+    int differing = 0;
+    for (size_t i = 0; i + 3 < pa.size(); i += 4) {
+        if (pa[i + 3] != pb[i + 3]) {
+            ++differing;
+        }
+    }
+    CHECK(differing == 0);
+}
+
+TEST_CASE("the tool badge says the mode in the world, and only in the editor") {
+    HudFacts facts;
+    facts.world_y = STRIP;
+    facts.world_w = W;
+    facts.world_h = H - STRIP;
+
+    // THE GAME'S ARM: no tool in hand, nothing drawn. The badge is the
+    // editor's answer to «непонятно, что я сейчас делаю» and has no business
+    // on a playing frame.
+    auto empty = fresh();
+    CHECK_FALSE(dfn::app::draw_tool_badge(empty, facts));
+
+    facts.tool_name = "кисть высоты";
+    facts.tool_action = "ЛКМ — поднять землю";
+    facts.tool_ready = true;
+    auto green = fresh();
+    REQUIRE(dfn::app::draw_tool_badge(green, facts));
+    CHECK(ink_above(green, STRIP) == 0);
+    // It sits UNDER the mark, in the lower half of the frame's middle band —
+    // where the builder's eyes already are.
+    const int ok_px = count_colour(green, 120, 208, 120);
+    CHECK(ok_px > 0);
+
+    // THE REFUSAL IS THE SAME SENTENCE IN THE OTHER COLOUR, and the pair is
+    // what proves the badge carries the verdict rather than decorating it: one
+    // number changes, and not a single green pixel survives.
+    facts.tool_ready = false;
+    auto red = fresh();
+    REQUIRE(dfn::app::draw_tool_badge(red, facts));
+    CHECK(count_colour(red, 120, 208, 120) == 0);
+    CHECK(count_colour(red, 224, 108, 108) == ok_px);
 }

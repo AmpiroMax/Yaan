@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 17:08:2026 - 22:01:29
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -79,6 +79,14 @@ UPD:
 - 17:08:2026 - 18:32:56: состояние руки строителя: палитра, призрак, приговор, цель удаления,
   запомненные мерки деталей. Решения — в BuildTool.{h,cpp}, здесь только провода.
 - 17:08:2026 - 19:17:13: Поле editor_ui_ — каркас интерфейса редактора (EditorUi). Панелей этот файл не называет ни одной: они регистрируются сами через EditorUi::add_panel, и это то, что позволяет трём агентам добавлять инструменты в редактор, не правя втроём один файл.
+- 17:08:2026 - 22:01:29: ЧЕТЫРЕ ОСТАЛЬНЫХ РЕЖИМА ПЕРЕСТАЛИ БЫТЬ ПУСТЫМИ (заказ 17.08 п.2:
+  «состояние на R меняется, но инструменты не рисуются, не понятно что сейчас я
+  делаю и что»). Поля: слой правок земли relief_, кисть рельефа и посадки,
+  мазок, выбранная расстановка selected_ (это НЕ build_target_ — тот меняется
+  от дрожания камеры, а править числами надо то, по чему ЩЁЛКНУЛИ), и имя
+  текущей постройки build_group_name_. Решения — в EditorBrush/EditorPlant/
+  BuildTool; здесь только провода, потому что этот файл держит окно и ничего
+  собранного в нём измерить нельзя.
 */
 
 #pragma once
@@ -87,9 +95,13 @@ UPD:
 #include "engine/app/sources/ChatLog.h"
 #include "engine/app/sources/ChatOverlay.h"
 #include "engine/app/sources/BuildTool.h"
+#include "engine/editor/sources/EditorPaletteView.h"
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
+#include "engine/app/sources/EditorPlant.h"
+#include "engine/editor/sources/EditorBrushView.h"
+#include "engine/editor/sources/EditorPropsView.h"
 #include "engine/editor/sources/EditorUi.h"
 #include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/app/sources/Menu.h"
@@ -429,6 +441,14 @@ private:
     // is here is the state and the wiring to the world.
     bool build_open_ = false;
     std::vector<BuildGroup> build_groups_;
+    /// МЕНЮ ОБЪЕКТОВ: модель живёт здесь, панель объявляется в EditorUi один
+    /// раз при подъёме карты. App владеет обеими — панель на них ссылается.
+    PaletteModel palette_;
+    bool palette_wired_ = false;
+    /// КУРСОР: смотрим камерой (false) или указываем мышью (true). ЯВНО, по
+    /// клавише R, и НИКОГДА автоматически. Автоматика решала за человека и
+    /// решала неверно: он писал «то за камеру держится, то в UI, и непонятно».
+    bool cursor_free_ = false;
     std::size_t build_group_ = 0;
     std::size_t build_item_ = 0;
     float build_yaw_ = 0.0f;
@@ -444,6 +464,62 @@ private:
     void update_build_tool();
     [[nodiscard]] bool build_place();
     [[nodiscard]] bool build_delete();
+
+    // ---- THE OTHER FOUR TOOLS (editor). The mode lives in EditorUi; this is
+    // what each mode DOES, and it is wiring only — every decision belongs to a
+    // module a test can instantiate (EditorBrush, EditorPlant, BuildTool).
+    //
+    // WHY THEY ARE HERE AT ALL (user, 17.08.2026: «состояние на R меняется, но
+    // инструменты не рисуются, не понятно что сейчас я делаю и что»). Four of
+    // the five modes were empty: the chip lit up, the camera obeyed, and the
+    // world did not answer. A mode that changes nothing outside the interface
+    // is indistinguishable from a broken key.
+    /// The hand edit of the ground for THIS map, and the one truth about it:
+    /// it goes into the world through ChunkManager::set_composed_relief, which
+    /// feeds compose_passes — the ground the player walks and the ground
+    /// check_scene judges are then one thing.
+    world::ReliefLayer relief_;
+    TerrainBrush terrain_brush_;
+    PlantBrush plant_brush_;
+    BrushStroke brush_stroke_;
+    /// The last dab's numbers, for the panel's readout. A brush that has
+    /// silently stopped biting looks exactly like a brush aimed at nothing.
+    int last_dab_samples_ = 0;
+    float last_dab_worst_m_ = 0.0f;
+    bool brush_wired_ = false;
+    /// Species the map's shelves carry, read once — a directory listing per
+    /// frame is a directory listing per frame.
+    std::vector<std::string> plant_species_;
+    /// THE SELECTED PLACEMENT, and it is NOT build_target_: that one is what
+    /// the crosshair is over right now and changes as the camera drifts, which
+    /// is the wrong thing to be editing numbers of. This one is what the
+    /// builder CLICKED, and it survives him looking away from it.
+    std::size_t selected_ = static_cast<std::size_t>(-1);
+    bool props_wired_ = false;
+    /// The properties column's live numbers, edited in place by the panel and
+    /// pushed into the world through EditorPlant::edit_placement — which
+    /// re-judges, and puts the placement back on a refusal.
+    PropsModel props_;
+    /// ЧТО СТРОИМ СЕЙЧАС — the group new parts join. Empty means "alone", and
+    /// alone is what every hand-placed part used to be: see the note at
+    /// build_place() for why that made a house impossible to build by hand.
+    std::string build_group_name_;
+    /// Declares the editor's panels ONCE, on entering the editor rather than on
+    /// a keypress: a menu that does not exist until you press its shortcut is a
+    /// menu for whoever wrote it.
+    void wire_editor_panels();
+    void update_editor_tools(float dt_s);
+    /// Pushes the properties column's numbers into the composition, re-judged.
+    /// False = the judge refused and nothing changed; props_.refusal says why.
+    [[nodiscard]] bool apply_selection_edit();
+    /// Where the crosshair meets the ground (or what it meets first). ONE aim
+    /// for five tools — three copies of this march would drift the first time
+    /// one of them was tuned, and the symptom is a brush biting a metre from
+    /// the cross.
+    [[nodiscard]] glm::vec3 editor_aim_point();
+    [[nodiscard]] bool apply_terrain_dab(glm::vec2 centre, float dt_s);
+    void finish_stroke();
+    [[nodiscard]] int plant_dab_here(glm::vec2 centre);
     /// Re-bakes the ONE tile a placement falls in. An edit must not cost a
     /// whole-map re-bake: the builder places a part every few seconds.
     void rebake_tile_at(glm::vec2 world_xz);

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:24:11
-Last updated: 10:08:2026 - 19:24:11
+Last updated: 17:08:2026 - 22:01:29
 Module: tests/app
 File: tests/app/DebugOverlayTests.cpp
 
@@ -24,6 +24,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 19:24:11: Created with the capture/restore pair.
+- 17:08:2026 - 22:01:29: Прибор наложения: вывод, которому назвали занятую верхнюю полосу,
+  не печатает в ней НИ ОДНОГО пикселя, а тот же вызов без полосы печатает больше
+  сотни. Контроль обязателен: проверка «пусто сверху» одинаково зелена и для
+  правильного отступа, и для вывода, переставшего рисовать вовсе.
 */
 
 #include <doctest/doctest.h>
@@ -31,6 +35,7 @@ UPD:
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
+#include "engine/render/sources/PixelCanvas.h"
 
 #include <cmath>
 #include <string>
@@ -217,4 +222,60 @@ TEST_CASE("frame clock reports the worst frame, not only the mean") {
     CHECK(guarded.fps() == doctest::Approx(0.0f));
     guarded.push(1.0f / 30.0f);
     CHECK(guarded.fps() == doctest::Approx(30.0f).epsilon(0.001));
+}
+
+// ===========================================================================
+// THE READOUT'S CORNER IS NOT ALWAYS FREE
+// ===========================================================================
+//
+// User, 17.08.2026: «кнопки сверху пересекаются с дебаг текстом». The editor
+// docks a toolbar along the top edge and the readout kept starting at (3, 3),
+// under it. The fix is an ORIGIN, not a tuned offset — the number comes from
+// EditorUi, which counted the strip — and this is the instrument that says so
+// with painted pixels rather than with a promise.
+
+TEST_CASE("the readout starts inside what the interface left it") {
+    render::PixelCanvas canvas;
+    canvas.resize(640, 360);
+
+    // The toolbar's strip converted onto this canvas: 44.0 logical units of a
+    // 1080-tall display is 15 rows of 360. App computes it, never types it.
+    constexpr int STRIP = 15;
+    const app::DebugSnapshot snap = sample();
+
+    const auto ink_above = [&canvas](int top) {
+        const auto px = canvas.pixels();
+        int n = 0;
+        for (int y = 0; y < top; ++y) {
+            for (int x = 0; x < 640; ++x) {
+                const size_t i = (static_cast<size_t>(y) * 640 + static_cast<size_t>(x)) * 4;
+                if (px[i + 3] != 0) {
+                    ++n;
+                }
+            }
+        }
+        return n;
+    };
+
+    canvas.clear_transparent();
+    app::draw_debug_overlay(canvas, snap, /*origin_x=*/0, /*origin_y=*/STRIP);
+    CHECK(ink_above(STRIP) == 0);
+
+    // THE CONTROL. The same call, told nothing about the strip: it paints
+    // inside it, in quantity. Without this arm the check above would pass
+    // against a readout that had stopped drawing entirely — which is precisely
+    // how an overlap instrument goes quiet without anyone noticing.
+    canvas.clear_transparent();
+    app::draw_debug_overlay(canvas, snap);
+    CHECK(ink_above(STRIP) > 100);
+}
+
+TEST_CASE("whatever stacks under the readout moves with it") {
+    // The editor's own block asks the readout where it ended. Told an origin,
+    // the answer has to include it — otherwise the two blocks are laid out by
+    // two arithmetics again, which is the defect of 14.08 wearing a hat.
+    const app::DebugSnapshot snap = sample();
+    const int plain = app::debug_overlay_bottom_y(snap);
+    const int docked = app::debug_overlay_bottom_y(snap, /*origin_y=*/15);
+    CHECK(docked - plain == 15);
 }

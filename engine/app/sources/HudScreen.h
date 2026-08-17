@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:35:00
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 17:08:2026 - 22:01:29
 Module: engine/app
 File: engine/app/sources/HudScreen.h
 
@@ -50,9 +50,25 @@ UPD:
   на экране. Полосы полны и убыль не изображают: тратить их пока нечем.
 - 13:08:2026 - 20:55:00: Двери дозы DFN_HUD_RIBBON=0 и DFN_HUD_BARS=0 — обе руки
   приёмки ленты и полос обязаны выходить из ОДНОГО бинарника, как у прицела.
+- 17:08:2026 - 22:01:29: ЧТО ОСТАЛОСЬ МИРУ (world_x/y/w/h) и ЗНАЧОК ИНСТРУМЕНТА У ПРИЦЕЛА
+  (tool_name/tool_action/tool_ready, draw_tool_badge). Заказ пользователя 17.08:
+  «кнопки сверху пересекаются с дебаг текстом» и «состояние на R меняется, но
+  инструменты не рисуются, не понятно что сейчас я делаю и что».
+  ЛЕНТА СДВИГАЕТСЯ ВНИЗ, А ПРИЦЕЛ — НЕТ, и это не непоследовательность, а
+  единственный честный разбор: полосы редактора отъедают место у РАСКЛАДКИ
+  ПАНЕЛЕЙ, но проекцию камеры не двигают — мир по-прежнему рисуется во весь
+  кадр. Метка, поставленная в центр остатка, отъехала бы от собственного луча
+  на 216 px при открытой колонке деталей (432.7 единицы на 1920), и призрак
+  вставал бы в стороне от креста, которым целятся. По вертикали такого вопроса
+  нет: лента ничего не обещает про строку, в которой стоит.
+  Значок стоит ПОД ПРИЦЕЛОМ, а не в углу, потому что вопрос «что я сейчас
+  делаю» задают, глядя на землю, которую сейчас изменят. Фишка на верхней
+  полосе у пользователя уже была и на этот вопрос не ответила.
 */
 
 #pragma once
+
+#include <string_view>
 
 namespace dfn::render {
 class PixelCanvas;
@@ -91,6 +107,48 @@ struct HudFacts {
     float health = 1.0f;
     float stamina = 1.0f;
     float magicka = 1.0f;
+
+    // WHAT IS LEFT OF THE CANVAS AFTER THE EDITOR'S DOCKED STRIPS, in canvas
+    // pixels. Zero width or height means "all of it", which is the game:
+    // nothing is docked there.
+    //
+    // EditorUi counts the strips (insets() / world_rect_norm()) and the app
+    // converts them onto this canvas — a number measured once by whoever took
+    // the space, never guessed by whoever is left with the rest. The toolbar
+    // was nudged down by hand once already and wrote the lesson into
+    // EditorUi.h; the readout then repeated it. This field is so the third
+    // drawer does not.
+    //
+    // WHAT IT MOVES AND WHAT IT MUST NOT. Anything that lives at an EDGE moves
+    // into the remainder: the readout, the ribbon's row, this badge. Anything
+    // that names a DIRECTION IN THE PICTURE does not — the strips take space
+    // from the panel layout, not from the camera's projection, which still
+    // fills the whole frame. So the aiming mark and the ribbon's columns stay
+    // measured from the canvas. Mixing the two is how an interface starts
+    // pointing at the wrong pixel while looking tidy.
+    int world_x = 0;
+    int world_y = 0;
+    int world_w = 0;
+    int world_h = 0;
+
+    // WHAT THE HAND IS HOLDING AND WHAT THE BUTTON WILL DO, under the crosshair.
+    //
+    // WHY IT IS IN THE WORLD AND NOT ON A PANEL (user, 17.08.2026: «состояние на
+    // R меняется, но инструменты не рисуются, не понятно что сейчас я делаю и
+    // что»). The mode already had a chip on the toolbar and it did not answer
+    // him, because the question is asked while looking at the ground he is about
+    // to change -- at the crosshair, not at the top of the screen. A tool whose
+    // state is only legible in the corner is a tool you must look away from to
+    // use.
+    //
+    // Both are resolved strings, not keys: the app owns the localization table
+    // (Rule 5) and this layer is deliberately ignorant of it.
+    std::string_view tool_name;   // «кисть высоты», «ставлю деталь»
+    std::string_view tool_action; // «ЛКМ — поднять землю», or the refusal
+    // The action is possible right now: the verdict is green, the part is
+    // picked, the ground is in reach. False paints the line in the refusal
+    // colour -- the same distinction the ghost's edges make in the world.
+    bool tool_ready = true;
 };
 
 // DFN_CROSSHAIR=0 removes the mark and changes nothing else: the counterfactual
@@ -136,5 +194,26 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts);
 // order, because order is the only thing telling them apart for a player who
 // does not separate the red from the green.
 bool draw_condition_bars(render::PixelCanvas& canvas, const HudFacts& facts);
+
+// THE TOOL, SAID AT THE CROSSHAIR. Two lines just under the aiming mark: what
+// the hand is holding, and what the left button will do with it right now.
+// Silent when `tool_name` is empty, which is every frame of the game -- this is
+// the editor's answer to «непонятно, что я сейчас делаю».
+//
+// IT SITS UNDER THE MARK, NOT IN A CORNER, and that placement IS the feature:
+// the builder is looking at the ground he is about to change, so the answer has
+// to be where his eyes already are. A label in the corner is a label he has to
+// leave the work to read, which is the same as not having it.
+//
+// The refusal shares the ghost's colour vocabulary (green means the click
+// lands, red means it will not) so the sentence and the outline in the world
+// never disagree -- they are two renderings of one verdict, not two verdicts.
+bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts);
+
+// WHERE THE WORLD IS ON THIS CANVAS, clamped and defaulted. Published because
+// three drawers need the same rectangle and a fourth will: the mark, the
+// ribbon, the badge. Returns the whole canvas when the facts carry no rect.
+void hud_world_rect(const render::PixelCanvas& canvas, const HudFacts& facts, int& x,
+                    int& y, int& w, int& h);
 
 } // namespace dfn::app

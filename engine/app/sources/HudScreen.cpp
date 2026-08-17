@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:38:00
-Last updated: 13:08:2026 - 20:55:00
+Last updated: 17:08:2026 - 22:01:29
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -25,6 +25,9 @@ UPD:
 - 13:08:2026 - 20:55:00: Двери дозы DFN_HUD_RIBBON и DFN_HUD_BARS, одним читателем
   на три двери: правило «читать ОДИН раз» у них общее, а три его копии — три
   возможности написать его по-разному.
+- 17:08:2026 - 22:01:29: hud_world_rect() + draw_tool_badge(); лента отступает от занятой
+  верхней полосы, прицел ОСТАЁТСЯ в центре кадра (довод — в шапке .h: он
+  называет ЛУЧ, а луч по-прежнему в середине проекции).
 */
 
 #include "engine/app/sources/HudScreen.h"
@@ -176,6 +179,27 @@ bool condition_bars_enabled() {
     return on;
 }
 
+void hud_world_rect(const render::PixelCanvas& canvas, const HudFacts& facts, int& x,
+                    int& y, int& w, int& h) {
+    const int cw = static_cast<int>(canvas.width());
+    const int ch = static_cast<int>(canvas.height());
+    // NO RECT MEANS THE WHOLE CANVAS, and that default is the game: nothing is
+    // docked in it, so every drawer here keeps behaving exactly as it did
+    // before this field existed. A zero-sized rect is not a request for a
+    // zero-sized world; it is the absence of a request.
+    if (facts.world_w <= 0 || facts.world_h <= 0) {
+        x = 0;
+        y = 0;
+        w = cw;
+        h = ch;
+        return;
+    }
+    x = std::clamp(facts.world_x, 0, cw);
+    y = std::clamp(facts.world_y, 0, ch);
+    w = std::clamp(facts.world_w, 0, cw - x);
+    h = std::clamp(facts.world_h, 0, ch - y);
+}
+
 bool draw_crosshair(render::PixelCanvas& canvas, const HudFacts& facts) {
     if (!crosshair_enabled()) {
         return false;
@@ -193,6 +217,15 @@ bool draw_crosshair(render::PixelCanvas& canvas, const HudFacts& facts) {
     // that falls BETWEEN pixels. Rounding down puts the mark half a pixel up
     // and left of true centre; the ticks are symmetric about the same rounded
     // point, so the shape stays symmetric even where the grid cannot be.
+    //
+    // AND IT IS THE CANVAS'S CENTRE, NOT THE WORLD RECT'S, on purpose — this
+    // is the one element here that must NOT follow the editor's strips. The
+    // strips take space from the PANELS' layout; they do not move the camera's
+    // projection, which still fills the whole frame. A mark placed at the
+    // centre of what is left would sit 216 px from the ray it names with the
+    // parts column open (a 432.7-unit column on a 1920 canvas), and the ghost
+    // would appear a wall's width away from the cross the builder aimed with.
+    // A mark that lies about the ray is worse than a mark half covered.
     const int cx = w / 2;
     const int cy = h / 2;
 
@@ -242,10 +275,23 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
     // Two thirds of the width: wide enough that three or four marks are on it
     // at once (so it reads as a ribbon rather than as a label), narrow enough
     // to leave the top corners to the readout and to whatever comes next.
+    int wx = 0;
+    int wy = 0;
+    int ww = 0;
+    int wh = 0;
+    hud_world_rect(canvas, facts, wx, wy, ww, wh);
+    (void)wx;
+    (void)ww;
+    (void)wh;
+    // THE STRIP KEEPS THE CANVAS'S HORIZONTAL GEOMETRY, for the same reason
+    // the crosshair does: a mark's column is a claim about where that direction
+    // is ON SCREEN, and the projection spans the whole frame. Only the vertical
+    // position follows the interface — the ribbon has to step out from under a
+    // docked toolbar, and nothing about that changes what a column means.
     const int ribbon_w = (w * 2) / 3;
     const int cx = w / 2;
     const int x_left = cx - ribbon_w / 2;
-    const int y_top = 4;
+    const int y_top = wy + 4;
     const int tick_y = y_top + render::FONT_CELL_H + 1;
 
     // The ground under the marks, on the same rule as every other text in this
@@ -336,6 +382,61 @@ bool draw_condition_bars(render::PixelCanvas& canvas, const HudFacts& facts) {
             canvas.fill_rect(BAR_MARGIN, y, filled, BAR_H, bar.colour);
         }
         y += BAR_H + BAR_GAP;
+    }
+    return true;
+}
+
+bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
+    // NO NAME MEANS NO TOOL IN HAND, and that is every frame of the game. The
+    // test is on the NAME rather than on a mode flag so this layer never has to
+    // learn what an editor tool is: it is handed two sentences or nothing.
+    if (facts.tool_name.empty() || facts.map_open) {
+        return false;
+    }
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    if (w <= 0 || h <= 0) {
+        return false;
+    }
+    int wx = 0;
+    int wy = 0;
+    int ww = 0;
+    int wh = 0;
+    hud_world_rect(canvas, facts, wx, wy, ww, wh);
+
+    // UNDER THE MARK, and the mark is at the canvas centre (see draw_crosshair
+    // for why it does not follow the strips). GAP + TICK clears the lowest
+    // tick, and four more pixels keep the words off it: the badge answers the
+    // same question the mark asks, so it belongs next to it and not on it.
+    const int cx = w / 2;
+    const int cy = h / 2;
+    const int line_h = render::FONT_CELL_H + 1;
+    int y = cy + GAP + TICK + 4;
+
+    const int name_w = render::text_width_px(facts.tool_name);
+    const int act_w = facts.tool_action.empty()
+                          ? 0
+                          : render::text_width_px(facts.tool_action);
+    const int block_w = std::max(name_w, act_w);
+    const int lines = facts.tool_action.empty() ? 1 : 2;
+    int x = cx - block_w / 2;
+    // CLAMPED INTO WHAT IS LEFT, because this one CAN move without lying: the
+    // badge names a state, it does not point at a place. With a column docked
+    // on the right a centred block would run under it and lose its last word.
+    x = std::clamp(x, wx + 2, std::max(wx + 2, wx + ww - block_w - 2));
+    y = std::min(y, wy + wh - lines * line_h - 2);
+
+    draw_text_plate(canvas, x, y, block_w, lines * line_h - 1);
+    render::draw_text(canvas, x, y, facts.tool_name, INK, /*shadow=*/true);
+    if (!facts.tool_action.empty()) {
+        // THE SAME TWO COLOURS THE GHOST'S EDGES USE, and they mean the same
+        // thing: green is "this click lands", red is "it will not, and here is
+        // why". One verdict said twice, never two verdicts — the sentence and
+        // the outline in the world come from the one judge pass.
+        const render::Color ok{120, 208, 120};
+        const render::Color no{224, 108, 108};
+        render::draw_text(canvas, x, y + line_h, facts.tool_action,
+                          facts.tool_ready ? ok : no, /*shadow=*/true);
     }
     return true;
 }

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 14:08:2026 - 18:57:57
+Last updated: 17:08:2026 - 22:01:29
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -43,6 +43,10 @@ UPD:
   в вывод, не сдвинув то, что под ним, теперь ОШИБКА КОМПИЛЯЦИИ, а не наложение,
   которое кто-то должен заметить. Подсказка снимка берёт свой y из той же функции,
   что и запрос снаружи, — иначе это две арифметики про одну строку.
+- 17:08:2026 - 22:01:29: Начало блока (origin_x/origin_y) — см. шапку DebugOverlay.h.
+  Все координаты вывода отсчитываются от него, поэтому вызывающий двигает блок
+  ОДНИМ числом, а не десятью, и число это — уже посчитанная кем-то полоса, а не
+  подобранный отступ.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
@@ -241,7 +245,13 @@ void draw_text_plate(render::PixelCanvas& canvas, int text_x, int text_y, int te
 // Readout
 // ---------------------------------------------------------------------------
 
-void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) {
+void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap,
+                        int origin_x, int origin_y) {
+    // WHERE THE BLOCK STARTS, not where it is pinned. Every coordinate below
+    // is measured from here, so a caller that has been told the top strip is
+    // taken moves the readout by one number instead of by ten.
+    const int read_x = READOUT_X + origin_x;
+    const int read_y = READOUT_Y + origin_y;
     const int w = static_cast<int>(canvas.width());
     const int line_h = render::FONT_CELL_H + 1;
     const render::Color ink{232, 228, 214};
@@ -320,18 +330,18 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     if (snap.water_depth > 0.0f) {
         widest = std::max(widest, render::text_width_px(water.text));
     }
-    draw_text_plate(canvas, READOUT_X, READOUT_Y, widest,
+    draw_text_plate(canvas, read_x, read_y, widest,
                     readout_line_count(snap) * line_h - 1);
 
-    int y = READOUT_Y;
+    int y = read_y;
     for (const auto& l : left) {
-        render::draw_text(canvas, READOUT_X, y, l.text, ink, /*shadow=*/true);
+        render::draw_text(canvas, read_x, y, l.text, ink, /*shadow=*/true);
         y += line_h;
     }
-    render::draw_text(canvas, READOUT_X, y, words.text, snap.grounded ? ink : warn, true);
+    render::draw_text(canvas, read_x, y, words.text, snap.grounded ? ink : warn, true);
     y += line_h;
     if (snap.water_depth > 0.0f) {
-        render::draw_text(canvas, READOUT_X, y, water.text, warn, true);
+        render::draw_text(canvas, read_x, y, water.text, warn, true);
         y += line_h;
     }
 
@@ -347,7 +357,7 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap) 
     render::draw_text(canvas, w - hint_w - 3, hint_y, hint, dim, true);
 }
 
-int debug_overlay_bottom_y(const DebugSnapshot& snap) {
+int debug_overlay_bottom_y(const DebugSnapshot& snap, int origin_y) {
     const int line_h = render::FONT_CELL_H + 1;
     // The text block's height is `lines * pitch - 1` (the last row carries no
     // trailing gap), which is exactly what the plate above is sized to. Add the
@@ -355,7 +365,7 @@ int debug_overlay_bottom_y(const DebugSnapshot& snap) {
     // block that clears only the ink lands on the plate's lit edge and reads as
     // one panel cut in half.
     const int text_h = readout_line_count(snap) * line_h - 1;
-    return READOUT_Y + text_h + READOUT_PLATE_PAD;
+    return READOUT_Y + origin_y + text_h + READOUT_PLATE_PAD;
 }
 
 int debug_overlay_hint_top_y(int canvas_height) {

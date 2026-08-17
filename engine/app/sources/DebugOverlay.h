@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 14:08:2026 - 18:57:57
+Last updated: 17:08:2026 - 22:01:29
 Module: engine/app
 File: engine/app/sources/DebugOverlay.h
 
@@ -54,6 +54,14 @@ UPD:
   в воде он на строку выше. Сюда же переехало fits_width() — правило «какой вариант
   строки влезает» было приватной копией в Menu.cpp, а копия правила перестаёт быть
   правилом ровно тогда, когда его понадобилось применить второму потребителю.
+- 17:08:2026 - 22:01:29: У ВЫВОДА ПОЯВИЛОСЬ НАЧАЛО (origin_x/origin_y), потому что верхний
+  край больше не его: интерфейс редактора пристыковал полосу режимов вдоль
+  верха, и она печаталась сквозь текст (жалоба пользователя 17.08: «кнопки
+  сверху пересекаются с дебаг текстом»). Число НЕ подбирается: EditorUi уже
+  считает занятые полосы (insets/world_rect_norm), и вывод начинается в том,
+  что ОСТАЛОСЬ. Подобранный отступ был бы верен для одного шрифта в один день —
+  ровно та ошибка, которую полоса режимов однажды уже совершила и записала в
+  свою шапку.
 */
 
 #pragma once
@@ -152,7 +160,21 @@ private:
 
 // Draws the readout into the HUD canvas. Does not clear it: the caller owns
 // the layer and may have drawn a prompt already.
-void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap);
+//
+// `origin_x` / `origin_y` MOVE THE WHOLE BLOCK OFF AN EDGE SOMEBODY ELSE TOOK,
+// and they are parameters rather than a constant because who took what changes
+// while the program runs. The editor's toolbar is docked along the top and its
+// panels along the sides; EditorUi counts the strips and publishes them
+// (insets() / world_rect_norm()), and the readout starts inside what is LEFT.
+// Zero on both is the game, where nothing is docked and the corner is free.
+//
+// PICKING A NUMBER BY EYE IS THE DEFECT THIS ARGUMENT EXISTS TO END (user,
+// 17.08.2026: «кнопки сверху пересекаются с дебаг текстом»). A hand-tuned 44
+// is right for one font at one scale on one day, and silently wrong for the
+// next -- which is the same lesson the editor's own toolbar wrote into
+// EditorUi.h after being nudged down by hand once.
+void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap,
+                        int origin_x = 0, int origin_y = 0);
 
 // THE FIRST FREE ROW UNDER THE READOUT, plate included. Published because the
 // readout is not the only thing that wants the top-left corner, and until this
@@ -165,7 +187,10 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap);
 // water, so anything that hardcodes "the readout is N pixels tall" is correct
 // on dry land and wrong the moment he wades in. This is computed from the same
 // line count the draw uses, and a row added to the readout moves both.
-[[nodiscard]] int debug_overlay_bottom_y(const DebugSnapshot& snap);
+//
+// `origin_y` is the one handed to draw_debug_overlay; pass the same number or
+// the block below stacks against a readout that is not where it was drawn.
+[[nodiscard]] int debug_overlay_bottom_y(const DebugSnapshot& snap, int origin_y = 0);
 
 // The top of the capture hint's plate, which the readout pins to the BOTTOM of
 // the frame. Published for the same reason as the function above: it is the
