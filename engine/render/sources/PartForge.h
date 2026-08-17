@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:23:56
+Last updated: 17:08:2026 - 13:46:59
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -59,6 +59,9 @@ UPD:
   174 панели, имена wall-<стиль>-<мат>-LxTxH-<проём>-wNN.
 - 17:08:2026 - 13:23:56: PartKind::RoofHip (вальма, вариант полувальмы) и SmokeVent (дымник)
   — волна вариантов крыш.
+- 17:08:2026 - 13:46:59: Stair variant 1 = крутой марш 45° (проступь 1u, имя -steep) — «на
+  второй этаж за длину этих доводили»; подъём остаётся 1u из-за
+  PLAYER_STEP_HEIGHT (0.50 непроходим).
 */
 
 #pragma once
@@ -84,7 +87,13 @@ enum class PartKind : uint8_t {
     WallPanel,  ///< timber frame + infill, one bay wide
     Gable,      ///< the triangular end wall under a roof
     RoofSlope,  ///< one pitched roof plane with its ridge beam
-    Stair,      ///< a flight, origin at the foot of the lowest step
+    /// A flight, origin at the foot of the lowest step. variant 0 = 26.5°
+    /// (going 2u — streets, terraces), variant 1 = STEEP 45° (going 1u,
+    /// `-steep` in the name) — the house stair that reaches the next floor
+    /// within its own run. Rise is 1u for both: PLAYER_STEP_HEIGHT 0.35 m
+    /// passes a 0.25 riser and refuses a 0.50 one, so pitch may only come
+    /// from the going (a controller constraint, not a preference).
+    Stair,
     DoorFrame,  ///< opening with jambs and lintel (the door leaf is its own part)
     DoorLeaf,
     WindowFrame,

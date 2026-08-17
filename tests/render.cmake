@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 13:23:29
+# Last updated: 17:08:2026 - 13:49:34
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -46,6 +46,8 @@
 #   прибора, имена, каталог).
 # - 17:08:2026 - 13:23:29: Part-forge roof tests (замкнутость покрытий, пара вальма/полувальма,
 #   дымник, имена, каталог); измерители — в MeshMeters.h.
+# - 17:08:2026 - 13:49:34: Part-forge stair tests (крутой марш достаёт этаж за свою длину,
+#   пологий — контроль тем же измерителем; ступень против PLAYER_STEP_HEIGHT).
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
@@ -73,4 +75,6 @@ add_dfn_test(render_part_forge_joints render/PartForgeJointTests.cpp
 add_dfn_test(render_part_forge_walls render/PartForgeWallTests.cpp
     dfn_render dfn_world dfn_core)
 add_dfn_test(render_part_forge_roofs render/PartForgeRoofTests.cpp
+    dfn_render dfn_core)
+add_dfn_test(render_part_forge_stairs render/PartForgeStairTests.cpp
     dfn_render dfn_core)

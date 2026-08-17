@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:17:36
-Last updated: 17:08:2026 - 13:23:56
+Last updated: 17:08:2026 - 13:46:59
 Module: engine/render
 File: engine/render/sources/PartForgeCatalogue.cpp
 
@@ -30,6 +30,9 @@ UPD:
 - 17:08:2026 - 13:17:36: Вынесен из PartForge.cpp дословно (разрез по семьям).
 - 17:08:2026 - 13:23:56: ряды крыш: 3 новых покрытия на старых уклонах (36), пологий скат 8x4
   во всех пяти покрытиях (15), вальмы/полувальмы (36), дымники (4).
+- 17:08:2026 - 13:46:59: крутые марши 45° (variant 1, -steep): ширины 4/6 x ступени
+  8/11/12/13/14 x дерево/камень x 2 износа = 40; пологие 26.5° остаются
+  улицам и террасам.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -146,6 +149,40 @@ std::vector<PartParams> kit_catalogue() {
     add(PartKind::Stair, {1},
         {{4, 2}, {4, 3}, {4, 5}, {4, 7}, {6, 2}, {6, 5}, {6, 7}, {6, 9}, {8, 7}},
         {PM::Timber, PM::Stone}, wear2);
+    // КРУТЫЕ МАРШИ (пользователь: «более крутые, чтобы на второй этаж за
+    // длину этих доводили»): variant 1 — 45°, going 1u. Step counts follow
+    // the FLOORS the kit's walls make: 11 legacy массовка, 12/13/14 the
+    // dwelling wall row, 8 the half-storey loft (2.0 m). The gentle 26.5°
+    // family above STAYS — streets and terraces need it; what a house needs
+    // is a flight whose plan run equals its rise. Rise is 1u in both
+    // families and immovable: PLAYER_STEP_HEIGHT 0.35 passes 0.25 and
+    // refuses 0.50 (HOUSES.md §6) — a 2u-rise "steep" stair would be
+    // unclimbable scenery, so it is not on this shelf.
+    {
+        for (int width : {4, 6}) {
+            for (int steps : {8, 11, 12, 13, 14}) {
+                for (PartMaterial mtl : {PM::Timber, PM::Stone}) {
+                    for (float w : wear2) {
+                        PartParams p;
+                        p.kind = PartKind::Stair;
+                        p.material = mtl;
+                        p.variant = 1;
+                        p.length_u = 1;
+                        p.width_u = width;
+                        p.height_u = steps;
+                        p.wear = w;
+                        p.name = part_name(p);
+                        uint64_t hash = 1469598103934665603ull;
+                        for (unsigned char c : p.name) {
+                            hash = (hash ^ c) * 1099511628211ull;
+                        }
+                        p.seed = hash;
+                        out.push_back(std::move(p));
+                    }
+                }
+            }
+        }
+    }
     add(PartKind::DoorFrame, {4, 6}, {{1, 8}, {1, 10}, {2, 10}}, {PM::Timber, PM::Stone},
         wear2);
     add(PartKind::DoorLeaf, {3, 5}, {{1, 7}, {1, 9}}, woods, wear2);

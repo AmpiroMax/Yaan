@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:23:56
+Last updated: 17:08:2026 - 13:46:59
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -77,6 +77,12 @@ UPD:
 - 17:08:2026 - 13:23:56: волна крыш: make_roof перенесён дословно в PartForgeRoofs.cpp и
   расширен там; здесь — диспетчер RoofHip/SmokeVent и их имена (полувальма
   обязана нести -polu, иначе два варианта дерутся за одно имя файла).
+- 17:08:2026 - 13:46:59: КРУТАЯ ЛЕСТНИЦА (пользователь: «более крутые, чтобы на второй этаж за
+  длину этих доводили»): Stair variant 1 — проступь 1u при подъёме 1u = 45°,
+  марш из N ступеней достигает N·0.25 м за N·0.25 м плана. Подъём НЕ трогали
+  и не тронем: PLAYER_STEP_HEIGHT 0.35 — ступень 0.25 проходима, 0.50 нет,
+  крутизна берётся только укорочением проступи. Имя несёт -steep; variant 0
+  печётся байт-в-байт как раньше (going тот же m_of(2)).
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -159,6 +165,15 @@ constexpr float NOSING_M = 0.04f;        ///< tread overhang; the step's shadow
 /// counted to rather than measured.
 constexpr int STAIR_RISE_U = 1;
 constexpr int STAIR_GOING_U = 2;
+/// THE STEEP FLIGHT's going (Stair variant 1): 1u per 1u rise = 45°, the
+/// indoor stair that reaches the next floor within its own run (user, 17.08:
+/// «более крутые, чтобы на второй этаж за длину этих доводили»). The RISE
+/// stays 1u for BOTH pitches, and that is a controller constraint rather than
+/// taste: PLAYER_STEP_HEIGHT is 0.35 m, so a 0.25 riser is climbed and a 2u
+/// riser (0.50) NEVER is — a flight made steep by doubling the rise would be
+/// scenery no player can ascend. Steepness may only come from shortening the
+/// going.
+constexpr int STAIR_STEEP_GOING_U = 1;
 
 // tone() and block() come from the kitchen (PartForgeDetail.h), same bodies
 // they always had.
@@ -331,14 +346,17 @@ void make_gable(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     }
 }
 
-/// A flight, origin at the foot of the lowest riser. Rise is one grid unit and
-/// going is two — 26.5 degrees, which is both climbable and grid-true, so a
-/// stair of N steps lands EXACTLY N units up and 2N units along.
+/// A flight, origin at the foot of the lowest riser. Rise is one grid unit
+/// ALWAYS; the going picks the flight's duty — 2u = 26.5° street-and-terrace
+/// stair, 1u (variant 1, `-steep` in the name) = 45° house stair that lands
+/// on the next floor within its own run. Either way a flight of N steps lands
+/// EXACTLY N units up and N·going units along, so the deck it reaches can be
+/// counted to rather than measured.
 void make_stair(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
     const int steps = std::max(1, p.height_u);
     const float w = m_of(p.width_u);
     const float rise = m_of(STAIR_RISE_U);
-    const float going = m_of(STAIR_GOING_U);
+    const float going = m_of(p.variant == 1 ? STAIR_STEEP_GOING_U : STAIR_GOING_U);
     for (int i = 0; i < steps; ++i) {
         const float y = static_cast<float>(i) * rise;
         const float x = static_cast<float>(i) * going;
@@ -608,6 +626,17 @@ std::string part_name(const PartParams& p) {
                           wall_style_token(p.variant), material_name(p.material),
                           p.length_u, p.width_u, p.height_u,
                           opening_token(p.opening), wear10);
+            return buf;
+        }
+        break;
+    // The steep flight spells its pitch, or the 45° and 26.5° stairs of one
+    // step count would fight over one file name — and a composer must see
+    // "this one reaches the floor within its run" without opening the file.
+    case PartKind::Stair:
+        if (p.variant == 1) {
+            std::snprintf(buf, sizeof(buf), "stair-steep-%s-%dx%dx%d-w%02d",
+                          material_name(p.material), p.length_u, p.width_u,
+                          p.height_u, wear10);
             return buf;
         }
         break;
