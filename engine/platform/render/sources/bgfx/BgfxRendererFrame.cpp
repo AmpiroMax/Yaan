@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 13:52:37
+Last updated: 17:08:2026 - 14:06:40
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -156,6 +156,15 @@ UPD:
   пропадает МОЛЧА И ЦЕЛИКОМ. Раньше при нехватке места терялись ВСЕ линии кадра,
   без единой строки в лог, и выглядело это ровно как «функция не написана».
   Теперь лишнее срезается, а потеря называется числом.
+- 17:08:2026 - 14:06:40: debug_line БОЛЬШЕ НЕ ЗАГЛУШЕН ФЛАГОМ СБОРКИ. Он был `#if defined(NDEBUG)`,
+  то есть пустышкой в КАЖДОЙ отгружаемой сборке — а именно её запускает
+  пользователь. Отладочный вид коллизий записывал 4000 рёбер, программа была
+  валидна, буфер вмещал, и на экране не появлялось НИЧЕГО, потому что сама
+  запись была вырезана компилятором. Это ровно то, против чего написано правило
+  27: то, что нельзя включить в отгружаемом бинарнике, не может ничего
+  доказать. Теперь цена платится по ОТКРЫТОЙ ДВЕРИ (DFN_DEBUG_LINES=1, и
+  DFN_DRAW_COLLIDERS открывает её сам), а не по типу сборки: дверь закрыта —
+  те же два сравнения, что были; открыта — работает там, где нужно.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -175,6 +184,22 @@ UPD:
 namespace dfn::platform {
 
 namespace {
+
+/// Whether debug lines are recorded at all. Read once. Any door that wants
+/// lines may open this one — DFN_DRAW_COLLIDERS does, because a view whose
+/// whole purpose is lines must not need a second switch to work.
+[[nodiscard]] bool debug_lines_enabled() {
+    static const bool on = [] {
+        for (const char* name : {"DFN_DEBUG_LINES", "DFN_DRAW_COLLIDERS"}) {
+            const char* v = std::getenv(name);
+            if (v != nullptr && *v != '\0' && *v != '0') {
+                return true;
+            }
+        }
+        return false;
+    }();
+    return on;
+}
 
 // Look-dev clear color (sky), not a gameplay constant: light steppe-sky blue.
 constexpr uint32_t SKY_COLOR_RGBA = 0x87b5e0ff;
@@ -876,6 +901,16 @@ void BgfxRenderer::end_frame() {
     const bool wire = im.wireframe_on();
 
     // One-frame debug lines (accumulated by debug_line).
+    if (!im.debug_lines.empty() && !bgfx::isValid(im.debug_program)) {
+        static bool told = false;
+        if (!told) {
+            told = true;
+            std::fprintf(stderr, "[render] %zu debug line vertex(es) DISCARDED: the "
+                                 "\"debug\" program is not valid. Every debug line in "
+                                 "the engine is silently doing nothing.\n",
+                         im.debug_lines.size());
+        }
+    }
     if (!im.debug_lines.empty() && bgfx::isValid(im.debug_program)) {
         const auto count = static_cast<uint32_t>(im.debug_lines.size());
         // A BATCH THAT DOES NOT FIT USED TO VANISH IN SILENCE, all of it — not
@@ -1117,16 +1152,25 @@ void BgfxRenderer::end_frame() {
     im.in_frame = false;
 }
 
+// A DOOR, NOT A BUILD FLAG. This was `#if defined(NDEBUG)` — a no-op in every
+// shipping build — and that made every debug line in the engine invisible to
+// the people who actually run the game. The user asked to see collision shapes;
+// the lines were recorded, the program was valid, the buffer had room, and
+// nothing appeared, because the recording itself had been compiled out. Two
+// sessions could have been spent hunting that.
+//
+// It is exactly what Rule 27 exists to prevent: what cannot be turned on in the
+// shipped binary cannot be used to accept anything. So the cost is gated on the
+// DOOR being open (DFN_DEBUG_LINES=1, or any door that draws lines opening it
+// for itself) rather than on the build type: closed, this is the same two
+// compares it always was; open, it works in the build the user runs.
 void BgfxRenderer::debug_line(const glm::vec3& from, const glm::vec3& to,
                               uint32_t color_rgba) {
-#if defined(NDEBUG)
-    (void)from;
-    (void)to;
-    (void)color_rgba;
-#else
+    if (!debug_lines_enabled()) {
+        return;
+    }
     impl_->debug_lines.push_back({from.x, from.y, from.z, color_rgba});
     impl_->debug_lines.push_back({to.x, to.y, to.z, color_rgba});
-#endif
 }
 
 bool BgfxRenderer::save_screenshot(const std::string& path) {
