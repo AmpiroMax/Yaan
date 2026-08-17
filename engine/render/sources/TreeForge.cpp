@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 11:16:13
+Last updated: 17:08:2026 - 11:34:48
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -73,6 +73,7 @@ UPD:
 - 17:08:2026 - 10:07:57: Корни всех деревьев — тёмный мшистый ряд коры: белые бумажные шпоры берёз читались пластиковыми крабьими лапами; настоящая берёза бела сверху и темна у комля.
 - 17:08:2026 - 10:55:52: Шов болы убит: v — арк-длина с продолжением от наплыва (наклонный сегмент с v0=мировая высота скакал на каждом стыке — виден на дубе 50 м, инспекция «прочих багов»).
 - 17:08:2026 - 11:16:13: forge_path_light разделён на столб (lit) и glow (emissive): у факела пламя, у фонаря тёплое стекло; общая рама коробки — вне ворот, чтобы части сходились точно.
+- 17:08:2026 - 11:34:48: Вердикты прогулки: наплыв растёт с обхватом (сапог 1.2 м на берёзе 0.26 м — «низ от дуба»); качание масштабируется абсолютной высотой (саженец «дёргался как куст») — ствол и ветви глушатся min(1, h/14).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -273,9 +274,14 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     const uint32_t wind_still = pack_wind(0.0f, phase);
     // Honest sway weight of a point on the wood: how far it stands from the
     // ground anchor, normalised by the tree's own height.
-    const auto wood_sway = [&p](float y) {
-        return 0.28f * std::pow(std::clamp(y / std::max(p.height, 1.0f), 0.0f, 1.0f),
-                                1.6f);
+    // Малые деревья гнутся МЕНЬШЕ в абсолюте: у 4-метрового саженца та же
+    // относительная амплитуда, что у 20-метровой берёзы, читалась как куст,
+    // который «дёргается и извивается» (вердикт пользователя, 17.08).
+    const float sway_scale = std::min(1.0f, p.height / 14.0f);
+    const auto wood_sway = [&p, sway_scale](float y) {
+        return 0.28f * sway_scale
+             * std::pow(std::clamp(y / std::max(p.height, 1.0f), 0.0f, 1.0f),
+                        1.6f);
     };
 
     const float crown_base = p.height * p.crown_base_frac;
@@ -296,9 +302,12 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // height — the leader IS the tree's spine, and every whorl hangs off it.
     const float bole_top_y = p.conifer ? p.height * 0.97f
                                        : crown_base + crown_ry * 0.7f;
-    glm::vec3 pos{0.0f, FLARE_HEIGHT, 0.0f};
+    // Наплыв растёт с обхватом: сапог высотой 1.2 м на тонкой берёзе
+    // читался «низом от дуба» (вердикт пользователя, 17.08).
+    const float flare_h = std::clamp(p.trunk_radius * 2.4f, 0.35f, FLARE_HEIGHT);
+    glm::vec3 pos{0.0f, flare_h, 0.0f};
     glm::vec3 dir{0.0f, 1.0f, 0.0f};
-    const float seg_len = (bole_top_y - FLARE_HEIGHT) / static_cast<float>(bole_segments);
+    const float seg_len = (bole_top_y - flare_h) / static_cast<float>(bole_segments);
 
     // Root flare + spurs, one axis with the bole (the one-tree stand's first
     // finding: a flare that does not share the bole's axis is a visible knee).
@@ -353,7 +362,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // v runs by ARC LENGTH, continuing the flare's own arc — a tilted segment
     // whose v0 was world-height jumped at every joint (the visible seam on
     // the 50 m oak, inspection 17.08): len != dy the moment the bole leans.
-    float bole_arc = FLARE_DEPTH + FLARE_HEIGHT;
+    float bole_arc = FLARE_DEPTH + flare_h;
     for (int s = 0; s < bole_segments; ++s) {
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(bole_segments);
         if (s >= 2) { // the rigid lower third: wander only above it
@@ -400,6 +409,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             glm::vec4 bark_uv;
             float phase;
             float height;
+            float sway_damp = 1.0f; ///< малые деревья не хлещут (17.08)
             bool far = false;   ///< дальняя форма: грани трубок дешевле
 
             // A limb's sway weight: height plus horizontal reach from the
@@ -409,9 +419,10 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 const float horiz = std::sqrt(q.x * q.x + q.z * q.z)
                                   / std::max(crown_rx, 0.5f);
                 const float sway = std::clamp(
-                    0.28f * std::pow(std::clamp(q.y / std::max(height, 1.0f),
-                                                0.0f, 1.0f), 1.6f)
-                        + 0.30f * horiz,
+                    sway_damp
+                        * (0.28f * std::pow(std::clamp(q.y / std::max(height, 1.0f),
+                                                       0.0f, 1.0f), 1.6f)
+                           + 0.30f * horiz),
                     0.0f, 0.60f);
                 const auto to_byte = [](float v) {
                     return static_cast<uint32_t>(std::clamp(v, 0.0f, 1.0f)
@@ -512,7 +523,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 }
             }
         } grow{obj, rng, anchors, bark, crown_c, p.crown_radius, crown_ry,
-               bark_uv, phase, p.height, p.far_lod};
+               bark_uv, phase, p.height, sway_scale, p.far_lod};
 
         for (int b = 0; b < p.scaffold_count; ++b) {
             const float az = GOLDEN_ANGLE * static_cast<float>(b) + rng.sym() * 0.5f;

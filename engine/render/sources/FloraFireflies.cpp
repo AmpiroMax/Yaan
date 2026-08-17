@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 09:48:46
-Last updated: 17:08:2026 - 09:48:46
+Last updated: 17:08:2026 - 11:34:48
 Module: engine/render
 File: engine/render/sources/FloraFireflies.cpp
 
@@ -20,6 +20,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 09:48:46: Created — см. заголовок.
+- 17:08:2026 - 11:34:48: Огонёк круглый: восьмиугольный веер, яркое ядро + тёмная кромка (радиальный градиент) — «не квадратными, а круглыми, чуть ярче, меньше».
 */
 
 #include "engine/render/sources/FloraFireflies.h"
@@ -152,23 +153,38 @@ float FireflyField::brightness(int i) const {
 void FireflyField::build_mesh(MeshData& out, glm::vec3 cam_right,
                               glm::vec3 cam_up) const {
     if (night_ <= 0.001f) return; // день: мушки спят, меша нет
-    const glm::vec3 warm{0.62f, 0.95f, 0.45f}; // тёплая зелень светляка
+    // Вердикт пользователя (17.08): «не квадратными, а круглыми, чуть более
+    // яркими и меньше» — восьмиугольный веер с радиальным градиентом: яркое
+    // ядро, тёмная кромка. Огонёк вместо квадратика — и рисовать тельце
+    // настоящего светляка не приходится.
+    const glm::vec3 warm{0.62f, 0.95f, 0.45f};
     for (size_t i = 0; i < flies_.size(); ++i) {
         const float b = brightness(static_cast<int>(i));
         if (b <= 0.02f) continue;
         const Fly& fly = flies_[i];
         const float s = p_.size * (0.8f + 0.6f * b);
-        const glm::vec3 r = cam_right * s;
-        const glm::vec3 u = cam_up * s;
-        const uint32_t c = pack(warm * b);
+        const uint32_t core =
+            pack(glm::vec3{std::min(1.0f, 0.85f + 0.35f * b),
+                           std::min(1.0f, 1.05f * b + 0.35f),
+                           std::min(1.0f, 0.55f * b + 0.20f)});
+        const uint32_t rim = pack(warm * (b * 0.12f));
         const auto base = static_cast<uint32_t>(out.vertices.size());
-        const glm::vec3 n = glm::vec3{0.0f, 1.0f, 0.0f};
-        out.vertices.push_back({fly.pos - r - u, n, {0.0f, 0.0f}, c});
-        out.vertices.push_back({fly.pos - r + u, n, {0.0f, 1.0f}, c});
-        out.vertices.push_back({fly.pos + r + u, n, {1.0f, 1.0f}, c});
-        out.vertices.push_back({fly.pos + r - u, n, {1.0f, 0.0f}, c});
-        out.indices.insert(out.indices.end(),
-                           {base, base + 1, base + 2, base, base + 2, base + 3});
+        const glm::vec3 n{0.0f, 1.0f, 0.0f};
+        out.vertices.push_back({fly.pos, n, {0.5f, 0.5f}, core});
+        constexpr int SIDES = 8;
+        for (int k = 0; k < SIDES; ++k) {
+            const float a = TAU * static_cast<float>(k)
+                          / static_cast<float>(SIDES);
+            const glm::vec3 q = fly.pos + cam_right * (std::cos(a) * s)
+                              + cam_up * (std::sin(a) * s);
+            out.vertices.push_back({q, n, {0.5f, 0.5f}, rim});
+        }
+        for (int k = 0; k < SIDES; ++k) {
+            out.indices.insert(
+                out.indices.end(),
+                {base, base + 1u + static_cast<uint32_t>(k),
+                 base + 1u + static_cast<uint32_t>((k + 1) % SIDES)});
+        }
     }
 }
 
