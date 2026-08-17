@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 15:23:22
+Last updated: 17:08:2026 - 10:14:36
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -112,6 +112,7 @@ UPD:
 - 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 - 15:08:2026 - 15:23:22: s_texAux (стадия 4) + нейтральная нормаль 1×1 — второй материальный
   лист дро; «листа нет» становится значением, а не ветвью в каждой программе.
+- 17:08:2026 - 10:14:36: capture_fb уничтожается вместе с остальными целями.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -576,6 +577,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.u_palette)) bgfx::destroy(im.u_palette);
     if (bgfx::isValid(im.s_tex_color)) bgfx::destroy(im.s_tex_color);
     if (bgfx::isValid(im.internal_fb)) bgfx::destroy(im.internal_fb);
+    if (bgfx::isValid(im.capture_fb)) bgfx::destroy(im.capture_fb);
     bgfx::frame(); // flush destroys (and any pending screenshot write)
     bgfx::shutdown();
     im.initialized = false;

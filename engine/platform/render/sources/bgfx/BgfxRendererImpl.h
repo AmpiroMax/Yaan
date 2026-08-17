@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 15:08:2026 - 15:23:22
+Last updated: 17:08:2026 - 10:14:36
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -88,6 +88,7 @@ UPD:
   in end_frame). wireframe_on() folds in the DFN_WIREFRAME door.
 - 15:08:2026 - 15:23:22: s_tex_aux (стадия 4) и нейтральная нормаль 1×1 — хранилище второго
   материального листа дро (нормали коры, запрос зоны flora).
+- 17:08:2026 - 10:14:36: capture_fb + состояние чтения назад (VIEW_CAPTURE).
 */
 
 #pragma once
@@ -120,6 +121,7 @@ inline constexpr bgfx::ViewId VIEW_SCENE =
     static_cast<bgfx::ViewId>(VIEW_POINT_SHADOW_FIRST + POINT_SHADOW_VIEWS);
 inline constexpr bgfx::ViewId VIEW_BACKBUFFER = VIEW_SCENE + 1; // letterbox clear
 inline constexpr bgfx::ViewId VIEW_UPSCALE = VIEW_SCENE + 2;    // integer-scaled quad
+inline constexpr bgfx::ViewId VIEW_CAPTURE = VIEW_SCENE + 3;    // -> capture_fb
 
 // Sun shadow map (user decision в1). Backend look-dev constants — flagged on
 // the NUMBERS.md migration list (Rule 14). Eye-centered ortho along the sun
@@ -424,6 +426,16 @@ struct BgfxRenderer::Impl {
     bgfx::VertexLayout upscale_layout;
 
     bgfx::FrameBufferHandle internal_fb = BGFX_INVALID_HANDLE;
+    /// THE CAPTURE TARGET: internal size, no MSAA, created the first time a
+    /// screenshot is asked for. An acceptance frame is taken FROM HERE and
+    /// never from the backbuffer — see the comment at its use in end_frame.
+    bgfx::FrameBufferHandle capture_fb = BGFX_INVALID_HANDLE;
+    /// The readback in flight, if any: bgfx hands the pixels back some frames
+    /// later, and the file is written when they arrive.
+    std::vector<uint8_t> capture_data;
+    std::string capture_path;
+    uint32_t capture_ready_frame = 0;
+    bool capture_waiting = false;
     bgfx::UniformHandle s_tex_color = BGFX_INVALID_HANDLE;
     /// Stage 4: DrawParams::aux_texture (the bark normal sheet). Stages 1-3
     /// are the shadow contracts; 4 is the first free one.

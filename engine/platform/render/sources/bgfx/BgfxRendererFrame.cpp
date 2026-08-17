@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 16:08:2026 - 22:11:47
+Last updated: 17:08:2026 - 10:14:36
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -131,6 +131,27 @@ UPD:
   множитель 1 рамкой в чёрное был жалобой «че за черные края» при Full HD.
 - 16:08:2026 - 22:11:47: packed[40] — полоса фейда листвы, умолчание 0.03/0.08 (см.
   foliage_edge_band: первая догадка 0.08/0.22 растворяла ели целиком).
+- 17:08:2026 - 10:14:36: ПРИЁМОЧНЫЙ КАДР СНИМАЕТСЯ С НАШЕЙ СОБСТВЕННОЙ ЦЕЛИ, а не с бэкбуфера.
+  Четыре случая за сутки купили эту правку: при спящем или запертом экране
+  Metal не выдаёт drawable, бэкбуфер остаётся незаписанным, и снимок с него
+  сохраняет ЧЁРНЫЙ или наполовину чёрный кадр — зоны сообщали про «землю,
+  ставшую чёрной» и «полосу снизу», два имени для одной недорисованной
+  поверхности, и каждое стоило времени на опровержение.
+  Цель capture_fb внутреннего размера несёт ТОТ ЖЕ ПОСТ, что и экран:
+  программа апскейла подаётся в неё вторым проходом, поэтому чёрный пол и
+  палитра применяются ровно как для окна. Читать internal_fb напрямую было бы
+  одной строкой и НЕВЕРНО — это картинка ДО поста, и всякий калибровочный кадр
+  с неё тихо расходился бы с тем, что видит человек.
+  И читается она через readTexture, а НЕ через requestScreenShot: на Metal тот
+  обслуживает только фреймбуфер со СВОПЧЕЙНОМ (renderer_mtl.cpp ищет
+  m_swapChain и молча возвращается, когда его нет), поэтому первая попытка
+  дала сайдкар .txt без .png и ни строчки объяснения. readTexture — тот же
+  путь, которым этот файл уже снимает атлас точечных теней.
+  ЧЕГО ЭТО НЕ ЧИНИТ, чтобы никто не решил иначе: темп кадров всё ещё зависит
+  от drawable, и при спящем экране прогон останется медленным. Починено то,
+  что кадры, которые он ВСЁ-ТАКИ выдаёт, стали правдой, а не чернотой.
+  Побочно: приёмочный кадр теперь всегда внутреннего размера, без леттербокса
+  и без масштаба окна — два кадра из окон разного размера стали сравнимы.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -909,8 +930,79 @@ void BgfxRenderer::end_frame() {
         }
     }
 
+    // AN ACCEPTANCE FRAME IS TAKEN FROM OUR OWN TARGET, NEVER FROM THE
+    // BACKBUFFER. Four incidents in one day bought this: with the display
+    // asleep or locked, Metal hands out no drawable, the backbuffer is left
+    // unwritten, and requestScreenShot on it saves a BLACK or half-black
+    // image. The zones then reported ground that "went black" and a frame with
+    // a "letterbox bar" — two names for one undrawn surface, and both cost
+    // real time to disprove.
+    //
+    // The capture target is the INTERNAL size and carries the SAME post the
+    // screen gets: the upscale program is submitted a second time into it, so
+    // the black floor and (when on) the palette are applied exactly as they
+    // are for the window. Reading `internal_fb` directly would have been one
+    // line and WRONG — it is the pre-post image, and every calibration frame
+    // taken from it would quietly disagree with what the user sees.
+    //
+    // What it deliberately drops is the window's letterbox and its scaling: an
+    // acceptance frame is now always internal-sized, whatever the window is.
+    // Two frames from two window sizes become comparable, which they were not.
     if (!im.pending_screenshot.empty()) {
-        bgfx::requestScreenShot(BGFX_INVALID_HANDLE, im.pending_screenshot.c_str());
+        if (!bgfx::isValid(im.capture_fb) && bgfx::isValid(im.upscale_program)) {
+            const bgfx::TextureHandle tex = bgfx::createTexture2D(
+                static_cast<uint16_t>(im.internal_width),
+                static_cast<uint16_t>(im.internal_height), false, 1,
+                bgfx::TextureFormat::RGBA8,
+                BGFX_TEXTURE_RT | BGFX_TEXTURE_READ_BACK | BGFX_SAMPLER_U_CLAMP
+                    | BGFX_SAMPLER_V_CLAMP);
+            im.capture_fb = bgfx::createFrameBuffer(1, &tex, true);
+        }
+        if (bgfx::isValid(im.capture_fb) && !wire) {
+            bgfx::setViewFrameBuffer(VIEW_CAPTURE, im.capture_fb);
+            bgfx::setViewRect(VIEW_CAPTURE, 0, 0,
+                              static_cast<uint16_t>(im.internal_width),
+                              static_cast<uint16_t>(im.internal_height));
+            const float post[4] = {im.palette_post ? 1.0f : 0.0f,
+                                   static_cast<float>(PALETTE_SIZE),
+                                   static_cast<float>(im.internal_width),
+                                   static_cast<float>(im.internal_height)};
+            bgfx::setUniform(im.u_post_params, post);
+            const float floor_params[4] = {im.environment.black_floor,
+                                           static_cast<float>(config::BLACK_FLOOR_FALLOFF),
+                                           0.0f, 0.0f};
+            bgfx::setUniform(im.u_black_floor, floor_params);
+            if (im.palette_post) {
+                bgfx::setUniform(im.u_palette, im.palette.data(), PALETTE_SIZE);
+            }
+            bgfx::setTexture(0, im.s_tex_color, bgfx::getTexture(im.internal_fb, 0));
+            bgfx::setVertexBuffer(0, im.quad_vb);
+            bgfx::setIndexBuffer(im.quad_ib);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+            bgfx::submit(VIEW_CAPTURE, im.upscale_program);
+            // READ THE TEXTURE, do not ask bgfx for a "screen shot" of it.
+            // requestScreenShot on Metal only serves a framebuffer that owns a
+            // SWAP CHAIN (renderer_mtl.cpp: it looks up m_swapChain and RETURNS
+            // SILENTLY when there is none), so pointing it at an offscreen
+            // target writes nothing at all and says nothing — the first attempt
+            // at this produced a sidecar .txt with no .png beside it. readTexture
+            // is the path this file already uses for the point-shadow atlas.
+            im.capture_data.assign(
+                static_cast<std::size_t>(im.internal_width) * im.internal_height * 4u, 0u);
+            im.capture_ready_frame = bgfx::readTexture(
+                bgfx::getTexture(im.capture_fb, 0), im.capture_data.data());
+            im.capture_path = im.pending_screenshot;
+            im.capture_waiting = true;
+        } else {
+            // Wireframe skips the upscale entirely (the scene is already on the
+            // backbuffer), so there is nothing of ours to photograph and the
+            // backbuffer is the only truthful source. Said out loud rather than
+            // silently producing a different kind of frame.
+            std::fprintf(stderr, "[render] capture from the BACKBUFFER (wireframe): "
+                                 "a blank frame here means the display gave no "
+                                 "drawable\n");
+            bgfx::requestScreenShot(BGFX_INVALID_HANDLE, im.pending_screenshot.c_str());
+        }
         im.pending_screenshot.clear();
     }
 
@@ -948,6 +1040,15 @@ void BgfxRenderer::end_frame() {
             }
         }
         const uint32_t done = bgfx::frame();
+        // The pixels arrive a few frames after the read was scheduled; the
+        // capture door already waits for the flush before closing the app.
+        if (im.capture_waiting && done >= im.capture_ready_frame) {
+            im.capture_waiting = false;
+            im.callback.screenShot(im.capture_path.c_str(), im.internal_width,
+                                   im.internal_height, im.internal_width * 4u,
+                                   bgfx::TextureFormat::RGBA8, im.capture_data.data(),
+                                   static_cast<uint32_t>(im.capture_data.size()), false);
+        }
         if (dump_state == 1 && done >= ready_frame) {
             if (FILE* f = std::fopen(dump_path, "wb")) {
                 std::fwrite(dump_data.data(), sizeof(float), dump_data.size(), f);
