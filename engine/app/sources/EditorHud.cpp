@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 19:39:08
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/app
 File: engine/app/sources/EditorHud.cpp
 
@@ -28,6 +28,12 @@ UPD:
   (рельеф, небо, узлы LOD сабмитятся без имени) не показывается ВОВСЕ — это
   обычный случай, прицел большую часть времени стоит на земле, и «объект 0»
   назвал бы настоящий слот, на который никто не смотрит.
+- 18:08:2026 - 00:24:58: ЧЕТВЁРТАЯ СТРОКА — мышь и угол (заказ 18.08). Намеренно
+  почти вся из цифр и латиницы: её читают, сравнивая ДВА числа между собой, а не
+  переводя. Слева пришедшее за кадр смещение, справа — куда смотрит камера; живое
+  левое при стоящем правом винит камеру, два стоящих — ввод. Состояние курсора
+  тут же (cap/free), потому что при отданном интерфейсу курсоре нулевое смещение
+  это НОРМА, и без пометки строка врала бы каждый раз, когда открыто меню.
 */
 
 #include "engine/app/sources/EditorHud.h"
@@ -78,6 +84,16 @@ constexpr int PLATE_PAD = 3; // draw_text_plate's default
     return on;
 }
 
+/// САМОЕ ВЫСОКОЕ СОСТОЯНИЕ ОТЛАДОЧНОГО ВЫВОДА: в воде он на строку выше, чем на
+/// суше. Раскладка обязана держаться в ХУДШЕМ случае, иначе блок разъезжается
+/// ровно тогда, когда человек заходит в воду, — а это и есть тот кадр, на
+/// котором наложение никто не искал.
+[[nodiscard]] DebugSnapshot worst_case_readout() {
+    DebugSnapshot s;
+    s.water_depth = 1.0f;
+    return s;
+}
+
 } // namespace
 
 bool aim_entity_index(uint32_t pick_id, uint32_t& out_index) {
@@ -103,7 +119,7 @@ int editor_hud_block_height_px(size_t line_count) {
 }
 
 std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap,
-                                          int width_px) {
+                                          int width_px, int height_px) {
     // The width every line has to live inside: the frame, less the block's own
     // left margin and the plate's margin on the right.
     const int budget = width_px - BLOCK_X - PLATE_PAD;
@@ -170,6 +186,43 @@ std::vector<std::string> editor_hud_lines(const EditorHudSnapshot& snap,
                                                loc_str("editor.hud.aim.none.short"))));
     }
 
+    // СТРОКА 4 -- МЫШЬ И УГОЛ. Заказ пользователя 18.08. Она намеренно почти
+    // вся из цифр и латиницы: её читают, сравнивая ДВА числа между собой, а не
+    // переводя. Слева пришедшее за кадр смещение мыши, справа — куда смотрит
+    // камера. Если левое живое, а правое стоит — виновата камера; если стоят
+    // оба — мышь до нас не дошла. Разделить это на глаз было нечем, и потому
+    // «в режиме редактора не работает камера» три захода подряд разбирал
+    // человек за игрой.
+    //
+    // Состояние курсора здесь же, потому что поломка оказалась ровно в нём:
+    // cap=1 значит, что окно держит указатель, free=1 — что он отдан панелям
+    // клавишей R. При free=1 нулевое смещение — это НОРМА, а не отказ, и без
+    // этой пометки строка врала бы каждый раз, когда человек открыл меню.
+    // ...И ОНА ПОЯВЛЯЕТСЯ, ТОЛЬКО ЕСЛИ ВЛЕЗАЕТ. На 320x180 четвёртая строка
+    // выталкивает блок на подсказку снимка внизу — то самое наложение, на
+    // которое пользователь уже жаловался. Считается по самому высокому
+    // состоянию вывода (в воде он на строку выше), потому что раскладка обязана
+    // держаться в ХУДШЕМ случае, а не в среднем: иначе блок разъезжается ровно
+    // тогда, когда человек заходит в воду.
+    const int probe_top = editor_hud_top_y(debug_overlay_bottom_y(worst_case_readout()));
+    const int probe_h = editor_hud_block_height_px(lines.size() + 1);
+    const bool probe_fits = probe_top + probe_h <= height_px
+                         && probe_top + probe_h <= debug_overlay_hint_top_y(height_px);
+    if (probe_fits) {
+        char buf[128];
+        std::snprintf(buf, sizeof(buf),
+                      "mouse %+.1f %+.1f   yaw %.1f  pitch %.1f   cap%d free%d",
+                      static_cast<double>(snap.mouse_dx), static_cast<double>(snap.mouse_dy),
+                      static_cast<double>(snap.yaw_deg), static_cast<double>(snap.pitch_deg),
+                      snap.cursor_captured ? 1 : 0, snap.cursor_free ? 1 : 0);
+        char shortbuf[64];
+        std::snprintf(shortbuf, sizeof(shortbuf), "m %+.0f %+.0f  y %.0f p %.0f  c%d f%d",
+                      static_cast<double>(snap.mouse_dx), static_cast<double>(snap.mouse_dy),
+                      static_cast<double>(snap.yaw_deg), static_cast<double>(snap.pitch_deg),
+                      snap.cursor_captured ? 1 : 0, snap.cursor_free ? 1 : 0);
+        lines.push_back(std::string(fits_width(budget, buf, shortbuf)));
+    }
+
     return lines;
 }
 
@@ -177,7 +230,8 @@ int draw_editor_hud(render::PixelCanvas& canvas, const EditorHudSnapshot& snap,
                     int top_y) {
     const render::Color ink{244, 226, 160};
     const std::vector<std::string> lines =
-        editor_hud_lines(snap, static_cast<int>(canvas.width()));
+        editor_hud_lines(snap, static_cast<int>(canvas.width()),
+                         static_cast<int>(canvas.height()));
 
     int y = top_y;
     for (const std::string& line : lines) {

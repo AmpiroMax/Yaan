@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.cpp
 
@@ -25,6 +25,7 @@ UPD:
   Win32 branch compiling-clean).
 - 17:08:2026 - 16:27:55: set_fullscreen — своя частота монитора, возврат в запомненную рамку.
 - 17:08:2026 - 19:17:13: content_size() через glfwGetWindowSize — GLFW сообщает позицию курсора именно в этих единицах.
+- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
 */
 
 #include "engine/platform/window/sources/glfw/GlfwWindow.h"
@@ -143,6 +144,12 @@ bool GlfwWindow::should_close() const {
 void GlfwWindow::request_close() {
     if (window_ != nullptr) {
         glfwSetWindowShouldClose(window_, GLFW_TRUE);
+    }
+}
+
+void GlfwWindow::focus() {
+    if (window_ != nullptr) {
+        glfwFocusWindow(window_);
     }
 }
 

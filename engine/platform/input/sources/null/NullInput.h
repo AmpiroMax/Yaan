@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:59:44
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/input
 File: engine/platform/input/sources/null/NullInput.h
 
@@ -23,6 +23,9 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 14:08:2026 - 16:59:44: Implemented text_input() — always an empty stream
   (headless has no keyboard), keeps the contract compiling for auto-runs/tests.
+- 18:08:2026 - 00:24:58: place_cursor() запоминает положение, и mouse_position() теперь его
+  отдаёт. Раньше он возвращал ноль всегда, то есть противоречил бы сам себе
+  сразу после первой постановки.
 */
 
 #pragma once
@@ -43,15 +46,19 @@ public:
     [[nodiscard]] bool is_down(MouseButton) const override { return false; }
     [[nodiscard]] bool was_pressed(MouseButton) const override { return false; }
     [[nodiscard]] bool was_released(MouseButton) const override { return false; }
-    [[nodiscard]] glm::vec2 mouse_position() const override { return {0.0f, 0.0f}; }
+    [[nodiscard]] glm::vec2 mouse_position() const override { return cursor_; }
     [[nodiscard]] glm::vec2 mouse_delta() const override { return {0.0f, 0.0f}; }
     [[nodiscard]] glm::vec2 scroll_delta() const override { return {0.0f, 0.0f}; }
     void set_cursor_captured(bool captured) override { captured_ = captured; }
     [[nodiscard]] bool is_cursor_captured() const override { return captured_; }
+    // Запоминается, чтобы mouse_position() не разошлось само с собой; двигать
+    // здесь нечего -- у прогона без окна нет указателя.
+    void place_cursor(const glm::vec2& pos) override { cursor_ = pos; }
     [[nodiscard]] const std::vector<uint32_t>& text_input() const override { return text_empty_; }
 
 private:
     bool captured_ = false;
+    glm::vec2 cursor_{0.0f, 0.0f};
     std::vector<uint32_t> text_empty_; // always empty; headless has no keyboard
 };
 

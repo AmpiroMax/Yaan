@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 23:52:25
-Last updated: 18:08:2026 - 00:07:07
+Last updated: 18:08:2026 - 00:24:58
 Module: tests
 File: tests/app/EditorCameraTests.cpp
 
@@ -39,6 +39,7 @@ UPD:
   добывать запуском игры, и три захода подряд его добывал пользователь.
   Контрфакт при заведении: закоротил mouse_delta нулём — 7 утверждений
   покраснели; вернул — 18 из 18 зелёные.
+- 18:08:2026 - 00:24:58: LookInput отвечает на новый пункт контракта IInput (place_cursor).
 */
 
 #include <doctest/doctest.h>
@@ -78,6 +79,7 @@ public:
     glm::vec2 scroll_delta() const override { return wheel; }
     void set_cursor_captured(bool) override {}
     bool is_cursor_captured() const override { return true; }
+    void place_cursor(const glm::vec2&) override {}
 };
 
 } // namespace

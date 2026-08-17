@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/window
 File: engine/platform/window/sources/null/NullWindow.cpp
 
@@ -20,6 +20,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
 */
 
 #include "engine/platform/window/sources/null/NullWindow.h"
@@ -46,6 +47,11 @@ bool NullWindow::should_close() const {
 
 void NullWindow::request_close() {
     close_requested_ = true;
+}
+
+void NullWindow::focus() {
+    // Окна нет — фокусировать нечего. Правило 3: нулевой бэкенд обязан
+    // отвечать на весь контракт, а не падать на его половине.
 }
 
 void* NullWindow::native_handle() const {

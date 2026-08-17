@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:59:44
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.h
 
@@ -31,6 +31,7 @@ UPD:
 - 14:08:2026 - 16:59:44: Added text_input() — codepoints accumulated by a GLFW
   char callback (mirrors the scroll-callback policy), snapshotted per frame in
   update(). DFN_TEXT_INPUT_LOG=1 prints accepted codepoints to stderr.
+- 18:08:2026 - 00:24:58: place_cursor() — объявление нового пункта контракта IInput.
 */
 
 #pragma once
@@ -67,6 +68,7 @@ public:
 
     [[nodiscard]] glm::vec2 mouse_position() const override;
     [[nodiscard]] glm::vec2 mouse_delta() const override;
+    void place_cursor(const glm::vec2& pos) override;
     [[nodiscard]] glm::vec2 scroll_delta() const override;
 
     void set_cursor_captured(bool captured) override;

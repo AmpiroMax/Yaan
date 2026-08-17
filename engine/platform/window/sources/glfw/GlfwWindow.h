@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.h
 
@@ -32,6 +32,7 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 17:08:2026 - 16:27:55: полный экран переключаемый; запоминаем оконную рамку, GLFW её не хранит.
 - 17:08:2026 - 19:17:13: content_size() — переопределение нового добавленного метода IWindow.
+- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
 */
 
 #pragma once
@@ -54,6 +55,7 @@ public:
     void poll_events() override;
     [[nodiscard]] bool should_close() const override;
     void request_close() override;
+    void focus() override;
     [[nodiscard]] void* native_handle() const override; // NSWindow* / HWND
     [[nodiscard]] glm::uvec2 framebuffer_size() const override;
     [[nodiscard]] glm::uvec2 content_size() const override;

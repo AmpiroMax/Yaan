@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 14:08:2026 - 19:39:08
+Last updated: 18:08:2026 - 00:24:58
 Module: tests/app
 File: tests/app/EditorHudTests.cpp
 
@@ -43,6 +43,10 @@ UPD:
   СТРОКА, которую рисует кадр: верный обратный ход в отрыве ничего не значит,
   если строка по-прежнему форматирует сырое поле. Контроль — сентинел: объект
   не показывается вовсе, а не показывается неправильно.
+- 18:08:2026 - 00:24:58: editor_hud_lines() принимает и ВЫСОТУ кадра, а рукав — новый случай
+  про строку «мышь и угол»: на 640x360 она есть, на 320x180 её нет, и проверяется
+  ПРИЧИНА (с ней блок налез бы на подсказку снимка), а не только количество
+  строк. Ожидания 3 -> 4 там, где строка помещается.
 */
 
 #include <doctest/doctest.h>
@@ -166,7 +170,7 @@ TEST_CASE("both blocks fit inside the frame at every internal resolution") {
         CAPTURE(r.w);
         // NARROWED FOR THIS FRAME, then measured. Asking for the lines at one
         // width and checking them against another would test nothing.
-        const std::vector<std::string> lines = dfn::app::editor_hud_lines(ed, r.w);
+        const std::vector<std::string> lines = dfn::app::editor_hud_lines(ed, r.w, r.h);
         REQUIRE_FALSE(lines.empty());
         const int block_w = widest_line_px(lines);
         const int block_h = dfn::app::editor_hud_block_height_px(lines.size());
@@ -201,8 +205,10 @@ TEST_CASE("at the resolution he plays, the lines are sentences and not mnemonics
     s.aim_distance_m = 0.8f;
     s.aim_pick_id = 42;
 
-    const std::vector<std::string> full = dfn::app::editor_hud_lines(s, W_640);
-    REQUIRE(full.size() == 3);
+    const std::vector<std::string> full = dfn::app::editor_hud_lines(s, W_640, H_360);
+    // ЧЕТЫРЕ, а не три: на 640x360 помещается ещё и строка «мышь и угол». Три
+    // первых — те же, и проверяются по индексам ниже.
+    REQUIRE(full.size() == 4);
     // The frame line names the frame; the aim line names the crosshair. Asserted
     // through localization rather than against a literal, because a literal here
     // would be the Rule 5 violation this module exists to avoid -- and it would
@@ -222,7 +228,10 @@ TEST_CASE("at the resolution he plays, the lines are sentences and not mnemonics
     // suite that only checks 640 would pass a module that ALWAYS abbreviates.
     // At 320x180 the same numbers must come back shortened -- proving the two
     // tiers are really two, and that the choice is made by measuring.
-    const std::vector<std::string> narrow = dfn::app::editor_hud_lines(s, W_320);
+    const std::vector<std::string> narrow = dfn::app::editor_hud_lines(s, W_320, H_180);
+    // ТРИ: на 320x180 четвёртая строка вытолкнула бы блок на подсказку снимка,
+    // и модуль её не добавляет. Это не потеря содержимого, а раскладка,
+    // держащаяся в худшем случае.
     REQUIRE(narrow.size() == 3);
     CHECK(narrow[1] != full[1]);
     CHECK(narrow[2] != full[2]);
@@ -232,9 +241,51 @@ TEST_CASE("at the resolution he plays, the lines are sentences and not mnemonics
     // ...and the miss branch is a sentence too, not a bare "пусто".
     EditorHudSnapshot miss;
     miss.aim_hit = false;
-    const std::vector<std::string> none = dfn::app::editor_hud_lines(miss, W_640);
-    REQUIRE(none.size() == 3);
+    const std::vector<std::string> none = dfn::app::editor_hud_lines(miss, W_640, H_360);
+    REQUIRE(none.size() == 4);
     CHECK(has(none[2], "editor.hud.aim.none"));
+}
+
+TEST_CASE("строка «мышь и угол» появляется ровно тогда, когда влезает") {
+    REQUIRE(strings().loaded);
+
+    EditorHudSnapshot m;
+    m.aim_hit = true;
+    m.aim_triangles = 1476;
+    m.aim_distance_m = 0.8f;
+    m.mouse_dx = 12.5f;
+    m.mouse_dy = -3.25f;
+    m.yaw_deg = 47.5f;
+    m.pitch_deg = -12.0f;
+    m.cursor_captured = true;
+
+    // НА БОЛЬШОМ КАДРЕ ОНА ЕСТЬ, и в ней стоят ОБА числа: пришедшее смещение и
+    // угол. Ровно та пара, ради которой строка заведена — по ней человек за
+    // игрой отличает «мышь не дошла» от «камера проигнорировала».
+    const std::vector<std::string> wide = dfn::app::editor_hud_lines(m, W_640, H_360);
+    REQUIRE(wide.size() == 4);
+    CHECK(wide[3].find("12.5") != std::string::npos);
+    CHECK(wide[3].find("47.5") != std::string::npos);
+    CHECK(wide[3].find("cap1") != std::string::npos);
+
+    // НА МАЛЕНЬКОМ ЕЁ НЕТ, и это не забывчивость: с ней блок налез бы на
+    // подсказку снимка внизу — то самое наложение, на которое пользователь
+    // жаловался. Утверждение ниже проверяет ПРИЧИНУ, а не только количество.
+    const std::vector<std::string> tight = dfn::app::editor_hud_lines(m, W_320, H_180);
+    CHECK(tight.size() == 3);
+    const int would_be_top =
+        dfn::app::editor_hud_top_y(dfn::app::debug_overlay_bottom_y(wading()));
+    const int would_be_h = dfn::app::editor_hud_block_height_px(tight.size() + 1);
+    CHECK(would_be_top + would_be_h > dfn::app::debug_overlay_hint_top_y(H_180));
+
+    // И ОБА КАДРА РАСХОДЯТСЯ С ПОДСКАЗКОЙ — то, ради чего правило и заведено.
+    for (const auto& [lines, h] :
+         {std::pair{wide, H_360}, std::pair{tight, H_180}}) {
+        const int top =
+            dfn::app::editor_hud_top_y(dfn::app::debug_overlay_bottom_y(wading()));
+        const int block_h = dfn::app::editor_hud_block_height_px(lines.size());
+        CHECK(top + block_h <= dfn::app::debug_overlay_hint_top_y(h));
+    }
 }
 
 TEST_CASE("the block's reported height is the height it draws") {
@@ -323,8 +374,8 @@ TEST_CASE("the object number under the crosshair is the entity, not the stamp") 
     s.aim_triangles = 1476;
     s.aim_distance_m = 0.8f;
     s.aim_pick_id = 43u; // entity 42
-    const std::vector<std::string> lines = dfn::app::editor_hud_lines(s, W_640);
-    REQUIRE(lines.size() == 3);
+    const std::vector<std::string> lines = dfn::app::editor_hud_lines(s, W_640, H_360);
+    REQUIRE(lines.size() == 4);
     CHECK(lines[2].find(" 42") != std::string::npos);
     CHECK(lines[2].find(" 43") == std::string::npos);
 
@@ -332,8 +383,8 @@ TEST_CASE("the object number under the crosshair is the entity, not the stamp") 
     // control for the line above, and the common case: the crosshair spends
     // most of its time on terrain.
     s.aim_pick_id = 0u;
-    const std::vector<std::string> unnamed = dfn::app::editor_hud_lines(s, W_640);
-    REQUIRE(unnamed.size() == 3);
+    const std::vector<std::string> unnamed = dfn::app::editor_hud_lines(s, W_640, H_360);
+    REQUIRE(unnamed.size() == 4);
     const std::string_view object_word =
         dfn::app::localized(dfn::serialization::fnv1a64("editor.hud.object"));
     CHECK(unnamed[2].find(std::string(object_word)) == std::string::npos);

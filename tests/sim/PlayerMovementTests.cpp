@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 13:08:2026 - 18:25:00
+Last updated: 18:08:2026 - 00:24:58
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -35,6 +35,7 @@ UPD:
 - 10:08:2026 - 22:39:13: The crouch case no longer asserts the camera arrives at CROUCH_EYE_HEIGHT — it asserts the eye follows the FERRIED crouch offset (character's carve; the old assertion was faithful to a camera sitting inside the body's chest). Control: halve the ferried drop and the eye must halve with it, which a camera holding a constant of its own cannot do.
 - 13:08:2026 - 18:25:00: RecordingPhysics forwards set_body_transform (the
                          interface gained it for the swinging door leaf).
+- 18:08:2026 - 00:24:58: FakeInput отвечает на новый пункт контракта IInput (place_cursor).
 */
 
 #include <doctest/doctest.h>
@@ -96,6 +97,9 @@ public:
     glm::vec2 scroll_delta() const override { return {0.0f, 0.0f}; }
     void set_cursor_captured(bool) override {}
     bool is_cursor_captured() const override { return true; }
+    // Пункт контракта, заведённый ради стенда захвата курсора; здесь двигать
+    // нечего — рукав задаёт смещение полем delta напрямую.
+    void place_cursor(const glm::vec2&) override {}
 };
 
 // One player on null physics with all four pose components.

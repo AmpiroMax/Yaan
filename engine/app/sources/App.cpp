@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:07:07
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -383,6 +383,15 @@ UPD:
   houses/demo DFN_CAM_TRACE=1, 167 кадров со смещением — рыск менялся на
   каждом (0.0000 -> 0.0098 -> 0.0326 -> ...), при captured=0. Правка от 17.08
   рабочая; жалоба относилась к двоичному файлу, собранному до неё.
+- 18:08:2026 - 00:24:58: И ОНА ОКАЗАЛАСЬ НЕ РАБОЧЕЙ — запись выше верна ровно
+  наполовину, и это стоит оставить как есть, а не переписать. Прогон через
+  дверь DFN_EDITOR=1 идёт unattended, а значит захват курсора НЕ ЗАПРАШИВАЕТСЯ
+  ни разу; настоящий вход через меню просит его каждым кадром, и платформа на
+  каждый запрос обнуляла смещение мыши (разбор — в GlfwInput.cpp). Мой прибор
+  мерил здоровую руку и потому сказал «всё хорошо». Здесь же: строка «мышь и
+  угол» заполняется в снимок редакторского блока из ТОГО ЖЕ input_, из которого
+  берёт камера, — не из запомненной копии, потому что копия рядом с настоящим
+  значением и есть способ показать одно, пока работает другое.
 */
 
 #include "engine/app/sources/App.h"
@@ -5666,6 +5675,19 @@ int App::run() {
                 ed.aim_triangles = pk.triangles;
                 ed.aim_distance_m = pk.distance_m;
                 ed.aim_pick_id = pk.pick_id;
+                // МЫШЬ И УГОЛ НА ЭКРАН (заказ 18.08). Смещение берётся ЗДЕСЬ и
+                // сейчас, из того же самого input_, из которого его берёт
+                // камера, — не из запомненной копии: копия рядом с настоящим
+                // значением и есть способ показать одно, пока работает другое.
+                {
+                    const glm::vec2 md = input_->mouse_delta();
+                    ed.mouse_dx = md.x;
+                    ed.mouse_dy = md.y;
+                    ed.cursor_captured = input_->is_cursor_captured();
+                    ed.cursor_free = cursor_free_;
+                    ed.yaw_deg = glm::degrees(editor_cam_.yaw());
+                    ed.pitch_deg = glm::degrees(editor_cam_.pitch());
+                }
                 // Under the readout when it is up, at the top of the frame when
                 // it is not -- so the block does not sit in the middle of an
                 // empty corner just because the other panel is switched off.

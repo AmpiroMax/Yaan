@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 14:08:2026 - 16:59:44
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/input
 File: engine/platform/input/interfaces/IInput.h
 
@@ -53,6 +53,12 @@ UPD:
   for live text entry (tool B28 chat overlay). Additive, appended after the
   existing queries; all prior call-sites unchanged (Rule 26 sync per lead
   directive).
+- 18:08:2026 - 00:24:58: place_cursor() — поставить указатель. Добавление к контракту
+  (правило 26), заведённое ради ПРИБОРА: рукав, проверяющий, что захват курсора
+  не съедает смещение мыши, обязан двигать мышь сам, иначе ноль на выходе
+  одинаково значит и «сломано», и «никто не трогал». Напрямую через GLFW рукав
+  этого сделать не может — правила 2 и 23 держат сторонние заголовки внутри
+  бэкендов, и ворота DAG ловят нарушение. Нулевой бэкенд запоминает значение.
 */
 
 #pragma once
@@ -130,6 +136,17 @@ public:
     // (first-person mode). Uncaptured = normal OS cursor (menus, editor).
     virtual void set_cursor_captured(bool captured) = 0;
     [[nodiscard]] virtual bool is_cursor_captured() const = 0;
+
+    // СТАВИТ УКАЗАТЕЛЬ, откуда следующий кадр посчитает своё смещение. Заведено
+    // ради прибора, и это единственная его цель: рукав, проверяющий, что захват
+    // курсора не съедает смещение мыши, обязан ДВИГАТЬ мышь сам, иначе ноль на
+    // выходе одинаково значит и «сломано», и «никто не трогал». Через третью
+    // сторону напрямую он этого сделать не может -- правила 2 и 23 держат
+    // сторонние заголовки внутри бэкендов, и ворота DAG это проверяют.
+    //
+    // Нулевой бэкенд запоминает значение и ничего больше: у прогона без окна
+    // нет указателя, которому можно приказать.
+    virtual void place_cursor(const glm::vec2& pos) = 0;
 
     // Text input ---------------------------------------------------------------
     // Unicode codepoints entered during the frame just closed by update(), in

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:59:44
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.cpp
 
@@ -28,6 +28,22 @@ UPD:
 - 14:08:2026 - 16:59:44: Added the GLFW char callback feeding text_accum_, the
   per-frame text snapshot in update(), text_input() accessor, and the
   DFN_TEXT_INPUT_LOG=1 stderr door-probe.
+- 18:08:2026 - 00:24:58: ПОВТОРНЫЙ ЗАПРОС ЗАХВАТА БОЛЬШЕ НЕ СОБЫТИЕ, и это та
+  самая поломка, из-за которой камера редактора не поворачивалась ВОВСЕ.
+  set_cursor_captured сбрасывал have_prev_pos_ на КАЖДЫЙ вызов. Для СМЕНЫ
+  режима это верно: захват телепортирует курсор, и первая разность после
+  телепорта — мусор. Но App держит захват УТВЕРЖДЕНИЕМ, а не событием: пока
+  человек в редакторе, он просит захват каждым кадром. Признак «предыдущее
+  положение известно» не доживал ни до одного кадра, update() честно отдавал
+  ноль, и камера получала нулевое смещение всегда.
+  ПОЧЕМУ ЭТО ЖИЛО ТРИ ЗАХОДА: все автоматические прогоны идут через двери, а
+  двери зовут unattended_run() и захват НЕ ЗАПРАШИВАЮТ ни разу. Значит любой
+  наш прибор — и мой собственный, заведённый часом раньше, — мерил здоровую
+  руку. Отказ был доступен ровно одному наблюдателю: человеку за игрой.
+  Теперь на него есть tests/platform/CursorCaptureTests.cpp — единственный
+  рукав в дереве с НАСТОЯЩИМ окном GLFW; рука двигает курсор сама через
+  glfwSetCursorPos. Три руки: захват один раз — 39 кадров со смещением из 40;
+  захват каждым кадром до правки — 0 из 40; после правки — 39 из 40.
 */
 
 #include "engine/platform/input/sources/glfw/GlfwInput.h"
@@ -263,6 +279,20 @@ glm::vec2 GlfwInput::scroll_delta() const {
 }
 
 void GlfwInput::set_cursor_captured(bool captured) {
+    // ПОВТОРНЫЙ ВЫЗОВ С ТЕМ ЖЕ ЗНАЧЕНИЕМ — НЕ СОБЫТИЕ, И ЭТО НЕ ПРИДИРКА, А
+    // РАЗБОР ОТКАЗА. Строка have_prev_pos_ = false ниже верна для СМЕНЫ режима:
+    // захват телепортирует курсор, и первая разность после телепорта — мусор.
+    // Но App держит захват УТВЕРЖДЕНИЕМ, а не событием: пока человек в
+    // редакторе, он зовёт set_cursor_captured(true) КАЖДЫЙ КАДР. При безусловном
+    // сбросе признак «предыдущее положение известно» не доживал ни до одного
+    // кадра, и update() ниже честно отдавал НОЛЬ:
+    //     mouse_delta_ = have_prev_pos_ ? pos - mouse_pos_ : vec2(0)
+    // Камера получала нулевое смещение всегда и не поворачивалась вовсе —
+    // пользователь писал «в режиме редактора не работает камера» три захода
+    // подряд. Прогон через дверь DFN_EDITOR=1 эту поломку НЕ ВИДЕЛ: там
+    // непритязательный прогон, и захват не запрашивается ни разу, поэтому
+    // признак доживал и смещения доходили. Мой прибор мерил здоровый путь.
+    const bool changed = captured_ != captured;
     captured_ = captured;
     glfwSetInputMode(window_, GLFW_CURSOR,
                      captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
@@ -270,11 +300,19 @@ void GlfwInput::set_cursor_captured(bool captured) {
         glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION,
                          captured ? GLFW_TRUE : GLFW_FALSE);
     }
-    have_prev_pos_ = false; // capture toggles teleport the cursor; avoid a spike
+    if (changed) {
+        have_prev_pos_ = false; // смена режима телепортирует курсор: гасим скачок
+    }
 }
 
 bool GlfwInput::is_cursor_captured() const {
     return captured_;
+}
+
+void GlfwInput::place_cursor(const glm::vec2& pos) {
+    glfwSetCursorPos(window_, static_cast<double>(pos.x), static_cast<double>(pos.y));
+    // Признак «предыдущее положение известно» НЕ трогаем: рукав ставит указатель
+    // именно затем, чтобы следующее update() посчитало от него разность.
 }
 
 const std::vector<uint32_t>& GlfwInput::text_input() const {

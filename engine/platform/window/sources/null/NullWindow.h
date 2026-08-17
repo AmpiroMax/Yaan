@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/window
 File: engine/platform/window/sources/null/NullWindow.h
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 17:08:2026 - 16:27:55: полный экран — тихий отказ: нечего показывать, нечего разворачивать.
+- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
 */
 
 #pragma once
@@ -38,6 +39,7 @@ public:
     void poll_events() override;
     [[nodiscard]] bool should_close() const override;
     void request_close() override;
+    void focus() override;
     [[nodiscard]] void* native_handle() const override; // always nullptr
     [[nodiscard]] glm::uvec2 framebuffer_size() const override;
     [[nodiscard]] bool consume_resize() override; // always false (never resizes)
