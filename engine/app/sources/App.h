@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 07:05:56
+Last updated: 17:08:2026 - 10:00:40
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -68,6 +68,7 @@ UPD:
   автосетка).
 - 16:08:2026 - 21:50:43: gallery_shelves_ — полки карты, уже разобранные из objects.
 - 17:08:2026 - 07:05:56: scene_spawn_ / третье лицо по двери (см. App.cpp).
+- 17:08:2026 - 10:00:40: SceneTile + scene_objects_ + refresh_scene_lod/bake_scene_tile.
 */
 
 #pragma once
@@ -91,11 +92,14 @@ UPD:
 #include "engine/platform/audio/interfaces/IAudio.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/render/sources/FirstPersonCamera.h"
+#include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/RenderSystem.h"
 #include "engine/render/sources/Tour.h"
 #include "engine/world/sources/ChunkManager.h"
+#include "engine/world/sources/Scene.h"
 
 #include <array>
+#include <map>
 #include <optional>
 #include <cstdint>
 #include <cstdio>
@@ -372,6 +376,29 @@ private:
     /// The map's .scene, if it has one: WHERE things stand, as an edited file
     /// instead of a grid this code invents. Empty = the auto-grid, as before.
     std::string gallery_scene_;
+    /// ONE TILE OF A COMPOSITION: its placements, kept so the tile can be
+    /// re-baked in a cheaper form when the player walks away from it, and the
+    /// form it is currently baked in.
+    struct SceneTile {
+        glm::ivec2 key{0};
+        glm::vec2 min_xz{0.0f};
+        glm::vec2 max_xz{0.0f};
+        std::vector<world::Placement> parts;
+        bool far_form = false;
+    };
+    std::vector<SceneTile> scene_tiles_;
+    /// Every registry object the composition uses, near forms and `-far` forms
+    /// alike, keyed by the name that was read. Kept resident because a re-bake
+    /// must not go back to disk: it happens while the player is walking.
+    std::map<std::string, render::RegistryObject> scene_objects_;
+    /// Re-bakes at most ONE composition tile per frame into the form its
+    /// distance asks for. One per frame, nearest mismatch first: the same
+    /// stance the scatter ladder takes, for the same reason — a re-bake costs
+    /// a bake, and the mismatch that matters is the one in front of the eye.
+    void refresh_scene_lod(glm::vec3 eye);
+    /// Builds and uploads one tile in the given form.
+    void bake_scene_tile(SceneTile& tile, bool far_form);
+
     /// Where the CURRENT map's composition wants the player, if it said so.
     /// Recorded while the scene loads and consumed by the single spawn call at
     /// the end of enter_world — never spawned on the spot, because everything

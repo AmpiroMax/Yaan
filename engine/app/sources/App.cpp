@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 07:05:56
+Last updated: 17:08:2026 - 10:00:40
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -240,6 +240,18 @@ UPD:
   его сфотографировать — ровно так «тела нет» и дожило до утра. Дверь со своей
   копией переключения была бы вторым определением третьего лица и разошлась бы
   с первым; эта дёргает тот же флаг в той же ветке.
+- 17:08:2026 - 10:00:40: ЛЕСТНИЦА ДЕТАЛИЗАЦИИ У КОМПОЗИЦИИ: плитка 32 м печётся либо из ближних
+  форм объектов, либо из `<имя>-far`, и переключается ПОПЛИТОЧНО по расстоянию
+  до БЛИЖАЙШЕЙ точки плитки (не до центра: у плитки под ногами центр в 22 м, и
+  лестница по центру огрубила бы землю, на которой стоишь). Гистерезис 44/56 м
+  ШИРЕ ПЛИТКИ намеренно — иначе проход одной плитки заставлял бы её мигать
+  между формами, а мигание в средней дали хуже любой из форм. Отсутствие
+  `-far` ЗАКОННО: объект без дальней формы едет ближней на любой дистанции,
+  поэтому старые полки и дешёвая мелочь (трава, цветы) лестницы не требуют.
+  Пересборка — ОДНА плитка за кадр, ближайшее расхождение первым: та же
+  позиция, что у лестницы разброса, по той же причине. Замер на полянке зоны
+  flora (её же камера): 48.1 -> 29.6 мс/кадр, 11.94 -> 9.69 млн треугольников,
+  при 14 дальних формах из 38 объектов — то есть запас ещё есть.
 */
 
 #include "engine/app/sources/App.h"
@@ -1074,6 +1086,86 @@ bool App::init(const AppConfig& config) {
 // Builds (or rebuilds) the world for one demo map. Everything that depends on
 // terrain existing lives here: streaming, edge walls, the chunk ferry, the
 // player, the testbed content, the body, the mirror puppet and the playtest.
+// --- THE COMPOSITION'S DETAIL LADDER ----------------------------------------
+//
+// A composition is uploaded in 32 m tiles (see enter_world), and each tile is
+// baked either from the objects' near forms or from their `-far` forms. This is
+// NOT the FloraLod ladder: that one thins a GENERATED scatter lattice, while
+// this one swaps one baked object for another baked object. Two different
+// machines with one purpose, and conflating them would put registry objects
+// through a re-bake that knows nothing about them.
+//
+// THE SWITCH IS PER TILE, NOT PER TREE, and that is what makes it cheap AND
+// quiet: within a tile nothing pops relative to its neighbours, and the seam
+// between two tiles is at least SCENE_FAR_ON_M away from the eye.
+namespace {
+/// Distance (metres, to the tile's NEAREST point) at which a tile drops to the
+/// cheaper form, and the distance at which it comes back. The band is
+/// hysteresis: it is WIDER THAN A TILE on purpose, so walking one tile's width
+/// cannot make a tile flap between forms — a flap would be a visible pulse in
+/// the middle distance, which is worse than either form.
+///
+/// The numbers come from what the far form actually drops. Flora's `-far`
+/// removes detail it measured as invisible past ~32 m (side feather fans, the
+/// dead-branch skirt, acorns). 44 m is that distance with ~35 % margin, so the
+/// swap happens where the dropped detail was already gone; 56 m gives a 12 m
+/// band, more than the 32 m tile's half-width of travel needed to cross back.
+constexpr float SCENE_FAR_ON_M = 56.0f;
+constexpr float SCENE_FAR_OFF_M = 44.0f;
+} // namespace
+
+void App::bake_scene_tile(SceneTile& tile, bool far_form) {
+    render::MeshData wood;
+    render::MeshData cards;
+    for (const world::Placement& p : tile.parts) {
+        // The far form when there IS one; the near form otherwise. Falling back
+        // rather than skipping is the whole reason an absent `-far` is legal.
+        auto it = far_form ? scene_objects_.find(p.object + "-far")
+                           : scene_objects_.end();
+        if (it == scene_objects_.end()) {
+            it = scene_objects_.find(p.object);
+        }
+        if (it == scene_objects_.end()) {
+            continue;
+        }
+        const render::RegistryObject& obj = it->second;
+        render::append_transformed(wood, obj.wood, p.position, p.yaw, p.scale);
+        render::append_transformed(cards, obj.cards, p.position, p.yaw, p.scale);
+        render::append_transformed(cards, obj.bark, p.position, p.yaw, p.scale);
+        render::append_transformed(cards, obj.ground, p.position, p.yaw, p.scale);
+    }
+    render_system_.upload_prebuilt_scatter(*renderer_, tile.key, wood, cards);
+    tile.far_form = far_form;
+}
+
+void App::refresh_scene_lod(glm::vec3 eye) {
+    SceneTile* worst = nullptr;
+    float worst_distance = 0.0f;
+    bool worst_far = false;
+    for (SceneTile& tile : scene_tiles_) {
+        // Distance to the tile's NEAREST point, not to its centre: a 32 m tile
+        // whose near edge is under the player's feet has its centre 22 m away,
+        // and a ladder measured from the centre would coarsen the ground he is
+        // standing on.
+        const glm::vec2 e{eye.x, eye.z};
+        const glm::vec2 d = glm::max(glm::max(tile.min_xz - e, e - tile.max_xz),
+                                     glm::vec2{0.0f});
+        const float dist = glm::length(d);
+        const bool want = tile.far_form ? dist > SCENE_FAR_OFF_M : dist > SCENE_FAR_ON_M;
+        if (want == tile.far_form) {
+            continue;
+        }
+        if (worst == nullptr || dist < worst_distance) {
+            worst = &tile;
+            worst_distance = dist;
+            worst_far = want;
+        }
+    }
+    if (worst != nullptr) {
+        bake_scene_tile(*worst, worst_far);
+    }
+}
+
 bool App::enter_world(uint32_t stand) {
     active_stand_ = stand;
     // Chunk streaming: stage 2 serves the in-memory generated world (core's
@@ -1233,6 +1325,8 @@ bool App::enter_world(uint32_t stand) {
     const float ground = chunks_.height_at({mid, mid}).value_or(0.0f);
     const glm::vec3 spawn{mid, ground + 0.2f, mid};
     scene_spawn_.reset(); // a previous map's composition must not follow us here
+    scene_tiles_.clear();
+    scene_objects_.clear();
 
     // THE GALLERY'S EXHIBITS: registry objects (.dfo), read and PLACED — the
     // world generated bare ground and knows nothing about them (в1: the game
@@ -1278,16 +1372,17 @@ bool App::enter_world(uint32_t stand) {
             // camera is actually rejected, large enough that a 256 m map is 64
             // meshes rather than thousands of draw calls.
             constexpr float SCENE_TILE_M = 32.0f;
+            scene_tiles_.clear();
+            scene_objects_.clear();
             // Keyed away from the streamer's own chunk coordinates: these are
             // SCENE tiles, not world chunks, and a collision would have the
             // streamer's next bake silently drop half the composition.
             constexpr int SCENE_TILE_KEY_BASE = 1000;
             struct Tile {
-                render::MeshData wood;
-                render::MeshData cards;
+                std::vector<world::Placement> parts;
             };
             std::map<std::pair<int, int>, Tile> tiles;
-            std::map<std::string, render::RegistryObject> loaded;
+            auto& loaded = scene_objects_;
             int placed = 0;
             for (const world::Placement& p : doc.placements) {
                 auto it = loaded.find(p.object);
@@ -1316,16 +1411,9 @@ bool App::enter_world(uint32_t stand) {
                 // The whole object goes into ONE tile, chosen by its ORIGIN:
                 // splitting an object across tiles would cut a tree in half at
                 // a boundary and let one half be culled without the other.
-                Tile& tile = tiles[{static_cast<int>(std::floor(p.position.x / SCENE_TILE_M)),
-                                    static_cast<int>(std::floor(p.position.z / SCENE_TILE_M))}];
-                render::append_transformed(tile.wood, obj.wood, p.position, p.yaw,
-                                           p.scale);
-                render::append_transformed(tile.cards, obj.cards, p.position, p.yaw,
-                                           p.scale);
-                render::append_transformed(tile.cards, obj.bark, p.position, p.yaw,
-                                           p.scale);
-                render::append_transformed(tile.cards, obj.ground, p.position, p.yaw,
-                                           p.scale);
+                tiles[{static_cast<int>(std::floor(p.position.x / SCENE_TILE_M)),
+                       static_cast<int>(std::floor(p.position.z / SCENE_TILE_M))}]
+                    .parts.push_back(p);
                 // SOLID BY DEFAULT (user: «сделать деревья физичными, не давать
                 // сквозь них ходить» — a house wall owes the same). One box per
                 // placement, sized from the object's own mesh and widened to
@@ -1376,19 +1464,57 @@ bool App::enter_world(uint32_t stand) {
                 }
                 ++placed;
             }
-            std::size_t scene_tris = 0;
-            for (auto& [key, tile] : tiles) {
-                scene_tris += tile.wood.triangle_count() + tile.cards.triangle_count();
-                render_system_.upload_prebuilt_scatter(
-                    *renderer_,
-                    {SCENE_TILE_KEY_BASE + key.first, SCENE_TILE_KEY_BASE + key.second},
-                    tile.wood, tile.cards);
+            // THE CHEAPER FORM OF EVERY OBJECT, if the shelf has one. The
+            // convention is `<name>-far`, and its ABSENCE IS LEGAL: an object
+            // with no far form simply rides its near form at every distance,
+            // so old shelves and cheap props (grass, flowers — a few hundred
+            // triangles) need no ladder at all.
+            for (const auto& [name, obj] : std::map<std::string, render::RegistryObject>(loaded)) {
+                const std::string far_name = name + "-far";
+                if (loaded.count(far_name) != 0) {
+                    continue;
+                }
+                for (const std::string& shelf : gallery_shelves_) {
+                    if (auto far_obj = render::read_object(fs::path(shelf)
+                                                           / (far_name + ".dfo"))) {
+                        loaded.emplace(far_name, std::move(*far_obj));
+                        break;
+                    }
+                }
             }
+            std::size_t with_far = 0;
+            for (const auto& [name, obj] : loaded) {
+                if (name.size() > 4 && name.compare(name.size() - 4, 4, "-far") == 0) {
+                    ++with_far;
+                }
+            }
+
+            scene_tiles_.reserve(tiles.size());
+            for (auto& [key, tile] : tiles) {
+                SceneTile st;
+                st.key = {SCENE_TILE_KEY_BASE + key.first, SCENE_TILE_KEY_BASE + key.second};
+                st.min_xz = {static_cast<float>(key.first) * SCENE_TILE_M,
+                             static_cast<float>(key.second) * SCENE_TILE_M};
+                st.max_xz = st.min_xz + glm::vec2{SCENE_TILE_M, SCENE_TILE_M};
+                st.parts = std::move(tile.parts);
+                scene_tiles_.push_back(std::move(st));
+            }
+            std::size_t scene_tris = 0;
+            for (SceneTile& st : scene_tiles_) {
+                // Everything opens in its NEAR form. The first frames decide
+                // the ladder from the real eye, one tile at a time; opening a
+                // map already coarse would show the cheap forms to a player
+                // standing among them.
+                bake_scene_tile(st, false);
+                scene_tris += st.parts.size();
+            }
+            std::fprintf(stderr, "[scene] %zu of %zu object(s) have a -far form\n",
+                         with_far, loaded.size() - with_far);
             std::fprintf(stderr, "[scene] %s: %d of %zu placement(s) standing, "
-                                 "%zu distinct object(s), %zu tile(s), "
-                                 "%zu triangles\n", gallery_scene_.c_str(),
-                         placed, doc.placements.size(), loaded.size(), tiles.size(),
-                         scene_tris);
+                                 "%zu distinct object(s), %zu tile(s)\n",
+                         gallery_scene_.c_str(), placed, doc.placements.size(),
+                         loaded.size(), scene_tiles_.size());
+            (void)scene_tris;
             // THE COMPOSITION MAY SAY WHERE THE PLAYER STANDS. The stand only
             // knows the middle of its chunk; "the middle of the stone path,
             // facing the great oak" is a statement about what was BUILT, so it
@@ -3658,6 +3784,7 @@ int App::run() {
             render_system_.update_lod(eye, tour_.active()
                                                ? static_cast<float>(config::SIM_DT)
                                                : static_cast<float>(frame_dt));
+            refresh_scene_lod(eye);
 
             const auto to_world = [](const render::LodNode& n) {
                 return world::CoarseNode{n.level, n.x, n.z};
