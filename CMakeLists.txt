@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 17:08:2026 - 21:05:14
+# Last updated: 18:08:2026 - 00:07:07
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -63,6 +63,27 @@
 #   Повод: полный клон трижды вставал намертво (21:46, 13:15 и 10:14 при 0% CPU),
 #   и бинарник пользователя отстал на четыре коммита. Пин не тронут: shallow —
 #   это `git clone --depth 1 --branch <тег>`.
+# - 18:08:2026 - 00:07:07: bgfx.cmake ЗАВЕЗЕНА в third_party/bgfx.cmake, и берётся
+#   через FETCHCONTENT_SOURCE_DIR_BGFX_CMAKE. Общая папка загрузок (запись выше)
+#   развалила настройку на весь вечер: клон bgfx падал раз за разом
+#   (fetch-pack: invalid index-pack output), а симптом выглядел как «cmake ничего
+#   не делает» — ninja: error: rebuilding 'build.ninja': subcommand failed, без
+#   причины в выводе. Причина видна ТОЛЬКО отдельным `cmake -S . -B <dir>` с
+#   полным выводом; фильтр по слову «error» её отсеивает, и я на этом потерял
+#   несколько заходов.
+#   ПОЧЕМУ РЯДОМ С _deps, А НЕ ВНУТРИ: шаг клонирования FetchContent СТИРАЕТ
+#   каталог назначения перед клонированием, если у подсборки нет своих штампов.
+#   Подложенные в _deps исходники он однажды сотрёт — что и сделал у меня на
+#   глазах: зеркалировал каталог целиком, следующая настройка его вычистила.
+#   Проверено контрфактом: чистый каталог сборки настраивается за 2.0 с и БЕЗ
+#   СЕТИ (прежде — падение на шаге клонирования). Пин в
+#   engine/platform/render/CMakeLists.txt не тронут и остаётся описанием
+#   происхождения (правило 24); нет каталога — строка не срабатывает, и всё
+#   идёт прежним путём через сеть.
+#   ПОБОЧНО ВЫЯСНИЛОСЬ: общая папка загрузок ЗАПИРАЕТ ГЕНЕРАТОР. Подсборки в
+#   _deps помнят свой (у нас Ninja), и каталог сборки на Unix Makefiles падает
+#   с «Does not match the generator used previously: Ninja». Новые каталоги
+#   заводить с `-G Ninja`.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -115,6 +136,28 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS docs/NUMBERS.md)
 # испечённых деталей).
 set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/third_party/_deps"
     CACHE PATH "Общий кэш загруженных зависимостей на все каталоги сборки")
+
+# ЗАВЕЗЁННАЯ bgfx.cmake, и она лежит НЕ в _deps намеренно. Шаг клонирования
+# FetchContent СТИРАЕТ каталог назначения перед клонированием, если у подсборки
+# нет своих штампов, — поэтому всё, что подложено внутрь _deps, однажды будет
+# стёрто, и настройка новой сборки снова упрётся в сеть. Это стоило вечера:
+# клон bgfx падал раз за разом (fetch-pack: invalid index-pack output), а
+# симптом выглядел как «cmake ничего не делает» — ninja: error: rebuilding
+# 'build.ninja': subcommand failed, без причины в выводе.
+#
+# При заданной FETCHCONTENT_SOURCE_DIR_<ИМЯ> FetchContent не делает ни
+# клонирования, ни обновления, ни подсборки: каталог берётся как есть, и сеть
+# не нужна вовсе. Тег объявлен в engine/platform/render/CMakeLists.txt (правило
+# 24) и остаётся описанием происхождения; сам завоз — v1.153.9398-565 с
+# проинициализированными подмодулями bgfx/bimg/bx.
+#
+# Каталога нет — строка не срабатывает, и всё идёт прежним путём через сеть.
+if(NOT DEFINED FETCHCONTENT_SOURCE_DIR_BGFX_CMAKE
+   AND EXISTS "${CMAKE_SOURCE_DIR}/third_party/bgfx.cmake/CMakeLists.txt")
+    set(FETCHCONTENT_SOURCE_DIR_BGFX_CMAKE "${CMAKE_SOURCE_DIR}/third_party/bgfx.cmake"
+        CACHE PATH "Завезённая bgfx.cmake: без сети, без клонирования")
+    message(STATUS "bgfx.cmake: завезённая копия ${FETCHCONTENT_SOURCE_DIR_BGFX_CMAKE}")
+endif()
 
 include(FetchContent)
 FetchContent_Declare(glm
