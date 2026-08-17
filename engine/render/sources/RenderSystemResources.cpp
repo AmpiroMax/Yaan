@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 17:08:2026 - 10:56:32
+Last updated: 17:08:2026 - 11:13:47
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -62,6 +62,7 @@ UPD:
   первом же ночном кадре. Поле читалось, печаталось в лог и игнорировалось, что
   хуже, чем его отсутствие. Правило DFN_CASTER_SKIP не тронуто, оно теперь
   считается по просящим.
+- 17:08:2026 - 11:13:47: тела set_firefly_mesh/set_emissive_mesh.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -328,6 +329,42 @@ struct Flame {
 // player is standing next to -- the carried torch, when he holds one.
 void RenderSystem::set_scene_lights(std::vector<ExtraLight> lights) {
     scene_lights_ = std::move(lights);
+}
+
+void RenderSystem::set_firefly_mesh(platform::IRenderer& renderer,
+                                    const MeshData& mesh) {
+    // Re-uploaded whole every frame. That is honest for a few hundred motes —
+    // 140 billboards is ~20 KB — and it keeps the swarm out of the streaming
+    // machinery entirely: nothing about a firefly belongs to a chunk.
+    if (firefly_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{firefly_mesh_id_});
+        firefly_mesh_id_ = 0;
+    }
+    if (mesh.vertices.empty() || mesh.indices.empty()) {
+        return; // daylight: no swarm, no mesh, no draw
+    }
+    const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
+    if (h.valid()) {
+        firefly_mesh_id_ = h.id;
+    }
+}
+
+void RenderSystem::set_emissive_mesh(platform::IRenderer& renderer,
+                                     const MeshData& mesh) {
+    // Set once per map, not per frame: unlike the swarm this geometry does not
+    // move, and re-uploading a static flame every frame would be paying the
+    // swarm's price for nothing.
+    if (emissive_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{emissive_mesh_id_});
+        emissive_mesh_id_ = 0;
+    }
+    if (mesh.vertices.empty() || mesh.indices.empty()) {
+        return;
+    }
+    const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
+    if (h.valid()) {
+        emissive_mesh_id_ = h.id;
+    }
 }
 
 void RenderSystem::set_transient_lights(std::vector<ExtraLight> lights) {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 10:00:40
+Last updated: 17:08:2026 - 11:13:47
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -69,6 +69,8 @@ UPD:
 - 16:08:2026 - 21:50:43: gallery_shelves_ — полки карты, уже разобранные из objects.
 - 17:08:2026 - 07:05:56: scene_spawn_ / третье лицо по двери (см. App.cpp).
 - 17:08:2026 - 10:00:40: SceneTile + scene_objects_ + refresh_scene_lod/bake_scene_tile.
+- 17:08:2026 - 11:13:47: FireflyField живёт на КАРТУ, а не на чанк — рой у края стриминга не
+  должен мигать (пользователь: «повсюду, а не только в какой-то зоне»).
 */
 
 #pragma once
@@ -92,6 +94,7 @@ UPD:
 #include "engine/platform/audio/interfaces/IAudio.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/render/sources/FirstPersonCamera.h"
+#include "engine/render/sources/FloraFireflies.h"
 #include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/RenderSystem.h"
 #include "engine/render/sources/Tour.h"
@@ -386,6 +389,10 @@ private:
         std::vector<world::Placement> parts;
         bool far_form = false;
     };
+    /// THE SWARM. Lives for the whole map, not for a chunk: the user asked for
+    /// fireflies «повсюду, а не только в какой-то зоне», and a chunk-owned
+    /// swarm would blink out at the streaming edge.
+    render::FireflyField fireflies_;
     std::vector<SceneTile> scene_tiles_;
     /// Every registry object the composition uses, near forms and `-far` forms
     /// alike, keyed by the name that was read. Kept resident because a re-bake

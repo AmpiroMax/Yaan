@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 10:56:56
+Last updated: 17:08:2026 - 11:13:47
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -265,6 +265,14 @@ UPD:
   ВСЛУХ, а не зажимается: опечатка, тихо ставшая полднем, отправила бы искать
   свет, который работает.
 - 17:08:2026 - 10:56:56: просьба лампы о тени доезжает до рендера (была мёртвой строкой).
+- 17:08:2026 - 11:13:47: ПРОВОДА СВЕТЛЯЧКОВ: init на загрузке карты (seed от мира — две руки
+  обязаны положить мушку в одно место), update СЧЁТНЫМ dt, ночь ЧИСЛОМ от
+  высоты солнца (рой всплывает в сумерках, а не включается между кадрами),
+  билборды к глазу (up = right x forward: мировое «вверх» валило бы каждую
+  мушку, стоит посмотреть вниз), огни роя — в общий отбор восьмёрки.
+  И самосветящаяся геометрия: объекты kind == "emissive" НЕ попадают в плитки
+  вовсе — плитка перепекается при смене формы, и пламя множилось бы на каждой
+  перепечке по мере ходьбы игрока.
 */
 
 #include "engine/app/sources/App.h"
@@ -1153,6 +1161,7 @@ constexpr float SCENE_FAR_OFF_M = 44.0f;
 void App::bake_scene_tile(SceneTile& tile, bool far_form) {
     render::MeshData wood;
     render::MeshData cards;
+
     for (const world::Placement& p : tile.parts) {
         // The far form when there IS one; the near form otherwise. Falling back
         // rather than skipping is the whole reason an absent `-far` is legal.
@@ -1365,6 +1374,17 @@ bool App::enter_world(uint32_t stand) {
     scene_objects_.clear();
     render_system_.set_scene_lights({});
     render_system_.set_transient_lights({});
+    render_system_.set_emissive_mesh(*renderer_, {});
+    {
+        // ONE SEED PER MAP, from the world seed: two runs of the same map must
+        // put the same mote in the same place, or no acceptance frame of a
+        // night can ever be compared with another (Rule 30).
+        render::FireflyParams fp;
+        fp.seed = gp.seed ^ 0x5EEDF11E5ull;
+        fp.world_span = static_cast<float>(config::CHUNK_SIZE)
+                        * static_cast<float>(std::max(1, gallery_size_chunks_));
+        fireflies_.init(fp);
+    }
 
     // THE GALLERY'S EXHIBITS: registry objects (.dfo), read and PLACED — the
     // world generated bare ground and knows nothing about them (в1: the game
@@ -1420,6 +1440,7 @@ bool App::enter_world(uint32_t stand) {
                 std::vector<world::Placement> parts;
             };
             std::map<std::pair<int, int>, Tile> tiles;
+            render::MeshData scene_emissive;
             auto& loaded = scene_objects_;
             int placed = 0;
             for (const world::Placement& p : doc.placements) {
@@ -1449,6 +1470,27 @@ bool App::enter_world(uint32_t stand) {
                 // The whole object goes into ONE tile, chosen by its ORIGIN:
                 // splitting an object across tiles would cut a tree in half at
                 // a boundary and let one half be culled without the other.
+                // SELF-LIT OBJECTS NEVER ENTER A TILE. Which objects those are
+                // is the OBJECT'S OWN business — kind == "emissive" in the
+                // .dfo — a convention in the file rather than a list in this
+                // code, exactly like `-far`, so the zone that forges a flame
+                // decides that it glows without asking me.
+                //
+                // They are kept OUT of the tiles on purpose: a tile is re-baked
+                // whenever its detail form changes, and a flame appended on
+                // every re-bake would multiply itself as the player walks.
+                if (obj.kind == "emissive") {
+                    render::append_transformed(scene_emissive, obj.wood, p.position,
+                                               p.yaw, p.scale);
+                    render::append_transformed(scene_emissive, obj.cards, p.position,
+                                               p.yaw, p.scale);
+                    render::append_transformed(scene_emissive, obj.bark, p.position,
+                                               p.yaw, p.scale);
+                    render::append_transformed(scene_emissive, obj.ground, p.position,
+                                               p.yaw, p.scale);
+                    ++placed;
+                    continue;
+                }
                 tiles[{static_cast<int>(std::floor(p.position.x / SCENE_TILE_M)),
                        static_cast<int>(std::floor(p.position.z / SCENE_TILE_M))}]
                     .parts.push_back(p);
@@ -1565,6 +1607,11 @@ bool App::enter_world(uint32_t stand) {
                 }
                 lamps.push_back({L.position, L.color, L.radius_m, L.casts_shadow});
                 shadowing += L.casts_shadow ? 1u : 0u;
+            }
+            render_system_.set_emissive_mesh(*renderer_, scene_emissive);
+            if (!scene_emissive.indices.empty()) {
+                std::fprintf(stderr, "[scene] %zu self-lit triangle(s) drawn unlit\n",
+                             scene_emissive.triangle_count());
             }
             render_system_.set_scene_lights(std::move(lamps));
             if (!doc.lights.empty()) {
@@ -3849,6 +3896,56 @@ int App::run() {
                                                ? static_cast<float>(config::SIM_DT)
                                                : static_cast<float>(frame_dt));
             refresh_scene_lod(eye);
+
+            // THE SWARM: counted dt, never the wall clock — two acceptance runs
+            // pinned to the same frame count must put every mote in the same
+            // place, and a wall second holds a different number of frames on a
+            // loaded machine (the same trap the game clock fell into once).
+            //
+            // NIGHT AS A NUMBER, not a switch: the sun's height fades the swarm
+            // in across dusk instead of turning it on between two frames.
+            {
+                const float sun_y = render_system_.environment().sun_direction.y;
+                const float night01 = std::clamp((0.06f - sun_y) / 0.18f, 0.0f, 1.0f);
+                const float dt = tour_.active() ? static_cast<float>(config::SIM_DT)
+                                                : static_cast<float>(frame_dt);
+                fireflies_.update(dt, night01, [this](float x, float z) {
+                    // The streamer knows the ground; a chunk that is not
+                    // resident yet answers nothing, and a mote there simply
+                    // keeps the height it had rather than dropping to zero.
+                    return chunks_.height_at({x, z}).value_or(0.0f);
+                });
+                render::MeshData swarm;
+                // The camera gives right and forward; up is their cross —
+                // billboards must face the EYE, and a world-up would tilt every
+                // mote the moment the player looks down.
+                const glm::vec3 cam_right = camera_.right(alpha);
+                const glm::vec3 cam_up = glm::normalize(
+                    glm::cross(cam_right, camera_.forward(alpha)));
+                fireflies_.build_mesh(swarm, cam_right, cam_up);
+                // SAY IT ONCE, when the swarm first exists: "the fireflies are
+                // in" is a claim, "1120 vertices at night01 0.87" is a fact,
+                // and a swarm that silently built nothing would look exactly
+                // like a swarm that is simply hard to see.
+                static bool swarm_announced = false;
+                if (!swarm_announced && !swarm.vertices.empty()) {
+                    swarm_announced = true;
+                    std::fprintf(stderr, "[fireflies] %zu mote(s) alight, %zu "
+                                         "vertices, night %.2f\n",
+                                 static_cast<std::size_t>(fireflies_.count()),
+                                 swarm.vertices.size(), static_cast<double>(night01));
+                }
+                render_system_.set_firefly_mesh(*renderer_, swarm);
+
+                std::vector<render::RenderSystem::ExtraLight> glow;
+                for (const auto& L : fireflies_.lights_ranked(eye, 3)) {
+                    // Warm green, flora's colour; the radius rides the pulse so
+                    // a breathing swarm breathes on the ground too.
+                    glow.push_back({L.pos, glm::vec3{0.62f, 0.95f, 0.45f} * L.intensity,
+                                    2.0f + L.intensity, false});
+                }
+                render_system_.set_transient_lights(std::move(glow));
+            }
 
             const auto to_world = [](const render::LodNode& n) {
                 return world::CoarseNode{n.level, n.x, n.z};

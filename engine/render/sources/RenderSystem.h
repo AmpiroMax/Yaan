@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 17:08:2026 - 10:56:32
+Last updated: 17:08:2026 - 11:13:47
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -139,6 +139,10 @@ UPD:
 - 17:08:2026 - 10:56:32: у ExtraLight и у кандидата появилось СОБСТВЕННОЕ желание тени. Два
   теневых слота раздавались ДВУМ БЛИЖАЙШИМ независимо от того, просили они
   тень или нет.
+- 17:08:2026 - 11:13:47: set_firefly_mesh / set_emissive_mesh — две порции геометрии, которая
+  рисуется БЕЗ ОСВЕЩЕНИЯ: рой (перезаливается каждый кадр) и самосветящееся
+  добро карты (пламя, стекло — заливается раз на карту). Мушка и пламя САМИ
+  есть свет; затенять их ночью значит гасить ровно то, ради чего они есть.
 */
 
 #pragma once
@@ -440,12 +444,26 @@ public:
     /// until the next one. A composition of a hundred lamps is legal — only
     /// eight are ever lit, and which eight is the budget's business.
     void set_scene_lights(std::vector<ExtraLight> lights);
+    /// THE SWARM'S BILLBOARDS for this frame. Uploaded as one small mesh and
+    /// drawn UNLIT: a firefly is its own light source, and a mote that the
+    /// canopy shades goes dark exactly where it is wanted. An empty mesh is
+    /// the ordinary daytime state and costs one branch.
+    void set_firefly_mesh(platform::IRenderer& renderer, const MeshData& mesh);
+
+    /// THE MAP'S SELF-LIT GEOMETRY: flames, glowing glass, embers. Set once
+    /// when a composition loads, drawn by the same unlit program the swarm
+    /// uses — a flame that the night shades into black is a light source that
+    /// is not lit, which is the first thing anyone notices.
+    void set_emissive_mesh(platform::IRenderer& renderer, const MeshData& mesh);
+
     /// Lights that live for ONE frame (the firefly swarm). Replaced every
     /// frame; an empty list is the normal daytime state, not an error.
     void set_transient_lights(std::vector<ExtraLight> lights);
 
 private:
     std::vector<ExtraLight> scene_lights_;
+    uint32_t firefly_mesh_id_ = 0;
+    uint32_t emissive_mesh_id_ = 0;
     std::vector<ExtraLight> transient_lights_;
 
     /// One flame gathered this frame, before the eight slots are handed out.

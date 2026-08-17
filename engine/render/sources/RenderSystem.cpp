@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 15:08:2026 - 16:10:00
+Last updated: 17:08:2026 - 11:13:47
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -142,6 +142,7 @@ UPD:
   рядом с масочным атласом, тем же ключом ревизии — два листа пекутся вместе и
   не должны кэшироваться порознь, — и отдаётся каждому дро листвы через
   aux_texture. Один лист на весь атлас: тайл сам говорит, какой это материал.
+- 17:08:2026 - 11:13:47: самосветящаяся геометрия и рой рисуются программой unlit после разброса.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -875,6 +876,18 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                 renderer.submit(platform::MeshHandle{tile.mesh_id}, prop, identity);
             }
         }
+    }
+
+    // THE SWARM, unlit and last among the world's geometry: the motes ARE
+    // light, so shading them by the sun would put them out at exactly the hour
+    // they exist for.
+    if (emissive_mesh_id_ != 0 && unlit_program_ != 0) {
+        renderer.submit(platform::MeshHandle{emissive_mesh_id_},
+                        platform::ProgramHandle{unlit_program_}, identity);
+    }
+    if (firefly_mesh_id_ != 0 && unlit_program_ != 0) {
+        renderer.submit(platform::MeshHandle{firefly_mesh_id_},
+                        platform::ProgramHandle{unlit_program_}, identity);
     }
 
     // ECS renderables: interpolated fixed-step transforms (Rule 12). Site
