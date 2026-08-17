@@ -1,9 +1,9 @@
 # Реестр объектов: деревья кузницы
 #
 # name | file | content_hash | wood_tris | leaf_tris | leaf_share
-oak-forge-a | oak-forge-a.dfo | 6a8d6a87e89faff3 | 680 | 1232 | 0.64
-oak-forge-b | oak-forge-b.dfo | 4c1105f4ae6d30da | 761 | 1776 | 0.70
-oak-forge-c | oak-forge-c.dfo | 9c831f10f2b9f553 | 707 | 1840 | 0.72
+oak-forge-a | oak-forge-a.dfo | 4332641336e73bb4 | 1856 | 1224 | 0.40
+oak-forge-b | oak-forge-b.dfo | 334c0b6650df9940 | 2246 | 1760 | 0.44
+oak-forge-c | oak-forge-c.dfo | 7a463b206ddc2d1a | 3182 | 1768 | 0.36
 birch-forge-a | birch-forge-a.dfo | c75b0eb38a567d7d | 140 | 1528 | 0.92
 birch-forge-b | birch-forge-b.dfo | f9beeb546bec2f40 | 140 | 1344 | 0.91
 spruce-forge-a | spruce-forge-a.dfo | 96f7e36537193c54 | 140 | 1592 | 0.92
@@ -13,4 +13,4 @@ aspen-forge-a | aspen-forge-a.dfo | 89cc369751221a65 | 140 | 1944 | 0.93
 pine-forge-a | pine-forge-a.dfo | e82c6e68f18942a5 | 140 | 776 | 0.85
 pine-forge-b | pine-forge-b.dfo | 8e1b896c1a5ce61f | 140 | 904 | 0.87
 larch-forge-a | larch-forge-a.dfo | 741f80baaf4578c2 | 140 | 1264 | 0.90
-great-forge-oak | great-forge-oak.dfo | 272b5fbd610a3914 | 1301 | 5632 | 0.81
+great-forge-oak | great-forge-oak.dfo | 6dac2ccba35b3ada | 4820 | 5616 | 0.54

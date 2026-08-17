@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 02:31:45
+Last updated: 17:08:2026 - 02:51:54
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -45,6 +45,7 @@ UPD:
 - 16:08:2026 - 22:40:39: Ель 7 ветвей на мутовку (складка ×2 трисов); колосс/гигант spray_per_branch 3.
 - 16:08:2026 - 22:48:45: ПОЛКА ПОЛЯНКИ assets/objects/glade: дуб-старейшина 30 м, берёзы/сосны кольца в 4/3 ростах, саженцы и молодняк, кусты, брёвна, пучки травы трёх высот, цветы трёх цветов, грибы. 25 объектов под сцену trees-glade.
 - 17:08:2026 - 02:31:45: Пресеты видов кустов: орешник, ягодник красный/тёмный (крупные ягоды), можжевельник стелющийся, папоротник — полка glade.
+- 17:08:2026 - 02:51:54: Лист 4: дуб-старейшина 50 м (ответ №1, крона Ø44); +4 ягодника — синий грозди, розовый в крапинку, зелёный капли в полоску, чёрный грозди с попкой; красному попка, тёмному сизый крап.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -324,14 +325,16 @@ int main(int argc, char** argv) {
         TreeForgeParams elder;
         elder.seed = 1301;
         elder.name = "glade-oak-elder";
-        elder.height = 30.0f;
-        elder.crown_radius = 13.0f;
-        elder.crown_base_frac = 0.22f;
-        elder.trunk_radius = 1.35f;
+        // Sheet-4 answer №1: «дуб сделай 50м» — the magic oak towers 19 m
+        // over the tallest pine, crown Ø44 m shading the ring walk.
+        elder.height = 50.0f;
+        elder.crown_radius = 22.0f;
+        elder.crown_base_frac = 0.20f;
+        elder.trunk_radius = 2.2f;
         elder.tone = LeafTone::OakDeep;
-        elder.scaffold_count = 9;
+        elder.scaffold_count = 11;
         elder.spray_per_branch = 3;
-        elder.spray_frac = 0.12f;
+        elder.spray_frac = 0.10f;
         bake(forge_tree(elder));
         // The surrounding forest: tall (not giant) birches and pines,
         // four maturity/size steps each — «разного роста и пышности».
@@ -443,6 +446,7 @@ int main(int argc, char** argv) {
             rb.berry_count = 26;
             rb.berry_r = 0.065f;
             rb.berry = {0.78f, 0.12f, 0.10f};
+            rb.berry_sepal = true;  // красные шарики с попкой
             bake(forge_bush(rb));
             BushForgeParams db; // ЯГОДНИК ТЁМНЫЙ: dark leaves, blue-black fruit
             db.seed = 1741;
@@ -455,7 +459,71 @@ int main(int argc, char** argv) {
             db.berry_count = 20;
             db.berry_r = 0.055f;
             db.berry = {0.16f, 0.14f, 0.30f};
+            db.berry_pattern = 1;  // сизый налёт крапинкой
+            db.berry_spot = {0.55f, 0.60f, 0.72f};
             bake(forge_bush(db));
+            // Sheet-4 answer №5 — the variety row: «где-то шарики, где-то
+            // грозди... красные, синие, розовенькие, зеленые... с разными
+            // рисунками... с разными попками и веточками». Four more berry
+            // bushes, each owning a distinct combination of the axes.
+            BushForgeParams bb;  // ЯГОДНИК СИНИЙ: грозди мелких синих
+            bb.seed = 1771;
+            bb.name = "glade-berry-blue";
+            bb.height = 1.2f;
+            bb.radius = 1.0f;
+            bb.stems = 6;
+            bb.tone = LeafTone::OakMid;
+            bb.card_shape = LeafShape::OvalSpray;
+            bb.berry_count = 12;
+            bb.berry_r = 0.05f;
+            bb.berry = {0.16f, 0.22f, 0.55f};
+            bb.berry_style = BerryStyle::Cluster;
+            bb.berry_stalk = 1.4f;  // грозди свисают на длинных веточках
+            bake(forge_bush(bb));
+            BushForgeParams pb;  // ЯГОДНИК РОЗОВЫЙ: мелкие в белую крапинку
+            pb.seed = 1781;
+            pb.name = "glade-berry-pink";
+            pb.height = 0.9f;
+            pb.radius = 0.8f;
+            pb.stems = 5;
+            pb.tone = LeafTone::BirchLight;
+            pb.card_shape = LeafShape::RoundLobed;
+            pb.berry_count = 24;
+            pb.berry_r = 0.042f;
+            pb.berry = {0.85f, 0.45f, 0.60f};
+            pb.berry_pattern = 1;
+            pb.berry_spot = {0.93f, 0.90f, 0.88f};
+            pb.berry_sepal = true;
+            bake(forge_bush(pb));
+            BushForgeParams gb;  // ЯГОДНИК ЗЕЛЁНЫЙ: крупные капли в полоску
+            gb.seed = 1791;
+            gb.name = "glade-berry-green";
+            gb.height = 1.3f;
+            gb.radius = 1.05f;
+            gb.stems = 6;
+            gb.tone = LeafTone::WillowOlive;
+            gb.card_shape = LeafShape::OvalSpray;
+            gb.berry_count = 18;
+            gb.berry_r = 0.07f;
+            gb.berry = {0.38f, 0.55f, 0.20f};
+            gb.berry_style = BerryStyle::Drops;
+            gb.berry_pattern = 2;  // светлые продольные полоски
+            gb.berry_spot = {0.58f, 0.74f, 0.32f};
+            bake(forge_bush(gb));
+            BushForgeParams kb;  // ЯГОДНИК ЧЁРНЫЙ: грозди чёрных с попкой
+            kb.seed = 1796;
+            kb.name = "glade-berry-black";
+            kb.height = 1.1f;
+            kb.radius = 0.9f;
+            kb.stems = 5;
+            kb.tone = LeafTone::WillowDark;
+            kb.card_shape = LeafShape::RaggedTip;
+            kb.berry_count = 10;
+            kb.berry_r = 0.048f;
+            kb.berry = {0.10f, 0.09f, 0.11f};
+            kb.berry_style = BerryStyle::Cluster;
+            kb.berry_sepal = true;
+            bake(forge_bush(kb));
             BushForgeParams jc; // МОЖЖЕВЕЛЬНИК СТЕЛЮЩИЙСЯ: flat, sizy berries
             jc.seed = 1751;
             jc.name = "glade-juniper-creep";

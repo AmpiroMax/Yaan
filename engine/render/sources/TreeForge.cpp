@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 02:31:45
+Last updated: 17:08:2026 - 02:51:54
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -62,6 +62,7 @@ UPD:
 - 16:08:2026 - 22:48:45: Реализация forge_bush/forge_fallen_log/forge_ground_prop (этап полянки).
 - 17:08:2026 - 01:26:10: Пучку травы — крошечный корневой пенёк в потоке древесины: объект из одних карт расстановщик сцены не мог поставить (стояло 111 из 195).
 - 17:08:2026 - 02:31:45: Ягоды на кончиках стволиков (двухконусные, 5.5-6.5 см, у листовой кромки); стелющийся хабитус; папоротник V-перьями; ЖЁЛУДИ-ЯБЛОКИ 11 см двухцветные с черешком («дуб волшебный»).
+- 17:08:2026 - 02:51:54: Ягоды v2: каждый плод ВИСИТ на веточке (не парит), стили шарик/гроздь-рябина/капля, крапинка бусинками, полоски рёбрами, чашелистик-попка снизу.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -867,16 +868,80 @@ RegistryObject forge_bush(const BushForgeParams& p) {
     // against the leaf mass, not buried in it.
     if (p.berry_count > 0) {
         const uint32_t berry_c = pack(p.berry);
+        const uint32_t spot_c = pack(p.berry_spot);
+        const uint32_t stalk_c = pack(p.bark * 0.75f);
+        const uint32_t calyx_c = pack(glm::vec3{0.16f, 0.20f, 0.10f});
+        // One fruit body at `at`; elong stretches Drops pole to pole. The
+        // pattern and the calyx are raised geometry on purpose: paint-only
+        // detail dies at 4-7 cm, ribs and specks survive.
+        const auto fruit = [&](const glm::vec3& at, float br, float elong) {
+            tube_segment(obj.wood, at - up * (br * elong), at, up, br * 0.25f,
+                         br * 0.95f, 4, berry_c);
+            tube_segment(obj.wood, at, at + up * (br * 0.8f * elong), up,
+                         br * 0.95f, 0.0f, 4, berry_c);
+            if (p.berry_pattern == 1) {  // крапинка
+                for (int k = 0; k < 3; ++k) {
+                    const float a = TAU * (static_cast<float>(k)
+                                           + rng.unit() * 0.5f) / 3.0f;
+                    const glm::vec3 sp = at
+                        + glm::vec3{std::cos(a), rng.sym() * 0.2f, std::sin(a)}
+                          * (br * 0.78f);
+                    tube_segment(obj.wood, sp - up * (br * 0.16f),
+                                 sp + up * (br * 0.16f), up, br * 0.03f,
+                                 br * 0.16f, 3, spot_c);
+                }
+            } else if (p.berry_pattern == 2) {  // полоски
+                for (int k = 0; k < 2; ++k) {
+                    const float a = TAU * 0.5f * static_cast<float>(k)
+                                  + rng.unit() * 0.8f;
+                    const glm::vec3 rib{std::cos(a), 0.0f, std::sin(a)};
+                    tube_segment(obj.wood,
+                                 at - up * (br * 0.55f * elong) + rib * (br * 0.62f),
+                                 at + up * (br * 0.55f * elong) + rib * (br * 0.62f),
+                                 up, br * 0.10f, br * 0.10f, 3, spot_c);
+                }
+            }
+            if (p.berry_sepal) {  // попка-чашелистик под плодом
+                tube_segment(obj.wood, at - up * (br * (elong + 0.5f)),
+                             at - up * (br * elong * 0.6f), up, br * 0.06f,
+                             br * 0.42f, 4, calyx_c);
+            }
+        };
         for (int bi = 0; bi < p.berry_count; ++bi) {
             const glm::vec3& tip = tips[static_cast<size_t>(bi) % tips.size()];
-            const glm::vec3 at = tip
-                + glm::vec3{rng.sym() * 0.22f, -0.10f - rng.unit() * 0.12f,
-                            rng.sym() * 0.22f};
             const float br = p.berry_r * (0.8f + rng.unit() * 0.4f);
-            tube_segment(obj.wood, at - up * br, at, up, br * 0.25f, br * 0.95f, 4,
-                         berry_c);
-            tube_segment(obj.wood, at, at + up * (br * 0.8f), up, br * 0.95f, 0.0f,
-                         4, berry_c);
+            const float hang = p.berry_r * p.berry_stalk
+                             + 0.06f + rng.unit() * 0.10f;
+            const glm::vec3 at = tip
+                + glm::vec3{rng.sym() * 0.22f, -hang, rng.sym() * 0.22f};
+            // ВЕТОЧКА: the stalk that actually carries the fruit — the user
+            // asked for visible attachment, not floating spheres.
+            tube_segment(obj.wood, tip, at + up * (br * 0.7f), up, br * 0.13f,
+                         br * 0.10f, 3, stalk_c);
+            switch (p.berry_style) {
+            case BerryStyle::Balls:
+                fruit(at, br, 1.0f);
+                break;
+            case BerryStyle::Drops:
+                fruit(at, br * 0.82f, 1.6f);
+                break;
+            case BerryStyle::Cluster: {
+                // Rowan-style bunch: 5-7 smaller fruits fan out and down
+                // from the stalk's end on their own short stalklets.
+                const int n = 5 + static_cast<int>(rng.unit() * 2.99f);
+                for (int k = 0; k < n; ++k) {
+                    const float a = TAU * static_cast<float>(k)
+                                  / static_cast<float>(n) + rng.unit() * 0.6f;
+                    const glm::vec3 off{std::cos(a) * br * 0.9f,
+                                        -br * (0.5f + rng.unit() * 1.1f),
+                                        std::sin(a) * br * 0.9f};
+                    tube_segment(obj.wood, at + up * (br * 0.5f), at + off,
+                                 up, br * 0.07f, br * 0.05f, 3, stalk_c);
+                    fruit(at + off, br * 0.55f, 1.0f);
+                }
+                break;
+            }
+            }
         }
     }
     obj.content_hash = object_content_hash(obj);

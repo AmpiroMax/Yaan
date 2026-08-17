@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 02:31:45
+Last updated: 17:08:2026 - 02:51:54
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -57,6 +57,7 @@ UPD:
 - 15:08:2026 - 16:17:07: frond_width: ширина ленты фронда долей от еловой — лиственница носит ту же грамматику тоньше (0.55).
 - 16:08:2026 - 22:48:45: Кузница мелкой флоры: forge_bush (стволики от земли, крона до земли — куст без болы), forge_fallen_log (лежащий ствол с рваным сломом и корневой ПЛИТОЙ — правило 52), forge_ground_prop (пучок травы из гнутых лезвий / цветы с лепестками вершинного цвета / грибы объёмом ножка+шляпка). Этап «полянка» пользователя, 16.08.
 - 17:08:2026 - 02:31:45: Кусты-ВИДЫ: berry_count/berry_r/berry (ягоды — крупные закрытые объёмы, «должно быть видно»), creeping (стелющийся можжевельник); GroundPropKind::Fern (веер гнутых перьев).
+- 17:08:2026 - 02:51:54: Ягодное РАЗНООБРАЗИЕ (лист 4, ответ №5): BerryStyle (Balls/Cluster/Drops), berry_pattern крапинка/полоски + berry_spot, berry_sepal (попка), berry_stalk (веточка). Все оси — закрытая геометрия: рисунок краской умирает на плоде 4-7 см.
 */
 
 #pragma once
@@ -111,6 +112,11 @@ struct TreeForgeParams {
 /// for write_object().
 [[nodiscard]] RegistryObject forge_tree(const TreeForgeParams& params);
 
+/// How a bush wears its fruit. Balls — single near-spheres (currant-large);
+/// Cluster — a rowan-style hanging bunch of smaller fruits on one stalk;
+/// Drops — elongated fruit with a nub tip.
+enum class BerryStyle : uint8_t { Balls = 0, Cluster = 1, Drops = 2 };
+
 /// A BUSH has no bole (rule 52 + the zone brief): several stems leave the
 /// GROUND, arc outward, and carry curved leaf sheets down to the grass.
 struct BushForgeParams {
@@ -129,6 +135,17 @@ struct BushForgeParams {
     int berry_count = 0;
     float berry_r = 0.06f;
     glm::vec3 berry{0.75f, 0.12f, 0.10f};
+    /// VARIETY AXES (user's answer №5 on sheet 4: «где-то шарики, где-то
+    /// грозди... с разными рисунками... с разными попками и веточками»).
+    /// Every axis is honest closed geometry, because a 4-7 cm fruit must
+    /// read from the path — vertex paint alone would melt at that size.
+    BerryStyle berry_style = BerryStyle::Balls;
+    /// 0 none; 1 крапинка (three raised specks of berry_spot on the flank);
+    /// 2 полоски (two vertical ribs of berry_spot pole to pole).
+    int berry_pattern = 0;
+    glm::vec3 berry_spot{0.9f, 0.88f, 0.8f};
+    bool berry_sepal = false;   ///< попка: a tiny calyx cone under the fruit
+    float berry_stalk = 0.5f;   ///< веточка: stalk length as a multiple of berry_r
     /// Creeping habit (можжевельник): stems hug the ground instead of rising.
     bool creeping = false;
 };
