@@ -16939,175 +16939,175 @@ note = фонарь кольцевой
 
 [light]
 pos = 135.91 27.94 91.74
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы grass, сторона L
 
 [light]
 pos = 132.12 27.97 75.06
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы grass, сторона R
 
 [light]
 pos = 147.11 27.75 62.16
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы grass, сторона L
 
 [light]
 pos = 135.53 28.12 44.72
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы grass, сторона R
 
 [light]
 pos = 149.59 27.69 31.32
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы grass, сторона L
 
 [light]
 pos = 147.11 27.78 14.68
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы grass, сторона R
 
 [light]
 pos = 146.71 27.50 155.71
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона L
 
 [light]
 pos = 162.64 27.30 165.25
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона R
 
 [light]
 pos = 180.69 27.15 172.15
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона L
 
 [light]
 pos = 188.83 26.91 187.78
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона R
 
 [light]
 pos = 192.33 26.76 205.63
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона L
 
 [light]
 pos = 213.41 26.69 204.96
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона R
 
 [light]
 pos = 223.53 26.55 220.37
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы dirt, сторона L
 
 [light]
 pos = 89.69 28.02 135.01
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы stone, сторона L
 
 [light]
 pos = 77.75 28.16 151.28
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы stone, сторона R
 
 [light]
 pos = 59.58 28.07 155.00
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы stone, сторона L
 
 [light]
 pos = 40.49 28.21 158.83
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы stone, сторона R
 
 [light]
 pos = 22.08 28.46 160.19
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы stone, сторона L
 
 [light]
 pos = 10.27 28.19 176.63
-color = 1 0.85 0.55
-radius_m = 6
+color = 1 0.58 0.24
+radius_m = 7.5
 casts_shadow = 0
 note = пламя факела: факел тропы stone, сторона R
 
 [light]
 pos = 131.16 27.46 107.08
-color = 1 0.80 0.45
-radius_m = 6
+color = 1 0.66 0.30
+radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
 
 [light]
 pos = 147.70 27.32 120.27
-color = 1 0.80 0.45
-radius_m = 6
+color = 1 0.66 0.30
+radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
 
 [light]
 pos = 144.53 26.82 141.20
-color = 1 0.80 0.45
-radius_m = 6
+color = 1 0.66 0.30
+radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
 
 [light]
 pos = 124.84 27.41 148.92
-color = 1 0.80 0.45
-radius_m = 6
+color = 1 0.66 0.30
+radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
 
 [light]
 pos = 108.30 27.29 135.73
-color = 1 0.80 0.45
-radius_m = 6
+color = 1 0.66 0.30
+radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
 
 [light]
 pos = 111.47 27.60 114.80
-color = 1 0.80 0.45
-radius_m = 6
+color = 1 0.66 0.30
+radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
