@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 12:49:26
+Last updated: 17:08:2026 - 13:14:56
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -56,6 +56,7 @@ UPD:
   угол мерится от граней САМОЙ стойки (её yaw), допуск выведен из ширины
   панели: atan(((w_f - T)/2) / r_in), а грань уже панели — дефект на любом
   угле. Панель/стойка узнаются по имени (wall-*, joint-*-dNN-nX-*).
+- 17:08:2026 - 13:14:56: чтение и запись [river].
 */
 
 #include "engine/world/sources/Scene.h"
@@ -161,6 +162,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
     bool in_placement = false;
     bool in_light = false;
     bool in_pad = false;
+    bool in_river = false;
     const auto flush = [&] {
         if (in_placement && !current.object.empty()) {
             out.placements.push_back(current);
@@ -178,12 +180,23 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_placement = true;
             in_light = false;
             in_pad = false;
+            in_river = false;
+            continue;
+        }
+        if (t == "[river]") {
+            flush();
+            in_placement = false;
+            in_light = false;
+            in_pad = false;
+            in_river = true;
+            out.rivers.emplace_back();
             continue;
         }
         if (t == "[pad]") {
             flush();
             in_placement = false;
             in_light = false;
+            in_river = false;
             in_pad = true;
             out.pads.emplace_back();
             continue;
@@ -192,6 +205,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             flush();
             in_placement = false;
             in_pad = false;
+            in_river = false;
             in_light = true;
             out.lights.emplace_back();
             continue;
@@ -206,6 +220,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_placement = false;
             in_light = false;
             in_pad = false;
+            in_river = false;
             continue;
         }
         const auto eq = t.find('=');
@@ -223,6 +238,38 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             return true;
         };
+        if (in_river) {
+            SceneRiver& R = out.rivers.back();
+            if (key == "point") {
+                float x = 0.0f;
+                float z = 0.0f;
+                float w = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f %f", &x, &z, &w) != 3) {
+                    error = "line " + std::to_string(line_no)
+                          + ": point wants three numbers \"x z water\"";
+                    return false;
+                }
+                R.points.emplace_back(x, z, w);
+            } else if (key == "width_m") {
+                if (!parse_float(value, R.width_m)) {
+                    error = "line " + std::to_string(line_no) + ": bad width_m";
+                    return false;
+                }
+            } else if (key == "depth_m") {
+                if (!parse_float(value, R.depth_m)) {
+                    error = "line " + std::to_string(line_no) + ": bad depth_m";
+                    return false;
+                }
+            } else if (key == "bank_m") {
+                if (!parse_float(value, R.bank_m)) {
+                    error = "line " + std::to_string(line_no) + ": bad bank_m";
+                    return false;
+                }
+            } else if (key == "note") {
+                R.note = value;
+            }
+            continue;
+        }
         if (in_pad) {
             ScenePad& P = out.pads.back();
             const auto two = [&](glm::vec2& dst) {
@@ -367,6 +414,18 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         }
         if (!p.note.empty()) {
             out << "note = " << p.note << "\n";
+        }
+    }
+    for (const SceneRiver& R : doc.rivers) {
+        out << "\n[river]\n"
+            << "width_m = " << R.width_m << "\n"
+            << "depth_m = " << R.depth_m << "\n"
+            << "bank_m = " << R.bank_m << "\n";
+        if (!R.note.empty()) {
+            out << "note = " << R.note << "\n";
+        }
+        for (const glm::vec3& q : R.points) {
+            out << "point = " << q.x << ' ' << q.y << ' ' << q.z << "\n";
         }
     }
     for (const ScenePad& P : doc.pads) {

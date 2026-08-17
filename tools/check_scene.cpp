@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 12:33:08
+Last updated: 17:08:2026 - 13:14:56
 Module: tools
 File: tools/check_scene.cpp
 
@@ -61,6 +61,7 @@ UPD:
   считается как высота твёрдой геометрии над PLAYER_STEP_HEIGHT — первый вариант
   «есть поток дерева» был побит настоящими данными: у пучка травы есть корневой
   пенёк в дереве, и каждая травинка становилась препятствием.
+- 17:08:2026 - 13:14:56: судья мерит землю с врезанными руслами.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -524,6 +525,14 @@ int main(int argc, char** argv) {
         pad.blend = P.blend;
         pad.height = P.height;
         params.composed_pads.push_back(pad);
+    }
+    for (const SceneRiver& R : doc.rivers) {
+        RiverChannel ch;
+        ch.points = R.points;
+        ch.width_m = R.width_m;
+        ch.depth_m = R.depth_m;
+        ch.bank_m = R.bank_m;
+        params.composed_rivers.push_back(std::move(ch));
     }
     const WorldGenContext gen = build_world_context(params);
 

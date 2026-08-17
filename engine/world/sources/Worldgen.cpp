@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 17:08:2026 - 11:54:29
+Last updated: 17:08:2026 - 13:14:56
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -117,6 +117,10 @@ UPD:
   compose_passes продавливает землю: взять его из другого места значило бы
   положить цвет тропы РЯДОМ с её формой, а не на неё. И число маршрутов
   печатается вслух — «тропы нет» и «тропа не нарисована» на кадре неразличимы.
+- 17:08:2026 - 13:14:56: русла режутся ПОСЛЕ площадок (река идёт ЧЕРЕЗ террасу, а не под ней —
+  иначе полка засыпала бы собственный канал), и вода авторской реки ставится в
+  поверхность чанка: гидрология ничего не знает о курсе, который нарисовал
+  композитор, и без этого врез остался бы сухим.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -545,6 +549,10 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
     // building a city on the wrong one. With an empty list this line is a
     // no-op bit for bit, which is what keeps the pinned testbed digest intact.
     ground_final = apply_pads(ctx.params.composed_pads, world, ground_final);
+    // AND THE WATERCOURSES LAST OF ALL. A river cuts through the terrace it
+    // crosses; the alternative — the pad winning — would have the town's canal
+    // filled in by the very shelf the town stands on.
+    ground_final = apply_rivers(ctx.params.composed_rivers, world, ground_final);
     return std::clamp(ground_final, 0.0f, MAX_HEIGHT_M);
 }
 
@@ -693,7 +701,20 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             const float hz = h_at(ix, iz + 1) - h_at(ix, iz - 1);
             const float slope = std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
 
-            const WaterSample& w = water[i];
+            WaterSample w = water[i];
+            // AN AUTHORED RIVER PUTS WATER IN ITS OWN CHANNEL. Without this the
+            // cut above would be a dry ditch: the hydrology pass knows nothing
+            // about a course a composer drew, so nothing would mark the sample
+            // covered and nothing would be drawn in it.
+            if (!ctx.params.composed_rivers.empty()) {
+                const float rw = river_water_surface(ctx.params.composed_rivers, world);
+                if (rw != math::NO_WATER
+                    && (w.water_surface == math::NO_WATER || rw > w.water_surface)) {
+                    w.water_surface = rw;
+                    w.near_level = rw;
+                    w.dist_to_water = 0.0f;
+                }
+            }
             const bool covered = w.water_surface != math::NO_WATER && h < w.water_surface;
             chunk.surface.dist_to_water[i] = w.dist_to_water;
             chunk.surface.water_surface[i] = covered ? w.water_surface : math::NO_WATER;

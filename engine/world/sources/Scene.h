@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 12:49:26
+Last updated: 17:08:2026 - 13:14:56
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -92,6 +92,7 @@ UPD:
   atan(((w_f - T)/2) / r_in)); joint_seat_margin_m в SceneLimits. Панель и
   стойка узнаются по ИМЕНИ реестра (wall-*, joint-*-dNN-nX-*) — имя несёт
   рабочие свойства по правилу самого набора.
+- 17:08:2026 - 13:14:56: секция [river] — точки «x z отметка_воды», ширина, глубина, берег.
 */
 
 #pragma once
@@ -163,6 +164,23 @@ struct ScenePad {
     std::string note;
 };
 
+/// A WATERCOURSE THE COMPOSITION AUTHORS. Points are "x z water_height" — the
+/// third number is the SURFACE OF THE WATER at that station, because a river's
+/// fall is a design decision (where the rapids are, how deep the town's canal
+/// sits below its quay) and not something to be derived from the ground it has
+/// not been cut into yet.
+///
+/// One statement produces both the channel CUT and the WATER standing in it.
+/// Authored as terrain alone it would be a dry ditch; as water alone, a sheet
+/// lying on a hillside.
+struct SceneRiver {
+    std::vector<glm::vec3> points; ///< x, z, water surface height (m)
+    float width_m = 6.0f;
+    float depth_m = 1.0f;
+    float bank_m = 6.0f;
+    std::string note;
+};
+
 /// One composed scene: the placements of one map.
 struct SceneDoc {
     std::string map;         ///< "category/stem" this scene composes
@@ -181,6 +199,7 @@ struct SceneDoc {
     std::vector<Placement> placements;
     std::vector<SceneLight> lights;
     std::vector<ScenePad> pads;
+    std::vector<SceneRiver> rivers;
 };
 
 /// Which rule a finding broke. Named, not numbered: a report a human reads.

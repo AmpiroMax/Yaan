@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 13:14:56
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -60,6 +60,7 @@ UPD:
   Пусто на всяком мире, который их не объявляет, и пустой список — no-op БИТ В
   БИТ: именно это позволяет завести правку высот, не сдвинув закреплённую карту
   тестбеда ни на один сэмпл.
+- 17:08:2026 - 13:14:56: WorldGenParams::composed_rivers.
 */
 
 #pragma once
@@ -98,6 +99,11 @@ struct WorldGenParams {
     /// because an authored flat is the strongest statement anyone makes about
     /// the ground: a composer who cut a terrace means it.
     std::vector<BuildingPad> composed_pads;
+    /// WATERCOURSES A COMPOSITION AUTHORED. Applied AFTER the pads, because a
+    /// river runs THROUGH a terrace rather than under it: the user asked for
+    /// one arm through the town itself, and a pad that won over the water
+    /// would fill in its own canal.
+    std::vector<RiverChannel> composed_rivers;
 };
 
 /// Precomputed world-level passes (P2 hydrology, P4 sites) shared by every

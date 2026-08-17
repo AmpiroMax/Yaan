@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 13:14:56
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -32,6 +32,10 @@ UPD:
 - 17:08:2026 - 11:35:28: apply_pads; для прямоугольника расстояние берётся ДО КОРОБКИ, а не до
   центра — снаружи ближайшая точка лежит на границе, поэтому кольцо растушёвки
   идёт по форме, а не раздувается из углов.
+- 17:08:2026 - 13:14:56: реализация; параметр отрезка ЗАЖАТ — иначе на изгибе вырастал бы
+  фантомный канал вдоль продолжения каждого сегмента. Дно БЕРЁТСЯ, а не
+  минимизируется: русло, которое «не выше дна», перегородил бы любой природный
+  подъём, и река шла бы в гору в стену нетронутой земли.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
@@ -429,6 +433,81 @@ float apply_pads(const std::vector<BuildingPad>& pads, glm::vec2 world, float h)
         }
     }
     return h;
+}
+
+bool river_nearest(const RiverChannel& river, glm::vec2 world, float& distance_m,
+                   float& water_height) {
+    if (river.points.size() < 2) {
+        return false;
+    }
+    float best = 1e30f;
+    float best_w = 0.0f;
+    for (std::size_t i = 0; i + 1 < river.points.size(); ++i) {
+        const glm::vec2 a{river.points[i].x, river.points[i].y};
+        const glm::vec2 b{river.points[i + 1].x, river.points[i + 1].y};
+        const glm::vec2 ab = b - a;
+        const float len2 = glm::dot(ab, ab);
+        // The parameter is CLAMPED, so the nearest point of a polyline is the
+        // nearest point of one of its segments — including its ends. Without
+        // the clamp a bend would grow a phantom channel along the extension of
+        // each segment.
+        const float t = len2 > 0.0f
+                          ? std::clamp(glm::dot(world - a, ab) / len2, 0.0f, 1.0f)
+                          : 0.0f;
+        const glm::vec2 q = a + ab * t;
+        const float d = glm::length(world - q);
+        if (d < best) {
+            best = d;
+            best_w = river.points[i].z + (river.points[i + 1].z - river.points[i].z) * t;
+        }
+    }
+    distance_m = best;
+    water_height = best_w;
+    return true;
+}
+
+float apply_rivers(const std::vector<RiverChannel>& rivers, glm::vec2 world, float h) {
+    for (const RiverChannel& river : rivers) {
+        float d = 0.0f;
+        float water = 0.0f;
+        if (!river_nearest(river, world, d, water)) {
+            continue;
+        }
+        const float half = river.width_m * 0.5f;
+        if (d >= half + river.bank_m) {
+            continue;
+        }
+        const float bed = water - river.depth_m;
+        if (d <= half) {
+            // THE BED IS TAKEN, NOT MINIMISED: a channel whose floor merely
+            // "went no higher than" the bed would be blocked by any rise the
+            // natural ground had there, and the river would run uphill into a
+            // wall of untouched terrain.
+            h = bed;
+        } else {
+            const float s = noise::smoothstep01((d - half) / river.bank_m);
+            h = bed + (h - bed) * s;
+        }
+    }
+    return h;
+}
+
+float river_water_surface(const std::vector<RiverChannel>& rivers, glm::vec2 world) {
+    float surface = math::NO_WATER;
+    for (const RiverChannel& river : rivers) {
+        float d = 0.0f;
+        float water = 0.0f;
+        if (!river_nearest(river, world, d, water)) {
+            continue;
+        }
+        // Water fills the CHANNEL, not the banks: the blend outside the bed is
+        // ground shaping, and calling it water would flood the whole valley
+        // out to the bank distance.
+        if (d <= river.width_m * 0.5f) {
+            surface = std::max(surface, water);
+        }
+    }
+    return surface;
 }
 
 float pads_height(const SitesData& sites, glm::vec2 world, float h) {

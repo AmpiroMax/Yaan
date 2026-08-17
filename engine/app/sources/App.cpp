@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 13:14:56
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -289,6 +289,13 @@ UPD:
   украшение поверх него. Файл читается ОДИН раз и переиспользуется для
   расстановки: второе чтение было бы вторым ответом на «что говорит этот файл»,
   и два ответа разошлись бы, если файл поменялся между ними.
+- 17:08:2026 - 13:14:56: авторские русла уходят в генератор ДО постройки земли, а их станции
+  добавляются к станциям гидрологии: врез был только половиной реки — вода это
+  ОТДЕЛЬНАЯ поверхность, и без этих строк канал города был сухой бурой канавой,
+  что первый же кадр и показал. Станции сэмплируются по полилинии с шагом, а не
+  берутся её углами: лента строится между соседними станциями, и стометровая
+  прямая иначе стала бы одним огромным четырёхугольником, провисающим над
+  рельефом.
 */
 
 #include "engine/app/sources/App.h"
@@ -1261,6 +1268,14 @@ bool App::enter_world(uint32_t stand) {
             pad.height = P.height;
             gp.composed_pads.push_back(pad);
         }
+        for (const world::SceneRiver& R : scene_doc_.rivers) {
+            world::RiverChannel ch;
+            ch.points = R.points;
+            ch.width_m = R.width_m;
+            ch.depth_m = R.depth_m;
+            ch.bank_m = R.bank_m;
+            gp.composed_rivers.push_back(std::move(ch));
+        }
         if (!scene_doc_.pads.empty()) {
             std::fprintf(stderr, "[scene] %zu authored pad(s) cut into the ground\n",
                          scene_doc_.pads.size());
@@ -1339,8 +1354,58 @@ bool App::enter_world(uint32_t stand) {
     }
 
     const auto wb = chunks_.water_bodies();
-    render_system_.set_water_bodies(*renderer_, wb.lakes, wb.river_stations,
-                                    wb.river_segment_offsets);
+    // THE COMPOSITION'S OWN WATERCOURSES, appended to the generator's. Cutting
+    // the channel was only half of a river: the ground below the water line is
+    // marked covered and shaded as a bed, but the WATER ITSELF is a separate
+    // surface built from stations, and without these lines the town's canal was
+    // a dry brown ditch — which is exactly what the first frame showed.
+    //
+    // Sampled along each authored polyline at a fixed spacing rather than at
+    // its corners: the ribbon is built between consecutive stations, so a
+    // hundred-metre straight would otherwise be one enormous quad that sags
+    // across the terrain it crosses.
+    std::vector<math::RiverStation> rivers(wb.river_stations.begin(),
+                                           wb.river_stations.end());
+    std::vector<uint32_t> river_offsets(wb.river_segment_offsets.begin(),
+                                        wb.river_segment_offsets.end());
+    if (!scene_doc_.rivers.empty()) {
+        constexpr float STATION_SPACING_M = 8.0f;
+        if (river_offsets.empty()) {
+            river_offsets.push_back(0);
+        }
+        for (const world::SceneRiver& R : scene_doc_.rivers) {
+            if (R.points.size() < 2) {
+                continue;
+            }
+            for (std::size_t i = 0; i + 1 < R.points.size(); ++i) {
+                const glm::vec3 a = R.points[i];
+                const glm::vec3 b = R.points[i + 1];
+                const glm::vec2 a2{a.x, a.y};
+                const glm::vec2 b2{b.x, b.y};
+                const float len = glm::length(b2 - a2);
+                const int steps = std::max(1, static_cast<int>(len / STATION_SPACING_M));
+                // The last point of a segment is the first of the next, so it
+                // is emitted once, by the next segment — except at the very end.
+                for (int k = 0; k < steps; ++k) {
+                    const float t = static_cast<float>(k) / static_cast<float>(steps);
+                    math::RiverStation st;
+                    st.position = a2 + (b2 - a2) * t;
+                    st.surface_height = a.z + (b.z - a.z) * t;
+                    st.half_width = R.width_m * 0.5f;
+                    rivers.push_back(st);
+                }
+            }
+            math::RiverStation last;
+            last.position = {R.points.back().x, R.points.back().y};
+            last.surface_height = R.points.back().z;
+            last.half_width = R.width_m * 0.5f;
+            rivers.push_back(last);
+            river_offsets.push_back(static_cast<uint32_t>(rivers.size()));
+        }
+        std::fprintf(stderr, "[scene] %zu authored river(s), %zu station(s)\n",
+                     scene_doc_.rivers.size(), rivers.size() - wb.river_stations.size());
+    }
+    render_system_.set_water_bodies(*renderer_, wb.lakes, rivers, river_offsets);
 
     // Path surfaces: whole-world, built at open, valid until re-open -- the
     // same lifetime as the water bodies above, so the same one-shot call site
