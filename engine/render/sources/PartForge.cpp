@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 17:08:2026 - 14:56:52
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -92,6 +92,15 @@ UPD:
   усредняется ровно в её цвет, то есть текстура меняет ПОВЕРХНОСТЬ, а не
   палитру принятой витрины. Геометрия не тронута: замкнутость, объём,
   сплошность стен и run/rise лестниц зелены теми же измерителями.
+- 17:08:2026 - 14:56:52: ТЕКСТУРНАЯ ПЕЧЬ ДЕТАЛЕЙ ВЫКЛЮЧЕНА ПО УМОЛЧАНИЮ до подключения листа.
+  Лист набора есть и геометрия несёт номера тайлов, но привязка листа к дому
+  ещё не в дереве — а до неё текстурная деталь едет по пути ЛИСТВЫ и берёт
+  тайлы из атласа листьев. Пользователь увидел это первым и назвал точно:
+  «сейчас всё из листочков и текстур дерева сделано... надо вернуть прошлое
+  состояние». Дверь DFN_PARTS_TEXTURED=1 включает новую форму тому, кто
+  сажает привязку, и заодно делает две формы контрольной парой из одного
+  бинарника. Умолчание перевернуть В ТОТ ЖЕ ДЕНЬ, когда лист привязан, и ни
+  днём раньше: наполовину посаженная фича — не фича, а регрессия с планом.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -103,6 +112,7 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
 #include <initializer_list>
@@ -126,7 +136,23 @@ namespace part_detail {
     // part gets is not decided by a rounding.
     const bool worn = wear >= 0.55f;
     PartSkin s;
-    s.textured = true;
+    // TEXTURED ONLY WHEN THE RENDERER CAN DRAW IT. The parts sheet exists and
+    // the geometry carries its tile numbers, but the binding that hands the
+    // sheet to a house is not in yet — and until it is, a textured part rides
+    // the FOLIAGE path and samples the LEAF atlas. The user saw exactly that
+    // and named it exactly: «сейчас всё из листочков и текстур дерева сделано».
+    //
+    // So the switch defaults to OFF and the kit bakes the flat, vertex-coloured
+    // form it has always had. DFN_PARTS_TEXTURED=1 turns it on for whoever is
+    // landing the binding, which also makes the two forms a control pair out of
+    // one binary (Rule 47). Flip the default the day the sheet is bound — and
+    // not a day earlier, because a half-landed feature is not a feature, it is
+    // a regression with a plan attached.
+    static const bool textured_kit = [] {
+        const char* v = std::getenv("DFN_PARTS_TEXTURED");
+        return v != nullptr && *v != '\0' && *v != '0';
+    }();
+    s.textured = textured_kit;
     s.span_m = PARTS_TILE_SPAN_M;
     const auto set = [&s](PartSurface side, PartTone tone, PartSurface end,
                           PartTone end_tone) {
