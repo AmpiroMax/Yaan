@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 19:37:50
+Last updated: 17:08:2026 - 19:39:49
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.cpp
 
@@ -33,6 +33,11 @@ UPD:
   кладка, «door» — и семейство, и проём. Без PushID по группе две фишки были
   ОДНИМ виджетом, и нажатие любой отвечало за обе. Плюс полосы перешли на
   index_of вместо просмотра полки на каждый кадр.
+- 17:08:2026 - 19:39:49: высота строки в стрижке МЕРЯЕТСЯ, а не вычисляется. Плитка это миниатюра
+  плюс подпись плюс отступ рамки кнопки, а отступ живёт внутри
+  EditorUi::image_button — то есть моя арифметика была копией чужого числа
+  (правило 35) и разъехалась бы в день смены стиля, причём молча: список
+  просто прокручивался бы не туда.
 */
 
 #include "engine/editor/sources/EditorPaletteView.h"
@@ -417,10 +422,13 @@ void draw_parts_panel(PaletteModel& model, const PaletteHooks& hooks) {
             std::max(1, static_cast<int>(ImGui::GetContentRegionAvail().x / step));
         const int lines = static_cast<int>((rows.size() + columns - 1) / columns);
         ImGuiListClipper clipper;
-        // CLIPPED BY LINE, and the row height must include the caption under
-        // the thumbnail or the clipper's arithmetic drifts from what is drawn.
-        clipper.Begin(lines, thumb + ImGui::GetTextLineHeightWithSpacing() +
-                                 ImGui::GetStyle().ItemSpacing.y);
+        // THE HEIGHT IS MEASURED, NOT COMPUTED (the -1 default). A tile is a
+        // thumbnail plus its caption plus a button's frame padding, and that
+        // padding lives inside EditorUi::image_button where this file cannot
+        // see it — so any arithmetic here would be a copy of a number owned by
+        // another module, wrong the day the style changes and wrong silently
+        // (the list would simply scroll to the wrong place). Let ImGui measure.
+        clipper.Begin(lines);
         while (clipper.Step()) {
             for (int line = clipper.DisplayStart; line < clipper.DisplayEnd; ++line) {
                 for (int c = 0; c < columns; ++c) {
@@ -439,7 +447,7 @@ void draw_parts_panel(PaletteModel& model, const PaletteHooks& hooks) {
         }
     } else {
         ImGuiListClipper clipper;
-        clipper.Begin(static_cast<int>(rows.size()), ROW_PX + ImGui::GetStyle().ItemSpacing.y);
+        clipper.Begin(static_cast<int>(rows.size())); // measured, same reason
         while (clipper.Step()) {
             for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
                 draw_part(model, hooks, rows[static_cast<std::size_t>(i)], /*grid=*/false,
