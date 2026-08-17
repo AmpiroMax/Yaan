@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 02:51:54
+Last updated: 17:08:2026 - 03:51:22
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 16:08:2026 - 22:48:45: ПОЛКА ПОЛЯНКИ assets/objects/glade: дуб-старейшина 30 м, берёзы/сосны кольца в 4/3 ростах, саженцы и молодняк, кусты, брёвна, пучки травы трёх высот, цветы трёх цветов, грибы. 25 объектов под сцену trees-glade.
 - 17:08:2026 - 02:31:45: Пресеты видов кустов: орешник, ягодник красный/тёмный (крупные ягоды), можжевельник стелющийся, папоротник — полка glade.
 - 17:08:2026 - 02:51:54: Лист 4: дуб-старейшина 50 м (ответ №1, крона Ø44); +4 ягодника — синий грозди, розовый в крапинку, зелёный капли в полоску, чёрный грозди с попкой; красному попка, тёмному сизый крап.
+- 17:08:2026 - 03:51:22: Полка glade: glade-torch-stake 2.2 м и glade-lantern-post 2.0 м — новые модели света троп (пользователь: «не те, что сейчас есть»).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -543,6 +544,20 @@ int main(int argc, char** argv) {
             fern.kind = GroundPropKind::Fern;
             fern.height = 0.7f;
             bake(forge_ground_prop(fern));
+            // СВЕТ ТРОП (этап 2): новые аккуратные модели — факел на столбе
+            // для троп (шахматно) и фонарь с кронштейном для кольцевой.
+            PathLightParams ts;
+            ts.seed = 2001;
+            ts.name = "glade-torch-stake";
+            ts.kind = PathLightKind::TorchStake;
+            ts.height = 2.2f;
+            bake(forge_path_light(ts));
+            PathLightParams lp;
+            lp.seed = 2011;
+            lp.name = "glade-lantern-post";
+            lp.kind = PathLightKind::LanternPost;
+            lp.height = 2.0f;
+            bake(forge_path_light(lp));
         }
         for (int i = 0; i < 2; ++i) {
             LogForgeParams lg;

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 02:51:54
+Last updated: 17:08:2026 - 03:51:22
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -58,6 +58,7 @@ UPD:
 - 16:08:2026 - 22:48:45: Кузница мелкой флоры: forge_bush (стволики от земли, крона до земли — куст без болы), forge_fallen_log (лежащий ствол с рваным сломом и корневой ПЛИТОЙ — правило 52), forge_ground_prop (пучок травы из гнутых лезвий / цветы с лепестками вершинного цвета / грибы объёмом ножка+шляпка). Этап «полянка» пользователя, 16.08.
 - 17:08:2026 - 02:31:45: Кусты-ВИДЫ: berry_count/berry_r/berry (ягоды — крупные закрытые объёмы, «должно быть видно»), creeping (стелющийся можжевельник); GroundPropKind::Fern (веер гнутых перьев).
 - 17:08:2026 - 02:51:54: Ягодное РАЗНООБРАЗИЕ (лист 4, ответ №5): BerryStyle (Balls/Cluster/Drops), berry_pattern крапинка/полоски + berry_spot, berry_sepal (попка), berry_stalk (веточка). Все оси — закрытая геометрия: рисунок краской умирает на плоде 4-7 см.
+- 17:08:2026 - 03:51:22: Кузница света троп (этап 2): PathLightKind TorchStake/LanternPost, forge_path_light — геометрия и яркие вершинные цвета пламени/стекла; сама точка света — секция [light] лида.
 */
 
 #pragma once
@@ -176,5 +177,21 @@ struct GroundPropParams {
     glm::vec3 accent{0.85f, 0.82f, 0.9f}; ///< petal / cap colour
 };
 [[nodiscard]] RegistryObject forge_ground_prop(const GroundPropParams& params);
+
+/// PATH LIGHTS (stage-2 of the glade, user: «фонари и факела поставить
+/// аккуратные, не те, что сейчас есть, надо новых сделать»). Geometry only —
+/// the actual light point is the lead's [light] scene section; the flame and
+/// the glass are bright vertex colour so an UNLIT lamp still reads at dusk.
+enum class PathLightKind : uint8_t { TorchStake = 0, LanternPost = 1 };
+struct PathLightParams {
+    uint64_t seed = 1;
+    std::string name = "torch";
+    PathLightKind kind = PathLightKind::TorchStake;
+    float height = 2.2f;              ///< top of the flame / lantern hook
+    glm::vec3 wood{0.15f, 0.11f, 0.07f};
+    glm::vec3 iron{0.10f, 0.10f, 0.11f};
+    glm::vec3 flame{1.0f, 0.62f, 0.18f};
+};
+[[nodiscard]] RegistryObject forge_path_light(const PathLightParams& params);
 
 } // namespace dfn::render
