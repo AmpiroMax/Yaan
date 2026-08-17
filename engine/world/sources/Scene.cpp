@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 16:30:25
+Last updated: 17:08:2026 - 17:28:41
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -69,11 +69,15 @@ UPD:
   добавляет ещё четыре правила соединителей. Здесь остался ОДИН вызов, и
   отчёт у судьи по-прежнему один. Поведение не изменилось ни на находку:
   demo (206 расстановок) и showcase (109) остаются нулевыми до и после.
+- 17:08:2026 - 17:28:41: check_stair_rules() встал рядом с check_house_rules(), и describe()
+  знает stair-seat/stair-headroom. Лестница — своя тема со своим прибором
+  (капсула игрока на носке каждой ступени), поэтому свой файл: HOUSES.md §9.
 */
 
 #include "engine/world/sources/Scene.h"
 
 #include "engine/world/sources/SceneHouseRules.h"
+#include "engine/world/sources/SceneStairRules.h"
 
 #include "engine/core/math/sources/Intersect.h"
 #include "engine/core/math/sources/Ray.h"
@@ -751,6 +755,7 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
     // они переросли этот, а этот перерос правило 21 ещё до них. Один вызов —
     // один отчёт: судья у сцены остаётся один.
     check_house_rules(doc, world, limits, found);
+    check_stair_rules(doc, world, limits, found);
 
     return found;
 }
@@ -809,6 +814,8 @@ std::string describe(const SceneFinding& f) {
     case SceneRule::JointCapacity: rule = "joint-capacity"; break;
     case SceneRule::DeckOnJoints: rule = "deck-on-joints"; break;
     case SceneRule::RoofSeat: rule = "roof-seat"; break;
+    case SceneRule::StairSeat: rule = "stair-seat"; break;
+    case SceneRule::StairHeadroom: rule = "stair-headroom"; break;
     }
     char buf[256];
     std::snprintf(buf, sizeof(buf), "[%s] #%zu %s: %s (%+.2f m)", rule,

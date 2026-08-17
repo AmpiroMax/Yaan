@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 17:08:2026 - 16:58:13
+# Last updated: 17:08:2026 - 17:16:17
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -71,6 +71,10 @@
 #   руки каждой пары отличаются ОДНИМ числом (высота этажа, число стоек, метр
 #   смещения), чтобы «правило сработало» и «не сработало» не оказались двумя
 #   разными сценами с двумя разными ошибками.
+# - 17:08:2026 - 17:16:17: core_scene_stair_rules (зона домов): лестница и ПРОЁМ над ней
+#   (HOUSES.md §9) — пять красных рук, названных пользователем поимённо, и
+#   сверка КАЛЬКУЛЯТОРА (выведенная длина проёма) с СУДЬЁЙ (капсула на каждой
+#   ступени). Они пришли к 9u разными дорогами и не зовут друг друга.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -95,3 +99,4 @@ add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 add_dfn_test(test_find_occlusion core/FindOcclusionTests.cpp dfn_world dfn_render)
 add_dfn_test(core_scene_joint_rules core/SceneJointRuleTests.cpp dfn_world)
 add_dfn_test(core_scene_house_rules core/SceneHouseRuleTests.cpp dfn_world)
+add_dfn_test(core_scene_stair_rules core/SceneStairRuleTests.cpp dfn_world)

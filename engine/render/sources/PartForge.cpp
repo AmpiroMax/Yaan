@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 15:46:07
+Last updated: 17:08:2026 - 17:28:41
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -105,6 +105,11 @@ UPD:
   определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
   тест текстурного потока не мог её попросить: он проверял умолчание и
   покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
+- 17:08:2026 - 17:28:41: make_deck() и имя настила. Проём ОБВЯЗЫВАЕТСЯ четырьмя брусьями —
+  обвязка не отделка, это геометрия, которую видят и судья, и тело
+  столкновений, чего вычитание не даёт. Сплошной настил не пишет
+  `-hole0x0x0x0-`: отсутствие объявления и объявление нуля не должны
+  выглядеть одинаково.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -333,6 +338,72 @@ void make_plank(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     hewn_bar(m, {0.0f, PLANK_THICK_M * 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f},
              {0.0f, 1.0f, 0.0f}, m_of(p.length_u), m_of(p.width_u) * 0.5f,
              PLANK_THICK_M * 0.5f, sawn, p.wear, rng, std::max(2, p.length_u / 4));
+}
+
+/// НАСТИЛ С ОБЪЯВЛЕННЫМ ПРОЁМОМ (HOUSES.md §9). Boards run along +X across a
+/// width of +Z, origin at the corner and on the UNDERSIDE like every other
+/// part of this kit, so a composer stacks it without knowing its thickness.
+///
+/// THE OPENING IS FRAMED, and the frame is the whole point rather than trim.
+/// A void made by not laying a board is byte-for-byte the same thing as a
+/// board somebody forgot — that is the defect this project already met — so
+/// this part TRIMS the void with four beams: the two headers across the boards
+/// and the two trimmers along them. A framed opening reads as built from
+/// inside the game and, more importantly, the frame is geometry the judge and
+/// the collision body can both see, which a subtraction is not.
+void make_deck(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
+    Material sawn = mat;
+    sawn.chamfer = 0.0f; // sawn boards have square arrises
+    const float L = m_of(p.length_u);
+    const float W = m_of(p.width_u);
+    const float T = m_of(p.height_u);
+    const bool holed = p.void_l_u > 0 && p.void_w_u > 0;
+    const float hx0 = m_of(p.void_x_u);
+    const float hx1 = hx0 + m_of(p.void_l_u);
+    const float hz0 = m_of(p.void_z_u);
+    const float hz1 = hz0 + m_of(p.void_w_u);
+    const Material frame = material_of(PartMaterial::Timber, p.wear, p.textured);
+    // Board width follows the shelf's plank, so a deck reads as the same timber
+    // the rest of the kit is sawn from rather than as a slab with lines on it.
+    const int boards = std::max(2, static_cast<int>(W / 0.25f + 0.5f));
+    const float bw = W / static_cast<float>(boards);
+    const float trim = std::min(m_of(1), T);   // the framing member's section
+    for (int i = 0; i < boards; ++i) {
+        const float z0 = static_cast<float>(i) * bw;
+        const float zc = z0 + bw * 0.5f;
+        // A board crossing the void is CUT at the headers, not omitted: the
+        // stub each side of the opening is what carries the header.
+        const bool crosses = holed && zc > hz0 && zc < hz1;
+        const float runs[2][2] = {{0.0f, crosses ? hx0 : L}, {hx1, L}};
+        for (int seg = 0; seg < (crosses ? 2 : 1); ++seg) {
+            const float a = runs[seg][0];
+            const float b = runs[seg][1];
+            if (b - a < 0.01f) {
+                continue; // the void reaches this edge: no stub to lay
+            }
+            hewn_bar(m, {a, T * 0.5f, zc}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
+                     b - a, bw * 0.47f, T * 0.5f, sawn, p.wear, rng,
+                     std::max(2, static_cast<int>((b - a) / 1.0f)));
+        }
+    }
+    if (!holed) {
+        return;
+    }
+    // ОБВЯЗКА ПРОЁМА: two headers across the boards, two trimmers along them.
+    for (const float x : {hx0, hx1}) {
+        if (x <= 0.01f || x >= L - 0.01f) {
+            continue; // the void runs out to this edge; nothing to head off
+        }
+        hewn_bar(m, {x, T * 0.5f, hz0}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f},
+                 hz1 - hz0, trim * 0.5f, T * 0.5f, frame, p.wear, rng, 2);
+    }
+    for (const float z : {hz0, hz1}) {
+        if (z <= 0.01f || z >= W - 0.01f) {
+            continue;
+        }
+        hewn_bar(m, {hx0, T * 0.5f, z}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
+                 hx1 - hx0, trim * 0.5f, T * 0.5f, frame, p.wear, rng, 2);
+    }
 }
 
 /// A wall bay: sill, head, two studs, and the infill between them. Timber
@@ -661,6 +732,7 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     case PartKind::SmokeVent: return "smokevent";
     case PartKind::Sleeper: return "sleeper";
     case PartKind::LogCorner: return "corner";
+    case PartKind::Deck: return "deck";
     }
     return "part";
 }
@@ -778,6 +850,20 @@ std::string part_name(const PartParams& p) {
         std::snprintf(buf, sizeof(buf), "corner-log-%s-h%d-w%02d",
                       material_name(p.material), p.length_u, wear10);
         return buf;
+    // НАСТИЛ. The void rides IN THE NAME, because that is the only carrier the
+    // judge and a months-old baked assembly can both read (HOUSES.md §4). A
+    // solid deck spells no hole token at all rather than `-hole0x0x0x0-`: the
+    // absence of a declaration and a declaration of nothing must not look the
+    // same, or «панель забыли» and «здесь по проекту сплошь» become one string.
+    case PartKind::Deck:
+        if (p.void_l_u > 0 && p.void_w_u > 0) {
+            std::snprintf(buf, sizeof(buf), "deck-%s-%dx%dx%d-hole%dx%dx%dx%d-w%02d",
+                          material_name(p.material), p.length_u, p.width_u,
+                          p.height_u, p.void_x_u, p.void_z_u, p.void_l_u,
+                          p.void_w_u, wear10);
+            return buf;
+        }
+        break;
     default: break;
     }
     std::snprintf(buf, sizeof(buf), "%s-%s-%dx%dx%d-w%02d", kind_name(p.kind),
@@ -821,6 +907,7 @@ RegistryObject forge_part(const PartParams& params) {
     case PartKind::Beam: make_beam(out, params, mat, rng); break;
     case PartKind::Post: make_post(out, params, mat, rng); break;
     case PartKind::Plank: make_plank(out, params, mat, rng); break;
+    case PartKind::Deck: make_deck(out, params, mat, rng); break;
     case PartKind::WallPanel:
         if (params.variant != 0) {
             part_detail::make_wall_styled(out, params, mat, rng);

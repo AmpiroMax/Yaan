@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 16:53:03
+Last updated: 17:08:2026 - 17:28:41
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -99,6 +99,11 @@ UPD:
   читались. Сами правила живут в SceneHouseRules.cpp — Scene.cpp перерос
   правило 21 (1052 строки) ещё до того, как заказ удвоил число соединительных
   правил, и поэтому вынос сделан ПЕРЕД тем, как писать новое.
+- 17:08:2026 - 17:28:41: StairSeat/StairHeadroom и МЕРКИ ГЕРОЯ в SceneLimits (HOUSES.md
+  §9, заказ пользователя про лестницы и проём). Мерки живут в лимитах, а не
+  литералами в правиле: «пройдёт ли игрок» обязано быть перенастраиваемым
+  вместе с игроком, иначе в день, когда герой подрастёт, дом останется с
+  шишкой, а зелёный тест — зелёным. Снова только добавления (правило 26).
 */
 
 #pragma once
@@ -260,6 +265,16 @@ enum class SceneRule : uint8_t {
     /// by its APEX on one. The exception is the КОЗЫРЁК — an eaves edge out
     /// past the building's own posts, over open ground, seats on nothing.
     RoofSeat,
+    /// ЛЕСТНИЦА — ТРЕТИЙ КЛИЕНТ ГОРИЗОНТАЛЬНЫХ ШАРНИРОВ (HOUSES.md §9,
+    /// пользователь 17.08: «надо лестницы крепить к пол-потолок»). Низ марша
+    /// садится на шарнир нижнего уровня, верх — на шарнир верхнего.
+    StairSeat,
+    /// НАД ЛЕСТНИЦЕЙ ДОЛЖНА БЫТЬ ДЫРКА, ЧЕРЕЗ КОТОРУЮ ПРОЙДЁТ ИГРОК (§9). И
+    /// это правило МЕРИТ, а не считает: капсула игрока ставится НА КАЖДУЮ
+    /// СТУПЕНЬ и спрашивает, что она задевает. Выведенная формула длины проёма
+    /// — калькулятор для генератора; при расхождении прав ЭТО правило, потому
+    /// что оно про игрока, а формула про её собственные допущения.
+    StairHeadroom,
 };
 
 /// One violation. Carries the NUMBER, not just a verdict — "hovers" is an
@@ -358,6 +373,13 @@ struct SceneLimits {
     /// stay (HOUSES.md §5: dist <= r - 0.02). The 0.02 is float safety made
     /// visible: a corner ON the joint's surface is a seam that flickers.
     float joint_seat_margin_m = 0.02f;
+    /// МЕРКИ ГЕРОЯ, которыми судья мерит проём над лестницей (HOUSES.md §9).
+    /// Копии docs/NUMBERS.md, и они живут ЗДЕСЬ, а не литералами в правиле:
+    /// правило про «пройдёт ли игрок» обязано быть перенастраиваемым вместе с
+    /// игроком, иначе в день, когда герой подрастёт, дом останется с шишкой, а
+    /// зелёный тест — зелёным.
+    float player_capsule_height_m = 1.8f;
+    float player_capsule_radius_m = 0.35f;
 };
 
 /// Reads a .scene file. Returns false and fills `error` (with the line number)

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 17:08:2026 - 16:30:25
+# Last updated: 17:08:2026 - 17:16:17
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -61,6 +61,11 @@
 #                          HOUSES.md §3-5 и §8). Вынесены из Scene.cpp, который
 #                          перерос правило 21 (1052 строки) ещё до того, как
 #                          заказ 17.08 удвоил число правил соединителей.
+# - 17:08:2026 - 17:16:17: SceneStairRules.cpp — лестница и ПРОЁМ над ней (HOUSES.md §9).
+#                          Свой файл, потому что SceneHouseRules.cpp уже упёрся
+#                          в правило 21, и потому что у лестницы свой прибор —
+#                          капсула игрока на каждой ступени, а не ещё одна
+#                          проверка посадки панели.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -70,6 +75,7 @@ add_library(dfn_world STATIC
     sources/SaveDelta.cpp
     sources/Scene.cpp
     sources/SceneHouseRules.cpp
+    sources/SceneStairRules.cpp
     sources/VoxelMesh.cpp
     sources/VoxelVolume.cpp
     sources/WorldBake.cpp

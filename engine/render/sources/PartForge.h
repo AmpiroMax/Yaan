@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 15:46:07
+Last updated: 17:08:2026 - 17:28:41
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -66,6 +66,10 @@ UPD:
   определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
   тест текстурного потока не мог её попросить: он проверял умолчание и
   покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
+- 17:08:2026 - 17:28:41: PartKind::Deck и ОБЪЯВЛЕННЫЙ ПРЯМОУГОЛЬНИК ПУСТОТЫ (void_*_u) —
+  настил пола/потолка (HOUSES.md §9). Отдельная деталь, а не куча досок,
+  ровно ради ПРОЁМА: дырка, сделанная НЕ ПОЛОЖЕННОЙ доской, неотличима от
+  доски, которую забыли. Только добавления (правило 26).
 */
 
 #pragma once
@@ -126,6 +130,14 @@ enum class PartKind : uint8_t {
     /// ДЫМНИК: the louvred ridge hood. Origin at its BASE CENTRE so it sets
     /// astride a ridge by the ridge's own coordinates.
     SmokeVent,
+    /// НАСТИЛ: the floor/ceiling PANEL, origin at its corner, boards running
+    /// along +X across a width of +Z. It exists as one part rather than as a
+    /// heap of planks for one reason, and the reason is the ПРОЁМ: a stairwell
+    /// opening has to be an OBJECT — a panel that DECLARES a rectangle of void
+    /// (`void_*_u`) and frames it with trimmers — because a hole made by not
+    /// laying a board is indistinguishable from a board somebody forgot, which
+    /// is exactly the defect these rules were written to catch (HOUSES.md §9).
+    Deck,
 };
 
 /// What a part is made OF, in the reference's own terms: the frames the user
@@ -205,6 +217,16 @@ struct PartParams {
     /// closes it with a leaf, and the wall tests assert daylight there and
     /// nowhere else.
     int opening = 0;
+    /// ОБЪЯВЛЕННЫЙ ПРЯМОУГОЛЬНИК ПУСТОТЫ (Deck): where the void starts along
+    /// the panel's +X and +Z, and how big it is — all in grid units, all zero
+    /// for a solid deck. The void is DECLARED, not implied: it rides in the
+    /// part's NAME (`-hole<x>x<z>x<l>x<w>-`), so the judge reads it off a
+    /// registry entry baked months ago exactly as the composer does, and a
+    /// frozen assembly can hand it on as a port (HOUSES.md §9, §10).
+    int void_x_u = 0;
+    int void_z_u = 0;
+    int void_l_u = 0; ///< along +X
+    int void_w_u = 0; ///< along +Z
 };
 
 /// The kit's naming rule: kind-material-LxWxH-wNN, e.g. "beam-timber-8x2x1-w06".

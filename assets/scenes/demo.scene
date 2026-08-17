@@ -787,6 +787,22 @@ group = house-frame
 note = крутой марш 45: этаж за собственную длину
 
 [place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 130.500 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+note = лежень нижнего уровня: подножие марша садится на него
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 133.750 28.375 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+note = лежень верхнего уровня: верх марша садится на него
+
+[place]
 object = passport-frame
 pos = 134.500 25.500 142.500
 yaw = 0.000000
@@ -1519,12 +1535,124 @@ group = house-stone
 note = крутой марш 45: этаж за собственную длину
 
 [place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 147.500 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+note = лежень нижнего уровня: подножие марша садится на него
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 150.750 28.375 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+note = лежень верхнего уровня: верх марша садится на него
+
+[place]
 object = passport-stone
 pos = 151.500 25.500 142.500
 yaw = 0.000000
 scale = 1
 group = house-stone
 note = паспорт дома: что это, почему такая архитектура и материалы
+
+[place]
+object = stair-steep-timber-1x4x13-w03
+pos = 172.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+note = марш 45°: 13 ступеней по 1u, этаж за свою длину
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 172.000 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+note = лежень нижнего уровня: на него садится подножие марша
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 175.250 28.375 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+note = лежень верхнего уровня: на него садится верх марша
+
+[place]
+object = deck-timber-16x16x1-hole2x6x9x4-w03
+pos = 172.500 28.500 138.500
+yaw = 0.000000
+scale = 1
+group = stairwell
+note = настил с ОБЪЯВЛЕННЫМ проёмом 9u = 2.25 м
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 176.250 28.375 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 172.250 28.375 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 172.250 25.500 139.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 172.250 25.500 143.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 175.250 25.500 139.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 175.250 25.500 143.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 176.250 25.500 139.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 176.250 25.500 143.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = passport-stair
+pos = 174.000 25.500 143.500
+yaw = 0.000000
+scale = 1
+group = stairwell
+note = паспорт клетки: почему проём именно такой длины
 
 [place]
 object = sleeper-timber-d50-nr-16u-w03
