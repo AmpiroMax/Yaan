@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 14:48:55
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -74,6 +74,7 @@ UPD:
 - 17:08:2026 - 11:35:28: scene_doc_ — композиция текущей карты, прочитанная до земли.
 - 17:08:2026 - 13:52:37: scene_collision_debug_ / collider_debug_ — DFN_DRAW_COLLIDERS.
 - 17:08:2026 - 14:48:55: draw_bake_progress — экран первого запуска.
+- 17:08:2026 - 16:27:55: AppConfig::fullscreen — режим, в котором рождается окно (settings.cfg).
 */
 
 #pragma once
@@ -141,6 +142,10 @@ struct AppConfig {
                                // grid (0/1 off, 2, 4, 8). What stopped the
                                // treeline shimmer; DFN_MSAA overrides for tooling
     bool palette_post = false; // Q9b palette quantization (DFN_PALETTE=1)
+    // settings.cfg fullscreen: the mode the window is BORN in. F11 toggles it
+    // live and writes the answer back, so the choice survives the session that
+    // made it — a fullscreen key that forgets is a key you press every launch.
+    bool fullscreen = false;
     // settings.cfg min_brightness: the floor the final image never goes below
     // (0 = honest black). Turned live by the calibration screen. Default is one
     // palette shade step, because a default of zero would show the player, on

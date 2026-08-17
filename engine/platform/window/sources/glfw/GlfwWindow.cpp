@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation (macOS Cocoa handle,
   Win32 branch compiling-clean).
+- 17:08:2026 - 16:27:55: set_fullscreen — своя частота монитора, возврат в запомненную рамку.
 */
 
 #include "engine/platform/window/sources/glfw/GlfwWindow.h"
@@ -75,6 +76,47 @@ bool GlfwWindow::init(const WindowInitParams& params) {
     g_glfw_window_alive = true;
     last_size_ = framebuffer_size();
     return true;
+}
+
+void GlfwWindow::set_fullscreen(bool on) {
+    if (window_ == nullptr || on == is_fullscreen()) {
+        return;
+    }
+    if (on) {
+        // Remember the windowed placement BEFORE leaving it — see the fields'
+        // comment. Position, not just size: a window restored to the right size
+        // in the wrong corner still reads as broken.
+        glfwGetWindowPos(window_, &windowed_x_, &windowed_y_);
+        glfwGetWindowSize(window_, &windowed_w_, &windowed_h_);
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        if (monitor == nullptr) {
+            return;
+        }
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        if (mode == nullptr) {
+            return;
+        }
+        // The monitor's OWN refresh rate, not a number we picked: anything else
+        // makes the display resample and the whole frame judder.
+        glfwSetWindowMonitor(window_, monitor, 0, 0, mode->width, mode->height,
+                             mode->refreshRate);
+        return;
+    }
+    // Returning to a window with no remembered box would put it at 0,0 with
+    // monitor size. If we never stored one (fullscreen from birth), fall back
+    // to a readable window rather than to zeros.
+    if (windowed_w_ <= 0 || windowed_h_ <= 0) {
+        windowed_x_ = 100;
+        windowed_y_ = 100;
+        windowed_w_ = 1280;
+        windowed_h_ = 720;
+    }
+    glfwSetWindowMonitor(window_, nullptr, windowed_x_, windowed_y_,
+                         windowed_w_, windowed_h_, GLFW_DONT_CARE);
+}
+
+bool GlfwWindow::is_fullscreen() const {
+    return window_ != nullptr && glfwGetWindowMonitor(window_) != nullptr;
 }
 
 void GlfwWindow::shutdown() {

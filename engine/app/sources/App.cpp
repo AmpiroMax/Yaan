@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:17:46
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -329,6 +329,7 @@ UPD:
   файла, отличим от умолчания в последних знаках); голый стенд -> 1.570796.
 - 17:08:2026 - 16:17:46: каталог бота прогулок больше не создаётся при настройке — его делает
   playtest_write_artifacts(), когда есть что записать (пустые папки, 17.08).
+- 17:08:2026 - 16:27:55: F11 — полный экран, ответ пишется в settings.cfg сразу (заказ 17.08).
 */
 
 #include "engine/app/sources/App.h"
@@ -488,6 +489,9 @@ void write_settings(const AppConfig& cfg) {
             << "#   (0.094% -> 0.004% of the screen flipping per frame); lowering\n"
             << "#   it brings that back. It does NOT change the pixel grid.\n"
             << "msaa=" << cfg.msaa_samples << "\n"
+            << "# fullscreen: 1 = the window opens on the whole screen. F11 toggles\n"
+            << "#   it at any time and writes the answer back here.\n"
+            << "fullscreen=" << (cfg.fullscreen ? 1 : 0) << "\n"
             << "# palette: 1 = 64-color quantization + dithering (DOS look), 0 = off.\n"
             << "palette=" << (cfg.palette_post ? 1 : 0) << "\n"
             << "# head_bob: bob/dip/settle motion scale; 0 disables the motion\n"
@@ -538,6 +542,8 @@ void load_or_create_settings(AppConfig& cfg) {
                              "[settings] msaa=%s REJECTED (want 0, 2, 4 or 8); "
                              "keeping %u\n", value.c_str(), cfg.msaa_samples);
             }
+        } else if (key == "fullscreen") {
+            cfg.fullscreen = !value.empty() && value[0] == '1';
         } else if (key == "palette") {
             cfg.palette_post = !value.empty() && value[0] == '1';
         } else if (key == "show_menu") {
@@ -771,6 +777,7 @@ bool App::init(const AppConfig& config) {
     wp.width = config.window_width;
     wp.height = config.window_height;
     wp.title = "Daggerfall N"; // bootstrap exception: replaced by loc lookup (sync #2 note)
+    wp.fullscreen = config.fullscreen;
     if (!window_ || !window_->init(wp)) {
         return false;
     }
@@ -3492,6 +3499,24 @@ int App::run() {
         // survived review because each half is correct on its own; only the
         // pair is wrong, which is why the fix is deleting a handler rather
         // than reordering them (Rule 32).
+        // FULLSCREEN, AND IT REMEMBERS. Toggling the window changes the
+        // framebuffer, which the normal consume_resize() path forwards to the
+        // renderer — there is no fullscreen-specific rendering path and there
+        // must not be one. The answer is written back to settings.cfg at once:
+        // a fullscreen key you have to press every launch is a key that does
+        // not work, it just does something.
+        if (!chat_typing && action_pressed(Action::Fullscreen) && window_) {
+            const bool want = !window_->is_fullscreen();
+            window_->set_fullscreen(want);
+            if (window_->is_fullscreen() == want) {
+                config_.fullscreen = want;
+                write_settings(config_);
+            } else {
+                // Loud: a backend that refused must not leave settings.cfg
+                // claiming a mode the window is not in.
+                std::fprintf(stderr, "[window] полный экран не переключился\n");
+            }
+        }
         if (!chat_typing && action_pressed(Action::MenuPause)) {
             if (render_system_.map_open()) {
                 render_system_.set_map_open(false);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.h
 
@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 17:08:2026 - 16:27:55: полный экран переключаемый; запоминаем оконную рамку, GLFW её не хранит.
 */
 
 #pragma once
@@ -55,6 +56,8 @@ public:
     [[nodiscard]] void* native_handle() const override; // NSWindow* / HWND
     [[nodiscard]] glm::uvec2 framebuffer_size() const override;
     [[nodiscard]] bool consume_resize() override;
+    void set_fullscreen(bool on) override;
+    [[nodiscard]] bool is_fullscreen() const override;
 
     /// Backend-internal: the raw GLFW handle for the sibling glfw input backend.
     /// Never exposed through IWindow; platform sources only (Rule 1).
@@ -64,6 +67,15 @@ private:
     GLFWwindow* window_ = nullptr;
     glm::uvec2 last_size_{0, 0}; // framebuffer size at the last consume_resize
     bool glfw_initialized_ = false;
+    /// WHERE THE WINDOW WAS BEFORE IT WENT FULL SCREEN. GLFW does not remember
+    /// it for us: glfwSetWindowMonitor(nullptr, ...) needs an explicit position
+    /// and size, and without these a return from fullscreen lands at whatever
+    /// the last mode-set left behind — usually the top-left corner at monitor
+    /// size, which reads as "the game broke my window".
+    int windowed_x_ = 0;
+    int windowed_y_ = 0;
+    int windowed_w_ = 0;
+    int windowed_h_ = 0;
 };
 
 } // namespace dfn::platform

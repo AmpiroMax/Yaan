@@ -143,6 +143,7 @@ controls.chat=Окно чата
 controls.quick_remark=Быстрый коммент со снимком
 controls.map=Карта
 controls.menu=Меню и пауза
+controls.fullscreen=Полный экран
 controls.fly.move.keys=WASD
 controls.fly.move=Вперёд, назад и вбок
 controls.fly.up.keys=E, Space

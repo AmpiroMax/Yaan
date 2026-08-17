@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 14:08:2026 - 19:22:10
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/app
 File: engine/app/sources/Controls.h
 
@@ -48,6 +48,7 @@ UPD:
   уметь посмотреть на это в настройках управления»), заведённый так, чтобы
   список не мог разъехаться с кодом: обработчики спрашивают клавишу ПО
   ДЕЙСТВИЮ, поэтому новая клавиша без строки в таблице просто не диспатчится.
+- 17:08:2026 - 16:27:55: Action::Fullscreen — строка таблицы, без неё клавишу не разослать.
 */
 
 #pragma once
@@ -76,6 +77,7 @@ enum class Action : uint8_t {
     QuickRemark,       // Enter
     Map,               // M
     MenuPause,         // Esc
+    Fullscreen,        // F11
     Count,
 };
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/platform/window
 File: engine/platform/window/sources/null/NullWindow.h
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
+- 17:08:2026 - 16:27:55: полный экран — тихий отказ: нечего показывать, нечего разворачивать.
 */
 
 #pragma once
@@ -40,6 +41,11 @@ public:
     [[nodiscard]] void* native_handle() const override; // always nullptr
     [[nodiscard]] glm::uvec2 framebuffer_size() const override;
     [[nodiscard]] bool consume_resize() override; // always false (never resizes)
+    // NOTHING ON SCREEN, NOTHING TO MAKE FULL. Silently accepting the request
+    // and reporting false is the honest answer for a headless window; refusing
+    // loudly would make every headless test print a warning it cannot act on.
+    void set_fullscreen(bool /*on*/) override {}
+    [[nodiscard]] bool is_fullscreen() const override { return false; }
 
 private:
     glm::uvec2 size_{0, 0};

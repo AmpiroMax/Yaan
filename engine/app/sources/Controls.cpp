@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 14:08:2026 - 19:22:10
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -14,6 +14,7 @@ AI Agents Notice (must follow):
 UPD:
 - 14:08:2026 - 19:22:10: Создан вместе с заголовком — таблица привязок, из которой
   и диспатчатся клавиши, и рисуется экран управления.
+- 17:08:2026 - 16:27:55: F11 в таблице и в key_name (тест поймал отсутствие подписи).
 */
 
 #include "engine/app/sources/Controls.h"
@@ -48,6 +49,7 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     {Action::QuickRemark, K::ENTER, K::UNKNOWN, "controls.quick_remark", Scope::Anywhere},
     {Action::Map, K::M, K::UNKNOWN, "controls.map", Scope::Anywhere},
     {Action::MenuPause, K::ESCAPE, K::UNKNOWN, "controls.menu", Scope::Anywhere},
+    {Action::Fullscreen, K::F11, K::UNKNOWN, "controls.fullscreen", Scope::Anywhere},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -123,6 +125,7 @@ const char* key_name(platform::Key key) {
     case K::F2: return "F2";
     case K::F3: return "F3";
     case K::F4: return "F4";
+    case K::F11: return "F11";
     case K::TAB: return "Tab";
     case K::ENTER: return "Enter";
     case K::ESCAPE: return "Esc";

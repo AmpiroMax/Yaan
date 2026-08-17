@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
+Last updated: 17:08:2026 - 16:27:55
 Module: engine/platform/window
 File: engine/platform/window/interfaces/IWindow.h
 
@@ -37,6 +37,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
+- 17:08:2026 - 16:27:55: set_fullscreen/is_fullscreen — полный экран во время работы, а не только при рождении окна.
 */
 
 #pragma once
@@ -83,6 +84,16 @@ public:
     // Returns true if the framebuffer size changed since the previous call and
     // clears the flag (one consumer: the app, which forwards to IRenderer::resize).
     [[nodiscard]] virtual bool consume_resize() = 0;
+
+    // FULLSCREEN AT RUNTIME. `fullscreen` at init only chose the mode the
+    // window was BORN in; a player who wants the whole screen has to be able
+    // to ask mid-game. Toggling is expected to change the framebuffer size, so
+    // the next consume_resize() reports it like any other resize — no separate
+    // path, and the renderer needs to know nothing about fullscreen.
+    // A backend that cannot do it (the null window) answers false forever,
+    // which is honest: nothing on screen, nothing to make full.
+    virtual void set_fullscreen(bool on) = 0;
+    [[nodiscard]] virtual bool is_fullscreen() const = 0;
 };
 
 } // namespace dfn::platform
