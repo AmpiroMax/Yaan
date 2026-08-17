@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 12:33:08
 Module: tools
 File: tools/check_scene.cpp
 
@@ -57,8 +57,13 @@ UPD:
   читался бы как закопанный на глубину самой полки, и отчёт стал бы шумом ровно
   там, где инструмент нужнее всего. И --ground с указанной сценой отвечает
   ПОСЛЕ её площадок (передай "-", чтобы спросить натуральную).
+- 17:08:2026 - 12:33:08: судья спрашивает ТУ ЖЕ сеть троп, которой продавлена земля; «твёрдость»
+  считается как высота твёрдой геометрии над PLAYER_STEP_HEIGHT — первый вариант
+  «есть поток дерева» был побит настоящими данными: у пучка травы есть корневой
+  пенёк в дереве, и каждая травинка становилась препятствием.
 */
 
+#include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/ProcMesh.h"
 #include "engine/world/sources/LayoutLoad.h"
@@ -92,8 +97,11 @@ struct Ctx {
         float radius = 0.0f;
         float bottom = 0.0f;
         float top = 0.0f;
+        bool solid = false; ///< has wood or bark: the streams a body is built from
         glm::vec2 lo{0.0f};   ///< local xz footprint, about the origin
         glm::vec2 hi{0.0f};
+        glm::vec2 slo{0.0f};  ///< the same, of the SOLID streams only
+        glm::vec2 shi{0.0f};
     };
     std::map<std::string, Extent> extents;
 };
@@ -128,11 +136,64 @@ const Ctx::Extent* measure(Ctx* c, const std::string& name) {
             e.hi = glm::max(e.hi, glm::vec2{v.position.x, v.position.z});
         }
     };
+    const auto scan_solid = [&](const dfn::render::MeshData& mesh) {
+        for (const dfn::platform::Vertex& v : mesh.vertices) {
+            e.slo = glm::min(e.slo, glm::vec2{v.position.x, v.position.z});
+            e.shi = glm::max(e.shi, glm::vec2{v.position.x, v.position.z});
+        }
+    };
+    scan_solid(obj->wood);
+    scan_solid(obj->bark);
     scan(obj->wood);
     scan(obj->cards);
     scan(obj->ground);
     scan(obj->bark);
+    // AN OBSTACLE IS SOLID GEOMETRY TALLER THAN A STEP. "Has a wood stream"
+    // was the first cut and it was defeated by real data: flora gives a grass
+    // tuft a few-centimetre ROOT NUB in the wood stream so the placer will
+    // render it at all, which made every blade of grass an obstacle and buried
+    // the report under forty thousand meadow findings.
+    //
+    // The number is PLAYER_STEP_HEIGHT, not a guess: what a walker steps over
+    // without noticing is not in his way, so two such things sharing ground is
+    // a meadow and not a defect. Above it, they are two trunks in one hole.
+    float solid_top = 0.0f;
+    for (const dfn::render::MeshData* m : {&obj->wood, &obj->bark}) {
+        for (const dfn::platform::Vertex& v : m->vertices) {
+            solid_top = std::max(solid_top, v.position.y);
+        }
+    }
+    e.solid = solid_top > static_cast<float>(dfn::config::PLAYER_STEP_HEIGHT);
     return &c->extents.emplace(name, e).first->second;
+}
+
+bool object_box_solid(void* ctx, const std::string& name, glm::vec2& lo,
+                      glm::vec2& hi) {
+    const Ctx::Extent* e = measure(static_cast<Ctx*>(ctx), name);
+    if (e == nullptr) {
+        return false;
+    }
+    lo = e->slo;
+    hi = e->shi;
+    return true;
+}
+
+bool object_solid(void* ctx, const std::string& name) {
+    const Ctx::Extent* e = measure(static_cast<Ctx*>(ctx), name);
+    return e != nullptr && e->solid;
+}
+
+/// Metres from the outer edge of the worn path surface, outward. THE SAME
+/// network the ground was worn by (ctx->gen->paths): a judge that asked a
+/// second source could forbid building where the ground shows no path and
+/// permit it where the ground shows one.
+bool path_clearance(void* ctx, glm::vec2 world, float& metres) {
+    const auto* c = static_cast<Ctx*>(ctx);
+    if (c->gen->paths.routes.empty()) {
+        return false; // no network on this world: the rule cannot fire
+    }
+    metres = c->gen->paths.sample(world).dist_from_worn_edge;
+    return true;
 }
 
 bool object_extent(void* ctx, const std::string& name, float& radius, float& bottom) {
@@ -520,6 +581,9 @@ int main(int argc, char** argv) {
     world.object_extent = &object_extent;
     world.object_top = &object_top;
     world.object_box = &object_box;
+    world.path_clearance = &path_clearance;
+    world.object_solid = &object_solid;
+    world.object_box_solid = &object_box_solid;
     world.ctx = &ctx;
 
     if (fix) {

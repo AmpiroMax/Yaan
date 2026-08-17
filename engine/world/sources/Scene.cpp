@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 12:33:08
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -45,6 +45,10 @@ UPD:
 - 17:08:2026 - 10:53:33: чтение и запись [light]; неизвестный ключ внутри секции пропускается,
   кривое число — ошибка со строкой, как и везде в этом файле.
 - 17:08:2026 - 11:35:28: чтение и запись [pad].
+- 17:08:2026 - 12:33:08: реализация OffPath (пять проб по следу, а не по началу: дуб в двух
+  метрах от полотна всё равно роняет на него крону) и OutsideBuildings
+  (след постройки — ОБЪЕДИНЕНИЕ следов её деталей, а не выпуклая оболочка: у
+  Г-образного дома в выемке двор, и бочка там стоять может).
 */
 
 #include "engine/world/sources/Scene.h"
@@ -58,6 +62,7 @@ UPD:
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 namespace dfn::world {
@@ -372,8 +377,13 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
         /// turned by yaw and moved into place.
         glm::vec2 lo{0.0f};
         glm::vec2 hi{0.0f};
+        /// The same box built from the SOLID part only — what the overlap rule
+        /// asks about. Equal to lo/hi when no solid box is supplied.
+        glm::vec2 slo{0.0f};
+        glm::vec2 shi{0.0f};
         bool known = false;
         bool has_top = false;
+        bool solid = true; ///< no hook = everything is solid, as it always was
     };
     std::vector<Sized> sizes(doc.placements.size());
     for (std::size_t i = 0; i < doc.placements.size(); ++i) {
@@ -386,6 +396,9 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
             && world.object_top(world.ctx, p.object, s.top)) {
             s.top *= p.scale;
             s.has_top = true;
+        }
+        if (s.known && world.object_solid != nullptr) {
+            s.solid = world.object_solid(world.ctx, p.object);
         }
         glm::vec2 blo{0.0f};
         glm::vec2 bhi{0.0f};
@@ -412,7 +425,35 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
             s.lo = {p.position.x - s.radius, p.position.z - s.radius};
             s.hi = {p.position.x + s.radius, p.position.z + s.radius};
         }
+        s.slo = s.lo;
+        s.shi = s.hi;
+        glm::vec2 qlo{0.0f};
+        glm::vec2 qhi{0.0f};
+        if (s.known && world.object_box_solid != nullptr
+            && world.object_box_solid(world.ctx, p.object, qlo, qhi)) {
+            const float c = std::cos(p.yaw);
+            const float sn = std::sin(p.yaw);
+            s.slo = glm::vec2{1e30f};
+            s.shi = glm::vec2{-1e30f};
+            for (int k = 0; k < 4; ++k) {
+                const float lx = (k & 1) ? qhi.x : qlo.x;
+                const float lz = (k & 2) ? qhi.y : qlo.y;
+                const glm::vec2 w{p.position.x + (lx * c + lz * sn) * p.scale,
+                                  p.position.z + (-lx * sn + lz * c) * p.scale};
+                s.slo = glm::min(s.slo, w);
+                s.shi = glm::max(s.shi, w);
+            }
+        }
     }
+
+    /// Penetration of the SOLID footprints — what "inside each other" means.
+    const auto solid_penetration = [&sizes](std::size_t a, std::size_t b) {
+        const float x = std::min(sizes[a].shi.x, sizes[b].shi.x)
+                      - std::max(sizes[a].slo.x, sizes[b].slo.x);
+        const float z = std::min(sizes[a].shi.y, sizes[b].shi.y)
+                      - std::max(sizes[a].slo.y, sizes[b].slo.y);
+        return std::min(x, z);
+    };
 
     /// How deep two footprints interpenetrate in xz, metres. <= 0 = apart.
     const auto penetration = [&sizes](std::size_t a, std::size_t b) {
@@ -508,12 +549,87 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
         }
     }
 
+    // NOTHING ON A PATH. Asked of the SAME field the ground was worn by, so
+    // the judge can never forbid building where the ground shows no path, nor
+    // allow it where the ground shows one.
+    //
+    // MEASURED AT THE FOOTPRINT'S CORNERS AND CENTRE, not at the origin alone:
+    // an oak whose trunk stands a metre off the tread still drops its crown
+    // and its roots across it, and a wall whose corner clips the road still
+    // blocks the road. Five probes are enough for the boxes this world has and
+    // cheap enough to run on every placement of a two-thousand-object scene.
+    if (world.path_clearance != nullptr) {
+        for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+            if (!sizes[i].known) {
+                continue;
+            }
+            const glm::vec2 lo = sizes[i].lo;
+            const glm::vec2 hi = sizes[i].hi;
+            const glm::vec2 probes[5] = {(lo + hi) * 0.5f, lo, {hi.x, lo.y},
+                                         {lo.x, hi.y}, hi};
+            float worst = 1e9f;
+            for (const glm::vec2& p : probes) {
+                float m = 1e9f;
+                if (world.path_clearance(world.ctx, p, m)) {
+                    worst = std::min(worst, m);
+                }
+            }
+            if (worst < limits.path_clearance_m) {
+                found.push_back({SceneRule::OffPath, i, doc.placements[i].object,
+                                 limits.path_clearance_m - worst,
+                                 worst < 0.0f ? "stands ON a path"
+                                              : "crowds a path"});
+            }
+        }
+    }
+
+    // NOTHING INSIDE A BUILDING IT IS NOT PART OF. One rule, read from both
+    // ends: a tree in a house and a house on a tree are the same overlap. The
+    // building's footprint is the union of its members' — not a convex hull,
+    // because an L-shaped house has a yard in its notch and a barrel may
+    // stand there.
+    {
+        std::map<std::string, std::vector<std::size_t>> groups;
+        for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+            if (sizes[i].known && !doc.placements[i].group.empty()) {
+                groups[doc.placements[i].group].push_back(i);
+            }
+        }
+        for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+            if (!sizes[i].known) {
+                continue;
+            }
+            for (const auto& [name, members] : groups) {
+                if (doc.placements[i].group == name) {
+                    continue; // a member of the building is not intruding on it
+                }
+                float deepest = 0.0f;
+                for (const std::size_t m : members) {
+                    const float x = std::min(sizes[i].hi.x, sizes[m].hi.x)
+                                  - std::max(sizes[i].lo.x, sizes[m].lo.x);
+                    const float z = std::min(sizes[i].hi.y, sizes[m].hi.y)
+                                  - std::max(sizes[i].lo.y, sizes[m].lo.y);
+                    deepest = std::max(deepest, std::min(x, z));
+                }
+                if (deepest > limits.building_slack_m) {
+                    found.push_back({SceneRule::OutsideBuildings, i,
+                                     doc.placements[i].object,
+                                     deepest - limits.building_slack_m,
+                                     "stands inside \"" + name + "\""});
+                }
+            }
+        }
+    }
+
     // NOT INSIDE EACH OTHER. Slack because crowns legitimately mingle in a
     // wood; what this catches is two trunks in one hole.
     for (std::size_t i = 0; i < doc.placements.size(); ++i) {
         if (!sizes[i].known) continue;
+        if (!sizes[i].solid) {
+            continue; // ground cover: the player walks through it, so may others
+        }
         for (std::size_t j = i + 1; j < doc.placements.size(); ++j) {
-            if (!sizes[j].known) continue;
+            if (!sizes[j].known || !sizes[j].solid) continue;
             // Two members of one built thing are ALLOWED to interpenetrate:
             // that is what a joint is. The rule still guards everything else,
             // including one house standing inside another.
@@ -521,7 +637,7 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
                 && doc.placements[i].group == doc.placements[j].group) {
                 continue;
             }
-            const float deep = penetration(i, j);
+            const float deep = solid_penetration(i, j);
             if (deep > limits.overlap_slack_m) {
                 found.push_back({SceneRule::NoOverlap, i, doc.placements[i].object,
                                  deep - limits.overlap_slack_m,
@@ -578,6 +694,8 @@ std::string describe(const SceneFinding& f) {
     case SceneRule::InsideBounds: rule = "inside-bounds"; break;
     case SceneRule::NoOverlap: rule = "no-overlap"; break;
     case SceneRule::KnownObject: rule = "known-object"; break;
+    case SceneRule::OffPath: rule = "off-path"; break;
+    case SceneRule::OutsideBuildings: rule = "outside-buildings"; break;
     }
     char buf[256];
     std::snprintf(buf, sizeof(buf), "[%s] #%zu %s: %s (%+.2f m)", rule,

@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 17:08:2026 - 10:53:33
+Last updated: 17:08:2026 - 12:33:08
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -38,6 +38,11 @@ UPD:
 - 17:08:2026 - 10:53:33: лампы [light] в круговороте, и погашенная (радиус 0) возвращается
   погашенной: читатель, «услужливо» вернувший ей яркость, переспорил бы
   композитора.
+- 17:08:2026 - 12:33:08: оба новых правила с обеих сторон: дерево НА тропе, дерево РЯДОМ с
+  тропой (ловится кроной, а не стволом — иначе правило мерило бы начало),
+  контроль вдали, контроль без поля троп; дерево в доме, деталь дома в своём же
+  доме (не находка), контроль рядом, и то же самое в обратном порядке записи —
+  правило не должно зависеть от того, кого поставили первым.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -308,6 +313,91 @@ TEST_CASE("scene: a built thing stands on itself") {
         // one place, which is the defect the rule was written for.
         doc.placements[1].group = "barn";
         CHECK(has(check_scene(doc, test_world()), SceneRule::NoOverlap));
+    }
+}
+
+namespace {
+/// A single straight path down x = 100: worn half-width 1 m, so the trodden
+/// surface is 99..101 and the clearance is measured outward from its edge.
+bool one_path(void*, glm::vec2 p, float& metres) {
+    metres = std::fabs(p.x - 100.0f) - 1.0f;
+    return true;
+}
+} // namespace
+
+TEST_CASE("scene: nothing stands on a path") {
+    SceneWorld w = test_world();
+    w.path_clearance = &one_path;
+
+    SceneDoc doc;
+    doc.world_span_m = 256.0f;
+
+    SUBCASE("a tree ON the tread is caught") {
+        doc.placements = {at("tree", 100.0f, GROUND_Y, 60.0f)};
+        const auto found = check_scene(doc, w);
+        CHECK(has(found, SceneRule::OffPath));
+    }
+
+    SUBCASE("a tree BESIDE the tread is caught by its CROWN, not its trunk") {
+        // Trunk at x = 103, two metres clear of the worn edge at 101 — but the
+        // tree's footprint is 3 m of radius, so its crown is over the road.
+        // Measuring the origin alone would pass this, which is the whole
+        // reason the rule probes the footprint.
+        doc.placements = {at("tree", 103.0f, GROUND_Y, 60.0f)};
+        CHECK(has(check_scene(doc, w), SceneRule::OffPath));
+    }
+
+    SUBCASE("CONTROL: the same tree far enough away is legal") {
+        doc.placements = {at("tree", 110.0f, GROUND_Y, 60.0f)};
+        CHECK_FALSE(has(check_scene(doc, w), SceneRule::OffPath));
+    }
+
+    SUBCASE("CONTROL: with no path field the rule cannot fire at all") {
+        doc.placements = {at("tree", 100.0f, GROUND_Y, 60.0f)};
+        CHECK_FALSE(has(check_scene(doc, test_world()), SceneRule::OffPath));
+    }
+}
+
+TEST_CASE("scene: nothing stands inside a building it is not part of") {
+    SceneWorld w = test_world();
+    SceneDoc doc;
+    doc.world_span_m = 256.0f;
+
+    const auto beam_at = [](float x, float z, const char* group) {
+        Placement p = at("beam", x, GROUND_Y, z);
+        p.group = group;
+        return p;
+    };
+
+    SUBCASE("a tree in the middle of the house is caught") {
+        // The user's own pair of cases, and they are ONE rule: «нельзя дерево в
+        // доме ставить / дом поверх дерева ставить».
+        doc.placements = {beam_at(100.0f, 100.0f, "house"),
+                          beam_at(100.0f, 102.0f, "house"),
+                          at("tree", 100.5f, GROUND_Y, 101.0f)};
+        const auto found = check_scene(doc, w);
+        CHECK(has(found, SceneRule::OutsideBuildings));
+    }
+
+    SUBCASE("a member of the house is NOT intruding on its own house") {
+        doc.placements = {beam_at(100.0f, 100.0f, "house"),
+                          beam_at(100.5f, 100.0f, "house")};
+        CHECK_FALSE(has(check_scene(doc, w), SceneRule::OutsideBuildings));
+    }
+
+    SUBCASE("CONTROL: a tree beside the house is legal") {
+        doc.placements = {beam_at(100.0f, 100.0f, "house"),
+                          at("tree", 112.0f, GROUND_Y, 100.0f)};
+        CHECK_FALSE(has(check_scene(doc, w), SceneRule::OutsideBuildings));
+    }
+
+    SUBCASE("and it reads the other way round: a house over a tree") {
+        // Same geometry, opposite order of authoring — the finding must still
+        // appear, or the rule would depend on who was placed first.
+        doc.placements = {at("tree", 100.5f, GROUND_Y, 101.0f),
+                          beam_at(100.0f, 100.0f, "house"),
+                          beam_at(100.0f, 102.0f, "house")};
+        CHECK(has(check_scene(doc, w), SceneRule::OutsideBuildings));
     }
 }
 

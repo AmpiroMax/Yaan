@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 12:33:08
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -76,6 +76,15 @@ UPD:
   («редактировать масштаб и карту высот»). Площадка это УТВЕРЖДЕНИЕ, а не мазок
   кистью: «здесь земля такой высоты, растушёвка столько метров», — поэтому её
   можно двигать, перечитывать и судить, чего нарисованное поле высот не умеет.
+- 17:08:2026 - 12:33:08: ПРАВИЛА РАЗМЕЩЕНИЯ по заданию пользователя («запретим ставить деревья
+  на любые тропы... как например нельзя дерево в доме ставить, дом поверх
+  дерева ставить»): OffPath и OutsideBuildings. Второе — ОДНО правило с двух
+  концов: дерево в доме и дом поверх дерева это одно и то же пересечение,
+  увиденное с разных сторон, и два правила разошлись бы в первом же спорном
+  случае. Плюс два крюка, которые делают их не шумными: object_solid (препятствие
+  — это твёрдая геометрия ВЫШЕ ШАГА игрока; трава и цветы им не являются) и
+  object_box_solid (пересечение меряется по СТВОЛАМ, а не по кронам: две берёзы
+  в двух метрах — это лес, а не дефект).
 */
 
 #pragma once
@@ -173,6 +182,16 @@ enum class SceneRule : uint8_t {
     InsideBounds,  ///< the whole object stays inside the map
     NoOverlap,     ///< two objects do not stand inside each other
     KnownObject,   ///< the registry has an object by this name
+    /// NOTHING STANDS ON A PATH. A road with a tree growing out of it is not a
+    /// road, and the path is now the ground's own property — so an object over
+    /// it is not merely ugly, it contradicts what the ground says it is.
+    OffPath,
+    /// NOTHING STANDS INSIDE A BUILDING THAT IS NOT PART OF IT — and the rule
+    /// reads both ways, which is why it is one rule and not two: a tree in a
+    /// house and a house on a tree are the same overlap seen from two ends.
+    /// The user named both (17.08): «нельзя дерево в доме ставить / дом поверх
+    /// дерева ставить».
+    OutsideBuildings,
 };
 
 /// One violation. Carries the NUMBER, not just a verdict — "hovers" is an
@@ -211,6 +230,38 @@ struct SceneWorld {
     /// then "stands inside" everything in the yard.
     bool (*object_box)(void* ctx, const std::string& name, glm::vec2& min_xz,
                        glm::vec2& max_xz) = nullptr;
+    /// Metres from the OUTER EDGE of the worn path surface, outward; negative
+    /// ON the trodden surface. OPTIONAL — a world with no paths supplies none,
+    /// and then the path rule simply never fires.
+    ///
+    /// It asks the SAME field the ground was worn by. Asking a second source
+    /// would let the judge forbid building where the ground shows no path, and
+    /// permit it where the ground shows one.
+    bool (*path_clearance)(void* ctx, glm::vec2 world_xz, float& metres) = nullptr;
+    /// Is this object SOLID — does it have geometry a body is built from?
+    /// OPTIONAL; without it everything counts as solid, which is what the rule
+    /// assumed before the question could be asked.
+    ///
+    /// It is the criterion the GAME already uses: an object with no solid
+    /// stream gets no collision body and the player walks through it. Grass,
+    /// flowers and mushrooms are such objects, and two of them sharing a
+    /// patch of ground is a meadow, not a defect — which is why the overlap
+    /// rule must not fire on them. Deciding this by a LIST OF SPECIES would
+    /// have been a second definition of "solid" that drifts from the one the
+    /// player's knees already know.
+    bool (*object_solid)(void* ctx, const std::string& name) = nullptr;
+    /// The footprint of the object's SOLID part only — its trunk and its
+    /// walls, not its crown. OPTIONAL; without it the whole footprint is used,
+    /// as before.
+    ///
+    /// The overlap rule needs this and the support rule must NOT have it. Two
+    /// birches two metres apart have mingling crowns and separate trunks: that
+    /// is a wood, and measuring their crowns called it a defect forty thousand
+    /// times on one map. A beam resting on a post, on the other hand, rests on
+    /// whatever part of it is under it. Same objects, two questions, two
+    /// footprints.
+    bool (*object_box_solid)(void* ctx, const std::string& name, glm::vec2& min_xz,
+                             glm::vec2& max_xz) = nullptr;
     void* ctx = nullptr;
 };
 
@@ -227,6 +278,14 @@ struct SceneLimits {
     float bury_tolerance_m = 0.5f;
     float edge_margin_m = 2.0f;       ///< keep this much of the map beyond it
     float overlap_slack_m = 0.5f;     ///< crowns may mingle by this much
+    /// How far an object must keep from the worn edge of a path. Not zero: a
+    /// trunk exactly at the edge still drops its crown and its roots over the
+    /// tread, and a walker still has to step around it.
+    float path_clearance_m = 0.5f;
+    /// How far a loose object must keep out of a building's footprint. Small
+    /// on purpose — a barrel against a wall is a barrel against a wall, not a
+    /// defect; what this rule is for is a tree in the middle of a room.
+    float building_slack_m = 0.25f;
 };
 
 /// Reads a .scene file. Returns false and fills `error` (with the line number)
