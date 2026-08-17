@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:37:50
+Last updated: 17:08:2026 - 20:58:32
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.cpp
 
@@ -29,6 +29,11 @@ UPD:
   (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
   по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
 - 17:08:2026 - 19:37:50: index_of() и selected_index() через него — один поиск на всех.
+- 17:08:2026 - 20:58:32: ДВЕ ПОТЕРЯННЫЕ СВОЙСТВА, обе найдены одним рукавом на различимость.
+  (1) `hole` у настила выбрасывался — 16 настилов из 24 различаются ТОЛЬКО им,
+  то есть меню держало восемь пар неотличимых строк. Теперь метка.
+  (2) ширина марша выбрасывалась вместе со всей тройкой — все 76 лестниц
+  схлопывались в 38 неотличимых пар. Теперь width_m.
 */
 
 #include "engine/editor/sources/EditorPalette.h"
@@ -164,7 +169,15 @@ PartFacets parse_part_name(std::string_view name) {
         const std::string& t = tok[i];
         int box[3] = {0, 0, 0};
         if (t.rfind("hole", 0) == 0) {
-            continue; // the deck's declared void: a property of the hole, not a size
+            // THE DECK'S DECLARED VOID IS A PROPERTY, NOT NOISE. Dropping it
+            // cost 16 of the 24 decks their identity: they differ from each
+            // other in NOTHING ELSE, so the menu offered eight pairs of rows
+            // it could not tell apart and a property chooser could never
+            // reach. Kept as a tag because that is what it is — a word in the
+            // name that distinguishes the part — and because a tag needs no
+            // new field, no new axis and no new vocabulary.
+            f.tags.push_back(t);
+            continue;
         }
         if (parse_box(t, box)) {
             f.box_u[0] = box[0];
@@ -214,6 +227,11 @@ PartFacets parse_part_name(std::string_view name) {
     // STEPS) and the first number is pinned at 1 for both pitches, so it is not
     // a length at all. Its span is left unstated; the measured extent fills it.
     if (f.family == "stair") {
+        // (going_u, width_u, STEPS) — SceneStairRules.cpp names the same three.
+        // The width is KEPT: it is the passage the player walks up, and dropping
+        // it collapsed all 76 flights into 38 indistinguishable pairs, because a
+        // 1.0 m and a 1.5 m flight of the same pitch differ in nothing else.
+        f.width_m = static_cast<float>(f.box_u[1]) * KIT_UNIT_M;
         f.steps = f.box_u[2];
         f.box_u[0] = 0;
         f.box_u[1] = 0;

@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:37:50
+Last updated: 17:08:2026 - 20:58:32
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.h
 
@@ -62,6 +62,10 @@ UPD:
 - 17:08:2026 - 19:37:50: index_of() — двоичный поиск по имени. Полосы избранного и недавних
   разрешают дюжину имён КАЖДЫЙ кадр, а это тридцать тысяч сравнений строк на
   кадр при 2411 строках ради двух рядов миниатюр.
+- 17:08:2026 - 20:58:32: PartFacets::width_m — ширина марша. Отдельным полем, потому что лестница
+  объявляет её внутри тройки, которая не коробка, и потому что она НЕ имеет права
+  попасть в span_m: 1.5 м ширины, названные размахом 4.6-метрового марша, это ложь
+  там, где молчание всего лишь пробел.
 */
 
 #pragma once
@@ -125,6 +129,15 @@ struct PartFacets {
     float height_m = 0.0f;    ///< hNN in grid units (h13 → 3.25 m); 0 = none
     float length_m = 0.0f;    ///< NNu (12u → 3.0 m); 0 = none
     int box_u[3] = {0, 0, 0}; ///< AxBxC in grid units; all zero = no box token
+
+    /// THE FLIGHT'S WIDTH, in metres, and it is a working size rather than a
+    /// detail: HOUSES.md §6 derives a passage of at least 0.8 m from the
+    /// player's own capsule, so 1.0 m and 1.5 m flights are different parts for
+    /// a reason a builder can feel. It lives in its own field because the stair
+    /// states it inside a triple that is not a box, and because it must NOT
+    /// reach span_m — a 1.5 m width reported as the span of a 4.6 m flight
+    /// would be worse than the honest silence span_m keeps there.
+    float width_m = 0.0f;
 
     /// STEPS IN A FLIGHT. Stairs are the one family whose triple is not a box:
     /// the forge writes (going_u, width_u, STEPS) and pins going_u at 1 for

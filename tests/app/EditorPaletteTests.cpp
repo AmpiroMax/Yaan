@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 19:41:13
+Last updated: 17:08:2026 - 20:58:32
 Module: tests/app
 File: tests/app/EditorPaletteTests.cpp
 
@@ -40,6 +40,12 @@ UPD:
   в меню, которое человек не может проверить сам. Второй проходит фразу
   пользователя целиком: открыл, набрал, нажал фишку, взял, отметил, ушёл на
   другую карту, вернулся, перезапустил — деталь в руке.
+- 17:08:2026 - 20:58:32: рукав «нет двух деталей с одинаковыми свойствами». Единственная проверка,
+  способная поймать ВЫБРОШЕННЫЙ токен: разборщик, тихо теряющий свойство,
+  по-прежнему разбирает все имена, по-прежнему даёт ноль отказов и проходит все
+  прежние рукава — чего он не может, так это оставить детали РАЗЛИЧИМЫМИ. Нашёл
+  два таких токена в первый же прогон. Контроль: подпись без меток обязана
+  сталкиваться (858 столкновений).
 */
 
 #include <doctest/doctest.h>
@@ -51,6 +57,7 @@ UPD:
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -166,6 +173,12 @@ TEST_CASE("a stair's triple is not a box, and the parser refuses to read it as o
     CHECK(s.style == "steep");
     CHECK(s.material == "timber");
     CHECK(s.steps == 13);
+    // THE WIDTH SURVIVES, and it is the half that was lost: 1x4x13 and 1x6x13
+    // are a 1.0 m and a 1.5 m flight, and nothing else in their names differs.
+    CHECK(s.width_m == doctest::Approx(1.0f));
+    CHECK(parse_part_name("stair-steep-timber-1x6x13-w03").width_m == doctest::Approx(1.5f));
+    // ...and it does NOT leak into the span: a 1.5 m width reported as the span
+    // of a 4.6 m flight is a lie, where silence is merely a gap.
     CHECK(s.span_m == doctest::Approx(0.0f)); // unstated, not zero-sized
     CHECK(s.box_u[0] == 0);
 
@@ -737,4 +750,76 @@ TEST_CASE("the user's own sentence, start to finish") {
     CHECK(tomorrow.take_quick_slot(1));
     // And the shelf came back whole: yesterday's filter is not still applied.
     CHECK(tomorrow.result_count() == tomorrow.part_count());
+}
+
+TEST_CASE("no two parts on the shelf wear the same facets") {
+    // THE INVARIANT THAT CATCHES A DROPPED PROPERTY, and it is the only one
+    // that can: a parser that quietly discards a token still parses every name,
+    // still reports zero refusals, and still passes every arm above. What it
+    // cannot do is keep the parts DISTINCT — two names that differ only in the
+    // token it dropped collapse onto one set of facets.
+    //
+    // This is not hypothetical. It found the deck's declared void: 16 of the 24
+    // decks differ from each other in NOTHING but their `hole` token, so eight
+    // pairs of rows were indistinguishable in the menu and unreachable by a
+    // property chooser, while every existing arm stayed green.
+    std::vector<std::string> names = shelf_names();
+    if (names.empty()) {
+        MESSAGE("полка не испечена — рукав пропущен");
+        return;
+    }
+    PaletteModel m;
+    m.set_parts(names);
+
+    const auto signature = [&m](std::size_t i) {
+        const PartFacets& f = m.part(i);
+        std::string s = f.family + "|" + f.style + "|" + f.material + "|" +
+                        std::to_string(f.wear_pct) + "|" + std::to_string(f.faces) + "|" +
+                        std::to_string(f.diameter_m) + "|" + std::to_string(f.height_m) + "|" +
+                        std::to_string(f.length_m) + "|" + std::to_string(f.width_m) + "|" +
+                        std::to_string(f.steps) + "|" +
+                        std::to_string(f.box_u[0]) + "x" + std::to_string(f.box_u[1]) + "x" +
+                        std::to_string(f.box_u[2]);
+        for (const std::string& t : f.tags) {
+            s += "|" + t;
+        }
+        return s;
+    };
+
+    std::map<std::string, std::string> seen;
+    std::size_t collisions = 0;
+    for (std::size_t i = 0; i < m.part_count(); ++i) {
+        const std::string sig = signature(i);
+        const auto it = seen.find(sig);
+        if (it != seen.end()) {
+            ++collisions;
+            if (collisions <= 5) {
+                MESSAGE("одни и те же свойства у разных деталей: " << it->second << "  и  "
+                                                                   << m.part(i).name);
+            }
+        } else {
+            seen.emplace(sig, m.part(i).name);
+        }
+    }
+    CHECK(collisions == 0);
+
+    // THE CONTROL: a signature that deliberately drops the tags — the exact
+    // shape of the defect this arm was written for — MUST collide. Without it
+    // the check above passes on any shelf and proves nothing about the
+    // instrument.
+    std::map<std::string, std::string> tagless;
+    std::size_t tagless_collisions = 0;
+    for (std::size_t i = 0; i < m.part_count(); ++i) {
+        std::string sig = signature(i);
+        const std::size_t cut = sig.find_last_of('|');
+        const PartFacets& f = m.part(i);
+        if (!f.tags.empty()) {
+            sig = sig.substr(0, sig.size() - (sig.size() - cut));
+        }
+        if (!tagless.emplace(sig, f.name).second) {
+            ++tagless_collisions;
+        }
+    }
+    CHECK(tagless_collisions > 0);
+    MESSAGE("контроль (свойства без меток): столкновений " << tagless_collisions);
 }
