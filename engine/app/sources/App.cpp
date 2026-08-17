@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
+Last updated: 18:08:2026 - 00:55:58
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -392,6 +392,20 @@ UPD:
   угол» заполняется в снимок редакторского блока из ТОГО ЖЕ input_, из которого
   берёт камера, — не из запомненной копии, потому что копия рядом с настоящим
   значением и есть способ показать одно, пока работает другое.
+- 18:08:2026 - 00:55:58: ДВА ОТКАЗА РЕДАКТОРА ПО ЗАКАЗУ 18.08, оба про «инструмент делает не то».
+  (1) ОДИН ИНСТРУМЕНТ ЗА РАЗ. Щелчок больше не спрашивает, открыт ли список
+  объектов: он спрашивает build_click_is_armed(tool) (EditorUi.h), и то же для
+  прохода «что под прицелом» — build_hand_wants_aim(). Стрелки при открытом
+  списке крутить деталь по-прежнему могут: это выбор, а не действие над миром.
+  (2) МЕНЮ И РУКА ЧИТАЛИ РАЗНЫЕ СПИСКИ, и это ответ на «не могу выбирать
+  объекты, только один брус выбрал, остальные не выбираются». Панель
+  наполнялась из build_palette() на первом кадре редактора, а рука — своим
+  отдельным вызовом и ТОЛЬКО когда список открывали клавишей B. Открыв тот же
+  список фишкой на панели, человек получал непустое меню и ПУСТУЮ руку: выбор
+  искал имя среди нуля групп, не находил и МОЛЧА ничего не делал. Полка теперь
+  читается один раз и кладётся обоим (правило 32), а промах поиска говорит
+  вслух — молчащий промах и есть причина, по которой отказ дожил до
+  пользователя.
 */
 
 #include "engine/app/sources/App.h"
@@ -3620,8 +3634,7 @@ void App::update_build_tool() {
     // the tool the user chose and the tool that was armed were different
     // questions with one answer between them.
     const EditorTool tool = editor_ui_.tool();
-    const bool wants_hand = tool == EditorTool::PlaceObject
-                         || tool == EditorTool::SelectObject || build_open_;
+    const bool wants_hand = build_hand_wants_aim(tool);
     if (!wants_hand || gallery_scene_.empty()) {
         return;
     }
@@ -3843,8 +3856,18 @@ void App::wire_editor_panels() {
     }
     palette_wired_ = true;
 
+    // ОДИН СПИСОК ДЕТАЛЕЙ НА ДВУХ ПОТРЕБИТЕЛЕЙ (правило 32). Здесь их было ДВА:
+    // панель наполнялась вот этим вызовом при первом кадре редактора, а рука
+    // строителя — своим, отдельным, и ТОЛЬКО когда список открывали клавишей B.
+    // Открыв тот же список фишкой на панели инструментов, человек получал
+    // непустое меню и ПУСТУЮ руку: выбор искал имя среди нуля групп, не находил
+    // и молча ничего не делал. Пользователь описал это точно: «не могу выбирать
+    // объекты, только один брус выбрал, остальные не выбираются» — держалась та
+    // деталь, что попала в руку раньше, а все последующие щелчки уходили в
+    // никуда. Полка читается ОДИН раз и кладётся обоим.
+    build_groups_ = build_palette(gallery_objects_dir_);
     std::vector<std::string> names;
-    for (const BuildGroup& g : build_palette(gallery_objects_dir_)) {
+    for (const BuildGroup& g : build_groups_) {
         names.insert(names.end(), g.names.begin(), g.names.end());
     }
     palette_.set_parts(std::move(names));
@@ -3881,6 +3904,15 @@ void App::wire_editor_panels() {
                 return;
             }
         }
+        // ПРОМАХ ГОВОРИТ ВСЛУХ. Молчащий промах и есть то, из-за чего этот
+        // отказ дожил до пользователя: щелчок по детали не делал НИЧЕГО и не
+        // оставлял следа, так что и жалоба, и разбор начинались с «меню вроде
+        // работает». Меню и рука обязаны видеть одну полку; если нет — это
+        // видно с первой строки.
+        std::fprintf(stderr,
+                     "[build] выбрана деталь «%s», которой нет в полке руки "
+                     "(групп %zu). Меню и рука читают РАЗНЫЕ списки.\n",
+                     name.c_str(), build_groups_.size());
     };
     EditorPanel parts = make_parts_panel(palette_, std::move(hooks),
                                          EditorPanelSide::Right);
@@ -4581,7 +4613,7 @@ int App::run() {
                 // tool can show him anything would be a tool that does not work.
                 renderer_->set_debug_lines(true);
             }
-            if (build_open_ && build_groups_.empty()) {
+            if (build_open_ && build_groups_.empty()) { // подстраховка: полка пуста
                 build_groups_ = build_palette(gallery_objects_dir_);
                 std::fprintf(stderr, "[build] палитра: %zu семейств(а) с полок %s\n",
                              build_groups_.size(), gallery_objects_dir_.c_str());
@@ -4592,8 +4624,11 @@ int App::run() {
         // «Смотрю» on the toolbar and then clicking still built something, and
         // closing the menu disarmed a mode the user had not left. One owner of
         // the button at all times is the whole reason the modes exist.
-        const bool placing = mode_ == AppMode::Editor
-                          && editor_ui_.tool() == EditorTool::PlaceObject;
+        const bool placing =
+            mode_ == AppMode::Editor && build_click_is_armed(editor_ui_.tool());
+        // СТРЕЛКИ КРУТЯТ ДЕТАЛЬ И ПРИ ОТКРЫТОМ СПИСКЕ — это выбор, а не действие
+        // над миром: человек листает детали и смотрит, как они повёрнуты.
+        // А ВОТ ЩЕЛЧОК НИЖЕ СПРАШИВАЕТ ТОЛЬКО РЕЖИМ (см. build_click_is_armed).
         if (!chat_typing && (placing || (build_open_ && mode_ == AppMode::Editor))) {
             // THE ARROWS TURN THE PART (user, 17.08: «стрелками я должен не
             // объекты перебирать, а крутить их вокруг их центра»). Left/right
@@ -4639,7 +4674,7 @@ int App::run() {
                 && input_->was_pressed(platform::MouseButton::LEFT)) {
                 const glm::vec3 at = editor_aim_point();
                 (void)plant_dab_here({at.x, at.z});
-            } else if (!editor_ui_.wants_mouse()
+            } else if (placing && !editor_ui_.wants_mouse()
                        && input_->was_pressed(platform::MouseButton::LEFT)
                        && build_place()) {
                 std::fprintf(stderr, "[build] поставлено %s (%.2f %.2f %.2f)\n",
@@ -4652,7 +4687,7 @@ int App::run() {
             // action here that cannot be undone yet, and putting it under a
             // button the hand is already resting on would make it the easiest
             // thing in the tool to do by accident.
-            if (input_->was_pressed(platform::Key::DELETE) && build_delete()) {
+            if (placing && input_->was_pressed(platform::Key::DELETE) && build_delete()) {
                 std::fprintf(stderr, "[build] удалено; в композиции %zu расстановок\n",
                              scene_doc_.placements.size());
             }

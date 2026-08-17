@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 21:04:27
+Last updated: 18:08:2026 - 00:55:58
 Module: tests/app
 File: tests/app/EditorPaletteTests.cpp
 
@@ -49,12 +49,16 @@ UPD:
 - 17:08:2026 - 21:04:27: разрез по правилу 21 (был 1031). Семейный выбор уехал в
   EditorPaletteAxesTests.cpp, общие полки — в EditorPaletteFixture.h (копия
   toy_shelf в двух наборах разошлась бы молча, правило 39).
+- 18:08:2026 - 00:55:58: таблица «левая кнопка ставит деталь ровно в одном режиме». Правило жило
+  комментарием над условием в App.cpp, который держит окно и потому не
+  проверяется, — а само условие говорило обратное.
 */
 
 #include <doctest/doctest.h>
 
 #include "engine/app/sources/BuildTool.h"
 #include "engine/editor/sources/EditorPalette.h"
+#include "engine/editor/sources/EditorUi.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <algorithm>
@@ -784,4 +788,32 @@ TEST_CASE("no two parts on the shelf wear the same facets") {
     }
     CHECK(tagless_collisions > 0);
     MESSAGE("контроль (свойства без меток): столкновений " << tagless_collisions);
+}
+
+// ОДИН ИНСТРУМЕНТ ЗА РАЗ (заказ пользователя 18.08: «я должен использовать
+// только один инструмент одновременно, но почему-то и кисть высоты, и
+// постройку объектов делаю»). Правило жило комментарием над условием в
+// App.cpp — который держит окно и потому не проверяется, — а само условие
+// говорило обратное: постановка взводилась и при открытом СПИСКЕ объектов, так
+// что один щелчок и копал, и ставил. Теперь правило выражение, и вот его
+// таблица целиком.
+TEST_CASE("левая кнопка ставит деталь ровно в одном режиме") {
+    using dfn::app::EditorTool;
+    using dfn::app::build_click_is_armed;
+    using dfn::app::build_hand_wants_aim;
+
+    CHECK(build_click_is_armed(EditorTool::PlaceObject));
+    CHECK_FALSE(build_click_is_armed(EditorTool::HeightBrush));
+    CHECK_FALSE(build_click_is_armed(EditorTool::SurfacePaint));
+    CHECK_FALSE(build_click_is_armed(EditorTool::SelectObject));
+    CHECK_FALSE(build_click_is_armed(EditorTool::Look));
+
+    // Проход «что под прицелом» нужен ДВУМ режимам: ставящему (призрак) и
+    // выбирающему (цель). Кисти он не нужен ни в каком виде — призрак поверх
+    // земли, пока копаешь, это второй ответ на вопрос, что я трогаю.
+    CHECK(build_hand_wants_aim(EditorTool::PlaceObject));
+    CHECK(build_hand_wants_aim(EditorTool::SelectObject));
+    CHECK_FALSE(build_hand_wants_aim(EditorTool::HeightBrush));
+    CHECK_FALSE(build_hand_wants_aim(EditorTool::SurfacePaint));
+    CHECK_FALSE(build_hand_wants_aim(EditorTool::Look));
 }
