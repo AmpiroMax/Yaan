@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:43:34
-Last updated: 17:08:2026 - 14:43:34
+Last updated: 17:08:2026 - 15:00:28
 Module: engine/app
 File: engine/app/sources/AssetBake.h
 
@@ -40,6 +40,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 14:43:34: Создан — печь ассетов при первом запуске (см. выше).
+- 17:08:2026 - 15:00:28: шаг табличек: исходники .signs — контент в git, испечённые .dfo — нет.
 */
 
 #pragma once
