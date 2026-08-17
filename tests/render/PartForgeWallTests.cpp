@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:09:29
-Last updated: 17:08:2026 - 13:09:29
+Last updated: 17:08:2026 - 13:54:03
 Module: tests
 File: tests/render/PartForgeWallTests.cpp
 
@@ -27,6 +27,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 13:09:29: Создан — волна вариантов стен.
+- 17:08:2026 - 13:54:03: счёт стилевых панелей 174 -> 696: те же 174 конструкции на четырёх
+  высотах ряда 11/12/13/14u (HOUSES.md §6).
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -136,7 +138,8 @@ TEST_CASE("the catalogue carries the ten styles and stays name-unique") {
             ++styled;
         }
     }
-    // 18 сруб + 72 фахверк + 48 обшивка + 9 тёсаный + 6 бут + 12 кирпич +
-    // 9 комбо (§7 п.4).
-    CHECK(styled == 174);
+    // (18 сруб + 72 фахверк + 48 обшивка + 9 тёсаный + 6 бут + 12 кирпич +
+    // 9 комбо = 174 конструкции, §7 п.4) x 4 высоты стены (11 legacy +
+    // ряд жилья 12/13/14, HOUSES.md §6).
+    CHECK(styled == 696);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 12:39:52
-Last updated: 17:08:2026 - 13:23:29
+Last updated: 17:08:2026 - 13:54:03
 Module: tests
 File: tests/render/PartForgeJointTests.cpp
 
@@ -30,6 +30,8 @@ UPD:
 - 17:08:2026 - 12:39:52: Создан вместе с семьёй соединителей.
 - 17:08:2026 - 13:23:29: измерители вынесены в MeshMeters.h (второй потребитель —
   тесты крыш; копия на файл — правило 39 в миниатюре).
+- 17:08:2026 - 13:54:03: счёт каталога под ряд высот стен (HOUSES.md §6): стойки 384 -> 960
+  (h11/12/13/14/16), перевязки 8 -> 20 (h6/11/12/13/14).
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -206,12 +208,13 @@ TEST_CASE("the catalogue grew by rule and every name is unique") {
         if (p.kind == PartKind::Sleeper) ++sleepers;
         if (p.kind == PartKind::LogCorner) ++corners;
     }
-    // The family rows as designed: 4 shapes x 4 diameters x (2 woods x 2
-    // heights + 2 masonry x 2 heights x 2 capitals) x 2 wears = 128 + 256;
-    // sleepers 2 x 2 x 3 x 3 x 2 = 72; corners 2 heights x 2 woods x 2 wears.
-    CHECK(joints == 384);
+    // The family rows as designed: 4 shapes x 4 diameters x (2 woods x 5
+    // heights + 2 masonry x 5 heights x 2 capitals) x 2 wears = 320 + 640
+    // (heights are the wall row 11/12/13/14 plus tall 16 — HOUSES.md §6);
+    // sleepers 2 x 2 x 3 x 3 x 2 = 72; corners 5 heights x 2 woods x 2 wears.
+    CHECK(joints == 960);
     CHECK(sleepers == 72);
-    CHECK(corners == 8);
+    CHECK(corners == 20);
 }
 
 TEST_CASE("log corner: stubs run out past BOTH walls at the panel's course rhythm") {

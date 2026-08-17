@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:17:36
-Last updated: 17:08:2026 - 13:46:59
+Last updated: 17:08:2026 - 13:54:03
 Module: engine/render
 File: engine/render/sources/PartForgeCatalogue.cpp
 
@@ -33,6 +33,10 @@ UPD:
 - 17:08:2026 - 13:46:59: крутые марши 45° (variant 1, -steep): ширины 4/6 x ступени
   8/11/12/13/14 x дерево/камень x 2 износа = 40; пологие 26.5° остаются
   улицам и террасам.
+- 17:08:2026 - 13:54:03: ряд высот стен (HOUSES.md §6, «стены низковаты, на 10-30% выше»):
+  стилевые панели x {11,12,13,14}u (174 -> 696), стойки h{11,12,13,14,16}
+  (384 -> 960), перевязки сруба h{6,11,12,13,14} (8 -> 20). Только
+  добавления: 11u печётся байт-в-байт, испечённые дома стоят как стояли.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -233,13 +237,17 @@ std::vector<PartParams> kit_catalogue() {
             }
         }
     };
-    // Timber joints: every shape and diameter, wall height (11u = 2.75 m) and
-    // tall (16u = 4 m), no capitals — a capital on a log is not carpentry.
-    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, woods, {11, 16}, {0}, wear2);
+    // Timber joints: every shape and diameter, no capitals — a capital on a
+    // log is not carpentry. Heights follow the WALL ROW (11 legacy массовка,
+    // 12/13/14 the dwelling row — HOUSES.md §6) plus tall 16u = 4 m: a panel
+    // is measured centre-of-post to centre-of-post, so every wall height the
+    // shelf sells needs its post or the composer improvises one.
+    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, woods, {11, 12, 13, 14, 16}, {0},
+              wear2);
     // Masonry joints: stone and brick, with and without capitals. The 1.0 m
     // row is the castle colonnade's (HOUSES.md §3.1).
-    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, {PM::Stone, PM::Brick}, {11, 16},
-              {0, 1}, wear2);
+    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, {PM::Stone, PM::Brick},
+              {11, 12, 13, 14, 16}, {0, 1}, wear2);
 
     // ЛЕЖНИ: floor-to-wall bedding logs. 4-facet (flat bed, flat seat) and
     // round; the two smaller diameters — a 0.75 sleeper would eat the room's
@@ -272,14 +280,21 @@ std::vector<PartParams> kit_catalogue() {
         }
     }
 
-    // ПЕРЕВЯЗКА ТОРЦОВ СРУБА: corner nodes at the two wall heights the log
-    // panels come in (11u массовка, plus a low 6u for porches and sheds).
-    add(PartKind::LogCorner, {6, 11}, {{1, 1}}, woods, wear2);
+    // ПЕРЕВЯЗКА ТОРЦОВ СРУБА: corner nodes at every wall height the log
+    // panels come in (6u porches and sheds, 11u legacy массовка, 12/13/14
+    // the dwelling row) — a log wall taller than its corner would have its
+    // top венцы meeting nothing.
+    add(PartKind::LogCorner, {6, 11, 12, 13, 14}, {{1, 1}}, woods, wear2);
 
     // ВАРИАНТЫ СТЕН (пользователь, 17.08: «жду кучу разных вариантов стен»).
-    // Style x material x length x opening, wall height 11u (2.75), one wear:
-    // what varies here is CONSTRUCTION, and a wear twin of every construction
-    // would double the shelf without adding a single choice.
+    // Style x material x length x HEIGHT x opening, one wear: what varies
+    // here is CONSTRUCTION, and a wear twin of every construction would
+    // double the shelf without adding a single choice. Heights are the wall
+    // row of HOUSES.md §6: 11u (2.75, legacy — baked houses stand on it) and
+    // the dwelling row 12/13/14u (3.0/3.25/3.5; пользователь: «стены
+    // низковаты, надо на 10-30% выше» — that is 11u + 9/18/27%). The row is
+    // ADDED, never substituted: a shelf that quietly re-baked its 11u panels
+    // would re-bake every standing house with them.
     {
         struct StyleRow {
             int variant;
@@ -301,23 +316,25 @@ std::vector<PartParams> kit_catalogue() {
         for (const StyleRow& row : styles) {
             for (PartMaterial mat : row.mats) {
                 for (int len : {8, 12, 16}) {
-                    for (int open : row.openings) {
-                        PartParams p;
-                        p.kind = PartKind::WallPanel;
-                        p.material = mat;
-                        p.variant = row.variant;
-                        p.opening = open;
-                        p.length_u = len;
-                        p.width_u = 1;
-                        p.height_u = 11;
-                        p.wear = 0.5f;
-                        p.name = part_name(p);
-                        uint64_t hash = 1469598103934665603ull;
-                        for (unsigned char c : p.name) {
-                            hash = (hash ^ c) * 1099511628211ull;
+                    for (int height : {11, 12, 13, 14}) {
+                        for (int open : row.openings) {
+                            PartParams p;
+                            p.kind = PartKind::WallPanel;
+                            p.material = mat;
+                            p.variant = row.variant;
+                            p.opening = open;
+                            p.length_u = len;
+                            p.width_u = 1;
+                            p.height_u = height;
+                            p.wear = 0.5f;
+                            p.name = part_name(p);
+                            uint64_t hash = 1469598103934665603ull;
+                            for (unsigned char c : p.name) {
+                                hash = (hash ^ c) * 1099511628211ull;
+                            }
+                            p.seed = hash;
+                            out.push_back(std::move(p));
                         }
-                        p.seed = hash;
-                        out.push_back(std::move(p));
                     }
                 }
             }
