@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:21:23
+Last updated: 17:08:2026 - 20:26:58
 Module: engine/editor
 File: engine/editor/sources/EditorUi.h
 
@@ -117,6 +117,29 @@ UPD:
   клавиши, — и ничего больше; звать функцию, до которой щелчок руки только
   добрался бы, ей нельзя. И слово, за которым надо следить, — «должен»: оно
   становится на место измерения ровно тогда, когда измерение неудобно.
+- 17:08:2026 - 20:26:58: РАСКЛАДКА ПОЛОСАМИ (заказ 17.08: «много элементов UI которые
+  перекрываются... пусть рисуется вдоль экрана как приложухи старых
+  операционных систем виндовс»). Полосы ПРИСТЫКОВАНЫ и ОТЪЕДАЮТ место, а не
+  лежат на картинке: верхняя полоса инструментов во всю ширину, панели —
+  колонками у краёв, мир в остатке. Наружу отдано insets(), world_rect() и
+  world_rect_norm() (доли, а не пиксели: HUD компонуется во ВНУТРЕННЮЮ цель
+  1920x1080, а не в кадровый буфер, и число в пикселях было бы верным для
+  одного и тихо неверным для другого).
+  Окна стали NoMove/NoResize с позицией Always: панель, которую можно
+  перетащить, — это панель, которую можно перетащить ПОВЕРХ соседней, и тогда
+  гарантия непересечения становится заботой пользователя, а не нашей.
+  ДВЕ ПРЕДЫДУЩИЕ ВЕРСИИ ОДНОЙ СТРОКИ И ЕСТЬ ДОВОД ЗА РАСКЛАДКУ: сначала полоса
+  села на плиту отладочного вывода, потом её подвинули на 44 единицы вниз.
+  Подвигание — это то, что делают, когда раскладкой никто не владеет: число
+  верно для того вывода в тот день, а следующий рисовальщик подвигал бы снова
+  против числа, которого не видит.
+  ПРИБОР С КОНТРОЛЕМ, а не «на глаз не налезает»: DFN_UI_LAYOUT_CHECK=1 меряет
+  площадь пересечения каждой пары полос, =2 меряет ТО ЖЕ, сняв верхнюю
+  резервацию. Рука 1: 0.0 кв.ед. Рука 2: 18744.0 кв.ед. Контроль обязателен —
+  прибор, отвечающий «не пересекается» на раскладке, которая пересечься не
+  может, продолжал бы отвечать так и после поломки.
+  Числа кадра: отъедено сверху 44.0, справа 432.7 (колонка ужата до трети
+  ширины), мир 847x676 от (0, 44).
 */
 
 #pragma once
@@ -168,6 +191,34 @@ enum class EditorTool : std::uint8_t {
     SelectObject,  ///< 3 — прицел выбирает объект
     PlaceObject,   ///< 4 — прицел ставит объект
     Count
+};
+
+/// HOW MUCH OF THE WINDOW THE INTERFACE HAS TAKEN, per edge, in ImGui's logical
+/// units. Zero on every edge when nothing is docked or the interface is hidden.
+///
+/// WHY ANYBODY OUTSIDE NEEDS THIS (user, 17.08.2026: «у нас сейчас много
+/// элементов UI которые перекрываются... пусть кнопки и прочее инструментов
+/// рисуется вдоль экрана как приложухи старых операционных систем виндовс»).
+/// Four independent painters share this frame: this toolbar, the ImGui panels,
+/// the game HUD on PixelCanvas (compass, bars, crosshair) and the debug readout.
+/// Each knows only about itself, so each finds a free corner by hand and finds
+/// it wrong — this zone has already paid once, by seating the toolbar on the
+/// readout's plate. One place counts the taken strips and everyone else asks;
+/// a second set of coordinates would be a second thing to keep true.
+struct EditorInsets {
+    float top = 0.0f;
+    float left = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+};
+
+/// A rectangle in ImGui's logical units (or, for the _norm form, as fractions
+/// of the display).
+struct EditorRect {
+    float x = 0.0f;
+    float y = 0.0f;
+    float w = 0.0f;
+    float h = 0.0f;
 };
 
 /// Where EditorUi parks a panel's window. The editor's shape is decided HERE,
@@ -268,6 +319,24 @@ public:
     /// movement, no hotkeys, no build actions.
     [[nodiscard]] bool wants_keyboard() const { return wants_keyboard_; }
 
+    // -- the layout: what the interface took, what is left for the world ------
+
+    /// The strips this interface occupies, in logical units. Valid after
+    /// begin_frame; all zero while hidden.
+    [[nodiscard]] EditorInsets insets() const { return insets_; }
+
+    /// What is LEFT for the world after the strips, in logical units.
+    [[nodiscard]] EditorRect world_rect() const;
+
+    /// The same rectangle as FRACTIONS of the display (0..1). This is the form
+    /// to use when placing anything on a surface that is not the window — the
+    /// HUD is composited into the internal 1920x1080 target, not into the
+    /// framebuffer, so a number in pixels would be right for one of them and
+    /// quietly wrong for the other. The crosshair belongs at the centre of
+    /// THIS, not at the centre of the window: with a panel open the two differ
+    /// by half the panel's width.
+    [[nodiscard]] EditorRect world_rect_norm() const;
+
     // -- the tool (mode) ------------------------------------------------------
 
     /// What the editor is doing. Poll it; it is cheap and it never lies about a
@@ -358,8 +427,20 @@ public:
 
 private:
     void layout_panels();
-    /// The always-on strip of tool chips (top centre).
+    /// The always-on strip of tool chips, docked to the top edge.
     void draw_toolbar();
+    /// Remembers where a strip actually landed, for the overlap instrument.
+    /// PLAIN FLOATS AND NOT ImVec2: engine/app includes this header and is not
+    /// allowed to see Dear ImGui (Rule 1, and tools/dag_check.py enforces it) —
+    /// naming an ImGui type here would either drag the library up a layer or,
+    /// as it did on the first attempt, silently declare a DIFFERENT empty type
+    /// with the same name.
+    void record_rect(const std::string& id, float x, float y, float w, float h);
+    /// PROVES THE STRIPS DO NOT OVERLAP, with a number and not with a look.
+    /// Door DFN_UI_LAYOUT_CHECK=1 measures; =2 measures with the toolbar's
+    /// reservation deliberately switched off, which MUST report an overlap —
+    /// an instrument that cannot report one is measuring nothing (Rule 30b).
+    void report_layout_overlaps() const;
     /// The built-in self-check panel (door DFN_UI_PROBE=1). It exists to answer
     /// "does the font actually cover our alphabet" with a photograph rather
     /// than with a promise, and to state the frame's numbers beside it.
@@ -371,6 +452,17 @@ private:
     bool toolbar_ = true;
     EditorTool tool_ = EditorTool::Look; // «просто смотрю» is where you start
     bool tool_changed_ = false;
+    EditorInsets insets_;
+    float toolbar_height_ = 0.0f; // measured after drawing; 0 on the first frame
+    /// Where each strip landed this frame — the instrument's raw data.
+    struct PlacedRect {
+        std::string id;
+        float x = 0.0f;
+        float y = 0.0f;
+        float w = 0.0f;
+        float h = 0.0f;
+    };
+    std::vector<PlacedRect> placed_;
     bool wants_mouse_ = false;
     bool wants_keyboard_ = false;
     bool frame_open_ = false;

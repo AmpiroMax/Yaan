@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:17:55
+Last updated: 17:08:2026 - 20:26:58
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -73,6 +73,29 @@ UPD:
   и вверх (DFN_UI_PROBE_CLICK), а не вызовом set_tool из двери. Вызов из двери
   сфотографировал бы функцию, которую никто не нажимает, — ошибка, стоившая
   сегодня вечера.
+- 17:08:2026 - 20:26:58: РАСКЛАДКА ПОЛОСАМИ (заказ 17.08: «много элементов UI которые
+  перекрываются... пусть рисуется вдоль экрана как приложухи старых
+  операционных систем виндовс»). Полосы ПРИСТЫКОВАНЫ и ОТЪЕДАЮТ место, а не
+  лежат на картинке: верхняя полоса инструментов во всю ширину, панели —
+  колонками у краёв, мир в остатке. Наружу отдано insets(), world_rect() и
+  world_rect_norm() (доли, а не пиксели: HUD компонуется во ВНУТРЕННЮЮ цель
+  1920x1080, а не в кадровый буфер, и число в пикселях было бы верным для
+  одного и тихо неверным для другого).
+  Окна стали NoMove/NoResize с позицией Always: панель, которую можно
+  перетащить, — это панель, которую можно перетащить ПОВЕРХ соседней, и тогда
+  гарантия непересечения становится заботой пользователя, а не нашей.
+  ДВЕ ПРЕДЫДУЩИЕ ВЕРСИИ ОДНОЙ СТРОКИ И ЕСТЬ ДОВОД ЗА РАСКЛАДКУ: сначала полоса
+  села на плиту отладочного вывода, потом её подвинули на 44 единицы вниз.
+  Подвигание — это то, что делают, когда раскладкой никто не владеет: число
+  верно для того вывода в тот день, а следующий рисовальщик подвигал бы снова
+  против числа, которого не видит.
+  ПРИБОР С КОНТРОЛЕМ, а не «на глаз не налезает»: DFN_UI_LAYOUT_CHECK=1 меряет
+  площадь пересечения каждой пары полос, =2 меряет ТО ЖЕ, сняв верхнюю
+  резервацию. Рука 1: 0.0 кв.ед. Рука 2: 18744.0 кв.ед. Контроль обязателен —
+  прибор, отвечающий «не пересекается» на раскладке, которая пересечься не
+  может, продолжал бы отвечать так и после поломки.
+  Числа кадра: отъедено сверху 44.0, справа 432.7 (колонка ужата до трети
+  ширины), мир 847x676 от (0, 44).
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -257,6 +280,26 @@ bool probe_wants_click() {
         return v != nullptr && *v != '\0' && *v != '0';
     }();
     return on;
+}
+
+/// DFN_UI_LAYOUT_CHECK — 1 measures the strips, 2 measures them with the
+/// toolbar's reservation DELIBERATELY switched off.
+///
+/// THE SECOND ARM IS THE POINT. An instrument that reports "no overlap" on a
+/// layout that cannot overlap has measured nothing, and it would keep saying
+/// "no overlap" after the day somebody broke the docking. Arm 2 removes exactly
+/// the mechanism under test — the top inset — so the panels start at y = 0 and
+/// MUST be reported as sitting on the toolbar. If arm 2 comes back clean, the
+/// instrument is broken and arm 1 means nothing (Rule 30b, Rule 48).
+int layout_check() {
+    static const int mode = [] {
+        const char* v = std::getenv("DFN_UI_LAYOUT_CHECK");
+        if (v == nullptr || *v == '\0' || *v == '0') {
+            return 0;
+        }
+        return std::atoi(v);
+    }();
+    return mode;
 }
 
 /// DFN_UI_PROBE_KEYS=1 — puts the caret in the probe panel's text field, which
@@ -651,6 +694,12 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
 
     text_arena().clear();
     tool_changed_ = false; // set by set_tool during this frame, read after it
+    // THE STRIPS ARE RECOMPUTED FROM SCRATCH EVERY FRAME, never accumulated: a
+    // panel closed on frame N must give its column back on frame N, and an
+    // inset that only ever grows is the bug that would make the world shrink a
+    // little every time somebody opened and closed the parts menu.
+    insets_ = EditorInsets{};
+    placed_.clear();
     ImGui::NewFrame();
     frame_open_ = true;
     if (visible_) {
@@ -658,6 +707,17 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
             draw_toolbar();
         }
         layout_panels();
+    }
+    if (const int mode = layout_check(); mode != 0) {
+        // ON ONE SETTLED FRAME, not every frame: the first frame has no measured
+        // toolbar height yet, and a report per frame is a log nobody reads.
+        static uint32_t f = 0;
+        if (++f == 60) {
+            std::fprintf(stderr, "[editor-ui] проверка раскладки, рука %d%s\n", mode,
+                         mode == 2 ? " (КОНТРОЛЬ: верхняя полоса ничего не отъедает,"
+                                     " пересечение ОБЯЗАНО быть)" : "");
+            report_layout_overlaps();
+        }
     }
     // READ THE FLAGS AFTER THE PANELS DREW. WantCaptureMouse is decided by what
     // is under the pointer, and what is under the pointer is not known until
@@ -703,17 +763,19 @@ void EditorUi::draw_toolbar() {
     };
 
     const ImGuiIO& io = ImGui::GetIO();
-    // TOP CENTRE, and not the top left: the debug readout and the editor banner
-    // already own that corner, and two overlays sharing one corner is a defect
-    // this project has already paid for once (App.cpp, 14.08).
-    // BELOW THE DEBUG READOUT, not beside it. Its plate is full-width and three
-    // lines tall, so a strip at y=6 sits ON it — legible by luck, and this
-    // project already spent a day on two overlays sharing one corner. 44 logical
-    // units clears all three lines; with the readout off the strip simply
-    // floats a little lower, which costs nothing.
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, 44.0f), ImGuiCond_Always,
-                            ImVec2(0.5f, 0.0f));
-    ImGui::SetNextWindowBgAlpha(0.85f);
+    // A FULL-WIDTH STRIP PINNED TO THE TOP EDGE, and it RESERVES that strip:
+    // the world starts underneath it, and so does everything else that asks.
+    //
+    // TWO EARLIER VERSIONS OF THIS LINE ARE THE ARGUMENT FOR THE WHOLE LAYOUT.
+    // The first floated at top centre and landed ON the debug readout's plate;
+    // the second was nudged down 44 units to clear it. Nudging is what you do
+    // when nobody owns the layout — the number was right for that readout, on
+    // that day, and the next painter would have had to nudge again against a
+    // number he could not see. Now the height is MEASURED after drawing and
+    // published as insets().top.
+    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.92f);
     const ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
         | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar
@@ -746,46 +808,165 @@ void EditorUi::draw_toolbar() {
             }
         }
     }
+    // MEASURED, NOT ASSUMED. The strip's height follows the font, the style's
+    // padding and the display scale; a constant here would be right until the
+    // first of those moved and would then hand everyone else a wrong number
+    // with total confidence.
+    toolbar_height_ = ImGui::GetWindowSize().y;
+    {
+        const ImVec2 pos = ImGui::GetWindowPos();
+        const ImVec2 size = ImGui::GetWindowSize();
+        record_rect("toolbar", pos.x, pos.y, size.x, size.y);
+    }
     ImGui::End();
 }
 
+void EditorUi::record_rect(const std::string& id, float x, float y, float w,
+                           float h) {
+    placed_.push_back(PlacedRect{id, x, y, w, h});
+}
+
+void EditorUi::report_layout_overlaps() const {
+    // AREA OF INTERSECTION, IN SQUARE LOGICAL UNITS, for every pair. "Nothing
+    // looks like it overlaps" survives exactly until the first window size
+    // nobody photographed; a number does not care what the screen is.
+    double worst = 0.0;
+    std::string worst_pair;
+    for (std::size_t i = 0; i < placed_.size(); ++i) {
+        for (std::size_t j = i + 1; j < placed_.size(); ++j) {
+            const PlacedRect& a = placed_[i];
+            const PlacedRect& b = placed_[j];
+            const float ox = std::max(0.0f, std::min(a.x + a.w, b.x + b.w)
+                                                - std::max(a.x, b.x));
+            const float oy = std::max(0.0f, std::min(a.y + a.h, b.y + b.h)
+                                                - std::max(a.y, b.y));
+            const double area = static_cast<double>(ox) * oy;
+            std::fprintf(stderr, "[editor-ui] раскладка: %s x %s = %.1f кв.ед.\n",
+                         a.id.c_str(), b.id.c_str(), area);
+            if (area > worst) {
+                worst = area;
+                worst_pair = a.id + " x " + b.id;
+            }
+        }
+    }
+    const EditorRect wr = world_rect();
+    std::fprintf(stderr,
+                 "[editor-ui] раскладка: полос %zu, худшее пересечение %.1f кв.ед. "
+                 "(%s); отъедено сверху %.1f слева %.1f справа %.1f снизу %.1f; "
+                 "мир %.0fx%.0f от (%.0f, %.0f)\n",
+                 placed_.size(), worst,
+                 worst_pair.empty() ? "-" : worst_pair.c_str(), insets_.top,
+                 insets_.left, insets_.right, insets_.bottom, wr.w, wr.h, wr.x, wr.y);
+}
+
 void EditorUi::layout_panels() {
+    // DOCKED STRIPS, NOT FLOATING WINDOWS (user, 17.08.2026: «пусть кнопки и
+    // прочее инструментов рисуется вдоль экрана как приложухи старых
+    // операционных систем виндовс»). Every open panel is assigned a rectangle
+    // computed HERE, and the world gets what is left — which is the whole
+    // difference between "nothing overlaps today" and "nothing can overlap".
+    //
+    // The windows are therefore NoMove and NoResize with position and size set
+    // Always, not FirstUseEver. A panel the user can drag is a panel the user
+    // can drag ON TOP of another one, and then the guarantee this function
+    // exists to provide is his problem instead of ours.
     const ImGuiIO& io = ImGui::GetIO();
     const float w = io.DisplaySize.x;
     const float h = io.DisplaySize.y;
-    // Panels stack down their edge in declaration order. FirstUseEver, not
-    // Always: the layout is a STARTING POINT — the builder may drag a panel
-    // where he wants it and it stays there for the session.
-    float right_y = 8.0f;
-    float left_y = 8.0f;
-    float bottom_x = 8.0f;
+    constexpr float GAP = 6.0f; // between strips, so borders never share a pixel
+
+    // FIRST PASS: how wide is each column, and how many panels share it. A
+    // column is as wide as its widest panel asked to be, because a narrower
+    // neighbour looks like a mistake while a clipped one IS one.
+    float left_w = 0.0f;
+    float right_w = 0.0f;
+    float bottom_h = 0.0f;
+    int left_n = 0;
+    int right_n = 0;
+    int bottom_n = 0;
+    for (const EditorPanel& p : panels_) {
+        if (!p.open || !p.draw) {
+            continue;
+        }
+        switch (p.side) {
+        case EditorPanelSide::Left:
+            left_w = std::max(left_w, p.extent_px);
+            ++left_n;
+            break;
+        case EditorPanelSide::Right:
+            right_w = std::max(right_w, p.extent_px);
+            ++right_n;
+            break;
+        case EditorPanelSide::Bottom:
+            bottom_h = std::max(bottom_h, p.extent_px);
+            ++bottom_n;
+            break;
+        case EditorPanelSide::Floating:
+            break;
+        }
+    }
+    // A COLUMN NEVER EATS MORE THAN A THIRD OF THE WINDOW. On a small window two
+    // 380-unit columns would leave the world a slit, and the world is the thing
+    // being edited.
+    const float max_side = w / 3.0f;
+    left_w = std::min(left_w, max_side);
+    right_w = std::min(right_w, max_side);
+    bottom_h = std::min(bottom_h, h / 3.0f);
+
+    // ARM 2 OF THE INSTRUMENT drops the top reservation and nothing else, so
+    // the panels climb onto the toolbar and the overlap becomes measurable.
+    insets_.top = layout_check() == 2 ? 0.0f : toolbar_height_;
+    insets_.left = left_n > 0 ? left_w + GAP : 0.0f;
+    insets_.right = right_n > 0 ? right_w + GAP : 0.0f;
+    insets_.bottom = bottom_n > 0 ? bottom_h + GAP : 0.0f;
+
+    // SECOND PASS: place. The columns run from under the toolbar to the bottom
+    // strip, and each panel takes an equal share of its column's height, so two
+    // panels on one edge meet at a border instead of on top of each other.
+    const float col_top = insets_.top;
+    const float col_bottom = h - insets_.bottom;
+    const float col_h = std::max(col_bottom - col_top, 0.0f);
+    const float left_share = left_n > 0 ? col_h / static_cast<float>(left_n) : 0.0f;
+    const float right_share = right_n > 0 ? col_h / static_cast<float>(right_n) : 0.0f;
+    const float bottom_share =
+        bottom_n > 0 ? (w - insets_.left - insets_.right) / static_cast<float>(bottom_n)
+                     : 0.0f;
+    float left_y = col_top;
+    float right_y = col_top;
+    float bottom_x = insets_.left;
+    int index = 0;
+
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
+                                   | ImGuiWindowFlags_NoCollapse
+                                   | ImGuiWindowFlags_NoSavedSettings;
     for (EditorPanel& p : panels_) {
         if (!p.open || !p.draw) {
             continue;
         }
-        const float ext = p.extent_px;
+        ImGuiWindowFlags f = flags;
         switch (p.side) {
         case EditorPanelSide::Right:
-            ImGui::SetNextWindowPos(ImVec2(w - ext - 8.0f, right_y),
-                                    ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowSize(ImVec2(ext, std::min(420.0f, h - right_y - 16.0f)),
-                                     ImGuiCond_FirstUseEver);
-            right_y += std::min(420.0f, h - right_y - 16.0f) + 8.0f;
+            ImGui::SetNextWindowPos(ImVec2(w - right_w, right_y), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(right_w, right_share - GAP),
+                                     ImGuiCond_Always);
+            right_y += right_share;
             break;
         case EditorPanelSide::Left:
-            ImGui::SetNextWindowPos(ImVec2(8.0f, left_y), ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowSize(ImVec2(ext, std::min(520.0f, h - left_y - 16.0f)),
-                                     ImGuiCond_FirstUseEver);
-            left_y += std::min(520.0f, h - left_y - 16.0f) + 8.0f;
+            ImGui::SetNextWindowPos(ImVec2(0.0f, left_y), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(left_w, left_share - GAP), ImGuiCond_Always);
+            left_y += left_share;
             break;
         case EditorPanelSide::Bottom:
-            ImGui::SetNextWindowPos(ImVec2(bottom_x, h - ext - 8.0f),
-                                    ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowSize(ImVec2(std::min(560.0f, w - bottom_x - 16.0f), ext),
-                                     ImGuiCond_FirstUseEver);
-            bottom_x += std::min(560.0f, w - bottom_x - 16.0f) + 8.0f;
+            ImGui::SetNextWindowPos(ImVec2(bottom_x, h - bottom_h), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(bottom_share - GAP, bottom_h),
+                                     ImGuiCond_Always);
+            bottom_x += bottom_share;
             break;
         case EditorPanelSide::Floating:
+            // THE ONE KIND THAT MAY OVERLAP, and it reserves nothing. Use it
+            // only for something that genuinely must move (a colour picker
+            // following the cursor); anything permanent belongs on an edge.
+            f = ImGuiWindowFlags_NoSavedSettings;
             break;
         }
         // THE WINDOW IS OPENED HERE, NOT BY THE PANEL. One place decides what a
@@ -796,12 +977,42 @@ void EditorUi::layout_panels() {
         // The title carries the id after ## so two panels may share a title and
         // still keep separate positions — ImGui identifies windows by name.
         const std::string label = std::string(tr(p.title_key.c_str())) + "###" + p.id;
-        if (ImGui::Begin(label.c_str(), &open)) {
+        if (ImGui::Begin(label.c_str(), &open, f)) {
             p.draw();
+        }
+        {
+            const ImVec2 pos = ImGui::GetWindowPos();
+            const ImVec2 size = ImGui::GetWindowSize();
+            record_rect(p.id, pos.x, pos.y, size.x, size.y);
         }
         ImGui::End();
         p.open = open; // the title bar's X closes it, like any other tool
+        ++index;
     }
+    (void)index;
+}
+
+EditorRect EditorUi::world_rect() const {
+    const ImGuiIO& io = ImGui::GetIO();
+    const float w = io.DisplaySize.x;
+    const float h = io.DisplaySize.y;
+    EditorRect r;
+    r.x = insets_.left;
+    r.y = insets_.top;
+    r.w = std::max(w - insets_.left - insets_.right, 0.0f);
+    r.h = std::max(h - insets_.top - insets_.bottom, 0.0f);
+    return r;
+}
+
+EditorRect EditorUi::world_rect_norm() const {
+    const ImGuiIO& io = ImGui::GetIO();
+    const float w = io.DisplaySize.x;
+    const float h = io.DisplaySize.y;
+    if (w <= 0.0f || h <= 0.0f) {
+        return EditorRect{0.0f, 0.0f, 1.0f, 1.0f};
+    }
+    const EditorRect r = world_rect();
+    return EditorRect{r.x / w, r.y / h, r.w / w, r.h / h};
 }
 
 void EditorUi::end_frame() {
