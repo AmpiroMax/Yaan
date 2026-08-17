@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:21:37
-Last updated: 17:08:2026 - 13:21:37
+Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/PartForgeRoofs.cpp
 
@@ -32,6 +32,8 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 13:21:37: make_roof перенесён дословно и расширен покрытиями
   тёс/черепица/дёрн; добавлены вальма (вариант полувальмы) и дымник.
+- 17:08:2026 - 14:29:43: material_of получил wear — ряд атласа несёт износ, и обрешётка под
+  соломой должна стареть вместе с покрытием, а не оставаться свежей.
 */
 
 #include "engine/render/sources/PartForgeDetail.h"
@@ -137,10 +139,10 @@ void make_roof(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) 
     if (p.material == PartMaterial::Turf) {
         hewn_bar(m, {0.0f, cov.deck * 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
                  {0.0f, 1.0f, 0.0f}, depth, 0.05f, cov.deck * 0.55f,
-                 material_of(PartMaterial::Timber), p.wear, rng, 3);
+                 material_of(PartMaterial::Timber, p.wear), p.wear, rng, 3);
     }
     // The ridge beam and the rafter under the eaves: the timber a roof rests on.
-    const Material frame = material_of(PartMaterial::Timber);
+    const Material frame = material_of(PartMaterial::Timber, p.wear);
     hewn_bar(m, {run, rise, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, depth,
              m_of(1) * 0.6f, m_of(1) * 0.6f, frame, p.wear, rng, 3);
     hewn_bar(m, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, depth,
@@ -180,7 +182,7 @@ void make_roof_hip(MeshData& m, const PartParams& p, const Material& mat, Rng& r
     // Накосные стропила: the two slanted edge timbers a hip is built on —
     // they also seal the stepped course ends the way a barge board seals a
     // gable's.
-    const Material frame = material_of(PartMaterial::Timber);
+    const Material frame = material_of(PartMaterial::Timber, p.wear);
     for (int s = 0; s < 2; ++s) {
         const float z0 = s == 0 ? 0.0f : depth;
         const float z1 = s == 0 ? depth * 0.5f * (1.0f - top_frac)
@@ -204,7 +206,7 @@ void make_smoke_vent(MeshData& m, const PartParams& p, const Material& mat, Rng&
     const float s = m_of(p.length_u);      // base side
     const float h = std::max(0.5f, s * 0.9f);
     const float half = s * 0.5f;
-    const Material dark = material_of(PartMaterial::TimberDark);
+    const Material dark = material_of(PartMaterial::TimberDark, p.wear);
     for (int cx = 0; cx < 2; ++cx) {
         for (int cz = 0; cz < 2; ++cz) {
             hewn_bar(m, {(cx == 0 ? -half : half) * 0.9f, 0.0f,

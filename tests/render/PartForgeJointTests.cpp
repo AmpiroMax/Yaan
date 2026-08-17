@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 12:39:52
-Last updated: 17:08:2026 - 13:54:03
+Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeJointTests.cpp
 
@@ -32,6 +32,9 @@ UPD:
   тесты крыш; копия на файл — правило 39 в миниатюре).
 - 17:08:2026 - 13:54:03: счёт каталога под ряд высот стен (HOUSES.md §6): стойки 384 -> 960
   (h11/12/13/14/16), перевязки 8 -> 20 (h6/11/12/13/14).
+- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
+  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
+  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -86,11 +89,11 @@ TEST_CASE("every joint shape is a sealed hull with outward winding") {
                                                                PartMaterial::Stone));
             CAPTURE(facets);
             CAPTURE(d);
-            CHECK(meshtest::half_edge_defects(obj.wood) == 0);
+            CHECK(meshtest::half_edge_defects(meshtest::solid_of(obj)) == 0);
             // Volume of an across-flats-d prism of height 2.75 m: bounded by
             // the inscribed cylinder from below-ish and the box from above.
             const double d_m = d * 0.01;
-            const double vol = meshtest::signed_volume(obj.wood);
+            const double vol = meshtest::signed_volume(meshtest::solid_of(obj));
             CHECK(vol > 0.5 * d_m * d_m * 2.75 * 0.5);
             CHECK(vol < d_m * d_m * 2.75 * 1.01);
         }
@@ -98,7 +101,7 @@ TEST_CASE("every joint shape is a sealed hull with outward winding") {
     // The winding meter's own control: the same prism inverted must read
     // NEGATIVE, or the meter cannot tell outward from inward.
     RegistryObject obj = forge_part(joint_params(4, 50, 11, PartMaterial::Timber));
-    MeshData flipped = obj.wood;
+    MeshData flipped = meshtest::solid_of(obj);
     for (std::size_t i = 0; i + 2 < flipped.indices.size(); i += 3) {
         std::swap(flipped.indices[i], flipped.indices[i + 1]);
     }
@@ -115,7 +118,7 @@ TEST_CASE("facet contract: a plane at the across-flats radius, first normal at +
         CAPTURE(facets);
         float max_x = -1e9f;
         int on_facet = 0;
-        for (const auto& v : obj.wood.vertices) {
+        for (const auto& v : meshtest::solid_of(obj).vertices) {
             max_x = std::max(max_x, v.position.x);
             if (v.position.x > r_in - 1e-4f) {
                 ++on_facet;
@@ -132,7 +135,7 @@ TEST_CASE("facet contract: a plane at the across-flats radius, first normal at +
     // anywhere, which IS its rule (any angle).
     const RegistryObject round_j = forge_part(joint_params(0, 50, 11,
                                                            PartMaterial::Timber));
-    for (const auto& v : round_j.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(round_j).vertices) {
         const float r = std::sqrt(v.position.x * v.position.x
                                   + v.position.z * v.position.z);
         const bool on_axis = r < 1e-4f; // cap-fan centres
@@ -153,13 +156,13 @@ TEST_CASE("a 4-facet sleeper has a flat bed at y=0 and a flat seat at y=d") {
     p.wear = 0.3f;
     p.name = part_name(p);
     const RegistryObject obj = forge_part(p);
-    CHECK(meshtest::half_edge_defects(obj.wood) == 0);
-    CHECK(meshtest::signed_volume(obj.wood) > 0.0); // outward, not an inside-out log
+    CHECK(meshtest::half_edge_defects(meshtest::solid_of(obj)) == 0);
+    CHECK(meshtest::signed_volume(meshtest::solid_of(obj)) > 0.0); // outward, not an inside-out log
     float lo = 1e9f;
     float hi = -1e9f;
     int at_bed = 0;
     int at_seat = 0;
-    for (const auto& v : obj.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         lo = std::min(lo, v.position.y);
         hi = std::max(hi, v.position.y);
         if (std::fabs(v.position.y) < 1e-4f) ++at_bed;
@@ -193,7 +196,7 @@ TEST_CASE("determinism: same params, same bytes (Rule 13.1 for objects)") {
     const RegistryObject a = forge_part(p);
     const RegistryObject b = forge_part(p);
     CHECK(object_content_hash(a) == object_content_hash(b));
-    CHECK(a.wood.vertices.size() == b.wood.vertices.size());
+    CHECK(meshtest::solid_of(a).vertices.size() == meshtest::solid_of(b).vertices.size());
 }
 
 TEST_CASE("the catalogue grew by rule and every name is unique") {
@@ -226,7 +229,7 @@ TEST_CASE("log corner: stubs run out past BOTH walls at the panel's course rhyth
     const RegistryObject obj = forge_part(p);
     glm::vec3 lo{1e9f};
     glm::vec3 hi{-1e9f};
-    for (const auto& v : obj.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         lo = glm::min(lo, v.position);
         hi = glm::max(hi, v.position);
     }

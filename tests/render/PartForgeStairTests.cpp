@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:46:59
-Last updated: 17:08:2026 - 13:46:59
+Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeStairTests.cpp
 
@@ -30,6 +30,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 13:46:59: Создан — волна крутых лестниц (подъём к проступи 1:1, 45°).
+- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
+  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
+  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -69,7 +72,7 @@ struct FlightSpan {
 FlightSpan span_of(const RegistryObject& obj) {
     float max_x = 0.0f;
     float max_y = 0.0f;
-    for (const auto& v : obj.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         max_x = std::max(max_x, v.position.x);
         max_y = std::max(max_y, v.position.y);
     }
@@ -116,7 +119,7 @@ TEST_CASE("every riser the kit sells is one the player climbs") {
 TEST_CASE("steep stairs are closed volumes and deterministic") {
     const auto p = stair_params(1, 6, 12, PartMaterial::Stone, 0.8f);
     const auto obj = forge_part(p);
-    CHECK(meshtest::half_edge_defects(obj.wood) == 0);
+    CHECK(meshtest::half_edge_defects(meshtest::solid_of(obj)) == 0);
     CHECK(object_content_hash(obj) == object_content_hash(forge_part(p)));
 }
 

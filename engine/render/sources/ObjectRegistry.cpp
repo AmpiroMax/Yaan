@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 01:46:53
+Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.cpp
 
@@ -26,6 +26,11 @@ UPD:
 - 15:08:2026 - 01:46:53: формат v2 — секция BARK; хэш файла v1 сверяется
   правилом v1 (версия — обещание о том, как ЧИТАТЬ, включая как сверять).
 
+- 17:08:2026 - 14:29:43: write_object отказывался писать объект, у которого ЕДИНСТВЕННЫЙ
+  непустой поток — bark: проверка «нет потоков» осталась от формата v1 и
+  перечисляла три потока, хотя сама функция двумя строками ниже пишет
+  четвёртый. Всплыло, когда строительный набор стал текстурным целиком.
+  Правило не изменилось — оно теперь называет все потоки, которые стережёт.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -154,8 +159,14 @@ uint64_t object_content_hash(const RegistryObject& obj) {
 }
 
 bool write_object(const RegistryObject& obj, const std::filesystem::path& path) {
+    // THE BARK STREAM COUNTS TOO. This test was written for the v1 format and
+    // kept its three streams when v2 added a fourth that this very function
+    // writes two lines below — so an object whose geometry is ENTIRELY
+    // textured (every part of the building kit, since it gained its own atlas
+    // sheet) was refused as "a name pointing at nothing". The rule is
+    // unchanged; it now names every stream it guards.
     if (obj.wood.vertices.empty() && obj.cards.vertices.empty()
-        && obj.ground.vertices.empty()) {
+        && obj.ground.vertices.empty() && obj.bark.vertices.empty()) {
         std::fprintf(stderr, "[dfo] \"%s\": refusing to write an object with no "
                              "streams -- a name pointing at nothing\n",
                      obj.name.c_str());

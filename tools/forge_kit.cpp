@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:55:43
-Last updated: 16:08:2026 - 20:55:43
+Last updated: 17:08:2026 - 14:29:43
 Module: tools
 File: tools/forge_kit.cpp
 
@@ -29,6 +29,10 @@ UPD:
 - 16:08:2026 - 20:55:43: Создан — набор строительных деталей (запрос
   пользователя: «набор из 500-та различных строй материалов и их конфигураций,
   чтобы агент строил разные дома»).
+- 17:08:2026 - 14:29:43: отказ «нет геометрии» и счёт треугольников смотрят в ОБА потока
+  (wood и bark): у текстурной детали геометрия в bark, и счёт по одному
+  потоку отчитался бы набором из нуля треугольников в тот самый день, когда
+  набор получил текстуру.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -83,7 +87,7 @@ int main(int argc, char** argv) {
     index += "# name  triangles  source\n";
     for (const PartParams& p : catalogue) {
         const RegistryObject obj = forge_part(p);
-        if (obj.wood.indices.empty()) {
+        if (obj.wood.indices.empty() && obj.bark.indices.empty()) {
             std::fprintf(stderr, "[kit] %s produced NO GEOMETRY -- REFUSED\n",
                          obj.name.c_str());
             return 1;
@@ -105,7 +109,11 @@ int main(int argc, char** argv) {
                          path.string().c_str());
             return 1;
         }
-        const std::size_t t = obj.wood.triangle_count();
+        // BOTH STREAMS: a textured part's geometry lives in `bark` (the .dfo's
+        // textured channel), an untextured one's in `wood`. Counting only the
+        // first would report a kit of zero triangles the day the kit gained a
+        // texture, and the index every composer reads would say so.
+        const std::size_t t = obj.wood.triangle_count() + obj.bark.triangle_count();
         tris += t;
         ++written;
         ++per_kind[obj.source.substr(4, obj.source.find(' ', 4) - 4)];

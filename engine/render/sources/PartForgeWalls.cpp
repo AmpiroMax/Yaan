@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:09:29
-Last updated: 17:08:2026 - 13:09:29
+Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/PartForgeWalls.cpp
 
@@ -33,6 +33,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 13:09:29: Создан — волна вариантов стен (10 стилей x 4 проёма).
+- 17:08:2026 - 14:29:43: обшивка носит ПИЛЁНУЮ колонку атласа (skin_as_board), ядро за ней —
+  свою: доска и брус — разные поверхности одного дерева. material_of получил
+  wear (ряд атласа = тон и износ вместе).
 */
 
 #include "engine/render/sources/PartForgeDetail.h"
@@ -177,7 +180,7 @@ void trim_holes(MeshData& m, const std::vector<Hole>& holes, float t,
             // mullion cross that makes it read as a casement.
             block(m, {hh.x0 - 0.03f, hh.y0 - 0.03f, t * 0.5f - PANE_THICK_M * 0.5f},
                   {hh.x1 - hh.x0 + 0.06f, hh.y1 - hh.y0 + 0.06f, PANE_THICK_M},
-                  material_of(PartMaterial::Pane), p.wear * 0.3f, rng, 1);
+                  material_of(PartMaterial::Pane, p.wear), p.wear * 0.3f, rng, 1);
             const float cx = (hh.x0 + hh.x1) * 0.5f;
             const float cy = (hh.y0 + hh.y1) * 0.5f;
             hewn_bar(m, {cx, hh.y0, t * 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
@@ -255,6 +258,11 @@ void make_courses(MeshData& m, const PartParams& p, const Material& mat, Rng& rn
     Material core = mat;
     core.color *= 0.55f;
     core.wobble = 0.0f;
+    // BOARDS ARE SAWN, and the wall says so: the skin wears the sawn column
+    // while the core behind it keeps the material's own surface (it is only
+    // ever seen through a reveal).
+    Material skin = mat;
+    skin_as_board(skin);
     slab_around(m, holes, 0.0f, w, 0.0f, h, t * 0.5f - WALL_CORE_M * 0.5f,
                 WALL_CORE_M, core, p.wear * 0.5f, rng);
 }
@@ -267,6 +275,11 @@ void make_boarded(MeshData& m, const PartParams& p, const Material& mat, Rng& rn
     Material core = mat;
     core.color *= 0.55f;
     core.wobble = 0.0f;
+    // BOARDS ARE SAWN, and the wall says so: the skin wears the sawn column
+    // while the core behind it keeps the material's own surface (it is only
+    // ever seen through a reveal).
+    Material skin = mat;
+    skin_as_board(skin);
     slab_around(m, holes, 0.0f, w, 0.0f, h, t * 0.5f - WALL_CORE_M * 0.5f,
                 WALL_CORE_M, core, p.wear * 0.5f, rng);
     const float span = vertical ? w : h;
@@ -311,11 +324,11 @@ void make_boarded(MeshData& m, const PartParams& p, const Material& mat, Rng& rn
                 if (vertical) {
                     hewn_bar(m, {mid, r.first, z}, {0.0f, 1.0f, 0.0f},
                              {0.0f, 0.0f, 1.0f}, r.second - r.first, bhw,
-                             INFILL_THICK_M * 0.5f, mat, p.wear, rng, 2);
+                             INFILL_THICK_M * 0.5f, skin, p.wear, rng, 2);
                 } else {
                     hewn_bar(m, {r.first, mid, z}, {1.0f, 0.0f, 0.0f},
                              {0.0f, 1.0f, 0.0f}, r.second - r.first,
-                             INFILL_THICK_M * 0.5f, bhw, mat, p.wear, rng, 2);
+                             INFILL_THICK_M * 0.5f, bhw, skin, p.wear, rng, 2);
                 }
             }
         }
@@ -328,7 +341,7 @@ void make_boarded(MeshData& m, const PartParams& p, const Material& mat, Rng& rn
 void make_frame(MeshData& m, const PartParams& p, const Material& infill, Rng& rng,
                 int braces, const std::vector<Hole>& holes, float w, float h,
                 float t) {
-    const Material timber = material_of(PartMaterial::TimberDark);
+    const Material timber = material_of(PartMaterial::TimberDark, p.wear);
     const float fs = FRAME_MEMBER_M;
     // The slab first: full thickness, faces just shy of both wall planes.
     slab_around(m, holes, 0.0f, w, 0.0f, h, 0.02f, t - 0.04f, infill, p.wear, rng);
@@ -385,7 +398,7 @@ void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat,
     const std::vector<Hole> holes = holes_of(p, w, h);
     const bool masonry = p.variant >= 7 && p.variant <= 10;
     const Material trim =
-        material_of(masonry ? PartMaterial::Stone : PartMaterial::Timber);
+        material_of(masonry ? PartMaterial::Stone : PartMaterial::Timber, p.wear);
     switch (p.variant) {
     case 1: // СРУБ: full-run logs at the corner part's own rhythm.
         make_courses(m, p, mat, rng, LOG_COURSE_M, 0.0f, 0.0f, false, holes, w, h, t);
@@ -431,7 +444,7 @@ void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat,
                                  hh.y1 - COMBO_STONE_H_M, hh.pane});
             }
         }
-        Material stone = material_of(PartMaterial::Stone);
+        Material stone = material_of(PartMaterial::Stone, p.wear);
         // The stone belt (its own courses)...
         {
             MeshData belt;
@@ -442,7 +455,7 @@ void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat,
         // ...the belt beam every reference house wears on that seam...
         hewn_bar(m, {0.0f, COMBO_STONE_H_M + 0.05f, t * 0.5f}, {1.0f, 0.0f, 0.0f},
                  {0.0f, 1.0f, 0.0f}, w, t * 0.55f, 0.06f,
-                 material_of(PartMaterial::Timber), p.wear, rng, 3);
+                 material_of(PartMaterial::Timber, p.wear), p.wear, rng, 3);
         // ...and the boarded top, shifted up.
         {
             MeshData top;

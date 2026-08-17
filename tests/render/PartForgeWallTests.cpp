@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:09:29
-Last updated: 17:08:2026 - 13:54:03
+Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeWallTests.cpp
 
@@ -29,10 +29,14 @@ UPD:
 - 17:08:2026 - 13:09:29: Создан — волна вариантов стен.
 - 17:08:2026 - 13:54:03: счёт стилевых панелей 174 -> 696: те же 174 конструкции на четырёх
   высотах ряда 11/12/13/14u (HOUSES.md §6).
+- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
+  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
+  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/render/sources/PartForge.h"
 #include "engine/world/sources/Scene.h"
+#include "tests/render/MeshMeters.h"
 
 #include <doctest/doctest.h>
 #include <string>
@@ -59,13 +63,13 @@ PartParams wall_params(int variant, int opening, PartMaterial mat) {
 
 dfn::world::SolidReport solidity(const RegistryObject& obj) {
     std::vector<glm::vec3> pos;
-    pos.reserve(obj.wood.vertices.size());
-    for (const auto& v : obj.wood.vertices) {
+    pos.reserve(meshtest::solid_of(obj).vertices.size());
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         pos.push_back(v.position);
     }
     // 2 cm grid: the openings under test are metre-scale, and the full-kit
     // 1 cm sweep over ten styles is a minute of test time nobody rereads.
-    return dfn::world::check_panel_solid(pos, obj.wood.indices, 0.02f);
+    return dfn::world::check_panel_solid(pos, meshtest::solid_of(obj).indices, 0.02f);
 }
 
 PartMaterial default_mat(int variant) {
@@ -88,7 +92,7 @@ TEST_CASE("every wall style is solid blind and with windows; the door leaks by d
         const PartMaterial mat = default_mat(variant);
         for (const int opening : {0, 1, 3}) {
             const RegistryObject obj = forge_part(wall_params(variant, opening, mat));
-            REQUIRE(!obj.wood.indices.empty());
+            REQUIRE(!meshtest::solid_of(obj).indices.empty());
             const auto r = solidity(obj);
             CAPTURE(variant);
             CAPTURE(opening);

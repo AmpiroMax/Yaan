@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:23:29
-Last updated: 17:08:2026 - 13:23:29
+Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeRoofTests.cpp
 
@@ -26,6 +26,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 13:23:29: Создан — волна вариантов крыш.
+- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
+  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
+  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -59,7 +62,7 @@ PartParams roof_params(PartKind kind, PartMaterial mat, int len, int run, int ri
 float top_width(const RegistryObject& obj, float rise) {
     float lo = 1e9f;
     float hi = -1e9f;
-    for (const auto& v : obj.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         if (v.position.y > rise * 0.8f) {
             lo = std::min(lo, v.position.z);
             hi = std::max(hi, v.position.z);
@@ -77,9 +80,9 @@ TEST_CASE("every covering builds closed, outward geometry") {
         const RegistryObject obj = forge_part(
             roof_params(PartKind::RoofSlope, mat, 12, 8, 8));
         CAPTURE(static_cast<int>(mat));
-        REQUIRE(!obj.wood.indices.empty());
-        CHECK(meshtest::half_edge_defects(obj.wood) == 0);
-        CHECK(meshtest::signed_volume(obj.wood) > 0.0);
+        REQUIRE(!meshtest::solid_of(obj).indices.empty());
+        CHECK(meshtest::half_edge_defects(meshtest::solid_of(obj)) == 0);
+        CHECK(meshtest::signed_volume(meshtest::solid_of(obj)) > 0.0);
     }
 }
 
@@ -91,7 +94,7 @@ TEST_CASE("тёс underdeck sits ON the slope, not past the eaves") {
         roof_params(PartKind::RoofSlope, PartMaterial::Timber, 12, 8, 8));
     float min_x = 1e9f;
     float max_y = -1e9f;
-    for (const auto& v : obj.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         min_x = std::min(min_x, v.position.x);
         max_y = std::max(max_y, v.position.y);
     }
@@ -115,7 +118,7 @@ TEST_CASE("the hip narrows to its apex; the half-hip keeps its top edge (the pai
     CHECK(w_polu > depth * 0.40f);
     CHECK(w_polu < depth * 0.75f);
     CHECK(w_tri < w_polu);
-    CHECK(meshtest::half_edge_defects(tri.wood) == 0);
+    CHECK(meshtest::half_edge_defects(meshtest::solid_of(tri)) == 0);
 }
 
 TEST_CASE("the smoke vent stays inside its base square and above it") {
@@ -123,7 +126,7 @@ TEST_CASE("the smoke vent stays inside its base square and above it") {
         roof_params(PartKind::SmokeVent, PartMaterial::Timber, 2, 1, 1));
     glm::vec3 lo{1e9f};
     glm::vec3 hi{-1e9f};
-    for (const auto& v : obj.wood.vertices) {
+    for (const auto& v : meshtest::solid_of(obj).vertices) {
         lo = glm::min(lo, v.position);
         hi = glm::max(hi, v.position);
     }

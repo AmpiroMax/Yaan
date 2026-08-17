@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 13:49:34
+# Last updated: 17:08:2026 - 14:29:43
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -48,6 +48,9 @@
 #   дымник, имена, каталог); измерители — в MeshMeters.h.
 # - 17:08:2026 - 13:49:34: Part-forge stair tests (крутой марш достаёт этаж за свою длину,
 #   пологий — контроль тем же измерителем; ступень против PLAYER_STEP_HEIGHT).
+# - 17:08:2026 - 14:29:43: Parts atlas tests (лист набора: непрозрачность против маски листвы,
+#   палитра против соседнего ряда, контраст против плоской грани, шов против
+#   рампы, рельеф соломы против штукатурки; шкура бруса не двигает вершины).
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
@@ -78,3 +81,4 @@ add_dfn_test(render_part_forge_roofs render/PartForgeRoofTests.cpp
     dfn_render dfn_core)
 add_dfn_test(render_part_forge_stairs render/PartForgeStairTests.cpp
     dfn_render dfn_core)
+add_dfn_test(render_parts_atlas render/PartsAtlasTests.cpp dfn_render dfn_core)

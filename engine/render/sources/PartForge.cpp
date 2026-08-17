@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:46:59
+Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -83,6 +83,15 @@ UPD:
   и не тронем: PLAYER_STEP_HEIGHT 0.35 — ступень 0.25 проходима, 0.50 нет,
   крутизна берётся только укорочением проступи. Имя несёт -steep; variant 0
   печётся байт-в-байт как раньше (going тот же m_of(2)).
+- 17:08:2026 - 14:29:43: ТЕКСТУРЫ ДЕТАЛЯМ (заказ 17.08, п.3): skin_of() — таблица «материал ->
+  колонка поверхности + ряд тона/износа», и forge_part кладёт геометрию в
+  ПОТОК bark (текстурный канал .dfo; приложение уже кормит им и программу
+  листвы, и треугольную коллизию для kind == "part", так что текстура не
+  делает дом проходимым). Цветовая таблица материалов НЕ умерла — она
+  контрольная рука и одновременно эталон: тайл, в который попадает материал,
+  усредняется ровно в её цвет, то есть текстура меняет ПОВЕРХНОСТЬ, а не
+  палитру принятой витрины. Геометрия не тронута: замкнутость, объём,
+  сплошность стен и run/rise лестниц зелены теми же измерителями.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -106,7 +115,78 @@ namespace dfn::render {
 // 800 hard limit). THE material table is defined here, once (Rule 39).
 namespace part_detail {
 
-Material material_of(PartMaterial m) {
+/// WHICH TILE A MATERIAL WEARS. The column is the SURFACE (how the material is
+/// worked); the row is the TONE AND THE WEAR together. Two materials share a
+/// column whenever their only difference is colour — brick and roof tile are
+/// both fired clay, plaster and daub are both a trowelled skin — because a
+/// column costs a whole row of tiles and a row costs one.
+[[nodiscard]] PartSkin skin_of(PartMaterial m, float wear) {
+    // 0.55 is the fence between the catalogue's own two wear steps (0.3 and
+    // 0.8): both sit clear of it, so no part lands on the fence and the row a
+    // part gets is not decided by a rounding.
+    const bool worn = wear >= 0.55f;
+    PartSkin s;
+    s.textured = true;
+    s.span_m = PARTS_TILE_SPAN_M;
+    const auto set = [&s](PartSurface side, PartTone tone, PartSurface end,
+                          PartTone end_tone) {
+        s.side = side;
+        s.side_tone = tone;
+        s.end = end;
+        s.end_tone = end_tone;
+    };
+    switch (m) {
+    case PartMaterial::Timber:
+        set(PartSurface::HewnTimber, worn ? PartTone::Weathered : PartTone::Mid,
+            PartSurface::EndGrain, worn ? PartTone::Weathered : PartTone::Mid);
+        break;
+    case PartMaterial::TimberDark:
+        set(PartSurface::HewnTimber, PartTone::Dark, PartSurface::EndGrain,
+            PartTone::Dark);
+        break;
+    case PartMaterial::Plaster:
+        set(PartSurface::Plaster, worn ? PartTone::Weathered : PartTone::Light,
+            PartSurface::Plaster, worn ? PartTone::Weathered : PartTone::Light);
+        break;
+    case PartMaterial::Clay:
+        set(PartSurface::Plaster, worn ? PartTone::Weathered : PartTone::Mid,
+            PartSurface::Plaster, worn ? PartTone::Weathered : PartTone::Mid);
+        break;
+    case PartMaterial::Stone:
+        set(PartSurface::Stone, worn ? PartTone::Weathered : PartTone::Mid,
+            PartSurface::Stone, worn ? PartTone::Weathered : PartTone::Mid);
+        break;
+    case PartMaterial::Brick:
+        set(PartSurface::FiredClay, worn ? PartTone::Weathered : PartTone::Mid,
+            PartSurface::FiredClay, worn ? PartTone::Weathered : PartTone::Mid);
+        break;
+    case PartMaterial::Tile:
+        set(PartSurface::FiredClay, worn ? PartTone::Weathered : PartTone::Light,
+            PartSurface::FiredClay, worn ? PartTone::Weathered : PartTone::Light);
+        break;
+    case PartMaterial::Thatch:
+        set(PartSurface::Thatch, worn ? PartTone::Weathered : PartTone::Light,
+            PartSurface::Thatch, worn ? PartTone::Weathered : PartTone::Light);
+        break;
+    case PartMaterial::Shingle:
+        // Дранка is SPLIT wood, so it wears the sawn column and shows a wood
+        // end — a shingle's butt is exactly what the eye reads on a roof.
+        set(PartSurface::SawnBoard, worn ? PartTone::Weathered : PartTone::Dark,
+            PartSurface::EndGrain, worn ? PartTone::Weathered : PartTone::Dark);
+        break;
+    case PartMaterial::Turf:
+        set(PartSurface::Turf, worn ? PartTone::Weathered : PartTone::Mid,
+            PartSurface::Turf, worn ? PartTone::Weathered : PartTone::Mid);
+        break;
+    case PartMaterial::Pane:
+        set(PartSurface::Pane, PartTone::Mid, PartSurface::Pane, PartTone::Mid);
+        break;
+    }
+    return s;
+}
+
+Material material_of(PartMaterial m, float wear) {
+    Material out = [m]() -> Material {
     switch (m) {
     // Weathered oak: the reference's timber is grey first and brown second.
     case PartMaterial::Timber: return {{0.44f, 0.37f, 0.29f}, 0.16f, 0.22f, 0.012f};
@@ -133,6 +213,14 @@ Material material_of(PartMaterial m) {
     case PartMaterial::Clay: return {{0.60f, 0.50f, 0.38f}, 0.08f, 0.04f, 0.006f};
     }
     return {{0.5f, 0.5f, 0.5f}, 0.1f, 0.1f, 0.0f};
+    }();
+    // THE COLOUR TABLE ABOVE IS NOT DEAD once a part is textured: it is the
+    // control arm. `skin.textured = false` reproduces the untextured kit
+    // byte-for-byte out of THIS binary (Rule 47), and the atlas tile a
+    // material maps to averages to this very colour — texturing changes the
+    // surface, not the palette the showcase was accepted with.
+    out.skin = skin_of(m, wear);
+    return out;
 }
 
 } // namespace part_detail
@@ -219,7 +307,7 @@ void make_wall(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) 
     const float w = m_of(p.length_u);
     const float h = m_of(p.height_u);
     const float t = m_of(p.width_u);
-    const Material frame = material_of(PartMaterial::Timber);
+    const Material frame = material_of(PartMaterial::Timber, p.wear);
     const float fs = std::min(m_of(2), w * 0.25f); // frame member size
 
     // Frame first, so a wall reads as timber-frame even in silhouette.
@@ -329,7 +417,7 @@ void make_gable(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
         hewn_bar(m, {xc, 0.0f, t * 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, bh,
                  (bw - BOARD_GAP_M) * 0.5f, t * 0.5f, mat, p.wear, rng, 2);
     }
-    const Material frame = material_of(PartMaterial::Timber);
+    const Material frame = material_of(PartMaterial::Timber, p.wear);
     const float fs = m_of(1);
     // Collar beam at a third of the rise: the horizontal timber that makes a
     // Nordic gable read as a gable and not as a pile of boards.
@@ -373,7 +461,7 @@ void make_stair(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
         glm::vec3{going * static_cast<float>(steps), rise * static_cast<float>(steps), 0.0f});
     const float slen = std::sqrt(std::pow(going * static_cast<float>(steps), 2.0f)
                                  + std::pow(rise * static_cast<float>(steps), 2.0f));
-    const Material frame = material_of(PartMaterial::Timber);
+    const Material frame = material_of(PartMaterial::Timber, p.wear);
     for (int s = 0; s < 2; ++s) {
         const float z = s == 0 ? m_of(1) * 0.5f : w - m_of(1) * 0.5f;
         hewn_bar(m, {0.0f, 0.0f, z}, along, {0.0f, 0.0f, 1.0f}, slen, m_of(1) * 0.5f,
@@ -422,7 +510,7 @@ void make_door_leaf(MeshData& m, const PartParams& p, const Material& mat, Rng& 
                  {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, h, (bw - BOARD_GAP_M) * 0.5f,
                  LEAF_THICK_M * 0.5f, mat, p.wear, rng, 2);
     }
-    const Material iron = material_of(PartMaterial::TimberDark);
+    const Material iron = material_of(PartMaterial::TimberDark, p.wear);
     for (int s = 0; s < 2; ++s) {
         const float y = s == 0 ? h * 0.18f : h * 0.80f;
         hewn_bar(m, {0.0f, y, LEAF_THICK_M}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, w,
@@ -459,7 +547,7 @@ void make_window(MeshData& m, const PartParams& p, const Material& mat, Rng& rng
     // is Pane on purpose — findable, replaceable when real interiors arrive.
     block(m, {-j * 0.25f, -j * 0.25f, t * 0.30f - PANE_THICK_M * 0.5f},
           {w + j * 0.5f, h + j * 0.5f, PANE_THICK_M},
-          material_of(PartMaterial::Pane), p.wear * 0.3f, rng, 1);
+          material_of(PartMaterial::Pane, p.wear), p.wear * 0.3f, rng, 1);
 }
 
 /// A course of field stones, origin at its near-bottom-left. Individual
@@ -676,37 +764,53 @@ RegistryObject forge_part(const PartParams& params) {
                       static_cast<unsigned long long>(params.seed));
         obj.source = src;
     }
-    const Material mat = material_of(params.material);
+    Material mat = material_of(params.material, params.wear);
+    // A BOARD IS SAWN, A BEAM IS HEWN, and the kit tells them apart by the
+    // PART rather than by the material — a plank and a post are the same oak.
+    // Only these three kinds are boards through and through; the boarded WALL
+    // skins say so at their own call site, because the same panel also carries
+    // hewn framing.
+    if (params.kind == PartKind::Plank || params.kind == PartKind::DoorLeaf
+        || params.kind == PartKind::Fence) {
+        part_detail::skin_as_board(mat);
+    }
+    // THE TEXTURED STREAM, and it is not a new stream: `bark` is the .dfo's
+    // existing textured-mesh channel (ObjectRegistry.h), the app already feeds
+    // it to the foliage program AND to the triangle collision body for
+    // kind == "part" (App.cpp), so a part that gains a texture does not lose
+    // its solidity. The plain `wood` stream stays empty for a textured part —
+    // one surface may live in exactly one stream, or it z-fights itself.
+    MeshData& out = mat.skin.textured ? obj.bark : obj.wood;
     Rng rng(params.seed);
     switch (params.kind) {
-    case PartKind::Beam: make_beam(obj.wood, params, mat, rng); break;
-    case PartKind::Post: make_post(obj.wood, params, mat, rng); break;
-    case PartKind::Plank: make_plank(obj.wood, params, mat, rng); break;
+    case PartKind::Beam: make_beam(out, params, mat, rng); break;
+    case PartKind::Post: make_post(out, params, mat, rng); break;
+    case PartKind::Plank: make_plank(out, params, mat, rng); break;
     case PartKind::WallPanel:
         if (params.variant != 0) {
-            part_detail::make_wall_styled(obj.wood, params, mat, rng);
+            part_detail::make_wall_styled(out, params, mat, rng);
         } else {
-            make_wall(obj.wood, params, mat, rng);
+            make_wall(out, params, mat, rng);
         }
         break;
-    case PartKind::Gable: make_gable(obj.wood, params, mat, rng); break;
-    case PartKind::RoofSlope: part_detail::make_roof(obj.wood, params, mat, rng); break;
+    case PartKind::Gable: make_gable(out, params, mat, rng); break;
+    case PartKind::RoofSlope: part_detail::make_roof(out, params, mat, rng); break;
     case PartKind::RoofHip:
-        part_detail::make_roof_hip(obj.wood, params, mat, rng);
+        part_detail::make_roof_hip(out, params, mat, rng);
         break;
     case PartKind::SmokeVent:
-        part_detail::make_smoke_vent(obj.wood, params, mat, rng);
+        part_detail::make_smoke_vent(out, params, mat, rng);
         break;
-    case PartKind::Stair: make_stair(obj.wood, params, mat, rng); break;
-    case PartKind::DoorFrame: make_door_frame(obj.wood, params, mat, rng); break;
-    case PartKind::DoorLeaf: make_door_leaf(obj.wood, params, mat, rng); break;
-    case PartKind::WindowFrame: make_window(obj.wood, params, mat, rng); break;
-    case PartKind::Footing: make_footing(obj.wood, params, mat, rng); break;
-    case PartKind::Fence: make_fence(obj.wood, params, mat, rng); break;
-    case PartKind::JointPost: part_detail::make_joint(obj.wood, params, mat, rng); break;
-    case PartKind::Sleeper: part_detail::make_sleeper(obj.wood, params, mat, rng); break;
+    case PartKind::Stair: make_stair(out, params, mat, rng); break;
+    case PartKind::DoorFrame: make_door_frame(out, params, mat, rng); break;
+    case PartKind::DoorLeaf: make_door_leaf(out, params, mat, rng); break;
+    case PartKind::WindowFrame: make_window(out, params, mat, rng); break;
+    case PartKind::Footing: make_footing(out, params, mat, rng); break;
+    case PartKind::Fence: make_fence(out, params, mat, rng); break;
+    case PartKind::JointPost: part_detail::make_joint(out, params, mat, rng); break;
+    case PartKind::Sleeper: part_detail::make_sleeper(out, params, mat, rng); break;
     case PartKind::LogCorner:
-        part_detail::make_log_corner(obj.wood, params, mat, rng);
+        part_detail::make_log_corner(out, params, mat, rng);
         break;
     }
     return obj;

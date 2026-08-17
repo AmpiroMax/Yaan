@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:02:08
-Last updated: 17:08:2026 - 13:24:19
+Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/PartForgeDetail.h
 
@@ -33,6 +33,10 @@ UPD:
   против предела 800).
 - 17:08:2026 - 13:24:19: объявления семьи крыш (make_roof/make_roof_hip/make_smoke_vent
   в PartForgeRoofs.cpp).
+- 17:08:2026 - 14:29:43: material_of получил wear: ряд атласа — это тон И износ вместе
+  (PartsAtlas.h), выветренный брус не «тот же, но темнее», а другая
+  поверхность. skin_as_board — доска против бруса решается ДЕТАЛЬЮ, а не
+  материалом: доска и стойка — один и тот же дуб.
 */
 
 #pragma once
@@ -52,7 +56,19 @@ using Rng = HewnRng;
 
 /// THE material table — one definition for every family TU (Rule 39).
 /// Implemented in PartForge.cpp.
-[[nodiscard]] Material material_of(PartMaterial m);
+///
+/// `wear` is here because the ATLAS ROW is the tone AND the wear together
+/// (PartsAtlas.h): a weathered oak beam is not a darker fresh one, it is a
+/// greyed, checked, lichened surface, and that is a different tile. The
+/// default keeps the untextured call sites honest rather than silently fresh.
+[[nodiscard]] Material material_of(PartMaterial m, float wear = 0.5f);
+
+/// The same material as SAWN BOARD rather than hewn timber: planks, door
+/// leaves, cladding skins, shingles. The kit tells hewn from sawn by the PART,
+/// not by the material — a board and a beam are the same oak.
+inline void skin_as_board(Material& mat) {
+    mat.skin.side = PartSurface::SawnBoard;
+}
 
 [[nodiscard]] inline uint32_t tone(const Material& mat, float wear, Rng& rng) {
     return hewn_tone(mat, wear, rng);

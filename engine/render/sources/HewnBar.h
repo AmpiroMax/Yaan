@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 22:28:22
-Last updated: 16:08:2026 - 22:28:22
+Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/HewnBar.h
 
@@ -31,10 +31,18 @@ UPD:
 - 16:08:2026 - 22:28:22: Вынос из PartForge.cpp без изменения геометрии: имена
   получили префикс Hewn (Material/Rng/tone в заголовке движка без префикса —
   ловушка для каждого включившего), тела перенесены дословно.
+- 17:08:2026 - 14:29:43: ШКУРА (работа 3, текстуры деталям): HewnMaterial несёт PartSkin, и при
+  textured бруски пишут uv в СЫРЫХ единицах тайла (метры/span) плюс номер
+  тайла в вершинном цвете — вершины при этом НЕ ДВИГАЮТСЯ ни на байт (тот же
+  порядок и то же число выборок rng), что и делает нетекстурный путь
+  контрольной рукой из ОДНОГО бинарника (правило 47). hewn_tone_scale вынесен
+  из hewn_tone, чтобы закон выветривания жил в одном месте: альбедо и синий
+  канал вершины берут ОДНУ выборку, а не две копии закона (правило 39).
 */
 
 #pragma once
 
+#include "engine/render/sources/PartsAtlas.h"
 #include "engine/render/sources/ProcMesh.h"
 
 #include <algorithm>
@@ -42,6 +50,7 @@ UPD:
 #include <cstdint>
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
+#include <glm/vec2.hpp>
 #include <vector>
 
 namespace dfn::render {
@@ -69,7 +78,19 @@ struct HewnMaterial {
     float jitter;   ///< per-face tone spread at wear = 1
     float chamfer;  ///< fraction of the half-section cut off the corners
     float wobble;   ///< how far a section ring wanders at wear = 1, metres
+    /// WHICH ATLAS TILES THIS MATERIAL WEARS. Default is untextured, and that
+    /// path stays byte-for-byte what it was — it is the control arm.
+    PartSkin skin{};
 };
+
+/// The per-face tone SPREAD, as a multiplier. Pulled out of hewn_tone so the
+/// textured path can encode the same draw into the vertex blue channel
+/// instead of into the albedo: one definition, one rng draw, no second copy
+/// of the weathering law (Rule 39).
+[[nodiscard]] inline float hewn_tone_scale(const HewnMaterial& mat, float wear,
+                                           HewnRng& rng) {
+    return 1.0f + rng.sym(mat.jitter * (0.35f + 0.65f * wear));
+}
 
 [[nodiscard]] inline uint32_t hewn_tone(const HewnMaterial& mat, float wear,
                                         HewnRng& rng) {
@@ -77,10 +98,37 @@ struct HewnMaterial {
     // the spread, so a worn wall's boards differ from each other and a new
     // one's do not.
     const float dark = 1.0f - 0.22f * wear;
-    const float j = 1.0f + rng.sym(mat.jitter * (0.35f + 0.65f * wear));
+    const float j = hewn_tone_scale(mat, wear, rng);
     glm::vec3 c = mat.color * dark * j;
     c = glm::clamp(c, glm::vec3{0.02f}, glm::vec3{1.0f});
     return pack(c);
+}
+
+/// One textured triangle. The uvs are RAW TILE SPACE (metres / span) and the
+/// tile index rides the colour — see PartsAtlas.h's mesh-side contract.
+/// Flat-shaded exactly like ProcMesh's tri(): same winding, same degenerate
+/// guard, same vertex-per-face duplication, with the uv filled in.
+inline void hewn_skin_tri(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c,
+                          glm::vec2 ua, glm::vec2 ub, glm::vec2 uc,
+                          uint32_t color) {
+    const glm::vec3 cr = glm::cross(b - a, c - a);
+    const float len = glm::length(cr);
+    const glm::vec3 n = len > 1e-8f ? cr / len : glm::vec3{0.0f, 1.0f, 0.0f};
+    const auto base = static_cast<uint32_t>(m.vertices.size());
+    m.vertices.push_back({a, n, ua, color});
+    m.vertices.push_back({b, n, ub, color});
+    m.vertices.push_back({c, n, uc, color});
+    m.indices.insert(m.indices.end(), {base, base + 1, base + 2});
+}
+
+/// One textured quad: TWO triangles with their own normals, like quad(). A
+/// wobbled section ring makes a quad non-planar, and one shared normal across
+/// both halves would shade a bent face as if it were flat.
+inline void hewn_skin_quad(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c,
+                           glm::vec3 d, glm::vec2 ua, glm::vec2 ub, glm::vec2 uc,
+                           glm::vec2 ud, uint32_t color) {
+    hewn_skin_tri(m, a, b, c, ua, ub, uc, color);
+    hewn_skin_tri(m, a, c, d, ua, uc, ud, color);
 }
 
 [[nodiscard]] inline glm::vec3 hewn_perp(const glm::vec3& axis) {
@@ -143,25 +191,80 @@ inline void hewn_bar(MeshData& m, glm::vec3 origin, glm::vec3 along, glm::vec3 u
         }
     }
 
+    // THE TEXTURE FRAME, and it costs nothing when the material is untextured.
+    // `arc[i]` is metres of surface from the section's first vertex around to
+    // vertex i, so u runs CONTINUOUSLY around the piece: the same fibre leaves
+    // one face and arrives on the next in the right place, and a chamfer wears
+    // the grain the two faces it cuts between share. v is metres along the
+    // sweep, which is the piece's own axis — timber grain runs down a beam
+    // because that is where the tree put it.
+    const bool skinned = mat.skin.textured;
+    const float span = mat.skin.span_m > 1e-3f ? mat.skin.span_m : 1.0f;
+    std::vector<float> arc(static_cast<std::size_t>(n) + 1, 0.0f);
+    if (skinned) {
+        for (int i = 0; i < n; ++i) {
+            const glm::vec2 a = sec[static_cast<std::size_t>(i)];
+            const glm::vec2 b = sec[static_cast<std::size_t>((i + 1) % n)];
+            const glm::vec2 d{(b.x - a.x) * hw, (b.y - a.y) * hh};
+            arc[static_cast<std::size_t>(i) + 1] =
+                arc[static_cast<std::size_t>(i)] + std::sqrt(d.x * d.x + d.y * d.y);
+        }
+    }
+
     for (int s = 0; s < segments; ++s) {
         const auto& p = rings[static_cast<std::size_t>(s)];
         const auto& q = rings[static_cast<std::size_t>(s) + 1];
+        const float v0 = len * static_cast<float>(s) / static_cast<float>(segments) / span;
+        const float v1 = len * static_cast<float>(s + 1) / static_cast<float>(segments) / span;
         for (int i = 0; i < n; ++i) {
             const int k = (i + 1) % n;
-            quad(m, p[static_cast<std::size_t>(i)], p[static_cast<std::size_t>(k)],
-                 q[static_cast<std::size_t>(k)], q[static_cast<std::size_t>(i)],
-                 hewn_tone(mat, wear, rng));
+            if (skinned) {
+                const float u0 = arc[static_cast<std::size_t>(i)] / span;
+                const float u1 = arc[static_cast<std::size_t>(i) + 1] / span;
+                const uint32_t col = parts_skin_color(mat.skin.side, mat.skin.side_tone,
+                                                      hewn_tone_scale(mat, wear, rng));
+                hewn_skin_quad(m, p[static_cast<std::size_t>(i)], p[static_cast<std::size_t>(k)],
+                               q[static_cast<std::size_t>(k)], q[static_cast<std::size_t>(i)],
+                               {u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}, col);
+            } else {
+                quad(m, p[static_cast<std::size_t>(i)], p[static_cast<std::size_t>(k)],
+                     q[static_cast<std::size_t>(k)], q[static_cast<std::size_t>(i)],
+                     hewn_tone(mat, wear, rng));
+            }
         }
     }
     const auto& first = rings.front();
     const auto& last = rings.back();
-    const uint32_t cap = hewn_tone(mat, wear, rng);
-    for (int i = 0; i < n; ++i) {
-        const int k = (i + 1) % n;
-        tri(m, centres.front(), first[static_cast<std::size_t>(k)],
-            first[static_cast<std::size_t>(i)], cap);
-        tri(m, centres.back(), last[static_cast<std::size_t>(i)],
-            last[static_cast<std::size_t>(k)], cap);
+    if (skinned) {
+        // THE CAPS WEAR THEIR OWN TILE, and on timber that tile is END GRAIN.
+        // A log wall shows its cut ends at every corner tie, and side grain
+        // drawn across an end is the one wood mistake everybody sees.
+        const uint32_t col = parts_skin_color(mat.skin.end, mat.skin.end_tone,
+                                              hewn_tone_scale(mat, wear, rng));
+        for (int i = 0; i < n; ++i) {
+            const int k = (i + 1) % n;
+            const auto& a = sec[static_cast<std::size_t>(i)];
+            const auto& b = sec[static_cast<std::size_t>(k)];
+            // The cap is mapped in its OWN plane (section metres), centred on
+            // the axis: an end face is a cut across the piece, not a
+            // continuation of the surface that runs along it.
+            const glm::vec2 ua{a.x * hw / span, a.y * hh / span};
+            const glm::vec2 ub{b.x * hw / span, b.y * hh / span};
+            const glm::vec2 uc{0.0f, 0.0f};
+            hewn_skin_tri(m, centres.front(), first[static_cast<std::size_t>(k)],
+                          first[static_cast<std::size_t>(i)], uc, ub, ua, col);
+            hewn_skin_tri(m, centres.back(), last[static_cast<std::size_t>(i)],
+                          last[static_cast<std::size_t>(k)], uc, ua, ub, col);
+        }
+    } else {
+        const uint32_t cap = hewn_tone(mat, wear, rng);
+        for (int i = 0; i < n; ++i) {
+            const int k = (i + 1) % n;
+            tri(m, centres.front(), first[static_cast<std::size_t>(k)],
+                first[static_cast<std::size_t>(i)], cap);
+            tri(m, centres.back(), last[static_cast<std::size_t>(i)],
+                last[static_cast<std::size_t>(k)], cap);
+        }
     }
 }
 

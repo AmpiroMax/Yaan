@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:23:29
-Last updated: 17:08:2026 - 13:23:29
+Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/MeshMeters.h
 
@@ -26,10 +26,16 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 13:23:29: Вынос измерителей из PartForgeJointTests.cpp (второй
   потребитель — тесты крыш).
+- 17:08:2026 - 14:29:43: solid_of(RegistryObject) — геометрия детали лежит в bark, если она
+  текстурная, и в wood, если нет; форма при этом ОДНА И ТА ЖЕ, а спрашивают
+  измерители про форму. Один вопрос в одном месте: иначе каждый из двух
+  десятков вызовов решает сам, и в день, когда набор стал текстурным, все они
+  прочитали пустой меш и отчитались «дефектов нет».
 */
 
 #pragma once
 
+#include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/ProcMesh.h"
 
 #include <cmath>
@@ -78,6 +84,17 @@ inline int half_edge_defects(const dfn::render::MeshData& m) {
         }
     }
     return defects;
+}
+
+/// THE PART'S SOLID GEOMETRY, whichever stream carries it. A textured part
+/// lives in `bark` (the .dfo's textured channel) and an untextured one in
+/// `wood`, and every meter in these suites asks about the SHAPE — which is the
+/// same shape either way. Asked in one place because the alternative is
+/// twenty-odd call sites each deciding, and the day the kit gained a texture
+/// every one of them read an empty mesh and reported a part with no geometry
+/// as a part with no defects.
+inline const dfn::render::MeshData& solid_of(const dfn::render::RegistryObject& o) {
+    return o.bark.indices.empty() ? o.wood : o.bark;
 }
 
 /// Divergence-theorem volume. Positive iff the winding faces OUTWARD (CCW
