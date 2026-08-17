@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:18:48
+Last updated: 17:08:2026 - 13:23:56
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -74,6 +74,9 @@ UPD:
   прежний пролёт с прежним именем байт-в-байт, иначе make_wall_styled),
   жетоны wall_style_token/opening_token в имени. kit_catalogue() вынесен
   ДОСЛОВНО в PartForgeCatalogue.cpp (файл снова упёрся в предел 800).
+- 17:08:2026 - 13:23:56: волна крыш: make_roof перенесён дословно в PartForgeRoofs.cpp и
+  расширен там; здесь — диспетчер RoofHip/SmokeVent и их имена (полувальма
+  обязана нести -polu, иначе два варианта дерутся за одно имя файла).
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -147,10 +150,6 @@ using part_detail::WALL_CORE_M;
 // against the reference frames in images_examples/houses_outdoors.
 constexpr float PLANK_THICK_M = 0.06f;   ///< a sawn board
 constexpr float LEAF_THICK_M = 0.07f;    ///< a door leaf
-constexpr float THATCH_DEEP_M = 0.35f;   ///< straw is DEEP; that is its whole read
-constexpr float SHINGLE_DEEP_M = 0.10f;
-constexpr float COURSE_M = 0.60f;        ///< one roof course up the slope
-constexpr float FRINGE_M = 0.45f;        ///< how far the eaves fringe hangs
 constexpr float STONE_W_M = 0.55f;       ///< a field stone in a footing course
 constexpr float TREAD_M = 0.08f;
 constexpr float NOSING_M = 0.04f;        ///< tread overhang; the step's shadow
@@ -330,51 +329,6 @@ void make_gable(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
         hewn_bar(m, foot, along, {0.0f, 0.0f, 1.0f}, glm::length(along), fs * 0.5f,
                  t * 0.55f, frame, p.wear, rng, 3);
     }
-}
-
-/// One pitched plane, origin at the EAVES corner. The pitch is baked in
-/// (rise over run) because a Placement carries yaw and nothing else — a roof
-/// the composer had to tilt would be a roof nobody could place.
-void make_roof(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
-    const float run = m_of(p.length_u);
-    const float rise = m_of(p.height_u);
-    const float depth = m_of(p.width_u); // along the ridge
-    const glm::vec3 slope = glm::normalize(glm::vec3{run, rise, 0.0f});
-    const float slope_len = std::sqrt(run * run + rise * rise);
-    const bool thatch = p.material == PartMaterial::Thatch;
-    const float deck = thatch ? THATCH_DEEP_M : SHINGLE_DEEP_M;
-
-    // The deck: courses across the slope, each its own tone, so the roof has
-    // the banded read every reference thatch has.
-    const int courses = std::max(3, static_cast<int>(slope_len / COURSE_M + 0.5f));
-    const float cl = slope_len / static_cast<float>(courses);
-    const glm::vec3 up = glm::normalize(glm::cross(slope, glm::vec3{0.0f, 0.0f, 1.0f}));
-    for (int i = 0; i < courses; ++i) {
-        const glm::vec3 at = slope * (static_cast<float>(i) * cl + cl * 0.5f);
-        // Courses overlap downslope, thatch more than shingle: the shadow line
-        // under each course is what stops a roof looking painted on.
-        const float over = thatch ? 1.55f : 1.25f;
-        hewn_bar(m, at + up * (deck * 0.5f) - glm::vec3{0.0f, 0.0f, 0.0f},
-                 {0.0f, 0.0f, 1.0f}, up, depth, cl * over * 0.5f, deck * 0.5f, mat,
-                 p.wear, rng, 2);
-    }
-    // The eaves fringe: the thick shaggy edge in the user's frames, where the
-    // thatch hangs a hand's width past the wall.
-    if (thatch) {
-        const int straws = std::max(4, static_cast<int>(depth / m_of(1) + 0.5f));
-        for (int i = 0; i < straws; ++i) {
-            const float z = (static_cast<float>(i) + 0.5f) * depth / static_cast<float>(straws);
-            hewn_bar(m, {0.0f, deck * 0.5f, z}, {-0.30f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
-                     FRINGE_M, depth / static_cast<float>(straws) * 0.45f, deck * 0.35f,
-                     mat, p.wear, rng, 2, 0.55f);
-        }
-    }
-    // The ridge beam and the rafter under the eaves: the timber a roof rests on.
-    const Material frame = material_of(PartMaterial::Timber);
-    hewn_bar(m, {run, rise, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, depth,
-             m_of(1) * 0.6f, m_of(1) * 0.6f, frame, p.wear, rng, 3);
-    hewn_bar(m, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, depth,
-             m_of(1) * 0.5f, m_of(1) * 0.5f, frame, p.wear, rng, 3);
 }
 
 /// A flight, origin at the foot of the lowest riser. Rise is one grid unit and
@@ -562,6 +516,8 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     case PartKind::Footing: return "footing";
     case PartKind::Fence: return "fence";
     case PartKind::JointPost: return "joint";
+    case PartKind::RoofHip: return "roofhip";
+    case PartKind::SmokeVent: return "smokevent";
     case PartKind::Sleeper: return "sleeper";
     case PartKind::LogCorner: return "corner";
     }
@@ -655,6 +611,17 @@ std::string part_name(const PartParams& p) {
             return buf;
         }
         break;
+    // The hip slope must spell its half-hip variant or the two would fight
+    // over one file name; the vent is named by its base side alone.
+    case PartKind::RoofHip:
+        std::snprintf(buf, sizeof(buf), "roofhip-%s-%dx%dx%d%s-w%02d",
+                      material_name(p.material), p.length_u, p.width_u,
+                      p.height_u, p.variant == 1 ? "-polu" : "", wear10);
+        return buf;
+    case PartKind::SmokeVent:
+        std::snprintf(buf, sizeof(buf), "smokevent-%s-%du-w%02d",
+                      material_name(p.material), p.length_u, wear10);
+        return buf;
     case PartKind::LogCorner:
         std::snprintf(buf, sizeof(buf), "corner-log-%s-h%d-w%02d",
                       material_name(p.material), p.length_u, wear10);
@@ -694,7 +661,13 @@ RegistryObject forge_part(const PartParams& params) {
         }
         break;
     case PartKind::Gable: make_gable(obj.wood, params, mat, rng); break;
-    case PartKind::RoofSlope: make_roof(obj.wood, params, mat, rng); break;
+    case PartKind::RoofSlope: part_detail::make_roof(obj.wood, params, mat, rng); break;
+    case PartKind::RoofHip:
+        part_detail::make_roof_hip(obj.wood, params, mat, rng);
+        break;
+    case PartKind::SmokeVent:
+        part_detail::make_smoke_vent(obj.wood, params, mat, rng);
+        break;
     case PartKind::Stair: make_stair(obj.wood, params, mat, rng); break;
     case PartKind::DoorFrame: make_door_frame(obj.wood, params, mat, rng); break;
     case PartKind::DoorLeaf: make_door_leaf(obj.wood, params, mat, rng); break;

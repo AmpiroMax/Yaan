@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:17:36
-Last updated: 17:08:2026 - 13:17:36
+Last updated: 17:08:2026 - 13:23:56
 Module: engine/render
 File: engine/render/sources/PartForgeCatalogue.cpp
 
@@ -28,6 +28,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 13:17:36: Вынесен из PartForge.cpp дословно (разрез по семьям).
+- 17:08:2026 - 13:23:56: ряды крыш: 3 новых покрытия на старых уклонах (36), пологий скат 8x4
+  во всех пяти покрытиях (15), вальмы/полувальмы (36), дымники (4).
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -98,6 +100,43 @@ std::vector<PartParams> kit_catalogue() {
         wear2);
     add(PartKind::RoofSlope, {8, 12, 16}, {{8, 6}, {8, 8}, {12, 8}, {12, 12}},
         {PM::Thatch, PM::Shingle}, wear2);
+    // ВАРИАНТЫ КРЫШ (пользователь, 17.08): три новых покрытия на тех же
+    // уклонах, плюс пологий скат {8,4} (26.6°) во всех пяти покрытиях — из
+    // него собирается односкатная кровля сарая и навеса.
+    add(PartKind::RoofSlope, {8, 12, 16}, {{8, 6}, {8, 8}, {12, 8}, {12, 12}},
+        {PM::Timber, PM::Tile, PM::Turf}, {0.5f});
+    add(PartKind::RoofSlope, {8, 12, 16}, {{8, 4}},
+        {PM::Thatch, PM::Shingle, PM::Timber, PM::Tile, PM::Turf}, {0.5f});
+    // Вальмовый скат (и полувальма вариантом) — length = eaves depth, section
+    // = (run, rise), как у прямого ската.
+    {
+        for (int variant : {0, 1}) {
+            for (PartMaterial mtl : {PM::Thatch, PM::Shingle, PM::Tile}) {
+                for (int depth : {8, 12, 16}) {
+                    for (const auto& pitch : {std::pair{8, 6}, std::pair{8, 8}}) {
+                        PartParams p;
+                        p.kind = PartKind::RoofHip;
+                        p.material = mtl;
+                        p.length_u = depth;
+                        p.width_u = pitch.first;
+                        p.height_u = pitch.second;
+                        p.variant = variant;
+                        p.wear = 0.5f;
+                        p.name = part_name(p);
+                        uint64_t hash = 1469598103934665603ull;
+                        for (unsigned char c : p.name) {
+                            hash = (hash ^ c) * 1099511628211ull;
+                        }
+                        p.seed = hash;
+                        out.push_back(std::move(p));
+                    }
+                }
+            }
+        }
+    }
+    // Дымник на конёк, два размера и два дерева.
+    add(PartKind::SmokeVent, {2, 3}, {{1, 1}}, {PM::Timber, PM::TimberDark},
+        {0.5f});
 
     // GETTING IN, GETTING UP. A stair's length is unused (its run follows from
     // the step count), so it stays 1 and the pair carries (width, STEPS).

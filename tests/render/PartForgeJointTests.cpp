@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 12:39:52
-Last updated: 17:08:2026 - 12:39:52
+Last updated: 17:08:2026 - 13:23:29
 Module: tests
 File: tests/render/PartForgeJointTests.cpp
 
@@ -11,8 +11,8 @@ Responsibility:
   flat bed and a flat seat, and every name states the working properties.
 
 Key items:
-- half_edge_defects(): manifold-closedness meter with its failing control.
-- signed_volume(): outward-winding meter.
+- meshtest::half_edge_defects(): manifold-closedness meter with its failing control.
+- meshtest::signed_volume(): outward-winding meter.
 
 Dependencies:
 - Uses: engine/render (PartForge), doctest.
@@ -28,76 +28,22 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 12:39:52: Создан вместе с семьёй соединителей.
+- 17:08:2026 - 13:23:29: измерители вынесены в MeshMeters.h (второй потребитель —
+  тесты крыш; копия на файл — правило 39 в миниатюре).
 */
 
 #include "engine/render/sources/PartForge.h"
 
+#include "MeshMeters.h"
+
 #include <cmath>
-#include <cstdint>
 #include <doctest/doctest.h>
-#include <map>
 #include <set>
 #include <string>
-#include <utility>
 
 using namespace dfn::render;
 
 namespace {
-
-/// Quantized position key: parts are flat-shaded (vertices duplicated per
-/// face), so edge identity must be POSITIONAL. 0.1 mm buckets — two distinct
-/// kit vertices never sit closer than centimetres.
-struct QPos {
-    int64_t x, y, z;
-    bool operator<(const QPos& o) const {
-        if (x != o.x) return x < o.x;
-        if (y != o.y) return y < o.y;
-        return z < o.z;
-    }
-    bool operator==(const QPos& o) const { return x == o.x && y == o.y && z == o.z; }
-};
-
-QPos qpos(const glm::vec3& p) {
-    const auto q = [](float v) { return static_cast<int64_t>(std::llround(v * 10000.0f)); };
-    return {q(p.x), q(p.y), q(p.z)};
-}
-
-/// A closed, consistently wound mesh pairs every directed half-edge (a->b)
-/// with its mate (b->a). The return is the count of UNMATED half-edges:
-/// 0 = sealed hull, anything else counts open boundary (or a flipped face).
-int half_edge_defects(const MeshData& m) {
-    std::map<std::pair<QPos, QPos>, int> he;
-    for (std::size_t i = 0; i + 2 < m.indices.size(); i += 3) {
-        const QPos a = qpos(m.vertices[m.indices[i]].position);
-        const QPos b = qpos(m.vertices[m.indices[i + 1]].position);
-        const QPos c = qpos(m.vertices[m.indices[i + 2]].position);
-        ++he[{a, b}];
-        ++he[{b, c}];
-        ++he[{c, a}];
-    }
-    int defects = 0;
-    for (const auto& [edge, n] : he) {
-        const auto mate = he.find({edge.second, edge.first});
-        const int mated = mate == he.end() ? 0 : mate->second;
-        if (n != mated) {
-            defects += std::abs(n - mated);
-        }
-    }
-    return defects;
-}
-
-/// Divergence-theorem volume. Positive iff the winding faces OUTWARD (CCW
-/// from outside, the renderer's contract) for a closed mesh.
-double signed_volume(const MeshData& m) {
-    double v = 0.0;
-    for (std::size_t i = 0; i + 2 < m.indices.size(); i += 3) {
-        const glm::vec3 a = m.vertices[m.indices[i]].position;
-        const glm::vec3 b = m.vertices[m.indices[i + 1]].position;
-        const glm::vec3 c = m.vertices[m.indices[i + 2]].position;
-        v += static_cast<double>(glm::dot(a, glm::cross(b, c))) / 6.0;
-    }
-    return v;
-}
 
 PartParams joint_params(int facets, int d_cm, int h_u, PartMaterial mat,
                         int variant = 0) {
@@ -128,7 +74,7 @@ TEST_CASE("the closedness meter rejects an open tube (Rule 30 control)") {
     quad(tube, v[1], v[2], v[6], v[5], 0xffffffff);
     quad(tube, v[2], v[3], v[7], v[6], 0xffffffff);
     quad(tube, v[3], v[0], v[4], v[7], 0xffffffff);
-    CHECK(half_edge_defects(tube) == 8);
+    CHECK(meshtest::half_edge_defects(tube) == 8);
 }
 
 TEST_CASE("every joint shape is a sealed hull with outward winding") {
@@ -138,11 +84,11 @@ TEST_CASE("every joint shape is a sealed hull with outward winding") {
                                                                PartMaterial::Stone));
             CAPTURE(facets);
             CAPTURE(d);
-            CHECK(half_edge_defects(obj.wood) == 0);
+            CHECK(meshtest::half_edge_defects(obj.wood) == 0);
             // Volume of an across-flats-d prism of height 2.75 m: bounded by
             // the inscribed cylinder from below-ish and the box from above.
             const double d_m = d * 0.01;
-            const double vol = signed_volume(obj.wood);
+            const double vol = meshtest::signed_volume(obj.wood);
             CHECK(vol > 0.5 * d_m * d_m * 2.75 * 0.5);
             CHECK(vol < d_m * d_m * 2.75 * 1.01);
         }
@@ -154,7 +100,7 @@ TEST_CASE("every joint shape is a sealed hull with outward winding") {
     for (std::size_t i = 0; i + 2 < flipped.indices.size(); i += 3) {
         std::swap(flipped.indices[i], flipped.indices[i + 1]);
     }
-    CHECK(signed_volume(flipped) < 0.0);
+    CHECK(meshtest::signed_volume(flipped) < 0.0);
 }
 
 TEST_CASE("facet contract: a plane at the across-flats radius, first normal at +X") {
@@ -205,8 +151,8 @@ TEST_CASE("a 4-facet sleeper has a flat bed at y=0 and a flat seat at y=d") {
     p.wear = 0.3f;
     p.name = part_name(p);
     const RegistryObject obj = forge_part(p);
-    CHECK(half_edge_defects(obj.wood) == 0);
-    CHECK(signed_volume(obj.wood) > 0.0); // outward, not an inside-out log
+    CHECK(meshtest::half_edge_defects(obj.wood) == 0);
+    CHECK(meshtest::signed_volume(obj.wood) > 0.0); // outward, not an inside-out log
     float lo = 1e9f;
     float hi = -1e9f;
     int at_bed = 0;

@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:02:08
-Last updated: 17:08:2026 - 13:02:08
+Last updated: 17:08:2026 - 13:24:19
 Module: engine/render
 File: engine/render/sources/PartForgeDetail.h
 
@@ -31,6 +31,8 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 13:02:08: Создан при разрезе PartForge.cpp по семьям (999 строк
   против предела 800).
+- 17:08:2026 - 13:24:19: объявления семьи крыш (make_roof/make_roof_hip/make_smoke_vent
+  в PartForgeRoofs.cpp).
 */
 
 #pragma once
@@ -78,5 +80,11 @@ void make_log_corner(MeshData& m, const PartParams& p, const Material& mat, Rng&
 
 // The styled walls (PartForgeWalls.cpp): every WallPanel with variant != 0.
 void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat, Rng& rng);
+
+// The roof family (PartForgeRoofs.cpp): the pitched slope in five coverings,
+// the hip slope (variant 1 = полувальма) and the ridge smoke vent.
+void make_roof(MeshData& m, const PartParams& p, const Material& mat, Rng& rng);
+void make_roof_hip(MeshData& m, const PartParams& p, const Material& mat, Rng& rng);
+void make_smoke_vent(MeshData& m, const PartParams& p, const Material& mat, Rng& rng);
 
 } // namespace dfn::render::part_detail

@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:18:48
+Last updated: 17:08:2026 - 13:23:56
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -57,6 +57,8 @@ UPD:
   волна вариантов стен: 10 стилей (сруб, фахверк x3 рисунка раскосов, обшивка
   верт./гориз., камень тёсаный/бутовый, кирпич, комбо низ-камень) x проёмы,
   174 панели, имена wall-<стиль>-<мат>-LxTxH-<проём>-wNN.
+- 17:08:2026 - 13:23:56: PartKind::RoofHip (вальма, вариант полувальмы) и SmokeVent (дымник)
+  — волна вариантов крыш.
 */
 
 #pragma once
@@ -104,6 +106,13 @@ enum class PartKind : uint8_t {
     /// corner axis' foot. What makes a log wall read as BUILT at its corner
     /// instead of two panels colliding.
     LogCorner,
+    /// ВАЛЬМОВЫЙ СКАТ: the triangular end slope of a hipped roof (variant 1 =
+    /// полувальма, the trapezoid that pinches only the gable's top). Origin
+    /// at the eaves' near corner, eaves along +Z, rise toward +X.
+    RoofHip,
+    /// ДЫМНИК: the louvred ridge hood. Origin at its BASE CENTRE so it sets
+    /// astride a ridge by the ridge's own coordinates.
+    SmokeVent,
 };
 
 /// What a part is made OF, in the reference's own terms: the frames the user

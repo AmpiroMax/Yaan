@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 13:17:36
+# Last updated: 17:08:2026 - 13:21:37
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -61,6 +61,7 @@
 #   PartForge.cpp при разрезе по семьям (999 строк против предела 800).
 # - 17:08:2026 - 13:09:29: sources/PartForgeWalls.cpp — варианты стен (10 стилей x проёмы).
 # - 17:08:2026 - 13:17:36: sources/PartForgeCatalogue.cpp — список полок, вынесен из PartForge.cpp.
+# - 17:08:2026 - 13:21:37: sources/PartForgeRoofs.cpp — семья крыш (5 покрытий, вальма, дымник).
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
     sources/CloudModel.cpp
@@ -79,6 +80,7 @@ add_library(dfn_render STATIC
     sources/ObjectRegistry.cpp
     sources/PartForge.cpp
     sources/PartForgeJoints.cpp
+    sources/PartForgeRoofs.cpp
     sources/PartForgeCatalogue.cpp
     sources/PartForgeWalls.cpp
     sources/PixelCanvas.cpp
