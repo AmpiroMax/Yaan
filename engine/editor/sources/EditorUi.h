@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:17:55
+Last updated: 17:08:2026 - 20:21:23
 Module: engine/editor
 File: engine/editor/sources/EditorUi.h
 
@@ -51,6 +51,28 @@ AI Agents Notice (must follow):
   and it is what lets the layout change in one place later.
 - User-facing strings go through tr() (Rule 5). A literal Russian string in a
   panel is a violation, and it will also be the string that has no glyph.
+
+A DOOR THAT TAKES A SHORTCUT THE REAL CALLER CANNOT TAKE PROVES NOTHING, and
+the doors below (DFN_UI_PROBE, DFN_UI_PROBE_MOUSE, DFN_UI_PROBE_CLICK,
+DFN_UI_PROBE_KEYS) are written to obey that. Read this before you add the next
+one.
+
+The first version of DFN_UI_PROBE flipped `visible_` itself and then opened its
+panel. Every frame shipped as evidence therefore came up through a path no real
+panel uses, so "the interface works" was true of the probe and of nothing else.
+The defect it hid — a panel opened by set_panel_open() drawing nothing — reached
+the user, who got the build hand active, the camera correctly frozen, and no
+menu: his controls taken away with nothing given back. Three sessions had
+written a tool nobody could use, and four archived frames said it was fine.
+
+So: a door may supply what a HAND supplies — a pointer position, a button going
+down and up, a keystroke — and nothing else. It must never call the function the
+hand's click would eventually reach. If you cannot see how to drive a feature
+that way, that is a finding about the feature, not a licence to shortcut.
+
+AND THE WORD TO WATCH FOR IS "SHOULD". "It should work now" is what stands in
+for a measurement when the measurement is inconvenient, and it is what cost this
+zone an evening on 17.08.2026.
 */
 /*
 UPD:
@@ -89,6 +111,12 @@ UPD:
   и вверх (DFN_UI_PROBE_CLICK), а не вызовом set_tool из двери. Вызов из двери
   сфотографировал бы функцию, которую никто не нажимает, — ошибка, стоившая
   сегодня вечера.
+- 17:08:2026 - 20:21:23: В шапку записан урок про ДВЕРИ (по указанию лида, чтобы
+  следующий прочитал его раньше, чем отчитается кадром): дверь может подавать
+  то же, что подаёт РУКА — положение указателя, кнопку вниз и вверх, нажатие
+  клавиши, — и ничего больше; звать функцию, до которой щелчок руки только
+  добрался бы, ей нельзя. И слово, за которым надо следить, — «должен»: оно
+  становится на место измерения ровно тогда, когда измерение неудобно.
 */
 
 #pragma once
