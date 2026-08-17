@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 22:45:34
+Last updated: 17:08:2026 - 03:09:30
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -41,6 +41,7 @@ UPD:
   0.017 м; сетка грубее объявила бы стену из швов сплошной). Пересечение —
   math::ray_vs_triangle (тыльные грани сообщаются по контракту Intersect).
   Отчёт несёт СЧЁТ и АДРЕС первой дыры, не вердикт.
+- 17:08:2026 - 03:09:30: чтение и запись spawn / spawn_yaw.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -143,6 +144,19 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 out.map = value;
             } else if (key == "world_span_m") {
                 if (!number(out.world_span_m)) return false;
+            } else if (key == "spawn") {
+                float x = 0.0f;
+                float y = 0.0f;
+                float z = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f %f", &x, &y, &z) != 3) {
+                    error = "line " + std::to_string(line_no)
+                          + ": spawn wants three numbers \"x y z\"";
+                    return false;
+                }
+                out.spawn = {x, y, z};
+                out.has_spawn = true;
+            } else if (key == "spawn_yaw") {
+                if (!number(out.spawn_yaw)) return false;
             }
             // Unknown header keys are skipped: the format will grow, and a
             // reader that refuses tomorrow's key cannot read today's file
@@ -181,6 +195,11 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         << "# Edited by hand and by agents; checked by dfn_scene_check.\n"
         << "map = " << doc.map << "\n"
         << "world_span_m = " << doc.world_span_m << "\n";
+    if (doc.has_spawn) {
+        out << "spawn = " << doc.spawn.x << ' ' << doc.spawn.y << ' ' << doc.spawn.z
+            << "\n"
+            << "spawn_yaw = " << doc.spawn_yaw << "\n";
+    }
     for (const Placement& p : doc.placements) {
         out << "\n[place]\n"
             << "object = " << p.object << "\n"

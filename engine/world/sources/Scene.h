@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 22:45:34
+Last updated: 17:08:2026 - 03:09:30
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -62,6 +62,11 @@ UPD:
   пользователя: «из мелких деталей собирать большие, чтобы меньше дырок»).
   Голая геометрия на входе — заголовок остаётся без engine/render; одна
   функция, двое зовущих: судья (--solid) и пекарь сборок (--require-solid).
+- 17:08:2026 - 03:09:30: СПАВН В КОМПОЗИЦИИ (spawn / spawn_yaw, необязательные). Запрос зоны
+  flora: пользователь перенёс точку входа на полянку в середину каменной тропы
+  лицом к дубу. Это принадлежит КОМПОЗИЦИИ, а не стенду: «встань здесь и смотри
+  туда» — утверждение о том, что ПОСТРОЕНО, а стенд знает только середину
+  своего чанка. Тем же ключом потом встанет спавн у двери внутри дома.
 */
 
 #pragma once
@@ -104,6 +109,15 @@ struct SceneDoc {
     /// World extent in metres, for the bounds rule. 0 = unknown (the checker
     /// then says so instead of passing the rule silently).
     float world_span_m = 0.0f;
+    /// WHERE THE PLAYER STANDS when this map opens, and which way he looks.
+    /// Optional: without it the stand's own spawn is used, exactly as before.
+    /// It belongs to the COMPOSITION and not to the stand, because "stand here
+    /// and look at that" is a statement about what was BUILT — the middle of a
+    /// stone path facing the great oak, or just inside a house's door. A stand
+    /// only knows where the middle of its chunk is.
+    bool has_spawn = false;
+    glm::vec3 spawn{0.0f};
+    float spawn_yaw = 0.0f;   ///< radians; 0 looks north (forward = {sin,0,-cos})
     std::vector<Placement> placements;
 };
 

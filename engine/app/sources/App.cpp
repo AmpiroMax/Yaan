@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 22:27:28
+Last updated: 17:08:2026 - 03:09:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -200,6 +200,10 @@ UPD:
   несуществующей: рецепт выглядит верным, кадр — неверным, и связать их
   нечем. Теперь режим редактора включается ЗА автора и об этом говорится
   вслух: включить молча — та же ложь в другую сторону.
+- 17:08:2026 - 03:09:30: спавн берётся из композиции, когда она его называет. ВЫСОТА —
+  ОТ СТРИМЕРА, а не из файла: композитор, двигающий точку входа, не обязан
+  перемеривать под ней рельеф и не может закопать себя. Без ключа — спавн
+  стенда, как было.
 */
 
 #include "engine/app/sources/App.h"
@@ -1303,8 +1307,34 @@ bool App::enter_world(uint32_t stand) {
             std::fprintf(stderr, "[scene] %s: %d of %zu placement(s) standing, "
                                  "%zu distinct object(s)\n", gallery_scene_.c_str(),
                          placed, doc.placements.size(), loaded.size());
-            player_ = gameplay::spawn_player(world_, *physics_, spawn);
-            return world_.alive(player_);
+            // THE COMPOSITION MAY SAY WHERE THE PLAYER STANDS. The stand only
+            // knows the middle of its chunk; "the middle of the stone path,
+            // facing the great oak" is a statement about what was BUILT, so it
+            // lives with the build. The ground is taken from the streamer and
+            // not from the file's y, so a composer who moves the spawn does not
+            // have to re-measure the terrain under it — and cannot bury it.
+            glm::vec3 at = spawn;
+            if (doc.has_spawn) {
+                at = {doc.spawn.x,
+                      chunks_.height_at({doc.spawn.x, doc.spawn.z}).value_or(ground)
+                          + 0.2f,
+                      doc.spawn.z};
+                std::fprintf(stderr, "[scene] spawn from the composition: "
+                                     "(%.1f, %.1f, %.1f) yaw %.2f\n",
+                             static_cast<double>(at.x), static_cast<double>(at.y),
+                             static_cast<double>(at.z),
+                             static_cast<double>(doc.spawn_yaw));
+            }
+            player_ = gameplay::spawn_player(world_, *physics_, at);
+            if (!world_.alive(player_)) {
+                return false;
+            }
+            if (doc.has_spawn) {
+                if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    ps->yaw = doc.spawn_yaw;
+                }
+            }
+            return true;
         }
         // The auto-grid shows ONE shelf: it is "show me everything here", and
         // a multi-shelf map without a composition has not said which "here".

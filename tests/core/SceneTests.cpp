@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 17:08:2026 - 03:09:30
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -32,6 +32,9 @@ UPD:
   ходит между группами, без крюка object_top всё остаётся как было (правило 26),
   члены одной группы пересекаться могут — а контроль в разных группах ловится.
   Плюс врезка в склон: постройке можно, дереву нельзя, и висеть нельзя никому.
+- 17:08:2026 - 03:09:30: спавн необязателен, и ОТСУТСТВИЕ читается как отсутствие: (0,0,0) по
+  умолчанию, выглядящий как авторский выбор, телепортировал бы каждую карту без
+  спавна в угол мира.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -336,6 +339,37 @@ TEST_CASE("scene: --fix sits objects down and changes nothing else") {
     CHECK(doc.placements[0].note == "the one the user asked about");
     CHECK(doc.placements[0].position.x == doctest::Approx(60.0f));
     CHECK(check_scene(doc, test_world()).empty());
+}
+
+TEST_CASE("scene: the spawn is optional, and absent means absent") {
+    const auto path = std::filesystem::temp_directory_path() / "dfn_scene_spawn.scene";
+    SceneDoc doc;
+    doc.map = "trees/glade";
+    doc.world_span_m = 256.0f;
+    doc.placements = {at("tree", 60.0f, GROUND_Y, 60.0f)};
+
+    // A scene that says nothing about the spawn must READ BACK saying nothing:
+    // a default-constructed (0,0,0) that looked like an authored choice would
+    // teleport every map without one into the corner of the world.
+    REQUIRE(write_scene(doc, path));
+    SceneDoc back;
+    std::string error;
+    REQUIRE(read_scene(path, back, error));
+    CHECK_FALSE(back.has_spawn);
+
+    doc.has_spawn = true;
+    doc.spawn = {56.0f, 0.0f, 157.0f};
+    doc.spawn_yaw = 1.19f;
+    REQUIRE(write_scene(doc, path));
+    SceneDoc with;
+    REQUIRE(read_scene(path, with, error));
+    REQUIRE(with.has_spawn);
+    CHECK(with.spawn.x == doctest::Approx(56.0f));
+    CHECK(with.spawn.z == doctest::Approx(157.0f));
+    CHECK(with.spawn_yaw == doctest::Approx(1.19f));
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
 }
 
 TEST_CASE("scene: the file survives the round trip, notes and all") {
