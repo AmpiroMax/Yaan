@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 16:08:2026 - 22:40:39
+Last updated: 17:08:2026 - 10:55:52
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -54,6 +54,7 @@ UPD:
 - 16:08:2026 - 20:31:55: ШТАМПЫ ПО ГЕРБАРНЫМ СКАНАМ (docs/reference, правило сверки): дуб — вытянутый 1.75:1 с лопастями ПО БОКАМ и узким основанием (Quercus robur), берёза — дельтоид с одним острым носиком и пильчатым краем (Betula pendula), осина — круглая с крупной волной-кренатурой (Populus tremula); у всех светлая центральная ЖИЛКА. Круглый радиальный цветок v1 не был ничьим листом.
 - 16:08:2026 - 20:42:17: ФРОНД ПО СКАНУ Picea abies: стержень ОДЕТ иголками (не голый рахис с перьями), гребёнки веточек плотнее (скан ~70% иголка/просвет — было 45%, «рыбий скелет»), каждая иголка со своим светом; тон хвои — тёплый средне-зелёный по скану. Порог просветов фронда в тесте — от скана (~30% неба между иголками), не от лиственных крон; слипшийся клин по-прежнему валится по ragged.
 - 16:08:2026 - 22:40:39: Хвоя гуще: иголки длиннее (0.074/0.105) и гребёнка плотнее (порог 0.0115) — призрачные ярусы стали лапами.
+- 17:08:2026 - 10:55:52: Берёста: чечевички — короткие горизонтальные штрихи рядами (2-4 см x 10-20 см) + редкие шрамы; старое поле 3x17 рисовало гладкие полуметровые кляксы «вектором».
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -284,9 +285,18 @@ float bark_height(float tx, float ty, const BarkStyle& st, uint32_t seed) {
     const float grain = 0.18f * (pnoise(tx * 9.0f, ty * 2.0f, 9, 2, 811u + seed) * 0.65f
                                  + pnoise(tx * 21.0f, ty * 5.0f, 21, 5, 977u + seed) * 0.35f);
     if (st.birch) {
-        // Paper: nearly flat, with shallow horizontal lenticel dips.
-        const float lent = pnoise(tx * 3.0f, ty * 17.0f, 3, 17, 449u);
-        return std::clamp(grain + 0.55f - (lent > 0.72f ? 0.35f : 0.0f), 0.0f, 1.0f);
+        // Paper: flat, with SHORT HORIZONTAL LENTICEL STROKES — 2-4 cm tall,
+        // 10-20 cm long, gathered in loose rows — plus rare bigger branch
+        // scars. The old 3x17 field painted smooth half-metre blobs, and the
+        // trunks read as vector art (inspection 17.08).
+        const float row = pnoise(ty * 23.0f, tx * 2.0f, 23, 2, 881u);
+        const float strokes = pnoise(tx * 16.0f, ty * 64.0f, 16, 64, 449u);
+        const float scar = pnoise(tx * 5.0f, ty * 9.0f, 5, 9, 733u);
+        float h = grain + 0.55f;
+        if (row > 0.42f && strokes > 0.68f)
+            h -= 0.32f * std::min(1.0f, (strokes - 0.68f) / 0.09f);
+        if (scar > 0.87f) h -= 0.38f;
+        return std::clamp(h, 0.0f, 1.0f);
     }
     // Domain warp: coordinates drift by ~0.06 of the tile before any
     // structure is drawn, so nothing straight survives to be seen. The warp

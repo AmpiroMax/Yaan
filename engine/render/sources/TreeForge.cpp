@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 10:07:57
+Last updated: 17:08:2026 - 10:55:52
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -71,6 +71,7 @@ UPD:
 - 17:08:2026 - 10:02:06: forge_bush: ворота far_lod на ягодный блок.
 - 17:08:2026 - 10:06:05: Третья партия far: грани трубок дешевле вдали (бола 7->5, каркас 5->4, ветви 4->3) — по расчёту лида разброс силуэта n-угольника на дистанции подмены — треть пикселя.
 - 17:08:2026 - 10:07:57: Корни всех деревьев — тёмный мшистый ряд коры: белые бумажные шпоры берёз читались пластиковыми крабьими лапами; настоящая берёза бела сверху и темна у комля.
+- 17:08:2026 - 10:55:52: Шов болы убит: v — арк-длина с продолжением от наплыва (наклонный сегмент с v0=мировая высота скакал на каждом стыке — виден на дубе 50 м, инспекция «прочих багов»).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -348,6 +349,10 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     std::vector<Ring> bole;
     bole.push_back({pos, dir, p.trunk_radius});
     glm::vec3 bole_frame = perp_of(dir); // transported: furrows run straight
+    // v runs by ARC LENGTH, continuing the flare's own arc — a tilted segment
+    // whose v0 was world-height jumped at every joint (the visible seam on
+    // the 50 m oak, inspection 17.08): len != dy the moment the bole leans.
+    float bole_arc = FLARE_DEPTH + FLARE_HEIGHT;
     for (int s = 0; s < bole_segments; ++s) {
         const float t1 = static_cast<float>(s + 1) / static_cast<float>(bole_segments);
         if (s >= 2) { // the rigid lower third: wander only above it
@@ -361,8 +366,9 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         const float r1 = p.trunk_radius * std::pow(1.0f - t1 * 0.85f, 1.1f);
         bark_tube(obj.bark, pos, next, dir, r0, std::max(r1, 0.05f), bole_sides,
                   bark_uv,
-                  pos.y, TAU * r0, pack_wind(wood_sway(pos.y), phase),
+                  bole_arc, TAU * r0, pack_wind(wood_sway(pos.y), phase),
                   pack_wind(wood_sway(next.y), phase), &bole_frame);
+        bole_arc += seg_len;
         pos = next;
         bole.push_back({pos, dir, std::max(r1, 0.05f)});
     }
