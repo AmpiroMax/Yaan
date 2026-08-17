@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 14:56:52
+Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -101,6 +101,10 @@ UPD:
   сажает привязку, и заодно делает две формы контрольной парой из одного
   бинарника. Умолчание перевернуть В ТОТ ЖЕ ДЕНЬ, когда лист привязан, и ни
   днём раньше: наполовину посаженная фича — не фича, а регрессия с планом.
+- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
+  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
+  тест текстурного потока не мог её попросить: он проверял умолчание и
+  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -123,6 +127,15 @@ namespace dfn::render {
 // The forge's kitchen — material table, helpers, cross-TU make_* — lives in
 // PartForgeDetail.h since the family split (Rule 21: 999 lines against the
 // 800 hard limit). THE material table is defined here, once (Rule 39).
+bool kit_textured_default() {
+    // Read ONCE: a door that changed mid-bake would give one shelf two forms.
+    static const bool on = [] {
+        const char* v = std::getenv("DFN_PARTS_TEXTURED");
+        return v != nullptr && *v != '\0' && *v != '0';
+    }();
+    return on;
+}
+
 namespace part_detail {
 
 /// WHICH TILE A MATERIAL WEARS. The column is the SURFACE (how the material is
@@ -130,7 +143,7 @@ namespace part_detail {
 /// column whenever their only difference is colour — brick and roof tile are
 /// both fired clay, plaster and daub are both a trowelled skin — because a
 /// column costs a whole row of tiles and a row costs one.
-[[nodiscard]] PartSkin skin_of(PartMaterial m, float wear) {
+[[nodiscard]] PartSkin skin_of(PartMaterial m, float wear, bool textured) {
     // 0.55 is the fence between the catalogue's own two wear steps (0.3 and
     // 0.8): both sit clear of it, so no part lands on the fence and the row a
     // part gets is not decided by a rounding.
@@ -148,11 +161,7 @@ namespace part_detail {
     // one binary (Rule 47). Flip the default the day the sheet is bound — and
     // not a day earlier, because a half-landed feature is not a feature, it is
     // a regression with a plan attached.
-    static const bool textured_kit = [] {
-        const char* v = std::getenv("DFN_PARTS_TEXTURED");
-        return v != nullptr && *v != '\0' && *v != '0';
-    }();
-    s.textured = textured_kit;
+    s.textured = textured;
     s.span_m = PARTS_TILE_SPAN_M;
     const auto set = [&s](PartSurface side, PartTone tone, PartSurface end,
                           PartTone end_tone) {
@@ -211,7 +220,7 @@ namespace part_detail {
     return s;
 }
 
-Material material_of(PartMaterial m, float wear) {
+Material material_of(PartMaterial m, float wear, bool textured) {
     Material out = [m]() -> Material {
     switch (m) {
     // Weathered oak: the reference's timber is grey first and brown second.
@@ -245,7 +254,7 @@ Material material_of(PartMaterial m, float wear) {
     // byte-for-byte out of THIS binary (Rule 47), and the atlas tile a
     // material maps to averages to this very colour — texturing changes the
     // surface, not the palette the showcase was accepted with.
-    out.skin = skin_of(m, wear);
+    out.skin = skin_of(m, wear, textured);
     return out;
 }
 
@@ -333,7 +342,7 @@ void make_wall(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) 
     const float w = m_of(p.length_u);
     const float h = m_of(p.height_u);
     const float t = m_of(p.width_u);
-    const Material frame = material_of(PartMaterial::Timber, p.wear);
+    const Material frame = material_of(PartMaterial::Timber, p.wear, p.textured);
     const float fs = std::min(m_of(2), w * 0.25f); // frame member size
 
     // Frame first, so a wall reads as timber-frame even in silhouette.
@@ -443,7 +452,7 @@ void make_gable(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
         hewn_bar(m, {xc, 0.0f, t * 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, bh,
                  (bw - BOARD_GAP_M) * 0.5f, t * 0.5f, mat, p.wear, rng, 2);
     }
-    const Material frame = material_of(PartMaterial::Timber, p.wear);
+    const Material frame = material_of(PartMaterial::Timber, p.wear, p.textured);
     const float fs = m_of(1);
     // Collar beam at a third of the rise: the horizontal timber that makes a
     // Nordic gable read as a gable and not as a pile of boards.
@@ -487,7 +496,7 @@ void make_stair(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
         glm::vec3{going * static_cast<float>(steps), rise * static_cast<float>(steps), 0.0f});
     const float slen = std::sqrt(std::pow(going * static_cast<float>(steps), 2.0f)
                                  + std::pow(rise * static_cast<float>(steps), 2.0f));
-    const Material frame = material_of(PartMaterial::Timber, p.wear);
+    const Material frame = material_of(PartMaterial::Timber, p.wear, p.textured);
     for (int s = 0; s < 2; ++s) {
         const float z = s == 0 ? m_of(1) * 0.5f : w - m_of(1) * 0.5f;
         hewn_bar(m, {0.0f, 0.0f, z}, along, {0.0f, 0.0f, 1.0f}, slen, m_of(1) * 0.5f,
@@ -536,7 +545,7 @@ void make_door_leaf(MeshData& m, const PartParams& p, const Material& mat, Rng& 
                  {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, h, (bw - BOARD_GAP_M) * 0.5f,
                  LEAF_THICK_M * 0.5f, mat, p.wear, rng, 2);
     }
-    const Material iron = material_of(PartMaterial::TimberDark, p.wear);
+    const Material iron = material_of(PartMaterial::TimberDark, p.wear, p.textured);
     for (int s = 0; s < 2; ++s) {
         const float y = s == 0 ? h * 0.18f : h * 0.80f;
         hewn_bar(m, {0.0f, y, LEAF_THICK_M}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, w,
@@ -573,7 +582,7 @@ void make_window(MeshData& m, const PartParams& p, const Material& mat, Rng& rng
     // is Pane on purpose — findable, replaceable when real interiors arrive.
     block(m, {-j * 0.25f, -j * 0.25f, t * 0.30f - PANE_THICK_M * 0.5f},
           {w + j * 0.5f, h + j * 0.5f, PANE_THICK_M},
-          material_of(PartMaterial::Pane, p.wear), p.wear * 0.3f, rng, 1);
+          material_of(PartMaterial::Pane, p.wear, p.textured), p.wear * 0.3f, rng, 1);
 }
 
 /// A course of field stones, origin at its near-bottom-left. Individual
@@ -790,7 +799,7 @@ RegistryObject forge_part(const PartParams& params) {
                       static_cast<unsigned long long>(params.seed));
         obj.source = src;
     }
-    Material mat = material_of(params.material, params.wear);
+    Material mat = material_of(params.material, params.wear, params.textured);
     // A BOARD IS SAWN, A BEAM IS HEWN, and the kit tells them apart by the
     // PART rather than by the material — a plank and a post are the same oak.
     // Only these three kinds are boards through and through; the boarded WALL

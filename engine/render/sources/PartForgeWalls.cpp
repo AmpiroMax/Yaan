@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:09:29
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/PartForgeWalls.cpp
 
@@ -36,6 +36,10 @@ UPD:
 - 17:08:2026 - 14:29:43: обшивка носит ПИЛЁНУЮ колонку атласа (skin_as_board), ядро за ней —
   свою: доска и брус — разные поверхности одного дерева. material_of получил
   wear (ряд атласа = тон и износ вместе).
+- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
+  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
+  тест текстурного потока не мог её попросить: он проверял умолчание и
+  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/PartForgeDetail.h"
@@ -180,7 +184,7 @@ void trim_holes(MeshData& m, const std::vector<Hole>& holes, float t,
             // mullion cross that makes it read as a casement.
             block(m, {hh.x0 - 0.03f, hh.y0 - 0.03f, t * 0.5f - PANE_THICK_M * 0.5f},
                   {hh.x1 - hh.x0 + 0.06f, hh.y1 - hh.y0 + 0.06f, PANE_THICK_M},
-                  material_of(PartMaterial::Pane, p.wear), p.wear * 0.3f, rng, 1);
+                  material_of(PartMaterial::Pane, p.wear, p.textured), p.wear * 0.3f, rng, 1);
             const float cx = (hh.x0 + hh.x1) * 0.5f;
             const float cy = (hh.y0 + hh.y1) * 0.5f;
             hewn_bar(m, {cx, hh.y0, t * 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
@@ -341,7 +345,7 @@ void make_boarded(MeshData& m, const PartParams& p, const Material& mat, Rng& rn
 void make_frame(MeshData& m, const PartParams& p, const Material& infill, Rng& rng,
                 int braces, const std::vector<Hole>& holes, float w, float h,
                 float t) {
-    const Material timber = material_of(PartMaterial::TimberDark, p.wear);
+    const Material timber = material_of(PartMaterial::TimberDark, p.wear, p.textured);
     const float fs = FRAME_MEMBER_M;
     // The slab first: full thickness, faces just shy of both wall planes.
     slab_around(m, holes, 0.0f, w, 0.0f, h, 0.02f, t - 0.04f, infill, p.wear, rng);
@@ -398,7 +402,7 @@ void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat,
     const std::vector<Hole> holes = holes_of(p, w, h);
     const bool masonry = p.variant >= 7 && p.variant <= 10;
     const Material trim =
-        material_of(masonry ? PartMaterial::Stone : PartMaterial::Timber, p.wear);
+        material_of(masonry ? PartMaterial::Stone : PartMaterial::Timber, p.wear, p.textured);
     switch (p.variant) {
     case 1: // СРУБ: full-run logs at the corner part's own rhythm.
         make_courses(m, p, mat, rng, LOG_COURSE_M, 0.0f, 0.0f, false, holes, w, h, t);
@@ -444,7 +448,7 @@ void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat,
                                  hh.y1 - COMBO_STONE_H_M, hh.pane});
             }
         }
-        Material stone = material_of(PartMaterial::Stone, p.wear);
+        Material stone = material_of(PartMaterial::Stone, p.wear, p.textured);
         // The stone belt (its own courses)...
         {
             MeshData belt;
@@ -455,7 +459,7 @@ void make_wall_styled(MeshData& m, const PartParams& p, const Material& mat,
         // ...the belt beam every reference house wears on that seam...
         hewn_bar(m, {0.0f, COMBO_STONE_H_M + 0.05f, t * 0.5f}, {1.0f, 0.0f, 0.0f},
                  {0.0f, 1.0f, 0.0f}, w, t * 0.55f, 0.06f,
-                 material_of(PartMaterial::Timber, p.wear), p.wear, rng, 3);
+                 material_of(PartMaterial::Timber, p.wear, p.textured), p.wear, rng, 3);
         // ...and the boarded top, shifted up.
         {
             MeshData top;

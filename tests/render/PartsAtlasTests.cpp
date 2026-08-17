@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 17:08:2026 - 15:46:07
 Module: tests
 File: tests/render/PartsAtlasTests.cpp
 
@@ -29,6 +29,10 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 14:29:43: Создан вместе с PartsAtlas — работа 3 заказа 17.08.
+- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
+  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
+  тест текстурного потока не мог её попросить: он проверял умолчание и
+  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -361,6 +365,11 @@ TEST_CASE("forged part: geometry in the textured stream, tile index in the colou
     p.material = PartMaterial::Timber;
     p.length_u = 12;
     p.wear = 0.3f;
+    // ASKED FOR EXPLICITLY. The catalogue's default is the FLAT form until the
+    // atlas is bound in the renderer (DFN_PARTS_TEXTURED), so a test of the
+    // textured stream that relied on the default was really testing the default
+    // — and went red the day it changed, without the textured form breaking.
+    p.textured = true;
     const RegistryObject beam = forge_part(p);
     // ONE SURFACE, ONE STREAM. Geometry in both would z-fight itself, and the
     // app draws `bark` with the atlas and `wood` with flat colour.
@@ -395,6 +404,7 @@ TEST_CASE("forged part: geometry in the textured stream, tile index in the colou
     s.kind = PartKind::Footing;
     s.material = PartMaterial::Stone;
     s.wear = 0.8f;
+    s.textured = true; // same reason as the beam above
     const RegistryObject stone = forge_part(s);
     REQUIRE(!stone.bark.vertices.empty());
     const uint32_t stone_col = stone.bark.vertices.front().color_rgba & 0xFFu;

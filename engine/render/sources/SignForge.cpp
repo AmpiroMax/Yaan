@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:55:07
+Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/SignForge.cpp
 
@@ -27,6 +27,10 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 14:46:25: Создан вместе с SignForge.h.
 - 17:08:2026 - 14:55:07: read_signs_file() — разбор файла .signs, перенесён из tools/forge_signs.cpp.
+- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
+  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
+  тест текстурного потока не мог её попросить: он проверял умолчание и
+  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/SignForge.h"
@@ -206,8 +210,8 @@ RegistryObject forge_sign(const SignParams& p) {
         obj.source = src;
     }
 
-    Material board_mat = material_of(p.board, p.wear);
-    Material ink_mat = crisp(material_of(p.ink, p.wear));
+    Material board_mat = material_of(p.board, p.wear, p.textured);
+    Material ink_mat = crisp(material_of(p.ink, p.wear, p.textured));
     if (!p.textured) {
         board_mat.skin.textured = false;
         ink_mat.skin.textured = false;

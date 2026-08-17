@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:02:08
-Last updated: 17:08:2026 - 14:46:25
+Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/PartForgeDetail.h
 
@@ -43,6 +43,10 @@ UPD:
 - 17:08:2026 - 14:46:25: кухня приняла ещё одного едока — SignForge.cpp: табличка это
   деталь набора (те же материалы, те же ряды атласа, те же бруски), и вторая
   копия таблицы материалов ради неё была бы правилом 39 в чистом виде.
+- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
+  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
+  тест текстурного потока не мог её попросить: он проверял умолчание и
+  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #pragma once
@@ -67,7 +71,7 @@ using Rng = HewnRng;
 /// (PartsAtlas.h): a weathered oak beam is not a darker fresh one, it is a
 /// greyed, checked, lichened surface, and that is a different tile. The
 /// default keeps the untextured call sites honest rather than silently fresh.
-[[nodiscard]] Material material_of(PartMaterial m, float wear = 0.5f);
+[[nodiscard]] Material material_of(PartMaterial m, float wear, bool textured);
 
 /// The same material as SAWN BOARD rather than hewn timber: planks, door
 /// leaves, cladding skins, shingles. The kit tells hewn from sawn by the PART,

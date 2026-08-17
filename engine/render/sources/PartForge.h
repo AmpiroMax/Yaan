@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:46:59
+Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -62,6 +62,10 @@ UPD:
 - 17:08:2026 - 13:46:59: Stair variant 1 = крутой марш 45° (проступь 1u, имя -steep) — «на
   второй этаж за длину этих доводили»; подъём остаётся 1u из-за
   PLAYER_STEP_HEIGHT (0.50 непроходим).
+- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
+  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
+  тест текстурного потока не мог её попросить: он проверял умолчание и
+  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #pragma once
@@ -152,6 +156,11 @@ enum class PartMaterial : uint8_t {
     Clay,
 };
 
+/// Whether the kit bakes its TEXTURED form. Reads DFN_PARTS_TEXTURED once.
+/// ONE DEFINITION of the answer: the catalogue, the first-run bake and the
+/// tests all ask here, so none of them can drift from the others.
+[[nodiscard]] bool kit_textured_default();
+
 struct PartParams {
     uint64_t seed = 1;
     std::string name = "part";
@@ -180,6 +189,12 @@ struct PartParams {
     /// units on purpose: 0.35 is not a grid multiple, and the grid owns
     /// LENGTHS, not section sizes (§3.2).
     int diameter_cm = 0;
+    /// TEXTURED FORM, per part. Defaults to the process-wide door so nothing
+    /// changes for the catalogue; a caller that wants ONE form regardless —
+    /// a test of the textured stream, or the sign shelf that must stay flat —
+    /// says so here instead of reaching for an environment variable it cannot
+    /// change once the first part has been forged.
+    bool textured = kit_textured_default();
     /// STYLE VARIANT inside one kind (wall bonds, roof shapes, joint
     /// capitals). 0 = the kind's default; meanings are per-kind and each
     /// variant spells its token into the part's name.
