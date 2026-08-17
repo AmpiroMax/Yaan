@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 09:50:47
+Last updated: 17:08:2026 - 09:54:18
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -67,6 +67,7 @@ UPD:
 - 17:08:2026 - 07:04:26: Читаемость мелкой флоры (утро 17.08): лезвия травы 3.4-5.2 см и 13-18 на пучок, венчики цветов от p.bloom (лепесток 14 см, сердцевина конусом), стебли толще.
 - 17:08:2026 - 09:14:19: Баги красоты: (1) bark_tube режет грань по границам тайла — ёлочка-шевроны на стволах толще ~0.8 м умирают (frac по вершинам зеркалил грань, пересёкшую границу); (2) корни-контрфорсы короче (reach 1.05-1.5 flare — «шипы» берёз); (3) шапка сосны: изогнутые хвойные листы на верхних 3 мутовках поднятых хвойников — сверху зонт, не антенна.
 - 17:08:2026 - 09:50:47: Хвоя по скайримскому референсу (image copy 8): СИГМОИДНЫЙ хребет лапы (нырок у ствола, ровно, кончик вверх), наклон по ярусам (верх +, юбка −), РАЗМЫТЫЕ мутовки (ветви на случайных высотах), веер из двух боковых перьев (одно выше, одно ниже — закрывают межъярусный прогал), медленное сужение кроны (0.62 вместо 0.85 — середина держит длинные ветви).
+- 17:08:2026 - 09:54:18: Ворота far_lod: веера перьев, юбка сухих сучьев, украшения (обломки, жёлуди) и множественные листы на якорь выключаются — высота/крона/мутовки нетронуты, силуэт держится.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -522,7 +523,8 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         // веток, дупло и такие украшения естественные»; дупло queued — needs
         // its own dark tile). BROKEN STUBS: short snags low on the bole,
         // ending in a jagged kink — the scars a real crown leaves behind.
-        {
+        // The far form drops them: a 15 cm ornament is sub-pixel past 32 m.
+        if (!p.far_lod) {
             const int stubs = 2 + (rng.unit() < 0.5f ? 1 : 0);
             for (int s = 0; s < stubs; ++s) {
                 const float y = crown_base * (0.50f + 0.55f * rng.unit());
@@ -550,7 +552,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         }
         // ACORNS, oaks only: little bipyramids in twos under the sheets —
         // readable up close, invisible at range, exactly like the real thing.
-        if (p.card_shape == LeafShape::RoundLobed) {
+        if (p.card_shape == LeafShape::RoundLobed && !p.far_lod) {
             // APPLE-SIZED acorns (user, 17.08: «жёлуди как яблоки, дуб
             // волшебный и большой»): 11 cm two-tone fruit — ochre-green body
             // under a brown cap — hung well below the sheets so they read
@@ -704,7 +706,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                 // from the branch mid at ±20-35° — the lapa becomes a fan
                 // with overlap, not one ribbon with sky on both sides. The
                 // airy larch (thin frond_width) keeps her single feather.
-                if (p.frond_width > 0.8f) {
+                if (p.frond_width > 0.8f && !p.far_lod) {
                     for (int fs = -1; fs <= 1; fs += 2) {
                         const float fa = static_cast<float>(fs)
                                        * (0.38f + rng.unit() * 0.22f);
@@ -740,7 +742,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         // live crown starts high enough to leave the band exposed.
         const float skirt_top = std::min(crown_base * 0.95f, p.height * 0.40f);
         const float skirt_bot = p.height * 0.10f;
-        if (skirt_top - skirt_bot > 0.5f) {
+        if (!p.far_lod && skirt_top - skirt_bot > 0.5f) {
             const int stubs = 6 + static_cast<int>(p.height * 0.35f);
             for (int s = 0; s < stubs; ++s) {
                 const float y = skirt_bot + (skirt_top - skirt_bot) * rng.unit();
@@ -773,8 +775,9 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     for (const SprayAnchor& a : anchors) {
         // spray_per_branch > 2 asks for a LUSHER crown (the colossus: «листвы
         // мало» — more sheets per anchor, leaves stay leaf-sized).
-        const int sprays = std::max(1, p.spray_per_branch - 1)
-                         + (rng.unit() < 0.30f ? 1 : 0);
+        const int sprays = p.far_lod ? 1
+                         : std::max(1, p.spray_per_branch - 1)
+                           + (rng.unit() < 0.30f ? 1 : 0);
         for (int i = 0; i < sprays; ++i) {
             const glm::vec3 jitter{rng.sym() * 0.5f, rng.sym() * 0.35f,
                                    rng.sym() * 0.5f};

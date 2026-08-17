@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 07:04:26
+Last updated: 17:08:2026 - 09:54:18
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -60,6 +60,7 @@ UPD:
 - 17:08:2026 - 02:51:54: Ягодное РАЗНООБРАЗИЕ (лист 4, ответ №5): BerryStyle (Balls/Cluster/Drops), berry_pattern крапинка/полоски + berry_spot, berry_sepal (попка), berry_stalk (веточка). Все оси — закрытая геометрия: рисунок краской умирает на плоде 4-7 см.
 - 17:08:2026 - 03:51:22: Кузница света троп (этап 2): PathLightKind TorchStake/LanternPost, forge_path_light — геометрия и яркие вершинные цвета пламени/стекла; сама точка света — секция [light] лида.
 - 17:08:2026 - 07:04:26: GroundPropParams.bloom — сказочный размер венчика (утро 17.08: «цветов не вижу... пусть крупные будут, зато играбельно»).
+- 17:08:2026 - 09:54:18: far_lod — дальняя форма дерева (контракт лида: `<имя>-far`, второй .dfo, силуэт совпадает): без вееров, один лист на якорь, без желудей/сучьев/юбки.
 */
 
 #pragma once
@@ -108,6 +109,11 @@ struct TreeForgeParams {
     /// full lapa; a LARCH (passports queue: light feathery needles, a crown
     /// you can see the sky through) runs ~0.55 — same grammar, thinner dress.
     float frond_width = 1.0f;
+    /// FAR FORM (`<имя>-far`, контракт лида 17.08): та же высота, та же
+    /// крона, тот же силуэт — но дешёвые перья: без боковых вееров, один
+    /// лист на якорь, без желудей и юбки сухих сучьев. Плитка 32 м целиком
+    /// едет ближней или дальней формой; лес не должен дышать на границе.
+    bool far_lod = false;
 };
 
 /// Forges one tree. The returned object carries its content hash and is ready

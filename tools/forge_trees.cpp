@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 09:50:47
+Last updated: 17:08:2026 - 09:54:18
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -49,6 +49,7 @@ UPD:
 - 17:08:2026 - 03:51:22: Полка glade: glade-torch-stake 2.2 м и glade-lantern-post 2.0 м — новые модели света троп (пользователь: «не те, что сейчас есть»).
 - 17:08:2026 - 07:04:26: Утренний вердикт по полянке: сосны 13-15 мутовок x 9 ветвей, ленты 1.25, подъём лап (шапка сосны, не юбка ели); ели галереи 17-23x9; +glade-oak-mid-a/b (дубки 11/14.5 м «убрать голость»); трава 0.9/1.3/1.7 м; цветы 0.75 м с bloom 0.14.
 - 17:08:2026 - 09:50:47: Ели галереи шире (крона 3.9/4.4) и гуще (10 ветвей на мутовку) — сверка со скайримским референсом.
+- 17:08:2026 - 09:54:18: bake_tree: каждое дерево полки glade печётся парой <имя> + <имя>-far (дальняя форма для пополиточного LOD лида).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -325,6 +326,15 @@ int main(int argc, char** argv) {
                              + obj.bark.indices.size() + obj.cards.indices.size()) / 3);
             }
         };
+        // FAR TWIN (`<имя>-far`, контракт лида 17.08): same params, same
+        // silhouette, cheap feathers — the 32 m tiles deeper in the woods
+        // ride this one. Trees only; a 100-tri bush needs no far form.
+        const auto bake_tree = [&](TreeForgeParams tp) {
+            bake(forge_tree(tp));
+            tp.far_lod = true;
+            tp.name += "-far";
+            bake(forge_tree(tp));
+        };
         // The elder oak at the heart of the glade: big, lush, not a giant.
         TreeForgeParams elder;
         elder.seed = 1301;
@@ -339,7 +349,7 @@ int main(int argc, char** argv) {
         elder.scaffold_count = 11;
         elder.spray_per_branch = 3;
         elder.spray_frac = 0.10f;
-        bake(forge_tree(elder));
+        bake_tree(elder);
         // The surrounding forest: tall (not giant) birches and pines,
         // four maturity/size steps each — «разного роста и пышности».
         for (int i = 0; i < 4; ++i) {
@@ -355,7 +365,7 @@ int main(int argc, char** argv) {
             b.card_shape = LeafShape::RaggedTip;
             b.scaffold_count = 4 + (i > 1 ? 1 : 0);
             b.spray_frac = 0.26f;
-            bake(forge_tree(b));
+            bake_tree(b);
         }
         for (int i = 0; i < 3; ++i) {
             TreeForgeParams pi;
@@ -377,7 +387,7 @@ int main(int argc, char** argv) {
             pi.whorl_branches = 9;
             pi.droop = 0.16f;
             pi.frond_width = 1.25f;
-            bake(forge_tree(pi));
+            bake_tree(pi);
         }
         // Mid-tier OAKS for the forest ring (user: «хотя бы ещё маленькие
         // дубы поставим, чтоб голость леса убрать») — broadleaf mass between
@@ -395,7 +405,7 @@ int main(int argc, char** argv) {
             ok.scaffold_count = 6;
             ok.spray_per_branch = 2;
             ok.spray_frac = 0.26f;
-            bake(forge_tree(ok));
+            bake_tree(ok);
         }
         // The thin young trees of the glade itself, and the small tier of the
         // wood — «мелкие тонкие деревья... в лесу должны и маленькие быть».
@@ -412,7 +422,7 @@ int main(int argc, char** argv) {
             s.card_shape = LeafShape::RaggedTip;
             s.scaffold_count = 3;
             s.spray_frac = 0.30f;
-            bake(forge_tree(s));
+            bake_tree(s);
         }
         {
             TreeForgeParams y;
@@ -427,7 +437,7 @@ int main(int argc, char** argv) {
             y.card_shape = LeafShape::OvalSpray;
             y.scaffold_count = 4;
             y.spray_frac = 0.28f;
-            bake(forge_tree(y));
+            bake_tree(y);
             TreeForgeParams yo = y;
             yo.seed = 1612;
             yo.name = "glade-young-oak";
@@ -438,7 +448,7 @@ int main(int argc, char** argv) {
             yo.bark = {0.16f, 0.12f, 0.09f};
             yo.tone = LeafTone::OakMid;
             yo.card_shape = LeafShape::RoundLobed;
-            bake(forge_tree(yo));
+            bake_tree(yo);
         }
         // Bushes, logs, grass, flowers, mushrooms.
         for (int i = 0; i < 3; ++i) {
