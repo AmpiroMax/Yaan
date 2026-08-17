@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 03:25:32
+Last updated: 17:08:2026 - 03:49:03
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -219,6 +219,13 @@ UPD:
   пополам и отсечь одну половину без другой. Ключи плиток отодвинуты от
   координат чанков стримера — это плитки СЦЕНЫ, а не чанки мира, и
   столкновение молча снесло бы половину композиции на ближайшей выпечке.
+- 17:08:2026 - 03:49:03: СЧЁТЧИК ПОСТАВЛЕННОГО ВРАЛ на объектах без твёрдых потоков (трава,
+  цветы, грибы — одни карточки). Тело им не создаётся, и это верно; но
+  `continue` пропускал заодно и ++placed, поэтому загрузчик докладывал
+  «2424 из 2432» о сцене, где стояли все 2432, и зона flora потратила
+  письмо на поиск восьми объектов, которых никто не терял. Счёт, который
+  врёт о собственном успехе, хуже отсутствия счёта: он посылает искать
+  дефект, которого нет.
 */
 
 #include "engine/app/sources/App.h"
@@ -1321,6 +1328,18 @@ bool App::enter_world(uint32_t stand) {
                 grow(obj.wood);
                 grow(obj.bark);
                 if (hi.x < lo.x) {
+                    // NOTHING SOLID TO STAND ON — a tuft of grass, a flower, a
+                    // mushroom: cards only, and a card is not a wall. It gets
+                    // no body, and that is correct.
+                    //
+                    // IT IS STILL PLACED, AND THE COUNTER MUST SAY SO. This
+                    // `continue` used to skip ++placed as well, so the loader
+                    // reported "2424 of 2432 standing" for a scene where all
+                    // 2432 stood — and flora spent a message hunting eight
+                    // objects that were never missing. A count that lies about
+                    // its own success is worse than no count: it sends someone
+                    // looking for a defect that is not there.
+                    ++placed;
                     continue;
                 }
                 const float cs = std::fabs(std::cos(p.yaw));
