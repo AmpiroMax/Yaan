@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 16:08:2026 - 22:40:03
+Last updated: 17:08:2026 - 12:38:26
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -57,6 +57,13 @@ UPD:
   руки из одного кадра): провал был 0.357 от рамы (до запечатывания 0.555),
   принятый пролёт 0.606; пол приёмки 0.50; стало 0.798 при принятом 0.945,
   оболочка осталась 0/18842.
+- 17:08:2026 - 12:38:26: СЕМЬЯ СОЕДИНИТЕЛЕЙ (HOUSES.md §3-4): make_joint (призма
+  4/6/8/24 граней, БЕЗ прогиба и БЕЗ конусности — грань обязана быть
+  плоскостью, на неё панель садится заподлицо; ориентация граней — контракт с
+  судьёй: при yaw 0 нормаль первой грани смотрит на +X), make_sleeper (лежень,
+  у n4 плоская постель и плоское ложе), make_log_corner (перевязка торцов, шаг
+  венца 0.23 — ритм срубной панели). Каталог: 384 стойки + 72 лежня + 8 углов.
+  Имена несут рабочие свойства: joint-stone-d50-n8-h11-cap-w03.
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -99,6 +106,13 @@ using Material = HewnMaterial;
     // It imitates an interior; a neutral dark grey reads as a hole, which is
     // the exact complaint this material exists to close.
     case PartMaterial::Pane: return {{0.15f, 0.10f, 0.055f}, 0.10f, 0.0f, 0.0f};
+    // Fired clay, weathered toward brown; laid in courses, so its read comes
+    // from per-band tone, not from wobble.
+    case PartMaterial::Brick: return {{0.42f, 0.24f, 0.17f}, 0.12f, 0.0f, 0.004f};
+    case PartMaterial::Tile: return {{0.48f, 0.26f, 0.18f}, 0.14f, 0.06f, 0.005f};
+    // Living turf: the greens sit close to the ground tufts', so a turf roof
+    // belongs to the same world as the grass below it.
+    case PartMaterial::Turf: return {{0.30f, 0.38f, 0.18f}, 0.16f, 0.12f, 0.030f};
     }
     return {{0.5f, 0.5f, 0.5f}, 0.1f, 0.1f, 0.0f};
 }
@@ -521,6 +535,186 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     }
 }
 
+// ---------------------------------------------------------------------------
+// СОЕДИНИТЕЛИ (HOUSES.md §3-4). Панель никогда не касается панели: между
+// любыми двумя стоит стойка-шарнир, пол встречает стены через лежень, угол
+// сруба перевязан торцами. Всё ниже — замкнутые призмы (правило 52).
+// ---------------------------------------------------------------------------
+
+/// Facet count of the round joint's mesh. Not a facet count in the RULE's
+/// sense (a round joint accepts ANY angle); 24 is where a 1 m drum stops
+/// reading as faceted at the 2-4 m a street camera stands from it.
+constexpr int ROUND_JOINT_SEGMENTS = 24;
+/// A joint's tone bands per metre of height: masonry reads by its courses,
+/// timber by slow colour drift; one band per ~0.35 m serves both.
+constexpr float JOINT_BAND_M = 0.35f;
+
+/// One closed upright N-gon prism. `facets` 4/6/8 seat panels flush (across-
+/// flats size `d_m`); 0 = round (true diameter `d_m`). NO taper and NO wobble
+/// on purpose, and that is a guarantee rather than laziness: a panel seats
+/// FLUSH on the facet plane, so the facet must BE a plane the whole way up —
+/// the wobble every other kit part wears would turn the flush seat back into
+/// the hairline gap this family exists to kill.
+///
+/// Facet orientation contract (the judge in engine/world/Scene.cpp measures
+/// against it): at yaw = 0 one facet's outward normal points +X, the rest
+/// every 360/N degrees from it. Vertex k therefore sits at angle
+/// (k + 0.5) * 2pi/N, measured from +X toward -Z (the same sense yaw turns).
+void ngon_prism(MeshData& m, glm::vec3 base, float height, int facets, float d_m,
+                const Material& mat, float wear, Rng& rng) {
+    constexpr float PI = 3.14159265359f;
+    const int n = facets > 0 ? facets : ROUND_JOINT_SEGMENTS;
+    const float r_in = d_m * 0.5f;
+    const float R = facets > 0 ? r_in / std::cos(PI / static_cast<float>(n)) : r_in;
+    const int bands = std::max(2, static_cast<int>(height / JOINT_BAND_M + 0.5f));
+    std::vector<std::vector<glm::vec3>> rings(static_cast<std::size_t>(bands) + 1);
+    for (int s = 0; s <= bands; ++s) {
+        const float y = base.y + height * static_cast<float>(s) / static_cast<float>(bands);
+        auto& ring = rings[static_cast<std::size_t>(s)];
+        ring.resize(static_cast<std::size_t>(n));
+        for (int k = 0; k < n; ++k) {
+            const float ang = (static_cast<float>(k) + 0.5f) * 2.0f * PI
+                            / static_cast<float>(n);
+            ring[static_cast<std::size_t>(k)] =
+                glm::vec3{base.x + R * std::cos(ang), y, base.z - R * std::sin(ang)};
+        }
+    }
+    for (int s = 0; s < bands; ++s) {
+        const auto& p = rings[static_cast<std::size_t>(s)];
+        const auto& q = rings[static_cast<std::size_t>(s) + 1];
+        // Masonry reads by its courses: one tone per band, then a small
+        // per-face jitter inside it.
+        const uint32_t band_tone = tone(mat, wear, rng);
+        for (int k = 0; k < n; ++k) {
+            const int j = (k + 1) % n;
+            const uint32_t c = (k % 3 == 0) ? tone(mat, wear, rng) : band_tone;
+            quad(m, p[static_cast<std::size_t>(k)], p[static_cast<std::size_t>(j)],
+                 q[static_cast<std::size_t>(j)], q[static_cast<std::size_t>(k)], c);
+        }
+    }
+    // Caps wound AGAINST the ring order: the fan's boundary edge must run
+    // opposite to the side wall's, or every rim half-edge is emitted twice
+    // the same way and the hull leaks along both rims (the joint tests'
+    // half-edge meter caught exactly that on the first bake).
+    const uint32_t cap = tone(mat, wear, rng);
+    const glm::vec3 c0{base.x, base.y, base.z};
+    const glm::vec3 c1{base.x, base.y + height, base.z};
+    const auto& first = rings.front();
+    const auto& last = rings.back();
+    for (int k = 0; k < n; ++k) {
+        const int j = (k + 1) % n;
+        tri(m, c0, first[static_cast<std::size_t>(j)], first[static_cast<std::size_t>(k)],
+            cap);
+        tri(m, c1, last[static_cast<std::size_t>(k)], last[static_cast<std::size_t>(j)],
+            cap);
+    }
+}
+
+/// СТОЙКА-ШАРНИР. Origin at the FOOT, axis THROUGH the origin: panels are
+/// measured centre-of-post to centre-of-post (§3.2), so the composer places
+/// the axis and counts from it. variant 1 = с капителью (two widening drums
+/// at the head — the stone colonnade's read).
+void make_joint(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
+    const float d = static_cast<float>(p.diameter_cm) * 0.01f;
+    const float h = m_of(p.length_u);
+    ngon_prism(m, {0.0f, 0.0f, 0.0f}, h, p.facets, d, mat, p.wear, rng);
+    if (p.variant == 1) {
+        // The capital: echinus then abacus, same facet family as the shaft so
+        // the head still tells the truth about the angles the joint accepts.
+        ngon_prism(m, {0.0f, h - 0.22f, 0.0f}, 0.12f, p.facets, d * 1.18f, mat,
+                   p.wear, rng);
+        ngon_prism(m, {0.0f, h - 0.10f, 0.0f}, 0.10f, p.facets, d * 1.35f, mat,
+                   p.wear, rng);
+    }
+}
+
+/// ЛЕЖЕНЬ. The same prism laid down along +X, origin at the near end's
+/// UNDERSIDE (the face it beds on — the kit's stacking convention). For a
+/// 4-facet sleeper one facet faces straight UP, which is the whole point: the
+/// floor deck gets a plane to rest on, not a tangent line.
+void make_sleeper(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
+    constexpr float PI = 3.14159265359f;
+    const int n = p.facets > 0 ? p.facets : ROUND_JOINT_SEGMENTS;
+    const float r_in = static_cast<float>(p.diameter_cm) * 0.005f;
+    const float R = p.facets > 0 ? r_in / std::cos(PI / static_cast<float>(n)) : r_in;
+    const float len = m_of(p.length_u);
+    const int segs = std::max(1, p.length_u / 4);
+    std::vector<std::vector<glm::vec3>> rings(static_cast<std::size_t>(segs) + 1);
+    for (int s = 0; s <= segs; ++s) {
+        const float x = len * static_cast<float>(s) / static_cast<float>(segs);
+        auto& ring = rings[static_cast<std::size_t>(s)];
+        ring.resize(static_cast<std::size_t>(n));
+        for (int k = 0; k < n; ++k) {
+            // Vertices offset half a step so facet normals land on +Y/-Y/±Z
+            // for n = 4: flat bed below, flat seat above. The MINUS sets the
+            // ring's sense so the shared quad pattern winds OUTWARD around a
+            // +X axis (the volume meter read the first bake inside-out); the
+            // vertex SET is unchanged — the offsets are symmetric.
+            const float ang = -(static_cast<float>(k) + 0.5f) * 2.0f * PI
+                            / static_cast<float>(n);
+            ring[static_cast<std::size_t>(k)] =
+                glm::vec3{x, r_in + R * std::sin(ang), R * std::cos(ang)};
+        }
+    }
+    for (int s = 0; s < segs; ++s) {
+        const auto& p0 = rings[static_cast<std::size_t>(s)];
+        const auto& p1 = rings[static_cast<std::size_t>(s) + 1];
+        for (int k = 0; k < n; ++k) {
+            const int j = (k + 1) % n;
+            quad(m, p0[static_cast<std::size_t>(k)], p0[static_cast<std::size_t>(j)],
+                 p1[static_cast<std::size_t>(j)], p1[static_cast<std::size_t>(k)],
+                 tone(mat, p.wear, rng));
+        }
+    }
+    const uint32_t cap = tone(mat, p.wear, rng);
+    const glm::vec3 c0{0.0f, r_in, 0.0f};
+    const glm::vec3 c1{len, r_in, 0.0f};
+    const auto& first = rings.front();
+    const auto& last = rings.back();
+    for (int k = 0; k < n; ++k) {
+        const int j = (k + 1) % n;
+        tri(m, c0, first[static_cast<std::size_t>(j)], first[static_cast<std::size_t>(k)],
+            cap);
+        tri(m, c1, last[static_cast<std::size_t>(k)], last[static_cast<std::size_t>(j)],
+            cap);
+    }
+}
+
+/// Один венец сруба по вертикали, in metres. 0.23 = the log wall assembly's
+/// own course step (assets/scenes/panels/wall-log-16u.scene: венцы шагом 0.23,
+/// нахлёст 0.02 больше макс. прогиба w03) — the corner MUST share the panel's
+/// rhythm or the stubs miss the courses they claim to bind.
+constexpr float LOG_COURSE_M = 0.23f;
+/// How far a corner stub runs past the corner axis (выпуск «в обло»), and how
+/// far it reaches back along its wall. Reach 0.50 m: two courses of overlap
+/// with the panel's own logs, enough to read as ONE tied wall.
+constexpr float LOG_STUB_OUT_M = 0.30f;
+constexpr float LOG_STUB_BACK_M = 0.50f;
+
+/// ПЕРЕВЯЗКА ТОРЦОВ. Alternating stub courses: even courses run along +X,
+/// odd along +Z, every stub crossing the corner axis by LOG_STUB_OUT_M. The
+/// stub section is the log panel's own 2x1u section, so a corner placed at a
+/// log wall's end continues its coursing instead of arguing with it.
+void make_log_corner(MeshData& m, const PartParams& p, const Material& mat, Rng& rng) {
+    const float h = m_of(p.length_u);
+    const int courses = std::max(2, static_cast<int>(h / LOG_COURSE_M + 0.5f));
+    const float hw = m_of(2) * 0.5f;   // half-width of a 2u log, laid flat
+    // A course fills its own vertical step plus a 1 cm bite into the next,
+    // exactly the panel's overlap trick: no daylight between stub courses.
+    const float half_h = LOG_COURSE_M * 0.5f + 0.01f;
+    for (int i = 0; i < courses; ++i) {
+        const float y = (static_cast<float>(i) + 0.5f) * LOG_COURSE_M;
+        const float run = LOG_STUB_OUT_M + LOG_STUB_BACK_M;
+        if (i % 2 == 0) {
+            hewn_bar(m, {-LOG_STUB_OUT_M, y, 0.0f}, {1.0f, 0.0f, 0.0f},
+                     {0.0f, 1.0f, 0.0f}, run, hw, half_h, mat, p.wear, rng, 2);
+        } else {
+            hewn_bar(m, {0.0f, y, -LOG_STUB_OUT_M}, {0.0f, 0.0f, 1.0f},
+                     {0.0f, 1.0f, 0.0f}, run, hw, half_h, mat, p.wear, rng, 2);
+        }
+    }
+}
+
 [[nodiscard]] const char* kind_name(PartKind k) {
     switch (k) {
     case PartKind::Beam: return "beam";
@@ -535,6 +729,9 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     case PartKind::WindowFrame: return "window";
     case PartKind::Footing: return "footing";
     case PartKind::Fence: return "fence";
+    case PartKind::JointPost: return "joint";
+    case PartKind::Sleeper: return "sleeper";
+    case PartKind::LogCorner: return "corner";
     }
     return "part";
 }
@@ -548,17 +745,54 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     case PartMaterial::Thatch: return "thatch";
     case PartMaterial::Shingle: return "shingle";
     case PartMaterial::Pane: return "pane";
+    case PartMaterial::Brick: return "brick";
+    case PartMaterial::Tile: return "tile";
+    case PartMaterial::Turf: return "turf";
     }
     return "mat";
+}
+
+/// The joint-shape token in a name: -n4/-n6/-n8 state the facet count, -nr
+/// says round. In the NAME (not only in the params) by rule: the facet count
+/// is the constraint a composer must see without opening the file.
+[[nodiscard]] const char* facet_token(int facets) {
+    switch (facets) {
+    case 4: return "n4";
+    case 6: return "n6";
+    case 8: return "n8";
+    default: return "nr";
+    }
 }
 
 } // namespace
 
 std::string part_name(const PartParams& p) {
     char buf[128];
+    const int wear10 = static_cast<int>(p.wear * 10.0f + 0.5f);
+    switch (p.kind) {
+    // Connectors carry their WORKING properties instead of LxWxH: across-flats
+    // diameter (d50 = 0.50 m), facet count (n4 = 90° step, nr = any angle),
+    // then height/length in grid units. `-cap` marks a capital.
+    case PartKind::JointPost:
+        std::snprintf(buf, sizeof(buf), "joint-%s-d%d-%s-h%d%s-w%02d",
+                      material_name(p.material), p.diameter_cm,
+                      facet_token(p.facets), p.length_u,
+                      p.variant == 1 ? "-cap" : "", wear10);
+        return buf;
+    case PartKind::Sleeper:
+        std::snprintf(buf, sizeof(buf), "sleeper-%s-d%d-%s-%du-w%02d",
+                      material_name(p.material), p.diameter_cm,
+                      facet_token(p.facets), p.length_u, wear10);
+        return buf;
+    case PartKind::LogCorner:
+        std::snprintf(buf, sizeof(buf), "corner-log-%s-h%d-w%02d",
+                      material_name(p.material), p.length_u, wear10);
+        return buf;
+    default: break;
+    }
     std::snprintf(buf, sizeof(buf), "%s-%s-%dx%dx%d-w%02d", kind_name(p.kind),
                   material_name(p.material), p.length_u, p.width_u, p.height_u,
-                  static_cast<int>(p.wear * 10.0f + 0.5f));
+                  wear10);
     return buf;
 }
 
@@ -590,6 +824,9 @@ RegistryObject forge_part(const PartParams& params) {
     case PartKind::WindowFrame: make_window(obj.wood, params, mat, rng); break;
     case PartKind::Footing: make_footing(obj.wood, params, mat, rng); break;
     case PartKind::Fence: make_fence(obj.wood, params, mat, rng); break;
+    case PartKind::JointPost: make_joint(obj.wood, params, mat, rng); break;
+    case PartKind::Sleeper: make_sleeper(obj.wood, params, mat, rng); break;
+    case PartKind::LogCorner: make_log_corner(obj.wood, params, mat, rng); break;
     }
     return obj;
 }
@@ -672,6 +909,90 @@ std::vector<PartParams> kit_catalogue() {
     // GROUND AND YARD.
     add(PartKind::Footing, {4, 8, 12}, {{2, 2}, {2, 4}, {4, 4}}, {PM::Stone}, wear2);
     add(PartKind::Fence, {6, 8, 12}, {{1, 4}, {1, 6}}, woods, wear2);
+
+    // СОЕДИНИТЕЛИ (HOUSES.md §3-4). Expanded by rule, like everything else:
+    // shape (4/6/8/round facets) x across-flats diameter (35/50/75/100 cm,
+    // derived d >= T + 0.1 from panel thickness T = 0.25) x material x height.
+    // Every combination is forged even where a 0.35 octagon's facet (14.5 cm)
+    // is too narrow for a 25 cm wall — the JUDGE owns that pairing rule and
+    // needs the real rejected part to fail (Rule 30); thinner panels (fence
+    // rails, shelf boards) still seat on it legally.
+    const auto add_joint = [&out](std::initializer_list<int> shapes,
+                                  std::initializer_list<int> diameters_cm,
+                                  std::initializer_list<PartMaterial> mats,
+                                  std::initializer_list<int> heights_u,
+                                  std::initializer_list<int> variants,
+                                  std::initializer_list<float> wears) {
+        for (int n : shapes) {
+            for (int d : diameters_cm) {
+                for (PartMaterial m : mats) {
+                    for (int h : heights_u) {
+                        for (int v : variants) {
+                            for (float w : wears) {
+                                PartParams p;
+                                p.kind = PartKind::JointPost;
+                                p.material = m;
+                                p.facets = n;
+                                p.diameter_cm = d;
+                                p.length_u = h;
+                                p.variant = v;
+                                p.wear = w;
+                                p.name = part_name(p);
+                                uint64_t hash = 1469598103934665603ull;
+                                for (unsigned char c : p.name) {
+                                    hash = (hash ^ c) * 1099511628211ull;
+                                }
+                                p.seed = hash;
+                                out.push_back(std::move(p));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    // Timber joints: every shape and diameter, wall height (11u = 2.75 m) and
+    // tall (16u = 4 m), no capitals — a capital on a log is not carpentry.
+    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, woods, {11, 16}, {0}, wear2);
+    // Masonry joints: stone and brick, with and without capitals. The 1.0 m
+    // row is the castle colonnade's (HOUSES.md §3.1).
+    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, {PM::Stone, PM::Brick}, {11, 16},
+              {0, 1}, wear2);
+
+    // ЛЕЖНИ: floor-to-wall bedding logs. 4-facet (flat bed, flat seat) and
+    // round; the two smaller diameters — a 0.75 sleeper would eat the room's
+    // headroom from below.
+    {
+        const std::initializer_list<int> lens = {8, 12, 16};
+        for (int n : {4, 0}) {
+            for (int d : {35, 50}) {
+                for (PartMaterial m : {PM::Timber, PM::TimberDark, PM::Stone}) {
+                    for (int L : lens) {
+                        for (float w : wear2) {
+                            PartParams p;
+                            p.kind = PartKind::Sleeper;
+                            p.material = m;
+                            p.facets = n;
+                            p.diameter_cm = d;
+                            p.length_u = L;
+                            p.wear = w;
+                            p.name = part_name(p);
+                            uint64_t hash = 1469598103934665603ull;
+                            for (unsigned char c : p.name) {
+                                hash = (hash ^ c) * 1099511628211ull;
+                            }
+                            p.seed = hash;
+                            out.push_back(std::move(p));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ПЕРЕВЯЗКА ТОРЦОВ СРУБА: corner nodes at the two wall heights the log
+    // panels come in (11u массовка, plus a low 6u for porches and sheds).
+    add(PartKind::LogCorner, {6, 11}, {{1, 1}}, woods, wear2);
     return out;
 }
 

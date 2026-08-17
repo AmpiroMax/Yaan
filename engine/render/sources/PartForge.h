@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 16:08:2026 - 22:16:30
+Last updated: 17:08:2026 - 12:38:26
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -45,6 +45,12 @@ UPD:
   дня (пользователь про хутор: «стены несплошные, дырки в доме... окна глухие,
   с имитацией вида насквозь»): деталь ограждения ЗАМКНУТА, сквозных просветов
   не оставляет.
+- 17:08:2026 - 12:38:26: СЕМЬЯ СОЕДИНИТЕЛЕЙ (HOUSES.md §3-4, [ЖДЁТ] -> код):
+  JointPost (стойка-шарнир, 4/6/8/круг граней x d 35/50/75/100 см), Sleeper
+  (лежень пола), LogCorner (перевязка торцов сруба); материалы Brick/Tile/Turf
+  (кирпичный столб — слова пользователя; черепица и дёрн — под волну крыш).
+  PartParams вырос полями facets/diameter_cm/variant — только добавления,
+  старые детали переиспечены байт-в-байт.
 */
 
 #pragma once
@@ -76,6 +82,22 @@ enum class PartKind : uint8_t {
     WindowFrame,
     Footing,    ///< the stone block a timber building stands on
     Fence,      ///< one section of rail fence
+    /// СТОЙКА-ШАРНИР (HOUSES.md §3-4): the connector post every panel ends at.
+    /// A vertical N-gon prism, origin at its foot, AXIS at the origin — panels
+    /// are measured centre-of-post to centre-of-post, so the composer places
+    /// this first and counts panels from it. Its facet count is the JOINT'S
+    /// working property: as many facets, as many directions it can hand a
+    /// panel to (see PartParams::facets).
+    JointPost,
+    /// ЛЕЖЕНЬ: the horizontal bedding log a floor deck rests on and meets the
+    /// walls through (HOUSES.md §3: floor-to-wall is a connector too, never a
+    /// butt joint). Origin at the near end's UNDERSIDE, axis along +X.
+    Sleeper,
+    /// ПЕРЕВЯЗКА ТОРЦОВ СРУБА: the interlocked crossing log ends at a log
+    /// house's corner — alternating stubs along +X and +Z, origin at the
+    /// corner axis' foot. What makes a log wall read as BUILT at its corner
+    /// instead of two panels colliding.
+    LogCorner,
 };
 
 /// What a part is made OF, in the reference's own terms: the frames the user
@@ -93,6 +115,14 @@ enum class PartMaterial : uint8_t {
     /// вида насквозь»). Its own material so the registry can tell an insert
     /// from wood and a later real-interior pass can find and replace it.
     Pane,
+    /// Кирпич: the masonry column and wall material the user named for
+    /// connectors («кирпичный столб») — WHITERUN_RESEARCH.md §6 sanctioned it
+    /// for the street layer.
+    Brick,
+    /// Черепица: fired-clay roof tile, the rich house's roof.
+    Tile,
+    /// Дёрн: the living turf roof of the poorest houses (roof variants wave).
+    Turf,
 };
 
 struct PartParams {
@@ -107,6 +137,26 @@ struct PartParams {
     /// 0 = crisp and new, 1 = weathered: axe marks, sag, split ends. The
     /// reference is old wood, so the kit's default is not zero.
     float wear = 0.5f;
+    /// JOINT SHAPE (JointPost/Sleeper): how many FLAT facets the connector
+    /// offers — 4 (шаг угла 90°), 6 (60°), 8 (45°), 0 = круглая (any angle).
+    /// The reason is one rule for the whole row (user, 17.08): a panel seats
+    /// FLUSH ON A FACET, so a joint hands out exactly as many directions as it
+    /// has facets; between facets the panel rides over the arris and the gap
+    /// returns. The count is a WORKING property, carried in the name (-n4/-nr)
+    /// so a composer sees the constraint without opening the file.
+    int facets = 0;
+    /// JOINT WORKING SIZE (JointPost/Sleeper), across-flats, centimetres.
+    /// Row 35/50/75/100: derived from panel thickness T as d >= T + 0.1 — at
+    /// centre-to-centre placement the facet must overhang the panel's face by
+    /// >= 5 cm each side, or the seam line stays visible and floating point
+    /// turns a touch into a hairline gap (HOUSES.md §3.1). Not `_u` grid
+    /// units on purpose: 0.35 is not a grid multiple, and the grid owns
+    /// LENGTHS, not section sizes (§3.2).
+    int diameter_cm = 0;
+    /// STYLE VARIANT inside one kind (wall bonds, roof shapes, joint
+    /// capitals). 0 = the kind's default; meanings are per-kind and each
+    /// variant spells its token into the part's name.
+    int variant = 0;
 };
 
 /// The kit's naming rule: kind-material-LxWxH-wNN, e.g. "beam-timber-8x2x1-w06".

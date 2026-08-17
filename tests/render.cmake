@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 12:08:2026 - 01:02:15
+# Last updated: 17:08:2026 - 12:40:06
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -39,6 +39,8 @@
 # - 12:08:2026 - 01:02:15: Ground tuft tests (density rate with a zero control,
 #   determinism, material and slope filters with their controls, the Rule 33
 #   view cut, and that the clumps are not one stamp in copies).
+# - 17:08:2026 - 12:40:06: Part-forge joint tests (замкнутость и обмотка призм стоек с
+#   контролями, контракт грани, лежень, имена, каталог соединителей).
 
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
@@ -62,3 +64,5 @@ add_dfn_test(render_proc_texture render/ProcTextureTests.cpp dfn_render)
 add_dfn_test(render_palette render/PaletteTests.cpp dfn_platform_render)
 add_dfn_test(render_system render/RenderSystemTests.cpp
     dfn_render dfn_platform_render dfn_core)
+add_dfn_test(render_part_forge_joints render/PartForgeJointTests.cpp
+    dfn_render dfn_core)
