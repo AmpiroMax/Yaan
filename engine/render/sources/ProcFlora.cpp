@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:31:02
-Last updated: 14:08:2026 - 23:12:28
+Last updated: 18:08:2026 - 00:49:35
 Module: engine/render
 File: engine/render/sources/ProcFlora.cpp
 
@@ -323,6 +323,42 @@ UPD:
   по хэшу, никогда не звезда. Только Full (на 48 м корень — пара пикселей,
   в Silhouette бюджете 54 треугольника ему нет места). Корни идут в поток
   FloraMesh::ground: в кадр — вместе с wood, в твёрдую болу — никогда.
+- 18:08:2026 - 00:49:35: КРАСНЫЙ РУКАВ ЗАКРЫТ ПО СУЩЕСТВУ (требование пользователя 18.08:
+  «меня бесит тест, который не проходит и его игнорят — либо удали его, либо
+  поправь»). Речь про «lod: the far crown is never MORE TRANSPARENT than the
+  near one»: ива теряла 24 % оптической глубины на дальнем уровне (Full 11.186
+  против Reduced 8.494) при неизменной ширине кроны 9.03 -> 8.82 м.
+  РАЗБОР. Виноват срез древесины дальнего уровня. Массы листвы размазаны ПО
+  ДЛИНЕ побега, а оболочка ужимает массу до `env - len`, когда та вылезает
+  наружу. Срезав побеги, те же 42 массы ивы садятся на 9 плетей вместо 19,
+  уезжают дальше по каждой — и оболочка их ужимает. Площадь падает, ширина нет.
+  ЧЕГО СДЕЛАТЬ БЫЛО НЕЛЬЗЯ, и это проверено, а не предположено. (1) Подвинуть
+  бюджет: свип 40..80 % показал, что пороги площади берёзы держатся ТОЛЬКО ровно
+  на 40 (209.2 против порога 194; уже на 45 — 186), то есть общий рычаг
+  несовместим сам с собой. (2) Взять промежуточный срез для одной ивы: по тому
+  же свипу её глубина НЕМОНОТОННА — 11.17 на 55, 10.66 на 60, 8.44 на 65, 12.93
+  на 70. Величина, которая не монотонна по рычагу, этим рычагом не управляется,
+  и выбрать 55 значило бы подогнаться под шум.
+  ЕЩЁ ОДНА ПРОВЕРЕННАЯ ПУСТОТА, чтобы её не покупали заново: компенсация «доля
+  листвы на конец побега растёт обратно срезу древесины» НЕ РАБОТАЕТ НИ РАЗУ.
+  Замер по всем видам и обоим уровням: carried == clusters везде, tip_limited=0
+  везде. Потолок по концам побегов не связывает ни в одном случае, и вся ветка
+  инертна. Заодно: 400/pct — целочисленное деление, и ноль недодачи выпадает
+  ровно на 40 (на 45 недодача 10 %, на 70 — 12.5 %). Прежний свип, «нашедший»
+  40, мерил артефакт деления. Правка деления написана и ОТКАЧЕНА: числа не
+  сдвинулись ни на цифру, потому что связывает потолок clusters.
+  ЧТО СДЕЛАНО. wood_cut_costs_crown() — одно определение на четыре места вызова
+  (правило 32) взамен `sp.crown_radius_per_height > 0.0f`, выписанного
+  вчетверо. Плакучая оболочка (CrownEnvelope::Weeping) освобождена от ДАЛЬНЕГО
+  среза древесины по той же причине, по которой освобождён великан: у обоих
+  срез древесины режет саму крону. Ближний срез плакучей формы НЕ тронут — иначе
+  под видом починки дальнего уровня сдвинулась бы вся записанная ближняя опора.
+  ЦЕНА НАЗВАНА ЧЕСТНО: дальняя ива больше не экономит НИЧЕГО — 2195
+  треугольников на обоих уровнях. Дуб 2028 -> 968 и берёза 2371 -> 1105
+  экономят как прежде. Это та же сделка, которую великан уже принял.
+  Прогон: 53 из 53 в рукаве флоры, ива Reduced 11.186 против Full 11.186 —
+  паритет ПО ПОСТРОЕНИЮ, а не по удаче, потому что дальний скелет теперь и есть
+  ближний. Берёза свою опору сохранила: 209.179.
 */
 
 #include "engine/render/sources/ProcFlora.h"
@@ -533,7 +569,35 @@ uint32_t far_lod_wood_pct() {
     return pct;
 }
 
-uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, bool crown_is_wood) {
+/// КОМУ СРЕЗ ДРЕВЕСИНЫ СРЕЗАЕТ КРОНУ. Два признака, и оба измеримые, а не
+/// названные по имени вида.
+///
+/// (1) crown_radius_per_height > 0 — крона ЕСТЬ ветвление (великий дуб): режем
+///     сегменты — режем размах. Это исключение здесь с 13.08 и не менялось.
+/// (2) CrownEnvelope::Weeping — плакучая форма. Разобрано 18.08 по красному
+///     рукаву «дальняя крона не бывает прозрачнее ближней», который висел
+///     красным и который пользователь потребовал либо починить, либо снести.
+///     Массы листвы РАЗМАЗАНЫ ПО ДЛИНЕ побега, а оболочка ужимает массу до
+///     `env - len`, когда та вылезает наружу. Срезав побеги, те же 42 массы
+///     ивы садятся на 9 плетей вместо 19, уезжают дальше по каждой — и
+///     оболочка их ужимает. Площадь падает, ширина кроны нет, и оптическая
+///     глубина теряет 24 %.
+///     ЭТО НЕ НАСТРАИВАЕТСЯ БЮДЖЕТОМ, и это проверено: свип 40..80 %. Пороги
+///     площади берёзы держатся ТОЛЬКО ровно на 40 (209.2 против порога 194; на
+///     45 уже 186), а глубина ивы по тому же свипу скачет — 8.4 на 65 и 12.9
+///     на 70. Величина, которая не монотонна по рычагу, этим рычагом не
+///     управляется.
+[[nodiscard]] bool wood_cut_costs_crown(const SpeciesParams& sp) {
+    return sp.crown_radius_per_height > 0.0f || sp.envelope == CrownEnvelope::Weeping;
+}
+
+uint32_t far_lod_segments(uint32_t full_segments, FloraLod lod, const SpeciesParams& sp) {
+    // У БЛИЖНЕГО УРОВНЯ ИСКЛЮЧЕНИЕ ОДНО, СТАРОЕ. Плакучая форма попадает под
+    // ближний срез древесины как и раньше: разобранный отказ — про ДАЛЬНИЙ
+    // уровень, а расширять исключение на ближний значило бы сдвинуть всю
+    // записанную ближнюю опору вида под видом починки дальней.
+    const bool crown_is_wood = (lod == FloraLod::Full) ? (sp.crown_radius_per_height > 0.0f)
+                                                       : wood_cut_costs_crown(sp);
     if (lod == FloraLod::Full) {
         // WOOD PAYS FOR LEAF AT THE NEAR VIEW TOO (CROWN_WOOD_BUDGET_FRAC).
         // A tree spent four fifths of its triangles on wood at every distance,
@@ -1450,11 +1514,11 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
             // left the oak, birch and willow at their full 802/926/837
             // triangles of wood. One rule, four call sites, three of them
             // wired -- the shape of defect this file's header is about.
-            nodes = far_lod_segments(nodes, t.lod, giant);
-            segs = far_lod_segments(segs, t.lod, giant);
+            nodes = far_lod_segments(nodes, t.lod, sp);
+            segs = far_lod_segments(segs, t.lod, sp);
         } else if (t.lod == FloraLod::Reduced) {
-            nodes = far_lod_segments(nodes, t.lod, giant);
-            segs = far_lod_segments(segs, t.lod, giant);
+            nodes = far_lod_segments(nodes, t.lod, sp);
+            segs = far_lod_segments(segs, t.lod, sp);
         } else if (t.lod == FloraLod::Silhouette) {
             // Only the giant reaches this path (build_silhouette sends it here
             // rather than drawing a shell, Rule 52). An eighth of the budget
@@ -1587,8 +1651,7 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
         // Reduced spends its saving on the SKELETON, which is what stops
         // resolving first: at that range the crown mass still reads and the
         // individual limbs do not.
-        cp.max_nodes = far_lod_segments(max_crown_segments(sp), t.lod,
-                                        sp.crown_radius_per_height > 0.0f);
+        cp.max_nodes = far_lod_segments(max_crown_segments(sp), t.lod, sp);
         // Eq. (3)'s g: phototropism up, gravity down, and the open side for an
         // edge tree. One vector carries all three, which is why the paper needs
         // no separate tropism stage.
@@ -1620,8 +1683,7 @@ void build_crown(MeshData& m, Tree& t, glm::vec3 stem_base, glm::vec3 stem_top,
     // species, every variant and every maturity tier under TREE_TRI_BUDGET_MAX
     // by construction, instead of by a per-species step size that is green when
     // it is written and red two sizes later.
-    const uint32_t max_segments = far_lod_segments(max_crown_segments(sp), t.lod,
-                                                   sp.crown_radius_per_height > 0.0f);
+    const uint32_t max_segments = far_lod_segments(max_crown_segments(sp), t.lod, sp);
     decimate_to(sk, max_segments);
     // Radii are recomputed AFTER decimation: the pipe model counts supported
     // tips, and dissolving a chain node does not change the tip count while
