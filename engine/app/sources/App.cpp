@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 15:38:13
+Last updated: 17:08:2026 - 16:17:46
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -327,6 +327,8 @@ UPD:
   домов и флоры — Gallery, а её «смотреть на восток» ставилось после. Три
   руки: композиция просит север -> 0.000000; просит восток -> 1.570800 (из
   файла, отличим от умолчания в последних знаках); голый стенд -> 1.570796.
+- 17:08:2026 - 16:17:46: каталог бота прогулок больше не создаётся при настройке — его делает
+  playtest_write_artifacts(), когда есть что записать (пустые папки, 17.08).
 */
 
 #include "engine/app/sources/App.h"
@@ -2599,7 +2601,12 @@ bool App::enter_world(uint32_t stand) {
         pt_env_.world_floor_y = -60.0f; // below every legitimate carve
         const char* dir = std::getenv("DFN_PLAYTEST_DIR");
         pt_dir_ = dir ? dir : ("screenshots/playtest_" + mode);
-        std::filesystem::create_directories(pt_dir_);
+        // NO create_directories HERE. playtest_write_artifacts() makes the
+        // directory when it has something to put in it; making it now means
+        // every run that starts the bot and writes nothing leaves an empty
+        // folder behind, and those folders came back often enough that the
+        // user asked for the MECHANISM to go, not the folders. A directory
+        // should be evidence that something was written.
         // The bot needs the world, not the cursor; the player is NOT frozen.
     }
 

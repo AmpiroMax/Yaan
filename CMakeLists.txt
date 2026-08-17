@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 17:08:2026 - 14:46:25
+# Last updated: 17:08:2026 - 16:14:41
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -45,6 +45,8 @@
 #                          объект реестра. Второй уровень набора: из ста блоков
 #                          стены собирается неограниченное число панелей, и
 #                          запечатанная один раз панель не может протечь заново.
+# - 17:08:2026 - 16:14:41: dfn_newmap — явное создание папки карты и её композиции. Заказ
+#   пользователя 17.08: папки не должны появляться как побочный эффект записи.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -159,3 +161,7 @@ target_link_libraries(dfn_signs PRIVATE dfn_render dfn_core)
 # standing as the rest of the pipeline.
 add_executable(dfn_assemble tools/assemble_object.cpp)
 target_link_libraries(dfn_assemble PRIVATE dfn_world dfn_render dfn_core)
+
+# NEW MAP (dfn_newmap): the ONE visible way a map folder is created. Links
+# nothing on purpose — making a folder must not wait for the world to compile.
+add_executable(dfn_newmap tools/new_map.cpp)

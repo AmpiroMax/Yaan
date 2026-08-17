@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 12:08:2026 - 00:52:40
+Last updated: 17:08:2026 - 16:17:46
 Module: engine/render
 File: engine/render/sources/Tour.cpp
 
@@ -104,6 +104,8 @@ UPD:
   family). WHAT IS NOT FIXED HERE: the app still does not exit on an empty
   route. That is engine/app and belongs to the lead; this makes the cause
   visible in one line instead of requiring a bisect.
+- 17:08:2026 - 16:17:46: каталог кадров создаётся при ЗАПИСИ кадра, а не при настройке тура —
+  настроенный и не выстреливший тур оставлял за собой пустую папку.
 */
 
 #include "engine/render/sources/Tour.h"
@@ -161,8 +163,9 @@ void Tour::begin(std::vector<TourStep> steps, std::string output_dir,
     }
     output_dir_ = std::move(output_dir);
     ground_at_ = std::move(ground_at);
-    std::error_code ec;
-    std::filesystem::create_directories(output_dir_, ec); // best effort
+    // The directory is made by the first frame that is actually written (see
+    // the shot path below), not here: a tour that is configured and never
+    // fires must not leave an empty "screenshots" behind it.
     step_ = 0;
     frames_waited_ = 0;
     flush_left_ = 0;
@@ -233,6 +236,8 @@ bool Tour::post_frame(platform::IRenderer& renderer) {
     char name[32];
     std::snprintf(name, sizeof(name), "%02u_", step_);
     const std::string path = output_dir_ + "/" + name + step.label + ".png";
+    std::error_code dir_ec; // made HERE: we are about to put a frame in it
+    std::filesystem::create_directories(output_dir_, dir_ec);
     // THE VANTAGE THAT WAS ACTUALLY SHOT, not the one that was asked for. Most
     // steps are ground_relative, so their y is resolved from streamed terrain
     // and is not in any recipe — which means an archived frame's standpoint
