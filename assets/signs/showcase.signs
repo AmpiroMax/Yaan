@@ -1,0 +1,495 @@
+#
+# Created: 17:08:2026 - 15:52:18
+# Last updated: 17:08:2026 - 15:52:18
+# Module: assets
+# File: assets/signs/showcase.signs
+#
+# Responsibility:
+# - Подписи 44 образцов витрины: что это за объект, человеческими
+#   словами. Текст — КОНТЕНТ (правило 5) и живёт в note сцены
+#   assets/scenes/showcase.scene; здесь он только разложен по строкам.
+#
+# Dependencies:
+# - Uses: dfn_signs / render::read_signs_file (печёт .dfo).
+#   Used by: assets/scenes/showcase.scene.
+#
+# AI Agents Notice (must follow):
+# - СГЕНЕРИРОВАНО tools/gen_showcase_signs.py из note сцены — правки
+#   вносить в СЦЕНУ, иначе следующий прогон их сотрёт.
+#
+# UPD:
+# - 17:08:2026 - 15:52:18: Создан генератором из подписей витрины.
+#
+
+[sign]
+name = label-00
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = стойка-шарнир
+line = квадратная d50
+
+[sign]
+name = label-01
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = сруб: венцы
+line = шагом 0.23,
+line = глухая
+
+[sign]
+name = label-04
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = сруб тёмного
+line = дерева, окно
+line = (глухое, с
+line = имитацией нутра)
+
+[sign]
+name = label-07
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = фахверк по
+line = штукатурке,
+line = одинарный раскос
+
+[sign]
+name = label-10
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = фахверк, раскос
+line = андреевским
+line = крестом, окно
+
+[sign]
+name = label-13
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = фахверк по
+line = глине,
+line = К-образный
+line = раскос, два окна
+
+[sign]
+name = label-16
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = обшивка
+line = вертикальной
+line = доской, два окна
+
+[sign]
+name = label-19
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = обшивка
+line = горизонтальной
+line = доской, окно
+
+[sign]
+name = label-22
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = тёсаный камень
+line = правильными
+line = рядами, окно
+
+[sign]
+name = label-25
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = бутовый камень
+line = дикими рядами,
+line = глухая
+
+[sign]
+name = label-28
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = кирпич с
+line = перевязкой, два
+line = окна
+
+[sign]
+name = label-31
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = низ камень -
+line = верх дерево,
+line = поясной брус,
+line = окно
+
+[sign]
+name = label-34
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = фахверк по глине
+line = с дверным
+line = проёмом (проём
+line = закрывает
+line = полотно)
+
+[sign]
+name = label-36
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = стойка
+line = квадратная,
+line = дерево, d0.5 -
+line = шаг угла 90
+
+[sign]
+name = label-37
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = стойка
+line = шестигранная,
+line = d0.5 - шаг 60
+line = (стену 0.25
+line = несёт с d0.75)
+
+[sign]
+name = label-38
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = стойка
+line = восьмигранная,
+line = d0.75 - шаг 45
+
+[sign]
+name = label-39
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = стойка круглая,
+line = d0.5 - любой
+line = угол
+
+[sign]
+name = label-40
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = ряд диаметров:
+line = 0.35 - минимум
+line = под стену 0.25
+
+[sign]
+name = label-41
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = ряд диаметров:
+line = 0.75 - главный
+line = столб
+
+[sign]
+name = label-42
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = каменная колонна
+line = замка d1.0 с
+line = капителью
+
+[sign]
+name = label-43
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = кирпичный столб
+line = с капителью
+
+[sign]
+name = label-44
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = перевязка торцов
+line = сруба: угол
+line = дома, выпуск в
+line = обло
+
+[sign]
+name = label-45
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = лежень
+line = четырёхгранный:
+line = плоская постель,
+line = плоское ложе под
+line = пол
+
+[sign]
+name = label-46
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = лежень круглый
+line = каменный
+
+[sign]
+name = label-47
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = скат: солома,
+line = лохматый свес
+
+[sign]
+name = label-48
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = скат:
+line = дранка-чешуя
+
+[sign]
+name = label-49
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = скат: тёс, доски
+line = вдоль ската по
+line = воде
+
+[sign]
+name = label-50
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = скат: черепица
+line = тонкими рядами
+
+[sign]
+name = label-51
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = скат: дёрн с
+line = ветровницей
+
+[sign]
+name = label-52
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = пологий скат 27
+line = - односкатная
+line = кровля сарая
+
+[sign]
+name = label-53
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = вальма:
+line = треугольный
+line = торцевой скат к
+line = коньку
+
+[sign]
+name = label-54
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = полувальма: верх
+line = фронтона срезан,
+line = низ остаётся
+
+[sign]
+name = label-55
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = вальма
+line = черепичная,
+line = уклон положе
+
+[sign]
+name = label-56
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = дымник: жалюзи и
+line = шапка, ставится
+line = верхом на конёк
+
+[sign]
+name = label-57
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = дымник большой,
+line = тёмное дерево
+
+[sign]
+name = label-58
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = забор жердевой,
+line = 2 м секция
+
+[sign]
+name = label-59
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = забор высокий
+line = тёмный, 3 м
+
+[sign]
+name = label-60
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = уличная лестница
+line = каменная, 5
+line = ступеней
+
+[sign]
+name = label-61
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = лестница
+line = деревянная, 7
+line = ступеней
+
+[sign]
+name = label-62
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = цоколь дикого
+line = камня - подошва
+line = дома
+
+[sign]
+name = label-63
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = дверная коробка
+
+[sign]
+name = label-64
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = дверное полотно
+line = с накладками
+
+[sign]
+name = label-65
+shape = post
+cap = 0.06
+board = timber
+ink = dark
+wear = 0.3
+line = оконный переплёт
+line = с глухой
+line = вставкой
+

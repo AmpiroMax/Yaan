@@ -490,3 +490,309 @@ pos = 144 25.5 86
 yaw = 0
 scale = 1
 note = оконный переплёт с глухой вставкой
+
+# --- ПОДПИСИ ОБРАЗЦОВ: этот блок пишет tools/gen_showcase_signs.py ---
+# По одной доске на каждый образец: стоит в 1.6 м ЮЖНЕЕ (+Z) своего
+# образца лицом к пришедшему (yaw 0 — лицевая сторона смотрит на +Z).
+# Текст доски — тот же note, что стоит на самом образце.
+
+[place]
+object = label-00
+pos = 110.000 25.500 143.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d50-n4-h11-w03
+
+[place]
+object = label-01
+pos = 110.000 25.500 143.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-log-timber-16x1x11-blind-w05
+
+[place]
+object = label-04
+pos = 119.000 25.500 143.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-log-dark-16x1x11-win1-w05
+
+[place]
+object = label-07
+pos = 128.000 25.500 143.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-framea-plaster-16x1x11-blind-w05
+
+[place]
+object = label-10
+pos = 137.000 25.500 143.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-framex-plaster-16x1x11-win1-w05
+
+[place]
+object = label-13
+pos = 146.000 25.500 143.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-framek-clay-16x1x11-win2-w05
+
+[place]
+object = label-16
+pos = 155.000 25.500 143.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-boardv-timber-16x1x11-win2-w05
+
+[place]
+object = label-19
+pos = 110.000 25.500 129.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-boardh-timber-16x1x11-win1-w05
+
+[place]
+object = label-22
+pos = 119.000 25.500 129.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-ashlar-stone-16x1x11-win1-w05
+
+[place]
+object = label-25
+pos = 128.000 25.500 129.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-rubble-stone-16x1x11-blind-w05
+
+[place]
+object = label-28
+pos = 137.000 25.500 129.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-brick-brick-16x1x11-win2-w05
+
+[place]
+object = label-31
+pos = 146.000 25.500 129.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-combo-stone-16x1x11-win1-w05
+
+[place]
+object = label-34
+pos = 155.000 25.500 129.475
+yaw = 0.000000
+scale = 1
+note = подпись образца: wall-framea-clay-16x1x11-door-w05
+
+[place]
+object = label-36
+pos = 102.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d50-n4-h11-w03
+
+[place]
+object = label-37
+pos = 107.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d50-n6-h11-w03
+
+[place]
+object = label-38
+pos = 112.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d75-n8-h11-w03
+
+[place]
+object = label-39
+pos = 117.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d50-nr-h11-w03
+
+[place]
+object = label-40
+pos = 122.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d35-n4-h11-w03
+
+[place]
+object = label-41
+pos = 127.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-timber-d75-n4-h11-w03
+
+[place]
+object = label-42
+pos = 132.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-stone-d100-n8-h16-cap-w03
+
+[place]
+object = label-43
+pos = 137.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: joint-brick-d75-n4-h11-cap-w03
+
+[place]
+object = label-44
+pos = 142.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: corner-log-timber-h11-w03
+
+[place]
+object = label-45
+pos = 150.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: sleeper-timber-d50-n4-16u-w03
+
+[place]
+object = label-46
+pos = 158.000 25.500 115.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: sleeper-stone-d35-nr-12u-w03
+
+[place]
+object = label-47
+pos = 102.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roof-thatch-12x8x8-w08
+
+[place]
+object = label-48
+pos = 110.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roof-shingle-12x8x8-w03
+
+[place]
+object = label-49
+pos = 118.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roof-timber-12x8x8-w05
+
+[place]
+object = label-50
+pos = 126.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roof-tile-12x8x8-w05
+
+[place]
+object = label-51
+pos = 134.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roof-turf-12x8x8-w05
+
+[place]
+object = label-52
+pos = 142.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roof-thatch-12x8x4-w05
+
+[place]
+object = label-53
+pos = 154.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roofhip-shingle-12x8x8-w05
+
+[place]
+object = label-54
+pos = 163.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roofhip-shingle-12x8x8-polu-w05
+
+[place]
+object = label-55
+pos = 172.000 25.500 101.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: roofhip-tile-12x8x6-w05
+
+[place]
+object = label-56
+pos = 184.000 25.500 103.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: smokevent-timber-2u-w05
+
+[place]
+object = label-57
+pos = 189.000 25.500 103.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: smokevent-dark-3u-w05
+
+[place]
+object = label-58
+pos = 102.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: fence-timber-8x1x4-w08
+
+[place]
+object = label-59
+pos = 108.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: fence-dark-12x1x6-w08
+
+[place]
+object = label-60
+pos = 114.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: stair-stone-1x6x5-w03
+
+[place]
+object = label-61
+pos = 120.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: stair-timber-1x4x7-w08
+
+[place]
+object = label-62
+pos = 126.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: footing-stone-8x2x4-w08
+
+[place]
+object = label-63
+pos = 132.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: doorframe-timber-4x1x8-w03
+
+[place]
+object = label-64
+pos = 138.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: door-timber-3x1x7-w03
+
+[place]
+object = label-65
+pos = 144.000 25.500 87.600
+yaw = 0.000000
+scale = 1
+note = подпись образца: window-timber-4x1x4-w05

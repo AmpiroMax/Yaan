@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:55:07
+Last updated: 17:08:2026 - 15:58:02
 Module: tools
 File: tools/forge_signs.cpp
 
@@ -10,8 +10,12 @@ Responsibility:
   what it says.
 
 Usage:
-    dfn_signs <file.signs> [<out_dir>]     (default assets/objects/signs)
-    dfn_signs --list <file.signs>          (print names and stop, writing nothing)
+    dfn_signs <file.signs>... [<out_dir>]  (default assets/objects/signs)
+    dfn_signs --list <file.signs>...       (print names and stop, writing nothing)
+    dfn_signs --flat <file.signs>...       (untextured arm, see below)
+
+Any argument ending in .signs is an INPUT; a single other argument is the
+output directory. All inputs land on one shelf and in one index.
 
 WHY A DATA FILE AND NOT A CATALOGUE IN C++ (Rule 5, Rule 6). The text on a sign
 IS content: it is the sentence a player reads standing in front of a house, it
@@ -48,6 +52,8 @@ UPD:
 - 17:08:2026 - 14:46:25: Создан — работа 4 заказа 17.08 (таблички; текст приходит файлом).
 - 17:08:2026 - 14:55:07: Разбор .signs уехал в библиотеку (read_signs_file) — печь приложения
   не может заглянуть в инструмент, а второй разбор разошёлся бы с этим.
+- 17:08:2026 - 15:58:02: Несколько .signs за один прогон: индекс описывает ВСЮ полку, и печь
+  в два захода оставляла бы индекс, называющий только второй файл.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -79,27 +85,44 @@ int main(int argc, char** argv) {
             args.emplace_back(argv[i]);
         }
     }
-    if (args.empty()) {
-        std::fprintf(stderr, "usage: dfn_signs [--list] [--flat] <file.signs> [<out_dir>]\n");
+    // EVERY .signs ON THE COMMAND LINE, ONE SHELF. The index this tool writes
+    // describes the WHOLE directory, so baking two files in two runs would
+    // leave an index that names only the second one — and a shelf whose index
+    // lies is worse than a shelf with no index.
+    std::vector<fs::path> inputs;
+    fs::path out_dir = "assets/objects/signs";
+    for (const std::string& a : args) {
+        if (a.size() > 6 && a.compare(a.size() - 6, 6, ".signs") == 0) {
+            inputs.emplace_back(a);
+        } else {
+            out_dir = a;
+        }
+    }
+    if (inputs.empty()) {
+        std::fprintf(stderr,
+                     "usage: dfn_signs [--list] [--flat] <file.signs>... [<out_dir>]\n");
         return 2;
     }
-    const fs::path input = args[0];
-    const fs::path out_dir = args.size() > 1 ? fs::path(args[1])
-                                             : fs::path("assets/objects/signs");
 
     // ONE PARSER FOR TWO CONSUMERS (Rule 32): this tool and the game's own
     // first-run bake read the same .signs through read_signs_file().
     std::vector<SignParams> signs;
-    const bool ok = read_signs_file(input.string(), signs);
+    bool ok = true;
+    for (const fs::path& input : inputs) {
+        if (!read_signs_file(input.string(), signs)) {
+            std::fprintf(stderr, "[signs] %s: refused (see above)\n",
+                         input.string().c_str());
+            ok = false;
+        }
+    }
     for (SignParams& s : signs) {
         s.textured = !flat;
     }
     if (!ok) {
-        std::fprintf(stderr, "[signs] %s: refused (see above)\n", input.string().c_str());
         return 1;
     }
     if (signs.empty()) {
-        std::fprintf(stderr, "[signs] %s: no [sign] blocks\n", input.string().c_str());
+        std::fprintf(stderr, "[signs] no [sign] blocks in any input\n");
         return 1;
     }
 
