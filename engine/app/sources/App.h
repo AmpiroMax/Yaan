@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 16:08:2026 - 21:50:43
+Last updated: 17:08:2026 - 07:05:56
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -67,6 +67,7 @@ UPD:
 - 16:08:2026 - 21:08:52: gallery_scene_ — файл композиции следующей карты (пусто = старая
   автосетка).
 - 16:08:2026 - 21:50:43: gallery_shelves_ — полки карты, уже разобранные из objects.
+- 17:08:2026 - 07:05:56: scene_spawn_ / третье лицо по двери (см. App.cpp).
 */
 
 #pragma once
@@ -371,6 +372,15 @@ private:
     /// The map's .scene, if it has one: WHERE things stand, as an edited file
     /// instead of a grid this code invents. Empty = the auto-grid, as before.
     std::string gallery_scene_;
+    /// Where the CURRENT map's composition wants the player, if it said so.
+    /// Recorded while the scene loads and consumed by the single spawn call at
+    /// the end of enter_world — never spawned on the spot, because everything
+    /// after that call (the character rig above all) must still run.
+    std::optional<glm::vec3> scene_spawn_;
+    /// DFN_THIRD_PERSON, fired once through the ordinary toggle branch.
+    bool third_person_door_fired_ = false;
+    bool force_third_person_ = false;
+    float scene_spawn_yaw_ = 0.0f;
     /// The shelf list from `objects`, already split on ';' and trimmed.
     std::vector<std::string> gallery_shelves_;
     int gallery_size_chunks_ = 1; // Gallery extent, from the manifest

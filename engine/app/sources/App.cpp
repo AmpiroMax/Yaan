@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 03:49:03
+Last updated: 17:08:2026 - 07:05:56
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -226,6 +226,20 @@ UPD:
   письмо на поиск восьми объектов, которых никто не терял. Счёт, который
   врёт о собственном успехе, хуже отсутствия счёта: он посылает искать
   дефект, которого нет.
+- 17:08:2026 - 07:05:56: РАННИЙ ВЫХОД ИЗ enter_world НА КАРТАХ СО СЦЕНОЙ — снят. Ветка сцены
+  спавнила игрока сама и возвращала true, тихо пропуская ВСЁ, что enter_world
+  делает дальше: сборку рига персонажа прежде всего. Жалобы пользователя на
+  полянке — «в третьем лице вообще тела нет» и «не могу бегать по карте» — и
+  ни одна не упоминает сцену: срезка, которая выходит раньше времени, не
+  объявляет, какие двадцать вещей она перестала делать. Теперь ветка только
+  ЗАПОМИНАЕТ пожелание (scene_spawn_), а спавн остаётся ОДИН, в конце функции,
+  как на любой другой карте (правило 32).
+- 17:08:2026 - 07:05:56: DFN_THIRD_PERSON=1 — дверь третьего лица, срабатывает один раз на первом
+  играющем кадре ЧЕРЕЗ ТУ ЖЕ ветку, что и клавиша 1. Третье лицо достигалось
+  только человеческим нажатием, поэтому ни один автоматический прогон не мог
+  его сфотографировать — ровно так «тела нет» и дожило до утра. Дверь со своей
+  копией переключения была бы вторым определением третьего лица и разошлась бы
+  с первым; эта дёргает тот же флаг в той же ветке.
 */
 
 #include "engine/app/sources/App.h"
@@ -1218,6 +1232,7 @@ bool App::enter_world(uint32_t stand) {
     bus_.pump();
     const float ground = chunks_.height_at({mid, mid}).value_or(0.0f);
     const glm::vec3 spawn{mid, ground + 0.2f, mid};
+    scene_spawn_.reset(); // a previous map's composition must not follow us here
 
     // THE GALLERY'S EXHIBITS: registry objects (.dfo), read and PLACED — the
     // world generated bare ground and knows nothing about them (в1: the game
@@ -1380,28 +1395,28 @@ bool App::enter_world(uint32_t stand) {
             // lives with the build. The ground is taken from the streamer and
             // not from the file's y, so a composer who moves the spawn does not
             // have to re-measure the terrain under it — and cannot bury it.
-            glm::vec3 at = spawn;
+            //
+            // IT ONLY RECORDS THE WISH; the player is spawned by the ONE call
+            // at the end of this function, like on every other map. The first
+            // version spawned him here and RETURNED, which quietly skipped
+            // everything enter_world does afterwards — the character rig above
+            // all. The symptoms the user reported were "в третьем лице вообще
+            // тела нет" and "не могу бегать по карте", and neither mentions a
+            // scene: a shortcut that returns early does not announce which
+            // twenty things it stopped doing.
             if (doc.has_spawn) {
-                at = {doc.spawn.x,
-                      chunks_.height_at({doc.spawn.x, doc.spawn.z}).value_or(ground)
-                          + 0.2f,
-                      doc.spawn.z};
+                scene_spawn_ = glm::vec3{
+                    doc.spawn.x,
+                    chunks_.height_at({doc.spawn.x, doc.spawn.z}).value_or(ground) + 0.2f,
+                    doc.spawn.z};
+                scene_spawn_yaw_ = doc.spawn_yaw;
                 std::fprintf(stderr, "[scene] spawn from the composition: "
                                      "(%.1f, %.1f, %.1f) yaw %.2f\n",
-                             static_cast<double>(at.x), static_cast<double>(at.y),
-                             static_cast<double>(at.z),
+                             static_cast<double>(scene_spawn_->x),
+                             static_cast<double>(scene_spawn_->y),
+                             static_cast<double>(scene_spawn_->z),
                              static_cast<double>(doc.spawn_yaw));
             }
-            player_ = gameplay::spawn_player(world_, *physics_, at);
-            if (!world_.alive(player_)) {
-                return false;
-            }
-            if (doc.has_spawn) {
-                if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-                    ps->yaw = doc.spawn_yaw;
-                }
-            }
-            return true;
         }
         // The auto-grid shows ONE shelf: it is "show me everything here", and
         // a multi-shelf map without a composition has not said which "here".
@@ -1583,9 +1598,15 @@ bool App::enter_world(uint32_t stand) {
         }
     }
 
-    player_ = gameplay::spawn_player(world_, *physics_, spawn);
+    player_ = gameplay::spawn_player(world_, *physics_,
+                                     scene_spawn_.value_or(spawn));
     if (!world_.alive(player_)) {
         return false;
+    }
+    if (scene_spawn_) {
+        if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+            ps->yaw = scene_spawn_yaw_;
+        }
     }
     // THE INSPECTION STAND OPENS ON ITS SUBJECT. The tree stands east of the
     // spawn (ONE_TREE_STAND_X/Z); yaw 0 looks north (forward = {sin, 0, -cos}),
@@ -2935,8 +2956,27 @@ int App::run() {
         // 3 the state capture. F3/F2 stay as aliases -- they are in the frames
         // and recipes already archived, and silently moving a key would make
         // every recipe on disk wrong.
-        if (!chat_typing && mode_ == AppMode::Playing
-            && action_pressed(Action::ThirdPerson)) {
+        // THE DOOR TAKES THE SAME PATH AS THE KEY (DFN_THIRD_PERSON=1), fired
+        // once on the first playing frame. Third person could only ever be
+        // reached by a human pressing 1, so no automated run could photograph
+        // it — which is exactly how "в третьем лице вообще тела нет" survived
+        // until a human looked. A door that reproduced the toggle in its own
+        // code would be a second definition of third person and would drift;
+        // this one flips the same flag through the same branch (Rule 32).
+        if (!third_person_door_fired_ && mode_ == AppMode::Playing) {
+            third_person_door_fired_ = true;
+            if (const char* d = std::getenv("DFN_THIRD_PERSON");
+                d != nullptr && *d != '\0' && *d != '0') {
+                third_person_ = true; // flipped BACK by the shared branch below
+                std::fprintf(stderr, "[editor] DFN_THIRD_PERSON: третье лицо\n");
+                third_person_ = false;
+                force_third_person_ = true;
+            }
+        }
+        if (!chat_typing
+            && ((mode_ == AppMode::Playing && action_pressed(Action::ThirdPerson))
+                || force_third_person_)) {
+            force_third_person_ = false;
             third_person_ = !third_person_;
             orbit_yaw_ = 0.0f;
             orbit_pitch_ = 0.0f;
