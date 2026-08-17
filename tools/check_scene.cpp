@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 17:08:2026 - 18:16:18
 Module: tools
 File: tools/check_scene.cpp
 
@@ -62,6 +62,7 @@ UPD:
   «есть поток дерева» был побит настоящими данными: у пучка травы есть корневой
   пенёк в дереве, и каждая травинка становилась препятствием.
 - 17:08:2026 - 13:14:56: судья мерит землю с врезанными руслами.
+- 17:08:2026 - 18:16:18: мерка зовётся из библиотеки; здесь остались поиск по полкам и запоминание.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -94,16 +95,11 @@ struct Ctx {
     /// name -> (radius, bottom, top). Memoised: a scene of 200 trees — or of
     /// 200 identical beams in one house — would otherwise read and hash the
     /// same .dfo two hundred times.
-    struct Extent {
-        float radius = 0.0f;
-        float bottom = 0.0f;
-        float top = 0.0f;
-        bool solid = false; ///< has wood or bark: the streams a body is built from
-        glm::vec2 lo{0.0f};   ///< local xz footprint, about the origin
-        glm::vec2 hi{0.0f};
-        glm::vec2 slo{0.0f};  ///< the same, of the SOLID streams only
-        glm::vec2 shi{0.0f};
-    };
+    /// THE MEASUREMENT ITSELF LIVES IN THE LIBRARY (render::measure_object).
+    /// What stays here is the SHELF LOOKUP and the memo — reading the same
+    /// .dfo two hundred times for a house of two hundred identical beams is
+    /// this tool's problem, not the ruler's.
+    using Extent = dfn::render::ObjectExtent;
     std::map<std::string, Extent> extents;
 };
 
@@ -126,45 +122,7 @@ const Ctx::Extent* measure(Ctx* c, const std::string& name) {
     if (!obj) {
         return nullptr;
     }
-    Ctx::Extent e;
-    const auto scan = [&](const dfn::render::MeshData& mesh) {
-        for (const dfn::platform::Vertex& v : mesh.vertices) {
-            e.radius = std::max(e.radius, std::sqrt(v.position.x * v.position.x
-                                                    + v.position.z * v.position.z));
-            e.bottom = std::min(e.bottom, v.position.y);
-            e.top = std::max(e.top, v.position.y);
-            e.lo = glm::min(e.lo, glm::vec2{v.position.x, v.position.z});
-            e.hi = glm::max(e.hi, glm::vec2{v.position.x, v.position.z});
-        }
-    };
-    const auto scan_solid = [&](const dfn::render::MeshData& mesh) {
-        for (const dfn::platform::Vertex& v : mesh.vertices) {
-            e.slo = glm::min(e.slo, glm::vec2{v.position.x, v.position.z});
-            e.shi = glm::max(e.shi, glm::vec2{v.position.x, v.position.z});
-        }
-    };
-    scan_solid(obj->wood);
-    scan_solid(obj->bark);
-    scan(obj->wood);
-    scan(obj->cards);
-    scan(obj->ground);
-    scan(obj->bark);
-    // AN OBSTACLE IS SOLID GEOMETRY TALLER THAN A STEP. "Has a wood stream"
-    // was the first cut and it was defeated by real data: flora gives a grass
-    // tuft a few-centimetre ROOT NUB in the wood stream so the placer will
-    // render it at all, which made every blade of grass an obstacle and buried
-    // the report under forty thousand meadow findings.
-    //
-    // The number is PLAYER_STEP_HEIGHT, not a guess: what a walker steps over
-    // without noticing is not in his way, so two such things sharing ground is
-    // a meadow and not a defect. Above it, they are two trunks in one hole.
-    float solid_top = 0.0f;
-    for (const dfn::render::MeshData* m : {&obj->wood, &obj->bark}) {
-        for (const dfn::platform::Vertex& v : m->vertices) {
-            solid_top = std::max(solid_top, v.position.y);
-        }
-    }
-    e.solid = solid_top > static_cast<float>(dfn::config::PLAYER_STEP_HEIGHT);
+    const Ctx::Extent e = dfn::render::measure_object(*obj);
     return &c->extents.emplace(name, e).first->second;
 }
 

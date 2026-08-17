@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 17:08:2026 - 18:16:18
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.cpp
 
@@ -31,6 +31,7 @@ UPD:
   перечисляла три потока, хотя сама функция двумя строками ниже пишет
   четвёртый. Всплыло, когда строительный набор стал текстурным целиком.
   Правило не изменилось — оно теперь называет все потоки, которые стережёт.
+- 17:08:2026 - 18:16:18: measure_object() перенесена сюда из tools/check_scene.cpp без изменений.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -39,6 +40,7 @@ UPD:
 #include "engine/core/serialization/sources/BinaryWriter.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 
+#include <cmath>
 #include <bit>
 #include <cstdio>
 
@@ -236,6 +238,42 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
         return std::nullopt;
     }
     return obj;
+}
+
+
+ObjectExtent measure_object(const RegistryObject& obj) {
+    ObjectExtent e;
+    const auto scan = [&e](const MeshData& mesh) {
+        for (const platform::Vertex& v : mesh.vertices) {
+            e.radius = std::max(e.radius, std::sqrt(v.position.x * v.position.x
+                                                    + v.position.z * v.position.z));
+            e.bottom = std::min(e.bottom, v.position.y);
+            e.top = std::max(e.top, v.position.y);
+            e.lo = glm::min(e.lo, glm::vec2{v.position.x, v.position.z});
+            e.hi = glm::max(e.hi, glm::vec2{v.position.x, v.position.z});
+        }
+    };
+    const auto scan_solid = [&e](const MeshData& mesh) {
+        for (const platform::Vertex& v : mesh.vertices) {
+            e.slo = glm::min(e.slo, glm::vec2{v.position.x, v.position.z});
+            e.shi = glm::max(e.shi, glm::vec2{v.position.x, v.position.z});
+        }
+    };
+    scan_solid(obj.wood);
+    scan_solid(obj.bark);
+    scan(obj.wood);
+    scan(obj.cards);
+    scan(obj.ground);
+    scan(obj.bark);
+    float solid_top = 0.0f;
+    for (const MeshData* m : {&obj.wood, &obj.bark}) {
+        for (const platform::Vertex& v : m->vertices) {
+            solid_top = std::max(solid_top, v.position.y);
+        }
+    }
+    // The threshold is PLAYER_STEP_HEIGHT and not a guess — see ObjectExtent.
+    e.solid = solid_top > static_cast<float>(config::PLAYER_STEP_HEIGHT);
+    return e;
 }
 
 } // namespace dfn::render

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 15:08:2026 - 01:46:53
+Last updated: 17:08:2026 - 18:16:18
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.h
 
@@ -42,11 +42,15 @@ UPD:
   договаривались, в реестр объектов»).
 - 15:08:2026 - 01:46:53: bark stream + формат v2 (секция BARK; хэш
   версионирован: файл v1 сверяется по правилу v1, без bark).
+- 17:08:2026 - 18:16:18: ObjectExtent + measure_object() — ОДНА мерка объекта на всех: судья, инструменты
+  и призрак редактора. Была внутри dfn_scene_check, куда приложение не дотягивается.
 */
 
 #pragma once
 
 #include "engine/render/sources/ProcFlora.h" // MeshData
+
+#include <glm/vec2.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -92,5 +96,30 @@ struct RegistryObject {
 /// Reads one .dfo. nullopt on bad magic, truncation, unknown newer version,
 /// or a content hash that does not match the streams.
 [[nodiscard]] std::optional<RegistryObject> read_object(const std::filesystem::path& path);
+
+/// HOW BIG AN OBJECT IS, measured from its own meshes. Never typed in by hand:
+/// a size written next to a part is the first thing to go stale when the part
+/// is re-forged, and it goes stale silently.
+struct ObjectExtent {
+    float radius = 0.0f;  ///< horizontal reach from the origin
+    float bottom = 0.0f;  ///< lowest vertex, relative to the origin
+    float top = 0.0f;     ///< highest — what another part rests on
+    /// SOLID GEOMETRY TALLER THAN A STEP. Not "has a wood stream": flora gives
+    /// a grass tuft a few-centimetre root nub in that stream so the placer
+    /// renders it at all, which once made every blade of grass an obstacle and
+    /// buried a report under forty thousand meadow findings. What a walker
+    /// steps over without noticing is not in his way.
+    bool solid = false;
+    glm::vec2 lo{0.0f};   ///< footprint in xz about the origin, ALL streams
+    glm::vec2 hi{0.0f};
+    glm::vec2 slo{0.0f};  ///< the same for the SOLID streams only (trunks, not
+    glm::vec2 shi{0.0f};  ///< crowns: two birches may share their canopies)
+};
+
+/// ONE MEASUREMENT FOR EVERYONE (Rule 32). The scene judge, the tools and the
+/// editor's build ghost all ask here. A second copy of this scan would drift,
+/// and the drift would show as a ghost whose green outline is the wrong size —
+/// which reads as the rules being wrong rather than the ruler.
+[[nodiscard]] ObjectExtent measure_object(const RegistryObject& obj);
 
 } // namespace dfn::render
