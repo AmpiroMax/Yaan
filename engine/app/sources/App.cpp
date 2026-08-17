@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 14:06:40
+Last updated: 17:08:2026 - 14:48:55
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -315,9 +315,18 @@ UPD:
   город это сотни тысяч рёбер, а запрос всех разом роняет ВЕСЬ пакет.
 - 17:08:2026 - 14:06:40: временная проба пути линий снята — она сделала своё дело: показала,
   что не появляется даже линия через весь экран, и увела к настоящей причине.
+- 17:08:2026 - 14:48:55: ПЕЧЬ АССЕТОВ ПРИ ПЕРВОМ ЗАПУСКЕ и экран подготовки с полоской. Полка
+  деталей больше не хранится в git: 185 МБ .dfo — детерминированный вывод
+  кузницы из этого же репозитория, а история git не сжимается, и мы платили бы
+  вес вечно за то, что код делает за пять секунд. Кадр рисуется на ПРОЦЕНТ, а не
+  на объект: 2387 показов сделали бы полоску медленнее работы, о которой она
+  отчитывается. Окно опрашивается во время печи, иначе система метит приложение
+  как зависшее посреди его собственного прогресса.
 */
 
 #include "engine/app/sources/App.h"
+
+#include "engine/app/sources/AssetBake.h"
 
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/EditorHud.h"
@@ -677,6 +686,53 @@ App::App()
 
 App::~App() = default;
 
+
+// THE PREPARATION SCREEN. Deliberately the plainest thing in the engine: one
+// line of what is happening, one bar, one count. A first launch that shows a
+// black window for a minute is indistinguishable from one that hung.
+void App::draw_bake_progress(std::size_t done, std::size_t total,
+                             const std::string& what) {
+    if (renderer_ == nullptr || total == 0) {
+        return;
+    }
+    render::PixelCanvas& c = render_system_.hud();
+    if (c.width() == 0 || c.height() == 0) {
+        return;
+    }
+    const int w = static_cast<int>(c.width());
+    const int h = static_cast<int>(c.height());
+    c.clear(render::Color{18, 20, 24});
+
+    const int bar_w = w / 2;
+    const int bar_h = 10;
+    const int bar_x = (w - bar_w) / 2;
+    const int bar_y = h / 2;
+    char line[192];
+    std::snprintf(line, sizeof(line), "Готовлю ресурсы: %s", what.c_str());
+    render::draw_text(c, bar_x, bar_y - 24, line, render::Color{225, 225, 215}, true);
+    std::snprintf(line, sizeof(line), "%zu из %zu", done, total);
+    render::draw_text(c, bar_x, bar_y + bar_h + 8, line,
+                      render::Color{170, 175, 185}, true);
+    render::draw_text(c, bar_x, bar_y + bar_h + 22,
+                      "Это делается один раз: объекты не хранятся в репозитории,"
+                      " они пекутся из кода.",
+                      render::Color{120, 126, 136}, true);
+
+    c.fill_rect(bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2,
+                render::Color{70, 74, 82});
+    const int filled = static_cast<int>(static_cast<double>(bar_w)
+                                        * static_cast<double>(done)
+                                        / static_cast<double>(total));
+    c.fill_rect(bar_x, bar_y, filled, bar_h, render::Color{150, 190, 120});
+
+    // The window must keep answering the OS while this runs, or the desktop
+    // marks the app as not responding halfway through its own progress bar.
+    if (window_ != nullptr) {
+        window_->poll_events();
+    }
+    render_system_.render(world_, *renderer_, camera_, 0.0f);
+}
+
 bool App::init(const AppConfig& config) {
     // THE HOUR OF THE DAY, ON DEMAND (DFN_TIME_OF_DAY=0..1; 0.25 sunrise, 0.5
     // noon, 0.75 sunset, 0 midnight). Without it NIGHT COULD NOT BE
@@ -783,6 +839,41 @@ bool App::init(const AppConfig& config) {
     // <map>.map) instead of a code table: adding a map is a data file, not a
     // recompile (Rule 6), and the browser two-levels it category -> map
     // (docs/MAP_LAYOUT.md). The menu only reads the catalog; the app owns it.
+    // FIRST RUN: MAKE WHAT THE REPOSITORY DELIBERATELY DOES NOT CARRY.
+    //
+    // The registry used to be 210 MB of .dfo committed to git, every byte of it
+    // a deterministic output of a forge that lives in this same repository.
+    // The user's decision (17.08): «в гит результаты работы кода не сохраняем /
+    // я же если друзьям буду код давать запуска, они не будут со всеми ассетами
+    // его получать... а шейдеры компилить и ассеты запекать они при первом
+    // запуске будут / и должны при загрузке игры видеть соответствующее
+    // сообщение и полоску загрузки что m из n... готовы».
+    //
+    // So a clone carries code and compositions; the objects are made on
+    // arrival, once, with a bar — because a game that sits black for a minute
+    // on first launch is a game its first player thinks is broken.
+    if (const BakePlan plan = plan_asset_bake(); !plan.empty()) {
+        std::fprintf(stderr, "[bake] первый запуск: готовлю %zu объект(ов)\n",
+                     plan.total);
+        std::size_t last_drawn = 0;
+        const bool ok = run_asset_bake(plan, [&](std::size_t done, std::size_t total,
+                                                 const std::string& what) {
+            // A frame per PERCENT, not per object: 2387 present() calls would
+            // make the bake slower than the work it is reporting, and the bar
+            // would be the bottleneck rather than the forge.
+            const std::size_t step = std::max<std::size_t>(1, total / 100);
+            if (done != total && done - last_drawn < step) {
+                return;
+            }
+            last_drawn = done;
+            draw_bake_progress(done, total, what);
+        });
+        if (!ok) {
+            std::fprintf(stderr, "[bake] ЧАСТЬ ОБЪЕКТОВ НЕ ЗАПИСАНА — карты, "
+                                 "которые их читают, откроются неполными\n");
+        }
+    }
+
     catalog_ = scan_map_catalog("assets/maps");
     menu_.set_catalog(&catalog_);
     // DFN_MENU_PAGE=root|maps|pause|calibrate -- which page an unattended run

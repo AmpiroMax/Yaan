@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 13:52:37
+Last updated: 17:08:2026 - 14:48:55
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -73,6 +73,7 @@ UPD:
   должен мигать (пользователь: «повсюду, а не только в какой-то зоне»).
 - 17:08:2026 - 11:35:28: scene_doc_ — композиция текущей карты, прочитанная до земли.
 - 17:08:2026 - 13:52:37: scene_collision_debug_ / collider_debug_ — DFN_DRAW_COLLIDERS.
+- 17:08:2026 - 14:48:55: draw_bake_progress — экран первого запуска.
 */
 
 #pragma once
@@ -396,6 +397,10 @@ private:
     /// swarm would blink out at the streaming edge.
     /// The CURRENT map's composition, read once before the ground is built
     /// (its pads shape the height field) and used again to place the objects.
+    /// Draws one frame of the first-run preparation screen.
+    void draw_bake_progress(std::size_t done, std::size_t total,
+                            const std::string& what);
+
     world::SceneDoc scene_doc_;
     /// DFN_DRAW_COLLIDERS=1: the collision triangles kept so the debug pass can
     /// draw them. Requested by the user after three separate "I cannot walk

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 14:08:2026 - 19:22:10
+# Last updated: 17:08:2026 - 14:50:07
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -29,6 +29,7 @@
 # - 14:08:2026 - 18:57:03: EditorHud.cpp в сборке — редакторский блок оверлея, вынесенный из App.cpp. Вынос не косметический: App.cpp держит окно и потому не тестируется, из-за чего наложение блока на отладочный вывод не мог поймать ни один прибор (tests/app/EditorHudTests.cpp ловит).
 
 # - 14:08:2026 - 19:22:10: Controls.cpp в сборке — таблица привязок клавиш. Из неё И диспатчатся клавиши, И рисуется экран управления, поэтому список не может разъехаться с кодом: клавиша без строки в таблице просто не диспатчится.
+# - 17:08:2026 - 14:50:07: sources/AssetBake.cpp — печь ассетов при первом запуске.
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
@@ -57,6 +58,7 @@ if(DFN_APP_READY)
     add_executable(dfn_app
         sources/Main.cpp
         sources/App.cpp
+        sources/AssetBake.cpp
         sources/ChatLog.cpp
         sources/ChatOverlay.cpp
         sources/Controls.cpp
