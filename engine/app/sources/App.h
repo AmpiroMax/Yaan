@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 13:52:37
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -72,6 +72,7 @@ UPD:
 - 17:08:2026 - 11:13:47: FireflyField живёт на КАРТУ, а не на чанк — рой у края стриминга не
   должен мигать (пользователь: «повсюду, а не только в какой-то зоне»).
 - 17:08:2026 - 11:35:28: scene_doc_ — композиция текущей карты, прочитанная до земли.
+- 17:08:2026 - 13:52:37: scene_collision_debug_ / collider_debug_ — DFN_DRAW_COLLIDERS.
 */
 
 #pragma once
@@ -396,6 +397,16 @@ private:
     /// The CURRENT map's composition, read once before the ground is built
     /// (its pads shape the height field) and used again to place the objects.
     world::SceneDoc scene_doc_;
+    /// DFN_DRAW_COLLIDERS=1: the collision triangles kept so the debug pass can
+    /// draw them. Requested by the user after three separate "I cannot walk
+    /// here" reports that all turned out to be one wrong collider — a shape
+    /// nobody could see was a shape nobody could argue with.
+    struct DebugCollision {
+        std::vector<glm::vec3> positions;
+        std::vector<uint32_t> indices;
+    };
+    std::vector<DebugCollision> scene_collision_debug_;
+    bool collider_debug_ = false;
     render::FireflyField fireflies_;
     std::vector<SceneTile> scene_tiles_;
     /// Every registry object the composition uses, near forms and `-far` forms

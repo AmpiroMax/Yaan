@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 17:08:2026 - 13:52:37
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -296,6 +296,23 @@ UPD:
   берутся её углами: лента строится между соседними станциями, и стометровая
   прямая иначе стала бы одним огромным четырёхугольником, провисающим над
   рельефом.
+- 17:08:2026 - 13:52:37: АРХИТЕКТУРА СТАЛКИВАЕТСЯ СВОИМИ ТРЕУГОЛЬНИКАМИ, а не габаритной
+  коробкой. Пользователь нашёл все три грани одной ошибки за одну прогулку:
+  «в дверь пройти не могу, она как стена тоже» (проём оказался ВНУТРИ коробки),
+  «не могу бегать по угловой крыше, у неё хитбокс что прямоугольник здоровый?»
+  (скат стал сплошным блоком), «не могу ходить по лестнице» (марш стал стеной в
+  форме пандуса). Одна причина, три симптома. Детали набора и сборки отдают
+  свои ТВЁРДЫЕ треугольники в меш-тело НА ПЛИТКУ; деревья намеренно сохраняют
+  коробку ствола и диск корней — ходить ПОД кроной и есть смысл дерева, а
+  треугольный меш повесил бы игрока на первой низкой ветке.
+  Коллизия строится ОДИН раз из БЛИЖНИХ форм и не пересобирается на лестнице
+  детализации: стена, потоньчавшая, когда игрок отошёл, — это стена, сквозь
+  которую он потом пройдёт.
+- 17:08:2026 - 13:52:37: DFN_DRAW_COLLIDERS=1 — отрисовка хитбоксов по просьбе пользователя.
+  Рисуются РЁБРА ТЕХ САМЫХ треугольников, которые отданы физике: вид, рисующий
+  своё представление о форме, согласился бы с кодом, который её строил, и
+  разошёлся бы с телом, которое реально стоит. Ближние 24 м и бюджет линий —
+  город это сотни тысяч рёбер, а запрос всех разом роняет ВЕСЬ пакет.
 */
 
 #include "engine/app/sources/App.h"
@@ -1483,6 +1500,11 @@ bool App::enter_world(uint32_t stand) {
     scene_spawn_.reset(); // a previous map's composition must not follow us here
     scene_tiles_.clear();
     scene_objects_.clear();
+    scene_collision_debug_.clear();
+    collider_debug_ = [] {
+        const char* v = std::getenv("DFN_DRAW_COLLIDERS");
+        return v != nullptr && *v != '\0' && *v != '0';
+    }();
     render_system_.set_scene_lights({});
     render_system_.set_transient_lights({});
     render_system_.set_emissive_mesh(*renderer_, {});
@@ -1558,6 +1580,11 @@ bool App::enter_world(uint32_t stand) {
             };
             std::map<std::pair<int, int>, Tile> tiles;
             render::MeshData scene_emissive;
+            /// Collision triangles per tile, in WORLD space. Built once from
+            /// the NEAR forms and never rebuilt: the detail ladder swaps what
+            /// is drawn, and a wall that got thinner when the player walked
+            /// away would be a wall he could then walk through.
+            std::map<std::pair<int, int>, DebugCollision> tile_collision;
             auto& loaded = scene_objects_;
             int placed = 0;
             for (const world::Placement& p : doc.placements) {
@@ -1611,12 +1638,46 @@ bool App::enter_world(uint32_t stand) {
                 tiles[{static_cast<int>(std::floor(p.position.x / SCENE_TILE_M)),
                        static_cast<int>(std::floor(p.position.z / SCENE_TILE_M))}]
                     .parts.push_back(p);
-                // SOLID BY DEFAULT (user: «сделать деревья физичными, не давать
-                // сквозь них ходить» — a house wall owes the same). One box per
-                // placement, sized from the object's own mesh and widened to
-                // the yaw-rotated footprint, because StaticBoxDesc is axis
-                // aligned and a box that shrank under rotation would let a
-                // walker through the corner of every turned wall.
+                // ARCHITECTURE COLLIDES BY ITS TRIANGLES, NOT BY ITS BOX.
+                //
+                // Everything used to get ONE axis-aligned box around its whole
+                // mesh. For a tree trunk that is right. For a building it is
+                // catastrophic, and the user found all three faces of it in one
+                // walk: «есть стенка без двери одна, я в дверь пройти не могу,
+                // она как стена тоже» (the opening was inside the box),
+                // «не могу бегать по угловой крыше, у неё хитбокс что
+                // прямоугольник здоровый?» (a pitched roof became a solid
+                // block), «не могу ходить по лестнице» (a flight became a
+                // ramp-shaped wall). One cause, three symptoms.
+                //
+                // Kit parts and assemblies therefore contribute their SOLID
+                // TRIANGLES to a per-tile mesh body. Trees keep the trunk box
+                // and the root disc on purpose: walking UNDER a canopy is the
+                // point of a tree, and a triangle mesh would hang the player on
+                // the first low branch.
+                if (obj.kind == "part" || obj.kind == "assembly") {
+                    auto& tri = tile_collision[{static_cast<int>(std::floor(p.position.x / SCENE_TILE_M)),
+                                                static_cast<int>(std::floor(p.position.z / SCENE_TILE_M))}];
+                    const float c = std::cos(p.yaw);
+                    const float sn2 = std::sin(p.yaw);
+                    const auto feed = [&](const render::MeshData& m) {
+                        const uint32_t base = static_cast<uint32_t>(tri.positions.size());
+                        for (const platform::Vertex& v : m.vertices) {
+                            const glm::vec3 l = v.position * p.scale;
+                            tri.positions.push_back({p.position.x + l.x * c + l.z * sn2,
+                                                     p.position.y + l.y,
+                                                     p.position.z - l.x * sn2 + l.z * c});
+                        }
+                        for (const uint32_t i : m.indices) {
+                            tri.indices.push_back(base + i);
+                        }
+                    };
+                    feed(obj.wood);
+                    feed(obj.bark);
+                    feed(obj.ground);
+                    ++placed;
+                    continue;
+                }
                 glm::vec3 lo{1e9f};
                 glm::vec3 hi{-1e9f};
                 const auto grow = [&](const render::MeshData& m) {
@@ -1724,6 +1785,34 @@ bool App::enter_world(uint32_t stand) {
                 }
                 lamps.push_back({L.position, L.color, L.radius_m, L.casts_shadow});
                 shadowing += L.casts_shadow ? 1u : 0u;
+            }
+            // ONE MESH BODY PER TILE. Per placement would be thousands of
+            // bodies for a town; per map would be one body rebuilt whenever
+            // anything changed. The tile is the same unit the drawing uses,
+            // which keeps the two from disagreeing about what is where.
+            std::size_t collision_tris = 0;
+            for (auto& [key, tri] : tile_collision) {
+                if (tri.indices.empty()) {
+                    continue;
+                }
+                platform::TerrainMeshDesc desc;
+                desc.positions = tri.positions;
+                desc.indices = tri.indices;
+                desc.layer = physics::LAYER_STATIC;
+                const auto body = physics_->create_terrain_mesh(desc);
+                if (body.valid()) {
+                    gallery_bodies_.push_back(body);
+                    collision_tris += tri.indices.size() / 3;
+                }
+                if (collider_debug_) {
+                    scene_collision_debug_.push_back(std::move(tri));
+                }
+            }
+            if (collision_tris > 0) {
+                std::fprintf(stderr, "[scene] %zu collision triangle(s) in %zu "
+                                     "mesh bod%s\n", collision_tris,
+                             tile_collision.size(),
+                             tile_collision.size() == 1 ? "y" : "ies");
             }
             render_system_.set_emissive_mesh(*renderer_, scene_emissive);
             if (!scene_emissive.indices.empty()) {
@@ -4230,7 +4319,77 @@ int App::run() {
             render_system_.set_hud_visible(any);
         }
 
+        // RECORDED BEFORE render(), which is the only window there is: both
+        // begin_frame and end_frame live INSIDE RenderSystem::render, and the
+        // backend clears the line list when it submits. Pushed after render()
+        // the lines would sit until the NEXT frame's submit — a whole frame of
+        // lag on a view whose job is to answer "what am I standing against".
+        // THE COLLIDERS, DRAWN (DFN_DRAW_COLLIDERS=1). Asked for by the user
+        // after three separate "I cannot walk here" reports that were all one
+        // wrong shape: a collider nobody can see is a collider nobody can
+        // argue with, and every such report costs a round trip to diagnose.
+        //
+        // Drawn as the EDGES OF THE ACTUAL TRIANGLES handed to physics — not a
+        // box around them and not a re-derivation. A debug view that draws its
+        // own idea of the shape would agree with the code that built it and
+        // disagree with the body that is actually there, which is worse than
+        // no view at all.
+        if (collider_debug_) {
+            constexpr uint32_t WIRE = 0xFF44FF44u; // 0xAABBGGRR: green
+            // NEAR THE EYE ONLY, and with a budget. A town's colliders are
+            // hundreds of thousands of lines; the transient buffer holds a
+            // fraction of that, and asking for all of them drops ALL of them.
+            // What a person debugging a collider needs is the shape he is
+            // standing against, so the view shows that and says how much it
+            // left out.
+            constexpr float SHOW_RADIUS_M = 24.0f;
+            constexpr std::size_t LINE_BUDGET = 12000;
+            const glm::vec3 eye = camera_.interpolated_pose(alpha).position;
+            std::size_t shown = 0;
+            std::size_t skipped = 0;
+            for (const DebugCollision& c : scene_collision_debug_) {
+                for (std::size_t i = 0; i + 2 < c.indices.size(); i += 3) {
+                    const glm::vec3& a = c.positions[c.indices[i]];
+                    const glm::vec3& b = c.positions[c.indices[i + 1]];
+                    const glm::vec3& d = c.positions[c.indices[i + 2]];
+                    if (glm::distance(a, eye) > SHOW_RADIUS_M) {
+                        ++skipped;
+                        continue;
+                    }
+                    if (shown >= LINE_BUDGET) {
+                        ++skipped;
+                        continue;
+                    }
+                    // NUDGED TOWARD THE EYE by two centimetres. The collider
+                    // is COINCIDENT with the surface it belongs to, so drawn
+                    // exactly it loses the depth test to its own geometry and
+                    // shows nothing — which is what the first two attempts at
+                    // this view looked like, and which is indistinguishable
+                    // from "the feature was never written".
+                    const auto lift = [&eye](const glm::vec3& q) {
+                        const glm::vec3 to = eye - q;
+                        const float d2 = glm::length(to);
+                        return d2 > 1e-4f ? q + to * (0.02f / d2) : q;
+                    };
+                    const glm::vec3 la = lift(a);
+                    const glm::vec3 lb = lift(b);
+                    const glm::vec3 ld = lift(d);
+                    renderer_->debug_line(la, lb, WIRE);
+                    renderer_->debug_line(lb, ld, WIRE);
+                    renderer_->debug_line(ld, la, WIRE);
+                    shown += 3;
+                }
+            }
+            static bool told = false;
+            if (!told) {
+                told = true;
+                std::fprintf(stderr, "[colliders] %zu triangle edge(s) drawn within "
+                                     "%.0f m, %zu out of range or over budget\n",
+                             shown / 3, static_cast<double>(SHOW_RADIUS_M), skipped);
+            }
+        }
         render_system_.render(world_, *renderer_, camera_, alpha);
+
 
         // TRAJECTORY RECORDING (O3): every PRESENTED frame's eye pose + counted
         // clock + fov, so replay reproduces the image exactly. Recording is an

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 10:14:36
+Last updated: 17:08:2026 - 13:52:37
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -152,6 +152,10 @@ UPD:
   что кадры, которые он ВСЁ-ТАКИ выдаёт, стали правдой, а не чернотой.
   Побочно: приёмочный кадр теперь всегда внутреннего размера, без леттербокса
   и без масштаба окна — два кадра из окон разного размера стали сравнимы.
+- 17:08:2026 - 13:52:37: пакет отладочных линий, не влезающий в транзиентный буфер, больше не
+  пропадает МОЛЧА И ЦЕЛИКОМ. Раньше при нехватке места терялись ВСЕ линии кадра,
+  без единой строки в лог, и выглядело это ровно как «функция не написана».
+  Теперь лишнее срезается, а потеря называется числом.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -874,11 +878,28 @@ void BgfxRenderer::end_frame() {
     // One-frame debug lines (accumulated by debug_line).
     if (!im.debug_lines.empty() && bgfx::isValid(im.debug_program)) {
         const auto count = static_cast<uint32_t>(im.debug_lines.size());
-        if (bgfx::getAvailTransientVertexBuffer(count, im.debug_layout) >= count) {
+        // A BATCH THAT DOES NOT FIT USED TO VANISH IN SILENCE, all of it — not
+        // the excess, the WHOLE frame's debug lines. The collider view asked
+        // for ~98k vertices, got nothing, and looked exactly like a feature
+        // that had not been written; the same drop would have taken every
+        // other debug line with it and left no trace anywhere. Now the excess
+        // is cut and the loss is stated once.
+        const uint32_t room = bgfx::getAvailTransientVertexBuffer(count, im.debug_layout);
+        const uint32_t drawn = std::min(count, room) & ~1u; // whole lines only
+        if (drawn < count) {
+            static uint32_t last_reported = 0;
+            if (count != last_reported) {
+                last_reported = count;
+                std::fprintf(stderr, "[render] debug lines: %u of %u vertices fit "
+                                     "this frame -- the rest are DROPPED (transient "
+                                     "buffer). Draw fewer lines.\n", drawn, count);
+            }
+        }
+        if (drawn >= 2) {
             bgfx::TransientVertexBuffer tvb;
-            bgfx::allocTransientVertexBuffer(&tvb, count, im.debug_layout);
-            std::memcpy(tvb.data, im.debug_lines.data(), count * sizeof(DebugVertex));
-            bgfx::setVertexBuffer(0, &tvb, 0, count);
+            bgfx::allocTransientVertexBuffer(&tvb, drawn, im.debug_layout);
+            std::memcpy(tvb.data, im.debug_lines.data(), drawn * sizeof(DebugVertex));
+            bgfx::setVertexBuffer(0, &tvb, 0, drawn);
             bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
                            | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_GREATER
                            | BGFX_STATE_PT_LINES);
