@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 14:48:55
+Last updated: 17:08:2026 - 15:38:13
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -322,6 +322,11 @@ UPD:
   на объект: 2387 показов сделали бы полоску медленнее работы, о которой она
   отчитывается. Окно опрашивается во время печи, иначе система метит приложение
   как зависшее посреди его собственного прогресса.
+- 17:08:2026 - 15:38:13: spawn_yaw композиции больше не съедается умолчанием смотрового стенда.
+  Поле читалось, печаталось в лог и НИ РАЗУ не влияло на камеру: все стенды
+  домов и флоры — Gallery, а её «смотреть на восток» ставилось после. Три
+  руки: композиция просит север -> 0.000000; просит восток -> 1.570800 (из
+  файла, отличим от умолчания в последних знаках); голый стенд -> 1.570796.
 */
 
 #include "engine/app/sources/App.h"
@@ -2163,7 +2168,15 @@ bool App::enter_world(uint32_t stand) {
     // spawn (ONE_TREE_STAND_X/Z); yaw 0 looks north (forward = {sin, 0, -cos}),
     // so without this the stand opens on empty grass and the first act of every
     // inspection is hunting for the exhibit.
-    if (world::stand_is_inspection(static_cast<world::StandId>(stand))) {
+    // ...BUT A COMPOSITION THAT ASKED FOR A DIRECTION OUTRANKS IT. This default
+    // is for a bare stand, where the auto-grid puts exhibits east of the spawn.
+    // A .scene names its own spawn AND its own yaw, and it does so because the
+    // author aimed it at something; overriding that made spawn_yaw a field that
+    // parses, prints to the log and changes nothing — the worst kind, because
+    // it reads as working. Every houses and flora stand is a Gallery, so this
+    // silently ate EVERY composed yaw the project has ever written.
+    if (world::stand_is_inspection(static_cast<world::StandId>(stand)) &&
+        !scene_spawn_) {
         if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
             ps->yaw = glm::half_pi<float>(); // east, straight at the exhibits
         }
