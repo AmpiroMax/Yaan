@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 12:33:08
+Last updated: 17:08:2026 - 12:49:26
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -49,6 +49,13 @@ UPD:
   метрах от полотна всё равно роняет на него крону) и OutsideBuildings
   (след постройки — ОБЪЕДИНЕНИЕ следов её деталей, а не выпуклая оболочка: у
   Г-образного дома в выемке двор, и бочка там стоять может).
+- 17:08:2026 - 12:49:26: правила соединителей JointSeat/JointAngle (зона домов, HOUSES.md §5;
+  правка чужого файла — исключение правила 26, только добавления). Торец
+  панели мерится ПО УГЛАМ (середина внутри ничего не говорит об углах);
+  стойку торцу даёт только СВОЯ группа (чужой столб ничего не связывает);
+  угол мерится от граней САМОЙ стойки (её yaw), допуск выведен из ширины
+  панели: atan(((w_f - T)/2) / r_in), а грань уже панели — дефект на любом
+  угле. Панель/стойка узнаются по имени (wall-*, joint-*-dNN-nX-*).
 */
 
 #include "engine/world/sources/Scene.h"
@@ -90,6 +97,53 @@ namespace {
     } catch (...) {
         return false;
     }
+}
+
+/// A joint post's working properties, read from its registry NAME
+/// (joint-<mat>-d<cm>-n<4|6|8|r>-...). The name carries them by the kit's own
+/// rule — «число граней входит в имя, чтобы композитор видел ограничение, не
+/// открывая файл» — and the judge reads the same contract the composer does,
+/// with no dependency on the forge.
+struct JointName {
+    float r_in_m = 0.0f; ///< inscribed (across-flats) radius
+    int facets = 0;      ///< 4/6/8; 0 = round, any angle
+};
+
+[[nodiscard]] bool parse_joint_name(const std::string& name, JointName& out) {
+    if (name.rfind("joint-", 0) != 0) {
+        return false;
+    }
+    const std::size_t d_at = name.find("-d");
+    if (d_at == std::string::npos) {
+        return false;
+    }
+    int cm = 0;
+    const char* first = name.data() + d_at + 2;
+    const char* last = name.data() + name.size();
+    const auto [ptr, ec] = std::from_chars(first, last, cm);
+    if (ec != std::errc{} || cm <= 0) {
+        return false;
+    }
+    out.r_in_m = static_cast<float>(cm) * 0.005f;
+    if (name.find("-n4-", d_at) != std::string::npos) {
+        out.facets = 4;
+    } else if (name.find("-n6-", d_at) != std::string::npos) {
+        out.facets = 6;
+    } else if (name.find("-n8-", d_at) != std::string::npos) {
+        out.facets = 8;
+    } else if (name.find("-nr-", d_at) != std::string::npos) {
+        out.facets = 0;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+/// Is this placement a WALL PANEL — the thing whose ends the connector rules
+/// judge? By name prefix, same contract as the joints: every kit panel and
+/// every baked wall assembly is named wall-*.
+[[nodiscard]] bool is_wall_panel_name(const std::string& name) {
+    return name.rfind("wall-", 0) == 0;
 }
 
 } // namespace
@@ -645,6 +699,145 @@ std::vector<SceneFinding> check_scene(const SceneDoc& doc, const SceneWorld& wor
             }
         }
     }
+
+    // СОЕДИНИТЕЛИ (зона домов, HOUSES.md §3-5): ПАНЕЛЬ НИКОГДА НЕ КАСАЕТСЯ
+    // ПАНЕЛИ. Every wall panel's end must live inside a joint post of ITS OWN
+    // group (a neighbour's post ties nothing), and on a faceted post the
+    // panel's angle must land on a facet. Needs the local (unrotated) box, so
+    // it runs only when the caller supplies object_box — the same door every
+    // box-based rule above uses.
+    if (world.object_box != nullptr) {
+        struct JointAt {
+            glm::vec2 axis{0.0f};
+            float r_in = 0.0f;
+            int facets = 0;
+            float yaw = 0.0f;
+            const std::string* group = nullptr;
+        };
+        std::vector<JointAt> joints;
+        for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+            JointName jn;
+            if (sizes[i].known && parse_joint_name(doc.placements[i].object, jn)) {
+                const Placement& p = doc.placements[i];
+                joints.push_back({{p.position.x, p.position.z},
+                                  jn.r_in_m * p.scale, jn.facets, p.yaw, &p.group});
+            }
+        }
+        for (std::size_t i = 0; i < doc.placements.size(); ++i) {
+            const Placement& p = doc.placements[i];
+            if (!sizes[i].known || !is_wall_panel_name(p.object)) {
+                continue;
+            }
+            glm::vec2 blo{0.0f};
+            glm::vec2 bhi{0.0f};
+            if (!world.object_box(world.ctx, p.object, blo, bhi)) {
+                continue;
+            }
+            // The kit's convention: a panel runs along its local +X, its
+            // thickness is the local z extent.
+            const float t_m = (bhi.y - blo.y) * p.scale;
+            const float zc = (blo.y + bhi.y) * 0.5f;
+            const float c = std::cos(p.yaw);
+            const float sn = std::sin(p.yaw);
+            // Local direction of the panel's length in the world, and the
+            // lateral (thickness) direction — the same rotation every rule
+            // above applies to box corners.
+            const glm::vec2 along{c, -sn};
+            const glm::vec2 lateral{sn, c};
+            for (int end = 0; end < 2; ++end) {
+                const float lx = end == 0 ? blo.x : bhi.x;
+                const glm::vec2 at{p.position.x + (lx * c + zc * sn) * p.scale,
+                                   p.position.z + (-lx * sn + zc * c) * p.scale};
+                // The nearest joint of the same group judges this end; with
+                // no joint at all the end is bare, which is the farmhouse's
+                // exact defect (панели встык) and the rule's red hand.
+                const JointAt* best = nullptr;
+                float best_d = 1e30f;
+                for (const JointAt& j : joints) {
+                    if (*j.group != p.group) {
+                        continue;
+                    }
+                    const float d = glm::length(j.axis - at);
+                    if (d < best_d) {
+                        best_d = d;
+                        best = &j;
+                    }
+                }
+                const char* which = end == 0 ? "near end" : "far end";
+                if (best == nullptr) {
+                    found.push_back({SceneRule::JointSeat, i, p.object, 0.0f,
+                                     std::string(which)
+                                         + ": no joint post in this group at all"});
+                    continue;
+                }
+                // Both vertical edges of the end face: corners at +-T/2 along
+                // the lateral axis. HOUSES.md §5 names exactly these — the
+                // end's MIDDLE being inside proves nothing about its corners.
+                float worst = 0.0f;
+                for (const float side : {-0.5f, 0.5f}) {
+                    const glm::vec2 corner = at + lateral * (t_m * side);
+                    worst = std::max(worst, glm::length(corner - best->axis));
+                }
+                const float allowed = best->r_in - limits.joint_seat_margin_m;
+                if (worst > allowed) {
+                    char det[128];
+                    std::snprintf(det, sizeof(det),
+                                  "%s: end corner %.3f m from the joint axis, "
+                                  "allowed %.3f", which,
+                                  static_cast<double>(worst),
+                                  static_cast<double>(allowed));
+                    found.push_back({SceneRule::JointSeat, i, p.object,
+                                     worst - allowed, det});
+                    continue;
+                }
+                if (best->facets <= 0) {
+                    continue; // round: any angle is its rule
+                }
+                // Angle against the POST'S OWN facets. The tolerance is the
+                // angle error at which the panel's exit band rides past the
+                // facet's arris: lateral slack (w_f - T)/2 over the lever
+                // r_in. A facet narrower than the panel fails at EVERY angle
+                // — that pairing, not the yaw, is the defect then.
+                constexpr float PI = 3.14159265359f;
+                const float step = 2.0f * PI / static_cast<float>(best->facets);
+                const float w_f = 2.0f * best->r_in
+                                * std::tan(PI / static_cast<float>(best->facets));
+                const float slack = (w_f - t_m) * 0.5f;
+                if (slack <= 0.0f) {
+                    char det[128];
+                    std::snprintf(det, sizeof(det),
+                                  "%s: facet %.3f m is narrower than the panel "
+                                  "(%.3f m) — no angle can seat it", which,
+                                  static_cast<double>(w_f),
+                                  static_cast<double>(t_m));
+                    found.push_back({SceneRule::JointAngle, i, p.object, -slack,
+                                     det});
+                    continue;
+                }
+                const float tol = std::atan(slack / best->r_in);
+                // The exit direction folds onto the facet grid every `step`,
+                // and every kit shape has an even facet count, so the near
+                // and far ends fold identically.
+                const float dir = std::atan2(-along.y, along.x);
+                float dev = std::fmod(dir - best->yaw, step);
+                if (dev < 0.0f) {
+                    dev += step;
+                }
+                dev = std::min(dev, step - dev);
+                if (dev > tol) {
+                    char det[160];
+                    std::snprintf(det, sizeof(det),
+                                  "%s: %.1f deg off the nearest facet of an n%d "
+                                  "joint (tolerance %.1f deg)", which,
+                                  static_cast<double>(dev * 180.0f / PI),
+                                  best->facets,
+                                  static_cast<double>(tol * 180.0f / PI));
+                    found.push_back({SceneRule::JointAngle, i, p.object, dev - tol,
+                                     det});
+                }
+            }
+        }
+    }
     return found;
 }
 
@@ -696,6 +889,8 @@ std::string describe(const SceneFinding& f) {
     case SceneRule::KnownObject: rule = "known-object"; break;
     case SceneRule::OffPath: rule = "off-path"; break;
     case SceneRule::OutsideBuildings: rule = "outside-buildings"; break;
+    case SceneRule::JointSeat: rule = "joint-seat"; break;
+    case SceneRule::JointAngle: rule = "joint-angle"; break;
     }
     char buf[256];
     std::snprintf(buf, sizeof(buf), "[%s] #%zu %s: %s (%+.2f m)", rule,

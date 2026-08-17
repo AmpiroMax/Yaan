@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 12:33:08
+Last updated: 17:08:2026 - 12:49:26
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -85,6 +85,13 @@ UPD:
   — это твёрдая геометрия ВЫШЕ ШАГА игрока; трава и цветы им не являются) и
   object_box_solid (пересечение меряется по СТВОЛАМ, а не по кронам: две берёзы
   в двух метрах — это лес, а не дефект).
+- 17:08:2026 - 12:49:26: ПРАВИЛА СОЕДИНИТЕЛЕЙ (зона домов, HOUSES.md §5; правка чужого
+  файла — исключение правила 26, ТОЛЬКО ДОБАВЛЕНИЯ): JointSeat (торец панели
+  внутри стойки, ловит «забыл стойку» и «стойка тонка для угла»), JointAngle
+  (угол панели кратен шагу грани стойки, допуск ВЫВЕДЕН из ширины панели:
+  atan(((w_f - T)/2) / r_in)); joint_seat_margin_m в SceneLimits. Панель и
+  стойка узнаются по ИМЕНИ реестра (wall-*, joint-*-dNN-nX-*) — имя несёт
+  рабочие свойства по правилу самого набора.
 */
 
 #pragma once
@@ -192,6 +199,23 @@ enum class SceneRule : uint8_t {
     /// The user named both (17.08): «нельзя дерево в доме ставить / дом поверх
     /// дерева ставить».
     OutsideBuildings,
+    /// ТОРЕЦ ПАНЕЛИ ЖИВЁТ ВНУТРИ СТОЙКИ (HOUSES.md §3/§5). A wall panel's end
+    /// never touches another panel: both vertical edges of the end face must
+    /// lie inside its joint post's cylinder, r_in minus a margin. Catches both
+    /// «забыл стойку» (no joint anywhere near the end) and «стойка тонка для
+    /// этого угла». Panels and joints are recognised by their registry NAMES
+    /// (wall-*, joint-*-dNN-nX-*): the name carries the working properties by
+    /// the kit's own rule, so the judge reads the same contract the composer
+    /// does.
+    JointSeat,
+    /// УГОЛ ПАНЕЛИ КРАТЕН ШАГУ СТОЙКИ (HOUSES.md §4/§5). A faceted joint
+    /// hands out exactly N directions (360/N apart, measured against the
+    /// POST'S OWN yaw, never the world axes — a square post turned 30 deg
+    /// offers turned facets). The tolerance is DERIVED, not designated: the
+    /// angle error at which the panel's exit band rides past the facet's
+    /// arris, atan(((w_f - T)/2) / r_in). A facet narrower than the panel is
+    /// itself a finding — that post cannot carry that panel at ANY angle.
+    JointAngle,
 };
 
 /// One violation. Carries the NUMBER, not just a verdict — "hovers" is an
@@ -286,6 +310,10 @@ struct SceneLimits {
     /// on purpose — a barrel against a wall is a barrel against a wall, not a
     /// defect; what this rule is for is a tree in the middle of a room.
     float building_slack_m = 0.25f;
+    /// How far inside the joint's inscribed radius a panel end's corner must
+    /// stay (HOUSES.md §5: dist <= r - 0.02). The 0.02 is float safety made
+    /// visible: a corner ON the joint's surface is a seam that flickers.
+    float joint_seat_margin_m = 0.02f;
 };
 
 /// Reads a .scene file. Returns false and fills `error` (with the line number)

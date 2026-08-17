@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 16:08:2026 - 20:16:09
+# Last updated: 17:08:2026 - 12:49:26
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -64,6 +64,8 @@
 #                          С ОБЕИХ СТОРОН — чистая сцена его проходит, подложенный
 #                          дефект валит. Правило, которое не умеет покраснеть,
 #                          ничего не охраняет.
+# - 17:08:2026 - 12:49:26: core_scene_joint_rules (зона домов): правила соединителей
+#   JointSeat/JointAngle с красными и зелёными руками из HOUSES.md §5.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -86,3 +88,4 @@ add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 # agree about one geometry (the occluder discs are sized from render's own
 # species table, never from literals copied into the test).
 add_dfn_test(test_find_occlusion core/FindOcclusionTests.cpp dfn_world dfn_render)
+add_dfn_test(core_scene_joint_rules core/SceneJointRuleTests.cpp dfn_world)
