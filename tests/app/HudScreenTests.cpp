@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 20:55:00
-Last updated: 17:08:2026 - 22:01:29
+Last updated: 18:08:2026 - 01:54:26
 Module: tests/app
 File: tests/app/HudScreenTests.cpp
 
@@ -35,6 +35,9 @@ UPD:
   выходит и остаётся побитово тем же кадром (он называет луч, а не остаток), и
   подпись инструмента у прицела — с парой зелёный/красный, где меняется одно
   поле и не выживает ни один зелёный пиксель.
+- 18:08:2026 - 01:54:26: плашка инструмента проверяется на НИЖНЮЮ ЧЕТВЕРТЬ игрового поля, по
+  чернилам. Порог именно четверть, а не «ниже середины»: середина прошла бы и на
+  сдвиге в один пиксель, то есть на правке, которой человек не заметит.
 */
 
 #include <doctest/doctest.h>
@@ -333,10 +336,43 @@ TEST_CASE("the tool badge says the mode in the world, and only in the editor") {
     auto green = fresh();
     REQUIRE(dfn::app::draw_tool_badge(green, facts));
     CHECK(ink_above(green, STRIP) == 0);
-    // It sits UNDER the mark, in the lower half of the frame's middle band —
-    // where the builder's eyes already are.
     const int ok_px = count_colour(green, 120, 208, 120);
     CHECK(ok_px > 0);
+
+    // ВНИЗУ КАДРА, А НЕ У ПРИЦЕЛА (заказ 18.08: «текст поперёк экрана... пусть
+    // снизу этот текст будет нарисован»). Раньше плашка стояла ПОД МЕТКОЙ, то
+    // есть в середине, и закрывала ровно ту землю, ради которой на прицел и
+    // смотрят. Проверяется по ЧЕРНИЛАМ, а не по возвращённой координате:
+    // координату можно посчитать верно и нарисовать не там.
+    //
+    // Порог — нижняя четверть игрового поля. Не «ниже середины»: это прошло бы
+    // и на плашке, сдвинутой на один пиксель, то есть на правке, которой
+    // человек не заметит.
+    {
+        const int world_top = facts.world_y;
+        const int world_bot = facts.world_y + facts.world_h;
+        const int quarter = world_bot - facts.world_h / 4;
+        const auto px = green.pixels();
+        const int cw = static_cast<int>(green.width());
+        int topmost = world_bot;
+        int bottommost = world_top;
+        for (int y = world_top; y < world_bot; ++y) {
+            for (int x = 0; x < cw; ++x) {
+                const size_t i = (static_cast<size_t>(y) * static_cast<size_t>(cw)
+                                  + static_cast<size_t>(x)) * 4;
+                if (i + 3 < px.size() && px[i] == 120 && px[i + 1] == 208
+                    && px[i + 2] == 120 && px[i + 3] == 255) {
+                    topmost = std::min(topmost, y);
+                    bottommost = std::max(bottommost, y);
+                }
+            }
+        }
+        CAPTURE(topmost);
+        CAPTURE(bottommost);
+        CAPTURE(quarter);
+        CHECK(topmost >= quarter);
+        CHECK(bottommost < world_bot);
+    }
 
     // THE REFUSAL IS THE SAME SENTENCE IN THE OTHER COLOUR, and the pair is
     // what proves the badge carries the verdict rather than decorating it: one

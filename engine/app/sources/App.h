@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:07:07
+Last updated: 18:08:2026 - 01:54:26
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -95,6 +95,9 @@ UPD:
   не для отладки одного вечера: три захода подряд «камера не двигается»
   разбирал человек за игрой, потому что различить «мышь не дошла» и «камера
   проигнорировала» было нечем. Читается один раз при рождении App.
+- 18:08:2026 - 01:54:26: ghost_uploaded_ — висит ли призрак В РЕНДЕРЕРЕ. Отдельно от build_ghost_:
+  «что я держу» и «что загружено» — разные вопросы, и путать их значит оставлять
+  деталь нарисованной после того, как её выпустили.
 */
 
 #pragma once
@@ -464,6 +467,10 @@ private:
     std::size_t build_item_ = 0;
     float build_yaw_ = 0.0f;
     BuildGhost build_ghost_;
+    /// Висит ли сейчас призрак В РЕНДЕРЕРЕ. Отдельно от build_ghost_, потому
+    /// что вопрос «что я держу» и вопрос «что загружено» — разные, и путать их
+    /// значит оставлять деталь нарисованной после того, как её выпустили.
+    bool ghost_uploaded_ = false;
     BuildVerdict build_verdict_;
     /// Which placement the crosshair is on, for DELETING. npos = none. Kept as
     /// an index into scene_doc_.placements, resolved fresh every frame: an
@@ -473,6 +480,7 @@ private:
     /// (render::measure_object), never a second copy.
     std::map<std::string, render::ObjectExtent> build_extents_;
     void update_build_tool();
+    void clear_build_ghost();
     [[nodiscard]] bool build_place();
     [[nodiscard]] bool build_delete();
 

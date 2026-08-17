@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 01:29:51
+Last updated: 18:08:2026 - 01:54:26
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -442,6 +442,22 @@ UPD:
   Заведена по той же причине, что DFN_EDITOR_PARTS часом раньше: панель
   начинается закрытой, свотчи земли существуют только на экране, и без двери
   единственным доказательством было бы чьё-то слово (правило 27).
+- 18:08:2026 - 01:54:26: ТРИ ПУНКТА ЗАКАЗА 18.08.
+  (1) ESC ЗАКРЫВАЕТ ОТКРЫТОЕ ОКНО РАНЬШЕ МЕНЮ ПАУЗЫ («не важно что открыто»).
+  Порядок такой, потому что ESC читается как «назад на шаг»: из панели — в
+  редактор, из редактора — в меню. Спрашивается КАРКАС (any_panel_open /
+  close_all_panels), а не список имён панелей: список пришлось бы дописывать
+  при каждой новой панели и однажды не дописать. build_open_ гасится тем же
+  нажатием — это второй экземпляр состояния одной панели, и разъехавшись он
+  снова взвёл бы стрелки поворота при закрытом меню.
+  (2) ДЕТАЛЬ ВЫПАДАЕТ ИЗ РУК ВМЕСТЕ С ИНСТРУМЕНТОМ. set_ghost_mesh стоял в
+  КОНЦЕ update_build_tool, а ранних выходов из неё три (не тот инструмент,
+  режим выбора, пустое имя), и на каждом загрузка не вызывалась — меш прошлого
+  кадра оставался в рендерере и рисовался. Вне режима редактора хуже: там
+  функция не зовётся ни разу, поэтому призрак переживал и выход из редактуры.
+  clear_build_ghost() + признак ghost_uploaded_: очистка это СОБЫТИЕ на смену
+  инструмента, а не шестьдесят пустых загрузок в секунду.
+  (3) Плашка инструмента — см. HudScreen.cpp.
 */
 
 #include "engine/app/sources/App.h"
@@ -3664,6 +3680,32 @@ glm::vec3 App::editor_aim_point() {
     return origin + fwd * (found ? hit_t : 8.0f);
 }
 
+void App::clear_build_ghost() {
+    // ДЕТАЛЬ ВЫПАДАЕТ ИЗ РУК ВМЕСТЕ С ИНСТРУМЕНТОМ (заказ 18.08: «после
+    // выключения инструмента редактуры последний выбранный объект остаётся в
+    // руках и рисуется, а должен выключаться с выключением инструмента»).
+    //
+    // РАЗБОР. set_ghost_mesh стоял в самом КОНЦЕ update_build_tool, а выходов
+    // из неё три ранних: не тот инструмент, режим выбора, пустое имя. На каждом
+    // из них загрузка не вызывалась вовсе — и меш, загруженный прошлым кадром,
+    // оставался в рендерере и продолжал рисоваться. Снаружи это выглядело как
+    // деталь, прилипшая к руке. Вне режима редактора хуже: там функция не
+    // зовётся ни разу, поэтому призрак переживал и выход из редактуры.
+    //
+    // Флаг, а не безусловная загрузка пустого меша каждый кадр: очистка это
+    // СОБЫТИЕ, происходящее раз на смену инструмента, и шестьдесят пустых
+    // загрузок в секунду были бы платой за одну.
+    if (!ghost_uploaded_) {
+        return;
+    }
+    ghost_uploaded_ = false;
+    build_ghost_ = {};
+    build_verdict_ = {};
+    if (renderer_ != nullptr) {
+        render_system_.set_ghost_mesh(*renderer_, render::MeshData{});
+    }
+}
+
 void App::update_build_tool() {
     build_ghost_ = {};
     build_verdict_ = {};
@@ -3676,6 +3718,7 @@ void App::update_build_tool() {
     const EditorTool tool = editor_ui_.tool();
     const bool wants_hand = build_hand_wants_aim(tool);
     if (!wants_hand || gallery_scene_.empty()) {
+        clear_build_ghost();
         return;
     }
     BuildJudgeCtx ctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
@@ -3703,10 +3746,12 @@ void App::update_build_tool() {
     // about, and a green outline standing in front of the thing being picked
     // is a second answer to "what am I about to touch".
     if (tool == EditorTool::SelectObject) {
+        clear_build_ghost();
         return;
     }
     const std::string& name = build_selected();
     if (name.empty()) {
+        clear_build_ghost();
         return;
     }
     build_ghost_.object = name;
@@ -3803,6 +3848,7 @@ void App::update_build_tool() {
         // отнимать предмет ради ответа, который и так виден по контуру.
     }
     render_system_.set_ghost_mesh(*renderer_, ghost);
+    ghost_uploaded_ = true;
 }
 
 void App::rebake_tile_at(glm::vec2 world_xz) {
@@ -4572,6 +4618,19 @@ int App::run() {
         if (!chat_typing && action_pressed(Action::MenuPause)) {
             if (render_system_.map_open()) {
                 render_system_.set_map_open(false);
+            } else if (mode_ == AppMode::Editor && editor_ui_.close_all_panels()) {
+                // ESC СНАЧАЛА ЗАКРЫВАЕТ ОТКРЫТОЕ ОКНО (заказ 18.08: «esc будет
+                // закрывать открытое окно объектов / кистей, не важно что
+                // открыто»), и только потом уводит в меню паузы. Порядок
+                // именно такой, потому что ESC читается как «назад на шаг»: из
+                // панели — в редактор, из редактора — в меню. Вопрос задаётся
+                // каркасу, а не списку имён панелей: список пришлось бы
+                // дописывать при каждой новой панели и однажды не дописать.
+                //
+                // build_open_ — второй экземпляр того же состояния для одной
+                // панели, поэтому он гасится здесь же: разъехавшись, он снова
+                // взвёл бы стрелки поворота при закрытом меню.
+                build_open_ = false;
             } else {
                 paused_from_ = mode_; // Resume returns here (Playing or Editor)
                 // The editor rows exist only while editing: a row that cannot
@@ -4867,6 +4926,11 @@ int App::run() {
             // on the bar before anybody presses anything.
             wire_editor_panels();
             update_build_tool();
+        } else {
+            // ВЫШЕЛ ИЗ РЕДАКТУРЫ — РУКА ПУСТА. Здесь update_build_tool не
+            // зовётся вовсе, поэтому без этой строки деталь оставалась висеть
+            // в мире и в игровом режиме.
+            clear_build_ghost();
         }
         // SCREENSHOT (key 5, the user's request: "я хочу чтобы был скриншот... по
         // нажатию кнопки 5... он должен к чату добавляться и трейсам"). It is

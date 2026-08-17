@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:38:00
-Last updated: 17:08:2026 - 22:01:29
+Last updated: 18:08:2026 - 01:54:26
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -28,6 +28,16 @@ UPD:
 - 17:08:2026 - 22:01:29: hud_world_rect() + draw_tool_badge(); лента отступает от занятой
   верхней полосы, прицел ОСТАЁТСЯ в центре кадра (довод — в шапке .h: он
   называет ЛУЧ, а луч по-прежнему в середине проекции).
+- 18:08:2026 - 01:54:26: ПЛАШКА ИНСТРУМЕНТА УЕХАЛА ВНИЗ КАДРА (заказ 18.08: «текст поперёк экрана
+  с описанием тем, что я делаю — мусорно, пусть снизу этот текст будет
+  нарисован»). Прежний довод записан рядом с новым, а не стёрт: плашка отвечает
+  на тот же вопрос, что и прицел, и потому стояла под ним. Не учтено было, что
+  стоит она там ВСЕГДА, а на прицел смотрят, чтобы видеть ЗЕМЛЮ под ним — две
+  строки закрывали ровно то место, ради которого туда и смотрят. Низ ИГРОВОГО
+  поля, а не холста: с пристыкованной снизу полосой плашка иначе уехала бы под
+  неё. Проверка — по ЧЕРНИЛАМ в нижней четверти, а не по возвращённой
+  координате: координату можно посчитать верно и нарисовать не там. Контрфакт:
+  вернул прежнее место — чернила на y=201 против порога 274, красный.
 */
 
 #include "engine/app/sources/HudScreen.h"
@@ -70,6 +80,10 @@ constexpr render::Color OUTLINE{0, 0, 0};
 // leave it visible. Morrowind's mark (reference frame 07) is this shape.
 constexpr int GAP = 3;    // clear pixels between the centre and each tick
 constexpr int TICK = 4;   // length of each tick, in internal pixels
+/// Сколько пикселей между плашкой инструмента и нижним краем ИГРОВОГО ПОЛЯ.
+/// Шесть, а не ноль: плашка со своей подложкой, прижатая вплотную, читается как
+/// часть рамки интерфейса, а не как надпись поверх мира.
+constexpr int BADGE_BOTTOM_GAP = 6;
 constexpr int THICK = 1;  // one pixel: it is a mark, not a widget
 
 // ---------------------------------------------------------------------------
@@ -404,27 +418,41 @@ bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
     int wh = 0;
     hud_world_rect(canvas, facts, wx, wy, ww, wh);
 
-    // UNDER THE MARK, and the mark is at the canvas centre (see draw_crosshair
-    // for why it does not follow the strips). GAP + TICK clears the lowest
-    // tick, and four more pixels keep the words off it: the badge answers the
-    // same question the mark asks, so it belongs next to it and not on it.
+    // ВНИЗУ КАДРА, А НЕ У ПРИЦЕЛА (заказ 18.08: «текст поперёк экрана с описанием
+    // тем, что я делаю — мусорно, пусть снизу этот текст будет нарисован»).
+    //
+    // ПРЕЖНИЙ ДОВОД БЫЛ НЕ ГЛУП И ВСЁ РАВНО НЕВЕРЕН, поэтому он записан, а не
+    // стёрт: плашка отвечает на тот же вопрос, что и прицел, и потому стояла
+    // рядом с ним. Не учтено было то, что она стоит там ВСЕГДА — а смотрят на
+    // прицел, чтобы видеть ЗЕМЛЮ под ним, и две строки текста закрывали ровно
+    // то место, ради которого туда и смотрят. Подсказка, которая читается один
+    // раз, не должна занимать пиксели, которые нужны каждый кадр.
+    //
+    // Низ игрового поля, а не низ холста: с пристыкованной снизу полосой
+    // интерфейса плашка иначе уехала бы под неё. Та же строка, на которой
+    // стоит подсказка взаимодействия в теле, — одно место для «что сейчас
+    // будет», а не два.
     const int cx = w / 2;
-    const int cy = h / 2;
     const int line_h = render::FONT_CELL_H + 1;
-    int y = cy + GAP + TICK + 4;
+    const int lines_ahead = facts.tool_action.empty() ? 1 : 2;
+    int y = wy + wh - lines_ahead * line_h - BADGE_BOTTOM_GAP;
 
     const int name_w = render::text_width_px(facts.tool_name);
     const int act_w = facts.tool_action.empty()
                           ? 0
                           : render::text_width_px(facts.tool_action);
     const int block_w = std::max(name_w, act_w);
-    const int lines = facts.tool_action.empty() ? 1 : 2;
+    const int lines = lines_ahead;
     int x = cx - block_w / 2;
     // CLAMPED INTO WHAT IS LEFT, because this one CAN move without lying: the
     // badge names a state, it does not point at a place. With a column docked
     // on the right a centred block would run under it and lose its last word.
     x = std::clamp(x, wx + 2, std::max(wx + 2, wx + ww - block_w - 2));
+    // Ниже игрового поля не уезжает и выше его верха не поднимается: на очень
+    // низком кадре обе границы могут сойтись, и тогда верх выигрывает — текст,
+    // срезанный сверху, ещё читается, срезанный снизу — нет.
     y = std::min(y, wy + wh - lines * line_h - 2);
+    y = std::max(y, wy + 2);
 
     draw_text_plate(canvas, x, y, block_w, lines * line_h - 1);
     render::draw_text(canvas, x, y, facts.tool_name, INK, /*shadow=*/true);

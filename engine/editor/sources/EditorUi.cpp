@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 22:32:14
+Last updated: 18:08:2026 - 01:54:26
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -120,6 +120,7 @@ UPD:
   прогоны), где init() честно отказал. ImGui::GetIO() без контекста — это
   разыменование ничего, то есть падение в прогонах, которые интерфейса и не
   просили.
+- 18:08:2026 - 01:54:26: any_panel_open() / close_all_panels() — реализация (см. заголовок).
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -1148,6 +1149,26 @@ void EditorUi::set_panel_open(const std::string& id, bool open) {
             return;
         }
     }
+}
+
+bool EditorUi::any_panel_open() const {
+    for (const EditorPanel& p : panels_) {
+        if (p.open) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool EditorUi::close_all_panels() {
+    bool closed = false;
+    for (EditorPanel& p : panels_) {
+        if (p.open) {
+            p.open = false;
+            closed = true;
+        }
+    }
+    return closed;
 }
 
 void EditorUi::toggle_panel(const std::string& id) {
