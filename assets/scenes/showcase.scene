@@ -1,0 +1,492 @@
+# Daggerfall N scene — ВИТРИНА ВАРИАНТОВ (зона домов, задача A).
+# Свой стенд (Gallery, 1 чанк): выкладка по сетке в восточной половине
+# (западную режут тропы стенда), шаг 5-9 м — сравнивать взглядом, не летая.
+# Ряды с юга (спавн) на север: стены x2, соединители и лежни, крыши и
+# вальмы с дымниками, декор набора. Подписи в note — человеческими словами.
+# Каждая стена стоит между двумя стойками по конвенции HOUSES.md §3.2.
+map = houses/showcase
+world_span_m = 256
+spawn = 128 0 158
+spawn_yaw = 0
+
+[pad]
+center = 150 114
+half_extents = 62 48
+blend = 12
+height = 25.5
+note = выставочная полка: одна ровная отметка, чтобы сравнивать взглядом
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 110 25.5 142
+yaw = 0
+scale = 1
+group = w00
+note = стойка-шарнир квадратная d50
+
+[place]
+object = wall-log-timber-16x1x11-blind-w05
+pos = 110 25.5 141.875
+yaw = 0
+scale = 1
+group = w00
+note = сруб: венцы шагом 0.23, глухая
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 114 25.5 142
+yaw = 0
+scale = 1
+group = w00
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 119 25.5 142
+yaw = 0
+scale = 1
+group = w01
+
+[place]
+object = wall-log-dark-16x1x11-win1-w05
+pos = 119 25.5 141.875
+yaw = 0
+scale = 1
+group = w01
+note = сруб тёмного дерева, окно (глухое, с имитацией нутра)
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 123 25.5 142
+yaw = 0
+scale = 1
+group = w01
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 128 25.5 142
+yaw = 0
+scale = 1
+group = w02
+
+[place]
+object = wall-framea-plaster-16x1x11-blind-w05
+pos = 128 25.5 141.875
+yaw = 0
+scale = 1
+group = w02
+note = фахверк по штукатурке, одинарный раскос
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 132 25.5 142
+yaw = 0
+scale = 1
+group = w02
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 137 25.5 142
+yaw = 0
+scale = 1
+group = w03
+
+[place]
+object = wall-framex-plaster-16x1x11-win1-w05
+pos = 137 25.5 141.875
+yaw = 0
+scale = 1
+group = w03
+note = фахверк, раскос андреевским крестом, окно
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 141 25.5 142
+yaw = 0
+scale = 1
+group = w03
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 146 25.5 142
+yaw = 0
+scale = 1
+group = w04
+
+[place]
+object = wall-framek-clay-16x1x11-win2-w05
+pos = 146 25.5 141.875
+yaw = 0
+scale = 1
+group = w04
+note = фахверк по глине, К-образный раскос, два окна
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 150 25.5 142
+yaw = 0
+scale = 1
+group = w04
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 155 25.5 142
+yaw = 0
+scale = 1
+group = w05
+
+[place]
+object = wall-boardv-timber-16x1x11-win2-w05
+pos = 155 25.5 141.875
+yaw = 0
+scale = 1
+group = w05
+note = обшивка вертикальной доской, два окна
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 159 25.5 142
+yaw = 0
+scale = 1
+group = w05
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 110 25.5 128
+yaw = 0
+scale = 1
+group = w06
+
+[place]
+object = wall-boardh-timber-16x1x11-win1-w05
+pos = 110 25.5 127.875
+yaw = 0
+scale = 1
+group = w06
+note = обшивка горизонтальной доской, окно
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 114 25.5 128
+yaw = 0
+scale = 1
+group = w06
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 119 25.5 128
+yaw = 0
+scale = 1
+group = w07
+
+[place]
+object = wall-ashlar-stone-16x1x11-win1-w05
+pos = 119 25.5 127.875
+yaw = 0
+scale = 1
+group = w07
+note = тёсаный камень правильными рядами, окно
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 123 25.5 128
+yaw = 0
+scale = 1
+group = w07
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 128 25.5 128
+yaw = 0
+scale = 1
+group = w08
+
+[place]
+object = wall-rubble-stone-16x1x11-blind-w05
+pos = 128 25.5 127.875
+yaw = 0
+scale = 1
+group = w08
+note = бутовый камень дикими рядами, глухая
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 132 25.5 128
+yaw = 0
+scale = 1
+group = w08
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 137 25.5 128
+yaw = 0
+scale = 1
+group = w09
+
+[place]
+object = wall-brick-brick-16x1x11-win2-w05
+pos = 137 25.5 127.875
+yaw = 0
+scale = 1
+group = w09
+note = кирпич с перевязкой, два окна
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 141 25.5 128
+yaw = 0
+scale = 1
+group = w09
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 146 25.5 128
+yaw = 0
+scale = 1
+group = w10
+
+[place]
+object = wall-combo-stone-16x1x11-win1-w05
+pos = 146 25.5 127.875
+yaw = 0
+scale = 1
+group = w10
+note = низ камень - верх дерево, поясной брус, окно
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 150 25.5 128
+yaw = 0
+scale = 1
+group = w10
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 155 25.5 128
+yaw = 0
+scale = 1
+group = w11
+
+[place]
+object = wall-framea-clay-16x1x11-door-w05
+pos = 155 25.5 127.875
+yaw = 0
+scale = 1
+group = w11
+note = фахверк по глине с дверным проёмом (проём закрывает полотно)
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 159 25.5 128
+yaw = 0
+scale = 1
+group = w11
+
+[place]
+object = joint-timber-d50-n4-h11-w03
+pos = 102 25.5 114
+yaw = 0
+scale = 1
+note = стойка квадратная, дерево, d0.5 - шаг угла 90
+
+[place]
+object = joint-timber-d50-n6-h11-w03
+pos = 107 25.5 114
+yaw = 0
+scale = 1
+note = стойка шестигранная, d0.5 - шаг 60 (стену 0.25 несёт с d0.75)
+
+[place]
+object = joint-timber-d75-n8-h11-w03
+pos = 112 25.5 114
+yaw = 0
+scale = 1
+note = стойка восьмигранная, d0.75 - шаг 45
+
+[place]
+object = joint-timber-d50-nr-h11-w03
+pos = 117 25.5 114
+yaw = 0
+scale = 1
+note = стойка круглая, d0.5 - любой угол
+
+[place]
+object = joint-timber-d35-n4-h11-w03
+pos = 122 25.5 114
+yaw = 0
+scale = 1
+note = ряд диаметров: 0.35 - минимум под стену 0.25
+
+[place]
+object = joint-timber-d75-n4-h11-w03
+pos = 127 25.5 114
+yaw = 0
+scale = 1
+note = ряд диаметров: 0.75 - главный столб
+
+[place]
+object = joint-stone-d100-n8-h16-cap-w03
+pos = 132 25.5 114
+yaw = 0
+scale = 1
+note = каменная колонна замка d1.0 с капителью
+
+[place]
+object = joint-brick-d75-n4-h11-cap-w03
+pos = 137 25.5 114
+yaw = 0
+scale = 1
+note = кирпичный столб с капителью
+
+[place]
+object = corner-log-timber-h11-w03
+pos = 142 25.5 114
+yaw = 0
+scale = 1
+note = перевязка торцов сруба: угол дома, выпуск в обло
+
+[place]
+object = sleeper-timber-d50-n4-16u-w03
+pos = 150 25.5 114
+yaw = 0
+scale = 1
+note = лежень четырёхгранный: плоская постель, плоское ложе под пол
+
+[place]
+object = sleeper-stone-d35-nr-12u-w03
+pos = 158 25.5 114
+yaw = 0
+scale = 1
+note = лежень круглый каменный
+
+[place]
+object = roof-thatch-12x8x8-w08
+pos = 102 25.5 100
+yaw = 0
+scale = 1
+note = скат: солома, лохматый свес
+
+[place]
+object = roof-shingle-12x8x8-w03
+pos = 110 25.5 100
+yaw = 0
+scale = 1
+note = скат: дранка-чешуя
+
+[place]
+object = roof-timber-12x8x8-w05
+pos = 118 25.5 100
+yaw = 0
+scale = 1
+note = скат: тёс, доски вдоль ската по воде
+
+[place]
+object = roof-tile-12x8x8-w05
+pos = 126 25.5 100
+yaw = 0
+scale = 1
+note = скат: черепица тонкими рядами
+
+[place]
+object = roof-turf-12x8x8-w05
+pos = 134 25.5 100
+yaw = 0
+scale = 1
+note = скат: дёрн с ветровницей
+
+[place]
+object = roof-thatch-12x8x4-w05
+pos = 142 25.5 100
+yaw = 0
+scale = 1
+note = пологий скат 27 - односкатная кровля сарая
+
+[place]
+object = roofhip-shingle-12x8x8-w05
+pos = 154 25.5 100
+yaw = 0
+scale = 1
+note = вальма: треугольный торцевой скат к коньку
+
+[place]
+object = roofhip-shingle-12x8x8-polu-w05
+pos = 163 25.5 100
+yaw = 0
+scale = 1
+note = полувальма: верх фронтона срезан, низ остаётся
+
+[place]
+object = roofhip-tile-12x8x6-w05
+pos = 172 25.5 100
+yaw = 0
+scale = 1
+note = вальма черепичная, уклон положе
+
+[place]
+object = smokevent-timber-2u-w05
+pos = 184 25.5 102
+yaw = 0
+scale = 1
+note = дымник: жалюзи и шапка, ставится верхом на конёк
+
+[place]
+object = smokevent-dark-3u-w05
+pos = 189 25.5 102
+yaw = 0
+scale = 1
+note = дымник большой, тёмное дерево
+
+[place]
+object = fence-timber-8x1x4-w08
+pos = 102 25.5 86
+yaw = 0
+scale = 1
+note = забор жердевой, 2 м секция
+
+[place]
+object = fence-dark-12x1x6-w08
+pos = 108 25.5 86
+yaw = 0
+scale = 1
+note = забор высокий тёмный, 3 м
+
+[place]
+object = stair-stone-1x6x5-w03
+pos = 114 25.5 86
+yaw = 0
+scale = 1
+note = уличная лестница каменная, 5 ступеней
+
+[place]
+object = stair-timber-1x4x7-w08
+pos = 120 25.5 86
+yaw = 0
+scale = 1
+note = лестница деревянная, 7 ступеней
+
+[place]
+object = footing-stone-8x2x4-w08
+pos = 126 25.5 86
+yaw = 0
+scale = 1
+note = цоколь дикого камня - подошва дома
+
+[place]
+object = doorframe-timber-4x1x8-w03
+pos = 132 25.5 86
+yaw = 0
+scale = 1
+note = дверная коробка
+
+[place]
+object = door-timber-3x1x7-w03
+pos = 138 25.5 86
+yaw = 0
+scale = 1
+note = дверное полотно с накладками
+
+[place]
+object = window-timber-4x1x4-w05
+pos = 144 25.5 86
+yaw = 0
+scale = 1
+note = оконный переплёт с глухой вставкой
