@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 09:54:18
+Last updated: 17:08:2026 - 10:02:06
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -68,6 +68,7 @@ UPD:
 - 17:08:2026 - 09:14:19: Баги красоты: (1) bark_tube режет грань по границам тайла — ёлочка-шевроны на стволах толще ~0.8 м умирают (frac по вершинам зеркалил грань, пересёкшую границу); (2) корни-контрфорсы короче (reach 1.05-1.5 flare — «шипы» берёз); (3) шапка сосны: изогнутые хвойные листы на верхних 3 мутовках поднятых хвойников — сверху зонт, не антенна.
 - 17:08:2026 - 09:50:47: Хвоя по скайримскому референсу (image copy 8): СИГМОИДНЫЙ хребет лапы (нырок у ствола, ровно, кончик вверх), наклон по ярусам (верх +, юбка −), РАЗМЫТЫЕ мутовки (ветви на случайных высотах), веер из двух боковых перьев (одно выше, одно ниже — закрывают межъярусный прогал), медленное сужение кроны (0.62 вместо 0.85 — середина держит длинные ветви).
 - 17:08:2026 - 09:54:18: Ворота far_lod: веера перьев, юбка сухих сучьев, украшения (обломки, жёлуди) и множественные листы на якорь выключаются — высота/крона/мутовки нетронуты, силуэт держится.
+- 17:08:2026 - 10:02:06: forge_bush: ворота far_lod на ягодный блок.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -988,7 +989,7 @@ RegistryObject forge_bush(const BushForgeParams& p) {
     // BERRIES (user: «крупными и их должно быть видно»): closed bipyramids in
     // little clusters at the stem tips, hanging just under the sheet rims —
     // against the leaf mass, not buried in it.
-    if (p.berry_count > 0) {
+    if (p.berry_count > 0 && !p.far_lod) {
         const uint32_t berry_c = pack(p.berry);
         const uint32_t spot_c = pack(p.berry_spot);
         const uint32_t stalk_c = pack(p.bark * 0.75f);

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 09:54:18
+Last updated: 17:08:2026 - 10:02:06
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -50,6 +50,7 @@ UPD:
 - 17:08:2026 - 07:04:26: Утренний вердикт по полянке: сосны 13-15 мутовок x 9 ветвей, ленты 1.25, подъём лап (шапка сосны, не юбка ели); ели галереи 17-23x9; +glade-oak-mid-a/b (дубки 11/14.5 м «убрать голость»); трава 0.9/1.3/1.7 м; цветы 0.75 м с bloom 0.14.
 - 17:08:2026 - 09:50:47: Ели галереи шире (крона 3.9/4.4) и гуще (10 ветвей на мутовку) — сверка со скайримским референсом.
 - 17:08:2026 - 09:54:18: bake_tree: каждое дерево полки glade печётся парой <имя> + <имя>-far (дальняя форма для пополиточного LOD лида).
+- 17:08:2026 - 10:02:06: bake_bush: ягодники, орешник и можжевельник печутся парой <имя>+<имя>-far; голые кусты bush-a/b/c и мелочь (трава/цветы/грибы/брёвна/лампы) far-форм не имеют — экономить там нечего.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -335,6 +336,12 @@ int main(int argc, char** argv) {
             tp.name += "-far";
             bake(forge_tree(tp));
         };
+        const auto bake_bush = [&](BushForgeParams bp) {
+            bake(forge_bush(bp));
+            bp.far_lod = true;
+            bp.name += "-far";
+            bake(forge_bush(bp));
+        };
         // The elder oak at the heart of the glade: big, lush, not a giant.
         TreeForgeParams elder;
         elder.seed = 1301;
@@ -471,7 +478,7 @@ int main(int argc, char** argv) {
             hz.stems = 7;
             hz.tone = LeafTone::OakMid;
             hz.card_shape = LeafShape::RoundLobed;
-            bake(forge_bush(hz));
+            bake_bush(hz);
             BushForgeParams rb; // ЯГОДНИК КРАСНЫЙ: oval leaves, big red berries
             rb.seed = 1731;
             rb.name = "glade-berry-red";
@@ -484,7 +491,7 @@ int main(int argc, char** argv) {
             rb.berry_r = 0.065f;
             rb.berry = {0.78f, 0.12f, 0.10f};
             rb.berry_sepal = true;  // красные шарики с попкой
-            bake(forge_bush(rb));
+            bake_bush(rb);
             BushForgeParams db; // ЯГОДНИК ТЁМНЫЙ: dark leaves, blue-black fruit
             db.seed = 1741;
             db.name = "glade-berry-dark";
@@ -498,7 +505,7 @@ int main(int argc, char** argv) {
             db.berry = {0.16f, 0.14f, 0.30f};
             db.berry_pattern = 1;  // сизый налёт крапинкой
             db.berry_spot = {0.55f, 0.60f, 0.72f};
-            bake(forge_bush(db));
+            bake_bush(db);
             // Sheet-4 answer №5 — the variety row: «где-то шарики, где-то
             // грозди... красные, синие, розовенькие, зеленые... с разными
             // рисунками... с разными попками и веточками». Four more berry
@@ -516,7 +523,7 @@ int main(int argc, char** argv) {
             bb.berry = {0.16f, 0.22f, 0.55f};
             bb.berry_style = BerryStyle::Cluster;
             bb.berry_stalk = 1.4f;  // грозди свисают на длинных веточках
-            bake(forge_bush(bb));
+            bake_bush(bb);
             BushForgeParams pb;  // ЯГОДНИК РОЗОВЫЙ: мелкие в белую крапинку
             pb.seed = 1781;
             pb.name = "glade-berry-pink";
@@ -531,7 +538,7 @@ int main(int argc, char** argv) {
             pb.berry_pattern = 1;
             pb.berry_spot = {0.93f, 0.90f, 0.88f};
             pb.berry_sepal = true;
-            bake(forge_bush(pb));
+            bake_bush(pb);
             BushForgeParams gb;  // ЯГОДНИК ЗЕЛЁНЫЙ: крупные капли в полоску
             gb.seed = 1791;
             gb.name = "glade-berry-green";
@@ -546,7 +553,7 @@ int main(int argc, char** argv) {
             gb.berry_style = BerryStyle::Drops;
             gb.berry_pattern = 2;  // светлые продольные полоски
             gb.berry_spot = {0.58f, 0.74f, 0.32f};
-            bake(forge_bush(gb));
+            bake_bush(gb);
             BushForgeParams kb;  // ЯГОДНИК ЧЁРНЫЙ: грозди чёрных с попкой
             kb.seed = 1796;
             kb.name = "glade-berry-black";
@@ -560,7 +567,7 @@ int main(int argc, char** argv) {
             kb.berry = {0.10f, 0.09f, 0.11f};
             kb.berry_style = BerryStyle::Cluster;
             kb.berry_sepal = true;
-            bake(forge_bush(kb));
+            bake_bush(kb);
             BushForgeParams jc; // МОЖЖЕВЕЛЬНИК СТЕЛЮЩИЙСЯ: flat, sizy berries
             jc.seed = 1751;
             jc.name = "glade-juniper-creep";
@@ -573,7 +580,7 @@ int main(int argc, char** argv) {
             jc.berry_count = 14;
             jc.berry_r = 0.04f;
             jc.berry = {0.35f, 0.42f, 0.48f};
-            bake(forge_bush(jc));
+            bake_bush(jc);
             GroundPropParams fern; // ПАПОРОТНИК: веер гнутых перьев
             fern.seed = 1761;
             fern.name = "glade-fern";

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 09:54:18
+Last updated: 17:08:2026 - 10:02:06
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -61,6 +61,7 @@ UPD:
 - 17:08:2026 - 03:51:22: Кузница света троп (этап 2): PathLightKind TorchStake/LanternPost, forge_path_light — геометрия и яркие вершинные цвета пламени/стекла; сама точка света — секция [light] лида.
 - 17:08:2026 - 07:04:26: GroundPropParams.bloom — сказочный размер венчика (утро 17.08: «цветов не вижу... пусть крупные будут, зато играбельно»).
 - 17:08:2026 - 09:54:18: far_lod — дальняя форма дерева (контракт лида: `<имя>-far`, второй .dfo, силуэт совпадает): без вееров, один лист на якорь, без желудей/сучьев/юбки.
+- 17:08:2026 - 10:02:06: BushForgeParams.far_lod — дальняя форма куста: ягоды с мелочью опущены (5-7 см за 44 м — субпиксель), стебли и листы нетронуты.
 */
 
 #pragma once
@@ -156,6 +157,10 @@ struct BushForgeParams {
     float berry_stalk = 0.5f;   ///< веточка: stalk length as a multiple of berry_r
     /// Creeping habit (можжевельник): stems hug the ground instead of rising.
     bool creeping = false;
+    /// FAR FORM куста: стебли и листы нетронуты (силуэт), ягоды со всей их
+    /// мелочью (веточки, крапинки, чашелистики) опущены — плод 5-7 см за
+    /// 44 м меньше пикселя.
+    bool far_lod = false;
 };
 [[nodiscard]] RegistryObject forge_bush(const BushForgeParams& params);
 
