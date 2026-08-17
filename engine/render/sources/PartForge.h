@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:02:52
+Last updated: 17:08:2026 - 13:18:48
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -53,6 +53,10 @@ UPD:
   старые детали переиспечены байт-в-байт.
 - 17:08:2026 - 13:02:52: PartMaterial::Clay (глина по каркасу — «глина с каркасом» из
   списка вариантов стен пользователя 17.08).
+- 17:08:2026 - 13:18:48: PartParams::opening (глухая/окно/два окна/дверной проём) —
+  волна вариантов стен: 10 стилей (сруб, фахверк x3 рисунка раскосов, обшивка
+  верт./гориз., камень тёсаный/бутовый, кирпич, комбо низ-камень) x проёмы,
+  174 панели, имена wall-<стиль>-<мат>-LxTxH-<проём>-wNN.
 */
 
 #pragma once
@@ -162,6 +166,12 @@ struct PartParams {
     /// capitals). 0 = the kind's default; meanings are per-kind and each
     /// variant spells its token into the part's name.
     int variant = 0;
+    /// WHAT IS CUT INTO a styled wall: 0 глухая, 1 окно, 2 два окна,
+    /// 3 дверной проём. Windows are BLIND by §2 (a sealed Pane insert); the
+    /// door opening is the kit's ONE sanctioned through-hole — the house
+    /// closes it with a leaf, and the wall tests assert daylight there and
+    /// nowhere else.
+    int opening = 0;
 };
 
 /// The kit's naming rule: kind-material-LxWxH-wNN, e.g. "beam-timber-8x2x1-w06".

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 13:02:08
+# Last updated: 17:08:2026 - 13:17:36
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -59,6 +59,8 @@
 
 # - 17:08:2026 - 13:02:08: sources/PartForgeJoints.cpp — семья соединителей, вынесена из
 #   PartForge.cpp при разрезе по семьям (999 строк против предела 800).
+# - 17:08:2026 - 13:09:29: sources/PartForgeWalls.cpp — варианты стен (10 стилей x проёмы).
+# - 17:08:2026 - 13:17:36: sources/PartForgeCatalogue.cpp — список полок, вынесен из PartForge.cpp.
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
     sources/CloudModel.cpp
@@ -77,6 +79,8 @@ add_library(dfn_render STATIC
     sources/ObjectRegistry.cpp
     sources/PartForge.cpp
     sources/PartForgeJoints.cpp
+    sources/PartForgeCatalogue.cpp
+    sources/PartForgeWalls.cpp
     sources/PixelCanvas.cpp
     sources/ProcFlora.cpp
     sources/ProcMesh.cpp

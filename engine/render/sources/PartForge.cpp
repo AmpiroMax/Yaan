@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 13:02:52
+Last updated: 17:08:2026 - 13:18:48
 Module: engine/render
 File: engine/render/sources/PartForge.cpp
 
@@ -70,6 +70,10 @@ UPD:
   стилями — PartForgeWalls.cpp. Контроль переноса: перепечка набора не
   изменила ни одного .dfo (git status по parts пуст). Материал Clay (глина по
   каркасу) — под волну вариантов стен.
+- 17:08:2026 - 13:18:48: волна вариантов стен: диспетчер WallPanel по variant (0 —
+  прежний пролёт с прежним именем байт-в-байт, иначе make_wall_styled),
+  жетоны wall_style_token/opening_token в имени. kit_catalogue() вынесен
+  ДОСЛОВНО в PartForgeCatalogue.cpp (файл снова упёрся в предел 800).
 */
 
 #include "engine/render/sources/PartForge.h"
@@ -593,6 +597,33 @@ void make_fence(MeshData& m, const PartParams& p, const Material& mat, Rng& rng)
     }
 }
 
+/// A styled wall's construction token (PartForgeWalls.cpp's dispatch order).
+[[nodiscard]] const char* wall_style_token(int variant) {
+    switch (variant) {
+    case 1: return "log";
+    case 2: return "framea";
+    case 3: return "framex";
+    case 4: return "framek";
+    case 5: return "boardv";
+    case 6: return "boardh";
+    case 7: return "ashlar";
+    case 8: return "rubble";
+    case 9: return "brick";
+    case 10: return "combo";
+    default: return "plain";
+    }
+}
+
+/// What is cut into a styled wall.
+[[nodiscard]] const char* opening_token(int opening) {
+    switch (opening) {
+    case 1: return "win1";
+    case 2: return "win2";
+    case 3: return "door";
+    default: return "blind";
+    }
+}
+
 } // namespace
 
 std::string part_name(const PartParams& p) {
@@ -613,6 +644,17 @@ std::string part_name(const PartParams& p) {
                       material_name(p.material), p.diameter_cm,
                       facet_token(p.facets), p.length_u, wear10);
         return buf;
+    // Styled walls keep the wall- prefix (the judge's panel contract) and
+    // spell construction and opening: wall-framex-clay-16x1x11-win2-w05.
+    case PartKind::WallPanel:
+        if (p.variant != 0) {
+            std::snprintf(buf, sizeof(buf), "wall-%s-%s-%dx%dx%d-%s-w%02d",
+                          wall_style_token(p.variant), material_name(p.material),
+                          p.length_u, p.width_u, p.height_u,
+                          opening_token(p.opening), wear10);
+            return buf;
+        }
+        break;
     case PartKind::LogCorner:
         std::snprintf(buf, sizeof(buf), "corner-log-%s-h%d-w%02d",
                       material_name(p.material), p.length_u, wear10);
@@ -644,7 +686,13 @@ RegistryObject forge_part(const PartParams& params) {
     case PartKind::Beam: make_beam(obj.wood, params, mat, rng); break;
     case PartKind::Post: make_post(obj.wood, params, mat, rng); break;
     case PartKind::Plank: make_plank(obj.wood, params, mat, rng); break;
-    case PartKind::WallPanel: make_wall(obj.wood, params, mat, rng); break;
+    case PartKind::WallPanel:
+        if (params.variant != 0) {
+            part_detail::make_wall_styled(obj.wood, params, mat, rng);
+        } else {
+            make_wall(obj.wood, params, mat, rng);
+        }
+        break;
     case PartKind::Gable: make_gable(obj.wood, params, mat, rng); break;
     case PartKind::RoofSlope: make_roof(obj.wood, params, mat, rng); break;
     case PartKind::Stair: make_stair(obj.wood, params, mat, rng); break;
@@ -660,171 +708,6 @@ RegistryObject forge_part(const PartParams& params) {
         break;
     }
     return obj;
-}
-
-std::vector<PartParams> kit_catalogue() {
-    std::vector<PartParams> out;
-    // One row per FAMILY, expanded as length x SECTION x material x wear. The
-    // section is a PAIR and not two independent lists on purpose: real timber
-    // comes in a handful of sizes (square post, laid-flat beam, batten), and a
-    // free cross product would fill the kit with 200 near-identical sticks
-    // nobody would ever choose between while the useful pieces stayed rare.
-    struct Sec {
-        int w;
-        int h;
-    };
-    const auto add = [&out](PartKind kind, std::initializer_list<int> lengths,
-                            std::initializer_list<Sec> sections,
-                            std::initializer_list<PartMaterial> mats,
-                            std::initializer_list<float> wears) {
-        for (int L : lengths) {
-            for (Sec s : sections) {
-                for (PartMaterial m : mats) {
-                    for (float w : wears) {
-                        PartParams p;
-                        p.kind = kind;
-                        p.material = m;
-                        p.length_u = L;
-                        p.width_u = s.w;
-                        p.height_u = s.h;
-                        p.wear = w;
-                        p.name = part_name(p);
-                        // The seed is the NAME, so a part's wobble is its own
-                        // and stays its own when the catalogue grows.
-                        uint64_t h = 1469598103934665603ull;
-                        for (unsigned char c : p.name) {
-                            h = (h ^ c) * 1099511628211ull;
-                        }
-                        p.seed = h;
-                        out.push_back(std::move(p));
-                    }
-                }
-            }
-        }
-    };
-    using PM = PartMaterial;
-    const std::initializer_list<PM> woods = {PM::Timber, PM::TimberDark};
-    const std::initializer_list<float> wear2 = {0.3f, 0.8f};
-
-    // STICKS — the user's word, and the kit's spine: nearly everything else is
-    // these at an angle. Sections in grid units: 1x1 batten, 2x1 laid flat,
-    // 2x2 beam, 3x3 main post (25/50/75 cm).
-    add(PartKind::Beam, {2, 4, 6, 8, 12, 16}, {{1, 1}, {2, 1}, {2, 2}, {3, 3}}, woods, wear2);
-    add(PartKind::Post, {4, 6, 8, 10, 12, 16}, {{1, 1}, {2, 2}, {3, 3}}, woods, wear2);
-    add(PartKind::Plank, {4, 8, 12, 16}, {{1, 1}, {2, 1}},
-        {PM::Timber, PM::TimberDark, PM::Stone}, wear2);
-
-    // ENCLOSURE. For a wall the section pair means (thickness, HEIGHT); for a
-    // gable and a roof it means (thickness/depth, RISE) — the part's second
-    // dimension is whatever that part is actually measured by.
-    add(PartKind::WallPanel, {8, 12, 16}, {{1, 8}, {1, 10}, {1, 12}},
-        {PM::Timber, PM::TimberDark, PM::Plaster, PM::Stone}, wear2);
-    add(PartKind::Gable, {8, 12, 16}, {{1, 4}, {1, 6}, {1, 8}}, {PM::Timber, PM::Plaster},
-        wear2);
-    add(PartKind::RoofSlope, {8, 12, 16}, {{8, 6}, {8, 8}, {12, 8}, {12, 12}},
-        {PM::Thatch, PM::Shingle}, wear2);
-
-    // GETTING IN, GETTING UP. A stair's length is unused (its run follows from
-    // the step count), so it stays 1 and the pair carries (width, STEPS).
-    // Two steps is in the list because a footing course is half a metre tall
-    // and a three-step flight overshoots it — the kit has to be able to reach
-    // the heights the kit's own parts make.
-    add(PartKind::Stair, {1},
-        {{4, 2}, {4, 3}, {4, 5}, {4, 7}, {6, 2}, {6, 5}, {6, 7}, {6, 9}, {8, 7}},
-        {PM::Timber, PM::Stone}, wear2);
-    add(PartKind::DoorFrame, {4, 6}, {{1, 8}, {1, 10}, {2, 10}}, {PM::Timber, PM::Stone},
-        wear2);
-    add(PartKind::DoorLeaf, {3, 5}, {{1, 7}, {1, 9}}, woods, wear2);
-    add(PartKind::WindowFrame, {3, 4, 6}, {{1, 3}, {1, 4}, {1, 6}}, woods, {0.5f});
-
-    // GROUND AND YARD.
-    add(PartKind::Footing, {4, 8, 12}, {{2, 2}, {2, 4}, {4, 4}}, {PM::Stone}, wear2);
-    add(PartKind::Fence, {6, 8, 12}, {{1, 4}, {1, 6}}, woods, wear2);
-
-    // СОЕДИНИТЕЛИ (HOUSES.md §3-4). Expanded by rule, like everything else:
-    // shape (4/6/8/round facets) x across-flats diameter (35/50/75/100 cm,
-    // derived d >= T + 0.1 from panel thickness T = 0.25) x material x height.
-    // Every combination is forged even where a 0.35 octagon's facet (14.5 cm)
-    // is too narrow for a 25 cm wall — the JUDGE owns that pairing rule and
-    // needs the real rejected part to fail (Rule 30); thinner panels (fence
-    // rails, shelf boards) still seat on it legally.
-    const auto add_joint = [&out](std::initializer_list<int> shapes,
-                                  std::initializer_list<int> diameters_cm,
-                                  std::initializer_list<PartMaterial> mats,
-                                  std::initializer_list<int> heights_u,
-                                  std::initializer_list<int> variants,
-                                  std::initializer_list<float> wears) {
-        for (int n : shapes) {
-            for (int d : diameters_cm) {
-                for (PartMaterial m : mats) {
-                    for (int h : heights_u) {
-                        for (int v : variants) {
-                            for (float w : wears) {
-                                PartParams p;
-                                p.kind = PartKind::JointPost;
-                                p.material = m;
-                                p.facets = n;
-                                p.diameter_cm = d;
-                                p.length_u = h;
-                                p.variant = v;
-                                p.wear = w;
-                                p.name = part_name(p);
-                                uint64_t hash = 1469598103934665603ull;
-                                for (unsigned char c : p.name) {
-                                    hash = (hash ^ c) * 1099511628211ull;
-                                }
-                                p.seed = hash;
-                                out.push_back(std::move(p));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    };
-    // Timber joints: every shape and diameter, wall height (11u = 2.75 m) and
-    // tall (16u = 4 m), no capitals — a capital on a log is not carpentry.
-    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, woods, {11, 16}, {0}, wear2);
-    // Masonry joints: stone and brick, with and without capitals. The 1.0 m
-    // row is the castle colonnade's (HOUSES.md §3.1).
-    add_joint({4, 6, 8, 0}, {35, 50, 75, 100}, {PM::Stone, PM::Brick}, {11, 16},
-              {0, 1}, wear2);
-
-    // ЛЕЖНИ: floor-to-wall bedding logs. 4-facet (flat bed, flat seat) and
-    // round; the two smaller diameters — a 0.75 sleeper would eat the room's
-    // headroom from below.
-    {
-        const std::initializer_list<int> lens = {8, 12, 16};
-        for (int n : {4, 0}) {
-            for (int d : {35, 50}) {
-                for (PartMaterial m : {PM::Timber, PM::TimberDark, PM::Stone}) {
-                    for (int L : lens) {
-                        for (float w : wear2) {
-                            PartParams p;
-                            p.kind = PartKind::Sleeper;
-                            p.material = m;
-                            p.facets = n;
-                            p.diameter_cm = d;
-                            p.length_u = L;
-                            p.wear = w;
-                            p.name = part_name(p);
-                            uint64_t hash = 1469598103934665603ull;
-                            for (unsigned char c : p.name) {
-                                hash = (hash ^ c) * 1099511628211ull;
-                            }
-                            p.seed = hash;
-                            out.push_back(std::move(p));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ПЕРЕВЯЗКА ТОРЦОВ СРУБА: corner nodes at the two wall heights the log
-    // panels come in (11u массовка, plus a low 6u for porches and sheds).
-    add(PartKind::LogCorner, {6, 11}, {{1, 1}}, woods, wear2);
-    return out;
 }
 
 } // namespace dfn::render
