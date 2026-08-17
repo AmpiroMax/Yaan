@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 17:08:2026 - 19:20:04
 Module: engine/app
 File: engine/app/sources/BuildTool.cpp
 
@@ -21,6 +21,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 19:05:00: Создан вместе с BuildTool.h.
+- 17:08:2026 - 19:20:04: StairSeat/StairHeadroom получили свои фразы. Без них призрак краснел БЕЗ
+  ПРИЧИНЫ ровно на лестницах; нашла зона меню объектов, не мой тест.
 */
 
 #include "engine/app/sources/BuildTool.h"
@@ -53,6 +55,8 @@ namespace fs = std::filesystem;
     case world::SceneRule::JointCapacity: return "build.no.capacity";
     case world::SceneRule::DeckOnJoints:  return "build.no.deck";
     case world::SceneRule::RoofSeat:      return "build.no.roof";
+    case world::SceneRule::StairSeat:     return "build.no.stair_seat";
+    case world::SceneRule::StairHeadroom: return "build.no.stair_head";
     }
     return "build.no.other";
 }

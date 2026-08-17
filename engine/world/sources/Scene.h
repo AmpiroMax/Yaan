@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 17:28:41
+Last updated: 17:08:2026 - 19:05:00
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -104,6 +104,13 @@ UPD:
   литералами в правиле: «пройдёт ли игрок» обязано быть перенастраиваемым
   вместе с игроком, иначе в день, когда герой подрастёт, дом останется с
   шишкой, а зелёный тест — зелёным. Снова только добавления (правило 26).
+- 17:08:2026 - 19:05:00: КЛЮЧ `relief` — имя сиделки .relief рядом со сценой (зона кистей
+  рельефа, заказ 17.08; добро лида получено). Только имя, а не сами сэмплы:
+  мазок это десятки тысяч чисел, и внутри .scene они убили бы единственное
+  свойство, ради которого он текст — что его читает человек и что его diff
+  что-то значит. Одна строка сохраняет оба: композиция остаётся читаемой,
+  лепка лежит в git рядом. Ключ необязательный, его отсутствие — прежнее
+  поведение до последнего бита.
 */
 
 #pragma once
@@ -211,6 +218,19 @@ struct SceneDoc {
     std::vector<SceneLight> lights;
     std::vector<ScenePad> pads;
     std::vector<SceneRiver> rivers;
+    /// THE HAND-PAINTED GROUND, by filename — the .relief sidecar next to this
+    /// file (world::ReliefLayer). Empty on every map nobody sculpted, and then
+    /// the world is exactly what the generator and the pads make it.
+    ///
+    /// A NAME HERE AND THE SAMPLES OVER THERE, on purpose. A brush stroke is
+    /// tens of thousands of numbers; pasted into this file they would destroy
+    /// the one property that makes a .scene worth being text — that a human
+    /// reads it and a diff means something. One key keeps both: the composition
+    /// stays legible, and the sculpt stays in git beside it.
+    ///
+    /// The name is a FILENAME, not a path: a scene that could point outside its
+    /// own directory would be a scene that breaks when the map is moved.
+    std::string relief;
 };
 
 /// Which rule a finding broke. Named, not numbered: a report a human reads.

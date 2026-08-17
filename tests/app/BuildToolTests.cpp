@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:20:00
-Last updated: 17:08:2026 - 19:20:00
+Last updated: 17:08:2026 - 19:20:04
 Module: tests/app
 File: tests/app/BuildToolTests.cpp
 
@@ -19,6 +19,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 19:20:00: Создан — зелёное/красное руки строителя.
+- 17:08:2026 - 19:20:04: граница обхода перечисления — ПОСЛЕДНЕЕ значение, а не названное. Обход,
+  кончавшийся на предпоследнем, пропустил два новых правила судьи.
 */
 
 #include <doctest/doctest.h>
@@ -56,7 +58,14 @@ TEST_CASE("every rule the judge can raise has a sentence for the builder") {
     // teaches the builder to move the mouse until it goes green — the exact
     // opposite of what the colour is for. Walking the enum here means a rule
     // added to the judge without a sentence fails in CI, not on his screen.
-    for (uint8_t r = 0; r <= static_cast<uint8_t>(world::SceneRule::RoofSeat); ++r) {
+        // THE BOUND IS THE LAST VALUE, NOT A NAMED ONE. Written as RoofSeat, this
+    // loop stopped one short the day the judge grew StairSeat and StairHeadroom
+    // — and an enum walk that ends before the end is exactly the instrument
+    // that cannot fail. The two new rules fell through to "build.no.other" and
+    // the ghost went red WITHOUT A REASON on every stair, which is the failure
+    // this case exists to prevent. Found by the palette agent, not by this test.
+    constexpr uint8_t LAST = static_cast<uint8_t>(world::SceneRule::StairHeadroom);
+    for (uint8_t r = 0; r <= LAST; ++r) {
         std::vector<world::SceneFinding> f(1);
         f[0].rule = static_cast<world::SceneRule>(r);
         f[0].placement_index = 0;

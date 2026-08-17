@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 17:08:2026 - 16:53:31
+# Last updated: 17:08:2026 - 19:25:28
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -24,6 +24,8 @@
 
 # - 14:08:2026 - 19:22:10: app_controls — таблица привязок клавиш; Controls.cpp добавлен и в app_menu (страница управления рисуется из той же таблицы). Файл порезан ведущим зоне editor на эту регистрацию, как и в прошлый раз.
 # - 17:08:2026 - 16:53:31: app_build_tool — рука строителя: зелёное/красное решает СУДЬЯ, а не
+# - 17:08:2026 - 19:18:24: app_editor_palette — модель меню объектов (фасеты, фильтр, избранное).
+# - 17:08:2026 - 19:25:28: пути меню объектов — engine/editor (переезд под исключение про ImGui).
 #   двойник правил в редакторе; тест держит именно это свойство.
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -49,6 +51,15 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorHud.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # МЕНЮ ОБЪЕКТОВ. Полка 2411 деталей: рукав держит то, чего кадр не покажет —
+    # что имя РАЗОБРАНО, а не угадано, что счётчик на фишке значит «сколько
+    # останется, если нажму», и что размер из имени сходится с меркой меша.
+    add_dfn_test(app_editor_palette app/EditorPaletteTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_editor_palette PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPalette.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteState.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
 
     # THE BUILD HAND. Worth its own suite for the same reason EditorHud is:
     # the decision lives in a module rather than in App.cpp, so an instrument
