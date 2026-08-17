@@ -394,11 +394,11 @@ scale = 1
 note = скат: дёрн с ветровницей
 
 [place]
-object = roof-thatch-12x8x4-w05
+object = roof-thatch-8x8x4-w05
 pos = 142 25.5 100
 yaw = 0
 scale = 1
-note = пологий скат 27 - односкатная кровля сарая
+note = пологий скат 27 град - кровля сарая
 
 [place]
 object = roofhip-shingle-12x8x8-w05
@@ -704,7 +704,7 @@ object = label-52
 pos = 142.000 25.500 101.600
 yaw = 0.000000
 scale = 1
-note = подпись образца: roof-thatch-12x8x4-w05
+note = подпись образца: roof-thatch-8x8x4-w05
 
 [place]
 object = label-53
