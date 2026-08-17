@@ -209,6 +209,142 @@ build.no.two_joints=стене нужны ДВЕ стойки
 build.no.capacity=у стойки нет свободной грани
 build.no.deck=полу и потолку нужны горизонтальные шарниры
 build.no.roof=крыше не за что держаться
+build.no.stair_seat=маршу не за что держаться
+build.no.stair_head=над лестницей нет прохода
 build.no.other=правило не пускает
 build.ok=можно ставить
 build.palette=Что строим
+
+# Интерфейс редактора (Dear ImGui, EditorUi.cpp). ЭТО НЕ ИГРОВОЙ ИНТЕРФЕЙС:
+# меню, HUD и экран управления остаются на PixelCanvas и идут через палитру.
+#
+# Панель проверки существует ради ОДНОГО вопроса, который иначе выясняется
+# в самый неудобный момент: есть ли в шрифте нужный диапазон. Поэтому в строке
+# стоят именно Ж, Щ, Ы, Ё и строчная ё — последняя лежит в U+0451, ВНЕ
+# кириллического диапазона, который предлагает сама ImGui (0x0400-0x044F),
+# и потому пропадает первой.
+editor.ui.probe.title=Проверка интерфейса
+editor.ui.probe.pangram=Съешь ещё этих мягких французских булок, да выпей же чаю: ЖЩЫЁ жщыё
+editor.ui.probe.note=Если хоть один знак — пустой квадрат, диапазон шрифта взят неверно.
+editor.ui.probe.numbers=Числа кадра
+editor.ui.probe.field=Поиск детали
+editor.ui.probe.slider=Размер кисти, м
+editor.ui.probe.check=Привязка к сетке
+editor.ui.probe.button=Поставить
+editor.ui.probe.capture=Захват: мышь %s, клавиатура %s
+editor.ui.yes=да
+editor.ui.no=нет
+
+# ---------------------------------------------------------------------------
+# МЕНЮ ОБЪЕКТОВ (панель редактора, зона «меню объектов»). Полка — 2411 деталей,
+# поэтому первое слово здесь всегда про поиск, а не про украшение.
+#
+# ЧАСТЬ КЛЮЧЕЙ — СЛОВАРЬ САМОГО НАБОРА: palette.family.*, palette.material.*,
+# palette.style.*, palette.tag.* именуются ТОКЕНОМ ИЗ ИМЕНИ ДЕТАЛИ. Если печь
+# завтра выпустит новый материал, строки для него тут не окажется — и панель
+# ПОКАЖЕТ САМ ТОКЕН («clay»), а не заглушку «?0x...?». Это сделано нарочно:
+# отсутствие перевода не должно читаться как поломка редактора. Добавляя
+# материал в набор, допиши сюда строку — но забытая строка не ломает меню.
+#
+# В КОДЕ ЭТИХ СТРОК НЕТ НИ ОДНОЙ ПОДСТАНОВКИ (%d, %s): формат живёт в C++, а
+# здесь только слова. Опечатка переводчика в спецификаторе — это не кривой
+# текст, это неопределённое поведение, и цена ошибки не должна лежать на том,
+# кто правит перевод.
+editor.panel.parts=Объекты
+
+palette.search.hint=Поиск детали
+palette.clear=Сброс
+palette.found=Найдено:
+palette.none=Ничего не найдено. Сотри лишнее слово или сними фильтр — на полке 2411 деталей, и они никуда не делись.
+palette.selected=В руке:
+palette.nothing_picked=Ничего не выбрано
+palette.star=★
+palette.unit.m=м
+palette.size.unknown=размер не заявлен
+palette.unparsed=Имя не разобрано: фасеты неизвестны
+
+palette.favourites=Избранное
+palette.favourites.empty=Пусто. Правый клик по детали — в избранное.
+palette.only_fav=Только избранное
+palette.recents=Недавние
+palette.recents.empty=Пусто. Здесь появится то, чем строишь.
+
+palette.facet.family=Семейство
+palette.facet.material=Материал
+palette.facet.style=Кладка
+palette.facet.wear=Износ
+palette.facet.faces=Грани стойки
+palette.facet.tag=Особенности
+
+palette.sort.name=По имени
+palette.sort.size=Сначала мелкие
+palette.sort.size_desc=Сначала крупные
+palette.sort.recent=Недавние сверху
+palette.view.grid=Плитка
+palette.view.list=Список
+
+palette.faces.label=граней
+palette.faces.any=круглая — любой угол
+palette.faces.r=круглая
+palette.faces.4=4 грани — шаг 90°
+palette.faces.6=6 граней — шаг 60°
+palette.faces.8=8 граней — шаг 45°
+
+palette.wear.30=новое
+palette.wear.50=потёртое
+palette.wear.80=ветхое
+
+palette.tip.wear=Износ
+palette.tip.steps=Ступеней:
+palette.tip.measured=Габарит по мешу:
+palette.tip.tris=Треугольников:
+palette.tip.unmeasured=Меш ещё не измерен
+
+palette.family.beam=Брус
+palette.family.corner=Перевязка сруба
+palette.family.deck=Настил
+palette.family.door=Дверь
+palette.family.doorframe=Наличник двери
+palette.family.fence=Ограда
+palette.family.footing=Цоколь
+palette.family.gable=Фронтон
+palette.family.joint=Стойка
+palette.family.plank=Доска
+palette.family.post=Столб
+palette.family.roof=Скат
+palette.family.roofhip=Вальма
+palette.family.sleeper=Лежень
+palette.family.smokevent=Дымник
+palette.family.stair=Лестница
+palette.family.wall=Стена
+palette.family.window=Окно
+
+palette.material.brick=кирпич
+palette.material.clay=глина
+palette.material.dark=тёмное дерево
+palette.material.plaster=штукатурка
+palette.material.shingle=гонт
+palette.material.stone=камень
+palette.material.thatch=солома
+palette.material.tile=черепица
+palette.material.timber=дерево
+palette.material.turf=дёрн
+
+palette.style.ashlar=тёсаный камень
+palette.style.boardh=доска поперёк
+palette.style.boardv=доска вдоль
+palette.style.brick=кирпичная кладка
+palette.style.combo=камень с деревом
+palette.style.framea=фахверк, андреевский крест
+palette.style.framek=фахверк, косой подкос
+palette.style.framex=фахверк, крест
+palette.style.log=сруб
+palette.style.rubble=бутовый камень
+palette.style.steep=крутой марш
+
+palette.tag.blind=глухая
+palette.tag.cap=с капителью
+palette.tag.door=дверной проём
+palette.tag.polu=полувальма
+palette.tag.win1=одно окно
+palette.tag.win2=два окна
