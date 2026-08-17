@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 20:06:53
-Last updated: 17:08:2026 - 20:06:53
+Last updated: 18:08:2026 - 01:29:51
 Module: engine/editor
 File: engine/editor/sources/EditorBrushView.cpp
 
@@ -22,14 +22,21 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 20:06:53: Создан — панель кисти рельефа и посадки.
+- 18:08:2026 - 01:24:18: свотчи поверхностей: печь один раз, рисовать 24 px с уменьшением.
+- 18:08:2026 - 01:29:51: три попытки выпечки свотча и голос при сдаче (см. заголовок; правка от
+  хрупкости, не по воспроизведённому отказу).
 */
 
 #include "engine/editor/sources/EditorBrushView.h"
+
+#include "engine/editor/sources/EditorPaletteThumb.h"
 
 #include <imgui.h>
 
 #include <algorithm>
 #include <cstdio>
+#include <memory>
+#include <vector>
 
 namespace dfn::app {
 namespace {
@@ -67,9 +74,71 @@ constexpr SurfaceRow SURFACES[] = {
     {math::SurfaceClass::Sand, "brush.surface.sand"},
 };
 
+/// How big a swatch is baked and drawn. 32 texels is the smallest square in
+/// which the 4x4 Bayer dither of the blend band still reads as two materials
+/// rather than as noise — the band is exactly what a builder cannot picture
+/// from the word «смесь», so a swatch too small to show it would be showing
+/// him the one thing he already knew.
+constexpr int SWATCH_PX = 32;
+/// Drawn slightly smaller than baked, so the picture is minified rather than
+/// magnified: a magnified swatch shows the dither's own pixels as a pattern
+/// that exists nowhere on the ground.
+constexpr float SWATCH_DRAW_PX = 24.0f;
+
 } // namespace
 
-void draw_brush_panel(TerrainBrush& terrain, PlantBrush& plant, const BrushHooks& hooks) {
+BrushSwatches::~BrushSwatches() {
+    if (ui_ == nullptr) {
+        return;
+    }
+    for (const auto& [surface, slot] : tex_) {
+        (void)surface;
+        if (slot.texture != 0) {
+            ui_->drop_texture(slot.texture);
+        }
+    }
+}
+
+EditorTexture BrushSwatches::surface(math::SurfaceClass surface) {
+    // BAKED ONCE PER CLASS AND KEPT. The panel asks every frame for every row;
+    // baking here would be four proc-texture composes per frame for a picture
+    // that cannot change. A FAILED bake is cached as 0 too, deliberately —
+    // retrying a bake that already failed, sixty times a second, turns one
+    // missing picture into a stutter.
+    Slot& slot = tex_[surface];
+    if (slot.texture != 0 || slot.given_up) {
+        return slot.texture;
+    }
+    // ТРИ ПОПЫТКИ, А НЕ ОДНА И НЕ БЕСКОНЕЧНО. Одна попытка — то, что было, и
+    // это стоило картинок целиком: неудача запоминалась как готовый ноль, так
+    // что панель до конца сессии рисовала одни названия, а код выглядел
+    // рабочим. Бесконечные попытки — другая крайность: одна недоступная
+    // картинка превратилась бы в композицию текстуры шестьдесят раз в секунду.
+    constexpr int MAX_ATTEMPTS = 3;
+    ++slot.attempts;
+    std::vector<std::uint8_t> rgba;
+    if (ui_ != nullptr && bake_surface_swatch(surface, SWATCH_PX, rgba)) {
+        slot.texture = ui_->make_texture(static_cast<std::uint32_t>(SWATCH_PX),
+                                         static_cast<std::uint32_t>(SWATCH_PX), rgba.data());
+    }
+    if (slot.texture == 0 && slot.attempts >= MAX_ATTEMPTS) {
+        slot.given_up = true;
+        // СДАЁМСЯ ВСЛУХ. Молчащий отказ здесь неотличим от «так и задумано»:
+        // на экране в обоих случаях просто название без картинки.
+        std::fprintf(stderr,
+                     "[кисть] свотч поверхности %d не выпекся за %d попытки — "
+                     "в панели останется одно название\n",
+                     static_cast<int>(surface), MAX_ATTEMPTS);
+    }
+    return slot.texture;
+}
+
+namespace {
+
+} // namespace
+
+void draw_brush_panel(TerrainBrush& terrain, PlantBrush& plant, const BrushHooks& hooks,
+                      BrushSwatches* swatches) {
     // ---------------------------------------------------------------- ground
     ImGui::TextUnformatted(EditorUi::tr("brush.section.ground"));
     ImGui::Separator();
@@ -110,6 +179,16 @@ void draw_brush_panel(TerrainBrush& terrain, PlantBrush& plant, const BrushHooks
         ImGui::Spacing();
         ImGui::TextUnformatted(EditorUi::tr("brush.surface"));
         for (const SurfaceRow& row : SURFACES) {
+            // THE PICTURE BEFORE THE NAME. A picker that only names its classes
+            // asks the builder to remember what «смесь» looks like; the swatch
+            // is composed from the same cells and the same splat weights the
+            // ground itself is drawn with, so what he picks is what he gets.
+            if (swatches != nullptr) {
+                if (const EditorTexture tex = swatches->surface(row.surface); tex != 0) {
+                    EditorUi::image(tex, SWATCH_DRAW_PX, SWATCH_DRAW_PX);
+                    ImGui::SameLine();
+                }
+            }
             if (ImGui::RadioButton(EditorUi::tr(row.key), terrain.paint == row.surface)) {
                 terrain.paint = row.surface;
             }
@@ -177,8 +256,8 @@ void draw_brush_panel(TerrainBrush& terrain, PlantBrush& plant, const BrushHooks
     }
 }
 
-EditorPanel make_brush_panel(TerrainBrush& terrain, PlantBrush& plant, BrushHooks hooks,
-                             EditorPanelSide side) {
+EditorPanel make_brush_panel(EditorUi& ui, TerrainBrush& terrain, PlantBrush& plant,
+                             BrushHooks hooks, EditorPanelSide side) {
     EditorPanel panel;
     panel.id = "brush";
     panel.title_key = "editor.panel.brush";
@@ -187,8 +266,13 @@ EditorPanel make_brush_panel(TerrainBrush& terrain, PlantBrush& plant, BrushHook
     // CLOSED AT STARTUP. A panel the builder has to ask for is a panel that is
     // not in his way while he is doing something else.
     panel.open = false;
-    panel.draw = [&terrain, &plant, hooks = std::move(hooks)] {
-        draw_brush_panel(terrain, plant, hooks);
+    // THE CACHE LIVES AS LONG AS THE CALLBACK DOES, and dies with it: a panel
+    // re-registered on a map change destroys the old lambda, and a swatch that
+    // outlived it would be a texture leaked once per map. shared_ptr because
+    // EditorPanel::draw is a std::function and must stay copyable.
+    auto swatches = std::make_shared<BrushSwatches>(ui);
+    panel.draw = [&terrain, &plant, hooks = std::move(hooks), swatches] {
+        draw_brush_panel(terrain, plant, hooks, swatches.get());
     };
     return panel;
 }

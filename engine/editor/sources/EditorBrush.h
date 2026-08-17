@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 20:09:15
+Last updated: 18:08:2026 - 01:05:34
 Module: engine/editor
 File: engine/editor/sources/EditorBrush.h
 
@@ -16,6 +16,9 @@ Key items:
   arguing about.
 - apply_brush(): one dab into the hand-edit layer, reporting NUMBERS.
 - flatten_pad(): the flatten brush's output, which is a [pad] and not samples.
+- brush_outline(): the zone the next dab will change, drawn as rings — green up,
+  red down. Its radii are BISECTED OUT OF brush_weight() rather than recomputed,
+  so the ring cannot promise a boundary the brush does not honour.
 - PlantBrush / plant_candidates(): where a dab of vegetation WANTS to go.
   Whether it MAY is EditorPlant's question, one layer up — see below.
 
@@ -76,6 +79,11 @@ UPD:
   выкопал яму». Флаг wants_mouse сделан ОБЯЗАТЕЛЬНЫМ аргументом, а не
   подразумеваемой проверкой: подключить кисть, не решив про указатель, теперь
   невыразимо.
+- 18:08:2026 - 01:05:34: brush_outline — зона, которую кисть ИЗМЕНИТ, кольцами на земле:
+  зелёное вверх, красное вниз (слова пользователя 18.08). Радиусы НЕ считаются
+  второй формулой, а бисекцией достаются из brush_weight — того же спада, по
+  которому бьёт apply_brush. Кольцо, обещающее границу, которой кисть не
+  держится, хуже отсутствия кольца: человек перестаёт смотреть на подсказку.
 */
 
 #pragma once
@@ -216,6 +224,110 @@ struct BrushStroke {
 /// go stale, and it has no default so it cannot go unconsidered.
 [[nodiscard]] bool stroke_step(BrushStroke& stroke, bool pointer_down,
                                bool ui_wants_mouse);
+
+// ========================= THE ZONE, MADE VISIBLE ===========================
+//
+// «для кисти объектов нужно добавить отрисовку той зоны, которую я буду
+// изменять, зелёным вверх строю, красным вниз» — user, 18.08.2026.
+//
+// THE ONE THING THAT MAKES THIS HONEST: every number below is ASKED OF
+// brush_weight() — the same function apply_brush() calls on every sample — and
+// none of it is re-derived from radius_m and hardness. A second formula would
+// agree today and drift the first time the falloff was tuned, and the symptom
+// would be the worst kind there is: a ring on the screen that says the ground
+// under it is safe while the brush is quietly moving it. An outline that lies
+// is worse than no outline, because the builder stops looking.
+//
+// So the rim and the core are found by BISECTING brush_weight, which means the
+// clamp (a radius under BRUSH_MIN_RADIUS_M is widened, not obeyed) and the
+// shape of the fade are inherited rather than copied.
+//
+// WHAT THE RING STILL DOES NOT SHOW, said out loud: the brush moves LATTICE
+// SAMPLES, RELIEF_STEP_M apart, so the ground that actually changes is a
+// staircase inscribed in this circle rather than the circle. The rim is the
+// exact boundary of the weight field; no sample outside it ever moves, and the
+// outermost sample that does move is within one lattice step of it.
+
+/// WHICH WAY THE GROUND IS ABOUT TO GO — the only thing the colour says.
+enum class BrushDirection : uint8_t {
+    Up,   ///< green: the ground rises
+    Down, ///< red: the ground sinks
+    /// NO SINGLE DIRECTION, and this is a real answer rather than a fallback:
+    /// Smooth pulls some samples up and others down in one dab, and a level set
+    /// exactly at the ground moves nothing at all. Painting either of those
+    /// green or red would be the lie this whole section exists to avoid.
+    Mixed,
+    None, ///< Paint: it moves no ground whatsoever
+};
+
+/// 0xAABBGGRR, the byte order IRenderer::debug_line takes.
+inline constexpr uint32_t BRUSH_UP_GREEN = 0xFF44FF44u;
+inline constexpr uint32_t BRUSH_DOWN_RED = 0xFF4444FFu;
+/// Neither up nor down. NOT a shade of the other two: a dim green would read as
+/// "raising, weakly" at a glance, which is the reading that must not happen.
+inline constexpr uint32_t BRUSH_MIXED_BLUE = 0xFFFFCC44u;
+
+/// HOW FAR THE RING FLOATS OVER THE GROUND IT TRACES. Zero would put the line
+/// exactly on the surface it belongs to, where it loses the depth test to its
+/// own terrain and shows nothing — which is indistinguishable from a feature
+/// that was never written (the collider view learned this twice).
+inline constexpr float BRUSH_OUTLINE_LIFT_M = 0.15f;
+
+/// The outline of the zone one dab would change, ready to be drawn as lines.
+struct BrushOutline {
+    /// Where the brush stops biting: brush_weight() is exactly 0 here and past
+    /// it. This is the clamped radius, not the slider's.
+    float rim_m = 0.0f;
+    /// Where the fade STARTS: brush_weight() is still exactly 1 here. Zero on a
+    /// brush soft to its own centre, and then there is no inner ring to draw.
+    float core_m = 0.0f;
+    BrushDirection direction = BrushDirection::None;
+    uint32_t color_rgba = 0;
+    /// Rings on the ground, lifted by BRUSH_OUTLINE_LIFT_M. THE FIRST POINT IS
+    /// REPEATED AS THE LAST, so a caller draws points.size() - 1 segments and
+    /// cannot leave the ring open by an off-by-one.
+    std::vector<glm::vec3> rim;
+    std::vector<glm::vec3> core; ///< empty when core_m is 0
+};
+
+/// The outer edge of the zone this brush changes, from the falloff itself.
+///
+/// EXPECT A FRACTION OF A MILLIMETRE OFF THE ALGEBRA, and that is the feature
+/// rather than a tolerance: near the rim the smoothstep's `1 - s` rounds to
+/// exactly 0 while the distance is still a third of a millimetre short of the
+/// radius, so the brush genuinely stops biting there. These functions measure
+/// the FUNCTION, not the formula, which is the only way the ring can promise
+/// what the samples actually do.
+[[nodiscard]] float brush_rim_m(const TerrainBrush& brush);
+
+/// The edge of the flat top — where full strength ends and the fade begins.
+/// Zero-ish rather than zero on a brush with no flat top at all, for the same
+/// rounding reason; brush_outline() drops an inner ring narrower than the
+/// ground's own lattice, since a ring around one sample separates nothing.
+[[nodiscard]] float brush_core_m(const TerrainBrush& brush);
+
+/// `ground_m` is the FINISHED ground under the crosshair, and only Flatten
+/// reads it: its direction is the sign of (target height - the ground there),
+/// which is the pad's own claim rather than a second copy of anything.
+[[nodiscard]] BrushDirection brush_direction(const TerrainBrush& brush, float ground_m);
+
+/// Green up, red down, blue for neither — and for Paint the surface's own
+/// swatch, because there is no up or down in painting what the ground is made
+/// of, and green there would answer a question nobody asked.
+[[nodiscard]] uint32_t brush_outline_color(const TerrainBrush& brush,
+                                           BrushDirection direction);
+
+/// Segments in a ring of this radius: about a metre of arc each, bounded both
+/// ways. A fixed count makes a 64 m brush a visible polygon and a 2 m one a
+/// waste of lines.
+[[nodiscard]] int brush_outline_segments(float rim_m);
+
+/// The whole outline, computed WITHOUT A RENDERER (Rule 3) so the geometry can
+/// be measured by a test rather than judged from a screenshot. `ground` is the
+/// finished ground — hand edits included — since that is the surface the ring
+/// has to hug and the surface the builder is looking at.
+[[nodiscard]] BrushOutline brush_outline(const TerrainBrush& brush, glm::vec2 centre,
+                                         const BrushGround& ground);
 
 // ============================ THE VEGETATION ================================
 

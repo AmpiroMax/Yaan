@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:55:58
+Last updated: 18:08:2026 - 01:29:51
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -406,6 +406,42 @@ UPD:
   читается один раз и кладётся обоим (правило 32), а промах поиска говорит
   вслух — молчащий промах и есть причина, по которой отказ дожил до
   пользователя.
+- 18:08:2026 - 01:13:17: У ДЕТАЛЕЙ В МЕНЮ ПОЯВИЛАСЬ КАРТИНКА (заказ 18.08: «нужно
+  чтобы там на белом фоне сам объект был нарисован»). Крючок thumbnail жил в
+  PaletteHooks с 17.08 и не был подключён НИКЕМ: панель спрашивала картинку
+  каждый кадр, получала 0 и рисовала подпись — 2412 названий и ни одного
+  предмета. Здесь только провод: выпечка зовёт build_extent — ТУ ЖЕ загрузку с
+  полки, что у призрака (правило 32), — и bake_object_thumbnail; отдача идёт
+  через editor_ui_.make_texture. Всё, что решает (ракурс, кадрирование по
+  измеренной коробке, бюджет кадра, потолок кэша), живёт в
+  engine/editor/sources/EditorPaletteThumb.* и меряется рукавом
+  app_editor_palette без окна.
+- 18:08:2026 - 01:14:51: ЗОНА КИСТИ ВИДНА (заказ 18.08: «для кисти объектов нужно добавить
+  отрисовку той зоны, которую я буду изменять, зелёным вверх строю, красным
+  вниз»). Два кольца под прицелом — обод и плоская вершина, — цвет говорит
+  направление. Геометрия НЕ СЧИТАЕТСЯ ЗДЕСЬ: brush_outline() достаёт обод
+  бисекцией из brush_weight(), той самой, по которой бьёт apply_brush; круг,
+  нарисованный тут из radius_m, прошёл бы мимо зажима малого радиуса и обещал
+  бы кисть в 40 см, пока двигаются два метра земли. Дверь линий открывается
+  выбором кисти — так же, как её открывает список объектов для призрака.
+  ДВЕРЬ DFN_EDITOR_TOOL=1..5 — инструмент без нажатия клавиши: рисование зоны
+  целиком экранная вещь, а такую нечем доказать, кроме кадра (правило 27).
+  Читает ТУ ЖЕ таблицу, что и клавиши, поэтому дверь и клавиша не могут
+  разъехаться. И ПРИЁМОЧНЫЙ КАДР СРАЗУ НАШЁЛ ОТКАЗ: высота образца вне
+  подгруженных чанков падала на 0, и кольцо висело на 26 м ниже прицела —
+  теперь неизвестная земля берётся с высоты САМОГО прицела.
+- 18:08:2026 - 01:29:51: ДВЕ НАХОДКИ С ПРИЁМОЧНОГО КАДРА, обе невидимые для рукавов.
+  (1) СПИСОК ПОРОД ДЛЯ ПОСАДКИ ПРЕДЛАГАЛ БРУСЬЯ. Он читал полку ИЗ МАНИФЕСТА
+  («та же, из которой призрак берёт детали»), а на карте домов она равна
+  assets/objects/parts;assets/objects/signs — и в списке растительности стояло
+  beam-dark-12x1x1-w03 и далее по полке. Ни один рукав этого не поймал: список
+  это строки из каталога, а любые строки выглядят одинаково правильными.
+  Дерево — не деталь дома, и полка у него своя: assets/objects/trees. Пустая
+  полка теперь говорит вслух. Проверено кадром: осина, берёза, великий дуб.
+  (2) Дверь DFN_EDITOR_BRUSH=1 — открыть панель кисти на беспилотном прогоне.
+  Заведена по той же причине, что DFN_EDITOR_PARTS часом раньше: панель
+  начинается закрытой, свотчи земли существуют только на экране, и без двери
+  единственным доказательством было бы чьё-то слово (правило 27).
 */
 
 #include "engine/app/sources/App.h"
@@ -416,6 +452,10 @@ UPD:
 #include "engine/app/sources/EditorHud.h"
 #include "engine/app/sources/HudScreen.h"
 #include "engine/app/sources/Localization.h"
+// The object menu's pictures. Included HERE and not in App.h on purpose: only
+// wire_editor_panels() names it, and App.h is already the widest header in the
+// tree.
+#include "engine/editor/sources/EditorPaletteThumb.h"
 // Generated at BUILD time by tools/stamp_build_commit.cmake; carries
 // DFN_BUILD_COMMIT into every state capture. See that script for why the
 // configure-time version was a defect rather than a simplification.
@@ -3893,6 +3933,43 @@ void App::wire_editor_panels() {
         out.known = true;
         return true;
     };
+    // КАРТИНКА ДЕТАЛИ. Крючок thumbnail существовал с 17.08 и не был подключён
+    // никем — панель спрашивала картинку каждый кадр, получала 0 и рисовала
+    // подпись, то есть пользователь видел 2412 названий и ни одного предмета
+    // («у объектов в меню объектов нет всё ещё предпросмотра», 18.08).
+    //
+    // ПОЧЕМУ КЭШ — СТАТИК ФУНКЦИИ, А НЕ ПОЛЕ App. Эта функция выполняется РОВНО
+    // ОДИН РАЗ (palette_wired_), а зона правки — App.cpp; поле потребовало бы
+    // App.h, который сейчас правят другие. Живёт до конца процесса, деструктор
+    // текстур не трогает (их отдаёт clear(), и звать её после гибели интерфейса
+    // нельзя) — то есть на выходе они просто уходят вместе с контекстом.
+    static ThumbCache thumbs;
+    thumbs.set_bake([this](const std::string& name, int px, std::vector<std::uint8_t>& rgba) {
+        // ТА ЖЕ ЗАГРУЗКА, ЧТО У ПРИЗРАКА (правило 32): build_extent приносит
+        // деталь с полки в scene_objects_, если её там ещё нет. Второй свой
+        // читатель .dfo разъехался бы с первым в тот день, когда полка сменит
+        // имя, и разъехался бы молча.
+        BuildJudgeCtx ctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
+        if (build_extent(&ctx, name) == nullptr) {
+            return false;
+        }
+        const auto it = scene_objects_.find(name);
+        if (it == scene_objects_.end()) {
+            return false;
+        }
+        return bake_object_thumbnail(it->second, px, rgba);
+    });
+    thumbs.set_upload([this](int px, const std::uint8_t* rgba) {
+        return static_cast<std::uint64_t>(editor_ui_.make_texture(
+            static_cast<std::uint32_t>(px), static_cast<std::uint32_t>(px), rgba));
+    });
+    thumbs.set_drop([this](std::uint64_t texture) {
+        editor_ui_.drop_texture(static_cast<EditorTexture>(texture));
+    });
+    hooks.thumbnail = [](const std::string& name, int px) {
+        return static_cast<EditorTexture>(thumbs.get(name, px));
+    };
+    hooks.begin_frame = []() { thumbs.begin_frame(); };
     hooks.on_pick = [this](const std::string& name) {
         // Рука берёт то, что выбрали: призрак меняется в тот же кадр.
         for (std::size_t g = 0; g < build_groups_.size(); ++g) {
@@ -3931,17 +4008,31 @@ void App::wire_editor_panels() {
     };
     bh.species = [this]() -> const std::vector<std::string>& {
         if (plant_species_.empty()) {
-            // Read ONCE: a directory listing per frame is a directory listing
-            // per frame. The shelf is the same one the ghost buys parts from.
-            for (const BuildGroup& g : build_palette(gallery_objects_dir_)) {
+            // ПОСАДКА ЧИТАЕТ ПОЛКУ ДЕРЕВЬЕВ, А НЕ ПОЛКИ КАРТЫ, и это разбор
+            // найденного глазами отказа. Здесь стояла полка ИЗ МАНИФЕСТА —
+            // «та же, из которой призрак берёт детали», — а на карте домов она
+            // равна `assets/objects/parts;assets/objects/signs`. Поэтому список
+            // пород для посадки растительности предлагал БРУСЬЯ:
+            // beam-dark-12x1x1-w03 и далее по полке. Ни один рукав этого не
+            // видел, потому что список — строки из каталога, и любые строки
+            // выглядят одинаково правильными; нашёлся он на приёмочном кадре.
+            // Дерево — не деталь дома, и полка у него своя.
+            static constexpr const char* TREES = "assets/objects/trees";
+            for (const BuildGroup& g : build_palette(TREES)) {
                 for (const std::string& n : g.names) {
                     plant_species_.push_back(n);
                 }
             }
+            if (plant_species_.empty()) {
+                std::fprintf(stderr,
+                             "[посадка] полка деревьев «%s» пуста — сажать нечем\n",
+                             TREES);
+            }
         }
         return plant_species_;
     };
-    EditorPanel brush = make_brush_panel(terrain_brush_, plant_brush_, std::move(bh),
+    EditorPanel brush = make_brush_panel(editor_ui_, terrain_brush_, plant_brush_,
+                                         std::move(bh),
                                          EditorPanelSide::Left);
     brush.on_toolbar = true;
     editor_ui_.add_panel(std::move(brush));
@@ -4144,6 +4235,11 @@ void App::update_editor_tools(float dt_s) {
         } else if (terrain_brush_.mode == BrushMode::Paint) {
             terrain_brush_.mode = BrushMode::Raise;
         }
+        // THE ZONE'S OUTLINE IS LINES, so picking up a brush opens that door —
+        // the same way the palette opens it for the ghost. Asking the builder
+        // to set an environment variable before the tool can show him where it
+        // is about to bite would be a tool that does not work.
+        renderer_->set_debug_lines(true);
         // stroke_step TAKES wants_mouse AS AN ARGUMENT, not as a promise: a
         // stroke that began on a slider stays blocked until the button is let
         // go, so dragging the size off the panel edge cannot start digging
@@ -4596,14 +4692,70 @@ int App::run() {
                                  EditorUi::tool_name(tk.tool));
                 }
             }
+            // DOOR: DFN_EDITOR_TOOL=1..5 picks a tool without a keypress. The
+            // brush's zone outline is ENTIRELY a thing on screen, and a feature
+            // like that has to be photographable by an unattended run or its
+            // only proof is somebody's word (Rule 27).
+            //
+            // IT READS THE SAME TABLE THE KEYS DO, one line above, so the door
+            // and the key cannot drift into meaning different tools — and the
+            // numbering is the user's own, the one the toolbar prints.
+            static const int tool_door = [] {
+                const char* v = std::getenv("DFN_EDITOR_TOOL");
+                return v != nullptr ? std::atoi(v) : 0;
+            }();
+            static bool tool_door_used = false;
+            constexpr int TOOL_COUNT = static_cast<int>(sizeof(TOOL_KEYS)
+                                                        / sizeof(TOOL_KEYS[0]));
+            if (!tool_door_used && tool_door >= 1 && tool_door <= TOOL_COUNT) {
+                tool_door_used = true;
+                editor_ui_.set_tool(TOOL_KEYS[tool_door - 1].tool);
+                std::fprintf(stderr, "[editor] дверь DFN_EDITOR_TOOL=%d: режим %s\n",
+                             tool_door, EditorUi::tool_name(editor_ui_.tool()));
+            } else if (!tool_door_used && tool_door != 0) {
+                tool_door_used = true;
+                // A DOOR THAT SILENTLY DOES NOTHING is worse than no door: the
+                // run photographs the default tool and the frame looks like the
+                // feature is missing.
+                std::fprintf(stderr, "[editor] DFN_EDITOR_TOOL=%d вне 1..%d — "
+                                     "инструмент НЕ переключён\n",
+                             tool_door, TOOL_COUNT);
+            }
         }
         if (!chat_typing && action_pressed(Action::CursorToggle)) {
             cursor_free_ = !cursor_free_;
             std::fprintf(stderr, "[editor] курсор: %s\n",
                          cursor_free_ ? "мышь (указываю)" : "камера (смотрю)");
         }
+        // ДВЕРЬ: DFN_EDITOR_PARTS=1 — ОДНО нажатие «меню объектов» на беспилотном
+        // прогоне. Картинка детали существует только на экране, и без этой двери
+        // единственным доказательством, что она там есть, было бы чьё-то слово
+        // (правило 27). Дверь подаёт ровно то, что подаёт РУКА, — нажатие, — и
+        // дальше идёт ТЕМ ЖЕ телом, что и клавиша: отдельный путь сфотографировал
+        // бы функцию, до которой щелчок только добрался бы (урок 17.08 в
+        // EditorUi.h, стоивший зоне вечера).
+        // ДВЕРЬ: DFN_EDITOR_BRUSH=1 — то же самое для ПАНЕЛИ КИСТИ. Заведена по
+        // той же причине и в тот же час: свотчи поверхностей существуют только
+        // на экране, панель начинается закрытой, и без двери единственным
+        // доказательством, что картинки земли там есть, было бы чьё-то слово.
+        static const bool brush_door = std::getenv("DFN_EDITOR_BRUSH") != nullptr;
+        static bool brush_door_used = false;
+        if (brush_door && !brush_door_used && mode_ == AppMode::Editor) {
+            brush_door_used = true;
+            wire_editor_panels();
+            editor_ui_.set_panel_open("brush", true);
+            std::fprintf(stderr, "[editor] дверь DFN_EDITOR_BRUSH: панель кисти открыта\n");
+        }
+        static const bool parts_door = std::getenv("DFN_EDITOR_PARTS") != nullptr;
+        static bool parts_door_used = false;
+        bool parts_press = false;
+        if (parts_door && !parts_door_used && mode_ == AppMode::Editor) {
+            parts_door_used = true;
+            parts_press = true;
+            std::fprintf(stderr, "[editor] дверь DFN_EDITOR_PARTS: нажатие «меню объектов»\n");
+        }
         if (!chat_typing && mode_ == AppMode::Editor
-            && action_pressed(Action::BuildMenu)) {
+            && (action_pressed(Action::BuildMenu) || parts_press)) {
             build_open_ = !build_open_;
             wire_editor_panels();
             editor_ui_.set_panel_open(PALETTE_PANEL_ID, build_open_);
@@ -5802,6 +5954,50 @@ int App::run() {
             if (build_target_ < scene_doc_.placements.size()) {
                 outline(scene_doc_.placements[build_target_], DOOMED);
             }
+        }
+        // THE ZONE THE BRUSH IS ABOUT TO CHANGE (user, 18.08: «для кисти
+        // объектов нужно добавить отрисовку той зоны, которую я буду изменять,
+        // зелёным вверх строю, красным вниз»). Two rings: the RIM, where the
+        // brush stops biting, and the flat top, where the falloff begins — so
+        // the picture carries the same two numbers the stroke does.
+        //
+        // ITS GEOMETRY IS NOT COMPUTED HERE. brush_outline() bisects the rim
+        // out of brush_weight(), the very function apply_brush() calls on every
+        // sample; a circle drawn from radius_m here would ignore the minimum
+        // radius clamp and promise a 40 cm brush while two metres of ground
+        // moved. A ring that lies is worse than no ring at all.
+        if (mode_ == AppMode::Editor
+            && (editor_ui_.tool() == EditorTool::HeightBrush
+                || editor_ui_.tool() == EditorTool::SurfacePaint)) {
+            const glm::vec3 aim = editor_aim_point();
+            // WHERE THE RING SITS WHEN THE GROUND IS NOT KNOWN, and it must not
+            // be zero. A sample outside every resident chunk has no height, and
+            // falling back to sea level drops that part of the ring tens of
+            // metres below the crosshair — caught in the acceptance frame, where
+            // the whole outline hung near the bottom of the screen while the aim
+            // was in the middle of it. The honest fallback is the height of the
+            // point the builder is actually aiming at: "the ground here is not
+            // loaded, so the ring stays level with your aim".
+            struct RingGround {
+                world::ChunkManager* chunks;
+                float fallback_y;
+            } rg{&chunks_, aim.y};
+            BrushGround ground;
+            ground.ctx = &rg;
+            // THE FINISHED GROUND, hand edits included: the ring has to hug the
+            // surface the builder is looking at, not the one under his edits.
+            ground.base_at = [](void* c, glm::vec2 xz) {
+                auto* g = static_cast<RingGround*>(c);
+                return g->chunks->height_at(xz).value_or(g->fallback_y);
+            };
+            const BrushOutline zone = brush_outline(terrain_brush_, {aim.x, aim.z}, ground);
+            const auto stroke_ring = [&](const std::vector<glm::vec3>& pts) {
+                for (std::size_t i = 0; i + 1 < pts.size(); ++i) {
+                    renderer_->debug_line(pts[i], pts[i + 1], zone.color_rgba);
+                }
+            };
+            stroke_ring(zone.rim);
+            stroke_ring(zone.core);
         }
         if (collider_debug_) {
             constexpr uint32_t WIRE = 0xFF44FF44u; // 0xAABBGGRR: green

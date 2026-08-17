@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 21:04:27
+Last updated: 18:08:2026 - 01:10:51
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.cpp
 
@@ -46,6 +46,9 @@ UPD:
 - 17:08:2026 - 21:04:27: главный путь — семейный. Пустая строка поиска ведёт в сетку семейств и
   дальше в свойства; любой набранный символ проваливается в прежний плоский
   список. Меняется главный путь, а не единственный.
+- 18:08:2026 - 01:10:51: hooks.begin_frame зовётся первой строкой отрисовки — это
+  часы бюджета миниатюр, и ничего больше в этом файле не поменялось: картинку
+  по-прежнему спрашивает draw_part, по-прежнему по видимым строкам.
 */
 
 #include "engine/editor/sources/EditorPaletteView.h"
@@ -343,6 +346,9 @@ void draw_family_page(PaletteModel& model, const PaletteHooks& hooks);
 // ---------------------------------------------------------------------------
 
 void draw_parts_panel(PaletteModel& model, const PaletteHooks& hooks) {
+    if (hooks.begin_frame) {
+        hooks.begin_frame(); // the thumbnail budget's clock — see PaletteHooks
+    }
     if (hooks.measure) {
         model.set_measure_source(hooks.measure);
     }

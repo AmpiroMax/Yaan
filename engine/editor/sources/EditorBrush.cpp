@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 20:09:15
+Last updated: 18:08:2026 - 01:05:34
 Module: engine/editor
 File: engine/editor/sources/EditorBrush.cpp
 
@@ -29,6 +29,11 @@ UPD:
   (plant_dab, edit_placement и разбор вердикта по разности) уехала в
   engine/app/sources/EditorPlant.cpp — ей нужен BuildTool, а он выше по слоям.
 - 17:08:2026 - 20:09:15: stroke_step — решение на нажатии, а не покадрово (см. заголовок).
+- 18:08:2026 - 01:05:34: brush_outline и его радиусы. Обе границы — обод и плоская
+  вершина — ДОСТАЮТСЯ ИЗ brush_weight бисекцией, поэтому зажим малого радиуса и
+  форма спада наследуются, а не переписываются. Цвет: зелёный вверх, красный
+  вниз, синий когда направления НЕТ (сглаживание тянет одни образцы вверх, а
+  другие вниз), масть поверхности — для кисти покраски.
 */
 
 #include "engine/editor/sources/EditorBrush.h"
@@ -276,6 +281,183 @@ bool stroke_step(BrushStroke& stroke, bool pointer_down, bool ui_wants_mouse) {
     // Interrupting it there would tear a sculpted ridge in half at the panel's
     // edge, which is a defect the builder would blame on the brush.
     return stroke.active;
+}
+
+// ========================= THE ZONE, MADE VISIBLE ===========================
+
+namespace {
+
+/// A bracket around the last distance at which `pred` still holds. `pred` must
+/// be monotone — true up to some boundary and false past it — which brush_weight
+/// guarantees by being non-increasing.
+struct Bracket {
+    float lo = 0.0f; ///< the last distance where the predicate held
+    float hi = 0.0f; ///< the first distance where it did not
+};
+
+/// THE WHOLE HONESTY ARGUMENT LIVES HERE. The ring's radii are not computed
+/// from radius_m and hardness a second time — they are MEASURED off the falloff
+/// the brush actually applies. Change brush_weight and the outline follows;
+/// there is no second definition to forget (Rule 32).
+template <class Pred>
+[[nodiscard]] Bracket narrow(Pred pred, float lo, float hi) {
+    // Float bisection bottoms out at adjacent representables well before 48
+    // halvings; the guard is the loop bound, the break is the real exit.
+    for (int i = 0; i < 48; ++i) {
+        const float mid = 0.5f * (lo + hi);
+        if (!(mid > lo) || !(mid < hi)) {
+            break;
+        }
+        (pred(mid) ? lo : hi) = mid;
+    }
+    return {lo, hi};
+}
+
+/// An upper bound that is certainly outside the brush, found by asking rather
+/// than by reading radius_m — otherwise the clamp would be duplicated here.
+[[nodiscard]] float outside_bound(const TerrainBrush& brush) {
+    float hi = 1.0f;
+    for (int guard = 0; guard < 64; ++guard) {
+        if (brush_weight(hi, brush.radius_m, brush.hardness) <= 0.0f) {
+            return hi;
+        }
+        hi *= 2.0f;
+    }
+    return hi;
+}
+
+/// THE SWATCH, for the surface brush. Painting has no up and no down, so
+/// green/red would answer a question nobody asked; the ring wears the colour of
+/// what is about to be painted instead. These are recognition colours for a
+/// line on screen, not the terrain's rendered shade — the ground's own look is
+/// the shader's business and copying it here would be a second palette to keep
+/// in step for no gain.
+[[nodiscard]] uint32_t surface_swatch(math::SurfaceClass surface) {
+    switch (surface) {
+    case math::SurfaceClass::Grass:          return 0xFF4AA85Au;
+    case math::SurfaceClass::GrassRockBlend: return 0xFF78928Cu;
+    case math::SurfaceClass::Rock:           return 0xFFA09A9Au;
+    case math::SurfaceClass::Sand:           return 0xFF88C8D8u;
+    case math::SurfaceClass::WaterBed:       return 0xFFC87A3Au;
+    }
+    return 0xFFFFFFFFu;
+}
+
+} // namespace
+
+float brush_rim_m(const TerrainBrush& brush) {
+    const auto inside = [&brush](float d) {
+        return brush_weight(d, brush.radius_m, brush.hardness) > 0.0f;
+    };
+    // THE FIRST DISTANCE THAT IS OUT, not the last one that is in: a ring drawn
+    // on `lo` would sit a float inside the brush and claim the rim is untouched
+    // when the rim is exactly where the weight reaches zero.
+    return narrow(inside, 0.0f, outside_bound(brush)).hi;
+}
+
+float brush_core_m(const TerrainBrush& brush) {
+    const auto full = [&brush](float d) {
+        return brush_weight(d, brush.radius_m, brush.hardness) >= 1.0f;
+    };
+    if (!full(0.0f)) {
+        return 0.0f; // cannot happen for the real falloff; not assumed anyway
+    }
+    // THE LAST DISTANCE STILL AT FULL STRENGTH. A soft brush (hardness 0) has
+    // none, and the bisection returns 0 on its own — no special case, because a
+    // special case here would be a third statement about where the fade starts.
+    return narrow(full, 0.0f, brush_rim_m(brush)).lo;
+}
+
+BrushDirection brush_direction(const TerrainBrush& brush, float ground_m) {
+    switch (brush.mode) {
+    case BrushMode::Raise:
+        return BrushDirection::Up;
+    case BrushMode::Lower:
+        return BrushDirection::Down;
+    case BrushMode::Smooth:
+        // ONE DAB, BOTH WAYS. Smoothing pulls a bump down and fills the dip
+        // beside it in the same stroke, so neither colour is true of it, and
+        // picking one would teach the builder a direction the tool does not have.
+        return BrushDirection::Mixed;
+    case BrushMode::Flatten:
+        if (brush.flatten_height_m > ground_m) {
+            return BrushDirection::Up;
+        }
+        if (brush.flatten_height_m < ground_m) {
+            return BrushDirection::Down;
+        }
+        return BrushDirection::Mixed; // level with the ground: nothing moves
+    case BrushMode::Paint:
+        return BrushDirection::None;
+    }
+    return BrushDirection::None;
+}
+
+uint32_t brush_outline_color(const TerrainBrush& brush, BrushDirection direction) {
+    if (brush.mode == BrushMode::Paint) {
+        return surface_swatch(brush.paint);
+    }
+    switch (direction) {
+    case BrushDirection::Up:
+        return BRUSH_UP_GREEN;
+    case BrushDirection::Down:
+        return BRUSH_DOWN_RED;
+    case BrushDirection::Mixed:
+    case BrushDirection::None:
+        break;
+    }
+    return BRUSH_MIXED_BLUE;
+}
+
+int brush_outline_segments(float rim_m) {
+    const int wanted = static_cast<int>(std::lround(6.2831853 * static_cast<double>(rim_m)));
+    return std::clamp(wanted, 24, 128);
+}
+
+BrushOutline brush_outline(const TerrainBrush& brush, glm::vec2 centre,
+                           const BrushGround& ground) {
+    BrushOutline out;
+    out.rim_m = brush_rim_m(brush);
+    out.core_m = brush_core_m(brush);
+    const auto ground_at = [&ground](glm::vec2 p) {
+        return ground.base_at != nullptr ? ground.base_at(ground.ctx, p) : 0.0f;
+    };
+    out.direction = brush_direction(brush, ground_at(centre));
+    out.color_rgba = brush_outline_color(brush, out.direction);
+
+    const int segments = brush_outline_segments(out.rim_m);
+    const auto ring = [&](float radius, std::vector<glm::vec3>& into) {
+        if (radius <= 0.0f) {
+            return;
+        }
+        into.reserve(static_cast<std::size_t>(segments) + 1);
+        for (int i = 0; i <= segments; ++i) {
+            // `i % segments` on the last step, so the closing point is the
+            // FIRST one bit for bit rather than a second point that rounds to
+            // almost the same place and leaves a hairline gap.
+            const float a = 6.2831853f * static_cast<float>(i % segments)
+                          / static_cast<float>(segments);
+            const glm::vec2 p{centre.x + std::cos(a) * radius,
+                              centre.y + std::sin(a) * radius};
+            into.push_back({p.x, ground_at(p) + BRUSH_OUTLINE_LIFT_M, p.y});
+        }
+    };
+    ring(out.rim_m, out.rim);
+    // THE INNER RING ONLY WHEN THERE IS SOMETHING INSIDE IT. A flat top
+    // narrower than the ground's own lattice holds no sample but the one under
+    // the crosshair, so a ring around it separates nothing — it is a dot at the
+    // aim point that the builder would read as a boundary.
+    //
+    // AND WITHOUT THIS FLOOR EVERY SOFT BRUSH WOULD WEAR A SPECK: at hardness 0
+    // the algebraic flat top is zero, but the smoothstep still returns EXACTLY
+    // 1.0f for the first few hundred microns (1 - 3t² rounds to 1 while
+    // t < 1e-4), and brush_core_m reports that truthfully because it measures
+    // the function rather than the formula. Under a millimetre is true and not
+    // worth a line.
+    if (out.core_m >= world::RELIEF_STEP_M) {
+        ring(out.core_m, out.core);
+    }
+    return out;
 }
 
 // ============================ THE VEGETATION ================================

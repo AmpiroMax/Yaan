@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 18:08:2026 - 00:07:07
+# Last updated: 18:08:2026 - 01:07:17
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -49,6 +49,16 @@
 #   отрисовка, ни одной функции модели, и рукав не звал из него ничего.
 #   Полный прогон после починки: 78 из 79. Красный один — render_proc_flora
 #   (ива Reduced, 1 утверждение из 1 312 895), он был красным и до этой правки.
+# - 18:08:2026 - 01:05:34: EditorBrushOutlineTests.cpp — на ТОТ ЖЕ рукав app_editor_brush.
+#   Контур зоны кисти это тот же предмет и та же кисть; разрез — только правило 21
+#   (800 строк). Отдельный исполняемый дал бы гонять половинки одного утверждения
+#   порознь, а так теряется парное плечо.
+# - 18:08:2026 - 01:07:17: EditorPaletteThumbTests.cpp — ПРЕДПРОСМОТР в рукаве меню объектов.
+#   Кадр доказывает, что плитки нарисованы, и не может показать ровно три вещи,
+#   которыми эта работа бывает тихо неправа: что связь 0.25 м и брус 4.6 м
+#   кадрируются ОДНИМ правилом (побайтово один и тот же снимок), что деталь,
+#   показанная в трёх местах, выпечена ОДИН раз, и что прокрутка всей полки не
+#   набирает 356 МБ текстур. Всё три — числа здесь.
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -80,10 +90,17 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # останется, если нажму», и что размер из имени сходится с меркой меша.
     add_dfn_test(app_editor_palette app/EditorPaletteTests.cpp dfn_world dfn_render dfn_core)
     target_sources(app_editor_palette PRIVATE ${CMAKE_SOURCE_DIR}/tests/app/EditorPaletteAxesTests.cpp)
+    # ПРЕДПРОСМОТР ДЕТАЛИ. Он попадает в рукав ровно потому, что нарисован на
+    # ЦПУ: ракурс, кадрирование, затенение, бюджет кадра и потолок кэша — всё
+    # это числа, которые читаются обратно ИЗ ПИКСЕЛЕЙ, без окна и без ImGui
+    # (правило 3). Офскрин-проход дал бы то же меню и ни одной проверки.
+    target_sources(app_editor_palette PRIVATE ${CMAKE_SOURCE_DIR}/tests/app/EditorPaletteThumbTests.cpp)
     target_sources(app_editor_palette PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPalette.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteAxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteState.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteThumb.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteThumbCache.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
     # EditorPaletteFamily.cpp СЮДА НЕ ВХОДИТ, и это не забывчивость: в нём одна
     # только отрисовка ImGui, ни одной функции модели, и рукав не зовёт из него
@@ -108,7 +125,12 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # it, or the claim is untestable), and that a plant's refusal comes from
     # world::check_scene rather than from a second copy of its rules.
     add_dfn_test(app_editor_brush app/EditorBrushTests.cpp dfn_world dfn_render dfn_core)
+    # THE OUTLINE OF THE ZONE rides on the SAME target rather than a new one:
+    # it is the same subject and the same brush, and the split is Rule 21's 800
+    # line limit and nothing else. A second executable would let the two halves
+    # of one claim be run separately, which is how a paired arm goes missing.
     target_sources(app_editor_brush PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests/app/EditorBrushOutlineTests.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorPlant.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorBrush.cpp)

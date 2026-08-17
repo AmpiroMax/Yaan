@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 21:04:27
+Last updated: 18:08:2026 - 01:10:51
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.h
 
@@ -48,6 +48,13 @@ UPD:
 - 17:08:2026 - 21:04:27: у крючка миниатюры появился size_px — ПОЖЕЛАНИЕ, не требование, и кэш по
   ИМЕНИ: иначе одна деталь легла бы в атлас трижды (44 в полосе, 96 в плитке,
   192 в предпросмотре).
+- 18:08:2026 - 01:10:51: begin_frame — часы бюджета миниатюр. Крючок thumbnail
+  существовал с 17.08 и НЕ БЫЛ ПОДКЛЮЧЁН НИКЕМ: панель честно спрашивала
+  картинку каждый кадр и каждый кадр получала 0, то есть у пользователя было
+  меню из 2412 подписей (его слова 18.08: «нет всё ещё предпросмотра что это за
+  объекты, только название»). Отвечает на него теперь ThumbCache
+  (EditorPaletteThumb.h), а «раз в кадр» значит ровно те кадры, в которых эта
+  панель рисуется, — потому часы здесь, а не в цикле приложения.
 */
 
 #pragma once
@@ -77,6 +84,14 @@ struct PaletteHooks {
     /// the menu opens has two or three dozen of them visible at once, and that
     /// is exactly the frame a builder is watching.
     std::function<EditorTexture(const std::string& name, int size_px)> thumbnail;
+
+    /// THE BUDGET'S CLOCK. Called once, at the top of the panel's draw, so
+    /// whoever answers `thumbnail` knows a new frame has begun and may refill
+    /// its allowance. It lives here rather than in the app's frame loop for a
+    /// reason worth keeping: the only frames in which a thumbnail is asked for
+    /// are the frames this panel draws, so this is the exact place "per frame"
+    /// means something. Optional, like the rest.
+    std::function<void()> begin_frame;
 
     /// The part's measured extent and triangle count (render::measure_object).
     /// Same contract as PaletteModel::MeasureFn; wired straight through.

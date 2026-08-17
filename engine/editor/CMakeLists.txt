@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 19:22:32
-# Last updated: 17:08:2026 - 22:01:29
+# Last updated: 18:08:2026 - 01:00:57
 # File: engine/editor/CMakeLists.txt
 #
 # Responsibility:
@@ -49,6 +49,14 @@
 #   (заказ 17.08: «справа должно окно рисоваться с его характеристиками, я должен
 #   уметь их менять»). Режим «Выбор» до сих пор не показывал НИЧЕГО.
 
+# - 18:08:2026 - 01:00:57: EditorPaletteThumb/ThumbCache — предпросмотр детали (заказ 18.08:
+#   «нужно чтобы там на белом фоне сам объект был нарисован»). Рисуется на ЦПУ:
+#   офскрин-проход потребовал бы цели рендера, прохода, программы и сабмита —
+#   четырёх вещей из engine/platform, ни одну из которых нельзя завести в тесте,
+#   а деталь это пара тысяч плоскозатенённых треугольников. dfn_render стал
+#   PUBLIC: заголовок называет его типы в СВОЁМ интерфейсе, и крючок выпечки
+#   собирается в engine/app ровно по ним.
+
 add_library(dfn_editor STATIC
     sources/EditorBrush.cpp
     sources/EditorBrushView.cpp
@@ -57,11 +65,17 @@ add_library(dfn_editor STATIC
     sources/EditorPaletteAxes.cpp
     sources/EditorPaletteFamily.cpp
     sources/EditorPaletteState.cpp
+    sources/EditorPaletteThumb.cpp
+    sources/EditorPaletteThumbCache.cpp
     sources/EditorPaletteView.cpp
     sources/EditorPropsView.cpp)
 target_link_libraries(dfn_editor
     # dfn_world is PUBLIC because EditorBrush.h names its types in its own
     # interface (ReliefLayer, ScenePad): anyone who includes the brush needs
     # them too, and a PRIVATE link would compile here and fail at the caller.
-    PUBLIC dfn_headers dfn_world
+    #
+    # dfn_render is PUBLIC for the same reason and for one more: EditorPaletteThumb.h
+    # names render::MeshData / RegistryObject / ProcTextureKind in ITS interface,
+    # and engine/app builds the bake hook against exactly those types.
+    PUBLIC dfn_headers dfn_world dfn_render
     PRIVATE dfn_imgui dfn_platform_render)

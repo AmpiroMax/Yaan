@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 17:08:2026 - 19:25:28
+# Last updated: 17:08:2026 - 20:06:29
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -60,6 +60,10 @@ set(DFN_APP_DEPS
     dfn_platform_audio
     dfn_platform_llm)
 
+# - 17:08:2026 - 20:06:29: EditorPlant.cpp — судейская половина посадки растительности
+#                          (зона кистей). Раскол EditorBrush по слоям: механика
+#                          уехала в engine/editor вместе с панелью, а вердикт
+#                          остался здесь, где живёт BuildTool.
 set(DFN_APP_READY TRUE)
 foreach(dep IN LISTS DFN_APP_DEPS)
     if(NOT TARGET ${dep})
@@ -80,6 +84,7 @@ if(DFN_APP_READY)
         sources/Controls.cpp
         sources/DebugOverlay.cpp
         sources/EditorCamera.cpp
+        sources/EditorPlant.cpp
         sources/EditorHud.cpp
         sources/HudScreen.cpp
         sources/Localization.cpp
