@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 14:46:25
-# Last updated: 17:08:2026 - 15:22:41
+# Last updated: 17:08:2026 - 16:31:07
 # Module: tools
 # File: tools/gen_house_demo.py
 #
@@ -60,6 +60,9 @@
 #   сходятся на коньке ровно, имена проверяются по INDEX.txt, дома сняты с троп
 #   стенда. Пролёт 12u и скат 12x12x12 вместо 16u/8x?x8 — только при них 45°
 #   гейбла, свес 1 м и конёк сходятся ОДНОВРЕМЕННО.
+# - 17:08:2026 - 16:31:07: ПОЛЫ И ПОЛОТНА ДВЕРЕЙ (пользователь: «нет ни одного объекта в
+#   демке полов», «дома не целые»): доски 16u поперёк дома по лежням, шаг лежня
+#   1.5 м; полотно закрывает единственный сквозной проём.
 #
 
 import argparse
@@ -225,6 +228,33 @@ def plinth(scene, ox, oz, span, group):
         scene.place(short, (x + 0.25, y, oz + BAY), yaw_for(0, 1), group)
 
 
+def floor(scene, ox, oz, span, level, group):
+    """ПОЛ: доски поперёк дома по лежням (HOUSES.md §3.2).
+
+    Boards run across the DEPTH, which is 4 m and exactly the longest plank the
+    shelf holds (16u), so every board is one piece bearing on the plinth at
+    both ends. Under them, joists every 1.5 m: on the ground floor they lie in
+    the shelf and nobody sees them, on the upper floor they ARE the ceiling of
+    the room below — the same rule either way, which is why it is one rule.
+
+    The deck's top sits 6 cm above the wall's base, so the doorway is a step of
+    6 cm and not of half a metre: a floor the player cannot walk onto is not a
+    floor (PLAYER_STEP_HEIGHT 0.35, docs/NUMBERS.md)."""
+    y = PAD_Y + level * STOREY
+    joist = worn("beam-timber-16x2x1")
+    board = worn("plank-timber-16x2x1")
+    # Joists across the depth, 1.5 m apart, their tops flush with the deck's
+    # underside.
+    n_joists = max(2, int(span / 1.5))
+    for k in range(n_joists):
+        x = ox + (span / n_joists) * (k + 0.5)
+        scene.place(joist, (x, y - 0.25, oz), yaw_for(0, 1), group)
+    # The boards: 2u wide each, laid west to east, centred on their own line.
+    boards = int(span / 0.5)
+    for k in range(boards):
+        scene.place(board, (ox + 0.25 + k * 0.5, y, oz), yaw_for(0, 1), group)
+
+
 def walls(scene, ox, oz, span, level, style, group):
     """One storey: a post on every bay line, a panel between two posts.
 
@@ -267,6 +297,23 @@ def walls(scene, ox, oz, span, level, style, group):
     scene.place(panel("blind", 16), (px, y, pz), yaw, group)
 
 
+def door_leaf(scene, ox, oz, span, group):
+    """ПОЛОТНО В ДВЕРНОЙ ПРОЁМ — the kit's one sanctioned through-hole, closed.
+
+    The wall part cuts a 1.0 x 2.05 m opening in the MIDDLE of its bay
+    (PartForgeWalls.holes_of), and the panel carrying it is the first bay of
+    the south run, so the opening's centre is 1.5 m in from the house's east
+    corner. The leaf is 1.25 x 2.25 — the kit has no leaf the size of the hole
+    — so it is hung 2 cm PROUD of the wall face (no coplanar z-fight, and a
+    plank door was hung on the face) and dropped 0.2 m, which puts its head on
+    the lintel and buries the surplus in the plinth instead of standing it
+    above the door like a tombstone."""
+    leaf = worn("door-timber-5x1x9")
+    yaw = yaw_for(-1, 0)  # the south wall's own yaw: the leaf faces +Z with it
+    scene.place(leaf, (ox + span - 0.875, PAD_Y - 0.2, oz + DEPTH + 0.145), yaw,
+                group, "полотно закрывает единственный сквозной проём дома")
+
+
 def roof(scene, ox, oz, span, eaves, cover, gable_mat, group):
     """Two slopes meeting on the ridge, and a gable closing each end.
 
@@ -300,7 +347,9 @@ def house(scene, ox, oz, span, storeys, style, upper, cover, gable_mat, group):
     runs along X, so the gables face east and west and the door faces +Z."""
     plinth(scene, ox, oz, span, group)
     for level in range(storeys):
+        floor(scene, ox, oz, span, level, group)
         walls(scene, ox, oz, span, level, style if level == 0 else upper, group)
+    door_leaf(scene, ox, oz, span, group)
     eaves = PAD_Y + storeys * STOREY
     roof(scene, ox, oz, span, eaves, cover, gable_mat, group)
     if storeys > 1 or style.startswith("frame"):
