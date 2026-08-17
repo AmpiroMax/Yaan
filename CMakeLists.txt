@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 17:08:2026 - 19:17:13
+# Last updated: 17:08:2026 - 21:05:14
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -54,6 +54,16 @@
 #   DFN_LAYERS раньше app — объявление внутри любого из них поставило бы
 #   существование цели в зависимость от порядка строк списка.
 
+# - 17:08:2026 - 20:42:24: ОДНА папка загрузок на все девять каталогов сборки (third_party/_deps):
+#   зависимость качалась по разу на каталог и заново при каждой перенастройке.
+# - 17:08:2026 - 21:05:14: GIT_SHALLOW у imgui. Измерено одной и той же командой git в чистый
+#   каталог, разница в одном флаге — полная история 327.37 с и 138 МБ, снимок по
+#   тегу 5.28 с и 10 МБ. Замер намеренно БЕЗ cmake и без общей папки третьих
+#   сторон, чтобы число говорило о ГЛУБИНЕ, а не о том, что кто-то уже скачал.
+#   Повод: полный клон трижды вставал намертво (21:46, 13:15 и 10:14 при 0% CPU),
+#   и бинарник пользователя отстал на четыре коммита. Пин не тронут: shallow —
+#   это `git clone --depth 1 --branch <тег>`.
+
 cmake_minimum_required(VERSION 3.28)
 
 # An unset CMAKE_BUILD_TYPE means NO optimization flag at all — every timing
@@ -87,6 +97,25 @@ endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS docs/NUMBERS.md)
 
 # --- Shared third-party (Rule 24: pinned, FetchContent only) -----------------
+# ОДНА ПАПКА ЗАГРУЗОК НА ВСЕ СБОРКИ (пользователь, 17.08: «так скачайте имгуи в
+# одно место, в папку с thirdpartylibs, и туда скачайте; если скачено, то не надо
+# качать постоянно»).
+#
+# По умолчанию FetchContent кладёт исходники ВНУТРЬ каталога сборки, а каталогов
+# сборки у нас девять — по одному на зону. Значит каждая новая зависимость
+# скачивалась ДЕВЯТЬ раз, и хуже того: перенастройка (её вызывает почти любая
+# правка списков сборки) заставляла качать снова. В этот вечер три сессии
+# одновременно тянули один и тот же ImGui, делили канал и душили друг друга —
+# `cmake` выглядел зависшим, хотя ждал сеть. Молчаливое ожидание сети
+# неотличимо от сломанного инструмента, и пользователь прочёл его именно так.
+#
+# Общая папка вне каталогов сборки: скачано один раз — берётся всеми, переживает
+# и перенастройку, и удаление build_*. В .gitignore, потому что это ВЫВОД
+# загрузчика, а не наш исходник (та же причина, по которой из git ушла полка
+# испечённых деталей).
+set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/third_party/_deps"
+    CACHE PATH "Общий кэш загруженных зависимостей на все каталоги сборки")
+
 include(FetchContent)
 FetchContent_Declare(glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -114,9 +143,22 @@ FetchContent_MakeAvailable(glm doctest)
 # would have to implement on the first day it exists. "Newest" would buy a risk
 # nobody asked to pay for. The -docking suffix is the docking branch: the
 # properties column the user asked for is dockable there and hand-written here.
+#
+# GIT_SHALLOW BECAUSE THE FULL CLONE WEDGED THREE BUILDS, AND THE NUMBERS SAY SO
+# rather than "it felt slow". Measured on this machine, 17.08.2026:
+#   full history (what this line used to fetch): 138 MB, and the configure that
+#     did it took 291 s -- after which three separate `cmake` invocations across
+#     two sessions sat on `imgui-populate-gitclone` for 21:46, 13:15 and 10:14
+#     at 0% CPU, i.e. not slow, STOPPED. The user's binary went four commits
+#     stale behind a fix he was waiting for.
+#   shallow at the same tag: 5.28 s, 10 MB.
+# The pin is untouched -- shallow means `git clone --depth 1 --branch <tag>`, so
+# Rule 24's "exact pinned release tag" is exactly as exact as it was. What is
+# given up is the history of a library we never bisect.
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.91.9b-docking)       # Rule 24: exact pinned release tag
+    GIT_TAG v1.91.9b-docking        # Rule 24: exact pinned release tag
+    GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(imgui)
 add_library(dfn_imgui STATIC
     "${imgui_SOURCE_DIR}/imgui.cpp"

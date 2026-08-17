@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:26:58
+Last updated: 17:08:2026 - 21:05:14
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -96,6 +96,24 @@ UPD:
   может, продолжал бы отвечать так и после поломки.
   Числа кадра: отъедено сверху 44.0, справа 432.7 (колонка ужата до трети
   ширины), мир 847x676 от (0, 44).
+- 17:08:2026 - 21:05:14: ФИШКА ПАНЕЛИ НА ТОЙ ЖЕ ПОЛОСЕ (заказ: «пусть список объектов также
+  сверху будет, как остальные варианты»). EditorPanel::on_toolbar — панель
+  получает фишку рядом с режимами и номер после них. Панель, открываемая своей
+  клавишей, была бы ВТОРЫМ местом выбора, а второе место — это то, как человек
+  перестаёт понимать, в каком он состоянии.
+  И ПРИБОР ТУТ ЖЕ НАШЁЛ НАСТОЯЩЕЕ, в моей собственной двери. Дверь щелчка
+  посылала состояние кнопки ВТОРЫМ событием за тот же кадр, поверх настоящего.
+  Просачивание событий ImGui (оно существует ровно затем, чтобы нажатие и
+  отпускание не схлопнулись в одном кадре) растащило пару в down, up, down,
+  up... и фишка под указателем срабатывала ЧЕРЕЗ КАДР: десять открытий и
+  десять закрытий из одного задуманного щелчка.
+  ПОЧЕМУ ЭТО ПРОЖИЛО ЗАХОД: set_tool игнорирует смену на тот же режим, поэтому
+  десять щелчков по фишке инструмента печатали ОДНУ строку и выглядели
+  безупречно. Увидела это переключающаяся панельная фишка. Идемпотентный
+  обработчик прячет сломанный путь ввода целиком — это и есть находка.
+  Числа после починки: 1 щелчок -> 1 переключение (было 10), панель
+  открывается с полосы, колонка резервируется в тот же кадр (справа 432.7,
+  мир 847x676), пересечение 0.0 кв.ед.
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -112,6 +130,7 @@ UPD:
 #include <deque>
 #include <iterator>
 #include <optional>
+#include <utility>
 #include <filesystem>
 
 namespace dfn::app {
@@ -499,9 +518,16 @@ bool EditorUi::init(platform::IRenderer& renderer) {
     // door opens it without a keypress so an unattended run can photograph it
     // (Rule 27: a feature only a human hand can reach is a feature nobody can
     // prove works).
-    add_panel(EditorPanel{
-        "ui.probe", "editor.ui.probe.title", EditorPanelSide::Right, 460.0f, false,
-        [this] { draw_probe_panel(); }});
+    EditorPanel probe;
+    probe.id = "ui.probe";
+    probe.title_key = "editor.ui.probe.title";
+    probe.side = EditorPanelSide::Right;
+    probe.extent_px = 460.0f;
+    // ON THE BAR, like anything else the user opens. The probe is also the
+    // demonstration that a panel chip works at all, so it earns its place.
+    probe.on_toolbar = true;
+    probe.draw = [this] { draw_probe_panel(); };
+    add_panel(std::move(probe));
     if (const char* door = std::getenv("DFN_UI_PROBE");
         door != nullptr && *door != '\0' && *door != '0') {
         // NOTHING BUT set_panel_open, and that is now part of what this door
@@ -653,18 +679,30 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
         // pointer nobody can see.
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
     }
-    io.AddMouseButtonEvent(0, input.is_down(platform::MouseButton::LEFT));
-    io.AddMouseButtonEvent(1, input.is_down(platform::MouseButton::RIGHT));
-    io.AddMouseButtonEvent(2, input.is_down(platform::MouseButton::MIDDLE));
+    // ONE EVENT PER BUTTON PER FRAME, AND THE DOOR IS OR-ED IN RATHER THAN SENT
+    // SEPARATELY. The first version posted the real state and then the door's
+    // state as a SECOND event for the same button, and ImGui's event trickling
+    // — which exists precisely to keep a press and a release from collapsing
+    // inside one frame — spread the pair out as down, up, down, up... The chip
+    // under the pointer then fired on EVERY OTHER FRAME: ten opens and ten
+    // closes from one intended click.
+    //
+    // It stayed invisible for one round because set_tool ignores a no-op, so
+    // ten clicks on one tool chip still printed one line and looked perfect.
+    // The panel chip, which TOGGLES, is what made it visible — a reminder that
+    // an idempotent handler hides a broken input path completely.
+    bool left_down = input.is_down(platform::MouseButton::LEFT);
     if (probe_wants_click()) {
-        // Down for ten frames, then up. A button fires on RELEASE in ImGui, so
-        // a door that only held the button down would photograph a chip that
-        // looks pressed and never acts — the same "looks right, does nothing"
-        // this file has already shipped once.
+        // Down for ten frames, then up: a button fires on RELEASE in ImGui, so
+        // a door that only held it down would photograph a chip that looks
+        // pressed and never acts.
         static uint32_t frame = 0;
         ++frame;
-        io.AddMouseButtonEvent(0, frame >= 30 && frame < 40);
+        left_down = left_down || (frame >= 30 && frame < 40);
     }
+    io.AddMouseButtonEvent(0, left_down);
+    io.AddMouseButtonEvent(1, input.is_down(platform::MouseButton::RIGHT));
+    io.AddMouseButtonEvent(2, input.is_down(platform::MouseButton::MIDDLE));
     const glm::vec2 wheel = input.scroll_delta();
     if (wheel.x != 0.0f || wheel.y != 0.0f) {
         io.AddMouseWheelEvent(wheel.x, wheel.y);
@@ -745,6 +783,12 @@ void EditorUi::set_tool(EditorTool tool) {
     }
     tool_ = tool;
     tool_changed_ = true;
+    // SAID OUT LOUD, ONCE PER CHANGE. Whoever owns a tool has to drop what it
+    // was holding on this frame, and "did the signal even arrive" is the first
+    // question anyone debugging that will ask. One line per change also makes
+    // the flag's ONE-FRAME contract measurable: a click that prints twice is a
+    // flag that is lying about how long it lasts.
+    std::fprintf(stderr, "[editor-ui] режим -> %s\n", tool_name(tool_));
 }
 
 void EditorUi::draw_toolbar() {
@@ -804,6 +848,37 @@ void EditorUi::draw_toolbar() {
                 set_tool(CHIPS[i].tool);
             }
             if (active) {
+                ImGui::PopStyleColor(2);
+            }
+        }
+        // PANEL CHIPS CONTINUE THE SAME NUMBERING, on the same bar, looking the
+        // same. A panel opened by its own private key would be a SECOND place
+        // where the user chooses what he is doing, and a second place is how he
+        // ends up unable to say what state he is in — the complaint this whole
+        // layout came from.
+        int digit = static_cast<int>(std::size(CHIPS));
+        for (EditorPanel& p : panels_) {
+            if (!p.on_toolbar) {
+                continue;
+            }
+            ++digit;
+            ImGui::SameLine();
+            char label[128];
+            std::snprintf(label, sizeof(label), "%d  %s##panel%s", digit,
+                          tr(p.title_key.c_str()), p.id.c_str());
+            if (p.open) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.27f, 0.44f, 0.32f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                      ImVec4(0.33f, 0.52f, 0.38f, 1.0f));
+            }
+            if (ImGui::Button(label)) {
+                // Toggled HERE, one frame before layout_panels reads it, so the
+                // column appears or frees on the very frame of the click.
+                p.open = !p.open;
+                std::fprintf(stderr, "[editor-ui] панель %s -> %s\n", p.id.c_str(),
+                             p.open ? "открыта" : "закрыта");
+            }
+            if (p.open) {
                 ImGui::PopStyleColor(2);
             }
         }

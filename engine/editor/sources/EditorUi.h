@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:26:58
+Last updated: 17:08:2026 - 21:05:14
 Module: engine/editor
 File: engine/editor/sources/EditorUi.h
 
@@ -140,6 +140,24 @@ UPD:
   может, продолжал бы отвечать так и после поломки.
   Числа кадра: отъедено сверху 44.0, справа 432.7 (колонка ужата до трети
   ширины), мир 847x676 от (0, 44).
+- 17:08:2026 - 21:05:14: ФИШКА ПАНЕЛИ НА ТОЙ ЖЕ ПОЛОСЕ (заказ: «пусть список объектов также
+  сверху будет, как остальные варианты»). EditorPanel::on_toolbar — панель
+  получает фишку рядом с режимами и номер после них. Панель, открываемая своей
+  клавишей, была бы ВТОРЫМ местом выбора, а второе место — это то, как человек
+  перестаёт понимать, в каком он состоянии.
+  И ПРИБОР ТУТ ЖЕ НАШЁЛ НАСТОЯЩЕЕ, в моей собственной двери. Дверь щелчка
+  посылала состояние кнопки ВТОРЫМ событием за тот же кадр, поверх настоящего.
+  Просачивание событий ImGui (оно существует ровно затем, чтобы нажатие и
+  отпускание не схлопнулись в одном кадре) растащило пару в down, up, down,
+  up... и фишка под указателем срабатывала ЧЕРЕЗ КАДР: десять открытий и
+  десять закрытий из одного задуманного щелчка.
+  ПОЧЕМУ ЭТО ПРОЖИЛО ЗАХОД: set_tool игнорирует смену на тот же режим, поэтому
+  десять щелчков по фишке инструмента печатали ОДНУ строку и выглядели
+  безупречно. Увидела это переключающаяся панельная фишка. Идемпотентный
+  обработчик прячет сломанный путь ввода целиком — это и есть находка.
+  Числа после починки: 1 щелчок -> 1 переключение (было 10), панель
+  открывается с полосы, колонка резервируется в тот же кадр (справа 432.7,
+  мир 847x676), пересечение 0.0 кв.ед.
 */
 
 #pragma once
@@ -248,6 +266,16 @@ struct EditorPanel {
     float extent_px = 380.0f;
     /// Open at startup. Panels the user must ASK for start closed.
     bool open = false;
+    /// Put a chip for this panel on the top bar, beside the tool chips, and
+    /// number it after them.
+    ///
+    /// WHY A PANEL BELONGS ON THE SAME BAR AS THE TOOLS (user, 17.08.2026:
+    /// «пусть список объектов также сверху будет, как остальные варианты»). The
+    /// bar is meant to be THE place where you choose what you are doing right
+    /// now. A panel that opens by its own private key is a second such place,
+    /// and a second place is how a user ends up unable to say what state he is
+    /// in — which is the complaint that started this whole layout.
+    bool on_toolbar = false;
     /// The content. Called once per frame while open.
     std::function<void()> draw;
 };
