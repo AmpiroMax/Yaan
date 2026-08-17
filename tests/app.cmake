@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 14:08:2026 - 19:22:10
+# Last updated: 17:08:2026 - 16:53:31
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -23,6 +23,8 @@
 # - 14:08:2026 - 18:57:03: app_editor_hud — раскладка редакторского блока. Он мерит то, чего не мерил никто: два оверлея делили верхний левый угол и печатались друг сквозь друга, а проверить это было нечем, потому что блок собирался прямо в App.cpp (окно, не тестируется). Файл порезан ведущим зоне editor ровно на эту регистрацию.
 
 # - 14:08:2026 - 19:22:10: app_controls — таблица привязок клавиш; Controls.cpp добавлен и в app_menu (страница управления рисуется из той же таблицы). Файл порезан ведущим зоне editor на эту регистрацию, как и в прошлый раз.
+# - 17:08:2026 - 16:53:31: app_build_tool — рука строителя: зелёное/красное решает СУДЬЯ, а не
+#   двойник правил в редакторе; тест держит именно это свойство.
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
     target_sources(app_debug_overlay PRIVATE
@@ -47,6 +49,14 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorHud.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # THE BUILD HAND. Worth its own suite for the same reason EditorHud is:
+    # the decision lives in a module rather than in App.cpp, so an instrument
+    # can see it. The property it holds — the ghost is coloured by ITS OWN
+    # findings — is invisible in a screenshot and obvious in a test.
+    add_dfn_test(app_build_tool app/BuildToolTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_build_tool PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
 
     # THE BINDING TABLE, and this suite is the reason the controls screen is
     # worth more than a paragraph of documentation: it holds the table TOTAL and

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 17:08:2026 - 16:59:23
 Module: engine/app
 File: engine/app/sources/Controls.h
 
@@ -49,6 +49,7 @@ UPD:
   список не мог разъехаться с кодом: обработчики спрашивают клавишу ПО
   ДЕЙСТВИЮ, поэтому новая клавиша без строки в таблице просто не диспатчится.
 - 17:08:2026 - 16:27:55: Action::Fullscreen — строка таблицы, без неё клавишу не разослать.
+- 17:08:2026 - 16:59:23: строки постройки (B, G) и раскладка в ДВЕ КОЛОНКИ, когда список не влезает.
 */
 
 #pragma once
@@ -78,6 +79,13 @@ enum class Action : uint8_t {
     Map,               // M
     MenuPause,         // Esc
     Fullscreen,        // F11
+    // THE BUILD HAND (editor only). Two rows, not four: the palette IS a menu,
+    // so picking inside it belongs to MENU navigation (the arrows) and not to
+    // this table. Placing is the left mouse button, which is not here because
+    // the table binds keys. The controls screen made this call for me — four
+    // rows pushed the list off a 320x180 frame and app_controls went red.
+    BuildMenu,         // B
+    BuildRotate,       // G
     Count,
 };
 
@@ -145,6 +153,13 @@ struct ControlsLayout {
     bool headings = true;
     bool footer = true;
     bool fits = true;     // false = it overflowed anyway, and the page says so
+    /// HOW MANY COLUMNS OF ROWS. 1 normally; 2 when the list no longer fits the
+    /// frame's height. The list only grows — every tool the editor gains adds a
+    /// row — so "print fewer controls" was never the answer, and dropping the
+    /// pitch below the glyph height is not one either. Splitting is.
+    int columns = 1;
+    /// Rows in the FIRST column when columns == 2 (the second gets the rest).
+    int rows_per_column = 0;
 };
 [[nodiscard]] ControlsLayout controls_layout(int width_px, int height_px);
 

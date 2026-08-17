@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 17:08:2026 - 14:50:07
+# Last updated: 17:08:2026 - 16:53:31
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -30,6 +30,7 @@
 
 # - 14:08:2026 - 19:22:10: Controls.cpp в сборке — таблица привязок клавиш. Из неё И диспатчатся клавиши, И рисуется экран управления, поэтому список не может разъехаться с кодом: клавиша без строки в таблице просто не диспатчится.
 # - 17:08:2026 - 14:50:07: sources/AssetBake.cpp — печь ассетов при первом запуске.
+# - 17:08:2026 - 16:53:31: BuildTool.cpp — рука строителя (меню объектов, призрак, зелёное/красное).
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
@@ -59,6 +60,7 @@ if(DFN_APP_READY)
         sources/Main.cpp
         sources/App.cpp
         sources/AssetBake.cpp
+        sources/BuildTool.cpp
         sources/ChatLog.cpp
         sources/ChatOverlay.cpp
         sources/Controls.cpp

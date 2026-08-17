@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 17:08:2026 - 16:59:23
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -15,6 +15,7 @@ UPD:
 - 14:08:2026 - 19:22:10: Создан вместе с заголовком — таблица привязок, из которой
   и диспатчатся клавиши, и рисуется экран управления.
 - 17:08:2026 - 16:27:55: F11 в таблице и в key_name (тест поймал отсутствие подписи).
+- 17:08:2026 - 16:59:23: порядок жертв: подписи -> подвал -> вторая колонка. Строки не выбрасываются никогда.
 */
 
 #include "engine/app/sources/Controls.h"
@@ -50,6 +51,8 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     {Action::Map, K::M, K::UNKNOWN, "controls.map", Scope::Anywhere},
     {Action::MenuPause, K::ESCAPE, K::UNKNOWN, "controls.menu", Scope::Anywhere},
     {Action::Fullscreen, K::F11, K::UNKNOWN, "controls.fullscreen", Scope::Anywhere},
+    {Action::BuildMenu, K::B, K::UNKNOWN, "controls.build_menu", Scope::EditorOnly},
+    {Action::BuildRotate, K::G, K::UNKNOWN, "controls.build_rotate", Scope::EditorOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -92,11 +95,25 @@ ControlsLayout controls_layout(int width_px, int height_px) {
     // block ends above the bottom edge. Written as a loop over the two things
     // that may be given up rather than as nested ifs: the order of sacrifice is
     // then a list one can read and reorder, not a shape one has to infer.
-    const bool wants[3][2] = {{true, true}, {true, false}, {false, false}};
+    // ORDER OF SACRIFICE, читается сверху вниз: сначала отдаём подписи разделов,
+    // потом подвал, и только потом ЛОМАЕМ СПИСОК НА ДВЕ КОЛОНКИ. Колонка идёт
+    // последней, потому что она меняет форму страницы, а первые две — только
+    // её украшения; но она идёт РАНЬШЕ, чем «строки налезут друг на друга»,
+    // потому что нечитаемый список хуже непривычного.
+    // В две колонки подписи разделов не идут: они помечают ГРАНИЦУ между
+    // клавишами и полётом, а разрез пополам эту границу и так рвёт — подпись
+    // над правой колонкой врала бы.
+    const bool wants[5][3] = {{true, true, false}, {true, false, false},
+                              {false, false, false},
+                              {false, true, true}, {false, false, true}};
     for (const auto& want : wants) {
         L.headings = want[0];
         L.footer = want[1];
-        L.line_count = rows + (L.headings ? 2 : 0);
+        L.columns = want[2] ? 2 : 1;
+        const int drawn_rows =
+            L.columns == 2 ? (rows + 1) / 2 : rows;
+        L.rows_per_column = L.columns == 2 ? drawn_rows : 0;
+        L.line_count = drawn_rows + (L.headings ? 2 : 0);
         L.first_y = L.title_y + render::FONT_CELL_H + (L.headings ? 6 : 4);
         const int floor_y =
             height_px - (L.footer ? render::FONT_CELL_H * 2 + 4 : 2);
@@ -133,6 +150,8 @@ const char* key_name(platform::Key key) {
     case K::M: return "M";
     case K::P: return "P";
     case K::R: return "R";
+    case K::B: return "B";
+    case K::G: return "G";
     default: return "?"; // loud, not blank: a nameless key is a table bug
     }
 }

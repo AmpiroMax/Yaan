@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 14:08:2026 - 19:22:10
+Last updated: 17:08:2026 - 16:59:23
 Module: tests/app
 File: tests/app/ControlsTests.cpp
 
@@ -34,6 +34,7 @@ AI Agents Notice (must follow):
 UPD:
 - 14:08:2026 - 19:22:10: Создан вместе с таблицей привязок — экран управления
   (просьба пользователя) и защита от его расхождения с кодом.
+- 17:08:2026 - 16:59:23: «каждая строка нарисована» считается ПО ВСЕМ колонкам, а не по одной.
 */
 
 #include <doctest/doctest.h>
@@ -211,7 +212,20 @@ TEST_CASE("the whole list fits on every screen the settings page offers") {
         // "it fits now" is exactly what dropping rows would achieve.
         const int rows = static_cast<int>(dfn::app::control_bindings().size()
                                           + dfn::app::movement_rows().size());
-        CHECK(L.line_count >= rows);
+        // COUNTED ACROSS COLUMNS. line_count is per column, and the layout may
+        // now split the list in two rather than drop rows or squeeze the pitch
+        // — so the invariant is about the TOTAL, which is what "every row is
+        // drawn" always meant. Written this way it also fails if a column is
+        // ever added without teaching the drawing side about it.
+        const int drawn = L.columns * (L.line_count - (L.headings ? 2 : 0));
+        CHECK(drawn >= rows);
+        CHECK(L.columns >= 1);
+        if (L.columns == 2) {
+            // The split is even to within one row, and the second column is
+            // never the empty one.
+            CHECK(L.rows_per_column * 2 >= rows);
+            CHECK(L.rows_per_column < rows);
+        }
 
         // Rows must not print into each other: the pitch is at least the ink.
         CHECK(L.row_h >= dfn::render::FONT_INK_H);

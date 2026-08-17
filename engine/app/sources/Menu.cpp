@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 17:08:2026 - 16:35:20
+Last updated: 17:08:2026 - 16:59:23
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -70,6 +70,7 @@ UPD:
   строки за край — проверить это было нечем, пока арифметика жила внутри
   отрисовки.
 - 17:08:2026 - 16:35:20: страница паузы растит строки редактора; «в главное меню» появилось и в ходьбе.
+- 17:08:2026 - 16:59:23: экран управления рисует вторую колонку, когда раскладка её просит.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -752,7 +753,17 @@ void draw_controls(render::PixelCanvas& canvas) {
 
     int y = L.first_y;
     const size_t key_rows = control_bindings().size();
+    // TWO COLUMNS WHEN THE FRAME IS SHORT (Controls.h controls_layout). The
+    // second column starts at the middle of the frame and the y restarts; in
+    // one-column mode the offsets are zero and this reads exactly as before.
+    const int col_shift = L.columns == 2 ? w / 2 - x_keys + render::FONT_CELL_W : 0;
     for (size_t i = 0; i < rows.size(); ++i) {
+        int x_off = 0;
+        if (L.columns == 2) {
+            const bool second = static_cast<int>(i) >= L.rows_per_column;
+            x_off = second ? col_shift : 0;
+            y = L.first_y + (static_cast<int>(i) - (second ? L.rows_per_column : 0)) * row_h;
+        }
         // The two headings mark where dispatched keys end and the fly camera's
         // continuous inputs begin -- they behave differently and the screen
         // should not imply otherwise. They are the first thing given up when
@@ -765,15 +776,17 @@ void draw_controls(render::PixelCanvas& canvas) {
             render::draw_text(canvas, x_keys, y, loc("controls.section.fly"), BLURB, true);
             y += row_h;
         }
-        render::draw_text(canvas, x_keys, y, rows[i].keys, ITEM_SELECTED, /*shadow=*/true);
-        render::draw_text(canvas, x_what, y, rows[i].what, ITEM, true);
+        render::draw_text(canvas, x_keys + x_off, y, rows[i].keys, ITEM_SELECTED, /*shadow=*/true);
+        render::draw_text(canvas, x_what + x_off, y, rows[i].what, ITEM, true);
         if (!rows[i].note.empty()) {
-            const int nx = x_what + render::text_width_px(rows[i].what) + render::FONT_CELL_W;
+            const int nx = x_what + x_off + render::text_width_px(rows[i].what) + render::FONT_CELL_W;
             if (nx + render::text_width_px(rows[i].note) < w) {
                 render::draw_text(canvas, nx, y, rows[i].note, BLURB, true);
             }
         }
-        y += row_h;
+        if (L.columns == 1) {
+            y += row_h;
+        }
     }
 
     if (L.footer) {
