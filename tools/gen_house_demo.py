@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 14:46:25
-# Last updated: 17:08:2026 - 14:48:55
+# Last updated: 17:08:2026 - 15:22:41
 # Module: tools
 # File: tools/gen_house_demo.py
 #
@@ -19,12 +19,24 @@
 # first tired line; written once here they hold for every house, and moving a
 # house is editing one number.
 #
+# THE THREE CONVENTIONS THIS FILE OBEYS, each one measured and not guessed:
+# 1. YAW IS RADIANS. engine/world/sources/Scene.h says so in one word
+#    (`float yaw; ///< radians`) and assets/scenes/panels/joint-box-4x4.scene
+#    proves it: the same box written in DEGREES turns 6 findings red.
+# 2. PANEL MID-THICKNESS ON THE POST AXIS: pos = axis - lateral*T/2, with
+#    lateral = (sin yaw, cos yaw). Without the shift the same control box goes
+#    red by 0.025 m — exactly half the panel thickness.
+# 3. +Z IS SOUTH. `spawn_yaw = 0` looks north and forward is (sin, 0, -cos),
+#    so the visitor arriving at the stand walks toward -Z: the DOOR and the
+#    PASSPORT belong on the +Z face, or the demo shows three backs.
+#
 # Usage:
 #     python3 tools/gen_house_demo.py           (writes both files)
 #     python3 tools/gen_house_demo.py --print   (prints the scene, writes nothing)
 #
 # Dependencies:
-# - Uses: the kit's own naming rule (kind-material-LxWxH-...), assets/objects/parts.
+# - Uses: assets/objects/parts/INDEX.txt — every name is CHECKED against the
+#   baked catalogue before a line is written (see require()).
 # - Used by: dfn_signs (the .signs file), the app (the .scene), and the
 #   acceptance frames.
 #
@@ -36,24 +48,47 @@
 #   материалы».
 # - EVERY PANEL ENDS AT A POST (HOUSES.md §3): a panel that touches a panel is
 #   the defect the judge exists to find. Run tools/check_scene after editing.
+# - NEVER INVENT A PART NAME. require() reads INDEX.txt and refuses an unknown
+#   one HERE, where it is a one-line fix, instead of in the judge's report.
 #
 # UPD:
 # - 17:08:2026 - 14:46:25: Создан — работы 5-6 заказа 17.08 (демка этажности + паспорта домов).
 # - 17:08:2026 - 14:48:55: .signs получил шапку по правилу 17 — файл в git, значит у него есть
 #   происхождение и журнал.
+# - 17:08:2026 - 15:22:41: Переписан по трём измеренным конвенциям (yaw — радианы, панель
+#   серединой на ось, +Z — юг): дом собирается обходом четырёх углов, скаты
+#   сходятся на коньке ровно, имена проверяются по INDEX.txt, дома сняты с троп
+#   стенда. Пролёт 12u и скат 12x12x12 вместо 16u/8x?x8 — только при них 45°
+#   гейбла, свес 1 м и конёк сходятся ОДНОВРЕМЕННО.
 #
 
 import argparse
 import math
 import os
+import sys
 
-GRID = 0.25
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# --- THE GRID AND THE HOUSE ------------------------------------------------
+GRID = 0.25            # 1u
 WALL_T = 0.25          # panel thickness: 1u
-POST_D = 0.50          # joint post across-flats: d50
 PAD_Y = 25.5           # the stand's own flat shelf
-SPAN = 8.0             # house length along X (two 16u panels)
-DEPTH = 4.0            # house depth along Z (one 16u panel per side)
+DEPTH = 4.0            # 16u across the house: the GABLE's largest size, §6
+BAY = 3.0              # 12u: one panel, one roof piece, one bay of the ridge
 STOREY = 3.25          # 13u: the main dwelling wall (HOUSES.md §6)
+EAVES_OUT = 1.0        # how far the eaves stand out past the wall axis
+RIDGE_RISE = 2.0       # 8u: the gable's rise, and so the roof's, at 45 degrees
+
+# WHY 12u BAYS AND A 12x12x12 SLOPE, when the previous cut used 16u bays and an
+# 8x?x8 slope. Three things have to be true at once: the roof must meet the
+# GABLE's pitch (16x1x8 = 2 m rise over 2 m half-depth = 45 deg), the two
+# slopes must meet EXACTLY on the ridge, and the eaves must stand out past the
+# wall. At 45 degrees the slope's run must equal half-depth + overhang: with a
+# 2 m run (8u) the overhang is zero and the eaves die on the wall axis, and any
+# outboard shift leaves a hole at the ridge as wide as the shift. A 3 m run
+# (12u) with a 3 m rise gives 2 + 1: the slopes meet on the ridge line and the
+# eaves stand a metre proud. The catalogue has that piece only at depth 12u —
+# which is why the bay is 12u and the house's length is a multiple of 3 m.
 
 # THE PASSPORTS. Content, in the user's own language, and every line answers
 # one of his three questions: what is this, why this architecture, why these
@@ -84,33 +119,76 @@ PASSPORTS = {
 }
 
 
+# --- THE CATALOGUE ---------------------------------------------------------
+def catalogue():
+    """Every part name the shelf actually holds.
+
+    Read, not remembered: an invented name is the defect that cost the previous
+    cut eight red findings (footing-stone-16x2x4, roof-shingle-8x8x12), and the
+    only cure is asking the shelf."""
+    path = os.path.join(ROOT, "assets", "objects", "parts", "INDEX.txt")
+    if not os.path.exists(path):
+        sys.exit("[demo] нет " + path + " — сперва испеки полку: ./build_lead/dfn_kit")
+    names = set()
+    with open(path) as f:
+        for line in f:
+            if line.startswith("#") or not line.strip():
+                continue
+            names.add(line.split()[0])
+    return names
+
+
+KNOWN = catalogue()
+
+
+def require(name):
+    """A part name, refused HERE if the shelf does not have it.
+
+    A PASSPORT: placeholder passes through — it is not a part but a sign, baked
+    from assets/signs/demo.signs by dfn_signs, and its name is settled below
+    once the text that names it is written."""
+    if name.startswith("PASSPORT:"):
+        return name
+    if name not in KNOWN:
+        sys.exit(f"[demo] в каталоге нет детали \"{name}\" — правь генератор")
+    return name
+
+
+def worn(stem, steps=("w03", "w05", "w08")):
+    """The least worn step of `stem` the shelf actually holds."""
+    for s in steps:
+        if f"{stem}-{s}" in KNOWN:
+            return f"{stem}-{s}"
+    sys.exit(f"[demo] в каталоге нет детали \"{stem}\" ни в одной степени износа")
+
+
+# --- THE SCENE -------------------------------------------------------------
 def yaw_for(dx, dz):
-    """Yaw that turns a part's local +X toward (dx, dz).
+    """Yaw (RADIANS) that turns a part's local +X toward (dx, dz).
 
     The app rotates by (x*cos + z*sin, -x*sin + z*cos), so local +X lands on
-    (cos, -sin) — which makes +Z (south) a yaw of -90 and not +90. Derived from
-    the transform rather than guessed, because a guess here mirrors every
-    house and the judge would only see it as a seat error."""
-    return round(math.degrees(math.atan2(-dz, dx)))
+    (cos, -sin): +X is yaw 0, +Z (south) is -pi/2, -X is pi, -Z is +pi/2.
+    Derived from the transform, not guessed — a guess mirrors every house and
+    the judge would only report it as a seat error."""
+    return math.atan2(-dz, dx)
 
 
-def seat(axis_x, axis_z, yaw_deg, thickness=WALL_T):
+def seat(axis_x, axis_z, yaw, thickness=WALL_T):
     """Panel position from the POST AXIS it starts at (HOUSES.md §3.2).
 
     The panel's own origin lies on its FACE plane, so the composer offsets it
     by half a thickness along the rotated lateral — otherwise the far corner of
     the end hangs a whole thickness off the axis and the judge goes red."""
-    r = math.radians(yaw_deg)
-    return (axis_x - math.sin(r) * thickness * 0.5,
-            axis_z - math.cos(r) * thickness * 0.5)
+    return (axis_x - math.sin(yaw) * thickness * 0.5,
+            axis_z - math.cos(yaw) * thickness * 0.5)
 
 
 class Scene:
     def __init__(self):
         self.items = []
 
-    def place(self, obj, pos, yaw=0, group=None, note=None):
-        self.items.append((obj, pos, yaw, group, note))
+    def place(self, obj, pos, yaw=0.0, group=None, note=None):
+        self.items.append((require(obj), pos, yaw, group, note))
 
     def text(self):
         out = []
@@ -118,7 +196,7 @@ class Scene:
             out.append("[place]")
             out.append(f"object = {obj}")
             out.append(f"pos = {pos[0]:.3f} {pos[1]:.3f} {pos[2]:.3f}")
-            out.append(f"yaw = {yaw}")
+            out.append(f"yaw = {yaw:.6f}")
             out.append("scale = 1")
             if group:
                 out.append(f"group = {group}")
@@ -128,107 +206,156 @@ class Scene:
         return "\n".join(out)
 
 
-def wall_run(scene, x0, z0, dx, dz, length, panel, post, group, storey_y):
-    """One side of a house: a post at each end of every panel, the panel
-    between them. The post is placed FIRST and the panel counted from it —
-    that order is the convention, not a preference (§3.2)."""
-    yaw = yaw_for(dx, dz)
-    px, pz = seat(x0, z0, yaw)
-    scene.place(post, (x0, storey_y, z0), 0, group)
-    scene.place(panel, (px, storey_y, pz), yaw, group)
-    scene.place(post, (x0 + dx * length, storey_y, z0 + dz * length), 0, group)
+def plinth(scene, ox, oz, span, group):
+    """The stone footing ring under the walls: the house stands on stone.
+
+    Its top is 0.25 m above the shelf — a step the player clears (0.35 m,
+    docs/NUMBERS.md) so the doorway stays walkable, and enough stone to read as
+    a plinth under a log wall."""
+    piece = require("footing-stone-12x2x2-w03")
+    short = require("footing-stone-4x2x2-w03")
+    y = PAD_Y - 0.25
+    for k in range(int(span / BAY)):
+        x = ox + k * BAY
+        scene.place(piece, (x, y, oz - 0.25), 0.0, group)
+        scene.place(piece, (x, y, oz + DEPTH - 0.25), 0.0, group)
+    # The two ends run along Z: 3 m + 1 m makes the 4 m depth.
+    for x in (ox, ox + span):
+        scene.place(piece, (x + 0.25, y, oz), yaw_for(0, 1), group)
+        scene.place(short, (x + 0.25, y, oz + BAY), yaw_for(0, 1), group)
 
 
-def house(scene, ox, oz, style, storeys, roof, gable, group):
-    """One house on the stand. `ox, oz` is the SOUTH-WEST post axis; the ridge
-    runs along X, so the gables face east and west."""
-    post = "joint-timber-d50-n4-h13-w03" if style != "ashlar" \
-        else "joint-stone-d50-n4-h13-w03"
-    # The footing: the house stands on stone, always. Its top is the floor.
-    for i in range(2):
-        scene.place("footing-stone-16x2x4-w05",
-                    (ox - 0.25, PAD_Y - 0.5, oz - 0.25 + i * (DEPTH + 0.5)), 0, group)
+def walls(scene, ox, oz, span, level, style, group):
+    """One storey: a post on every bay line, a panel between two posts.
+
+    The four sides are walked as ONE loop around the corners A->B->C->D, which
+    is what keeps every panel's local +Z pointing INTO the house — mixing the
+    directions would flip the door's face on one wall out of four."""
+    y = PAD_Y + level * STOREY
+    post = require(("joint-stone-d50-n4-h13-w03" if style.endswith("stone")
+                    else "joint-timber-d50-n4-h13-w03"))
+    bays = int(span / BAY)
+    # Posts: every bay line on both long walls, each placed ONCE.
+    for k in range(bays + 1):
+        for z in (oz, oz + DEPTH):
+            scene.place(post, (ox + k * BAY, y, z), 0.0, group)
+
+    def panel(opening, length_u):
+        return require(f"wall-{style}-{length_u}x1x13-{opening}-w05")
+
+    # North wall (A->B, +X): the back of the house — blind and one window.
+    for k in range(bays):
+        opening = "win1" if k == bays - 1 else "blind"
+        yaw = yaw_for(1, 0)
+        px, pz = seat(ox + k * BAY, oz, yaw)
+        scene.place(panel(opening, 12), (px, y, pz), yaw, group)
+    # East gable wall (B->C, +Z): one 16u panel, the full depth.
+    yaw = yaw_for(0, 1)
+    px, pz = seat(ox + span, oz, yaw)
+    scene.place(panel("win1" if level == 0 else "blind", 16), (px, y, pz), yaw, group)
+    # South wall (C->D, -X): the face the visitor meets — door on the ground
+    # floor, windows beside it.
+    for k in range(bays):
+        first = k == 0
+        opening = "door" if (level == 0 and first) else "win1"
+        yaw = yaw_for(-1, 0)
+        px, pz = seat(ox + span - k * BAY, oz + DEPTH, yaw)
+        scene.place(panel(opening, 12), (px, y, pz), yaw, group)
+    # West gable wall (D->A, -Z).
+    yaw = yaw_for(0, -1)
+    px, pz = seat(ox, oz + DEPTH, yaw)
+    scene.place(panel("blind", 16), (px, y, pz), yaw, group)
+
+
+def roof(scene, ox, oz, span, eaves, cover, gable_mat, group):
+    """Two slopes meeting on the ridge, and a gable closing each end.
+
+    A slope's origin is its EAVES CORNER, its +X climbs toward the ridge and
+    its +Z runs along the ridge. Both slopes start a metre outboard and a metre
+    LOW — at 45 degrees that is the same metre — so the eaves overhang and the
+    two runs still end on the ridge line together."""
+    # THE WEAR STEP IS THE SHELF'S TO CHOOSE. Most coverings are baked at
+    # 0.3/0.8, tile only at 0.5 — asking for a step the shelf does not hold is
+    # the same invented name as asking for a size it does not hold.
+    piece = worn(f"roof-{cover}-12x12x12")
+    base = eaves - EAVES_OUT
+    for k in range(int(span / BAY)):
+        # South slope: eaves on the +Z side, climbing toward -Z; its depth runs
+        # +X, so the piece starts at the bay's west line.
+        scene.place(piece, (ox + k * BAY, base, oz + DEPTH + EAVES_OUT),
+                    yaw_for(0, -1), group)
+        # North slope: the mirror. Its depth runs -X, so it starts at the
+        # bay's EAST line.
+        scene.place(piece, (ox + (k + 1) * BAY, base, oz - EAVES_OUT),
+                    yaw_for(0, 1), group)
+    gable = require(f"gable-{gable_mat}-16x1x8-w03")
+    # The gable is 1u thick and its thickness runs off its own +Z, so each one
+    # is offset half a thickness to sit CENTRED on the wall plane it closes.
+    scene.place(gable, (ox + 0.125, eaves, oz), yaw_for(0, 1), group)
+    scene.place(gable, (ox + span - 0.125, eaves, oz + DEPTH), yaw_for(0, -1), group)
+
+
+def house(scene, ox, oz, span, storeys, style, upper, cover, gable_mat, group):
+    """One house on the stand. `ox, oz` is the NORTH-WEST post axis; the ridge
+    runs along X, so the gables face east and west and the door faces +Z."""
+    plinth(scene, ox, oz, span, group)
     for level in range(storeys):
-        y = PAD_Y + level * STOREY
-        st = style if level == 0 else ("framex-plaster" if style == "ashlar-stone"
-                                       else style)
-        south = f"wall-{st}-16x1x13-{{}}-w05"
-        # South face: door on the ground floor of the west bay, window east.
-        wall_run(scene, ox, oz, 1, 0, 4.0,
-                 south.format("door" if level == 0 else "win1"), post, group, y)
-        wall_run(scene, ox + 4.0, oz, 1, 0, 4.0, south.format("win1"), post, group, y)
-        # North face (yaw 180: its outer face looks north).
-        wall_run(scene, ox + 4.0, oz + DEPTH, -1, 0, 4.0,
-                 south.format("win1"), post, group, y)
-        wall_run(scene, ox + 8.0, oz + DEPTH, -1, 0, 4.0,
-                 south.format("blind"), post, group, y)
-        # The two gable walls, one panel each, running north (yaw -90 / 90).
-        wall_run(scene, ox, oz + DEPTH, 0, -1, 4.0, south.format("blind"), post,
-                 group, y)
-        wall_run(scene, ox + SPAN, oz, 0, 1, 4.0, south.format("win1"), post,
-                 group, y)
+        walls(scene, ox, oz, span, level, style if level == 0 else upper, group)
     eaves = PAD_Y + storeys * STOREY
-    # THE ROOF: two slopes meeting over the ridge, each cut into pieces of the
-    # catalogue's own depth (max 12u = 3 m along the ridge) — 3 + 3 + 2 = 8 m.
-    run = DEPTH * 0.5
-    for piece, (start, depth_u) in enumerate([(0.0, 12), (3.0, 12), (6.0, 8)]):
-        depth = depth_u * GRID * 4 / 4  # u -> m is GRID; 12u = 3 m
-        depth = depth_u * GRID
-        name = roof.format(depth_u)
-        # South slope: rises from the south eaves toward the ridge (+Z), so its
-        # local +X is +Z (yaw -90) and its depth runs -X.
-        scene.place(name, (ox + start + depth, eaves, oz - 0.35), -90, group)
-        # North slope: mirror, rising toward -Z.
-        scene.place(name, (ox + start, eaves, oz + DEPTH + 0.35), 90, group)
-    # The gables close the triangle at both ends.
-    for gx, gyaw in ((ox, -90), (ox + SPAN, 90)):
-        scene.place(gable, (gx, eaves, oz + (0 if gyaw < 0 else DEPTH)), gyaw, group)
+    roof(scene, ox, oz, span, eaves, cover, gable_mat, group)
     if storeys > 1 or style.startswith("frame"):
-        # The steep flight, inside, against the west gable: 13 steps of 1u rise
-        # reach the next floor within their own run (b0ce19e).
-        scene.place("stair-steep-timber-1x4x13-w03",
-                    (ox + 0.9, PAD_Y, oz + 0.9), 0, group,
+        # The steep flight, inside, along the north wall: 13 steps of 1u rise
+        # reach the next floor within their own run (b0ce19e). It climbs +X and
+        # is 1 m wide, so it clears both gable walls and the doorway.
+        scene.place(require("stair-steep-timber-1x4x13-w03"),
+                    (ox + 0.5, PAD_Y, oz + 0.5), 0.0, group,
                     "крутой марш 45: этаж за собственную длину")
-    return run
 
 
-def passport(scene, ox, oz, key, group):
-    """The board in front of the house, facing the visitor's approach (south).
+def passport(scene, ox, oz, span, key, group):
+    """The board in front of the house, facing the visitor's approach (+Z).
 
-    Two metres clear of the wall: close enough to read at a walk, far enough
-    that the house is in the same view — a passport you have to stand inside
-    the porch to read is a passport nobody reads."""
-    scene.place(f"PASSPORT:{key}", (ox + SPAN * 0.5, PAD_Y, oz - 2.5), 180, group,
+    Two and a half metres clear of the wall: close enough to read at a walk,
+    far enough that the house is in the same view — a passport you have to
+    stand in the porch to read is a passport nobody reads. Yaw 0 turns the
+    board's lettered face toward +Z, which is where the visitor stands."""
+    scene.place(f"PASSPORT:{key}", (ox + span * 0.5, PAD_Y, oz + DEPTH + 2.5),
+                0.0, group,
                 "паспорт дома: что это, почему такая архитектура и материалы")
+
+
+# The three houses. X positions are chosen off the stand's own path network:
+# Gallery's road runs the diagonal from (72,112) to (132,172), and at the
+# houses' latitude (z 136..146) it occupies x 92..112 — measured by probing
+# path_clearance on a 4 m grid, not by eye.
+HOUSES = [
+    # key,     ox,    span, storeys, style,          upper,            cover,    gable
+    ("log",   118.0,  6.0,  1, "log-timber",     "log-timber",      "thatch",  "timber"),
+    ("frame", 130.0,  9.0,  1, "framex-clay",    "framex-clay",     "shingle", "timber"),
+    ("stone", 147.0,  9.0,  2, "ashlar-stone",   "framex-plaster",  "tile",    "plaster"),
+]
+HOUSE_Z = 136.0
 
 
 def build():
     scene = Scene()
-    houses = [
-        # (x, style, storeys, roof pattern, gable, key, note)
-        (96.0, "log-timber", 1, "roof-thatch-8x{}x8-w03", "gable-timber-16x1x8-w03",
-         "log"),
-        (120.0, "framex-clay", 1, "roof-shingle-8x{}x12-w03",
-         "gable-timber-16x1x8-w03", "frame"),
-        (144.0, "ashlar-stone", 2, "roof-tile-8x{}x8-w05",
-         "gable-plaster-16x1x8-w03", "stone"),
-    ]
-    for ox, style, storeys, roof, gable, key in houses:
+    for key, ox, span, storeys, style, upper, cover, gable_mat in HOUSES:
         group = f"house-{key}"
-        house(scene, ox, 138.0, style, storeys, roof, gable, group)
-        passport(scene, ox, 138.0, key, group)
+        house(scene, ox, HOUSE_Z, span, storeys, style, upper, cover, gable_mat, group)
+        passport(scene, ox, HOUSE_Z, span, key, group)
     return scene
 
 
 HEADER = """# Daggerfall N scene — ДЕМКА ЭТАЖНОСТИ И АРХИТЕКТУРЫ (зона домов, работа 6).
 # СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки вносить в генератор, иначе
 # следующий прогон их сотрёт.
-# Свой стенд (Gallery, 1 чанк). Три дома с юга на север по одной линии:
-# одноэтажный сруб, полутораэтажный фахверк, двухэтажный камень+дерево.
-# У каждого — паспорт-табличка на столбике в 2.5 м перед южной стеной.
+# Свой стенд (Gallery, 1 чанк). Три дома в ряд с запада на восток:
+# одноэтажный сруб 6 м, полутораэтажный фахверк 9 м, двухэтажный камень+дерево
+# 9 м. У каждого — паспорт-табличка на столбике в 2.5 м перед южной стеной,
+# лицом к пришедшему (спавн южнее, смотрит на север).
 map = houses/demo
 world_span_m = 256
-spawn = 128 0 172
+spawn = 136 0 162
 spawn_yaw = 0
 
 [pad]
@@ -240,6 +367,30 @@ note = ровная площадка демки: три дома сравнив�
 
 """
 
+STAMP = "17:08:2026 - 15:22:41"
+
+SIGNS_HEADER = [
+    "#", f"# Created: 17:08:2026 - 14:46:25", f"# Last updated: {STAMP}",
+    "# Module: assets", "# File: assets/signs/demo.signs",
+    "#",
+    "# Responsibility:",
+    "# - Паспорта трёх домов демки. Текст — КОНТЕНТ (правило 5): что это за",
+    "#   дом, ПОЧЕМУ такая архитектура, ПОЧЕМУ такие материалы.",
+    "#",
+    "# Dependencies:",
+    "# - Uses: dfn_signs / render::read_signs_file (печёт .dfo).",
+    "#   Used by: assets/scenes/demo.scene.",
+    "#",
+    "# AI Agents Notice (must follow):",
+    "# - СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки в генератор, иначе",
+    "#   следующий прогон их сотрёт.",
+    "#",
+    "# UPD:",
+    "# - 17:08:2026 - 14:46:25: Создан генератором вместе с demo.scene.",
+    f"# - {STAMP}: Перевыпущен вместе со сценой (дома переставлены с троп).",
+    "#", "",
+]
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -247,24 +398,7 @@ def main():
     args = ap.parse_args()
     scene = build()
     body = HEADER + scene.text()
-    stamp = "17:08:2026 - 14:46:25"
-    signs = ["#", f"# Created: {stamp}", f"# Last updated: {stamp}",
-             "# Module: assets", "# File: assets/signs/demo.signs",
-             "#",
-             "# Responsibility:",
-             "# - Паспорта трёх домов демки. Текст — КОНТЕНТ (правило 5): что это за",
-             "#   дом, ПОЧЕМУ такая архитектура, ПОЧЕМУ такие материалы.",
-             "#",
-             "# Dependencies:",
-             "# - Uses: dfn_signs (печёт .dfo). Used by: assets/scenes/demo.scene.",
-             "#",
-             "# AI Agents Notice (must follow):",
-             "# - СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки в генератор, иначе",
-             "#   следующий прогон их сотрёт.",
-             "#",
-             "# UPD:",
-             f"# - {stamp}: Создан генератором вместе с demo.scene.",
-             "#", ""]
+    signs = list(SIGNS_HEADER)
     for key, lines in PASSPORTS.items():
         signs += ["[sign]", f"name = passport-{key}", "shape = post", "cap = 0.04",
                   "board = timber", "ink = dark", "wear = 0.3"]
@@ -274,18 +408,17 @@ def main():
         print(body)
         print("\n".join(signs))
         return
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    os.makedirs(os.path.join(root, "assets", "signs"), exist_ok=True)
-    with open(os.path.join(root, "assets", "signs", "demo.signs"), "w") as f:
+    os.makedirs(os.path.join(ROOT, "assets", "signs"), exist_ok=True)
+    with open(os.path.join(ROOT, "assets", "signs", "demo.signs"), "w") as f:
         f.write("\n".join(signs) + "\n")
     # The passport placeholders become real object names only after the signs
     # are baked, and the baked name is the one the .signs file declares.
-    body = body.replace("PASSPORT:log", "passport-log")
-    body = body.replace("PASSPORT:frame", "passport-frame")
-    body = body.replace("PASSPORT:stone", "passport-stone")
-    with open(os.path.join(root, "assets", "scenes", "demo.scene"), "w") as f:
+    for key in PASSPORTS:
+        body = body.replace(f"PASSPORT:{key}", f"passport-{key}")
+    with open(os.path.join(ROOT, "assets", "scenes", "demo.scene"), "w") as f:
         f.write(body)
-    print("[demo] assets/scenes/demo.scene + assets/signs/demo.signs")
+    print(f"[demo] {len(scene.items)} расстановок -> assets/scenes/demo.scene"
+          " + assets/signs/demo.signs")
 
 
 if __name__ == "__main__":

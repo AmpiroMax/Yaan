@@ -1,0 +1,83 @@
+# Daggerfall N scene — КОНТРОЛЬНАЯ КОРОБКА СОЕДИНИТЕЛЕЙ (зона домов).
+# Судится: dfn_scene_check assets/scenes/panels/joint-box-4x4.scene
+#          --stand Gallery --objects assets/objects/parts   -> 0 находок
+#
+# ЗАЧЕМ ОНА ЕСТЬ. Демка домов дала 24 красных [joint-seat]/[joint-angle], и
+# гадать по дому в 40 расстановок нечем. Здесь ОДНА коробка: четыре стойки по
+# углам квадрата 4х4 м и четыре панели между ними — минимум, на котором
+# правило соединителя видно целиком.
+#
+# ЧТО ОНА ЗАКРЕПЛЯЕТ (обе половины конвенции, каждая проверена своей рукой):
+# 1. YAW В СЦЕНЕ — РАДИАНЫ (engine/world/sources/Scene.h: `float yaw; ///<
+#    radians`). Та же коробка с yaw в ГРАДУСАХ даёт 6 находок: панель yaw=0
+#    остаётся зелёной (0 градусов и 0 радиан — одно число), а 90/-90/180
+#    краснеют углами 26.6 и 36.8 градуса — это 90 и 180 РАДИАН, свёрнутые по
+#    грани n4 (шаг 90 градусов).
+# 2. ПАНЕЛЬ СЕРЕДИНОЙ ТОЛЩИНЫ НА ОСЬ СТОЙКИ: pos = ось − lateral·T/2, где
+#    lateral = (sin yaw, cos yaw). Та же коробка БЕЗ этого смещения даёт 8
+#    находок по 0.255 м при допуске 0.230 — ровно половина толщины 0.25.
+#
+# Стойка n4 d50: r_in 0.25, допуск посадки 0.23, допуск угла 25.7 градуса.
+map = panels/joint-box
+world_span_m = 256
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 128.000 25.500 128.000
+yaw = 0
+scale = 1
+group = box
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 132.000 25.500 128.000
+yaw = 0
+scale = 1
+group = box
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 132.000 25.500 132.000
+yaw = 0
+scale = 1
+group = box
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 128.000 25.500 132.000
+yaw = 0
+scale = 1
+group = box
+
+[place]
+object = wall-log-timber-16x1x13-blind-w05
+pos = 128.000 25.500 127.875
+yaw = -0.0000
+scale = 1
+group = box
+note = сторона 0: (128.0,128.0) -> (132.0,128.0)
+
+[place]
+object = wall-log-timber-16x1x13-blind-w05
+pos = 132.125 25.500 128.000
+yaw = -1.5708
+scale = 1
+group = box
+note = сторона 1: (132.0,128.0) -> (132.0,132.0)
+
+[place]
+object = wall-log-timber-16x1x13-blind-w05
+pos = 132.000 25.500 132.125
+yaw = -3.1416
+scale = 1
+group = box
+note = сторона 2: (132.0,132.0) -> (128.0,132.0)
+
+[place]
+object = wall-log-timber-16x1x13-blind-w05
+pos = 127.875 25.500 132.000
+yaw = 1.5708
+scale = 1
+group = box
+note = сторона 3: (128.0,132.0) -> (128.0,128.0)
+

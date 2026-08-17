@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 14:46:25
-# Last updated: 17:08:2026 - 14:46:25
+# Last updated: 17:08:2026 - 15:22:41
 # Module: assets
 # File: assets/signs/demo.signs
 #
@@ -9,7 +9,8 @@
 #   дом, ПОЧЕМУ такая архитектура, ПОЧЕМУ такие материалы.
 #
 # Dependencies:
-# - Uses: dfn_signs (печёт .dfo). Used by: assets/scenes/demo.scene.
+# - Uses: dfn_signs / render::read_signs_file (печёт .dfo).
+#   Used by: assets/scenes/demo.scene.
 #
 # AI Agents Notice (must follow):
 # - СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки в генератор, иначе
@@ -17,6 +18,7 @@
 #
 # UPD:
 # - 17:08:2026 - 14:46:25: Создан генератором вместе с demo.scene.
+# - 17:08:2026 - 15:22:41: Перевыпущен вместе со сценой (дома переставлены с троп).
 #
 
 [sign]
