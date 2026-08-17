@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:52:00
-Last updated: 17:08:2026 - 12:38:26
+Last updated: 17:08:2026 - 13:02:52
 Module: engine/render
 File: engine/render/sources/PartForge.h
 
@@ -51,6 +51,8 @@ UPD:
   (кирпичный столб — слова пользователя; черепица и дёрн — под волну крыш).
   PartParams вырос полями facets/diameter_cm/variant — только добавления,
   старые детали переиспечены байт-в-байт.
+- 17:08:2026 - 13:02:52: PartMaterial::Clay (глина по каркасу — «глина с каркасом» из
+  списка вариантов стен пользователя 17.08).
 */
 
 #pragma once
@@ -123,6 +125,9 @@ enum class PartMaterial : uint8_t {
     Tile,
     /// Дёрн: the living turf roof of the poorest houses (roof variants wave).
     Turf,
+    /// Глина по каркасу: the smoothed earthen infill of the poorer timber
+    /// frame (wall variants wave — «глина с каркасом» in the user's list).
+    Clay,
 };
 
 struct PartParams {

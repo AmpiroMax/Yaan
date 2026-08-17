@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 09:49:23
+# Last updated: 17:08:2026 - 13:02:08
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -57,6 +57,8 @@
 #   готовых деталей, а не пишет дом кодом.
 # - 17:08:2026 - 09:49:23: sources/FloraFireflies.cpp — поле светлячков (этап 3 полянки).
 
+# - 17:08:2026 - 13:02:08: sources/PartForgeJoints.cpp — семья соединителей, вынесена из
+#   PartForge.cpp при разрезе по семьям (999 строк против предела 800).
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
     sources/CloudModel.cpp
@@ -74,6 +76,7 @@ add_library(dfn_render STATIC
     sources/MapScreen.cpp
     sources/ObjectRegistry.cpp
     sources/PartForge.cpp
+    sources/PartForgeJoints.cpp
     sources/PixelCanvas.cpp
     sources/ProcFlora.cpp
     sources/ProcMesh.cpp
