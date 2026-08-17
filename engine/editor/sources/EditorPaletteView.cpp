@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:22:11
-Last updated: 17:08:2026 - 19:39:49
+Last updated: 17:08:2026 - 19:43:57
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.cpp
 
@@ -38,6 +38,11 @@ UPD:
   EditorUi::image_button — то есть моя арифметика была копией чужого числа
   (правило 35) и разъехалась бы в день смены стиля, причём молча: список
   просто прокручивался бы не туда.
+- 17:08:2026 - 19:43:57: ★ убрана из таблицы. Шрифт редактора грузит 0x0020-0x00FF и
+  0x0400-0x045F, U+2605 не входит ни в один — отметка избранного рисовалась бы
+  пустым квадратом. Найдено перебором ВСЕХ кодпойнтов таблицы по атласу
+  (1012 штук, без глифа ровно один). И отметка выбранного перестала быть
+  литералом в C++ — литерал не виден ни правилу 5, ни этой проверке.
 */
 
 #include "engine/editor/sources/EditorPaletteView.h"
@@ -206,7 +211,7 @@ bool draw_part(PaletteModel& model, const PaletteHooks& hooks, std::size_t index
 
     if (grid) {
         if (picked_now) {
-            ImGui::TextUnformatted("*");
+            ImGui::TextUnformatted(EditorUi::tr("palette.picked"));
             ImGui::SameLine();
         }
         if (fav) {
