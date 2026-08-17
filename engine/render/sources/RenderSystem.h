@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 17:08:2026 - 10:53:33
+Last updated: 17:08:2026 - 10:56:32
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -136,6 +136,9 @@ UPD:
   однокадровые огни (рой) идут в ТОТ ЖЕ бюджет и ТОТ ЖЕ отбор, что факелы.
   Второй отбор был бы вторым ответом на вопрос «какие восемь горят», и два
   ответа разошлись бы ровно тогда, когда игрок стоит между ними.
+- 17:08:2026 - 10:56:32: у ExtraLight и у кандидата появилось СОБСТВЕННОЕ желание тени. Два
+  теневых слота раздавались ДВУМ БЛИЖАЙШИМ независимо от того, просили они
+  тень или нет.
 */
 
 #pragma once
@@ -428,6 +431,10 @@ public:
         glm::vec3 position{0.0f};
         glm::vec3 color{0.0f};
         float radius_m = 0.0f;
+        /// Whether this light ASKS for a shadow map. There are two slots for
+        /// the whole frame, so most lights must say no — and saying no has to
+        /// MEAN no, or the field is decoration.
+        bool casts_shadow = false;
     };
     /// Lamps the map's composition owns. Set once when a map opens; survives
     /// until the next one. A composition of a hundred lamps is legal — only
@@ -447,6 +454,14 @@ private:
         glm::vec3 color;
         float radius;
         float d2; ///< squared distance to the eye — the only thing slots are sorted by
+        /// Does this light WANT a shadow map? A carried flame does by default
+        /// (its whole point is the moving shadow it throws); a lamp hung by a
+        /// composition says so for itself. The two caster slots are handed out
+        /// among the lights that ask, in distance order — before this field
+        /// they went to the nearest two REGARDLESS, so a composition that
+        /// asked for no shadows got one anyway, from whichever lamp happened
+        /// to be closest.
+        bool wants_shadow = true;
     };
     void publish_point_lights(std::vector<PointLightCandidate>& candidates);
     void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 10:53:33
+Last updated: 17:08:2026 - 10:56:56
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -264,6 +264,7 @@ UPD:
   которой «в третьем лице тела нет» дожило до утра. Кривое значение отвергается
   ВСЛУХ, а не зажимается: опечатка, тихо ставшая полднем, отправила бы искать
   свет, который работает.
+- 17:08:2026 - 10:56:56: просьба лампы о тени доезжает до рендера (была мёртвой строкой).
 */
 
 #include "engine/app/sources/App.h"
@@ -1562,7 +1563,7 @@ bool App::enter_world(uint32_t stand) {
                 if (L.radius_m <= 0.0f) {
                     continue; // an unlit lamp is a decision, not a defect
                 }
-                lamps.push_back({L.position, L.color, L.radius_m});
+                lamps.push_back({L.position, L.color, L.radius_m, L.casts_shadow});
                 shadowing += L.casts_shadow ? 1u : 0u;
             }
             render_system_.set_scene_lights(std::move(lamps));

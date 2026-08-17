@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 17:08:2026 - 10:53:33
+Last updated: 17:08:2026 - 10:56:32
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -55,6 +55,13 @@ UPD:
   интерфейса, а не его размер. Делитель ЦЕЛЫЙ — тексели интерфейса ложатся на
   целые пиксели сцены, и текст не мерцает при ходьбе.
 - 17:08:2026 - 10:53:33: лампы сцены и однокадровые огни вливаются в пул кандидатов до сортировки.
+- 17:08:2026 - 10:56:32: теневые слоты раздаются СРЕДИ ПРОСЯЩИХ, в порядке расстояния. Первая
+  же композиция с лампами показала, почему прежнее «двум ближайшим» неверно:
+  зона flora поставила casts_shadow = 0 на всех двадцати пяти фонарях, а
+  ближайший всё равно отбросил тень — чёрная плита под собственным столбом в
+  первом же ночном кадре. Поле читалось, печаталось в лог и игнорировалось, что
+  хуже, чем его отсутствие. Правило DFN_CASTER_SKIP не тронуто, оно теперь
+  считается по просящим.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -357,6 +364,7 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         candidates.resize(budget);
     }
     uint32_t count = 0;
+    uint32_t askers = 0; // how many shadow-wanting lights have been seen so far
     for (const PointLightCandidate& c : candidates) {
         platform::PointLight& out = environment_.point_lights[count];
         out.position = c.position;
@@ -382,11 +390,25 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         // Rank 0 always casts; the SECOND slot goes to rank 1 + DFN_CASTER_SKIP,
         // which is 1 in every shipping frame and is the whole instrument for
         // the swap (see caster_skip()).
-        const uint32_t second = 1u + caster_skip();
-        out.casts_shadow = !point_shadows_off_
-                           && (count == 0u ? shadow_caster_cap() > 0u
-                                           : (count == second
-                                              && shadow_caster_cap() > 1u));
+        // THE CASTER SLOTS GO TO LIGHTS THAT ASK FOR THEM, in distance order.
+        // They used to go to the nearest two REGARDLESS of what the light
+        // wanted, and the first composition to hang lamps showed why that is
+        // wrong: flora asked for casts_shadow = 0 on all twenty-five, and the
+        // nearest one cast anyway — a hard black slab under its own post, in
+        // the first night frame. The field was being parsed, logged and
+        // ignored, which is worse than not having it.
+        //
+        // Rank 0 among the ASKERS always casts; the second slot goes to the
+        // asker at rank 1 + DFN_CASTER_SKIP, which is the instrument for the
+        // swap and stays exactly as it was.
+        out.casts_shadow = false;
+        if (!point_shadows_off_ && c.wants_shadow) {
+            const uint32_t second = 1u + caster_skip();
+            out.casts_shadow = (askers == 0u ? shadow_caster_cap() > 0u
+                                             : (askers == second
+                                                && shadow_caster_cap() > 1u));
+            ++askers;
+        }
         ++count;
     }
     environment_.point_light_count = count;
@@ -404,12 +426,12 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     std::vector<PointLightCandidate> candidates;
     const glm::vec3 eye = camera.interpolated_pose(alpha).position;
     const auto add = [&](const glm::vec3& position, float radius,
-                         const glm::vec3& color) {
+                         const glm::vec3& color, bool wants_shadow = true) {
         if (radius <= 0.0f) {
             return;
         }
         const glm::vec3 to = position - eye;
-        candidates.push_back({position, color, radius, glm::dot(to, to)});
+        candidates.push_back({position, color, radius, glm::dot(to, to), wants_shadow});
     };
 
     // THE COMPOSITION'S LAMPS AND THIS FRAME'S SWARM, into the same pool as
@@ -417,10 +439,10 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     // order does not matter: publish_point_lights sorts the whole pool by
     // distance and hands out the eight slots itself.
     for (const ExtraLight& l : scene_lights_) {
-        add(l.position, l.radius_m, l.color);
+        add(l.position, l.radius_m, l.color, l.casts_shadow);
     }
     for (const ExtraLight& l : transient_lights_) {
-        add(l.position, l.radius_m, l.color);
+        add(l.position, l.radius_m, l.color, l.casts_shadow);
     }
 
     world.view<components::CarriedLight, components::Transform>().each(
