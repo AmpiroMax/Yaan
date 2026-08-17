@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 10:14:36
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -89,6 +89,7 @@ UPD:
 - 15:08:2026 - 15:23:22: s_tex_aux (стадия 4) и нейтральная нормаль 1×1 — хранилище второго
   материального листа дро (нормали коры, запрос зоны flora).
 - 17:08:2026 - 10:14:36: capture_fb + состояние чтения назад (VIEW_CAPTURE).
+- 17:08:2026 - 19:17:13: VIEW_IMGUI и VIEW_IMGUI_CAPTURE — слой интерфейса редактора поверх бэкбуфера и поверх capture_fb. Два вида, а не один: у них разные цели И вид bgfx несёт ОДНО преобразование на весь кадр, поэтому переиспользование VIEW_CAPTURE затёрло бы преобразование, под которым подавался upscale.
 */
 
 #pragma once
@@ -122,6 +123,15 @@ inline constexpr bgfx::ViewId VIEW_SCENE =
 inline constexpr bgfx::ViewId VIEW_BACKBUFFER = VIEW_SCENE + 1; // letterbox clear
 inline constexpr bgfx::ViewId VIEW_UPSCALE = VIEW_SCENE + 2;    // integer-scaled quad
 inline constexpr bgfx::ViewId VIEW_CAPTURE = VIEW_SCENE + 3;    // -> capture_fb
+// THE EDITOR'S ImGui LAYER, TWICE. Views render in id order, so both of these
+// land after the upscale that produced the image they sit on top of. Two views
+// rather than one because they have different targets AND because a bgfx view
+// carries ONE transform for the whole frame: reusing VIEW_CAPTURE would
+// overwrite the transform the upscale submitted under. (It happens to survive
+// today — vs_upscale ignores u_modelViewProj — and that is precisely the kind
+// of accident that stops being true in six months.)
+inline constexpr bgfx::ViewId VIEW_IMGUI = VIEW_SCENE + 4;         // -> backbuffer
+inline constexpr bgfx::ViewId VIEW_IMGUI_CAPTURE = VIEW_SCENE + 5; // -> capture_fb
 
 // Sun shadow map (user decision в1). Backend look-dev constants — flagged on
 // the NUMBERS.md migration list (Rule 14). Eye-centered ortho along the sun

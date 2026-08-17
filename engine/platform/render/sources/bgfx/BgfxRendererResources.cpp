@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 14:08:2026 - 16:35:53
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererResources.cpp
 
@@ -45,6 +45,7 @@ UPD:
   numbers in docs/specs/render.md.
 - 14:08:2026 - 16:35:53: create_mesh records MeshRes::tri_count (index_count / 3)
   for the В28 frame-stats and centre-pick hooks.
+- 17:08:2026 - 19:17:13: native_texture_handle — индекс bgfx по нашему TextureHandle, для моста ImGui. Ни владения, ни времени жизни: одно имя.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -321,6 +322,19 @@ void BgfxRenderer::destroy_texture(TextureHandle texture) {
         im.textures.erase(it);
         im.mipped_textures.erase(texture.id);
     }
+}
+
+uint32_t BgfxRenderer::native_texture_handle(TextureHandle texture) const {
+    // The editor's ImGui bridge asks this so a picture the render system owns
+    // (an offscreen thumbnail target) can be shown in a panel. It answers with
+    // the bgfx index and nothing else — no ownership, no lifetime, no promise
+    // that it stays valid past a destroy_texture.
+    const Impl& im = *impl_;
+    const auto it = im.textures.find(texture.id);
+    if (it == im.textures.end() || !bgfx::isValid(it->second)) {
+        return 0xFFFFFFFFu;
+    }
+    return it->second.idx;
 }
 
 ProgramHandle BgfxRenderer::load_program(std::string_view name) {

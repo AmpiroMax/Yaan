@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 18:32:56
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -78,6 +78,7 @@ UPD:
 - 17:08:2026 - 16:35:20: scene_dirty_ — правил ли кто-нибудь композицию в этой сессии.
 - 17:08:2026 - 18:32:56: состояние руки строителя: палитра, призрак, приговор, цель удаления,
   запомненные мерки деталей. Решения — в BuildTool.{h,cpp}, здесь только провода.
+- 17:08:2026 - 19:17:13: Поле editor_ui_ — каркас интерфейса редактора (EditorUi). Панелей этот файл не называет ни одной: они регистрируются сами через EditorUi::add_panel, и это то, что позволяет трём агентам добавлять инструменты в редактор, не правя втроём один файл.
 */
 
 #pragma once
@@ -89,6 +90,7 @@ UPD:
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
+#include "engine/editor/sources/EditorUi.h"
 #include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/app/sources/Menu.h"
 #include "engine/core/config/sources/Constants.h"
@@ -205,6 +207,10 @@ private:
     // frame; never interpolated (the app owns the pose outright). Seeded from
     // the player eye on entry so the toggle in and out of the body is seamless.
     EditorCamera editor_cam_;
+    /// The editor's ImGui frame. Panels (object menu, terrain brushes, the
+    /// properties column) register themselves with it; this file names none of
+    /// them on purpose — see the hook in run().
+    EditorUi editor_ui_;
     // Enters the editor: seeds the free camera from the player's current eye
     // and switches mode. become_player_from_editor() does the reverse -- it
     // teleports the body's feet under the free camera and hands control back to

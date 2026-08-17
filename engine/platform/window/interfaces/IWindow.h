@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/window
 File: engine/platform/window/interfaces/IWindow.h
 
@@ -38,6 +38,7 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
 - 17:08:2026 - 16:27:55: set_fullscreen/is_fullscreen — полный экран во время работы, а не только при рождении окна.
+- 17:08:2026 - 19:17:13: content_size() — размер содержимого в ЛОГИЧЕСКИХ единицах ОС, тех самых, в которых сообщается мышь. На Retina он вдвое меньше кадрового буфера, и всё, что обязано положить УКАЗАТЕЛЬ и КАРТИНКУ в одну систему координат, нуждается в обоих числах; интерфейс, который угадывает отношение, — это интерфейс с курсором, промахивающимся вдвое. Добавление с телом по умолчанию (правило 26).
 */
 
 #pragma once
@@ -80,6 +81,20 @@ public:
     // Framebuffer size in physical pixels (HiDPI-aware). Feeds RendererInitParams
     // and IRenderer::resize.
     [[nodiscard]] virtual glm::uvec2 framebuffer_size() const = 0;
+
+    // CONTENT SIZE IN LOGICAL (OS) UNITS — what the mouse is measured in.
+    //
+    // On a Retina display these two differ by a factor of two, and everything
+    // that has to put a POINTER and a PICTURE in the same coordinate system
+    // needs both: IInput::mouse_position() reports logical units, the renderer
+    // works in pixels, and an interface that guesses the ratio is an interface
+    // whose cursor is off by 2x — the single most common way a tool feels
+    // broken. Defaulted to the framebuffer size so this is purely additive
+    // (Rule 26): a backend without a notion of scale answers "they are the
+    // same", which is true for it.
+    [[nodiscard]] virtual glm::uvec2 content_size() const {
+        return framebuffer_size();
+    }
 
     // Returns true if the framebuffer size changed since the previous call and
     // clears the flag (one consumer: the app, which forwards to IRenderer::resize).

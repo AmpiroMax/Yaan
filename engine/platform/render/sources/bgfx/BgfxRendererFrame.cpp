@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 18:29:30
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -167,9 +167,18 @@ UPD:
   те же два сравнения, что были; открыта — работает там, где нужно.
 - 17:08:2026 - 18:29:30: линии можно включить в рантайме (g_debug_lines_forced); только вверх — два
   прибора могут хотеть линий, и закрытие одного не должно гасить другой.
+- 17:08:2026 - 19:17:13: списки Dear ImGui (интерфейс РЕДАКТОРА) подаются ДВАЖДЫ: в
+  VIEW_IMGUI поверх бэкбуфера и в VIEW_IMGUI_CAPTURE поверх capture_fb. Второй
+  раз — не роскошь: СНИМКИ В ЭТОМ ПРОЕКТЕ ЧИТАЮТСЯ С capture_fb, НИКОГДА С
+  БЭКБУФЕРА (причина расписана в записи от 10:14:36 — спящий дисплей не отдаёт
+  drawable, и сохранённый кадр выходит чёрным). Интерфейс, нарисованный только
+  в окно, не попал бы НИ НА ОДИН приёмочный кадр, то есть панель нельзя было бы
+  ни показать, ни проверить. Существующие проходы и числа не тронуты; при
+  выключенном редакторе обе подачи — одна ветка и возврат.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
+#include "engine/platform/render/sources/bgfx/ImGuiBackend.h"
 
 #include "engine/core/config/sources/Constants.h"
 
@@ -998,6 +1007,13 @@ void BgfxRenderer::end_frame() {
         }
     }
 
+    // THE EDITOR'S INTERFACE, ON THE WINDOW. After the upscale on purpose: the
+    // panels are a TOOL, not part of the picture, so they are drawn at native
+    // resolution and skip the palette, the dither and the black floor entirely.
+    // A no-op (one branch) whenever the editor has drawn nothing this frame.
+    bgfx::setViewFrameBuffer(VIEW_IMGUI, BGFX_INVALID_HANDLE);
+    imgui_backend_submit(VIEW_IMGUI, im.fb_width, im.fb_height);
+
     // AN ACCEPTANCE FRAME IS TAKEN FROM OUR OWN TARGET, NEVER FROM THE
     // BACKBUFFER. Four incidents in one day bought this: with the display
     // asleep or locked, Metal hands out no drawable, the backbuffer is left
@@ -1048,6 +1064,18 @@ void BgfxRenderer::end_frame() {
             bgfx::setIndexBuffer(im.quad_ib);
             bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
             bgfx::submit(VIEW_CAPTURE, im.upscale_program);
+            // AND THE EDITOR'S INTERFACE INTO THE SAME TARGET. Screenshots in
+            // this project are read back from capture_fb and NEVER from the
+            // backbuffer (the reason is four paragraphs up: a sleeping display
+            // hands out no drawable and the saved image comes back black). So
+            // an interface drawn only into the window would appear on NO
+            // acceptance frame — and a panel that cannot be photographed is a
+            // panel that has to be argued about in prose. The draw lists carry
+            // interface pixels, so the same lists land correctly in a target
+            // of a different size with nothing recomputed.
+            bgfx::setViewFrameBuffer(VIEW_IMGUI_CAPTURE, im.capture_fb);
+            imgui_backend_submit(VIEW_IMGUI_CAPTURE, im.internal_width,
+                                 im.internal_height);
             // READ THE TEXTURE, do not ask bgfx for a "screen shot" of it.
             // requestScreenShot on Metal only serves a framebuffer that owns a
             // SWAP CHAIN (renderer_mtl.cpp: it looks up m_swapChain and RETURNS

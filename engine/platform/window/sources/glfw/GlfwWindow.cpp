@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation (macOS Cocoa handle,
   Win32 branch compiling-clean).
 - 17:08:2026 - 16:27:55: set_fullscreen — своя частота монитора, возврат в запомненную рамку.
+- 17:08:2026 - 19:17:13: content_size() через glfwGetWindowSize — GLFW сообщает позицию курсора именно в этих единицах.
 */
 
 #include "engine/platform/window/sources/glfw/GlfwWindow.h"
@@ -165,6 +166,20 @@ glm::uvec2 GlfwWindow::framebuffer_size() const {
     int w = 0;
     int h = 0;
     glfwGetFramebufferSize(window_, &w, &h);
+    return {static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
+}
+
+glm::uvec2 GlfwWindow::content_size() const {
+    if (window_ == nullptr) {
+        return {0, 0};
+    }
+    // GLFW's "window size" IS the logical unit the cursor callbacks report in,
+    // which is the whole reason this exists: the editor's interface has to put
+    // the pointer and the panels in one coordinate system, and on a Retina
+    // display the framebuffer is twice this.
+    int w = 0;
+    int h = 0;
+    glfwGetWindowSize(window_, &w, &h);
     return {static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
 }
 

@@ -1,0 +1,46 @@
+# Created: 17:08:2026 - 19:34:19
+# Last updated: 17:08:2026 - 19:34:19
+# Module: docs/acceptance
+# File: docs/acceptance/editor-ui-capture.txt
+#
+# Responsibility:
+# - THE RECIPE FOR THE THREE FRAMES that prove the editor's Dear ImGui layer
+#   exists, reads Cyrillic, and answers the two capture questions SEPARATELY.
+#
+# Key items:
+# - The frames (built at 5712e8c+dirty, dfn_app из build_editor):
+#     editor-ui-capture-over_panel-5712e8c.png  указатель НАД панелью
+#     editor-ui-capture-over_world-5712e8c.png  указатель над МИРОМ (контроль)
+#     editor-ui-capture-typing-5712e8c.png      указатель над панелью + каретка
+# - Shoot, from the repo root:
+#     DFN_UI_PROBE=1 DFN_UI_PROBE_MOUSE=1000,200 \
+#     DFN_EDITOR=1 DFN_OPEN_MAP=houses/demo \
+#     DFN_CAPTURE_DIR=<NEW dir> DFN_CAPTURE_AFTER_FRAMES=120 \
+#     build_editor/engine/app/dfn_app
+#   затем tools/archive_frame.py <capture_000.png> <dst.png> 1280
+#   (2560x1440 нативных, box-average /2).
+# - ВТОРАЯ РУКА (контроль нулевой дозы, правило 48): то же самое с
+#   DFN_UI_PROBE_MOUSE=300,400 — указатель над миром, панель не под ним.
+# - ТРЕТЬЯ РУКА: DFN_UI_PROBE_MOUSE=1000,300 DFN_UI_PROBE_KEYS=1 — каретка
+#   ставится в поле поиска.
+#
+# ЧТО ИМЕННО ЧИТАЕТСЯ С КАДРОВ (строка «Захват:» в панели):
+#   над панелью   -> мышь ДА,  клавиатура нет
+#   над миром     -> мышь нет, клавиатура нет      <- контроль
+#   + каретка     -> мышь ДА,  клавиатура ДА
+# ОДИН БИНАРНИК НА ВСЕ ТРИ (правило 47): руки отличаются ровно одной
+# переменной среды, поэтому разница не может быть чужой работой.
+#
+# ПОЧЕМУ ДВЕРЬ ДЛЯ УКАЗАТЕЛЯ ВООБЩЕ ЕСТЬ. Беспилотный прогон не держит мышь, а
+# значит wants_mouse() на кадре мог бы отвечать только «нет» — тот же ответ,
+# который даёт полностью сломанная реализация (правило 27: точка съёмки,
+# неспособная провалиться, не является доказательством).
+#
+# КИРИЛЛИЦА ПРОВЕРЯЕТСЯ НА СТРОКЕ, А НЕ НА ОБЕЩАНИИ: «Съешь ещё этих мягких
+# французских булок, да выпей же чаю: ЖЩЫЁ жщыё». Строчная «ё» стоит в U+0451 —
+# ВНЕ диапазона, который предлагает сама ImGui (GetGlyphRangesCyrillic:
+# 0x0400-0x044F), поэтому именно она пропала бы первой. Наш диапазон 0x0400-
+# 0x045F; на кадре 307 глифов в атласе 512x512.
+#
+# UPD:
+# - 17:08:2026 - 19:34:19: Созданы три кадра — интерфейс, кириллица, два признака захвата.

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 12:08:2026 - 00:11:40
+# Last updated: 17:08:2026 - 19:17:13
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -49,6 +49,12 @@
 #   identical -- a uniform needs no rebuild at all, so identical arms could
 #   only mean the binary predated the source. If you add a shared header here,
 #   add it to this list in the same edit.
+# - 17:08:2026 - 19:17:13: sources/bgfx/ImGuiBackend.cpp + пара vs_imgui/fs_imgui —
+#   бэкенд Dear ImGui к bgfx для интерфейса РЕДАКТОРА. У самой bgfx его нет: он
+#   живёт в её примерах и в библиотеку не входит, поэтому он наш. Правило 1
+#   держит третьи стороны в platform sources/, поэтому мост живёт здесь, а не в
+#   engine/app. Правка зоны редактора по разрешению лида (17.08); существующих
+#   проходов и чисел не тронуто.
 
 include(FetchContent)
 
@@ -96,11 +102,12 @@ endfunction()
 
 if(APPLE)
     foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow
-                   vs_foliage vs_shadow_cutout vs_point_shadow)
+                   vs_foliage vs_shadow_cutout vs_point_shadow vs_imgui)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
     foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop
-                   fs_shadow fs_foliage fs_shadow_cutout fs_point_shadow fs_path)
+                   fs_shadow fs_foliage fs_shadow_cutout fs_point_shadow fs_path
+                   fs_imgui)
         dfn_compile_shader(${shader} fragment metal osx mtl)
     endforeach()
 endif()
@@ -116,10 +123,15 @@ add_library(dfn_platform_render STATIC
     sources/bgfx/BgfxRendererResources.cpp
     sources/bgfx/BgfxCallback.cpp
     sources/bgfx/BgfxPalette.cpp
+    sources/bgfx/ImGuiBackend.cpp
     sources/null/NullRenderer.cpp)
 target_link_libraries(dfn_platform_render
     PUBLIC dfn_headers
-    PRIVATE bgfx bimg_encode bx)        # PRIVATE: bgfx never escapes this layer
+    # PRIVATE: bgfx never escapes this layer. dfn_imgui is here for the same
+    # reason bgfx is — the ImGui bgfx backend is a THIRD-PARTY BRIDGE, and
+    # Rule 1 says third-party includes live in platform sources/. bgfx ships no
+    # such backend (its own is in the examples), so this one is ours.
+    PRIVATE bgfx bimg_encode bx dfn_imgui)
 # Third-party headers as SYSTEM so -Wall -Wextra -Wpedantic stays clean for us.
 foreach(dep bgfx bimg bx)
     get_target_property(_dfn_dep_inc ${dep} INTERFACE_INCLUDE_DIRECTORIES)

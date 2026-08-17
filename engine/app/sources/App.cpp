@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 18:41:51
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -339,6 +339,7 @@ UPD:
   палитры догружается с полки по требованию. Дверь DFN_BUILD=1 — палитра без клавиши.
 - 17:08:2026 - 18:41:51: предпросмотр САМОЙ деталью вместо рамки; стрелки ПОВОРАЧИВАЮТ (90 и 15 град.),
   поворот идёт вокруг ЦЕНТРА детали, а не вокруг угла-начала; G ставит прямо.
+- 17:08:2026 - 19:17:13: ЗАЦЕПКА ИНТЕРФЕЙСА РЕДАКТОРА, ровно одна: editor_ui_.init() после подъёма рендерера, пара begin_frame/end_frame перед render_system_.render(), shutdown() до остановки рендерера (интерфейс держит ресурсы bgfx). Всё остальное живёт в EditorUi.cpp.
 */
 
 #include "engine/app/sources/App.h"
@@ -810,6 +811,24 @@ bool App::init(const AppConfig& config) {
     rp.palette_post = config.palette_post;
     if (!renderer_ || !renderer_->init(rp)) {
         return false;
+    }
+
+    // THE EDITOR'S INTERFACE (Dear ImGui, EditorUi.cpp). NOT an error if it
+    // fails to come up: the editor then behaves exactly as it did before this
+    // module existed, which is the right answer for a tool layer on a backend
+    // that ships no shaders (Rule 3's spirit). The game's own menu, HUD and
+    // controls screen are untouched by it — they stay on PixelCanvas and keep
+    // going through the palette and the post chain.
+    // THE EDITOR'S TEXT COMES FROM THE GAME'S TABLE, handed over as a function:
+    // engine/editor sits BELOW engine/app in the DAG, so it cannot include the
+    // localization header, and a panel that hard-codes Russian would break
+    // Rule 5 anyway.
+    EditorUi::set_text_source([](const char* key) -> std::string_view {
+        return localized(serialization::fnv1a64(key));
+    });
+    if (!editor_ui_.init(*renderer_)) {
+        std::fprintf(stderr, "[editor-ui] интерфейс редактора не поднялся — "
+                             "редактор работает как раньше\n");
     }
 
     physics_ = config.use_null_physics ? platform::create_null_physics()
@@ -5071,6 +5090,19 @@ int App::run() {
                              shown / 3, static_cast<double>(SHOW_RADIUS_M), skipped);
             }
         }
+        // THE EDITOR'S INTERFACE — THE ONE HOOK. Everything ImGui does happens
+        // between these two calls: begin_frame pumps our platform input into it
+        // and runs every open panel's draw callback; end_frame hands the lists
+        // to the bgfx backend, which draws them inside the renderer's own
+        // end_frame (below, in render_system_.render) — after the upscale, at
+        // native resolution, and a second time into the capture target so the
+        // panels appear on screenshots.
+        //
+        // A PANEL IS NEVER NAMED HERE. Panels register themselves through
+        // EditorUi::add_panel, which is what lets three agents add tools to
+        // this editor without three of them editing this file.
+        editor_ui_.begin_frame(*input_, *window_, static_cast<float>(frame_dt));
+        editor_ui_.end_frame();
         render_system_.render(world_, *renderer_, camera_, alpha);
 
 
@@ -5277,6 +5309,9 @@ void App::shutdown() {
         g_chunk_physics.clear();
     }
     if (renderer_) {
+        // Before the renderer: the interface owns bgfx resources (its program,
+        // its font atlas) that must be destroyed while bgfx is still up.
+        editor_ui_.shutdown();
         chunks_.unload_all(world_, bus_);
         bus_.pump();
         render_system_.shutdown(*renderer_);

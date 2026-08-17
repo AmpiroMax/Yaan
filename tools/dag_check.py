@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 10:08:2026 - 21:05:04
-# Last updated: 10:08:2026 - 21:05:04
+# Last updated: 17:08:2026 - 19:24:13
 # File: tools/dag_check.py
 #
 # Responsibility:
@@ -40,6 +40,15 @@
 # UPD:
 # - 10:08:2026 - 21:05:04: Created after the code audit found ARCHITECTURE.md's
 #                          CMake-enforcement claim was false.
+# - 17:08:2026 - 19:24:13: Названное исключение — Dear ImGui под engine/editor/.
+#   Проверка ЗАПРЕЩАЛА то, что ARCHITECTURE.md разрешает открытым текстом дважды
+#   (раздел layout: «editor/ ... Dear ImGui — allowed here only»; раздел DAG:
+#   «editor may use Dear ImGui directly (documented exception; nothing else
+#   may)»), то есть недореализовывала собственный контракт — ровно тот класс
+#   расхождения правила с его исполняемой копией, ради которого этот скрипт и
+#   написан (правило 39). Исключение узкое с двух сторон: только engine/editor/
+#   и только imgui; Jolt, bgfx, GLFW и ozz там по-прежнему запрещены, чтобы это
+#   не стало дверью для всех будущих библиотек.
 
 from __future__ import annotations
 
@@ -136,6 +145,26 @@ def scan(root: Path) -> tuple[list[str], int, int]:
             if inc.startswith(THIRD_PARTY_PREFIXES):
                 # tests may use doctest; backends may use their own library.
                 if rel.startswith("tests/") and inc.startswith("doctest/"):
+                    pass
+                # THE ONE EXEMPTION THE ARCHITECTURE ALREADY GRANTED IN WORDS.
+                # This is not a hole being opened; it is the check catching up
+                # with the contract it exists to enforce. ARCHITECTURE.md says
+                # it twice, in the repository layout ("editor/  In-game editor
+                # mode (Dear ImGui - allowed here only)") and again under the
+                # dependency DAG ("editor may use Dear ImGui directly
+                # (documented exception; nothing else may)"). Until now the
+                # script forbade what the document permits, which is the same
+                # class of defect as the false CMake-enforcement claim that
+                # bought this script in the first place: a rule and its
+                # executable copy disagreeing (Rule 39).
+                #
+                # NARROW IN BOTH DIRECTIONS, on purpose. Only under
+                # engine/editor/, and only Dear ImGui: Jolt, bgfx, GLFW, ozz and
+                # the rest stay forbidden there. A blanket "the editor is
+                # exempt" would become the door every future library walks
+                # through, and the next reader would have no way to tell which
+                # ones were ever decided on.
+                elif rel.startswith("engine/editor/") and inc.startswith("imgui"):
                     pass
                 elif not in_backend:
                     errors.append(

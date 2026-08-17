@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 18:29:30
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -40,6 +40,7 @@ UPD:
   center_pick overrides for the new IRenderer contract (definitions in
   BgfxRendererFrame.cpp; accumulation in BgfxRendererSubmit.cpp).
 - 17:08:2026 - 18:29:30: set_debug_lines.
+- 17:08:2026 - 19:17:13: native_texture_handle — объявление переопределения нового добавленного метода IRenderer.
 */
 
 #pragma once
@@ -93,6 +94,7 @@ public:
     void set_debug_lines(bool enabled) override;
     [[nodiscard]] const RenderFrameStats& frame_stats() const override;
     [[nodiscard]] const RenderPick& center_pick() const override;
+    [[nodiscard]] uint32_t native_texture_handle(TextureHandle handle) const override;
 
 private:
     struct Impl; // all bgfx types live here (.cpp only)

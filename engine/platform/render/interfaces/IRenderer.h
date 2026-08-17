@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 17:08:2026 - 18:29:30
+Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -93,6 +93,7 @@ UPD:
   (правило 26): пустой по умолчанию, никто, кроме просящего, не платит.
 - 17:08:2026 - 18:29:30: set_debug_lines — дверь линий открывается В РАНТАЙМЕ: призрак решает нужны ли
   они по нажатию клавиши, а переменная окружения читается один раз при запуске.
+- 17:08:2026 - 19:17:13: native_texture_handle() — имя текстуры В ТЕРМИНАХ БЭКЕНДА, 0xFFFFFFFF = «не знаю». Единственная намеренно дырявая точка контракта, и она узкая: интерфейс редактора рисует ВТОРОЙ библиотекой (Dear ImGui), чей мост к bgfx лежит рядом с этим бэкендом, и они обязаны уметь говорить об одной и той же текстуре — иначе миниатюру детали, нарисованную во внеэкранную мишень, невозможно показать в меню. Добавление с телом по умолчанию (правило 26): нулевой бэкенд и все двойники в тестах компилируются без правок и отвечают «не знаю».
 */
 
 #pragma once
@@ -445,6 +446,23 @@ public:
     virtual void set_wireframe(bool enabled) = 0;
     [[nodiscard]] virtual const RenderFrameStats& frame_stats() const = 0;
     [[nodiscard]] virtual const RenderPick& center_pick() const = 0;
+
+    // THE BACKEND'S OWN NAME FOR A TEXTURE. 0xFFFFFFFF means "no answer".
+    //
+    // This is the ONE place the abstraction is deliberately leaky, and it is
+    // narrow on purpose: the editor's interface layer draws with a SECOND
+    // library (Dear ImGui) whose bgfx bridge lives beside this backend, and the
+    // two have to be able to talk about the same texture — otherwise a part
+    // thumbnail rendered into an offscreen target could never be shown in a
+    // menu. Nothing outside a backend-matched UI layer may interpret the value;
+    // anything that does is coupling itself to bgfx through a keyhole.
+    //
+    // Defaulted (not = 0) so this addition is purely additive (Rule 26): the
+    // null backend and every test double keep compiling and answer "no", which
+    // is exactly right for a renderer with no textures.
+    [[nodiscard]] virtual uint32_t native_texture_handle(TextureHandle) const {
+        return 0xFFFFFFFFu;
+    }
 };
 
 } // namespace dfn::platform

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 17:08:2026 - 16:14:41
+# Last updated: 17:08:2026 - 19:17:13
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -47,6 +47,12 @@
 #                          запечатанная один раз панель не может протечь заново.
 # - 17:08:2026 - 16:14:41: dfn_newmap — явное создание папки карты и её композиции. Заказ
 #   пользователя 17.08: папки не должны появляться как побочный эффект записи.
+# - 17:08:2026 - 19:17:13: dfn_imgui — Dear ImGui v1.91.9b-docking, интерфейс РЕДАКТОРА
+#   (правило 1 называет editor единственным местом, где эта библиотека разрешена).
+#   Объявлена здесь, а не в слое, потому что её берут ДВА слоя: бэкенд к bgfx в
+#   engine/platform/render и каркас панелей в engine/app, а render стоит в
+#   DFN_LAYERS раньше app — объявление внутри любого из них поставило бы
+#   существование цели в зависимость от порядка строк списка.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -89,6 +95,39 @@ FetchContent_Declare(doctest
     GIT_REPOSITORY https://github.com/doctest/doctest.git
     GIT_TAG v2.4.11)
 FetchContent_MakeAvailable(glm doctest)
+
+# DEAR IMGUI — THE EDITOR'S INTERFACE, AND NOTHING ELSE (Rule 1's documented
+# exception: "editor may use Dear ImGui directly"). The game menu, the HUD and
+# the controls screen stay on PixelCanvas and keep going through the palette
+# and the post chain; this library draws at native resolution after the upscale
+# and is deliberately not part of the game's look.
+#
+# DECLARED HERE, NOT IN A LAYER, because TWO layers need it: the bgfx backend
+# (engine/platform/render, which owns every third-party include) and the panel
+# frame (engine/app). engine/platform/render is added to DFN_LAYERS BEFORE
+# engine/app, so a declaration inside either one would make the target's
+# existence depend on the order layers happen to be listed in.
+#
+# THE PIN IS 1.91.9b AND NOT THE NEWEST ON PURPOSE (Rule 24 wants an exact tag;
+# WHICH exact tag is a decision). 1.92 rewrote font atlas and backend texture
+# ownership (ImTextureData / WantCreate / WantDestroy), which our own backend
+# would have to implement on the first day it exists. "Newest" would buy a risk
+# nobody asked to pay for. The -docking suffix is the docking branch: the
+# properties column the user asked for is dockable there and hand-written here.
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.9b-docking)       # Rule 24: exact pinned release tag
+FetchContent_MakeAvailable(imgui)
+add_library(dfn_imgui STATIC
+    "${imgui_SOURCE_DIR}/imgui.cpp"
+    "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+    "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+    "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+    "${imgui_SOURCE_DIR}/imgui_demo.cpp")
+# SYSTEM so -Wall -Wextra -Wpedantic stays clean for our own translation units,
+# exactly as bgfx/bimg/bx are treated one layer down.
+target_include_directories(dfn_imgui SYSTEM PUBLIC "${imgui_SOURCE_DIR}")
+
 include(CTest) # root-level so `ctest --test-dir <build>` finds zone tests
 
 # --- Common interface target -------------------------------------------------
