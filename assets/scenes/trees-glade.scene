@@ -17111,3 +17111,180 @@ color = 1 0.66 0.30
 radius_m = 7.5
 casts_shadow = 0
 note = стекло фонаря: фонарь кольцевой
+
+# --- GLOW-ЧАСТИ ламп: kind=emissive, рисуются unlit (контракт лида).
+
+[place]
+object = glade-torch-flame
+pos = 135.91 25.7907 91.74
+yaw = -2.139
+scale = 1
+note = свет: факел тропы grass, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 132.12 25.8162 75.06
+yaw = 2.306
+scale = 1
+note = свет: факел тропы grass, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 147.11 25.5954 62.16
+yaw = -1.493
+scale = 1
+note = свет: факел тропы grass, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 135.53 25.9723 44.72
+yaw = 1.306
+scale = 1
+note = свет: факел тропы grass, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 149.59 25.5412 31.32
+yaw = -0.687
+scale = 1
+note = свет: факел тропы grass, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 147.11 25.6332 14.68
+yaw = 1.003
+scale = 1
+note = свет: факел тропы grass, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 146.71 25.3512 155.71
+yaw = 1.449
+scale = 1
+note = свет: факел тропы dirt, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 162.64 25.1526 165.25
+yaw = -3.018
+scale = 1
+note = свет: факел тропы dirt, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 180.69 25.0046 172.15
+yaw = 0.532
+scale = 1
+note = свет: факел тропы dirt, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 188.83 24.7632 187.78
+yaw = -1.617
+scale = 1
+note = свет: факел тропы dirt, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 192.33 24.607 205.63
+yaw = 0.584
+scale = 1
+note = свет: факел тропы dirt, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 213.41 24.5402 204.96
+yaw = -3.036
+scale = 1
+note = свет: факел тропы dirt, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 223.53 24.4024 220.37
+yaw = 1.43
+scale = 1
+note = свет: факел тропы dirt, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 89.69 25.8733 135.01
+yaw = 2.611
+scale = 1
+note = свет: факел тропы stone, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 77.75 26.0073 151.28
+yaw = -0.73
+scale = 1
+note = свет: факел тропы stone, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 59.58 25.9201 155
+yaw = 3.009
+scale = 1
+note = свет: факел тропы stone, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 40.49 26.0585 158.83
+yaw = 0.014
+scale = 1
+note = свет: факел тропы stone, сторона R
+
+[place]
+object = glade-torch-flame
+pos = 22.08 26.3141 160.19
+yaw = 2.544
+scale = 1
+note = свет: факел тропы stone, сторона L
+
+[place]
+object = glade-torch-flame
+pos = 10.27 26.0421 176.63
+yaw = -0.692
+scale = 1
+note = свет: факел тропы stone, сторона R
+
+[place]
+object = glade-lantern-glass
+pos = 131.21 25.7659 106.74
+yaw = -2.992
+scale = 1
+note = свет: фонарь кольцевой
+
+[place]
+object = glade-lantern-glass
+pos = 148.02 25.6267 120.15
+yaw = -1.944
+scale = 1
+note = свет: фонарь кольцевой
+
+[place]
+object = glade-lantern-glass
+pos = 144.8 25.1253 141.41
+yaw = -0.897
+scale = 1
+note = свет: фонарь кольцевой
+
+[place]
+object = glade-lantern-glass
+pos = 124.79 25.7151 149.26
+yaw = 0.15
+scale = 1
+note = свет: фонарь кольцевой
+
+[place]
+object = glade-lantern-glass
+pos = 107.98 25.6006 135.85
+yaw = 1.197
+scale = 1
+note = свет: фонарь кольцевой
+
+[place]
+object = glade-lantern-glass
+pos = 111.2 25.9098 114.59
+yaw = 2.244
+scale = 1
+note = свет: фонарь кольцевой

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 10:02:06
+Last updated: 17:08:2026 - 11:16:13
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -62,6 +62,7 @@ UPD:
 - 17:08:2026 - 07:04:26: GroundPropParams.bloom — сказочный размер венчика (утро 17.08: «цветов не вижу... пусть крупные будут, зато играбельно»).
 - 17:08:2026 - 09:54:18: far_lod — дальняя форма дерева (контракт лида: `<имя>-far`, второй .dfo, силуэт совпадает): без вееров, один лист на якорь, без желудей/сучьев/юбки.
 - 17:08:2026 - 10:02:06: BushForgeParams.far_lod — дальняя форма куста: ягоды с мелочью опущены (5-7 см за 44 м — субпиксель), стебли и листы нетронуты.
+- 17:08:2026 - 11:16:13: PathLightPart Post/Glow — пламя и стекло куются ОТДЕЛЬНЫМИ объектами с kind=emissive (контракт лида: такой .dfo рисуется unlit; ночь больше не чернит источник света).
 */
 
 #pragma once
@@ -199,10 +200,15 @@ struct GroundPropParams {
 /// the actual light point is the lead's [light] scene section; the flame and
 /// the glass are bright vertex colour so an UNLIT lamp still reads at dusk.
 enum class PathLightKind : uint8_t { TorchStake = 0, LanternPost = 1 };
+/// Post — сам столб (lit, prop program). Glow — ТОЛЬКО пламя/стекло отдельным
+/// объектом с kind == "emissive": контракт лида 17.08 — такой .dfo рисуется
+/// программой unlit, и источник света перестаёт быть чёрным силуэтом ночью.
+enum class PathLightPart : uint8_t { Post = 0, Glow = 1 };
 struct PathLightParams {
     uint64_t seed = 1;
     std::string name = "torch";
     PathLightKind kind = PathLightKind::TorchStake;
+    PathLightPart part = PathLightPart::Post;
     float height = 2.2f;              ///< top of the flame / lantern hook
     glm::vec3 wood{0.15f, 0.11f, 0.07f};
     glm::vec3 iron{0.10f, 0.10f, 0.11f};

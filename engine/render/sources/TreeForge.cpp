@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 10:55:52
+Last updated: 17:08:2026 - 11:16:13
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -72,6 +72,7 @@ UPD:
 - 17:08:2026 - 10:06:05: Третья партия far: грани трубок дешевле вдали (бола 7->5, каркас 5->4, ветви 4->3) — по расчёту лида разброс силуэта n-угольника на дистанции подмены — треть пикселя.
 - 17:08:2026 - 10:07:57: Корни всех деревьев — тёмный мшистый ряд коры: белые бумажные шпоры берёз читались пластиковыми крабьими лапами; настоящая берёза бела сверху и темна у комля.
 - 17:08:2026 - 10:55:52: Шов болы убит: v — арк-длина с продолжением от наплыва (наклонный сегмент с v0=мировая высота скакал на каждом стыке — виден на дубе 50 м, инспекция «прочих багов»).
+- 17:08:2026 - 11:16:13: forge_path_light разделён на столб (lit) и glow (emissive): у факела пламя, у фонаря тёплое стекло; общая рама коробки — вне ворот, чтобы части сходились точно.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -1312,7 +1313,8 @@ RegistryObject forge_ground_prop(const GroundPropParams& p) {
 RegistryObject forge_path_light(const PathLightParams& p) {
     RegistryObject obj;
     obj.name = p.name;
-    obj.kind = "lamp";
+    const bool glow = p.part == PathLightPart::Glow;
+    obj.kind = glow ? "emissive" : "lamp";
     obj.source = "forge:lamp seed=" + std::to_string(p.seed);
     Rng rng(p.seed * 0x9E3779B97F4A7C15ull + 0xC2B2AE3D27D4EB4Full);
     const glm::vec3 up{0.0f, 1.0f, 0.0f};
@@ -1325,8 +1327,10 @@ RegistryObject forge_path_light(const PathLightParams& p) {
     if (p.kind == PathLightKind::TorchStake) {
         const float post_h = p.height - 0.42f;
         // Boot at the ground so the stake reads planted, not stuck.
+        if (!glow)
         tube_segment(obj.wood, -up * 0.04f, up * 0.14f, up, 0.065f, 0.048f, 8,
                      wood_c);
+        if (!glow) {
         tube_segment(obj.wood, up * 0.14f, up * post_h, up, 0.048f, 0.034f, 8,
                      wood_c);
         // Iron collar under the head keeps the wrap from reading as wood.
@@ -1337,8 +1341,10 @@ RegistryObject forge_path_light(const PathLightParams& p) {
                      0.058f, 0.078f, 8, pack(glm::vec3{0.22f, 0.12f, 0.07f}));
         tube_segment(obj.wood, up * (post_h + 0.15f), up * (post_h + 0.24f), up,
                      0.078f, 0.052f, 8, pack(glm::vec3{0.26f, 0.14f, 0.08f}));
-        // FLAME: closed bipyramid, hot core over orange skirt — vertex colour
-        // bright enough to read unlit; the real light is the lead's [light].
+        }
+        // FLAME: closed bipyramid, hot core over orange skirt — the GLOW
+        // object; rides the unlit path so night cannot blacken it.
+        if (glow) {
         const float fb = post_h + 0.24f;
         tube_segment(obj.wood, up * fb, up * (fb + 0.10f), up, 0.020f, 0.055f, 6,
                      flame_c);
@@ -1346,43 +1352,52 @@ RegistryObject forge_path_light(const PathLightParams& p) {
                      0.0f, 6, flame_c);
         tube_segment(obj.wood, up * (fb + 0.04f), up * (fb + 0.15f), up, 0.028f,
                      0.0f, 6, core_c);
+        }
     } else {  // LanternPost
         const float post_h = p.height - 0.10f;
-        tube_segment(obj.wood, -up * 0.04f, up * 0.16f, up, 0.075f, 0.056f, 8,
-                     wood_c);
-        tube_segment(obj.wood, up * 0.16f, up * post_h, up, 0.056f, 0.042f, 8,
-                     wood_c);
-        // Arm reaches out; the lantern hangs from its end on a short link.
+        // Common frame for both parts: the hung box must sit at the same
+        // point whether we forge the post or the glow.
         const glm::vec3 arm_dir{1.0f, 0.0f, 0.0f};
         const glm::vec3 arm_root = up * (post_h - 0.06f);
         const glm::vec3 arm_end = arm_root + arm_dir * 0.34f + up * 0.05f;
-        tube_segment(obj.wood, arm_root, arm_end, arm_dir, 0.030f, 0.024f, 6,
-                     wood_c);
-        // Diagonal brace so the arm is built, not glued (rule 52 in spirit).
-        tube_segment(obj.wood, up * (post_h - 0.30f), arm_root + arm_dir * 0.22f,
-                     arm_dir, 0.018f, 0.014f, 5, wood_c);
-        tube_segment(obj.wood, arm_end, arm_end - up * 0.07f, -up, 0.010f, 0.010f,
-                     5, iron_c);
-        // The lantern box, hung under the arm's end.
         const glm::vec3 c = arm_end - up * 0.07f;
-        // top plate, glass barrel (WARM — reads lit even before it is), bottom
-        // plate, cap cone with a finial ring.
-        tube_segment(obj.wood, c - up * 0.02f, c - up * 0.055f, -up, 0.095f,
-                     0.095f, 8, iron_c);
-        tube_segment(obj.wood, c - up * 0.055f, c - up * 0.215f, -up, 0.085f,
-                     0.085f, 8, pack(glm::vec3{0.98f, 0.82f, 0.42f}));
-        tube_segment(obj.wood, c - up * 0.215f, c - up * 0.255f, -up, 0.098f,
-                     0.098f, 8, iron_c);
-        tube_segment(obj.wood, c - up * 0.255f, c - up * 0.285f, -up, 0.098f,
-                     0.040f, 8, iron_c);
-        tube_segment(obj.wood, c - up * 0.02f, c + up * 0.045f, up, 0.075f,
-                     0.012f, 8, iron_c);
-        // Four corner posts of the cage in front of the glass.
-        for (int k = 0; k < 4; ++k) {
-            const float a = TAU * (static_cast<float>(k) + 0.5f) / 4.0f;
-            const glm::vec3 off{std::cos(a) * 0.088f, 0.0f, std::sin(a) * 0.088f};
-            tube_segment(obj.wood, c + off - up * 0.055f, c + off - up * 0.215f,
-                         -up, 0.008f, 0.008f, 4, iron_c);
+        if (!glow) {
+            tube_segment(obj.wood, -up * 0.04f, up * 0.16f, up, 0.075f, 0.056f,
+                         8, wood_c);
+            tube_segment(obj.wood, up * 0.16f, up * post_h, up, 0.056f, 0.042f,
+                         8, wood_c);
+            // Arm reaches out; the lantern hangs from its end on a short link.
+            tube_segment(obj.wood, arm_root, arm_end, arm_dir, 0.030f, 0.024f,
+                         6, wood_c);
+            // Diagonal brace so the arm is built, not glued (rule 52 in spirit).
+            tube_segment(obj.wood, up * (post_h - 0.30f),
+                         arm_root + arm_dir * 0.22f, arm_dir, 0.018f, 0.014f, 5,
+                         wood_c);
+            tube_segment(obj.wood, arm_end, arm_end - up * 0.07f, -up, 0.010f,
+                         0.010f, 5, iron_c);
+            // The lantern box, hung under the arm's end: plates, cap, cage.
+            tube_segment(obj.wood, c - up * 0.02f, c - up * 0.055f, -up, 0.095f,
+                         0.095f, 8, iron_c);
+            tube_segment(obj.wood, c - up * 0.215f, c - up * 0.255f, -up, 0.098f,
+                         0.098f, 8, iron_c);
+            tube_segment(obj.wood, c - up * 0.255f, c - up * 0.285f, -up, 0.098f,
+                         0.040f, 8, iron_c);
+            tube_segment(obj.wood, c - up * 0.02f, c + up * 0.045f, up, 0.075f,
+                         0.012f, 8, iron_c);
+            // Four corner posts of the cage in front of the glass.
+            for (int k = 0; k < 4; ++k) {
+                const float a = TAU * (static_cast<float>(k) + 0.5f) / 4.0f;
+                const glm::vec3 off{std::cos(a) * 0.088f, 0.0f,
+                                    std::sin(a) * 0.088f};
+                tube_segment(obj.wood, c + off - up * 0.055f,
+                             c + off - up * 0.215f, -up, 0.008f, 0.008f, 4,
+                             iron_c);
+            }
+        } else {
+            // THE GLASS, warm and self-lit: the emissive object the lead's
+            // unlit path draws — night cannot blacken it.
+            tube_segment(obj.wood, c - up * 0.055f, c - up * 0.215f, -up,
+                         0.085f, 0.085f, 8, pack(glm::vec3{0.98f, 0.82f, 0.42f}));
         }
     }
     (void)rng;

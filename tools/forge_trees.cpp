@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 10:02:06
+Last updated: 17:08:2026 - 11:16:13
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -51,6 +51,7 @@ UPD:
 - 17:08:2026 - 09:50:47: Ели галереи шире (крона 3.9/4.4) и гуще (10 ветвей на мутовку) — сверка со скайримским референсом.
 - 17:08:2026 - 09:54:18: bake_tree: каждое дерево полки glade печётся парой <имя> + <имя>-far (дальняя форма для пополиточного LOD лида).
 - 17:08:2026 - 10:02:06: bake_bush: ягодники, орешник и можжевельник печутся парой <имя>+<имя>-far; голые кусты bush-a/b/c и мелочь (трава/цветы/грибы/брёвна/лампы) far-форм не имеют — экономить там нечего.
+- 17:08:2026 - 11:16:13: glade-torch-flame и glade-lantern-glass — светящиеся половины ламп.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -601,6 +602,16 @@ int main(int argc, char** argv) {
             lp.kind = PathLightKind::LanternPost;
             lp.height = 2.0f;
             bake(forge_path_light(lp));
+            // GLOW-ЧАСТИ (контракт лида: kind=="emissive" рисуется unlit):
+            // пламя и стекло — отдельные объекты рядом со столбами в сцене.
+            PathLightParams tf = ts;
+            tf.name = "glade-torch-flame";
+            tf.part = PathLightPart::Glow;
+            bake(forge_path_light(tf));
+            PathLightParams lg = lp;
+            lg.name = "glade-lantern-glass";
+            lg.part = PathLightPart::Glow;
+            bake(forge_path_light(lg));
         }
         for (int i = 0; i < 2; ++i) {
             LogForgeParams lg;
