@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 17:08:2026 - 19:54:38
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -27,6 +27,19 @@ UPD:
 - 17:08:2026 - 19:17:13: Создан — контекст, шрифт с кириллицей (диапазон свой,
   встроенный в ImGui теряет строчную «ё»), маршрутизация ввода, стиль, раскладка
   панелей, два признака захвата.
+- 17:08:2026 - 19:54:38: ЗНАКИ. Зона меню объектов упёрлась в мой диапазон: ★ (U+2605)
+  рисовалась бы пустым квадратом, и звезду пришлось убрать из таблицы. Диапазон
+  расширен — и сразу измерено, потому что ДИАПАЗОН ЭТО ЗАПРОС, А НЕ ОБЕЩАНИЕ:
+  ImGui молча пропускает кодпойнты, которых нет в шрифте. Arial несёт ▼ → ×, и
+  НЕ несёт ★ ☆ ✓, то есть одно расширение списка не дало бы ничего. Поэтому
+  знаки домешиваются вторым и третьим шрифтом (Apple Symbols, Arial Unicode):
+  буквы остаются в том начертании, под которое верстались панели, а из вторых
+  берутся только те кодпойнты, которых первый не смог. report_mark_glyphs()
+  печатает при старте каждый знак поимённо и держит СВОЙ контроль — U+4E2D,
+  заведомо вне запроса, обязан отсутствовать; если он «есть», значит проверка
+  отвечает из подменного глифа и все «есть» выше ничего не стоят.
+  Числа: глифов 307 -> 327 (только расширение диапазона) -> 411 (с домесом),
+  атлас 512x512 -> 512x1024. Все семь знаков на кадре, контроль отсутствует.
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -64,9 +77,57 @@ const ImWchar* cyrillic_ranges() {
         0x0400, 0x045F, // Cyrillic INCLUDING Ё (0401) and ё (0451)
         0x2010, 0x2027, // dashes and quotes our strings actually use
         0x2116, 0x2116, // №
+        // THE MARKS A TOOL PUTS BESIDE A ROW. Added because the object menu
+        // needed a star for "favourite" and got an empty box: two ranges of
+        // letters is exactly the font a panel with no marks in it needs, and
+        // the first panel with marks in it proved it. Asking for a range the
+        // font does not carry costs nothing — a missing glyph is simply not
+        // rasterized — so the honest test is the probe below, not this list.
+        0x2190, 0x2193, // ← ↑ → ↓
+        0x25A0, 0x25FF, // ■ □ ▲ ▼ ● ○ and the rest of the geometric shapes
+        0x2605, 0x2606, // ★ ☆ — the object menu's favourite mark
+        0x2713, 0x2714, // ✓ ✔
         0,
     };
     return ranges;
+}
+
+/// The marks a panel is entitled to assume, checked against what the font
+/// ACTUALLY carries once the atlas exists.
+///
+/// A RANGE IS A REQUEST, NOT A PROMISE. ImGui silently skips codepoints the
+/// font has no outline for, so widening the list above proves nothing on its
+/// own — and "I added the range" is precisely the kind of claim that reads as
+/// done and ships an empty box. The neighbour who hit this found it by scanning
+/// every codepoint of the string table against the atlas; this is the same
+/// question asked from the other end, at startup, about the marks we tell
+/// panels they may use.
+void report_mark_glyphs() {
+    struct Mark {
+        ImWchar cp;
+        const char* what;
+    };
+    static const Mark MARKS[] = {
+        {0x2605, "★ избранное"}, {0x2606, "☆ не избранное"},
+        {0x2713, "✓ отметка"},   {0x25B6, "▶ свёрнуто"},
+        {0x25BC, "▼ раскрыто"},  {0x2192, "→ ведёт к"},
+        {0x00D7, "× закрыть"},
+        // THE CONTROL, and the probe is worthless without it: a codepoint
+        // nobody could have loaded. If this one reports "есть", the check is
+        // answering from a fallback glyph rather than from the font, and every
+        // "есть" above is meaningless (Rule 30b).
+        {0x4E2D, "中 КОНТРОЛЬ, обязан отсутствовать"},
+    };
+    const ImGuiIO& io = ImGui::GetIO();
+    if (io.Fonts->Fonts.empty()) {
+        return;
+    }
+    ImFont* font = io.Fonts->Fonts[0];
+    for (const Mark& m : MARKS) {
+        const bool have = font->FindGlyphNoFallback(m.cp) != nullptr;
+        std::fprintf(stderr, "[editor-ui] знак U+%04X %s: %s\n",
+                     static_cast<unsigned>(m.cp), m.what, have ? "есть" : "НЕТ");
+    }
 }
 
 /// UI fonts, in the order they are tried. A repo-local file wins so the look is
@@ -290,11 +351,47 @@ bool EditorUi::init(platform::IRenderer& renderer) {
         io.Fonts->AddFontDefault();
     }
 
+    // THE MARKS COME FROM A SECOND FONT, MERGED IN. Measured, not assumed:
+    // Arial carries ▼, → and ×, and carries NEITHER ★ nor ☆ nor ✓. Widening
+    // the range did nothing for those three, because a range is a request and
+    // the font is the answer — which is the whole reason report_mark_glyphs()
+    // exists and prints every mark by name.
+    //
+    // Merging beats switching the text font to one that has everything (Arial
+    // Unicode, 23 MB): the letters keep the face the panels were laid out in,
+    // and only the codepoints the first font could not serve are taken from
+    // the second.
+    if (font_loaded) {
+        static const ImWchar SYMBOL_RANGES[] = {
+            0x2190, 0x2193, 0x25A0, 0x25FF, 0x2605, 0x2606, 0x2713, 0x2714, 0,
+        };
+        for (const char* path : {"/System/Library/Fonts/Apple Symbols.ttf",
+                                 "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"}) {
+            std::error_code ec;
+            if (!std::filesystem::exists(path, ec)) {
+                continue;
+            }
+            ImFontConfig cfg;
+            cfg.MergeMode = true;
+            cfg.PixelSnapH = true;
+            // NO `break`: BOTH are merged, in order, because neither alone is
+            // enough — Apple Symbols has ★ ☆ ▶ and no ✓ (U+2713), Arial
+            // Unicode has the check. Merging is additive per codepoint, so the
+            // second font only fills what the first left empty, and the probe
+            // below is what says whether it did.
+            if (io.Fonts->AddFontFromFileTTF(path, FONT_POINTS * 2.0f, &cfg,
+                                             SYMBOL_RANGES) != nullptr) {
+                std::fprintf(stderr, "[editor-ui] знаки домешаны из %s\n", path);
+            }
+        }
+    }
+
     if (!platform::imgui_backend_init()) {
         ImGui::DestroyContext();
         renderer_ = nullptr;
         return false;
     }
+    report_mark_glyphs();
     apply_style(1.0f);
     ready_ = true;
 
@@ -321,6 +418,10 @@ void EditorUi::draw_probe_panel() {
     const ImGuiIO& io = ImGui::GetIO();
     ImGui::TextWrapped("%s", tr("editor.ui.probe.pangram"));
     ImGui::TextDisabled("%s", tr("editor.ui.probe.note"));
+    // The marks a panel may use, ON THE FRAME. stderr says which codepoints the
+    // font carries; only a frame says they are legible at the size they will be
+    // read at.
+    ImGui::TextWrapped("%s", tr("editor.ui.probe.marks"));
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader(tr("editor.ui.probe.numbers"),
