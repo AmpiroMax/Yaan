@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 14:29:43
+# Last updated: 17:08:2026 - 14:46:25
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -51,6 +51,12 @@
 # - 17:08:2026 - 14:29:43: Parts atlas tests (лист набора: непрозрачность против маски листвы,
 #   палитра против соседнего ряда, контраст против плоской грани, шов против
 #   рампы, рельеф соломы против штукатурки; шкура бруса не двигает вершины).
+# - 17:08:2026 - 14:46:25: Sign forge tests (точное покрытие растра буквы прямоугольниками против
+# - 17:08:2026 - 14:46:25: Sign forge tests (точное покрытие растра буквы прямоугольниками против
+#   контроля-попиксельно, поднятый объём против пустой доски, тон буквы против
+#   тона доски, имя от текста, три формы).
+#   контроля-попиксельно, поднятый объём против пустой доски, тон буквы против
+#   тона доски, имя от текста, три формы).
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
@@ -82,3 +88,4 @@ add_dfn_test(render_part_forge_roofs render/PartForgeRoofTests.cpp
 add_dfn_test(render_part_forge_stairs render/PartForgeStairTests.cpp
     dfn_render dfn_core)
 add_dfn_test(render_parts_atlas render/PartsAtlasTests.cpp dfn_render dfn_core)
+add_dfn_test(render_sign_forge render/SignForgeTests.cpp dfn_render dfn_core)

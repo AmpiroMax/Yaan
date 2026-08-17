@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 16:08:2026 - 22:40:23
+# Last updated: 17:08:2026 - 14:46:25
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -41,6 +41,7 @@
 #                          окно, фундамент, забор) в реестр .dfo, чтобы агент
 #                          СОБИРАЛ дома из готового, а не писал дом кодом.
 # - 16:08:2026 - 22:40:23: dfn_assemble — группа деталей .scene спекается в ОДИН
+# - 17:08:2026 - 14:46:25: dfn_signs — CLI табличек: текст приходит файлом .signs, имя объекта несёт хэш строки.
 #                          объект реестра. Второй уровень набора: из ста блоков
 #                          стены собирается неограниченное число панелей, и
 #                          запечатанная один раз панель не может протечь заново.
@@ -146,6 +147,12 @@ target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
 # would be discovered by a builder mid-house.
 add_executable(dfn_kit tools/forge_kit.cpp)
 target_link_libraries(dfn_kit PRIVATE dfn_render dfn_core)
+
+# THE SIGN FORGE CLI (dfn_signs): bakes tablichki from a .signs text file. The
+# TEXT is content (Rule 5), so it arrives in a file and adding a sign never
+# means a rebuild.
+add_executable(dfn_signs tools/forge_signs.cpp)
+target_link_libraries(dfn_signs PRIVATE dfn_render dfn_core)
 
 # THE ASSEMBLER (dfn_assemble): freezes a GROUP of a .scene into one registry
 # object — the kit's second level, where small parts become a wall panel. Same

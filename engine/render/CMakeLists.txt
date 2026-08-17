@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 14:29:43
+# Last updated: 17:08:2026 - 14:46:25
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -63,6 +63,7 @@
 # - 17:08:2026 - 13:17:36: sources/PartForgeCatalogue.cpp — список полок, вынесен из PartForge.cpp.
 # - 17:08:2026 - 13:21:37: sources/PartForgeRoofs.cpp — семья крыш (5 покрытий, вальма, дымник).
 # - 17:08:2026 - 14:29:43: sources/PartsAtlas.cpp — СВОЙ ЛИСТ НАБОРА (колонка = поверхность,
+# - 17:08:2026 - 14:46:25: sources/SignForge.cpp — таблички с текстом (работа 4 заказа 17.08).
 #   ряд = тон/износ): текстуры деталям, работа 3 заказа 17.08.
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
@@ -86,6 +87,7 @@ add_library(dfn_render STATIC
     sources/PartForgeCatalogue.cpp
     sources/PartForgeWalls.cpp
     sources/PartsAtlas.cpp
+    sources/SignForge.cpp
     sources/PixelCanvas.cpp
     sources/ProcFlora.cpp
     sources/ProcMesh.cpp

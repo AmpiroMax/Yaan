@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 13:02:08
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 17:08:2026 - 14:46:25
 Module: engine/render
 File: engine/render/sources/PartForgeDetail.h
 
@@ -19,8 +19,11 @@ Key items:
 
 Dependencies:
 - Uses: PartForge.h, HewnBar.h, ProcMesh.h.
-- Used by: PartForge.cpp, PartForgeJoints.cpp, PartForgeWalls.cpp. NOBODY
-  else: this header is the forge's kitchen door, not a public contract.
+- Used by: PartForge.cpp, PartForgeJoints.cpp, PartForgeWalls.cpp,
+  PartForgeRoofs.cpp, SignForge.cpp — THE KIT'S OWN FAMILY and nobody else:
+  this header is the forge's kitchen door, not a public contract. A sign is a
+  kit part (same materials, same atlas rows, same bars), so it eats in the
+  same kitchen rather than keeping a second copy of the material table.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -37,6 +40,9 @@ UPD:
   (PartsAtlas.h), выветренный брус не «тот же, но темнее», а другая
   поверхность. skin_as_board — доска против бруса решается ДЕТАЛЬЮ, а не
   материалом: доска и стойка — один и тот же дуб.
+- 17:08:2026 - 14:46:25: кухня приняла ещё одного едока — SignForge.cpp: табличка это
+  деталь набора (те же материалы, те же ряды атласа, те же бруски), и вторая
+  копия таблицы материалов ради неё была бы правилом 39 в чистом виде.
 */
 
 #pragma once
