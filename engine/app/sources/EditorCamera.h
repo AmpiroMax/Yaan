@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:11:00
-Last updated: 14:08:2026 - 16:11:00
+Last updated: 18:08:2026 - 00:07:07
 Module: engine/app
 File: engine/app/sources/EditorCamera.h
 
@@ -35,12 +35,24 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned file (Rule 25).
 - No cursor or window calls here: whether the pointer is captured is the app's
   decision (an unattended run must not grab it), and this class must work the
-  same whether it is or not -- mouse_delta is simply zero when nobody looks.
+  same whether it is or not. КТО ДЕРЖИТ МЫШЬ — решает App, и решает
+  editor_camera_takes_mouse ниже; сюда доходит уже принятое решение.
 */
 /*
 UPD:
 - 14:08:2026 - 16:11:00: Created -- the free camera of the new editor mode
                          (user request В39/Л1: fly the world, not as the player).
+- 18:08:2026 - 00:07:07: editor_camera_takes_mouse() — гейт «кому достаётся
+  мышь» вынесен сюда ВЫРАЖЕНИЕМ. Он жил вложенными if внутри кадрового цикла
+  App.cpp, куда прибор не дотягивается, и потому три захода подряд «камера при
+  редактировании не двигается» разбирал человек за игрой. Теперь на него есть
+  tests/app/EditorCameraTests.cpp (полная таблица из восьми сочетаний плюс сам
+  поворот); контрфакт: закоротил mouse_delta нулём — 7 утверждений покраснели.
+  ЗАОДНО СНЯТО НЕВЕРНОЕ УТВЕРЖДЕНИЕ в шапке: здесь было написано, будто
+  mouse_delta нулевое, когда курсор не захвачен. Это не так — glfwGetCursorPos
+  отдаёт положение в обоих режимах, и живой прогон это подтвердил: при
+  captured=0 смещения доходили и рыск менялся каждый кадр. Из-за той строчки
+  «камера не крутится» и «мышь не захвачена» выглядели одной поломкой.
 */
 
 #pragma once
@@ -54,6 +66,17 @@ class IInput;
 }
 
 namespace dfn::app {
+
+/// КОМУ ДОСТАЁТСЯ МЫШЬ В РЕДАКТОРЕ — одним выражением, чтобы у него была
+/// проверка. Три захода подряд «камера не крутится» разбирались за игрой, а не
+/// прибором: решение жило вложенными if внутри кадрового цикла, куда тест не
+/// дотягивается. Значения: редактор ли сейчас, набирает ли человек текст,
+/// отдан ли курсор интерфейсу клавишей R. Камера смотрит ТОЛЬКО когда
+/// редактор открыт, текст не набирается и курсор не отдан.
+[[nodiscard]] constexpr bool editor_camera_takes_mouse(bool editor, bool chat_typing,
+                                                       bool cursor_free) {
+    return editor && !chat_typing && !cursor_free;
+}
 
 class EditorCamera {
 public:

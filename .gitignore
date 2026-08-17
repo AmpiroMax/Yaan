@@ -40,3 +40,14 @@ images_examples/
 # Перенести каталоги в библиотеку и вычистить — следующий шаг.
 assets/objects/parts/
 assets/objects/signs/
+
+# Общий кэш загруженных зависимостей (FETCHCONTENT_BASE_DIR): вывод загрузчика,
+# а не наш исходник.
+third_party/_deps/
+
+# ЗАВЕЗЁННАЯ bgfx.cmake (тег v1.153.9398-565 с подмодулями bgfx/bimg/bx).
+# Лежит ОТДЕЛЬНО от _deps намеренно: шаг клонирования FetchContent стирает
+# каталог назначения перед клонированием, поэтому всё, что положено внутрь
+# _deps, он однажды сотрёт. Отсюда его берут через
+# FETCHCONTENT_SOURCE_DIR_BGFX_CMAKE, и сеть не нужна вовсе.
+third_party/bgfx.cmake/

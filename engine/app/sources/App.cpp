@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 22:32:14
+Last updated: 18:08:2026 - 00:07:07
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -370,6 +370,19 @@ UPD:
   Кисть «ровно» больше не молчит: её [pad] уходит в композицию, и она говорит,
   что земля примет его при следующей загрузке карты, — режим, который молча
   ничего не делает, и есть жалоба, с которой начался день.
+- 18:08:2026 - 00:07:07: ПРИБОР НА КАМЕРУ РЕДАКТОРА, потому что три захода подряд
+  «камера при редактировании не двигается» разбирал человек за игрой, а не
+  измерение. Две вещи. ПЕРВАЯ: решение «кому достаётся мышь» больше не живёт
+  вложенными if внутри кадрового цикла — оно ушло выражением
+  editor_camera_takes_mouse() в EditorCamera.h, и здесь стоит ВЫЗОВ, а не копия
+  условия (правило 32); проверка на все восемь сочетаний — в
+  tests/app/EditorCameraTests.cpp. ВТОРАЯ: дверь DFN_CAM_TRACE=1 печатает в
+  stderr сырую пару «пришло смещение / стал рыск» на каждом кадре редактора,
+  поэтому «мышь молчит» и «камера глуха» перестают выглядеть одинаково.
+  ЖИВОЙ ПРОГОН, а не кадр через служебную дверь: DFN_EDITOR=1 DFN_OPEN_MAP=
+  houses/demo DFN_CAM_TRACE=1, 167 кадров со смещением — рыск менялся на
+  каждом (0.0000 -> 0.0098 -> 0.0326 -> ...), при captured=0. Правка от 17.08
+  рабочая; жалоба относилась к двоичному файлу, собранному до неё.
 */
 
 #include "engine/app/sources/App.h"
@@ -742,7 +755,11 @@ App::App()
     // Declaration order: telemetry_ is declared before timestep_ in App.h, so it
     // is initialised first (keeps -Wreorder-ctor quiet).
     : telemetry_(static_cast<size_t>(config::TELEMETRY_RING_SAMPLES)),
-      timestep_(config::SIM_DT, static_cast<uint32_t>(config::SIM_MAX_CATCHUP_STEPS)) {}
+      timestep_(config::SIM_DT, static_cast<uint32_t>(config::SIM_MAX_CATCHUP_STEPS)) {
+    if (const char* v = std::getenv("DFN_CAM_TRACE"); v != nullptr && *v != '0') {
+        cam_trace_ = true;
+    }
+}
 
 App::~App() = default;
 
@@ -4804,11 +4821,29 @@ int App::run() {
                 input_->set_cursor_captured(false);
                 // Камера НЕ обновляется вовсе: и поворот, и полёт читают один
                 // и тот же ввод, который сейчас принадлежит интерфейсу.
-            } else {
+            } else if (editor_camera_takes_mouse(editor, chat_typing, cursor_free_)) {
                 if (!unattended_run()) {
                     input_->set_cursor_captured(true);
                 }
+                const float yaw_before = editor_cam_.yaw();
                 editor_cam_.update(*input_, static_cast<float>(frame_dt));
+                // ПРИБОР ВМЕСТО ГЛАЗ. Три захода подряд «камера не крутится»
+                // разбирал человек за игрой, а не измерение: у нас не было ни
+                // одной проверки на то, что смещение мыши ДОХОДИТ до камеры.
+                // Дверь печатает сырую пару чисел — что пришло на вход и что
+                // изменилось на выходе, — поэтому «мышь молчит» и «камера
+                // глуха» перестают выглядеть одинаково.
+                if (cam_trace_) {
+                    const glm::vec2 md = input_->mouse_delta();
+                    std::fprintf(stderr,
+                                 "[cam] free=%d captured=%d md=(%+.2f,%+.2f) "
+                                 "yaw %.4f -> %.4f\n",
+                                 cursor_free_ ? 1 : 0,
+                                 input_->is_cursor_captured() ? 1 : 0,
+                                 static_cast<double>(md.x), static_cast<double>(md.y),
+                                 static_cast<double>(yaw_before),
+                                 static_cast<double>(editor_cam_.yaw()));
+                }
             }
         }
         // WHAT THE CHOSEN TOOL DOES, and it runs here rather than beside the

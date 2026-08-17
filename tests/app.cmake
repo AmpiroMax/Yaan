@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 17:08:2026 - 22:01:29
+# Last updated: 18:08:2026 - 00:07:07
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -40,6 +40,15 @@
 #   начисто (контроль модели земли), без группы рука получает 21 отказ из 46,
 #   с группой по одной детали встают 38 из 46. Восемь оставшихся — КОЛЬЦО
 #   конёк-фронтон, находка, а не недоделка.
+# - 18:08:2026 - 00:07:07: app_editor_camera — ДОХОДИТ ЛИ МЫШЬ ДО КАМЕРЫ. Ровно
+#   тот вопрос, который три захода подряд разбирал человек за игрой, потому что
+#   прибора на него не было ни одного. И РЯДОМ — ПОЧИНЕН app_editor_palette: он
+#   НЕ СОБИРАЛСЯ (EditorPaletteFamily.cpp тянет imgui.h, которого цель не
+#   видит), а ctest брал прежний двоичный файл и рапортовал «прошло» — зелёный
+#   отчёт о коде, которого в нём нет. Файл семейств из рукава убран: в нём одна
+#   отрисовка, ни одной функции модели, и рукав не звал из него ничего.
+#   Полный прогон после починки: 78 из 79. Красный один — render_proc_flora
+#   (ива Reduced, 1 утверждение из 1 312 895), он был красным и до этой правки.
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -74,9 +83,14 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_editor_palette PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPalette.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteAxes.cpp
-        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteFamily.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorPaletteState.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
+    # EditorPaletteFamily.cpp СЮДА НЕ ВХОДИТ, и это не забывчивость: в нём одна
+    # только отрисовка ImGui, ни одной функции модели, и рукав не зовёт из него
+    # ничего. Пока он был в списке, цель НЕ СОБИРАЛАСЬ (imgui.h не виден), а
+    # ctest брал прежний двоичный файл и рапортовал «прошло» — зелёный отчёт о
+    # коде, которого в нём нет. Появится в нём решение, а не рисование, — вносить
+    # вместе с dfn_imgui и EditorUi.cpp, иначе не слинкуется.
 
     # THE BUILD HAND. Worth its own suite for the same reason EditorHud is:
     # the decision lives in a module rather than in App.cpp, so an instrument
@@ -110,6 +124,14 @@ if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_house_scenario app/HouseScenarioTests.cpp dfn_world dfn_render dfn_core)
     target_sources(app_house_scenario PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp)
+
+    # ДОХОДИТ ЛИ МЫШЬ ДО КАМЕРЫ. Прибора на это не было, и потому три захода
+    # подряд отказ ловил человек за игрой, а не проверка. Гейт вынесен из
+    # кадрового цикла App.cpp выражением в EditorCamera.h ровно затем, чтобы
+    # сюда дотянуться: App.cpp держит окно и потому не тестируется.
+    add_dfn_test(app_editor_camera app/EditorCameraTests.cpp dfn_render dfn_core)
+    target_sources(app_editor_camera PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorCamera.cpp)
 
     add_dfn_test(app_controls app/ControlsTests.cpp dfn_render dfn_core)
     target_sources(app_controls PRIVATE
