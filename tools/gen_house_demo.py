@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 14:46:25
-# Last updated: 17:08:2026 - 16:31:07
+# Last updated: 17:08:2026 - 17:01:54
 # Module: tools
 # File: tools/gen_house_demo.py
 #
@@ -63,6 +63,12 @@
 # - 17:08:2026 - 16:31:07: ПОЛЫ И ПОЛОТНА ДВЕРЕЙ (пользователь: «нет ни одного объекта в
 #   демке полов», «дома не целые»): доски 16u поперёк дома по лежням, шаг лежня
 #   1.5 м; полотно закрывает единственный сквозной проём.
+# - 17:08:2026 - 17:01:54: КОНЬКОВЫЙ ПРОГОН — 22 находки roof-seat судьи были настоящими:
+#   ни у одного из трёх домов не было конька, скаты и фронтоны держались ни за
+#   что. Прогон идёт по линии, где сходятся верхние грани обоих скатов и
+#   вершины обоих фронтонов; СРАЩЁН по 12u на пролёт (полка держит лежень не
+#   длиннее 16u = 4 м, а дома 6 и 9 м), круглый d50. Судья: 214 расстановок,
+#   0 находок.
 #
 
 import argparse
@@ -326,6 +332,34 @@ def roof(scene, ox, oz, span, eaves, cover, gable_mat, group):
     # the same invented name as asking for a size it does not hold.
     piece = worn(f"roof-{cover}-12x12x12")
     base = eaves - EAVES_OUT
+    # КОНЬКОВЫЙ ПРОГОН. Both slopes' upper edges and both gables' apexes land
+    # on ONE line — x from ox to ox+span at z = oz + DEPTH/2, y = eaves +
+    # RIDGE_RISE — and until this run there was nothing on that line at all:
+    # the judge reported 22 roof-seat findings on this stand, six on the log
+    # house and eight on each of the others, and every one of them was true.
+    # Скаты и фронтоны держались НИ ЗА ЧТО.
+    #
+    # SPLICED, NOT ONE STICK: the shelf's longest sleeper is 16u = 4 m and the
+    # houses are 6 and 9 m, so the purlin runs one 12u piece per 12u bay,
+    # jointed over the bay line. That is how a purlin is actually built, and it
+    # is also what the seat rule wants: a slope's upper edge spans exactly one
+    # bay, so it lies wholly within one piece rather than half on each.
+    #
+    # ROUND (nr) and d50: round because a ridge log takes the rafters at
+    # whatever pitch the roof happens to be (a faceted purlin would put the
+    # facet rule between the composer and every pitch that is not its step),
+    # d50 because the seat tolerance is r_in - 0.02 = 0.23 m and the eaves
+    # purlins of a later canopy will want that slack. Timber even under the
+    # stone house: nobody cuts a ridge out of ashlar.
+    ridge_y = eaves + RIDGE_RISE
+    ridge_z = oz + DEPTH * 0.5
+    purlin = worn("sleeper-timber-d50-nr-12u")
+    purlin_r = 0.25
+    for k in range(int(span / BAY)):
+        scene.place(purlin, (ox + k * BAY, ridge_y - purlin_r, ridge_z),
+                    yaw_for(1, 0), group,
+                    "коньковый прогон: на нём сходятся оба ската и оба фронтона"
+                    if k == 0 else None)
     for k in range(int(span / BAY)):
         # South slope: eaves on the +Z side, climbing toward -Z; its depth runs
         # +X, so the piece starts at the bay's west line.

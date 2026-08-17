@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 17:08:2026 - 12:49:26
+# Last updated: 17:08:2026 - 16:58:13
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -66,6 +66,11 @@
 #                          ничего не охраняет.
 # - 17:08:2026 - 12:49:26: core_scene_joint_rules (зона домов): правила соединителей
 #   JointSeat/JointAngle с красными и зелёными руками из HOUSES.md §5.
+# - 17:08:2026 - 16:58:13: core_scene_house_rules (зона домов): правила ПОСТРОЙКИ из
+#   HOUSES.md §8 — WallTwoJoints, JointCapacity, DeckOnJoints, RoofSeat. Обе
+#   руки каждой пары отличаются ОДНИМ числом (высота этажа, число стоек, метр
+#   смещения), чтобы «правило сработало» и «не сработало» не оказались двумя
+#   разными сценами с двумя разными ошибками.
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -89,3 +94,4 @@ add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 # species table, never from literals copied into the test).
 add_dfn_test(test_find_occlusion core/FindOcclusionTests.cpp dfn_world dfn_render)
 add_dfn_test(core_scene_joint_rules core/SceneJointRuleTests.cpp dfn_world)
+add_dfn_test(core_scene_house_rules core/SceneHouseRuleTests.cpp dfn_world)

@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 16:30:25
-Last updated: 17:08:2026 - 16:30:25
+Last updated: 17:08:2026 - 17:01:54
 Module: engine/world
 File: engine/world/sources/SceneHouseRules.cpp
 
@@ -32,6 +32,12 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 16:30:25: Создан: JointSeat/JointAngle перенесены из Scene.cpp дословно,
   рядом встали WallTwoJoints, JointCapacity, DeckOnJoints, RoofSeat.
+- 17:08:2026 - 17:01:54: ШОВ «кого судим» (§8.3): правила постройки судят ЧЛЕНА
+  ПОСТРОЙКИ. Там, где группа выключает вопрос к земле в Scene.cpp, включаются
+  шарниры — и наоборот: одиночный образец витрины судится землёй, а не
+  коньковым прогоном, которого под ним неоткуда взяться (9 находок витрины
+  были все из них). И честный текст промаха: «промах 0.000 м» означало «мерить
+  было не по чему» и посылало читателя искать миллиметр, которого нет.
 */
 
 #include "engine/world/sources/SceneHouseRules.h"
@@ -287,13 +293,32 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
         }
     }
 
+    // ЭТИ ПРАВИЛА СУДЯТ ЧЛЕНОВ ПОСТРОЙКИ, И ГРУППА — НЕ ЛАЗЕЙКА, А ШОВ.
+    //
+    // Что делает `group` в Scene.cpp: она ОТКЛЮЧАЕТ вопрос к земле. Одинокая
+    // расстановка обязана стоять на грунте (OnGround мерит зазор до
+    // ground_at), а члену группы разрешено стоять на другом члене — иначе
+    // каждая балка выше подошвы читалась бы как висящая. Ровно там, где
+    // выключается земля, и обязаны включаться шарниры: иначе у стропила не
+    // осталось бы НИ ОДНОГО судьи, а это и есть та дыра, ради которой правила
+    // писались.
+    //
+    // Отсюда и обратное: расстановка БЕЗ группы судится землёй и не судится
+    // здесь. Это не поблажка — 43 образца витрины лежат на полке стенда
+    // поодиночке, без дома, и коньковому прогону под ними взяться неоткуда;
+    // «скат обязан висеть на двух лежнях» — утверждение о ДОМЕ, а образец не
+    // дом. И снять группу, чтобы замолчать судью, не выйдет: снятая группа
+    // возвращает вопрос к земле, и скат, который висел на высоте конька,
+    // немедленно краснеет как hovers (контрфакт в SceneHouseRuleTests).
+    const auto is_built = [](const Placement& p) { return !p.group.empty(); };
+
     // ======================================================================
     // ВЕРТИКАЛЬНЫЕ СВЯЗИ: ПАНЕЛЬ НИКОГДА НЕ КАСАЕТСЯ ПАНЕЛИ (§3, §5).
     // Moved from Scene.cpp unchanged except for the two-post rule below it.
     // ======================================================================
     for (std::size_t i = 0; i < n; ++i) {
         const Placement& p = doc.placements[i];
-        if (!starts(p.object, "wall-")) {
+        if (!starts(p.object, "wall-") || !is_built(p)) {
             continue;
         }
         glm::vec2 blo{0.0f};
@@ -417,14 +442,19 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
     /// Seats one edge (two world endpoints at MID-THICKNESS) in the nearest
     /// lying joint of the same group. Returns nullptr when nothing carries it.
     const auto seat_edge = [&](const std::string& group, glm::vec3 e0, glm::vec3 e1,
-                               float& off, float& t_lo, float& t_hi) -> const HJoint* {
+                               float& off, float& t_lo, float& t_hi,
+                               int& candidates) -> const HJoint* {
         const HJoint* best = nullptr;
         // NOT 1e30: "hangs 1000000015047466219876688855040 m off" is a number
         // nobody can act on, and the honest reading of "no lying joint in this
-        // group at all" is that the miss is not a distance.
+        // group at all" is that the miss is not a distance. That is exactly
+        // why `candidates` goes out with it: a report that printed «промах
+        // 0.000 м» for «мерить было не по чему» would be a number that LIES,
+        // and the reader would go hunting a millimetre that does not exist.
         float best_off = 0.0f;
         t_lo = 0.0f;
         t_hi = 0.0f;
+        candidates = 0;
         for (const HJoint& j : lying) {
             if (*j.group != group) {
                 continue;
@@ -442,6 +472,7 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
             if (t0 < lo || t0 > hi || t1 < lo || t1 > hi) {
                 continue;
             }
+            ++candidates;
             if (best == nullptr || worst < best_off) {
                 best_off = worst;
                 best = &j;
@@ -453,6 +484,22 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
         return (best != nullptr && best_off <= best->r_in - limits.joint_seat_margin_m)
                  ? best
                  : nullptr;
+    };
+
+    /// How the miss reads in the report. Two different failures wear two
+    /// different sentences on purpose: «промахнулся на 0.31 м» is a job for
+    /// the composer (move it), «лежня нет вовсе» is a job for the builder
+    /// (add the purlin). One sentence for both would send the second reader
+    /// looking for a distance to close.
+    const auto miss_text = [](int candidates, float off) -> std::string {
+        char buf[96];
+        if (candidates == 0) {
+            return "no lying joint of this group crosses it AT ALL";
+        }
+        std::snprintf(buf, sizeof(buf),
+                      "nearest of %d lying joint(s) misses by %.3f m", candidates,
+                      static_cast<double>(off));
+        return buf;
     };
 
     /// УГОЛ И НА ЛЕЖАЩЕМ ШАРНИРЕ ТОЖЕ (§4: the facet rule is about joints, not
@@ -495,6 +542,9 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
 
     for (std::size_t i = 0; i < n; ++i) {
         const Placement& p = doc.placements[i];
+        if (!is_built(p)) {
+            continue; // судится землёй, а не шарнирами — см. is_built выше
+        }
         const Frame f = frame_of(p);
         int a = 0;
         int b = 0;
@@ -521,14 +571,14 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
             float tl1 = 0.0f;
             float tt0 = 0.0f;
             float tt1 = 0.0f;
-            const HJoint* jl = seat_edge(p.group, low0, low1, off_low, tl0, tl1);
-            const HJoint* jt = seat_edge(p.group, top0, top1, off_top, tt0, tt1);
+            int cl = 0;
+            int ct = 0;
+            const HJoint* jl = seat_edge(p.group, low0, low1, off_low, tl0, tl1, cl);
+            const HJoint* jt = seat_edge(p.group, top0, top1, off_top, tt0, tt1, ct);
             if (jt == nullptr) {
-                char det[160];
-                std::snprintf(det, sizeof(det),
-                              "upper edge is on no lying joint of this group "
-                              "(nearest miss %.3f m)", static_cast<double>(off_top));
-                found.push_back({SceneRule::RoofSeat, i, p.object, off_top, det});
+                found.push_back({SceneRule::RoofSeat, i, p.object, off_top,
+                                 "upper edge is carried by nothing: "
+                                     + miss_text(ct, off_top)});
             } else {
                 attached.push_back({jt->index, jt->facets,
                                     facet_angle(*jt, -up_slope), tt0, tt1, i});
@@ -559,13 +609,13 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
                                   && (mid.x < lo.x || mid.x > hi.x || mid.y < lo.y
                                       || mid.y > hi.y);
                 if (!outside) {
-                    char det[192];
-                    std::snprintf(det, sizeof(det),
-                                  "lower edge is on no lying joint (nearest miss "
-                                  "%.3f m) and is NOT a козырёк — it is over this "
-                                  "group's own posts, %d of them",
-                                  static_cast<double>(off_low), posts_here);
-                    found.push_back({SceneRule::RoofSeat, i, p.object, off_low, det});
+                    char tail[96];
+                    std::snprintf(tail, sizeof(tail),
+                                  " and is NOT a козырёк — it is over this group's "
+                                  "own posts, %d of them", posts_here);
+                    found.push_back({SceneRule::RoofSeat, i, p.object, off_low,
+                                     "lower edge is carried by nothing: "
+                                         + miss_text(cl, off_low) + tail});
                 }
             }
             continue;
@@ -592,13 +642,11 @@ void check_house_rules(const SceneDoc& doc, const SceneWorld& world,
             float off = 0.0f;
             float ta0 = 0.0f;
             float ta1 = 0.0f;
-            const HJoint* j = seat_edge(p.group, apex, apex, off, ta0, ta1);
+            int ca = 0;
+            const HJoint* j = seat_edge(p.group, apex, apex, off, ta0, ta1, ca);
             if (j == nullptr) {
-                char det[160];
-                std::snprintf(det, sizeof(det),
-                              "apex is on no lying joint of this group (nearest "
-                              "miss %.3f m)", static_cast<double>(off));
-                found.push_back({SceneRule::RoofSeat, i, p.object, off, det});
+                found.push_back({SceneRule::RoofSeat, i, p.object, off,
+                                 "apex hangs on nothing: " + miss_text(ca, off)});
             } else {
                 attached.push_back({j->index, j->facets,
                                     facet_angle(*j, {0.0f, -1.0f, 0.0f}), ta0, ta1, i});

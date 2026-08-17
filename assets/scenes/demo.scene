@@ -278,6 +278,21 @@ group = house-log
 note = полотно закрывает единственный сквозной проём дома
 
 [place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 118.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-log
+note = коньковый прогон: на нём сходятся оба ската и оба фронтона
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 121.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
 object = roof-thatch-12x12x12-w03
 pos = 118.000 27.750 141.000
 yaw = 1.570796
@@ -684,6 +699,28 @@ yaw = 3.141593
 scale = 1
 group = house-frame
 note = полотно закрывает единственный сквозной проём дома
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 130.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+note = коньковый прогон: на нём сходятся оба ската и оба фронтона
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 133.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 136.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-frame
 
 [place]
 object = roof-shingle-12x12x12-w03
@@ -1394,6 +1431,28 @@ yaw = 3.141593
 scale = 1
 group = house-stone
 note = полотно закрывает единственный сквозной проём дома
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 147.000 33.750 138.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+note = коньковый прогон: на нём сходятся оба ската и оба фронтона
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 150.000 33.750 138.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 153.000 33.750 138.000
+yaw = 0.000000
+scale = 1
+group = house-stone
 
 [place]
 object = roof-tile-12x12x12-w05
