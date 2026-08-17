@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 03:09:30
+Last updated: 17:08:2026 - 10:53:33
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -42,6 +42,8 @@ UPD:
   math::ray_vs_triangle (тыльные грани сообщаются по контракту Intersect).
   Отчёт несёт СЧЁТ и АДРЕС первой дыры, не вердикт.
 - 17:08:2026 - 03:09:30: чтение и запись spawn / spawn_yaw.
+- 17:08:2026 - 10:53:33: чтение и запись [light]; неизвестный ключ внутри секции пропускается,
+  кривое число — ошибка со строкой, как и везде в этом файле.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -97,6 +99,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
     int line_no = 0;
     Placement current;
     bool in_placement = false;
+    bool in_light = false;
     const auto flush = [&] {
         if (in_placement && !current.object.empty()) {
             out.placements.push_back(current);
@@ -112,6 +115,14 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         if (t == "[place]") {
             flush();
             in_placement = true;
+            in_light = false;
+            continue;
+        }
+        if (t == "[light]") {
+            flush();
+            in_placement = false;
+            in_light = true;
+            out.lights.emplace_back();
             continue;
         }
         // ANY OTHER SECTION IS SKIPPED, not fatal. The format grows — the
@@ -122,6 +133,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         if (t.front() == '[' && t.back() == ']') {
             flush();
             in_placement = false;
+            in_light = false;
             continue;
         }
         const auto eq = t.find('=');
@@ -139,6 +151,41 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             return true;
         };
+        if (in_light) {
+            SceneLight& L = out.lights.back();
+            if (key == "pos") {
+                float x = 0.0f;
+                float y = 0.0f;
+                float z = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f %f", &x, &y, &z) != 3) {
+                    error = "line " + std::to_string(line_no)
+                          + ": pos wants three numbers \"x y z\"";
+                    return false;
+                }
+                L.position = {x, y, z};
+            } else if (key == "color") {
+                float r = 0.0f;
+                float g = 0.0f;
+                float b = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f %f", &r, &g, &b) != 3) {
+                    error = "line " + std::to_string(line_no)
+                          + ": color wants three numbers \"r g b\"";
+                    return false;
+                }
+                L.color = {r, g, b};
+            } else if (key == "radius_m") {
+                if (!parse_float(value, L.radius_m)) {
+                    error = "line " + std::to_string(line_no) + ": \"" + value
+                          + "\" is not a number";
+                    return false;
+                }
+            } else if (key == "casts_shadow") {
+                L.casts_shadow = value == "1" || value == "true" || value == "yes";
+            } else if (key == "note") {
+                L.note = value;
+            }
+            continue;
+        }
         if (!in_placement) {
             if (key == "map") {
                 out.map = value;
@@ -212,6 +259,19 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         }
         if (!p.note.empty()) {
             out << "note = " << p.note << "\n";
+        }
+    }
+    for (const SceneLight& L : doc.lights) {
+        out << "\n[light]\n"
+            << "pos = " << L.position.x << ' ' << L.position.y << ' ' << L.position.z
+            << "\n"
+            << "color = " << L.color.r << ' ' << L.color.g << ' ' << L.color.b << "\n"
+            << "radius_m = " << L.radius_m << "\n";
+        if (L.casts_shadow) {
+            out << "casts_shadow = 1\n";
+        }
+        if (!L.note.empty()) {
+            out << "note = " << L.note << "\n";
         }
     }
     const std::string text = out.str();

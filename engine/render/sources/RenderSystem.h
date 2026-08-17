@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 15:08:2026 - 16:10:00
+Last updated: 17:08:2026 - 10:53:33
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -132,6 +132,10 @@ UPD:
   дело КУЗНИЦЫ, запечённое в реестр, а не пересборка в кадре (в1).
 - 15:08:2026 - 16:10:00: leaf_normal_asset_ — лист нормалей коры зоны flora, отдаётся дро листвы
   через DrawParams::aux_texture.
+- 17:08:2026 - 10:53:33: ExtraLight + set_scene_lights/set_transient_lights — лампы карты и
+  однокадровые огни (рой) идут в ТОТ ЖЕ бюджет и ТОТ ЖЕ отбор, что факелы.
+  Второй отбор был бы вторым ответом на вопрос «какие восемь горят», и два
+  ответа разошлись бы ровно тогда, когда игрок стоит между ними.
 */
 
 #pragma once
@@ -414,6 +418,29 @@ private:
     // ones get a shadow map. The flame sits at CarriedLight::offset in CARRIER
     // space — a light at the eye casts no visible shadow by construction, so
     // the offset is the feature, not a detail.
+public:
+    /// A light that is NOT carried by an entity: a lamp the composition hung
+    /// on the map, or a swarm's glow this frame. Fed into the SAME budget as
+    /// the torches and sorted by the same rule — a second selection would be a
+    /// second answer to "which eight are lit" (Rule 32), and the two would
+    /// disagree exactly when it matters, with the player between them.
+    struct ExtraLight {
+        glm::vec3 position{0.0f};
+        glm::vec3 color{0.0f};
+        float radius_m = 0.0f;
+    };
+    /// Lamps the map's composition owns. Set once when a map opens; survives
+    /// until the next one. A composition of a hundred lamps is legal — only
+    /// eight are ever lit, and which eight is the budget's business.
+    void set_scene_lights(std::vector<ExtraLight> lights);
+    /// Lights that live for ONE frame (the firefly swarm). Replaced every
+    /// frame; an empty list is the normal daytime state, not an error.
+    void set_transient_lights(std::vector<ExtraLight> lights);
+
+private:
+    std::vector<ExtraLight> scene_lights_;
+    std::vector<ExtraLight> transient_lights_;
+
     /// One flame gathered this frame, before the eight slots are handed out.
     struct PointLightCandidate {
         glm::vec3 position;

@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 03:09:30
+Last updated: 17:08:2026 - 10:53:33
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -67,6 +67,11 @@ UPD:
   лицом к дубу. Это принадлежит КОМПОЗИЦИИ, а не стенду: «встань здесь и смотри
   туда» — утверждение о том, что ПОСТРОЕНО, а стенд знает только середину
   своего чанка. Тем же ключом потом встанет спавн у двери внутри дома.
+- 17:08:2026 - 10:53:33: СЕКЦИЯ [light] — лампы композиции (позиция пламени, цвет, радиус,
+  просьба о тени, заметка). Свет НЕ объект: объект это то, во что можно
+  упереться, а лампа нет; и один столб горит ночью и не горит днём, поэтому
+  композитор обязан двигать пламя отдельно от столба. Ламп может быть сколько
+  угодно — файл говорит, что СУЩЕСТВУЕТ, рендер решает, что ГОРИТ.
 */
 
 #pragma once
@@ -103,6 +108,24 @@ struct Placement {
     std::string group;
 };
 
+/// A LAMP THE COMPOSITION HANGS. Not an object — an object is a thing you can
+/// walk into, and a light is not. The lamp POST is a Placement like any other;
+/// this is the flame on it, and the two are separate rows on purpose: the same
+/// post carries a lit lamp at night and an unlit one by day, and a composer
+/// must be able to move one without the other.
+///
+/// A scene may declare far more lamps than the renderer can light at once
+/// (eight in a frame, two of them casting). That is deliberate and not a
+/// budget to police here: the file says what EXISTS, the renderer decides what
+/// is LIT, and it picks the nearest by distance with a fade at the edge.
+struct SceneLight {
+    glm::vec3 position{0.0f};   ///< world metres, the flame itself
+    glm::vec3 color{1.0f, 0.85f, 0.55f}; ///< linear; the default is a flame
+    float radius_m = 6.0f;      ///< 0 = off, and an off lamp is not an error
+    bool casts_shadow = false;  ///< honoured for the two nearest that ask
+    std::string note;
+};
+
 /// One composed scene: the placements of one map.
 struct SceneDoc {
     std::string map;         ///< "category/stem" this scene composes
@@ -119,6 +142,7 @@ struct SceneDoc {
     glm::vec3 spawn{0.0f};
     float spawn_yaw = 0.0f;   ///< radians; 0 looks north (forward = {sin,0,-cos})
     std::vector<Placement> placements;
+    std::vector<SceneLight> lights;
 };
 
 /// Which rule a finding broke. Named, not numbered: a report a human reads.

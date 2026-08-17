@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 15:08:2026 - 14:07:36
+Last updated: 17:08:2026 - 10:53:33
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -54,6 +54,7 @@ UPD:
   полноэкранным квадом, поэтому число пикселей холста решает только КРУПНОСТЬ
   интерфейса, а не его размер. Делитель ЦЕЛЫЙ — тексели интерфейса ложатся на
   целые пиксели сцены, и текст не мерцает при ходьбе.
+- 17:08:2026 - 10:53:33: лампы сцены и однокадровые огни вливаются в пул кандидатов до сортировки.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -318,6 +319,14 @@ struct Flame {
 // collect_point_lights so the shadow rule is stated exactly once: the two
 // NEAREST casters get cube maps, which after the sort means the light the
 // player is standing next to -- the carried torch, when he holds one.
+void RenderSystem::set_scene_lights(std::vector<ExtraLight> lights) {
+    scene_lights_ = std::move(lights);
+}
+
+void RenderSystem::set_transient_lights(std::vector<ExtraLight> lights) {
+    transient_lights_ = std::move(lights);
+}
+
 void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candidates) {
     const uint32_t budget = platform::MAX_POINT_LIGHTS;
     // Full sort: the dissolve needs the budget-edge distance, and the kept set is
@@ -402,6 +411,17 @@ void RenderSystem::collect_point_lights(ecs::World& world,
         const glm::vec3 to = position - eye;
         candidates.push_back({position, color, radius, glm::dot(to, to)});
     };
+
+    // THE COMPOSITION'S LAMPS AND THIS FRAME'S SWARM, into the same pool as
+    // the torches. They are added BEFORE the carried lights only because the
+    // order does not matter: publish_point_lights sorts the whole pool by
+    // distance and hands out the eight slots itself.
+    for (const ExtraLight& l : scene_lights_) {
+        add(l.position, l.radius_m, l.color);
+    }
+    for (const ExtraLight& l : transient_lights_) {
+        add(l.position, l.radius_m, l.color);
+    }
 
     world.view<components::CarriedLight, components::Transform>().each(
         [&](ecs::EntityId id, components::CarriedLight& light,

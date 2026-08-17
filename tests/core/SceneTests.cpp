@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 17:08:2026 - 03:09:30
+Last updated: 17:08:2026 - 10:53:33
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -35,6 +35,9 @@ UPD:
 - 17:08:2026 - 03:09:30: спавн необязателен, и ОТСУТСТВИЕ читается как отсутствие: (0,0,0) по
   умолчанию, выглядящий как авторский выбор, телепортировал бы каждую карту без
   спавна в угол мира.
+- 17:08:2026 - 10:53:33: лампы [light] в круговороте, и погашенная (радиус 0) возвращается
+  погашенной: читатель, «услужливо» вернувший ей яркость, переспорил бы
+  композитора.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -367,6 +370,41 @@ TEST_CASE("scene: the spawn is optional, and absent means absent") {
     CHECK(with.spawn.x == doctest::Approx(56.0f));
     CHECK(with.spawn.z == doctest::Approx(157.0f));
     CHECK(with.spawn_yaw == doctest::Approx(1.19f));
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("scene: lamps survive the round trip and an unlit one stays unlit") {
+    const auto path = std::filesystem::temp_directory_path() / "dfn_scene_light.scene";
+    SceneDoc doc;
+    doc.map = "trees/glade";
+    doc.world_span_m = 256.0f;
+    doc.placements = {at("tree", 60.0f, GROUND_Y, 60.0f)};
+    doc.lights.push_back({{128.0f, 27.4f, 96.0f}, {1.0f, 0.85f, 0.55f}, 6.0f, false,
+                          "фонарь у каменной тропы"});
+    // radius 0 means OFF, and it must come back as off rather than as a
+    // default-bright lamp: a composer turning one down to nothing is making a
+    // decision, and a reader that "helpfully" restored it would overrule him.
+    doc.lights.push_back({{10.0f, 1.0f, 10.0f}, {1.0f, 1.0f, 1.0f}, 0.0f, false, ""});
+    doc.lights.push_back({{20.0f, 2.0f, 20.0f}, {0.4f, 0.9f, 1.0f}, 12.0f, true, ""});
+    REQUIRE(write_scene(doc, path));
+
+    SceneDoc back;
+    std::string error;
+    REQUIRE(read_scene(path, back, error));
+    REQUIRE(back.lights.size() == 3);
+    CHECK(back.lights[0].position.y == doctest::Approx(27.4f));
+    CHECK(back.lights[0].color.g == doctest::Approx(0.85f));
+    CHECK(back.lights[0].radius_m == doctest::Approx(6.0f));
+    CHECK_FALSE(back.lights[0].casts_shadow);
+    CHECK(back.lights[0].note == "фонарь у каменной тропы");
+    CHECK(back.lights[1].radius_m == doctest::Approx(0.0f));
+    CHECK(back.lights[2].casts_shadow);
+    // The placements are untouched by the new section: a reader that lost them
+    // while gaining lamps would be a very expensive trade.
+    REQUIRE(back.placements.size() == 1);
+    CHECK(back.placements[0].object == "tree");
 
     std::error_code ec;
     std::filesystem::remove(path, ec);

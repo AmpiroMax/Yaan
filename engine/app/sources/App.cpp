@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 10:00:40
+Last updated: 17:08:2026 - 10:53:33
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -252,6 +252,18 @@ UPD:
   позиция, что у лестницы разброса, по той же причине. Замер на полянке зоны
   flora (её же камера): 48.1 -> 29.6 мс/кадр, 11.94 -> 9.69 млн треугольников,
   при 14 дальних формах из 38 объектов — то есть запас ещё есть.
+- 17:08:2026 - 10:53:33: лампы композиции отдаются рендеру ЦЕЛИКОМ, сколько бы их ни было:
+  обрезать здесь по бюджету значило бы УДАЛЯТЬ дальние фонари вместо того,
+  чтобы их гасить, и игрок шёл бы к тёмному столбу, который загорается при
+  подходе. Лампа с радиусом 0 пропускается — погашенная лампа это решение, а
+  не дефект.
+- 17:08:2026 - 10:53:33: DFN_TIME_OF_DAY=0..1 — час суток по требованию. Без него НОЧЬ НЕЛЬЗЯ
+  БЫЛО СНЯТЬ: часы стартуют с START_TIME_OF_DAY, и сдвинуть их мог только
+  человек клавишей T, то есть каждое утверждение про фонарь, светлячка и
+  сумеречную тень было непроверяемо автоматическим прогоном — та же дыра, из-за
+  которой «в третьем лице тела нет» дожило до утра. Кривое значение отвергается
+  ВСЛУХ, а не зажимается: опечатка, тихо ставшая полднем, отправила бы искать
+  свет, который работает.
 */
 
 #include "engine/app/sources/App.h"
@@ -615,6 +627,29 @@ App::App()
 App::~App() = default;
 
 bool App::init(const AppConfig& config) {
+    // THE HOUR OF THE DAY, ON DEMAND (DFN_TIME_OF_DAY=0..1; 0.25 sunrise, 0.5
+    // noon, 0.75 sunset, 0 midnight). Without it NIGHT COULD NOT BE
+    // PHOTOGRAPHED at all: the clock starts at START_TIME_OF_DAY and only a
+    // human pressing T could move it, so every lamp, every firefly and every
+    // shadow-at-dusk claim was unverifiable by any automated run — the same
+    // shape of hole that let "в третьем лице тела нет" live until a human
+    // looked. Read once, and the value is REJECTED OUT LOUD rather than
+    // clamped: a typo that silently becomes noon would send someone hunting a
+    // light that was working.
+    if (const char* tod = std::getenv("DFN_TIME_OF_DAY");
+        tod != nullptr && *tod != '\0') {
+        char* end = nullptr;
+        const double v = std::strtod(tod, &end);
+        if (end == tod || v < 0.0 || v > 1.0) {
+            std::fprintf(stderr, "[app] DFN_TIME_OF_DAY=\"%s\" is not a fraction "
+                                 "of a day in 0..1 -- REFUSED, clock untouched\n",
+                         tod);
+        } else {
+            game_seconds_ = v * static_cast<double>(config::DAY_LENGTH_SECONDS);
+            std::fprintf(stderr, "[app] DFN_TIME_OF_DAY=%.3f -> game clock at "
+                                 "%.1f s\n", v, game_seconds_);
+        }
+    }
     config_ = config;
 
     window_ = platform::create_glfw_window();
@@ -1327,6 +1362,8 @@ bool App::enter_world(uint32_t stand) {
     scene_spawn_.reset(); // a previous map's composition must not follow us here
     scene_tiles_.clear();
     scene_objects_.clear();
+    render_system_.set_scene_lights({});
+    render_system_.set_transient_lights({});
 
     // THE GALLERY'S EXHIBITS: registry objects (.dfo), read and PLACED — the
     // world generated bare ground and knows nothing about them (в1: the game
@@ -1510,6 +1547,32 @@ bool App::enter_world(uint32_t stand) {
             }
             std::fprintf(stderr, "[scene] %zu of %zu object(s) have a -far form\n",
                          with_far, loaded.size() - with_far);
+
+            // THE COMPOSITION'S LAMPS. Handed to the renderer WHOLE — all of
+            // them, however many — because the file says what EXISTS and the
+            // renderer decides what is LIT: it keeps the nearest eight and
+            // fades the eighth out as a ninth crosses it. Trimming here to the
+            // budget would delete far lamps instead of dimming them, and the
+            // player would walk toward a dark post that lights up when he
+            // arrives.
+            std::vector<render::RenderSystem::ExtraLight> lamps;
+            lamps.reserve(doc.lights.size());
+            std::size_t shadowing = 0;
+            for (const world::SceneLight& L : doc.lights) {
+                if (L.radius_m <= 0.0f) {
+                    continue; // an unlit lamp is a decision, not a defect
+                }
+                lamps.push_back({L.position, L.color, L.radius_m});
+                shadowing += L.casts_shadow ? 1u : 0u;
+            }
+            render_system_.set_scene_lights(std::move(lamps));
+            if (!doc.lights.empty()) {
+                std::fprintf(stderr, "[scene] %zu lamp(s), %zu asking for a shadow; "
+                                     "%u light the frame, %u of those cast\n",
+                             doc.lights.size(), shadowing,
+                             platform::MAX_POINT_LIGHTS,
+                             platform::MAX_SHADOW_POINT_LIGHTS);
+            }
             std::fprintf(stderr, "[scene] %s: %d of %zu placement(s) standing, "
                                  "%zu distinct object(s), %zu tile(s)\n",
                          gallery_scene_.c_str(), placed, doc.placements.size(),
