@@ -1,0 +1,12 @@
+name = Три террасы города
+zone = lead
+size_chunks = 2
+# ИСТОЧНИК: настоящий рельеф генератора (stand:Testbed), поверх которого
+# КОМПОЗИЦИЯ РЕЖЕТ ПЛОЩАДКИ — та самая правка карты высот, которую просил
+# пользователь. В коде площадок нет: они строки [pad] в файле сцены, и тот же
+# файл судит dfn_scene_check.
+source = stand:Testbed
+scene = assets/scenes/town-terraces.scene
+objects = assets/objects/parts
+description = Три полки под город (120x80, 100x70, 60x40) с перепадами 6 и 12 м, вырезанные секцией [pad].
+built_commit =

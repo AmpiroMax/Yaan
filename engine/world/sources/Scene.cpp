@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 10:53:33
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 17:08:2026 - 03:09:30: чтение и запись spawn / spawn_yaw.
 - 17:08:2026 - 10:53:33: чтение и запись [light]; неизвестный ключ внутри секции пропускается,
   кривое число — ошибка со строкой, как и везде в этом файле.
+- 17:08:2026 - 11:35:28: чтение и запись [pad].
 */
 
 #include "engine/world/sources/Scene.h"
@@ -100,6 +101,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
     Placement current;
     bool in_placement = false;
     bool in_light = false;
+    bool in_pad = false;
     const auto flush = [&] {
         if (in_placement && !current.object.empty()) {
             out.placements.push_back(current);
@@ -116,11 +118,21 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             flush();
             in_placement = true;
             in_light = false;
+            in_pad = false;
+            continue;
+        }
+        if (t == "[pad]") {
+            flush();
+            in_placement = false;
+            in_light = false;
+            in_pad = true;
+            out.pads.emplace_back();
             continue;
         }
         if (t == "[light]") {
             flush();
             in_placement = false;
+            in_pad = false;
             in_light = true;
             out.lights.emplace_back();
             continue;
@@ -134,6 +146,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             flush();
             in_placement = false;
             in_light = false;
+            in_pad = false;
             continue;
         }
         const auto eq = t.find('=');
@@ -151,6 +164,42 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             return true;
         };
+        if (in_pad) {
+            ScenePad& P = out.pads.back();
+            const auto two = [&](glm::vec2& dst) {
+                float a = 0.0f;
+                float b = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f", &a, &b) != 2) {
+                    error = "line " + std::to_string(line_no)
+                          + ": wants two numbers";
+                    return false;
+                }
+                dst = {a, b};
+                return true;
+            };
+            const auto one = [&](float& dst) {
+                if (!parse_float(value, dst)) {
+                    error = "line " + std::to_string(line_no) + ": \"" + value
+                          + "\" is not a number";
+                    return false;
+                }
+                return true;
+            };
+            if (key == "center") {
+                if (!two(P.center)) return false;
+            } else if (key == "half_extents") {
+                if (!two(P.half_extents)) return false;
+            } else if (key == "radius") {
+                if (!one(P.radius)) return false;
+            } else if (key == "blend") {
+                if (!one(P.blend)) return false;
+            } else if (key == "height") {
+                if (!one(P.height)) return false;
+            } else if (key == "note") {
+                P.note = value;
+            }
+            continue;
+        }
         if (in_light) {
             SceneLight& L = out.lights.back();
             if (key == "pos") {
@@ -259,6 +308,21 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         }
         if (!p.note.empty()) {
             out << "note = " << p.note << "\n";
+        }
+    }
+    for (const ScenePad& P : doc.pads) {
+        out << "\n[pad]\n"
+            << "center = " << P.center.x << ' ' << P.center.y << "\n";
+        if (P.half_extents.x > 0.0f || P.half_extents.y > 0.0f) {
+            out << "half_extents = " << P.half_extents.x << ' ' << P.half_extents.y
+                << "\n";
+        } else {
+            out << "radius = " << P.radius << "\n";
+        }
+        out << "blend = " << P.blend << "\n"
+            << "height = " << P.height << "\n";
+        if (!P.note.empty()) {
+            out << "note = " << P.note << "\n";
         }
     }
     for (const SceneLight& L : doc.lights) {

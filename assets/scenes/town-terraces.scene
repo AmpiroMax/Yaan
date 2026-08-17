@@ -1,0 +1,42 @@
+# ТРИ ТЕРРАСЫ ГОРОДА — карта высот, правленная композицией.
+#
+# Числа зоны домов (docs/WHITERUN_RESEARCH.md): три полки 120x80 / 100x70 /
+# 60x40 м, перепады 6 и 12 м, уклон на полке не больше 3%. Полки НЕ
+# концентричны — верхняя уходит отдельным языком за перешеек, как дворец
+# Вайтрана за своей лестницей.
+#
+# Проверить землю до и после:
+#   dfn_scene_check assets/scenes/town-terraces.scene --ground 128 150 60 --stand Testbed
+#   dfn_scene_check - --ground 128 150 60 --stand Testbed        (натуральная)
+map = landscape/terraces
+world_span_m = 512
+spawn = 128 0 210
+spawn_yaw = 0
+
+[pad]
+center = 128 150
+half_extents = 60 40
+blend = 14
+height = 24
+note = T1 нижняя: ворота, кузница, рынок, таверна
+
+[pad]
+center = 140 96
+half_extents = 50 35
+blend = 12
+height = 30
+note = T2 средняя: жилые дома, храм, зал — смещена к подъёму
+
+[pad]
+center = 176 58
+half_extents = 30 20
+blend = 10
+height = 42
+note = T3 верхняя: только замок, отдельным языком
+
+[pad]
+center = 158 76
+half_extents = 8 14
+blend = 6
+height = 36
+note = перешеек к замку — единственный вход на верхнюю полку

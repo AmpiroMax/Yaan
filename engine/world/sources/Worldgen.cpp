@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 14:08:2026 - 22:27:28
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -103,6 +103,11 @@ UPD:
   троп и находок: пустые результаты — валидные результаты этого стенда, и ни
   одному потребителю не нужна проверка стенда (правило 32). Тестбед побитово
   не тронут (страж — закреплённый дайджест карты высот).
+- 17:08:2026 - 11:35:28: площадки композиции применяются ПОСЛЕДНИМИ и НА ВСЕХ СТЕНДАХ, в
+  отличие от площадок генератора: город компонуется на том стенде, который
+  назвала его карта, и фича, тихо не работающая на половине стендов, была бы
+  обнаружена тем, кто строит город не на том. При пустом списке строка — no-op
+  бит в бит, поэтому закреплённый дайджест тестбеда цел.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -503,17 +508,29 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
         benched = std::max(benched, water.near_level);
     }
 
+    float ground_final = 0.0f;
     if (stand_is_floral(ctx.params.layout.stand)) {
         // The floral pass stack: P1 + LF-8 erosion + §2.7 relief + the path
-        // flatten. No water carve, no entrance works, no pads — these stands
-        // declare none of them, and running their no-ops here would only
-        // invite one to stop being a no-op unnoticed. For OneTree every term
-        // but P1 is the empty pass answering zero, by construction.
-        return std::clamp(benched + ctx.paths.flatten_at(world, benched), 0.0f, MAX_HEIGHT_M);
+        // flatten. No water carve, no entrance works, no generator pads —
+        // these stands declare none of them, and running their no-ops here
+        // would only invite one to stop being a no-op unnoticed. For OneTree
+        // every term but P1 is the empty pass answering zero, by construction.
+        ground_final = benched + ctx.paths.flatten_at(world, benched);
+    } else {
+        const float worked = entrance_works_height(ctx.sites, world, benched);
+        ground_final = pads_height(ctx.sites, world, worked);
     }
-    const float worked = entrance_works_height(ctx.sites, world, benched);
-    const float padded = pads_height(ctx.sites, world, worked);
-    return std::clamp(padded, 0.0f, MAX_HEIGHT_M);
+    // THE COMPOSITION'S OWN PADS, LAST AND ON EVERY STAND. An authored terrace
+    // is the strongest statement anyone makes about the ground — a composer who
+    // cut a flat there meant it — so nothing downstream may argue with it.
+    //
+    // It is applied to BOTH branches deliberately, unlike the generator's pads:
+    // a town is composed on whatever stand its map names, and a feature that
+    // silently did nothing on half the stands would be discovered by someone
+    // building a city on the wrong one. With an empty list this line is a
+    // no-op bit for bit, which is what keeps the pinned testbed digest intact.
+    ground_final = apply_pads(ctx.params.composed_pads, world, ground_final);
+    return std::clamp(ground_final, 0.0f, MAX_HEIGHT_M);
 }
 
 float terrain_height(const WorldGenContext& ctx, glm::vec2 world) {

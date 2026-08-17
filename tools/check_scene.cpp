@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 16:08:2026 - 22:45:34
+Last updated: 17:08:2026 - 11:35:28
 Module: tools
 File: tools/check_scene.cpp
 
@@ -53,6 +53,10 @@ UPD:
 - 16:08:2026 - 22:45:34: --solid <группа> — просвет насквозь для сборок-панелей; сама
   проверка живёт в engine/world (check_panel_solid), судья лишь собирает
   суп с полок и печатает счёт и адрес дыры.
+- 17:08:2026 - 11:35:28: судья мерит ТЕРРАСИРОВАННУЮ землю: без этого каждый дом на полке
+  читался бы как закопанный на глубину самой полки, и отчёт стал бы шумом ровно
+  там, где инструмент нужнее всего. И --ground с указанной сценой отвечает
+  ПОСЛЕ её площадок (передай "-", чтобы спросить натуральную).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -409,10 +413,21 @@ int main(int argc, char** argv) {
 
     SceneDoc doc;
     std::string error;
-    if (!ground_query && !read_scene(scene_path, doc, error)) {
-        std::fprintf(stderr, "[scene] %s: %s\n", scene_path.string().c_str(),
-                     error.c_str());
-        return 1;
+    // In a --ground query the scene is OPTIONAL (pass "-" for none), but when
+    // one is given it is read: a builder asking "how high is the ground here"
+    // while his own terraces are in the file wants the answer AFTER them.
+    const bool want_scene = !ground_query || scene_path != "-";
+    if (want_scene && !read_scene(scene_path, doc, error)) {
+        if (ground_query) {
+            std::fprintf(stderr, "[scene] %s: %s -- measuring the natural ground\n",
+                         scene_path.string().c_str(), error.c_str());
+            doc = SceneDoc{};
+        } else
+        {
+            std::fprintf(stderr, "[scene] %s: %s\n", scene_path.string().c_str(),
+                         error.c_str());
+            return 1;
+        }
     }
 
     WorldGenParams params;
@@ -434,6 +449,20 @@ int main(int argc, char** argv) {
     } else if (stand != "Testbed") {
         std::fprintf(stderr, "[scene] unknown stand \"%s\" -- REFUSED\n", stand.c_str());
         return 2;
+    }
+    // THE JUDGE MEASURES THE TERRACED GROUND, not the natural one. The pads a
+    // composition authors are a pass of the height field, so a checker that
+    // skipped them would report every house on a terrace as buried by the
+    // terrace's own depth — and its report would be noise exactly where the
+    // tool is needed most.
+    for (const ScenePad& P : doc.pads) {
+        BuildingPad pad;
+        pad.center = P.center;
+        pad.half_extents = P.half_extents;
+        pad.radius = P.radius;
+        pad.blend = P.blend;
+        pad.height = P.height;
+        params.composed_pads.push_back(pad);
     }
     const WorldGenContext gen = build_world_context(params);
 

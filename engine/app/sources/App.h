@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:13:47
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -71,6 +71,7 @@ UPD:
 - 17:08:2026 - 10:00:40: SceneTile + scene_objects_ + refresh_scene_lod/bake_scene_tile.
 - 17:08:2026 - 11:13:47: FireflyField живёт на КАРТУ, а не на чанк — рой у края стриминга не
   должен мигать (пользователь: «повсюду, а не только в какой-то зоне»).
+- 17:08:2026 - 11:35:28: scene_doc_ — композиция текущей карты, прочитанная до земли.
 */
 
 #pragma once
@@ -392,6 +393,9 @@ private:
     /// THE SWARM. Lives for the whole map, not for a chunk: the user asked for
     /// fireflies «повсюду, а не только в какой-то зоне», and a chunk-owned
     /// swarm would blink out at the streaming edge.
+    /// The CURRENT map's composition, read once before the ground is built
+    /// (its pads shape the height field) and used again to place the objects.
+    world::SceneDoc scene_doc_;
     render::FireflyField fireflies_;
     std::vector<SceneTile> scene_tiles_;
     /// Every registry object the composition uses, near forms and `-far` forms

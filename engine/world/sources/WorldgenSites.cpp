@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 18:58:01
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -29,6 +29,9 @@ UPD:
 - 09:08:2026 - 15:18:34: Castle: solved first (its terrace outranks ordinary pads), elements appended to the shared record list keeping WorldEntityIds sequential; pads_height applies the terrace + ramp.
 - 09:08:2026 - 17:36:42: §6.2: entrances no longer use the pad scorer at all — relief within 25 m selects adit vs sunken barrow, the generator stamps the mound/forecourt it needs on flat ground, and the marker is derived from the mouth with an explicit floor height. Hand-authored carves outrank generated stubs.
 - 09:08:2026 - 18:58:01: Live-play fixes: (a) the forecourt now runs from the flank lintel PAST the mound rim to natural grade — it previously ended while still on the mound, so the rim walled off the exit and the barrow read as 'facing into rock, as if there is no entrance'; (b) the mound is a paraboloid DOME instead of a smoothstep plateau-with-rim ('crooked, just a square'); (c) the cut flares outward so it reads as a way in rather than a slot.
+- 17:08:2026 - 11:35:28: apply_pads; для прямоугольника расстояние берётся ДО КОРОБКИ, а не до
+  центра — снаружи ближайшая точка лежит на границе, поэтому кольцо растушёвки
+  идёт по форме, а не раздувается из углов.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
@@ -398,23 +401,41 @@ float entrance_works_height(const SitesData& sites, glm::vec2 world, float h) {
     return h;
 }
 
-float pads_height(const SitesData& sites, glm::vec2 world, float h) {
-    // The castle terrace first: ordinary pads are small and never overlap it,
-    // but if one ever did, the building pad should win locally.
-    h = castle_pad_height(sites.castle, world, h);
-    for (const BuildingPad& pad : sites.pads) {
-        const float d = glm::length(world - pad.center);
-        if (d >= pad.radius + pad.blend) {
+float apply_pads(const std::vector<BuildingPad>& pads, glm::vec2 world, float h) {
+    for (const BuildingPad& pad : pads) {
+        // THE DISTANCE TO THE PAD, and for a rectangle that is the distance to
+        // its BOX, not to its centre: outside a box the nearest point is on
+        // the border, so the blend ring follows the shape instead of ballooning
+        // out of the corners.
+        float d = 0.0f;
+        float inner = 0.0f;
+        if (pad.half_extents.x > 0.0f || pad.half_extents.y > 0.0f) {
+            const glm::vec2 q = glm::abs(world - pad.center) - pad.half_extents;
+            d = glm::length(glm::max(q, glm::vec2{0.0f}))
+              + std::min(std::max(q.x, q.y), 0.0f);
+            d = std::max(d, 0.0f); // inside the box the stamp is flat
+        } else {
+            d = glm::length(world - pad.center);
+            inner = pad.radius;
+        }
+        if (d >= inner + pad.blend) {
             continue;
         }
-        if (d <= pad.radius) {
+        if (d <= inner) {
             h = pad.height;
         } else {
-            const float s = noise::smoothstep01((d - pad.radius) / pad.blend);
+            const float s = noise::smoothstep01((d - inner) / pad.blend);
             h = pad.height + (h - pad.height) * s;
         }
     }
     return h;
+}
+
+float pads_height(const SitesData& sites, glm::vec2 world, float h) {
+    // The castle terrace first: ordinary pads are small and never overlap it,
+    // but if one ever did, the building pad should win locally.
+    h = castle_pad_height(sites.castle, world, h);
+    return apply_pads(sites.pads, world, h);
 }
 
 } // namespace dfn::world

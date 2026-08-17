@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 10:53:33
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -72,6 +72,10 @@ UPD:
   упереться, а лампа нет; и один столб горит ночью и не горит днём, поэтому
   композитор обязан двигать пламя отдельно от столба. Ламп может быть сколько
   угодно — файл говорит, что СУЩЕСТВУЕТ, рендер решает, что ГОРИТ.
+- 17:08:2026 - 11:35:28: СЕКЦИЯ [pad] — та самая правка карты высот, которую просил пользователь
+  («редактировать масштаб и карту высот»). Площадка это УТВЕРЖДЕНИЕ, а не мазок
+  кистью: «здесь земля такой высоты, растушёвка столько метров», — поэтому её
+  можно двигать, перечитывать и судить, чего нарисованное поле высот не умеет.
 */
 
 #pragma once
@@ -126,6 +130,23 @@ struct SceneLight {
     std::string note;
 };
 
+/// A FLAT THE COMPOSITION CUTS INTO THE GROUND — the terrace of a town, the
+/// pad under a house, the shelf a market square stands on. Rectangular when
+/// half_extents is set, circular on `radius` otherwise.
+///
+/// This is the "edit the heightmap" half of the tool the user asked for. It is
+/// a STATEMENT, not a brush stroke: a pad says "here the ground is this high,
+/// blending back over this many metres", so it can be moved, re-read and
+/// judged — which a painted heightfield could not be.
+struct ScenePad {
+    glm::vec2 center{0.0f};
+    glm::vec2 half_extents{0.0f}; ///< rectangle; zero = use radius
+    float radius = 0.0f;
+    float blend = 8.0f;           ///< metres to fade back into the natural ground
+    float height = 0.0f;          ///< absolute metres
+    std::string note;
+};
+
 /// One composed scene: the placements of one map.
 struct SceneDoc {
     std::string map;         ///< "category/stem" this scene composes
@@ -143,6 +164,7 @@ struct SceneDoc {
     float spawn_yaw = 0.0f;   ///< radians; 0 looks north (forward = {sin,0,-cos})
     std::vector<Placement> placements;
     std::vector<SceneLight> lights;
+    std::vector<ScenePad> pads;
 };
 
 /// Which rule a finding broke. Named, not numbered: a report a human reads.

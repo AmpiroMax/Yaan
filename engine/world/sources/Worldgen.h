@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 13:08:2026 - 00:40:00
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -56,6 +56,10 @@ UPD:
   of a 96 m crown and comes out longer than this world's diagonal: the count is
   an output, not a density, and it is one giant.
 - 13:08:2026 - 00:40:00: WorldGenContext::flow -- the drainage grid. A world-level pass because drainage area is a catchment quantity: a chunk computing its own would make channels that stop at its border.
+- 17:08:2026 - 11:35:28: WorldGenParams::composed_pads — площадки, которые author'ит композиция.
+  Пусто на всяком мире, который их не объявляет, и пустой список — no-op БИТ В
+  БИТ: именно это позволяет завести правку высот, не сдвинув закреплённую карту
+  тестбеда ни на один сэмпл.
 */
 
 #pragma once
@@ -85,6 +89,15 @@ struct WorldGenParams {
     ChunkCoord min_chunk;   ///< Inclusive extent; the testbed is 4x4 chunks (Q45).
     ChunkCoord max_chunk;
     TestbedLayout layout{}; ///< Feature/site layout table (LANDSCAPE §7.1 defaults).
+    /// PADS A COMPOSITION AUTHORED — the terraces of a town, the flat under a
+    /// house. Empty on every world that does not declare them, and an empty
+    /// list is a no-op BIT FOR BIT: this is what lets the feature exist without
+    /// moving the pinned testbed heightmap by a single sample.
+    ///
+    /// They are applied LAST in the pass stack, after the generator's own pads,
+    /// because an authored flat is the strongest statement anyone makes about
+    /// the ground: a composer who cut a terrace means it.
+    std::vector<BuildingPad> composed_pads;
 };
 
 /// Precomputed world-level passes (P2 hydrology, P4 sites) shared by every

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 17:36:42
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/world
 File: engine/world/sources/WorldgenSites.h
 
@@ -33,6 +33,13 @@ UPD:
 - 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h.
 - 09:08:2026 - 15:18:34: Castle: SitesData carries the CastleBuild (its terrace is a separate square stamp with its own cut allowance).
 - 09:08:2026 - 17:36:42: §6.2: EntranceWorks (mound + cut forecourt + derived adit) and entrance_works_height.
+- 17:08:2026 - 11:35:28: BuildingPad стал прямоугольным (half_extents; ноль = прежний круг), и
+  стамп вынесен в apply_pads — ОДНО определение, двое зовущих: площадки
+  генератора и площадки КОМПОЗИЦИИ. Две копии стампа высоты были бы двумя
+  ответами на «какая тут земля», и судья композитора мерил бы не тот мир, по
+  которому ходит игрок. Терраса города 120x80 м, а круг такого сказать не
+  может: вписанный теряет углы, через которые идут улицы, описанный ровняет то,
+  что задумано нетронутым.
 */
 
 #pragma once
@@ -54,6 +61,13 @@ struct BuildingPad {
     float radius = 0.0f;
     float blend = 0.0f;
     float height = 0.0f;
+    /// RECTANGULAR when either half-extent is positive; `radius` is then
+    /// ignored. A town terrace is 120 x 80 m and a circle cannot say that:
+    /// inscribed it loses the corners the streets run through, circumscribed
+    /// it flattens ground the design wanted left alone. Zero keeps the circle,
+    /// so every pad the generator already places behaves exactly as before
+    /// (Rule 26: the field grew, the meaning did not).
+    glm::vec2 half_extents{0.0f};
 };
 
 /// Entrance works for one dungeon (LANDSCAPE §6.2). The generator MAKES THE
@@ -103,5 +117,13 @@ struct SitesData {
 /// (corridor_distance moved to TestbedLayout.h — pure layout geometry, now
 /// also consumed by hydrology ford beds.)
 [[nodiscard]] float pads_height(const SitesData& sites, glm::vec2 world, float h);
+
+/// The pad stamp itself, over an arbitrary list. ONE definition, two callers:
+/// the generator's own pads (through pads_height) and the pads a COMPOSITION
+/// authors. Two copies of a height stamp would be two answers to "how high is
+/// the ground here", and the composer's judge would measure a different world
+/// from the one the player walks (Rule 32).
+[[nodiscard]] float apply_pads(const std::vector<BuildingPad>& pads, glm::vec2 world,
+                               float h);
 
 } // namespace dfn::world

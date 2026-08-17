@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:24:31
+Last updated: 17:08:2026 - 11:35:28
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -285,6 +285,10 @@ UPD:
   (3) Близнец `-far` — это ТОТ ЖЕ экспонат подешевле, а не второй: показ
   обоих удваивал полку и выталкивал настоящие объекты за край.
   Проверено: SKIPPED = 0 на glade, catalog, gallery и colossus.
+- 17:08:2026 - 11:35:28: .scene читается ДО постройки земли — площадки это пасс поля высот, а не
+  украшение поверх него. Файл читается ОДИН раз и переиспользуется для
+  расстановки: второе чтение было бы вторым ответом на «что говорит этот файл»,
+  и два ответа разошлись бы, если файл поменялся между ними.
 */
 
 #include "engine/app/sources/App.h"
@@ -1232,6 +1236,36 @@ bool App::enter_world(uint32_t stand) {
     sp.load_radius = static_cast<uint32_t>(config::CHUNK_LOAD_RADIUS);
     sp.unload_radius = static_cast<uint32_t>(config::CHUNK_UNLOAD_RADIUS);
     world::WorldGenParams gp;
+    // THE COMPOSITION'S TERRACES MUST BE KNOWN BEFORE THE GROUND IS BUILT, so
+    // the .scene is read HERE, before the generator context exists — its pads
+    // are a pass of the height field, not a decoration laid on top of one. The
+    // file is read once and kept; the placements below use the same document.
+    //
+    // A file that will not parse is reported and the map still opens on the
+    // natural ground: a composition with a typo in it should be diagnosable
+    // from inside the world it failed to shape.
+    scene_doc_ = {};
+    if (!gallery_scene_.empty()) {
+        std::string serr;
+        if (!world::read_scene(gallery_scene_, scene_doc_, serr)) {
+            std::fprintf(stderr, "[scene] %s: %s -- NOTHING PLACED\n",
+                         gallery_scene_.c_str(), serr.c_str());
+            scene_doc_ = {};
+        }
+        for (const world::ScenePad& P : scene_doc_.pads) {
+            world::BuildingPad pad;
+            pad.center = P.center;
+            pad.half_extents = P.half_extents;
+            pad.radius = P.radius;
+            pad.blend = P.blend;
+            pad.height = P.height;
+            gp.composed_pads.push_back(pad);
+        }
+        if (!scene_doc_.pads.empty()) {
+            std::fprintf(stderr, "[scene] %zu authored pad(s) cut into the ground\n",
+                         scene_doc_.pads.size());
+        }
+    }
     // THE MAP IS CONTENT AND IT IS LOADED, NOT COMPILED IN (Rule 5). Core moved
     // 441 lines of ONE GAME'S survey -- Vaelmere, Ravenscar, Harrowward -- out
     // of `engine/world` and proved the asset reproduces the compiled defaults
@@ -1428,14 +1462,11 @@ bool App::enter_world(uint32_t stand) {
         // have no composition yet: a gallery is "show me everything on this
         // shelf", a scene is "this is the place I built".
         if (composed) {
-            world::SceneDoc doc;
-            std::string serr;
-            if (!world::read_scene(gallery_scene_, doc, serr)) {
-                // LOUD, and the map still opens: an empty world with a reason
-                // printed beats a world that silently arranged itself.
-                std::fprintf(stderr, "[scene] %s: %s -- NOTHING PLACED\n",
-                             gallery_scene_.c_str(), serr.c_str());
-            }
+            // ALREADY READ, above, before the ground was built: the pads had
+            // to reach the generator. Reading it a second time here would be
+            // a second answer to "what does this file say" — and the two could
+            // differ if the file changed between the reads.
+            const world::SceneDoc& doc = scene_doc_;
             // ONE MESH PER TILE, NOT ONE MESH PER MAP. The first version of
             // this loader built a single combined mesh, which was right for a
             // gallery of fourteen exhibits and WRONG the moment a real
