@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 03:09:30
+Last updated: 17:08:2026 - 03:25:32
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -204,6 +204,21 @@ UPD:
   ОТ СТРИМЕРА, а не из файла: композитор, двигающий точку входа, не обязан
   перемеривать под ней рельеф и не может закопать себя. Без ключа — спавн
   стенда, как было.
+- 17:08:2026 - 03:25:32: СЦЕНА ГРУЗИТСЯ ПЛИТКАМИ ПО 32 м, а не одним мешем на карту. Первая
+  версия загрузчика собирала всё в один меш — верно для галереи из
+  четырнадцати экспонатов и НЕВЕРНО в тот момент, когда пришла настоящая
+  композиция: полянка зоны flora — 2432 расстановки и 7.56 млн
+  треугольников, а один меш означает один габарит на всю карту, поэтому
+  отсечение по пирамиде не может отвергнуть НИЧЕГО, лестнице LOD не на что
+  вставать, и GPU перечитывает весь лес на каждый теневой проход. Рендер и
+  так отсекает и выгружает ПОЗАПИСНО в своей карте scatter — ему всего лишь
+  надо было отдать сцену по частям. Замер: было 25 с/кадр (жалоба flora,
+  12+ минут на 30 кадров), стало 32.4 мс/кадр (14971 мс на 360 кадров минус
+  5256 мс на 60) — то есть ~770x. Объект целиком уходит в ОДНУ плитку по
+  своему началу: разрезать объект по границе значило бы разрубить дерево
+  пополам и отсечь одну половину без другой. Ключи плиток отодвинуты от
+  координат чанков стримера — это плитки СЦЕНЫ, а не чанки мира, и
+  столкновение молча снесло бы половину композиции на ближайшей выпечке.
 */
 
 #include "engine/app/sources/App.h"
@@ -1226,8 +1241,30 @@ bool App::enter_world(uint32_t stand) {
                 std::fprintf(stderr, "[scene] %s: %s -- NOTHING PLACED\n",
                              gallery_scene_.c_str(), serr.c_str());
             }
-            render::MeshData scene_wood;
-            render::MeshData scene_cards;
+            // ONE MESH PER TILE, NOT ONE MESH PER MAP. The first version of
+            // this loader built a single combined mesh, which was right for a
+            // gallery of fourteen exhibits and WRONG the moment a real
+            // composition arrived: flora's glade is 2432 placements and ~7 M
+            // triangles, and one mesh means one bounding volume spanning the
+            // whole map — so the frustum cull can never reject anything, the
+            // LOD ladder has nothing to step on, and the GPU re-reads the
+            // entire forest for every shadow pass. The renderer already culls
+            // and drops PER ENTRY of its scatter map; it only ever needed the
+            // scene handed to it in pieces.
+            //
+            // The tile is 32 m: small enough that a wall of trees behind the
+            // camera is actually rejected, large enough that a 256 m map is 64
+            // meshes rather than thousands of draw calls.
+            constexpr float SCENE_TILE_M = 32.0f;
+            // Keyed away from the streamer's own chunk coordinates: these are
+            // SCENE tiles, not world chunks, and a collision would have the
+            // streamer's next bake silently drop half the composition.
+            constexpr int SCENE_TILE_KEY_BASE = 1000;
+            struct Tile {
+                render::MeshData wood;
+                render::MeshData cards;
+            };
+            std::map<std::pair<int, int>, Tile> tiles;
             std::map<std::string, render::RegistryObject> loaded;
             int placed = 0;
             for (const world::Placement& p : doc.placements) {
@@ -1254,13 +1291,18 @@ bool App::enter_world(uint32_t stand) {
                     it = loaded.emplace(p.object, std::move(*obj)).first;
                 }
                 const render::RegistryObject& obj = it->second;
-                render::append_transformed(scene_wood, obj.wood, p.position, p.yaw,
+                // The whole object goes into ONE tile, chosen by its ORIGIN:
+                // splitting an object across tiles would cut a tree in half at
+                // a boundary and let one half be culled without the other.
+                Tile& tile = tiles[{static_cast<int>(std::floor(p.position.x / SCENE_TILE_M)),
+                                    static_cast<int>(std::floor(p.position.z / SCENE_TILE_M))}];
+                render::append_transformed(tile.wood, obj.wood, p.position, p.yaw,
                                            p.scale);
-                render::append_transformed(scene_cards, obj.cards, p.position, p.yaw,
+                render::append_transformed(tile.cards, obj.cards, p.position, p.yaw,
                                            p.scale);
-                render::append_transformed(scene_cards, obj.bark, p.position, p.yaw,
+                render::append_transformed(tile.cards, obj.bark, p.position, p.yaw,
                                            p.scale);
-                render::append_transformed(scene_cards, obj.ground, p.position, p.yaw,
+                render::append_transformed(tile.cards, obj.ground, p.position, p.yaw,
                                            p.scale);
                 // SOLID BY DEFAULT (user: «сделать деревья физичными, не давать
                 // сквозь них ходить» — a house wall owes the same). One box per
@@ -1300,13 +1342,19 @@ bool App::enter_world(uint32_t stand) {
                 }
                 ++placed;
             }
-            if (placed > 0) {
-                render_system_.upload_prebuilt_scatter(*renderer_, {0, 0}, scene_wood,
-                                                       scene_cards);
+            std::size_t scene_tris = 0;
+            for (auto& [key, tile] : tiles) {
+                scene_tris += tile.wood.triangle_count() + tile.cards.triangle_count();
+                render_system_.upload_prebuilt_scatter(
+                    *renderer_,
+                    {SCENE_TILE_KEY_BASE + key.first, SCENE_TILE_KEY_BASE + key.second},
+                    tile.wood, tile.cards);
             }
             std::fprintf(stderr, "[scene] %s: %d of %zu placement(s) standing, "
-                                 "%zu distinct object(s)\n", gallery_scene_.c_str(),
-                         placed, doc.placements.size(), loaded.size());
+                                 "%zu distinct object(s), %zu tile(s), "
+                                 "%zu triangles\n", gallery_scene_.c_str(),
+                         placed, doc.placements.size(), loaded.size(), tiles.size(),
+                         scene_tris);
             // THE COMPOSITION MAY SAY WHERE THE PLAYER STANDS. The stand only
             // knows the middle of its chunk; "the middle of the stone path,
             // facing the great oak" is a statement about what was BUILT, so it
