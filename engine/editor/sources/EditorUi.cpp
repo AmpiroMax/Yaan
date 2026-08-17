@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:00:35
+Last updated: 17:08:2026 - 20:17:55
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -54,6 +54,25 @@ UPD:
   что делает сосед, — add_panel(open=false) плюс set_panel_open(id, true).
   Точка съёмки, которой доступен путь, недоступный настоящему вызывающему, не
   проверяет ничего (правило 27).
+- 17:08:2026 - 20:17:55: ПАНЕЛЬ ИНСТРУМЕНТОВ (заказ 17.08: «надо добавить панель с выбором
+  этих инструментов»). EditorTool: пять РЕЖИМОВ, ровно один активен. Это не
+  украшение списка клавиш: сегодня ЛКМ значит «поставить деталь», а кисть
+  завтра тоже захочет ЛКМ, потому что рисование это протяжка, — и драка двух
+  хозяев за кнопку невидима, щелчок делает то одно, то другое. С режимом у
+  кнопки один хозяин в любой момент, и какой именно — видно на полосе.
+  Look («просто смотрю») стоит в списке пятым, как у пользователя, и является
+  режимом ПО УМОЛЧАНИЮ: инструмент, который нельзя отложить, делает каждый
+  щелчок риском.
+  Наружу отдано ровно три вещи: tool(), set_tool(), tool_changed() — последняя
+  истинна один кадр и нужна владельцу режима, чтобы бросить недоделанное
+  (мазок кисти и недопоставленная деталь обязаны кончиться при уходе).
+  Полоса всегда видна и стоит ПОД отладочным выводом, а не рядом: его плита
+  во всю ширину и в три строки, и полоса на y=6 садилась ровно на неё —
+  два оверлея в одном углу этот проект уже оплачивал.
+  Проверено ТЕМ ЖЕ ПУТЁМ, ЧТО У ПОЛЬЗОВАТЕЛЯ: указатель на фишке, кнопка вниз
+  и вверх (DFN_UI_PROBE_CLICK), а не вызовом set_tool из двери. Вызов из двери
+  сфотографировал бы функцию, которую никто не нажимает, — ошибка, стоившая
+  сегодня вечера.
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -68,6 +87,7 @@ UPD:
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <iterator>
 #include <optional>
 #include <filesystem>
 
@@ -218,6 +238,25 @@ std::optional<ImVec2> probe_pointer() {
         return ImVec2(x, y);
     }();
     return parsed;
+}
+
+/// DFN_UI_PROBE_CLICK=1 — presses and releases the left button over whatever
+/// DFN_UI_PROBE_MOUSE is pointing at.
+///
+/// THIS IS THE USER'S PATH AND NOT A SHORTCUT AROUND IT, which is the whole
+/// point: the tool could be switched from an unattended run by calling
+/// set_tool() directly, and that would photograph a function nobody presses.
+/// Here the pointer sits on a chip and the BUTTON GOES DOWN AND UP — every
+/// line between the click and the mode change is the same code the hand runs.
+/// The lesson is paid for: my first three frames all raised the interface
+/// through a door that flipped a flag no real caller flips, and the defect it
+/// hid cost the user his evening.
+bool probe_wants_click() {
+    static const bool on = [] {
+        const char* v = std::getenv("DFN_UI_PROBE_CLICK");
+        return v != nullptr && *v != '\0' && *v != '0';
+    }();
+    return on;
 }
 
 /// DFN_UI_PROBE_KEYS=1 — puts the caret in the probe panel's text field, which
@@ -574,6 +613,15 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
     io.AddMouseButtonEvent(0, input.is_down(platform::MouseButton::LEFT));
     io.AddMouseButtonEvent(1, input.is_down(platform::MouseButton::RIGHT));
     io.AddMouseButtonEvent(2, input.is_down(platform::MouseButton::MIDDLE));
+    if (probe_wants_click()) {
+        // Down for ten frames, then up. A button fires on RELEASE in ImGui, so
+        // a door that only held the button down would photograph a chip that
+        // looks pressed and never acts — the same "looks right, does nothing"
+        // this file has already shipped once.
+        static uint32_t frame = 0;
+        ++frame;
+        io.AddMouseButtonEvent(0, frame >= 30 && frame < 40);
+    }
     const glm::vec2 wheel = input.scroll_delta();
     if (wheel.x != 0.0f || wheel.y != 0.0f) {
         io.AddMouseWheelEvent(wheel.x, wheel.y);
@@ -602,9 +650,13 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
     }
 
     text_arena().clear();
+    tool_changed_ = false; // set by set_tool during this frame, read after it
     ImGui::NewFrame();
     frame_open_ = true;
     if (visible_) {
+        if (toolbar_) {
+            draw_toolbar();
+        }
         layout_panels();
     }
     // READ THE FLAGS AFTER THE PANELS DREW. WantCaptureMouse is decided by what
@@ -612,6 +664,89 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
     // the windows for this frame exist.
     wants_mouse_ = visible_ && io.WantCaptureMouse;
     wants_keyboard_ = visible_ && io.WantTextInput;
+}
+
+const char* EditorUi::tool_name(EditorTool tool) {
+    switch (tool) {
+    case EditorTool::HeightBrush:  return tr("editor.tool.height");
+    case EditorTool::SurfacePaint: return tr("editor.tool.paint");
+    case EditorTool::SelectObject: return tr("editor.tool.select");
+    case EditorTool::PlaceObject:  return tr("editor.tool.place");
+    case EditorTool::Look:
+    case EditorTool::Count:
+        break;
+    }
+    return tr("editor.tool.look");
+}
+
+void EditorUi::set_tool(EditorTool tool) {
+    if (tool == tool_ || tool == EditorTool::Count) {
+        return;
+    }
+    tool_ = tool;
+    tool_changed_ = true;
+}
+
+void EditorUi::draw_toolbar() {
+    // THE ORDER IS THE USER'S OWN NUMBERING, so "press 3" and "the third chip"
+    // are the same thing. Look is his 5 and sits last, even though it is the
+    // default: a default that moves to the front would renumber the other four
+    // every time somebody re-read his message.
+    struct Chip {
+        EditorTool tool;
+        const char* digit;
+    };
+    static const Chip CHIPS[] = {
+        {EditorTool::HeightBrush, "1"},  {EditorTool::SurfacePaint, "2"},
+        {EditorTool::SelectObject, "3"}, {EditorTool::PlaceObject, "4"},
+        {EditorTool::Look, "5"},
+    };
+
+    const ImGuiIO& io = ImGui::GetIO();
+    // TOP CENTRE, and not the top left: the debug readout and the editor banner
+    // already own that corner, and two overlays sharing one corner is a defect
+    // this project has already paid for once (App.cpp, 14.08).
+    // BELOW THE DEBUG READOUT, not beside it. Its plate is full-width and three
+    // lines tall, so a strip at y=6 sits ON it — legible by luck, and this
+    // project already spent a day on two overlays sharing one corner. 44 logical
+    // units clears all three lines; with the readout off the strip simply
+    // floats a little lower, which costs nothing.
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, 44.0f), ImGuiCond_Always,
+                            ImVec2(0.5f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavFocus;
+    if (ImGui::Begin("##editor.toolbar", nullptr, flags)) {
+        for (std::size_t i = 0; i < std::size(CHIPS); ++i) {
+            if (i > 0) {
+                ImGui::SameLine();
+            }
+            const bool active = CHIPS[i].tool == tool_;
+            // WORDS, NOT ICONS. Five glyphs nobody has learned yet are five
+            // guesses; the strip is wide enough for the words, and the day it
+            // is not, the words are what the tooltip would have said anyway.
+            char label[96];
+            std::snprintf(label, sizeof(label), "%s  %s##tool%zu", CHIPS[i].digit,
+                          tool_name(CHIPS[i].tool), i);
+            if (active) {
+                // The verdict's green again — one colour, one meaning across
+                // the whole tool.
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.27f, 0.44f, 0.32f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                      ImVec4(0.33f, 0.52f, 0.38f, 1.0f));
+            }
+            if (ImGui::Button(label)) {
+                set_tool(CHIPS[i].tool);
+            }
+            if (active) {
+                ImGui::PopStyleColor(2);
+            }
+        }
+    }
+    ImGui::End();
 }
 
 void EditorUi::layout_panels() {

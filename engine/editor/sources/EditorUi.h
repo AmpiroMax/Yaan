@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 20:00:35
+Last updated: 17:08:2026 - 20:17:55
 Module: engine/editor
 File: engine/editor/sources/EditorUi.h
 
@@ -70,6 +70,25 @@ UPD:
   что делает сосед, — add_panel(open=false) плюс set_panel_open(id, true).
   Точка съёмки, которой доступен путь, недоступный настоящему вызывающему, не
   проверяет ничего (правило 27).
+- 17:08:2026 - 20:17:55: ПАНЕЛЬ ИНСТРУМЕНТОВ (заказ 17.08: «надо добавить панель с выбором
+  этих инструментов»). EditorTool: пять РЕЖИМОВ, ровно один активен. Это не
+  украшение списка клавиш: сегодня ЛКМ значит «поставить деталь», а кисть
+  завтра тоже захочет ЛКМ, потому что рисование это протяжка, — и драка двух
+  хозяев за кнопку невидима, щелчок делает то одно, то другое. С режимом у
+  кнопки один хозяин в любой момент, и какой именно — видно на полосе.
+  Look («просто смотрю») стоит в списке пятым, как у пользователя, и является
+  режимом ПО УМОЛЧАНИЮ: инструмент, который нельзя отложить, делает каждый
+  щелчок риском.
+  Наружу отдано ровно три вещи: tool(), set_tool(), tool_changed() — последняя
+  истинна один кадр и нужна владельцу режима, чтобы бросить недоделанное
+  (мазок кисти и недопоставленная деталь обязаны кончиться при уходе).
+  Полоса всегда видна и стоит ПОД отладочным выводом, а не рядом: его плита
+  во всю ширину и в три строки, и полоса на y=6 садилась ровно на неё —
+  два оверлея в одном углу этот проект уже оплачивал.
+  Проверено ТЕМ ЖЕ ПУТЁМ, ЧТО У ПОЛЬЗОВАТЕЛЯ: указатель на фишке, кнопка вниз
+  и вверх (DFN_UI_PROBE_CLICK), а не вызовом set_tool из двери. Вызов из двери
+  сфотографировал бы функцию, которую никто не нажимает, — ошибка, стоившая
+  сегодня вечера.
 */
 
 #pragma once
@@ -94,6 +113,34 @@ using EditorTextSource = std::string_view (*)(const char* key);
 /// A picture a panel can show. Opaque on purpose: the value is the backend's
 /// business and a panel must never take it apart. Zero means "no picture".
 using EditorTexture = std::uint64_t;
+
+/// WHAT THE EDITOR IS DOING RIGHT NOW. Exactly one at a time.
+///
+/// WHY A MODE AND NOT FIVE INDEPENDENT SWITCHES (user, 17.08.2026: «надо
+/// добавить панель с выбором этих инструментов»). Today each tool is a key that
+/// turns something on beside everything else, and the left mouse button already
+/// means "place a part". The moment the terrain brush wants the left button too
+/// — and it will, because painting is a drag — the two owners fight, and the
+/// fight is invisible: the click does both, or the wrong one, depending on
+/// which test ran first. With a mode the button has ONE owner at all times, and
+/// which one is a thing the user chose and can see.
+///
+/// AND `Look` IS A REAL MODE, NOT THE ABSENCE OF ONE. It is the default on
+/// entering the editor, because a tool you cannot put down makes every click a
+/// risk: the user asked for «пустой курсор, словно ничего не делаем, просто как
+/// играем» in the same breath as the other four, which is exactly the right
+/// instinct.
+///
+/// The numbers in the comments are the user's own numbering, and the toolbar
+/// shows them, so "press 3" and "the third chip" are the same thing.
+enum class EditorTool : std::uint8_t {
+    Look = 0,      ///< 5 — просто смотрю. THE DEFAULT.
+    HeightBrush,   ///< 1 — кисть высоты ландшафта
+    SurfacePaint,  ///< 2 — кисть поверхности (скала/трава/песок/тропа)
+    SelectObject,  ///< 3 — прицел выбирает объект
+    PlaceObject,   ///< 4 — прицел ставит объект
+    Count
+};
 
 /// Where EditorUi parks a panel's window. The editor's shape is decided HERE,
 /// once, so three agents' panels cannot each invent their own corner.
@@ -193,6 +240,33 @@ public:
     /// movement, no hotkeys, no build actions.
     [[nodiscard]] bool wants_keyboard() const { return wants_keyboard_; }
 
+    // -- the tool (mode) ------------------------------------------------------
+
+    /// What the editor is doing. Poll it; it is cheap and it never lies about a
+    /// frame that has already been drawn.
+    [[nodiscard]] EditorTool tool() const { return tool_; }
+
+    /// Switches tools. Safe to call from a key handler, from a panel, or from
+    /// anywhere else — the toolbar and the label follow on the same frame.
+    void set_tool(EditorTool tool);
+
+    /// True for the ONE frame in which the tool changed, whoever changed it.
+    /// The owner of a tool uses this to drop whatever it was holding: a brush
+    /// mid-stroke and a half-placed part must both end when the user leaves.
+    [[nodiscard]] bool tool_changed() const { return tool_changed_; }
+
+    /// The tool's name for a human, localized (Rule 5). Valid until the next
+    /// begin_frame, like tr().
+    [[nodiscard]] static const char* tool_name(EditorTool tool);
+
+    /// The always-on strip of tool chips. On by default: the user must be able
+    /// to see WHICH tool has the mouse without opening anything, because an
+    /// editor whose state lives only inside the code is an editor that freezes
+    /// the camera for reasons nobody on the outside can name — which is exactly
+    /// what happened on 17.08 and is why this sentence is here.
+    void set_toolbar_visible(bool on) { toolbar_ = on; }
+    [[nodiscard]] bool toolbar_visible() const { return toolbar_; }
+
     // -- panels ---------------------------------------------------------------
 
     /// Declares a panel. Call once, at setup. Re-adding the same id replaces
@@ -256,6 +330,8 @@ public:
 
 private:
     void layout_panels();
+    /// The always-on strip of tool chips (top centre).
+    void draw_toolbar();
     /// The built-in self-check panel (door DFN_UI_PROBE=1). It exists to answer
     /// "does the font actually cover our alphabet" with a photograph rather
     /// than with a promise, and to state the frame's numbers beside it.
@@ -264,6 +340,9 @@ private:
     platform::IRenderer* renderer_ = nullptr;
     bool ready_ = false;
     bool visible_ = true; // master HIDE, not a master show — see set_visible()
+    bool toolbar_ = true;
+    EditorTool tool_ = EditorTool::Look; // «просто смотрю» is where you start
+    bool tool_changed_ = false;
     bool wants_mouse_ = false;
     bool wants_keyboard_ = false;
     bool frame_open_ = false;
