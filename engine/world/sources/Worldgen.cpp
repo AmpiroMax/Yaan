@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 17:08:2026 - 11:35:28
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -108,6 +108,15 @@ UPD:
   назвала его карта, и фича, тихо не работающая на половине стендов, была бы
   обнаружена тем, кто строит город не на том. При пустом списке строка — no-op
   бит в бит, поэтому закреплённый дайджест тестбеда цел.
+- 17:08:2026 - 11:53:47: износ тропы пишется в поверхность чанка ТЕМ ЖЕ сэмплом сети, которым
+  compose_passes продавливает землю: взять его из другого места значило бы
+  положить цвет тропы РЯДОМ с её формой, а не на неё. И число маршрутов
+  печатается вслух — «тропы нет» и «тропа не нарисована» на кадре неразличимы,
+  и зоны уже потратили на это два круга.
+- 17:08:2026 - 11:54:29: износ тропы пишется в поверхность чанка ТЕМ ЖЕ сэмплом сети, которым
+  compose_passes продавливает землю: взять его из другого места значило бы
+  положить цвет тропы РЯДОМ с её формой, а не на неё. И число маршрутов
+  печатается вслух — «тропы нет» и «тропа не нарисована» на кадре неразличимы.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -125,6 +134,7 @@ UPD:
 #include "engine/world/sources/WorldgenScatter.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cmath>
 #include <glm/geometric.hpp>
 #include <vector>
@@ -311,6 +321,11 @@ WorldGenContext build_world_context(const WorldGenParams& params) {
                                            [&](glm::vec2 p) {
                                                return macro_height(seed, lay, p) + ero.sample(p);
                                            });
+            // SAY WHETHER THERE ARE ANY. A path that does not exist and a path
+            // that is not drawn look identical from a screenshot, and the zones
+            // have now spent two rounds on which of the two they were seeing.
+            std::fprintf(stderr, "[paths] %zu route(s) on this world\n",
+                         ctx.paths.routes.size());
             // BR-6 (в20): the find layer is seeded on the FINISHED ground —
             // the occlusion siting must see the erosion and the path treads,
             // or a find is placed against terrain that does not ship.
@@ -612,6 +627,11 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     chunk.surface.dist_to_water.resize(sample_count);
     chunk.surface.water_surface.resize(sample_count);
     chunk.surface.surface_class.resize(sample_count);
+    // Sized only when this world HAS a path network: an empty vector is the
+    // documented "no paths here", and every reader treats it as all-zero.
+    if (!ctx.paths.routes.empty()) {
+        chunk.surface.path_wear.resize(sample_count);
+    }
 
     const glm::vec2 origin{static_cast<float>(coord.x) * CHUNK_SIZE_M,
                            static_cast<float>(coord.z) * CHUNK_SIZE_M};
@@ -680,6 +700,13 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
 
             chunk.surface.surface_class[i] =
                 static_cast<uint8_t>(classify_surface(layout, world, h, w, slope));
+            if (!chunk.surface.path_wear.empty()) {
+                // THE SAME SAMPLE THE GROUND WAS FLATTENED BY. compose_passes
+                // grooves the terrain with this network; taking the wear from
+                // anywhere else would put the trodden colour beside the trodden
+                // shape instead of on it.
+                chunk.surface.path_wear[i] = ctx.paths.sample(world).wear;
+            }
         }
     }
 

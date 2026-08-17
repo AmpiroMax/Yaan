@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:13:47
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -143,6 +143,16 @@ UPD:
   не должны кэшироваться порознь, — и отдаётся каждому дро листвы через
   aux_texture. Один лист на весь атлас: тайл сам говорит, какой это материал.
 - 17:08:2026 - 11:13:47: самосветящаяся геометрия и рой рисуются программой unlit после разброса.
+- 17:08:2026 - 11:53:47: ЛЕНТА ТРОПЫ БОЛЬШЕ НЕ РИСУЕТСЯ. Две поверхности, построенные из одного
+  поля разными кусками кода, расходятся везде, где хоть одна приближена, и
+  лента всплывала или тонула. Это чинится не настройкой, а отсутствием второй
+  поверхности. Осталась за дверью DFN_PATH_RIBBON=1 — контрольная рука из
+  одного бинарника (правило 47), а не удалена.
+- 17:08:2026 - 11:54:29: ЛЕНТА ТРОПЫ БОЛЬШЕ НЕ РИСУЕТСЯ. Две поверхности, построенные из одного
+  поля разными кусками кода, расходятся везде, где хоть одна приближена, и лента
+  всплывала или тонула. Это чинится не настройкой, а отсутствием второй
+  поверхности. Осталась за дверью DFN_PATH_RIBBON=1 — контрольная рука из одного
+  бинарника (правило 47), а не удалена.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -173,6 +183,19 @@ UPD:
 #include <glm/matrix.hpp>
 
 namespace dfn::render {
+
+namespace {
+/// DFN_PATH_RIBBON=1 brings the old over-the-ground path ribbon back, for a
+/// side-by-side with the ground-borne path that replaced it. Default OFF: the
+/// ribbon is the defect, not a feature with a bug in it.
+[[nodiscard]] bool path_ribbon_on() {
+    static const bool on = [] {
+        const char* v = std::getenv("DFN_PATH_RIBBON");
+        return v != nullptr && *v != '\0' && *v != '0';
+    }();
+    return on;
+}
+} // namespace
 
 namespace {
 
@@ -795,7 +818,22 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // flattened ground core sank for it), but the LOD nodes above may overlap
     // the chunk terrain, and a path is the one surface that must never lose
     // that tie. Never a shadow caster — see NON_CASTING_PROGRAMS.
-    if (!path_meshes_.empty()) {
+    // THE RIBBON IS GONE, and the door is what proves it was the culprit.
+    //
+    // A path used to be drawn as a separate ribbon mesh laid over the terrain.
+    // Two surfaces built from one field disagree wherever either is
+    // approximated — the terrain is a voxel extraction, the ribbon a stack of
+    // cross-sections — so the ribbon floated or sank, and no amount of tuning
+    // fixes that: the second surface IS the defect. The user said so plainly
+    // (17.08): «тропинки должны быть свойством земли, а не поверх нарисованной
+    // текстурой — тогда проблем не будет».
+    //
+    // The path now rides the ground's own vertices (SurfaceFieldView::path_wear
+    // -> vertex alpha -> fs_terrain), so it cannot hover over itself. This
+    // submit stays behind a door rather than being deleted: it is the CONTROL
+    // ARM out of one binary (Rule 47) for anyone who wants to see the old
+    // defect, and the pieces are still built, so nothing else changes with it.
+    if (path_ribbon_on() && !path_meshes_.empty()) {
         const platform::ProgramHandle path{path_program_};
         platform::TextureHandle path_atlas{};
         if (const auto it = texture_cache_.find(path_atlas_asset_);
@@ -1105,7 +1143,7 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
     if (field != nullptr) {
         map_.note_chunk(*field, surface);
     }
-    const TerrainMeshData data = build_voxel_terrain_mesh(mesh);
+    const TerrainMeshData data = build_voxel_terrain_mesh(mesh, surface);
     if (data.vertices.empty()) {
         return; // solid or empty chunk
     }

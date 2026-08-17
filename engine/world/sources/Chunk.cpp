@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 16:30:44
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/world
 File: engine/world/sources/Chunk.cpp
 
@@ -26,6 +26,8 @@ UPD:
 - 09:08:2026 - 11:05:22: Stage 3b — SurfaceData::view (SurfaceFieldView per
   the render agreement).
 - 09:08:2026 - 16:30:44: Representation swap: VoxelSurface::view.
+- 17:08:2026 - 11:53:47: path_wear отдаётся во view.
+- 17:08:2026 - 11:54:29: path_wear отдаётся во view.
 */
 
 #include "engine/world/sources/Chunk.h"
@@ -69,6 +71,9 @@ math::SurfaceFieldView SurfaceData::view(ChunkCoord coord) const {
     v.dist_to_water = std::span<const float>{dist_to_water.data(), dist_to_water.size()};
     v.water_surface = std::span<const float>{water_surface.data(), water_surface.size()};
     v.surface_class = std::span<const uint8_t>{surface_class.data(), surface_class.size()};
+    // Empty when this world declares no path network — the documented
+    // "no paths here", which every reader treats as all-zero.
+    v.path_wear = std::span<const float>{path_wear.data(), path_wear.size()};
     return v;
 }
 

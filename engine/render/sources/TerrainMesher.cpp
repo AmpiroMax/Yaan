@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:13:39
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -43,6 +43,8 @@ UPD:
   SurfaceClass and the private pack_weights() are gone; both come from
   Materials.h now, shared with VoxelMesher. Behaviour-preserving on all five
   classes (verified row by row against both old tables before landing).
+- 17:08:2026 - 11:53:47: то же для heightfield-пути.
+- 17:08:2026 - 11:54:29: то же для heightfield-пути.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -147,19 +149,33 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
             // path about the blend class because the two enums hid the
             // divergence from -Wswitch (Rule 39).
             SplatWeights w;
+            uint8_t path_a = 255;
             if (surface != nullptr) {
                 const size_t idx = static_cast<size_t>(z) * res + x;
                 w = splat_weights_of(static_cast<math::SurfaceClass>(
                     surface->surface_class[idx]));
+                if (!surface->path_wear.empty() && idx < surface->path_wear.size()) {
+                    const float wear = std::clamp(surface->path_wear[idx], 0.0f, 1.0f);
+                    path_a = static_cast<uint8_t>(std::lround((1.0f - wear) * 255.0f));
+                }
             }
 
             platform::Vertex& v = mesh.vertices[static_cast<size_t>(z) * res + x];
             v.position = wpos;
             v.normal = normal;
             v.uv = {wpos.x * inv_tile, wpos.z * inv_tile};
-            // Alpha is sky visibility; the heightfield path has none, and 255
-            // (open sky) is what it has always written.
-            v.color_rgba = pack_splat(w, 255);
+            // ALPHA CARRIES THE PATH, and 255 means "none" so every mesh ever
+            // built before this line stays bit-identical. It used to be sky
+            // visibility, documented as "the heightfield path has none" and
+            // written as a constant 255 — a channel that was reserved and
+            // never spent, which is exactly the room a path needs.
+            //
+            // A PATH IS THE GROUND'S OWN PROPERTY NOW, not a ribbon laid over
+            // it (user, 17.08: «тропинки должны быть свойством земли, а не
+            // поверх нарисованной текстурой — тогда проблем не будет»). Ground
+            // cannot hover over itself, so the whole class of defect he kept
+            // reporting stops existing rather than being tuned away.
+            v.color_rgba = pack_splat(w, path_a);
         }
     }
 

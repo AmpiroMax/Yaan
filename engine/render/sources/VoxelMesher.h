@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:00
-Last updated: 09:08:2026 - 19:38:00
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/render
 File: engine/render/sources/VoxelMesher.h
 
@@ -44,10 +44,13 @@ UPD:
 - 09:08:2026 - 19:38:00: Created — render finally draws the voxel surface, so
   carved interiors exist on screen (lead-confirmed user bug: walkable but
   invisible barrow).
+- 17:08:2026 - 11:53:47: build_voxel_terrain_mesh принимает поле поверхности (необязательное).
+- 17:08:2026 - 11:54:29: build_voxel_terrain_mesh принимает поле поверхности (необязательное).
 */
 
 #pragma once
 
+#include "engine/core/math/sources/SurfaceField.h"
 #include "engine/core/math/sources/VoxelField.h"
 #include "engine/render/sources/TerrainMesher.h"
 
@@ -55,6 +58,13 @@ namespace dfn::render {
 
 /// Builds the drawable mesh for one voxel chunk. Empty view -> empty mesh
 /// (an entirely solid or entirely empty chunk is normal, not an error).
-[[nodiscard]] TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh);
+/// `surface` is OPTIONAL and carries the ground's own properties — today the
+/// §8.1 path wear, sampled per vertex from the chunk's field. It is passed
+/// because THE DRAWN GROUND IS THIS MESH: a path painted anywhere else would
+/// be a second surface over this one, which is exactly the ribbon that used to
+/// hover (user, 17.08: «тропинки должны быть свойством земли»).
+[[nodiscard]] TerrainMeshData build_voxel_terrain_mesh(
+    const math::VoxelMeshView& mesh,
+    const math::SurfaceFieldView* surface = nullptr);
 
 } // namespace dfn::render

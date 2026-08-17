@@ -1,3 +1,10 @@
+/*
+UPD:
+- 17:08:2026 - 11:54:29: ТРОПА РИСУЕТСЯ САМОЙ ЗЕМЛЁЙ: альфа вершины несёт профиль износа
+  (255 = нет тропы), протоптанное берёт текстуру земли и темнеет к голому
+  центру. Небесная видимость здесь теперь 1.0 — канал, который её нёс,
+  никогда не писался ничем, кроме 255.
+*/
 $input v_color0, v_normal, v_texcoord0, v_wpos
 
 // Terrain fragment v4: surface-truth splat over the procedural 2x2 atlas
@@ -97,11 +104,25 @@ void main()
     flat_albedo = mix(flat_albedo, vec3(0.72, 0.65, 0.44), step(bayer, sand_w));
     albedo = mix(flat_albedo, albedo, step(0.5, u_params.x));
 
+    // THE PATH IS THE GROUND, not a ribbon over it. Vertex alpha carries the
+    // §8.1 wear profile inverted (255 = no path), so a world with no network
+    // renders byte-identically and a trodden sample darkens and bares itself
+    // exactly where core wore the terrain down. The user asked for precisely
+    // this on 17.08 — «тропинки должны быть свойством земли, а не поверх
+    // нарисованной текстурой» — after paths kept hovering: two surfaces built
+    // from one field will always disagree somewhere, and ground cannot hover
+    // over itself.
+    float path_w = 1.0 - v_color0.a;
+    // The trodden surface is the DIRT texel, darkened toward bare earth at the
+    // worn centre. Painted last so a path crosses sand and rock as a path —
+    // a trail over a shingle bank is still a trail.
+    albedo = mix(albedo, dirt * mix(1.0, 0.62, path_w), step(bayer, path_w));
+
     float vis = dfn_shadow_factor(v_wpos, n);
-    // Vertex alpha carries sky visibility on voxel meshes (0 = sealed cave),
-    // and is the reserved 1.0 on heightfield terrain — so this is a no-op
-    // above ground and the interior falloff the moment core writes it.
-    vec3 lit = albedo * dfn_surface_light(v_wpos, n, vis, v_color0.a);
+    // Sky visibility is 1 here: the channel that used to carry it was never
+    // written with anything but 255, and the interior falloff it was reserved
+    // for arrives with its own signal when core supplies one.
+    vec3 lit = albedo * dfn_surface_light(v_wpos, n, vis, 1.0);
 
     gl_FragColor = vec4(dfn_aerial(v_wpos, lit), 1.0);
 }

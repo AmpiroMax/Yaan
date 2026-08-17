@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 23:49:27
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -39,6 +39,8 @@ UPD:
 - 09:08:2026 - 16:30:44: Representation swap: Chunk carries the extracted VoxelSurface (the volume is transient — the world is not destructible, so only geometry stays resident).
 - 09:08:2026 - 17:36:42: §6.2: GeneratedEntityRecord::ground_y — a carved entrance stands on a floor cut below the surface, which the heightfield cannot report.
 - 09:08:2026 - 23:49:27: LOD streaming: quantize_height/dequantize_height + HEIGHT_QUANT_SCALE/OFFSET extracted here as the SINGLE quantization every height-sample producer calls (chunk builder and coarse-node builder). The seam between a chunk and a coarse node is exact by construction rather than by two files agreeing (Rule 32).
+- 17:08:2026 - 11:53:47: SurfaceData::path_wear.
+- 17:08:2026 - 11:54:29: SurfaceData::path_wear.
 */
 
 #pragma once
@@ -184,6 +186,8 @@ struct SurfaceData {
     std::vector<float> dist_to_water;   ///< meters to nearest water edge
     std::vector<float> water_surface;   ///< water level or math::NO_WATER
     std::vector<uint8_t> surface_class; ///< math::SurfaceClass values
+    /// §8.1 path wear per sample, [0,1]. Empty on worlds with no path network.
+    std::vector<float> path_wear;
 
     /// Non-owning cross-zone view for `coord`'s data. Valid while this
     /// SurfaceData is alive and unmodified (same lifetime as the heightmap).

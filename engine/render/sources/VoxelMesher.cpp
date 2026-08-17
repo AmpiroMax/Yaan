@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:40:00
-Last updated: 10:08:2026 - 21:13:39
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/render
 File: engine/render/sources/VoxelMesher.cpp
 
@@ -29,6 +29,14 @@ UPD:
   pack_voxel_weights() are gone; one table in Materials.h serves both meshers.
   26136 of 1183258 voxel vertices on the seed-1 testbed (2.21%, core's
   measurement) carried the material and drew wrong.
+- 17:08:2026 - 11:53:47: альфа вершины несёт износ тропы (255 = нет тропы, поэтому мир без сети
+  даёт байт-в-байт прежние меши). Берётся из поля чанка по x/z вершины: РИСУЕМАЯ
+  земля — это ЭТОТ меш, и тропа, нарисованная где-то ещё, была бы второй
+  поверхностью поверх него — ровно той лентой, которая висела.
+- 17:08:2026 - 11:54:29: альфа вершины несёт износ тропы (255 = нет тропы, поэтому мир без сети
+  даёт байт-в-байт прежние меши). Берётся из поля чанка по x/z вершины: РИСУЕМАЯ
+  земля — это ЭТОТ меш, и тропа, нарисованная где-то ещё, была бы второй
+  поверхностью поверх него — ровно той лентой, которая висела.
 */
 
 #include "engine/render/sources/VoxelMesher.h"
@@ -38,9 +46,13 @@ UPD:
 
 #include <glm/common.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 namespace dfn::render {
 
-TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh) {
+TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh,
+                                        const math::SurfaceFieldView* surface) {
     TerrainMeshData out;
     const size_t count = mesh.positions.size();
     if (count == 0 || mesh.indices.empty()) {
@@ -66,12 +78,53 @@ TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh) {
         if (i < mesh.materials.size()) {
             w = splat_weights_of(static_cast<math::VoxelMaterial>(mesh.materials[i]));
         }
-        // Alpha is sky visibility; 255 (open sky) until core supplies the
-        // channel, which VoxelMeshView::sky_visibility now carries.
-        v.color_rgba = pack_splat(w, 255);
+        // ALPHA CARRIES THE PATH WEAR, and 255 means "no path" so a world
+        // without a network produces byte-identical meshes. The channel was
+        // documented as sky visibility and written as a constant 255 ever
+        // since — reserved and never spent, which is the room a path needs.
+        //
+        // SAMPLED FROM THE CHUNK'S OWN FIELD at this vertex's x/z: the ground
+        // IS the path, rather than wearing one. The ribbon mesh that used to
+        // be laid over the terrain could hover wherever the two disagreed, and
+        // no amount of tuning fixes a second surface — only not having one.
+        uint8_t path_a = 255;
+        if (surface != nullptr && !surface->path_wear.empty() && surface->step > 0.0f) {
+            const glm::vec2 local = glm::vec2{v.position.x, v.position.z} - surface->origin;
+            const int gx = static_cast<int>(std::lround(local.x / surface->step));
+            const int gz = static_cast<int>(std::lround(local.y / surface->step));
+            const int res = static_cast<int>(surface->resolution);
+            if (gx >= 0 && gz >= 0 && gx < res && gz < res) {
+                const std::size_t idx = static_cast<std::size_t>(gz) * surface->resolution
+                                      + static_cast<std::size_t>(gx);
+                if (idx < surface->path_wear.size()) {
+                    const float wear = std::clamp(surface->path_wear[idx], 0.0f, 1.0f);
+                    path_a = static_cast<uint8_t>(std::lround((1.0f - wear) * 255.0f));
+                }
+            }
+        }
+        v.color_rgba = pack_splat(w, path_a);
     }
 
     out.indices.assign(mesh.indices.begin(), mesh.indices.end());
+    // SAY IT ONCE per run: how much of the drawn ground came out trodden. "The
+    // path is a property of the ground" is a claim; "3184 of 41000 vertices
+    // carry wear" is the fact that settles whether it reached the mesh at all.
+    if (surface != nullptr && !surface->path_wear.empty()) {
+        static bool announced = false;
+        if (!announced) {
+            std::size_t worn = 0;
+            for (const platform::Vertex& vv : out.vertices) {
+                if ((vv.color_rgba >> 24) != 0xFFu) {
+                    ++worn;
+                }
+            }
+            if (worn > 0) {
+                announced = true;
+                std::fprintf(stderr, "[paths] %zu of %zu drawn vertices carry wear\n",
+                             worn, out.vertices.size());
+            }
+        }
+    }
     return out;
 }
 

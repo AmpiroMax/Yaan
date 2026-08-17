@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 12:08:2026 - 22:41:00
+Last updated: 17:08:2026 - 11:54:29
 Module: engine/core/math
 File: engine/core/math/sources/SurfaceField.h
 
@@ -54,6 +54,10 @@ UPD:
   neither a field nor a size can say "this one is the giant". Placement (the
   clearing and the derived rarity) is core's; the ordinal -> mesh mapping is
   flora's, and flora_owns()'s exhaustive switch is what names the file.
+- 17:08:2026 - 11:53:47: SurfaceFieldView::path_wear — ТРОПА КАК СВОЙСТВО ЗЕМЛИ. Пустой span
+  законен и значит «на этом мире троп нет».
+- 17:08:2026 - 11:54:29: SurfaceFieldView::path_wear — ТРОПА КАК СВОЙСТВО ЗЕМЛИ. Пустой span
+  законен и значит «на этом мире троп нет».
 */
 
 #pragma once
@@ -95,6 +99,21 @@ struct SurfaceFieldView {
     std::span<const float> water_surface;
     /// SurfaceClass values (uint8_t).
     std::span<const uint8_t> surface_class;
+    /// THE PATH, AS A PROPERTY OF THE GROUND: the §8.1 wear profile per sample,
+    /// [0,1] — 1 on the bare trodden centre, fading to 0 by the outer edge of
+    /// the worn surface, 0 everywhere else.
+    ///
+    /// A path used to be a RIBBON MESH laid over the terrain, and that is why
+    /// the user reported paths hovering: two surfaces built from the same field
+    /// by two different pieces of code disagree wherever either one is
+    /// approximated, and the ribbon then floats or sinks. Ground cannot hover
+    /// over itself. His words, 17.08: «тропинки должны быть свойством земли, а
+    /// не поверх нарисованной текстурой — тогда проблем не будет».
+    ///
+    /// EMPTY IS LEGAL and means "no paths on this world": every reader must
+    /// treat an empty span as all-zero rather than as an error, which is what
+    /// lets stands that declare no network stay bit-identical.
+    std::span<const float> path_wear;
 };
 
 /// Species of a scattered instance (P5 meso pass). Append-only enum — render
