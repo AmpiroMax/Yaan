@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 16:08:2026 - 20:42:17
+Last updated: 17:08:2026 - 09:49:23
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -224,6 +224,7 @@ UPD:
 - 15:08:2026 - 15:54:46: Контракт альфы атласа: бинарная -> градиентная кромка (контроль правила 30 — бинарный атлас проваливает пол mid-текселей); BarkPlate исключён из теста листовых масок (непрозрачен по контракту, его непрозрачность утверждает градиентный тест).
 - 15:08:2026 - 16:02:49: Тест нормал-атласа: кора несёт рельеф (контроль правила 30 — плоский нейтральный лист даёт ноль и падает), все не-коровые тексели — строго нейтраль.
 - 16:08:2026 - 20:42:17: Полоса просветов NeedleFan отвязана от лиственной (у еловой лапы небо между иголками — строение, скан ~30%): frond cap 0.38, контроль слипшегося клина остаётся на ragged.
+- 17:08:2026 - 09:49:23: Светлячки: детерминизм двух рук, границы карты и полоса высот, ночной гейт меша, медленный рост когерентности фаз, до трёх разнесённых огней.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -4009,4 +4010,89 @@ TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO separates since 2600 (§10.15.
     // for): the LOWEST rebuilt-rejected tree now stands ABOVE the HIGHEST
     // accepted one — a gap, measured from the right ends this time.
     CHECK(rejected.lo > accepted_hi);
+}
+
+// ---------------------------------------------------------------------------
+// СВЕТЛЯЧКИ (FloraFireflies): поле обязано быть детерминированным, жить во
+// всей карте, спать днём и медленно сходиться по фазе — по дизайну §4
+// docs/SKYRIM_FAUNA_RESEARCH.md и заказу пользователя от 17.08.
+#include "engine/render/sources/FloraFireflies.h"
+
+namespace {
+float rolling_ground(float x, float z) {
+    return 25.0f + 2.0f * std::sin(x * 0.05f) * std::cos(z * 0.04f);
+}
+float phase_coherence(const dfn::render::FireflyField& f) {
+    // Параметр порядка Курамото: |среднее e^{i phase}|.
+    float cx = 0.0f, sx = 0.0f;
+    for (int i = 0; i < f.count(); ++i) {
+        cx += std::cos(f.phase(i));
+        sx += std::sin(f.phase(i));
+    }
+    const float n = static_cast<float>(f.count());
+    return std::sqrt(cx * cx + sx * sx) / n;
+}
+} // namespace
+
+TEST_CASE("fireflies: deterministic, bounded, night-gated, slowly syncing") {
+    using dfn::render::FireflyField;
+    using dfn::render::FireflyParams;
+    FireflyParams params;
+    params.seed = 779;
+    FireflyField a, b;
+    a.init(params);
+    b.init(params);
+    const float r0 = phase_coherence(a);
+    for (int step = 0; step < 1200; ++step) {
+        a.update(1.0f / 60.0f, 1.0f, rolling_ground);
+        b.update(1.0f / 60.0f, 1.0f, rolling_ground);
+    }
+    // Две руки одного рецепта сходятся побитово (правило 30).
+    for (int i = 0; i < a.count(); ++i) {
+        CHECK(a.position(i).x == b.position(i).x);
+        CHECK(a.position(i).y == b.position(i).y);
+        CHECK(a.position(i).z == b.position(i).z);
+    }
+    // Живут во ВСЕЙ карте и в полосе высот над землёй.
+    int far_from_centre = 0;
+    for (int i = 0; i < a.count(); ++i) {
+        const auto pos = a.position(i);
+        CHECK(pos.x >= 4.0f);
+        CHECK(pos.x <= params.world_span - 4.0f);
+        CHECK(pos.z >= 4.0f);
+        CHECK(pos.z <= params.world_span - 4.0f);
+        const float over = pos.y - rolling_ground(pos.x, pos.z);
+        CHECK(over > 0.0f);
+        CHECK(over < params.h_max + 1.0f);
+        const float dx = pos.x - 128.0f, dz = pos.z - 128.0f;
+        if (dx * dx + dz * dz > 64.0f * 64.0f) ++far_from_centre;
+    }
+    CHECK(far_from_centre > params.count / 6); // не сбились в одну зону
+    // Ночной гейт: днём меша нет, ночью есть.
+    dfn::render::MeshData day, nightm;
+    a.update(1.0f / 60.0f, 0.0f, rolling_ground);
+    a.build_mesh(day, {1, 0, 0}, {0, 1, 0});
+    CHECK(day.vertices.empty());
+    a.update(1.0f / 60.0f, 1.0f, rolling_ground);
+    a.build_mesh(nightm, {1, 0, 0}, {0, 1, 0});
+    CHECK(nightm.triangle_count() > 100);
+    // Синхронизация: за 20 игровых секунд когерентность фаз ВЫРОСЛА,
+    // но до полного унисона далеко (медленно — по дизайну).
+    const float r1 = phase_coherence(a);
+    MESSAGE("phase coherence: ", r0, " -> ", r1);
+    CHECK(r1 > r0);
+    CHECK(r1 < 0.9f);
+    // Свет: не больше трёх, разнесены, яркость в [0,1].
+    const auto ls = a.lights(3);
+    CHECK(ls.size() >= 1);
+    CHECK(ls.size() <= 3);
+    for (size_t i = 0; i < ls.size(); ++i) {
+        CHECK(ls[i].intensity > 0.0f);
+        CHECK(ls[i].intensity <= 1.0f);
+        for (size_t j = i + 1; j < ls.size(); ++j) {
+            const float dx = ls[i].pos.x - ls[j].pos.x;
+            const float dz = ls[i].pos.z - ls[j].pos.z;
+            CHECK(dx * dx + dz * dz >= 25.0f * 25.0f);
+        }
+    }
 }

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 16:08:2026 - 20:55:43
+# Last updated: 17:08:2026 - 09:49:23
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -55,6 +55,7 @@
 #   столб, доска, стена, фронтон, скат, лестница, дверь, окно, фундамент,
 #   забор) в тот же реестр .dfo. Запрос пользователя: агент собирает дом из
 #   готовых деталей, а не пишет дом кодом.
+# - 17:08:2026 - 09:49:23: sources/FloraFireflies.cpp — поле светлячков (этап 3 полянки).
 
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
@@ -63,6 +64,7 @@ add_library(dfn_render STATIC
     sources/FirstPersonCamera.cpp
     sources/FloraBuild.cpp
     sources/FloraCards.cpp
+    sources/FloraFireflies.cpp
     sources/FloraNeighbours.cpp
     sources/FloraSkeleton.cpp
     sources/FloraSpecies.cpp

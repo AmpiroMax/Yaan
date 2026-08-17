@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 07:04:26
+Last updated: 17:08:2026 - 09:50:47
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -48,6 +48,7 @@ UPD:
 - 17:08:2026 - 02:51:54: Лист 4: дуб-старейшина 50 м (ответ №1, крона Ø44); +4 ягодника — синий грозди, розовый в крапинку, зелёный капли в полоску, чёрный грозди с попкой; красному попка, тёмному сизый крап.
 - 17:08:2026 - 03:51:22: Полка glade: glade-torch-stake 2.2 м и glade-lantern-post 2.0 м — новые модели света троп (пользователь: «не те, что сейчас есть»).
 - 17:08:2026 - 07:04:26: Утренний вердикт по полянке: сосны 13-15 мутовок x 9 ветвей, ленты 1.25, подъём лап (шапка сосны, не юбка ели); ели галереи 17-23x9; +glade-oak-mid-a/b (дубки 11/14.5 м «убрать голость»); трава 0.9/1.3/1.7 м; цветы 0.75 м с bloom 0.14.
+- 17:08:2026 - 09:50:47: Ели галереи шире (крона 3.9/4.4) и гуще (10 ветвей на мутовку) — сверка со скайримским референсом.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -109,7 +110,7 @@ int main(int argc, char** argv) {
         spruce.seed = 301 + static_cast<uint64_t>(i);
         spruce.name = "spruce-forge-" + std::string(1, static_cast<char>('a' + i));
         spruce.height = 17.0f + static_cast<float>(i) * 3.0f;
-        spruce.crown_radius = 3.1f + static_cast<float>(i) * 0.4f;
+        spruce.crown_radius = 3.9f + static_cast<float>(i) * 0.5f;
         spruce.crown_base_frac = 0.10f; // the skirt nearly reaches the ground
         spruce.trunk_radius = 0.30f;
         spruce.bark = {0.23f, 0.16f, 0.11f}; // red-brown spruce bark
@@ -117,7 +118,7 @@ int main(int argc, char** argv) {
         spruce.card_shape = LeafShape::NeedleFan;
         spruce.conifer = true;
         spruce.whorl_count = 17 + i * 3;
-        spruce.whorl_branches = 9; // «из голых палок в пышные» (17.08)
+        spruce.whorl_branches = 10; // «из голых палок в пышные» (17.08)
         spruce.droop = 0.30f;
         spruce.frond_width = 1.15f;
         spruce.spray_per_branch = 2;

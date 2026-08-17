@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 09:14:19
+Last updated: 17:08:2026 - 09:50:47
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -66,6 +66,7 @@ UPD:
 - 17:08:2026 - 03:51:22: forge_path_light: факел — башмак/столб/железный обруч/бочонок обмотки/двухконусное пламя с горячим ядром; фонарь — столб с кронштейном и раскосом, подвесной короб: плиты, ТЁПЛОЕ стекло, клетка из четырёх стоек, колпак. Всё в wood-стриме: мебель не качается и не просвечивает.
 - 17:08:2026 - 07:04:26: Читаемость мелкой флоры (утро 17.08): лезвия травы 3.4-5.2 см и 13-18 на пучок, венчики цветов от p.bloom (лепесток 14 см, сердцевина конусом), стебли толще.
 - 17:08:2026 - 09:14:19: Баги красоты: (1) bark_tube режет грань по границам тайла — ёлочка-шевроны на стволах толще ~0.8 м умирают (frac по вершинам зеркалил грань, пересёкшую границу); (2) корни-контрфорсы короче (reach 1.05-1.5 flare — «шипы» берёз); (3) шапка сосны: изогнутые хвойные листы на верхних 3 мутовках поднятых хвойников — сверху зонт, не антенна.
+- 17:08:2026 - 09:50:47: Хвоя по скайримскому референсу (image copy 8): СИГМОИДНЫЙ хребет лапы (нырок у ствола, ровно, кончик вверх), наклон по ярусам (верх +, юбка −), РАЗМЫТЫЕ мутовки (ветви на случайных высотах), веер из двух боковых перьев (одно выше, одно ниже — закрывают межъярусный прогал), медленное сужение кроны (0.62 вместо 0.85 — середина держит длинные ветви).
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -597,7 +598,7 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
         // every bearing.
         const auto emit_frond = [&](glm::vec3 pos0, glm::vec3 dir0, float len,
                                     float half_w, float droop_rad) {
-            const int segs = 4;
+            const int segs = 5;
             glm::vec3 fpos = pos0;
             glm::vec3 fd = dir0;
             const glm::vec3 up{0.0f, 1.0f, 0.0f};
@@ -607,14 +608,17 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             // Dihedral: how far the edges drop below the spine (rad-ish
             // fraction of the half-width). 0.35-0.55 reads as a living lapa.
             const float fold = 0.35f + rng.unit() * 0.20f;
+            // SIGMOID SPINE (user, 17.08: «в скайриме у елок ветки словно по
+            // сигмоиде растут»): the branch dives hard off the trunk, levels
+            // out, and the tip sweeps UP — an S, not a straight sag. The
+            // profile is per-segment turn, scaled by the species' droop.
+            static constexpr float SIGMOID[5] = {-1.5f, -1.0f, -0.15f, 0.7f, 1.3f};
             const auto base_v = static_cast<uint32_t>(obj.cards.vertices.size());
             const float v_mid = needle_uv.y + (needle_uv.w - needle_uv.y) * 0.5f;
             for (int s = 0; s <= segs; ++s) {
                 const float t = static_cast<float>(s) / static_cast<float>(segs);
                 if (s > 0) {
-                    // Sag per segment; the LAST segment lifts — spruce tips
-                    // turn up (frame 6).
-                    const float sag = (s == segs ? 0.55f : -1.0f) * droop_rad
+                    const float sag = SIGMOID[s - 1] * droop_rad
                                     / static_cast<float>(segs);
                     fd = safe_normalize(fd + up * sag + side * (rng.sym() * 0.05f), fd);
                     fpos += fd * (len / static_cast<float>(segs));
@@ -650,28 +654,39 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
             }
         };
 
+        const float whorl_gap = (p.height - crown_base)
+                              / static_cast<float>(p.whorl_count);
         for (int w = 0; w < p.whorl_count; ++w) {
             const float t = (static_cast<float>(w) + 0.5f)
                           / static_cast<float>(p.whorl_count);
             const float y = crown_base + (p.height - crown_base) * t;
-            const float reach = p.crown_radius * (1.0f - 0.85f * t)
+            // Slow taper (Skyrim ref: mid-crown branches stay LONG; the
+            // old 0.85 killed the upper two thirds into stubs).
+            const float reach = p.crown_radius * (1.0f - 0.62f * t)
                               * (0.9f + rng.unit() * 0.2f);
             if (reach < 0.4f) continue;
-            const Ring* at = &bole.front();
-            for (const Ring& ring : bole) {
-                if (ring.pos.y <= y) at = &ring;
-            }
             const int count = p.whorl_branches;
             const float az0 = rng.unit() * TAU;
             for (int b = 0; b < count; ++b) {
                 if (rng.unit() < 0.06f) continue; // ragged whorls, not a fan
+                // BLURRED WHORLS (Skyrim ref, image copy 8): branches sit at
+                // scattered heights, not on strict shelves — the «этажерка»
+                // silhouette dies here.
+                const float yb = y + rng.sym() * whorl_gap * 0.45f;
+                const Ring* at = &bole.front();
+                for (const Ring& ring : bole) {
+                    if (ring.pos.y <= yb) at = &ring;
+                }
                 const float az = az0 + TAU * static_cast<float>(b)
                                      / static_cast<float>(count)
                                + rng.sym() * 0.3f;
                 const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
                 const glm::vec3 bp = at->pos + out * (at->radius * 0.5f);
+                // PITCH BY TIER (same ref): top branches point UP, the middle
+                // levels, the skirt dives — scaled by the species' droop.
+                const float tier_pitch = (0.34f - 0.85f * t) * (p.droop / 0.28f);
                 const glm::vec3 d = safe_normalize(
-                    out + glm::vec3{0.0f, 0.14f - p.droop * 0.45f, 0.0f}, out);
+                    out + glm::vec3{0.0f, tier_pitch, 0.0f}, out);
                 // Bare wood: the inner quarter only — the rest is frond.
                 const float r0 = std::max(at->radius * 0.30f, 0.03f);
                 const float wood_len = reach * 0.28f;
@@ -685,6 +700,29 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
                            std::min(reach * 0.42f, 2.0f) * (0.85f + rng.unit() * 0.3f)
                                * p.frond_width,
                            p.droop * (0.8f + rng.unit() * 0.4f));
+                // FEATHER FAN (Skyrim пушность): two shorter fronds splay
+                // from the branch mid at ±20-35° — the lapa becomes a fan
+                // with overlap, not one ribbon with sky on both sides. The
+                // airy larch (thin frond_width) keeps her single feather.
+                if (p.frond_width > 0.8f) {
+                    for (int fs = -1; fs <= 1; fs += 2) {
+                        const float fa = static_cast<float>(fs)
+                                       * (0.38f + rng.unit() * 0.22f);
+                        const glm::vec3 sd = safe_normalize(
+                            glm::vec3{out.x * std::cos(fa) - out.z * std::sin(fa),
+                                      0.0f,
+                                      out.x * std::sin(fa) + out.z * std::cos(fa)}
+                                + glm::vec3{0.0f, tier_pitch * 0.7f, 0.0f},
+                            out);
+                        // One feather rides high, one sags low — the pair
+                        // fills the vertical band between shelves.
+                        emit_frond(bp + d * (wood_len + reach * 0.18f), sd,
+                                   reach * 0.55f,
+                                   std::min(reach * 0.42f, 2.0f) * 0.7f
+                                       * p.frond_width,
+                                   p.droop * (fs < 0 ? 0.55f : 1.25f));
+                    }
+                }
                 // PINE CAP (user, 17.08: from above the pines read as
                 // antennas — spokes, no canopy). Lifted-branch conifers get
                 // curved needle sheets on the top three whorls: an umbrella
