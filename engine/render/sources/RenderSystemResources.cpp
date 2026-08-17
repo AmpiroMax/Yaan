@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 17:08:2026 - 11:13:47
+Last updated: 17:08:2026 - 18:41:51
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -63,6 +63,7 @@ UPD:
   хуже, чем его отсутствие. Правило DFN_CASTER_SKIP не тронуто, оно теперь
   считается по просящим.
 - 17:08:2026 - 11:13:47: тела set_firefly_mesh/set_emissive_mesh.
+- 17:08:2026 - 18:41:51: тело set_ghost_mesh — перезаливается каждый кадр, он ходит за прицелом.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -364,6 +365,24 @@ void RenderSystem::set_emissive_mesh(platform::IRenderer& renderer,
     const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
     if (h.valid()) {
         emissive_mesh_id_ = h.id;
+    }
+}
+
+void RenderSystem::set_ghost_mesh(platform::IRenderer& renderer,
+                                  const MeshData& mesh) {
+    // Rebuilt every frame: the ghost follows the crosshair, so keeping the old
+    // upload would show the part where the builder was looking a moment ago —
+    // and he would place it there believing the picture.
+    if (ghost_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{ghost_mesh_id_});
+        ghost_mesh_id_ = 0;
+    }
+    if (mesh.vertices.empty() || mesh.indices.empty()) {
+        return; // hand empty, or the palette is shut: the ordinary state
+    }
+    const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
+    if (h.valid()) {
+        ghost_mesh_id_ = h.id;
     }
 }
 

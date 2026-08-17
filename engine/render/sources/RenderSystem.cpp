@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:54:29
+Last updated: 17:08:2026 - 18:41:51
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -153,6 +153,8 @@ UPD:
   всплывала или тонула. Это чинится не настройкой, а отсутствием второй
   поверхности. Осталась за дверью DFN_PATH_RIBBON=1 — контрольная рука из одного
   бинарника (правило 47), а не удалена.
+- 17:08:2026 - 18:41:51: призрак рисуется последним из мировой геометрии, неосвещённым: это ОТВЕТ на
+  мире, а не вещь в нём, и на закате он не должен выглядеть иначе.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -925,6 +927,13 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     }
     if (firefly_mesh_id_ != 0 && unlit_program_ != 0) {
         renderer.submit(platform::MeshHandle{firefly_mesh_id_},
+                        platform::ProgramHandle{unlit_program_}, identity);
+    }
+    // THE BUILD GHOST last of the world's geometry, unlit: it is an ANSWER
+    // painted on the world, not a thing in it, and shading it by the sun would
+    // make the same verdict look different at dusk.
+    if (ghost_mesh_id_ != 0 && unlit_program_ != 0) {
+        renderer.submit(platform::MeshHandle{ghost_mesh_id_},
                         platform::ProgramHandle{unlit_program_}, identity);
     }
 

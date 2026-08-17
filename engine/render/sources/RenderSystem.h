@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 17:08:2026 - 11:13:47
+Last updated: 17:08:2026 - 18:41:51
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -143,6 +143,7 @@ UPD:
   рисуется БЕЗ ОСВЕЩЕНИЯ: рой (перезаливается каждый кадр) и самосветящееся
   добро карты (пламя, стекло — заливается раз на карту). Мушка и пламя САМИ
   есть свет; затенять их ночью значит гасить ровно то, ради чего они есть.
+- 17:08:2026 - 18:41:51: set_ghost_mesh — предпросмотр детали в руке строителя, каждый кадр, без света.
 */
 
 #pragma once
@@ -456,6 +457,14 @@ public:
     /// is not lit, which is the first thing anyone notices.
     void set_emissive_mesh(platform::IRenderer& renderer, const MeshData& mesh);
 
+    /// THE BUILD GHOST: the part the editor is holding, drawn where it would
+    /// land. Set EVERY FRAME while the build hand is open (it follows the
+    /// crosshair) and cleared with an empty mesh when it is not — same shape
+    /// as the swarm's slot, and for the same reason: this geometry moves.
+    /// Drawn UNLIT so its tint reads as an answer (green allowed, red refused)
+    /// rather than as a material the builder has to interpret through the sun.
+    void set_ghost_mesh(platform::IRenderer& renderer, const MeshData& mesh);
+
     /// Lights that live for ONE frame (the firefly swarm). Replaced every
     /// frame; an empty list is the normal daytime state, not an error.
     void set_transient_lights(std::vector<ExtraLight> lights);
@@ -464,6 +473,7 @@ private:
     std::vector<ExtraLight> scene_lights_;
     uint32_t firefly_mesh_id_ = 0;
     uint32_t emissive_mesh_id_ = 0;
+    uint32_t ghost_mesh_id_ = 0;
     std::vector<ExtraLight> transient_lights_;
 
     /// One flame gathered this frame, before the eight slots are handed out.

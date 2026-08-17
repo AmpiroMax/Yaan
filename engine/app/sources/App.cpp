@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 18:29:30
+Last updated: 17:08:2026 - 18:41:51
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -337,6 +337,8 @@ UPD:
 - 17:08:2026 - 18:29:30: РУКА СТРОИТЕЛЯ в кадре: призрак под прицелом, приговор судьи цветом,
   постановка ЛКМ и удаление Delete; луч ищет ЗЕМЛЮ и уже стоящее сам, деталь
   палитры догружается с полки по требованию. Дверь DFN_BUILD=1 — палитра без клавиши.
+- 17:08:2026 - 18:41:51: предпросмотр САМОЙ деталью вместо рамки; стрелки ПОВОРАЧИВАЮТ (90 и 15 град.),
+  поворот идёт вокруг ЦЕНТРА детали, а не вокруг угла-начала; G ставит прямо.
 */
 
 #include "engine/app/sources/App.h"
@@ -3533,8 +3535,21 @@ void App::update_build_tool() {
     // every ghost for hovering, which is true and useless: the builder is
     // pointing at a place, not at a height.
     at.y = chunks_.height_at({at.x, at.z}).value_or(at.y);
-    if (const render::ObjectExtent* e = build_extent(&ctx, name); e != nullptr) {
-        at.y -= e->bottom;
+    const render::ObjectExtent* ge = build_extent(&ctx, name);
+    if (ge != nullptr) {
+        at.y -= ge->bottom;
+        // TURN AROUND THE PART'S CENTRE, NOT ITS ORIGIN (user, 17.08:
+        // «стрелками я должен крутить их вокруг их центра»). A part's origin
+        // is its footing CORNER, so rotating about it swings a three-metre
+        // beam out of the crosshair and the builder chases it around the
+        // screen. Keeping the centre under the crosshair means the position
+        // has to move as the angle changes — which is exactly what "rotate
+        // about the centre" means.
+        const glm::vec2 c = 0.5f * (ge->lo + ge->hi);
+        const float cs = std::cos(build_yaw_);
+        const float sn = std::sin(build_yaw_);
+        at.x -= cs * c.x + sn * c.y;
+        at.z -= -sn * c.x + cs * c.y;
     }
     build_ghost_.position = at;
 
@@ -3557,6 +3572,27 @@ void App::update_build_tool() {
     jw.ctx = &ctx;
     build_verdict_ = verdict_from_findings(world::check_scene(probe, jw),
                                            probe.placements.size() - 1);
+
+    // THE PREVIEW IS THE PART ITSELF, not a box around it (user, 17.08:
+    // «нужно чтобы был предпросмотр объектов, не просто рамка»). A wireframe
+    // says where something will stand; it does not say WHAT will stand there,
+    // and with two thousand parts on the shelf that is the question.
+    render::MeshData ghost;
+    if (const auto obj = scene_objects_.find(name); obj != scene_objects_.end()) {
+        for (const render::MeshData* m : {&obj->second.wood, &obj->second.bark,
+                                          &obj->second.cards, &obj->second.ground}) {
+            render::append_transformed(ghost, *m, build_ghost_.position,
+                                       build_yaw_, 1.0f);
+        }
+        // ONE COLOUR FOR THE WHOLE PREVIEW, and it is the VERDICT. The part's
+        // own materials would make the answer a thing the builder has to read
+        // off a shape he is still deciding about; a flat tint is the answer.
+        const uint32_t tint = build_verdict_.allowed ? 0xC066FF66u : 0xC06666FFu;
+        for (platform::Vertex& v : ghost.vertices) {
+            v.color_rgba = tint;
+        }
+    }
+    render_system_.set_ghost_mesh(*renderer_, ghost);
 }
 
 void App::rebake_tile_at(glm::vec2 world_xz) {
@@ -3980,37 +4016,38 @@ int App::run() {
             }
         }
         if (!chat_typing && build_open_ && mode_ == AppMode::Editor) {
-            if (action_pressed(Action::BuildRotate)) {
-                // A QUARTER TURN, not a free spin: the kit's square joints only
-                // hand out four directions, and a part turned 37 degrees would
-                // be refused by the judge for a reason the builder cannot see.
-                build_yaw_ += glm::half_pi<float>();
-                if (build_yaw_ >= glm::two_pi<float>()) {
+            // THE ARROWS TURN THE PART (user, 17.08: «стрелками я должен не
+            // объекты перебирать, а крутить их вокруг их центра»). Left/right
+            // is the QUARTER TURN the kit is built on — a square joint hands
+            // out exactly four directions. Up/down is the fine step, because a
+            // ROUND joint hands out any angle, and that is what makes a house
+            // a polygon instead of a box.
+            const auto turn = [this](float by) {
+                build_yaw_ += by;
+                while (build_yaw_ >= glm::two_pi<float>()) {
                     build_yaw_ -= glm::two_pi<float>();
                 }
+                while (build_yaw_ < 0.0f) {
+                    build_yaw_ += glm::two_pi<float>();
+                }
+            };
+            constexpr float FINE_STEP = glm::pi<float>() / 12.0f; // 15 degrees
+            if (input_->was_pressed(platform::Key::RIGHT)) {
+                turn(glm::half_pi<float>());
             }
-            // The palette IS a menu, so it is walked with the arrows: families
-            // up and down, parts left and right.
-            if (!build_groups_.empty()) {
-                const auto step = [](std::size_t& v, std::size_t n, int d) {
-                    if (n == 0) { v = 0; return; }
-                    v = (v + n + static_cast<std::size_t>(d % static_cast<int>(n))) % n;
-                };
-                if (input_->was_pressed(platform::Key::DOWN)) {
-                    step(build_group_, build_groups_.size(), 1);
-                    build_item_ = 0;
-                }
-                if (input_->was_pressed(platform::Key::UP)) {
-                    step(build_group_, build_groups_.size(), -1);
-                    build_item_ = 0;
-                }
-                const std::size_t items = build_groups_[build_group_].names.size();
-                if (input_->was_pressed(platform::Key::RIGHT)) {
-                    step(build_item_, items, 1);
-                }
-                if (input_->was_pressed(platform::Key::LEFT)) {
-                    step(build_item_, items, -1);
-                }
+            if (input_->was_pressed(platform::Key::LEFT)) {
+                turn(-glm::half_pi<float>());
+            }
+            if (input_->was_pressed(platform::Key::UP)) {
+                turn(FINE_STEP);
+            }
+            if (input_->was_pressed(platform::Key::DOWN)) {
+                turn(-FINE_STEP);
+            }
+            // G puts the part straight again. After a few fine steps "back to
+            // zero" by arrow is arithmetic the builder should not have to do.
+            if (action_pressed(Action::BuildRotate)) {
+                build_yaw_ = 0.0f;
             }
             if (input_->was_pressed(platform::MouseButton::LEFT) && build_place()) {
                 std::fprintf(stderr, "[build] поставлено %s (%.2f %.2f %.2f)\n",
