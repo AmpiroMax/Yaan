@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 16:58:13
-Last updated: 17:08:2026 - 16:58:13
+Last updated: 17:08:2026 - 17:49:29
 Module: tests
 File: tests/core/SceneHouseRuleTests.cpp
 
@@ -39,6 +39,9 @@ UPD:
   шов «группа»: правила постройки судят ЧЛЕНА ПОСТРОЙКИ, одиночный образец
   витрины судится землёй (и контрфакт: снятая группа не глушит судью, а
   меняет его — висящий скат немедленно краснеет как OnGround).
+- 17:08:2026 - 17:49:29: настил зовётся своим НАСТОЯЩИМ именем с полки (deck-timber-16x16x1-w03)
+  вместо выдуманного floor-*. Пока правило смотрело на несуществующее
+  семейство, эти тесты проверяли только сами себя.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -67,7 +70,7 @@ bool extent_of(void*, const std::string&, float& r, float& b) {
 /// How far a part rises above its own origin. Only two answers matter to the
 /// rules under test: a wall is a storey tall, a deck is its own thickness.
 bool top_of(void*, const std::string& name, float& t) {
-    if (name.rfind("floor-", 0) == 0) {
+    if (name.rfind("deck-", 0) == 0) {
         t = DECK_T_M;
         return true;
     }
@@ -93,7 +96,7 @@ bool box_of(void*, const std::string& name, glm::vec2& lo, glm::vec2& hi) {
         hi = {4.0f, 0.25f};
         return true;
     }
-    if (name.rfind("floor-", 0) == 0) {
+    if (name.rfind("deck-", 0) == 0) {
         lo = {0.0f, 0.0f};
         hi = {4.0f, 4.0f};
         return true;
@@ -129,7 +132,8 @@ constexpr const char* PANEL = "wall-timber-16x1x13-w03";
 /// модуль стены ПО ИМЕНИ, и «wall_stub-» проходил бы мимо всех правил разом —
 /// первый прогон этого теста поймал ровно это.
 constexpr const char* STUB = "wall-stub-timber-1x1x13-w03";
-constexpr const char* DECK = "floor-board-16x16x1-w03";
+/// Настоящее имя с полки (dfn_kit --list): настил 4 x 4 м, 1u толщиной.
+constexpr const char* DECK = "deck-timber-16x16x1-w03";
 /// sleeper-<mat>-d<cm>-n<N>-<L>u-w<NN>: 4 m of lying joint, round, so that the
 /// facet-angle rule never speaks in a test about seating.
 constexpr const char* SLEEPER = "sleeper-timber-d35-nr-16u-w03";

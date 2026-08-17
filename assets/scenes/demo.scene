@@ -1599,21 +1599,22 @@ group = stairwell
 
 [place]
 object = sleeper-timber-d50-nr-16u-w03
-pos = 172.250 28.375 139.000
+pos = 172.750 28.375 139.000
 yaw = -1.570796
 scale = 1
 group = stairwell
+note = лежень под ближним краем настила: без него настил висит
 
 [place]
 object = joint-timber-d50-n4-h13-w03
-pos = 172.250 25.500 139.000
+pos = 172.750 25.500 139.000
 yaw = 0.000000
 scale = 1
 group = stairwell
 
 [place]
 object = joint-timber-d50-n4-h13-w03
-pos = 172.250 25.500 143.000
+pos = 172.750 25.500 143.000
 yaw = 0.000000
 scale = 1
 group = stairwell
