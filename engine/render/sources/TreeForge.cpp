@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 10:06:05
+Last updated: 17:08:2026 - 10:07:57
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -70,6 +70,7 @@ UPD:
 - 17:08:2026 - 09:54:18: Ворота far_lod: веера перьев, юбка сухих сучьев, украшения (обломки, жёлуди) и множественные листы на якорь выключаются — высота/крона/мутовки нетронуты, силуэт держится.
 - 17:08:2026 - 10:02:06: forge_bush: ворота far_lod на ягодный блок.
 - 17:08:2026 - 10:06:05: Третья партия far: грани трубок дешевле вдали (бола 7->5, каркас 5->4, ветви 4->3) — по расчёту лида разброс силуэта n-угольника на дистанции подмены — треть пикселя.
+- 17:08:2026 - 10:07:57: Корни всех деревьев — тёмный мшистый ряд коры: белые бумажные шпоры берёз читались пластиковыми крабьими лапами; настоящая берёза бела сверху и темна у комля.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -260,8 +261,10 @@ RegistryObject forge_tree(const TreeForgeParams& p) {
     // glowing — r is only sway now, all three wind bands derive from it.
     const LeafTone bark_row = p.bark.r > 0.6f ? LeafTone::BirchLight
                              : (p.conifer ? LeafTone::ConiferDark : LeafTone::OakMid);
-    const LeafTone bark_moss_row = p.bark.r > 0.6f ? LeafTone::BirchPale
-                                                    : LeafTone::OakSunlit;
+    // Roots are ALWAYS the dark mossy row: a real birch is white above and
+    // rough-dark at the butt — paper-white spurs read as plastic crab legs
+    // (user's «корни не физические», 17.08 crab-claw frames).
+    const LeafTone bark_moss_row = LeafTone::OakSunlit;
     const glm::vec4 bark_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_row);
     const glm::vec4 bark_moss_uv = leaf_tile_uv(LeafShape::BarkPlate, bark_moss_row);
     const float phase = rng.unit(); // one wind phase per tree
