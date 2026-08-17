@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 03:51:22
+Last updated: 17:08:2026 - 07:04:26
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -47,6 +47,7 @@ UPD:
 - 17:08:2026 - 02:31:45: Пресеты видов кустов: орешник, ягодник красный/тёмный (крупные ягоды), можжевельник стелющийся, папоротник — полка glade.
 - 17:08:2026 - 02:51:54: Лист 4: дуб-старейшина 50 м (ответ №1, крона Ø44); +4 ягодника — синий грозди, розовый в крапинку, зелёный капли в полоску, чёрный грозди с попкой; красному попка, тёмному сизый крап.
 - 17:08:2026 - 03:51:22: Полка glade: glade-torch-stake 2.2 м и glade-lantern-post 2.0 м — новые модели света троп (пользователь: «не те, что сейчас есть»).
+- 17:08:2026 - 07:04:26: Утренний вердикт по полянке: сосны 13-15 мутовок x 9 ветвей, ленты 1.25, подъём лап (шапка сосны, не юбка ели); ели галереи 17-23x9; +glade-oak-mid-a/b (дубки 11/14.5 м «убрать голость»); трава 0.9/1.3/1.7 м; цветы 0.75 м с bloom 0.14.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -115,9 +116,10 @@ int main(int argc, char** argv) {
         spruce.tone = LeafTone::ConiferDark;
         spruce.card_shape = LeafShape::NeedleFan;
         spruce.conifer = true;
-        spruce.whorl_count = 15 + i * 3;
-        spruce.whorl_branches = 7; // folded fronds cost 2x tris
+        spruce.whorl_count = 17 + i * 3;
+        spruce.whorl_branches = 9; // «из голых палок в пышные» (17.08)
         spruce.droop = 0.30f;
+        spruce.frond_width = 1.15f;
         spruce.spray_per_branch = 2;
         spruce.spray_frac = 0.5f;
         gallery.push_back(spruce);
@@ -359,17 +361,40 @@ int main(int argc, char** argv) {
             pi.seed = 1501 + static_cast<uint64_t>(i);
             pi.name = "glade-pine-" + std::string(1, static_cast<char>('a' + i));
             pi.height = 25.0f + static_cast<float>(i) * 3.0f;
-            pi.crown_radius = 4.4f + static_cast<float>(i) * 0.5f;
+            pi.crown_radius = 4.8f + static_cast<float>(i) * 0.5f;
             pi.crown_base_frac = 0.45f;
             pi.trunk_radius = 0.52f + static_cast<float>(i) * 0.08f;
             pi.bark = {0.30f, 0.19f, 0.12f};
             pi.tone = LeafTone::ConiferDark;
             pi.card_shape = LeafShape::NeedleFan;
             pi.conifer = true;
-            pi.whorl_count = 8 + i;
-            pi.whorl_branches = 7;
-            pi.droop = 0.22f;
+            // User, 17.08 morning: «из голых палок в пышные деревья» — the
+            // 8x7 crown of v1 was ~56 fronds on a 25 m tree. Dense rings,
+            // nine branches each, wide ribbons, lifted (pine cap, not spruce
+            // droop): ~117 fronds and the bole stays bare below 0.45.
+            pi.whorl_count = 13 + i;
+            pi.whorl_branches = 9;
+            pi.droop = 0.16f;
+            pi.frond_width = 1.25f;
             bake(forge_tree(pi));
+        }
+        // Mid-tier OAKS for the forest ring (user: «хотя бы ещё маленькие
+        // дубы поставим, чтоб голость леса убрать») — broadleaf mass between
+        // birch trunks and pine caps.
+        for (int i = 0; i < 2; ++i) {
+            TreeForgeParams ok;
+            ok.seed = 1551 + static_cast<uint64_t>(i);
+            ok.name = "glade-oak-mid-" + std::string(1, static_cast<char>('a' + i));
+            ok.height = 11.0f + static_cast<float>(i) * 3.5f;
+            ok.crown_radius = 4.4f + static_cast<float>(i) * 0.8f;
+            ok.crown_base_frac = 0.30f;
+            ok.trunk_radius = 0.36f + static_cast<float>(i) * 0.06f;
+            ok.tone = LeafTone::OakMid;
+            ok.card_shape = LeafShape::RoundLobed;
+            ok.scaffold_count = 6;
+            ok.spray_per_branch = 2;
+            ok.spray_frac = 0.26f;
+            bake(forge_tree(ok));
         }
         // The thin young trees of the glade itself, and the small tier of the
         // wood — «мелкие тонкие деревья... в лесу должны и маленькие быть».
@@ -572,7 +597,9 @@ int main(int argc, char** argv) {
             t.seed = 1901 + static_cast<uint64_t>(i);
             t.name = "glade-grass-" + std::string(1, static_cast<char>('a' + i));
             t.kind = GroundPropKind::GrassTuft;
-            t.height = 0.65f + static_cast<float>(i) * 0.25f;
+            // User, 17.08 morning: «травы вообще не вижу» — the ladder rises
+            // to waist and chest: 0.9 / 1.3 / 1.7 m, wide blades in the forge.
+            t.height = 0.9f + static_cast<float>(i) * 0.4f;
             bake(forge_ground_prop(t));
         }
         const glm::vec3 petal[3] = {{0.92f, 0.90f, 0.85f},   // white
@@ -584,7 +611,9 @@ int main(int argc, char** argv) {
             f.seed = 2001 + static_cast<uint64_t>(i);
             f.name = std::string("glade-flowers-") + petal_name[i];
             f.kind = GroundPropKind::Flowers;
-            f.height = 0.35f;
+            // Storybook scale (user: «пусть крупные будут... зато играбельно»)
+            f.height = 0.75f;
+            f.bloom = 0.14f;
             f.accent = petal[i];
             bake(forge_ground_prop(f));
         }

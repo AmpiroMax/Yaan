@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 03:51:22
+Last updated: 17:08:2026 - 07:04:26
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -59,6 +59,7 @@ UPD:
 - 17:08:2026 - 02:31:45: Кусты-ВИДЫ: berry_count/berry_r/berry (ягоды — крупные закрытые объёмы, «должно быть видно»), creeping (стелющийся можжевельник); GroundPropKind::Fern (веер гнутых перьев).
 - 17:08:2026 - 02:51:54: Ягодное РАЗНООБРАЗИЕ (лист 4, ответ №5): BerryStyle (Balls/Cluster/Drops), berry_pattern крапинка/полоски + berry_spot, berry_sepal (попка), berry_stalk (веточка). Все оси — закрытая геометрия: рисунок краской умирает на плоде 4-7 см.
 - 17:08:2026 - 03:51:22: Кузница света троп (этап 2): PathLightKind TorchStake/LanternPost, forge_path_light — геометрия и яркие вершинные цвета пламени/стекла; сама точка света — секция [light] лида.
+- 17:08:2026 - 07:04:26: GroundPropParams.bloom — сказочный размер венчика (утро 17.08: «цветов не вижу... пусть крупные будут, зато играбельно»).
 */
 
 #pragma once
@@ -175,6 +176,10 @@ struct GroundPropParams {
     GroundPropKind kind = GroundPropKind::GrassTuft;
     float height = 0.8f;              ///< tuft/stem height, cap height for mushrooms
     glm::vec3 accent{0.85f, 0.82f, 0.9f}; ///< petal / cap colour
+    /// Petal length in metres (Flowers only). The user's ruling, 17.08: «пусть
+    /// крупные будут, не важно что не как в реале, зато играбельно» — a bloom
+    /// must read from the path, so the default is already storybook-sized.
+    float bloom = 0.13f;
 };
 [[nodiscard]] RegistryObject forge_ground_prop(const GroundPropParams& params);
 

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 03:51:22
+Last updated: 17:08:2026 - 07:04:26
 Module: engine/render
 File: engine/render/sources/TreeForge.cpp
 
@@ -64,6 +64,7 @@ UPD:
 - 17:08:2026 - 02:31:45: Ягоды на кончиках стволиков (двухконусные, 5.5-6.5 см, у листовой кромки); стелющийся хабитус; папоротник V-перьями; ЖЁЛУДИ-ЯБЛОКИ 11 см двухцветные с черешком («дуб волшебный»).
 - 17:08:2026 - 02:51:54: Ягоды v2: каждый плод ВИСИТ на веточке (не парит), стили шарик/гроздь-рябина/капля, крапинка бусинками, полоски рёбрами, чашелистик-попка снизу.
 - 17:08:2026 - 03:51:22: forge_path_light: факел — башмак/столб/железный обруч/бочонок обмотки/двухконусное пламя с горячим ядром; фонарь — столб с кронштейном и раскосом, подвесной короб: плиты, ТЁПЛОЕ стекло, клетка из четырёх стоек, колпак. Всё в wood-стриме: мебель не качается и не просвечивает.
+- 17:08:2026 - 07:04:26: Читаемость мелкой флоры (утро 17.08): лезвия травы 3.4-5.2 см и 13-18 на пучок, венчики цветов от p.bloom (лепесток 14 см, сердцевина конусом), стебли толще.
 */
 
 #include "engine/render/sources/TreeForge.h"
@@ -1018,12 +1019,14 @@ RegistryObject forge_ground_prop(const GroundPropParams& p) {
                      glm::vec3{0.0f, 0.06f, 0.0f}, up, 0.025f, 0.015f, 3,
                      pack(glm::vec3{0.20f, 0.24f, 0.10f}));
         const glm::vec4 uv = leaf_tile_uv(LeafShape::RaggedTip, LeafTone::BirchLight);
-        const int blades = 10 + static_cast<int>(rng.unit() * 5.0f);
+        const int blades = 13 + static_cast<int>(rng.unit() * 6.0f);
         for (int b = 0; b < blades; ++b) {
             const float az = TAU * static_cast<float>(b) / blades + rng.sym() * 0.3f;
             const glm::vec3 out{std::cos(az), 0.0f, std::sin(az)};
             const float h = p.height * (0.6f + rng.unit() * 0.5f);
-            const float w0 = 0.020f + rng.unit() * 0.012f;
+            // Wide blades (user, 17.08: «травы вообще не вижу») — a 2 cm
+            // blade vanishes at ten paces; playability beats botany.
+            const float w0 = 0.034f + rng.unit() * 0.018f;
             glm::vec3 pos{out.x * 0.03f, 0.0f, out.z * 0.03f};
             glm::vec3 d = safe_normalize(up + out * (0.15f + rng.unit() * 0.25f), up);
             const glm::vec3 side = safe_normalize(glm::cross(up, out),
@@ -1058,21 +1061,22 @@ RegistryObject forge_ground_prop(const GroundPropParams& p) {
         const uint32_t stem_c = pack(glm::vec3{0.22f, 0.34f, 0.12f});
         const uint32_t petal_c = pack(p.accent);
         const uint32_t heart_c = pack(glm::vec3{0.55f, 0.42f, 0.10f});
-        const int stems = 3 + static_cast<int>(rng.unit() * 3.0f);
+        const int stems = 4 + static_cast<int>(rng.unit() * 4.0f);
         for (int s = 0; s < stems; ++s) {
             const float az = TAU * rng.unit();
-            const glm::vec3 at{std::cos(az) * 0.14f * (1.0f + rng.unit()), 0.0f,
-                               std::sin(az) * 0.14f * (1.0f + rng.unit())};
+            const glm::vec3 at{std::cos(az) * 0.18f * (1.0f + rng.unit()), 0.0f,
+                               std::sin(az) * 0.18f * (1.0f + rng.unit())};
             const float h = p.height * (0.7f + rng.unit() * 0.5f);
-            tube_segment(obj.wood, at, at + up * h, up, 0.008f, 0.005f, 3, stem_c);
+            tube_segment(obj.wood, at, at + up * h, up, 0.014f, 0.009f, 3, stem_c);
             const glm::vec3 head = at + up * h;
             const int petals = 5 + (rng.unit() < 0.4f ? 1 : 0);
             for (int q = 0; q < petals; ++q) {
                 const float pa = TAU * static_cast<float>(q) / petals + phase;
                 const glm::vec3 pd{std::cos(pa), 0.35f, std::sin(pa)};
-                const glm::vec3 pu = safe_normalize(pd, up) * 0.055f;
+                const glm::vec3 pu = safe_normalize(pd, up) * p.bloom;
                 const glm::vec3 pv = safe_normalize(glm::cross(up, pd),
-                                                    glm::vec3{1.0f, 0.0f, 0.0f}) * 0.028f;
+                                                    glm::vec3{1.0f, 0.0f, 0.0f})
+                                   * (p.bloom * 0.5f);
                 const auto b = static_cast<uint32_t>(obj.wood.vertices.size());
                 const glm::vec3 n = safe_normalize(up + pd * 0.3f, up);
                 obj.wood.vertices.push_back({head + pv * 0.4f, n, {0, 0}, petal_c});
@@ -1082,8 +1086,8 @@ RegistryObject forge_ground_prop(const GroundPropParams& p) {
                 obj.wood.indices.insert(obj.wood.indices.end(),
                                         {b, b + 1u, b + 2u, b, b + 2u, b + 3u});
             }
-            tube_segment(obj.wood, head, head + up * 0.02f, up, 0.016f, 0.012f, 3,
-                         heart_c);
+            tube_segment(obj.wood, head, head + up * (p.bloom * 0.28f), up,
+                         p.bloom * 0.30f, p.bloom * 0.20f, 4, heart_c);
         }
     } else if (p.kind == GroundPropKind::Fern) {
         // FERN: a fan of 7-9 arcing V-folded fronds from one crown point —
