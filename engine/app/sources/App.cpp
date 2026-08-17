@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 17:08:2026 - 16:35:20
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -330,6 +330,7 @@ UPD:
 - 17:08:2026 - 16:17:46: каталог бота прогулок больше не создаётся при настройке — его делает
   playtest_write_artifacts(), когда есть что записать (пустые папки, 17.08).
 - 17:08:2026 - 16:27:55: F11 — полный экран, ответ пишется в settings.cfg сразу (заказ 17.08).
+- 17:08:2026 - 16:35:20: обработка SaveMap/DiscardToRoot/ToRoot; scene_dirty_ — сохранять нечего, если не меняли.
 */
 
 #include "engine/app/sources/App.h"
@@ -3409,7 +3410,39 @@ int App::run() {
                 write_settings(config_);
                 break;
             }
+            case MenuAction::SaveMap: {
+                // WRITES AND STAYS on the page, so a second save is possible
+                // and the player sees the answer where he pressed the button.
+                if (gallery_scene_.empty()) {
+                    menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.no_scene"))));
+                } else if (!scene_dirty_) {
+                    menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.nothing"))));
+                } else if (world::write_scene(scene_doc_, gallery_scene_)) {
+                    scene_dirty_ = false;
+                    menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.done"))));
+                } else {
+                    menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.failed"))));
+                }
+                break;
+            }
+            case MenuAction::DiscardToRoot:
+                // THE ONE IRREVERSIBLE ROW. It does exactly what it says and
+                // nothing else: no write, no "are you sure" that would train
+                // the player to answer without reading.
+                scene_dirty_ = false;
+                mode_ = AppMode::Menu;
+                input_->set_cursor_captured(false);
+                menu_.open(MenuPage::Root);
+                break;
             case MenuAction::ToRoot:
+                // LEAVING WITHOUT CLOSING THE GAME — the half the user found
+                // missing: the pause page's only exit used to be Quit. Unsaved
+                // work is kept in memory, not thrown away, because "back to the
+                // menu" promises nothing about saving in either direction.
+                mode_ = AppMode::Menu;
+                input_->set_cursor_captured(false);
+                menu_.open(MenuPage::Root);
+                break;
             case MenuAction::None:
                 break;
             }
@@ -3522,6 +3555,9 @@ int App::run() {
                 render_system_.set_map_open(false);
             } else {
                 paused_from_ = mode_; // Resume returns here (Playing or Editor)
+                // The editor rows exist only while editing: a row that cannot
+                // do anything teaches the player that the menu lies.
+                menu_.set_editing(mode_ == AppMode::Editor);
                 menu_.open(MenuPage::Pause);
                 mode_ = AppMode::Menu;
                 input_->set_cursor_captured(false);

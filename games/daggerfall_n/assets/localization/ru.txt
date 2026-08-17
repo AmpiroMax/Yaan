@@ -54,6 +54,13 @@ menu.editor=Редактор
 menu.quit=Выход
 menu.back=Назад
 menu.resume=Продолжить
+menu.save_map=Сохранить карту
+menu.to_root=В главное меню
+menu.discard=Выйти без сохранения
+menu.save.done=Карта сохранена
+menu.save.nothing=Нечего сохранять: карта не менялась
+menu.save.no_scene=У этой карты нет композиции
+menu.save.failed=НЕ СОХРАНИЛОСЬ: файл не записан
 menu.paused=Пауза
 menu.hint=Стрелки — выбор, Enter — принять, Esc — назад
 # Короткие варианты длинных строк. Выбираются ЗАМЕРОМ ширины, а не разрешением:

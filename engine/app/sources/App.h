@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:27:55
+Last updated: 17:08:2026 - 16:35:20
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -75,6 +75,7 @@ UPD:
 - 17:08:2026 - 13:52:37: scene_collision_debug_ / collider_debug_ — DFN_DRAW_COLLIDERS.
 - 17:08:2026 - 14:48:55: draw_bake_progress — экран первого запуска.
 - 17:08:2026 - 16:27:55: AppConfig::fullscreen — режим, в котором рождается окно (settings.cfg).
+- 17:08:2026 - 16:35:20: scene_dirty_ — правил ли кто-нибудь композицию в этой сессии.
 */
 
 #pragma once
@@ -407,6 +408,13 @@ private:
                             const std::string& what);
 
     world::SceneDoc scene_doc_;
+    /// HAS THE COMPOSITION BEEN CHANGED IN THIS SESSION? Saving writes the doc
+    /// back over its .scene, and those files carry HAND-WRITTEN comments and
+    /// hand-chosen ordering (the showcase says so in its own header). Writing
+    /// an unchanged doc would silently reformat somebody's file and lose the
+    /// comments — so "save" with nothing to save must be a refusal that says
+    /// so, not a no-op and not a rewrite.
+    bool scene_dirty_ = false;
     /// DFN_DRAW_COLLIDERS=1: the collision triangles kept so the debug pass can
     /// draw them. Requested by the user after three separate "I cannot walk
     /// here" reports that all turned out to be one wrong collider — a shape

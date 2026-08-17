@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 14:08:2026 - 19:37:40
+Last updated: 17:08:2026 - 16:35:20
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -58,6 +58,7 @@ UPD:
   пользователя). Read-only: просили ПОСМОТРЕТЬ, а список, который выглядит
   редактируемым и не редактируется, хуже списка. Живёт внутри настроек, значит
   достижима и с паузы — не выходя из мира.
+- 17:08:2026 - 16:35:20: SaveMap/DiscardToRoot и set_editing — три выхода редактора по Esc (заказ 17.08).
 */
 
 #pragma once
@@ -110,6 +111,15 @@ enum class MenuAction : uint8_t {
     // reasoning as CalibrationDone, and the same guarantee -- EVERY exit path
     // from the page emits it, so there is no way to leave and lose the change.
     SettingsDone,
+    // THE EDITOR'S THREE EXITS (user, 17.08: «в редактуре при esc сохранять
+    // карту, уходить без сохранения и выходить в главное меню а не закрывать
+    // всю игру»). Three actions and not one with a flag, because they are three
+    // different promises: SaveMap writes and STAYS (so you can save twice),
+    // DiscardToRoot throws the session away, ToRoot is the plain way out that
+    // makes no claim about saving. A single "exit" that guessed which one you
+    // meant would guess wrong on the only one that cannot be undone.
+    SaveMap,
+    DiscardToRoot,
 };
 
 // THE SETTINGS THE PLAYER CAN TURN, and it is exactly the settings.cfg rows
@@ -136,6 +146,12 @@ public:
     // builds a MapCatalog in memory and drives the pages. The pointer must
     // outlive the model (App owns both).
     void set_catalog(const MapCatalog* catalog) { catalog_ = catalog; }
+
+    /// EDITING RIGHT NOW? The pause page grows its editor rows only then: a
+    /// player who paused mid-walk has nothing to save, and a "save map" row he
+    /// cannot use is a row that teaches him the menu lies.
+    void set_editing(bool editing) { editing_ = editing; }
+    [[nodiscard]] bool editing() const { return editing_; }
 
     // Open the browser at its first level (categories). `target` is remembered
     // and returned by browse_target(), which is how the app knows whether the
@@ -200,6 +216,7 @@ private:
     // The browser's data and where it is in it. catalog_ is borrowed (App owns
     // it); the two indices are only meaningful on the browser pages.
     const MapCatalog* catalog_ = nullptr;
+    bool editing_ = false;
     BrowseTarget target_ = BrowseTarget::Play;
     size_t chosen_category_ = 0;          // which category CategoryMaps lists
     const MapManifest* chosen_map_ = nullptr; // set on OpenMap

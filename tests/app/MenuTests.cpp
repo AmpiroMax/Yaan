@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 14:08:2026 - 19:37:40
+Last updated: 17:08:2026 - 16:35:20
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -48,6 +48,7 @@ UPD:
 - 14:08:2026 - 19:37:40: ROW_BACK уехал с 5 на 6: на странице настроек появилась
   строка «Управление» перед «Назад». Ровно тот дрейф индексов, который прошлая
   запись сделала видимым, — и на этот раз он всплыл сразу и у причины.
+- 17:08:2026 - 16:35:20: две руки страницы паузы — с редактором и без; отличаются одним вызовом set_editing.
 */
 
 #include <doctest/doctest.h>
@@ -299,17 +300,20 @@ TEST_CASE("settings are reachable from pause, and come back to pause") {
     MenuModel m;
     m.set_settings(MenuSettings{});
     m.open(MenuPage::Pause);
-    CHECK(m.item_count() == 3); // resume, settings, quit
+    CHECK(m.item_count() == 4); // resume, settings, main menu, quit
     m.move(1);
     CHECK(m.activate() == MenuAction::None);
     CHECK(m.page() == MenuPage::Settings);
     CHECK(m.back() == MenuAction::SettingsDone);
     CHECK(m.page() == MenuPage::Pause); // NOT the start screen: the world is still there
 
-    // And the pause page's other two rows still do what they did.
+    // And the pause page's other rows still do what they did.
     m.open(MenuPage::Pause);
     CHECK(m.activate() == MenuAction::Resume);
     m.move(2);
+    CHECK(m.activate() == MenuAction::ToRoot); // leaving does NOT close the game
+    m.open(MenuPage::Pause);
+    m.move(3);
     CHECK(m.activate() == MenuAction::Quit);
 
     // THE CONTROL: entered from the root, it still returns to the root. The
@@ -323,4 +327,45 @@ TEST_CASE("settings are reachable from pause, and come back to pause") {
     CHECK(r.page() == MenuPage::Settings);
     CHECK(r.back() == MenuAction::SettingsDone);
     CHECK(r.page() == MenuPage::Root);
+}
+
+TEST_CASE("pausing the editor offers save and discard; pausing the walk does not") {
+    // THE USER'S ORDER, 17.08: «в редактуре при esc сохранять карту, уходить без
+    // сохранения и выходить в главное меню а не закрывать всю игру». The two
+    // arms below differ by ONE call — set_editing — so a row that appeared in
+    // both modes, or in neither, fails here rather than on somebody's screen.
+    MenuModel editing;
+    editing.set_settings(MenuSettings{});
+    editing.set_editing(true);
+    editing.open(MenuPage::Pause);
+    REQUIRE(editing.item_count() == 6);
+    CHECK(editing.activate() == MenuAction::Resume);
+    editing.open(MenuPage::Pause);
+    editing.move(1);
+    CHECK(editing.activate() == MenuAction::SaveMap);
+    // SAVING STAYS ON THE PAGE. A save that navigated away would make a second
+    // save impossible and hide its own answer.
+    CHECK(editing.page() == MenuPage::Pause);
+    editing.move(3); // rows 2..4: settings, main menu, discard
+    CHECK(editing.activate() == MenuAction::DiscardToRoot);
+    editing.open(MenuPage::Pause);
+    editing.move(3);
+    CHECK(editing.activate() == MenuAction::ToRoot);
+    editing.open(MenuPage::Pause);
+    editing.move(5);
+    CHECK(editing.activate() == MenuAction::Quit);
+
+    // THE CONTROL ARM: the same page while walking has neither row, and its
+    // irreversible row is still last.
+    MenuModel walking;
+    walking.set_settings(MenuSettings{});
+    walking.open(MenuPage::Pause);
+    REQUIRE(walking.item_count() == 4);
+    for (int row = 0; row < 4; ++row) {
+        walking.open(MenuPage::Pause);
+        walking.move(row);
+        const MenuAction a = walking.activate();
+        CHECK(a != MenuAction::SaveMap);
+        CHECK(a != MenuAction::DiscardToRoot);
+    }
 }

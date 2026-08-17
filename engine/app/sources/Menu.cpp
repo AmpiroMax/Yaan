@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 14:08:2026 - 19:37:40
+Last updated: 17:08:2026 - 16:35:20
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -69,6 +69,7 @@ UPD:
   первая версия ужимала шаг строк по высоте и на 320x180 роняла две последние
   строки за край — проверить это было нечем, пока арифметика жила внутри
   отрисовки.
+- 17:08:2026 - 16:35:20: страница паузы растит строки редактора; «в главное меню» появилось и в ходьбе.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -294,7 +295,10 @@ size_t MenuModel::item_count() const {
         return maps + 1;
     }
     case MenuPage::Pause:
-        return 3; // resume, settings, quit
+        // Playing: resume, settings, main menu, quit.
+        // Editing: the same plus save and discard, which only mean something
+        // when there is a composition open.
+        return editing_ ? 6 : 4;
     case MenuPage::Calibrate:
         return 0; // no list: up/down turn the dial itself
     case MenuPage::Settings:
@@ -406,9 +410,32 @@ MenuAction MenuModel::activate() {
         open(MenuPage::Categories);
         return MenuAction::None;
     }
-    case MenuPage::Pause:
+    case MenuPage::Pause: {
+        // ROW ORDER IS THE ANSWER TO "WHAT DID I PRESS BY ACCIDENT". Resume is
+        // first because it is the common case; the two irreversible rows
+        // (discard, quit) are last, furthest from where the cursor starts.
         if (selection_ == 0) {
             return MenuAction::Resume;
+        }
+        if (editing_) {
+            if (selection_ == 1) {
+                return MenuAction::SaveMap; // writes and STAYS on the page
+            }
+            if (selection_ == 2) {
+                settings_return_ = MenuPage::Pause;
+                open(MenuPage::Settings);
+                return MenuAction::None;
+            }
+            if (selection_ == 3) {
+                return MenuAction::ToRoot;
+            }
+            if (selection_ == 4) {
+                return MenuAction::DiscardToRoot;
+            }
+            return MenuAction::Quit;
+        }
+        if (selection_ == 2) {
+            return MenuAction::ToRoot;
         }
         if (selection_ == 1) {
             // SETTINGS ARE REACHABLE FROM THE PAUSE SCREEN, and that is not a
@@ -421,6 +448,7 @@ MenuAction MenuModel::activate() {
             return MenuAction::None;
         }
         return MenuAction::Quit;
+    }
     case MenuPage::Calibrate:
         // THE PAGE CLOSES ITSELF, and the action only asks the app to SAVE. A
         // page whose exit depends on the app handling a new action is a page
@@ -805,11 +833,25 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
             }
             return {loc("menu.back"), {}};
         }
-        case MenuPage::Pause:
+        case MenuPage::Pause: {
             if (i == 0) {
                 return {loc("menu.resume"), {}};
             }
-            return {(i == 1) ? loc("menu.settings") : loc("menu.quit"), {}};
+            if (model.editing()) {
+                switch (i) {
+                case 1: return {loc("menu.save_map"), {}};
+                case 2: return {loc("menu.settings"), {}};
+                case 3: return {loc("menu.to_root"), {}};
+                case 4: return {loc("menu.discard"), {}};
+                default: return {loc("menu.quit"), {}};
+                }
+            }
+            switch (i) {
+            case 1: return {loc("menu.settings"), {}};
+            case 2: return {loc("menu.to_root"), {}};
+            default: return {loc("menu.quit"), {}};
+            }
+        }
         case MenuPage::Calibrate:
         case MenuPage::Settings:
         case MenuPage::Controls:
