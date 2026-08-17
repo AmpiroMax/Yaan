@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 16:35:20
+Last updated: 17:08:2026 - 17:52:42
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -331,6 +331,9 @@ UPD:
   playtest_write_artifacts(), когда есть что записать (пустые папки, 17.08).
 - 17:08:2026 - 16:27:55: F11 — полный экран, ответ пишется в settings.cfg сразу (заказ 17.08).
 - 17:08:2026 - 16:35:20: обработка SaveMap/DiscardToRoot/ToRoot; scene_dirty_ — сохранять нечего, если не меняли.
+- 17:08:2026 - 17:52:42: DFN_HUD=0 — кадр без единого оверлея, из ТОГО ЖЕ бинарника. Для кадров,
+  которые смотрит человек (приёмка, README): панель поверх картинки там не
+  информация, а мусор.
 */
 
 #include "engine/app/sources/App.h"
@@ -4375,6 +4378,19 @@ int App::run() {
             render::PixelCanvas& hud = render_system_.hud();
             hud.clear_transparent();
             bool any = false;
+            // ЧИСТЫЙ КАДР ПО ТРЕБОВАНИЮ (DFN_HUD=0). Ни одного оверлея: ни
+            // компаса, ни полос, ни прицела, ни отладочного блока. Нужна для
+            // кадров, которые СМОТРИТ ЧЕЛОВЕК — приёмка и README, — где панель
+            // поверх картинки не информация, а мусор. Дверь, а не отдельная
+            // сборка: обе руки (с панелью и без) выходят из ОДНОГО бинарника,
+            // поэтому кадр без панели показывает ровно тот же мир.
+            static const bool hud_off = [] {
+                const char* v = std::getenv("DFN_HUD");
+                return v != nullptr && *v == '0';
+            }();
+            if (hud_off) {
+                render_system_.set_hud_visible(false);
+            } else {
             // ПРИЦЕЛ. Подсказка взаимодействия рисуется по центру экрана, у
             // которого центр ничем не отмечен, — это и была жалоба на кадре
             // ui-ingame. Дверь дозы DFN_CROSSHAIR=0 живёт внутри функции: обе
@@ -4491,6 +4507,7 @@ int App::run() {
             // HUD (it is the thing the player is interacting with when it is up).
             any = chat_overlay_.draw(hud) || any;
             render_system_.set_hud_visible(any);
+            }
         }
 
         // RECORDED BEFORE render(), which is the only window there is: both

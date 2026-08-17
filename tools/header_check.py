@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 15:08:2026 - 16:24:04
+# Last updated: 17:08:2026 - 17:53:25
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -57,6 +57,8 @@
 # - 14:08:2026 - 16:45:00: assets/maps/ добавлена в SKIP_PATH_RES — раскладка карт/демок (docs/MAP_LAYOUT.md): .map манифесты, .chat.jsonl, .gitkeep. Это ДАННЫЕ конвейера карт, не исходники; контракт живёт в doc, не в пофайловом заголовке.
 # - 14:08:2026 - 23:36:19: assets/objects/ в SKIP_PATH_RES — реестр объектов (.dfo, INDEX.md): печёные данные, адресуемые content-hash; у бинарника нет шапки, его identity — хэш.
 # - 15:08:2026 - 16:24:04: assets/scenes/ в SKIP_PATH_RES — файлы композиции карт (данные конвейера, контракт в Scene.h).
+# - 17:08:2026 - 17:53:25: README.md исключён — это входная дверь для постороннего, а не исходник;
+#   шапка контракта агентов была бы первым, что он прочтёт, и ему она ничего не говорит.
 
 from __future__ import annotations
 
@@ -134,8 +136,13 @@ SKIP_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".wav", ".mp
                    ".log"}
 # feature_requests.md: the user's personal wishlist — user-authored, never
 # agent-edited, exempt from the agent header contract.
+# README.md: the FRONT DOOR, written for a stranger who has never seen this
+# repository. A Created/Last updated/UPD block at the top of it would be the
+# first thing that stranger reads, and it says nothing to him — the contract
+# exists so agents can find what changed in a source file, and the README's
+# history is the git log.
 SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc",
-                  "feature_requests.md", "settings.cfg"}
+                  "feature_requests.md", "settings.cfg", "README.md"}
 
 
 # The header contract lives in the leading comment region, whose length grows
