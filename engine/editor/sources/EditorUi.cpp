@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 21:05:14
+Last updated: 17:08:2026 - 22:32:14
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -114,6 +114,12 @@ UPD:
   Числа после починки: 1 щелчок -> 1 переключение (было 10), панель
   открывается с полосы, колонка резервируется в тот же кадр (справа 432.7,
   мир 847x676), пересечение 0.0 кв.ед.
+- 17:08:2026 - 22:32:14: world_rect()/world_rect_norm() отвечают и БЕЗ контекста ImGui.
+  Их первый настоящий потребитель — отладочный вывод, который спрашивает каждый
+  кадр в ЛЮБОМ режиме, в том числе на пустом рендерере (тур, безголовые
+  прогоны), где init() честно отказал. ImGui::GetIO() без контекста — это
+  разыменование ничего, то есть падение в прогонах, которые интерфейса и не
+  просили.
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -1068,6 +1074,16 @@ void EditorUi::layout_panels() {
 }
 
 EditorRect EditorUi::world_rect() const {
+    // NO CONTEXT, NO GEOMETRY. init() refuses on a null renderer (the tour, the
+    // headless runs, every unattended capture that needs no interface), and
+    // ImGui::GetIO() without a context is a dereference of nothing. The caller
+    // that made this necessary is the HUD block in App, which asks EVERY frame
+    // in EVERY mode so the readout knows where to start — so the answer here
+    // has to be "the whole display is yours", which is exactly true when no
+    // interface exists.
+    if (!ready_) {
+        return EditorRect{0.0f, 0.0f, 0.0f, 0.0f};
+    }
     const ImGuiIO& io = ImGui::GetIO();
     const float w = io.DisplaySize.x;
     const float h = io.DisplaySize.y;
@@ -1080,6 +1096,9 @@ EditorRect EditorUi::world_rect() const {
 }
 
 EditorRect EditorUi::world_rect_norm() const {
+    if (!ready_) {
+        return EditorRect{0.0f, 0.0f, 1.0f, 1.0f};
+    }
     const ImGuiIO& io = ImGui::GetIO();
     const float w = io.DisplaySize.x;
     const float h = io.DisplaySize.y;
