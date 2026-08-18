@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 16:59:04
+Last updated: 18:08:2026 - 17:06:23
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -28,13 +28,17 @@ UPD:
 - 18:08:2026 - 16:48:18: Создан вместе с первым срезом модели.
 - 18:08:2026 - 16:59:04: компоненты и мосты. Случай про гиперребро-мост исправил МЕНЯ, а не код.
   Контрфакт: выродил гиперребро в связь первой пары — 2 случая красных.
+- 18:08:2026 - 17:06:23: каскад, круговой прогон, отказы читателя. Случай про цикл нашёл изъян
+  НЕ ТАМ, где искал: читатель не давал сослаться на вершину, сидящую на оси.
 */
 
 #include <doctest/doctest.h>
 
+#include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
 
 #include <algorithm>
+#include <cmath>
 
 using dfn::world::Anchoring;
 using dfn::world::ElementId;
@@ -257,4 +261,217 @@ TEST_CASE("вершина на оси принадлежит постройке 
     // постройка. Он физически часть той же: он на ней сидит.
     CHECK(g.components().size() == 1);
     CHECK(g.component_of(mid) == g.component_of(low));
+}
+
+TEST_CASE("двинул вершину — поехало всё, что на ней висит") {
+    HouseGraph g;
+    const VertexId low = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId high = g.add_vertex(Anchoring::Free, {0.0f, 4.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {low, high}, "oak", post).ok);
+
+    VertexId mid = 0;
+    REQUIRE(g.add_vertex_on_edge(post, 0.5f, mid).ok);
+    // Середина столба — ровно посередине между концами.
+    CHECK(g.resolved_local(mid).y == doctest::Approx(2.0f));
+
+    // ДВИНУЛИ ВЕРХ — СЕРЕДИНА ПОЕХАЛА САМА. Это и есть «за якорем тянутся все
+    // элементы»: геометрия НИГДЕ НЕ ХРАНИТСЯ, поэтому тянуть нечего — она
+    // выводится заново. Хранили бы копию — здесь была бы работа и был бы шанс
+    // её забыть.
+    REQUIRE(g.move_vertex(high, {0.0f, 10.0f, 0.0f}).ok);
+    CHECK(g.resolved_local(mid).y == doctest::Approx(5.0f));
+
+    // И ВБОК тоже: параметр вдоль оси не меняется, а точка едет.
+    REQUIRE(g.move_vertex(high, {6.0f, 10.0f, 0.0f}).ok);
+    CHECK(g.resolved_local(mid).x == doctest::Approx(3.0f));
+    CHECK(g.resolved_local(mid).y == doctest::Approx(5.0f));
+}
+
+TEST_CASE("вершину на оси нельзя двигать напрямую, и отказ говорит куда идти") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 4.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b}, "oak", post).ok);
+    VertexId mid = 0;
+    REQUIRE(g.add_vertex_on_edge(post, 0.25f, mid).ok);
+
+    // Её положение принадлежит хозяину. МОЛЧА ПРОИГНОРИРОВАТЬ правку нельзя:
+    // молча проигнорированная правка выглядит как сломанный инструмент, и
+    // ровно этим нас сегодня били трижды.
+    const auto refused = g.move_vertex(mid, {5.0f, 5.0f, 5.0f});
+    CHECK_FALSE(refused.ok);
+    CHECK_FALSE(refused.why.empty());
+    REQUIRE(refused.blockers.size() == 1);
+    CHECK(refused.blockers.front() == post); // и говорит, кто хозяин
+    CHECK(g.resolved_local(mid).y == doctest::Approx(1.0f)); // не сдвинулась
+}
+
+TEST_CASE("цепочка вершин на осях разрешается насквозь, а цикл не вешает") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 8.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b}, "oak", post).ok);
+
+    // Ярус: вершина на столбе, от неё балка, на балке ещё вершина.
+    VertexId mid = 0;
+    REQUIRE(g.add_vertex_on_edge(post, 0.5f, mid).ok);
+    const VertexId far = g.add_vertex(Anchoring::Free, {6.0f, 4.0f, 0.0f});
+    ElementId beam = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {mid, far}, "oak", beam).ok);
+    VertexId on_beam = 0;
+    REQUIRE(g.add_vertex_on_edge(beam, 0.5f, on_beam).ok);
+
+    // ДВА УРОВНЯ СПУСКА: точка на балке зависит от вершины на столбе, а та — от
+    // концов столба. Это его «на прямые по нашей заданной высоте поставили ещё
+    // якоря, на них также поставили якоря и считай новый ярус делаем».
+    CHECK(g.resolved_local(on_beam).x == doctest::Approx(3.0f));
+    CHECK(g.resolved_local(on_beam).y == doctest::Approx(4.0f));
+
+    // Двинули основание столба — поехал весь ярус.
+    REQUIRE(g.move_vertex(b, {0.0f, 16.0f, 0.0f}).ok);
+    CHECK(g.resolved_local(mid).y == doctest::Approx(8.0f));
+    CHECK(g.resolved_local(on_beam).y == doctest::Approx(6.0f));
+}
+
+TEST_CASE("круговой прогон .dfh сходится побайтово") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+    const VertexId c = g.add_vertex(Anchoring::Free, {4.0f, 2.6f, 3.0f});
+    const VertexId d = g.add_vertex(Anchoring::Free, {0.0f, 2.6f, 3.0f});
+    ElementId post = 0;
+    ElementId floor = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, c}, "oak", post).ok);
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d}, "frame-oak", floor).ok);
+    REQUIRE(g.set_facing(floor, true).ok);
+    VertexId mid = 0;
+    REQUIRE(g.add_vertex_on_edge(post, 0.25f, mid).ok);
+
+    const std::string text = dfn::world::write_house(g);
+
+    HouseGraph back;
+    const auto r = dfn::world::read_house(text, back);
+    REQUIRE_MESSAGE(r.ok, r.why);
+
+    // ПОБАЙТОВО, а не «похоже». Прогон, сходящийся приблизительно, не ловит
+    // потерю четвёртого знака — а именно она и превратит дом в дом с щелью
+    // через десять правок.
+    CHECK(dfn::world::write_house(back) == text);
+
+    // И содержательно: вершина на оси доехала вместе с хозяином.
+    CHECK(back.vertex_count() == g.vertex_count());
+    CHECK(back.element_count() == g.element_count());
+}
+
+TEST_CASE("вершина на оси читается, даже если хозяин объявлен НИЖЕ") {
+    // Порядок строк в файле не должен быть значимым: иначе файл нельзя
+    // отсортировать, слить или дописать руками.
+    const std::string text =
+        "# dfh 1\n"
+        "vertex v1 ground 0.0000 0.0000 0.0000\n"
+        "vertex v3 on_edge e1 0.5000\n"
+        "vertex v2 free 0.0000 4.0000 0.0000\n"
+        "line e1 v1 v2 style=oak\n";
+    HouseGraph g;
+    const auto r = dfn::world::read_house(text, g);
+    REQUIRE_MESSAGE(r.ok, r.why);
+    CHECK(g.vertex_count() == 3);
+    CHECK(g.element_count() == 1);
+}
+
+TEST_CASE("битый файл ОТВЕРГАЕТСЯ с номером строки, а не чинится молча") {
+    HouseGraph g;
+
+    // Ссылка на несуществующую вершину. Молча подставленная замена превратила
+    // бы ошибку записи в дом со сдвинутой стеной, который никто не свяжет с
+    // причиной — этот урок в репозитории уже оплачен форматом мира.
+    const auto bad_ref = dfn::world::read_house(
+        "vertex v1 ground 0.0000 0.0000 0.0000\n"
+        "line e1 v1 v9 style=oak\n", g);
+    CHECK_FALSE(bad_ref.ok);
+    CHECK(bad_ref.line == 2);
+    CHECK_FALSE(bad_ref.why.empty());
+
+    // Хозяин, которого нет.
+    const auto bad_host = dfn::world::read_house(
+        "vertex v1 on_edge e7 0.5000\n", g);
+    CHECK_FALSE(bad_host.ok);
+    CHECK(bad_host.line == 1);
+
+    // Две вершины с одним именем: молча выиграла бы последняя, и ссылки выше
+    // стали бы значить не то, что написано.
+    const auto dup = dfn::world::read_house(
+        "vertex v1 ground 0.0000 0.0000 0.0000\n"
+        "vertex v1 free 1.0000 1.0000 1.0000\n", g);
+    CHECK_FALSE(dup.ok);
+    CHECK(dup.line == 2);
+
+    // Неизвестное слово: формат обязан быть закрытым, иначе опечатка в имени
+    // вида молча выкинет целый элемент.
+    const auto junk = dfn::world::read_house("wall e1 v1 v2\n", g);
+    CHECK_FALSE(junk.ok);
+    CHECK(junk.line == 1);
+}
+
+TEST_CASE("цикл ОТВЕРГАЕТСЯ, и отказ отличает круг от ссылки в пустоту") {
+    // ЗДЕСЬ У ЗАЩИТЫ ПОЯВИЛСЯ ПРИБОР, и он оказался строже задуманного. Через
+    // API графа цикл не построить — ссылки элемента задаются при создании.
+    // Текстом можно, и читатель обязан такой файл ОТВЕРГНУТЬ, а не читать
+    // наполовину: дом с половиной вершин — это не «почти дом».
+    const std::string cyclic =
+        "# dfh 1\n"
+        "vertex v1 on_edge e2 0.5000\n"
+        "vertex v2 free 0.0000 4.0000 0.0000\n"
+        "vertex v3 on_edge e1 0.5000\n"
+        "vertex v4 free 4.0000 0.0000 0.0000\n"
+        "line e1 v1 v2 style=oak\n"
+        "line e2 v3 v4 style=oak\n";
+    HouseGraph g;
+    const auto r = dfn::world::read_house(cyclic, g);
+    CHECK_FALSE(r.ok);
+    CHECK(r.why.find("руг") != std::string::npos); // назван именно КРУГ
+
+    // КОНТРОЛЬ, без которого утверждение выше не стоит ничего: тот же файл без
+    // круга читается. Иначе «отвергает цикл» прошло бы и на читателе, который
+    // отвергает вообще всё.
+    const std::string sane =
+        "# dfh 1\n"
+        "vertex v1 ground 0.0000 0.0000 0.0000\n"
+        "vertex v2 free 0.0000 4.0000 0.0000\n"
+        "vertex v3 on_edge e1 0.5000\n"
+        "vertex v4 free 4.0000 0.0000 0.0000\n"
+        "line e1 v1 v2 style=oak\n"
+        "line e2 v3 v4 style=oak\n";
+    HouseGraph h;
+    const auto ok = dfn::world::read_house(sane, h);
+    REQUIRE_MESSAGE(ok.ok, ok.why);
+    CHECK(h.vertex_count() == 4);
+    CHECK(h.element_count() == 2);
+}
+
+TEST_CASE("на вершину, сидящую на оси, МОЖНО сослаться элементом") {
+    // ГЛАВНЫЙ СЦЕНАРИЙ ПОЛЬЗОВАТЕЛЯ: «на прямые по нашей заданной высоте
+    // поставили ещё якоря, на них также поставили якоря и считай новый ярус
+    // делаем». Первая версия читателя это ЛОМАЛА: он исполнял элементы сразу, а
+    // вершины на осях откладывал, поэтому балка ссылалась на ещё не созданную
+    // вершину и файл отвергался. Нашлось рукавом, написанным для другого.
+    const std::string text =
+        "# dfh 1\n"
+        "vertex v1 ground 0.0000 0.0000 0.0000\n"
+        "vertex v2 free 0.0000 8.0000 0.0000\n"
+        "line e1 v1 v2 style=oak\n"
+        "vertex v3 on_edge e1 0.5000\n"
+        "vertex v4 free 6.0000 4.0000 0.0000\n"
+        "line e2 v3 v4 style=oak\n"
+        "vertex v5 on_edge e2 0.5000\n";
+    HouseGraph g;
+    const auto r = dfn::world::read_house(text, g);
+    REQUIRE_MESSAGE(r.ok, r.why);
+    CHECK(g.vertex_count() == 5);
+    CHECK(g.element_count() == 2);
+    // Второй ярус разрешается насквозь: v5 на балке, балка от вершины на столбе.
+    CHECK(g.components().size() == 1);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 18:08:2026 - 16:59:04
+Last updated: 18:08:2026 - 17:06:23
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -18,6 +18,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 16:47:20: Создан вместе с заголовком.
 - 18:08:2026 - 16:59:04: components() и bridges() (см. заголовок).
+- 18:08:2026 - 17:06:23: то же (см. заголовок).
 */
 
 #include "engine/world/sources/HouseGraph.h"
@@ -130,6 +131,85 @@ GraphResult HouseGraph::remove_element(ElementId id) {
                                    [id](const Element& e) { return e.id == id; }),
                     elements_.end());
     return {};
+}
+
+GraphResult HouseGraph::move_vertex(VertexId id, glm::vec3 new_local) {
+    Vertex* v = find_vertex(id);
+    if (v == nullptr) {
+        return {false, "такой вершины нет", {}};
+    }
+    // ВЕРШИНА НА ОСИ НЕ ДВИГАЕТСЯ НАПРЯМУЮ: её положение принадлежит хозяину.
+    // Отказ, а не тихое игнорирование — молча проигнорированная правка
+    // выглядит как сломанный инструмент, и мы это сегодня уже проходили.
+    if (v->anchoring == Anchoring::OnEdge) {
+        return {false, "вершина сидит на оси: двигай хозяина или параметр вдоль", {v->host}};
+    }
+    v->local = new_local;
+    // Ничего пересчитывать не надо: геометрия элементов НИГДЕ НЕ ХРАНИТСЯ, она
+    // выводится из вершин. «За вершиной потянулось» — не работа, а отсутствие
+    // второй копии. Вершины на осях разрешаются в resolved_local по требованию.
+    return {};
+}
+
+GraphResult HouseGraph::set_facing(ElementId id, bool flipped) {
+    Element* e = find_element(id);
+    if (e == nullptr) {
+        return {false, "такого элемента нет", {}};
+    }
+    e->facing_flipped = flipped;
+    return {};
+}
+
+glm::vec3 HouseGraph::resolved_local(VertexId id) const {
+    // Глубина спуска ограничена числом вершин: длиннее честной цепочки не
+    // бывает, а всё, что длиннее, — цикл.
+    glm::vec3 last{0.0f};
+    VertexId cur = id;
+    for (std::size_t guard = 0; guard <= vertices_.size(); ++guard) {
+        const Vertex* v = vertex(cur);
+        if (v == nullptr) {
+            return last;
+        }
+        last = v->local;
+        if (v->anchoring != Anchoring::OnEdge) {
+            return v->local;
+        }
+        const Element* host = element(v->host);
+        if (host == nullptr || host->refs.size() < 2) {
+            return last; // осиротевшая вершина остаётся там, где была
+        }
+        // Точка на оси: линейно между концами. Концы разрешаются ТЕМ ЖЕ
+        // спуском, поэтому вершина на прямой, чей конец сам сидит на прямой,
+        // работает без отдельного случая.
+        const glm::vec3 a = resolved_local_step(host->refs.front(), guard);
+        const glm::vec3 b = resolved_local_step(host->refs.back(), guard);
+        return a + (b - a) * v->host_t;
+    }
+    // Сюда попадаем только по циклу. Возвращаем последнее осмысленное
+    // положение: инструмент нарисует вершину не там, где надо, но НЕ ЗАВИСНЕТ,
+    // а судья назовёт цикл отдельной находкой.
+    return last;
+}
+
+glm::vec3 HouseGraph::resolved_local_step(VertexId id, std::size_t depth) const {
+    if (depth > vertices_.size()) {
+        const Vertex* v = vertex(id);
+        return v != nullptr ? v->local : glm::vec3{0.0f};
+    }
+    const Vertex* v = vertex(id);
+    if (v == nullptr) {
+        return glm::vec3{0.0f};
+    }
+    if (v->anchoring != Anchoring::OnEdge) {
+        return v->local;
+    }
+    const Element* host = element(v->host);
+    if (host == nullptr || host->refs.size() < 2) {
+        return v->local;
+    }
+    const glm::vec3 a = resolved_local_step(host->refs.front(), depth + 1);
+    const glm::vec3 b = resolved_local_step(host->refs.back(), depth + 1);
+    return a + (b - a) * v->host_t;
 }
 
 const Vertex* HouseGraph::vertex(VertexId id) const {

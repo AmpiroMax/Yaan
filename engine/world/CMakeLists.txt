@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 16:48:47
+# Last updated: 18:08:2026 - 17:07:34
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -77,6 +77,10 @@
 #   Scene: это ДАННЫЕ МИРА, которые редактор правит, а судья проверяет. Модель в
 #   зоне редактора была бы моделью, недоступной судье.
 
+# - 18:08:2026 - 17:07:34: HouseFile.cpp — чтение и запись .dfh. Текстом, а не двоично: агент
+#   строит город рецептами, и рецепт обязан читаться глазами и различаться в
+#   diff. Двоичный формат сделал бы историю правок непроверяемой.
+
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
@@ -84,6 +88,7 @@ add_library(dfn_world STATIC
     sources/LayoutLoad.cpp
     sources/ReliefLayer.cpp
     sources/SaveDelta.cpp
+    sources/HouseFile.cpp
     sources/HouseGraph.cpp
     sources/Scene.cpp
     sources/SceneHouseRules.cpp
