@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 13:08:07
-Last updated: 18:08:2026 - 13:08:07
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolPath.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 13:08:07: Создан вместе с EditorToolPath.h.
+- 18:08:2026 - 20:26:30: За пределом дальности инструмент прячет свою картинку сам.
 */
 
 #include "engine/editor/sources/EditorToolPath.h"
@@ -132,6 +133,12 @@ void PathTool::on_deselected(ToolWorld& world) {
 }
 
 ToolPreview PathTool::preview(const ToolAim& aim) const {
+    // ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЭТОТ ИНСТРУМЕНТ НЕ РИСУЕТ НИЧЕГО: вся его картинка —
+    // обещание щелчка, а щелчок туда не достанет.
+    if (!aim.in_reach) {
+        return ToolPreview{};
+    }
+
     ToolPreview out;
     line_.clear();
     handles_.clear();

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 19:44:10
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -38,6 +38,7 @@ UPD:
   нет), а откатом счётчика имён. Полный довод — у revision() в заголовке.
 - 18:08:2026 - 18:58:40: Прямая ВВЕРХ: point_on_vertical — ближайшая точка вертикали через якорь к лучу прицела (пара скрещивающихся прямых), вырожденный взгляд вдоль оси назван и держит прежнюю высоту. Подпись называет высоту со знаком.
 - 18:08:2026 - 19:44:10: Поиск лучом (сближение луча с точкой и с отрезком, вырожденные случаи названы); призрак якоря один на щелчок, показ и подпись; колесо тянет шарик вдоль луча; магнит на ось.
+- 18:08:2026 - 20:26:30: Конец прямой липнет к якорю ПОД ЛУЧОМ (два якоря в воздухе больше не соединяются через пол); прилипание якоря к оси решает прицел, а не подтягивание — стойки ловятся так же, как лежачие брёвна; ray_vs_segment — одно выражение на весь файл; подпись поверхности называет пол и стену до подтверждения.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -344,58 +345,157 @@ VertexId HouseSession::pick_vertex_ray(glm::vec3 origin, glm::vec3 dir, float gr
     return best;
 }
 
-HouseEdgeHit HouseSession::pick_edge_ray(glm::vec3 origin, glm::vec3 dir, float grab_m) const {
+/// СБЛИЖЕНИЕ ЛУЧА С ОТРЕЗКОМ — ОДНО ВЫРАЖЕНИЕ НА ВЕСЬ ФАЙЛ. Его спрашивают и
+/// посадка вершины на ось, и выбор элемента; две копии этой формулы разошлись
+/// бы в тот день, когда одну из них поправят (правило 32).
+HouseEdgeHit ray_vs_segment(glm::vec3 origin, glm::vec3 dir, glm::vec3 a, glm::vec3 b,
+                            float grab_m) {
+    HouseEdgeHit out;
+    const glm::vec3 ab = b - a;
+    const float ab2 = glm::dot(ab, ab);
+    if (ab2 < 1e-8f) {
+        return out; // отрезок нулевой длины — это точка, и ею занят другой поиск
+    }
+    const float len = std::sqrt(ab2);
+    const glm::vec3 abn = ab / len;
+    // Систему из двух уравнений решаем прямо; вырожденный случай (луч
+    // ПАРАЛЛЕЛЕН отрезку) назван отдельно: там общего решения нет, и берётся
+    // ближайший конец, а не деление на ноль.
+    const glm::vec3 w0 = a - origin;
+    const float bcoef = glm::dot(dir, abn);
+    const float denom = 1.0f - bcoef * bcoef;
+    float t = 0.0f; // доля вдоль отрезка
+    if (denom < 1e-5f) {
+        t = std::clamp(glm::dot(-w0, abn) / len, 0.0f, 1.0f);
+    } else {
+        const float d = glm::dot(dir, w0);
+        const float ee = glm::dot(abn, w0);
+        // s = (b·d − e)/(1 − b²), метры вдоль отрезка от его начала. Знак здесь
+        // уже стоил одной ошибки за вечер — на вертикали, в той же формуле:
+        // перевёрнутый, он уводит ближайшую точку в противоположную сторону.
+        const float s = (bcoef * d - ee) / denom;
+        t = std::clamp(s / len, 0.0f, 1.0f);
+    }
+    const glm::vec3 p = a + ab * t;
+    const float along = glm::dot(p - origin, dir);
+    // ЗА СПИНОЙ ЦЕЛЕЙ НЕТ.
+    if (along <= 0.0f) {
+        return out;
+    }
+    const float miss = glm::length(p - (origin + dir * along));
+    if (miss > grab_m) {
+        return out;
+    }
+    // «Попадание есть»; НАСТОЯЩЕЕ ИМЯ ПРОСТАВЛЯЕТ ВЫЗЫВАЮЩИЙ — эта функция про
+    // геометрию и про элементы ничего не знает.
+    out.host = 1;
+    out.t = t;
+    out.distance_m = miss;
+    out.point = p;
+    return out;
+}
+
+HouseEdgeHit HouseSession::pick_edge_ray(glm::vec3 origin, glm::vec3 dir,
+                                         float grab_m) const {
     HouseEdgeHit best;
     float best_along = 0.0f;
     for (const Element& e : graph_.elements()) {
+        // ТОЛЬКО ПРЯМАЯ: на ось садится вершина, а «ось» есть у бруса и нет у
+        // полотна — модель разрешает положение такой вершины через два конца,
+        // которых у поверхности нет.
         if (e.kind != ElementKind::Line || e.refs.size() < 2) {
             continue;
         }
-        const glm::vec3 a = vertex_world(e.refs.front());
-        const glm::vec3 b = vertex_world(e.refs.back());
-        const glm::vec3 ab = b - a;
-        const float ab2 = glm::dot(ab, ab);
-        if (ab2 < 1e-8f) {
-            continue; // ось нулевой длины — это точка, и ею занят другой поиск
-        }
-        // СБЛИЖЕНИЕ ЛУЧА И ОТРЕЗКА. Систему из двух уравнений решаем прямо;
-        // вырожденный случай (луч ПАРАЛЛЕЛЕН оси) назван отдельно — там общего
-        // решения нет, и берётся ближайший конец, а не деление на ноль.
-        const glm::vec3 w0 = a - origin;
-        const float bcoef = glm::dot(dir, ab) / std::sqrt(ab2);
-        const glm::vec3 abn = ab / std::sqrt(ab2);
-        const float denom = 1.0f - bcoef * bcoef;
-        float t = 0.0f; // доля вдоль отрезка
-        if (denom < 1e-5f) {
-            t = std::clamp(glm::dot(-w0, abn) / std::sqrt(ab2), 0.0f, 1.0f);
-        } else {
-            const float d = glm::dot(dir, w0);
-            const float ee = glm::dot(abn, w0);
-            // s = (b·d − e)/(1 − b²), метры вдоль оси от её начала. Знак
-            // здесь уже стоил одной ошибки в этот же вечер — на вертикали, и
-            // ровно в той же формуле: перевёрнутый, он отправляет ближайшую
-            // точку в противоположную сторону от оси.
-            const float s = (bcoef * d - ee) / denom;
-            t = std::clamp(s / std::sqrt(ab2), 0.0f, 1.0f);
-        }
-        const glm::vec3 p = a + ab * t;
-        const float along = glm::dot(p - origin, dir);
-        if (along <= 0.0f) {
+        HouseEdgeHit probe = ray_vs_segment(origin, dir, vertex_world(e.refs.front()),
+                                            vertex_world(e.refs.back()), grab_m);
+        if (!probe.hit()) {
             continue;
         }
-        const float miss = glm::length(p - (origin + dir * along));
-        if (miss > grab_m) {
-            continue;
-        }
+        const float along = glm::dot(probe.point - origin, dir);
+        // ИЗ НЕСКОЛЬКИХ ОСЕЙ ВЫИГРЫВАЕТ БЛИЖАЙШАЯ К ГЛАЗУ, а не ближайшая к
+        // лучу: дальняя, стоящая точно за передней, иначе отбирала бы щелчок.
         if (!best.hit() || along < best_along) {
             best_along = along;
-            best.host = e.id;
-            best.t = t;
-            best.distance_m = miss;
-            best.point = p;
+            probe.host = e.id;
+            best = probe;
         }
     }
     return best;
+}
+
+ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir,
+                                         float grab_m) const {
+    ElementId best = NO_ELEMENT;
+    float best_along = 0.0f;
+    // Отрезки контура перебираются здесь, а сближение считает та же пара
+    // формул, что и у оси: второе выражение для того же сближения разошлось бы
+    // с первым в день, когда одну из копий поправят (правило 32).
+    const auto consider = [&](ElementId id, glm::vec3 a, glm::vec3 b) {
+        HouseEdgeHit probe = ray_vs_segment(origin, dir, a, b, grab_m);
+        if (!probe.hit()) {
+            return;
+        }
+        const float along = glm::dot(probe.point - origin, dir);
+        if (best == NO_ELEMENT || along < best_along) {
+            best_along = along;
+            best = id;
+        }
+    };
+    for (const Element& e : graph_.elements()) {
+        if (e.refs.size() < 2) {
+            continue;
+        }
+        if (e.kind == ElementKind::Line) {
+            consider(e.id, vertex_world(e.refs.front()), vertex_world(e.refs.back()));
+            continue;
+        }
+        for (std::size_t i = 0; i + 1 < e.refs.size(); ++i) {
+            consider(e.id, vertex_world(e.refs[i]), vertex_world(e.refs[i + 1]));
+        }
+        if (e.closed && e.refs.size() >= 3) {
+            consider(e.id, vertex_world(e.refs.back()), vertex_world(e.refs.front()));
+        }
+    }
+    return best;
+}
+
+std::string HouseSession::delete_selection() {
+    // ЭЛЕМЕНТ ПЕРЕД ЯКОРЕМ, и порядок здесь — про намерение. Выбрав стену,
+    // человек просит убрать стену; якорь под ней он не выбирал.
+    if (const ElementId e = selected_element(); e != NO_ELEMENT) {
+        const GraphResult r = mutate("убрал элемент", [&](HouseGraph& g) {
+            return g.remove_element(e);
+        });
+        if (r.ok) {
+            clear_selection();
+            return {};
+        }
+        return r.why;
+    }
+    const VertexId v = selected_vertex();
+    if (v == NO_VERTEX) {
+        return "ничего не выбрано";
+    }
+    const GraphResult r = mutate("убрал якорь", [&](HouseGraph& g) {
+        return g.remove_vertex(v);
+    });
+    if (r.ok) {
+        clear_selection();
+        return {};
+    }
+    // ОТКАЗ СО СПИСКОМ ДЕРЖАТЕЛЕЙ, ИМЕНАМИ ИЗ ФАЙЛА: список отвечает на вопрос
+    // «что отвязать», не вставая из кресла.
+    std::string why = r.why;
+    if (!r.blockers.empty()) {
+        why += ": ";
+        for (std::size_t i = 0; i < r.blockers.size(); ++i) {
+            if (i != 0) {
+                why += ", ";
+            }
+            why += ename(r.blockers[i]);
+        }
+    }
+    return why;
 }
 
 HouseEdgeHit HouseSession::pick_edge(glm::vec3 world_point, float grab_m) const {
@@ -526,38 +626,33 @@ HouseVertexTool::Ghost HouseVertexTool::ghost(const ToolAim& aim) const {
     const float along = std::max(base - pull_m_, HOUSE_PULL_STEP_M);
     g.point = aim.origin + dir * along;
 
-    // ПРИЛИПАНИЕ К ОСИ. Ось — магнит для якоря: пользователь строит каркас, и
-    // вершина, севшая РЯДОМ с бревном, а не НА него, ничего не держит. Ищется
-    // ось, ближайшая к самому шарику, а не к лучу: шарик подтянут, и то, что
-    // луч проходит сквозь дальнюю ось, к нему уже не относится.
-    HouseEdgeHit best;
-    float best_d = HOUSE_SNAP_M;
-    for (const Element& e : session_->graph().elements()) {
-        if (e.kind != ElementKind::Line || e.refs.size() < 2) {
-            continue;
-        }
-        const glm::vec3 a = session_->vertex_world(e.refs.front());
-        const glm::vec3 b = session_->vertex_world(e.refs.back());
-        float t = 0.0f;
-        const glm::vec3 p = closest_on_segment(a, b, g.point, t);
-        const float d = glm::length(p - g.point);
-        if (d < best_d) {
-            best_d = d;
-            best.host = e.id;
-            best.t = t;
-            best.distance_m = d;
-            best.point = p;
-        }
-    }
-    if (best.hit()) {
-        g.on_edge = best;
-        g.point = best.point;
+    // ПРИЛИПАНИЕ К ОСИ — ПО ТОМУ, КУДА ЧЕЛОВЕК СМОТРИТ, И ТОЛЬКО ПО ЭТОМУ.
+    //
+    // Первый заход искал ось, ближайшую к самому шарику. На горизонтальных
+    // брёвнах это работало: шарик едет по лучу над землёй и проходит рядом с
+    // ними. У СТОЙКИ не работало вовсе (жалоба 18.08: «к вертикальным нет»), и
+    // причина не в допуске. Чтобы поднять шарик на два метра при пологом
+    // взгляде, его надо подтянуть метров на десять — а вместе с высотой он
+    // уезжает на те же десять метров ПО ГОРИЗОНТАЛИ, навстречу человеку, и от
+    // стойки, на которую человек смотрит, оказывается дальше, чем был.
+    //
+    // Правило теперь одно: целишься в бревно — якорь садится на бревно, и
+    // подтягивание тут ни при чём. Второе правило («шарик ищет ось вокруг
+    // себя») я завёл было рядом и убрал: оно дёргало якорь на бревно, на
+    // которое человек не смотрел, и объяснить, почему шарик уехал, было нечем.
+    if (const HouseEdgeHit aimed = session_->pick_edge_ray(aim.origin, dir, HOUSE_SNAP_M);
+        aimed.hit()) {
+        g.on_edge = aimed;
+        g.point = aimed.point;
+        g.ground_y = ground_at({g.point.x, g.point.z}, g.point.y);
+        g.air = g.point.y - g.ground_y > HOUSE_AIR_EPS_M;
+        return g;
     }
     g.ground_y = ground_at({g.point.x, g.point.z}, g.point.y);
     // ЗЕМЛЯ — ПОЛ, А НЕ СОВЕТ: шарик, подтянутый мимо склона, не имеет права
     // оказаться ПОД травой. Ось из этого правила исключена нарочно — бревно
     // может уходить в грунт, и вершина на его оси уходит вместе с ним.
-    if (!best.hit() && g.point.y < g.ground_y) {
+    if (g.point.y < g.ground_y) {
         g.point.y = g.ground_y;
     }
     g.air = g.point.y - g.ground_y > HOUSE_AIR_EPS_M;
@@ -665,32 +760,11 @@ bool HouseVertexTool::delete_selected() {
     if (session_ == nullptr) {
         return false;
     }
-    const VertexId id = session_->selected_vertex();
-    if (id == NO_VERTEX) {
-        refusal_ = "якорь не выбран";
-        return false;
-    }
-    const GraphResult r = session_->mutate("убрал якорь", [&](HouseGraph& g) {
-        return g.remove_vertex(id);
-    });
-    if (r.ok) {
-        session_->clear_selection();
-        return true;
-    }
-    // ОТКАЗ СО СПИСКОМ ДЕРЖАТЕЛЕЙ, ИМЕНАМИ ИЗ ФАЙЛА. Голый отказ («нельзя»)
-    // превращает поиск виноватого в обход дома руками; список отвечает на
-    // вопрос «что отвязать», не вставая из кресла.
-    refusal_ = r.why;
-    if (!r.blockers.empty()) {
-        refusal_ += ": ";
-        for (std::size_t i = 0; i < r.blockers.size(); ++i) {
-            if (i != 0) {
-                refusal_ += ", ";
-            }
-            refusal_ += ename(r.blockers[i]);
-        }
-    }
-    return false;
+    // РЕШАЕТ СЕССИЯ, А НЕ КНОПКА. Тот же метод зовёт клавиша Delete, и два
+    // разных «убрать» — с разными правилами и разными отказами — были бы двумя
+    // ответами на один вопрос человека.
+    refusal_ = session_->delete_selection();
+    return refusal_.empty();
 }
 
 ToolPreview HouseVertexTool::preview(const ToolAim& aim) const {
@@ -707,7 +781,10 @@ ToolPreview HouseVertexTool::preview(const ToolAim& aim) const {
 
     // ПРИЗРАК ТОЙ ВЕРШИНЫ, КОТОРУЮ ПОСТАВИТ ЭТОТ ЩЕЛЧОК, с её собственным
     // отвесом. Без него человек узнаёт высоту постановки ПОСЛЕ постановки.
-    if (dragging_ == NO_VERTEX) {
+    if (dragging_ == NO_VERTEX && aim.in_reach) {
+        // ПРИЗРАК — ОБЕЩАНИЕ ЩЕЛЧКА, и за пределом дальности его нет. Сама
+        // постройка выше построена уже и никуда не денется: она факт.
+        //
         // ПРИЗРАК РИСУЕТСЯ И КОГДА ЛУЧ НЕ ВСТРЕТИЛ ЗЕМЛИ: подтянутый к себе
         // шарик висит в воздухе, и смотреть на него человек может как угодно.
         const Ghost g = ghost(aim);
@@ -844,6 +921,21 @@ void HouseLineTool::update_end(const ToolAim& aim) {
         return;
     }
     const glm::vec3 a = session_->vertex_world(from_);
+    snap_ = NO_VERTEX;
+    // МАГНИТ НА ЯКОРЬ — И ЭТО ГЛАВНОЕ, ЧЕГО НЕ ХВАТАЛО. Конец прямой брался
+    // там, где луч встретил ЗЕМЛЮ, поэтому два якоря в воздухе соединить было
+    // нечем: прямая упиралась в пол ровно так же, как до починки вертикали
+    // («нет проверки на то, что я смотрю прямо на якорь», 18.08).
+    //
+    // Спрашивается ЛУЧ, а не точка прицела: якорь в воздухе рядом с точкой на
+    // земле не окажется никогда. Найденный якорь и есть конец — не «рядом с
+    // ним», а ровно он, иначе прямая упрётся в воздух в сантиметре от цели.
+    if (const VertexId hit = session_->pick_vertex_ray(aim.origin, aim.direction(),
+                                                       HOUSE_GRAB_M);
+        hit != NO_VERTEX && hit != from_) {
+        snap_ = hit;
+        raw_end_ = session_->vertex_world(hit);
+    }
     if (session_->axis() == HouseSession::Axis::Vertical) {
         // ЛУЧ БЕРЁТСЯ ИЗ САМОГО ПРИЦЕЛА, а не восстанавливается по камере:
         // ToolAim несёт и глаз, и точку, и второй способ узнать направление
@@ -935,7 +1027,13 @@ void HouseLineTool::on_release(ToolWorld& world) {
     // ОТПУСТИЛ НА ЯКОРЕ — ЯКОРЯ СОЕДИНИЛИСЬ. Ищем по СЫРОМУ прицелу, а не по
     // зажатому концу: зажим — про длину, а соединение — про то, куда человек
     // отпустил руку.
-    const VertexId to = session_->pick_vertex(raw_end_, HOUSE_GRAB_M);
+    // К КОМУ ПРИЛИПЛА РУКА, ТОТ И ВТОРОЙ КОНЕЦ. Прилипание нашёл луч ещё во
+    // время протаскивания; искать заново по точке значило бы задать другой
+    // вопрос и получить другой ответ — тот самый, из-за которого якоря в
+    // воздухе не соединялись.
+    const VertexId to = snap_ != NO_VERTEX
+                            ? snap_
+                            : session_->pick_vertex(raw_end_, HOUSE_GRAB_M);
     ElementId made = NO_ELEMENT;
     if (to != NO_VERTEX && to != from) {
         const GraphResult r = session_->mutate("прямая между якорями", [&](HouseGraph& g) {
@@ -1305,8 +1403,23 @@ ToolStatus HouseSurfaceTool::status(const ToolAim& aim) const {
     if (refs_.empty()) {
         return ToolStatus{"house.hint.surface.first", {}, true};
     }
+    // ЧТО ПОЛУЧИТСЯ ИЗ ЭТОГО ОБХОДА — НАЗЫВАЕТСЯ ДО ПОДТВЕРЖДЕНИЯ.
+    //
+    // Пользователь 18.08 поставил три якоря на полу, ждал ПОЛ, а получил стену:
+    // «вектор нормали построился параллельный земле и по 2-м точкам». Так и
+    // есть — открытая цепочка выдавливается вверх, и её лицо смотрит вбок, по
+    // первому отрезку. Ошибки в геометрии нет, ошибка в том, что рука молчала о
+    // разнице: пол и стена отличаются ОДНИМ ЖЕСТОМ, и жест этот ниоткуда не
+    // виден.
     glm::vec3 n{0.0f};
-    char buf[128];
+    char buf[192];
+    if (refs_.size() >= 3) {
+        std::snprintf(buf, sizeof(buf),
+                      "якорей %zu · по ПЕРВОМУ якорю — пол/контур (лицо вверх), "
+                      "по последнему — стена (лицо вбок)",
+                      refs_.size());
+        return ToolStatus{"", buf, true};
+    }
     if (draft_normal(n)) {
         // СЛОВАМИ, А НЕ ТОЛЬКО СТРЕЛКОЙ: стрелку с ребра камеры видно плохо,
         // а вопрос «куда смотрит лицо» задают именно тогда, когда смотрят на

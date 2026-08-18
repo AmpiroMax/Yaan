@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 18:08:2026 - 18:58:40
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -22,6 +22,7 @@ UPD:
 - 18:08:2026 - 16:28:24: строка «дальность взаимодействия — колесо»; у скорости полёта теперь [ и ].
 - 18:08:2026 - 17:16:29: строка отмены и подпись клавиши Z (без подписи строка рисуется как «?»).
 - 18:08:2026 - 18:58:40: V — фиксация оси (не Z: Z занята отменой), и подпись клавиши V, без которой экран управления рисовал «?».
+- 18:08:2026 - 20:26:30: Delete и Backspace убирают выбранное; подписи обеих клавиш.
 */
 
 #include "engine/app/sources/Controls.h"
@@ -82,6 +83,10 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     // действия на одной клавише в одной области видимости запрещены — и
     // правильно запрещены. Область — редактор: строить в теле нечем.
     {Action::AxisLock, K::V, K::UNKNOWN, "controls.axis_lock", Scope::EditorOnly},
+    // Delete и Backspace — обе, потому что на этой клавиатуре первой нет: на
+    // ноутбуке Apple физическая клавиша одна и зовётся Backspace.
+    {Action::DeleteSelected, K::DELETE, K::BACKSPACE, "controls.delete_selected",
+     Scope::EditorOnly, Scope::EditorOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -188,6 +193,8 @@ const char* key_name(platform::Key key) {
     // не косметика, а признак строки, о которой человеку никто не скажет.
     case K::Z: return "Z";
     case K::V: return "V";  // вертикаль — фиксация оси у прямой
+    case K::DELETE: return "Del";
+    case K::BACKSPACE: return "Backspace";
     default: return "?"; // loud, not blank: a nameless key is a table bug
     }
 }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 19:14:22
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/app
 File: engine/app/sources/AppInput.cpp
 
@@ -58,6 +58,7 @@ UPD:
   проверить без мира.
 - 18:08:2026 - 18:58:40: on_axis_lock: переключает ось постройки и говорит об этом вслух.
 - 18:08:2026 - 19:14:22: Enter в редакторе сначала подтверждает черновик инструмента и только потом открывает быструю заметку.
+- 18:08:2026 - 20:26:30: on_delete_selected: сессия решает, что убрать, отказ печатается со списком держателей.
 */
 
 #include "engine/app/sources/App.h"
@@ -121,6 +122,7 @@ bool App::dispatch_actions(bool chat_typing) {
             break;
         case Action::Undo: on_undo_redo(); break;
         case Action::AxisLock: on_axis_lock(); break;
+        case Action::DeleteSelected: on_delete_selected(); break;
         case Action::Count: break; // not a row; route_for() cannot return it
         }
         // THE FRAME IS OVER THE MOMENT ESCAPE OPENS THE PAUSE PAGE. Nothing
@@ -332,6 +334,14 @@ void App::on_axis_lock() {
                  house_.axis() == HouseSession::Axis::Vertical
                      ? "вертикаль через якорь"
                      : "земля (как раньше)");
+}
+
+void App::on_delete_selected() {
+    const std::string why = house_.delete_selection();
+    // ОТКАЗ ГОВОРИТСЯ ВСЛУХ И СО СПИСКОМ ДЕРЖАТЕЛЕЙ: молча не сработавшая
+    // клавиша неотличима от сломанной, а этот сорт молчания мы разбирали
+    // сегодня трижды.
+    std::fprintf(stderr, "[постройка] удаление: %s\n", why.empty() ? "готово" : why.c_str());
 }
 
 void App::on_tool_pick(int index) {

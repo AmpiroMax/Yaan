@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:50
-Last updated: 18:08:2026 - 19:44:10
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolsObject.cpp
 
@@ -33,6 +33,7 @@ UPD:
   верна. Пустой щелчок по траве не открывает пустую колонку: это шум, а не
   отклик.
 - 18:08:2026 - 19:44:10: Выбор якоря и прямой тем же инструментом, что выбирает объекты; часть постройки имеет приоритет над объектом сцены.
+- 18:08:2026 - 20:26:30: Выбор стены по её контуру; за пределом дальности инструменты прячут своё обещание сами.
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"
@@ -62,11 +63,9 @@ SelectTool::HouseTarget SelectTool::house_target(const ToolAim& aim) const {
     if (out.vertex != world::NO_VERTEX) {
         return out;
     }
-    if (const HouseEdgeHit e = house_->pick_edge_ray(aim.origin, aim.direction(),
-                                                     HOUSE_EDGE_GRAB_M);
-        e.hit()) {
-        out.element = e.host;
-    }
+    // ЛЮБОЙ ЭЛЕМЕНТ, А НЕ ТОЛЬКО ПРЯМАЯ: стену человек тоже хочет выбирать и
+    // убирать, и целится он в её контур — в то, чем она сейчас нарисована.
+    out.element = house_->pick_element_ray(aim.origin, aim.direction(), HOUSE_EDGE_GRAB_M);
     return out;
 }
 
@@ -100,6 +99,12 @@ void SelectTool::on_press(const ToolAim& aim, ToolWorld& world) {
 }
 
 ToolPreview SelectTool::preview(const ToolAim& aim) const {
+    // ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЭТОТ ИНСТРУМЕНТ НЕ РИСУЕТ НИЧЕГО: вся его картинка —
+    // обещание щелчка, а щелчок туда не достанет.
+    if (!aim.in_reach) {
+        return ToolPreview{};
+    }
+
     (void)aim;
     ToolPreview out;
     // NO GHOST WHILE SELECTING: a part standing in front of the thing being
@@ -143,6 +148,12 @@ void PlaceTool::on_press(const ToolAim& aim, ToolWorld& world) {
 }
 
 ToolPreview PlaceTool::preview(const ToolAim& aim) const {
+    // ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЭТОТ ИНСТРУМЕНТ НЕ РИСУЕТ НИЧЕГО: вся его картинка —
+    // обещание щелчка, а щелчок туда не достанет.
+    if (!aim.in_reach) {
+        return ToolPreview{};
+    }
+
     (void)aim;
     ToolPreview out;
     out.ghost = true;

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:30
-Last updated: 18:08:2026 - 13:08:07
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolsGround.cpp
 
@@ -27,6 +27,7 @@ UPD:
   внутри чужого обработчика.
 - 18:08:2026 - 13:08:07: draw_last_dab — числа последнего мазка в настройках обеих кистей
   (счётчик вернулся из удалённой панели кисти).
+- 18:08:2026 - 20:26:30: То же для кисти и посадки.
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"
@@ -132,6 +133,12 @@ void TerrainBrushToolBase::draw_last_dab() const {
 }
 
 ToolPreview TerrainBrushToolBase::preview(const ToolAim& aim) const {
+    // ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЭТОТ ИНСТРУМЕНТ НЕ РИСУЕТ НИЧЕГО: вся его картинка —
+    // обещание щелчка, а щелчок туда не достанет.
+    if (!aim.in_reach) {
+        return ToolPreview{};
+    }
+
     (void)aim;
     ToolPreview out;
     out.ring_brush = &brush_;
@@ -233,6 +240,12 @@ void PlantTool::on_press(const ToolAim& aim, ToolWorld& world) {
 }
 
 ToolPreview PlantTool::preview(const ToolAim& aim) const {
+    // ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЭТОТ ИНСТРУМЕНТ НЕ РИСУЕТ НИЧЕГО: вся его картинка —
+    // обещание щелчка, а щелчок туда не достанет.
+    if (!aim.in_reach) {
+        return ToolPreview{};
+    }
+
     (void)aim;
     ToolPreview out;
     // THE SAME OUTLINE CODE draws this ring; only the radius is the plant

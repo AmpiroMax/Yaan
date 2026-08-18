@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:08:20
-Last updated: 18:08:2026 - 19:44:10
+Last updated: 18:08:2026 - 20:26:30
 Module: tests/app
 File: tests/app/EditorToolboxTests.cpp
 
@@ -39,6 +39,7 @@ UPD:
 - 18:08:2026 - 13:08:07: седьмой значок (тропа) в списке различимости — иначе новый значок мог бы
   совпасть с чужим побайтово и никто бы не заметил.
 - 18:08:2026 - 19:44:10: Три новых значка в перечне попарно-разных.
+- 18:08:2026 - 20:26:30: Ящик ЗОВЁТ показ и за пределом дальности, сказав правду о ней; обещание прячет инструмент.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"
@@ -85,13 +86,21 @@ public:
     }
     void on_drag(const ToolAim&, float, ToolWorld&) override { ++drags; }
     void on_release(ToolWorld&) override { ++releases; }
-    [[nodiscard]] ToolPreview preview(const ToolAim&) const override {
+    [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override {
+        last_in_reach = aim.in_reach;
         ToolPreview out;
+        // ОБЕЩАНИЕ ПРЯЧЕТ САМ ИНСТРУМЕНТ. Ящик больше не молчит за него: он
+        // сообщает обстоятельство, а различить обещание и факт может только
+        // тот, у кого в картинке есть и то и другое (у постройки — дом).
+        if (!aim.in_reach) {
+            return out;
+        }
         out.ghost = ghost_;
         out.target_probe = ghost_;
         return out;
     }
     void draw_settings() override { ++settings_draws; }
+    mutable bool last_in_reach = true; ///< что ящик сказал о дальности
     [[nodiscard]] float max_reach_m() const override { return reach_m_; }
     void on_selected(ToolWorld&) override { ++selects; }
     void on_deselected(ToolWorld&) override { ++deselects; }
@@ -519,6 +528,11 @@ TEST_CASE("за пределом дальности: подпись говори
     CHECK(far_st.text.find("10") != std::string::npos);
 
     // И МИР НИЧЕГО НЕ ОБЕЩАЕТ: ни призрака, ни кольца, ни прохода по цели.
+    // ЯЩИК ПРИ ЭТОМ ЗОВЁТ ИНСТРУМЕНТ И ГОВОРИТ ЕМУ ПРАВДУ — проверяется именно
+    // это, потому что молчание ящика когда-то стирало вместе с обещанием и
+    // построенный дом.
+    const ToolPreview near_pv = b.box.preview(near_aim);
+    CHECK(near_pv.ghost);
     const ToolPreview far_pv = b.box.preview(far_aim);
     CHECK_FALSE(far_pv.ghost);
     CHECK_FALSE(far_pv.target_probe);

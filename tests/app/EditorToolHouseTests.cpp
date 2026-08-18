@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 19:44:10
+Last updated: 18:08:2026 - 20:26:30
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -58,6 +58,7 @@ UPD:
   даёт. Контрфакт: посчитал зажим ДО фиксации оси — 1 покрасневшее утверждение
   (REQUIRE обрывает случай).
 - 18:08:2026 - 19:44:10: Якорь в воздухе ловится лучом, а точкой на земле — никогда; ось ловится лучом на любой высоте; колесо тянет шарик и не пускает под землю; магнит на ось с контролем «вдвое меньше — не липнет».
+- 18:08:2026 - 20:26:30: Стойка ловит якорь как лежачее бревно; прямая между двумя якорями в воздухе соединяет их, а не пол; стена выбирается по контуру и убирается одной командой, отказ на занятый якорь со списком.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1232,7 +1233,7 @@ TEST_CASE("ось прямой ловится лучом на любой выс�
     CHECK_FALSE(b.session.pick_edge({3.0f, 0.0f, 0.0f}, HOUSE_EDGE_GRAB_M).hit());
 }
 
-TEST_CASE("колесо подтягивает шарик к себе, и шарик прилипает к оси") {
+TEST_CASE("колесо подтягивает шарик, а прилипание решает прицел") {
     Bench b;
     HouseVertexTool vt(b.session);
     vt.set_world(&b.world);
@@ -1270,14 +1271,168 @@ TEST_CASE("колесо подтягивает шарик к себе, и шар
     (void)b.session.graph().move_vertex(a, {0.0f, 2.0f, 0.0f});
     (void)b.session.graph().move_vertex(c, {10.0f, 2.0f, 0.0f});
 
-    vt.set_pull_m(1.8f);
-    const HouseVertexTool::Ghost g = vt.ghost(down);
-    REQUIRE(g.on_edge.hit());
-    CHECK(g.point.y == doctest::Approx(2.0f).epsilon(0.001));
-    CHECK(g.point.x == doctest::Approx(5.0f).epsilon(0.001));
+    // ЦЕЛИШЬСЯ В БРЕВНО — СЯДЕТ НА БРЕВНО, и подтягивание тут ни при чём: луч
+    // идёт сквозь ось, а значит человек смотрит именно на неё.
+    for (const float pull : {0.0f, 1.8f, 6.0f}) {
+        vt.set_pull_m(pull);
+        const HouseVertexTool::Ghost g = vt.ghost(down);
+        REQUIRE(g.on_edge.hit());
+        CHECK(g.point.y == doctest::Approx(2.0f).epsilon(0.001));
+        CHECK(g.point.x == doctest::Approx(5.0f).epsilon(0.001));
+    }
 
-    // КОНТРОЛЬ: тот же шарик, подтянутый ВДВОЕ МЕНЬШЕ, до оси не дотягивается —
-    // иначе проверка выше прошла бы на магните, который ловит всё подряд.
-    vt.set_pull_m(0.5f);
-    CHECK_FALSE(vt.ghost(down).on_edge.hit());
+    // КОНТРОЛЬ: луч в стороне от бревна не ловит его ни при каком подтягивании
+    // — иначе проверка выше прошла бы на магните, который липнет ко всему.
+    ToolAim aside = down;
+    aside.origin = {5.0f, 10.0f, 3.0f};
+    aside.point = {5.0f, 0.0f, 3.0f};
+    for (const float pull : {0.0f, 1.8f, 6.0f}) {
+        vt.set_pull_m(pull);
+        CHECK_FALSE(vt.ghost(aside).on_edge.hit());
+    }
+}
+
+TEST_CASE("СТОЙКА ловит якорь так же, как лежачее бревно") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+
+    // Стойка: от земли в (8,0,0) вверх на 4 м.
+    b.click(vt, {8.0f, 0.0f, 0.0f});
+    const VertexId low = b.session.selected_vertex();
+    // Верхний якорь ставится СРАЗУ СВОБОДНЫМ: заземлённая вершина хранит
+    // только XZ, и поднять её, не сменив привязку, нельзя — высоту ей всё
+    // равно даст рельеф.
+    const VertexId high = b.session.graph().add_vertex(Anchoring::Free,
+                                                       {8.0f, 4.0f, 0.0f});
+    REQUIRE(low != high);
+    ElementId post = NO_ELEMENT;
+    (void)b.session.graph().add_element(ElementKind::Line, {low, high}, "", post);
+    REQUIRE(post != NO_ELEMENT);
+    (void)lt;
+
+    // ВЗГЛЯД ПОЛОГИЙ, как у человека на своих двоих: глаз на 1.7 м, стойка в
+    // восьми метрах впереди. Луч приходит в неё на высоте 2.5 м.
+    ToolAim at_post;
+    at_post.origin = {0.0f, 1.7f, 0.0f};
+    at_post.point = {8.0f, 2.5f, 0.0f};
+    at_post.distance_m = glm::length(at_post.point - at_post.origin);
+    at_post.hit = true;
+    const HouseVertexTool::Ghost g = vt.ghost(at_post);
+    REQUIRE(g.on_edge.hit());
+    CHECK(g.point.x == doctest::Approx(8.0f).epsilon(0.01));
+    CHECK(g.point.y == doctest::Approx(2.5f).epsilon(0.05));
+    CHECK(g.air);
+
+    // КОНТРОЛЬ: тот же взгляд, отвёрнутый на два метра вбок, стойку не ловит.
+    ToolAim aside = at_post;
+    aside.point = {8.0f, 2.5f, 2.0f};
+    CHECK_FALSE(vt.ghost(aside).on_edge.hit());
+}
+
+TEST_CASE("прямая между двумя якорями В ВОЗДУХЕ соединяет их, а не пол") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+
+    // Два якоря на трёхметровой высоте, в четырёх метрах друг от друга.
+    const VertexId a = b.session.graph().add_vertex(Anchoring::Free, {0.0f, 3.0f, 0.0f});
+    const VertexId c = b.session.graph().add_vertex(Anchoring::Free, {4.0f, 3.0f, 0.0f});
+    REQUIRE(c != NO_VERTEX);
+
+    // Смотрим на первый, тянем ко второму. ЗЕМЛЯ В ЭТОМ ПРОГОНЕ ВРАЖДЕБНА: луч
+    // до неё доходит и точка прицела лежит на траве — ровно то, из-за чего
+    // прямая «упиралась в пол».
+    ToolAim from_aim;
+    from_aim.origin = {0.0f, 4.0f, -6.0f};
+    from_aim.point = {0.0f, 0.0f, 18.0f}; // земля далеко за якорем
+    from_aim.distance_m = 24.3f;
+    from_aim.hit = true;
+    ToolAim to_aim = from_aim;
+    to_aim.origin = {4.0f, 4.0f, -6.0f};
+    to_aim.point = {4.0f, 0.0f, 18.0f};
+
+    lt.on_press(from_aim, b.world);
+    REQUIRE(lt.anchor() == a);
+    lt.on_drag(to_aim, 0.016f, b.world);
+    // Призрак уже стоит НА ЯКОРЕ, а не на траве.
+    CHECK(lt.ghost_end().y == doctest::Approx(3.0f).epsilon(0.01));
+    lt.on_release(b.world);
+
+    REQUIRE(b.session.graph().element_count() == 1);
+    const dfn::world::Element* e = b.session.graph().element(lt.last_element());
+    REQUIRE(e != nullptr);
+    REQUIRE(e->refs.size() == 2);
+    CHECK(e->refs[0] == a);
+    CHECK(e->refs[1] == c);
+
+    // КОНТРОЛЬ: отпустить в стороне от якоря — прямая уходит в пустоту и
+    // ВТОРЫМ КОНЦОМ становится новая вершина, а не c.
+    ToolAim empty = to_aim;
+    empty.origin = {40.0f, 4.0f, -6.0f};
+    empty.point = {40.0f, 0.0f, 18.0f};
+    lt.on_press(from_aim, b.world);
+    lt.on_drag(empty, 0.016f, b.world);
+    lt.on_release(b.world);
+    const dfn::world::Element* e2 = b.session.graph().element(lt.last_element());
+    REQUIRE(e2 != nullptr);
+    CHECK(e2->refs[1] != c);
+}
+
+TEST_CASE("стена выбирается по контуру и убирается одной командой") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseSurfaceTool st(b.session);
+    st.set_world(&b.world);
+
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {4.0f, 0.0f, 0.0f});
+    b.click(vt, {4.0f, 0.0f, 4.0f});
+    // Обход из трёх и замыкание на первом — это ПОЛ, а не стена.
+    b.click(st, {0.0f, 0.0f, 0.0f});
+    b.click(st, {4.0f, 0.0f, 0.0f});
+    b.click(st, {4.0f, 0.0f, 4.0f});
+    b.click(st, {0.0f, 0.0f, 0.0f});
+    REQUIRE(b.session.graph().element_count() == 1);
+    const ElementId floor = st.last_element();
+    REQUIRE(floor != NO_ELEMENT);
+
+    // ВЫБОР ПО КОНТУРУ: луч идёт вдоль стороны 0->4 по X, в полуметре над ней.
+    const ElementId picked = b.session.pick_element_ray({2.0f, 0.3f, -6.0f},
+                                                        {0.0f, 0.0f, 1.0f},
+                                                        HOUSE_EDGE_GRAB_M);
+    CHECK(picked == floor);
+    // КОНТРОЛЬ: луч в стороне от контура не выбирает ничего.
+    CHECK(b.session.pick_element_ray({2.0f, 6.0f, -6.0f}, {0.0f, 0.0f, 1.0f},
+                                     HOUSE_EDGE_GRAB_M) == NO_ELEMENT);
+
+    // УБРАТЬ ВЫБРАННОЕ: выбран элемент — уходит элемент, а якоря остаются.
+    b.session.select_element(floor);
+    CHECK(b.session.delete_selection().empty());
+    CHECK(b.session.graph().element_count() == 0);
+    CHECK(b.session.graph().vertex_count() == 3);
+
+    // ТЕПЕРЬ ЯКОРЬ: он больше никем не держан и уходит.
+    b.session.select_vertex(b.session.graph().vertices().front().id);
+    CHECK(b.session.delete_selection().empty());
+    CHECK(b.session.graph().vertex_count() == 2);
+
+    // И ОТКАЗ СО СПИСКОМ: якорь, который держит прямая, не убирается молча.
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+    const VertexId a = b.session.graph().vertices().front().id;
+    const VertexId c = b.session.graph().vertices().back().id;
+    ElementId beam = NO_ELEMENT;
+    REQUIRE(b.session.graph().add_element(ElementKind::Line, {a, c}, "", beam).ok);
+    b.session.select_vertex(a);
+    const std::string why = b.session.delete_selection();
+    CHECK_FALSE(why.empty());
+    CHECK(why.find("e") != std::string::npos);
+    CHECK(b.session.graph().vertex_count() == 2);
+    MESSAGE("отказ на занятый якорь: " << why);
 }

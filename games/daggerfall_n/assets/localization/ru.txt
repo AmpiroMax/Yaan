@@ -170,6 +170,7 @@ controls.reach.keys=колесо
 controls.reach=Дальность взаимодействия
 controls.undo=Отменить (Cmd+Z), повторить (Cmd+Shift+Z)
 controls.axis_lock=Прямая строго вверх (V — включить и выключить)
+controls.delete_selected=Убрать выбранное: стену, прямую или якорь
 controls.keys=Esc — назад
 menu.controls=Управление
 
@@ -518,7 +519,7 @@ house.hint.select.element=Прямая под прицелом — ЛКМ выб
 house.hint.line.needanchor=Наведись на якорь: прямая тянется от него
 house.hint.line.from=Тяни от этого якоря
 house.hint.line.drag=Отпусти на якоре — соединит, в пустоте — задаст длину (V — строго вверх)
-house.hint.surface.first=Щёлкай по якорям в порядке обхода
+house.hint.surface.first=Щёлкай по якорям в порядке обхода: замкнёшь на первом — пол
 house.air=Подтянуть шарик к себе (колесо мыши)
 house.air.ground=Ноль — вершина садится на землю под прицелом
 house.air.plumb=Шарик в воздухе: вниз от него идёт отвес

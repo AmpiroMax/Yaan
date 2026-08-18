@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 18:58:40
+Last updated: 18:08:2026 - 20:26:30
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -131,6 +131,7 @@ UPD:
   та модель, которой не хватало отмене. ОДНА на троих: копия у каждого
   инструмента — это три дома, расходящиеся на первом сдвинутом якоре.
 - 18:08:2026 - 18:58:40: Объявлен on_axis_lock.
+- 18:08:2026 - 20:26:30: Объявлен on_delete_selected.
 */
 
 #pragma once
@@ -347,6 +348,7 @@ private:
     void on_build_rotate();
     void on_undo_redo();
     void on_axis_lock();
+    void on_delete_selected();
     void on_tool_pick(int index);
     // НЕ ДЕЙСТВИЕ, А ПОЛЛИНГ: стрелки крутят деталь, Delete её убирает. У них
     // нет строки в таблице привязок, потому что таблица — это КРАЙ клавиши, а
