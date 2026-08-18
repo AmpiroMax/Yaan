@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -41,6 +41,7 @@ UPD:
 - 18:08:2026 - 20:26:30: Конец прямой липнет к якорю ПОД ЛУЧОМ (два якоря в воздухе больше не соединяются через пол); прилипание якоря к оси решает прицел, а не подтягивание — стойки ловятся так же, как лежачие брёвна; ray_vs_segment — одно выражение на весь файл; подпись поверхности называет пол и стену до подтверждения.
 - 18:08:2026 - 21:12:40: Прямая, отпущенная в пустоте, СТАВИТ ТАМ ЯКОРЬ (решение пользователя: прямая без якоря на конце — бессмыслица); зажим длины садит конец на тот самый якорь, а не на двойника рядом.
 - 18:08:2026 - 22:20:15: Якорь двигается вдоль запертой оси; ось общая у прямой и у перетаскивания; стрелка нормали одна на черновик и на готовую стену, рисуется у КАЖДОЙ подсвеченной поверхности из её видного места; стена выбирается тычком в полотно (луч-треугольник), а не только по кромке.
+- 18:08:2026 - 23:20:00: Призрак якоря садится в узел сетки; pick_element_ray отдаёт расстояние прицелу.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -614,8 +615,8 @@ static float ray_vs_triangle(glm::vec3 o, glm::vec3 d, glm::vec3 a, glm::vec3 b,
     return t > 0.0f ? t : -1.0f;
 }
 
-ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir,
-                                         float grab_m) const {
+ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir, float grab_m,
+                                         float* out_distance) const {
     ElementId best = NO_ELEMENT;
     float best_along = 0.0f;
     // Отрезки контура перебираются здесь, а сближение считает та же пара
@@ -680,6 +681,9 @@ ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir,
                 }
             }
         }
+    }
+    if (out_distance != nullptr) {
+        *out_distance = best_along;
     }
     return best;
 }
@@ -873,6 +877,10 @@ HouseVertexTool::Ghost HouseVertexTool::ghost(const ToolAim& aim) const {
         g.air = g.point.y - g.ground_y > HOUSE_AIR_EPS_M;
         return g;
     }
+    // СЕТКА ЛОВИТ ЯКОРЬ, ЕСЛИ ОНА ВКЛЮЧЕНА. После прилипания к оси — нет: ось
+    // уже сказала, где точка, и второй магнит сдвинул бы её С ОСИ, то есть
+    // отменил бы первый.
+    g.point = session_->snap_to_grid(g.point);
     g.ground_y = ground_at({g.point.x, g.point.z}, g.point.y);
     // ЗЕМЛЯ — ПОЛ, А НЕ СОВЕТ: шарик, подтянутый мимо склона, не имеет права
     // оказаться ПОД травой. Ось из этого правила исключена нарочно — бревно
@@ -1312,6 +1320,7 @@ void HouseLineTool::on_deselected(ToolWorld& world) {
     from_ = NO_VERTEX;
     refusal_.clear();
     clamp_hit_ = HouseClampHit{};
+    snap_ = NO_VERTEX;
 }
 
 void HouseLineTool::on_cancel(ToolWorld& world) { on_deselected(world); }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 18:08:2026 - 23:20:00
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -61,6 +61,7 @@ UPD:
 - 18:08:2026 - 20:26:30: Стойка ловит якорь как лежачее бревно; прямая между двумя якорями в воздухе соединяет их, а не пол; стена выбирается по контуру и убирается одной командой, отказ на занятый якорь со списком.
 - 18:08:2026 - 21:12:40: Прямая в пустоте даёт второй ЯКОРЬ (и его находит поиск лучом), зажим приходит в тот же якорь; проверки переписаны с длины-числа на связь.
 - 18:08:2026 - 22:20:15: Версия растёт и при перетаскивании (правка мимо истории); якорь едет вдоль своей прямой с контролем «без оси уходит вбок»; стена ловится тычком в середину; равноудалённая точка на прямоугольнике и на треугольнике, где она НЕ совпадает с серединой.
+- 18:08:2026 - 23:20:00: Сетка ловит якорь в узлы мировых координат, шаг меняет узлы, выключенная сетка не округляет, шаг зажат.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1629,4 +1630,40 @@ TEST_CASE("видное место контура — точка, равноуд
     CHECK(glm::length(tc - mid) > 0.5f);
     MESSAGE("треугольник: равноудалённая (" << tc.x << " " << tc.z << "), середина ("
             << mid.x << " " << mid.z << ")");
+}
+
+TEST_CASE("сетка мира ловит якорь в узлы, и это координаты МИРА") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    b.session.set_grid_on(true);
+    b.session.set_grid_step_m(0.5f);
+
+    // Прицел строго вниз в некруглую точку: узел обязан быть кратен шагу, а не
+    // отсчитан от места, где начали строить.
+    ToolAim down;
+    down.origin = {7.3f, 10.0f, -3.2f};
+    down.point = {7.3f, 0.0f, -3.2f};
+    down.distance_m = 10.0f;
+    down.hit = true;
+    const HouseVertexTool::Ghost g = vt.ghost(down);
+    CHECK(g.point.x == doctest::Approx(7.5f).epsilon(0.001));
+    CHECK(g.point.z == doctest::Approx(-3.0f).epsilon(0.001));
+
+    // ШАГ МЕНЯЕТСЯ — МЕНЯЮТСЯ УЗЛЫ.
+    b.session.set_grid_step_m(2.0f);
+    CHECK(vt.ghost(down).point.x == doctest::Approx(8.0f).epsilon(0.001));
+    CHECK(vt.ghost(down).point.z == doctest::Approx(-4.0f).epsilon(0.001));
+
+    // КОНТРОЛЬ: сетка выключена — точка ровно там, куда смотрят. Без этого
+    // плеча проверка прошла бы на руке, которая округляет ВСЕГДА.
+    b.session.set_grid_on(false);
+    CHECK(vt.ghost(down).point.x == doctest::Approx(7.3f).epsilon(0.001));
+    CHECK(vt.ghost(down).point.z == doctest::Approx(-3.2f).epsilon(0.001));
+
+    // И ШАГ ЗАЖАТ В РАЗУМНОЕ: ноль сделал бы деление на ноль в округлении.
+    b.session.set_grid_step_m(0.0f);
+    CHECK(b.session.grid_step_m() > 0.0f);
+    b.session.set_grid_step_m(1000.0f);
+    CHECK(b.session.grid_step_m() <= 10.0f);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/app
 File: engine/app/sources/AppActions.cpp
 
@@ -17,6 +17,7 @@ UPD:
   метод App», собранная из восемнадцати обработчиков, лежавших в run().
 - 18:08:2026 - 18:58:40: Маршрут AxisLock -> on_axis_lock.
 - 18:08:2026 - 20:26:30: Маршрут DeleteSelected -> on_delete_selected.
+- 18:08:2026 - 23:20:00: Маршруты инструментов 6..9.
 */
 
 #include "engine/app/sources/AppActions.h"
@@ -56,6 +57,10 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::ToolSelect, Gate::TypingEats, "on_tool_pick", 2},
     {Action::ToolPlace, Gate::TypingEats, "on_tool_pick", 3},
     {Action::ToolLook, Gate::TypingEats, "on_tool_pick", 4},
+    {Action::Tool6, Gate::TypingEats, "on_tool_pick", 5},
+    {Action::Tool7, Gate::TypingEats, "on_tool_pick", 6},
+    {Action::Tool8, Gate::TypingEats, "on_tool_pick", 7},
+    {Action::Tool9, Gate::TypingEats, "on_tool_pick", 8},
     // ОТМЕНА И ПОВТОР — ОДНА строка: отличает их модификатор, а не клавиша.
     {Action::Undo, Gate::TypingEats, "on_undo_redo", 0},
     {Action::AxisLock, Gate::TypingEats, "on_axis_lock", 0},

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/app
 File: engine/app/sources/AppInput.cpp
 
@@ -60,6 +60,7 @@ UPD:
 - 18:08:2026 - 19:14:22: Enter в редакторе сначала подтверждает черновик инструмента и только потом открывает быструю заметку.
 - 18:08:2026 - 20:26:30: on_delete_selected: сессия решает, что убрать, отказ печатается со списком держателей.
 - 18:08:2026 - 22:20:15: V крутит ось вокруг выбранного якоря и называет её.
+- 18:08:2026 - 23:20:00: Esc третьим шагом бросает набранное; стрелки двигают выбранный якорь шагом сетки; cmd+shift+цифра открывает меню инструмента; отсечки сетки вокруг прицела.
 */
 
 #include "engine/app/sources/App.h"
@@ -119,6 +120,10 @@ bool App::dispatch_actions(bool chat_typing) {
         case Action::ToolSelect:
         case Action::ToolPlace:
         case Action::ToolLook:
+        case Action::Tool6:
+        case Action::Tool7:
+        case Action::Tool8:
+        case Action::Tool9:
             on_tool_pick(r.arg);
             break;
         case Action::Undo: on_undo_redo(); break;
@@ -216,6 +221,19 @@ void App::on_menu_pause() {
         // ИНСТРУМЕНТ ПРИ ЭТОМ ОСТАЁТСЯ В РУКЕ: ESC закрывает окно, а не
         // отбирает инструмент — отбирает его щелчок по его же иконке.
         return;
+    }
+    if (mode_ == AppMode::Editor) {
+        // ТРЕТИЙ ШАГ НАЗАД — БРОСИТЬ НАБРАННОЕ. «Когда я рисую стену и выбираю
+        // точки или рисую прямые, хочу, чтобы на esc я сбрасывал выбранные
+        // точки» (18.08). Порядок важен и назван человеком же: если открыто
+        // меню — закрывается меню, а точки остаются; закрывать и то и другое
+        // одним нажатием и есть та «казусная ситуация», которой он опасался.
+        if (IEditorTool* tool = editor_ui_.toolbox().active();
+            tool != nullptr && tool->has_draft()) {
+            tool->on_cancel(editor_ui_.tool_world());
+            std::fprintf(stderr, "[постройка] набранное сброшено\n");
+            return;
+        }
     }
     paused_from_ = mode_; // Resume returns here (Playing or Editor)
     // The editor rows exist only while editing: a row that cannot do anything
@@ -347,6 +365,21 @@ void App::on_delete_selected() {
 }
 
 void App::on_tool_pick(int index) {
+    // CMD+SHIFT+ЦИФРА ОТКРЫВАЕТ МЕНЮ ЭТОГО ИНСТРУМЕНТА, не трогая руку (заказ
+    // 18.08). Это то же самое, что треугольник под его фишкой, — и потому зовёт
+    // тот же метод: две двери в одну комнату, а не две комнаты.
+    //
+    // Различает их УСЛОВИЕ, а не вторая строка в таблице: цифра одна, и
+    // отдавать её двум действиям в одной области видимости запрещено проверкой.
+    const bool cmd = input_->is_down(platform::Key::LEFT_SUPER)
+                  || input_->is_down(platform::Key::RIGHT_SUPER);
+    const bool shift = input_->is_down(platform::Key::LEFT_SHIFT)
+                    || input_->is_down(platform::Key::RIGHT_SHIFT);
+    if (cmd && shift) {
+        wire_editor_panels();
+        editor_ui_.toolbox().click_settings(static_cast<std::size_t>(index));
+        return;
+    }
     editor_ui_.toolbox().click_icon(static_cast<std::size_t>(index),
                                     editor_ui_.tool_world());
 }
@@ -370,6 +403,74 @@ void App::on_build_menu() {
 // G ставит деталь прямо. After a few fine steps "back to zero" by arrow is
 // arithmetic the builder should not have to do. Asked OF THE TOOL, never of a
 // mode flag: only the hand that turns parts may be un-turned.
+/// ШАГ СТРЕЛКАМИ ПО ВЫБРАННОМУ ЯКОРЮ. true — что-то сдвинули.
+///
+/// НАПРАВЛЕНИЯ ОТ КАМЕРЫ, А НЕ ОТ МИРА: «вправо» значит вправо НА ЭКРАНЕ, иначе
+/// человеку пришлось бы держать в голове, куда сейчас смотрит север. Вверх и
+/// вниз — по мировой вертикали: единственное направление, которое от взгляда не
+/// зависит и всегда значит одно и то же.
+void App::draw_editor_grid(const ToolAim& aim) {
+    if (!house_.grid_on() || renderer_ == nullptr || !aim.hit) {
+        return;
+    }
+    // ОТСЕЧКИ ТОЛЬКО ВОКРУГ ПРИЦЕЛА, а не по всему миру — прямое требование:
+    // «сетка везде глаза зальёт». Пятно узлов идёт за прицелом и живёт в
+    // МИРОВЫХ координатах: узел там, где координата кратна шагу, и он не
+    // сдвинется оттого, что человек отошёл.
+    const float step = house_.grid_step_m();
+    constexpr int HALF = 8; // узлов в каждую сторону от прицела
+    const float cx = std::round(aim.point.x / step) * step;
+    const float cz = std::round(aim.point.z / step) * step;
+    // ПЕРЕКРЕСТИЯ, А НЕ СПЛОШНЫЕ ЛИНИИ. Сплошная сетка на траве читается как
+    // рябь и прячет саму траву; короткие крестики в узлах говорят то же самое
+    // («вот куда прилипнет»), занимая на порядок меньше пикселей.
+    const float tick = std::min(step * 0.18f, 0.25f);
+    constexpr std::uint32_t COL = 0xFF60D8F0u;
+    for (int iz = -HALF; iz <= HALF; ++iz) {
+        for (int ix = -HALF; ix <= HALF; ++ix) {
+            const float x = cx + static_cast<float>(ix) * step;
+            const float z = cz + static_cast<float>(iz) * step;
+            const float y = chunks_.height_at({x, z}).value_or(aim.point.y) + 0.03f;
+            renderer_->debug_line({x - tick, y, z}, {x + tick, y, z}, COL);
+            renderer_->debug_line({x, y, z - tick}, {x, y, z + tick}, COL);
+        }
+    }
+    renderer_->set_debug_lines(true);
+}
+
+bool App::nudge_selected_anchor() {
+    const float step = house_.grid_step_m();
+    const float yaw = editor_cam_.yaw();
+    const glm::vec3 fwd{std::sin(yaw), 0.0f, -std::cos(yaw)};
+    const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
+    glm::vec3 by{0.0f};
+    const bool shift = input_->is_down(platform::Key::LEFT_SHIFT)
+                    || input_->is_down(platform::Key::RIGHT_SHIFT);
+    if (input_->was_pressed(platform::Key::RIGHT)) { by += right * step; }
+    if (input_->was_pressed(platform::Key::LEFT)) { by -= right * step; }
+    // SHIFT+ВВЕРХ/ВНИЗ — ПО ВЫСОТЕ, без него — вперёд/назад по земле. Одна пара
+    // клавиш на два направления: третьей пары стрелок на клавиатуре нет.
+    if (input_->was_pressed(platform::Key::UP)) {
+        by += shift ? glm::vec3{0.0f, step, 0.0f} : fwd * step;
+    }
+    if (input_->was_pressed(platform::Key::DOWN)) {
+        by -= shift ? glm::vec3{0.0f, step, 0.0f} : fwd * step;
+    }
+    if (glm::length(by) < 1e-6f) {
+        return false;
+    }
+    const world::VertexId id = house_.selected_vertex();
+    const glm::vec3 to = house_.vertex_world(id) + by;
+    (void)house_.mutate("сдвинул якорь стрелкой", [&](world::HouseGraph& g) {
+        return g.move_vertex(id, house_.to_local(to));
+    });
+    std::fprintf(stderr, "[постройка] якорь v%u -> (%.2f %.2f %.2f), шаг %.2f м\n",
+                 static_cast<unsigned>(id), static_cast<double>(to.x),
+                 static_cast<double>(to.y), static_cast<double>(to.z),
+                 static_cast<double>(step));
+    return true;
+}
+
 void App::on_build_rotate() {
     const IEditorTool* held = editor_ui_.toolbox().active();
     if (held != nullptr && held->wants_part_rotation()) {
@@ -383,6 +484,18 @@ void App::on_build_rotate() {
 // адресован тому, кто на него отвечает: wants_part_rotation().
 void App::update_part_rotation() {
     if (mode_ != AppMode::Editor) {
+        return;
+    }
+    // СТРЕЛКИ ДВИГАЮТ ВЫБРАННЫЙ ЯКОРЬ ШАГОМ СЕТКИ (заказ 18.08: «на стрелочки я
+    // должен дискретно двигать объект, камера к нему должна быть прилиплена, то
+    // есть фокус не теряется»). Фокус здесь и не может потеряться: двигается
+    // ВЫБРАННОЕ, а выбор живёт в сессии и от камеры не зависит вовсе.
+    //
+    // ПОРЯДОК ХОЗЯЕВ: якорь перед деталью. Крутить деталь и двигать якорь одной
+    // клавишей нельзя, а выбранный якорь — состояние, которое человек назначил
+    // сам и видит на экране; деталь в руке он видит там же, но выбор якоря
+    // адреснее.
+    if (house_.selected_vertex() != world::NO_VERTEX && nudge_selected_anchor()) {
         return;
     }
     const IEditorTool* held = editor_ui_.toolbox().active();

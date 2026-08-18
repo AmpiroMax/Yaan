@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -33,6 +33,7 @@ UPD:
 - 18:08:2026 - 18:02:11: Создан вместе с EditorToolHouse.{h,cpp}.
 - 18:08:2026 - 19:44:10: Ползунок правит то же число, что и колесо, через set_pull_m.
 - 18:08:2026 - 22:20:15: Свойства выбранного элемента — один блок на три панели: полутолщина, толщина, высота, поворот текстуры, разворот лица, удаление.
+- 18:08:2026 - 23:20:00: Блок сетки и точных координат якоря — один на три панели.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -60,6 +61,51 @@ void draw_refusal(const std::string& text) {
     // ОТКАЗ ВИДЕН, А НЕ УХОДИТ В stderr. Ровно это разбирали 18.08 трижды:
     // молча не сработавший инструмент неотличим от сломанного.
     ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f), "%s", text.c_str());
+}
+
+/// СЕТКА МИРА И ТОЧНЫЕ КООРДИНАТЫ ЯКОРЯ — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
+///
+/// Два заказа 18.08 рядом, потому что отвечают на один вопрос — «поставь ровно
+/// туда, куда я хочу»: «возможность включать и выключать сетку мира, чтобы я
+/// мог по сетке некоторые вещи строить... шаг сетки менять» и «нет возможности
+/// указать точную высоту якоря или другие его координаты».
+///
+/// СЕТКА В МИРОВЫХ КООРДИНАТАХ, и это его слова: узел там, где координата
+/// кратна шагу, а не там, где начали строить. Один шаг на всё — по нему
+/// прилипает якорь, им же шагают стрелки, его же рисуют отсечки на земле.
+static void draw_grid_and_coords(HouseSession& session) {
+    bool on = session.grid_on();
+    if (ImGui::Checkbox(EditorUi::tr("house.grid"), &on)) {
+        session.set_grid_on(on);
+    }
+    float step = session.grid_step_m();
+    if (ImGui::SliderFloat(EditorUi::tr("house.grid.step"), &step, 0.05f, 5.0f, "%.2f m")) {
+        session.set_grid_step_m(step);
+    }
+    ImGui::TextDisabled("%s", EditorUi::tr("house.grid.note"));
+
+    const world::VertexId sel = session.selected_vertex();
+    if (sel == world::NO_VERTEX) {
+        return;
+    }
+    // КООРДИНАТЫ ЧИТАЮТСЯ ИЗ МИРА И ПИШУТСЯ В МИР. Внутри граф хранит местные
+    // координаты постройки, но человек думает в мировых — он их и видит в
+    // отладочном выводе, и по ним ставит дом на карте.
+    glm::vec3 p = session.vertex_world(sel);
+    const float before[3] = {p.x, p.y, p.z};
+    if (ImGui::InputFloat3(EditorUi::tr("house.coords"), &p.x, "%.3f")) {
+        if (p.x != before[0] || p.y != before[1] || p.z != before[2]) {
+            (void)session.mutate("координаты якоря", [&](world::HouseGraph& g) {
+                return g.move_vertex(sel, session.to_local(p));
+            });
+        }
+    }
+    // ЗАЗЕМЛЁННЫЙ ЯКОРЬ ВЫСОТУ НЕ ХРАНИТ, и сказать это надо здесь, а не дать
+    // человеку впечатать высоту и увидеть, что она не взялась.
+    if (const world::Vertex* v = session.graph().vertex(sel);
+        v != nullptr && v->anchoring == world::Anchoring::OnGround) {
+        ImGui::TextDisabled("%s", EditorUi::tr("house.coords.ground"));
+    }
 }
 
 /// СВОЙСТВА ВЫБРАННОГО ЭЛЕМЕНТА — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
@@ -182,6 +228,8 @@ void HouseVertexTool::draw_settings() {
     // панели ему незачем.
     ImGui::Separator();
     if (session_ != nullptr) {
+        draw_grid_and_coords(*session_);
+        ImGui::Separator();
         draw_selected_element(*session_);
     }
 }
@@ -220,6 +268,8 @@ void HouseLineTool::draw_settings() {
     // панели ему незачем.
     ImGui::Separator();
     if (session_ != nullptr) {
+        draw_grid_and_coords(*session_);
+        ImGui::Separator();
         draw_selected_element(*session_);
     }
 }
@@ -278,6 +328,8 @@ void HouseSurfaceTool::draw_settings() {
     // панели ему незачем.
     ImGui::Separator();
     if (session_ != nullptr) {
+        draw_grid_and_coords(*session_);
+        ImGui::Separator();
         draw_selected_element(*session_);
     }
 }

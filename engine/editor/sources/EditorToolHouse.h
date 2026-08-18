@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.h
 
@@ -83,6 +83,7 @@ UPD:
 - 18:08:2026 - 20:26:30: pick_element_ray (выбор любого элемента по контуру) и delete_selection (одно удаление на стену, прямую и якорь); у прямой поле snap_.
 - 18:08:2026 - 21:12:40: version() — версия геометрии, растёт в mutate; revision() остался про имена. Их путаница стоила незалитого тела.
 - 18:08:2026 - 22:20:15: AxisLock из трёх видов (свободно/вертикаль/вдоль прямой), cycle_axis, axis_dir, axis_label; версия спрашивается у графа.
+- 18:08:2026 - 23:20:00: Сетка мира в сессии (вкл, шаг, snap_to_grid); у прямой есть черновик и отмена; три инструмента ведут взятое без проверки дальности.
 */
 
 #pragma once
@@ -92,6 +93,7 @@ UPD:
 #include "engine/world/sources/HouseGraph.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <glm/vec2.hpp>
@@ -329,6 +331,35 @@ public:
     /// Как назвать текущее ограничение человеку.
     [[nodiscard]] std::string axis_label() const;
 
+    /// СЕТКА МИРА: включена ли и с каким шагом.
+    ///
+    /// ОДНА НА ВСЁХ И В МИРОВЫХ КООРДИНАТАХ (заказ 18.08: «сетка строится по
+    /// координатам мира, а не по относительным координатам чего-либо»). По ней
+    /// прилипает якорь, ею же шагают стрелки, её же рисуют отсечки на земле —
+    /// три разных шага были бы тремя разными сетками, из которых видна одна.
+    ///
+    /// Живёт в сессии по той же причине, что и ось: это состояние РУКИ, общее
+    /// для всех инструментов постройки, а App держит полем только сессию.
+    [[nodiscard]] bool grid_on() const { return grid_on_; }
+    void set_grid_on(bool on) { grid_on_ = on; }
+    [[nodiscard]] float grid_step_m() const { return grid_step_m_; }
+    void set_grid_step_m(float m) {
+        // Зажим здесь, а не у каждого органа управления: шаг правят и панель, и
+        // клавиши, а предел обязан быть один (правило 32).
+        grid_step_m_ = std::clamp(m, 0.05f, 10.0f);
+    }
+    /// Ближайший узел сетки. Возвращает точку как есть, когда сетка выключена —
+    /// вызывающему не нужно знать, включена она или нет.
+    [[nodiscard]] glm::vec3 snap_to_grid(glm::vec3 world) const {
+        if (!grid_on_) {
+            return world;
+        }
+        const auto q = [&](float v) {
+            return std::round(v / grid_step_m_) * grid_step_m_;
+        };
+        return {q(world.x), q(world.y), q(world.z)};
+    }
+
     /// Якорь В ЭТОЙ ТОЧКЕ, если он там ОДИН. NO_VERTEX, если якоря там нет ИЛИ
     /// их там несколько: это опознание, а не поиск ближайшего, и на
     /// неоднозначности оно обязано отказать, а не выбрать первый попавшийся.
@@ -404,8 +435,13 @@ public:
     /// («не понимаю как выбрать её», 18.08). Поверхность ищется по СВОЕМУ
     /// КОНТУРУ — по тем самым отрезкам, которыми она нарисована: пока дом
     /// проволочный, целиться можно только в то, что видно.
+    /// `out_distance` (если не nullptr) получает расстояние до попадания вдоль
+    /// луча. Оно нужно ПРИЦЕЛУ: без него прицел не знает, что упёрся в стену, и
+    /// улетает в землю за ней — а вместе с ним улетает и проверка дальности,
+    /// из-за которой щелчок по стене не принимался вовсе.
     [[nodiscard]] world::ElementId pick_element_ray(glm::vec3 origin, glm::vec3 dir,
-                                                    float grab_m) const;
+                                                    float grab_m,
+                                                    float* out_distance = nullptr) const;
 
     /// УБРАТЬ ВЫБРАННОЕ: элемент, если выбран он, иначе якорь.
     ///
@@ -435,6 +471,8 @@ private:
     std::vector<world::VertexId> lit_vertices_;
     std::uint32_t revision_ = 0;
     AxisLock axis_{};
+    bool grid_on_ = false;
+    float grid_step_m_ = 0.5f;
 };
 
 /// Направление прямой из её чисел — ТО ЖЕ ВЫРАЖЕНИЕ, что в построителе меша
@@ -468,6 +506,7 @@ public:
     void on_release(ToolWorld& world) override;
     [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override;
     void draw_settings() override;
+    [[nodiscard]] bool stroke_needs_reach() const override { return false; }
     [[nodiscard]] float max_reach_m() const override { return 60.0f; }
     [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;
     void on_deselected(ToolWorld& world) override;
@@ -590,10 +629,14 @@ public:
         return session_ != nullptr && from_ != world::NO_VERTEX
             && !session_->axis().free();
     }
+    /// Набранное у прямой — это якорь, от которого её тянут: ESC обязан его
+    /// отпустить, иначе следующая прямая молча начнётся от старого.
+    [[nodiscard]] bool has_draft() const override { return from_ != world::NO_VERTEX; }
+    void on_cancel(ToolWorld& world) override;
+    [[nodiscard]] bool stroke_needs_reach() const override { return false; }
     [[nodiscard]] float max_reach_m() const override { return 60.0f; }
     [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;
     void on_deselected(ToolWorld& world) override;
-    void on_cancel(ToolWorld& world) override;
 
     void set_world(ToolWorld* world) { world_ = world; }
 
@@ -665,6 +708,7 @@ public:
     void on_release(ToolWorld& world) override;
     [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override;
     void draw_settings() override;
+    [[nodiscard]] bool stroke_needs_reach() const override { return false; }
     [[nodiscard]] float max_reach_m() const override { return 60.0f; }
     [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;
     void on_deselected(ToolWorld& world) override;

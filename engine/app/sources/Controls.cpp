@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -23,6 +23,7 @@ UPD:
 - 18:08:2026 - 17:16:29: строка отмены и подпись клавиши Z (без подписи строка рисуется как «?»).
 - 18:08:2026 - 18:58:40: V — фиксация оси (не Z: Z занята отменой), и подпись клавиши V, без которой экран управления рисовал «?».
 - 18:08:2026 - 20:26:30: Delete и Backspace убирают выбранное; подписи обеих клавиш.
+- 18:08:2026 - 23:20:00: Режим на `, Tab отдан интерфейсу; цифры 6..9 и их подписи.
 */
 
 #include "engine/app/sources/Controls.h"
@@ -76,6 +77,10 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     {Action::ToolSelect, K::NUM_3, K::UNKNOWN, "controls.tool_select", Scope::EditorOnly},
     {Action::ToolPlace, K::NUM_4, K::UNKNOWN, "controls.tool_place", Scope::EditorOnly},
     {Action::ToolLook, K::NUM_5, K::UNKNOWN, "controls.tool_look", Scope::EditorOnly},
+    {Action::Tool6, K::NUM_6, K::UNKNOWN, "controls.tool_6", Scope::EditorOnly},
+    {Action::Tool7, K::NUM_7, K::UNKNOWN, "controls.tool_7", Scope::EditorOnly},
+    {Action::Tool8, K::NUM_8, K::UNKNOWN, "controls.tool_8", Scope::EditorOnly},
+    {Action::Tool9, K::NUM_9, K::UNKNOWN, "controls.tool_9", Scope::EditorOnly},
     // Z одна на оба: отмену от повтора отличает Shift, и это УСЛОВИЕ, а не
     // вторая клавиша. Область — редактор: отменять в игре нечего.
     {Action::Undo, K::Z, K::UNKNOWN, "controls.undo", Scope::EditorOnly},
@@ -174,6 +179,10 @@ const char* key_name(platform::Key key) {
     case K::NUM_3: return "3";
     case K::NUM_4: return "4";
     case K::NUM_5: return "5";
+    case K::NUM_6: return "6";
+    case K::NUM_7: return "7";
+    case K::NUM_8: return "8";
+    case K::NUM_9: return "9";
     case K::F2: return "F2";
     case K::F3: return "F3";
     case K::F4: return "F4";

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 22:26:40
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -562,6 +562,7 @@ UPD:
 - 18:08:2026 - 21:12:40: Тело постройки из графа заливается в отрисовку по версии геометрии, с переводом в мировые координаты и цветом по виду элемента; двери DFN_HOUSE_DEMO (сруб перед камерой) и печать находок.
 - 18:08:2026 - 21:38:05: Коллайдер постройки из ТЕХ ЖЕ треугольников, что и картинка; в том же прогоне печатается луч сквозь дом и контрольный луч в стороне.
 - 18:08:2026 - 22:26:40: Тело постройки делится по материалу на каркас и полотна; цвет по виду элемента назван временной заменой материалу.
+- 18:08:2026 - 23:20:00: Прицел упирается и в ПОСТРОЙКУ (иначе луч уходил сквозь стену в землю за ней, и щелчок по стене отказывался по дальности); блок цифр редактора ушёл под F3, режим называет жёлтый значок.
 */
 
 #include "engine/app/sources/App.h"
@@ -2340,6 +2341,19 @@ ToolAim App::editor_aim() {
     // ceiling expressible at all (user, 18.08: «я не должен уметь за 1000 км
     // что-то строить»). It used to return a bare vec3, so no consumer could ask
     // how far the march had gone — the ceiling had nowhere to be checked.
+    // И ПОСТРОЙКА — ТОЖЕ ПОВЕРХНОСТЬ, В КОТОРУЮ УПИРАЕТСЯ ВЗГЛЯД.
+    //
+    // Пока её здесь не было, луч проходил СКВОЗЬ стену и останавливался на
+    // земле за ней: точка прицела оказывалась в тридцати метрах, проверка
+    // дальности отказывала щелчку — и человек трижды писал «не могу выбрать
+    // стену», глядя прямо на неё. Дело было не в поиске цели, а в том, что
+    // прицел не считал дом препятствием.
+    float house_t = 0.0f;
+    if (house_.pick_element_ray(origin, fwd, HOUSE_EDGE_GRAB_M, &house_t) != world::NO_ELEMENT
+        && house_t > 0.0f && (!found || house_t < hit_t)) {
+        hit_t = house_t;
+        found = true;
+    }
     ToolAim aim;
     aim.origin = origin;
     aim.point = origin + fwd * (found ? hit_t : 8.0f);
@@ -4569,6 +4583,7 @@ int App::run() {
             frame.facts.third_person = third_person_;
             frame.facts.map_open = render_system_.map_open();
             frame.facts.debug_readout = debug_overlay_ || capture_pending_;
+            frame.facts.editor_mode = editor;
             // Полный холст: отступ уже взят рендерером выше (см. довод там).
             frame.facts.world_x = 0;
             frame.facts.world_y = 0;
@@ -4634,8 +4649,16 @@ int App::run() {
             // frame's render), which is one frame of lag on a readout --
             // imperceptible, and the only honest option, since the numbers do
             // not exist until end_frame.
+            //
+            // БЛОК ЦИФР ПОКАЗЫВАЕТСЯ ТОЛЬКО ВМЕСТЕ С ОТЛАДОЧНЫМ ВЫВОДОМ (заказ
+            // 18.08: «убери текст про число треугольников и режим редактора»).
+            // Он не удалён: числа кадра, прицела и мыши — приборы, которыми за
+            // этот вечер поймано три дефекта, и выбрасывать их значило бы
+            // остаться без глаз. Он просто перестал быть постоянным: F3
+            // поднимает и вывод, и его. На чистом экране режим называет
+            // маленький жёлтый значок внизу, и этого человеку достаточно.
             EditorHudSnapshot ed;
-            if (editor) {
+            if (editor && (debug_overlay_ || capture_pending_)) {
                 const platform::RenderFrameStats& fs = renderer_->frame_stats();
                 const platform::RenderPick& pk = renderer_->center_pick();
                 ed.fly_speed_mps = editor_cam_.speed();

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:04:20
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolbox.cpp
 
@@ -31,6 +31,7 @@ UPD:
   которого щелчок не выполнит, и это была бы та же неясность в другом месте.
 - 18:08:2026 - 18:58:40: Луч, не встретивший земли, отдаётся инструменту с фиксированной осью — иначе стойку нельзя вести вверх вообще.
 - 18:08:2026 - 20:26:30: Показ зовётся ВСЕГДА, с флагом дальности: постройка перестала исчезать, когда человек отходит.
+- 18:08:2026 - 23:20:00: Протаскивание не рвётся дальностью у тех, кто ведёт уже взятое.
 */
 
 #include "engine/editor/sources/EditorToolbox.h"
@@ -218,10 +219,16 @@ ToolTickReport EditorToolbox::update(const ToolAim& aim, float dt_s,
         return out;
     }
     if (button_down && holding_) {
-        if (!in_reach(aim)) {
-            // The hand wandered past the ceiling mid-stroke: stop biting, but
-            // keep the stroke alive — coming back inside continues it, and a
-            // stroke that ended silently would read as the button letting go.
+        // ВЗЯТОЕ В РУКУ НЕ ВЫПАДАЕТ ИЗ-ЗА ДАЛЬНОСТИ. Потолок судит НАЧАЛО
+        // работы — «я не должен уметь за 1000 км что-то строить», — и он уже
+        // отсудил его на нажатии. Дальше человек ведёт то, что держит, и
+        // спрашивать снова, далеко ли ушёл ПРИЦЕЛ, значит рвать движение на
+        // ровном месте: пользователь 18.08 показал это, потянув якорь вверх, —
+        // луч ушёл в небо, и якорь замер, хотя держали его в метре от лица.
+        //
+        // Кисти это не касается: у неё каждый шаг штриха — новый укус, и
+        // ограничение ей нужно. Поэтому спрашивается сам инструмент.
+        if (!in_reach(aim) && tool->stroke_needs_reach()) {
             out.out_of_reach = true;
             return out;
         }

@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:38:00
-Last updated: 18:08:2026 - 17:32:10
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -41,6 +41,7 @@ UPD:
 - 18:08:2026 - 17:32:10: чтение двери — через таблицу (door_value, AppDoors.h). Слой 2
   разбора App.cpp: имя без строки в таблице больше не открывается и говорит об
   этом вслух, поэтому «какие вообще есть двери» перестало быть вопросом к grep.
+- 18:08:2026 - 23:20:00: Жёлтый значок режима редактора в углу игрового поля.
 */
 
 #include "engine/app/sources/HudScreen.h"
@@ -404,7 +405,39 @@ bool draw_condition_bars(render::PixelCanvas& canvas, const HudFacts& facts) {
     return true;
 }
 
+/// ЗНАЧОК РЕЖИМА РЕДАКТОРА: жёлтый квадрат с карандашом, слева внизу игрового
+/// поля. Размер и место выбраны так, чтобы он НЕ спорил с плашкой инструмента
+/// (та по центру) и не залезал на полоски состояния (те в самом углу).
+static void draw_editor_mode_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
+    if (!facts.editor_mode || facts.map_open) {
+        return;
+    }
+    int wx = 0;
+    int wy = 0;
+    int ww = 0;
+    int wh = 0;
+    hud_world_rect(canvas, facts, wx, wy, ww, wh);
+    constexpr int SIDE = 11;
+    constexpr int GAP = 4;
+    const int x0 = wx + ww - SIDE - GAP; // правый нижний угол игрового поля
+    const int y0 = wy + wh - SIDE - GAP;
+    const render::Color yellow{232, 196, 72};
+    const render::Color ink{28, 26, 20};
+    canvas.fill_rect(x0, y0, SIDE, SIDE, yellow);
+    // КАРАНДАШ ПО ДИАГОНАЛИ: три пикселя жала, черта корпуса. Рисунок, а не
+    // буква, потому что буква на 11 пикселях читается как грязь.
+    for (int i = 2; i < SIDE - 2; ++i) {
+        canvas.put(x0 + i, y0 + SIDE - 1 - i, ink);
+        if (i + 1 < SIDE - 2) {
+            canvas.put(x0 + i + 1, y0 + SIDE - 1 - i, ink);
+        }
+    }
+    canvas.put(x0 + 2, y0 + SIDE - 3, ink);
+    canvas.put(x0 + 3, y0 + SIDE - 2, ink);
+}
+
 bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
+    draw_editor_mode_badge(canvas, facts);
     // NO NAME MEANS NO TOOL IN HAND, and that is every frame of the game. The
     // test is on the NAME rather than on a mode flag so this layer never has to
     // learn what an editor tool is: it is handed two sentences or nothing.

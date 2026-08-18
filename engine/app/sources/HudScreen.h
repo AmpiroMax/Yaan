@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:35:00
-Last updated: 17:08:2026 - 22:01:29
+Last updated: 18:08:2026 - 23:20:00
 Module: engine/app
 File: engine/app/sources/HudScreen.h
 
@@ -64,6 +64,7 @@ UPD:
   Значок стоит ПОД ПРИЦЕЛОМ, а не в углу, потому что вопрос «что я сейчас
   делаю» задают, глядя на землю, которую сейчас изменят. Фишка на верхней
   полосе у пользователя уже была и на этот вопрос не ответила.
+- 18:08:2026 - 23:20:00: Факт editor_mode — значок вместо строки.
 */
 
 #pragma once
@@ -86,6 +87,13 @@ struct HudFacts {
     bool third_person = false; // the camera is behind the character
     bool map_open = false;     // the full-screen map plate is up
     bool debug_readout = false; // the F3 readout is up (it owns the top-left)
+
+    /// РЕЖИМ РЕДАКТОРА, названный ЗНАЧКОМ, а не строкой (заказ 18.08: «просто
+    /// снизу пиши что я в режиме редактора небольшой квадратной иконкой
+    /// жёлтого цвета с соответствующим изображением»). Строка-баннер со
+    /// скоростью полёта уехала под F3 вместе с числами кадра: она отвечала на
+    /// вопрос, который человек задаёт раз в сеанс, и занимала место каждый кадр.
+    bool editor_mode = false;
 
     // WHERE THE PLAYER IS LOOKING. Sim's convention, named here because a
     // compass that guesses it is a compass that points the wrong way: yaw 0 is
