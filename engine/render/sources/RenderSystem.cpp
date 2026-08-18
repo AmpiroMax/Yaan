@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 18:41:51
+Last updated: 18:08:2026 - 21:12:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -155,6 +155,7 @@ UPD:
   бинарника (правило 47), а не удалена.
 - 17:08:2026 - 18:41:51: призрак рисуется последним из мировой геометрии, неосвещённым: это ОТВЕТ на
   мире, а не вещь в нём, и на закате он не должен выглядеть иначе.
+- 18:08:2026 - 21:12:40: Тело постройки рисуется перед призраком: призрак — ответ поверх мира, дом — вещь в мире.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -928,6 +929,12 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     if (firefly_mesh_id_ != 0 && unlit_program_ != 0) {
         renderer.submit(platform::MeshHandle{firefly_mesh_id_},
                         platform::ProgramHandle{unlit_program_}, identity);
+    }
+    // ПОСТРОЙКА РЕДАКТОРА — ОСВЕЩЁННАЯ, как и всякая вещь в мире. Перед
+    // призраком: призрак рисуется поверх всего, потому что он ответ.
+    if (house_mesh_id_ != 0 && prop_program_ != 0) {
+        renderer.submit(platform::MeshHandle{house_mesh_id_},
+                        platform::ProgramHandle{prop_program_}, identity);
     }
     // THE BUILD GHOST last of the world's geometry, unlit: it is an ANSWER
     // painted on the world, not a thing in it, and shading it by the sun would

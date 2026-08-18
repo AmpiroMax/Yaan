@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 18:08:2026 - 21:12:40
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -59,6 +59,7 @@ UPD:
   (REQUIRE обрывает случай).
 - 18:08:2026 - 19:44:10: Якорь в воздухе ловится лучом, а точкой на земле — никогда; ось ловится лучом на любой высоте; колесо тянет шарик и не пускает под землю; магнит на ось с контролем «вдвое меньше — не липнет».
 - 18:08:2026 - 20:26:30: Стойка ловит якорь как лежачее бревно; прямая между двумя якорями в воздухе соединяет их, а не пол; стена выбирается по контуру и убирается одной командой, отказ на занятый якорь со списком.
+- 18:08:2026 - 21:12:40: Прямая в пустоте даёт второй ЯКОРЬ (и его находит поиск лучом), зажим приходит в тот же якорь; проверки переписаны с длины-числа на связь.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -455,31 +456,35 @@ TEST_CASE("одна механика прямой даёт два исхода")
     CHECK(b.session.graph().element(joined)->refs.size() == 2);
     CHECK(b.session.graph().param(joined, "length").empty());
 
-    // ИСХОД ВТОРОЙ: отпустил в пустоте — прямая с длиной и углами из жеста.
+    // ИСХОД ВТОРОЙ: отпустил в пустоте — ТАМ ПОЯВИЛСЯ ЯКОРЬ, и прямая идёт к
+    // нему. Решение пользователя 18.08: «прямая без якоря на конце —
+    // бессмыслица». Длина и углы никуда не делись, они выражены ПОЛОЖЕНИЕМ
+    // второго якоря — и потому его можно схватить, подвинуть и связать дальше.
     const glm::vec3 gesture{0.0f, 3.0f, 0.0f};
+    const std::size_t before_vertices = b.session.graph().vertex_count();
     b.drag(lt, glm::vec3{4.0f, 0.0f, 0.0f}, glm::vec3{4.0f, 0.0f, 0.0f} + gesture);
     const ElementId hanging = lt.last_element();
     REQUIRE(hanging != joined);
-    REQUIRE(b.session.graph().element(hanging)->refs.size() == 1);
-    const std::string len = b.session.graph().param(hanging, "length");
-    REQUIRE_FALSE(len.empty());
-    CHECK(std::stof(len) == doctest::Approx(3.0f).epsilon(0.001));
-
-    // УГЛЫ ОБЯЗАНЫ ВОСПРОИЗВОДИТЬ ЖЕСТ, и проверяется это ТОЙ ЖЕ формулой,
-    // которой пользуется построитель меша: иначе бревно встанет не туда, куда
-    // его тянули, и виноватым будет выглядеть построитель.
-    const float ax = std::stof(b.session.graph().param(hanging, "angle_x"));
-    const float ay = std::stof(b.session.graph().param(hanging, "angle_y"));
-    const glm::vec3 dir = house_dir_from_angles(ax, ay) * std::stof(len);
-    CHECK(glm::length(dir - gesture) < 1e-3f);
+    REQUIRE(b.session.graph().element(hanging)->refs.size() == 2);
+    CHECK(b.session.graph().vertex_count() == before_vertices + 1);
+    // ДЛИНЫ ЧИСЛОМ БОЛЬШЕ НЕТ — она в геометрии, и это то же самое число.
+    CHECK(b.session.graph().param(hanging, "length").empty());
+    const VertexId tip = b.session.graph().element(hanging)->refs.back();
+    const glm::vec3 tip_world = b.session.vertex_world(tip);
+    CHECK(glm::length(tip_world - (glm::vec3{4.0f, 0.0f, 0.0f} + gesture)) < 1e-3f);
     MESSAGE("жест (" << gesture.x << " " << gesture.y << " " << gesture.z
-            << ") записан как length=" << len << " angle_x=" << ax << " angle_y=" << ay);
+            << ") стал якорем в (" << tip_world.x << " " << tip_world.y << " "
+            << tip_world.z << ")");
 
-    // КРУГОВОЙ ПРОГОН: числа переживают запись и чтение. Без этого «параметры
-    // записаны» значит только «записаны в память».
+    // И ЭТОТ КОНЕЦ — НАСТОЯЩИЙ ЯКОРЬ: его находит поиск лучом, чего про
+    // прежний «конец числом» сказать было нельзя вовсе.
+    CHECK(b.session.pick_vertex_ray({4.0f, 3.0f, -8.0f}, {0.0f, 0.0f, 1.0f},
+                                    HOUSE_GRAB_M) == tip);
+
+    // КРУГОВОЙ ПРОГОН: положение переживает запись и чтение.
     HouseSession copy;
     REQUIRE(copy.apply_snapshot(b.session.snapshot()));
-    CHECK(copy.graph().param(hanging, "length") == len);
+    CHECK(glm::length(copy.vertex_world(tip) - tip_world) < 1e-3f);
 }
 
 TEST_CASE("наклонный жест: углы отыгрываются обратно") {
@@ -548,7 +553,11 @@ TEST_CASE("зажим длины выбирает якорь сверху или
     lt.on_release(b.world);
     const ElementId made = lt.last_element();
     REQUIRE(made != NO_ELEMENT);
-    CHECK(std::stof(b.session.graph().param(made, "length")) == doctest::Approx(2.0f));
+    // ЗАЖИМ САДИТ КОНЕЦ НА ТОТ САМЫЙ ЯКОРЬ, а не ставит рядом с ним двойника:
+    // длина в 2 м теперь выражена связью, а не числом в параметрах.
+    REQUIRE(b.session.graph().element(made)->refs.size() == 2);
+    CHECK(b.session.graph().element(made)->refs.back() == near_v);
+    CHECK(b.session.graph().param(made, "length").empty());
 
     // КОНТРОЛЬ: без зажима та же рука даёт 3.5 м. Без этого плеча утверждение
     // выше проходило бы на инструменте, который всегда строит по два метра.
@@ -1088,11 +1097,14 @@ TEST_CASE("зажим длины работает ВДОЛЬ запертой о
         return lt.ghost_end();
     };
 
-    // БЕЗ ЗАЖИМА: конец сидит на оси, на высоте жеста.
+    // БЕЗ ЗАЖИМА: конец сидит на оси, на высоте жеста. ЖЕСТ ОТМЕНЯЕТСЯ, а не
+    // отпускается: с сегодняшнего дня отпущенная в пустоте прямая СТАВИТ ТАМ
+    // ЯКОРЬ, и этот якорь стал бы кандидатом для зажимов ниже — проверка
+    // мерила бы собственный след.
     glm::vec3 end = pull(HouseClamp::None);
     CHECK(std::hypot(end.x, end.z) < 1e-3f);
     CHECK(end.y == doctest::Approx(3.5f).epsilon(0.02));
-    lt.on_release(b.world);
+    lt.on_cancel(b.world);
 
     // ВВЕРХ: до дальнего якоря НА ОСИ, а не до чего-нибудь на земле.
     end = pull(HouseClamp::Above);
@@ -1101,9 +1113,10 @@ TEST_CASE("зажим длины работает ВДОЛЬ запертой о
     CHECK(std::hypot(end.x, end.z) < 1e-3f);
     CHECK(end.y == doctest::Approx(5.0f).epsilon(0.02));
     lt.on_release(b.world);
-    // И ДЛИНА ДОЕХАЛА ДО ЭЛЕМЕНТА, а не осталась в призраке.
-    CHECK(std::stof(b.session.graph().param(lt.last_element(), "length"))
-          == doctest::Approx(5.0f).epsilon(0.02));
+    // И ЗАЖИМ ДОЕХАЛ ДО ЭЛЕМЕНТА: прямая пришла В ТОТ САМЫЙ ЯКОРЬ, а не
+    // остановилась рядом с ним числом.
+    REQUIRE(b.session.graph().element(lt.last_element())->refs.size() == 2);
+    CHECK(b.session.graph().element(lt.last_element())->refs.back() == high);
 
     // ВНИЗ: до ближнего.
     end = pull(HouseClamp::Below);
@@ -1111,10 +1124,10 @@ TEST_CASE("зажим длины работает ВДОЛЬ запертой о
     CHECK(lt.clamp_hit().at == low);
     CHECK(end.y == doctest::Approx(2.0f).epsilon(0.02));
     lt.on_release(b.world);
-    MESSAGE("рука на 3.5 м по запертой вертикали: вниз зажало до "
-            << b.session.graph().param(lt.last_element(), "length")
-            << " м (якорь v" << static_cast<unsigned>(low) << "), вверх — до 5.00 м (v"
-            << static_cast<unsigned>(high) << ")");
+    CHECK(b.session.graph().element(lt.last_element())->refs.back() == low);
+    MESSAGE("рука на 3.5 м по запертой вертикали: вниз пришла в v"
+            << static_cast<unsigned>(low) << ", вверх — в v"
+            << static_cast<unsigned>(high));
 
     // КОНТРОЛЬ, БЕЗ КОТОРОГО ВСЁ ВЫШЕ НИЧЕГО НЕ ЗНАЧИТ: та же рука и тот же
     // зажим, но ОСЬ ОТПУЩЕНА. Тогда конец уезжает по земле, вертикальные якоря
@@ -1126,7 +1139,7 @@ TEST_CASE("зажим длины работает ВДОЛЬ запертой о
     lt.on_drag(aim, 0.016f, b.world);
     CHECK_FALSE(lt.clamp_hit().found);
     CHECK(lt.ghost_end().y == doctest::Approx(3.5f).epsilon(0.02));
-    lt.on_release(b.world);
+    lt.on_cancel(b.world);
 }
 
 TEST_CASE("ось отпускает ящик к небу только пока она включена") {

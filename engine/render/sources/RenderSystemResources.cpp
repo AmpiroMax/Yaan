@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 17:08:2026 - 18:41:51
+Last updated: 18:08:2026 - 21:12:40
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -64,6 +64,7 @@ UPD:
   считается по просящим.
 - 17:08:2026 - 11:13:47: тела set_firefly_mesh/set_emissive_mesh.
 - 17:08:2026 - 18:41:51: тело set_ghost_mesh — перезаливается каждый кадр, он ходит за прицелом.
+- 18:08:2026 - 21:12:40: Заливка слота постройки со свободой прежнего буфера.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -383,6 +384,23 @@ void RenderSystem::set_ghost_mesh(platform::IRenderer& renderer,
     const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
     if (h.valid()) {
         ghost_mesh_id_ = h.id;
+    }
+}
+
+void RenderSystem::set_house_mesh(platform::IRenderer& renderer, const MeshData& mesh) {
+    // Заливается по изменению, а не по кадру (см. заголовок), поэтому старый
+    // меш уничтожается ровно здесь: слот держит РОВНО ОДНУ постройку, и вторая
+    // заливка без освобождения утекала бы буфером на каждую правку.
+    if (house_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{house_mesh_id_});
+        house_mesh_id_ = 0;
+    }
+    if (mesh.vertices.empty() || mesh.indices.empty()) {
+        return; // ни одной постройки — обычное состояние карты
+    }
+    const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
+    if (h.valid()) {
+        house_mesh_id_ = h.id;
     }
 }
 

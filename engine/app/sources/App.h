@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 18:08:2026 - 21:12:40
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -132,6 +132,7 @@ UPD:
   инструмента — это три дома, расходящиеся на первом сдвинутом якоре.
 - 18:08:2026 - 18:58:40: Объявлен on_axis_lock.
 - 18:08:2026 - 20:26:30: Объявлен on_delete_selected.
+- 18:08:2026 - 21:12:40: upload_house_mesh, seed_demo_house, версия залитого тела.
 */
 
 #pragma once
@@ -349,6 +350,10 @@ private:
     void on_undo_redo();
     void on_axis_lock();
     void on_delete_selected();
+    /// Пересчитать тело постройки и отдать его в отрисовку.
+    void upload_house_mesh();
+    /// Маленький сруб в графе — для беспилотного кадра (дверь DFN_HOUSE_DEMO).
+    void seed_demo_house();
     void on_tool_pick(int index);
     // НЕ ДЕЙСТВИЕ, А ПОЛЛИНГ: стрелки крутят деталь, Delete её убирает. У них
     // нет строки в таблице привязок, потому что таблица — это КРАЙ клавиши, а
@@ -578,6 +583,8 @@ private:
     /// история хранит снимки текстом и НЕ ЗНАЕТ про модель нарочно, поэтому
     /// применяет снимок тот, у кого модель есть, — и это единственное место.
     HouseSession house_;
+    /// Версия геометрии, при которой тело залито последний раз.
+    std::uint32_t house_mesh_version_ = 0;
     BuildVerdict build_verdict_;
     /// Which placement the crosshair is on, for DELETING. npos = none. Kept as
     /// an index into scene_doc_.placements, resolved fresh every frame: an

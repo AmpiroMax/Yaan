@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 19:44:10
+Last updated: 18:08:2026 - 21:12:40
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -559,6 +559,7 @@ UPD:
   Заодно родился AppInternal.h: пять имён из безымянного пространства
   понадобились ДВУМ файлам.
 - 18:08:2026 - 19:44:10: Колесо отдаётся инструменту, если он его просит; инструменту выбора отдана постройка; дверь DFN_HOUSE_PULL для приёмочного кадра с отвесом.
+- 18:08:2026 - 21:12:40: Тело постройки из графа заливается в отрисовку по версии геометрии, с переводом в мировые координаты и цветом по виду элемента; двери DFN_HOUSE_DEMO (сруб перед камерой) и печать находок.
 */
 
 #include "engine/app/sources/App.h"
@@ -587,6 +588,7 @@ UPD:
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/world/sources/CoarseTerrain.h"
+#include "engine/world/sources/HouseMesh.h"
 #include "engine/world/sources/WorldgenForest.h"
 #include "engine/world/sources/LayoutLoad.h"
 #include "engine/world/sources/Scene.h"
@@ -3151,6 +3153,133 @@ int App::plant_dab_here(const PlantBrush& brush, glm::vec2 centre) {
     return rep.planted;
 }
 
+void App::seed_demo_house() {
+    // ЧЕТЫРЕ СТОЙКИ, ПОЛ И ОДНА СТЕНА — этого хватает, чтобы кадр показал всё
+    // три вида тела: брус вокруг оси, замкнутый контур с триангуляцией и
+    // выдавленную вверх цепочку. Числа простые нарочно: приёмочный кадр должен
+    // читаться глазом, а не сверяться с таблицей.
+    using world::Anchoring;
+    using world::ElementKind;
+    const float S = 3.0f;   // сторона сруба, м
+    const float H = 2.5f;   // высота стоек, м
+    std::array<world::VertexId, 4> low{};
+    std::array<world::VertexId, 4> high{};
+    // СТАВИТСЯ ПЕРЕД КАМЕРОЙ, а не в нуле мира: в нуле сруб оказывался за
+    // спиной и кадр показывал пустую траву при исправной геометрии — ровно тот
+    // случай, когда дверь «молча ничего не сделала».
+    const glm::vec3 eye = editor_cam_.position();
+    const float yaw = editor_cam_.yaw();
+    // ВЗЯТО ИЗ EditorCamera, а не выведено заново: у камеры yaw 0 смотрит на
+    // СЕВЕР, то есть в −Z, и мой первый вывод («вперёд это +X») поставил сруб
+    // сбоку от кадра при исправной геометрии.
+    const glm::vec3 fwd{std::sin(yaw), 0.0f, -std::cos(yaw)};
+    const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
+    const glm::vec3 base = eye + fwd * 18.0f - right * (S * 0.5f);
+    std::array<glm::vec3, 4> corners{{base,
+                                      base + right * S,
+                                      base + right * S + fwd * S,
+                                      base + fwd * S}};
+    // ВЫСОТА УГЛОВ — ОТ ЗЕМЛИ, А НЕ ОТ ГЛАЗА. Первый заход взял y камеры, и
+    // сруб встал полом на семь метров выше своих же стоек: пол на 27.4, верх на
+    // 22.5. На кадре это выглядело как «двери нет», а не как «пол не там».
+    for (glm::vec3& c : corners) {
+        c.y = chunks_.height_at({c.x, c.z}).value_or(0.0f);
+    }
+    (void)house_.mutate("демо-сруб", [&](world::HouseGraph& g) {
+        for (std::size_t i = 0; i < 4; ++i) {
+            // Заземлённый якорь хранит только XZ — высоту ему даёт рельеф;
+            // верхний свободен и стоит на H над той же землёй.
+            const float gy = corners[i].y;
+            low[i] = g.add_vertex(Anchoring::OnGround, corners[i]);
+            high[i] = g.add_vertex(Anchoring::Free,
+                                   {corners[i].x, gy + H, corners[i].z});
+            world::ElementId post = world::NO_ELEMENT;
+            (void)g.add_element(ElementKind::Line, {low[i], high[i]}, "", post);
+        }
+        // Обвязка поверху — четыре бруса по кругу.
+        for (std::size_t i = 0; i < 4; ++i) {
+            world::ElementId beam = world::NO_ELEMENT;
+            (void)g.add_element(ElementKind::Line, {high[i], high[(i + 1) % 4]}, "", beam);
+        }
+        // Пол: замкнутый контур на четырёх нижних якорях.
+        world::ElementId floor = world::NO_ELEMENT;
+        if (g.add_element(ElementKind::Surface,
+                          {low[0], low[1], low[2], low[3]}, "", floor).ok) {
+            g.set_closed(floor, true);
+            g.set_param(floor, "thickness", "0.12");
+        }
+        // Стена: открытая цепочка по одной стороне, выдавливается вверх.
+        world::ElementId wall = world::NO_ELEMENT;
+        if (g.add_element(ElementKind::Surface, {low[0], low[1]}, "", wall).ok) {
+            g.set_param(wall, "height", "2.5");
+            g.set_param(wall, "thickness", "0.10");
+        }
+        return world::GraphResult{};
+    });
+    std::fprintf(stderr, "[постройка] сруб: глаз (%.1f %.1f %.1f) yaw %.2f, угол (%.1f %.1f)\n",
+                 static_cast<double>(eye.x), static_cast<double>(eye.y),
+                 static_cast<double>(eye.z), static_cast<double>(yaw),
+                 static_cast<double>(base.x), static_cast<double>(base.z));
+    std::fprintf(stderr, "[постройка] дверь DFN_HOUSE_DEMO: якорей %zu, элементов %zu\n",
+                 house_.graph().vertex_count(), house_.graph().element_count());
+}
+
+void App::upload_house_mesh() {
+    if (renderer_ == nullptr) {
+        return;
+    }
+    const world::HouseMesh built = world::build_house_mesh(house_.graph());
+    render::MeshData out;
+    out.vertices.reserve(built.vertices.size());
+    out.indices = built.indices;
+    // В МИРОВЫЕ КООРДИНАТЫ ЗДЕСЬ. Граф живёт в координатах постройки (так дом
+    // переносится целиком и копируется файлом), а слот рисуется единичной
+    // матрицей; перенос делает тот, кто знает про сессию.
+    const glm::vec3 zero = house_.to_world({0.0f, 0.0f, 0.0f});
+    for (const world::HouseVertex& v : built.vertices) {
+        platform::Vertex pv{};
+        pv.position = house_.to_world(v.pos);
+        // НОРМАЛЬ ПОВОРАЧИВАЕТСЯ, НО НЕ ПЕРЕНОСИТСЯ: это направление, а не
+        // точка. Разность двух переведённых точек — самый дешёвый способ
+        // спросить у сессии её поворот, не заводя второго знания о нём.
+        pv.normal = house_.to_world(v.normal) - zero;
+        pv.uv = v.uv;
+        // ЦВЕТ — ВРЕМЕННАЯ ЗАМЕНА МАТЕРИАЛУ, и он назван вслух именно так.
+        // Программа «prop» рисует освещённую геометрию с цветом вершины и без
+        // текстуры; пока стиля (.dfstyle) в отрисовке нет, белое тело читается
+        // как пластик. Брус и полотно красятся по-разному, чтобы на кадре было
+        // видно, где каркас, а где стена.
+        pv.color_rgba = 0xFFFFFFFFu;
+        out.vertices.push_back(pv);
+    }
+    constexpr std::uint32_t WOOD = 0xFF3A5A7Au;   // 0xAABBGGRR: тёплое дерево
+    constexpr std::uint32_t PLASTER = 0xFFB9C6CFu; // светлая штукатурка
+    for (const world::MeshPart& part : built.parts) {
+        const world::Element* e = house_.graph().element(part.element);
+        if (e == nullptr) {
+            continue;
+        }
+        const std::uint32_t col =
+            e->kind == world::ElementKind::Line ? WOOD : PLASTER;
+        for (std::uint32_t i = 0; i < part.index_count; ++i) {
+            const std::uint32_t vi = out.indices[part.index_begin + i];
+            if (vi < out.vertices.size()) {
+                out.vertices[vi].color_rgba = col;
+            }
+        }
+    }
+    // НАХОДКИ ГОВОРЯТСЯ ВСЛУХ: неплоский контур и вырожденный элемент — это то,
+    // что человек увидит как дыру в стене, и молчание здесь стоило бы ему
+    // получаса поисков.
+    for (const world::MeshFinding& f : built.findings) {
+        std::fprintf(stderr, "[постройка] e%u: %s\n", static_cast<unsigned>(f.element),
+                     f.what.c_str());
+    }
+    render_system_.set_house_mesh(*renderer_, out);
+    std::fprintf(stderr, "[постройка] тело: вершин %zu, треугольников %zu\n",
+                 out.vertices.size(), out.triangle_count());
+}
+
 void App::update_editor_tools(float dt_s) {
     if (mode_ != AppMode::Editor) {
         return;
@@ -3190,6 +3319,21 @@ void App::update_editor_tools(float dt_s) {
     }
     if (tick.released) {
         stroke_refresh_.end();
+    }
+    // ДОМ ТЕЛОМ, А НЕ ПРОВОЛОКОЙ — И ТОЛЬКО КОГДА ОН ИЗМЕНИЛСЯ.
+    //
+    // Проволока отвечает на вопрос «где якоря и куда идут оси» и остаётся: без
+    // неё не во что целиться. Тело отвечает на другой вопрос — «что я построил»
+    // — и его до сегодня не было вовсе, хотя геометрия считалась (build_house_
+    // mesh) и проверялась рукавом.
+    //
+    // Сравнивается ВЕРСИЯ ГЕОМЕТРИИ, а не сам граф: она растёт в единственной
+    // двери ко всем мутациям и ровно для этого заведена. Не revision(): тот
+    // растёт только на отмене и отвечает на вопрос про ИМЕНА, а не про форму. Перезаливать тысячи треугольников на
+    // каждый кадр значило бы платить за неподвижное.
+    if (house_.version() != house_mesh_version_) {
+        house_mesh_version_ = house_.version();
+        upload_house_mesh();
     }
     // КОЛЬЦО КИСТИ И ПРИЗРАК — ЭТО ЛИНИИ, поэтому инструмент, которому они
     // нужны, открывает эту дверь сам. Просить строителя выставить переменную
@@ -3483,6 +3627,16 @@ int App::run() {
                 return v != nullptr ? static_cast<float>(std::atof(v)) : 0.0f;
             }();
             static bool pull_door_used = false;
+            // ДВЕРЬ: DFN_HOUSE_DEMO=1 — маленький сруб в графе, без единого
+            // щелчка. Тело постройки иначе не попадает ни на один беспилотный
+            // кадр: пустой граф рисует пустоту, а построить дом мышью прогон не
+            // умеет (правило 27).
+            static const bool demo_door = door_value("DFN_HOUSE_DEMO") != nullptr;
+            static bool demo_door_used = false;
+            if (demo_door && !demo_door_used) {
+                demo_door_used = true;
+                seed_demo_house();
+            }
             // ЖДЁМ, ПОКА ЯЩИК НАПОЛНЕН. Первый кадр редактора приходит раньше
             // инструментов, и дверь, потратившая себя на пустой ящик, молча не
             // сделала бы ничего — тот самый худший исход, о котором говорит

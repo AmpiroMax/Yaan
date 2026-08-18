@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 18:08:2026 - 12:06:07
+Last updated: 18:08:2026 - 21:12:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -149,6 +149,7 @@ UPD:
   HEIGHTMAP_RESOLUTION уехал 129 -> 257 (NUMBERS), и раньше два числа
   совпадали; голое «129» теперь читается как устаревший размер чанка, а не как
   живая константа узла, и правка ради этого совпадения сломала бы шов с core.
+- 18:08:2026 - 21:12:40: set_house_mesh — слот постройки редактора: рисуется ОСВЕЩЁННОЙ (prop), заливается по изменению, а не по кадру.
 */
 
 #pragma once
@@ -471,6 +472,22 @@ public:
     /// rather than as a material the builder has to interpret through the sun.
     void set_ghost_mesh(platform::IRenderer& renderer, const MeshData& mesh);
 
+    /// ПОСТРОЙКА, КОТОРУЮ ПРАВЯТ ПРЯМО СЕЙЧАС: дом из графа редактора, телом.
+    ///
+    /// Четвёртый слот того же вида, что светлячки, самосветящаяся геометрия и
+    /// призрак, но с двумя отличиями, и оба существенные:
+    ///
+    /// 1. РИСУЕТСЯ ОСВЕЩЁННЫМ, программой «prop». Призрак не освещают нарочно —
+    ///    он ответ, нарисованный поверх мира. Дом ответом не является: он вещь
+    ///    в мире, и стена, не темнеющая к вечеру, читается как декорация.
+    /// 2. ЗАЛИВАЕТСЯ НЕ КАЖДЫЙ КАДР, а когда постройка изменилась. У призрака
+    ///    геометрия едет за прицелом, у дома — стоит; перезаливать тысячи
+    ///    треугольников на каждый кадр значило бы платить за неподвижное.
+    ///    Когда заливать — знает вызывающий, здесь только «замени на это».
+    ///
+    /// Пустой меш очищает слот: карта без построек — обычное состояние.
+    void set_house_mesh(platform::IRenderer& renderer, const MeshData& mesh);
+
     /// Lights that live for ONE frame (the firefly swarm). Replaced every
     /// frame; an empty list is the normal daytime state, not an error.
     void set_transient_lights(std::vector<ExtraLight> lights);
@@ -480,6 +497,7 @@ private:
     uint32_t firefly_mesh_id_ = 0;
     uint32_t emissive_mesh_id_ = 0;
     uint32_t ghost_mesh_id_ = 0;
+    uint32_t house_mesh_id_ = 0;
     std::vector<ExtraLight> transient_lights_;
 
     /// One flame gathered this frame, before the eight slots are handed out.

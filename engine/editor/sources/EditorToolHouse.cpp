@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 18:08:2026 - 21:12:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -39,6 +39,7 @@ UPD:
 - 18:08:2026 - 18:58:40: Прямая ВВЕРХ: point_on_vertical — ближайшая точка вертикали через якорь к лучу прицела (пара скрещивающихся прямых), вырожденный взгляд вдоль оси назван и держит прежнюю высоту. Подпись называет высоту со знаком.
 - 18:08:2026 - 19:44:10: Поиск лучом (сближение луча с точкой и с отрезком, вырожденные случаи названы); призрак якоря один на щелчок, показ и подпись; колесо тянет шарик вдоль луча; магнит на ось.
 - 18:08:2026 - 20:26:30: Конец прямой липнет к якорю ПОД ЛУЧОМ (два якоря в воздухе больше не соединяются через пол); прилипание якоря к оси решает прицел, а не подтягивание — стойки ловятся так же, как лежачие брёвна; ray_vs_segment — одно выражение на весь файл; подпись поверхности называет пол и стену до подтверждения.
+- 18:08:2026 - 21:12:40: Прямая, отпущенная в пустоте, СТАВИТ ТАМ ЯКОРЬ (решение пользователя: прямая без якоря на конце — бессмыслица); зажим длины садит конец на тот самый якорь, а не на двойника рядом.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -232,6 +233,7 @@ bool HouseSession::apply_snapshot(const std::string& text) {
     const bool had_vertex = sel_vertex_ != NO_VERTEX;
     const glm::vec3 was = had_vertex ? vertex_world(sel_vertex_) : glm::vec3{0.0f};
     ++revision_;
+    ++version_;
     const world::HouseIoResult r = world::read_house(text, graph_);
     sel_vertex_ = NO_VERTEX;
     // ЭЛЕМЕНТ ПО МЕСТУ НЕ ОПОЗНАЁТСЯ: у него нет одной точки, а опознание по
@@ -1031,9 +1033,13 @@ void HouseLineTool::on_release(ToolWorld& world) {
     // время протаскивания; искать заново по точке значило бы задать другой
     // вопрос и получить другой ответ — тот самый, из-за которого якоря в
     // воздухе не соединялись.
-    const VertexId to = snap_ != NO_VERTEX
-                            ? snap_
-                            : session_->pick_vertex(raw_end_, HOUSE_GRAB_M);
+    // ЗАЖИМ ДЛИНЫ — ЭТО ТОЖЕ СОЕДИНЕНИЕ. Он ставит конец РОВНО на чужой якорь
+    // («зажать до ближайшего сверху/снизу»), и породить там вторую вершину в
+    // той же точке значило бы построить дом на двойных якорях: на вид один
+    // шарик, на деле два, и половина связей идёт не туда.
+    const VertexId to = snap_ != NO_VERTEX      ? snap_
+                        : clamp_hit_.found      ? clamp_hit_.at
+                                                : session_->pick_vertex(raw_end_, HOUSE_GRAB_M);
     ElementId made = NO_ELEMENT;
     if (to != NO_VERTEX && to != from) {
         const GraphResult r = session_->mutate("прямая между якорями", [&](HouseGraph& g) {
@@ -1051,27 +1057,35 @@ void HouseLineTool::on_release(ToolWorld& world) {
         session_->select_element(made);
         return;
     }
-    // ОТПУСТИЛ В ПУСТОТЕ — ПРЯМАЯ С ДЛИНОЙ И УГЛАМИ ИЗ ЖЕСТА. Дальше их правят
-    // числами, и ровно за этим они и записаны числами, а не второй вершиной.
-    const glm::vec3 a_local = session_->graph().resolved_local(from);
-    const glm::vec3 delta = session_->to_local(end) - a_local;
-    const float length = glm::length(delta);
-    if (length < 1e-3f) {
+    // ОТПУСТИЛ В ПУСТОТЕ — ТАМ ПОЯВЛЯЕТСЯ ЯКОРЬ, И ПРЯМАЯ ИДЁТ К НЕМУ.
+    //
+    // Раньше здесь рождалась прямая С ОДНОЙ вершиной, а её дальний конец
+    // описывался числами (длина и два угла). Пользователь назвал это точнее
+    // меня: «прямая без якоря на конце — бессмыслица». Он прав, и не только по
+    // смыслу — такой конец нельзя было ни схватить, ни соединить со второй
+    // прямой, ни натянуть на него поверхность, а поиск оси такие прямые
+    // пропускал вовсе (у них нет двух концов).
+    //
+    // Теперь у каждой прямой два якоря. Длина и углы никуда не делись: они
+    // выражены положением второго якоря, и правятся тем же перетаскиванием, что
+    // и всё остальное.
+    const glm::vec3 gy_at = end;
+    const float gy = world_ != nullptr && world_->ground_height
+                         ? world_->ground_height({gy_at.x, gy_at.z})
+                         : 0.0f;
+    if (glm::length(end - session_->vertex_world(from)) < 1e-3f) {
         refusal_ = "прямая нулевой длины: потяни дальше";
         return;
     }
-    float ax = 0.0f;
-    float ay = 0.0f;
-    house_angles_from_dir(delta, ax, ay);
-    const GraphResult r = session_->mutate("прямая по жесту", [&](HouseGraph& g) {
-        const GraphResult add = g.add_element(ElementKind::Line, {from}, style_, made);
-        if (!add.ok) {
-            return add;
+    const bool air = end.y - gy > HOUSE_AIR_EPS_M;
+    VertexId tip = NO_VERTEX;
+    const GraphResult r = session_->mutate("прямая до нового якоря", [&](HouseGraph& g) {
+        tip = g.add_vertex(air ? Anchoring::Free : Anchoring::OnGround,
+                           session_->to_local(air ? end : glm::vec3{end.x, gy, end.z}));
+        const GraphResult add = g.add_element(ElementKind::Line, {from, tip}, style_, made);
+        if (add.ok) {
+            g.set_param(made, "radius", house_num(radius_m_));
         }
-        g.set_param(made, "length", house_num(length));
-        g.set_param(made, "angle_x", house_num(ax));
-        g.set_param(made, "angle_y", house_num(ay));
-        g.set_param(made, "radius", house_num(radius_m_));
         return add;
     });
     if (!r.ok) {
