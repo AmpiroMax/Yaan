@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 19:22:32
-# Last updated: 18:08:2026 - 12:08:10
+# Last updated: 18:08:2026 - 13:08:07
 # File: engine/editor/CMakeLists.txt
 #
 # Responsibility:
@@ -63,6 +63,9 @@
 #   EditorToolbar (двойные кнопки и шестерёнка) и EditorToolsGround/Object —
 #   пять инструментов. Рисование отделено от решения намеренно: решение обязано
 #   проверяться без окна (правило 3), поэтому оно в двух файлах без imgui.
+# - 18:08:2026 - 13:08:07: EditorToolPath.cpp — ШЕСТОЙ ИНСТРУМЕНТ, тропа кривой (заказ 18.08).
+#   Сама кривая, её поперечник и раскладка в отсчёты лежат в engine/world
+#   (ReliefLayer): их обязан уметь читатель файла, а он там. Здесь только рука.
 
 add_library(dfn_editor STATIC
     sources/EditorBrush.cpp
@@ -71,6 +74,7 @@ add_library(dfn_editor STATIC
     sources/EditorToolIcons.cpp
     sources/EditorToolsGround.cpp
     sources/EditorToolsObject.cpp
+    sources/EditorToolPath.cpp
     sources/EditorBrushView.cpp
     sources/EditorUi.cpp
     sources/EditorPalette.cpp

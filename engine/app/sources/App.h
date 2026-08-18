@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 12:07:50
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -106,6 +106,15 @@ UPD:
   (список объектов стал настройками инструмента постройки, а не отдельной
   панелью со своей клавишей). apply_terrain_dab принимает КИСТЬ аргументом:
   App больше не знает, какая кисть сейчас в руке, и не должен.
+- 18:08:2026 - 13:08:07: ЗЕМЛЯ ДВИГАЕТСЯ, ПОКА ВЕДЁШЬ КИСТЬ, и ТРОПА КРИВОЙ — два заказа 18.08.
+  Первый: перестройка чанка звалась только из finish_stroke, поэтому кисть вела по
+  неподвижной земле («мне так непонятно что происходит»). Теперь показ идёт во время
+  штриха с паузой, выведенной из ИЗМЕРЕННОЙ цены (196 мс на чанк) — StrokeRefresh.
+  Второй: шестой инструмент (PathTool) и крючки под него — ground_height, relief_paths,
+  commit_path, last_dab; линия и узлы рисуются из ToolPreview, без вопроса «что в руке».
+  И ПОПУТНО ЗАКРЫТА СТАРАЯ ДЫРА: приложение НИ РАЗУ не звало read_relief/write_relief —
+  ключ `relief` в .scene был, формат был, круговой прогон был, а правки земли жили до
+  выхода из игры. Теперь сиделка читается со сценой и пишется кнопкой «сохранить».
 */
 
 #pragma once
@@ -506,6 +515,12 @@ private:
     /// feeds compose_passes — the ground the player walks and the ground
     /// check_scene judges are then one thing.
     world::ReliefLayer relief_;
+    /// Записать карту ЦЕЛИКОМ: сцену и сиделку .relief рядом с ней. Одна кнопка
+    /// «сохранить» не обязана знать, что записей две.
+    bool save_map_with_relief();
+    /// ЕДИНСТВЕННАЯ ДВЕРЬ К ЗАПИСИ ТРОПЫ (ToolWorld::commit_path): добавить,
+    /// заменить или убрать, перепечь канал износа и пометить землю.
+    std::size_t commit_relief_path(std::size_t index, const world::ReliefPath* path);
     /// КИСТИ ЖИВУТ В СВОИХ ИНСТРУМЕНТАХ (HeightBrushTool / SurfacePaintTool /
     /// PlantTool). Общий TerrainBrush с полем mode, показанный двумя фишками,
     /// и был тем «странным взаимодействием покраски и высоты», которое
@@ -516,6 +531,17 @@ private:
     /// silently stopped biting looks exactly like a brush aimed at nothing.
     int last_dab_samples_ = 0;
     float last_dab_worst_m_ = 0.0f;
+    /// КОГДА ПОКАЗАТЬ ЗЕМЛЮ, НЕ ДОЖИДАЯСЬ ОТПУСКАНИЯ (заказ 18.08: «хочу
+    /// изменение ландшафта от инструмента высоты в реальном времени... а мне
+    /// так непонятно что происходит»). Решение живёт в engine/editor отдельным
+    /// предметом, а не парой полей здесь, потому что App держит окно и не
+    /// заводится в проверке — а вопрос «сколько раз за штрих изменилась земля»
+    /// не задать ни одному кадру.
+    StrokeRefresh stroke_refresh_;
+    /// Земля действительно сдвинулась с прошлого показа. Не «кнопка зажата»:
+    /// кисть, наведённая за край подгруженного кольца, не двигает ничего, и
+    /// перестраивать после неё нечего.
+    bool ground_moved_since_push_ = false;
     bool brush_wired_ = false;
     /// Species the map's shelves carry, read once — a directory listing per
     /// frame is a directory listing per frame.

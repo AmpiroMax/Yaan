@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:10
-Last updated: 18:08:2026 - 12:06:10
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorToolsBuiltin.h
 
@@ -44,6 +44,11 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 12:06:10: Созданы пять инструментов по IEditorTool. Посадка стала
   отдельным инструментом со своим хозяином (заказ/разбор 18.08).
+- 18:08:2026 - 13:08:07: СЧЁТЧИК ПОСЛЕДНЕГО МАЗКА ВЕРНУЛСЯ на экран — в настройки самой
+  кисти, через ToolWorld::last_dab. Он ушёл вместе с панелью кисти, которую
+  перепись инструментов оставила без единого вызова, а он полезен ровно в тот
+  момент, когда кисть кажется сломанной: «узлов 0» отличает прицел за
+  подгруженным кольцом от кисти, наведённой не туда.
 */
 
 #pragma once
@@ -78,8 +83,19 @@ public:
     [[nodiscard]] TerrainBrush& brush() { return brush_; }
     [[nodiscard]] const TerrainBrush& brush() const { return brush_; }
 
+    /// Крючки, нужные ВНЕ щелчка: числа последнего мазка для читалки в
+    /// настройках. Тот же приём, что у SelectTool и PlaceTool, и по той же
+    /// причине — draw_settings() мира не получает.
+    void set_world(const ToolWorld* world) { world_ = world; }
+
 protected:
+    /// «Последний мазок: узлов N · X м» — одной строкой, у обеих кистей.
+    /// ОБЩАЯ, А НЕ ДВЕ КОПИИ: разошедшиеся читалки одного числа — это два
+    /// разных ответа на вопрос «работает ли кисть».
+    void draw_last_dab() const;
+
     TerrainBrush brush_;
+    const ToolWorld* world_ = nullptr;
     bool stroking_ = false;
     bool pad_written_ = false; ///< one [pad] per stroke, not per frame
 };
@@ -168,7 +184,14 @@ public:
     void on_press(const ToolAim& aim, ToolWorld& world) override;
     void on_drag(const ToolAim&, float, ToolWorld&) override {}
     void on_release(ToolWorld&) override {}
+    /// ВЗЯЛ В РУКУ — ПОРОДА УЖЕ ЕСТЬ. Умолчание ставится здесь, а не в
+    /// конструкторе: полка читается с диска и на момент рождения инструмента
+    /// пуста. И не только в on_press — иначе подпись до первого щелчка честно
+    /// краснеет «сажать нечего», и человек читает это как «не работает»,
+    /// что ровно и произошло 18.08.
+    void on_selected(ToolWorld&) override { ensure_default_species(); }
     [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override;
+    void ensure_default_species();
     void draw_settings() override;
     [[nodiscard]] float max_reach_m() const override { return 40.0f; }
     [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;

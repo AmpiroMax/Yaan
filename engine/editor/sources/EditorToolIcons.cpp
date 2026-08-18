@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:05:40
-Last updated: 18:08:2026 - 12:05:40
+Last updated: 18:08:2026 - 13:17:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolIcons.cpp
 
@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 12:05:40: Создан вместе с заголовком.
+- 18:08:2026 - 13:17:00: седьмой значок — тропа.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"
@@ -200,6 +201,19 @@ bool bake_tool_icon(ToolIcon icon, int size_px, std::vector<std::uint8_t>& rgba)
         c.disc(0.50f, 0.36f, 0.24f, ACCENT);
         c.disc(0.34f, 0.46f, 0.14f, ACCENT);
         c.disc(0.66f, 0.46f, 0.14f, ACCENT);
+        return true;
+    case ToolIcon::Path:
+        // ЗЕМЛЯ, ИЗВИЛИСТАЯ ТРОПА И ЕЁ УЗЛЫ. Картинка обязана отличаться от
+        // кисти поверхности НЕ ЦВЕТОМ, а формой: тропа — линия между точками,
+        // и это ровно то, чем она отличается от мазка по клеткам.
+        c.ground(EARTH);
+        c.line(0.16f, 0.78f, 0.40f, 0.54f, 0.10f, ACCENT);
+        c.line(0.40f, 0.54f, 0.62f, 0.52f, 0.10f, ACCENT);
+        c.line(0.62f, 0.52f, 0.84f, 0.24f, 0.10f, ACCENT);
+        c.disc(0.16f, 0.78f, 0.075f, INK);
+        c.disc(0.40f, 0.54f, 0.075f, INK);
+        c.disc(0.62f, 0.52f, 0.075f, INK);
+        c.disc(0.84f, 0.24f, 0.075f, INK);
         return true;
     case ToolIcon::Settings: {
         // ШЕСТЕРЁНКА: общие параметры, не инструмент — и по картинке видно, что

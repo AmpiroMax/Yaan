@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:30
-Last updated: 18:08:2026 - 12:06:30
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorToolsGround.cpp
 
@@ -25,6 +25,8 @@ UPD:
 - 18:08:2026 - 12:06:30: Создан — кисть высоты, кисть поверхности и посадка как ТРИ
   инструмента с собственными настройками. Посадка перестала быть Shift-щелчком
   внутри чужого обработчика.
+- 18:08:2026 - 13:08:07: draw_last_dab — числа последнего мазка в настройках обеих кистей
+  (счётчик вернулся из удалённой панели кисти).
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"
@@ -110,6 +112,25 @@ void TerrainBrushToolBase::on_deselected(ToolWorld& world) {
     }
 }
 
+void TerrainBrushToolBase::draw_last_dab() const {
+    if (world_ == nullptr || !world_->last_dab) {
+        return;
+    }
+    int samples = 0;
+    float worst = 0.0f;
+    world_->last_dab(samples, worst);
+    ImGui::Spacing();
+    if (samples > 0) {
+        ImGui::Text("%s %d · %.3f m", EditorUi::tr("brush.lastdab"), samples,
+                    static_cast<double>(worst));
+    } else {
+        // МОЛЧАНИЕ ЗДЕСЬ НЕОТЛИЧИМО ОТ ПОЛОМКИ. Кисть, наведённая за
+        // подгруженное кольцо, не двигает ни отсчёта и выглядит ровно как
+        // кисть, наведённая не туда, — эта строка их и различает.
+        ImGui::TextDisabled("%s", EditorUi::tr("brush.lastdab.none"));
+    }
+}
+
 ToolPreview TerrainBrushToolBase::preview(const ToolAim& aim) const {
     (void)aim;
     ToolPreview out;
@@ -149,6 +170,7 @@ void HeightBrushTool::draw_settings() {
                           0.25f, 1.0f, "%.2f m");
         ImGui::TextDisabled("%s", EditorUi::tr("brush.flatten.note"));
     }
+    draw_last_dab();
 }
 
 SurfacePaintTool::SurfacePaintTool(EditorUi& ui)
@@ -187,6 +209,7 @@ void SurfacePaintTool::draw_settings() {
             brush_.paint = row.surface;
         }
     }
+    draw_last_dab();
 }
 
 // ================================ PLANTING ==================================
@@ -205,6 +228,7 @@ void PlantTool::on_press(const ToolAim& aim, ToolWorld& world) {
     if (!world.plant_dab) {
         return;
     }
+    ensure_default_species();
     last_planted_ = world.plant_dab(plant_, {aim.point.x, aim.point.z});
 }
 
@@ -216,6 +240,32 @@ ToolPreview PlantTool::preview(const ToolAim& aim) const {
     ring_.radius_m = std::max(plant_.radius_m, BRUSH_MIN_RADIUS_M);
     out.ring_brush = &ring_;
     return out;
+}
+
+/// ПЕРВАЯ ПОРОДА ОТМЕЧАЕТСЯ САМА, если человек не выбрал ни одной.
+///
+/// Пользователь 18.08: «инструмент посадки не работает». И он был прав: список
+/// пород начинался ПУСТЫМ, посадка честно отказывалась, подпись честно
+/// говорила почему — а инструмент из коробки не делал НИЧЕГО. Отказ был
+/// правильным по механике и неправильным по смыслу: инструмент, который надо
+/// сначала настроить, чтобы он вообще что-то умел, читается как сломанный, и
+/// прочитан он был именно так.
+///
+/// Умолчание, а не выбор за человека: список открыт соседней кнопкой, галочки
+/// снимаются, и первый же его заход в настройки всё переопределит. Ставится
+/// ЛЕНИВО, при первой попытке посадить, а не в конструкторе — полка читается с
+/// диска и на момент рождения инструмента может быть ещё не прочитана.
+void PlantTool::ensure_default_species() {
+    if (!plant_.species.empty() || !species_) {
+        return;
+    }
+    const std::vector<std::string>& shelf = species_();
+    if (shelf.empty()) {
+        return;
+    }
+    plant_.species.push_back(shelf.front());
+    std::fprintf(stderr, "[посадка] порода не была выбрана — беру первую с полки: %s\n",
+                 shelf.front().c_str());
 }
 
 ToolStatus PlantTool::status(const ToolAim& aim) const {

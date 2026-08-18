@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 18:08:2026 - 12:06:09
+Last updated: 18:08:2026 - 12:38:09
 Module: engine/world
 File: engine/world/sources/ReliefLayer.h
 
@@ -15,6 +15,11 @@ Key items:
 - ReliefLayer: the sparse field, with bilinear height sampling and nearest
   surface lookup.
 - read_relief / write_relief: the sidecar text format (in git, diffable).
+- ReliefPath / relief_path_polyline(): A PATH AS A CURVE, not as a mask of
+  painted squares — the control points a composer put down and the arc that
+  runs through them.
+- ReliefLayer's PATH WEAR CHANNEL: the per-sample [0,1] field the curves are
+  decomposed into, which is what the ground actually draws.
 
 WHY THIS EXISTS (user, 17.08.2026): «в этом же инструменте необходима
 возможность менять высоту ландшафта кистями разных размеров, выбирать что за
@@ -71,6 +76,21 @@ UPD:
   объявленный шаг и откажет вслух — файл, написанный на 2 м, надо переписать
   (step 1, все индексы x и z удвоить). В git ни одного .relief нет, так что
   терять нечего; проверено find'ом по дереву.
+- 18:08:2026 - 12:38:09: ТРОПА КАК КРИВАЯ, а не как мазок по клеткам (заказ 18.08: «тропинки
+  надо уметь вести не по квадратам, как сейчас песок, а по любым направлениям,
+  между любыми точками»). Здесь появились ДВЕ вещи и обе обязаны быть здесь:
+  сама кривая (ReliefPath, точки + ширина + мягкость) и КАНАЛ АВТОРСКОГО ИЗНОСА
+  — отдельная разрежённая карта отсчётов [0,1], в которую кривая раскладывается.
+  ПОЧЕМУ КАНАЛ ОТДЕЛЬНОЙ КАРТОЙ, А НЕ ПОЛЕМ В Cell: cells_ решает, пуст ли слой
+  правок ВЫСОТЫ, и по этому вопросу стоит утверждение о побитовом равенстве
+  (заголовок ниже, про -0.0f). Тропа, добавившая ячейку в cells_, включила бы
+  ветку прибавки высоты на карте, где рукой не тронута ни одна высота.
+  ЗАМЕР, РАДИ КОТОРОГО ВСЁ ЭТО (изолиния 0.5 по треугольникам TerrainMesher,
+  решётка 1 м, полуширина 1.5 м): непрерывный износ отходит от настоящей прямой
+  не более чем на 0.123 м (скз 0.070), а КЛАСС поверхности — тот самый песок,
+  которым тропу пробовали рисовать, — на 0.493 м (скз 0.253), потому что
+  перечисление не интерполируется. Контроль метрики: тот же износ, округлённый
+  до 0/1, даёт 0.493/0.253 — цифра в цифру как у класса.
 */
 
 #pragma once
@@ -109,6 +129,79 @@ inline constexpr float RELIEF_STEP_M = static_cast<float>(config::HEIGHTMAP_STEP
 /// World coordinate of lattice index `i` on one axis.
 [[nodiscard]] float relief_world_of(int32_t i);
 
+/// THE NARROWEST PATH WORTH DRAWING, as a half-width. Same argument as
+/// BRUSH_MIN_RADIUS_M and the same lattice: a tread narrower than one sample
+/// either lands on samples or misses them depending on where it runs, so the
+/// path would fade in and out along its own length.
+inline constexpr float PATH_MIN_HALF_WIDTH_M = RELIEF_STEP_M;
+
+/// THE NARROWEST FADE BAND, in metres — and this number is the whole reason
+/// the user's «не по квадратам» works at all, so it is measured rather than
+/// chosen (Rule 45).
+///
+/// The ground draws wear as a per-sample value carried in the vertex and
+/// LINEARLY INTERPOLATED across the triangle (TerrainMesher/VoxelMesher put it
+/// in the vertex alpha, fs_terrain.sc dithers against it). A fade band wider
+/// than the lattice therefore lands on several samples and the visible edge is
+/// the interpolated isoline — a straight diagonal. A band narrower than one
+/// sample is a 0/1 field again, and 0/1 on a lattice is a STAIRCASE, which is
+/// exactly what painting a path with a surface class does today.
+///
+/// MEASURED, both arms, on the 0.5 isoline of a 60 m run at seven angles
+/// (tests/app/EditorPathTests.cpp reproduces it): band 1.0 m -> at most 0.12 m
+/// off the true straight line; band 0.25 m -> 0.42 m; the 0/1 class arm ->
+/// 0.49 m, which is half a lattice cell and the definition of a staircase.
+inline constexpr float PATH_MIN_FADE_M = RELIEF_STEP_M;
+
+/// A PATH THE COMPOSER DREW, as its control points and its cross-section.
+///
+/// THE CURVE IS THE STATEMENT AND THE WEAR IS DERIVED FROM IT — that is why
+/// the sidecar stores these points and not the samples they stamp. A path
+/// stored as painted samples cannot be re-shaped afterwards: the composer
+/// would be editing the FOOTPRINT of his own decision instead of the decision,
+/// which is the difference between a tool and a rubber stamp.
+struct ReliefPath {
+    /// The points the composer put down, in world XZ, in the order he put
+    /// them. The arc runs THROUGH them (centripetal Catmull-Rom, which is a
+    /// cubic Bezier written so that the control points are ON the curve) —
+    /// a Bezier whose handles are not on the curve would make him aim at
+    /// places the path does not go.
+    std::vector<glm::vec2> points;
+    /// Half the worn width, metres. Clamped to PATH_MIN_HALF_WIDTH_M on use.
+    float half_width_m = 1.5f;
+    /// HOW SOFT THE EDGE IS, [0,1]: the fraction of the half-width over which
+    /// the wear fades from full to none. 1 means the fade starts at the centre
+    /// line, which is EXACTLY math::path_wear_profile — the cross-section the
+    /// generated network already uses. Smaller values flatten the top and
+    /// narrow the fade; the fade is floored at PATH_MIN_FADE_M in metres,
+    /// because below that the field is 0/1 and the staircase comes back.
+    float edge_softness = 1.0f;
+};
+
+/// The arc through the control points, sampled at most `max_step_m` apart.
+/// Fewer than two points gives back the points themselves: a path of one point
+/// is a place, not a path, and inventing an arc through it would be inventing.
+[[nodiscard]] std::vector<glm::vec2> relief_path_polyline(const ReliefPath& path,
+                                                          float max_step_m = 0.5f);
+
+/// Wear at `dist_m` from the centre line of `path`, [0,1]. THE CROSS-SECTION IS
+/// math::path_wear_profile AND NOT A SECOND FORMULA (SurfaceField.h says so in
+/// as many words): softness moves where the fade STARTS, exactly as the brush's
+/// hardness does, so the softest setting IS the generated network's profile
+/// rather than something that resembles it.
+[[nodiscard]] float relief_path_wear(const ReliefPath& path, float dist_m);
+
+/// World box the path's wear can reach, padded by one lattice step. False for
+/// a path with no points.
+[[nodiscard]] bool relief_path_bounds(const ReliefPath& path, glm::vec2& min_xz,
+                                      glm::vec2& max_xz);
+
+/// The control point under `aim_xz`, or `points.size()` for none. NEAREST
+/// within `grab_m`, so two points closer together than the grab radius still
+/// resolve to the one the pointer is actually on.
+[[nodiscard]] std::size_t relief_path_pick(const ReliefPath& path, glm::vec2 aim_xz,
+                                           float grab_m);
+
 /// One painted sample. `surface` is authored only when `has_surface`; a stroke
 /// that only raised ground leaves it unset, and a stroke that only painted
 /// material leaves height_delta at zero. The two channels are independent on
@@ -132,7 +225,11 @@ class ReliefLayer {
 public:
     [[nodiscard]] bool empty() const { return cells_.empty(); }
     [[nodiscard]] std::size_t size() const { return cells_.size(); }
-    void clear() { cells_.clear(); }
+    void clear() {
+        cells_.clear();
+        wear_.clear();
+        paths_.clear();
+    }
 
     /// Height delta in metres at a world position, bilinear across the four
     /// surrounding lattice samples. Untouched samples read as exactly 0, so an
@@ -164,6 +261,55 @@ public:
     /// Every touched sample, in an UNSPECIFIED order — sort before writing.
     [[nodiscard]] std::vector<ReliefSample> samples() const;
 
+    // -- THE PATH CHANNEL ---------------------------------------------------
+    //
+    // A SEPARATE MAP FROM cells_, on purpose. cells_ answers "did a hand touch
+    // the HEIGHT here", and an emptiness claim rests on it (see the header on
+    // -0.0f); a path that added cells there would switch on the height branch
+    // for a map where no height was ever touched. The channels are also
+    // independent in fact: a path is worn ground, not lowered ground.
+
+    /// Authored wear at a world position, [0,1], bilinear across the four
+    /// surrounding samples — and BILINEAR IS THE POINT. The renderer carries
+    /// this number per vertex and interpolates it, so a wear field sampled on
+    /// the lattice draws its edge as an isoline of the interpolation: a
+    /// diagonal comes out diagonal. Nearest lookup here (what a surface CLASS
+    /// must do, since an enum has no midpoint) is what draws a staircase.
+    [[nodiscard]] float path_wear_at(glm::vec2 world_xz) const;
+
+    /// Wear at an exact lattice sample; 0 when untouched.
+    [[nodiscard]] float path_wear_of(int32_t x, int32_t z) const;
+
+    /// Sets it. Zero ERASES the sample, for the same reason set_delta does.
+    /// Public because the bake calls it and a test measures it; the composer's
+    /// route to it is a ReliefPath.
+    void set_path_wear(int32_t x, int32_t z, float wear);
+
+    /// Is there any authored wear at all? The early-out every reader needs, and
+    /// the reason a map with no paths stays bit-identical.
+    [[nodiscard]] bool has_path_wear() const { return !wear_.empty(); }
+    [[nodiscard]] std::size_t path_wear_size() const { return wear_.size(); }
+
+    /// World box of the wear channel, padded by one lattice step. False when
+    /// nothing is worn.
+    [[nodiscard]] bool path_wear_bounds_xz(glm::vec2& min_xz, glm::vec2& max_xz) const;
+
+    // -- THE CURVES THEMSELVES ----------------------------------------------
+
+    [[nodiscard]] const std::vector<ReliefPath>& paths() const { return paths_; }
+    /// Appends and stamps it; returns its index.
+    std::size_t add_path(const ReliefPath& path);
+    /// Replaces one and RE-BAKES THE WHOLE CHANNEL. Not "unstamp then stamp":
+    /// two paths that crossed share their worn samples, and unstamping one
+    /// would erase the crossing out of the other. Re-baking is O(paths) and
+    /// happens when a hand lets go of a point, which is not a hot loop.
+    void set_path(std::size_t index, const ReliefPath& path);
+    void erase_path(std::size_t index);
+    /// Clears the wear channel and stamps every path into it again. The one
+    /// definition of "what the curves mean", called after any change to them
+    /// and after reading a file.
+    void rebake_paths();
+
     /// World-space bounds of every touched sample, padded by one lattice step
     /// (a delta at a sample reaches half a step either way through the bilinear
     /// filter, and a chunk that only touches the padding still has to rebuild).
@@ -179,6 +325,13 @@ private:
     /// Packed (x, z) -> cell. Unordered for the paint loop, which touches the
     /// same samples thousands of times in a stroke; ORDER IS IMPOSED ON WRITE.
     std::unordered_map<uint64_t, Cell> cells_;
+    /// Packed (x, z) -> wear, [0,1]. DERIVED from paths_ and never written to
+    /// the sidecar: the file carries the curves, and the samples are what the
+    /// curves mean. Two records of one decision is the drift Rule 32 forbids,
+    /// and here it would show as a path that moved on screen but not in the
+    /// file the composer re-opened.
+    std::unordered_map<uint64_t, float> wear_;
+    std::vector<ReliefPath> paths_;
 
     [[nodiscard]] static uint64_t key_of(int32_t x, int32_t z) {
         return (static_cast<uint64_t>(static_cast<uint32_t>(x)) << 32)

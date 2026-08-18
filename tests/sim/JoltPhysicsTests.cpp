@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 13:08:2026 - 18:30:00
+Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/sim/JoltPhysicsTests.cpp
 
@@ -40,6 +40,14 @@ UPD:
   executable case rather than a remark.
 - 13:08:2026 - 18:30:00: The spawn desc uses designated initialisers; see the
   note in InteractionTests.cpp on why a positional aggregate is a trap.
+- 18:08:2026 - 12:06:09: допуск шахматного случая 1.0e-4 -> 2.5e-4 от рельефа. Это НЕ подгонка
+  под результат: погрешность попадания луча растёт вместе с крутизной, которую
+  задаёт решётка, и этот случай нарочно делает её предельной. Две ИЗМЕРЕННЫЕ
+  точки — шаг 2 м даёт 0.00106 м (5.3e-5 рельефа), шаг 1 м даёт 0.00214 м
+  (1.07e-4), отношение 2.02, ровно удвоение уклона. Порог поставлен выше обеих
+  и на четыре порядка ниже 20 м, которые меряет контроль на другой диагонали,
+  поэтому спутать его с настоящим разъездом нельзя. Приёмка на НАСТОЯЩЕЙ земле
+  (0.001 м) не тронута.
 */
 
 #include <doctest/doctest.h>
@@ -611,9 +619,17 @@ TEST_CASE("the diagonal instrument has range: a maximally non-coplanar field") {
     REQUIRE(synthetic.samples > 100);
     // The agreement tolerance is RELATIVE here, unlike the real-terrain case:
     // a ray's hit precision scales with the magnitudes it is solving against,
-    // and a 20 m step every 2 m is a far harsher intersection than real ground.
-    // 1e-4 of the relief, measured at 5.3e-5 of it.
-    CHECK(synthetic.worst_agreement_m < 1.0e-4f * CHECKER_RELIEF_M);
+    // and a 20 m step every metre is a far harsher intersection than real
+    // ground. THE ERROR TRACKS THE SLOPE, WHICH THE LATTICE SETS, and this
+    // instrument is the one place in the suite that makes the slope as steep as
+    // a grid allows — so the bound has to clear the harshest lattice the engine
+    // ships, not the one that happened to be current. Two MEASURED points:
+    //   storage step 2 m -> 0.00106 m (5.3e-5 of the relief)
+    //   storage step 1 m -> 0.00214 m (1.07e-4 of the relief), and the ratio is
+    //   2.02, i.e. exactly the doubling of the slope
+    // 2.5e-4 sits above both and four orders of magnitude below the 20 m the
+    // control measures, so it cannot be confused with a real disagreement.
+    CHECK(synthetic.worst_agreement_m < 2.5e-4f * CHECKER_RELIEF_M);
     // Every cell centre sits on one diagonal's edge and CHECKER_RELIEF_M above
     // or below the other's, so the wrong choice is wrong by the full relief.
     CHECK(synthetic.worst_flipped_m == doctest::Approx(CHECKER_RELIEF_M).epsilon(0.01));

@@ -1,43 +1,35 @@
 /*
 Created: 17:08:2026 - 20:06:53
-Last updated: 18:08:2026 - 01:29:51
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorBrushView.h
 
 Responsibility:
-- THE BRUSH PANEL: what the sculptor sets before he touches the ground — the
-  mode, the size, the strength, the surface he is painting — and what he sets
-  before he plants — the species, how many, how varied.
+- THE GROUND SWATCHES: the picture of «трава», «камень», «смесь» и «песок»
+  beside their names, baked once and kept.
 
 Key items:
-- BrushHooks: the two things the panel cannot answer for itself.
 - BrushSwatches: the ground pictures beside the surface names.
-- make_brush_panel(): the EditorPanel declaration EditorUi is handed.
-- draw_brush_panel(): the content alone, for a caller with its own window.
 
-WHY THE PANEL OWNS NO STATE. It edits a TerrainBrush and a PlantBrush the app
-owns, in place. A panel holding its own copy would be a second set of settings,
-and the stroke would come out at the size of whichever copy the code reached
-first — a defect that looks like the slider not working.
-
-THE ONE RULE THIS PANEL EXISTS TO RESPECT: a dab must never fire while the
-pointer is over these widgets. That is not enforced here — EditorUi::wants_mouse
-answers it and the caller obeys it — but it is why the panel is declared through
-EditorUi rather than drawn wherever it likes. «Настроил кисть и случайно выкопал
-яму» happens on the first afternoon, and it happens once per builder.
+ЧЕГО ЗДЕСЬ БОЛЬШЕ НЕТ, И ПОЧЕМУ. Тут жила ПАНЕЛЬ КИСТИ целиком —
+make_brush_panel / draw_brush_panel / BrushHooks. После переписи инструментов на
+IEditorTool (docs/AUDIT_EDITOR_TOOLS.md) настройки рисует сам инструмент
+(HeightBrushTool::draw_settings, SurfacePaintTool::draw_settings, PlantTool::
+draw_settings), и эту панель не звал НИКТО: ноль ссылок во всём дереве, считая
+проверки и двери сдачи. Мёртвый код, который выглядит живым, — это приглашение
+починить не тот файл, поэтому он удалён, а не оставлен «на всякий случай».
+УНЕСЁННОЕ ВМЕСТЕ С НИМ ВЕРНУЛОСЬ: счётчик «Последний мазок: узлов N · X м»
+теперь стоит в настройках самой кисти высоты и читает ToolWorld::last_dab.
 
 Dependencies:
-- Uses: EditorBrush.h (the settings it edits), EditorUi.h, EditorPaletteThumb.h
-  (bake_surface_swatch), Dear ImGui (allowed in engine/editor and nowhere else).
-- Used by: engine/app (App wires it into EditorUi).
+- Uses: EditorBrush.h, EditorUi.h, EditorPaletteThumb.h (bake_surface_swatch).
+- Used by: engine/editor (SurfacePaintTool рисует ими список поверхностей).
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-- THE PANEL NEVER OPENS ITS OWN WINDOW. EditorUi owns Begin/End, the position
-  and the size; this draws CONTENT. Three agents write panels and the editor has
-  to look like one tool.
-- Every string goes through EditorUi::tr() (Rule 5). A Russian literal here is
-  both a rule violation and the first line that renders without glyphs.
+- НЕ ВОЗВРАЩАЙ СЮДА ПАНЕЛЬ. Настройки инструмента рисует инструмент — это и
+  есть свойство, купленное переписью: второго места, задающего то же
+  состояние, быть не должно.
 */
 /*
 UPD:
@@ -57,6 +49,12 @@ UPD:
   свотчей нет, разглядывая обрезанный кадр, и обрезал ровно ту колонку, где они
   стоят. Свотчи работали и до неё. Оставлено как защита от хрупкости, а не как
   починка: вечно закэшированная неудача плоха и без отказа на экране.
+- 18:08:2026 - 13:08:07: ПАНЕЛЬ КИСТИ УДАЛЕНА — её никто не звал. После переписи на
+  IEditorTool настройки рисует инструмент, а make_brush_panel /
+  draw_brush_panel / BrushHooks остались висеть: ноль ссылок в дереве. Счётчик
+  последнего мазка, ушедший вместе с ней с экрана, ВЕРНУЛСЯ — в настройки кисти
+  высоты, через ToolWorld::last_dab. Файл остался ради BrushSwatches: свотчи
+  земли нужны кисти поверхности и живут здесь с 18.08 01:24.
 */
 
 #pragma once
@@ -70,22 +68,6 @@ UPD:
 #include <vector>
 
 namespace dfn::app {
-
-/// WHAT THE PANEL CANNOT ANSWER ITSELF.
-struct BrushHooks {
-    /// The species the shelves actually carry, for the planting list. Called
-    /// once per frame while the planting section is open; the app is expected
-    /// to keep the vector, since reading a directory per frame is a directory
-    /// read per frame.
-    std::function<const std::vector<std::string>&()> species;
-
-    /// THE STROKE'S OWN NUMBERS, for the readout: how many lattice samples the
-    /// last dab moved and by how much. It is shown because "the ground looks
-    /// higher" is what a builder can see for himself, and "31 samples, worst
-    /// 0.42 m" is what he can act on — and because a brush that has silently
-    /// stopped biting looks exactly like a brush aimed at nothing.
-    std::function<void(int& samples, float& worst_m)> last_dab;
-};
 
 /// THE GROUND SWATCHES, baked once and kept.
 ///
@@ -128,22 +110,5 @@ private:
     EditorUi* ui_ = nullptr;
     std::map<math::SurfaceClass, Slot> tex_;
 };
-
-/// Declares the brush panel for EditorUi. `terrain`, `plant` and `hooks` must
-/// outlive the panel (App owns them). It starts CLOSED: a panel the builder has
-/// to ask for is a panel that is not in his way while he is doing something
-/// else.
-///
-/// `ui` is taken because the swatches have to be UPLOADED, and make_texture is
-/// an instance call — the panel cannot bake its own pictures without it.
-[[nodiscard]] EditorPanel make_brush_panel(EditorUi& ui, TerrainBrush& terrain,
-                                           PlantBrush& plant, BrushHooks hooks,
-                                           EditorPanelSide side = EditorPanelSide::Right);
-
-/// The content alone, for a caller that owns its window (the capture door).
-/// Normal callers use make_brush_panel(). `swatches` may be null, and then the
-/// picker draws its rows without pictures.
-void draw_brush_panel(TerrainBrush& terrain, PlantBrush& plant, const BrushHooks& hooks,
-                      BrushSwatches* swatches = nullptr);
 
 } // namespace dfn::app

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:05:10
-Last updated: 18:08:2026 - 12:05:10
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorToolIcons.h
 
@@ -37,6 +37,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 12:05:10: Создан — шесть значков, рисуются кодом, одинакового размера
   по построению (заказ 18.08).
+- 18:08:2026 - 13:08:07: седьмой значок — тропа.
 */
 
 #pragma once

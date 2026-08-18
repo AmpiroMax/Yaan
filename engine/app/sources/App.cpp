@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 12:51:26
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -480,6 +480,15 @@ UPD:
   получает полный холст. Один владелец отступа вместо договорённости между
   всеми рисующими; отступи HUD ещё раз — вышел бы двойной, и компас уехал бы
   от края на две полосы.
+- 18:08:2026 - 13:08:07: ЗЕМЛЯ ДВИГАЕТСЯ, ПОКА ВЕДЁШЬ КИСТЬ, и ТРОПА КРИВОЙ — два заказа 18.08.
+  Первый: перестройка чанка звалась только из finish_stroke, поэтому кисть вела по
+  неподвижной земле («мне так непонятно что происходит»). Теперь показ идёт во время
+  штриха с паузой, выведенной из ИЗМЕРЕННОЙ цены (196 мс на чанк) — StrokeRefresh.
+  Второй: шестой инструмент (PathTool) и крючки под него — ground_height, relief_paths,
+  commit_path, last_dab; линия и узлы рисуются из ToolPreview, без вопроса «что в руке».
+  И ПОПУТНО ЗАКРЫТА СТАРАЯ ДЫРА: приложение НИ РАЗУ не звало read_relief/write_relief —
+  ключ `relief` в .scene был, формат был, круговой прогон был, а правки земли жили до
+  выхода из игры. Теперь сиделка читается со сценой и пишется кнопкой «сохранить».
 */
 
 #include "engine/app/sources/App.h"
@@ -494,6 +503,7 @@ UPD:
 // wire_editor_panels() names it, and App.h is already the widest header in the
 // tree.
 #include "engine/editor/sources/EditorPaletteThumb.h"
+#include "engine/editor/sources/EditorToolPath.h"
 // Generated at BUILD time by tools/stamp_build_commit.cmake; carries
 // DFN_BUILD_COMMIT into every state capture. See that script for why the
 // configure-time version was a defect rather than a simplification.
@@ -543,6 +553,7 @@ UPD:
 #include <ctime>
 #include <filesystem>
 #include <limits>
+#include <string_view>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -1594,6 +1605,29 @@ bool App::enter_world(uint32_t stand) {
             std::fprintf(stderr, "[scene] %zu authored pad(s) cut into the ground\n",
                          scene_doc_.pads.size());
         }
+        // РУЧНАЯ ПРАВКА ЗЕМЛИ ЧИТАЕТСЯ ВМЕСТЕ СО СЦЕНОЙ. Ключ `relief` в .scene
+        // существовал с 17.08, формат читался и писался и был проверен круговым
+        // прогоном — а приложение не звало НИ read_relief, НИ write_relief ни
+        // разу: холмы и тропы жили до выхода. Это чинится здесь и в SaveMap.
+        relief_ = {};
+        if (!scene_doc_.relief.empty()) {
+            const std::filesystem::path side =
+                std::filesystem::path(gallery_scene_).parent_path() / scene_doc_.relief;
+            std::string rerr;
+            if (world::read_relief(side, relief_, rerr)) {
+                std::fprintf(stderr,
+                             "[relief] %s: %zu правленых отсчётов, %zu троп\n",
+                             side.string().c_str(), relief_.size(),
+                             relief_.paths().size());
+            } else {
+                // ВСЛУХ И БЕЗ ОСТАНОВКИ КАРТЫ: потерянная правка земли иначе
+                // выглядит как карта, которая сама поехала.
+                std::fprintf(stderr, "[relief] %s -- ПРАВКИ НЕ ПРИМЕНЕНЫ\n",
+                             rerr.c_str());
+                relief_ = {};
+            }
+        }
+        gp.composed_relief = relief_;
     }
     // THE MAP IS CONTENT AND IT IS LOADED, NOT COMPILED IN (Rule 5). Core moved
     // 441 lines of ONE GAME'S survey -- Vaelmere, Ravenscar, Harrowward -- out
@@ -4213,12 +4247,35 @@ void App::wire_editor_panels() {
     tw.plant_dab = [this](const PlantBrush& brush, glm::vec2 centre) {
         return plant_dab_here(brush, centre);
     };
-    tw.select_target = [this]() {
+    tw.ground_height = [this](glm::vec2 xz) {
+        // ЗАКОНЧЕННАЯ земля, правки рукой включительно: линия тропы обязана
+        // лежать на той поверхности, на которую человек смотрит. Ноль вместо
+        // «не знаю» утопил бы её на десятки метров — этот отказ уже был у
+        // кольца кисти и пойман кадром сдачи.
+        return chunks_.height_at(xz).value_or(0.0f);
+    };
+    tw.last_dab = [this](int& samples, float& worst_m) {
+        samples = last_dab_samples_;
+        worst_m = last_dab_worst_m_;
+    };
+    tw.relief_paths = [this]() -> const std::vector<world::ReliefPath>* {
+        return &relief_.paths();
+    };
+    tw.commit_path = [this](std::size_t index, const world::ReliefPath* path) {
+        return commit_relief_path(index, path);
+    };
+    tw.open_own_settings = [this]() {
+        auto& box = editor_ui_.toolbox();
+        if (box.active() != nullptr && box.settings_index() == NO_TOOL) {
+            box.click_settings(box.active_index());
+        }
+    };
+    tw.select_target = [this]() -> bool {
         selected_ = build_target_;
         props_.refusal.clear();
         if (selected_ >= scene_doc_.placements.size()) {
             props_.object.clear();
-            return;
+            return false;
         }
         const world::Placement& p = scene_doc_.placements[selected_];
         props_.object = p.object;
@@ -4240,14 +4297,23 @@ void App::wire_editor_panels() {
                      static_cast<double>(p.position.y),
                      static_cast<double>(p.position.z),
                      static_cast<double>(p.yaw * 180.0f / glm::pi<float>()));
+        return true;
     };
 
     // ПЯТЬ ИНСТРУМЕНТОВ, ПЯТЬ КЛАССОВ, И ПОРЯДОК ЗДЕСЬ — ПОРЯДОК НА ПОЛОСЕ И
     // ПОРЯДОК КЛАВИШ 1..5. Добавить шестой — значит написать класс и дописать
     // строку сюда; ни одного switch по дороге больше нет.
     EditorToolbox& box = editor_ui_.toolbox();
-    box.add(std::make_unique<HeightBrushTool>());
-    box.add(std::make_unique<SurfacePaintTool>(editor_ui_));
+    {
+        // Кисти получают мир не ради щелчка (щелчок приходит с ним сам), а ради
+        // ЧИТАЛКИ в настройках: «Последний мазок: узлов N · X м».
+        auto height = std::make_unique<HeightBrushTool>();
+        height->set_world(&tw);
+        box.add(std::move(height));
+        auto paint = std::make_unique<SurfacePaintTool>(editor_ui_);
+        paint->set_world(&tw);
+        box.add(std::move(paint));
+    }
     {
         auto select = std::make_unique<SelectTool>(props_, std::move(ph));
         select->set_world(&tw);
@@ -4282,6 +4348,14 @@ void App::wire_editor_panels() {
         }
         return plant_species_;
     }));
+    // ТРОПА — ШЕСТОЙ ИНСТРУМЕНТ (заказ 18.08: «тропинки надо уметь вести не по
+    // квадратам... между любыми точками»). Он не режим кисти: у кисти есть
+    // центр и радиус, у тропы — точки, порядок и два конца.
+    {
+        auto path = std::make_unique<PathTool>();
+        path->set_world(&tw);
+        box.add(std::move(path));
+    }
     props_wired_ = true;
 }
 
@@ -4326,6 +4400,79 @@ bool App::apply_selection_edit() {
     rebake_tile_at({before.position.x, before.position.z});
     rebake_tile_at({props_.x, props_.z});
     return true;
+}
+
+bool App::save_map_with_relief() {
+    // ДВА ФАЙЛА, ОДНА КНОПКА. Сцена и сиделка .relief — разные записи об одной
+    // карте, и человек, нажавший «сохранить», не обязан знать, что их две.
+    // Порядок важен: имя сиделки уходит В СЦЕНУ, поэтому оно проставляется до
+    // записи сцены, иначе карта откроется без собственных правок.
+    if (!relief_.empty() || !relief_.paths().empty()) {
+        if (scene_doc_.relief.empty()) {
+            scene_doc_.relief =
+                std::filesystem::path(gallery_scene_).stem().string() + ".relief";
+        }
+    }
+    if (!world::write_scene(scene_doc_, gallery_scene_)) {
+        return false;
+    }
+    if (scene_doc_.relief.empty()) {
+        return true;
+    }
+    const std::filesystem::path side =
+        std::filesystem::path(gallery_scene_).parent_path() / scene_doc_.relief;
+    if (!world::write_relief(relief_, side)) {
+        std::fprintf(stderr, "[relief] не записал %s\n", side.string().c_str());
+        return false;
+    }
+    std::fprintf(stderr, "[relief] %s: %zu отсчётов, %zu троп\n",
+                 side.string().c_str(), relief_.size(), relief_.paths().size());
+    return true;
+}
+
+std::size_t App::commit_relief_path(std::size_t index, const world::ReliefPath* path) {
+    // ОДНА ДВЕРЬ НА ТРИ ДЕЙСТВИЯ, и потому ровно одно место, которое помнит про
+    // перепечку канала и про пометку чанков. Три отдельных крючка означали бы
+    // три места, где об этом можно забыть, а забывший даёт тропу, которой нет
+    // на земле, — то есть инструмент, который «не работает».
+    glm::vec2 lo{0.0f};
+    glm::vec2 hi{0.0f};
+    bool had_box = false;
+    if (index < relief_.paths().size()) {
+        // ГДЕ ТРОПА БЫЛА — тоже грязно: сдвинутый узел освобождает землю,
+        // которую надо перестроить, иначе на карте остаётся её призрак.
+        had_box = world::relief_path_bounds(relief_.paths()[index], lo, hi);
+    }
+
+    std::size_t result = static_cast<std::size_t>(-1);
+    if (path == nullptr) {
+        relief_.erase_path(index);
+    } else if (index < relief_.paths().size()) {
+        relief_.set_path(index, *path);
+        result = index;
+    } else {
+        result = relief_.add_path(*path);
+    }
+
+    glm::vec2 lo2{0.0f};
+    glm::vec2 hi2{0.0f};
+    if (path != nullptr && world::relief_path_bounds(*path, lo2, hi2)) {
+        lo = had_box ? glm::min(lo, lo2) : lo2;
+        hi = had_box ? glm::max(hi, hi2) : hi2;
+        had_box = true;
+    }
+
+    chunks_.set_composed_relief(relief_);
+    // КАРТА СТАЛА ГРЯЗНОЙ. Без этого «сохранить» отвечало бы «сохранять
+    // нечего» человеку, который только что провёл тропу.
+    scene_dirty_ = true;
+    if (had_box) {
+        (void)chunks_.invalidate_area(lo, hi);
+        // ТОТ ЖЕ ФЛАГ, ЧТО У КИСТИ: земля показывается, пока ведёшь, с той же
+        // частотой, выведенной из той же измеренной цены.
+        ground_moved_since_push_ = true;
+    }
+    return result;
 }
 
 bool App::apply_terrain_dab(const TerrainBrush& brush, glm::vec2 centre, float dt_s) {
@@ -4489,17 +4636,20 @@ void App::update_editor_tools(float dt_s) {
     // окружения, чтобы увидеть, куда укусит кисть, значит отдать ему
     // неработающий инструмент.
     const ToolPreview want = editor_ui_.toolbox().preview(aim);
-    if ((want.ring_brush != nullptr || want.ghost) && renderer_ != nullptr) {
+    if ((want.ring_brush != nullptr || want.ghost || want.polyline != nullptr
+         || want.handles != nullptr)
+        && renderer_ != nullptr) {
         renderer_->set_debug_lines(true);
     }
     // ВЫБРАННАЯ РАССТАНОВКА ОТКРЫВАЕТ СВОИ НАСТРОЙКИ. The properties are the
     // select tool's own settings now, so "show me what I picked" is one call
     // and not a panel id somebody else has to remember.
-    if (tick.pressed && selected_ < scene_doc_.placements.size()
-        && editor_ui_.toolbox().active() != nullptr
-        && editor_ui_.toolbox().settings_index() == NO_TOOL) {
-        editor_ui_.toolbox().click_settings(editor_ui_.toolbox().active_index());
-    }
+    // РЕШЕНИЕ «ПОКАЗАТЬ СВОЙСТВА» УЕХАЛО В САМ ИНСТРУМЕНТ ВЫБОРА
+    // (ToolWorld::open_own_settings, зовётся из SelectTool::on_press). Здесь оно
+    // жило условием, которое не спрашивало, чей сейчас ход, и потому открывало
+    // настройки ЛЮБОГО инструмента — попытка посадить дерево распахивала меню
+    // посадки. App.cpp окна не тестирует, поэтому и поймать это мог только
+    // человек за игрой; в инструменте у того же решения есть прибор.
 }
 
 void App::become_player_from_editor() {
@@ -4617,7 +4767,7 @@ int App::run() {
                     menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.no_scene"))));
                 } else if (!scene_dirty_) {
                     menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.nothing"))));
-                } else if (world::write_scene(scene_doc_, gallery_scene_)) {
+                } else if (save_map_with_relief()) {
                     scene_dirty_ = false;
                     menu_.set_browser_status(std::string(localized(serialization::fnv1a64("menu.save.done"))));
                 } else {
@@ -6211,6 +6361,26 @@ int App::run() {
             };
             stroke_ring(zone.rim);
             stroke_ring(zone.core);
+        }
+        // ЛИНИЯ ТРОПЫ И ЕЁ УЗЛЫ. Спрашивается ОТВЕТ («что нарисовать»), а не
+        // ярлык («не тропа ли в руке»): инструмент отдаёт ломаную, уже
+        // положенную на землю, и код отрисовки о тропах ничего не знает.
+        if (mode_ == AppMode::Editor) {
+            const ToolPreview want = editor_ui_.toolbox().preview(ring_aim);
+            const std::uint32_t col = want.line_color != 0 ? want.line_color : 0xFFFFFFFFu;
+            if (want.polyline != nullptr) {
+                for (std::size_t i = 0; i + 1 < want.polyline->size(); ++i) {
+                    renderer_->debug_line((*want.polyline)[i], (*want.polyline)[i + 1],
+                                          col);
+                }
+            }
+            if (want.handles != nullptr) {
+                // ПАРАМИ: узлы приходят отрезками, а не точками, потому что
+                // рисовальщик умеет линии и только их.
+                for (std::size_t i = 0; i + 1 < want.handles->size(); i += 2) {
+                    renderer_->debug_line((*want.handles)[i], (*want.handles)[i + 1], col);
+                }
+            }
         }
         if (collider_debug_) {
             constexpr uint32_t WIRE = 0xFF44FF44u; // 0xAABBGGRR: green

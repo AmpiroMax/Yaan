@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 18:08:2026 - 12:06:09
+Last updated: 18:08:2026 - 12:38:09
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -137,6 +137,10 @@ UPD:
   по-настоящему при смене шага: 557 утверждений в test_worldgen_v2 (сеточный
   проход разошёлся с аналитическим surface_point по классу поверхности) и 74 в
   test_coarse_lod (чанк разошёлся с дальним узлом).
+- 18:08:2026 - 12:38:09: АВТОРСКАЯ ТРОПА ДОЕЗЖАЕТ ДО ЗЕМЛИ. path_wear теперь заводится и на
+  карте БЕЗ сгенерированной сети, если композитор провёл тропу рукой, а значение
+  берётся как максимум сгенерированного и нарисованного. Шесть строк, и без них
+  канал в слое правок был бы записью, которой никто не читает.
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -682,9 +686,14 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
     chunk.surface.dist_to_water.resize(sample_count);
     chunk.surface.water_surface.resize(sample_count);
     chunk.surface.surface_class.resize(sample_count);
-    // Sized only when this world HAS a path network: an empty vector is the
-    // documented "no paths here", and every reader treats it as all-zero.
-    if (!ctx.paths.routes.empty()) {
+    // Sized only when this world HAS a path network OR a hand-drawn one: an
+    // empty vector is the documented "no paths here", and every reader treats
+    // it as all-zero. THE SECOND HALF IS THE COMPOSER'S (заказ 18.08: тропа
+    // ведётся кривой, а не мазком по клеткам) — без него авторская тропа
+    // существовала бы в слое правок и не доезжала бы до земли на карте, где
+    // сгенерированной сети нет.
+    const bool authored_wear = ctx.params.composed_relief.has_path_wear();
+    if (!ctx.paths.routes.empty() || authored_wear) {
         chunk.surface.path_wear.resize(sample_count);
     }
 
@@ -784,7 +793,18 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
                 // grooves the terrain with this network; taking the wear from
                 // anywhere else would put the trodden colour beside the trodden
                 // shape instead of on it.
-                chunk.surface.path_wear[i] = ctx.paths.sample(world).wear;
+                float wear = ctx.paths.routes.empty()
+                               ? 0.0f
+                               : ctx.paths.sample(world).wear;
+                if (authored_wear) {
+                    // MAX, NOT SUM, and the same argument as inside the layer:
+                    // where a drawn path crosses a generated one the ground is
+                    // worn, not worn twice. A sum would burn a bright square
+                    // into every crossing.
+                    wear = std::max(wear,
+                                    ctx.params.composed_relief.path_wear_at(world));
+                }
+                chunk.surface.path_wear[i] = wear;
             }
         }
     }

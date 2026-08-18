@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 11:52:10
-Last updated: 18:08:2026 - 11:52:10
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorTool.h
 
@@ -61,17 +61,26 @@ UPD:
   инструмента, прицел с ДАЛЬНОСТЬЮ, мир как набор крючков, превью и состояние
   подписи. Заказ 18.08 целиком: «нельзя бы было поймать ошибки, что я сразу два
   инструмента в руке держу».
+- 18:08:2026 - 13:08:07: ДВЕ ДОБАВКИ ПОД ТРОПЫ, обе минимальные и обе — ответы, а не ярлыки.
+  ToolPreview получил ЛОМАНУЮ И УЗЛЫ: инструмент тропы рисует в мире не кольцо,
+  а линию, и без этого поля App пришлось бы спрашивать «а не тропа ли сейчас в
+  руке» — то самое седьмое место, ради удаления которого файл написан.
+  ToolWorld получил ground_height (положить линию на землю), relief_paths /
+  commit_path (прочитать и записать тропы) и last_dab (числа последнего мазка —
+  счётчик вернулся из мёртвой панели кисти в настройки самой кисти).
 */
 
 #pragma once
 
 #include "engine/editor/sources/EditorBrush.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <string>
+#include <vector>
 
 namespace dfn::app {
 
@@ -84,6 +93,7 @@ enum class ToolIcon : std::uint8_t {
     Select,   ///< выбор объекта
     Place,    ///< постройка
     Plant,    ///< посадка растительности
+    Path,     ///< тропа кривой
     Settings, ///< шестерёнка: общие параметры (не инструмент)
     Count
 };
@@ -123,6 +133,20 @@ struct ToolAim {
 struct ToolPreview {
     bool ghost = false;        ///< the part in hand, drawn where it would stand
     bool target_probe = false; ///< «что под прицелом» pass (delete / select)
+    /// ЛОМАНАЯ, КОТОРУЮ ИНСТРУМЕНТ ХОЧЕТ ВИДЕТЬ В МИРЕ, уже положенная на
+    /// землю, или null. Указатель на СОБСТВЕННЫЙ буфер инструмента, как и
+    /// ring_brush: копия здесь была бы вектором в кадр на пустом месте.
+    ///
+    /// ПОЧЕМУ ЭТО ЗДЕСЬ, А НЕ В App: тропа рисуется линией, а не кольцом, и
+    /// единственная альтернатива — вопрос «какой инструмент сейчас в руке» в
+    /// коде отрисовки. Ровно от этого вопроса файл и избавлялся.
+    const std::vector<glm::vec3>* polyline = nullptr;
+    /// Узлы, которые человек может схватить, — рисуются крестиками. Отдельно от
+    /// ломаной: точки поставлены рукой, а ломаная посчитана, и путать их на
+    /// экране значит показывать, будто кривая состоит из его точек.
+    const std::vector<glm::vec3>* handles = nullptr;
+    /// 0xAABBGGRR для обеих. Ноль — «цвет по умолчанию решает рисующий».
+    std::uint32_t line_color = 0;
     /// THE BRUSH THE RING IS DRAWN FOR, or null for no ring. A pointer to the
     /// tool's OWN brush rather than a radius: brush_outline() bisects the rim
     /// out of brush_weight(), and handing over a number here would let the ring
@@ -160,9 +184,48 @@ struct ToolWorld {
     std::function<bool(const TerrainBrush& brush, glm::vec2 centre, float dt_s)> terrain_dab;
     /// The stroke ended: spend its budget and rebuild what it dirtied.
     std::function<void()> finish_stroke;
+    /// ПОКАЖИ МОИ СОБСТВЕННЫЕ НАСТРОЙКИ. Зовёт инструмент — и это единственный
+    /// способ их открыть изнутри мира.
+    ///
+    /// Заведено по разбору жалобы 18.08: «когда я сажать пытаюсь, мне
+    /// открывается меню инструмента посадки, бредовое поведение». Открывал их
+    /// App, условием «есть выбранная расстановка и настройки закрыты» — и НЕ
+    /// спрашивал, чей сейчас ход, поэтому поведение, написанное для инструмента
+    /// ВЫБОРА («ткнул в объект — вот его свойства»), срабатывало у всех. Тот же
+    /// дефект, что и остальные за день: условие называло ОТВЕТ, а не ВЛАДЕЛЬЦА.
+    /// Теперь настройки открывает тот, кто этого хочет, из своего же on_press —
+    /// и другому инструменту нечего забыть.
+    std::function<void()> open_own_settings;
     /// «Ровно»: put one [pad] into the composition. The pad is COMPUTED by the
     /// tool (flatten_pad(), EditorBrush.h) — this only carries it.
     std::function<void(const world::ScenePad& pad)> add_pad;
+    /// The finished ground at a world XZ — hand edits included. A tool that
+    /// draws anything ON the ground needs it, and a tool that guesses sea level
+    /// instead draws its line under the hill (that defect is in this repo's
+    /// history, in the brush ring).
+    std::function<float(glm::vec2 world_xz)> ground_height;
+    /// ЧИСЛА ПОСЛЕДНЕГО МАЗКА: сколько отсчётов сдвинулось и на сколько.
+    /// Показываются в настройках самой кисти — кисть, которая молча перестала
+    /// бить (прицел за подгруженным кольцом), выглядит ровно как кисть,
+    /// наведённая не туда, и эти два числа различают их с одного взгляда.
+    std::function<void(int& samples, float& worst_m)> last_dab;
+
+    // -- paths ----------------------------------------------------------------
+    /// Тропы, которые уже проведены. Указатель, а не копия: инструмент читает
+    /// их каждый кадр, чтобы нарисовать и чтобы найти узел под прицелом.
+    /// Пустой ответ (nullptr) законен и значит «мир троп не держит».
+    std::function<const std::vector<world::ReliefPath>*()> relief_paths;
+    /// ЕДИНСТВЕННАЯ ДВЕРЬ К ЗАПИСИ ТРОПЫ, и она одна на три действия нарочно:
+    /// `index` == npos — добавить, `path` == nullptr — удалить, иначе заменить.
+    /// Три отдельных крючка означали бы три места, которые обязаны помнить про
+    /// перепечку канала и про пометку чанков.
+    ///
+    /// ВОЗВРАЩАЕТ ИНДЕКС ТРОПЫ ПОСЛЕ ДЕЙСТВИЯ (npos после удаления). Без него
+    /// добавивший тропу инструмент вычислял бы её номер из длины чужого
+    /// вектора — то есть держал бы у себя копию правила о том, как мир
+    /// нумерует тропы.
+    std::function<std::size_t(std::size_t index, const world::ReliefPath* path)>
+        commit_path;
 
     // -- parts ---------------------------------------------------------------
     /// Place what the hand is holding where the ghost stands. False = refused.
@@ -170,7 +233,11 @@ struct ToolWorld {
     /// Remove whatever the target probe found. False = nothing there.
     std::function<bool()> delete_target;
     /// Select whatever the target probe found (fills the properties column).
-    std::function<void()> select_target;
+    /// TRUE = что-то выбрано. Возвращает признак, а не void, потому что от него
+    /// зависит второе действие: свойства открываются, только если есть что
+    /// показать. Пустой щелчок по траве, распахивающий пустую колонку, — это
+    /// шум, а не отклик.
+    std::function<bool()> select_target;
     /// Is something under the crosshair right now?
     std::function<bool()> has_target;
     /// May the held part be placed? On refusal, `reason` carries the judge's

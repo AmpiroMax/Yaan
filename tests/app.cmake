@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 18:08:2026 - 12:08:40
+# Last updated: 18:08:2026 - 13:08:07
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -66,6 +66,12 @@
 #   любых открытых окнах; щелчок дальше потолка не делает НИЧЕГО, ближе —
 #   делает. Плюс то, ради чего всё затевалось: нажатие доходит РОВНО до одного
 #   инструмента, и это счётчик у каждого, а не утверждение про поле.
+# - 18:08:2026 - 13:08:07: EditorPathTests.cpp и EditorStrokeTests.cpp на рукав
+#   app_editor_brush. Первый держит числом то, ради чего затевались тропы:
+#   диагональ рисуется диагональю (0.12 м против 0.49 м у клеточной руки).
+#   Второй — то, чего не покажет ни один кадр: за штрих земля обновилась
+#   БОЛЬШЕ ОДНОГО РАЗА, и рядом стоит контроль на один кадр и рука прежнего
+#   поведения.
 #   Цель линкует ТОЛЬКО EditorToolbox.cpp и EditorToolIcons.cpp: в них нет ни
 #   ImGui, ни окна — решение отделено от рисования именно затем, чтобы этот
 #   рукав существовал (правило 3).
@@ -141,6 +147,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # of one claim be run separately, which is how a paired arm goes missing.
     target_sources(app_editor_brush PRIVATE
         ${CMAKE_SOURCE_DIR}/tests/app/EditorBrushOutlineTests.cpp
+        # ТРОПА И ПОКАЗ ЗЕМЛИ — на тот же рукав и по той же причине, что и
+        # контур зоны: это та же рука на той же земле, а отдельный исполняемый
+        # дал бы гонять половинки одного утверждения порознь.
+        ${CMAKE_SOURCE_DIR}/tests/app/EditorPathTests.cpp
+        ${CMAKE_SOURCE_DIR}/tests/app/EditorStrokeTests.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BuildTool.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorPlant.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorBrush.cpp)

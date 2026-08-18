@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 18:08:2026 - 01:05:34
+Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorBrush.cpp
 
@@ -34,9 +34,16 @@ UPD:
   форма спада наследуются, а не переписываются. Цвет: зелёный вверх, красный
   вниз, синий когда направления НЕТ (сглаживание тянет одни образцы вверх, а
   другие вниз), масть поверхности — для кисти покраски.
+- 18:08:2026 - 13:08:07: StrokeRefresh — показ земли ПОКА КНОПКА ЗАЖАТА, с паузой, выведенной
+  из измеренной цены перестройки (196 мс/чанк). Реализация в двадцать строк, и
+  вся её ценность в том, что она ВЫРАЗИМА В ПРОВЕРКЕ: App держит окно и не
+  заводится, а «за штрих земля изменилась больше одного раза» иначе никак не
+  спросить — кадр показывает одно состояние.
 */
 
 #include "engine/editor/sources/EditorBrush.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -281,6 +288,47 @@ bool stroke_step(BrushStroke& stroke, bool pointer_down, bool ui_wants_mouse) {
     // Interrupting it there would tear a sculpted ridge in half at the panel's
     // edge, which is a defect the builder would blame on the brush.
     return stroke.active;
+}
+
+// ===================== WHEN TO SHOW THE GROUND MOVING =======================
+
+bool StrokeRefresh::step(bool dabbed, float dt_s) {
+    if (dabbed) {
+        pending = true;
+    }
+    since_s += dt_s;
+    if (!pending || since_s < wait_s) {
+        return false;
+    }
+    // ПОКАЗЫВАЕМ. Счётчик обнуляется ЗДЕСЬ, а не в note_cost: цену может
+    // сообщить только тот, кто перестраивал, а он вправе этого не делать — и
+    // тогда пауза остаётся прежней, что честнее, чем считать бесплатным то,
+    // чего не измерили.
+    since_s = 0.0f;
+    pending = false;
+    ++pushes;
+    return true;
+}
+
+void StrokeRefresh::note_cost(float rebuild_s) {
+    spent_s += std::max(rebuild_s, 0.0f);
+    // ПАУЗА ВЫВЕДЕНА ИЗ ЦЕНЫ, А НЕ НАЗНАЧЕНА. На машине, где чанк
+    // перестраивается за 200 мс, показ будет раз в 0.6 с (упор в потолок); на
+    // машине вдвое быстрее — раз в 0.6 же (потолок), а на локальной правке в
+    // 20 мс — раз в 0.1 с (упор в пол). Числа сами следуют за железом и за тем,
+    // как подешевеет перестройка, если её когда-нибудь сделают локальной.
+    wait_s = std::clamp(rebuild_s * static_cast<float>(config::REFRESH_COST_RATIO),
+                        static_cast<float>(config::REFRESH_MIN_PERIOD_S),
+                        static_cast<float>(config::REFRESH_MAX_PERIOD_S));
+}
+
+void StrokeRefresh::end() {
+    // СЛЕДУЮЩИЙ ШТРИХ НАЧИНАЕТСЯ С НЕМЕДЛЕННОГО ПОКАЗА, но с ПАМЯТЬЮ О ЦЕНЕ:
+    // обнулять wait_s было бы обещанием, что второй штрих дешевле первого.
+    since_s = 0.0f;
+    pending = false;
+    pushes = 0;
+    spent_s = 0.0f;
 }
 
 // ========================= THE ZONE, MADE VISIBLE ===========================
