@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 18:08:2026 - 17:32:10
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -15,6 +15,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 17:32:10: Создан вместе с заголовком — 58 дверей, собранных из шести
   файлов зоны app.
+- 18:08:2026 - 19:44:10: Строка DFN_HOUSE_PULL.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -31,7 +32,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 58> TABLE{{
+constexpr std::array<Door, 59> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -111,10 +112,15 @@ constexpr std::array<Door, 58> TABLE{{
      "то же, но от точки спавна карты. Читается ПОСЛЕ абсолютной, чтобы рецепт с обеими получил ту, что выписал явно.",
      DoorRead::Once},
     {"DFN_EDITOR_TOOL",
-     "взять инструмент 1..5 без нажатия клавиши — через тот же click_icon, каким его берёт человек.",
+     "взять инструмент 1..N без нажатия клавиши — через тот же click_icon, каким его берёт человек.",
      DoorRead::Once},
     {"DFN_EDITOR_SETTINGS",
      "открыть настройки инструмента 1..5, НЕ трогая руку.",
+     DoorRead::Once},
+    {"DFN_HOUSE_PULL",
+     "подтянуть шарик якоря к себе на N метров — то же число, что двигает колесо мыши. "
+     "Без неё отвес не попадает ни на один беспилотный кадр: он рисуется только у "
+     "поднятого шарика.",
      DoorRead::Once},
     {"DFN_EDITOR_BRUSH",
      "открыть настройки кисти рельефа (то же, что треугольник под её фишкой).",

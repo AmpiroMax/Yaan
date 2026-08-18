@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:10
-Last updated: 18:08:2026 - 13:08:07
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolsBuiltin.h
 
@@ -49,6 +49,7 @@ UPD:
   перепись инструментов оставила без единого вызова, а он полезен ровно в тот
   момент, когда кисть кажется сломанной: «узлов 0» отличает прицел за
   подгруженным кольцом от кисти, наведённой не туда.
+- 18:08:2026 - 19:44:10: Инструмент выбора знает постройку: house_target — якорь или ось под лучом.
 */
 
 #pragma once
@@ -56,6 +57,7 @@ UPD:
 #include "engine/editor/sources/EditorPaletteView.h"
 #include "engine/editor/sources/EditorPropsView.h"
 #include "engine/editor/sources/EditorTool.h"
+#include "engine/editor/sources/EditorToolHouse.h"
 
 #include <memory>
 #include <string>
@@ -139,10 +141,32 @@ public:
     /// прицелом»). Handed over once, by the same code that fills ToolWorld.
     void set_world(const ToolWorld* world) { world_ = world; }
 
+    /// ПОСТРОЙКА, ЕСЛИ ОНА ЕСТЬ. Инструмент выбора обязан уметь выбирать И ЕЁ
+    /// части: пользователь 18.08 назвал прямо — «не могу выбрать якоря или
+    /// прямые». Своего инструмента выбора у постройки нет и не надо: выбор —
+    /// это одно дело, а не три (объект, якорь, прямая), и делает его тот, у
+    /// кого на полосе нарисована рамка с указателем.
+    ///
+    /// Указатель, а не ссылка: сессия появляется позже инструмента, и «дома
+    /// нет» — законное состояние (карта без построек).
+    void set_house(HouseSession* house) { house_ = house; }
+
 private:
+    /// Что под лучом: якорь, ось или ничего. Один ответ на три места — щелчок,
+    /// показ и подпись, — чтобы они не могли разойтись.
+    struct HouseTarget {
+        world::VertexId vertex = world::NO_VERTEX;
+        world::ElementId element = world::NO_ELEMENT;
+        [[nodiscard]] bool any() const {
+            return vertex != world::NO_VERTEX || element != world::NO_ELEMENT;
+        }
+    };
+    [[nodiscard]] HouseTarget house_target(const ToolAim& aim) const;
+
     PropsModel* model_ = nullptr;
     PropsHooks hooks_;
     const ToolWorld* world_ = nullptr;
+    HouseSession* house_ = nullptr;
 };
 
 /// 4 — постройка. Owns the ghost's lifetime through the world hooks: putting

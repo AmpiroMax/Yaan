@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:08:20
-Last updated: 18:08:2026 - 13:08:07
+Last updated: 18:08:2026 - 19:44:10
 Module: tests/app
 File: tests/app/EditorToolboxTests.cpp
 
@@ -38,6 +38,7 @@ UPD:
   молчание, неотличимое от поломки. Контрфакт: снял проверку — 6 утверждений.
 - 18:08:2026 - 13:08:07: седьмой значок (тропа) в списке различимости — иначе новый значок мог бы
   совпасть с чужим побайтово и никто бы не заметил.
+- 18:08:2026 - 19:44:10: Три новых значка в перечне попарно-разных.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"
@@ -356,9 +357,11 @@ TEST_CASE("прицел, не встретивший ничего, вне дос
 // ============================================================================
 TEST_CASE("значки инструментов: один размер, непустые, попарно разные") {
     constexpr int PX = 32;
-    const ToolIcon ICONS[] = {ToolIcon::Height, ToolIcon::Surface, ToolIcon::Select,
-                              ToolIcon::Place,  ToolIcon::Plant,   ToolIcon::Path,
-                              ToolIcon::Settings};
+    const ToolIcon ICONS[] = {ToolIcon::Height,      ToolIcon::Surface,
+                              ToolIcon::Select,      ToolIcon::Place,
+                              ToolIcon::Plant,       ToolIcon::Path,
+                              ToolIcon::HouseVertex, ToolIcon::HouseLine,
+                              ToolIcon::HouseSurface, ToolIcon::Settings};
     std::vector<std::vector<std::uint8_t>> baked;
     for (const ToolIcon icon : ICONS) {
         std::vector<std::uint8_t> rgba;

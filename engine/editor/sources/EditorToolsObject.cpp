@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:50
-Last updated: 18:08:2026 - 13:17:00
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolsObject.cpp
 
@@ -32,6 +32,7 @@ UPD:
   дерево распахивала меню посадки — жалоба 18.08 «бредовое поведение», и она
   верна. Пустой щелчок по траве не открывает пустую колонку: это шум, а не
   отклик.
+- 18:08:2026 - 19:44:10: Выбор якоря и прямой тем же инструментом, что выбирает объекты; часть постройки имеет приоритет над объектом сцены.
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"
@@ -50,8 +51,40 @@ ToolIdentity SelectTool::identity() const {
                         ToolIcon::Select};
 }
 
+SelectTool::HouseTarget SelectTool::house_target(const ToolAim& aim) const {
+    HouseTarget out;
+    if (house_ == nullptr) {
+        return out;
+    }
+    // ЯКОРЬ ПЕРЕД ОСЬЮ. Они соседи: якорь сидит на конце оси, и щелчок у конца
+    // обязан достаться якорю — иначе выбрать конечную вершину нельзя вовсе.
+    out.vertex = house_->pick_vertex_ray(aim.origin, aim.direction(), HOUSE_GRAB_M);
+    if (out.vertex != world::NO_VERTEX) {
+        return out;
+    }
+    if (const HouseEdgeHit e = house_->pick_edge_ray(aim.origin, aim.direction(),
+                                                     HOUSE_EDGE_GRAB_M);
+        e.hit()) {
+        out.element = e.host;
+    }
+    return out;
+}
+
 void SelectTool::on_press(const ToolAim& aim, ToolWorld& world) {
-    (void)aim;
+    // ЧАСТЬ ПОСТРОЙКИ ИМЕЕТ ПРИОРИТЕТ НАД ОБЪЕКТОМ СЦЕНЫ, и это не вкус: якорь
+    // с осью — тонкие цели в полметра, объект под ними — дом целиком. Обратный
+    // порядок означал бы, что попасть в якорь на фоне стены нельзя никогда.
+    if (const HouseTarget h = house_target(aim); h.any()) {
+        if (h.vertex != world::NO_VERTEX) {
+            house_->select_vertex(h.vertex);
+        } else {
+            house_->select_element(h.element);
+        }
+        // Панель свойств объекта здесь НЕ открывается: выбран не объект сцены,
+        // и открывать чужую панель значило бы повторить ту самую жалобу
+        // «открывается меню инструмента, которым я не пользуюсь».
+        return;
+    }
     if (!world.select_target) {
         return;
     }
@@ -76,7 +109,11 @@ ToolPreview SelectTool::preview(const ToolAim& aim) const {
 }
 
 ToolStatus SelectTool::status(const ToolAim& aim) const {
-    (void)aim;
+    if (const HouseTarget h = house_target(aim); h.any()) {
+        return ToolStatus{h.vertex != world::NO_VERTEX ? "house.hint.select.vertex"
+                                                       : "house.hint.select.element",
+                          {}, true};
+    }
     if (world_ != nullptr && world_->has_target && !world_->has_target()) {
         return ToolStatus{"tool.hint.nothing", {}, false};
     }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 18:19:47
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -558,6 +558,7 @@ UPD:
   что-то сломается, никто не скажет, кто виноват. Сжатие тела — отдельно.
   Заодно родился AppInternal.h: пять имён из безымянного пространства
   понадобились ДВУМ файлам.
+- 18:08:2026 - 19:44:10: Колесо отдаётся инструменту, если он его просит; инструменту выбора отдана постройка; дверь DFN_HOUSE_PULL для приёмочного кадра с отвесом.
 */
 
 #include "engine/app/sources/App.h"
@@ -2856,6 +2857,9 @@ void App::wire_editor_panels() {
     {
         auto select = std::make_unique<SelectTool>(props_, std::move(ph));
         select->set_world(&tw);
+        // ВЫБОР — ОДНО ДЕЛО, А НЕ ТРИ. Тот же инструмент выбирает объект сцены,
+        // якорь и прямую («не могу выбирать якоря или прямые», 18.08).
+        select->set_house(&house_);
         box.add(std::move(select));
     }
     {
@@ -3469,6 +3473,30 @@ int App::run() {
                              box.active() != nullptr ? box.active()->identity().id
                                                      : "ничего");
             }
+
+            // ДВЕРЬ: DFN_HOUSE_PULL=<метры> — подтягивание шарика якоря к
+            // себе без колеса мыши. Отвес рисуется ТОЛЬКО когда шарик поднят
+            // над травой, а колесо беспилотному прогону недоступно: без этой
+            // двери приёмочного кадра с отвесом не существует (правило 27).
+            static const float pull_door = [] {
+                const char* v = door_value("DFN_HOUSE_PULL");
+                return v != nullptr ? static_cast<float>(std::atof(v)) : 0.0f;
+            }();
+            static bool pull_door_used = false;
+            // ЖДЁМ, ПОКА ЯЩИК НАПОЛНЕН. Первый кадр редактора приходит раньше
+            // инструментов, и дверь, потратившая себя на пустой ящик, молча не
+            // сделала бы ничего — тот самый худший исход, о котором говорит
+            // соседняя дверь.
+            if (!pull_door_used && pull_door > 0.0f && box.count() > 0) {
+                if (const std::size_t i = box.index_of("house.vertex"); i != NO_TOOL) {
+                    pull_door_used = true;
+                    if (auto* vt = dynamic_cast<HouseVertexTool*>(box.at(i))) {
+                        vt->set_pull_m(pull_door);
+                        std::fprintf(stderr, "[editor] дверь DFN_HOUSE_PULL=%.2f м\n",
+                                     static_cast<double>(vt->pull_m()));
+                    }
+                }
+            }
         }
         // ДВЕРЬ: DFN_EDITOR_PARTS=1 / DFN_EDITOR_BRUSH=1 — ОДНО нажатие на
         // беспилотном прогоне. Обе открывают НАСТРОЙКИ соответствующего
@@ -3626,10 +3654,22 @@ int App::run() {
                 //
                 // Шаг геометрический, как у скорости полёта: от 2 до 80 м
                 // одинаковое число щелчков в любой части диапазона.
+                //
+                // ЕСЛИ ИНСТРУМЕНТ ПРОСИТ КОЛЕСО — ОНО ЕГО. У якоря колесо
+                // подтягивает шарик к себе вдоль луча, и другого способа
+                // поставить вершину в воздух у руки нет («не могу приближать
+                // сферу к себе или отдалять», 18.08). Условие, а не вторая
+                // клавиша: орган один, а кто им распоряжается — решает то, что
+                // сейчас в руке.
                 if (const float wheel = input_->scroll_delta().y; wheel != 0.0f) {
                     auto& box = editor_ui_.toolbox();
-                    box.set_reach_ceiling_m(box.reach_ceiling_m()
-                                            * std::pow(1.15f, wheel));
+                    if (IEditorTool* tool = box.active();
+                        tool != nullptr && tool->wants_wheel()) {
+                        tool->on_wheel(wheel);
+                    } else {
+                        box.set_reach_ceiling_m(box.reach_ceiling_m()
+                                                * std::pow(1.15f, wheel));
+                    }
                 }
                 const float yaw_before = editor_cam_.yaw();
                 editor_cam_.update(*input_, static_cast<float>(frame_dt));

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:05:40
-Last updated: 18:08:2026 - 13:17:00
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolIcons.cpp
 
@@ -22,6 +22,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 12:05:40: Создан вместе с заголовком.
 - 18:08:2026 - 13:17:00: седьмой значок — тропа.
+- 18:08:2026 - 19:44:10: Три собственных значка постройки: якорь с отвесом, брус между двумя точками, полотно на четырёх углах.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"
@@ -214,6 +215,36 @@ bool bake_tool_icon(ToolIcon icon, int size_px, std::vector<std::uint8_t>& rgba)
         c.disc(0.40f, 0.54f, 0.075f, INK);
         c.disc(0.62f, 0.52f, 0.075f, INK);
         c.disc(0.84f, 0.24f, 0.075f, INK);
+        return true;
+    case ToolIcon::HouseVertex:
+        // ШАРИК И ОТВЕС: якорь и пунктирная нить вниз, к земле — ровно то, что
+        // инструмент рисует в мире, когда вершина стоит в воздухе.
+        c.ground(EARTH);
+        c.disc(0.50f, 0.28f, 0.16f, ACCENT);
+        for (int i = 0; i < 4; ++i) {
+            const float y = 0.46f + 0.09f * static_cast<float>(i);
+            c.line(0.50f, y, 0.50f, y + 0.05f, 0.05f, INK);
+        }
+        return true;
+    case ToolIcon::HouseLine:
+        // ДВА ЯКОРЯ И БРУС МЕЖДУ НИМИ. Точки на концах обязательны: прямая
+        // здесь тянется ОТ вершины К вершине, а не рисуется на пустом месте.
+        c.ground(EARTH);
+        c.line(0.24f, 0.68f, 0.76f, 0.30f, 0.12f, ACCENT);
+        c.disc(0.24f, 0.68f, 0.10f, INK);
+        c.disc(0.76f, 0.30f, 0.10f, INK);
+        return true;
+    case ToolIcon::HouseSurface:
+        // ПОЛОТНО НА ЧЕТЫРЁХ ЯКОРЯХ: заливка и углы. От куба постройки её
+        // отличает то же, что и в мире — у поверхности есть углы, которые
+        // человек назвал сам, а у куба их нет.
+        c.ground(EARTH);
+        c.triangle(0.20f, 0.66f, 0.80f, 0.66f, 0.68f, 0.30f, ACCENT);
+        c.triangle(0.20f, 0.66f, 0.68f, 0.30f, 0.32f, 0.30f, ACCENT);
+        c.disc(0.20f, 0.66f, 0.085f, INK);
+        c.disc(0.80f, 0.66f, 0.085f, INK);
+        c.disc(0.68f, 0.30f, 0.085f, INK);
+        c.disc(0.32f, 0.30f, 0.085f, INK);
         return true;
     case ToolIcon::Settings: {
         // ШЕСТЕРЁНКА: общие параметры, не инструмент — и по картинке видно, что

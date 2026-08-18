@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 19:14:22
+Last updated: 18:08:2026 - 19:44:10
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -47,6 +47,17 @@ UPD:
   ловушке со счётчиком, которую сохранение имён не закрывает.
 - 18:08:2026 - 18:58:40: Два случая про ось: без неё прямая уезжает по земле на 40 м (снимок дефекта с кадра пользователя), с ней конец стоит над якорем на 3.1 м и растёт с наклоном прицела; земля перестаёт быть нужной только пока ось включена И рука на якоре.
 - 18:08:2026 - 19:14:22: Случай про Enter: один якорь черновиком не считается и подтверждение ничего не создаёт, два — создают элемент.
+- 18:08:2026 - 19:09:50: ЗАЖИМ ДЛИНЫ ВДОЛЬ ЗАПЕРТОЙ ОСИ — рукав на композицию, которая до сих пор
+  была случайной. Фиксацию оси (V) и зажим длины писали порознь и не
+  согласовывали; сошлось верно (update_end кладёт конец на вертикаль ДО поиска
+  якоря), но верная композиция без прибора живёт до первой перестановки строк
+  — замечание зоны core, и оно по делу: во всём рукаве clamp_mode встречался
+  РОВНО ОДИН раз, а случаи про ось зажима не касались вовсе. Числа: рука на
+  3.5 м по запертой вертикали садится на 5.00 м вверх и на 2.00 м вниз, длина
+  доезжает до элемента, а с ОТПУЩЕННОЙ осью тот же жест зажиму зацепиться не
+  даёт. Контрфакт: посчитал зажим ДО фиксации оси — 1 покрасневшее утверждение
+  (REQUIRE обрывает случай).
+- 18:08:2026 - 19:44:10: Якорь в воздухе ловится лучом, а точкой на земле — никогда; ось ловится лучом на любой высоте; колесо тянет шарик и не пускает под землю; магнит на ось с контролем «вдвое меньше — не липнет».
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -75,6 +86,9 @@ using dfn::app::HouseLineTool;
 using dfn::app::HouseSession;
 using dfn::app::HouseSurfaceTool;
 using dfn::app::HouseVertexTool;
+using dfn::app::HOUSE_EDGE_GRAB_M;
+using dfn::app::HouseEdgeHit;
+using dfn::app::HOUSE_GRAB_M;
 using dfn::app::HouseWire;
 using dfn::app::ToolAim;
 using dfn::app::ToolPreview;
@@ -192,13 +206,21 @@ TEST_CASE("вершина в воздухе — Free с отвесом, верш
     CHECK(b.session.vertex_world(ground_v).y == doctest::Approx(0.0f));
     const std::size_t after_ground = Bench::wire_size(tool.preview(Bench::at({50.0f, 0.0f, 50.0f})));
 
-    // ПЛЕЧО «В ВОЗДУХЕ»: то же действие, одно изменённое число.
-    tool.air_height_m() = 3.0f;
-    b.click(tool, {5.0f, 0.0f, 0.0f});
+    // ПЛЕЧО «В ВОЗДУХЕ»: то же действие, одно изменённое число — насколько
+    // шарик подтянут к себе вдоль луча. Прицел здесь смотрит СТРОГО ВНИЗ, и
+    // тогда подтягивание на 3 м — это ровно 3 м высоты, без тригонометрии.
+    ToolAim down;
+    down.origin = {5.0f, 10.0f, 0.0f};
+    down.point = {5.0f, 0.0f, 0.0f};
+    down.distance_m = 10.0f;
+    down.hit = true;
+    tool.set_pull_m(3.0f);
+    tool.on_press(down, b.world);
+    tool.on_release(b.world);
     REQUIRE(b.session.graph().vertex_count() == 2);
     const VertexId air_v = b.session.selected_vertex();
     CHECK(b.session.graph().vertex(air_v)->anchoring == Anchoring::Free);
-    CHECK(b.session.vertex_world(air_v).y == doctest::Approx(3.0f));
+    CHECK(b.session.vertex_world(air_v).y == doctest::Approx(3.0f).epsilon(0.001));
     const std::size_t after_air = Bench::wire_size(tool.preview(Bench::at({50.0f, 0.0f, 50.0f})));
 
     // ЧИСЛО: воздушная вершина принесла шарик И отвес, земляная — только шарик.
@@ -1024,6 +1046,88 @@ TEST_CASE("прямая вверх: без оси она ложится на з�
     }
 }
 
+TEST_CASE("зажим длины работает ВДОЛЬ запертой оси, а не поперёк неё") {
+    // ПОРЯДОК ДВУХ ОГРАНИЧЕНИЙ, И ОН БЫЛ СЛУЧАЙНЫМ. Фиксацию оси (V) и зажим
+    // длины писали порознь и не согласовывали: первое решает, КУДА смотрит
+    // прямая, второе — насколько она длинная. Сошлось правильно — update_end
+    // сначала кладёт конец на вертикаль и только потом ищет якорь ВДОЛЬ уже
+    // запертого направления, — но верная композиция без рукава живёт до первой
+    // перестановки строк (замечание зоны core, 18.08).
+    //
+    // Переставь их местами — и зажим станет искать якоря вдоль ГОРИЗОНТАЛЬНОГО
+    // жеста, то есть вдоль луча, который упёрся в землю за сорок метров. Он
+    // ничего там не найдёт, длина молча останется сырой, и человек получит
+    // стойку не той высоты, тянув её к вершине столба.
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+
+    // Якорь у земли и два НАД НИМ, ровно на оси: 2 м и 5 м.
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    const VertexId foot = b.session.selected_vertex();
+    const VertexId low = b.session.graph().add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
+    const VertexId high = b.session.graph().add_vertex(Anchoring::Free, {0.0f, 5.0f, 0.0f});
+
+    // ПРИЦЕЛ, КОТОРЫЙ БЕЗ ОСИ УЕХАЛ БЫ ПО ЗЕМЛЕ: глаз на высоте 3.5 м смотрит
+    // горизонтально сквозь ось. Ближайшая точка вертикали к этому лучу — 3.5 м,
+    // то есть рука стоит МЕЖДУ двумя якорями, как и в случае про зажим по земле.
+    ToolAim aim;
+    aim.origin = {10.0f, 3.5f, 0.0f};
+    aim.point = {-10.0f, 3.5f, 0.0f};
+    aim.distance_m = 20.0f;
+    aim.hit = true;
+
+    const auto pull = [&](HouseClamp mode) {
+        b.session.set_axis(HouseSession::Axis::Vertical);
+        lt.clamp_mode() = mode;
+        lt.on_press(Bench::at(b.session.vertex_world(foot)), b.world);
+        lt.on_drag(aim, 0.016f, b.world);
+        return lt.ghost_end();
+    };
+
+    // БЕЗ ЗАЖИМА: конец сидит на оси, на высоте жеста.
+    glm::vec3 end = pull(HouseClamp::None);
+    CHECK(std::hypot(end.x, end.z) < 1e-3f);
+    CHECK(end.y == doctest::Approx(3.5f).epsilon(0.02));
+    lt.on_release(b.world);
+
+    // ВВЕРХ: до дальнего якоря НА ОСИ, а не до чего-нибудь на земле.
+    end = pull(HouseClamp::Above);
+    REQUIRE(lt.clamp_hit().found);
+    CHECK(lt.clamp_hit().at == high);
+    CHECK(std::hypot(end.x, end.z) < 1e-3f);
+    CHECK(end.y == doctest::Approx(5.0f).epsilon(0.02));
+    lt.on_release(b.world);
+    // И ДЛИНА ДОЕХАЛА ДО ЭЛЕМЕНТА, а не осталась в призраке.
+    CHECK(std::stof(b.session.graph().param(lt.last_element(), "length"))
+          == doctest::Approx(5.0f).epsilon(0.02));
+
+    // ВНИЗ: до ближнего.
+    end = pull(HouseClamp::Below);
+    REQUIRE(lt.clamp_hit().found);
+    CHECK(lt.clamp_hit().at == low);
+    CHECK(end.y == doctest::Approx(2.0f).epsilon(0.02));
+    lt.on_release(b.world);
+    MESSAGE("рука на 3.5 м по запертой вертикали: вниз зажало до "
+            << b.session.graph().param(lt.last_element(), "length")
+            << " м (якорь v" << static_cast<unsigned>(low) << "), вверх — до 5.00 м (v"
+            << static_cast<unsigned>(high) << ")");
+
+    // КОНТРОЛЬ, БЕЗ КОТОРОГО ВСЁ ВЫШЕ НИЧЕГО НЕ ЗНАЧИТ: та же рука и тот же
+    // зажим, но ОСЬ ОТПУЩЕНА. Тогда конец уезжает по земле, вертикальные якоря
+    // от того направления далеко, и зажиму не за что зацепиться. Если бы он
+    // цеплялся и здесь, значит он ищет якоря не вдоль прямой, а как придётся.
+    b.session.set_axis(HouseSession::Axis::Ground);
+    lt.clamp_mode() = HouseClamp::Above;
+    lt.on_press(Bench::at(b.session.vertex_world(foot)), b.world);
+    lt.on_drag(aim, 0.016f, b.world);
+    CHECK_FALSE(lt.clamp_hit().found);
+    CHECK(lt.ghost_end().y == doctest::Approx(3.5f).epsilon(0.02));
+    lt.on_release(b.world);
+}
+
 TEST_CASE("ось отпускает ящик к небу только пока она включена") {
     Bench b;
     HouseVertexTool vertex(b.session);
@@ -1070,4 +1174,110 @@ TEST_CASE("Enter подтверждает черновик только когд
     CHECK(surface.has_draft());
     surface.on_confirm(b.world);
     CHECK(b.session.graph().element_count() == before + 1);
+}
+
+// ---------------------------------------------------------------------------
+// ЦЕЛЬ ИЩЕТСЯ ЛУЧОМ, А НЕ ТОЧКОЙ НА ЗЕМЛЕ
+// ---------------------------------------------------------------------------
+
+TEST_CASE("якорь в воздухе ловится лучом, а точкой прицела — никогда") {
+    Bench b;
+    // Якорь на высоте 3 м над (4,0): точка прицела, лежащая на земле, отстоит
+    // от него на те самые 3 м ВСЕГДА, как на него ни смотри.
+    const VertexId air = b.session.graph().add_vertex(Anchoring::Free, {4.0f, 3.0f, 0.0f});
+    REQUIRE(air != NO_VERTEX);
+
+    const glm::vec3 eye{4.0f, 3.0f, -8.0f};   // смотрим прямо на него
+    const glm::vec3 dir{0.0f, 0.0f, 1.0f};
+    CHECK(b.session.pick_vertex_ray(eye, dir, HOUSE_GRAB_M) == air);
+
+    // ПЛЕЧО-КОНТРОЛЬ, И ОНО ЖЕ СНИМОК ДЕФЕКТА: тот же взгляд, но цель ищется
+    // по точке, где луч встретил землю. Там якоря нет и быть не может.
+    const glm::vec3 ground_point{4.0f, 0.0f, 0.0f};
+    CHECK(b.session.pick_vertex(ground_point, HOUSE_GRAB_M) == NO_VERTEX);
+
+    // И ВТОРОЕ ПЛЕЧО: луч, отвёрнутый в сторону, не ловит ничего — иначе
+    // проверка прошла бы на поиске, который отвечает «да» всегда.
+    CHECK(b.session.pick_vertex_ray(eye, glm::normalize(glm::vec3{1.0f, 0.0f, 1.0f}),
+                                    HOUSE_GRAB_M) == NO_VERTEX);
+    // ЗА СПИНОЙ ЦЕЛЕЙ НЕТ.
+    CHECK(b.session.pick_vertex_ray(eye, -dir, HOUSE_GRAB_M) == NO_VERTEX);
+}
+
+TEST_CASE("ось прямой ловится лучом на любой высоте") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {6.0f, 0.0f, 0.0f});
+    b.drag(lt, {0.0f, 0.0f, 0.0f}, {6.0f, 0.0f, 0.0f});
+    const ElementId line = lt.last_element();
+    REQUIRE(line != NO_ELEMENT);
+    // Поднимаем дальний конец: ось уходит в воздух, и её середина висит на
+    // полутора метрах над травой.
+    (void)b.session.graph().move_vertex(b.session.graph().vertices()[1].id,
+                                        {6.0f, 3.0f, 0.0f});
+
+    const glm::vec3 eye{3.0f, 1.5f, -5.0f};
+    const HouseEdgeHit hit = b.session.pick_edge_ray(eye, {0.0f, 0.0f, 1.0f},
+                                                     HOUSE_EDGE_GRAB_M);
+    REQUIRE(hit.hit());
+    CHECK(hit.host == line);
+    CHECK(hit.t == doctest::Approx(0.5f).epsilon(0.05));
+
+    // КОНТРОЛЬ: тот же луч, но поиск по точке на земле под серединой — оси там
+    // нет, она в полутора метрах выше.
+    CHECK_FALSE(b.session.pick_edge({3.0f, 0.0f, 0.0f}, HOUSE_EDGE_GRAB_M).hit());
+}
+
+TEST_CASE("колесо подтягивает шарик к себе, и шарик прилипает к оси") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+
+    // Взгляд строго вниз: подтягивание переводится в высоту один к одному.
+    ToolAim down;
+    down.origin = {5.0f, 10.0f, 0.0f};
+    down.point = {5.0f, 0.0f, 0.0f};
+    down.distance_m = 10.0f;
+    down.hit = true;
+
+    CHECK(vt.ghost(down).point.y == doctest::Approx(0.0f));
+    CHECK_FALSE(vt.ghost(down).air);
+
+    vt.on_wheel(8.0f); // восемь щелчков по 0.25 м
+    CHECK(vt.pull_m() == doctest::Approx(2.0f));
+    CHECK(vt.ghost(down).point.y == doctest::Approx(2.0f));
+    CHECK(vt.ghost(down).air);
+
+    // ВНИЗ КОЛЕСО ВОЗВРАЩАЕТ, И НЕ НИЖЕ НУЛЯ: шарик под землёй — не состояние.
+    vt.on_wheel(-40.0f);
+    CHECK(vt.pull_m() == doctest::Approx(0.0f));
+    CHECK_FALSE(vt.ghost(down).air);
+
+    // ПРИЛИПАНИЕ. Бревно на высоте 2 м проходит под прицелом; подтянутый на
+    // 1.8 м шарик до оси не достаёт полметра — и должен на неё сесть.
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    const VertexId a = b.session.selected_vertex();
+    b.click(vt, {10.0f, 0.0f, 0.0f});
+    const VertexId c = b.session.selected_vertex();
+    b.drag(lt, {0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f});
+    REQUIRE(b.session.graph().element_count() == 1);
+    (void)b.session.graph().move_vertex(a, {0.0f, 2.0f, 0.0f});
+    (void)b.session.graph().move_vertex(c, {10.0f, 2.0f, 0.0f});
+
+    vt.set_pull_m(1.8f);
+    const HouseVertexTool::Ghost g = vt.ghost(down);
+    REQUIRE(g.on_edge.hit());
+    CHECK(g.point.y == doctest::Approx(2.0f).epsilon(0.001));
+    CHECK(g.point.x == doctest::Approx(5.0f).epsilon(0.001));
+
+    // КОНТРОЛЬ: тот же шарик, подтянутый ВДВОЕ МЕНЬШЕ, до оси не дотягивается —
+    // иначе проверка выше прошла бы на магните, который ловит всё подряд.
+    vt.set_pull_m(0.5f);
+    CHECK_FALSE(vt.ghost(down).on_edge.hit());
 }

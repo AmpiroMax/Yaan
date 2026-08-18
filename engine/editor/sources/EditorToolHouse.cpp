@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 18:58:40
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -37,6 +37,7 @@ UPD:
   читателем: опознание по МЕСТУ обосновано не переименованием (его больше
   нет), а откатом счётчика имён. Полный довод — у revision() в заголовке.
 - 18:08:2026 - 18:58:40: Прямая ВВЕРХ: point_on_vertical — ближайшая точка вертикали через якорь к лучу прицела (пара скрещивающихся прямых), вырожденный взгляд вдоль оси назван и держит прежнюю высоту. Подпись называет высоту со знаком.
+- 18:08:2026 - 19:44:10: Поиск лучом (сближение луча с точкой и с отрезком, вырожденные случаи названы); призрак якоря один на щелчок, показ и подпись; колесо тянет шарик вдоль луча; магнит на ось.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -321,6 +322,82 @@ VertexId HouseSession::pick_vertex(glm::vec3 world_point, float grab_m) const {
     return best;
 }
 
+VertexId HouseSession::pick_vertex_ray(glm::vec3 origin, glm::vec3 dir, float grab_m) const {
+    VertexId best = NO_VERTEX;
+    float best_along = 0.0f; // ближайшая К ГЛАЗУ из тех, что луч задел
+    for (const Vertex& v : graph_.vertices()) {
+        const glm::vec3 p = vertex_world(v.id);
+        const float along = glm::dot(p - origin, dir);
+        // ЗА СПИНОЙ ЦЕЛЕЙ НЕТ. Без этого якорь позади человека ловил бы щелчок
+        // всякий раз, когда человек отвернулся ровно от него.
+        if (along <= 0.0f) {
+            continue;
+        }
+        if (glm::length(p - (origin + dir * along)) > grab_m) {
+            continue;
+        }
+        if (best == NO_VERTEX || along < best_along) {
+            best_along = along;
+            best = v.id;
+        }
+    }
+    return best;
+}
+
+HouseEdgeHit HouseSession::pick_edge_ray(glm::vec3 origin, glm::vec3 dir, float grab_m) const {
+    HouseEdgeHit best;
+    float best_along = 0.0f;
+    for (const Element& e : graph_.elements()) {
+        if (e.kind != ElementKind::Line || e.refs.size() < 2) {
+            continue;
+        }
+        const glm::vec3 a = vertex_world(e.refs.front());
+        const glm::vec3 b = vertex_world(e.refs.back());
+        const glm::vec3 ab = b - a;
+        const float ab2 = glm::dot(ab, ab);
+        if (ab2 < 1e-8f) {
+            continue; // ось нулевой длины — это точка, и ею занят другой поиск
+        }
+        // СБЛИЖЕНИЕ ЛУЧА И ОТРЕЗКА. Систему из двух уравнений решаем прямо;
+        // вырожденный случай (луч ПАРАЛЛЕЛЕН оси) назван отдельно — там общего
+        // решения нет, и берётся ближайший конец, а не деление на ноль.
+        const glm::vec3 w0 = a - origin;
+        const float bcoef = glm::dot(dir, ab) / std::sqrt(ab2);
+        const glm::vec3 abn = ab / std::sqrt(ab2);
+        const float denom = 1.0f - bcoef * bcoef;
+        float t = 0.0f; // доля вдоль отрезка
+        if (denom < 1e-5f) {
+            t = std::clamp(glm::dot(-w0, abn) / std::sqrt(ab2), 0.0f, 1.0f);
+        } else {
+            const float d = glm::dot(dir, w0);
+            const float ee = glm::dot(abn, w0);
+            // s = (b·d − e)/(1 − b²), метры вдоль оси от её начала. Знак
+            // здесь уже стоил одной ошибки в этот же вечер — на вертикали, и
+            // ровно в той же формуле: перевёрнутый, он отправляет ближайшую
+            // точку в противоположную сторону от оси.
+            const float s = (bcoef * d - ee) / denom;
+            t = std::clamp(s / std::sqrt(ab2), 0.0f, 1.0f);
+        }
+        const glm::vec3 p = a + ab * t;
+        const float along = glm::dot(p - origin, dir);
+        if (along <= 0.0f) {
+            continue;
+        }
+        const float miss = glm::length(p - (origin + dir * along));
+        if (miss > grab_m) {
+            continue;
+        }
+        if (!best.hit() || along < best_along) {
+            best_along = along;
+            best.host = e.id;
+            best.t = t;
+            best.distance_m = miss;
+            best.point = p;
+        }
+    }
+    return best;
+}
+
 HouseEdgeHit HouseSession::pick_edge(glm::vec3 world_point, float grab_m) const {
     HouseEdgeHit best;
     float best_d = grab_m;
@@ -410,7 +487,7 @@ std::string house_num(float value) {
 
 ToolIdentity HouseVertexTool::identity() const {
     return ToolIdentity{"house.vertex", "editor.tool.house.vertex",
-                        "tool.hint.house.vertex", ToolIcon::Select};
+                        "tool.hint.house.vertex", ToolIcon::HouseVertex};
 }
 
 float HouseVertexTool::ground_at(glm::vec2 xz, float fallback_y) const {
@@ -421,6 +498,70 @@ float HouseVertexTool::ground_at(glm::vec2 xz, float fallback_y) const {
     // постройку на десятки метров, и этот отказ в репозитории уже был (кольцо
     // кисти под холмом).
     return fallback_y;
+}
+
+void HouseVertexTool::on_wheel(float ticks) {
+    set_pull_m(pull_m_ + ticks * HOUSE_PULL_STEP_M);
+}
+
+HouseVertexTool::Ghost HouseVertexTool::ghost(const ToolAim& aim) const {
+    Ghost g;
+    if (session_ == nullptr) {
+        return g;
+    }
+    const glm::vec3 dir = aim.direction();
+    // ПОД ПРИЦЕЛОМ ЧУЖОЙ ЯКОРЬ — ЗНАЧИТ ЩЕЛЧОК ДОСТАНЕТСЯ ЕМУ, а не новой
+    // вершине. Показ обязан знать об этом раньше щелчка, иначе призрак обещает
+    // одно, а рука делает другое.
+    g.over = session_->pick_vertex_ray(aim.origin, dir, HOUSE_GRAB_M);
+    if (g.over != NO_VERTEX) {
+        g.point = session_->vertex_world(g.over);
+        g.ground_y = ground_at({g.point.x, g.point.z}, g.point.y);
+        g.air = g.point.y - g.ground_y > HOUSE_AIR_EPS_M;
+        return g;
+    }
+    // ТОЧКА ВДОЛЬ ЛУЧА: земля минус подтягивание. Луч смотрит вниз, поэтому
+    // «ближе к себе» и «выше над травой» — одно движение.
+    const float base = aim.hit ? aim.distance_m : HOUSE_PULL_MAX_M;
+    const float along = std::max(base - pull_m_, HOUSE_PULL_STEP_M);
+    g.point = aim.origin + dir * along;
+
+    // ПРИЛИПАНИЕ К ОСИ. Ось — магнит для якоря: пользователь строит каркас, и
+    // вершина, севшая РЯДОМ с бревном, а не НА него, ничего не держит. Ищется
+    // ось, ближайшая к самому шарику, а не к лучу: шарик подтянут, и то, что
+    // луч проходит сквозь дальнюю ось, к нему уже не относится.
+    HouseEdgeHit best;
+    float best_d = HOUSE_SNAP_M;
+    for (const Element& e : session_->graph().elements()) {
+        if (e.kind != ElementKind::Line || e.refs.size() < 2) {
+            continue;
+        }
+        const glm::vec3 a = session_->vertex_world(e.refs.front());
+        const glm::vec3 b = session_->vertex_world(e.refs.back());
+        float t = 0.0f;
+        const glm::vec3 p = closest_on_segment(a, b, g.point, t);
+        const float d = glm::length(p - g.point);
+        if (d < best_d) {
+            best_d = d;
+            best.host = e.id;
+            best.t = t;
+            best.distance_m = d;
+            best.point = p;
+        }
+    }
+    if (best.hit()) {
+        g.on_edge = best;
+        g.point = best.point;
+    }
+    g.ground_y = ground_at({g.point.x, g.point.z}, g.point.y);
+    // ЗЕМЛЯ — ПОЛ, А НЕ СОВЕТ: шарик, подтянутый мимо склона, не имеет права
+    // оказаться ПОД травой. Ось из этого правила исключена нарочно — бревно
+    // может уходить в грунт, и вершина на его оси уходит вместе с ним.
+    if (!best.hit() && g.point.y < g.ground_y) {
+        g.point.y = g.ground_y;
+    }
+    g.air = g.point.y - g.ground_y > HOUSE_AIR_EPS_M;
+    return g;
 }
 
 void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
@@ -436,7 +577,7 @@ void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
         drag_before_.clear();
         seen_revision_ = session_->revision();
     }
-    if (const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
+    if (const VertexId hit = session_->pick_vertex_ray(aim.origin, aim.direction(), HOUSE_GRAB_M);
         hit != NO_VERTEX) {
         session_->select_vertex(hit);
         const Vertex* v = session_->graph().vertex(hit);
@@ -451,8 +592,8 @@ void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
         }
         return;
     }
-    if (const HouseEdgeHit edge = session_->pick_edge(aim.point, HOUSE_EDGE_GRAB_M);
-        edge.hit()) {
+    const Ghost g = ghost(aim);
+    if (const HouseEdgeHit edge = g.on_edge; edge.hit()) {
         VertexId made = NO_VERTEX;
         const GraphResult r = session_->mutate("вершина на оси", [&](HouseGraph& g) {
             return g.add_vertex_on_edge(edge.host, edge.t, made);
@@ -464,17 +605,15 @@ void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
         }
         return;
     }
-    // ЗЕМЛЯ ИЛИ ВОЗДУХ — РЕШАЕТ ОДНО ЧИСЛО. Ноль заземляет вершину (её высоту
-    // берёт рельеф), больше нуля вешает её в воздухе, и тогда у неё появляется
-    // отвес.
-    const float gy = ground_at({aim.point.x, aim.point.z}, aim.point.y);
-    const bool air = air_height_m_ > HOUSE_AIR_EPS_M;
-    const glm::vec3 world_pos{aim.point.x, air ? gy + air_height_m_ : gy, aim.point.z};
+    // ЗЕМЛЯ ИЛИ ВОЗДУХ — РЕШАЕТ ПРИЗРАК, тот же самый, что человек видел перед
+    // щелчком. Заземлённая вершина хранит только XZ (высоту ей даёт рельеф),
+    // висящая — все три числа и отвес.
     VertexId made = NO_VERTEX;
-    (void)session_->mutate(air ? "вершина в воздухе" : "вершина по земле",
-                           [&](HouseGraph& g) {
-                               made = g.add_vertex(air ? Anchoring::Free : Anchoring::OnGround,
-                                                   session_->to_local(world_pos));
+    (void)session_->mutate(g.air ? "вершина в воздухе" : "вершина по земле",
+                           [&](HouseGraph& gr) {
+                               made = gr.add_vertex(g.air ? Anchoring::Free
+                                                          : Anchoring::OnGround,
+                                                    session_->to_local(g.point));
                                return GraphResult{};
                            });
     session_->select_vertex(made);
@@ -568,12 +707,18 @@ ToolPreview HouseVertexTool::preview(const ToolAim& aim) const {
 
     // ПРИЗРАК ТОЙ ВЕРШИНЫ, КОТОРУЮ ПОСТАВИТ ЭТОТ ЩЕЛЧОК, с её собственным
     // отвесом. Без него человек узнаёт высоту постановки ПОСЛЕ постановки.
-    if (aim.hit && dragging_ == NO_VERTEX) {
-        const float gy = ground_at({aim.point.x, aim.point.z}, aim.point.y);
-        const bool air = air_height_m_ > HOUSE_AIR_EPS_M;
-        const glm::vec3 ghost{aim.point.x, air ? gy + air_height_m_ : gy, aim.point.z};
-        append_ball(wire_.accent, ghost, HOUSE_BALL_R_M);
-        append_plumb(wire_.accent, ghost, gy);
+    if (dragging_ == NO_VERTEX) {
+        // ПРИЗРАК РИСУЕТСЯ И КОГДА ЛУЧ НЕ ВСТРЕТИЛ ЗЕМЛИ: подтянутый к себе
+        // шарик висит в воздухе, и смотреть на него человек может как угодно.
+        const Ghost g = ghost(aim);
+        if (g.over == NO_VERTEX) {
+            append_ball(wire_.accent, g.point, HOUSE_BALL_R_M);
+            // ОТВЕС — ЭТО ОТВЕТ НА ВОПРОС «НА КАКОЙ ОН ВЫСОТЕ». Без него шарик
+            // в воздухе неотличим от шарика на дальнем склоне.
+            if (g.air) {
+                append_plumb(wire_.accent, g.point, g.ground_y);
+            }
+        }
     }
     out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
     out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
@@ -589,15 +734,24 @@ ToolStatus HouseVertexTool::status(const ToolAim& aim) const {
     if (session_ == nullptr) {
         return ToolStatus{"house.hint.nomodel", {}, false};
     }
-    if (session_->pick_vertex(aim.point, HOUSE_GRAB_M) != NO_VERTEX) {
+    // ПОДПИСЬ ЧИТАЕТ ТОТ ЖЕ ПРИЗРАК, ЧТО И ПОКАЗ СО ЩЕЛЧКОМ. Три места, один
+    // ответ: подпись, разошедшаяся с делом, хуже отсутствующей.
+    const Ghost g = ghost(aim);
+    if (g.over != NO_VERTEX) {
         return ToolStatus{"house.hint.grab", {}, true};
     }
-    if (session_->pick_edge(aim.point, HOUSE_EDGE_GRAB_M).hit()) {
+    if (g.on_edge.hit()) {
         return ToolStatus{"house.hint.onedge", {}, true};
     }
-    return ToolStatus{air_height_m_ > HOUSE_AIR_EPS_M ? "house.hint.air"
-                                                      : "house.hint.ground",
-                      {}, true};
+    if (g.air) {
+        // ВЫСОТА ЧИСЛОМ, а не словом «в воздухе»: человек ставит вершину под
+        // балку, и ему нужно знать, на сколько она поднялась.
+        char buf[96];
+        std::snprintf(buf, sizeof(buf), "в воздухе: %.2f м над землёй (колесо — ближе/дальше)",
+                      static_cast<double>(g.point.y - g.ground_y));
+        return ToolStatus{"", buf, true};
+    }
+    return ToolStatus{"house.hint.ground", {}, true};
 }
 
 // ---------------------------------------------------------------------------
@@ -651,7 +805,7 @@ HouseClampHit house_clamp_length(const HouseSession& s, VertexId from, glm::vec3
 
 ToolIdentity HouseLineTool::identity() const {
     return ToolIdentity{"house.line", "editor.tool.house.line", "tool.hint.house.line",
-                        ToolIcon::Path};
+                        ToolIcon::HouseLine};
 }
 
 /// ТОЧКА НА ВЕРТИКАЛИ, БЛИЖАЙШАЯ К ЛУЧУ ПРИЦЕЛА.
@@ -734,7 +888,7 @@ void HouseLineTool::on_press(const ToolAim& aim, ToolWorld& world) {
         clamp_hit_ = HouseClampHit{};
         seen_revision_ = session_->revision();
     }
-    const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
+    const VertexId hit = session_->pick_vertex_ray(aim.origin, aim.direction(), HOUSE_GRAB_M);
     if (hit == NO_VERTEX) {
         // ПРЯМАЯ НАЧИНАЕТСЯ С ЯКОРЯ И НИ С ЧЕГО ДРУГОГО. Начать её с пустого
         // места значило бы поставить вершину исподтишка — а вершины ставит
@@ -882,7 +1036,7 @@ ToolStatus HouseLineTool::status(const ToolAim& aim) const {
         return ToolStatus{"house.hint.nomodel", {}, false};
     }
     if (from_ == NO_VERTEX) {
-        const bool on_anchor = session_->pick_vertex(aim.point, HOUSE_GRAB_M) != NO_VERTEX;
+        const bool on_anchor = session_->pick_vertex_ray(aim.origin, aim.direction(), HOUSE_GRAB_M) != NO_VERTEX;
         return ToolStatus{on_anchor ? "house.hint.line.from" : "house.hint.line.needanchor",
                           {}, on_anchor};
     }
@@ -916,7 +1070,7 @@ ToolStatus HouseLineTool::status(const ToolAim& aim) const {
 
 ToolIdentity HouseSurfaceTool::identity() const {
     return ToolIdentity{"house.surface", "editor.tool.house.surface",
-                        "tool.hint.house.surface", ToolIcon::Place};
+                        "tool.hint.house.surface", ToolIcon::HouseSurface};
 }
 
 bool HouseSurfaceTool::draft_normal(glm::vec3& out) const {
@@ -966,7 +1120,7 @@ void HouseSurfaceTool::on_press(const ToolAim& aim, ToolWorld& world) {
         last_ = NO_ELEMENT;
         seen_revision_ = session_->revision();
     }
-    const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
+    const VertexId hit = session_->pick_vertex_ray(aim.origin, aim.direction(), HOUSE_GRAB_M);
     if (hit == NO_VERTEX) {
         refusal_ = "щёлкай по якорям: поверхность натягивается на них";
         return;

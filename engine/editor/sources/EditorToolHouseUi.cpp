@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 18:02:11
+Last updated: 18:08:2026 - 19:44:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -31,6 +31,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 18:02:11: Создан вместе с EditorToolHouse.{h,cpp}.
+- 18:08:2026 - 19:44:10: Ползунок правит то же число, что и колесо, через set_pull_m.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -66,8 +67,14 @@ void HouseVertexTool::draw_settings() {
     // ВЫСОТА НАД ЗЕМЛЁЙ — ГЛАВНЫЙ ОРГАН ЭТОГО ИНСТРУМЕНТА. Ноль заземляет
     // вершину, больше нуля вешает её в воздухе, и тогда у неё появляется
     // пунктирный отвес: «я буду видеть, над какой точкой ставлю свой объект».
-    ImGui::SliderFloat(EditorUi::tr("house.air"), &air_height_m_, 0.0f, 20.0f, "%.2f m");
-    if (air_height_m_ <= HOUSE_AIR_EPS_M) {
+    // ТОТ ЖЕ ОРГАН, ЧТО И КОЛЕСО МЫШИ, а не второе состояние рядом: ползунок
+    // зовёт set_pull_m, зажим пределов живёт внутри него.
+    float pull = pull_m_;
+    if (ImGui::SliderFloat(EditorUi::tr("house.air"), &pull, 0.0f, HOUSE_PULL_MAX_M,
+                           "%.2f m")) {
+        set_pull_m(pull);
+    }
+    if (pull_m_ <= HOUSE_AIR_EPS_M) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.air.ground"));
     } else {
         ImGui::TextDisabled("%s", EditorUi::tr("house.air.plumb"));
