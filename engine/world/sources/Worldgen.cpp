@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 18:08:2026 - 11:43:09
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -121,6 +121,13 @@ UPD:
   иначе полка засыпала бы собственный канал), и вода авторской реки ставится в
   поверхность чанка: гидрология ничего не знает о курсе, который нарисовал
   композитор, и без этого врез остался бы сухим.
+- 18:08:2026 - 11:43:09: РУКА ГОВОРИТ ПОСЛЕДНЕЙ — composed_relief прибавляется к земле после
+  всех правил: мазок кистью это самое позднее и самое частное утверждение о
+  грунте, и выведенному из правила нечего с ним спорить. Ветка `if (!empty)`
+  здесь КОНТРАКТ, а не оптимизация: пустой слой обязан быть тождественным
+  побитово, а `+ 0.0f` превращает -0.0f в +0.0f, то есть в другой
+  квантованный образец, и приколотый слепок стенда бы не пережил. ЗАПИСЬ
+  ФИЛИРУЮ Я, ЛИД (см. CoarseTerrain.cpp той же датой).
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -553,6 +560,19 @@ float compose_passes(const WorldGenContext& ctx, glm::vec2 world, float macro,
     // crosses; the alternative — the pad winning — would have the town's canal
     // filled in by the very shelf the town stands on.
     ground_final = apply_rivers(ctx.params.composed_rivers, world, ground_final);
+    // AND THE HAND LAST OF ALL. A brush stroke is the most recent and the most
+    // particular statement anybody makes about this ground: a composer stood on
+    // this hillside, looked at it and pulled it up. Nothing derived from a rule
+    // gets to argue with him about the spot he was standing on.
+    //
+    // THE BRANCH IS THE CONTRACT, not a micro-optimisation. An empty layer must
+    // be a no-op BIT FOR BIT so the pinned testbed digest survives this line,
+    // and `ground_final + 0.0f` does not deliver that: it turns -0.0f into
+    // +0.0f, which is a different quantized sample. One branch buys the
+    // certainty that a terrain difference belongs to somebody's brush.
+    if (!ctx.params.composed_relief.empty()) {
+        ground_final += ctx.params.composed_relief.height_delta_at(world);
+    }
     return std::clamp(ground_final, 0.0f, MAX_HEIGHT_M);
 }
 
@@ -575,11 +595,26 @@ float terrain_slope(const WorldGenContext& ctx, glm::vec2 world) {
 
 math::SurfaceClass classify_surface(const TestbedLayout& layout, glm::vec2 world,
                                     float height, const WaterSample& water,
-                                    float slope_rad) {
+                                    float slope_rad, const ReliefLayer* authored) {
     // Priority rules per LANDSCAPE §4 (first match wins).
     const bool covered = water.water_surface != math::NO_WATER && height < water.water_surface;
     if (covered) {
         return math::SurfaceClass::WaterBed;
+    }
+    // THE COMPOSER'S OWN BRUSH, ahead of every DERIVED clause and behind the
+    // water one. An authored class answers "what is this ground made of"; water
+    // coverage answers "is it under water". They share an enum and nothing
+    // else, so a composer painting rock across a lake bed gets a rocky bed
+    // rather than a rock island standing in the water.
+    //
+    // It is a clause of THIS function and not a second mechanism beside it: the
+    // surface stays decided in one place, which is the only way the splat the
+    // player sees and the class a tool reports can be the same answer.
+    if (authored != nullptr && !authored->empty()) {
+        math::SurfaceClass painted{};
+        if (authored->surface_at(world, painted)) {
+            return painted;
+        }
     }
     if (water.dist_to_water <= SAND_DIST && water.near_level != math::NO_WATER
         && height - water.near_level <= SAND_HEIGHT) {
@@ -614,7 +649,8 @@ SurfacePoint surface_point(const WorldGenContext& ctx, glm::vec2 world) {
     out.dist_to_water = water.dist_to_water;
     const bool covered = water.water_surface != math::NO_WATER && h < water.water_surface;
     out.water_surface = covered ? water.water_surface : math::NO_WATER;
-    out.surface_class = classify_surface(layout, world, h, water, terrain_slope(ctx, world));
+    out.surface_class = classify_surface(layout, world, h, water, terrain_slope(ctx, world),
+                                         &ctx.params.composed_relief);
     return out;
 }
 
@@ -720,7 +756,8 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             chunk.surface.water_surface[i] = covered ? w.water_surface : math::NO_WATER;
 
             chunk.surface.surface_class[i] =
-                static_cast<uint8_t>(classify_surface(layout, world, h, w, slope));
+                static_cast<uint8_t>(classify_surface(layout, world, h, w, slope,
+                                                      &ctx.params.composed_relief));
             if (!chunk.surface.path_wear.empty()) {
                 // THE SAME SAMPLE THE GROUND WAS FLATTENED BY. compose_passes
                 // grooves the terrain with this network; taking the wear from

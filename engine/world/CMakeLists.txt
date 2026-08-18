@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 17:08:2026 - 17:16:17
+# Last updated: 17:08:2026 - 19:05:00
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -67,11 +67,17 @@
 #                          капсула игрока на каждой ступени, а не ещё одна
 #                          проверка посадки панели.
 
+# - 17:08:2026 - 19:05:00: ReliefLayer.cpp — слой ручной правки земли (кисти рельефа,
+#                          заказ 17.08). Отдельный файл, потому что у него свой
+#                          формат-сиделка рядом со .scene, а Worldgen.cpp и без
+#                          того держит стек проходов целиком.
+
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
     sources/CoarseTerrain.cpp
     sources/LayoutLoad.cpp
+    sources/ReliefLayer.cpp
     sources/SaveDelta.cpp
     sources/Scene.cpp
     sources/SceneHouseRules.cpp

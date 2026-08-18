@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 17:08:2026 - 19:05:00
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -61,11 +61,24 @@ UPD:
   БИТ: именно это позволяет завести правку высот, не сдвинув закреплённую карту
   тестбеда ни на один сэмпл.
 - 17:08:2026 - 13:14:56: WorldGenParams::composed_rivers.
+- 17:08:2026 - 19:05:00: WorldGenParams::composed_relief — СЛОЙ РУЧНОЙ ПРАВКИ ЗЕМЛИ (заказ
+  17.08 про кисти рельефа; добро лида получено до правки). Он входит ИМЕННО
+  сюда, а не куда-нибудь ещё, потому что через compose_passes идут и
+  terrain_height, которым мерит судья композиции, и generate_chunk, обо что
+  бьются ноги игрока: одно место применения — и «земля, по которой ходишь» и
+  «земля, которую судит check_scene» совпадают без единой строки согласования.
+  Любой второй вход был бы двумя правдами о земле. Пустой слой — no-op БИТ В
+  БИТ, и не по счастливой арифметике float, а явной досрочной проверкой:
+  x + 0.0f не равно x, когда x это -0.0f, а закреплённый дайджест тестбеда
+  дороже одной ветки. И classify_surface получил НЕОБЯЗАТЕЛЬНЫЙ последний
+  аргумент — назначенный композитором класс поверхности; только добавление,
+  все прежние вызовы компилируются как компилировались (правило 26).
 */
 
 #pragma once
 
 #include "engine/world/sources/Chunk.h"
+#include "engine/world/sources/ReliefLayer.h"
 #include "engine/world/sources/TestbedLayout.h"
 #include "engine/world/sources/WorldFormat.h"
 #include "engine/world/sources/WorldgenErosion.h"
@@ -104,6 +117,17 @@ struct WorldGenParams {
     /// one arm through the town itself, and a pad that won over the water
     /// would fill in its own canal.
     std::vector<RiverChannel> composed_rivers;
+    /// THE GROUND A HUMAN PAINTED, with a brush, while looking at it. Applied
+    /// LAST of everything — after the generator's passes, after the authored
+    /// pads and after the watercourses — because a stroke is the most recent
+    /// and most particular statement anybody makes about this ground: a
+    /// composer who stood on a hillside and pulled it up meant that spot and no
+    /// other, and nothing derived from a rule may argue with him about it.
+    ///
+    /// Empty on every map that declares no `relief =` sidecar, and an empty
+    /// layer is a no-op BIT FOR BIT — guaranteed by an explicit branch rather
+    /// than by float arithmetic, so the pinned testbed heightmap digest holds.
+    ReliefLayer composed_relief;
 };
 
 /// Precomputed world-level passes (P2 hydrology, P4 sites) shared by every
@@ -186,10 +210,19 @@ struct WorldGenContext {
 /// called by surface_point(), by the chunk builder and by the coarse LOD node
 /// builder — three copies of a priority chain is three chances to drift, and a
 /// drift here shows up as a material seam rather than as a failing test.
+///
+/// `authored` is the composer's surface brush, OPTIONAL and null everywhere it
+/// does not exist (Rule 26: the contract grew, no existing call changed). It is
+/// consulted after the water-coverage clause and before every derived one, and
+/// that placement is the rule rather than an accident of order: an authored
+/// class answers "what is this ground MADE OF", which is a different question
+/// from "is it under water" — the two only share an enum. A composer who paints
+/// rock on a lake bed gets a rocky bed, not a rock island.
 [[nodiscard]] math::SurfaceClass classify_surface(const TestbedLayout& layout,
                                                   glm::vec2 world, float height,
                                                   const WaterSample& water,
-                                                  float slope_rad);
+                                                  float slope_rad,
+                                                  const ReliefLayer* authored = nullptr);
 
 /// Full per-position surface sample (P3 outputs + final height).
 struct SurfacePoint {

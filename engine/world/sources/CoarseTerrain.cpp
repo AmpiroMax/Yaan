@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:49:27
-Last updated: 11:08:2026 - 15:15:55
+Last updated: 18:08:2026 - 11:43:09
 Module: engine/world
 File: engine/world/sources/CoarseTerrain.cpp
 
@@ -40,6 +40,12 @@ UPD:
   calling compose_passes(), 0 mismatches on BOTH stands. The old chain equals
   the right answer on the testbed exactly, which is why nothing was ever red.
 - 11:08:2026 - 15:15:55: compose_passes takes the WaterSample (§2.7's shore taper needs the distance, not just the carved height).
+- 18:08:2026 - 11:43:09: classify_surface получает composed_relief — дальний рельеф красится с
+  учётом правок рукой, иначе издали холм, поднятый кистью, оставался бы
+  травой по старому уклону. ЗАПИСЬ ФИЛИРУЮ Я, ЛИД, а не автор правки: работа
+  зоны world от 17.08 висела в дереве незакоммиченной, её сессия давно не
+  запущена, и без записи коммит невозможен ни для кого. Текст написан по
+  прочитанному диффу, а не по памяти о чужом замысле.
 */
 
 #include "engine/world/sources/CoarseTerrain.h"
@@ -169,7 +175,8 @@ uint32_t build_coarse_rows(const WorldGenContext& ctx, CoarseNodeData& data,
             // make render's cross-fade change the material as well as the
             // geometry.
             data.surface_class[i] = static_cast<uint8_t>(
-                classify_surface(layout, world, h, water, terrain_slope(ctx, world)));
+                classify_surface(layout, world, h, water, terrain_slope(ctx, world),
+                                 &ctx.params.composed_relief));
         }
     }
     data.rows_done = last;

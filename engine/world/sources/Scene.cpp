@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 17:28:41
+Last updated: 17:08:2026 - 19:05:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -72,6 +72,9 @@ UPD:
 - 17:08:2026 - 17:28:41: check_stair_rules() встал рядом с check_house_rules(), и describe()
   знает stair-seat/stair-headroom. Лестница — своя тема со своим прибором
   (капсула игрока на носке каждой ступени), поэтому свой файл: HOUSES.md §9.
+- 17:08:2026 - 19:05:00: чтение и запись ключа `relief` (зона кистей рельефа): одна строка с
+  именем сиделки .relief. Необязательный ключ, его отсутствие — прежний файл
+  до последнего бита.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -330,6 +333,8 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 out.has_spawn = true;
             } else if (key == "spawn_yaw") {
                 if (!number(out.spawn_yaw)) return false;
+            } else if (key == "relief") {
+                out.relief = value;
             }
             // Unknown header keys are skipped: the format will grow, and a
             // reader that refuses tomorrow's key cannot read today's file
@@ -389,6 +394,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         << "# Edited by hand and by agents; checked by dfn_scene_check.\n"
         << "map = " << doc.map << "\n"
         << "world_span_m = " << doc.world_span_m << "\n";
+    if (!doc.relief.empty()) {
+        out << "relief = " << doc.relief << "\n";
+    }
     if (doc.has_spawn) {
         out << "spawn = " << doc.spawn.x << ' ' << doc.spawn.y << ' ' << doc.spawn.z
             << "\n"

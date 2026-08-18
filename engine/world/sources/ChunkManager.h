@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 14:08:2026 - 21:22:22
+Last updated: 17:08:2026 - 19:05:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -57,6 +57,17 @@ UPD:
   которые менеджер отдаёт между загрузками. Отсутствующий в файле чанк
   ГЕНЕРИРУЕТСЯ, а не пропускается: выпечка покрывает пролёт, и шаг за его край
   обязан встретить землю, а не небо.
+- 17:08:2026 - 19:05:00: РУКА РЕДАКТОРА НА ЗЕМЛЕ — set_composed_relief / invalidate_area /
+  rebuild_dirty (зона кистей рельефа, заказ 17.08; добро лида получено). Три
+  вызова, потому что решений три, и слияние их в один спрятало бы среднее:
+  что земля теперь такая, какая земля перестала быть правдой, и сколько кадра
+  можно на это потратить. Мазок накрывает один чанк сотню раз, пока едет мышь.
+  Перестройка ГЕНЕРИРУЕТ СНАЧАЛА и подменяет ПОТОМ: очевидная реализация —
+  выгрузить и дать стримингу вернуть — оставляет дыру 256 м на кадр, и
+  композитор смотрит, как земля под ним мигает на каждом штрихе. И слой
+  ставится ОДНИМ ПОЛЕМ контекста, без build_world_context: гидрология, сайты,
+  эрозия, дренаж и сеть троп решены ДО того, как слой применяется, поэтому
+  замена поля — не срез пути мимо пересборки, а вся пересборка целиком.
 */
 
 #pragma once
@@ -154,6 +165,45 @@ public:
     /// Unloads everything (shutdown / world switch), with the same per-chunk
     /// unload protocol so consumers release resources.
     void unload_all(ecs::World& ecs, events::EventBus& bus);
+
+    // --- The editor's hand on the ground -------------------------------------
+    //
+    // THREE CALLS BECAUSE THERE ARE THREE DECISIONS, and folding them into one
+    // would hide the middle one. Painting says WHAT the ground is now; marking
+    // says WHICH ground stopped being true; rebuilding says HOW MUCH of a frame
+    // may be spent making it true again. A brush stroke covers the same chunk a
+    // hundred times as the mouse travels, so a call that rebuilt on every dab
+    // would spend the cost of the whole stroke a hundred times over.
+
+    /// Installs the composition's hand-edit layer. Cheap: it replaces ONE field
+    /// of the generation context and rebuilds nothing, because nothing upstream
+    /// of compose_passes reads the layer — hydrology, sites, erosion, the
+    /// drainage and the path network were all solved before it applies.
+    ///
+    /// Nothing on screen changes until the chunks holding that ground are
+    /// marked and rebuilt; that separation is the point, not an oversight.
+    void set_composed_relief(const ReliefLayer& relief);
+
+    /// Marks every RESIDENT chunk overlapping this world-space box as stale.
+    /// Returns how many were newly marked (a chunk already dirty counts zero,
+    /// so a caller may pass the same box every dab).
+    ///
+    /// Chunks outside the resident ring are not marked and need not be: they
+    /// will be generated from the current layer when streaming reaches them.
+    [[nodiscard]] std::size_t invalidate_area(glm::vec2 min_xz, glm::vec2 max_xz);
+
+    /// Rebuilds at most `budget` stale chunks and returns how many remain.
+    /// Each one is REGENERATED FIRST and swapped in second, so consumers see
+    /// the ordinary ChunkUnloaded -> ChunkLoaded pair and the world never shows
+    /// a hole where the composer is working. A baked .dfw is deliberately not
+    /// consulted: it was baked before anybody painted, and reading from it
+    /// would hand back the very ground that was just changed.
+    ///
+    /// The budget is the caller's frame, spent honestly: generating a chunk is
+    /// tens of milliseconds, so draining a wide stroke over several updates is
+    /// what keeps a brush from stalling the picture it is drawing.
+    std::size_t rebuild_dirty(ecs::World& ecs, events::EventBus& bus,
+                              std::size_t budget = 1);
 
     // --- Queries --------------------------------------------------------------
 
