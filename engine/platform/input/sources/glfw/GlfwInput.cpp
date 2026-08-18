@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
+Last updated: 18:08:2026 - 11:50:28
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.cpp
 
@@ -44,6 +44,7 @@ UPD:
   рукав в дереве с НАСТОЯЩИМ окном GLFW; рука двигает курсор сама через
   glfwSetCursorPos. Три руки: захват один раз — 39 кадров со смещением из 40;
   захват каждым кадром до правки — 0 из 40; после правки — 39 из 40.
+- 18:08:2026 - 11:50:28: сброс признака решает capture_request_resets_delta() из IInput.h (одно определение).
 */
 
 #include "engine/platform/input/sources/glfw/GlfwInput.h"
@@ -292,7 +293,7 @@ void GlfwInput::set_cursor_captured(bool captured) {
     // подряд. Прогон через дверь DFN_EDITOR=1 эту поломку НЕ ВИДЕЛ: там
     // непритязательный прогон, и захват не запрашивается ни разу, поэтому
     // признак доживал и смещения доходили. Мой прибор мерил здоровый путь.
-    const bool changed = captured_ != captured;
+    const bool changed = capture_request_resets_delta(captured_, captured);
     captured_ = captured;
     glfwSetInputMode(window_, GLFW_CURSOR,
                      captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
