@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 18:08:2026 - 18:43:05
+Last updated: 18:08:2026 - 22:20:15
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -21,6 +21,7 @@ UPD:
 - 18:08:2026 - 17:06:23: то же (см. заголовок).
 - 18:08:2026 - 17:47:28: set_style/set_param/set_closed/param (см. заголовок).
 - 18:08:2026 - 18:43:05: усыновление имён (см. заголовок).
+- 18:08:2026 - 22:20:15: Все тринадцать мутаторов поднимают версию.
 */
 
 #include "engine/world/sources/HouseGraph.h"
@@ -31,6 +32,8 @@ UPD:
 namespace dfn::world {
 
 VertexId HouseGraph::add_vertex(Anchoring anchoring, glm::vec3 local) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     Vertex v;
     v.id = next_vertex_++;
     v.anchoring = anchoring;
@@ -40,6 +43,8 @@ VertexId HouseGraph::add_vertex(Anchoring anchoring, glm::vec3 local) {
 }
 
 GraphResult HouseGraph::add_vertex_on_edge(ElementId host, float t, VertexId& out) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     out = NO_VERTEX;
     const Element* e = element(host);
     if (e == nullptr) {
@@ -63,6 +68,8 @@ GraphResult HouseGraph::add_vertex_on_edge(ElementId host, float t, VertexId& ou
 
 GraphResult HouseGraph::add_element(ElementKind kind, std::vector<VertexId> refs,
                                     std::string style, ElementId& out) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     out = NO_ELEMENT;
     if (refs.size() < min_refs_for(kind)) {
         return {false, "слишком мало вершин для этого вида", {}};
@@ -92,6 +99,8 @@ GraphResult HouseGraph::add_element(ElementKind kind, std::vector<VertexId> refs
 }
 
 GraphResult HouseGraph::adopt_vertex(VertexId id, Anchoring anchoring, glm::vec3 local) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     if (id == NO_VERTEX) {
         return {false, "имя вершины не может быть нулём", {}};
     }
@@ -110,6 +119,8 @@ GraphResult HouseGraph::adopt_vertex(VertexId id, Anchoring anchoring, glm::vec3
 }
 
 GraphResult HouseGraph::adopt_vertex_on_edge(VertexId id, ElementId host, float t) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     if (id == NO_VERTEX) {
         return {false, "имя вершины не может быть нулём", {}};
     }
@@ -135,6 +146,8 @@ GraphResult HouseGraph::adopt_vertex_on_edge(VertexId id, ElementId host, float 
 
 GraphResult HouseGraph::adopt_element(ElementId id, ElementKind kind,
                                       std::vector<VertexId> refs, std::string style) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     if (id == NO_ELEMENT) {
         return {false, "имя элемента не может быть нулём", {}};
     }
@@ -165,6 +178,8 @@ GraphResult HouseGraph::adopt_element(ElementId id, ElementKind kind,
 }
 
 GraphResult HouseGraph::remove_vertex(VertexId id) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     if (vertex(id) == nullptr) {
         return {false, "такой вершины нет", {}};
     }
@@ -186,6 +201,8 @@ GraphResult HouseGraph::remove_vertex(VertexId id) {
 }
 
 GraphResult HouseGraph::remove_element(ElementId id) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     if (element(id) == nullptr) {
         return {false, "такого элемента нет", {}};
     }
@@ -209,6 +226,8 @@ GraphResult HouseGraph::remove_element(ElementId id) {
 }
 
 GraphResult HouseGraph::move_vertex(VertexId id, glm::vec3 new_local) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     Vertex* v = find_vertex(id);
     if (v == nullptr) {
         return {false, "такой вершины нет", {}};
@@ -227,6 +246,8 @@ GraphResult HouseGraph::move_vertex(VertexId id, glm::vec3 new_local) {
 }
 
 GraphResult HouseGraph::set_facing(ElementId id, bool flipped) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
@@ -236,6 +257,8 @@ GraphResult HouseGraph::set_facing(ElementId id, bool flipped) {
 }
 
 GraphResult HouseGraph::set_style(ElementId id, std::string style) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
@@ -245,6 +268,8 @@ GraphResult HouseGraph::set_style(ElementId id, std::string style) {
 }
 
 GraphResult HouseGraph::set_param(ElementId id, std::string key, std::string value) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
@@ -260,6 +285,8 @@ GraphResult HouseGraph::set_param(ElementId id, std::string key, std::string val
 }
 
 GraphResult HouseGraph::set_closed(ElementId id, bool closed) {
+    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};

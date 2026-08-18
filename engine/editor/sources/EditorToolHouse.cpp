@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 18:08:2026 - 22:20:15
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -40,6 +40,7 @@ UPD:
 - 18:08:2026 - 19:44:10: Поиск лучом (сближение луча с точкой и с отрезком, вырожденные случаи названы); призрак якоря один на щелчок, показ и подпись; колесо тянет шарик вдоль луча; магнит на ось.
 - 18:08:2026 - 20:26:30: Конец прямой липнет к якорю ПОД ЛУЧОМ (два якоря в воздухе больше не соединяются через пол); прилипание якоря к оси решает прицел, а не подтягивание — стойки ловятся так же, как лежачие брёвна; ray_vs_segment — одно выражение на весь файл; подпись поверхности называет пол и стену до подтверждения.
 - 18:08:2026 - 21:12:40: Прямая, отпущенная в пустоте, СТАВИТ ТАМ ЯКОРЬ (решение пользователя: прямая без якоря на конце — бессмыслица); зажим длины садит конец на тот самый якорь, а не на двойника рядом.
+- 18:08:2026 - 22:20:15: Якорь двигается вдоль запертой оси; ось общая у прямой и у перетаскивания; стрелка нормали одна на черновик и на готовую стену, рисуется у КАЖДОЙ подсвеченной поверхности из её видного места; стена выбирается тычком в полотно (луч-треугольник), а не только по кромке.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -151,6 +152,28 @@ int append_plumb(std::vector<glm::vec3>& seg, glm::vec3 from, float ground_y) {
     return drawn;
 }
 
+/// СТРЕЛКА НОРМАЛИ: отрезок из видного места плюс две зазубрины на конце.
+/// Одна на весь файл: черновик и готовая стена рисуют её одинаково, иначе
+/// «до подтверждения» и «после» отвечали бы на один вопрос по-разному.
+static void append_normal_arrow(std::vector<glm::vec3>& dst, glm::vec3 centre,
+                                glm::vec3 n) {
+    const glm::vec3 tip = centre + n * HOUSE_NORMAL_ARROW_M;
+    dst.push_back(centre);
+    dst.push_back(tip);
+    // ЗАЗУБРИНЫ: отрезок без них читается в обе стороны, а вопрос ровно про
+    // сторону.
+    glm::vec3 side = glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f});
+    if (glm::length(side) < 1e-3f) {
+        side = glm::cross(n, glm::vec3{1.0f, 0.0f, 0.0f});
+    }
+    side = glm::normalize(side) * (HOUSE_NORMAL_ARROW_M * 0.15f);
+    const glm::vec3 back = tip - n * (HOUSE_NORMAL_ARROW_M * 0.25f);
+    dst.push_back(tip);
+    dst.push_back(back + side);
+    dst.push_back(tip);
+    dst.push_back(back - side);
+}
+
 void build_house_wire(const HouseSession& s, const HouseGroundFn& ground, HouseWire& out) {
     const HouseGraph& g = s.graph();
     const auto lit_element = [&](ElementId id) {
@@ -184,6 +207,27 @@ void build_house_wire(const HouseSession& s, const HouseGroundFn& ground, HouseW
             dst.push_back(s.vertex_world(e.refs.back()));
             dst.push_back(s.vertex_world(e.refs.front()));
         }
+    }
+
+    // ЛИЦО ПОДСВЕЧЕННОЙ СТЕНЫ НАЗЫВАЕТСЯ ВСЕГДА (заказ 18.08: «вектор нормали
+    // всегда должен рисоваться, когда стена выделена или выбраны любые из её
+    // якорей»). Подсветка уже отвечает на оба случая сразу: выбрал стену —
+    // подсветилась она, выбрал её якорь — подсветились его элементы.
+    for (const Element& e : g.elements()) {
+        if (e.kind != ElementKind::Surface || !lit_element(e.id)) {
+            continue;
+        }
+        glm::vec3 centre_local{0.0f};
+        glm::vec3 n_local{0.0f};
+        if (!world::surface_centre(g, e.id, centre_local)
+            || !world::surface_normal(g, e.id, n_local)) {
+            continue;
+        }
+        // В МИРОВЫЕ: и точка, и направление — но по-разному. Точку переносим,
+        // направление только поворачиваем.
+        const glm::vec3 zero = s.to_world({0.0f, 0.0f, 0.0f});
+        append_normal_arrow(out.accent, s.to_world(centre_local),
+                            glm::normalize(s.to_world(n_local) - zero));
     }
 
     for (const Vertex& v : g.vertices()) {
@@ -233,7 +277,6 @@ bool HouseSession::apply_snapshot(const std::string& text) {
     const bool had_vertex = sel_vertex_ != NO_VERTEX;
     const glm::vec3 was = had_vertex ? vertex_world(sel_vertex_) : glm::vec3{0.0f};
     ++revision_;
-    ++version_;
     const world::HouseIoResult r = world::read_house(text, graph_);
     sel_vertex_ = NO_VERTEX;
     // ЭЛЕМЕНТ ПО МЕСТУ НЕ ОПОЗНАЁТСЯ: у него нет одной точки, а опознание по
@@ -323,6 +366,104 @@ VertexId HouseSession::pick_vertex(glm::vec3 world_point, float grab_m) const {
         }
     }
     return best;
+}
+
+/// ТОЧКА НА ПРЯМОЙ, БЛИЖАЙШАЯ К ЛУЧУ ПРИЦЕЛА.
+///
+/// Классическая задача о двух скрещивающихся прямых. Ось идёт из якоря вверх,
+/// луч — из глаза в направлении взгляда; берётся точка оси, ближайшая к лучу.
+/// Это и есть «мышь двигает по оси»: экранное движение проецируется на неё, а
+/// не превращается в пересечение с землёй.
+///
+/// Вырожденный случай назван, а не пропущен: если смотреть ВДОЛЬ оси (сверху
+/// вниз), знаменатель обращается в ноль — ответа не существует, потому что вся
+/// ось проецируется в точку. Возвращаем прежнюю высоту: инструмент замирает,
+/// а не прыгает в бесконечность.
+static glm::vec3 point_on_axis(const glm::vec3& anchor, const glm::vec3& u,
+                               const glm::vec3& ray_origin, const glm::vec3& ray_dir,
+                               const glm::vec3& fallback) {
+    const glm::vec3 w = anchor - ray_origin;
+    const float b = glm::dot(u, ray_dir);
+    const float denom = 1.0f - b * b; // |u| = |d| = 1
+    if (denom < 1e-5f) {
+        return fallback;
+    }
+    const float d = glm::dot(u, w);
+    const float e = glm::dot(ray_dir, w);
+    // t = (b·e − d)/(1 − b²) — классическая пара скрещивающихся прямых. Знак
+    // здесь не украшение: с обратным вышла бы вертикаль, идущая ВНИЗ, когда
+    // человек тянет ВВЕРХ, и это тот же дефект, что он показал кадром.
+    const float t = (b * e - d) / denom; // параметр вдоль ОСИ
+    return anchor + u * t;
+}
+
+void HouseSession::cycle_axis(VertexId around) {
+    // КРУГ ИЗ ТОГО, ЧТО ЧЕЛОВЕК ВИДИТ: свободно, вертикаль, потом каждая
+    // прямая, приходящая в этот якорь, в порядке их имён — тот же порядок, в
+    // котором они перечислены в файле и подсвечены на экране.
+    std::vector<ElementId> lines;
+    for (const ElementId id : graph_.incident(around)) {
+        const Element* e = graph_.element(id);
+        if (e != nullptr && e->kind == ElementKind::Line && e->refs.size() >= 2) {
+            lines.push_back(id);
+        }
+    }
+    if (axis_.kind == AxisLock::Kind::Free) {
+        axis_ = AxisLock{AxisLock::Kind::Vertical, NO_ELEMENT};
+        return;
+    }
+    if (axis_.kind == AxisLock::Kind::Vertical) {
+        axis_ = lines.empty() ? AxisLock{}
+                              : AxisLock{AxisLock::Kind::Edge, lines.front()};
+        return;
+    }
+    const auto it = std::find(lines.begin(), lines.end(), axis_.edge);
+    if (it == lines.end() || it + 1 == lines.end()) {
+        axis_ = AxisLock{}; // круг замкнулся
+        return;
+    }
+    axis_ = AxisLock{AxisLock::Kind::Edge, *(it + 1)};
+}
+
+bool HouseSession::axis_dir(VertexId at, glm::vec3& out) const {
+    if (axis_.kind == AxisLock::Kind::Vertical) {
+        out = {0.0f, 1.0f, 0.0f};
+        return true;
+    }
+    if (axis_.kind != AxisLock::Kind::Edge) {
+        return false;
+    }
+    const Element* e = graph_.element(axis_.edge);
+    if (e == nullptr || e->refs.size() < 2) {
+        return false;
+    }
+    // НАПРАВЛЕНИЕ СЧИТАЕТСЯ ОТ ЯКОРЯ, А НЕ ОТ НАЧАЛА ПРЯМОЙ: человек тянет
+    // ИМЕННО этот конец, и знак должен слушаться его руки, а не порядка, в
+    // котором прямая когда-то была записана.
+    const glm::vec3 a = vertex_world(e->refs.front());
+    const glm::vec3 b = vertex_world(e->refs.back());
+    const glm::vec3 d = at == e->refs.front() ? b - a : a - b;
+    const float len = glm::length(d);
+    if (len < 1e-5f) {
+        return false; // выродившаяся прямая направления не задаёт
+    }
+    out = d / len;
+    return true;
+}
+
+std::string HouseSession::axis_label() const {
+    switch (axis_.kind) {
+    case AxisLock::Kind::Vertical:
+        return "вертикаль";
+    case AxisLock::Kind::Edge: {
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "вдоль e%u", static_cast<unsigned>(axis_.edge));
+        return buf;
+    }
+    case AxisLock::Kind::Free:
+        break;
+    }
+    return "свободно";
 }
 
 VertexId HouseSession::pick_vertex_ray(glm::vec3 origin, glm::vec3 dir, float grab_m) const {
@@ -425,6 +566,54 @@ HouseEdgeHit HouseSession::pick_edge_ray(glm::vec3 origin, glm::vec3 dir,
     return best;
 }
 
+/// ВЫСОТА ВЫДАВЛИВАНИЯ ЦЕПОЧКИ, метры. Спрашивается у ТЕХ ЖЕ параметров, что
+/// читает построитель тела: второе место, где «высота стены» вычисляется
+/// иначе, — это стена, которую видно не там, где в неё можно ткнуть.
+static float house_surface_height(const HouseSession& s, const Element& e) {
+    (void)s;
+    const std::string h = [&] {
+        for (const auto& kv : e.params) {
+            if (kv.first == "height") {
+                return kv.second;
+            }
+        }
+        return std::string{};
+    }();
+    if (h.empty()) {
+        // 0 — «высота не задана», и построитель тела в этом случае стену НЕ
+        // строит. Значит и целиться не во что: ноль здесь — тот же ответ.
+        return 0.0f;
+    }
+    return static_cast<float>(std::atof(h.c_str()));
+}
+
+/// ЛУЧ И ТРЕУГОЛЬНИК (Мёллер–Трумбор). Расстояние вдоль луча или -1.
+static float ray_vs_triangle(glm::vec3 o, glm::vec3 d, glm::vec3 a, glm::vec3 b,
+                             glm::vec3 c) {
+    const glm::vec3 e1 = b - a;
+    const glm::vec3 e2 = c - a;
+    const glm::vec3 pv = glm::cross(d, e2);
+    const float det = glm::dot(e1, pv);
+    // ЛУЧ ВДОЛЬ ПЛОСКОСТИ ТРЕУГОЛЬНИКА — пересечения нет; знак det здесь НЕ
+    // фильтруется, потому что в стену человек смотрит с обеих сторон.
+    if (std::fabs(det) < 1e-8f) {
+        return -1.0f;
+    }
+    const float inv = 1.0f / det;
+    const glm::vec3 tv = o - a;
+    const float u = glm::dot(tv, pv) * inv;
+    if (u < 0.0f || u > 1.0f) {
+        return -1.0f;
+    }
+    const glm::vec3 qv = glm::cross(tv, e1);
+    const float v = glm::dot(d, qv) * inv;
+    if (v < 0.0f || u + v > 1.0f) {
+        return -1.0f;
+    }
+    const float t = glm::dot(e2, qv) * inv;
+    return t > 0.0f ? t : -1.0f;
+}
+
 ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir,
                                          float grab_m) const {
     ElementId best = NO_ELEMENT;
@@ -456,6 +645,40 @@ ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir,
         }
         if (e.closed && e.refs.size() >= 3) {
             consider(e.id, vertex_world(e.refs.back()), vertex_world(e.refs.front()));
+        }
+        // И САМО ПОЛОТНО, А НЕ ТОЛЬКО ЕГО КРОМКА. Пользователь 18.08 дважды
+        // написал «не могу выбрать стену»: он целится в СЕРЕДИНУ стены, а
+        // ловился только контур — полоса в тридцать сантиметров по краю.
+        //
+        // Треугольники берутся те же, что рисует построитель тела: замкнутый
+        // контур — веером от первой вершины (это верно для выпуклого и даёт
+        // разумный ответ для невыпуклого — хуже кромки не будет), цепочка —
+        // выдавленная вверх лента. Полного разбора ушами здесь нет нарочно:
+        // выбор мышью не обязан совпадать с мешом ДО ТРЕУГОЛЬНИКА, он обязан
+        // не промахиваться по стене.
+        const auto face = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+            const float t = ray_vs_triangle(origin, dir, a, b, c);
+            if (t > 0.0f && (best == NO_ELEMENT || t < best_along)) {
+                best_along = t;
+                best = e.id;
+            }
+        };
+        if (e.closed && e.refs.size() >= 3) {
+            const glm::vec3 a0 = vertex_world(e.refs.front());
+            for (std::size_t i = 1; i + 1 < e.refs.size(); ++i) {
+                face(a0, vertex_world(e.refs[i]), vertex_world(e.refs[i + 1]));
+            }
+        } else {
+            const float h = house_surface_height(*this, e);
+            if (h > 1e-3f) {
+                const glm::vec3 up{0.0f, h, 0.0f};
+                for (std::size_t i = 0; i + 1 < e.refs.size(); ++i) {
+                    const glm::vec3 a = vertex_world(e.refs[i]);
+                    const glm::vec3 b = vertex_world(e.refs[i + 1]);
+                    face(a, b, b + up);
+                    face(a, b + up, a + up);
+                }
+            }
         }
     }
     return best;
@@ -722,6 +945,17 @@ void HouseVertexTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) 
     if (session_ == nullptr || dragging_ == NO_VERTEX || stale()) {
         return;
     }
+    // ОСЬ, ЕСЛИ ОНА ЗАПЕРТА, РЕШАЕТ ВСЁ. Заказ 18.08: «надо продумать систему,
+    // чтобы я мог двигать якоря вдоль любой из линий, которые рисуются от
+    // якоря». Тогда точка берётся с ЭТОЙ прямой, а не с земли: балку можно
+    // удлинить, не сбив её направления, и поднять стойку ровно по её же оси.
+    if (glm::vec3 u{0.0f}; session_->axis_dir(dragging_, u)) {
+        const glm::vec3 here = session_->vertex_world(dragging_);
+        const glm::vec3 target =
+            point_on_axis(here, u, aim.origin, aim.direction(), here);
+        (void)session_->graph().move_vertex(dragging_, session_->to_local(target));
+        return;
+    }
     // ВЫСОТА ДЕРЖИТСЯ НАД РЕЛЬЕФОМ, а не в мире: якорь, стоявший в двух метрах
     // над склоном, обязан остаться в двух метрах над склоном и после сдвига.
     const float gy = ground_at({aim.point.x, aim.point.z}, aim.point.y);
@@ -816,7 +1050,15 @@ ToolStatus HouseVertexTool::status(const ToolAim& aim) const {
     // ПОДПИСЬ ЧИТАЕТ ТОТ ЖЕ ПРИЗРАК, ЧТО И ПОКАЗ СО ЩЕЛЧКОМ. Три места, один
     // ответ: подпись, разошедшаяся с делом, хуже отсутствующей.
     const Ghost g = ghost(aim);
-    if (g.over != NO_VERTEX) {
+    if (g.over != NO_VERTEX || dragging_ != NO_VERTEX) {
+        if (!session_->axis().free()) {
+            // ОСЬ НАЗЫВАЕТ СЕБЯ, пока якорь в руке: иначе человек тянет и не
+            // понимает, почему шарик не идёт за прицелом.
+            char buf[96];
+            std::snprintf(buf, sizeof(buf), "якорь по оси: %s (V — следующая)",
+                          session_->axis_label().c_str());
+            return ToolStatus{"", buf, true};
+        }
         return ToolStatus{"house.hint.grab", {}, true};
     }
     if (g.on_edge.hit()) {
@@ -887,34 +1129,6 @@ ToolIdentity HouseLineTool::identity() const {
                         ToolIcon::HouseLine};
 }
 
-/// ТОЧКА НА ВЕРТИКАЛИ, БЛИЖАЙШАЯ К ЛУЧУ ПРИЦЕЛА.
-///
-/// Классическая задача о двух скрещивающихся прямых. Ось идёт из якоря вверх,
-/// луч — из глаза в направлении взгляда; берётся точка оси, ближайшая к лучу.
-/// Это и есть «мышь двигает по оси»: экранное движение проецируется на неё, а
-/// не превращается в пересечение с землёй.
-///
-/// Вырожденный случай назван, а не пропущен: если смотреть ВДОЛЬ оси (сверху
-/// вниз), знаменатель обращается в ноль — ответа не существует, потому что вся
-/// ось проецируется в точку. Возвращаем прежнюю высоту: инструмент замирает,
-/// а не прыгает в бесконечность.
-static glm::vec3 point_on_vertical(const glm::vec3& anchor, const glm::vec3& ray_origin,
-                                   const glm::vec3& ray_dir, float fallback_y) {
-    const glm::vec3 u{0.0f, 1.0f, 0.0f};
-    const glm::vec3 w = anchor - ray_origin;
-    const float b = glm::dot(u, ray_dir);
-    const float denom = 1.0f - b * b; // |u| = |d| = 1
-    if (denom < 1e-5f) {
-        return {anchor.x, fallback_y, anchor.z};
-    }
-    const float d = glm::dot(u, w);
-    const float e = glm::dot(ray_dir, w);
-    // t = (b·e − d)/(1 − b²) — классическая пара скрещивающихся прямых. Знак
-    // здесь не украшение: с обратным вышла бы вертикаль, идущая ВНИЗ, когда
-    // человек тянет ВВЕРХ, и это тот же дефект, что он показал кадром.
-    const float t = (b * e - d) / denom; // параметр вдоль ОСИ
-    return anchor + u * t;
-}
 
 void HouseLineTool::update_end(const ToolAim& aim) {
     raw_end_ = aim.point;
@@ -938,15 +1152,12 @@ void HouseLineTool::update_end(const ToolAim& aim) {
         snap_ = hit;
         raw_end_ = session_->vertex_world(hit);
     }
-    if (session_->axis() == HouseSession::Axis::Vertical) {
+    if (glm::vec3 u{0.0f}; session_->axis_dir(from_, u)) {
         // ЛУЧ БЕРЁТСЯ ИЗ САМОГО ПРИЦЕЛА, а не восстанавливается по камере:
         // ToolAim несёт и глаз, и точку, и второй способ узнать направление
         // взгляда разъехался бы с первым в день, когда прицел сместят.
-        const glm::vec3 dir = aim.point - aim.origin;
-        const float dl = glm::length(dir);
-        if (dl > 1e-5f) {
-            raw_end_ = point_on_vertical(a, aim.origin, dir / dl, raw_end_.y);
-        }
+        raw_end_ = point_on_axis(a, u, aim.origin, aim.direction(), raw_end_);
+        snap_ = NO_VERTEX; // на запертой оси конец решает ось, а не магнит
     }
     const glm::vec3 delta = raw_end_ - a;
     const float len = glm::length(delta);
@@ -1152,15 +1363,20 @@ ToolStatus HouseLineTool::status(const ToolAim& aim) const {
         return ToolStatus{on_anchor ? "house.hint.line.from" : "house.hint.line.needanchor",
                           {}, on_anchor};
     }
-    if (session_->axis() == HouseSession::Axis::Vertical) {
+    if (!session_->axis().free()) {
         // ВЕРТИКАЛЬ НАЗЫВАЕТ СЕБЯ ВЫСОТОЙ, а не словом «включено»: пользователь
         // 18.08 тянул вверх и получал прямую на траве, поэтому подпись обязана
         // отвечать на его вопрос — насколько вверх ушёл конец. Знак сохранён:
         // вниз от якоря — такая же законная стойка, как вверх.
-        const float dy = ghost_end().y - session_->vertex_world(from_).y;
-        char buf[96];
-        std::snprintf(buf, sizeof(buf), "вертикаль: %+.2f м от якоря (V — снять)",
-                      static_cast<double>(dy));
+        // РАССТОЯНИЕ СЧИТАЕТСЯ ВДОЛЬ САМОЙ ОСИ, а не по высоте: у вертикали это
+        // одно и то же, а у лежачей балки высота всегда ноль — подпись
+        // отвечала бы «0.00 м» на любое движение руки.
+        glm::vec3 u{0.0f, 1.0f, 0.0f};
+        (void)session_->axis_dir(from_, u);
+        const float along = glm::dot(ghost_end() - session_->vertex_world(from_), u);
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), "%s: %+.2f м от якоря (V — следующая ось)",
+                      session_->axis_label().c_str(), static_cast<double>(along));
         return ToolStatus{"", buf, true};
     }
     if (clamp_hit_.found) {
@@ -1382,21 +1598,14 @@ ToolPreview HouseSurfaceTool::preview(const ToolAim& aim) const {
             centre += session_->vertex_world(r);
         }
         centre /= static_cast<float>(refs_.size());
-        const glm::vec3 tip = centre + n * HOUSE_NORMAL_ARROW_M;
-        wire_.accent.push_back(centre);
-        wire_.accent.push_back(tip);
-        // ЗАЗУБРИНЫ НА КОНЦЕ: отрезок без них читается в обе стороны, а вопрос
-        // ровно про сторону.
-        glm::vec3 side = glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f});
-        if (glm::length(side) < 1e-3f) {
-            side = glm::cross(n, glm::vec3{1.0f, 0.0f, 0.0f});
+        // ЧЕРНОВИК ЦЕПОЧКИ ПОДНИМАЕТСЯ НА ПОЛОВИНУ ВЫСОТЫ — как и готовая
+        // стена: середина двух нижних якорей лежит на нижней кромке, и стрелка
+        // росла из-под пола («рисуется от какой-то грани, а не в видном
+        // месте»). У замкнутого контура высоты нет, и поправка нулевая.
+        if (!closed_) {
+            centre.y += height_m_ * 0.5f;
         }
-        side = glm::normalize(side) * (HOUSE_NORMAL_ARROW_M * 0.15f);
-        const glm::vec3 back = tip - n * (HOUSE_NORMAL_ARROW_M * 0.25f);
-        wire_.accent.push_back(tip);
-        wire_.accent.push_back(back + side);
-        wire_.accent.push_back(tip);
-        wire_.accent.push_back(back - side);
+        append_normal_arrow(wire_.accent, centre, n);
     }
     out.polyline = draft_line_.empty() ? nullptr : &draft_line_;
     out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
@@ -1428,10 +1637,24 @@ ToolStatus HouseSurfaceTool::status(const ToolAim& aim) const {
     glm::vec3 n{0.0f};
     char buf[192];
     if (refs_.size() >= 3) {
+        // ЧТО ИМЕННО ПОЛУЧИТСЯ, СЛОВАМИ ЧЕЛОВЕКА. Пользователь 18.08: «стены
+        // рисуются не от якоря до якоря сверху» — и это про открытую цепочку,
+        // которую выдавливает вверх ЧИСЛО из панели, а не верхние якоря.
+        // Полотно ОТ ЯКОРЯ ДО ЯКОРЯ — это замкнутый обход: обошёл четыре угла,
+        // замкнул на первом, и стена встала ровно по ним. Обе дороги названы,
+        // потому что выбор между ними — это один щелчок, и он невидим.
+        // ЛИЦО НАЗЫВАЕТСЯ ЗДЕСЬ ЖЕ. Стрелку с ребра камеры видно плохо, и слово
+        // — второй прибор на тот же вопрос: пропав отсюда, оно оставило бы
+        // человека без единственного способа узнать сторону, глядя на контур
+        // сверху.
+        const char* where = "вбок";
+        if (draft_normal(n)) {
+            where = n.y > 0.7f ? "вверх" : (n.y < -0.7f ? "вниз" : "вбок");
+        }
         std::snprintf(buf, sizeof(buf),
-                      "якорей %zu · по ПЕРВОМУ якорю — пол/контур (лицо вверх), "
-                      "по последнему — стена (лицо вбок)",
-                      refs_.size());
+                      "якорей %zu · лицо %s · замкни на ПЕРВОМ — полотно ровно по "
+                      "якорям; по последнему — быстрая стена вверх на %.1f м",
+                      refs_.size(), where, static_cast<double>(height_m_));
         return ToolStatus{"", buf, true};
     }
     if (draft_normal(n)) {

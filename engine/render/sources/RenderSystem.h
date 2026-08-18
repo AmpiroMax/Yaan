@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 18:08:2026 - 22:26:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -150,6 +150,7 @@ UPD:
   совпадали; голое «129» теперь читается как устаревший размер чанка, а не как
   живая константа узла, и правка ради этого совпадения сломала бы шов с core.
 - 18:08:2026 - 21:12:40: set_house_mesh — слот постройки редактора: рисуется ОСВЕЩЁННОЙ (prop), заливается по изменению, а не по кадру.
+- 18:08:2026 - 22:26:40: Слот постройки — два потока (каркас и полотна): материал сегодня цвет вершин, «prop» текстуру не читает.
 */
 
 #pragma once
@@ -486,7 +487,18 @@ public:
     ///    Когда заливать — знает вызывающий, здесь только «замени на это».
     ///
     /// Пустой меш очищает слот: карта без построек — обычное состояние.
-    void set_house_mesh(platform::IRenderer& renderer, const MeshData& mesh);
+    /// Тело постройки ДВУМЯ ПОТОКАМИ: каркас и полотна.
+    ///
+    /// Разделены не для красоты — у них РАЗНЫЙ МАТЕРИАЛ, а материал на этом
+    /// пути приходит текстурой draw-вызова. Один поток означал бы одну
+    /// текстуру на брус и на штукатурку.
+    ///
+    /// Материал сегодня — ЦВЕТ ВЕРШИН: программа «prop» текстуру не читает
+    /// (проверено — переданная плитка не поменяла ни пикселя). Разделение всё
+    /// равно нужно: как только появится программа, которая сэмплит, каждый
+    /// поток получит свою шкуру без единой правки на стороне приложения.
+    void set_house_mesh(platform::IRenderer& renderer, const MeshData& beams,
+                        const MeshData& panels);
 
     /// Lights that live for ONE frame (the firefly swarm). Replaced every
     /// frame; an empty list is the normal daytime state, not an error.
@@ -497,7 +509,8 @@ private:
     uint32_t firefly_mesh_id_ = 0;
     uint32_t emissive_mesh_id_ = 0;
     uint32_t ghost_mesh_id_ = 0;
-    uint32_t house_mesh_id_ = 0;
+    uint32_t house_mesh_id_ = 0;    // каркас (брус)
+    uint32_t house_panels_id_ = 0;  // полотна (стены, полы)
     std::vector<ExtraLight> transient_lights_;
 
     /// One flame gathered this frame, before the eight slots are handed out.

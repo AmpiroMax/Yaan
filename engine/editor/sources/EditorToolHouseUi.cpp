@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 19:44:10
+Last updated: 18:08:2026 - 22:20:15
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -32,6 +32,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 18:02:11: Создан вместе с EditorToolHouse.{h,cpp}.
 - 18:08:2026 - 19:44:10: Ползунок правит то же число, что и колесо, через set_pull_m.
+- 18:08:2026 - 22:20:15: Свойства выбранного элемента — один блок на три панели: полутолщина, толщина, высота, поворот текстуры, разворот лица, удаление.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -59,6 +60,68 @@ void draw_refusal(const std::string& text) {
     // ОТКАЗ ВИДЕН, А НЕ УХОДИТ В stderr. Ровно это разбирали 18.08 трижды:
     // молча не сработавший инструмент неотличим от сломанного.
     ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f), "%s", text.c_str());
+}
+
+/// СВОЙСТВА ВЫБРАННОГО ЭЛЕМЕНТА — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
+///
+/// Заказ 18.08: «не могу выбрать стену или прямую, чтобы поменять её
+/// свойства». Выбор починен отдельно (тычок в полотно, а не только в кромку);
+/// здесь — вторая половина: то, что после выбора можно ПРАВИТЬ.
+///
+/// Блок общий нарочно. Три копии этих полей разошлись бы в первый же день,
+/// когда к стене добавят свойство, — и человек, открывший не ту панель, решил
+/// бы, что свойства у стены нет.
+static void draw_selected_element(HouseSession& session) {
+    const world::ElementId id = session.selected_element();
+    if (id == world::NO_ELEMENT) {
+        ImGui::TextDisabled("%s", EditorUi::tr("house.noelem"));
+        return;
+    }
+    const world::Element* e = session.graph().element(id);
+    if (e == nullptr) {
+        return;
+    }
+    const bool line = e->kind == world::ElementKind::Line;
+    ImGui::Text("e%u · %s · %s %zu", static_cast<unsigned>(id),
+                EditorUi::tr(line ? "house.kind.line" : "house.kind.surface"),
+                EditorUi::tr("house.refs"), e->refs.size());
+
+    // ЧИСЛА ЧИТАЮТСЯ ИЗ ГРАФА И ПИШУТСЯ В ГРАФ ЧЕРЕЗ ДВЕРЬ МУТАЦИЙ: правка мимо
+    // неё не попала бы ни в отмену, ни в номер версии — то есть ни в тело дома,
+    // ни в коллайдер.
+    const auto number = [&](const char* key, const char* caption, float lo, float hi,
+                            float fallback) {
+        const std::string raw = session.graph().param(id, key);
+        float value = raw.empty() ? fallback : std::strtof(raw.c_str(), nullptr);
+        if (ImGui::SliderFloat(EditorUi::tr(caption), &value, lo, hi, "%.3f")) {
+            const float v = value;
+            (void)session.mutate("свойство элемента", [&](world::HouseGraph& g) {
+                return g.set_param(id, key, house_num(v));
+            });
+        }
+    };
+    if (line) {
+        number("radius", "house.radius", 0.02f, 1.0f, config::HOUSE_LINE_RADIUS_DEFAULT);
+    } else {
+        number("thickness", "house.thickness", 0.02f, 1.0f,
+               config::HOUSE_SURFACE_THICKNESS_DEFAULT);
+        if (!e->closed) {
+            number("height", "house.height", 0.1f, 12.0f, 2.5f);
+        } else {
+            ImGui::TextDisabled("%s", EditorUi::tr("house.height.chain"));
+        }
+        number("tex_deg", "house.tex", 0.0f, 360.0f, 0.0f);
+        if (ImGui::Button(EditorUi::tr("house.flip"))) {
+            const bool now = e->facing_flipped;
+            (void)session.mutate("развернул лицо", [&](world::HouseGraph& g) {
+                return g.set_facing(id, !now);
+            });
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(EditorUi::tr("house.delete.elem"))) {
+        (void)session.delete_selection();
+    }
 }
 
 } // namespace
@@ -114,6 +177,13 @@ void HouseVertexTool::draw_settings() {
         }
     }
     draw_refusal(refusal_);
+    // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
+    // тем инструментом, который сейчас в руке, и искать её свойства в чужой
+    // панели ему незачем.
+    ImGui::Separator();
+    if (session_ != nullptr) {
+        draw_selected_element(*session_);
+    }
 }
 
 void HouseLineTool::draw_settings() {
@@ -145,6 +215,13 @@ void HouseLineTool::draw_settings() {
         ImGui::Text("%s e%u", EditorUi::tr("house.last"), static_cast<unsigned>(last_));
     }
     draw_refusal(refusal_);
+    // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
+    // тем инструментом, который сейчас в руке, и искать её свойства в чужой
+    // панели ему незачем.
+    ImGui::Separator();
+    if (session_ != nullptr) {
+        draw_selected_element(*session_);
+    }
 }
 
 void HouseSurfaceTool::draw_settings() {
@@ -196,6 +273,13 @@ void HouseSurfaceTool::draw_settings() {
         clear_draft();
     }
     draw_refusal(refusal_);
+    // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
+    // тем инструментом, который сейчас в руке, и искать её свойства в чужой
+    // панели ему незачем.
+    ImGui::Separator();
+    if (session_ != nullptr) {
+        draw_selected_element(*session_);
+    }
 }
 
 } // namespace dfn::app

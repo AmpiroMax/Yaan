@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 18:08:2026 - 22:20:15
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -60,6 +60,7 @@ UPD:
 - 18:08:2026 - 19:44:10: Якорь в воздухе ловится лучом, а точкой на земле — никогда; ось ловится лучом на любой высоте; колесо тянет шарик и не пускает под землю; магнит на ось с контролем «вдвое меньше — не липнет».
 - 18:08:2026 - 20:26:30: Стойка ловит якорь как лежачее бревно; прямая между двумя якорями в воздухе соединяет их, а не пол; стена выбирается по контуру и убирается одной командой, отказ на занятый якорь со списком.
 - 18:08:2026 - 21:12:40: Прямая в пустоте даёт второй ЯКОРЬ (и его находит поиск лучом), зажим приходит в тот же якорь; проверки переписаны с длины-числа на связь.
+- 18:08:2026 - 22:20:15: Версия растёт и при перетаскивании (правка мимо истории); якорь едет вдоль своей прямой с контролем «без оси уходит вбок»; стена ловится тычком в середину; равноудалённая точка на прямоугольнике и на треугольнике, где она НЕ совпадает с серединой.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1024,7 +1025,7 @@ TEST_CASE("прямая вверх: без оси она ложится на з�
         // кадром 18.08. Луч упирается в землю далеко впереди — конец прямой
         // уходит туда же, а вверх не поднимается ВОВСЕ.
         ToolAim far_ground = Bench::at({0.0f, 0.0f, 40.0f});
-        b.session.set_axis(HouseSession::Axis::Ground);
+        b.session.set_axis({});
         line.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
         REQUIRE(line.anchor() == a);
         line.on_drag(far_ground, 0.016f, b.world);
@@ -1034,7 +1035,7 @@ TEST_CASE("прямая вверх: без оси она ложится на з�
     }
 
     SUBCASE("вертикаль: конец стоит НАД якорем, и высота растёт с наклоном") {
-        b.session.set_axis(HouseSession::Axis::Vertical);
+        b.session.set_axis({HouseSession::AxisLock::Kind::Vertical, NO_ELEMENT});
         line.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
         REQUIRE(line.anchor() == a);
         line.on_drag(up, 0.016f, b.world);
@@ -1090,7 +1091,7 @@ TEST_CASE("зажим длины работает ВДОЛЬ запертой о
     aim.hit = true;
 
     const auto pull = [&](HouseClamp mode) {
-        b.session.set_axis(HouseSession::Axis::Vertical);
+        b.session.set_axis({HouseSession::AxisLock::Kind::Vertical, NO_ELEMENT});
         lt.clamp_mode() = mode;
         lt.on_press(Bench::at(b.session.vertex_world(foot)), b.world);
         lt.on_drag(aim, 0.016f, b.world);
@@ -1133,7 +1134,7 @@ TEST_CASE("зажим длины работает ВДОЛЬ запертой о
     // зажим, но ОСЬ ОТПУЩЕНА. Тогда конец уезжает по земле, вертикальные якоря
     // от того направления далеко, и зажиму не за что зацепиться. Если бы он
     // цеплялся и здесь, значит он ищет якоря не вдоль прямой, а как придётся.
-    b.session.set_axis(HouseSession::Axis::Ground);
+    b.session.set_axis({});
     lt.clamp_mode() = HouseClamp::Above;
     lt.on_press(Bench::at(b.session.vertex_world(foot)), b.world);
     lt.on_drag(aim, 0.016f, b.world);
@@ -1152,7 +1153,7 @@ TEST_CASE("ось отпускает ящик к небу только пока 
 
     // Без якоря в руке земля нужна всегда: щелчок по небу не должен начинать
     // ничего, и фиксация оси этого не меняет.
-    b.session.set_axis(HouseSession::Axis::Vertical);
+    b.session.set_axis({HouseSession::AxisLock::Kind::Vertical, NO_ELEMENT});
     CHECK_FALSE(line.aims_without_ground());
 
     line.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
@@ -1160,7 +1161,7 @@ TEST_CASE("ось отпускает ящик к небу только пока 
 
     // Снятая ось возвращает обычное правило — и это контроль: без него
     // проверка прошла бы на инструменте, который землю не спрашивает НИКОГДА.
-    b.session.set_axis(HouseSession::Axis::Ground);
+    b.session.set_axis({});
     CHECK_FALSE(line.aims_without_ground());
 }
 
@@ -1448,4 +1449,184 @@ TEST_CASE("стена выбирается по контуру и убирает
     CHECK(why.find("e") != std::string::npos);
     CHECK(b.session.graph().vertex_count() == 2);
     MESSAGE("отказ на занятый якорь: " << why);
+}
+
+// ---------------------------------------------------------------------------
+// ОДИН НОМЕР НА ТРИ СИСТЕМЫ
+// ---------------------------------------------------------------------------
+
+TEST_CASE("версия графа растёт от ЛЮБОЙ правки, включая правку мимо истории") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+
+    const std::uint32_t v0 = b.session.version();
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    const VertexId a = b.session.selected_vertex();
+    const std::uint32_t v1 = b.session.version();
+    CHECK(v1 > v0);
+
+    // ГЛАВНОЕ УТВЕРЖДЕНИЕ. Протаскивание правит граф НАПРЯМУЮ, мимо двери
+    // мутаций: шаг истории на каждый кадр превратил бы одно движение руки в
+    // сотню отмен. Пока версия считалась в той двери, тело дома не
+    // перестраивалось ровно тогда, когда дом двигали («двигаю якоря, но
+    // объекты не перерисовываются»).
+    vt.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
+    REQUIRE(vt.dragging() == a);
+    vt.on_drag(Bench::at({2.0f, 0.0f, 1.0f}), 0.016f, b.world);
+    const std::uint32_t v2 = b.session.version();
+    CHECK(v2 > v1);
+    vt.on_release(b.world);
+
+    // И ПРЯМАЯ ПРАВКА ГРАФА — ТОЖЕ. Это плечо-контроль на само устройство:
+    // если бы версию считал кто-то СНАРУЖИ графа, здесь она бы не двинулась.
+    const std::uint32_t v3 = b.session.version();
+    (void)b.session.graph().move_vertex(a, {5.0f, 0.0f, 5.0f});
+    CHECK(b.session.version() > v3);
+
+    // И ЧТЕНИЕ БЕЗ ПРАВКИ НИЧЕГО НЕ ДВИГАЕТ — иначе номер рос бы сам собой и
+    // тело перестраивалось бы каждый кадр.
+    const std::uint32_t v4 = b.session.version();
+    (void)b.session.vertex_world(a);
+    (void)b.session.graph().vertex(a);
+    CHECK(b.session.version() == v4);
+}
+
+TEST_CASE("якорь двигается ВДОЛЬ своей прямой, а не по земле") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+
+    // Стойка: нижний якорь на земле, верхний в четырёх метрах над ним.
+    const VertexId low = b.session.graph().add_vertex(Anchoring::OnGround, {6.0f, 0.0f, 0.0f});
+    const VertexId high = b.session.graph().add_vertex(Anchoring::Free, {6.0f, 4.0f, 0.0f});
+    ElementId post = NO_ELEMENT;
+    REQUIRE(b.session.graph().add_element(ElementKind::Line, {low, high}, "", post).ok);
+
+    // КРУГ ОГРАНИЧЕНИЙ ВОКРУГ ВЕРХНЕГО ЯКОРЯ: свободно -> вертикаль -> вдоль
+    // стойки -> снова свободно.
+    CHECK(b.session.axis().free());
+    b.session.cycle_axis(high);
+    CHECK(b.session.axis().kind == HouseSession::AxisLock::Kind::Vertical);
+    b.session.cycle_axis(high);
+    CHECK(b.session.axis().kind == HouseSession::AxisLock::Kind::Edge);
+    CHECK(b.session.axis().edge == post);
+    b.session.cycle_axis(high);
+    CHECK(b.session.axis().free());
+
+    // НАПРАВЛЕНИЕ СЧИТАЕТСЯ ОТ ТОГО ЯКОРЯ, КОТОРЫЙ ТЯНУТ: у верхнего оно вниз,
+    // у нижнего вверх. Иначе знак слушался бы порядка записи, а не руки.
+    b.session.set_axis({HouseSession::AxisLock::Kind::Edge, post});
+    glm::vec3 u{0.0f};
+    REQUIRE(b.session.axis_dir(high, u));
+    CHECK(u.y == doctest::Approx(-1.0f).epsilon(0.001));
+    REQUIRE(b.session.axis_dir(low, u));
+    CHECK(u.y == doctest::Approx(1.0f).epsilon(0.001));
+
+    // ТАЩИМ ВЕРХНИЙ ЯКОРЬ: прицел уводит вбок и вниз, но якорь обязан остаться
+    // НА ОСИ стойки — сместиться только по высоте.
+    ToolAim grab;
+    grab.origin = {6.0f, 4.0f, -8.0f};
+    grab.point = {6.0f, 4.0f, 0.0f};
+    grab.distance_m = 8.0f;
+    grab.hit = true;
+    vt.on_press(grab, b.world);
+    REQUIRE(vt.dragging() == high);
+
+    ToolAim moved = grab;
+    moved.origin = {6.0f, 2.5f, -8.0f};
+    moved.point = {9.0f, 2.5f, 0.0f}; // вбок на три метра и вниз на полтора
+    vt.on_drag(moved, 0.016f, b.world);
+    const glm::vec3 after = b.session.vertex_world(high);
+    CHECK(after.x == doctest::Approx(6.0f).epsilon(0.001));
+    CHECK(after.z == doctest::Approx(0.0f).epsilon(0.001));
+    CHECK(after.y < 4.0f);
+    MESSAGE("якорь по оси стойки съехал на y=" << after.y);
+
+    // КОНТРОЛЬ: та же рука без оси уводит якорь ВБОК — без него проверка выше
+    // прошла бы на инструменте, который вообще не двигает якорь.
+    b.session.set_axis({});
+    vt.on_drag(moved, 0.016f, b.world);
+    CHECK(b.session.vertex_world(high).x > 7.0f);
+    vt.on_release(b.world);
+}
+
+TEST_CASE("стена выбирается тычком В СЕРЕДИНУ, а не только по кромке") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseSurfaceTool st(b.session);
+    st.set_world(&b.world);
+
+    // Стена-цепочка: два якоря по X, высота 2.5 м.
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {4.0f, 0.0f, 0.0f});
+    b.click(st, {0.0f, 0.0f, 0.0f});
+    b.click(st, {4.0f, 0.0f, 0.0f});
+    st.on_confirm(b.world);
+    const ElementId wall = st.last_element();
+    REQUIRE(wall != NO_ELEMENT);
+    REQUIRE(b.session.graph().param(wall, "height") == "2.5000");
+
+    // ТЫЧОК В СЕРЕДИНУ ПОЛОТНА: луч идёт в точку (2, 1.25, 0) — это centre
+    // стены, до кромки оттуда больше метра, то есть контурный поиск промахнётся
+    // по построению.
+    const glm::vec3 eye{2.0f, 1.25f, -6.0f};
+    CHECK(b.session.pick_element_ray(eye, {0.0f, 0.0f, 1.0f}, HOUSE_EDGE_GRAB_M) == wall);
+
+    // КОНТРОЛЬ: луч выше стены не выбирает ничего — иначе проверка прошла бы
+    // на поиске, который отвечает «стена» на любой взгляд.
+    CHECK(b.session.pick_element_ray({2.0f, 4.0f, -6.0f}, {0.0f, 0.0f, 1.0f},
+                                     HOUSE_EDGE_GRAB_M) == NO_ELEMENT);
+
+    // И ВИДНОЕ МЕСТО ЭТОЙ СТЕНЫ — на половине высоты, а не на нижней кромке.
+    glm::vec3 centre{0.0f};
+    REQUIRE(dfn::world::surface_centre(b.session.graph(), wall, centre));
+    CHECK(centre.y == doctest::Approx(1.25f).epsilon(0.01));
+    CHECK(centre.x == doctest::Approx(2.0f).epsilon(0.01));
+}
+
+TEST_CASE("видное место контура — точка, равноудалённая от углов") {
+    Bench b;
+    // Прямоугольник 6 x 2 на земле: центр тяжести и равноудалённая точка здесь
+    // совпадают, и это ХОРОШО — проверка ловит грубую ошибку знака или осей.
+    const VertexId a = b.session.graph().add_vertex(Anchoring::Free, {0.0f, 0.0f, 0.0f});
+    const VertexId c = b.session.graph().add_vertex(Anchoring::Free, {6.0f, 0.0f, 0.0f});
+    const VertexId d = b.session.graph().add_vertex(Anchoring::Free, {6.0f, 0.0f, 2.0f});
+    const VertexId e = b.session.graph().add_vertex(Anchoring::Free, {0.0f, 0.0f, 2.0f});
+    ElementId floor = NO_ELEMENT;
+    REQUIRE(b.session.graph().add_element(ElementKind::Surface, {a, c, d, e}, "", floor).ok);
+    (void)b.session.graph().set_closed(floor, true);
+
+    glm::vec3 centre{0.0f};
+    REQUIRE(dfn::world::surface_centre(b.session.graph(), floor, centre));
+    CHECK(centre.x == doctest::Approx(3.0f).epsilon(0.01));
+    CHECK(centre.z == doctest::Approx(1.0f).epsilon(0.01));
+    // РАВНОУДАЛЁННОСТЬ — ЭТО ЧИСЛО: расстояния до всех четырёх углов совпадают.
+    const float r = glm::length(b.session.vertex_world(a) - centre);
+    for (const VertexId v : {c, d, e}) {
+        CHECK(glm::length(b.session.vertex_world(v) - centre)
+              == doctest::Approx(r).epsilon(0.001));
+    }
+
+    // КОНТРОЛЬ НА ТРЕУГОЛЬНИКЕ, ГДЕ ОТВЕТЫ РАЗНЫЕ: у прямоугольного треугольника
+    // центр тяжести и равноудалённая точка НЕ совпадают, и берётся вторая —
+    // ровно этого пользователь и просил.
+    HouseSession t;
+    const VertexId p0 = t.graph().add_vertex(Anchoring::Free, {0.0f, 0.0f, 0.0f});
+    const VertexId p1 = t.graph().add_vertex(Anchoring::Free, {8.0f, 0.0f, 0.0f});
+    const VertexId p2 = t.graph().add_vertex(Anchoring::Free, {0.0f, 0.0f, 2.0f});
+    ElementId tri = NO_ELEMENT;
+    REQUIRE(t.graph().add_element(ElementKind::Surface, {p0, p1, p2}, "", tri).ok);
+    (void)t.graph().set_closed(tri, true);
+    glm::vec3 tc{0.0f};
+    REQUIRE(dfn::world::surface_centre(t.graph(), tri, tc));
+    const float r0 = glm::length(t.vertex_world(p0) - tc);
+    CHECK(glm::length(t.vertex_world(p1) - tc) == doctest::Approx(r0).epsilon(0.001));
+    CHECK(glm::length(t.vertex_world(p2) - tc) == doctest::Approx(r0).epsilon(0.001));
+    const glm::vec3 mid = (t.vertex_world(p0) + t.vertex_world(p1) + t.vertex_world(p2))
+                        / 3.0f;
+    CHECK(glm::length(tc - mid) > 0.5f);
+    MESSAGE("треугольник: равноудалённая (" << tc.x << " " << tc.z << "), середина ("
+            << mid.x << " " << mid.z << ")");
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 18:08:2026 - 22:26:40
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -156,6 +156,7 @@ UPD:
 - 17:08:2026 - 18:41:51: призрак рисуется последним из мировой геометрии, неосвещённым: это ОТВЕТ на
   мире, а не вещь в нём, и на закате он не должен выглядеть иначе.
 - 18:08:2026 - 21:12:40: Тело постройки рисуется перед призраком: призрак — ответ поверх мира, дом — вещь в мире.
+- 18:08:2026 - 22:26:40: Два потока постройки рисуются prop'ом; попытка отдать им плитки набора снята — читать их некому.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -166,6 +167,7 @@ UPD:
 #include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/CloudModel.h"
 #include "engine/render/sources/FloraCards.h"
+#include "engine/render/sources/PartsAtlas.h"
 #include "engine/render/sources/Materials.h"
 #include "engine/render/sources/ProcMesh.h"
 #include "engine/render/sources/ProcTexture.h"
@@ -208,6 +210,7 @@ constexpr uint64_t PROC_KEY_WATER = 0x02;
 constexpr uint64_t PROC_KEY_LEAF_ATLAS = 0x03;
 constexpr uint64_t PROC_KEY_LEAF_NORMALS = 0x07; // bark relief, same layout
 constexpr uint64_t PROC_KEY_PATH_ATLAS = 0x04;
+constexpr uint64_t PROC_KEY_HOUSE_TILE = 0x08; // одна плитка набора, seed = материал
 
 uint64_t proc_key(uint64_t kind, uint32_t size, uint32_t seed) {
     return (kind << 56) | (static_cast<uint64_t>(size) << 32) | seed;
@@ -932,9 +935,25 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     }
     // ПОСТРОЙКА РЕДАКТОРА — ОСВЕЩЁННАЯ, как и всякая вещь в мире. Перед
     // призраком: призрак рисуется поверх всего, потому что он ответ.
-    if (house_mesh_id_ != 0 && prop_program_ != 0) {
-        renderer.submit(platform::MeshHandle{house_mesh_id_},
-                        platform::ProgramHandle{prop_program_}, identity);
+    // ПОСТРОЙКА РЕДАКТОРА — ОСВЕЩЁННАЯ, как и всякая вещь в мире. Два потока,
+    // каркас и полотна: у них разный материал, и на сегодня материал — это
+    // ЦВЕТ ВЕРШИН, а не текстура.
+    //
+    // ПОЧЕМУ НЕ ТЕКСТУРА (измерено 18.08, а не предположено). Программа «prop»
+    // текстуру НЕ ЧИТАЕТ вовсе: её фрагмент — плоский цвет вершины. Я завёл
+    // было две плитки из листа набора и передавал их в submit — картинка не
+    // изменилась ни на пиксель, потому что читать их было некому. Чтобы дом
+    // носил дерево и штукатурку, нужна программа, которая СЭМПЛИТ (своя
+    // «built» или ветка в prop), и это работа в зоне платформы.
+    if (prop_program_ != 0) {
+        if (house_mesh_id_ != 0) {
+            renderer.submit(platform::MeshHandle{house_mesh_id_},
+                            platform::ProgramHandle{prop_program_}, identity);
+        }
+        if (house_panels_id_ != 0) {
+            renderer.submit(platform::MeshHandle{house_panels_id_},
+                            platform::ProgramHandle{prop_program_}, identity);
+        }
     }
     // THE BUILD GHOST last of the world's geometry, unlit: it is an ANSWER
     // painted on the world, not a thing in it, and shading it by the sun would

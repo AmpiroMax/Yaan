@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 21:38:05
+Last updated: 18:08:2026 - 22:26:40
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -561,6 +561,7 @@ UPD:
 - 18:08:2026 - 19:44:10: Колесо отдаётся инструменту, если он его просит; инструменту выбора отдана постройка; дверь DFN_HOUSE_PULL для приёмочного кадра с отвесом.
 - 18:08:2026 - 21:12:40: Тело постройки из графа заливается в отрисовку по версии геометрии, с переводом в мировые координаты и цветом по виду элемента; двери DFN_HOUSE_DEMO (сруб перед камерой) и печать находок.
 - 18:08:2026 - 21:38:05: Коллайдер постройки из ТЕХ ЖЕ треугольников, что и картинка; в том же прогоне печатается луч сквозь дом и контрольный луч в стороне.
+- 18:08:2026 - 22:26:40: Тело постройки делится по материалу на каркас и полотна; цвет по виду элемента назван временной заменой материалу.
 */
 
 #include "engine/app/sources/App.h"
@@ -3253,20 +3254,43 @@ void App::upload_house_mesh() {
         pv.color_rgba = 0xFFFFFFFFu;
         out.vertices.push_back(pv);
     }
-    constexpr std::uint32_t WOOD = 0xFF3A5A7Au;   // 0xAABBGGRR: тёплое дерево
-    constexpr std::uint32_t PLASTER = 0xFFB9C6CFu; // светлая штукатурка
+    // ДВА ПОТОКА ПО МАТЕРИАЛУ: каркас и полотна. Материал приходит текстурой
+    // draw-вызова, поэтому одним потоком брус и штукатурка носили бы одну
+    // шкуру. Индексы перенумеровываются, а вершины копируются: отдать целый
+    // буфер вершин обоим потокам значило бы залить его в видеопамять дважды.
+    render::MeshData beams;
+    render::MeshData panels;
+    std::vector<std::uint32_t> remap(out.vertices.size(), 0xFFFFFFFFu);
+    const auto take = [&](render::MeshData& into, std::uint32_t vi) {
+        if (remap[vi] == 0xFFFFFFFFu) {
+            remap[vi] = static_cast<std::uint32_t>(into.vertices.size());
+            into.vertices.push_back(out.vertices[vi]);
+        }
+        into.indices.push_back(remap[vi]);
+    };
     for (const world::MeshPart& part : built.parts) {
         const world::Element* e = house_.graph().element(part.element);
         if (e == nullptr) {
             continue;
         }
-        const std::uint32_t col =
-            e->kind == world::ElementKind::Line ? WOOD : PLASTER;
+        const bool is_beam = e->kind == world::ElementKind::Line;
+        render::MeshData& into = is_beam ? beams : panels;
+        // ЦВЕТ — ВРЕМЕННАЯ ЗАМЕНА МАТЕРИАЛУ, и назван так прямо: программа
+        // «prop» рисует освещённую геометрию с цветом вершины и текстуру не
+        // читает. Брус тёплый, полотно светлое — чтобы на кадре было видно,
+        // где каркас, а где стена.
+        constexpr std::uint32_t WOOD = 0xFF3A5A7Au;    // 0xAABBGGRR
+        constexpr std::uint32_t PLASTER = 0xFFB9C6CFu;
+        const std::uint32_t col = is_beam ? WOOD : PLASTER;
         for (std::uint32_t i = 0; i < part.index_count; ++i) {
             const std::uint32_t vi = out.indices[part.index_begin + i];
             if (vi < out.vertices.size()) {
                 out.vertices[vi].color_rgba = col;
             }
+        }
+        std::fill(remap.begin(), remap.end(), 0xFFFFFFFFu);
+        for (std::uint32_t i = 0; i < part.index_count; ++i) {
+            take(into, out.indices[part.index_begin + i]);
         }
     }
     // НАХОДКИ ГОВОРЯТСЯ ВСЛУХ: неплоский контур и вырожденный элемент — это то,
@@ -3276,7 +3300,7 @@ void App::upload_house_mesh() {
         std::fprintf(stderr, "[постройка] e%u: %s\n", static_cast<unsigned>(f.element),
                      f.what.c_str());
     }
-    render_system_.set_house_mesh(*renderer_, out);
+    render_system_.set_house_mesh(*renderer_, beams, panels);
     // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ. Коллайдер строится ИЗ ТЕХ ЖЕ ТРЕУГОЛЬНИКОВ, что
     // и картинка, и это не экономия, а требование: два независимых описания
     // одного дома разъезжаются в тот день, когда правят одно из них, — и
@@ -3332,8 +3356,9 @@ void App::upload_house_mesh() {
             }
         }
     }
-    std::fprintf(stderr, "[постройка] тело: вершин %zu, треугольников %zu\n",
-                 out.vertices.size(), out.triangle_count());
+    std::fprintf(stderr,
+                 "[постройка] тело: каркас %zu треугольников, полотна %zu\n",
+                 beams.triangle_count(), panels.triangle_count());
 }
 
 void App::update_editor_tools(float dt_s) {
