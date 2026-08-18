@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 18:08:2026 - 21:38:05
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -133,6 +133,7 @@ UPD:
 - 18:08:2026 - 18:58:40: Объявлен on_axis_lock.
 - 18:08:2026 - 20:26:30: Объявлен on_delete_selected.
 - 18:08:2026 - 21:12:40: upload_house_mesh, seed_demo_house, версия залитого тела.
+- 18:08:2026 - 21:38:05: Тело коллайдера постройки и буфер его вершин.
 */
 
 #pragma once
@@ -585,6 +586,11 @@ private:
     HouseSession house_;
     /// Версия геометрии, при которой тело залито последний раз.
     std::uint32_t house_mesh_version_ = 0;
+    /// Коллайдер постройки и его вершины. Позиции живут полем, а не временной
+    /// переменной: дескриптор физики берёт их СПАНОМ, и буфер обязан пережить
+    /// вызов, иначе тело построится по памяти, которой уже нет.
+    platform::PhysicsBodyHandle house_body_{};
+    std::vector<glm::vec3> house_positions_;
     BuildVerdict build_verdict_;
     /// Which placement the crosshair is on, for DELETING. npos = none. Kept as
     /// an index into scene_doc_.placements, resolved fresh every frame: an

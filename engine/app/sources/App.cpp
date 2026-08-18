@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 18:08:2026 - 21:38:05
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -560,6 +560,7 @@ UPD:
   понадобились ДВУМ файлам.
 - 18:08:2026 - 19:44:10: Колесо отдаётся инструменту, если он его просит; инструменту выбора отдана постройка; дверь DFN_HOUSE_PULL для приёмочного кадра с отвесом.
 - 18:08:2026 - 21:12:40: Тело постройки из графа заливается в отрисовку по версии геометрии, с переводом в мировые координаты и цветом по виду элемента; двери DFN_HOUSE_DEMO (сруб перед камерой) и печать находок.
+- 18:08:2026 - 21:38:05: Коллайдер постройки из ТЕХ ЖЕ треугольников, что и картинка; в том же прогоне печатается луч сквозь дом и контрольный луч в стороне.
 */
 
 #include "engine/app/sources/App.h"
@@ -3276,6 +3277,61 @@ void App::upload_house_mesh() {
                      f.what.c_str());
     }
     render_system_.set_house_mesh(*renderer_, out);
+    // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ. Коллайдер строится ИЗ ТЕХ ЖЕ ТРЕУГОЛЬНИКОВ, что
+    // и картинка, и это не экономия, а требование: два независимых описания
+    // одного дома разъезжаются в тот день, когда правят одно из них, — и
+    // человек упирается в воздух там, где стены нет.
+    //
+    // Тело пересобирается целиком на каждое изменение постройки. Дорого это
+    // станет на большом городе, и тогда пересборку надо будет резать по
+    // элементам; сегодня дом — один, а неверная физика видна сразу.
+    if (physics_ != nullptr) {
+        if (house_body_.valid()) {
+            physics_->destroy_body(house_body_);
+            house_body_ = {};
+        }
+        house_positions_.clear();
+        house_positions_.reserve(out.vertices.size());
+        for (const platform::Vertex& v : out.vertices) {
+            house_positions_.push_back(v.position);
+        }
+        if (!house_positions_.empty() && !out.indices.empty()) {
+            platform::TerrainMeshDesc desc;
+            desc.positions = house_positions_;
+            desc.indices = out.indices;
+            desc.layer = physics::LAYER_STATIC;
+            house_body_ = physics_->create_terrain_mesh(desc);
+            if (!house_body_.valid()) {
+                std::fprintf(stderr, "[постройка] коллайдер НЕ создан — сквозь дом "
+                                     "можно пройти\n");
+            } else {
+                // ЛУЧ СКВОЗЬ СОБСТВЕННОЕ ТЕЛО — ПРОВЕРКА, А НЕ УКРАШЕНИЕ.
+                // «Тело создано» и «в него можно упереться» — разные
+                // утверждения: у выродившихся треугольников форма создаётся, а
+                // столкновений не даёт. Луч пускается через середину коробки
+                // построенного, и рядом печатается КОНТРОЛЬ — тот же луч в
+                // стороне от неё. Совпали ответы — прибор ничего не меряет.
+                glm::vec3 lo = house_positions_.front();
+                glm::vec3 hi = lo;
+                for (const glm::vec3& p : house_positions_) {
+                    lo = glm::min(lo, p);
+                    hi = glm::max(hi, p);
+                }
+                const glm::vec3 mid = (lo + hi) * 0.5f;
+                const float span = glm::length(hi - lo) + 2.0f;
+                const platform::RayHit through = physics_->raycast(
+                    {lo.x - span, mid.y, mid.z}, {1.0f, 0.0f, 0.0f}, span * 2.0f,
+                    physics::LAYER_STATIC);
+                const platform::RayHit beside = physics_->raycast(
+                    {lo.x - span, mid.y, hi.z + 50.0f}, {1.0f, 0.0f, 0.0f}, span * 2.0f,
+                    physics::LAYER_STATIC);
+                std::fprintf(stderr,
+                             "[постройка] коллайдер: сквозь дом %s, в стороне %s\n",
+                             through.hit ? "упёрся" : "ПРОШЁЛ НАСКВОЗЬ",
+                             beside.hit ? "тоже упёрся (прибор врёт)" : "прошёл");
+            }
+        }
+    }
     std::fprintf(stderr, "[постройка] тело: вершин %zu, треугольников %zu\n",
                  out.vertices.size(), out.triangle_count());
 }
