@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 16:48:18
+Last updated: 18:08:2026 - 16:59:04
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -26,6 +26,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 16:48:18: Создан вместе с первым срезом модели.
+- 18:08:2026 - 16:59:04: компоненты и мосты. Случай про гиперребро-мост исправил МЕНЯ, а не код.
+  Контрфакт: выродил гиперребро в связь первой пары — 2 случая красных.
 */
 
 #include <doctest/doctest.h>
@@ -158,4 +160,101 @@ TEST_CASE("вырожденный ввод отвергается на вход�
 
     // Ссылка на несуществующую вершину.
     CHECK_FALSE(g.add_element(ElementKind::Line, {a, 999u}, "oak", out).ok);
+}
+
+TEST_CASE("постройка = компонента связности, и гиперребро связывает ВСЕХ разом") {
+    HouseGraph g;
+    // Две отдельные постройки: слева пара вершин, справа пятиугольник.
+    const VertexId l1 = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId l2 = g.add_vertex(Anchoring::Free, {0.0f, 3.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {l1, l2}, "oak", post).ok);
+
+    std::vector<VertexId> ring;
+    for (int i = 0; i < 5; ++i) {
+        ring.push_back(g.add_vertex(Anchoring::OnGround,
+                                    {20.0f + static_cast<float>(i), 0.0f, 0.0f}));
+    }
+    ElementId floor = 0;
+    // ПЯТЬ ВЕРШИН ОДНИМ ЭЛЕМЕНТОМ. Если бы гиперребро раскладывалось в цепочку
+    // пар, первая и пятая остались бы в разных компонентах при разрыве
+    // середины — а они части одного пола и обязаны быть вместе.
+    REQUIRE(g.add_element(ElementKind::Surface, ring, "oak", floor).ok);
+
+    const auto comps = g.components();
+    REQUIRE(comps.size() == 2);
+    CHECK(g.component_of(l1) == g.component_of(l2));
+    for (const VertexId v : ring) {
+        CHECK(g.component_of(v) == g.component_of(ring.front()));
+    }
+    CHECK(g.component_of(l1) != g.component_of(ring.front()));
+
+    // СВЯЗАЛИ ДВЕ — СТАЛА ОДНА. Прямое требование пользователя.
+    ElementId bridge = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {l2, ring.front()}, "oak", bridge).ok);
+    CHECK(g.components().size() == 1);
+    CHECK(g.component_of(l1) == g.component_of(ring.back()));
+}
+
+TEST_CASE("мост назван ДО удаления, и гиперребро тоже бывает мостом") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+    const VertexId c = g.add_vertex(Anchoring::OnGround, {8.0f, 0.0f, 0.0f});
+    ElementId ab = 0;
+    ElementId bc = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b}, "oak", ab).ok);
+    REQUIRE(g.add_element(ElementKind::Line, {b, c}, "oak", bc).ok);
+
+    // ЦЕПОЧКА: оба звена — мосты, и это надо знать ДО удаления. Узнать после —
+    // значит узнать, когда чинить уже нечего.
+    const auto br = g.bridges();
+    CHECK(br.size() == 2);
+    CHECK(std::find(br.begin(), br.end(), ab) != br.end());
+    CHECK(std::find(br.begin(), br.end(), bc) != br.end());
+
+    // ЗАМКНУЛИ КОЛЬЦО — МОСТОВ НЕ СТАЛО. Контроль обязателен: без него
+    // утверждение прошло бы и на функции, которая зовёт мостом ВСЁ подряд.
+    ElementId ca = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {c, a}, "oak", ca).ok);
+    CHECK(g.bridges().empty());
+
+    // ГИПЕРРЕБРО ТОЖЕ БЫВАЕТ МОСТОМ, и этот случай исправил МЕНЯ, а не код.
+    // Я написал в заголовке, что гиперребро мостом быть не может — «рвём сразу
+    // все N связей, надвое из этого не следует». Рукав показал обратное:
+    // единственный пол на трёх якорях, будучи убран, рассыпает их на ТРИ
+    // постройки. Это распад, и предупреждать о нём надо так же.
+    //
+    // Значит «мост» = «без него компонент станет БОЛЬШЕ», а не «ровно надвое».
+    HouseGraph h;
+    const VertexId p = h.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId q = h.add_vertex(Anchoring::OnGround, {1.0f, 0.0f, 0.0f});
+    const VertexId r = h.add_vertex(Anchoring::OnGround, {1.0f, 0.0f, 1.0f});
+    ElementId tri = 0;
+    REQUIRE(h.add_element(ElementKind::Surface, {p, q, r}, "oak", tri).ok);
+    CHECK(h.components().size() == 1);
+    REQUIRE(h.bridges().size() == 1);
+    CHECK(h.bridges().front() == tri);
+
+    // КОНТРОЛЬ: добавили второй элемент, держащий те же три вершины, — ни один
+    // из двух больше не мост, потому что второй удержит постройку.
+    ElementId brace = 0;
+    REQUIRE(h.add_element(ElementKind::Surface, {p, q, r}, "brace", brace).ok);
+    CHECK(h.bridges().empty());
+}
+
+TEST_CASE("вершина на оси принадлежит постройке хозяина") {
+    HouseGraph g;
+    const VertexId low = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId high = g.add_vertex(Anchoring::Free, {0.0f, 3.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {low, high}, "oak", post).ok);
+
+    VertexId mid = 0;
+    REQUIRE(g.add_vertex_on_edge(post, 0.5f, mid).ok);
+
+    // Якорь, посаженный на столб и пока ничем не занятый, — НЕ отдельная
+    // постройка. Он физически часть той же: он на ней сидит.
+    CHECK(g.components().size() == 1);
+    CHECK(g.component_of(mid) == g.component_of(low));
 }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 18:08:2026 - 16:47:20
+Last updated: 18:08:2026 - 16:59:04
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -17,11 +17,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 16:47:20: Создан вместе с заголовком.
+- 18:08:2026 - 16:59:04: components() и bridges() (см. заголовок).
 */
 
 #include "engine/world/sources/HouseGraph.h"
 
 #include <algorithm>
+#include <unordered_map>
 
 namespace dfn::world {
 
@@ -146,6 +148,127 @@ std::vector<ElementId> HouseGraph::incident(VertexId id) const {
     std::vector<ElementId> out;
     for (const Element& e : elements_) {
         if (std::find(e.refs.begin(), e.refs.end(), id) != e.refs.end()) {
+            out.push_back(e.id);
+        }
+    }
+    return out;
+}
+
+namespace {
+
+/// Система непересекающихся множеств со сжатием путей. Без ранга: постройки —
+/// сотни вершин, и сжатия достаточно; ранг добавил бы код, которого никто не
+/// сможет отличить по времени работы.
+class DisjointSets {
+public:
+    explicit DisjointSets(std::size_t n) : parent_(n) {
+        for (std::size_t i = 0; i < n; ++i) {
+            parent_[i] = i;
+        }
+    }
+    std::size_t find(std::size_t i) {
+        while (parent_[i] != i) {
+            parent_[i] = parent_[parent_[i]];
+            i = parent_[i];
+        }
+        return i;
+    }
+    void unite(std::size_t a, std::size_t b) { parent_[find(a)] = find(b); }
+
+private:
+    std::vector<std::size_t> parent_;
+};
+
+} // namespace
+
+std::vector<std::vector<VertexId>> HouseGraph::components() const {
+    // Индекс вершины в массиве — рабочее имя внутри этой функции. Наружу
+    // выходят настоящие VertexId: индексы съезжают при удалении, а имена нет.
+    std::unordered_map<VertexId, std::size_t> slot;
+    slot.reserve(vertices_.size());
+    for (std::size_t i = 0; i < vertices_.size(); ++i) {
+        slot[vertices_[i].id] = i;
+    }
+
+    DisjointSets sets(vertices_.size());
+    for (const Element& e : elements_) {
+        // ГИПЕРРЕБРО СВЯЗЫВАЕТ ВСЕ СВОИ ВЕРШИНЫ РАЗОМ, а не попарно по цепочке.
+        // Пол на пяти вершинах делает все пять одной постройкой, даже если
+        // первая и пятая ничем больше не соединены.
+        if (e.refs.empty()) {
+            continue;
+        }
+        const auto first = slot.find(e.refs.front());
+        if (first == slot.end()) {
+            continue;
+        }
+        for (std::size_t k = 1; k < e.refs.size(); ++k) {
+            const auto it = slot.find(e.refs[k]);
+            if (it != slot.end()) {
+                sets.unite(first->second, it->second);
+            }
+        }
+    }
+    // ВЕРШИНА НА ОСИ ПРИНАДЛЕЖИТ ХОЗЯИНУ. Без этого якорь, посаженный на
+    // столб, но пока ничем не занятый, считался бы отдельной постройкой — а он
+    // физически часть той же, он на ней сидит.
+    for (std::size_t i = 0; i < vertices_.size(); ++i) {
+        if (vertices_[i].anchoring != Anchoring::OnEdge) {
+            continue;
+        }
+        const Element* host = element(vertices_[i].host);
+        if (host == nullptr || host->refs.empty()) {
+            continue;
+        }
+        const auto it = slot.find(host->refs.front());
+        if (it != slot.end()) {
+            sets.unite(i, it->second);
+        }
+    }
+
+    // ПОРЯДОК ДЕТЕРМИНИРОВАН: группы идут в порядке первого появления вершины,
+    // внутри группы — в порядке хранения. Две загрузки одного файла обязаны
+    // назвать постройки одинаково, иначе «постройка №2» будет значить разное.
+    std::unordered_map<std::size_t, std::size_t> group_of_root;
+    std::vector<std::vector<VertexId>> out;
+    for (std::size_t i = 0; i < vertices_.size(); ++i) {
+        const std::size_t root = sets.find(i);
+        const auto found = group_of_root.find(root);
+        if (found == group_of_root.end()) {
+            group_of_root[root] = out.size();
+            out.push_back({vertices_[i].id});
+        } else {
+            out[found->second].push_back(vertices_[i].id);
+        }
+    }
+    return out;
+}
+
+std::size_t HouseGraph::component_of(VertexId id) const {
+    const auto groups = components();
+    for (std::size_t g = 0; g < groups.size(); ++g) {
+        if (std::find(groups[g].begin(), groups[g].end(), id) != groups[g].end()) {
+            return g;
+        }
+    }
+    return static_cast<std::size_t>(-1);
+}
+
+std::vector<ElementId> HouseGraph::bridges() const {
+    const std::size_t before = components().size();
+    std::vector<ElementId> out;
+    for (const Element& e : elements_) {
+        // Копия без одного элемента. Дорого по меркам алгоритмов и дёшево по
+        // меркам наших размеров: сотни элементов, и считается это не в кадре, а
+        // когда человек навёл курсор на элемент.
+        HouseGraph probe = *this;
+        probe.elements_.erase(std::remove_if(probe.elements_.begin(),
+                                             probe.elements_.end(),
+                                             [&e](const Element& x) { return x.id == e.id; }),
+                              probe.elements_.end());
+        // Вершины, сидевшие на оси удалённого, теряют хозяина. Для подсчёта
+        // компонент это правильно: без хозяина они и правда сами по себе.
+        if (probe.components().size() > before) {
             out.push_back(e.id);
         }
     }
