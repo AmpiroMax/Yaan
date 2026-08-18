@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 18:08:2026 - 16:28:24
+Last updated: 18:08:2026 - 17:16:29
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -20,6 +20,7 @@ UPD:
   через alias_scope (довод — в шапке Controls.h). Снимок получил алиас F5,
   которого у него не было: иначе клавиша 5 в редакторе отняла бы его совсем.
 - 18:08:2026 - 16:28:24: строка «дальность взаимодействия — колесо»; у скорости полёта теперь [ и ].
+- 18:08:2026 - 17:16:29: строка отмены и подпись клавиши Z (без подписи строка рисуется как «?»).
 */
 
 #include "engine/app/sources/Controls.h"
@@ -73,6 +74,9 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     {Action::ToolSelect, K::NUM_3, K::UNKNOWN, "controls.tool_select", Scope::EditorOnly},
     {Action::ToolPlace, K::NUM_4, K::UNKNOWN, "controls.tool_place", Scope::EditorOnly},
     {Action::ToolLook, K::NUM_5, K::UNKNOWN, "controls.tool_look", Scope::EditorOnly},
+    // Z одна на оба: отмену от повтора отличает Shift, и это УСЛОВИЕ, а не
+    // вторая клавиша. Область — редактор: отменять в игре нечего.
+    {Action::Undo, K::Z, K::UNKNOWN, "controls.undo", Scope::EditorOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -175,6 +179,9 @@ const char* key_name(platform::Key key) {
     case K::B: return "B";
     case K::K: return "K";
     case K::G: return "G";
+    // Z — отмена. Подпись обязана существовать: «?» на экране управления это
+    // не косметика, а признак строки, о которой человеку никто не скажет.
+    case K::Z: return "Z";
     default: return "?"; // loud, not blank: a nameless key is a table bug
     }
 }

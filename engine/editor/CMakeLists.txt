@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 19:22:32
-# Last updated: 18:08:2026 - 13:08:07
+# Last updated: 18:08:2026 - 17:17:15
 # File: engine/editor/CMakeLists.txt
 #
 # Responsibility:
@@ -67,9 +67,14 @@
 #   Сама кривая, её поперечник и раскладка в отсчёты лежат в engine/world
 #   (ReliefLayer): их обязан уметь читатель файла, а он там. Здесь только рука.
 
+# - 18:08:2026 - 17:17:15: EditorHistory.cpp — отмена и повтор. В истории нет ни модели, ни окна:
+#   она хранит снимки строками, и это сделано нарочно, чтобы её можно было
+#   проверить без мира.
+
 add_library(dfn_editor STATIC
     sources/EditorBrush.cpp
     sources/EditorToolbar.cpp
+    sources/EditorHistory.cpp
     sources/EditorToolbox.cpp
     sources/EditorToolIcons.cpp
     sources/EditorToolsGround.cpp

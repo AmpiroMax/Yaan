@@ -168,6 +168,7 @@ controls.fly.speed.keys=[ и ]
 controls.fly.speed=Скорость полёта
 controls.reach.keys=колесо
 controls.reach=Дальность взаимодействия
+controls.undo=Отменить (Cmd+Z), повторить (Cmd+Shift+Z)
 controls.keys=Esc — назад
 menu.controls=Управление
 

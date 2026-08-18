@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 18:08:2026 - 13:08:07
+# Last updated: 18:08:2026 - 17:16:56
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -75,15 +75,24 @@
 #   Цель линкует ТОЛЬКО EditorToolbox.cpp и EditorToolIcons.cpp: в них нет ни
 #   ImGui, ни окна — решение отделено от рисования именно затем, чтобы этот
 #   рукав существовал (правило 3).
+# - 18:08:2026 - 17:16:56: app_editor_history — отмена и повтор. Цель линкует ТОЛЬКО
+#   EditorHistory.cpp: в истории нет ни модели, ни окна, и это сделано нарочно —
+#   она хранит снимки строками и потому проверяется без мира (правило 3).
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
     target_sources(app_debug_overlay PRIVATE
+        # AppDoors.cpp: дверь читается ТОЛЬКО через таблицу (слой 2), а эти
+        # файлы её читают — значит цель обязана её линковать.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
 
     add_dfn_test(app_menu app/MenuTests.cpp dfn_render dfn_core)
     target_sources(app_menu PRIVATE
+        # AppDoors.cpp: дверь читается ТОЛЬКО через таблицу (слой 2), а эти
+        # файлы её читают — значит цель обязана её линковать.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Controls.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Menu.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
@@ -97,6 +106,9 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # instantiated. Extracting it is what made the overlap measurable.
     add_dfn_test(app_editor_hud app/EditorHudTests.cpp dfn_render dfn_core)
     target_sources(app_editor_hud PRIVATE
+        # AppDoors.cpp: дверь читается ТОЛЬКО через таблицу (слой 2), а эти
+        # файлы её читают — значит цель обязана её линковать.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorHud.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
@@ -181,8 +193,37 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorToolbox.cpp
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorToolIcons.cpp)
 
+    # ОТМЕНА, КОТОРАЯ НЕ ВРЁТ. Цель линкует ТОЛЬКО EditorHistory.cpp: в истории
+    # нет ни модели, ни окна, и это сделано нарочно — она хранит снимки строками
+    # и потому проверяется без мира (правило 3).
+    add_dfn_test(app_editor_history app/EditorHistoryTests.cpp dfn_core)
+    target_sources(app_editor_history PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorHistory.cpp)
+
+    # ДВЕРИ. Своя цель, а не довесок к app_controls: клавиша и дверь — разные
+    # предметы (одна принадлежит человеку за клавиатурой, другая рецепту на
+    # диске), и рукав дверей линкует ТОЛЬКО AppDoors.cpp — в нём нет ни App, ни
+    # окна, ни единой чужой зависимости, и это единственная причина, по которой
+    # «какие вообще есть двери» стало вопросом с проверяемым ответом.
+    add_dfn_test(app_doors app/DoorsTests.cpp dfn_core)
+    target_sources(app_doors PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+
     add_dfn_test(app_controls app/ControlsTests.cpp dfn_render dfn_core)
+    # ТАБЛИЦА ДИСПЕТЧЕРИЗАЦИИ — на тот же рукав и по той же причине, по которой
+    # контур кисти сидит на рукаве кисти: это тот же предмет — клавиша, — только
+    # с другого конца. Controls отвечает «какая клавиша», AppActions — «кто
+    # отвечает». Порознь они проходят по отдельности и вместе не значат ничего:
+    # действие с привязкой и без обработчика молчит, обработчик без привязки
+    # недостижим.
+    #
+    # AppActions.cpp ЛИНКУЕТСЯ, А AppInput.cpp НЕТ, и это не забывчивость: в
+    # AppInput.cpp определены методы App, то есть он тянет за собой App.cpp,
+    # то есть окно. Ровно затем таблица и вынесена в отдельную единицу
+    # трансляции, чтобы у рукава была её половина без окна (правило 3).
     target_sources(app_controls PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests/app/ActionRoutesTests.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppActions.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Controls.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
 
@@ -191,6 +232,9 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # sign is only provable by turning both ways and watching the marks move.
     add_dfn_test(app_hud_screen app/HudScreenTests.cpp dfn_render dfn_core)
     target_sources(app_hud_screen PRIVATE
+        # AppDoors.cpp: дверь читается ТОЛЬКО через таблицу (слой 2), а эти
+        # файлы её читают — значит цель обязана её линковать.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/HudScreen.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
