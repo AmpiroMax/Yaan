@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:04:20
-Last updated: 18:08:2026 - 12:51:26
+Last updated: 18:08:2026 - 18:58:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolbox.cpp
 
@@ -29,6 +29,7 @@ UPD:
   пара говорит и заодно ловит слишком низко выставленный предел. Вместе с
   подписью гаснет ПРЕВЬЮ: зелёное кольцо на недосягаемой точке — обещание,
   которого щелчок не выполнит, и это была бы та же неясность в другом месте.
+- 18:08:2026 - 18:58:40: Луч, не встретивший земли, отдаётся инструменту с фиксированной осью — иначе стойку нельзя вести вверх вообще.
 */
 
 #include "engine/editor/sources/EditorToolbox.h"
@@ -162,8 +163,16 @@ bool EditorToolbox::in_reach(const ToolAim& aim) const {
     // A RAY THAT MET NOTHING IS OUT OF REACH. Looking at the sky is not an
     // error, but it is not a target either: the aim point in that case is an
     // arm's length of nothing, and acting on it would build in mid-air.
-    if (!aim.hit) {
+    //
+    // ИСКЛЮЧЕНИЕ — ИНСТРУМЕНТ С ФИКСИРОВАННОЙ ОСЬЮ: он берёт точку с прямой
+    // через якорь, а не с земли, и небо для него — законное направление. Без
+    // этой строки стойку нельзя было бы вести вверх вообще: как только луч
+    // уходит выше горизонта, ящик перестал бы отдавать протаскивание.
+    if (!aim.hit && !active()->aims_without_ground()) {
         return false;
+    }
+    if (!aim.hit) {
+        return true;
     }
     return aim.distance_m <= active_reach_m();
 }

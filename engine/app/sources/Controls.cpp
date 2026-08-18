@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 18:08:2026 - 17:16:29
+Last updated: 18:08:2026 - 18:58:40
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -21,6 +21,7 @@ UPD:
   которого у него не было: иначе клавиша 5 в редакторе отняла бы его совсем.
 - 18:08:2026 - 16:28:24: строка «дальность взаимодействия — колесо»; у скорости полёта теперь [ и ].
 - 18:08:2026 - 17:16:29: строка отмены и подпись клавиши Z (без подписи строка рисуется как «?»).
+- 18:08:2026 - 18:58:40: V — фиксация оси (не Z: Z занята отменой), и подпись клавиши V, без которой экран управления рисовал «?».
 */
 
 #include "engine/app/sources/Controls.h"
@@ -77,6 +78,10 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     // Z одна на оба: отмену от повтора отличает Shift, и это УСЛОВИЕ, а не
     // вторая клавиша. Область — редактор: отменять в игре нечего.
     {Action::Undo, K::Z, K::UNKNOWN, "controls.undo", Scope::EditorOnly},
+    // V — «вертикаль». Не Z, как в Blender: Z здесь уже занята отменой, а два
+    // действия на одной клавише в одной области видимости запрещены — и
+    // правильно запрещены. Область — редактор: строить в теле нечем.
+    {Action::AxisLock, K::V, K::UNKNOWN, "controls.axis_lock", Scope::EditorOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -182,6 +187,7 @@ const char* key_name(platform::Key key) {
     // Z — отмена. Подпись обязана существовать: «?» на экране управления это
     // не косметика, а признак строки, о которой человеку никто не скажет.
     case K::Z: return "Z";
+    case K::V: return "V";  // вертикаль — фиксация оси у прямой
     default: return "?"; // loud, not blank: a nameless key is a table bug
     }
 }

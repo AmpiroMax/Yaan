@@ -169,6 +169,7 @@ controls.fly.speed=Скорость полёта
 controls.reach.keys=колесо
 controls.reach=Дальность взаимодействия
 controls.undo=Отменить (Cmd+Z), повторить (Cmd+Shift+Z)
+controls.axis_lock=Прямая строго вверх (V — включить и выключить)
 controls.keys=Esc — назад
 menu.controls=Управление
 
@@ -514,7 +515,7 @@ house.hint.ground=ЛКМ — якорь по земле
 house.hint.air=ЛКМ — якорь в воздухе, отвес покажет место под ним
 house.hint.line.needanchor=Наведись на якорь: прямая тянется от него
 house.hint.line.from=Тяни от этого якоря
-house.hint.line.drag=Отпусти на якоре — соединит, в пустоте — задаст длину
+house.hint.line.drag=Отпусти на якоре — соединит, в пустоте — задаст длину (V — строго вверх)
 house.hint.surface.first=Щёлкай по якорям в порядке обхода
 house.air=Высота над землёй
 house.air.ground=Ноль — якорь ложится на землю

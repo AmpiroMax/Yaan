@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 18:02:11
+Last updated: 18:08:2026 - 18:58:40
 Module: engine/app
 File: engine/app/sources/AppInput.cpp
 
@@ -56,6 +56,7 @@ UPD:
   постройке (HouseSession::apply_snapshot), и это ЕДИНСТВЕННОЕ место, куда он
   приходит: история про модель не знает нарочно, иначе её нельзя было бы
   проверить без мира.
+- 18:08:2026 - 18:58:40: on_axis_lock: переключает ось постройки и говорит об этом вслух.
 */
 
 #include "engine/app/sources/App.h"
@@ -118,6 +119,7 @@ bool App::dispatch_actions(bool chat_typing) {
             on_tool_pick(r.arg);
             break;
         case Action::Undo: on_undo_redo(); break;
+        case Action::AxisLock: on_axis_lock(); break;
         case Action::Count: break; // not a row; route_for() cannot return it
         }
         // THE FRAME IS OVER THE MOMENT ESCAPE OPENS THE PAUSE PAGE. Nothing
@@ -317,6 +319,18 @@ void App::on_undo_redo() {
     if (!house_.apply_snapshot(state)) {
         std::fprintf(stderr, "[история] снимок не читается — постройка НЕ восстановлена\n");
     }
+}
+
+void App::on_axis_lock() {
+    house_.toggle_axis();
+    // СКАЗАНО ВСЛУХ, потому что фиксация оси — состояние без своей картинки на
+    // кадре до первого движения мыши: молчащее переключение неотличимо от
+    // непрочитанной клавиши. Подпись внизу экрана говорит то же самое, но
+    // журнал остаётся и после того, как подпись сменится.
+    std::fprintf(stderr, "[постройка] ось: %s\n",
+                 house_.axis() == HouseSession::Axis::Vertical
+                     ? "вертикаль через якорь"
+                     : "земля (как раньше)");
 }
 
 void App::on_tool_pick(int index) {

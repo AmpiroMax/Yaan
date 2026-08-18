@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 18:02:11
+Last updated: 18:08:2026 - 18:58:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -27,6 +27,16 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 18:02:11: Создан вместе с EditorToolHouse.h.
+- 18:08:2026 - 18:40:24: apply_snapshot поднимает номер жизни графа, снимает выбор и ставит его
+  заново ПО МЕСТУ (unique_vertex_at, отказ при двух якорях в одной точке), а
+  три инструмента бросают всё, что держали по именам. Причина — измеренная:
+  имя, освободившееся при отмене, достаётся ДРУГОЙ точке (v4: 99 м до отмены,
+  -77 м после). Контрфакты: без stale() — 4 красных утверждения, без опознания
+  по месту — 1.
+- 18:08:2026 - 18:56:09: комментарий у apply_snapshot приведён в соответствие с починенным
+  читателем: опознание по МЕСТУ обосновано не переименованием (его больше
+  нет), а откатом счётчика имён. Полный довод — у revision() в заголовке.
+- 18:08:2026 - 18:58:40: Прямая ВВЕРХ: point_on_vertical — ближайшая точка вертикали через якорь к лучу прицела (пара скрещивающихся прямых), вырожденный взгляд вдоль оси назван и держит прежнюю высоту. Подпись называет высоту со знаком.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -211,12 +221,44 @@ glm::vec3 HouseSession::vertex_world(VertexId id) const {
 std::string HouseSession::snapshot() const { return world::write_house(graph_); }
 
 bool HouseSession::apply_snapshot(const std::string& text) {
+    // ИМЯ ВЫБРАННОЙ ВЕРШИНЫ НЕ СОХРАНЯЕТСЯ — СОХРАНЯЕТСЯ ЕЁ МЕСТО, и довод
+    // целиком лежит у HouseSession::revision() в заголовке. Коротко: имена
+    // круговой прогон переживают (зона core, 18.08), а вот СЧЁТЧИК имён
+    // откатывается вместе с графом, поэтому «v4 из прошлой жизни» и «v4 из
+    // этой» — разные точки (измерено: 99 м и -77 м). Опознание по координате
+    // не зависит ни от того, ни от другого.
+    const bool had_vertex = sel_vertex_ != NO_VERTEX;
+    const glm::vec3 was = had_vertex ? vertex_world(sel_vertex_) : glm::vec3{0.0f};
+    ++revision_;
     const world::HouseIoResult r = world::read_house(text, graph_);
-    // ВЫБОР ПЕРЕСОБИРАЕТСЯ ПОСЛЕ ЧТЕНИЯ, а не сохраняется как был: имена вершин
-    // после чтения те же (файл ссылается по именам), но выбранной вершины в
-    // снимке могло не быть вовсе — она появилась ПОСЛЕ него.
+    sel_vertex_ = NO_VERTEX;
+    // ЭЛЕМЕНТ ПО МЕСТУ НЕ ОПОЗНАЁТСЯ: у него нет одной точки, а опознание по
+    // набору вершин было бы догадкой. Выбор элемента после отмены снимается —
+    // это честнее, чем восстановленный наугад.
+    sel_element_ = NO_ELEMENT;
+    if (had_vertex && r.ok) {
+        sel_vertex_ = unique_vertex_at(was, HOUSE_REID_TOL_M);
+    }
     refresh_selection();
     return r.ok;
+}
+
+VertexId HouseSession::unique_vertex_at(glm::vec3 world_point, float tol_m) const {
+    VertexId found = NO_VERTEX;
+    for (const Vertex& v : graph_.vertices()) {
+        if (glm::length(vertex_world(v.id) - world_point) > tol_m) {
+            continue;
+        }
+        if (found != NO_VERTEX) {
+            // ДВА ЯКОРЯ В ОДНОЙ ТОЧКЕ — законное состояние (стык, наложение), и
+            // опознание на нём обязано ОТКАЗАТЬ. Выбрать первый попавшийся
+            // значит подсветить не те элементы, а на экране оба якоря в одном
+            // месте, и человек об этом не узнает.
+            return NO_VERTEX;
+        }
+        found = v.id;
+    }
+    return found;
 }
 
 void HouseSession::record(std::string label, const std::string& before) {
@@ -387,6 +429,13 @@ void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
     if (session_ == nullptr) {
         return;
     }
+    if (stale()) {
+        // МЕЖДУ ДВУМЯ ЩЕЛЧКАМИ БЫЛА ОТМЕНА. Всё, что рука помнила по именам,
+        // теперь про другой граф — забываем, а не доигрываем на чужих вершинах.
+        dragging_ = NO_VERTEX;
+        drag_before_.clear();
+        seen_revision_ = session_->revision();
+    }
     if (const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
         hit != NO_VERTEX) {
         session_->select_vertex(hit);
@@ -434,7 +483,7 @@ void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
 void HouseVertexTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) {
     (void)dt_s;
     (void)world;
-    if (session_ == nullptr || dragging_ == NO_VERTEX) {
+    if (session_ == nullptr || dragging_ == NO_VERTEX || stale()) {
         return;
     }
     // ВЫСОТА ДЕРЖИТСЯ НАД РЕЛЬЕФОМ, а не в мире: якорь, стоявший в двух метрах
@@ -447,6 +496,15 @@ void HouseVertexTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) 
 void HouseVertexTool::on_release(ToolWorld& world) {
     (void)world;
     if (session_ == nullptr || dragging_ == NO_VERTEX) {
+        return;
+    }
+    if (stale()) {
+        // Отмена посреди протаскивания: снимок «до» относится к прежней жизни
+        // графа, и шаг истории из него был бы переходом из состояния, которого
+        // больше нет.
+        dragging_ = NO_VERTEX;
+        drag_before_.clear();
+        seen_revision_ = session_->revision();
         return;
     }
     // ОДИН ШАГ ИСТОРИИ НА ОДНО ДВИЖЕНИЕ РУКИ. Шаг, ничего не сдвинувший
@@ -596,6 +654,35 @@ ToolIdentity HouseLineTool::identity() const {
                         ToolIcon::Path};
 }
 
+/// ТОЧКА НА ВЕРТИКАЛИ, БЛИЖАЙШАЯ К ЛУЧУ ПРИЦЕЛА.
+///
+/// Классическая задача о двух скрещивающихся прямых. Ось идёт из якоря вверх,
+/// луч — из глаза в направлении взгляда; берётся точка оси, ближайшая к лучу.
+/// Это и есть «мышь двигает по оси»: экранное движение проецируется на неё, а
+/// не превращается в пересечение с землёй.
+///
+/// Вырожденный случай назван, а не пропущен: если смотреть ВДОЛЬ оси (сверху
+/// вниз), знаменатель обращается в ноль — ответа не существует, потому что вся
+/// ось проецируется в точку. Возвращаем прежнюю высоту: инструмент замирает,
+/// а не прыгает в бесконечность.
+static glm::vec3 point_on_vertical(const glm::vec3& anchor, const glm::vec3& ray_origin,
+                                   const glm::vec3& ray_dir, float fallback_y) {
+    const glm::vec3 u{0.0f, 1.0f, 0.0f};
+    const glm::vec3 w = anchor - ray_origin;
+    const float b = glm::dot(u, ray_dir);
+    const float denom = 1.0f - b * b; // |u| = |d| = 1
+    if (denom < 1e-5f) {
+        return {anchor.x, fallback_y, anchor.z};
+    }
+    const float d = glm::dot(u, w);
+    const float e = glm::dot(ray_dir, w);
+    // t = (b·e − d)/(1 − b²) — классическая пара скрещивающихся прямых. Знак
+    // здесь не украшение: с обратным вышла бы вертикаль, идущая ВНИЗ, когда
+    // человек тянет ВВЕРХ, и это тот же дефект, что он показал кадром.
+    const float t = (b * e - d) / denom; // параметр вдоль ОСИ
+    return anchor + u * t;
+}
+
 void HouseLineTool::update_end(const ToolAim& aim) {
     raw_end_ = aim.point;
     clamp_hit_ = HouseClampHit{};
@@ -603,6 +690,16 @@ void HouseLineTool::update_end(const ToolAim& aim) {
         return;
     }
     const glm::vec3 a = session_->vertex_world(from_);
+    if (session_->axis() == HouseSession::Axis::Vertical) {
+        // ЛУЧ БЕРЁТСЯ ИЗ САМОГО ПРИЦЕЛА, а не восстанавливается по камере:
+        // ToolAim несёт и глаз, и точку, и второй способ узнать направление
+        // взгляда разъехался бы с первым в день, когда прицел сместят.
+        const glm::vec3 dir = aim.point - aim.origin;
+        const float dl = glm::length(dir);
+        if (dl > 1e-5f) {
+            raw_end_ = point_on_vertical(a, aim.origin, dir / dl, raw_end_.y);
+        }
+    }
     const glm::vec3 delta = raw_end_ - a;
     const float len = glm::length(delta);
     if (len < 1e-4f) {
@@ -631,6 +728,12 @@ void HouseLineTool::on_press(const ToolAim& aim, ToolWorld& world) {
     if (session_ == nullptr) {
         return;
     }
+    if (stale()) {
+        from_ = NO_VERTEX;
+        last_ = NO_ELEMENT;
+        clamp_hit_ = HouseClampHit{};
+        seen_revision_ = session_->revision();
+    }
     const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
     if (hit == NO_VERTEX) {
         // ПРЯМАЯ НАЧИНАЕТСЯ С ЯКОРЯ И НИ С ЧЕГО ДРУГОГО. Начать её с пустого
@@ -647,7 +750,7 @@ void HouseLineTool::on_press(const ToolAim& aim, ToolWorld& world) {
 void HouseLineTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) {
     (void)dt_s;
     (void)world;
-    if (session_ == nullptr || from_ == NO_VERTEX) {
+    if (session_ == nullptr || from_ == NO_VERTEX || stale()) {
         return;
     }
     update_end(aim);
@@ -656,6 +759,15 @@ void HouseLineTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) {
 void HouseLineTool::on_release(ToolWorld& world) {
     (void)world;
     if (session_ == nullptr || from_ == NO_VERTEX) {
+        return;
+    }
+    if (stale()) {
+        // Якорь, из которого тянули, принадлежал прежней жизни графа. Строить
+        // от его имени сейчас значит пристроить бревно к вершине, которую
+        // человек не выбирал.
+        from_ = NO_VERTEX;
+        clamp_hit_ = HouseClampHit{};
+        seen_revision_ = session_->revision();
         return;
     }
     const VertexId from = from_;
@@ -739,7 +851,7 @@ ToolPreview HouseLineTool::preview(const ToolAim& aim) const {
         ground = world_->ground_height;
     }
     build_house_wire(*session_, ground, wire_);
-    if (from_ != NO_VERTEX) {
+    if (from_ != NO_VERTEX && !stale()) {
         const glm::vec3 a = session_->vertex_world(from_);
         const glm::vec3 b = ghost_end();
         ghost_.push_back(a);
@@ -774,6 +886,17 @@ ToolStatus HouseLineTool::status(const ToolAim& aim) const {
         return ToolStatus{on_anchor ? "house.hint.line.from" : "house.hint.line.needanchor",
                           {}, on_anchor};
     }
+    if (session_->axis() == HouseSession::Axis::Vertical) {
+        // ВЕРТИКАЛЬ НАЗЫВАЕТ СЕБЯ ВЫСОТОЙ, а не словом «включено»: пользователь
+        // 18.08 тянул вверх и получал прямую на траве, поэтому подпись обязана
+        // отвечать на его вопрос — насколько вверх ушёл конец. Знак сохранён:
+        // вниз от якоря — такая же законная стойка, как вверх.
+        const float dy = ghost_end().y - session_->vertex_world(from_).y;
+        char buf[96];
+        std::snprintf(buf, sizeof(buf), "вертикаль: %+.2f м от якоря (V — снять)",
+                      static_cast<double>(dy));
+        return ToolStatus{"", buf, true};
+    }
     if (clamp_hit_.found) {
         // ЗАЖИМ НАЗЫВАЕТ СЕБЯ ЧИСЛОМ. Молча укоротившаяся прямая выглядит как
         // промах руки, и человек тянет ещё раз — вместо того чтобы понять, что
@@ -797,7 +920,7 @@ ToolIdentity HouseSurfaceTool::identity() const {
 }
 
 bool HouseSurfaceTool::draft_normal(glm::vec3& out) const {
-    if (session_ == nullptr || refs_.size() < 2) {
+    if (session_ == nullptr || refs_.size() < 2 || stale()) {
         return false;
     }
     std::vector<glm::vec3> pts;
@@ -834,6 +957,14 @@ void HouseSurfaceTool::on_press(const ToolAim& aim, ToolWorld& world) {
     refusal_.clear();
     if (session_ == nullptr) {
         return;
+    }
+    if (stale()) {
+        // ОБХОД СОБРАН ИЗ ИМЁН, а имена после отмены другие. Дострой его — и
+        // поверхность натянется на случайные якоря, потому что прежние номера
+        // достались другим вершинам. Обход бросается целиком.
+        clear_draft();
+        last_ = NO_ELEMENT;
+        seen_revision_ = session_->revision();
     }
     const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
     if (hit == NO_VERTEX) {
@@ -906,6 +1037,12 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
     if (session_ == nullptr) {
         return false;
     }
+    if (stale()) {
+        clear_draft();
+        seen_revision_ = session_->revision();
+        refusal_ = "обход собран до отмены — набери его заново";
+        return false;
+    }
     if (closed_ && refs_.size() < 3) {
         refusal_ = "контур нужен хотя бы из трёх якорей";
         return false;
@@ -962,11 +1099,13 @@ ToolPreview HouseSurfaceTool::preview(const ToolAim& aim) const {
     }
     build_house_wire(*session_, ground, wire_);
 
-    for (const VertexId r : refs_) {
-        draft_line_.push_back(session_->vertex_world(r));
-    }
-    if (closed_ && refs_.size() >= 3) {
-        draft_line_.push_back(session_->vertex_world(refs_.front()));
+    if (!stale()) {
+        for (const VertexId r : refs_) {
+            draft_line_.push_back(session_->vertex_world(r));
+        }
+        if (closed_ && refs_.size() >= 3) {
+            draft_line_.push_back(session_->vertex_world(refs_.front()));
+        }
     }
     // СТРЕЛКА НОРМАЛИ ДО ПОДТВЕРЖДЕНИЯ. Она и есть весь смысл этого превью:
     // порядок обхода задаёт лицо, а по ломаной на экране порядок не читается.

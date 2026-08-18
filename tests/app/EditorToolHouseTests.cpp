@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 18:02:11
+Last updated: 18:08:2026 - 18:58:40
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -34,6 +34,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 18:02:11: Создан — рукав трёх инструментов постройки.
+- 18:08:2026 - 18:40:24: три случая после починок зоны core: (1) снимок переживает удаления —
+  бывший WARN стал CHECK, запись больше не теряет выживший якорь; (2) имя
+  вершины после отмены достаётся другой точке (v4 в 99 м, затем v4 в -77 м) и
+  рука это переживает — обход брошен, а не достроен на чужих якорях; (3) числа
+  инструмента доходят до геометрии: стена в 2.5 м даёт 12 треугольников
+  высотой ровно 2.5 м, и лицо открытой цепочки из ТРЁХ якорей теперь сходится
+  с world::surface_normal (до миграции построителя расходилось: я считал по
+  closed, он по height). 19 случаев, 176 утверждений.
+- 18:08:2026 - 18:56:09: случай про имена рассказывает, ПОЧЕМУ два замера разошлись: между ними
+  лёг коммит 146f484. Держит нынешнее поведение (v5 остаётся v5) и отсылает к
+  ловушке со счётчиком, которую сохранение имён не закрывает.
+- 18:08:2026 - 18:58:40: Два случая про ось: без неё прямая уезжает по земле на 40 м (снимок дефекта с кадра пользователя), с ней конец стоит над якорем на 3.1 м и растёт с наклоном прицела; земля перестаёт быть нужной только пока ось включена И рука на якоре.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -759,18 +771,14 @@ TEST_CASE("снимок переживает круговой прогон") {
     CHECK(copy.snapshot() == b.session.snapshot());
 }
 
-TEST_CASE("НАХОДКА ЧУЖОЙ ЗОНЫ: запись теряет вершины с большими именами") {
-    // ЭТО НЕ ПРОВЕРКА ИНСТРУМЕНТА, А ИЗМЕРЕНИЕ ФУНДАМЕНТА, и оно здесь потому,
-    // что бьёт ровно по отмене. world::write_house перебирает возможные имена
-    // от 1 до vertex_count() + element_count() + 1; после удалений имена
-    // выживших БОЛЬШЕ этого числа, и они в файл не попадают ВООБЩЕ. Отмена
-    // после нескольких удалений вернёт не прежнее состояние, а пустой дом —
-    // молча, потому что чтение такого файла проходит без единой жалобы.
-    //
-    // WARN, А НЕ CHECK, НАРОЧНО: engine/world — чужая зона, чинить её я не
-    // вправе, а проверка, которая станет зелёной ПОСЛЕ починки, не имеет права
-    // держать эту сборку красной сегодня. Как только запись починят, эти
-    // предупреждения исчезнут сами.
+TEST_CASE("запись переживает удаления: выживший якорь доезжает до снимка") {
+    // ЗДЕСЬ БЫЛА НАХОДКА, И ЕЁ ПОЧИНИЛИ. write_house перебирал возможные имена
+    // от 1 до vertex_count() + element_count() + 1, а после удалений имена
+    // выживших БОЛЬШЕ этого числа — они не попадали в файл вообще. Измерено
+    // этим случаем: 5 якорей, 4 удалить, выживает v5, снимок целиком —
+    // «# dfh 1», то есть cmd+Z стирал дом молча. Зона core заменила перебор на
+    // vertices()/elements() (18.08), и утверждение ниже стало настоящим CHECK
+    // вместо WARN.
     Bench b;
     HouseVertexTool vt(b.session);
     vt.set_world(&b.world);
@@ -782,14 +790,257 @@ TEST_CASE("НАХОДКА ЧУЖОЙ ЗОНЫ: запись теряет вер�
         REQUIRE(vt.delete_selected());
     }
     REQUIRE(b.session.graph().vertex_count() == 1);
-    const VertexId survivor = b.session.graph().vertices().front().id;
+    const glm::vec3 place = b.session.vertex_world(b.session.graph().vertices().front().id);
 
     HouseSession copy;
-    const std::string text = b.session.snapshot();
-    REQUIRE(copy.apply_snapshot(text));
-    WARN(copy.graph().vertex_count() == 1);
-    WARN(copy.graph().vertex(survivor) != nullptr);
-    MESSAGE("выживший якорь v" << survivor << ", в графе вершин "
-            << b.session.graph().vertex_count() << ", после кругового прогона — "
-            << copy.graph().vertex_count() << "; снимок целиком:\n" << text);
+    REQUIRE(copy.apply_snapshot(b.session.snapshot()));
+    CHECK(copy.graph().vertex_count() == 1);
+    // ОПОЗНАЁМ ПО МЕСТУ, А НЕ ПО ИМЕНИ: имена чтение выдаёт заново (следующий
+    // случай меряет это числом).
+    CHECK(copy.unique_vertex_at(place, dfn::app::HOUSE_REID_TOL_M) != NO_VERTEX);
+}
+
+TEST_CASE("после отмены имя вершины ДОСТАЁТСЯ ДРУГОЙ ТОЧКЕ — рука это переживает") {
+    // ДВА ЗАМЕРА, ОБА ВЕРНЫЕ, И МЕЖДУ НИМИ ЛЁГ КОММИТ. Зона core предупредила,
+    // что чтение выдаёт имена заново («v3 v4 v5» на входе, «v1 v2 v3» на
+    // выходе) — так и было. Я мерил после её же починки (146f484, «имена
+    // вершин переживают круговой прогон») и увидел обратное. Утверждение ниже
+    // держит НЫНЕШНЕЕ поведение: v5 остаётся v5. У читателя есть и свой рукав в
+    // зоне core, так что молчаливый откат покраснеет с двух сторон.
+    //
+    // ЭТО НЕ ОТМЕНЯЕТ ЗАЩИТЫ ИНСТРУМЕНТОВ. Почему — в следующем случае и в
+    // комментарии у HouseSession::revision().
+    //
+    // НО ОПАСНОСТЬ, ПРО КОТОРУЮ ОНА ГОВОРИЛА, НАСТОЯЩАЯ — просто на шаг
+    // дальше: СЧЁТЧИК ИМЁН ОТКАТЫВАЕТСЯ ВМЕСТЕ С ГРАФОМ. Измерено отдельным
+    // прогоном: три вершины, снимок, четвёртая получает имя v4 в точке (99);
+    // отмена до снимка; следующая созданная вершина СНОВА получает имя v4, но
+    // стоит уже в (-77). Рука, помнящая v4 с прошлой жизни графа, показывает
+    // теперь на другую точку — и молчит об этом.
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseSurfaceTool st(b.session);
+    st.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+
+    for (int i = 0; i < 4; ++i) {
+        b.click(vt, {static_cast<float>(i) * 3.0f, 0.0f, 0.0f});
+    }
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    REQUIRE(vt.delete_selected());
+    const std::vector<VertexId> before_ids = {b.session.graph().vertices()[0].id,
+                                              b.session.graph().vertices()[1].id,
+                                              b.session.graph().vertices()[2].id};
+
+    // РУКА ДЕРЖИТ ИМЕНА: обход поверхности из трёх якорей и якорь прямой.
+    for (const VertexId v : before_ids) {
+        st.on_press(Bench::at(b.session.vertex_world(v)), b.world);
+    }
+    REQUIRE(st.refs().size() == 3);
+    lt.on_press(Bench::at(b.session.vertex_world(before_ids[0])), b.world);
+    REQUIRE(lt.anchor() != NO_VERTEX);
+    // Выбор ставится ПОСЛЕДНИМ: щелчок по якорю выбирает его, и снимок застанет
+    // именно тот, по которому щёлкнули последним.
+    b.session.select_vertex(before_ids[1]);
+    const glm::vec3 place = b.session.vertex_world(before_ids[1]);
+
+    const std::uint32_t rev_before = b.session.revision();
+    REQUIRE(b.session.apply_snapshot(b.session.snapshot()));
+    CHECK(b.session.revision() == rev_before + 1);
+
+    const std::vector<VertexId> after_ids = {b.session.graph().vertices()[0].id,
+                                             b.session.graph().vertices()[1].id,
+                                             b.session.graph().vertices()[2].id};
+    CHECK(after_ids == before_ids); // имена ПЕРЕЖИЛИ прогон — измерено, а не принято
+    MESSAGE("имена до снимка: v" << before_ids[0] << " v" << before_ids[1] << " v"
+            << before_ids[2] << "; после: v" << after_ids[0] << " v" << after_ids[1]
+            << " v" << after_ids[2]);
+
+    // ВЫБОР ПЕРЕУСТАНОВЛЕН ПО МЕСТУ. Он и по имени бы уцелел, но опознание идёт
+    // по координате нарочно: имя после отмены — обещание читателя, а место —
+    // свойство самой вершины.
+    REQUIRE(b.session.selected_vertex() != NO_VERTEX);
+    CHECK(glm::length(b.session.vertex_world(b.session.selected_vertex()) - place) < 1e-3f);
+
+    // ОБХОД БРОШЕН, А НЕ ДОСТРОЕН НА ЯКОРЯХ ИЗ ПРОШЛОЙ ЖИЗНИ ГРАФА.
+    CHECK(st.stale());
+    glm::vec3 n{0.0f};
+    CHECK_FALSE(st.draft_normal(n)); // черновик молчит, пока рука не признала отмену
+    CHECK_FALSE(st.confirm(b.world));
+    CHECK(st.refs().empty());
+    CHECK_FALSE(st.refusal().empty());
+    MESSAGE("поверхность после отмены: " << st.refusal());
+
+    // ЯКОРЬ ПРЯМОЙ ТОЖЕ БРОШЕН: отпускание после отмены не строит бревно.
+    const std::size_t elements_before = b.session.graph().element_count();
+    lt.on_release(b.world);
+    CHECK(b.session.graph().element_count() == elements_before);
+    CHECK(lt.anchor() == NO_VERTEX);
+
+    // КОНТРОЛЬ: БЕЗ ОТМЕНЫ ТА ЖЕ РУКА РАБОТАЕТ. Без этого плеча «инструмент
+    // ничего не сделал» проходило бы на инструменте, сломанном насовсем.
+    for (const VertexId v : after_ids) {
+        st.on_press(Bench::at(b.session.vertex_world(v)), b.world);
+    }
+    CHECK(st.refs().size() == 3);
+    CHECK(st.confirm(b.world));
+    CHECK(b.session.graph().element_count() == elements_before + 1);
+}
+
+TEST_CASE("имя вершины после отмены достаётся другой точке") {
+    // ЧИСЛО, РАДИ КОТОРОГО ЖИВЁТ ВЕСЬ МЕХАНИЗМ stale(). Проверяется на голой
+    // модели, без инструментов: счётчик имён откатывается вместе с графом.
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {3.0f, 0.0f, 0.0f});
+    b.click(vt, {6.0f, 0.0f, 0.0f});
+    const std::string three = b.session.snapshot();
+    b.click(vt, {99.0f, 0.0f, 0.0f});
+    const VertexId fourth = b.session.selected_vertex();
+
+    REQUIRE(b.session.apply_snapshot(three));
+    b.click(vt, {-77.0f, 0.0f, 0.0f});
+    const VertexId again = b.session.selected_vertex();
+    CHECK(again == fourth); // ТО ЖЕ ИМЯ
+    CHECK(b.session.vertex_world(again).x == doctest::Approx(-77.0f)); // ДРУГАЯ ТОЧКА
+    MESSAGE("до отмены v" << fourth << " стояла в 99 м, после отмены v" << again
+            << " стоит в " << b.session.vertex_world(again).x << " м");
+}
+
+TEST_CASE("числа, записанные инструментом, доходят до геометрии") {
+    // ШОВ, КОТОРЫЙ БЫЛ РАЗОРВАН И СВЕДЁН 18.08: инструменты пишут числа в
+    // Element::params (дверь модели), а построитель меша до 18:26 читал их из
+    // СТРОКИ СТИЛЯ. Пока шов был разорван, стена, созданная рукой, получалась
+    // без высоты — и увидеть это можно было только на готовом доме.
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseSurfaceTool st(b.session);
+    st.set_world(&b.world);
+
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {5.0f, 0.0f, 0.0f});
+    st.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
+    st.on_press(Bench::at({5.0f, 0.0f, 0.0f}), b.world);
+    st.height_m() = 2.5f;
+    st.thickness_m() = 0.2f;
+    REQUIRE(st.confirm(b.world));
+
+    const dfn::world::HouseMesh mesh = dfn::world::build_house_mesh(b.session.graph());
+    CHECK(mesh.triangle_count() > 0);
+    for (const dfn::world::MeshFinding& f : mesh.findings) {
+        CHECK(f.issue != dfn::world::MeshIssue::ChainNeedsHeight);
+    }
+    // ВЫСОТА ДОЕХАЛА ЧИСЛОМ, а не «меш непустой»: стена в 2.5 м обязана быть
+    // ровно 2.5 м высотой, иначе число из панели и число в мире — разные.
+    float lo = 1e9f;
+    float hi = -1e9f;
+    for (const dfn::world::HouseVertex& v : mesh.vertices) {
+        lo = std::min(lo, v.pos.y);
+        hi = std::max(hi, v.pos.y);
+    }
+    CHECK((hi - lo) == doctest::Approx(2.5f));
+    MESSAGE("стена инструмента: треугольников " << mesh.triangle_count() << ", высота "
+            << (hi - lo) << " м");
+
+    // И ЛИЦО ЦЕПОЧКИ СОШЛОСЬ С МЕШЕМ. До миграции я считал по closed (жест), а
+    // построитель по height (число), и на открытой цепочке из трёх якорей они
+    // расходились. Теперь оба смотрят на closed — проверяем на трёх, а не на
+    // двух, потому что расходились именно три.
+    b.click(vt, {5.0f, 0.0f, 4.0f});
+    st.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
+    st.on_press(Bench::at({5.0f, 0.0f, 0.0f}), b.world);
+    st.on_press(Bench::at({5.0f, 0.0f, 4.0f}), b.world);
+    glm::vec3 draft{0.0f};
+    REQUIRE(st.draft_normal(draft));
+    REQUIRE(st.confirm(b.world));
+    glm::vec3 built{0.0f};
+    REQUIRE(dfn::world::surface_normal(b.session.graph(), st.last_element(), built));
+    CHECK(glm::dot(draft, built) > 0.999f);
+}
+
+// ---------------------------------------------------------------------------
+// ПРЯМАЯ ВВЕРХ — ФИКСАЦИЯ ОСИ
+// ---------------------------------------------------------------------------
+
+TEST_CASE("прямая вверх: без оси она ложится на землю, с осью встаёт") {
+    Bench b;
+    HouseVertexTool vertex(b.session);
+    vertex.set_world(&b.world);
+    b.click(vertex, {0.0f, 0.0f, 0.0f});
+    const VertexId a = b.session.selected_vertex();
+    REQUIRE(a != NO_VERTEX);
+    HouseLineTool line(b.session);
+    line.set_world(&b.world);
+
+    // Прицел, ушедший ВЫШЕ ГОРИЗОНТА: земля не встречена, точка — «вытянутая
+    // рука в пустоте». Ровно так выглядит попытка потянуть стойку вверх.
+    ToolAim up;
+    up.origin = {0.0f, 1.6f, -3.0f};
+    const glm::vec3 dir = glm::normalize(glm::vec3{0.0f, 0.5f, 1.0f});
+    up.point = up.origin + dir * 100.0f;
+    up.distance_m = 100.0f;
+    up.hit = false;
+
+    SUBCASE("земля: прямая уезжает вдаль и остаётся лежать") {
+        // ПЛЕЧО-КОНТРОЛЬ, и оно же снимок дефекта, который пользователь показал
+        // кадром 18.08. Луч упирается в землю далеко впереди — конец прямой
+        // уходит туда же, а вверх не поднимается ВОВСЕ.
+        ToolAim far_ground = Bench::at({0.0f, 0.0f, 40.0f});
+        b.session.set_axis(HouseSession::Axis::Ground);
+        line.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
+        REQUIRE(line.anchor() == a);
+        line.on_drag(far_ground, 0.016f, b.world);
+        const glm::vec3 end = line.ghost_end();
+        CHECK(end.y == doctest::Approx(0.0f).epsilon(0.01));
+        CHECK(std::hypot(end.x, end.z) > 10.0f);
+    }
+
+    SUBCASE("вертикаль: конец стоит НАД якорем, и высота растёт с наклоном") {
+        b.session.set_axis(HouseSession::Axis::Vertical);
+        line.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
+        REQUIRE(line.anchor() == a);
+        line.on_drag(up, 0.016f, b.world);
+        const glm::vec3 end = line.ghost_end();
+        // НАД ЯКОРЕМ — это две координаты из трёх, и обе обязаны совпасть.
+        CHECK(end.x == doctest::Approx(0.0f).epsilon(0.001));
+        CHECK(end.z == doctest::Approx(0.0f).epsilon(0.001));
+        // Ближайшая точка оси к этому лучу считается руками: ось пересекает
+        // плоскость z=0 там, где луч в неё приходит, y = 1.6 + 0.4472*3.354.
+        CHECK(end.y == doctest::Approx(3.1f).epsilon(0.02));
+
+        // ВЫШЕ ПРИЦЕЛ — ВЫШЕ КОНЕЦ. Без этого утверждения проверку прошёл бы
+        // инструмент, который всегда возвращает одну и ту же высоту.
+        ToolAim higher = up;
+        const glm::vec3 steep = glm::normalize(glm::vec3{0.0f, 1.2f, 1.0f});
+        higher.point = higher.origin + steep * 100.0f;
+        line.on_drag(higher, 0.016f, b.world);
+        CHECK(line.ghost_end().y > end.y + 1.0f);
+    }
+}
+
+TEST_CASE("ось отпускает ящик к небу только пока она включена") {
+    Bench b;
+    HouseVertexTool vertex(b.session);
+    vertex.set_world(&b.world);
+    b.click(vertex, {0.0f, 0.0f, 0.0f});
+    HouseLineTool line(b.session);
+    line.set_world(&b.world);
+
+    // Без якоря в руке земля нужна всегда: щелчок по небу не должен начинать
+    // ничего, и фиксация оси этого не меняет.
+    b.session.set_axis(HouseSession::Axis::Vertical);
+    CHECK_FALSE(line.aims_without_ground());
+
+    line.on_press(Bench::at({0.0f, 0.0f, 0.0f}), b.world);
+    CHECK(line.aims_without_ground());
+
+    // Снятая ось возвращает обычное правило — и это контроль: без него
+    // проверка прошла бы на инструменте, который землю не спрашивает НИКОГДА.
+    b.session.set_axis(HouseSession::Axis::Ground);
+    CHECK_FALSE(line.aims_without_ground());
 }
