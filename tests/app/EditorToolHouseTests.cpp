@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 23:52:10
+Last updated: 19:08:2026 - 00:31:05
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -63,6 +63,7 @@ UPD:
 - 18:08:2026 - 22:20:15: Версия растёт и при перетаскивании (правка мимо истории); якорь едет вдоль своей прямой с контролем «без оси уходит вбок»; стена ловится тычком в середину; равноудалённая точка на прямоугольнике и на треугольнике, где она НЕ совпадает с серединой.
 - 18:08:2026 - 23:20:00: Сетка ловит якорь в узлы мировых координат, шаг меняет узлы, выключенная сетка не округляет, шаг зажат.
 - 18:08:2026 - 23:52:10: Видное место — среднее: на прямоугольнике, на треугольнике (с плечом «равноудалённая заметно в стороне») и на паре якорей.
+- 19:08:2026 - 00:31:05: Показ пересобирается целиком: три кадра подряд дают один размер у всех трёх инструментов (контрфакт — снятая очистка роняет случай).
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1675,4 +1676,44 @@ TEST_CASE("сетка мира ловит якорь в узлы, и это ко
     CHECK(b.session.grid_step_m() > 0.0f);
     b.session.set_grid_step_m(1000.0f);
     CHECK(b.session.grid_step_m() <= 10.0f);
+}
+
+TEST_CASE("показ пересобирается целиком: второй кадр не длиннее первого") {
+    // ЧТО ЭТО ЛОВИТ. Стопка призрака у якоря чистилась не в начале показа, а
+    // нигде: шарик добавлялся каждый кадр, за минуту набиралось шестьсот тысяч
+    // вершин, и рендерер начинал ронять линии пачками — «якоря рисуются
+    // безостановки» на кадре пользователя 19.08. Свойство простое и общее для
+    // ВСЕХ инструментов: показ строится заново каждый кадр, поэтому два
+    // одинаковых кадра обязаны дать одинаковый размер.
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+    HouseSurfaceTool st(b.session);
+    st.set_world(&b.world);
+
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {3.0f, 0.0f, 0.0f});
+    b.drag(lt, {0.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f});
+    b.click(st, {0.0f, 0.0f, 0.0f});
+    b.click(st, {3.0f, 0.0f, 0.0f});
+
+    const auto total = [](const ToolPreview& p) {
+        return (p.handles != nullptr ? p.handles->size() : 0)
+             + (p.accent != nullptr ? p.accent->size() : 0)
+             + (p.ghost_pairs != nullptr ? p.ghost_pairs->size() : 0)
+             + (p.polyline != nullptr ? p.polyline->size() : 0);
+    };
+    const ToolAim aim = Bench::at({1.5f, 0.0f, 1.5f});
+    for (dfn::app::IEditorTool* tool :
+         {static_cast<dfn::app::IEditorTool*>(&vt), static_cast<dfn::app::IEditorTool*>(&lt),
+          static_cast<dfn::app::IEditorTool*>(&st)}) {
+        const std::size_t first = total(tool->preview(aim));
+        const std::size_t second = total(tool->preview(aim));
+        const std::size_t third = total(tool->preview(aim));
+        CHECK(second == first);
+        CHECK(third == first);
+        MESSAGE("показ " << tool->identity().id << ": " << first << " точек, стабильно");
+    }
 }
