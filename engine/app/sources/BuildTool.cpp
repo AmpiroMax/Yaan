@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 19:20:04
+Last updated: 18:08:2026 - 12:08:00
 Module: engine/app
 File: engine/app/sources/BuildTool.cpp
 
@@ -23,6 +23,9 @@ UPD:
 - 17:08:2026 - 19:05:00: Создан вместе с BuildTool.h.
 - 17:08:2026 - 19:20:04: StairSeat/StairHeadroom получили свои фразы. Без них призрак краснел БЕЗ
   ПРИЧИНЫ ровно на лестницах; нашла зона меню объектов, не мой тест.
+- 18:08:2026 - 12:08:00: place_support_y — штабелирование. Раньше рука сажала призрак на
+  грунт безусловно, поэтому «поставить объект на объект» было невозможно ничем,
+  кроме случайного совпадения высот.
 */
 
 #include "engine/app/sources/BuildTool.h"
@@ -137,6 +140,66 @@ std::vector<BuildGroup> build_palette(const std::string& shelves) {
         groups.push_back({family, std::move(names)});
     }
     return groups;
+}
+
+float place_support_y(const world::SceneDoc& doc, glm::vec3 aim, float ground_y,
+                      const world::SceneWorld& world, std::string* on_what) {
+    float support = ground_y;
+    if (on_what != nullptr) {
+        *on_what = "the ground";
+    }
+    if (world.object_top == nullptr || world.object_extent == nullptr) {
+        // NO RULER, NO STACKING — and that is the honest answer rather than a
+        // guessed height: an object whose top nobody can measure cannot be
+        // stood on.
+        return support;
+    }
+    // HOW MUCH ABOVE THE AIM STILL COUNTS AS "the surface I am pointing at".
+    // One grid cell: the ray stops on the top face, and floating point plus the
+    // 0.25 m snap put the aim a hair under or over it.
+    constexpr float AIM_TOL_M = BUILD_GRID_M;
+    for (const world::Placement& p : doc.placements) {
+        float top = 0.0f;
+        if (!world.object_top(world.ctx, p.object, top)) {
+            continue;
+        }
+        const float top_y = p.position.y + top;
+        if (top_y <= support || top_y > aim.y + AIM_TOL_M) {
+            continue; // lower than what we have, or above where he pointed
+        }
+        // IS THE AIM OVER IT? The box when the object has one, the circle when
+        // it does not — the same fallback the judge makes, and for the same
+        // reason: a beam's origin is at one END, so a circle about it claims
+        // ground the beam does not cover.
+        const float dx = aim.x - p.position.x;
+        const float dz = aim.z - p.position.z;
+        glm::vec2 lo{0.0f};
+        glm::vec2 hi{0.0f};
+        bool inside = false;
+        if (world.object_box != nullptr && world.object_box(world.ctx, p.object, lo, hi)) {
+            // Into the placement's own frame: yaw turns the footprint with it.
+            const float cs = std::cos(-p.yaw);
+            const float sn = std::sin(-p.yaw);
+            const float lx = cs * dx - sn * dz;
+            const float lz = sn * dx + cs * dz;
+            inside = lx >= lo.x && lx <= hi.x && lz >= lo.y && lz <= hi.y;
+        } else {
+            float radius = 0.0f;
+            float bottom = 0.0f;
+            if (!world.object_extent(world.ctx, p.object, radius, bottom)) {
+                continue;
+            }
+            inside = dx * dx + dz * dz <= radius * radius;
+        }
+        if (!inside) {
+            continue;
+        }
+        support = top_y;
+        if (on_what != nullptr) {
+            *on_what = p.object;
+        }
+    }
+    return support;
 }
 
 } // namespace dfn::app

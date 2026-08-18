@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 18:08:2026 - 01:07:17
+# Last updated: 18:08:2026 - 12:08:40
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -59,6 +59,16 @@
 #   кадрируются ОДНИМ правилом (побайтово один и тот же снимок), что деталь,
 #   показанная в трёх местах, выпечена ОДИН раз, и что прокрутка всей полки не
 #   набирает 356 МБ текстур. Всё три — числа здесь.
+# - 18:08:2026 - 12:08:40: app_editor_toolbox — ЯЩИК ИНСТРУМЕНТОВ. Четыре свойства, которых
+#   не видит ни один кадр и которые до сегодня не держало ничего: щелчок по
+#   настройкам ЧУЖОГО инструмента не меняет руку; щелчок по иконке активного
+#   кладёт его и гасит превью; R переключает режим указателя в обе стороны при
+#   любых открытых окнах; щелчок дальше потолка не делает НИЧЕГО, ближе —
+#   делает. Плюс то, ради чего всё затевалось: нажатие доходит РОВНО до одного
+#   инструмента, и это счётчик у каждого, а не утверждение про поле.
+#   Цель линкует ТОЛЬКО EditorToolbox.cpp и EditorToolIcons.cpp: в них нет ни
+#   ImGui, ни окна — решение отделено от рисования именно затем, чтобы этот
+#   рукав существовал (правило 3).
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -154,6 +164,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_editor_camera app/EditorCameraTests.cpp dfn_render dfn_core)
     target_sources(app_editor_camera PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorCamera.cpp)
+
+    add_dfn_test(app_editor_toolbox app/EditorToolboxTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_editor_toolbox PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorToolbox.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorToolIcons.cpp)
 
     add_dfn_test(app_controls app/ControlsTests.cpp dfn_render dfn_core)
     target_sources(app_controls PRIVATE

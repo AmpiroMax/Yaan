@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 19:22:32
-# Last updated: 18:08:2026 - 01:00:57
+# Last updated: 18:08:2026 - 12:08:10
 # File: engine/editor/CMakeLists.txt
 #
 # Responsibility:
@@ -57,8 +57,20 @@
 #   PUBLIC: заголовок называет его типы в СВОЁМ интерфейсе, и крючок выпечки
 #   собирается в engine/app ровно по ним.
 
+# - 18:08:2026 - 12:08:10: ИНСТРУМЕНТЫ КАК КЛАССЫ (docs/AUDIT_EDITOR_TOOLS.md): EditorToolbox
+#   (единственный владелец «что в руке», без ImGui — его гоняет рукав),
+#   EditorToolIcons (значки рисуются кодом, одинакового размера по построению),
+#   EditorToolbar (двойные кнопки и шестерёнка) и EditorToolsGround/Object —
+#   пять инструментов. Рисование отделено от решения намеренно: решение обязано
+#   проверяться без окна (правило 3), поэтому оно в двух файлах без imgui.
+
 add_library(dfn_editor STATIC
     sources/EditorBrush.cpp
+    sources/EditorToolbar.cpp
+    sources/EditorToolbox.cpp
+    sources/EditorToolIcons.cpp
+    sources/EditorToolsGround.cpp
+    sources/EditorToolsObject.cpp
     sources/EditorBrushView.cpp
     sources/EditorUi.cpp
     sources/EditorPalette.cpp

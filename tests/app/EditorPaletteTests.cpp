@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:13:38
-Last updated: 18:08:2026 - 00:55:58
+Last updated: 18:08:2026 - 12:10:20
 Module: tests/app
 File: tests/app/EditorPaletteTests.cpp
 
@@ -52,6 +52,11 @@ UPD:
 - 18:08:2026 - 00:55:58: таблица «левая кнопка ставит деталь ровно в одном режиме». Правило жило
   комментарием над условием в App.cpp, который держит окно и потому не
   проверяется, — а само условие говорило обратное.
+- 18:08:2026 - 12:10:20: Рукав «один инструмент за раз» отсюда УБРАН и переехал в
+  app_editor_toolbox. Он утверждал про два выражения (build_click_is_armed /
+  build_hand_wants_aim), и оба удалены вместе с ярлыком EditorTool: теперь
+  щелчок уходит активному инструменту, и второму уйти физически некуда —
+  проверяется счётчик нажатий у КАЖДОГО инструмента.
 */
 
 #include <doctest/doctest.h>
@@ -790,30 +795,11 @@ TEST_CASE("no two parts on the shelf wear the same facets") {
     MESSAGE("контроль (свойства без меток): столкновений " << tagless_collisions);
 }
 
-// ОДИН ИНСТРУМЕНТ ЗА РАЗ (заказ пользователя 18.08: «я должен использовать
-// только один инструмент одновременно, но почему-то и кисть высоты, и
-// постройку объектов делаю»). Правило жило комментарием над условием в
-// App.cpp — который держит окно и потому не проверяется, — а само условие
-// говорило обратное: постановка взводилась и при открытом СПИСКЕ объектов, так
-// что один щелчок и копал, и ставил. Теперь правило выражение, и вот его
-// таблица целиком.
-TEST_CASE("левая кнопка ставит деталь ровно в одном режиме") {
-    using dfn::app::EditorTool;
-    using dfn::app::build_click_is_armed;
-    using dfn::app::build_hand_wants_aim;
-
-    CHECK(build_click_is_armed(EditorTool::PlaceObject));
-    CHECK_FALSE(build_click_is_armed(EditorTool::HeightBrush));
-    CHECK_FALSE(build_click_is_armed(EditorTool::SurfacePaint));
-    CHECK_FALSE(build_click_is_armed(EditorTool::SelectObject));
-    CHECK_FALSE(build_click_is_armed(EditorTool::Look));
-
-    // Проход «что под прицелом» нужен ДВУМ режимам: ставящему (призрак) и
-    // выбирающему (цель). Кисти он не нужен ни в каком виде — призрак поверх
-    // земли, пока копаешь, это второй ответ на вопрос, что я трогаю.
-    CHECK(build_hand_wants_aim(EditorTool::PlaceObject));
-    CHECK(build_hand_wants_aim(EditorTool::SelectObject));
-    CHECK_FALSE(build_hand_wants_aim(EditorTool::HeightBrush));
-    CHECK_FALSE(build_hand_wants_aim(EditorTool::SurfacePaint));
-    CHECK_FALSE(build_hand_wants_aim(EditorTool::Look));
-}
+// ОДИН ИНСТРУМЕНТ ЗА РАЗ переехал в tests/app/EditorToolboxTests.cpp (рукав
+// app_editor_toolbox), и это не перенос ради переноса. Здесь утверждение было
+// про ДВА ВЫРАЖЕНИЯ — build_click_is_armed / build_hand_wants_aim, — то есть
+// про то, что ярлык инструмента отвечает на вопрос правильно. Оба выражения
+// удалены вместе с самим ярлыком: теперь щелчок уходит активному инструменту и
+// физически некуда уйти второму, и проверяется именно это — счётчик нажатий у
+// КАЖДОГО инструмента после одного щелчка (правило 32: утверждение обязано
+// говорить о механизме, который есть).

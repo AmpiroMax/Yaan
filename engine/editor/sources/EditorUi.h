@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 18:08:2026 - 01:54:26
+Last updated: 18:08:2026 - 12:07:30
 Module: engine/editor
 File: engine/editor/sources/EditorUi.h
 
@@ -172,21 +172,40 @@ UPD:
   объявил, а ESC живёт в кадровом цикле и обязан работать для панели, которую
   заведут завтра. close_all_panels возвращает, закрылось ли что-нибудь, — иначе
   тем же нажатием откроется меню паузы.
+- 18:08:2026 - 12:07:30: ИНСТРУМЕНТ СТАЛ КЛАССОМ, А ЯРЛЫК EditorTool УДАЛЁН
+  (docs/AUDIT_EDITOR_TOOLS.md, заказ 18.08: «нет отдельного класса под
+  инструменты, нет четких интерфейсов взаимодействия... нельзя бы было поймать
+  ошибки, что я сразу два инструмента в руке держу»). Перечисления больше нет:
+  каркас держит EditorToolbox — ОДИН активный указатель, — и наружу отдаёт не
+  «какой сейчас инструмент», а ОТВЕТ (превью, подпись, дальность). Вместе с
+  перечислением ушли tool()/set_tool()/tool_changed()/tool_name() и два
+  выражения build_click_is_armed/build_hand_wants_aim: и то, и другое было
+  «спроси ярлык и реши сам», то есть ровно тем местом, где два хозяина одной
+  кнопки и заводились.
+  ПОЛОСА ПЕРЕРИСОВАНА: двойные кнопки (картинка + треугольник настроек),
+  шестерёнка с общими параметрами, фишек панелей на полосе больше нет — списки
+  объектов, кистей и свойств стали СОБСТВЕННЫМИ настройками своих инструментов
+  (заказ: «убери кнопки 5 6 7 8 9»). Само рисование — в EditorToolbar.cpp:
+  этот файл и без него был вдвое длиннее правила 21.
 */
 
 #pragma once
 
+#include "engine/editor/sources/EditorToolbox.h"
 #include "engine/platform/input/interfaces/IInput.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/platform/window/interfaces/IWindow.h"
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace dfn::app {
+
+class ToolIconCache;
 
 /// Where the editor's user-facing text comes from (Rule 5). A function rather
 /// than an include because the localization table lives in engine/app, which
@@ -197,57 +216,12 @@ using EditorTextSource = std::string_view (*)(const char* key);
 /// business and a panel must never take it apart. Zero means "no picture".
 using EditorTexture = std::uint64_t;
 
-/// WHAT THE EDITOR IS DOING RIGHT NOW. Exactly one at a time.
-///
-/// WHY A MODE AND NOT FIVE INDEPENDENT SWITCHES (user, 17.08.2026: «надо
-/// добавить панель с выбором этих инструментов»). Today each tool is a key that
-/// turns something on beside everything else, and the left mouse button already
-/// means "place a part". The moment the terrain brush wants the left button too
-/// — and it will, because painting is a drag — the two owners fight, and the
-/// fight is invisible: the click does both, or the wrong one, depending on
-/// which test ran first. With a mode the button has ONE owner at all times, and
-/// which one is a thing the user chose and can see.
-///
-/// AND `Look` IS A REAL MODE, NOT THE ABSENCE OF ONE. It is the default on
-/// entering the editor, because a tool you cannot put down makes every click a
-/// risk: the user asked for «пустой курсор, словно ничего не делаем, просто как
-/// играем» in the same breath as the other four, which is exactly the right
-/// instinct.
-///
-/// The numbers in the comments are the user's own numbering, and the toolbar
-/// shows them, so "press 3" and "the third chip" are the same thing.
-enum class EditorTool : std::uint8_t {
-    Look = 0,      ///< 5 — просто смотрю. THE DEFAULT.
-    HeightBrush,   ///< 1 — кисть высоты ландшафта
-    SurfacePaint,  ///< 2 — кисть поверхности (скала/трава/песок/тропа)
-    SelectObject,  ///< 3 — прицел выбирает объект
-    PlaceObject,   ///< 4 — прицел ставит объект
-    Count
-};
-
-/// ЧТО ДЕЛАЕТ ЛЕВАЯ КНОПКА, одним выражением на всех потребителей.
-///
-/// ОДИН ИНСТРУМЕНТ ЗА РАЗ — заказ пользователя 18.08: «я должен использовать
-/// только один инструмент одновременно, но почему-то и кисть высоты, и
-/// постройку объектов делаю». Разбор: обе руки висели на ЛЕВОЙ кнопке, кисть
-/// по is_down, постановка по was_pressed, и постановка взводилась условием
-/// `выбран режим постановки ИЛИ ОТКРЫТ СПИСОК ОБЪЕКТОВ`. Значит при открытом
-/// списке один щелчок и копал, и ставил — независимо от того, что выбрано на
-/// панели. Над той строкой уже стоял комментарий «рука отвечает РЕЖИМУ, а не
-/// тому, открыто ли меню»; правило было записано словами и не записано кодом.
-///
-/// СПИСОК ОБЪЕКТОВ НЕ ВЗВОДИТ НИЧЕГО. Он отвечает на вопрос «что я держу», а не
-/// «что я делаю»: держать деталь можно и копая землю, и это не повод её ставить.
-[[nodiscard]] constexpr bool build_click_is_armed(EditorTool tool) {
-    return tool == EditorTool::PlaceObject;
-}
-
-/// Нужен ли руке строителя проход «что под прицелом» — призрак детали и цель
-/// удаления. Два режима, и снова НЕ открытый список: призрак, всплывающий
-/// поверх земли, пока выбрана кисть, — второй ответ на вопрос, что я трогаю.
-[[nodiscard]] constexpr bool build_hand_wants_aim(EditorTool tool) {
-    return tool == EditorTool::PlaceObject || tool == EditorTool::SelectObject;
-}
+/// ЧТО СЕЙЧАС В РУКЕ — вопрос, у которого ОДИН адресат: EditorToolbox
+/// (EditorToolbox.h), и он держит указатель, а не ярлык. Перечисления
+/// EditorTool здесь больше нет намеренно: пока оно было, «какой сейчас
+/// инструмент» спрашивали семь мест и решали каждое по-своему, а два хозяина
+/// одной кнопки были не ошибкой одного из них, а формой всей конструкции
+/// (docs/AUDIT_EDITOR_TOOLS.md).
 
 /// HOW MUCH OF THE WINDOW THE INTERFACE HAS TAKEN, per edge, in ImGui's logical
 /// units. Zero on every edge when nothing is docked or the interface is hidden.
@@ -304,24 +278,24 @@ struct EditorPanel {
     float extent_px = 380.0f;
     /// Open at startup. Panels the user must ASK for start closed.
     bool open = false;
-    /// Put a chip for this panel on the top bar, beside the tool chips, and
-    /// number it after them.
-    ///
-    /// WHY A PANEL BELONGS ON THE SAME BAR AS THE TOOLS (user, 17.08.2026:
-    /// «пусть список объектов также сверху будет, как остальные варианты»). The
-    /// bar is meant to be THE place where you choose what you are doing right
-    /// now. A panel that opens by its own private key is a second such place,
-    /// and a second place is how a user ends up unable to say what state he is
-    /// in — which is the complaint that started this whole layout.
-    bool on_toolbar = false;
     /// The content. Called once per frame while open.
     std::function<void()> draw;
 };
 
+/// The id of the ONE settings window. It is a panel like any other — docked,
+/// counted in the insets, closed by ESC — but its content is whichever tool's
+/// triangle is down, so there is exactly one settings window in the editor and
+/// never one per tool.
+inline constexpr const char* TOOL_SETTINGS_PANEL_ID = "tool.settings";
+
 /// The editor's ImGui frame. One instance, owned by App.
 class EditorUi {
 public:
-    EditorUi() = default;
+    /// Both defined in the .cpp, not defaulted here: the icon cache is held by
+    /// unique_ptr behind a forward declaration, and a constructor defaulted in
+    /// the header would need its full definition in engine/app — which is the
+    /// layer that may not see the bar's file at all.
+    EditorUi();
     ~EditorUi();
     EditorUi(const EditorUi&) = delete;
     EditorUi& operator=(const EditorUi&) = delete;
@@ -403,24 +377,18 @@ public:
     /// by half the panel's width.
     [[nodiscard]] EditorRect world_rect_norm() const;
 
-    // -- the tool (mode) ------------------------------------------------------
+    // -- the tools ------------------------------------------------------------
 
-    /// What the editor is doing. Poll it; it is cheap and it never lies about a
-    /// frame that has already been drawn.
-    [[nodiscard]] EditorTool tool() const { return tool_; }
+    /// THE ONE OWNER OF «что в руке». The frame holds it because the frame
+    /// draws the bar; everyone else asks it questions and never keeps an answer
+    /// of their own.
+    [[nodiscard]] EditorToolbox& toolbox() { return toolbox_; }
+    [[nodiscard]] const EditorToolbox& toolbox() const { return toolbox_; }
 
-    /// Switches tools. Safe to call from a key handler, from a panel, or from
-    /// anywhere else — the toolbar and the label follow on the same frame.
-    void set_tool(EditorTool tool);
-
-    /// True for the ONE frame in which the tool changed, whoever changed it.
-    /// The owner of a tool uses this to drop whatever it was holding: a brush
-    /// mid-stroke and a half-placed part must both end when the user leaves.
-    [[nodiscard]] bool tool_changed() const { return tool_changed_; }
-
-    /// The tool's name for a human, localized (Rule 5). Valid until the next
-    /// begin_frame, like tr().
-    [[nodiscard]] static const char* tool_name(EditorTool tool);
+    /// WHAT A TOOL MAY DO TO THE WORLD. Filled ONCE by whoever owns the world
+    /// (App) and passed to every dispatch from here, so a tool cannot be handed
+    /// two different worlds by two callers.
+    [[nodiscard]] ToolWorld& tool_world() { return tool_world_; }
 
     /// The always-on strip of tool chips. On by default: the user must be able
     /// to see WHICH tool has the mouse without opening anything, because an
@@ -528,8 +496,12 @@ private:
     bool ready_ = false;
     bool visible_ = true; // master HIDE, not a master show — see set_visible()
     bool toolbar_ = true;
-    EditorTool tool_ = EditorTool::Look; // «просто смотрю» is where you start
-    bool tool_changed_ = false;
+    EditorToolbox toolbox_;
+    ToolWorld tool_world_;
+    /// Baked on first draw, dropped with the frame. unique_ptr because the
+    /// cache names ImGui-free types but lives beside them, and because this
+    /// header is included by engine/app, which may not see the bar's file.
+    std::unique_ptr<ToolIconCache> icons_;
     EditorInsets insets_;
     float toolbar_height_ = 0.0f; // measured after drawing; 0 on the first frame
     /// Where each strip landed this frame — the instrument's raw data.

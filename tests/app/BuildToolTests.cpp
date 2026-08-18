@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:20:00
-Last updated: 17:08:2026 - 19:20:04
+Last updated: 18:08:2026 - 12:09:00
 Module: tests/app
 File: tests/app/BuildToolTests.cpp
 
@@ -21,6 +21,12 @@ UPD:
 - 17:08:2026 - 19:20:00: Создан — зелёное/красное руки строителя.
 - 17:08:2026 - 19:20:04: граница обхода перечисления — ПОСЛЕДНЕЕ значение, а не названное. Обход,
   кончавшийся на предпоследнем, пропустил два новых правила судьи.
+- 18:08:2026 - 12:09:00: ШТАБЕЛИРОВАНИЕ (заказ 18.08: «не могу ставить объекты друг на
+  друга»). Рукав держит то, чего кадр не покажет: деталь, прицеленная в ВЕРХ
+  другой, садится на её верх, а не на грунт, — и судья принимает обе. Контроль
+  обязателен и он здесь: тот же прицел МИМО первой детали садится на землю.
+  Без него утверждение «встаёт на объект» прошло бы и на коде, который всё так
+  же сажает на грунт, если земля там случайно вровень.
 */
 
 #include <doctest/doctest.h>
@@ -112,4 +118,145 @@ TEST_CASE("the palette comes from the shelf, and a missing shelf is empty, not a
         }
     }
     CHECK(saw_wall);
+}
+
+// ============================ ШТАБЕЛИРОВАНИЕ =================================
+// «сейчас я могу ставить блок строительные только на землю, из-за проверок
+// постановки на пол я не могу ставить объекты на другие объекты» — user, 18.08.
+//
+// РАЗБОР, И ОН ВАЖНЕЕ САМОГО ТЕСТА: судья это разрешает. OnGround (Scene.cpp)
+// ищет среди расстановок ту, чей верх подходит к низу ставимой детали, и любое
+// пересечение следов считает опорой. Отказывал ИНСТРУМЕНТ: призрак садился на
+// грунт БЕЗУСЛОВНО, то есть внутрь того, во что целились, и судья честно
+// отвечал «buried in». Ниже — обе половины: опора выбирается верно, и судья
+// принимает результат.
+namespace {
+
+struct StackCtx {
+    float ground_m = 0.0f;
+    float top_m = 1.0f;    ///< how tall the test object is above its origin
+    float radius_m = 1.0f; ///< its footprint radius
+};
+
+float stack_ground(void* ctx, glm::vec2) {
+    return static_cast<StackCtx*>(ctx)->ground_m;
+}
+bool stack_extent(void* ctx, const std::string&, float& radius, float& bottom) {
+    radius = static_cast<StackCtx*>(ctx)->radius_m;
+    bottom = 0.0f;
+    return true;
+}
+bool stack_top(void* ctx, const std::string&, float& top) {
+    top = static_cast<StackCtx*>(ctx)->top_m;
+    return true;
+}
+
+world::SceneWorld stack_world(StackCtx& ctx) {
+    world::SceneWorld w;
+    w.ground_at = &stack_ground;
+    w.object_extent = &stack_extent;
+    w.object_top = &stack_top;
+    w.ctx = &ctx;
+    return w;
+}
+
+} // namespace
+
+TEST_CASE("деталь садится на ВЕРХ той, в которую целятся, а мимо — на землю") {
+    StackCtx ctx;
+    ctx.ground_m = 0.0f;
+    ctx.top_m = 1.0f;
+    ctx.radius_m = 1.0f;
+    const world::SceneWorld w = stack_world(ctx);
+
+    world::SceneDoc doc;
+    world::Placement first;
+    first.object = "beam";
+    first.position = {0.0f, 0.0f, 0.0f};
+    first.group = "house";
+    doc.placements.push_back(first);
+
+    // РУКА ЦЕЛИТСЯ В ВЕРХ ПЕРВОЙ ДЕТАЛИ: луч останавливается на её крышке, то
+    // есть на высоте 1 м над её началом.
+    std::string on;
+    const float support = place_support_y(doc, glm::vec3{0.2f, 1.0f, 0.1f},
+                                          ctx.ground_m, w, &on);
+    CHECK(support == doctest::Approx(1.0f));
+    CHECK(on == "beam");
+    MESSAGE("прицел в верх детали: опора " << support << " м (" << on << ")");
+
+    // КОНТРОЛЬ, БЕЗ КОТОРОГО УТВЕРЖДЕНИЕ ПУСТОЕ: тот же прицел МИМО детали
+    // садится на землю. Земля здесь 0 и верх детали 1 — числа разные, поэтому
+    // «сел на землю» и «сел на деталь» различимы.
+    std::string on_miss;
+    const float miss = place_support_y(doc, glm::vec3{5.0f, 0.0f, 5.0f}, ctx.ground_m,
+                                       w, &on_miss);
+    CHECK(miss == doctest::Approx(0.0f));
+    CHECK(on_miss == "the ground");
+    MESSAGE("прицел мимо: опора " << miss << " м (" << on_miss << ")");
+
+    // И ВТОРОЙ КОНТРОЛЬ — ПОТОЛОК ПРИЦЕЛА: целясь в ЗЕМЛЮ рядом со стеной (в
+    // пределах её следа, но НИЖЕ её верха), деталь не должна улетать на крышу.
+    std::string on_low;
+    const float low = place_support_y(doc, glm::vec3{0.2f, 0.0f, 0.1f}, ctx.ground_m,
+                                      w, &on_low);
+    CHECK(low == doctest::Approx(0.0f));
+    CHECK(on_low == "the ground");
+
+    // ТЕПЕРЬ СУДЬЯ. Вторая деталь встаёт на верх первой — обе в одной постройке,
+    // как их и ставит рука (build_place: p.group = build_group_name_).
+    world::Placement second;
+    second.object = "beam";
+    second.position = {0.2f, support, 0.1f};
+    second.group = "house";
+    doc.placements.push_back(second);
+    std::size_t stacked_findings = 0;
+    for (const world::SceneFinding& f : world::check_scene(doc, w)) {
+        ++stacked_findings;
+        MESSAGE("судья о штабеле: правило " << static_cast<int>(f.rule) << " "
+                << f.object << " " << f.detail);
+    }
+    CHECK(stacked_findings == 0);
+
+    // КОНТРОЛЬ, ОТЛИЧАЮЩИЙСЯ РОВНО ОДНИМ: та же деталь на том же месте, но БЕЗ
+    // ПОСТРОЙКИ. Судья отказывает — и это его правило, а не отказ инструмента
+    // (см. следующий рукав). Без этого плеча «судья принял» проходило бы и на
+    // судье, который принимает вообще всё.
+    doc.placements.back().group.clear();
+    std::size_t lone_findings = 0;
+    for (const world::SceneFinding& f : world::check_scene(doc, w)) {
+        ++lone_findings;
+    }
+    CHECK(lone_findings > 0);
+    MESSAGE("контроль (та же деталь без постройки): находок " << lone_findings);
+}
+
+TEST_CASE("без группы судья штабель НЕ принимает — и это его правило, не наше") {
+    // НАЙДЕНО ЭТИМ РУКАВОМ И СКАЗАНО ВСЛУХ: OnGround ищет опору только СРЕДИ
+    // ЧЛЕНОВ ОДНОЙ ПОСТРОЙКИ (Scene.cpp: `if (!p.group.empty())` и
+    // `doc.placements[j].group != p.group`). То есть штабель из двух одиночек
+    // судья отвергнет, сколько бы инструмент ни целился правильно. Рука ставит
+    // детали с группой, поэтому обычный путь работает; но если пользователь
+    // строит БЕЗ постройки, отказ придёт — и придёт от судьи.
+    StackCtx ctx;
+    const world::SceneWorld w = stack_world(ctx);
+    world::SceneDoc doc;
+    world::Placement first;
+    first.object = "beam";
+    first.position = {0.0f, 0.0f, 0.0f};
+    doc.placements.push_back(first);
+    world::Placement second;
+    second.object = "beam";
+    second.position = {0.0f, 1.0f, 0.0f}; // на верху первой, но БЕЗ группы
+    doc.placements.push_back(second);
+
+    std::size_t hovering = 0;
+    for (const world::SceneFinding& f : world::check_scene(doc, w)) {
+        if (f.rule == world::SceneRule::OnGround) {
+            ++hovering;
+        }
+    }
+    CHECK(hovering == 1);
+    MESSAGE("без группы: находок OnGround " << hovering
+            << " — правило судьи, а не отказ инструмента");
 }

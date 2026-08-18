@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 18:08:2026 - 12:08:00
 Module: engine/app
 File: engine/app/sources/BuildTool.h
 
@@ -48,6 +48,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 19:05:00: Создан — рука строителя и её зелёное/красное (заказ 17.08).
+- 18:08:2026 - 12:08:00: place_support_y() — НА ЧТО САДИТСЯ ТО, ЧТО В РУКЕ. Заказ 18.08:
+  «сейчас я могу ставить блок строительные только на землю... не могу ставить
+  объекты друг на друга». Судья тут ни при чём: OnGround разрешает опору на
+  другую расстановку (Scene.cpp), но ТОЛЬКО внутри одной группы. Виноват был
+  инструмент — он безусловно сажал призрак на грунт (`at.y = height_at(...)`),
+  то есть ВНУТРЬ того, на что человек целился, и судья честно отвечал «buried
+  in». Теперь опора — САМАЯ ВЫСОКАЯ из двух: земля под прицелом и верх той
+  расстановки, в которую прицел упирается.
 */
 
 #pragma once
@@ -102,6 +110,25 @@ struct BuildVerdict {
 /// new placement, which is how a build tool becomes unusable.
 [[nodiscard]] BuildVerdict verdict_from_findings(
     const std::vector<world::SceneFinding>& findings, std::size_t candidate_index);
+
+/// НА КАКОЙ ВЫСОТЕ СТОИТ ТО, ЧТО СТАВЯТ, — земля или верх того, на что целятся.
+///
+/// Returns the Y the placed part's ORIGIN should take. `aim` is where the
+/// crosshair met the world (its Y is the ceiling: nothing is lifted ABOVE the
+/// point the builder pointed at), `ground_y` is the terrain under the same x/z,
+/// and `world` supplies the same measurements the judge uses — never a second
+/// ruler (Rule 32).
+///
+/// WHY THE AIM'S OWN HEIGHT IS A CEILING. Without it, standing beside a house
+/// and pointing at the GROUND next to a wall would snap the part to the roof,
+/// because the wall's footprint covers that spot too. The rule is "the highest
+/// support AT OR BELOW where you are pointing", which is what a builder means
+/// when he points at a deck.
+///
+/// `on_what`, when given, receives the object's name, or "the ground".
+[[nodiscard]] float place_support_y(const world::SceneDoc& doc, glm::vec3 aim,
+                                    float ground_y, const world::SceneWorld& world,
+                                    std::string* on_what = nullptr);
 
 /// Builds the palette from the shelves a map declares (the same
 /// semicolon-separated list the .map's `objects` key carries), grouping by the

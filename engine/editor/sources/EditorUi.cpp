@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 18:08:2026 - 01:54:26
+Last updated: 18:08:2026 - 12:07:40
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -121,9 +121,17 @@ UPD:
   разыменование ничего, то есть падение в прогонах, которые интерфейса и не
   просили.
 - 18:08:2026 - 01:54:26: any_panel_open() / close_all_panels() — реализация (см. заголовок).
+- 18:08:2026 - 12:07:40: ЯРЛЫК EditorTool УДАЛЁН, полоса перерисована. tool_name/set_tool/
+  tool_changed и draw_toolbar с фишками ушли целиком: их заменяет EditorToolbox
+  (один активный указатель) и EditorToolbar.cpp (двойные кнопки с картинками,
+  треугольник настроек, шестерёнка). Панель настроек здесь ОДНА и её открытость
+  каждый кадр берётся из ящика, а не хранится второй копией: два выключателя
+  одного состояния этот файл уже оплачивал (17.08, visible_ против open).
 */
 
 #include "engine/editor/sources/EditorUi.h"
+
+#include "engine/editor/sources/EditorToolbar.h"
 
 #include "engine/platform/render/sources/bgfx/ImGuiBackend.h"
 
@@ -419,6 +427,8 @@ void apply_style(float scale) {
 
 } // namespace
 
+EditorUi::EditorUi() = default;
+
 EditorUi::~EditorUi() {
     shutdown();
 }
@@ -530,11 +540,26 @@ bool EditorUi::init(platform::IRenderer& renderer) {
     probe.title_key = "editor.ui.probe.title";
     probe.side = EditorPanelSide::Right;
     probe.extent_px = 460.0f;
-    // ON THE BAR, like anything else the user opens. The probe is also the
-    // demonstration that a panel chip works at all, so it earns its place.
-    probe.on_toolbar = true;
+    // NO CHIP ON THE BAR ANY MORE (заказ 18.08: «убери кнопки 5 6 7 8 9. Они
+    // не нужны» — «Проверка интерфейса» была шестой). EditorPanel::on_toolbar
+    // is gone with them: the bar is the TOOLS' row now, and a panel that is not
+    // a tool's settings is opened by its door or by its owner.
     probe.draw = [this] { draw_probe_panel(); };
     add_panel(std::move(probe));
+
+    // THE ONE SETTINGS WINDOW. Its content is whichever triangle is down, and
+    // its OPENNESS is not stored here at all — begin_frame copies it from the
+    // toolbox every frame. Two switches for one state is the defect this file
+    // paid for on 17.08 (visible_ against a panel's open), and this is the same
+    // shape: the toolbox decides, the panel follows.
+    EditorPanel settings;
+    settings.id = TOOL_SETTINGS_PANEL_ID;
+    settings.title_key = "editor.panel.settings";
+    settings.side = EditorPanelSide::Right;
+    settings.extent_px = 400.0f;
+    settings.open = false;
+    settings.draw = [this] { draw_tool_settings(toolbox_); };
+    add_panel(std::move(settings));
     if (const char* door = std::getenv("DFN_UI_PROBE");
         door != nullptr && *door != '\0' && *door != '0') {
         // NOTHING BUT set_panel_open, and that is now part of what this door
@@ -738,7 +763,11 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
     }
 
     text_arena().clear();
-    tool_changed_ = false; // set by set_tool during this frame, read after it
+    // THE SETTINGS WINDOW FOLLOWS THE TOOLBOX, every frame, in one line. Not a
+    // second flag anybody can set: the triangle writes the toolbox, and this
+    // reads it — so a window that is open while nothing claims it is
+    // unexpressible.
+    set_panel_open(TOOL_SETTINGS_PANEL_ID, toolbox_.settings_open());
     // THE STRIPS ARE RECOMPUTED FROM SCRATCH EVERY FRAME, never accumulated: a
     // panel closed on frame N must give its column back on frame N, and an
     // inset that only ever grows is the bug that would make the world shrink a
@@ -771,59 +800,17 @@ void EditorUi::begin_frame(platform::IInput& input, const platform::IWindow& win
     wants_keyboard_ = visible_ && io.WantTextInput;
 }
 
-const char* EditorUi::tool_name(EditorTool tool) {
-    switch (tool) {
-    case EditorTool::HeightBrush:  return tr("editor.tool.height");
-    case EditorTool::SurfacePaint: return tr("editor.tool.paint");
-    case EditorTool::SelectObject: return tr("editor.tool.select");
-    case EditorTool::PlaceObject:  return tr("editor.tool.place");
-    case EditorTool::Look:
-    case EditorTool::Count:
-        break;
-    }
-    return tr("editor.tool.look");
-}
-
-void EditorUi::set_tool(EditorTool tool) {
-    if (tool == tool_ || tool == EditorTool::Count) {
-        return;
-    }
-    tool_ = tool;
-    tool_changed_ = true;
-    // SAID OUT LOUD, ONCE PER CHANGE. Whoever owns a tool has to drop what it
-    // was holding on this frame, and "did the signal even arrive" is the first
-    // question anyone debugging that will ask. One line per change also makes
-    // the flag's ONE-FRAME contract measurable: a click that prints twice is a
-    // flag that is lying about how long it lasts.
-    std::fprintf(stderr, "[editor-ui] режим -> %s\n", tool_name(tool_));
-}
-
 void EditorUi::draw_toolbar() {
-    // THE ORDER IS THE USER'S OWN NUMBERING, so "press 3" and "the third chip"
-    // are the same thing. Look is his 5 and sits last, even though it is the
-    // default: a default that moves to the front would renumber the other four
-    // every time somebody re-read his message.
-    struct Chip {
-        EditorTool tool;
-        const char* digit;
-    };
-    static const Chip CHIPS[] = {
-        {EditorTool::HeightBrush, "1"},  {EditorTool::SurfacePaint, "2"},
-        {EditorTool::SelectObject, "3"}, {EditorTool::PlaceObject, "4"},
-        {EditorTool::Look, "5"},
-    };
-
-    const ImGuiIO& io = ImGui::GetIO();
-    // A FULL-WIDTH STRIP PINNED TO THE TOP EDGE, and it RESERVES that strip:
-    // the world starts underneath it, and so does everything else that asks.
+    // THE BAR IS DRAWN BY EditorToolbar.cpp; this function owns the WINDOW it
+    // is drawn in — the full-width strip pinned to the top edge that RESERVES
+    // its height, so the world and every other painter start underneath it.
     //
     // TWO EARLIER VERSIONS OF THIS LINE ARE THE ARGUMENT FOR THE WHOLE LAYOUT.
     // The first floated at top centre and landed ON the debug readout's plate;
     // the second was nudged down 44 units to clear it. Nudging is what you do
-    // when nobody owns the layout — the number was right for that readout, on
-    // that day, and the next painter would have had to nudge again against a
-    // number he could not see. Now the height is MEASURED after drawing and
+    // when nobody owns the layout. Now the height is MEASURED after drawing and
     // published as insets().top.
+    const ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 0.0f), ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.92f);
@@ -833,62 +820,10 @@ void EditorUi::draw_toolbar() {
         | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize
         | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavFocus;
     if (ImGui::Begin("##editor.toolbar", nullptr, flags)) {
-        for (std::size_t i = 0; i < std::size(CHIPS); ++i) {
-            if (i > 0) {
-                ImGui::SameLine();
-            }
-            const bool active = CHIPS[i].tool == tool_;
-            // WORDS, NOT ICONS. Five glyphs nobody has learned yet are five
-            // guesses; the strip is wide enough for the words, and the day it
-            // is not, the words are what the tooltip would have said anyway.
-            char label[96];
-            std::snprintf(label, sizeof(label), "%s  %s##tool%zu", CHIPS[i].digit,
-                          tool_name(CHIPS[i].tool), i);
-            if (active) {
-                // The verdict's green again — one colour, one meaning across
-                // the whole tool.
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.27f, 0.44f, 0.32f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                      ImVec4(0.33f, 0.52f, 0.38f, 1.0f));
-            }
-            if (ImGui::Button(label)) {
-                set_tool(CHIPS[i].tool);
-            }
-            if (active) {
-                ImGui::PopStyleColor(2);
-            }
+        if (icons_ == nullptr) {
+            icons_ = std::make_unique<ToolIconCache>(*this);
         }
-        // PANEL CHIPS CONTINUE THE SAME NUMBERING, on the same bar, looking the
-        // same. A panel opened by its own private key would be a SECOND place
-        // where the user chooses what he is doing, and a second place is how he
-        // ends up unable to say what state he is in — the complaint this whole
-        // layout came from.
-        int digit = static_cast<int>(std::size(CHIPS));
-        for (EditorPanel& p : panels_) {
-            if (!p.on_toolbar) {
-                continue;
-            }
-            ++digit;
-            ImGui::SameLine();
-            char label[128];
-            std::snprintf(label, sizeof(label), "%d  %s##panel%s", digit,
-                          tr(p.title_key.c_str()), p.id.c_str());
-            if (p.open) {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.27f, 0.44f, 0.32f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                      ImVec4(0.33f, 0.52f, 0.38f, 1.0f));
-            }
-            if (ImGui::Button(label)) {
-                // Toggled HERE, one frame before layout_panels reads it, so the
-                // column appears or frees on the very frame of the click.
-                p.open = !p.open;
-                std::fprintf(stderr, "[editor-ui] панель %s -> %s\n", p.id.c_str(),
-                             p.open ? "открыта" : "закрыта");
-            }
-            if (p.open) {
-                ImGui::PopStyleColor(2);
-            }
-        }
+        draw_tool_bar(toolbox_, *icons_, tool_world_);
     }
     // MEASURED, NOT ASSUMED. The strip's height follows the font, the style's
     // padding and the display scale; a constant here would be right until the

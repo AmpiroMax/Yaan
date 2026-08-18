@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 01:54:26
+Last updated: 18:08:2026 - 12:07:50
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -98,6 +98,14 @@ UPD:
 - 18:08:2026 - 01:54:26: ghost_uploaded_ — висит ли призрак В РЕНДЕРЕРЕ. Отдельно от build_ghost_:
   «что я держу» и «что загружено» — разные вопросы, и путать их значит оставлять
   деталь нарисованной после того, как её выпустили.
+- 18:08:2026 - 12:07:50: ИНСТРУМЕНТЫ ПЕРЕЕХАЛИ В КЛАССЫ (docs/AUDIT_EDITOR_TOOLS.md).
+  Отсюда ушли поля, которые были ЧУЖИМ состоянием, лежавшим у App: cursor_free_
+  (теперь EditorToolbox::pointer_mode — клавиша R это часть контракта
+  инструментов), terrain_brush_/plant_brush_/brush_stroke_/flatten_written_
+  (у каждой кисти теперь своя, внутри своего инструмента) и build_open_
+  (список объектов стал настройками инструмента постройки, а не отдельной
+  панелью со своей клавишей). apply_terrain_dab принимает КИСТЬ аргументом:
+  App больше не знает, какая кисть сейчас в руке, и не должен.
 */
 
 #pragma once
@@ -113,6 +121,7 @@ UPD:
 #include "engine/app/sources/EditorPlant.h"
 #include "engine/editor/sources/EditorBrushView.h"
 #include "engine/editor/sources/EditorPropsView.h"
+#include "engine/editor/sources/EditorToolsBuiltin.h"
 #include "engine/editor/sources/EditorUi.h"
 #include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/app/sources/Menu.h"
@@ -450,16 +459,15 @@ private:
 
     // ---- THE BUILD HAND (editor). Decisions live in BuildTool.{h,cpp}; what
     // is here is the state and the wiring to the world.
-    bool build_open_ = false;
     std::vector<BuildGroup> build_groups_;
     /// МЕНЮ ОБЪЕКТОВ: модель живёт здесь, панель объявляется в EditorUi один
     /// раз при подъёме карты. App владеет обеими — панель на них ссылается.
     PaletteModel palette_;
     bool palette_wired_ = false;
-    /// КУРСОР: смотрим камерой (false) или указываем мышью (true). ЯВНО, по
-    /// клавише R, и НИКОГДА автоматически. Автоматика решала за человека и
-    /// решала неверно: он писал «то за камеру держится, то в UI, и непонятно».
-    bool cursor_free_ = false;
+    /// КУРСОР ЖИВЁТ В ЯЩИКЕ ИНСТРУМЕНТОВ (EditorToolbox::pointer_mode), а не
+    /// здесь: клавиша R — часть контракта инструментов («почти как в vim»), и
+    /// поле в App было бы второй копией того же состояния. Спрашивать —
+    /// editor_ui_.toolbox().pointer_mode().
     /// DFN_CAM_TRACE=1 — печатать в stderr пару «пришло смещение мыши / стал
     /// рыск» на каждом кадре редактора. Читается один раз при старте.
     bool cam_trace_ = false;
@@ -498,18 +506,17 @@ private:
     /// feeds compose_passes — the ground the player walks and the ground
     /// check_scene judges are then one thing.
     world::ReliefLayer relief_;
-    TerrainBrush terrain_brush_;
-    PlantBrush plant_brush_;
-    BrushStroke brush_stroke_;
+    /// КИСТИ ЖИВУТ В СВОИХ ИНСТРУМЕНТАХ (HeightBrushTool / SurfacePaintTool /
+    /// PlantTool). Общий TerrainBrush с полем mode, показанный двумя фишками,
+    /// и был тем «странным взаимодействием покраски и высоты», которое
+    /// пользователь назвал 18.08: полоса задавала режим, панель задавала его же
+    /// из второго места. Два объекта не могут разойтись во мнении о своём
+    /// режиме.
     /// The last dab's numbers, for the panel's readout. A brush that has
     /// silently stopped biting looks exactly like a brush aimed at nothing.
     int last_dab_samples_ = 0;
     float last_dab_worst_m_ = 0.0f;
     bool brush_wired_ = false;
-    /// One [pad] per stroke for the flatten brush, not one per frame the button
-    /// is held: a pad is a statement the composer re-reads, and sixty a second
-    /// would bury the file he has to live in.
-    bool flatten_written_ = false;
     /// Species the map's shelves carry, read once — a directory listing per
     /// frame is a directory listing per frame.
     std::vector<std::string> plant_species_;
@@ -540,9 +547,17 @@ private:
     /// one of them was tuned, and the symptom is a brush biting a metre from
     /// the cross.
     [[nodiscard]] glm::vec3 editor_aim_point();
-    [[nodiscard]] bool apply_terrain_dab(glm::vec2 centre, float dt_s);
+    /// ТО ЖЕ, НО С ДАЛЬНОСТЬЮ И ПРИЗНАКОМ ПОПАДАНИЯ — то, что читает потолок
+    /// дальности (EditorToolbox). Голый vec3 не давал спросить «а как далеко»,
+    /// поэтому общий параметр было негде проверить.
+    [[nodiscard]] ToolAim editor_aim();
+    /// КИСТЬ ПРИХОДИТ ОТ ИНСТРУМЕНТА, а не берётся из поля App: настройки,
+    /// которые человек двигал, и земля, которую он копает, обязаны быть ОДНОЙ
+    /// кистью.
+    [[nodiscard]] bool apply_terrain_dab(const TerrainBrush& brush, glm::vec2 centre,
+                                         float dt_s);
     void finish_stroke();
-    [[nodiscard]] int plant_dab_here(glm::vec2 centre);
+    [[nodiscard]] int plant_dab_here(const PlantBrush& brush, glm::vec2 centre);
     /// Re-bakes the ONE tile a placement falls in. An edit must not cost a
     /// whole-map re-bake: the builder places a part every few seconds.
     void rebake_tile_at(glm::vec2 world_xz);
