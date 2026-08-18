@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 19:08:2026 - 00:12:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -42,6 +42,7 @@ UPD:
 - 18:08:2026 - 21:12:40: Прямая, отпущенная в пустоте, СТАВИТ ТАМ ЯКОРЬ (решение пользователя: прямая без якоря на конце — бессмыслица); зажим длины садит конец на тот самый якорь, а не на двойника рядом.
 - 18:08:2026 - 22:20:15: Якорь двигается вдоль запертой оси; ось общая у прямой и у перетаскивания; стрелка нормали одна на черновик и на готовую стену, рисуется у КАЖДОЙ подсвеченной поверхности из её видного места; стена выбирается тычком в полотно (луч-треугольник), а не только по кромке.
 - 18:08:2026 - 23:20:00: Призрак якоря садится в узел сетки; pick_element_ray отдаёт расстояние прицелу.
+- 19:08:2026 - 00:12:30: Шарик и отвес призрака уехали из стопки подсветки в свою.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1033,16 +1034,18 @@ ToolPreview HouseVertexTool::preview(const ToolAim& aim) const {
         // шарик висит в воздухе, и смотреть на него человек может как угодно.
         const Ghost g = ghost(aim);
         if (g.over == NO_VERTEX) {
-            append_ball(wire_.accent, g.point, HOUSE_BALL_R_M);
+            append_ball(ghost_pairs_, g.point, HOUSE_BALL_R_M);
             // ОТВЕС — ЭТО ОТВЕТ НА ВОПРОС «НА КАКОЙ ОН ВЫСОТЕ». Без него шарик
             // в воздухе неотличим от шарика на дальнем склоне.
             if (g.air) {
-                append_plumb(wire_.accent, g.point, g.ground_y);
+                append_plumb(ghost_pairs_, g.point, g.ground_y);
             }
         }
     }
     out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
     out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
+    out.ghost_pairs = ghost_pairs_.empty() ? nullptr : &ghost_pairs_;
+    out.ghost_color = HOUSE_GHOST_COLOR;
     out.line_color = HOUSE_WIRE_COLOR;
     out.accent_color = HOUSE_ACCENT_COLOR;
     return out;

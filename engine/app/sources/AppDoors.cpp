@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 18:08:2026 - 21:12:40
+Last updated: 19:08:2026 - 00:12:30
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -17,6 +17,7 @@ UPD:
   файлов зоны app.
 - 18:08:2026 - 19:44:10: Строка DFN_HOUSE_PULL.
 - 18:08:2026 - 21:12:40: Строка DFN_HOUSE_DEMO.
+- 19:08:2026 - 00:12:30: Строка DFN_HOUSE_GRID.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -33,7 +34,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 60> TABLE{{
+constexpr std::array<Door, 61> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -117,6 +118,10 @@ constexpr std::array<Door, 60> TABLE{{
      DoorRead::Once},
     {"DFN_EDITOR_SETTINGS",
      "открыть настройки инструмента 1..5, НЕ трогая руку.",
+     DoorRead::Once},
+    {"DFN_HOUSE_GRID",
+     "включить сетку мира с этим шагом (метры): отсечки и посадка якоря в узел иначе "
+     "не попадают ни на один беспилотный кадр.",
      DoorRead::Once},
     {"DFN_HOUSE_DEMO",
      "поставить в графе маленький сруб (четыре стойки, обвязка, пол, стена) — тело "

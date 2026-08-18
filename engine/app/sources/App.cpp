@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 19:08:2026 - 00:12:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -563,6 +563,7 @@ UPD:
 - 18:08:2026 - 21:38:05: Коллайдер постройки из ТЕХ ЖЕ треугольников, что и картинка; в том же прогоне печатается луч сквозь дом и контрольный луч в стороне.
 - 18:08:2026 - 22:26:40: Тело постройки делится по материалу на каркас и полотна; цвет по виду элемента назван временной заменой материалу.
 - 18:08:2026 - 23:20:00: Прицел упирается и в ПОСТРОЙКУ (иначе луч уходил сквозь стену в землю за ней, и щелчок по стене отказывался по дальности); блок цифр редактора ушёл под F3, режим называет жёлтый значок.
+- 19:08:2026 - 00:12:30: Дверь DFN_HOUSE_GRID; призрак рисуется своим цветом.
 */
 
 #include "engine/app/sources/App.h"
@@ -3726,6 +3727,21 @@ int App::run() {
             // щелчка. Тело постройки иначе не попадает ни на один беспилотный
             // кадр: пустой граф рисует пустоту, а построить дом мышью прогон не
             // умеет (правило 27).
+            // ДВЕРЬ: DFN_HOUSE_GRID=<шаг> — сетка на беспилотном прогоне.
+            // Без неё ни один кадр не может показать ни отсечек, ни того, как
+            // якорь садится в узел.
+            static const float grid_door = [] {
+                const char* v = door_value("DFN_HOUSE_GRID");
+                return v != nullptr ? static_cast<float>(std::atof(v)) : 0.0f;
+            }();
+            static bool grid_door_used = false;
+            if (grid_door > 0.0f && !grid_door_used) {
+                grid_door_used = true;
+                house_.set_grid_step_m(grid_door);
+                house_.set_grid_on(true);
+                std::fprintf(stderr, "[постройка] дверь DFN_HOUSE_GRID: шаг %.2f м\n",
+                             static_cast<double>(house_.grid_step_m()));
+            }
             static const bool demo_door = door_value("DFN_HOUSE_DEMO") != nullptr;
             static bool demo_door_used = false;
             if (demo_door && !demo_door_used) {
@@ -4810,6 +4826,17 @@ int App::run() {
                 for (std::size_t i = 0; i + 1 < want.polyline->size(); ++i) {
                     renderer_->debug_line((*want.polyline)[i], (*want.polyline)[i + 1],
                                           col);
+                }
+            }
+            // ПРИЗРАК — СВОИМ ЦВЕТОМ И ПАРАМИ. Отдельная стопка появилась
+            // после кадра пользователя, на котором жёлтых шариков оказалось
+            // два: выбранный якорь и будущий, оба в стопке подсветки.
+            if (want.ghost_pairs != nullptr) {
+                const std::uint32_t gc = want.ghost_color != 0 ? want.ghost_color
+                                                               : 0xFF60E080u;
+                for (std::size_t i = 0; i + 1 < want.ghost_pairs->size(); i += 2) {
+                    renderer_->debug_line((*want.ghost_pairs)[i],
+                                          (*want.ghost_pairs)[i + 1], gc);
                 }
             }
             if (want.handles != nullptr) {
