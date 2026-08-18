@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 00:31:05
+Last updated: 19:08:2026 - 00:48:20
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 18:08:2026 - 23:20:00: Призрак якоря садится в узел сетки; pick_element_ray отдаёт расстояние прицелу.
 - 19:08:2026 - 00:12:30: Шарик и отвес призрака уехали из стопки подсветки в свою.
 - 19:08:2026 - 00:31:05: Стопка призрака чистится в начале показа: без этой строки шарик добавлялся каждый кадр и рендерер ронял линии пачками.
+- 19:08:2026 - 00:48:20: Метка двигаемого якоря вместо призрака: крест по трём осям, формой отличается от шарика.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1033,7 +1034,22 @@ ToolPreview HouseVertexTool::preview(const ToolAim& aim) const {
 
     // ПРИЗРАК ТОЙ ВЕРШИНЫ, КОТОРУЮ ПОСТАВИТ ЭТОТ ЩЕЛЧОК, с её собственным
     // отвесом. Без него человек узнаёт высоту постановки ПОСЛЕ постановки.
-    if (dragging_ == NO_VERTEX && aim.in_reach) {
+    // ПРАВЯТ СТРЕЛКАМИ — ПОД ПРИЦЕЛОМ НИЧЕГО НЕ РИСУЕТСЯ, помечается двигаемый
+    // якорь. Довод целиком у HouseSession::nudging().
+    if (session_->nudging()) {
+        if (const VertexId sel = session_->selected_vertex(); sel != NO_VERTEX) {
+            // МЕТКА, А НЕ ВТОРОЙ ШАРИК: крест по трём осям вокруг якоря. Он
+            // отличается от шарика формой, и потому не спорит с ним за смысл.
+            const glm::vec3 p = session_->vertex_world(sel);
+            const float r = HOUSE_BALL_R_M * 2.5f;
+            ghost_pairs_.push_back(p - glm::vec3{r, 0.0f, 0.0f});
+            ghost_pairs_.push_back(p + glm::vec3{r, 0.0f, 0.0f});
+            ghost_pairs_.push_back(p - glm::vec3{0.0f, r, 0.0f});
+            ghost_pairs_.push_back(p + glm::vec3{0.0f, r, 0.0f});
+            ghost_pairs_.push_back(p - glm::vec3{0.0f, 0.0f, r});
+            ghost_pairs_.push_back(p + glm::vec3{0.0f, 0.0f, r});
+        }
+    } else if (dragging_ == NO_VERTEX && aim.in_reach) {
         // ПРИЗРАК — ОБЕЩАНИЕ ЩЕЛЧКА, и за пределом дальности его нет. Сама
         // постройка выше построена уже и никуда не денется: она факт.
         //
