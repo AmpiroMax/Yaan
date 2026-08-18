@@ -30,6 +30,10 @@
 # - 10:08:2026 - 02:59:28: test_forest_stand (LANDSCAPE §8.1: stand selector
 #                          byte-identity guard + LF-1/LF-2 acceptances with
 #                          their Rule 30 controls).
+# - 18:08:2026 - 16:51:17: test_house_graph — первый срез постройки-гиперграфа. Держит то, ради чего
+#   модель затевалась: связи существуют и их видно, занятую вершину нельзя
+#   удалить молча. Гиперребро проверяется ОТДЕЛЬНО от мультиребра — это разные
+#   вещи, и путаница между ними однажды разложит пол на пары.
 
 # - 10:08:2026 - 20:06:10: test_find_occlusion (BR-5's composed-scene
 #                          ray-vs-disc instrument with its bare-terrain
@@ -94,6 +98,13 @@ add_dfn_test(test_chunk_streaming core/ChunkManagerTests.cpp dfn_world)
 add_dfn_test(test_voxel core/VoxelTests.cpp dfn_world)
 add_dfn_test(test_world_format core/WorldFormatTests.cpp dfn_world)
 add_dfn_test(test_scene core/SceneTests.cpp dfn_world)
+
+# ПОСТРОЙКА КАК ГИПЕРГРАФ, первый срез. Держит то, ради чего модель затевалась:
+# связи существуют и их видно (выбрал вершину — вот её элементы), а занятую
+# вершину нельзя удалить молча. Гиперребро проверяется отдельно от мультиребра:
+# это разные вещи, и путать их — значит однажды разложить пол на пары и потерять
+# «выбрал пол — подсветились его вершины».
+add_dfn_test(test_house_graph core/HouseGraphTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_mountain_horizon core/MountainHorizonTests.cpp dfn_world)

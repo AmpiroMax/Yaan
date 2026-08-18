@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 17:08:2026 - 19:05:00
+# Last updated: 18:08:2026 - 16:48:47
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -72,6 +72,11 @@
 #                          формат-сиделка рядом со .scene, а Worldgen.cpp и без
 #                          того держит стек проходов целиком.
 
+# - 18:08:2026 - 16:48:47: HouseGraph.cpp — постройка как ГИПЕРГРАФ (docs/DESIGN_HOUSE_GRAPH.md).
+#   Живёт в world, а не в editor, по той же причине, по которой здесь живёт
+#   Scene: это ДАННЫЕ МИРА, которые редактор правит, а судья проверяет. Модель в
+#   зоне редактора была бы моделью, недоступной судье.
+
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
@@ -79,6 +84,7 @@ add_library(dfn_world STATIC
     sources/LayoutLoad.cpp
     sources/ReliefLayer.cpp
     sources/SaveDelta.cpp
+    sources/HouseGraph.cpp
     sources/Scene.cpp
     sources/SceneHouseRules.cpp
     sources/SceneStairRules.cpp
