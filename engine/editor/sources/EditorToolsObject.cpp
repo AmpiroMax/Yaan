@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:50
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 19:08:2026 - 01:20:45
 Module: engine/editor
 File: engine/editor/sources/EditorToolsObject.cpp
 
@@ -34,6 +34,7 @@ UPD:
   отклик.
 - 18:08:2026 - 19:44:10: Выбор якоря и прямой тем же инструментом, что выбирает объекты; часть постройки имеет приоритет над объектом сцены.
 - 18:08:2026 - 20:26:30: Выбор стены по её контуру; за пределом дальности инструменты прячут своё обещание сами.
+- 19:08:2026 - 01:20:45: Инструмент выбора рисует проволоку постройки (подсветка выбранного видна и с рамкой в руке), открывает свои настройки и показывает в них СВОЙСТВА ВЫБРАННОГО.
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"
@@ -79,9 +80,12 @@ void SelectTool::on_press(const ToolAim& aim, ToolWorld& world) {
         } else {
             house_->select_element(h.element);
         }
-        // Панель свойств объекта здесь НЕ открывается: выбран не объект сцены,
-        // и открывать чужую панель значило бы повторить ту самую жалобу
-        // «открывается меню инструмента, которым я не пользуюсь».
+        // И СВОИ НАСТРОЙКИ ОТКРЫВАЮТСЯ: draw_settings этого инструмента
+        // показывает СВОЙСТВА ВЫБРАННОГО (заказ 19.08 — «мне надо видеть
+        // свойства объекта, а не меню инструмента»), так что панель — не чужая.
+        if (world.open_own_settings) {
+            world.open_own_settings();
+        }
         return;
     }
     if (!world.select_target) {
@@ -99,17 +103,27 @@ void SelectTool::on_press(const ToolAim& aim, ToolWorld& world) {
 }
 
 ToolPreview SelectTool::preview(const ToolAim& aim) const {
-    // ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЭТОТ ИНСТРУМЕНТ НЕ РИСУЕТ НИЧЕГО: вся его картинка —
-    // обещание щелчка, а щелчок туда не достанет.
-    if (!aim.in_reach) {
-        return ToolPreview{};
-    }
-
-    (void)aim;
     ToolPreview out;
-    // NO GHOST WHILE SELECTING: a part standing in front of the thing being
-    // picked is a second answer to «что я сейчас трогаю».
-    out.target_probe = true;
+    // ПРОВОЛОКА ПОСТРОЙКИ РИСУЕТСЯ И У ИНСТРУМЕНТА ВЫБОРА — И ЗА ПРЕДЕЛОМ
+    // ДАЛЬНОСТИ ТОЖЕ: дом и подсветка выбранного — ФАКТЫ, а не обещания щелчка.
+    // Без этого выбранная стена не подсвечивалась ВОВСЕ (заказ 19.08: «не
+    // подсвечивает контуры выбранного объекта, сложно понять, выбрал ли я
+    // что-то»): подсветка жила в стопке проволоки, а проволоку строили только
+    // инструменты постройки — с рамкой в руке её не строил никто.
+    if (house_ != nullptr) {
+        wire_.clear();
+        HouseGroundFn ground;
+        if (world_ != nullptr && world_->ground_height) {
+            ground = world_->ground_height;
+        }
+        build_house_wire(*house_, ground, wire_);
+        out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
+        out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
+        out.line_color = HOUSE_WIRE_COLOR;
+        out.accent_color = HOUSE_ACCENT_COLOR;
+    }
+    // Проба цели — обещание, и она одна здесь подчиняется дальности.
+    out.target_probe = aim.in_reach;
     return out;
 }
 
@@ -126,6 +140,14 @@ ToolStatus SelectTool::status(const ToolAim& aim) const {
 }
 
 void SelectTool::draw_settings() {
+    // СНАЧАЛА ВЫБРАННОЕ В ПОСТРОЙКЕ: если выбран якорь или элемент, панель
+    // показывает ИХ свойства. Иначе — свойства расстановки, как раньше.
+    if (house_ != nullptr
+        && (house_->selected_vertex() != world::NO_VERTEX
+            || house_->selected_element() != world::NO_ELEMENT)) {
+        draw_house_selection_panel(*house_);
+        return;
+    }
     if (model_ != nullptr) {
         draw_props_panel(*model_, hooks_);
     }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:10
-Last updated: 18:08:2026 - 20:26:30
+Last updated: 19:08:2026 - 01:20:45
 Module: engine/editor
 File: engine/editor/sources/EditorToolsBuiltin.h
 
@@ -51,6 +51,7 @@ UPD:
   подгруженным кольцом от кисти, наведённой не туда.
 - 18:08:2026 - 19:44:10: Инструмент выбора знает постройку: house_target — якорь или ось под лучом.
 - 18:08:2026 - 20:26:30: Инструмент выбора берёт любой элемент, не только прямую.
+- 19:08:2026 - 01:20:45: У SelectTool своя проволока постройки.
 */
 
 #pragma once
@@ -168,6 +169,7 @@ private:
     PropsHooks hooks_;
     const ToolWorld* world_ = nullptr;
     HouseSession* house_ = nullptr;
+    mutable HouseWire wire_; ///< проволока постройки: подсветка выбранного
 };
 
 /// 4 — постройка. Owns the ghost's lifetime through the world hooks: putting

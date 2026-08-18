@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 19:08:2026 - 01:20:45
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -34,6 +34,7 @@ UPD:
 - 18:08:2026 - 19:44:10: Ползунок правит то же число, что и колесо, через set_pull_m.
 - 18:08:2026 - 22:20:15: Свойства выбранного элемента — один блок на три панели: полутолщина, толщина, высота, поворот текстуры, разворот лица, удаление.
 - 18:08:2026 - 23:20:00: Блок сетки и точных координат якоря — один на три панели.
+- 19:08:2026 - 01:20:45: PushID на сетку и блок выбранного (ImGui кричал про конфликт ID — подписи ползунков совпадали с инструментными); draw_house_selection_panel — панель выбранного для инструмента выбора.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -74,6 +75,10 @@ void draw_refusal(const std::string& text) {
 /// кратна шагу, а не там, где начали строить. Один шаг на всё — по нему
 /// прилипает якорь, им же шагают стрелки, его же рисуют отсечки на земле.
 static void draw_grid_and_coords(HouseSession& session) {
+    // СВОЯ ОБЛАСТЬ ИМЁН: ползунки ниже повторяют подписи ползунков инструмента
+    // («Толщина», «Поворот текстуры»), и без PushID ImGui честно кричал
+    // «2 visible items with conflicting ID» — кадр пользователя 19.08.
+    ImGui::PushID("house.grid");
     bool on = session.grid_on();
     if (ImGui::Checkbox(EditorUi::tr("house.grid"), &on)) {
         session.set_grid_on(on);
@@ -86,6 +91,7 @@ static void draw_grid_and_coords(HouseSession& session) {
 
     const world::VertexId sel = session.selected_vertex();
     if (sel == world::NO_VERTEX) {
+        ImGui::PopID();
         return;
     }
     // КООРДИНАТЫ ЧИТАЮТСЯ ИЗ МИРА И ПИШУТСЯ В МИР. Внутри граф хранит местные
@@ -106,6 +112,7 @@ static void draw_grid_and_coords(HouseSession& session) {
         v != nullptr && v->anchoring == world::Anchoring::OnGround) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.coords.ground"));
     }
+    ImGui::PopID();
 }
 
 /// СВОЙСТВА ВЫБРАННОГО ЭЛЕМЕНТА — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
@@ -118,6 +125,8 @@ static void draw_grid_and_coords(HouseSession& session) {
 /// когда к стене добавят свойство, — и человек, открывший не ту панель, решил
 /// бы, что свойства у стены нет.
 static void draw_selected_element(HouseSession& session) {
+    ImGui::PushID("house.selected"); // та же причина, что у сетки выше
+    const struct PopGuard { ~PopGuard() { ImGui::PopID(); } } pop_guard;
     const world::ElementId id = session.selected_element();
     if (id == world::NO_ELEMENT) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.noelem"));
@@ -171,6 +180,16 @@ static void draw_selected_element(HouseSession& session) {
 }
 
 } // namespace
+
+void draw_house_selection_panel(HouseSession& session) {
+    // ПАНЕЛЬ ВЫБРАННОГО — ДЛЯ ИНСТРУМЕНТА ВЫБОРА (заказ 19.08: «когда я выбираю
+    // объект, справа должно рисоваться меню свойств этого объекта, а не меню
+    // инструмента»). Тот же код, что в панелях постройки: третья копия этих
+    // полей разошлась бы с первыми двумя.
+    draw_grid_and_coords(session);
+    ImGui::Separator();
+    draw_selected_element(session);
+}
 
 void HouseVertexTool::draw_settings() {
     // ВЫСОТА НАД ЗЕМЛЁЙ — ГЛАВНЫЙ ОРГАН ЭТОГО ИНСТРУМЕНТА. Ноль заземляет
