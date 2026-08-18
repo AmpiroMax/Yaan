@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 11:52:10
-Last updated: 18:08:2026 - 13:08:07
+Last updated: 18:08:2026 - 18:02:11
 Module: engine/editor
 File: engine/editor/sources/EditorTool.h
 
@@ -68,6 +68,15 @@ UPD:
   ToolWorld получил ground_height (положить линию на землю), relief_paths /
   commit_path (прочитать и записать тропы) и last_dab (числа последнего мазка —
   счётчик вернулся из мёртвой панели кисти в настройки самой кисти).
+- 18:08:2026 - 18:02:11: ДВЕ ДОБАВКИ ПОД ПОСТРОЙКУ, и обе — про то, чего рисовальщик сегодня
+  сделать не может. (1) ToolPreview::accent — ВТОРОЙ список отрезков со СВОИМ
+  цветом. Подсветка выбора («выбрал вершину — светятся её элементы») это ответ
+  на вопрос «что я выбрал», и одним цветом на всё она не выражается: выбранное
+  и невыбранное стали бы одинаковыми. (2) IEditorTool::on_confirm/on_cancel —
+  у инструмента поверхности есть состояние, которое НАКАПЛИВАЕТСЯ между
+  щелчками (обход по якорям), и заканчивается оно не щелчком, а отдельным
+  словом. Без этих двух глаголов «Enter — создать» пришлось бы вешать на
+  сравнение с именем инструмента снаружи — то самое седьмое место.
 */
 
 #pragma once
@@ -147,6 +156,13 @@ struct ToolPreview {
     const std::vector<glm::vec3>* handles = nullptr;
     /// 0xAABBGGRR для обеих. Ноль — «цвет по умолчанию решает рисующий».
     std::uint32_t line_color = 0;
+    /// ВТОРОЙ СПИСОК ОТРЕЗКОВ, ПАРАМИ, СО СВОИМ ЦВЕТОМ — подсветка. Тот же
+    /// формат, что у handles, и рисуется тем же кодом; разделены они не по
+    /// форме, а по СМЫСЛУ: accent отвечает на вопрос «что выбрано», и ответ на
+    /// него обязан отличаться от остального на глаз. Один список с одним цветом
+    /// показал бы выбранную стену ровно так же, как невыбранную.
+    const std::vector<glm::vec3>* accent = nullptr;
+    std::uint32_t accent_color = 0;
     /// THE BRUSH THE RING IS DRAWN FOR, or null for no ring. A pointer to the
     /// tool's OWN brush rather than a radius: brush_outline() bisects the rim
     /// out of brush_weight(), and handing over a number here would let the ring
@@ -299,6 +315,13 @@ public:
         (void)aim;
         return ToolStatus{identity().hint_key, {}, true};
     }
+
+    /// ГОТОВО / БРОСИТЬ. Для инструмента, у которого есть состояние, копящееся
+    /// между щелчками (обход по якорям у поверхности): такой набор кончается не
+    /// щелчком по миру, а отдельным словом. По умолчанию оба ничего не делают —
+    /// у инструмента без накопления нечего подтверждать.
+    virtual void on_confirm(ToolWorld& world) { (void)world; }
+    virtual void on_cancel(ToolWorld& world) { (void)world; }
 
     /// Do the arrow keys turn the part in hand for this tool? Asked instead of
     /// «is the object list open», which is what armed two owners of one button.

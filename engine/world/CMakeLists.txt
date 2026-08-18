@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 17:54:03
+# Last updated: 18:08:2026 - 18:05:07
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -93,6 +93,13 @@
 #   библиотеку типов попадать не должно — тип ставится в десяти местах, и его
 #   дефект размножится прежде, чем кто-нибудь заметит.
 
+# - 18:08:2026 - 18:05:07: HouseStyle.cpp — СТИЛЬ СТЕНЫ КАК ПРАВИЛО ПОРОЖДЕНИЯ и укладчик по
+#   нему (docs/DESIGN_HOUSE_GRAPH.md §2.4/§5.7). Отдельным файлом от HouseMesh,
+#   потому что это РАЗНЫЕ вопросы: укладчик отвечает «что где стоит на стене»
+#   (доска от и до, раскос под углом, проём в такой-то точке), построитель — «из
+#   каких треугольников это сделано». Раскладка проверяется числами БЕЗ окна, и
+#   она не знает ни про вершины, ни про нормали.
+
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
@@ -102,6 +109,7 @@ add_library(dfn_world STATIC
     sources/SaveDelta.cpp
     sources/HouseFile.cpp
     sources/HouseMesh.cpp
+    sources/HouseStyle.cpp
     sources/HouseGraph.cpp
     sources/HouseRegister.cpp
     sources/Scene.cpp

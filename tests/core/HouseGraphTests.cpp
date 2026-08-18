@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 17:54:03
+Last updated: 18:08:2026 - 18:26:06
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -38,6 +38,11 @@ UPD:
   сторона (ловится только обходом всех пар) и отдельным заходом ЗАМЫКАЮЩАЯ: у
   замкнутого контура последняя пара считается через возврат к началу, и её
   легко потерять именно на этом.
+- 18:08:2026 - 18:26:06: случай про запись после удалений. Изъян нашла ЗОНА ИНСТРУМЕНТОВ, замером
+  отмены: писатель перебирал имена по счётчику живых, а имена не
+  переиспользуются — после «поставил 5, удалил 4» выживает v5, цикл смотрел
+  1..2, снимок выходил ПУСТЫМ, и cmd+Z стирал постройку. Читатель на пустой
+  файл не жалуется, поэтому круговой прогон выглядел успешным.
 */
 
 #include <doctest/doctest.h>
@@ -675,4 +680,109 @@ TEST_CASE("вырезание переносит вершины на осях в
     CHECK(type.vertex_count() == 4);
     CHECK(type.element_count() == 2);
     CHECK(type.resolved_local(3).y == doctest::Approx(3.0f));
+}
+
+TEST_CASE("запись переживает удаления: имена не выводятся из счётчика") {
+    // ПОЙМАНО РУКАВОМ ИНСТРУМЕНТОВ, А НЕ МНОЙ. Писатель перебирал имена
+    // 1..vertex_count+element_count+1 — а имена при удалении НЕ
+    // переиспользуются, поэтому у выживших они больше их числа. Завёл пять,
+    // удалил четыре — уцелевшая зовётся v5, перебор доходил до v1, снимок
+    // выходил ПУСТЫМ, читатель на пустой файл не жалуется, и cmd+Z СТИРАЛ
+    // постройку.
+    HouseGraph g;
+    std::vector<VertexId> all;
+    for (int i = 0; i < 5; ++i) {
+        all.push_back(g.add_vertex(Anchoring::OnGround,
+                                   {static_cast<float>(i), 0.0f, 0.0f}));
+    }
+    for (int i = 0; i < 4; ++i) {
+        REQUIRE(g.remove_vertex(all[static_cast<std::size_t>(i)]).ok);
+    }
+    REQUIRE(g.vertex_count() == 1);
+
+    const std::string text = dfn::world::write_house(g);
+    HouseGraph back;
+    REQUIRE(dfn::world::read_house(text, back).ok);
+    // ВЫЖИВШАЯ ВЕРШИНА НА МЕСТЕ. Без этого утверждения пустой снимок выглядел
+    // бы как успешный круговой прогон: пустое пишется и читается прекрасно.
+    CHECK(back.vertex_count() == 1);
+    CHECK(back.vertex(1) != nullptr);
+    CHECK(back.vertex(1)->local.x == doctest::Approx(4.0f));
+
+    // И то же для элементов: удалили ранние, уцелел поздний.
+    HouseGraph h;
+    const VertexId a = h.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = h.add_vertex(Anchoring::OnGround, {1.0f, 0.0f, 0.0f});
+    ElementId e1 = 0;
+    ElementId e2 = 0;
+    ElementId e3 = 0;
+    REQUIRE(h.add_element(ElementKind::Line, {a, b}, "oak", e1).ok);
+    REQUIRE(h.add_element(ElementKind::Line, {a, b}, "pine", e2).ok);
+    REQUIRE(h.add_element(ElementKind::Line, {a, b}, "stone", e3).ok);
+    REQUIRE(h.remove_element(e1).ok);
+    REQUIRE(h.remove_element(e2).ok);
+
+    HouseGraph hb;
+    REQUIRE(dfn::world::read_house(dfn::world::write_house(h), hb).ok);
+    CHECK(hb.element_count() == 1);
+}
+
+TEST_CASE("ЗАПИСЬ ПОСЛЕ УДАЛЕНИЙ: имя больше числа живых — и всё равно в файле") {
+    // НАЙДЕНО ЗОНОЙ ИНСТРУМЕНТОВ ПОСТРОЙКИ, ЗАМЕРОМ (18.08.2026). write_house
+    // перебирал возможные имена от 1 до vertex_count() + element_count() + 1,
+    // то есть угадывал наибольшее ВЫДАННОЕ имя по числу ЖИВЫХ. Имена не
+    // переиспользуются, поэтому после удалений выжившие сидят ВЫШЕ этой
+    // границы и не попадали в файл вовсе.
+    //
+    // ЦЕНА, И ОНА ВСЯ В СЛОВЕ «МОЛЧА»: отмена хранит состояние ЭТИМ текстом
+    // (EditorHistory через snapshot()), read_house на «# dfh 1\n» не жалуется —
+    // файл формально безупречен, в нём просто ничего нет, — и cmd+Z после
+    // нескольких удалений возвращал ПУСТУЮ постройку без единого отказа.
+    //
+    // КОНТРОЛЬ ЗДЕСЬ — ВТОРАЯ ПОЛОВИНА СЛУЧАЯ, А НЕ ОТДЕЛЬНЫЙ ТЕСТ: тот же
+    // граф ДО удалений проходил и на сломанном коде, поэтому проверка на нём
+    // не различала бы ничего (правило 30).
+    using namespace dfn::world;
+    HouseGraph g;
+    std::vector<VertexId> made;
+    for (int i = 0; i < 5; ++i) {
+        made.push_back(g.add_vertex(Anchoring::OnGround,
+                                    {static_cast<float>(i), 0.0f, 0.0f}));
+    }
+    // Контроль: пока ничего не удалено, старый перебор был прав, и новый обязан
+    // дать то же самое.
+    {
+        HouseGraph back;
+        REQUIRE(read_house(write_house(g), back).ok);
+        CHECK(back.vertex_count() == 5u);
+    }
+    for (int i = 0; i < 4; ++i) {
+        REQUIRE(g.remove_vertex(made[static_cast<std::size_t>(i)]).ok);
+    }
+    REQUIRE(g.vertex_count() == 1u);
+    const VertexId survivor = made.back();
+    REQUIRE(survivor > static_cast<VertexId>(g.vertex_count() + g.element_count() + 1));
+
+    const std::string text = write_house(g);
+    INFO("снимок: ", text);
+    // Имя выжившей ОБЯЗАНО быть в файле. Именно эта строка и пропадала:
+    // снимок был «# dfh 1\n» целиком.
+    CHECK(text.find("vertex v" + std::to_string(survivor) + ' ') != std::string::npos);
+
+    HouseGraph back;
+    const auto r = read_house(text, back);
+    REQUIRE_MESSAGE(r.ok, r.why);
+    REQUIRE(back.vertex_count() == 1u);
+    // Содержательно: доехала именно она, со своим местом.
+    REQUIRE(back.vertices().size() == 1u);
+    CHECK(back.vertices()[0].local.x == doctest::Approx(4.0f));
+
+    // ИМЕНА ПРИ ЧТЕНИИ ВЫДАЮТСЯ ЗАНОВО (имя в файле — подпись, а не номер), так
+    // что побайтово сходится ВТОРОЙ прогон, а не первый. Проверяется именно он:
+    // требовать равенства с `text` значило бы требовать, чтобы чтение хранило
+    // дыры в нумерации, чего оно не делает и делать не обязано.
+    const std::string text2 = write_house(back);
+    HouseGraph back2;
+    REQUIRE(read_house(text2, back2).ok);
+    CHECK(write_house(back2) == text2);
 }

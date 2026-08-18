@@ -1,0 +1,1032 @@
+/*
+Created: 18:08:2026 - 18:02:11
+Last updated: 18:08:2026 - 18:02:11
+Module: engine/editor
+File: engine/editor/sources/EditorToolHouse.cpp
+
+Responsibility:
+- РЕШЕНИЯ трёх инструментов постройки, объявленных в EditorToolHouse.h: куда
+  попал щелчок, что от него изменилось в графе, что нарисовать в мире и что
+  сказать подписью. Ни строки про ImGui и ни строки про окно — панели живут в
+  EditorToolHouseUi.cpp, и разрез проведён ровно затем, чтобы рукав
+  app_editor_house мог спросить всё, что здесь решается (правило 3).
+
+Dependencies:
+- Uses: EditorToolHouse.h, engine/world (HouseGraph, HouseFile, HouseMesh), glm.
+- Used by: engine/app, tests/app/EditorToolHouseTests.cpp.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- ВСЯ ПРАВКА ГРАФА — ЧЕРЕЗ HouseSession::mutate. Она и только она пишет снимок
+  для отмены; правка мимо неё создаёт шаг, которого отмена не увидит.
+- НОРМАЛЬ ЧЕРНОВИКА СЧИТАЕТСЯ ТЕМ ЖЕ СПОСОБОМ, ЧТО У ГОТОВОГО ЭЛЕМЕНТА
+  (world::surface_normal): контур — fit_contour_plane, цепочка — поперечина к
+  первому отрезку. Разойдись эти две формулы — и стрелка станет врать ровно в
+  тот момент, когда на неё смотрят.
+*/
+/*
+UPD:
+- 18:08:2026 - 18:02:11: Создан вместе с EditorToolHouse.h.
+*/
+
+#include "engine/editor/sources/EditorToolHouse.h"
+
+#include "engine/world/sources/HouseFile.h"
+#include "engine/world/sources/HouseMesh.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <glm/geometric.hpp>
+
+namespace dfn::app {
+namespace {
+
+using world::Anchoring;
+using world::Element;
+using world::ElementId;
+using world::ElementKind;
+using world::GraphResult;
+using world::HouseGraph;
+using world::NO_ELEMENT;
+using world::NO_VERTEX;
+using world::Vertex;
+using world::VertexId;
+
+constexpr float DEG2RAD = 3.14159265358979323846f / 180.0f;
+constexpr float RAD2DEG = 180.0f / 3.14159265358979323846f;
+/// Сколько отрезков в кольце шарика. Восемь: девятый на шарике в 10 см уже
+/// короче пикселя с той дистанции, с которой шарик вообще виден.
+constexpr int BALL_SEGMENTS = 8;
+
+/// Имя элемента так, как его пишет файл (HouseFile: e1, e2, ...). Отказ на
+/// удаление называет держателей ИМЕНАМИ ИЗ ФАЙЛА, а не номерами из головы:
+/// человек, которому сказали «держит e7», может найти e7 глазами в .dfh.
+std::string ename(ElementId id) {
+    char buf[24];
+    std::snprintf(buf, sizeof(buf), "e%u", static_cast<unsigned>(id));
+    return buf;
+}
+
+/// Ближайшая точка отрезка к точке, и параметр вдоль него.
+glm::vec3 closest_on_segment(glm::vec3 a, glm::vec3 b, glm::vec3 p, float& t_out) {
+    const glm::vec3 ab = b - a;
+    const float len2 = glm::dot(ab, ab);
+    if (len2 < 1e-8f) {
+        t_out = 0.0f;
+        return a;
+    }
+    const float t = std::clamp(glm::dot(p - a, ab) / len2, 0.0f, 1.0f);
+    t_out = t;
+    return a + ab * t;
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
+// Отрезки картинки
+// ---------------------------------------------------------------------------
+
+void append_ball(std::vector<glm::vec3>& seg, glm::vec3 centre, float radius_m) {
+    // ТРИ КОЛЬЦА В ТРЁХ ПЛОСКОСТЯХ. Одно кольцо с любого ракурса вырождается в
+    // отрезок, два оставляют направление, с которого шарик выглядит крестом;
+    // три читаются как объём при любом повороте камеры.
+    const glm::vec3 axes[3][2] = {
+        {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        {{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+    };
+    for (const auto& pair : axes) {
+        glm::vec3 prev = centre + pair[0] * radius_m;
+        for (int i = 1; i <= BALL_SEGMENTS; ++i) {
+            const float a = 2.0f * 3.14159265358979323846f
+                          * static_cast<float>(i) / static_cast<float>(BALL_SEGMENTS);
+            const glm::vec3 cur = centre + pair[0] * (std::cos(a) * radius_m)
+                                        + pair[1] * (std::sin(a) * radius_m);
+            seg.push_back(prev);
+            seg.push_back(cur);
+            prev = cur;
+        }
+    }
+}
+
+int append_plumb(std::vector<glm::vec3>& seg, glm::vec3 from, float ground_y) {
+    // ПУНКТИР, А НЕ СПЛОШНАЯ ЛИНИЯ. Сплошная читается как ЭЛЕМЕНТ постройки —
+    // столб под вершиной, — и человек начинает искать, откуда он взялся.
+    const float drop = from.y - ground_y;
+    if (drop <= HOUSE_PLUMB_DASH_M) {
+        return 0; // вершина на земле: отвесу неоткуда взяться
+    }
+    const float step = HOUSE_PLUMB_DASH_M * 2.0f;
+    const int room = std::min(HOUSE_PLUMB_MAX_DASHES,
+                              static_cast<int>(drop / step) + 1);
+    // ВОЗВРАЩАЕТСЯ ЧИСЛО НАРИСОВАННЫХ ШТРИХОВ, А НЕ ЗАПЛАНИРОВАННЫХ, и разница
+    // не косметическая: планировщик считал 7 при 3 метрах, а рисовалось 6 —
+    // последний штрих упирался в землю и отбрасывался. Прибор, который называет
+    // не то число, что нарисовал, перестаёт быть прибором.
+    int drawn = 0;
+    for (int i = 0; i < room; ++i) {
+        const float top = from.y - static_cast<float>(i) * step;
+        if (top <= ground_y) {
+            break;
+        }
+        const float bottom = std::max(ground_y, top - HOUSE_PLUMB_DASH_M);
+        seg.push_back({from.x, top, from.z});
+        seg.push_back({from.x, bottom, from.z});
+        ++drawn;
+    }
+    return drawn;
+}
+
+void build_house_wire(const HouseSession& s, const HouseGroundFn& ground, HouseWire& out) {
+    const HouseGraph& g = s.graph();
+    const auto lit_element = [&](ElementId id) {
+        const auto& v = s.lit_elements();
+        return id == s.selected_element() || std::find(v.begin(), v.end(), id) != v.end();
+    };
+    const auto lit_vertex = [&](VertexId id) {
+        const auto& v = s.lit_vertices();
+        return id == s.selected_vertex() || std::find(v.begin(), v.end(), id) != v.end();
+    };
+
+    for (const Element& e : g.elements()) {
+        std::vector<glm::vec3>& dst = lit_element(e.id) ? out.accent : out.plain;
+        if (e.kind == ElementKind::Line) {
+            glm::vec3 a{0.0f};
+            glm::vec3 b{0.0f};
+            if (s.line_ends_world(e.id, a, b)) {
+                dst.push_back(a);
+                dst.push_back(b);
+            }
+            continue;
+        }
+        // ПОВЕРХНОСТЬ РИСУЕТСЯ КОНТУРОМ, а не залитой: заливка — работа меша, и
+        // рисовать её здесь значило бы завести вторую геометрию поверхности
+        // рядом с той, что уйдёт в физику.
+        for (std::size_t i = 1; i < e.refs.size(); ++i) {
+            dst.push_back(s.vertex_world(e.refs[i - 1]));
+            dst.push_back(s.vertex_world(e.refs[i]));
+        }
+        if (e.closed && e.refs.size() >= 3) {
+            dst.push_back(s.vertex_world(e.refs.back()));
+            dst.push_back(s.vertex_world(e.refs.front()));
+        }
+    }
+
+    for (const Vertex& v : g.vertices()) {
+        const glm::vec3 p = s.vertex_world(v.id);
+        std::vector<glm::vec3>& dst = lit_vertex(v.id) ? out.accent : out.plain;
+        append_ball(dst, p, HOUSE_BALL_R_M);
+        if (ground) {
+            append_plumb(dst, p, ground({p.x, p.z}));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Сессия
+// ---------------------------------------------------------------------------
+
+glm::vec3 HouseSession::to_world(glm::vec3 local) const {
+    // ЯВНЫЙ ПОВОРОТ ВОКРУГ Y ПО ПРИНЯТОЙ В СЦЕНЕ УСЛОВНОСТИ: локальный +X
+    // смотрит в (cos yaw, -sin yaw). Другая условность здесь означала бы дом,
+    // повёрнутый не туда ровно в тот день, когда его поставят под углом.
+    const float c = std::cos(yaw_);
+    const float sn = std::sin(yaw_);
+    return origin_ + glm::vec3{local.x * c + local.z * sn, local.y,
+                               -local.x * sn + local.z * c};
+}
+
+glm::vec3 HouseSession::to_local(glm::vec3 world) const {
+    const glm::vec3 d = world - origin_;
+    const float c = std::cos(yaw_);
+    const float sn = std::sin(yaw_);
+    return {d.x * c - d.z * sn, d.y, d.x * sn + d.z * c};
+}
+
+glm::vec3 HouseSession::vertex_world(VertexId id) const {
+    return to_world(graph_.resolved_local(id));
+}
+
+std::string HouseSession::snapshot() const { return world::write_house(graph_); }
+
+bool HouseSession::apply_snapshot(const std::string& text) {
+    const world::HouseIoResult r = world::read_house(text, graph_);
+    // ВЫБОР ПЕРЕСОБИРАЕТСЯ ПОСЛЕ ЧТЕНИЯ, а не сохраняется как был: имена вершин
+    // после чтения те же (файл ссылается по именам), но выбранной вершины в
+    // снимке могло не быть вовсе — она появилась ПОСЛЕ него.
+    refresh_selection();
+    return r.ok;
+}
+
+void HouseSession::record(std::string label, const std::string& before) {
+    if (history_ == nullptr) {
+        return;
+    }
+    history_->record(std::move(label), before, snapshot());
+}
+
+void HouseSession::select_vertex(VertexId id) {
+    sel_vertex_ = id;
+    sel_element_ = NO_ELEMENT;
+    refresh_selection();
+}
+
+void HouseSession::select_element(ElementId id) {
+    sel_element_ = id;
+    sel_vertex_ = NO_VERTEX;
+    refresh_selection();
+}
+
+void HouseSession::clear_selection() {
+    sel_vertex_ = NO_VERTEX;
+    sel_element_ = NO_ELEMENT;
+    lit_elements_.clear();
+    lit_vertices_.clear();
+}
+
+void HouseSession::refresh_selection() {
+    lit_elements_.clear();
+    lit_vertices_.clear();
+    if (sel_vertex_ != NO_VERTEX) {
+        if (graph_.vertex(sel_vertex_) == nullptr) {
+            sel_vertex_ = NO_VERTEX; // её больше нет: выбор не переживает удаление
+            return;
+        }
+        lit_elements_ = graph_.incident(sel_vertex_);
+        return;
+    }
+    if (sel_element_ != NO_ELEMENT) {
+        const Element* e = graph_.element(sel_element_);
+        if (e == nullptr) {
+            sel_element_ = NO_ELEMENT;
+            return;
+        }
+        lit_vertices_ = e->refs;
+    }
+}
+
+VertexId HouseSession::pick_vertex(glm::vec3 world_point, float grab_m) const {
+    VertexId best = NO_VERTEX;
+    float best_d = grab_m;
+    for (const Vertex& v : graph_.vertices()) {
+        const float d = glm::length(vertex_world(v.id) - world_point);
+        if (d <= best_d) {
+            best_d = d;
+            best = v.id;
+        }
+    }
+    return best;
+}
+
+HouseEdgeHit HouseSession::pick_edge(glm::vec3 world_point, float grab_m) const {
+    HouseEdgeHit best;
+    float best_d = grab_m;
+    for (const Element& e : graph_.elements()) {
+        if (e.kind != ElementKind::Line || e.refs.size() < 2) {
+            // ПРЯМАЯ С ОДНОЙ ВЕРШИНОЙ ОСЬЮ НЕ СЧИТАЕТСЯ, и это не мелочь:
+            // модель разрешает посадить вершину на такую ось, но разрешает её
+            // положение через refs.front()/refs.back(), которых там нет, —
+            // вершина оказалась бы не на оси, а в собственном нуле.
+            continue;
+        }
+        const glm::vec3 a = vertex_world(e.refs.front());
+        const glm::vec3 b = vertex_world(e.refs.back());
+        float t = 0.0f;
+        const glm::vec3 p = closest_on_segment(a, b, world_point, t);
+        const float d = glm::length(p - world_point);
+        if (d <= best_d) {
+            best_d = d;
+            best.host = e.id;
+            best.t = t;
+            best.distance_m = d;
+            best.point = p;
+        }
+    }
+    return best;
+}
+
+bool HouseSession::line_ends_world(ElementId id, glm::vec3& a, glm::vec3& b) const {
+    const Element* e = graph_.element(id);
+    if (e == nullptr || e->kind != ElementKind::Line || e->refs.empty()) {
+        return false;
+    }
+    a = vertex_world(e->refs.front());
+    if (e->refs.size() >= 2) {
+        b = vertex_world(e->refs.back());
+        return true;
+    }
+    // ОДНА ВЕРШИНА — ВТОРОЙ КОНЕЦ ИЗ ЧИСЕЛ, тем же выражением, что у
+    // построителя меша. Иначе призрак и дом разошлись бы на первой же прямой,
+    // проведённой в пустоту.
+    const std::string len = graph_.param(id, "length");
+    if (len.empty()) {
+        return false;
+    }
+    const float length = std::strtof(len.c_str(), nullptr);
+    const std::string ax = graph_.param(id, "angle_x");
+    const std::string ay = graph_.param(id, "angle_y");
+    const glm::vec3 dir = house_dir_from_angles(
+        ax.empty() ? 0.0f : std::strtof(ax.c_str(), nullptr),
+        ay.empty() ? 0.0f : std::strtof(ay.c_str(), nullptr));
+    const glm::vec3 local_a = graph_.resolved_local(e->refs.front());
+    b = to_world(local_a + dir * length);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Углы и числа
+// ---------------------------------------------------------------------------
+
+glm::vec3 house_dir_from_angles(float angle_x_deg, float angle_y_deg) {
+    const float ax = angle_x_deg * DEG2RAD;
+    const float ay = angle_y_deg * DEG2RAD;
+    return {std::sin(ay) * std::sin(ax), std::cos(ax), std::cos(ay) * std::sin(ax)};
+}
+
+void house_angles_from_dir(glm::vec3 dir, float& angle_x_deg, float& angle_y_deg) {
+    const float len = glm::length(dir);
+    if (len < 1e-6f) {
+        angle_x_deg = 0.0f;
+        angle_y_deg = 0.0f;
+        return;
+    }
+    const glm::vec3 d = dir / len;
+    angle_x_deg = std::acos(std::clamp(d.y, -1.0f, 1.0f)) * RAD2DEG;
+    angle_y_deg = std::atan2(d.x, d.z) * RAD2DEG;
+}
+
+std::string house_num(float value) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.4f", static_cast<double>(value));
+    return buf;
+}
+
+// ---------------------------------------------------------------------------
+// 7 — ВЕРШИНЫ
+// ---------------------------------------------------------------------------
+
+ToolIdentity HouseVertexTool::identity() const {
+    return ToolIdentity{"house.vertex", "editor.tool.house.vertex",
+                        "tool.hint.house.vertex", ToolIcon::Select};
+}
+
+float HouseVertexTool::ground_at(glm::vec2 xz, float fallback_y) const {
+    if (world_ != nullptr && world_->ground_height) {
+        return world_->ground_height(xz);
+    }
+    // МИР ВЫСОТЫ НЕ ЗНАЕТ — берём высоту прицела, а не ноль. Ноль утопил бы
+    // постройку на десятки метров, и этот отказ в репозитории уже был (кольцо
+    // кисти под холмом).
+    return fallback_y;
+}
+
+void HouseVertexTool::on_press(const ToolAim& aim, ToolWorld& world) {
+    (void)world;
+    refusal_.clear();
+    if (session_ == nullptr) {
+        return;
+    }
+    if (const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
+        hit != NO_VERTEX) {
+        session_->select_vertex(hit);
+        const Vertex* v = session_->graph().vertex(hit);
+        if (v != nullptr && v->anchoring != Anchoring::OnEdge) {
+            // СНИМОК СНИМАЕТСЯ ЗДЕСЬ, А ЗАПИСЫВАЕТСЯ НА ОТПУСКАНИИ: протаскивание
+            // двигает вершину каждый кадр, и шаг истории на кадр превратил бы
+            // одно движение руки в сотню отмен.
+            dragging_ = hit;
+            drag_before_ = session_->snapshot();
+            const glm::vec3 p = session_->vertex_world(hit);
+            drag_lift_m_ = p.y - ground_at({p.x, p.z}, p.y);
+        }
+        return;
+    }
+    if (const HouseEdgeHit edge = session_->pick_edge(aim.point, HOUSE_EDGE_GRAB_M);
+        edge.hit()) {
+        VertexId made = NO_VERTEX;
+        const GraphResult r = session_->mutate("вершина на оси", [&](HouseGraph& g) {
+            return g.add_vertex_on_edge(edge.host, edge.t, made);
+        });
+        if (r.ok) {
+            session_->select_vertex(made);
+        } else {
+            refusal_ = r.why;
+        }
+        return;
+    }
+    // ЗЕМЛЯ ИЛИ ВОЗДУХ — РЕШАЕТ ОДНО ЧИСЛО. Ноль заземляет вершину (её высоту
+    // берёт рельеф), больше нуля вешает её в воздухе, и тогда у неё появляется
+    // отвес.
+    const float gy = ground_at({aim.point.x, aim.point.z}, aim.point.y);
+    const bool air = air_height_m_ > HOUSE_AIR_EPS_M;
+    const glm::vec3 world_pos{aim.point.x, air ? gy + air_height_m_ : gy, aim.point.z};
+    VertexId made = NO_VERTEX;
+    (void)session_->mutate(air ? "вершина в воздухе" : "вершина по земле",
+                           [&](HouseGraph& g) {
+                               made = g.add_vertex(air ? Anchoring::Free : Anchoring::OnGround,
+                                                   session_->to_local(world_pos));
+                               return GraphResult{};
+                           });
+    session_->select_vertex(made);
+}
+
+void HouseVertexTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) {
+    (void)dt_s;
+    (void)world;
+    if (session_ == nullptr || dragging_ == NO_VERTEX) {
+        return;
+    }
+    // ВЫСОТА ДЕРЖИТСЯ НАД РЕЛЬЕФОМ, а не в мире: якорь, стоявший в двух метрах
+    // над склоном, обязан остаться в двух метрах над склоном и после сдвига.
+    const float gy = ground_at({aim.point.x, aim.point.z}, aim.point.y);
+    const glm::vec3 target{aim.point.x, gy + drag_lift_m_, aim.point.z};
+    (void)session_->graph().move_vertex(dragging_, session_->to_local(target));
+}
+
+void HouseVertexTool::on_release(ToolWorld& world) {
+    (void)world;
+    if (session_ == nullptr || dragging_ == NO_VERTEX) {
+        return;
+    }
+    // ОДИН ШАГ ИСТОРИИ НА ОДНО ДВИЖЕНИЕ РУКИ. Шаг, ничего не сдвинувший
+    // (щёлкнул по якорю и отпустил), история отбрасывает сама — before == after.
+    session_->record("двинул якорь", drag_before_);
+    dragging_ = NO_VERTEX;
+    drag_before_.clear();
+}
+
+void HouseVertexTool::on_deselected(ToolWorld& world) {
+    (void)world;
+    dragging_ = NO_VERTEX;
+    drag_before_.clear();
+    refusal_.clear();
+}
+
+bool HouseVertexTool::delete_selected() {
+    refusal_.clear();
+    if (session_ == nullptr) {
+        return false;
+    }
+    const VertexId id = session_->selected_vertex();
+    if (id == NO_VERTEX) {
+        refusal_ = "якорь не выбран";
+        return false;
+    }
+    const GraphResult r = session_->mutate("убрал якорь", [&](HouseGraph& g) {
+        return g.remove_vertex(id);
+    });
+    if (r.ok) {
+        session_->clear_selection();
+        return true;
+    }
+    // ОТКАЗ СО СПИСКОМ ДЕРЖАТЕЛЕЙ, ИМЕНАМИ ИЗ ФАЙЛА. Голый отказ («нельзя»)
+    // превращает поиск виноватого в обход дома руками; список отвечает на
+    // вопрос «что отвязать», не вставая из кресла.
+    refusal_ = r.why;
+    if (!r.blockers.empty()) {
+        refusal_ += ": ";
+        for (std::size_t i = 0; i < r.blockers.size(); ++i) {
+            if (i != 0) {
+                refusal_ += ", ";
+            }
+            refusal_ += ename(r.blockers[i]);
+        }
+    }
+    return false;
+}
+
+ToolPreview HouseVertexTool::preview(const ToolAim& aim) const {
+    ToolPreview out;
+    wire_.clear();
+    if (session_ == nullptr) {
+        return out;
+    }
+    HouseGroundFn ground;
+    if (world_ != nullptr && world_->ground_height) {
+        ground = world_->ground_height;
+    }
+    build_house_wire(*session_, ground, wire_);
+
+    // ПРИЗРАК ТОЙ ВЕРШИНЫ, КОТОРУЮ ПОСТАВИТ ЭТОТ ЩЕЛЧОК, с её собственным
+    // отвесом. Без него человек узнаёт высоту постановки ПОСЛЕ постановки.
+    if (aim.hit && dragging_ == NO_VERTEX) {
+        const float gy = ground_at({aim.point.x, aim.point.z}, aim.point.y);
+        const bool air = air_height_m_ > HOUSE_AIR_EPS_M;
+        const glm::vec3 ghost{aim.point.x, air ? gy + air_height_m_ : gy, aim.point.z};
+        append_ball(wire_.accent, ghost, HOUSE_BALL_R_M);
+        append_plumb(wire_.accent, ghost, gy);
+    }
+    out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
+    out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
+    out.line_color = HOUSE_WIRE_COLOR;
+    out.accent_color = HOUSE_ACCENT_COLOR;
+    return out;
+}
+
+ToolStatus HouseVertexTool::status(const ToolAim& aim) const {
+    if (!refusal_.empty()) {
+        return ToolStatus{"", refusal_, false};
+    }
+    if (session_ == nullptr) {
+        return ToolStatus{"house.hint.nomodel", {}, false};
+    }
+    if (session_->pick_vertex(aim.point, HOUSE_GRAB_M) != NO_VERTEX) {
+        return ToolStatus{"house.hint.grab", {}, true};
+    }
+    if (session_->pick_edge(aim.point, HOUSE_EDGE_GRAB_M).hit()) {
+        return ToolStatus{"house.hint.onedge", {}, true};
+    }
+    return ToolStatus{air_height_m_ > HOUSE_AIR_EPS_M ? "house.hint.air"
+                                                      : "house.hint.ground",
+                      {}, true};
+}
+
+// ---------------------------------------------------------------------------
+// 8 — ПРЯМАЯ
+// ---------------------------------------------------------------------------
+
+HouseClampHit house_clamp_length(const HouseSession& s, VertexId from, glm::vec3 dir_world,
+                                 float raw_length_m, float axis_tol_m, HouseClamp mode) {
+    HouseClampHit out;
+    if (mode == HouseClamp::None) {
+        return out;
+    }
+    const float dl = glm::length(dir_world);
+    if (dl < 1e-6f) {
+        return out;
+    }
+    const glm::vec3 d = dir_world / dl;
+    const glm::vec3 a = s.vertex_world(from);
+    float best_gap = 0.0f;
+    for (const Vertex& v : s.graph().vertices()) {
+        if (v.id == from) {
+            continue;
+        }
+        const glm::vec3 p = s.vertex_world(v.id);
+        const float proj = glm::dot(p - a, d);
+        if (proj <= 0.0f) {
+            continue; // позади начала — это не «дальше по прямой»
+        }
+        // РАССТОЯНИЕ ДО ОСИ, а не до конца: якорь считается лежащим на этой
+        // прямой, если она проходит рядом с ним, независимо от того, где
+        // сейчас рука.
+        const float off = glm::length(p - (a + d * proj));
+        if (off > axis_tol_m) {
+            continue;
+        }
+        const float gap = proj - raw_length_m;
+        const bool above = gap > 0.0f;
+        if ((mode == HouseClamp::Above) != above) {
+            continue;
+        }
+        const float mag = std::fabs(gap);
+        if (!out.found || mag < best_gap) {
+            out.found = true;
+            best_gap = mag;
+            out.length_m = proj;
+            out.at = v.id;
+        }
+    }
+    return out;
+}
+
+ToolIdentity HouseLineTool::identity() const {
+    return ToolIdentity{"house.line", "editor.tool.house.line", "tool.hint.house.line",
+                        ToolIcon::Path};
+}
+
+void HouseLineTool::update_end(const ToolAim& aim) {
+    raw_end_ = aim.point;
+    clamp_hit_ = HouseClampHit{};
+    if (from_ == NO_VERTEX) {
+        return;
+    }
+    const glm::vec3 a = session_->vertex_world(from_);
+    const glm::vec3 delta = raw_end_ - a;
+    const float len = glm::length(delta);
+    if (len < 1e-4f) {
+        return;
+    }
+    clamp_hit_ = house_clamp_length(*session_, from_, delta, len, HOUSE_CLAMP_AXIS_TOL_M,
+                                    clamp_);
+}
+
+glm::vec3 HouseLineTool::ghost_end() const {
+    if (session_ == nullptr || from_ == NO_VERTEX) {
+        return raw_end_;
+    }
+    const glm::vec3 a = session_->vertex_world(from_);
+    const glm::vec3 delta = raw_end_ - a;
+    const float len = glm::length(delta);
+    if (len < 1e-4f || !clamp_hit_.found) {
+        return raw_end_;
+    }
+    return a + delta / len * clamp_hit_.length_m;
+}
+
+void HouseLineTool::on_press(const ToolAim& aim, ToolWorld& world) {
+    (void)world;
+    refusal_.clear();
+    if (session_ == nullptr) {
+        return;
+    }
+    const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
+    if (hit == NO_VERTEX) {
+        // ПРЯМАЯ НАЧИНАЕТСЯ С ЯКОРЯ И НИ С ЧЕГО ДРУГОГО. Начать её с пустого
+        // места значило бы поставить вершину исподтишка — а вершины ставит
+        // другой инструмент, и он один.
+        refusal_ = "начни с якоря: прямая тянется от вершины";
+        return;
+    }
+    from_ = hit;
+    session_->select_vertex(hit);
+    update_end(aim);
+}
+
+void HouseLineTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) {
+    (void)dt_s;
+    (void)world;
+    if (session_ == nullptr || from_ == NO_VERTEX) {
+        return;
+    }
+    update_end(aim);
+}
+
+void HouseLineTool::on_release(ToolWorld& world) {
+    (void)world;
+    if (session_ == nullptr || from_ == NO_VERTEX) {
+        return;
+    }
+    const VertexId from = from_;
+    // КОНЕЦ ПРИЗРАКА СНИМАЕТСЯ ДО ТОГО, КАК РУКА ОПУСТЕЕТ. Порядок этих двух
+    // строк — не стиль: ghost_end() читает from_, и обнулив его первым, я
+    // получал СЫРОЙ конец вместо зажатого — то есть прямая строилась не той
+    // длины, которую человек видел на экране. Поймано рукавом (зажим «ниже» дал
+    // 3.5 м вместо 2.0 м), а не глазом: на картинке призрак был правильный.
+    const glm::vec3 end = ghost_end();
+    from_ = NO_VERTEX;
+    // ОТПУСТИЛ НА ЯКОРЕ — ЯКОРЯ СОЕДИНИЛИСЬ. Ищем по СЫРОМУ прицелу, а не по
+    // зажатому концу: зажим — про длину, а соединение — про то, куда человек
+    // отпустил руку.
+    const VertexId to = session_->pick_vertex(raw_end_, HOUSE_GRAB_M);
+    ElementId made = NO_ELEMENT;
+    if (to != NO_VERTEX && to != from) {
+        const GraphResult r = session_->mutate("прямая между якорями", [&](HouseGraph& g) {
+            const GraphResult add = g.add_element(ElementKind::Line, {from, to}, style_, made);
+            if (add.ok) {
+                g.set_param(made, "radius", house_num(radius_m_));
+            }
+            return add;
+        });
+        if (!r.ok) {
+            refusal_ = r.why;
+            return;
+        }
+        last_ = made;
+        session_->select_element(made);
+        return;
+    }
+    // ОТПУСТИЛ В ПУСТОТЕ — ПРЯМАЯ С ДЛИНОЙ И УГЛАМИ ИЗ ЖЕСТА. Дальше их правят
+    // числами, и ровно за этим они и записаны числами, а не второй вершиной.
+    const glm::vec3 a_local = session_->graph().resolved_local(from);
+    const glm::vec3 delta = session_->to_local(end) - a_local;
+    const float length = glm::length(delta);
+    if (length < 1e-3f) {
+        refusal_ = "прямая нулевой длины: потяни дальше";
+        return;
+    }
+    float ax = 0.0f;
+    float ay = 0.0f;
+    house_angles_from_dir(delta, ax, ay);
+    const GraphResult r = session_->mutate("прямая по жесту", [&](HouseGraph& g) {
+        const GraphResult add = g.add_element(ElementKind::Line, {from}, style_, made);
+        if (!add.ok) {
+            return add;
+        }
+        g.set_param(made, "length", house_num(length));
+        g.set_param(made, "angle_x", house_num(ax));
+        g.set_param(made, "angle_y", house_num(ay));
+        g.set_param(made, "radius", house_num(radius_m_));
+        return add;
+    });
+    if (!r.ok) {
+        refusal_ = r.why;
+        return;
+    }
+    last_ = made;
+    session_->select_element(made);
+}
+
+void HouseLineTool::on_deselected(ToolWorld& world) {
+    (void)world;
+    from_ = NO_VERTEX;
+    refusal_.clear();
+    clamp_hit_ = HouseClampHit{};
+}
+
+void HouseLineTool::on_cancel(ToolWorld& world) { on_deselected(world); }
+
+ToolPreview HouseLineTool::preview(const ToolAim& aim) const {
+    ToolPreview out;
+    wire_.clear();
+    ghost_.clear();
+    if (session_ == nullptr) {
+        return out;
+    }
+    HouseGroundFn ground;
+    if (world_ != nullptr && world_->ground_height) {
+        ground = world_->ground_height;
+    }
+    build_house_wire(*session_, ground, wire_);
+    if (from_ != NO_VERTEX) {
+        const glm::vec3 a = session_->vertex_world(from_);
+        const glm::vec3 b = ghost_end();
+        ghost_.push_back(a);
+        ghost_.push_back(b);
+        // КОНЕЦ ПРИЗРАКА — ШАРИК С ОТВЕСОМ, как и всякая вершина: конец прямой
+        // висит в воздухе ровно так же, и «над каким местом» про него
+        // спрашивают так же.
+        append_ball(wire_.accent, b, HOUSE_BALL_R_M);
+        if (ground) {
+            append_plumb(wire_.accent, b, ground({b.x, b.z}));
+        }
+    } else {
+        (void)aim;
+    }
+    out.polyline = ghost_.empty() ? nullptr : &ghost_;
+    out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
+    out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
+    out.line_color = HOUSE_ACCENT_COLOR;
+    out.accent_color = HOUSE_ACCENT_COLOR;
+    return out;
+}
+
+ToolStatus HouseLineTool::status(const ToolAim& aim) const {
+    if (!refusal_.empty()) {
+        return ToolStatus{"", refusal_, false};
+    }
+    if (session_ == nullptr) {
+        return ToolStatus{"house.hint.nomodel", {}, false};
+    }
+    if (from_ == NO_VERTEX) {
+        const bool on_anchor = session_->pick_vertex(aim.point, HOUSE_GRAB_M) != NO_VERTEX;
+        return ToolStatus{on_anchor ? "house.hint.line.from" : "house.hint.line.needanchor",
+                          {}, on_anchor};
+    }
+    if (clamp_hit_.found) {
+        // ЗАЖИМ НАЗЫВАЕТ СЕБЯ ЧИСЛОМ. Молча укоротившаяся прямая выглядит как
+        // промах руки, и человек тянет ещё раз — вместо того чтобы понять, что
+        // это и есть заказанное поведение.
+        char buf[96];
+        std::snprintf(buf, sizeof(buf), "зажато до %.2f м (якорь v%u)",
+                      static_cast<double>(clamp_hit_.length_m),
+                      static_cast<unsigned>(clamp_hit_.at));
+        return ToolStatus{"", buf, true};
+    }
+    return ToolStatus{"house.hint.line.drag", {}, true};
+}
+
+// ---------------------------------------------------------------------------
+// 9 — ПОВЕРХНОСТЬ
+// ---------------------------------------------------------------------------
+
+ToolIdentity HouseSurfaceTool::identity() const {
+    return ToolIdentity{"house.surface", "editor.tool.house.surface",
+                        "tool.hint.house.surface", ToolIcon::Place};
+}
+
+bool HouseSurfaceTool::draft_normal(glm::vec3& out) const {
+    if (session_ == nullptr || refs_.size() < 2) {
+        return false;
+    }
+    std::vector<glm::vec3> pts;
+    pts.reserve(refs_.size());
+    for (const VertexId r : refs_) {
+        pts.push_back(session_->graph().resolved_local(r));
+    }
+    if (!closed_ || refs_.size() < 3) {
+        // ЦЕПОЧКА: поперечина к первому отрезку — ТО ЖЕ ВЫРАЖЕНИЕ, что в
+        // world::surface_normal. Стена выдавливается вверх, и её лицо смотрит
+        // вбок, а не вдоль.
+        const glm::vec3 d = pts[1] - pts[0];
+        if (std::sqrt(d.x * d.x + d.z * d.z) < world::HOUSE_GEOM_EPS) {
+            return false;
+        }
+        out = glm::normalize(glm::cross(d, glm::vec3{0.0f, 1.0f, 0.0f}));
+    } else {
+        const world::FittedPlane plane = world::fit_contour_plane(pts);
+        if (plane.degenerate) {
+            return false;
+        }
+        out = plane.normal;
+    }
+    if (flipped_) {
+        out = -out;
+    }
+    // В МИРОВЫЕ: нормаль считалась в координатах постройки, а стрелка рисуется
+    // в мире. Поворот без переноса — нормаль это направление, а не точка.
+    out = session_->to_world(out) - session_->to_world({0.0f, 0.0f, 0.0f});
+    return true;
+}
+
+void HouseSurfaceTool::on_press(const ToolAim& aim, ToolWorld& world) {
+    refusal_.clear();
+    if (session_ == nullptr) {
+        return;
+    }
+    const VertexId hit = session_->pick_vertex(aim.point, HOUSE_GRAB_M);
+    if (hit == NO_VERTEX) {
+        refusal_ = "щёлкай по якорям: поверхность натягивается на них";
+        return;
+    }
+    if (!refs_.empty() && hit == refs_.front() && refs_.size() >= 3) {
+        // ЗАМКНУЛ НА ПЕРВОЙ — ЭТО КОНТУР, и это ЖЕСТ, а не следствие чисел:
+        // модель хранит closed отдельным полем именно затем, чтобы плоский пол
+        // с заданной высотой не притворился стеной.
+        closed_ = true;
+        (void)confirm(world);
+        return;
+    }
+    if (!refs_.empty() && hit == refs_.back()) {
+        // ВТОРОЙ ЩЕЛЧОК ПО ПОСЛЕДНЕЙ — «ГОТОВО». Тот же жест, что у ломаной в
+        // любом редакторе; он нужен, потому что Enter до инструмента сегодня не
+        // доходит (клавиша живёт в таблице действий чужой зоны), а цепочка
+        // обязана уметь заканчиваться мышью.
+        (void)confirm(world);
+        return;
+    }
+    if (std::find(refs_.begin(), refs_.end(), hit) != refs_.end()) {
+        refusal_ = "этот якорь уже в обходе";
+        return;
+    }
+    refs_.push_back(hit);
+    session_->select_vertex(hit);
+}
+
+void HouseSurfaceTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) {
+    (void)aim;
+    (void)dt_s;
+    (void)world;
+}
+
+void HouseSurfaceTool::on_release(ToolWorld& world) { (void)world; }
+
+void HouseSurfaceTool::on_confirm(ToolWorld& world) { (void)confirm(world); }
+
+void HouseSurfaceTool::on_cancel(ToolWorld& world) {
+    (void)world;
+    clear_draft();
+}
+
+void HouseSurfaceTool::on_deselected(ToolWorld& world) {
+    (void)world;
+    // ОБХОД НЕ ОСТАЁТСЯ В РУКАХ. Он ещё нигде не записан: поверхность
+    // появляется только на подтверждении, поэтому «положить инструмент» значит
+    // бросить набор, а не потерять сделанное.
+    clear_draft();
+}
+
+void HouseSurfaceTool::undo_last() {
+    if (!refs_.empty()) {
+        refs_.pop_back();
+    }
+    closed_ = false;
+}
+
+void HouseSurfaceTool::clear_draft() {
+    refs_.clear();
+    closed_ = false;
+    refusal_.clear();
+}
+
+bool HouseSurfaceTool::confirm(ToolWorld& world) {
+    (void)world;
+    refusal_.clear();
+    if (session_ == nullptr) {
+        return false;
+    }
+    if (closed_ && refs_.size() < 3) {
+        refusal_ = "контур нужен хотя бы из трёх якорей";
+        return false;
+    }
+    if (refs_.size() < world::min_refs_for(ElementKind::Surface)) {
+        refusal_ = "мало якорей: стена натягивается хотя бы на два";
+        return false;
+    }
+    ElementId made = NO_ELEMENT;
+    const std::vector<VertexId> refs = refs_;
+    const bool closed = closed_;
+    const GraphResult r = session_->mutate(closed ? "контур" : "стена",
+                                           [&](HouseGraph& g) {
+        const GraphResult add = g.add_element(ElementKind::Surface, refs, style_, made);
+        if (!add.ok) {
+            return add;
+        }
+        g.set_closed(made, closed);
+        if (flipped_) {
+            g.set_facing(made, true);
+        }
+        g.set_param(made, "thickness", house_num(thickness_m_));
+        if (!closed) {
+            // ВЫСОТА — ТОЛЬКО У ЦЕПОЧКИ. У контура она означала бы вторую
+            // толщину, сказанную другим словом.
+            g.set_param(made, "height", house_num(height_m_));
+        }
+        if (tex_deg_ != 0.0f) {
+            g.set_param(made, "tex_deg", house_num(tex_deg_));
+        }
+        return add;
+    });
+    if (!r.ok) {
+        refusal_ = r.why;
+        return false;
+    }
+    last_ = made;
+    clear_draft();
+    session_->select_element(made);
+    return true;
+}
+
+ToolPreview HouseSurfaceTool::preview(const ToolAim& aim) const {
+    (void)aim;
+    ToolPreview out;
+    wire_.clear();
+    draft_line_.clear();
+    if (session_ == nullptr) {
+        return out;
+    }
+    HouseGroundFn ground;
+    if (world_ != nullptr && world_->ground_height) {
+        ground = world_->ground_height;
+    }
+    build_house_wire(*session_, ground, wire_);
+
+    for (const VertexId r : refs_) {
+        draft_line_.push_back(session_->vertex_world(r));
+    }
+    if (closed_ && refs_.size() >= 3) {
+        draft_line_.push_back(session_->vertex_world(refs_.front()));
+    }
+    // СТРЕЛКА НОРМАЛИ ДО ПОДТВЕРЖДЕНИЯ. Она и есть весь смысл этого превью:
+    // порядок обхода задаёт лицо, а по ломаной на экране порядок не читается.
+    glm::vec3 n{0.0f};
+    if (draft_normal(n) && !refs_.empty()) {
+        glm::vec3 centre{0.0f};
+        for (const VertexId r : refs_) {
+            centre += session_->vertex_world(r);
+        }
+        centre /= static_cast<float>(refs_.size());
+        const glm::vec3 tip = centre + n * HOUSE_NORMAL_ARROW_M;
+        wire_.accent.push_back(centre);
+        wire_.accent.push_back(tip);
+        // ЗАЗУБРИНЫ НА КОНЦЕ: отрезок без них читается в обе стороны, а вопрос
+        // ровно про сторону.
+        glm::vec3 side = glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f});
+        if (glm::length(side) < 1e-3f) {
+            side = glm::cross(n, glm::vec3{1.0f, 0.0f, 0.0f});
+        }
+        side = glm::normalize(side) * (HOUSE_NORMAL_ARROW_M * 0.15f);
+        const glm::vec3 back = tip - n * (HOUSE_NORMAL_ARROW_M * 0.25f);
+        wire_.accent.push_back(tip);
+        wire_.accent.push_back(back + side);
+        wire_.accent.push_back(tip);
+        wire_.accent.push_back(back - side);
+    }
+    out.polyline = draft_line_.empty() ? nullptr : &draft_line_;
+    out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
+    out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
+    out.line_color = HOUSE_ACCENT_COLOR;
+    out.accent_color = HOUSE_ACCENT_COLOR;
+    return out;
+}
+
+ToolStatus HouseSurfaceTool::status(const ToolAim& aim) const {
+    (void)aim;
+    if (!refusal_.empty()) {
+        return ToolStatus{"", refusal_, false};
+    }
+    if (session_ == nullptr) {
+        return ToolStatus{"house.hint.nomodel", {}, false};
+    }
+    if (refs_.empty()) {
+        return ToolStatus{"house.hint.surface.first", {}, true};
+    }
+    glm::vec3 n{0.0f};
+    char buf[128];
+    if (draft_normal(n)) {
+        // СЛОВАМИ, А НЕ ТОЛЬКО СТРЕЛКОЙ: стрелку с ребра камеры видно плохо,
+        // а вопрос «куда смотрит лицо» задают именно тогда, когда смотрят на
+        // контур сверху.
+        const char* where = n.y > 0.7f ? "вверх" : (n.y < -0.7f ? "вниз" : "вбок");
+        std::snprintf(buf, sizeof(buf), "якорей %zu · лицо %s (%.2f %.2f %.2f)",
+                      refs_.size(), where, static_cast<double>(n.x),
+                      static_cast<double>(n.y), static_cast<double>(n.z));
+    } else {
+        std::snprintf(buf, sizeof(buf), "якорей %zu · лицо пока не определено",
+                      refs_.size());
+    }
+    return ToolStatus{"", buf, true};
+}
+
+} // namespace dfn::app

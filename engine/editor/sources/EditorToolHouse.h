@@ -1,0 +1,488 @@
+/*
+Created: 18:08:2026 - 18:02:11
+Last updated: 18:08:2026 - 18:02:11
+Module: engine/editor
+File: engine/editor/sources/EditorToolHouse.h
+
+Responsibility:
+- ТРИ ИНСТРУМЕНТА ПОСТРОЙКИ поверх уже написанной модели (HouseGraph) и её
+  геометрии (HouseMesh): вершины, прямая («магнитный конструктор») и
+  поверхность. Плюс ОБЩЕЕ состояние на троих — сам граф, выбор и история
+  правок, — потому что три инструмента правят ОДНУ постройку и второй копии
+  графа у них быть не может.
+
+Key items:
+- HouseSession: граф + выбор + история + перевод «мир <-> постройка». ОДНА
+  ДВЕРЬ КО ВСЕМ МУТАЦИЯМ (mutate), и снимок для отмены пишется в ней, а не в
+  каждом инструменте.
+- HouseVertexTool: щелчок по земле / по оси прямой, протаскивание, удаление с
+  ОТКАЗОМ И СПИСКОМ ДЕРЖАТЕЛЕЙ.
+- HouseLineTool: одна механика с двумя исходами (отпустил на вершине —
+  соединил; отпустил в пустоте — прямая с длиной и углами) и зажим длины до
+  ближайшего якоря сверху/снизу.
+- HouseSurfaceTool: обход по вершинам, замыкание на первой, СТРЕЛКА НОРМАЛИ ДО
+  подтверждения.
+- build_house_wire / append_ball / append_plumb: проволочная картинка постройки
+  отрезками — ШАРИК на вершине и ПУНКТИРНЫЙ ОТВЕС от неё до земли.
+
+WHY THIS EXISTS (пользователь, 18.08.2026, дословно): «вершины я хочу уметь
+также в воздухе ставить, просто в рандомном месте... она должна рисоваться
+ШАРИКОМ... надо от вершины вниз рисовать ПУНКТИРНУЮ ЛИНИЮ, которая будет
+упираться в землю, и я буду видеть, над какой точкой ставлю свой объект».
+
+ОТВЕС — ПРИБОР, А НЕ УКРАШЕНИЕ, и это единственная причина, по которой он
+описан в интерфейсе, а не оставлен на усмотрение рисующего: на экране ВЫСОТА И
+ДАЛЬНОСТЬ ВЫГЛЯДЯТ ОДИНАКОВО. Шарик в воздухе без отвеса не отвечает на вопрос
+«над какой точкой земли он висит» — ни при каком угле камеры.
+
+ПОЧЕМУ РЕШЕНИЯ ЛЕЖАТ ЗДЕСЬ, А РИСОВАНИЕ ПАНЕЛИ — В EditorToolHouseUi.cpp.
+Правило 3: этот файл не знает ни про ImGui, ни про окно, поэтому цель
+app_editor_house линкует ТОЛЬКО EditorToolHouse.cpp и спрашивает у инструментов
+то, чего не покажет ни один кадр: куда смотрит нормаль ДО подтверждения, кто
+держит вершину, которую не дали удалить, и на сколько зажалась длина.
+
+Dependencies:
+- Uses: EditorTool.h, EditorHistory.h, engine/world (HouseGraph, HouseFile,
+  HouseMesh), glm.
+- Used by: engine/app (создаёт сессию и три инструмента), tests/app.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- ЛЮБАЯ ПРАВКА ГРАФА ИДЁТ ЧЕРЕЗ HouseSession::mutate. Второе место, которое
+  правит граф мимо неё, — это второе место, обязанное помнить про снимок для
+  отмены, а забыть его можно ровно один раз, и узнается об этом тогда, когда
+  отмена молча пропустит шаг.
+- НИ ОДНОГО ПРАВИЛА ПРО ГЕОМЕТРИЮ ЗДЕСЬ. Нормаль контура берётся у
+  fit_contour_plane, направление цепочки — тем же выражением, что у
+  world::surface_normal. Вторая формула нормали означала бы стрелку, которая
+  показывает не туда, куда ляжет текстура.
+*/
+/*
+UPD:
+- 18:08:2026 - 18:02:11: Создан — три инструмента постройки, общее состояние с историей и
+  проволочная картинка с шариками и отвесами (заказ 18.08).
+*/
+
+#pragma once
+
+#include "engine/editor/sources/EditorHistory.h"
+#include "engine/editor/sources/EditorTool.h"
+#include "engine/world/sources/HouseGraph.h"
+
+#include <cstdint>
+#include <functional>
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <string>
+#include <vector>
+
+namespace dfn::app {
+
+// ---------------------------------------------------------------------------
+// Числа руки. Все — про ХВАТКУ И ПОКАЗ, и потому живут здесь, а не в
+// docs/NUMBERS.md: они описывают, насколько точно человек попадает мышью, и не
+// участвуют ни в одном расчёте мира.
+// ---------------------------------------------------------------------------
+
+/// Радиус хватки якоря, метры. В МЕТРАХ ПО МИРУ, а не в пикселях — та же
+/// причина, что у PATH_GRAB_M: пиксельная хватка на близком якоре накрыла бы
+/// пол-дома, а на дальнем не поймала бы ничего.
+inline constexpr float HOUSE_GRAB_M = 0.45f;
+/// Допуск до ОСИ прямой. Меньше хватки якоря нарочно: якорь на конце оси и сама
+/// ось — соседние цели, и щелчок у конца обязан достаться якорю.
+inline constexpr float HOUSE_EDGE_GRAB_M = 0.30f;
+/// Радиус шарика, которым рисуется вершина.
+inline constexpr float HOUSE_BALL_R_M = 0.10f;
+/// Штрих и просвет отвеса, метры.
+inline constexpr float HOUSE_PLUMB_DASH_M = 0.25f;
+/// Потолок числа штрихов: вершина на километровой высоте не имеет права съесть
+/// весь буфер отладочных линий.
+inline constexpr int HOUSE_PLUMB_MAX_DASHES = 96;
+/// Длина стрелки нормали, метры.
+inline constexpr float HOUSE_NORMAL_ARROW_M = 1.0f;
+/// Выше этого «в воздухе» — настоящий воздух, а не дрожание ползунка.
+inline constexpr float HOUSE_AIR_EPS_M = 0.01f;
+/// Допуск до оси при зажиме длины (§5.5 замысла): насколько вбок может отстоять
+/// якорь, чтобы считаться лежащим «на этой прямой».
+inline constexpr float HOUSE_CLAMP_AXIS_TOL_M = 0.6f;
+
+/// 0xAABBGGRR. Проволока постройки и подсветка выбора — РАЗНЫЕ цвета, потому
+/// что подсветка и есть ответ на «что я выбрал».
+inline constexpr std::uint32_t HOUSE_WIRE_COLOR = 0xFFCCCCCCu;   ///< серая проволока
+inline constexpr std::uint32_t HOUSE_ACCENT_COLOR = 0xFF33FFFFu; ///< жёлтая подсветка
+
+// ---------------------------------------------------------------------------
+// Отрезки картинки
+// ---------------------------------------------------------------------------
+
+/// ОТРЕЗКИ ПАРАМИ: [0]-[1], [2]-[3], ... Рисовальщик умеет линии и только их
+/// (App: ToolPreview::handles), поэтому и шарик, и пунктир, и рёбра постройки —
+/// это один список пар, а не три разных запроса к рендеру.
+struct HouseWire {
+    std::vector<glm::vec3> plain;  ///< обычная проволока
+    std::vector<glm::vec3> accent; ///< выбранное и всё, что с ним связано
+    void clear() { plain.clear(); accent.clear(); }
+};
+
+/// Земля под точкой. Пустая функция законна и значит «мир высоты не знает» —
+/// тогда отвес рисовать не от чего, и он не рисуется (а не рисуется в ноль).
+using HouseGroundFn = std::function<float(glm::vec2)>;
+
+/// ШАРИК ВЕРШИНЫ: три кольца в трёх плоскостях. Не спрайт и не точка — вершина
+/// обязана читаться как ТОЧКА В ПРОСТРАНСТВЕ, а точка без объёма на экране
+/// сливается с любой линией, проходящей мимо.
+void append_ball(std::vector<glm::vec3>& seg, glm::vec3 centre, float radius_m);
+
+/// ПУНКТИРНЫЙ ОТВЕС от точки вниз до `ground_y`. Возвращает число штрихов: ноль
+/// значит «вершина на земле, отвесу неоткуда взяться», и это ПРОВЕРЯЕМОЕ
+/// различие между заземлённой вершиной и вершиной в воздухе.
+int append_plumb(std::vector<glm::vec3>& seg, glm::vec3 from, float ground_y);
+
+class HouseSession;
+
+/// Вся постройка отрезками: рёбра элементов, шарики вершин, отвесы. Подсветка
+/// (accent) заполняется по выбору сессии — выбрал вершину, светятся её
+/// элементы; выбрал элемент, светятся его вершины.
+void build_house_wire(const HouseSession& s, const HouseGroundFn& ground, HouseWire& out);
+
+// ---------------------------------------------------------------------------
+// Сессия постройки
+// ---------------------------------------------------------------------------
+
+/// Что нашлось на оси прямой под прицелом.
+struct HouseEdgeHit {
+    world::ElementId host = world::NO_ELEMENT;
+    float t = 0.0f;          ///< параметр вдоль оси, 0..1
+    float distance_m = 0.0f; ///< от прицела до оси
+    glm::vec3 point{0.0f};   ///< точка НА оси, в мире
+    [[nodiscard]] bool hit() const { return host != world::NO_ELEMENT; }
+};
+
+/// ОБЩЕЕ СОСТОЯНИЕ ТРЁХ ИНСТРУМЕНТОВ: одна постройка, один выбор, одна история.
+///
+/// ПОЧЕМУ ОНО ОБЩЕЕ, А НЕ У КАЖДОГО СВОЁ. Инструменты правят ОДИН граф:
+/// поверхность натягивается на вершины, поставленные другим инструментом, а
+/// прямая соединяет их же. Копия графа у каждого — это три постройки, которые
+/// разъедутся на первом же протаскивании якоря.
+class HouseSession {
+public:
+    HouseSession() = default;
+
+    /// Куда писать шаги отмены. Пустая — история не ведётся, и это законное
+    /// состояние (проверка без App).
+    void set_history(EditorHistory* h) { history_ = h; }
+    [[nodiscard]] EditorHistory* history() const { return history_; }
+
+    [[nodiscard]] world::HouseGraph& graph() { return graph_; }
+    [[nodiscard]] const world::HouseGraph& graph() const { return graph_; }
+
+    // -- постройка в мире ------------------------------------------------------
+    /// world = origin + rotate_y(yaw, local) — §2.6 замысла. Хранить мировые
+    /// координаты в графе значило бы приколотить дом к одному месту.
+    [[nodiscard]] glm::vec3 origin() const { return origin_; }
+    void set_origin(glm::vec3 o) { origin_ = o; }
+    [[nodiscard]] float yaw() const { return yaw_; }
+    void set_yaw(float radians) { yaw_ = radians; }
+    [[nodiscard]] glm::vec3 to_world(glm::vec3 local) const;
+    [[nodiscard]] glm::vec3 to_local(glm::vec3 world) const;
+    /// Положение вершины В МИРЕ, с уже разрешёнными осями.
+    [[nodiscard]] glm::vec3 vertex_world(world::VertexId id) const;
+
+    // -- снимки и отмена -------------------------------------------------------
+    /// Состояние целиком, текстом (write_house). Никогда не пустое: файл
+    /// начинается со строки «# dfh 1», и это важно — пустая строка у истории
+    /// значит «отменять нечего».
+    [[nodiscard]] std::string snapshot() const;
+    /// Применить снимок (отмена или повтор). false — текст не читается; граф в
+    /// этом случае НЕ ТРОГАЕТСЯ читателем... точнее, читатель чистит граф до
+    /// разбора, поэтому неудача возвращает пустую постройку, и об этом
+    /// сообщается наружу, а не проглатывается.
+    bool apply_snapshot(const std::string& text);
+    /// Записать шаг: `before` снят до правки, «после» снимается здесь. Шаг, не
+    /// изменивший состояния, история отбрасывает сама.
+    void record(std::string label, const std::string& before);
+
+    /// ОДНА ДВЕРЬ КО ВСЕМ МУТАЦИЯМ. Снимок до, действие, запись в историю —
+    /// ровно в одном месте на все три инструмента.
+    ///
+    /// ОТКАЗ В ИСТОРИЮ НЕ ПИШЕТСЯ, и это не оптимизация: отказ ничего не
+    /// изменил, а шаг отмены, который ничего не откатывает, выглядит как
+    /// сломанная отмена.
+    template <class Fn>
+    world::GraphResult mutate(std::string label, Fn&& fn) {
+        std::string before = snapshot();
+        world::GraphResult r = fn(graph_);
+        if (r.ok) {
+            record(std::move(label), before);
+        }
+        return r;
+    }
+
+    // -- выбор -----------------------------------------------------------------
+    /// ВЫБРАЛ ВЕРШИНУ — ПОДСВЕТИЛИСЬ ЕЁ ЭЛЕМЕНТЫ (incident); ВЫБРАЛ ЭЛЕМЕНТ —
+    /// ПОДСВЕТИЛИСЬ ЕГО ВЕРШИНЫ (refs). Прямое требование пользователя, и
+    /// подсветка считается ЗДЕСЬ, потому что иначе её пришлось бы считать
+    /// каждому инструменту заново — то есть тремя способами.
+    void select_vertex(world::VertexId id);
+    void select_element(world::ElementId id);
+    void clear_selection();
+    [[nodiscard]] world::VertexId selected_vertex() const { return sel_vertex_; }
+    [[nodiscard]] world::ElementId selected_element() const { return sel_element_; }
+    [[nodiscard]] const std::vector<world::ElementId>& lit_elements() const {
+        return lit_elements_;
+    }
+    [[nodiscard]] const std::vector<world::VertexId>& lit_vertices() const {
+        return lit_vertices_;
+    }
+    /// Пересобрать подсветку — после правки, которая могла её обесценить
+    /// (удалили элемент, добавили прямую к выбранной вершине).
+    void refresh_selection();
+
+    // -- поиск под прицелом ----------------------------------------------------
+    /// Ближайшая вершина в пределах хватки, или NO_VERTEX.
+    [[nodiscard]] world::VertexId pick_vertex(glm::vec3 world_point, float grab_m) const;
+    /// Ближайшая ОСЬ прямой в пределах допуска. Только прямые с ДВУМЯ вершинами:
+    /// у прямой с одной вершиной второй конец выводится из чисел, а
+    /// resolved_local вершины на такой оси возвращает не точку на оси, а её
+    /// собственное поле — то есть модель посадила бы вершину не туда.
+    [[nodiscard]] HouseEdgeHit pick_edge(glm::vec3 world_point, float grab_m) const;
+    /// Концы прямой В МИРЕ. Для прямой с одной вершиной второй конец считается
+    /// из length/angle_x/angle_y — тем же выражением, что у построителя меша.
+    /// false — элемент не прямая или длины у него нет.
+    [[nodiscard]] bool line_ends_world(world::ElementId id, glm::vec3& a, glm::vec3& b) const;
+
+private:
+    world::HouseGraph graph_;
+    EditorHistory* history_ = nullptr;
+    glm::vec3 origin_{0.0f};
+    float yaw_ = 0.0f;
+    world::VertexId sel_vertex_ = world::NO_VERTEX;
+    world::ElementId sel_element_ = world::NO_ELEMENT;
+    std::vector<world::ElementId> lit_elements_;
+    std::vector<world::VertexId> lit_vertices_;
+};
+
+/// Направление прямой из её чисел — ТО ЖЕ ВЫРАЖЕНИЕ, что в построителе меша
+/// (HouseMesh.cpp: dir = {sin(ay)sin(ax), cos(ax), cos(ay)sin(ax)}), и обратное
+/// к нему. Пара нужна целиком: инструмент ЗАПИСЫВАЕТ углы из жеста, а показывает
+/// прямую по записанным углам, и если две формулы разойдутся, призрак покажет
+/// одно, а дом встанет другим.
+[[nodiscard]] glm::vec3 house_dir_from_angles(float angle_x_deg, float angle_y_deg);
+void house_angles_from_dir(glm::vec3 dir, float& angle_x_deg, float& angle_y_deg);
+
+/// Число в токен параметра: без пробелов и без знака равенства, иначе .dfh
+/// перестанет читаться (файл разбирает токены по пробелу, а «=» отделяет имя).
+[[nodiscard]] std::string house_num(float value);
+
+// ---------------------------------------------------------------------------
+// 7 — ВЕРШИНЫ
+// ---------------------------------------------------------------------------
+
+/// Щелчок по земле ставит заземлённую вершину; с поднятой высотой — вершину В
+/// ВОЗДУХЕ (Anchoring::Free) с пунктирным отвесом до земли. Щелчок по оси
+/// прямой сажает вершину НА ОСЬ. Протаскивание двигает якорь, и вся привязанная
+/// геометрия едет за ним сама — не обходом списка, а потому что второй копии
+/// геометрии нет.
+class HouseVertexTool final : public IEditorTool {
+public:
+    explicit HouseVertexTool(HouseSession& session) : session_(&session) {}
+
+    [[nodiscard]] ToolIdentity identity() const override;
+    void on_press(const ToolAim& aim, ToolWorld& world) override;
+    void on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) override;
+    void on_release(ToolWorld& world) override;
+    [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override;
+    void draw_settings() override;
+    [[nodiscard]] float max_reach_m() const override { return 60.0f; }
+    [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;
+    void on_deselected(ToolWorld& world) override;
+
+    /// Крючки, нужные ВНЕ щелчка: земля для отвеса и для высоты новой вершины.
+    void set_world(ToolWorld* world) { world_ = world; }
+
+    /// ВЫСОТА НАД ЗЕМЛЁЙ, метры. Ноль — вершина заземляется (OnGround), больше
+    /// нуля — висит в воздухе (Free). Один орган управления на оба случая: «в
+    /// воздухе» отличается от «по земле» ровно этим числом, и отдельная кнопка
+    /// «режим воздуха» была бы вторым местом, где то же самое сказано иначе.
+    [[nodiscard]] float& air_height_m() { return air_height_m_; }
+    [[nodiscard]] float air_height_m() const { return air_height_m_; }
+
+    /// УДАЛИТЬ ВЫБРАННУЮ. false — отказ, и его причина вместе со СПИСКОМ
+    /// ДЕРЖАТЕЛЕЙ лежит в refusal(): «удалять бревно нельзя давать, пока к нему
+    /// что-то привязано» — но человеку надо сказать, ЧТО именно привязано.
+    bool delete_selected();
+    [[nodiscard]] const std::string& refusal() const { return refusal_; }
+    /// Какая вершина сейчас тащится (NO_VERTEX — никакая).
+    [[nodiscard]] world::VertexId dragging() const { return dragging_; }
+
+private:
+    [[nodiscard]] float ground_at(glm::vec2 xz, float fallback_y) const;
+
+    HouseSession* session_ = nullptr;
+    ToolWorld* world_ = nullptr;
+    float air_height_m_ = 0.0f;
+    world::VertexId dragging_ = world::NO_VERTEX;
+    /// Насколько выбранная вершина стояла НАД землёй в момент захвата. Тащим по
+    /// XZ, а высоту держим над рельефом: иначе якорь, сидевший в двух метрах
+    /// над склоном, при сдвиге на метр молча уходил бы в грунт.
+    float drag_lift_m_ = 0.0f;
+    std::string drag_before_;
+    std::string refusal_;
+    mutable HouseWire wire_;
+};
+
+// ---------------------------------------------------------------------------
+// 8 — ПРЯМАЯ («магнитный конструктор»)
+// ---------------------------------------------------------------------------
+
+/// Зажим длины: до ближайшего якоря ВПЕРЁД по лучу или НАЗАД к началу.
+/// «Механика клипа длины прямой до ближайшего сверху / снизу на выбор якоря»
+/// (пользователь, 18.08).
+enum class HouseClamp : std::uint8_t {
+    None = 0, ///< длина ровно из жеста
+    Above,    ///< до ближайшего якоря ДАЛЬШЕ текущего конца
+    Below,    ///< до ближайшего якоря БЛИЖЕ текущего конца
+};
+
+struct HouseClampHit {
+    bool found = false;
+    float length_m = 0.0f;
+    world::VertexId at = world::NO_VERTEX;
+};
+
+/// §5.5 замысла: якоря, чья проекция на луч лежит в пределах допуска по
+/// расстоянию ДО ОСИ, отдельно вперёд и назад от текущего конца. Перебор, а не
+/// индекс: вершин в постройке сотни, и индекс здесь стоил бы дороже ответа.
+[[nodiscard]] HouseClampHit house_clamp_length(const HouseSession& s, world::VertexId from,
+                                               glm::vec3 dir_world, float raw_length_m,
+                                               float axis_tol_m, HouseClamp mode);
+
+/// Нажал в якорь и потянул. Отпустил НА якоре — якоря соединились; отпустил в
+/// пустоте — прямая с длиной и углами из жеста, которые дальше правятся
+/// числами. ОДНА МЕХАНИКА, ДВА ИСХОДА: два инструмента здесь означали бы два
+/// разных способа провести одно и то же бревно.
+class HouseLineTool final : public IEditorTool {
+public:
+    explicit HouseLineTool(HouseSession& session) : session_(&session) {}
+
+    [[nodiscard]] ToolIdentity identity() const override;
+    void on_press(const ToolAim& aim, ToolWorld& world) override;
+    void on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) override;
+    void on_release(ToolWorld& world) override;
+    [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override;
+    void draw_settings() override;
+    [[nodiscard]] float max_reach_m() const override { return 60.0f; }
+    [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;
+    void on_deselected(ToolWorld& world) override;
+    void on_cancel(ToolWorld& world) override;
+
+    void set_world(ToolWorld* world) { world_ = world; }
+
+    /// Якорь, из которого тянут (NO_VERTEX — рука пуста).
+    [[nodiscard]] world::VertexId anchor() const { return from_; }
+    /// Что получилось последним — для проверок и для панели.
+    [[nodiscard]] world::ElementId last_element() const { return last_; }
+    [[nodiscard]] HouseClamp& clamp_mode() { return clamp_; }
+    [[nodiscard]] HouseClamp clamp_mode() const { return clamp_; }
+    [[nodiscard]] float& radius_m() { return radius_m_; }
+    [[nodiscard]] std::string& style() { return style_; }
+    [[nodiscard]] const std::string& refusal() const { return refusal_; }
+    /// Конец призрака с уже применённым зажимом — то, что увидит глаз, и то,
+    /// что станет прямой. Одно выражение на обоих, иначе призрак соврёт.
+    [[nodiscard]] glm::vec3 ghost_end() const;
+    /// Куда зажалось в этом кадре (found == false — зажим не сработал).
+    [[nodiscard]] const HouseClampHit& clamp_hit() const { return clamp_hit_; }
+
+private:
+    void update_end(const ToolAim& aim);
+
+    HouseSession* session_ = nullptr;
+    ToolWorld* world_ = nullptr;
+    world::VertexId from_ = world::NO_VERTEX;
+    world::ElementId last_ = world::NO_ELEMENT;
+    glm::vec3 raw_end_{0.0f};
+    HouseClampHit clamp_hit_;
+    HouseClamp clamp_ = HouseClamp::None;
+    float radius_m_ = 0.12f;
+    std::string style_ = "oak";
+    std::string refusal_;
+    mutable HouseWire wire_;
+    mutable std::vector<glm::vec3> ghost_;
+};
+
+// ---------------------------------------------------------------------------
+// 9 — ПОВЕРХНОСТЬ
+// ---------------------------------------------------------------------------
+
+/// Щелчки по вершинам В ПОРЯДКЕ ОБХОДА, затем подтверждение. Замкнул на первой
+/// вершине — контур (пол, потолок, скат); оставил цепочкой — стена с высотой.
+///
+/// ПОРЯДОК ЗАДАЁТ НОРМАЛЬ, поэтому стрелка нормали рисуется и называется ДО
+/// подтверждения. Без неё дизайнер узнаёт о том, что обошёл контур не в ту
+/// сторону, по текстуре — то есть после сборки, отделки и постановки дома.
+class HouseSurfaceTool final : public IEditorTool {
+public:
+    explicit HouseSurfaceTool(HouseSession& session) : session_(&session) {}
+
+    [[nodiscard]] ToolIdentity identity() const override;
+    void on_press(const ToolAim& aim, ToolWorld& world) override;
+    void on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) override;
+    void on_release(ToolWorld& world) override;
+    [[nodiscard]] ToolPreview preview(const ToolAim& aim) const override;
+    void draw_settings() override;
+    [[nodiscard]] float max_reach_m() const override { return 60.0f; }
+    [[nodiscard]] ToolStatus status(const ToolAim& aim) const override;
+    void on_deselected(ToolWorld& world) override;
+    /// ENTER — СОЗДАТЬ. Тот же глагол, что у кнопки в панели, и он один: два
+    /// пути к созданию поверхности означали бы два места, помнящих про
+    /// closed и про числа.
+    void on_confirm(ToolWorld& world) override;
+    void on_cancel(ToolWorld& world) override;
+
+    void set_world(ToolWorld* world) { world_ = world; }
+
+    [[nodiscard]] const std::vector<world::VertexId>& refs() const { return refs_; }
+    [[nodiscard]] bool closed() const { return closed_; }
+    /// ЗАМЫСЕЛ «ЭТО КОНТУР», а не факт замыкания. Его ставит и щелчок по первому
+    /// якорю, и кнопка «замкнуть и создать» — но читает его СТРЕЛКА НОРМАЛИ, и
+    /// потому он обязан быть виден ДО подтверждения: у обхода из четырёх точек
+    /// два будущих (пол и стена), и лицо у них смотрит в РАЗНЫЕ стороны.
+    /// Без этого переключателя стрелка показывала бы одно из двух наугад.
+    [[nodiscard]] bool& closing() { return closed_; }
+    [[nodiscard]] bool& flipped() { return flipped_; }
+    [[nodiscard]] float& height_m() { return height_m_; }
+    [[nodiscard]] float& thickness_m() { return thickness_m_; }
+    [[nodiscard]] float& tex_deg() { return tex_deg_; }
+    [[nodiscard]] std::string& style() { return style_; }
+    [[nodiscard]] world::ElementId last_element() const { return last_; }
+    [[nodiscard]] const std::string& refusal() const { return refusal_; }
+
+    /// Убрать последний якорь обхода / бросить обход целиком.
+    void undo_last();
+    void clear_draft();
+    /// СОЗДАТЬ. false — отказ, причина в refusal().
+    bool confirm(ToolWorld& world);
+
+    /// КУДА СМОТРИТ ЛИЦО, пока контур ещё набирается. false — вершин мало или
+    /// они на одной прямой. Считается тем же способом, что и у готового
+    /// элемента (world::surface_normal): контур — наилучшая по МНК плоскость,
+    /// цепочка — поперечина к первому отрезку.
+    [[nodiscard]] bool draft_normal(glm::vec3& out) const;
+
+private:
+    HouseSession* session_ = nullptr;
+    ToolWorld* world_ = nullptr;
+    std::vector<world::VertexId> refs_;
+    bool closed_ = false;
+    bool flipped_ = false;
+    float height_m_ = 2.5f;
+    float thickness_m_ = 0.20f;
+    float tex_deg_ = 0.0f;
+    std::string style_ = "plank";
+    world::ElementId last_ = world::NO_ELEMENT;
+    std::string refusal_;
+    mutable HouseWire wire_;
+    mutable std::vector<glm::vec3> draft_line_;
+};
+
+} // namespace dfn::app

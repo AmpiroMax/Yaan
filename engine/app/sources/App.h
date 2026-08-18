@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 17:36:58
+Last updated: 18:08:2026 - 18:02:11
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -127,6 +127,9 @@ UPD:
   голых счётчиков — FlushCountdown вместо close_after_flush_, SettleGate вместо
   quiet_frames_/tour_settle_frames_. Оба определены в AppAfterFrame.h заголовком
   и потому прогоняются рукавом без окна; здесь остаётся только их состояние.
+- 18:08:2026 - 18:02:11: Поле house_ — постройка, которую правят три инструмента графа, и она же
+  та модель, которой не хватало отмене. ОДНА на троих: копия у каждого
+  инструмента — это три дома, расходящиеся на первом сдвинутом якоре.
 */
 
 #pragma once
@@ -144,6 +147,7 @@ UPD:
 #include "engine/app/sources/EditorPlant.h"
 #include "engine/editor/sources/EditorBrushView.h"
 #include "engine/editor/sources/EditorPropsView.h"
+#include "engine/editor/sources/EditorToolHouse.h"
 #include "engine/editor/sources/EditorToolsBuiltin.h"
 #include "engine/editor/sources/EditorUi.h"
 #include "engine/app/sources/TrajectoryRecord.h"
@@ -564,6 +568,12 @@ private:
     /// действие требует, чтобы КАЖДАЯ операция умела себя обращать, и ломается
     /// на первой, которая не умеет, — а дальше отмена врёт молча.
     EditorHistory history_;
+    /// ПОСТРОЙКА, КОТОРУЮ ПРАВЯТ ТРИ ИНСТРУМЕНТА (вершины, прямая, поверхность),
+    /// и ОДНА на всех троих: копия графа у каждого — это три дома, которые
+    /// разъедутся на первом же сдвинутом якоре. Здесь же она нужна отмене:
+    /// история хранит снимки текстом и НЕ ЗНАЕТ про модель нарочно, поэтому
+    /// применяет снимок тот, у кого модель есть, — и это единственное место.
+    HouseSession house_;
     BuildVerdict build_verdict_;
     /// Which placement the crosshair is on, for DELETING. npos = none. Kept as
     /// an index into scene_doc_.placements, resolved fresh every frame: an

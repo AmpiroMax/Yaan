@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 18:08:2026 - 17:21:51
+Last updated: 18:08:2026 - 18:26:06
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -20,6 +20,14 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 17:21:51: Создан вместе с заголовком.
+- 18:08:2026 - 18:26:06: ДВА ШВА СОШЛИСЬ С МОДЕЛЬЮ. (1) Числа берутся из Element::params, а строка
+  стиля осталась ЗАПАСНЫМ ходом. Расстыковка была настоящая и молчаливая:
+  инструменты редактора пишут через set_param, то есть в поле, — и ни одно
+  заданное человеком число не доехало бы до геометрии. Ни рукав построителя, ни
+  рукав модели этого не видят: каждый прав в своей половине.
+  (2) Цепочка или контур — решает Element::closed, а не «высота больше нуля».
+  Прежнее правило было честно помечено временным; угадывание молча ломается на
+  плоском поле, которому задали высоту, и на стене нулевой высоты.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -745,11 +753,49 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
     }
 }
 
-/// ЦЕПОЧКА ИЛИ КОНТУР — решает ВЫСОТА, и это временное правило. Замысел говорит
-/// «height только для цепочки», а признака замкнутости в Element сегодня нет;
-/// пока его нет, height и есть признак. Что предлагается внести — в отчёте зоны.
-bool is_chain_surface(const Element& e, const ElementParams& p) {
-    return e.refs.size() < 3 || p.height > HOUSE_GEOM_EPS;
+/// ЧИСЛА ЭЛЕМЕНТА: сперва СВОЁ ПОЛЕ, потом строка стиля.
+///
+/// Element::params появился 18.08, а построитель до сих пор читал числа из
+/// строки стиля через точку с запятой. Расстыковка была настоящая и молчаливая:
+/// инструменты редактора пишут через set_param, то есть в поле, — и ни одно из
+/// заданных человеком чисел не доехало бы до геометрии. Ни рукав построителя,
+/// ни рукав модели этого не видят: каждый прав в своей половине.
+///
+/// Строка остаётся ЗАПАСНЫМ ходом, а не равноправным: её понимают старые файлы
+/// и старые рукава. Поле сильнее — если число задано и там, и там, побеждает
+/// поле, потому что его задал редактор, а строку мог оставить кто угодно.
+ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issues) {
+    ElementParams p = parse_element_params(e.style, issues);
+    for (const auto& kv : e.params) {
+        // Тот же разбор, что и у строки: собираем «ключ=значение» и отдаём в
+        // общий лексер, чтобы правило чтения числа было ОДНО (правило 32).
+        const std::string one = kv.first + "=" + kv.second;
+        const ElementParams got = parse_element_params(one, issues);
+        if (kv.first == "radius") { p.radius = got.radius; }
+        else if (kv.first == "length") { p.length = got.length; }
+        else if (kv.first == "angle_x") { p.angle_x = got.angle_x; }
+        else if (kv.first == "angle_y") { p.angle_y = got.angle_y; }
+        else if (kv.first == "angle_z") { p.angle_z = got.angle_z; }
+        else if (kv.first == "thickness") { p.thickness = got.thickness; }
+        else if (kv.first == "height") { p.height = got.height; }
+        else if (kv.first == "tex_deg") { p.tex_deg = got.tex_deg; }
+        else if (kv.first == "form") { p.form = got.form; }
+    }
+    return p;
+}
+
+/// ЦЕПОЧКА ИЛИ КОНТУР — РЕШАЕТ ПРИЗНАК ЗАМКНУТОСТИ, а не высота.
+///
+/// Здесь стояло временное правило «высота больше нуля значит цепочка», честно
+/// помеченное временным: признака замкнутости в Element тогда не было. Теперь
+/// он есть (Element::closed, заведён 18.08 по этой же просьбе), и угадывание
+/// снято. Разница не косметическая: угадывание молча ломается на плоском поле,
+/// которому задали высоту, и на стене нулевой высоты — а это не выдуманные
+/// случаи, а два первых, до которых дойдёт человек.
+///
+/// Двух вершин на контур не хватает по определению, поэтому они всегда цепочка.
+bool is_chain_surface(const Element& e, const ElementParams&) {
+    return e.refs.size() < 3 || !e.closed;
 }
 
 } // namespace
@@ -794,7 +840,7 @@ HouseMesh build_house_mesh(const HouseGraph& g) {
             continue;
         }
         std::vector<ParamIssue> issues;
-        const ElementParams p = parse_element_params(e->style, &issues);
+        const ElementParams p = element_params_of(*e, &issues);
         for (const ParamIssue& is : issues) {
             mesh.findings.push_back({id, MeshIssue::UnknownParam, 0.0f, is.token + ": " + is.why});
         }
@@ -826,7 +872,7 @@ bool surface_normal(const HouseGraph& g, ElementId id, glm::vec3& out) {
     if (e == nullptr || e->kind != ElementKind::Surface || e->refs.size() < 2) {
         return false;
     }
-    const ElementParams p = parse_element_params(e->style, nullptr);
+    const ElementParams p = element_params_of(*e, nullptr);
     std::vector<glm::vec3> pts;
     pts.reserve(e->refs.size());
     for (const VertexId r : e->refs) {

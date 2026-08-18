@@ -1,6 +1,6 @@
 #
 # Created: 17:08:2026 - 19:22:32
-# Last updated: 18:08:2026 - 17:17:15
+# Last updated: 18:08:2026 - 18:02:11
 # File: engine/editor/CMakeLists.txt
 #
 # Responsibility:
@@ -70,6 +70,11 @@
 # - 18:08:2026 - 17:17:15: EditorHistory.cpp — отмена и повтор. В истории нет ни модели, ни окна:
 #   она хранит снимки строками, и это сделано нарочно, чтобы её можно было
 #   проверить без мира.
+# - 18:08:2026 - 18:02:11: EditorToolHouse.cpp + EditorToolHouseUi.cpp — ТРИ ИНСТРУМЕНТА ПОСТРОЙКИ
+#   (вершины, прямая, поверхность) поверх HouseGraph/HouseMesh. Файла два по той
+#   же причине, что у ящика инструментов: решения обязаны проверяться без окна
+#   (правило 3), поэтому ImGui живёт только во втором, а рукав app_editor_house
+#   линкует только первый.
 
 add_library(dfn_editor STATIC
     sources/EditorBrush.cpp
@@ -80,6 +85,8 @@ add_library(dfn_editor STATIC
     sources/EditorToolsGround.cpp
     sources/EditorToolsObject.cpp
     sources/EditorToolPath.cpp
+    sources/EditorToolHouse.cpp
+    sources/EditorToolHouseUi.cpp
     sources/EditorBrushView.cpp
     sources/EditorUi.cpp
     sources/EditorPalette.cpp

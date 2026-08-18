@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 17:33:36
+# Last updated: 18:08:2026 - 18:05:07
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -93,6 +93,16 @@
 #   отсечения ушей на Г-образной комнате и проекция на XZ против поворота
 #   текстуры вокруг нормали.
 
+# - 18:08:2026 - 18:05:07: test_house_style — СТИЛЬ СТЕНЫ КАК ПОРОЖДЕНИЕ. Держит требование
+#   пользователя числом, а не картинкой: растяжение стены вдвое НЕ меняет размер
+#   окна ни на бит, тогда как уже испечённый набор (PartForgeWalls::holes_of)
+#   растягивает его ровно ВДВОЕ (0.45 -> 0.90 м) — обе руки считаются В ОДНОМ БИНАРНИКЕ (правило
+#   47), потому что это не гипотеза про прошлое, а живой отвергнутый образец.
+#   Плюс: floor((L-зазоры)/шаг) досок и крайняя не за торцом, симметрия ряда
+#   окон числом (сумма зеркальных центров = длина стены), одно окно РОВНО в
+#   центре, ноль пересечений обшивки с проёмом против 6 у неразрезанной колонны,
+#   и полоса фактического угла раскоса, ВЫВЕДЕННАЯ из округления к ближайшему.
+
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -118,6 +128,7 @@ add_dfn_test(test_house_graph core/HouseGraphTests.cpp dfn_world)
 # (что нарисовано и во что упирается игрок). Одна модель может быть верной, а
 # геометрия из неё неверной, и наоборот; общий рукав скрыл бы, которая из двух.
 add_dfn_test(test_house_mesh core/HouseMeshTests.cpp dfn_world)
+add_dfn_test(test_house_style core/HouseStyleTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_mountain_horizon core/MountainHorizonTests.cpp dfn_world)

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 18:08:2026 - 17:29:01
+Last updated: 18:08:2026 - 18:26:06
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -28,6 +28,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 17:29:01: Создан вместе с HouseMesh.
+- 18:08:2026 - 18:26:06: контуры помечены closed. Случаи были написаны под временное правило
+  «высота решает», и смена правила их обнажила — это не поломка рукава, а его
+  работа: правило сменилось, и все, кто на него опирался, назвались сами.
 */
 
 #include <doctest/doctest.h>
@@ -339,6 +342,9 @@ TEST_CASE("Г-образный пол: коллайдер разбирается
     }
     ElementId floor = 0;
     REQUIRE(g.add_element(ElementKind::Surface, refs, "oak;thickness=0.25", floor).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
+    // у контура появился свой признак, и построитель читает его.
+    REQUIRE(g.set_closed(floor, true).ok);
     const HouseMesh m = dfn::world::build_house_mesh(g);
     REQUIRE(m.findings.empty());
 
@@ -374,7 +380,13 @@ TEST_CASE("нормаль берётся из ПОРЯДКА ОБХОДА, а fa
     ElementId one = 0;
     ElementId two = 0;
     REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d}, "oak", one).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
+    // у контура появился свой признак, и построитель читает его.
+    REQUIRE(g.set_closed(one, true).ok);
     REQUIRE(g.add_element(ElementKind::Surface, {d, c, b, a}, "oak", two).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
+    // у контура появился свой признак, и построитель читает его.
+    REQUIRE(g.set_closed(two, true).ok);
 
     glm::vec3 n1{0.0f};
     glm::vec3 n2{0.0f};
@@ -398,6 +410,8 @@ TEST_CASE("нормаль берётся из ПОРЯДКА ОБХОДА, а fa
     const VertexId pd = plain.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 3.0f});
     ElementId flat = 0;
     REQUIRE(plain.add_element(ElementKind::Surface, {pa, pb, pc, pd}, "oak", flat).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08).
+    REQUIRE(plain.set_closed(flat, true).ok);
     const HouseMesh before = dfn::world::build_house_mesh(plain);
     REQUIRE(plain.set_facing(flat, true).ok);
     const HouseMesh after = dfn::world::build_house_mesh(plain);
@@ -433,6 +447,8 @@ TEST_CASE("поворот текстуры ВОКРУГ НОРМАЛИ не тя
         ElementId s = 0;
         const std::string style = "oak;thickness=0.1;tex_deg=" + std::to_string(tex_deg);
         g.add_element(ElementKind::Surface, {a, b, c, d}, style, s);
+        // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08).
+        g.set_closed(s, true);
         return g;
     };
 
@@ -558,6 +574,9 @@ TEST_CASE("кривой контур ГОВОРИТСЯ находкой, но �
     const VertexId d = g.add_vertex(Anchoring::Free, {0.0f, 2.6f, 3.0f});
     ElementId bad = 0;
     REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d}, "oak", bad).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
+    // у контура появился свой признак, и построитель читает его.
+    REQUIRE(g.set_closed(bad, true).ok);
     const HouseMesh m = dfn::world::build_house_mesh(g);
 
     REQUIRE(m.findings.size() == 1);
@@ -586,6 +605,9 @@ TEST_CASE("контур-бантик ловится самопересечени
     const VertexId d = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 3.0f});
     ElementId tie = 0;
     REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d}, "oak", tie).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
+    // у контура появился свой признак, и построитель читает его.
+    REQUIRE(g.set_closed(tie, true).ok);
     const HouseMesh m = dfn::world::build_house_mesh(g);
     const auto found = std::find_if(m.findings.begin(), m.findings.end(), [](const auto& f) {
         return f.issue == MeshIssue::ContourSelfIntersects;
@@ -764,6 +786,9 @@ TEST_CASE("две сборки одного графа дают ПОБАЙТОВ
     ElementId post = 0;
     ElementId wall = 0;
     REQUIRE(g.add_element(ElementKind::Surface, refs, "oak;thickness=0.25", floor).ok);
+    // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
+    // у контура появился свой признак, и построитель читает его.
+    REQUIRE(g.set_closed(floor, true).ok);
     const VertexId top = g.add_vertex(Anchoring::Free, {6.0f, 3.0f, 0.0f});
     REQUIRE(g.add_element(ElementKind::Line, {refs[1], top}, "oak;radius=0.15", post).ok);
     REQUIRE(g.add_element(ElementKind::Surface, {refs[0], refs[1]},
