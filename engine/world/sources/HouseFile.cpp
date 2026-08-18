@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:03:12
-Last updated: 18:08:2026 - 18:27:14
+Last updated: 18:08:2026 - 18:43:05
 Module: engine/world
 File: engine/world/sources/HouseFile.cpp
 
@@ -20,6 +20,9 @@ UPD:
   переиспользуются, и после «поставил 5, удалил 4» выживает v5, а цикл смотрел
   1..2 — снимок выходил пустым, читатель на пустой файл не жалуется, и cmd+Z
   молча стирал постройку.
+- 18:08:2026 - 18:43:05: ИМЯ В ФАЙЛЕ И ЕСТЬ ИМЯ В ГРАФЕ. «v5» читается как вершина 5, а не как
+  «пятая по счёту». Неразобранное имя ОТВЕРГАЕТСЯ, а не переименовывается молча:
+  переименование и было той бедой, которую чиним.
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -29,10 +32,33 @@ UPD:
 #include <sstream>
 #include <unordered_map>
 #include <utility>
+#include <string_view>
 #include <vector>
 
 namespace dfn::world {
 namespace {
+
+/// ИМЯ В ФАЙЛЕ И ЕСТЬ ИМЯ В ГРАФЕ: «v5» — вершина 5. Ноль означает «имя не
+/// разобрано»; такие файлы отвергаются, а не переименовываются молча.
+///
+/// Раньше читатель раздавал имена ЗАНОВО, и круговой прогон возвращал тот же
+/// дом с другими именами — v3 v4 v5 становились v1 v2 v3. Для файла безобидно,
+/// для ОТМЕНЫ нет: история хранит состояние этим самым текстом, и после cmd+Z
+/// выделение по имени указывало на ДРУГУЮ вершину. Не повисало, а молча
+/// показывало соседа. Нашла зона, чинившая соседний изъян в этом же файле.
+std::uint32_t name_number(std::string_view name, char prefix) {
+    if (name.size() < 2 || name[0] != prefix) {
+        return 0;
+    }
+    std::uint32_t n = 0;
+    for (std::size_t i = 1; i < name.size(); ++i) {
+        if (name[i] < '0' || name[i] > '9') {
+            return 0;
+        }
+        n = n * 10 + static_cast<std::uint32_t>(name[i] - '0');
+    }
+    return n;
+}
 
 const char* anchoring_word(Anchoring a) {
     switch (a) {
@@ -259,7 +285,15 @@ HouseIoResult read_house(const std::string& text, HouseGraph& out) {
                 continue;
             }
             if (!w.on_edge) {
-                vmap[w.name] = out.add_vertex(w.anchoring, w.local);
+                const std::uint32_t want = name_number(w.name, 'v');
+                if (want == 0) {
+                    return {false, "имя вершины не разобрано: " + w.name, w.line};
+                }
+                const GraphResult r = out.adopt_vertex(want, w.anchoring, w.local);
+                if (!r.ok) {
+                    return {false, r.why, w.line};
+                }
+                vmap[w.name] = want;
                 w.done = true;
                 progress = true;
                 continue;
@@ -268,12 +302,15 @@ HouseIoResult read_house(const std::string& text, HouseGraph& out) {
             if (host == emap.end()) {
                 continue; // хозяин ещё не создан — вернёмся следующим проходом
             }
-            VertexId made = 0;
-            const GraphResult r = out.add_vertex_on_edge(host->second, w.t, made);
+            const std::uint32_t want = name_number(w.name, 'v');
+            if (want == 0) {
+                return {false, "имя вершины не разобрано: " + w.name, w.line};
+            }
+            const GraphResult r = out.adopt_vertex_on_edge(want, host->second, w.t);
             if (!r.ok) {
                 return {false, r.why, w.line};
             }
-            vmap[w.name] = made;
+            vmap[w.name] = want;
             w.done = true;
             progress = true;
         }
@@ -294,8 +331,13 @@ HouseIoResult read_house(const std::string& text, HouseGraph& out) {
             if (!ready) {
                 continue;
             }
-            ElementId made = 0;
-            const GraphResult r = out.add_element(w.kind, std::move(refs), w.style, made);
+            const std::uint32_t want = name_number(w.name, 'e');
+            if (want == 0) {
+                return {false, "имя элемента не разобрано: " + w.name, w.line};
+            }
+            const ElementId made = want;
+            const GraphResult r =
+                out.adopt_element(want, w.kind, std::move(refs), w.style);
             if (!r.ok) {
                 return {false, r.why, w.line};
             }

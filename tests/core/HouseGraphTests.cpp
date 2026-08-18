@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 18:26:06
+Last updated: 18:08:2026 - 18:43:05
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -43,6 +43,10 @@ UPD:
   переиспользуются — после «поставил 5, удалил 4» выживает v5, цикл смотрел
   1..2, снимок выходил ПУСТЫМ, и cmd+Z стирал постройку. Читатель на пустой
   файл не жалуется, поэтому круговой прогон выглядел успешным.
+- 18:08:2026 - 18:43:05: имена переживают круговой прогон. И ИСПРАВЛЕН МОЙ СОБСТВЕННЫЙ СЛУЧАЙ,
+  написанный часом раньше: он проверял vertex(1), то есть закреплял ТОГДАШНЕЕ
+  ошибочное поведение читателя. Проверка, написанная под наблюдаемое, а не под
+  нужное, охраняет дефект.
 */
 
 #include <doctest/doctest.h>
@@ -703,11 +707,17 @@ TEST_CASE("запись переживает удаления: имена не �
     const std::string text = dfn::world::write_house(g);
     HouseGraph back;
     REQUIRE(dfn::world::read_house(text, back).ok);
-    // ВЫЖИВШАЯ ВЕРШИНА НА МЕСТЕ. Без этого утверждения пустой снимок выглядел
-    // бы как успешный круговой прогон: пустое пишется и читается прекрасно.
-    CHECK(back.vertex_count() == 1);
-    CHECK(back.vertex(1) != nullptr);
-    CHECK(back.vertex(1)->local.x == doctest::Approx(4.0f));
+    // ВЫЖИВШАЯ ВЕРШИНА НА МЕСТЕ И ПОД СВОИМ ИМЕНЕМ. Без этого утверждения пустой
+    // снимок выглядел бы как успешный круговой прогон: пустое пишется и
+    // читается прекрасно.
+    //
+    // ЭТОТ СЛУЧАЙ Я САМ НАПИСАЛ НЕВЕРНО, и это стоит записать. Он проверял
+    // vertex(1) — то есть кодировал ТОГДАШНЕЕ поведение, при котором читатель
+    // раздавал имена заново. Поведение было ошибочным, а случай его закреплял.
+    // Проверка, написанная под наблюдаемое, а не под нужное, охраняет дефект.
+    REQUIRE(back.vertex_count() == 1);
+    REQUIRE(back.vertex(all.back()) != nullptr);
+    CHECK(back.vertex(all.back())->local.x == doctest::Approx(4.0f));
 
     // И то же для элементов: удалили ранние, уцелел поздний.
     HouseGraph h;
@@ -785,4 +795,57 @@ TEST_CASE("ЗАПИСЬ ПОСЛЕ УДАЛЕНИЙ: имя больше чис�
     HouseGraph back2;
     REQUIRE(read_house(text2, back2).ok);
     CHECK(write_house(back2) == text2);
+}
+
+TEST_CASE("круговой прогон СОХРАНЯЕТ ИМЕНА, иначе отмена показывает соседа") {
+    // ПОЛОМКА БЫЛА НЕ В ФАЙЛЕ, А В ОТМЕНЕ. Читатель раздавал имена заново, и
+    // тот же дом возвращался с другими именами: v3 v4 v5 становились v1 v2 v3.
+    // Для файла это безобидно — геометрия та же. Но история хранит состояние
+    // ЭТИМ ЖЕ текстом, и после cmd+Z выделение, взятое по имени, указывало на
+    // ДРУГУЮ вершину: не повисало, а молча показывало соседа. Такой отказ
+    // человек замечает через десять правок и не связывает с отменой.
+    HouseGraph g;
+    std::vector<VertexId> made;
+    for (int i = 0; i < 5; ++i) {
+        made.push_back(g.add_vertex(Anchoring::OnGround,
+                                    {static_cast<float>(i), 0.0f, 0.0f}));
+    }
+    REQUIRE(g.remove_vertex(made[0]).ok);
+    REQUIRE(g.remove_vertex(made[1]).ok);
+
+    HouseGraph back;
+    REQUIRE(dfn::world::read_house(dfn::world::write_house(g), back).ok);
+
+    // ИМЯ В ИМЯ, а не «столько же вершин». Проверка на количество прошла бы и
+    // на переименовании — именно так эта поломка и дожила до пользователя.
+    REQUIRE(back.vertex_count() == 3);
+    for (std::size_t i = 2; i < made.size(); ++i) {
+        const dfn::world::Vertex* v = back.vertex(made[i]);
+        REQUIRE_MESSAGE(v != nullptr, "имя не пережило круговой прогон");
+        CHECK(v->local.x == doctest::Approx(static_cast<float>(i)));
+    }
+
+    // И СЛЕДУЮЩАЯ ДОБАВЛЕННАЯ НЕ ЗАБИРАЕТ ЧУЖОЕ ИМЯ: счётчик двигается за
+    // самым большим прочитанным, иначе новая вершина столкнулась бы с уже
+    // существующей — и это была бы та же беда с другого конца.
+    const VertexId fresh = back.add_vertex(Anchoring::Free, {9.0f, 9.0f, 9.0f});
+    CHECK(fresh > made.back());
+    CHECK(back.vertex_count() == 4);
+
+    // То же для элементов.
+    HouseGraph h;
+    const VertexId a = h.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = h.add_vertex(Anchoring::OnGround, {1.0f, 0.0f, 0.0f});
+    ElementId e1 = 0;
+    ElementId e2 = 0;
+    ElementId e3 = 0;
+    REQUIRE(h.add_element(ElementKind::Line, {a, b}, "oak", e1).ok);
+    REQUIRE(h.add_element(ElementKind::Line, {a, b}, "pine", e2).ok);
+    REQUIRE(h.add_element(ElementKind::Line, {a, b}, "stone", e3).ok);
+    REQUIRE(h.remove_element(e1).ok);
+    HouseGraph hb;
+    REQUIRE(dfn::world::read_house(dfn::world::write_house(h), hb).ok);
+    REQUIRE(hb.element(e3) != nullptr);
+    CHECK(hb.element(e3)->style == "stone");
+    CHECK(hb.element(e1) == nullptr);
 }

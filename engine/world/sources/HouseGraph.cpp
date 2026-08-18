@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 18:08:2026 - 17:47:28
+Last updated: 18:08:2026 - 18:43:05
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -20,6 +20,7 @@ UPD:
 - 18:08:2026 - 16:59:04: components() и bridges() (см. заголовок).
 - 18:08:2026 - 17:06:23: то же (см. заголовок).
 - 18:08:2026 - 17:47:28: set_style/set_param/set_closed/param (см. заголовок).
+- 18:08:2026 - 18:43:05: усыновление имён (см. заголовок).
 */
 
 #include "engine/world/sources/HouseGraph.h"
@@ -87,6 +88,79 @@ GraphResult HouseGraph::add_element(ElementKind kind, std::vector<VertexId> refs
     e.style = std::move(style);
     elements_.push_back(std::move(e));
     out = elements_.back().id;
+    return {};
+}
+
+GraphResult HouseGraph::adopt_vertex(VertexId id, Anchoring anchoring, glm::vec3 local) {
+    if (id == NO_VERTEX) {
+        return {false, "имя вершины не может быть нулём", {}};
+    }
+    if (vertex(id) != nullptr) {
+        return {false, "вершина с таким именем уже есть", {}};
+    }
+    Vertex v;
+    v.id = id;
+    v.anchoring = anchoring;
+    v.local = local;
+    vertices_.push_back(v);
+    // Счётчик двигается ЗА самым большим взятым именем: иначе следующая
+    // добавленная вершина получит имя, которое уже занято прочитанной.
+    next_vertex_ = std::max(next_vertex_, id + 1);
+    return {};
+}
+
+GraphResult HouseGraph::adopt_vertex_on_edge(VertexId id, ElementId host, float t) {
+    if (id == NO_VERTEX) {
+        return {false, "имя вершины не может быть нулём", {}};
+    }
+    if (vertex(id) != nullptr) {
+        return {false, "вершина с таким именем уже есть", {}};
+    }
+    const Element* e = element(host);
+    if (e == nullptr) {
+        return {false, "хозяина нет", {}};
+    }
+    if (e->kind != ElementKind::Line) {
+        return {false, "вершина сидит только на оси прямой", {}};
+    }
+    Vertex v;
+    v.id = id;
+    v.anchoring = Anchoring::OnEdge;
+    v.host = host;
+    v.host_t = std::clamp(t, 0.0f, 1.0f);
+    vertices_.push_back(v);
+    next_vertex_ = std::max(next_vertex_, id + 1);
+    return {};
+}
+
+GraphResult HouseGraph::adopt_element(ElementId id, ElementKind kind,
+                                      std::vector<VertexId> refs, std::string style) {
+    if (id == NO_ELEMENT) {
+        return {false, "имя элемента не может быть нулём", {}};
+    }
+    if (element(id) != nullptr) {
+        return {false, "элемент с таким именем уже есть", {}};
+    }
+    if (refs.size() < min_refs_for(kind)) {
+        return {false, "слишком мало вершин для этого вида", {}};
+    }
+    for (const VertexId r : refs) {
+        if (vertex(r) == nullptr) {
+            return {false, "элемент ссылается на несуществующую вершину", {}};
+        }
+    }
+    for (std::size_t i = 1; i < refs.size(); ++i) {
+        if (refs[i] == refs[i - 1]) {
+            return {false, "одна и та же вершина дважды подряд", {}};
+        }
+    }
+    Element e;
+    e.id = id;
+    e.kind = kind;
+    e.refs = std::move(refs);
+    e.style = std::move(style);
+    elements_.push_back(std::move(e));
+    next_element_ = std::max(next_element_, id + 1);
     return {};
 }
 
