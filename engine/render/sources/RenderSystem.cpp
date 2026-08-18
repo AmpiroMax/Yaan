@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 19:08:2026 - 02:34:20
+Last updated: 19:08:2026 - 04:05:50
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -158,6 +158,7 @@ UPD:
 - 18:08:2026 - 21:12:40: Тело постройки рисуется перед призраком: призрак — ответ поверх мира, дом — вещь в мире.
 - 18:08:2026 - 22:26:40: Два потока постройки рисуются prop'ом; попытка отдать им плитки набора снята — читать их некому.
 - 19:08:2026 - 02:34:20: Плитки набора для постройки вернулись (fs_prop теперь сэмплит); два потока идут со своими плитками.
+- 19:08:2026 - 04:05:50: house_tile_asset — ленивая нарезка листа набора; submit потоков по материалам и дверей с поворотом вокруг петли.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -260,6 +261,32 @@ size_t RenderSystem::ChunkKeyHash::operator()(const glm::ivec2& v) const {
     return static_cast<size_t>(x * 0x9E3779B97F4A7C15ull ^ (y * 0xC2B2AE3D27D4EB4Full));
 }
 
+uint32_t RenderSystem::house_tile_asset(platform::IRenderer& renderer, uint32_t surface,
+                                        uint32_t tone) {
+    // ЛЕНИВО И С КЭШЕМ: ключ несёт материал и тон, procedural_texture_asset
+    // возвращает готовое по ключу, поэтому лист набора печётся только когда
+    // человек впервые выбрал этот материал. uv постройки считаны в метрах и
+    // повторяются wrap'ом — поэтому отдельная плитка, а не атлас.
+    const uint64_t key = proc_key(PROC_KEY_HOUSE_TILE, PARTS_ATLAS_TILE_PX,
+                                  surface * 16u + tone);
+    if (const auto it = proc_texture_ids_.find(key); it != proc_texture_ids_.end()) {
+        return it->second;
+    }
+    const PartsAtlas sheet = generate_parts_atlas(PARTS_ATLAS_TILE_PX);
+    std::vector<uint8_t> tile(static_cast<size_t>(PARTS_ATLAS_TILE_PX)
+                              * PARTS_ATLAS_TILE_PX * 4u);
+    const uint32_t x0 = surface * PARTS_ATLAS_TILE_PX;
+    const uint32_t y0 = tone * PARTS_ATLAS_TILE_PX;
+    for (uint32_t y = 0; y < PARTS_ATLAS_TILE_PX; ++y) {
+        const uint8_t* src = sheet.pixels.data()
+                           + (static_cast<size_t>(y0 + y) * sheet.width + x0) * 4u;
+        std::copy(src, src + static_cast<size_t>(PARTS_ATLAS_TILE_PX) * 4u,
+                  tile.begin() + static_cast<size_t>(y) * PARTS_ATLAS_TILE_PX * 4u);
+    }
+    return procedural_texture_asset(renderer, key, PARTS_ATLAS_TILE_PX,
+                                    PARTS_ATLAS_TILE_PX, tile.data());
+}
+
 uint32_t RenderSystem::procedural_texture_asset(platform::IRenderer& renderer,
                                                 uint64_t key, uint32_t width,
                                                 uint32_t height,
@@ -352,44 +379,6 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             proc_key(PROC_KEY_TERRAIN_ATLAS, LOOKDEV_ATLAS_CELL_PX,
                      LOOKDEV_TEXTURE_SEED),
             LOOKDEV_ATLAS_CELL_PX * 2, LOOKDEV_ATLAS_CELL_PX * 2, atlas.data());
-
-        // МАТЕРИАЛЫ ПОСТРОЙКИ РЕДАКТОРА — ПО ОДНОЙ ПЛИТКЕ, вырезанной из листа
-        // набора. Лист общий (то же дерево, что у собранных деталей: одна
-        // порода на весь проект), а вырезаются отдельные текстуры, потому что
-        // uv постройки считаны В МЕТРАХ и повторяются обычным wrap'ом — по
-        // атласу они уехали бы в соседний материал. Снималось 18.08, когда
-        // выяснилось, что fs_prop не сэмплит; 19.08 у fs_prop появилась ветка,
-        // и код вернулся тем же, чем был.
-        {
-            const PartsAtlas sheet = generate_parts_atlas(PARTS_ATLAS_TILE_PX);
-            const auto cut = [&](PartSurface surface, PartTone tone) {
-                std::vector<uint8_t> tile(static_cast<size_t>(PARTS_ATLAS_TILE_PX)
-                                          * PARTS_ATLAS_TILE_PX * 4u);
-                const uint32_t x0 = static_cast<uint32_t>(surface) * PARTS_ATLAS_TILE_PX;
-                const uint32_t y0 = static_cast<uint32_t>(tone) * PARTS_ATLAS_TILE_PX;
-                for (uint32_t y = 0; y < PARTS_ATLAS_TILE_PX; ++y) {
-                    const uint8_t* src =
-                        sheet.pixels.data()
-                        + (static_cast<size_t>(y0 + y) * sheet.width + x0) * 4u;
-                    std::copy(src, src + static_cast<size_t>(PARTS_ATLAS_TILE_PX) * 4u,
-                              tile.begin()
-                                  + static_cast<size_t>(y) * PARTS_ATLAS_TILE_PX * 4u);
-                }
-                return tile;
-            };
-            const std::vector<uint8_t> timber = cut(PartSurface::HewnTimber, PartTone::Mid);
-            house_timber_asset_ = procedural_texture_asset(
-                renderer,
-                proc_key(PROC_KEY_HOUSE_TILE, PARTS_ATLAS_TILE_PX,
-                         static_cast<uint32_t>(PartSurface::HewnTimber)),
-                PARTS_ATLAS_TILE_PX, PARTS_ATLAS_TILE_PX, timber.data());
-            const std::vector<uint8_t> plaster = cut(PartSurface::Plaster, PartTone::Light);
-            house_plaster_asset_ = procedural_texture_asset(
-                renderer,
-                proc_key(PROC_KEY_HOUSE_TILE, PARTS_ATLAS_TILE_PX,
-                         static_cast<uint32_t>(PartSurface::Plaster)),
-                PARTS_ATLAS_TILE_PX, PARTS_ATLAS_TILE_PX, plaster.data());
-        }
 
         // The §8.1 path atlas: cell index IS core's PathClass ordinal.
         const auto path_atlas =
@@ -985,9 +974,6 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // носил дерево и штукатурку, нужна программа, которая СЭМПЛИТ (своя
     // «built» или ветка в prop), и это работа в зоне платформы.
     if (prop_program_ != 0) {
-        // ПЛИТКИ МАТЕРИАЛОВ: каркас — тёсаный брус, полотна — штукатурка. При
-        // непрогретом кэше рука не пустая, а тонированная: submit без текстуры
-        // рисует цвет вершины, и дом просто выглядит как вчера.
         const auto tex_of = [&](uint32_t asset) {
             platform::TextureHandle t{};
             if (const auto it = texture_cache_.find(asset); it != texture_cache_.end()) {
@@ -995,15 +981,28 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             }
             return t;
         };
-        if (house_mesh_id_ != 0) {
-            renderer.submit(platform::MeshHandle{house_mesh_id_},
+        for (const HouseStreamGpu& st : house_streams_) {
+            renderer.submit(platform::MeshHandle{st.mesh_id},
                             platform::ProgramHandle{prop_program_}, identity,
-                            tex_of(house_timber_asset_));
+                            tex_of(st.texture_asset));
         }
-        if (house_panels_id_ != 0) {
-            renderer.submit(platform::MeshHandle{house_panels_id_},
-                            platform::ProgramHandle{prop_program_}, identity,
-                            tex_of(house_plaster_asset_));
+        // ДВЕРИ КАЧАЮТСЯ ВОКРУГ ПЕТЛИ. Ход демонстрационный (0..~85° и назад):
+        // редактору важно ПОКАЗАТЬ, что петля стоит на выбранной паре; игровое
+        // «открыто/закрыто» будет состоянием симуляции, а не синусом.
+        house_door_phase_ += 0.008f;
+        const float swing = (1.0f - std::cos(house_door_phase_)) * 0.5f * 1.48f;
+        for (const HouseDoorGpu& d : house_doors_) {
+            const glm::vec3 axis_v = d.hinge_b - d.hinge_a;
+            const float axis_len = glm::length(axis_v);
+            glm::mat4 xform(1.0f);
+            if (axis_len > 1e-4f) {
+                xform = glm::translate(glm::mat4(1.0f), d.hinge_a)
+                      * glm::rotate(glm::mat4(1.0f), swing, axis_v / axis_len)
+                      * glm::translate(glm::mat4(1.0f), -d.hinge_a);
+            }
+            renderer.submit(platform::MeshHandle{d.mesh_id},
+                            platform::ProgramHandle{prop_program_}, xform,
+                            tex_of(d.texture_asset));
         }
     }
     // THE BUILD GHOST last of the world's geometry, unlit: it is an ANSWER

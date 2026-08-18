@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 02:34:20
+Last updated: 19:08:2026 - 04:05:50
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -36,6 +36,7 @@ UPD:
 - 18:08:2026 - 23:20:00: Блок сетки и точных координат якоря — один на три панели.
 - 19:08:2026 - 01:20:45: PushID на сетку и блок выбранного (ImGui кричал про конфликт ID — подписи ползунков совпадали с инструментными); draw_house_selection_panel — панель выбранного для инструмента выбора.
 - 19:08:2026 - 02:34:20: Заголовки «Заготовка» и «Выбрано сейчас» (долг 4): два блока одинаковых полей перестали читаться как один.
+- 19:08:2026 - 04:05:50: Панель выбранного: материал (9), тон (4), форма палки (круг/квадрат/6/8), дверь с листанием петли по кругу.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -156,7 +157,56 @@ static void draw_selected_element(HouseSession& session) {
             });
         }
     };
+    // МАТЕРИАЛ И ТОН — У ЛЮБОГО ЭЛЕМЕНТА (заказ 19.08: «выбирать текстуры для
+    // палок, стен»). Порядок пунктов — ординалы PartSurface/PartTone: плитку
+    // режет отрисовка, и число здесь обязано совпадать с числом там.
+    {
+        static const char* MATS[] = {"тёсаный брус", "пилёная доска", "торец",
+                                     "камень",       "обожжённая глина", "штукатурка",
+                                     "солома",       "дёрн",           "остекление"};
+        static const char* TONES[] = {"светлый", "средний", "тёмный", "выветренный"};
+        const std::string m = session.graph().param(id, "mat");
+        const std::string t = session.graph().param(id, "tone");
+        int mi = m.empty() ? (line ? 0 : 5) : std::atoi(m.c_str());
+        int ti = t.empty() ? (line ? 1 : 0) : std::atoi(t.c_str());
+        mi = std::clamp(mi, 0, 8);
+        ti = std::clamp(ti, 0, 3);
+        const auto set_int = [&](const char* key, int v) {
+            (void)session.mutate("материал элемента", [&](world::HouseGraph& g) {
+                return g.set_param(id, key, std::to_string(v));
+            });
+        };
+        if (ImGui::Combo(EditorUi::tr("house.mat"), &mi, MATS, 9)) {
+            set_int("mat", mi);
+        }
+        if (ImGui::Combo(EditorUi::tr("house.tone"), &ti, TONES, 4)) {
+            set_int("tone", ti);
+        }
+    }
     if (line) {
+        // ФОРМА ПАЛКИ (заказ 19.08): круг, квадрат, шести- и восьмигранник —
+        // это те профили, которые умеет построитель (form/sides).
+        {
+            static const char* FORMS[] = {"круглая", "квадратная", "шестигранная",
+                                          "восьмигранная"};
+            const std::string f = session.graph().param(id, "form");
+            const std::string n = session.graph().param(id, "sides");
+            int fi = 0;
+            if (f == "square") {
+                fi = 1;
+            } else if (n == "6") {
+                fi = 2;
+            } else if (n == "8") {
+                fi = 3;
+            }
+            if (ImGui::Combo(EditorUi::tr("house.form"), &fi, FORMS, 4)) {
+                (void)session.mutate("форма палки", [&](world::HouseGraph& g) {
+                    (void)g.set_param(id, "form", fi == 1 ? "square" : "round");
+                    return g.set_param(id, "sides",
+                                       fi == 2 ? "6" : (fi == 3 ? "8" : "0"));
+                });
+            }
+        }
         number("radius", "house.radius", 0.02f, 1.0f, config::HOUSE_LINE_RADIUS_DEFAULT);
     } else {
         number("thickness", "house.thickness", 0.02f, 1.0f,
@@ -167,6 +217,36 @@ static void draw_selected_element(HouseSession& session) {
             ImGui::TextDisabled("%s", EditorUi::tr("house.height.chain"));
         }
         number("tex_deg", "house.tex", 0.0f, 360.0f, 0.0f);
+        // ДВЕРЬ — СВОЙСТВО СТЕНЫ, а не отдельная деталь (заказ 19.08: «ставлю
+        // стену и меняю ей свойство на дверь... и так я убираю необходимость
+        // делать стены специально с дверьми»). Петля — пара соседних якорей
+        // обхода, листается по кругу; дверь качается вокруг неё прямо в
+        // редакторе, чтобы выбор петли был виден, а не угадан.
+        {
+            bool is_door = session.graph().param(id, "door") == "1";
+            if (ImGui::Checkbox(EditorUi::tr("house.door"), &is_door)) {
+                (void)session.mutate("дверь", [&](world::HouseGraph& g) {
+                    return g.set_param(id, "door", is_door ? "1" : "0");
+                });
+            }
+            if (is_door && e->refs.size() >= 2) {
+                const std::size_t n = e->refs.size();
+                std::size_t hinge = 0;
+                if (const std::string h = session.graph().param(id, "hinge"); !h.empty()) {
+                    hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
+                }
+                ImGui::Text("%s v%u–v%u", EditorUi::tr("house.hinge"),
+                            static_cast<unsigned>(e->refs[hinge]),
+                            static_cast<unsigned>(e->refs[(hinge + 1) % n]));
+                ImGui::SameLine();
+                if (ImGui::SmallButton(EditorUi::tr("house.hinge.next"))) {
+                    const std::size_t next = (hinge + 1) % n;
+                    (void)session.mutate("петля двери", [&](world::HouseGraph& g) {
+                        return g.set_param(id, "hinge", std::to_string(next));
+                    });
+                }
+            }
+        }
         if (ImGui::Button(EditorUi::tr("house.flip"))) {
             const bool now = e->facing_flipped;
             (void)session.mutate("развернул лицо", [&](world::HouseGraph& g) {

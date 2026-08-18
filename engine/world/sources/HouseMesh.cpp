@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 18:08:2026 - 23:52:10
+Last updated: 19:08:2026 - 04:05:50
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -30,6 +30,7 @@ UPD:
   плоском поле, которому задали высоту, и на стене нулевой высоты.
 - 18:08:2026 - 22:20:15: equidistant_point (МНК-центр окружности в плоскости контура) и surface_centre.
 - 18:08:2026 - 23:52:10: surface_centre считает среднее; расчёт равноудалённой точки убран.
+- 19:08:2026 - 04:05:50: Поворот текстуры — вокруг СРЕДНЕЙ точки грани (крышка и каждая грань ранта); sides доезжает из поля params; свойства чужих слоёв (mat/tone/door/hinge) — не находка.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -283,7 +284,16 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
             break;
         }
         if (!matched && issues != nullptr) {
-            issues->push_back({std::string(tok), "неизвестное свойство"});
+            // СВОЙСТВА ДРУГИХ СЛОЁВ — НЕ ОШИБКА. Материал (mat/tone), дверь
+            // (door/hinge) и запертость обхода читает редактор и отрисовка;
+            // геометрию они не меняют, и построитель их не знает ПО ПРАВУ.
+            // Ругаться на них значило бы печатать «неизвестное свойство» на
+            // каждую дверь — и приучить всех не читать находки вовсе.
+            const bool foreign = key == "mat" || key == "tone" || key == "door"
+                              || key == "hinge";
+            if (!foreign) {
+                issues->push_back({std::string(tok), "неизвестное свойство"});
+            }
         }
     }
     return p;
@@ -565,9 +575,18 @@ void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
         edge_hint = stable_reference_axis(n);
     }
 
+    // ПОВОРОТ ТЕКСТУРЫ — ВОКРУГ СРЕДНЕЙ ТОЧКИ ГРАНИ (заказ 19.08: «текстуру
+    // крутить надо не вокруг какой-то точки из якорей, а вокруг средней»).
+    // Раньше рамка стояла в loop[0] — первом якоре: узор при повороте уезжал
+    // вбок, потому что вращался вокруг угла, а не вокруг себя.
+    glm::vec3 centre{0.0f};
+    for (std::size_t i = 0; i < count; ++i) {
+        centre += loop[i];
+    }
+    centre = centre / static_cast<float>(count) + axis * 0.5f;
     // Крышка (лицо, +n) и днище (-n). Днище — те же треугольники наоборот.
-    const UvFrame top_uv = make_uv_frame(loop[0], n, edge_hint, tex_deg);
-    const UvFrame bottom_uv = make_uv_frame(loop[0], -n, edge_hint, tex_deg);
+    const UvFrame top_uv = make_uv_frame(centre, n, edge_hint, tex_deg);
+    const UvFrame bottom_uv = make_uv_frame(centre, -n, edge_hint, tex_deg);
     for (std::size_t t = 0; t + 2 < tris.size(); t += 3) {
         mb.push_triangle(loop[tris[t]] + axis, loop[tris[t + 1]] + axis, loop[tris[t + 2]] + axis,
                          top_uv);
@@ -582,7 +601,9 @@ void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
             continue;
         }
         const glm::vec3 face_n = glm::normalize(glm::cross(dir, n));
-        const UvFrame side_uv = make_uv_frame(a, face_n, dir, tex_deg);
+        // Середина ГРАНИ, той же причиной, что у крышки.
+        const UvFrame side_uv =
+            make_uv_frame((a + b) * 0.5f + axis * 0.5f, face_n, dir, tex_deg);
         mb.push_quad(a, b, b + axis, a + axis, side_uv);
     }
     // Коллайдер: одна выпуклая призма на треугольник. Разбор идёт по ТЕМ ЖЕ
@@ -782,6 +803,7 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "height") { p.height = got.height; }
         else if (kv.first == "tex_deg") { p.tex_deg = got.tex_deg; }
         else if (kv.first == "form") { p.form = got.form; }
+        else if (kv.first == "sides" || kv.first == "n") { p.sides = got.sides; }
     }
     return p;
 }

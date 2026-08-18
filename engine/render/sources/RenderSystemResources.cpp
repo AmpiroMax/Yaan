@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 18:08:2026 - 22:26:40
+Last updated: 19:08:2026 - 04:05:50
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -66,6 +66,7 @@ UPD:
 - 17:08:2026 - 18:41:51: тело set_ghost_mesh — перезаливается каждый кадр, он ходит за прицелом.
 - 18:08:2026 - 21:12:40: Заливка слота постройки со свободой прежнего буфера.
 - 18:08:2026 - 22:26:40: Заливка обоих потоков постройки со свободой прежних буферов.
+- 19:08:2026 - 04:05:50: Заливка потоков и дверей со свободой прежних буферов.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -388,26 +389,40 @@ void RenderSystem::set_ghost_mesh(platform::IRenderer& renderer,
     }
 }
 
-void RenderSystem::set_house_mesh(platform::IRenderer& renderer, const MeshData& beams,
-                                  const MeshData& panels) {
-    // Заливается по изменению, а не по кадру (см. заголовок), поэтому старые
-    // меши уничтожаются ровно здесь: слот держит РОВНО ОДНУ постройку, и вторая
-    // заливка без освобождения утекала бы буфером на каждую правку.
-    const auto swap = [&](uint32_t& slot, const MeshData& mesh) {
-        if (slot != 0) {
-            renderer.destroy_mesh(platform::MeshHandle{slot});
-            slot = 0;
+void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
+                                  std::vector<HouseStream> streams,
+                                  std::vector<HouseDoor> doors) {
+    // Заливается по изменению, а не по кадру; старые меши уничтожаются здесь —
+    // слот держит РОВНО ОДНУ постройку, и вторая заливка без освобождения
+    // утекала бы буфером на каждую правку.
+    for (const HouseStreamGpu& st : house_streams_) {
+        renderer.destroy_mesh(platform::MeshHandle{st.mesh_id});
+    }
+    house_streams_.clear();
+    for (const HouseDoorGpu& d : house_doors_) {
+        renderer.destroy_mesh(platform::MeshHandle{d.mesh_id});
+    }
+    house_doors_.clear();
+    for (HouseStream& st : streams) {
+        if (st.mesh.vertices.empty() || st.mesh.indices.empty()) {
+            continue;
         }
-        if (mesh.vertices.empty() || mesh.indices.empty()) {
-            return; // ни одной постройки этого вида — обычное состояние
-        }
-        const platform::MeshHandle h = renderer.create_mesh(mesh.vertices, mesh.indices);
+        const platform::MeshHandle h = renderer.create_mesh(st.mesh.vertices, st.mesh.indices);
         if (h.valid()) {
-            slot = h.id;
+            house_streams_.push_back(
+                {h.id, house_tile_asset(renderer, st.surface, st.tone)});
         }
-    };
-    swap(house_mesh_id_, beams);
-    swap(house_panels_id_, panels);
+    }
+    for (HouseDoor& d : doors) {
+        if (d.mesh.vertices.empty() || d.mesh.indices.empty()) {
+            continue;
+        }
+        const platform::MeshHandle h = renderer.create_mesh(d.mesh.vertices, d.mesh.indices);
+        if (h.valid()) {
+            house_doors_.push_back({h.id, house_tile_asset(renderer, d.surface, d.tone),
+                                    d.hinge_a, d.hinge_b});
+        }
+    }
 }
 
 void RenderSystem::set_transient_lights(std::vector<ExtraLight> lights) {

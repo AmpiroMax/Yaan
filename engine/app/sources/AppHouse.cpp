@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 19:08:2026 - 03:22:40
+Last updated: 19:08:2026 - 04:05:50
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -30,6 +30,7 @@ UPD:
   изменений поведения (перенос, не переписывание).
 - 19:08:2026 - 02:34:20: Цвет вершин потоков постройки белый: материал несёт плитка, тонировка затемнила бы её вдвое.
 - 19:08:2026 - 03:22:40: Прицел на постройке — узлы сетки В ОБЪЁМЕ (крестики в узлах мира вокруг точки попадания): «узлы на стенах, узлы на полу».
+- 19:08:2026 - 04:05:50: Потоки по mat/tone из параметров элемента; дверь — свой поток с петлёй и ВНЕ коллайдера; демо-сруб получил дверь из тёмной доски.
 */
 
 #include "engine/app/sources/App.h"
@@ -43,6 +44,7 @@ UPD:
 #include "engine/world/sources/HouseMesh.h"
 
 #include <cmath>
+#include <map>
 #include <cstdio>
 #include <glm/geometric.hpp>
 
@@ -267,11 +269,16 @@ void App::seed_demo_house() {
             g.set_closed(floor, true);
             g.set_param(floor, "thickness", "0.12");
         }
-        // Стена: открытая цепочка по одной стороне, выдавливается вверх.
+        // Стена: открытая цепочка по одной стороне, выдавливается вверх — И ЭТО
+        // ДВЕРЬ: кадр обязан показывать и материал (доска), и петлю в работе.
         world::ElementId wall = world::NO_ELEMENT;
         if (g.add_element(ElementKind::Surface, {low[0], low[1]}, "", wall).ok) {
             g.set_param(wall, "height", "2.5");
             g.set_param(wall, "thickness", "0.10");
+            g.set_param(wall, "mat", "1");  // пилёная доска
+            g.set_param(wall, "tone", "2"); // тёмная
+            g.set_param(wall, "door", "1");
+            g.set_param(wall, "hinge", "0");
         }
         return world::GraphResult{};
     });
@@ -288,111 +295,114 @@ void App::upload_house_mesh() {
         return;
     }
     const world::HouseMesh built = world::build_house_mesh(house_.graph());
-    render::MeshData out;
-    out.vertices.reserve(built.vertices.size());
-    out.indices = built.indices;
-    // В МИРОВЫЕ КООРДИНАТЫ ЗДЕСЬ. Граф живёт в координатах постройки (так дом
-    // переносится целиком и копируется файлом), а слот рисуется единичной
-    // матрицей; перенос делает тот, кто знает про сессию.
+    // ПОТОК НА МАТЕРИАЛ (заказ 19.08: «выбирать текстуры для палок, стен»).
+    // Материал элемента — параметры mat/tone; по умолчанию брус носит тёсаное
+    // дерево, полотно — светлую штукатурку. Дверь (param door=1) уезжает в
+    // СВОЙ поток с петлёй и в коллайдер НЕ входит: она качается, а статичное
+    // тело в проёме держало бы человека в пустом дверном проёме.
     const glm::vec3 zero = house_.to_world({0.0f, 0.0f, 0.0f});
-    for (const world::HouseVertex& v : built.vertices) {
+    const auto to_world_vertex = [&](const world::HouseVertex& v) {
         platform::Vertex pv{};
         pv.position = house_.to_world(v.pos);
-        // НОРМАЛЬ ПОВОРАЧИВАЕТСЯ, НО НЕ ПЕРЕНОСИТСЯ: это направление, а не
-        // точка. Разность двух переведённых точек — самый дешёвый способ
-        // спросить у сессии её поворот, не заводя второго знания о нём.
         pv.normal = house_.to_world(v.normal) - zero;
         pv.uv = v.uv;
-        // ЦВЕТ — ВРЕМЕННАЯ ЗАМЕНА МАТЕРИАЛУ, и он назван вслух именно так.
-        // Программа «prop» рисует освещённую геометрию с цветом вершины и без
-        // текстуры; пока стиля (.dfstyle) в отрисовке нет, белое тело читается
-        // как пластик. Брус и полотно красятся по-разному, чтобы на кадре было
-        // видно, где каркас, а где стена.
-        pv.color_rgba = 0xFFFFFFFFu;
-        out.vertices.push_back(pv);
-    }
-    // ДВА ПОТОКА ПО МАТЕРИАЛУ: каркас и полотна. Материал приходит текстурой
-    // draw-вызова, поэтому одним потоком брус и штукатурка носили бы одну
-    // шкуру. Индексы перенумеровываются, а вершины копируются: отдать целый
-    // буфер вершин обоим потокам значило бы залить его в видеопамять дважды.
-    render::MeshData beams;
-    render::MeshData panels;
-    std::vector<std::uint32_t> remap(out.vertices.size(), 0xFFFFFFFFu);
-    const auto take = [&](render::MeshData& into, std::uint32_t vi) {
-        if (remap[vi] == 0xFFFFFFFFu) {
-            remap[vi] = static_cast<std::uint32_t>(into.vertices.size());
-            into.vertices.push_back(out.vertices[vi]);
-        }
-        into.indices.push_back(remap[vi]);
+        pv.color_rgba = 0xFFFFFFFFu; // материал несёт плитка, тонировка затемнила бы её
+        return pv;
     };
+    const auto mat_of = [&](const world::Element& e, std::uint32_t& surface,
+                            std::uint32_t& tone) {
+        const bool beam = e.kind == world::ElementKind::Line;
+        surface = beam ? 0u : 5u; // HewnTimber : Plaster
+        tone = beam ? 1u : 0u;    // Mid : Light
+        const std::string m = house_.graph().param(e.id, "mat");
+        const std::string t = house_.graph().param(e.id, "tone");
+        if (!m.empty()) { surface = static_cast<std::uint32_t>(std::atoi(m.c_str())) % 9u; }
+        if (!t.empty()) { tone = static_cast<std::uint32_t>(std::atoi(t.c_str())) % 4u; }
+    };
+    std::map<std::uint64_t, render::RenderSystem::HouseStream> streams;
+    std::vector<render::RenderSystem::HouseDoor> doors;
+    std::vector<std::uint32_t> remap;
+    house_positions_.clear();
+    std::vector<std::uint32_t> collider_indices;
     for (const world::MeshPart& part : built.parts) {
         const world::Element* e = house_.graph().element(part.element);
         if (e == nullptr) {
             continue;
         }
-        const bool is_beam = e->kind == world::ElementKind::Line;
-        render::MeshData& into = is_beam ? beams : panels;
-        // ЦВЕТ ВЕРШИНЫ — МНОЖИТЕЛЬ ПОВЕРХ ПЛИТКИ, и у обоих потоков он БЕЛЫЙ:
-        // материал теперь несёт текстура draw-вызова (fs_prop сэмплит с 19.08),
-        // а тонировка поверх плитки затемнила бы её вдвое. Тёплый и светлый
-        // цвета, которыми потоки различались, пока плитки не читались, ушли
-        // вместе с причиной их существования.
-        constexpr std::uint32_t WHITE = 0xFFFFFFFFu;
-        const std::uint32_t col = WHITE;
-        (void)is_beam;
+        std::uint32_t surface = 0;
+        std::uint32_t tone = 0;
+        mat_of(*e, surface, tone);
+        const bool is_door = house_.graph().param(e->id, "door") == "1";
+        render::MeshData* into = nullptr;
+        if (is_door) {
+            doors.emplace_back();
+            doors.back().surface = surface;
+            doors.back().tone = tone;
+            // ПЕТЛЯ — ВЫБРАННАЯ ПАРА СОСЕДНИХ ЯКОРЕЙ (param hinge = номер
+            // ребра обхода, по кругу). Ось идёт через их мировые точки.
+            const std::size_t n = e->refs.size();
+            std::size_t hinge = 0;
+            if (const std::string h = house_.graph().param(e->id, "hinge"); !h.empty()) {
+                hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
+            }
+            doors.back().hinge_a = house_.vertex_world(e->refs[hinge]);
+            doors.back().hinge_b = house_.vertex_world(e->refs[(hinge + 1) % n]);
+            into = &doors.back().mesh;
+        } else {
+            auto& st = streams[(static_cast<std::uint64_t>(surface) << 8) | tone];
+            st.surface = surface;
+            st.tone = tone;
+            into = &st.mesh;
+        }
+        remap.assign(built.vertices.size(), 0xFFFFFFFFu);
         for (std::uint32_t i = 0; i < part.index_count; ++i) {
-            const std::uint32_t vi = out.indices[part.index_begin + i];
-            if (vi < out.vertices.size()) {
-                out.vertices[vi].color_rgba = col;
+            const std::uint32_t vi = built.indices[part.index_begin + i];
+            if (remap[vi] == 0xFFFFFFFFu) {
+                remap[vi] = static_cast<std::uint32_t>(into->vertices.size());
+                into->vertices.push_back(to_world_vertex(built.vertices[vi]));
+            }
+            into->indices.push_back(remap[vi]);
+        }
+        if (!is_door) {
+            // Коллайдер — из тех же треугольников, дверные исключены.
+            for (std::uint32_t i = 0; i < part.index_count; ++i) {
+                const std::uint32_t vi = built.indices[part.index_begin + i];
+                collider_indices.push_back(
+                    static_cast<std::uint32_t>(house_positions_.size()));
+                house_positions_.push_back(house_.to_world(built.vertices[vi].pos));
             }
         }
-        std::fill(remap.begin(), remap.end(), 0xFFFFFFFFu);
-        for (std::uint32_t i = 0; i < part.index_count; ++i) {
-            take(into, out.indices[part.index_begin + i]);
-        }
     }
-    // НАХОДКИ ГОВОРЯТСЯ ВСЛУХ: неплоский контур и вырожденный элемент — это то,
-    // что человек увидит как дыру в стене, и молчание здесь стоило бы ему
-    // получаса поисков.
     for (const world::MeshFinding& f : built.findings) {
         std::fprintf(stderr, "[постройка] e%u: %s\n", static_cast<unsigned>(f.element),
                      f.what.c_str());
     }
-    render_system_.set_house_mesh(*renderer_, beams, panels);
-    // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ. Коллайдер строится ИЗ ТЕХ ЖЕ ТРЕУГОЛЬНИКОВ, что
-    // и картинка, и это не экономия, а требование: два независимых описания
-    // одного дома разъезжаются в тот день, когда правят одно из них, — и
-    // человек упирается в воздух там, где стены нет.
-    //
-    // Тело пересобирается целиком на каждое изменение постройки. Дорого это
-    // станет на большом городе, и тогда пересборку надо будет резать по
-    // элементам; сегодня дом — один, а неверная физика видна сразу.
+    std::vector<render::RenderSystem::HouseStream> stream_list;
+    for (auto& [key, st] : streams) {
+        stream_list.push_back(std::move(st));
+    }
+    const std::size_t n_streams = stream_list.size();
+    const std::size_t n_doors = doors.size();
+    render_system_.set_house_mesh(*renderer_, std::move(stream_list), std::move(doors));
+
+    // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ (кроме дверей — они качаются). Коллайдер из тех
+    // же треугольников, что и картинка: два описания одного дома разъезжаются в
+    // день, когда правят одно из них.
     if (physics_ != nullptr) {
         if (house_body_.valid()) {
             physics_->destroy_body(house_body_);
             house_body_ = {};
         }
-        house_positions_.clear();
-        house_positions_.reserve(out.vertices.size());
-        for (const platform::Vertex& v : out.vertices) {
-            house_positions_.push_back(v.position);
-        }
-        if (!house_positions_.empty() && !out.indices.empty()) {
+        if (!house_positions_.empty() && !collider_indices.empty()) {
             platform::TerrainMeshDesc desc;
             desc.positions = house_positions_;
-            desc.indices = out.indices;
+            desc.indices = collider_indices;
             desc.layer = physics::LAYER_STATIC;
             house_body_ = physics_->create_terrain_mesh(desc);
             if (!house_body_.valid()) {
                 std::fprintf(stderr, "[постройка] коллайдер НЕ создан — сквозь дом "
                                      "можно пройти\n");
             } else {
-                // ЛУЧ СКВОЗЬ СОБСТВЕННОЕ ТЕЛО — ПРОВЕРКА, А НЕ УКРАШЕНИЕ.
-                // «Тело создано» и «в него можно упереться» — разные
-                // утверждения: у выродившихся треугольников форма создаётся, а
-                // столкновений не даёт. Луч пускается через середину коробки
-                // построенного, и рядом печатается КОНТРОЛЬ — тот же луч в
-                // стороне от неё. Совпали ответы — прибор ничего не меряет.
                 glm::vec3 lo = house_positions_.front();
                 glm::vec3 hi = lo;
                 for (const glm::vec3& p : house_positions_) {
@@ -414,9 +424,8 @@ void App::upload_house_mesh() {
             }
         }
     }
-    std::fprintf(stderr,
-                 "[постройка] тело: каркас %zu треугольников, полотна %zu\n",
-                 beams.triangle_count(), panels.triangle_count());
+    std::fprintf(stderr, "[постройка] тело: потоков %zu, дверей %zu\n", n_streams,
+                 n_doors);
 }
 
 } // namespace dfn::app

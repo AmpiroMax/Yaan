@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 19:08:2026 - 02:34:20
+Last updated: 19:08:2026 - 04:05:50
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -152,6 +152,7 @@ UPD:
 - 18:08:2026 - 21:12:40: set_house_mesh — слот постройки редактора: рисуется ОСВЕЩЁННОЙ (prop), заливается по изменению, а не по кадру.
 - 18:08:2026 - 22:26:40: Слот постройки — два потока (каркас и полотна): материал сегодня цвет вершин, «prop» текстуру не читает.
 - 19:08:2026 - 02:34:20: Поля плиток постройки; комментарий слота обновлён.
+- 19:08:2026 - 04:05:50: HouseStream (поток на материал) и HouseDoor (петля + демонстрационный ход); плитка материала — лениво с кэшем.
 */
 
 #pragma once
@@ -488,17 +489,30 @@ public:
     ///    Когда заливать — знает вызывающий, здесь только «замени на это».
     ///
     /// Пустой меш очищает слот: карта без построек — обычное состояние.
-    /// Тело постройки ДВУМЯ ПОТОКАМИ: каркас и полотна.
-    ///
-    /// Разделены не для красоты — у них РАЗНЫЙ МАТЕРИАЛ, а материал на этом
-    /// пути приходит текстурой draw-вызова. Один поток означал бы одну
-    /// текстуру на брус и на штукатурку.
-    ///
-    /// Материал — ПЛИТКА ИЗ ЛИСТА НАБОРА на каждый поток: каркас носит тёсаный
-    /// брус, полотна штукатурку. fs_prop сэмплит с 19.08 (ветка на u_params.x);
-    /// uv считаны в метрах, повтор — fract() в фрагменте.
-    void set_house_mesh(platform::IRenderer& renderer, const MeshData& beams,
-                        const MeshData& panels);
+    /// ТЕЛО ПОСТРОЙКИ — ПОТОК НА МАТЕРИАЛ. Материал приходит текстурой
+    /// draw-вызова, поэтому сколько разных материалов выбрал человек, столько
+    /// потоков и рисуется (заказ 19.08: «выбирать текстуры для палок, стен»).
+    /// Плитка каждого материала вырезается из листа набора ЛЕНИВО и кэшируется
+    /// под своим ключом: заплатили только за то, что реально носится.
+    struct HouseStream {
+        MeshData mesh;
+        std::uint32_t surface = 0; ///< PartSurface ordinal
+        std::uint32_t tone = 1;    ///< PartTone ordinal
+    };
+    /// ДВЕРЬ — СВОЙ ПОТОК С ПЕТЛЁЙ (заказ 19.08: стена со свойством «дверь»
+    /// получает анимацию вокруг выбранной пары якорей). Рисуется той же
+    /// освещённой программой, но с поворотом вокруг оси петли; демонстрационный
+    /// ход двери считает render — редактору важно ПОКАЗАТЬ, что петля выбрана
+    /// верно, игровое «открыто/закрыто» будет состоянием симуляции.
+    struct HouseDoor {
+        MeshData mesh;
+        glm::vec3 hinge_a{0.0f};
+        glm::vec3 hinge_b{0.0f};
+        std::uint32_t surface = 0;
+        std::uint32_t tone = 1;
+    };
+    void set_house_mesh(platform::IRenderer& renderer, std::vector<HouseStream> streams,
+                        std::vector<HouseDoor> doors);
 
     /// Lights that live for ONE frame (the firefly swarm). Replaced every
     /// frame; an empty list is the normal daytime state, not an error.
@@ -509,10 +523,22 @@ private:
     uint32_t firefly_mesh_id_ = 0;
     uint32_t emissive_mesh_id_ = 0;
     uint32_t ghost_mesh_id_ = 0;
-    uint32_t house_mesh_id_ = 0;    // каркас (брус)
-    uint32_t house_panels_id_ = 0;  // полотна (стены, полы)
-    uint32_t house_timber_asset_ = 0;  // плитка тёсаного бруса
-    uint32_t house_plaster_asset_ = 0; // плитка штукатурки
+    struct HouseStreamGpu {
+        uint32_t mesh_id = 0;
+        uint32_t texture_asset = 0;
+    };
+    struct HouseDoorGpu {
+        uint32_t mesh_id = 0;
+        uint32_t texture_asset = 0;
+        glm::vec3 hinge_a{0.0f};
+        glm::vec3 hinge_b{0.0f};
+    };
+    std::vector<HouseStreamGpu> house_streams_;
+    std::vector<HouseDoorGpu> house_doors_;
+    float house_door_phase_ = 0.0f; // демонстрационный ход двери
+    /// Плитка материала набора, ленивo и с кэшем (см. set_house_mesh).
+    uint32_t house_tile_asset(platform::IRenderer& renderer, uint32_t surface,
+                              uint32_t tone);
     std::vector<ExtraLight> transient_lights_;
 
     /// One flame gathered this frame, before the eight slots are handed out.
