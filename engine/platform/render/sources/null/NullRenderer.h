@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 18:29:30
+Last updated: 18:08:2026 - 12:51:26
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.h
 
@@ -31,6 +31,7 @@ UPD:
 - 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe (no-op),
   frame_stats / center_pick (zeroed/no-hit refs). Inert but valid (Rule 3).
 - 17:08:2026 - 18:29:30: set_debug_lines — пусто, здесь ничего не рисуется.
+- 18:08:2026 - 12:51:26: set_present_rect_norm — пусто, здесь ничего не выводится.
 */
 
 #pragma once
@@ -75,6 +76,7 @@ public:
     // introspect.
     void set_wireframe(bool enabled) override;
     void set_debug_lines(bool /*enabled*/) override {} // nothing draws here
+    void set_present_rect_norm(float, float, float, float) override {} // ничего не выводится
     [[nodiscard]] const RenderFrameStats& frame_stats() const override;
     [[nodiscard]] const RenderPick& center_pick() const override;
 

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:08:20
-Last updated: 18:08:2026 - 12:08:20
+Last updated: 18:08:2026 - 12:51:26
 Module: tests/app
 File: tests/app/EditorToolboxTests.cpp
 
@@ -32,6 +32,10 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 12:08:20: Создан — рукав ящика инструментов (заказ 18.08 и
   docs/AUDIT_EDITOR_TOOLS.md).
+- 18:08:2026 - 12:51:26: пара «подпись говорит почему, мир не обещает» за пределом дальности.
+  Порознь каждая половина прошла бы на сломанном коде: подпись без гашения
+  оставляет зелёное кольцо там, куда щелчок не достанет, гашение без подписи —
+  молчание, неотличимое от поломки. Контрфакт: снял проверку — 6 утверждений.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"
@@ -49,6 +53,8 @@ using dfn::app::EditorToolbox;
 using dfn::app::IEditorTool;
 using dfn::app::NO_TOOL;
 using dfn::app::ToolAim;
+using dfn::app::ToolPreview;
+using dfn::app::ToolStatus;
 using dfn::app::ToolIcon;
 using dfn::app::ToolIdentity;
 using dfn::app::ToolPreview;
@@ -470,4 +476,44 @@ TEST_CASE("инструменты адресуются по имени, а не 
     Bench b;
     CHECK(b.box.index_of("place") == 2);
     CHECK(b.box.index_of("нет такого") == NO_TOOL);
+}
+
+// ЗА ПРЕДЕЛОМ ДАЛЬНОСТИ ЧЕЛОВЕК ВИДИТ ПОЧЕМУ, А МИР МОЛЧИТ (заказ 18.08:
+// «сейчас не понятно могу ли я рисовать / строить из-за расстояния, нужно
+// индикатор добавить, что далеко цель»).
+//
+// Держится ПАРА, и порознь каждая половина проходила бы на сломанном коде:
+// подпись без гашения превью оставляет зелёное кольцо там, куда щелчок не
+// достанет, а гашение без подписи — молчание, неотличимое от «инструмент
+// сломался». Обе половины живут в ящике, а не в инструментах: потолок общий,
+// значит и объяснение общее.
+TEST_CASE("за пределом дальности: подпись говорит почему, мир не обещает") {
+    Bench b;
+    b.box.set_reach_ceiling_m(10.0f);
+    b.box.click_icon(0, b.world);
+
+    // В ПРЕДЕЛАХ: инструмент отвечает сам, и превью у него есть.
+    const ToolAim near_aim = Bench::at(3.0f);
+    REQUIRE(b.box.in_reach(near_aim));
+    const ToolStatus near_st = b.box.status(near_aim);
+    CHECK(near_st.ready);
+    CHECK(std::string_view(near_st.key) != "tool.hint.too_far");
+
+    // ЗА ПРЕДЕЛОМ: подпись НЕ готова, называет причину и НЕСЁТ ОБА ЧИСЛА.
+    // Числа проверяются потому, что «далеко» не говорит, насколько подойти, а
+    // «46 m > 10 m» говорит — и ловит случай, когда предел ниже, чем думает
+    // человек.
+    const ToolAim far_aim = Bench::at(46.0f);
+    REQUIRE_FALSE(b.box.in_reach(far_aim));
+    const ToolStatus far_st = b.box.status(far_aim);
+    CHECK_FALSE(far_st.ready);
+    CHECK(std::string_view(far_st.key) == "tool.hint.too_far");
+    CHECK(far_st.text.find("46") != std::string::npos);
+    CHECK(far_st.text.find("10") != std::string::npos);
+
+    // И МИР НИЧЕГО НЕ ОБЕЩАЕТ: ни призрака, ни кольца, ни прохода по цели.
+    const ToolPreview far_pv = b.box.preview(far_aim);
+    CHECK_FALSE(far_pv.ghost);
+    CHECK_FALSE(far_pv.target_probe);
+    CHECK(far_pv.ring_brush == nullptr);
 }

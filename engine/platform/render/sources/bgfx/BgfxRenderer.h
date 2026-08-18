@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 18:08:2026 - 12:51:47
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -41,6 +41,7 @@ UPD:
   BgfxRendererFrame.cpp; accumulation in BgfxRendererSubmit.cpp).
 - 17:08:2026 - 18:29:30: set_debug_lines.
 - 17:08:2026 - 19:17:13: native_texture_handle — объявление переопределения нового добавленного метода IRenderer.
+- 18:08:2026 - 12:51:47: set_present_rect_norm — объявление нового пункта контракта IRenderer.
 */
 
 #pragma once
@@ -92,6 +93,7 @@ public:
 
     void set_wireframe(bool enabled) override;
     void set_debug_lines(bool enabled) override;
+    void set_present_rect_norm(float x, float y, float w, float h) override;
     [[nodiscard]] const RenderFrameStats& frame_stats() const override;
     [[nodiscard]] const RenderPick& center_pick() const override;
     [[nodiscard]] uint32_t native_texture_handle(TextureHandle handle) const override;

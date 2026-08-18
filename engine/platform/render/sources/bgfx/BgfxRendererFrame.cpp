@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 18:08:2026 - 12:51:26
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -175,6 +175,9 @@ UPD:
   в окно, не попал бы НИ НА ОДИН приёмочный кадр, то есть панель нельзя было бы
   ни показать, ни проверить. Существующие проходы и числа не тронуты; при
   выключенном редакторе обе подачи — одна ветка и возврат.
+- 18:08:2026 - 12:51:26: dest_rect вписывает картинку в ОТВЕДЁННЫЙ прямоугольник, а не в весь
+  кадровый буфер — обе ветки, и ретро-сетка, и посадка по стороне. Интерфейс
+  редактора стал рамой вокруг мира вместо слоя поверх него.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -766,15 +769,29 @@ void BgfxRenderer::Impl::update_shadow() {
 // centered; never zero (Q9).
 void BgfxRenderer::Impl::dest_rect(uint32_t& x, uint32_t& y, uint32_t& w,
                                    uint32_t& h) const {
-    const uint32_t fx = internal_width > 0 ? fb_width / internal_width : 1;
-    const uint32_t fy = internal_height > 0 ? fb_height / internal_height : 1;
+    // ОТВЕДЁННЫЙ ПРЯМОУГОЛЬНИК, а не весь буфер. Всё, что ниже, вписывается в
+    // НЕГО: и целочисленная ретро-сетка, и полноразмерная посадка по стороне.
+    // Так интерфейс редактора перестаёт быть слоем ПОВЕРХ мира и становится
+    // рамой ВОКРУГ него — накладываться физически нечему, и ни одному будущему
+    // оверлею не нужно помнить про чужие полосы.
+    const auto span = [](uint32_t total, float frac) {
+        const float v = static_cast<float>(total) * std::clamp(frac, 0.0f, 1.0f);
+        return static_cast<uint32_t>(std::lround(static_cast<double>(v)));
+    };
+    const uint32_t ax = span(fb_width, present_x);
+    const uint32_t ay = span(fb_height, present_y);
+    const uint32_t aw = std::max(1u, std::min(span(fb_width, present_w), fb_width - ax));
+    const uint32_t ah = std::max(1u, std::min(span(fb_height, present_h), fb_height - ay));
+
+    const uint32_t fx = internal_width > 0 ? aw / internal_width : 1;
+    const uint32_t fy = internal_height > 0 ? ah / internal_height : 1;
     const uint32_t factor = std::min(fx, fy);
     if (factor >= 2) {
         // RETRO GRID: an integer factor, because that is the whole point of a
         // small internal target — every texel becomes an exact square block
         // and the pixel art stays pixel art.
-        w = std::min(internal_width * factor, fb_width);
-        h = std::min(internal_height * factor, fb_height);
+        w = std::min(internal_width * factor, aw);
+        h = std::min(internal_height * factor, ah);
     } else {
         // FULL-DETAIL GRID (internal ~ the window, e.g. the 1920x1080 default
         // since 15.08.2026): there is no pixel grid left to preserve, so the
@@ -783,20 +800,20 @@ void BgfxRenderer::Impl::dest_rect(uint32_t& x, uint32_t& y, uint32_t& w,
         // bars — the user's «че за черные края». Aspect is still preserved:
         // the letterbox exists for a mismatched aspect, not for a rounding
         // rule that stopped applying.
-        const uint64_t by_w = static_cast<uint64_t>(internal_height) * fb_width;
-        const uint64_t by_h = static_cast<uint64_t>(internal_width) * fb_height;
-        if (by_w <= by_h) { // window is taller than the image: fill width
-            w = fb_width;
+        const uint64_t by_w = static_cast<uint64_t>(internal_height) * aw;
+        const uint64_t by_h = static_cast<uint64_t>(internal_width) * ah;
+        if (by_w <= by_h) { // отведённое место выше картинки: заполняем ширину
+            w = aw;
             h = static_cast<uint32_t>(by_w / std::max<uint32_t>(internal_width, 1u));
-        } else {            // window is wider: fill height
-            h = fb_height;
+        } else {            // шире: заполняем высоту
+            h = ah;
             w = static_cast<uint32_t>(by_h / std::max<uint32_t>(internal_height, 1u));
         }
-        w = std::min(w, fb_width);
-        h = std::min(h, fb_height);
+        w = std::min(w, aw);
+        h = std::min(h, ah);
     }
-    x = (fb_width - w) / 2;
-    y = (fb_height - h) / 2;
+    x = ax + (aw - w) / 2;
+    y = ay + (ah - h) / 2;
 }
 
 void BgfxRenderer::begin_frame(const glm::mat4& view, const glm::mat4& proj) {
@@ -1239,6 +1256,14 @@ bool BgfxRenderer::Impl::wireframe_on() const {
         return e != nullptr && e[0] != '\0' && e[0] != '0';
     }();
     return wireframe || env;
+}
+
+void BgfxRenderer::set_present_rect_norm(float x, float y, float w, float h) {
+    Impl& im = *impl_;
+    im.present_x = x;
+    im.present_y = y;
+    im.present_w = w;
+    im.present_h = h;
 }
 
 void BgfxRenderer::set_debug_lines(bool enabled) {

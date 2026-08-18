@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 19:17:13
+Last updated: 18:08:2026 - 12:51:47
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -90,6 +90,9 @@ UPD:
   материального листа дро (нормали коры, запрос зоны flora).
 - 17:08:2026 - 10:14:36: capture_fb + состояние чтения назад (VIEW_CAPTURE).
 - 17:08:2026 - 19:17:13: VIEW_IMGUI и VIEW_IMGUI_CAPTURE — слой интерфейса редактора поверх бэкбуфера и поверх capture_fb. Два вида, а не один: у них разные цели И вид bgfx несёт ОДНО преобразование на весь кадр, поэтому переиспользование VIEW_CAPTURE затёрло бы преобразование, под которым подавался upscale.
+- 18:08:2026 - 12:51:47: present_x/y/w/h — отведённый под мир прямоугольник, долями кадрового
+  буфера. Умолчание — весь экран; редактор ужимает его под свою полосу, чтобы
+  мир физически не заходил под интерфейс.
 */
 
 #pragma once
@@ -588,6 +591,14 @@ struct BgfxRenderer::Impl {
     void update_point_shadows();
     void apply_environment() const;
     void update_shadow();
+    /// Куда на экране садится картинка мира, долями кадрового буфера.
+    /// Умолчание — весь экран; редактор ужимает её под свою полосу, чтобы мир
+    /// физически не заходил под интерфейс (см. IRenderer::set_present_rect_norm).
+    float present_x = 0.0f;
+    float present_y = 0.0f;
+    float present_w = 1.0f;
+    float present_h = 1.0f;
+
     void dest_rect(uint32_t& x, uint32_t& y, uint32_t& w, uint32_t& h) const;
 };
 

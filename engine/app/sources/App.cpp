@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 12:10:00
+Last updated: 18:08:2026 - 12:51:26
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -476,6 +476,10 @@ UPD:
   BuildTool.cpp). Здесь стояло безусловное `at.y = height_at(...)`, то есть
   рука НИКОГДА не предлагала штабельного положения, и «нельзя ставить объекты
   друг на друга» было отказом инструмента, а не правил.
+- 18:08:2026 - 12:51:26: отступ интерфейса отдан РЕНДЕРЕРУ (set_present_rect_norm), а HUD
+  получает полный холст. Один владелец отступа вместо договорённости между
+  всеми рисующими; отступи HUD ещё раз — вышел бы двойной, и компас уехал бы
+  от края на две полосы.
 */
 
 #include "engine/app/sources/App.h"
@@ -4348,6 +4352,9 @@ bool App::apply_terrain_dab(const TerrainBrush& brush, glm::vec2 centre, float d
     }
     last_dab_samples_ = r.samples_touched;
     last_dab_worst_m_ = r.max_abs_delta_m;
+    // ЭТОТ ФЛАГ И ЕСТЬ «ПОКАЗЫВАТЬ ЕСТЬ ЧТО». Ставится там, где земля
+    // ДЕЙСТВИТЕЛЬНО сдвинулась, а не там, где нажата кнопка.
+    ground_moved_since_push_ = true;
     // PAINT WHAT IS NOW TRUE, MARK WHAT STOPPED BEING TRUE, REBUILD LATER.
     // Three calls because there are three decisions (ChunkManager.h says so);
     // folding them would hide the middle one, and rebuilding per dab would pay
@@ -4451,6 +4458,32 @@ void App::update_editor_tools(float dt_s) {
     const ToolTickReport tick = editor_ui_.toolbox().update(
         aim, dt_s, down, editor_ui_.tool_world());
     (void)tick;
+    // ЗЕМЛЯ ДВИГАЕТСЯ, ПОКА ВЕДЁШЬ, А НЕ ОДНИМ СКАЧКОМ НА ОТПУСКАНИИ (заказ
+    // 18.08). Мазок и раньше считался покадрово; не считался ПОКАЗ —
+    // rebuild_dirty звался только из finish_stroke, поэтому человек вёл кисть
+    // по земле, которая стояла на месте до конца штриха.
+    //
+    // ЧАСТОТА ВЫВЕДЕНА ИЗ ИЗМЕРЕННОЙ ЦЕНЫ, А НЕ НАЗНАЧЕНА: перестройка одного
+    // чанка стоит 196 мс (12 прогонов, живое кольцо 3x3), то есть двенадцать
+    // кадров при 60 к/с. StrokeRefresh спрашивает у самой перестройки, сколько
+    // она заняла, и ставит следующую не раньше чем через REFRESH_COST_RATIO
+    // таких цен — на показ уходит около пятой части времени штриха на ЛЮБОЙ
+    // машине, а не столько, сколько вышло на моей.
+    if (stroke_refresh_.step(ground_moved_since_push_, dt_s)) {
+        ground_moved_since_push_ = false;
+        const auto t0 = std::chrono::steady_clock::now();
+        // ОДИН ЧАНК ЗА ПОКАЗ. Бюджет здесь не тот, что в finish_stroke: там
+        // штрих кончился и человек ждёт правду целиком, здесь он ведёт кисть и
+        // ждёт ДВИЖЕНИЯ. Чанк под прицелом перестроится первым, потому что он
+        // и помечен первым.
+        (void)chunks_.rebuild_dirty(world_, bus_, 1);
+        const auto t1 = std::chrono::steady_clock::now();
+        stroke_refresh_.note_cost(
+            std::chrono::duration<float>(t1 - t0).count());
+    }
+    if (tick.released) {
+        stroke_refresh_.end();
+    }
     // КОЛЬЦО КИСТИ И ПРИЗРАК — ЭТО ЛИНИИ, поэтому инструмент, которому они
     // нужны, открывает эту дверь сам. Просить строителя выставить переменную
     // окружения, чтобы увидеть, куда укусит кисть, значит отдать ему
@@ -5841,17 +5874,30 @@ int App::run() {
             // пикселями: HUD компонуется во ВНУТРЕННЮЮ цель, а не в кадровый
             // буфер, и число в пикселях было бы верным для одного и тихо
             // неверным для другого (EditorUi.h говорит это дословно).
+            // МИР САДИТСЯ ПОД ПОЛОСУ, А НЕ ПОД НЕЁ ЖЕ ПОВЕРХ (заказ 18.08:
+            // «пусть инструмент рисуется не поверх игрового экрана... пусть игра
+            // ниже рисуется, тогда проблем с наложением не будет»).
+            //
+            // Тот же прямоугольник, что раньше служил ТОЛЬКО оверлеям, теперь
+            // отдаётся РЕНДЕРЕРУ: картинка мира физически не заходит под
+            // интерфейс. Поэтому HUD ниже получает ПОЛНЫЙ прямоугольник —
+            // отступать ему больше не от чего, а отступи он ещё раз, вышел бы
+            // двойной отступ, и компас уехал бы от края на две полосы.
+            //
+            // ОДИН ВЛАДЕЛЕЦ ОТСТУПА ВМЕСТО ДОГОВОРЁННОСТИ. Прежде каждый
+            // рисующий сам спрашивал, сколько занято сверху, и сам отступал;
+            // договорённость соблюдают все, пока не появится тот, кто о ней не
+            // знает, — а такой появлялся трижды.
             const EditorRect world_norm = editor_ui_.world_rect_norm();
+            renderer_->set_present_rect_norm(world_norm.x, world_norm.y,
+                                             world_norm.w, world_norm.h);
             const int hud_w = static_cast<int>(hud.width());
             const int hud_h = static_cast<int>(hud.height());
-            const int world_x = static_cast<int>(std::lround(
-                static_cast<double>(world_norm.x) * hud_w));
-            const int world_y = static_cast<int>(std::lround(
-                static_cast<double>(world_norm.y) * hud_h));
-            const int world_w = static_cast<int>(std::lround(
-                static_cast<double>(world_norm.w) * hud_w));
-            const int world_h = static_cast<int>(std::lround(
-                static_cast<double>(world_norm.h) * hud_h));
+            // Полный холст: отступ уже взят рендерером выше (см. довод там).
+            const int world_x = 0;
+            const int world_y = 0;
+            const int world_w = hud_w;
+            const int world_h = hud_h;
             // ЧИСТЫЙ КАДР ПО ТРЕБОВАНИЮ (DFN_HUD=0). Ни одного оверлея: ни
             // компаса, ни полос, ни прицела, ни отладочного блока. Нужна для
             // кадров, которые СМОТРИТ ЧЕЛОВЕК — приёмка и README, — где панель
