@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 01:20:45
+Last updated: 19:08:2026 - 02:34:20
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -35,6 +35,7 @@ UPD:
 - 18:08:2026 - 22:20:15: Свойства выбранного элемента — один блок на три панели: полутолщина, толщина, высота, поворот текстуры, разворот лица, удаление.
 - 18:08:2026 - 23:20:00: Блок сетки и точных координат якоря — один на три панели.
 - 19:08:2026 - 01:20:45: PushID на сетку и блок выбранного (ImGui кричал про конфликт ID — подписи ползунков совпадали с инструментными); draw_house_selection_panel — панель выбранного для инструмента выбора.
+- 19:08:2026 - 02:34:20: Заголовки «Заготовка» и «Выбрано сейчас» (долг 4): два блока одинаковых полей перестали читаться как один.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -192,6 +193,11 @@ void draw_house_selection_panel(HouseSession& session) {
 }
 
 void HouseVertexTool::draw_settings() {
+    // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
+    // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
+    // ниже под своим заголовком, и без надписей эти два блока читались как
+    // один, отвечающий непонятно про что (конфликт ID из ImGui был симптомом).
+    ImGui::SeparatorText(EditorUi::tr("house.head.draft"));
     // ВЫСОТА НАД ЗЕМЛЁЙ — ГЛАВНЫЙ ОРГАН ЭТОГО ИНСТРУМЕНТА. Ноль заземляет
     // вершину, больше нуля вешает её в воздухе, и тогда у неё появляется
     // пунктирный отвес: «я буду видеть, над какой точкой ставлю свой объект».
@@ -245,15 +251,19 @@ void HouseVertexTool::draw_settings() {
     // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
-    ImGui::Separator();
     if (session_ != nullptr) {
+        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_grid_and_coords(*session_);
-        ImGui::Separator();
         draw_selected_element(*session_);
     }
 }
 
 void HouseLineTool::draw_settings() {
+    // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
+    // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
+    // ниже под своим заголовком, и без надписей эти два блока читались как
+    // один, отвечающий непонятно про что (конфликт ID из ImGui был симптомом).
+    ImGui::SeparatorText(EditorUi::tr("house.head.draft"));
     ImGui::SliderFloat(EditorUi::tr("house.radius"), &radius_m_, 0.02f, 1.0f, "%.3f m");
 
     // ЗАЖИМ ДЛИНЫ — ТРИ ПОЛОЖЕНИЯ, А НЕ ГАЛОЧКА. «Механика клипа длины прямой
@@ -285,15 +295,19 @@ void HouseLineTool::draw_settings() {
     // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
-    ImGui::Separator();
     if (session_ != nullptr) {
+        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_grid_and_coords(*session_);
-        ImGui::Separator();
         draw_selected_element(*session_);
     }
 }
 
 void HouseSurfaceTool::draw_settings() {
+    // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
+    // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
+    // ниже под своим заголовком, и без надписей эти два блока читались как
+    // один, отвечающий непонятно про что (конфликт ID из ImGui был симптомом).
+    ImGui::SeparatorText(EditorUi::tr("house.head.draft"));
     if (session_ == nullptr) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.hint.nomodel"));
         return;
@@ -345,10 +359,9 @@ void HouseSurfaceTool::draw_settings() {
     // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
-    ImGui::Separator();
     if (session_ != nullptr) {
+        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_grid_and_coords(*session_);
-        ImGui::Separator();
         draw_selected_element(*session_);
     }
 }

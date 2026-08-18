@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 15:08:2026 - 16:10:00
+Last updated: 19:08:2026 - 02:48:10
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -62,6 +62,7 @@ UPD:
   wall clock (the additive half). The control is the +30 s arm: without it the
   reproducibility assertion would pass on a clock that was never read.
 - 15:08:2026 - 16:10:00: счёт процедурных текстур 4 -> 5: добавился лист нормалей коры.
+- 19:08:2026 - 02:48:10: Счёт текстур 5 -> 7: две плитки постройки (брус и штукатурка) из листа набора.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -95,11 +96,11 @@ TEST_CASE("init uploads the procedural textures once and shutdown releases all")
     RenderSystem system;
     REQUIRE(system.init(renderer));
     // Terrain atlas + water texture + the leaf mask atlas + the §8.1 path
-    // surface atlas + the BARK NORMAL sheet (flora's, baked from the same
-    // field as the mask and cached under the same revision — five since
-    // 15.08.2026). The exact count is the point: it is what catches a texture
-    // uploaded twice or never released.
-    CHECK(renderer.live_textures() == 5);
+    // surface atlas + the BARK NORMAL sheet (flora's) + ДВЕ ПЛИТКИ ПОСТРОЙКИ
+    // (тёсаный брус и штукатурка, вырезаны из листа набора 19.08 — постройка
+    // редактора носит их через ветку сэмплинга fs_prop). Точное число — и есть
+    // прибор:он ловит текстуру, залитую дважды или не освобождённую.
+    CHECK(renderer.live_textures() == 7);
     CHECK_FALSE(system.water_enabled());
 
     system.shutdown(renderer);

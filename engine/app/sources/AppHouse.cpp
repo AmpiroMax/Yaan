@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 19:08:2026 - 01:40:00
+Last updated: 19:08:2026 - 02:34:20
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 UPD:
 - 19:08:2026 - 01:40:00: Создан: методы постройки съехали из App.cpp и AppInput.cpp без
   изменений поведения (перенос, не переписывание).
+- 19:08:2026 - 02:34:20: Цвет вершин потоков постройки белый: материал несёт плитка, тонировка затемнила бы её вдвое.
 */
 
 #include "engine/app/sources/App.h"
@@ -298,13 +299,14 @@ void App::upload_house_mesh() {
         }
         const bool is_beam = e->kind == world::ElementKind::Line;
         render::MeshData& into = is_beam ? beams : panels;
-        // ЦВЕТ — ВРЕМЕННАЯ ЗАМЕНА МАТЕРИАЛУ, и назван так прямо: программа
-        // «prop» рисует освещённую геометрию с цветом вершины и текстуру не
-        // читает. Брус тёплый, полотно светлое — чтобы на кадре было видно,
-        // где каркас, а где стена.
-        constexpr std::uint32_t WOOD = 0xFF3A5A7Au;    // 0xAABBGGRR
-        constexpr std::uint32_t PLASTER = 0xFFB9C6CFu;
-        const std::uint32_t col = is_beam ? WOOD : PLASTER;
+        // ЦВЕТ ВЕРШИНЫ — МНОЖИТЕЛЬ ПОВЕРХ ПЛИТКИ, и у обоих потоков он БЕЛЫЙ:
+        // материал теперь несёт текстура draw-вызова (fs_prop сэмплит с 19.08),
+        // а тонировка поверх плитки затемнила бы её вдвое. Тёплый и светлый
+        // цвета, которыми потоки различались, пока плитки не читались, ушли
+        // вместе с причиной их существования.
+        constexpr std::uint32_t WHITE = 0xFFFFFFFFu;
+        const std::uint32_t col = WHITE;
+        (void)is_beam;
         for (std::uint32_t i = 0; i < part.index_count; ++i) {
             const std::uint32_t vi = out.indices[part.index_begin + i];
             if (vi < out.vertices.size()) {
