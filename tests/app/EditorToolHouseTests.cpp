@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 18:58:40
+Last updated: 18:08:2026 - 19:14:22
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -46,6 +46,7 @@ UPD:
   лёг коммит 146f484. Держит нынешнее поведение (v5 остаётся v5) и отсылает к
   ловушке со счётчиком, которую сохранение имён не закрывает.
 - 18:08:2026 - 18:58:40: Два случая про ось: без неё прямая уезжает по земле на 40 м (снимок дефекта с кадра пользователя), с ней конец стоит над якорем на 3.1 м и растёт с наклоном прицела; земля перестаёт быть нужной только пока ось включена И рука на якоре.
+- 18:08:2026 - 19:14:22: Случай про Enter: один якорь черновиком не считается и подтверждение ничего не создаёт, два — создают элемент.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1043,4 +1044,30 @@ TEST_CASE("ось отпускает ящик к небу только пока 
     // проверка прошла бы на инструменте, который землю не спрашивает НИКОГДА.
     b.session.set_axis(HouseSession::Axis::Ground);
     CHECK_FALSE(line.aims_without_ground());
+}
+
+TEST_CASE("Enter подтверждает черновик только когда черновик есть") {
+    Bench b;
+    HouseVertexTool vertex(b.session);
+    vertex.set_world(&b.world);
+    HouseSurfaceTool surface(b.session);
+    surface.set_world(&b.world);
+
+    b.click(vertex, {0.0f, 0.0f, 0.0f});
+    b.click(vertex, {3.0f, 0.0f, 0.0f});
+    b.click(vertex, {3.0f, 0.0f, 3.0f});
+
+    // ОДИН ЯКОРЬ — ЕЩЁ НЕ ЧЕРНОВИК, и это плечо-контроль: без него правило
+    // прошло бы на инструменте, который отвечает «да» всегда — а такой отнял
+    // бы Enter у быстрой заметки навсегда.
+    b.click(surface, {0.0f, 0.0f, 0.0f});
+    CHECK_FALSE(surface.has_draft());
+    const std::size_t before = b.session.graph().element_count();
+    surface.on_confirm(b.world);
+    CHECK(b.session.graph().element_count() == before);
+
+    b.click(surface, {3.0f, 0.0f, 0.0f});
+    CHECK(surface.has_draft());
+    surface.on_confirm(b.world);
+    CHECK(b.session.graph().element_count() == before + 1);
 }
