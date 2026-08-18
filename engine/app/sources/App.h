@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 18:08:2026 - 23:52:10
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -135,6 +135,7 @@ UPD:
 - 18:08:2026 - 21:12:40: upload_house_mesh, seed_demo_house, версия залитого тела.
 - 18:08:2026 - 21:38:05: Тело коллайдера постройки и буфер его вершин.
 - 18:08:2026 - 23:20:00: nudge_selected_anchor, draw_editor_grid; сетка живёт в сессии, а не вторым полем здесь.
+- 18:08:2026 - 23:52:10: Объявлен on_grid_toggle.
 */
 
 #pragma once
@@ -352,6 +353,7 @@ private:
     void on_undo_redo();
     void on_axis_lock();
     void on_delete_selected();
+    void on_grid_toggle();
     /// Шаг стрелками по выбранному якорю; false — стрелки не нажаты.
     bool nudge_selected_anchor();
     /// Отсечки сетки вокруг прицела (только когда сетка включена).

@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 18:08:2026 - 23:52:10
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -24,6 +24,7 @@ UPD:
 - 18:08:2026 - 18:58:40: V — фиксация оси (не Z: Z занята отменой), и подпись клавиши V, без которой экран управления рисовал «?».
 - 18:08:2026 - 20:26:30: Delete и Backspace убирают выбранное; подписи обеих клавиш.
 - 18:08:2026 - 23:20:00: Режим на `, Tab отдан интерфейсу; цифры 6..9 и их подписи.
+- 18:08:2026 - 23:52:10: Режим на ` (Tab отдан интерфейсу), X — сетка; подписи ` и X.
 */
 
 #include "engine/app/sources/Controls.h"
@@ -61,7 +62,10 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
      Scope::Anywhere},
     {Action::Screenshot, K::NUM_5, K::F5, "controls.screenshot", Scope::PlayingOnly,
      Scope::Anywhere},
-    {Action::ToggleBody, K::TAB, K::UNKNOWN, "controls.toggle_body", Scope::Anywhere},
+    // РЕЖИМ НА ` (заказ 18.08): Tab отдан ИНТЕРФЕЙСУ — им переходят между полями
+    // и кнопками в панели инструмента, а клавиша, делающая два дела сразу,
+    // делает второе неожиданно.
+    {Action::ToggleBody, K::GRAVE, K::UNKNOWN, "controls.toggle_body", Scope::Anywhere},
     {Action::TrajectoryRecord, K::K, K::UNKNOWN, "controls.traj_record", Scope::EditorOnly},
     {Action::TrajectoryReplay, K::P, K::UNKNOWN, "controls.traj_replay", Scope::EditorOnly},
     {Action::ChatWindow, K::SLASH, K::UNKNOWN, "controls.chat", Scope::Anywhere},
@@ -92,6 +96,10 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     // ноутбуке Apple физическая клавиша одна и зовётся Backspace.
     {Action::DeleteSelected, K::DELETE, K::BACKSPACE, "controls.delete_selected",
      Scope::EditorOnly, Scope::EditorOnly},
+    // X — сетка. Не G (она уже ставит деталь прямо) и не Q, которая только что
+    // освободилась от спуска: рука помнит Q как «вниз», и сетка, включающаяся
+    // от старой привычки, читалась бы как сбой.
+    {Action::GridToggle, K::X, K::UNKNOWN, "controls.grid", Scope::EditorOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -202,6 +210,8 @@ const char* key_name(platform::Key key) {
     // не косметика, а признак строки, о которой человеку никто не скажет.
     case K::Z: return "Z";
     case K::V: return "V";  // вертикаль — фиксация оси у прямой
+    case K::X: return "X";
+    case K::GRAVE: return "`";
     case K::DELETE: return "Del";
     case K::BACKSPACE: return "Backspace";
     default: return "?"; // loud, not blank: a nameless key is a table bug

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 18:08:2026 - 23:52:10
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -29,6 +29,7 @@ UPD:
   Прежнее правило было честно помечено временным; угадывание молча ломается на
   плоском поле, которому задали высоту, и на стене нулевой высоты.
 - 18:08:2026 - 22:20:15: equidistant_point (МНК-центр окружности в плоскости контура) и surface_centre.
+- 18:08:2026 - 23:52:10: surface_centre считает среднее; расчёт равноудалённой точки убран.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -868,41 +869,6 @@ HouseMesh build_house_mesh(const HouseGraph& g) {
     return mesh;
 }
 
-/// ТОЧКА, РАВНОУДАЛЁННАЯ ОТ ВЕРШИН, в плоскости контура. Метод наименьших
-/// квадратов по классическому раскрытию |p - c|² = r²: разность двух таких
-/// уравнений линейна по c, и система нормальных уравнений решается прямо.
-/// Возвращает false, когда система вырождена (все вершины на одной прямой).
-static bool equidistant_point(const std::vector<glm::vec2>& flat, glm::vec2& out) {
-    if (flat.size() < 3) {
-        return false;
-    }
-    // Опорная вершина — последняя; вычитание её уравнения убирает |c|² и r².
-    const glm::vec2 base = flat.back();
-    double a11 = 0.0;
-    double a12 = 0.0;
-    double a22 = 0.0;
-    double b1 = 0.0;
-    double b2 = 0.0;
-    for (std::size_t i = 0; i + 1 < flat.size(); ++i) {
-        const double dx = 2.0 * (flat[i].x - base.x);
-        const double dy = 2.0 * (flat[i].y - base.y);
-        const double rhs = static_cast<double>(glm::dot(flat[i], flat[i]))
-                         - static_cast<double>(glm::dot(base, base));
-        a11 += dx * dx;
-        a12 += dx * dy;
-        a22 += dy * dy;
-        b1 += dx * rhs;
-        b2 += dy * rhs;
-    }
-    const double det = a11 * a22 - a12 * a12;
-    if (std::abs(det) < 1e-9) {
-        return false;
-    }
-    out = {static_cast<float>((b1 * a22 - b2 * a12) / det),
-           static_cast<float>((a11 * b2 - a12 * b1) / det)};
-    return true;
-}
-
 bool surface_centre(const HouseGraph& g, ElementId id, glm::vec3& out) {
     const Element* e = g.element(id);
     if (e == nullptr || e->kind != ElementKind::Surface || e->refs.empty()) {
@@ -925,22 +891,16 @@ bool surface_centre(const HouseGraph& g, ElementId id, glm::vec3& out) {
         out = mid + glm::vec3{0.0f, p.height * 0.5f, 0.0f};
         return true;
     }
-    const FittedPlane plane = fit_contour_plane(pts);
-    if (plane.degenerate) {
-        out = mid;
-        return true;
-    }
-    // В ПЛОСКОСТЬ КОНТУРА той же проекцией, что и триангуляция: второй способ
-    // разложить контур по осям разошёлся бы с первым (правило 32).
-    glm::vec3 ax{0.0f};
-    glm::vec3 ay{0.0f};
-    const std::vector<glm::vec2> flat = project_contour(pts, plane, ax, ay);
-    glm::vec2 c{0.0f};
-    if (!equidistant_point(flat, c)) {
-        out = mid;
-        return true;
-    }
-    out = plane.origin + ax * c.x + ay * c.y;
+    // СРЕДНЕЕ ПО ВСЕМ ВЕРШИНАМ, И ЭТО РЕШЕНИЕ ПОЛЬЗОВАТЕЛЯ (18.08, уточнение к
+    // его же прежней просьбе): «стрелка всегда должна стоять между mean от всех
+    // координат точек, не важно 2, 3 или 100 их».
+    //
+    // ПЕРВЫЙ ЗАХОД СЧИТАЛ РАВНОУДАЛЁННУЮ ТОЧКУ — центр окружности по МНК. Она
+    // отвечает на другой вопрос («откуда все углы одинаково далеко») и на
+    // вытянутом или невыпуклом контуре уезжает далеко от самого полотна, вплоть
+    // до места, где полотна нет вовсе. Среднее такого не умеет по построению:
+    // оно всегда внутри выпуклой оболочки вершин.
+    out = mid;
     return true;
 }
 

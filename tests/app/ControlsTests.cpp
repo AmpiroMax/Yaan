@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 22:32:14
+Last updated: 18:08:2026 - 23:52:10
 Module: tests/app
 File: tests/app/ControlsTests.cpp
 
@@ -39,6 +39,7 @@ UPD:
   уехала на K, снимок получил F5. Проверка неоднозначности теперь судит АЛИАС по
   его собственной области: судя его по области строки, она пропустила бы
   настоящее столкновение и завалила бы законную пару «F3 против редакторской 2».
+- 18:08:2026 - 23:52:10: Клавиша режима — ` , а не Tab.
 */
 
 #include <doctest/doctest.h>
@@ -189,7 +190,11 @@ TEST_CASE("the keys the user named are the keys the table binds") {
     CHECK(dfn::app::binding_for(Action::Wireframe).alias == K::F4);
     CHECK(dfn::app::binding_for(Action::Screenshot).key == K::NUM_5);
     CHECK(dfn::app::binding_for(Action::Screenshot).alias == K::F5);
-    CHECK(dfn::app::binding_for(Action::ToggleBody).key == K::TAB);
+    // РЕЖИМ ПЕРЕЕХАЛ С TAB НА ` (заказ 18.08): Tab отдан интерфейсу — им ходят
+    // по полям панели инструмента. Утверждение переписано, а не снято: клавиша
+    // режима обязана оставаться названной, иначе следующий переезд пройдёт
+    // молча.
+    CHECK(dfn::app::binding_for(Action::ToggleBody).key == K::GRAVE);
     // R IS THE CURSOR NOW, and recording moved to K. The two shared R while the
     // cursor toggle was editor-only in spirit and Anywhere in the table; the
     // user pressed R inside a body and got neither. Written out here rather

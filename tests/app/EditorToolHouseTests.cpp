@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 18:08:2026 - 23:52:10
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -62,6 +62,7 @@ UPD:
 - 18:08:2026 - 21:12:40: Прямая в пустоте даёт второй ЯКОРЬ (и его находит поиск лучом), зажим приходит в тот же якорь; проверки переписаны с длины-числа на связь.
 - 18:08:2026 - 22:20:15: Версия растёт и при перетаскивании (правка мимо истории); якорь едет вдоль своей прямой с контролем «без оси уходит вбок»; стена ловится тычком в середину; равноудалённая точка на прямоугольнике и на треугольнике, где она НЕ совпадает с серединой.
 - 18:08:2026 - 23:20:00: Сетка ловит якорь в узлы мировых координат, шаг меняет узлы, выключенная сетка не округляет, шаг зажат.
+- 18:08:2026 - 23:52:10: Видное место — среднее: на прямоугольнике, на треугольнике (с плечом «равноудалённая заметно в стороне») и на паре якорей.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1587,10 +1588,9 @@ TEST_CASE("стена выбирается тычком В СЕРЕДИНУ, а 
     CHECK(centre.x == doctest::Approx(2.0f).epsilon(0.01));
 }
 
-TEST_CASE("видное место контура — точка, равноудалённая от углов") {
+TEST_CASE("видное место контура — СРЕДНЕЕ по всем вершинам") {
     Bench b;
-    // Прямоугольник 6 x 2 на земле: центр тяжести и равноудалённая точка здесь
-    // совпадают, и это ХОРОШО — проверка ловит грубую ошибку знака или осей.
+    // Прямоугольник 6 x 2 на земле.
     const VertexId a = b.session.graph().add_vertex(Anchoring::Free, {0.0f, 0.0f, 0.0f});
     const VertexId c = b.session.graph().add_vertex(Anchoring::Free, {6.0f, 0.0f, 0.0f});
     const VertexId d = b.session.graph().add_vertex(Anchoring::Free, {6.0f, 0.0f, 2.0f});
@@ -1601,18 +1601,15 @@ TEST_CASE("видное место контура — точка, равноуд
 
     glm::vec3 centre{0.0f};
     REQUIRE(dfn::world::surface_centre(b.session.graph(), floor, centre));
-    CHECK(centre.x == doctest::Approx(3.0f).epsilon(0.01));
-    CHECK(centre.z == doctest::Approx(1.0f).epsilon(0.01));
-    // РАВНОУДАЛЁННОСТЬ — ЭТО ЧИСЛО: расстояния до всех четырёх углов совпадают.
-    const float r = glm::length(b.session.vertex_world(a) - centre);
-    for (const VertexId v : {c, d, e}) {
-        CHECK(glm::length(b.session.vertex_world(v) - centre)
-              == doctest::Approx(r).epsilon(0.001));
-    }
+    CHECK(centre.x == doctest::Approx(3.0f).epsilon(0.001));
+    CHECK(centre.z == doctest::Approx(1.0f).epsilon(0.001));
 
-    // КОНТРОЛЬ НА ТРЕУГОЛЬНИКЕ, ГДЕ ОТВЕТЫ РАЗНЫЕ: у прямоугольного треугольника
-    // центр тяжести и равноудалённая точка НЕ совпадают, и берётся вторая —
-    // ровно этого пользователь и просил.
+    // И НА ТРЕУГОЛЬНИКЕ — ТОЖЕ СРЕДНЕЕ, а не центр описанной окружности.
+    // Решение пользователя 18.08: «всегда должна стоять между mean от всех
+    // координат точек, не важно 2, 3 или 100 их». Плечо-контроль здесь именно
+    // равноудалённая точка: у прямоугольного треугольника она лежит на середине
+    // гипотенузы, то есть ЗАМЕТНО в стороне, и совпадение двух ответов означало
+    // бы, что проверка ничего не различает.
     HouseSession t;
     const VertexId p0 = t.graph().add_vertex(Anchoring::Free, {0.0f, 0.0f, 0.0f});
     const VertexId p1 = t.graph().add_vertex(Anchoring::Free, {8.0f, 0.0f, 0.0f});
@@ -1622,14 +1619,26 @@ TEST_CASE("видное место контура — точка, равноуд
     (void)t.graph().set_closed(tri, true);
     glm::vec3 tc{0.0f};
     REQUIRE(dfn::world::surface_centre(t.graph(), tri, tc));
-    const float r0 = glm::length(t.vertex_world(p0) - tc);
-    CHECK(glm::length(t.vertex_world(p1) - tc) == doctest::Approx(r0).epsilon(0.001));
-    CHECK(glm::length(t.vertex_world(p2) - tc) == doctest::Approx(r0).epsilon(0.001));
-    const glm::vec3 mid = (t.vertex_world(p0) + t.vertex_world(p1) + t.vertex_world(p2))
-                        / 3.0f;
-    CHECK(glm::length(tc - mid) > 0.5f);
-    MESSAGE("треугольник: равноудалённая (" << tc.x << " " << tc.z << "), середина ("
-            << mid.x << " " << mid.z << ")");
+    const glm::vec3 mean = (t.vertex_world(p0) + t.vertex_world(p1) + t.vertex_world(p2))
+                         / 3.0f;
+    CHECK(glm::length(tc - mean) < 1e-3f);
+    const glm::vec3 circum{4.0f, 0.0f, 1.0f}; // середина гипотенузы
+    CHECK(glm::length(tc - circum) > 1.0f);
+    MESSAGE("треугольник: среднее (" << tc.x << " " << tc.z << "), равноудалённая ("
+            << circum.x << " " << circum.z << ")");
+
+    // И ДВЕ ТОЧКИ — ТОЖЕ СРЕДНЕЕ (у цепочки с высотой середина ещё и
+    // поднимается на половину высоты, но по XZ это ровно середина отрезка).
+    HouseSession two;
+    const VertexId q0 = two.graph().add_vertex(Anchoring::Free, {1.0f, 0.0f, 0.0f});
+    const VertexId q1 = two.graph().add_vertex(Anchoring::Free, {5.0f, 0.0f, 0.0f});
+    ElementId wall = NO_ELEMENT;
+    REQUIRE(two.graph().add_element(ElementKind::Surface, {q0, q1}, "", wall).ok);
+    (void)two.graph().set_param(wall, "height", "3");
+    glm::vec3 wc{0.0f};
+    REQUIRE(dfn::world::surface_centre(two.graph(), wall, wc));
+    CHECK(wc.x == doctest::Approx(3.0f).epsilon(0.001));
+    CHECK(wc.y == doctest::Approx(1.5f).epsilon(0.001));
 }
 
 TEST_CASE("сетка мира ловит якорь в узлы, и это координаты МИРА") {

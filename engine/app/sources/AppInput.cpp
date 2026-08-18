@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 18:08:2026 - 23:52:10
 Module: engine/app
 File: engine/app/sources/AppInput.cpp
 
@@ -61,6 +61,7 @@ UPD:
 - 18:08:2026 - 20:26:30: on_delete_selected: сессия решает, что убрать, отказ печатается со списком держателей.
 - 18:08:2026 - 22:20:15: V крутит ось вокруг выбранного якоря и называет её.
 - 18:08:2026 - 23:20:00: Esc третьим шагом бросает набранное; стрелки двигают выбранный якорь шагом сетки; cmd+shift+цифра открывает меню инструмента; отсечки сетки вокруг прицела.
+- 18:08:2026 - 23:52:10: on_grid_toggle; стрелки садят якорь В УЗЕЛ сетки, а не двигают на дельту.
 */
 
 #include "engine/app/sources/App.h"
@@ -129,6 +130,7 @@ bool App::dispatch_actions(bool chat_typing) {
         case Action::Undo: on_undo_redo(); break;
         case Action::AxisLock: on_axis_lock(); break;
         case Action::DeleteSelected: on_delete_selected(); break;
+        case Action::GridToggle: on_grid_toggle(); break;
         case Action::Count: break; // not a row; route_for() cannot return it
         }
         // THE FRAME IS OVER THE MOMENT ESCAPE OPENS THE PAUSE PAGE. Nothing
@@ -409,6 +411,13 @@ void App::on_build_menu() {
 /// человеку пришлось бы держать в голове, куда сейчас смотрит север. Вверх и
 /// вниз — по мировой вертикали: единственное направление, которое от взгляда не
 /// зависит и всегда значит одно и то же.
+void App::on_grid_toggle() {
+    house_.set_grid_on(!house_.grid_on());
+    std::fprintf(stderr, "[постройка] сетка %s, шаг %.2f м\n",
+                 house_.grid_on() ? "включена" : "выключена",
+                 static_cast<double>(house_.grid_step_m()));
+}
+
 void App::draw_editor_grid(const ToolAim& aim) {
     if (!house_.grid_on() || renderer_ == nullptr || !aim.hit) {
         return;
@@ -460,7 +469,12 @@ bool App::nudge_selected_anchor() {
         return false;
     }
     const world::VertexId id = house_.selected_vertex();
-    const glm::vec3 to = house_.vertex_world(id) + by;
+    // В УЗЕЛ, А НЕ НА ДЕЛЬТУ (заказ 18.08: «объекты при движении по сетке
+    // должны не на дельту перемещаться, а чётко в координатах сетки жить, типа
+    // 100 101 102 с шагом 1»). Разница видна на второй же нажатой стрелке:
+    // якорь, стоявший в 100.37, от дельты уехал бы в 101.37 и остался бы кривым
+    // навсегда. Сложение с шагом даёт направление, округление — само место.
+    const glm::vec3 to = house_.snap_to_grid(house_.vertex_world(id) + by);
     (void)house_.mutate("сдвинул якорь стрелкой", [&](world::HouseGraph& g) {
         return g.move_vertex(id, house_.to_local(to));
     });

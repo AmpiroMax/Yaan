@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:11:00
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 18:08:2026 - 23:52:10
 Module: engine/app
 File: engine/app/sources/EditorCamera.cpp
 
@@ -21,6 +21,7 @@ UPD:
   Шаг остался геометрическим и по прежней причине — от края до края одинаковое
   число нажатий.
 - 18:08:2026 - 23:20:00: Спуск на Shift вместо Q, и Shift НЕ опускает, пока он модификатор при Cmd.
+- 18:08:2026 - 23:52:10: Спуск на Shift вместо Q; при зажатом Cmd Shift не опускает.
 */
 
 #include "engine/app/sources/EditorCamera.h"
@@ -98,11 +99,20 @@ void EditorCamera::update(const platform::IInput& input, float dt) {
     if (input.is_down(Key::S)) { move -= forward; }
     if (input.is_down(Key::D)) { move += right; }
     if (input.is_down(Key::A)) { move -= right; }
-    // Up: E or Space. Down: Q or Ctrl. Two bindings for one axis so both the
-    // "Q/E" and the "Space/Ctrl" hands the user named reach it.
+    // ВВЕРХ: E или пробел. ВНИЗ: SHIFT (заказ 18.08 — «сделай спуск в воздухе
+    // на кнопку shift вместо q»), а также Ctrl, который здесь был и остаётся.
+    //
+    // SHIFT НЕ ОПУСКАЕТ, КОГДА ОН МОДИФИКАТОР (второе требование того же дня:
+    // «убедись что на cmd+shift я НЕ буду опускаться по высоте»). Cmd+Shift+
+    // цифра открывает меню инструмента, и камера, ехавшая вниз на каждом таком
+    // нажатии, была бы ровно тем, чего он опасается. Условие спрашивается у
+    // Cmd, а не у списка сочетаний: сочетаний станет больше, Cmd останется
+    // признаком того, что Shift сейчас не про полёт.
+    const bool cmd_held = input.is_down(Key::LEFT_SUPER) || input.is_down(Key::RIGHT_SUPER);
+    const bool shift_down = !cmd_held
+                         && (input.is_down(Key::LEFT_SHIFT) || input.is_down(Key::RIGHT_SHIFT));
     if (input.is_down(Key::E) || input.is_down(Key::SPACE)) { move += world_up; }
-    if (input.is_down(Key::Q) || input.is_down(Key::LEFT_CONTROL)
-        || input.is_down(Key::RIGHT_CONTROL)) {
+    if (shift_down || input.is_down(Key::LEFT_CONTROL) || input.is_down(Key::RIGHT_CONTROL)) {
         move -= world_up;
     }
 

@@ -171,6 +171,7 @@ controls.reach=Дальность взаимодействия
 controls.undo=Отменить (Cmd+Z), повторить (Cmd+Shift+Z)
 controls.axis_lock=Прямая строго вверх (V — включить и выключить)
 controls.delete_selected=Убрать выбранное: стену, прямую или якорь
+controls.grid=Сетка мира: включить и выключить (шаг — в панели инструмента)
 controls.keys=Esc — назад
 menu.controls=Управление
 

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 18:08:2026 - 23:52:10
 Module: engine/app
 File: engine/app/sources/AppActions.cpp
 
@@ -18,6 +18,7 @@ UPD:
 - 18:08:2026 - 18:58:40: Маршрут AxisLock -> on_axis_lock.
 - 18:08:2026 - 20:26:30: Маршрут DeleteSelected -> on_delete_selected.
 - 18:08:2026 - 23:20:00: Маршруты инструментов 6..9.
+- 18:08:2026 - 23:52:10: Маршрут GridToggle.
 */
 
 #include "engine/app/sources/AppActions.h"
@@ -65,6 +66,7 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::Undo, Gate::TypingEats, "on_undo_redo", 0},
     {Action::AxisLock, Gate::TypingEats, "on_axis_lock", 0},
     {Action::DeleteSelected, Gate::TypingEats, "on_delete_selected", 0},
+    {Action::GridToggle, Gate::TypingEats, "on_grid_toggle", 0},
 }};
 
 } // namespace
