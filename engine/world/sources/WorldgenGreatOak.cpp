@@ -1,6 +1,6 @@
 /*
 Created: 12:08:2026 - 22:49:00
-Last updated: 12:08:2026 - 22:49:00
+Last updated: 18:08:2026 - 18:55:48
 Module: engine/world
 File: engine/world/sources/WorldgenGreatOak.cpp
 
@@ -26,6 +26,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 12:08:2026 - 22:49:00: Created.
+- 18:08:2026 - 18:55:48: The pass's cost measured and recorded (~0.6 s per world
+  build, two arms of one binary). Not optimised: the obvious saving moves the
+  chosen site, and the acceptance frames are shot against the site.
 */
 
 #include "engine/world/sources/WorldgenGreatOak.h"
@@ -61,6 +64,16 @@ WorldGenRng oak_cell_rng(uint64_t seed, int64_t gx, int64_t gz) {
 /// resolution of the search and nothing else — the ACCEPTED site is decided by
 /// the rules below, never by the draw count.
 constexpr int CANDIDATES_PER_CELL = 1024;
+
+/// THE PASS'S COST, MEASURED RATHER THAN ASSUMED: ~0.6 s per world build
+/// (33.34 s against 32.72 s for the same suite run with DFN_NO_GREAT_OAK=1,
+/// one machine, one binary). Every test that builds the testbed world and
+/// every app start pays it once. Written down rather than fixed: the obvious
+/// saving — running the crown-ring gates only on the current best candidate
+/// instead of on every legal one — would change which site wins ties, and that
+/// silently moves a landmark the acceptance frames are already shot against.
+/// Whoever spends it must re-shoot docs/acceptance/core-great-oak-*.
+
 
 } // namespace
 
