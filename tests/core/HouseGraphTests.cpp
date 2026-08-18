@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 17:47:28
+Last updated: 18:08:2026 - 17:54:03
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -31,12 +31,20 @@ UPD:
 - 18:08:2026 - 17:06:23: каскад, круговой прогон, отказы читателя. Случай про цикл нашёл изъян
   НЕ ТАМ, где искал: читатель не давал сослаться на вершину, сидящую на оси.
 - 18:08:2026 - 17:47:28: числа и замкнутость в круговом прогоне; параметр против ссылки.
+- 18:08:2026 - 17:54:03: регистрация типа. ПЕРВАЯ ВЕРСИЯ СЛУЧАЯ БЫЛА СЛАБОЙ, и это поймал
+  контрфакт: я убирал ПЕРВУЮ сторону каркаса, и «проверять только одну пару
+  вместо всех» оставалось ЗЕЛЁНЫМ — сломанная проверка смотрит как раз первую
+  пару и находит ровно ту дыру, которую я проделал. Теперь убирается СРЕДНЯЯ
+  сторона (ловится только обходом всех пар) и отдельным заходом ЗАМЫКАЮЩАЯ: у
+  замкнутого контура последняя пара считается через возврат к началу, и её
+  легко потерять именно на этом.
 */
 
 #include <doctest/doctest.h>
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
+#include "engine/world/sources/HouseRegister.h"
 
 #include <algorithm>
 #include <cmath>
@@ -531,4 +539,140 @@ TEST_CASE("параметр отличается от ссылки на верш
     // построитель. Отвергать здесь значило бы держать список параметров в
     // модели, которой они безразличны.
     CHECK(g.param(1, "unknown_key") == "42");
+}
+
+namespace {
+
+/// Сарайчик: четыре угла, каркас по периметру, пол. Годен к регистрации.
+struct Shed {
+    HouseGraph g;
+    VertexId a, b, c, d;
+    Shed() {
+        a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+        b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+        c = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 3.0f});
+        d = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 3.0f});
+        ElementId tmp = 0;
+        g.add_element(ElementKind::Line, {a, b}, "oak", tmp);
+        g.add_element(ElementKind::Line, {b, c}, "oak", tmp);
+        g.add_element(ElementKind::Line, {c, d}, "oak", tmp);
+        g.add_element(ElementKind::Line, {d, a}, "oak", tmp);
+        ElementId floor = 0;
+        g.add_element(ElementKind::Surface, {a, b, c, d}, "planks", floor);
+        g.set_closed(floor, true);
+    }
+};
+
+} // namespace
+
+TEST_CASE("регистрация строже правки: поверхность обязана опираться на каркас") {
+    Shed s;
+    // Полный сарай проходит.
+    CHECK(dfn::world::check_registrable(s.g).empty());
+
+    // УБИРАЕМ СТОРОНУ c—d, ТРЕТЬЮ ПО СЧЁТУ, И ЭТО НЕ КАПРИЗ.
+    //
+    // Сначала я убирал ПЕРВУЮ сторону — и контрфакт «проверять только одну пару
+    // вместо всех» остался ЗЕЛЁНЫМ: сломанная проверка смотрит как раз первую
+    // пару и находит ровно ту дыру, которую я проделал. Проверка, которая
+    // ловит только первый случай, доказывает не «все стороны проверены», а
+    // «первая проверена», и разница видна только на контрфакте.
+    //
+    // Средняя сторона ловится ТОЛЬКО обходом всех пар.
+    for (const dfn::world::ElementId id : s.g.incident(s.c)) {
+        const auto* e = s.g.element(id);
+        if (e->kind == ElementKind::Line && e->refs.size() == 2
+            && ((e->refs[0] == s.c && e->refs[1] == s.d)
+                || (e->refs[0] == s.d && e->refs[1] == s.c))) {
+            REQUIRE(s.g.remove_element(id).ok);
+            break;
+        }
+    }
+    const auto found = dfn::world::check_registrable(s.g);
+    REQUIRE_FALSE(found.empty());
+    CHECK(found.front().why.find("каркас") != std::string::npos);
+
+    // И ЗАМЫКАЮЩАЯ СТОРОНА d—a тоже, отдельным заходом: у замкнутого контура
+    // последняя пара считается через возврат к началу, и её легко потерять
+    // ровно на этом.
+    Shed t;
+    for (const dfn::world::ElementId id : t.g.incident(t.d)) {
+        const auto* e = t.g.element(id);
+        if (e->kind == ElementKind::Line && e->refs.size() == 2
+            && ((e->refs[0] == t.d && e->refs[1] == t.a)
+                || (e->refs[0] == t.a && e->refs[1] == t.d))) {
+            REQUIRE(t.g.remove_element(id).ok);
+            break;
+        }
+    }
+    CHECK_FALSE(dfn::world::check_registrable(t.g).empty());
+}
+
+TEST_CASE("недостроенное состояние — норма при правке и НЕ норма при регистрации") {
+    HouseGraph g;
+    const VertexId lone = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    (void)lone;
+    // Пустая постройка: очевидно нельзя, и именно поэтому легко забыть — пустой
+    // тип поставился бы без единой жалобы и был бы невидим.
+    const auto empty = dfn::world::check_registrable(g);
+    REQUIRE_FALSE(empty.empty());
+    CHECK(empty.front().why.find("ни одного элемента") != std::string::npos);
+
+    // Вершина, ни к чему не подключённая: при стройке это обычный ход работы
+    // (поставил якоря, ещё не соединил), при регистрации — мусор в библиотеке.
+    Shed s;
+    const VertexId orphan = s.g.add_vertex(Anchoring::OnGround, {50.0f, 0.0f, 0.0f});
+    const auto found = dfn::world::check_registrable(s.g);
+    const bool named = std::any_of(found.begin(), found.end(),
+                                   [orphan](const dfn::world::RegisterFinding& f) {
+                                       return f.vertex == orphan;
+                                   });
+    CHECK(named);
+}
+
+TEST_CASE("вырезанная постройка — самостоятельный граф со своими именами") {
+    // Две постройки в одной карте.
+    Shed s;
+    HouseGraph& g = s.g;
+    const VertexId far1 = g.add_vertex(Anchoring::OnGround, {100.0f, 0.0f, 0.0f});
+    const VertexId far2 = g.add_vertex(Anchoring::Free, {100.0f, 3.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {far1, far2}, "oak", post).ok);
+    REQUIRE(g.components().size() == 2);
+
+    HouseGraph type;
+    REQUIRE(dfn::world::extract_component(g, s.a, type));
+    // Взялась ТОЛЬКО одна постройка: сарай, а не всё подряд.
+    CHECK(type.components().size() == 1);
+    CHECK(type.vertex_count() == 4);
+    CHECK(type.element_count() == 5);
+    // И она сама по себе годна к регистрации.
+    CHECK(dfn::world::check_registrable(type).empty());
+
+    // Исходная карта НЕ ТРОНУТА: регистрация — это копия, а не переезд
+    // (решение пользователя «давай как копию»).
+    CHECK(g.components().size() == 2);
+    CHECK(g.vertex_count() == 6);
+}
+
+TEST_CASE("вырезание переносит вершины на осях вместе с хозяином") {
+    HouseGraph g;
+    const VertexId low = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId high = g.add_vertex(Anchoring::Free, {0.0f, 6.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {low, high}, "oak", post).ok);
+    VertexId mid = 0;
+    REQUIRE(g.add_vertex_on_edge(post, 0.5f, mid).ok);
+    const VertexId far = g.add_vertex(Anchoring::Free, {5.0f, 3.0f, 0.0f});
+    ElementId beam = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {mid, far}, "oak", beam).ok);
+
+    HouseGraph type;
+    REQUIRE(dfn::world::extract_component(g, low, type));
+    // ЯРУС ДОЕХАЛ ЦЕЛИКОМ: вершина на оси не может быть создана раньше хозяина,
+    // а хозяин ссылается на вершины — то же исполнение до неподвижной точки, что
+    // и в читателе файла, и по той же причине.
+    CHECK(type.vertex_count() == 4);
+    CHECK(type.element_count() == 2);
+    CHECK(type.resolved_local(3).y == doctest::Approx(3.0f));
 }

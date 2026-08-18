@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 17:33:36
+# Last updated: 18:08:2026 - 17:54:03
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -88,6 +88,11 @@
 #   в физику, и это не совпадение — коллайдер обязан описывать ровно то, что
 #   видно.
 
+# - 18:08:2026 - 17:54:03: HouseRegister.cpp — регистрация типа постройки. Проверки СТРОЖЕ, чем при
+#   правке: недостроенное состояние нормально, пока человек строит, но в
+#   библиотеку типов попадать не должно — тип ставится в десяти местах, и его
+#   дефект размножится прежде, чем кто-нибудь заметит.
+
 add_library(dfn_world STATIC
     sources/Chunk.cpp
     sources/ChunkManager.cpp
@@ -98,6 +103,7 @@ add_library(dfn_world STATIC
     sources/HouseFile.cpp
     sources/HouseMesh.cpp
     sources/HouseGraph.cpp
+    sources/HouseRegister.cpp
     sources/Scene.cpp
     sources/SceneHouseRules.cpp
     sources/SceneStairRules.cpp

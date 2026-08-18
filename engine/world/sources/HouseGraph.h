@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:45:58
-Last updated: 18:08:2026 - 17:47:28
+Last updated: 18:08:2026 - 17:54:03
 Module: engine/world
 File: engine/world/sources/HouseGraph.h
 
@@ -57,6 +57,7 @@ UPD:
   через components()+incident(), и это работало только потому, что каждый
   элемент ссылается хотя бы на одну живую вершину. (4) set_style/set_param/
   set_closed — правка через модель, обещанная документом.
+- 18:08:2026 - 17:54:03: (без изменений кода, см. HouseRegister.h — регистрация типа).
 */
 
 #pragma once
