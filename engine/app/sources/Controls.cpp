@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 17:08:2026 - 22:32:14
+Last updated: 18:08:2026 - 16:28:24
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -19,6 +19,7 @@ UPD:
 - 17:08:2026 - 22:32:14: Пять строк режимов редактора на 1..5 и разводка цифр с F-клавишами
   через alias_scope (довод — в шапке Controls.h). Снимок получил алиас F5,
   которого у него не было: иначе клавиша 5 в редакторе отняла бы его совсем.
+- 18:08:2026 - 16:28:24: строка «дальность взаимодействия — колесо»; у скорости полёта теперь [ и ].
 */
 
 #include "engine/app/sources/Controls.h"
@@ -81,12 +82,13 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
 // up and Q/Ctrl are BOTH down. A help screen copied from the description
 // instead of the source is the exact failure this file exists to prevent, so
 // it would have been an unusually poor place to introduce one.
-constexpr std::array<MovementRow, 5> MOVEMENT{{
+constexpr std::array<MovementRow, 6> MOVEMENT{{
     {"controls.fly.move.keys", "controls.fly.move"},
     {"controls.fly.up.keys", "controls.fly.up"},
     {"controls.fly.down.keys", "controls.fly.down"},
     {"controls.fly.look.keys", "controls.fly.look"},
     {"controls.fly.speed.keys", "controls.fly.speed"},
+    {"controls.reach.keys", "controls.reach"},
 }};
 
 } // namespace

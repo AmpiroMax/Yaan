@@ -164,8 +164,10 @@ controls.fly.down.keys=Q, Ctrl
 controls.fly.down=Вниз
 controls.fly.look.keys=мышь
 controls.fly.look=Обзор
-controls.fly.speed.keys=колесо
+controls.fly.speed.keys=[ и ]
 controls.fly.speed=Скорость полёта
+controls.reach.keys=колесо
+controls.reach=Дальность взаимодействия
 controls.keys=Esc — назад
 menu.controls=Управление
 

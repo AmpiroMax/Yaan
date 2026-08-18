@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:11:00
-Last updated: 14:08:2026 - 16:11:00
+Last updated: 18:08:2026 - 16:28:24
 Module: engine/app
 File: engine/app/sources/EditorCamera.cpp
 
@@ -14,6 +14,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 14:08:2026 - 16:11:00: Created.
+- 18:08:2026 - 16:28:24: СКОРОСТЬ ПОЛЁТА УЕХАЛА С КОЛЕСА НА СКОБКИ (решение 18.08: «ускорение
+  передвижения и уменьшение скорости перенесём на [ — замедлить, ] — ускорить»).
+  Довод не про удобство клавиш: колесо освобождено под ДАЛЬНОСТЬ, которая
+  меняется в работе постоянно, а скорость полёта выставляется раз и надолго.
+  Шаг остался геометрическим и по прежней причине — от края до края одинаковое
+  число нажатий.
 */
 
 #include "engine/app/sources/EditorCamera.h"
@@ -56,15 +62,25 @@ void EditorCamera::update(const platform::IInput& input, float dt) {
     const float limit = static_cast<float>(config::CAMERA_PITCH_LIMIT);
     pitch_ = std::clamp(pitch_ - md.y * sens, -limit, limit);
 
-    // WHEEL SETS FLY SPEED, geometrically: one notch multiplies by the step, so
-    // the MIN..MAX span is the same number of notches at either end (a linear
-    // step would crawl near the top and jump near the bottom). scroll_delta.y
-    // is +away-from-user, which reads as "faster".
-    const float wheel = input.scroll_delta().y;
-    if (wheel != 0.0f) {
-        speed_ *= std::pow(static_cast<float>(config::EDITOR_CAM_SPEED_WHEEL_STEP), wheel);
+    // СКОРОСТЬ ПОЛЁТА — НА СКОБКАХ, А НЕ НА КОЛЕСЕ (решение пользователя 18.08:
+    // «ускорение передвижения и уменьшение скорости перенесём на [ — замедлить,
+    // ] — ускорить»). Колесо освобождено под дальность взаимодействия — то, что
+    // меняется в работе постоянно, а скорость полёта выставляется раз и надолго.
+    //
+    // Шаг тот же геометрический и по той же причине: одно нажатие умножает, а не
+    // прибавляет, поэтому от края до края одинаковое число нажатий. Линейный шаг
+    // полз бы у верхней границы и прыгал у нижней.
+    const auto step_speed = [this](float notches) {
+        speed_ *= std::pow(static_cast<float>(config::EDITOR_CAM_SPEED_WHEEL_STEP),
+                           notches);
         speed_ = std::clamp(speed_, static_cast<float>(config::EDITOR_CAM_SPEED_MIN),
                             static_cast<float>(config::EDITOR_CAM_SPEED_MAX));
+    };
+    if (input.was_pressed(Key::RIGHT_BRACKET)) {
+        step_speed(1.0f);
+    }
+    if (input.was_pressed(Key::LEFT_BRACKET)) {
+        step_speed(-1.0f);
     }
 
     // BASIS. Forward carries pitch so W flies where the eye looks (a 6DOF fly,
