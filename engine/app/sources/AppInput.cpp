@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 19:08:2026 - 00:48:20
+Last updated: 19:08:2026 - 02:05:30
 Module: engine/app
 File: engine/app/sources/AppInput.cpp
 
@@ -64,6 +64,7 @@ UPD:
 - 18:08:2026 - 23:52:10: on_grid_toggle; стрелки садят якорь В УЗЕЛ сетки, а не двигают на дельту.
 - 19:08:2026 - 00:12:30: Enter в редакторе — подтверждение и постановка (тот же путь, что ЛКМ); быстрая заметка со снимком осталась только в теле.
 - 19:08:2026 - 00:48:20: Стрелка включает режим метки.
+- 19:08:2026 - 02:05:30: Обработчики клавиш постройки съехали в AppHouse.cpp; прогулка по таблице осталась здесь одна.
 */
 
 #include "engine/app/sources/App.h"
@@ -318,55 +319,8 @@ void App::on_cursor_toggle() {
 // инструмента здесь нет: клавиша называет НОМЕР, а какой это инструмент, знает
 // ящик. И ЩЕЛЧОК ПО КЛАВИШЕ УЖЕ ВЫБРАННОГО ИНСТРУМЕНТА КЛАДЁТ ЕГО, как и щелчок
 // по его иконке: один глагол, два способа его произнести.
-void App::on_undo_redo() {
-    // ОДИН ОБРАБОТЧИК НА ДВА ДЕЙСТВИЯ, потому что различает их МОДИФИКАТОР, а
-    // не клавиша. Cmd обязателен: голая Z в редакторе — это буква, и если
-    // однажды появится поле ввода, отмена начала бы срабатывать при наборе.
-    const bool cmd = input_->is_down(platform::Key::LEFT_SUPER)
-                  || input_->is_down(platform::Key::RIGHT_SUPER);
-    if (!cmd) {
-        return;
-    }
-    const bool shift = input_->is_down(platform::Key::LEFT_SHIFT)
-                    || input_->is_down(platform::Key::RIGHT_SHIFT);
-    // ОТМЕНЯТЬ НЕЧЕГО — ЭТО ГОВОРИТСЯ ВСЛУХ: молчащая отмена неотличима от
-    // сломанной, а этот сорт молчания мы 18.08 разбирали трижды.
-    const std::string state = shift ? history_.redo() : history_.undo();
-    if (state.empty()) {
-        std::fprintf(stderr, "[история] %s нечего\n",
-                     shift ? "повторять" : "отменять");
-        return;
-    }
-    std::fprintf(stderr, "[история] %s: %s\n", shift ? "повтор" : "отмена",
-                 shift ? history_.undo_label().c_str() : history_.redo_label().c_str());
-    // СНИМОК ПРИМЕНЯЕТ ТОТ, У КОГО ЕСТЬ МОДЕЛЬ. История про модель не знает и
-    // знать не должна (иначе её нельзя было бы проверить без мира), поэтому
-    // read_house зовётся здесь — в ЕДИНСТВЕННОМ месте, куда приходит снимок.
-    if (!house_.apply_snapshot(state)) {
-        std::fprintf(stderr, "[история] снимок не читается — постройка НЕ восстановлена\n");
-    }
-}
 
-void App::on_axis_lock() {
-    // ОСЬ КРУТИТСЯ ВОКРУГ ВЫБРАННОГО ЯКОРЯ: список того, вдоль чего можно
-    // двигаться, — это прямые, приходящие ИМЕННО В НЕГО. Без выбранного якоря
-    // остаются свободно и вертикаль, и это законное состояние (человек ещё
-    // ничего не выбрал, а стойку вверх вести уже хочет).
-    house_.cycle_axis(house_.selected_vertex());
-    // СКАЗАНО ВСЛУХ, потому что фиксация оси — состояние без своей картинки на
-    // кадре до первого движения мыши: молчащее переключение неотличимо от
-    // непрочитанной клавиши. Подпись внизу экрана говорит то же самое, но
-    // журнал остаётся и после того, как подпись сменится.
-    std::fprintf(stderr, "[постройка] ось: %s\n", house_.axis_label().c_str());
-}
 
-void App::on_delete_selected() {
-    const std::string why = house_.delete_selection();
-    // ОТКАЗ ГОВОРИТСЯ ВСЛУХ И СО СПИСКОМ ДЕРЖАТЕЛЕЙ: молча не сработавшая
-    // клавиша неотличима от сломанной, а этот сорт молчания мы разбирали
-    // сегодня трижды.
-    std::fprintf(stderr, "[постройка] удаление: %s\n", why.empty() ? "готово" : why.c_str());
-}
 
 void App::on_tool_pick(int index) {
     // CMD+SHIFT+ЦИФРА ОТКРЫВАЕТ МЕНЮ ЭТОГО ИНСТРУМЕНТА, не трогая руку (заказ
@@ -407,85 +361,6 @@ void App::on_build_menu() {
 // G ставит деталь прямо. After a few fine steps "back to zero" by arrow is
 // arithmetic the builder should not have to do. Asked OF THE TOOL, never of a
 // mode flag: only the hand that turns parts may be un-turned.
-/// ШАГ СТРЕЛКАМИ ПО ВЫБРАННОМУ ЯКОРЮ. true — что-то сдвинули.
-///
-/// НАПРАВЛЕНИЯ ОТ КАМЕРЫ, А НЕ ОТ МИРА: «вправо» значит вправо НА ЭКРАНЕ, иначе
-/// человеку пришлось бы держать в голове, куда сейчас смотрит север. Вверх и
-/// вниз — по мировой вертикали: единственное направление, которое от взгляда не
-/// зависит и всегда значит одно и то же.
-void App::on_grid_toggle() {
-    house_.set_grid_on(!house_.grid_on());
-    std::fprintf(stderr, "[постройка] сетка %s, шаг %.2f м\n",
-                 house_.grid_on() ? "включена" : "выключена",
-                 static_cast<double>(house_.grid_step_m()));
-}
-
-void App::draw_editor_grid(const ToolAim& aim) {
-    if (!house_.grid_on() || renderer_ == nullptr || !aim.hit) {
-        return;
-    }
-    // ОТСЕЧКИ ТОЛЬКО ВОКРУГ ПРИЦЕЛА, а не по всему миру — прямое требование:
-    // «сетка везде глаза зальёт». Пятно узлов идёт за прицелом и живёт в
-    // МИРОВЫХ координатах: узел там, где координата кратна шагу, и он не
-    // сдвинется оттого, что человек отошёл.
-    const float step = house_.grid_step_m();
-    constexpr int HALF = 8; // узлов в каждую сторону от прицела
-    const float cx = std::round(aim.point.x / step) * step;
-    const float cz = std::round(aim.point.z / step) * step;
-    // ПЕРЕКРЕСТИЯ, А НЕ СПЛОШНЫЕ ЛИНИИ. Сплошная сетка на траве читается как
-    // рябь и прячет саму траву; короткие крестики в узлах говорят то же самое
-    // («вот куда прилипнет»), занимая на порядок меньше пикселей.
-    const float tick = std::min(step * 0.18f, 0.25f);
-    constexpr std::uint32_t COL = 0xFF60D8F0u;
-    for (int iz = -HALF; iz <= HALF; ++iz) {
-        for (int ix = -HALF; ix <= HALF; ++ix) {
-            const float x = cx + static_cast<float>(ix) * step;
-            const float z = cz + static_cast<float>(iz) * step;
-            const float y = chunks_.height_at({x, z}).value_or(aim.point.y) + 0.03f;
-            renderer_->debug_line({x - tick, y, z}, {x + tick, y, z}, COL);
-            renderer_->debug_line({x, y, z - tick}, {x, y, z + tick}, COL);
-        }
-    }
-    renderer_->set_debug_lines(true);
-}
-
-bool App::nudge_selected_anchor() {
-    const float step = house_.grid_step_m();
-    const float yaw = editor_cam_.yaw();
-    const glm::vec3 fwd{std::sin(yaw), 0.0f, -std::cos(yaw)};
-    const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
-    glm::vec3 by{0.0f};
-    const bool shift = input_->is_down(platform::Key::LEFT_SHIFT)
-                    || input_->is_down(platform::Key::RIGHT_SHIFT);
-    if (input_->was_pressed(platform::Key::RIGHT)) { by += right * step; }
-    if (input_->was_pressed(platform::Key::LEFT)) { by -= right * step; }
-    // SHIFT+ВВЕРХ/ВНИЗ — ПО ВЫСОТЕ, без него — вперёд/назад по земле. Одна пара
-    // клавиш на два направления: третьей пары стрелок на клавиатуре нет.
-    if (input_->was_pressed(platform::Key::UP)) {
-        by += shift ? glm::vec3{0.0f, step, 0.0f} : fwd * step;
-    }
-    if (input_->was_pressed(platform::Key::DOWN)) {
-        by -= shift ? glm::vec3{0.0f, step, 0.0f} : fwd * step;
-    }
-    if (glm::length(by) < 1e-6f) {
-        return false;
-    }
-    const world::VertexId id = house_.selected_vertex();
-    // В УЗЕЛ, А НЕ НА ДЕЛЬТУ (заказ 18.08: «объекты при движении по сетке
-    // должны не на дельту перемещаться, а чётко в координатах сетки жить, типа
-    // 100 101 102 с шагом 1»). Разница видна на второй же нажатой стрелке:
-    // якорь, стоявший в 100.37, от дельты уехал бы в 101.37 и остался бы кривым
-    // навсегда. Сложение с шагом даёт направление, округление — само место.
-    const glm::vec3 to = house_.snap_to_grid(house_.vertex_world(id) + by);
-    (void)house_.mutate("сдвинул якорь стрелкой", [&](world::HouseGraph& g) {
-        return g.move_vertex(id, house_.to_local(to));
-    });
-    std::fprintf(stderr, "[постройка] якорь v%u -> (%.2f %.2f %.2f), шаг %.2f м\n",
-                 static_cast<unsigned>(id), static_cast<double>(to.x),
-                 static_cast<double>(to.y), static_cast<double>(to.z),
-                 static_cast<double>(step));
-    return true;
-}
 
 void App::on_build_rotate() {
     const IEditorTool* held = editor_ui_.toolbox().active();

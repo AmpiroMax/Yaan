@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 16:59:18
+Last updated: 19:08:2026 - 02:05:30
 Module: tests/app
 File: tests/app/ActionRoutesTests.cpp
 
@@ -35,6 +35,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 16:59:18: Создан. Слой 1 разбора App.cpp: рукав на таблицу диспетчеризации.
+- 19:08:2026 - 02:05:30: Определения обработчиков ищутся по AppInput.cpp И AppHouse.cpp (ровно одно на оба); прогулка и метки case — только в AppInput.
 */
 
 #include <doctest/doctest.h>
@@ -151,8 +152,15 @@ TEST_CASE("there is exactly one place a key reaches the app") {
     // instrument here is no instrument at all.
     const std::string app = read_file("engine/app/sources/App.cpp");
     const std::string input = read_file("engine/app/sources/AppInput.cpp");
+    // ДОМЕННЫЙ ФАЙЛ ПОСТРОЙКИ. Обработчики её клавиш живут там с 19.08 (второй
+    // аудит, долг 1: знание о постройке собрано в одном файле), и это НЕ
+    // «размазали обратно»: прогулка по таблице по-прежнему одна и по-прежнему
+    // в AppInput.cpp — домены держат только ТЕЛА методов. Появится третий
+    // доменный файл — он входит в этот же список, а не в исключения.
+    const std::string house = read_file("engine/app/sources/AppHouse.cpp");
     REQUIRE_FALSE(app.empty());  // wrong working directory would silently pass
     REQUIRE_FALSE(input.empty());
+    REQUIRE_FALSE(house.empty());
 
     // App.cpp may DEFINE action_pressed and must not CALL it: every key edge
     // now goes through dispatch_actions(), which is the single walk.
@@ -174,7 +182,12 @@ TEST_CASE("there is exactly one place a key reaches the app") {
     }
     for (const std::string& h : handlers) {
         CAPTURE(h);
-        CHECK(count_of(input, "void App::" + h + "(") == 1);
-        CHECK(count_of(input, h + "(") >= 2); // the definition and the call
+        // Определение — РОВНО ОДНО на оба файла: два определения не собрались
+        // бы, ноль — это строка таблицы, которая молчит.
+        CHECK(count_of(input, "void App::" + h + "(")
+                  + count_of(house, "void App::" + h + "(")
+              == 1);
+        // Вызов (метка case) — в AppInput: там единственная прогулка.
+        CHECK(count_of(input, h + "(") >= 1);
     }
 }

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 18:08:2026 - 18:19:47
+# Last updated: 19:08:2026 - 02:05:30
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -93,6 +93,7 @@ if(DFN_APP_READY)
         sources/AppActions.cpp
         sources/AppAfterFrame.cpp
         sources/AppDoors.cpp
+        sources/AppHouse.cpp
         sources/AppHud.cpp
         sources/AppInput.cpp
     sources/AppSettings.cpp
@@ -148,4 +149,5 @@ endif()
 #   разложена по нескольким .cpp по заказу пользователя. Заголовок остаётся
 #   один: «app.h нормальный по размерам, может по разным cpp файлам реализацию
 #   класс раскидаем?».
+# - 19:08:2026 - 02:05:30: AppHouse.cpp — знание App о постройке в одном файле (второй аудит, долг 1).
 
