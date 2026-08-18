@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:17:13
-Last updated: 18:08:2026 - 12:07:40
+Last updated: 19:08:2026 - 03:22:40
 Module: engine/editor
 File: engine/editor/sources/EditorUi.cpp
 
@@ -127,6 +127,7 @@ UPD:
   треугольник настроек, шестерёнка). Панель настроек здесь ОДНА и её открытость
   каждый кадр берётся из ящика, а не хранится второй копией: два выключателя
   одного состояния этот файл уже оплачивал (17.08, visible_ против open).
+- 19:08:2026 - 03:22:40: Боковые колонки и низ больше не отъедают мир: панели рисуются ПОВЕРХ кадра, вычетом осталась только верхняя полоса.
 */
 
 #include "engine/editor/sources/EditorUi.h"
@@ -933,24 +934,34 @@ void EditorUi::layout_panels() {
     // ARM 2 OF THE INSTRUMENT drops the top reservation and nothing else, so
     // the panels climb onto the toolbar and the overlap becomes measurable.
     insets_.top = layout_check() == 2 ? 0.0f : toolbar_height_;
-    insets_.left = left_n > 0 ? left_w + GAP : 0.0f;
-    insets_.right = right_n > 0 ? right_w + GAP : 0.0f;
-    insets_.bottom = bottom_n > 0 ? bottom_h + GAP : 0.0f;
+    // БОКОВЫЕ КОЛОНКИ И НИЗ МИР НЕ ОТЪЕДАЮТ (заказ 19.08: «когда открывается
+    // меню объекта, не надо игру в размерах менять, это мешает капец как,
+    // пусть это меню поверх рисуется игры»). Панели по-прежнему стоят
+    // колоннами у краёв — NoMove, NoResize, места считаются здесь же, — но кадр
+    // мира остаётся ПОЛНЫМ: открытие меню больше не передёргивает картинку.
+    // Верхняя полоса осталась вычетом: она стоит всегда, и мир под ней не
+    // мигает, а прицел в неё не смотрит.
+    insets_.left = 0.0f;
+    insets_.right = 0.0f;
+    insets_.bottom = 0.0f;
+    const float dock_left = left_n > 0 ? left_w + GAP : 0.0f;
+    const float dock_right = right_n > 0 ? right_w + GAP : 0.0f;
+    const float dock_bottom = bottom_n > 0 ? bottom_h + GAP : 0.0f;
 
     // SECOND PASS: place. The columns run from under the toolbar to the bottom
     // strip, and each panel takes an equal share of its column's height, so two
     // panels on one edge meet at a border instead of on top of each other.
     const float col_top = insets_.top;
-    const float col_bottom = h - insets_.bottom;
+    const float col_bottom = h - dock_bottom;
     const float col_h = std::max(col_bottom - col_top, 0.0f);
     const float left_share = left_n > 0 ? col_h / static_cast<float>(left_n) : 0.0f;
     const float right_share = right_n > 0 ? col_h / static_cast<float>(right_n) : 0.0f;
     const float bottom_share =
-        bottom_n > 0 ? (w - insets_.left - insets_.right) / static_cast<float>(bottom_n)
+        bottom_n > 0 ? (w - dock_left - dock_right) / static_cast<float>(bottom_n)
                      : 0.0f;
     float left_y = col_top;
     float right_y = col_top;
-    float bottom_x = insets_.left;
+    float bottom_x = dock_left;
     int index = 0;
 
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize

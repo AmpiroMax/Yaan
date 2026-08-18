@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 19:08:2026 - 02:05:30
+Last updated: 19:08:2026 - 03:22:40
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -566,6 +566,7 @@ UPD:
 - 19:08:2026 - 00:12:30: Дверь DFN_HOUSE_GRID; призрак рисуется своим цветом.
 - 19:08:2026 - 00:48:20: Камера тронулась — метка гаснет, призрак возвращается под прицел; спрашивается результат движения, а не список клавиш.
 - 19:08:2026 - 02:05:30: Методы постройки съехали в AppHouse.cpp (второй аудит, долг 1).
+- 19:08:2026 - 03:22:40: Порядок инструментов назначен пользователем: выбор, якоря, прямые, стены, высота, тропа, детали, посадка, кисть.
 */
 
 #include "engine/app/sources/App.h"
@@ -2861,38 +2862,54 @@ void App::wire_editor_panels() {
         return true;
     };
 
-    // ПЯТЬ ИНСТРУМЕНТОВ, ПЯТЬ КЛАССОВ, И ПОРЯДОК ЗДЕСЬ — ПОРЯДОК НА ПОЛОСЕ И
-    // ПОРЯДОК КЛАВИШ 1..5. Добавить шестой — значит написать класс и дописать
-    // строку сюда; ни одного switch по дороге больше нет.
+    // ДЕВЯТЬ ИНСТРУМЕНТОВ, И ПОРЯДОК ЗДЕСЬ — ПОРЯДОК НА ПОЛОСЕ И ПОРЯДОК
+    // КЛАВИШ 1..9. Сам порядок назначен пользователем (19.08): «1 выбор,
+    // 2 якоря, 3 прямые, 4 стены, 5 высота земли, 6 тропинка, 7 строительство
+    // пропами, 8 рассада деревьев» — постройка съехала в начало, потому что ею
+    // он пользуется чаще всего. Кисть поверхности в заказе не названа и стоит
+    // девятой. Добавить десятый — написать класс и дописать строку сюда; ни
+    // одного switch по дороге нет.
     EditorToolbox& box = editor_ui_.toolbox();
-    {
-        // Кисти получают мир не ради щелчка (щелчок приходит с ним сам), а ради
-        // ЧИТАЛКИ в настройках: «Последний мазок: узлов N · X м».
-        auto height = std::make_unique<HeightBrushTool>();
-        height->set_world(&tw);
-        box.add(std::move(height));
-        auto paint = std::make_unique<SurfacePaintTool>(editor_ui_);
-        paint->set_world(&tw);
-        box.add(std::move(paint));
-    }
+    house_.set_history(&history_);
+    // 1 — ВЫБОР. Один инструмент выбирает объект сцены, якорь и прямую.
     {
         auto select = std::make_unique<SelectTool>(props_, std::move(ph));
         select->set_world(&tw);
-        // ВЫБОР — ОДНО ДЕЛО, А НЕ ТРИ. Тот же инструмент выбирает объект сцены,
-        // якорь и прямую («не могу выбирать якоря или прямые», 18.08).
         select->set_house(&house_);
         box.add(std::move(select));
     }
+    // 2..4 — ПОСТРОЙКА: якоря, прямые, стены. Одна модель на троих; каждая
+    // мутация пишет снимок внутри HouseSession::mutate, App про это не помнит.
+    {
+        auto vertex = std::make_unique<HouseVertexTool>(house_);
+        vertex->set_world(&tw);
+        box.add(std::move(vertex));
+        auto line = std::make_unique<HouseLineTool>(house_);
+        line->set_world(&tw);
+        box.add(std::move(line));
+        auto surface = std::make_unique<HouseSurfaceTool>(house_);
+        surface->set_world(&tw);
+        box.add(std::move(surface));
+    }
+    // 5 — ВЫСОТА ЗЕМЛИ. Мир нужен кисти ради читалки «Последний мазок».
+    {
+        auto height = std::make_unique<HeightBrushTool>();
+        height->set_world(&tw);
+        box.add(std::move(height));
+    }
+    // 6 — ТРОПА: у кисти центр и радиус, у тропы точки, порядок и два конца.
+    {
+        auto path = std::make_unique<PathTool>();
+        path->set_world(&tw);
+        box.add(std::move(path));
+    }
+    // 7 — СТРОИТЕЛЬСТВО ГОТОВЫМИ ДЕТАЛЯМИ.
     {
         auto place = std::make_unique<PlaceTool>(palette_, std::move(hooks));
         place->set_world(&tw);
         box.add(std::move(place));
     }
-    // ПОСАДКА — СВОЙ ИНСТРУМЕНТ. Её органы управления лежали в панели КИСТИ, а
-    // действие вызывалось из обработчика ПОСТРОЙКИ на Shift+ЛКМ: пользователь
-    // увидел это сразу — «что за порода выбирается, когда я открываю меню кисти?
-    // она ни на что не влияет». Теперь список пород и щелчок принадлежат одному
-    // хозяину.
+    // 8 — ПОСАДКА. Список пород и щелчок принадлежат одному хозяину.
     box.add(std::make_unique<PlantTool>([this]() -> const std::vector<std::string>& {
         if (plant_species_.empty()) {
             // ПОСАДКА ЧИТАЕТ ПОЛКУ ДЕРЕВЬЕВ, А НЕ ПОЛКИ КАРТЫ: на карте домов
@@ -2912,30 +2929,11 @@ void App::wire_editor_panels() {
         }
         return plant_species_;
     }));
-    // ТРОПА — ШЕСТОЙ ИНСТРУМЕНТ (заказ 18.08: «тропинки надо уметь вести не по
-    // квадратам... между любыми точками»). Он не режим кисти: у кисти есть
-    // центр и радиус, у тропы — точки, порядок и два конца.
+    // 9 — КИСТЬ ПОВЕРХНОСТИ (в заказе не названа).
     {
-        auto path = std::make_unique<PathTool>();
-        path->set_world(&tw);
-        box.add(std::move(path));
-    }
-    // ТРИ ИНСТРУМЕНТА ПОСТРОЙКИ, И ОДНА МОДЕЛЬ НА ТРОИХ. Сессия — поле App, а не
-    // поле инструмента: вершины ставит один, прямые тянет второй, поверхность
-    // натягивает третий, и все трое правят ОДИН граф. Она же отдана истории —
-    // каждая мутация пишет снимок внутри HouseSession::mutate, и App про это
-    // больше нигде не помнит.
-    {
-        house_.set_history(&history_);
-        auto vertex = std::make_unique<HouseVertexTool>(house_);
-        vertex->set_world(&tw);
-        box.add(std::move(vertex));
-        auto line = std::make_unique<HouseLineTool>(house_);
-        line->set_world(&tw);
-        box.add(std::move(line));
-        auto surface = std::make_unique<HouseSurfaceTool>(house_);
-        surface->set_world(&tw);
-        box.add(std::move(surface));
+        auto paint = std::make_unique<SurfacePaintTool>(editor_ui_);
+        paint->set_world(&tw);
+        box.add(std::move(paint));
     }
     props_wired_ = true;
 }

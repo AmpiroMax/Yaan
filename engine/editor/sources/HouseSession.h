@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:52:00
-Last updated: 19:08:2026 - 01:52:00
+Last updated: 19:08:2026 - 03:22:40
 Module: engine/editor
 File: engine/editor/sources/HouseSession.h
 
@@ -27,6 +27,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 19:08:2026 - 01:52:00: Создан переносом из EditorToolHouse.h (перенос, не переписывание).
+- 19:08:2026 - 03:22:40: snap_on_axis — сетка на прямой: округлить, спроецировать обратно на ось.
 */
 #pragma once
 
@@ -37,6 +38,7 @@ UPD:
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <glm/geometric.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <string>
@@ -319,6 +321,23 @@ public:
             return std::round(v / grid_step_m_) * grid_step_m_;
         };
         return {q(world.x), q(world.y), q(world.z)};
+    }
+
+    /// СЕТКА НА ПРЯМОЙ: ближайшая к узлу сетки точка, НЕ СХОДЯ С ОСИ (заказ
+    /// 19.08: «сетка работает по земле, но не работает при движении якорей по
+    /// прямым»). Точку нельзя просто округлить — округлённая, она сошла бы с
+    /// оси, то есть сетка отменила бы ограничение, которое человек включил
+    /// сам. Поэтому: округлить, потом СПРОЕЦИРОВАТЬ обратно. У вертикали это
+    /// ровно «высота кратна шагу», у наклонной балки — ближайшее к узлу место
+    /// на ней.
+    [[nodiscard]] glm::vec3 snap_on_axis(glm::vec3 world, glm::vec3 axis_origin,
+                                         glm::vec3 axis_dir_unit) const {
+        if (!grid_on_) {
+            return world;
+        }
+        const glm::vec3 snapped = snap_to_grid(world);
+        const float t = glm::dot(snapped - axis_origin, axis_dir_unit);
+        return axis_origin + axis_dir_unit * t;
     }
 
     /// Якорь В ЭТОЙ ТОЧКЕ, если он там ОДИН. NO_VERTEX, если якоря там нет ИЛИ

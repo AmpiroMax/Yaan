@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 00:31:05
+Last updated: 19:08:2026 - 03:22:40
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -64,6 +64,7 @@ UPD:
 - 18:08:2026 - 23:20:00: Сетка ловит якорь в узлы мировых координат, шаг меняет узлы, выключенная сетка не округляет, шаг зажат.
 - 18:08:2026 - 23:52:10: Видное место — среднее: на прямоугольнике, на треугольнике (с плечом «равноудалённая заметно в стороне») и на паре якорей.
 - 19:08:2026 - 00:31:05: Показ пересобирается целиком: три кадра подряд дают один размер у всех трёх инструментов (контрфакт — снятая очистка роняет случай).
+- 19:08:2026 - 03:22:40: snap_on_axis: вертикаль даёт кратную высоту, наклонная ось не отпускает точку с оси, выключенная сетка не трогает ничего.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1716,4 +1717,29 @@ TEST_CASE("показ пересобирается целиком: второй 
         CHECK(third == first);
         MESSAGE("показ " << tool->identity().id << ": " << first << " точек, стабильно");
     }
+}
+
+TEST_CASE("сетка действует и на оси: округлить, не сходя с прямой") {
+    Bench b;
+    b.session.set_grid_on(true);
+    b.session.set_grid_step_m(1.0f);
+
+    // ВЕРТИКАЛЬ: якорь в (3, 0, 2), точка на оси на высоте 2.37 — узел 2.00,
+    // и обе горизонтальные координаты НЕ шелохнулись (у узла x=3, z=2).
+    const glm::vec3 v = b.session.snap_on_axis({3.0f, 2.37f, 2.0f}, {3.0f, 0.0f, 2.0f},
+                                               {0.0f, 1.0f, 0.0f});
+    CHECK(v.x == doctest::Approx(3.0f).epsilon(0.001));
+    CHECK(v.y == doctest::Approx(2.0f).epsilon(0.001));
+    CHECK(v.z == doctest::Approx(2.0f).epsilon(0.001));
+
+    // НАКЛОННАЯ ОСЬ: точка остаётся НА ОСИ (это главное), а не в узле.
+    const glm::vec3 origin{0.0f, 0.0f, 0.0f};
+    const glm::vec3 dir = glm::normalize(glm::vec3{1.0f, 1.0f, 0.0f});
+    const glm::vec3 p = b.session.snap_on_axis(origin + dir * 3.3f, origin, dir);
+    const glm::vec3 back = origin + dir * glm::dot(p - origin, dir);
+    CHECK(glm::length(p - back) < 1e-4f); // на оси
+    // КОНТРОЛЬ: с выключенной сеткой точка не меняется вовсе.
+    b.session.set_grid_on(false);
+    const glm::vec3 raw = origin + dir * 3.3f;
+    CHECK(glm::length(b.session.snap_on_axis(raw, origin, dir) - raw) < 1e-6f);
 }

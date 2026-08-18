@@ -572,12 +572,12 @@ tool.group=Строю:
 
 # ПЯТЬ РЕЖИМОВ НА КЛАВИШАХ 1..5 (редактор). Номера — его собственные, из его же
 # списка: «нажми 3» и «третья фишка на полосе» это одно и то же.
-controls.tool_height=Режим: высота ландшафта
-controls.tool_paint=Режим: поверхность
-controls.tool_select=Режим: выбор объекта
-controls.tool_place=Режим: постройка
-controls.tool_look=Инструмент: посадка растительности
+controls.tool_height=Инструмент 1: выбор
+controls.tool_paint=Инструмент 2: якоря
+controls.tool_select=Инструмент 3: прямые
+controls.tool_place=Инструмент 4: стены
+controls.tool_look=Инструмент 5: высота земли
 controls.tool_6=Инструмент 6: тропа (cmd+shift — его меню)
-controls.tool_7=Инструмент 7: якоря (cmd+shift — его меню)
-controls.tool_8=Инструмент 8: прямая (cmd+shift — его меню)
-controls.tool_9=Инструмент 9: поверхность (cmd+shift — его меню)
+controls.tool_7=Инструмент 7: детали (cmd+shift — его меню)
+controls.tool_8=Инструмент 8: посадка (cmd+shift — его меню)
+controls.tool_9=Инструмент 9: кисть поверхности (cmd+shift — его меню)

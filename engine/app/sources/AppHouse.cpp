@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 19:08:2026 - 02:34:20
+Last updated: 19:08:2026 - 03:22:40
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 19:08:2026 - 01:40:00: Создан: методы постройки съехали из App.cpp и AppInput.cpp без
   изменений поведения (перенос, не переписывание).
 - 19:08:2026 - 02:34:20: Цвет вершин потоков постройки белый: материал несёт плитка, тонировка затемнила бы её вдвое.
+- 19:08:2026 - 03:22:40: Прицел на постройке — узлы сетки В ОБЪЁМЕ (крестики в узлах мира вокруг точки попадания): «узлы на стенах, узлы на полу».
 */
 
 #include "engine/app/sources/App.h"
@@ -79,11 +80,43 @@ void App::draw_editor_grid(const ToolAim& aim) {
     if (!house_.grid_on() || renderer_ == nullptr || !aim.hit) {
         return;
     }
+    // ПРИЦЕЛ НА ПОСТРОЙКЕ — УЗЛЫ В ОБЪЁМЕ (заказ 19.08: «узлы на стенах, узлы
+    // на полу»). Плоские отсечки по земле здесь не отвечают на вопрос «куда
+    // прилипнет»: прилипание на стене живёт на высоте, а не на траве под ней.
+    // Крестики по трём осям стоят в УЗЛАХ МИРА вокруг точки, где луч встретил
+    // дом; куб 5x5x5 — 125 узлов, 375 линий, на порядок меньше бюджета.
+    const float step = house_.grid_step_m();
+    float house_t = 0.0f;
+    if (house_.pick_element_ray(aim.origin, aim.direction(), HOUSE_EDGE_GRAB_M, &house_t)
+            != world::NO_ELEMENT
+        && house_t > 0.0f && house_t <= aim.distance_m + 0.5f) {
+        const glm::vec3 hit = aim.origin + aim.direction() * house_t;
+        const float tick = std::min(step * 0.12f, 0.15f);
+        constexpr std::uint32_t COL = 0xFF60D8F0u;
+        constexpr int HALF3 = 2;
+        for (int iy = -HALF3; iy <= HALF3; ++iy) {
+            for (int iz = -HALF3; iz <= HALF3; ++iz) {
+                for (int ix = -HALF3; ix <= HALF3; ++ix) {
+                    const glm::vec3 n{
+                        std::round(hit.x / step + static_cast<float>(ix)) * step,
+                        std::round(hit.y / step + static_cast<float>(iy)) * step,
+                        std::round(hit.z / step + static_cast<float>(iz)) * step};
+                    renderer_->debug_line(n - glm::vec3{tick, 0.0f, 0.0f},
+                                          n + glm::vec3{tick, 0.0f, 0.0f}, COL);
+                    renderer_->debug_line(n - glm::vec3{0.0f, tick, 0.0f},
+                                          n + glm::vec3{0.0f, tick, 0.0f}, COL);
+                    renderer_->debug_line(n - glm::vec3{0.0f, 0.0f, tick},
+                                          n + glm::vec3{0.0f, 0.0f, tick}, COL);
+                }
+            }
+        }
+        renderer_->set_debug_lines(true);
+        return;
+    }
     // ОТСЕЧКИ ТОЛЬКО ВОКРУГ ПРИЦЕЛА, а не по всему миру — прямое требование:
     // «сетка везде глаза зальёт». Пятно узлов идёт за прицелом и живёт в
     // МИРОВЫХ координатах: узел там, где координата кратна шагу, и он не
     // сдвинется оттого, что человек отошёл.
-    const float step = house_.grid_step_m();
     constexpr int HALF = 8; // узлов в каждую сторону от прицела
     const float cx = std::round(aim.point.x / step) * step;
     const float cz = std::round(aim.point.z / step) * step;

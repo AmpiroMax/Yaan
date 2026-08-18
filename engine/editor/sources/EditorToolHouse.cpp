@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 00:48:20
+Last updated: 19:08:2026 - 03:22:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -45,6 +45,7 @@ UPD:
 - 19:08:2026 - 00:12:30: Шарик и отвес призрака уехали из стопки подсветки в свою.
 - 19:08:2026 - 00:31:05: Стопка призрака чистится в начале показа: без этой строки шарик добавлялся каждый кадр и рендерер ронял линии пачками.
 - 19:08:2026 - 00:48:20: Метка двигаемого якоря вместо призрака: крест по трём осям, формой отличается от шарика.
+- 19:08:2026 - 03:22:40: Сетка действует на осях (перетаскивание, прямая, посадка на бревно с пересчётом t); обход стены — жирным пучком со стрелками направления, жёлтые только ВЫБРАННЫЕ якоря (line_color больше не жёлтый).
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -872,8 +873,24 @@ HouseVertexTool::Ghost HouseVertexTool::ghost(const ToolAim& aim) const {
     // подтягивание тут ни при чём. Второе правило («шарик ищет ось вокруг
     // себя») я завёл было рядом и убрал: оно дёргало якорь на бревно, на
     // которое человек не смотрел, и объяснить, почему шарик уехал, было нечем.
-    if (const HouseEdgeHit aimed = session_->pick_edge_ray(aim.origin, dir, HOUSE_SNAP_M);
+    if (HouseEdgeHit aimed = session_->pick_edge_ray(aim.origin, dir, HOUSE_SNAP_M);
         aimed.hit()) {
+        // СЕТКА ДЕЙСТВУЕТ И НА ОСИ: точка съезжает вдоль бревна к ближайшему
+        // узлу, не сходя с оси. t пересчитывается — модель хранит вершину на
+        // оси именно долей, и доля обязана согласоваться с точкой.
+        if (const Element* host = session_->graph().element(aimed.host);
+            host != nullptr && host->refs.size() >= 2) {
+            const glm::vec3 ea = session_->vertex_world(host->refs.front());
+            const glm::vec3 eb = session_->vertex_world(host->refs.back());
+            const float elen = glm::length(eb - ea);
+            if (elen > 1e-4f) {
+                const glm::vec3 eu = (eb - ea) / elen;
+                const glm::vec3 snapped = session_->snap_on_axis(aimed.point, ea, eu);
+                const float t = glm::clamp(glm::dot(snapped - ea, eu) / elen, 0.0f, 1.0f);
+                aimed.point = ea + eu * (t * elen);
+                aimed.t = t;
+            }
+        }
         g.on_edge = aimed;
         g.point = aimed.point;
         g.ground_y = ground_at({g.point.x, g.point.z}, g.point.y);
@@ -962,8 +979,9 @@ void HouseVertexTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) 
     // удлинить, не сбив её направления, и поднять стойку ровно по её же оси.
     if (glm::vec3 u{0.0f}; session_->axis_dir(dragging_, u)) {
         const glm::vec3 here = session_->vertex_world(dragging_);
-        const glm::vec3 target =
-            point_on_axis(here, u, aim.origin, aim.direction(), here);
+        glm::vec3 target = point_on_axis(here, u, aim.origin, aim.direction(), here);
+        // Сетка действует и на оси: округлить, спроецировать обратно.
+        target = session_->snap_on_axis(target, here, u);
         (void)session_->graph().move_vertex(dragging_, session_->to_local(target));
         return;
     }
@@ -1191,6 +1209,7 @@ void HouseLineTool::update_end(const ToolAim& aim) {
         // ToolAim несёт и глаз, и точку, и второй способ узнать направление
         // взгляда разъехался бы с первым в день, когда прицел сместят.
         raw_end_ = point_on_axis(a, u, aim.origin, aim.direction(), raw_end_);
+        raw_end_ = session_->snap_on_axis(raw_end_, a, u); // сетка и на оси
         snap_ = NO_VERTEX; // на запертой оси конец решает ось, а не магнит
     }
     const glm::vec3 delta = raw_end_ - a;
@@ -1617,11 +1636,49 @@ ToolPreview HouseSurfaceTool::preview(const ToolAim& aim) const {
     build_house_wire(*session_, ground, wire_);
 
     if (!stale()) {
+        // ОБХОД — ЖИРНОЙ ЛИНИЕЙ СО СТРЕЛКАМИ НАПРАВЛЕНИЯ (заказ 19.08: якоря
+        // соединять «линиями обхода, со стрелками обхода, причём не такими
+        // тонкими какие есть, а потолще»). Толщина у debug-линий одна на всех,
+        // поэтому жирность набирается ПУЧКОМ: три параллельных отрезка со
+        // сдвигом в перпендикуляре. Стрелка — на середине каждого звена: у
+        // конца она сливалась бы с шариком якоря.
         for (const VertexId r : refs_) {
-            draft_line_.push_back(session_->vertex_world(r));
+            // ВЫБРАННЫЕ ЯКОРЯ — ЖЁЛТЫМ, шариком в стопке подсветки: жёлтыми
+            // должны быть ИМЕННО ОНИ, а не вся проволока.
+            append_ball(wire_.accent, session_->vertex_world(r), HOUSE_BALL_R_M * 1.2f);
+        }
+        std::vector<glm::vec3> chain;
+        for (const VertexId r : refs_) {
+            chain.push_back(session_->vertex_world(r));
         }
         if (closed_ && refs_.size() >= 3) {
-            draft_line_.push_back(session_->vertex_world(refs_.front()));
+            chain.push_back(chain.front());
+        }
+        for (std::size_t i = 0; i + 1 < chain.size(); ++i) {
+            const glm::vec3 a = chain[i];
+            const glm::vec3 b = chain[i + 1];
+            const glm::vec3 d = b - a;
+            const float len = glm::length(d);
+            if (len < 1e-4f) {
+                continue;
+            }
+            const glm::vec3 dir = d / len;
+            glm::vec3 side = glm::cross(dir, glm::vec3{0.0f, 1.0f, 0.0f});
+            if (glm::length(side) < 1e-3f) {
+                side = glm::cross(dir, glm::vec3{1.0f, 0.0f, 0.0f});
+            }
+            side = glm::normalize(side) * 0.03f;
+            for (const glm::vec3 off : {glm::vec3{0.0f}, side, -side}) {
+                draft_line_.push_back(a + off);
+                draft_line_.push_back(b + off);
+            }
+            // Стрелка направления: две черты назад от середины звена.
+            const glm::vec3 mid = a + d * 0.5f;
+            const glm::vec3 wing = glm::normalize(side) * 0.18f;
+            draft_line_.push_back(mid);
+            draft_line_.push_back(mid - dir * 0.35f + wing);
+            draft_line_.push_back(mid);
+            draft_line_.push_back(mid - dir * 0.35f - wing);
         }
     }
     // СТРЕЛКА НОРМАЛИ ДО ПОДТВЕРЖДЕНИЯ. Она и есть весь смысл этого превью:
@@ -1642,10 +1699,15 @@ ToolPreview HouseSurfaceTool::preview(const ToolAim& aim) const {
         }
         append_normal_arrow(wire_.accent, centre, n);
     }
-    out.polyline = draft_line_.empty() ? nullptr : &draft_line_;
+    // Обход уезжает ПАРАМИ в стопку ghost_pairs (жёлтым): полилиния соединяла
+    // бы пучки и стрелки сквозными штрихами. line_color БОЛЬШЕ НЕ ЖЁЛТЫЙ: он
+    // красит ОБЫЧНУЮ проволоку, и жёлтая проволока целиком читалась как «все
+    // якоря выбраны» — ровно жалоба 19.08.
+    out.ghost_pairs = draft_line_.empty() ? nullptr : &draft_line_;
+    out.ghost_color = HOUSE_ACCENT_COLOR;
     out.handles = wire_.plain.empty() ? nullptr : &wire_.plain;
     out.accent = wire_.accent.empty() ? nullptr : &wire_.accent;
-    out.line_color = HOUSE_ACCENT_COLOR;
+    out.line_color = HOUSE_WIRE_COLOR;
     out.accent_color = HOUSE_ACCENT_COLOR;
     return out;
 }
