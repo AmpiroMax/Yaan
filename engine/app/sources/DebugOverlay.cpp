@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 17:08:2026 - 22:01:29
+Last updated: 18:08:2026 - 17:32:10
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -47,9 +47,13 @@ UPD:
   Все координаты вывода отсчитываются от него, поэтому вызывающий двигает блок
   ОДНИМ числом, а не десятью, и число это — уже посчитанная кем-то полоса, а не
   подобранный отступ.
+- 18:08:2026 - 17:32:10: чтение двери — через таблицу (door_value, AppDoors.h). Слой 2
+  разбора App.cpp: имя без строки в таблице больше не открывается и говорит об
+  этом вслух, поэтому «какие вообще есть двери» перестало быть вопросом к grep.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
+#include "engine/app/sources/AppDoors.h"
 
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
@@ -219,7 +223,7 @@ bool ui_plates_enabled() {
     // Read ONCE. A door polled every frame is a switch, and a switch inside an
     // instrument means two frames of one run can disagree about what was tested.
     static const bool on = [] {
-        const char* e = std::getenv("DFN_UI_PLATE");
+        const char* e = door_value("DFN_UI_PLATE");
         return !(e != nullptr && e[0] == '0');
     }();
     return on;

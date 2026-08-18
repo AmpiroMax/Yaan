@@ -1,0 +1,218 @@
+/*
+Created: 18:08:2026 - 17:36:58
+Last updated: 18:08:2026 - 17:36:58
+Module: engine/app
+File: engine/app/sources/AppAfterFrame.cpp
+
+Responsibility:
+- EVERYTHING THAT MUST HAPPEN AFTER render(), AND ONLY BECAUSE OF THAT. The
+  trajectory row, the telemetry sample, the state capture, the chat entry, the
+  close-after-flush countdown, the restore report, the body probe and the
+  tour's settle gate. They have exactly one thing in common, and this file
+  exists to say it out loud rather than leave it as an accident of line order.
+
+Key items:
+- App::after_frame(): the whole tail of one frame, in the order it must run.
+
+Dependencies:
+- Uses: App.h and AppAfterFrame.h (the gates). Nothing new.
+- Used by: App.cpp (one call at the end of the loop body).
+
+Notes:
+- WHY THEY ARE TOGETHER, and it is the only reason. Each of these needs the
+  frame to have been PRESENTED:
+    * the trajectory row records the eye pose the frame was drawn from, so a
+      replay reproduces the image rather than something near it;
+    * the capture writes a .png and a sidecar that must describe the SAME
+      frame -- collected before render() it would save the state of frame N
+      beside the image of frame N-1, which is the kind of small lie that makes
+      a repro fail for reasons nobody can find;
+    * the chat entry carries that capture, so it inherits the same rule;
+    * the close-after-flush countdown exists because save_screenshot() returns
+      when the capture is REQUESTED, not when the file exists;
+    * the tour's gate reads queues that this frame's render has just drained.
+  Nothing here is grouped by subject matter, and grouping it by subject matter
+  would be the mistake: split the capture from its countdown and the pair goes
+  wrong in a way that produces a .txt with no .png beside it, which is what
+  happened once already.
+- THE DECISIONS ARE NEXT DOOR, IN THE HEADER. What is left here is side
+  effects: files, the renderer, the window. Those cannot be measured without a
+  window; the four things this code CHOOSES can, and they are inline in
+  AppAfterFrame.h with tests/app/AfterFrameTests.cpp on them.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
+*/
+/*
+UPD:
+- 18:08:2026 - 17:36:58: Создан. Слой 4 разбора App.cpp: хвост кадра (165 строк) уехал
+  из run() сюда, вместе с доводом, по которому он там был.
+*/
+
+#include "engine/app/sources/App.h"
+
+#include "engine/app/sources/AppAfterFrame.h"
+
+#include <cstdio>
+#include <string>
+
+namespace dfn::app {
+
+void App::after_frame(float alpha, float frame_dt) {
+
+
+    // TRAJECTORY RECORDING (O3): every PRESENTED frame's eye pose + counted
+    // clock + fov, so replay reproduces the image exactly. Recording is an
+    // editor action, but a DFN_TRAJ_REC door (armed at enter_world) records
+    // any mode, so this is gated on the recorder, not the mode.
+    if (traj_rec_.active()) {
+        const auto eye = camera_.interpolated_pose(alpha);
+        TrajectoryFrame tf;
+        tf.game_seconds = game_seconds_;
+        tf.position = eye.position;
+        tf.yaw = eye.yaw;
+        tf.pitch = eye.pitch;
+        tf.fov_y = camera_.fov_y();
+        traj_rec_.push(tf);
+    }
+
+    // TELEMETRY RING (item 3), EDITOR ONLY -- in-game stays light (В39: no
+    // continuous log). One sample every 1/TELEMETRY_LOG_HZ of COUNTED time,
+    // so the log of a given walk has the same length on any machine. Reuses
+    // collect_snapshot. Flushed beside the map on stop.
+    if (mode_ == AppMode::Editor) {
+        if (telemetry_due(game_seconds_, telemetry_last_s_,
+                          static_cast<double>(config::TELEMETRY_LOG_HZ))) {
+            telemetry_last_s_ = game_seconds_;
+            const DebugSnapshot s = collect_snapshot(alpha);
+            TelemetrySample t;
+            t.game_seconds = s.game_seconds;
+            t.position = s.position;
+            t.yaw = s.yaw;
+            t.pitch = s.pitch;
+            t.fps = s.fps;
+            t.frame_ms = s.frame_ms;
+            t.chunks_resident = s.chunks_resident;
+            t.lod_nodes = s.lod_nodes;
+            // triangles / aim_target: render seam, left 0/"" until a hook
+            // fills them (read-if-present, never a block here).
+            telemetry_.push(t);
+        }
+    }
+
+    // CAPTURE AFTER RENDER, so the .png and the sidecar are the same frame.
+    // The snapshot is collected a second time here rather than reused from
+    // the overlay above -- one frame of drift between the image and its
+    // state file is exactly the kind of small lie that makes a repro fail
+    // for reasons nobody can find.
+    if (capture_pending_) {
+        capture_pending_ = false;
+        write_capture(collect_snapshot(alpha));
+        // CLOSING HERE WOULD LOSE THE PNG. save_screenshot() returns true
+        // when the capture has been REQUESTED, not when the file exists --
+        // the bgfx backend reads the framebuffer back over the following
+        // frames. Closing on the same frame produced a .txt with no .png
+        // beside it, and, worse, a "[capture] ok" line above the pair. So
+        // the tooling door waits for the flush; the same reason the body
+        // probe holds a 4-frame cooldown between shots.
+        if (capture_then_close_) {
+            flush_countdown_.arm();
+        }
+    }
+    // CHAT ENTRY AFTER RENDER, same reason as the capture: the attached
+    // capture and the entry must describe the same frame. The DFN_CHAT_MSG
+    // door waits for the backend flush before closing (the png lands over
+    // the following frames), like F2.
+    if (chat_pending_) {
+        chat_pending_ = false;
+        write_pending_chat(alpha);
+        if (chat_then_close_) {
+            flush_countdown_.arm();
+        }
+    }
+    // How far the restore actually got. IPhysics has no teleport (see
+    // apply_restore), so this is the check that keeps a half-completed
+    // restore from passing as a completed one.
+    if (flush_countdown_.tick()) {
+        window_->request_close();
+    }
+    if (restore_target_) {
+        if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+            const glm::vec3 got = physics_->character_position(ps->character);
+            // ГОРИЗОНТАЛЬ И ВЕРТИКАЛЬ — РАЗНЫЕ ВЕЛИЧИНЫ, и отказом является
+            // только одна: осадка капсулы на землю это работа контроллера, а
+            // не промах. Само это решение живёт в AppAfterFrame.h и там же
+            // проверяется — оно уже было однажды принято на неверной величине
+            // и кричало бы «заблокировано» на каждом восстановлении.
+            const RestoreLanding land = restore_landing(got, *restore_target_);
+            std::fprintf(stderr,
+                         "[restore] landed %.2f %.2f %.2f  horiz %.3f m  "
+                         "settle %.3f m%s\n",
+                         static_cast<double>(got.x), static_cast<double>(got.y),
+                         static_cast<double>(got.z),
+                         static_cast<double>(land.horiz_m),
+                         static_cast<double>(land.settle_m),
+                         land.blocked
+                             ? "  -- BLOCKED, this is NOT the captured spot"
+                             : "");
+        }
+        restore_target_.reset();
+    }
+    body_probe_frame(alpha, frame_dt);
+    // THE TOUR'S SETTLE IS GATED ON THE WORLD HAVING STOPPED CHANGING,
+    // not on frames elapsing. `Tour.cpp` waits a fixed 45 RENDERED FRAMES
+    // for streaming that is driven in SIM STEPS off a wall clock -- Rule 42,
+    // a budget denominated in one clock's units enforcing a limit that only
+    // matters in another's. The cost was measured, not guessed: two runs of
+    // the SAME binary at the SAME commit differ by 17.4% of pixels (34.7%
+    // re-measured later), so no full-tour pixel claim below ~20% has ever
+    // certified anything -- in the instrument this project uses for Rule 27.
+    //
+    // The gate lives HERE rather than in Tour.cpp because the app is the
+    // only place that can see all three queues at once, and because it needs
+    // no change to render's contract: withholding the call simply pauses the
+    // countdown, so the 45 frames now run on a SETTLED world instead of
+    // starting at the refocus.
+    //
+    // HYSTERESIS IS NOT OPTIONAL: a queue legitimately reads empty for one
+    // frame mid-refocus, so quiescence must HOLD. And the cap is a backstop
+    // that REPORTS -- an unreachable vantage must say so rather than hang,
+    // because a tour that quietly never finishes is the same silent-zero
+    // failure as a capture that wrote nothing.
+    //
+    // HONEST GAP, disclosed rather than papered over: there is no
+    // chunk-pending accessor, so "chunks still arriving" is inferred from
+    // ChunkLoaded/ChunkUnloaded events seen this frame. That is sound for
+    // "something arrived" and blind to "something is queued and has not
+    // arrived yet" -- a request to core is out for the real counter, and
+    // until it lands the cap is doing more work than it should.
+    if (tour_.active()) {
+        const bool quiet = !world_changed_this_frame_
+                           && chunks_.coarse_pending_count() == 0
+                           && render_system_.lod_pending().empty();
+        // ГИСТЕРЕЗИС И ПОТОЛОК — В AppAfterFrame.h, где их можно прогнать без
+        // окна. Здесь остаётся ровно то, что окна требует: спросить три
+        // очереди и напечатать, если сдались.
+        const SettleGate::Verdict v = settle_gate_.observe(quiet);
+        if (v.capped && !v.settled) {
+            std::fprintf(stderr,
+                         "[tour] vantage never settled after %d frames "
+                         "(quiet=%d coarse=%zu lod=%zu) -- shooting anyway, "
+                         "this frame is NOT evidence\n",
+                         settle_gate_.unsettled_frames, settle_gate_.quiet_frames,
+                         chunks_.coarse_pending_count(),
+                         render_system_.lod_pending().size());
+        }
+        if (v.shoot && tour_.post_frame(*renderer_)) {
+            window_->request_close(); // tour finished (render's contract)
+        }
+    }
+    if (playtest_ && playtest_->finished && pt_artifacts_pending_) {
+        gameplay::playtest_write_artifacts(*playtest_, pt_dir_);
+        pt_artifacts_pending_ = false;
+        window_->request_close();
+    }
+
+}
+
+} // namespace dfn::app

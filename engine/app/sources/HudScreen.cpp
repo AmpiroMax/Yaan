@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:38:00
-Last updated: 18:08:2026 - 01:54:26
+Last updated: 18:08:2026 - 17:32:10
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -38,9 +38,13 @@ UPD:
   неё. Проверка — по ЧЕРНИЛАМ в нижней четверти, а не по возвращённой
   координате: координату можно посчитать верно и нарисовать не там. Контрфакт:
   вернул прежнее место — чернила на y=201 против порога 274, красный.
+- 18:08:2026 - 17:32:10: чтение двери — через таблицу (door_value, AppDoors.h). Слой 2
+  разбора App.cpp: имя без строки в таблице больше не открывается и говорит об
+  этом вслух, поэтому «какие вообще есть двери» перестало быть вопросом к grep.
 */
 
 #include "engine/app/sources/HudScreen.h"
+#include "engine/app/sources/AppDoors.h"
 
 #include <algorithm>
 #include <cmath>
@@ -173,7 +177,7 @@ namespace {
 // a switch" is the same for all of them, and three copies of it would be three
 // chances to write it differently.
 [[nodiscard]] bool door(const char* name) {
-    const char* e = std::getenv(name);
+    const char* e = door_value(name);
     return !(e != nullptr && e[0] == '0');
 }
 } // namespace

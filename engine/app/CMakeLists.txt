@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 17:08:2026 - 20:06:29
+# Last updated: 18:08:2026 - 17:36:58
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -44,6 +44,23 @@
 # - 17:08:2026 - 19:25:28: меню объектов уехало в engine/editor целиком: ImGui законен только там,
 #   а слой editor не может включать app — значит панель и её модель обязаны лежать
 #   по одну сторону, и эта сторона editor.
+# - 17:08:2026 - 20:06:29: EditorPlant.cpp — судейская половина посадки растительности
+#                          (зона кистей). Раскол EditorBrush по слоям: механика
+#                          уехала в engine/editor вместе с панелью, а вердикт
+#                          остался здесь, где живёт BuildTool.
+# - 18:08:2026 - 16:59:18: AppActions.cpp + AppInput.cpp — слой 1 разбора App.cpp
+#   (docs/PLAN_APP_DECOMPOSITION.md). Обработчики клавиш уехали из run() в
+#   AppInput.cpp, а таблица «действие → метод» — в AppActions.cpp, у которой нет
+#   ни App, ни окна, и потому её читает рукав app_controls. Разрез на ДВА файла
+#   не косметика: положи таблицу рядом с обработчиками — и она утянет за собой
+#   App.cpp в тестовую цель, то есть окно, то есть непроверяемость.
+# - 18:08:2026 - 17:32:10: AppDoors.cpp — слой 2 разбора: 58 дверей DFN_* одной таблицей.
+#   Тоже без App и без окна, и по той же причине: рукав app_doors читает её.
+# - 18:08:2026 - 17:35:04: AppHud.cpp — слой 3: сборка кадра оверлеев (факты + холст).
+#   Читает её app_hud_screen, потому что и здесь нет ни App, ни окна.
+# - 18:08:2026 - 17:36:58: AppAfterFrame.cpp — слой 4: хвост кадра. Решения, которые он
+#   принимает, лежат ЗАГОЛОВКОМ (AppAfterFrame.h, inline), чтобы рукав включал
+#   их и не тянул за собой ни цели, ни окна.
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
@@ -60,10 +77,6 @@ set(DFN_APP_DEPS
     dfn_platform_audio
     dfn_platform_llm)
 
-# - 17:08:2026 - 20:06:29: EditorPlant.cpp — судейская половина посадки растительности
-#                          (зона кистей). Раскол EditorBrush по слоям: механика
-#                          уехала в engine/editor вместе с панелью, а вердикт
-#                          остался здесь, где живёт BuildTool.
 set(DFN_APP_READY TRUE)
 foreach(dep IN LISTS DFN_APP_DEPS)
     if(NOT TARGET ${dep})
@@ -77,6 +90,11 @@ if(DFN_APP_READY)
     add_executable(dfn_app
         sources/Main.cpp
         sources/App.cpp
+        sources/AppActions.cpp
+        sources/AppAfterFrame.cpp
+        sources/AppDoors.cpp
+        sources/AppHud.cpp
+        sources/AppInput.cpp
         sources/AssetBake.cpp
         sources/BuildTool.cpp
         sources/ChatLog.cpp

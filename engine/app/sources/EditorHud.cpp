@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:57:03
-Last updated: 18:08:2026 - 00:24:58
+Last updated: 18:08:2026 - 17:32:10
 Module: engine/app
 File: engine/app/sources/EditorHud.cpp
 
@@ -34,9 +34,13 @@ UPD:
   левое при стоящем правом винит камеру, два стоящих — ввод. Состояние курсора
   тут же (cap/free), потому что при отданном интерфейсу курсоре нулевое смещение
   это НОРМА, и без пометки строка врала бы каждый раз, когда открыто меню.
+- 18:08:2026 - 17:32:10: чтение двери — через таблицу (door_value, AppDoors.h). Слой 2
+  разбора App.cpp: имя без строки в таблице больше не открывается и говорит об
+  этом вслух, поэтому «какие вообще есть двери» перестало быть вопросом к grep.
 */
 
 #include "engine/app/sources/EditorHud.h"
+#include "engine/app/sources/AppDoors.h"
 
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Localization.h"
@@ -78,7 +82,7 @@ constexpr int PLATE_PAD = 3; // draw_text_plate's default
 // tested. Same reasoning, same shape, as DFN_UI_PLATE next door.
 [[nodiscard]] bool pinned_to_corner() {
     static const bool on = [] {
-        const char* e = std::getenv("DFN_EDITOR_HUD_PINNED");
+        const char* e = door_value("DFN_EDITOR_HUD_PINNED");
         return e != nullptr && e[0] == '1';
     }();
     return on;

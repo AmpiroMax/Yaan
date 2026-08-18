@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 16:28:24
+Last updated: 18:08:2026 - 17:36:58
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -493,9 +493,61 @@ UPD:
   остался и показывает то же число: это ОДНО состояние с двумя органами
   управления, а не два состояния — колесо зовёт тот же set_reach_ceiling_m, и
   зажим пределов живёт внутри него (правило 32).
+- 18:08:2026 - 16:59:18: СЛОЙ 1 РАЗБОРА (docs/PLAN_APP_DECOMPOSITION.md, заказ 18.08
+  «рефакторинг толстых компонент»). Из run() ушли ВСЕ обработчики клавиш —
+  350 строк: чат, ESC, полный экран, Tab, третье лицо, отладочный вывод, снимок
+  состояния, каркас, пять инструментов, курсор, меню объектов, поворот детали,
+  снимок экрана, замечание, запись и повтор траектории, карта. Они лежат в
+  AppInput.cpp по методу на строку таблицы AppActions.cpp, и таблицу читает
+  рукав app_controls: 21 строка, каждая с методом, ни одной пары «метод +
+  аргумент» дважды, и НИ ОДНОЙ клавиши, проходящей сквозь открытое окно чата.
+  Последнее и есть смысл захода: до сегодня этот запрет был восемнадцатью
+  написанными от руки `!chat_typing &&`, а восемнадцать верных копий — это не
+  свойство, это привычка, и цена девятнадцатой — набранное в чате слово,
+  роняющее снимки и вертящее камеру. Заодно unattended_run()/write_settings()
+  вышли из безымянного пространства: обработчики их зовут, а вторая копия
+  ответа «за этим никто не играет» была бы вторым ответом (правило 32).
+  Порядок разошёлся с прежним (таблица идёт в порядке Action, run() шёл в
+  порядке накопления) и это безопасно по проверенной причине: две руки могут
+  зависеть от порядка, только если одна клавиша достаёт до обеих, а ControlsTests
+  держит, что общих клавиш в одной области нет.
+- 18:08:2026 - 17:32:10: СЛОЙ 2 РАЗБОРА — ДВЕРИ. Все 72 чтения std::getenv в этом
+  файле стали door_value() — то есть чтением ЧЕРЕЗ ТАБЛИЦУ (AppDoors.cpp), и
+  имя без строки в ней больше не открывается вовсе, а говорит об этом вслух.
+  unattended_run() уехал туда же и выводится из КОЛОНКИ таблицы: здесь он был
+  выражением из тринадцати слагаемых, в которое, по его же комментарию, дважды
+  заметали дверь правкой, выглядевшей безобидной. Рукав app_doors держит
+  таблицу замкнутой с обеих сторон (имя, читаемое в зоне, обязано иметь строку;
+  строка обязана где-то читаться) и проверяет признак беспилотного прогона по
+  каждой двери ПОРОЗНЬ — 13 дверей из 58.
+- 18:08:2026 - 17:35:04: СЛОЙ 3 РАЗБОРА — СБОРКА ОВЕРЛЕЕВ. 238 строк компоновки
+  кадра уехали в AppHud.cpp: подпись под прицелом, подсказка, отладочный вывод,
+  редакторский блок, окно чата и порядок, в котором они ложатся. Здесь остался
+  СБОР ФАКТОВ, и граница проведена так: чтение живого состояния требует мира, а
+  мир требует окна, поэтому оно остаётся тут; решение, которое может быть
+  неверным само по себе, уезжает туда, где его читает рукав. Половина кусков и
+  раньше жила в модулях со своими наборами — а отказ, который три дня ловил
+  человек (вывод и блок редактора печатались друг сквозь друга), существовал
+  ТОЛЬКО в сборке. Рукав app_hud_screen теперь держит его числом: добавление
+  редакторского блока не меняет НИ ОДНОГО пикселя, принадлежащего выводу.
+- 18:08:2026 - 17:36:58: СЛОЙ 4 РАЗБОРА — ХВОСТ КАДРА. 165 строк после render()
+  (запись траектории, телеметрия, снимок, запись чата, отсчёт до закрытия,
+  отчёт восстановления, проба тела, затвор тура) уехали в AppAfterFrame.cpp
+  вместе с доводом, по которому они лежали именно там: у них общее РОВНО ОДНО —
+  они обязаны идти ПОСЛЕ render(). Четыре решения, которые они принимают, стали
+  чистыми функциями в AppAfterFrame.h и получили рукав app_after_frame: затвор
+  тура с гистерезисом и потолком, период телеметрии по СЧЁТНОМУ времени, отсчёт
+  до закрытия (взвод второй раз НЕ укорачивает ожидание — снимок и запись чата
+  приходятся на один кадр) и приговор восстановлению на ГОРИЗОНТАЛЬНОЙ ошибке.
+  У каждого из четырёх своя история отказа, и каждый до сегодня жил числом
+  внутри кадрового цикла. Поля close_after_flush_/quiet_frames_/
+  tour_settle_frames_ заменены на FlushCountdown и SettleGate.
 */
 
 #include "engine/app/sources/App.h"
+
+#include "engine/app/sources/AppDoors.h"
+#include "engine/app/sources/AppHud.h"
 
 #include "engine/app/sources/AssetBake.h"
 
@@ -599,52 +651,17 @@ namespace {
 
 constexpr const char* SETTINGS_PATH = "settings.cfg";
 
-// IS THIS RUN UNATTENDED? One definition, two consumers -- the menu skip and the
-// cursor grab (Rule 35: a value two places must agree on stops belonging to
-// either of them).
-//
-// The second consumer is why this function exists. The user, working at his
-// machine while agents shot frames, reported: "когда запускаются визуальные
-// тесты у меня управление компом перехватывается, меня в игру перекидывает,
-// мышью управлять не могу". Every automated door except the body probe grabbed
-// the desktop pointer, because the exemption had been written for ONE door
-// instead of for the PROPERTY the doors share. An unattended run has nobody to
-// aim, so it has no business owning the mouse.
-// DFN_MENU_SHOT IS HERE ON PURPOSE AND IT IS A TRAP FOR THE NEXT REFACTOR: it
-// gates the CURSOR and the counted clock (nobody is playing), but it must NOT
-// gate the MENU -- a door that exists to photograph a menu screen needs the menu
-// SHOWN, the opposite of every other door here. This has been swept into the
-// menu-SKIP twice already (a fix in the morning, undone by a predicate merge in
-// the afternoon, and again). The menu is re-asserted for DFN_MENU_SHOT and
-// DFN_MENU_PAGE in init()'s branch (C) precisely so this predicate can stay one
-// honest "nobody is aiming" without owning the menu question too. Do not "clean
-// up" by acting on DFN_MENU_SHOT/DFN_MENU_PAGE for the menu here.
-[[nodiscard]] bool unattended_run() {
-    return std::getenv("DFN_TOUR") != nullptr || std::getenv("DFN_PLAYTEST") != nullptr
-           || std::getenv("DFN_PLAYTEST_ROUTE") != nullptr
-           || std::getenv("DFN_CAPTURE_AFTER") != nullptr
-           || std::getenv("DFN_CAPTURE_AFTER_FRAMES") != nullptr
-           || std::getenv("DFN_SHOT_AFTER") != nullptr
-           || std::getenv("DFN_BODY_PROBE") != nullptr
-           || std::getenv("DFN_MENU_SHOT") != nullptr
-           || std::getenv("DFN_HUD_PROBE") != nullptr
-           || std::getenv("DFN_RESTORE") != nullptr
-           // The chat verification door writes one entry and closes; nobody is
-           // at the keyboard, so it skips the menu and does not grab the mouse.
-           || std::getenv("DFN_CHAT_MSG") != nullptr
-           // Trajectory replay DRIVES the camera from a file and closes when the
-           // file is spent -- an evidence door, so it runs the counted clock,
-           // skips the menu and leaves the pointer alone.
-           || std::getenv("DFN_TRAJ_PLAY") != nullptr
-           // DFN_OPEN_MAP=<category>/<map> is the automated map door: it loads a
-           // concrete .map bypassing the browser, so a demo frame needs no hand
-           // on the keyboard -- menu skipped, pointer free, counted clock. (NOT
-           // named DFN_MAP: that is render's map-SCREEN probe and Tour's gate,
-           // and reusing it would collapse a route to one frame.) DFN_EDITOR
-           // alone is deliberately NOT here: with no concrete map it opens the
-           // browser, which IS the menu and frees the cursor itself.
-           || std::getenv("DFN_OPEN_MAP") != nullptr;
-}
+} // namespace — ДВЕ ФУНКЦИИ НИЖЕ ВИДНЫ СОСЕДНЕМУ ФАЙЛУ.
+// unattended_run() и write_settings() зовут обработчики клавиш, уехавшие в
+// AppInput.cpp (слой 1 разбора). Внутренняя связка сделала бы вторую копию
+// каждой — а «за этим никто не играет» и «настройки сохранены» обязаны
+// значить ОДНО И ТО ЖЕ в обоих файлах (правило 32).
+
+// unattended_run() УЕХАЛ В AppDoors.cpp (слой 2 разбора). Здесь он был
+// выражением из тринадцати слагаемых «дверь X открыта ИЛИ дверь Y открыта», и
+// его собственный комментарий признавался, что одну дверь в него заметали
+// дважды. Теперь это КОЛОНКА ТАБЛИЦЫ, и она проверяется рукавом app_doors по
+// каждой двери порознь: открыта одна — ответ обязан совпасть с её строкой.
 
 // Reads key=value graphics settings; writes a commented default file on first
 // run so the user always has something to edit (sync #3 decision: resolution
@@ -683,6 +700,8 @@ void write_settings(const AppConfig& cfg) {
             << "#            0 = drop straight into the world.\n"
             << "show_menu=" << (cfg.show_menu ? 1 : 0) << '\n';
 }
+
+namespace { // остальное — по-прежнему только для этого файла
 
 void load_or_create_settings(AppConfig& cfg) {
     std::ifstream in(SETTINGS_PATH);
@@ -745,17 +764,17 @@ AppConfig AppConfig::from_env() {
     cfg.internal_width = static_cast<uint32_t>(config::INTERNAL_RES_W);
     cfg.internal_height = static_cast<uint32_t>(config::INTERNAL_RES_H);
     load_or_create_settings(cfg); // file first; env below overrides (tooling)
-    if (const char* res = std::getenv("DFN_INTERNAL_RES")) {
+    if (const char* res = door_value("DFN_INTERNAL_RES")) {
         unsigned w = 0, h = 0;
         if (std::sscanf(res, "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
             cfg.internal_width = w;
             cfg.internal_height = h;
         }
     }
-    if (const char* nr = std::getenv("DFN_NULL_RENDER"); nr && nr[0] == '1') {
+    if (const char* nr = door_value("DFN_NULL_RENDER"); nr && nr[0] == '1') {
         cfg.use_null_renderer = true;
     }
-    if (const char* mn = std::getenv("DFN_MENU")) {
+    if (const char* mn = door_value("DFN_MENU")) {
         cfg.show_menu = (mn[0] == '1');
     }
     // DFN_STAND, not DFN_MAP: DFN_MAP was already render's MAP-SCREEN probe,
@@ -763,7 +782,7 @@ AppConfig AppConfig::from_env() {
     // evidence frame" -- so selecting the stand with it silently collapsed the
     // stand's own tour to one testbed frame. A name collision, found by the
     // frame it produced rather than by reading either file.
-    if (const char* mp = std::getenv("DFN_STAND")) {
+    if (const char* mp = door_value("DFN_STAND")) {
         const std::string m(mp);
         if (m == "forest") {
             cfg.start_stand = 1;
@@ -811,10 +830,10 @@ AppConfig AppConfig::from_env() {
     // into recipes already on disk, and a door that quietly stops existing
     // makes every recipe naming it a lie.
     cfg.use_null_audio = true;
-    if (const char* na = std::getenv("DFN_NULL_AUDIO"); na && na[0] == '1') {
+    if (const char* na = door_value("DFN_NULL_AUDIO"); na && na[0] == '1') {
         cfg.use_null_audio = true;
     }
-    if (const char* a = std::getenv("DFN_AUDIO"); a && a[0] == '1') {
+    if (const char* a = door_value("DFN_AUDIO"); a && a[0] == '1') {
         cfg.use_null_audio = false;
     }
     // SAID OUT LOUD, because an engine that is silent AND silent about being
@@ -826,12 +845,12 @@ AppConfig AppConfig::from_env() {
                      "[audio] SILENT by default (user request, 14.08.2026) -- "
                      "set DFN_AUDIO=1 for sound\n");
     }
-    if (const char* np = std::getenv("DFN_NULL_PHYSICS"); np && np[0] == '1') {
+    if (const char* np = door_value("DFN_NULL_PHYSICS"); np && np[0] == '1') {
         cfg.use_null_physics = true;
     }
     // The harness needs its own door: settings.cfg is shared by every zone and
     // a run must not edit it to take a frame.
-    if (const char* bf = std::getenv("DFN_BLACK_FLOOR"); bf != nullptr && *bf != '\0') {
+    if (const char* bf = door_value("DFN_BLACK_FLOOR"); bf != nullptr && *bf != '\0') {
         float v = 0.0f;
         if (std::sscanf(bf, "%f", &v) == 1 && v >= 0.0f && v <= 0.25f) {
             cfg.black_floor = v;
@@ -839,14 +858,14 @@ AppConfig AppConfig::from_env() {
             std::fprintf(stderr, "[config] DFN_BLACK_FLOOR=\"%s\" REJECTED (want 0..0.25)\n", bf);
         }
     }
-    if (const char* pal = std::getenv("DFN_PALETTE"); pal && pal[0] == '1') {
+    if (const char* pal = door_value("DFN_PALETTE"); pal && pal[0] == '1') {
         cfg.palette_post = true;
     }
     // Same tooling pattern as DFN_PALETTE: the settings row is the user's, the
     // env var is the harness's. head_bob 0 is the ready-made MOTION control
     // (Rule 30) -- bob/dip/settle stop, events and sound keep firing -- so a
     // judder can be attributed to camera motion or exonerated of it in one run.
-    if (const char* hb = std::getenv("DFN_HEAD_BOB"); hb != nullptr && *hb != '\0') {
+    if (const char* hb = door_value("DFN_HEAD_BOB"); hb != nullptr && *hb != '\0') {
         float v = 1.0f;
         if (std::sscanf(hb, "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
             cfg.head_bob = v;
@@ -872,7 +891,7 @@ App::App()
     // is initialised first (keeps -Wreorder-ctor quiet).
     : telemetry_(static_cast<size_t>(config::TELEMETRY_RING_SAMPLES)),
       timestep_(config::SIM_DT, static_cast<uint32_t>(config::SIM_MAX_CATCHUP_STEPS)) {
-    if (const char* v = std::getenv("DFN_CAM_TRACE"); v != nullptr && *v != '0') {
+    if (const char* v = door_value("DFN_CAM_TRACE"); v != nullptr && *v != '0') {
         cam_trace_ = true;
     }
 }
@@ -936,7 +955,7 @@ bool App::init(const AppConfig& config) {
     // looked. Read once, and the value is REJECTED OUT LOUD rather than
     // clamped: a typo that silently becomes noon would send someone hunting a
     // light that was working.
-    if (const char* tod = std::getenv("DFN_TIME_OF_DAY");
+    if (const char* tod = door_value("DFN_TIME_OF_DAY");
         tod != nullptr && *tod != '\0') {
         char* end = nullptr;
         const double v = std::strtod(tod, &end);
@@ -1102,7 +1121,7 @@ bool App::init(const AppConfig& config) {
     // of the three screens the player actually sees have never been evidence.
     // Refused out loud on an unknown value, like every other tooling door here:
     // falling back to root would archive a root frame under a pause filename.
-    if (const char* mp = std::getenv("DFN_MENU_PAGE"); mp != nullptr && *mp != '\0') {
+    if (const char* mp = door_value("DFN_MENU_PAGE"); mp != nullptr && *mp != '\0') {
         const std::string page(mp);
         if (page == "root") {
             menu_.open(MenuPage::Root);
@@ -1162,7 +1181,7 @@ bool App::init(const AppConfig& config) {
     // Rule 27 wants a frame of it. So it also has an env door -- the same
     // shape as every other verification hook here, and the reason the readout
     // can be shown in evidence at all.
-    if (const char* dbg = std::getenv("DFN_DEBUG_OVERLAY");
+    if (const char* dbg = door_value("DFN_DEBUG_OVERLAY");
         dbg != nullptr && *dbg == '1') {
         debug_overlay_ = true;
     }
@@ -1170,14 +1189,14 @@ bool App::init(const AppConfig& config) {
     // already honours DFN_WIREFRAME=1 itself (render's acceptance recipe); this
     // mirrors the flag app-side so the editor overlay's [каркас] tag agrees with
     // what is on screen, and so a frame of wireframe is reachable without a key.
-    if (const char* wf = std::getenv("DFN_WIREFRAME"); wf != nullptr && *wf == '1') {
+    if (const char* wf = door_value("DFN_WIREFRAME"); wf != nullptr && *wf == '1') {
         wireframe_ = true;
         renderer_->set_wireframe(true);
     }
 
     // STATE CAPTURE destination and STATE RESTORE source.
     capture_dir_ = [] {
-        const char* d = std::getenv("DFN_CAPTURE_DIR");
+        const char* d = door_value("DFN_CAPTURE_DIR");
         return std::string(d != nullptr ? d : "captures");
     }();
     // THE ERROR_CODE OVERLOAD, NOT THE THROWING ONE. The throwing form killed
@@ -1193,7 +1212,7 @@ bool App::init(const AppConfig& config) {
         std::fprintf(stderr, "[capture] cannot use directory \"%s\": %s\n",
                      capture_dir_.c_str(), cap_dir_ec.message().c_str());
     }
-    if (const char* ca = std::getenv("DFN_CAPTURE_AFTER"); ca != nullptr) {
+    if (const char* ca = door_value("DFN_CAPTURE_AFTER"); ca != nullptr) {
         capture_after_s_ = std::strtod(ca, nullptr);
     }
     // The same door counted in FRAMES. A run that fires on a wall-clock second
@@ -1202,7 +1221,7 @@ bool App::init(const AppConfig& config) {
     // whole method every zone's acceptance rests on. Requested by ui after it
     // measured the residue: 412 pixels still differed between identical runs
     // once the sky's own clocks were pinned, and this was all of it.
-    if (const char* cf = std::getenv("DFN_CAPTURE_AFTER_FRAMES"); cf != nullptr) {
+    if (const char* cf = door_value("DFN_CAPTURE_AFTER_FRAMES"); cf != nullptr) {
         capture_after_frames_ = std::strtoull(cf, nullptr, 10);
         if (capture_after_frames_ == 0) {
             std::fprintf(stderr,
@@ -1224,7 +1243,7 @@ bool App::init(const AppConfig& config) {
     // REFUSES A ZERO OUT LOUD, like its neighbour above and for the reason that
     // neighbour records: a door that silently does nothing produces a run that
     // is indistinguishable from a run where the feature is broken.
-    if (const char* sf = std::getenv("DFN_SHOT_AFTER"); sf != nullptr) {
+    if (const char* sf = door_value("DFN_SHOT_AFTER"); sf != nullptr) {
         shot_after_frames_ = std::strtoull(sf, nullptr, 10);
         if (shot_after_frames_ == 0) {
             std::fprintf(stderr,
@@ -1240,7 +1259,7 @@ bool App::init(const AppConfig& config) {
     // is not another screenshot door. It opens LOUDLY: a run that logged
     // nothing must not be mistakable for a run that logged zeros -- that exact
     // confusion already cost three probe runs on the line above.
-    if (const char* fl = std::getenv("DFN_FRAME_LOG"); fl != nullptr && *fl != '\0') {
+    if (const char* fl = door_value("DFN_FRAME_LOG"); fl != nullptr && *fl != '\0') {
         frame_log_ = std::fopen(fl, "wb");
         if (frame_log_ == nullptr) {
             std::fprintf(stderr, "[frame_log] cannot open \"%s\" for writing\n", fl);
@@ -1260,9 +1279,9 @@ bool App::init(const AppConfig& config) {
     // DFN_CAPTURE_AFTER proves the capture path (Rule 27). DFN_CHAT_WHO sets the
     // role: default "human" (a player remark), or a ZONE NAME to write a demo
     // self-doc line (O1, e.g. DFN_CHAT_WHO=flora). Serviced after render().
-    if (const char* msg = std::getenv("DFN_CHAT_MSG"); msg != nullptr && *msg != '\0') {
+    if (const char* msg = door_value("DFN_CHAT_MSG"); msg != nullptr && *msg != '\0') {
         ChatEntry e;
-        const char* who = std::getenv("DFN_CHAT_WHO");
+        const char* who = door_value("DFN_CHAT_WHO");
         e.who = (who != nullptr && *who != '\0') ? who : "human";
         e.text = msg;
         chat_pending_entry_ = std::move(e);
@@ -1275,7 +1294,7 @@ bool App::init(const AppConfig& config) {
     // into a different world would be a coincidence, not a reproduction. The
     // replay then drives the camera and the counted clock in run(), so two
     // playbacks render bit-for-bit (Rule 53). Closes when the file is spent.
-    if (const char* tp = std::getenv("DFN_TRAJ_PLAY"); tp != nullptr && *tp != '\0') {
+    if (const char* tp = door_value("DFN_TRAJ_PLAY"); tp != nullptr && *tp != '\0') {
         TrajectoryPlayer pl;
         if (!pl.load(tp)) {
             std::fprintf(stderr, "[traj] cannot play %s\n", tp);
@@ -1290,7 +1309,7 @@ bool App::init(const AppConfig& config) {
     // run and writes on stop -- pair it with DFN_EDITOR/DFN_OPEN_MAP (free
     // camera) or DFN_PLAYTEST_ROUTE (a scripted walk) to record hands-free.
     // Interactive recording is the R key in the editor.
-    if (const char* tr = std::getenv("DFN_TRAJ_REC"); tr != nullptr && *tr != '\0') {
+    if (const char* tr = door_value("DFN_TRAJ_REC"); tr != nullptr && *tr != '\0') {
         traj_rec_out_ = tr;
         traj_rec_arm_ = true;
     }
@@ -1299,7 +1318,7 @@ bool App::init(const AppConfig& config) {
     // built, because the capture says WHICH stand to build -- restoring a pose
     // into the default map and then noticing the mismatch would be a worse
     // version of the same feature.
-    if (const char* rp = std::getenv("DFN_RESTORE"); rp != nullptr && *rp != '\0') {
+    if (const char* rp = door_value("DFN_RESTORE"); rp != nullptr && *rp != '\0') {
         std::ifstream in(rp, std::ios::binary);
         if (!in) {
             std::fprintf(stderr, "[restore] cannot open %s\n", rp);
@@ -1320,13 +1339,13 @@ bool App::init(const AppConfig& config) {
         }
     }
 
-    bool editor_door = std::getenv("DFN_EDITOR") != nullptr;
+    bool editor_door = door_value("DFN_EDITOR") != nullptr;
 
     // (A) THE CONCRETE-MAP DOOR (DFN_OPEN_MAP=<category>/<map>). Automated: load
     // exactly this .map, bypassing the browser, and enter Editor if DFN_EDITOR
     // is set or Playing otherwise. A miss is loud and fatal -- an automated run
     // that silently loaded the wrong world is worse than one that stops.
-    if (const char* om = std::getenv("DFN_OPEN_MAP"); om != nullptr && *om != '\0') {
+    if (const char* om = door_value("DFN_OPEN_MAP"); om != nullptr && *om != '\0') {
         const std::string addr(om);
         const size_t slash = addr.find('/');
         const MapManifest* m =
@@ -1353,8 +1372,8 @@ bool App::init(const AppConfig& config) {
         // announced — silently entering it would be the same lie in the other
         // direction.
         if (!editor_door) {
-            const char* cam = std::getenv("DFN_EDITOR_CAM");
-            const char* rel = std::getenv("DFN_EDITOR_CAM_REL");
+            const char* cam = door_value("DFN_EDITOR_CAM");
+            const char* rel = door_value("DFN_EDITOR_CAM_REL");
             if ((cam != nullptr && *cam != '\0') || (rel != nullptr && *rel != '\0')) {
                 std::fprintf(stderr,
                              "[maps] DFN_EDITOR_CAM%s is set but DFN_EDITOR is not "
@@ -1374,7 +1393,7 @@ bool App::init(const AppConfig& config) {
             // stand's elsewhere, and no author should have to know either to
             // frame a picture. Read BEFORE the absolute door so a recipe
             // carrying both gets the absolute one it spelled out.
-            if (const char* rel = std::getenv("DFN_EDITOR_CAM_REL");
+            if (const char* rel = door_value("DFN_EDITOR_CAM_REL");
                 rel != nullptr && *rel != '\0') {
                 float x = 0, above = 0, z = 0, yaw = 0, pitch = 0;
                 if (std::sscanf(rel, "%f,%f,%f,%f,%f", &x, &above, &z, &yaw, &pitch)
@@ -1394,7 +1413,7 @@ bool App::init(const AppConfig& config) {
                                  rel);
                 }
             }
-            if (const char* cam = std::getenv("DFN_EDITOR_CAM");
+            if (const char* cam = door_value("DFN_EDITOR_CAM");
                 cam != nullptr && *cam != '\0') {
                 float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
                 if (std::sscanf(cam, "%f,%f,%f,%f,%f", &x, &y, &z, &yaw, &pitch) == 5) {
@@ -1446,7 +1465,7 @@ bool App::init(const AppConfig& config) {
     if (editor_door) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
-        if (std::getenv("DFN_MENU_PAGE") == nullptr) {
+        if (door_value("DFN_MENU_PAGE") == nullptr) {
             menu_.open_browser(BrowseTarget::Editor);
         }
         return true;
@@ -1466,8 +1485,8 @@ bool App::init(const AppConfig& config) {
     // is the third time a refactor swept a menu-shot door into the menu-SKIP: it
     // gates the cursor, it does NOT gate the menu (see the note at
     // unattended_run()).
-    const bool wants_menu_screen = std::getenv("DFN_MENU_PAGE") != nullptr
-                                   || std::getenv("DFN_MENU_SHOT") != nullptr;
+    const bool wants_menu_screen = door_value("DFN_MENU_PAGE") != nullptr
+                                   || door_value("DFN_MENU_SHOT") != nullptr;
     if (config_.show_menu || wants_menu_screen) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
@@ -1837,7 +1856,7 @@ bool App::enter_world(uint32_t stand) {
     scene_objects_.clear();
     scene_collision_debug_.clear();
     collider_debug_ = [] {
-        const char* v = std::getenv("DFN_DRAW_COLLIDERS");
+        const char* v = door_value("DFN_DRAW_COLLIDERS");
         return v != nullptr && *v != '\0' && *v != '0';
     }();
     render_system_.set_scene_lights({});
@@ -2563,8 +2582,8 @@ bool App::enter_world(uint32_t stand) {
     // mirrors you. DFN_SHOWCASE=1: it floats and cycles the clip reel instead.
     // Placement literals live here under the testbed block's Rule 5 exception.
     {
-        const char* mirror_env = std::getenv("DFN_MIRROR");
-        const char* showcase_env = std::getenv("DFN_SHOWCASE");
+        const char* mirror_env = door_value("DFN_MIRROR");
+        const char* showcase_env = door_value("DFN_SHOWCASE");
         // THE PROBE COUNTS AS WANTING A DOUBLE, and leaving it out cost
         // character a whole shoot. `DFN_BODY_PROBE=mirror|showcase|profile|
         // plant|gait` selects the camera BEHAVIOUR and every one of those modes
@@ -2580,7 +2599,7 @@ bool App::enter_world(uint32_t stand) {
         // notice that a new caller has the same requirement -- only the
         // requirement can, and the requirement here is "this run aims a camera
         // at the double".
-        const char* probe_env = std::getenv("DFN_BODY_PROBE");
+        const char* probe_env = door_value("DFN_BODY_PROBE");
         const bool want_mirror = (mirror_env && *mirror_env == '1')
                               || (showcase_env && *showcase_env == '1')
                               || (probe_env != nullptr && *probe_env != '\0');
@@ -2602,10 +2621,10 @@ bool App::enter_world(uint32_t stand) {
     // BODY PROBE (Rule 27 evidence; see App.h). The Tour freezes the tick, so
     // an animated subject cannot be photographed by it at all. Here the world
     // RUNS and the shot is triggered off simulation state.
-    if (const char* bp = std::getenv("DFN_BODY_PROBE"); bp != nullptr && *bp != '\0') {
+    if (const char* bp = door_value("DFN_BODY_PROBE"); bp != nullptr && *bp != '\0') {
         BodyProbe probe;
         probe.mode = bp;
-        const char* d = std::getenv("DFN_BODY_PROBE_DIR");
+        const char* d = door_value("DFN_BODY_PROBE_DIR");
         probe.dir = d ? d : ("screenshots/body_" + probe.mode);
         std::filesystem::create_directories(probe.dir);
         probe.warmup_s = 4.0f;
@@ -2620,7 +2639,7 @@ bool App::enter_world(uint32_t stand) {
             // double instead, because a walker cannot photograph its own legs
             // from inside its own skull. Same trigger, outside vantage.
             probe.pitch = probe.mode == "gait" ? -0.10f : -1.15f;
-            if (const char* p = std::getenv("DFN_BODY_PITCH")) {
+            if (const char* p = door_value("DFN_BODY_PITCH")) {
                 probe.pitch = std::strtof(p, nullptr);
             }
         } else if (probe.mode == "showcase") {
@@ -2684,9 +2703,9 @@ bool App::enter_world(uint32_t stand) {
     // route sat parsed and unused inside a branch it never entered. There is no
     // second reading of "here is the route to walk", so the value carries the
     // intent and the mode follows it.
-    const char* route_env = std::getenv("DFN_PLAYTEST_ROUTE");
+    const char* route_env = door_value("DFN_PLAYTEST_ROUTE");
     const bool route_given = route_env != nullptr && *route_env != '\0';
-    const char* pt_env = std::getenv("DFN_PLAYTEST");
+    const char* pt_env = door_value("DFN_PLAYTEST");
     if (route_given && (pt_env == nullptr || *pt_env == '\0')) {
         std::fprintf(stderr, "[playtest] DFN_PLAYTEST_ROUTE given without "
                              "DFN_PLAYTEST -- running patrol\n");
@@ -2707,10 +2726,10 @@ bool App::enter_world(uint32_t stand) {
         } else {
             ptc.mode = gameplay::BotMode::Soak;
         }
-        if (const char* sd = std::getenv("DFN_PLAYTEST_SEED")) {
+        if (const char* sd = door_value("DFN_PLAYTEST_SEED")) {
             ptc.seed = std::strtoull(sd, nullptr, 10);
         }
-        if (const char* sec = std::getenv("DFN_PLAYTEST_SECONDS")) {
+        if (const char* sec = door_value("DFN_PLAYTEST_SECONDS")) {
             ptc.duration_seconds = std::strtof(sec, nullptr);
         }
         // DFN_PLAYTEST_GAIT=walk|jog|run. The bot already carries the gear
@@ -2718,7 +2737,7 @@ bool App::enter_world(uint32_t stand) {
         // ever measure WALK, and every step-feel quantity is a function of
         // speed -- so the gears that are not the default are exactly the ones
         // no automated run has ever visited.
-        if (const char* g = std::getenv("DFN_PLAYTEST_GAIT"); g != nullptr && *g != '\0') {
+        if (const char* g = door_value("DFN_PLAYTEST_GAIT"); g != nullptr && *g != '\0') {
             //
             // AN UNKNOWN VALUE IS REFUSED OUT LOUD, not folded into walk. A
             // typo ("jgo") falling through to Walk would silently reproduce the
@@ -2757,7 +2776,7 @@ bool App::enter_world(uint32_t stand) {
         // the spawn ring would produce a run that reports "walked the tunnel"
         // having measured a lawn. A wrong measurement that looks like a right
         // one is the failure mode this whole harness is built against.
-        if (const char* rt = std::getenv("DFN_PLAYTEST_ROUTE");
+        if (const char* rt = door_value("DFN_PLAYTEST_ROUTE");
             rt != nullptr && *rt != '\0') {
             std::vector<glm::vec2> route;
             const std::string spec(rt);
@@ -2832,7 +2851,7 @@ bool App::enter_world(uint32_t stand) {
             return best;
         };
         pt_env_.world_floor_y = -60.0f; // below every legitimate carve
-        const char* dir = std::getenv("DFN_PLAYTEST_DIR");
+        const char* dir = door_value("DFN_PLAYTEST_DIR");
         pt_dir_ = dir ? dir : ("screenshots/playtest_" + mode);
         // NO create_directories HERE. playtest_write_artifacts() makes the
         // directory when it has something to put in it; making it now means
@@ -2864,12 +2883,12 @@ bool App::enter_world(uint32_t stand) {
     {
         const glm::vec4 wb = chunks_.world_bounds_xz();
         render_system_.set_world_bounds({wb.x, wb.y}, {wb.z, wb.w});
-        const char* no_lod = std::getenv("DFN_NO_LOD");
+        const char* no_lod = door_value("DFN_NO_LOD");
         render_system_.set_lod_enabled(!(no_lod != nullptr && *no_lod == '1'));
     }
 
     if (render::Tour::enabled_by_env()) {
-        const char* dir = std::getenv("DFN_TOUR_DIR");
+        const char* dir = door_value("DFN_TOUR_DIR");
         // ТОЧКИ ТУРА ДЛЯ КАРТЫ-КОМПОЗИЦИИ, выведенные ИЗ САМОЙ СЦЕНЫ.
         //
         // Заказ пользователя 18.08: «кто-то запускает демку игры на старой
@@ -4823,7 +4842,7 @@ int App::run() {
             // VERIFICATION HOOK (Rule 27): a menu nobody can photograph is a
             // menu nobody can verify. DFN_MENU_SHOT=<path> captures one frame
             // of whichever page is showing and closes.
-            if (const char* shot = std::getenv("DFN_MENU_SHOT");
+            if (const char* shot = door_value("DFN_MENU_SHOT");
                 shot != nullptr && *shot != '\0') {
                 // The backend captures AFTER the current end_frame and needs a
                 // few frames to flush (the tour learned this the hard way), so
@@ -4845,219 +4864,50 @@ int App::run() {
                                    static_cast<float>(fb.x) / static_cast<float>(fb.y),
                                    camera_.near_plane(), camera_.far_plane());
         }
-        // CHAT OVERLAY (В28): the typed-chat window. Opened with '/' -- Enter
-        // already drops a snapshot, 4/F4 are the editor's wireframe, and T is the
-        // time scale, so none of those is free. WHILE THE WINDOW IS OPEN IT EATS
-        // THE KEYBOARD: the physical keys still fire was_pressed() even as
-        // text_input() collects the codepoints, so every gameplay key and the
-        // movement below is guarded by !chat_typing -- otherwise typing a message
-        // would toggle third person, drop snapshots and steer the camera. Enter
-        // SENDS (a remark with the frame's snapshot attached, through the same
-        // write_pending_chat the DFN_CHAT_MSG door uses); Escape closes.
+        // ВЕСЬ КЛАВИАТУРНЫЙ ВВОД КАДРА — ОДНОЙ СТРОКОЙ (слой 1 разбора,
+        // docs/PLAN_APP_DECOMPOSITION.md). Здесь лежало 350 строк: чат, ESC,
+        // полный экран, Tab, третье лицо, вывод, снимок, каркас, пять
+        // инструментов, курсор, меню объектов, поворот детали, снимок экрана,
+        // замечание, запись и повтор траектории, карта — и перед каждым от руки
+        // написанное `!chat_typing &&`. Обработчики уехали в AppInput.cpp, а
+        // сама привязка «действие → метод» стала таблицей в AppActions.cpp,
+        // которую читает рукав app_controls. Этот файл держит окно и потому не
+        // проверяется ничем; таблица рядом — проверяется.
         const bool chat_typing = chat_overlay_.is_open();
-        if (chat_typing) {
-            chat_overlay_.feed_text(input_->text_input());
-            if (input_->was_pressed(platform::Key::BACKSPACE)) {
-                chat_overlay_.backspace();
-            }
-            if (input_->was_pressed(platform::Key::ENTER)
-                && !chat_overlay_.input_empty()) {
-                chat_overlay_.push_history("you", chat_overlay_.input());
-                chat_pending_entry_ = ChatEntry{};
-                chat_pending_entry_.who = "human";
-                chat_pending_entry_.text = chat_overlay_.take_input();
-                chat_pending_ = true; // serviced after render(): attaches the snapshot
-            }
-            if (input_->was_pressed(platform::Key::ESCAPE)) {
-                chat_overlay_.close();
-            }
-        } else if ((mode_ == AppMode::Playing || mode_ == AppMode::Editor)
-                   && action_pressed(Action::ChatWindow)) {
-            chat_overlay_.open();
+        if (!dispatch_actions(chat_typing)) {
+            continue; // ESC увёл в меню паузы: этого кадра больше нет
         }
-
-        // ESC pauses. Cursor is released so the pointer is usable, and the
-        // world stops ticking because Menu mode skips the whole simulation.
-        //
-        // THERE WERE TWO ESCAPE HANDLERS HERE and the first one called
-        // request_close(). Both ran on the same edge, so ESC opened the pause
-        // menu AND asked the window to close, and the app quit on the next
-        // iteration -- the pause screen existed but could never be seen. It
-        // survived review because each half is correct on its own; only the
-        // pair is wrong, which is why the fix is deleting a handler rather
-        // than reordering them (Rule 32).
-        // FULLSCREEN, AND IT REMEMBERS. Toggling the window changes the
-        // framebuffer, which the normal consume_resize() path forwards to the
-        // renderer — there is no fullscreen-specific rendering path and there
-        // must not be one. The answer is written back to settings.cfg at once:
-        // a fullscreen key you have to press every launch is a key that does
-        // not work, it just does something.
-        if (!chat_typing && action_pressed(Action::Fullscreen) && window_) {
-            const bool want = !window_->is_fullscreen();
-            window_->set_fullscreen(want);
-            if (window_->is_fullscreen() == want) {
-                config_.fullscreen = want;
-                write_settings(config_);
-            } else {
-                // Loud: a backend that refused must not leave settings.cfg
-                // claiming a mode the window is not in.
-                std::fprintf(stderr, "[window] полный экран не переключился\n");
-            }
-        }
-        if (!chat_typing && action_pressed(Action::MenuPause)) {
-            if (render_system_.map_open()) {
-                render_system_.set_map_open(false);
-            } else if (mode_ == AppMode::Editor
-                       && (editor_ui_.toolbox().close_settings()
-                           || editor_ui_.close_all_panels())) {
-                // ESC СНАЧАЛА ЗАКРЫВАЕТ ОТКРЫТОЕ ОКНО (заказ 18.08: «esc будет
-                // закрывать открытое окно объектов / кистей, не важно что
-                // открыто»), и только потом уводит в меню паузы. Порядок
-                // именно такой, потому что ESC читается как «назад на шаг»: из
-                // панели — в редактор, из редактора — в меню. Вопрос задаётся
-                // каркасу, а не списку имён панелей: список пришлось бы
-                // дописывать при каждой новой панели и однажды не дописать.
-                //
-                // СНАЧАЛА НАСТРОЙКИ ИНСТРУМЕНТА, потом всё остальное — потому
-                // что это то окно, которое человек только что открыл
-                // треугольником: «в меню настройки я настраиваю текущий
-                // инструмент, потом нажимаю esc и менюшка закрывается».
-                // ИНСТРУМЕНТ ПРИ ЭТОМ ОСТАЁТСЯ В РУКЕ: ESC закрывает окно, а не
-                // отбирает инструмент — отбирает его щелчок по его же иконке.
-            } else {
-                paused_from_ = mode_; // Resume returns here (Playing or Editor)
-                // The editor rows exist only while editing: a row that cannot
-                // do anything teaches the player that the menu lies.
-                menu_.set_editing(mode_ == AppMode::Editor);
-                menu_.open(MenuPage::Pause);
-                mode_ = AppMode::Menu;
-                input_->set_cursor_captured(false);
-                continue;
-            }
-        }
-        // TAB TOGGLES THE BODY (user В39/Л1: "and the fly-over, and out of the
-        // eyes, in the same field"). From the editor it possesses the player at
-        // the free camera; from Playing it lifts back out into the free camera
-        // at the current eye. A no-op in any other mode by construction.
-        if (!chat_typing && action_pressed(Action::ToggleBody)) {
-            if (mode_ == AppMode::Editor) {
-                become_player_from_editor();
-                input_->set_cursor_captured(!unattended_run());
-            } else if (mode_ == AppMode::Playing) {
-                enter_editor_mode();
-                input_->set_cursor_captured(!unattended_run());
-            }
-        }
-        // DEBUG READOUT (F3) and STATE CAPTURE (F2). User request: "нужна
-        // кнопка с дебаг выводом, куда я смотрю, fps, скорость координата... надо
-        // чтобы я мог скриншот сделать игры, скрина и состояния персонажа... чтобы
-        // ты потом восстановил состояние игры, углы мои наклонов, позиций".
-        // The capture is deferred to AFTER render() so the .png and the sidecar
-        // describe the same frame; capturing here would save the state of frame
-        // N next to the image of frame N-1.
-        // USER-CHOSEN KEYS (his request): 1 third person, 2 the debug readout,
-        // 3 the state capture. F3/F2 stay as aliases -- they are in the frames
-        // and recipes already archived, and silently moving a key would make
-        // every recipe on disk wrong.
         // THE DOOR TAKES THE SAME PATH AS THE KEY (DFN_THIRD_PERSON=1), fired
         // once on the first playing frame. Third person could only ever be
         // reached by a human pressing 1, so no automated run could photograph
         // it — which is exactly how "в третьем лице вообще тела нет" survived
         // until a human looked. A door that reproduced the toggle in its own
         // code would be a second definition of third person and would drift;
-        // this one flips the same flag through the same branch (Rule 32).
+        // this one calls the very method the key calls (Rule 32).
         if (!third_person_door_fired_ && mode_ == AppMode::Playing) {
             third_person_door_fired_ = true;
-            if (const char* d = std::getenv("DFN_THIRD_PERSON");
+            if (const char* d = door_value("DFN_THIRD_PERSON");
                 d != nullptr && *d != '\0' && *d != '0') {
-                third_person_ = true; // flipped BACK by the shared branch below
                 std::fprintf(stderr, "[editor] DFN_THIRD_PERSON: третье лицо\n");
-                third_person_ = false;
-                force_third_person_ = true;
+                on_third_person();
             }
         }
-        if (!chat_typing
-            && ((mode_ == AppMode::Playing && action_pressed(Action::ThirdPerson))
-                || force_third_person_)) {
-            force_third_person_ = false;
-            third_person_ = !third_person_;
-            orbit_yaw_ = 0.0f;
-            orbit_pitch_ = 0.0f;
-            // THE HEAD COMES BACK IN THIRD PERSON. It is hidden in first person
-            // because the camera sits inside the skull; from behind, a headless
-            // body is the first thing he would report, and it would read as a
-            // missing mesh rather than as a deliberate first-person choice.
-            if (auto* rig = world_.get<anim::BodyRig>(player_)) {
-                rig->hide_head = !third_person_;
-                const auto head = rig->segments[anim::bone_index(anim::Bone::Head)];
-                if (auto* rm = world_.get<components::RenderMesh>(head)) {
-                    rm->mesh_asset = third_person_
-                        ? anim::body_segment_mesh_id(anim::Bone::Head) : 0u;
-                }
-            }
-        }
-        if (!chat_typing
-            && action_pressed(Action::DebugReadout)) {
-            debug_overlay_ = !debug_overlay_;
-        }
-        if (!chat_typing
-            && action_pressed(Action::StateCapture)) {
-            capture_pending_ = true;
-        }
-        // WIREFRAME (В28), key 4 / F4. A whole-scene toggle straight to the
-        // backend; works in both modes but is aimed at the editor's "why is this
-        // object so heavy" question. set_wireframe is a no-op cost when off.
-        if (!chat_typing
-            && action_pressed(Action::Wireframe)) {
-            wireframe_ = !wireframe_;
-            renderer_->set_wireframe(wireframe_);
-        }
-        // THE BUILD HAND (editor only, keys B and G, left mouse to place,
-        // Delete to remove). The palette is read from the map's own shelves the
-        // first time it is opened: a list typed here would go stale the first
-        // time the kit grew, and it would go stale silently.
-        // В ЛЮБОМ РЕЖИМЕ, а не только в редакторе. Пользователь нажимал R,
-        // вселившись в тело (в логе «possessed player»), и не получал НИЧЕГО —
-        // ни действия, ни строки. Клавиша, молчащая в одном из режимов, читается
-        // как сломанная, а не как неприменимая: человек не обязан помнить, в
-        // каком он режиме, чтобы понять, почему кнопка мертва.
-        // ПЯТЬ РЕЖИМОВ НА 1..5. Клавиша идёт через ту же таблицу, что и экран
-        // управления, поэтому нарисованное там и работающее здесь не могут
-        // разъехаться; область строки (EditorOnly) теперь СОБЛЮДАЕТСЯ, а не
-        // только показывается.
-        if (!chat_typing && mode_ == AppMode::Editor) {
-            // ПЯТЬ КЛАВИШ — ПЯТЬ ИНСТРУМЕНТОВ, ПО ПОРЯДКУ ПОЛОСЫ. Ни одного
-            // имени инструмента здесь нет: клавиша называет НОМЕР, а какой это
-            // инструмент, знает ящик. Раньше на этом месте стояла таблица
-            // Action -> EditorTool, то есть шестое место, знающее перечисление.
-            //
-            // И ЩЕЛЧОК ПО КЛАВИШЕ УЖЕ ВЫБРАННОГО ИНСТРУМЕНТА КЛАДЁТ ЕГО, как и
-            // щелчок по его иконке: один глагол, два способа его произнести.
-            static constexpr Action TOOL_KEYS[] = {
-                Action::ToolHeight, Action::ToolPaint, Action::ToolSelect,
-                Action::ToolPlace, Action::ToolLook,
-            };
+        if (mode_ == AppMode::Editor) {
             EditorToolbox& box = editor_ui_.toolbox();
-            for (std::size_t i = 0; i < std::size(TOOL_KEYS); ++i) {
-                if (action_pressed(TOOL_KEYS[i])) {
-                    box.click_icon(i, editor_ui_.tool_world());
-                }
-            }
             // DOOR: DFN_EDITOR_TOOL=1..5 picks a tool without a keypress, so a
             // feature that exists only on screen can be photographed by an
             // unattended run (Rule 27). IT GOES THROUGH THE SAME click_icon the
             // hand does — a door that set the pointer itself would photograph a
             // path no user takes.
             static const int tool_door = [] {
-                const char* v = std::getenv("DFN_EDITOR_TOOL");
+                const char* v = door_value("DFN_EDITOR_TOOL");
                 return v != nullptr ? std::atoi(v) : 0;
             }();
             static bool tool_door_used = false;
             if (!tool_door_used && tool_door != 0 && box.count() > 0) {
                 tool_door_used = true;
                 if (tool_door >= 1 && tool_door <= static_cast<int>(box.count())) {
-                    box.click_icon(static_cast<std::size_t>(tool_door - 1),
-                                   editor_ui_.tool_world());
+                    on_tool_pick(tool_door - 1);
                     std::fprintf(stderr, "[editor] дверь DFN_EDITOR_TOOL=%d\n", tool_door);
                 } else {
                     // A DOOR THAT SILENTLY DOES NOTHING is worse than no door:
@@ -5072,7 +4922,7 @@ int App::run() {
             // touching the hand — the very property the user asked for, and one
             // no screenshot can show on its own.
             static const int settings_door = [] {
-                const char* v = std::getenv("DFN_EDITOR_SETTINGS");
+                const char* v = door_value("DFN_EDITOR_SETTINGS");
                 return v != nullptr ? std::atoi(v) : 0;
             }();
             static bool settings_door_used = false;
@@ -5087,28 +4937,12 @@ int App::run() {
                                                      : "ничего");
             }
         }
-        // R — РЕЖИМ УКАЗАТЕЛЯ, «почти как в vim» (заказ 18.08: «изначально мышка
-        // к камере привязана, чтобы войти в режим, когда я могу выбирать
-        // инструменты и процесс, надо нажать на R и также нажать R чтобы выйти
-        // из этого режима»). Состояние живёт в ящике инструментов, а не здесь:
-        // клавиша — часть контракта инструментов (в режиме указателя щелчок
-        // принадлежит интерфейсу, а не миру), и вторая копия флага в App
-        // разъехалась бы с первой.
-        //
-        // НИ ОТ ЧЕГО НЕ ЗАВИСИТ. Ни от открытых окон, ни от того, что в руке:
-        // клавиша, которая иногда не срабатывает, читается как сломанная.
-        if (!chat_typing && action_pressed(Action::CursorToggle)) {
-            editor_ui_.toolbox().toggle_pointer_mode();
-            std::fprintf(stderr, "[editor] курсор: %s\n",
-                         editor_ui_.toolbox().pointer_mode() ? "мышь (указываю)"
-                                                             : "камера (смотрю)");
-        }
         // ДВЕРЬ: DFN_EDITOR_PARTS=1 / DFN_EDITOR_BRUSH=1 — ОДНО нажатие на
-        // беспилотном прогоне. Обе теперь открывают НАСТРОЙКИ соответствующего
-        // инструмента (список объектов у постройки, кисть у высоты), потому что
-        // отдельных панелей больше нет: дверь подаёт ровно то, что подаёт рука,
-        // — тот же click_settings, что и треугольник.
-        static const bool brush_door = std::getenv("DFN_EDITOR_BRUSH") != nullptr;
+        // беспилотном прогоне. Обе открывают НАСТРОЙКИ соответствующего
+        // инструмента (список объектов у постройки, кисть у высоты): дверь
+        // подаёт ровно то, что подаёт рука, — тот же click_settings, что и
+        // треугольник, и тот же on_build_menu(), что и клавиша B.
+        static const bool brush_door = door_value("DFN_EDITOR_BRUSH") != nullptr;
         static bool brush_door_used = false;
         if (brush_door && !brush_door_used && mode_ == AppMode::Editor) {
             brush_door_used = true;
@@ -5118,83 +4952,12 @@ int App::run() {
             }
             std::fprintf(stderr, "[editor] дверь DFN_EDITOR_BRUSH: настройки кисти\n");
         }
-        static const bool parts_door = std::getenv("DFN_EDITOR_PARTS") != nullptr;
+        static const bool parts_door = door_value("DFN_EDITOR_PARTS") != nullptr;
         static bool parts_door_used = false;
-        bool parts_press = false;
         if (parts_door && !parts_door_used && mode_ == AppMode::Editor) {
             parts_door_used = true;
-            parts_press = true;
             std::fprintf(stderr, "[editor] дверь DFN_EDITOR_PARTS: нажатие «меню объектов»\n");
-        }
-        // B — СПИСОК ОБЪЕКТОВ, и это ровно то же, что треугольник под кнопкой
-        // постройки: одна дверь, две руки. Клавиша НЕ берёт инструмент в руку —
-        // «я не выбирал этот инструмент только настроил».
-        if (!chat_typing && mode_ == AppMode::Editor
-            && (action_pressed(Action::BuildMenu) || parts_press)) {
-            wire_editor_panels();
-            if (const std::size_t i = editor_ui_.toolbox().index_of("place"); i != NO_TOOL) {
-                editor_ui_.toolbox().click_settings(i);
-            }
-            if (build_groups_.empty()) { // подстраховка: полка пуста
-                build_groups_ = build_palette(gallery_objects_dir_);
-                std::fprintf(stderr, "[build] палитра: %zu семейств(а) с полок %s\n",
-                             build_groups_.size(), gallery_objects_dir_.c_str());
-            }
-        }
-        // СТРЕЛКИ КРУТЯТ ДЕТАЛЬ, И СПРАШИВАЕТСЯ ЭТО У ИНСТРУМЕНТА. Здесь стояло
-        // «выбран режим постановки ИЛИ открыт список объектов» — то самое
-        // условие с ДВУМЯ хозяевами, из-за которого один щелчок и копал, и
-        // ставил. Теперь вопрос один и адресован тому, кто на него отвечает:
-        // wants_part_rotation().
-        //
-        // ЩЕЛЧКА ЗДЕСЬ БОЛЬШЕ НЕТ ВОВСЕ — ни постановки, ни посадки по Shift.
-        // Обе ушли своим инструментам (PlaceTool::on_press, PlantTool::on_press),
-        // и это единственное место, где кнопка мыши доходит до мира:
-        // EditorToolbox::update.
-        const IEditorTool* held =
-            mode_ == AppMode::Editor ? editor_ui_.toolbox().active() : nullptr;
-        if (!chat_typing && held != nullptr && held->wants_part_rotation()) {
-            // THE ARROWS TURN THE PART (user, 17.08: «стрелками я должен не
-            // объекты перебирать, а крутить их вокруг их центра»). Left/right
-            // is the QUARTER TURN the kit is built on — a square joint hands
-            // out exactly four directions. Up/down is the fine step, because a
-            // ROUND joint hands out any angle, and that is what makes a house
-            // a polygon instead of a box.
-            const auto turn = [this](float by) {
-                build_yaw_ += by;
-                while (build_yaw_ >= glm::two_pi<float>()) {
-                    build_yaw_ -= glm::two_pi<float>();
-                }
-                while (build_yaw_ < 0.0f) {
-                    build_yaw_ += glm::two_pi<float>();
-                }
-            };
-            constexpr float FINE_STEP = glm::pi<float>() / 12.0f; // 15 degrees
-            if (input_->was_pressed(platform::Key::RIGHT)) {
-                turn(glm::half_pi<float>());
-            }
-            if (input_->was_pressed(platform::Key::LEFT)) {
-                turn(-glm::half_pi<float>());
-            }
-            if (input_->was_pressed(platform::Key::UP)) {
-                turn(FINE_STEP);
-            }
-            if (input_->was_pressed(platform::Key::DOWN)) {
-                turn(-FINE_STEP);
-            }
-            // G puts the part straight again. After a few fine steps "back to
-            // zero" by arrow is arithmetic the builder should not have to do.
-            if (action_pressed(Action::BuildRotate)) {
-                build_yaw_ = 0.0f;
-            }
-            // DELETE IS A KEY, NOT THE OTHER MOUSE BUTTON. Removing is the one
-            // action here that cannot be undone yet, and putting it under a
-            // button the hand is already resting on would make it the easiest
-            // thing in the tool to do by accident.
-            if (input_->was_pressed(platform::Key::DELETE) && build_delete()) {
-                std::fprintf(stderr, "[build] удалено; в композиции %zu расстановок\n",
-                             scene_doc_.placements.size());
-            }
+            on_build_menu();
         }
         // The ghost is recomputed every frame from THIS tick's aim: a ghost
         // remembered across a frame would lag the crosshair, and a lagging
@@ -5205,7 +4968,7 @@ int App::run() {
             // ghost can be photographed by an unattended run. Same binary, same
             // world — the frame shows what a builder sees, not a mock-up.
             static const bool build_door = [] {
-                const char* v = std::getenv("DFN_BUILD");
+                const char* v = door_value("DFN_BUILD");
                 return v != nullptr && *v != '\0' && *v != '0';
             }();
             static bool build_door_used = false;
@@ -5231,66 +4994,6 @@ int App::run() {
             // зовётся вовсе, поэтому без этой строки деталь оставалась висеть
             // в мире и в игровом режиме.
             clear_build_ghost();
-        }
-        // SCREENSHOT (key 5, the user's request: "я хочу чтобы был скриншот... по
-        // нажатию кнопки 5... он должен к чату добавляться и трейсам"). It is
-        // the FRAMEBUFFER as presented -- overlays and all, since the HUD is
-        // composited into it -- not an OS screen grab, and it lands in three
-        // places: a .png beside its state sidecar, a line in the map's chat
-        // carrying "capture", and a landmark row in the telemetry trace.
-        //
-        // IT ROUTES THROUGH THE EXISTING PATH ON PURPOSE (Rule 32). The Enter
-        // remark already wrote a frame and attached it to the chat; a second
-        // screenshot pipeline beside it would be two things to keep correct and
-        // two places for the file naming to drift. The difference between the
-        // two keys is what the human MEANT -- Enter is "a remark, here is the
-        // frame", 5 is "this frame, no words" -- and the trace landmark now
-        // comes from write_capture, so it is attached to both.
-        if (!chat_typing && (mode_ == AppMode::Playing || mode_ == AppMode::Editor)
-            && action_pressed(Action::Screenshot)) {
-            chat_pending_entry_ = ChatEntry{};
-            chat_pending_entry_.who = "human";
-            chat_pending_ = true;
-        }
-        // QUICK CHAT SNAPSHOT (Enter, window CLOSED). Enter drops the current
-        // frame's capture into the active map's chat as a human remark with no
-        // text -- a one-key "look at this" that the player can annotate in the
-        // file, or send with text by opening the window ('/') and typing (which
-        // is the branch above; Enter there SENDS). Guarded by !chat_typing so
-        // the two Enter roles never collide. Menu mode is handled earlier.
-        if (!chat_typing && (mode_ == AppMode::Playing || mode_ == AppMode::Editor)
-            && action_pressed(Action::QuickRemark)) {
-            chat_pending_entry_ = ChatEntry{};
-            chat_pending_entry_.who = "human";
-            chat_pending_ = true;
-        }
-        // TRAJECTORY RECORD/REPLAY (O3), editor tooling (В39: full set in the
-        // editor). R starts/stops recording the walk -- on stop it writes a
-        // .dftraj and remembers it; P replays that last recording. The
-        // deterministic, bit-for-bit-checkable paths are the DFN_TRAJ_REC /
-        // DFN_TRAJ_PLAY doors (Rule 27); these keys are the human's version.
-        if (!chat_typing && mode_ == AppMode::Editor
-            && action_pressed(Action::TrajectoryRecord)) {
-            if (traj_rec_.active()) {
-                char stem[64];
-                std::snprintf(stem, sizeof(stem), "/trajectory_%03d.dftraj",
-                              traj_written_);
-                const std::string w = traj_rec_.stop_and_write(capture_dir_ + stem);
-                if (!w.empty()) {
-                    traj_last_path_ = w;
-                    ++traj_written_;
-                }
-            } else {
-                traj_rec_.begin(active_stand_, 1u);
-            }
-        }
-        if (!chat_typing && mode_ == AppMode::Editor
-            && action_pressed(Action::TrajectoryReplay) && !traj_last_path_.empty()) {
-            TrajectoryPlayer pl;
-            if (pl.load(traj_last_path_)) {
-                traj_play_then_close_ = false; // interactive replay just stops
-                traj_play_ = std::move(pl);
-            }
         }
         // TOOLING DOOR for the same capture (DFN_CAPTURE_AFTER=<seconds>):
         // fires one capture and closes. This is how the capture path itself is
@@ -5335,12 +5038,6 @@ int App::run() {
                 capture_after_frames_ = 0;
                 capture_then_close_ = true;
             }
-        }
-        if (!chat_typing && action_pressed(Action::Map)) {
-            render_system_.toggle_map();
-            // Free the cursor while the map is up: mouse-look under a fullscreen
-            // plate spins the world behind it for no reason.
-            input_->set_cursor_captured(!render_system_.map_open() && !unattended_run());
         }
 
         const auto now = std::chrono::steady_clock::now();
@@ -5444,8 +5141,8 @@ int App::run() {
             }
         }
         if (traj_play_ && !traj_play_->active()) {
-            if (traj_play_then_close_ && close_after_flush_ == 0) {
-                close_after_flush_ = 8; // let the last frame's capture flush
+            if (traj_play_then_close_ && !flush_countdown_.armed()) {
+                flush_countdown_.arm(); // let the last frame's capture flush
             }
             traj_play_.reset();
         }
@@ -6028,14 +5725,19 @@ int App::run() {
             }
         }
 
-        // INTERACTION PROMPT. The cheapest visible thing in the project: the
-        // hover path, the verbs and the keys have all existed for hours and
-        // could not draw a pixel without glyphs. Shadow is not decoration --
-        // at five pixels tall, unshadowed text vanishes over grass.
+        // СБОРКА КАДРА ОВЕРЛЕЕВ — ФАКТЫ ЗДЕСЬ, СБОРКА В AppHud.cpp (слой 3
+        // разбора, docs/PLAN_APP_DECOMPOSITION.md). Здесь лежало 238 строк, из
+        // которых половина уже была вынесена в модули, а СБОРКА — порядок
+        // слоёв, кто под кем стоит, и есть ли вообще что показывать — жила в
+        // файле, который держит окно. Ровно поэтому наложение отладочного
+        // вывода и редакторского блока три дня ловил человек, а не прибор.
+        //
+        // ГРАНИЦА ТАКАЯ: собирание ФАКТОВ остаётся здесь (оно требует мира, а
+        // мир требует окна), а РЕШЕНИЯ — что говорит подпись, что рисуется
+        // раньше, кто под кем — уехали туда, где их читает рукав.
         {
             render::PixelCanvas& hud = render_system_.hud();
             hud.clear_transparent();
-            bool any = false;
             // ЧТО ОСТАЛОСЬ МИРУ ПОСЛЕ ПОЛОС ИНТЕРФЕЙСА, на ЭТОМ холсте.
             // Жалоба пользователя 17.08: «кнопки сверху пересекаются с дебаг
             // текстом». Число не подбирается и не живёт здесь — его считает
@@ -6052,185 +5754,82 @@ int App::run() {
             // интерфейс. Поэтому HUD ниже получает ПОЛНЫЙ прямоугольник —
             // отступать ему больше не от чего, а отступи он ещё раз, вышел бы
             // двойной отступ, и компас уехал бы от края на две полосы.
-            //
-            // ОДИН ВЛАДЕЛЕЦ ОТСТУПА ВМЕСТО ДОГОВОРЁННОСТИ. Прежде каждый
-            // рисующий сам спрашивал, сколько занято сверху, и сам отступал;
-            // договорённость соблюдают все, пока не появится тот, кто о ней не
-            // знает, — а такой появлялся трижды.
             const EditorRect world_norm = editor_ui_.world_rect_norm();
             renderer_->set_present_rect_norm(world_norm.x, world_norm.y,
                                              world_norm.w, world_norm.h);
-            const int hud_w = static_cast<int>(hud.width());
-            const int hud_h = static_cast<int>(hud.height());
+            HudFrame frame;
+            frame.facts.third_person = third_person_;
+            frame.facts.map_open = render_system_.map_open();
+            frame.facts.debug_readout = debug_overlay_ || capture_pending_;
             // Полный холст: отступ уже взят рендерером выше (см. довод там).
-            const int world_x = 0;
-            const int world_y = 0;
-            const int world_w = hud_w;
-            const int world_h = hud_h;
-            // ЧИСТЫЙ КАДР ПО ТРЕБОВАНИЮ (DFN_HUD=0). Ни одного оверлея: ни
-            // компаса, ни полос, ни прицела, ни отладочного блока. Нужна для
-            // кадров, которые СМОТРИТ ЧЕЛОВЕК — приёмка и README, — где панель
-            // поверх картинки не информация, а мусор. Дверь, а не отдельная
-            // сборка: обе руки (с панелью и без) выходят из ОДНОГО бинарника,
-            // поэтому кадр без панели показывает ровно тот же мир.
-            static const bool hud_off = [] {
-                const char* v = std::getenv("DFN_HUD");
-                return v != nullptr && *v == '0';
-            }();
-            if (hud_off) {
-                render_system_.set_hud_visible(false);
-            } else {
-            // ПРИЦЕЛ. Подсказка взаимодействия рисуется по центру экрана, у
-            // которого центр ничем не отмечен, — это и была жалоба на кадре
-            // ui-ingame. Дверь дозы DFN_CROSSHAIR=0 живёт внутри функции: обе
-            // руки приёмки из одного бинарника.
-            HudFacts facts;
-            facts.third_person = third_person_;
-            facts.map_open = render_system_.map_open();
-            facts.debug_readout = debug_overlay_ || capture_pending_;
-            facts.world_x = world_x;
-            facts.world_y = world_y;
-            facts.world_w = world_w;
-            facts.world_h = world_h;
+            frame.facts.world_x = 0;
+            frame.facts.world_y = 0;
+            frame.facts.world_w = static_cast<int>(hud.width());
+            frame.facts.world_h = static_cast<int>(hud.height());
             // КУДА СМОТРИТ ГЛАЗ, а не куда стоит тело: лента обязана совпасть
             // с картинкой, а картинка нарисована из позы КАМЕРЫ — той же, из
             // которой снимок состояния берёт свой yaw.
-            facts.yaw_rad = camera_.interpolated_pose(alpha).yaw;
-            facts.fov_y_rad = camera_.fov_y();
-            // Здоровье/силы/магия остаются единицами: тратить их пока нечем, и
-            // полоса, которая ползёт для вида, учит читать пустое число.
-            any = draw_compass_ribbon(hud, facts) || any;
-            any = draw_condition_bars(hud, facts) || any;
-            any = draw_crosshair(hud, facts) || any;
-            // ЧТО Я СЕЙЧАС ДЕЛАЮ И ЧТО БУДЕТ ПО ЩЕЛЧКУ — у прицела, в мире.
-            // Заказ 17.08: «состояние на R меняется, но инструменты не
-            // рисуются, не понятно что сейчас я делаю и что». Фишка на полосе
-            // у него уже была; вопрос задают, глядя на землю, которую сейчас
-            // изменят, поэтому ответ стоит там же. Составляется здесь, потому
-            // что только App знает И режим, И приговор судьи по призраку.
-            // ЧТО В РУКЕ И ЧТО БУДЕТ ПО ЩЕЛЧКУ — спрашивается У ИНСТРУМЕНТА.
-            // Здесь стоял switch из пяти веток, и одна из них (постройка) сама
-            // читала призрак и приговор судьи. Теперь отвечает тот, кто это
-            // знает: ToolStatus несёт либо ключ, либо готовую фразу судьи.
-            std::string status_text;
+            frame.facts.yaw_rad = camera_.interpolated_pose(alpha).yaw;
+            frame.facts.fov_y_rad = camera_.fov_y();
+
+            // ЧТО В РУКЕ И ЧТО БУДЕТ ПО ЩЕЛЧКУ — спрашивается У ИНСТРУМЕНТА,
+            // а СКЛАДЫВАЕТСЯ во фразу уже в AppHud (там же это и проверяется).
+            ToolStatus st;
+            std::string tool_title;
+            frame.tool.editor = editor;
             if (editor) {
-                const auto say = [](const char* key) {
-                    return localized(serialization::fnv1a64(key));
-                };
-                const IEditorTool* tool = editor_ui_.toolbox().active();
-                if (tool == nullptr) {
-                    // РУКА ПУСТА — И ЭТО СОСТОЯНИЕ, А НЕ ОТСУТСТВИЕ СОСТОЯНИЯ
-                    // (заказ 18.08: «выбор сбросится... я буду просто бегать по
-                    // игре»). Подпись говорит именно это, а не молчит.
-                    facts.tool_name = say("editor.tool.none");
-                    facts.tool_action = say("tool.hint.empty");
-                    facts.tool_ready = false;
-                } else {
-                    facts.tool_name = EditorUi::tr(tool->identity().title_key);
-                    const ToolStatus st = editor_ui_.toolbox().status(editor_aim());
-                    facts.tool_ready = st.ready;
-                    if (!st.text.empty()) {
-                        status_text = st.text;
-                        facts.tool_action = status_text;
-                    } else {
-                        facts.tool_action = say(st.key);
-                    }
-                    if (st.ready && tool->wants_part_rotation()
-                        && !build_group_name_.empty()) {
-                        status_text = std::string(facts.tool_action) + "  "
-                                      + std::string(say("tool.group")) + build_group_name_;
-                        facts.tool_action = status_text;
-                    }
+                if (const IEditorTool* tool = editor_ui_.toolbox().active();
+                    tool != nullptr) {
+                    frame.tool.have_tool = true;
+                    tool_title = EditorUi::tr(tool->identity().title_key);
+                    frame.tool.title = tool_title;
+                    frame.tool.wants_rotation = tool->wants_part_rotation();
+                    st = editor_ui_.toolbox().status(editor_aim());
+                    frame.tool.status_key = st.key;
+                    frame.tool.status_text = st.text;
+                    frame.tool.ready = st.ready;
+                    frame.tool.group = build_group_name_;
                 }
-                // ПОКА УКАЗАТЕЛЬ НА ПАНЕЛИ, МИР НЕ ТРОГАЕТСЯ, и подпись говорит
-                // ровно это: иначе щелчок по ползунку выглядит как проглоченный
-                // щелчок по земле.
-                if (editor_ui_.wants_mouse()) {
-                    facts.tool_action = say("tool.hint.blocked");
-                    facts.tool_ready = false;
-                }
+                frame.tool.ui_wants_mouse = editor_ui_.wants_mouse();
             }
-            any = draw_tool_badge(hud, facts) || any;
+
             // NOT IN THE EDITOR: the free camera has no reach and does not
             // interact, so the player's last hover ("Открыть") would hang under
-            // the crosshair as a verb the flying eye cannot perform -- a ghost
-            // of the possessed body, which the user flagged on the first cut.
+            // the crosshair as a verb the flying eye cannot perform.
             if (!editor && world_.has_resource<components::HoverTarget>()) {
-                const auto& hover = world_.resource<components::HoverTarget>();
-                if (hover.prompt_key != 0) {
-                    const std::string_view text = localized(hover.prompt_key);
-                    const int w = static_cast<int>(hud.width());
-                    const int h = static_cast<int>(hud.height());
-                    // The prompt stands on the same ground as the readout: same
-                    // ink, same font, same 5 px letters, so ui's measurement
-                    // applies to it word for word -- 56.1% of that ink fails the
-                    // two-step separation rule wherever the background is bright,
-                    // and this line is drawn over whatever the player happens to
-                    // be facing. It was the only text left without a plate.
-                    const int tw = render::text_width_px(text);
-                    const int tx = (w - tw) / 2;
-                    draw_text_plate(hud, tx, h - 40, tw, render::FONT_INK_H);
-                    render::draw_text(hud, tx, h - 40, text,
-                                      render::Color{232, 228, 214}, /*shadow=*/true);
-                    any = true;
+                if (const auto& hover = world_.resource<components::HoverTarget>();
+                    hover.prompt_key != 0) {
+                    frame.prompt = localized(hover.prompt_key);
                 }
             }
-            // VERIFICATION HOOK (Rule 27, gated): draws a real prompt and a
-            // deliberate MISS side by side, so the placeholder is proved to be
-            // unmistakable rather than assumed to be.
-            if (const char* probe = std::getenv("DFN_HUD_PROBE");
+            if (const char* probe = door_value("DFN_HUD_PROBE");
                 probe != nullptr && *probe == '1') {
-                const int w = static_cast<int>(hud.width());
-                const int h = static_cast<int>(hud.height());
-                const std::string_view hit = localized(serialization::fnv1a64("prompt.take"));
-                const std::string_view miss = localized(serialization::fnv1a64("prompt.nonexistent"));
-                render::draw_text(hud, (w - render::text_width_px(hit)) / 2, h - 40,
-                                  hit, render::Color{232, 228, 214}, true);
-                render::draw_text(hud, (w - render::text_width_px(miss)) / 2, h - 24,
-                                  miss, render::Color{232, 228, 214}, true);
-                any = true;
+                frame.probe = true;
             }
-            // The readout draws LAST inside the HUD block so it is never
-            // occluded by a prompt, and it forces the layer visible: a debug
-            // view that can be hidden by whatever else is on screen is not a
-            // debug view.
-            //
-            // AND IT PUBLISHES WHERE IT ENDED. The editor's block stacks under
-            // it rather than beside it, so the two blocks are laid out by ONE
-            // arithmetic instead of being pinned to the same corner by two --
-            // which is what they were, at (3,3) and (4,4), printing through
-            // each other for anyone running with both on.
-            int overlay_bottom = 0;
-            const bool readout = debug_overlay_ || capture_pending_;
-            if (readout) {
-                const DebugSnapshot snap = collect_snapshot(alpha);
-                // ОТСТУП БЕРЁТСЯ, А НЕ ПОДБИРАЕТСЯ. Полосу поставил интерфейс
-                // редактора, он же её и посчитал; вывод начинается в остатке.
-                draw_debug_overlay(hud, snap, world_x, world_y);
-                overlay_bottom = debug_overlay_bottom_y(snap, world_y);
-                any = true;
+            // Дверь читается ОДИН РАЗ: дверь, опрашиваемая каждый кадр, — это
+            // выключатель, и два кадра одного прогона могут разойтись в том,
+            // что именно проверялось. Обе руки приёмки (с панелью и без) выходят
+            // из ОДНОГО бинарника.
+            static const bool hud_off = [] {
+                const char* v = door_value("DFN_HUD");
+                return v != nullptr && *v == '0';
+            }();
+            frame.hud_off = hud_off;
+
+            DebugSnapshot snap;
+            if (debug_overlay_ || capture_pending_) {
+                snap = collect_snapshot(alpha);
+                frame.readout = &snap;
             }
-            // EDITOR BANNER: names the mode and shows the wheel-driven fly
-            // speed, so the one overlay that MUST work in this first cut says
-            // both "you are flying" and "how fast". Localised (Rule 5); the
-            // speed is a number and the debug readout above already reports the
-            // free camera's coordinates and look (camera_ IS the free eye here).
+            // В28 INTROSPECTION, laid out by EditorHud. frame_stats() and
+            // center_pick() describe the LAST completed frame (read before this
+            // frame's render), which is one frame of lag on a readout --
+            // imperceptible, and the only honest option, since the numbers do
+            // not exist until end_frame.
+            EditorHudSnapshot ed;
             if (editor) {
-                // В28 INTROSPECTION, laid out by EditorHud. frame_stats() and
-                // center_pick() describe the LAST completed frame (read before
-                // this frame's render), which is one frame of lag on a readout
-                // -- imperceptible, and the only honest option, since the
-                // numbers do not exist until end_frame.
-                //
-                // THE BLOCK IS COMPOSED IN A MODULE, NOT HERE, and that is the
-                // point rather than tidiness: this file owns a window, so
-                // nothing built inside it can be measured by a test, and the
-                // overlap the user reported (this block at (4,4) on top of the
-                // readout at (3,3)) survived precisely because no instrument
-                // could see it. App now only ferries numbers and a y.
                 const platform::RenderFrameStats& fs = renderer_->frame_stats();
                 const platform::RenderPick& pk = renderer_->center_pick();
-                EditorHudSnapshot ed;
                 ed.fly_speed_mps = editor_cam_.speed();
                 ed.frame_triangles = fs.scene_triangles;
                 ed.frame_draws = fs.backend_draws;
@@ -6243,28 +5842,17 @@ int App::run() {
                 // сейчас, из того же самого input_, из которого его берёт
                 // камера, — не из запомненной копии: копия рядом с настоящим
                 // значением и есть способ показать одно, пока работает другое.
-                {
-                    const glm::vec2 md = input_->mouse_delta();
-                    ed.mouse_dx = md.x;
-                    ed.mouse_dy = md.y;
-                    ed.cursor_captured = input_->is_cursor_captured();
-                    ed.cursor_free = editor_ui_.toolbox().pointer_mode();
-                    ed.yaw_deg = glm::degrees(editor_cam_.yaw());
-                    ed.pitch_deg = glm::degrees(editor_cam_.pitch());
-                }
-                // Under the readout when it is up, at the top of the frame when
-                // it is not -- so the block does not sit in the middle of an
-                // empty corner just because the other panel is switched off.
-                (void)draw_editor_hud(
-                    hud, ed,
-                    readout ? editor_hud_top_y(overlay_bottom) : editor_hud_top_y(0));
-                any = true;
+                const glm::vec2 md = input_->mouse_delta();
+                ed.mouse_dx = md.x;
+                ed.mouse_dy = md.y;
+                ed.cursor_captured = input_->is_cursor_captured();
+                ed.cursor_free = editor_ui_.toolbox().pointer_mode();
+                ed.yaw_deg = glm::degrees(editor_cam_.yaw());
+                ed.pitch_deg = glm::degrees(editor_cam_.pitch());
+                frame.editor_block = &ed;
             }
-            // THE CHAT WINDOW draws last so it sits over everything else on the
-            // HUD (it is the thing the player is interacting with when it is up).
-            any = chat_overlay_.draw(hud) || any;
-            render_system_.set_hud_visible(any);
-            }
+            frame.chat = &chat_overlay_;
+            render_system_.set_hud_visible(compose_hud(hud, frame));
         }
 
         // RECORDED BEFORE render(), which is the only window there is: both
@@ -6470,170 +6058,15 @@ int App::run() {
         editor_ui_.end_frame();
         render_system_.render(world_, *renderer_, camera_, alpha);
 
-
-        // TRAJECTORY RECORDING (O3): every PRESENTED frame's eye pose + counted
-        // clock + fov, so replay reproduces the image exactly. Recording is an
-        // editor action, but a DFN_TRAJ_REC door (armed at enter_world) records
-        // any mode, so this is gated on the recorder, not the mode.
-        if (traj_rec_.active()) {
-            const auto eye = camera_.interpolated_pose(alpha);
-            TrajectoryFrame tf;
-            tf.game_seconds = game_seconds_;
-            tf.position = eye.position;
-            tf.yaw = eye.yaw;
-            tf.pitch = eye.pitch;
-            tf.fov_y = camera_.fov_y();
-            traj_rec_.push(tf);
-        }
-
-        // TELEMETRY RING (item 3), EDITOR ONLY -- in-game stays light (В39: no
-        // continuous log). One sample every 1/TELEMETRY_LOG_HZ of COUNTED time,
-        // so the log of a given walk has the same length on any machine. Reuses
-        // collect_snapshot. Flushed beside the map on stop.
-        if (mode_ == AppMode::Editor) {
-            const double period = 1.0 / static_cast<double>(config::TELEMETRY_LOG_HZ);
-            if (game_seconds_ - telemetry_last_s_ >= period) {
-                telemetry_last_s_ = game_seconds_;
-                const DebugSnapshot s = collect_snapshot(alpha);
-                TelemetrySample t;
-                t.game_seconds = s.game_seconds;
-                t.position = s.position;
-                t.yaw = s.yaw;
-                t.pitch = s.pitch;
-                t.fps = s.fps;
-                t.frame_ms = s.frame_ms;
-                t.chunks_resident = s.chunks_resident;
-                t.lod_nodes = s.lod_nodes;
-                // triangles / aim_target: render seam, left 0/"" until a hook
-                // fills them (read-if-present, never a block here).
-                telemetry_.push(t);
-            }
-        }
-
-        // CAPTURE AFTER RENDER, so the .png and the sidecar are the same frame.
-        // The snapshot is collected a second time here rather than reused from
-        // the overlay above -- one frame of drift between the image and its
-        // state file is exactly the kind of small lie that makes a repro fail
-        // for reasons nobody can find.
-        if (capture_pending_) {
-            capture_pending_ = false;
-            write_capture(collect_snapshot(alpha));
-            // CLOSING HERE WOULD LOSE THE PNG. save_screenshot() returns true
-            // when the capture has been REQUESTED, not when the file exists --
-            // the bgfx backend reads the framebuffer back over the following
-            // frames. Closing on the same frame produced a .txt with no .png
-            // beside it, and, worse, a "[capture] ok" line above the pair. So
-            // the tooling door waits for the flush; the same reason the body
-            // probe holds a 4-frame cooldown between shots.
-            if (capture_then_close_) {
-                close_after_flush_ = 8;
-            }
-        }
-        // CHAT ENTRY AFTER RENDER, same reason as the capture: the attached
-        // capture and the entry must describe the same frame. The DFN_CHAT_MSG
-        // door waits for the backend flush before closing (the png lands over
-        // the following frames), like F2.
-        if (chat_pending_) {
-            chat_pending_ = false;
-            write_pending_chat(alpha);
-            if (chat_then_close_) {
-                close_after_flush_ = 8;
-            }
-        }
-        // How far the restore actually got. IPhysics has no teleport (see
-        // apply_restore), so this is the check that keeps a half-completed
-        // restore from passing as a completed one.
-        if (close_after_flush_ > 0 && --close_after_flush_ == 0) {
-            window_->request_close();
-        }
-        if (restore_target_) {
-            if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-                const glm::vec3 got = physics_->character_position(ps->character);
-                // HORIZONTAL AND VERTICAL ERROR ARE DIFFERENT QUANTITIES and
-                // only one of them is a failure. A straight 3D distance called
-                // the first working restore BLOCKED at 1.138 m -- of which
-                // 0.07 m was horizontal and the rest was the capsule settling
-                // onto the ground, which is the controller doing its job. The
-                // captured eye height is a float that lands a few centimetres
-                // off the terrain; the player then falls those centimetres,
-                // every time, correctly. Which quantity the threshold sits on
-                // is itself a measurement (Rule 30), and this one was on the
-                // wrong quantity -- it would have cried wolf on every restore
-                // ever taken, which is precisely how a check gets ignored.
-                const float dx = got.x - restore_target_->x;
-                const float dz = got.z - restore_target_->z;
-                const float horiz = std::sqrt(dx * dx + dz * dz);
-                const float vert = got.y - restore_target_->y;
-                std::fprintf(stderr,
-                             "[restore] landed %.2f %.2f %.2f  horiz %.3f m  "
-                             "settle %.3f m%s\n",
-                             static_cast<double>(got.x), static_cast<double>(got.y),
-                             static_cast<double>(got.z), static_cast<double>(horiz),
-                             static_cast<double>(vert),
-                             horiz > 1.0f
-                                 ? "  -- BLOCKED, this is NOT the captured spot"
-                                 : "");
-            }
-            restore_target_.reset();
-        }
-        body_probe_frame(alpha, static_cast<float>(frame_dt));
-        // THE TOUR'S SETTLE IS GATED ON THE WORLD HAVING STOPPED CHANGING,
-        // not on frames elapsing. `Tour.cpp` waits a fixed 45 RENDERED FRAMES
-        // for streaming that is driven in SIM STEPS off a wall clock -- Rule 42,
-        // a budget denominated in one clock's units enforcing a limit that only
-        // matters in another's. The cost was measured, not guessed: two runs of
-        // the SAME binary at the SAME commit differ by 17.4% of pixels (34.7%
-        // re-measured later), so no full-tour pixel claim below ~20% has ever
-        // certified anything -- in the instrument this project uses for Rule 27.
-        //
-        // The gate lives HERE rather than in Tour.cpp because the app is the
-        // only place that can see all three queues at once, and because it needs
-        // no change to render's contract: withholding the call simply pauses the
-        // countdown, so the 45 frames now run on a SETTLED world instead of
-        // starting at the refocus.
-        //
-        // HYSTERESIS IS NOT OPTIONAL: a queue legitimately reads empty for one
-        // frame mid-refocus, so quiescence must HOLD. And the cap is a backstop
-        // that REPORTS -- an unreachable vantage must say so rather than hang,
-        // because a tour that quietly never finishes is the same silent-zero
-        // failure as a capture that wrote nothing.
-        //
-        // HONEST GAP, disclosed rather than papered over: there is no
-        // chunk-pending accessor, so "chunks still arriving" is inferred from
-        // ChunkLoaded/ChunkUnloaded events seen this frame. That is sound for
-        // "something arrived" and blind to "something is queued and has not
-        // arrived yet" -- a request to core is out for the real counter, and
-        // until it lands the cap is doing more work than it should.
-        if (tour_.active()) {
-            const bool quiet = !world_changed_this_frame_
-                               && chunks_.coarse_pending_count() == 0
-                               && render_system_.lod_pending().empty();
-            quiet_frames_ = quiet ? quiet_frames_ + 1 : 0;
-            const bool settled = quiet_frames_ >= 4;
-            // The cap counts frames since the world was last SETTLED, so it
-            // measures "this vantage is not converging" rather than "the tour
-            // has been running a while" -- the second would fire on a long but
-            // healthy route.
-            tour_settle_frames_ = settled ? 0 : tour_settle_frames_ + 1;
-            const bool capped = tour_settle_frames_ >= 600;
-            if (capped && !settled) {
-                std::fprintf(stderr,
-                             "[tour] vantage never settled after %d frames "
-                             "(quiet=%d coarse=%zu lod=%zu) -- shooting anyway, "
-                             "this frame is NOT evidence\n",
-                             tour_settle_frames_, quiet_frames_,
-                             chunks_.coarse_pending_count(),
-                             render_system_.lod_pending().size());
-            }
-            if ((settled || capped) && tour_.post_frame(*renderer_)) {
-                window_->request_close(); // tour finished (render's contract)
-            }
-        }
-        if (playtest_ && playtest_->finished && pt_artifacts_pending_) {
-            gameplay::playtest_write_artifacts(*playtest_, pt_dir_);
-            pt_artifacts_pending_ = false;
-            window_->request_close();
-        }
+        // ВЕСЬ ХВОСТ КАДРА — ОДНОЙ СТРОКОЙ (слой 4 разбора,
+        // docs/PLAN_APP_DECOMPOSITION.md). Здесь лежало 165 строк: запись
+        // траектории, телеметрия, снимок, запись чата, отсчёт до закрытия,
+        // отчёт восстановления, проба тела и затвор тура. Общее у них ровно
+        // одно — они обязаны идти ПОСЛЕ render(), — и это единственная причина,
+        // по которой они лежали вперемешку именно здесь. Довод записан в шапке
+        // AppAfterFrame.cpp, а решения, которые они принимают, — в
+        // AppAfterFrame.h, где их читает рукав app_after_frame.
+        after_frame(alpha, static_cast<float>(frame_dt));
     }
     // STOP -> flush the telemetry ring beside the map (item 3). Empty in any run
     // that never entered the editor, which is not an error. The file sits next

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 13:08:07
+Last updated: 18:08:2026 - 17:36:58
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -115,6 +115,18 @@ UPD:
   И ПОПУТНО ЗАКРЫТА СТАРАЯ ДЫРА: приложение НИ РАЗУ не звало read_relief/write_relief —
   ключ `relief` в .scene был, формат был, круговой прогон был, а правки земли жили до
   выхода из игры. Теперь сиделка читается со сценой и пишется кнопкой «сохранить».
+- 18:08:2026 - 16:59:18: СЛОЙ 1 РАЗБОРА: dispatch_actions() и семнадцать методов on_*,
+  определённых в AppInput.cpp. Поле force_third_person_ удалено — оно
+  существовало только затем, чтобы дверь DFN_THIRD_PERSON попала в ту же ветку,
+  что и клавиша; теперь дверь зовёт тот же метод, и промежуточный флаг стал
+  лишним звеном (правило 32). unattended_run()/write_settings() объявлены здесь:
+  обработчики клавиш уехали в соседний файл и зовут их оттуда.
+- 18:08:2026 - 17:32:10: СЛОЙ 2: объявление unattended_run() отсюда убрано — оно
+  живёт в AppDoors.h рядом с таблицей, из которой выводится.
+- 18:08:2026 - 17:36:58: СЛОЙ 4: after_frame(alpha, dt) и два затвора вместо трёх
+  голых счётчиков — FlushCountdown вместо close_after_flush_, SettleGate вместо
+  quiet_frames_/tour_settle_frames_. Оба определены в AppAfterFrame.h заголовком
+  и потому прогоняются рукавом без окна; здесь остаётся только их состояние.
 */
 
 #pragma once
@@ -124,7 +136,9 @@ UPD:
 #include "engine/app/sources/ChatOverlay.h"
 #include "engine/app/sources/BuildTool.h"
 #include "engine/editor/sources/EditorPaletteView.h"
+#include "engine/app/sources/AppAfterFrame.h"
 #include "engine/app/sources/Controls.h"
+#include "engine/editor/sources/EditorHistory.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/EditorCamera.h"
 #include "engine/app/sources/EditorPlant.h"
@@ -207,6 +221,14 @@ struct AppConfig {
     static AppConfig from_env();
 };
 
+// unattended_run() ЖИВЁТ В AppDoors.h, вместе с таблицей дверей, из которой он
+// и выводится. Здесь его объявления нет намеренно: второе объявление рядом с
+// чужой таблицей — первый шаг ко второму ответу на тот же вопрос.
+// Writes settings.cfg. Called from first run, from the calibration and
+// settings pages, and from the fullscreen key -- which lives in AppInput.cpp
+// since layer 1 of the App.cpp decomposition.
+void write_settings(const AppConfig& cfg);
+
 class App {
 public:
     App();
@@ -284,6 +306,51 @@ private:
     // says which key does it, and the screen draws the same table.
     [[nodiscard]] bool action_pressed(Action action) const;
 
+    // ЕДИНСТВЕННОЕ МЕСТО, ГДЕ КЛАВИША ВООБЩЕ ДОХОДИТ ДО ПРИЛОЖЕНИЯ (слой 1
+    // разбора App.cpp, docs/PLAN_APP_DECOMPOSITION.md). Обходит таблицу
+    // AppActions.h и зовёт метод, названный в её строке. Возвращает false,
+    // когда кадр надо бросить (ESC увёл в меню паузы) — раньше на этом месте
+    // стоял `continue` посреди тысячи строк.
+    //
+    // ЗАЧЕМ ВООБЩЕ ОДНО МЕСТО. До сегодня обработчиков было восемнадцать, и
+    // каждый сам писал перед собой `!chat_typing &&`. Такой уговор соблюдают
+    // все, пока не появится девятнадцатый; а цена ошибки — набранное в чате
+    // слово, которое роняет снимки и вертит камеру. Теперь запрет — колонка
+    // таблицы, и её читает рукав app_controls.
+    [[nodiscard]] bool dispatch_actions(bool chat_typing);
+    // ВЕСЬ ХВОСТ КАДРА, и у него ровно одна общая причина существовать там,
+    // где он существует: всё это обязано идти ПОСЛЕ render(). Определён в
+    // AppAfterFrame.cpp, довод — в шапке того файла.
+    void after_frame(float alpha, float frame_dt);
+    // Обработчики, названные строками таблицы. Определены в AppInput.cpp; имя
+    // метода И ЕСТЬ поле `handler` в строке, и рукав держит их вместе.
+    void on_third_person();
+    void on_debug_readout();
+    void on_state_capture();
+    void on_wireframe();
+    void on_screenshot();
+    void on_toggle_body();
+    void on_trajectory_record();
+    void on_trajectory_replay();
+    void on_chat_window();
+    void on_quick_remark();
+    void on_map();
+    void on_menu_pause();
+    void on_fullscreen();
+    void on_cursor_toggle();
+    void on_build_menu();
+    void on_build_rotate();
+    void on_undo_redo();
+    void on_tool_pick(int index);
+    // НЕ ДЕЙСТВИЕ, А ПОЛЛИНГ: стрелки крутят деталь, Delete её убирает. У них
+    // нет строки в таблице привязок, потому что таблица — это КРАЙ клавиши, а
+    // стрелки читаются как навигация меню в другом месте. Живут рядом с
+    // обработчиками, потому что это тот же ввод и та же рука.
+    void update_part_rotation();
+    // Окно чата, пока в нём печатают: ввод, забой, отправка, закрытие. Отдельно
+    // от таблицы, потому что это ветка, в которой таблица НЕ РАБОТАЕТ.
+    void service_chat_typing();
+
     // DEBUG READOUT + STATE CAPTURE (user request). collect_snapshot() reads
     // the world; write_capture() saves the .png and its sidecar; apply_restore()
     // puts the player back where a sidecar says he was.
@@ -332,7 +399,11 @@ private:
     // the shot IS a chat entry, so it is the same shutdown.
     uint64_t shot_after_frames_ = 0;
     uint64_t shot_after_frames_seen_ = 0;
-    int close_after_flush_ = 0; // frames to keep running so the PNG lands
+    // СКОЛЬКО КАДРОВ ЕЩЁ РИСОВАТЬ, ЧТОБЫ .PNG УСПЕЛ ЛЕЧЬ. Было голое число;
+    // стало объект с правилом «второй взвод не укорачивает ожидание», потому
+    // что снимок и запись чата приходятся на один кадр (клавиша 5 это и то и
+    // другое). Правило проверяется в tests/app/AfterFrameTests.cpp.
+    FlushCountdown flush_countdown_;
     // FRAME LOG (DFN_FRAME_LOG=<path>) -- one line per PRESENTED frame, written
     // live, with no readback, no settle and no cooldown.
     //
@@ -405,8 +476,9 @@ private:
     // changing. `world_changed_this_frame_` is set by the chunk ferry and
     // cleared at the top of each frame.
     bool world_changed_this_frame_ = false;
-    int quiet_frames_ = 0;         // consecutive settled frames (hysteresis)
-    int tour_settle_frames_ = 0;   // frames since last settled; cap backstop
+    // ЗАТВОР ТУРА: гистерезис и потолок, вынесенные в AppAfterFrame.h, где их
+    // прогоняет рукав. Здесь было два счётчика и два литерала в кадровом цикле.
+    SettleGate settle_gate_;
 
     AppConfig config_{};
 
@@ -488,6 +560,10 @@ private:
     /// что вопрос «что я держу» и вопрос «что загружено» — разные, и путать их
     /// значит оставлять деталь нарисованной после того, как её выпустили.
     bool ghost_uploaded_ = false;
+    /// ИСТОРИЯ ПРАВОК: снимки состояния, а не обратные действия. Обратное
+    /// действие требует, чтобы КАЖДАЯ операция умела себя обращать, и ломается
+    /// на первой, которая не умеет, — а дальше отмена врёт молча.
+    EditorHistory history_;
     BuildVerdict build_verdict_;
     /// Which placement the crosshair is on, for DELETING. npos = none. Kept as
     /// an index into scene_doc_.placements, resolved fresh every frame: an
@@ -619,7 +695,6 @@ private:
     std::optional<glm::vec3> scene_spawn_;
     /// DFN_THIRD_PERSON, fired once through the ordinary toggle branch.
     bool third_person_door_fired_ = false;
-    bool force_third_person_ = false;
     float scene_spawn_yaw_ = 0.0f;
     /// The shelf list from `objects`, already split on ';' and trimmed.
     std::vector<std::string> gallery_shelves_;

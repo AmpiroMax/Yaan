@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 17:07:34
+# Last updated: 18:08:2026 - 17:33:36
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -80,6 +80,13 @@
 # - 18:08:2026 - 17:07:34: HouseFile.cpp — чтение и запись .dfh. Текстом, а не двоично: агент
 #   строит город рецептами, и рецепт обязан читаться глазами и различаться в
 #   diff. Двоичный формат сделал бы историю правок непроверяемой.
+# - 18:08:2026 - 17:33:36: HouseMesh.cpp — геометрия постройки из графа. Отдельным
+#   файлом от модели, потому что это РАЗНЫЕ вопросы: HouseGraph отвечает «кто с
+#   кем связан», HouseMesh — «как это выглядит и во что упирается игрок». Живёт
+#   в world, а не в render, по правилу 3: меш считается и проверяется БЕЗ
+#   рендерера, а зона отрисовки только заливает готовые буферы. Тот же меш идёт
+#   в физику, и это не совпадение — коллайдер обязан описывать ровно то, что
+#   видно.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -89,6 +96,7 @@ add_library(dfn_world STATIC
     sources/ReliefLayer.cpp
     sources/SaveDelta.cpp
     sources/HouseFile.cpp
+    sources/HouseMesh.cpp
     sources/HouseGraph.cpp
     sources/Scene.cpp
     sources/SceneHouseRules.cpp

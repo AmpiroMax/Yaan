@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 12:31:04
+# Last updated: 18:08:2026 - 17:33:36
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -85,6 +85,13 @@
 #                          сколько первая ВЫДУМЫВАЕТ поверх второй, не мерил
 #                          никто. Контроль — тот же прибор на нарочно
 #                          огрублённой решётке, а не откаченная константа.
+# - 18:08:2026 - 17:33:36: test_house_mesh — геометрия постройки из графа. Держит
+#   главное правило пользователя ЧИСЛОМ: смена радиуса столба не двигает стену
+#   ни на микрон (сравнение точное, а контроль показывает, что столб при этом
+#   изменился в 8 раз). Плюс мера неплоскости с девятью измеренными образцами
+#   вокруг порога и две контрольные руки в том же бинарнике — веер против
+#   отсечения ушей на Г-образной комнате и проекция на XZ против поворота
+#   текстуры вокруг нормали.
 
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
@@ -105,6 +112,12 @@ add_dfn_test(test_scene core/SceneTests.cpp dfn_world)
 # это разные вещи, и путать их — значит однажды разложить пол на пары и потерять
 # «выбрал пол — подсветились его вершины».
 add_dfn_test(test_house_graph core/HouseGraphTests.cpp dfn_world)
+
+# ГЕОМЕТРИЯ ПОСТРОЙКИ. Отдельный рукав от test_house_graph, и разделение по
+# предмету, а не по размеру: тот держит СВЯЗИ (кто на ком висит), этот — ТЕЛА
+# (что нарисовано и во что упирается игрок). Одна модель может быть верной, а
+# геометрия из неё неверной, и наоборот; общий рукав скрыл бы, которая из двух.
+add_dfn_test(test_house_mesh core/HouseMeshTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_mountain_horizon core/MountainHorizonTests.cpp dfn_world)
