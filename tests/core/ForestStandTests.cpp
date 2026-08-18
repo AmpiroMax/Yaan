@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:59:28
-Last updated: 13:08:2026 - 00:40:00
+Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -151,6 +151,16 @@ UPD:
 - 13:08:2026 - 18:04:00: Digest re-pinned for the back-tilted benches.
 - 13:08:2026 - 18:27:00: Digest re-pinned at the approved 14 m draw pitch.
 - 13:08:2026 - 00:40:00: testbed digest RE-PINNED to 0xf28a4e5d2d93ed0f for the drainage pass and the retired comb. `DFN_DRAW_DEPTH=1 DFN_FLOW_OFF=1` reproduces the old pin 0xbb0f8c74d3980922 byte for byte -- the equality that proves the new pass is an addendum and that the rejected sample is still reachable.
+- 18:08:2026 - 12:06:09: закреплённый слепок карты тестбеда переприколочен в четвёртый раз, и
+  впервые не из-за прохода, а из-за РЕШЁТКИ: HEIGHTMAP_STEP 2.0 -> 1.0 м,
+  отсчётов 16 641 -> 66 049. Старый 0xf28a4e5d2d93ed0f, новый
+  0x60c08a7949960c6e. ОБЫЧНЫЙ КОНТРОЛЬ НЕДОСТУПЕН ЧЕСТНО: у прежних перепиновок
+  была дверь окружения, воспроизводящая старый мир бит в бит, а сборка на 257
+  отсчётов не может выдать карту на 129 в принципе. Поэтому заведён ДРУГОЙ, и
+  он сильнее: новая решётка СОДЕРЖИТ старую (чётные индексы стоят на 0, 2, 4 …
+  256 м), квантизация общая и позиционная, значит чётная подрешётка обязана
+  давать СТАРЫЙ слепок бит в бит — и даёт. Это доказывает не «слепок изменился
+  законно», а «земля не сдвинулась ни на отсчёт, мы храним больше того же».
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -271,12 +281,48 @@ TEST_CASE("stand selector: the default testbed heightmap is byte-identical (pinn
     // not a control. It was needed: an ALGEBRAICALLY EQUIVALENT regrouping of
     // (meso + micro) * mask into meso*mask + micro*mask moved this digest all
     // by itself, float addition not being associative.
+    // RE-PINNED A FOURTH TIME 18.08.2026, AND THIS ONE IS NOT A PASS AT ALL —
+    // it is the LATTICE. HEIGHTMAP_STEP went 2.0 -> 1.0 m and
+    // HEIGHTMAP_RESOLUTION 129 -> 257, so this chunk now holds 66 049 samples
+    // where it held 16 641. Old pin 0xf28a4e5d2d93ed0f.
+    //
+    // SAY THE HONEST THING FIRST: no door in this binary reproduces the old
+    // digest, and none can. Every other re-pin above could point at an env
+    // switch that restores the previous world byte for byte; a lattice is not a
+    // pass, and a 257-sample build cannot emit a 129-sample heightmap at all.
+    // The usual control is unavailable, so a DIFFERENT one has to carry the
+    // claim — and it carries more, not less.
+    //
+    // THE CLAIM THIS TIME IS "THE GROUND DID NOT MOVE, WE ONLY STORED MORE OF
+    // IT", and it is checkable exactly. The new lattice CONTAINS the old one:
+    // 1 m samples at even indices sit at 0, 2, 4 ... 256 m, which is precisely
+    // where the 2 m samples sat, and the height quantization is shared and
+    // position-pure. So the even sub-lattice of this heightmap must digest to
+    // the OLD PIN, byte for byte. If any pass had shifted while the lattice
+    // changed, this equality is what would break — and it is a far stronger
+    // statement than the old pin was, because it holds the old world and the
+    // new one against each other sample by sample.
     const world::WorldGenContext ctx = world::build_world_context(WorldGenParams{1, {0, 0}, {3, 3}});
     const world::Chunk c = world::generate_chunk(ctx, ChunkCoord{1, 1});
     serialization::Fnv1a64 h;
     h.update({reinterpret_cast<const std::byte*>(c.heightmap.samples.data()),
               c.heightmap.samples.size() * sizeof(uint16_t)});
-    CHECK(h.digest() == 0xf28a4e5d2d93ed0full);
+    CHECK(h.digest() == 0x60c08a7949960c6eull);
+
+    // The control described above: every second sample on both axes.
+    const uint32_t res = static_cast<uint32_t>(config::HEIGHTMAP_RESOLUTION);
+    std::vector<uint16_t> even;
+    even.reserve(static_cast<std::size_t>((res + 1) / 2) * ((res + 1) / 2));
+    for (uint32_t z = 0; z < res; z += 2) {
+        for (uint32_t x = 0; x < res; x += 2) {
+            even.push_back(c.heightmap.samples[static_cast<std::size_t>(z) * res + x]);
+        }
+    }
+    serialization::Fnv1a64 he;
+    he.update({reinterpret_cast<const std::byte*>(even.data()),
+               even.size() * sizeof(uint16_t)});
+    MESSAGE("even sub-lattice: " << even.size() << " samples reproduce the 2 m pin");
+    CHECK(he.digest() == 0xf28a4e5d2d93ed0full);
 }
 
 TEST_CASE("forest stand: deterministic (Rule 13.1) and waterless by declaration") {

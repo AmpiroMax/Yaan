@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 12:11:29
-Last updated: 10:08:2026 - 12:11:29
+Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/PathMesher.h
 
@@ -36,15 +36,25 @@ AI Agents Notice (must follow):
 Notes on why this is geometry and not a terrain splat channel — the question a
 successor will ask first, because a splat channel is obviously cheaper:
 
-  The terrain lattice is 2 m (HEIGHTMAP_STEP). A dirt tread is 2.2 m wide and
-  the three bands live INSIDE that. Core already ran this experiment one power
-  of two up: baking dist/class/width into the 4 m routing grid measured wear
-  0.46 at the centreline instead of 1.0, because the nearest cell centre was
-  0.8 m off the line, and the whole cross-section collapsed into one value.
-  A 2 m lattice is the same failure with a smaller constant. The cross-section
-  cannot live on a lattice that coarse, at any tessellation this project can
-  afford, so it lives on its own geometry — where the across coordinate is a
-  vertex attribute and the profile is exact per pixel.
+  The terrain lattice is 1 m (HEIGHTMAP_STEP; it was 2 m until 18:08:2026).
+  A dirt tread is 2.2 m wide and the three bands live INSIDE that. Core
+  already ran this experiment one power of two up: baking dist/class/width
+  into the 4 m routing grid measured wear 0.46 at the centreline instead of
+  1.0, because the nearest cell centre was 0.8 m off the line, and the whole
+  cross-section collapsed into one value.
+  THE 1 M LATTICE HALVES THAT OBJECTION, and this block says so rather than
+  keeping the old arithmetic: the tread now spans ~3 samples across instead
+  of 1-2, and the worst distance from a cell centre to the line falls with
+  the cell, 1.0 m -> 0.5 m. What is left is still thin — three samples have
+  to carry worn centre, pressed margin AND the dissolve, one per band, with
+  nothing over for the gradient inside a band — so the argument is weaker,
+  not answered.
+  WHAT THAT DOES NOT LICENCE: it does not follow that the ribbon is now
+  unnecessary. Nobody has measured a 1 m splat channel against this geometry;
+  that is a separate decision, and until someone runs it the honest state is
+  "open", not "settled either way".
+  So the cross-section stays on its own geometry — where the across
+  coordinate is a vertex attribute and the profile is exact per pixel.
 
 And why a ribbon does not violate §8.1's «a GRADIENT, never a decal ribbon»:
 the piece's material COVERAGE falls with wear and is resolved by the same
@@ -56,6 +66,17 @@ The prohibition is on a hard-edged stamped strip, which this is the opposite of.
 /*
 UPD:
 - 10:08:2026 - 12:11:29: Created — the path surface splat.
+- 18:08:2026 - 12:06:07: The "why geometry, not a splat channel" argument
+  re-costed against the 1 m chunk lattice (HEIGHTMAP_STEP 2.0 -> 1.0,
+  NUMBERS). The objection this file rests on is now roughly HALF as strong: a
+  2.2 m tread gets ~3 samples across where it used to get 1-2, and the worst
+  centreline offset halves with the cell. Written down as a weakening rather
+  than quietly left standing, because a successor who checks the arithmetic
+  will find it and trust the rest of the block less. What is deliberately NOT
+  written is the conclusion that the ribbon is therefore unnecessary: three
+  samples still have to carry three bands, and nobody has measured a 1 m
+  splat channel against this geometry. That decision stays open and owned by
+  whoever runs the measurement.
 */
 
 #pragma once

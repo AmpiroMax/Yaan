@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 10:08:2026 - 20:01:43
+Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -20,12 +20,17 @@ Dependencies:
 
 Notes:
 - The SEAM WITH CORE (agreed in session 09:08:2026, both halves confirmed):
-  a coarse node IS a HeightFieldView — 129 samples, step = the level's voxel
-  size, origin = node world origin — so nothing here needs a second mesh
+  a coarse node IS a HeightFieldView — COARSE_NODE_RESOLUTION samples
+  (LOD_NODE_VOXELS + 1 = 129), step = the level's voxel size, origin = node
+  world origin — so nothing here needs a second mesh
   format, and the splat, the atlas and the shader are the chunk path's.
   `coarse_heightfield` may return nullopt for several frames after a request
   (core admits nodes under a budget), and core never evicts behind our back:
-  a node stays resident until release_coarse_node.
+  a node stays resident until release_coarse_node. THAT 129 IS THE NODE
+  LATTICE AND ONLY THE NODE LATTICE: a chunk is HEIGHTMAP_RESOLUTION = 257
+  since 18:08:2026, and the two used to be the same number, so a bare "129"
+  here now reads as a stale chunk figure to anyone who does not know which
+  constant it came from.
 - WHY A NODE CANNOT POP: a node is not drawn until its mesh exists
   (mark_resident), and it is not released until it is BOTH deselected AND
   faded fully out. Both halves are in LodResidency; this file only obeys them.
@@ -52,6 +57,13 @@ UPD:
   draw() now carries its MEASURED margin (512 m worst against a 320 m volume,
   1.6x) instead of standing as an assertion, because it is the premise that
   decides whether a cross-fading node can double-cast into the sun shadow map.
+- 18:08:2026 - 12:06:07: Disambiguation only, no behaviour: the seam note's
+  "129 samples" is spelled COARSE_NODE_RESOLUTION (= LOD_NODE_VOXELS + 1) and
+  says out loud that it is the node lattice. HEIGHTMAP_RESOLUTION moved
+  129 -> 257 (NUMBERS), so the two lattices no longer share a number, and a
+  reader who assumed this 129 tracked the chunk would now be wrong about the
+  seam with core — the exact kind of silent divergence this note exists to
+  prevent.
 */
 
 #pragma once

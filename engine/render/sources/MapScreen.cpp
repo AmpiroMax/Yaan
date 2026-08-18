@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 17:24:30
-Last updated: 09:08:2026 - 22:29:52
+Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/MapScreen.cpp
 
@@ -18,8 +18,12 @@ Dependencies:
 
 Notes:
 - Sampling: one map pixel covers (HEIGHTMAP_RESOLUTION-1)/MAP_TILE_PX samples
-  per axis (2 at the shipping numbers). Height is averaged over that block but
-  WATER is an OR over it: the river is 4-8 m wide, i.e. one map pixel — an
+  per axis — 256/80 = 3.2 at the shipping numbers, against 1.6 while the chunk
+  lattice was 129 samples. (The figure written here before was "2", which was
+  never a ratio this code could produce; it was 1.6 rounded to something
+  tidier. Both numbers are given now so the next reader can check the
+  arithmetic instead of trusting the prose.) Height is averaged over that
+  block but WATER is an OR over it: the river is 4-8 m wide, i.e. one map pixel — an
   averaging test would break it into dashes.
 - Hill shade uses the neighbouring map pixels (8 m baseline), light from the
   north-west; it is what makes ridges read at 4 m per pixel, where a pure
@@ -33,6 +37,13 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 17:24:30: Created with the map screen.
 - 09:08:2026 - 22:29:52: mesh id 12 (CastleTower) joins the castle marker.
+- 18:08:2026 - 12:06:07: Prose only, the baking is unchanged: the sampling
+  note and the `cells` comment carried the OLD chunk lattice (129 samples,
+  128 cells) after HEIGHTMAP_RESOLUTION moved to 257 in NUMBERS. It matters
+  here more than in most places because this file's whole correctness
+  argument is a ratio — samples per map pixel, now 3.2 instead of 1.6 against
+  MAP_TILE_PX — and a stale ratio is what makes someone "simplify" the exact
+  block bounds in pass 1 into a fixed stride that silently drops samples.
 */
 
 #include "engine/render/sources/MapScreen.h"
@@ -173,7 +184,7 @@ void MapScreen::note_chunk(const math::HeightFieldView& field,
         return;
     }
     const uint32_t res = field.resolution;
-    const uint32_t cells = res - 1; // 128 at the shipping numbers
+    const uint32_t cells = res - 1; // 256 at the shipping numbers (was 128)
     const float px_meters = static_cast<float>(config::CHUNK_SIZE)
                           / static_cast<float>(MAP_TILE_PX);
 

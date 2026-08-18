@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:38:33
-Last updated: 14:08:2026 - 18:38:33
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldFormat.cpp
 
@@ -43,9 +43,19 @@ UPD:
   whole cost the baker exists to remove. WORLD_FORMAT_VERSION stays 1: no .dfw
   has ever been written by any build, so there is nothing in the wild to migrate
   FROM (the day one exists, this is where the migration goes).
+- 18:08:2026 - 12:06:09: ЧИТАТЕЛЬ ОТКАЗЫВАЕТ МИРУ, ИСПЕЧЁННОМУ НА ДРУГОЙ РЕШЁТКЕ ВЫСОТ. Файл
+  хранит число отсчётов, но НЕ хранит решётку, а всё, что читает высоты, ходит
+  шагом config::HEIGHTMAP_RESOLUTION — поэтому .dfw с чужой решёткой грузился
+  молча, возвращал с виду исправный Chunk и читал за концом вектора, отдавая
+  это render и физике как землю. Сверка с HEIGHTMAP_RESOLUTION² и отказ. Нашлось
+  при переводе шага 2.0 -> 1.0 м, то есть ровно той правкой, которая делает
+  такие файлы возможными; .relief сверял свою решётку с рождения, а мир — файл
+  на четыре порядка больше — не сверял.
 */
 
 #include "engine/world/sources/WorldFormat.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <cstring>
 #include <fstream>
@@ -64,9 +74,10 @@ inline constexpr uint16_t ENTITIES_SECTION_VERSION = 1;
 
 /// A sanity bound on any length read from a file, so a corrupt count cannot
 /// make the reader try to allocate the address space before it fails. It is
-/// deliberately far above any real chunk (a 129x129 heightmap is 16 641
-/// samples, a dense voxel surface is tens of thousands of vertices) and far
-/// below "the machine dies trying".
+/// deliberately far above any real chunk (the heightmap is HEIGHTMAP_RESOLUTION
+/// squared samples, a dense voxel surface is tens of thousands of vertices) and
+/// far below "the machine dies trying". It is an absurdity bound and NOT a
+/// lattice check — the heightmap gets a real one at its read site.
 inline constexpr uint64_t MAX_ARRAY_ELEMENTS = 64ull * 1024ull * 1024ull;
 
 void write_vec3(serialization::BinaryWriter& w, const glm::vec3& v) {
@@ -341,6 +352,25 @@ std::optional<Chunk> WorldFileReader::load_chunk(ChunkCoord coord) const {
     bool refused = false; // raised by any implausible count, checked once at the end
 
     const uint64_t sample_count = read_count(r, refused);
+    // THE HEIGHTMAP IS READ ON A LATTICE THIS BUILD BELIEVES IN, AND THE FILE
+    // DOES NOT CARRY ITS OWN. `sample_count` was checked only against the
+    // absurdity bound, while every reader downstream — Heightmap::height_at,
+    // Heightmap::view — strides by config::HEIGHTMAP_RESOLUTION. A world baked
+    // on a different lattice therefore LOADED, reported ok(), and then indexed
+    // past the end of the vector: a silent out-of-bounds read handed to render
+    // and to physics as if it were ground.
+    //
+    // Found while moving HEIGHTMAP_STEP 2.0 -> 1.0 m (18.08.2026), which is
+    // exactly the edit that makes stale files exist. The .relief sidecar has
+    // refused a lattice mismatch by name since the day it was written; this,
+    // the far bigger file, did not. Refusing is all that is owed here — the
+    // caller regenerates a chunk it cannot read (ChunkManager does so already),
+    // so a rejected bake costs generation time and nothing else.
+    const uint64_t expected_samples = static_cast<uint64_t>(config::HEIGHTMAP_RESOLUTION)
+                                    * static_cast<uint64_t>(config::HEIGHTMAP_RESOLUTION);
+    if (sample_count != expected_samples) {
+        return std::nullopt;
+    }
     chunk.heightmap.height_scale = r.read_f32();
     chunk.heightmap.height_offset = r.read_f32();
     chunk.heightmap.samples.resize(static_cast<std::size_t>(sample_count));

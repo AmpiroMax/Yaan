@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 17:08:2026 - 17:16:17
+# Last updated: 18:08:2026 - 12:31:04
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -75,6 +75,13 @@
 #   (HOUSES.md §9) — пять красных рук, названных пользователем поимённо, и
 #   сверка КАЛЬКУЛЯТОРА (выведенная длина проёма) с СУДЬЁЙ (капсула на каждой
 #   ступени). Они пришли к 9u разными дорогами и не зовут друг друга.
+# - 18:08:2026 - 12:31:04: test_height_lattice — решётка ХРАНЕНИЯ против
+#                          решётки ГЕОМЕТРИИ. Рисуемая земля живёт на шаге
+#                          VOXEL_SIZE, а хранится на HEIGHTMAP_STEP, и того,
+#                          сколько первая ВЫДУМЫВАЕТ поверх второй, не мерил
+#                          никто. Контроль — тот же прибор на нарочно
+#                          огрублённой решётке, а не откаченная константа.
+
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
@@ -92,6 +99,7 @@ add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
 add_dfn_test(test_mountain_horizon core/MountainHorizonTests.cpp dfn_world)
 add_dfn_test(test_great_oak core/GreatOakTests.cpp dfn_world)
 add_dfn_test(test_coarse_lod core/CoarseLodTests.cpp dfn_world)
+add_dfn_test(test_height_lattice core/HeightLatticeTests.cpp dfn_world)
 add_dfn_test(test_lod_seam core/LodSeamTests.cpp dfn_world dfn_render)
 # Links dfn_render for the SAME reason test_lod_seam does: it checks two zones
 # agree about one geometry (the occluder discs are sized from render's own

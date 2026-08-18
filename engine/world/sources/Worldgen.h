@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -73,6 +73,18 @@ UPD:
   дороже одной ветки. И classify_surface получил НЕОБЯЗАТЕЛЬНЫЙ последний
   аргумент — назначенный композитором класс поверхности; только добавление,
   все прежние вызовы компилируются как компилировались (правило 26).
+- 18:08:2026 - 12:06:09: SLOPE_STENCIL_ARM_M + central_difference_slope — ПЛЕЧО УКЛОНА СТАЛО
+  СВОИМ ЧИСЛОМ (NUMBERS.md, TERRAIN_SLOPE_STENCIL_M = 2.0). Его не было:
+  terrain_slope брала плечо из HEIGHTMAP_STEP, а WorldgenScatter, WorldgenSites
+  и WorldgenValidation держали каждый свой голый `d = 2.0f` — пять мест (пятое,
+  сеточный проход generate_chunk, считало по соседним ОТСЧЁТАМ) сходились ровно
+  потому, что шаг хранения случайно равнялся двум. Смена шага на 1.0 м развела
+  бы раскраску камня, рассев и проходимость МОЛЧА. Значение оставлено 2.0
+  намеренно: уклон здесь отвечает «что это за склон», им красят камень против
+  травы и судят проходимость, а это свойство ФОРМЫ РЕЛЬЕФА в человеческий рост,
+  а не свойство того, как густо мы её храним; привяжи плечо к шагу — и любое
+  будущее уточнение хранения перекрасит весь мир при неизменной земле. Формула
+  теперь одна на всех пятерых (правило 32), плечо — одно.
 */
 
 #pragma once
@@ -89,6 +101,7 @@ UPD:
 #include "engine/world/sources/WorldgenPaths.h"
 #include "engine/world/sources/WorldgenSites.h"
 
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -195,10 +208,45 @@ struct WorldGenContext {
 /// from scratch. The continuous field the heightmaps sample.
 [[nodiscard]] float terrain_height(const WorldGenContext& ctx, glm::vec2 world);
 
-/// Terrain slope (radians) at a world position: central differences of the
-/// FINAL height field at +-HEIGHTMAP_STEP.
+/// THE ARM of the central difference every slope in this zone is measured
+/// with (NUMBERS.md, TERRAIN_SLOPE_STENCIL_M).
 ///
-/// The step is HEIGHTMAP_STEP and not "whatever grid the caller is on", which
+/// IT IS ITS OWN NUMBER AND NO LONGER HEIGHTMAP_STEP, and that separation is
+/// the point rather than a detail. Slope here answers "what KIND of ground is
+/// this" — it paints rock against grass, admits scatter and judges walkability
+/// — and that is a property of the landform at human scale, not of how densely
+/// we happen to store it. Tied to the storage step, every future refinement of
+/// storage would silently repaint the world: on a shorter arm the same hillside
+/// reads systematically steeper, because the same rise is divided by a shorter
+/// run and the micro-relief across it is no longer averaged out.
+///
+/// It also used to be an AGREEMENT BY COINCIDENCE. terrain_slope() took its arm
+/// from HEIGHTMAP_STEP while WorldgenScatter, WorldgenSites and
+/// WorldgenValidation each held a bare `d = 2.0f`; the four matched only
+/// because the storage step happened to be 2.0. The first edit to that row
+/// would have split the classifier from the scatter and from the walkability
+/// gate with nothing turning red (Rule 32).
+inline constexpr float SLOPE_STENCIL_ARM_M =
+    static_cast<float>(config::TERRAIN_SLOPE_STENCIL_M);
+
+/// THE central-difference slope (radians) of any height function, on THE arm.
+///
+/// A template because its four callers sample four different heights — the
+/// final field, the field without pads (pads are being placed), the scatter
+/// pass's own carved ground — and the thing that must not differ between them
+/// is the STENCIL, not the sampler.
+template <typename HeightFn>
+[[nodiscard]] float central_difference_slope(const HeightFn& height, glm::vec2 p) {
+    const float d = SLOPE_STENCIL_ARM_M;
+    const float hx = height(glm::vec2{p.x + d, p.y}) - height(glm::vec2{p.x - d, p.y});
+    const float hz = height(glm::vec2{p.x, p.y + d}) - height(glm::vec2{p.x, p.y - d});
+    return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d));
+}
+
+/// Terrain slope (radians) at a world position: central differences of the
+/// FINAL height field on SLOPE_STENCIL_ARM_M.
+///
+/// The arm is a world constant and not "whatever grid the caller is on", which
 /// makes the slope — and therefore the surface CLASS derived from it — a pure
 /// function of world position. That is a requirement, not a tidiness: a coarse
 /// LOD node measuring slope at its own 8 m or 32 m spacing would classify the

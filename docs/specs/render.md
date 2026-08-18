@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:20:00
-Last updated: 13:08:2026 - 20:23:22
+Last updated: 18:08:2026 - 12:06:07
 <!--
 UPD:
 - 09:08:2026 - 00:20:00: Initial stage-1 spec: zone contracts, bgfx plan, boundary agreements with core/sim/lead.
@@ -483,6 +483,14 @@ UPD:
   чанк случайно подгрузился, и сделал бы геометрию функцией МАРШРУТА игрока.
   Настоящая работа — три набора на чанк плюс выбор на отправке и растворение,
   как у террейна; это моя зона, не правка одной строки.
+- 18:08:2026 - 12:06:07: ТОЛЬКО ЧИСЛА В ТЕКСТЕ ДОГОВОРА, поведение и сам
+  договор не тронуты: решётка чанка в NUMBERS уехала 129 отсчётов / 2.0 м на
+  257 / 1.0 м, и §Dependencies-1 (передача геометрии чанка core -> render)
+  описывал HeightFieldView старыми числами. Правится потому, что это
+  ГРАНИЧНОЕ СОГЛАШЕНИЕ по правилу 26: спека здесь — то, к чему апеллируют обе
+  зоны при расхождении, и устаревшее `resolution 129` рано или поздно
+  подтвердит неверную сторону спора. Заодно общий краевой ряд: отсчёт 256, а
+  не 128 — то же число, записанное в другом месте той же фразы.
 -->
 
 # Spec — render agent
@@ -684,13 +692,13 @@ tour.
    `dfn::math::HeightFieldView` in `engine/core/math/sources/HeightField.h`
    (core zone; placed in core because world and render are DAG siblings):
    `glm::ivec2 chunk_coord; glm::vec2 origin` (world x,z of sample 0,0);
-   `uint32_t resolution` (= HEIGHTMAP_RESOLUTION 129); `float step`
-   (= HEIGHTMAP_STEP 2.0 m); `std::span<const uint16_t> heights` (row-major, x
+   `uint32_t resolution` (= HEIGHTMAP_RESOLUTION 257); `float step`
+   (= HEIGHTMAP_STEP 1.0 m); `std::span<const uint16_t> heights` (row-major, x
    fastest, `heights[z * resolution + x]`); `float height_scale` (meters per
    raw unit, precomputed offline as (max−min)/65535); `float height_offset`
    (meters). `height_m = height_offset + raw * height_scale`. Conventions:
    right-handed, Y up, +X east, +Z south. Edge rows are shared between
-   neighbors (sample 128 of chunk x == sample 0 of chunk x+1). Triangulation
+   neighbors (sample 256 of chunk x == sample 0 of chunk x+1). Triangulation
    is render's job. Lifetime: view valid from `ChunkLoaded{coord}` until after
    `ChunkUnloaded{coord}` (both on the core EventBus, batched per streaming
    tick; unload fires before the memory is freed so the mesh is destroyed

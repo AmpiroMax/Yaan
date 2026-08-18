@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 18:08:2026 - 11:43:09
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/Worldgen.cpp
 
@@ -128,6 +128,15 @@ UPD:
   побитово, а `+ 0.0f` превращает -0.0f в +0.0f, то есть в другой
   квантованный образец, и приколотый слепок стенда бы не пережил. ЗАПИСЬ
   ФИЛИРУЮ Я, ЛИД (см. CoarseTerrain.cpp той же датой).
+- 18:08:2026 - 12:06:09: terrain_slope и сеточный проход pass B переведены на
+  central_difference_slope. В pass B переиспользование уже посчитанных высот
+  СОХРАНЕНО, но стало КЭШЕМ, а не формулой: раньше там стояла ручная разность
+  «плюс-минус один отсчёт», верная лишь пока плечо совпадало с шагом хранения.
+  Теперь лямбда спрашивает «эта мировая точка уже посчитана?» и проваливается в
+  terrain_height, когда нет. Это единственное место правки, которое ПОКРАСНЕЛО
+  по-настоящему при смене шага: 557 утверждений в test_worldgen_v2 (сеточный
+  проход разошёлся с аналитическим surface_point по классу поверхности) и 74 в
+  test_coarse_lod (чанк разошёлся с дальним узлом).
 */
 
 #include "engine/world/sources/Worldgen.h"
@@ -586,11 +595,13 @@ float terrain_slope(const WorldGenContext& ctx, glm::vec2 world) {
     // Central differences of the FINAL height field (position-based — identical
     // on shared chunk edges even though neighbors lie outside the chunk being
     // generated, and identical at every LOD level for the same reason).
-    const float hx = terrain_height(ctx, {world.x + STEP_M, world.y})
-                   - terrain_height(ctx, {world.x - STEP_M, world.y});
-    const float hz = terrain_height(ctx, {world.x, world.y + STEP_M})
-                   - terrain_height(ctx, {world.x, world.y - STEP_M});
-    return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
+    //
+    // THE ARM IS SLOPE_STENCIL_ARM_M, NOT HEIGHTMAP_STEP. It used to be the
+    // storage step, which made "how steep is this ground" quietly depend on how
+    // densely we store it — see the header note. The formula itself now lives
+    // in ONE place, because three other passes had their own copy of it.
+    return central_difference_slope(
+        [&ctx](glm::vec2 p) { return terrain_height(ctx, p); }, world);
 }
 
 math::SurfaceClass classify_surface(const TestbedLayout& layout, glm::vec2 world,
@@ -712,9 +723,18 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             final_h[i] = compose_passes(ctx, world, macro, water[i]);
         }
     }
-    // pass B: quantize + classify. Slope uses the grid where the +-STEP
-    // neighbor is inside the chunk and the analytic field on the border —
-    // identical floats either way (position-based), so shared edges agree.
+    // pass B: quantize + classify. Slope reuses the grid wherever the stencil's
+    // arm lands on a sample already computed, and evaluates the analytic field
+    // everywhere else — identical floats either way (position-based), so shared
+    // edges agree.
+    //
+    // THE REUSE IS NOW A CACHE, NOT THE FORMULA. It used to be a hand-written
+    // central difference over `+-1 sample`, which was the right stencil ONLY
+    // while the stencil's arm happened to equal the storage step. The arm is
+    // its own number now (SLOPE_STENCIL_ARM_M), so the lookup asks "is THIS
+    // world position already in the grid?" and falls through to terrain_height
+    // when it is not. One formula, in one place, for all five passes that
+    // measure slope in this zone.
     for (uint32_t z = 0; z < RESOLUTION; ++z) {
         for (uint32_t x = 0; x < RESOLUTION; ++x) {
             const glm::vec2 world = world_at(x, z);
@@ -722,20 +742,21 @@ Chunk generate_chunk(const WorldGenContext& ctx, ChunkCoord coord) {
             const float h = final_h[i];
             hm.samples[i] = quantize_height(h);
 
-            const auto h_at = [&](int32_t nx, int32_t nz) {
-                if (nx >= 0 && nz >= 0 && nx < static_cast<int32_t>(RESOLUTION)
-                    && nz < static_cast<int32_t>(RESOLUTION)) {
-                    return final_h[static_cast<std::size_t>(nz) * RESOLUTION
-                                   + static_cast<std::size_t>(nx)];
+            const auto h_at_world = [&](glm::vec2 p) {
+                const float fx = (p.x - origin.x) / STEP_M;
+                const float fz = (p.y - origin.y) / STEP_M;
+                const float rx = std::round(fx);
+                const float rz = std::round(fz);
+                if (std::fabs(fx - rx) < 1.0e-3f && std::fabs(fz - rz) < 1.0e-3f
+                    && rx >= 0.0f && rz >= 0.0f
+                    && rx < static_cast<float>(RESOLUTION)
+                    && rz < static_cast<float>(RESOLUTION)) {
+                    return final_h[static_cast<std::size_t>(rz) * RESOLUTION
+                                   + static_cast<std::size_t>(rx)];
                 }
-                return terrain_height(ctx, {world.x + static_cast<float>(nx - static_cast<int32_t>(x)) * STEP_M,
-                                            world.y + static_cast<float>(nz - static_cast<int32_t>(z)) * STEP_M});
+                return terrain_height(ctx, p);
             };
-            const int32_t ix = static_cast<int32_t>(x);
-            const int32_t iz = static_cast<int32_t>(z);
-            const float hx = h_at(ix + 1, iz) - h_at(ix - 1, iz);
-            const float hz = h_at(ix, iz + 1) - h_at(ix, iz - 1);
-            const float slope = std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * STEP_M));
+            const float slope = central_difference_slope(h_at_world, world);
 
             WaterSample w = water[i];
             // AN AUTHORED RIVER PUTS WATER IN ITS OWN CHANNEL. Without this the

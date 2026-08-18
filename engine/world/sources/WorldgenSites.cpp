@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 17:08:2026 - 13:14:56
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -36,6 +36,8 @@ UPD:
   фантомный канал вдоль продолжения каждого сегмента. Дно БЕРЁТСЯ, а не
   минимизируется: русло, которое «не выше дна», перегородил бы любой природный
   подъём, и река шла бы в гору в стену нетронутой земли.
+- 18:08:2026 - 12:06:09: ground_slope — через central_difference_slope. Тот же голый `d = 2.0f`;
+  места посадки и раскраска обязаны мерить уклон одним прибором.
 */
 
 #include "engine/world/sources/WorldgenSites.h"
@@ -66,15 +68,13 @@ float ground_height(uint64_t seed, const TestbedLayout& layout, const HydrologyD
     return water_at(hydro, layout, p, macro_height(seed, layout, p)).height;
 }
 
-/// Terrain slope angle (radians) from central differences at +-2 m.
+/// Terrain slope angle (radians) on THE stencil (SLOPE_STENCIL_ARM_M), over the
+/// pad-free ground this pass sites against. The arm was a bare `2.0f` and
+/// agreed with the classifier only by way of HEIGHTMAP_STEP being 2.0.
 float ground_slope(uint64_t seed, const TestbedLayout& layout, const HydrologyData& hydro,
                    glm::vec2 p) {
-    const float d = 2.0f;
-    const float hx = ground_height(seed, layout, hydro, {p.x + d, p.y})
-                   - ground_height(seed, layout, hydro, {p.x - d, p.y});
-    const float hz = ground_height(seed, layout, hydro, {p.x, p.y + d})
-                   - ground_height(seed, layout, hydro, {p.x, p.y - d});
-    return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d));
+    return central_difference_slope(
+        [&](glm::vec2 q) { return ground_height(seed, layout, hydro, q); }, p);
 }
 
 /// Pad radius for an archetype: half of (max footprint side x 1.5) (§6).

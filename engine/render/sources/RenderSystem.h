@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 17:08:2026 - 18:41:51
+Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -144,6 +144,11 @@ UPD:
   добро карты (пламя, стекло — заливается раз на карту). Мушка и пламя САМИ
   есть свет; затенять их ночью значит гасить ровно то, ради чего они есть.
 - 17:08:2026 - 18:41:51: set_ghost_mesh — предпросмотр детали в руке строителя, каждый кадр, без света.
+- 18:08:2026 - 12:06:07: только текст, поведение не тронуто: «129 отсчётов» у
+  upload_lod_node названо своим именем — COARSE_NODE_RESOLUTION, решётка УЗЛА.
+  HEIGHTMAP_RESOLUTION уехал 129 -> 257 (NUMBERS), и раньше два числа
+  совпадали; голое «129» теперь читается как устаревший размер чанка, а не как
+  живая константа узла, и правка ради этого совпадения сломала бы шов с core.
 */
 
 #pragma once
@@ -293,8 +298,9 @@ public:
     [[nodiscard]] size_t lod_selected_count() const { return lod_.selected_count(); }
     [[nodiscard]] size_t lod_resident_count() const { return lod_.resident_count(); }
     [[nodiscard]] size_t lod_draw_count() const { return lod_.last_draw_count(); }
-    // Meshes one coarse node (129 samples, step = the level's voxel size) and
-    // uploads it. `surface` may be nullptr — core ships coarse surface fields
+    // Meshes one coarse node (COARSE_NODE_RESOLUTION = LOD_NODE_VOXELS + 1 =
+    // 129 samples — the NODE lattice, NOT the chunk's, which is 257 since
+    // 18:08:2026 — step = the level's voxel size) and uploads it. `surface` may be nullptr — core ships coarse surface fields
     // after the geometry, and slope-only splat is the agreed fallback.
     void upload_lod_node(platform::IRenderer& renderer, const LodNode& node,
                          const math::HeightFieldView& field,

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 13:08:2026 - 20:40:00
+Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -52,6 +52,13 @@ UPD:
   Asserted at BOTH ENDS so the gap cannot drift silently either way.
 - 11:08:2026 - 15:15:55: §2.1 anisotropy: the probe caught a new octave ignoring the land's grain (3.61 -> 2.22, hill octave untouched); re-sampled through the shared axis field it reads 2.92 against a 3.83 counterfactual (DFN_NO_RELIEF=1).
 - 13:08:2026 - 20:40:00: P4's pad accounting named a LIST where it meant a CLASS. It enumerated DungeonEntrance as the one site kind never scored onto a pad; WallTorch joined that class with the carve lights (4e1c64d) and broke the identity by exactly its own count, 13. Replaced by a `carve_derived` predicate, and the "floor comes from the carve" check extended to the whole class. Expected counts untouched in either direction -- what changed is which side of the identity a carve-derived site is counted on. Semantics belong to zone `dungeon`; done under the lead's cut in its absence and filed in BOARD.md for confirmation.
+- 18:08:2026 - 12:06:09: «grid-pass ... matches the analytic surface_point» брал мировую точку
+  как `256.0f + x * 2.0f` — начало чанка руками, шаг решётки голым числом. Из-за
+  литерала случай проверял, что HEIGHTMAP_STEP равен 2.0, а не сеточный проход,
+  и при переводе шага на 1.0 м покраснел на КАЖДОМ отсчёте, указывая на
+  worldgen, который был ни при чём. Позиция выводится из CHUNK_SIZE и
+  HEIGHTMAP_STEP. (Настоящий разъезд классов поверхности случай тоже поймал —
+  557 утверждений, — и это была честная поломка pass B, см. Worldgen.cpp.)
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -592,9 +599,20 @@ TEST_CASE("grid-pass chunk generation matches the analytic surface_point") {
     const auto& ctx = testbed();
     const auto chunk = world::generate_chunk(ctx, ChunkCoord{1, 2});
     const uint32_t res = static_cast<uint32_t>(config::HEIGHTMAP_RESOLUTION);
+    // THE SAMPLE'S WORLD POSITION IS DERIVED, NOT TYPED. It was
+    // `256.0f + x * 2.0f`: the chunk origin from CHUNK_SIZE by hand and the
+    // lattice step as a bare literal. The literal made this case a test of
+    // HEIGHTMAP_STEP being 2.0 rather than of the grid pass, and it failed on
+    // every sample the moment the step moved — pointing at worldgen, which was
+    // innocent.
+    const float step = static_cast<float>(config::HEIGHTMAP_STEP);
+    const glm::vec2 chunk_origin{static_cast<float>(config::CHUNK_SIZE) * 1.0f,
+                                 static_cast<float>(config::CHUNK_SIZE) * 2.0f};
     for (uint32_t z = 0; z < res; z += 17) {
         for (uint32_t x = 0; x < res; x += 17) {
-            const glm::vec2 world{256.0f + x * 2.0f, 512.0f + z * 2.0f};
+            const glm::vec2 world = chunk_origin
+                                  + glm::vec2{static_cast<float>(x) * step,
+                                              static_cast<float>(z) * step};
             const auto sp = world::surface_point(ctx, world);
             const std::size_t i = static_cast<std::size_t>(z) * res + x;
             CHECK(chunk.surface.surface_class[i] == static_cast<uint8_t>(sp.surface_class));

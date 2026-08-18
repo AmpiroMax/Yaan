@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/core/math
 File: engine/core/math/sources/HeightField.h
 
@@ -27,6 +27,15 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:16:55: Stage 1 contract — HeightFieldView agreed with render
   (meshing) and sim (terrain collision); formula height = offset + raw * scale.
+- 18:08:2026 - 12:06:09: Решётка 2.0 м / 129 -> 1.0 м / 257 (заказ пользователя 18.08:
+  «землю надо хранить точно не 2х2 метра»). НИ ОДНО ПОЛЕ НЕ ДВИНУЛОСЬ — тип и
+  формула декодирования те же, поменялись только два числа, которые он и так
+  брал из NUMBERS.md; правка совместима по исходникам со всеми тремя зонами.
+  ЗАПИСЫВАЮ ПРИЧИНУ, потому что она не «мельче — красивее»: рисуемая земля уже
+  жила на метровой воксельной решётке, а хранилась на двухметровой, и разницу
+  дорисовывала билинейная интерполяция. Три четверти узлов рисуемой поверхности
+  были её выдумкой, худшая — 6.57 м мимо настоящей земли. Теперь узел и отсчёт
+  совпадают один в один, и интерполировать нечего.
 */
 
 #pragma once
@@ -46,16 +55,26 @@ namespace dfn::math {
 ///   METERS PER RAW UNIT (worldgen precomputes (chunk_max - chunk_min) / 65535;
 ///   no divide at runtime).
 /// - Edge rows are shared with neighbors: with CHUNK_SIZE = 256 m and
-///   HEIGHTMAP_STEP = 2 m, resolution is 129 and sample x = 128 of chunk (cx, cz)
+///   HEIGHTMAP_STEP = 1 m, resolution is 257 and sample x = 256 of chunk (cx, cz)
 ///   equals sample x = 0 of chunk (cx + 1, cz) — meshes stitch without cracks.
+/// - THE STEP EQUALS VOXEL_SIZE, AND THAT IS A CONTRACT, NOT A COINCIDENCE.
+///   The ground the engine draws and collides is a voxel surface on the
+///   VOXEL_SIZE lattice, built by sampling THIS field. A step coarser than the
+///   voxel puts nodes BETWEEN samples, and whatever the reconstruction filter
+///   writes there is relief nobody generated. Measured on seed-1 while the step
+///   was 2 m: 74.8 % of a chunk's 66 049 voxel nodes fell between samples, and
+///   the invented height stood up to 6.57 m from the generator's own ground
+///   (mean 5-7 cm). The requirement is that the step DIVIDE VOXEL_SIZE; equal is
+///   the cheapest way to satisfy it, and tests/core/HeightLatticeTests.cpp is
+///   the arm that holds it.
 /// - Lifetime: valid from the chunk's ChunkLoaded event until AFTER its
 ///   ChunkUnloaded event has been dispatched (consumers release GPU/physics
 ///   resources in the unload handler, before the memory is freed).
 struct HeightFieldView {
     glm::ivec2 chunk_coord{0, 0};      ///< Chunk grid coordinate.
     glm::vec2 origin{0.0f, 0.0f};      ///< World-space (x, z) of sample (0, 0), meters.
-    uint32_t resolution = 0;           ///< Samples per side (HEIGHTMAP_RESOLUTION = 129).
-    float step = 0.0f;                 ///< Meters between samples (HEIGHTMAP_STEP = 2.0).
+    uint32_t resolution = 0;           ///< Samples per side (HEIGHTMAP_RESOLUTION = 257).
+    float step = 0.0f;                 ///< Meters between samples (HEIGHTMAP_STEP = 1.0).
     std::span<const uint16_t> heights; ///< resolution * resolution raw samples.
     float height_scale = 0.0f;         ///< Meters per raw unit.
     float height_offset = 0.0f;        ///< Meters (chunk minimum height).

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 12:08:2026 - 22:55:00
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -31,6 +31,9 @@ UPD:
 - 12:08:2026 - 22:55:00: canopy_height_at(ctx, ...) — the C1 raycast now sees the
   great oak, which stands in a gap in the forest mask; PX_PER_RAD reads
   WorldgenPlacement's one definition (it had two in this zone).
+- 18:08:2026 - 12:06:09: проверка проходимости обзорной точки зовёт terrain_slope вместо
+  собственной копии центральной разности с голым `d = 2.0f`. Тот же прибор, что
+  красит землю, теперь и судит, можно ли по ней идти.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"
@@ -110,12 +113,9 @@ float landmark_visibility_fraction(const WorldGenContext& ctx) {
             if (sp.water_surface != math::NO_WATER) continue;
             if (in_forest_mass(layout, p)) continue;
             if (crag_distance(layout, p) < layout.crag.radius) continue;
-            const float d = 2.0f;
-            const float hx = terrain_height(ctx, {p.x + d, p.y})
-                           - terrain_height(ctx, {p.x - d, p.y});
-            const float hz = terrain_height(ctx, {p.x, p.y + d})
-                           - terrain_height(ctx, {p.x, p.y - d});
-            if (std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d)) > WALK_SLOPE) continue;
+            // Walkability on THE stencil, so this gate and the paint agree by
+            // construction rather than by two files holding the same literal.
+            if (terrain_slope(ctx, p) > WALK_SLOPE) continue;
             if (castle_occluder_height(ctx.sites.castle, p) > 0.0f) continue; // inside the mass
             ++open;
 

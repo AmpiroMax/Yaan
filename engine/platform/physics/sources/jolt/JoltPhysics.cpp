@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 13:08:2026 - 18:20:00
+Last updated: 18:08:2026 - 12:06:07
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -24,9 +24,11 @@ Dependencies:
 Notes:
 - Terrain is a static MeshShape built from the float samples, not a
   JPH::HeightFieldShape: Jolt's height field wants sample counts divisible by
-  its block size, while our chunks are 129x129 (NUMBERS, 2^n+1 with shared
-  edges). The mesh triangulation matches the render mesher's grid exactly — the
-  same quad diagonal, not merely the same vertices — so collision and visuals
+  its block size, while our chunks are 257x257 (NUMBERS, 2^n+1 with shared
+  edges — 129x129 until 18:08:2026, and the +1 is exactly what makes the
+  count odd, so no power-of-two block size ever divides it at any
+  resolution). The mesh triangulation matches the render mesher's grid
+  exactly — the same quad diagonal, not merely the same vertices — so collision and visuals
   cannot disagree. THAT SENTENCE WAS FALSE FOR TWO DAYS while it sat here: the
   two zones split every quad on OPPOSITE diagonals, and the only test covering
   it used a flat chunk, where the two splits are identically equal. A claim of
@@ -64,6 +66,14 @@ UPD:
                          kinematic, on purpose — nothing reads a door leaf's
                          velocity, and giving it one would put it in the
                          solver's integration for nothing.
+- 18:08:2026 - 12:06:07: Comment only, no code: chunks are 257x257 after
+                         HEIGHTMAP_RESOLUTION moved 129 -> 257 in NUMBERS.
+                         The MeshShape reasoning is UNCHANGED and still the
+                         reason — 2^n+1 is odd by construction, so a bigger
+                         chunk does not bring the sample count any closer to
+                         Jolt's block size. Stamped so nobody reads the stale
+                         129 as "the shape choice was tied to that number"
+                         and re-opens a settled decision on a wrong premise.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"

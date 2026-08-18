@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:55:10
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/TerrainLod.h
 
@@ -49,6 +49,16 @@ UPD:
   are no longer force-split to level 0; they are judged by the distance to
   their ground OUTSIDE the rectangle and clipped by the mesher instead. See
   select_lod_nodes' doc for the contract and the measurement.
+- 18:08:2026 - 12:06:07: The `resident` rectangle's JUSTIFICATION, not its
+  behaviour. The chunk lattice went 2 m -> 1 m (HEIGHTMAP_STEP, NUMBERS), so
+  it now equals LOD_VOXEL_SIZE_L0 exactly, and the premise this file used to
+  argue from — "the two systems draw the ground at slightly different
+  heights" — is simply false. The exclusion survives because its real reason
+  was never the ratio but the DOUBLE DRAW; the ratio only decided what the
+  artefact looked like. Rewritten to the failure mode that is actually left
+  (z-fighting between coplanar surfaces) with the dead 2:1 ratio recorded as
+  history, so that the next reader who checks the numbers and finds the old
+  premise untrue does not conclude the rectangle can go.
 */
 
 #pragma once
@@ -152,9 +162,19 @@ struct LodRect {
 /// bound.
 ///
 /// `resident` is THE GROUND CORE ALREADY STREAMS AT FULL CHUNK DETAIL. It is
-/// not an optimisation: a level-0 node is 1 m voxels where a chunk heightfield
-/// is 2 m, so without it the two systems draw the same ground twice, at
-/// slightly different heights, and the overlap band interleaves per pixel.
+/// not an optimisation: without it the two systems draw the same ground
+/// twice, and two draws of one piece of ground is a defect whatever the
+/// lattices are. Since 18:08:2026 they draw it at the SAME heights —
+/// HEIGHTMAP_STEP is 1.0 m and LOD_VOXEL_SIZE_L0 is 1.0 m, so a level-0 node
+/// and a chunk heightfield stand on the identical lattice — and coplanarity
+/// is the WORSE case, not the better one: the depth test has no winner, so
+/// the overlap band z-fights, and which surface wins flips with the eye and
+/// with rasteriser rounding rather than staying put.
+/// HISTORY, so nobody re-derives the rule from a dead premise: this text used
+/// to justify the exclusion by the 2:1 lattice ratio (chunk 2 m against node
+/// 1 m), where the two heightfields disagreed slightly and the overlap band
+/// interleaved per pixel. That ratio no longer exists. Only the SYMPTOM
+/// changed with the numbers; the reason to exclude did not.
 /// The descent (a) DROPS a node that lies entirely inside the rectangle, and
 /// (b) judges a node that STRADDLES its border by the distance to the ground
 /// the node actually contributes — max(footprint distance, the eye's

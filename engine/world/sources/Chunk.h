@@ -1,12 +1,12 @@
 /*
 Created: 09:08:2026 - 00:16:55
-Last updated: 17:08:2026 - 11:54:29
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
 Responsibility:
 - Chunk data types: chunk grid coordinates, the packed streaming group key, the
-  owned heightmap storage (129x129 uint16 + per-chunk scale/offset, Q48), stable
+  owned heightmap storage (257x257 uint16 + shared scale/offset, Q48), stable
   world entity ids, and the loaded-chunk aggregate.
 
 Key items:
@@ -41,6 +41,10 @@ UPD:
 - 09:08:2026 - 23:49:27: LOD streaming: quantize_height/dequantize_height + HEIGHT_QUANT_SCALE/OFFSET extracted here as the SINGLE quantization every height-sample producer calls (chunk builder and coarse-node builder). The seam between a chunk and a coarse node is exact by construction rather than by two files agreeing (Rule 32).
 - 17:08:2026 - 11:53:47: SurfaceData::path_wear.
 - 17:08:2026 - 11:54:29: SurfaceData::path_wear.
+- 18:08:2026 - 12:06:09: Решётка высот 2.0 м / 129 -> 1.0 м / 257 (заказ 18.08). Здесь не
+  изменилась ни одна строка кода: и height_at, и view() уже читали шаг и
+  разрешение из NUMBERS.md. Изменился РАЗМЕР — 33 КБ на чанк стали 132 КБ, и
+  это записано в шапке Heightmap, потому что «~33 КБ» стояло там числом.
 */
 
 #pragma once
@@ -129,8 +133,8 @@ inline constexpr float HEIGHT_QUANT_SCALE =
 }
 
 /// Owned height data of one chunk (HEIGHT_FORMAT, Q48): raw uint16 samples plus
-/// per-chunk decode scale/offset. ~33 KB per chunk. Layout and decode formula
-/// are defined by the frozen math::HeightFieldView contract.
+/// decode scale/offset. ~132 KB per chunk (CHUNK_HEIGHTMAP_BYTES). Layout and
+/// decode formula are defined by the frozen math::HeightFieldView contract.
 struct Heightmap {
     /// resolution^2 raw samples, row-major, x fastest (see HeightFieldView).
     std::vector<uint16_t> samples;

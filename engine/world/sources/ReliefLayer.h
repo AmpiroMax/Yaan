@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/ReliefLayer.h
 
@@ -63,6 +63,14 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 19:05:00: Создан — слой авторских правок земли (заказ 17.08 про
   кисти рельефа). Добро лида на добавку в engine/world получено до написания.
+- 18:08:2026 - 12:06:09: HEIGHTMAP_STEP 2.0 -> 1.0 м, и этот файл — ПРИЧИНА правки, а не её
+  жертва. Заказ 18.08 («углы мне не нравятся») — про кисть из этого слоя, а
+  верхний комментарий уже объяснял, почему углы неизбежны: решётка правки равна
+  решётке хранения. Ни строки кода менять не пришлось, RELIEF_STEP_M выведен.
+  ВАЖНО ДЛЯ ТОГО, КТО ДЕРЖИТ .relief В РАБОЧЕЙ КОПИИ: read_relief СВЕРЯЕТ
+  объявленный шаг и откажет вслух — файл, написанный на 2 м, надо переписать
+  (step 1, все индексы x и z удвоить). В git ни одного .relief нет, так что
+  терять нечего; проверено find'ом по дереву.
 */
 
 #pragma once
@@ -85,6 +93,14 @@ namespace dfn::world {
 /// authored between two samples is a shape the world has no way to hold. The
 /// brush's minimum radius follows from this and the tool says so out loud
 /// rather than pretending to paint finer than the world can show.
+///
+/// THIS DERIVATION IS WHY THE STEP MOVED, 18.08.2026. The user painted with
+/// the brush and said the corners were wrong; the sentence above is the reason
+/// they were. HEIGHTMAP_STEP went 2.0 -> 1.0 m, so this lattice halved with it
+/// and the minimum brush radius halved to 1 m — for free, because the number
+/// was derived here rather than typed. It cannot usefully go below VOXEL_SIZE:
+/// a delta at a sample no voxel node reads is a shape that still cannot be
+/// drawn, which is the same wall one power of two down.
 inline constexpr float RELIEF_STEP_M = static_cast<float>(config::HEIGHTMAP_STEP);
 
 /// Index of the lattice sample at or below `world_coord` on one axis.

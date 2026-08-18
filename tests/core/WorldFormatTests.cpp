@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 18:43:43
-Last updated: 14:08:2026 - 21:22:22
+Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/core/WorldFormatTests.cpp
 
@@ -39,8 +39,14 @@ UPD:
   читает» верно ровно настолько, насколько чтение и генерация дают ОДИН мир.
   Плюс отказ несуществующего файла: молчаливый откат на генерацию дал бы сборку,
   работающую на скорости генерации и отчитывающуюся об открытии выпечки.
+- 18:08:2026 - 12:06:09: случай «мир, испечённый на другой решётке высот, отвергается, а не
+  читается криво». Дыра была настоящая: .dfw не хранит свою решётку, а читатели
+  ходят шагом HEIGHTMAP_RESOLUTION, поэтому старый файл грузился молча и
+  читался за концом вектора. Зелёная рука (тот же чанк как есть) стоит ПЕРЕД
+  красной, чтобы отказ нельзя было списать на сломанную оснастку.
 */
 
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/world/sources/ChunkManager.h"
@@ -269,6 +275,46 @@ TEST_CASE("dfw: a truncated file is refused, never half-loaded") {
             }
         }
     }
+}
+
+TEST_CASE("dfw: a world baked on a different height lattice is refused, not misread") {
+    // THE HOLE THIS CLOSES, plainly: the file records the heightmap's SAMPLE
+    // COUNT but not its lattice, while every reader downstream strides by
+    // config::HEIGHTMAP_RESOLUTION. Before the guard, a world baked at 129x129
+    // and opened by a 257x257 build resized the vector to 16 641, returned a
+    // Chunk that looked entirely valid, and then let Heightmap::height_at index
+    // sample 66 048 of it — an out-of-bounds read handed onward as ground.
+    //
+    // The .relief sidecar has refused exactly this by name since it was
+    // written. The world file, which is four orders of magnitude bigger, did
+    // not, and nobody noticed because no .dfw had ever outlived a lattice.
+    // Moving HEIGHTMAP_STEP 2.0 -> 1.0 m is the edit that makes such files
+    // exist (18.08.2026).
+    const TempDir dir("dfn_world_format_lattice");
+    const auto file = dir.path / "stale.dfw";
+    BakedPair baked = bake_two_chunks();
+    REQUIRE(!baked.chunks.empty());
+
+    // THE GREEN ARM FIRST, so the red one below cannot be a broken fixture:
+    // the very same chunk, untouched, loads.
+    REQUIRE(write_world(baked, file));
+    {
+        WorldFileReader r;
+        REQUIRE(r.open(file));
+        CHECK(r.load_chunk(baked.chunks.front().coord).has_value());
+    }
+
+    // Now the stale lattice, emulated the only way a test can: the same chunk
+    // carrying the sample count a coarser lattice would have written.
+    const uint32_t res = static_cast<uint32_t>(dfn::config::HEIGHTMAP_RESOLUTION);
+    const std::size_t coarse = static_cast<std::size_t>((res + 1) / 2) * ((res + 1) / 2);
+    REQUIRE(coarse != baked.chunks.front().heightmap.samples.size());
+    baked.chunks.front().heightmap.samples.resize(coarse);
+    REQUIRE(write_world(baked, file));
+
+    WorldFileReader r;
+    REQUIRE(r.open(file)); // the CONTAINER is fine — the refusal is the chunk's
+    CHECK_FALSE(r.load_chunk(baked.chunks.front().coord).has_value());
 }
 
 TEST_CASE("dfw: a file that is not a world file is refused") {

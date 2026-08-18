@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 17:52:40
-Last updated: 09:08:2026 - 22:42:14
+Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/render/MapScreenTests.cpp
 
@@ -24,8 +24,15 @@ UPD:
 - 09:08:2026 - 17:52:40: Initial tests with the map screen.
 - 09:08:2026 - 22:42:14: the castle marker range follows SITE_MESH_ID_LAST
   instead of a copied 11, so it cannot fall behind the id table again.
+- 18:08:2026 - 12:06:09: FakeChunk держал `RES = 129` и `v.step = 2.0f` голыми числами, то есть
+  продолжал бы проверять решётку, которой у движка больше нет — молча зеленея.
+  Оба читаются из NUMBERS.md. Заодно исправлены две вещи, которые ломались бы
+  на 257: пандус `x * 500` переполнял uint16 (на восточном краю нужно 128 000,
+  и монотонный склон превращался в пилу), а водяная полоса стояла на отсчёте 64
+  «по середине» — теперь это RES / 2.
 */
 
+#include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/MapScreen.h"
 
 #include "engine/render/sources/ProcMesh.h" // SITE_MESH_ID_LAST — the id table
@@ -45,7 +52,11 @@ using dfn::render::PixelCanvas;
 
 namespace {
 
-constexpr uint32_t RES = 129;
+// THE SHIPPED RESOLUTION, not a copy of it. This was a bare `129`, so the
+// fixture went on testing a lattice the engine no longer had: the map bakes
+// (RES-1)/MAP_TILE_PX samples into every tile pixel, and that ratio is exactly
+// what a resolution change moves.
+constexpr uint32_t RES = static_cast<uint32_t>(dfn::config::HEIGHTMAP_RESOLUTION);
 
 // A chunk that rises to the east, with a north-south water stripe in the
 // middle — enough shape to exercise the ramp, the shade and the water OR.
@@ -57,10 +68,15 @@ struct FakeChunk {
 
     FakeChunk() : heights(RES * RES), water(RES * RES, NO_WATER), dist(RES * RES, 50.0f),
                   classes(RES * RES, 0) {
+        // THE RAMP IS SIZED TO THE RAW RANGE, NOT TO A LATTICE. It was
+        // `x * 500`, which fits a uint16 only while the resolution is 129:
+        // at 257 the east edge wants 128 000 and the ramp WRAPS, turning a
+        // monotone slope into a sawtooth and the fixture into nonsense.
+        const uint16_t rise = static_cast<uint16_t>(60000 / (RES - 1));
         for (uint32_t z = 0; z < RES; ++z) {
             for (uint32_t x = 0; x < RES; ++x) {
-                heights[z * RES + x] = static_cast<uint16_t>(x * 500);
-                if (x == 64) {
+                heights[z * RES + x] = static_cast<uint16_t>(x * rise);
+                if (x == RES / 2) { // the stripe is the MIDDLE, not sample 64
                     water[z * RES + x] = 12.0f;
                 }
             }
@@ -73,7 +89,7 @@ struct FakeChunk {
         v.origin = {static_cast<float>(coord.x) * 256.0f,
                     static_cast<float>(coord.y) * 256.0f};
         v.resolution = RES;
-        v.step = 2.0f;
+        v.step = static_cast<float>(dfn::config::HEIGHTMAP_STEP);
         v.heights = heights;
         v.height_scale = 64.0f / 65535.0f;
         v.height_offset = 0.0f;
@@ -84,7 +100,7 @@ struct FakeChunk {
         SurfaceFieldView v;
         v.chunk_coord = coord;
         v.resolution = RES;
-        v.step = 2.0f;
+        v.step = static_cast<float>(dfn::config::HEIGHTMAP_STEP);
         v.dist_to_water = dist;
         v.water_surface = water;
         v.surface_class = classes;

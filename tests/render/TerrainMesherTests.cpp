@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 21:13:39
+Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -38,6 +38,11 @@ UPD:
   agrees on the four classes everyone tested and disagrees on exactly the
   fifth -- asserted as `control_disagreements == 1`, so a fix that changed
   nothing and a fix that broke the other four both go red.
+- 18:08:2026 - 12:06:09: «border step is measured on the border» строил пандус как `x * 300`,
+  что влезает в uint16 только до 218-го отсчёта: на решётке 257 пандус
+  ПЕРЕПОЛНЯЛСЯ, и случай мерил 652 м «шага границы» на поле, у которого его нет.
+  Подъём выводится из HEIGHTMAP_RESOLUTION. Оснастка, тихо перестающая быть той
+  формой, которой себя объявляет, хуже отсутствующей.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -450,13 +455,21 @@ TEST_CASE("border step is measured on the border, not over the whole field") {
     CHECK(dfn::render::terrain_border_max_step_m(f.view) == doctest::Approx(0.0f));
 
     // And it DOES see a step that lies on a border: a ramp along +x. The two
-    // z-borders each step 300 raw units per sample; the two x-borders are
+    // z-borders each step RISE raw units per sample; the two x-borders are
     // constant along their own run, so the answer is the ramp's step.
+    //
+    // RISE IS DERIVED FROM THE RESOLUTION rather than typed. It was a bare
+    // 300, which overflows uint16 past sample 218 — at a 257-sample lattice
+    // the ramp wrapped and the case measured 652 m of "border step" on a field
+    // that has none. A fixture that silently stops being the shape it claims is
+    // worse than no fixture (Rule 30's other edge).
+    constexpr uint16_t RISE = static_cast<uint16_t>(
+        60000 / (static_cast<uint32_t>(dfn::config::HEIGHTMAP_RESOLUTION) - 1));
     const ChunkField ramp = make_chunk(0, 0, [](uint32_t x, uint32_t) {
-        return static_cast<uint16_t>(x * 300);
+        return static_cast<uint16_t>(x * RISE);
     });
     CHECK(dfn::render::terrain_border_max_step_m(ramp.view)
-          == doctest::Approx(300.0f * SCALE));
+          == doctest::Approx(static_cast<float>(RISE) * SCALE));
 }
 
 TEST_CASE("a skirt hangs down from the border and leaves the surface alone") {

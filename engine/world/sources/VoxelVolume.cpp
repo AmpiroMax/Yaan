@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 21:05:31
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/VoxelVolume.cpp
 
@@ -38,6 +38,11 @@ UPD:
   testbed) with rock weight 0.0 where the heightfield mesher drew 0.5. One
   function, called by both zones, is the only thing that makes two copies the
   same; a comment saying they are the same is not (Rule 39).
+- 18:08:2026 - 12:06:09: Шаг карты высот 2.0 -> 1.0 м (заказ 18.08). КОДА НЕ ТРОГАЛ —
+  и height_at_node, и border_node_height уже считали через STEP_M. Правил
+  КОММЕНТАРИИ, и это не уборка: они утверждали «билинейка по 2-метровой карте»
+  как устройство, а теперь веса ровно нулевые и узел берёт свой отсчёт. Записал
+  ЗАМЕР того, что этот файл выдумывал до правки: 74.8 % узлов и до 6.57 м.
 */
 
 #include "engine/world/sources/VoxelVolume.h"
@@ -71,11 +76,16 @@ float quantize_like_heightmap(float h) {
 }
 
 /// Height for a node PAST this chunk's heightmap. It must equal what the
-/// neighbour computes there, and the neighbour interpolates its own quantized
-/// heightmap — so this samples the analytic field on the 2 m heightmap lattice,
-/// quantizes each sample, and interpolates. Sampling the continuous field
-/// directly would be "more accurate" and WRONG: it disagrees with the
-/// neighbour by up to 0.3 m mid-cell, which is exactly a visible seam.
+/// neighbour computes there, and the neighbour reads its own quantized
+/// heightmap — so this samples the analytic field on the heightmap lattice,
+/// quantizes each sample, and interpolates between them. Sampling the
+/// continuous field directly would be "more accurate" and WRONG: it disagrees
+/// with the neighbour, which is exactly a visible seam.
+///
+/// Since HEIGHTMAP_STEP == VOXEL_SIZE the interpolation weights here are 0 and
+/// the lattice snap is exact; the general form is kept because what makes this
+/// correct is AGREEING WITH THE NEIGHBOUR'S RECONSTRUCTION, whatever that is,
+/// not the arithmetic happening to be trivial today.
 float border_node_height(const BorderHeightSampler& sample, glm::vec2 world_pos) {
     const float gx = std::floor(world_pos.x / STEP_M) * STEP_M;
     const float gz = std::floor(world_pos.y / STEP_M) * STEP_M;
@@ -90,8 +100,19 @@ float border_node_height(const BorderHeightSampler& sample, glm::vec2 world_pos)
     return a + (b - a) * tz;
 }
 
-/// Bilinear height at a voxel node from the chunk's 2 m heightmap. Edge nodes
-/// land exactly on heightmap samples, so neighbouring chunks agree.
+/// Height at a voxel node from the chunk's heightmap.
+///
+/// THIS USED TO BE THE PLACE THE GROUND WAS INVENTED. With storage at 2 m and
+/// voxels at 1 m, VOXEL / STEP_M was 0.5, so three of every four nodes landed
+/// between stored samples and got a bilinear blend — 74.8 % of a chunk's
+/// 66 049 nodes, standing up to 6.57 m from the height the generator actually
+/// describes there (measured on seed-1, tests/core/HeightLatticeTests.cpp).
+/// Those were the creases: a tent pitched between two samples, not a hill.
+///
+/// With HEIGHTMAP_STEP == VOXEL_SIZE the ratio is 1, tx and tz are 0 at every
+/// node, and this is a direct sample fetch. The bilinear form STAYS because it
+/// is the correct answer for any step that divides the voxel size, and because
+/// deleting it would trade a proven-exact expression for a new one.
 float height_at_node(const Heightmap& hm, int32_t vx, int32_t vz) {
     const float fx = std::clamp(static_cast<float>(vx) * VOXEL / STEP_M, 0.0f,
                                 static_cast<float>(RES - 1));

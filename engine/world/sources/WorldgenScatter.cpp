@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 23:36:19
+Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -82,6 +82,9 @@ UPD:
   частью силуэта самого дерева.
 - 14:08:2026 - 23:36:19: Ветка Gallery: скаттер не даёт НИЧЕГО — экспонаты приходят из реестра,
   и куст между ними судился бы как изделие кузницы.
+- 18:08:2026 - 12:06:09: ScatterCtx::slope — через central_difference_slope. Плечо было голым
+  `d = 2.0f` и совпадало с классификатором только потому, что HEIGHTMAP_STEP
+  равнялся 2.0: рассев и раскраска камня разъехались бы молча (правило 32).
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -266,11 +269,12 @@ struct ScatterCtx {
         const WaterSample w = water_at(hydro, layout, p, macro_height(seed, layout, p));
         return w.water_surface == math::NO_WATER && w.dist_to_water >= margin;
     }
+    /// THE stencil, on this pass's own carved ground. The arm was a bare
+    /// `2.0f` here and matched the classifier only because HEIGHTMAP_STEP
+    /// happened to be 2.0 — scatter and the rock/grass paint would have parted
+    /// company, silently, the first time that row moved (Rule 32).
     [[nodiscard]] float slope(glm::vec2 p) const {
-        const float d = 2.0f;
-        const float hx = ground({p.x + d, p.y}) - ground({p.x - d, p.y});
-        const float hz = ground({p.x, p.y + d}) - ground({p.x, p.y - d});
-        return std::atan(std::sqrt(hx * hx + hz * hz) / (2.0f * d));
+        return central_difference_slope([this](glm::vec2 q) { return ground(q); }, p);
     }
     /// §6.2 exclusion ring and the §2.4 pad ring. Both moved to
     /// WorldgenPlacement.h the day a second pass needed them (Rule 32): an
