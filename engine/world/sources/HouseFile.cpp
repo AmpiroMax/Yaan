@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:03:12
-Last updated: 18:08:2026 - 17:06:23
+Last updated: 18:08:2026 - 17:47:28
 Module: engine/world
 File: engine/world/sources/HouseFile.cpp
 
@@ -14,6 +14,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 17:03:12: Создан вместе с заголовком.
 - 18:08:2026 - 17:06:23: разбор до неподвижной точки (см. заголовок).
+- 18:08:2026 - 17:47:28: запись и чтение чисел и замкнутости (см. заголовок).
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -22,6 +23,7 @@ UPD:
 #include <cstdio>
 #include <sstream>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace dfn::world {
@@ -85,8 +87,18 @@ std::string write_house(const HouseGraph& g) {
             out << ' ' << vname(r);
         }
         out << " style=" << (e->style.empty() ? "-" : e->style);
+        if (e->closed) {
+            out << " closed=1";
+        }
         if (e->facing_flipped) {
             out << " facing=flip";
+        }
+        // ЧИСЛА ПОСЛЕДНИМИ И КАЖДОЕ СВОИМ ТОКЕНОМ. Порядок их хранения — это
+        // порядок, в котором их задал дизайнер, и переставлять его не за чем:
+        // круговой прогон обязан сойтись побайтово, а сортировка сделала бы
+        // файл, отличающийся от того, что человек написал руками.
+        for (const auto& kv : e->params) {
+            out << ' ' << kv.first << '=' << kv.second;
         }
         out << '\n';
     }
@@ -120,6 +132,8 @@ HouseIoResult read_house(const std::string& text, HouseGraph& out) {
         std::vector<std::string> refs;
         std::string style;
         bool flip = false;
+        bool closed = false;
+        std::vector<std::pair<std::string, std::string>> params;
         int line = 0;
         bool done = false;
     };
@@ -180,6 +194,20 @@ HouseIoResult read_house(const std::string& text, HouseGraph& out) {
                 }
                 if (tok == "facing=flip") {
                     w.flip = true;
+                    continue;
+                }
+                if (tok == "closed=1") {
+                    w.closed = true;
+                    continue;
+                }
+                // ЛЮБОЙ ТОКЕН С РАВНО — ПАРАМЕТР, всё остальное — ссылка на
+                // вершину. Правило простое нарочно: имена вершин задаём мы
+                // сами, и знака равенства в них нет по построению. Разбирать
+                // иначе значило бы вести список известных параметров в двух
+                // местах — здесь и в построителе меша.
+                const std::size_t eq = tok.find('=');
+                if (eq != std::string::npos && eq > 0) {
+                    w.params.emplace_back(tok.substr(0, eq), tok.substr(eq + 1));
                     continue;
                 }
                 w.refs.push_back(tok);
@@ -251,6 +279,12 @@ HouseIoResult read_house(const std::string& text, HouseGraph& out) {
             }
             if (w.flip) {
                 out.set_facing(made, true);
+            }
+            if (w.closed) {
+                out.set_closed(made, true);
+            }
+            for (auto& kv : w.params) {
+                out.set_param(made, kv.first, kv.second);
             }
             emap[w.name] = made;
             w.done = true;

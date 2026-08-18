@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 18:08:2026 - 17:06:23
+Last updated: 18:08:2026 - 17:47:28
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -19,6 +19,7 @@ UPD:
 - 18:08:2026 - 16:47:20: Создан вместе с заголовком.
 - 18:08:2026 - 16:59:04: components() и bridges() (см. заголовок).
 - 18:08:2026 - 17:06:23: то же (см. заголовок).
+- 18:08:2026 - 17:47:28: set_style/set_param/set_closed/param (см. заголовок).
 */
 
 #include "engine/world/sources/HouseGraph.h"
@@ -157,6 +158,52 @@ GraphResult HouseGraph::set_facing(ElementId id, bool flipped) {
         return {false, "такого элемента нет", {}};
     }
     e->facing_flipped = flipped;
+    return {};
+}
+
+GraphResult HouseGraph::set_style(ElementId id, std::string style) {
+    Element* e = find_element(id);
+    if (e == nullptr) {
+        return {false, "такого элемента нет", {}};
+    }
+    e->style = std::move(style);
+    return {};
+}
+
+GraphResult HouseGraph::set_param(ElementId id, std::string key, std::string value) {
+    Element* e = find_element(id);
+    if (e == nullptr) {
+        return {false, "такого элемента нет", {}};
+    }
+    for (auto& kv : e->params) {
+        if (kv.first == key) {
+            kv.second = std::move(value);
+            return {};
+        }
+    }
+    e->params.emplace_back(std::move(key), std::move(value));
+    return {};
+}
+
+GraphResult HouseGraph::set_closed(ElementId id, bool closed) {
+    Element* e = find_element(id);
+    if (e == nullptr) {
+        return {false, "такого элемента нет", {}};
+    }
+    e->closed = closed;
+    return {};
+}
+
+std::string HouseGraph::param(ElementId id, const std::string& key) const {
+    const Element* e = element(id);
+    if (e == nullptr) {
+        return {};
+    }
+    for (const auto& kv : e->params) {
+        if (kv.first == key) {
+            return kv.second;
+        }
+    }
     return {};
 }
 

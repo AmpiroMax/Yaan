@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 17:06:23
+Last updated: 18:08:2026 - 17:47:28
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -30,6 +30,7 @@ UPD:
   Контрфакт: выродил гиперребро в связь первой пары — 2 случая красных.
 - 18:08:2026 - 17:06:23: каскад, круговой прогон, отказы читателя. Случай про цикл нашёл изъян
   НЕ ТАМ, где искал: читатель не давал сослаться на вершину, сидящую на оси.
+- 18:08:2026 - 17:47:28: числа и замкнутость в круговом прогоне; параметр против ссылки.
 */
 
 #include <doctest/doctest.h>
@@ -474,4 +475,60 @@ TEST_CASE("на вершину, сидящую на оси, МОЖНО сосл�
     CHECK(g.element_count() == 2);
     // Второй ярус разрешается насквозь: v5 на балке, балка от вершины на столбе.
     CHECK(g.components().size() == 1);
+}
+
+TEST_CASE("числа и замкнутость переживают круговой прогон") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+    const VertexId c = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 3.0f});
+    ElementId post = 0;
+    ElementId floor = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b}, "oak", post).ok);
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b, c}, "planks", floor).ok);
+
+    REQUIRE(g.set_param(post, "form", "square").ok);
+    REQUIRE(g.set_param(post, "radius", "0.15").ok);
+    REQUIRE(g.set_param(floor, "thickness", "0.25").ok);
+    REQUIRE(g.set_param(floor, "tex_deg", "45").ok);
+    REQUIRE(g.set_closed(floor, true).ok);
+
+    const std::string text = dfn::world::write_house(g);
+    HouseGraph back;
+    const auto r = dfn::world::read_house(text, back);
+    REQUIRE_MESSAGE(r.ok, r.why);
+
+    // ПОБАЙТОВО. Числа, потерянные при записи, обнаружатся не сразу: дом
+    // прочитается, построится и будет выглядеть почти так же — с квадратным
+    // столбом, ставшим круглым.
+    CHECK(dfn::world::write_house(back) == text);
+    CHECK(back.param(post, "form") == "square");
+    CHECK(back.param(post, "radius") == "0.15");
+    CHECK(back.element(floor)->closed);
+    CHECK_FALSE(back.element(post)->closed);
+
+    // ЗАМКНУТОСТЬ — ЖЕСТ, А НЕ СЛЕДСТВИЕ ЧИСЕЛ. Раньше построитель угадывал её
+    // по «высота больше нуля»; угадывание ломается молча на плоском поле с
+    // заданной высотой или на стене нулевой высоты.
+    CHECK(back.param(floor, "thickness") == "0.25");
+}
+
+TEST_CASE("параметр отличается от ссылки на вершину по знаку равенства") {
+    // Имена вершин задаём мы сами, и знака равенства в них нет по построению.
+    // Правило простое нарочно: разбирать иначе значило бы вести список
+    // известных параметров в двух местах — в читателе и в построителе меша.
+    const std::string text =
+        "# dfh 1\n"
+        "vertex v1 ground 0.0000 0.0000 0.0000\n"
+        "vertex v2 ground 4.0000 0.0000 0.0000\n"
+        "line e1 v1 v2 style=oak form=round radius=0.12 unknown_key=42\n";
+    HouseGraph g;
+    const auto r = dfn::world::read_house(text, g);
+    REQUIRE_MESSAGE(r.ok, r.why);
+    REQUIRE(g.element_count() == 1);
+    CHECK(g.element(1)->refs.size() == 2);
+    // Незнакомый параметр НЕ ОТВЕРГАЕТСЯ: модель их не толкует, толкует
+    // построитель. Отвергать здесь значило бы держать список параметров в
+    // модели, которой они безразличны.
+    CHECK(g.param(1, "unknown_key") == "42");
 }
