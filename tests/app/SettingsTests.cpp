@@ -1,0 +1,134 @@
+/*
+Created: 18:08:2026 - 18:12:50
+Last updated: 18:08:2026 - 18:19:47
+Module: tests
+File: tests/app/SettingsTests.cpp
+
+Responsibility:
+- НАСТРОЙКИ: разбор текста и печать. Заказ пользователя 18.08 — вынести их из
+  App.cpp, — и вынос имеет смысл ровно потому, что даёт вот этот рукав: пока
+  разбор сидел внутри файла, который владеет окном, проверить его было нечем.
+
+Key items:
+- Круговой прогон: настройки -> текст -> настройки.
+- ОТКАЗ ОТ НЕВЕРНОГО значения оставляет прежнее, а не подгоняет к ближайшему.
+- Мусор в файле не роняет разбор: файл правит человек.
+
+Dependencies:
+- Uses: doctest, AppSettings.cpp.
+- Used by: ctest (app_settings).
+
+AI Agents Notice (must follow):
+- Правило 30: проверка обязана краснеть. Здесь она краснеет, если неверное
+  значение начнут подгонять, если круговой прогон потеряет поле и если
+  неизвестный ключ уронит разбор.
+*/
+/*
+UPD:
+- 18:08:2026 - 18:12:50: Создан вместе с выносом настроек.
+- 18:08:2026 - 18:19:47: ПРЕЖНЕЕ ЗНАЧЕНИЕ В СЛУЧАЕ ПРО ОТКАЗ ВЫБРАНО ТАК, ЧТОБЫ ОТЛИЧАТЬСЯ ОТ
+  ПОДГОНКИ. Сначала я ставил 4 и подавал msaa=3 — подгонка «к ближайшему» тоже
+  даёт 4, ответ совпадал случайно, и контрфакт оставался ЗЕЛЁНЫМ. Проверка, чей
+  правильный ответ совпадает с неправильным, не проверяет ничего.
+*/
+
+#include <doctest/doctest.h>
+
+#include "engine/app/sources/App.h"
+#include "engine/app/sources/AppSettings.h"
+
+using dfn::app::AppConfig;
+using dfn::app::settings_from_text;
+using dfn::app::settings_to_text;
+
+TEST_CASE("круговой прогон настроек не теряет ни одного поля") {
+    AppConfig a;
+    a.internal_width = 640;
+    a.internal_height = 360;
+    a.msaa_samples = 4;
+    a.fullscreen = true;
+    a.palette_post = true;
+    a.show_menu = false;
+    a.head_bob = 0.5f;
+    a.black_floor = 0.08f;
+
+    AppConfig b;
+    settings_from_text(settings_to_text(a), b);
+
+    // ПОЛЕ ЗА ПОЛЕМ, а не «похоже». Настройка, потерянная при записи,
+    // обнаружится не сразу: игра поднимется с умолчанием, и человек решит, что
+    // это он что-то не так нажал.
+    CHECK(b.internal_width == 640);
+    CHECK(b.internal_height == 360);
+    CHECK(b.msaa_samples == 4);
+    CHECK(b.fullscreen);
+    CHECK(b.palette_post);
+    CHECK_FALSE(b.show_menu);
+    CHECK(b.head_bob == doctest::Approx(0.5f));
+    CHECK(b.black_floor == doctest::Approx(0.08f));
+
+    // И текст СХОДИТСЯ САМ С СОБОЙ: два прогона одного состояния дают один
+    // файл, иначе diff настроек перестанет что-либо значить.
+    CHECK(settings_to_text(b) == settings_to_text(a));
+}
+
+TEST_CASE("неверное значение ОТВЕРГАЕТСЯ, а не подгоняется к ближайшему") {
+    AppConfig cfg;
+    // ПРЕЖНЕЕ ЗНАЧЕНИЕ ВЫБРАНО ТАК, ЧТОБЫ ОТЛИЧАТЬСЯ ОТ ПОДГОНКИ, и это не
+    // мелочь. Сначала я ставил 4 и подавал msaa=3 — а подгонка «к ближайшему»
+    // тоже даёт 4, ответ совпадал случайно, и контрфакт оставался ЗЕЛЁНЫМ.
+    // Проверка, чей правильный ответ совпадает с неправильным, не проверяет
+    // ничего. 8 против 3: отказ оставит 8, любая подгонка даст 2 или 4.
+    cfg.msaa_samples = 8;
+
+    // 3 не входит в допустимые 0/1/2/4/8. Молча приведённое значение выглядело
+    // бы как работающая настройка и рисовало другой мир — а человек остался бы
+    // уверен, что выставил три.
+    settings_from_text("msaa=3\n", cfg);
+    CHECK(cfg.msaa_samples == 8); // прежнее, не 2 и не 4
+
+    // Допустимое — принимается. Контроль обязателен: без него утверждение
+    // прошло бы и на разборе, который ИГНОРИРУЕТ msaa вообще.
+    settings_from_text("msaa=2\n", cfg);
+    CHECK(cfg.msaa_samples == 2);
+
+    // То же про диапазоны: вне границ — прежнее.
+    cfg.head_bob = 1.0f;
+    settings_from_text("head_bob=5.0\n", cfg);
+    CHECK(cfg.head_bob == doctest::Approx(1.0f));
+    settings_from_text("head_bob=0.25\n", cfg);
+    CHECK(cfg.head_bob == doctest::Approx(0.25f));
+
+    cfg.black_floor = 0.05f;
+    settings_from_text("min_brightness=0.9\n", cfg); // потолок 0.25
+    CHECK(cfg.black_floor == doctest::Approx(0.05f));
+}
+
+TEST_CASE("мусор в файле не роняет разбор — файл правит человек") {
+    AppConfig cfg;
+    cfg.internal_width = 1920;
+    cfg.msaa_samples = 2;
+
+    // Комментарии, пустые строки, строка без знака равенства, неизвестный
+    // ключ. Ни одно из этого не повод потерять остальные настройки: человек
+    // редактирует файл руками, и опечатка в одной строке не должна стоить ему
+    // всех остальных.
+    settings_from_text(
+        "# комментарий\n"
+        "\n"
+        "строка без равно\n"
+        "неизвестный_ключ=42\n"
+        "internal_resolution=800x600\n",
+        cfg);
+    CHECK(cfg.internal_width == 800);
+    CHECK(cfg.internal_height == 600);
+    CHECK(cfg.msaa_samples == 2); // не тронуто
+
+    // А ВОТ ИСПОРЧЕННОЕ РАЗРЕШЕНИЕ — не принимается: ноль по любой стороне
+    // означал бы окно нулевого размера, и это не «настройка со странным
+    // значением», а неработающая игра.
+    settings_from_text("internal_resolution=0x600\n", cfg);
+    CHECK(cfg.internal_width == 800);
+    settings_from_text("internal_resolution=мусор\n", cfg);
+    CHECK(cfg.internal_width == 800);
+}

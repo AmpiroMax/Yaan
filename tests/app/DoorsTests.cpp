@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 18:08:2026 - 17:32:10
+Last updated: 18:08:2026 - 18:19:47
 Module: tests/app
 File: tests/app/DoorsTests.cpp
 
@@ -30,6 +30,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 17:32:10: Создан. Слой 2 разбора App.cpp: рукав на таблицу дверей.
+- 18:08:2026 - 18:19:47: AppWorld.cpp и AppSettings.cpp в списке. СПИСОК ПОЙМАЛ ПЕРЕНОС САМ:
+  DFN_TOUR_DIR читается в enter_world, и как только она уехала, дверь стала
+  «описанной, но никем не читаемой». Ровно то, ради чего рукав написан.
 */
 
 #include <doctest/doctest.h>
@@ -53,7 +56,12 @@ namespace {
 // IS the table, so every name appears there by definition.
 const std::vector<std::string>& app_sources() {
     static const std::vector<std::string> v{
+        // AppWorld.cpp и AppSettings.cpp дописаны 18.08 при выносе enter_world и
+        // настроек. Список ПОЙМАЛ ЭТОТ ПЕРЕНОС САМ: DFN_TOUR_DIR читается в
+        // enter_world, и как только она уехала в другой файл, дверь стала
+        // «описанной, но никем не читаемой». Ровно то, ради чего рукав написан.
         "engine/app/sources/App.cpp",       "engine/app/sources/AppInput.cpp",
+        "engine/app/sources/AppWorld.cpp",  "engine/app/sources/AppSettings.cpp",
         "engine/app/sources/AppActions.cpp", "engine/app/sources/DebugOverlay.cpp",
         "engine/app/sources/HudScreen.cpp", "engine/app/sources/EditorHud.cpp",
         "engine/app/sources/Menu.cpp",      "engine/app/sources/ChatLog.cpp",

@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 18:08:2026 - 17:36:58
+# Last updated: 18:08:2026 - 18:02:11
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -105,6 +105,13 @@
 #   без .png рядом), период телеметрии (счётное время, а не кадры) и приговор
 #   восстановлению (порог стоял на 3D-расстоянии и кричал бы на каждом).
 #   Цель не линкует НИ ОДНОГО .cpp зоны: решения лежат заголовком (inline).
+# - 18:08:2026 - 18:02:11: app_editor_house — ТРИ ИНСТРУМЕНТА ПОСТРОЙКИ поверх HouseGraph.
+#   Держит то, чего кадр не держит: число штрихов отвеса отличает вершину в
+#   воздухе от вершины на земле (кадр показывает и то и другое одинаково —
+#   высота и дальность на экране неразличимы), нормаль черновика
+#   переворачивается порядком обхода ДО подтверждения, отказ на удаление
+#   называет держателей, зажим длины садится на 5.00 м вверх и на 2.00 м вниз
+#   при руке на 3.50 м, и отмена возвращает координату, а не только счётчик.
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -227,6 +234,21 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_editor_history PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorHistory.cpp)
 
+    # ТРИ ИНСТРУМЕНТА ПОСТРОЙКИ. Цель линкует EditorToolHouse.cpp и НЕ линкует
+    # EditorToolHouseUi.cpp: во втором живёт ImGui, а вместе с ним и контекст
+    # окна. Разрез проведён ровно затем, чтобы эти вопросы можно было задать
+    # вообще: куда смотрит нормаль ДО подтверждения, кто держит вершину, которую
+    # не дали удалить, на сколько зажалась длина и чем отвес отличает вершину в
+    # воздухе от вершины на земле (правило 3).
+    add_dfn_test(app_editor_house app/EditorToolHouseTests.cpp dfn_world dfn_render dfn_core)
+    target_sources(app_editor_house PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorToolHouse.cpp
+        ${CMAKE_SOURCE_DIR}/engine/editor/sources/EditorHistory.cpp
+        # НУЛЕВАЯ ПАНЕЛЬ вместо ImGui-шной: таблица виртуальных функций требует
+        # тело draw_settings(), а настоящее тело тянет EditorUi и через него
+        # окно. Правило 3 своими словами — нулевой бэкенд, а не заглушка.
+        app/EditorToolHouseNullPanels.cpp)
+
     # ХВОСТ КАДРА. Решения, которые он принимает, лежат заголовком (inline), и
     # эта цель НИЧЕГО из зоны app не линкует — ни одного .cpp. Так и задумано:
     # затвор тура, отсчёт до закрытия, период телеметрии и приговор
@@ -241,6 +263,13 @@ if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_doors app/DoorsTests.cpp dfn_core)
     target_sources(app_doors PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+
+    # НАСТРОЙКИ. Цель линкует ТОЛЬКО AppSettings.cpp: разбор текста отделён от
+    # файла и от окна, и это единственная причина, по которой вынос из App.cpp
+    # имеет смысл — раньше проверить его было нечем.
+    add_dfn_test(app_settings app/SettingsTests.cpp dfn_render dfn_core)
+    target_sources(app_settings PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppSettings.cpp)
 
     add_dfn_test(app_controls app/ControlsTests.cpp dfn_render dfn_core)
     # ТАБЛИЦА ДИСПЕТЧЕРИЗАЦИИ — на тот же рукав и по той же причине, по которой

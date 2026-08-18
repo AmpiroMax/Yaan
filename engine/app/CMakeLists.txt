@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 18:08:2026 - 17:36:58
+# Last updated: 18:08:2026 - 18:19:47
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -95,6 +95,8 @@ if(DFN_APP_READY)
         sources/AppDoors.cpp
         sources/AppHud.cpp
         sources/AppInput.cpp
+    sources/AppSettings.cpp
+    sources/AppWorld.cpp
         sources/AssetBake.cpp
         sources/BuildTool.cpp
         sources/ChatLog.cpp
@@ -142,3 +144,8 @@ if(DFN_APP_READY)
     add_dependencies(dfn_app dfn_buildinfo)
     target_include_directories(dfn_app PRIVATE "${DFN_BUILDINFO_DIR}")
 endif()
+# - 18:08:2026 - 18:19:47: AppSettings.cpp, AppWorld.cpp, AppInternal.h — реализация класса
+#   разложена по нескольким .cpp по заказу пользователя. Заголовок остаётся
+#   один: «app.h нормальный по размерам, может по разным cpp файлам реализацию
+#   класс раскидаем?».
+
