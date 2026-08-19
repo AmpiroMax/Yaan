@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 00:02:30
+Last updated: 20:08:2026 - 00:58:40
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -33,6 +33,7 @@ UPD:
 - 19:08:2026 - 04:05:50: Потоки по mat/tone из параметров элемента; дверь — свой поток с петлёй и ВНЕ коллайдера; демо-сруб получил дверь из тёмной доски.
 - 19:08:2026 - 05:26:10: Демо-сруб: вторая стена обшита с двумя окнами.
 - 20:08:2026 - 00:02:30: App печёт свотчи материалов из листа набора и составные примеры заполнения (штукатурка + брус + проёмы), кэш по ключу.
+- 20:08:2026 - 00:58:40: Бакеты уважают материал куска; свотчи и карточки светятся по листу нормалей («плоские текстуры» 20.08); карточки кирпича и блоков; демо-сруб получил кирпичную стену.
 */
 
 #include "engine/app/sources/App.h"
@@ -284,6 +285,14 @@ void App::seed_demo_house() {
             g.set_param(wall, "door", "1");
             g.set_param(wall, "hinge", "0");
         }
+        // И КИРПИЧНАЯ СТЕНА — кладка кусочками с перевязкой на кадре.
+        world::ElementId brick_wall = world::NO_ELEMENT;
+        if (g.add_element(ElementKind::Surface, {low[2], low[3]}, "", brick_wall).ok) {
+            g.set_param(brick_wall, "height", "2.5");
+            g.set_param(brick_wall, "thickness", "0.10");
+            g.set_param(brick_wall, "fill", "2");
+            g.set_param(brick_wall, "windows", "1");
+        }
         // И ОБШИТАЯ СТЕНА С ОКНАМИ — на кадре обязано быть видно, что доски,
         // раскосы и рамы стали ГЕОМЕТРИЕЙ, а не картинкой.
         world::ElementId clad_wall = world::NO_ELEMENT;
@@ -303,6 +312,26 @@ void App::seed_demo_house() {
                  house_.graph().vertex_count(), house_.graph().element_count());
 }
 
+/// СВОТЧ СВЕТИТСЯ ПО ЛИСТУ НОРМАЛЕЙ. Плоское альбедо человек прочитал как
+/// «нет объёмных вариантов, только плоские текстуры» (20.08) — и был прав:
+/// в мире борозды даёт пер-пиксельный рельеф, а картинка в меню его не несла,
+/// то есть ОБЕЩАЛА другой материал. Свет фиксированный, сверху-слева, как у
+/// эталонных кадров каталога деталей.
+static void shade_by_normal(std::uint8_t* dst, const std::uint8_t* albedo,
+                            const std::uint8_t* normal) {
+    const float nx = static_cast<float>(normal[0]) / 127.5f - 1.0f;
+    const float ny = static_cast<float>(normal[1]) / 127.5f - 1.0f;
+    const float nz = static_cast<float>(normal[2]) / 127.5f - 1.0f;
+    // L = normalize(-0.45, -0.55, 0.70): сверху-слева, к зрителю.
+    const float diff = std::max(nx * -0.45f + ny * -0.55f + nz * 0.70f, 0.0f);
+    const float lit = 0.35f + 0.80f * diff;
+    for (int c = 0; c < 3; ++c) {
+        dst[c] = static_cast<std::uint8_t>(
+            std::min(255.0f, static_cast<float>(albedo[c]) * lit));
+    }
+    dst[3] = 255;
+}
+
 std::uint64_t App::house_material_swatch(int surface, int tone, int px) {
     // ПЕЧЁТСЯ ИЗ ТОГО ЖЕ ЛИСТА, ЧТО НОСЯТ СТЕНЫ: свотч, нарисованный отдельно,
     // разошёлся бы с материалом в мире в первый же день правки листа.
@@ -314,14 +343,16 @@ std::uint64_t App::house_material_swatch(int surface, int tone, int px) {
     }
     const std::uint32_t side = static_cast<std::uint32_t>(std::max(px, 16));
     const render::PartsAtlas sheet = render::generate_parts_atlas(side);
+    const render::PartsAtlas normals = render::generate_parts_normal_atlas(side);
     std::vector<std::uint8_t> tile(static_cast<std::size_t>(side) * side * 4u);
     const std::uint32_t x0 = static_cast<std::uint32_t>(surface) * side;
     const std::uint32_t y0 = static_cast<std::uint32_t>(tone) * side;
     for (std::uint32_t y = 0; y < side; ++y) {
-        const std::uint8_t* src =
-            sheet.pixels.data() + (static_cast<std::size_t>(y0 + y) * sheet.width + x0) * 4u;
-        std::copy(src, src + static_cast<std::size_t>(side) * 4u,
-                  tile.begin() + static_cast<std::size_t>(y) * side * 4u);
+        const std::size_t row = (static_cast<std::size_t>(y0 + y) * sheet.width + x0) * 4u;
+        for (std::uint32_t x = 0; x < side; ++x) {
+            shade_by_normal(&tile[(static_cast<std::size_t>(y) * side + x) * 4u],
+                            &sheet.pixels[row + x * 4u], &normals.pixels[row + x * 4u]);
+        }
     }
     const std::uint64_t tex = editor_ui_.make_texture(side, side, tile.data());
     house_swatches_.emplace(key, tex);
@@ -342,17 +373,37 @@ std::uint64_t App::house_wall_example(int variant, int px) {
     const std::uint32_t w = static_cast<std::uint32_t>(std::max(px, 32));
     const std::uint32_t h = w * 2u / 3u;
     const render::PartsAtlas sheet = render::generate_parts_atlas(64);
-    const auto sheet_px = [&](std::uint32_t surface, std::uint32_t tone, std::uint32_t x,
-                              std::uint32_t y) {
+    const render::PartsAtlas normals = render::generate_parts_normal_atlas(64);
+    const auto sheet_off = [&](std::uint32_t surface, std::uint32_t tone, std::uint32_t x,
+                               std::uint32_t y) {
         const std::uint32_t sx = surface * 64u + (x % 64u);
         const std::uint32_t sy = tone * 64u + (y % 64u);
-        return &sheet.pixels[(static_cast<std::size_t>(sy) * sheet.width + sx) * 4u];
+        return (static_cast<std::size_t>(sy) * sheet.width + sx) * 4u;
     };
     std::vector<std::uint8_t> img(static_cast<std::size_t>(w) * h * 4u);
     for (std::uint32_t y = 0; y < h; ++y) {
         for (std::uint32_t x = 0; x < w; ++x) {
             // Фон — штукатурка (светлая).
-            const std::uint8_t* src = sheet_px(5, 0, x, y);
+            std::size_t off = sheet_off(5, 0, x, y);
+            if (variant == 3 || variant == 4) {
+                // КЛАДКА: ряды с перевязкой; шов тёмный. Кирпич мельче, блок
+                // крупнее; материал — глина или камень из того же листа.
+                const std::uint32_t uh = variant == 3 ? h / 8u : h / 4u;
+                const std::uint32_t ul = variant == 3 ? w / 6u : w / 3u;
+                const std::uint32_t seam = std::max(w / 48u, 1u);
+                const std::uint32_t row = y / uh;
+                const std::uint32_t xo = x + (row % 2u) * (ul / 2u);
+                const bool in_seam = (y % uh) < seam || (xo % ul) < seam;
+                std::uint8_t* dst = &img[(static_cast<std::size_t>(y) * w + x) * 4u];
+                if (in_seam) {
+                    dst[0] = 30; dst[1] = 27; dst[2] = 24; dst[3] = 255;
+                } else {
+                    const std::size_t moff =
+                        sheet_off(variant == 3 ? 4u : 3u, 1, x, y);
+                    shade_by_normal(dst, &sheet.pixels[moff], &normals.pixels[moff]);
+                }
+                continue;
+            }
             bool timber = false;
             if (variant >= 1) {
                 // Доски: рамка по краю и стойки каждые ~w/4; раскос — диагональ.
@@ -376,13 +427,13 @@ std::uint64_t App::house_wall_example(int variant, int px) {
                       && ((x >= wx0 && x < wx1) || (x >= wx2 && x < wx3));
             }
             if (timber) {
-                src = sheet_px(0, 1, x, y); // тёсаный брус, средний
+                off = sheet_off(0, 1, x, y); // тёсаный брус, средний
             }
             std::uint8_t* dst = &img[(static_cast<std::size_t>(y) * w + x) * 4u];
             if (window) {
                 dst[0] = 24; dst[1] = 20; dst[2] = 16; dst[3] = 255;
             } else {
-                dst[0] = src[0]; dst[1] = src[1]; dst[2] = src[2]; dst[3] = 255;
+                shade_by_normal(dst, &sheet.pixels[off], &normals.pixels[off]);
             }
         }
     }
@@ -433,6 +484,14 @@ void App::upload_house_mesh() {
         std::uint32_t surface = 0;
         std::uint32_t tone = 0;
         mat_of(*e, surface, tone);
+        // КУСОК КЛАДКИ НЕСЁТ СВОЙ МАТЕРИАЛ: доска фахверка — брус, кирпич —
+        // глина, блок — камень. Элементный материал остаётся у пластины.
+        if (part.mat_override >= 0) {
+            surface = static_cast<std::uint32_t>(part.mat_override) % 9u;
+        }
+        if (part.tone_override >= 0) {
+            tone = static_cast<std::uint32_t>(part.tone_override) % 4u;
+        }
         const bool is_door = house_.graph().param(e->id, "door") == "1";
         render::MeshData* into = nullptr;
         if (is_door) {

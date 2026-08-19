@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 19:08:2026 - 05:26:10
+Last updated: 20:08:2026 - 00:58:40
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -32,6 +32,7 @@ UPD:
   «высота решает», и смена правила их обнажила — это не поломка рукава, а его
   работа: правило сменилось, и все, кто на него опирался, назвались сами.
 - 19:08:2026 - 05:26:10: Обшивка: голая стена 12 тр. (контроль), обшитая 564; окно НЕ масштабируется на вдвое длинной стене; «просили 5, влезло 1» говорится находкой.
+- 20:08:2026 - 00:58:40: Кладка: >1000 треугольников, куски глины отдельными частями, перевязка ловится полукирпичным швом на 0.125 (сравнение минимумов не работало — оба ряда прижаты нулём).
 */
 
 #include <doctest/doctest.h>
@@ -912,4 +913,79 @@ TEST_CASE("обшивка: доски, раскосы и рамы — ГЕОМЕ
         }
     }
     CHECK(said);
+}
+
+TEST_CASE("кладка — КУСКИ с перевязкой, и у кусков СВОЙ материал") {
+    // Заказ 20.08: «не просто текстуру — стену собрать из кирпичиков, из
+    // каменных блоков». Кусок — плашка со своей глубиной; каждый второй ряд
+    // сдвинут на полкуска.
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {3.0f, 0.0f, 0.0f});
+    ElementId wall = 0;
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b},
+                          "frame;height=2.0;thickness=0.1;fill=2", wall)
+                .ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+
+    // Кирпичей на 3x2 м при кирпиче 25x6.5 см — сотни; каждый кусок 12
+    // треугольников. Порог грубый нарочно: он ловит «кладку не построили»,
+    // а не пересчитывает кирпичи.
+    CHECK(m.triangle_count() > 1000);
+
+    // ПОД-ЧАСТИ: у стены их несколько, и у кладки материал ГЛИНЫ (4), а у
+    // пластины — элементный (-1). Это и есть «собрана из кусков».
+    int clay_parts = 0;
+    int element_parts = 0;
+    for (const dfn::world::MeshPart& p : m.parts) {
+        if (p.element != wall) {
+            continue;
+        }
+        if (p.mat_override == 4) {
+            ++clay_parts;
+        }
+        if (p.mat_override == -1) {
+            ++element_parts;
+        }
+    }
+    CHECK(clay_parts >= 1);
+    CHECK(element_parts >= 1);
+    MESSAGE("частей глины: " << clay_parts << ", элементных: " << element_parts
+            << ", треугольников: " << m.triangle_count());
+
+    // ПЕРЕВЯЗКА ЧИСЛОМ: в двух соседних рядах кирпичи начинаются с разных u.
+    // Берём вершины кладки (глиняные под-части), группируем по высоте.
+    // КОНТРОЛЬ у самой проверки: без перевязки (одинаковые u) она обязана
+    // упасть — это ловится сравнением множеств стартов.
+    std::vector<float> row0_u;
+    std::vector<float> row1_u;
+    for (const dfn::world::MeshPart& p : m.parts) {
+        if (p.element != wall || p.mat_override != 4) {
+            continue;
+        }
+        for (std::uint32_t i = 0; i < p.index_count; ++i) {
+            const auto& v = m.vertices[m.indices[p.index_begin + i]];
+            if (v.pos.y < 0.001f) {
+                row0_u.push_back(v.pos.x);
+            } else if (v.pos.y > 0.074f && v.pos.y < 0.076f) {
+                row1_u.push_back(v.pos.x);
+            }
+        }
+    }
+    REQUIRE_FALSE(row0_u.empty());
+    REQUIRE_FALSE(row1_u.empty());
+    // ПРИЗНАК ПЕРЕВЯЗКИ — ПОЛУКИРПИЧ: нечётный ряд начинается половинкой, и её
+    // шов стоит на u = 0.125 (полкирпича). В чётном ряду такого шва НЕТ — его
+    // первый шов на 0.25. Сравнение минимумов здесь не работает: оба ряда
+    // прижаты к торцу нулём, и первый заход этой проверки это показал.
+    const auto has_near = [](const std::vector<float>& v, float x) {
+        for (const float u : v) {
+            if (std::fabs(u - x) < 0.01f) {
+                return true;
+            }
+        }
+        return false;
+    };
+    CHECK(has_near(row1_u, 0.125f));
+    CHECK_FALSE(has_near(row0_u, 0.125f));
 }

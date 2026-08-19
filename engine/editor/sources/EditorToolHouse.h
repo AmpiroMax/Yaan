@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 23:58:20
+Last updated: 20:08:2026 - 00:58:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.h
 
@@ -89,6 +89,7 @@ UPD:
 - 19:08:2026 - 01:20:45: Объявлена draw_house_selection_panel.
 - 19:08:2026 - 02:05:30: Сессия и числа руки выехали в HouseSession.h (долг 3): здесь остались три инструмента.
 - 19:08:2026 - 23:58:20: Заготовка инструментов: материал/тон/форма у прямой, материал/тон/обшивка/окна у поверхности; доступ по ссылке для панели и рукава.
+- 20:08:2026 - 00:58:40: Заготовка поверхности: вид кладки (fill).
 */
 
 #pragma once
@@ -403,6 +404,7 @@ public:
     [[nodiscard]] int& draft_mat() { return mat_; }
     [[nodiscard]] int& draft_tone() { return tone_; }
     [[nodiscard]] bool& draft_clad() { return clad_; }
+    [[nodiscard]] int& draft_fill() { return fill_; }
     [[nodiscard]] int& draft_windows() { return windows_; }
 
 private:
@@ -410,6 +412,7 @@ private:
     int tone_ = 0;  ///< светлый
     bool clad_ = false;
     int windows_ = 0;
+    int fill_ = 0; ///< 0 гладкая/фахверк, 2 кирпич, 3 блоки
     float thickness_m_ = 0.20f;
     float tex_deg_ = 0.0f;
     std::string style_ = "plank";

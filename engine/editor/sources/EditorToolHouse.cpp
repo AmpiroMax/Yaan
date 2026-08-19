@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 23:58:20
+Last updated: 20:08:2026 - 00:58:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -47,6 +47,7 @@ UPD:
 - 19:08:2026 - 00:48:20: Метка двигаемого якоря вместо призрака: крест по трём осям, формой отличается от шарика.
 - 19:08:2026 - 03:22:40: Сетка действует на осях (перетаскивание, прямая, посадка на бревно с пересчётом t); обход стены — жирным пучком со стрелками направления, жёлтые только ВЫБРАННЫЕ якоря (line_color больше не жёлтый).
 - 19:08:2026 - 23:58:20: Создание штампует заготовку в params элемента (stamp_draft у прямой, confirm у поверхности); умолчания ключей не пишут.
+- 20:08:2026 - 00:58:40: Штамп fill при создании.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1620,9 +1621,12 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
         g.set_param(made, "tone", std::to_string(tone_));
         if (!closed && clad_) {
             g.set_param(made, "clad", "1");
-            if (windows_ > 0) {
-                g.set_param(made, "windows", std::to_string(windows_));
-            }
+        }
+        if (!closed && fill_ >= 2) {
+            g.set_param(made, "fill", std::to_string(fill_));
+        }
+        if (!closed && (clad_ || fill_ >= 2) && windows_ > 0) {
+            g.set_param(made, "windows", std::to_string(windows_));
         }
         if (!closed) {
             // ВЫСОТА — ТОЛЬКО У ЦЕПОЧКИ. У контура она означала бы вторую

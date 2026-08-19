@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 19:08:2026 - 05:26:10
+Last updated: 20:08:2026 - 00:58:40
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -32,6 +32,7 @@ UPD:
 - 18:08:2026 - 23:52:10: surface_centre считает среднее; расчёт равноудалённой точки убран.
 - 19:08:2026 - 04:05:50: Поворот текстуры — вокруг СРЕДНЕЙ точки грани (крышка и каждая грань ранта); sides доезжает из поля params; свойства чужих слоёв (mat/tone/door/hinge) — не находка.
 - 19:08:2026 - 05:26:10: Обшивка по раскладке HouseStyle стала ГЕОМЕТРИЕЙ: доски, раскосы (выступают дальше досок), рамы проёмов по периметру; push_wall_slab выправляет обход по знаку площади; clad/windows в разборе свойств.
+- 20:08:2026 - 00:58:40: Кладка рядами с перевязкой и детерминированной дрожью глубины (хэш ряда и колонки — две сборки дают один меш); под-части по материалу через MeshBuilder.set_material; фахверк — брус, кирпич — глина, блоки — камень.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -180,6 +181,43 @@ glm::vec3 stable_reference_axis(glm::vec3 dir) {
 struct MeshBuilder {
     HouseMesh* out = nullptr;
 
+    // -- ПОД-ЧАСТИ С МАТЕРИАЛОМ (кладка, 20.08). Стена собирается ИЗ КУСКОВ:
+    // доски фахверка — брус, кирпичи — глина, блоки — камень, а элемент один.
+    // Границы частей режутся сменой материала; думает о них только кладка,
+    // остальной код зовёт begin/end и живёт как раньше.
+    ElementId part_element = NO_ELEMENT;
+    std::uint32_t part_begin = 0;
+    int part_mat = -1;
+    int part_tone = -1;
+
+    void begin_element(ElementId id) {
+        part_element = id;
+        part_begin = static_cast<std::uint32_t>(out->indices.size());
+        part_mat = -1;
+        part_tone = -1;
+    }
+    void flush_part() {
+        const std::uint32_t now = static_cast<std::uint32_t>(out->indices.size());
+        if (part_element != NO_ELEMENT && now > part_begin) {
+            out->parts.push_back({part_element, part_begin, now - part_begin, part_mat,
+                                  part_tone});
+        }
+        part_begin = now;
+    }
+    /// Дальше идёт геометрия ЭТОГО материала (-1 — материал элемента).
+    void set_material(int mat, int tone) {
+        if (mat == part_mat && tone == part_tone) {
+            return;
+        }
+        flush_part();
+        part_mat = mat;
+        part_tone = tone;
+    }
+    void end_element() {
+        flush_part();
+        part_element = NO_ELEMENT;
+    }
+
     void push_triangle(glm::vec3 a, glm::vec3 b, glm::vec3 c, const UvFrame& uv) {
         const glm::vec3 raw = glm::cross(b - a, c - a);
         const float len = glm::length(raw);
@@ -220,6 +258,7 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
         {"angle_z", &ElementParams::angle_z},     {"thickness", &ElementParams::thickness},
         {"height", &ElementParams::height},       {"tex_deg", &ElementParams::tex_deg},
         {"clad", &ElementParams::clad},           {"windows", &ElementParams::windows},
+        {"fill", &ElementParams::fill},
     };
 
     ElementParams p;
@@ -782,6 +821,58 @@ static void push_wall_slab(MeshBuilder& mb, HouseMesh& mesh, ElementId owner,
     push_prism(mb, loop, tris, face_n * thickness, tex_deg, mesh, owner);
 }
 
+/// ДЕТЕРМИНИРОВАННАЯ ДРОЖЬ ГЛУБИНЫ КУСКА КЛАДКИ. Хэш ряда и колонки, а не
+/// случайность: две сборки одного графа обязаны дать побайтово один меш (на
+/// этом стоит рукав), а глубина, разная у соседей, и есть «объём» кладки.
+static float course_jitter(int row, int col) {
+    std::uint32_t h = static_cast<std::uint32_t>(row * 73856093) ^
+                      static_cast<std::uint32_t>(col * 19349663);
+    h = (h ^ (h >> 13)) * 0x85ebca6bu;
+    return static_cast<float>((h >> 16) & 0xFFu) / 255.0f; // 0..1
+}
+
+/// КЛАДКА РЯДАМИ: кирпичи или каменные блоки с перевязкой. Каждый кусок —
+/// отдельная плашка со своей глубиной; проёмы обходятся, как и у обшивки.
+static void build_courses(const Element& e, const ElementParams& p, const glm::vec3& a,
+                          const glm::vec3& dir, float seg_len, const glm::vec3& face_n,
+                          float half, bool stone, MeshBuilder& mb, HouseMesh& mesh,
+                          std::span<const OpeningPlacement> openings) {
+    // Кирпич 25x6.5 см с швом 1 см; блок 45x22 см с швом 1.5 см. Числа —
+    // ходовые размеры кладки, вид, а не расчёт мира.
+    const float unit_l = stone ? 0.45f : 0.25f;
+    const float unit_h = stone ? 0.22f : 0.065f;
+    const float gap = stone ? 0.015f : 0.010f;
+    const float th = stone ? 0.045f : 0.030f; // вынос от пластины
+    int row = 0;
+    for (float v = 0.0f; v + unit_h * 0.5f < p.height; v += unit_h + gap, ++row) {
+        const float v1 = std::min(v + unit_h, p.height);
+        // ПЕРЕВЯЗКА: каждый второй ряд сдвинут на полкуска — то, что отличает
+        // кладку от плитки.
+        float u = (row % 2 == 0) ? 0.0f : -unit_l * 0.5f;
+        int col = 0;
+        for (; u < seg_len; u += unit_l + gap, ++col) {
+            const float u0 = std::max(u, 0.0f);
+            const float u1 = std::min(u + unit_l, seg_len);
+            if (u1 - u0 < gap) {
+                continue;
+            }
+            bool blocked = false;
+            for (const OpeningPlacement& op : openings) {
+                if (u0 < op.u1 && u1 > op.u0 && v < op.v1 && v1 > op.v0) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) {
+                continue;
+            }
+            const glm::vec2 quad[4] = {{u0, v}, {u1, v}, {u1, v1}, {u0, v1}};
+            const float depth = th * (0.7f + 0.3f * course_jitter(row, col));
+            push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, depth, quad, p.tex_deg);
+        }
+    }
+}
+
 /// ОБШИВКА ОДНОГО ПРОЛЁТА СТЕНЫ по раскладке HouseStyle. Раскладка считает
 /// СПИСОК (доски, раскосы, проёмы) в координатах стены и говорит вслух, сколько
 /// проёмов не влезло; здесь список превращается в плашки на ЛИЦЕ пролёта.
@@ -803,6 +894,36 @@ static void build_cladding(const Element& e, const ElementParams& p, const glm::
     for (const LayoutFinding& f : lay.findings) {
         mesh.findings.push_back({e.id, MeshIssue::CladdingSaid, f.value, f.what});
     }
+    // КЛАДКА ВМЕСТО ДОСОК (заказ 20.08: «стену собрать из кирпичиков, из
+    // каменных блоков»). Раскосов у кладки нет; рамы проёмов — общие.
+    const int fill = static_cast<int>(p.fill);
+    if (fill == 2 || fill == 3) {
+        // Кирпич — обожжённая глина (4), блок — камень (3); тон элементный.
+        mb.set_material(fill == 3 ? 3 : 4, -1);
+        build_courses(e, p, a, dir, seg_len, face_n, half, fill == 3, mb, mesh,
+                      lay.openings);
+    }
+    if (fill == 2 || fill == 3) {
+        mb.set_material(0, 1); // рамы проёмов — тёсаный брус, средний
+        for (const OpeningPlacement& op : lay.openings) {
+            const float w = HOUSE_FRAME_W_M;
+            const glm::vec2 frames[4][4] = {
+                {{op.u0 - w, op.v0 - w}, {op.u1 + w, op.v0 - w},
+                 {op.u1 + w, op.v0}, {op.u0 - w, op.v0}},
+                {{op.u0 - w, op.v1}, {op.u1 + w, op.v1},
+                 {op.u1 + w, op.v1 + w}, {op.u0 - w, op.v1 + w}},
+                {{op.u0 - w, op.v0}, {op.u0, op.v0}, {op.u0, op.v1}, {op.u0 - w, op.v1}},
+                {{op.u1, op.v0}, {op.u1 + w, op.v0}, {op.u1 + w, op.v1}, {op.u1, op.v1}},
+            };
+            for (const auto& f : frames) {
+                push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, HOUSE_FRAME_TH_M, f,
+                               p.tex_deg);
+            }
+        }
+        return;
+    }
+    // Доски, раскосы и рамы фахверка — тёсаный брус поверх элементного фона.
+    mb.set_material(0, 1);
     for (const BoardRun& b : lay.boards) {
         const glm::vec2 quad[4] = {{b.u0, b.v0}, {b.u1, b.v0}, {b.u1, b.v1}, {b.u0, b.v1}};
         push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, HOUSE_BOARD_TH_M, quad,
@@ -874,10 +995,11 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
         // стоила бы пересчёта обеих стен при каждой правке соседа.
         const glm::vec3 loop[4] = {a - h, a + h, b + h, b - h};
         push_prism(mb, loop, quad, up, p.tex_deg, mesh, e.id);
-        if (p.clad > 0.5f) {
+        if (p.clad > 0.5f || p.fill >= 2.0f) {
             const float seg_len = std::sqrt(d.x * d.x + d.z * d.z);
             const glm::vec3 dir = glm::normalize(glm::vec3{d.x, 0.0f, d.z});
             build_cladding(e, p, a, dir, seg_len, face_n, half, mb, mesh);
+            mb.set_material(-1, -1); // следующий пролёт пластины — материал элемента
         }
     }
 }
@@ -912,6 +1034,7 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "sides" || kv.first == "n") { p.sides = got.sides; }
         else if (kv.first == "clad") { p.clad = got.clad; }
         else if (kv.first == "windows") { p.windows = got.windows; }
+        else if (kv.first == "fill") { p.fill = got.fill; }
     }
     return p;
 }
@@ -976,7 +1099,7 @@ HouseMesh build_house_mesh(const HouseGraph& g) {
         for (const ParamIssue& is : issues) {
             mesh.findings.push_back({id, MeshIssue::UnknownParam, 0.0f, is.token + ": " + is.why});
         }
-        const std::uint32_t begin = static_cast<std::uint32_t>(mesh.indices.size());
+        mb.begin_element(id);
         if (e->kind == ElementKind::Line) {
             build_line(g, *e, p, mb, mesh);
         } else {
@@ -991,10 +1114,7 @@ HouseMesh build_house_mesh(const HouseGraph& g) {
                 build_contour_surface(*e, p, pts, mb, mesh);
             }
         }
-        const std::uint32_t count = static_cast<std::uint32_t>(mesh.indices.size()) - begin;
-        if (count > 0) {
-            mesh.parts.push_back({id, begin, count});
-        }
+        mb.end_element();
     }
     return mesh;
 }

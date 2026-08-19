@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 00:02:30
+Last updated: 20:08:2026 - 00:58:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -40,6 +40,7 @@ UPD:
 - 19:08:2026 - 05:26:10: У стены-цепочки: галочка «Обшивка» и число окон; сколько влезло — скажет журнал.
 - 19:08:2026 - 23:58:20: Комбо заготовки ВИДНЫ в меню инструмента (жалоба «не вижу ничего нового»); списки материалов/тонов/форм — одни на заготовку и выбранное.
 - 20:08:2026 - 00:02:30: Материал и тон — СЕТКОЙ КАРТИНОК (свотчи листа набора, выбранный подсвечен), заполнение стены — ТРЕМЯ КАРТОЧКАМИ-примерами вместо галочки; клик в свойствах правит объект сразу.
+- 20:08:2026 - 00:58:40: Пять карточек заполнения: гладкая, фахверк, фахверк с окнами, кирпич, блоки — и в заготовке, и у выбранного.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -156,9 +157,10 @@ static bool draw_material_grid(const ToolWorld* world, const char* id, int& mat,
 static int draw_fill_cards(const ToolWorld* world, const char* id, int current) {
     int picked = -1;
     ImGui::PushID(id);
-    static const char* NAMES[3] = {"гладкая", "фахверк (доски и раскосы)",
-                                   "фахверк с окнами"};
-    for (int v = 0; v < 3; ++v) {
+    static const char* NAMES[5] = {"гладкая", "фахверк (доски и раскосы)",
+                                   "фахверк с окнами", "кирпичная кладка",
+                                   "каменные блоки"};
+    for (int v = 0; v < 5; ++v) {
         if (v != 0) {
             ImGui::SameLine();
         }
@@ -334,22 +336,27 @@ static void draw_selected_element(HouseSession& session) {
         // меньше, чем просили, — раскладка скажет это находкой в журнале.
         if (!e->closed) {
             const bool clad = session.graph().param(id, "clad") == "1";
+            const std::string fl = session.graph().param(id, "fill");
+            const int fill_now = fl.empty() ? 0 : std::atoi(fl.c_str());
             const std::string w = session.graph().param(id, "windows");
             int wins = w.empty() ? 0 : std::atoi(w.c_str());
-            const int fill = clad ? (wins > 0 ? 2 : 1) : 0;
-            if (const int picked = draw_fill_cards(g_selected_world, "sel.fill", fill);
+            const int card = fill_now >= 2 ? fill_now + 1
+                                           : (clad ? (wins > 0 ? 2 : 1) : 0);
+            if (const int picked = draw_fill_cards(g_selected_world, "sel.fill", card);
                 picked >= 0) {
                 (void)session.mutate("заполнение стены", [&](world::HouseGraph& g) {
-                    (void)g.set_param(id, "clad", picked >= 1 ? "1" : "0");
+                    (void)g.set_param(id, "clad",
+                                      (picked == 1 || picked == 2) ? "1" : "0");
+                    (void)g.set_param(id, "fill",
+                                      picked >= 3 ? std::to_string(picked - 1) : "0");
                     return g.set_param(id, "windows", picked == 2 ? "2" : "0");
                 });
             }
-            if (clad && wins > 0) {
-                if (ImGui::SliderInt(EditorUi::tr("house.windows"), &wins, 1, 6)) {
-                    (void)session.mutate("окна", [&](world::HouseGraph& g) {
-                        return g.set_param(id, "windows", std::to_string(wins));
-                    });
-                }
+            if ((clad || fill_now >= 2)
+                && ImGui::SliderInt(EditorUi::tr("house.windows"), &wins, 0, 6)) {
+                (void)session.mutate("окна", [&](world::HouseGraph& g) {
+                    return g.set_param(id, "windows", std::to_string(wins));
+                });
             }
         }
         // ДВЕРЬ — СВОЙСТВО СТЕНЫ, а не отдельная деталь (заказ 19.08: «ставлю
@@ -539,13 +546,20 @@ void HouseSurfaceTool::draw_settings() {
     // ЗАПОЛНЕНИЕ — КАРТОЧКАМИ, НЕ ГАЛОЧКОЙ (заказ 19.08: «галочки не удобны,
     // хочу картинки-примеры»). Карточка и есть выбор: гладкая, фахверк,
     // фахверк с окнами.
-    const int fill = clad_ ? (windows_ > 0 ? 2 : 1) : 0;
-    if (const int picked = draw_fill_cards(world_, "surf.fill", fill); picked >= 0) {
-        clad_ = picked >= 1;
-        windows_ = picked == 2 ? 2 : 0;
+    // Карточка выбирает ПРАВИЛО СБОРКИ: 0 гладкая, 1-2 фахверк, 3 кирпич,
+    // 4 блоки. Кладка (заказ 20.08) — настоящие кусочки с перевязкой, не
+    // текстура.
+    const int card = fill_ >= 2 ? fill_ + 1 : (clad_ ? (windows_ > 0 ? 2 : 1) : 0);
+    if (const int picked = draw_fill_cards(world_, "surf.fill", card); picked >= 0) {
+        clad_ = picked == 1 || picked == 2;
+        fill_ = picked >= 3 ? picked - 1 : 0;
+        windows_ = picked == 2 ? 2 : windows_;
+        if (picked == 0) {
+            windows_ = 0;
+        }
     }
-    if (clad_ && windows_ > 0) {
-        ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 1, 6);
+    if ((clad_ || fill_ >= 2) && ImGui::SliderInt(EditorUi::tr("house.windows"),
+                                                 &windows_, 0, 6)) {
     }
     if (session_ == nullptr) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.hint.nomodel"));
