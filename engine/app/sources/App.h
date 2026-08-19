@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 23:52:10
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -136,6 +136,7 @@ UPD:
 - 18:08:2026 - 21:38:05: Тело коллайдера постройки и буфер его вершин.
 - 18:08:2026 - 23:20:00: nudge_selected_anchor, draw_editor_grid; сетка живёт в сессии, а не вторым полем здесь.
 - 18:08:2026 - 23:52:10: Объявлен on_grid_toggle.
+- 20:08:2026 - 00:02:30: house_material_swatch / house_wall_example и их кэш.
 */
 
 #pragma once
@@ -360,6 +361,9 @@ private:
     void draw_editor_grid(const ToolAim& aim);
     /// Пересчитать тело постройки и отдать его в отрисовку.
     void upload_house_mesh();
+    /// Картинка материала набора / пример заполнения стены — для панелей.
+    std::uint64_t house_material_swatch(int surface, int tone, int px);
+    std::uint64_t house_wall_example(int variant, int px);
     /// Маленький сруб в графе — для беспилотного кадра (дверь DFN_HOUSE_DEMO).
     void seed_demo_house();
     void on_tool_pick(int index);
@@ -600,6 +604,8 @@ private:
     /// переменной: дескриптор физики берёт их СПАНОМ, и буфер обязан пережить
     /// вызов, иначе тело построится по памяти, которой уже нет.
     platform::PhysicsBodyHandle house_body_{};
+    /// Кэш испечённых свотчей: (surface,tone,px) и примеры заполнения.
+    std::unordered_map<std::uint64_t, std::uint64_t> house_swatches_;
     std::vector<glm::vec3> house_positions_;
     BuildVerdict build_verdict_;
     /// Which placement the crosshair is on, for DELETING. npos = none. Kept as

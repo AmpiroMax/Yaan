@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 11:52:10
-Last updated: 19:08:2026 - 00:12:30
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/editor
 File: engine/editor/sources/EditorTool.h
 
@@ -83,6 +83,7 @@ UPD:
 - 18:08:2026 - 20:26:30: ToolAim::in_reach — ящик сообщает обстоятельство, а обещание от факта отделяет сам инструмент.
 - 18:08:2026 - 23:20:00: stroke_needs_reach — дальность судит начало работы, а не каждый шаг уже взятого.
 - 19:08:2026 - 00:12:30: ToolPreview::ghost_pairs и ghost_color — призрак рисуется своей стопкой и своим цветом.
+- 20:08:2026 - 00:02:30: Крючки картинок в ToolWorld: material_swatch и wall_example — «хочу не слова, а картинки».
 */
 
 #pragma once
@@ -251,6 +252,16 @@ struct ToolWorld {
     /// cannot be two different brushes — which is what one shared TerrainBrush
     /// with a `mode` field shown as two tools had become.
     std::function<bool(const TerrainBrush& brush, glm::vec2 centre, float dt_s)> terrain_dab;
+
+    /// КАРТИНКА МАТЕРИАЛА НАБОРА (surface, tone, px) -> текстура интерфейса.
+    /// Заказ 19.08 дословно: «я всегда хочу видеть примеры, причём не слова, а
+    /// картинки», «список словами не нагляден». Печёт и кэширует App — у него
+    /// и лист набора, и EditorUi с загрузкой текстур; инструмент только
+    /// показывает. 0 — картинки нет, панель падает в подпись словами.
+    std::function<std::uint64_t(int surface, int tone, int px)> material_swatch;
+    /// КАРТИНКА-ПРИМЕР ЗАПОЛНЕНИЯ СТЕНЫ: 0 гладкая, 1 фахверк, 2 фахверк с
+    /// окнами. Те же права и та же причина, что у material_swatch.
+    std::function<std::uint64_t(int variant, int px)> wall_example;
     /// The stroke ended: spend its budget and rebuild what it dirtied.
     std::function<void()> finish_stroke;
     /// ПОКАЖИ МОИ СОБСТВЕННЫЕ НАСТРОЙКИ. Зовёт инструмент — и это единственный

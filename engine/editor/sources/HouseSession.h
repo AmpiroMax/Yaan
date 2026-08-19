@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:52:00
-Last updated: 19:08:2026 - 03:22:40
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/editor
 File: engine/editor/sources/HouseSession.h
 
@@ -28,6 +28,7 @@ AI Agents Notice (must follow):
 UPD:
 - 19:08:2026 - 01:52:00: Создан переносом из EditorToolHouse.h (перенос, не переписывание).
 - 19:08:2026 - 03:22:40: snap_on_axis — сетка на прямой: округлить, спроецировать обратно на ось.
+- 20:08:2026 - 00:02:30: draw_house_selection_panel принимает мир (крючки картинок); nullptr — слова.
 */
 #pragma once
 
@@ -470,7 +471,10 @@ void house_angles_from_dir(glm::vec3 dir, float& angle_x_deg, float& angle_y_deg
 
 /// Панель «что выбрано в постройке»: сетка, координаты якоря, свойства
 /// элемента. Одна на панели постройки И на инструмент выбора.
-void draw_house_selection_panel(HouseSession& session);
+struct ToolWorld;
+/// `world` несёт крючки картинок (свотчи материалов, примеры заполнения);
+/// nullptr — панель падает в слова, что законно для рукава без мира.
+void draw_house_selection_panel(HouseSession& session, const ToolWorld* world);
 
 // ---------------------------------------------------------------------------
 // 7 — ВЕРШИНЫ

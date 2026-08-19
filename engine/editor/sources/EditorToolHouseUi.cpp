@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 23:58:20
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -39,6 +39,7 @@ UPD:
 - 19:08:2026 - 04:05:50: Панель выбранного: материал (9), тон (4), форма палки (круг/квадрат/6/8), дверь с листанием петли по кругу.
 - 19:08:2026 - 05:26:10: У стены-цепочки: галочка «Обшивка» и число окон; сколько влезло — скажет журнал.
 - 19:08:2026 - 23:58:20: Комбо заготовки ВИДНЫ в меню инструмента (жалоба «не вижу ничего нового»); списки материалов/тонов/форм — одни на заготовку и выбранное.
+- 20:08:2026 - 00:02:30: Материал и тон — СЕТКОЙ КАРТИНОК (свотчи листа набора, выбранный подсвечен), заполнение стены — ТРЕМЯ КАРТОЧКАМИ-примерами вместо галочки; клик в свойствах правит объект сразу.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -76,6 +77,114 @@ static const char* HOUSE_MATS[9] = {"тёсаный брус", "пилёная �
 static const char* HOUSE_TONES[4] = {"светлый", "средний", "тёмный", "выветренный"};
 static const char* HOUSE_FORMS[4] = {"круглая", "квадратная", "шестигранная",
                                      "восьмигранная"};
+
+/// МИР ДЛЯ ПАНЕЛИ ВЫБРАННОГО. draw_selected_element зовут четыре панели
+/// (три инструмента постройки и выбор), а крючки картинок живут в ToolWorld
+/// у каждого своя ссылка. Статика файла — а не параметр — потому что подпись
+/// draw_house_selection_panel отдана инструменту выбора, и менять её ради
+/// прокладки мира значило бы трогать три зоны разом; выставляется каждым
+/// draw_settings перед вызовом.
+static const ToolWorld* g_selected_world = nullptr;
+
+/// СЕТКА КАРТИНОК-МАТЕРИАЛОВ. Возвращает true и пишет выбор, когда человек
+/// кликнул по свотчу. Заказ 19.08: «хочу не слова видеть, а картинки»; слова
+/// остаются подсказкой при наведении и запасным ходом, когда крючка картинок
+/// нет (панель без мира, правило 3).
+static bool draw_material_grid(const ToolWorld* world, const char* id, int& mat,
+                               int& tone) {
+    bool changed = false;
+    ImGui::PushID(id);
+    if (world != nullptr && world->material_swatch) {
+        constexpr float PX = 40.0f;
+        for (int m = 0; m < 9; ++m) {
+            if (m % 5 != 0) {
+                ImGui::SameLine();
+            }
+            const std::uint64_t tex = world->material_swatch(m, tone, 40);
+            ImGui::PushID(m);
+            const bool sel = m == mat;
+            if (sel) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+            }
+            if (tex != 0 ? EditorUi::image_button("##m", tex, PX, PX)
+                         : ImGui::Button(HOUSE_MATS[m], ImVec2(PX * 2.2f, PX * 0.6f))) {
+                mat = m;
+                changed = true;
+            }
+            if (sel) {
+                ImGui::PopStyleColor();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", HOUSE_MATS[m]);
+            }
+            ImGui::PopID();
+        }
+        // ТОНА — ТОЖЕ КАРТИНКАМИ: те же координаты листа, свой ряд поменьше.
+        for (int t = 0; t < 4; ++t) {
+            if (t != 0) {
+                ImGui::SameLine();
+            }
+            const std::uint64_t tex = world->material_swatch(mat, t, 24);
+            ImGui::PushID(100 + t);
+            const bool sel = t == tone;
+            if (sel) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+            }
+            if (tex != 0 ? EditorUi::image_button("##t", tex, 24.0f, 24.0f)
+                         : ImGui::Button(HOUSE_TONES[t])) {
+                tone = t;
+                changed = true;
+            }
+            if (sel) {
+                ImGui::PopStyleColor();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", HOUSE_TONES[t]);
+            }
+            ImGui::PopID();
+        }
+    } else {
+        changed |= ImGui::Combo(EditorUi::tr("house.mat"), &mat, HOUSE_MATS, 9);
+        changed |= ImGui::Combo(EditorUi::tr("house.tone"), &tone, HOUSE_TONES, 4);
+    }
+    ImGui::PopID();
+    return changed;
+}
+
+/// ТРИ КАРТОЧКИ ЗАПОЛНЕНИЯ СТЕНЫ: гладкая, фахверк, фахверк с окнами.
+/// Возвращает -1 (не трогали) или выбранный вариант.
+static int draw_fill_cards(const ToolWorld* world, const char* id, int current) {
+    int picked = -1;
+    ImGui::PushID(id);
+    static const char* NAMES[3] = {"гладкая", "фахверк (доски и раскосы)",
+                                   "фахверк с окнами"};
+    for (int v = 0; v < 3; ++v) {
+        if (v != 0) {
+            ImGui::SameLine();
+        }
+        ImGui::PushID(v);
+        const bool sel = v == current;
+        if (sel) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+        }
+        const std::uint64_t tex =
+            world != nullptr && world->wall_example ? world->wall_example(v, 84) : 0;
+        if (tex != 0 ? EditorUi::image_button("##f", tex, 84.0f, 56.0f)
+                     : ImGui::Button(NAMES[v])) {
+            picked = v;
+        }
+        if (sel) {
+            ImGui::PopStyleColor();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", NAMES[v]);
+        }
+        ImGui::PopID();
+    }
+    ImGui::PopID();
+    return picked;
+}
+
 
 /// СЕТКА МИРА И ТОЧНЫЕ КООРДИНАТЫ ЯКОРЯ — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
 ///
@@ -178,16 +287,14 @@ static void draw_selected_element(HouseSession& session) {
         int ti = t.empty() ? (line ? 1 : 0) : std::atoi(t.c_str());
         mi = std::clamp(mi, 0, 8);
         ti = std::clamp(ti, 0, 3);
-        const auto set_int = [&](const char* key, int v) {
+        // КЛИК ПО КАРТИНКЕ ПРАВИТ ОБЪЕКТ СРАЗУ: версия графа растёт, тело и
+        // коллайдер пересобираются тем же кадром — «кликнул и ничего не
+        // поменялось» больше невозможно по устройству.
+        if (draw_material_grid(g_selected_world, "sel.mat", mi, ti)) {
             (void)session.mutate("материал элемента", [&](world::HouseGraph& g) {
-                return g.set_param(id, key, std::to_string(v));
+                (void)g.set_param(id, "mat", std::to_string(mi));
+                return g.set_param(id, "tone", std::to_string(ti));
             });
-        };
-        if (ImGui::Combo(EditorUi::tr("house.mat"), &mi, HOUSE_MATS, 9)) {
-            set_int("mat", mi);
-        }
-        if (ImGui::Combo(EditorUi::tr("house.tone"), &ti, HOUSE_TONES, 4)) {
-            set_int("tone", ti);
         }
     }
     if (line) {
@@ -226,16 +333,19 @@ static void draw_selected_element(HouseSession& session) {
         // геометрией поверх несущей пластины. Окна НЕ масштабируются; влезло
         // меньше, чем просили, — раскладка скажет это находкой в журнале.
         if (!e->closed) {
-            bool clad = session.graph().param(id, "clad") == "1";
-            if (ImGui::Checkbox(EditorUi::tr("house.clad"), &clad)) {
-                (void)session.mutate("обшивка", [&](world::HouseGraph& g) {
-                    return g.set_param(id, "clad", clad ? "1" : "0");
+            const bool clad = session.graph().param(id, "clad") == "1";
+            const std::string w = session.graph().param(id, "windows");
+            int wins = w.empty() ? 0 : std::atoi(w.c_str());
+            const int fill = clad ? (wins > 0 ? 2 : 1) : 0;
+            if (const int picked = draw_fill_cards(g_selected_world, "sel.fill", fill);
+                picked >= 0) {
+                (void)session.mutate("заполнение стены", [&](world::HouseGraph& g) {
+                    (void)g.set_param(id, "clad", picked >= 1 ? "1" : "0");
+                    return g.set_param(id, "windows", picked == 2 ? "2" : "0");
                 });
             }
-            if (clad) {
-                const std::string w = session.graph().param(id, "windows");
-                int wins = w.empty() ? 0 : std::atoi(w.c_str());
-                if (ImGui::SliderInt(EditorUi::tr("house.windows"), &wins, 0, 6)) {
+            if (clad && wins > 0) {
+                if (ImGui::SliderInt(EditorUi::tr("house.windows"), &wins, 1, 6)) {
                     (void)session.mutate("окна", [&](world::HouseGraph& g) {
                         return g.set_param(id, "windows", std::to_string(wins));
                     });
@@ -287,7 +397,8 @@ static void draw_selected_element(HouseSession& session) {
 
 } // namespace
 
-void draw_house_selection_panel(HouseSession& session) {
+void draw_house_selection_panel(HouseSession& session, const ToolWorld* world) {
+    g_selected_world = world;
     // ПАНЕЛЬ ВЫБРАННОГО — ДЛЯ ИНСТРУМЕНТА ВЫБОРА (заказ 19.08: «когда я выбираю
     // объект, справа должно рисоваться меню свойств этого объекта, а не меню
     // инструмента»). Тот же код, что в панелях постройки: третья копия этих
@@ -298,6 +409,7 @@ void draw_house_selection_panel(HouseSession& session) {
 }
 
 void HouseVertexTool::draw_settings() {
+    g_selected_world = world_;
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как
@@ -364,6 +476,7 @@ void HouseVertexTool::draw_settings() {
 }
 
 void HouseLineTool::draw_settings() {
+    g_selected_world = world_;
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как
@@ -372,8 +485,7 @@ void HouseLineTool::draw_settings() {
     // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
     // в меню объекта») — материал, тон и форма следующей прямой выбираются
     // ЗДЕСЬ и штампуются в элемент при создании.
-    ImGui::Combo(EditorUi::tr("house.mat"), &mat_, HOUSE_MATS, 9);
-    ImGui::Combo(EditorUi::tr("house.tone"), &tone_, HOUSE_TONES, 4);
+    (void)draw_material_grid(world_, "line.draft", mat_, tone_);
     ImGui::Combo(EditorUi::tr("house.form"), &form_, HOUSE_FORMS, 4);
     ImGui::SliderFloat(EditorUi::tr("house.radius"), &radius_m_, 0.02f, 1.0f, "%.3f m");
 
@@ -414,6 +526,7 @@ void HouseLineTool::draw_settings() {
 }
 
 void HouseSurfaceTool::draw_settings() {
+    g_selected_world = world_;
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как
@@ -422,11 +535,17 @@ void HouseSurfaceTool::draw_settings() {
     // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
     // в меню объекта»): материал, тон, обшивка и окна следующей поверхности
     // выбираются здесь и штампуются в элемент при подтверждении.
-    ImGui::Combo(EditorUi::tr("house.mat"), &mat_, HOUSE_MATS, 9);
-    ImGui::Combo(EditorUi::tr("house.tone"), &tone_, HOUSE_TONES, 4);
-    ImGui::Checkbox(EditorUi::tr("house.clad"), &clad_);
-    if (clad_) {
-        ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 0, 6);
+    (void)draw_material_grid(world_, "surf.draft", mat_, tone_);
+    // ЗАПОЛНЕНИЕ — КАРТОЧКАМИ, НЕ ГАЛОЧКОЙ (заказ 19.08: «галочки не удобны,
+    // хочу картинки-примеры»). Карточка и есть выбор: гладкая, фахверк,
+    // фахверк с окнами.
+    const int fill = clad_ ? (windows_ > 0 ? 2 : 1) : 0;
+    if (const int picked = draw_fill_cards(world_, "surf.fill", fill); picked >= 0) {
+        clad_ = picked >= 1;
+        windows_ = picked == 2 ? 2 : 0;
+    }
+    if (clad_ && windows_ > 0) {
+        ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 1, 6);
     }
     if (session_ == nullptr) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.hint.nomodel"));

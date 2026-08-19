@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 19:08:2026 - 05:26:10
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -32,6 +32,7 @@ UPD:
 - 19:08:2026 - 03:22:40: Прицел на постройке — узлы сетки В ОБЪЁМЕ (крестики в узлах мира вокруг точки попадания): «узлы на стенах, узлы на полу».
 - 19:08:2026 - 04:05:50: Потоки по mat/tone из параметров элемента; дверь — свой поток с петлёй и ВНЕ коллайдера; демо-сруб получил дверь из тёмной доски.
 - 19:08:2026 - 05:26:10: Демо-сруб: вторая стена обшита с двумя окнами.
+- 20:08:2026 - 00:02:30: App печёт свотчи материалов из листа набора и составные примеры заполнения (штукатурка + брус + проёмы), кэш по ключу.
 */
 
 #include "engine/app/sources/App.h"
@@ -39,8 +40,10 @@ UPD:
 #include "engine/app/sources/AppInternal.h"
 #include "engine/app/sources/Controls.h"
 #include "engine/editor/sources/EditorToolHouse.h"
+#include "engine/editor/sources/EditorUi.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/physics/sources/CollisionLayers.h"
+#include "engine/render/sources/PartsAtlas.h"
 #include "engine/render/sources/RenderSystem.h"
 #include "engine/world/sources/HouseMesh.h"
 
@@ -298,6 +301,94 @@ void App::seed_demo_house() {
                  static_cast<double>(base.x), static_cast<double>(base.z));
     std::fprintf(stderr, "[постройка] дверь DFN_HOUSE_DEMO: якорей %zu, элементов %zu\n",
                  house_.graph().vertex_count(), house_.graph().element_count());
+}
+
+std::uint64_t App::house_material_swatch(int surface, int tone, int px) {
+    // ПЕЧЁТСЯ ИЗ ТОГО ЖЕ ЛИСТА, ЧТО НОСЯТ СТЕНЫ: свотч, нарисованный отдельно,
+    // разошёлся бы с материалом в мире в первый же день правки листа.
+    const std::uint64_t key = (static_cast<std::uint64_t>(surface) << 32)
+                            | (static_cast<std::uint64_t>(tone) << 16)
+                            | static_cast<std::uint64_t>(px);
+    if (const auto it = house_swatches_.find(key); it != house_swatches_.end()) {
+        return it->second;
+    }
+    const std::uint32_t side = static_cast<std::uint32_t>(std::max(px, 16));
+    const render::PartsAtlas sheet = render::generate_parts_atlas(side);
+    std::vector<std::uint8_t> tile(static_cast<std::size_t>(side) * side * 4u);
+    const std::uint32_t x0 = static_cast<std::uint32_t>(surface) * side;
+    const std::uint32_t y0 = static_cast<std::uint32_t>(tone) * side;
+    for (std::uint32_t y = 0; y < side; ++y) {
+        const std::uint8_t* src =
+            sheet.pixels.data() + (static_cast<std::size_t>(y0 + y) * sheet.width + x0) * 4u;
+        std::copy(src, src + static_cast<std::size_t>(side) * 4u,
+                  tile.begin() + static_cast<std::size_t>(y) * side * 4u);
+    }
+    const std::uint64_t tex = editor_ui_.make_texture(side, side, tile.data());
+    house_swatches_.emplace(key, tex);
+    return tex;
+}
+
+std::uint64_t App::house_wall_example(int variant, int px) {
+    // ПРИМЕР ЗАПОЛНЕНИЯ — КАРТИНКА, СОБРАННАЯ ИЗ ПЛИТОК НАБОРА: штукатурка
+    // фоном, брус досками и раскосом, тёмные проёмы окон. Это иллюстрация
+    // ПРАВИЛА, а не рендер конкретной стены: правило («как будет заполнено»)
+    // человек выбирает до того, как стена существует.
+    const std::uint64_t key = 0xF000000000000000ull
+                            | (static_cast<std::uint64_t>(variant) << 16)
+                            | static_cast<std::uint64_t>(px);
+    if (const auto it = house_swatches_.find(key); it != house_swatches_.end()) {
+        return it->second;
+    }
+    const std::uint32_t w = static_cast<std::uint32_t>(std::max(px, 32));
+    const std::uint32_t h = w * 2u / 3u;
+    const render::PartsAtlas sheet = render::generate_parts_atlas(64);
+    const auto sheet_px = [&](std::uint32_t surface, std::uint32_t tone, std::uint32_t x,
+                              std::uint32_t y) {
+        const std::uint32_t sx = surface * 64u + (x % 64u);
+        const std::uint32_t sy = tone * 64u + (y % 64u);
+        return &sheet.pixels[(static_cast<std::size_t>(sy) * sheet.width + sx) * 4u];
+    };
+    std::vector<std::uint8_t> img(static_cast<std::size_t>(w) * h * 4u);
+    for (std::uint32_t y = 0; y < h; ++y) {
+        for (std::uint32_t x = 0; x < w; ++x) {
+            // Фон — штукатурка (светлая).
+            const std::uint8_t* src = sheet_px(5, 0, x, y);
+            bool timber = false;
+            if (variant >= 1) {
+                // Доски: рамка по краю и стойки каждые ~w/4; раскос — диагональ.
+                const std::uint32_t step = w / 4u;
+                const std::uint32_t bar = std::max(w / 16u, 2u);
+                timber = x < bar || x >= w - bar || y < bar || y >= h - bar
+                      || (x % step) < bar
+                      || (x > y && x - y < bar * 2u); // раскос
+            }
+            bool window = false;
+            if (variant >= 2) {
+                // Два тёмных проёма между стойками.
+                const std::uint32_t step = w / 4u;
+                const std::uint32_t wx0 = step + w / 20u;
+                const std::uint32_t wx1 = 2u * step - w / 20u;
+                const std::uint32_t wx2 = 2u * step + w / 20u;
+                const std::uint32_t wx3 = 3u * step - w / 20u;
+                const std::uint32_t wy0 = h / 3u;
+                const std::uint32_t wy1 = 2u * h / 3u;
+                window = y >= wy0 && y < wy1
+                      && ((x >= wx0 && x < wx1) || (x >= wx2 && x < wx3));
+            }
+            if (timber) {
+                src = sheet_px(0, 1, x, y); // тёсаный брус, средний
+            }
+            std::uint8_t* dst = &img[(static_cast<std::size_t>(y) * w + x) * 4u];
+            if (window) {
+                dst[0] = 24; dst[1] = 20; dst[2] = 16; dst[3] = 255;
+            } else {
+                dst[0] = src[0]; dst[1] = src[1]; dst[2] = src[2]; dst[3] = 255;
+            }
+        }
+    }
+    const std::uint64_t tex = editor_ui_.make_texture(w, h, img.data());
+    house_swatches_.emplace(key, tex);
+    return tex;
 }
 
 void App::upload_house_mesh() {

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 12:06:50
-Last updated: 19:08:2026 - 02:34:20
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolsObject.cpp
 
@@ -36,6 +36,7 @@ UPD:
 - 18:08:2026 - 20:26:30: Выбор стены по её контуру; за пределом дальности инструменты прячут своё обещание сами.
 - 19:08:2026 - 01:20:45: Инструмент выбора рисует проволоку постройки (подсветка выбранного видна и с рамкой в руке), открывает свои настройки и показывает в них СВОЙСТВА ВЫБРАННОГО.
 - 19:08:2026 - 02:34:20: Заголовок «Выбрано сейчас» и в панели инструмента выбора.
+- 20:08:2026 - 00:02:30: Панель выбора передаёт мир панели выбранного — картинки и там.
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"
@@ -147,7 +148,7 @@ void SelectTool::draw_settings() {
         && (house_->selected_vertex() != world::NO_VERTEX
             || house_->selected_element() != world::NO_ELEMENT)) {
         ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
-        draw_house_selection_panel(*house_);
+        draw_house_selection_panel(*house_, world_);
         return;
     }
     if (model_ != nullptr) {

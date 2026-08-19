@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 19:08:2026 - 03:22:40
+Last updated: 20:08:2026 - 00:02:30
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -567,6 +567,7 @@ UPD:
 - 19:08:2026 - 00:48:20: Камера тронулась — метка гаснет, призрак возвращается под прицел; спрашивается результат движения, а не список клавиш.
 - 19:08:2026 - 02:05:30: Методы постройки съехали в AppHouse.cpp (второй аудит, долг 1).
 - 19:08:2026 - 03:22:40: Порядок инструментов назначен пользователем: выбор, якоря, прямые, стены, высота, тропа, детали, посадка, кисть.
+- 20:08:2026 - 00:02:30: Крючки картинок отданы в ToolWorld.
 */
 
 #include "engine/app/sources/App.h"
@@ -2809,6 +2810,10 @@ void App::wire_editor_panels() {
     tw.plant_dab = [this](const PlantBrush& brush, glm::vec2 centre) {
         return plant_dab_here(brush, centre);
     };
+    tw.material_swatch = [this](int surface, int tone, int px) {
+        return house_material_swatch(surface, tone, px);
+    };
+    tw.wall_example = [this](int variant, int px) { return house_wall_example(variant, px); };
     tw.ground_height = [this](glm::vec2 xz) {
         // ЗАКОНЧЕННАЯ земля, правки рукой включительно: линия тропы обязана
         // лежать на той поверхности, на которую человек смотрит. Ноль вместо
