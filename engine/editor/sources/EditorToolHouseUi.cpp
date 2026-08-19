@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 01:06:50
+Last updated: 20:08:2026 - 12:10:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -43,9 +43,11 @@ UPD:
 - 20:08:2026 - 00:58:40: Пять карточек заполнения: гладкая, фахверк, фахверк с окнами, кирпич, блоки — и в заготовке, и у выбранного.
 - 20:08:2026 - 01:47:30: Поворот сечения у балок (заготовка и выбранное); кнопка «Дверной проём»; пол: «срез/паркет» карточками; форм пять.
 - 20:08:2026 - 01:06:50: Порядок в блоке выбранного: заполнение первым, материал ниже — карточки кладки тонули за прокруткой под сеткой свотчей.
+- 20:08:2026 - 12:10:00: Семь профилей палки; ряд красок в сетке материалов; покрытия контура — три карточки (срез/паркет/марш).
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
+#include "engine/world/sources/HouseMesh.h"
 #include "engine/editor/sources/EditorUi.h"
 
 #include <imgui.h>
@@ -78,8 +80,19 @@ static const char* HOUSE_MATS[9] = {"тёсаный брус", "пилёная �
                                     "камень",       "обожжённая глина", "штукатурка",
                                     "солома",       "дёрн",           "остекление"};
 static const char* HOUSE_TONES[4] = {"светлый", "средний", "тёмный", "выветренный"};
-static const char* HOUSE_FORMS[5] = {"круглая", "квадратная", "шестигранная",
-                                     "восьмигранная", "лестница"};
+/// ПРОФИЛИ ПАЛКИ. «Лестницы» здесь больше нет (правка 20.08: «лестница же
+/// на 4 точках держится») — марш теперь карточка раздела стен, fill=6.
+static const char* HOUSE_FORMS[7] = {"круглая",        "квадратная",
+                                     "треугольная",    "шестигранная",
+                                     "восьмигранная",  "двенадцатигранная",
+                                     "доска"};
+/// Число граней по индексу формы; 0 — особая форма (круг/квадрат/доска).
+static const int HOUSE_FORM_SIDES[7] = {0, 0, 3, 6, 8, 12, 0};
+/// Названия красок — подсказки к цветным кнопкам; сами цвета — HOUSE_PAINT_RGB
+/// (одна таблица на редактор и загрузку, правило 32).
+static const char* HOUSE_PAINTS[world::HOUSE_PAINT_COUNT] = {
+    "без краски",   "белила", "охра",   "красная фалу",
+    "зелёная медь", "синяя",  "дёготь", "седая известь"};
 
 /// МИР ДЛЯ ПАНЕЛИ ВЫБРАННОГО. draw_selected_element зовут четыре панели
 /// (три инструмента постройки и выбор), а крючки картинок живут в ToolWorld
@@ -94,9 +107,31 @@ static const ToolWorld* g_selected_world = nullptr;
 /// остаются подсказкой при наведении и запасным ходом, когда крючка картинок
 /// нет (панель без мира, правило 3).
 static bool draw_material_grid(const ToolWorld* world, const char* id, int& mat,
-                               int& tone) {
+                               int& tone, int* paint = nullptr) {
     bool changed = false;
     ImGui::PushID(id);
+    // КРАСКА — цветные кнопки без текстуры: слой отделки поверх материала.
+    if (paint != nullptr) {
+        for (int c = 0; c < world::HOUSE_PAINT_COUNT; ++c) {
+            if (c != 0) {
+                ImGui::SameLine();
+            }
+            ImGui::PushID(200 + c);
+            const glm::vec3 rgb = world::HOUSE_PAINT_RGB[c];
+            const bool sel = c == *paint;
+            if (ImGui::ColorButton("##p", ImVec4(rgb.x, rgb.y, rgb.z, 1.0f),
+                                   ImGuiColorEditFlags_NoTooltip
+                                       | ImGuiColorEditFlags_NoAlpha,
+                                   ImVec2(sel ? 28.0f : 22.0f, sel ? 28.0f : 22.0f))) {
+                *paint = c;
+                changed = true;
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", HOUSE_PAINTS[c]);
+            }
+            ImGui::PopID();
+        }
+    }
     if (world != nullptr && world->material_swatch) {
         constexpr float PX = 40.0f;
         for (int m = 0; m < 9; ++m) {
@@ -288,13 +323,17 @@ static void draw_selected_element(HouseSession& session) {
     const auto material_block = [&] {
         const std::string m = session.graph().param(id, "mat");
         const std::string t = session.graph().param(id, "tone");
+        const std::string c = session.graph().param(id, "paint");
         int mi = m.empty() ? (line ? 0 : 5) : std::atoi(m.c_str());
         int ti = t.empty() ? (line ? 1 : 0) : std::atoi(t.c_str());
+        int ci = c.empty() ? 0 : std::atoi(c.c_str());
         mi = std::clamp(mi, 0, 8);
         ti = std::clamp(ti, 0, 3);
-        if (draw_material_grid(g_selected_world, "sel.mat", mi, ti)) {
+        ci = std::clamp(ci, 0, world::HOUSE_PAINT_COUNT - 1);
+        if (draw_material_grid(g_selected_world, "sel.mat", mi, ti, &ci)) {
             (void)session.mutate("материал элемента", [&](world::HouseGraph& g) {
                 (void)g.set_param(id, "mat", std::to_string(mi));
+                (void)g.set_param(id, "paint", std::to_string(ci));
                 return g.set_param(id, "tone", std::to_string(ti));
             });
         }
@@ -308,17 +347,26 @@ static void draw_selected_element(HouseSession& session) {
             int fi = 0;
             if (f == "square") {
                 fi = 1;
-            } else if (n == "6") {
-                fi = 2;
-            } else if (n == "8") {
-                fi = 3;
+            } else if (f == "plank") {
+                fi = 6;
+            } else {
+                for (int k = 2; k <= 5; ++k) {
+                    if (n == std::to_string(HOUSE_FORM_SIDES[k])) {
+                        fi = k;
+                    }
+                }
             }
-            if (ImGui::Combo(EditorUi::tr("house.form"), &fi, HOUSE_FORMS, 5)) {
+            if (ImGui::Combo(EditorUi::tr("house.form"), &fi, HOUSE_FORMS, 7)) {
                 (void)session.mutate("форма палки", [&](world::HouseGraph& g) {
-                    (void)g.set_param(id, "form", fi == 1 ? "square" : "round");
+                    (void)g.set_param(id, "form",
+                                      fi == 1 ? "square"
+                                              : (fi == 6 ? "plank" : "round"));
                     (void)g.set_param(id, "sides",
-                                      fi == 2 ? "6" : (fi == 3 ? "8" : "0"));
-                    return g.set_param(id, "stairs", fi == 4 ? "1" : "0");
+                                      (fi >= 2 && fi <= 5)
+                                          ? std::to_string(HOUSE_FORM_SIDES[fi])
+                                          : "0");
+                    // Наследный лестничный флаг гасится: марш — раздел стен.
+                    return g.set_param(id, "stairs", "0");
                 });
             }
             number("angle_z", "house.spin", 0.0f, 90.0f, 0.0f);
@@ -343,20 +391,27 @@ static void draw_selected_element(HouseSession& session) {
         if (e->closed) {
             // ПОЛ: срез или паркет. Две кнопки-карточки, как у стен.
             const std::string fl = session.graph().param(id, "fill");
-            const bool parquet = !fl.empty() && std::atoi(fl.c_str()) == 5;
-            for (int v = 0; v < 2; ++v) {
+            const int fnow = fl.empty() ? 0 : std::atoi(fl.c_str());
+            // ПОКРЫТИЯ КОНТУРА: срез, паркет, лестничный марш (fill 0/5/6).
+            // Марш живёт здесь, а не в формах палки: «лестница же на 4 точках
+            // держится» (правка 20.08).
+            static constexpr int FLOOR_FILL[3] = {0, 5, 6};
+            static const char* FLOOR_KEY[3] = {"house.floor.plain",
+                                               "house.floor.parquet",
+                                               "house.floor.stairs"};
+            for (int v = 0; v < 3; ++v) {
                 if (v != 0) {
                     ImGui::SameLine();
                 }
-                const bool sel = (v == 1) == parquet;
+                const bool sel = FLOOR_FILL[v] == fnow;
                 if (sel) {
                     ImGui::PushStyleColor(ImGuiCol_Button,
                                           ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
                 }
-                if (ImGui::Button(v == 0 ? EditorUi::tr("house.floor.plain")
-                                         : EditorUi::tr("house.floor.parquet"))) {
+                if (ImGui::Button(EditorUi::tr(FLOOR_KEY[v]))) {
                     (void)session.mutate("покрытие пола", [&](world::HouseGraph& g) {
-                        return g.set_param(id, "fill", v == 1 ? "5" : "0");
+                        return g.set_param(id, "fill",
+                                           std::to_string(FLOOR_FILL[v]));
                     });
                 }
                 if (sel) {
@@ -537,13 +592,13 @@ void HouseLineTool::draw_settings() {
     // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
     // в меню объекта») — материал, тон и форма следующей прямой выбираются
     // ЗДЕСЬ и штампуются в элемент при создании.
-    (void)draw_material_grid(world_, "line.draft", mat_, tone_);
-    ImGui::Combo(EditorUi::tr("house.form"), &form_, HOUSE_FORMS, 5);
+    (void)draw_material_grid(world_, "line.draft", mat_, tone_, &paint_);
+    ImGui::Combo(EditorUi::tr("house.form"), &form_, HOUSE_FORMS, 7);
     ImGui::SliderFloat(EditorUi::tr("house.radius"), &radius_m_, 0.02f, 1.0f, "%.3f m");
     // ПОВОРОТ СЕЧЕНИЯ (заказ 20.08: «все квадратные балки имеют грани вдоль
     // осей мира, а я их поворачивать хочу»). Механика angle_z жила в модели с
     // первого дня — у неё просто не было ручки.
-    if (form_ != 0 && form_ != 4) {
+    if (form_ != 0) {
         ImGui::SliderFloat(EditorUi::tr("house.spin"), &spin_deg_, 0.0f, 90.0f, "%.0f°");
     }
 
@@ -593,7 +648,7 @@ void HouseSurfaceTool::draw_settings() {
     // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
     // в меню объекта»): материал, тон, обшивка и окна следующей поверхности
     // выбираются здесь и штампуются в элемент при подтверждении.
-    (void)draw_material_grid(world_, "surf.draft", mat_, tone_);
+    (void)draw_material_grid(world_, "surf.draft", mat_, tone_, &paint_);
     // ЗАПОЛНЕНИЕ — КАРТОЧКАМИ, НЕ ГАЛОЧКОЙ (заказ 19.08: «галочки не удобны,
     // хочу картинки-примеры»). Карточка и есть выбор: гладкая, фахверк,
     // фахверк с окнами.

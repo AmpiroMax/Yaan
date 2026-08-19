@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 00:58:40
+Last updated: 20:08:2026 - 12:10:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -34,6 +34,7 @@ UPD:
 - 19:08:2026 - 05:26:10: Демо-сруб: вторая стена обшита с двумя окнами.
 - 20:08:2026 - 00:02:30: App печёт свотчи материалов из листа набора и составные примеры заполнения (штукатурка + брус + проёмы), кэш по ключу.
 - 20:08:2026 - 00:58:40: Бакеты уважают материал куска; свотчи и карточки светятся по листу нормалей («плоские текстуры» 20.08); карточки кирпича и блоков; демо-сруб получил кирпичную стену.
+- 20:08:2026 - 12:10:00: Краска элемента — вершинный цвет поверх плитки материала.
 */
 
 #include "engine/app/sources/App.h"
@@ -453,13 +454,29 @@ void App::upload_house_mesh() {
     // СВОЙ поток с петлёй и в коллайдер НЕ входит: она качается, а статичное
     // тело в проёме держало бы человека в пустом дверном проёме.
     const glm::vec3 zero = house_.to_world({0.0f, 0.0f, 0.0f});
+    // КРАСКА ЭЛЕМЕНТА — вершинный цвет: плитка материала умножается на него в
+    // шейдере, 0xFFFFFFFF (без краски) оставляет её как есть. Слой отделки, а
+    // не материал — потому и не участвует в ключе потока.
+    std::uint32_t part_color = 0xFFFFFFFFu;
     const auto to_world_vertex = [&](const world::HouseVertex& v) {
         platform::Vertex pv{};
         pv.position = house_.to_world(v.pos);
         pv.normal = house_.to_world(v.normal) - zero;
         pv.uv = v.uv;
-        pv.color_rgba = 0xFFFFFFFFu; // материал несёт плитка, тонировка затемнила бы её
+        pv.color_rgba = part_color;
         return pv;
+    };
+    const auto paint_of = [&](const world::Element& e) -> std::uint32_t {
+        const std::string c = house_.graph().param(e.id, "paint");
+        if (c.empty()) {
+            return 0xFFFFFFFFu;
+        }
+        const int idx = std::clamp(std::atoi(c.c_str()), 0, world::HOUSE_PAINT_COUNT - 1);
+        const glm::vec3 rgb = world::HOUSE_PAINT_RGB[idx];
+        const auto b = [](float f) {
+            return static_cast<std::uint32_t>(std::lround(f * 255.0f));
+        };
+        return 0xFF000000u | (b(rgb.z) << 16) | (b(rgb.y) << 8) | b(rgb.x); // AABBGGRR
     };
     const auto mat_of = [&](const world::Element& e, std::uint32_t& surface,
                             std::uint32_t& tone) {
@@ -484,6 +501,7 @@ void App::upload_house_mesh() {
         std::uint32_t surface = 0;
         std::uint32_t tone = 0;
         mat_of(*e, surface, tone);
+        part_color = paint_of(*e);
         // КУСОК КЛАДКИ НЕСЁТ СВОЙ МАТЕРИАЛ: доска фахверка — брус, кирпич —
         // глина, блок — камень. Элементный материал остаётся у пластины.
         if (part.mat_override >= 0) {

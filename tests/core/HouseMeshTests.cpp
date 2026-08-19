@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 20:08:2026 - 01:47:30
+Last updated: 20:08:2026 - 12:10:00
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -34,6 +34,7 @@ UPD:
 - 19:08:2026 - 05:26:10: Обшивка: голая стена 12 тр. (контроль), обшитая 564; окно НЕ масштабируется на вдвое длинной стене; «просили 5, влезло 1» говорится находкой.
 - 20:08:2026 - 00:58:40: Кладка: >1000 треугольников, куски глины отдельными частями, перевязка ловится полукирпичным швом на 0.125 (сравнение минимумов не работало — оба ряда прижаты нулём).
 - 20:08:2026 - 01:47:30: Лестница: верхние грани кратны подъёму, кусков коллизии много (контроль — у наклонного бруса вверх не смотрит ничего); дверной проём: в полосе двери ноль кирпичных вершин, уступка окон сказана.
+- 20:08:2026 - 12:10:00: Паркет: рез по кромке и покрытие без щелей; лестница на четырёх точках; профиль доски 4:1.
 */
 
 #include <doctest/doctest.h>
@@ -1074,4 +1075,142 @@ TEST_CASE("дверной проём: кладка расступается от
     }
     CHECK(said);
     MESSAGE("кирпичных вершин в проёме: " << in_doorway);
+}
+
+TEST_CASE("паркет: доска РЕЖЕТСЯ по кромке и укрывает пол без щелей") {
+    // Правка 20.08 («он же за края выходит, между палочками щели есть»).
+    HouseGraph g;
+    // Обход ПРОТИВ часовой сверху: лицо пола смотрит вверх, доски — на лице.
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 3.0f});
+    const VertexId c = g.add_vertex(Anchoring::OnGround, {3.0f, 0.0f, 3.0f});
+    const VertexId d = g.add_vertex(Anchoring::OnGround, {3.0f, 0.0f, 0.0f});
+    ElementId floor = 0;
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d},
+                          "oak;thickness=0.1;fill=5", floor)
+                .ok);
+    REQUIRE(g.set_closed(floor, true).ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+
+    // ДОСКИ — куски с mat_override=1 (пилёная доска); пластина несёт -1.
+    // 1) НИ ОДНА вершина доски не выходит за контур (раньше ряд с перевязкой
+    //    начинался на полдоски ЛЕВЕЕ кромки и торчал наружу).
+    // 2) Верхние грани досок в сумме кроют не меньше 97% пола (раньше щели
+    //    6 мм на каждый стык плюс выпавшие у кромки доски).
+    float covered = 0.0f;
+    int plank_verts = 0;
+    for (const auto& p : m.parts) {
+        if (p.element != floor || p.mat_override != 1) {
+            continue;
+        }
+        for (std::uint32_t i = 0; i < p.index_count; ++i) {
+            const auto& v = m.vertices[m.indices[p.index_begin + i]];
+            ++plank_verts;
+            CHECK(v.pos.x > -1e-3f);
+            CHECK(v.pos.x < 3.0f + 1e-3f);
+            CHECK(v.pos.z > -1e-3f);
+            CHECK(v.pos.z < 3.0f + 1e-3f);
+        }
+        for (std::uint32_t i = 0; i + 2 < p.index_count; i += 3) {
+            const auto& v0 = m.vertices[m.indices[p.index_begin + i]];
+            const auto& v1 = m.vertices[m.indices[p.index_begin + i + 1]];
+            const auto& v2 = m.vertices[m.indices[p.index_begin + i + 2]];
+            if (v0.normal.y > 0.99f && v1.normal.y > 0.99f && v2.normal.y > 0.99f
+                && v0.pos.y > 0.05f) { // верхняя грань доски, не пластины
+                const glm::vec3 e1 = v1.pos - v0.pos;
+                const glm::vec3 e2 = v2.pos - v0.pos;
+                covered += 0.5f * glm::length(glm::cross(e1, e2));
+            }
+        }
+    }
+    REQUIRE(plank_verts > 0);
+    CHECK(covered > 9.0f * 0.97f);
+    CHECK(covered < 9.0f * 1.03f);
+    MESSAGE("покрыто досками " << covered << " м² из 9");
+}
+
+TEST_CASE("лестница на ЧЕТЫРЁХ точках: ширина от якорей, ступени ровные") {
+    // Правка 20.08: «лестница же на 4 точках держится» — марш строится
+    // контуром с fill=6, а не формой палки.
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {1.2f, 0.0f, 0.0f});
+    const VertexId c = g.add_vertex(Anchoring::Free, {1.2f, 1.4f, 2.8f});
+    const VertexId d = g.add_vertex(Anchoring::Free, {0.0f, 1.4f, 2.8f});
+    ElementId st = 0;
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d},
+                          "frame;thickness=0.1;fill=6", st)
+                .ok);
+    REQUIRE(g.set_closed(st, true).ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+
+    // Ступени: верхние грани на кратных 0.175 высотах (1.4/0.175 = 8 ровно).
+    std::vector<float> tops;
+    float min_x = 1e9f;
+    float max_x = -1e9f;
+    for (const auto& v : m.vertices) {
+        if (std::fabs(v.normal.y - 1.0f) < 1e-3f) {
+            tops.push_back(v.pos.y);
+            min_x = std::min(min_x, v.pos.x);
+            max_x = std::max(max_x, v.pos.x);
+        }
+    }
+    REQUIRE_FALSE(tops.empty());
+    for (const float y : tops) {
+        const float k = y / 0.175f;
+        CHECK(std::fabs(k - std::round(k)) < 0.01f);
+    }
+    // ШИРИНА — ОТ ПАРЫ НИЖНИХ ЯКОРЕЙ (1.2 м), а не от radius по умолчанию:
+    // контрольное плечо — прежнее правило дало бы пролёт 0.3 м.
+    CHECK(max_x - min_x > 1.0f);
+    // Коллизия — настоящие коробы, как у лестницы-прямой.
+    int stair_convex = 0;
+    for (const auto& q : m.convex) {
+        if (q.element == st) {
+            ++stair_convex;
+        }
+    }
+    CHECK(stair_convex > 10);
+    MESSAGE("пролёт " << (max_x - min_x) << " м, кусков " << stair_convex);
+}
+
+TEST_CASE("доска: профиль 4:1 — ширина в четыре раза больше толщины") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
+    ElementId plank = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b},
+                          "frame;form=plank;radius=0.2;paint=3", plank)
+                .ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+    glm::vec3 lo{1e9f};
+    glm::vec3 hi{-1e9f};
+    for (const auto& v : m.vertices) {
+        lo = glm::min(lo, v.pos);
+        hi = glm::max(hi, v.pos);
+    }
+    const float w1 = hi.x - lo.x;
+    const float w2 = hi.z - lo.z;
+    const float wide = std::max(w1, w2);
+    const float thin = std::min(w1, w2);
+    CHECK(wide == doctest::Approx(0.4f).epsilon(0.02f));
+    CHECK(thin == doctest::Approx(0.1f).epsilon(0.02f));
+    // КОНТРОЛЬ: квадратный брус тех же параметров одинаков по обеим осям.
+    HouseGraph g2;
+    const VertexId a2 = g2.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b2 = g2.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
+    ElementId sq = 0;
+    REQUIRE(g2.add_element(ElementKind::Line, {a2, b2}, "frame;form=square;radius=0.2", sq).ok);
+    const HouseMesh m2 = dfn::world::build_house_mesh(g2);
+    glm::vec3 lo2{1e9f};
+    glm::vec3 hi2{-1e9f};
+    for (const auto& v : m2.vertices) {
+        lo2 = glm::min(lo2, v.pos);
+        hi2 = glm::max(hi2, v.pos);
+    }
+    CHECK(std::fabs((hi2.x - lo2.x) - (hi2.z - lo2.z)) < 1e-3f);
+    // КРАСКА — чужой слой: paint=3 в свойствах не рождает находку.
+    for (const auto& f : m.findings) {
+        CHECK(f.what.find("неизвестное свойство") == std::string::npos);
+    }
 }

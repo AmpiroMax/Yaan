@@ -535,6 +535,7 @@ house.form=Форма
 house.dooropen=Дверной проём (от пола)
 house.floor.plain=Срез как есть
 house.floor.parquet=Паркет досками
+house.floor.stairs=Лестница маршем
 house.clad=Обшивка: доски, раскосы, окна
 house.windows=Окон (влезет — скажет журнал)
 house.door=Дверь (качается вокруг петли)

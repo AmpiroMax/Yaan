@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 01:47:30
+Last updated: 20:08:2026 - 12:10:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -49,6 +49,7 @@ UPD:
 - 19:08:2026 - 23:58:20: Создание штампует заготовку в params элемента (stamp_draft у прямой, confirm у поверхности); умолчания ключей не пишут.
 - 20:08:2026 - 00:58:40: Штамп fill при создании.
 - 20:08:2026 - 01:47:30: Штампы spin/stairs/doors при создании.
+- 20:08:2026 - 12:10:00: Штамп форм по таблице (3/6/8/12 граней, доска), штамп краски; лестница из форм убрана.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1313,18 +1314,21 @@ void HouseLineTool::on_release(ToolWorld& world) {
         g.set_param(id, "radius", house_num(radius_m_));
         g.set_param(id, "mat", std::to_string(mat_));
         g.set_param(id, "tone", std::to_string(tone_));
+        if (paint_ > 0) {
+            g.set_param(id, "paint", std::to_string(paint_));
+        }
+        // ПРОФИЛЬ ПО ИНДЕКСУ ФОРМЫ: 0 круг, 1 квадрат, 2/3/4/5 — многогранники
+        // (3/6/8/12 граней), 6 — доска. «Лестницы» среди форм больше нет
+        // (правка 20.08) — марш строится картой раздела стен, fill=6.
+        static constexpr int FORM_SIDES[7] = {0, 0, 3, 6, 8, 12, 0};
         if (form_ == 1) {
             g.set_param(id, "form", "square");
-        } else if (form_ == 2) {
-            g.set_param(id, "sides", "6");
-        } else if (form_ == 3) {
-            g.set_param(id, "sides", "8");
-        } else if (form_ == 4) {
-            // ЛЕСТНИЦА — форма прямой: низ у одного якоря, верх у другого,
-            // ступени считает построитель (заказ 20.08).
-            g.set_param(id, "stairs", "1");
+        } else if (form_ == 6) {
+            g.set_param(id, "form", "plank");
+        } else if (form_ >= 2 && form_ <= 5) {
+            g.set_param(id, "sides", std::to_string(FORM_SIDES[form_]));
         }
-        if (spin_deg_ > 0.01f && form_ != 0 && form_ != 4) {
+        if (spin_deg_ > 0.01f && form_ != 0) {
             g.set_param(id, "angle_z", house_num(spin_deg_));
         }
     };
@@ -1627,6 +1631,9 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
         g.set_param(made, "thickness", house_num(thickness_m_));
         g.set_param(made, "mat", std::to_string(mat_));
         g.set_param(made, "tone", std::to_string(tone_));
+        if (paint_ > 0) {
+            g.set_param(made, "paint", std::to_string(paint_));
+        }
         if (!closed && clad_) {
             g.set_param(made, "clad", "1");
         }
