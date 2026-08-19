@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 19:08:2026 - 04:42:30
+Last updated: 20:08:2026 - 02:07:34
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -160,6 +160,10 @@ UPD:
 - 19:08:2026 - 02:34:20: Плитки набора для постройки вернулись (fs_prop теперь сэмплит); два потока идут со своими плитками.
 - 19:08:2026 - 04:05:50: house_tile_asset — ленивая нарезка листа набора; submit потоков по материалам и дверей с поворотом вокруг петли.
 - 19:08:2026 - 04:42:30: Нормальная плитка лениво под своим ключом; submit потоков и дверей с aux-листом рельефа.
+- 20:08:2026 - 02:07:34: Листы набора печатаются ОДИН раз и живут полями (было: целый лист 9.4 МБ
+  на каждый промах кэша плитки); ключ плитки несёт PARTS_ATLAS_REVISION и упакован без
+  зазоров; shutdown() уничтожает меши светляков/свечения/призрака, потоки и двери
+  постройки и программу оверлея; DFN_WIND_FREEZE читается один раз.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -262,19 +266,43 @@ size_t RenderSystem::ChunkKeyHash::operator()(const glm::ivec2& v) const {
     return static_cast<size_t>(x * 0x9E3779B97F4A7C15ull ^ (y * 0xC2B2AE3D27D4EB4Full));
 }
 
+const PartsAtlas& RenderSystem::parts_sheet(bool normal) {
+    // ОДИН ЛИСТ НА ВЕСЬ ЗАПУСК, А НЕ ОДИН НА ПРОМАХ. Печать листа это
+    // 2304x1024 пикселей (9.4 МБ) процедурной работы, и она стояла ВНУТРИ
+    // house_tile_asset: каждая новая пара (материал, тон) пекла лист целиком,
+    // чтобы вырезать из него одну плитку 256x256 — 0.7% посчитанного. Дом из
+    // девяти материалов платил это девять раз, и ещё девять за рельеф.
+    //
+    // Лениво: карта без построек не печатает ни одного листа. Освобождается в
+    // shutdown() вместе с текстурами — 18.8 МБ на два листа, и держать их
+    // после гибели рендерера незачем.
+    PartsAtlas& sheet = normal ? parts_sheet_normal_ : parts_sheet_albedo_;
+    bool& ready = normal ? parts_sheet_normal_ready_ : parts_sheet_albedo_ready_;
+    if (!ready) {
+        sheet = normal ? generate_parts_normal_atlas(PARTS_ATLAS_TILE_PX)
+                       : generate_parts_atlas(PARTS_ATLAS_TILE_PX);
+        ready = true;
+    }
+    return sheet;
+}
+
 uint32_t RenderSystem::house_tile_asset(platform::IRenderer& renderer, uint32_t surface,
                                         uint32_t tone, bool normal) {
-    // ЛЕНИВО И С КЭШЕМ: ключ несёт материал и тон, procedural_texture_asset
-    // возвращает готовое по ключу, поэтому лист набора печётся только когда
-    // человек впервые выбрал этот материал. uv постройки считаны в метрах и
-    // повторяются wrap'ом — поэтому отдельная плитка, а не атлас.
+    // ЛЕНИВО И С КЭШЕМ: ключ несёт материал, тон, лист И РЕВИЗИЮ НАБОРА
+    // (house_tile_key, RenderSystem.h — там же довод про ревизию и про то,
+    // почему прежняя упаковка держалась на арифметическом совпадении). uv
+    // постройки считаны в метрах и повторяются wrap'ом — поэтому отдельная
+    // плитка, а не атлас.
     const uint64_t key = proc_key(PROC_KEY_HOUSE_TILE, PARTS_ATLAS_TILE_PX,
-                                  surface * 16u + tone + (normal ? 0x100u : 0u));
+                                  house_tile_key(surface, tone, normal,
+                                                 PARTS_ATLAS_REVISION));
     if (const auto it = proc_texture_ids_.find(key); it != proc_texture_ids_.end()) {
         return it->second;
     }
-    const PartsAtlas sheet = normal ? generate_parts_normal_atlas(PARTS_ATLAS_TILE_PX)
-                                    : generate_parts_atlas(PARTS_ATLAS_TILE_PX);
+    const PartsAtlas& sheet = parts_sheet(normal);
+    if (sheet.pixels.empty()) {
+        return 0; // лист не испёкся: рисовать нечем, и молчать об этом нельзя
+    }
     std::vector<uint8_t> tile(static_cast<size_t>(PARTS_ATLAS_TILE_PX)
                               * PARTS_ATLAS_TILE_PX * 4u);
     const uint32_t x0 = surface * PARTS_ATLAS_TILE_PX;
@@ -664,6 +692,35 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     }
     tuft_spots_.clear();
     tuft_built_ = false;
+    // МЕШИ, КОТОРЫЕ ЖИВУТ НЕ В ЧАНКЕ И НЕ В КЭШЕ — и потому не сносились ничем.
+    // У каждого есть свой сеттер, каждый сеттер честно освобождает ПРЕДЫДУЩУЮ
+    // заливку, и ровно поэтому пропажа была невидима: течёт не поток заливок, а
+    // ПОСЛЕДНЯЯ заливка каждого слота, переживающая рендерер.
+    if (firefly_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{firefly_mesh_id_});
+        firefly_mesh_id_ = 0;
+    }
+    if (emissive_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{emissive_mesh_id_});
+        emissive_mesh_id_ = 0;
+    }
+    if (ghost_mesh_id_ != 0) {
+        renderer.destroy_mesh(platform::MeshHandle{ghost_mesh_id_});
+        ghost_mesh_id_ = 0;
+    }
+    for (const HouseStreamGpu& st : house_streams_) {
+        renderer.destroy_mesh(platform::MeshHandle{st.mesh_id});
+    }
+    house_streams_.clear();
+    for (const HouseDoorGpu& d : house_doors_) {
+        renderer.destroy_mesh(platform::MeshHandle{d.mesh_id});
+    }
+    house_doors_.clear();
+    // ЛИСТЫ НАБОРА: 18.8 МБ, которые незачем держать после рендерера.
+    parts_sheet_albedo_ = {};
+    parts_sheet_normal_ = {};
+    parts_sheet_albedo_ready_ = false;
+    parts_sheet_normal_ready_ = false;
     for (const auto& [asset, mesh_id] : mesh_cache_) {
         renderer.destroy_mesh(platform::MeshHandle{mesh_id});
     }
@@ -684,7 +741,13 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     renderer.destroy_program(platform::ProgramHandle{water_program_});
     renderer.destroy_program(platform::ProgramHandle{prop_program_});
     renderer.destroy_program(platform::ProgramHandle{foliage_program_});
+    // ПРОГРАММА ОВЕРЛЕЯ. Единственная из семи, которую init() загружает, а
+    // shutdown() не уничтожал — и по ней рисуется весь интерфейс, то есть
+    // пропущена была не редкая ветка, а та, что работает каждый кадр с
+    // открытым экраном.
+    renderer.destroy_program(platform::ProgramHandle{overlay_program_});
     terrain_program_ = 0;
+    overlay_program_ = 0;
     unlit_program_ = 0;
     water_program_ = 0;
     path_program_ = 0;
@@ -762,8 +825,16 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // in dfn_wind_offset runs off u_envTime, so freezing only the gust envelope
     // would leave the leaves moving and the control still dirty — a fix that
     // measures as a fix.
-    if (const char* wf = std::getenv("DFN_WIND_FREEZE")) {
-        environment_.time_seconds = static_cast<float>(std::atof(wf));
+    // ЧИТАЕТСЯ ОДИН РАЗ, КАК У СОСЕДНИХ ДВЕРЕЙ. std::getenv стоял ЗДЕСЬ, то
+    // есть в теле кадра: обход таблицы окружения шестьдесят раз в секунду ради
+    // значения, которое не может измениться за время жизни процесса.
+    static const bool wind_frozen = std::getenv("DFN_WIND_FREEZE") != nullptr;
+    static const float wind_freeze_t = [] {
+        const char* wf = std::getenv("DFN_WIND_FREEZE");
+        return wf != nullptr ? static_cast<float>(std::atof(wf)) : 0.0f;
+    }();
+    if (wind_frozen) {
+        environment_.time_seconds = wind_freeze_t;
     }
     apply_wind(environment_, environment_.time_seconds);
     // Clouds (W4): ONE coverage field, drifting along the wind just applied.

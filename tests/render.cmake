@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 14:46:25
+# Last updated: 20:08:2026 - 02:12:49
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -57,6 +57,9 @@
 #   тона доски, имя от текста, три формы).
 #   контроля-попиксельно, поднятый объём против пустой доски, тон буквы против
 #   тона доски, имя от текста, три формы).
+# - 20:08:2026 - 02:12:49: render_flame_phase — фаза мерцания факела (сеялась от размера пула
+#   кандидатов) и ревизия листа в ключе кэша плитки набора. У обоих случаев
+#   контроль — дофиксная формула, выписанная дословно (правило 39).
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
@@ -89,3 +92,9 @@ add_dfn_test(render_part_forge_stairs render/PartForgeStairTests.cpp
     dfn_render dfn_core)
 add_dfn_test(render_parts_atlas render/PartsAtlasTests.cpp dfn_render dfn_core)
 add_dfn_test(render_sign_forge render/SignForgeTests.cpp dfn_render dfn_core)
+# ТРЕТИЙ АУДИТ: фаза мерцания факела (жалоба «свет мигает» — сеялась от размера
+# пула кандидатов, то есть от светляков) и ревизия листа в ключе кэша плитки.
+# Обе функции были в безымянных пространствах и не проверялись ничем; у обоих
+# случаев контроль — дофиксная формула, выписанная дословно (правило 39).
+add_dfn_test(render_flame_phase render/FlamePhaseTests.cpp
+    dfn_render dfn_platform_render dfn_core)

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 19:08:2026 - 04:42:30
+Last updated: 20:08:2026 - 02:08:21
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -68,6 +68,11 @@ UPD:
 - 18:08:2026 - 22:26:40: Заливка обоих потоков постройки со свободой прежних буферов.
 - 19:08:2026 - 04:05:50: Заливка потоков и дверей со свободой прежних буферов.
 - 19:08:2026 - 04:42:30: Заливка приносит каждому потоку и цветовую, и нормальную плитку.
+- 20:08:2026 - 02:08:21: Фаза мерцания сеется от EntityId светильника, а не от размера пула
+  кандидатов (жалоба «свет мигает»: пул меняется каждый кадр от светляков, и факелы
+  прыгали фазой). Осциллятор переехал в RenderSystem.h — он чистая функция и теперь
+  у него есть прибор. Ранний выход ветки DFN_TORCH=2 убран: прибор DFN_LIGHT_PROBE
+  молчал при жаровне. DFN_LIGHT_PROBE читается один раз.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -311,21 +316,19 @@ void light_floor_probe(const platform::RenderEnvironment& env, const glm::vec3& 
 // The two swings MOVED to SkyModel.h, beside TORCH_COLOR: with a breathing
 // flame a torch's colour is a BAND, and every caller that asserts one has to
 // read the band's width from the same place the oscillator does.
-namespace {
-
-struct Flame {
-    float intensity;
-    float warmth; // >0 = toward the ember, <0 = toward the pale tip
-};
-
-[[nodiscard]] Flame flame_at(float t, uint32_t index) {
-    const float phase = static_cast<float>(index) * 1.7f;
-    const float a = std::sin((t + phase) * 5.7f * 6.2831853f * 0.1591549f);
-    const float b = std::sin((t + phase) * 9.1f * 6.2831853f * 0.1591549f + 2.399f);
+// ОСЦИЛЛЯТОР ЖИВЁТ ЗДЕСЬ, А ОБЪЯВЛЕН В RenderSystem.h. Он был в безымянном
+// пространстве этого файла, то есть чистая функция без единого прибора — и
+// именно она носила дефект: вторым аргументом ей отдавали candidates.size(),
+// РАЗМЕР ПУЛА кандидатов на момент сбора. Он меняется каждый кадр (светляки,
+// лампы композиции, попавшие в кадр), поэтому фаза факела прыгала на ровном
+// месте. Теперь второй аргумент — СДВИГ В СЕКУНДАХ, посеянный от самого
+// светильника (flame_phase_for), и его считает вызывающий.
+Flame flame_at(float t, float phase_s) {
+    const float a = std::sin((t + phase_s) * 5.7f * 6.2831853f * 0.1591549f);
+    const float b = std::sin((t + phase_s) * 9.1f * 6.2831853f * 0.1591549f + 2.399f);
     const float mix = 0.6f * a + 0.4f * b;
     return {1.0f + FLAME_INTENSITY_SWING * mix, FLAME_WARMTH_SWING * mix};
 }
-} // namespace
 
 
 // The frame's eight slots, given to the nearest flames. Kept out of
@@ -570,8 +573,18 @@ void RenderSystem::collect_point_lights(ecs::World& world,
                          static_cast<float>(light.color_rgb & 0xFFu) / 255.0f};
             }
             // The flame breathes: intensity and warmth, never the radius.
+            // ФАЗА — ОТ САМОГО СВЕТИЛЬНИКА, А НЕ ОТ РАЗМЕРА ПУЛА. Здесь стояло
+            // candidates.size(), то есть «сколько кандидатов уже собрано к
+            // этому мгновению»: число, зависящее от светляков этой ночи и от
+            // того, сколько ламп композиции попало в кадр. Оно меняется от
+            // кадра к кадру при неподвижном факеле, и вместе с ним прыгала
+            // фаза — половина жалобы «свет мигает» (вторая, растворение на
+            // границе бюджета, чинилась отдельно и осталась).
+            //
+            // EntityId, а НЕ позиция: носимый факел движется каждый кадр, и
+            // хэш от координат был бы тем же дефектом с другим входом.
             const Flame f = flame_at(environment_.time_seconds,
-                                     static_cast<uint32_t>(candidates.size()));
+                                     flame_phase_for(id.packed()));
             color *= f.intensity;
             color.g *= 1.0f - f.warmth * 0.5f; // toward ember / toward pale tip
             color.b *= 1.0f - f.warmth;
@@ -596,29 +609,31 @@ void RenderSystem::collect_point_lights(ecs::World& world,
             const glm::vec3 fwd = camera.forward(alpha);
             const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
                                                   + glm::vec3{1e-4f, 0.0f, 0.0f});
-            const Flame fb = flame_at(environment_.time_seconds, 0u);
+            const Flame fb = flame_at(environment_.time_seconds, 0.0f);
             glm::vec3 bc = TORCH_COLOR * fb.intensity;
             bc.g *= 1.0f - fb.warmth * 0.5f;
             bc.b *= 1.0f - fb.warmth;
+            // НИКАКОГО РАННЕГО ВЫХОДА. Здесь стоял `return` сразу после
+            // publish_point_lights, и он проскакивал МИМО блока
+            // DFN_LIGHT_PROBE ниже: прибор мерцания молчал ровно на той
+            // настройке, ради которой жаровню и заводили — свет в стороне от
+            // глаза, тени между глазом и пламенем. Прибор, отключающийся на
+            // своём предмете, хуже отсутствующего: он отвечает «ноль».
             add(pose.position + flat * torch_ahead_m_, torch_radius_default(), bc);
-            publish_point_lights(candidates);
-            if (dark_frozen_) {
-                environment_.ambient_darkness = frozen_darkness_;
-            }
-            return;
+        } else {
+            // Flattened forward: a hand does not rise when the eyes look up, and
+            // sim's real CarriedLight is yaw-only for exactly the same reason.
+            const glm::vec3 fwd = camera.forward(alpha);
+            const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
+                                                  + glm::vec3{1e-4f, 0.0f, 0.0f});
+            const Flame fh = flame_at(environment_.time_seconds, 0.0f);
+            glm::vec3 hc = TORCH_COLOR * fh.intensity;
+            hc.g *= 1.0f - fh.warmth * 0.5f;
+            hc.b *= 1.0f - fh.warmth;
+            add(pose.position + right * 0.35f + flat * 0.15f
+                    - glm::vec3{0.0f, 0.25f, 0.0f},
+                torch_radius_default(), hc);
         }
-        // Flattened forward: a hand does not rise when the eyes look up, and
-        // sim's real CarriedLight is yaw-only for exactly the same reason.
-        const glm::vec3 fwd = camera.forward(alpha);
-        const glm::vec3 flat = glm::normalize(glm::vec3{fwd.x, 0.0f, fwd.z}
-                                              + glm::vec3{1e-4f, 0.0f, 0.0f});
-        const Flame fh = flame_at(environment_.time_seconds, 0u);
-        glm::vec3 hc = TORCH_COLOR * fh.intensity;
-        hc.g *= 1.0f - fh.warmth * 0.5f;
-        hc.b *= 1.0f - fh.warmth;
-        add(pose.position + right * 0.35f + flat * 0.15f
-                - glm::vec3{0.0f, 0.25f, 0.0f},
-            torch_radius_default(), hc);
     }
     publish_point_lights(candidates);
     if (dark_frozen_) {
@@ -627,21 +642,26 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     // Flicker instrument (DFN_LIGHT_PROBE=<path>): one line per presented frame,
     // the floor's point-light luma at the feet. Opened once; the defect is the
     // STEP between adjacent lines, which no screenshot can show (Rule 53).
-    if (const char* p = std::getenv("DFN_LIGHT_PROBE"); p != nullptr && *p != '\0') {
-        static std::FILE* probe = [p] {
-            std::FILE* f = std::fopen(p, "w");
-            if (f != nullptr) {
-                std::fprintf(f, "# frame point_light_count floor_luma_0_255 floor_luma_frac\n");
-            } else {
-                std::fprintf(stderr, "[light] DFN_LIGHT_PROBE=\"%s\" could not be "
-                                     "opened for writing\n", p);
-            }
-            return f;
-        }();
-        if (probe != nullptr) {
-            light_floor_probe(environment_, eye, probe);
-            std::fflush(probe);
+    // ЧИТАЕТСЯ ОДИН РАЗ, КАК У СОСЕДНИХ ДВЕРЕЙ. std::getenv стоял в теле кадра,
+    // хотя файл всё равно открывался ровно один раз статиком внутри — то есть
+    // обход таблицы окружения делался ради значения, которое уже было решено.
+    static std::FILE* const probe = [] () -> std::FILE* {
+        const char* p = std::getenv("DFN_LIGHT_PROBE");
+        if (p == nullptr || *p == '\0') {
+            return nullptr;
         }
+        std::FILE* f = std::fopen(p, "w");
+        if (f != nullptr) {
+            std::fprintf(f, "# frame point_light_count floor_luma_0_255 floor_luma_frac\n");
+        } else {
+            std::fprintf(stderr, "[light] DFN_LIGHT_PROBE=\"%s\" could not be "
+                                 "opened for writing\n", p);
+        }
+        return f;
+    }();
+    if (probe != nullptr) {
+        light_floor_probe(environment_, eye, probe);
+        std::fflush(probe);
     }
 }
 
