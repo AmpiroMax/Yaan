@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 05:26:10
+Last updated: 19:08:2026 - 23:58:20
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -38,6 +38,7 @@ UPD:
 - 19:08:2026 - 02:34:20: Заголовки «Заготовка» и «Выбрано сейчас» (долг 4): два блока одинаковых полей перестали читаться как один.
 - 19:08:2026 - 04:05:50: Панель выбранного: материал (9), тон (4), форма палки (круг/квадрат/6/8), дверь с листанием петли по кругу.
 - 19:08:2026 - 05:26:10: У стены-цепочки: галочка «Обшивка» и число окон; сколько влезло — скажет журнал.
+- 19:08:2026 - 23:58:20: Комбо заготовки ВИДНЫ в меню инструмента (жалоба «не вижу ничего нового»); списки материалов/тонов/форм — одни на заготовку и выбранное.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -66,6 +67,15 @@ void draw_refusal(const std::string& text) {
     // молча не сработавший инструмент неотличим от сломанного.
     ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f), "%s", text.c_str());
 }
+
+/// Списки материалов набора — ОДНИ на заготовку и на выбранное: два списка с
+/// разным порядком дали бы «камень», который при правке становится глиной.
+static const char* HOUSE_MATS[9] = {"тёсаный брус", "пилёная доска", "торец",
+                                    "камень",       "обожжённая глина", "штукатурка",
+                                    "солома",       "дёрн",           "остекление"};
+static const char* HOUSE_TONES[4] = {"светлый", "средний", "тёмный", "выветренный"};
+static const char* HOUSE_FORMS[4] = {"круглая", "квадратная", "шестигранная",
+                                     "восьмигранная"};
 
 /// СЕТКА МИРА И ТОЧНЫЕ КООРДИНАТЫ ЯКОРЯ — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
 ///
@@ -162,10 +172,6 @@ static void draw_selected_element(HouseSession& session) {
     // палок, стен»). Порядок пунктов — ординалы PartSurface/PartTone: плитку
     // режет отрисовка, и число здесь обязано совпадать с числом там.
     {
-        static const char* MATS[] = {"тёсаный брус", "пилёная доска", "торец",
-                                     "камень",       "обожжённая глина", "штукатурка",
-                                     "солома",       "дёрн",           "остекление"};
-        static const char* TONES[] = {"светлый", "средний", "тёмный", "выветренный"};
         const std::string m = session.graph().param(id, "mat");
         const std::string t = session.graph().param(id, "tone");
         int mi = m.empty() ? (line ? 0 : 5) : std::atoi(m.c_str());
@@ -177,10 +183,10 @@ static void draw_selected_element(HouseSession& session) {
                 return g.set_param(id, key, std::to_string(v));
             });
         };
-        if (ImGui::Combo(EditorUi::tr("house.mat"), &mi, MATS, 9)) {
+        if (ImGui::Combo(EditorUi::tr("house.mat"), &mi, HOUSE_MATS, 9)) {
             set_int("mat", mi);
         }
-        if (ImGui::Combo(EditorUi::tr("house.tone"), &ti, TONES, 4)) {
+        if (ImGui::Combo(EditorUi::tr("house.tone"), &ti, HOUSE_TONES, 4)) {
             set_int("tone", ti);
         }
     }
@@ -188,8 +194,6 @@ static void draw_selected_element(HouseSession& session) {
         // ФОРМА ПАЛКИ (заказ 19.08): круг, квадрат, шести- и восьмигранник —
         // это те профили, которые умеет построитель (form/sides).
         {
-            static const char* FORMS[] = {"круглая", "квадратная", "шестигранная",
-                                          "восьмигранная"};
             const std::string f = session.graph().param(id, "form");
             const std::string n = session.graph().param(id, "sides");
             int fi = 0;
@@ -200,7 +204,7 @@ static void draw_selected_element(HouseSession& session) {
             } else if (n == "8") {
                 fi = 3;
             }
-            if (ImGui::Combo(EditorUi::tr("house.form"), &fi, FORMS, 4)) {
+            if (ImGui::Combo(EditorUi::tr("house.form"), &fi, HOUSE_FORMS, 4)) {
                 (void)session.mutate("форма палки", [&](world::HouseGraph& g) {
                     (void)g.set_param(id, "form", fi == 1 ? "square" : "round");
                     return g.set_param(id, "sides",
@@ -365,6 +369,12 @@ void HouseLineTool::draw_settings() {
     // ниже под своим заголовком, и без надписей эти два блока читались как
     // один, отвечающий непонятно про что (конфликт ID из ImGui был симптомом).
     ImGui::SeparatorText(EditorUi::tr("house.head.draft"));
+    // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
+    // в меню объекта») — материал, тон и форма следующей прямой выбираются
+    // ЗДЕСЬ и штампуются в элемент при создании.
+    ImGui::Combo(EditorUi::tr("house.mat"), &mat_, HOUSE_MATS, 9);
+    ImGui::Combo(EditorUi::tr("house.tone"), &tone_, HOUSE_TONES, 4);
+    ImGui::Combo(EditorUi::tr("house.form"), &form_, HOUSE_FORMS, 4);
     ImGui::SliderFloat(EditorUi::tr("house.radius"), &radius_m_, 0.02f, 1.0f, "%.3f m");
 
     // ЗАЖИМ ДЛИНЫ — ТРИ ПОЛОЖЕНИЯ, А НЕ ГАЛОЧКА. «Механика клипа длины прямой
@@ -409,6 +419,15 @@ void HouseSurfaceTool::draw_settings() {
     // ниже под своим заголовком, и без надписей эти два блока читались как
     // один, отвечающий непонятно про что (конфликт ID из ImGui был симптомом).
     ImGui::SeparatorText(EditorUi::tr("house.head.draft"));
+    // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
+    // в меню объекта»): материал, тон, обшивка и окна следующей поверхности
+    // выбираются здесь и штампуются в элемент при подтверждении.
+    ImGui::Combo(EditorUi::tr("house.mat"), &mat_, HOUSE_MATS, 9);
+    ImGui::Combo(EditorUi::tr("house.tone"), &tone_, HOUSE_TONES, 4);
+    ImGui::Checkbox(EditorUi::tr("house.clad"), &clad_);
+    if (clad_) {
+        ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 0, 6);
+    }
     if (session_ == nullptr) {
         ImGui::TextDisabled("%s", EditorUi::tr("house.hint.nomodel"));
         return;

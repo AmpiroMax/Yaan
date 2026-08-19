@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 03:22:40
+Last updated: 19:08:2026 - 23:58:20
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 19:08:2026 - 00:31:05: Стопка призрака чистится в начале показа: без этой строки шарик добавлялся каждый кадр и рендерер ронял линии пачками.
 - 19:08:2026 - 00:48:20: Метка двигаемого якоря вместо призрака: крест по трём осям, формой отличается от шарика.
 - 19:08:2026 - 03:22:40: Сетка действует на осях (перетаскивание, прямая, посадка на бревно с пересчётом t); обход стены — жирным пучком со стрелками направления, жёлтые только ВЫБРАННЫЕ якоря (line_color больше не жёлтый).
+- 19:08:2026 - 23:58:20: Создание штампует заготовку в params элемента (stamp_draft у прямой, confirm у поверхности); умолчания ключей не пишут.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1304,12 +1305,26 @@ void HouseLineTool::on_release(ToolWorld& world) {
     const VertexId to = snap_ != NO_VERTEX      ? snap_
                         : clamp_hit_.found      ? clamp_hit_.at
                                                 : session_->pick_vertex(raw_end_, HOUSE_GRAB_M);
+    // ЗАГОТОВКА ДОЕЗЖАЕТ ДО ЭЛЕМЕНТА: материал, тон и форма пишутся при
+    // создании — правка потом идёт через блок «Выбрано сейчас».
+    const auto stamp_draft = [&](HouseGraph& g, ElementId id) {
+        g.set_param(id, "radius", house_num(radius_m_));
+        g.set_param(id, "mat", std::to_string(mat_));
+        g.set_param(id, "tone", std::to_string(tone_));
+        if (form_ == 1) {
+            g.set_param(id, "form", "square");
+        } else if (form_ == 2) {
+            g.set_param(id, "sides", "6");
+        } else if (form_ == 3) {
+            g.set_param(id, "sides", "8");
+        }
+    };
     ElementId made = NO_ELEMENT;
     if (to != NO_VERTEX && to != from) {
         const GraphResult r = session_->mutate("прямая между якорями", [&](HouseGraph& g) {
             const GraphResult add = g.add_element(ElementKind::Line, {from, to}, style_, made);
             if (add.ok) {
-                g.set_param(made, "radius", house_num(radius_m_));
+                stamp_draft(g, made);
             }
             return add;
         });
@@ -1348,7 +1363,7 @@ void HouseLineTool::on_release(ToolWorld& world) {
                            session_->to_local(air ? end : glm::vec3{end.x, gy, end.z}));
         const GraphResult add = g.add_element(ElementKind::Line, {from, tip}, style_, made);
         if (add.ok) {
-            g.set_param(made, "radius", house_num(radius_m_));
+            stamp_draft(g, made);
         }
         return add;
     });
@@ -1601,6 +1616,14 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
             g.set_facing(made, true);
         }
         g.set_param(made, "thickness", house_num(thickness_m_));
+        g.set_param(made, "mat", std::to_string(mat_));
+        g.set_param(made, "tone", std::to_string(tone_));
+        if (!closed && clad_) {
+            g.set_param(made, "clad", "1");
+            if (windows_ > 0) {
+                g.set_param(made, "windows", std::to_string(windows_));
+            }
+        }
         if (!closed) {
             // ВЫСОТА — ТОЛЬКО У ЦЕПОЧКИ. У контура она означала бы вторую
             // толщину, сказанную другим словом.

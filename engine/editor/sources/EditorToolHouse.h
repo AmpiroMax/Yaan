@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 02:05:30
+Last updated: 19:08:2026 - 23:58:20
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.h
 
@@ -88,6 +88,7 @@ UPD:
 - 19:08:2026 - 00:48:20: nudging() — пока правят стрелками, призрак под прицелом не рисуется, помечается двигаемый якорь.
 - 19:08:2026 - 01:20:45: Объявлена draw_house_selection_panel.
 - 19:08:2026 - 02:05:30: Сессия и числа руки выехали в HouseSession.h (долг 3): здесь остались три инструмента.
+- 19:08:2026 - 23:58:20: Заготовка инструментов: материал/тон/форма у прямой, материал/тон/обшивка/окна у поверхности; доступ по ссылке для панели и рукава.
 */
 
 #pragma once
@@ -298,6 +299,18 @@ private:
     HouseClampHit clamp_hit_;
     HouseClamp clamp_ = HouseClamp::None;
     float radius_m_ = 0.12f;
+    /// ЗАГОТОВКА: материал, тон и форма СЛЕДУЮЩЕЙ прямой. Пишутся в params
+    /// созданного элемента; выбранный элемент правится своим блоком панели.
+    // Доступ рукаву и панели — по ссылке, как у radius_m_.
+public:
+    [[nodiscard]] int& draft_mat() { return mat_; }
+    [[nodiscard]] int& draft_tone() { return tone_; }
+    [[nodiscard]] int& draft_form() { return form_; }
+
+private:
+    int mat_ = 0;   ///< PartSurface ordinal (0 = тёсаный брус)
+    int tone_ = 1;  ///< PartTone ordinal (1 = средний)
+    int form_ = 0;  ///< 0 круг, 1 квадрат, 2 шестигранник, 3 восьмигранник
     std::string style_ = "oak";
     std::string refusal_;
     mutable HouseWire wire_;
@@ -385,6 +398,18 @@ private:
     bool closed_ = false;
     bool flipped_ = false;
     float height_m_ = 2.5f;
+    /// ЗАГОТОВКА: материал, тон, обшивка и окна СЛЕДУЮЩЕЙ поверхности.
+public:
+    [[nodiscard]] int& draft_mat() { return mat_; }
+    [[nodiscard]] int& draft_tone() { return tone_; }
+    [[nodiscard]] bool& draft_clad() { return clad_; }
+    [[nodiscard]] int& draft_windows() { return windows_; }
+
+private:
+    int mat_ = 5;   ///< штукатурка
+    int tone_ = 0;  ///< светлый
+    bool clad_ = false;
+    int windows_ = 0;
     float thickness_m_ = 0.20f;
     float tex_deg_ = 0.0f;
     std::string style_ = "plank";

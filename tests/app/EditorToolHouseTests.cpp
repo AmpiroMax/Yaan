@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 03:22:40
+Last updated: 19:08:2026 - 23:58:20
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -65,6 +65,7 @@ UPD:
 - 18:08:2026 - 23:52:10: Видное место — среднее: на прямоугольнике, на треугольнике (с плечом «равноудалённая заметно в стороне») и на паре якорей.
 - 19:08:2026 - 00:31:05: Показ пересобирается целиком: три кадра подряд дают один размер у всех трёх инструментов (контрфакт — снятая очистка роняет случай).
 - 19:08:2026 - 03:22:40: snap_on_axis: вертикаль даёт кратную высоту, наклонная ось не отпускает точку с оси, выключенная сетка не трогает ничего.
+- 19:08:2026 - 23:58:20: Заготовка доезжает до элемента (камень/тёмный/квадрат; обшивка с окнами), контроль: умолчания не пишут ключей.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1742,4 +1743,46 @@ TEST_CASE("сетка действует и на оси: округлить, н�
     b.session.set_grid_on(false);
     const glm::vec3 raw = origin + dir * 3.3f;
     CHECK(glm::length(b.session.snap_on_axis(raw, origin, dir) - raw) < 1e-6f);
+}
+
+TEST_CASE("заготовка доезжает до элемента: материал, форма, обшивка") {
+    Bench b;
+    HouseVertexTool vt(b.session);
+    vt.set_world(&b.world);
+    b.click(vt, {0.0f, 0.0f, 0.0f});
+    b.click(vt, {5.0f, 0.0f, 0.0f});
+
+    // ПРЯМАЯ: заготовка «камень, тёмный, квадратная» штампуется при создании.
+    HouseLineTool lt(b.session);
+    lt.set_world(&b.world);
+    lt.draft_mat() = 3;
+    lt.draft_tone() = 2;
+    lt.draft_form() = 1;
+    b.drag(lt, {0.0f, 0.0f, 0.0f}, {5.0f, 0.0f, 0.0f});
+    const ElementId beam = lt.last_element();
+    REQUIRE(beam != NO_ELEMENT);
+    CHECK(b.session.graph().param(beam, "mat") == "3");
+    CHECK(b.session.graph().param(beam, "tone") == "2");
+    CHECK(b.session.graph().param(beam, "form") == "square");
+
+    // ПОВЕРХНОСТЬ: обшивка с окнами из заготовки.
+    HouseSurfaceTool st(b.session);
+    st.set_world(&b.world);
+    st.draft_clad() = true;
+    st.draft_windows() = 2;
+    b.click(st, {0.0f, 0.0f, 0.0f});
+    b.click(st, {5.0f, 0.0f, 0.0f});
+    st.on_confirm(b.world);
+    const ElementId wall = st.last_element();
+    REQUIRE(wall != NO_ELEMENT);
+    CHECK(b.session.graph().param(wall, "clad") == "1");
+    CHECK(b.session.graph().param(wall, "windows") == "2");
+    CHECK(b.session.graph().param(wall, "mat") == "5");
+
+    // КОНТРОЛЬ: заготовка по умолчанию НЕ пишет форму и обшивку — иначе каждый
+    // элемент таскал бы полный набор ключей и файл распух бы молча.
+    HouseLineTool plain(b.session);
+    plain.set_world(&b.world);
+    b.drag(plain, {5.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f});
+    CHECK(b.session.graph().param(plain.last_element(), "form").empty());
 }
