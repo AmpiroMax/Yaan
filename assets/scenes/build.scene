@@ -1,0 +1,1840 @@
+# Daggerfall N scene — СТРОЙКА: демка домов + повторы НОВОЙ механикой (20.08).
+# СГЕНЕРИРОВАНО tools/gen_build_map.py — правки вносить в генератор.
+# СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки вносить в генератор, иначе
+# следующий прогон их сотрёт.
+# Свой стенд (Gallery, 1 чанк). Три дома в ряд с запада на восток:
+# одноэтажный сруб 6 м, полутораэтажный фахверк 9 м, двухэтажный камень+дерево
+# 9 м. У каждого — паспорт-табличка на столбике в 2.5 м перед южной стеной,
+# лицом к пришедшему (спавн южнее, смотрит на север).
+map = houses/build
+world_span_m = 256
+spawn = 136 0 162
+spawn_yaw = 0
+
+[pad]
+center = 128 142
+half_extents = 60 26
+blend = 10
+height = 25.5
+note = ровная площадка демки: три дома сравниваются взглядом, а не рельефом
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 118.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 118.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 121.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 121.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 118.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-4x2x2-w03
+pos = 118.250 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 124.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = footing-stone-4x2x2-w03
+pos = 124.250 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 118.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 120.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 121.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 123.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 118.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 118.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 119.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 119.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 120.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 120.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 121.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 121.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 122.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 122.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 123.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 123.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 118.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 118.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 121.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 121.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 124.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 124.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = wall-log-timber-12x1x13-blind-w05
+pos = 118.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = wall-log-timber-12x1x13-win1-w05
+pos = 121.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = wall-log-timber-16x1x13-win1-w05
+pos = 124.125 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = wall-log-timber-12x1x13-door-w05
+pos = 124.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-log
+
+[place]
+object = wall-log-timber-12x1x13-win1-w05
+pos = 121.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-log
+
+[place]
+object = wall-log-timber-16x1x13-blind-w05
+pos = 117.875 25.500 140.000
+yaw = 1.570796
+scale = 1
+group = house-log
+
+[place]
+object = door-timber-5x1x9-w03
+pos = 123.125 25.300 140.145
+yaw = 3.141593
+scale = 1
+group = house-log
+note = полотно закрывает единственный сквозной проём дома
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 118.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-log
+note = коньковый прогон: на нём сходятся оба ската и оба фронтона
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 121.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-log
+
+[place]
+object = roof-thatch-12x12x12-w03
+pos = 118.000 27.750 141.000
+yaw = 1.570796
+scale = 1
+group = house-log
+
+[place]
+object = roof-thatch-12x12x12-w03
+pos = 121.000 27.750 135.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = roof-thatch-12x12x12-w03
+pos = 121.000 27.750 141.000
+yaw = 1.570796
+scale = 1
+group = house-log
+
+[place]
+object = roof-thatch-12x12x12-w03
+pos = 124.000 27.750 135.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = gable-timber-16x1x8-w03
+pos = 118.125 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-log
+
+[place]
+object = gable-timber-16x1x8-w03
+pos = 123.875 28.750 140.000
+yaw = 1.570796
+scale = 1
+group = house-log
+
+[place]
+object = passport-log
+pos = 121.000 25.500 142.500
+yaw = 0.000000
+scale = 1
+group = house-log
+note = паспорт дома: что это, почему такая архитектура и материалы
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 130.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 130.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 133.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 133.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 136.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 136.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 130.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-4x2x2-w03
+pos = 130.250 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 139.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = footing-stone-4x2x2-w03
+pos = 139.250 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 130.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 132.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 133.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 135.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 136.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 138.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 130.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 130.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 131.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 131.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 132.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 132.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 133.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 133.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 134.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 134.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 135.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 135.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 136.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 136.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 137.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 137.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 138.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 138.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 130.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 130.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 133.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 133.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 136.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 136.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 139.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 139.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-12x1x13-blind-w05
+pos = 130.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-12x1x13-blind-w05
+pos = 133.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-12x1x13-win1-w05
+pos = 136.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-16x1x13-win1-w05
+pos = 139.125 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-12x1x13-door-w05
+pos = 139.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-12x1x13-win1-w05
+pos = 136.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-12x1x13-win1-w05
+pos = 133.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-frame
+
+[place]
+object = wall-framex-clay-16x1x13-blind-w05
+pos = 129.875 25.500 140.000
+yaw = 1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = door-timber-5x1x9-w03
+pos = 138.125 25.300 140.145
+yaw = 3.141593
+scale = 1
+group = house-frame
+note = полотно закрывает единственный сквозной проём дома
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 130.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+note = коньковый прогон: на нём сходятся оба ската и оба фронтона
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 133.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 136.000 30.500 138.000
+yaw = 0.000000
+scale = 1
+group = house-frame
+
+[place]
+object = roof-shingle-12x12x12-w03
+pos = 130.000 27.750 141.000
+yaw = 1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = roof-shingle-12x12x12-w03
+pos = 133.000 27.750 135.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = roof-shingle-12x12x12-w03
+pos = 133.000 27.750 141.000
+yaw = 1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = roof-shingle-12x12x12-w03
+pos = 136.000 27.750 135.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = roof-shingle-12x12x12-w03
+pos = 136.000 27.750 141.000
+yaw = 1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = roof-shingle-12x12x12-w03
+pos = 139.000 27.750 135.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = gable-timber-16x1x8-w03
+pos = 130.125 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = gable-timber-16x1x8-w03
+pos = 138.875 28.750 140.000
+yaw = 1.570796
+scale = 1
+group = house-frame
+
+[place]
+object = stair-steep-timber-1x4x13-w03
+pos = 130.500 25.500 136.500
+yaw = 0.000000
+scale = 1
+group = house-frame
+note = крутой марш 45: этаж за собственную длину
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 130.500 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+note = лежень нижнего уровня: подножие марша садится на него
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 133.750 28.375 136.000
+yaw = -1.570796
+scale = 1
+group = house-frame
+note = лежень верхнего уровня: верх марша садится на него
+
+[place]
+object = passport-frame
+pos = 134.500 25.500 142.500
+yaw = 0.000000
+scale = 1
+group = house-frame
+note = паспорт дома: что это, почему такая архитектура и материалы
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 147.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 147.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 150.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 150.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 153.000 25.250 135.750
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 153.000 25.250 139.750
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 147.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-4x2x2-w03
+pos = 147.250 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-12x2x2-w03
+pos = 156.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = footing-stone-4x2x2-w03
+pos = 156.250 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 147.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 149.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 150.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 152.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 153.750 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 155.250 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 147.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 147.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 148.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 148.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 149.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 149.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 150.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 150.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 151.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 151.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 152.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 152.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 153.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 153.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 154.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 154.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 155.250 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 155.750 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 147.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 147.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 150.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 150.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 153.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 153.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 156.000 25.500 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-stone-d50-n4-h13-w03
+pos = 156.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-12x1x13-blind-w05
+pos = 147.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-12x1x13-blind-w05
+pos = 150.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-12x1x13-win1-w05
+pos = 153.000 25.500 135.875
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-16x1x13-win1-w05
+pos = 156.125 25.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-12x1x13-door-w05
+pos = 156.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-12x1x13-win1-w05
+pos = 153.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-12x1x13-win1-w05
+pos = 150.000 25.500 140.125
+yaw = 3.141593
+scale = 1
+group = house-stone
+
+[place]
+object = wall-ashlar-stone-16x1x13-blind-w05
+pos = 146.875 25.500 140.000
+yaw = 1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 147.750 28.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 149.250 28.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 150.750 28.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 152.250 28.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 153.750 28.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = beam-timber-16x2x1-w03
+pos = 155.250 28.500 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 147.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 147.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 148.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 148.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 149.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 149.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 150.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 150.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 151.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 151.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 152.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 152.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 153.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 153.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 154.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 154.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 155.250 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = plank-timber-16x2x1-w03
+pos = 155.750 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 147.000 28.750 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 147.000 28.750 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 150.000 28.750 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 150.000 28.750 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 153.000 28.750 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 153.000 28.750 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 156.000 28.750 136.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 156.000 28.750 140.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-12x1x13-blind-w05
+pos = 147.000 28.750 135.875
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-12x1x13-blind-w05
+pos = 150.000 28.750 135.875
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-12x1x13-win1-w05
+pos = 153.000 28.750 135.875
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-16x1x13-blind-w05
+pos = 156.125 28.750 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-12x1x13-win1-w05
+pos = 156.000 28.750 140.125
+yaw = 3.141593
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-12x1x13-win1-w05
+pos = 153.000 28.750 140.125
+yaw = 3.141593
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-12x1x13-win1-w05
+pos = 150.000 28.750 140.125
+yaw = 3.141593
+scale = 1
+group = house-stone
+
+[place]
+object = wall-framex-plaster-16x1x13-blind-w05
+pos = 146.875 28.750 140.000
+yaw = 1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = door-timber-5x1x9-w03
+pos = 155.125 25.300 140.145
+yaw = 3.141593
+scale = 1
+group = house-stone
+note = полотно закрывает единственный сквозной проём дома
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 147.000 33.750 138.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+note = коньковый прогон: на нём сходятся оба ската и оба фронтона
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 150.000 33.750 138.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = sleeper-timber-d50-nr-12u-w03
+pos = 153.000 33.750 138.000
+yaw = 0.000000
+scale = 1
+group = house-stone
+
+[place]
+object = roof-tile-12x12x12-w05
+pos = 147.000 31.000 141.000
+yaw = 1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = roof-tile-12x12x12-w05
+pos = 150.000 31.000 135.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = roof-tile-12x12x12-w05
+pos = 150.000 31.000 141.000
+yaw = 1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = roof-tile-12x12x12-w05
+pos = 153.000 31.000 135.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = roof-tile-12x12x12-w05
+pos = 153.000 31.000 141.000
+yaw = 1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = roof-tile-12x12x12-w05
+pos = 156.000 31.000 135.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = gable-plaster-16x1x8-w03
+pos = 147.125 32.000 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = gable-plaster-16x1x8-w03
+pos = 155.875 32.000 140.000
+yaw = 1.570796
+scale = 1
+group = house-stone
+
+[place]
+object = stair-steep-timber-1x4x13-w03
+pos = 147.500 25.500 136.500
+yaw = 0.000000
+scale = 1
+group = house-stone
+note = крутой марш 45: этаж за собственную длину
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 147.500 25.250 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+note = лежень нижнего уровня: подножие марша садится на него
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 150.750 28.375 136.000
+yaw = -1.570796
+scale = 1
+group = house-stone
+note = лежень верхнего уровня: верх марша садится на него
+
+[place]
+object = passport-stone
+pos = 151.500 25.500 142.500
+yaw = 0.000000
+scale = 1
+group = house-stone
+note = паспорт дома: что это, почему такая архитектура и материалы
+
+[place]
+object = stair-steep-timber-1x4x13-w03
+pos = 172.000 25.500 140.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+note = марш 45°: 13 ступеней по 1u, этаж за свою длину
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 172.000 25.250 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+note = лежень нижнего уровня: на него садится подножие марша
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 175.250 28.375 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+note = лежень верхнего уровня: на него садится верх марша
+
+[place]
+object = deck-timber-16x16x1-hole2x6x9x4-w03
+pos = 172.500 28.500 138.500
+yaw = 0.000000
+scale = 1
+group = stairwell
+note = настил с ОБЪЯВЛЕННЫМ проёмом 9u = 2.25 м
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 176.250 28.375 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 172.750 28.375 139.000
+yaw = -1.570796
+scale = 1
+group = stairwell
+note = лежень под ближним краем настила: без него настил висит
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 172.750 25.500 139.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 172.750 25.500 143.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 175.250 25.500 139.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 175.250 25.500 143.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 176.250 25.500 139.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 176.250 25.500 143.000
+yaw = 0.000000
+scale = 1
+group = stairwell
+
+[place]
+object = passport-stair
+pos = 174.000 25.500 143.500
+yaw = 0.000000
+scale = 1
+group = stairwell
+note = паспорт клетки: почему проём именно такой длины
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 28.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+note = пята: лежень на стойках, с него свод начинается
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 28.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+note = пята: лежень на стойках, с него свод начинается
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 30.500 137.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 30.500 143.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = sleeper-timber-d50-nr-16u-w03
+pos = 162.000 31.500 140.000
+yaw = 0.000000
+scale = 1
+group = arch
+note = замок свода: на нём сходятся верхние грани обоих верхних звеньев
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 162.000 25.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 164.000 25.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 166.000 25.500 145.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 162.000 25.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 164.000 25.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = joint-timber-d50-n4-h13-w03
+pos = 166.000 25.500 135.000
+yaw = 0.000000
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 162.000 28.750 145.000
+yaw = 1.570796
+scale = 1
+group = arch
+note = звено 1: уклон 45.0°
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 164.000 28.750 145.000
+yaw = 1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 162.000 30.750 143.000
+yaw = 1.570796
+scale = 1
+group = arch
+note = звено 2: уклон 18.4°
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 164.000 30.750 143.000
+yaw = 1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 164.000 28.750 135.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-8x8x8-w03
+pos = 166.000 28.750 135.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 164.000 30.750 137.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = roof-shingle-12x8x4-w05
+pos = 166.000 30.750 137.000
+yaw = -1.570796
+scale = 1
+group = arch
+
+[place]
+object = passport-arch
+pos = 164.000 25.500 147.500
+yaw = 0.000000
+scale = 1
+group = arch
+note = паспорт навеса: из чего он и почему такой формы
+
+[pad]
+center = 128 106
+half_extents = 60 16
+blend = 10
+height = 25.5
+note = южная полка стройки: П-образный дом кузницы стоит на ней
+
+[house]
+file = assets/houses/log-replica.dfh
+pos = 118.000 25.500 122.000
+yaw = 0
+note = повтор сруба новой механикой; оригинал из деталей южнее
+
+[house]
+file = assets/houses/frame-replica.dfh
+pos = 130.000 25.500 122.000
+yaw = 0
+note = повтор фахверка с маршем на антресоль
+
+[house]
+file = assets/houses/stone-replica.dfh
+pos = 147.000 25.500 122.000
+yaw = 0
+note = повтор двухэтажного камень+фахверк
+
+[house]
+file = assets/houses/l-house.dfh
+pos = 162.000 25.500 114.000
+yaw = 0
+note = Г-образный одноэтажный: две комнаты, межкомнатная дверь
+
+[house]
+file = assets/houses/u-house.dfh
+pos = 90.000 25.500 100.000
+yaw = 0
+note = П-образный двухэтажный: два марша, двор, крыша из четырёх навесов

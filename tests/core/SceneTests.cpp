@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 17:08:2026 - 12:33:08
+Last updated: 20:08:2026 - 15:30:00
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -43,6 +43,7 @@ UPD:
   контроль вдали, контроль без поля троп; дерево в доме, деталь дома в своём же
   доме (не находка), контроль рядом, и то же самое в обратном порядке записи —
   правило не должно зависеть от того, кого поставили первым.
+- 20:08:2026 - 15:30:00: [house] в круговороте; кривое pos — отказ со строкой.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -529,6 +530,45 @@ TEST_CASE("scene: the file survives the round trip, notes and all") {
     {
         std::ofstream f(path, std::ios::trunc);
         f << "map = x\n[place]\nobject = tree\nyaw = north\n";
+    }
+    SceneDoc bad;
+    std::string bad_error;
+    CHECK_FALSE(read_scene(path, bad, bad_error));
+    CHECK(bad_error.find("line 4") != std::string::npos);
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("scene: [house] survives the round trip and a wrong pos is refused") {
+    // Готовые постройки (20.08): секция [house] — регистрация домов кузницы.
+    const auto path = std::filesystem::temp_directory_path() / "dfn_scene_house.scene";
+    SceneDoc doc;
+    doc.map = "houses/build";
+    doc.world_span_m = 256.0f;
+    dfn::world::ScenePlacedHouse h;
+    h.file = "assets/houses/u-house.dfh";
+    h.position = {90.0f, 25.5f, 100.0f};
+    h.yaw = 1.57f;
+    h.note = "П-образный на южной полке";
+    doc.houses.push_back(h);
+    REQUIRE(write_scene(doc, path));
+
+    SceneDoc back;
+    std::string error;
+    REQUIRE(read_scene(path, back, error));
+    REQUIRE(back.houses.size() == 1);
+    CHECK(back.houses[0].file == h.file);
+    CHECK(back.houses[0].position.x == doctest::Approx(90.0f));
+    CHECK(back.houses[0].position.y == doctest::Approx(25.5f));
+    CHECK(back.houses[0].position.z == doctest::Approx(100.0f));
+    CHECK(back.houses[0].yaw == doctest::Approx(1.57f));
+    CHECK(back.houses[0].note == h.note);
+
+    // Кривое pos — отказ со строкой, не молчаливый ноль (контрольное плечо).
+    {
+        std::ofstream f(path, std::ios::trunc);
+        f << "map = x\n[house]\nfile = a.dfh\npos = there\n";
     }
     SceneDoc bad;
     std::string bad_error;

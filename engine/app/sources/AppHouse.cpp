@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 12:10:00
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -35,6 +35,7 @@ UPD:
 - 20:08:2026 - 00:02:30: App печёт свотчи материалов из листа набора и составные примеры заполнения (штукатурка + брус + проёмы), кэш по ключу.
 - 20:08:2026 - 00:58:40: Бакеты уважают материал куска; свотчи и карточки светятся по листу нормалей («плоские текстуры» 20.08); карточки кирпича и блоков; демо-сруб получил кирпичную стену.
 - 20:08:2026 - 12:10:00: Краска элемента — вершинный цвет поверх плитки материала.
+- 20:08:2026 - 15:30:00: upload_house_mesh вливает готовые постройки карты (append_graph на граф) в общие потоки и ОДИН коллайдер; load_scene_houses; проба коллайдера целится сквозь вершину, контроль — над рельефом.
 */
 
 #include "engine/app/sources/App.h"
@@ -47,9 +48,14 @@ UPD:
 #include "engine/physics/sources/CollisionLayers.h"
 #include "engine/render/sources/PartsAtlas.h"
 #include "engine/render/sources/RenderSystem.h"
+#include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseMesh.h"
+#include "engine/world/sources/Scene.h"
 
+#include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <map>
 #include <cstdio>
 #include <glm/geometric.hpp>
@@ -447,114 +453,140 @@ void App::upload_house_mesh() {
     if (renderer_ == nullptr) {
         return;
     }
-    const world::HouseMesh built = world::build_house_mesh(house_.graph());
     // ПОТОК НА МАТЕРИАЛ (заказ 19.08: «выбирать текстуры для палок, стен»).
     // Материал элемента — параметры mat/tone; по умолчанию брус носит тёсаное
     // дерево, полотно — светлую штукатурку. Дверь (param door=1) уезжает в
     // СВОЙ поток с петлёй и в коллайдер НЕ входит: она качается, а статичное
     // тело в проёме держало бы человека в пустом дверном проёме.
-    const glm::vec3 zero = house_.to_world({0.0f, 0.0f, 0.0f});
-    // КРАСКА ЭЛЕМЕНТА — вершинный цвет: плитка материала умножается на него в
-    // шейдере, 0xFFFFFFFF (без краски) оставляет её как есть. Слой отделки, а
-    // не материал — потому и не участвует в ключе потока.
-    std::uint32_t part_color = 0xFFFFFFFFu;
-    const auto to_world_vertex = [&](const world::HouseVertex& v) {
-        platform::Vertex pv{};
-        pv.position = house_.to_world(v.pos);
-        pv.normal = house_.to_world(v.normal) - zero;
-        pv.uv = v.uv;
-        pv.color_rgba = part_color;
-        return pv;
-    };
-    const auto paint_of = [&](const world::Element& e) -> std::uint32_t {
-        const std::string c = house_.graph().param(e.id, "paint");
-        if (c.empty()) {
-            return 0xFFFFFFFFu;
-        }
-        const int idx = std::clamp(std::atoi(c.c_str()), 0, world::HOUSE_PAINT_COUNT - 1);
-        const glm::vec3 rgb = world::HOUSE_PAINT_RGB[idx];
-        const auto b = [](float f) {
-            return static_cast<std::uint32_t>(std::lround(f * 255.0f));
-        };
-        return 0xFF000000u | (b(rgb.z) << 16) | (b(rgb.y) << 8) | b(rgb.x); // AABBGGRR
-    };
-    const auto mat_of = [&](const world::Element& e, std::uint32_t& surface,
-                            std::uint32_t& tone) {
-        const bool beam = e.kind == world::ElementKind::Line;
-        surface = beam ? 0u : 5u; // HewnTimber : Plaster
-        tone = beam ? 1u : 0u;    // Mid : Light
-        const std::string m = house_.graph().param(e.id, "mat");
-        const std::string t = house_.graph().param(e.id, "tone");
-        if (!m.empty()) { surface = static_cast<std::uint32_t>(std::atoi(m.c_str())) % 9u; }
-        if (!t.empty()) { tone = static_cast<std::uint32_t>(std::atoi(t.c_str())) % 4u; }
-    };
+    //
+    // СЮДА ЖЕ ВЛИВАЮТСЯ ГОТОВЫЕ ПОСТРОЙКИ КАРТЫ (20.08, секция [house]):
+    // один набор потоков и ОДИН коллайдер на всё построенное — у картинки и
+    // физики нет второй истории, которая могла бы разъехаться.
     std::map<std::uint64_t, render::RenderSystem::HouseStream> streams;
     std::vector<render::RenderSystem::HouseDoor> doors;
-    std::vector<std::uint32_t> remap;
-    house_positions_.clear();
     std::vector<std::uint32_t> collider_indices;
-    for (const world::MeshPart& part : built.parts) {
-        const world::Element* e = house_.graph().element(part.element);
-        if (e == nullptr) {
-            continue;
-        }
-        std::uint32_t surface = 0;
-        std::uint32_t tone = 0;
-        mat_of(*e, surface, tone);
-        part_color = paint_of(*e);
-        // КУСОК КЛАДКИ НЕСЁТ СВОЙ МАТЕРИАЛ: доска фахверка — брус, кирпич —
-        // глина, блок — камень. Элементный материал остаётся у пластины.
-        if (part.mat_override >= 0) {
-            surface = static_cast<std::uint32_t>(part.mat_override) % 9u;
-        }
-        if (part.tone_override >= 0) {
-            tone = static_cast<std::uint32_t>(part.tone_override) % 4u;
-        }
-        const bool is_door = house_.graph().param(e->id, "door") == "1";
-        render::MeshData* into = nullptr;
-        if (is_door) {
-            doors.emplace_back();
-            doors.back().surface = surface;
-            doors.back().tone = tone;
-            // ПЕТЛЯ — ВЫБРАННАЯ ПАРА СОСЕДНИХ ЯКОРЕЙ (param hinge = номер
-            // ребра обхода, по кругу). Ось идёт через их мировые точки.
-            const std::size_t n = e->refs.size();
-            std::size_t hinge = 0;
-            if (const std::string h = house_.graph().param(e->id, "hinge"); !h.empty()) {
-                hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
+    house_positions_.clear();
+
+    const auto append_graph = [&](const world::HouseGraph& graph,
+                                  const auto& to_world) {
+        const world::HouseMesh built = world::build_house_mesh(graph);
+        const glm::vec3 zero = to_world(glm::vec3{0.0f});
+        // КРАСКА ЭЛЕМЕНТА — вершинный цвет: плитка материала умножается на
+        // него в шейдере, 0xFFFFFFFF (без краски) оставляет её как есть.
+        std::uint32_t part_color = 0xFFFFFFFFu;
+        const auto to_world_vertex = [&](const world::HouseVertex& v) {
+            platform::Vertex pv{};
+            pv.position = to_world(v.pos);
+            pv.normal = to_world(v.normal) - zero;
+            pv.uv = v.uv;
+            pv.color_rgba = part_color;
+            return pv;
+        };
+        const auto paint_of = [&](const world::Element& e) -> std::uint32_t {
+            const std::string c = graph.param(e.id, "paint");
+            if (c.empty()) {
+                return 0xFFFFFFFFu;
             }
-            doors.back().hinge_a = house_.vertex_world(e->refs[hinge]);
-            doors.back().hinge_b = house_.vertex_world(e->refs[(hinge + 1) % n]);
-            into = &doors.back().mesh;
-        } else {
-            auto& st = streams[(static_cast<std::uint64_t>(surface) << 8) | tone];
-            st.surface = surface;
-            st.tone = tone;
-            into = &st.mesh;
-        }
-        remap.assign(built.vertices.size(), 0xFFFFFFFFu);
-        for (std::uint32_t i = 0; i < part.index_count; ++i) {
-            const std::uint32_t vi = built.indices[part.index_begin + i];
-            if (remap[vi] == 0xFFFFFFFFu) {
-                remap[vi] = static_cast<std::uint32_t>(into->vertices.size());
-                into->vertices.push_back(to_world_vertex(built.vertices[vi]));
+            const int idx =
+                std::clamp(std::atoi(c.c_str()), 0, world::HOUSE_PAINT_COUNT - 1);
+            const glm::vec3 rgb = world::HOUSE_PAINT_RGB[idx];
+            const auto b = [](float f) {
+                return static_cast<std::uint32_t>(std::lround(f * 255.0f));
+            };
+            return 0xFF000000u | (b(rgb.z) << 16) | (b(rgb.y) << 8) | b(rgb.x);
+        };
+        const auto mat_of = [&](const world::Element& e, std::uint32_t& surface,
+                                std::uint32_t& tone) {
+            const bool beam = e.kind == world::ElementKind::Line;
+            surface = beam ? 0u : 5u; // HewnTimber : Plaster
+            tone = beam ? 1u : 0u;    // Mid : Light
+            const std::string m = graph.param(e.id, "mat");
+            const std::string t = graph.param(e.id, "tone");
+            if (!m.empty()) {
+                surface = static_cast<std::uint32_t>(std::atoi(m.c_str())) % 9u;
             }
-            into->indices.push_back(remap[vi]);
-        }
-        if (!is_door) {
-            // Коллайдер — из тех же треугольников, дверные исключены.
+            if (!t.empty()) {
+                tone = static_cast<std::uint32_t>(std::atoi(t.c_str())) % 4u;
+            }
+        };
+        std::vector<std::uint32_t> remap;
+        for (const world::MeshPart& part : built.parts) {
+            const world::Element* e = graph.element(part.element);
+            if (e == nullptr) {
+                continue;
+            }
+            std::uint32_t surface = 0;
+            std::uint32_t tone = 0;
+            mat_of(*e, surface, tone);
+            part_color = paint_of(*e);
+            // КУСОК КЛАДКИ НЕСЁТ СВОЙ МАТЕРИАЛ: доска фахверка — брус,
+            // кирпич — глина, блок — камень. Элементный остаётся у пластины.
+            if (part.mat_override >= 0) {
+                surface = static_cast<std::uint32_t>(part.mat_override) % 9u;
+            }
+            if (part.tone_override >= 0) {
+                tone = static_cast<std::uint32_t>(part.tone_override) % 4u;
+            }
+            const bool is_door = graph.param(e->id, "door") == "1";
+            render::MeshData* into = nullptr;
+            if (is_door) {
+                doors.emplace_back();
+                doors.back().surface = surface;
+                doors.back().tone = tone;
+                // ПЕТЛЯ — ВЫБРАННАЯ ПАРА СОСЕДНИХ ЯКОРЕЙ (param hinge — номер
+                // ребра обхода, по кругу). Ось идёт через их мировые точки.
+                const std::size_t n = e->refs.size();
+                std::size_t hinge = 0;
+                if (const std::string h = graph.param(e->id, "hinge"); !h.empty()) {
+                    hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
+                }
+                doors.back().hinge_a = to_world(graph.resolved_local(e->refs[hinge]));
+                doors.back().hinge_b =
+                    to_world(graph.resolved_local(e->refs[(hinge + 1) % n]));
+                into = &doors.back().mesh;
+            } else {
+                auto& st = streams[(static_cast<std::uint64_t>(surface) << 8) | tone];
+                st.surface = surface;
+                st.tone = tone;
+                into = &st.mesh;
+            }
+            remap.assign(built.vertices.size(), 0xFFFFFFFFu);
             for (std::uint32_t i = 0; i < part.index_count; ++i) {
                 const std::uint32_t vi = built.indices[part.index_begin + i];
-                collider_indices.push_back(
-                    static_cast<std::uint32_t>(house_positions_.size()));
-                house_positions_.push_back(house_.to_world(built.vertices[vi].pos));
+                if (remap[vi] == 0xFFFFFFFFu) {
+                    remap[vi] = static_cast<std::uint32_t>(into->vertices.size());
+                    into->vertices.push_back(to_world_vertex(built.vertices[vi]));
+                }
+                into->indices.push_back(remap[vi]);
+            }
+            if (!is_door) {
+                // Коллайдер — из тех же треугольников, дверные исключены.
+                for (std::uint32_t i = 0; i < part.index_count; ++i) {
+                    const std::uint32_t vi = built.indices[part.index_begin + i];
+                    collider_indices.push_back(
+                        static_cast<std::uint32_t>(house_positions_.size()));
+                    house_positions_.push_back(to_world(built.vertices[vi].pos));
+                }
             }
         }
+        for (const world::MeshFinding& f : built.findings) {
+            std::fprintf(stderr, "[постройка] e%u: %s\n",
+                         static_cast<unsigned>(f.element), f.what.c_str());
+        }
+    };
+
+    append_graph(house_.graph(),
+                 [&](glm::vec3 local) { return house_.to_world(local); });
+    for (const PlacedHouse& ph : placed_houses_) {
+        // Поворот вокруг вертикали по конвенции сцены: местный +X при yaw
+        // уходит в (cos, -sin) — та же формула, что у расстановок деталей.
+        const float c = std::cos(ph.yaw);
+        const float sn = std::sin(ph.yaw);
+        append_graph(ph.graph, [&, c, sn](glm::vec3 l) {
+            return ph.pos + glm::vec3{l.x * c + l.z * sn, l.y, -l.x * sn + l.z * c};
+        });
     }
-    for (const world::MeshFinding& f : built.findings) {
-        std::fprintf(stderr, "[постройка] e%u: %s\n", static_cast<unsigned>(f.element),
-                     f.what.c_str());
-    }
+
     std::vector<render::RenderSystem::HouseStream> stream_list;
     for (auto& [key, st] : streams) {
         stream_list.push_back(std::move(st));
@@ -587,14 +619,20 @@ void App::upload_house_mesh() {
                     lo = glm::min(lo, p);
                     hi = glm::max(hi, p);
                 }
-                const glm::vec3 mid = (lo + hi) * 0.5f;
                 const float span = glm::length(hi - lo) + 2.0f;
+                // Луч целится СКВОЗЬ ПЕРВУЮ ВЕРШИНУ коллайдера, а не в
+                // середину габарита: с несколькими домами на карте середина
+                // попадает в коридор между ними, и прибор кричал бы про дыру,
+                // которой нет (найдено дымом карты «Стройка», 20.08).
+                const glm::vec3 aim = house_positions_.front();
                 const platform::RayHit through = physics_->raycast(
-                    {lo.x - span, mid.y, mid.z}, {1.0f, 0.0f, 0.0f}, span * 2.0f,
+                    {lo.x - span, aim.y, aim.z}, {1.0f, 0.0f, 0.0f}, span * 2.0f,
                     physics::LAYER_STATIC);
+                // Контрольное плечо — НАД всем построенным и в стороне: на
+                // высоте вершины луч в стороне цеплял рельеф за полкой.
                 const platform::RayHit beside = physics_->raycast(
-                    {lo.x - span, mid.y, hi.z + 50.0f}, {1.0f, 0.0f, 0.0f}, span * 2.0f,
-                    physics::LAYER_STATIC);
+                    {lo.x - span, hi.y + 5.0f, hi.z + 50.0f}, {1.0f, 0.0f, 0.0f},
+                    span * 2.0f, physics::LAYER_STATIC);
                 std::fprintf(stderr,
                              "[постройка] коллайдер: сквозь дом %s, в стороне %s\n",
                              through.hit ? "упёрся" : "ПРОШЁЛ НАСКВОЗЬ",
@@ -602,8 +640,38 @@ void App::upload_house_mesh() {
             }
         }
     }
-    std::fprintf(stderr, "[постройка] тело: потоков %zu, дверей %zu\n", n_streams,
-                 n_doors);
+    std::fprintf(stderr, "[постройка] тело: потоков %zu, дверей %zu (готовых домов %zu)\n",
+                 n_streams, n_doors, placed_houses_.size());
+}
+
+void App::load_scene_houses() {
+    placed_houses_.clear();
+    for (const world::ScenePlacedHouse& H : scene_doc_.houses) {
+        std::ifstream in(H.file);
+        if (!in.good()) {
+            std::fprintf(stderr, "[постройка] [house] %s: файл не открылся — дом "
+                                 "ПРОПУЩЕН\n",
+                         H.file.c_str());
+            continue;
+        }
+        std::stringstream ss;
+        ss << in.rdbuf();
+        PlacedHouse ph;
+        const world::HouseIoResult io = world::read_house(ss.str(), ph.graph);
+        if (!io.ok) {
+            std::fprintf(stderr, "[постройка] [house] %s:%d: %s — дом ПРОПУЩЕН\n",
+                         H.file.c_str(), io.line, io.why.c_str());
+            continue;
+        }
+        ph.pos = H.position;
+        ph.yaw = H.yaw;
+        placed_houses_.push_back(std::move(ph));
+    }
+    if (!placed_houses_.empty() || !scene_doc_.houses.empty()) {
+        std::fprintf(stderr, "[постройка] готовых домов на карте: %zu из %zu\n",
+                     placed_houses_.size(), scene_doc_.houses.size());
+        upload_house_mesh();
+    }
 }
 
 } // namespace dfn::app

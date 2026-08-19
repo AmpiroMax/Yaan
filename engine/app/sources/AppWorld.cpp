@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 18:08:2026 - 18:08:29
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -21,6 +21,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 18:08:29: enter_world перенесена из App.cpp как есть, без изменений тела.
+- 20:08:2026 - 02:00:13: unload_world() — снос предыдущего мира в НАЧАЛЕ enter_world.
+  До этого повторное открытие карты из браузера оставляло резидентными чанки,
+  тела переправы, стены края мира, стволы галереи, водяные бакеты и путевую
+  поверхность, вешало ВТОРУЮ подписку на ChunkLoaded и заводило ВТОРОГО игрока.
+  Список сноса один на два вызова: shutdown() зовёт эту же функцию.
+- 20:08:2026 - 15:30:00: enter_world зовёт load_scene_houses; unload_world чистит placed_houses_.
 */
 
 #include "engine/app/sources/App.h"
@@ -103,7 +109,108 @@ UPD:
 
 namespace dfn::app {
 
+// СНОС МИРА, КОТОРЫЙ УЖЕ СТОИТ. Один список на два вызова: отсюда его зовёт
+// enter_world (перед тем как построить следующий), и отсюда же его зовёт
+// App::shutdown (правило 32 — вторая копия разъехалась бы в тот день, когда у
+// мира появится седьмая принадлежность).
+//
+// ПОЧЕМУ ЭТО ВООБЩЕ ПОНАДОБИЛОСЬ: enter_world зовётся НЕ ОДИН РАЗ ЗА ЗАПУСК.
+// Браузер карт зовёт её на каждое открытие (open_map), и до сегодня она
+// строила поверх предыдущего мира: чанки оставались резидентными, тела
+// переправы и стены края мира — живыми, водяные бакеты и путевая поверхность —
+// залитыми, подписка на ChunkLoaded вешалась ВТОРЫМ обработчиком (каждый чанк
+// заливался дважды, первая заливка терялась в бэкенде безымянной), а
+// spawn_player заводил второго игрока рядом с первым.
+//
+// ПЕРВЫЙ ВХОД В МИР ПРОХОДИТ ЗДЕСЬ ЖЕ И НИЧЕГО НЕ ДЕЛАЕТ: карта переправы
+// пуста, дескрипторы недействительны, подписки нулевые (unsubscribe по
+// неизвестному id — no-op по контракту шины), игрок null. Ни одна ветка не
+// требует, чтобы мир существовал.
+void App::unload_world() {
+    // Готовые постройки принадлежат карте: следующая карта прочитает свои.
+    // Само тело house_body_ пересоберёт первый же upload_house_mesh.
+    placed_houses_.clear();
+    // ТЕЛА ПЕРЕПРАВЫ — ДО ВЫГРУЗКИ ЧАНКОВ, в том же порядке, в каком это делал
+    // shutdown(): обработчик ChunkUnloaded ищет их в той же карте, и пустая
+    // карта для него — законное состояние.
+    if (physics_ != nullptr) {
+        for (auto& [key, cp] : g_chunk_physics) {
+            (void)key;
+            physics_->destroy_body(cp.body);
+        }
+        g_chunk_physics.clear();
+    }
+    // ВЫГРУЗКА ЧАНКОВ ТРЕБУЕТ РЕНДЕРЕРА, потому что снимает меши земли и
+    // рассыпи через обработчик события — ровно то условие, под которым эта
+    // пара строк стоит в shutdown().
+    if (renderer_ != nullptr) {
+        chunks_.unload_all(world_, bus_);
+        bus_.pump();
+        // ВОДА И ТРОПЫ — ЦЕЛОМИРНЫЕ, а не чанковые: их не снимает ни один
+        // ChunkUnloaded, поэтому бакеты прошлой карты рисовались бы поверх
+        // следующей.
+        render_system_.clear_water_bodies(*renderer_);
+        render_system_.clear_path_surface(*renderer_);
+        render_system_.set_scene_lights({});
+        render_system_.set_transient_lights({});
+        render_system_.set_emissive_mesh(*renderer_, {});
+    }
+    // ПОДПИСКИ СНИМАЮТСЯ ПОСЛЕ ВЫГРУЗКИ, иначе снимать меши было бы некому.
+    bus_.unsubscribe(chunk_loaded_sub_);
+    bus_.unsubscribe(chunk_unloaded_sub_);
+    bus_.unsubscribe(landed_sub_);
+    chunk_loaded_sub_ = {};
+    chunk_unloaded_sub_ = {};
+    landed_sub_ = {};
+    if (physics_ != nullptr) {
+        for (platform::PhysicsBodyHandle& w : world_edge_) {
+            if (w.valid()) {
+                physics_->destroy_body(w);
+                w = {};
+            }
+        }
+        // СТВОЛЫ И КОЛЛАЙДЕРЫ КОМПОЗИЦИИ. Раньше их сносила ветка галереи, то
+        // есть только при переходе НА галерею: уход с галереи на любой другой
+        // стенд оставлял лес твёрдых стволов посреди новой карты.
+        for (const platform::PhysicsBodyHandle& b : gallery_bodies_) {
+            physics_->destroy_body(b);
+        }
+    }
+    gallery_bodies_.clear();
+    // ИГРОК УХОДИТ ВМЕСТЕ С МИРОМ, вместе со своей капсулой, своими сегментами
+    // тела и обеими половинами вида от первого лица. spawn_view_model
+    // идемпотентна по НОСИТЕЛЮ, поэтому части мёртвого носителя не мешали бы
+    // новым появиться — они просто остались бы висеть и рисоваться.
+    if (world_.alive(player_)) {
+        anim::destroy_body(world_, player_);
+        std::vector<ecs::EntityId> doomed;
+        world_.view<gameplay::ViewModelPart>().each(
+            [&](ecs::EntityId id, gameplay::ViewModelPart& part) {
+                if (part.carrier == player_) {
+                    doomed.push_back(id);
+                }
+            });
+        for (const ecs::EntityId id : doomed) {
+            world_.destroy(id);
+        }
+        if (auto* ps = world_.get<gameplay::PlayerState>(player_);
+            ps != nullptr && physics_ != nullptr) {
+            physics_->destroy_character(ps->character);
+        }
+        world_.destroy(player_);
+        world_.flush_destroyed();
+    }
+    player_ = {};
+    if (world_.alive(mirror_puppet_)) {
+        world_.destroy(mirror_puppet_);
+        world_.flush_destroyed();
+    }
+    mirror_puppet_ = {};
+}
+
 bool App::enter_world(uint32_t stand) {
+    // ПЕРВОЙ СТРОКОЙ — СНОС ТОГО, ЧТО УЖЕ СТОИТ (см. unload_world выше).
+    unload_world();
     active_stand_ = stand;
     // Chunk streaming: stage 2 serves the in-memory generated world (core's
     // open_generated path; .dfw file IO lands in stage 3). Testbed extent 4x4
@@ -307,7 +414,7 @@ bool App::enter_world(uint32_t stand) {
     render_system_.set_path_surface(*renderer_, ps.stations, ps.route_offsets);
 
     // Subscribe the ferry BEFORE the first update so initial loads are seen.
-    bus_.subscribe<world::ChunkLoaded>([this](const world::ChunkLoaded& e) {
+    chunk_loaded_sub_ = bus_.subscribe<world::ChunkLoaded>([this](const world::ChunkLoaded& e) {
         world_changed_this_frame_ = true; // streaming quiescence, see run()
         auto view = chunks_.heightfield(e.coord);
         if (!view) {
@@ -352,7 +459,7 @@ bool App::enter_world(uint32_t stand) {
             }
         }
     });
-    bus_.subscribe<world::ChunkUnloaded>([this](const world::ChunkUnloaded& e) {
+    chunk_unloaded_sub_ = bus_.subscribe<world::ChunkUnloaded>([this](const world::ChunkUnloaded& e) {
         world_changed_this_frame_ = true; // streaming quiescence, see run()
         render_system_.drop_terrain(*renderer_, {e.coord.x, e.coord.z});
         render_system_.drop_scatter(*renderer_, {e.coord.x, e.coord.z});
@@ -1095,7 +1202,7 @@ bool App::enter_world(uint32_t stand) {
     anim::spawn_body(world_, player_, body_rig_, /*hide_head=*/true);
 
     // Landing dip rides sim's measured impact, not a guess (their event).
-    bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
+    landed_sub_ = bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
         anim::note_landed(world_, e.walker, e.impact_speed);
     });
 
@@ -1489,6 +1596,11 @@ bool App::enter_world(uint32_t stand) {
         apply_restore(*restore_);
         restore_.reset();
     }
+
+    // ГОТОВЫЕ ПОСТРОЙКИ КАРТЫ (секция [house], 20.08): графы из .dfh встают в
+    // общие потоки и общий коллайдер постройки. После физики и сцены — им
+    // нужны обе.
+    load_scene_houses();
 
     // A DFN_TRAJ_REC run begins recording as soon as the world (and the stand it
     // stamps into the file) exists. The seed is this function's fixed worldgen

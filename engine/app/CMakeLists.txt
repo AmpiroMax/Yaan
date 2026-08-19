@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 19:08:2026 - 02:05:30
+# Last updated: 20:08:2026 - 02:02:41
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -93,6 +93,7 @@ if(DFN_APP_READY)
         sources/AppActions.cpp
         sources/AppAfterFrame.cpp
         sources/AppDoors.cpp
+        sources/AppEditorWiring.cpp
         sources/AppHouse.cpp
         sources/AppHud.cpp
         sources/AppInput.cpp
@@ -150,4 +151,6 @@ endif()
 #   один: «app.h нормальный по размерам, может по разным cpp файлам реализацию
 #   класс раскидаем?».
 # - 19:08:2026 - 02:05:30: AppHouse.cpp — знание App о постройке в одном файле (второй аудит, долг 1).
+# - 20:08:2026 - 02:02:41: AppEditorWiring.cpp — wire_editor_panels() целиком (разрез А
+#   третьего аудита). Перенос без изменения тела: объявление осталось в App.h.
 

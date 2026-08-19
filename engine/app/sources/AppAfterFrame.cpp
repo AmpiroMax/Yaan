@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:36:58
-Last updated: 18:08:2026 - 17:36:58
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/app
 File: engine/app/sources/AppAfterFrame.cpp
 
@@ -47,6 +47,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 17:36:58: Создан. Слой 4 разбора App.cpp: хвост кадра (165 строк) уехал
   из run() сюда, вместе с доводом, по которому он там был.
+- 20:08:2026 - 15:30:00: Лента прохода DFN_RECORD_EVERY: каждый N-й показанный кадр — .png + строка rec.log тем же снимком, что F2.
 */
 
 #include "engine/app/sources/App.h"
@@ -97,6 +98,43 @@ void App::after_frame(float alpha, float frame_dt) {
             // triangles / aim_target: render seam, left 0/"" until a hook
             // fills them (read-if-present, never a block here).
             telemetry_.push(t);
+        }
+    }
+
+    // ЛЕНТА ПРОХОДА (DFN_RECORD_EVERY): каждый N-й показанный кадр — .png и
+    // строка состояния. После render() по той же причине, что и захват ниже:
+    // картинка и её числа обязаны быть ОДНИМ кадром. Числа — те же, что у F2
+    // (collect_snapshot): позиция глаза, взгляд, скорость, аллюр, опора.
+    if (record_every_ > 0) {
+        ++record_seen_;
+        if (record_seen_ % record_every_ == 0) {
+            const DebugSnapshot s = collect_snapshot(alpha);
+            char name[64];
+            std::snprintf(name, sizeof(name), "rec_%05d.png", record_written_);
+            const std::string dir =
+                capture_dir_.empty() ? std::string("screenshots") : capture_dir_;
+            if (renderer_->save_screenshot(dir + "/" + name)) {
+                if (std::FILE* f = std::fopen((dir + "/rec.log").c_str(), "ab");
+                    f != nullptr) {
+                    std::fprintf(
+                        f,
+                        "%d t=%.3f pos=(%.2f %.2f %.2f) yaw=%.1f pitch=%.1f "
+                        "look=(%.2f %.2f %.2f) v=%.2f gait=%u ground=%d\n",
+                        record_written_, s.game_seconds,
+                        static_cast<double>(s.position.x),
+                        static_cast<double>(s.position.y),
+                        static_cast<double>(s.position.z),
+                        static_cast<double>(s.yaw * 57.29578f),
+                        static_cast<double>(s.pitch * 57.29578f),
+                        static_cast<double>(s.look_dir.x),
+                        static_cast<double>(s.look_dir.y),
+                        static_cast<double>(s.look_dir.z),
+                        static_cast<double>(s.speed_mps),
+                        static_cast<unsigned>(s.gait), s.grounded ? 1 : 0);
+                    std::fclose(f);
+                }
+                ++record_written_;
+            }
         }
     }
 

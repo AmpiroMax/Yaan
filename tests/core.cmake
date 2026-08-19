@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 18:05:07
+# Last updated: 20:08:2026 - 15:50:00
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -102,8 +102,10 @@
 #   окон числом (сумма зеркальных центров = длина стены), одно окно РОВНО в
 #   центре, ноль пересечений обшивки с проёмом против 6 у неразрезанной колонны,
 #   и полоса фактического угла раскоса, ВЫВЕДЕННАЯ из округления к ближайшему.
+# - 20:08:2026 - 15:50:00: test_house_passability — судья проходимости готовых построек.
 
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
+add_dfn_test(test_house_passability core/HousePassabilityTests.cpp dfn_world)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
 add_dfn_test(test_events core/EventBusTests.cpp dfn_core)

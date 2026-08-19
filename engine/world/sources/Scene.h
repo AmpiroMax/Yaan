@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -111,6 +111,7 @@ UPD:
   что-то значит. Одна строка сохраняет оба: композиция остаётся читаемой,
   лепка лежит в git рядом. Ключ необязательный, его отсутствие — прежнее
   поведение до последнего бита.
+- 20:08:2026 - 15:30:00: Секция [house]: готовая постройка (.dfh) + место — регистрация домов кузницы.
 */
 
 #pragma once
@@ -191,6 +192,17 @@ struct ScenePad {
 /// One statement produces both the channel CUT and the WATER standing in it.
 /// Authored as terrain alone it would be a dry ditch; as water alone, a sheet
 /// lying on a hillside.
+/// ГОТОВАЯ ПОСТРОЙКА НА КАРТЕ (20.08: «дома зарегистрировать, чтобы можно
+/// было их как готовые постройки ставить»). Ссылка на .dfh из библиотеки
+/// assets/houses + место. Файл, а не вкопированный граф: постройка правится
+/// в одном месте, и diff сцены остаётся про КОМПОЗИЦИЮ, а не про стены.
+struct ScenePlacedHouse {
+    std::string file;      ///< путь к .dfh от корня репозитория
+    glm::vec3 position{0.0f};
+    float yaw = 0.0f;      ///< радианы вокруг вертикали, 0 — как в файле
+    std::string note;
+};
+
 struct SceneRiver {
     std::vector<glm::vec3> points; ///< x, z, water surface height (m)
     float width_m = 6.0f;
@@ -215,6 +227,7 @@ struct SceneDoc {
     glm::vec3 spawn{0.0f};
     float spawn_yaw = 0.0f;   ///< radians; 0 looks north (forward = {sin,0,-cos})
     std::vector<Placement> placements;
+    std::vector<ScenePlacedHouse> houses;
     std::vector<SceneLight> lights;
     std::vector<ScenePad> pads;
     std::vector<SceneRiver> rivers;

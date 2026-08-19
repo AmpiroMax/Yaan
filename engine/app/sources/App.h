@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 00:02:30
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -137,6 +137,10 @@ UPD:
 - 18:08:2026 - 23:20:00: nudge_selected_anchor, draw_editor_grid; сетка живёт в сессии, а не вторым полем здесь.
 - 18:08:2026 - 23:52:10: Объявлен on_grid_toggle.
 - 20:08:2026 - 00:02:30: house_material_swatch / house_wall_example и их кэш.
+- 20:08:2026 - 01:58:54: unload_world() и три подписки моста мира (снос предыдущего мира при
+  повторном enter_world); прицел кадра frame_aim_ + aim_this_frame()/invalidate_frame_aim()
+  — марш в 160 шагов считался по четыре раза за кадр.
+- 20:08:2026 - 15:30:00: PlacedHouse + load_scene_houses (готовые постройки карты); дверь DFN_RECORD_EVERY (лента прохода).
 */
 
 #pragma once
@@ -239,6 +243,25 @@ struct AppConfig {
 // settings pages, and from the fullscreen key -- which lives in AppInput.cpp
 // since layer 1 of the App.cpp decomposition.
 void write_settings(const AppConfig& cfg);
+
+/// СУДЕЙСКИЙ КОНТЕКСТ РУКИ СТРОИТЕЛЯ. Жил в безымянном пространстве App.cpp,
+/// пока его читал один файл; с 20.08 его читают ДВА файла реализации того же
+/// класса (App.cpp и AppEditorWiring.cpp), и вторая копия разъехалась бы с
+/// первой на первой же новой полке (правило 39). Объявление здесь, определение
+/// build_extent — в App.cpp, рядом с остальными крючками судьи.
+struct BuildJudgeCtx {
+    const world::ChunkManager* chunks = nullptr;
+    /// MUTABLE ON PURPOSE. The map keeps resident only what its composition
+    /// already uses; the builder picks from the whole shelf, so the part he is
+    /// holding has to be brought in on demand.
+    std::map<std::string, render::RegistryObject>* objects = nullptr;
+    std::map<std::string, render::ObjectExtent>* extents = nullptr;
+    const std::vector<std::string>* shelves = nullptr;
+};
+
+/// Мерка детали: из кэша, иначе с полки (грузит .dfo по требованию). nullptr =
+/// такой детали нет ни на одной полке.
+const render::ObjectExtent* build_extent(void* ctx, const std::string& name);
 
 class App {
 public:
@@ -361,6 +384,16 @@ private:
     void draw_editor_grid(const ToolAim& aim);
     /// Пересчитать тело постройки и отдать его в отрисовку.
     void upload_house_mesh();
+    /// ГОТОВЫЕ ПОСТРОЙКИ КАРТЫ: секция [house] сцены — граф из .dfh + место.
+    /// Читаются на входе в мир, вливаются в те же потоки и коллайдер, что и
+    /// строящийся дом (одна история для картинки и физики).
+    void load_scene_houses();
+    struct PlacedHouse {
+        world::HouseGraph graph;
+        glm::vec3 pos{0.0f};
+        float yaw = 0.0f;
+    };
+    std::vector<PlacedHouse> placed_houses_;
     /// Картинка материала набора / пример заполнения стены — для панелей.
     std::uint64_t house_material_swatch(int surface, int tone, int px);
     std::uint64_t house_wall_example(int variant, int px);
@@ -405,6 +438,14 @@ private:
     FrameClock frame_clock_{};
     int captures_written_ = 0;
     std::string capture_dir_;
+    /// ЗАПИСЬ ПРОХОДА (DFN_RECORD_EVERY=<кадров>, 20.08: «сделай запись экрана
+    /// прохода... к видео сохраняй и „субтитры" — позиции игрока, направление
+    /// взгляда»). Каждый N-й ПОКАЗАННЫЙ кадр — rec_%05d.png в capture_dir_ и
+    /// строка rec.log с тем же снимком состояния, что у F2. Видео и .srt
+    /// собирает tools/make_walk_video.py из этих двух артефактов.
+    std::uint64_t record_every_ = 0;
+    std::uint64_t record_seen_ = 0;
+    int record_written_ = 0;
     double capture_after_s_ = 0.0;      // DFN_CAPTURE_AFTER, 0 = off
     double capture_after_elapsed_ = 0.0;
     // DFN_CAPTURE_AFTER_FRAMES, 0 = off. The SAME door counted in frames
@@ -527,6 +568,20 @@ private:
     double game_seconds_ = static_cast<double>(config::START_TIME_OF_DAY)
                            * static_cast<double>(config::DAY_LENGTH_SECONDS);
     std::array<platform::PhysicsBodyHandle, 4> world_edge_{}; // extent walls
+    /// СНОС ПРЕДЫДУЩЕГО МИРА. enter_world() зовётся по КАЖДОМУ открытию карты
+    /// из браузера, а не один раз за запуск, и до 20.08 не сносил ничего: чанки
+    /// оставались резидентными, тела переправы и края мира — живыми, водяные
+    /// бакеты и путевые поверхности — залитыми, а spawn_player заводил ВТОРОГО
+    /// игрока поверх первого. Список здесь и в shutdown() — ОДИН (правило 32):
+    /// shutdown() зовёт эту же функцию, поэтому третьей копии сноса быть не
+    /// может.
+    void unload_world();
+    /// ПОДПИСКИ МОСТА МИРА, которые надо снимать вместе с миром. Без них второй
+    /// вход в мир вешал ВТОРОЙ обработчик на ChunkLoaded, и каждый чанк
+    /// заливался дважды — первая заливка при этом навсегда терялась в бэкенде.
+    events::SubscriptionId chunk_loaded_sub_{};
+    events::SubscriptionId chunk_unloaded_sub_{};
+    events::SubscriptionId landed_sub_{};
     /// Registry directory the NEXT Gallery open loads from (set by open_map
     /// from the manifest; default = the tree shelf) and the exhibits' static
     /// trunk bodies (user: «сделать деревья физичными, не давать сквозь них
@@ -696,6 +751,18 @@ private:
     /// дальности (EditorToolbox). Голый vec3 не давал спросить «а как далеко»,
     /// поэтому общий параметр было негде проверить.
     [[nodiscard]] ToolAim editor_aim();
+    /// ПРИЦЕЛ КАДРА — СЧИТАННЫЙ ОДИН РАЗ. editor_aim() это марш в 160 шагов по
+    /// высотному полю плюс линейный перебор всех расстановок, и его звали ЧЕТЫРЕ
+    /// раза за кадр (призрак, тик инструмента, строка состояния, кольцо кисти).
+    /// Здесь он считается лениво и запоминается до ближайшего события, которое
+    /// меняет ОТВЕТ: сдвиг камеры и мутация мира инструментом. Не «раз в начале
+    /// кадра»: между призраком и тиком стоит editor_cam_.update(), а между тиком
+    /// и строкой состояния — мазок кисти, и переиспользование через них давало
+    /// бы кисть, кусающую там, где прицел был кадр назад.
+    [[nodiscard]] ToolAim aim_this_frame();
+    void invalidate_frame_aim() { frame_aim_valid_ = false; }
+    ToolAim frame_aim_{};
+    bool frame_aim_valid_ = false;
     /// КИСТЬ ПРИХОДИТ ОТ ИНСТРУМЕНТА, а не берётся из поля App: настройки,
     /// которые человек двигал, и земля, которую он копает, обязаны быть ОДНОЙ
     /// кистью.

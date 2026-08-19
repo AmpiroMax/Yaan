@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 18:08:2026 - 00:07:07
+# Last updated: 20:08:2026 - 15:50:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -84,6 +84,7 @@
 #   _deps помнят свой (у нас Ninja), и каталог сборки на Unix Makefiles падает
 #   с «Does not match the generator used previously: Ninja». Новые каталоги
 #   заводить с `-G Ninja`.
+# - 20:08:2026 - 15:50:00: Цель dfn_houses — кузница готовых построек (tools/forge_houses.cpp).
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -288,4 +289,9 @@ target_link_libraries(dfn_assemble PRIVATE dfn_world dfn_render dfn_core)
 
 # NEW MAP (dfn_newmap): the ONE visible way a map folder is created. Links
 # nothing on purpose — making a folder must not wait for the world to compile.
+# КУЗНИЦА ГОТОВЫХ ПОСТРОЕК (dfn_houses): пять домов через HouseGraph API в
+# assets/houses/*.dfh — артефакты в git, правки только в рецептах кузницы.
+add_executable(dfn_houses tools/forge_houses.cpp)
+target_link_libraries(dfn_houses PRIVATE dfn_world dfn_core)
+
 add_executable(dfn_newmap tools/new_map.cpp)

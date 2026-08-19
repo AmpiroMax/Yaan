@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 12:55:00
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -36,6 +36,7 @@ UPD:
 - 20:08:2026 - 01:47:30: Лестница между якорями: ступени коробами (подъём 17.5 см, шаг РОВНЫЙ делением нацело, физика — те же коробы), тетивы по бокам; дверной проём от пола (окна уступают вслух); паркет пола рядами с перевязкой, кусок вне контура выпадает.
 - 20:08:2026 - 12:10:00: Паркет режется по контуру (Сазерленд–Ходжман) и лежит встык; лестница fill=6 на четырёх точках; форма plank; paint — чужой слой.
 - 20:08:2026 - 12:55:00: element_params_of вынесена из безымянного пространства имён (нужна пикингу).
+- 20:08:2026 - 15:30:00: Дверной проём СКВОЗНОЙ: пролёт с doors>0 собирается из простенков и перемычки той же раскладкой, что у обшивки.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -1227,10 +1228,56 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
         // друга. Это не недоделанный ус, а прямое следствие §7.0: в углу стоит
         // столб, стены упираются в его ОСЬ, нахлёст — норма. Подгонка на ус
         // стоила бы пересчёта обеих стен при каждой правке соседа.
-        const glm::vec3 loop[4] = {a - h, a + h, b + h, b - h};
-        push_prism(mb, loop, quad, up, p.tex_deg, mesh, e.id);
+        //
+        // ДВЕРНОЙ ПРОЁМ — СКВОЗНОЙ (20.08). До этого прорезь была отложена
+        // «до триангуляции с дырами», но для пролёта-прямоугольника дыра от
+        // пола не требует её вовсе: пластина собирается из простенков и
+        // перемычки — тех же коробов. Раскладка проёмов — ТА ЖЕ, что у
+        // обшивки и кладки (lay_out_wall), иначе рама и дыра разъедутся.
+        const float seg_len = std::sqrt(d.x * d.x + d.z * d.z);
+        std::vector<OpeningPlacement> holes;
+        if (static_cast<int>(p.doors) > 0) {
+            WallStyle style;
+            style.opening = OpeningKind::Door;
+            style.opening_w = HOUSE_DOOR_W_DEFAULT;
+            style.opening_h = HOUSE_DOOR_H_DEFAULT;
+            style.opening_sill = 0.0f;
+            WallSpec spec;
+            spec.length = seg_len;
+            spec.height = p.height;
+            spec.openings = static_cast<int>(p.doors);
+            // Находки этой раскладки НЕ повторяются: их скажет обшивка тем же
+            // вызовом ниже; здесь берётся только геометрия дыр.
+            holes = lay_out_wall(spec, style).openings;
+        }
+        if (holes.empty()) {
+            const glm::vec3 loop[4] = {a - h, a + h, b + h, b - h};
+            push_prism(mb, loop, quad, up, p.tex_deg, mesh, e.id);
+        } else {
+            const glm::vec3 dir_u = glm::vec3{d.x, 0.0f, d.z} / seg_len;
+            // Короб пролёта в координатах стены (u вдоль, v вверх), сквозь
+            // толщину: лист в -h, выдавливание в +face_n на всю толщину.
+            const auto box = [&](float u0, float u1, float v0, float v1) {
+                if (u1 - u0 < HOUSE_GEOM_EPS || v1 - v0 < HOUSE_GEOM_EPS) {
+                    return;
+                }
+                const auto at = [&](float u, float v) {
+                    return a + dir_u * u + glm::vec3{0.0f, v, 0.0f} - h;
+                };
+                const glm::vec3 loop[4] = {at(u0, v0), at(u1, v0), at(u1, v1),
+                                           at(u0, v1)};
+                push_prism(mb, loop, quad, face_n * (half * 2.0f), p.tex_deg,
+                           mesh, e.id);
+            };
+            float u_at = 0.0f;
+            for (const OpeningPlacement& op : holes) {
+                box(u_at, op.u0, 0.0f, p.height);          // простенок слева
+                box(op.u0, op.u1, op.v1, p.height);        // перемычка над дверью
+                u_at = op.u1;
+            }
+            box(u_at, seg_len, 0.0f, p.height);            // простенок справа
+        }
         if (p.clad > 0.5f || p.fill >= 2.0f) {
-            const float seg_len = std::sqrt(d.x * d.x + d.z * d.z);
             const glm::vec3 dir = glm::normalize(glm::vec3{d.x, 0.0f, d.z});
             build_cladding(e, p, a, dir, seg_len, face_n, half, mb, mesh);
             mb.set_material(-1, -1); // следующий пролёт пластины — материал элемента

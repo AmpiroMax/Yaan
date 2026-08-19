@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 00:02:30
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -568,6 +568,11 @@ UPD:
 - 19:08:2026 - 02:05:30: Методы постройки съехали в AppHouse.cpp (второй аудит, долг 1).
 - 19:08:2026 - 03:22:40: Порядок инструментов назначен пользователем: выбор, якоря, прямые, стены, высота, тропа, детали, посадка, кисть.
 - 20:08:2026 - 00:02:30: Крючки картинок отданы в ToolWorld.
+- 20:08:2026 - 02:02:07: wire_editor_panels() уехала целиком в AppEditorWiring.cpp (разрез А
+  третьего аудита); BuildJudgeCtx/build_extent объявлены в App.h, потому что их читают
+  теперь два файла реализации. Прицел кадра считается ЛЕНИВО и один раз на отрезок
+  (aim_this_frame) вместо четырёх маршей по 160 шагов. shutdown() зовёт unload_world().
+- 20:08:2026 - 15:30:00: Дверь DFN_RECORD_EVERY=<кадров> — лента прохода с состоянием для субтитров.
 */
 
 #include "engine/app/sources/App.h"
@@ -1147,6 +1152,19 @@ bool App::init(const AppConfig& config) {
                          "frame count -- REFUSING to run, because a door that "
                          "silently does nothing is worse than no door\n",
                          cf);
+            return false;
+        }
+    }
+
+    // ЗАПИСЬ ПРОХОДА (DFN_RECORD_EVERY=<кадров>): покадровая лента + строки
+    // состояния для субтитров. Ноль отвергается вслух, как у соседей.
+    if (const char* re = door_value("DFN_RECORD_EVERY"); re != nullptr) {
+        record_every_ = std::strtoull(re, nullptr, 10);
+        if (record_every_ == 0) {
+            std::fprintf(stderr,
+                         "[record] DFN_RECORD_EVERY=\"%s\" is not a positive "
+                         "frame count -- REFUSING to run\n",
+                         re);
             return false;
         }
     }
@@ -2155,20 +2173,10 @@ void App::enter_editor_mode() {
 // same facts the tool hands it -- ground from the streamed chunks, sizes from
 // render::measure_object -- and nothing decides anything on its own.
 
-namespace {
-
-struct BuildJudgeCtx {
-    const world::ChunkManager* chunks = nullptr;
-    /// MUTABLE ON PURPOSE. The map keeps resident only what its composition
-    /// already uses — some forty objects out of a shelf of two thousand. The
-    /// builder picks from the whole shelf, so the part he is holding has to be
-    /// brought in on demand; without this the ghost measures nothing, draws
-    /// nothing, and the tool looks broken while being merely empty-handed.
-    std::map<std::string, render::RegistryObject>* objects = nullptr;
-    std::map<std::string, render::ObjectExtent>* extents = nullptr;
-    const std::vector<std::string>* shelves = nullptr;
-};
-
+// BuildJudgeCtx И build_extent ОБЪЯВЛЕНЫ В App.h. Они стояли здесь, в безымянном
+// пространстве, ровно пока их читал один файл; wire_editor_panels() уехала в
+// AppEditorWiring.cpp и читает ту же мерку, а «та же мерка» — это ОДНА функция,
+// а не одинаковый текст в двух местах (правило 39).
 const render::ObjectExtent* build_extent(void* ctx, const std::string& name) {
     auto* c = static_cast<BuildJudgeCtx*>(ctx);
     if (const auto it = c->extents->find(name); it != c->extents->end()) {
@@ -2189,6 +2197,8 @@ const render::ObjectExtent* build_extent(void* ctx, const std::string& name) {
     }
     return &c->extents->emplace(name, render::measure_object(obj->second)).first->second;
 }
+
+namespace {
 
 float build_ground_at(void* ctx, glm::vec2 p) {
     auto* c = static_cast<BuildJudgeCtx*>(ctx);
@@ -2368,6 +2378,34 @@ ToolAim App::editor_aim() {
     return aim;
 }
 
+// ПРИЦЕЛ КАДРА — ОДИН МАРШ ВМЕСТО ЧЕТЫРЁХ.
+//
+// editor_aim() выше это марш в 160 шагов по высотному полю плюс линейный
+// перебор ВСЕХ расстановок карты на каждом шаге, и за кадр его звали четыре
+// раза: призрак (update_build_tool), тик инструмента (update_editor_tools),
+// строка состояния в оверлее и кольцо кисти в отладочных линиях. Все четыре
+// ответа в неизменившемся мире побитово одинаковы.
+//
+// НЕ «ОДИН РАЗ В НАЧАЛЕ КАДРА», И ЭТО ГЛАВНОЕ ЗДЕСЬ РЕШЕНИЕ. Между вызовами мир
+// МЕНЯЕТСЯ, дважды и в известных местах:
+//   1. editor_cam_.update() — между призраком и тиком инструмента. Прицел это
+//      луч ИЗ камеры, поэтому кэш через движение камеры дал бы кисть, кусающую
+//      там, где крестик был кадр назад, — ровно та жалоба, из-за которой у
+//      editor_aim() вообще одно тело на пятерых.
+//   2. тик инструмента — мазок кисти двигает землю, постановка добавляет
+//      расстановку, постройка меняет граф: всё это входы марша.
+// Поэтому кэш ЛЕНИВЫЙ и с явным сбросом ровно в этих точках, а не в одной
+// точке начала кадра. В спокойном кадре (камера стоит, кнопка не нажата) марш
+// один; в рабочем — не больше трёх, и каждый из трёх отвечает про тот мир,
+// который в этот момент есть.
+ToolAim App::aim_this_frame() {
+    if (!frame_aim_valid_) {
+        frame_aim_ = editor_aim();
+        frame_aim_valid_ = true;
+    }
+    return frame_aim_;
+}
+
 void App::clear_build_ghost() {
     // ДЕТАЛЬ ВЫПАДАЕТ ИЗ РУК ВМЕСТЕ С ИНСТРУМЕНТОМ (заказ 18.08: «после
     // выключения инструмента редактуры последний выбранный объект остаётся в
@@ -2407,7 +2445,7 @@ void App::update_build_tool() {
     // выражение build_hand_wants_aim(tool), то есть «спроси ярлык и реши за
     // него»; теперь тот, кто рисует призрак, отвечает сам, и добавление шестого
     // инструмента ничего здесь не меняет.
-    const ToolAim aim_probe = editor_aim();
+    const ToolAim aim_probe = aim_this_frame();
     const ToolPreview want = editor_ui_.toolbox().preview(aim_probe);
     if ((!want.ghost && !want.target_probe) || gallery_scene_.empty()) {
         clear_build_ghost();
@@ -2637,311 +2675,6 @@ bool App::build_delete() {
 // belongs to a module a test can instantiate. This block is wiring, and it is
 // deliberately thin for the reason this file has already paid for twice:
 // App.cpp owns a window, so nothing decided here can ever be measured.
-
-void App::wire_editor_panels() {
-    // ONCE, AND NOT ON A KEYPRESS. The panels used to be declared inside the B
-    // handler, so the object menu did not exist until somebody pressed B — and
-    // neither did its chip on the toolbar, which is the one place the user is
-    // supposed to be able to see what the editor can do. A tool whose menu is
-    // invisible until you already know the shortcut is a tool for whoever
-    // wrote it.
-    if (palette_wired_) {
-        return;
-    }
-    palette_wired_ = true;
-
-    // ОДИН СПИСОК ДЕТАЛЕЙ НА ДВУХ ПОТРЕБИТЕЛЕЙ (правило 32). Здесь их было ДВА:
-    // панель наполнялась вот этим вызовом при первом кадре редактора, а рука
-    // строителя — своим, отдельным, и ТОЛЬКО когда список открывали клавишей B.
-    // Открыв тот же список фишкой на панели инструментов, человек получал
-    // непустое меню и ПУСТУЮ руку: выбор искал имя среди нуля групп, не находил
-    // и молча ничего не делал. Пользователь описал это точно: «не могу выбирать
-    // объекты, только один брус выбрал, остальные не выбираются» — держалась та
-    // деталь, что попала в руку раньше, а все последующие щелчки уходили в
-    // никуда. Полка читается ОДИН раз и кладётся обоим.
-    build_groups_ = build_palette(gallery_objects_dir_);
-    std::vector<std::string> names;
-    for (const BuildGroup& g : build_groups_) {
-        names.insert(names.end(), g.names.begin(), g.names.end());
-    }
-    palette_.set_parts(std::move(names));
-    palette_.set_map_id(gallery_scene_);
-    (void)palette_.load_state("editor_palette.state");
-    PaletteHooks hooks;
-    // ТА ЖЕ МЕРКА, ЧТО У ПРИЗРАКА И У СУДЬИ: панель не заводит второй линейки
-    // (правило 32).
-    hooks.measure = [this](const std::string& name, PartMeasure& out) {
-        BuildJudgeCtx ctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
-        const render::ObjectExtent* e = build_extent(&ctx, name);
-        if (e == nullptr) {
-            return false;
-        }
-        out.width_m = e->hi.x - e->lo.x;
-        out.depth_m = e->hi.y - e->lo.y;
-        out.height_m = e->top - e->bottom;
-        const auto obj = scene_objects_.find(name);
-        out.triangles = obj == scene_objects_.end()
-                            ? 0
-                            : static_cast<int>((obj->second.wood.indices.size()
-                                                + obj->second.bark.indices.size()) / 3);
-        out.known = true;
-        return true;
-    };
-    // КАРТИНКА ДЕТАЛИ. Крючок thumbnail существовал с 17.08 и не был подключён
-    // никем — панель спрашивала картинку каждый кадр, получала 0 и рисовала
-    // подпись, то есть пользователь видел 2412 названий и ни одного предмета
-    // («у объектов в меню объектов нет всё ещё предпросмотра», 18.08).
-    //
-    // ПОЧЕМУ КЭШ — СТАТИК ФУНКЦИИ, А НЕ ПОЛЕ App. Эта функция выполняется РОВНО
-    // ОДИН РАЗ (palette_wired_), а зона правки — App.cpp; поле потребовало бы
-    // App.h, который сейчас правят другие. Живёт до конца процесса, деструктор
-    // текстур не трогает (их отдаёт clear(), и звать её после гибели интерфейса
-    // нельзя) — то есть на выходе они просто уходят вместе с контекстом.
-    static ThumbCache thumbs;
-    thumbs.set_bake([this](const std::string& name, int px, std::vector<std::uint8_t>& rgba) {
-        // ТА ЖЕ ЗАГРУЗКА, ЧТО У ПРИЗРАКА (правило 32): build_extent приносит
-        // деталь с полки в scene_objects_, если её там ещё нет. Второй свой
-        // читатель .dfo разъехался бы с первым в тот день, когда полка сменит
-        // имя, и разъехался бы молча.
-        BuildJudgeCtx ctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
-        if (build_extent(&ctx, name) == nullptr) {
-            return false;
-        }
-        const auto it = scene_objects_.find(name);
-        if (it == scene_objects_.end()) {
-            return false;
-        }
-        return bake_object_thumbnail(it->second, px, rgba);
-    });
-    thumbs.set_upload([this](int px, const std::uint8_t* rgba) {
-        return static_cast<std::uint64_t>(editor_ui_.make_texture(
-            static_cast<std::uint32_t>(px), static_cast<std::uint32_t>(px), rgba));
-    });
-    thumbs.set_drop([this](std::uint64_t texture) {
-        editor_ui_.drop_texture(static_cast<EditorTexture>(texture));
-    });
-    hooks.thumbnail = [](const std::string& name, int px) {
-        return static_cast<EditorTexture>(thumbs.get(name, px));
-    };
-    hooks.begin_frame = []() { thumbs.begin_frame(); };
-    hooks.on_pick = [this](const std::string& name) {
-        // Рука берёт то, что выбрали: призрак меняется в тот же кадр.
-        for (std::size_t g = 0; g < build_groups_.size(); ++g) {
-            const auto& v = build_groups_[g].names;
-            const auto it = std::find(v.begin(), v.end(), name);
-            if (it != v.end()) {
-                build_group_ = g;
-                build_item_ = static_cast<std::size_t>(it - v.begin());
-                return;
-            }
-        }
-        // ПРОМАХ ГОВОРИТ ВСЛУХ. Молчащий промах и есть то, из-за чего этот
-        // отказ дожил до пользователя: щелчок по детали не делал НИЧЕГО и не
-        // оставлял следа, так что и жалоба, и разбор начинались с «меню вроде
-        // работает». Меню и рука обязаны видеть одну полку; если нет — это
-        // видно с первой строки.
-        std::fprintf(stderr,
-                     "[build] выбрана деталь «%s», которой нет в полке руки "
-                     "(групп %zu). Меню и рука читают РАЗНЫЕ списки.\n",
-                     name.c_str(), build_groups_.size());
-    };
-    PropsHooks ph;
-    ph.apply = [this]() { return apply_selection_edit(); };
-    ph.remove = [this]() {
-        if (selected_ < scene_doc_.placements.size()) {
-            build_target_ = selected_;
-            (void)build_delete();
-            selected_ = static_cast<std::size_t>(-1);
-            props_.object.clear();
-        }
-    };
-
-    // ЧТО ИНСТРУМЕНТ МОЖЕТ СДЕЛАТЬ С МИРОМ — один набор крючков на всех, взятый
-    // ящиком по ссылке. Раньше на этом месте объявлялись ТРИ ПАНЕЛИ, каждая со
-    // своей фишкой на полосе, а действия инструментов лежали россыпью по run():
-    // список объектов взводил щелчок, кисть висела на той же кнопке отдельно, а
-    // посадка вызывалась из обработчика ПОСТРОЙКИ по Shift. Теперь у кнопки
-    // ровно один хозяин — активный инструмент, — и это свойство устройства, а не
-    // соблюдённая договорённость (docs/AUDIT_EDITOR_TOOLS.md).
-    ToolWorld& tw = editor_ui_.tool_world();
-    tw.terrain_dab = [this](const TerrainBrush& brush, glm::vec2 centre, float dt_s) {
-        return apply_terrain_dab(brush, centre, dt_s);
-    };
-    tw.finish_stroke = [this]() { finish_stroke(); };
-    tw.add_pad = [this](const world::ScenePad& pad) {
-        // A pad enters the world through the generation parameters, which are
-        // fixed at map load — so it lands in the composition and takes effect on
-        // the next load. SAYING SO is the whole point: a mode that silently does
-        // nothing is the complaint this began with.
-        scene_doc_.pads.push_back(pad);
-        scene_dirty_ = true;
-        std::fprintf(stderr, "[кисть] «ровно»: [pad] на (%.1f, %.1f) записан в "
-                             "композицию — земля примет его при следующей "
-                             "загрузке карты\n",
-                     static_cast<double>(pad.center.x), static_cast<double>(pad.center.y));
-    };
-    tw.place_part = [this]() {
-        if (!build_place()) {
-            return false;
-        }
-        std::fprintf(stderr, "[build] поставлено %s (%.2f %.2f %.2f)\n",
-                     scene_doc_.placements.back().object.c_str(),
-                     static_cast<double>(scene_doc_.placements.back().position.x),
-                     static_cast<double>(scene_doc_.placements.back().position.y),
-                     static_cast<double>(scene_doc_.placements.back().position.z));
-        return true;
-    };
-    tw.delete_target = [this]() { return build_delete(); };
-    tw.has_target = [this]() { return build_target_ < scene_doc_.placements.size(); };
-    tw.clear_ghost = [this]() { clear_build_ghost(); };
-    tw.ghost_ready = [this](std::string& reason) {
-        if (!build_ghost_.valid()) {
-            reason.clear(); // "деталь не выбрана" — the tool says which
-            return false;
-        }
-        if (!build_verdict_.allowed) {
-            // THE JUDGE'S OWN SENTENCE, from BuildTool's table — the same words
-            // the ghost's red edges stand for. One verdict rendered twice.
-            reason = std::string(localized(serialization::fnv1a64(build_verdict_.reason)));
-            return false;
-        }
-        return true;
-    };
-    tw.plant_dab = [this](const PlantBrush& brush, glm::vec2 centre) {
-        return plant_dab_here(brush, centre);
-    };
-    tw.material_swatch = [this](int surface, int tone, int px) {
-        return house_material_swatch(surface, tone, px);
-    };
-    tw.wall_example = [this](int variant, int px) { return house_wall_example(variant, px); };
-    tw.ground_height = [this](glm::vec2 xz) {
-        // ЗАКОНЧЕННАЯ земля, правки рукой включительно: линия тропы обязана
-        // лежать на той поверхности, на которую человек смотрит. Ноль вместо
-        // «не знаю» утопил бы её на десятки метров — этот отказ уже был у
-        // кольца кисти и пойман кадром сдачи.
-        return chunks_.height_at(xz).value_or(0.0f);
-    };
-    tw.last_dab = [this](int& samples, float& worst_m) {
-        samples = last_dab_samples_;
-        worst_m = last_dab_worst_m_;
-    };
-    tw.relief_paths = [this]() -> const std::vector<world::ReliefPath>* {
-        return &relief_.paths();
-    };
-    tw.commit_path = [this](std::size_t index, const world::ReliefPath* path) {
-        return commit_relief_path(index, path);
-    };
-    tw.open_own_settings = [this]() {
-        auto& box = editor_ui_.toolbox();
-        if (box.active() != nullptr && box.settings_index() == NO_TOOL) {
-            box.click_settings(box.active_index());
-        }
-    };
-    tw.select_target = [this]() -> bool {
-        selected_ = build_target_;
-        props_.refusal.clear();
-        if (selected_ >= scene_doc_.placements.size()) {
-            props_.object.clear();
-            return false;
-        }
-        const world::Placement& p = scene_doc_.placements[selected_];
-        props_.object = p.object;
-        props_.x = p.position.x;
-        props_.y = p.position.y;
-        props_.z = p.position.z;
-        props_.yaw_deg = p.yaw * 180.0f / glm::pi<float>();
-        props_.scale = p.scale;
-        props_.group = p.group;
-        props_.width_m = props_.depth_m = props_.height_m = 0.0f;
-        BuildJudgeCtx mctx{&chunks_, &scene_objects_, &build_extents_, &gallery_shelves_};
-        if (const render::ObjectExtent* e = build_extent(&mctx, p.object)) {
-            props_.width_m = e->hi.x - e->lo.x;
-            props_.depth_m = e->hi.y - e->lo.y;
-            props_.height_m = e->top - e->bottom;
-        }
-        std::fprintf(stderr, "[выбор] %s (%.2f %.2f %.2f), поворот %.1f°\n",
-                     p.object.c_str(), static_cast<double>(p.position.x),
-                     static_cast<double>(p.position.y),
-                     static_cast<double>(p.position.z),
-                     static_cast<double>(p.yaw * 180.0f / glm::pi<float>()));
-        return true;
-    };
-
-    // ДЕВЯТЬ ИНСТРУМЕНТОВ, И ПОРЯДОК ЗДЕСЬ — ПОРЯДОК НА ПОЛОСЕ И ПОРЯДОК
-    // КЛАВИШ 1..9. Сам порядок назначен пользователем (19.08): «1 выбор,
-    // 2 якоря, 3 прямые, 4 стены, 5 высота земли, 6 тропинка, 7 строительство
-    // пропами, 8 рассада деревьев» — постройка съехала в начало, потому что ею
-    // он пользуется чаще всего. Кисть поверхности в заказе не названа и стоит
-    // девятой. Добавить десятый — написать класс и дописать строку сюда; ни
-    // одного switch по дороге нет.
-    EditorToolbox& box = editor_ui_.toolbox();
-    house_.set_history(&history_);
-    // 1 — ВЫБОР. Один инструмент выбирает объект сцены, якорь и прямую.
-    {
-        auto select = std::make_unique<SelectTool>(props_, std::move(ph));
-        select->set_world(&tw);
-        select->set_house(&house_);
-        box.add(std::move(select));
-    }
-    // 2..4 — ПОСТРОЙКА: якоря, прямые, стены. Одна модель на троих; каждая
-    // мутация пишет снимок внутри HouseSession::mutate, App про это не помнит.
-    {
-        auto vertex = std::make_unique<HouseVertexTool>(house_);
-        vertex->set_world(&tw);
-        box.add(std::move(vertex));
-        auto line = std::make_unique<HouseLineTool>(house_);
-        line->set_world(&tw);
-        box.add(std::move(line));
-        auto surface = std::make_unique<HouseSurfaceTool>(house_);
-        surface->set_world(&tw);
-        box.add(std::move(surface));
-    }
-    // 5 — ВЫСОТА ЗЕМЛИ. Мир нужен кисти ради читалки «Последний мазок».
-    {
-        auto height = std::make_unique<HeightBrushTool>();
-        height->set_world(&tw);
-        box.add(std::move(height));
-    }
-    // 6 — ТРОПА: у кисти центр и радиус, у тропы точки, порядок и два конца.
-    {
-        auto path = std::make_unique<PathTool>();
-        path->set_world(&tw);
-        box.add(std::move(path));
-    }
-    // 7 — СТРОИТЕЛЬСТВО ГОТОВЫМИ ДЕТАЛЯМИ.
-    {
-        auto place = std::make_unique<PlaceTool>(palette_, std::move(hooks));
-        place->set_world(&tw);
-        box.add(std::move(place));
-    }
-    // 8 — ПОСАДКА. Список пород и щелчок принадлежат одному хозяину.
-    box.add(std::make_unique<PlantTool>([this]() -> const std::vector<std::string>& {
-        if (plant_species_.empty()) {
-            // ПОСАДКА ЧИТАЕТ ПОЛКУ ДЕРЕВЬЕВ, А НЕ ПОЛКИ КАРТЫ: на карте домов
-            // полка манифеста равна assets/objects/parts;assets/objects/signs,
-            // и список пород предлагал БРУСЬЯ. Дерево — не деталь дома.
-            static constexpr const char* TREES = "assets/objects/trees";
-            for (const BuildGroup& g : build_palette(TREES)) {
-                for (const std::string& n : g.names) {
-                    plant_species_.push_back(n);
-                }
-            }
-            if (plant_species_.empty()) {
-                std::fprintf(stderr,
-                             "[посадка] полка деревьев «%s» пуста — сажать нечем\n",
-                             TREES);
-            }
-        }
-        return plant_species_;
-    }));
-    // 9 — КИСТЬ ПОВЕРХНОСТИ (в заказе не названа).
-    {
-        auto paint = std::make_unique<SurfacePaintTool>(editor_ui_);
-        paint->set_world(&tw);
-        box.add(std::move(paint));
-    }
-    props_wired_ = true;
-}
 
 bool App::apply_selection_edit() {
     props_.refusal.clear();
@@ -3185,11 +2918,18 @@ void App::update_editor_tools(float dt_s) {
     // где-то ещё в run(). Теперь щелчок уходит АКТИВНОМУ инструменту и только
     // ему: ящик выводит нажатие, протяжку и отпускание из одного состояния
     // кнопки, поэтому второго соглашения о фронтах в программе нет.
-    const ToolAim aim = editor_aim();
+    const ToolAim aim = aim_this_frame();
     const bool down = input_->is_down(platform::MouseButton::LEFT);
     const ToolTickReport tick = editor_ui_.toolbox().update(
         aim, dt_s, down, editor_ui_.tool_world());
     (void)tick;
+    // ИНСТРУМЕНТ ТОЛЬКО ЧТО МОГ ДВИНУТЬ МИР — значит запомненный прицел про него
+    // больше не отвечает: мазок опустил землю под крестиком, постановка добавила
+    // расстановку, которая для луча препятствие. Сброс по СОБЫТИЮ, а не по факту
+    // «мы в редакторе»: без нажатия ничего не менялось и пересчитывать нечего.
+    if (tick.pressed || tick.dragged || tick.released) {
+        invalidate_frame_aim();
+    }
     // ЗЕМЛЯ ДВИГАЕТСЯ, ПОКА ВЕДЁШЬ, А НЕ ОДНИМ СКАЧКОМ НА ОТПУСКАНИИ (заказ
     // 18.08). Мазок и раньше считался покадрово; не считался ПОКАЗ —
     // rebuild_dirty звался только из finish_stroke, поэтому человек вёл кисть
@@ -3454,6 +3194,10 @@ int App::run() {
         if (!dispatch_actions(chat_typing)) {
             continue; // ESC увёл в меню паузы: этого кадра больше нет
         }
+        // ГРАНИЦА КАДРА ДЛЯ ПРИЦЕЛА. Ставится ПОСЛЕ прогулки по клавишам, потому
+        // что обработчик может и сам поставить деталь (Enter в редакторе), — то
+        // есть кадр начинается для прицела здесь, а не на poll_events().
+        invalidate_frame_aim();
         // THE DOOR TAKES THE SAME PATH AS THE KEY (DFN_THIRD_PERSON=1), fired
         // once on the first playing frame. Third person could only ever be
         // reached by a human pressing 1, so no automated run could photograph
@@ -3744,10 +3488,18 @@ int App::run() {
                 // пришлось бы дописывать при каждой новой привязке и однажды не
                 // дописать. Порог — не ноль: мышь отдаёт микродрожь даже
                 // неподвижная, и от неё метка гасла бы сама собой.
-                if (house_.nudging()
-                    && (glm::length(editor_cam_.position() - pos_before) > 1e-4f
-                        || std::fabs(editor_cam_.yaw() - yaw_before) > 1e-4f)) {
+                const bool cam_moved =
+                    glm::length(editor_cam_.position() - pos_before) > 1e-4f
+                    || std::fabs(editor_cam_.yaw() - yaw_before) > 1e-4f;
+                if (house_.nudging() && cam_moved) {
                     house_.set_nudging(false);
+                }
+                // ПРИЦЕЛ — ЛУЧ ИЗ КАМЕРЫ, и камера только что тронулась. Тот же
+                // порог и то же измерение, что у метки подталкивания выше: два
+                // ответа на вопрос «сдвинулась ли она» разъехались бы, а здесь
+                // он один.
+                if (cam_moved) {
+                    invalidate_frame_aim();
                 }
                 // ПРИБОР ВМЕСТО ГЛАЗ. Три захода подряд «камера не крутится»
                 // разбирал человек за игрой, а не измерение: у нас не было ни
@@ -4434,7 +4186,7 @@ int App::run() {
                     tool_title = EditorUi::tr(tool->identity().title_key);
                     frame.tool.title = tool_title;
                     frame.tool.wants_rotation = tool->wants_part_rotation();
-                    st = editor_ui_.toolbox().status(editor_aim());
+                    st = editor_ui_.toolbox().status(aim_this_frame());
                     frame.tool.status_key = st.key;
                     frame.tool.status_text = st.text;
                     frame.tool.ready = st.ready;
@@ -4592,7 +4344,7 @@ int App::run() {
         // КОЛЬЦО РИСУЕТСЯ ТОМУ, КТО ЕГО ПОПРОСИЛ. Здесь стоял вопрос «активен ли
         // один из двух режимов кисти» — то есть седьмое место, знавшее
         // перечисление. Инструмент отдаёт СВОЮ кисть, и кольцо считается по ней.
-        const ToolAim ring_aim = mode_ == AppMode::Editor ? editor_aim() : ToolAim{};
+        const ToolAim ring_aim = mode_ == AppMode::Editor ? aim_this_frame() : ToolAim{};
         const TerrainBrush* ring_brush =
             mode_ == AppMode::Editor ? editor_ui_.toolbox().preview(ring_aim).ring_brush
                                      : nullptr;
@@ -4779,18 +4531,14 @@ void App::shutdown() {
         std::fclose(frame_log_);
         frame_log_ = nullptr;
     }
-    if (physics_) {
-        for (auto& [key, cp] : g_chunk_physics) {
-            physics_->destroy_body(cp.body);
-        }
-        g_chunk_physics.clear();
-    }
+    // ВЕСЬ СНОС МИРА — ОДНОЙ СТРОКОЙ. Список жил здесь и НЕ жил в enter_world,
+    // из-за чего второе открытие карты строило поверх первого (третий аудит,
+    // пункт 1). Теперь он один на два вызова: AppWorld.cpp::unload_world().
+    unload_world();
     if (renderer_) {
         // Before the renderer: the interface owns bgfx resources (its program,
         // its font atlas) that must be destroyed while bgfx is still up.
         editor_ui_.shutdown();
-        chunks_.unload_all(world_, bus_);
-        bus_.pump();
         render_system_.shutdown(*renderer_);
         renderer_->shutdown();
     }

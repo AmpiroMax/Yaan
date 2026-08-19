@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 20:08:2026 - 15:30:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -75,6 +75,7 @@ UPD:
 - 17:08:2026 - 19:05:00: чтение и запись ключа `relief` (зона кистей рельефа): одна строка с
   именем сиделки .relief. Необязательный ключ, его отсутствие — прежний файл
   до последнего бита.
+- 20:08:2026 - 15:30:00: Чтение и запись [house].
 */
 
 #include "engine/world/sources/Scene.h"
@@ -137,6 +138,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
     bool in_light = false;
     bool in_pad = false;
     bool in_river = false;
+    bool in_house = false;
     const auto flush = [&] {
         if (in_placement && !current.object.empty()) {
             out.placements.push_back(current);
@@ -151,6 +153,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         }
         if (t == "[place]") {
             flush();
+            in_house = false;
             in_placement = true;
             in_light = false;
             in_pad = false;
@@ -159,6 +162,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         }
         if (t == "[river]") {
             flush();
+            in_house = false;
             in_placement = false;
             in_light = false;
             in_pad = false;
@@ -168,6 +172,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         }
         if (t == "[pad]") {
             flush();
+            in_house = false;
             in_placement = false;
             in_light = false;
             in_river = false;
@@ -177,11 +182,22 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         }
         if (t == "[light]") {
             flush();
+            in_house = false;
             in_placement = false;
             in_pad = false;
             in_river = false;
             in_light = true;
             out.lights.emplace_back();
+            continue;
+        }
+        if (t == "[house]") {
+            flush();
+            in_placement = false;
+            in_light = false;
+            in_pad = false;
+            in_river = false;
+            in_house = true;
+            out.houses.emplace_back();
             continue;
         }
         // ANY OTHER SECTION IS SKIPPED, not fatal. The format grows — the
@@ -195,6 +211,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_light = false;
             in_pad = false;
             in_river = false;
+            in_house = false;
             continue;
         }
         const auto eq = t.find('=');
@@ -212,6 +229,30 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             return true;
         };
+        if (in_house) {
+            ScenePlacedHouse& H = out.houses.back();
+            if (key == "file") {
+                H.file = value;
+            } else if (key == "pos") {
+                float x = 0.0f;
+                float y = 0.0f;
+                float z = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f %f", &x, &y, &z) != 3) {
+                    error = "line " + std::to_string(line_no)
+                          + ": pos wants three numbers \"x y z\"";
+                    return false;
+                }
+                H.position = {x, y, z};
+            } else if (key == "yaw") {
+                if (!parse_float(value, H.yaw)) {
+                    error = "line " + std::to_string(line_no) + ": bad yaw";
+                    return false;
+                }
+            } else if (key == "note") {
+                H.note = value;
+            }
+            continue;
+        }
         if (in_river) {
             SceneRiver& R = out.rivers.back();
             if (key == "point") {
@@ -414,6 +455,16 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         }
         if (!p.note.empty()) {
             out << "note = " << p.note << "\n";
+        }
+    }
+    for (const ScenePlacedHouse& H : doc.houses) {
+        out << "\n[house]\n"
+            << "file = " << H.file << "\n"
+            << "pos = " << H.position.x << ' ' << H.position.y << ' '
+            << H.position.z << "\n"
+            << "yaw = " << H.yaw << "\n";
+        if (!H.note.empty()) {
+            out << "note = " << H.note << "\n";
         }
     }
     for (const SceneRiver& R : doc.rivers) {
