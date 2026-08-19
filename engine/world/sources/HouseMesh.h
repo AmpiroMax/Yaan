@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:16:26
-Last updated: 20:08:2026 - 12:10:00
+Last updated: 20:08:2026 - 12:55:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.h
 
@@ -52,6 +52,7 @@ UPD:
 - 20:08:2026 - 00:58:40: MeshPart.mat_override/tone_override — у элемента несколько частей, кусок кладки несёт свой материал; параметр fill (2 кирпич, 3 блоки).
 - 20:08:2026 - 01:47:30: Параметры doors (дверной проём) и stairs (лестница).
 - 20:08:2026 - 12:10:00: Форма plank (доска 4:1); таблица красок HOUSE_PAINT_RGB; fill=6 — лестница на контуре.
+- 20:08:2026 - 12:55:00: element_params_of объявлена наружу: пикинг читает те же параметры, что построитель.
 */
 
 #pragma once
@@ -228,6 +229,12 @@ struct ParamIssue {
 /// задал, а движок не применил, и разбираться с этим он будет глазами.
 [[nodiscard]] ElementParams parse_element_params(std::string_view style,
                                                  std::vector<ParamIssue>* issues = nullptr);
+
+/// Числа элемента: поле params — первым, строка стиля — запасным ходом.
+/// ЕДИНСТВЕННЫЙ правильный способ прочитать их вне построителя (аудит 20.08:
+/// пикинг читал только поле и терял высоту, заданную стилем).
+[[nodiscard]] ElementParams element_params_of(const Element& e,
+                                              std::vector<ParamIssue>* issues);
 
 /// Сколько граней у профиля на самом деле.
 [[nodiscard]] int profile_sides(const ElementParams& p);

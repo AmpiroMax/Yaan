@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 12:10:00
+Last updated: 20:08:2026 - 12:55:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -35,6 +35,7 @@ UPD:
 - 20:08:2026 - 00:58:40: Кладка рядами с перевязкой и детерминированной дрожью глубины (хэш ряда и колонки — две сборки дают один меш); под-части по материалу через MeshBuilder.set_material; фахверк — брус, кирпич — глина, блоки — камень.
 - 20:08:2026 - 01:47:30: Лестница между якорями: ступени коробами (подъём 17.5 см, шаг РОВНЫЙ делением нацело, физика — те же коробы), тетивы по бокам; дверной проём от пола (окна уступают вслух); паркет пола рядами с перевязкой, кусок вне контура выпадает.
 - 20:08:2026 - 12:10:00: Паркет режется по контуру (Сазерленд–Ходжман) и лежит встык; лестница fill=6 на четырёх точках; форма plank; paint — чужой слой.
+- 20:08:2026 - 12:55:00: element_params_of вынесена из безымянного пространства имён (нужна пикингу).
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -1248,6 +1249,7 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
 /// Строка остаётся ЗАПАСНЫМ ходом, а не равноправным: её понимают старые файлы
 /// и старые рукава. Поле сильнее — если число задано и там, и там, побеждает
 /// поле, потому что его задал редактор, а строку мог оставить кто угодно.
+} // namespace — element_params_of объявлена в HouseMesh.h (нужна пикингу)
 ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issues) {
     ElementParams p = parse_element_params(e.style, issues);
     for (const auto& kv : e.params) {
@@ -1273,6 +1275,7 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
     }
     return p;
 }
+namespace {
 
 /// ЦЕПОЧКА ИЛИ КОНТУР — РЕШАЕТ ПРИЗНАК ЗАМКНУТОСТИ, а не высота.
 ///

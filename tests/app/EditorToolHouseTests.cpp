@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 23:58:20
+Last updated: 20:08:2026 - 12:55:00
 Module: tests/app
 File: tests/app/EditorToolHouseTests.cpp
 
@@ -66,6 +66,7 @@ UPD:
 - 19:08:2026 - 00:31:05: Показ пересобирается целиком: три кадра подряд дают один размер у всех трёх инструментов (контрфакт — снятая очистка роняет случай).
 - 19:08:2026 - 03:22:40: snap_on_axis: вертикаль даёт кратную высоту, наклонная ось не отпускает точку с оси, выключенная сетка не трогает ничего.
 - 19:08:2026 - 23:58:20: Заготовка доезжает до элемента (камень/тёмный/квадрат; обшивка с окнами), контроль: умолчания не пишут ключей.
+- 20:08:2026 - 12:55:00: Выбор не ловится в выемке Г-образного пола (уши против веера).
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1785,4 +1786,33 @@ TEST_CASE("заготовка доезжает до элемента: матер
     plain.set_world(&b.world);
     b.drag(plain, {5.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f});
     CHECK(b.session.graph().param(plain.last_element(), "form").empty());
+}
+
+TEST_CASE("выбор НЕ ловится в выемке Г-образного пола") {
+    // Аудит 20.08, находка 4: пикинг триангулировал контур ВЕЕРОМ от первой
+    // вершины и на невыпуклом полу закрашивал выемку — щелчок в пустоту
+    // поперёк неё ловил пол. Теперь контур разбирается тем же отсечением
+    // ушей, что и меш.
+    Bench b;
+    // Г-образный пол: квадрат 4x4 без квадранта [2..4]x[2..4].
+    std::vector<VertexId> refs;
+    const glm::vec2 pts[6] = {{0.0f, 0.0f}, {4.0f, 0.0f}, {4.0f, 2.0f},
+                              {2.0f, 2.0f}, {2.0f, 4.0f}, {0.0f, 4.0f}};
+    (void)b.session.mutate("пол", [&](dfn::world::HouseGraph& g) {
+        for (const glm::vec2& q : pts) {
+            refs.push_back(g.add_vertex(Anchoring::OnGround, {q.x, 0.0f, q.y}));
+        }
+        ElementId floor = 0;
+        const auto r = g.add_element(ElementKind::Surface, refs, "oak;thickness=0.2", floor);
+        if (r.ok) {
+            (void)g.set_closed(floor, true);
+        }
+        return r;
+    });
+    // Луч сверху вниз в СЕРЕДИНУ выемки (3,·,3): пола там нет.
+    CHECK(b.session.pick_element_ray({3.0f, 5.0f, 3.0f}, {0.0f, -1.0f, 0.0f}, 0.05f)
+          == NO_ELEMENT);
+    // КОНТРОЛЬ: луч в настоящий пол (1,·,1) ловит его.
+    CHECK(b.session.pick_element_ray({1.0f, 5.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, 0.05f)
+          != NO_ELEMENT);
 }

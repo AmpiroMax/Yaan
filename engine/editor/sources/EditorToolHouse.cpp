@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 12:10:00
+Last updated: 20:08:2026 - 12:55:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -50,6 +50,7 @@ UPD:
 - 20:08:2026 - 00:58:40: Штамп fill при создании.
 - 20:08:2026 - 01:47:30: Штампы spin/stairs/doors при создании.
 - 20:08:2026 - 12:10:00: Штамп форм по таблице (3/6/8/12 граней, доска), штамп краски; лестница из форм убрана.
+- 20:08:2026 - 12:55:00: Формула скрещивающихся прямых — одна (axis_closest_param); пикинг контура ушами, а не веером; OnEdge-якорь скользит slide_vertex; высота из element_params_of.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -388,22 +389,36 @@ VertexId HouseSession::pick_vertex(glm::vec3 world_point, float grab_m) const {
 /// вниз), знаменатель обращается в ноль — ответа не существует, потому что вся
 /// ось проецируется в точку. Возвращаем прежнюю высоту: инструмент замирает,
 /// а не прыгает в бесконечность.
+/// ПАРАМЕТР ВДОЛЬ ОСИ (метры от anchor) в точке, где ось ближе всего к лучу.
+/// ОДНА формула на весь файл: до 20.08 здесь жили ДВЕ копии решения пары
+/// скрещивающихся прямых с переставленными именами d/e, и каждая хранила след
+/// одной и той же ошибки знака (аудит, находка 6). false — луч идёт вдоль
+/// оси: вся ось проецируется в точку, ответа не существует.
+static bool axis_closest_param(const glm::vec3& anchor, const glm::vec3& u,
+                               const glm::vec3& ray_origin, const glm::vec3& ray_dir,
+                               float& s_out) {
+    const glm::vec3 w = anchor - ray_origin;
+    const float b = glm::dot(u, ray_dir);
+    const float denom = 1.0f - b * b; // |u| = |dir| = 1
+    if (denom < 1e-5f) {
+        return false;
+    }
+    // s = (b·e − d)/(1 − b²), где d = u·w, e = dir·w. Знак не украшение: с
+    // обратным вертикаль шла ВНИЗ, когда человек тянул ВВЕРХ (кадр 18.08).
+    const float d = glm::dot(u, w);
+    const float e = glm::dot(ray_dir, w);
+    s_out = (b * e - d) / denom;
+    return true;
+}
+
 static glm::vec3 point_on_axis(const glm::vec3& anchor, const glm::vec3& u,
                                const glm::vec3& ray_origin, const glm::vec3& ray_dir,
                                const glm::vec3& fallback) {
-    const glm::vec3 w = anchor - ray_origin;
-    const float b = glm::dot(u, ray_dir);
-    const float denom = 1.0f - b * b; // |u| = |d| = 1
-    if (denom < 1e-5f) {
-        return fallback;
+    float s = 0.0f;
+    if (!axis_closest_param(anchor, u, ray_origin, ray_dir, s)) {
+        return fallback; // смотрим вдоль оси: инструмент замирает, не прыгает
     }
-    const float d = glm::dot(u, w);
-    const float e = glm::dot(ray_dir, w);
-    // t = (b·e − d)/(1 − b²) — классическая пара скрещивающихся прямых. Знак
-    // здесь не украшение: с обратным вышла бы вертикаль, идущая ВНИЗ, когда
-    // человек тянет ВВЕРХ, и это тот же дефект, что он показал кадром.
-    const float t = (b * e - d) / denom; // параметр вдоль ОСИ
-    return anchor + u * t;
+    return anchor + u * s;
 }
 
 void HouseSession::cycle_axis(VertexId around) {
@@ -497,9 +512,9 @@ VertexId HouseSession::pick_vertex_ray(glm::vec3 origin, glm::vec3 dir, float gr
     return best;
 }
 
-/// СБЛИЖЕНИЕ ЛУЧА С ОТРЕЗКОМ — ОДНО ВЫРАЖЕНИЕ НА ВЕСЬ ФАЙЛ. Его спрашивают и
-/// посадка вершины на ось, и выбор элемента; две копии этой формулы разошлись
-/// бы в тот день, когда одну из них поправят (правило 32).
+/// СБЛИЖЕНИЕ ЛУЧА С ОТРЕЗКОМ. Сама формула скрещивающихся прямых живёт в
+/// axis_closest_param — ОДНОМ месте на весь файл (правило 32; с 20.08 это
+/// правда, а не намерение).
 HouseEdgeHit ray_vs_segment(glm::vec3 origin, glm::vec3 dir, glm::vec3 a, glm::vec3 b,
                             float grab_m) {
     HouseEdgeHit out;
@@ -513,20 +528,12 @@ HouseEdgeHit ray_vs_segment(glm::vec3 origin, glm::vec3 dir, glm::vec3 a, glm::v
     // Систему из двух уравнений решаем прямо; вырожденный случай (луч
     // ПАРАЛЛЕЛЕН отрезку) назван отдельно: там общего решения нет, и берётся
     // ближайший конец, а не деление на ноль.
-    const glm::vec3 w0 = a - origin;
-    const float bcoef = glm::dot(dir, abn);
-    const float denom = 1.0f - bcoef * bcoef;
     float t = 0.0f; // доля вдоль отрезка
-    if (denom < 1e-5f) {
-        t = std::clamp(glm::dot(-w0, abn) / len, 0.0f, 1.0f);
-    } else {
-        const float d = glm::dot(dir, w0);
-        const float ee = glm::dot(abn, w0);
-        // s = (b·d − e)/(1 − b²), метры вдоль отрезка от его начала. Знак здесь
-        // уже стоил одной ошибки за вечер — на вертикали, в той же формуле:
-        // перевёрнутый, он уводит ближайшую точку в противоположную сторону.
-        const float s = (bcoef * d - ee) / denom;
+    if (float s = 0.0f; axis_closest_param(a, abn, origin, dir, s)) {
         t = std::clamp(s / len, 0.0f, 1.0f);
+    } else {
+        // Луч ПАРАЛЛЕЛЕН отрезку: общего решения нет, берётся ближайший конец.
+        t = std::clamp(glm::dot(origin - a, abn) / len, 0.0f, 1.0f);
     }
     const glm::vec3 p = a + ab * t;
     const float along = glm::dot(p - origin, dir);
@@ -580,20 +587,11 @@ HouseEdgeHit HouseSession::pick_edge_ray(glm::vec3 origin, glm::vec3 dir,
 /// иначе, — это стена, которую видно не там, где в неё можно ткнуть.
 static float house_surface_height(const HouseSession& s, const Element& e) {
     (void)s;
-    const std::string h = [&] {
-        for (const auto& kv : e.params) {
-            if (kv.first == "height") {
-                return kv.second;
-            }
-        }
-        return std::string{};
-    }();
-    if (h.empty()) {
-        // 0 — «высота не задана», и построитель тела в этом случае стену НЕ
-        // строит. Значит и целиться не во что: ноль здесь — тот же ответ.
-        return 0.0f;
-    }
-    return static_cast<float>(std::atof(h.c_str()));
+    // ТЕ ЖЕ параметры, что у построителя тела: поле — первым, строка стиля —
+    // запасным ходом. До 20.08 читалось только поле, и стена с высотой из
+    // стиля рисовалась, но не выбиралась (аудит, находка 5). 0 — «высота не
+    // задана»: построитель стену не строит, и целиться не во что.
+    return world::element_params_of(e, nullptr).height;
 }
 
 /// ЛУЧ И ТРЕУГОЛЬНИК (Мёллер–Трумбор). Расстояние вдоль луча или -1.
@@ -659,12 +657,11 @@ ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir, float 
         // написал «не могу выбрать стену»: он целится в СЕРЕДИНУ стены, а
         // ловился только контур — полоса в тридцать сантиметров по краю.
         //
-        // Треугольники берутся те же, что рисует построитель тела: замкнутый
-        // контур — веером от первой вершины (это верно для выпуклого и даёт
-        // разумный ответ для невыпуклого — хуже кромки не будет), цепочка —
-        // выдавленная вверх лента. Полного разбора ушами здесь нет нарочно:
-        // выбор мышью не обязан совпадать с мешом ДО ТРЕУГОЛЬНИКА, он обязан
-        // не промахиваться по стене.
+        // Треугольники берутся ТЕ ЖЕ, что у построителя тела: контур — тем же
+        // отсечением ушей (world::triangulate_contour), цепочка — выдавленная
+        // вверх лента. Веер от первой вершины (стоял тут до 20.08) на
+        // Г-образном полу закрашивал выемку: щелчок в пустоту поперёк неё
+        // ловил пол, а щелчок в настоящий угол — нет (аудит, находка 4).
         const auto face = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c) {
             const float t = ray_vs_triangle(origin, dir, a, b, c);
             if (t > 0.0f && (best == NO_ELEMENT || t < best_along)) {
@@ -673,9 +670,22 @@ ElementId HouseSession::pick_element_ray(glm::vec3 origin, glm::vec3 dir, float 
             }
         };
         if (e.closed && e.refs.size() >= 3) {
-            const glm::vec3 a0 = vertex_world(e.refs.front());
-            for (std::size_t i = 1; i + 1 < e.refs.size(); ++i) {
-                face(a0, vertex_world(e.refs[i]), vertex_world(e.refs[i + 1]));
+            std::vector<glm::vec3> pts;
+            pts.reserve(e.refs.size());
+            for (const VertexId r : e.refs) {
+                pts.push_back(vertex_world(r));
+            }
+            const world::FittedPlane plane = world::fit_contour_plane(pts);
+            if (!plane.degenerate) {
+                glm::vec3 pu{0.0f};
+                glm::vec3 pv{0.0f};
+                const std::vector<glm::vec2> flat =
+                    world::project_contour(pts, plane, pu, pv);
+                const std::vector<std::uint32_t> tris =
+                    world::triangulate_contour(flat);
+                for (std::size_t t3 = 0; t3 + 2 < tris.size(); t3 += 3) {
+                    face(pts[tris[t3]], pts[tris[t3 + 1]], pts[tris[t3 + 2]]);
+                }
             }
         } else {
             const float h = house_surface_height(*this, e);
@@ -981,6 +991,30 @@ void HouseVertexTool::on_drag(const ToolAim& aim, float dt_s, ToolWorld& world) 
     // чтобы я мог двигать якоря вдоль любой из линий, которые рисуются от
     // якоря». Тогда точка берётся с ЭТОЙ прямой, а не с земли: балку можно
     // удлинить, не сбив её направления, и поднять стойку ровно по её же оси.
+    // ВЕРШИНА НА ОСИ скользит ПАРАМЕТРОМ вдоль хозяина: move_vertex ей
+    // отказывает по праву (место принадлежит оси), и до 20.08 этот отказ
+    // повторялся каждый кадр протаскивания — якорь на оси не двигался вовсе
+    // (аудит, находка 2).
+    if (const world::Vertex* v = session_->graph().vertex(dragging_);
+        v != nullptr && v->anchoring == world::Anchoring::OnEdge) {
+        const world::Element* host = session_->graph().element(v->host);
+        if (host != nullptr && host->refs.size() >= 2) {
+            const glm::vec3 a = session_->vertex_world(host->refs[0]);
+            const glm::vec3 b = session_->vertex_world(host->refs[1]);
+            const glm::vec3 ab = b - a;
+            const float len2 = glm::dot(ab, ab);
+            if (len2 > 1e-8f) {
+                const glm::vec3 u = ab / std::sqrt(len2);
+                const glm::vec3 here = session_->vertex_world(dragging_);
+                glm::vec3 target =
+                    point_on_axis(a, u, aim.origin, aim.direction(), here);
+                target = session_->snap_on_axis(target, a, u);
+                const float t = glm::dot(target - a, ab) / len2;
+                (void)session_->graph().slide_vertex(dragging_, t);
+            }
+        }
+        return;
+    }
     if (glm::vec3 u{0.0f}; session_->axis_dir(dragging_, u)) {
         const glm::vec3 here = session_->vertex_world(dragging_);
         glm::vec3 target = point_on_axis(here, u, aim.origin, aim.direction(), here);

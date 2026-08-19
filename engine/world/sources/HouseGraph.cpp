@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 18:08:2026 - 22:20:15
+Last updated: 20:08:2026 - 12:55:00
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -22,6 +22,7 @@ UPD:
 - 18:08:2026 - 17:47:28: set_style/set_param/set_closed/param (см. заголовок).
 - 18:08:2026 - 18:43:05: усыновление имён (см. заголовок).
 - 18:08:2026 - 22:20:15: Все тринадцать мутаторов поднимают версию.
+- 20:08:2026 - 12:55:00: Бамп версии перенесён в точку изменения во всех мутаторах; set_param того же значения — не изменение; slide_vertex.
 */
 
 #include "engine/world/sources/HouseGraph.h"
@@ -32,7 +33,9 @@ UPD:
 namespace dfn::world {
 
 VertexId HouseGraph::add_vertex(Anchoring anchoring, glm::vec3 local) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
     ++version_;
     Vertex v;
     v.id = next_vertex_++;
@@ -43,8 +46,6 @@ VertexId HouseGraph::add_vertex(Anchoring anchoring, glm::vec3 local) {
 }
 
 GraphResult HouseGraph::add_vertex_on_edge(ElementId host, float t, VertexId& out) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     out = NO_VERTEX;
     const Element* e = element(host);
     if (e == nullptr) {
@@ -56,6 +57,10 @@ GraphResult HouseGraph::add_vertex_on_edge(ElementId host, float t, VertexId& ou
     if (e->kind != ElementKind::Line) {
         return {false, "вершина сидит только на оси прямой", {}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     Vertex v;
     v.id = next_vertex_++;
     v.anchoring = Anchoring::OnEdge;
@@ -68,8 +73,6 @@ GraphResult HouseGraph::add_vertex_on_edge(ElementId host, float t, VertexId& ou
 
 GraphResult HouseGraph::add_element(ElementKind kind, std::vector<VertexId> refs,
                                     std::string style, ElementId& out) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     out = NO_ELEMENT;
     if (refs.size() < min_refs_for(kind)) {
         return {false, "слишком мало вершин для этого вида", {}};
@@ -88,6 +91,10 @@ GraphResult HouseGraph::add_element(ElementKind kind, std::vector<VertexId> refs
             return {false, "одна и та же вершина дважды подряд", {}};
         }
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     Element e;
     e.id = next_element_++;
     e.kind = kind;
@@ -99,14 +106,16 @@ GraphResult HouseGraph::add_element(ElementKind kind, std::vector<VertexId> refs
 }
 
 GraphResult HouseGraph::adopt_vertex(VertexId id, Anchoring anchoring, glm::vec3 local) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     if (id == NO_VERTEX) {
         return {false, "имя вершины не может быть нулём", {}};
     }
     if (vertex(id) != nullptr) {
         return {false, "вершина с таким именем уже есть", {}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     Vertex v;
     v.id = id;
     v.anchoring = anchoring;
@@ -119,8 +128,6 @@ GraphResult HouseGraph::adopt_vertex(VertexId id, Anchoring anchoring, glm::vec3
 }
 
 GraphResult HouseGraph::adopt_vertex_on_edge(VertexId id, ElementId host, float t) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     if (id == NO_VERTEX) {
         return {false, "имя вершины не может быть нулём", {}};
     }
@@ -134,6 +141,10 @@ GraphResult HouseGraph::adopt_vertex_on_edge(VertexId id, ElementId host, float 
     if (e->kind != ElementKind::Line) {
         return {false, "вершина сидит только на оси прямой", {}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     Vertex v;
     v.id = id;
     v.anchoring = Anchoring::OnEdge;
@@ -146,8 +157,6 @@ GraphResult HouseGraph::adopt_vertex_on_edge(VertexId id, ElementId host, float 
 
 GraphResult HouseGraph::adopt_element(ElementId id, ElementKind kind,
                                       std::vector<VertexId> refs, std::string style) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     if (id == NO_ELEMENT) {
         return {false, "имя элемента не может быть нулём", {}};
     }
@@ -167,6 +176,10 @@ GraphResult HouseGraph::adopt_element(ElementId id, ElementKind kind,
             return {false, "одна и та же вершина дважды подряд", {}};
         }
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     Element e;
     e.id = id;
     e.kind = kind;
@@ -178,8 +191,6 @@ GraphResult HouseGraph::adopt_element(ElementId id, ElementKind kind,
 }
 
 GraphResult HouseGraph::remove_vertex(VertexId id) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     if (vertex(id) == nullptr) {
         return {false, "такой вершины нет", {}};
     }
@@ -194,6 +205,10 @@ GraphResult HouseGraph::remove_vertex(VertexId id) {
     if (!held.empty()) {
         return {false, "на вершине висят элементы", std::move(held)};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     vertices_.erase(std::remove_if(vertices_.begin(), vertices_.end(),
                                    [id](const Vertex& v) { return v.id == id; }),
                     vertices_.end());
@@ -201,8 +216,6 @@ GraphResult HouseGraph::remove_vertex(VertexId id) {
 }
 
 GraphResult HouseGraph::remove_element(ElementId id) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     if (element(id) == nullptr) {
         return {false, "такого элемента нет", {}};
     }
@@ -219,6 +232,10 @@ GraphResult HouseGraph::remove_element(ElementId id) {
     if (!riders.empty()) {
         return {false, "на оси элемента сидят вершины", std::move(riders)};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     elements_.erase(std::remove_if(elements_.begin(), elements_.end(),
                                    [id](const Element& e) { return e.id == id; }),
                     elements_.end());
@@ -226,8 +243,6 @@ GraphResult HouseGraph::remove_element(ElementId id) {
 }
 
 GraphResult HouseGraph::move_vertex(VertexId id, glm::vec3 new_local) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     Vertex* v = find_vertex(id);
     if (v == nullptr) {
         return {false, "такой вершины нет", {}};
@@ -238,6 +253,10 @@ GraphResult HouseGraph::move_vertex(VertexId id, glm::vec3 new_local) {
     if (v->anchoring == Anchoring::OnEdge) {
         return {false, "вершина сидит на оси: двигай хозяина или параметр вдоль", {v->host}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     v->local = new_local;
     // Ничего пересчитывать не надо: геометрия элементов НИГДЕ НЕ ХРАНИТСЯ, она
     // выводится из вершин. «За вершиной потянулось» — не работа, а отсутствие
@@ -245,52 +264,86 @@ GraphResult HouseGraph::move_vertex(VertexId id, glm::vec3 new_local) {
     return {};
 }
 
-GraphResult HouseGraph::set_facing(ElementId id, bool flipped) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
+GraphResult HouseGraph::slide_vertex(VertexId id, float t) {
+    Vertex* v = find_vertex(id);
+    if (v == nullptr) {
+        return {false, "такой вершины нет", {}};
+    }
+    if (v->anchoring != Anchoring::OnEdge) {
+        return {false, "вершина не сидит на оси: двигай её move_vertex", {}};
+    }
+    const float clamped = std::clamp(t, 0.0f, 1.0f);
+    if (clamped == v->host_t) {
+        return {};
+    }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
     ++version_;
+    v->host_t = clamped;
+    return {};
+}
+
+GraphResult HouseGraph::set_facing(ElementId id, bool flipped) {
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     e->facing_flipped = flipped;
     return {};
 }
 
 GraphResult HouseGraph::set_style(ElementId id, std::string style) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     e->style = std::move(style);
     return {};
 }
 
 GraphResult HouseGraph::set_param(ElementId id, std::string key, std::string value) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
     }
     for (auto& kv : e->params) {
         if (kv.first == key) {
+            // ТО ЖЕ ЗНАЧЕНИЕ — НЕ ИЗМЕНЕНИЕ: без бампа, иначе ползунок,
+            // вернувшийся в ту же цифру, пересобирал бы дом.
+            if (kv.second == value) {
+                return {};
+            }
+            ++version_;
             kv.second = std::move(value);
             return {};
         }
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     e->params.emplace_back(std::move(key), std::move(value));
     return {};
 }
 
 GraphResult HouseGraph::set_closed(ElementId id, bool closed) {
-    // ВЕРСИЯ РАСТЁТ ЗДЕСЬ, В КАЖДОМ МУТАТОРЕ — довод у version().
-    ++version_;
     Element* e = find_element(id);
     if (e == nullptr) {
         return {false, "такого элемента нет", {}};
     }
+    // ВЕРСИЯ РАСТЁТ ТОЛЬКО ПРИ УДАВШЕМСЯ ИЗМЕНЕНИИ (аудит 20.08: бамп до
+    // валидации заставлял отказ пересобирать меш и коллайдер) — довод у
+    // version().
+    ++version_;
     e->closed = closed;
     return {};
 }

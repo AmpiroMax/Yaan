@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 18:08:2026 - 18:43:05
+Last updated: 20:08:2026 - 12:55:00
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -47,6 +47,7 @@ UPD:
   написанный часом раньше: он проверял vertex(1), то есть закреплял ТОГДАШНЕЕ
   ошибочное поведение читателя. Проверка, написанная под наблюдаемое, а не под
   нужное, охраняет дефект.
+- 20:08:2026 - 12:55:00: Версия растёт только от удавшегося изменения; скольжение OnEdge-вершины.
 */
 
 #include <doctest/doctest.h>
@@ -848,4 +849,64 @@ TEST_CASE("круговой прогон СОХРАНЯЕТ ИМЕНА, инач
     REQUIRE(hb.element(e3) != nullptr);
     CHECK(hb.element(e3)->style == "stone");
     CHECK(hb.element(e1) == nullptr);
+}
+
+TEST_CASE("версия растёт ТОЛЬКО от удавшегося изменения") {
+    // Аудит 20.08, находка 1: бамп до валидации заставлял отклонённый кадр
+    // перетаскивания пересобирать меш и физическое тело впустую.
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
+    ElementId line = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b}, "frame", line).ok);
+
+    // КОНТРОЛЬ: удавшаяся правка версию растит.
+    const std::uint32_t before = g.version();
+    REQUIRE(g.move_vertex(b, {0.0f, 3.0f, 0.0f}).ok);
+    CHECK(g.version() == before + 1);
+
+    // Отказ — не растит: вершины нет.
+    const std::uint32_t v1 = g.version();
+    CHECK_FALSE(g.move_vertex(9999, {0.0f, 0.0f, 0.0f}).ok);
+    CHECK(g.version() == v1);
+    // Отказ — не растит: элемент держит вершину.
+    CHECK_FALSE(g.remove_vertex(a).ok);
+    CHECK(g.version() == v1);
+    // То же значение параметра — не изменение.
+    REQUIRE(g.set_param(line, "radius", "0.25").ok);
+    const std::uint32_t v2 = g.version();
+    REQUIRE(g.set_param(line, "radius", "0.25").ok);
+    CHECK(g.version() == v2);
+    // Другое значение — изменение (второе контрольное плечо).
+    REQUIRE(g.set_param(line, "radius", "0.3").ok);
+    CHECK(g.version() == v2 + 1);
+}
+
+TEST_CASE("вершина на оси СКОЛЬЗИТ параметром, а не двигается точкой") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 4.0f, 0.0f});
+    ElementId line = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {a, b}, "frame", line).ok);
+    VertexId rider = dfn::world::NO_VERTEX;
+    REQUIRE(g.add_vertex_on_edge(line, 0.25f, rider).ok);
+    CHECK(g.resolved_local(rider).y == doctest::Approx(1.0f));
+
+    // move_vertex ей отказывает (место принадлежит оси) — и версия не растёт.
+    const std::uint32_t v0 = g.version();
+    CHECK_FALSE(g.move_vertex(rider, {0.0f, 2.0f, 0.0f}).ok);
+    CHECK(g.version() == v0);
+
+    // slide_vertex — единственная дверь: параметр меняется, точка выводится.
+    REQUIRE(g.slide_vertex(rider, 0.75f).ok);
+    CHECK(g.version() == v0 + 1);
+    CHECK(g.resolved_local(rider).y == doctest::Approx(3.0f));
+    // Тот же t — не изменение.
+    REQUIRE(g.slide_vertex(rider, 0.75f).ok);
+    CHECK(g.version() == v0 + 1);
+    // За края не выехать: зажим в [0,1].
+    REQUIRE(g.slide_vertex(rider, 7.0f).ok);
+    CHECK(g.resolved_local(rider).y == doctest::Approx(4.0f));
+    // КОНТРОЛЬ: свободной вершине slide_vertex отказывает.
+    CHECK_FALSE(g.slide_vertex(b, 0.5f).ok);
 }

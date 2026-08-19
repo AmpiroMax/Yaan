@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 12:10:00
+Last updated: 20:08:2026 - 12:55:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 20:08:2026 - 01:47:30: Поворот сечения у балок (заготовка и выбранное); кнопка «Дверной проём»; пол: «срез/паркет» карточками; форм пять.
 - 20:08:2026 - 01:06:50: Порядок в блоке выбранного: заполнение первым, материал ниже — карточки кладки тонули за прокруткой под сеткой свотчей.
 - 20:08:2026 - 12:10:00: Семь профилей палки; ряд красок в сетке материалов; покрытия контура — три карточки (срез/паркет/марш).
+- 20:08:2026 - 12:55:00: Ползунок пишет в граф по отпусканию, а не каждый кадр.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -305,12 +306,21 @@ static void draw_selected_element(HouseSession& session) {
     // ЧИСЛА ЧИТАЮТСЯ ИЗ ГРАФА И ПИШУТСЯ В ГРАФ ЧЕРЕЗ ДВЕРЬ МУТАЦИЙ: правка мимо
     // неё не попала бы ни в отмену, ни в номер версии — то есть ни в тело дома,
     // ни в коллайдер.
+    // МУТАЦИЯ — ПО ОТПУСКАНИЮ ползунка, не по каждому кадру перетаскивания
+    // (аудит 20.08, находка 7): запись на каждом кадре пересобирала меш и
+    // физическое тело шестьдесят раз в секунду и засоряла отмену сотней шагов
+    // на одно движение руки. Пока палец на ползунке, число живёт в live —
+    // ImGui ведёт положение от мыши, и рука видит цифру сразу.
     const auto number = [&](const char* key, const char* caption, float lo, float hi,
                             float fallback) {
+        static float live = 0.0f; // активный ползунок один на весь ImGui
         const std::string raw = session.graph().param(id, key);
         float value = raw.empty() ? fallback : std::strtof(raw.c_str(), nullptr);
         if (ImGui::SliderFloat(EditorUi::tr(caption), &value, lo, hi, "%.3f")) {
-            const float v = value;
+            live = value;
+        }
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            const float v = live;
             (void)session.mutate("свойство элемента", [&](world::HouseGraph& g) {
                 return g.set_param(id, key, house_num(v));
             });
