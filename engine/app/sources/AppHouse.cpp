@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 19:08:2026 - 05:26:10
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -31,6 +31,7 @@ UPD:
 - 19:08:2026 - 02:34:20: Цвет вершин потоков постройки белый: материал несёт плитка, тонировка затемнила бы её вдвое.
 - 19:08:2026 - 03:22:40: Прицел на постройке — узлы сетки В ОБЪЁМЕ (крестики в узлах мира вокруг точки попадания): «узлы на стенах, узлы на полу».
 - 19:08:2026 - 04:05:50: Потоки по mat/tone из параметров элемента; дверь — свой поток с петлёй и ВНЕ коллайдера; демо-сруб получил дверь из тёмной доски.
+- 19:08:2026 - 05:26:10: Демо-сруб: вторая стена обшита с двумя окнами.
 */
 
 #include "engine/app/sources/App.h"
@@ -279,6 +280,15 @@ void App::seed_demo_house() {
             g.set_param(wall, "tone", "2"); // тёмная
             g.set_param(wall, "door", "1");
             g.set_param(wall, "hinge", "0");
+        }
+        // И ОБШИТАЯ СТЕНА С ОКНАМИ — на кадре обязано быть видно, что доски,
+        // раскосы и рамы стали ГЕОМЕТРИЕЙ, а не картинкой.
+        world::ElementId clad_wall = world::NO_ELEMENT;
+        if (g.add_element(ElementKind::Surface, {low[1], low[2]}, "", clad_wall).ok) {
+            g.set_param(clad_wall, "height", "2.5");
+            g.set_param(clad_wall, "thickness", "0.10");
+            g.set_param(clad_wall, "clad", "1");
+            g.set_param(clad_wall, "windows", "2");
         }
         return world::GraphResult{};
     });

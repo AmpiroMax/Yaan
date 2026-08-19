@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 19:08:2026 - 05:26:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -37,6 +37,7 @@ UPD:
 - 19:08:2026 - 01:20:45: PushID на сетку и блок выбранного (ImGui кричал про конфликт ID — подписи ползунков совпадали с инструментными); draw_house_selection_panel — панель выбранного для инструмента выбора.
 - 19:08:2026 - 02:34:20: Заголовки «Заготовка» и «Выбрано сейчас» (долг 4): два блока одинаковых полей перестали читаться как один.
 - 19:08:2026 - 04:05:50: Панель выбранного: материал (9), тон (4), форма палки (круг/квадрат/6/8), дверь с листанием петли по кругу.
+- 19:08:2026 - 05:26:10: У стены-цепочки: галочка «Обшивка» и число окон; сколько влезло — скажет журнал.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -217,6 +218,26 @@ static void draw_selected_element(HouseSession& session) {
             ImGui::TextDisabled("%s", EditorUi::tr("house.height.chain"));
         }
         number("tex_deg", "house.tex", 0.0f, 360.0f, 0.0f);
+        // ОБШИВКА ПО РАСКЛАДКЕ: доски, раскосы и окна «сколько влезло» —
+        // геометрией поверх несущей пластины. Окна НЕ масштабируются; влезло
+        // меньше, чем просили, — раскладка скажет это находкой в журнале.
+        if (!e->closed) {
+            bool clad = session.graph().param(id, "clad") == "1";
+            if (ImGui::Checkbox(EditorUi::tr("house.clad"), &clad)) {
+                (void)session.mutate("обшивка", [&](world::HouseGraph& g) {
+                    return g.set_param(id, "clad", clad ? "1" : "0");
+                });
+            }
+            if (clad) {
+                const std::string w = session.graph().param(id, "windows");
+                int wins = w.empty() ? 0 : std::atoi(w.c_str());
+                if (ImGui::SliderInt(EditorUi::tr("house.windows"), &wins, 0, 6)) {
+                    (void)session.mutate("окна", [&](world::HouseGraph& g) {
+                        return g.set_param(id, "windows", std::to_string(wins));
+                    });
+                }
+            }
+        }
         // ДВЕРЬ — СВОЙСТВО СТЕНЫ, а не отдельная деталь (заказ 19.08: «ставлю
         // стену и меняю ей свойство на дверь... и так я убираю необходимость
         // делать стены специально с дверьми»). Петля — пара соседних якорей

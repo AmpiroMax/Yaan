@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 19:08:2026 - 05:26:10
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -31,9 +31,12 @@ UPD:
 - 18:08:2026 - 22:20:15: equidistant_point (МНК-центр окружности в плоскости контура) и surface_centre.
 - 18:08:2026 - 23:52:10: surface_centre считает среднее; расчёт равноудалённой точки убран.
 - 19:08:2026 - 04:05:50: Поворот текстуры — вокруг СРЕДНЕЙ точки грани (крышка и каждая грань ранта); sides доезжает из поля params; свойства чужих слоёв (mat/tone/door/hinge) — не находка.
+- 19:08:2026 - 05:26:10: Обшивка по раскладке HouseStyle стала ГЕОМЕТРИЕЙ: доски, раскосы (выступают дальше досок), рамы проёмов по периметру; push_wall_slab выправляет обход по знаку площади; clad/windows в разборе свойств.
 */
 
 #include "engine/world/sources/HouseMesh.h"
+
+#include "engine/world/sources/HouseStyle.h"
 
 #include <algorithm>
 #include <cmath>
@@ -216,6 +219,7 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
         {"angle_x", &ElementParams::angle_x},     {"angle_y", &ElementParams::angle_y},
         {"angle_z", &ElementParams::angle_z},     {"thickness", &ElementParams::thickness},
         {"height", &ElementParams::height},       {"tex_deg", &ElementParams::tex_deg},
+        {"clad", &ElementParams::clad},           {"windows", &ElementParams::windows},
     };
 
     ElementParams p;
@@ -742,6 +746,103 @@ void build_contour_surface(const Element& e, const ElementParams& p,
     push_prism(mb, loop, use, n * (half * 2.0f), p.tex_deg, mesh, e.id);
 }
 
+// ---------------------------------------------------------------------------
+// Обшивка по раскладке (HouseStyle): доски, раскосы, рамы проёмов
+// ---------------------------------------------------------------------------
+
+/// Числа обшивки. Здесь, а не в NUMBERS.md: это толщины ДЕКОРА в метрах,
+/// видимые глазом на стене, — как радиус шарика якоря, они описывают вид, а
+/// не участвуют в расчётах мира.
+inline constexpr float HOUSE_BOARD_TH_M = 0.035f;  ///< вынос доски от пластины
+inline constexpr float HOUSE_BRACE_W_M = 0.11f;    ///< ширина раскоса
+inline constexpr float HOUSE_BRACE_TH_M = 0.05f;   ///< вынос раскоса
+inline constexpr float HOUSE_FRAME_W_M = 0.07f;    ///< ширина рамы проёма
+inline constexpr float HOUSE_FRAME_TH_M = 0.06f;   ///< вынос рамы проёма
+
+/// ЧЕТЫРЁХУГОЛЬНАЯ ПЛАШКА НА ПЛОСКОСТИ СТЕНЫ, выдавленная наружу. Углы приходят
+/// в координатах стены (u вдоль, v вверх); порядок обхода выправляется здесь по
+/// знаку площади — вызывающий думает о раскладке, а не о правиле правой руки.
+static void push_wall_slab(MeshBuilder& mb, HouseMesh& mesh, ElementId owner,
+                           const glm::vec3& a, const glm::vec3& dir, const glm::vec3& face_n,
+                           float base_out, float thickness, const glm::vec2 quad[4],
+                           float tex_deg) {
+    float area2 = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        const glm::vec2& p0 = quad[i];
+        const glm::vec2& p1 = quad[(i + 1) % 4];
+        area2 += p0.x * p1.y - p1.x * p0.y;
+    }
+    glm::vec3 loop[4];
+    for (int i = 0; i < 4; ++i) {
+        // Площадь < 0 — обход был по часовой, читаем углы задом наперёд.
+        const glm::vec2& c = quad[area2 < 0.0f ? 3 - i : i];
+        loop[i] = a + dir * c.x + glm::vec3{0.0f, c.y, 0.0f} + face_n * base_out;
+    }
+    const std::uint32_t tris[6] = {0, 1, 2, 0, 2, 3};
+    push_prism(mb, loop, tris, face_n * thickness, tex_deg, mesh, owner);
+}
+
+/// ОБШИВКА ОДНОГО ПРОЛЁТА СТЕНЫ по раскладке HouseStyle. Раскладка считает
+/// СПИСОК (доски, раскосы, проёмы) в координатах стены и говорит вслух, сколько
+/// проёмов не влезло; здесь список превращается в плашки на ЛИЦЕ пролёта.
+/// Лицо — то же, что у несущей пластины (facing_flipped уже учтён вызывающим).
+static void build_cladding(const Element& e, const ElementParams& p, const glm::vec3& a,
+                           const glm::vec3& dir, float seg_len, const glm::vec3& face_n,
+                           float half, MeshBuilder& mb, HouseMesh& mesh) {
+    WallStyle style;
+    if (static_cast<int>(p.windows) > 0) {
+        style.opening = OpeningKind::Window;
+    }
+    WallSpec spec;
+    spec.length = seg_len;
+    spec.height = p.height;
+    spec.openings = static_cast<int>(p.windows);
+    const WallLayout lay = lay_out_wall(spec, style);
+    // НАХОДКИ РАСКЛАДКИ СТАНОВЯТСЯ НАХОДКАМИ МЕША: «просил 3, влезло 2» обязано
+    // доехать до журнала, иначе пропавшее окно ищут как дефект геометрии.
+    for (const LayoutFinding& f : lay.findings) {
+        mesh.findings.push_back({e.id, MeshIssue::CladdingSaid, f.value, f.what});
+    }
+    for (const BoardRun& b : lay.boards) {
+        const glm::vec2 quad[4] = {{b.u0, b.v0}, {b.u1, b.v0}, {b.u1, b.v1}, {b.u0, b.v1}};
+        push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, HOUSE_BOARD_TH_M, quad,
+                       p.tex_deg);
+    }
+    for (const BracePlacement& br : lay.braces) {
+        const glm::vec2 low{br.u_low, br.v_low};
+        const glm::vec2 high{br.u_high, br.v_high};
+        glm::vec2 e2 = high - low;
+        const float len = std::sqrt(e2.x * e2.x + e2.y * e2.y);
+        if (len < HOUSE_GEOM_EPS) {
+            continue;
+        }
+        const glm::vec2 n2 = glm::vec2{-e2.y, e2.x} / len * (HOUSE_BRACE_W_M * 0.5f);
+        // Раскос выступает дальше досок: он каркас, а не обшивка.
+        const glm::vec2 quad[4] = {low + n2, low - n2, high - n2, high + n2};
+        push_wall_slab(mb, mesh, e.id, a, dir, face_n, half + HOUSE_BOARD_TH_M,
+                       HOUSE_BRACE_TH_M, quad, p.tex_deg);
+    }
+    for (const OpeningPlacement& op : lay.openings) {
+        // РАМА — ЧЕТЫРЕ ПЛАНКИ ПО ПЕРИМЕТРУ ПРОЁМА. Сам проём остаётся глухим:
+        // несущая пластина цела (прорезь в ней — отдельная работа со своей
+        // триангуляцией), но обшивка проём УЖЕ обходит, и ниша с рамой читается
+        // окном и с десяти метров.
+        const float w = HOUSE_FRAME_W_M;
+        const glm::vec2 frames[4][4] = {
+            {{op.u0 - w, op.v0 - w}, {op.u1 + w, op.v0 - w},
+             {op.u1 + w, op.v0}, {op.u0 - w, op.v0}}, // подоконник
+            {{op.u0 - w, op.v1}, {op.u1 + w, op.v1},
+             {op.u1 + w, op.v1 + w}, {op.u0 - w, op.v1 + w}}, // перемычка
+            {{op.u0 - w, op.v0}, {op.u0, op.v0}, {op.u0, op.v1}, {op.u0 - w, op.v1}},
+            {{op.u1, op.v0}, {op.u1 + w, op.v0}, {op.u1 + w, op.v1}, {op.u1, op.v1}},
+        };
+        for (const auto& f : frames) {
+            push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, HOUSE_FRAME_TH_M, f,
+                           p.tex_deg);
+        }
+    }
+}
+
 void build_chain_surface(const Element& e, const ElementParams& p, std::span<const glm::vec3> pts,
                          MeshBuilder& mb, HouseMesh& mesh) {
     if (p.height <= HOUSE_GEOM_EPS) {
@@ -773,6 +874,11 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
         // стоила бы пересчёта обеих стен при каждой правке соседа.
         const glm::vec3 loop[4] = {a - h, a + h, b + h, b - h};
         push_prism(mb, loop, quad, up, p.tex_deg, mesh, e.id);
+        if (p.clad > 0.5f) {
+            const float seg_len = std::sqrt(d.x * d.x + d.z * d.z);
+            const glm::vec3 dir = glm::normalize(glm::vec3{d.x, 0.0f, d.z});
+            build_cladding(e, p, a, dir, seg_len, face_n, half, mb, mesh);
+        }
     }
 }
 
@@ -804,6 +910,8 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "tex_deg") { p.tex_deg = got.tex_deg; }
         else if (kv.first == "form") { p.form = got.form; }
         else if (kv.first == "sides" || kv.first == "n") { p.sides = got.sides; }
+        else if (kv.first == "clad") { p.clad = got.clad; }
+        else if (kv.first == "windows") { p.windows = got.windows; }
     }
     return p;
 }

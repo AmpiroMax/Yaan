@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 18:08:2026 - 18:26:06
+Last updated: 19:08:2026 - 05:26:10
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -31,6 +31,7 @@ UPD:
 - 18:08:2026 - 18:26:06: контуры помечены closed. Случаи были написаны под временное правило
   «высота решает», и смена правила их обнажила — это не поломка рукава, а его
   работа: правило сменилось, и все, кто на него опирался, назвались сами.
+- 19:08:2026 - 05:26:10: Обшивка: голая стена 12 тр. (контроль), обшитая 564; окно НЕ масштабируется на вдвое длинной стене; «просили 5, влезло 1» говорится находкой.
 */
 
 #include <doctest/doctest.h>
@@ -38,6 +39,7 @@ UPD:
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
 #include "engine/world/sources/HouseMesh.h"
+#include "engine/world/sources/HouseStyle.h"
 
 #include <algorithm>
 #include <cmath>
@@ -851,4 +853,63 @@ TEST_CASE("вершина НА ОСИ тянет за собой геометр�
     const float y_after = top_of_beam(after);
     CHECK(y_after == doctest::Approx(4.0f).epsilon(0.1));
     CHECK(y_after - y_before == doctest::Approx(2.0f).epsilon(0.1));
+}
+
+TEST_CASE("обшивка: доски, раскосы и рамы — ГЕОМЕТРИЯ, окна не масштабируются") {
+    // Заказ 19.08: «у стен объём как у собранных деталей» и старый заказ про
+    // окна: просят N — ставится сколько влезло, размер окна НЕ меняется.
+    HouseGraph bare_g;
+    HouseGraph clad_g;
+    for (HouseGraph* g : {&bare_g, &clad_g}) {
+        const VertexId a = g->add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+        const VertexId b = g->add_vertex(Anchoring::OnGround, {6.0f, 0.0f, 0.0f});
+        ElementId wall = 0;
+        REQUIRE(g->add_element(ElementKind::Surface, {a, b},
+                               g == &clad_g ? "frame;height=2.5;thickness=0.1;clad=1;windows=2"
+                                            : "frame;height=2.5;thickness=0.1",
+                               wall)
+                    .ok);
+    }
+    const HouseMesh bare = dfn::world::build_house_mesh(bare_g);
+    const HouseMesh clad = dfn::world::build_house_mesh(clad_g);
+
+    // ГОЛАЯ СТЕНА — КОНТРОЛЬ: одна коробка, 12 треугольников. Без него проверка
+    // ниже прошла бы и на обшивке, которая строится всегда.
+    CHECK(bare.triangle_count() == 12);
+    // Обшитая несёт ЗАМЕТНО больше: доски + раскосы + две рамы по 4 планки.
+    CHECK(clad.triangle_count() > bare.triangle_count() + 100);
+    MESSAGE("голая: " << bare.triangle_count() << " тр., обшитая: "
+                      << clad.triangle_count() << " тр.");
+
+    // ОКНА НЕ МАСШТАБИРУЮТСЯ: та же обшивка на стене вдвое длиннее — окон
+    // может стать больше, но РАЗМЕР зоны рамы тот же. Проверяем через
+    // раскладку напрямую: она источник, меш — её проекция.
+    dfn::world::WallStyle style;
+    style.opening = dfn::world::OpeningKind::Window;
+    dfn::world::WallSpec s6{6.0f, 2.5f, 2, 0.12f};
+    dfn::world::WallSpec s12{12.0f, 2.5f, 2, 0.12f};
+    const auto l6 = dfn::world::lay_out_wall(s6, style);
+    const auto l12 = dfn::world::lay_out_wall(s12, style);
+    REQUIRE(l6.openings.size() == 2);
+    REQUIRE(l12.openings.size() == 2);
+    CHECK(l6.openings[0].u1 - l6.openings[0].u0
+          == doctest::Approx(l12.openings[0].u1 - l12.openings[0].u0));
+
+    // «ПРОСИЛ 5, ВЛЕЗЛО МЕНЬШЕ» — ГОВОРИТСЯ. Стена 2 м под пять окон.
+    HouseGraph tight;
+    const VertexId ta = tight.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId tb = tight.add_vertex(Anchoring::OnGround, {2.0f, 0.0f, 0.0f});
+    ElementId tw = 0;
+    REQUIRE(tight.add_element(ElementKind::Surface, {ta, tb},
+                              "frame;height=2.5;thickness=0.1;clad=1;windows=5", tw)
+                .ok);
+    const HouseMesh tm = dfn::world::build_house_mesh(tight);
+    bool said = false;
+    for (const dfn::world::MeshFinding& f : tm.findings) {
+        if (f.issue == dfn::world::MeshIssue::CladdingSaid) {
+            said = true;
+            MESSAGE("раскладка сказала: " << f.what);
+        }
+    }
+    CHECK(said);
 }
