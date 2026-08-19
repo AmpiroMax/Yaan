@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 19:08:2026 - 04:42:30
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -67,6 +67,7 @@ UPD:
 - 18:08:2026 - 21:12:40: Заливка слота постройки со свободой прежнего буфера.
 - 18:08:2026 - 22:26:40: Заливка обоих потоков постройки со свободой прежних буферов.
 - 19:08:2026 - 04:05:50: Заливка потоков и дверей со свободой прежних буферов.
+- 19:08:2026 - 04:42:30: Заливка приносит каждому потоку и цветовую, и нормальную плитку.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -410,7 +411,8 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
         const platform::MeshHandle h = renderer.create_mesh(st.mesh.vertices, st.mesh.indices);
         if (h.valid()) {
             house_streams_.push_back(
-                {h.id, house_tile_asset(renderer, st.surface, st.tone)});
+                {h.id, house_tile_asset(renderer, st.surface, st.tone),
+                 house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true)});
         }
     }
     for (HouseDoor& d : doors) {
@@ -420,6 +422,8 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
         const platform::MeshHandle h = renderer.create_mesh(d.mesh.vertices, d.mesh.indices);
         if (h.valid()) {
             house_doors_.push_back({h.id, house_tile_asset(renderer, d.surface, d.tone),
+                                    house_tile_asset(renderer, d.surface, d.tone,
+                                                     /*normal=*/true),
                                     d.hinge_a, d.hinge_b});
         }
     }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 19:08:2026 - 04:42:30
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -153,6 +153,7 @@ UPD:
 - 18:08:2026 - 22:26:40: Слот постройки — два потока (каркас и полотна): материал сегодня цвет вершин, «prop» текстуру не читает.
 - 19:08:2026 - 02:34:20: Поля плиток постройки; комментарий слота обновлён.
 - 19:08:2026 - 04:05:50: HouseStream (поток на материал) и HouseDoor (петля + демонстрационный ход); плитка материала — лениво с кэшем.
+- 19:08:2026 - 04:42:30: house_tile_asset(normal=true) — лист нормалей материала; потоки и двери несут его aux-текстурой.
 */
 
 #pragma once
@@ -526,10 +527,12 @@ private:
     struct HouseStreamGpu {
         uint32_t mesh_id = 0;
         uint32_t texture_asset = 0;
+        uint32_t normal_asset = 0; ///< лист нормалей материала (рельеф)
     };
     struct HouseDoorGpu {
         uint32_t mesh_id = 0;
         uint32_t texture_asset = 0;
+        uint32_t normal_asset = 0;
         glm::vec3 hinge_a{0.0f};
         glm::vec3 hinge_b{0.0f};
     };
@@ -537,8 +540,10 @@ private:
     std::vector<HouseDoorGpu> house_doors_;
     float house_door_phase_ = 0.0f; // демонстрационный ход двери
     /// Плитка материала набора, ленивo и с кэшем (см. set_house_mesh).
+    /// `normal` = true — лист НОРМАЛЕЙ той же плитки: рельеф стен и столбов
+    /// идёт тем же механизмом, что у собранных деталей (aux-лист, fs_prop).
     uint32_t house_tile_asset(platform::IRenderer& renderer, uint32_t surface,
-                              uint32_t tone);
+                              uint32_t tone, bool normal = false);
     std::vector<ExtraLight> transient_lights_;
 
     /// One flame gathered this frame, before the eight slots are handed out.

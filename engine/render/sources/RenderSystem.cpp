@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 19:08:2026 - 04:42:30
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -159,6 +159,7 @@ UPD:
 - 18:08:2026 - 22:26:40: Два потока постройки рисуются prop'ом; попытка отдать им плитки набора снята — читать их некому.
 - 19:08:2026 - 02:34:20: Плитки набора для постройки вернулись (fs_prop теперь сэмплит); два потока идут со своими плитками.
 - 19:08:2026 - 04:05:50: house_tile_asset — ленивая нарезка листа набора; submit потоков по материалам и дверей с поворотом вокруг петли.
+- 19:08:2026 - 04:42:30: Нормальная плитка лениво под своим ключом; submit потоков и дверей с aux-листом рельефа.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -262,17 +263,18 @@ size_t RenderSystem::ChunkKeyHash::operator()(const glm::ivec2& v) const {
 }
 
 uint32_t RenderSystem::house_tile_asset(platform::IRenderer& renderer, uint32_t surface,
-                                        uint32_t tone) {
+                                        uint32_t tone, bool normal) {
     // ЛЕНИВО И С КЭШЕМ: ключ несёт материал и тон, procedural_texture_asset
     // возвращает готовое по ключу, поэтому лист набора печётся только когда
     // человек впервые выбрал этот материал. uv постройки считаны в метрах и
     // повторяются wrap'ом — поэтому отдельная плитка, а не атлас.
     const uint64_t key = proc_key(PROC_KEY_HOUSE_TILE, PARTS_ATLAS_TILE_PX,
-                                  surface * 16u + tone);
+                                  surface * 16u + tone + (normal ? 0x100u : 0u));
     if (const auto it = proc_texture_ids_.find(key); it != proc_texture_ids_.end()) {
         return it->second;
     }
-    const PartsAtlas sheet = generate_parts_atlas(PARTS_ATLAS_TILE_PX);
+    const PartsAtlas sheet = normal ? generate_parts_normal_atlas(PARTS_ATLAS_TILE_PX)
+                                    : generate_parts_atlas(PARTS_ATLAS_TILE_PX);
     std::vector<uint8_t> tile(static_cast<size_t>(PARTS_ATLAS_TILE_PX)
                               * PARTS_ATLAS_TILE_PX * 4u);
     const uint32_t x0 = surface * PARTS_ATLAS_TILE_PX;
@@ -982,9 +984,13 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             return t;
         };
         for (const HouseStreamGpu& st : house_streams_) {
+            // aux-лист несёт РЕЛЬЕФ: борозды бруса и зерно штукатурки читаются
+            // per-pixel, и никакой цвет вершины их не заменит (см. fs_prop).
+            platform::DrawParams dp;
+            dp.aux_texture = tex_of(st.normal_asset);
             renderer.submit(platform::MeshHandle{st.mesh_id},
                             platform::ProgramHandle{prop_program_}, identity,
-                            tex_of(st.texture_asset));
+                            tex_of(st.texture_asset), dp);
         }
         // ДВЕРИ КАЧАЮТСЯ ВОКРУГ ПЕТЛИ. Ход демонстрационный (0..~85° и назад):
         // редактору важно ПОКАЗАТЬ, что петля стоит на выбранной паре; игровое
@@ -1000,9 +1006,11 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                       * glm::rotate(glm::mat4(1.0f), swing, axis_v / axis_len)
                       * glm::translate(glm::mat4(1.0f), -d.hinge_a);
             }
+            platform::DrawParams dp;
+            dp.aux_texture = tex_of(d.normal_asset);
             renderer.submit(platform::MeshHandle{d.mesh_id},
                             platform::ProgramHandle{prop_program_}, xform,
-                            tex_of(d.texture_asset));
+                            tex_of(d.texture_asset), dp);
         }
     }
     // THE BUILD GHOST last of the world's geometry, unlit: it is an ANSWER
