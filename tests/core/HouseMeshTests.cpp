@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 20:08:2026 - 00:58:40
+Last updated: 20:08:2026 - 01:47:30
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -33,6 +33,7 @@ UPD:
   работа: правило сменилось, и все, кто на него опирался, назвались сами.
 - 19:08:2026 - 05:26:10: Обшивка: голая стена 12 тр. (контроль), обшитая 564; окно НЕ масштабируется на вдвое длинной стене; «просили 5, влезло 1» говорится находкой.
 - 20:08:2026 - 00:58:40: Кладка: >1000 треугольников, куски глины отдельными частями, перевязка ловится полукирпичным швом на 0.125 (сравнение минимумов не работало — оба ряда прижаты нулём).
+- 20:08:2026 - 01:47:30: Лестница: верхние грани кратны подъёму, кусков коллизии много (контроль — у наклонного бруса вверх не смотрит ничего); дверной проём: в полосе двери ноль кирпичных вершин, уступка окон сказана.
 */
 
 #include <doctest/doctest.h>
@@ -988,4 +989,89 @@ TEST_CASE("кладка — КУСКИ с перевязкой, и у куско
     };
     CHECK(has_near(row1_u, 0.125f));
     CHECK_FALSE(has_near(row0_u, 0.125f));
+}
+
+TEST_CASE("лестница: ступени РОВНЫЕ, горизонтальные, с тетивами и коллизией") {
+    HouseGraph g;
+    const VertexId lo = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId hi = g.add_vertex(Anchoring::Free, {2.8f, 1.4f, 0.0f});
+    ElementId st = 0;
+    REQUIRE(g.add_element(ElementKind::Line, {lo, hi}, "frame;stairs=1;radius=0.5", st).ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+
+    // 1.4 м / 0.175 = ровно 8 ступеней; каждая — короб (12 тр.) + две тетивы.
+    // ВЫСОТЫ ВЕРХНИХ ГРАНЕЙ: кратны подъёму 0.175 — «всегда на равном
+    // расстоянии», и ни одна не наклонена (у горизонтальной грани все три
+    // вершины на одной высоте — это и проверяем через нормали ступеней).
+    std::vector<float> tops;
+    for (const auto& v : m.vertices) {
+        if (std::fabs(v.normal.y - 1.0f) < 1e-3f) { // грань смотрит вверх
+            tops.push_back(v.pos.y);
+        }
+    }
+    REQUIRE_FALSE(tops.empty());
+    for (const float y : tops) {
+        const float steps_f = y / 0.175f;
+        CHECK(std::fabs(steps_f - std::round(steps_f)) < 0.01f);
+    }
+    // Коллизия — те же коробы: выпуклых кусков у лестницы много (по два уха на
+    // каждый короб и тетивы), и это НЕ наклонная доска из двух кусков.
+    int stair_convex = 0;
+    for (const auto& c : m.convex) {
+        if (c.element == st) {
+            ++stair_convex;
+        }
+    }
+    CHECK(stair_convex > 10);
+    MESSAGE("верхних граней " << tops.size() << ", выпуклых кусков " << stair_convex);
+
+    // КОНТРОЛЬ: обычная прямая между теми же якорями — наклонный брус, у него
+    // почти нет граней, смотрящих строго вверх (брус наклонён).
+    HouseGraph g2;
+    const VertexId a2 = g2.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b2 = g2.add_vertex(Anchoring::Free, {2.8f, 1.4f, 0.0f});
+    ElementId beam = 0;
+    REQUIRE(g2.add_element(ElementKind::Line, {a2, b2}, "frame;radius=0.5", beam).ok);
+    const HouseMesh m2 = dfn::world::build_house_mesh(g2);
+    int flat_up = 0;
+    for (const auto& v : m2.vertices) {
+        if (std::fabs(v.normal.y - 1.0f) < 1e-3f) {
+            ++flat_up;
+        }
+    }
+    CHECK(flat_up == 0);
+}
+
+TEST_CASE("дверной проём: кладка расступается от пола, окна уступают вслух") {
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+    ElementId wall = 0;
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b},
+                          "frame;height=2.5;thickness=0.1;fill=2;doors=1;windows=2", wall)
+                .ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+    // В полосе двери (середина стены, от пола до ~2 м) кирпичей НЕТ: ни одна
+    // глиняная вершина не попадает в прямоугольник проёма.
+    int in_doorway = 0;
+    for (const auto& p : m.parts) {
+        if (p.element != wall || p.mat_override != 4) {
+            continue;
+        }
+        for (std::uint32_t i = 0; i < p.index_count; ++i) {
+            const auto& v = m.vertices[m.indices[p.index_begin + i]];
+            if (v.pos.x > 1.6f && v.pos.x < 2.4f && v.pos.y > 0.05f && v.pos.y < 1.9f) {
+                ++in_doorway;
+            }
+        }
+    }
+    CHECK(in_doorway == 0);
+    bool said = false;
+    for (const auto& f : m.findings) {
+        if (f.what.find("дверной проём взял верх") != std::string::npos) {
+            said = true;
+        }
+    }
+    CHECK(said);
+    MESSAGE("кирпичных вершин в проёме: " << in_doorway);
 }

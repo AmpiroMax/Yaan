@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 00:58:40
+Last updated: 20:08:2026 - 01:47:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -48,6 +48,7 @@ UPD:
 - 19:08:2026 - 03:22:40: Сетка действует на осях (перетаскивание, прямая, посадка на бревно с пересчётом t); обход стены — жирным пучком со стрелками направления, жёлтые только ВЫБРАННЫЕ якоря (line_color больше не жёлтый).
 - 19:08:2026 - 23:58:20: Создание штампует заготовку в params элемента (stamp_draft у прямой, confirm у поверхности); умолчания ключей не пишут.
 - 20:08:2026 - 00:58:40: Штамп fill при создании.
+- 20:08:2026 - 01:47:30: Штампы spin/stairs/doors при создании.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1318,6 +1319,13 @@ void HouseLineTool::on_release(ToolWorld& world) {
             g.set_param(id, "sides", "6");
         } else if (form_ == 3) {
             g.set_param(id, "sides", "8");
+        } else if (form_ == 4) {
+            // ЛЕСТНИЦА — форма прямой: низ у одного якоря, верх у другого,
+            // ступени считает построитель (заказ 20.08).
+            g.set_param(id, "stairs", "1");
+        }
+        if (spin_deg_ > 0.01f && form_ != 0 && form_ != 4) {
+            g.set_param(id, "angle_z", house_num(spin_deg_));
         }
     };
     ElementId made = NO_ELEMENT;
@@ -1627,6 +1635,9 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
         }
         if (!closed && (clad_ || fill_ >= 2) && windows_ > 0) {
             g.set_param(made, "windows", std::to_string(windows_));
+        }
+        if (!closed && (clad_ || fill_ >= 2) && doors_ > 0) {
+            g.set_param(made, "doors", std::to_string(doors_));
         }
         if (!closed) {
             // ВЫСОТА — ТОЛЬКО У ЦЕПОЧКИ. У контура она означала бы вторую

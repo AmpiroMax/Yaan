@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 00:58:40
+Last updated: 20:08:2026 - 01:47:30
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -33,6 +33,7 @@ UPD:
 - 19:08:2026 - 04:05:50: Поворот текстуры — вокруг СРЕДНЕЙ точки грани (крышка и каждая грань ранта); sides доезжает из поля params; свойства чужих слоёв (mat/tone/door/hinge) — не находка.
 - 19:08:2026 - 05:26:10: Обшивка по раскладке HouseStyle стала ГЕОМЕТРИЕЙ: доски, раскосы (выступают дальше досок), рамы проёмов по периметру; push_wall_slab выправляет обход по знаку площади; clad/windows в разборе свойств.
 - 20:08:2026 - 00:58:40: Кладка рядами с перевязкой и детерминированной дрожью глубины (хэш ряда и колонки — две сборки дают один меш); под-части по материалу через MeshBuilder.set_material; фахверк — брус, кирпич — глина, блоки — камень.
+- 20:08:2026 - 01:47:30: Лестница между якорями: ступени коробами (подъём 17.5 см, шаг РОВНЫЙ делением нацело, физика — те же коробы), тетивы по бокам; дверной проём от пола (окна уступают вслух); паркет пола рядами с перевязкой, кусок вне контура выпадает.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -258,7 +259,8 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
         {"angle_z", &ElementParams::angle_z},     {"thickness", &ElementParams::thickness},
         {"height", &ElementParams::height},       {"tex_deg", &ElementParams::tex_deg},
         {"clad", &ElementParams::clad},           {"windows", &ElementParams::windows},
-        {"fill", &ElementParams::fill},
+        {"fill", &ElementParams::fill},           {"doors", &ElementParams::doors},
+        {"stairs", &ElementParams::stairs},
     };
 
     ElementParams p;
@@ -663,10 +665,77 @@ void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
     }
 }
 
+/// ЛЕСТНИЦА МЕЖДУ ДВУМЯ ЯКОРЯМИ (заказ 20.08 дословно: «ступеньки всегда
+/// параллельны плоскости земли, всегда на равном расстоянии друг от друга, не
+/// важно какая длина ступенек — сложный объект, параметры которого должны
+/// просчитываться»).
+///
+/// СЧИТАЕТСЯ, А НЕ ЗАДАЁТСЯ: число ступеней = высота / целевой подъём (17.5 см,
+/// строительный шаг), подъём и проступь выводятся делением нацело — поэтому шаг
+/// РОВНЫЙ при любой длине марша. Каждая ступень — ГОРИЗОНТАЛЬНЫЙ короб на всю
+/// глубину до низа: физика получает те же коробы (push_prism кладёт выпуклые
+/// куски по своим же треугольникам), то есть коллизия — настоящие ступени, а
+/// не наклонная доска. Боковины-тетивы — наклонные плиты по бокам марша.
+inline constexpr float HOUSE_STAIR_RISE_M = 0.175f;
+inline constexpr float HOUSE_STRINGER_BAND_M = 0.26f; ///< высота тетивы
+inline constexpr float HOUSE_STRINGER_TH_M = 0.045f;  ///< толщина тетивы
+
+static void build_stairs(const Element& e, const ElementParams& p, glm::vec3 a, glm::vec3 b,
+                         MeshBuilder& mb, HouseMesh& mesh) {
+    // Низ — тот якорь, что ниже: лестницу можно тянуть в обе стороны.
+    if (b.y < a.y) {
+        std::swap(a, b);
+    }
+    const glm::vec3 d = b - a;
+    const float run = std::sqrt(d.x * d.x + d.z * d.z);
+    const float rise_total = d.y;
+    if (run < HOUSE_GEOM_EPS || rise_total < HOUSE_GEOM_EPS) {
+        mesh.findings.push_back({e.id, MeshIssue::Degenerate, run,
+                                 "лестнице нужны и длина, и высота: тяни к якорю выше"});
+        return;
+    }
+    const glm::vec3 dir{d.x / run, 0.0f, d.z / run};
+    const glm::vec3 side = glm::normalize(glm::cross(dir, glm::vec3{0.0f, 1.0f, 0.0f}));
+    const float half_w = std::max(p.radius, 0.15f); // radius — половина ширины марша
+    const int steps = std::max(1, static_cast<int>(std::round(rise_total / HOUSE_STAIR_RISE_M)));
+    const float rise = rise_total / static_cast<float>(steps);
+    const float tread = run / static_cast<float>(steps);
+    const std::uint32_t quad[6] = {0, 1, 2, 0, 2, 3};
+    for (int i = 0; i < steps; ++i) {
+        // Короб ступени: от её пола до её верха, глубиной в одну проступь.
+        const glm::vec3 base = a + dir * (tread * static_cast<float>(i))
+                             + glm::vec3{0.0f, rise * static_cast<float>(i), 0.0f};
+        const glm::vec3 loop[4] = {base - side * half_w, base + side * half_w,
+                                   base + side * half_w + dir * tread,
+                                   base - side * half_w + dir * tread};
+        push_prism(mb, loop, quad, glm::vec3{0.0f, rise, 0.0f}, p.tex_deg, mesh, e.id);
+    }
+    // ТЕТИВЫ: наклонные плиты по бокам, полосой вниз от линии марша.
+    for (const float s_side : {-1.0f, 1.0f}) {
+        const glm::vec3 off = side * (half_w * s_side);
+        const glm::vec3 lo0 = a + off;
+        const glm::vec3 hi0 = a + off + dir * run + glm::vec3{0.0f, rise_total, 0.0f};
+        const glm::vec3 band{0.0f, -HOUSE_STRINGER_BAND_M, 0.0f};
+        const glm::vec3 loop[4] = {lo0 + band, lo0, hi0, hi0 + band};
+        // Наружу от марша, толщиной тетивы.
+        glm::vec3 out_n = side * s_side;
+        std::uint32_t tris[6] = {0, 1, 2, 0, 2, 3};
+        if (s_side < 0.0f) {
+            std::swap(tris[1], tris[2]);
+            std::swap(tris[4], tris[5]);
+        }
+        push_prism(mb, loop, tris, out_n * HOUSE_STRINGER_TH_M, p.tex_deg, mesh, e.id);
+    }
+}
+
 void build_line(const HouseGraph& g, const Element& e, const ElementParams& p, MeshBuilder& mb,
                 HouseMesh& mesh) {
     const glm::vec3 a = g.resolved_local(e.refs.front());
     glm::vec3 b{0.0f};
+    if (p.stairs > 0.5f && e.refs.size() >= 2) {
+        build_stairs(e, p, a, g.resolved_local(e.refs[1]), mb, mesh);
+        return;
+    }
     if (e.refs.size() >= 2) {
         if (e.refs.size() > 2) {
             mesh.findings.push_back({e.id, MeshIssue::LineExtraRefs, 0.0f,
@@ -717,6 +786,67 @@ void build_line(const HouseGraph& g, const Element& e, const ElementParams& p, M
     // Кольцо обходится против часовой стрелки в базисе (u,v), а u x v == w,
     // значит веер смотрит по оси — ровно то, чего ждёт push_prism.
     push_prism(mb, ring, tris, axis, p.tex_deg, mesh, e.id);
+}
+
+/// ПАРКЕТ ПОЛА (заказ 20.08: «деревянных как ламинат и паркет полов нет,
+/// только срезы»): доски рядами по плоскости контура, с перевязкой, как у
+/// кладки; кусок, чей центр вне контура, выпадает. Клипа по кромке нет
+/// нарочно: доска у стены прячется под плинтус будущего стиля, а честный клип
+/// многоугольником — своя триангуляция на каждый кусок.
+static void build_parquet(const Element& e, const ElementParams& p,
+                          std::span<const glm::vec3> pts, const FittedPlane& plane,
+                          std::span<const glm::vec2> flat, const glm::vec3& ax,
+                          const glm::vec3& ay, MeshBuilder& mb, HouseMesh& mesh) {
+    const float plank_l = 1.2f;
+    const float plank_w = 0.16f;
+    const float gap = 0.006f;
+    const float th = 0.018f;
+    (void)pts;
+    glm::vec2 lo = flat.front();
+    glm::vec2 hi = lo;
+    for (const glm::vec2& f : flat) {
+        lo = glm::min(lo, f);
+        hi = glm::max(hi, f);
+    }
+    const auto inside = [&](glm::vec2 c) {
+        bool in = false;
+        for (std::size_t i = 0, j = flat.size() - 1; i < flat.size(); j = i++) {
+            const glm::vec2& pi = flat[i];
+            const glm::vec2& pj = flat[j];
+            if ((pi.y > c.y) != (pj.y > c.y)
+                && c.x < (pj.x - pi.x) * (c.y - pi.y) / (pj.y - pi.y) + pi.x) {
+                in = !in;
+            }
+        }
+        return in;
+    };
+    mb.set_material(1, -1); // пилёная доска, тон элементный
+    int row = 0;
+    for (float v = lo.y; v < hi.y; v += plank_w + gap, ++row) {
+        float u = lo.x + ((row % 2 == 0) ? 0.0f : -plank_l * 0.5f);
+        for (int col = 0; u < hi.x; u += plank_l + gap, ++col) {
+            const float u0 = u;
+            const float u1 = u + plank_l;
+            const float v1 = v + plank_w;
+            if (!inside({(u0 + u1) * 0.5f, (v + v1) * 0.5f})) {
+                continue;
+            }
+            const glm::vec3 c0 = plane.origin + ax * u0 + ay * v;
+            const glm::vec3 c1 = plane.origin + ax * u1 + ay * v;
+            const glm::vec3 c2 = plane.origin + ax * u1 + ay * v1;
+            const glm::vec3 c3 = plane.origin + ax * u0 + ay * v1;
+            const glm::vec3 loop[4] = {c0, c1, c2, c3};
+            const std::uint32_t quad[6] = {0, 1, 2, 0, 2, 3};
+            // Поверх лицевой стороны пластины: половина толщины + свой вынос.
+            const glm::vec3 lift = plane.normal * (p.thickness * 0.5f);
+            glm::vec3 lifted[4];
+            for (int k = 0; k < 4; ++k) {
+                lifted[k] = loop[k] + lift;
+            }
+            push_prism(mb, lifted, quad, plane.normal * th, p.tex_deg, mesh, e.id);
+        }
+    }
+    mb.set_material(-1, -1);
 }
 
 void build_contour_surface(const Element& e, const ElementParams& p,
@@ -783,6 +913,9 @@ void build_contour_surface(const Element& e, const ElementParams& p,
         }
     }
     push_prism(mb, loop, use, n * (half * 2.0f), p.tex_deg, mesh, e.id);
+    if (static_cast<int>(p.fill) == 5) {
+        build_parquet(e, p, pts, plane, flat, u, v, mb, mesh);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -881,13 +1014,26 @@ static void build_cladding(const Element& e, const ElementParams& p, const glm::
                            const glm::vec3& dir, float seg_len, const glm::vec3& face_n,
                            float half, MeshBuilder& mb, HouseMesh& mesh) {
     WallStyle style;
-    if (static_cast<int>(p.windows) > 0) {
-        style.opening = OpeningKind::Window;
-    }
     WallSpec spec;
     spec.length = seg_len;
     spec.height = p.height;
-    spec.openings = static_cast<int>(p.windows);
+    if (static_cast<int>(p.doors) > 0) {
+        // ДВЕРНОЙ ПРОЁМ: от пола, размером двери. Окна вместе с дверью
+        // раскладка пока не умеет — сказано вслух, дверь берёт верх.
+        style.opening = OpeningKind::Door;
+        style.opening_w = HOUSE_DOOR_W_DEFAULT;
+        style.opening_h = HOUSE_DOOR_H_DEFAULT;
+        style.opening_sill = 0.0f;
+        spec.openings = static_cast<int>(p.doors);
+        if (static_cast<int>(p.windows) > 0) {
+            mesh.findings.push_back({e.id, MeshIssue::CladdingSaid, 0.0f,
+                                     "окна и дверь разом раскладка пока не умеет: "
+                                     "дверной проём взял верх"});
+        }
+    } else if (static_cast<int>(p.windows) > 0) {
+        style.opening = OpeningKind::Window;
+        spec.openings = static_cast<int>(p.windows);
+    }
     const WallLayout lay = lay_out_wall(spec, style);
     // НАХОДКИ РАСКЛАДКИ СТАНОВЯТСЯ НАХОДКАМИ МЕША: «просил 3, влезло 2» обязано
     // доехать до журнала, иначе пропавшее окно ищут как дефект геометрии.
@@ -1035,6 +1181,8 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "clad") { p.clad = got.clad; }
         else if (kv.first == "windows") { p.windows = got.windows; }
         else if (kv.first == "fill") { p.fill = got.fill; }
+        else if (kv.first == "doors") { p.doors = got.doors; }
+        else if (kv.first == "stairs") { p.stairs = got.stairs; }
     }
     return p;
 }

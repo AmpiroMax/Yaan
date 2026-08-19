@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 00:58:40
+Last updated: 20:08:2026 - 01:47:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.h
 
@@ -90,6 +90,7 @@ UPD:
 - 19:08:2026 - 02:05:30: Сессия и числа руки выехали в HouseSession.h (долг 3): здесь остались три инструмента.
 - 19:08:2026 - 23:58:20: Заготовка инструментов: материал/тон/форма у прямой, материал/тон/обшивка/окна у поверхности; доступ по ссылке для панели и рукава.
 - 20:08:2026 - 00:58:40: Заготовка поверхности: вид кладки (fill).
+- 20:08:2026 - 01:47:30: Заготовка: spin (поворот сечения), doors; форма «лестница».
 */
 
 #pragma once
@@ -311,7 +312,8 @@ public:
 private:
     int mat_ = 0;   ///< PartSurface ordinal (0 = тёсаный брус)
     int tone_ = 1;  ///< PartTone ordinal (1 = средний)
-    int form_ = 0;  ///< 0 круг, 1 квадрат, 2 шестигранник, 3 восьмигранник
+    int form_ = 0;  ///< 0 круг, 1 квадрат, 2 шести-, 3 восьмигранник, 4 лестница
+    float spin_deg_ = 0.0f; ///< поворот сечения вокруг оси (angle_z)
     std::string style_ = "oak";
     std::string refusal_;
     mutable HouseWire wire_;
@@ -413,6 +415,7 @@ private:
     bool clad_ = false;
     int windows_ = 0;
     int fill_ = 0; ///< 0 гладкая/фахверк, 2 кирпич, 3 блоки
+    int doors_ = 0; ///< дверные проёмы в кладке
     float thickness_m_ = 0.20f;
     float tex_deg_ = 0.0f;
     std::string style_ = "plank";
