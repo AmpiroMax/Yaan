@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 22:40:00
+Last updated: 20:08:2026 - 23:59:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -142,6 +142,7 @@ UPD:
   — марш в 160 шагов считался по четыре раза за кадр.
 - 20:08:2026 - 15:30:00: PlacedHouse + load_scene_houses (готовые постройки карты); дверь DFN_RECORD_EVERY (лента прохода).
 - 20:08:2026 - 22:40:00: PlacedHouse.scene_index — распаковка брала соседний дом при нечитаемом файле (аудит #3, находка 1).
+- 20:08:2026 - 23:59:00: Указатели инструментов постройки для «стиль в заготовку».
 */
 
 #pragma once
@@ -399,6 +400,10 @@ private:
         std::size_t scene_index = 0;
     };
     std::vector<PlacedHouse> placed_houses_;
+    /// Заготовки инструментов постройки — для «стиль в заготовку» Библиотеки.
+    /// Сырые указатели: владеет ящик инструментов, живут с ним.
+    HouseLineTool* house_line_tool_ = nullptr;
+    HouseSurfaceTool* house_surface_tool_ = nullptr;
     /// Картинка материала набора / пример заполнения стены — для панелей.
     std::uint64_t house_material_swatch(int surface, int tone, int px);
     std::uint64_t house_wall_example(int variant, int px);

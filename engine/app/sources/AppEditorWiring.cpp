@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 02:02:30
-Last updated: 20:08:2026 - 22:40:00
+Last updated: 20:08:2026 - 23:59:00
 Module: engine/app
 File: engine/app/sources/AppEditorWiring.cpp
 
@@ -32,9 +32,11 @@ UPD:
 - 20:08:2026 - 17:30:00: Крючки полки готовых построек: список .dfh, постановка под прицел, снятие последней.
 - 20:08:2026 - 20:30:00: Распаковка ближайшей постройки: merge_from в сессию, запись [house] снимается.
 - 20:08:2026 - 22:40:00: Распаковка ищет по placed_houses_ и стирает свою запись по scene_index.
+- 20:08:2026 - 23:59:00: Панель «Свойства» (add_panel); Библиотека регистрируется инструментом; сохранение постройки с нормировкой к нулю; стиль в заготовки.
 */
 
 #include "engine/app/sources/App.h"
+#include "engine/world/sources/HouseFile.h"
 
 #include "engine/app/sources/Localization.h"
 // Картинки деталей в меню объектов. Включено ЗДЕСЬ, а не в App.h: имя знает
@@ -45,6 +47,7 @@ UPD:
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/world/sources/Scene.h"
 
+#include <fstream>
 #include <algorithm>
 #include <cstdio>
 #include <memory>
@@ -182,6 +185,20 @@ void App::wire_editor_panels() {
     // ровно один хозяин — активный инструмент, — и это свойство устройства, а не
     // соблюдённая договорённость (docs/AUDIT_EDITOR_TOOLS.md).
     ToolWorld& tw = editor_ui_.tool_world();
+    // ПАНЕЛЬ «СВОЙСТВА» — отдельная докнутая (UX-переделка 20.08): свойства
+    // выбранного видны при ЛЮБОМ инструменте и не раздувают панели построек.
+    {
+        EditorPanel props;
+        props.id = "house.properties";
+        props.title_key = "editor.panel.properties";
+        props.side = EditorPanelSide::Right;
+        props.extent_px = 400.0f;
+        props.open = true;
+        props.draw = [this] {
+            draw_house_properties_panel(house_, &editor_ui_.tool_world());
+        };
+        editor_ui_.add_panel(std::move(props));
+    }
     tw.terrain_dab = [this](const TerrainBrush& brush, glm::vec2 centre, float dt_s) {
         return apply_terrain_dab(brush, centre, dt_s);
     };
@@ -307,6 +324,47 @@ void App::wire_editor_panels() {
                      "[постройка] распакована постройка #%zu: правь стены и якоря\n",
                      best);
     };
+    tw.save_session_house = [this](const std::string& name) {
+        if (house_.graph().vertex_count() == 0) {
+            std::fprintf(stderr, "[постройка] сохранять нечего — сессия пуста\n");
+            return;
+        }
+        // НОРМИРОВКА К НУЛЮ: файл библиотеки локален — минимальный угол
+        // постройки становится началом, и дом кладётся на любую карту.
+        glm::vec3 lo{1e9f};
+        for (const auto& v : house_.graph().vertices()) {
+            lo = glm::min(lo, house_.graph().resolved_local(v.id));
+        }
+        world::HouseGraph out;
+        const auto r = out.merge_from(house_.graph(),
+                                      [&](glm::vec3 l) { return l - lo; });
+        if (!r.ok) {
+            std::fprintf(stderr, "[постройка] сохранение: %s\n", r.why.c_str());
+            return;
+        }
+        std::error_code ec;
+        std::filesystem::create_directories("assets/houses", ec);
+        const std::string path = "assets/houses/" + name + ".dfh";
+        std::ofstream f(path, std::ios::binary | std::ios::trunc);
+        if (!f) {
+            std::fprintf(stderr, "[постройка] не открылся %s\n", path.c_str());
+            return;
+        }
+        f << world::write_house(out);
+        std::fprintf(stderr, "[постройка] сохранено: %s (вершин %zu)\n",
+                     path.c_str(), out.vertex_count());
+    };
+    tw.apply_style_to_draft =
+        [this](const std::vector<std::pair<std::string, std::string>>& kv) {
+            if (house_line_tool_ != nullptr) {
+                house_line_tool_->apply_style_to_draft(kv);
+            }
+            if (house_surface_tool_ != nullptr) {
+                house_surface_tool_->apply_style_to_draft(kv);
+            }
+            std::fprintf(stderr, "[постройка] стиль лёг в заготовку (%zu пар)\n",
+                         kv.size());
+        };
     tw.remove_last_house = [this]() {
         if (scene_doc_.houses.empty()) {
             std::fprintf(stderr, "[постройка] полка: убирать нечего\n");
@@ -396,9 +454,11 @@ void App::wire_editor_panels() {
         box.add(std::move(vertex));
         auto line = std::make_unique<HouseLineTool>(house_);
         line->set_world(&tw);
+        house_line_tool_ = line.get();
         box.add(std::move(line));
         auto surface = std::make_unique<HouseSurfaceTool>(house_);
         surface->set_world(&tw);
+        house_surface_tool_ = surface.get();
         box.add(std::move(surface));
     }
     // 5 — ВЫСОТА ЗЕМЛИ. Мир нужен кисти ради читалки «Последний мазок».
@@ -444,6 +504,13 @@ void App::wire_editor_panels() {
         auto paint = std::make_unique<SurfacePaintTool>(editor_ui_);
         paint->set_world(&tw);
         box.add(std::move(paint));
+    }
+    // БИБЛИОТЕКА (UX-переделка 20.08): постройки + стили + сохранить +
+    // распаковать. Последним в полосе — без цифры, выбирается кликом.
+    {
+        auto lib = std::make_unique<HouseLibraryTool>(house_);
+        lib->set_world(&tw);
+        box.add(std::move(lib));
     }
     props_wired_ = true;
 }

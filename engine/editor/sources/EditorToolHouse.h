@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 12:10:00
+Last updated: 20:08:2026 - 23:59:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.h
 
@@ -92,6 +92,7 @@ UPD:
 - 20:08:2026 - 00:58:40: Заготовка поверхности: вид кладки (fill).
 - 20:08:2026 - 01:47:30: Заготовка: spin (поворот сечения), doors; форма «лестница».
 - 20:08:2026 - 12:10:00: Черновики несут paint_; формы 0-6 (лестница ушла в раздел стен).
+- 20:08:2026 - 23:59:00: Заготовка полотна: назначение (стена/пол/кровля/марш), виды покрытий, износ; HouseLibraryTool; apply_style_to_draft.
 */
 
 #pragma once
@@ -108,6 +109,7 @@ UPD:
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace dfn::app {
@@ -119,6 +121,28 @@ namespace dfn::app {
 /// прямой сажает вершину НА ОСЬ. Протаскивание двигает якорь, и вся привязанная
 /// геометрия едет за ним сама — не обходом списка, а потому что второй копии
 /// геометрии нет.
+/// БИБЛИОТЕКА (UX-переделка 20.08, решение пользователя): готовые постройки
+/// .dfh, стили .dfstyle, «сохранить текущую постройку в файл» и распаковка —
+/// одним местом. Инструмент без руки: вся работа — в панели; клик в мир
+/// ничего не делает нарочно (полка сама говорит «поставить под прицел»).
+class HouseLibraryTool final : public IEditorTool {
+public:
+    explicit HouseLibraryTool(HouseSession& session) : session_(&session) {}
+    [[nodiscard]] ToolIdentity identity() const override;
+    void on_press(const ToolAim&, ToolWorld&) override {}
+    void on_drag(const ToolAim&, float, ToolWorld&) override {}
+    void on_release(ToolWorld&) override {}
+    [[nodiscard]] ToolPreview preview(const ToolAim&) const override { return {}; }
+    void draw_settings() override;
+    [[nodiscard]] bool stroke_needs_reach() const override { return false; }
+    [[nodiscard]] float max_reach_m() const override { return 60.0f; }
+    void set_world(ToolWorld* world) { world_ = world; }
+
+private:
+    HouseSession* session_ = nullptr;
+    ToolWorld* world_ = nullptr;
+};
+
 class HouseVertexTool final : public IEditorTool {
 public:
     explicit HouseVertexTool(HouseSession& session) : session_(&session) {}
@@ -310,6 +334,7 @@ public:
     [[nodiscard]] int& draft_tone() { return tone_; }
     [[nodiscard]] int& draft_form() { return form_; }
     [[nodiscard]] int& draft_paint() { return paint_; }
+    void apply_style_to_draft(const std::vector<std::pair<std::string, std::string>>& kv);
 
 private:
     int mat_ = 0;   ///< PartSurface ordinal (0 = тёсаный брус)
@@ -409,6 +434,12 @@ public:
     [[nodiscard]] int& draft_mat() { return mat_; }
     [[nodiscard]] int& draft_tone() { return tone_; }
     [[nodiscard]] int& draft_paint() { return paint_; }
+    [[nodiscard]] int& draft_purpose() { return purpose_; }
+    [[nodiscard]] float& draft_wear() { return wear_; }
+    /// СТИЛЬ — В ЗАГОТОВКУ (Библиотека): пары ключ=значение отделки пишутся в
+    /// поля черновика; незнакомые ключи молча пропускаются (геометрия стилю
+    /// не принадлежит).
+    void apply_style_to_draft(const std::vector<std::pair<std::string, std::string>>& kv);
     [[nodiscard]] bool& draft_clad() { return clad_; }
     [[nodiscard]] int& draft_fill() { return fill_; }
     [[nodiscard]] int& draft_windows() { return windows_; }
@@ -417,6 +448,14 @@ private:
     int mat_ = 5;   ///< штукатурка
     int tone_ = 0;  ///< светлый
     int paint_ = 0; ///< HOUSE_PAINT_RGB ordinal (0 = без краски)
+    /// НАЗНАЧЕНИЕ ПОЛОТНА — ВЫБИРАЕТСЯ ДО ПОСТРОЙКИ (UX-переделка 20.08,
+    /// решение пользователя): 0 стена, 1 пол, 2 кровля, 3 марш. Не-стена
+    /// замыкает контур сама и несёт своё покрытие; высота — только у стены.
+    int purpose_ = 0;
+    int floor_kind_ = 0;  ///< пол: 0 срез, 5 паркет
+    int roof_kind_ = 7;   ///< кровля: 7 дранка, 8 черепица
+    int stair_kind_ = 0;  ///< марш: 0 сплошной, 1 доски, 2 блоки
+    float wear_ = 0.0f;   ///< износ заготовки (пишется, если > 0)
     bool clad_ = false;
     int windows_ = 0;
     int fill_ = 0; ///< 0 гладкая/фахверк, 2 кирпич, 3 блоки

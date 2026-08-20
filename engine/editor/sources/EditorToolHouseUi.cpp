@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 22:40:00
+Last updated: 20:08:2026 - 23:59:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -48,6 +48,7 @@ UPD:
 - 20:08:2026 - 17:30:00: Износ и детали в панели; покрытия контура — пять карточек (+дранка, черепица); полка стилей .dfstyle; полка готовых построек в панели выбора.
 - 20:08:2026 - 20:30:00: Полка построек — в панель инструмента стен (без требования выделения); кнопки марша (сплошной/доски/блоки), балок, распаковки.
 - 20:08:2026 - 22:40:00: Единая пара fill_to_card/card_to_fill + карточка венцов; отказ первой строкой; перенос карточек по ширине (две были обрезаны за краем); сетка мира над заголовком «Выбрано»; дубли кнопки удаления и координат сняты; полки не сканируют диск каждый кадр.
+- 20:08:2026 - 23:59:00: Назначение — первым органом заготовки; панель «Свойства» отдельно (коллапс-секции, дверь-створка рядом с проёмами, числа секцией); полка построек и стили — в Библиотеку; сетка/координаты разрезаны.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -266,6 +267,28 @@ static int draw_fill_cards(const ToolWorld* world, const char* id, int current) 
 /// СЕТКА В МИРОВЫХ КООРДИНАТАХ, и это его слова: узел там, где координата
 /// кратна шагу, а не там, где начали строить. Один шаг на всё — по нему
 /// прилипает якорь, им же шагают стрелки, его же рисуют отсечки на земле.
+static void draw_selected_coords(HouseSession& session) {
+    ImGui::PushID("house.coords.blk");
+    const struct Pop2 { ~Pop2() { ImGui::PopID(); } } pop2;
+    const world::VertexId sel = session.selected_vertex();
+    if (sel == world::NO_VERTEX) {
+        return;
+    }
+    glm::vec3 p = session.vertex_world(sel);
+    const float before[3] = {p.x, p.y, p.z};
+    if (ImGui::InputFloat3(EditorUi::tr("house.coords"), &p.x, "%.3f")) {
+        if (p.x != before[0] || p.y != before[1] || p.z != before[2]) {
+            (void)session.mutate("координаты якоря", [&](world::HouseGraph& g) {
+                return g.move_vertex(sel, session.to_local(p));
+            });
+        }
+    }
+    if (const world::Vertex* v = session.graph().vertex(sel);
+        v != nullptr && v->anchoring == world::Anchoring::OnGround) {
+        ImGui::TextDisabled("%s", EditorUi::tr("house.coords.ground"));
+    }
+}
+
 static void draw_grid_and_coords(HouseSession& session) {
     // СВОЯ ОБЛАСТЬ ИМЁН: ползунки ниже повторяют подписи ползунков инструмента
     // («Толщина», «Поворот текстуры»), и без PushID ImGui честно кричал
@@ -280,30 +303,6 @@ static void draw_grid_and_coords(HouseSession& session) {
         session.set_grid_step_m(step);
     }
     ImGui::TextDisabled("%s", EditorUi::tr("house.grid.note"));
-
-    const world::VertexId sel = session.selected_vertex();
-    if (sel == world::NO_VERTEX) {
-        ImGui::PopID();
-        return;
-    }
-    // КООРДИНАТЫ ЧИТАЮТСЯ ИЗ МИРА И ПИШУТСЯ В МИР. Внутри граф хранит местные
-    // координаты постройки, но человек думает в мировых — он их и видит в
-    // отладочном выводе, и по ним ставит дом на карте.
-    glm::vec3 p = session.vertex_world(sel);
-    const float before[3] = {p.x, p.y, p.z};
-    if (ImGui::InputFloat3(EditorUi::tr("house.coords"), &p.x, "%.3f")) {
-        if (p.x != before[0] || p.y != before[1] || p.z != before[2]) {
-            (void)session.mutate("координаты якоря", [&](world::HouseGraph& g) {
-                return g.move_vertex(sel, session.to_local(p));
-            });
-        }
-    }
-    // ЗАЗЕМЛЁННЫЙ ЯКОРЬ ВЫСОТУ НЕ ХРАНИТ, и сказать это надо здесь, а не дать
-    // человеку впечатать высоту и увидеть, что она не взялась.
-    if (const world::Vertex* v = session.graph().vertex(sel);
-        v != nullptr && v->anchoring == world::Anchoring::OnGround) {
-        ImGui::TextDisabled("%s", EditorUi::tr("house.coords.ground"));
-    }
     ImGui::PopID();
 }
 
@@ -466,7 +465,12 @@ static void draw_selected_element(HouseSession& session) {
             });
         }
     };
+    // СЕКЦИИ-КОЛЛАПСЫ (UX-переделка 20.08): каждая — 3-6 органов; открыты по
+    // умолчанию «Назначение» и «Числа», остальное свёрнуто — панель Свойств
+    // при одной открытой секции умещается без прокрутки.
     if (line) {
+        if (ImGui::CollapsingHeader(EditorUi::tr("house.sec.kind"),
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
         // ФОРМА ПАЛКИ (заказ 19.08): круг, квадрат, шести- и восьмигранник —
         // это те профили, которые умеет построитель (form/sides).
         {
@@ -499,21 +503,19 @@ static void draw_selected_element(HouseSession& session) {
             }
             number("angle_z", "house.spin", 0.0f, 90.0f, 0.0f);
         }
-        material_block();
-        number("radius", "house.radius", 0.02f, 1.0f, config::HOUSE_LINE_RADIUS_DEFAULT);
-    } else {
-        number("thickness", "house.thickness", 0.02f, 1.0f,
-               config::HOUSE_SURFACE_THICKNESS_DEFAULT);
-        if (!e->closed) {
-            number("height", "house.height", 0.1f, 12.0f, 2.5f);
-        } else {
-            ImGui::TextDisabled("%s", EditorUi::tr("house.height.chain"));
         }
-        number("tex_deg", "house.tex", 0.0f, 360.0f, 0.0f);
-        // ОБШИВКА ПО РАСКЛАДКЕ: доски, раскосы и окна «сколько влезло» —
-        // геометрией поверх несущей пластины. Окна НЕ масштабируются; влезло
-        // меньше, чем просили, — раскладка скажет это находкой в журнале.
-        // ЗАПОЛНЕНИЕ — ПЕРВЫМ, материал ниже.
+        if (ImGui::CollapsingHeader(EditorUi::tr("house.sec.finish"))) {
+            material_block();
+            number("wear", "house.wear", 0.0f, 1.0f, 0.0f);
+        }
+        if (ImGui::CollapsingHeader(EditorUi::tr("house.sec.numbers"),
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+            number("radius", "house.radius", 0.02f, 1.0f,
+                   config::HOUSE_LINE_RADIUS_DEFAULT);
+        }
+    } else {
+        if (ImGui::CollapsingHeader(EditorUi::tr("house.sec.kind"),
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
         if (e->closed) {
             // ПОЛ: срез или паркет. Две кнопки-карточки, как у стен.
             const std::string fl = session.graph().param(id, "fill");
@@ -589,7 +591,10 @@ static void draw_selected_element(HouseSession& session) {
                 }
             }
         }
-        if (!e->closed) {
+        }
+        if (!e->closed
+            && ImGui::CollapsingHeader(EditorUi::tr("house.sec.fillcards"),
+                                       ImGuiTreeNodeFlags_DefaultOpen)) {
             const bool clad = session.graph().param(id, "clad") == "1";
             const std::string fl = session.graph().param(id, "fill");
             const int fill_now = fl.empty() ? 0 : std::atoi(fl.c_str());
@@ -608,6 +613,18 @@ static void draw_selected_element(HouseSession& session) {
                     return g.set_param(id, "windows", std::to_string(nwins));
                 });
             }
+        }
+        // ПРОЁМЫ — ОДНА СЕКЦИЯ (UX-аудит: два разных понятия «дверь» жили в
+        // полуэкране друг от друга): окна, дверной проём в кладке — здесь;
+        // дверь-створка с петлёй — сразу под ними, ниже по функции.
+        const bool sec_openings =
+            !e->closed && ImGui::CollapsingHeader(EditorUi::tr("house.sec.openings"));
+        if (sec_openings) {
+            const bool clad = session.graph().param(id, "clad") == "1";
+            const std::string fl = session.graph().param(id, "fill");
+            const int fill_now = fl.empty() ? 0 : std::atoi(fl.c_str());
+            const std::string w = session.graph().param(id, "windows");
+            int wins = w.empty() ? 0 : std::atoi(w.c_str());
             if (clad || fill_now >= 2) {
                 if (ImGui::SliderInt(EditorUi::tr("house.windows"), &wins, 0, 6)) {
                     (void)session.mutate("окна", [&](world::HouseGraph& g) {
@@ -627,13 +644,43 @@ static void draw_selected_element(HouseSession& session) {
                 if (dooro) {
                     ImGui::PopStyleColor();
                 }
+            } else {
+                ImGui::TextDisabled("%s", EditorUi::tr("house.sec.openings.none"));
+            }
+            // ДВЕРЬ-СТВОРКА — рядом с проёмом (UX-аудит: два понятия «дверь»
+            // жили в полуэкране друг от друга). Петля — пара соседних якорей
+            // обхода, листается по кругу; качается только выбранная створка.
+            bool is_door = session.graph().param(id, "door") == "1";
+            if (ImGui::Checkbox(EditorUi::tr("house.door"), &is_door)) {
+                (void)session.mutate("дверь", [&](world::HouseGraph& g) {
+                    return g.set_param(id, "door", is_door ? "1" : "0");
+                });
+            }
+            if (is_door && e->refs.size() >= 2) {
+                const std::size_t n = e->refs.size();
+                std::size_t hinge = 0;
+                if (const std::string h = session.graph().param(id, "hinge"); !h.empty()) {
+                    hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
+                }
+                ImGui::Text("%s v%u–v%u", EditorUi::tr("house.hinge"),
+                            static_cast<unsigned>(e->refs[hinge]),
+                            static_cast<unsigned>(e->refs[(hinge + 1) % n]));
+                ImGui::SameLine();
+                if (ImGui::SmallButton(EditorUi::tr("house.hinge.next"))) {
+                    const std::size_t next = (hinge + 1) % n;
+                    (void)session.mutate("петля двери", [&](world::HouseGraph& g) {
+                        return g.set_param(id, "hinge", std::to_string(next));
+                    });
+                }
             }
         }
-        // ИЗНОС И ДЕТАЛИ (заказ 20.08: «износ, старение, больше мелких
-        // деталей»). Износ 0..1 — глубже дрожь кладки, щербины, мох по низу,
-        // сильный уводит тон в выветренный ряд. Детали — кнопки-переключатели.
-        number("wear", "house.wear", 0.0f, 1.0f, 0.0f);
-        if (!e->closed) {
+        // ОТДЕЛКА: материал + износ — одной секцией.
+        if (ImGui::CollapsingHeader(EditorUi::tr("house.sec.finish"))) {
+            material_block();
+            number("wear", "house.wear", 0.0f, 1.0f, 0.0f);
+        }
+        if (!e->closed
+            && ImGui::CollapsingHeader(EditorUi::tr("house.sec.details"))) {
             ImGui::TextDisabled("%s", EditorUi::tr("house.det"));
             const auto toggle = [&](const char* key, const char* caption,
                                     bool first) {
@@ -660,6 +707,15 @@ static void draw_selected_element(HouseSession& session) {
             toggle("plinth", "house.det.plinth", false);
         }
         material_block();
+        if (ImGui::CollapsingHeader(EditorUi::tr("house.sec.numbers"),
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+            number("thickness", "house.thickness", 0.02f, 1.0f,
+                   config::HOUSE_SURFACE_THICKNESS_DEFAULT);
+            if (!e->closed) {
+                number("height", "house.height", 0.1f, 12.0f, 2.5f);
+            }
+            number("tex_deg", "house.tex", 0.0f, 360.0f, 0.0f);
+        }
         // ПОЛКА СТИЛЕЙ: снять отделку с выбранного / примерить сохранённую.
         {
             ImGui::PushID("house.styles");
@@ -700,36 +756,6 @@ static void draw_selected_element(HouseSession& session) {
             }
             ImGui::PopID();
         }
-        // ДВЕРЬ — СВОЙСТВО СТЕНЫ, а не отдельная деталь (заказ 19.08: «ставлю
-        // стену и меняю ей свойство на дверь... и так я убираю необходимость
-        // делать стены специально с дверьми»). Петля — пара соседних якорей
-        // обхода, листается по кругу; дверь качается вокруг неё прямо в
-        // редакторе, чтобы выбор петли был виден, а не угадан.
-        {
-            bool is_door = session.graph().param(id, "door") == "1";
-            if (ImGui::Checkbox(EditorUi::tr("house.door"), &is_door)) {
-                (void)session.mutate("дверь", [&](world::HouseGraph& g) {
-                    return g.set_param(id, "door", is_door ? "1" : "0");
-                });
-            }
-            if (is_door && e->refs.size() >= 2) {
-                const std::size_t n = e->refs.size();
-                std::size_t hinge = 0;
-                if (const std::string h = session.graph().param(id, "hinge"); !h.empty()) {
-                    hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
-                }
-                ImGui::Text("%s v%u–v%u", EditorUi::tr("house.hinge"),
-                            static_cast<unsigned>(e->refs[hinge]),
-                            static_cast<unsigned>(e->refs[(hinge + 1) % n]));
-                ImGui::SameLine();
-                if (ImGui::SmallButton(EditorUi::tr("house.hinge.next"))) {
-                    const std::size_t next = (hinge + 1) % n;
-                    (void)session.mutate("петля двери", [&](world::HouseGraph& g) {
-                        return g.set_param(id, "hinge", std::to_string(next));
-                    });
-                }
-            }
-        }
         if (ImGui::Button(EditorUi::tr("house.flip"))) {
             const bool now = e->facing_flipped;
             (void)session.mutate("развернул лицо", [&](world::HouseGraph& g) {
@@ -747,12 +773,19 @@ static void draw_selected_element(HouseSession& session) {
 
 void draw_house_selection_panel(HouseSession& session, const ToolWorld* world) {
     g_selected_world = world;
-    // ПАНЕЛЬ ВЫБРАННОГО — ДЛЯ ИНСТРУМЕНТА ВЫБОРА (заказ 19.08: «когда я выбираю
-    // объект, справа должно рисоваться меню свойств этого объекта, а не меню
-    // инструмента»). Тот же код, что в панелях постройки: третья копия этих
-    // полей разошлась бы с первыми двумя.
+    // Свойства выбранного — в отдельной панели «Свойства» (UX-переделка
+    // 20.08); инструменту выбора остаётся сетка и подсказка.
     draw_grid_and_coords(session);
-    ImGui::Separator();
+    ImGui::TextDisabled("%s", EditorUi::tr("house.props.hint"));
+}
+
+/// ПАНЕЛЬ «СВОЙСТВА» — СВОЯ, живёт независимо от инструмента в руке
+/// (UX-переделка 20.08, решение пользователя): «Выбрано сейчас» больше не
+/// повторяется в четырёх панелях и не выталкивает органы инструмента за
+/// прокрутку. Координаты якоря — здесь: они свойство выбранного.
+void draw_house_properties_panel(HouseSession& session, const ToolWorld* world) {
+    g_selected_world = world;
+    draw_selected_coords(session);
     draw_selected_element(session);
 }
 
@@ -865,9 +898,9 @@ void HouseVertexTool::draw_settings() {
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
     if (session_ != nullptr) {
+        // Свойства выбранного живут в СВОЕЙ панели «Свойства» (UX-переделка
+        // 20.08): здесь остаётся только сетка — режим руки.
         draw_grid_and_coords(*session_);
-        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
-        draw_selected_element(*session_);
     }
 }
 
@@ -923,9 +956,9 @@ void HouseLineTool::draw_settings() {
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
     if (session_ != nullptr) {
+        // Свойства выбранного живут в СВОЕЙ панели «Свойства» (UX-переделка
+        // 20.08): здесь остаётся только сетка — режим руки.
         draw_grid_and_coords(*session_);
-        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
-        draw_selected_element(*session_);
     }
 }
 
@@ -934,10 +967,7 @@ void HouseSurfaceTool::draw_settings() {
     // ОТКАЗ — ПЕРВОЙ СТРОКОЙ (UX-аудит: красная строка жила в подвале, за
     // прокруткой — ровно там, куда не смотрят в момент отказа).
     draw_refusal(refusal_);
-    // ГОТОВЫЕ ПОСТРОЙКИ — ЗДЕСЬ, в секции постройки (правка 20.08), и без
-    // каких-либо условий на выделение.
-    ImGui::SeparatorText(EditorUi::tr("house.shelf"));
-    draw_house_shelf(world_);
+
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как
@@ -946,33 +976,87 @@ void HouseSurfaceTool::draw_settings() {
     // ЗАГОТОВКА ВИДНА В МЕНЮ ИНСТРУМЕНТА (жалоба 19.08: «не вижу ничего нового
     // в меню объекта»): материал, тон, обшивка и окна следующей поверхности
     // выбираются здесь и штампуются в элемент при подтверждении.
-    (void)draw_material_grid(world_, "surf.draft", mat_, tone_, &paint_);
-    // ЗАПОЛНЕНИЕ — КАРТОЧКАМИ, НЕ ГАЛОЧКОЙ (заказ 19.08: «галочки не удобны,
-    // хочу картинки-примеры»). Карточка и есть выбор: гладкая, фахверк,
-    // фахверк с окнами.
-    // Карточка выбирает ПРАВИЛО СБОРКИ: 0 гладкая, 1-2 фахверк, 3 кирпич,
-    // 4 блоки. Кладка (заказ 20.08) — настоящие кусочки с перевязкой, не
-    // текстура.
-    const int card = fill_to_card(fill_, clad_, windows_);
-    if (const int picked = draw_fill_cards(world_, "surf.fill", card); picked >= 0) {
-        bool clad_b = clad_;
-        card_to_fill(picked, fill_, clad_b, windows_);
-        clad_ = clad_b;
+    // НАЗНАЧЕНИЕ — ПЕРВЫМ ОРГАНОМ (UX-переделка 20.08, решение пользователя:
+    // «тип поверхности хочется ДО постройки»). Оно решает замкнутость,
+    // покрытие и какие карточки показать ниже.
+    {
+        static const char* PURPOSE_KEY[4] = {"house.purpose.wall",
+                                             "house.purpose.floor",
+                                             "house.purpose.roof",
+                                             "house.purpose.stairs"};
+        for (int v = 0; v < 4; ++v) {
+            if (v != 0) {
+                ImGui::SameLine();
+            }
+            const bool sel = purpose_ == v;
+            if (sel) {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                                      ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+            }
+            if (ImGui::Button(EditorUi::tr(PURPOSE_KEY[v]))) {
+                purpose_ = v;
+            }
+            if (sel) {
+                ImGui::PopStyleColor();
+            }
+        }
     }
-    if (clad_ || fill_ >= 2) {
-        ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 0, 6);
-        // ДВЕРНОЙ ПРОЁМ — КНОПКА-ПЕРЕКЛЮЧАТЕЛЬ, не галочка: подсвечена, пока
-        // включена. Дверь-СТВОРКА (качается) остаётся свойством выбранной
-        // стены; здесь — именно проём в кладке от пола.
-        const bool on = doors_ > 0;
-        if (on) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+    (void)draw_material_grid(world_, "surf.draft", mat_, tone_, &paint_);
+    ImGui::SliderFloat(EditorUi::tr("house.wear"), &wear_, 0.0f, 1.0f, "%.2f");
+    if (purpose_ == 0) {
+        // СТЕНА: заполнение карточками + окна и дверной проём.
+        const int card = fill_to_card(fill_, clad_, windows_);
+        if (const int picked = draw_fill_cards(world_, "surf.fill", card);
+            picked >= 0) {
+            bool clad_b = clad_;
+            card_to_fill(picked, fill_, clad_b, windows_);
+            clad_ = clad_b;
         }
-        if (ImGui::Button(EditorUi::tr("house.dooropen"))) {
-            doors_ = on ? 0 : 1;
+        if (clad_ || fill_ >= 2) {
+            ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 0, 6);
+            const bool on = doors_ > 0;
+            if (on) {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                                      ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+            }
+            if (ImGui::Button(EditorUi::tr("house.dooropen"))) {
+                doors_ = on ? 0 : 1;
+            }
+            if (on) {
+                ImGui::PopStyleColor();
+            }
         }
-        if (on) {
-            ImGui::PopStyleColor();
+    } else if (purpose_ == 1) {
+        // ПОЛ: срез или паркет.
+        if (ImGui::RadioButton(EditorUi::tr("house.floor.plain"), floor_kind_ == 0)) {
+            floor_kind_ = 0;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton(EditorUi::tr("house.floor.parquet"), floor_kind_ == 5)) {
+            floor_kind_ = 5;
+        }
+    } else if (purpose_ == 2) {
+        // КРОВЛЯ: дранка или черепица (гладкая солома — карточкой пола «срез»
+        // не является: настил ската и так гладкий без fill).
+        if (ImGui::RadioButton(EditorUi::tr("house.floor.shingle"), roof_kind_ == 7)) {
+            roof_kind_ = 7;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton(EditorUi::tr("house.floor.tile"), roof_kind_ == 8)) {
+            roof_kind_ = 8;
+        }
+    } else {
+        // МАРШ: сплошной / доски / блоки.
+        static const char* OPEN_KEY[3] = {"house.stairs.solid",
+                                          "house.stairs.planks",
+                                          "house.stairs.blocks"};
+        for (int v = 0; v < 3; ++v) {
+            if (v != 0) {
+                ImGui::SameLine();
+            }
+            if (ImGui::RadioButton(EditorUi::tr(OPEN_KEY[v]), stair_kind_ == v)) {
+                stair_kind_ = v;
+            }
         }
     }
     if (session_ == nullptr) {
@@ -996,8 +1080,10 @@ void HouseSurfaceTool::draw_settings() {
     ImGui::Checkbox(EditorUi::tr("house.flip"), &flipped_);
 
     ImGui::SliderFloat(EditorUi::tr("house.thickness"), &thickness_m_, 0.02f, 1.0f, "%.3f m");
-    ImGui::SliderFloat(EditorUi::tr("house.height"), &height_m_, 0.1f, 12.0f, "%.2f m");
-    ImGui::TextDisabled("%s", EditorUi::tr("house.height.chain"));
+    if (purpose_ == 0) {
+        ImGui::SliderFloat(EditorUi::tr("house.height"), &height_m_, 0.1f, 12.0f, "%.2f m");
+        ImGui::TextDisabled("%s", EditorUi::tr("house.height.chain"));
+    }
     ImGui::SliderFloat(EditorUi::tr("house.tex"), &tex_deg_, 0.0f, 360.0f, "%.0f°");
 
     ImGui::Spacing();
@@ -1026,9 +1112,92 @@ void HouseSurfaceTool::draw_settings() {
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
     if (session_ != nullptr) {
+        // Свойства выбранного живут в СВОЕЙ панели «Свойства» (UX-переделка
+        // 20.08): здесь остаётся только сетка — режим руки.
         draw_grid_and_coords(*session_);
-        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
-        draw_selected_element(*session_);
+    }
+}
+
+ToolIdentity HouseLibraryTool::identity() const {
+    // Значок «постройка» (куб) честен:库 отдаёт готовые постройки.
+    return {"library", "editor.tool.library", "editor.tool.library.hint",
+            ToolIcon::Place};
+}
+
+void HouseLibraryTool::draw_settings() {
+    g_selected_world = world_;
+    // БИБЛИОТЕКА: постройки, стили, сохранение, распаковка — одним местом
+    // (UX-переделка 20.08). Никакой руки: панель и есть инструмент.
+    ImGui::SeparatorText(EditorUi::tr("house.shelf"));
+    draw_house_shelf(world_);
+    // Сохранить ТЕКУЩУЮ постройку сессии в библиотеку.
+    if (world_ != nullptr && world_->save_session_house) {
+        static char house_name[48] = "моя-постройка";
+        ImGui::SetNextItemWidth(180.0f);
+        ImGui::InputText("##housename", house_name, sizeof(house_name));
+        ImGui::SameLine();
+        if (ImGui::Button(EditorUi::tr("house.lib.save"))) {
+            world_->save_session_house(house_name);
+        }
+    }
+    ImGui::SeparatorText(EditorUi::tr("house.lib.styles"));
+    // Стили: список, применить к выбранному и К ЗАГОТОВКЕ (раньше стиль был
+    // применим только к уже построенному — «накрасить пять стен одним стилем»
+    // требовало пять раз выбрать).
+    static std::vector<std::string> shelf;
+    static bool scanned = false;
+    static int pick = 0;
+    if (!scanned) {
+        shelf = list_styles();
+        scanned = true;
+    }
+    if (ImGui::Button(EditorUi::tr("house.shelf.refresh"))) {
+        shelf = list_styles();
+    }
+    if (shelf.empty()) {
+        ImGui::TextDisabled("%s", EditorUi::tr("house.lib.styles.empty"));
+        return;
+    }
+    pick = std::clamp(pick, 0, static_cast<int>(shelf.size()) - 1);
+    ImGui::SetNextItemWidth(180.0f);
+    if (ImGui::BeginCombo("##libstyles", shelf[static_cast<std::size_t>(pick)].c_str())) {
+        shelf = list_styles();
+        pick = std::clamp(pick, 0, static_cast<int>(shelf.size()) - 1);
+        for (int i = 0; i < static_cast<int>(shelf.size()); ++i) {
+            if (ImGui::Selectable(shelf[static_cast<std::size_t>(i)].c_str(), i == pick)) {
+                pick = i;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if (session_ != nullptr && session_->selected_element() != world::NO_ELEMENT
+        && ImGui::Button(EditorUi::tr("house.style.apply"))) {
+        apply_style(*session_, session_->selected_element(),
+                    shelf[static_cast<std::size_t>(pick)]);
+    }
+    if (world_ != nullptr && world_->apply_style_to_draft
+        && ImGui::Button(EditorUi::tr("house.lib.style.todraft"))) {
+        std::ifstream f("assets/styles/" + shelf[static_cast<std::size_t>(pick)]
+                        + ".dfstyle");
+        std::vector<std::pair<std::string, std::string>> kv;
+        std::string line;
+        while (f && std::getline(f, line)) {
+            if (line.empty() || line[0] == '#') {
+                continue;
+            }
+            const auto eq = line.find('=');
+            if (eq == std::string::npos) {
+                continue;
+            }
+            auto trim = [](std::string t) {
+                const auto b = t.find_first_not_of(" \t");
+                const auto e2 = t.find_last_not_of(" \t\r");
+                return b == std::string::npos ? std::string{}
+                                              : t.substr(b, e2 - b + 1);
+            };
+            kv.emplace_back(trim(line.substr(0, eq)), trim(line.substr(eq + 1)));
+        }
+        world_->apply_style_to_draft(kv);
     }
 }
 

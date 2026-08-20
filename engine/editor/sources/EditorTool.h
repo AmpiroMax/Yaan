@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 11:52:10
-Last updated: 20:08:2026 - 20:30:00
+Last updated: 20:08:2026 - 23:59:00
 Module: engine/editor
 File: engine/editor/sources/EditorTool.h
 
@@ -86,6 +86,7 @@ UPD:
 - 20:08:2026 - 00:02:30: Крючки картинок в ToolWorld: material_swatch и wall_example — «хочу не слова, а картинки».
 - 20:08:2026 - 17:30:00: ToolWorld: house_assets / place_house_at_aim / remove_last_house.
 - 20:08:2026 - 20:30:00: unpack_house_at_aim — распаковка постройки под прицелом.
+- 20:08:2026 - 23:59:00: Крючки save_session_house и apply_style_to_draft.
 */
 
 #pragma once
@@ -99,6 +100,7 @@ UPD:
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace dfn::app {
@@ -306,6 +308,12 @@ struct ToolWorld {
     /// возможность выбирать стены, якоря — сейчас стоит как проп»): граф
     /// вливается в редактируемый, запись [house] снимается со сцены.
     std::function<void()> unpack_house_at_aim;
+    /// СОХРАНИТЬ ТЕКУЩУЮ ПОСТРОЙКУ СЕССИИ в библиотеку (assets/houses/<имя>.dfh),
+    /// с нормировкой координат к нулю — файл кладётся на любую карту.
+    std::function<void(const std::string& name)> save_session_house;
+    /// Применить стиль (пары отделки) к ЗАГОТОВКАМ инструментов постройки.
+    std::function<void(const std::vector<std::pair<std::string, std::string>>&)>
+        apply_style_to_draft;
 
     // -- paths ----------------------------------------------------------------
     /// Тропы, которые уже проведены. Указатель, а не копия: инструмент читает

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 22:40:00
+Last updated: 20:08:2026 - 23:59:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -52,6 +52,7 @@ UPD:
 - 20:08:2026 - 12:10:00: Штамп форм по таблице (3/6/8/12 граней, доска), штамп краски; лестница из форм убрана.
 - 20:08:2026 - 12:55:00: Формула скрещивающихся прямых — одна (axis_closest_param); пикинг контура ушами, а не веером; OnEdge-якорь скользит slide_vertex; высота из element_params_of.
 - 20:08:2026 - 22:40:00: Заготовка доезжает вся и до замкнутого контура (молча выбрасывались clad/fill/окна/дверь).
+- 20:08:2026 - 23:59:00: confirm: назначение решает замкнутость и покрытие (roof=1 кровле); apply_style_to_draft обоих инструментов.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1652,7 +1653,14 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
     }
     ElementId made = NO_ELEMENT;
     const std::vector<VertexId> refs = refs_;
-    const bool closed = closed_;
+    // НАЗНАЧЕНИЕ РЕШАЕТ (UX-переделка 20.08): пол, кровля и марш — замкнутые
+    // контуры по своей природе, и человек не обязан помнить про «Замкнуть»;
+    // стена остаётся цепочкой, если её не замкнули руками.
+    const bool closed = closed_ || purpose_ != 0;
+    if (purpose_ != 0 && refs.size() < 3) {
+        refusal_ = "полу, кровле и маршу нужен контур хотя бы из трёх якорей";
+        return false;
+    }
     const GraphResult r = session_->mutate(closed ? "контур" : "стена",
                                            [&](HouseGraph& g) {
         const GraphResult add = g.add_element(ElementKind::Surface, refs, style_, made);
@@ -1685,6 +1693,22 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
         }
         if (doors_ > 0) {
             g.set_param(made, "doors", std::to_string(doors_));
+        }
+        // ПОКРЫТИЕ ПО НАЗНАЧЕНИЮ: пол — срез/паркет, кровля — дранка/черепица
+        // (+ признак roof для правила опоры), марш — fill=6 со своим видом.
+        if (purpose_ == 1 && floor_kind_ == 5) {
+            g.set_param(made, "fill", "5");
+        } else if (purpose_ == 2) {
+            g.set_param(made, "fill", std::to_string(roof_kind_));
+            g.set_param(made, "roof", "1");
+        } else if (purpose_ == 3) {
+            g.set_param(made, "fill", "6");
+            if (stair_kind_ > 0) {
+                g.set_param(made, "open", std::to_string(stair_kind_));
+            }
+        }
+        if (wear_ > 0.005f) {
+            g.set_param(made, "wear", house_num(wear_));
         }
         if (!closed) {
             // ВЫСОТА — ТОЛЬКО У ЦЕПОЧКИ. У контура она означала бы вторую
@@ -1852,6 +1876,30 @@ ToolStatus HouseSurfaceTool::status(const ToolAim& aim) const {
                       refs_.size());
     }
     return ToolStatus{"", buf, true};
+}
+
+void HouseLineTool::apply_style_to_draft(
+    const std::vector<std::pair<std::string, std::string>>& kv) {
+    for (const auto& [key, val] : kv) {
+        if (key == "mat") { mat_ = std::atoi(val.c_str()); }
+        else if (key == "tone") { tone_ = std::atoi(val.c_str()); }
+        else if (key == "paint") { paint_ = std::atoi(val.c_str()); }
+        // Прочее палке не принадлежит — молча мимо (стиль шире заготовки).
+    }
+}
+
+void HouseSurfaceTool::apply_style_to_draft(
+    const std::vector<std::pair<std::string, std::string>>& kv) {
+    for (const auto& [key, val] : kv) {
+        if (key == "mat") { mat_ = std::atoi(val.c_str()); }
+        else if (key == "tone") { tone_ = std::atoi(val.c_str()); }
+        else if (key == "paint") { paint_ = std::atoi(val.c_str()); }
+        else if (key == "clad") { clad_ = val == "1"; }
+        else if (key == "fill") { fill_ = std::atoi(val.c_str()); }
+        else if (key == "windows") { windows_ = std::atoi(val.c_str()); }
+        else if (key == "doors") { doors_ = std::atoi(val.c_str()); }
+        else if (key == "wear") { wear_ = std::strtof(val.c_str(), nullptr); }
+    }
 }
 
 } // namespace dfn::app
