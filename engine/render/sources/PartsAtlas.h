@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/render
 File: engine/render/sources/PartsAtlas.h
 
@@ -56,6 +56,7 @@ UPD:
   у домов выглядят интересно, надо будет им текстур добавить»). Колонка =
   ПОВЕРХНОСТЬ, ряд = ТОН/ИЗНОС; базовые цвета взяты из таблицы материалов
   PartForge, чтобы текстура меняла ПОВЕРХНОСТЬ, а не палитру принятой витрины.
+- 20:08:2026 - 17:30:00: PARTS_ATLAS_REVISION=2 — новые нормали.
 */
 
 #pragma once
@@ -117,7 +118,7 @@ inline constexpr uint32_t PARTS_ATLAS_TONES = 4;
 /// Bumped on EVERY change to the pixels or the layout. It is part of the cache
 /// key the uploader must use: flora lost a session to a cached 4-column sheet
 /// being sampled by 5-column uvs (white conifers, correct code everywhere).
-inline constexpr uint32_t PARTS_ATLAS_REVISION = 1;
+inline constexpr uint32_t PARTS_ATLAS_REVISION = 2; // 2: рельеф камня/глины усилен (20.08)
 
 /// Tile side in texels. 256 over PARTS_TILE_SPAN_M gives ~3.9 mm per texel ON
 /// THE OBJECT — finer than the leaf atlas' ~5 mm, which is the density the

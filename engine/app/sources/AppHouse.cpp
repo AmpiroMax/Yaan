@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -36,6 +36,7 @@ UPD:
 - 20:08:2026 - 00:58:40: Бакеты уважают материал куска; свотчи и карточки светятся по листу нормалей («плоские текстуры» 20.08); карточки кирпича и блоков; демо-сруб получил кирпичную стену.
 - 20:08:2026 - 12:10:00: Краска элемента — вершинный цвет поверх плитки материала.
 - 20:08:2026 - 15:30:00: upload_house_mesh вливает готовые постройки карты (append_graph на граф) в общие потоки и ОДИН коллайдер; load_scene_houses; проба коллайдера целится сквозь вершину, контроль — над рельефом.
+- 20:08:2026 - 17:30:00: Износ: мох по нижнему метру вершинным цветом, wear>=0.7 уводит тон в выветренный ряд.
 */
 
 #include "engine/app/sources/App.h"
@@ -471,15 +472,39 @@ void App::upload_house_mesh() {
                                   const auto& to_world) {
         const world::HouseMesh built = world::build_house_mesh(graph);
         const glm::vec3 zero = to_world(glm::vec3{0.0f});
+        // НИЗ ПОСТРОЙКИ — для мха износа: зелёный налёт живёт в первом метре
+        // от самой низкой точки, как сырость от земли.
+        float gmin_y = 1e9f;
+        for (const auto& v : built.vertices) {
+            gmin_y = std::min(gmin_y, v.pos.y);
+        }
         // КРАСКА ЭЛЕМЕНТА — вершинный цвет: плитка материала умножается на
         // него в шейдере, 0xFFFFFFFF (без краски) оставляет её как есть.
         std::uint32_t part_color = 0xFFFFFFFFu;
+        float part_wear = 0.0f;
         const auto to_world_vertex = [&](const world::HouseVertex& v) {
             platform::Vertex pv{};
             pv.position = to_world(v.pos);
             pv.normal = to_world(v.normal) - zero;
             pv.uv = v.uv;
             pv.color_rgba = part_color;
+            // МОХ ИЗНОСА: вершинный цвет тянется к зелёному налёту тем
+            // сильнее, чем ниже вершина (первый метр) и чем старше элемент.
+            if (part_wear > 0.0f) {
+                const float base = std::clamp(
+                    1.0f - (v.pos.y - gmin_y) / 0.9f, 0.0f, 1.0f);
+                const float k = part_wear * base * 0.55f;
+                if (k > 0.01f) {
+                    const auto ch = [&](int shift, float target) {
+                        const float c =
+                            static_cast<float>((part_color >> shift) & 0xFFu);
+                        const float m = c * (1.0f - k) + target * 255.0f * k;
+                        return static_cast<std::uint32_t>(std::lround(m)) << shift;
+                    };
+                    pv.color_rgba = 0xFF000000u | ch(16, 0.52f) | ch(8, 0.72f)
+                                  | ch(0, 0.58f); // BGR: мшисто-зелёный
+                }
+            }
             return pv;
         };
         const auto paint_of = [&](const world::Element& e) -> std::uint32_t {
@@ -508,6 +533,12 @@ void App::upload_house_mesh() {
             if (!t.empty()) {
                 tone = static_cast<std::uint32_t>(std::atoi(t.c_str())) % 4u;
             }
+            // СИЛЬНЫЙ ИЗНОС УВОДИТ ТОН В ВЫВЕТРЕННЫЙ РЯД атласа: серость и
+            // лишайник нарисованы там, а не выдумываются шейдером.
+            const std::string w = graph.param(e.id, "wear");
+            if (!w.empty() && std::strtof(w.c_str(), nullptr) >= 0.7f) {
+                tone = 3u; // Weathered
+            }
         };
         std::vector<std::uint32_t> remap;
         for (const world::MeshPart& part : built.parts) {
@@ -519,6 +550,10 @@ void App::upload_house_mesh() {
             std::uint32_t tone = 0;
             mat_of(*e, surface, tone);
             part_color = paint_of(*e);
+            {
+                const std::string w = graph.param(e->id, "wear");
+                part_wear = w.empty() ? 0.0f : std::strtof(w.c_str(), nullptr);
+            }
             // КУСОК КЛАДКИ НЕСЁТ СВОЙ МАТЕРИАЛ: доска фахверка — брус,
             // кирпич — глина, блок — камень. Элементный остаётся у пластины.
             if (part.mat_override >= 0) {

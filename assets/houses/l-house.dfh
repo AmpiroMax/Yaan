@@ -41,14 +41,14 @@ line e6 v8 v10 style=- radius=0.10 form=square mat=0 tone=2
 line e7 v10 v14 style=- radius=0.10 form=square mat=0 tone=2
 line e8 v14 v12 style=- radius=0.10 form=square mat=0 tone=2
 line e9 v12 v8 style=- radius=0.10 form=square mat=0 tone=2
-surface e10 v15 v16 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1
-surface e11 v16 v17 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1
-surface e12 v17 v18 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1
-surface e13 v18 v19 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1
-surface e14 v20 v15 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1
-surface e15 v19 v20 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 doors=1
+surface e10 v16 v15 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1 shutters=1 plinth=1 wear=0.3
+surface e11 v17 v16 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1 shutters=1 plinth=1 wear=0.3
+surface e12 v18 v17 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1 shutters=1 plinth=1 wear=0.3
+surface e13 v19 v18 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1 shutters=1 plinth=1 wear=0.3
+surface e14 v15 v20 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 windows=1 shutters=1 plinth=1 wear=0.3
+surface e15 v20 v19 style=- height=2.8 thickness=0.25 mat=5 tone=0 clad=1 doors=1 porch=1 plinth=1 wear=0.3
 surface e16 v21 v22 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
 surface e17 v23 v18 style=- height=2.8 thickness=0.15 mat=5 tone=0 doors=1
 surface e18 v24 v25 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
-surface e19 v26 v27 v28 v29 style=- closed=1 thickness=0.15 mat=6 tone=1
-surface e20 v30 v31 v32 v33 style=- closed=1 thickness=0.15 mat=6 tone=1
+surface e19 v26 v27 v28 v29 style=- closed=1 thickness=0.15 mat=1 tone=2 fill=7 wear=0.3
+surface e20 v30 v31 v32 v33 style=- closed=1 thickness=0.15 mat=1 tone=2 fill=7 wear=0.3

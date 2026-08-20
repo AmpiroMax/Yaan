@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 13:08:2026 - 18:35:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -97,6 +97,7 @@ UPD:
                          three props in ninety seconds for that reason alone. A
                          harness that can only exercise one of three verbs
                          reports on one of three verbs.
+- 20:08:2026 - 17:30:00: Радиус прибытия берётся из конфига, когда задан.
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -375,7 +376,7 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
                 return;
             }
             pt.target = pt.config.waypoints[pt.waypoint_index];
-            if (glm::length(pt.target - here) < ARRIVE) {
+            if (glm::length(pt.target - here) < (pt.config.arrive_m > 0.0f ? pt.config.arrive_m : ARRIVE)) {
                 ++pt.waypoint_index;
                 if (pt.waypoint_index >= pt.config.waypoints.size()) {
                     if (pt.config.loop_waypoints) {
@@ -391,7 +392,7 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
             break;
         }
         case BotMode::RandomExplorer: {
-            const bool arrived = pt.has_target && glm::length(pt.target - here) < ARRIVE;
+            const bool arrived = pt.has_target && glm::length(pt.target - here) < (pt.config.arrive_m > 0.0f ? pt.config.arrive_m : ARRIVE);
             const bool give_up = pt.stuck_seconds > STUCK_RETRY_SECONDS * 2.0f;
             if (!pt.has_target || arrived || give_up) {
                 pt.target = random_point(pt.rng, pt.config.world_min, pt.config.world_max);
@@ -412,7 +413,7 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
                 pt.soak_ring_built = true;
             }
             pt.target = pt.config.waypoints[pt.waypoint_index];
-            if (glm::length(pt.target - here) < ARRIVE) {
+            if (glm::length(pt.target - here) < (pt.config.arrive_m > 0.0f ? pt.config.arrive_m : ARRIVE)) {
                 pt.waypoint_index = (pt.waypoint_index + 1) % pt.config.waypoints.size();
                 pt.target = pt.config.waypoints[pt.waypoint_index];
             }

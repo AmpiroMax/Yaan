@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 17:08:2026 - 14:29:43
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/render
 File: engine/render/sources/PartsAtlas.cpp
 
@@ -29,6 +29,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 17:08:2026 - 14:29:43: Создан вместе с PartsAtlas.h.
+- 20:08:2026 - 17:30:00: Рельеф камня/глины усилен художественно (проба свочей: честные мм глаз не читает); ревизия 2.
 */
 
 #include "engine/render/sources/PartsAtlas.h"
@@ -337,15 +338,20 @@ struct Texel {
 /// something true rather than something strong. A hewn scallop is a few
 /// millimetres, a plaster crack a fraction of one, a thatch gap a centimetre.
 [[nodiscard]] float relief_mm(PartSurface s) {
+    // ПРАВКА ПОЛИТИКИ 20.08: у камня и глины числа больше физических.
+    // Честные миллиметры дали своч, чей рельеф глаз не читает (проба:
+    // размах затенения 37/255 — «плоские текстуры», сказал пользователь), а
+    // борозда, которую видно с трёх метров в игре без AO, обязана врать
+    // вдвое-втрое. Дерево оставлено ближе к правде — его читает волокно.
     switch (s) {
-    case PartSurface::HewnTimber: return 4.0f;
-    case PartSurface::SawnBoard: return 2.0f;
-    case PartSurface::EndGrain: return 3.0f;
-    case PartSurface::Stone: return 6.0f;
-    case PartSurface::FiredClay: return 2.5f;
-    case PartSurface::Plaster: return 1.5f;
-    case PartSurface::Thatch: return 12.0f;
-    case PartSurface::Turf: return 8.0f;
+    case PartSurface::HewnTimber: return 7.0f;
+    case PartSurface::SawnBoard: return 3.5f;
+    case PartSurface::EndGrain: return 5.0f;
+    case PartSurface::Stone: return 16.0f;
+    case PartSurface::FiredClay: return 7.0f;
+    case PartSurface::Plaster: return 2.5f;
+    case PartSurface::Thatch: return 14.0f;
+    case PartSurface::Turf: return 9.0f;
     case PartSurface::Pane: default: return 1.0f;
     }
 }

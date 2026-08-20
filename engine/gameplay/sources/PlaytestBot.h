@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 13:08:2026 - 18:35:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -82,6 +82,7 @@ UPD:
                          verb never fires" (see the field note).
 - 13:08:2026 - 18:35:00: glance_seconds — the bot's look-down sweep, without
                          which it can only find props at chest height.
+- 20:08:2026 - 17:30:00: PlaytestConfig.arrive_m — точность прибытия для маршрутов сквозь проёмы.
 */
 
 #pragma once
@@ -123,6 +124,10 @@ struct PlaytestConfig {
     glm::vec2 world_min{0.0f};        // explorer target bounds (world x/z)
     glm::vec2 world_max{0.0f};
     float soak_radius = 20.0f;        // metres around the spawn
+    /// РАДИУС ПРИБЫТИЯ К ТОЧКЕ, метры; 0 = прежний (NPC_ARRIVE_RADIUS*3).
+    /// Заведён 20.08: на маршруте через дверные проёмы штатный радиус ~0.9 м
+    /// переключал цель ДО проёма, и бот срезал в косяк (дубль-1 записи).
+    float arrive_m = 0.0f;
 };
 
 struct PlaytestIncident {

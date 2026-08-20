@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -37,6 +37,7 @@ UPD:
 - 20:08:2026 - 12:10:00: Паркет режется по контуру (Сазерленд–Ходжман) и лежит встык; лестница fill=6 на четырёх точках; форма plank; paint — чужой слой.
 - 20:08:2026 - 12:55:00: element_params_of вынесена из безымянного пространства имён (нужна пикингу).
 - 20:08:2026 - 15:30:00: Дверной проём СКВОЗНОЙ: пролёт с doors>0 собирается из простенков и перемычки той же раскладкой, что у обшивки.
+- 20:08:2026 - 17:30:00: Окна СКВОЗНЫЕ с листом остекления; кровля рядами поперёк уклона (build_roof_courses); износ роняет куски и углубляет дрожь; детали стены: перерубы, ставни+подоконник, крыльцо, завалинка (обходит дверь).
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -263,7 +264,9 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
         {"height", &ElementParams::height},       {"tex_deg", &ElementParams::tex_deg},
         {"clad", &ElementParams::clad},           {"windows", &ElementParams::windows},
         {"fill", &ElementParams::fill},           {"doors", &ElementParams::doors},
-        {"stairs", &ElementParams::stairs},
+        {"stairs", &ElementParams::stairs},   {"wear", &ElementParams::wear},
+        {"logends", &ElementParams::logends}, {"shutters", &ElementParams::shutters},
+        {"porch", &ElementParams::porch},     {"plinth", &ElementParams::plinth},
     };
 
     ElementParams p;
@@ -931,6 +934,83 @@ static void build_parquet(const Element& e, const ElementParams& p,
     mb.set_material(-1, -1);
 }
 
+/// КРОВЛЯ РЯДАМИ (заказ 20.08: «приблизить к скайримским постройкам» — вид
+/// держит крыша). Скат перестаёт быть плоской плитой: поверх настила ложатся
+/// РЯДЫ отдельных дранок (fill=7) или черепиц (fill=8) поперёк уклона, с
+/// перевязкой, нахлёстом ряда на ряд и глубинной дрожью — тем же ходом, что
+/// объём кладки. Износ роняет отдельные куски и углубляет дрожь.
+static void build_roof_courses(const Element& e, const ElementParams& p,
+                               const FittedPlane& plane,
+                               std::span<const glm::vec2> flat, const glm::vec3& ax,
+                               const glm::vec3& ay, MeshBuilder& mb, HouseMesh& mesh) {
+    const bool tile = static_cast<int>(p.fill) == 8;
+    // Числа настоящие, строительные: дранка 0.18x0.45 с выпуском 0.28,
+    // черепица 0.24x0.40 с выпуском 0.30. Толщина — видимая кромка куска.
+    const float piece_w = tile ? 0.24f : 0.18f;
+    const float piece_l = tile ? 0.40f : 0.45f;
+    const float expose = tile ? 0.30f : 0.28f;
+    const float th = tile ? 0.035f : 0.022f;
+
+    // РЯДЫ — ПОПЕРЁК УКЛОНА: вниз по скату смотрит проекция мировой вертикали
+    // на плоскость. Горизонтальному «скату» (навес без уклона) направление
+    // безразлично — берётся ось u контура.
+    const glm::vec3 down3 = glm::vec3{0.0f, -1.0f, 0.0f}
+                          - plane.normal * glm::dot(plane.normal, glm::vec3{0.0f, -1.0f, 0.0f});
+    glm::vec2 down{0.0f, 1.0f};
+    if (glm::dot(down3, down3) > 1e-6f) {
+        down = glm::normalize(glm::vec2{glm::dot(down3, ax), glm::dot(down3, ay)});
+    }
+    const glm::vec2 across{-down.y, down.x};
+
+    // Контур в осях кровли (a вдоль ряда, d вниз по скату).
+    std::vector<glm::vec2> rot;
+    rot.reserve(flat.size());
+    glm::vec2 lo{1e9f};
+    glm::vec2 hi{-1e9f};
+    for (const glm::vec2& f : flat) {
+        const glm::vec2 q{glm::dot(f, across), glm::dot(f, down)};
+        rot.push_back(q);
+        lo = glm::min(lo, q);
+        hi = glm::max(hi, q);
+    }
+    mb.set_material(tile ? 4 : 1, tile ? -1 : -1);
+    int row = 0;
+    // НИЖНИЙ РЯД — ПЕРВЫМ (от карниза вверх), каждый следующий ложится ВЫШЕ
+    // по скату и ПОВЕРХ предыдущего: порядок укладки настоящей кровли.
+    for (float v = hi.y - piece_l; v > lo.y - piece_l; v -= expose, ++row) {
+        float u = lo.x + ((row % 2 == 0) ? 0.0f : -piece_w * 0.5f);
+        for (int col = 0; u < hi.x; u += piece_w, ++col) {
+            if (p.wear > 0.0f
+                && course_jitter(row * 11 + 5, col * 3 + 2) < p.wear * 0.10f) {
+                continue; // сорванная ветром дранка
+            }
+            const std::vector<glm::vec2> piece =
+                clip_contour_to_rect(rot, {u, v}, {u + piece_w, v + piece_l});
+            if (piece.size() < 3
+                || std::abs(polygon_area_2d(piece)) < piece_w * piece_w * 0.2f) {
+                continue;
+            }
+            const std::vector<std::uint32_t> tris = triangulate_contour(piece);
+            if (tris.empty()) {
+                continue;
+            }
+            // Ряд выше лежит поверх нижнего: подъём растёт с рядом, плюс
+            // дрожь куска (износ её углубляет).
+            const float lift = p.thickness * 0.5f + th * 0.6f
+                             + th * (0.5f + 0.5f * p.wear) * course_jitter(row, col);
+            std::vector<glm::vec3> loop;
+            loop.reserve(piece.size());
+            for (const glm::vec2& q : piece) {
+                const glm::vec2 f = across * q.x + down * q.y; // назад в оси контура
+                loop.push_back(plane.origin + ax * f.x + ay * f.y
+                               + plane.normal * lift);
+            }
+            push_prism(mb, loop, tris, plane.normal * th, p.tex_deg, mesh, e.id);
+        }
+    }
+    mb.set_material(-1, -1);
+}
+
 void build_contour_surface(const Element& e, const ElementParams& p,
                            std::span<const glm::vec3> pts, MeshBuilder& mb, HouseMesh& mesh) {
     const FittedPlane plane = fit_contour_plane(pts);
@@ -1004,6 +1084,9 @@ void build_contour_surface(const Element& e, const ElementParams& p,
     push_prism(mb, loop, use, n * (half * 2.0f), p.tex_deg, mesh, e.id);
     if (static_cast<int>(p.fill) == 5) {
         build_parquet(e, p, pts, plane, flat, u, v, mb, mesh);
+    }
+    if (static_cast<int>(p.fill) == 7 || static_cast<int>(p.fill) == 8) {
+        build_roof_courses(e, p, plane, flat, u, v, mb, mesh);
     }
 }
 
@@ -1088,8 +1171,14 @@ static void build_courses(const Element& e, const ElementParams& p, const glm::v
             if (blocked) {
                 continue;
             }
+            // ИЗНОС: у старой кладки дрожь глубже, а отдельные куски ВЫПАЛИ
+            // (по хэшу — две сборки дают один меш; дыры читаются щербинами).
+            if (p.wear > 0.0f && course_jitter(row * 7 + 3, col * 5 + 1) < p.wear * 0.12f) {
+                continue;
+            }
             const glm::vec2 quad[4] = {{u0, v}, {u1, v}, {u1, v1}, {u0, v1}};
-            const float depth = th * (0.7f + 0.3f * course_jitter(row, col));
+            const float depth =
+                th * (0.7f + (0.3f + 0.5f * p.wear) * course_jitter(row, col));
             push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, depth, quad, p.tex_deg);
         }
     }
@@ -1229,23 +1318,32 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
         // столб, стены упираются в его ОСЬ, нахлёст — норма. Подгонка на ус
         // стоила бы пересчёта обеих стен при каждой правке соседа.
         //
-        // ДВЕРНОЙ ПРОЁМ — СКВОЗНОЙ (20.08). До этого прорезь была отложена
-        // «до триангуляции с дырами», но для пролёта-прямоугольника дыра от
-        // пола не требует её вовсе: пластина собирается из простенков и
-        // перемычки — тех же коробов. Раскладка проёмов — ТА ЖЕ, что у
-        // обшивки и кладки (lay_out_wall), иначе рама и дыра разъедутся.
+        // ПРОЁМЫ — СКВОЗНЫЕ (20.08; окна — тем же ходом, что дверь). Прорезь
+        // была отложена «до триангуляции с дырами», но для пролёта-
+        // прямоугольника она не нужна вовсе: пластина собирается из
+        // простенков, перемычек и подоконных коробов. Раскладка проёмов —
+        // ТА ЖЕ, что у обшивки и кладки (lay_out_wall), иначе рама и дыра
+        // разъедутся. Дверь и окна разом раскладка пока не умеет — дверь
+        // берёт верх, обшивка скажет это находкой.
         const float seg_len = std::sqrt(d.x * d.x + d.z * d.z);
         std::vector<OpeningPlacement> holes;
-        if (static_cast<int>(p.doors) > 0) {
+        const bool door_holes = static_cast<int>(p.doors) > 0;
+        const bool win_holes = !door_holes && static_cast<int>(p.windows) > 0;
+        if (door_holes || win_holes) {
             WallStyle style;
-            style.opening = OpeningKind::Door;
-            style.opening_w = HOUSE_DOOR_W_DEFAULT;
-            style.opening_h = HOUSE_DOOR_H_DEFAULT;
-            style.opening_sill = 0.0f;
+            if (door_holes) {
+                style.opening = OpeningKind::Door;
+                style.opening_w = HOUSE_DOOR_W_DEFAULT;
+                style.opening_h = HOUSE_DOOR_H_DEFAULT;
+                style.opening_sill = 0.0f;
+            } else {
+                style.opening = OpeningKind::Window;
+            }
             WallSpec spec;
             spec.length = seg_len;
             spec.height = p.height;
-            spec.openings = static_cast<int>(p.doors);
+            spec.openings =
+                door_holes ? static_cast<int>(p.doors) : static_cast<int>(p.windows);
             // Находки этой раскладки НЕ повторяются: их скажет обшивка тем же
             // вызовом ниже; здесь берётся только геометрия дыр.
             holes = lay_out_wall(spec, style).openings;
@@ -1271,16 +1369,123 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
             };
             float u_at = 0.0f;
             for (const OpeningPlacement& op : holes) {
-                box(u_at, op.u0, 0.0f, p.height);          // простенок слева
-                box(op.u0, op.u1, op.v1, p.height);        // перемычка над дверью
+                box(u_at, op.u0, 0.0f, p.height);   // простенок слева
+                box(op.u0, op.u1, 0.0f, op.v0);     // под подоконником (у двери 0)
+                box(op.u0, op.u1, op.v1, p.height); // перемычка сверху
                 u_at = op.u1;
             }
-            box(u_at, seg_len, 0.0f, p.height);            // простенок справа
+            box(u_at, seg_len, 0.0f, p.height);     // простенок справа
+            // ОСТЕКЛЕНИЕ ОКОННОГО ПРОЁМА: тонкий лист «глухого окна» (Pane)
+            // в срединной плоскости — сквозь него не видно насквозь пустоту,
+            // а тёплая глубина панели читается стеклом и снаружи, и изнутри.
+            if (win_holes) {
+                mb.set_material(8, -1); // Pane
+                for (const OpeningPlacement& op : holes) {
+                    const auto at_mid = [&](float u, float v) {
+                        return a + dir_u * u + glm::vec3{0.0f, v, 0.0f}
+                             - face_n * 0.01f;
+                    };
+                    const glm::vec3 loop[4] = {at_mid(op.u0, op.v0),
+                                               at_mid(op.u1, op.v0),
+                                               at_mid(op.u1, op.v1),
+                                               at_mid(op.u0, op.v1)};
+                    push_prism(mb, loop, quad, face_n * 0.02f, p.tex_deg, mesh,
+                               e.id);
+                }
+                mb.set_material(-1, -1);
+            }
         }
         if (p.clad > 0.5f || p.fill >= 2.0f) {
             const glm::vec3 dir = glm::normalize(glm::vec3{d.x, 0.0f, d.z});
             build_cladding(e, p, a, dir, seg_len, face_n, half, mb, mesh);
             mb.set_material(-1, -1); // следующий пролёт пластины — материал элемента
+        }
+        // ------------------- МЕЛКИЕ ДЕТАЛИ ПРОЛЁТА (20.08) -------------------
+        const glm::vec3 dir_d = glm::vec3{d.x, 0.0f, d.z} / seg_len;
+        // ЗАВАЛИНКА: каменный пояс вдоль низа с лицевой стороны. Дверные
+        // проёмы обходит — порог не место каменному поясу.
+        if (p.plinth > 0.5f) {
+            mb.set_material(3, -1);
+            const auto belt = [&](float u0, float u1) {
+                if (u1 - u0 < 0.05f) {
+                    return;
+                }
+                const glm::vec2 q[4] = {
+                    {u0, 0.0f}, {u1, 0.0f}, {u1, 0.28f}, {u0, 0.28f}};
+                push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.12f, q,
+                               p.tex_deg);
+            };
+            float u_at = -0.05f;
+            if (door_holes) {
+                for (const OpeningPlacement& op : holes) {
+                    belt(u_at, op.u0 - 0.05f);
+                    u_at = op.u1 + 0.05f;
+                }
+            }
+            belt(u_at, seg_len + 0.05f);
+            mb.set_material(-1, -1);
+        }
+        // ПЕРЕРУБЫ: торцы брёвен, торчащие за оба конца пролёта, — сруб
+        // читается углами. Шаг венца 0.30, диаметр 0.22, выпуск 0.26.
+        if (p.logends > 0.5f) {
+            mb.set_material(2, -1); // торец с годовыми кольцами
+            const glm::vec3 up1{0.0f, 1.0f, 0.0f};
+            for (float y = 0.15f; y < p.height - 0.05f; y += 0.30f) {
+                for (const float u_end : {0.0f, seg_len}) {
+                    const glm::vec3 start = a + dir_d * (u_end - 0.26f)
+                                          + glm::vec3{0.0f, y, 0.0f};
+                    const std::vector<glm::vec3> ring =
+                        profile_ring(start, up1, face_n, 0.11f, 8);
+                    std::vector<std::uint32_t> fan;
+                    for (int k = 1; k + 1 < 8; ++k) {
+                        fan.push_back(0);
+                        fan.push_back(static_cast<std::uint32_t>(k));
+                        fan.push_back(static_cast<std::uint32_t>(k + 1));
+                    }
+                    push_prism(mb, ring, fan, dir_d * 0.52f, p.tex_deg, mesh, e.id);
+                }
+            }
+            mb.set_material(-1, -1);
+        }
+        // СТАВНИ И ПОДОКОННИК у окон; КРЫЛЬЦО-СТУПЕНЬ у двери. Обе детали
+        // читают ТУ ЖЕ раскладку, что резала проёмы, — иначе разъедутся.
+        if ((p.shutters > 0.5f && win_holes) || (p.porch > 0.5f && door_holes)) {
+            for (const OpeningPlacement& op : holes) {
+                if (p.shutters > 0.5f && win_holes) {
+                    mb.set_material(1, 2); // тёмная доска
+                    const glm::vec2 left[4] = {{op.u0 - 0.34f, op.v0},
+                                               {op.u0 - 0.04f, op.v0},
+                                               {op.u0 - 0.04f, op.v1},
+                                               {op.u0 - 0.34f, op.v1}};
+                    const glm::vec2 right[4] = {{op.u1 + 0.04f, op.v0},
+                                                {op.u1 + 0.34f, op.v0},
+                                                {op.u1 + 0.34f, op.v1},
+                                                {op.u1 + 0.04f, op.v1}};
+                    const glm::vec2 sill[4] = {{op.u0 - 0.08f, op.v0 - 0.05f},
+                                               {op.u1 + 0.08f, op.v0 - 0.05f},
+                                               {op.u1 + 0.08f, op.v0},
+                                               {op.u0 - 0.08f, op.v0}};
+                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.03f,
+                                   left, p.tex_deg);
+                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.03f,
+                                   right, p.tex_deg);
+                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.09f,
+                                   sill, p.tex_deg);
+                    mb.set_material(-1, -1);
+                }
+                if (p.porch > 0.5f && door_holes) {
+                    mb.set_material(3, -1); // каменная плита
+                    const glm::vec3 p1 = a + dir_d * (op.u0 - 0.2f) + face_n * half;
+                    const glm::vec3 p2 = a + dir_d * (op.u1 + 0.2f) + face_n * half;
+                    const glm::vec3 out = face_n * 0.55f;
+                    const std::vector<glm::vec3> step_loop = {p1, p2, p2 + out,
+                                                              p1 + out};
+                    const std::vector<std::uint32_t> two = {0, 1, 2, 0, 2, 3};
+                    push_prism(mb, step_loop, two, glm::vec3{0.0f, 0.15f, 0.0f},
+                               p.tex_deg, mesh, e.id);
+                    mb.set_material(-1, -1);
+                }
+            }
         }
     }
 }
@@ -1319,6 +1524,11 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "fill") { p.fill = got.fill; }
         else if (kv.first == "doors") { p.doors = got.doors; }
         else if (kv.first == "stairs") { p.stairs = got.stairs; }
+        else if (kv.first == "wear") { p.wear = got.wear; }
+        else if (kv.first == "logends") { p.logends = got.logends; }
+        else if (kv.first == "shutters") { p.shutters = got.shutters; }
+        else if (kv.first == "porch") { p.porch = got.porch; }
+        else if (kv.first == "plinth") { p.plinth = got.plinth; }
     }
     return p;
 }

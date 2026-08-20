@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 17:30:00
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -36,6 +36,7 @@ UPD:
 - 20:08:2026 - 01:47:30: Лестница: верхние грани кратны подъёму, кусков коллизии много (контроль — у наклонного бруса вверх не смотрит ничего); дверной проём: в полосе двери ноль кирпичных вершин, уступка окон сказана.
 - 20:08:2026 - 12:10:00: Паркет: рез по кромке и покрытие без щелей; лестница на четырёх точках; профиль доски 4:1.
 - 20:08:2026 - 15:30:00: Дверной проём сквозной: полоса двери пуста по габаритам тел, контроль — глухая стена занята.
+- 20:08:2026 - 17:30:00: Кровля рядами и износ (контроль: гладкий скат/свежая кладка); детали дают геометрию; окно сквозное с листом Pane.
 */
 
 #include <doctest/doctest.h>
@@ -1254,4 +1255,102 @@ TEST_CASE("дверной проём СКВОЗНОЙ: в полосе двер�
     CHECK(occupied(true) == 0);
     // КОНТРОЛЬ: без двери та же полоса занята пластиной.
     CHECK(occupied(false) > 0);
+}
+
+TEST_CASE("кровля рядами: скат собирается из дранок, а не красится") {
+    const auto count_pieces = [](const char* style) {
+        HouseGraph g;
+        const VertexId a = g.add_vertex(Anchoring::Free, {0.0f, 4.0f, 2.0f});
+        const VertexId b = g.add_vertex(Anchoring::Free, {6.0f, 4.0f, 2.0f});
+        const VertexId c = g.add_vertex(Anchoring::Free, {6.0f, 2.5f, 6.0f});
+        const VertexId d = g.add_vertex(Anchoring::Free, {0.0f, 2.5f, 6.0f});
+        ElementId roof = 0;
+        REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d}, style, roof).ok);
+        REQUIRE(g.set_closed(roof, true).ok);
+        const HouseMesh m = dfn::world::build_house_mesh(g);
+        // Куски одного материала сливаются в один MeshPart — считается
+        // ГЕОМЕТРИЯ (треугольники), а не части.
+        int tris = 0;
+        for (const auto& part : m.parts) {
+            if (part.element == roof && part.mat_override >= 0) {
+                tris += static_cast<int>(part.index_count / 3);
+            }
+        }
+        return tris;
+    };
+    // Скат 6x4.3: дранка 0.18 м с перевязкой — тысячи треугольников кусков.
+    const int shingles = count_pieces("frame;thickness=0.15;fill=7");
+    CHECK(shingles > 2000);
+    // КОНТРОЛЬ: гладкий скат — ноль кусков, одна пластина.
+    CHECK(count_pieces("frame;thickness=0.15") == 0);
+    // Износ РОНЯЕТ куски: старая кровля реже новой.
+    const int worn = count_pieces("frame;thickness=0.15;fill=7;wear=1");
+    CHECK(worn < shingles);
+    CHECK(worn > shingles / 2); // но не лысая
+    MESSAGE("дранок " << shingles << ", изношенных " << worn);
+}
+
+TEST_CASE("износ кладки: куски выпадают, дрожь глубже") {
+    const auto build = [](const char* style) {
+        HouseGraph g;
+        const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+        const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+        ElementId wall = 0;
+        REQUIRE(g.add_element(ElementKind::Surface, {a, b}, style, wall).ok);
+        return dfn::world::build_house_mesh(g);
+    };
+    const HouseMesh fresh = build("frame;height=2.5;thickness=0.2;fill=2");
+    const HouseMesh worn = build("frame;height=2.5;thickness=0.2;fill=2;wear=1");
+    int fresh_bricks = 0;
+    int worn_bricks = 0;
+    for (const auto& part : fresh.parts) {
+        if (part.mat_override == 4) { fresh_bricks += static_cast<int>(part.index_count / 3); }
+    }
+    for (const auto& part : worn.parts) {
+        if (part.mat_override == 4) { worn_bricks += static_cast<int>(part.index_count / 3); }
+    }
+    REQUIRE(fresh_bricks > 1000);
+    CHECK(worn_bricks < fresh_bricks);      // щербины есть
+    CHECK(worn_bricks > fresh_bricks * 3 / 4); // но стена стоит
+    MESSAGE("кирпичей " << fresh_bricks << " -> " << worn_bricks);
+}
+
+TEST_CASE("детали стены: перерубы, ставни, крыльцо, завалинка — геометрия") {
+    // Заказ 20.08 «больше мелких деталей». Каждая деталь обязана ДОБАВИТЬ
+    // треугольники против гладкого контроля — деталь-флаг, который ничего не
+    // строит, был бы молчаливым нулём.
+    const auto tri_count = [](const char* style) {
+        HouseGraph g;
+        const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+        const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+        ElementId wall = 0;
+        REQUIRE(g.add_element(ElementKind::Surface, {a, b}, style, wall).ok);
+        const HouseMesh m = dfn::world::build_house_mesh(g);
+        return static_cast<int>(m.indices.size() / 3);
+    };
+    const int plain = tri_count("frame;height=2.8;thickness=0.25");
+    CHECK(tri_count("frame;height=2.8;thickness=0.25;logends=1") > plain);
+    CHECK(tri_count("frame;height=2.8;thickness=0.25;plinth=1") > plain);
+    const int with_door = tri_count("frame;height=2.8;thickness=0.25;doors=1");
+    CHECK(tri_count("frame;height=2.8;thickness=0.25;doors=1;porch=1") > with_door);
+    const int with_win = tri_count("frame;height=2.8;thickness=0.25;clad=1;windows=1");
+    CHECK(tri_count("frame;height=2.8;thickness=0.25;clad=1;windows=1;shutters=1")
+          > with_win);
+    // Окно теперь СКВОЗНОЕ и несёт остекление: против глухой пластины у
+    // стены с окном меньше сплошной массы, но есть лист Pane (mat 8).
+    HouseGraph g;
+    const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+    ElementId wall = 0;
+    REQUIRE(g.add_element(ElementKind::Surface, {a, b},
+                          "frame;height=2.8;thickness=0.25;clad=1;windows=1", wall)
+                .ok);
+    const HouseMesh m = dfn::world::build_house_mesh(g);
+    bool pane = false;
+    for (const auto& part : m.parts) {
+        if (part.mat_override == 8) {
+            pane = true;
+        }
+    }
+    CHECK(pane);
 }

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 12:55:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -45,10 +45,16 @@ UPD:
 - 20:08:2026 - 01:06:50: Порядок в блоке выбранного: заполнение первым, материал ниже — карточки кладки тонули за прокруткой под сеткой свотчей.
 - 20:08:2026 - 12:10:00: Семь профилей палки; ряд красок в сетке материалов; покрытия контура — три карточки (срез/паркет/марш).
 - 20:08:2026 - 12:55:00: Ползунок пишет в граф по отпусканию, а не каждый кадр.
+- 20:08:2026 - 17:30:00: Износ и детали в панели; покрытия контура — пять карточек (+дранка, черепица); полка стилей .dfstyle; полка готовых построек в панели выбора.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
 #include "engine/world/sources/HouseMesh.h"
+
+#include <filesystem>
+#include <fstream>
+#include <system_error>
+#include <vector>
 #include "engine/editor/sources/EditorUi.h"
 
 #include <imgui.h>
@@ -277,6 +283,94 @@ static void draw_grid_and_coords(HouseSession& session) {
     ImGui::PopID();
 }
 
+// ---------------------------------------------------------------------------
+// ПОЛКА СТИЛЕЙ (.dfstyle, заказ 20.08): снятый с элемента набор отделки —
+// материал, тон, краска, заполнение, окна, износ, детали — файлом в
+// assets/styles. Файл человекочитаем (key=value), diff осмыслен.
+// ---------------------------------------------------------------------------
+
+/// Ключи, которые стиль несёт. ЯВНЫЙ СПИСОК, а не «все параметры»: геометрия
+/// (height, радиусы, лестницы) стилю не принадлежит — стиль это ОТДЕЛКА.
+static const char* STYLE_KEYS[] = {"mat",  "tone",    "paint",   "clad",
+                                   "fill", "windows", "doors",   "wear",
+                                   "logends", "shutters", "porch", "plinth",
+                                   "tex_deg"};
+
+static std::vector<std::string> list_styles() {
+    std::vector<std::string> out;
+    std::error_code ec;
+    for (const auto& it :
+         std::filesystem::directory_iterator("assets/styles", ec)) {
+        if (it.path().extension() == ".dfstyle") {
+            out.push_back(it.path().stem().string());
+        }
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+static void save_style(HouseSession& session, world::ElementId id,
+                       const std::string& name) {
+    std::error_code ec;
+    std::filesystem::create_directories("assets/styles", ec);
+    std::ofstream f("assets/styles/" + name + ".dfstyle",
+                    std::ios::binary | std::ios::trunc);
+    if (!f) {
+        return;
+    }
+    f << "# dfstyle 1 — отделка постройки, снята редактором\n";
+    for (const char* key : STYLE_KEYS) {
+        const std::string v = session.graph().param(id, key);
+        if (!v.empty()) {
+            f << key << " = " << v << "\n";
+        }
+    }
+}
+
+static void apply_style(HouseSession& session, world::ElementId id,
+                        const std::string& name) {
+    std::ifstream f("assets/styles/" + name + ".dfstyle");
+    if (!f) {
+        return;
+    }
+    std::vector<std::pair<std::string, std::string>> kv;
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        const auto eq = line.find('=');
+        if (eq == std::string::npos) {
+            continue;
+        }
+        auto trim = [](std::string t) {
+            const auto b = t.find_first_not_of(" \t");
+            const auto e2 = t.find_last_not_of(" \t\r");
+            return b == std::string::npos ? std::string{} : t.substr(b, e2 - b + 1);
+        };
+        const std::string key = trim(line.substr(0, eq));
+        const std::string val = trim(line.substr(eq + 1));
+        // Ключ вне списка отделки игнорируется: файл мог написать инструмент
+        // побогаче, а геометрию выбранного стиль трогать не вправе.
+        for (const char* known : STYLE_KEYS) {
+            if (key == known) {
+                kv.emplace_back(key, val);
+                break;
+            }
+        }
+    }
+    if (kv.empty()) {
+        return;
+    }
+    (void)session.mutate("применил стиль", [&](world::HouseGraph& g) {
+        world::GraphResult last;
+        for (const auto& [key, val] : kv) {
+            last = g.set_param(id, key, val);
+        }
+        return last;
+    });
+}
+
 /// СВОЙСТВА ВЫБРАННОГО ЭЛЕМЕНТА — ОДИН БЛОК НА ВСЕ ТРИ ИНСТРУМЕНТА.
 ///
 /// Заказ 18.08: «не могу выбрать стену или прямую, чтобы поменять её
@@ -405,11 +499,13 @@ static void draw_selected_element(HouseSession& session) {
             // ПОКРЫТИЯ КОНТУРА: срез, паркет, лестничный марш (fill 0/5/6).
             // Марш живёт здесь, а не в формах палки: «лестница же на 4 точках
             // держится» (правка 20.08).
-            static constexpr int FLOOR_FILL[3] = {0, 5, 6};
-            static const char* FLOOR_KEY[3] = {"house.floor.plain",
+            static constexpr int FLOOR_FILL[5] = {0, 5, 6, 7, 8};
+            static const char* FLOOR_KEY[5] = {"house.floor.plain",
                                                "house.floor.parquet",
-                                               "house.floor.stairs"};
-            for (int v = 0; v < 3; ++v) {
+                                               "house.floor.stairs",
+                                               "house.floor.shingle",
+                                               "house.floor.tile"};
+            for (int v = 0; v < 5; ++v) {
                 if (v != 0) {
                     ImGui::SameLine();
                 }
@@ -468,7 +564,68 @@ static void draw_selected_element(HouseSession& session) {
                 }
             }
         }
+        // ИЗНОС И ДЕТАЛИ (заказ 20.08: «износ, старение, больше мелких
+        // деталей»). Износ 0..1 — глубже дрожь кладки, щербины, мох по низу,
+        // сильный уводит тон в выветренный ряд. Детали — кнопки-переключатели.
+        number("wear", "house.wear", 0.0f, 1.0f, 0.0f);
+        if (!e->closed) {
+            ImGui::TextDisabled("%s", EditorUi::tr("house.det"));
+            const auto toggle = [&](const char* key, const char* caption,
+                                    bool first) {
+                if (!first) {
+                    ImGui::SameLine();
+                }
+                const bool on = session.graph().param(id, key) == "1";
+                if (on) {
+                    ImGui::PushStyleColor(ImGuiCol_Button,
+                                          ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+                }
+                if (ImGui::Button(EditorUi::tr(caption))) {
+                    (void)session.mutate("деталь стены", [&](world::HouseGraph& g) {
+                        return g.set_param(id, key, on ? "0" : "1");
+                    });
+                }
+                if (on) {
+                    ImGui::PopStyleColor();
+                }
+            };
+            toggle("logends", "house.det.logends", true);
+            toggle("shutters", "house.det.shutters", false);
+            toggle("porch", "house.det.porch", false);
+            toggle("plinth", "house.det.plinth", false);
+        }
         material_block();
+        // ПОЛКА СТИЛЕЙ: снять отделку с выбранного / примерить сохранённую.
+        {
+            ImGui::PushID("house.styles");
+            static char style_name[48] = "мой-стиль";
+            static std::vector<std::string> shelf = list_styles();
+            static int pick = 0;
+            ImGui::SetNextItemWidth(140.0f);
+            ImGui::InputText("##stylename", style_name, sizeof(style_name));
+            ImGui::SameLine();
+            if (ImGui::Button(EditorUi::tr("house.style.save"))) {
+                save_style(session, id, style_name);
+                shelf = list_styles();
+            }
+            if (!shelf.empty()) {
+                pick = std::clamp(pick, 0, static_cast<int>(shelf.size()) - 1);
+                ImGui::SetNextItemWidth(140.0f);
+                if (ImGui::BeginCombo("##styles", shelf[static_cast<std::size_t>(pick)].c_str())) {
+                    for (int i = 0; i < static_cast<int>(shelf.size()); ++i) {
+                        if (ImGui::Selectable(shelf[static_cast<std::size_t>(i)].c_str(), i == pick)) {
+                            pick = i;
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(EditorUi::tr("house.style.apply"))) {
+                    apply_style(session, id, shelf[static_cast<std::size_t>(pick)]);
+                }
+            }
+            ImGui::PopID();
+        }
         // ДВЕРЬ — СВОЙСТВО СТЕНЫ, а не отдельная деталь (заказ 19.08: «ставлю
         // стену и меняю ей свойство на дверь... и так я убираю необходимость
         // делать стены специально с дверьми»). Петля — пара соседних якорей
@@ -523,6 +680,46 @@ void draw_house_selection_panel(HouseSession& session, const ToolWorld* world) {
     draw_grid_and_coords(session);
     ImGui::Separator();
     draw_selected_element(session);
+    // ПОЛКА ГОТОВЫХ ПОСТРОЕК (заказ 20.08: «зарегистрировать, чтобы можно
+    // было их как готовые постройки ставить»). Дом встаёт ПОД ПРИЦЕЛ, к узлу
+    // сетки, если она включена; запись — в секцию [house] сцены, убрать можно
+    // последнюю (отмена сцены — не история графа, и панель этого не скрывает).
+    if (world != nullptr && world->house_assets && world->place_house_at_aim) {
+        ImGui::SeparatorText(EditorUi::tr("house.shelf"));
+        ImGui::PushID("house.shelf");
+        static std::vector<std::string> shelf;
+        static int pick = 0;
+        static float yaw_deg = 0.0f;
+        if (shelf.empty() || ImGui::Button(EditorUi::tr("house.shelf.refresh"))) {
+            shelf = world->house_assets();
+        }
+        if (shelf.empty()) {
+            ImGui::TextDisabled("%s", EditorUi::tr("house.shelf.empty"));
+        } else {
+            pick = std::clamp(pick, 0, static_cast<int>(shelf.size()) - 1);
+            ImGui::SetNextItemWidth(180.0f);
+            if (ImGui::BeginCombo("##shelf", shelf[static_cast<std::size_t>(pick)].c_str())) {
+                for (int i = 0; i < static_cast<int>(shelf.size()); ++i) {
+                    if (ImGui::Selectable(shelf[static_cast<std::size_t>(i)].c_str(), i == pick)) {
+                        pick = i;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SliderFloat(EditorUi::tr("house.shelf.yaw"), &yaw_deg, 0.0f,
+                               270.0f, "%.0f°");
+            if (ImGui::Button(EditorUi::tr("house.shelf.place"))) {
+                world->place_house_at_aim(shelf[static_cast<std::size_t>(pick)], yaw_deg);
+            }
+            if (world->remove_last_house) {
+                ImGui::SameLine();
+                if (ImGui::Button(EditorUi::tr("house.shelf.remove"))) {
+                    world->remove_last_house();
+                }
+            }
+        }
+        ImGui::PopID();
+    }
 }
 
 void HouseVertexTool::draw_settings() {

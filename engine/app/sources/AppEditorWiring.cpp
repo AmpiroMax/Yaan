@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 02:02:30
-Last updated: 20:08:2026 - 02:02:30
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/app
 File: engine/app/sources/AppEditorWiring.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 20:08:2026 - 02:02:30: Создан разрезом А третьего аудита: wire_editor_panels() (305 строк)
   уехала из App.cpp БЕЗ ЕДИНОГО ИЗМЕНЕНИЯ ТЕЛА. Правка вместе с переносом — это
   две правки в одном доказательстве.
+- 20:08:2026 - 17:30:00: Крючки полки готовых построек: список .dfh, постановка под прицел, снятие последней.
 */
 
 #include "engine/app/sources/App.h"
@@ -224,6 +225,47 @@ void App::wire_editor_panels() {
     };
     tw.plant_dab = [this](const PlantBrush& brush, glm::vec2 centre) {
         return plant_dab_here(brush, centre);
+    };
+    // ПОЛКА ГОТОВЫХ ПОСТРОЕК (20.08): список из assets/houses, постановка
+    // под прицел с прилипанием к сетке постройки, снятие последней. Запись —
+    // в секцию [house] сцены; дом поднимается тем же load_scene_houses, что
+    // и на входе в мир, — второй дороги нет.
+    tw.house_assets = [this]() {
+        std::vector<std::string> out;
+        std::error_code ec;
+        for (const auto& it :
+             std::filesystem::directory_iterator("assets/houses", ec)) {
+            if (it.path().extension() == ".dfh") {
+                out.push_back(it.path().stem().string());
+            }
+        }
+        std::sort(out.begin(), out.end());
+        return out;
+    };
+    tw.place_house_at_aim = [this](const std::string& name, float yaw_deg) {
+        const ToolAim aim = aim_this_frame();
+        glm::vec3 pos = aim.point;
+        if (house_.grid_on()) {
+            pos = house_.snap_to_grid(pos);
+        }
+        world::ScenePlacedHouse H;
+        H.file = "assets/houses/" + name + ".dfh";
+        H.position = pos;
+        H.yaw = yaw_deg * 0.017453292f;
+        scene_doc_.houses.push_back(H);
+        load_scene_houses();
+        std::fprintf(stderr, "[постройка] полка: %s -> (%.1f %.1f %.1f) yaw %.0f°\n",
+                     name.c_str(), static_cast<double>(pos.x),
+                     static_cast<double>(pos.y), static_cast<double>(pos.z),
+                     static_cast<double>(yaw_deg));
+    };
+    tw.remove_last_house = [this]() {
+        if (scene_doc_.houses.empty()) {
+            std::fprintf(stderr, "[постройка] полка: убирать нечего\n");
+            return;
+        }
+        scene_doc_.houses.pop_back();
+        load_scene_houses();
     };
     tw.material_swatch = [this](int surface, int tone, int px) {
         return house_material_swatch(surface, tone, px);

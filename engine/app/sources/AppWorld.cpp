@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -27,6 +27,7 @@ UPD:
   поверхность, вешало ВТОРУЮ подписку на ChunkLoaded и заводило ВТОРОГО игрока.
   Список сноса один на два вызова: shutdown() зовёт эту же функцию.
 - 20:08:2026 - 15:30:00: enter_world зовёт load_scene_houses; unload_world чистит placed_houses_.
+- 20:08:2026 - 17:30:00: Дверь DFN_PLAYTEST_ARRIVE=<м>.
 */
 
 #include "engine/app/sources/App.h"
@@ -1452,6 +1453,16 @@ bool App::enter_world(uint32_t stand) {
                          ptc.waypoints.size(),
                          static_cast<double>(ptc.waypoints.front().x),
                          static_cast<double>(ptc.waypoints.front().y));
+        }
+        // Точность прибытия (DFN_PLAYTEST_ARRIVE=<м>): маршруты через дверные
+        // проёмы требуют дойти ДО оси проёма, а не «почти дойти».
+        if (const char* am = door_value("DFN_PLAYTEST_ARRIVE"); am != nullptr && *am != '\0') {
+            ptc.arrive_m = std::strtof(am, nullptr);
+            if (ptc.arrive_m <= 0.0f) {
+                std::fprintf(stderr, "[playtest] DFN_PLAYTEST_ARRIVE=\"%s\" is not a "
+                                     "positive distance -- REFUSING to run\n", am);
+                return false;
+            }
         }
         const glm::vec4 wbz = chunks_.world_bounds_xz();
         ptc.world_min = {wbz.x + 16.0f, wbz.y + 16.0f};

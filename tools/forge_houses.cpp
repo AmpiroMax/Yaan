@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 20:08:2026 - 13:40:00
+Last updated: 20:08:2026 - 17:30:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -34,11 +34,13 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 20:08:2026 - 13:40:00: Создана: три повтора демки, Г-образный, П-образный с двумя маршами.
+- 20:08:2026 - 17:30:00: Конёк-бревно и стропила у двускатов; кровля рядами; детали и износ на всех пяти домах; лица стен наружу (крыльцо строилось в комнате).
 */
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <initializer_list>
@@ -152,30 +154,32 @@ struct Forge {
     }
 
     /// Двускат над прямоугольником: конёк вдоль X посередине глубины.
-    /// Два наклонных контура + два фронтона-треугольника. 4 свеса по 0.3.
+    /// Два наклонных контура + фронтоны + КОНЁК-БРЕВНО и торчащие КОНЦЫ
+    /// СТРОПИЛ (правка 20.08 «к скайримскому виду»: крыша собрана, а не
+    /// накрыта). roof_fill: "" — гладкий настил (солома), "7" — дранка
+    /// рядами, "8" — черепица рядами; wear наследуется скатами.
     void gable_roof(float x0, float z0, float x1, float z1, float eaves,
-                    float ridge_h, const char* mat, const char* tone) {
+                    float ridge_h, const char* mat, const char* tone,
+                    const char* roof_fill = "", const char* wear = "") {
         const float zm = (z0 + z1) * 0.5f;
-        const float o = 0.3f; // свес
+        const float o = 0.35f; // свес
         const float yr = eaves + ridge_h;
-        // Северный скат (от конька к z0), лицо вверх.
-        {
-            const VertexId a = v(x0 - o, yr, zm);
-            const VertexId b = v(x1 + o, yr, zm);
-            const VertexId c = v(x1 + o, eaves - 0.1f, z0 - o);
-            const VertexId d = v(x0 - o, eaves - 0.1f, z0 - o);
-            (void)contour({a, b, c, d},
-                          {{"thickness", "0.15"}, {"mat", mat}, {"tone", tone}});
-        }
-        // Южный скат.
-        {
-            const VertexId a = v(x1 + o, yr, zm);
-            const VertexId b = v(x0 - o, yr, zm);
-            const VertexId c = v(x0 - o, eaves - 0.1f, z1 + o);
-            const VertexId d = v(x1 + o, eaves - 0.1f, z1 + o);
-            (void)contour({a, b, c, d},
-                          {{"thickness", "0.15"}, {"mat", mat}, {"tone", tone}});
-        }
+        const auto slab = [&](VertexId a, VertexId b, VertexId c, VertexId d) {
+            const ElementId id = contour(
+                {a, b, c, d},
+                {{"thickness", "0.15"}, {"mat", mat}, {"tone", tone}});
+            if (roof_fill[0] != 0) {
+                (void)g.set_param(id, "fill", roof_fill);
+            }
+            if (wear[0] != 0) {
+                (void)g.set_param(id, "wear", wear);
+            }
+        };
+        // Северный скат (от конька к z0), лицо вверх; южный — зеркально.
+        slab(v(x0 - o, yr, zm), v(x1 + o, yr, zm),
+             v(x1 + o, eaves - 0.1f, z0 - o), v(x0 - o, eaves - 0.1f, z0 - o));
+        slab(v(x1 + o, yr, zm), v(x0 - o, yr, zm),
+             v(x0 - o, eaves - 0.1f, z1 + o), v(x1 + o, eaves - 0.1f, z1 + o));
         // Фронтоны — треугольники в плоскостях x0 и x1.
         for (const float gx : {x0, x1}) {
             const VertexId a = v(gx, eaves, z0);
@@ -183,6 +187,22 @@ struct Forge {
             const VertexId c = v(gx, yr, zm);
             (void)contour({a, b, c},
                           {{"thickness", "0.12"}, {"mat", "0"}, {"tone", "1"}});
+        }
+        // КОНЁК-БРЕВНО: выпуск за фронтоны по 0.4 с обеих сторон.
+        (void)beam(v(x0 - 0.4f, yr + 0.02f, zm), v(x1 + 0.4f, yr + 0.02f, zm),
+                   {{"radius", "0.14"}, {"mat", "0"}, {"tone", "2"}});
+        // СТРОПИЛА: пары от конька к карнизам с шагом ~1.5 м, концы торчат
+        // за свес на 0.25 — те самые «торцы», которые читаются с земли.
+        const int bays = std::max(1, static_cast<int>((x1 - x0) / 1.5f));
+        for (int k = 0; k <= bays; ++k) {
+            const float x = x0 + (x1 - x0) * static_cast<float>(k)
+                          / static_cast<float>(bays);
+            for (const float gz : {z0, z1}) {
+                const float dzs = gz < zm ? -0.25f : 0.25f;
+                (void)beam(v(x, yr - 0.06f, zm),
+                           v(x, eaves - 0.28f, gz + dzs + (gz < zm ? -o : o)),
+                           {{"radius", "0.08"}, {"mat", "0"}, {"tone", "2"}});
+            }
         }
     }
 
@@ -238,15 +258,16 @@ void forge_log() {
     const VertexId se = f.v(W, 0.0f, D);
     const VertexId sw = f.v(0.0f, 0.0f, D);
     Params logwall = {{"height", "3.25"}, {"thickness", "0.25"}, {"mat", "0"},
-                      {"tone", "1"}};
-    (void)f.wall(nw, ne, logwall);
-    (void)f.wall(ne, se, logwall);
-    (void)f.wall(sw, nw, logwall);
-    (void)f.wall(se, sw,
+                      {"tone", "1"}, {"logends", "1"}, {"wear", "0.35"}};
+    (void)f.wall(ne, nw, logwall); // север, лицо на север
+    (void)f.wall(se, ne, logwall); // восток, лицо на восток
+    (void)f.wall(nw, sw, logwall); // запад, лицо на запад
+    (void)f.wall(sw, se,
                  {{"height", "3.25"}, {"thickness", "0.25"}, {"mat", "0"},
-                  {"tone", "1"}, {"doors", "1"}});
+                  {"tone", "1"}, {"doors", "1"}, {"logends", "1"},
+                  {"porch", "1"}, {"wear", "0.35"}});
     f.door_leaf(W * 0.5f, 0.0f, D);
-    f.gable_roof(0.0f, 0.0f, W, D, H, 1.4f, "6", "1"); // солома
+    f.gable_roof(0.0f, 0.0f, W, D, H, 1.4f, "6", "1", "", "0.35"); // солома
     f.save("assets/houses/log-replica.dfh");
 }
 
@@ -265,15 +286,18 @@ void forge_frame() {
     const VertexId se = f.v(W, 0.0f, D);
     const VertexId sw = f.v(0.0f, 0.0f, D);
     Params clad = {{"height", "3.25"}, {"thickness", "0.25"}, {"mat", "5"},
-                   {"tone", "0"}, {"clad", "1"}, {"windows", "1"}};
-    (void)f.wall(nw, ne,
+                   {"tone", "0"}, {"clad", "1"}, {"windows", "1"},
+                   {"shutters", "1"}, {"plinth", "1"}, {"wear", "0.25"}};
+    (void)f.wall(ne, nw,
                  {{"height", "3.25"}, {"thickness", "0.25"}, {"mat", "5"},
-                  {"tone", "0"}, {"clad", "1"}, {"windows", "2"}});
-    (void)f.wall(ne, se, clad);
-    (void)f.wall(sw, nw, clad);
-    (void)f.wall(se, sw,
+                  {"tone", "0"}, {"clad", "1"}, {"windows", "2"},
+                  {"shutters", "1"}, {"plinth", "1"}, {"wear", "0.25"}});
+    (void)f.wall(se, ne, clad);
+    (void)f.wall(nw, sw, clad);
+    (void)f.wall(sw, se,
                  {{"height", "3.25"}, {"thickness", "0.25"}, {"mat", "5"},
-                  {"tone", "0"}, {"clad", "1"}, {"doors", "1"}});
+                  {"tone", "0"}, {"clad", "1"}, {"doors", "1"}, {"porch", "1"},
+                  {"plinth", "1"}, {"wear", "0.25"}});
     f.door_leaf(W * 0.5f, 0.0f, D);
     // АНТРЕСОЛЬ над западной половиной + крутой марш вдоль северной стены,
     // как у демки (b0ce19e: этаж за собственную длину). Этаж 3.25 не кратен
@@ -297,7 +321,7 @@ void forge_frame() {
                         {{"thickness", "0.1"}, {"fill", "6"}, {"mat", "1"},
                          {"tone", "1"}});
     }
-    f.gable_roof(0.0f, 0.0f, W, D, H, 1.6f, "1", "2"); // дранка тёмной доской
+    f.gable_roof(0.0f, 0.0f, W, D, H, 1.6f, "1", "2", "7", "0.25"); // дранка рядами
     f.save("assets/houses/frame-replica.dfh");
 }
 
@@ -317,13 +341,15 @@ void forge_stone() {
     const VertexId sw = f.v(0.0f, 0.0f, D);
     // НИЗ — каменные блоки (fill=3), окна ставит кладка.
     Params stone = {{"height", "3.25"}, {"thickness", "0.3"}, {"mat", "3"},
-                    {"tone", "1"}, {"fill", "3"}, {"windows", "1"}};
-    (void)f.wall(nw, ne, stone);
-    (void)f.wall(ne, se, stone);
-    (void)f.wall(sw, nw, stone);
-    (void)f.wall(se, sw,
+                    {"tone", "1"}, {"fill", "3"}, {"windows", "1"},
+                    {"wear", "0.5"}, {"plinth", "1"}};
+    (void)f.wall(ne, nw, stone);
+    (void)f.wall(se, ne, stone);
+    (void)f.wall(nw, sw, stone);
+    (void)f.wall(sw, se,
                  {{"height", "3.25"}, {"thickness", "0.3"}, {"mat", "3"},
-                  {"tone", "1"}, {"fill", "3"}, {"doors", "1"}});
+                  {"tone", "1"}, {"fill", "3"}, {"doors", "1"}, {"wear", "0.5"},
+                  {"porch", "1"}});
     f.door_leaf(W * 0.5f, 0.0f, D);
     // ВЕРХ — фахверк по штукатурке, окна чаще.
     const VertexId nw2 = f.v(0.0f, H, 0.0f);
@@ -331,11 +357,12 @@ void forge_stone() {
     const VertexId se2 = f.v(W, H, D);
     const VertexId sw2 = f.v(0.0f, H, D);
     Params upper = {{"height", "3.25"}, {"thickness", "0.25"}, {"mat", "5"},
-                    {"tone", "0"}, {"clad", "1"}, {"windows", "2"}};
-    (void)f.wall(nw2, ne2, upper);
-    (void)f.wall(ne2, se2, upper);
-    (void)f.wall(sw2, nw2, upper);
-    (void)f.wall(se2, sw2, upper);
+                    {"tone", "0"}, {"clad", "1"}, {"windows", "2"},
+                    {"shutters", "1"}, {"wear", "0.3"}};
+    (void)f.wall(ne2, nw2, upper);
+    (void)f.wall(se2, ne2, upper);
+    (void)f.wall(nw2, sw2, upper);
+    (void)f.wall(sw2, se2, upper);
     // ЭТАЖНЫЙ ПОЛ с проёмом над маршем: настил из двух кусков (запад 0..6.8
     // без полосы марша, восток за верхом марша).
     {
@@ -364,7 +391,7 @@ void forge_stone() {
                         {{"thickness", "0.1"}, {"fill", "6"}, {"mat", "1"},
                          {"tone", "1"}});
     }
-    f.gable_roof(0.0f, 0.0f, W, D, 2.0f * H, 1.6f, "4", "1"); // черепица
+    f.gable_roof(0.0f, 0.0f, W, D, 2.0f * H, 1.6f, "4", "1", "8", "0.4"); // черепица рядами
     f.save("assets/houses/stone-replica.dfh");
 }
 
@@ -396,15 +423,17 @@ void forge_l_house() {
     const VertexId c_s = f.v(4.0f, 0.0f, 8.0f);
     const VertexId sw_s = f.v(0.0f, 0.0f, 8.0f);
     Params clad = {{"height", "2.8"}, {"thickness", "0.25"}, {"mat", "5"},
-                   {"tone", "0"}, {"clad", "1"}, {"windows", "1"}};
-    (void)f.wall(nw, ne, clad);           // север
-    (void)f.wall(ne, e_out, clad);        // восточный торец бара
-    (void)f.wall(e_out, inner, clad);     // южная стена бара (фасад в угол Г)
-    (void)f.wall(inner, c_s, clad);       // восточная стена крыла
-    (void)f.wall(sw_s, nw, clad);         // западная стена крыла
-    (void)f.wall(c_s, sw_s,
+                   {"tone", "0"}, {"clad", "1"}, {"windows", "1"},
+                   {"shutters", "1"}, {"plinth", "1"}, {"wear", "0.3"}};
+    (void)f.wall(ne, nw, clad);           // север, лицо на север
+    (void)f.wall(e_out, ne, clad);        // восточный торец бара, лицо на восток
+    (void)f.wall(inner, e_out, clad);     // южная стена бара, лицо в угол Г
+    (void)f.wall(c_s, inner, clad);       // восточная стена крыла, лицо на восток
+    (void)f.wall(nw, sw_s, clad);         // западная стена крыла, лицо на запад
+    (void)f.wall(sw_s, c_s,
                  {{"height", "2.8"}, {"thickness", "0.25"}, {"mat", "5"},
-                  {"tone", "0"}, {"clad", "1"}, {"doors", "1"}});
+                  {"tone", "0"}, {"clad", "1"}, {"doors", "1"}, {"porch", "1"},
+                  {"plinth", "1"}, {"wear", "0.3"}});
     f.door_leaf(2.0f, 0.0f, 8.0f);
     // МЕЖКОМНАТНАЯ стена с рабочей дверью: z=4, x 0..4 (крыло от бара).
     {
@@ -421,16 +450,26 @@ void forge_l_house() {
         const VertexId b = f.v(4.3f, H + 1.1f, -0.3f);
         const VertexId c = f.v(4.3f, H - 0.1f, 8.3f);
         const VertexId d = f.v(-0.3f, H - 0.1f, 8.3f);
-        (void)f.contour({a, b, c, d},
-                        {{"thickness", "0.15"}, {"mat", "6"}, {"tone", "1"}});
+        {
+            const ElementId r1 = f.contour(
+                {a, b, c, d},
+                {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "2"}});
+            (void)f.g.set_param(r1, "fill", "7");
+            (void)f.g.set_param(r1, "wear", "0.3");
+        }
     }
     {
         const VertexId a = f.v(3.7f, H + 1.1f, -0.3f);
         const VertexId b = f.v(3.7f, H + 1.1f, 4.3f);
         const VertexId c = f.v(8.3f, H - 0.1f, 4.3f);
         const VertexId d = f.v(8.3f, H - 0.1f, -0.3f);
-        (void)f.contour({a, b, c, d},
-                        {{"thickness", "0.15"}, {"mat", "6"}, {"tone", "1"}});
+        {
+            const ElementId r2 = f.contour(
+                {a, b, c, d},
+                {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "2"}});
+            (void)f.g.set_param(r2, "fill", "7");
+            (void)f.g.set_param(r2, "wear", "0.3");
+        }
     }
     f.save("assets/houses/l-house.dfh");
 }
@@ -467,11 +506,13 @@ void forge_u_house() {
         if (low_door) {
             (void)f.wall(a0, b0,
                          {{"height", "2.8"}, {"thickness", "0.3"}, {"mat", "3"},
-                          {"tone", "1"}, {"fill", "3"}, {"doors", "1"}});
+                          {"tone", "1"}, {"fill", "3"}, {"doors", "1"},
+                          {"porch", "1"}, {"wear", "0.4"}});
         } else {
             (void)f.wall(a0, b0,
                          {{"height", "2.8"}, {"thickness", "0.3"}, {"mat", "3"},
-                          {"tone", "1"}, {"fill", "3"}, {"windows", "1"}});
+                          {"tone", "1"}, {"fill", "3"}, {"windows", "1"},
+                          {"plinth", "1"}, {"wear", "0.4"}});
         }
         const VertexId a1 = f.v(ax, H, az);
         const VertexId b1 = f.v(bx, H, bz);
@@ -479,20 +520,23 @@ void forge_u_house() {
                      up_windows
                          ? Params{{"height", "2.8"}, {"thickness", "0.25"},
                                   {"mat", "5"}, {"tone", "0"}, {"clad", "1"},
-                                  {"windows", "2"}}
+                                  {"windows", "2"}, {"shutters", "1"},
+                                  {"wear", "0.3"}}
                          : Params{{"height", "2.8"}, {"thickness", "0.25"},
-                                  {"mat", "5"}, {"tone", "0"}, {"clad", "1"}});
+                                  {"mat", "5"}, {"tone", "0"}, {"clad", "1"},
+                                  {"wear", "0.3"}});
     };
-    two_storey_run(0.0f, 0.0f, 14.0f, 0.0f, false, true);   // север
-    two_storey_run(0.0f, 0.0f, 0.0f, 10.0f, false, true);   // запад
-    two_storey_run(14.0f, 0.0f, 14.0f, 10.0f, false, true); // восток
+    two_storey_run(14.0f, 0.0f, 0.0f, 0.0f, false, true);   // север, лицо на север
+    two_storey_run(0.0f, 0.0f, 0.0f, 10.0f, false, true);   // запад, лицо на запад
+    two_storey_run(14.0f, 10.0f, 14.0f, 0.0f, false, true); // восток, лицо на восток
     // Южные торцы крыльев: западный — ГЛАВНЫЙ ВХОД, восточный — второй выход.
     two_storey_run(0.0f, 10.0f, 4.0f, 10.0f, true, false);
     f.door_leaf(2.0f, 0.0f, 10.0f);
     two_storey_run(10.0f, 10.0f, 14.0f, 10.0f, true, false);
     f.door_leaf(12.0f, 0.0f, 10.0f);
-    // Дворовые фасады крыльев (x=4 и x=10, z 4..10) — окна на двор.
-    two_storey_run(4.0f, 4.0f, 4.0f, 10.0f, false, true);
+    // Дворовые фасады крыльев (x=4 и x=10, z 4..10) — окна на двор,
+    // лицо В ДВОР (запад крыла смотрит +X, восток -X).
+    two_storey_run(4.0f, 10.0f, 4.0f, 4.0f, false, true);
     two_storey_run(10.0f, 4.0f, 10.0f, 10.0f, false, true);
     // Южная стена бара (фасад во двор): ДВЕРЬ ВО ДВОР на первом этаже.
     two_storey_run(4.0f, 4.0f, 10.0f, 4.0f, true, true);
@@ -555,7 +599,7 @@ void forge_u_house() {
         const VertexId c = f.v(4.3f, H2 - 0.1f, 10.3f);
         const VertexId d = f.v(-0.3f, H2 - 0.1f, 10.3f);
         (void)f.contour({a, b, c, d},
-                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}});
+                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}, {"fill", "8"}, {"wear", "0.4"}});
     }
     {
         const VertexId a = f.v(9.7f, H2 + 1.0f, 3.7f);
@@ -563,7 +607,7 @@ void forge_u_house() {
         const VertexId c = f.v(14.3f, H2 - 0.1f, 10.3f);
         const VertexId d = f.v(9.7f, H2 - 0.1f, 10.3f);
         (void)f.contour({a, b, c, d},
-                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}});
+                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}, {"fill", "8"}, {"wear", "0.4"}});
     }
     {
         const VertexId a = f.v(-0.3f, H2 + 1.0f, 2.0f);
@@ -571,7 +615,7 @@ void forge_u_house() {
         const VertexId c = f.v(14.3f, H2 - 0.1f, -0.3f);
         const VertexId d = f.v(-0.3f, H2 - 0.1f, -0.3f);
         (void)f.contour({a, b, c, d},
-                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}});
+                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}, {"fill", "8"}, {"wear", "0.4"}});
     }
     {
         const VertexId a = f.v(14.3f, H2 + 1.0f, 2.0f);
@@ -579,7 +623,7 @@ void forge_u_house() {
         const VertexId c = f.v(-0.3f, H2 - 0.1f, 4.3f);
         const VertexId d = f.v(14.3f, H2 - 0.1f, 4.3f);
         (void)f.contour({a, b, c, d},
-                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}});
+                        {{"thickness", "0.15"}, {"mat", tile}, {"tone", "1"}, {"fill", "8"}, {"wear", "0.4"}});
     }
     f.save("assets/houses/u-house.dfh");
 }

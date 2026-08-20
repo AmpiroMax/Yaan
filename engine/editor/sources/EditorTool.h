@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 11:52:10
-Last updated: 20:08:2026 - 00:02:30
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/editor
 File: engine/editor/sources/EditorTool.h
 
@@ -84,6 +84,7 @@ UPD:
 - 18:08:2026 - 23:20:00: stroke_needs_reach — дальность судит начало работы, а не каждый шаг уже взятого.
 - 19:08:2026 - 00:12:30: ToolPreview::ghost_pairs и ghost_color — призрак рисуется своей стопкой и своим цветом.
 - 20:08:2026 - 00:02:30: Крючки картинок в ToolWorld: material_swatch и wall_example — «хочу не слова, а картинки».
+- 20:08:2026 - 17:30:00: ToolWorld: house_assets / place_house_at_aim / remove_last_house.
 */
 
 #pragma once
@@ -289,6 +290,17 @@ struct ToolWorld {
     /// бить (прицел за подгруженным кольцом), выглядит ровно как кисть,
     /// наведённая не туда, и эти два числа различают их с одного взгляда.
     std::function<void(int& samples, float& worst_m)> last_dab;
+
+    // -- ready-made buildings (20.08) ----------------------------------------
+    /// Библиотека готовых построек: имена .dfh из assets/houses (без пути и
+    /// расширения). Пустой список законен — библиотека может быть пуста.
+    std::function<std::vector<std::string>()> house_assets;
+    /// Поставить постройку ПОД ПРИЦЕЛ: файл из библиотеки, поворот в градусах.
+    /// Пишет секцию [house] сцены и тут же поднимает дом (меш + коллайдер).
+    std::function<void(const std::string& name, float yaw_deg)> place_house_at_aim;
+    /// Убрать ПОСЛЕДНЮЮ поставленную постройку (отмена не через историю
+    /// графа: сцена — другой документ; сказано в панели).
+    std::function<void()> remove_last_house;
 
     // -- paths ----------------------------------------------------------------
     /// Тропы, которые уже проведены. Указатель, а не копия: инструмент читает

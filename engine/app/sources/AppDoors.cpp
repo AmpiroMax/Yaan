@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 17:30:00
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -19,6 +19,7 @@ UPD:
 - 18:08:2026 - 21:12:40: Строка DFN_HOUSE_DEMO.
 - 19:08:2026 - 00:12:30: Строка DFN_HOUSE_GRID.
 - 20:08:2026 - 15:30:00: Дверь DFN_RECORD_EVERY — лента прохода.
+- 20:08:2026 - 17:30:00: DFN_PLAYTEST_ARRIVE в таблице (безлюдная).
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -35,7 +36,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 62> TABLE{{
+constexpr std::array<Door, 63> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -65,6 +66,10 @@ constexpr std::array<Door, 62> TABLE{{
      DoorRead::Once, true},
     {"DFN_CAPTURE_AFTER_FRAMES",
      "то же, но через N ОТРИСОВАННЫХ КАДРОВ. Единственная из двух единиц, дающая две одинаковые руки на разной загрузке машины.",
+     DoorRead::Once, true},
+    {"DFN_PLAYTEST_ARRIVE",
+     "радиус прибытия бота к путевой точке, метры (маршруты сквозь дверные "
+     "проёмы хотят 0.3-0.4; штатный ~0.9 срезает в косяк).",
      DoorRead::Once, true},
     {"DFN_RECORD_EVERY",
      "лента прохода: каждый N-й показанный кадр — rec_%05d.png + строка rec.log "
